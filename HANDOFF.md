@@ -7,7 +7,7 @@
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.1.11**, installed and enabled, tag pushed, GitHub release
+Molten-hosted). Latest release **v1.1.12**, installed and enabled, tag pushed, GitHub release
 carries zip + manifest. **The box now tracks the GitHub manifest** (repointed 2026-08-15 —
 the self-hosted dev manifest and zip are gone), so the process vends the real version string.
 
@@ -150,6 +150,17 @@ Each of these is commented at the line where it bit. Do not rediscover them.
   the module holding every attack for a reaction the actor can never cast.
 - **An item added to a base actor reaches an unlinked token's delta stripped of its embedded
   effects and activities.** Set test fixtures up on the token actor, or use a linked token.
+- ⚠ **A 2024 statblock does not cast from the spell item at all.** Its "Spellcasting" feature
+  carries one **`cast` activity per spell**, and the activation, the resource and the
+  consumption all live on THAT activity — the spell item it links to is a target that reports
+  `spellSlot: true` with no uses and no slots. Verified on Skeletal Mage
+  (`Shield - Spellcasting`, activation `reaction`, uses 1/1, consumption `activityUses`) and on
+  the compendium Green Hag, which has the same shape on two features. Interrogating the spell
+  item concluded every statblock caster was unable to cast, so none ever held. Resolve
+  `activity.spell.uuid` for the real name; the activity's own name is decoration
+  ("Shield - Spellcasting" on one, plain "Augury" on another).
+  **On a cast activity, no uses pool means AT-WILL** — the opposite of the spell-item rule.
+  The Green Hag's at-will spells carry `uses.max: ""` and no consumption target at all.
 - **There are TWO ways to pay for a spell**, and monsters mostly use the second: a slot, or the
   statblock's "Additional Spells" x/x uses pool (item-level or activity-level). NPC slot maxima
   are derived from a caster level most statblocks never set, so they sit at 0/0 — requiring a

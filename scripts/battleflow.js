@@ -468,11 +468,22 @@ function isReactionItem(item) {
  * The first curated interrupt this actor can actually use right now, or null. Eligibility is
  * deliberately conservative: a hold the target cannot answer is a pure false stop.
  */
-function findInterrupt(actor, { isCritical }) {
+async function findInterrupt(actor, { isCritical }) {
   if ( !actor || reactionSpent(actor) ) return null;
   for ( const entry of interruptEntries() ) {
     // A natural 20 hits regardless of AC, so an AC-type reaction cannot save it — no pause.
     if ( isCritical && (entry.kind === "ac") ) continue;
+
+    // ⚠ THE MONSTER PATTERN COMES FIRST, because it is the common one. A 2024 statblock does
+    // not cast from the spell item at all: its "Spellcasting" feature carries one `cast`
+    // ACTIVITY per spell, and the resource lives on that activity — verified on Skeletal Mage
+    // ("Shield - Spellcasting", activation reaction, uses 1/1, consumption activityUses) and
+    // on the compendium Green Hag, which has the same shape on two features. The spell item
+    // that activity points at is a linked target: it reports spellSlot:true and no uses, so
+    // interrogating IT concluded the monster could not cast, and no statblock caster ever
+    // held (reported live 2026-08-15).
+    const cast = await findCastActivity(actor, entry.name);
+    if ( cast ) return { entry, item: cast.item, activity: cast.activity };
     // ⚠ EVERY item of that name, not the first. A caster who both wears a shield and knows
     // Shield has two items called "Shield", and `find` returned whichever sorted first — so
     // picking the mundane one disqualified the entry and the spell was never even considered.
@@ -494,6 +505,43 @@ function findInterrupt(actor, { isCritical }) {
         if ( (uses === "none") && !hasSpellSlot(actor, item.system.level) ) continue;
       }
       return { entry, item };
+    }
+  }
+  return null;
+}
+
+/** The spell a `cast` activity casts — the activity's own name is decoration, the link is truth. */
+async function castSpellName(activity) {
+  if ( activity?.type !== "cast" ) return null;
+  const uuid = activity.spell?.uuid;
+  if ( !uuid ) return null;
+  try { return (await fromUuid(uuid))?.name ?? null; } catch(err) { return null; }
+}
+
+/** Whatever a used activity should be MATCHED against: its linked spell, or its item. */
+async function reactionNameFor(activity) {
+  return (await castSpellName(activity)) ?? activity?.item?.name ?? null;
+}
+
+/**
+ * A feature's `cast` activity for the named spell, if this actor can use it as a reaction.
+ *
+ * ⚠ "No pool" means AT-WILL here, not "unavailable" — the opposite of the spell-item rule. A
+ * statblock's at-will spells carry `uses.max: ""` and no consumption target at all (the Green
+ * Hag's Spellcasting feature is exactly this), so demanding a pool would block every at-will
+ * reaction. A pool that exists and is empty still disqualifies.
+ */
+async function findCastActivity(actor, spellName) {
+  const wanted = spellName?.toLowerCase();
+  for ( const item of actor.items ) {
+    for ( const activity of item.system?.activities?.contents ?? [] ) {
+      if ( activity.type !== "cast" ) continue;
+      if ( activity.activation?.type !== "reaction" ) continue;
+      if ( (await castSpellName(activity))?.toLowerCase() !== wanted ) continue;
+      const max = Number(activity.uses?.max);
+      const pooled = Number.isFinite(max) && (max > 0);
+      if ( pooled && !(Number(activity.uses?.value) > 0) ) continue;   // pool exists, spent
+      return { item, activity };
     }
   }
   return null;
@@ -548,11 +596,15 @@ async function stampHoldIfInterrupted(attackMessage, roll, hits) {
   const held = [];
   for ( const target of hits ) {
     const actor = await fromUuid(target.uuid);
-    const found = findInterrupt(actor, { isCritical: roll.isCritical });
+    const found = await findInterrupt(actor, { isCritical: roll.isCritical });
     if ( found && !holdWouldMatter(actor, found, roll, target.ac) ) continue;
     if ( found ) held.push({
       uuid: target.uuid, name: target.name, ac: target.ac,
-      reaction: found.item.name, kind: found.entry.kind,
+      reaction: found.entry.name, kind: found.entry.kind,
+      // The exact activity that answers this hold. A statblock casts Shield from a feature's
+      // cast activity, not from the spell item, so a name lookup at Cast time finds the wrong
+      // document (or an unusable one) — record the ids instead of rediscovering them.
+      itemId: found.item.id, activityId: found.activity?.id ?? null,
       // Was the reaction's effect ALREADY on them when we stamped? If so the snapshot AC
       // already contains its bonus, and "did the AC move by the bonus" is unanswerable — see
       // reactionACArrived, which needs to know it cannot measure a delta.
@@ -690,9 +742,20 @@ Hooks.on("dnd5e.postUseActivity", activity => {
   // Exactly one client may volunteer this answer — the same client that owns the decision.
   // Without this gate every client that sees the cast posts its own "Gren reacts" message.
   if ( !canAnswerFor(actor) ) return;
-  const names = interruptEntries().map(e => e.name.toLowerCase());
-  if ( !names.includes(activity.item?.name?.toLowerCase()) ) return;
 
+  void (async () => {
+    // ⚠ Match on what was CAST, not on what owns the activity. A statblock's Shield lives on a
+    // feature called "Spellcasting", so matching the item's name never matched any interrupt
+    // and a monster casting from its own sheet answered nothing.
+    const names = interruptEntries().map(e => e.name.toLowerCase());
+    const castName = (await reactionNameFor(activity))?.toLowerCase();
+    if ( !names.includes(castName) ) return;
+    await answerHoldsFor(activity, actor);
+  })();
+});
+
+/** Fold a real cast into every hold it answers. */
+async function answerHoldsFor(activity, actor) {
   // ⚠ Collect every hold this cast answers, THEN act once. A multiattack that lands twice
   // stamps two holds on the same target and one Shield answers both — but spawning the work
   // per hold ran the applications CONCURRENTLY, and applyReactionEffect's duplicate check is
@@ -705,15 +768,13 @@ Hooks.on("dnd5e.postUseActivity", activity => {
     const hold = message.getFlag(MODULE_ID, "hold");
     if ( !hold || (hold.status !== "pending") ) continue;
     const target = hold.targets.find(t => (t.uuid === actor.uuid) && !t.answer);
-    if ( target ) answering.push({ message, uuid: target.uuid });
+    if ( target ) answering.push({ message, uuid: target.uuid, reaction: target.reaction });
   }
   if ( !answering.length ) return;
 
-  void (async () => {
-    if ( setting(S.holdApplyEffect) ) await applyReactionEffect(activity, actor);
-    for ( const { message, uuid } of answering ) await answerHold(message, uuid, "cast");
-  })();
-});
+  if ( setting(S.holdApplyEffect) ) await applyReactionEffect(activity, actor, answering[0].reaction);
+  for ( const { message, uuid } of answering ) await answerHold(message, uuid, "cast");
+}
 
 /**
  * Put a cast reaction's own effect on its caster — the button the native effects tray is
@@ -740,9 +801,17 @@ function hasReactionEffect(actor, reactionName) {
     || (e.origin && item && e.origin.includes(item.id))));
 }
 
-async function applyReactionEffect(activity, actor) {
+async function applyReactionEffect(activity, actor, reactionName) {
   try {
-    for ( const effect of activity.applicableEffects ?? [] ) {
+    // ⚠ A  activity has no effects of its own — they live on the spell it links to. Its
+    // owning item is the feature ("Spellcasting"), so fall back to the spell of the reaction's
+    // NAME on this actor, which is where Imperceptible Barrier actually sits.
+    let effects = activity?.applicableEffects ?? [];
+    if ( !effects.length && reactionName ) {
+      const spell = actor?.items.find(i => i.name.toLowerCase() === reactionName.toLowerCase());
+      effects = (spell?.effects?.contents ?? []).filter(e => !e.transfer);
+    }
+    for ( const effect of effects ) {
       const existing = actor.effects.find(e => (e.origin === effect.uuid) || (e.name === effect.name));
       if ( existing ) {
         await existing.update({ ...effect.constructor.getInitialDuration(), disabled: false });
@@ -806,9 +875,12 @@ async function continueHold(attackMessage) {
     for ( const target of hold.targets.filter(t => t.answer === "cast") ) {
       const actor = await fromUuid(target.uuid);
       if ( !actor?.isOwner || hasReactionEffect(actor, target.reaction) ) continue;
+      // The reaction NAME is what matters here, not the activity — applyReactionEffect falls
+      // back to the named spell's own effects, which is the only place a statblock's Shield
+      // keeps Imperceptible Barrier (its cast activity carries none).
       const item = actor.items.find(i => i.name.toLowerCase() === target.reaction.toLowerCase());
       const activity = item?.system.activities?.contents?.[0];
-      if ( activity ) await applyReactionEffect(activity, actor);
+      await applyReactionEffect(activity, actor, target.reaction);
     }
   }
 
@@ -1267,9 +1339,17 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
  */
 async function castReaction(target) {
   const actor = await fromUuid(target.uuid);
-  const item = actor?.items.find(i => i.name.toLowerCase() === target.reaction.toLowerCase());
-  const activity = item?.system.activities?.contents?.find(a => a.activation?.type === "reaction")
-    ?? item?.system.activities?.contents?.[0];
+  // Prefer the activity the hold recorded. A statblock casts Shield from its Spellcasting
+  // feature's `cast` activity — the spell item of the same name is a linked target that
+  // reports spellSlot:true with no slots, so casting THAT is refused for want of a resource.
+  let activity = target.activityId
+    ? actor?.items.get(target.itemId)?.system.activities?.get(target.activityId)
+    : null;
+  if ( !activity ) {
+    const item = actor?.items.find(i => i.name.toLowerCase() === target.reaction.toLowerCase());
+    activity = item?.system.activities?.contents?.find(a => a.activation?.type === "reaction")
+      ?? item?.system.activities?.contents?.[0];
+  }
   if ( !activity ) {
     ui.notifications.warn(`${TITLE}: could not find ${target.reaction} on ${target.name} to cast.`);
     return;
