@@ -465,6 +465,39 @@ function isReactionItem(item) {
 }
 
 /**
+ * The item that actually IS this reaction on this actor — for every question asked ABOUT a
+ * reaction after eligibility: where its effect lives, what it looks like, what its AC bonus is.
+ *
+ * ⚠ ONE NAME CAN MATCH SEVERAL ITEMS, and the wrong match is silent. An armoured statblock
+ * caster owns a mundane shield (`equipment` named "Shield" — no effects, no activation) AND,
+ * because a `cast` activity keeps its spell as a cached copy on the actor, a Shield SPELL.
+ * `items.find()` returns whichever sorts first, and on an unlinked token the base actor's
+ * equipment sorts ahead of the delta-created cached spell. Every downstream question then
+ * interrogates the wrong document: "has the effect landed?" is answered no forever, the +5
+ * becomes unmeasurable so hopeless holds stop being skippable, and the popup shows a shield's
+ * artwork above a shield's description. findInterrupt learned this for ELIGIBILITY (it tests
+ * every match, ground truth 2026-08-15); these lookups never did, and the result was a hold
+ * that resolved correctly as a miss while announcing "Reaction — not applied … so this
+ * resolves as a hit" — authoritative and wrong (caught by smoke-hold's statblock section).
+ *
+ * Preference order: the cached spell of the cast activity the hold recorded, because a
+ * statblock's Shield lives there and nowhere else; then a match that can really be used as a
+ * reaction; then one that at least carries effects; then whatever is left.
+ */
+function reactionItem(actor, reactionName, { itemId, activityId } = {}) {
+  if ( !actor || !reactionName ) return null;
+  const cached = activityId
+    ? actor.items.get(itemId)?.system.activities?.get(activityId)?.cachedSpell
+    : null;
+  if ( cached ) return cached;
+  const matches = actor.items.filter(i => i.name.toLowerCase() === reactionName.toLowerCase());
+  return matches.find(i => isReactionItem(i) && i.effects.size)
+    ?? matches.find(i => isReactionItem(i))
+    ?? matches.find(i => i.effects.size)
+    ?? matches[0] ?? null;
+}
+
+/**
  * The first curated interrupt this actor can actually use right now, or null. Eligibility is
  * deliberately conservative: a hold the target cannot answer is a pure false stop.
  */
@@ -608,7 +641,11 @@ async function stampHoldIfInterrupted(attackMessage, roll, hits) {
       // Was the reaction's effect ALREADY on them when we stamped? If so the snapshot AC
       // already contains its bonus, and "did the AC move by the bonus" is unanswerable — see
       // reactionACArrived, which needs to know it cannot measure a delta.
-      hadEffect: hasReactionEffect(actor, found.item.name),
+      // ⚠ The ENTRY's name, not the found item's. On the statblock path the found item is the
+      // "Spellcasting" feature, so asking about its effects answers a different question and
+      // always says no.
+      hadEffect: hasReactionEffect(actor, found.entry.name,
+        { itemId: found.item.id, activityId: found.activity?.id }),
       answer: null, verdict: null
     });
   }
@@ -647,7 +684,10 @@ async function stampHoldIfInterrupted(attackMessage, roll, hits) {
 function holdWouldMatter(actor, found, roll, snapshotAC) {
   if ( !setting(S.holdSkipFutile) || !setting(S.holdReveal) ) return true;
   if ( found.entry.kind !== "ac" ) return true;   // damage reactions always reduce something
-  const bonus = reactionACBonus(found.item.name, actor);
+  // ⚠ The entry's name plus the found ids — `found.item` is the "Spellcasting" feature on a
+  // statblock caster, whose effects say nothing about Shield's +5.
+  const bonus = reactionACBonus(found.entry.name, actor,
+    { itemId: found.item.id, activityId: found.activity?.id });
   if ( bonus == null ) return true;               // unmeasurable bonus — ask the human
   const liveAC = actor?.system?.attributes?.ac?.value ?? snapshotAC;
   if ( !Number.isFinite(liveAC) ) return true;
@@ -704,7 +744,7 @@ async function answerHold(attackMessage, uuid, answer) {
       : [`No reaction — the attack lands.`];
     await ChatMessage.create({
       content: bfCard({
-        img: reactionImg(actor, target.reaction),
+        img: reactionImg(actor, target.reaction, target),
         eyebrow: cast ? "Reaction — cast" : "Reaction — passed",
         title: cast ? target.reaction : "Lets it land",
         subtitle: target.name,
@@ -793,22 +833,23 @@ async function answerHoldsFor(activity, actor) {
  * origin uuid differs from the one the continuing client would compute, and an origin-only
  * test would happily apply Shield twice.
  */
-function hasReactionEffect(actor, reactionName) {
+function hasReactionEffect(actor, reactionName, ids) {
   if ( !actor || !reactionName ) return false;
-  const item = actor.items.find(i => i.name.toLowerCase() === reactionName.toLowerCase());
+  const item = reactionItem(actor, reactionName, ids);
   const names = new Set((item?.effects?.contents ?? []).map(e => e.name));
   return actor.effects.some(e => !e.disabled && (names.has(e.name)
     || (e.origin && item && e.origin.includes(item.id))));
 }
 
-async function applyReactionEffect(activity, actor, reactionName) {
+async function applyReactionEffect(activity, actor, reactionName, ids) {
   try {
-    // ⚠ A  activity has no effects of its own — they live on the spell it links to. Its
-    // owning item is the feature ("Spellcasting"), so fall back to the spell of the reaction's
-    // NAME on this actor, which is where Imperceptible Barrier actually sits.
+    // ⚠ A cast activity has no effects of its own — they live on the spell it links to. Its
+    // owning item is the feature ("Spellcasting"), so fall back to the reaction's own item on
+    // this actor, which is where Imperceptible Barrier actually sits. Resolved through
+    // reactionItem, never a bare name match: on an armoured caster that finds the worn shield.
     let effects = activity?.applicableEffects ?? [];
     if ( !effects.length && reactionName ) {
-      const spell = actor?.items.find(i => i.name.toLowerCase() === reactionName.toLowerCase());
+      const spell = reactionItem(actor, reactionName, ids);
       effects = (spell?.effects?.contents ?? []).filter(e => !e.transfer);
     }
     for ( const effect of effects ) {
@@ -874,13 +915,14 @@ async function continueHold(attackMessage) {
   if ( setting(S.holdApplyEffect) ) {
     for ( const target of hold.targets.filter(t => t.answer === "cast") ) {
       const actor = await fromUuid(target.uuid);
-      if ( !actor?.isOwner || hasReactionEffect(actor, target.reaction) ) continue;
-      // The reaction NAME is what matters here, not the activity — applyReactionEffect falls
-      // back to the named spell's own effects, which is the only place a statblock's Shield
-      // keeps Imperceptible Barrier (its cast activity carries none).
-      const item = actor.items.find(i => i.name.toLowerCase() === target.reaction.toLowerCase());
+      if ( !actor?.isOwner || hasReactionEffect(actor, target.reaction, target) ) continue;
+      // The reaction's own ITEM is what matters here, not the activity — applyReactionEffect
+      // falls back to that item's effects, which is the only place a statblock's Shield keeps
+      // Imperceptible Barrier (its cast activity carries none). `target` carries the itemId and
+      // activityId the hold recorded, so the cached spell is found rather than a worn shield.
+      const item = reactionItem(actor, target.reaction, target);
       const activity = item?.system.activities?.contents?.[0];
-      await applyReactionEffect(activity, actor, target.reaction);
+      await applyReactionEffect(activity, actor, target.reaction, target);
     }
   }
 
@@ -895,7 +937,7 @@ async function continueHold(attackMessage) {
     target.verdict = hit ? "hit" : "miss";
     target.acAtVerdict = liveAC;
     if ( target.answer !== "cast" ) continue;
-    const img = reactionImg(actor, target.reaction);
+    const img = reactionImg(actor, target.reaction, target);
     if ( target.kind === "ac" ) {
       // If the reaction's AC never arrived, the number we just tested against is the one the
       // target had BEFORE reacting — so say so instead of reporting a stale value as fact.
@@ -952,11 +994,11 @@ async function continueHold(attackMessage) {
  * later and on every client separately. A verdict must wait on the NUMBER.
  */
 function reactionACArrived(actor, target) {
-  if ( !hasReactionEffect(actor, target.reaction) ) return false;
+  if ( !hasReactionEffect(actor, target.reaction, target) ) return false;
   // Already applied when we stamped, so the snapshot contains the bonus and there is no delta
   // to look for — the effect row is the whole of what can be checked.
   if ( target.hadEffect ) return true;
-  const bonus = reactionACBonus(target.reaction, actor);
+  const bonus = reactionACBonus(target.reaction, actor, target);
   if ( bonus == null ) return true; // proficiency-scaled or formula bonus: not measurable here
   const liveAC = actor?.system?.attributes?.ac?.value;
   return Number.isFinite(liveAC) && (liveAC >= ((target.ac ?? 0) + bonus));
@@ -1051,8 +1093,8 @@ function bfCard({ img, eyebrow, title, subtitle, lines = [], tone = "neutral" })
 }
 
 /** The reaction's own artwork, for cards that talk about it. */
-function reactionImg(actor, reactionName) {
-  return actor?.items.find(i => i.name.toLowerCase() === reactionName?.toLowerCase())?.img ?? null;
+function reactionImg(actor, reactionName, ids) {
+  return reactionItem(actor, reactionName, ids)?.img ?? null;
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -1189,8 +1231,8 @@ async function fireHoldTimer(messageId) {
  * Shield is wrong for the other twelve entries. Returns null for a non-numeric bonus (a
  * proficiency-scaled one like Defensive Duelist), which simply omits the "would it flip" line.
  */
-function reactionACBonus(reactionName, actor) {
-  const item = actor?.items.find(i => i.name.toLowerCase() === reactionName?.toLowerCase());
+function reactionACBonus(reactionName, actor, ids) {
+  const item = reactionItem(actor, reactionName, ids);
   for ( const effect of item?.effects ?? [] ) {
     for ( const change of effect.changes ?? [] ) {
       if ( change.key !== "system.attributes.ac.bonus" ) continue;
@@ -1213,7 +1255,7 @@ function revealDetail(target, roll, actor) {
   if ( !setting(S.holdReveal) ) return null;
   const liveAC = actor?.system?.attributes?.ac?.value ?? target.ac;
   const total = roll?.total ?? null;
-  const bonus = (target.kind === "ac") ? reactionACBonus(target.reaction, actor) : null;
+  const bonus = (target.kind === "ac") ? reactionACBonus(target.reaction, actor, target) : null;
   return {
     total, liveAC, bonus,
     wouldAC: bonus == null ? null : liveAC + bonus,
@@ -1280,7 +1322,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       }
 
       block.innerHTML = bfCard({
-        img: reactionImg(actor, target.reaction),
+        img: reactionImg(actor, target.reaction, target),
         eyebrow, title: target.reaction, subtitle, lines, tone
       }) + holdBarHTML(hold);
       scheduleBarSync(block);
@@ -1346,7 +1388,10 @@ async function castReaction(target) {
     ? actor?.items.get(target.itemId)?.system.activities?.get(target.activityId)
     : null;
   if ( !activity ) {
-    const item = actor?.items.find(i => i.name.toLowerCase() === target.reaction.toLowerCase());
+    // No recorded activity (an older hold, or a spell-item reaction): resolve the reaction's
+    // real item rather than the first thing sharing its name — a worn shield has no activities
+    // at all, so a bare name match here produces "could not find Shield to cast".
+    const item = reactionItem(actor, target.reaction);
     activity = item?.system.activities?.contents?.find(a => a.activation?.type === "reaction")
       ?? item?.system.activities?.contents?.[0];
   }
@@ -1379,7 +1424,9 @@ function holdButton(label, onClick) {
  * to protect, so it should read like the ability rather than like a confirm box.
  */
 async function holdPopupContent(target, roll, actor, hold) {
-  const item = actor?.items.find(i => i.name.toLowerCase() === target.reaction.toLowerCase());
+  // ⚠ The reaction's real item. Matched by bare name this showed a worn shield's artwork above
+  // a worn shield's description in the popup that is supposed to be the moment of the spell.
+  const item = reactionItem(actor, target.reaction, target);
   const img = item?.img ?? "icons/svg/shield.svg";
   const subtitle = [target.name, item?.system?.activation?.type === "reaction" ? "Reaction" : null]
     .filter(Boolean).join(" · ");
