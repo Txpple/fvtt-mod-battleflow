@@ -334,25 +334,24 @@ async function applyToHitTargets(damageMessage, hits) {
  * Receipts — the GM-only revert row on damage cards. The flag is the state; this is a view.
  * ------------------------------------------------------------------------------------------- */
 
-/** Damage messages whose tray this client has already auto-collapsed (once per message). */
-const autoCollapsed = new Set();
-
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const receipt = message.getFlag(MODULE_ID, "receipt");
   if ( !receipt?.targets?.length || !game.user.isGM ) return;
 
-  // An applied card's damage tray collapses exactly as if Apply had been pressed — the
-  // native handler's behavior and setting guard, mirrored (damage-application.mjs:337: skip
-  // when autoCollapseChatTrays is "manual"). Once only, and never on a fully-reverted card:
-  // this hook runs after the system's _collapseTrays, so a standing rule here would override
-  // the GM deliberately re-opening the tray (e.g. to re-apply at ½ after a revert).
+  // While an un-reverted application stands, every render of the card starts with its damage
+  // tray collapsed, as if Apply had been pressed (same "manual" setting guard as the native
+  // handler, damage-application.mjs:337). Stateless and per-tree by hard-won necessity: a
+  // message renders into SEVERAL DOM trees (chat log, the notifications pane, popouts), and
+  // any latched once-per-message guard collapses a tree that gets replaced while the ones on
+  // screen skip (bit live 2026-08-15). A manually reopened tray survives until the next
+  // re-render — which only a receipt change or a log rebuild triggers — because the flag is
+  // the state and the tray, like the receipt row, is just a view of it.
   // ⚠ Toggle the ATTRIBUTE, never the property: this render tree is detached, so custom
   // elements in it are not yet upgraded — `tray.open = false` writes a plain property that
-  // shadows the accessor and never touches the attribute (bit live 2026-08-15; the system's
-  // own _collapseTrays uses toggleAttribute for the same reason, chat-message.mjs:166).
-  if ( receipt.targets.some(t => !t.reverted) && !autoCollapsed.has(message.id)
+  // shadows the accessor and never touches the attribute (the system's own _collapseTrays
+  // uses toggleAttribute for the same reason, chat-message.mjs:166).
+  if ( receipt.targets.some(t => !t.reverted)
     && (game.settings.get("dnd5e", "autoCollapseChatTrays") !== "manual") ) {
-    autoCollapsed.add(message.id);
     html.querySelector("damage-application")?.toggleAttribute("open", false);
   }
 

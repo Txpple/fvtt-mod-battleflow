@@ -199,8 +199,12 @@ off), none changing the resolution chain:
 
 - **Applied cards collapse their damage tray** exactly as if Apply had been pressed (same
   `autoCollapseChatTrays !== "manual"` guard as the native handler) — an already-applied
-  roll must never sit one accidental click from landing twice. Once per card, so a GM
-  deliberately re-opening the tray (re-apply at ½ after a revert) isn't fought.
+  roll must never sit one accidental click from landing twice. Stateless and per render
+  while an un-reverted application stands: a message renders into several DOM trees (chat
+  log, notifications pane, popouts), so any once-per-card latch collapses one tree while
+  the ones on screen skip (bit live 2026-08-15). The tray, like the receipt row, is a view
+  of the receipt flag; a manually reopened tray survives until the next re-render, which
+  only a receipt change or a log rebuild triggers.
 - **Require a target to attack** (world): using an attack with no target selected warns and
   cancels the use before anything rolls or consumes (`dnd5e.preUseActivity` veto on the
   initiating client — the combatplus initiative-gate pattern). Makes the Phase-0 table

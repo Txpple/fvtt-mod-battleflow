@@ -247,9 +247,18 @@ if (!fx.ok) { process.exit(1); }
         `[data-message-id="${damageMsgId}"] .battleflow-receipt button`);
       if (!button) return { ok: false, why: 'receipt revert button not found in chat DOM' };
       // The applied card's damage tray must sit collapsed, as if Apply had been pressed
-      // (world setting is not "manual" here, so the guard doesn't apply).
-      const trayOpen = document.querySelector(
-        `[data-message-id="${damageMsgId}"] damage-application`)?.open ?? null;
+      // (world setting is not "manual" here, so the guard doesn't apply). Report EVERY
+      // rendered instance of the card — chat log, notifications pane, popouts — because a
+      // message can render into several DOM trees and each has its own tray.
+      const trays = Array.from(document.querySelectorAll(
+        `[data-message-id="${damageMsgId}"] damage-application`)).map(t => ({
+          open: t.open,
+          container: t.closest('#chat-notifications') ? 'notifications'
+            : t.closest('#chat') ? 'chat-log' : (t.closest('[id]')?.id ?? 'unknown'),
+        }));
+      // Native Apply collapses only the tray that was clicked; other DOM instances keep
+      // their state. Parity target: the persistent chat-log instance must be collapsed.
+      const trayOpen = trays.some(t => t.container === 'chat-log' && t.open);
       button.click();
 
       const victim = canvas.tokens.get(victimToken).actor; // the damaged (synthetic) actor
@@ -265,14 +274,14 @@ if (!fx.ok) { process.exit(1); }
         `[data-message-id="${damageMsgId}"] .battleflow-receipt button`);
       return {
         ok: true, hp: { value: hp.value, temp: hp.temp }, expectedHp,
-        buttonGone: !buttonAfter, trayOpen,
+        buttonGone: !buttonAfter, trayOpen, trays,
       };
     } catch (err) {
       return { ok: false, why: `${err.message}\n${err.stack}` };
     }
   }, fx);
   report('applied card tray auto-collapsed (as if Apply pressed)', r.ok && r.trayOpen === false,
-    r.ok ? `damage-application open=${r.trayOpen}` : r.why);
+    r.ok ? `instances=${JSON.stringify(r.trays)}` : r.why);
   report('revert restores the HP snapshot (real click)',
     r.ok && r.hp.value === r.expectedHp.value && (r.hp.temp ?? null) === (r.expectedHp.temp ?? null),
     r.ok ? `hp back to ${r.hp.value}; button removed on re-render: ${r.buttonGone}` : r.why);
