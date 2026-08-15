@@ -572,16 +572,26 @@ Hooks.on("dnd5e.postUseActivity", activity => {
   const names = interruptEntries().map(e => e.name.toLowerCase());
   if ( !names.includes(activity.item?.name?.toLowerCase()) ) return;
 
+  // ⚠ Collect every hold this cast answers, THEN act once. A multiattack that lands twice
+  // stamps two holds on the same target and one Shield answers both — but spawning the work
+  // per hold ran the applications CONCURRENTLY, and applyReactionEffect's duplicate check is
+  // a read followed by an await: each call looked before any other had created anything, so
+  // each created its own. One casting, +10 AC (caught by smoke-hold 2026-08-15 — "AC moves
+  // +5" read 12 → 22). RAW a reaction is cast once and covers every attack it answers, so
+  // the effect lands once up front and the answers are sequenced behind it.
+  const answering = [];
   for ( const message of game.messages.contents.slice(-25) ) {
     const hold = message.getFlag(MODULE_ID, "hold");
     if ( !hold || (hold.status !== "pending") ) continue;
     const target = hold.targets.find(t => (t.uuid === actor.uuid) && !t.answer);
-    if ( !target ) continue;
-    void (async () => {
-      if ( setting(S.holdApplyEffect) ) await applyReactionEffect(activity, actor);
-      await answerHold(message, target.uuid, "cast");
-    })();
+    if ( target ) answering.push({ message, uuid: target.uuid });
   }
+  if ( !answering.length ) return;
+
+  void (async () => {
+    if ( setting(S.holdApplyEffect) ) await applyReactionEffect(activity, actor);
+    for ( const { message, uuid } of answering ) await answerHold(message, uuid, "cast");
+  })();
 });
 
 /**

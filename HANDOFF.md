@@ -7,7 +7,7 @@
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.1.3**, installed and enabled, tag pushed, GitHub release
+Molten-hosted). Latest release **v1.1.4**, installed and enabled, tag pushed, GitHub release
 carries zip + manifest. **The box now tracks the GitHub manifest** (repointed 2026-08-15 —
 the self-hosted dev manifest and zip are gone), so the process vends the real version string.
 
@@ -58,6 +58,12 @@ bounce, nobody disconnected. `module.json` changes (the version string, new `esm
 entries) keep vending old values until the Foundry **process** restarts — expected, not a
 failure. A bounce is `register-module.mjs --id … --manifest …`; enabling is
 `configure-modules.mjs --enable …`. Never call `game.shutDown()` through the bridge.
+
+⚠ **Never bound a "did the damage appear?" search to a tail window of the chat log.** These
+suites fire dozens of attacks, and a late-resolving stray hold injects announcement messages
+that push a real damage card out of a short tail — two assertions flaked that way on
+2026-08-15 and cost a bisect. An originating id is unique to one attack, so searching the
+whole log cannot produce a false positive.
 
 **Test** — both suites restore every setting they touch and delete their own chat messages:
 

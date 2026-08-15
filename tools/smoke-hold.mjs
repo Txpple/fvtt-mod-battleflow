@@ -143,9 +143,31 @@ const r = await f.evaluate(async () => {
       }
       throw new Error(`could not roll a plain hit${window ? ` in [${baseAC}, ${baseAC + 4}]` : ''} in ${tries} attempts`);
     };
-    const damageFor = usageId => game.messages.contents.slice(-14).find(m =>
+    // ⚠ Search the WHOLE log, not a tail window. An originating id is unique to one attack, so
+    // a wider search cannot produce a false positive — but a tail window produces false
+    // NEGATIVES: these sections fire up to 60 attacks, and a late-resolving stray hold injects
+    // announcement messages that push a real damage card out of a 14-message tail. That flaked
+    // two assertions on 2026-08-15 ("damage flows" and the crit skip) and cost a bisect.
+    const damageFor = usageId => game.messages.contents.find(m =>
       m.getFlag('dnd5e', 'roll.type') === 'damage'
       && m.getFlag('dnd5e', 'originatingMessage') === usageId);
+
+    // When a damage assertion fails, say WHY rather than just "false": a damage message that
+    // exists but has scrolled out of damageFor's 14-message window is a harness artifact; one
+    // that does not exist at all is the module. Gren's live AC and HP are here too, because a
+    // stray Shield effect makes a "hit" by the harness's captured baseAC a miss to the module.
+    const diagnose = (usageId, total) => ({
+      existsAnywhere: !!game.messages.contents.find(m =>
+        m.getFlag('dnd5e', 'roll.type') === 'damage'
+        && m.getFlag('dnd5e', 'originatingMessage') === usageId),
+      attackTotal: total ?? null,
+      grenLiveAC: gren.system.attributes.ac.value,
+      grenBaseAC: baseAC,
+      grenHP: gren.system.attributes.hp.value,
+      grenEffects: gren.effects.map(e => `${e.name}/disabled=${e.disabled}`),
+      messagesSinceUsage: game.messages.contents.length
+        - game.messages.contents.findIndex(m => m.id === usageId),
+    });
 
     /**
      * A GM-owned stand-in for Gren: a full clone of him, so the Shield being cast is a real
@@ -262,11 +284,12 @@ const r = await f.evaluate(async () => {
     // ---- 4. reaction already spent ⇒ no hold at all -----------------------------------------
     {
       await gren.setFlag(MOD, 'reactionSpent', true);
-      const { usageId, msg } = await plainHitOnGren();
+      const { usageId, msg, total } = await plainHitOnGren();
       await sleep(2500);
       results.spentSuppresses = {
         held: !!game.messages.get(msg.id)?.getFlag(MOD, 'hold'),
         damageRolled: !!damageFor(usageId),
+        why: diagnose(usageId, total),
       };
       await gren.unsetFlag(MOD, 'reactionSpent');
     }
@@ -332,6 +355,58 @@ const r = await f.evaluate(async () => {
       await victimActor.unsetFlag(MOD, 'reactionSpent');
     }
 
+    // ---- 4b2. ONE casting answers MANY holds, and lands exactly ONE effect -------------------
+    // A multiattack that lands twice stamps two holds on the same target; RAW the one Shield
+    // covers both. The cast used to spawn its work per hold, concurrently, so each application
+    // read the actor's effects before any other had written one and each created its own —
+    // +10 AC from a single casting. Deterministic here: stamp exactly two holds, cast once.
+    {
+      const { actor: victimActor, token: victimTokenObj } = await ensureShielder();
+      const vAC = victimActor.system.attributes.ac.value;
+      const slotsBefore = victimActor.system.spells.spell1.value;
+
+      // Two separate attacks that both HIT (any margin — the verdict is not what is on trial).
+      const held = [];
+      for (let i = 0; i < 40 && held.length < 2; i++) {
+        victimTokenObj.setTarget(true, { releaseOthers: true });
+        const usage = await activity().use({ subsequentActions: false }, { configure: false }, {});
+        const rolls = await activity().rollAttack({ advantage: true }, { configure: false },
+          { data: { 'flags.dnd5e.originatingMessage': usage?.message?.id } });
+        const t = rolls?.[0];
+        if (!t || t.isCritical || t.isFumble || (t.total < vAC)) { await sleep(100); continue; }
+        const msg = t.parent;
+        const ok = await waitFor(() =>
+          game.messages.get(msg.id)?.getFlag(MOD, 'hold')?.status === 'pending', 6000)
+          .catch(() => null);
+        if (ok) held.push(msg.id);
+      }
+      if (held.length < 2) throw new Error(`only ${held.length} hold(s) stamped; need 2`);
+
+      // ONE cast, driven from the first hold's card button.
+      const castButton = Array.from(document.querySelectorAll(
+        `[data-message-id="${held[0]}"] .battleflow-hold button`))
+        .find(b => b.textContent.trim() === 'Cast');
+      if (!castButton) throw new Error('no Cast button on the first of the two holds');
+      castButton.click();
+
+      await waitFor(() => game.messages.get(held[0])?.getFlag(MOD, 'hold')?.status === 'resolved',
+        25000);
+      await sleep(1500);
+      const barriers = victimActor.effects.filter(e =>
+        e.name === 'Imperceptible Barrier' && !e.disabled);
+      results.oneCastOneEffect = {
+        holds: held.length,
+        effectCount: barriers.length,
+        acBefore: vAC,
+        acAfter: victimActor.system.attributes.ac.value,
+        slotsSpent: slotsBefore - victimActor.system.spells.spell1.value,
+        // The second hold must also read as answered by that single cast, not left pending.
+        secondAnswered: game.messages.get(held[1])?.getFlag(MOD, 'hold')?.targets?.[0]?.answer ?? null,
+      };
+      for (const e of victimActor.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
+      await victimActor.unsetFlag(MOD, 'reactionSpent');
+    }
+
     // ---- 4c. THE SAFETY NET: a cast whose client never applied the effect --------------------
     // Reproduces the live failure of 2026-08-15 exactly — Tom cast Shield, nothing applied
     // his effect, and the module announced "Shield raises AC to 12" and dealt damage. Here
@@ -390,6 +465,7 @@ const r = await f.evaluate(async () => {
           rolled: true,
           held: !!game.messages.get(crit.msg.id)?.getFlag(MOD, 'hold'),
           damageRolled: !!damageFor(crit.usageId),
+          why: diagnose(crit.usageId, crit.total),
         };
       } else {
         results.critSkipsHold = { rolled: false }; // no crit in 60 tries; reported, not failed
@@ -413,6 +489,15 @@ const r = await f.evaluate(async () => {
         });
         await gren?.unsetFlag(MOD, 'reactionSpent');
         for (const e of gren?.effects?.filter(e => e.name === 'Imperceptible Barrier') ?? []) await e.delete();
+      }
+      // The stand-in is a pure fixture, and every real-cast section spends a REAL 1st-level
+      // slot on it. Hand them back, or the suite quietly runs itself out of Shield and starts
+      // failing for want of a slot instead of for a bug.
+      const shielder = game.actors.getName('BF Test Shielder');
+      if (shielder) {
+        await shielder.update({ 'system.spells.spell1.value': shielder.system.spells.spell1.max });
+        await shielder.unsetFlag(MOD, 'reactionSpent');
+        for (const e of shielder.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
       }
       const mine = game.messages.filter(m =>
         m.speaker?.alias?.startsWith('BF Test') || m.speaker?.alias === 'Battle Flow'
@@ -453,6 +538,14 @@ report('REAL cast: the Cast control actually spends the slot (it is a cast, not 
 report("REAL cast: the module lands the reaction's effect and AC moves +5",
   x.realCast?.effectApplied === true && x.realCast?.acAfter === x.realCast?.acBefore + 5,
   `AC ${x.realCast?.acBefore} → ${x.realCast?.acAfter}, effect applied: ${x.realCast?.effectApplied}`);
+report('ONE casting answers MANY holds and lands exactly ONE effect',
+  x.oneCastOneEffect?.effectCount === 1
+  && x.oneCastOneEffect?.acAfter === x.oneCastOneEffect?.acBefore + 5
+  && x.oneCastOneEffect?.slotsSpent === 1,
+  JSON.stringify(x.oneCastOneEffect));
+report('the second hold is answered by that same casting',
+  x.oneCastOneEffect?.secondAnswered === 'cast',
+  `second hold answer: ${x.oneCastOneEffect?.secondAnswered}`);
 report('REAL cast: the attack becomes a miss and no damage rolls',
   x.realCast?.verdict === 'miss' && x.realCast?.damageRolled === false,
   JSON.stringify(x.realCast));
