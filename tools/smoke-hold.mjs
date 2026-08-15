@@ -500,6 +500,65 @@ const r = await f.evaluate(async () => {
       };
     }
 
+    // ---- 4d2. THE MONSTER PATTERN: a spell paid for by x/x uses, with no slots ---------------
+    // A statblock caster carries Shield under "Additional Spells" as an x/x pool, not as a
+    // slot — NPC slot maxima derive from a caster level most statblocks never set, so they sit
+    // at 0/0. Eligibility used to demand a slot AND `prepared`, and every levelled spell on a
+    // 2024 NPC reads prepared: 0, so the entire monster side of this feature was dead.
+    {
+      const victimBase = game.actors.getName('BF Test Victim');
+      const vTokDoc = scene.tokens.find(t => t.actorId === victimBase.id);
+      const vActor = vTokDoc.actor;    // unlinked: build on the TOKEN actor or lose the pieces
+      const grenShield = gren.items.find(i => i.name === 'Shield' && i.type === 'spell');
+
+      // Give it Shield exactly as a statblock would: one use, no slots anywhere.
+      const data = grenShield.toObject();
+      delete data._id;
+      data.system.uses = { max: '1', spent: 0, recovery: [] };
+      data.system.prepared = 0;        // as a 2024 NPC statblock actually stores it
+      const [npcShield] = await vActor.createEmbeddedDocuments('Item', [data]);
+      await victimBase.update({
+        'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 10 });
+      await vActor.unsetFlag(MOD, 'reactionSpent');
+
+      const slots = Object.entries(vActor.system.spells ?? {})
+        .filter(([k]) => /^spell[1-9]$/.test(k))
+        .map(([k, v]) => `${k}:${v?.value ?? 0}/${v?.max ?? 0}`);
+
+      let atk = null;
+      for (let i = 0; i < 30 && !atk; i++) {
+        canvas.tokens.get(vTokDoc.id).setTarget(true, { releaseOthers: true });
+        const usage = await activity().use({ subsequentActions: false }, { configure: false }, {});
+        const rolls = await activity().rollAttack({ advantage: true }, { configure: false },
+          { data: { 'flags.dnd5e.originatingMessage': usage?.message?.id } });
+        const t = rolls?.[0];
+        if (t && !t.isCritical && !t.isFumble && t.total >= 10 && t.total < 15) atk = { msg: t.parent, total: t.total };
+        else await sleep(70);
+      }
+      if (!atk) throw new Error('no attack in the NPC flip window');
+      const held = await waitFor(() => {
+        const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
+        return h?.status === 'pending' ? h : null;
+      }, 8000).catch(() => null);
+
+      results.npcUsesSpell = {
+        slots: slots.join(' '), itemUses: `${npcShield.system.uses?.value}/${npcShield.system.uses?.max}`,
+        prepared: npcShield.system.prepared,
+        held: !!held, reaction: held?.targets?.[0]?.reaction ?? null,
+      };
+
+      // Answer it so nothing is left pending, then take the spell back off the fixture.
+      if (held) {
+        const doc = game.messages.get(atk.msg.id);
+        const m = foundry.utils.deepClone(doc.getFlag(MOD, 'hold'));
+        m.targets.forEach(t => { t.answer = t.answer ?? 'pass'; });
+        await doc.setFlag(MOD, 'hold', m);
+        await sleep(800);
+      }
+      await npcShield.delete();
+      await vActor.unsetFlag(MOD, 'reactionSpent');
+    }
+
     // ---- 4e. THE TIMER: an unanswered hold passes itself ------------------------------------
     {
       await game.settings.set(MOD, 'holdTimer', 4);
@@ -676,6 +735,9 @@ report('REAL cast: the Cast control actually spends the slot (it is a cast, not 
 report("REAL cast: the module lands the reaction's effect and AC moves +5",
   x.realCast?.effectApplied === true && x.realCast?.acAfter === x.realCast?.acBefore + 5,
   `AC ${x.realCast?.acBefore} → ${x.realCast?.acAfter}, effect applied: ${x.realCast?.effectApplied}`);
+report('an NPC holds a spell paid for by x/x uses, with no slots at all',
+  x.npcUsesSpell?.held === true && x.npcUsesSpell?.reaction === 'Shield',
+  JSON.stringify(x.npcUsesSpell));
 report('the timer passes an unanswered hold and the chain resolves',
   x.timer?.hadDeadline === true && x.timer?.answer === 'pass'
   && x.timer?.timedOut === true && x.timer?.damageRolled === true,

@@ -7,7 +7,7 @@
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.1.10**, installed and enabled, tag pushed, GitHub release
+Molten-hosted). Latest release **v1.1.11**, installed and enabled, tag pushed, GitHub release
 carries zip + manifest. **The box now tracks the GitHub manifest** (repointed 2026-08-15 —
 the self-hosted dev manifest and zip are gone), so the process vends the real version string.
 
@@ -35,11 +35,12 @@ in v1.1.8 — design.md §5 carries the correction).
    that calls a dismissed popup back. ⚠ Never give one decision two live controls — that is
    how the card and popup got out of step. Look-and-feel is still being tuned against
    screenshots from real play; expect wording and density to move.
-2. **The hold has no timer.** design.md §4.3 and Phase 1.5 both spec one — a world setting
-   (off, or N seconds), a pure-CSS draining bar in popup and card, the continuing client as
-   the one authoritative clock, resume-on-reload from the message timestamp, and auto-continue
-   as Pass at the buzzer. **None of it is built**; there is no `holdTimer` setting in the code.
-   Asked after live play, so it is wanted.
+2. **The hold timer is built** (v1.1.8–v1.1.10) — `holdTimer` seconds, 0 = wait indefinitely,
+   live at 15s. The continuing client owns the one authoritative clock and re-checks at the
+   buzzer; unanswered targets pass and are marked `timedOut`. The bar is built with
+   `element.animate()` and positioned from the flag's absolute deadline, so popup and card
+   agree exactly (measured drift 0). ⚠ Do not "simplify" it back to a CSS animation — see the
+   ground truth below for why that silently desyncs.
 3. **The PC-attacker path is untested at the table** (v1.1.3 opened it). The harness covers the
    actor-type gate but runs as a GM, so it cannot BE a player client. Untested for real:
    a player's client stamping a hold on its own attack message, and then driving that hold's
@@ -149,6 +150,18 @@ Each of these is commented at the line where it bit. Do not rediscover them.
   the module holding every attack for a reaction the actor can never cast.
 - **An item added to a base actor reaches an unlinked token's delta stripped of its embedded
   effects and activities.** Set test fixtures up on the token actor, or use a linked token.
+- **There are TWO ways to pay for a spell**, and monsters mostly use the second: a slot, or the
+  statblock's "Additional Spells" x/x uses pool (item-level or activity-level). NPC slot maxima
+  are derived from a caster level most statblocks never set, so they sit at 0/0 — requiring a
+  slot meant no monster ever held a reaction spell. Verified on Skeletal Mage: `spellcasting:
+  "int"`, `details.spellLevel: null`, every slot 0/0.
+- **`prepared` is a PC concept.** Every levelled spell on a 2024-statblock NPC reads
+  `prepared: 0` (Skeletal Mage's entire list does). Gating eligibility on it silently
+  disqualified the whole monster side.
+- **One name can match several items.** A caster who wears a shield AND knows Shield has two
+  items called "Shield"; `items.find()` returned whichever sorted first, and picking the
+  mundane one abandoned the entry before the spell was ever considered. Filter and test them
+  all — that is most armoured statblock casters.
 - **A name match is not a reaction.** A hobgoblin WEARS a shield — an `equipment` item named
   literally "Shield" — and eleven such items existed in the world. Matching the interrupt list
   on name alone made every shield-carrying monster hold the chain for a spell it cannot cast

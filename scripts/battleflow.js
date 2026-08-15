@@ -407,6 +407,27 @@ function interruptEntries() {
   }).filter(Boolean);
 }
 
+/**
+ * The state of an item's OWN limited uses: "none" (it has no pool), "available" (a pool with
+ * charges left) or "spent" (a pool, all used).
+ *
+ * There are two ways to pay for a spell — a slot, or the statblock's "Additional Spells" x/x
+ * pool — and a monster usually has only the second, because NPC slot maxima derive from a
+ * caster level most statblocks never set. Activity-level pools count too: an activity carries
+ * its own uses independently of the item's.
+ */
+function limitedUses(item) {
+  const pools = [item.system?.uses, ...(item.system?.activities?.contents ?? []).map(a => a.uses)];
+  let pooled = false;
+  for ( const pool of pools ) {
+    const max = Number(pool?.max);      // "" for an unlimited item — Number("") is 0, not NaN
+    if ( !Number.isFinite(max) || (max <= 0) ) continue;
+    pooled = true;
+    if ( Number(pool?.value) > 0 ) return "available";
+  }
+  return pooled ? "spent" : "none";
+}
+
 /** Is a slot of at least `level` available (including pact magic)? */
 function hasSpellSlot(actor, level) {
   if ( !level ) return true; // cantrip / at-will
@@ -452,15 +473,28 @@ function findInterrupt(actor, { isCritical }) {
   for ( const entry of interruptEntries() ) {
     // A natural 20 hits regardless of AC, so an AC-type reaction cannot save it — no pause.
     if ( isCritical && (entry.kind === "ac") ) continue;
-    const item = actor.items.find(i => i.name.toLowerCase() === entry.name.toLowerCase());
-    if ( !item || !isReactionItem(item) ) continue;
-    if ( item.type === "spell" ) {
-      if ( !item.system.prepared ) continue;            // 0 unprepared / 1 prepared / 2 always
-      if ( !hasSpellSlot(actor, item.system.level) ) continue;
+    // ⚠ EVERY item of that name, not the first. A caster who both wears a shield and knows
+    // Shield has two items called "Shield", and `find` returned whichever sorted first — so
+    // picking the mundane one disqualified the entry and the spell was never even considered.
+    // That is most armoured statblock casters.
+    for ( const item of actor.items.filter(i => i.name.toLowerCase() === entry.name.toLowerCase()) ) {
+      if ( !isReactionItem(item) ) continue;
+
+      const uses = limitedUses(item);
+      if ( uses === "spent" ) continue;                 // limited-use feature, none left
+      if ( item.type === "spell" ) {
+        // ⚠ `prepared` is a PC concept. Every levelled spell on a 2024-statblock NPC reads
+        // prepared: 0 — verified on Skeletal Mage, whose whole spell list does — so gating on
+        // it disqualified the entire monster side of this feature in silence.
+        if ( (actor.type === "character") && !item.system.prepared ) continue;
+        // ⚠ A spell can be paid for by its OWN limited uses rather than a slot: the Monster
+        // Manual's "Additional Spells" x/x pool, which is how most statblock casters carry
+        // Shield. Requiring a slot meant those never held, because monster slot maxima derive
+        // from a caster level statblocks rarely set and sit at 0.
+        if ( (uses === "none") && !hasSpellSlot(actor, item.system.level) ) continue;
+      }
+      return { entry, item };
     }
-    const uses = item.system.uses;
-    if ( uses?.max && !uses.value ) continue;           // limited-use feature, none left
-    return { entry, item };
   }
   return null;
 }
