@@ -92,9 +92,9 @@ const isActiveGM = () => game.users.activeGM?.isSelf ?? false;
 Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.autoDamage, {
     name: "Auto-Roll Damage on Hit",
-    hint: "When an attack hits at least one of its selected targets, the damage rolls itself on the attacker's own client — no dialog, crit pre-applied. A miss rolls nothing. Attacks must be made with targets selected.",
+    hint: "When an attack hits at least one of its selected targets, the damage rolls itself on the attacker's own client — no dialog, crit pre-applied. A miss rolls nothing. Attacks must be made with targets selected. The mode gates on who is ATTACKING: \"NPC\" resolves the monster side only (the GM's own client does the work), \"PC\" the player side only, \"Everyone\" both.",
     scope: "world", config: true, type: String, default: "off",
-    choices: { off: "Off", npc: "NPC Attacks Only", all: "Everyone" }
+    choices: { off: "Off", npc: "NPC Attacks Only", pc: "PC Attacks Only", all: "Everyone" }
   });
 
   game.settings.register(MODULE_ID, S.dramaticBeat, {
@@ -306,7 +306,13 @@ Hooks.on("renderRollConfigurationDialog", (app, element) => {
 Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
   const mode = setting(S.autoDamage);
   if ( (mode === "off") || !subject ) return;
-  if ( (mode === "npc") && (subject.actor?.type === "character") ) return;
+  // The mode gates on the ATTACKER's side of the table, and this hook runs on whichever client
+  // rolled — so "npc" is in practice the GM's client and "pc" a player's own. Everything
+  // downstream is side-agnostic: auto-apply is the GM elect regardless of who attacked, and a
+  // hold's continuation follows the roller (see isContinuingClient).
+  const isPC = subject.actor?.type === "character";
+  if ( (mode === "npc") && isPC ) return;
+  if ( (mode === "pc") && !isPC ) return;
 
   const attackMessage = rolls[0]?.parent;
   if ( !(attackMessage instanceof ChatMessage) ) return; // rolled with create:false — no chain to ride
@@ -653,8 +659,13 @@ async function continueHold(attackMessage) {
   // actor. The casting client is supposed to have done this, but it only will if it owns the
   // actor AND is running current code — and if it didn't, the re-test silently reads the
   // pre-reaction AC and calls a miss a hit (exactly what happened live 2026-08-15: "Shield
-  // raises AC to 12"). The continuing client is the GM in practice, owns everything, and is
-  // always here. Idempotent: an effect already present is left alone.
+  // raises AC to 12"). Idempotent: an effect already present is left alone.
+  //
+  // ⚠ This net only catches what the continuing client OWNS. On an NPC attack that client is
+  // the GM, who owns everything — but on a PC attack (autoDamage "pc"/"all") it is the
+  // attacking PLAYER, who owns none of the monsters holding reactions, so the net no-ops and
+  // the monster side rests entirely on the answering GM's applyReactionEffect. Monster
+  // reactions ship their effects DISABLED, so watch this seam when dogfooding PC attacks.
   if ( setting(S.holdApplyEffect) ) {
     for ( const target of hold.targets.filter(t => t.answer === "cast") ) {
       const actor = await fromUuid(target.uuid);

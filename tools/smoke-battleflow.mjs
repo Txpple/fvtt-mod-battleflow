@@ -434,6 +434,88 @@ if (!fx.ok) { process.exit(1); }
     r.ok ? `refused=${r.gateRefused}, messages created: ${r.gateMessagesCreated}` : r.why);
 }
 
+// -------------------------------------------- 5c. the attacker-side mode gate (NPC / PC / all)
+// Section 3 covers "all". This one proves the two one-sided modes actually exclude the other
+// side — the gate is what lets the table dogfood the monster side and the player side
+// separately. NOTE: the bridge is a GM, so both attacks here are rolled by a GM client; what
+// is under test is the ACTOR-TYPE gate, not the player-client path (which needs a real player
+// login and is dogfooded at the table).
+{
+  const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
+    const MOD = 'fvtt-mod-battleflow';
+    const priorMode = game.settings.get(MOD, 'autoDamage');
+    const priorApply = game.settings.get(MOD, 'autoApply');
+    try {
+      // Damage must be free to ROLL but never applied — four forced hits would otherwise kill
+      // the victim mid-matrix and the later attacks would resolve against a corpse.
+      await game.settings.set(MOD, 'autoApply', false);
+      const base = game.actors.get(victimId);
+      await base.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+
+      // A character-type attacker, cloned from the NPC's own attack item so the two sides
+      // differ ONLY in actor.type. Idempotent by name; cleaned up with the rest by alias.
+      const npcAttacker = game.actors.get(attackerId);
+      let pcAttacker = game.actors.getName('BF Test PC Attacker');
+      if (!pcAttacker) {
+        const weapon = npcAttacker.items.getName(itemName);
+        pcAttacker = await Actor.create({
+          name: 'BF Test PC Attacker', type: 'character',
+          items: [weapon.toObject()],
+        });
+      }
+      if (pcAttacker.type !== 'character') return { ok: false, why: `PC fixture is type ${pcAttacker.type}` };
+
+      const attackOnce = async actor => {
+        canvas.tokens.get(victimToken).setTarget(true, { releaseOthers: true });
+        const activity = actor.items.getName(itemName).system.activities
+          .find(a => a.type === 'attack');
+        if (!activity) return { rolled: null, why: `${actor.name} has no attack activity` };
+        const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
+        const usageId = results?.message?.id ?? null;
+        if (!usageId) return { rolled: null, why: `${actor.name}: no usage message` };
+        const rolls = await activity.rollAttack(
+          { advantage: true },
+          { configure: false },
+          { data: { 'flags.dnd5e.originatingMessage': usageId } });
+        let dmg = null;
+        for (let i = 0; i < 16 && !dmg; i++) {
+          await new Promise(r => setTimeout(r, 250));
+          dmg = game.messages.contents.slice(-8).find(m =>
+            m.getFlag('dnd5e', 'roll.type') === 'damage'
+            && m.getFlag('dnd5e', 'originatingMessage') === usageId);
+        }
+        // vs AC 1 with advantage only a fumble misses (1/400) — reported so a flake reads
+        // as a flake rather than a broken gate.
+        return { rolled: !!dmg, total: rolls?.[0]?.total, fumble: rolls?.[0]?.isFumble ?? false };
+      };
+
+      const out = {};
+      await game.settings.set(MOD, 'autoDamage', 'npc');
+      out.npcMode = { npc: await attackOnce(npcAttacker), pc: await attackOnce(pcAttacker) };
+      await game.settings.set(MOD, 'autoDamage', 'pc');
+      out.pcMode = { npc: await attackOnce(npcAttacker), pc: await attackOnce(pcAttacker) };
+      return { ok: true, ...out };
+    } catch (err) {
+      return { ok: false, why: `${err.message}\n${err.stack}` };
+    } finally {
+      await game.settings.set(MOD, 'autoDamage', priorMode);
+      await game.settings.set(MOD, 'autoApply', priorApply);
+    }
+  }, fx);
+
+  if (!r.ok) {
+    report('attacker-side mode gate', false, r.why);
+  } else {
+    const cell = c => `${c.rolled}${c.fumble ? ' (FUMBLE — flake)' : ''}${c.why ? ` [${c.why}]` : ''}`;
+    // A fumble legitimately produces no damage, so it can only mask a should-roll case.
+    const rolledOrFlake = c => (c.rolled === true) || (c.fumble === true);
+    report('mode "npc": an NPC attack still resolves', rolledOrFlake(r.npcMode.npc), cell(r.npcMode.npc));
+    report('mode "npc": a PC attack rolls nothing', r.npcMode.pc.rolled === false, cell(r.npcMode.pc));
+    report('mode "pc": a PC attack resolves', rolledOrFlake(r.pcMode.pc), cell(r.pcMode.pc));
+    report('mode "pc": an NPC attack rolls nothing', r.pcMode.npc.rolled === false, cell(r.pcMode.npc));
+  }
+}
+
 // ---------------------- 6. restore the table's prior settings + test chat-log cleanup
 {
   const r = await f.evaluate(async prior => {

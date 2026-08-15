@@ -20,24 +20,30 @@ carries zip + manifest.
 | 2.5 — concentration | ⬜ has a queued user request (below). |
 | 3 — effect application | ⬜ two open items depend on it. |
 
-**Live settings as left** (restored deliberately after test runs churned them): auto-damage
-`npc`, auto-apply on, dramatic beat 3s, suppress attack cards on, require target on, reaction
-hold on, apply-reaction-effect on, hold settle 8s, hold reveal off.
+**Live settings as left**: auto-damage **`all`** (set 2026-08-15 to dogfood the PC side —
+`pc` isolates it), auto-apply on, dramatic beat 3s, suppress attack cards on, require target
+on, reaction hold on, apply-reaction-effect on, hold settle 8s, hold reveal off.
 
 ## Open items
 
-1. **Usage-card suppression vs effects — partially fixed.** Cards carrying effects are now
+1. **The PC-attacker path is untested at the table** (v1.1.3 opened it). The harness covers the
+   actor-type gate but runs as a GM, so it cannot BE a player client. Untested for real:
+   a player's client stamping a hold on its own attack message, and then driving that hold's
+   continuation. The known thin spot is `continueHold`'s effect safety net — it is guarded by
+   `actor.isOwner`, so on a PC attack it no-ops for monster targets and the monster side rests
+   entirely on the answering GM. Monster reactions ship their effects **disabled**.
+2. **Usage-card suppression vs effects — partially fixed.** Cards carrying effects are now
    never suppressed (that was Ray of Frost's slow vanishing). The deeper fix is Phase 3
    applying effects itself, after which suppression can go back to being unconditional.
-2. **Phase 2.5 concentration visibility** (user request, 2026-08-15): a world setting for who
+3. **Phase 2.5 concentration visibility** (user request, 2026-08-15): a world setting for who
    sees the concentration check — everyone, or just the concentrator + DM. Public is the
    interesting default for table tension when a party-wide buff like Bless is at stake.
-3. **Repoint the box at the GitHub manifest.** It still tracks the self-hosted dev manifest
+4. **Repoint the box at the GitHub manifest.** It still tracks the self-hosted dev manifest
    (`assets/dev/battleflow-dev-manifest.json`) from the first install. At the next world
    bounce, re-run `register-module.mjs` with the GitHub URL and delete the dev copies.
-4. **Gren is Bloodied** from a bad hit during the v1.1.1 bug (an attack that should have
+5. **Gren is Bloodied** from a bad hit during the v1.1.1 bug (an attack that should have
    missed). The damage card's Revert still works if the user wants the HP back.
-5. **design.md §9 says "combatplus is the template."** The user has explicitly softened
+6. **design.md §9 says "combatplus is the template."** The user has explicitly softened
    that: combatplus is a *reference*, not a template — do what is correct for Battle Flow.
    The doc sentence is a candidate for a §10-style correction.
 
