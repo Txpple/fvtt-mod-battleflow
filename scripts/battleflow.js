@@ -124,8 +124,12 @@ Hooks.once("init", () => {
 
   game.settings.register(MODULE_ID, S.centerRollDialogs, {
     name: "Center Roll Dialogs",
-    hint: "Open the system's roll-configuration dialogs (attack, damage, saves) centered on the screen instead of docked at the lower right. Per player: this only affects your own client.",
-    scope: "client", config: true, type: Boolean, default: false
+    hint: "Open the system's roll-configuration dialogs (attack, damage, saves) centered on the screen instead of docked at the lower right. Per player: this only affects your own client, and it is ON unless you turn it off.",
+    // Client-scoped so any player can opt out, but ON by default — the docked lower-right
+    // position is the thing people notice and dislike, and a per-client setting nobody knows
+    // to look for means every new login starts wrong (reported live 2026-08-15: centered as
+    // GM, not centered as Gren, because that client had never been told).
+    scope: "client", config: true, type: Boolean, default: true
   });
 
   game.settings.register(MODULE_ID, S.reactionHold, {
@@ -548,16 +552,24 @@ async function answerHold(attackMessage, uuid, answer) {
   target.acAtAnswer = ac;
 
   if ( !attackMessage.isOwner ) {
-    // Say what actually happened, not just "reacts" — this line is the table's record AND
+    // Say what actually happened, not just "reacts" — this card is the table's record AND
     // the first thing anyone reads when a hold resolves oddly, so it carries the reaction,
     // the AC it produced, and whether the reaction's effect is actually on the actor yet.
     const effectLanded = hasReactionEffect(actor, target.reaction);
-    const detail = (answer === "cast")
-      ? `casts <strong>${target.reaction}</strong> — AC now <strong>${ac}</strong>`
-        + `${effectLanded ? "" : " <em>(effect not applied yet)</em>"}`
-      : `lets it land — no reaction`;
+    const cast = answer === "cast";
+    const lines = cast
+      ? [`AC is now <strong>${ac}</strong>.`,
+         effectLanded ? null : `<em>Its effect has not applied yet.</em>`]
+      : [`No reaction — the attack lands.`];
     await ChatMessage.create({
-      content: `<em>${detail}.</em>`,
+      content: bfCard({
+        img: reactionImg(actor, target.reaction),
+        eyebrow: cast ? "Reaction — cast" : "Reaction — passed",
+        title: cast ? target.reaction : "Lets it land",
+        subtitle: target.name,
+        lines,
+        tone: cast ? "good" : "neutral"
+      }),
       speaker: ChatMessage.getSpeaker({ actor }),
       flags: { [MODULE_ID]: { respondsTo: attackMessage.id, uuid, answer, ac, effectLanded } }
     });
@@ -722,6 +734,7 @@ async function continueHold(attackMessage) {
     target.verdict = hit ? "hit" : "miss";
     target.acAtVerdict = liveAC;
     if ( target.answer !== "cast" ) continue;
+    const img = reactionImg(actor, target.reaction);
     if ( target.kind === "ac" ) {
       // If the reaction's effect never landed, the AC we just tested against is the one the
       // target had BEFORE reacting — so say so instead of reporting a stale number as fact.
@@ -729,23 +742,36 @@ async function continueHold(attackMessage) {
       const landed = hasReactionEffect(actor, target.reaction);
       const moved = (target.acAtAnswer == null) || (liveAC !== target.ac) || landed;
       if ( !landed && !moved ) {
-        announcements.push(`<strong>${target.name}:</strong> ${target.reaction} was cast, but its `
-          + `effect is not on ${target.name} — AC is still ${liveAC}, so this reads as a hit `
-          + `(${roll.total}). Apply the effect from the card, then Revert the damage if needed.`);
+        announcements.push(bfCard({
+          img, eyebrow: "Reaction — not applied", title: target.reaction, subtitle: target.name,
+          tone: "bad",
+          lines: [`It was cast, but its effect is not on <strong>${target.name}</strong>.`,
+            `AC is still <strong>${liveAC}</strong>, so this reads as a hit (${roll.total}).`,
+            `<em>Apply the effect from the card, then Revert the damage if needed.</em>`]
+        }));
       } else {
-        announcements.push(hit
-          ? `<strong>${target.name}:</strong> ${target.reaction} raises AC to ${liveAC} — the attack still hits (${roll.total}).`
-          : `<strong>${target.name}:</strong> ${target.reaction} — ${roll.total} vs AC ${liveAC}. <em>The attack misses.</em>`);
+        announcements.push(bfCard({
+          img, eyebrow: hit ? "Reaction — not enough" : "Reaction — it worked",
+          title: target.reaction, subtitle: target.name, tone: hit ? "bad" : "good",
+          lines: [`AC <strong>${target.ac}</strong>`
+            + `${liveAC !== target.ac ? ` → <strong>${liveAC}</strong>` : ""}`
+            + ` vs the attack's <strong>${roll.total}</strong>.`,
+            hit ? `The attack still hits.` : `<strong>The attack misses.</strong>`]
+        }));
       }
     } else {
-      announcements.push(`<strong>${target.name}:</strong> ${target.reaction} — reduce the damage by hand (the roll stands).`);
+      announcements.push(bfCard({
+        img, eyebrow: "Reaction — cast", title: target.reaction, subtitle: target.name,
+        tone: "neutral",
+        lines: [`Reduce the damage by hand — the roll stands.`]
+      }));
     }
   }
 
   hold.status = "resolved";
   await attackMessage.setFlag(MODULE_ID, "hold", hold);
   if ( announcements.length ) await ChatMessage.create({
-    content: announcements.join("<br>"),
+    content: announcements.join(`<div style="height:0.3rem;"></div>`),
     speaker: { alias: TITLE }
   });
 
@@ -783,14 +809,69 @@ async function settleForACChange(hold) {
 const shownPopups = new Set();
 
 /**
- * Popups currently on screen, keyed message+target. The popup is the ANSWER SURFACE: while one
- * is open the card row defers to it and offers no buttons, because two live controls for one
- * decision is exactly how they got out of step (reported live 2026-08-15 — answering on the
- * card left the popup sitting open, still asking). Dismissing the popup hands the buttons back
- * to the card, so a decision can never be stranded.
+ * Popups currently on screen, keyed message+target. The popup is the ANSWER SURFACE and the
+ * card is the public record of the same moment — one decides, one watches. Two live controls
+ * for one decision is exactly how they got out of step (reported live 2026-08-15: answering on
+ * the card left the popup sitting open, still asking).
  */
 const livePopups = new Map();
 const popupKey = (messageId, uuid) => `${messageId}|${uuid}`;
+
+/* ---------------------------------------------------------------------------------------------
+ * The house card. Everything this module says out loud wears it.
+ *
+ * The module's messages used to be bare italic text — "lets it land — no reaction." — sitting
+ * in a log where every native card around them had a portrait, a title and a structure. They
+ * read as debug output rather than as part of the game (reported live 2026-08-15, twice).
+ *
+ * ⚠ Inline styles on purpose. module.json carries no `styles` entry, and adding one needs a
+ * Foundry PROCESS restart to take effect, while a script change is live on the next F5 — so a
+ * stylesheet would make every future tweak cost a bounce. If this ever grows past a few
+ * helpers, add the stylesheet and take the one bounce.
+ * ------------------------------------------------------------------------------------------- */
+
+const TONE = {
+  pending: "rgba(214,158,46,0.95)",   // waiting on a human
+  good:    "rgba(70,150,95,0.95)",    // the reaction did its job
+  bad:     "rgba(180,70,60,0.95)",    // it landed anyway
+  neutral: "rgba(120,120,120,0.75)"
+};
+
+/**
+ * One card: an accent spine, a portrait, an eyebrow/title/subtitle stack, and body lines.
+ * `lines` are already-safe HTML fragments.
+ */
+function bfCard({ img, eyebrow, title, subtitle, lines = [], tone = "neutral" }) {
+  const accent = TONE[tone] ?? TONE.neutral;
+  const portrait = img
+    ? `<img src="${img}" alt="" style="width:40px;height:40px;flex:0 0 auto;border-radius:4px;
+         border:1px solid var(--color-border-dark,#0006);object-fit:cover;">`
+    : "";
+  const body = lines.filter(Boolean).map(line =>
+    `<div style="margin-top:0.2rem;">${line}</div>`).join("");
+  return `
+  <div style="border-left:3px solid ${accent};border-radius:3px;padding:0.4rem 0.55rem;
+              background:rgba(0,0,0,0.04);">
+    <div style="display:flex;gap:0.5rem;align-items:center;">
+      ${portrait}
+      <div style="flex:1;min-width:0;">
+        ${eyebrow ? `<div style="font-size:var(--font-size-10,10px);letter-spacing:0.08em;
+             text-transform:uppercase;opacity:0.6;line-height:1.4;">${eyebrow}</div>` : ""}
+        <div style="font-family:var(--font-h1,inherit);font-size:var(--font-size-15,15px);
+             font-weight:bold;line-height:1.2;">${title}</div>
+        ${subtitle ? `<div style="font-size:var(--font-size-11,11px);opacity:0.7;
+             line-height:1.3;">${subtitle}</div>` : ""}
+      </div>
+    </div>
+    ${body ? `<div style="margin-top:0.35rem;font-size:var(--font-size-12,12px);
+         line-height:1.5;">${body}</div>` : ""}
+  </div>`;
+}
+
+/** The reaction's own artwork, for cards that talk about it. */
+function reactionImg(actor, reactionName) {
+  return actor?.items.find(i => i.name.toLowerCase() === reactionName?.toLowerCase())?.img ?? null;
+}
 
 /**
  * The AC a listed reaction actually grants, read from the reaction's OWN effect instead of
@@ -844,61 +925,77 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
   const row = document.createElement("div");
   row.className = "battleflow-hold";
-  Object.assign(row.style, {
-    margin: "0.25rem 0 0", padding: "0.35rem 0.5rem", borderRadius: "4px",
-    border: "1px solid var(--color-border-light-2, #999a)",
-    background: hold.status === "pending" ? "rgba(255,180,0,0.10)" : "transparent",
-    fontSize: "var(--font-size-11, 11px)", lineHeight: "1.6"
-  });
+  row.style.margin = "0.4rem 0 0";
 
   for ( const target of hold.targets ) {
-    const line = document.createElement("div");
-    Object.assign(line.style, { display: "flex", alignItems: "center", gap: "0.4rem" });
-    const label = document.createElement("span");
-    Object.assign(label.style, { flex: "1" });
-    // Resolved rows carry the numbers the verdict was reached with (AC before → after, and
-    // the attack total), so a surprising outcome can be read straight off the card.
-    const acTrail = (target.answer === "cast") && (target.acAtVerdict != null)
-      ? ` <span style="opacity:0.75">AC ${target.ac}${target.acAtVerdict !== target.ac ? ` → ${target.acAtVerdict}` : ""}`
-        + ` vs ${message.rolls[0]?.total}</span>` : "";
-    label.innerHTML = (hold.status === "pending")
-      ? `<strong>${target.name}</strong> — ${target.reaction}?`
-      : `<strong>${target.name}</strong> — ${target.answer === "cast" ? target.reaction
-        : target.answer === "skip" ? "skipped by GM" : "passed"}`
-        + `${target.verdict ? ` · <em>${target.verdict}</em>` : ""}${acTrail}`;
-    line.append(label);
+    const block = document.createElement("div");
+    block.style.marginTop = "0.25rem";
+    row.append(block);
 
-    if ( hold.status === "pending" ) {
-      void fromUuid(target.uuid).then(actor => {
-        // The same math the popup shows, from the same gate — see revealDetail.
-        const reveal = revealDetail(target, message.rolls[0], actor);
-        if ( reveal ) {
-          const math = document.createElement("span");
-          math.style.opacity = "0.85";
-          math.innerHTML = ` · ${revealLine(reveal, target)}`;
-          label.append(math);
-        }
-        if ( !canAnswerFor(actor) ) return;
+    // The card is the PUBLIC record of this moment — everyone watching the log sees the same
+    // thing, whether or not they are the one being asked.
+    void fromUuid(target.uuid).then(actor => {
+      const roll = message.rolls[0];
+      const reveal = revealDetail(target, roll, actor);
+      const lines = [];
+      let tone = "neutral";
+      let eyebrow = "Reaction";
+      let subtitle = target.name;
 
-        // One surface at a time: while this client has the popup open, that popup owns the
-        // decision and the row only says where to answer. The buttons return here the moment
-        // the popup is dismissed without an answer.
-        if ( livePopups.has(popupKey(message.id, target.uuid)) ) {
-          const hint = document.createElement("em");
-          hint.textContent = "answer in the popup";
-          hint.style.opacity = "0.7";
-          line.append(hint);
-          return;
+      if ( hold.status === "pending" ) {
+        tone = "pending";
+        eyebrow = "Reaction — held";
+        const owner = game.users.find(u => !u.isGM && actor?.testUserPermission(u, "OWNER"));
+        subtitle = `${target.name} · waiting on ${owner?.name ?? "the GM"}`;
+        if ( reveal ) lines.push(revealLine(reveal, target));
+      } else {
+        const cast = target.answer === "cast";
+        tone = (target.verdict === "miss") ? "good" : cast ? "bad" : "neutral";
+        eyebrow = cast ? "Reaction — cast" : target.answer === "skip" ? "Reaction — skipped" : "Reaction — passed";
+        // Resolved cards carry the numbers the verdict was reached with, so a surprising
+        // outcome can be read straight off the card instead of reconstructed.
+        if ( cast && (target.acAtVerdict != null) ) {
+          const moved = target.acAtVerdict !== target.ac;
+          lines.push(`AC <strong>${target.ac}</strong>${moved ? ` → <strong>${target.acAtVerdict}</strong>` : ""}`
+            + ` vs the attack's <strong>${roll?.total}</strong>`);
         }
-        line.append(
+        if ( target.verdict ) lines.push(target.verdict === "miss"
+          ? `<strong>The attack misses.</strong>`
+          : `The attack still hits.`);
+        else if ( target.answer === "pass" ) lines.push("Let it land — no reaction.");
+      }
+
+      block.innerHTML = bfCard({
+        img: reactionImg(actor, target.reaction),
+        eyebrow, title: target.reaction, subtitle, lines, tone
+      });
+
+      if ( hold.status !== "pending" ) return;
+      if ( !canAnswerFor(actor) ) return;
+
+      // ⚠ ONE input surface. When this client gets popups, the popup decides and the card only
+      // watches — it offers a way to call the popup BACK (a dismissed popup must never strand
+      // the decision) but never a second set of answer controls. With popups off the card is
+      // the only surface there is, so it carries the real buttons.
+      const controls = document.createElement("div");
+      Object.assign(controls.style, {
+        display: "flex", gap: "0.3rem", marginTop: "0.4rem", justifyContent: "flex-end"
+      });
+      if ( setting(S.holdView) ) {
+        controls.append(holdButton("Answer", () => {
+          shownPopups.delete(message.id);
+          void showHoldPopup(message, message.getFlag(MODULE_ID, "hold"));
+        }));
+      } else {
+        controls.append(
           holdButton("Cast", () => castReaction(target)),
           holdButton("Pass", () => answerHold(message, target.uuid, "pass"))
         );
-        if ( game.user.isGM ) line.append(
+        if ( game.user.isGM ) controls.append(
           holdButton("Skip", () => answerHold(message, target.uuid, "skip")));
-      });
-    }
-    row.append(line);
+      }
+      block.append(controls);
+    });
   }
   html.querySelector(".message-content")?.appendChild(row);
 

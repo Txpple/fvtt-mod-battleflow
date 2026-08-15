@@ -384,12 +384,26 @@ if (!fx.ok) { process.exit(1); }
       // (b2) An attack card that CARRIES EFFECTS is never suppressed — that tray is the only
       // way a spell's riders reach a target (Ray of Frost's slow vanished when it wasn't).
       await game.settings.set(MOD, 'suppressAttackCards', true);
-      const spellCaster = game.actors.getName('Gren Greenmantle');
+      // Prefer the GM-owned stand-in over the live PC. Gren is played at the table and runs
+      // himself out of spell slots; a cast refused for want of a slot creates no card at all
+      // and reads here as "suppression ate it" — a fixture failure wearing a bug's clothes
+      // (bit 2026-08-15, when he was at 0/4). The clone is ours and is topped back up.
+      const spellCaster = game.actors.getName('BF Test Shielder')
+        ?? game.actors.getName('Gren Greenmantle');
       const riderSpell = spellCaster?.items.find(i =>
         i.type === 'spell'
         && i.system.activities?.some?.(a => a.type === 'attack')
         && i.effects?.size);
-      if (riderSpell) {
+      // A levelled spell with no slot left cannot be cast, so the path is unexercised rather
+      // than broken — say which, instead of failing.
+      const level = riderSpell?.system.level ?? 0;
+      const slotted = !level || Object.entries(spellCaster?.system.spells ?? {}).some(([key, slot]) => {
+        const numbered = /^spell(\d+)$/.exec(key);
+        const slotLevel = numbered ? Number(numbered[1]) : slot?.level;
+        return slot?.value && slot?.max && Number.isFinite(slotLevel) && (slotLevel >= level);
+      });
+      if (riderSpell && !slotted) out.effectCard = { spell: null, why: `${spellCaster.name} has no level-${level} slot left` };
+      if (riderSpell && slotted) {
         const act = riderSpell.system.activities.contents.find(a => a.type === 'attack');
         const before = game.messages.size;
         await act.use({ subsequentActions: false }, { configure: false }, {});
@@ -399,8 +413,8 @@ if (!fx.ok) { process.exit(1); }
           spell: riderSpell.name,
           cardSurvived: created.some(m => (m.type === 'usage') && m.system?.effects?.length),
         };
-      } else {
-        out.effectCard = { spell: null };
+      } else if (!riderSpell) {
+        out.effectCard = { spell: null, why: 'no attack-roll spell with effects found' };
       }
       await game.settings.set(MOD, 'suppressAttackCards', false);
 
@@ -428,7 +442,7 @@ if (!fx.ok) { process.exit(1); }
     report('an attack card carrying effects survives suppression', r.effectCard.cardSurvived === true,
       `${r.effectCard.spell}: card survived = ${r.effectCard.cardSurvived}`);
   } else {
-    console.log('  SKIP no attack-roll spell with effects on Gren — rider-card path not exercised');
+    console.log(`  SKIP rider-card path not exercised — ${r.effectCard?.why ?? 'unavailable'}`);
   }
   report('no-target gate refuses the attack', r.ok && r.gateRefused && r.gateMessagesCreated === 0,
     r.ok ? `refused=${r.gateRefused}, messages created: ${r.gateMessagesCreated}` : r.why);
