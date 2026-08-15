@@ -491,11 +491,16 @@ const r = await f.evaluate(async () => {
         for (const e of gren?.effects?.filter(e => e.name === 'Imperceptible Barrier') ?? []) await e.delete();
       }
       // The stand-in is a pure fixture, and every real-cast section spends a REAL 1st-level
-      // slot on it. Hand them back, or the suite quietly runs itself out of Shield and starts
-      // failing for want of a slot instead of for a bug.
+      // slot on it and beats its HP down with live damage. Hand both back, or the suite
+      // quietly runs itself out of Shield and starts failing for want of a slot instead of
+      // for a bug — and leaves a 0-HP corpse lying in the world between runs.
       const shielder = game.actors.getName('BF Test Shielder');
       if (shielder) {
-        await shielder.update({ 'system.spells.spell1.value': shielder.system.spells.spell1.max });
+        await shielder.update({
+          'system.spells.spell1.value': shielder.system.spells.spell1.max,
+          'system.attributes.hp.value': shielder.system.attributes.hp.max,
+          'system.attributes.hp.temp': 0,
+        });
         await shielder.unsetFlag(MOD, 'reactionSpent');
         for (const e of shielder.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
       }
