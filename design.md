@@ -192,6 +192,28 @@ The biggest click-saver. Two independent halves:
 - **Dogfood modes**: master toggle + "NPC attacks only" first (the GM's monsters resolve
   instantly; players keep their buttons), then widen to everyone.
 
+### Phase 1.1 — first-dogfood polish (2026-08-15 table feedback)
+
+Small structural comforts the first live session asked for, each its own setting (default
+off), none changing the resolution chain:
+
+- **Applied cards collapse their damage tray** exactly as if Apply had been pressed (same
+  `autoCollapseChatTrays !== "manual"` guard as the native handler) — an already-applied
+  roll must never sit one accidental click from landing twice. Once per card, so a GM
+  deliberately re-opening the tray (re-apply at ½ after a revert) isn't fought.
+- **Require a target to attack** (world): using an attack with no target selected warns and
+  cancels the use before anything rolls or consumes (`dnd5e.preUseActivity` veto on the
+  initiating client — the combatplus initiative-gate pattern). Makes the Phase-0 table
+  discipline structural.
+- **Suppress attack usage cards** (world): the Attack/Damage button card is spam under
+  auto-resolution — the workflow record is attack roll → damage roll → receipt. Vetoed at
+  `preCreateChatMessage` on the initiating client. The chain is unaffected: the resolver's
+  origin walk already falls back to the attack message when no usage card exists. §2's
+  "never remove the native buttons" survives as a per-table choice: flipping the setting
+  off restores the native cards instantly, and vanilla remains the fallback substrate.
+- **Center roll dialogs** (client): dnd5e docks roll-configuration dialogs lower-right
+  (`left: innerWidth − 710`); centered is where the table looks. First render only.
+
 ### Phase 1.5 — the reaction hold (a pause, NOT a system)
 
 Auto-resolution has one legitimate interrupt: Shield-class reactions trigger on "you are hit,"
@@ -347,6 +369,9 @@ World, per-feature, default OFF unless noted:
 | Auto-roll damage on hit | off / NPC attacks only / everyone | 1 |
 | Auto-apply damage | off / on | 1 |
 | Dramatic beat before damage | off / seconds | 1 |
+| Require a target to attack | off / on | 1.1 |
+| Suppress attack usage cards | off / on | 1.1 |
+| Center roll dialogs (per client) | off / on | 1.1 |
 | Reaction hold | off / on + curated interrupt list (entries: name, AC-type/damage-type) | 1.5 |
 | Halving reactions | pause / post-hoc via revert+½ | 1.5 |
 | Hold timer | off (wait) / N seconds | 1.5 |

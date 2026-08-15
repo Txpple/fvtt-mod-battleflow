@@ -21,6 +21,11 @@
  *     and deltas) into a flag on the damage message, and the card grows a GM-only receipt
  *     row with a per-target ↩ revert that restores the snapshot. Idempotent and
  *     reload-proof: the flag is the state, the row is just a view of it.
+ *   - Table polish (first dogfood feedback, 2026-08-15): a no-target gate that cancels an
+ *     attack before anything rolls or consumes ("popup error, then exit out"), a world
+ *     setting that suppresses the attack usage card (the Attack/Damage button card — spam
+ *     under auto-resolution; the chain rides the attack-message-origin fallback), and a
+ *     per-client setting that centers the system's roll dialogs instead of lower-right.
  *
  * Architecture (design.md §4): the chat log is the state and the bus. No sockets, no
  * in-memory workflow object, no patching. The attacker's client volunteers the damage roll
@@ -58,7 +63,10 @@ const TITLE = "Battle Flow";
 const S = {
   autoDamage: "autoDamage",
   dramaticBeat: "dramaticBeat",
-  autoApply: "autoApply"
+  autoApply: "autoApply",
+  requireTarget: "requireTarget",
+  suppressAttackCards: "suppressAttackCards",
+  centerRollDialogs: "centerRollDialogs"
 };
 
 const setting = key => game.settings.get(MODULE_ID, key);
@@ -87,8 +95,26 @@ Hooks.once("init", () => {
 
   game.settings.register(MODULE_ID, S.autoApply, {
     name: "Auto-Apply Damage",
-    hint: "The active GM's client applies a rolled attack's damage to the targets that attack hit, through the system's own resistance and immunity math. Every application leaves a receipt on the damage card with a per-target revert. The native damage tray stays available for manual calls.",
+    hint: "The active GM's client applies a rolled attack's damage to the targets that attack hit, through the system's own resistance and immunity math. Every application leaves a receipt on the damage card with a per-target revert. The native damage tray stays available for manual calls, and collapses on applied cards as if Apply had been pressed.",
     scope: "world", config: true, type: Boolean, default: false
+  });
+
+  game.settings.register(MODULE_ID, S.requireTarget, {
+    name: "Require a Target to Attack",
+    hint: "Using an attack with no target selected shows a warning and cancels the attack before anything is rolled or consumed. The whole resolver keys off targets — this makes the table discipline structural.",
+    scope: "world", config: true, type: Boolean, default: false
+  });
+
+  game.settings.register(MODULE_ID, S.suppressAttackCards, {
+    name: "Suppress Attack Usage Cards",
+    hint: "Skip the chat card with Attack/Damage buttons that posting an attack normally creates — under auto-resolution the workflow record is the attack roll, the damage roll, and the receipt. Turning this off restores the native cards immediately.",
+    scope: "world", config: true, type: Boolean, default: false
+  });
+
+  game.settings.register(MODULE_ID, S.centerRollDialogs, {
+    name: "Center Roll Dialogs",
+    hint: "Open the system's roll-configuration dialogs (attack, damage, saves) centered on the screen instead of docked at the lower right. Per player: this only affects your own client.",
+    scope: "client", config: true, type: Boolean, default: false
   });
 });
 
@@ -105,14 +131,17 @@ Hooks.on("renderSettingsConfig", (app, element) => {
     if ( group ) group.style.opacity = enabled ? "" : "0.4";
   };
 
-  const autoDamage = input(S.autoDamage);
-  const group = autoDamage?.closest(".form-group");
-  if ( group && !group.previousElementSibling?.classList?.contains("bf-divider") ) {
+  const addDivider = (field, text) => {
+    const group = field?.closest(".form-group");
+    if ( !group || group.previousElementSibling?.classList?.contains("bf-divider") ) return;
     const header = document.createElement("h4");
     header.className = "divider bf-divider";
-    header.textContent = "Attack Resolver";
+    header.textContent = text;
     group.before(header);
-  }
+  };
+  const autoDamage = input(S.autoDamage);
+  addDivider(autoDamage, "Attack Resolver");
+  addDivider(input(S.suppressAttackCards), "Table Polish");
 
   const syncAll = () => setEnabled(input(S.dramaticBeat), autoDamage?.value !== "off");
   syncAll();
@@ -155,6 +184,44 @@ function resolveAttackMessage(damageMessage) {
     .filter(m => m.timestamp <= damageMessage.timestamp)
     .pop() ?? null;
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * Table polish — the no-target gate, attack-card suppression, dialog centering
+ * ------------------------------------------------------------------------------------------- */
+
+// Require a target to attack: cancel the use before anything rolls or consumes. Same
+// initiating-client veto pattern as combatplus's initiative gate — a table-manners rail.
+Hooks.on("dnd5e.preUseActivity", activity => {
+  if ( !setting(S.requireTarget) ) return;
+  if ( activity?.type !== "attack" ) return;
+  if ( game.user.targets.size ) return;
+  ui.notifications.warn(`No target selected — ${activity.item?.name ?? "the attack"} stays sheathed. Target something, then attack.`);
+  return false;
+});
+
+// Suppress the usage card (the Attack/Damage button card) for attack activities. The veto
+// runs on the initiating client (preCreate document hooks are local). Without the card,
+// dnd5e's own rollAttack gets no originatingMessage — the resolver's chain walk already
+// falls back to the attack message itself as the origin, so auto-damage and auto-apply are
+// unaffected. Consumption still happens; only its display card is skipped.
+Hooks.on("preCreateChatMessage", doc => {
+  if ( !setting(S.suppressAttackCards) ) return;
+  if ( doc.getFlag("dnd5e", "messageType") !== "usage" ) return;
+  if ( doc.getFlag("dnd5e", "activity")?.type !== "attack" ) return;
+  return false;
+});
+
+// Center the system's roll-configuration dialogs (dnd5e docks them lower-right:
+// left = innerWidth - 710, top = clientY - 80). First render only — re-renders fire on every
+// option change in the dialog, and re-centering those would fight the user dragging it.
+Hooks.on("renderRollConfigurationDialog", (app, element) => {
+  if ( !setting(S.centerRollDialogs) || app._bfCentered ) return;
+  app._bfCentered = true;
+  app.setPosition({
+    left: Math.max(0, (window.innerWidth - element.offsetWidth) / 2),
+    top: Math.max(0, (window.innerHeight - element.offsetHeight) / 2)
+  });
+});
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1a — auto-roll damage on hit (the attacker's client; its attack, its dice)
@@ -279,11 +346,14 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   // when autoCollapseChatTrays is "manual"). Once only, and never on a fully-reverted card:
   // this hook runs after the system's _collapseTrays, so a standing rule here would override
   // the GM deliberately re-opening the tray (e.g. to re-apply at ½ after a revert).
+  // ⚠ Toggle the ATTRIBUTE, never the property: this render tree is detached, so custom
+  // elements in it are not yet upgraded — `tray.open = false` writes a plain property that
+  // shadows the accessor and never touches the attribute (bit live 2026-08-15; the system's
+  // own _collapseTrays uses toggleAttribute for the same reason, chat-message.mjs:166).
   if ( receipt.targets.some(t => !t.reverted) && !autoCollapsed.has(message.id)
     && (game.settings.get("dnd5e", "autoCollapseChatTrays") !== "manual") ) {
     autoCollapsed.add(message.id);
-    const tray = html.querySelector("damage-application");
-    if ( tray ) tray.open = false;
+    html.querySelector("damage-application")?.toggleAttribute("open", false);
   }
 
   const row = document.createElement("div");

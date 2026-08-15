@@ -50,16 +50,23 @@ let priorSettings = null;
       autoDamage: game.settings.get(MOD, 'autoDamage'),
       autoApply: game.settings.get(MOD, 'autoApply'),
       dramaticBeat: game.settings.get(MOD, 'dramaticBeat'),
+      suppressAttackCards: game.settings.get(MOD, 'suppressAttackCards'),
+      requireTarget: game.settings.get(MOD, 'requireTarget'),
     };
     await game.settings.set(MOD, 'autoDamage', 'all');
     await game.settings.set(MOD, 'autoApply', true);
     await game.settings.set(MOD, 'dramaticBeat', 0);
+    // The test exercises the primary (usage-card) chain and always targets first, so the
+    // polish gates stay out of the way; both are restored with the rest at the end.
+    await game.settings.set(MOD, 'suppressAttackCards', false);
+    await game.settings.set(MOD, 'requireTarget', false);
     return {
       ok: true, prior,
       user: game.user.name,
       isActiveGM: game.users.activeGM?.isSelf ?? false,
       autoDamage: game.settings.get(MOD, 'autoDamage'),
       autoApply: game.settings.get(MOD, 'autoApply'),
+      trays: game.settings.get('dnd5e', 'autoCollapseChatTrays'),
     };
   }, null);
   report('module active + settings on', r.ok && r.autoDamage === 'all' && r.autoApply === true,
@@ -316,6 +323,8 @@ if (!fx.ok) { process.exit(1); }
     await game.settings.set(MOD, 'autoDamage', prior?.autoDamage ?? 'off');
     await game.settings.set(MOD, 'autoApply', prior?.autoApply ?? false);
     await game.settings.set(MOD, 'dramaticBeat', prior?.dramaticBeat ?? 0);
+    await game.settings.set(MOD, 'suppressAttackCards', prior?.suppressAttackCards ?? false);
+    await game.settings.set(MOD, 'requireTarget', prior?.requireTarget ?? false);
     const testMessages = game.messages.filter(m => m.speaker?.alias?.startsWith('BF Test'));
     await ChatMessage.deleteDocuments(testMessages.map(m => m.id));
     return {
