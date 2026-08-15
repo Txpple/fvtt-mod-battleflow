@@ -529,19 +529,30 @@ const r = await f.evaluate(async () => {
         await gren?.unsetFlag(MOD, 'reactionSpent');
         for (const e of gren?.effects?.filter(e => e.name === 'Imperceptible Barrier') ?? []) await e.delete();
       }
-      // The stand-in is a pure fixture, and every real-cast section spends a REAL 1st-level
-      // slot on it and beats its HP down with live damage. Hand both back, or the suite
-      // quietly runs itself out of Shield and starts failing for want of a slot instead of
-      // for a bug — and leaves a 0-HP corpse lying in the world between runs.
-      const shielder = game.actors.getName('BF Test Shielder');
-      if (shielder) {
-        await shielder.update({
-          'system.spells.spell1.value': shielder.system.spells.spell1.max,
-          'system.attributes.hp.value': shielder.system.attributes.hp.max,
-          'system.attributes.hp.temp': 0,
-        });
-        await shielder.unsetFlag(MOD, 'reactionSpent');
-        for (const e of shielder.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
+      // Long rest every fixture: these suites spend real spell slots and beat real HP off the
+      // stand-ins, and nothing else puts it back. Without this the suite quietly runs itself
+      // out of Shield and starts failing for want of a slot instead of for a bug, and leaves
+      // 0-HP corpses lying in the world between runs. Fixtures only — never the live PCs.
+      for (const name of ['BF Test Shielder', 'BF Test Attacker', 'BF Test Victim', 'BF Test PC Attacker']) {
+        const fixture = game.actors.getName(name);
+        if (!fixture) continue;
+        try {
+          await fixture.longRest({ dialog: false, chat: false, newDay: true });
+        } catch (restErr) {
+          // longRest's signature is the system's, not ours — fall back to the manual restore
+          // so a system change degrades to "resources back" rather than "suite broken".
+          const spells = {};
+          for (const [key, slot] of Object.entries(fixture.system.spells ?? {})) {
+            if (slot?.max) spells[`system.spells.${key}.value`] = slot.max;
+          }
+          await fixture.update({
+            ...spells,
+            'system.attributes.hp.value': fixture.system.attributes.hp.max,
+            'system.attributes.hp.temp': 0,
+          });
+        }
+        await fixture.unsetFlag(MOD, 'reactionSpent');
+        for (const e of fixture.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
       }
       const mine = game.messages.filter(m =>
         m.speaker?.alias?.startsWith('BF Test') || m.speaker?.alias === 'Battle Flow'

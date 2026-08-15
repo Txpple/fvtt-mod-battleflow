@@ -499,6 +499,10 @@ async function stampHoldIfInterrupted(attackMessage, roll, hits) {
     if ( found ) held.push({
       uuid: target.uuid, name: target.name, ac: target.ac,
       reaction: found.item.name, kind: found.entry.kind,
+      // Was the reaction's effect ALREADY on them when we stamped? If so the snapshot AC
+      // already contains its bonus, and "did the AC move by the bonus" is unanswerable — see
+      // reactionACArrived, which needs to know it cannot measure a delta.
+      hadEffect: hasReactionEffect(actor, found.item.name),
       answer: null, verdict: null
     });
   }
@@ -555,11 +559,15 @@ async function answerHold(attackMessage, uuid, answer) {
     // Say what actually happened, not just "reacts" — this card is the table's record AND
     // the first thing anyone reads when a hold resolves oddly, so it carries the reaction,
     // the AC it produced, and whether the reaction's effect is actually on the actor yet.
-    const effectLanded = hasReactionEffect(actor, target.reaction);
+    // ⚠ Only quote the AC once it has actually ARRIVED. This card is written the instant the
+    // cast returns, when the effect document exists but derived data has not recomputed — so
+    // reading the number here printed "casts Shield — AC now 12" under a +5 (reported live
+    // 2026-08-15). Better to say it is coming than to publish a number that is wrong.
+    const effectLanded = reactionACArrived(actor, target);
     const cast = answer === "cast";
     const lines = cast
-      ? [`AC is now <strong>${ac}</strong>.`,
-         effectLanded ? null : `<em>Its effect has not applied yet.</em>`]
+      ? [effectLanded ? `AC is now <strong>${ac}</strong>.`
+                      : `<em>Its AC has not landed yet — the verdict will use the real number.</em>`]
       : [`No reaction — the attack lands.`];
     await ChatMessage.create({
       content: bfCard({
@@ -736,17 +744,15 @@ async function continueHold(attackMessage) {
     if ( target.answer !== "cast" ) continue;
     const img = reactionImg(actor, target.reaction);
     if ( target.kind === "ac" ) {
-      // If the reaction's effect never landed, the AC we just tested against is the one the
-      // target had BEFORE reacting — so say so instead of reporting a stale number as fact.
+      // If the reaction's AC never arrived, the number we just tested against is the one the
+      // target had BEFORE reacting — so say so instead of reporting a stale value as fact.
       // A silent "still hits" here is the worst possible outcome: it looks authoritative.
-      const landed = hasReactionEffect(actor, target.reaction);
-      const moved = (target.acAtAnswer == null) || (liveAC !== target.ac) || landed;
-      if ( !landed && !moved ) {
+      if ( !reactionACArrived(actor, target) ) {
         announcements.push(bfCard({
           img, eyebrow: "Reaction — not applied", title: target.reaction, subtitle: target.name,
           tone: "bad",
-          lines: [`It was cast, but its effect is not on <strong>${target.name}</strong>.`,
-            `AC is still <strong>${liveAC}</strong>, so this reads as a hit (${roll.total}).`,
+          lines: [`It was cast, but its AC has not arrived on <strong>${target.name}</strong>.`,
+            `AC still reads <strong>${liveAC}</strong>, so this resolves as a hit (${roll.total}).`,
             `<em>Apply the effect from the card, then Revert the damage if needed.</em>`]
         }));
       } else {
@@ -782,20 +788,42 @@ async function continueHold(attackMessage) {
   if ( activity ) await rollDamageForAttack(activity, attackMessage);
 }
 
-/** Wait (briefly) for a cast reaction's AC change to actually land. Resolves early. */
+/**
+ * Has the reaction's AC actually ARRIVED — as opposed to "is there an effect row for it"?
+ *
+ * ⚠ These are different questions, and treating them as one is how a hold announced
+ * "Shield raises AC to 12 — the attack still hits" as fact while the same actor read AC 17 a
+ * moment later (reported live 2026-08-15). An effect document exists the instant it is
+ * created; the AC it grants appears only once derived data recomputes, which happens a beat
+ * later and on every client separately. A verdict must wait on the NUMBER.
+ */
+function reactionACArrived(actor, target) {
+  if ( !hasReactionEffect(actor, target.reaction) ) return false;
+  // Already applied when we stamped, so the snapshot contains the bonus and there is no delta
+  // to look for — the effect row is the whole of what can be checked.
+  if ( target.hadEffect ) return true;
+  const bonus = reactionACBonus(target.reaction, actor);
+  if ( bonus == null ) return true; // proficiency-scaled or formula bonus: not measurable here
+  const liveAC = actor?.system?.attributes?.ac?.value;
+  return Number.isFinite(liveAC) && (liveAC >= ((target.ac ?? 0) + bonus));
+}
+
+/**
+ * Wait (briefly) for every cast reaction's AC to actually arrive. Resolves as soon as it has.
+ * Deliberately waits on arrival rather than on "the number changed from a baseline": a
+ * baseline captured after the recompute never changes again, and one captured before it can
+ * be moved by something unrelated.
+ */
 async function settleForACChange(hold) {
   const deadline = Date.now() + (Math.max(1, Number(setting(S.holdSettle)) || 8) * 1000);
-  const baseline = new Map();
-  for ( const t of hold.targets ) {
-    const actor = await fromUuid(t.uuid);
-    baseline.set(t.uuid, actor?.system?.attributes?.ac?.value ?? t.ac);
-  }
+  const casts = hold.targets.filter(t => t.answer === "cast");
   while ( Date.now() < deadline ) {
-    for ( const t of hold.targets ) {
-      if ( t.answer !== "cast" ) continue;
-      const actor = await fromUuid(t.uuid);
-      if ( (actor?.system?.attributes?.ac?.value ?? null) !== baseline.get(t.uuid) ) return;
+    let allArrived = true;
+    for ( const target of casts ) {
+      const actor = await fromUuid(target.uuid);
+      if ( !reactionACArrived(actor, target) ) { allArrived = false; break; }
     }
+    if ( allArrived ) return;
     await new Promise(r => setTimeout(r, 250));
   }
 }
@@ -1153,6 +1181,21 @@ async function showHoldPopup(attackMessage, hold) {
     }
   }
 }
+
+/**
+ * A popup must not outlive the message it is a view of. Deleting the hold — which is what the
+ * smoke suites do to every message they create — used to leave one open dialog per hold
+ * stacked on every client that could answer, asking about attacks that no longer exist
+ * (reported live 2026-08-15: "close all the popup window spam").
+ */
+Hooks.on("deleteChatMessage", message => {
+  for ( const [key, dialog] of [...livePopups] ) {
+    if ( !key.startsWith(`${message.id}|`) ) continue;
+    livePopups.delete(key);
+    void dialog.close();
+  }
+  shownPopups.delete(message.id);
+});
 
 /** A decision made anywhere closes the popup asking for it. */
 function closeAnsweredPopups(message) {

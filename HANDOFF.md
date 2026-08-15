@@ -7,7 +7,7 @@
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.1.6**, installed and enabled, tag pushed, GitHub release
+Molten-hosted). Latest release **v1.1.7**, installed and enabled, tag pushed, GitHub release
 carries zip + manifest. **The box now tracks the GitHub manifest** (repointed 2026-08-15 —
 the self-hosted dev manifest and zip are gone), so the process vends the real version string.
 
@@ -27,19 +27,18 @@ on, reaction hold on, apply-reaction-effect on, hold settle 8s, hold reveal off.
 
 ## Open items
 
-1. **The hold's UI is mid-rework — decided, not built** (user calls, 2026-08-15):
-   **the popup decides, the card watches, and the table sees the pending hold.** The popup is
-   the only surface with controls; the chat card becomes a canonical-looking, public,
-   read-only view of the moment that updates live as it resolves — right now only the person
-   who can answer sees anything, so the table misses the drama entirely. v1.1.5 shipped the
-   popup redesign (icon, ability text, card layout) and its lifecycle; **still to do** is
-   stripping the card row's buttons and making the public card. ⚠ With no card buttons, a
-   dismissed popup must have a way back — do not strand the decision.
-2. **A hold can announce a verdict against a stale AC.** `continueHold` treats "the effect
-   document exists" as proof the AC is current, but derived data recomputes a beat later, so a
-   hold can report "Shield raises AC to 12 — the attack still hits" as fact (seen live
-   2026-08-15; Gren's AC was 17 moments afterwards). The verdict should wait on the AC
-   actually reflecting the bonus, not on the effect row existing.
+1. **The hold's UI is settled and shipped** (user calls, 2026-08-15) — recorded because it is
+   binding on anything built next: **the popup decides, the card watches, the card is public
+   so the table sees the moment.** One card shape (`bfCard`) for everything the module says
+   out loud; the card carries no answer controls where popups are on, only an *Answer* button
+   that calls a dismissed popup back. ⚠ Never give one decision two live controls — that is
+   how the card and popup got out of step. Look-and-feel is still being tuned against
+   screenshots from real play; expect wording and density to move.
+2. **The hold has no timer.** design.md §4.3 and Phase 1.5 both spec one — a world setting
+   (off, or N seconds), a pure-CSS draining bar in popup and card, the continuing client as
+   the one authoritative clock, resume-on-reload from the message timestamp, and auto-continue
+   as Pass at the buzzer. **None of it is built**; there is no `holdTimer` setting in the code.
+   Asked after live play, so it is wanted.
 3. **The PC-attacker path is untested at the table** (v1.1.3 opened it). The harness covers the
    actor-type gate but runs as a GM, so it cannot BE a player client. Untested for real:
    a player's client stamping a hold on its own attack message, and then driving that hold's
