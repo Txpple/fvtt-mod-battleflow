@@ -17,7 +17,10 @@ for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
   const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
   if (m) env[m[1]] = m[2];
 }
-setTimeout(() => { console.error('[hold] WATCHDOG 420s'); process.exit(3); }, 420_000);
+// Raised from 420s when the statblock cast-activity sections landed: each of the three hunts
+// for an attack inside a 5-wide AC window, and a suite that dies at the watchdog reports
+// nothing at all — the one failure mode with no diagnostic value.
+setTimeout(() => { console.error('[hold] WATCHDOG 600s'); process.exit(3); }, 600_000);
 
 const f = new Foundry({
   serverUrl: env.MOLTEN_SERVER_URL, magicUrl: env.MOLTEN_MAGIC_URL,
@@ -40,6 +43,37 @@ const r = await f.evaluate(async () => {
   const log = [];
   const results = {};
   let restore = null;
+
+  // Declared out here so the cleanup in `finally` can sweep the statblock fixture even when a
+  // section throws before its own teardown — see the sweep for why that matters.
+  const CAST_FEATURE = 'BF Test Spellcasting';
+  const SHIELD_UUID = 'Compendium.dnd-players-handbook.spells.Item.phbsplShield0000';
+
+  /**
+   * Take the statblock fixture back off BF Test Victim.
+   *
+   * ⚠ ONE batch delete, never a loop of `item.delete()`. A synthetic (unlinked-token) actor
+   * rebuilds its item collection from the delta on every write, so the second call in a loop is
+   * made against a document the server has already dropped: "Item … does not exist".
+   *
+   * ⚠ Spell-type items go too, not just what this fixture created. The victim is a hobgoblin
+   * that WEARS a shield and section 4d asserts it owns no Shield SPELL — one cached copy left
+   * behind by a crashed run fails that assertion for a reason that has nothing to do with the
+   * module. One was found squatting there on 2026-08-15.
+   */
+  const sweepCastFixture = async actor => {
+    const doomed = (actor?.items ?? []).filter(i =>
+      (i.name === CAST_FEATURE) || i.getFlag('dnd5e', 'cachedFor') || (i.type === 'spell'))
+      .map(i => i.id);
+    if (doomed.length) await actor.deleteEmbeddedDocuments('Item', doomed);
+    return doomed.length;
+  };
+
+  /** Shield's effect off an actor — batched, for the same synthetic-actor reason as above. */
+  const clearBarriers = async actor => {
+    const ids = (actor?.effects ?? []).filter(e => e.name === 'Imperceptible Barrier').map(e => e.id);
+    if (ids.length) await actor.deleteEmbeddedDocuments('ActiveEffect', ids);
+  };
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const waitFor = async (fn, ms = 12000) => {
@@ -93,6 +127,20 @@ const r = await f.evaluate(async () => {
     await game.settings.set(MOD, 'holdTimer', 0);
     await game.settings.set(MOD, 'suppressAttackCards', false);
     await game.settings.set(MOD, 'requireTarget', false);
+
+    // Start from a clean fixture rather than trusting the last run's teardown. A crashed run —
+    // or a hand experiment at the console — can leave a cast feature or a cached Shield on BF
+    // Test Victim, and section 4d then fails ("a mundane shield never holds") for a reason that
+    // has nothing to do with the module: the victim really does know Shield. Cost a red suite
+    // on 2026-08-15.
+    {
+      const victimBase = game.actors.getName('BF Test Victim');
+      const victimTok = victimBase ? scene.tokens.find(t => t.actorId === victimBase.id) : null;
+      if (victimTok?.actor) {
+        const swept = await sweepCastFixture(victimTok.actor);
+        if (swept) log.push(`swept ${swept} leftover fixture item(s) off BF Test Victim`);
+      }
+    }
 
     // ⚠ Gren's AC is left on its NORMAL calculation. Pinning it with calc:"flat" would make
     // the test a lie: a flat AC ignores system.attributes.ac.bonus, which is exactly the
@@ -218,6 +266,108 @@ const r = await f.evaluate(async () => {
       if (!actor.system.spells.spell1.max) throw new Error('stand-in has no level 1 spell slots');
       return { actor, token };
     };
+
+    /**
+     * A 2024-statblock caster, built the way the Monster Manual actually ships one and modelled
+     * field-for-field on the live Skeletal Mage's "Shield - Spellcasting" (read out of the world
+     * 2026-08-15): a FEATURE carrying one `cast` ACTIVITY per spell, with the activation, the
+     * resource and the consumption all living on THAT activity. The Shield item on such an actor
+     * is not the monster's copy of the spell — it is the system's cached clone, and it reports
+     * spellSlot:true with no uses and no slots, which is exactly why interrogating IT concluded
+     * every statblock caster was unable to cast and no monster ever held (fixed in v1.1.12).
+     *
+     * ⚠ Built on the TOKEN actor. An item added to the base reaches an unlinked token's delta
+     * stripped of its embedded activities — which is the entire substance of this fixture.
+     *
+     * ⚠ DO NOT create the cached spell by hand. The system materializes it ITSELF, roughly half
+     * a second after the cast activity is created, and a manual `getCachedSpellData()` create
+     * races that and leaves the actor with TWO items called Shield (measured 2026-08-15).
+     * Wait for it instead. It matters that it lands at all: it is the item the module's effect
+     * fallback and `hasReactionEffect` look up by name, and the copy `CastActivity#use` would
+     * otherwise create mid-cast.
+     *
+     * ⚠ And do NOT force `activation: { override: true }` to skip the wait. The activation type
+     * is carried in the activity's own source — the live Skeletal Mage stores `override: false`
+     * with type `reaction` — so it reads `reaction` from the moment of creation. An override
+     * would test a shape no statblock has.
+     *
+     * `atWill` is the Green Hag shape: `uses.max: ""` and NO consumption target. On a cast
+     * activity that means AT-WILL — the exact inverse of the spell-item rule, where an empty
+     * pool means there is nothing left to spend.
+     */
+    const ensureCastStatblock = async ({ atWill = false } = {}) => {
+      const base = game.actors.getName('BF Test Victim');
+      const tokDoc = base ? scene.tokens.find(t => t.actorId === base.id) : null;
+      if (!tokDoc) throw new Error('BF Test Victim has no token — run smoke-battleflow.mjs first');
+      const actor = tokDoc.actor;      // unlinked: the thing attacked is the synthetic actor
+
+      // Rebuild from scratch every time: the two variants differ only in fields a merge would
+      // quietly keep (an empty `uses.max` does not overwrite a "1").
+      //
+      // ⚠ ONE batch delete, never a loop of `item.delete()`. A synthetic actor rebuilds its
+      // item collection from the delta on every write, so the second call in a loop is made
+      // against a document the server has already dropped and throws "Item … does not exist"
+      // (bit here 2026-08-15).
+      await sweepCastFixture(actor);
+
+      const [feature] = await actor.createEmbeddedDocuments('Item',
+        [{ name: CAST_FEATURE, type: 'feat' }]);
+      await feature.createActivity('cast', {
+        name: 'Shield - Spellcasting',
+        spell: { uuid: SHIELD_UUID, level: 1, properties: ['vocal', 'somatic'], spellbook: true },
+        activation: { type: 'reaction', override: false },  // exactly as the statblock stores it
+        consumption: atWill
+          ? { spellSlot: false, targets: [] }
+          : { spellSlot: false, targets: [{ type: 'activityUses', value: '1' }] },
+        uses: atWill
+          ? { spent: 0, max: '', recovery: [] }
+          : { spent: 0, max: '1', recovery: [{ period: 'day', type: 'recoverAll' }] },
+      }, { renderSheet: false });
+
+      const castOf = () => actor.items.get(feature.id)?.system.activities?.contents
+        .find(a => a.type === 'cast');
+      if (!castOf()) throw new Error('the cast activity did not survive creation on the token actor');
+      const cast = await waitFor(() => castOf()?.cachedSpell ? castOf() : null, 8000);
+      if (!cast) throw new Error('the system never materialized the cast activity\'s cached spell');
+
+      // ⚠ A NORMAL AC calculation, never `flat`. dnd5e's prepareArmorClass RETURNS on the flat
+      // branch before ac.bonus is ever added — and ac.bonus is the one field Shield's effect
+      // writes — so a flat AC would make "the +5 arrived" permanently untestable while looking
+      // like a module bug. `natural` is what an NPC ships with and does add the bonus.
+      await base.update({
+        'system.attributes.ac.calc': 'natural', 'system.attributes.ac.flat': 13 });
+      await actor.unsetFlag(MOD, 'reactionSpent');
+      await clearBarriers(actor);
+
+      if (cast.activation?.type !== 'reaction') throw new Error(
+        `the cast activity reads activation "${cast.activation?.type}" — the cached spell did not land`);
+      return { actor, token: canvas.tokens.get(tokDoc.id), feature, castId: cast.id, base };
+    };
+
+    // Fire attacks until one lands in [ac, ac+4] — the band where Shield's +5 flips the outcome
+    // — skipping crits and fumbles, which are correct-but-different paths. `getActivity` is the
+    // ATTACKER's attack activity, so one window serves an NPC attacker and a PC one alike.
+    const attackIntoFlipWindow = async (getActivity, tokenObj, ac, tries = 40) => {
+      for (let i = 0; i < tries; i++) {
+        tokenObj.setTarget(true, { releaseOthers: true });
+        const usage = await getActivity().use({ subsequentActions: false }, { configure: false }, {});
+        const rolls = await getActivity().rollAttack({ advantage: true }, { configure: false },
+          { data: { 'flags.dnd5e.originatingMessage': usage?.message?.id } });
+        const t = rolls?.[0];
+        if (t && !t.isCritical && !t.isFumble && (t.total >= ac) && (t.total < ac + 5)) {
+          return { usageId: usage?.message?.id, msg: t.parent, total: t.total };
+        }
+        await sleep(100);
+      }
+      return null;
+    };
+
+    // The card's OWN Cast control. Driving this rather than a hand-rolled `use` is the point:
+    // it is the control that shipped once as a button that answered without casting, and it is
+    // the only path that exercises the itemId/activityId the hold recorded.
+    const castButtonFor = messageId => Array.from(document.querySelectorAll(
+      `[data-message-id="${messageId}"] .battleflow-hold button`))
+      .find(b => b.textContent.trim() === 'Cast');
 
     // ---- 1. the hold fires and damage does NOT roll ----------------------------------------
     {
@@ -559,6 +709,200 @@ const r = await f.evaluate(async () => {
       await vActor.unsetFlag(MOD, 'reactionSpent');
     }
 
+    // ---- 4d3. THE STATBLOCK CAST-ACTIVITY PATH, END TO END -----------------------------------
+    // The Skeletal Mage's actual shape, and the most load-bearing path in the feature: a
+    // monster casts Shield from a FEATURE's `cast` activity, not from the spell item. Four
+    // separate bugs have hidden in this area and until now nothing guarded it — v1.1.12 made it
+    // work and was verified only by hand. Everything here is one chain: hold → the recorded
+    // ids → the real Cast control → the activity's own use spent → the linked spell's effect →
+    // the verdict.
+    {
+      const { actor: npc, token: npcToken, feature, castId } = await ensureCastStatblock();
+      const vAC = npc.system.attributes.ac.value;
+      const slotsBefore = JSON.stringify(npc.system.spells ?? {});
+      // ⚠ Capture the NUMBER, not the activity. A synthetic actor re-instantiates its items —
+      // and with them every activity object — on each data prep, so a reference held across an
+      // await either goes stale or is the very object the cast mutates. Either way the
+      // before/after comparison is against itself and can never fail.
+      const spentBefore = npc.items.get(feature.id).system.activities.get(castId).uses?.spent ?? 0;
+
+      const atk = await attackIntoFlipWindow(activity, npcToken, vAC);
+      if (!atk) throw new Error(`no attack landed in [${vAC}, ${vAC + 4}] against the statblock caster`);
+
+      const pending = await waitFor(() => {
+        const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
+        return h?.status === 'pending' ? h : null;
+      });
+      const heldTarget = pending?.targets?.[0] ?? null;
+
+      const button = pending ? castButtonFor(atk.msg.id) : null;
+      if (pending && !button) throw new Error('the hold row rendered no Cast button for the statblock caster');
+      button?.click();
+
+      const done = pending ? await waitFor(() => {
+        const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
+        return h?.status === 'resolved' ? h : null;
+      }, 25000) : null;
+      await sleep(1200);
+      const after = npc.items.get(feature.id)?.system.activities.get(castId)?.uses;
+      const spentAfter = after?.spent ?? null;
+
+      // ⚠ What the TABLE is told, which is computed separately from what happens. The verdict
+      // comes from the live AC; the wording comes from whether the module can still SEE the
+      // reaction's effect (hasReactionEffect → reactionACArrived), and that lookup is by NAME
+      // on an actor which — being an armoured caster — owns two items called Shield. So a hold
+      // can resolve perfectly and still publish "Reaction — not applied … this resolves as a
+      // hit". That combination is the shape of the bug Tom reported, and nothing else in this
+      // section would notice it.
+      const announcement = game.messages.contents.slice().reverse().find(m =>
+        (m.speaker?.alias === 'Battle Flow')
+        && m.content.includes(heldTarget?.name ?? ' '));
+      const announced = !announcement ? 'none'
+        : announcement.content.includes('not applied') ? 'not-applied'
+          : announcement.content.includes('it worked') ? 'worked'
+            : announcement.content.includes('not enough') ? 'not-enough' : 'other';
+
+      results.statblockCast = {
+        announced,
+        pending: !!pending,
+        reaction: heldTarget?.reaction ?? null,
+        // ⚠ The ids, not the name. A name lookup at Cast time finds the mundane shield this
+        // fixture also wears, or the cached spell that cannot pay for itself — recording the
+        // feature and its cast activity is what made the monster side work at all.
+        itemIdOK: heldTarget?.itemId === feature.id,
+        activityIdOK: heldTarget?.activityId === castId,
+        recorded: `${heldTarget?.itemId ?? null}/${heldTarget?.activityId ?? null}`,
+        expected: `${feature.id}/${castId}`,
+        answered: done?.targets?.[0]?.answer ?? null,
+        verdict: done?.targets?.[0]?.verdict ?? null,
+        acBefore: vAC,
+        acAfter: npc.system.attributes.ac.value,
+        effectApplied: !!npc.effects.find(e => e.name === 'Imperceptible Barrier' && !e.disabled),
+        // The activity's own x/x pool pays, and no slot moves — a statblock caster has none to
+        // move, so a chain that "worked" by spending a slot would be working by accident.
+        usesSpent: (spentAfter === null) ? null : spentAfter - spentBefore,
+        usesLabel: `spent ${spentBefore} → ${spentAfter} of ${after?.max ?? '?'}`,
+        slotsUnchanged: JSON.stringify(npc.system.spells ?? {}) === slotsBefore,
+        damageRolled: !!damageFor(atk.usageId),
+        attackTotal: atk.total,
+      };
+      await clearBarriers(npc);
+      await npc.unsetFlag(MOD, 'reactionSpent');
+    }
+
+    // ---- 4d4. THE AT-WILL VARIANT: no pool at all still holds ---------------------------------
+    // Inverted from the spell-item rule and easy to break: on a cast activity an empty `uses`
+    // means the monster can do it all day, not that it is out of charges. The Green Hag carries
+    // two spells exactly like this.
+    {
+      const { actor: npc, token: npcToken, feature, castId } = await ensureCastStatblock({ atWill: true });
+      const vAC = npc.system.attributes.ac.value;
+      const pool = npc.items.get(feature.id).system.activities.get(castId);
+      const poolShape = { max: `${pool?.uses?.max ?? '?'}`,
+        targets: (pool?.consumption?.targets ?? []).length };
+
+      const atk = await attackIntoFlipWindow(activity, npcToken, vAC);
+      if (!atk) throw new Error(`no attack landed in [${vAC}, ${vAC + 4}] against the at-will caster`);
+      const held = await waitFor(() => {
+        const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
+        return h?.status === 'pending' ? h : null;
+      }, 8000);
+
+      results.atWillCast = {
+        usesMax: poolShape.max,
+        consumptionTargets: poolShape.targets,
+        held: !!held,
+        reaction: held?.targets?.[0]?.reaction ?? null,
+      };
+
+      // Answer it so nothing is left pending to pop at whoever is logged in.
+      if (held) {
+        const doc = game.messages.get(atk.msg.id);
+        const m = foundry.utils.deepClone(doc.getFlag(MOD, 'hold'));
+        m.targets.forEach(t => { t.answer = t.answer ?? 'pass'; });
+        await doc.setFlag(MOD, 'hold', m);
+        await sleep(800);
+      }
+      await npc.unsetFlag(MOD, 'reactionSpent');
+    }
+
+    // ---- 4d5. A PC ATTACKS A MONSTER THAT HOLDS A REACTION ------------------------------------
+    // The mode gate has coverage and the hold has coverage, but the two had never met: every
+    // hold above is NPC → PC or NPC → NPC. Here a character-type attacker drives the chain and
+    // the monster side answers, against the statblock caster from 4d3.
+    //
+    // ⚠ What this canNOT cover, and nothing driven from the bridge can: BEING a player's
+    // client. The harness is a GM, so the GM rolls the attack and therefore the GM continues
+    // the hold — and continueHold's effect safety net is `actor.isOwner`-gated, which is
+    // trivially true for a GM and no-ops for a real player against a monster it does not own.
+    // That seam (HANDOFF open item 6) stays untested until someone dogfoods it from a player's
+    // browser. What IS covered here: the mode gate, the stamp, the answer and the verdict on an
+    // attack whose attacker is a character.
+    {
+      const pcAttacker = game.actors.getName('BF Test PC Attacker');
+      if (!pcAttacker) throw new Error('BF Test PC Attacker missing — run smoke-battleflow.mjs first');
+      const pcWeapon = pcAttacker.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
+      if (!pcWeapon) throw new Error('BF Test PC Attacker has no attack activity');
+      const pcActivity = () => game.actors.getName('BF Test PC Attacker')
+        .items.get(pcWeapon.id).system.activities.find(a => a.type === 'attack');
+
+      const { actor: npc, token: npcToken, feature, castId } = await ensureCastStatblock();
+      const vAC = npc.system.attributes.ac.value;
+
+      // (a) With auto-damage limited to NPC attackers, a PC's attack must not hold AT ALL. The
+      // hold is a pause in a chain this module is going to continue; stamping one on a chain it
+      // has already declined to touch would strand the attack behind a prompt with nothing
+      // waiting on the other side. The gate runs before the stamp — assert that it still does.
+      await game.settings.set(MOD, 'autoDamage', 'npc');
+      npcToken.setTarget(true, { releaseOthers: true });
+      const offUsage = await pcActivity().use({ subsequentActions: false }, { configure: false }, {});
+      const offUsageId = offUsage?.message?.id;
+      // ⚠ Never let this reach damageFor as undefined. getFlag returns undefined for a message
+      // that has no originatingMessage at all, so `=== undefined` matches the first unrelated
+      // damage card in the log and the gate reads as broken when it is fine.
+      if (!offUsageId) throw new Error('the PC attack produced no usage message to trace');
+      const offRolls = await pcActivity().rollAttack({ advantage: true }, { configure: false },
+        { data: { 'flags.dnd5e.originatingMessage': offUsageId } });
+      await sleep(2500);
+      const offHeld = !!game.messages.get(offRolls?.[0]?.parent?.id)?.getFlag(MOD, 'hold');
+
+      // (b) With everyone auto-resolving, the same attack holds and answers for real.
+      await game.settings.set(MOD, 'autoDamage', 'all');
+      await npc.unsetFlag(MOD, 'reactionSpent');
+      const atk = await attackIntoFlipWindow(pcActivity, npcToken, vAC);
+      if (!atk) throw new Error(`no PC attack landed in [${vAC}, ${vAC + 4}] against the statblock caster`);
+      const pending = await waitFor(() => {
+        const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
+        return h?.status === 'pending' ? h : null;
+      });
+      const button = pending ? castButtonFor(atk.msg.id) : null;
+      if (pending && !button) throw new Error('the hold row rendered no Cast button on the PC attack');
+      button?.click();
+      const done = pending ? await waitFor(() => {
+        const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
+        return h?.status === 'resolved' ? h : null;
+      }, 25000) : null;
+      await sleep(1200);
+
+      results.pcVsMonster = {
+        attackerType: pcAttacker.type,
+        modeNpcHeld: offHeld,                  // must be false: the gate precedes the stamp
+        modeNpcDamage: !!damageFor(offUsageId),  // and nothing auto-resolved either
+        held: !!pending,
+        reaction: pending?.targets?.[0]?.reaction ?? null,
+        answered: done?.targets?.[0]?.answer ?? null,
+        verdict: done?.targets?.[0]?.verdict ?? null,
+        acBefore: vAC,
+        acAfter: npc.system.attributes.ac.value,
+        effectApplied: !!npc.effects.find(e => e.name === 'Imperceptible Barrier' && !e.disabled),
+        damageRolled: !!damageFor(atk.usageId),
+        attackTotal: atk.total,
+      };
+      await clearBarriers(npc);
+      await npc.unsetFlag(MOD, 'reactionSpent');
+      await sweepCastFixture(npc);
+    }
+
     // ---- 4e. THE TIMER: an unanswered hold passes itself ------------------------------------
     {
       await game.settings.set(MOD, 'holdTimer', 4);
@@ -696,6 +1040,16 @@ const r = await f.evaluate(async () => {
         await fixture.unsetFlag(MOD, 'reactionSpent');
         for (const e of fixture.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
       }
+      // ⚠ The statblock fixture must never outlive the run. Section 4d proves that a mundane
+      // shield does not hold the chain, and a leftover cast activity hands that same fixture a
+      // REAL Shield — so the next run's 4d fails for a reason that has nothing to do with the
+      // module. Swept here as well as in-section, because a throw skips the in-section teardown.
+      const victimBase = game.actors.getName('BF Test Victim');
+      const victimToken = victimBase
+        ? game.scenes.getName('Battle Flow Test Range')?.tokens.find(t => t.actorId === victimBase.id)
+        : null;
+      if (victimToken?.actor) await sweepCastFixture(victimToken.actor);
+
       const mine = game.messages.filter(m =>
         m.speaker?.alias?.startsWith('BF Test') || m.speaker?.alias === 'Battle Flow'
         || (m.speaker?.alias === 'Gren Greenmantle' && m.getFlag(MOD, 'respondsTo')));
@@ -735,6 +1089,39 @@ report('REAL cast: the Cast control actually spends the slot (it is a cast, not 
 report("REAL cast: the module lands the reaction's effect and AC moves +5",
   x.realCast?.effectApplied === true && x.realCast?.acAfter === x.realCast?.acBefore + 5,
   `AC ${x.realCast?.acBefore} → ${x.realCast?.acAfter}, effect applied: ${x.realCast?.effectApplied}`);
+report('STATBLOCK: a feature\'s cast activity holds the chain',
+  x.statblockCast?.pending === true && x.statblockCast?.reaction === 'Shield',
+  `pending=${x.statblockCast?.pending}, reaction=${x.statblockCast?.reaction}`);
+report('STATBLOCK: the hold records the feature id AND the cast activity id',
+  x.statblockCast?.itemIdOK === true && x.statblockCast?.activityIdOK === true,
+  `recorded ${x.statblockCast?.recorded}, expected ${x.statblockCast?.expected}`);
+report('STATBLOCK: the Cast control spends the ACTIVITY\'s use, never a spell slot',
+  x.statblockCast?.answered === 'cast' && x.statblockCast?.usesSpent === 1
+  && x.statblockCast?.slotsUnchanged === true,
+  `answer=${x.statblockCast?.answered}, uses ${x.statblockCast?.usesLabel}, `
+  + `slots unchanged: ${x.statblockCast?.slotsUnchanged}`);
+report('STATBLOCK: the effect lands from the LINKED spell and AC moves +5',
+  x.statblockCast?.effectApplied === true
+  && x.statblockCast?.acAfter === x.statblockCast?.acBefore + 5,
+  `AC ${x.statblockCast?.acBefore} → ${x.statblockCast?.acAfter}, effect: ${x.statblockCast?.effectApplied}`);
+report('STATBLOCK: the verdict flips the hit to a miss and no damage rolls',
+  x.statblockCast?.verdict === 'miss' && x.statblockCast?.damageRolled === false,
+  JSON.stringify(x.statblockCast));
+report('STATBLOCK: the table is told the reaction WORKED, not that it never applied',
+  x.statblockCast?.announced === 'worked',
+  `announced: ${x.statblockCast?.announced}`);
+report('STATBLOCK: an AT-WILL cast activity (no pool at all) still holds',
+  x.atWillCast?.held === true && x.atWillCast?.reaction === 'Shield'
+  && x.atWillCast?.usesMax === '' && x.atWillCast?.consumptionTargets === 0,
+  JSON.stringify(x.atWillCast));
+report('PC → MONSTER: a PC attack holds on the monster\'s reaction and resolves to a miss',
+  x.pcVsMonster?.attackerType === 'character' && x.pcVsMonster?.held === true
+  && x.pcVsMonster?.answered === 'cast' && x.pcVsMonster?.verdict === 'miss'
+  && x.pcVsMonster?.damageRolled === false,
+  JSON.stringify(x.pcVsMonster));
+report('PC → MONSTER: with auto-damage on NPCs only, a PC attack never holds',
+  x.pcVsMonster?.modeNpcHeld === false && x.pcVsMonster?.modeNpcDamage === false,
+  `held=${x.pcVsMonster?.modeNpcHeld}, damage=${x.pcVsMonster?.modeNpcDamage}`);
 report('an NPC holds a spell paid for by x/x uses, with no slots at all',
   x.npcUsesSpell?.held === true && x.npcUsesSpell?.reaction === 'Shield',
   JSON.stringify(x.npcUsesSpell));
