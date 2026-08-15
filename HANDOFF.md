@@ -1,26 +1,28 @@
 # HANDOFF.md — picking this up cold
 
 > Written 2026-08-15, then rewritten through the same day's dogfood stretch (v1.1.2 → v1.1.12,
-> eleven releases, every one of them driven by a bug found at the table). Read
+> eleven releases, every one of them driven by a bug found at the table) and once more at
+> v1.1.13 — the first release of the day found by the **harness** instead of by a player. Read
 > [design.md](design.md) first — it is binding and wins every disagreement. This file is only
 > *where things stand* and *what already bit us*. Delete or rewrite it freely; it is a
 > snapshot, not a contract.
 >
-> **Start with Open item 1.** It is the one piece of this feature with no test behind it.
+> **Start with Open item 1.** The statblock path it used to point at is now covered; what is
+> left there is the one seam no bridge-driven test can reach.
 
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.1.12**, installed and enabled, tag pushed, GitHub release
-carries zip + manifest. **The box now tracks the GitHub manifest** (repointed 2026-08-15 —
-the self-hosted dev manifest and zip are gone), so the process vends the real version string.
+Molten-hosted). Latest release **v1.1.13**, deployed, tag pushed, GitHub release carries zip +
+manifest. **The box now tracks the GitHub manifest** (repointed 2026-08-15 — the self-hosted
+dev manifest and zip are gone), so the process vends the real version string.
 
 | Phase | State |
 | --- | --- |
 | 0 — native settings | **The user's to do**, at the table. Not code. |
 | 1 — attack resolver | ✅ shipped. Auto-roll damage on hit, auto-apply via GM elect, receipts + revert. |
 | 1.1 — dogfood polish | ✅ shipped. Tray auto-collapse, require-target gate, usage-card suppression, centered roll dialogs. |
-| 1.5 — reaction hold | ✅ shipped, **actively being dogfooded**. PC side (Gren + Shield) has real table miles; the **monster side only started working at v1.1.12** and has almost none. |
+| 1.5 — reaction hold | ✅ shipped, **actively being dogfooded**. PC side (Gren + Shield) has real table miles; the **monster side only started working at v1.1.12**, has almost no table miles, but is now covered end to end by `smoke-hold` §4d3–4d5. |
 | 2 — saves | ⬜ next, unless the user redirects. |
 | 2.5 — concentration | ⬜ has a queued user request (below). |
 | 3 — effect application | ⬜ two open items depend on it. |
@@ -46,23 +48,27 @@ whatever they find, so it drifts:
 
 ### Next up, in order
 
-1. ⚠ **The statblock cast-activity path has NO harness coverage, and it is now the most
-   load-bearing path in the feature.** v1.1.12 made monster reaction spells work for the first
-   time (see the ground truth on `cast` activities). It is verified only by hand, against the
-   live Skeletal Mage on *Party Camp* — attack 17 vs AC 16 stamped a pending Shield hold
-   carrying the feature's `itemId` and the cast activity's `activityId`. Nothing guards it
-   against regression, and four separate bugs have already hidden in this exact area.
+1. **The one seam no bridge-driven test can reach: a real player's client.** Everything else
+   about the reaction hold now has coverage. What does not, and cannot from here, is *being* a
+   player: the harness authenticates as a GM, so on a PC attack it is a GM that rolls and
+   therefore a GM that continues the hold. `continueHold`'s effect safety net is
+   `actor.isOwner`-gated — trivially true for a GM, a no-op for a player against a monster it
+   does not own — so on a genuine player attack the monster side rests entirely on the
+   answering GM's `applyReactionEffect`. Dogfood it from a player's browser: have a player
+   attack a Shield-carrying monster and watch whether the +5 lands before the verdict.
+   `smoke-hold` §4d5 covers everything else about that path (the mode gate, the stamp, the
+   answer, the verdict) with a character-type attacker.
 
-   The fixture to build, in `smoke-hold.mjs`, on the **token** actor of `BF Test Victim`
-   (unlinked — building on the base loses the pieces): a `feat` carrying a `cast` activity with
-   `activation: { type: "reaction", override: true }`, `uses: { max: "1", spent: 0 }`,
-   `consumption: { targets: [{ type: "activityUses", value: "1" }] }`, and
-   `spell: { uuid: "<a Shield spell uuid>" }` — the world has
-   `Compendium.dnd-players-handbook.spells.Item.phbsplShield0000`. Assert: the hold fires; the
-   target records `itemId`/`activityId`; the Cast control spends the ACTIVITY's use (not a
-   slot); the effect lands from the linked spell; the verdict flips the hit to a miss.
-   Also assert the **at-will** variant (`uses.max: ""`, no consumption target) still holds —
-   that rule is inverted from the spell-item one and is easy to break.
+   > **Done 2026-08-15 (was: build the statblock fixture).** `smoke-hold` §4d3 now drives the
+   > Skeletal Mage's shape end to end on `BF Test Victim`'s token actor — hold fires, the
+   > target records the feature's `itemId` and the cast activity's `activityId`, the card's
+   > real Cast button spends the ACTIVITY's use and no slot, the effect lands from the linked
+   > spell, the verdict flips the hit to a miss, and the card the table reads says so. §4d4
+   > covers the at-will variant, §4d5 a PC attacker. Two corrections to the plan this item
+   > carried: the activity's `activation.override` is **false** on the real statblock (the type
+   > lives in the activity's own source), and the cached spell must **not** be hand-built —
+   > the system creates it itself about half a second later, and racing it leaves two items
+   > called Shield. Both are in the ground truths below.
 
 2. **Magic Missile must trigger Shield** (user request, 2026-08-15). Shield's own text is
    *"you have a +5 bonus to AC … and you take no damage from Magic Missile"*, and the activity
@@ -103,12 +109,10 @@ whatever they find, so it drifts:
    `element.animate()` and positioned from the flag's absolute deadline, so popup and card
    agree exactly (measured drift 0). ⚠ Do not "simplify" it back to a CSS animation — see the
    ground truth below for why that silently desyncs.
-6. **The PC-attacker path is untested at the table** (v1.1.3 opened it). The harness covers the
-   actor-type gate but runs as a GM, so it cannot BE a player client. Untested for real:
-   a player's client stamping a hold on its own attack message, and then driving that hold's
-   continuation. The known thin spot is `continueHold`'s effect safety net — it is guarded by
-   `actor.isOwner`, so on a PC attack it no-ops for monster targets and the monster side rests
-   entirely on the answering GM. Monster reactions ship their effects **disabled**.
+6. **The PC-attacker path is untested at the table** (v1.1.3 opened it) — promoted to Open
+   item 1, since it is now the only part of the reaction hold without coverage. Monster
+   reactions ship their effects **disabled**, so the GM keeps a switch to throw when the
+   safety net cannot reach.
 7. **Usage-card suppression vs effects — partially fixed.** Cards carrying effects are now
    never suppressed (that was Ray of Frost's slow vanishing). The deeper fix is Phase 3
    applying effects itself, after which suppression can go back to being unconditional.
@@ -217,6 +221,30 @@ Each of these is commented at the line where it bit. Do not rediscover them.
   the module holding every attack for a reaction the actor can never cast.
 - **An item added to a base actor reaches an unlinked token's delta stripped of its embedded
   effects and activities.** Set test fixtures up on the token actor, or use a linked token.
+- ⚠ **A synthetic (unlinked-token) actor rebuilds its embedded collections from the delta on
+  every write**, so deleting documents one at a time throws `Item "…" does not exist!` on the
+  second call — the loop is deleting a document the server already dropped. Collect the ids
+  and make **one** `deleteEmbeddedDocuments` call. Same for its effects.
+- ⚠ **`CastActivity#use` never uses itself.** It resolves (or lazily creates) a **cached copy
+  of the spell on the actor** — flagged `dnd5e.cachedFor: <activity relativeUUID>`, with
+  `_stats.compendiumSource` pointing at the linked spell — and calls **that item's** `use()`.
+  Three consequences the whole monster side rests on: `dnd5e.postUseActivity` fires with the
+  **cached spell's** activity (so matching on the used activity's item name gives "Shield", not
+  "Spellcasting"); `_prepareUsageConfig` sets `consume.spellSlot ??= !linked && …`, so a linked
+  cast **never spends a slot**; and `config.cause.resources` routes payment to the **cast
+  activity's own uses** instead. That is why a statblock caster with 0/0 slots can cast at all.
+- **The system materializes that cached spell by itself**, about half a second after a cast
+  activity is created on an actor. Creating one by hand (`getCachedSpellData()`) races it and
+  leaves the actor with **two** items called Shield — which is a name collision the module then
+  has to survive. Fixtures must wait for it, not build it (measured 2026-08-15).
+- A cast activity's `activation.type` lives in **its own source** — the Skeletal Mage stores
+  `reaction` with `override: false` — and `prepareFinalData` overrides it from the cached spell
+  when one exists. So it reads `reaction` from the moment of creation; an `override: true` is
+  not needed and would model a shape no statblock has.
+- ⚠ **`system.attributes.ac.calc === "flat"` returns before `ac.bonus` is ever added**
+  (`data/actor/templates/attributes.mjs`), and `ac.bonus` is precisely the field Shield's effect
+  writes. Pinning a test actor's AC flat makes "the +5 arrived" permanently unobservable —
+  looking exactly like a module bug. `natural` (the NPC default) does add it.
 - ⚠ **A 2024 statblock does not cast from the spell item at all.** Its "Spellcasting" feature
   carries one **`cast` activity per spell**, and the activation, the resource and the
   consumption all live on THAT activity — the spell item it links to is a target that reports
@@ -240,6 +268,16 @@ Each of these is commented at the line where it bit. Do not rediscover them.
   items called "Shield"; `items.find()` returned whichever sorted first, and picking the
   mundane one abandoned the entry before the spell was ever considered. Filter and test them
   all — that is most armoured statblock casters.
+  ⚠ **That lesson was learned for eligibility only.** Every *other* question about a reaction —
+  has its effect landed, what is its AC bonus, what artwork and description does the popup
+  show, what does the Cast fallback use — was still doing a bare name match until **v1.1.13**,
+  and on a statblock caster they all read the worn shield: no effects, no bonus, no activities.
+  The mechanics still came out right (the verdict reads the live AC directly), so the failure
+  was purely in what the table was TOLD — a hold that correctly ended in a miss announcing
+  "Reaction — not applied … so this resolves as a hit". Caught by `smoke-hold` §4d3's
+  announcement assertion, not by a human. They all route through **`reactionItem()`** now,
+  which prefers the cached spell of the cast activity the hold recorded. If you add another
+  question about a reaction, ask it through that helper.
 - **A name match is not a reaction.** A hobgoblin WEARS a shield — an `equipment` item named
   literally "Shield" — and eleven such items existed in the world. Matching the interrupt list
   on name alone made every shield-carrying monster hold the chain for a spell it cannot cast
