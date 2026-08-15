@@ -211,7 +211,10 @@ off), none changing the resolution chain:
   discipline structural.
 - **Suppress attack usage cards** (world): the Attack/Damage button card is spam under
   auto-resolution — the workflow record is attack roll → damage roll → receipt. Vetoed at
-  `preCreateChatMessage` on the initiating client. The chain is unaffected: the resolver's
+  `preCreateChatMessage` on the initiating client. ⚠ At 5.3.3 the usage card is a message
+  **subtype** (`type: "usage"`); `flags.dnd5e.messageType === "usage"` is the legacy shape
+  the system's own `migrateData` writes for pre-subtype documents, so matching only the flag
+  no-ops silently on every card this system creates (bit live 2026-08-15). The chain is unaffected: the resolver's
   origin walk already falls back to the attack message when no usage card exists. §2's
   "never remove the native buttons" survives as a per-table choice: flipping the setting
   off restores the native cards instantly, and vanilla remains the fallback substrate.

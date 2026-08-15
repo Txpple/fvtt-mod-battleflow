@@ -206,7 +206,13 @@ Hooks.on("dnd5e.preUseActivity", activity => {
 // unaffected. Consumption still happens; only its display card is skipped.
 Hooks.on("preCreateChatMessage", doc => {
   if ( !setting(S.suppressAttackCards) ) return;
-  if ( doc.getFlag("dnd5e", "messageType") !== "usage" ) return;
+  // ⚠ At 5.3.3 the usage card is a real message SUBTYPE (`type: "usage"`, registered in
+  // data/chat-message/_module.mjs). `flags.dnd5e.messageType === "usage"` is the LEGACY
+  // shape the system's own migrateData writes for pre-subtype documents (chat-message.mjs:91)
+  // — matching only that silently no-ops on every card this system actually creates
+  // (bit live 2026-08-15). Accept both so old worlds and new agree.
+  const isUsage = (doc.type === "usage") || (doc.getFlag("dnd5e", "messageType") === "usage");
+  if ( !isUsage ) return;
   if ( doc.getFlag("dnd5e", "activity")?.type !== "attack" ) return;
   return false;
 });

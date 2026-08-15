@@ -325,6 +325,60 @@ if (!fx.ok) { process.exit(1); }
     r.ok ? `attack ${r.attackTotal} vs AC 40${r.isCritical ? ' (CRIT — flake, hit is correct)' : ''}; damage appeared: ${r.damageAppeared}` : r.why);
 }
 
+// ------------------------------------------- 5b. polish gates: suppression + no-target
+{
+  const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
+    const MOD = 'fvtt-mod-battleflow';
+    try {
+      const out = {};
+      const base = game.actors.get(victimId);
+      const attacker = game.actors.get(attackerId);
+      await base.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 40 });
+      const activity = () => attacker.items.getName(itemName).system.activities
+        .find(a => a.type === 'attack');
+      const usageCards = () => game.messages.contents.filter(m =>
+        ((m.type === 'usage') || (m.getFlag('dnd5e', 'messageType') === 'usage'))
+        && m.speaker?.alias?.startsWith('BF Test'));
+
+      // (a) Suppression ON: using an attack must create no usage card.
+      await game.settings.set(MOD, 'suppressAttackCards', true);
+      canvas.tokens.get(victimToken).setTarget(true, { releaseOthers: true });
+      const before = usageCards().length;
+      await activity().use({ subsequentActions: false }, { configure: false }, {});
+      await new Promise(r => setTimeout(r, 1500));
+      out.suppressedDelta = usageCards().length - before;
+
+      // (b) Suppression OFF: the native card comes back (the escape hatch really works).
+      await game.settings.set(MOD, 'suppressAttackCards', false);
+      const before2 = usageCards().length;
+      await activity().use({ subsequentActions: false }, { configure: false }, {});
+      await new Promise(r => setTimeout(r, 1500));
+      out.restoredDelta = usageCards().length - before2;
+
+      // (c) No-target gate: with nothing targeted the use is refused outright.
+      await game.settings.set(MOD, 'requireTarget', true);
+      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      const before3 = game.messages.size;
+      const result = await activity().use({ subsequentActions: false }, { configure: false }, {});
+      await new Promise(r => setTimeout(r, 1000));
+      out.gateRefused = !result;
+      out.gateMessagesCreated = game.messages.size - before3;
+      await game.settings.set(MOD, 'requireTarget', false);
+      return { ok: true, ...out };
+    } catch (err) {
+      await game.settings.set(MOD, 'suppressAttackCards', false);
+      await game.settings.set(MOD, 'requireTarget', false);
+      return { ok: false, why: `${err.message}\n${err.stack}` };
+    }
+  }, fx);
+  report('suppress attack usage cards (on → none created)', r.ok && r.suppressedDelta === 0,
+    r.ok ? `cards created: ${r.suppressedDelta}` : r.why);
+  report('suppression off → native card returns', r.ok && r.restoredDelta === 1,
+    r.ok ? `cards created: ${r.restoredDelta}` : r.why);
+  report('no-target gate refuses the attack', r.ok && r.gateRefused && r.gateMessagesCreated === 0,
+    r.ok ? `refused=${r.gateRefused}, messages created: ${r.gateMessagesCreated}` : r.why);
+}
+
 // ---------------------- 6. restore the table's prior settings + test chat-log cleanup
 {
   const r = await f.evaluate(async prior => {
