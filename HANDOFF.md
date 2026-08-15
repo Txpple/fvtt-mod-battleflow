@@ -7,7 +7,7 @@
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.1.4**, installed and enabled, tag pushed, GitHub release
+Molten-hosted). Latest release **v1.1.5**, installed and enabled, tag pushed, GitHub release
 carries zip + manifest. **The box now tracks the GitHub manifest** (repointed 2026-08-15 —
 the self-hosted dev manifest and zip are gone), so the process vends the real version string.
 
@@ -27,19 +27,32 @@ on, reaction hold on, apply-reaction-effect on, hold settle 8s, hold reveal off.
 
 ## Open items
 
-1. **The PC-attacker path is untested at the table** (v1.1.3 opened it). The harness covers the
+1. **The hold's UI is mid-rework — decided, not built** (user calls, 2026-08-15):
+   **the popup decides, the card watches, and the table sees the pending hold.** The popup is
+   the only surface with controls; the chat card becomes a canonical-looking, public,
+   read-only view of the moment that updates live as it resolves — right now only the person
+   who can answer sees anything, so the table misses the drama entirely. v1.1.5 shipped the
+   popup redesign (icon, ability text, card layout) and its lifecycle; **still to do** is
+   stripping the card row's buttons and making the public card. ⚠ With no card buttons, a
+   dismissed popup must have a way back — do not strand the decision.
+2. **A hold can announce a verdict against a stale AC.** `continueHold` treats "the effect
+   document exists" as proof the AC is current, but derived data recomputes a beat later, so a
+   hold can report "Shield raises AC to 12 — the attack still hits" as fact (seen live
+   2026-08-15; Gren's AC was 17 moments afterwards). The verdict should wait on the AC
+   actually reflecting the bonus, not on the effect row existing.
+3. **The PC-attacker path is untested at the table** (v1.1.3 opened it). The harness covers the
    actor-type gate but runs as a GM, so it cannot BE a player client. Untested for real:
    a player's client stamping a hold on its own attack message, and then driving that hold's
    continuation. The known thin spot is `continueHold`'s effect safety net — it is guarded by
    `actor.isOwner`, so on a PC attack it no-ops for monster targets and the monster side rests
    entirely on the answering GM. Monster reactions ship their effects **disabled**.
-2. **Usage-card suppression vs effects — partially fixed.** Cards carrying effects are now
+4. **Usage-card suppression vs effects — partially fixed.** Cards carrying effects are now
    never suppressed (that was Ray of Frost's slow vanishing). The deeper fix is Phase 3
    applying effects itself, after which suppression can go back to being unconditional.
-3. **Phase 2.5 concentration visibility** (user request, 2026-08-15): a world setting for who
+5. **Phase 2.5 concentration visibility** (user request, 2026-08-15): a world setting for who
    sees the concentration check — everyone, or just the concentrator + DM. Public is the
    interesting default for table tension when a party-wide buff like Bless is at stake.
-4. **design.md §9 says "combatplus is the template."** The user has explicitly softened
+6. **design.md §9 says "combatplus is the template."** The user has explicitly softened
    that: combatplus is a *reference*, not a template — do what is correct for Battle Flow.
    The doc sentence is a candidate for a §10-style correction.
 
@@ -128,6 +141,11 @@ Each of these is commented at the line where it bit. Do not rediscover them.
   the module holding every attack for a reaction the actor can never cast.
 - **An item added to a base actor reaches an unlinked token's delta stripped of its embedded
   effects and activities.** Set test fixtures up on the token actor, or use a linked token.
+- **A name match is not a reaction.** A hobgoblin WEARS a shield — an `equipment` item named
+  literally "Shield" — and eleven such items existed in the world. Matching the interrupt list
+  on name alone made every shield-carrying monster hold the chain for a spell it cannot cast
+  ("Hobgoblin — Shield?" on a creature with no spells). Eligibility must require a real
+  reaction activation, at item level or on an overriding activity.
 
 ## The shape of the thing
 

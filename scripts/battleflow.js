@@ -401,6 +401,26 @@ function hasSpellSlot(actor, level) {
 }
 
 /**
+ * Can this item actually be USED as a reaction?
+ *
+ * ⚠ A NAME MATCH IS NOT A REACTION. A hobgoblin wears a mundane shield — an `equipment` item
+ * literally named "Shield" — which matched the interrupt list on name alone and made every
+ * shield-carrying monster in the world hold the chain for a spell it cannot cast (reported
+ * live 2026-08-15: "Hobgoblin — Shield?" on a creature with no spells at all). Worn equipment
+ * has no activation, so asking for one drops it cleanly, and this generalises to every other
+ * collision a user-editable interrupt list can produce.
+ *
+ * ⚠ Test the ITEM's activation as well as its activities: an activity carries its own
+ * activation only when `activation.override` is true, and spells keep their casting time at
+ * item level — so an activities-only test finds ZERO reaction spells, Shield included.
+ */
+function isReactionItem(item) {
+  if ( item?.system?.activation?.type === "reaction" ) return true;
+  return (item?.system?.activities?.contents ?? []).some(activity =>
+    activity.activation?.override && (activity.activation?.type === "reaction"));
+}
+
+/**
  * The first curated interrupt this actor can actually use right now, or null. Eligibility is
  * deliberately conservative: a hold the target cannot answer is a pure false stop.
  */
@@ -410,7 +430,7 @@ function findInterrupt(actor, { isCritical }) {
     // A natural 20 hits regardless of AC, so an AC-type reaction cannot save it — no pause.
     if ( isCritical && (entry.kind === "ac") ) continue;
     const item = actor.items.find(i => i.name.toLowerCase() === entry.name.toLowerCase());
-    if ( !item ) continue;
+    if ( !item || !isReactionItem(item) ) continue;
     if ( item.type === "spell" ) {
       if ( !item.system.prepared ) continue;            // 0 unprepared / 1 prepared / 2 always
       if ( !hasSpellSlot(actor, item.system.level) ) continue;
@@ -645,6 +665,11 @@ async function applyReactionEffect(activity, actor) {
 // setFlag issues a flattened `flags.<module>.hold` key, so a nested-path test against
 // `changed` silently never matches (bit live 2026-08-15). The early-outs are cheap.
 Hooks.on("updateChatMessage", message => {
+  // Every client closes popups whose decision has already been made — this runs before the
+  // continuing-client gate on purpose, because the popup to close is usually on a DIFFERENT
+  // client from the one driving the continuation.
+  closeAnsweredPopups(message);
+
   const hold = message.getFlag(MODULE_ID, "hold");
   if ( !hold || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
   if ( !hold.targets.every(t => t.answer) ) return;
@@ -757,6 +782,62 @@ async function settleForACChange(hold) {
 /** Popups already shown by this client, so a re-render never stacks a second one. */
 const shownPopups = new Set();
 
+/**
+ * Popups currently on screen, keyed message+target. The popup is the ANSWER SURFACE: while one
+ * is open the card row defers to it and offers no buttons, because two live controls for one
+ * decision is exactly how they got out of step (reported live 2026-08-15 — answering on the
+ * card left the popup sitting open, still asking). Dismissing the popup hands the buttons back
+ * to the card, so a decision can never be stranded.
+ */
+const livePopups = new Map();
+const popupKey = (messageId, uuid) => `${messageId}|${uuid}`;
+
+/**
+ * The AC a listed reaction actually grants, read from the reaction's OWN effect instead of
+ * hardcoding Shield's +5 — the interrupt list is user-editable, so anything that assumes
+ * Shield is wrong for the other twelve entries. Returns null for a non-numeric bonus (a
+ * proficiency-scaled one like Defensive Duelist), which simply omits the "would it flip" line.
+ */
+function reactionACBonus(reactionName, actor) {
+  const item = actor?.items.find(i => i.name.toLowerCase() === reactionName?.toLowerCase());
+  for ( const effect of item?.effects ?? [] ) {
+    for ( const change of effect.changes ?? [] ) {
+      if ( change.key !== "system.attributes.ac.bonus" ) continue;
+      const value = Number(change.value);
+      if ( Number.isFinite(value) ) return value;
+    }
+  }
+  return null;
+}
+
+/**
+ * The math a hold is allowed to show, or null when the reveal is off (the RAW default: you know
+ * you were hit, not by how much).
+ *
+ * ⚠ ONE gate for BOTH surfaces. The popup used to reveal the numbers while the card row said
+ * only "Shield?", so the same hold told two different stories depending on where you read it.
+ * Any new surface reads this too — do not re-derive the numbers locally.
+ */
+function revealDetail(target, roll, actor) {
+  if ( !setting(S.holdReveal) ) return null;
+  const liveAC = actor?.system?.attributes?.ac?.value ?? target.ac;
+  const total = roll?.total ?? null;
+  const bonus = (target.kind === "ac") ? reactionACBonus(target.reaction, actor) : null;
+  return {
+    total, liveAC, bonus,
+    wouldAC: bonus == null ? null : liveAC + bonus,
+    wouldMiss: bonus == null ? null : (total < (liveAC + bonus))
+  };
+}
+
+/** The reveal as one compact line, for the card row. */
+function revealLine(reveal, target) {
+  let text = `<strong>${reveal.total}</strong> vs AC <strong>${reveal.liveAC}</strong>`;
+  if ( reveal.bonus != null ) text += ` · ${target.reaction} → AC ${reveal.wouldAC}, `
+    + `<em>${reveal.wouldMiss ? "enough to miss" : "still hits"}</em>`;
+  return text;
+}
+
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const hold = message.getFlag(MODULE_ID, "hold");
   if ( !hold?.targets?.length ) return;
@@ -789,7 +870,26 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
     if ( hold.status === "pending" ) {
       void fromUuid(target.uuid).then(actor => {
+        // The same math the popup shows, from the same gate — see revealDetail.
+        const reveal = revealDetail(target, message.rolls[0], actor);
+        if ( reveal ) {
+          const math = document.createElement("span");
+          math.style.opacity = "0.85";
+          math.innerHTML = ` · ${revealLine(reveal, target)}`;
+          label.append(math);
+        }
         if ( !canAnswerFor(actor) ) return;
+
+        // One surface at a time: while this client has the popup open, that popup owns the
+        // decision and the row only says where to answer. The buttons return here the moment
+        // the popup is dismissed without an answer.
+        if ( livePopups.has(popupKey(message.id, target.uuid)) ) {
+          const hint = document.createElement("em");
+          hint.textContent = "answer in the popup";
+          hint.style.opacity = "0.7";
+          line.append(hint);
+          return;
+        }
         line.append(
           holdButton("Cast", () => castReaction(target)),
           holdButton("Pass", () => answerHold(message, target.uuid, "pass"))
@@ -850,37 +950,121 @@ function holdButton(label, onClick) {
   return button;
 }
 
+/**
+ * The reaction rendered as its own card: portrait, name, who is reacting, the ability's real
+ * text, and — only if the reveal is on — the math. This is the moment the whole feature exists
+ * to protect, so it should read like the ability rather than like a confirm box.
+ */
+async function holdPopupContent(target, roll, actor) {
+  const item = actor?.items.find(i => i.name.toLowerCase() === target.reaction.toLowerCase());
+  const img = item?.img ?? "icons/svg/shield.svg";
+  const subtitle = [target.name, item?.system?.activation?.type === "reaction" ? "Reaction" : null]
+    .filter(Boolean).join(" · ");
+
+  // Enrich so the ability reads as it does on the sheet (inline rolls, references, links).
+  const editor = foundry.applications?.ux?.TextEditor?.implementation ?? globalThis.TextEditor;
+  let description = "";
+  try {
+    description = await editor.enrichHTML(item?.system?.description?.value ?? "",
+      { rollData: actor?.getRollData?.() ?? {}, secrets: false });
+  } catch(err) {
+    description = item?.system?.description?.value ?? "";
+  }
+
+  const reveal = revealDetail(target, roll, actor);
+  const situation = reveal
+    ? `<div style="font-size:var(--font-size-14,14px);"><strong>${reveal.total}</strong> vs AC `
+      + `<strong>${reveal.liveAC}</strong> — a hit.</div>`
+      + (reveal.bonus == null ? "" : `<div style="opacity:0.85;margin-top:0.15rem;">`
+        + `${target.reaction} would make it AC <strong>${reveal.wouldAC}</strong> — `
+        + `<em>${reveal.wouldMiss ? "enough to miss" : "still not enough"}</em>.</div>`)
+    : `<div style="font-size:var(--font-size-14,14px);">Something hits `
+      + `<strong>${target.name}</strong>.</div>`;
+
+  return `
+  <div style="display:flex;gap:0.6rem;align-items:center;padding-bottom:0.5rem;
+              border-bottom:1px solid var(--color-border-light-2,#999a);">
+    <img src="${img}" alt="" style="width:48px;height:48px;flex:0 0 auto;border-radius:4px;
+         border:1px solid var(--color-border-dark,#0006);object-fit:cover;">
+    <div style="flex:1;min-width:0;">
+      <div style="font-family:var(--font-h1,inherit);font-size:var(--font-size-18,18px);
+                  font-weight:bold;line-height:1.2;">${target.reaction}</div>
+      <div style="opacity:0.7;font-size:var(--font-size-12,12px);">${subtitle}</div>
+    </div>
+  </div>
+  <div style="padding:0.6rem 0.1rem;">${situation}</div>
+  ${description ? `<div style="max-height:11rem;overflow-y:auto;padding:0.5rem 0.6rem;
+       border-radius:4px;background:rgba(0,0,0,0.05);font-size:var(--font-size-13,13px);
+       line-height:1.5;">${description}</div>` : ""}`;
+}
+
+/**
+ * Show the hold popup and keep it honest about its own lifetime.
+ *
+ * ⚠ A popup is a VIEW, and a view must not outlive its state. This used to be a blocking
+ * DialogV2.wait() with no handle, so answering anywhere else — the card row, a cast straight
+ * from the sheet, a GM Skip — left it on screen still asking a question that had been answered
+ * (reported live 2026-08-15). Now the instance is held so the hold's own update can close it,
+ * and closing for ANY reason releases the decision back to the card row.
+ */
 async function showHoldPopup(attackMessage, hold) {
   const roll = attackMessage.rolls[0];
   for ( const target of hold.targets ) {
     const actor = await fromUuid(target.uuid);
     if ( !canAnswerFor(actor) ) continue;
 
-    // Reveal off (default) is RAW: you know you were hit, not by how much. On shows the math
-    // and the verdict the re-test would reach.
-    let detail = `<p>Something hits <strong>${target.name}</strong>.</p>`;
-    if ( setting(S.holdReveal) ) {
-      const liveAC = actor?.system?.attributes?.ac?.value ?? target.ac;
-      detail = `<p><strong>${roll.total}</strong> vs AC <strong>${liveAC}</strong> — a hit.</p>`;
-      if ( target.kind === "ac" ) {
-        const bonus = /Shield/i.test(target.reaction) ? 5 : null;
-        if ( bonus ) detail += `<p>${target.reaction} would make it AC ${liveAC + bonus} — `
-          + `<em>${roll.total < (liveAC + bonus) ? "enough to miss" : "still not enough"}</em>.</p>`;
-      }
-    }
+    const key = popupKey(attackMessage.id, target.uuid);
+    if ( livePopups.has(key) ) continue;
 
-    await foundry.applications.api.DialogV2.wait({
-      window: { title: `${target.reaction}?`, icon: "fa-solid fa-hand" },
-      position: { width: 420 },
-      content: `${detail}<p>Cast <strong>${target.reaction}</strong>, or let it land?</p>`,
-      buttons: [
-        { action: "cast", label: `Cast ${target.reaction}`, default: true,
-          callback: () => castReaction(target) },
-        { action: "pass", label: "Pass",
-          callback: () => answerHold(attackMessage, target.uuid, "pass") }
-      ],
+    const buttons = [
+      { action: "cast", label: `Cast ${target.reaction}`, default: true,
+        callback: () => castReaction(target) },
+      { action: "pass", label: "Pass",
+        callback: () => answerHold(attackMessage, target.uuid, "pass") }
+    ];
+    // The GM's override lives beside the real choices rather than only on the card, so the
+    // popup is a complete answer surface and the card never has to be the fallback.
+    if ( game.user.isGM ) buttons.push({ action: "skip", label: "Skip",
+      callback: () => answerHold(attackMessage, target.uuid, "skip") });
+
+    const dialog = new foundry.applications.api.DialogV2({
+      window: { title: target.reaction, icon: "fa-solid fa-shield-halved" },
+      position: { width: 460 },
+      content: await holdPopupContent(target, roll, actor),
+      buttons,
       rejectClose: false
-    }).catch(() => null); // dismissed ≠ answered; the card row keeps the hold alive
+    });
+
+    // Patch the instance rather than subclassing: whatever closes it — a button, the X, escape,
+    // or closeAnsweredPopups below — must release the card row in exactly one place.
+    const close = dialog.close.bind(dialog);
+    dialog.close = async (...args) => {
+      livePopups.delete(key);
+      try { ui.chat?.updateMessage?.(attackMessage); } catch(err) { /* row refreshes next render */ }
+      return close(...args);
+    };
+
+    livePopups.set(key, dialog);
+    try {
+      await dialog.render({ force: true });
+      // The row was drawn before this popup existed; redraw so it defers instead of offering
+      // a second set of buttons.
+      ui.chat?.updateMessage?.(attackMessage);
+    } catch(err) {
+      livePopups.delete(key);
+      console.error(`${TITLE} | Could not open the reaction popup — answer from the card.`, err);
+    }
+  }
+}
+
+/** A decision made anywhere closes the popup asking for it. */
+function closeAnsweredPopups(message) {
+  const hold = message.getFlag(MODULE_ID, "hold");
+  if ( !hold?.targets?.length ) return;
+  for ( const target of hold.targets ) {
+    const dialog = livePopups.get(popupKey(message.id, target.uuid));
+    if ( !dialog ) continue;
+    if ( (hold.status !== "pending") || target.answer ) void dialog.close();
   }
 }
 

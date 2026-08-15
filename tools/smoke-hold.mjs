@@ -452,6 +452,45 @@ const r = await f.evaluate(async () => {
       await victimActor.unsetFlag(MOD, 'reactionSpent');
     }
 
+    // ---- 4d. A NAME MATCH IS NOT A REACTION --------------------------------------------------
+    // A hobgoblin WEARS a shield: an `equipment` item literally named "Shield". It matched the
+    // interrupt list on name alone, so every shield-carrying monster in the world held the
+    // chain for a spell it cannot cast — "Hobgoblin — Shield?" on a creature with no spells at
+    // all (reported live 2026-08-15). Eleven such items existed in the world at the time.
+    {
+      const victimBase = game.actors.getName('BF Test Victim');
+      const vTokDoc = victimBase ? scene.tokens.find(t => t.actorId === victimBase.id) : null;
+      if (!vTokDoc) throw new Error('BF Test Victim has no token — run smoke-battleflow.mjs first');
+      const vActor = vTokDoc.actor;   // unlinked: the thing attacked is the synthetic actor
+
+      // Idempotent fixture: the mundane shield must actually be present for this to prove
+      // anything. Built on the TOKEN actor — an item added to the base reaches an unlinked
+      // token's delta stripped of its embedded pieces.
+      let mundane = vActor.items.find(i => i.name === 'Shield' && i.type !== 'spell');
+      if (!mundane) {
+        [mundane] = await vActor.createEmbeddedDocuments('Item',
+          [{ name: 'Shield', type: 'equipment', system: { type: { value: 'shield' } } }]);
+      }
+      await victimBase.update({
+        'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+
+      canvas.tokens.get(vTokDoc.id).setTarget(true, { releaseOthers: true });
+      const usage = await activity().use({ subsequentActions: false }, { configure: false }, {});
+      const usageId = usage?.message?.id;
+      const rolls = await activity().rollAttack({ advantage: true }, { configure: false },
+        { data: { 'flags.dnd5e.originatingMessage': usageId } });
+      await sleep(2500);
+      results.mundaneShield = {
+        itemType: mundane.type,
+        itemActivation: mundane.system?.activation?.type ?? null,
+        // If a real Shield SPELL is also on the fixture the test proves nothing — say so.
+        strayShieldSpell: vActor.items.some(i => (i.name === 'Shield') && (i.type === 'spell')),
+        held: !!game.messages.get(rolls?.[0]?.parent?.id)?.getFlag(MOD, 'hold'),
+        damageRolled: !!damageFor(usageId),
+        attackTotal: rolls?.[0]?.total,
+      };
+    }
+
     // ---- 5. a natural 20 skips an AC-type hold (no AC saves you from a crit) ----------------
     {
       let crit = null;
@@ -543,6 +582,10 @@ report('REAL cast: the Cast control actually spends the slot (it is a cast, not 
 report("REAL cast: the module lands the reaction's effect and AC moves +5",
   x.realCast?.effectApplied === true && x.realCast?.acAfter === x.realCast?.acBefore + 5,
   `AC ${x.realCast?.acBefore} → ${x.realCast?.acAfter}, effect applied: ${x.realCast?.effectApplied}`);
+report('a mundane shield (equipment, not a spell) never holds the chain',
+  x.mundaneShield?.held === false && x.mundaneShield?.damageRolled === true
+  && x.mundaneShield?.strayShieldSpell === false,
+  JSON.stringify(x.mundaneShield));
 report('ONE casting answers MANY holds and lands exactly ONE effect',
   x.oneCastOneEffect?.effectCount === 1
   && x.oneCastOneEffect?.acAfter === x.oneCastOneEffect?.acBefore + 5
