@@ -219,7 +219,15 @@ off), none changing the resolution chain:
   `preCreateChatMessage` on the initiating client. ⚠ At 5.3.3 the usage card is a message
   **subtype** (`type: "usage"`); `flags.dnd5e.messageType === "usage"` is the legacy shape
   the system's own `migrateData` writes for pre-subtype documents, so matching only the flag
-  no-ops silently on every card this system creates (bit live 2026-08-15). The chain is unaffected: the resolver's
+  no-ops silently on every card this system creates (bit live 2026-08-15).
+  ⚠ **A card carrying effects is never suppressed.** Attack-roll *spells* are attack
+  activities too, and their card is the only place their riders can be applied from —
+  suppressing it silently ate Ray of Frost's slow (reported live 2026-08-15). Revisit when
+  Phase 3 applies effects itself.
+- **Damage receipts are for the whole table, the HP pool is not.** Everyone sees *who* the
+  damage landed on and how much; the before → after hit points and the revert control stay
+  GM-only. A rolled number with no named target is the thing players actually complained
+  about; a monster's remaining HP is not the party's to read. The chain is unaffected: the resolver's
   origin walk already falls back to the attack message when no usage card exists. §2's
   "never remove the native buttons" survives as a per-table choice: flipping the setting
   off restores the native cards instantly, and vanilla remains the fallback substrate.

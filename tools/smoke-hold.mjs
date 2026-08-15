@@ -67,6 +67,7 @@ const r = await f.evaluate(async () => {
         reactionHold: game.settings.get(MOD, 'reactionHold'),
         holdSettle: game.settings.get(MOD, 'holdSettle'),
         holdView: game.settings.get(MOD, 'holdView'),
+        holdApplyEffect: game.settings.get(MOD, 'holdApplyEffect'),
         suppressAttackCards: game.settings.get(MOD, 'suppressAttackCards'),
         requireTarget: game.settings.get(MOD, 'requireTarget'),
       },
@@ -78,7 +79,8 @@ const r = await f.evaluate(async () => {
     await game.settings.set(MOD, 'autoApply', true);
     await game.settings.set(MOD, 'dramaticBeat', 0);
     await game.settings.set(MOD, 'reactionHold', true);
-    await game.settings.set(MOD, 'holdSettle', 3);
+    await game.settings.set(MOD, 'holdSettle', 6);
+    await game.settings.set(MOD, 'holdApplyEffect', true);
     await game.settings.set(MOD, 'holdView', false); // no popup: the bridge cannot dismiss it
     await game.settings.set(MOD, 'suppressAttackCards', false);
     await game.settings.set(MOD, 'requireTarget', false);
@@ -87,6 +89,16 @@ const r = await f.evaluate(async () => {
     // the test a lie: a flat AC ignores system.attributes.ac.bonus, which is exactly the
     // field Shield's active effect writes — so the +5 could never appear and every re-test
     // would read a stale-looking AC (bit live 2026-08-15).
+    //
+    // ⚠ The harness runs as a GM, and the module deliberately refuses to let a GM answer a
+    // hold for a character a LOGGED-IN PLAYER owns — the decision belongs to that player.
+    // So when Gren's player is connected the GM cannot drive his Shield, and the real-cast
+    // path is exercised on a GM-owned stand-in instead (a copy of Gren's actual Shield on
+    // the test NPC), which is answerable from here. The flag-write path below still covers
+    // Gren himself.
+    const grenOwnedByActivePlayer = game.users.some(u =>
+      !u.isGM && u.active && gren.testUserPermission(u, 'OWNER'));
+    log.push(`gren owned by an active player: ${grenOwnedByActivePlayer}`);
     const baseAC = gren.system.attributes.ac.value;
     let grenToken = scene.tokens.find(t => t.actorId === gren.id);
     if (!grenToken) {
@@ -153,17 +165,16 @@ const r = await f.evaluate(async () => {
 
       // ---- 2. CAST answers it; live AC re-test turns the hit into a miss -------------------
       const hpBefore = gren.system._source.attributes.hp.value;
-      // Apply Shield's own active effect the way the native effects tray does — this is the
-      // AC change the hold is waiting for (Phase 3 will press this button automatically).
-      const effectData = shield.effects.contents[0].toObject();
-      effectData.disabled = false;
-      effectData.origin = shield.uuid;
-      const [applied] = await gren.createEmbeddedDocuments('ActiveEffect', [effectData]);
       const holdDoc = game.messages.get(msg.id);
       const merged = foundry.utils.deepClone(holdDoc.getFlag(MOD, 'hold'));
       merged.targets.find(t => t.uuid === gren.uuid).answer = 'cast';
+      // Stand in for the effect the player's own client would apply on their cast.
+      const effectData = shield.effects.contents[0].toObject();
+      effectData.disabled = false;
+      effectData.origin = shield.effects.contents[0].uuid;
+      await gren.createEmbeddedDocuments('ActiveEffect', [effectData]);
       await holdDoc.setFlag(MOD, 'hold', merged);
-      await sleep(500);
+      await sleep(800);
       const afterWrite = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
       results.diag = {
         targets: afterWrite?.targets,
@@ -186,7 +197,7 @@ const r = await f.evaluate(async () => {
         damageRolled: !!damageFor(usageId),
         hpUnchanged: gren.system._source.attributes.hp.value === hpBefore,
       };
-      await applied?.delete();
+      for (const e of gren.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
       await gren.unsetFlag(MOD, 'reactionSpent');
     }
 
@@ -217,6 +228,73 @@ const r = await f.evaluate(async () => {
         damageRolled: !!damageFor(usageId),
       };
       await gren.unsetFlag(MOD, 'reactionSpent');
+    }
+
+    // ---- 4b. THE REAL CAST PATH, on a GM-answerable stand-in --------------------------------
+    // A copy of Gren's actual Shield on the test NPC: the GM can answer for it, so the whole
+    // production chain runs for real — cast → module applies the effect → AC moves → the
+    // hold re-tests against it. This is the path that was silently broken until now, because
+    // Shield's +5 lives in an effect nobody had pressed.
+    {
+      const victim = game.actors.getName('BF Test Victim');
+      const victimToken = scene.tokens.find(t => t.actorId === victim.id);
+      let npcShield = victim.items.find(i => i.name === 'Shield' && i.type === 'spell');
+      if (!npcShield) {
+        [npcShield] = await victim.createEmbeddedDocuments('Item', [shield.toObject()]);
+      }
+      await victim.update({
+        'system.spells.spell1.value': 4, 'system.spells.spell1.max': 4,
+        'system.attributes.ac.calc': 'default',
+      });
+      await victim.unsetFlag(MOD, 'reactionSpent');
+      for (const e of victim.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
+
+      const victimTokenObj = canvas.tokens.get(victimToken.id);
+      const victimActor = victimTokenObj.actor; // unlinked: the synthetic actor is the target
+      const vAC = victimActor.system.attributes.ac.value;
+
+      // Attack it into the window where Shield's +5 flips the outcome.
+      let atk = null;
+      for (let i = 0; i < 40 && !atk; i++) {
+        victimTokenObj.setTarget(true, { releaseOthers: true });
+        const usage = await activity().use({ subsequentActions: false }, { configure: false }, {});
+        const rolls = await activity().rollAttack({ advantage: true }, { configure: false },
+          { data: { 'flags.dnd5e.originatingMessage': usage?.message?.id } });
+        const t = rolls?.[0];
+        if (t && !t.isCritical && !t.isFumble && (t.total >= vAC) && (t.total < vAC + 5)) {
+          atk = { usageId: usage?.message?.id, msg: t.parent, total: t.total };
+        } else await sleep(100);
+      }
+      if (!atk) throw new Error(`no attack landed in [${vAC}, ${vAC + 4}] against the stand-in`);
+
+      const pending = await waitFor(() => {
+        const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
+        return h?.status === 'pending' ? h : null;
+      });
+
+      // The genuine article: use the reaction. No flag writes, no hand-applied effects.
+      const npcShieldActivity = victimActor.items.get(npcShield.id).system.activities.contents[0];
+      await npcShieldActivity.use({ subsequentActions: false }, { configure: false }, {});
+
+      const done = await waitFor(() => {
+        const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
+        return h?.status === 'resolved' ? h : null;
+      }, 25000);
+      await sleep(1200);
+      results.realCast = {
+        pending: !!pending,
+        answered: done?.targets?.[0]?.answer,
+        verdict: done?.targets?.[0]?.verdict,
+        acBefore: vAC,
+        acAfter: victimActor.system.attributes.ac.value,
+        effectApplied: !!victimActor.effects.find(e => e.name === 'Imperceptible Barrier' && !e.disabled),
+        attackTotal: atk.total,
+        damageRolled: !!damageFor(atk.usageId),
+      };
+      for (const e of victimActor.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
+      await victim.unsetFlag(MOD, 'reactionSpent');
+      const stale = victim.items.find(i => i.name === 'Shield' && i.type === 'spell');
+      if (stale) await stale.delete();
     }
 
     // ---- 5. a natural 20 skips an AC-type hold (no AC saves you from a crit) ----------------
@@ -287,6 +365,14 @@ report('pass → the chain proceeds and damage rolls',
 report('reaction already spent ⇒ no hold, damage flows',
   x.spentSuppresses?.held === false && x.spentSuppresses?.damageRolled === true,
   JSON.stringify(x.spentSuppresses));
+report('REAL cast: the reaction answers its own hold', x.realCast?.pending && x.realCast?.answered === 'cast',
+  `pending=${x.realCast?.pending}, answer=${x.realCast?.answered}`);
+report("REAL cast: the module lands the reaction's effect and AC moves +5",
+  x.realCast?.effectApplied === true && x.realCast?.acAfter === x.realCast?.acBefore + 5,
+  `AC ${x.realCast?.acBefore} → ${x.realCast?.acAfter}, effect applied: ${x.realCast?.effectApplied}`);
+report('REAL cast: the attack becomes a miss and no damage rolls',
+  x.realCast?.verdict === 'miss' && x.realCast?.damageRolled === false,
+  JSON.stringify(x.realCast));
 if (x.critSkipsHold?.rolled) {
   report('a natural 20 skips the AC-type hold',
     x.critSkipsHold.held === false && x.critSkipsHold.damageRolled === true,

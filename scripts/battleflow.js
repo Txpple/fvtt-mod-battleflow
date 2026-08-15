@@ -76,7 +76,8 @@ const S = {
   interruptList: "interruptList",
   holdReveal: "holdReveal",
   holdSettle: "holdSettle",
-  holdView: "holdView"
+  holdView: "holdView",
+  holdApplyEffect: "holdApplyEffect"
 };
 
 const setting = key => game.settings.get(MODULE_ID, key);
@@ -155,6 +156,12 @@ Hooks.once("init", () => {
     range: { min: 1, max: 30, step: 1 }
   });
 
+  game.settings.register(MODULE_ID, S.holdApplyEffect, {
+    name: "Apply the Reaction's Own Effect",
+    hint: "When a held target casts their reaction, put its self-effect on them — Shield's +5 AC arrives as an effect the native tray would otherwise wait for someone to click, and until it lands the re-test reads the old AC and calls it a hit. Only ever applies the cast reaction's own effect, to the caster, while their hold is open. Turn off if you would rather click the effects tray yourself.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
   game.settings.register(MODULE_ID, S.holdView, {
     name: "Hold: Show Me the Popup",
     hint: "On: reaction holds you can answer pop up in the middle of the screen. Off: no popup — the hold's buttons live on the attack card in chat only. Per player; GMs running monster-side holds often prefer card-only.",
@@ -191,7 +198,7 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   const hold = input(S.reactionHold);
   const syncAll = () => {
     setEnabled(input(S.dramaticBeat), autoDamage?.value !== "off");
-    for ( const key of [S.interruptList, S.holdReveal, S.holdSettle, S.holdView] )
+    for ( const key of [S.interruptList, S.holdReveal, S.holdSettle, S.holdView, S.holdApplyEffect] )
       setEnabled(input(key), !!hold?.checked);
   };
   syncAll();
@@ -272,6 +279,11 @@ Hooks.on("preCreateChatMessage", doc => {
   const isUsage = (doc.type === "usage") || (doc.getFlag("dnd5e", "messageType") === "usage");
   if ( !isUsage ) return;
   if ( doc.getFlag("dnd5e", "activity")?.type !== "attack" ) return;
+  // ⚠ Never suppress a card that carries effects. Attack-roll SPELLS are attack activities
+  // too, and their card is the only place their riders can be applied from — suppressing it
+  // silently ate Ray of Frost's slow (reported live 2026-08-15). Phase 3 will apply these
+  // automatically; until then the card must survive to be clicked.
+  if ( doc.system?.effects?.length ) return;
   return false;
 });
 
@@ -408,14 +420,33 @@ const reactionSpent = actor => !!actor?.getFlag(MODULE_ID, "reactionSpent");
 Hooks.on("dnd5e.postUseActivity", activity => {
   if ( !setting(S.reactionHold) || !isActiveGM() ) return;
   if ( activity?.activation?.type !== "reaction" ) return;
-  void activity.actor?.setFlag(MODULE_ID, "reactionSpent", true);
+  const actor = activity.actor;
+  // Only inside a running combat. Out of combat there are no turns to refresh the flag, so
+  // setting it would strand the actor with reactions permanently "spent" and silently
+  // suppress every later hold — including the next time you sit down to test one.
+  if ( !actor || !inRunningCombat(actor) ) return;
+  void actor.setFlag(MODULE_ID, "reactionSpent", true);
 });
+
+/** Is this actor a combatant in a combat that has actually started? */
+function inRunningCombat(actor) {
+  return game.combats.some(c => c.started && c.combatants.some(cb => cb.actor?.id === actor.id));
+}
 
 // Cleared when the actor's own turn comes round again.
 Hooks.on("updateCombat", combat => {
   if ( !setting(S.reactionHold) || !isActiveGM() ) return;
   const actor = combat.combatant?.actor;
   if ( actor?.getFlag(MODULE_ID, "reactionSpent") ) void actor.unsetFlag(MODULE_ID, "reactionSpent");
+});
+
+// …and when the fight ends, so nobody carries a spent reaction into the next one.
+Hooks.on("deleteCombat", combat => {
+  if ( !setting(S.reactionHold) || !isActiveGM() ) return;
+  for ( const combatant of combat.combatants ) {
+    if ( combatant.actor?.getFlag(MODULE_ID, "reactionSpent") )
+      void combatant.actor.unsetFlag(MODULE_ID, "reactionSpent");
+  }
 });
 
 /**
@@ -522,10 +553,46 @@ Hooks.on("dnd5e.postUseActivity", activity => {
   for ( const message of game.messages.contents.slice(-25) ) {
     const hold = message.getFlag(MODULE_ID, "hold");
     if ( !hold || (hold.status !== "pending") ) continue;
-    const target = hold.targets.find(t => (t.uuid === actor.uuid) && !hold.answers?.[t.uuid]);
-    if ( target ) void answerHold(message, target.uuid, "cast");
+    const target = hold.targets.find(t => (t.uuid === actor.uuid) && !t.answer);
+    if ( !target ) continue;
+    void (async () => {
+      if ( setting(S.holdApplyEffect) ) await applyReactionEffect(activity, actor);
+      await answerHold(message, target.uuid, "cast");
+    })();
   }
 });
+
+/**
+ * Put a cast reaction's own effect on its caster — the button the native effects tray is
+ * waiting for someone to press. Scoped hard: only the reaction that answered a hold, only
+ * onto the caster, only while that hold is open. This is a deliberate sliver of Phase 3,
+ * and it exists because without it the whole feature reads a stale AC and lies: Shield's +5
+ * lives in a non-transfer effect, so a cast alone moves nothing.
+ *
+ * Mirrors EffectApplicationElement._applyEffectToActor (5.3.3): re-enable and refresh the
+ * duration of an existing same-origin effect, otherwise create it disabled:false /
+ * transfer:false with origin set, so the system's own cleanup and expiry apply unchanged.
+ */
+async function applyReactionEffect(activity, actor) {
+  try {
+    for ( const effect of activity.applicableEffects ?? [] ) {
+      const existing = actor.effects.find(e => e.origin === effect.uuid);
+      if ( existing ) {
+        await existing.update({ ...effect.constructor.getInitialDuration(), disabled: false });
+        continue;
+      }
+      await ActiveEffect.implementation.create({
+        ...effect.toObject(),
+        disabled: false,
+        transfer: false,
+        origin: effect.uuid,
+        flags: { dnd5e: { dependentOn: effect.uuid }, [MODULE_ID]: { reactionEffect: true } }
+      }, { parent: actor });
+    }
+  } catch(err) {
+    console.error(`${TITLE} | Could not apply the reaction's effect — apply it from the card.`, err);
+  }
+}
 
 // Drive the continuation whenever a held message changes and every held target has answered.
 // Deliberately reads the message's CURRENT state rather than inspecting the update diff:
@@ -767,7 +834,11 @@ async function applyToHitTargets(damageMessage, hits) {
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const receipt = message.getFlag(MODULE_ID, "receipt");
-  if ( !receipt?.targets?.length || !game.user.isGM ) return;
+  if ( !receipt?.targets?.length ) return;
+  // Everyone sees WHO the damage landed on — otherwise a rolled number sits on the card with
+  // no indication of who took it. Only the GM sees the HP pool and the revert control: the
+  // party has no business reading a monster's hit points off a chat card.
+  const isGM = game.user.isGM;
 
   // While an un-reverted application stands, every render of the card starts with its damage
   // tray collapsed, as if Apply had been pressed (same "manual" setting guard as the native
@@ -798,22 +869,30 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const line = document.createElement("div");
     Object.assign(line.style, { display: "flex", alignItems: "center", gap: "0.4rem" });
 
+    const icon = document.createElement("i");
+    icon.className = t.reverted ? "fa-solid fa-rotate-left" : "fa-solid fa-heart-crack";
+    Object.assign(icon.style, { flex: "0 0 auto", opacity: t.reverted ? "0.5" : "0.85" });
+
     const name = document.createElement("span");
     name.textContent = t.name;
     Object.assign(name.style, { flex: "1", fontWeight: "bold" });
     if ( t.reverted ) name.style.textDecoration = "line-through";
 
-    const detail = document.createElement("span");
     const lost = -((t.delta.value ?? 0) + (t.delta.temp ?? 0));
     const from = (t.prior.value ?? 0) + (t.prior.temp ?? 0);
-    detail.textContent = t.reverted
-      ? "reverted"
-      : `−${lost} HP (${from} → ${from - lost})`;
-    if ( t.reverted ) detail.style.fontStyle = "italic";
+    const detail = document.createElement("span");
+    Object.assign(detail.style, { flex: "0 0 auto", fontVariantNumeric: "tabular-nums" });
+    if ( t.reverted ) {
+      detail.textContent = "reverted";
+      detail.style.fontStyle = "italic";
+    } else {
+      // The HP pool is GM-only; players get the fact and the number, not the monster's book.
+      detail.textContent = isGM ? `−${lost} HP (${from} → ${from - lost})` : `−${lost} HP`;
+    }
 
-    line.append(name, detail);
+    line.append(icon, name, detail);
 
-    if ( !t.reverted ) {
+    if ( isGM && !t.reverted ) {
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = "↩ Revert";

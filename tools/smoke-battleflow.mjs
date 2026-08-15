@@ -355,6 +355,29 @@ if (!fx.ok) { process.exit(1); }
       await new Promise(r => setTimeout(r, 1500));
       out.restoredDelta = usageCards().length - before2;
 
+      // (b2) An attack card that CARRIES EFFECTS is never suppressed — that tray is the only
+      // way a spell's riders reach a target (Ray of Frost's slow vanished when it wasn't).
+      await game.settings.set(MOD, 'suppressAttackCards', true);
+      const spellCaster = game.actors.getName('Gren Greenmantle');
+      const riderSpell = spellCaster?.items.find(i =>
+        i.type === 'spell'
+        && i.system.activities?.some?.(a => a.type === 'attack')
+        && i.effects?.size);
+      if (riderSpell) {
+        const act = riderSpell.system.activities.contents.find(a => a.type === 'attack');
+        const before = game.messages.size;
+        await act.use({ subsequentActions: false }, { configure: false }, {});
+        await new Promise(r => setTimeout(r, 1200));
+        const created = game.messages.contents.slice(before);
+        out.effectCard = {
+          spell: riderSpell.name,
+          cardSurvived: created.some(m => (m.type === 'usage') && m.system?.effects?.length),
+        };
+      } else {
+        out.effectCard = { spell: null };
+      }
+      await game.settings.set(MOD, 'suppressAttackCards', false);
+
       // (c) No-target gate: with nothing targeted the use is refused outright.
       await game.settings.set(MOD, 'requireTarget', true);
       game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
@@ -375,6 +398,12 @@ if (!fx.ok) { process.exit(1); }
     r.ok ? `cards created: ${r.suppressedDelta}` : r.why);
   report('suppression off → native card returns', r.ok && r.restoredDelta === 1,
     r.ok ? `cards created: ${r.restoredDelta}` : r.why);
+  if (r.effectCard?.spell) {
+    report('an attack card carrying effects survives suppression', r.effectCard.cardSurvived === true,
+      `${r.effectCard.spell}: card survived = ${r.effectCard.cardSurvived}`);
+  } else {
+    console.log('  SKIP no attack-roll spell with effects on Gren — rider-card path not exercised');
+  }
   report('no-target gate refuses the attack', r.ok && r.gateRefused && r.gateMessagesCreated === 0,
     r.ok ? `refused=${r.gateRefused}, messages created: ${r.gateMessagesCreated}` : r.why);
 }
