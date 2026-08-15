@@ -75,6 +75,8 @@ const S = {
   reactionHold: "reactionHold",
   interruptList: "interruptList",
   holdReveal: "holdReveal",
+  holdTimer: "holdTimer",
+  holdSkipFutile: "holdSkipFutile",
   holdSettle: "holdSettle",
   holdView: "holdView",
   holdApplyEffect: "holdApplyEffect"
@@ -149,8 +151,24 @@ Hooks.once("init", () => {
 
   game.settings.register(MODULE_ID, S.holdReveal, {
     name: "Hold Shows the Math",
-    hint: "Off (default, RAW): the held player is told only that they were hit — they react on faith, as the rules intend. On: the popup shows the attack total against their AC and whether the reaction would actually turn it into a miss.",
-    scope: "world", config: true, type: Boolean, default: false
+    hint: "On (default): the attack total against their AC, and whether the reaction would actually turn it into a miss — so a player can tell whether spending the slot is worth it. Off (RAW): they are told only that they were hit, and react on faith. Both surfaces obey this one setting.",
+    // ⚠ Defaults ON, and design.md §5 carries the matching correction. It shipped OFF on the
+    // RAW argument; the user overruled that from live play, because a reaction spends a real
+    // resource and a table that cannot see whether the guess pays is not tense, just annoyed.
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
+  game.settings.register(MODULE_ID, S.holdTimer, {
+    name: "Hold Timer Seconds",
+    hint: "How long a held player has to answer before the hold passes itself and the attack resolves. 0 waits indefinitely — human-paced, and correct for a thoughtful table. About 5–10 keeps a big fight moving. A draining bar shows the time left on both the popup and the card.",
+    scope: "world", config: true, type: Number, default: 0,
+    range: { min: 0, max: 60, step: 1 }
+  });
+
+  game.settings.register(MODULE_ID, S.holdSkipFutile, {
+    name: "Skip Hopeless Holds",
+    hint: "Don't stop the game to offer a reaction that cannot change the outcome — if the attack beats the target's AC by more than the reaction would add, it resolves without asking. Requires \"Hold Shows the Math\": with the math hidden, a prompt that never appears would itself reveal that the attack beat your AC by more than 5.",
+    scope: "world", config: true, type: Boolean, default: true
   });
 
   game.settings.register(MODULE_ID, S.holdSettle, {
@@ -202,7 +220,8 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   const hold = input(S.reactionHold);
   const syncAll = () => {
     setEnabled(input(S.dramaticBeat), autoDamage?.value !== "off");
-    for ( const key of [S.interruptList, S.holdReveal, S.holdSettle, S.holdView, S.holdApplyEffect] )
+    for ( const key of [S.interruptList, S.holdReveal, S.holdTimer, S.holdSkipFutile,
+      S.holdSettle, S.holdView, S.holdApplyEffect] )
       setEnabled(input(key), !!hold?.checked);
   };
   syncAll();
@@ -496,6 +515,7 @@ async function stampHoldIfInterrupted(attackMessage, roll, hits) {
   for ( const target of hits ) {
     const actor = await fromUuid(target.uuid);
     const found = findInterrupt(actor, { isCritical: roll.isCritical });
+    if ( found && !holdWouldMatter(actor, found, roll, target.ac) ) continue;
     if ( found ) held.push({
       uuid: target.uuid, name: target.name, ac: target.ac,
       reaction: found.item.name, kind: found.entry.kind,
@@ -508,6 +528,8 @@ async function stampHoldIfInterrupted(attackMessage, roll, hits) {
   }
   if ( !held.length ) return false;
 
+  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+
   // ⚠ Answers and verdicts live ON each target entry, never in a map keyed by uuid. Foundry
   // EXPANDS dotted keys when it persists an update, and every uuid contains dots — so
   // `{ "Actor.abc": "cast" }` comes back as `{ Actor: { abc: "cast" } }` and every lookup
@@ -516,9 +538,34 @@ async function stampHoldIfInterrupted(attackMessage, roll, hits) {
   await attackMessage.setFlag(MODULE_ID, "hold", {
     status: "pending",
     continuedBy: game.user.id,
+    // The deadline is absolute and lives on the flag, so the bar is a pure function of state:
+    // every client and every re-render derives the same remaining time without its own clock.
+    ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
     targets: held
   });
+  armHoldTimer(attackMessage);
   return true;
+}
+
+/**
+ * Would this reaction actually change anything? A hold that cannot possibly help is a pure
+ * false stop — it spends the table's attention and the player's nerve to ask a question with
+ * one answer.
+ *
+ * ⚠ Gated on full disclosure, and that gate is not politeness. With the math hidden the player
+ * is meant to decide on faith, and silently skipping the hopeless prompts would leak exactly
+ * what the RAW setting withholds: a hold that never appears would tell them the attack beat
+ * their AC by more than the reaction could add. Skip only when they could have worked it out
+ * anyway.
+ */
+function holdWouldMatter(actor, found, roll, snapshotAC) {
+  if ( !setting(S.holdSkipFutile) || !setting(S.holdReveal) ) return true;
+  if ( found.entry.kind !== "ac" ) return true;   // damage reactions always reduce something
+  const bonus = reactionACBonus(found.item.name, actor);
+  if ( bonus == null ) return true;               // unmeasurable bonus — ask the human
+  const liveAC = actor?.system?.attributes?.ac?.value ?? snapshotAC;
+  if ( !Number.isFinite(liveAC) ) return true;
+  return roll.total < (liveAC + bonus);           // only worth asking if it can force a miss
 }
 
 /**
@@ -775,6 +822,7 @@ async function continueHold(attackMessage) {
   }
 
   hold.status = "resolved";
+  disarmHoldTimer(attackMessage.id);   // resolved: the clock has nothing left to decide
   await attackMessage.setFlag(MODULE_ID, "hold", hold);
   if ( announcements.length ) await ChatMessage.create({
     content: announcements.join(`<div style="height:0.3rem;"></div>`),
@@ -901,6 +949,98 @@ function reactionImg(actor, reactionName) {
   return actor?.items.find(i => i.name.toLowerCase() === reactionName?.toLowerCase())?.img ?? null;
 }
 
+/* ---------------------------------------------------------------------------------------------
+ * The countdown bar (design.md §4.3).
+ *
+ * ⚠ ZERO JS TICKING. The bar is one CSS animation whose duration is the hold's own window, and
+ * a reload resumes it mid-drain with a NEGATIVE animation-delay computed from the deadline
+ * stored on the flag — so every client, and every re-render, agrees without anyone counting.
+ * A per-second interval per open hold per client is exactly the kind of thing that is fine
+ * with one hold on screen and miserable with six.
+ * ------------------------------------------------------------------------------------------- */
+
+const BF_STYLE_ID = "battleflow-style";
+
+function ensureBattleflowStyle() {
+  if ( document.getElementById(BF_STYLE_ID) ) return;
+  const style = document.createElement("style");
+  style.id = BF_STYLE_ID;
+  style.textContent = `
+    @keyframes bf-drain { from { width: 100%; } to { width: 0%; } }
+    @keyframes bf-heat {
+      0%   { background-color: rgba(70,150,95,0.95); }
+      55%  { background-color: rgba(214,158,46,0.95); }
+      100% { background-color: rgba(180,70,60,0.95); }
+    }`;
+  document.head.appendChild(style);
+}
+
+/**
+ * The draining bar for a hold, or "" when there is no timer. `deadline` and `window` both live
+ * on the flag, so this is a pure function of state — no client keeps its own clock.
+ */
+function holdBarHTML(hold) {
+  if ( !hold?.deadline || !hold?.window || (hold.status !== "pending") ) return "";
+  ensureBattleflowStyle();
+  const remaining = (hold.deadline - Date.now()) / 1000;
+  if ( remaining <= 0 ) return "";
+  // Negative delay = start the animation already part-way through, which is what makes a
+  // reload pick the bar up exactly where it should be rather than restarting it.
+  const elapsed = hold.window - remaining;
+  const timing = `${hold.window}s linear -${Math.max(0, elapsed).toFixed(2)}s forwards`;
+  return `
+  <div style="margin-top:0.45rem;display:flex;align-items:center;gap:0.4rem;">
+    <div style="flex:1;height:6px;border-radius:3px;background:rgba(0,0,0,0.18);overflow:hidden;">
+      <div style="height:100%;width:100%;border-radius:3px;
+                  animation:bf-drain ${timing}, bf-heat ${timing};"></div>
+    </div>
+    <span style="font-size:var(--font-size-10,10px);opacity:0.6;white-space:nowrap;">
+      ${hold.window}s to answer</span>
+  </div>`;
+}
+
+/**
+ * The buzzer. Armed by whichever client owns the continuation — one authoritative clock, not a
+ * cross-client timeout — and re-checked at the buzzer, because an answer landing in the last
+ * instant must beat the timer rather than race it.
+ */
+const armedTimers = new Map();
+
+function armHoldTimer(message) {
+  const hold = message?.getFlag(MODULE_ID, "hold");
+  if ( !hold?.deadline || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
+  if ( armedTimers.has(message.id) ) return;
+  const delay = Math.max(0, hold.deadline - Date.now());
+  armedTimers.set(message.id, setTimeout(() => {
+    armedTimers.delete(message.id);
+    void fireHoldTimer(message.id);
+  }, delay));
+}
+
+function disarmHoldTimer(messageId) {
+  const handle = armedTimers.get(messageId);
+  if ( handle === undefined ) return;
+  clearTimeout(handle);
+  armedTimers.delete(messageId);
+}
+
+/** At the buzzer, every unanswered target passes — the default outcome of an unmade decision. */
+async function fireHoldTimer(messageId) {
+  const message = game.messages.get(messageId);
+  const hold = message?.getFlag(MODULE_ID, "hold");
+  if ( !hold || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
+  const merged = foundry.utils.deepClone(hold);
+  let expired = false;
+  for ( const target of merged.targets ) {
+    if ( target.answer ) continue;      // answered in the last instant — it wins, not the clock
+    target.answer = "pass";
+    target.timedOut = true;
+    expired = true;
+  }
+  if ( !expired ) return;
+  await message.setFlag(MODULE_ID, "hold", merged);
+}
+
 /**
  * The AC a listed reaction actually grants, read from the reaction's OWN effect instead of
  * hardcoding Shield's +5 — the interrupt list is user-editable, so anything that assumes
@@ -979,7 +1119,9 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       } else {
         const cast = target.answer === "cast";
         tone = (target.verdict === "miss") ? "good" : cast ? "bad" : "neutral";
-        eyebrow = cast ? "Reaction — cast" : target.answer === "skip" ? "Reaction — skipped" : "Reaction — passed";
+        eyebrow = cast ? "Reaction — cast"
+          : target.answer === "skip" ? "Reaction — skipped"
+          : target.timedOut ? "Reaction — timed out" : "Reaction — passed";
         // Resolved cards carry the numbers the verdict was reached with, so a surprising
         // outcome can be read straight off the card instead of reconstructed.
         if ( cast && (target.acAtVerdict != null) ) {
@@ -990,15 +1132,20 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         if ( target.verdict ) lines.push(target.verdict === "miss"
           ? `<strong>The attack misses.</strong>`
           : `The attack still hits.`);
-        else if ( target.answer === "pass" ) lines.push("Let it land — no reaction.");
+        else if ( target.answer === "pass" ) lines.push(target.timedOut
+          ? "The reaction window closed — no answer, so the attack lands."
+          : "Let it land — no reaction.");
       }
 
       block.innerHTML = bfCard({
         img: reactionImg(actor, target.reaction),
         eyebrow, title: target.reaction, subtitle, lines, tone
-      });
+      }) + holdBarHTML(hold);
 
       if ( hold.status !== "pending" ) return;
+      // A reload lands here with the hold still open — re-arm the buzzer from the flag's
+      // deadline rather than restarting the window.
+      armHoldTimer(message);
       if ( !canAnswerFor(actor) ) return;
 
       // ⚠ ONE input surface. When this client gets popups, the popup decides and the card only
@@ -1080,7 +1227,7 @@ function holdButton(label, onClick) {
  * text, and — only if the reveal is on — the math. This is the moment the whole feature exists
  * to protect, so it should read like the ability rather than like a confirm box.
  */
-async function holdPopupContent(target, roll, actor) {
+async function holdPopupContent(target, roll, actor, hold) {
   const item = actor?.items.find(i => i.name.toLowerCase() === target.reaction.toLowerCase());
   const img = item?.img ?? "icons/svg/shield.svg";
   const subtitle = [target.name, item?.system?.activation?.type === "reaction" ? "Reaction" : null]
@@ -1120,7 +1267,8 @@ async function holdPopupContent(target, roll, actor) {
   <div style="padding:0.6rem 0.1rem;">${situation}</div>
   ${description ? `<div style="max-height:11rem;overflow-y:auto;padding:0.5rem 0.6rem;
        border-radius:4px;background:rgba(0,0,0,0.05);font-size:var(--font-size-13,13px);
-       line-height:1.5;">${description}</div>` : ""}`;
+       line-height:1.5;">${description}</div>` : ""}
+  ${holdBarHTML(hold)}`;
 }
 
 /**
@@ -1155,7 +1303,7 @@ async function showHoldPopup(attackMessage, hold) {
     const dialog = new foundry.applications.api.DialogV2({
       window: { title: target.reaction, icon: "fa-solid fa-shield-halved" },
       position: { width: 460 },
-      content: await holdPopupContent(target, roll, actor),
+      content: await holdPopupContent(target, roll, actor, hold),
       buttons,
       rejectClose: false
     });
@@ -1195,6 +1343,7 @@ Hooks.on("deleteChatMessage", message => {
     void dialog.close();
   }
   shownPopups.delete(message.id);
+  disarmHoldTimer(message.id);   // no message, no hold, nothing for the buzzer to pass
 });
 
 /** A decision made anywhere closes the popup asking for it. */

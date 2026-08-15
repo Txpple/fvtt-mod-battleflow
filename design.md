@@ -286,9 +286,14 @@ rewind. So: a **hold point** between hit determination and the damage roll.
   has Shield" reminders — the module makes forgetting monster reactions structurally
   impossible).
 - **Popup reveal toggle** (world, dedicated — independent of `attackRollVisibility`):
-  OFF (default) = "You are hit — react?" (RAW knowledge; cast on faith). ON = show the math
-  ("19 vs your AC 15") plus the computed verdict ("Shield would turn this into a miss" /
-  "would not be enough").
+  ON (default) = show the math ("19 vs your AC 15") plus the computed verdict ("Shield would
+  turn this into a miss" / "would not be enough"). OFF = "You are hit — react?" (RAW
+  knowledge; cast on faith).
+  > **Corrected 2026-08-15 (§10).** This shipped defaulting OFF, on the RAW argument that you
+  > know you were hit and not by how much. The user overruled it from live play: *"the default
+  > setting for shield should be disclosing the attack roll so the player knows if it will be
+  > useful to cast shield."* A reaction spends a real resource on a guess, and a table that
+  > cannot see whether the guess pays is not tense, it is annoyed. RAW remains one toggle away.
 - **Hold timer** (world): off (default — wait indefinitely, human-paced) or N seconds (≈5 for
   a snappy table): live countdown bar in popup + card row, then auto-continue as Pass + quiet
   log line ("Gren's reaction window passed"). Mechanics per §4.3. A late cast that beats the

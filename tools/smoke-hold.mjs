@@ -66,6 +66,9 @@ const r = await f.evaluate(async () => {
         dramaticBeat: game.settings.get(MOD, 'dramaticBeat'),
         reactionHold: game.settings.get(MOD, 'reactionHold'),
         holdSettle: game.settings.get(MOD, 'holdSettle'),
+        holdReveal: game.settings.get(MOD, 'holdReveal'),
+        holdTimer: game.settings.get(MOD, 'holdTimer'),
+        holdSkipFutile: game.settings.get(MOD, 'holdSkipFutile'),
         holdView: game.settings.get(MOD, 'holdView'),
         holdApplyEffect: game.settings.get(MOD, 'holdApplyEffect'),
         suppressAttackCards: game.settings.get(MOD, 'suppressAttackCards'),
@@ -82,6 +85,12 @@ const r = await f.evaluate(async () => {
     await game.settings.set(MOD, 'holdSettle', 6);
     await game.settings.set(MOD, 'holdApplyEffect', true);
     await game.settings.set(MOD, 'holdView', false); // no popup: the bridge cannot dismiss it
+    await game.settings.set(MOD, 'holdReveal', true);
+    // ⚠ OFF for the classic sections, which assume every hit holds. With it on, any attack
+    // landing 5+ over Gren's AC is correctly skipped as hopeless and those sections fail with
+    // "hold never went pending" — the feature working, not breaking. Section 4f owns it.
+    await game.settings.set(MOD, 'holdSkipFutile', false);
+    await game.settings.set(MOD, 'holdTimer', 0);
     await game.settings.set(MOD, 'suppressAttackCards', false);
     await game.settings.set(MOD, 'requireTarget', false);
 
@@ -491,6 +500,80 @@ const r = await f.evaluate(async () => {
       };
     }
 
+    // ---- 4e. THE TIMER: an unanswered hold passes itself ------------------------------------
+    {
+      await game.settings.set(MOD, 'holdTimer', 4);
+      const { usageId, msg } = await plainHitOnGren({ window: true });
+      const pending = await waitFor(() => {
+        const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
+        return h?.status === 'pending' ? h : null;
+      });
+      // Deliberately answer NOTHING. The continuing client's buzzer must pass it and let the
+      // chain resolve, and the bar's deadline must be on the flag for every client to read.
+      const resolved = await waitFor(() => {
+        const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
+        return h?.status === 'resolved' ? h : null;
+      }, 20000);
+      const dmg = await waitFor(() => damageFor(usageId), 12000).catch(() => null);
+      results.timer = {
+        hadDeadline: !!pending?.deadline, window: pending?.window ?? null,
+        answer: resolved?.targets?.[0]?.answer ?? null,
+        timedOut: !!resolved?.targets?.[0]?.timedOut,
+        damageRolled: !!dmg,
+      };
+      await game.settings.set(MOD, 'holdTimer', 0);
+      await gren.unsetFlag(MOD, 'reactionSpent');
+    }
+
+    // ---- 4f. HOPELESS HOLDS ARE SKIPPED (only under full disclosure) -------------------------
+    // A reaction that cannot change the outcome is a false stop. Gated on reveal: with the
+    // math hidden, a prompt that never appears would itself leak that the attack beat their
+    // AC by more than the reaction could add.
+    {
+      await game.settings.set(MOD, 'holdReveal', true);
+      await game.settings.set(MOD, 'holdSkipFutile', true);
+      // Shield adds +5, so anything at or past AC+5 is hopeless. Find one.
+      let hopeless = null;
+      for (let i = 0; i < 40 && !hopeless; i++) {
+        const a = await attackGren({ advantage: true });
+        if (!a.crit && !a.fumble && (a.total >= baseAC + 5)) hopeless = a;
+        else await sleep(80);
+      }
+      if (!hopeless) throw new Error(`no attack landed at or past AC ${baseAC + 5}`);
+      await sleep(2500);
+      results.futile = {
+        attackTotal: hopeless.total, needed: baseAC + 5,
+        held: !!game.messages.get(hopeless.msg.id)?.getFlag(MOD, 'hold'),
+        damageRolled: !!damageFor(hopeless.usageId),
+      };
+
+      // ...but with the math hidden it must STILL hold, or its absence is the leak.
+      await game.settings.set(MOD, 'holdReveal', false);
+      await gren.unsetFlag(MOD, 'reactionSpent');
+      let hidden = null;
+      for (let i = 0; i < 40 && !hidden; i++) {
+        const a = await attackGren({ advantage: true });
+        if (!a.crit && !a.fumble && (a.total >= baseAC + 5)) hidden = a;
+        else await sleep(80);
+      }
+      if (hidden) {
+        const held = await waitFor(() => {
+          const h = game.messages.get(hidden.msg.id)?.getFlag(MOD, 'hold');
+          return h?.status === 'pending' ? h : null;
+        }, 8000).catch(() => null);
+        results.futileHidden = { attackTotal: hidden.total, held: !!held };
+        // Clear it so it does not sit pending and pop at whoever is logged in.
+        if (held) {
+          const doc = game.messages.get(hidden.msg.id);
+          const m = foundry.utils.deepClone(doc.getFlag(MOD, 'hold'));
+          m.targets.forEach(t => { t.answer = t.answer ?? 'pass'; });
+          await doc.setFlag(MOD, 'hold', m);
+        }
+      }
+      await game.settings.set(MOD, 'holdReveal', true);
+      await gren.unsetFlag(MOD, 'reactionSpent');
+    }
+
     // ---- 5. a natural 20 skips an AC-type hold (no AC saves you from a crit) ----------------
     {
       let crit = null;
@@ -593,6 +676,16 @@ report('REAL cast: the Cast control actually spends the slot (it is a cast, not 
 report("REAL cast: the module lands the reaction's effect and AC moves +5",
   x.realCast?.effectApplied === true && x.realCast?.acAfter === x.realCast?.acBefore + 5,
   `AC ${x.realCast?.acBefore} → ${x.realCast?.acAfter}, effect applied: ${x.realCast?.effectApplied}`);
+report('the timer passes an unanswered hold and the chain resolves',
+  x.timer?.hadDeadline === true && x.timer?.answer === 'pass'
+  && x.timer?.timedOut === true && x.timer?.damageRolled === true,
+  JSON.stringify(x.timer));
+report('a hopeless hold is skipped when the math is shown',
+  x.futile?.held === false && x.futile?.damageRolled === true,
+  JSON.stringify(x.futile));
+report('...but is still offered when the math is hidden (absence would leak it)',
+  x.futileHidden ? x.futileHidden.held === true : true,
+  x.futileHidden ? JSON.stringify(x.futileHidden) : 'no qualifying attack rolled — not exercised');
 report('a mundane shield (equipment, not a spell) never holds the chain',
   x.mundaneShield?.held === false && x.mundaneShield?.damageRolled === true
   && x.mundaneShield?.strayShieldSpell === false,

@@ -7,7 +7,7 @@
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.1.7**, installed and enabled, tag pushed, GitHub release
+Molten-hosted). Latest release **v1.1.8**, installed and enabled, tag pushed, GitHub release
 carries zip + manifest. **The box now tracks the GitHub manifest** (repointed 2026-08-15 —
 the self-hosted dev manifest and zip are gone), so the process vends the real version string.
 
@@ -23,7 +23,8 @@ the self-hosted dev manifest and zip are gone), so the process vends the real ve
 
 **Live settings as left**: auto-damage **`all`** (set 2026-08-15 to dogfood the PC side —
 `pc` isolates it), auto-apply on, dramatic beat 3s, suppress attack cards on, require target
-on, reaction hold on, apply-reaction-effect on, hold settle 8s, hold reveal off.
+on, reaction hold on, apply-reaction-effect on, hold settle 8s, hold reveal ON (default flipped
+in v1.1.8 — design.md §5 carries the correction).
 
 ## Open items
 
