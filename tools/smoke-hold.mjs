@@ -1,0 +1,302 @@
+// Battle Flow Phase 1.5 smoke test — drives the reaction hold end to end in the live world,
+// using GREN'S OWN SHIELD against a real attack. Asserts the whole shape:
+//   hit on a Shield-holder → damage does NOT roll, hold stamped pending
+//   → cast answers the hold → live AC re-test → miss → chain ends, no damage, no HP lost
+//   → pass answers the hold → damage rolls normally
+//   → crit skips the hold entirely (a natural 20 hits regardless of AC)
+//   → reaction-spent suppresses the next hold
+// Restores every setting it touched, deletes its own chat messages, and leaves Gren's HP,
+// AC and spell slots exactly as it found them.
+import { readFileSync } from 'node:fs';
+import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+
+const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
+const env = {};
+for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
+  if (line.trimStart().startsWith('#')) continue;
+  const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
+  if (m) env[m[1]] = m[2];
+}
+setTimeout(() => { console.error('[hold] WATCHDOG 420s'); process.exit(3); }, 420_000);
+
+const f = new Foundry({
+  serverUrl: env.MOLTEN_SERVER_URL, magicUrl: env.MOLTEN_MAGIC_URL,
+  user: env.FOUNDRY_USER || 'Claude', password: env.FOUNDRY_PASSWORD,
+  adminKey: env.MOLTEN_ADMIN_KEY, worldId: env.MOLTEN_WORLD_ID,
+});
+console.log('[hold] connecting…');
+await f.connect();
+console.log('[hold] connected');
+
+let failures = 0;
+const report = (name, ok, detail = '') => {
+  if (!ok) failures++;
+  console.log(`  ${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
+};
+
+// The whole scenario runs in ONE page context so state stays coherent across steps.
+const r = await f.evaluate(async () => {
+  const MOD = 'fvtt-mod-battleflow';
+  const log = [];
+  const results = {};
+  let restore = null;
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const waitFor = async (fn, ms = 12000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) { const v = await fn(); if (v) return v; await sleep(200); }
+    return null;
+  };
+
+  try {
+    // ---- setup ---------------------------------------------------------------------------
+    const gren = game.actors.getName('Gren Greenmantle');
+    if (!gren) return { ok: false, why: 'Gren Greenmantle not found' };
+    const shield = gren.items.find(i => i.name === 'Shield' && i.type === 'spell');
+    if (!shield) return { ok: false, why: 'Gren has no Shield spell' };
+
+    const scene = game.scenes.getName('Battle Flow Test Range');
+    const attacker = game.actors.getName('BF Test Attacker');
+    if (!scene || !attacker) return { ok: false, why: 'test scene/attacker missing — run smoke-battleflow.mjs first' };
+
+    restore = {
+      settings: {
+        autoDamage: game.settings.get(MOD, 'autoDamage'),
+        autoApply: game.settings.get(MOD, 'autoApply'),
+        dramaticBeat: game.settings.get(MOD, 'dramaticBeat'),
+        reactionHold: game.settings.get(MOD, 'reactionHold'),
+        holdSettle: game.settings.get(MOD, 'holdSettle'),
+        holdView: game.settings.get(MOD, 'holdView'),
+        suppressAttackCards: game.settings.get(MOD, 'suppressAttackCards'),
+        requireTarget: game.settings.get(MOD, 'requireTarget'),
+      },
+      grenHP: foundry.utils.deepClone(gren.system._source.attributes.hp),
+      grenAC: foundry.utils.deepClone(gren.system._source.attributes.ac),
+      grenSlots: foundry.utils.deepClone(gren.system._source.spells),
+    };
+    await game.settings.set(MOD, 'autoDamage', 'all');
+    await game.settings.set(MOD, 'autoApply', true);
+    await game.settings.set(MOD, 'dramaticBeat', 0);
+    await game.settings.set(MOD, 'reactionHold', true);
+    await game.settings.set(MOD, 'holdSettle', 3);
+    await game.settings.set(MOD, 'holdView', false); // no popup: the bridge cannot dismiss it
+    await game.settings.set(MOD, 'suppressAttackCards', false);
+    await game.settings.set(MOD, 'requireTarget', false);
+
+    // ⚠ Gren's AC is left on its NORMAL calculation. Pinning it with calc:"flat" would make
+    // the test a lie: a flat AC ignores system.attributes.ac.bonus, which is exactly the
+    // field Shield's active effect writes — so the +5 could never appear and every re-test
+    // would read a stale-looking AC (bit live 2026-08-15).
+    const baseAC = gren.system.attributes.ac.value;
+    let grenToken = scene.tokens.find(t => t.actorId === gren.id);
+    if (!grenToken) {
+      [grenToken] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(
+        gren.prototypeToken.toObject(),
+        { x: 1300, y: 1000, actorId: gren.id, actorLink: true }, { inplace: false })]);
+    }
+    if (canvas.scene?.id !== scene.id) await scene.view();
+    await waitFor(() => canvas.ready && canvas.tokens.get(grenToken.id));
+    const grenTokenObj = canvas.tokens.get(grenToken.id);
+    if (!grenTokenObj) return { ok: false, why: 'Gren token never appeared on canvas' };
+
+    const weapon = attacker.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
+    const activity = () => attacker.items.get(weapon.id).system.activities.find(a => a.type === 'attack');
+
+    // Fire one attack at Gren and return the attack message.
+    const attackGren = async (opts = {}) => {
+      grenTokenObj.setTarget(true, { releaseOthers: true });
+      const usage = await activity().use({ subsequentActions: false }, { configure: false }, {});
+      const usageId = usage?.message?.id;
+      const rolls = await activity().rollAttack(
+        opts, { configure: false }, { data: { 'flags.dnd5e.originatingMessage': usageId } });
+      const msg = rolls?.[0]?.parent;
+      return { usageId, msg, total: rolls?.[0]?.total, crit: rolls?.[0]?.isCritical,
+        fumble: rolls?.[0]?.isFumble };
+    };
+
+    // A PLAIN hit — neither a crit nor a fumble. Both are real dice outcomes with correct
+    // but different behaviour (a natural 20 deliberately skips an AC-type hold, since no
+    // amount of AC saves you from it), so the hold tests must not roll them by accident.
+    // `window` additionally demands a total inside [AC, AC+4], the band where Shield's +5
+    // actually flips the outcome — otherwise "cast → miss" would be untestable.
+    const plainHitOnGren = async ({ window = false } = {}) => {
+      const tries = window ? 40 : 12;
+      for (let i = 0; i < tries; i++) {
+        const a = await attackGren(window ? { advantage: true } : {});
+        const hits = a.total >= baseAC;
+        const flips = !window || (a.total < baseAC + 5);
+        if (!a.crit && !a.fumble && hits && flips) return a;
+        log.push(`discarded: total=${a.total} crit=${a.crit} fumble=${a.fumble} (AC ${baseAC})`);
+        await sleep(120);
+      }
+      throw new Error(`could not roll a plain hit${window ? ` in [${baseAC}, ${baseAC + 4}]` : ''} in ${tries} attempts`);
+    };
+    const damageFor = usageId => game.messages.contents.slice(-14).find(m =>
+      m.getFlag('dnd5e', 'roll.type') === 'damage'
+      && m.getFlag('dnd5e', 'originatingMessage') === usageId);
+
+    // ---- 1. the hold fires and damage does NOT roll ----------------------------------------
+    {
+      const { usageId, msg, total } = await plainHitOnGren({ window: true });
+      const held = await waitFor(() => {
+        const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
+        return h?.status === 'pending' ? h : null;
+      });
+      await sleep(1500); // give a (wrongly) unheld damage roll time to appear
+      results.holdFired = {
+        pending: !!held,
+        reaction: held?.targets?.[0]?.reaction,
+        kind: held?.targets?.[0]?.kind,
+        total,
+        damageRolled: !!damageFor(usageId),
+      };
+
+      // ---- 2. CAST answers it; live AC re-test turns the hit into a miss -------------------
+      const hpBefore = gren.system._source.attributes.hp.value;
+      // Apply Shield's own active effect the way the native effects tray does — this is the
+      // AC change the hold is waiting for (Phase 3 will press this button automatically).
+      const effectData = shield.effects.contents[0].toObject();
+      effectData.disabled = false;
+      effectData.origin = shield.uuid;
+      const [applied] = await gren.createEmbeddedDocuments('ActiveEffect', [effectData]);
+      const holdDoc = game.messages.get(msg.id);
+      const merged = foundry.utils.deepClone(holdDoc.getFlag(MOD, 'hold'));
+      merged.targets.find(t => t.uuid === gren.uuid).answer = 'cast';
+      await holdDoc.setFlag(MOD, 'hold', merged);
+      await sleep(500);
+      const afterWrite = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
+      results.diag = {
+        targets: afterWrite?.targets,
+        grenUuid: gren.uuid,
+        allAnsweredNow: afterWrite?.targets?.every(t => t.answer),
+        statusNow: afterWrite?.status,
+      };
+
+      if (!held) throw new Error('hold never went pending — cannot test the cast answer');
+      const resolved = await waitFor(() => {
+        const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
+        return h?.status === 'resolved' ? h : null;
+      }, 25000);
+      await sleep(1200);
+      results.castResolves = {
+        resolved: !!resolved,
+        verdict: resolved?.targets?.find(t => t.uuid === gren.uuid)?.verdict,
+        liveAC: gren.system.attributes.ac.value,
+        attackTotal: total,
+        damageRolled: !!damageFor(usageId),
+        hpUnchanged: gren.system._source.attributes.hp.value === hpBefore,
+      };
+      await applied?.delete();
+      await gren.unsetFlag(MOD, 'reactionSpent');
+    }
+
+    // ---- 3. PASS lets the attack through: damage rolls -------------------------------------
+    {
+      const { usageId, msg } = await plainHitOnGren();
+      const held = await waitFor(() => {
+        const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
+        return h?.status === 'pending' ? h : null;
+      });
+      if (!held) throw new Error('hold never went pending — cannot test the pass answer');
+      const doc = game.messages.get(msg.id);
+      const merged = foundry.utils.deepClone(doc.getFlag(MOD, 'hold'));
+      merged.targets.find(t => t.uuid === gren.uuid).answer = 'pass';
+      await doc.setFlag(MOD, 'hold', merged);
+      const dmg = await waitFor(() => damageFor(usageId), 15000);
+      results.passProceeds = { held: !!held, damageRolled: !!dmg };
+      await gren.unsetFlag(MOD, 'reactionSpent');
+    }
+
+    // ---- 4. reaction already spent ⇒ no hold at all -----------------------------------------
+    {
+      await gren.setFlag(MOD, 'reactionSpent', true);
+      const { usageId, msg } = await plainHitOnGren();
+      await sleep(2500);
+      results.spentSuppresses = {
+        held: !!game.messages.get(msg.id)?.getFlag(MOD, 'hold'),
+        damageRolled: !!damageFor(usageId),
+      };
+      await gren.unsetFlag(MOD, 'reactionSpent');
+    }
+
+    // ---- 5. a natural 20 skips an AC-type hold (no AC saves you from a crit) ----------------
+    {
+      let crit = null;
+      for (let i = 0; i < 60 && !crit; i++) {
+        const a = await attackGren({ advantage: true });
+        if (a.crit) crit = a; else await sleep(80);
+      }
+      if (crit) {
+        await sleep(2000);
+        results.critSkipsHold = {
+          rolled: true,
+          held: !!game.messages.get(crit.msg.id)?.getFlag(MOD, 'hold'),
+          damageRolled: !!damageFor(crit.usageId),
+        };
+      } else {
+        results.critSkipsHold = { rolled: false }; // no crit in 60 tries; reported, not failed
+      }
+      await gren.unsetFlag(MOD, 'reactionSpent');
+    }
+
+    return { ok: true, results, log };
+  } catch (err) {
+    return { ok: false, why: `${err.message}\n${err.stack}`, results, log };
+  } finally {
+    // ---- always: put the world back exactly as we found it ---------------------------------
+    try {
+      const gren = game.actors.getName('Gren Greenmantle');
+      if (restore) {
+        for (const [k, v] of Object.entries(restore.settings)) await game.settings.set(MOD, k, v);
+        await gren?.update({
+          'system.attributes.hp.value': restore.grenHP.value,
+          'system.attributes.hp.temp': restore.grenHP.temp,
+          'system.spells': restore.grenSlots,
+        });
+        await gren?.unsetFlag(MOD, 'reactionSpent');
+        for (const e of gren?.effects?.filter(e => e.name === 'Imperceptible Barrier') ?? []) await e.delete();
+      }
+      const mine = game.messages.filter(m =>
+        m.speaker?.alias?.startsWith('BF Test') || m.speaker?.alias === 'Battle Flow'
+        || (m.speaker?.alias === 'Gren Greenmantle' && m.getFlag(MOD, 'respondsTo')));
+      await ChatMessage.deleteDocuments(mine.map(m => m.id));
+    } catch (cleanupErr) {
+      console.error('cleanup failed', cleanupErr);
+    }
+  }
+}, null);
+
+if (!r.ok) {
+  console.error(`[hold] SETUP/RUN FAILED — ${r.why}`);
+  process.exit(1);
+}
+const x = r.results;
+report('hit on a Shield holder stamps a pending hold',
+  x.holdFired?.pending && x.holdFired?.reaction === 'Shield' && x.holdFired?.kind === 'ac',
+  JSON.stringify(x.holdFired));
+report('held attack does NOT roll damage', x.holdFired?.damageRolled === false,
+  `damage rolled: ${x.holdFired?.damageRolled}`);
+report('cast → live-AC re-test turns the hit into a miss',
+  x.castResolves?.resolved && x.castResolves?.verdict === 'miss',
+  JSON.stringify(x.castResolves));
+report('a missed attack never rolls damage and costs no HP',
+  x.castResolves?.damageRolled === false && x.castResolves?.hpUnchanged === true,
+  `damage: ${x.castResolves?.damageRolled}, hp unchanged: ${x.castResolves?.hpUnchanged}`);
+report('pass → the chain proceeds and damage rolls',
+  x.passProceeds?.held && x.passProceeds?.damageRolled, JSON.stringify(x.passProceeds));
+report('reaction already spent ⇒ no hold, damage flows',
+  x.spentSuppresses?.held === false && x.spentSuppresses?.damageRolled === true,
+  JSON.stringify(x.spentSuppresses));
+if (x.critSkipsHold?.rolled) {
+  report('a natural 20 skips the AC-type hold',
+    x.critSkipsHold.held === false && x.critSkipsHold.damageRolled === true,
+    JSON.stringify(x.critSkipsHold));
+} else {
+  console.log('  SKIP no natural 20 in 60 attempts — crit path not exercised this run');
+}
+if (r.log?.length) console.log(`\n[hold] discarded rolls: ${r.log.length}`);
+if (failures && x.diag) console.log(`\n[hold] diagnostics:\n${JSON.stringify(x.diag, null, 2)}`);
+
+console.log(failures ? `\n[hold] ${failures} FAILURE(S)` : '\n[hold] ALL PASS');
+await f.disconnect?.();
+process.exit(failures ? 1 : 0);

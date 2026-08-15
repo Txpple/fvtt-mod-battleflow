@@ -122,6 +122,11 @@ listening client, zero commands.
 
 - Hold state: a flag on the attack message (`pending` → resolved/skipped/expired). Reload-safe;
   the popup and card row are just *views* of it.
+- ⚠ **Never key persisted data by uuid.** Foundry expands dotted keys when it writes an
+  update, and every uuid contains dots — `{ "Actor.abc": "cast" }` is stored as
+  `{ Actor: { abc: "cast" } }`, so every lookup misses silently and forever. Per-target state
+  goes in an **array of entries carrying a `uuid` field** (what the Phase 1 receipts happen to
+  do already). Cost a live debugging session on 2026-08-15.
 - Application receipts: a flag on the damage message (per-target prior `hp.value`/`hp.temp`,
   deltas, created-effect ids, reverted marker).
 - Roll chains: dnd5e's own `flags.dnd5e.originatingMessage` + `dnd5e.registry.messages`
@@ -231,9 +236,13 @@ rewind. So: a **hold point** between hit determination and the damage roll.
 - **Trigger**: on a hit, check the hit target against a **curated world-setting list** of
   interrupt reactions — default Shield-class (retroactive-miss) only; entries carry a one-bit
   classifier: AC-type (skip the pause on crits — a nat 20 hits regardless) vs damage-type
-  (Absorb Elements, Uncanny Dodge — always pause; alternatively handle halving reactions
+  (Uncanny Dodge, Deflect Attacks — always pause; alternatively handle halving reactions
   post-hoc via revert + ½ as a world-setting choice). Eligibility = item present + prepared +
-  slot free.
+  slot free + reaction not already spent. The full evidence base — every reaction-cost item
+  in this world's compendia, classified — is [REACTIONS.md](REACTIONS.md); its findings
+  matter here: **Absorb Elements does not exist in 2024 content**, Shield is the *only*
+  interrupt spell in the game, and the monster-side interrupts are all AC-type, so one
+  uniform `total >= liveAC` re-test serves the entire family.
 - **The hold**: don't auto-continue for that target; stamp `pending` on the attack message.
 - **Player-side controls** (held target's owning client): popup + card row —
   *"The wight hits you! — [Cast Shield] [Pass]"*.
@@ -247,7 +256,13 @@ rewind. So: a **hold point** between hit determination and the damage roll.
   ever *required*.
 - **Re-resolution**: re-run the hit test against the target's **LIVE** AC (⚠ the stored target
   descriptor's AC is stale after Shield) — now a miss ⇒ post "Shield: 19 vs AC 20 — the attack
-  misses," chain ends, damage never rolled; still a hit ⇒ damage proceeds.
+  misses," chain ends, damage never rolled; still a hit ⇒ damage proceeds. The verdict is
+  written onto the hold and **overrides the snapshot for auto-apply too**, which would
+  otherwise re-derive "hit" from the stale AC and damage a target we just announced as missed.
+  ⚠ **The AC does not move when the cast happens.** Shield's +5 arrives as a non-transfer
+  active effect applied by the native effects tray (monster reactions ship theirs *disabled*),
+  so a cast gets a settle window to let the change land before the verdict is taken —
+  Phase 3 closes this by pressing that button itself.
 - **Click-volume guards**: reaction-spent suppression is CORE — any reaction taken by an actor
   suppresses further holds for them until their turn (cleared on the turn hooks). Steady-state
   GM clicks ≈ 0 (players answer their own; NPC-side holds are rare and double as "your monster
