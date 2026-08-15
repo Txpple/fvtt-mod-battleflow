@@ -943,12 +943,29 @@ async function continueHold(attackMessage) {
       // target had BEFORE reacting — so say so instead of reporting a stale value as fact.
       // A silent "still hits" here is the worst possible outcome: it looks authoritative.
       if ( !reactionACArrived(actor, target) ) {
+        // ⚠ A FLAT AC can never receive this, and saying so is the whole difference between a
+        // one-field fix and a mystery. dnd5e's prepareArmorClass RETURNS on the flat branch
+        // before ac.bonus is added ("Flat AC (no additional bonuses)"), so an actor whose AC is
+        // a fixed number silently ignores every AC effect — Shield included. The effect really
+        // did land; the system simply refuses to count it, and the old wording ("its AC has not
+        // arrived") sent the reader looking for a module bug that was not there. Reported live
+        // 2026-08-15 on a hand-authored Skeletal Mage; the official Monster Manual pack has
+        // exactly one flat statblock out of 500, so this is bad data, not a shape to support.
+        const flatAC = (actor?.system?.attributes?.ac?.calc === "flat")
+          && hasReactionEffect(actor, target.reaction, target);
         announcements.push(bfCard({
           img, eyebrow: "Reaction — not applied", title: target.reaction, subtitle: target.name,
           tone: "bad",
-          lines: [`It was cast, but its AC has not arrived on <strong>${target.name}</strong>.`,
-            `AC still reads <strong>${liveAC}</strong>, so this resolves as a hit (${roll.total}).`,
-            `<em>Apply the effect from the card, then Revert the damage if needed.</em>`]
+          lines: flatAC
+            ? [`<strong>${target.name}</strong>'s AC is a <strong>fixed number</strong>, so no `
+              + `bonus can reach it — ${target.reaction}'s included.`,
+              `The effect did land; the system ignores it. AC reads <strong>${liveAC}</strong>, `
+              + `so this resolves as a hit (${roll.total}).`,
+              `<em>Fix the statblock: set its AC calculation to Natural Armor with the same `
+              + `number, and the reaction works.</em>`]
+            : [`It was cast, but its AC has not arrived on <strong>${target.name}</strong>.`,
+              `AC still reads <strong>${liveAC}</strong>, so this resolves as a hit (${roll.total}).`,
+              `<em>Apply the effect from the card, then Revert the damage if needed.</em>`]
         }));
       } else {
         announcements.push(bfCard({

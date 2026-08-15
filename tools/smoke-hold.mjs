@@ -295,7 +295,7 @@ const r = await f.evaluate(async () => {
      * activity that means AT-WILL — the exact inverse of the spell-item rule, where an empty
      * pool means there is nothing left to spend.
      */
-    const ensureCastStatblock = async ({ atWill = false } = {}) => {
+    const ensureCastStatblock = async ({ atWill = false, flatAC = false } = {}) => {
       const base = game.actors.getName('BF Test Victim');
       const tokDoc = base ? scene.tokens.find(t => t.actorId === base.id) : null;
       if (!tokDoc) throw new Error('BF Test Victim has no token — run smoke-battleflow.mjs first');
@@ -330,12 +330,18 @@ const r = await f.evaluate(async () => {
       const cast = await waitFor(() => castOf()?.cachedSpell ? castOf() : null, 8000);
       if (!cast) throw new Error('the system never materialized the cast activity\'s cached spell');
 
-      // ⚠ A NORMAL AC calculation, never `flat`. dnd5e's prepareArmorClass RETURNS on the flat
-      // branch before ac.bonus is ever added — and ac.bonus is the one field Shield's effect
-      // writes — so a flat AC would make "the +5 arrived" permanently untestable while looking
-      // like a module bug. `natural` is what an NPC ships with and does add the bonus.
-      await base.update({
-        'system.attributes.ac.calc': 'natural', 'system.attributes.ac.flat': 13 });
+      // ⚠ AC calculation is load-bearing, and getting this wrong once already let a live bug
+      // through. dnd5e's prepareArmorClass RETURNS on the `flat` branch before ac.bonus is
+      // added — and ac.bonus is the one field Shield's effect writes — so on a flat statblock
+      // the +5 lands as an effect and is then ignored by the system. `natural` (what 383 of the
+      // Monster Manual's 500 statblocks use) adds it; `flat` cannot.
+      //
+      // Default `natural` = the correct statblock, where the whole chain must work. `flatAC` =
+      // the broken statblock, where the module's only job is to SAY SO. Testing only the first
+      // is exactly how this suite stayed green while the table was broken (2026-08-15).
+      await base.update(flatAC
+        ? { 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 13 }
+        : { 'system.attributes.ac.calc': 'natural', 'system.attributes.ac.flat': 13 });
       await actor.unsetFlag(MOD, 'reactionSpent');
       await clearBarriers(actor);
 
@@ -368,6 +374,24 @@ const r = await f.evaluate(async () => {
     const castButtonFor = messageId => Array.from(document.querySelectorAll(
       `[data-message-id="${messageId}"] .battleflow-hold button`))
       .find(b => b.textContent.trim() === 'Cast');
+
+    /**
+     * How the module DESCRIBED a resolved hold, as one token. The card is the table's record and
+     * its wording is computed separately from the verdict — from whether the module can see the
+     * reaction's effect and, now, why it could not land — so it can be wrong entirely on its
+     * own. Both bugs found on 2026-08-15 were visible only here.
+     *
+     * ⚠ Test 'fixed number' FIRST: the flat-AC card carries the same "not applied" eyebrow.
+     */
+    const announcementFor = name => {
+      const m = game.messages.contents.slice().reverse().find(msg =>
+        (msg.speaker?.alias === 'Battle Flow') && msg.content.includes(name ?? ' '));
+      if (!m) return 'none';
+      return m.content.includes('fixed number') ? 'flat-ac'
+        : m.content.includes('not applied') ? 'not-applied'
+          : m.content.includes('it worked') ? 'worked'
+            : m.content.includes('not enough') ? 'not-enough' : 'other';
+    };
 
     // ---- 1. the hold fires and damage does NOT roll ----------------------------------------
     {
@@ -754,13 +778,7 @@ const r = await f.evaluate(async () => {
       // can resolve perfectly and still publish "Reaction — not applied … this resolves as a
       // hit". That combination is the shape of the bug Tom reported, and nothing else in this
       // section would notice it.
-      const announcement = game.messages.contents.slice().reverse().find(m =>
-        (m.speaker?.alias === 'Battle Flow')
-        && m.content.includes(heldTarget?.name ?? ' '));
-      const announced = !announcement ? 'none'
-        : announcement.content.includes('not applied') ? 'not-applied'
-          : announcement.content.includes('it worked') ? 'worked'
-            : announcement.content.includes('not enough') ? 'not-enough' : 'other';
+      const announced = announcementFor(heldTarget?.name);
 
       results.statblockCast = {
         announced,
@@ -896,6 +914,50 @@ const r = await f.evaluate(async () => {
         acAfter: npc.system.attributes.ac.value,
         effectApplied: !!npc.effects.find(e => e.name === 'Imperceptible Barrier' && !e.disabled),
         damageRolled: !!damageFor(atk.usageId),
+        attackTotal: atk.total,
+      };
+      await clearBarriers(npc);
+      await npc.unsetFlag(MOD, 'reactionSpent');
+      await sweepCastFixture(npc);
+    }
+
+    // ---- 4d6. A FLAT AC CANNOT RECEIVE THE REACTION, AND THE CARD MUST SAY SO -----------------
+    // dnd5e's prepareArmorClass RETURNS on the flat branch before ac.bonus is added ("Flat AC
+    // (no additional bonuses)"), so a statblock whose AC is a fixed number ignores every AC
+    // effect — Shield's included. The effect lands, the number does not move, and the attack
+    // still hits. The module cannot fix that; what it must not do is describe it as "its AC has
+    // not arrived", which reads as a module bug and sent a live debugging session chasing one
+    // (2026-08-15, a hand-authored Skeletal Mage whose AC was pinned flat).
+    //
+    // ⚠ This section exists because every other statblock section uses `natural` and therefore
+    // could never have caught it: the suite was green while the table was broken.
+    {
+      const { actor: npc, token: npcToken } = await ensureCastStatblock({ flatAC: true });
+      const vAC = npc.system.attributes.ac.value;
+      const atk = await attackIntoFlipWindow(activity, npcToken, vAC);
+      if (!atk) throw new Error(`no attack landed in [${vAC}, ${vAC + 4}] against the flat-AC caster`);
+
+      const pending = await waitFor(() => {
+        const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
+        return h?.status === 'pending' ? h : null;
+      });
+      const button = pending ? castButtonFor(atk.msg.id) : null;
+      if (pending && !button) throw new Error('the hold row rendered no Cast button on the flat-AC caster');
+      button?.click();
+      const done = pending ? await waitFor(() => {
+        const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
+        return h?.status === 'resolved' ? h : null;
+      }, 30000) : null;
+      await sleep(1200);
+
+      results.flatAC = {
+        held: !!pending,
+        acCalc: npc.system.attributes.ac.calc,
+        effectLanded: !!npc.effects.find(e => e.name === 'Imperceptible Barrier' && !e.disabled),
+        acBefore: vAC,
+        acAfter: npc.system.attributes.ac.value,   // UNCHANGED: the system ignores the bonus
+        verdict: done?.targets?.[0]?.verdict ?? null,
+        announced: announcementFor(done?.targets?.[0]?.name),
         attackTotal: atk.total,
       };
       await clearBarriers(npc);
@@ -1110,6 +1172,13 @@ report('STATBLOCK: the verdict flips the hit to a miss and no damage rolls',
 report('STATBLOCK: the table is told the reaction WORKED, not that it never applied',
   x.statblockCast?.announced === 'worked',
   `announced: ${x.statblockCast?.announced}`);
+report('FLAT AC: the effect lands but the system ignores it, so the AC does not move',
+  x.flatAC?.held === true && x.flatAC?.effectLanded === true
+  && x.flatAC?.acAfter === x.flatAC?.acBefore && x.flatAC?.verdict === 'hit',
+  JSON.stringify(x.flatAC));
+report('FLAT AC: the card blames the fixed AC, not the reaction',
+  x.flatAC?.announced === 'flat-ac',
+  `announced: ${x.flatAC?.announced} (must not be the generic "not applied")`);
 report('STATBLOCK: an AT-WILL cast activity (no pool at all) still holds',
   x.atWillCast?.held === true && x.atWillCast?.reaction === 'Shield'
   && x.atWillCast?.usesMax === '' && x.atWillCast?.consumptionTargets === 0,
