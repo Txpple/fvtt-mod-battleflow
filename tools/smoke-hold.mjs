@@ -99,6 +99,7 @@ const r = await f.evaluate(async () => {
         autoApply: game.settings.get(MOD, 'autoApply'),
         dramaticBeat: game.settings.get(MOD, 'dramaticBeat'),
         reactionHold: game.settings.get(MOD, 'reactionHold'),
+        blockList: game.settings.get(MOD, 'blockList'),
         holdSettle: game.settings.get(MOD, 'holdSettle'),
         holdReveal: game.settings.get(MOD, 'holdReveal'),
         holdTimer: game.settings.get(MOD, 'holdTimer'),
@@ -116,6 +117,9 @@ const r = await f.evaluate(async () => {
     await game.settings.set(MOD, 'autoApply', true);
     await game.settings.set(MOD, 'dramaticBeat', 0);
     await game.settings.set(MOD, 'reactionHold', true);
+    // Pinned rather than assumed: section 6 is the whole of the second trigger, and a world
+    // where someone has emptied this list would report it as broken instead of as switched off.
+    await game.settings.set(MOD, 'blockList', 'Magic Missile:Shield');
     await game.settings.set(MOD, 'holdSettle', 6);
     await game.settings.set(MOD, 'holdApplyEffect', true);
     await game.settings.set(MOD, 'holdView', false); // no popup: the bridge cannot dismiss it
@@ -256,8 +260,18 @@ const r = await f.evaluate(async () => {
           { x: 1500, y: 1000, actorId: actor.id, actorLink: true }, { inplace: false })]);
       }
       await waitFor(() => canvas.ready && canvas.tokens.get(doc.id));
-      // Fresh slots and a clean slate every run.
-      await actor.update({ 'system.spells.spell1.value': actor.system.spells.spell1.max || 4 });
+      // Fresh slots, full HP and a clean slate every run.
+      //
+      // ⚠ HP IS A RESOURCE TOO, and forgetting it makes damage assertions LIE. The sections
+      // above fire real attacks at this stand-in with auto-apply on, so by section 6 it sits at
+      // 0 HP — where "took no damage" and "took the lot" are the same observation. The negate
+      // assertion passed 0 → 0 while proving nothing, and its Pass counterpart failed only
+      // because HP clamps at zero (2026-08-15). Reset it here so every section starts whole.
+      await actor.update({
+        'system.spells.spell1.value': actor.system.spells.spell1.max || 4,
+        'system.attributes.hp.value': actor.system.attributes.hp.max,
+        'system.attributes.hp.temp': 0,
+      });
       await actor.unsetFlag(MOD, 'reactionSpent');
       for (const e of actor.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
       const token = canvas.tokens.get(doc.id);
@@ -1070,6 +1084,191 @@ const r = await f.evaluate(async () => {
       await gren.unsetFlag(MOD, 'reactionSpent');
     }
 
+    // ---- 6. THE SECOND TRIGGER: Magic Missile holds for Shield, and Shield really stops it ----
+    // Shield's text is "+5 AC … AND you take no damage from Magic Missile", and that second half
+    // is unreachable from an attack roll — Magic Missile has none. So this section drives the
+    // OTHER entry point end to end: a spell USAGE stamps a `negate` hold on its own usage card,
+    // and the answer alone is the verdict.
+    //
+    // ⚠ The load-bearing assertion is the LAST one in each case: damage is rolled and then
+    // applied exactly as the native tray applies it, and the shielded target's HP must not
+    // move. Everything before it only proves the module talked about a block; only applying
+    // real damage proves there was one.
+    {
+      const MM_UUID = 'Compendium.dnd-players-handbook.spells.Item.phbsplMagicMissi';
+
+      // ⚠ Cast with NO slot cost. An NPC's spell-slot maxima are DERIVED from a caster level
+      // most statblocks never set, so they recompute to 0 and a slot-consuming cast is simply
+      // refused — and innate/at-will is the shape a monster casts in anyway. Nothing here
+      // depends on how the spell was paid for; the hold is what is on trial.
+      const ensureMissile = async () => {
+        let item = attacker.items.find(i => i.name === 'Magic Missile' && i.type === 'spell');
+        if (!item) {
+          const src = (await fromUuid(MM_UUID)).toObject();
+          delete src._id;
+          for (const a of Object.values(src.system.activities ?? {})) {
+            if (a.consumption) a.consumption.spellSlot = false;
+          }
+          src.system.prepared = 1;
+          [item] = await attacker.createEmbeddedDocuments('Item', [src]);
+          log.push('created Magic Missile on BF Test Attacker');
+        }
+        const act = item.system.activities?.contents?.[0];
+        if (!act) throw new Error('Magic Missile fixture has no activity');
+        if (act.type !== 'damage') throw new Error(`Magic Missile activity is ${act.type}, not damage`);
+        return item;
+      };
+      const missile = () => attacker.items
+        .find(i => i.name === 'Magic Missile' && i.type === 'spell')
+        ?.system.activities?.contents?.[0];
+
+      // Fire Magic Missile at one token and return its usage card.
+      const castMissileAt = async tokenObj => {
+        tokenObj.setTarget(true, { releaseOthers: true });
+        const usage = await missile().use({ subsequentActions: false }, { configure: false }, {});
+        return usage?.message ?? null;
+      };
+
+      // Roll the spell's damage and apply it the way the native tray does — same aggregation,
+      // same applyDamage options (damage-application.mjs:335). This is the exact call the veto
+      // has to survive, so the test must make it rather than a simplified stand-in.
+      const rollAndApply = async (usageMsg, actor) => {
+        const rolls = await missile().rollDamage({}, { configure: false },
+          { data: { 'flags.dnd5e.originatingMessage': usageMsg.id } });
+        const damageMsg = rolls?.[0]?.parent;
+        if (!damageMsg) throw new Error('Magic Missile rolled no damage message');
+        const damages = dnd5e.dice.aggregateDamageRolls(damageMsg.rolls, { respectProperties: true })
+          .map(r => ({
+            value: Math.max(0, r.total), type: r.options.type,
+            properties: new Set(r.options.properties ?? []),
+          }));
+        const rolled = damages.reduce((sum, d) => sum + d.value, 0);
+        const hpBefore = actor.system.attributes.hp.value;
+        await actor.applyDamage(damages, {
+          multiplier: 1, isDelta: true, originatingMessage: damageMsg, origin: damageMsg,
+        });
+        // hpMax travels with the result so the assertions can prove the target was WHOLE when
+        // the damage landed — an actor at 0 makes "lost nothing" and "lost everything" identical.
+        return {
+          rolled, hpBefore, hpAfter: actor.system.attributes.hp.value,
+          hpMax: actor.system.attributes.hp.max,
+        };
+      };
+
+      await ensureMissile();
+
+      // -- 6a/6b/6c: cast Shield → the spell is negated and its damage never lands ------------
+      {
+        const { actor: shielder, token: shielderToken } = await ensureShielder();
+        const usageMsg = await castMissileAt(shielderToken);
+        if (!usageMsg) throw new Error('Magic Missile created no usage card to hold');
+
+        const pending = await waitFor(() => {
+          const h = game.messages.get(usageMsg.id)?.getFlag(MOD, 'hold');
+          return h?.status === 'pending' ? h : null;
+        });
+
+        // The control set is the same binary pair an attack hold offers — one decision, two
+        // buttons, and no GM-only third (the v1.1.15 regression, guarded here too).
+        const buttons = Array.from(document.querySelectorAll(
+          `[data-message-id="${usageMsg.id}"] .battleflow-hold button`))
+          .map(b => b.textContent.trim());
+        const castButton = Array.from(document.querySelectorAll(
+          `[data-message-id="${usageMsg.id}"] .battleflow-hold button`))
+          .find(b => b.textContent.trim() === 'Cast');
+        if (!castButton) throw new Error('the spell hold rendered no Cast button');
+        castButton.click();
+
+        const done = await waitFor(() => {
+          const h = game.messages.get(usageMsg.id)?.getFlag(MOD, 'hold');
+          return h?.status === 'resolved' ? h : null;
+        }, 25000);
+        await sleep(1200);
+
+        const applied = await rollAndApply(usageMsg, shielder);
+        results.missileNegated = {
+          pending: !!pending,
+          trigger: pending?.trigger ?? null,
+          spell: pending?.spell ?? null,
+          kind: pending?.targets?.[0]?.kind ?? null,
+          reaction: pending?.targets?.[0]?.reaction ?? null,
+          buttonShape: [...new Set(buttons)].join('/'),
+          answered: done?.targets?.[0]?.answer ?? null,
+          verdict: done?.targets?.[0]?.verdict ?? null,
+          // Shield's +5 arrives too — casting it against Magic Missile is still casting Shield.
+          effectApplied: !!shielder.effects.find(e =>
+            e.name === 'Imperceptible Barrier' && !e.disabled),
+          ...applied,
+          // ⚠ Assert what the table is TOLD, not just what happened: both bugs found on
+          // 2026-08-15 were visible only in the announcement.
+          announced: game.messages.contents.slice(-12).some(m =>
+            m.speaker?.alias === 'Battle Flow' && /does nothing to/i.test(m.content ?? '')),
+        };
+        for (const e of shielder.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
+        await shielder.unsetFlag(MOD, 'reactionSpent');
+      }
+
+      // -- 6d: pass → the missiles land in full ----------------------------------------------
+      {
+        const { actor: shielder, token: shielderToken } = await ensureShielder();
+        const usageMsg = await castMissileAt(shielderToken);
+        const pending = await waitFor(() => {
+          const h = game.messages.get(usageMsg.id)?.getFlag(MOD, 'hold');
+          return h?.status === 'pending' ? h : null;
+        });
+        const passButton = Array.from(document.querySelectorAll(
+          `[data-message-id="${usageMsg.id}"] .battleflow-hold button`))
+          .find(b => b.textContent.trim() === 'Pass');
+        if (!passButton) throw new Error('the spell hold rendered no Pass button');
+        passButton.click();
+
+        const done = await waitFor(() => {
+          const h = game.messages.get(usageMsg.id)?.getFlag(MOD, 'hold');
+          return h?.status === 'resolved' ? h : null;
+        }, 25000);
+        await sleep(800);
+
+        const applied = await rollAndApply(usageMsg, shielder);
+        results.missilePassed = {
+          pending: !!pending,
+          answered: done?.targets?.[0]?.answer ?? null,
+          verdict: done?.targets?.[0]?.verdict ?? null,
+          ...applied,
+        };
+        await shielder.unsetFlag(MOD, 'reactionSpent');
+      }
+
+      // -- 6e: a target who cannot cast Shield is never asked ---------------------------------
+      // The hobgoblin WEARS a shield. If the block list held on a name match the same way the
+      // interrupt list once did, every armoured monster would stop a Magic Missile it has no
+      // answer to. Swept first so a crashed earlier section cannot hand it a real Shield.
+      {
+        const victimBase = game.actors.getName('BF Test Victim');
+        const victimDoc = victimBase ? scene.tokens.find(t => t.actorId === victimBase.id) : null;
+        const victimActor = victimDoc?.actor;
+        if (victimActor) {
+          await sweepCastFixture(victimActor);
+          const victimTokenObj = canvas.tokens.get(victimDoc.id);
+          const usageMsg = await castMissileAt(victimTokenObj);
+          await sleep(2500);
+          results.missileNoReaction = {
+            wearsShield: victimActor.items.some(i => i.name === 'Shield' && i.type !== 'spell'),
+            knowsShieldSpell: victimActor.items.some(i => i.name === 'Shield' && i.type === 'spell'),
+            held: !!game.messages.get(usageMsg?.id)?.getFlag(MOD, 'hold'),
+          };
+        } else {
+          results.missileNoReaction = { skipped: true };
+        }
+      }
+
+      // The fixture must not outlive the run: BF Test Attacker is the weapon attacker for every
+      // other section, and a leftover Magic Missile is a spell item sitting on an NPC that has
+      // no business knowing one.
+      const leftover = attacker.items
+        .filter(i => i.name === 'Magic Missile' && i.type === 'spell').map(i => i.id);
+      if (leftover.length) await attacker.deleteEmbeddedDocuments('Item', leftover);
+    }
+
     return { ok: true, results, log };
   } catch (err) {
     return { ok: false, why: `${err.message}\n${err.stack}`, results, log };
@@ -1121,6 +1320,14 @@ const r = await f.evaluate(async () => {
         ? game.scenes.getName('Battle Flow Test Range')?.tokens.find(t => t.actorId === victimBase.id)
         : null;
       if (victimToken?.actor) await sweepCastFixture(victimToken.actor);
+
+      // Same rule for section 6's Magic Missile: BF Test Attacker is the weapon attacker for
+      // every other section and must not quietly become a spellcaster between runs. Swept here
+      // as well as in-section, because a throw skips the in-section teardown.
+      const attackerBase = game.actors.getName('BF Test Attacker');
+      const strayMissiles = (attackerBase?.items ?? [])
+        .filter(i => i.name === 'Magic Missile' && i.type === 'spell').map(i => i.id);
+      if (strayMissiles.length) await attackerBase.deleteEmbeddedDocuments('Item', strayMissiles);
 
       const mine = game.messages.filter(m =>
         m.speaker?.alias?.startsWith('BF Test') || m.speaker?.alias === 'Battle Flow'
@@ -1236,6 +1443,43 @@ report('SAFETY NET: a cast whose client applied nothing still reaches a miss',
   x.safetyNet?.verdict === 'miss' && x.safetyNet?.effectLanded === true
     && x.safetyNet?.damageRolled === false,
   JSON.stringify(x.safetyNet));
+report('MAGIC MISSILE: a spell usage stamps a negate hold on its own usage card',
+  x.missileNegated?.pending === true && x.missileNegated?.trigger === 'spell'
+  && x.missileNegated?.spell === 'Magic Missile' && x.missileNegated?.kind === 'negate'
+  && x.missileNegated?.reaction === 'Shield',
+  JSON.stringify(x.missileNegated));
+report('MAGIC MISSILE: the spell hold offers the same two controls an attack hold does',
+  x.missileNegated?.buttonShape === 'Cast/Pass',
+  `buttons: ${x.missileNegated?.buttonShape}`);
+report('MAGIC MISSILE: casting Shield answers the hold and the verdict is "negated"',
+  x.missileNegated?.answered === 'cast' && x.missileNegated?.verdict === 'negated',
+  `answer=${x.missileNegated?.answered}, verdict=${x.missileNegated?.verdict}`);
+report('MAGIC MISSILE: the reaction still lands its own +5 effect',
+  x.missileNegated?.effectApplied === true,
+  `effect applied: ${x.missileNegated?.effectApplied}`);
+// The one that matters: real damage, applied exactly as the tray applies it, must not land.
+// ⚠ hpBefore === hpMax is part of the assertion, not decoration. Without it a stand-in that
+// arrived at 0 HP satisfies "lost nothing" while proving nothing at all — which is exactly how
+// this passed on 2026-08-15 before ensureShielder learned to heal.
+report('MAGIC MISSILE: real damage is applied and the shielded target loses NOTHING',
+  x.missileNegated?.rolled > 0 && x.missileNegated?.hpBefore === x.missileNegated?.hpMax
+  && x.missileNegated?.hpAfter === x.missileNegated?.hpBefore,
+  `rolled ${x.missileNegated?.rolled}, HP ${x.missileNegated?.hpBefore} → `
+  + `${x.missileNegated?.hpAfter} (max ${x.missileNegated?.hpMax})`);
+report('MAGIC MISSILE: the table is told the spell did nothing',
+  x.missileNegated?.announced === true,
+  `announced: ${x.missileNegated?.announced}`);
+// hpBefore > rolled keeps the arithmetic honest: HP clamps at 0, so a target that cannot
+// absorb the whole roll would read as a partial hit and this would fail for the wrong reason.
+report('MAGIC MISSILE: passing lets the missiles land in full',
+  x.missilePassed?.pending === true && x.missilePassed?.verdict === 'hit'
+  && x.missilePassed?.rolled > 0 && x.missilePassed?.hpBefore > x.missilePassed?.rolled
+  && x.missilePassed?.hpAfter === x.missilePassed?.hpBefore - x.missilePassed?.rolled,
+  JSON.stringify(x.missilePassed));
+report('MAGIC MISSILE: a target who merely WEARS a shield is never asked',
+  x.missileNoReaction?.skipped
+  || (x.missileNoReaction?.held === false && x.missileNoReaction?.knowsShieldSpell === false),
+  JSON.stringify(x.missileNoReaction));
 if (x.critSkipsHold?.rolled) {
   report('a natural 20 skips the AC-type hold',
     x.critSkipsHold.held === false && x.critSkipsHold.damageRolled === true,
