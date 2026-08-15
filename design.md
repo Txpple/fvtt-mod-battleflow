@@ -166,7 +166,10 @@ The biggest click-saver. Two independent halves:
 
 - **Auto-roll damage on hit** (attacker's client, `dnd5e.rollAttackV2`): re-run the system's
   own hit test — `roll.isCritical || (!roll.isFumble && roll.total >= ac)` — against the
-  attack message's `flags.dnd5e.targets` snapshot. On ≥1 hit, call
+  attack message's `flags.dnd5e.targets` snapshot. A target whose snapshot AC is **null**
+  (total cover, or no AC data) is never auto-resolved: the system's tray happens to class
+  those rows as hits (`total < null` is false), but that outcome isn't determined by data we
+  trust, so those targets stay with the humans and the native tray (§2.1). On ≥1 hit, call
   `subject.rollDamage({ isCritical, attackMode, ammunition }, { configure: false }, ...)`
   mirroring `AttackActivity.#rollDamage` (ammo/attackMode recovery included).
   **Damage only ever rolls AFTER the hit is determined** — a miss means the damage dice never

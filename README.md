@@ -15,17 +15,20 @@ log, not by messaging each other; the only `relationships` entry is a version pi
 
 ## Status
 
-**Design phase — no code yet.** The binding design is [design.md](design.md) (mission,
+**Phase 1 built — the attack resolver.** Auto-roll damage on hit (attacker's client),
+auto-apply to hit targets (active-GM client), and per-target receipts with one-click revert
+on every damage card. Every feature is behind its own world setting and ships **off**; the
+dogfood ladder is walked one setting at a time. The binding design is [design.md](design.md) (mission,
 principles, architecture, the phase ladder, settings, verified dnd5e 5.3.3 hook seams, and
 permanent non-goals). The source-level research that justifies it — a dissection of midi-qol
 (50k lines; why not), DAE (why it isn't needed), dnd5e 5.3.3 native automation, and the
 2025–2026 ecosystem — is preserved in [RESEARCH.md](RESEARCH.md).
 
-Planned rollout (each phase behind its own setting, default off):
+Rollout (each phase behind its own setting, default off):
 
 | Phase | Feature |
 | --- | --- |
-| 1 | Attack resolver: auto-roll damage on hit, auto-apply to hit targets, revert receipts |
+| **1 ✓** | Attack resolver: auto-roll damage on hit, auto-apply to hit targets, revert receipts |
 | 1.5 | Reaction hold: Shield-window pause with popup + countdown (a pause, not a system) |
 | 2 | Saves: auto-roll for everyone, half-damage-on-save made real |
 | 2.5 | Concentration assist: un-buryable prompt + break-on-failure |
