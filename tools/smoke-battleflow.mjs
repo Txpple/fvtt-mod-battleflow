@@ -52,6 +52,7 @@ let priorSettings = null;
       dramaticBeat: game.settings.get(MOD, 'dramaticBeat'),
       suppressAttackCards: game.settings.get(MOD, 'suppressAttackCards'),
       requireTarget: game.settings.get(MOD, 'requireTarget'),
+      reactionHold: game.settings.get(MOD, 'reactionHold'),
     };
     await game.settings.set(MOD, 'autoDamage', 'all');
     await game.settings.set(MOD, 'autoApply', true);
@@ -60,6 +61,19 @@ let priorSettings = null;
     // polish gates stay out of the way; both are restored with the rest at the end.
     await game.settings.set(MOD, 'suppressAttackCards', false);
     await game.settings.set(MOD, 'requireTarget', false);
+    // This suite is about the Phase 1 chain; a reaction hold would legitimately stop it dead.
+    await game.settings.set(MOD, 'reactionHold', false);
+    // Scrub any reaction the hold suite may have left on the test NPC — a stray Shield there
+    // holds every attack and makes this suite fail for the wrong reason.
+    for (const name of ['BF Test Victim', 'BF Test Attacker']) {
+      const a = game.actors.getName(name);
+      for (const it of a?.items.filter(i => i.type === 'spell' && i.name === 'Shield') ?? []) await it.delete();
+      const tok = game.scenes.getName('Battle Flow Test Range')?.tokens.find(t => t.actorId === a?.id);
+      const ta = tok?.actor;
+      if (ta && ta !== a) {
+        for (const it of ta.items.filter(i => i.type === 'spell' && i.name === 'Shield')) await it.delete();
+      }
+    }
     return {
       ok: true, prior,
       user: game.user.name,
@@ -141,6 +155,18 @@ const fx = await f.evaluate(async () => {
     };
     const attackerToken = await ensureToken(actors.attacker);
     const victimToken = await ensureToken(actors.victim);
+
+    // Full HP before every run: a previous run that died mid-flight can leave the victim at
+    // 0, and "applied 0 damage" then looks like a resolver failure instead of an empty pool.
+    for (const id of [victimToken, attackerToken]) {
+      const ta = scene.tokens.get(id)?.actor;
+      if (ta?.system.attributes?.hp?.max) {
+        await ta.update({
+          'system.attributes.hp.value': ta.system.attributes.hp.max,
+          'system.attributes.hp.temp': 0,
+        });
+      }
+    }
 
     // View the scene locally and wait for token objects to exist on canvas.
     if (canvas.scene?.id !== scene.id) await scene.view();
@@ -417,6 +443,7 @@ if (!fx.ok) { process.exit(1); }
     await game.settings.set(MOD, 'dramaticBeat', prior?.dramaticBeat ?? 0);
     await game.settings.set(MOD, 'suppressAttackCards', prior?.suppressAttackCards ?? false);
     await game.settings.set(MOD, 'requireTarget', prior?.requireTarget ?? false);
+    await game.settings.set(MOD, 'reactionHold', prior?.reactionHold ?? false);
     const testMessages = game.messages.filter(m => m.speaker?.alias?.startsWith('BF Test'));
     await ChatMessage.deleteDocuments(testMessages.map(m => m.id));
     return {

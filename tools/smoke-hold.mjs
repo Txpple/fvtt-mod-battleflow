@@ -147,6 +147,47 @@ const r = await f.evaluate(async () => {
       m.getFlag('dnd5e', 'roll.type') === 'damage'
       && m.getFlag('dnd5e', 'originatingMessage') === usageId);
 
+    /**
+     * A GM-owned stand-in for Gren: a full clone of him, so the Shield being cast is a real
+     * spell on a real spellcaster with real slots.
+     *
+     * Why not just bolt Shield onto the test NPC — twice tried, twice wrong (2026-08-15):
+     * an item added to a base actor reaches an UNLINKED token's delta stripped of its
+     * embedded effects and activities, and an NPC's spell1.max is DERIVED from spellcasting
+     * progression, so it recomputes to 0 and every cast aborts for want of a slot.
+     * Why not Gren himself: the module correctly refuses to let a GM answer a hold for a
+     * character a logged-in player owns, and the harness is a GM.
+     */
+    const ensureShielder = async () => {
+      let actor = game.actors.getName('BF Test Shielder');
+      if (!actor) {
+        const data = gren.toObject();
+        delete data._id;
+        data.name = 'BF Test Shielder';
+        data.ownership = { default: 0 };           // GM-only: no player may answer for it
+        data.prototypeToken.actorLink = true;      // linked: no delta to lose items through
+        data.prototypeToken.name = 'BF Test Shielder';
+        actor = await Actor.create(data);
+        log.push('created BF Test Shielder');
+      }
+      let doc = scene.tokens.find(t => t.actorId === actor.id);
+      if (!doc) {
+        [doc] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(
+          actor.prototypeToken.toObject(),
+          { x: 1500, y: 1000, actorId: actor.id, actorLink: true }, { inplace: false })]);
+      }
+      await waitFor(() => canvas.ready && canvas.tokens.get(doc.id));
+      // Fresh slots and a clean slate every run.
+      await actor.update({ 'system.spells.spell1.value': actor.system.spells.spell1.max || 4 });
+      await actor.unsetFlag(MOD, 'reactionSpent');
+      for (const e of actor.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
+      const token = canvas.tokens.get(doc.id);
+      const sh = actor.items.find(i => i.name === 'Shield' && i.type === 'spell');
+      if (!sh?.system.activities?.contents?.length) throw new Error('stand-in has no usable Shield');
+      if (!actor.system.spells.spell1.max) throw new Error('stand-in has no level 1 spell slots');
+      return { actor, token };
+    };
+
     // ---- 1. the hold fires and damage does NOT roll ----------------------------------------
     {
       const { usageId, msg, total } = await plainHitOnGren({ window: true });
@@ -236,21 +277,7 @@ const r = await f.evaluate(async () => {
     // hold re-tests against it. This is the path that was silently broken until now, because
     // Shield's +5 lives in an effect nobody had pressed.
     {
-      const victim = game.actors.getName('BF Test Victim');
-      const victimToken = scene.tokens.find(t => t.actorId === victim.id);
-      let npcShield = victim.items.find(i => i.name === 'Shield' && i.type === 'spell');
-      if (!npcShield) {
-        [npcShield] = await victim.createEmbeddedDocuments('Item', [shield.toObject()]);
-      }
-      await victim.update({
-        'system.spells.spell1.value': 4, 'system.spells.spell1.max': 4,
-        'system.attributes.ac.calc': 'default',
-      });
-      await victim.unsetFlag(MOD, 'reactionSpent');
-      for (const e of victim.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
-
-      const victimTokenObj = canvas.tokens.get(victimToken.id);
-      const victimActor = victimTokenObj.actor; // unlinked: the synthetic actor is the target
+      const { actor: victimActor, token: victimTokenObj } = await ensureShielder();
       const vAC = victimActor.system.attributes.ac.value;
 
       // Attack it into the window where Shield's +5 flips the outcome.
@@ -272,9 +299,16 @@ const r = await f.evaluate(async () => {
         return h?.status === 'pending' ? h : null;
       });
 
-      // The genuine article: use the reaction. No flag writes, no hand-applied effects.
-      const npcShieldActivity = victimActor.items.get(npcShield.id).system.activities.contents[0];
-      await npcShieldActivity.use({ subsequentActions: false }, { configure: false }, {});
+      // Drive the CARD'S OWN Cast button, not a hand-rolled use — that button silently
+      // recorded an answer without casting anything until 2026-08-15, and only clicking the
+      // real control catches that class of bug. Falls back to a direct use if the row has
+      // not rendered in this headless context.
+      const slotsBefore = victimActor.system.spells.spell1.value;
+      const castButton = Array.from(document.querySelectorAll(
+        `[data-message-id="${atk.msg.id}"] .battleflow-hold button`))
+        .find(b => b.textContent.trim() === 'Cast');
+      if (!castButton) throw new Error('the hold row rendered no Cast button for a GM-owned target');
+      castButton.click();
 
       const done = await waitFor(() => {
         const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
@@ -290,11 +324,57 @@ const r = await f.evaluate(async () => {
         effectApplied: !!victimActor.effects.find(e => e.name === 'Imperceptible Barrier' && !e.disabled),
         attackTotal: atk.total,
         damageRolled: !!damageFor(atk.usageId),
+        slotsBefore,
+        slotsAfter: victimActor.system.spells.spell1.value,
+        usedCardButton: !!castButton,
       };
       for (const e of victimActor.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
-      await victim.unsetFlag(MOD, 'reactionSpent');
-      const stale = victim.items.find(i => i.name === 'Shield' && i.type === 'spell');
-      if (stale) await stale.delete();
+      await victimActor.unsetFlag(MOD, 'reactionSpent');
+    }
+
+    // ---- 4c. THE SAFETY NET: a cast whose client never applied the effect --------------------
+    // Reproduces the live failure of 2026-08-15 exactly — Tom cast Shield, nothing applied
+    // his effect, and the module announced "Shield raises AC to 12" and dealt damage. Here
+    // the answer is written WITHOUT any effect, so only the continuing client's safety net
+    // can save it: it must land the effect itself and reach a miss.
+    {
+      const { actor: victimActor, token: victimTokenObj } = await ensureShielder();
+      const vAC = victimActor.system.attributes.ac.value;
+
+      let atk = null;
+      for (let i = 0; i < 40 && !atk; i++) {
+        victimTokenObj.setTarget(true, { releaseOthers: true });
+        const usage = await activity().use({ subsequentActions: false }, { configure: false }, {});
+        const rolls = await activity().rollAttack({ advantage: true }, { configure: false },
+          { data: { 'flags.dnd5e.originatingMessage': usage?.message?.id } });
+        const t = rolls?.[0];
+        if (t && !t.isCritical && !t.isFumble && (t.total >= vAC) && (t.total < vAC + 5)) {
+          atk = { usageId: usage?.message?.id, msg: t.parent, total: t.total };
+        } else await sleep(100);
+      }
+      if (!atk) throw new Error(`no attack landed in [${vAC}, ${vAC + 4}] for the safety-net test`);
+      await waitFor(() => game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold')?.status === 'pending');
+
+      // Answer "cast" with NO effect applied and no real use — the stale-client scenario.
+      const doc = game.messages.get(atk.msg.id);
+      const m = foundry.utils.deepClone(doc.getFlag(MOD, 'hold'));
+      m.targets[0].answer = 'cast';
+      await doc.setFlag(MOD, 'hold', m);
+
+      const done = await waitFor(() => {
+        const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
+        return h?.status === 'resolved' ? h : null;
+      }, 25000);
+      await sleep(1200);
+      results.safetyNet = {
+        verdict: done?.targets?.[0]?.verdict,
+        acBefore: vAC,
+        acAtVerdict: done?.targets?.[0]?.acAtVerdict,
+        effectLanded: !!victimActor.effects.find(e => e.name === 'Imperceptible Barrier' && !e.disabled),
+        damageRolled: !!damageFor(atk.usageId),
+      };
+      for (const e of victimActor.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
+      await victimActor.unsetFlag(MOD, 'reactionSpent');
     }
 
     // ---- 5. a natural 20 skips an AC-type hold (no AC saves you from a crit) ----------------
@@ -366,13 +446,20 @@ report('reaction already spent ⇒ no hold, damage flows',
   x.spentSuppresses?.held === false && x.spentSuppresses?.damageRolled === true,
   JSON.stringify(x.spentSuppresses));
 report('REAL cast: the reaction answers its own hold', x.realCast?.pending && x.realCast?.answered === 'cast',
-  `pending=${x.realCast?.pending}, answer=${x.realCast?.answered}`);
+  `pending=${x.realCast?.pending}, answer=${x.realCast?.answered}, via card button=${x.realCast?.usedCardButton}`);
+report('REAL cast: the Cast control actually spends the slot (it is a cast, not a vote)',
+  x.realCast?.slotsAfter === x.realCast?.slotsBefore - 1,
+  `slots ${x.realCast?.slotsBefore} → ${x.realCast?.slotsAfter}`);
 report("REAL cast: the module lands the reaction's effect and AC moves +5",
   x.realCast?.effectApplied === true && x.realCast?.acAfter === x.realCast?.acBefore + 5,
   `AC ${x.realCast?.acBefore} → ${x.realCast?.acAfter}, effect applied: ${x.realCast?.effectApplied}`);
 report('REAL cast: the attack becomes a miss and no damage rolls',
   x.realCast?.verdict === 'miss' && x.realCast?.damageRolled === false,
   JSON.stringify(x.realCast));
+report('SAFETY NET: a cast whose client applied nothing still reaches a miss',
+  x.safetyNet?.verdict === 'miss' && x.safetyNet?.effectLanded === true
+    && x.safetyNet?.damageRolled === false,
+  JSON.stringify(x.safetyNet));
 if (x.critSkipsHold?.rolled) {
   report('a natural 20 skips the AC-type hold',
     x.critSkipsHold.held === false && x.critSkipsHold.damageRolled === true,

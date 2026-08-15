@@ -382,7 +382,11 @@ function interruptEntries() {
 function hasSpellSlot(actor, level) {
   if ( !level ) return true; // cantrip / at-will
   for ( const [key, slot] of Object.entries(actor.system.spells ?? {}) ) {
-    if ( !slot?.value ) continue;
+    // Both must be real. A remaining value with a zero maximum is phantom data — an NPC's
+    // maxima are DERIVED from spellcasting progression and recompute to 0, leaving a stale
+    // `value` behind that would advertise slots the actor cannot actually spend, and hold
+    // every attack for a reaction it can never cast.
+    if ( !slot?.value || !slot?.max ) continue;
     const numbered = /^spell(\d+)$/.exec(key);
     const slotLevel = numbered ? Number(numbered[1]) : slot.level;
     if ( Number.isFinite(slotLevel) && (slotLevel >= level) ) return true;
@@ -513,11 +517,23 @@ async function answerHold(attackMessage, uuid, answer) {
   // Players cannot update someone else's message, so a player's answer travels as their OWN
   // message; the continuing client applies it to the hold (design.md §4.1 — clients
   // volunteer, they never command). "Gren passes" is good table record either way.
+  const actor = await fromUuid(uuid);
+  const ac = actor?.system?.attributes?.ac?.value ?? null;
+  target.acAtAnswer = ac;
+
   if ( !attackMessage.isOwner ) {
+    // Say what actually happened, not just "reacts" — this line is the table's record AND
+    // the first thing anyone reads when a hold resolves oddly, so it carries the reaction,
+    // the AC it produced, and whether the reaction's effect is actually on the actor yet.
+    const effectLanded = hasReactionEffect(actor, target.reaction);
+    const detail = (answer === "cast")
+      ? `casts <strong>${target.reaction}</strong> — AC now <strong>${ac}</strong>`
+        + `${effectLanded ? "" : " <em>(effect not applied yet)</em>"}`
+      : `lets it land — no reaction`;
     await ChatMessage.create({
-      content: `<em>${answer === "cast" ? "reacts" : "lets it land"}.</em>`,
-      speaker: ChatMessage.getSpeaker({ actor: await fromUuid(uuid) }),
-      flags: { [MODULE_ID]: { respondsTo: attackMessage.id, uuid, answer } }
+      content: `<em>${detail}.</em>`,
+      speaker: ChatMessage.getSpeaker({ actor }),
+      flags: { [MODULE_ID]: { respondsTo: attackMessage.id, uuid, answer, ac, effectLanded } }
     });
     return;
   }
@@ -573,10 +589,24 @@ Hooks.on("dnd5e.postUseActivity", activity => {
  * duration of an existing same-origin effect, otherwise create it disabled:false /
  * transfer:false with origin set, so the system's own cleanup and expiry apply unchanged.
  */
+/**
+ * Is the named reaction's effect already on this actor? Matched by NAME as well as origin:
+ * the casting client applies from an item CLONE (Activity#use clones the item), so its
+ * origin uuid differs from the one the continuing client would compute, and an origin-only
+ * test would happily apply Shield twice.
+ */
+function hasReactionEffect(actor, reactionName) {
+  if ( !actor || !reactionName ) return false;
+  const item = actor.items.find(i => i.name.toLowerCase() === reactionName.toLowerCase());
+  const names = new Set((item?.effects?.contents ?? []).map(e => e.name));
+  return actor.effects.some(e => !e.disabled && (names.has(e.name)
+    || (e.origin && item && e.origin.includes(item.id))));
+}
+
 async function applyReactionEffect(activity, actor) {
   try {
     for ( const effect of activity.applicableEffects ?? [] ) {
-      const existing = actor.effects.find(e => e.origin === effect.uuid);
+      const existing = actor.effects.find(e => (e.origin === effect.uuid) || (e.name === effect.name));
       if ( existing ) {
         await existing.update({ ...effect.constructor.getInitialDuration(), disabled: false });
         continue;
@@ -619,6 +649,22 @@ async function continueHold(attackMessage) {
   const hold = foundry.utils.deepClone(attackMessage.getFlag(MODULE_ID, "hold"));
   if ( !hold || (hold.status !== "pending") ) return;
 
+  // Safety net before the verdict: make sure a cast reaction's effect is actually ON the
+  // actor. The casting client is supposed to have done this, but it only will if it owns the
+  // actor AND is running current code — and if it didn't, the re-test silently reads the
+  // pre-reaction AC and calls a miss a hit (exactly what happened live 2026-08-15: "Shield
+  // raises AC to 12"). The continuing client is the GM in practice, owns everything, and is
+  // always here. Idempotent: an effect already present is left alone.
+  if ( setting(S.holdApplyEffect) ) {
+    for ( const target of hold.targets.filter(t => t.answer === "cast") ) {
+      const actor = await fromUuid(target.uuid);
+      if ( !actor?.isOwner || hasReactionEffect(actor, target.reaction) ) continue;
+      const item = actor.items.find(i => i.name.toLowerCase() === target.reaction.toLowerCase());
+      const activity = item?.system.activities?.contents?.[0];
+      if ( activity ) await applyReactionEffect(activity, actor);
+    }
+  }
+
   if ( hold.targets.some(t => t.answer === "cast") ) await settleForACChange(hold);
 
   const roll = attackMessage.rolls[0];
@@ -628,11 +674,23 @@ async function continueHold(attackMessage) {
     const liveAC = actor?.system?.attributes?.ac?.value ?? target.ac;
     const hit = roll.isCritical || (!roll.isFumble && (roll.total >= liveAC));
     target.verdict = hit ? "hit" : "miss";
+    target.acAtVerdict = liveAC;
     if ( target.answer !== "cast" ) continue;
     if ( target.kind === "ac" ) {
-      announcements.push(hit
-        ? `<strong>${target.name}:</strong> ${target.reaction} raises AC to ${liveAC} — the attack still hits (${roll.total}).`
-        : `<strong>${target.name}:</strong> ${target.reaction} — ${roll.total} vs AC ${liveAC}. <em>The attack misses.</em>`);
+      // If the reaction's effect never landed, the AC we just tested against is the one the
+      // target had BEFORE reacting — so say so instead of reporting a stale number as fact.
+      // A silent "still hits" here is the worst possible outcome: it looks authoritative.
+      const landed = hasReactionEffect(actor, target.reaction);
+      const moved = (target.acAtAnswer == null) || (liveAC !== target.ac) || landed;
+      if ( !landed && !moved ) {
+        announcements.push(`<strong>${target.name}:</strong> ${target.reaction} was cast, but its `
+          + `effect is not on ${target.name} — AC is still ${liveAC}, so this reads as a hit `
+          + `(${roll.total}). Apply the effect from the card, then Revert the damage if needed.`);
+      } else {
+        announcements.push(hit
+          ? `<strong>${target.name}:</strong> ${target.reaction} raises AC to ${liveAC} — the attack still hits (${roll.total}).`
+          : `<strong>${target.name}:</strong> ${target.reaction} — ${roll.total} vs AC ${liveAC}. <em>The attack misses.</em>`);
+      }
     } else {
       announcements.push(`<strong>${target.name}:</strong> ${target.reaction} — reduce the damage by hand (the roll stands).`);
     }
@@ -696,18 +754,23 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     Object.assign(line.style, { display: "flex", alignItems: "center", gap: "0.4rem" });
     const label = document.createElement("span");
     Object.assign(label.style, { flex: "1" });
+    // Resolved rows carry the numbers the verdict was reached with (AC before → after, and
+    // the attack total), so a surprising outcome can be read straight off the card.
+    const acTrail = (target.answer === "cast") && (target.acAtVerdict != null)
+      ? ` <span style="opacity:0.75">AC ${target.ac}${target.acAtVerdict !== target.ac ? ` → ${target.acAtVerdict}` : ""}`
+        + ` vs ${message.rolls[0]?.total}</span>` : "";
     label.innerHTML = (hold.status === "pending")
       ? `<strong>${target.name}</strong> — ${target.reaction}?`
       : `<strong>${target.name}</strong> — ${target.answer === "cast" ? target.reaction
         : target.answer === "skip" ? "skipped by GM" : "passed"}`
-        + `${target.verdict ? ` · <em>${target.verdict}</em>` : ""}`;
+        + `${target.verdict ? ` · <em>${target.verdict}</em>` : ""}${acTrail}`;
     line.append(label);
 
     if ( hold.status === "pending" ) {
       void fromUuid(target.uuid).then(actor => {
         if ( !canAnswerFor(actor) ) return;
         line.append(
-          holdButton("Cast", () => answerHold(message, target.uuid, "cast")),
+          holdButton("Cast", () => castReaction(target)),
           holdButton("Pass", () => answerHold(message, target.uuid, "pass"))
         );
         if ( game.user.isGM ) line.append(
@@ -725,6 +788,34 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     void showHoldPopup(message, hold);
   }
 });
+
+/**
+ * The Cast button REALLY casts — it uses the reaction activity natively, exactly as clicking
+ * the spell on the sheet would: the slot is spent, the card is posted, and the usage hook
+ * fires, which is what answers the hold and applies the effect.
+ *
+ * ⚠ It must never merely record "cast" as an answer. Doing that (the shape this shipped in
+ * first) produced a hold that resolved against an unchanged AC — Shield "cast" with no slot
+ * spent, no effect, and a cheerful "raises AC to 12" over a hit that should have missed
+ * (caught by Tom in live play, 2026-08-15). design.md §5 is explicit: the cast IS the answer,
+ * and the button is convenience, not protocol. A cancelled cast answers nothing, correctly
+ * leaving the hold open.
+ */
+async function castReaction(target) {
+  const actor = await fromUuid(target.uuid);
+  const item = actor?.items.find(i => i.name.toLowerCase() === target.reaction.toLowerCase());
+  const activity = item?.system.activities?.contents?.find(a => a.activation?.type === "reaction")
+    ?? item?.system.activities?.contents?.[0];
+  if ( !activity ) {
+    ui.notifications.warn(`${TITLE}: could not find ${target.reaction} on ${target.name} to cast.`);
+    return;
+  }
+  // No usage dialog: the reaction window is already a table pause, and stacking a slot
+  // picker inside it spends the moment this feature exists to protect. The system picks the
+  // lowest available slot, which is what a Shield cast wants. A player who needs to upcast
+  // casts from their sheet instead — that is detected identically (design.md §5).
+  await activity.use({}, { configure: false }, {});
+}
 
 function holdButton(label, onClick) {
   const button = document.createElement("button");
@@ -763,7 +854,7 @@ async function showHoldPopup(attackMessage, hold) {
       content: `${detail}<p>Cast <strong>${target.reaction}</strong>, or let it land?</p>`,
       buttons: [
         { action: "cast", label: `Cast ${target.reaction}`, default: true,
-          callback: () => answerHold(attackMessage, target.uuid, "cast") },
+          callback: () => castReaction(target) },
         { action: "pass", label: "Pass",
           callback: () => answerHold(attackMessage, target.uuid, "pass") }
       ],

@@ -260,6 +260,15 @@ rewind. So: a **hold point** between hit determination and the damage roll.
   the answer**: the resolver detects a usage/effect from a listed item landing on the held
   target and auto-continues; a sheet-cast is detected identically (the button is convenience,
   not protocol).
+  ⚠ **The Cast button must really cast.** Shipping it as a button that merely *records* the
+  answer produced a hold that spent no slot, applied no effect, and then resolved against an
+  unchanged AC — announcing "Shield raises AC to 12" over a hit that should have missed
+  (caught in live play, 2026-08-15). It uses the activity with `configure: false`: the
+  reaction window is already a pause, and a slot picker inside it spends the moment the
+  feature exists to protect. A player who needs to upcast casts from their sheet, which is
+  detected identically. The response message carries the reaction, the resulting AC, and
+  whether the effect actually landed — a hold that resolves oddly must be readable, not
+  mysterious (§2.5).
 - **GM override** (Resolve / Skip) on the GM client — the AFK fallback, and why no answer is
   ever *required*.
 - **Re-resolution**: re-run the hit test against the target's **LIVE** AC (⚠ the stored target
