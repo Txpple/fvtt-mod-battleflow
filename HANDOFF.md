@@ -39,9 +39,7 @@ on, reaction hold on, apply-reaction-effect on, hold settle 8s, hold reveal off.
 3. **Phase 2.5 concentration visibility** (user request, 2026-08-15): a world setting for who
    sees the concentration check — everyone, or just the concentrator + DM. Public is the
    interesting default for table tension when a party-wide buff like Bless is at stake.
-4. **Gren is Bloodied** from a bad hit during the v1.1.1 bug (an attack that should have
-   missed). The damage card's Revert still works if the user wants the HP back.
-5. **design.md §9 says "combatplus is the template."** The user has explicitly softened
+4. **design.md §9 says "combatplus is the template."** The user has explicitly softened
    that: combatplus is a *reference*, not a template — do what is correct for Battle Flow.
    The doc sentence is a candidate for a §10-style correction.
 
