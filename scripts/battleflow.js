@@ -1320,6 +1320,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       } else {
         const cast = target.answer === "cast";
         tone = (target.verdict === "miss") ? "good" : cast ? "bad" : "neutral";
+        // "skip" is retired (v1.1.15) but still labelled, because holds answered that way are
+        // already sitting in the chat log and a re-render must not relabel history.
         eyebrow = cast ? "Reaction — cast"
           : target.answer === "skip" ? "Reaction — skipped"
           : target.timedOut ? "Reaction — timed out" : "Reaction — passed";
@@ -1364,12 +1366,17 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
           void showHoldPopup(message, message.getFlag(MODULE_ID, "hold"));
         }));
       } else {
+        // ⚠ TWO buttons, because the decision has two answers. A GM-only "Skip" used to sit
+        // here as the AFK override from design.md §5, but it called the same code as Pass and
+        // every consumer downstream tests only `answer === "cast"` — so it was a third control
+        // for a binary choice, and it appeared only where the GM already IS the decider (an
+        // unowned monster). On a player's character canAnswerFor denies the GM outright, so it
+        // was missing from the one case it was written for. The hold timer took that job
+        // properly at v1.1.8: unanswered targets auto-pass and are marked timedOut.
         controls.append(
           holdButton("Cast", () => castReaction(target)),
           holdButton("Pass", () => answerHold(message, target.uuid, "pass"))
         );
-        if ( game.user.isGM ) controls.append(
-          holdButton("Skip", () => answerHold(message, target.uuid, "skip")));
       }
       block.append(controls);
     });
@@ -1504,16 +1511,17 @@ async function showHoldPopup(attackMessage, hold) {
     const key = popupKey(attackMessage.id, target.uuid);
     if ( livePopups.has(key) ) continue;
 
+    // ⚠ THE SAME TWO BUTTONS FOR EVERYONE. The question is binary — take the reaction or don't
+    // — and it is the same question whoever is answering it. A GM-only third button ("Skip")
+    // stood here until v1.1.15 and made the GM's popup a different shape from the player's for
+    // no behavioural difference at all: it ran the same code as Pass, and the whole chain only
+    // ever asks `answer === "cast"`. See the card controls for why it went.
     const buttons = [
       { action: "cast", label: `Cast ${target.reaction}`, default: true,
         callback: () => castReaction(target) },
       { action: "pass", label: "Pass",
         callback: () => answerHold(attackMessage, target.uuid, "pass") }
     ];
-    // The GM's override lives beside the real choices rather than only on the card, so the
-    // popup is a complete answer surface and the card never has to be the fallback.
-    if ( game.user.isGM ) buttons.push({ action: "skip", label: "Skip",
-      callback: () => answerHold(attackMessage, target.uuid, "skip") });
 
     const dialog = new foundry.applications.api.DialogV2({
       window: { title: target.reaction, icon: "fa-solid fa-shield-halved" },
