@@ -759,6 +759,15 @@ const r = await f.evaluate(async () => {
       });
       const heldTarget = pending?.targets?.[0] ?? null;
 
+      // ⚠ Exactly two controls, and the SAME two a player gets. A GM-only third button ("Skip")
+      // shipped here until v1.1.15: it ran the same code as Pass — the whole chain only ever
+      // asks `answer === "cast"` — so it was one decision with three controls, and it made the
+      // GM's surface a different shape from the player's for no behavioural difference at all.
+      // Deduped: a message renders into several DOM trees, so the raw list repeats.
+      const buttonShape = [...new Set(Array.from(document.querySelectorAll(
+        `[data-message-id="${atk.msg.id}"] .battleflow-hold button`))
+        .map(b => b.textContent.trim()))].join('/');
+
       const button = pending ? castButtonFor(atk.msg.id) : null;
       if (pending && !button) throw new Error('the hold row rendered no Cast button for the statblock caster');
       button?.click();
@@ -782,6 +791,7 @@ const r = await f.evaluate(async () => {
 
       results.statblockCast = {
         announced,
+        buttonShape,
         pending: !!pending,
         reaction: heldTarget?.reaction ?? null,
         // ⚠ The ids, not the name. A name lookup at Cast time finds the mundane shield this
@@ -1172,6 +1182,9 @@ report('STATBLOCK: the verdict flips the hit to a miss and no damage rolls',
 report('STATBLOCK: the table is told the reaction WORKED, not that it never applied',
   x.statblockCast?.announced === 'worked',
   `announced: ${x.statblockCast?.announced}`);
+report('the hold offers ONE decision and TWO controls, the same two a player gets',
+  x.statblockCast?.buttonShape === 'Cast/Pass',
+  `buttons: ${x.statblockCast?.buttonShape} (a GM-only third button is the regression)`);
 report('FLAT AC: the effect lands but the system ignores it, so the AC does not move',
   x.flatAC?.held === true && x.flatAC?.effectLanded === true
   && x.flatAC?.acAfter === x.flatAC?.acBefore && x.flatAC?.verdict === 'hit',
