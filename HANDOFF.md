@@ -28,32 +28,78 @@ in v1.1.8 — design.md §5 carries the correction).
 
 ## Open items
 
-1. **The hold's UI is settled and shipped** (user calls, 2026-08-15) — recorded because it is
+### Next up, in order
+
+1. ⚠ **The statblock cast-activity path has NO harness coverage, and it is now the most
+   load-bearing path in the feature.** v1.1.12 made monster reaction spells work for the first
+   time (see the ground truth on `cast` activities). It is verified only by hand, against the
+   live Skeletal Mage on *Party Camp* — attack 17 vs AC 16 stamped a pending Shield hold
+   carrying the feature's `itemId` and the cast activity's `activityId`. Nothing guards it
+   against regression, and four separate bugs have already hidden in this exact area.
+
+   The fixture to build, in `smoke-hold.mjs`, on the **token** actor of `BF Test Victim`
+   (unlinked — building on the base loses the pieces): a `feat` carrying a `cast` activity with
+   `activation: { type: "reaction", override: true }`, `uses: { max: "1", spent: 0 }`,
+   `consumption: { targets: [{ type: "activityUses", value: "1" }] }`, and
+   `spell: { uuid: "<a Shield spell uuid>" }` — the world has
+   `Compendium.dnd-players-handbook.spells.Item.phbsplShield0000`. Assert: the hold fires; the
+   target records `itemId`/`activityId`; the Cast control spends the ACTIVITY's use (not a
+   slot); the effect lands from the linked spell; the verdict flips the hit to a miss.
+   Also assert the **at-will** variant (`uses.max: ""`, no consumption target) still holds —
+   that rule is inverted from the spell-item one and is easy to break.
+
+2. **Magic Missile must trigger Shield** (user request, 2026-08-15). Shield's own text is
+   *"you have a +5 bonus to AC … and you take no damage from Magic Missile"*, and the activity
+   condition on the statblock says so too: *"when you are hit by an attack roll or targeted by
+   the Magic Missile spell"*. The hold only ever triggers on an **attack hit** —
+   `dnd5e.rollAttackV2` is the sole entry point — so the Magic Missile half has never existed.
+   This needs a second trigger: a usage of a listed spell against targets, pausing before its
+   damage for anyone holding a reaction whose condition covers it. Note the *kind* is neither
+   of the current two: Shield vs Magic Missile is not "raise AC" (there is no attack roll to
+   re-test) and not "reduce damage" — it is **negate entirely**. The interrupt-list grammar
+   (`Name:kind`) will need a third kind, and the verdict wording along with it.
+
+3. **GWF: a 1 became a 3 on a normal hit but not on a crit** (observed on Morgash,
+   2026-08-15). **Probably not ours, and probably not core either.** dnd5e 5.3.3 contains *no
+   implementation of Great Weapon Fighting* — `grep -rn -i "greatWeapon" module/` finds only
+   the feature-category label at `config.mjs:1814`. So the 1→3 comes from world data (an
+   effect, or a `min3` modifier on the damage part). Crit doubling runs through
+   `term.alter(cm, cb)` in `module/dice/damage-roll.mjs`, which raises the die COUNT on the
+   existing term and keeps its modifiers, so a genuine `min3` should survive into crit dice.
+   **The experiment that settles it:** turn auto-damage off, land a crit, and press the native
+   Damage button by hand. Same behaviour ⇒ it is the data or the system, and nothing to do with
+   this module — we call the identical `activity.rollDamage(..., { isCritical })` the native
+   button calls. Different behaviour ⇒ it IS ours, and the difference will be in the options we
+   pass at `rollDamageForAttack`.
+
+### Standing
+
+4. **The hold's UI is settled and shipped** (user calls, 2026-08-15) — recorded because it is
    binding on anything built next: **the popup decides, the card watches, the card is public
    so the table sees the moment.** One card shape (`bfCard`) for everything the module says
    out loud; the card carries no answer controls where popups are on, only an *Answer* button
    that calls a dismissed popup back. ⚠ Never give one decision two live controls — that is
    how the card and popup got out of step. Look-and-feel is still being tuned against
    screenshots from real play; expect wording and density to move.
-2. **The hold timer is built** (v1.1.8–v1.1.10) — `holdTimer` seconds, 0 = wait indefinitely,
+5. **The hold timer is built** (v1.1.8–v1.1.10) — `holdTimer` seconds, 0 = wait indefinitely,
    live at 15s. The continuing client owns the one authoritative clock and re-checks at the
    buzzer; unanswered targets pass and are marked `timedOut`. The bar is built with
    `element.animate()` and positioned from the flag's absolute deadline, so popup and card
    agree exactly (measured drift 0). ⚠ Do not "simplify" it back to a CSS animation — see the
    ground truth below for why that silently desyncs.
-3. **The PC-attacker path is untested at the table** (v1.1.3 opened it). The harness covers the
+6. **The PC-attacker path is untested at the table** (v1.1.3 opened it). The harness covers the
    actor-type gate but runs as a GM, so it cannot BE a player client. Untested for real:
    a player's client stamping a hold on its own attack message, and then driving that hold's
    continuation. The known thin spot is `continueHold`'s effect safety net — it is guarded by
    `actor.isOwner`, so on a PC attack it no-ops for monster targets and the monster side rests
    entirely on the answering GM. Monster reactions ship their effects **disabled**.
-4. **Usage-card suppression vs effects — partially fixed.** Cards carrying effects are now
+7. **Usage-card suppression vs effects — partially fixed.** Cards carrying effects are now
    never suppressed (that was Ray of Frost's slow vanishing). The deeper fix is Phase 3
    applying effects itself, after which suppression can go back to being unconditional.
-5. **Phase 2.5 concentration visibility** (user request, 2026-08-15): a world setting for who
+8. **Phase 2.5 concentration visibility** (user request, 2026-08-15): a world setting for who
    sees the concentration check — everyone, or just the concentrator + DM. Public is the
    interesting default for table tension when a party-wide buff like Bless is at stake.
-6. **design.md §9 says "combatplus is the template."** The user has explicitly softened
+9. **design.md §9 says "combatplus is the template."** The user has explicitly softened
    that: combatplus is a *reference*, not a template — do what is correct for Battle Flow.
    The doc sentence is a candidate for a §10-style correction.
 
