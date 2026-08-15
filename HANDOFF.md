@@ -7,7 +7,7 @@
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.1.9**, installed and enabled, tag pushed, GitHub release
+Molten-hosted). Latest release **v1.1.10**, installed and enabled, tag pushed, GitHub release
 carries zip + manifest. **The box now tracks the GitHub manifest** (repointed 2026-08-15 —
 the self-hosted dev manifest and zip are gone), so the process vends the real version string.
 
@@ -117,6 +117,14 @@ Each of these is commented at the line where it bit. Do not rediscover them.
 - **Detached render trees hold un-upgraded custom elements.** `tray.open = false` writes a
   plain property that shadows the accessor and never touches the attribute. Use
   `toggleAttribute` — which is exactly what the system's own `_collapseTrays` does.
+- **A CSS animation is not instantiated until its element is actually being rendered**, and a
+  chat message is inserted into a tree that is not rendering yet. Measured: a card's countdown
+  bar reported `getAnimations().length === 0` and zero width more than a second after render,
+  so it later began its drain from zero and stayed seconds behind the same bar in a popup —
+  from an identical `animation-delay`. `animation-delay` cannot fix it (it is relative to a
+  start the element chooses). Build timed visuals with `element.animate()`, which exists the
+  moment it is called and runs on the document timeline, and set `currentTime` from an
+  absolute deadline.
 - PowerShell's `-Encoding utf8` writes a **BOM**, which breaks `JSON.parse` for the deploy
   tooling and Foundry alike. Edit `module.json` with the editor tools, not shell rewrites.
 

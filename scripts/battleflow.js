@@ -959,44 +959,80 @@ function reactionImg(actor, reactionName) {
  * with one hold on screen and miserable with six.
  * ------------------------------------------------------------------------------------------- */
 
-const BF_STYLE_ID = "battleflow-style";
-
-function ensureBattleflowStyle() {
-  if ( document.getElementById(BF_STYLE_ID) ) return;
-  const style = document.createElement("style");
-  style.id = BF_STYLE_ID;
-  style.textContent = `
-    @keyframes bf-drain { from { width: 100%; } to { width: 0%; } }
-    @keyframes bf-heat {
-      0%   { background-color: rgba(70,150,95,0.95); }
-      55%  { background-color: rgba(214,158,46,0.95); }
-      100% { background-color: rgba(180,70,60,0.95); }
-    }`;
-  document.head.appendChild(style);
-}
-
 /**
  * The draining bar for a hold, or "" when there is no timer. `deadline` and `window` both live
  * on the flag, so this is a pure function of state — no client keeps its own clock.
  */
 function holdBarHTML(hold) {
   if ( !hold?.deadline || !hold?.window || (hold.status !== "pending") ) return "";
-  ensureBattleflowStyle();
   const remaining = (hold.deadline - Date.now()) / 1000;
   if ( remaining <= 0 ) return "";
   // Negative delay = start the animation already part-way through, which is what makes a
   // reload pick the bar up exactly where it should be rather than restarting it.
   const elapsed = hold.window - remaining;
-  const timing = `${hold.window}s linear -${Math.max(0, elapsed).toFixed(2)}s forwards`;
   return `
   <div style="margin-top:0.45rem;display:flex;align-items:center;gap:0.4rem;">
     <div style="flex:1;height:6px;border-radius:3px;background:rgba(0,0,0,0.18);overflow:hidden;">
-      <div style="height:100%;width:100%;border-radius:3px;
-                  animation:bf-drain ${timing}, bf-heat ${timing};"></div>
+      <div data-bf-deadline="${hold.deadline}" data-bf-window="${hold.window}"
+           style="height:100%;width:100%;border-radius:3px;
+                  background:${TONE.good};"></div>
     </div>
     <span style="font-size:var(--font-size-10,10px);opacity:0.6;white-space:nowrap;">
       ${hold.window}s to answer</span>
   </div>`;
+}
+
+/**
+ * Snap every bar to the actual deadline.
+ *
+ * ⚠ `animation-delay` is NOT enough, and this cost a measurement to find. A CSS animation's
+ * clock starts when its element begins being RENDERED — and a chat message is first inserted
+ * into a tree that is not rendering yet (the same several-DOM-trees behaviour that makes
+ * render hooks stateless). So the card's bar started its drain seconds after the popup's,
+ * from an identical declared delay, and stayed exactly that far behind for the whole hold:
+ * measured at one instant, popup 71% and card 86%, both declaring -0.9s. The delay is relative
+ * to a start the element chooses; `currentTime` is absolute, so it is what the deadline can
+ * actually be written onto.
+ *
+ * One-shot, never a ticker — called on render and again on the next frame, because the first
+ * call can land while the element is still not being rendered.
+ */
+function syncHoldBars(root) {
+  const scope = (root && root.querySelectorAll) ? root : document;
+  for ( const bar of scope.querySelectorAll("[data-bf-deadline]") ) {
+    const deadline = Number(bar.dataset.bfDeadline);
+    const seconds = Number(bar.dataset.bfWindow);
+    if ( !deadline || !seconds ) continue;
+    const duration = seconds * 1000;
+    const elapsed = Math.max(0, Math.min(duration, duration - (deadline - Date.now())));
+
+    // ⚠ Build the animation in JS rather than in CSS. A CSS animation is not INSTANTIATED
+    // until its element is actually being rendered — measured: a freshly inserted card's bar
+    // reported getAnimations().length === 0 and zero width more than a second after render,
+    // so every correction pass found nothing to correct and the drain later started from zero.
+    // element.animate() exists the moment it is called and runs on the document timeline, so
+    // it neither waits for layout nor cares whether the element is on screen yet.
+    let animations = bar.getAnimations?.() ?? [];
+    if ( !animations.length ) animations = [
+      bar.animate([{ width: "100%" }, { width: "0%" }],
+        { duration, fill: "forwards", easing: "linear" }),
+      bar.animate([
+        { backgroundColor: TONE.good },
+        { backgroundColor: TONE.pending, offset: 0.55 },
+        { backgroundColor: TONE.bad }
+      ], { duration, fill: "forwards", easing: "linear" })
+    ];
+    for ( const animation of animations ) {
+      try { animation.currentTime = elapsed; } catch(err) { /* the next pass gets it */ }
+    }
+  }
+}
+
+/** Render, then correct — twice, because the first pass can precede the element rendering. */
+function scheduleBarSync(root) {
+  syncHoldBars(root);
+  requestAnimationFrame(() => syncHoldBars(root));
+  setTimeout(() => syncHoldBars(root), 400);
 }
 
 /**
@@ -1141,6 +1177,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         img: reactionImg(actor, target.reaction),
         eyebrow, title: target.reaction, subtitle, lines, tone
       }) + holdBarHTML(hold);
+      scheduleBarSync(block);
 
       if ( hold.status !== "pending" ) return;
       // A reload lands here with the hold still open — re-arm the buzzer from the flag's
@@ -1320,6 +1357,7 @@ async function showHoldPopup(attackMessage, hold) {
     livePopups.set(key, dialog);
     try {
       await dialog.render({ force: true });
+      scheduleBarSync(dialog.element);
       // The row was drawn before this popup existed; redraw so it defers instead of offering
       // a second set of buttons.
       ui.chat?.updateMessage?.(attackMessage);
