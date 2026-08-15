@@ -7,8 +7,9 @@
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.1.2**, installed and enabled, tag pushed, GitHub release
-carries zip + manifest.
+Molten-hosted). Latest release **v1.1.3**, installed and enabled, tag pushed, GitHub release
+carries zip + manifest. **The box now tracks the GitHub manifest** (repointed 2026-08-15 —
+the self-hosted dev manifest and zip are gone), so the process vends the real version string.
 
 | Phase | State |
 | --- | --- |
@@ -38,12 +39,9 @@ on, reaction hold on, apply-reaction-effect on, hold settle 8s, hold reveal off.
 3. **Phase 2.5 concentration visibility** (user request, 2026-08-15): a world setting for who
    sees the concentration check — everyone, or just the concentrator + DM. Public is the
    interesting default for table tension when a party-wide buff like Bless is at stake.
-4. **Repoint the box at the GitHub manifest.** It still tracks the self-hosted dev manifest
-   (`assets/dev/battleflow-dev-manifest.json`) from the first install. At the next world
-   bounce, re-run `register-module.mjs` with the GitHub URL and delete the dev copies.
-5. **Gren is Bloodied** from a bad hit during the v1.1.1 bug (an attack that should have
+4. **Gren is Bloodied** from a bad hit during the v1.1.1 bug (an attack that should have
    missed). The damage card's Revert still works if the user wants the HP back.
-6. **design.md §9 says "combatplus is the template."** The user has explicitly softened
+5. **design.md §9 says "combatplus is the template."** The user has explicitly softened
    that: combatplus is a *reference*, not a template — do what is correct for Battle Flow.
    The doc sentence is a candidate for a §10-style correction.
 
@@ -77,9 +75,14 @@ changes. Fixtures live in the world and are reused: scene **Battle Flow Test Ran
 
 ⚠ **The harness runs as a GM, and the module deliberately refuses to let a GM answer a hold
 for a character a logged-in player owns.** So Gren's own Shield *cannot* be driven from the
-bridge while Tom is connected — that is correct behaviour, not a bug. The real-cast path is
-tested on **BF Test Shielder**, a GM-owned clone of Gren (a genuine spellcaster with genuine
-slots). Do not "fix" this by weakening `canAnswerFor`.
+bridge while a client owning Gren is connected — that is correct behaviour, not a bug. The
+real-cast path is tested on **BF Test Shielder**, a GM-owned clone of Gren (a genuine
+spellcaster with genuine slots). Do not "fix" this by weakening `canAnswerFor`.
+
+The user **logs in as the player accounts themselves** to dogfood the player side, so an
+"active player" in `get-world-info` is often just them in another browser. Logging that
+session out hands the hold back to the GM and unblocks the bridge — ask before assuming a
+connected player is someone else at the table.
 
 ## Ground truths that already cost a debugging session
 
