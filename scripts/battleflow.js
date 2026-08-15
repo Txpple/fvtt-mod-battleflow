@@ -1264,11 +1264,11 @@ async function holdPopupContent(target, roll, actor, hold) {
       <div style="opacity:0.7;font-size:var(--font-size-12,12px);">${subtitle}</div>
     </div>
   </div>
+  ${holdBarHTML(hold)}
   <div style="padding:0.6rem 0.1rem;">${situation}</div>
   ${description ? `<div style="max-height:11rem;overflow-y:auto;padding:0.5rem 0.6rem;
        border-radius:4px;background:rgba(0,0,0,0.05);font-size:var(--font-size-13,13px);
-       line-height:1.5;">${description}</div>` : ""}
-  ${holdBarHTML(hold)}`;
+       line-height:1.5;">${description}</div>` : ""}`;
 }
 
 /**
