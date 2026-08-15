@@ -1,8 +1,12 @@
 # HANDOFF.md — picking this up cold
 
-> Written 2026-08-15 at the end of the first build stretch. Read [design.md](design.md)
-> first — it is binding and wins every disagreement. This file is only *where things stand*
-> and *what already bit us*. Delete or rewrite it freely; it is a snapshot, not a contract.
+> Written 2026-08-15, then rewritten through the same day's dogfood stretch (v1.1.2 → v1.1.12,
+> eleven releases, every one of them driven by a bug found at the table). Read
+> [design.md](design.md) first — it is binding and wins every disagreement. This file is only
+> *where things stand* and *what already bit us*. Delete or rewrite it freely; it is a
+> snapshot, not a contract.
+>
+> **Start with Open item 1.** It is the one piece of this feature with no test behind it.
 
 ## Where things stand
 
@@ -16,15 +20,27 @@ the self-hosted dev manifest and zip are gone), so the process vends the real ve
 | 0 — native settings | **The user's to do**, at the table. Not code. |
 | 1 — attack resolver | ✅ shipped. Auto-roll damage on hit, auto-apply via GM elect, receipts + revert. |
 | 1.1 — dogfood polish | ✅ shipped. Tray auto-collapse, require-target gate, usage-card suppression, centered roll dialogs. |
-| 1.5 — reaction hold | ✅ shipped, **actively being dogfooded** with Tom playing Gren (Shield). |
+| 1.5 — reaction hold | ✅ shipped, **actively being dogfooded**. PC side (Gren + Shield) has real table miles; the **monster side only started working at v1.1.12** and has almost none. |
 | 2 — saves | ⬜ next, unless the user redirects. |
 | 2.5 — concentration | ⬜ has a queued user request (below). |
 | 3 — effect application | ⬜ two open items depend on it. |
 
-**Live settings as left**: auto-damage **`all`** (set 2026-08-15 to dogfood the PC side —
-`pc` isolates it), auto-apply on, dramatic beat 3s, suppress attack cards on, require target
-on, reaction hold on, apply-reaction-effect on, hold settle 8s, hold reveal ON (default flipped
-in v1.1.8 — design.md §5 carries the correction).
+**Live settings as left** — verify with a read before trusting this list; the suites restore
+whatever they find, so it drifts:
+
+| Setting | Value | |
+| --- | --- | --- |
+| Auto-Roll Damage on Hit | `all` | `pc` / `npc` isolate one side for testing |
+| Auto-Apply Damage | on | active-GM elect, receipts + revert |
+| Dramatic Beat | 3s | |
+| Suppress Attack Cards | on | cards carrying effects survive anyway |
+| Require a Target | on | |
+| Reaction Hold | on | |
+| Hold Shows the Math | **on** | default flipped in v1.1.8 — design.md §5 carries the correction |
+| Hold Timer | **15s** | 0 waits indefinitely |
+| Skip Hopeless Holds | **on** | gated on the reveal, deliberately — see the setting's hint |
+| Apply the Reaction's Effect | on | |
+| Hold Settle | 8s | |
 
 ## Open items
 
@@ -135,7 +151,12 @@ node tools/smoke-hold.mjs
 
 `tools/scan-reactions.mjs` regenerates the [REACTIONS.md](REACTIONS.md) survey after content
 changes. Fixtures live in the world and are reused: scene **Battle Flow Test Range**, actors
-**BF Test Attacker**, **BF Test Victim**, **BF Test Shielder**.
+**BF Test Attacker** (NPC), **BF Test Victim** (NPC, also wears a mundane shield for the
+name-collision test), **BF Test Shielder** (GM-owned clone of Gren) and **BF Test PC Attacker**
+(character-type, for the attacker-side mode gate). The suites **long rest every `BF Test`
+fixture on the way out** — they spend real slots and real HP, and nothing else puts it back.
+Fixtures only: live PCs are restored to whatever was found, because resting the party is the
+user's call, not the harness's.
 
 ⚠ **The harness runs as a GM, and the module deliberately refuses to let a GM answer a hold
 for a character a logged-in player owns.** So Gren's own Shield *cannot* be driven from the
