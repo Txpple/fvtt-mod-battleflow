@@ -251,7 +251,34 @@ rewind. So: a **hold point** between hit determination and the damage roll.
   matter here: **Absorb Elements does not exist in 2024 content**, Shield is the *only*
   interrupt spell in the game, and the monster-side interrupts are all AC-type, so one
   uniform `total >= liveAC` re-test serves the entire family.
-- **The hold**: don't auto-continue for that target; stamp `pending` on the attack message.
+- **Second trigger — a listed spell, not an attack** (added 2026-08-15 from live play). Shield's
+  own text is *"you have a +5 bonus to AC … **and you take no damage from Magic Missile**"*, and
+  the 2024 statblock condition agrees: *"when you are hit by an attack roll **or targeted by the
+  Magic Missile spell**"*. That half is unreachable from `dnd5e.rollAttackV2` — Magic Missile is a
+  plain `damage` activity with no attack roll at all — so the hold gets a second entry point at
+  `dnd5e.postUseActivity`, where the usage card already carries the same `flags.dnd5e.targets`
+  snapshot an attack message does (`activity/mixin.mjs` `messageFlags`). Deliberately kept to
+  **one narrow shape**, because this is curation, not a conditions engine (§2.6):
+  - A **second curated list**, keyed the other way round: `Spell:Reaction` — default
+    `Magic Missile:Shield`. Keying by the *triggering spell* leaves the `Name:kind` interrupt
+    list untouched; Shield is genuinely both (`ac` against attacks, negate against Magic Missile)
+    and folding that into one grammar would need two entries and two colons for one reaction.
+  - A **third kind, `negate`**, and it is neither of the existing two: there is no attack roll to
+    re-test (`ac`) and nothing to reduce by hand (`damage`). The reaction simply means that
+    spell's damage never lands on that target. So a negate hold has no re-test, no settle window
+    and no AC arithmetic — the answer *is* the verdict.
+  - **The block is real, not advisory**, and it happens at `dnd5e.preApplyDamage` (cancelable —
+    `actor.mjs:754`), because nothing else in the module touches this spell: Magic Missile is not
+    an attack, so Phase 1 neither rolls its damage nor applies it. Damage still rolls and still
+    shows on the card — RAW three darts exist and the rest of the table takes them; the shielded
+    target is the one row the tray refuses to write.
+  - ⚠ **Known and accepted**: a GM who presses Apply while the hold is still *pending* beats the
+    verdict, and the damage lands. Correct-by-construction alternatives (vetoing pending
+    applications) fail worse — a hold answered Pass would then need a second click nobody would
+    remember to make. The card says "held — waiting on Tom" the entire time.
+- **The hold**: don't auto-continue for that target; stamp `pending` on the attack message (or,
+  for the spell trigger, on the usage card — the hold flag and every view of it are identical,
+  and holds carry `trigger: "spell"` so the roll-dependent paths can branch off it).
 - **Player-side controls** (held target's owning client): popup + card row —
   *"The wight hits you! — [Cast Shield] [Pass]"*.
   **Pass** → the player posts a small response message flagged `respondsTo: <attackMsgId>`
@@ -417,6 +444,7 @@ World, per-feature, default OFF unless noted:
 | Suppress attack usage cards | off / on | 1.1 |
 | Center roll dialogs (per client) | off / on | 1.1 |
 | Reaction hold | off / on + curated interrupt list (entries: name, AC-type/damage-type) | 1.5 |
+| Spells a reaction blocks | curated list (`Spell:Reaction`, default `Magic Missile:Shield`) | 1.5 |
 | Halving reactions | pause / post-hoc via revert+½ | 1.5 |
 | Hold timer | off (wait) / N seconds | 1.5 |
 | Popup shows the math | off / on (verdict included) | 1.5 |

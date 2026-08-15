@@ -74,6 +74,7 @@ const S = {
   centerRollDialogs: "centerRollDialogs",
   reactionHold: "reactionHold",
   interruptList: "interruptList",
+  blockList: "blockList",
   holdReveal: "holdReveal",
   holdTimer: "holdTimer",
   holdSkipFutile: "holdSkipFutile",
@@ -149,6 +150,20 @@ Hooks.once("init", () => {
       + "Riposte:ac, Whirlwind of Sand:ac, Deflect Attacks:damage, Stone's Endurance:damage"
   });
 
+  game.settings.register(MODULE_ID, S.blockList, {
+    name: "Spells a Reaction Blocks",
+    hint: 'Which spells a reaction stops outright, as "Spell:Reaction" separated by commas. '
+      + 'Casting a listed spell at someone holding that reaction pauses exactly like a hit does — '
+      + 'and taking the reaction means the spell\'s damage is never applied to them. Shield reads '
+      + '"you take no damage from Magic Missile"; nothing else in 2024 content does this, so one '
+      + 'entry is the whole list.',
+    // Keyed by the TRIGGERING SPELL, not by the reaction, which is what keeps the interrupt list
+    // above untouched. Shield is genuinely both things — it raises AC against an attack roll AND
+    // negates Magic Missile — and folding that into the `Name:kind` grammar would need two
+    // entries and two colons to say one thing about one spell.
+    scope: "world", config: true, type: String, default: "Magic Missile:Shield"
+  });
+
   game.settings.register(MODULE_ID, S.holdReveal, {
     name: "Hold Shows the Math",
     hint: "On (default): the attack total against their AC, and whether the reaction would actually turn it into a miss — so a player can tell whether spending the slot is worth it. Off (RAW): they are told only that they were hit, and react on faith. Both surfaces obey this one setting.",
@@ -220,7 +235,7 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   const hold = input(S.reactionHold);
   const syncAll = () => {
     setEnabled(input(S.dramaticBeat), autoDamage?.value !== "off");
-    for ( const key of [S.interruptList, S.holdReveal, S.holdTimer, S.holdSkipFutile,
+    for ( const key of [S.interruptList, S.blockList, S.holdReveal, S.holdTimer, S.holdSkipFutile,
       S.holdSettle, S.holdView, S.holdApplyEffect] )
       setEnabled(input(key), !!hold?.checked);
   };
@@ -408,6 +423,19 @@ function interruptEntries() {
 }
 
 /**
+ * Parse the curated "Spell:Reaction" world setting — which spells a reaction stops outright.
+ * Keyed by the SPELL, so one reaction can appear here and in the interrupt list without the
+ * two lists having to agree about anything.
+ */
+function blockEntries() {
+  return String(setting(S.blockList) ?? "").split(",").map(chunk => {
+    const [spell, reaction] = chunk.split(":").map(s => s?.trim());
+    if ( !spell || !reaction ) return null;
+    return { spell, reaction };
+  }).filter(Boolean);
+}
+
+/**
  * The state of an item's OWN limited uses: "none" (it has no pool), "available" (a pool with
  * charges left) or "spent" (a pool, all used).
  *
@@ -498,47 +526,62 @@ function reactionItem(actor, reactionName, { itemId, activityId } = {}) {
 }
 
 /**
- * The first curated interrupt this actor can actually use right now, or null. Eligibility is
- * deliberately conservative: a hold the target cannot answer is a pure false stop.
+ * Can this actor use the named reaction RIGHT NOW — and through which item and activity?
+ * Returns `{ item, activity }` or null. Eligibility is deliberately conservative: a hold the
+ * target cannot answer is a pure false stop.
+ *
+ * Asked by both triggers. The attack trigger walks the curated interrupt list until one of
+ * them answers; the spell trigger asks about exactly one reaction by name (the one its block
+ * list pairs with the spell being cast), which is why this is a lookup rather than a loop.
+ */
+async function usableReaction(actor, name) {
+  if ( !actor || !name ) return null;
+
+  // ⚠ THE MONSTER PATTERN COMES FIRST, because it is the common one. A 2024 statblock does
+  // not cast from the spell item at all: its "Spellcasting" feature carries one `cast`
+  // ACTIVITY per spell, and the resource lives on that activity — verified on Skeletal Mage
+  // ("Shield - Spellcasting", activation reaction, uses 1/1, consumption activityUses) and
+  // on the compendium Green Hag, which has the same shape on two features. The spell item
+  // that activity points at is a linked target: it reports spellSlot:true and no uses, so
+  // interrogating IT concluded the monster could not cast, and no statblock caster ever
+  // held (reported live 2026-08-15).
+  const cast = await findCastActivity(actor, name);
+  if ( cast ) return { item: cast.item, activity: cast.activity };
+  // ⚠ EVERY item of that name, not the first. A caster who both wears a shield and knows
+  // Shield has two items called "Shield", and `find` returned whichever sorted first — so
+  // picking the mundane one disqualified the entry and the spell was never even considered.
+  // That is most armoured statblock casters.
+  for ( const item of actor.items.filter(i => i.name.toLowerCase() === name.toLowerCase()) ) {
+    if ( !isReactionItem(item) ) continue;
+
+    const uses = limitedUses(item);
+    if ( uses === "spent" ) continue;                 // limited-use feature, none left
+    if ( item.type === "spell" ) {
+      // ⚠ `prepared` is a PC concept. Every levelled spell on a 2024-statblock NPC reads
+      // prepared: 0 — verified on Skeletal Mage, whose whole spell list does — so gating on
+      // it disqualified the entire monster side of this feature in silence.
+      if ( (actor.type === "character") && !item.system.prepared ) continue;
+      // ⚠ A spell can be paid for by its OWN limited uses rather than a slot: the Monster
+      // Manual's "Additional Spells" x/x pool, which is how most statblock casters carry
+      // Shield. Requiring a slot meant those never held, because monster slot maxima derive
+      // from a caster level statblocks rarely set and sit at 0.
+      if ( (uses === "none") && !hasSpellSlot(actor, item.system.level) ) continue;
+    }
+    return { item, activity: null };
+  }
+  return null;
+}
+
+/**
+ * The first curated interrupt this actor can actually use right now, or null.
  */
 async function findInterrupt(actor, { isCritical }) {
   if ( !actor || reactionSpent(actor) ) return null;
   for ( const entry of interruptEntries() ) {
     // A natural 20 hits regardless of AC, so an AC-type reaction cannot save it — no pause.
     if ( isCritical && (entry.kind === "ac") ) continue;
-
-    // ⚠ THE MONSTER PATTERN COMES FIRST, because it is the common one. A 2024 statblock does
-    // not cast from the spell item at all: its "Spellcasting" feature carries one `cast`
-    // ACTIVITY per spell, and the resource lives on that activity — verified on Skeletal Mage
-    // ("Shield - Spellcasting", activation reaction, uses 1/1, consumption activityUses) and
-    // on the compendium Green Hag, which has the same shape on two features. The spell item
-    // that activity points at is a linked target: it reports spellSlot:true and no uses, so
-    // interrogating IT concluded the monster could not cast, and no statblock caster ever
-    // held (reported live 2026-08-15).
-    const cast = await findCastActivity(actor, entry.name);
-    if ( cast ) return { entry, item: cast.item, activity: cast.activity };
-    // ⚠ EVERY item of that name, not the first. A caster who both wears a shield and knows
-    // Shield has two items called "Shield", and `find` returned whichever sorted first — so
-    // picking the mundane one disqualified the entry and the spell was never even considered.
-    // That is most armoured statblock casters.
-    for ( const item of actor.items.filter(i => i.name.toLowerCase() === entry.name.toLowerCase()) ) {
-      if ( !isReactionItem(item) ) continue;
-
-      const uses = limitedUses(item);
-      if ( uses === "spent" ) continue;                 // limited-use feature, none left
-      if ( item.type === "spell" ) {
-        // ⚠ `prepared` is a PC concept. Every levelled spell on a 2024-statblock NPC reads
-        // prepared: 0 — verified on Skeletal Mage, whose whole spell list does — so gating on
-        // it disqualified the entire monster side of this feature in silence.
-        if ( (actor.type === "character") && !item.system.prepared ) continue;
-        // ⚠ A spell can be paid for by its OWN limited uses rather than a slot: the Monster
-        // Manual's "Additional Spells" x/x pool, which is how most statblock casters carry
-        // Shield. Requiring a slot meant those never held, because monster slot maxima derive
-        // from a caster level statblocks rarely set and sit at 0.
-        if ( (uses === "none") && !hasSpellSlot(actor, item.system.level) ) continue;
-      }
-      return { entry, item };
-    }
+    const found = await usableReaction(actor, entry.name);
+    if ( found ) return { entry, ...found };
   }
   return null;
 }
@@ -694,6 +737,84 @@ function holdWouldMatter(actor, found, roll, snapshotAC) {
   return roll.total < (liveAC + bonus);           // only worth asking if it can force a miss
 }
 
+/* ---------------------------------------------------------------------------------------------
+ * The SECOND trigger: a listed spell, not an attack (design.md §5 Phase 1.5).
+ *
+ * Shield's own text is "you have a +5 bonus to AC … and you take no damage from Magic Missile",
+ * and the 2024 statblock condition says the same: "when you are hit by an attack roll or
+ * targeted by the Magic Missile spell". That second half is unreachable from rollAttackV2 —
+ * Magic Missile is a plain `damage` activity with no attack roll anywhere in it — so the hold
+ * gets a second entry point here, at the moment of USE.
+ *
+ * The kind is neither of the existing two. There is no attack roll to re-test (`ac`) and
+ * nothing to reduce by hand (`damage`): the spell's damage simply never lands on that target.
+ * So a `negate` hold has no re-test, no settle window and no AC arithmetic — the answer IS the
+ * verdict, and continueSpellHold is correspondingly short.
+ * ------------------------------------------------------------------------------------------- */
+
+Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
+  if ( !setting(S.reactionHold) ) return;
+  // The usage card is the held document here, exactly as the attack message is over there — and
+  // it already carries the same target snapshot, because getTargetDescriptors() is baked into
+  // every activity's messageFlags (mixin.mjs), not into attack rolls specifically.
+  const message = results?.message;
+  if ( !(message instanceof ChatMessage) ) return;   // used with create:false — no card to hold
+
+  void (async () => {
+    // ⚠ Match what was CAST, not what owns the activity — the same rule the answer side lives
+    // by. A statblock casting Magic Missile does it through a `cast` activity on a feature
+    // called "Spellcasting", and CastActivity#use hands this hook the CACHED SPELL's activity,
+    // whose item is genuinely named "Magic Missile". reactionNameFor covers both shapes.
+    const spellName = (await reactionNameFor(activity))?.toLowerCase();
+    if ( !spellName ) return;
+    const entries = blockEntries().filter(e => e.spell.toLowerCase() === spellName);
+    if ( entries.length ) await stampSpellHold(message, entries);
+  })();
+});
+
+/**
+ * Stamp a `negate` hold on a usage card for every target holding a reaction that stops it.
+ * Same flag shape as the attack hold, so the popup, the card row, the timer, all three answer
+ * channels and the reaction-spent guard are reused verbatim — the only new thing on it is
+ * `trigger: "spell"`, which is how the roll-dependent paths know to branch.
+ */
+async function stampSpellHold(message, entries) {
+  if ( message.getFlag(MODULE_ID, "hold") ) return;      // already held; never re-stamp
+  const targets = message.getFlag("dnd5e", "targets") ?? [];
+  if ( !targets.length ) return;
+
+  const held = [];
+  for ( const target of targets ) {
+    const actor = await fromUuid(target.uuid);
+    if ( !actor || reactionSpent(actor) ) continue;
+    for ( const entry of entries ) {
+      const found = await usableReaction(actor, entry.reaction);
+      if ( !found ) continue;
+      held.push({
+        uuid: target.uuid, name: target.name, ac: target.ac,
+        reaction: entry.reaction, kind: "negate", spell: entry.spell,
+        itemId: found.item.id, activityId: found.activity?.id ?? null,
+        answer: null, verdict: null
+      });
+      break;   // one reaction answers the spell; a second hold on the same target asks twice
+    }
+  }
+  if ( !held.length ) return;
+
+  // ⚠ Deliberately NO holdSkipFutile test. A hopeless hold is one that cannot change the
+  // outcome, and this one always can: negating means zero damage regardless of the numbers.
+  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  await message.setFlag(MODULE_ID, "hold", {
+    status: "pending",
+    trigger: "spell",
+    spell: entries[0].spell,
+    continuedBy: game.user.id,
+    ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
+    targets: held
+  });
+  armHoldTimer(message);
+}
+
 /**
  * Should THIS client drive the continuation? The client that rolled the attack owns it (its
  * attack, its dice); if that user has gone offline the active GM takes over so a hold can
@@ -736,12 +857,18 @@ async function answerHold(attackMessage, uuid, answer) {
     // cast returns, when the effect document exists but derived data has not recomputed — so
     // reading the number here printed "casts Shield — AC now 12" under a +5 (reported live
     // 2026-08-15). Better to say it is coming than to publish a number that is wrong.
-    const effectLanded = reactionACArrived(actor, target);
     const cast = answer === "cast";
-    const lines = cast
-      ? [effectLanded ? `AC is now <strong>${ac}</strong>.`
-                      : `<em>Its AC has not landed yet — the verdict will use the real number.</em>`]
-      : [`No reaction — the attack lands.`];
+    // A negate hold has no AC story to tell — the reaction's whole effect on this moment is
+    // that the spell does nothing, and quoting an AC here would answer a question nobody asked.
+    const negate = target.kind === "negate";
+    const effectLanded = negate ? true : reactionACArrived(actor, target);
+    const lines = negate
+      ? [cast ? `<strong>${hold.spell}</strong> does nothing to them.`
+              : `No reaction — the <strong>${hold.spell}</strong> lands.`]
+      : cast
+        ? [effectLanded ? `AC is now <strong>${ac}</strong>.`
+                        : `<em>Its AC has not landed yet — the verdict will use the real number.</em>`]
+        : [`No reaction — the attack lands.`];
     await ChatMessage.create({
       content: bfCard({
         img: reactionImg(actor, target.reaction, target),
@@ -926,6 +1053,11 @@ async function continueHold(attackMessage) {
     }
   }
 
+  // A negate hold ends here: there is nothing to re-test, so there is nothing to settle for
+  // either. The effect above still went on — casting Shield against Magic Missile really does
+  // also give you the +5 until your next turn — but this verdict does not depend on it.
+  if ( hold.trigger === "spell" ) return continueSpellHold(attackMessage, hold);
+
   if ( hold.targets.some(t => t.answer === "cast") ) await settleForACChange(hold);
 
   const roll = attackMessage.rolls[0];
@@ -1000,6 +1132,80 @@ async function continueHold(attackMessage) {
   const activity = await fromUuid(attackMessage.getFlag("dnd5e", "activity")?.uuid);
   if ( activity ) await rollDamageForAttack(activity, attackMessage);
 }
+
+/**
+ * Resolve a `negate` hold — the whole of it. The answer IS the verdict: there is no roll to
+ * re-test, no live AC to read and no dice waiting on the outcome, because this module never
+ * rolled the spell's damage in the first place (Magic Missile is not an attack, so Phase 1a
+ * ignores it and the caster presses their own Damage button).
+ *
+ * The verdict is what the preApplyDamage veto below reads, so writing it IS the block.
+ */
+async function continueSpellHold(message, hold) {
+  const announcements = [];
+  for ( const target of hold.targets ) {
+    const cast = target.answer === "cast";
+    target.verdict = cast ? "negated" : "hit";
+    if ( !cast ) continue;
+    const actor = await fromUuid(target.uuid);
+    announcements.push(bfCard({
+      img: reactionImg(actor, target.reaction, target),
+      eyebrow: "Reaction — it worked", title: target.reaction, subtitle: target.name,
+      tone: "good",
+      // One sentence, because it already says the whole thing. A second line spelling out
+      // "its damage is not applied to them" restated the first in mechanical language, and
+      // naming the other targets answered a question nobody watching had asked.
+      lines: [`<strong>${hold.spell}</strong> does nothing to <strong>${target.name}</strong>.`]
+    }));
+  }
+
+  hold.status = "resolved";
+  disarmHoldTimer(message.id);
+  await message.setFlag(MODULE_ID, "hold", hold);
+  if ( announcements.length ) await ChatMessage.create({
+    content: announcements.join(`<div style="height:0.3rem;"></div>`),
+    speaker: { alias: TITLE }
+  });
+}
+
+/**
+ * The block itself, and the reason it is real rather than advisory.
+ *
+ * Nothing else in this module touches a spell like Magic Missile: it is not an attack, so
+ * Phase 1a never rolls its damage and Phase 1b never applies it (resolveAttackMessage returns
+ * null for a chain with no attack in it). The damage is rolled and applied by hand, which
+ * means the ONE place a negated target can actually be spared is the moment of application —
+ * dnd5e.preApplyDamage, which cancels on an explicit false (actor.mjs:754).
+ *
+ * Scoped as tightly as it can be: the damage must chain back to a usage card carrying a
+ * resolved `negate` hold, and that hold must name THIS actor with a `negated` verdict. Fires
+ * on whichever client is applying (applyDamage is local and ownership-gated), never GM-only —
+ * the veto has to hold wherever the button was pressed.
+ *
+ * ⚠ Accepted gap (design.md §5): a GM who presses Apply while the hold is still PENDING beats
+ * the verdict and the damage lands, because there is no verdict yet to read. Vetoing pending
+ * applications instead would be worse — a hold answered Pass would then need a second Apply
+ * click that nobody would remember to make. The card reads "held — waiting on …" throughout.
+ */
+Hooks.on("dnd5e.preApplyDamage", (actor, amount, updates, options) => {
+  if ( !setting(S.reactionHold) || !actor ) return;
+  // The tray passes the DAMAGE message as originatingMessage (damage-application.mjs:76); the
+  // usage card carrying the hold is one hop further back through the system's own registry.
+  const damageMessage = options?.originatingMessage;
+  // ⚠ Damage only. applyDamage is the path healing takes too (a heal is negative damage with
+  // roll.type "healing"), and a reaction that stops a spell must never be able to refuse
+  // someone a cure cast from the same card. Phase 1b draws the same line for the same reason.
+  if ( damageMessage?.getFlag("dnd5e", "roll.type") !== "damage" ) return;
+  const origin = damageMessage.getOriginatingMessage?.();
+  if ( !origin || (origin === damageMessage) ) return;
+  const hold = origin.getFlag(MODULE_ID, "hold");
+  if ( (hold?.trigger !== "spell") || (hold.status !== "resolved") ) return;
+  const target = hold.targets?.find(t => t.uuid === actor.uuid);
+  if ( target?.verdict !== "negated" ) return;
+  ui.notifications.info(
+    `${TITLE}: ${target.reaction} — ${target.name} takes no damage from ${hold.spell}.`);
+  return false;
+});
 
 /**
  * Has the reaction's AC actually ARRIVED — as opposed to "is there an effect row for it"?
@@ -1305,7 +1511,12 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     // thing, whether or not they are the one being asked.
     void fromUuid(target.uuid).then(actor => {
       const roll = message.rolls[0];
-      const reveal = revealDetail(target, roll, actor);
+      // A spell hold has no d20 anywhere on its message, so there is no math to reveal — asking
+      // revealDetail anyway prints "null vs AC 15" and invents a verdict about an attack that
+      // was never rolled. The reveal SETTING is untouched by this: a negate hold discloses
+      // nothing a target could metagame on, because the answer never depends on a number.
+      const spell = hold.trigger === "spell";
+      const reveal = spell ? null : revealDetail(target, roll, actor);
       const lines = [];
       let tone = "neutral";
       let eyebrow = "Reaction";
@@ -1317,23 +1528,30 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         const owner = game.users.find(u => !u.isGM && actor?.testUserPermission(u, "OWNER"));
         subtitle = `${target.name} · waiting on ${owner?.name ?? "the GM"}`;
         if ( reveal ) lines.push(revealLine(reveal, target));
+        else if ( spell ) lines.push(`<strong>${hold.spell}</strong> · `
+          + `${target.reaction} stops it completely`);
       } else {
         const cast = target.answer === "cast";
-        tone = (target.verdict === "miss") ? "good" : cast ? "bad" : "neutral";
+        const negated = target.verdict === "negated";
+        tone = (target.verdict === "miss") || negated ? "good" : cast ? "bad" : "neutral";
         // "skip" is retired (v1.1.15) but still labelled, because holds answered that way are
         // already sitting in the chat log and a re-render must not relabel history.
-        eyebrow = cast ? "Reaction — cast"
+        eyebrow = negated ? "Reaction — it worked"
+          : cast ? "Reaction — cast"
           : target.answer === "skip" ? "Reaction — skipped"
           : target.timedOut ? "Reaction — timed out" : "Reaction — passed";
         // Resolved cards carry the numbers the verdict was reached with, so a surprising
-        // outcome can be read straight off the card instead of reconstructed.
+        // outcome can be read straight off the card instead of reconstructed. A spell hold has
+        // no acAtVerdict, so this skips itself.
         if ( cast && (target.acAtVerdict != null) ) {
           const moved = target.acAtVerdict !== target.ac;
           lines.push(`AC <strong>${target.ac}</strong>${moved ? ` → <strong>${target.acAtVerdict}</strong>` : ""}`
             + ` vs the attack's <strong>${roll?.total}</strong>`);
         }
-        if ( target.verdict ) lines.push(target.verdict === "miss"
+        if ( negated ) lines.push(`<strong>${hold.spell}</strong> does nothing to them.`);
+        else if ( target.verdict ) lines.push(target.verdict === "miss"
           ? `<strong>The attack misses.</strong>`
+          : spell ? `The <strong>${hold.spell}</strong> lands in full.`
           : `The attack still hits.`);
         else if ( target.answer === "pass" ) lines.push(target.timedOut
           ? "The reaction window closed — no answer, so the attack lands."
@@ -1465,8 +1683,16 @@ async function holdPopupContent(target, roll, actor, hold) {
     description = item?.system?.description?.value ?? "";
   }
 
-  const reveal = revealDetail(target, roll, actor);
-  const situation = reveal
+  // No d20 on a spell hold, so no math to show and nothing conditional to weigh: the question
+  // is simply whether to spend the reaction, and the outcome of taking it is total.
+  const spell = hold?.trigger === "spell";
+  const reveal = spell ? null : revealDetail(target, roll, actor);
+  const situation = spell
+    ? `<div style="font-size:var(--font-size-14,14px);"><strong>${hold.spell}</strong> is about `
+      + `to strike <strong>${target.name}</strong>.</div>`
+      + `<div style="opacity:0.85;margin-top:0.15rem;">${target.reaction} stops it completely — `
+      + `<em>no damage at all</em>.</div>`
+    : reveal
     ? `<div style="font-size:var(--font-size-14,14px);"><strong>${reveal.total}</strong> vs AC `
       + `<strong>${reveal.liveAC}</strong> — a hit.</div>`
       + (reveal.bonus == null ? "" : `<div style="opacity:0.85;margin-top:0.15rem;">`
