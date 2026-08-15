@@ -13,8 +13,13 @@
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.1.13**, deployed, tag pushed, GitHub release carries zip +
-manifest. **The box now tracks the GitHub manifest** (repointed 2026-08-15 — the self-hosted
+Molten-hosted). Latest release **v1.1.14**, deployed, tag pushed, GitHub release carries zip +
+manifest.
+
+⚠ **World data changed 2026-08-15:** the Skeletal Mage's `system.attributes.ac.calc` went
+`flat` → `natural` (its `flat: 16` is untouched, so its AC still reads 16). Its AC was pinned
+in a way that ignores every bonus, which made Shield inert on it — see the flat-AC ground truth.
+Reverting the field restores the old behaviour, including the bug. **The box now tracks the GitHub manifest** (repointed 2026-08-15 — the self-hosted
 dev manifest and zip are gone), so the process vends the real version string.
 
 | Phase | State |
@@ -241,10 +246,22 @@ Each of these is commented at the line where it bit. Do not rediscover them.
   `reaction` with `override: false` — and `prepareFinalData` overrides it from the cached spell
   when one exists. So it reads `reaction` from the moment of creation; an `override: true` is
   not needed and would model a shape no statblock has.
-- ⚠ **`system.attributes.ac.calc === "flat"` returns before `ac.bonus` is ever added**
-  (`data/actor/templates/attributes.mjs`), and `ac.bonus` is precisely the field Shield's effect
-  writes. Pinning a test actor's AC flat makes "the +5 arrived" permanently unobservable —
-  looking exactly like a module bug. `natural` (the NPC default) does add it.
+- ⚠⚠ **`system.attributes.ac.calc === "flat"` RETURNS before `ac.bonus` is ever added**
+  (`data/actor/templates/attributes.mjs`, comment: *"Flat AC (no additional bonuses)"*), and
+  `ac.bonus` is precisely the field Shield's effect writes. **On a flat statblock the reaction
+  is inert**: the effect lands, `ac.bonus` reads 5, `ac.value` never moves, and the attack still
+  hits. No module can fix this — the system is refusing to count it.
+
+  **This is the first thing to check when a reaction "does nothing" on a monster.** It bit live
+  on 2026-08-15: the hand-authored Skeletal Mage had `calc: "flat", flat: 16`, so Gren's 16
+  stayed a hit through two casts of Shield. It is bad data, not a shape to support —
+  `dnd-monster-manual.actors` is 383 natural / 116 default / **1 flat** out of 500, and this
+  world's 130 NPCs are 113 default / 15 natural / 2 flat. Fix is one field: `calc` →
+  `natural`, leaving `flat` as the number. Natural uses it as the BASE and then adds shield,
+  bonus and cover, so the printed AC does not move (verified: 16 → 16, and 21 under Shield).
+  Since **v1.1.14** the verdict card names this case specifically instead of saying "its AC has
+  not arrived", which is what sent the debugging session after a module bug that was not there.
+  `smoke-hold` §4d6 holds the line.
 - ⚠ **A 2024 statblock does not cast from the spell item at all.** Its "Spellcasting" feature
   carries one **`cast` activity per spell**, and the activation, the resource and the
   consumption all live on THAT activity — the spell item it links to is a target that reports
