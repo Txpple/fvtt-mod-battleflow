@@ -37,16 +37,25 @@ const report = (name, ok, detail = '') => {
 };
 
 // ---------------------------------------------------------------- 1. preflight + settings on
+let priorSettings = null;
 {
   const r = await f.evaluate(async () => {
     const MOD = 'fvtt-mod-battleflow';
     const mod = game.modules.get(MOD);
     if (!mod?.active) return { ok: false, why: `module active=${mod?.active}` };
+    // Remember the table's current settings — the test restores THEM at the end, not
+    // hardcoded defaults, so running this mid-session never yanks settings out from under
+    // a GM who has already walked the dogfood ladder.
+    const prior = {
+      autoDamage: game.settings.get(MOD, 'autoDamage'),
+      autoApply: game.settings.get(MOD, 'autoApply'),
+      dramaticBeat: game.settings.get(MOD, 'dramaticBeat'),
+    };
     await game.settings.set(MOD, 'autoDamage', 'all');
     await game.settings.set(MOD, 'autoApply', true);
     await game.settings.set(MOD, 'dramaticBeat', 0);
     return {
-      ok: true,
+      ok: true, prior,
       user: game.user.name,
       isActiveGM: game.users.activeGM?.isSelf ?? false,
       autoDamage: game.settings.get(MOD, 'autoDamage'),
@@ -55,11 +64,16 @@ const report = (name, ok, detail = '') => {
   }, null);
   report('module active + settings on', r.ok && r.autoDamage === 'all' && r.autoApply === true,
     JSON.stringify(r));
-  if (!r.ok || !r.isActiveGM) {
-    console.error('[smoke] preflight failed (module inactive or bridge is not activeGM) — aborting');
+  if (!r.ok) {
+    console.error('[smoke] preflight failed (module inactive) — aborting');
     await f.disconnect?.();
     process.exit(1);
   }
+  // The auto-apply elect is whichever active GM outranks the rest — the bridge when alone,
+  // a logged-in human GM otherwise. Either topology is a valid test; the receipt poll and
+  // DOM asserts run on the bridge's own view regardless of which client applied.
+  if (!r.isActiveGM) console.log('  note: another GM client is the activeGM elect — testing the multi-client path');
+  priorSettings = r.prior;
 }
 
 // ------------------------------------------------------- 2. fixtures: scene, actors, tokens
@@ -225,6 +239,10 @@ if (!fx.ok) { process.exit(1); }
       const button = document.querySelector(
         `[data-message-id="${damageMsgId}"] .battleflow-receipt button`);
       if (!button) return { ok: false, why: 'receipt revert button not found in chat DOM' };
+      // The applied card's damage tray must sit collapsed, as if Apply had been pressed
+      // (world setting is not "manual" here, so the guard doesn't apply).
+      const trayOpen = document.querySelector(
+        `[data-message-id="${damageMsgId}"] damage-application`)?.open ?? null;
       button.click();
 
       const victim = canvas.tokens.get(victimToken).actor; // the damaged (synthetic) actor
@@ -240,12 +258,14 @@ if (!fx.ok) { process.exit(1); }
         `[data-message-id="${damageMsgId}"] .battleflow-receipt button`);
       return {
         ok: true, hp: { value: hp.value, temp: hp.temp }, expectedHp,
-        buttonGone: !buttonAfter,
+        buttonGone: !buttonAfter, trayOpen,
       };
     } catch (err) {
       return { ok: false, why: `${err.message}\n${err.stack}` };
     }
   }, fx);
+  report('applied card tray auto-collapsed (as if Apply pressed)', r.ok && r.trayOpen === false,
+    r.ok ? `damage-application open=${r.trayOpen}` : r.why);
   report('revert restores the HP snapshot (real click)',
     r.ok && r.hp.value === r.expectedHp.value && (r.hp.temp ?? null) === (r.expectedHp.temp ?? null),
     r.ok ? `hp back to ${r.hp.value}; button removed on re-render: ${r.buttonGone}` : r.why);
@@ -289,12 +309,13 @@ if (!fx.ok) { process.exit(1); }
     r.ok ? `attack ${r.attackTotal} vs AC 40${r.isCritical ? ' (CRIT — flake, hit is correct)' : ''}; damage appeared: ${r.damageAppeared}` : r.why);
 }
 
-// ------------------- 6. settings back off (the dogfood contract) + test chat-log cleanup
+// ---------------------- 6. restore the table's prior settings + test chat-log cleanup
 {
-  const r = await f.evaluate(async () => {
+  const r = await f.evaluate(async prior => {
     const MOD = 'fvtt-mod-battleflow';
-    await game.settings.set(MOD, 'autoDamage', 'off');
-    await game.settings.set(MOD, 'autoApply', false);
+    await game.settings.set(MOD, 'autoDamage', prior?.autoDamage ?? 'off');
+    await game.settings.set(MOD, 'autoApply', prior?.autoApply ?? false);
+    await game.settings.set(MOD, 'dramaticBeat', prior?.dramaticBeat ?? 0);
     const testMessages = game.messages.filter(m => m.speaker?.alias?.startsWith('BF Test'));
     await ChatMessage.deleteDocuments(testMessages.map(m => m.id));
     return {
@@ -302,8 +323,9 @@ if (!fx.ok) { process.exit(1); }
       autoApply: game.settings.get(MOD, 'autoApply'),
       deletedMessages: testMessages.length,
     };
-  }, null);
-  report('settings restored to defaults (off) + chat cleaned', r.autoDamage === 'off' && r.autoApply === false,
+  }, priorSettings);
+  report('settings restored to pre-test values + chat cleaned',
+    r.autoDamage === (priorSettings?.autoDamage ?? 'off') && r.autoApply === (priorSettings?.autoApply ?? false),
     JSON.stringify(r));
 }
 

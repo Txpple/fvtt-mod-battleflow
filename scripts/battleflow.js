@@ -14,7 +14,9 @@
  *     that chains back to an attack applies itself to the targets that attack hit, through
  *     the system's own resistance/immunity/threshold math (Actor5e#applyDamage) — exactly
  *     what the GM-only damage tray does, pressed automatically. The tray stays rendered and
- *     remains the manual path for corrections and edge calls.
+ *     remains the manual path for corrections and edge calls — but it collapses on the
+ *     applied card exactly as if Apply had been pressed (same setting guard), so an already-
+ *     applied roll is never one accidental click away from landing twice.
  *   - Receipts + revert: every application stamps what it did (per-target prior HP snapshot
  *     and deltas) into a flag on the damage message, and the card grows a GM-only receipt
  *     row with a per-target ↩ revert that restores the snapshot. Idempotent and
@@ -265,9 +267,24 @@ async function applyToHitTargets(damageMessage, hits) {
  * Receipts — the GM-only revert row on damage cards. The flag is the state; this is a view.
  * ------------------------------------------------------------------------------------------- */
 
+/** Damage messages whose tray this client has already auto-collapsed (once per message). */
+const autoCollapsed = new Set();
+
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const receipt = message.getFlag(MODULE_ID, "receipt");
   if ( !receipt?.targets?.length || !game.user.isGM ) return;
+
+  // An applied card's damage tray collapses exactly as if Apply had been pressed — the
+  // native handler's behavior and setting guard, mirrored (damage-application.mjs:337: skip
+  // when autoCollapseChatTrays is "manual"). Once only, and never on a fully-reverted card:
+  // this hook runs after the system's _collapseTrays, so a standing rule here would override
+  // the GM deliberately re-opening the tray (e.g. to re-apply at ½ after a revert).
+  if ( receipt.targets.some(t => !t.reverted) && !autoCollapsed.has(message.id)
+    && (game.settings.get("dnd5e", "autoCollapseChatTrays") !== "manual") ) {
+    autoCollapsed.add(message.id);
+    const tray = html.querySelector("damage-application");
+    if ( tray ) tray.open = false;
+  }
 
   const row = document.createElement("div");
   row.className = "battleflow-receipt";
