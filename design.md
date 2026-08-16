@@ -522,6 +522,17 @@ v1.3.0 (2026-08-16).
 
 ### Phase 2 — saves
 
+> **Shipped v1.7.0 (2026-08-16, joint with Phase 3's save slice), exactly as the note below
+> prescribed.** One new sibling (`saves.js`) plus one entry import; the 2.5 machine
+> generalized per target; battery-proven (smoke-saves, 22 assertions) and OFF by default.
+> Deliberate corners, recorded in the file's banner: a multi-ability save ("Str or Dex")
+> auto-rolls the FIRST listed ability (the fold accepts any listed one, so the other is a
+> sheet roll away); a consumed item strands its effects (they live on the item document);
+> dead/unconscious targets still roll (RAW auto-fail on Str/Dex is Phase 5's condition
+> math); a bare sheet roll defers to a pending concentration ask (the recognizers cannot be
+> told apart); and there are NO verdict announcement cards — the card's per-target rows and
+> the receipts say everything once (standing item 4's rule).
+
 > **The machine already exists (2026-08-16, user architectural call).** Phase 2.5 shipped
 > first and is deliberately the seed: the mode gate (prompt / auto), the ask-message +
 > respondsTo-fold answer channel, first-active-owner election with the GM elect as fallback,
@@ -630,6 +641,11 @@ corrupts game state.
 > three effect appliers around `applyEffectsWithReceipt`, and give the reaction effect its
 > missing receipt/revert (the one §2.5 gap standing). Same release train, two controlled
 > steps.
+>
+> **The save slice shipped at v1.7.0** (failed-save effects with the per-effect `onSave`
+> flag honored, half-on-save through the applier's threaded multiplier, per-target and
+> order-independent, legendary resistance overturning receipts-and-all). The convergence is
+> the standing next step.
 
 > **The cast-time slice shipped early (2026-08-16, user call, v1.5.0)** — *"for spells that
 > have effects/rolls that are not saving required (Bless, healing), the effect auto-applies;
@@ -728,7 +744,7 @@ World, per-feature, default OFF unless noted:
 | Mastery riders | off / on | 1.9 |
 | Mastery: ask first | ask / auto (Vex and Sap never ask — the rules make them automatic) | 1.9 |
 | Per-source suppression | weapon / spell / feature / other, each on under the 1.1 master | 1.9 |
-| Saves | prompt everyone / auto NPCs / auto everyone | 2 |
+| Saves | off / on — **shipped v1.7.0**: popup default, per-player client opt-out to auto-roll, save timer (15s default; expiry ROLLS); the old "prompt/auto everyone" ladder is superseded by the 2026-08-16 user call | 2 |
 | Concentration | off / prompt / auto | 2.5 |
 | Concentration timer | seconds, default 15; 0 waits; expiry ROLLS (prompt mode's buzzer) | 2.5 |
 | Concentration breaks on failure | on (default) / off — off = announce only | 2.5 |
@@ -747,8 +763,9 @@ Rider table       hunters-mark, hex, great-old-one-hex
 Rider upgrades    foe-slayer:hunters-mark
 ```
 
-Per-client: table-moment view (popup+card / card-only); later: per-player save opt-out
-("prompt me instead of auto-rolling").
+Per-client: table-moment view (popup+card / card-only); the per-player save opt-out
+**shipped v1.7.0** as `saveAutoRoll` — inverted from this line's first guess by the
+2026-08-16 call: the POPUP is the default, and the opt-out is to silent auto-roll.
 
 The "~12 world settings at full build" this section first estimated is long blown: **23
 world + 2 client are registered at v1.3.1**, heading for ~30 by Phase 3. The settings-sheet
@@ -820,14 +837,16 @@ idiom, then do what is correct for Battle Flow):
   build step, no manifest change — proven live: the split deployed on an F5 alone), cut
   verbatim along the section banners, one file per phase plus `core.js` (shared constants),
   `shared.js` (hit test + chain walk), and `ui.js` (popup lifecycle, house card, countdown
-  bar, the hold's views). Two disciplines keep it sound, both enforced by comment at the
-  site: **registration order is import-graph evaluation order**, and the one order that
-  matters — the hold's `preApplyDamage` veto before concentration's cause capture — is held
-  by `hold.js` reaching `auto-apply.js` through a **lazy `import()`**; making that edge
-  static (or adding any new import from the hold/ui pair into the
+  bar, the hold's views). Phase 2 added `saves.js` at v1.7.0 exactly as prescribed: seams
+  imported, one entry line, no sibling machine edits. Two disciplines keep it sound, both
+  enforced by comment at the site: **registration order is import-graph evaluation order**,
+  and the orders that matter — the hold's `preApplyDamage` veto before concentration's
+  cause capture, and the save verdict row above the receipt rows — are held by **lazy
+  `import()` edges** (`hold.js` → `auto-apply.js`, `saves.js` → `receipts.js`); making
+  either static (or adding any new import from the hold/ui pair into the
   auto-apply/mastery/concentration chain) reorders the hooks. When adding a same-hook
-  registration in a new file, check relative order against the flag guards before trusting
-  it. Tooling: `tools/build-release.ps1` enumerates `scripts/*.js` at build time and the
+  registration in a new file, run `tools/check-hook-order.mjs` — it asserts all four
+  load-bearing orderings without Foundry. Tooling: `tools/build-release.ps1` enumerates `scripts/*.js` at build time and the
   deploy script always walked the disk, so a new phase file ships with zero tooling change.
   The stylesheet trigger stands: inline styles are the hot-deploy trade until the
   card/popup styling grows again, at which point add the stylesheet and pay the one

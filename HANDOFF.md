@@ -1,36 +1,40 @@
 # HANDOFF.md — picking this up cold
 
-> Current at 2026-08-16, night — **v1.6.1: THE SPLIT, shipped and battery-proven in the
-> same unattended stretch the user asked for it in.** Read [design.md](design.md) first —
-> it is binding and wins every disagreement. This file is only *where things stand* and
-> *what already bit us*. Delete or rewrite it freely; it is a snapshot, not a contract.
+> Current at 2026-08-16, late night — **v1.7.0: PHASE 2 (saving throws) + Phase 3's save
+> slice, shipped and seven-suite battery-proven in the same unattended stretch.** Read
+> [design.md](design.md) first — it is binding and wins every disagreement. This file is
+> only *where things stand* and *what already bit us*. Delete or rewrite it freely; it is
+> a snapshot, not a contract.
 >
-> **v1.6.1** = `scripts/battleflow.js` (4,504 lines, past the §9 trigger) cut into **an
-> entry + 14 sibling ES modules** along the existing section banners — verbatim slices,
-> zero behavior change, proven three ways (byte-exact reconstruction, stubbed graph-load
-> with hook-order diff, full six-suite battery green on prod). The entry stayed the only
-> `esmodules` entry, so the split needed **no process restart** — it went live on an F5,
-> which settles the restart question this file used to carry the wrong way. See "The shape
-> of the thing" for the map and the ONE import rule that keeps hook order sound.
-> **Phase 2 (saves) is next** — the user's design call is recorded in design.md Phase 2:
-> the save is a POPUP on the owning player's client (the concentration ask's native-controls
-> surface), per-player opt-out to auto-roll, popup default ON — deliberately not midi-qol's
-> silent roll-and-apply. The 2.5 machine (mode gate, ask + respondsTo fold, owner election,
-> buzzer-that-rolls, native-dialog popup) is the pattern it generalizes; the topple fold is
-> the working miniature, and every seam Phase 2 needs is now an exported symbol a new
-> `saves.js` can import without touching the siblings.
+> **v1.7.0** = the 2.5 machine generalized per target, exactly as the plan prescribed: a
+> new `saves.js` (766 lines) importing the exported seams plus ONE entry import — no
+> sibling machine edits (settings/core registration lines and one export keyword aside).
+> The save activity's own usage card is the bus (it was already load-bearing; never
+> suppressed); the casting client stamps a `saves` demand on it; each target's save runs
+> on the client that owns it — popup with the native dialog's controls, per-player client
+> opt-out to silent auto-roll, elect for NPCs/offline/buzzer (expiry ROLLS) — and the
+> elect folds each roll against the stamped DC, then applies that target's consequences
+> through the shared appliers: effects per outcome (the per-effect `onSave` flag honored —
+> data the system stores and nothing native reads), damage at x1/half/none per the
+> activity's word, order-independent, receipts everywhere. Legendary resistance
+> (`roll.forceSuccess` arriving as an update) overturns a folded failure receipts-and-all
+> — the 2.5 corner, closed. **Everything ships OFF; the world settings are untouched.**
+> **Next: the Phase 3 convergence** — unify the three effect appliers around
+> `applyEffectsWithReceipt` and give the reaction effect its missing receipt/revert — same
+> release train, its own diff (design.md Phase 3 headnote).
 
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.6.1** (2026-08-16, night): **the split** — pure
-refactor, no behavior change, full battery green on prod after deploy. Before it, the same
-day: v1.6.0 (topple save popup; Magic Missile rework — replacement-card hold, bridged
-damage roll, veto fallback, per-target auto-apply), v1.5.1 (six table fixes + combatplus
-v1.3.0), v1.5.0 (cast slice, topple fold, reminders, tooltips), v1.4.0 (concentration),
-v1.3.x (Phase 1.9). Deployed, tags pushed, GitHub releases carry zip + manifest. **The box
-tracks the GitHub manifest** (repointed 2026-08-15), so the process vends the real version
-string after a restart.
+Molten-hosted). Latest release **v1.7.0** (2026-08-16, late night): **Phase 2 saving
+throws + Phase 3's save slice** — new machine, ships OFF, full seven-suite battery green
+on prod after deploy (the new suite caught one real discipline break pre-release: the
+damage reconcile undercutting the verdict pause — fixed before the tag). Before it, the
+same day: v1.6.1 (the split), v1.6.0 (topple save popup; Magic Missile rework), v1.5.1
+(six table fixes + combatplus v1.3.0), v1.5.0 (cast slice, topple fold, reminders,
+tooltips), v1.4.0 (concentration), v1.3.x (Phase 1.9). Deployed, tags pushed, GitHub
+releases carry zip + manifest. **The box tracks the GitHub manifest** (repointed
+2026-08-15), so the process vends the real version string after a restart.
 
 | Phase | State |
 | --- | --- |
@@ -40,9 +44,9 @@ string after a restart.
 | 1.5 — reaction hold | ✅ **feature-complete at v1.1.16** and dogfooded — both triggers exist: an attack hit, and a listed spell. Magic Missile stays in normal dogfood rotation rather than on a list. |
 | 1.75 — hit riders | ✅ shipped v1.2.0 and dogfooded. A mark pays out with the attack that earned it. |
 | 1.9 — effect + mastery riders | ✅ **shipped v1.3.0** (2026-08-16), suite-verified end to end. Not yet dogfooded — every switch is OFF at the table until the user walks the ladder. |
-| 2 — saves | ⬜ NEXT, **joint with Phase 3** (user call 2026-08-16). Generalizes the 2.5 machine per target; popup default + per-player opt-out (design.md Phase 2); the topple fold (v1.5.0) is the miniature. |
+| 2 — saves | ✅ **shipped v1.7.0** (2026-08-16), suite-verified end to end. Not yet dogfooded — ships OFF until the user walks it (`saves`, plus `saveTimer` 15s and the per-client `saveAutoRoll` opt-out). |
 | 2.5 — concentration | ✅ shipped v1.4.0; **live at the table** since 2026-08-16 evening (`concMode: prompt`, user-walked). |
-| 3 — effect application | 🟨 **cast slice shipped v1.5.0**; 1.9A covers the attack slice; the save slice SHIPS WITH Phase 2 (a save's consequences are the feature); the convergence (unified appliers + reaction receipt/revert) follows once saves are green. |
+| 3 — effect application | 🟨 **cast slice v1.5.0; save slice v1.7.0** (failed-save effects + `onSave` + half-on-save through the shared appliers); 1.9A covers the attack slice; the CONVERGENCE (unified appliers + reaction receipt/revert) is the standing next step — its own diff. |
 
 ⚠ **World data changed 2026-08-15:** the Skeletal Mage's `system.attributes.ac.calc` went
 `flat` → `natural`. Its `flat: 16` is untouched, so its printed AC is still 16 — but a flat AC
@@ -77,6 +81,9 @@ whatever they find, so it drifts:
 | Concentration Timer | 15s | expiry ROLLS (data-driven, straight); 0 waits indefinitely |
 | Failure Breaks Concentration | **on** | inert until the mode is on — the forgotten click the phase exists to press |
 | Concentration Checks Are Public | **on** | off = whispered to owners + GM; the break card is ALWAYS public |
+| Resolve Saving Throws | **off** | new in v1.7.0 — ships OFF, the user walks it (house rule: Tuesday is live play) |
+| Save Timer | 15s | expiry ROLLS (data-driven, straight); 0 waits indefinitely; inert until saves is on |
+| Saves: Auto-Roll Mine | off (per client) | the per-player popup opt-out — silent data-driven roll instead |
 | Auto-Apply on Cast | **on** | new in v1.5.0 — no-gate casts (utility effects + healing) apply themselves; damage spells deliberately excluded |
 
 ## Open items
@@ -91,24 +98,18 @@ is open. The table is loaded for Tuesday; the box vends a stale version STRING (
 until the Foundry process restarts — purely cosmetic, still fine to wait for a natural
 bounce. The split itself needed no restart (design.md §9's import shape, proven live).
 
-**Next: Phases 2 AND 3, together** (user call, 2026-08-16, this session — "since its
-saving throws, we should do 2 & 3 together"). design.md's Phase 2 note is the spec,
-freshly updated with the user's surface call: **popup default** on the owning player's
-client with the native dialog's controls (situational bonus + Adv/Normal/Dis — the
-concentration ask's surface), **per-player opt-out** to silent auto-roll, then
-effect/damage per verdict — deliberately not midi-qol's auto-everything. The save slice of
-Phase 3 is PART of this build (failed-save effects through `applyEffectsWithReceipt`,
-half-on-save through the applier's threaded `multiplier`); the CONVERGENCE (unify the
-three effect appliers, give the reaction effect its missing receipt/revert) comes second
-within the effort, only after the save path is battery-green — same release train, never
-the same diff (design.md Phase 3 headnote). Generalize the 2.5 machine per target; the
-topple fold + popup (v1.5/1.6) is the working miniature — recognizer, stored-DC judging,
-decider popup with native controls, verdict pause. `forceSuccess` aggregation closes the
-LR corner; two-client coverage rides PC Assistant (`probe-player-seam.mjs` is the proving
-spike). Build it as a new `saves.js` importing the exported seams (see the shape section)
-plus one entry import — no sibling edits. ⚠ Tuesday is live play: anything deployed before
-it ships **OFF by default** (house rule) and battery-green, and that is the only gate a
-mid-week deploy needs.
+**Phase 2 + the Phase 3 save slice SHIPPED (v1.7.0, this session, autonomously per the
+user's "execute phase 2 and 3, ill be afk")** — the machine is exactly the spec'd shape
+(see the header blurb), battery-green, and OFF at the table. **Next: the Phase 3
+convergence** — unify the three effect appliers around `applyEffectsWithReceipt` (the
+hold's `applyReactionEffect` is the one appliance still outside it) and give the reaction
+effect its missing receipt/revert, the one §2.5 gap standing — same release train, its
+own diff, battery again before the tag (design.md Phase 3 headnote). Not yet done in this
+stretch: two-client save coverage on PC Assistant (`probe-player-seam.mjs` is the proving
+spike; the suites still run single-client), and the dogfood walk itself — the user turns
+`saves` on when they choose. ⚠ Tuesday is live play: anything deployed before it ships
+**OFF by default** (house rule) and battery-green, and that is the only gate a mid-week
+deploy needs — v1.7.0 clears both.
 
 **Struck: the second Molten box** (user, 2026-08-16: "we cant have a second box so strike
 that for now"). The full provisioning plan lives in this file's git history (section "the
@@ -313,6 +314,27 @@ slice of Phase 3 waits on Phase 2.
    The MECHANICS never wait: flags are written and timers disarmed first, so the buzzer
    cannot double-fire into the pause; the ask row's verdict text updating early is the
    accepted residue.
+15. **The save machine (v1.7.0), and its recorded corners.** The flow: the casting client
+   stamps `saves` on the save activity's own usage card (postUseActivity; DC, abilities,
+   damageOnSave, effect names by outcome, per-target array) → popups on `canAnswerFor`
+   clients (queued oldest-first per actor, like concentration; the per-client `saveAutoRoll`
+   opt-out rolls silently on the deterministic roller instead) → the module's rolls answer
+   by `respondsTo` + `saveFor` (exact — immune to the getSpeaker oldest-token trap); the
+   native card's own buttons chain and fold; a bare sheet roll answers the oldest pending
+   demand → the elect folds vs the STORED DC, waits out the verdict pause, then applies
+   effects per outcome and damage per `damageOnSave` through the shared appliers.
+   Consequences are per-target independent and order-independent: damage rolled early waits
+   per target on its verdict; damage rolled late applies to already-done targets on arrival.
+   ⚠ **The general damage-reconcile passes only touch targets whose consequence pass
+   finished** (`applied`) — the verdict pause gates damage too; smoke-saves 3d caught the
+   render path undercutting it pre-release. ⚠ **A manual receipt ↩ revert is never
+   re-fought**: any receipt entry, reverted included, reads as "handled" — only the LR
+   unwind re-applies, explicitly. Corners, all deliberate: multi-ability saves auto-roll
+   the FIRST listed ability (the fold accepts any listed); a consumed item strands its
+   effects; dead targets still roll (Phase 5 owns RAW auto-fail); bare rolls defer to a
+   pending concentration ask; NO verdict announcement cards (the rows + receipts say it
+   once); the demand's deadline is stamped on the caster's clock and the buzzer runs on the
+   elect's — skew moves the buzzer, never the verdict.
 14. **Mastery reminders (v1.5.0).** The elect posts a `masteryNotice` bfCard when Vex or
    Sap lands and when a Cleave-weapon hit lands (once per combat turn per attacker,
    in-memory latch on the elect; out of combat every hit reminds — the test range has no
@@ -389,9 +411,14 @@ node tools/smoke-concentration.mjs
 node tools/smoke-cast.mjs
 ```
 
+```bash
+node tools/smoke-saves.mjs
+```
+
 ⚠ **Run smoke-battleflow FIRST when in doubt**: it places the victim token the other
-suites reuse, and smoke-effects §14's stray-token sweep can legitimately have removed it
-("BF Test Victim has no token" from smoke-hold means exactly this, not a bug).
+suites reuse, and smoke-effects §14's stray-token sweep — and smoke-saves' own sweep —
+can legitimately have removed it ("BF Test Victim has no token" from smoke-hold means
+exactly this, not a bug). Run smoke-saves LAST for the same reason.
 
 `tools/check-hook-order.mjs` (new at v1.6.1) is the split's static companion — run it
 before the battery whenever a file, an import, or a same-hook registration was added; it
@@ -422,6 +449,18 @@ to 0 and made the dead-skip eat a payout three assertions away from the cause. A
 table this cannot happen (the bridge is one page; humans are different users); it is purely
 a harness topology, so the fix is protocol, not code. `smoke-effects` §9 asserts the
 announcement count so a double-elect now fails loudly at the source.
+
+`tools/smoke-saves.mjs` (new at v1.7.0, 22 assertions) proves the save machine, sections:
+**1** the stamp + two forced verdicts (±30 con save bonuses) + effects by outcome (the
+`onSave` split), **2** damage after verdicts (full 10 vs exactly half 5, the multiplier +
+note on the receipt), **3** damage BEFORE the verdict (per-target independence — the roll
+waits) + the popup's controls and their plumbing (+30 in the bonus field, Advantage on
+the d20), **4** a bare sheet roll answers, judged vs the stored DC, **5** the buzzer rolls
+(marked, straight), **6** legendary resistance overturns the folded failure (chips unwound
+except onSave, damage reverted and re-applied at half), **7** the exclusions (setting off,
+targetless, self-aimed). Its fixture is an in-suite innate save spell on BF Test Attacker
+(flat 10 damage so half is exact; DC from a custom formula; two effects, one `onSave`).
+Forced outcomes via the targets' own `abilities.con.bonuses.save` (±30).
 
 `tools/smoke-cast.mjs` (new at v1.5.0, 12 assertions) proves the cast slice: **1** the
 native-card bus (suppression off — card survives, stamped, both targets chipped,
@@ -843,10 +882,12 @@ Most of these are commented at the line where it bit. Do not rediscover them.
 
 ## The shape of the thing
 
-**Fifteen ES modules under `scripts/`, no build step** (the split, v1.6.1 — verbatim
-banner-aligned slices of the old single file; `git show v1.6.0:scripts/battleflow.js` is
-the pre-split original when archaeology needs it). `battleflow.js` (98 lines) is the only
-`esmodules` entry: the module doc comment plus fourteen imports in original section order.
+**Sixteen ES modules under `scripts/`, no build step** (the split, v1.6.1; `saves.js`
+joined at v1.7.0 — the split shape's first new-phase customer, landed exactly as
+prescribed; `git show v1.6.0:scripts/battleflow.js` is the pre-split original when
+archaeology needs it). `battleflow.js` (~102 lines) is the only `esmodules` entry: the
+module doc comment plus fifteen imports — **`saves.js` sits BEFORE `receipts.js` on
+purpose** (its verdict row must register first; see the import-order rule below).
 
 | File | Lines | Holds |
 | --- | --- | --- |
@@ -863,21 +904,25 @@ the pre-split original when archaeology needs it). `battleflow.js` (98 lines) is
 | `mastery.js` | 749 | Phase 1.9B/C — mastery riders, the ask (`armAskTimer` twins), the topple fold + popup, reminders |
 | `concentration.js` | 591 | Phase 2.5 — cause capture → ask → roll → fold → break, `dramaticVerdictPause` |
 | `cast.js` | 93 | Phase 3 cast slice — the elect executes stamped payloads |
-| `receipts.js` | 280 | the receipt/revert views |
+| `saves.js` | 766 | Phase 2 + Phase 3 save slice — demand stamp, per-target popups/rolls, fold vs stored DC, consequences through the shared appliers, LR overturn |
+| `receipts.js` | 280 | the receipt/revert views (`revertTarget` exported at v1.7.0 for the LR unwind) |
 
 Cross-file symbols are plain named exports; the discipline that keeps hook ORDER sound is
-in design.md §9 and enforced by comment at the one place it bites: **`hold.js` reaches
-`auto-apply.js` through a lazy `import()`** so the hold's `preApplyDamage` veto registers
-before concentration's cause capture. Do not make that edge static, and when adding a
-same-hook registration in a new file, run **`node tools/check-hook-order.mjs`** — it loads
-the graph with stubbed globals, prints true registration order per hook, and asserts the
-three load-bearing orderings (no Foundry needed).
-Phase 2's `saves.js` imports its seams (`canAnswerFor`, `openManagedPopup`, `holdBarHTML`,
-`armAskTimer`/`disarmAskTimer`, `dramaticVerdictPause`, `applyDamagesWithReceipt` +
-`multiplier`, `applyEffectsWithReceipt`) and adds one import line to the entry — no
-sibling edits needed. Entry-point hooks check their feature toggle; view/continuation
-hooks check flag presence (the cast slice's stamps are exactly this discipline); every
-feature ships **off**.
+in design.md §9 and enforced by comment at the two places it bites: **`hold.js` reaches
+`auto-apply.js` through a lazy `import()`** (the hold's `preApplyDamage` veto must
+register before concentration's cause capture) and **`saves.js` reaches `receipts.js` the
+same way** (the save verdict row must register — so render — above the receipt rows; the
+entry's saves-before-receipts position is what decides it). Do not make either edge
+static, and when adding a same-hook registration in a new file, run
+**`node tools/check-hook-order.mjs`** — it loads the graph with stubbed globals, prints
+true registration order per hook, and asserts the four load-bearing orderings (no Foundry
+needed). `saves.js` consumed exactly the advertised seams (`canAnswerFor`,
+`openManagedPopup`, `holdBarHTML`, `armAskTimer`/`disarmAskTimer`,
+`dramaticVerdictPause`, `applyDamagesWithReceipt` + `multiplier`,
+`applyEffectsWithReceipt` + `revertEffect`, plus `revertTarget` newly exported from
+receipts.js). Entry-point hooks check their feature toggle; view/continuation hooks check
+flag presence (the cast slice's stamps are exactly this discipline); every feature ships
+**off**.
 
 The elect-owned single-answer clock is shared (`armAskTimer` — the mastery ask and the
 concentration ask are true twins there); the hold's clock stays its own machine on purpose
@@ -918,6 +963,8 @@ reach the shipped attack path. **If you add a third trigger, add it as a stamp f
 | replacement bfCard (suppressed spell cast) | dnd5e `targets`/`item`/`activity` + `hold` | postSpellHoldCard — the hold's home when 1.9D ate the usage card; damage bridges here via `originatingMessage` |
 | ask message (bfCard) | `concentration` | the concentration ask: status, actor, ability, dc, damage, names, effectIds snapshot, cause, deadline, outcome |
 | concentration roll message | `respondsTo`, `timedOut` | which ask this roll answers (the hold's answer-channel key, same meaning); whether the buzzer pressed it |
+| save usage card | `saves` | the Phase 2 demand: status, abilities, dc, damageOnSave, hasDamage, effectNames by outcome, activityUuid, item, casterName, deadline, per-target array (done/outcome/total/rollMessageId/timedOut/forced/applied) |
+| save roll message | `respondsTo`, `saveFor`, `timedOut` | which demand card and WHICH target this roll answers (exact — immune to the getSpeaker trap); whether the buzzer pressed it |
 | actor | `reactionSpent` | the click-volume guard, cleared on turn/combat-end (clears are NOT toggle-gated) |
 | applied effect | `reactionEffect` / `mastery` | which module path created it |
 
