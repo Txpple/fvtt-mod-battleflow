@@ -11,7 +11,11 @@ Rationale, once: on-hit effects and masteries fire every round; saves fire a few
 fight; the machinery is hot from v1.2.0. Topple deliberately ships with a *manual* save so
 Phase 2 can upgrade it in place.
 
-## Release 1 — v1.2.1: the "rolled 9, took 0" fix
+## Release 1 — v1.2.1: the "rolled 9, took 0" fix — ✅ SHIPPED 2026-08-15
+
+> Landed as written (all suites green, tagged, released). Kept for reference: the
+> `calculateDamage` annotations and per-target `taken`/`traits` receipt fields below are
+> what Phase 1.9's damage-dealt gates (Vex/Slow) read.
 
 An Ice Mephit (cold-immune) hit by Ray of Frost shows the 9 prominently and the real story —
 took 0 — only in the GM-only receipt row. Confusing to the player (reported from live play,

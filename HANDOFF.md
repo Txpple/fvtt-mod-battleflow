@@ -6,18 +6,20 @@
 > snapshot, not a contract.
 >
 > **Phase 1.75 (hit riders) is shipped at v1.2.0, tested 8/8 and dogfooded** (2026-08-15,
-> reported good). **The user redirected the roadmap on 2026-08-15: build v1.2.1 (receipt
-> legibility) then Phase 1.9 (effect + mastery riders) BEFORE Phase 2 — the full plan with
-> decided calls is [PLAN.md](PLAN.md); follow it.** Nothing is tracked open against the
-> reaction hold or the riders. The standing notes below are design constraints rather than
-> to-dos.
+> reported good). **The user redirected the roadmap on 2026-08-15: Phase 1.9 (effect +
+> mastery riders) comes BEFORE Phase 2 — the full plan with decided calls is
+> [PLAN.md](PLAN.md); follow it. Its Release 1 (v1.2.1, the receipt says WHY) shipped
+> 2026-08-15; Phase 1.9 is the active work.** Nothing is tracked open against the reaction
+> hold or the riders. The standing notes below are design constraints rather than to-dos.
 
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.2.0**, deployed, tag pushed, GitHub release carries zip +
-manifest. **The box tracks the GitHub manifest** (repointed 2026-08-15 — the self-hosted dev
-manifest and zip are gone), so the process vends the real version string after a restart.
+Molten-hosted). Latest release **v1.2.1** (the damage receipt carries the system's trait
+verdicts — a public "immune to cold" beside the −0 HP; pools and revert stay GM-only),
+deployed, tag pushed, GitHub release carries zip + manifest. **The box tracks the GitHub
+manifest** (repointed 2026-08-15 — the self-hosted dev manifest and zip are gone), so the
+process vends the real version string after a restart.
 
 | Phase | State |
 | --- | --- |
@@ -137,7 +139,11 @@ node scripts/deploy-house-module.mjs fvtt-mod-battleflow
 That is a WebDAV hot-deploy: script changes go live on the next **world reload (F5)**, no
 bounce, nobody disconnected. `module.json` changes (the version string, new `esmodules`
 entries) keep vending old values until the Foundry **process** restarts — expected, not a
-failure. A bounce is `register-module.mjs --id … --manifest …`; enabling is
+failure. **After a deploy, refresh every OTHER connected client with
+`node tools/reload-clients.mjs`** (bridge-emitted core "reload" socket event, standing user
+instruction 2026-08-15): the auto-apply elect is usually the human GM window, and it runs
+whatever code it LOADED — a stale window fails brand-new assertions while everything else
+passes. Ask the table first if a live session is running; it yanks players too. A bounce is `register-module.mjs --id … --manifest …`; enabling is
 `configure-modules.mjs --enable …`. Never call `game.shutDown()` through the bridge.
 
 **Release** (the house pattern, three commits then a tag on the middle one):
