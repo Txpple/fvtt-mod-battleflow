@@ -22,15 +22,17 @@
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.5.1** (2026-08-16 night — the second live-testing
-round's six fixes: the topple card's own Roll button, +N-in-blue healing receipts,
-damage-spell card suppression with the blocklist carve-out, the affects-self gate that
-stops the cast slice re-applying Shield, the Dice-So-Nice-aware verdict pause, and — in
-**combatplus v1.3.0**, its own repo and release — per-side auto-defeated that works out of
-combat). v1.5.0 = the cast slice + topple fold + reminders + tooltips, v1.4.0 =
-concentration, v1.3.x = Phase 1.9, all the same day. Deployed, tags pushed, GitHub
-releases carry zip + manifest. **The box tracks the GitHub manifest** (repointed
-2026-08-15), so the process vends the real version string after a restart.
+Molten-hosted). Latest release **v1.6.0** (2026-08-16, the third round, from two
+checklist results: the **topple save popup** — the concentration ask's native-controls
+surface on the decider's client, the card's Roll button as its recall — and the **Magic
+Missile rework**: the blocklisted card suppresses after all (the hold rides a replacement
+bfCard, the damage roll is bridged to it, the veto gained a message-free fallback), and
+damage-activity damage **auto-applies per target** under Auto-Apply, claimed at birth and
+deferring on a pending hold, negated targets skipped). Earlier the same day: v1.5.1 (six
+table fixes + combatplus v1.3.0), v1.5.0 (cast slice, topple fold, reminders, tooltips),
+v1.4.0 (concentration), v1.3.x (Phase 1.9). Deployed, tags pushed, GitHub releases carry
+zip + manifest. **The box tracks the GitHub manifest** (repointed 2026-08-15), so the
+process vends the real version string after a restart.
 
 | Phase | State |
 | --- | --- |
@@ -81,42 +83,33 @@ whatever they find, so it drifts:
 
 ## Open items
 
-### FIRST: the user is walking this checklist and will report results item by item
+### FIRST: the user is walking the v1.6.0 checklist and will report results item by item
 
-The v1.5.1 / combatplus-v1.3.0 fixes below are **suite-proven but not yet table-verified**
-— the user has the same six-item list and is checking them off in play. When a report
-arrives: read the actual log and flags before theorizing (both of tonight's "bugs" were
-by-design skips plus a selection trap), reproduce in the harness, add the assertion. State
-as left: everyone long-rested, Practice Dummy 1000/1000 with walk 30, bridge logged out
-(the user's window is the elect), user told to F5 once before testing.
+Round-2 results came in: items 2/3/5/6 VERIFIED at the table ("rest are good"); topple
+worked once the Roll button was found, which produced the round-3 asks — **a popup for
+the topple save** and **the full Magic Missile rework** — both now shipped in v1.6.0,
+suite-proven, awaiting table verification. When a report arrives: read the actual log and
+flags before theorizing, reproduce in the harness, add the assertion.
 
-1. **Topple → Prone**: the card's own "Roll save — <target>" button (decider-gated) rolls
-   the RIGHT actor, chained to the card; failure ⇒ dice land → beat → Prone + announce.
-   The native `[[/save]]` link rolls for the SELECTED token (the trap that bit: the
-   attacker was selected) and still works if the target is selected first.
-2. **Slow on the dummy**: the ask should now appear — the dummy had walk 0 and the
-   hopeless-skip silently ate it (by design); it has walk 30 now. If the table ever wants
-   skips visible, that is a design conversation, not a bug.
-3. **Healing receipts**: +N HP in blue (the healing take is negative internally;
-   "−-25 HP" in maroon was the render bug).
-4. **Damage-spell card suppression**: unlisted damage spells' cards suppress; **Magic
-   Missile's own card deliberately survives while Reaction Hold is on** (blocklisted =
-   load-bearing three ways — hold home, Answer surface, the preApplyDamage veto's chain).
-   If the user still wants it gone, the offered follow-up is re-plumbing the veto to a
-   message-free hold lookup (match damage → item uuid → recent pending/resolved spell-hold
-   by spell + target) and moving the hold to a replacement card — a real change, not a
-   flag flip.
-5. **Death icons (combatplus v1.3.0)**: any NPC or PC at 0 HP gets the skull, in or out
-   of combat, per-side settings both ON; healing above 0 clears it.
-6. **Concentration pacing**: save dice finish (Dice So Nice) + Dramatic Beat, THEN the
-   holds/broken card and the cascade. The ask row's small verdict text updating instantly
-   is the accepted residue (mechanics settle before the pause so the buzzer cannot
-   double-fire). Topple's prone shares the same pause.
+The open verification list:
 
-Also live but unasked-for: the battery caught the cast slice re-applying **Shield** (+10
-AC) the first time it ran with castApply ON — fixed by the affects-self gate (standing
-item 12), netted forever by smoke-hold's castApply-ON pin. If the user reports anything
-about doubled effects, start there.
+1. **Topple popup**: on a topple hit, the decider (GM for monsters, the owning player for
+   PCs) gets the popup — the concentration ask's surface (situational bonus,
+   Advantage/Normal/Disadvantage; every button rolls) — chained so the fold judges;
+   failure ⇒ dice → beat → Prone + announce. The card's Roll button recalls a dismissed
+   popup. Known corner: no timer; the GM's manual prone button covers paper rolls.
+2. **Magic Missile end-to-end**: cast at targets with suppression on ⇒ NO native card; a
+   module "casts Magic Missile" card appears instead (carrying the hold when a listed
+   reaction-holder is targeted); its damage AUTO-APPLIES per target once the hold
+   settles — negated target takes nothing, everyone else takes their darts, receipts on
+   the roll message. With nobody able to react, damage applies as soon as the caster's
+   client clears the claim (~a second). Known corners: a human pressing the tray early
+   still beats a pending verdict (a ruling, not a race); a damage card carrying EFFECTS
+   keeps its card.
+
+Also fixed in v1.6.0's battery, unreported: the verdict pause could let a setting flip
+re-address the concentration "holds" whisper (frozen at verdict time now), and two suite
+lessons (the section-window announcement leak; smoke-battleflow places the victim token).
 
 ### To do next (user call, 2026-08-16): the second Molten box
 
@@ -175,11 +168,22 @@ Assistant) wants a box it can hammer.
    never depends on the number, so there is nothing to metagame — which is why this trigger does
    not fight to suppress the roll the way the attack path does. Do not copy that reasoning to a
    reaction whose answer depends on the damage.
-   ⚠ **Apply-before-answer wins.** A GM who presses Apply while the hold is still `pending`
-   beats the verdict and the damage lands. Vetoing pending applications is worse: a hold
-   answered Pass would then need a second Apply click nobody would remember to make. The card
-   reads "held — waiting on …" the whole time. If this bites in play, the fix is Phase 2/3
-   owning non-attack damage application, not a bigger veto.
+   ⚠ **Apply-before-answer, NARROWED at v1.6.0.** The promised "Phase 2/3 owning non-attack
+   damage application" arrived: a damage-activity roll aimed at targets is claimed at birth
+   (`spellDamage`; a BLOCKLISTED spell's roll also gets `spellHoldPending`) and the elect's
+   applier (`applySpellDamage`, under Auto-Apply Damage) defers on the claim until the hold
+   resolves, then applies per verdict — negated targets skipped, per-target independence.
+   The caster clears the claim when no hold stamps (nobody eligible); a roll made AFTER
+   resolution falls through and applies immediately. Only a HUMAN pressing the tray early
+   still beats a pending verdict — a ruling, not a race — and the veto still refuses
+   negated targets on any manual path (origin walk, plus a v1.6.0 whole-log fallback by
+   spell + actor for unbridged rolls).
+   ⚠ **The usage card stopped being load-bearing (v1.6.0).** Under 1.9D suppression the
+   hold rides a REPLACEMENT bfCard (`postSpellHoldCard` — same dnd5e target/item/activity
+   flags a usage card carries), and the casting client bridges the damage roll to it
+   (`linkSpellDamage` stamps `originatingMessage`), so the rows, the popup, the three
+   answer channels, the fold, and the veto's origin walk all work unchanged. With
+   suppression off the native card still serves. smoke-hold §6f owns this end to end.
 
 3. **The hold's UI is settled and shipped** (user calls, 2026-08-15) — recorded because it is
    binding on anything built next: **the popup decides, the card watches, the card is public
@@ -291,14 +295,10 @@ Assistant) wants a box it can hammer.
    stacking a second +5 on the reaction machinery's own application (+10 AC, two chips).
    smoke-hold now pins castApply ON permanently as the coexistence net. Self-buffs stay
    the caster's own tray click.
-   ⚠ **Damage-spell cards are suppressible spam since v1.5.1** — except a BLOCKLISTED
-   spell's card while the reaction hold is on, which is load-bearing three ways (the
-   hold's home, the Answer surface, and the preApplyDamage veto finds the verdict through
-   it: damage roll → originatingMessage → card). Eligibility is async and preCreate is
-   not, so the keep-gate is the conservative pair (hold on + spell listed), targeted or
-   not — at this table Magic Missile keeps its card, which is the price of the Shield
-   negate. Re-plumbing the veto to a message-free hold lookup would lift it; offered, not
-   built.
+   ⚠ **Damage-spell cards are suppressible spam since v1.5.1 — ALL of them since v1.6.0.**
+   The blocklist keep-gate is lifted: the re-plumb was built (standing item 2's v1.6.0
+   notes — replacement card, damage bridge, veto fallback). A damage card carrying
+   EFFECTS still survives: no automated path applies a damage-spell's effects.
 13. **The Topple fold (v1.5.0; the Roll button v1.5.1).** Recognizer is the 2.5 shape: the
    save's actor must be a still-pending target, the ability must match, and the roll is
    either chained to the topple card itself (the enricher click — `buildPost` stamps
@@ -310,12 +310,18 @@ Assistant) wants a box it can hammer.
    button-only. The button-vs-fold write race is the same accepted clone-modify-write
    corner as item 11.
    ⚠ **The card carries its own per-target "Roll save" button** (v1.5.1, decider-gated by
-   canAnswerFor, native dialog, chained to the card) because **the native `[[/save]]`
-   enricher rolls for whatever token is SELECTED** — which right after an attack is the
-   ATTACKER, so the GM rolled Morgash's save at the dummy's topple and the fold rightly
-   ignored it (bit live 2026-08-16; the evidence was trash-cleared chat, so it was
-   reconstructed from the screenshot's selection ring). The enricher stays for tables
-   that select first.
+   canAnswerFor) because **the native `[[/save]]` enricher rolls for whatever token is
+   SELECTED** — which right after an attack is the ATTACKER, so the GM rolled Morgash's
+   save at the dummy's topple and the fold rightly ignored it (bit live 2026-08-16; the
+   evidence was trash-cleared chat, so it was reconstructed from the screenshot's
+   selection ring). The enricher stays for tables that select first.
+   ⚠ **The topple ask has its POPUP since v1.6.0** (user: "the GM didn't get a popup —
+   the cards are difficult to follow"): the concentration ask's exact surface (situational
+   bonus + Advantage/Normal/Disadvantage, every button rolls with `configure: false`,
+   chained to the card), shown once per pending target on the decider's client
+   (`shownToppleAsks`); the card's Roll button now RECALLS the popup — one input surface,
+   the popup decides, the card recalls. No timer in v1: the GM's manual prone button is
+   the backstop for paper rolls.
 14b. **The verdict pause (v1.5.1).** `dramaticVerdictPause`: the concentration fold and
    the topple failure wait out Dice So Nice's animation (when present) plus the Dramatic
    Beat before their table-facing consequences — the break card, the cascade, the prone.
@@ -397,6 +403,18 @@ node tools/smoke-concentration.mjs
 ```bash
 node tools/smoke-cast.mjs
 ```
+
+⚠ **Run smoke-battleflow FIRST when in doubt**: it places the victim token the other
+suites reuse, and smoke-effects §14's stray-token sweep can legitimately have removed it
+("BF Test Victim has no token" from smoke-hold means exactly this, not a bug).
+
+⚠ **Paused announcements leak across suite section windows** (learned 2026-08-16, the
+night the verdict pause landed): a holds/break card now trails its fold by dice-animation
+seconds, so a section that flips a setting and opens a new observation window can catch
+the PREVIOUS section's announcement wearing the old setting. smoke-conc §10 got a public
+holds card in its private-mode window twice before the fix. The cure is both halves:
+drain your own announcements before leaving a section, and attribute found cards by
+content signature (total-vs-DC), never by keyword alone.
 
 ⚠ **Run suites ONE AT A TIME, not chained in a single command.** A four-suite battery run
 back-to-back in one shell command produced exactly one polluted assertion (smoke-effects 13e
@@ -874,6 +892,9 @@ reach the shipped attack path. **If you add a third trigger, add it as a stamp f
 | usage card OR replacement bfCard | `castApply` | the cast payload: activityUuid, concentration id, scaling, spellLevel, targets — the stamp IS the trigger |
 | healing roll message | `healPending` | the initiating client's claim; the elect applies and the receipt marks it done |
 | bfCard message | `masteryNotice` | the reminder: key, attacker, weapon, wording, deadline/window (popup auto-dismiss) |
+| damage-activity roll | `spellDamage` | the auto-applier's birth claim (v1.6.0) — unstamped history is inert |
+| damage-activity roll | `spellHoldPending` | a blocklisted spell's hold claim: true from birth, false = released (caster cleared it, or the hold resolved) — the applier acts on the release |
+| replacement bfCard (suppressed spell cast) | dnd5e `targets`/`item`/`activity` + `hold` | postSpellHoldCard — the hold's home when 1.9D ate the usage card; damage bridges here via `originatingMessage` |
 | ask message (bfCard) | `concentration` | the concentration ask: status, actor, ability, dc, damage, names, effectIds snapshot, cause, deadline, outcome |
 | concentration roll message | `respondsTo`, `timedOut` | which ask this roll answers (the hold's answer-channel key, same meaning); whether the buzzer pressed it |
 | actor | `reactionSpent` | the click-volume guard, cleared on turn/combat-end (clears are NOT toggle-gated) |

@@ -308,6 +308,14 @@ rewind. So: a **hold point** between hit determination and the damage roll.
     verdict, and the damage lands. Correct-by-construction alternatives (vetoing pending
     applications) fail worse — a hold answered Pass would then need a second click nobody would
     remember to make. The card says "held — waiting on Tom" the entire time.
+    > **Narrowed at v1.6.0**: the AUTOMATIC path can no longer beat the verdict — a listed
+    > spell's damage roll is claimed at birth (`spellHoldPending`) and the elect's applier
+    > defers until the hold resolves, then applies per verdict (negated targets skipped).
+    > Only a human pressing the tray early still wins, which is a ruling, not a race. This
+    > is the "Phase 2/3 owning non-attack damage application" the original note promised.
+    > The usage card also stopped being load-bearing: under suppression the hold rides a
+    > replacement card, the damage roll is bridged to it (originatingMessage), and the veto
+    > gained a message-free fallback lookup.
 - **The hold**: don't auto-continue for that target; stamp `pending` on the attack message (or,
   for the spell trigger, on the usage card — the hold flag and every view of it are identical,
   and holds carry `trigger: "spell"` so the roll-dependent paths can branch off it).
@@ -631,6 +639,16 @@ corrupts game state.
 > Suppression also now eats bare damage-activity cards (Magic Missile's shape) — except a
 > BLOCKLISTED spell's card, which is load-bearing three ways while the reaction hold is on
 > (the hold's home, the Answer surface, and the preApplyDamage veto's chain) and stays.
+> **Amended v1.6.0 (2026-08-16, the second table round):** the blocklist exception is
+> LIFTED — the hold rides a replacement card when suppression eats the original, the
+> damage roll is bridged to it, and the veto gained a fallback lookup. And damage-activity
+> DAMAGE now auto-applies per snapshot target under Auto-Apply Damage ("it should auto
+> apply; the shield stuff is its own mechanic"), claimed at birth (`spellDamage`) and
+> deferring on a pending spell hold — per-target independence, the Phase 2 principle
+> arriving early. A damage card carrying EFFECTS still keeps its card (no automated path
+> applies those). The topple ask also gained its popup: the same native-controls surface
+> the concentration ask carries, on the decider's client ("the cards are difficult to
+> follow").
 
 Auto-apply a used activity's effects, filtered by outcome — the native effect tray's semantics
 (`EffectApplicationElement._applyEffectToActor`), pressed automatically:
