@@ -622,6 +622,15 @@ corrupts game state.
 
 ### Phase 3 — effect application
 
+> **Phases 2 and 3 ship together (user call, 2026-08-16, post-split session).** A save's
+> consequences ARE the feature — "then apply effect/damage" is the user's own spec — so the
+> save slice below (failed-save effects, half-on-save damage) is part of the Phase 2 build,
+> riding the shared appliers that already exist. What ships *second within that effort*,
+> once the save path is battery-green and not in the same diff: the convergence — unify the
+> three effect appliers around `applyEffectsWithReceipt`, and give the reaction effect its
+> missing receipt/revert (the one §2.5 gap standing). Same release train, two controlled
+> steps.
+
 > **The cast-time slice shipped early (2026-08-16, user call, v1.5.0)** — *"for spells that
 > have effects/rolls that are not saving required (Bless, healing), the effect auto-applies;
 > the initial card is suppressed; option to revert."* A used activity with **no outcome

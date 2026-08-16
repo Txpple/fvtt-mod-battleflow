@@ -40,9 +40,9 @@ string after a restart.
 | 1.5 — reaction hold | ✅ **feature-complete at v1.1.16** and dogfooded — both triggers exist: an attack hit, and a listed spell. Magic Missile stays in normal dogfood rotation rather than on a list. |
 | 1.75 — hit riders | ✅ shipped v1.2.0 and dogfooded. A mark pays out with the attack that earned it. |
 | 1.9 — effect + mastery riders | ✅ **shipped v1.3.0** (2026-08-16), suite-verified end to end. Not yet dogfooded — every switch is OFF at the table until the user walks the ladder. |
-| 2 — saves | ⬜ NEXT. Generalizes the 2.5 machine per target (design.md Phase 2 note); the topple fold (v1.5.0) already presses its per-target seam in miniature. |
+| 2 — saves | ⬜ NEXT, **joint with Phase 3** (user call 2026-08-16). Generalizes the 2.5 machine per target; popup default + per-player opt-out (design.md Phase 2); the topple fold (v1.5.0) is the miniature. |
 | 2.5 — concentration | ✅ shipped v1.4.0; **live at the table** since 2026-08-16 evening (`concMode: prompt`, user-walked). |
-| 3 — effect application | 🟨 **cast slice shipped v1.5.0** (no-gate casts: utility effects + healing, receipts + revert, replacement-card bus); 1.9A covers the attack slice; the save slice waits on Phase 2. |
+| 3 — effect application | 🟨 **cast slice shipped v1.5.0**; 1.9A covers the attack slice; the save slice SHIPS WITH Phase 2 (a save's consequences are the feature); the convergence (unified appliers + reaction receipt/revert) follows once saves are green. |
 
 ⚠ **World data changed 2026-08-15:** the Skeletal Mage's `system.attributes.ac.calc` went
 `flat` → `natural`. Its `flat: 16` is untouched, so its printed AC is still 16 — but a flat AC
@@ -91,17 +91,24 @@ is open. The table is loaded for Tuesday; the box vends a stale version STRING (
 until the Foundry process restarts — purely cosmetic, still fine to wait for a natural
 bounce. The split itself needed no restart (design.md §9's import shape, proven live).
 
-**Next: Phase 2 — saves.** design.md's Phase 2 note is the spec, freshly updated with the
-user's call (2026-08-16): **popup default** on the owning player's client with the native
-dialog's controls (situational bonus + Adv/Normal/Dis — the concentration ask's surface),
-**per-player opt-out** to silent auto-roll, then effect/damage per verdict — deliberately
-not midi-qol's auto-everything. Generalize the 2.5 machine per target; the topple fold +
-popup (v1.5/1.6) is the working miniature — recognizer, stored-DC judging, decider popup
-with native controls, verdict pause. Half-on-save rides the applier's threaded
-`multiplier`; `forceSuccess` aggregation closes the LR corner; two-client coverage rides
-PC Assistant (`probe-player-seam.mjs` is the proving spike). Build it as a new `saves.js`
-importing the exported seams (see the shape section) — the split left every one of them
-public for exactly this.
+**Next: Phases 2 AND 3, together** (user call, 2026-08-16, this session — "since its
+saving throws, we should do 2 & 3 together"). design.md's Phase 2 note is the spec,
+freshly updated with the user's surface call: **popup default** on the owning player's
+client with the native dialog's controls (situational bonus + Adv/Normal/Dis — the
+concentration ask's surface), **per-player opt-out** to silent auto-roll, then
+effect/damage per verdict — deliberately not midi-qol's auto-everything. The save slice of
+Phase 3 is PART of this build (failed-save effects through `applyEffectsWithReceipt`,
+half-on-save through the applier's threaded `multiplier`); the CONVERGENCE (unify the
+three effect appliers, give the reaction effect its missing receipt/revert) comes second
+within the effort, only after the save path is battery-green — same release train, never
+the same diff (design.md Phase 3 headnote). Generalize the 2.5 machine per target; the
+topple fold + popup (v1.5/1.6) is the working miniature — recognizer, stored-DC judging,
+decider popup with native controls, verdict pause. `forceSuccess` aggregation closes the
+LR corner; two-client coverage rides PC Assistant (`probe-player-seam.mjs` is the proving
+spike). Build it as a new `saves.js` importing the exported seams (see the shape section)
+plus one entry import — no sibling edits. ⚠ Tuesday is live play: anything deployed before
+it ships **OFF by default** (house rule) and battery-green, and that is the only gate a
+mid-week deploy needs.
 
 **Struck: the second Molten box** (user, 2026-08-16: "we cant have a second box so strike
 that for now"). The full provisioning plan lives in this file's git history (section "the
@@ -385,6 +392,10 @@ node tools/smoke-cast.mjs
 ⚠ **Run smoke-battleflow FIRST when in doubt**: it places the victim token the other
 suites reuse, and smoke-effects §14's stray-token sweep can legitimately have removed it
 ("BF Test Victim has no token" from smoke-hold means exactly this, not a bug).
+
+`tools/check-hook-order.mjs` (new at v1.6.1) is the split's static companion — run it
+before the battery whenever a file, an import, or a same-hook registration was added; it
+needs no Foundry and fails loudly if the load-bearing hook orderings regress.
 
 ⚠ **Paused announcements leak across suite section windows** (learned 2026-08-16, the
 night the verdict pause landed): a holds/break card now trails its fold by dice-animation
@@ -858,8 +869,9 @@ Cross-file symbols are plain named exports; the discipline that keeps hook ORDER
 in design.md §9 and enforced by comment at the one place it bites: **`hold.js` reaches
 `auto-apply.js` through a lazy `import()`** so the hold's `preApplyDamage` veto registers
 before concentration's cause capture. Do not make that edge static, and when adding a
-same-hook registration in a new file, check relative order (the stubbed-load verifier in
-the 2026-08-16 session's scratchpad did this mechanically; rebuilding it is ~80 lines).
+same-hook registration in a new file, run **`node tools/check-hook-order.mjs`** — it loads
+the graph with stubbed globals, prints true registration order per hook, and asserts the
+three load-bearing orderings (no Foundry needed).
 Phase 2's `saves.js` imports its seams (`canAnswerFor`, `openManagedPopup`, `holdBarHTML`,
 `armAskTimer`/`disarmAskTimer`, `dramaticVerdictPause`, `applyDamagesWithReceipt` +
 `multiplier`, `applyEffectsWithReceipt`) and adds one import line to the entry — no
