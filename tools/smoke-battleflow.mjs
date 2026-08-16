@@ -54,6 +54,8 @@ let priorSettings = null;
       suppressAttackCards: game.settings.get(MOD, 'suppressAttackCards'),
       requireTarget: game.settings.get(MOD, 'requireTarget'),
       reactionHold: game.settings.get(MOD, 'reactionHold'),
+      effectRiders: game.settings.get(MOD, 'effectRiders'),
+      masteryRiders: game.settings.get(MOD, 'masteryRiders'),
     };
     await game.settings.set(MOD, 'autoDamage', 'all');
     await game.settings.set(MOD, 'autoApply', true);
@@ -64,6 +66,12 @@ let priorSettings = null;
     await game.settings.set(MOD, 'requireTarget', false);
     // This suite is about the Phase 1 chain; a reaction hold would legitimately stop it dead.
     await game.settings.set(MOD, 'reactionHold', false);
+    // The 1.9 features get their own suite (smoke-effects). Pinned off here because 5b's
+    // "an effect-carrying card survives suppression" is only true while Effect Riders is
+    // off — with riders on the card is legitimately suppressible (1.9D) and the assertion
+    // would chase a ghost.
+    await game.settings.set(MOD, 'effectRiders', false);
+    await game.settings.set(MOD, 'masteryRiders', false);
     // Scrub any reaction the hold suite may have left on the test NPC — a stray Shield there
     // holds every attack and makes this suite fail for the wrong reason.
     for (const name of ['BF Test Victim', 'BF Test Attacker']) {
@@ -639,6 +647,8 @@ if (!fx.ok) { process.exit(1); }
     await game.settings.set(MOD, 'suppressAttackCards', prior?.suppressAttackCards ?? false);
     await game.settings.set(MOD, 'requireTarget', prior?.requireTarget ?? false);
     await game.settings.set(MOD, 'reactionHold', prior?.reactionHold ?? false);
+    await game.settings.set(MOD, 'effectRiders', prior?.effectRiders ?? false);
+    await game.settings.set(MOD, 'masteryRiders', prior?.masteryRiders ?? false);
     const testMessages = game.messages.filter(m => m.speaker?.alias?.startsWith('BF Test'));
     await ChatMessage.deleteDocuments(testMessages.map(m => m.id));
     return {
