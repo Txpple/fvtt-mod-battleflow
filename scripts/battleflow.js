@@ -1934,12 +1934,28 @@ function markSource(marker) {
   const uuid = marker.origin || marker.getFlag("dnd5e", "dependentOn");
   let doc = null;
   try { doc = uuid ? fromUuidSync(uuid) : null; } catch { return null; }
+  const root = doc;
   let item = null;
   while ( doc && !(doc instanceof Actor) ) {
     if ( doc instanceof Item ) item = doc;
     doc = doc.parent;
   }
-  return ((doc instanceof Actor) && item) ? { actor: doc, item } : null;
+  if ( !(doc instanceof Actor) ) return null;
+
+  // The other shape: an effect sitting directly ON the caster, which NAMES its item rather than
+  // living underneath one — what the tray writes when the spell began concentration. The walk
+  // above finds the actor but never passes an Item, so the name has to be read off the flag.
+  // ⚠ This is uuid resolution, not a concentration test: nothing here asks whether anyone is
+  // still concentrating, and nothing should.
+  if ( !item ) {
+    const carried = root?.getFlag?.("dnd5e", "item");
+    try { item = carried?.uuid ? fromUuidSync(carried.uuid) : null; } catch { item = null; }
+    // ⚠ `flags.dnd5e.item.data` is populated ONLY when the item is not on the actor
+    // (active-effect.mjs:714) — the cached-spell shape innate and statblock casting use. Without
+    // this fallback a monster's mark resolves to no item and silently stops paying.
+    if ( !item && carried?.data ) item = new Item.implementation(carried.data, { parent: doc });
+  }
+  return item ? { actor: doc, item } : null;
 }
 
 /**
