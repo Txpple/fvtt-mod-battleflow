@@ -471,6 +471,15 @@ v1.3.0 (2026-08-16).
   applier with its receipt on the **attack** card (a miss has no damage message). Cleave and
   Nick stay native — action economy is not a payout. Hopeless skips mirror the hold's: no
   Topple ask on the prone, no Slow ask at 0 speed, nothing asked about the dead.
+  > **Amended 2026-08-16 (v1.5.0, user calls from the 1.9 dogfood).** (a) **The Topple card
+  > folds its own save**: a Constitution save rolled from the card's enricher — or bare from
+  > a sheet by a still-pending target — is judged on the elect against the DC stored on the
+  > card's flag; a failure applies Prone itself and announces it, a success just closes the
+  > question. The save ROLL stays human-pressed, so this upgrades the card in place along
+  > Phase 2's exact line rather than automating the save; the GM per-target button remains
+  > for saves rolled on paper. (b) **Cleave gains a reminder** — a hit with a Cleave-mastery
+  > weapon tells the wielder the option exists (once per combat turn); the extra attack, its
+  > target and its rolls stay entirely native. Action economy is still not a payout.
 - **1.9C — the ask.** The hold's design language on lighter machinery: **popups ask
   questions, cards state facts.** One decision, exactly two controls (Use/Pass — the
   two-control rule is binding), answered by the attacking player's owner, on the hold's own
@@ -478,6 +487,17 @@ v1.3.0 (2026-08-16).
   with a confirm, not an interrupt, so there is no continuation, no settle window, no
   re-test. `masteryAsk: auto` is the tedium escape hatch (user call: players like being
   reminded of their options).
+  > **Amended 2026-08-16 (v1.5.0, user call): the automatic masteries get a reminder
+  > moment.** *"The design is for people to know weapon masteries and not forget they have
+  > those."* When Vex or Sap lands (and when Cleave is available, 1.9B above), the attacking
+  > owner's client gets an **informational popup**: the fact in the mastery's own words, ONE
+  > control (OK), and a 15-second auto-dismiss with the drain bar — dismissal and expiry are
+  > the same non-event, nothing downstream waits. A public announcement card posted by the
+  > elect is the durable record; the popup is a per-client view of it. This *refines* the
+  > "popups ask questions" language rather than breaking it: a reminder of a time-limited
+  > fact is a table moment (§4.3's attention surface). What stays banned is a fake CHOICE
+  > (the Skip lesson) and result announcements dressed as popups — an OK-popup is allowed
+  > only where the fact expires with the moment (Vex's advantage window, Cleave's turn).
 - **1.9D — per-source card suppression.** `suppressAttackCards` becomes a master gate over
   four per-source switches keyed by the item type behind the activity — weapon / spell /
   feature / other — each defaulting to suppressed, so a world with the old boolean on
@@ -588,6 +608,22 @@ corrupts game state.
 
 ### Phase 3 — effect application
 
+> **The cast-time slice shipped early (2026-08-16, user call, v1.5.0)** — *"for spells that
+> have effects/rolls that are not saving required (Bless, healing), the effect auto-applies;
+> the initial card is suppressed; option to revert."* A used activity with **no outcome
+> gate** — no attack roll, no save — resolves at cast, on the elect: a `utility` activity's
+> effects land on every target in the card's snapshot (Bless — all of them, concentration
+> linkage per the rules below), and a `heal` activity's self-rolled healing applies through
+> the shared receipt applier (Healing Word — the roll message carries the receipt and the
+> revert; `calculateDamage` inverts `healing`-typed entries natively). The native usage card
+> is suppressed under the 1.9D spell switch and **replaced** by a module card carrying the
+> payload (targets, activity, concentration id) — which is what finally lets a concentration
+> cast's card go: the replacement captures the linkage that bare suppression could not
+> rebuild. With suppression off, the native card itself is stamped with the same payload and
+> stays the bus. Attack activities remain 1.9A's (on hit); save activities remain Phase 2's
+> (their cards are load-bearing); **plain `damage` activities stay manual** — Magic Missile
+> is the negate hold's seam, and auto-applying there would beat every pending hold's verdict.
+
 Auto-apply a used activity's effects, filtered by outcome — the native effect tray's semantics
 (`EffectApplicationElement._applyEffectToActor`), pressed automatically:
 
@@ -656,7 +692,8 @@ World, per-feature, default OFF unless noted:
 | Concentration timer | seconds, default 15; 0 waits; expiry ROLLS (prompt mode's buzzer) | 2.5 |
 | Concentration breaks on failure | on (default) / off — off = announce only | 2.5 |
 | Concentration visibility | public (default) / private (concentrator + GM); the break card is always public | 2.5 |
-| Effect auto-application | off / on | 3 |
+| Auto-apply on cast (the no-gate slice: no-save effects + healing) | off / on — **shipped v1.5.0** | 3 |
+| Effect auto-application (attack slice = Effect Riders 1.9; save slice waits on Phase 2) | off / on | 3 |
 | Expiry sweep | off / on (only if core proves insufficient) | 4 |
 
 **Rider table seed** (Phase 1.75, from `tools/scan-riders.mjs` over official 2024 content —

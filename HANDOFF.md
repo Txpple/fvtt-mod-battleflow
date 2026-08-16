@@ -1,31 +1,32 @@
 # HANDOFF.md — picking this up cold
 
-> Current at 2026-08-16, the evening **Phase 2.5 (concentration) was built and
-> suite-proven** — pulled ahead of Phase 2 at the user's call (the table plays Tuesday;
-> concentration fires every fight). Read [design.md](design.md) first — it is binding and
-> wins every disagreement. This file is only *where things stand* and *what already bit us*.
+> Current at 2026-08-16, LATE evening — **v1.5.0 built, six-suite battery-proven, and
+> released in one AFK stretch**, off four user calls from the same afternoon's live
+> dogfooding. Read [design.md](design.md) first — it is binding and wins every
+> disagreement. This file is only *where things stand* and *what already bit us*.
 > Delete or rewrite it freely; it is a snapshot, not a contract.
 >
-> **Phase 2.5 is code-complete and green** (`tools/smoke-concentration.mjs`, 46/46, plus a
-> full battery re-run of the other four) and hot-deployed to prod; **v1.4.0 is cut/offered
-> per the release log**. Every new setting defaults OFF except the sub-settings behind the
-> dark master (timer 15s, break ON, public ON — inert until `concMode` leaves "off").
-> **Phase 2 (saves) is next**, and the user's architectural call is recorded in design.md:
-> the 2.5 machine (mode gate, ask + respondsTo fold, owner election, buzzer-that-rolls, the
-> popup carrying the native roll dialog's controls) IS the pattern saves generalize —
-> Topple's manual-save card is still the seam Phase 2 upgrades in place. Phase 1.9 shipped
-> earlier the same day as v1.3.0/v1.3.1; nothing is tracked open against the hold, the
-> riders, or the masteries.
+> **v1.5.0** = the Phase 3 **cast slice pulled ahead** (a no-gate cast applies itself:
+> utility-activity effects land on every snapshot target, heal activities roll and land —
+> receipts + revert throughout, suppressed cards replaced by a payload-carrying module
+> card), the **Topple card folding its own save** (a failure applies Prone itself — the
+> first Phase 2 seam pressed in place), **reminder popups** for the automatic masteries and
+> Cleave (OK-only, 15s), and **effect-receipt hover tooltips**. All deployed; the GitHub
+> release is cut per the release log. **The live settings are fully loaded for Tuesday** —
+> the user walked the ladder themselves while testing (castApply ON, concMode PROMPT,
+> effect + mastery riders ON, masteryAsk ask) — verify with a read as always.
+> **Phase 2 (saves) is next**; the 2.5 machine (mode gate, ask + respondsTo fold, owner
+> election, buzzer-that-rolls, native-dialog popup) is still the pattern it generalizes,
+> and the topple fold is a working miniature of exactly that fold.
 
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.3.1** (v1.3.0 = Phase 1.9 whole: a hit applies the
-effects riding it, weapon masteries pay out with the attack, per-source card suppression;
-v1.3.1 = the same-day architecture review applied — standing note 10), deployed, tags
-pushed, GitHub releases carry zip + manifest. **The box tracks the GitHub
-manifest** (repointed 2026-08-15 — the self-hosted dev manifest and zip are gone), so the
-process vends the real version string after a restart.
+Molten-hosted). Latest release **v1.5.0** (2026-08-16 evening: the cast slice, the topple
+fold, the mastery reminders, receipt tooltips; same day as v1.3.0/v1.3.1 = Phase 1.9 and
+v1.4.0 = concentration), deployed, tags pushed, GitHub releases carry zip + manifest.
+**The box tracks the GitHub manifest** (repointed 2026-08-15 — the self-hosted dev
+manifest and zip are gone), so the process vends the real version string after a restart.
 
 | Phase | State |
 | --- | --- |
@@ -35,9 +36,9 @@ process vends the real version string after a restart.
 | 1.5 — reaction hold | ✅ **feature-complete at v1.1.16** and dogfooded — both triggers exist: an attack hit, and a listed spell. Magic Missile stays in normal dogfood rotation rather than on a list. |
 | 1.75 — hit riders | ✅ shipped v1.2.0 and dogfooded. A mark pays out with the attack that earned it. |
 | 1.9 — effect + mastery riders | ✅ **shipped v1.3.0** (2026-08-16), suite-verified end to end. Not yet dogfooded — every switch is OFF at the table until the user walks the ladder. |
-| 2 — saves | ⬜ NEXT. Generalizes the 2.5 machine per target (design.md Phase 2 note); Topple's manual-save card is waiting to be upgraded in place. |
-| 2.5 — concentration | ✅ **built + suite-proven 2026-08-16** (out of order, user call). OFF at the table until walked. |
-| 3 — effect application | ⬜ 1.9A covers the attack-activity slice; the save-activity slice waits on Phase 2. |
+| 2 — saves | ⬜ NEXT. Generalizes the 2.5 machine per target (design.md Phase 2 note); the topple fold (v1.5.0) already presses its per-target seam in miniature. |
+| 2.5 — concentration | ✅ shipped v1.4.0; **live at the table** since 2026-08-16 evening (`concMode: prompt`, user-walked). |
+| 3 — effect application | 🟨 **cast slice shipped v1.5.0** (no-gate casts: utility effects + healing, receipts + revert, replacement-card bus); 1.9A covers the attack slice; the save slice waits on Phase 2. |
 
 ⚠ **World data changed 2026-08-15:** the Skeletal Mage's `system.attributes.ac.calc` went
 `flat` → `natural`. Its `flat: 16` is untouched, so its printed AC is still 16 — but a flat AC
@@ -64,14 +65,15 @@ whatever they find, so it drifts:
 | Hit Riders | **off** | new in v1.2.0 |
 | Rider Table | `hunters-mark, hex, great-old-one-hex` | identifiers only — the damage is read from the content |
 | Rider Upgrades | `foe-slayer:hunters-mark` | replaces the die, never stacks |
-| Effect Riders | **off** | new in v1.3.0 — a hit applies the card's effects |
-| Weapon Mastery Riders | **off** | new in v1.3.0 — Vex/Sap auto, the rest ask |
-| Mastery: Ask First | `ask` | `auto` is the tedium escape hatch |
+| Effect Riders | **on** | user-walked ON 2026-08-16 — a hit applies the card's effects |
+| Weapon Mastery Riders | **on** | user-walked ON 2026-08-16 — Vex/Sap auto + reminder, the rest ask |
+| Mastery: Ask First | `ask` | `auto` is the tedium escape hatch (silences asks, not reminders) |
 | Suppress: Weapon / Spell / Feature / Other | **all on** | new in v1.3.0 — inert until the master above them is on; defaults preserve the old boolean's behavior exactly |
-| Concentration Checks | **off** | new in v1.4.0 — `prompt` / `auto`; the recommendation for Tuesday is prompt |
+| Concentration Checks | **prompt** | user-walked ON during 2026-08-16 evening testing |
 | Concentration Timer | 15s | expiry ROLLS (data-driven, straight); 0 waits indefinitely |
 | Failure Breaks Concentration | **on** | inert until the mode is on — the forgotten click the phase exists to press |
 | Concentration Checks Are Public | **on** | off = whispered to owners + GM; the break card is ALWAYS public |
+| Auto-Apply on Cast | **on** | new in v1.5.0 — no-gate casts (utility effects + healing) apply themselves; damage spells deliberately excluded |
 
 ## Open items
 
@@ -224,6 +226,40 @@ Assistant) wants a box it can hammer.
    Foundry replaces arrays wholesale, so the loser's answer drops and that target simply
    asks again. Milliseconds wide, self-healing, and the fix (forcing ALL answers through
    the response channel) would add a message per GM answer — not worth it until it bites.
+12. **The cast slice's bus, and its exclusions (v1.5.0).** The gate is STRUCTURAL, no name
+   list (user call: "any spells that have the no-save apply effect"): a used `utility`
+   activity carrying effects (Bless; Hunter's Mark's Mark Creature AND Move Mark — a
+   re-mark auto-lands on the new quarry) or a `heal` activity, with targets selected. The
+   STAMP is the trigger, never the setting: preCreate on the initiating client writes the
+   `castApply` payload onto a qualifying usage card — or onto a REPLACEMENT bfCard when the
+   1.9D spell switch suppresses the original (the replacement carries targets, activity,
+   and the concentration id, which is why a concentration UTILITY cast's card may die where
+   the attack-spell carve-out still keeps one) — and `healPending` onto a targeted healing
+   roll. The elect executes from createChatMessage AND the render hook (reload-resume), so
+   an unstamped message — all of history — is inert by construction. Healing rides
+   `applyDamagesWithReceipt` unchanged (`calculateDamage` negates healing-typed entries
+   natively; the roll message carries receipt + revert; independent of `autoApply`).
+   ⚠ **Bare `damage` activities are deliberately OUT**: Magic Missile is the negate hold's
+   seam, and an auto-apply would beat every pending hold's verdict — apply-before-answer
+   (standing item 2) would stop being a corner and become the machine. Save activities wait
+   for Phase 2; their cards stay load-bearing.
+13. **The Topple fold (v1.5.0).** Recognizer is the 2.5 shape: the save's actor must be a
+   still-pending target, the ability must match, and the roll is either chained to the
+   topple card itself (the enricher click — `buildPost` stamps `originatingMessage` from
+   the enclosing card, basic-roll.mjs:173) or chained to nothing (a bare sheet roll); a
+   save chained to any OTHER message belongs to that chain. Judged against the DC stored
+   on the card's flag — the ask's DC, exactly the concentration rule — failure presses
+   Prone + announces, success closes quietly, and the GM per-target button remains for
+   saves rolled on paper. Pre-v1.5.0 cards carry no `dc` and stay button-only. The
+   button-vs-fold write race is the same accepted clone-modify-write corner as item 11.
+14. **Mastery reminders (v1.5.0).** The elect posts a `masteryNotice` bfCard when Vex or
+   Sap lands and when a Cleave-weapon hit lands (once per combat turn per attacker,
+   in-memory latch on the elect; out of combat every hit reminds — the test range has no
+   turns). The popup rides the card on whichever client `canAnswerFor` picks: ONE control
+   (OK), hardcoded 15s auto-dismiss with the drain bar, `deadline` gating stale renders so
+   an old log never nags. Not gated by `masteryAsk` — auto silences asks, not reminders.
+   Design language recorded in design.md 1.9C: a reminder of a time-limited fact is a
+   table moment; what stays banned is a fake choice and results dressed as popups.
 
 ## How to work on this
 
@@ -288,6 +324,10 @@ node tools/smoke-effects.mjs
 node tools/smoke-concentration.mjs
 ```
 
+```bash
+node tools/smoke-cast.mjs
+```
+
 ⚠ **Run suites ONE AT A TIME, not chained in a single command.** A four-suite battery run
 back-to-back in one shell command produced exactly one polluted assertion (smoke-effects 13e
 read a usage-card count delta of **−20** — some twenty messages vanished between its before
@@ -306,6 +346,25 @@ table this cannot happen (the bridge is one page; humans are different users); i
 a harness topology, so the fix is protocol, not code. `smoke-effects` §9 asserts the
 announcement count so a double-elect now fails loudly at the source.
 
+`tools/smoke-cast.mjs` (new at v1.5.0, 12 assertions) proves the cast slice: **1** the
+native-card bus (suppression off — card survives, stamped, both targets chipped,
+concentration origin + dependentOn, tooltip description on the receipt), **2** the
+replacement bus (suppression on — native card dies, the bfCard carries payload + receipts,
+linkage survives), **3** healing (usage card suppressed bare, roll stamped `healPending`,
+HP moves by exactly the rolled total with `autoApply` OFF), **4** a bare damage activity is
+untouched, **5** a targetless cast is left native. Its fixtures are built-in-suite innate
+spells (`consumption.spellSlot: false`) on BF Test Attacker.
+
+`smoke-effects` grew **14** (the topple fold: card carries dc/ability/weapon; a decoy
+chained save is ignored; forced failure → Prone + one announcement; forced success closes
+quietly; a bare sheet save answers) and **15** (vex/sap/cleave reminders + the receipt
+tooltip field). Both force outcomes through the actor's own save bonus (±30).
+
+`tools/probe-topple.mjs` is the fold's isolated one-shot (stamps a minimal topple card,
+rolls a chained save, dumps every recognizer gate) — it proved the module correct while the
+suite still failed, which re-aimed the hunt at harness topology (the stray-token lesson
+below).
+
 `tools/probe-effects.mjs` is the instrumented one-shot that untangled the above — it dumps
 receipt/effect/message state around a vex attack, a push, and a double Guiding Bolt cast.
 Cheap to re-run; extend it rather than adding printf debugging to a suite.
@@ -316,7 +375,14 @@ mystery damage came from the suite's own stray holds, not the module (below).
 `tools/scan-reactions.mjs` regenerates the [REACTIONS.md](REACTIONS.md) survey after content
 changes; `tools/scan-riders.mjs` does the same job for damage riders, finding them by the
 structural signature (a `damage` activity whose activation is overridden to nothing) rather than
-by name — that is where the Phase 1.75 seed list came from. Fixtures live in the world and are reused: scene **Battle Flow Test Range**, actors
+by name — that is where the Phase 1.75 seed list came from.
+
+The user's own test aids (2026-08-16): a **Practice Dummy** actor (~700 HP — big enough
+that damage assertions never hit the dead-skip) and a **"Clear Temp Effects (Scene)"**
+script macro in Matt's hotbar slot 2 (strips every temporary effect from every token actor
+on the current canvas, batch-deleted per actor).
+
+Fixtures live in the world and are reused: scene **Battle Flow Test Range**, actors
 **BF Test Attacker** (NPC — also the Magic Missile caster in §6, which builds the spell on it
 and sweeps it again on the way out), **BF Test Victim** (NPC — wears a mundane shield for the
 name-collision test, and hosts the statblock cast-activity fixture), **BF Test Shielder**
@@ -448,6 +514,15 @@ Most of these are commented at the line where it bit. Do not rediscover them.
   tooling and Foundry alike. Edit `module.json` with the editor tools, not shell rewrites.
   Editor writes can also flip a whole file to CRLF against an LF `HEAD`, which turns a 300-line
   diff into a 2000-line one — check `git diff --numstat` before committing.
+- ⚠ **`getSpeaker({actor})` resolves through the actor's OLDEST active token on the VIEWED
+  scene.** A stray unlinked fixture token (another suite's reused "Hobgoblin", same base
+  actor) made every programmatic save's `getAssociatedActor()` return a SYNTHETIC token
+  uuid (`Scene…Token…Actor…`) that can never string-match a linked snapshot entry
+  (`Actor.x`) — the topple fold skipped every save while probe-topple (different viewed
+  scene, no token) passed clean. Three suite runs to corner, 2026-08-16. The module's
+  exact-uuid match is CORRECT for every real-table shape (linked↔linked,
+  synthetic↔synthetic); the fix is harness protocol — smoke-effects §14 sweeps stray
+  victim tokens before rolling.
 
 **dnd5e 5.3.3** (clone at `D:\Workbench\LOCAL\Repos\dnd5e-release-5.3.3`, tag matches exactly)
 
@@ -535,6 +610,26 @@ Most of these are commented at the line where it bit. Do not rediscover them.
   `requiresSpellSlot && consumption.spellSlot` (`mixin.mjs:432`), so an activity built with
   `consumption.spellSlot: false` casts with no slot at all. That is how §6 gives an NPC with no
   slot maxima a working Magic Missile, and it is the shape innate casting really has.
+- **A heal activity rolls itself on use** (`heal.mjs` `_triggerSubsequentActions` →
+  `rollDamage`), stamping `roll.type: "healing"` and `originatingMessage: results.message?.id`
+  — which is `undefined` when the usage card was suppressed, and nothing downstream minds.
+  The roll's own CONFIG DIALOG is native on the caster's client and deliberately stays (dice
+  agency); suites must pass `subsequentActions: false` and roll explicitly with
+  `configure: false` or the headless page hangs on the dialog.
+- **`calculateDamage` negates healing-typed entries itself** (`actor.mjs:868`,
+  `invertHealing`), and derives `treatAs` from `options.originatingMessage`'s `roll.type`
+  (`actor.mjs:807`) — so passing the heal roll message as `originatingMessage` makes
+  `"maximum"` and `"temphp"` entries behave too. The shared applier needed ZERO changes to
+  apply healing.
+- **Casting concentration at the limit auto-replaces, silently**: `_prepareUsageConfig`
+  sets `concentration.end ??=` an existing effect when at the limit (`mixin.mjs:475`), and
+  the use ends it (`mixin.mjs:250`) — no dialog, the old cast's dependents cascade away.
+  Why smoke-cast's back-to-back Blesses just work.
+- **The save enricher's click really does chain**: `buildPost` derives
+  `originatingMessage` from `event.target.closest("[data-message-id]")`
+  (`basic-roll.mjs:173`), and the enricher passes the click event through — a save rolled
+  from the topple card's `[[/save]]` button arrives chained to that card. Confirmed live;
+  the fold rides it.
 
 **Concentration (5.3.3, the 2.5 seams)**
 
@@ -652,15 +747,19 @@ Most of these are commented at the line where it bit. Do not rediscover them.
 
 ## The shape of the thing
 
-One ES module, `scripts/battleflow.js`, no build step (≈3,750 lines — the ~4,500 split
-trigger in design.md §9 is getting close; Phase 2 likely crosses it). Sections in order:
-settings + the settings-sheet polish, shared hit-test/chain helpers, table polish (incl.
-per-source suppression), Phase 1a auto-damage, the reaction hold (eligibility → **both
-triggers** → answers → continuation → the veto → views), Phase 1.75 hit riders, Phase 1b
-auto-apply + the shared damage applier, Phase 1.9A effect riders, Phase 1.9B/C mastery
-riders + the ask, **Phase 2.5 concentration (cause capture → trigger → ask → roll → fold →
-break → views → native-card veto)**, receipts. Entry-point hooks check their feature
-toggle; view/continuation hooks check flag presence; every feature ships **off**.
+One ES module, `scripts/battleflow.js`, no build step (**4,156 lines — the ~4,500 split
+trigger in design.md §9 is one phase away; plan the split as part of Phase 2**). Sections
+in order: settings + the settings-sheet polish, shared hit-test/chain helpers, table
+polish (incl. per-source suppression + the cast-slice stamps/replacement), Phase 1a
+auto-damage, the reaction hold (eligibility → **both triggers** → answers → continuation →
+the veto → views), Phase 1.75 hit riders, Phase 1b auto-apply + the shared damage applier,
+Phase 1.9A effect riders + the shared effect applier (`applyEffectsWithReceipt` — the
+Phase 3 convergence, extracted at v1.5.0), Phase 1.9B/C mastery riders + the topple fold +
+the reminders + the ask, **Phase 2.5 concentration (cause capture → trigger → ask → roll →
+fold → break → views → native-card veto)**, **Phase 3 cast slice (stamp → elect executes →
+receipts)**, receipts. Entry-point hooks check their feature toggle; view/continuation
+hooks check flag presence (the cast slice's stamps are exactly this discipline); every
+feature ships **off**.
 
 The elect-owned single-answer clock is shared (`armAskTimer` — the mastery ask and the
 concentration ask are true twins there); the hold's clock stays its own machine on purpose
@@ -690,9 +789,12 @@ reach the shipped attack path. **If you add a third trigger, add it as a stamp f
 | attack message | `mastery` | the Use/Pass ask: status, key, answer, deadline, targets |
 | attack message | `receipt` | Graze only — the miss's damage receipt lands here (no damage message exists) |
 | damage message | `receipt` | per-target prior HP/deltas/taken/traits/multiplier + reverted markers |
-| damage message | `effectReceipt` | applied effects per target (+ `ridersDone`, the rider stage's own idempotence marker) |
+| damage message | `effectReceipt` | applied effects per target, each entry carrying `description` (the hover tooltip) + per-stage idempotence markers (`ridersDone` / `castDone`) |
 | response message | `respondsTo`, `uuid`, `answer`, `ac`, `effectLanded` | a player's answer traveling to the continuing client |
-| bfCard message | `topple` | per-target prone-button `done` markers |
+| bfCard message | `topple` | the Topple demand: `dc`, `ability`, `weapon`, per-target `done` + `outcome` ("prone"/"saved") — the fold judges by this dc |
+| usage card OR replacement bfCard | `castApply` | the cast payload: activityUuid, concentration id, scaling, spellLevel, targets — the stamp IS the trigger |
+| healing roll message | `healPending` | the initiating client's claim; the elect applies and the receipt marks it done |
+| bfCard message | `masteryNotice` | the reminder: key, attacker, weapon, wording, deadline/window (popup auto-dismiss) |
 | ask message (bfCard) | `concentration` | the concentration ask: status, actor, ability, dc, damage, names, effectIds snapshot, cause, deadline, outcome |
 | concentration roll message | `respondsTo`, `timedOut` | which ask this roll answers (the hold's answer-channel key, same meaning); whether the buzzer pressed it |
 | actor | `reactionSpent` | the click-volume guard, cleared on turn/combat-end (clears are NOT toggle-gated) |
