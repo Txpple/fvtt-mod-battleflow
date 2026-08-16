@@ -2,7 +2,7 @@
   "id": "fvtt-mod-battleflow",
   "title": "Battle Flow",
   "description": "House combat-resolution automation for dnd5e: when an attack hits, the damage rolls itself on the attacker's client (a miss rolls nothing), and the active GM's client applies it to the targets the attack hit through the system's own resistance math — with a per-target receipt and one-click revert stamped on every damage card. When the target holds a Shield-class reaction the chain pauses instead, and waits for a human. Zero dependencies, no sockets, no patching: clients coordinate by reading the same chat log, and the native buttons are never removed.",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "authors": [
     {
       "name": "Matthew Sippel"
@@ -30,7 +30,7 @@
   },
   "url": "https://github.com/Txpple/fvtt-mod-battleflow",
   "manifest": "https://github.com/Txpple/fvtt-mod-battleflow/releases/latest/download/module.json",
-  "download": "https://github.com/Txpple/fvtt-mod-battleflow/releases/download/v1.6.1/fvtt-mod-battleflow.zip",
+  "download": "https://github.com/Txpple/fvtt-mod-battleflow/releases/download/v1.7.0/fvtt-mod-battleflow.zip",
   "readme": "https://github.com/Txpple/fvtt-mod-battleflow#readme",
   "license": "MIT"
 }

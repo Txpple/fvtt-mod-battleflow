@@ -95,4 +95,8 @@ import "./effect-riders.js";
 import "./mastery.js";
 import "./concentration.js";
 import "./cast.js";
+// ⚠ saves.js before receipts.js ON PURPOSE: its verdict row must register (and so render)
+// above the receipt rows, and it reaches receipts.js only through a lazy import() so this
+// entry position is what actually decides the order. check-hook-order.mjs asserts it.
+import "./saves.js";
 import "./receipts.js";

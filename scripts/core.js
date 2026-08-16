@@ -37,6 +37,9 @@ export const S = {
   concTimer: "concTimer",
   concBreak: "concBreak",
   concVisibility: "concVisibility",
+  saves: "saves",
+  saveTimer: "saveTimer",
+  saveAutoRoll: "saveAutoRoll",
   castApply: "castApply"
 };
 

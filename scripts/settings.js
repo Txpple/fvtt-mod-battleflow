@@ -222,6 +222,25 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: Boolean, default: true
   });
 
+  game.settings.register(MODULE_ID, S.saves, {
+    name: "Resolve Saving Throws",
+    hint: "A save spell or ability runs its own saves: each targeted creature's save pops up on the client that owns it — the native dialog's controls (situational bonus, Advantage/Normal/Disadvantage) — and the verdict applies the consequences: the card's damage in full on a failure or per the spell's own word on a success (half, none), a failure applies the card's effects. NPCs and offline owners resolve on the GM's client; the card's native buttons keep working. Per target and independent — nobody waits on anyone else's dice. Damage application honors Auto-Apply Damage; legendary resistance overturns a folded failure, receipts and all.",
+    scope: "world", config: true, type: Boolean, default: false
+  });
+
+  game.settings.register(MODULE_ID, S.saveTimer, {
+    name: "Save Timer Seconds",
+    hint: "How long a prompted save waits before rolling itself. 0 waits indefinitely. Like the concentration timer — and unlike the reaction hold's — expiry ROLLS rather than passes: a demanded save is mandatory, so the timer only ever decides who pressed the button.",
+    scope: "world", config: true, type: Number, default: 15,
+    range: { min: 0, max: 60, step: 1 }
+  });
+
+  game.settings.register(MODULE_ID, S.saveAutoRoll, {
+    name: "Saves: Auto-Roll Mine",
+    hint: "Skip the popup for your own characters' saves — they roll instantly, straight off the sheet. Effect-borne bonuses (Bless dice, War Caster) still apply themselves; what you give up is the popup's ad-hoc inputs (situational bonus, an advantage override). Per player: this only affects your own client.",
+    scope: "client", config: true, type: Boolean, default: false
+  });
+
   game.settings.register(MODULE_ID, S.castApply, {
     name: "Auto-Apply on Cast",
     hint: "A cast with no roll to gate on resolves itself: a no-save spell's effects land on every target it was aimed at (Bless on all three, Hunter's Mark's mark on the quarry), and healing rolls its dice and lands (Healing Word). Receipts with per-target revert, as everywhere. Attack spells ride the hit under Effect Riders; save spells wait for the saves phase; plain damage spells (Magic Missile) keep their manual tray — the reaction that negates them must stay answerable.",
@@ -255,6 +274,7 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   addDivider(input(S.reactionHold), "Reaction Hold");
   addDivider(input(S.riders), "Hit Riders");
   addDivider(input(S.concMode), "Concentration");
+  addDivider(input(S.saves), "Saving Throws");
   addDivider(input(S.castApply), "Casts");
   addDivider(input(S.suppressAttackCards), "Table Polish");
 
@@ -263,6 +283,7 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   const mastery = input(S.masteryRiders);
   const suppress = input(S.suppressAttackCards);
   const conc = input(S.concMode);
+  const saves = input(S.saves);
   const syncAll = () => {
     setEnabled(input(S.dramaticBeat), autoDamage?.value !== "off");
     for ( const key of [S.interruptList, S.blockList, S.holdReveal, S.holdTimer, S.holdSkipFutile,
@@ -276,6 +297,8 @@ Hooks.on("renderSettingsConfig", (app, element) => {
       setEnabled(input(key), !!suppress?.checked);
     for ( const key of [S.concTimer, S.concBreak, S.concVisibility] )
       setEnabled(input(key), conc?.value !== "off");
+    for ( const key of [S.saveTimer, S.saveAutoRoll] )
+      setEnabled(input(key), !!saves?.checked);
   };
   syncAll();
   autoDamage?.addEventListener("change", syncAll);
@@ -284,5 +307,6 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   mastery?.addEventListener("change", syncAll);
   suppress?.addEventListener("change", syncAll);
   conc?.addEventListener("change", syncAll);
+  saves?.addEventListener("change", syncAll);
 });
 

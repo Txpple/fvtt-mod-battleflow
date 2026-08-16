@@ -240,7 +240,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
  * every client). Deliberately NOT rewound: rolls, resources, ammo, concentration
  * (design.md §5 Phase 1) — re-applying to the right target is the native tray's job.
  */
-async function revertTarget(message, uuid) {
+export async function revertTarget(message, uuid) {
   const receipt = foundry.utils.deepClone(message.getFlag(MODULE_ID, "receipt") ?? {});
   const entry = receipt.targets?.find(t => t.uuid === uuid);
   if ( !entry || entry.reverted ) return;
