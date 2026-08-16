@@ -381,16 +381,22 @@ identifiers across `dnd5e.spells24`, `dnd5e.classes24`, `dnd-players-handbook.*`
   `identifier: "hunters-mark"` and the same marker effect id. Keying on the display name would
   silently skip the free casts — the ones a ranger uses most. Same trap as the worn-shield /
   Shield-spell collision in Phase 1.5.
-- **A rider can be UPGRADED by an attacker feature.** Ranger `foe-slayer` ships an "Improved
-  Hunter's Mark Damage" activity of `1d10` force and says in so many words: use this *in place
-  of* Bonus Mark Damage. So an entry needs an optional attacker-identifier override, or every
-  high-level ranger silently under-rolls. Two Hex identifiers (`hex`, `great-old-one-hex`)
-  likewise share one mechanism and one marker.
-- **Two casters can mark one creature.** Matching the marker by name or by its `marked` /
-  `cursed` status is therefore not enough: detection **must** be attacker-scoped through the
-  effect's `origin`. ⚠ Hunter's Mark is a Concentration spell, and when the caster is
-  concentrating the applied effect's `origin` is the **concentration effect** (§7), not the
-  spell item — verify the real shape in the world before writing the trace.
+- **A rider can be UPGRADED by an attacker feature**, so upgrades are their own `feature:mark`
+  list. Ranger `foe-slayer` (level 20: *"the damage die of your Hunter's Mark is a d10 rather
+  than a d6"*) ships an "Improved Hunter's Mark Damage" activity at `1d10` force and says to use
+  it *in place of* Bonus Mark Damage. The upgrade **replaces** the mark's damage, never stacks,
+  and its number is read from the feature the same way — nothing in the code knows a die size.
+  Two Hex identifiers (`hex`, `great-old-one-hex`) likewise share one mechanism and one marker.
+- **Two casters can mark one creature**, so the marker's name and its `marked` / `cursed` status
+  are both useless as tests. The trace is `origin`, walked up to the nearest Actor — which also
+  passes the source Item, answering *who* and *what* in one hop each.
+  ⚠ **Concentration is not the trace, and must never be a gate.** The tray sets
+  `origin = concentration ?? effect` (§7), but that first branch needs
+  `chatMessage.system.concentration`, and a live Hunter's Mark on this table arrived pointing at
+  the **source item's own effect** while the caster was concentrating throughout. Code to the
+  walk, not to either branch. And the *presence* of a mark is the whole state: the
+  dependent-effect cascade deletes it when concentration breaks, so a mark still on the target
+  is a mark that still counts.
 - **Riders double on a crit, and that needs no setting.** 2024 PHB: *"Roll the attack's damage
   dice twice… If the attack involves other damage dice, such as from the Rogue's Sneak Attack
   feature, you also roll those dice twice."* A target-marked rider **is** part of the attack, so
@@ -519,18 +525,22 @@ World, per-feature, default OFF unless noted:
 | Halving reactions | pause / post-hoc via revert+½ | 1.5 |
 | Hold timer | off (wait) / N seconds | 1.5 |
 | Popup shows the math | off / on (verdict included) | 1.5 |
-| Rider table | curated `identifier:formula:type[:attacker-identifier]` list (seed below) | 1.75 |
+| Hit riders | off / on | 1.75 |
+| Rider table | curated identifier list — **how much** is read from the content, never listed | 1.75 |
+| Rider upgrades | curated `feature:mark` pairs, damage likewise read from the feature | 1.75 |
 | Saves | prompt everyone / auto NPCs / auto everyone | 2 |
 | Concentration | prompt / auto; break-on-failure on/off | 2.5 |
 | Effect auto-application | off / on | 3 |
 | Expiry sweep | off / on (only if core proves insufficient) | 4 |
 
 **Rider table seed** (Phase 1.75, from `tools/scan-riders.mjs` over official 2024 content —
-every target-marked rider it ships; the 4th field is an attacker-identifier override):
+every target-marked rider it ships). Identifiers only: **how much** is never written here. It is
+read from the mark's own bonus-damage activity, so the number is always the one the content
+ships, and a homebrewed mark works with nothing to transcribe.
 
 ```
-hunters-mark:1d6:force, hunters-mark:1d10:force:foe-slayer,
-hex:1d6:necrotic, great-old-one-hex:1d6:necrotic
+Rider table       hunters-mark, hex, great-old-one-hex
+Rider upgrades    foe-slayer:hunters-mark
 ```
 
 Per-client: table-moment view (popup+card / card-only); later: per-player save opt-out
