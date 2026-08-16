@@ -5,9 +5,9 @@
 > *where things stand* and *what already bit us*. Delete or rewrite it freely; it is a
 > snapshot, not a contract.
 >
-> **Phase 1.75 (hit riders) is built, tested 8/8 and released as v1.2.0 — but NOT yet
-> dogfooded.** It ships off; the user tests next. After that, Phase 2 (saves). Nothing is
-> tracked open against the reaction hold. The standing notes below are design constraints
+> **Phase 1.75 (hit riders) is shipped at v1.2.0, tested 8/8 and dogfooded** (2026-08-15,
+> reported good). **Start on Phase 2 (saves)** unless the user redirects. Nothing is tracked
+> open against the reaction hold or the riders. The standing notes below are design constraints
 > rather than to-dos.
 
 ## Where things stand
@@ -23,8 +23,8 @@ manifest and zip are gone), so the process vends the real version string after a
 | 1 — attack resolver | ✅ shipped. Auto-roll damage on hit, auto-apply via GM elect, receipts + revert. |
 | 1.1 — dogfood polish | ✅ shipped. Tray auto-collapse, require-target gate, usage-card suppression, centered roll dialogs. |
 | 1.5 — reaction hold | ✅ **feature-complete at v1.1.16** and dogfooded — both triggers exist: an attack hit, and a listed spell. Magic Missile and the player-client seam were both played at the table 2026-08-15 with nothing reported; Magic Missile stays in normal dogfood rotation rather than on a list. |
-| 1.75 — hit riders | ✅ shipped v1.2.0, **awaiting dogfood.** A mark pays out with the attack that earned it. |
-| 2 — saves | ⬜ **next**, once riders have seen a table. |
+| 1.75 — hit riders | ✅ shipped v1.2.0 and dogfooded. A mark pays out with the attack that earned it. |
+| 2 — saves | ⬜ **next.** |
 | 2.5 — concentration | ⬜ has a queued user request (below). |
 | 3 — effect application | ⬜ two standing notes depend on it. |
 
@@ -33,9 +33,9 @@ manifest and zip are gone), so the process vends the real version string after a
 ignores every bonus, which made Shield inert on it. See the flat-AC ground truth; reverting the
 field restores the old behaviour, bug included.
 
-⚠ **Phase 1.75's three settings ship OFF and have never been on at the table.** `Hit Riders`,
-`Rider Table` (`hunters-mark, hex, great-old-one-hex`) and `Rider Upgrades`
-(`foe-slayer:hunters-mark`). They need an **F5** to appear in the sheet.
+**Phase 1.75's three settings:** `Hit Riders`, `Rider Table`
+(`hunters-mark, hex, great-old-one-hex`) and `Rider Upgrades` (`foe-slayer:hunters-mark`). They
+ship off and need an **F5** to appear in the sheet.
 
 **Live settings as left** — verify with a read before trusting this list; the suites restore
 whatever they find, so it drifts:
