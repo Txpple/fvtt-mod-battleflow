@@ -78,6 +78,10 @@ const S = {
   autoApply: "autoApply",
   requireTarget: "requireTarget",
   suppressAttackCards: "suppressAttackCards",
+  suppressWeaponCards: "suppressWeaponCards",
+  suppressSpellCards: "suppressSpellCards",
+  suppressFeatureCards: "suppressFeatureCards",
+  suppressOtherCards: "suppressOtherCards",
   centerRollDialogs: "centerRollDialogs",
   reactionHold: "reactionHold",
   interruptList: "interruptList",
@@ -134,8 +138,36 @@ Hooks.once("init", () => {
 
   game.settings.register(MODULE_ID, S.suppressAttackCards, {
     name: "Suppress Attack Usage Cards",
-    hint: "Skip the chat card with Attack/Damage buttons that posting an attack normally creates — under auto-resolution the workflow record is the attack roll, the damage roll, and the receipt. Turning this off restores the native cards immediately.",
+    hint: "Skip the chat card with Attack/Damage buttons that posting an attack normally creates — under auto-resolution the workflow record is the attack roll, the damage roll, and the receipt. The four switches below choose which sources it applies to; turning this off restores every native card immediately.",
     scope: "world", config: true, type: Boolean, default: false
+  });
+
+  // Per-source suppression (Phase 1.9D). The master above stays the one switch a table
+  // reaches for; these four choose WHICH attack cards it eats, bucketed by the item type
+  // behind the activity. They default to suppressed so a world that turned the old boolean
+  // on carries forward with identical behavior without anyone touching settings.
+  game.settings.register(MODULE_ID, S.suppressWeaponCards, {
+    name: "Suppress: Weapon Attacks",
+    hint: "Attack cards whose activity lives on a weapon — swords, bows, and most monster attacks.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
+  game.settings.register(MODULE_ID, S.suppressSpellCards, {
+    name: "Suppress: Attack-Roll Spells",
+    hint: "Attack cards whose activity lives on a spell (Ray of Frost, Guiding Bolt). A spell card carrying effects still survives while Effect Riders is off — the card is the only place those effects can be applied from — and a concentration cast keeps its card either way, because the effects' concentration linkage cannot be rebuilt without it.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
+  game.settings.register(MODULE_ID, S.suppressFeatureCards, {
+    name: "Suppress: Feature Attacks",
+    hint: "Attack cards whose activity lives on a feature — class features and statblock abilities modelled as features.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
+  game.settings.register(MODULE_ID, S.suppressOtherCards, {
+    name: "Suppress: Everything Else",
+    hint: "Attack cards from any other item type — consumables, tools, and the tail.",
+    scope: "world", config: true, type: Boolean, default: true
   });
 
   game.settings.register(MODULE_ID, S.centerRollDialogs, {
@@ -296,6 +328,7 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   const hold = input(S.reactionHold);
   const riders = input(S.riders);
   const mastery = input(S.masteryRiders);
+  const suppress = input(S.suppressAttackCards);
   const syncAll = () => {
     setEnabled(input(S.dramaticBeat), autoDamage?.value !== "off");
     for ( const key of [S.interruptList, S.blockList, S.holdReveal, S.holdTimer, S.holdSkipFutile,
@@ -304,12 +337,16 @@ Hooks.on("renderSettingsConfig", (app, element) => {
     for ( const key of [S.riderList, S.riderUpgrades] )
       setEnabled(input(key), !!riders?.checked);
     setEnabled(input(S.masteryAsk), !!mastery?.checked);
+    for ( const key of [S.suppressWeaponCards, S.suppressSpellCards, S.suppressFeatureCards,
+      S.suppressOtherCards] )
+      setEnabled(input(key), !!suppress?.checked);
   };
   syncAll();
   autoDamage?.addEventListener("change", syncAll);
   hold?.addEventListener("change", syncAll);
   riders?.addEventListener("change", syncAll);
   mastery?.addEventListener("change", syncAll);
+  suppress?.addEventListener("change", syncAll);
 });
 
 /* ---------------------------------------------------------------------------------------------
@@ -375,6 +412,9 @@ Hooks.on("dnd5e.preUseActivity", activity => {
 // dnd5e's own rollAttack gets no originatingMessage — the resolver's chain walk already
 // falls back to the attack message itself as the origin, so auto-damage and auto-apply are
 // unaffected. Consumption still happens; only its display card is skipped.
+//
+// Scope guard: attack-activity cards ONLY. Save-spell cards are load-bearing (targets click
+// their saves there) until Phase 2 rolls saves itself.
 Hooks.on("preCreateChatMessage", doc => {
   if ( !setting(S.suppressAttackCards) ) return;
   // ⚠ At 5.3.3 the usage card is a real message SUBTYPE (`type: "usage"`, registered in
@@ -385,11 +425,26 @@ Hooks.on("preCreateChatMessage", doc => {
   const isUsage = (doc.type === "usage") || (doc.getFlag("dnd5e", "messageType") === "usage");
   if ( !isUsage ) return;
   if ( doc.getFlag("dnd5e", "activity")?.type !== "attack" ) return;
-  // ⚠ Never suppress a card that carries effects. Attack-roll SPELLS are attack activities
-  // too, and their card is the only place their riders can be applied from — suppressing it
-  // silently ate Ray of Frost's slow (reported live 2026-08-15). Phase 3 will apply these
-  // automatically; until then the card must survive to be clicked.
-  if ( doc.system?.effects?.length ) return;
+
+  // Per-source (1.9D): bucket by the item type behind the activity, read straight off the
+  // card's own flags (messageFlags stamps `item: {type, id, uuid}` on every usage card,
+  // mixin.mjs:139). No async resolution, no registry walk.
+  const itemType = doc.getFlag("dnd5e", "item")?.type;
+  const bucket = (itemType === "weapon") ? S.suppressWeaponCards
+    : (itemType === "spell") ? S.suppressSpellCards
+    : (itemType === "feat") ? S.suppressFeatureCards
+    : S.suppressOtherCards;
+  if ( !setting(bucket) ) return;
+
+  // ⚠ A card carrying effects the riders will NOT handle must survive. With Effect Riders
+  // off the card is the only place its effects can be applied from — suppressing it silently
+  // ate Ray of Frost's slow (reported live 2026-08-15). With riders ON the card can go, the
+  // effects land anyway — EXCEPT a concentration cast: the rider applier resolves the
+  // concentration effect for origin linkage off the usage card (`system.concentration`,
+  // stamped into the message data before creation, mixin.mjs:248), and the suppressed-card
+  // fallback cannot rebuild that linkage — so those cards stay.
+  if ( doc.system?.effects?.length
+    && (!setting(S.effectRiders) || doc.system?.concentration) ) return;
   return false;
 });
 
@@ -2224,9 +2279,11 @@ async function applyEffectRiders(damageMessage, attackMessage, hits) {
     if ( !effects.length ) return;
 
     // The usage card carries the cast's metadata (concentration id, scaling, spell level).
-    // Under suppression there is no card and a base-level non-concentration cast is assumed
-    // — today the carve-out guarantees an effect-carrying card survives, so this fallback is
-    // 1.9D future-proofing rather than a live path.
+    // Under suppression there is no card and a base-level non-concentration cast is assumed.
+    // Since 1.9D this is a LIVE path: with Effect Riders on, a non-concentration attack
+    // spell's card is suppressible (Ray of Frost — the effects land right here instead).
+    // The carve-out keeps every card this fallback cannot stand in for: riders off, or a
+    // concentration cast, whose origin linkage only the card can supply.
     const usage = attackMessage.getOriginatingMessage?.();
     const usageCard = (usage instanceof ChatMessage) ? usage : null;
     const concentration = usageCard
