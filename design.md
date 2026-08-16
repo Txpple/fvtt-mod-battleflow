@@ -70,8 +70,15 @@ These are not aspirations; they are the rules the code is held to.
 
 4. **Every hold has a default outcome and a human who can preempt it — never a required
    answer.** Required answers are how a GM ends up managing a million resolves. Reaction holds
-   default to Pass (optionally on a timer); concentration prompts default to Roll. The GM
-   override and the player controls *preempt* defaults; nothing ever blocks forever.
+   default to Pass (optionally on a timer); concentration prompts default to Roll. The
+   player's controls *preempt* the default; nothing is ever a required answer.
+   > **Corrected 2026-08-16 (§10).** As originally written this promised a GM override on
+   > every hold. The user removed the GM's third button in v1.1.15 ("it seems like it should
+   > be a binary choice"): where a player owns the decision, the GM deliberately cannot
+   > answer it, and **the timer is the fallback**, not a button. At `holdTimer: 0` the table
+   > is explicitly choosing human-paced waits with no backstop — a present-but-frozen player
+   > can hold the chain until someone talks to them, which is a feature of a table, not a
+   > bug in a module. Set a timer if that ever stops being true.
 
 5. **Receipts and announcements.** Every automated application stamps what it did (prior values,
    deltas, created-effect ids) onto the causing message and offers a revert. Every invisible
@@ -158,14 +165,17 @@ row** (durable state; always present) with an optional **countdown timer**. Cust
 reaction hold (Phase 1.5), concentration assist (Phase 2.5), possibly death saves someday.
 
 Timer mechanics: the **continuing client** is the one authoritative clock (it paces its own
-default action — this is *not* a cross-client timeout); the deadline derives from the hold
-flag's server-assigned message timestamp so every client's display agrees; the countdown visual
-is a pure-CSS draining bar (`animation: width N s linear`, digits overlaid, green→amber→red
-keyframes) — zero JS ticking; a reload resumes the bar mid-drain via negative
-`animation-delay` computed from the same timestamp. At the buzzer the continuing client
-re-checks the log for an answer that already landed before firing; an answer that still slips
-past becomes a revert case. Never hijack core's scene-load progress bar or notification stack —
-the bar is drawn privately in the popup/card.
+default action — this is *not* a cross-client timeout); the deadline is absolute and lives on
+the flag, so every client's display derives the same remaining time. The countdown visual is
+built with **`element.animate()` set to an absolute `currentTime`, never a CSS animation** —
+zero JS ticking either way, but a CSS animation's clock starts only when its element begins
+being *rendered*, and a chat message is first inserted into a detached tree; measured live
+(2026-08-15), two bars declaring identical negative `animation-delay` drained seconds apart
+and stayed apart. *(Corrected per §10 — this paragraph originally specified the pure-CSS
+bar + negative-delay resume, which shipped, desynced, and was replaced.)* At the buzzer the
+continuing client re-checks the log for an answer that already landed before firing; an
+answer that still slips past becomes a revert case. Never hijack core's scene-load progress
+bar or notification stack — the bar is drawn privately in the popup/card.
 
 ⚠ DialogV2's `render` hook receives the APPLICATION, not an element (house ground truth from
 partystash).
@@ -320,6 +330,10 @@ rewind. So: a **hold point** between hit determination and the damage roll.
   mysterious (§2.5).
 - **GM override** (Resolve / Skip) on the GM client — the AFK fallback, and why no answer is
   ever *required*.
+  > **Superseded in v1.1.15 (§10, recorded 2026-08-16).** The Skip button shipped, ran the
+  > same code as Pass, and was removed at the user's call — one decision, two controls, the
+  > same two for everybody. The AFK fallback is the **hold timer**; the GM answers only for
+  > targets no player owns. See §2.4's matching correction.
 - **Re-resolution**: re-run the hit test against the target's **LIVE** AC (⚠ the stored target
   descriptor's AC is stale after Shield) — now a miss ⇒ post "Shield: 19 vs AC 20 — the attack
   misses," chain ends, damage never rolled; still a hit ⇒ damage proceeds. The verdict is
@@ -571,11 +585,11 @@ World, per-feature, default OFF unless noted:
 | Auto-apply damage | off / on | 1 |
 | Dramatic beat before damage | off / seconds | 1 |
 | Require a target to attack | off / on | 1.1 |
-| Suppress attack usage cards | off / on | 1.1 |
-| Center roll dialogs (per client) | off / on | 1.1 |
+| Suppress attack usage cards | off / on (master over the 1.9D per-source switches) | 1.1 |
+| Center roll dialogs (per client) | off / on — **ships ON**, the one recorded default-off exception (user call 2026-08-15: a per-client comfort nobody knows to look for starts wrong on every new login) | 1.1 |
 | Reaction hold | off / on + curated interrupt list (entries: name, AC-type/damage-type) | 1.5 |
 | Spells a reaction blocks | curated list (`Spell:Reaction`, default `Magic Missile:Shield`) | 1.5 |
-| Halving reactions | pause / post-hoc via revert+½ | 1.5 |
+| Halving reactions | pause / post-hoc via revert+½ — **not built**; damage-kind holds announce and leave the reduction manual | 1.5 |
 | Hold timer | off (wait) / N seconds | 1.5 |
 | Popup shows the math | off / on (verdict included) | 1.5 |
 | Hit riders | off / on | 1.75 |
@@ -603,8 +617,11 @@ Rider upgrades    foe-slayer:hunters-mark
 Per-client: table-moment view (popup+card / card-only); later: per-player save opt-out
 ("prompt me instead of auto-rolling").
 
-~12 world settings at full build — at combatplus's readable ceiling, so the settings-sheet
-**section dividers + dependent-field grey-out idiom ships from day one**, not retrofitted.
+The "~12 world settings at full build" this section first estimated is long blown: **23
+world + 2 client are registered at v1.3.1**, heading for ~30 by Phase 3. The settings-sheet
+**section dividers + dependent-field grey-out idiom** (shipped from day one, not
+retrofitted) is what keeps that readable — every new setting must join a divider group and
+the grey-out sync.
 
 ---
 
@@ -665,8 +682,22 @@ template** — the user softened the original "template" wording on 2026-08-15: 
 idiom, then do what is correct for Battle Flow):
 
 - Single ES module (`scripts/battleflow.js`), no build step, no bundler. If the file outgrows
-  readability, split by phase — but fight for the single file first.
-- `S` key-map + `setting()` getter; every hook's first line checks its feature toggle.
+  readability, split by phase — but fight for the single file first. **The trigger, so nobody
+  relitigates it** (2026-08-16 review): split when a phase can no longer be found by scrolling
+  the section banners — in practice somewhere past ~4,500 lines, likely when Phase 2.5 lands.
+  The shape when it happens: `battleflow.js` stays the only `esmodules` entry and imports
+  sibling files under `scripts/` (plain ES imports need no build step and no manifest change),
+  split along the existing section banners. Budget for the mechanics: `tools/build-release.ps1`
+  ships an explicit file list, and the deploy script enumerates files — both must learn the
+  new names, so the split is a release of its own, not a drive-by. The same review set the
+  stylesheet trigger: inline styles are the hot-deploy trade until the card/popup styling
+  grows again, at which point add the stylesheet and pay the one process bounce.
+- `S` key-map + `setting()` getter. **Entry-point hooks check their feature toggle first;
+  view and continuation hooks check for the presence of their flag instead** — an
+  already-stamped moment (a pending hold, an unexecuted ask) must still render and resolve
+  after a mid-session kill, or §2.9's kill switch strands live state. (Reworded 2026-08-16;
+  the old "every hook's first line checks its toggle" was never literally true of the views,
+  and correctly so.)
 - `isActiveGM()` single-writer elect for world-visible writes; self-tracked prior-state maps
   (never trust `Combat#previous`).
 - Settings-sheet dividers + dependent grey-out via `renderSettingsConfig` from day one.

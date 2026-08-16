@@ -144,6 +144,27 @@ whatever they find, so it drifts:
 9. **Graze deliberately reads the attack AS ROLLED** — a Shield later flipping a hit to a
    miss does not re-open Graze for that target. Nobody has asked; recorded so the corner is
    a decision rather than a surprise.
+10. **The 2026-08-16 architecture review** (v1.3.1) — an independent full-source pass plus
+   the primary's, merged. Verdict: the north star is being followed; the Shield/hold area is
+   NOT the feared one-off (the v1.1.13–16 hardening centralized every reaction question).
+   What it fixed: the `answerHoldsFor` tail window (whole-log now), a `continueHold`
+   re-entry race during the settle window (claim-first latch), answered-but-stranded holds
+   and asks after a driving-client reload (stateless resume checks in both render hooks),
+   answered targets being re-askable, `reactionSpent` clears gated behind the toggle, and
+   the dropped-rider warning promoted from console to a whispered card. What it threaded
+   for Phase 2: `applyDamagesWithReceipt` takes a `multiplier` (recorded on the entry when
+   not 1) so half-on-save extends the applier instead of forking it. What it deliberately
+   did NOT do: merge the two table-moment machines (the popup lifecycle is shared via
+   `openManagedPopup`; the timers stay twins until Phase 2.5 makes a third), or unify the
+   three effect appliers (Phase 3 is the convergence point, growing out of
+   `applyEffectRiders` — which also finally gives the reaction effect its missing
+   receipt/revert, the one §2.5 gap left standing).
+11. **Accepted corner — mixed-ownership answer race.** On a multi-target hold with a
+   player-owned and a GM-answered target, the GM's direct flag write and the continuing
+   client's response-message fold can clone-modify-write the `hold` flag concurrently;
+   Foundry replaces arrays wholesale, so the loser's answer drops and that target simply
+   asks again. Milliseconds wide, self-healing, and the fix (forcing ALL answers through
+   the response channel) would add a message per GM answer — not worth it until it bites.
 
 ## How to work on this
 
@@ -506,6 +527,20 @@ Everything downstream is shared, and the four places that need a d20 branch on t
 Holds already in the log carry no `trigger` at all, which is exactly why the branches cannot
 reach the shipped attack path. **If you add a third trigger, add it as a stamp function and a
 `trigger` value, not as a second machine.**
+
+**The flag inventory** — every piece of persisted module state, in one place:
+
+| Where | Flag | What |
+| --- | --- | --- |
+| attack message | `hold` | the reaction hold: status, trigger, deadline, per-target answers/verdicts (array, uuid fields) |
+| attack message | `mastery` | the Use/Pass ask: status, key, answer, deadline, targets |
+| attack message | `receipt` | Graze only — the miss's damage receipt lands here (no damage message exists) |
+| damage message | `receipt` | per-target prior HP/deltas/taken/traits/multiplier + reverted markers |
+| damage message | `effectReceipt` | applied effects per target (+ `ridersDone`, the rider stage's own idempotence marker) |
+| response message | `respondsTo`, `uuid`, `answer`, `ac`, `effectLanded` | a player's answer traveling to the continuing client |
+| bfCard message | `topple` | per-target prone-button `done` markers |
+| actor | `reactionSpent` | the click-volume guard, cleared on turn/combat-end (clears are NOT toggle-gated) |
+| applied effect | `reactionEffect` / `mastery` | which module path created it |
 
 The load-bearing idea, worth re-reading in design.md §4 before changing anything: **the chat
 log is the state and the bus.** No sockets, no in-memory workflow object. State lives in flags
