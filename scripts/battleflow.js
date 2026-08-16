@@ -17,10 +17,12 @@
  *     remains the manual path for corrections and edge calls — but it collapses on the
  *     applied card exactly as if Apply had been pressed (same setting guard), so an already-
  *     applied roll is never one accidental click away from landing twice.
- *   - Receipts + revert: every application stamps what it did (per-target prior HP snapshot
- *     and deltas) into a flag on the damage message, and the card grows a GM-only receipt
- *     row with a per-target ↩ revert that restores the snapshot. Idempotent and
- *     reload-proof: the flag is the state, the row is just a view of it.
+ *   - Receipts + revert: every application stamps what it did (per-target prior HP snapshot,
+ *     deltas, and WHY the number moved — immune/resists/vulnerable/threshold, read from the
+ *     system's own calculateDamage annotations) into a flag on the damage message. The card
+ *     grows a receipt row everyone can read — who took what, and the reason when traits
+ *     changed the number — while HP pools and the per-target ↩ revert stay GM-only.
+ *     Idempotent and reload-proof: the flag is the state, the row is just a view of it.
  *   - The reaction hold (Phase 1.5): when an attack hits someone holding a curated interrupt
  *     reaction, the chain pauses instead of resolving — popup for whoever owns the decision,
  *     durable row on the attack card, GM override, and a re-test against the target's LIVE
@@ -2085,6 +2087,31 @@ async function applyToHitTargets(damageMessage, hits) {
       if ( !(actor instanceof Actor) || !actor.system.attributes?.hp ) continue;
       const src = actor.system._source.attributes.hp;
       const prior = { value: src.value, temp: src.temp, tempmax: src.tempmax };
+
+      // Ask the system's math WHY before letting it apply: calculateDamage is public and
+      // side-effect-free (it deep-clones the array), and it annotates each entry's `active`
+      // with the multiplier/threshold story applyDamage then acts on (actor.mjs:833-891).
+      // The receipt keeps that story so the card can explain a rolled 9 that lands as a 0 —
+      // reported live 2026-08-15: a cold-immune Ice Mephit "taking" Ray of Frost's 9 with
+      // nothing on the card saying why. Recomputing di/dr/dv by hand here would drift from
+      // bypasses/modification/threshold; asking the same method twice cannot. (The extra
+      // pass fires the calculate-damage hooks one more read-only time; nothing in this
+      // module or combatplus listens to them.)
+      const calc = actor.calculateDamage(damages, { multiplier: 1, originatingMessage: damageMessage });
+      const traits = [];
+      for ( const d of (calc || []) ) {
+        const a = d.active ?? {};
+        const outcome = a.threshold ? "threshold"
+          : (a.multiplier === 0) ? "immune"
+          : (a.multiplier === 0.5) ? "resistant"
+          : (a.multiplier === 2) ? "vulnerable"
+          : (a.all?.modification || a.type?.modification) ? "modified"
+          : null; // resist+vuln cancel to ×1 and stay silent — the number didn't move
+        if ( outcome && !traits.some(t => (t.type === d.type) && (t.outcome === outcome)) ) {
+          traits.push({ type: d.type, outcome });
+        }
+      }
+
       await actor.applyDamage(damages, {
         multiplier: 1, isDelta: true, originatingMessage: damageMessage, origin: damageMessage
       });
@@ -2097,6 +2124,11 @@ async function applyToHitTargets(damageMessage, hits) {
           value: (after.value ?? 0) - (prior.value ?? 0),
           temp: (after.temp ?? 0) - (prior.temp ?? 0)
         },
+        // What the traits made of it: `taken` is the post-trait, pre-clamp total (a number
+        // an assertion can trust at 0 HP, where the delta clamps to nothing), `traits` is
+        // the reason list the row renders.
+        taken: calc ? calc.amount : null,
+        traits,
         reverted: false
       });
     }
@@ -2107,8 +2139,23 @@ async function applyToHitTargets(damageMessage, hits) {
 }
 
 /* ---------------------------------------------------------------------------------------------
- * Receipts — the GM-only revert row on damage cards. The flag is the state; this is a view.
+ * Receipts — the revert row on damage cards. Public facts, GM-only pools and controls.
+ * The flag is the state; this is a view.
  * ------------------------------------------------------------------------------------------- */
+
+/** One receipt reason in table English. Type labels come from the system's config. */
+function traitPhrase({ type, outcome }) {
+  const label = (CONFIG.DND5E.damageTypes[type]?.label ?? CONFIG.DND5E.healingTypes?.[type]?.label
+    ?? type ?? "damage").toLowerCase();
+  switch ( outcome ) {
+    case "immune": return `immune to ${label}`;
+    case "resistant": return `resists ${label}`;
+    case "vulnerable": return `vulnerable to ${label}`;
+    case "threshold": return "under its damage threshold";
+    case "modified": return `${label} modified by a trait`;
+    default: return "";
+  }
+}
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const receipt = message.getFlag(MODULE_ID, "receipt");
@@ -2156,6 +2203,16 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     Object.assign(name.style, { flex: "1", fontWeight: "bold" });
     if ( t.reverted ) name.style.textDecoration = "line-through";
 
+    // The WHY, public on purpose: "immune to cold" is the whole story of a rolled 9 that
+    // lands as a 0, and the table just watched it land — a bare −0 HP reads as a bug
+    // (reported live 2026-08-15). The reason is a fact, not a number; pools stay GM-only.
+    let why = null;
+    if ( t.traits?.length && !t.reverted ) {
+      why = document.createElement("span");
+      why.textContent = t.traits.map(traitPhrase).filter(Boolean).join(", ");
+      Object.assign(why.style, { flex: "0 1 auto", fontStyle: "italic", opacity: "0.8" });
+    }
+
     const lost = -((t.delta.value ?? 0) + (t.delta.temp ?? 0));
     const from = (t.prior.value ?? 0) + (t.prior.temp ?? 0);
     const detail = document.createElement("span");
@@ -2168,7 +2225,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       detail.textContent = isGM ? `−${lost} HP (${from} → ${from - lost})` : `−${lost} HP`;
     }
 
-    line.append(icon, name, detail);
+    line.append(icon, name, ...(why ? [why] : []), detail);
 
     if ( isGM && !t.reverted ) {
       const button = document.createElement("button");
