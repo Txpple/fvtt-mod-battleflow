@@ -274,6 +274,19 @@ const r = await f.evaluate(async () => {
       });
       await actor.unsetFlag(MOD, 'reactionSpent');
       for (const e of actor.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
+      // ⚠ A clean slate includes the CHAT. The windowed search loops above leave stray
+      // PENDING holds on this stand-in (only the in-window attempt gets answered), and one
+      // real cast answers EVERY pending hold for its target — whole-log by design since
+      // v1.3.1, asserted as a feature in 4b2. So a later section's cast resolved the strays
+      // too, their continuations re-tested, still hit, and auto-applied REAL damage mid-
+      // section: the negate case read hpBefore 18/26 from exactly this (2026-08-16, twice,
+      // variable amounts — a probe of the isolated section showed no loss and named the
+      // bleed). Deleting the stray messages kills their holds outright.
+      const strays = game.messages.filter(m => {
+        const h = m.getFlag(MOD, 'hold');
+        return (h?.status === 'pending') && h.targets?.some(t => (t.uuid === actor.uuid) && !t.answer);
+      });
+      if (strays.length) await ChatMessage.deleteDocuments(strays.map(m => m.id));
       const token = canvas.tokens.get(doc.id);
       const sh = actor.items.find(i => i.name === 'Shield' && i.type === 'spell');
       if (!sh?.system.activities?.contents?.length) throw new Error('stand-in has no usable Shield');
