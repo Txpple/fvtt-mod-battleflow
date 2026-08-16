@@ -5,10 +5,10 @@
 > *where things stand* and *what already bit us*. Delete or rewrite it freely; it is a
 > snapshot, not a contract.
 >
-> **Two things want a human, in this order.** (1) Magic Missile shipped minutes ago and has
-> **zero table miles** — the suite proves it, nobody has played it. (2) Open item 1 is the last
-> seam of the reaction hold with no test behind it, and no test *can* reach it from here: it
-> needs a real player's browser.
+> **Phase 1.5 is done and dogfooded — start on Phase 2 (saves)** unless the user redirects.
+> The reaction hold has no tracked open items left; what remains against it is one small
+> question that is probably not even ours (GWF, below) and the standing notes, which are design
+> constraints rather than to-dos.
 
 ## Where things stand
 
@@ -22,8 +22,8 @@ manifest and zip are gone), so the process vends the real version string after a
 | 0 — native settings | **The user's to do**, at the table. Not code. |
 | 1 — attack resolver | ✅ shipped. Auto-roll damage on hit, auto-apply via GM elect, receipts + revert. |
 | 1.1 — dogfood polish | ✅ shipped. Tray auto-collapse, require-target gate, usage-card suppression, centered roll dialogs. |
-| 1.5 — reaction hold | ✅ **feature-complete at v1.1.16** — both triggers now exist: an attack hit, and a listed spell. PC side (Gren + Shield) has real table miles; the **monster side only started working at v1.1.12**; the **spell side has none at all yet**. |
-| 2 — saves | ⬜ next, unless the user redirects. |
+| 1.5 — reaction hold | ✅ **feature-complete at v1.1.16** and dogfooded — both triggers exist: an attack hit, and a listed spell. Magic Missile and the player-client seam were both played at the table 2026-08-15 with nothing reported; Magic Missile stays in normal dogfood rotation rather than on a list. |
+| 2 — saves | ⬜ **next.** Unless the user redirects. |
 | 2.5 — concentration | ⬜ has a queued user request (below). |
 | 3 — effect application | ⬜ two open items depend on it. |
 
@@ -54,24 +54,7 @@ whatever they find, so it drifts:
 
 ### Next up, in order
 
-1. ⚠ **The one seam no bridge-driven test can reach: a real player's client.** Everything else
-   about the reaction hold now has coverage. What does not, and cannot from here, is *being* a
-   player. The harness authenticates as a GM, so on a PC attack a GM rolls and therefore a GM
-   continues the hold — and `continueHold`'s effect safety net is `actor.isOwner`-gated, which
-   is trivially true for a GM and a **no-op for a player against a monster it does not own**. So
-   on a genuine player attack the monster's Shield rests entirely on the answering GM's
-   `applyReactionEffect`. **Dogfood it:** have a player attack a Shield-carrying monster from
-   their own browser and watch whether the +5 lands before the verdict. `smoke-hold` §4d5 covers
-   everything else about that path (mode gate, stamp, answer, verdict) with a character-type
-   attacker.
-
-2. **Magic Missile has never been played.** The suite drives it end to end (§6) and both
-   directions pass, but every assertion was made by one GM client talking to itself. What the
-   harness cannot show: what the popup *feels* like mid-combat, whether the announcement reads
-   right on a busy log, and — the real question — whether a GM remembers to answer the hold
-   before pressing Apply. See standing item 3 for why that ordering is the accepted gap.
-
-3. **GWF: a 1 became a 3 on a normal hit but not on a crit** (observed on Morgash,
+1. **GWF: a 1 became a 3 on a normal hit but not on a crit** (observed on Morgash,
    2026-08-15). **Probably not ours, and probably not core either.** dnd5e 5.3.3 contains *no
    implementation of Great Weapon Fighting* — `grep -rn -i "greatWeapon" module/` finds only
    the feature-category label at `config.mjs:1814`. So the 1→3 comes from world data (an
@@ -156,8 +139,25 @@ failure. A bounce is `register-module.mjs --id … --manifest …`; enabling is
 **Release** (the house pattern, three commits then a tag on the middle one):
 `test:` the harness → `fix:`/`feat:` the code + `module.json` bump *(tag this one)* → `docs:`
 the handoff. Release title `vX.Y.Z — short phrase`; assets are `fvtt-mod-battleflow.zip`
-(containing `scripts/`, `module.json`, `LICENSE`, `README.md`) **and** a bare `module.json`.
-Commit bodies in this repo are **ASCII** — the log shows non-ASCII punctuation getting mangled.
+**and** a bare `module.json`. Commit bodies in this repo are **ASCII** — the log shows
+non-ASCII punctuation getting mangled.
+
+⚠ **Build the zip with the script, never with `Compress-Archive`:**
+
+```bash
+powershell -ExecutionPolicy Bypass -File tools/build-release.ps1
+```
+
+It writes `dist/fvtt-mod-battleflow.zip` (gitignored) with exactly `scripts/`, `module.json`,
+`LICENSE`, `README.md`, and then reads the archive back and **fails** if any entry name contains
+a backslash. That check is the whole point. `Compress-Archive` on Windows PowerShell 5.1 writes
+`scripts\battleflow.js` with a backslash, which is not what the ZIP spec says and not what
+Node-based extractors do with it — they treat it as one literal filename and drop the file at
+the archive root, so `esmodules: ["scripts/battleflow.js"]` resolves to nothing and the module
+installs as an empty shell. **Every release from v1.1.0 to v1.1.15 shipped that way.** It never
+bit because the live box is hot-deployed over WebDAV rather than installed from the zip, but a
+clean install from any of those tags would have. v1.1.16 onward is correct; the old assets were
+left alone, so re-cut one only if someone ever needs to install it.
 
 **Test** — both suites restore every setting they touch and delete their own chat messages:
 
