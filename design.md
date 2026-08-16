@@ -494,6 +494,13 @@ v1.3.0 (2026-08-16).
 
 ### Phase 2 — saves
 
+> **The machine already exists (2026-08-16, user architectural call).** Phase 2.5 shipped
+> first and is deliberately the seed: the mode gate (prompt / auto), the ask-message +
+> respondsTo-fold answer channel, first-active-owner election with the GM elect as fallback,
+> the elect-owned buzzer whose expiry ROLLS, and the popup carrying the native roll dialog's
+> own controls (situational bonus, Advantage/Normal/Disadvantage, default hinted from actor
+> data). Saving throws generalize that pattern per target — they do not invent a new one.
+
 - **Everyone auto-rolls** (target state): each player's client auto-rolls for save-activity
   targets it owns (the usage card replicates everywhere — same volunteer pattern; first-active-
   owner election prevents double rolls); the active-GM elect batch-rolls NPC targets and covers
@@ -516,23 +523,68 @@ v1.3.0 (2026-08-16).
 
 ### Phase 2.5 — concentration assist
 
-Native 5.3.3 already computes the DC (10 or half damage), whisper-prompts on HP loss, and rolls
-with success/failure marked. Two real gaps: **(a)** the prompt is a whisper card that drowns in
-combat chat; **(b)** **a failed save does not break concentration** (verified in source) — the
-forgotten click that silently corrupts game state.
+Native 5.3.3 already computes the DC (10 or half damage, clamped to 30 under modern rules —
+`getConcentrationDC`), whisper-prompts on HP loss, and rolls with success/failure marked. Two
+real gaps: **(a)** the prompt is a whisper card that drowns in combat chat; **(b)** **a failed
+save does not break concentration** (verified in source) — the forgotten click that silently
+corrupts game state.
 
-- Reuse the §4.3 table-moment shell on the concentrating owner's client:
-  *"You took 12 while concentrating on Bless — DC 10!"*
-- **Mode** (world): prompt (popup with Roll button) / auto (save just rolls; popup announces
-  the result). In prompt mode the timer's default action is **Roll**, not Pass — concentration
-  saves are mandatory; every hold has a default outcome, and this one's default is the dice.
-- **Break on failure** (~a dozen lines): on a failed concentration roll, call the native
-  end-concentration path — the dependent-effect cascade (Bless stripping from every blessed
+> **Rewritten 2026-08-16 (§10), pulled ahead of Phase 2 at the user's call** — concentration
+> fires every fight and the table plays Tuesday; the full save suite follows. As first written
+> this section had auto mode's "popup announce the result" and failure produce a "loud
+> popup/banner". That predates the UI language the table settled in 1.9 (binding since):
+> **popups ask questions, cards state facts.** A popup with nothing to decide is the Skip
+> button again. Announcements are cards — loud by tone and wording, not chrome.
+
+- **The moment has no decision in it — but the roll has a configuration.** A concentration
+  save is mandatory; RAW offers no decline. What the popup offers is *dice agency* — the save
+  that might drop the party's Bless belongs in its owner's hand — so its controls are the
+  native roll dialog's own, not a bare confirm (user call, 2026-08-16: "since it's so
+  important to players"): a **situational bonus** field (Bardic Inspiration, whatever the
+  table rules) and the **Advantage / Normal / Disadvantage** buttons, in the system dialog's
+  design language, with the default button hinted from actor data exactly as the native
+  dialog hints it (War Caster pre-selects Advantage). Every button is still the same answer —
+  roll — so the two-control rule (which governs *decisions*) is not in play. Dismissing the
+  popup is not an answer; the card recalls it, and the buzzer rolls regardless — a **straight
+  data-driven roll** (`configure: false`): sheet-borne modifiers like War Caster's advantage
+  still apply themselves; only the ad-hoc inputs expire with the timer.
+- **One machine, mode picks who presses** (world): `prompt` — popup on the concentrating
+  owner's client, *"Morgash's Greatsword hit you for 12 while you're concentrating on Bless —
+  DC 10 Constitution save"*, on its own timer (default **15s**; 0 waits); `auto` — no popup,
+  the save rolls itself. In BOTH modes the roll runs on the **owning player's client** when one
+  is active (their character, their dice — §4.1), the GM elect for NPCs and offline owners.
+- **The chat log is the bus, as always**: the GM elect stamps an **ask message** (`bfCard` +
+  flag) off `dnd5e.damageActor` under the native prompt's exact guard — so ALL damage
+  qualifies, module-applied or not. The roll answers it (`rollConcentration` with the DC as
+  `target`, `configure: false` — the system's own success test, so the save card and the
+  verdict cannot disagree); the elect folds the result and acts. A save rolled from the sheet
+  instead of the popup is detected identically — the roll is the answer, the button is
+  convenience, exactly the hold's cast-is-the-answer rule.
+- **Break on failure** (sub-setting, default ON — it is the point of the phase): the native
+  end-concentration path; the dependent-effect cascade (Bless stripping from every blessed
   target across the table) is native and free.
-- **Announce by stakes**: quiet "Bless holds" on success; loud popup/banner
-  "**CONCENTRATION BROKEN — Bless ends**" + log line on failure.
-- NPC casters get the identical treatment GM-side. Multiple damage instances = multiple saves
-  (RAW-correct), queued popups.
+- **Zero HP is not a save.** Damage that drops the concentrator to 0 ends concentration
+  outright (unconscious ⇒ incapacitated ⇒ no concentration — a determined outcome, §2.1), and
+  the system does NOT do this natively (verified: nothing links HP or statuses to
+  `endConcentration`). No ask, straight to the break announcement.
+- **Announce by stakes**: quiet good-tone card "Bless holds" on success; loud bad-tone card
+  "**Concentration broken — Bless ends**" on failure. **The break card is always public** —
+  the cascade strips icons across the whole table, and an icon vanishing must never be a
+  mystery (§2.5). Success respects visibility, below.
+- **Visibility** (world, user request 2026-08-15): who sees the check — `public` (default:
+  the ask and the roll play out in the open; table tension when a party-wide buff is at
+  stake) or `private` (whispered to the concentrator's owners + GM).
+- The native whisper-prompt card is suppressed while the mode is on — a stale roll button
+  under an automated flow is the attack-card spam again — and only while an active GM exists
+  to stamp asks, so a GM-less table degrades to native behavior, not to silence.
+- NPC casters get the identical treatment GM-side (the prompt doubles as "your Hag is
+  concentrating", the monster-side hold's reminder value). Multiple damage instances =
+  multiple saves (RAW-correct), asks queued oldest-first — one popup at a time per actor.
+- **Known corner, accepted**: legendary resistance flips a save to success as an UPDATE after
+  the failure landed, and the break has already cascaded by then. Phase 2 owns
+  `forceSuccess` aggregation; until then LR on a concentration save means the GM re-applies
+  the concentration effect by hand (or runs break-on-failure off). NPC concentration + LR +
+  failed save is rare enough to wait.
 
 ### Phase 3 — effect application
 
@@ -600,7 +652,10 @@ World, per-feature, default OFF unless noted:
 | Mastery: ask first | ask / auto (Vex and Sap never ask — the rules make them automatic) | 1.9 |
 | Per-source suppression | weapon / spell / feature / other, each on under the 1.1 master | 1.9 |
 | Saves | prompt everyone / auto NPCs / auto everyone | 2 |
-| Concentration | prompt / auto; break-on-failure on/off | 2.5 |
+| Concentration | off / prompt / auto | 2.5 |
+| Concentration timer | seconds, default 15; 0 waits; expiry ROLLS (prompt mode's buzzer) | 2.5 |
+| Concentration breaks on failure | on (default) / off — off = announce only | 2.5 |
+| Concentration visibility | public (default) / private (concentrator + GM); the break card is always public | 2.5 |
 | Effect auto-application | off / on | 3 |
 | Expiry sweep | off / on (only if core proves insufficient) | 4 |
 

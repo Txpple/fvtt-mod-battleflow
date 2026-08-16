@@ -1,19 +1,21 @@
 # HANDOFF.md — picking this up cold
 
-> Current at 2026-08-16, the day Phase 1.9 shipped as **v1.3.0**. Read
-> [design.md](design.md) first — it is binding and wins every disagreement. This file is only
-> *where things stand* and *what already bit us*. Delete or rewrite it freely; it is a
-> snapshot, not a contract.
+> Current at 2026-08-16, the evening **Phase 2.5 (concentration) was built and
+> suite-proven** — pulled ahead of Phase 2 at the user's call (the table plays Tuesday;
+> concentration fires every fight). Read [design.md](design.md) first — it is binding and
+> wins every disagreement. This file is only *where things stand* and *what already bit us*.
+> Delete or rewrite it freely; it is a snapshot, not a contract.
 >
-> **Phase 1.9 (effect riders, mastery riders, the Use/Pass ask, per-source card
-> suppression) is complete at v1.3.0** — built to PLAN.md (now deleted; its decided calls
-> live in design.md's Phase 1.9 section), verified by the new `tools/smoke-effects.mjs`
-> suite plus full re-runs of the other three, and deployed with **every new setting
-> defaulting OFF** (table-safe, dark; the four per-source suppression switches default ON
-> but sit behind the master that defaults OFF). Nothing is tracked open against the hold,
-> the riders, or the masteries. **Phase 2 (saves) is next**; Topple's manual-save card is
-> the seam it upgrades in place. The standing notes below are design constraints rather
-> than to-dos.
+> **Phase 2.5 is code-complete and green** (`tools/smoke-concentration.mjs`, 46/46, plus a
+> full battery re-run of the other four) and hot-deployed to prod; **v1.4.0 is cut/offered
+> per the release log**. Every new setting defaults OFF except the sub-settings behind the
+> dark master (timer 15s, break ON, public ON — inert until `concMode` leaves "off").
+> **Phase 2 (saves) is next**, and the user's architectural call is recorded in design.md:
+> the 2.5 machine (mode gate, ask + respondsTo fold, owner election, buzzer-that-rolls, the
+> popup carrying the native roll dialog's controls) IS the pattern saves generalize —
+> Topple's manual-save card is still the seam Phase 2 upgrades in place. Phase 1.9 shipped
+> earlier the same day as v1.3.0/v1.3.1; nothing is tracked open against the hold, the
+> riders, or the masteries.
 
 ## Where things stand
 
@@ -33,8 +35,8 @@ process vends the real version string after a restart.
 | 1.5 — reaction hold | ✅ **feature-complete at v1.1.16** and dogfooded — both triggers exist: an attack hit, and a listed spell. Magic Missile stays in normal dogfood rotation rather than on a list. |
 | 1.75 — hit riders | ✅ shipped v1.2.0 and dogfooded. A mark pays out with the attack that earned it. |
 | 1.9 — effect + mastery riders | ✅ **shipped v1.3.0** (2026-08-16), suite-verified end to end. Not yet dogfooded — every switch is OFF at the table until the user walks the ladder. |
-| 2 — saves | ⬜ NEXT. Topple's manual-save card is waiting to be upgraded in place. |
-| 2.5 — concentration | ⬜ has a queued user request (below). |
+| 2 — saves | ⬜ NEXT. Generalizes the 2.5 machine per target (design.md Phase 2 note); Topple's manual-save card is waiting to be upgraded in place. |
+| 2.5 — concentration | ✅ **built + suite-proven 2026-08-16** (out of order, user call). OFF at the table until walked. |
 | 3 — effect application | ⬜ 1.9A covers the attack-activity slice; the save-activity slice waits on Phase 2. |
 
 ⚠ **World data changed 2026-08-15:** the Skeletal Mage's `system.attributes.ac.calc` went
@@ -66,17 +68,23 @@ whatever they find, so it drifts:
 | Weapon Mastery Riders | **off** | new in v1.3.0 — Vex/Sap auto, the rest ask |
 | Mastery: Ask First | `ask` | `auto` is the tedium escape hatch |
 | Suppress: Weapon / Spell / Feature / Other | **all on** | new in v1.3.0 — inert until the master above them is on; defaults preserve the old boolean's behavior exactly |
+| Concentration Checks | **off** | new in v1.4.0 — `prompt` / `auto`; the recommendation for Tuesday is prompt |
+| Concentration Timer | 15s | expiry ROLLS (data-driven, straight); 0 waits indefinitely |
+| Failure Breaks Concentration | **on** | inert until the mode is on — the forgotten click the phase exists to press |
+| Concentration Checks Are Public | **on** | off = whispered to owners + GM; the break card is ALWAYS public |
 
 ## Open items
 
 ### To do first (user call, 2026-08-16): the second Molten box
 
-The user is provisioning a **second Molten instance as a dedicated test box** (Molten
-allows two; a second world on the SAME box would not do — one Foundry process serves one
-world, so only a second server tests while the table plays). Chosen over a local mirror
-deliberately: it keeps real internet latency, which is where this module's bug class
-(settle windows, replication races, derived-data beats) actually lives, and the speed gain
-of local was measured small (suite time is deliberate waits, not network).
+The user is provisioning a **second Molten instance as a dedicated test box**. ⚠ **Molten
+allows two servers but only ONE can be active at a time** (user, 2026-08-16) — so this is a
+**take-turns box, not a parallel one**: no suite runs on test while the table plays on prod,
+and the protocol below must include switching which server is up (activate test → iterate +
+battery → deactivate → activate prod → deploy + one prod battery → release). Chosen over a
+local mirror deliberately: it keeps real internet latency, which is where this module's bug
+class (settle windows, replication races, derived-data beats) actually lives, and the speed
+gain of local was measured small (suite time is deliberate waits, not network).
 
 When the box exists, the user supplies its panel values in a new
 `../fvtt-mcp-molten5e/.env.test` (same key names as `.env`: server URL, magic URL, WebDAV
@@ -162,9 +170,31 @@ Assistant) wants a box it can hammer.
    (`system.concentration`, stamped into the message data before creation, mixin.mjs:248),
    whose origin linkage the suppressed-card fallback cannot rebuild. With riders on, an
    ordinary effect-carrying card is suppressed and the effects land anyway.
-7. **Phase 2.5 concentration visibility** (user request, 2026-08-15): a world setting for who
-   sees the concentration check — everyone, or just the concentrator + DM. Public is the
-   interesting default for table tension when a party-wide buff like Bless is at stake.
+7. **Phase 2.5 shipped shape, and its accepted corners** (built 2026-08-16; the 2026-08-15
+   visibility request is absorbed — `concVisibility`, public default, break card always
+   public). The flow: `dnd5e.damageActor` under the native prompt's exact guard → the elect
+   stamps an ASK message → the first active non-GM owner's client rolls (GM elect for NPCs /
+   offline / the buzzer) → the roll message answers via `respondsTo` → the elect folds and,
+   on failure, `endConcentration` (native cascade). Zero HP = no save, straight break — the
+   system does NOT do this natively. The popup carries the NATIVE roll dialog's controls
+   (situational bonus + Advantage/Normal/Disadvantage, default hinted from
+   `concentration.roll.mode` — user call: a save this important gets the full surface); the
+   buzzer and auto mode roll straight and data-driven (War Caster still applies itself).
+   Corners, all deliberate:
+   - **Legendary resistance arrives too late.** LR flips a save via a message UPDATE after
+     the failure landed; the break has already cascaded. Phase 2 owns `forceSuccess`
+     aggregation; until then LR on a concentration save means the GM re-applies the
+     concentration effect by hand (or runs break-on-failure off).
+   - **A sheet-rolled save's card marks success against DC 10**, not the ask's DC
+     (`rollConcentration` defaults `target: 10`; the module's own rolls pass the real DC).
+     The fold judges by the ask's DC either way, so the verdict is right and only the
+     sheet-roll card's green/red can disagree with it. Popup-path rolls always agree.
+   - **`options.dnd5e.concentrationCheck === false` is invisible at `damageActor`** (no
+     options in the hook signature), so a module opting out of the NATIVE prompt still gets
+     ours. No system code sets it; accepted.
+   - **A GM hand-lowering HP triggers the check** — onUpdateHP cannot tell a sheet edit
+     from damage, and RAW-wise it usually is damage. Asserted as a feature
+     (smoke-concentration §13).
 8. **Vex/Sap enforcement is deliberately not built** (the 1.9 fence, user call): the chip is
    the reminder, the roll dialog is the enforcement surface, and nothing modifies a d20.
    The chips carry `duration rounds: 1` in combat as an approximation of the RAW windows —
@@ -254,6 +284,17 @@ node tools/smoke-riders.mjs
 node tools/smoke-effects.mjs
 ```
 
+```bash
+node tools/smoke-concentration.mjs
+```
+
+⚠ **Run suites ONE AT A TIME, not chained in a single command.** A four-suite battery run
+back-to-back in one shell command produced exactly one polluted assertion (smoke-effects 13e
+read a usage-card count delta of **−20** — some twenty messages vanished between its before
+and after counts; green in isolation, twice). Mechanism unconfirmed — the shape says a prior
+suite's teardown sweep landing late — but the class is harness topology, like the
+double-elect below: the fix is protocol, not code.
+
 ⚠ **Disconnect the MCP bridge before any suite run** (the `disconnect-bridge` MCP tool; it
 reconnects itself on the next tool call). A lingering bridge page and the suite's own login
 are the SAME Foundry user, and two pages on one GM user make BOTH clients the
@@ -268,6 +309,9 @@ announcement count so a double-elect now fails loudly at the source.
 `tools/probe-effects.mjs` is the instrumented one-shot that untangled the above — it dumps
 receipt/effect/message state around a vex attack, a push, and a double Guiding Bolt cast.
 Cheap to re-run; extend it rather than adding printf debugging to a suite.
+`tools/probe-missile-hp.mjs` is its sibling for the hold: it replays smoke-hold 6a with a
+ledger of every message, damage event and HP write — the tool that proved the stand-in's
+mystery damage came from the suite's own stray holds, not the module (below).
 
 `tools/scan-reactions.mjs` regenerates the [REACTIONS.md](REACTIONS.md) survey after content
 changes; `tools/scan-riders.mjs` does the same job for damage riders, finding them by the
@@ -289,6 +333,33 @@ control set and the announcement wording), **4d4** at-will, **4d5** a PC attacke
 **4d6** a flat AC, **4e** the timer, **4f** hopeless holds, **5** the crit skip,
 **6** Magic Missile — the negate hold, the real block, the Pass control case, and a target who
 only *wears* a shield.
+
+`smoke-concentration`'s sections: **1–3** auto mode + the DC math (floor 10, half-damage,
+the modern 30 cap, temp-HP triggering), **4** deterministic failure → break + the native
+dependent cascade + the public card, **5** prompt mode (the popup, the native-dialog control
+set, the click, the situational-bonus/advantage plumbing), **6** the buzzer rolls (straight,
+data-driven), **7** two instances queue popups, **8** a sheet roll is the answer, **9** the
+native whisper card suppressed/restored, **10** private visibility (and the always-public
+break), **11** break-off announces only, **12** the cause through a real attack chain,
+**13** a sheet edit is damage too, then zero HP breaks with no save. Outcomes are FORCED —
+success by `+30` con save bonus, failure by DC 30 (70 temp-buffered damage) against a mortal
+modifier — a suite that can lose a coin flip lies once a week.
+
+⚠ **Find "new" messages by ID-SET DIFFERENCE, never by timestamp.** Message timestamps come
+from the server's clock, the suite's `Date.now()` from the client's, and a ~2–3s skew made
+every `timestamp >= t0` search read straight past freshly created asks — the machinery all
+worked while every flag assertion returned undefined (this suite's first run, 2026-08-16).
+Snapshot the ids before the action; diff after. No clock can lie to a set. And **wait for
+announcement cards** — they post AFTER the flag flips done, so a same-breath content search
+races the fold it just observed.
+
+⚠ **The shielder's stray pending holds detonate under a later cast.** smoke-hold's windowed
+search loops leave unanswered pending holds on the stand-in, one real cast answers EVERY
+pending hold for its target (whole-log by design since v1.3.1 — asserted as a feature in
+4b2), and the strays' continuations then re-test, still hit, and auto-apply real damage
+mid-section — the negate case read hpBefore 18/26 twice on 2026-08-16 from exactly this.
+`ensureShielder` now deletes stray pending holds as part of its clean slate; the probe
+above is how it was cornered.
 
 `smoke-riders` is eight flat assertions; **5** is the load-bearing one (*another creature's mark
 pays this attacker nothing*), because a suite that only checks "is there a mark" passes the rest
@@ -465,6 +536,35 @@ Most of these are commented at the line where it bit. Do not rediscover them.
   `consumption.spellSlot: false` casts with no slot at all. That is how §6 gives an NPC with no
   slot maxima a working Magic Missile, and it is the shape innate casting really has.
 
+**Concentration (5.3.3, the 2.5 seams)**
+
+- `getConcentrationDC(damage)` is `clamp(floor(damage/2), 10, modern ? 30 : ∞)`
+  (`actor.mjs:471`) — the 30 cap exists only under modern rules.
+- The native trigger guard (`attributes.mjs:548`): net HP+temp loss AND (temp fell OR value
+  below `effectiveMax`) — the excluded case is a max-HP reduction. Rest/advancement return
+  before `dnd5e.damageActor` ever fires, so the hook never sees them.
+- **A failed save changes nothing natively, and neither does 0 HP** — nothing in the system
+  links HP, statuses, or save results to `endConcentration`. Both breaks are the module's.
+- `rollConcentration(config)` resolves ability `conc.ability in abilities ? it : con`, folds
+  `conc.bonuses.save` and `conc.roll.mode` (War Caster's advantage) from actor data, and
+  defaults `target: 10` — pass the real DC as `config.target` and the save card marks
+  success/failure natively (`isSuccess` is bare `total >= target`, basic-roll.mjs:221 — **no
+  nat-1/nat-20 override on saves at 5.3.3**, so a verdict computed the same way can never
+  disagree with the card).
+- The save message carries `flags.dnd5e.roll = { type: "save", ability }` — **nothing marks
+  it as concentration**. The module's own rolls carry `respondsTo`; a bare sheet roll is
+  recognized by actor + ability + the ABSENCE of `flags.dnd5e.originatingMessage` (a save
+  belonging to an activity chain must never be mistaken for a concentration answer).
+- **Forcing advantage/disadvantage with `configure: false`**: `applyKeybindings`
+  (`d20-roll.mjs:81`) recomputes `advantageMode` unconditionally from the roll's
+  `advantage`/`disadvantage` booleans, so set THOSE (an explicit false out-votes the
+  data-driven true via `mergeConfigs`, basic-roll.mjs:465) and never `advantageMode`
+  directly. Situational bonuses are `config.rolls[0].parts` (unshifted in front).
+- The native prompt is a whispered roll-request card whose content carries
+  `data-action="concentration"` (roll-request-card.hbs) — rendered HTML at create time, so a
+  content match vetoes it cleanly; a GM's `[[/concentration]]` enricher text never matches
+  (messages store raw enricher text; enrichment happens at render).
+
 **Weapon masteries (5.3.3, the 1.9 seams)**
 
 - **Eligibility is trait + weapon**: `masteryOptions` (`data/item/weapon.mjs:327`) is non-null
@@ -552,12 +652,20 @@ Most of these are commented at the line where it bit. Do not rediscover them.
 
 ## The shape of the thing
 
-One ES module, `scripts/battleflow.js`, no build step. Sections in order: settings + the
-settings-sheet polish, shared hit-test/chain helpers, table polish (incl. per-source
-suppression), Phase 1a auto-damage, the reaction hold (eligibility → **both triggers** →
-answers → continuation → the veto → views), Phase 1.75 hit riders, Phase 1b auto-apply +
-the shared damage applier, Phase 1.9A effect riders, Phase 1.9B/C mastery riders + the ask,
-receipts. Every hook's first line checks its feature toggle; every feature ships **off**.
+One ES module, `scripts/battleflow.js`, no build step (≈3,750 lines — the ~4,500 split
+trigger in design.md §9 is getting close; Phase 2 likely crosses it). Sections in order:
+settings + the settings-sheet polish, shared hit-test/chain helpers, table polish (incl.
+per-source suppression), Phase 1a auto-damage, the reaction hold (eligibility → **both
+triggers** → answers → continuation → the veto → views), Phase 1.75 hit riders, Phase 1b
+auto-apply + the shared damage applier, Phase 1.9A effect riders, Phase 1.9B/C mastery
+riders + the ask, **Phase 2.5 concentration (cause capture → trigger → ask → roll → fold →
+break → views → native-card veto)**, receipts. Entry-point hooks check their feature
+toggle; view/continuation hooks check flag presence; every feature ships **off**.
+
+The elect-owned single-answer clock is shared (`armAskTimer` — the mastery ask and the
+concentration ask are true twins there); the hold's clock stays its own machine on purpose
+(continuing-client owner, per-target answers — the extraction note that used to sit on the
+mastery timer says why).
 
 The payout pipeline is one deterministic sequence per damage message on the elect
 (`resolveDamagePayouts`): **application → effect riders → mastery** — sequential because
@@ -585,6 +693,8 @@ reach the shipped attack path. **If you add a third trigger, add it as a stamp f
 | damage message | `effectReceipt` | applied effects per target (+ `ridersDone`, the rider stage's own idempotence marker) |
 | response message | `respondsTo`, `uuid`, `answer`, `ac`, `effectLanded` | a player's answer traveling to the continuing client |
 | bfCard message | `topple` | per-target prone-button `done` markers |
+| ask message (bfCard) | `concentration` | the concentration ask: status, actor, ability, dc, damage, names, effectIds snapshot, cause, deadline, outcome |
+| concentration roll message | `respondsTo`, `timedOut` | which ask this roll answers (the hold's answer-channel key, same meaning); whether the buzzer pressed it |
 | actor | `reactionSpent` | the click-volume guard, cleared on turn/combat-end (clears are NOT toggle-gated) |
 | applied effect | `reactionEffect` / `mastery` | which module path created it |
 
