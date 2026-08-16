@@ -564,6 +564,29 @@ Hooks.on("preCreateChatMessage", doc => {
     doc.updateSource({ flags: { [MODULE_ID]: { healPending: true } } });
   }
 
+  // The no-attack damage applier's birth stamp (v1.6.0, user call: "it should auto
+  // apply; the shield stuff is its own mechanic"): a damage-ACTIVITY roll aimed at
+  // targets is claimed at creation — same discipline as healPending, so history stays
+  // inert. A BLOCKLISTED spell's roll additionally carries the hold's pending claim,
+  // which makes the auto-applier defer until the hold question settles: the caster
+  // clears it if no hold stamps, the hold's resolution releases it otherwise. The claim
+  // is stamped from birth precisely so the applier can never lose a race to the hold.
+  // NOT gated on autoApply: the stamp is also what linkSpellDamage bridges through, and
+  // the veto needs that bridge whether or not anything auto-applies.
+  if ( (doc.getFlag("dnd5e", "roll.type") === "damage")
+    && (doc.getFlag("dnd5e", "activity")?.type === "damage")
+    && (doc.getFlag("dnd5e", "targets") ?? []).length ) {
+    const claim = { spellDamage: true };
+    if ( setting(S.reactionHold) ) {
+      let name = null;
+      try { name = fromUuidSync(doc.getFlag("dnd5e", "item")?.uuid ?? "")?.name ?? null; }
+      catch { name = null; }
+      if ( name && blockEntries().some(e => e.spell.toLowerCase() === name.toLowerCase()) )
+        claim.spellHoldPending = true;
+    }
+    doc.updateSource({ flags: { [MODULE_ID]: claim } });
+  }
+
   // ⚠ At 5.3.3 the usage card is a real message SUBTYPE (`type: "usage"`, registered in
   // data/chat-message/_module.mjs). `flags.dnd5e.messageType === "usage"` is the LEGACY
   // shape the system's own migrateData writes for pre-subtype documents (chat-message.mjs:91)
@@ -603,26 +626,16 @@ Hooks.on("preCreateChatMessage", doc => {
     return;
   }
 
-  // A bare damage-activity card (Magic Missile's shape) is suppressible spam too (user call
-  // 2026-08-16) — EXCEPT when it may be a spell-hold's home. A LISTED spell's card is
-  // load-bearing three ways: the hold flag lives on it, the Answer surface renders on it,
-  // and the preApplyDamage veto finds the verdict THROUGH it (damage roll →
-  // originatingMessage → this card). Eligibility (usableReaction) is async and preCreate is
-  // not, so the gate is the conservative pair: reaction hold on + the spell listed ⇒ the
-  // card stays, targeted or not. Its damage still rolls (subsequent actions never had a
-  // card dependency) and the native tray on the ROLL message stays the manual apply path —
-  // damage activities are deliberately outside every auto-applier.
+  // A bare damage-activity card (Magic Missile's shape) is suppressible spam (user call
+  // 2026-08-16). Since v1.6.0 that includes BLOCKLISTED spells: the hold no longer needs
+  // this card — it rides a replacement bfCard (postSpellHoldCard) that carries the same
+  // target/item/activity flags, and the damage roll is bridged to it, so the rows, the
+  // answers, the fold and the veto's origin walk all work unchanged.
   if ( activityType === "damage" ) {
     if ( !setting(S.suppressAttackCards) || !setting(suppressBucketFor(doc)) ) return;
     // Effects riding a damage card have no automated path (1.9A is attack-only, the cast
     // slice excludes damage) — the card is their only apply surface. It survives.
     if ( doc.system?.effects?.length ) return;
-    if ( setting(S.reactionHold) ) {
-      let name = null;
-      try { name = fromUuidSync(doc.getFlag("dnd5e", "item")?.uuid ?? "")?.name ?? null; }
-      catch { name = null; }
-      if ( name && blockEntries().some(e => e.spell.toLowerCase() === name.toLowerCase()) ) return;
-    }
     return false;
   }
 });
@@ -1058,9 +1071,9 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
   if ( !setting(S.reactionHold) ) return;
   // The usage card is the held document here, exactly as the attack message is over there — and
   // it already carries the same target snapshot, because getTargetDescriptors() is baked into
-  // every activity's messageFlags (mixin.mjs), not into attack rolls specifically.
-  const message = results?.message;
-  if ( !(message instanceof ChatMessage) ) return;   // used with create:false — no card to hold
+  // every activity's messageFlags (mixin.mjs), not into attack rolls specifically. Since
+  // v1.6.0 a SUPPRESSED card is no obstacle: the hold rides a replacement bfCard instead.
+  const message = (results?.message instanceof ChatMessage) ? results.message : null;
 
   void (async () => {
     // ⚠ Match what was CAST, not what owns the activity — the same rule the answer side lives
@@ -1070,9 +1083,87 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
     const spellName = (await reactionNameFor(activity))?.toLowerCase();
     if ( !spellName ) return;
     const entries = blockEntries().filter(e => e.spell.toLowerCase() === spellName);
-    if ( entries.length ) await stampSpellHold(message, entries);
+    if ( !entries.length ) return;
+    let holdMessage = message;
+    if ( !holdMessage ) {
+      holdMessage = await postSpellHoldCard(activity);
+      if ( !holdMessage ) return; // used with create:false and no targets — nothing to hold
+    }
+    await stampSpellHold(holdMessage, entries);
+    await linkSpellDamage(activity, holdMessage, { suppressed: !message });
   })();
 });
+
+/**
+ * The hold's home when 1.9D suppression ate the usage card (v1.6.0): a replacement bfCard
+ * carrying the SAME dnd5e flags a usage card would — targets, item, activity — so every
+ * downstream consumer (the rows, the popup, the three answer channels, the fold, the
+ * veto's origin walk, the late applier) works unchanged. Created by the casting client;
+ * players can create their own messages.
+ */
+async function postSpellHoldCard(activity) {
+  try {
+    const item = activity?.item;
+    const targets = [...game.user.targets].map(t => ({
+      uuid: t.actor?.uuid, name: t.actor?.name ?? t.name,
+      img: t.actor?.img ?? null, ac: t.actor?.system?.attributes?.ac?.value ?? null
+    })).filter(t => t.uuid);
+    if ( !item || !targets.length ) return null;
+    return await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: item.actor }),
+      content: bfCard({
+        img: item.img, eyebrow: "Cast", tone: "neutral",
+        title: `${item.actor?.name ?? "Someone"} casts ${item.name}`,
+        subtitle: `At ${targets.map(t => t.name).join(", ")}`
+      }),
+      flags: { dnd5e: {
+        targets,
+        item: { id: item.id, uuid: item.uuid, type: item.type },
+        activity: { id: activity.id, uuid: activity.uuid, type: activity.type }
+      } }
+    });
+  } catch(err) {
+    console.error(`${TITLE} | Could not post the spell-hold card.`, err);
+    return null;
+  }
+}
+
+/**
+ * Tie the spell's own damage roll to the hold question's outcome, on the casting client
+ * (it owns both messages). Two jobs, both bus-writes the elect reacts to:
+ *  - hold stamped + suppressed card: bridge the roll's originatingMessage to the
+ *    replacement, so the origin walk (the veto, the fold's registry, the late applier)
+ *    works exactly as it does when the usage card exists.
+ *  - no hold stamped (nobody eligible, everyone spent): clear the roll's pending claim
+ *    (spellHoldPending: false) so the auto-applier stops waiting and applies.
+ * The subsequent damage roll can land a beat after this runs — poll briefly for it.
+ */
+async function linkSpellDamage(activity, holdMessage, { suppressed = false } = {}) {
+  try {
+    const held = !!holdMessage.getFlag(MODULE_ID, "hold");
+    if ( held && !suppressed ) return; // native chain already ties them — nothing to do
+    const itemUuid = activity?.item?.uuid ?? null;
+    if ( !itemUuid ) return;
+    const deadline = Date.now() + 4000;
+    let damage = null;
+    while ( !damage && (Date.now() < deadline) ) {
+      damage = game.messages.contents.filter(m =>
+        (m.getFlag("dnd5e", "roll.type") === "damage")
+        && (m.author?.id === game.user.id)
+        && (m.getFlag("dnd5e", "item")?.uuid === itemUuid)
+        && (m.getFlag(MODULE_ID, "spellDamage") === true)
+        && (suppressed ? !m.getFlag("dnd5e", "originatingMessage") : true)
+        && (m.timestamp >= holdMessage.timestamp - 10_000)).pop() ?? null;
+      if ( !damage ) await new Promise(r => setTimeout(r, 200));
+    }
+    if ( !damage ) return; // rolled with subsequentActions:false, or autoApply off — fine
+    if ( held ) await damage.setFlag("dnd5e", "originatingMessage", holdMessage.id);
+    else if ( damage.getFlag(MODULE_ID, "spellHoldPending") )
+      await damage.setFlag(MODULE_ID, "spellHoldPending", false);
+  } catch(err) {
+    console.error(`${TITLE} | Could not link the spell's damage to its hold.`, err);
+  }
+}
 
 /**
  * Stamp a `negate` hold on a usage card for every target holding a reaction that stops it.
@@ -1533,14 +1624,104 @@ Hooks.on("dnd5e.preApplyDamage", (actor, amount, updates, options) => {
   // someone a cure cast from the same card. Phase 1b draws the same line for the same reason.
   if ( damageMessage?.getFlag("dnd5e", "roll.type") !== "damage" ) return;
   const origin = damageMessage.getOriginatingMessage?.();
-  if ( !origin || (origin === damageMessage) ) return;
-  const hold = origin.getFlag(MODULE_ID, "hold");
+  let hold = (origin && (origin !== damageMessage)) ? origin.getFlag(MODULE_ID, "hold") : null;
+  // Fallback (v1.6.0): a suppressed-card cast whose bridge has not landed yet still gets
+  // the block — find the governing hold by spell + actor, newest first, whole log (the
+  // tail-window lesson). Belt to the bridge's braces.
+  if ( !hold && damageMessage.getFlag(MODULE_ID, "spellDamage") ) {
+    let name = null;
+    try { name = fromUuidSync(damageMessage.getFlag("dnd5e", "item")?.uuid ?? "")?.name?.toLowerCase() ?? null; }
+    catch { name = null; }
+    if ( name ) {
+      hold = game.messages.contents.filter(m => {
+        const h = m.getFlag(MODULE_ID, "hold");
+        return (h?.trigger === "spell") && (h.spell?.toLowerCase() === name)
+          && h.targets?.some(t => t.uuid === actor.uuid);
+      }).pop()?.getFlag(MODULE_ID, "hold") ?? null;
+    }
+  }
   if ( (hold?.trigger !== "spell") || (hold.status !== "resolved") ) return;
   const target = hold.targets?.find(t => t.uuid === actor.uuid);
   if ( target?.verdict !== "negated" ) return;
   ui.notifications.info(
     `${TITLE}: ${target.reaction} — ${target.name} takes no damage from ${hold.spell}.`);
   return false;
+});
+
+/* --- the no-attack damage applier (v1.6.0) -------------------------------------------------
+ * "It should auto apply; the shield stuff is its own mechanic" (user call). A damage-
+ * activity roll — Magic Missile's shape, no attack anywhere in its chain — applies itself
+ * to its snapshot targets on the elect, per target: a pending spell-hold claim defers the
+ * whole roll (the resolution below releases it), a negated verdict skips that target (the
+ * preApplyDamage veto above also guards — belt and braces), everything else lands through
+ * the shared receipt applier. The birth stamp (`spellDamage`, preCreate) is the gate, so
+ * history is inert and render-resume is safe.
+ * ------------------------------------------------------------------------------------------- */
+
+const spellDamageApplications = new Set();
+
+async function applySpellDamage(message) {
+  if ( spellDamageApplications.has(message.id) ) return;
+  spellDamageApplications.add(message.id);
+  try {
+    if ( message.getFlag(MODULE_ID, "spellDamage") !== true ) return;
+    if ( message.getFlag(MODULE_ID, "receipt") ) return;                   // applied already (resume)
+    const hold = message.getOriginatingMessage?.()?.getFlag?.(MODULE_ID, "hold");
+    if ( hold && (hold.status === "pending") ) return;                     // bridged and still open
+    if ( message.getFlag(MODULE_ID, "spellHoldPending") === true ) {
+      // Claimed for a hold. If the bridged hold has RESOLVED already (a damage button
+      // pressed after the answer), fall through and apply per its verdicts; an unresolved
+      // or not-yet-bridged claim keeps waiting — the release write will re-trigger.
+      if ( !hold || (hold.status === "pending") ) return;
+    }
+    const targets = (message.getFlag("dnd5e", "targets") ?? [])
+      .filter(t => hold?.targets?.find(h => h.uuid === t.uuid)?.verdict !== "negated")
+      .map(t => ({ uuid: t.uuid, name: t.name }));
+    if ( !targets.length ) return;
+    const damages = dnd5e.dice.aggregateDamageRolls(message.rolls, { respectProperties: true })
+      .map(roll => ({
+        value: Math.max(0, roll.total),
+        type: roll.options.type,
+        properties: new Set(roll.options.properties ?? [])
+      }));
+    if ( !damages.length ) return;
+    await applyDamagesWithReceipt(message, targets, damages);
+  } catch(err) {
+    console.error(`${TITLE} | Spell damage auto-apply failed.`, err);
+  } finally {
+    spellDamageApplications.delete(message.id);
+  }
+}
+
+// Three triggers, all flag-driven: arrival, the claim settling, and render (reload resume).
+Hooks.on("createChatMessage", message => {
+  if ( !setting(S.autoApply) || !isActiveGM() ) return;
+  if ( message.getFlag(MODULE_ID, "spellDamage") ) void applySpellDamage(message);
+});
+
+Hooks.on("updateChatMessage", message => {
+  if ( !setting(S.autoApply) || !isActiveGM() ) return;
+  // The pending claim settled (cleared by the caster, or released by the resolution below).
+  if ( message.getFlag(MODULE_ID, "spellDamage")
+    && (message.getFlag(MODULE_ID, "spellHoldPending") === false)
+    && !message.getFlag(MODULE_ID, "receipt") ) void applySpellDamage(message);
+  // A spell hold resolved — release every damage roll waiting on it. The elect owns this
+  // write; the release itself (spellHoldPending → false) is the bus event that applies.
+  const hold = message.getFlag(MODULE_ID, "hold");
+  if ( (hold?.trigger === "spell") && (hold.status === "resolved") ) {
+    for ( const dmg of game.messages.contents.filter(m =>
+      (m.getFlag("dnd5e", "originatingMessage") === message.id)
+      && (m.getFlag(MODULE_ID, "spellHoldPending") === true) ) ) {
+      void dmg.setFlag(MODULE_ID, "spellHoldPending", false);
+    }
+  }
+});
+
+Hooks.on("dnd5e.renderChatMessage", message => {
+  if ( !setting(S.autoApply) || !isActiveGM() ) return;
+  if ( message.getFlag(MODULE_ID, "spellDamage")
+    && (message.getFlag(MODULE_ID, "spellHoldPending") !== true)
+    && !message.getFlag(MODULE_ID, "receipt") ) void applySpellDamage(message);
 });
 
 /**
@@ -2503,7 +2684,18 @@ async function applyDamagesWithReceipt(receiptMessage, hits, damages, { note, mu
         reverted: false
       });
     }
-    if ( receipts.length ) await receiptMessage.setFlag(MODULE_ID, "receipt", { targets: receipts });
+    if ( receipts.length ) {
+      // MERGE, never overwrite (v1.6.0): a spell hold can split one roll's application in
+      // time — unheld targets land at once, a held target lands after its verdict — and
+      // the second write must not eat the first's entries.
+      const existing = foundry.utils.deepClone(
+        receiptMessage.getFlag(MODULE_ID, "receipt") ?? { targets: [] });
+      for ( const r of receipts ) {
+        const i = existing.targets.findIndex(t => t.uuid === r.uuid);
+        if ( i >= 0 ) existing.targets[i] = r; else existing.targets.push(r);
+      }
+      await receiptMessage.setFlag(MODULE_ID, "receipt", existing);
+    }
   } catch(err) {
     console.error(`${TITLE} | Auto-apply failed.`, err);
   }
@@ -2899,6 +3091,75 @@ async function toppleCard(ctx, targets) {
   });
 }
 
+/** Topple popups this client has offered (message.id|uuid), never re-popped on render. */
+const shownToppleAsks = new Set();
+
+/**
+ * The topple save's table moment (v1.6.0, user call: "the GM didn't get a popup — the
+ * cards are difficult to follow"). The same surface as the concentration ask — the story
+ * over the native dialog's own controls (situational bonus, Advantage/Normal/Disadvantage)
+ * — because it is the same class of moment: a save someone must roll NOW. Every button is
+ * the same answer (roll, chained to the card so the fold judges); dismissing is not an
+ * answer — the card's Roll button recalls this popup. No timer in v1: the GM's manual
+ * prone button is the backstop for a save rolled on paper.
+ */
+async function showTopplePopup(message, topple, target) {
+  const actor = (() => { try { return fromUuidSync(target.uuid); } catch { return null; } })();
+  if ( !canAnswerFor(actor) ) return;
+  const key = popupKey(message.id, `topple:${target.uuid}`);
+  if ( livePopups.has(key) ) return;
+  let dialog;
+  const roll = mode => rollToppleSave(message, target, {
+    mode, bonus: dialog?.element?.querySelector('input[name="bf-topple-bonus"]')?.value ?? ""
+  });
+  dialog = new foundry.applications.api.DialogV2({
+    window: { title: `Topple — ${target.name}`, icon: "fa-solid fa-person-falling" },
+    position: { width: 440 },
+    content: bfCard({
+      img: topple.weapon?.img ?? null,
+      eyebrow: "Weapon Mastery — Topple",
+      title: `${target.name}: Constitution save, DC ${topple.dc}`,
+      subtitle: `${topple.weapon?.name ?? "The weapon"} demands it — on a failure, ${target.name} falls Prone.`,
+      tone: "pending"
+    }) + `
+    <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
+      <label style="flex:1;font-size:var(--font-size-12,12px);">Situational Bonus</label>
+      <input type="text" name="bf-topple-bonus" placeholder="e.g. 1d4" autocomplete="off"
+             style="flex:1;min-width:0;text-align:center;">
+    </div>`,
+    buttons: [
+      { action: "advantage", label: "Advantage", callback: () => roll("advantage") },
+      { action: "normal", label: "Normal", default: true, callback: () => roll("normal") },
+      { action: "disadvantage", label: "Disadvantage", callback: () => roll("disadvantage") }
+    ],
+    rejectClose: false
+  });
+  await openManagedPopup(key, message, dialog);
+}
+
+/** Roll one pending topple target's save, chained to the card — the fold does the rest. */
+async function rollToppleSave(message, target, { mode = null, bonus = null } = {}) {
+  const flag = message.getFlag(MODULE_ID, "topple");
+  const entry = flag?.targets?.find(t => t.uuid === target.uuid);
+  if ( !entry || entry.done ) return;
+  const actor = await fromUuid(target.uuid);
+  if ( !(actor instanceof Actor) ) return;
+  const rollOverride = {};
+  if ( mode === "advantage" ) rollOverride.options = { advantage: true, disadvantage: false };
+  else if ( mode === "disadvantage" ) rollOverride.options = { advantage: false, disadvantage: true };
+  else if ( mode === "normal" ) rollOverride.options = { advantage: false, disadvantage: false };
+  const part = (bonus ?? "").trim().replace(/^\+\s*/, "");
+  if ( part ) {
+    if ( Roll.validate(part) ) rollOverride.parts = [part];
+    else ui.notifications.warn(`${TITLE}: "${part}" is not a rollable bonus — rolling without it.`);
+  }
+  await actor.rollSavingThrow(
+    { ability: flag.ability || "con", target: flag.dc,
+      ...(Object.keys(rollOverride).length ? { rolls: [rollOverride] } : {}) },
+    { configure: false },
+    { data: { "flags.dnd5e.originatingMessage": message.id } });
+}
+
 /**
  * The Topple card folds its own save (user call 2026-08-16 — the Phase 2 seam pressed in
  * place, v1.5.0). The elect judges a Constitution save that answers a still-pending topple
@@ -3133,6 +3394,7 @@ Hooks.on("deleteChatMessage", message => {
   disarmMasteryTimer(message.id);
   shownMasteryAsks.delete(message.id);
   shownMasteryNotices.delete(message.id);
+  for ( const key of shownToppleAsks ) if ( key.startsWith(`${message.id}|`) ) shownToppleAsks.delete(key);
 });
 
 /**
@@ -3262,20 +3524,21 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
       // ⚠ The native [[/save]] enricher rolls for whatever token is SELECTED — which right
       // after an attack is the ATTACKER, so the GM rolled Morgash's save at the dummy's
-      // topple and the fold rightly ignored it (bit live 2026-08-16). This button rolls
-      // the RIGHT actor, through the native dialog (dice agency), chained to this card so
-      // the fold can judge it. Rendered for whoever owns the decision (canAnswerFor —
-      // the owning player for a PC target, the GM for monsters).
+      // topple and the fold rightly ignored it (bit live 2026-08-16). The module's own
+      // surface aims at the RIGHT actor: a popup on the decider's client (v1.6.0 — "the
+      // cards are difficult to follow"), with the card's Roll button as its recall.
       if ( topple.dc && canAnswerFor(actor) ) {
+        const shownKey = `${message.id}|${t.uuid}`;
+        if ( !shownToppleAsks.has(shownKey) ) {
+          shownToppleAsks.add(shownKey);
+          void showTopplePopup(message, topple, t);
+        }
         const rollBtn = document.createElement("button");
         rollBtn.type = "button";
         rollBtn.textContent = `Roll save — ${t.name}`;
         Object.assign(rollBtn.style, { width: "auto", margin: "0.25rem 0.25rem 0 0", padding: "0 0.6rem" });
-        rollBtn.addEventListener("click", async () => {
-          const live = await fromUuid(t.uuid);
-          if ( !(live instanceof Actor) ) return;
-          await live.rollSavingThrow({ ability: topple.ability || "con", target: topple.dc },
-            {}, { data: { "flags.dnd5e.originatingMessage": message.id } });
+        rollBtn.addEventListener("click", () => {
+          void showTopplePopup(message, message.getFlag(MODULE_ID, "topple"), t);
         });
         html.querySelector(".message-content")?.appendChild(rollBtn);
       }
@@ -3598,15 +3861,20 @@ async function foldConcentrationRoll(askMessage, rollMessage) {
     disarmAskTimer(concTimers, askMessage.id);
     await askMessage.setFlag(MODULE_ID, "concentration", ask);
 
+    const actor = await fromUuid(ask.actorUuid);
+    // Freeze the visibility choice AT VERDICT TIME — the pause below must not let a
+    // setting flip re-address the announcement (bit smoke-conc 10c the day the pause
+    // landed: the suite restored visibility while the dice were still tumbling).
+    const whisper = setting(S.concVisibility) ? null : concRecipients(actor);
+
     // Claimed above; now let the dice land before the drama (the icons stripping mid-roll
     // was the report — the row's verdict text updating early is accepted).
     await dramaticVerdictPause(rollMessage);
 
-    const actor = await fromUuid(ask.actorUuid);
     if ( ask.outcome.success ) {
       // "Holds" is only true while there is something held — the spell may have ended by
       // itself (duration, a manual right-click) while the save was in the air.
-      if ( actor?.concentration?.effects?.size ) await announceConcentrationHolds(actor, ask);
+      if ( actor?.concentration?.effects?.size ) await announceConcentrationHolds(actor, ask, whisper);
     } else {
       await breakConcentration(actor, { names: ask.names, effectIds: ask.effectIds, ask });
     }
@@ -3615,8 +3883,9 @@ async function foldConcentrationRoll(askMessage, rollMessage) {
   }
 }
 
-/** Quiet good news — one line, visibility-scoped (announce by stakes, design.md §5). */
-async function announceConcentrationHolds(actor, ask) {
+/** Quiet good news — one line, visibility-scoped (announce by stakes, design.md §5).
+ * `whisper` is decided by the caller AT VERDICT TIME, before the dramatic pause. */
+async function announceConcentrationHolds(actor, ask, whisper = null) {
   await ChatMessage.create({
     content: bfCard({
       img: actor?.img ?? null,
@@ -3627,7 +3896,7 @@ async function announceConcentrationHolds(actor, ask) {
       tone: "good"
     }),
     speaker: { alias: TITLE },
-    ...(setting(S.concVisibility) ? {} : { whisper: concRecipients(actor) })
+    ...(whisper ? { whisper } : {})
   });
 }
 
