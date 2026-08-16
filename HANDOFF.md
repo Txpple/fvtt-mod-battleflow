@@ -81,7 +81,44 @@ whatever they find, so it drifts:
 
 ## Open items
 
-### To do first (user call, 2026-08-16): the second Molten box
+### FIRST: the user is walking this checklist and will report results item by item
+
+The v1.5.1 / combatplus-v1.3.0 fixes below are **suite-proven but not yet table-verified**
+— the user has the same six-item list and is checking them off in play. When a report
+arrives: read the actual log and flags before theorizing (both of tonight's "bugs" were
+by-design skips plus a selection trap), reproduce in the harness, add the assertion. State
+as left: everyone long-rested, Practice Dummy 1000/1000 with walk 30, bridge logged out
+(the user's window is the elect), user told to F5 once before testing.
+
+1. **Topple → Prone**: the card's own "Roll save — <target>" button (decider-gated) rolls
+   the RIGHT actor, chained to the card; failure ⇒ dice land → beat → Prone + announce.
+   The native `[[/save]]` link rolls for the SELECTED token (the trap that bit: the
+   attacker was selected) and still works if the target is selected first.
+2. **Slow on the dummy**: the ask should now appear — the dummy had walk 0 and the
+   hopeless-skip silently ate it (by design); it has walk 30 now. If the table ever wants
+   skips visible, that is a design conversation, not a bug.
+3. **Healing receipts**: +N HP in blue (the healing take is negative internally;
+   "−-25 HP" in maroon was the render bug).
+4. **Damage-spell card suppression**: unlisted damage spells' cards suppress; **Magic
+   Missile's own card deliberately survives while Reaction Hold is on** (blocklisted =
+   load-bearing three ways — hold home, Answer surface, the preApplyDamage veto's chain).
+   If the user still wants it gone, the offered follow-up is re-plumbing the veto to a
+   message-free hold lookup (match damage → item uuid → recent pending/resolved spell-hold
+   by spell + target) and moving the hold to a replacement card — a real change, not a
+   flag flip.
+5. **Death icons (combatplus v1.3.0)**: any NPC or PC at 0 HP gets the skull, in or out
+   of combat, per-side settings both ON; healing above 0 clears it.
+6. **Concentration pacing**: save dice finish (Dice So Nice) + Dramatic Beat, THEN the
+   holds/broken card and the cascade. The ask row's small verdict text updating instantly
+   is the accepted residue (mechanics settle before the pause so the buzzer cannot
+   double-fire). Topple's prone shares the same pause.
+
+Also live but unasked-for: the battery caught the cast slice re-applying **Shield** (+10
+AC) the first time it ran with castApply ON — fixed by the affects-self gate (standing
+item 12), netted forever by smoke-hold's castApply-ON pin. If the user reports anything
+about doubled effects, start there.
+
+### To do next (user call, 2026-08-16): the second Molten box
 
 The user is provisioning a **second Molten instance as a dedicated test box**. ⚠ **Molten
 allows two servers but only ONE can be active at a time** (user, 2026-08-16) — so this is a
