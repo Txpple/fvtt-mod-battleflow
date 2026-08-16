@@ -23,7 +23,7 @@ for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
 
 // Roughly a dozen full attack chains with polls between them; a suite that dies at the
 // watchdog reports nothing, so the ceiling is generous.
-setTimeout(() => { console.error('[effects] WATCHDOG 480s'); process.exit(3); }, 480_000);
+setTimeout(() => { console.error('[effects] WATCHDOG 600s'); process.exit(3); }, 600_000);
 
 const f = new Foundry({
   serverUrl: env.MOLTEN_SERVER_URL, magicUrl: env.MOLTEN_MAGIC_URL,
@@ -47,7 +47,7 @@ const out = await f.evaluate(async () => {
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
   for (const key of ['effectRiders', 'masteryRiders', 'masteryAsk', 'suppressWeaponCards',
-    'suppressSpellCards', 'suppressFeatureCards', 'suppressOtherCards']) {
+    'suppressSpellCards', 'suppressFeatureCards', 'suppressOtherCards', 'castApply']) {
     if (!game.settings.settings.has(`${MOD}.${key}`)) {
       return { fatal: `setting ${key} not registered — this client is running OLD code (F5)` };
     }
@@ -56,7 +56,7 @@ const out = await f.evaluate(async () => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'suppressAttackCards', 'suppressWeaponCards', 'suppressSpellCards',
     'suppressFeatureCards', 'suppressOtherCards', 'riders', 'effectRiders', 'masteryRiders',
-    'masteryAsk', 'holdTimer'];
+    'masteryAsk', 'holdTimer', 'castApply'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -133,6 +133,7 @@ const out = await f.evaluate(async () => {
     await set('masteryRiders', true);
     await set('masteryAsk', 'auto');
     await set('holdTimer', 0);
+    await set('castApply', false); // the cast slice has its own suite; isolation here
 
     // -------------------------------------------------- fixtures
     // A character-type attacker (masteries are PC-only). Created once by smoke-battleflow;
@@ -750,6 +751,170 @@ const out = await f.evaluate(async () => {
       await set(bucket, true);
       await set('suppressAttackCards', false);
     }
+
+    // ---------------------------------------------------- 14. the Topple card folds its own save
+    // (v1.5.0): a save chained to the card — the enricher click — or bare from a pending
+    // target is judged against the card's stored DC on the elect; failure applies Prone and
+    // announces, success closes quietly, and a save chained to any OTHER message is ignored.
+    // Outcomes are FORCED through the actor's own save bonus (±30) — the concentration
+    // suite's lesson: a suite that can lose a coin flip lies once a week.
+    await set('autoApply', true);
+    await set('masteryAsk', 'auto');
+    await set('suppressAttackCards', false);
+    await setMastery('topple');
+    await healFull();
+    await acFlat(1); // fumble-only misses — the victim's natural AC gave a real ~12% flake
+    // getSpeaker picks the actor's FIRST active token on the viewed scene, and an older
+    // UNLINKED victim token (another suite's reused fixture) makes every save resolve to a
+    // synthetic uuid that can never match the linked snapshot entry — sweep the strays.
+    const strayVictimTokens = scene.tokens.filter(t =>
+      (t.actorId === victim.id) && (t.id !== victimTokenDoc.id));
+    if (strayVictimTokens.length) {
+      await scene.deleteEmbeddedDocuments('Token', strayVictimTokens.map(t => t.id));
+      log.push(`14: swept ${strayVictimTokens.length} stray victim token(s) off the range`);
+    }
+    if (victim.statuses?.has?.('prone')) await victim.toggleStatusEffect('prone', { active: false });
+    priorActor[victim.id]['system.bonuses.abilities.save'] =
+      victim.system._source.bonuses?.abilities?.save ?? '';
+    const snap14 = () => new Set(game.messages.contents.map(m => m.id));
+    const fresh14 = before => game.messages.contents.filter(m => !before.has(m.id));
+    const until14 = async (fn, ms = 8000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { if (fn()) return true; await sleep(200); }
+      return fn();
+    };
+
+    let before14 = snap14();
+    const atk14 = await attack(pcAttack());
+    await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')));
+    const toppleMsg = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
+    const tflag = toppleMsg?.getFlag(MOD, 'topple');
+    const diag14 = () => JSON.stringify({
+      total: atk14.roll?.total ?? null,
+      mastery: atk14.attackMsg?.getFlag('dnd5e', 'roll.mastery') ?? null,
+      snapTargets: (atk14.attackMsg?.getFlag('dnd5e', 'targets') ?? []).map(t => `${t.name}:${t.ac}`),
+      dmgMsg: fresh14(before14).some(m => m.getFlag('dnd5e', 'roll.type') === 'damage'),
+      prone: victim.statuses.has('prone'), hp: victim.system.attributes.hp.value,
+      fresh: fresh14(before14).length
+    });
+    ok('14a. a topple hit posts the save card carrying dc, ability and weapon',
+      !!toppleMsg && (tflag?.dc > 0) && (tflag?.ability === 'con') && !!tflag?.weapon?.name
+        && (tflag?.targets?.[0]?.done === false),
+      toppleMsg ? `dc=${tflag.dc}` : `no topple card — ${diag14()}`);
+
+    if (toppleMsg && atk14.attackMsg) {
+      await victim.update({ 'system.bonuses.abilities.save': '-30' });
+      await victim.rollSavingThrow({ ability: 'con' }, { configure: false },
+        { data: { 'flags.dnd5e.originatingMessage': atk14.attackMsg.id } });
+      await sleep(1200);
+      ok('14b. a save chained to another message does not fold the topple card',
+        toppleMsg.getFlag(MOD, 'topple').targets[0].done === false,
+        `done=${toppleMsg.getFlag(MOD, 'topple').targets[0].done}`);
+
+      before14 = snap14();
+      const saveRolls14 = await victim.rollSavingThrow({ ability: 'con' }, { configure: false },
+        { data: { 'flags.dnd5e.originatingMessage': toppleMsg.id } });
+      await until14(() => toppleMsg.getFlag(MOD, 'topple').targets[0].done);
+      // The announcement posts AFTER the flag flips done (the handoff's same-breath race) —
+      // give it its own wait before counting.
+      await until14(() => fresh14(before14).some(m => m.content?.includes('falls Prone')), 4000);
+      const e14 = toppleMsg.getFlag(MOD, 'topple').targets[0];
+      const announced = fresh14(before14).filter(m => m.content?.includes('falls Prone')).length;
+      const sm14 = saveRolls14?.[0]?.parent;
+      ok('14c. a failed save applies Prone itself, marks done, and announces once',
+        e14.done && (e14.outcome === 'prone') && victim.statuses.has('prone') && (announced === 1),
+        `outcome=${e14.outcome} prone=${victim.statuses.has('prone')} announced=${announced}`
+          + ` | save: type=${sm14?.getFlag('dnd5e', 'roll.type')} origin=${sm14?.getFlag('dnd5e', 'originatingMessage')}`
+          + ` total=${sm14?.rolls?.[0]?.total} assoc=${sm14?.getAssociatedActor?.()?.uuid} expected=${victim.uuid}`);
+
+      await victim.toggleStatusEffect('prone', { active: false });
+      await victim.update({ 'system.bonuses.abilities.save': '+30' });
+      await healFull(); // the victim has 11 max HP and the section's own attacks kill it —
+                        // the dead-skip then eats the next topple card (the fixture-HP trap)
+      before14 = snap14();
+      await attack(pcAttack());
+      await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')));
+      const topple2 = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
+      if (topple2) {
+        const preAnnounce = snap14();
+        await victim.rollSavingThrow({ ability: 'con' }, { configure: false },
+          { data: { 'flags.dnd5e.originatingMessage': topple2.id } });
+        await until14(() => topple2.getFlag(MOD, 'topple').targets[0].done);
+        const e14b = topple2.getFlag(MOD, 'topple').targets[0];
+        const announced2 = fresh14(preAnnounce).filter(m => m.content?.includes('falls Prone')).length;
+        ok('14d. a successful save closes the question quietly — no prone, no card',
+          e14b.done && (e14b.outcome === 'saved') && !victim.statuses.has('prone') && (announced2 === 0),
+          `outcome=${e14b.outcome} prone=${victim.statuses.has('prone')} announced=${announced2}`);
+      } else {
+        ok('14d. a successful save closes the question quietly — no prone, no card', false,
+          'no second topple card (did the attack hit?)');
+      }
+
+      await victim.update({ 'system.bonuses.abilities.save': '-30' });
+      await healFull();
+      before14 = snap14();
+      await attack(pcAttack());
+      await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')));
+      const topple3 = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
+      if (topple3) {
+        await victim.rollSavingThrow({ ability: 'con' }, { configure: false }, {});
+        await until14(() => topple3.getFlag(MOD, 'topple').targets[0].done);
+        const e14c = topple3.getFlag(MOD, 'topple').targets[0];
+        ok('14e. a bare sheet save from a pending target answers the card',
+          e14c.done && (e14c.outcome === 'prone') && victim.statuses.has('prone'),
+          `outcome=${e14c.outcome}`);
+      } else {
+        ok('14e. a bare sheet save from a pending target answers the card', false,
+          'no third topple card (did the attack hit?)');
+      }
+      await victim.toggleStatusEffect('prone', { active: false });
+      await victim.update({ 'system.bonuses.abilities.save':
+        priorActor[victim.id]['system.bonuses.abilities.save'] });
+    }
+
+    // ---------------------------------------------------- 15. the reminders (vex / sap / cleave)
+    // v1.5.0 user call: "the design is for people to know weapon masteries". The card is the
+    // durable record (flag masteryNotice, 15s window); the popup is a per-client view of it
+    // and is not asserted here — popup discipline is the managed-popup machinery's, already
+    // proven by the ask and the concentration suite.
+    await healFull();
+    await setMastery('vex');
+    let before15 = snap14();
+    await attack(pcAttack());
+    await until14(() => fresh14(before15).some(m => m.getFlag(MOD, 'masteryNotice')?.key === 'vex'));
+    let msgs15 = fresh14(before15);
+    const vexNotice = msgs15.find(m => m.getFlag(MOD, 'masteryNotice')?.key === 'vex');
+    const vexChip = victim.effects.find(e => e.getFlag(MOD, 'mastery') === 'vex');
+    ok('15a. vex pays AND reminds: the chip and a notice card with the 15s window',
+      !!vexChip && !!vexNotice && (vexNotice.getFlag(MOD, 'masteryNotice').window === 15)
+        && vexNotice.content.includes('Weapon Mastery'),
+      `chip=${!!vexChip} notice=${!!vexNotice}`);
+    const dmg15 = msgs15.find(m => m.getFlag(MOD, 'effectReceipt')?.targets?.length);
+    ok('15b. the mastery receipt entry carries the effect description (the tooltip)',
+      !!dmg15?.getFlag(MOD, 'effectReceipt')?.targets?.[0]?.effects?.[0]?.description,
+      `desc=${JSON.stringify(dmg15?.getFlag(MOD, 'effectReceipt')?.targets?.[0]?.effects?.[0]?.description ?? null)}`);
+
+    await setMastery('sap');
+    await healFull(); // dead targets are skipped — every §15 attack starts from full
+    before15 = snap14();
+    await attack(pcAttack());
+    await until14(() => fresh14(before15).some(m => m.getFlag(MOD, 'masteryNotice')?.key === 'sap'));
+    const sapNotice = fresh14(before15).find(m => m.getFlag(MOD, 'masteryNotice')?.key === 'sap');
+    ok('15c. sap reminds the attacker what it did',
+      !!victim.effects.find(e => e.getFlag(MOD, 'mastery') === 'sap') && !!sapNotice,
+      `notice=${!!sapNotice}`);
+
+    await setMastery('cleave');
+    await healFull();
+    before15 = snap14();
+    await attack(pcAttack());
+    await until14(() => fresh14(before15).some(m => m.getFlag(MOD, 'masteryNotice')?.key === 'cleave'));
+    msgs15 = fresh14(before15);
+    const cleaveNotice = msgs15.find(m => m.getFlag(MOD, 'masteryNotice')?.key === 'cleave');
+    ok('15d. cleave reminds without paying anything',
+      !!cleaveNotice && !victim.effects.some(e => e.getFlag(MOD, 'mastery') === 'cleave')
+        && !msgs15.some(m => m.getFlag(MOD, 'mastery')),
+      `notice=${!!cleaveNotice}`);
 
     return { log, results, skips };
   } catch (err) {
