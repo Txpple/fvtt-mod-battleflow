@@ -1,6 +1,6 @@
 # HANDOFF.md — picking this up cold
 
-> Rewritten 2026-08-15 at the end of a long dogfood stretch (v1.1.2 → v1.1.16). Read
+> Current at 2026-08-15, end of a long dogfood stretch (v1.1.2 → v1.2.0). Read
 > [design.md](design.md) first — it is binding and wins every disagreement. This file is only
 > *where things stand* and *what already bit us*. Delete or rewrite it freely; it is a
 > snapshot, not a contract.
@@ -13,7 +13,7 @@
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.1.16**, deployed, tag pushed, GitHub release carries zip +
+Molten-hosted). Latest release **v1.2.0**, deployed, tag pushed, GitHub release carries zip +
 manifest. **The box tracks the GitHub manifest** (repointed 2026-08-15 — the self-hosted dev
 manifest and zip are gone), so the process vends the real version string after a restart.
 
@@ -33,10 +33,6 @@ manifest and zip are gone), so the process vends the real version string after a
 ignores every bonus, which made Shield inert on it. See the flat-AC ground truth; reverting the
 field restores the old behaviour, bug included.
 
-**Phase 1.75's three settings:** `Hit Riders`, `Rider Table`
-(`hunters-mark, hex, great-old-one-hex`) and `Rider Upgrades` (`foe-slayer:hunters-mark`). They
-ship off and need an **F5** to appear in the sheet.
-
 **Live settings as left** — verify with a read before trusting this list; the suites restore
 whatever they find, so it drifts:
 
@@ -54,12 +50,27 @@ whatever they find, so it drifts:
 | Skip Hopeless Holds | **on** | gated on the reveal, deliberately — see the setting's hint |
 | Apply the Reaction's Effect | on | |
 | Hold Settle | 8s | |
+| Hit Riders | **off** | new in v1.2.0; needs an F5 before it appears in the sheet |
+| Rider Table | `hunters-mark, hex, great-old-one-hex` | identifiers only — the damage is read from the content |
+| Rider Upgrades | `foe-slayer:hunters-mark` | replaces the die, never stacks |
 
 ## Open items
 
 ### Standing
 
-1. **The second trigger, and the two things it deliberately does not solve** (v1.1.16).
+1. **Riders, and the one case they deliberately refuse** (v1.2.0). A mark on the target pays out
+   with the attack that earned it, injected at `dnd5e.preRollDamageV2`. Detection is one walk:
+   the mark's `origin` up to the nearest Actor, keeping the Item passed — *who placed it* and
+   *what it deals*, in one pass. **How much is never configured**; it is read from the mark's own
+   bonus-damage activity. The curated list is identifiers only and exists solely to exclude
+   things wearing the same data shape without being attack riders (Ensnaring Strike's
+   "Start of Turn Damage" sits on the target with the caster as origin).
+   ⚠ **A split target set drops the rider.** One damage roll serves every target it hit, so the
+   rider is folded in only when it is true of ALL of them — a ranger hitting their quarry and an
+   unmarked goblin with one attack gets nothing, and a console warning. Over-applying damage is
+   the worst failure this module has, so the intersection is the only safe answer; the fix if it
+   ever bites is per-target damage rolls, which is a much bigger change than it sounds.
+2. **The second trigger, and the two things it deliberately does not solve** (v1.1.16).
    Casting a spell on the **`blockList`** setting (`Spell:Reaction`, default
    `Magic Missile:Shield`) stamps a hold on its own **usage card** at `dnd5e.postUseActivity` —
    same flag shape, same popup, same card, same timer, same three answer channels — carrying
@@ -78,7 +89,7 @@ whatever they find, so it drifts:
    reads "held — waiting on …" the whole time. If this bites in play, the fix is Phase 2/3
    owning non-attack damage application, not a bigger veto.
 
-2. **The hold's UI is settled and shipped** (user calls, 2026-08-15) — recorded because it is
+3. **The hold's UI is settled and shipped** (user calls, 2026-08-15) — recorded because it is
    binding on anything built next: **the popup decides, the card watches, the card is public
    so the table sees the moment.** One card shape (`bfCard`) for everything the module says out
    loud; the card carries no answer controls where popups are on, only an *Answer* button that
@@ -91,24 +102,24 @@ whatever they find, so it drifts:
    `canAnswerFor` on the player-owned targets it was designed for. Reported by the user as
    "it seems like it should be a binary choice". The AFK fallback is the **timer**, not a
    button. `smoke-hold` §4d3 and §6 both assert the control set is exactly `Cast/Pass`.
-3. **Cards say one thing, once.** The verdict card for a negate hold was two lines until the
+4. **Cards say one thing, once.** The verdict card for a negate hold was two lines until the
    user cut it back: "Magic Missile does nothing to Skeletal Mage" already says the whole thing,
    and a second line restating it mechanically ("its damage is not applied to them") plus a
    note about the other targets answered questions nobody watching had asked. Worth remembering
    when writing the next announcement.
-4. **The hold timer is built** (v1.1.8–v1.1.10) — `holdTimer` seconds, 0 = wait indefinitely,
+5. **The hold timer is built** (v1.1.8–v1.1.10) — `holdTimer` seconds, 0 = wait indefinitely,
    live at 15s. The continuing client owns the one authoritative clock and re-checks at the
    buzzer; unanswered targets pass and are marked `timedOut`. The bar is built with
    `element.animate()` and positioned from the flag's absolute deadline, so popup and card
    agree exactly (measured drift 0). ⚠ Do not "simplify" it back to a CSS animation — see the
    ground truth below for why that silently desyncs.
-5. **Usage-card suppression vs effects — partially fixed.** Cards carrying effects are now
+6. **Usage-card suppression vs effects — partially fixed.** Cards carrying effects are now
    never suppressed (that was Ray of Frost's slow vanishing). The deeper fix is Phase 3
    applying effects itself, after which suppression can go back to being unconditional.
-6. **Phase 2.5 concentration visibility** (user request, 2026-08-15): a world setting for who
+7. **Phase 2.5 concentration visibility** (user request, 2026-08-15): a world setting for who
    sees the concentration check — everyone, or just the concentrator + DM. Public is the
    interesting default for table tension when a party-wide buff like Bless is at stake.
-7. **design.md §9 says "combatplus is the template."** The user has explicitly softened that:
+8. **design.md §9 says "combatplus is the template."** The user has explicitly softened that:
    combatplus is a *reference*, not a template — do what is correct for Battle Flow. The doc
    sentence is a candidate for a §10-style correction.
 
@@ -164,7 +175,9 @@ node tools/smoke-riders.mjs
 ```
 
 `tools/scan-reactions.mjs` regenerates the [REACTIONS.md](REACTIONS.md) survey after content
-changes. Fixtures live in the world and are reused: scene **Battle Flow Test Range**, actors
+changes; `tools/scan-riders.mjs` does the same job for damage riders, finding them by the
+structural signature (a `damage` activity whose activation is overridden to nothing) rather than
+by name — that is where the Phase 1.75 seed list came from. Fixtures live in the world and are reused: scene **Battle Flow Test Range**, actors
 **BF Test Attacker** (NPC — also the Magic Missile caster in §6, which builds the spell on it
 and sweeps it again on the way out), **BF Test Victim** (NPC — wears a mundane shield for the
 name-collision test, and hosts the statblock cast-activity fixture), **BF Test Shielder**
@@ -181,6 +194,12 @@ control set and the announcement wording), **4d4** at-will, **4d5** a PC attacke
 **4d6** a flat AC, **4e** the timer, **4f** hopeless holds, **5** the crit skip,
 **6** Magic Missile — the negate hold, the real block, the Pass control case, and a target who
 only *wears* a shield.
+
+`smoke-riders` is eight flat assertions; **5** is the load-bearing one (*another creature's mark
+pays this attacker nothing*), because a suite that only checks "is there a mark" passes the rest
+by luck. It builds its own **linked** tokens deliberately: an unlinked token's synthetic actor
+has a different uuid from its base actor, and that distinction is exactly what the ownership
+test turns on.
 
 ⚠ **HP is a fixture resource, and forgetting to reset it makes a damage assertion lie.** The
 stand-in takes real, auto-applied hits in §4b–4c, so it reached §6 at **0 HP** — where "took no
@@ -434,6 +453,6 @@ zero coordination because of this.
   freely, then *offer* the release — they say yes, but the offer is the courtesy.
 - They test immediately after a release, so say plainly what is live, what needs an F5, and
   what needs a process restart.
-- They cut prose that repeats itself. Say it once (standing item 3).
+- They cut prose that repeats itself. Say it once (standing item 4).
 - combatplus is a **reference, not a template**.
 - Surface doc/code disagreements rather than silently choosing (design.md §10).
