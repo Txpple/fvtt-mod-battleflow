@@ -15,9 +15,9 @@ log, not by messaging each other; the only `relationships` entry is a version pi
 
 ## Status
 
-**Phase 1 built — the attack resolver.** Auto-roll damage on hit (attacker's client),
-auto-apply to hit targets (active-GM client), and per-target receipts with one-click revert
-on every damage card. Every feature is behind its own world setting and ships **off**; the
+**Phases 1 through 1.9 built and dogfooded** — the attack resolver (auto-roll on hit,
+auto-apply, receipts + revert), the reaction hold, damage riders, effect riders and weapon
+mastery payouts. Every feature is behind its own world setting and ships **off**; the
 dogfood ladder is walked one setting at a time. The binding design is [design.md](design.md) (mission,
 principles, architecture, the phase ladder, settings, verified dnd5e 5.3.3 hook seams, and
 permanent non-goals). The source-level research that justifies it — a dissection of midi-qol
@@ -30,7 +30,8 @@ Rollout (each phase behind its own setting, default off):
 | --- | --- |
 | **1 ✓** | Attack resolver: auto-roll damage on hit, auto-apply to hit targets, revert receipts |
 | **1.5 ✓** | Reaction hold: Shield-window pause with popup + card row (a pause, not a system), on a hit **or** on a listed spell — Magic Missile really is stopped |
-| 1.75 | Curated damage riders (Hunter's Mark tier) |
+| **1.75 ✓** | Curated damage riders (Hunter's Mark tier): a mark pays out with the attack that earned it |
+| **1.9 ✓** | Effect & mastery riders: a hit applies the effects riding it, and weapon masteries pay out with the attack — Vex/Sap automatic, Slow/Topple/Push/Graze as a Use/Pass ask. Per-source card suppression. Nothing modifies a d20 |
 | 2 | Saves: auto-roll for everyone, half-damage-on-save made real |
 | 2.5 | Concentration assist: un-buryable prompt + break-on-failure |
 | 3 | Effect application on hit / failed save |

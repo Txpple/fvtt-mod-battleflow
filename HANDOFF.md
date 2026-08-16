@@ -1,27 +1,25 @@
 # HANDOFF.md — picking this up cold
 
-> Current at 2026-08-15, end of a long dogfood stretch (v1.1.2 → v1.2.0). Read
+> Current at 2026-08-16, the day Phase 1.9 shipped as **v1.3.0**. Read
 > [design.md](design.md) first — it is binding and wins every disagreement. This file is only
 > *where things stand* and *what already bit us*. Delete or rewrite it freely; it is a
 > snapshot, not a contract.
 >
-> **Phase 1.75 (hit riders) is shipped at v1.2.0, tested 8/8 and dogfooded** (2026-08-15,
-> reported good). **The user redirected the roadmap on 2026-08-15: Phase 1.9 (effect +
-> mastery riders) comes BEFORE Phase 2 — the full plan with decided calls is
-> [PLAN.md](PLAN.md); follow it. As of the 2026-08-15 reboot breakpoint: v1.2.1 is
-> RELEASED; 1.9A (effect riders) and 1.9B/C (mastery riders + Use/Pass ask popup) are
-> BUILT, probe-verified end to end, committed, and hot-deployed to the live box with every
-> new setting defaulting OFF (table-safe, dark). PLAN.md's "STATE AT THE REBOOT BREAKPOINT"
-> block is the exact resume point: smoke-hold regression first, then 1.9D, the
-> smoke-effects suite, docs, and the v1.3.0 release.** Nothing is tracked open against the
-> reaction hold or the riders. The standing notes below are design constraints rather than
-> to-dos.
+> **Phase 1.9 (effect riders, mastery riders, the Use/Pass ask, per-source card
+> suppression) is complete at v1.3.0** — built to PLAN.md (now deleted; its decided calls
+> live in design.md's Phase 1.9 section), verified by the new `tools/smoke-effects.mjs`
+> suite plus full re-runs of the other three, and deployed with **every new setting
+> defaulting OFF** (table-safe, dark; the four per-source suppression switches default ON
+> but sit behind the master that defaults OFF). Nothing is tracked open against the hold,
+> the riders, or the masteries. **Phase 2 (saves) is next**; Topple's manual-save card is
+> the seam it upgrades in place. The standing notes below are design constraints rather
+> than to-dos.
 
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.2.1** (the damage receipt carries the system's trait
-verdicts — a public "immune to cold" beside the −0 HP; pools and revert stay GM-only),
+Molten-hosted). Latest release **v1.3.0** (Phase 1.9 whole: a hit applies the effects
+riding it; weapon masteries pay out with the attack; per-source card suppression),
 deployed, tag pushed, GitHub release carries zip + manifest. **The box tracks the GitHub
 manifest** (repointed 2026-08-15 — the self-hosted dev manifest and zip are gone), so the
 process vends the real version string after a restart.
@@ -31,12 +29,12 @@ process vends the real version string after a restart.
 | 0 — native settings | **The user's to do**, at the table. Not code. |
 | 1 — attack resolver | ✅ shipped. Auto-roll damage on hit, auto-apply via GM elect, receipts + revert. |
 | 1.1 — dogfood polish | ✅ shipped. Tray auto-collapse, require-target gate, usage-card suppression, centered roll dialogs. |
-| 1.5 — reaction hold | ✅ **feature-complete at v1.1.16** and dogfooded — both triggers exist: an attack hit, and a listed spell. Magic Missile and the player-client seam were both played at the table 2026-08-15 with nothing reported; Magic Missile stays in normal dogfood rotation rather than on a list. |
+| 1.5 — reaction hold | ✅ **feature-complete at v1.1.16** and dogfooded — both triggers exist: an attack hit, and a listed spell. Magic Missile stays in normal dogfood rotation rather than on a list. |
 | 1.75 — hit riders | ✅ shipped v1.2.0 and dogfooded. A mark pays out with the attack that earned it. |
-| 1.9 — effect + mastery riders | 🔶 **A/B/C built + verified + deployed dark** (2026-08-15); 1.9D + suite + docs + v1.3.0 release remain — see [PLAN.md](PLAN.md). |
-| 2 — saves | ⬜ after 1.9. Topple's manual-save card is waiting to be upgraded in place. |
+| 1.9 — effect + mastery riders | ✅ **shipped v1.3.0** (2026-08-16), suite-verified end to end. Not yet dogfooded — every switch is OFF at the table until the user walks the ladder. |
+| 2 — saves | ⬜ NEXT. Topple's manual-save card is waiting to be upgraded in place. |
 | 2.5 — concentration | ⬜ has a queued user request (below). |
-| 3 — effect application | ⬜ two standing notes depend on it. |
+| 3 — effect application | ⬜ 1.9A covers the attack-activity slice; the save-activity slice waits on Phase 2. |
 
 ⚠ **World data changed 2026-08-15:** the Skeletal Mage's `system.attributes.ac.calc` went
 `flat` → `natural`. Its `flat: 16` is untouched, so its printed AC is still 16 — but a flat AC
@@ -60,9 +58,13 @@ whatever they find, so it drifts:
 | Skip Hopeless Holds | **on** | gated on the reveal, deliberately — see the setting's hint |
 | Apply the Reaction's Effect | on | |
 | Hold Settle | 8s | |
-| Hit Riders | **off** | new in v1.2.0; needs an F5 before it appears in the sheet |
+| Hit Riders | **off** | new in v1.2.0 |
 | Rider Table | `hunters-mark, hex, great-old-one-hex` | identifiers only — the damage is read from the content |
 | Rider Upgrades | `foe-slayer:hunters-mark` | replaces the die, never stacks |
+| Effect Riders | **off** | new in v1.3.0 — a hit applies the card's effects |
+| Weapon Mastery Riders | **off** | new in v1.3.0 — Vex/Sap auto, the rest ask |
+| Mastery: Ask First | `ask` | `auto` is the tedium escape hatch |
+| Suppress: Weapon / Spell / Feature / Other | **all on** | new in v1.3.0 — inert until the master above them is on; defaults preserve the old boolean's behavior exactly |
 
 ## Open items
 
@@ -123,15 +125,25 @@ whatever they find, so it drifts:
    `element.animate()` and positioned from the flag's absolute deadline, so popup and card
    agree exactly (measured drift 0). ⚠ Do not "simplify" it back to a CSS animation — see the
    ground truth below for why that silently desyncs.
-6. **Usage-card suppression vs effects — partially fixed.** Cards carrying effects are now
-   never suppressed (that was Ray of Frost's slow vanishing). The deeper fix is Phase 3
-   applying effects itself, after which suppression can go back to being unconditional.
+6. **Usage-card suppression, settled shape (v1.3.0).** The master boolean gates four
+   per-source switches (weapon/spell/feature/other, by `flags.dnd5e.item.type` on the card —
+   this world's statblock attacks are **weapon**-type, verified empirically by the suite).
+   The carve-out is now conditional: a card carrying effects survives only when the riders
+   will NOT handle them — Effect Riders off, or a **concentration cast**
+   (`system.concentration`, stamped into the message data before creation, mixin.mjs:248),
+   whose origin linkage the suppressed-card fallback cannot rebuild. With riders on, an
+   ordinary effect-carrying card is suppressed and the effects land anyway.
 7. **Phase 2.5 concentration visibility** (user request, 2026-08-15): a world setting for who
    sees the concentration check — everyone, or just the concentrator + DM. Public is the
    interesting default for table tension when a party-wide buff like Bless is at stake.
-8. **design.md §9 says "combatplus is the template."** The user has explicitly softened that:
-   combatplus is a *reference*, not a template — do what is correct for Battle Flow. The doc
-   sentence is a candidate for a §10-style correction.
+8. **Vex/Sap enforcement is deliberately not built** (the 1.9 fence, user call): the chip is
+   the reminder, the roll dialog is the enforcement surface, and nothing modifies a d20.
+   The chips carry `duration rounds: 1` in combat as an approximation of the RAW windows —
+   if the table reports chips outliving their moment, the fix is duration precision, not
+   enforcement.
+9. **Graze deliberately reads the attack AS ROLLED** — a Shield later flipping a hit to a
+   miss does not re-open Graze for that target. Nobody has asked; recorded so the corner is
+   a decision rather than a surprise.
 
 ## How to work on this
 
@@ -174,7 +186,7 @@ bit because the live box is hot-deployed over WebDAV rather than installed from 
 clean install from any of those tags would have. v1.1.16 onward is correct; the old assets were
 left alone, so re-cut one only if someone ever needs to install it.
 
-**Test** — both suites restore every setting they touch and delete their own chat messages:
+**Test** — every suite restores the settings it touches and deletes its own chat messages:
 
 ```bash
 node tools/smoke-battleflow.mjs
@@ -187,6 +199,25 @@ node tools/smoke-hold.mjs
 ```bash
 node tools/smoke-riders.mjs
 ```
+
+```bash
+node tools/smoke-effects.mjs
+```
+
+⚠ **Disconnect the MCP bridge before any suite run** (the `disconnect-bridge` MCP tool; it
+reconnects itself on the next tool call). A lingering bridge page and the suite's own login
+are the SAME Foundry user, and two pages on one GM user make BOTH clients the
+"single-writer" elect — `activeGM.isSelf` is per-user, not per-page. Measured 2026-08-16:
+one cast created two identical effect chips (both elects won the create race), one attack
+posted two Push cards, and damage applied twice — which drained a freshly healed fixture
+to 0 and made the dead-skip eat a payout three assertions away from the cause. At a real
+table this cannot happen (the bridge is one page; humans are different users); it is purely
+a harness topology, so the fix is protocol, not code. `smoke-effects` §9 asserts the
+announcement count so a double-elect now fails loudly at the source.
+
+`tools/probe-effects.mjs` is the instrumented one-shot that untangled the above — it dumps
+receipt/effect/message state around a vex attack, a push, and a double Guiding Bolt cast.
+Cheap to re-run; extend it rather than adding printf debugging to a suite.
 
 `tools/scan-reactions.mjs` regenerates the [REACTIONS.md](REACTIONS.md) survey after content
 changes; `tools/scan-riders.mjs` does the same job for damage riders, finding them by the
@@ -367,6 +398,33 @@ Most of these are commented at the line where it bit. Do not rediscover them.
   `consumption.spellSlot: false` casts with no slot at all. That is how §6 gives an NPC with no
   slot maxima a working Magic Missile, and it is the shape innate casting really has.
 
+**Weapon masteries (5.3.3, the 1.9 seams)**
+
+- **Eligibility is trait + weapon**: `masteryOptions` (`data/item/weapon.mjs:327`) is non-null
+  only when `actor.system.traits.weaponProf.mastery.value` (a Set of base weapon ids —
+  character data only) contains `weapon.system.type.baseItem` AND the weapon has
+  `system.mastery`. With `configure: false` the roll takes `masteryOptions[0]` — the weapon's
+  own mastery — and stamps `flags.dnd5e.roll.mastery` on the attack message
+  (`attack.mjs:167`); an ineligible wielder stamps nothing. A test fixture needs BOTH fields.
+- **A usage card's `system.effects` is relative-uuid suffixes** (`.ActiveEffect.<id>`),
+  written by `_finalizeMessageConfig` from `applicableEffects` (`mixin.mjs:720`) immediately
+  before `_createUsageMessage` — so it IS readable at `preCreateChatMessage`, which is what
+  the suppression carve-out does. `system.concentration` (the effect id) is likewise stamped
+  pre-creation (`mixin.mjs:248`).
+- ⚠ **The native usage card prints the mastery name in its subtitle** ("Simple Melee •
+  Push"), so matching announcements by `/push/i` over message content finds the SYSTEM's
+  card first. Match this module's announcements by their eyebrow text ("Weapon Mastery —
+  Push"), or better, by flag.
+- ⚠ **`activity.use()` returning `undefined` means the use was REFUSED** (no slot, no uses,
+  cancelled) — a different fact from a suppressed card, where `results` exists and only
+  `results.message` is empty. A suite that conflates them chases suppression bugs that are
+  empty slot pools; both suites now distinguish, and casters are long-rested between
+  cast-heavy sections. (Character slot maxima honor `system.spells.spellN.override` — that
+  is how a classless fixture casts a levelled concentration spell deterministically.)
+- **Character ability defaults are 10s** — a bare-created `type: "character"` fixture has
+  +0 everywhere, and Graze (flat ability-mod damage) refuses to pay 0. The suite sets
+  str/dex 16 explicitly and restores them.
+
 **The statblock caster (the monster side, and where most of the bugs lived)**
 
 - ⚠ **A 2024 statblock does not cast from the spell item at all.** Its "Spellcasting" feature
@@ -428,10 +486,17 @@ Most of these are commented at the line where it bit. Do not rediscover them.
 ## The shape of the thing
 
 One ES module, `scripts/battleflow.js`, no build step. Sections in order: settings + the
-settings-sheet polish, shared hit-test/chain helpers, table polish, the reaction hold
-(eligibility → **both triggers** → answers → continuation → the veto → views), Phase 1a
-auto-damage, Phase 1b auto-apply, receipts. Every hook's first line checks its feature toggle;
-every feature ships **off**.
+settings-sheet polish, shared hit-test/chain helpers, table polish (incl. per-source
+suppression), Phase 1a auto-damage, the reaction hold (eligibility → **both triggers** →
+answers → continuation → the veto → views), Phase 1.75 hit riders, Phase 1b auto-apply +
+the shared damage applier, Phase 1.9A effect riders, Phase 1.9B/C mastery riders + the ask,
+receipts. Every hook's first line checks its feature toggle; every feature ships **off**.
+
+The payout pipeline is one deterministic sequence per damage message on the elect
+(`resolveDamagePayouts`): **application → effect riders → mastery** — sequential because
+the Vex/Slow damage gates read the receipt's post-trait `taken`, which exists only after
+application. The mastery ask is a hold miniaturized (stamp → row → popup → answer-flag →
+elect executes), deliberately with no continuation, settle, or re-test.
 
 The hold has **two entry points and one machine**. `stampHoldIfInterrupted` (from
 `dnd5e.rollAttackV2`) writes a hold onto the **attack message**; `stampSpellHold` (from

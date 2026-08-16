@@ -240,8 +240,12 @@ off), none changing the resolution chain:
   no-ops silently on every card this system creates (bit live 2026-08-15).
   ⚠ **A card carrying effects is never suppressed.** Attack-roll *spells* are attack
   activities too, and their card is the only place their riders can be applied from —
-  suppressing it silently ate Ray of Frost's slow (reported live 2026-08-15). Revisit when
-  Phase 3 applies effects itself.
+  suppressing it silently ate Ray of Frost's slow (reported live 2026-08-15).
+  > **Superseded by Phase 1.9D (2026-08-16).** The boolean became a master gate over four
+  > per-source switches, and the carve-out sharpened: a card carrying effects survives only
+  > when the riders will *not* handle them — Effect Riders off, or a concentration cast,
+  > whose origin linkage only the card can supply. With riders on, an ordinary
+  > effect-carrying card may go; the effects land anyway.
 - **Damage receipts are for the whole table, the HP pool is not.** Everyone sees *who* the
   damage landed on and how much; the before → after hit points and the revert control stay
   GM-only. A rolled number with no named target is the thing players actually complained
@@ -425,6 +429,55 @@ caveat inherited from the reaction hold:** a held attack rolls its damage after 
 the continuing client — still that client's `preRollDamageV2`, so nothing special is owed, but
 the smoke suite should prove it rather than assume it.
 
+### Phase 1.9 — effect & mastery riders (the on-hit payout tier)
+
+Slotted before saves by user redirect (2026-08-15): on-hit effects and weapon masteries fire
+every round, saves a few times a fight, and the v1.2.0 payout machinery was hot. Shipped
+v1.3.0 (2026-08-16).
+
+- **1.9A — spell effect riders.** At the point the chain applies an attack's damage, the
+  effects riding the usage card land on each **hit** target through the native application
+  path — same origin rule (`concentration ?? effect`), same `dependentOn` cascade, same
+  re-enable-instead-of-stack for an existing same-origin copy (bug-for-bug parity with the
+  tray, deliberately). **Per-target on purpose**: the damage riders' split-target
+  intersection refusal does NOT apply here, because each target gets its own document — hit
+  the quarry and an unmarked goblin, both get slowed. Effect receipts join the damage card
+  with a per-effect GM revert that tolerates the effect already being gone (concentration
+  cascade, manual right-click, death).
+- **1.9B — weapon mastery riders.** Detection is one flag read: the system stamps
+  `flags.dnd5e.roll.mastery` onto the attack message only when the wielder genuinely has
+  mastery with that weapon — eligibility, identity and the which-mastery choice are all
+  pre-solved upstream, and masteries are PC-only in data, so the ask always has a natural
+  owner. Payouts follow the 2024 rules text: **Vex and Sap are automatic** (no "can" in the
+  rule; Vex additionally requires damage dealt, read from the receipt's post-trait `taken`),
+  **Slow, Topple, Push and Graze are the wielder's option**. Authored effect chips carry the
+  rule in their description; Topple posts the native `[[/save]]` enricher with the computed
+  DC and stays a **manual** save until Phase 2 upgrades that same card in place; Push
+  announces and never moves a token; Graze pays the ability modifier through the shared
+  applier with its receipt on the **attack** card (a miss has no damage message). Cleave and
+  Nick stay native — action economy is not a payout. Hopeless skips mirror the hold's: no
+  Topple ask on the prone, no Slow ask at 0 speed, nothing asked about the dead.
+- **1.9C — the ask.** The hold's design language on lighter machinery: **popups ask
+  questions, cards state facts.** One decision, exactly two controls (Use/Pass — the
+  two-control rule is binding), answered by the attacking player's owner, on the hold's own
+  timer (`holdTimer`, 0 waits; expiry = Pass). Nothing downstream waits — it is a payout
+  with a confirm, not an interrupt, so there is no continuation, no settle window, no
+  re-test. `masteryAsk: auto` is the tedium escape hatch (user call: players like being
+  reminded of their options).
+- **1.9D — per-source card suppression.** `suppressAttackCards` becomes a master gate over
+  four per-source switches keyed by the item type behind the activity — weapon / spell /
+  feature / other — each defaulting to suppressed, so a world with the old boolean on
+  carries forward identically with nobody touching settings. The Phase 1.1 carve-out
+  sharpens: a card carrying effects survives only when the riders will *not* handle them
+  (Effect Riders off, or a concentration cast — its origin linkage lives on the card and the
+  suppressed-card fallback cannot rebuild it). Scope guard: attack-activity cards only;
+  save-spell cards are load-bearing until Phase 2.
+- ⚠ **THE FENCE (user call, permanent for this phase): nothing here ever modifies a d20.**
+  Advantage/disadvantage enforcement and consumed-on-use expiry (the AC5e-sized lift) are
+  explicitly out of scope — the applied chip is the reminder and the roll dialog's adv/dis
+  buttons are the enforcement surface. `dnd5e.preRollAttackV2` exists if a later phase wants
+  enforcement; nothing here blocks it.
+
 ### Phase 2 — saves
 
 - **Everyone auto-rolls** (target state): each player's client auto-rolls for save-activity
@@ -528,6 +581,10 @@ World, per-feature, default OFF unless noted:
 | Hit riders | off / on | 1.75 |
 | Rider table | curated identifier list — **how much** is read from the content, never listed | 1.75 |
 | Rider upgrades | curated `feature:mark` pairs, damage likewise read from the feature | 1.75 |
+| Effect riders | off / on | 1.9 |
+| Mastery riders | off / on | 1.9 |
+| Mastery: ask first | ask / auto (Vex and Sap never ask — the rules make them automatic) | 1.9 |
+| Per-source suppression | weapon / spell / feature / other, each on under the 1.1 master | 1.9 |
 | Saves | prompt everyone / auto NPCs / auto everyone | 2 |
 | Concentration | prompt / auto; break-on-failure on/off | 2.5 |
 | Effect auto-application | off / on | 3 |
@@ -603,7 +660,9 @@ The 80% of midi-qol this module exists to refuse:
 
 ## 9. Repo conventions
 
-House patterns inherited from the module family (combatplus is the template):
+House patterns inherited from the module family (combatplus is a **reference, not a
+template** — the user softened the original "template" wording on 2026-08-15: consult it for
+idiom, then do what is correct for Battle Flow):
 
 - Single ES module (`scripts/battleflow.js`), no build step, no bundler. If the file outgrows
   readability, split by phase — but fight for the single file first.
