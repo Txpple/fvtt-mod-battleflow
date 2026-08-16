@@ -18,9 +18,10 @@
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.3.0** (Phase 1.9 whole: a hit applies the effects
-riding it; weapon masteries pay out with the attack; per-source card suppression),
-deployed, tag pushed, GitHub release carries zip + manifest. **The box tracks the GitHub
+Molten-hosted). Latest release **v1.3.1** (v1.3.0 = Phase 1.9 whole: a hit applies the
+effects riding it, weapon masteries pay out with the attack, per-source card suppression;
+v1.3.1 = the same-day architecture review applied — standing note 10), deployed, tags
+pushed, GitHub releases carry zip + manifest. **The box tracks the GitHub
 manifest** (repointed 2026-08-15 — the self-hosted dev manifest and zip are gone), so the
 process vends the real version string after a restart.
 
