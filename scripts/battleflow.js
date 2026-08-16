@@ -106,7 +106,8 @@ const S = {
   concMode: "concMode",
   concTimer: "concTimer",
   concBreak: "concBreak",
-  concVisibility: "concVisibility"
+  concVisibility: "concVisibility",
+  castApply: "castApply"
 };
 
 const setting = key => game.settings.get(MODULE_ID, key);
@@ -331,6 +332,12 @@ Hooks.once("init", () => {
     hint: "On (default): the check and the roll play out in the open — the table gets to hold its breath over the party's Bless. Off: whispered to the concentrator's owners and the GM. A BROKEN concentration is announced publicly either way — the cascade strips icons across the whole table, and an icon vanishing must never be a mystery.",
     scope: "world", config: true, type: Boolean, default: true
   });
+
+  game.settings.register(MODULE_ID, S.castApply, {
+    name: "Auto-Apply on Cast",
+    hint: "A cast with no roll to gate on resolves itself: a no-save spell's effects land on every target it was aimed at (Bless on all three, Hunter's Mark's mark on the quarry), and healing rolls its dice and lands (Healing Word). Receipts with per-target revert, as everywhere. Attack spells ride the hit under Effect Riders; save spells wait for the saves phase; plain damage spells (Magic Missile) keep their manual tray — the reaction that negates them must stay answerable.",
+    scope: "world", config: true, type: Boolean, default: false
+  });
 });
 
 // Settings-sheet polish (the combatplus idiom, from day one): a divider heading the module's
@@ -359,6 +366,7 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   addDivider(input(S.reactionHold), "Reaction Hold");
   addDivider(input(S.riders), "Hit Riders");
   addDivider(input(S.concMode), "Concentration");
+  addDivider(input(S.castApply), "Casts");
   addDivider(input(S.suppressAttackCards), "Table Polish");
 
   const hold = input(S.reactionHold);
@@ -468,8 +476,85 @@ Hooks.on("dnd5e.preUseActivity", activity => {
 //
 // Scope guard: attack-activity cards ONLY. Save-spell cards are load-bearing (targets click
 // their saves there) until Phase 2 rolls saves itself.
+/** The 1.9D per-source bucket for a usage card, by the item type behind the activity —
+ * read straight off the card's own flags (messageFlags stamps `item: {type, id, uuid}` on
+ * every usage card, mixin.mjs:139). No async resolution, no registry walk. */
+function suppressBucketFor(doc) {
+  const itemType = doc.getFlag("dnd5e", "item")?.type;
+  return (itemType === "weapon") ? S.suppressWeaponCards
+    : (itemType === "spell") ? S.suppressSpellCards
+    : (itemType === "feat") ? S.suppressFeatureCards
+    : S.suppressOtherCards;
+}
+
+/**
+ * Phase 3's structural gate — no name list, a shape (design.md §2.6 done right): a used
+ * activity with NO outcome gate. `utility` carrying effects applies them at cast (Bless,
+ * Hunter's Mark's Mark Creature AND Move Mark, Heroism); `heal` applies its self-rolled
+ * healing (the roll message is stamped separately — see the preCreate hook). Attack
+ * activities are 1.9A's (gated on the hit); save activities are Phase 2's (their cards are
+ * load-bearing); bare `damage` activities are deliberately OUT — Magic Missile is the
+ * negate hold's seam, and an auto-apply here would beat every pending hold's verdict
+ * (HANDOFF standing item 2).
+ */
+function castApplyQualifies(doc) {
+  if ( !setting(S.castApply) ) return false;
+  const activityType = doc.getFlag("dnd5e", "activity")?.type;
+  if ( (activityType !== "utility") && (activityType !== "heal") ) return false;
+  if ( !(doc.getFlag("dnd5e", "targets") ?? []).length ) return false;
+  // A heal's card is suppressible bare (its roll is the record); utility needs effects.
+  return (activityType === "heal") || !!doc.system?.effects?.length;
+}
+
+/** Everything the elect needs to apply a cast, captured off the card (or its doomed data). */
+function castPayload(doc) {
+  return {
+    activityUuid: doc.getFlag("dnd5e", "activity")?.uuid ?? null,
+    concentration: doc.system?.concentration ?? null,
+    scaling: doc.system?.scaling ?? 0,
+    spellLevel: doc.system?.spellLevel ?? null,
+    targets: (doc.getFlag("dnd5e", "targets") ?? []).map(t => ({ uuid: t.uuid, name: t.name }))
+  };
+}
+
+/**
+ * The replacement card for a suppressed cast: created on the CASTING client from the doomed
+ * card's own data (preCreate is local, and players can create their own messages), carrying
+ * the payload the elect applies from. Chat-log-as-bus survives suppression this way — a
+ * vetoed card leaves nothing to react to, so the replacement IS the bus, and the receipt
+ * carrier, and the table's record of the cast, in one message.
+ */
+async function postCastReplacement(doc) {
+  try {
+    const payload = castPayload(doc);
+    let item = null;
+    try { item = fromUuidSync(doc.getFlag("dnd5e", "item")?.uuid ?? ""); } catch { item = null; }
+    const caster = doc.speaker?.alias ?? item?.actor?.name ?? "Someone";
+    const names = payload.targets.map(t => t.name).join(", ");
+    await ChatMessage.create({
+      speaker: doc.speaker,
+      content: bfCard({
+        img: item?.img, eyebrow: "Cast", tone: "good",
+        title: `${caster} casts ${item?.name ?? "a spell"}`,
+        subtitle: names ? `On ${names}` : ""
+      }),
+      flags: { [MODULE_ID]: { castApply: payload } }
+    });
+  } catch(err) {
+    console.error(`${TITLE} | Could not post the cast card.`, err);
+  }
+}
+
 Hooks.on("preCreateChatMessage", doc => {
-  if ( !setting(S.suppressAttackCards) ) return;
+  // Cast auto-apply (Phase 3, cast slice): a healing roll aimed at targets is claimed at
+  // creation, on the initiating client. The STAMP, never the setting, is what the elect
+  // keys on later — an unstamped message can never be applied, so a render of last week's
+  // log is inert by construction, and a mid-session kill still resolves what was stamped.
+  if ( setting(S.castApply) && (doc.getFlag("dnd5e", "roll.type") === "healing")
+    && (doc.getFlag("dnd5e", "targets") ?? []).length ) {
+    doc.updateSource({ flags: { [MODULE_ID]: { healPending: true } } });
+  }
+
   // ⚠ At 5.3.3 the usage card is a real message SUBTYPE (`type: "usage"`, registered in
   // data/chat-message/_module.mjs). `flags.dnd5e.messageType === "usage"` is the LEGACY
   // shape the system's own migrateData writes for pre-subtype documents (chat-message.mjs:91)
@@ -477,28 +562,36 @@ Hooks.on("preCreateChatMessage", doc => {
   // (bit live 2026-08-15). Accept both so old worlds and new agree.
   const isUsage = (doc.type === "usage") || (doc.getFlag("dnd5e", "messageType") === "usage");
   if ( !isUsage ) return;
-  if ( doc.getFlag("dnd5e", "activity")?.type !== "attack" ) return;
+  const activityType = doc.getFlag("dnd5e", "activity")?.type;
 
-  // Per-source (1.9D): bucket by the item type behind the activity, read straight off the
-  // card's own flags (messageFlags stamps `item: {type, id, uuid}` on every usage card,
-  // mixin.mjs:139). No async resolution, no registry walk.
-  const itemType = doc.getFlag("dnd5e", "item")?.type;
-  const bucket = (itemType === "weapon") ? S.suppressWeaponCards
-    : (itemType === "spell") ? S.suppressSpellCards
-    : (itemType === "feat") ? S.suppressFeatureCards
-    : S.suppressOtherCards;
-  if ( !setting(bucket) ) return;
+  if ( activityType === "attack" ) {
+    if ( !setting(S.suppressAttackCards) ) return;
+    if ( !setting(suppressBucketFor(doc)) ) return;
+    // ⚠ A card carrying effects the riders will NOT handle must survive. With Effect Riders
+    // off the card is the only place its effects can be applied from — suppressing it silently
+    // ate Ray of Frost's slow (reported live 2026-08-15). With riders ON the card can go, the
+    // effects land anyway — EXCEPT a concentration cast: the rider applier resolves the
+    // concentration effect for origin linkage off the usage card (`system.concentration`,
+    // stamped into the message data before creation, mixin.mjs:248), and the suppressed-card
+    // fallback cannot rebuild that linkage — so those cards stay.
+    if ( doc.system?.effects?.length
+      && (!setting(S.effectRiders) || doc.system?.concentration) ) return;
+    return false;
+  }
 
-  // ⚠ A card carrying effects the riders will NOT handle must survive. With Effect Riders
-  // off the card is the only place its effects can be applied from — suppressing it silently
-  // ate Ray of Frost's slow (reported live 2026-08-15). With riders ON the card can go, the
-  // effects land anyway — EXCEPT a concentration cast: the rider applier resolves the
-  // concentration effect for origin linkage off the usage card (`system.concentration`,
-  // stamped into the message data before creation, mixin.mjs:248), and the suppressed-card
-  // fallback cannot rebuild that linkage — so those cards stay.
-  if ( doc.system?.effects?.length
-    && (!setting(S.effectRiders) || doc.system?.concentration) ) return;
-  return false;
+  // Phase 3 (cast slice): a no-gate cast the applier will handle. Suppressed under the same
+  // 1.9D switches as attack cards — and REPLACED, because the replacement card is the bus.
+  // Unlike 1.9A's carve-out, a concentration cast's card can go here: the payload carries
+  // the linkage the bare suppression could not rebuild. With suppression off, the native
+  // card itself is stamped and stays the bus.
+  if ( castApplyQualifies(doc) ) {
+    if ( setting(S.suppressAttackCards) && setting(suppressBucketFor(doc)) ) {
+      if ( doc.system?.effects?.length ) void postCastReplacement(doc); // a bare heal needs no replacement
+      return false;
+    }
+    if ( doc.system?.effects?.length )
+      doc.updateSource({ flags: { [MODULE_ID]: { castApply: castPayload(doc) } } });
+  }
 });
 
 // Center the system's roll-configuration dialogs (dnd5e docks them lower-right:
@@ -2425,43 +2518,70 @@ async function applyEffectRiders(damageMessage, attackMessage, hits) {
     const concentration = usageCard
       ? usageCard.getAssociatedActor()?.effects.get(usageCard.system?.concentration) : null;
 
-    const receipts = [];
-    for ( const target of hits ) {
-      const actor = await fromUuid(target.uuid); // the targets snapshot carries ACTOR uuids
-      if ( !(actor instanceof Actor) ) continue;
-      const entry = { uuid: target.uuid, name: target.name, img: actor.img ?? null, effects: [] };
-      for ( const effect of effects ) {
-        const origin = concentration ?? effect;
-        const effectFlags = { flags: { dnd5e: {
-          dependentOn: origin.uuid,
-          scaling: usageCard?.system?.scaling ?? 0,
-          spellLevel: usageCard?.system?.spellLevel ?? undefined
-        } } };
-        // Native parity, bug-for-bug: an existing effect with this origin is re-enabled and
-        // re-clocked rather than duplicated. (Like the tray, a concentration spell carrying
-        // TWO effects collides with itself here — both share the concentration origin — but
-        // deviating from the button the module is pressing would be worse than matching it.)
-        const existing = actor.effects.find(e => e.origin === origin.uuid);
-        let applied;
-        if ( existing ) {
-          // ⚠ `?? existing`: an empty-diff update returns undefined (same bug as the
-          // mastery applier) and the receipt entry would vanish with it.
-          applied = (await existing.update(foundry.utils.mergeObject({
-            ...effect.constructor.getInitialDuration(), disabled: false
-          }, effectFlags))) ?? existing;
-        } else {
-          applied = await ActiveEffect.implementation.create(foundry.utils.mergeObject({
-            ...effect.toObject(), disabled: false, transfer: false, origin: origin.uuid
-          }, effectFlags), { parent: actor });
-        }
-        if ( applied ) entry.effects.push({ id: applied.id, name: applied.name, img: applied.img, reverted: false });
-      }
-      if ( entry.effects.length ) receipts.push(entry);
-    }
-    if ( receipts.length ) await damageMessage.setFlag(MODULE_ID, "effectReceipt", { ridersDone: true, targets: receipts });
+    await applyEffectsWithReceipt(damageMessage, effects, hits, {
+      concentration,
+      scaling: usageCard?.system?.scaling ?? 0,
+      spellLevel: usageCard?.system?.spellLevel ?? undefined,
+      marker: "ridersDone"
+    });
   } catch(err) {
     console.error(`${TITLE} | Effect riders failed.`, err);
   }
+}
+
+/**
+ * The one effect applier — 1.9A's loop, extracted the day the cast slice arrived (the
+ * Phase 3 convergence the v1.3.1 review predicted; the reaction effect's missing receipt is
+ * now the only appliance left outside it). Apply `effects` to every target, mirroring the
+ * native tray's _applyEffectToActor: same origin rule (concentration ?? effect), same
+ * dependentOn cascade, same re-enable-instead-of-stack. Entries merge into
+ * `receiptMessage`'s effectReceipt flag under the caller's own done-`marker`, so the rider
+ * and cast stages can never mistake each other's work for their own.
+ */
+async function applyEffectsWithReceipt(receiptMessage, effects, targets,
+  { concentration = null, scaling = 0, spellLevel, marker } = {}) {
+  const flag = foundry.utils.deepClone(
+    receiptMessage.getFlag(MODULE_ID, "effectReceipt") ?? { targets: [] });
+  for ( const target of targets ) {
+    const actor = await fromUuid(target.uuid); // the targets snapshot carries ACTOR uuids
+    if ( !(actor instanceof Actor) ) continue;
+    let entry = flag.targets.find(t => t.uuid === target.uuid);
+    if ( !entry ) flag.targets.push(entry = { uuid: target.uuid, name: target.name, img: actor.img ?? null, effects: [] });
+    for ( const effect of effects ) {
+      const origin = concentration ?? effect;
+      const effectFlags = { flags: { dnd5e: {
+        dependentOn: origin.uuid,
+        scaling,
+        spellLevel
+      } } };
+      // Native parity, bug-for-bug: an existing effect with this origin is re-enabled and
+      // re-clocked rather than duplicated. (Like the tray, a concentration spell carrying
+      // TWO effects collides with itself here — both share the concentration origin — but
+      // deviating from the button the module is pressing would be worse than matching it.)
+      const existing = actor.effects.find(e => e.origin === origin.uuid);
+      let applied;
+      if ( existing ) {
+        // ⚠ `?? existing`: an empty-diff update returns undefined (same bug as the
+        // mastery applier) and the receipt entry would vanish with it.
+        applied = (await existing.update(foundry.utils.mergeObject({
+          ...effect.constructor.getInitialDuration(), disabled: false
+        }, effectFlags))) ?? existing;
+      } else {
+        applied = await ActiveEffect.implementation.create(foundry.utils.mergeObject({
+          ...effect.toObject(), disabled: false, transfer: false, origin: origin.uuid
+        }, effectFlags), { parent: actor });
+      }
+      if ( applied && !entry.effects.some(e => e.id === applied.id) ) {
+        entry.effects.push({ id: applied.id, name: applied.name, img: applied.img,
+          description: applied.description ?? "", reverted: false });
+      }
+    }
+    if ( !entry.effects.length ) flag.targets.splice(flag.targets.indexOf(entry), 1);
+  }
+  // The marker is written even when nothing landed — "asked and answered" must be
+  // re-run-proof, or every render would retry a cast whose targets are all gone.
+  if ( marker ) flag[marker] = true;
+  if ( flag.targets.length || marker ) await receiptMessage.setFlag(MODULE_ID, "effectReceipt", flag);
 }
 
 /**
@@ -2586,11 +2706,25 @@ async function resolveHitMastery(damageMessage, attackMessage, hits) {
     switch ( key ) {
       case "vex": {
         const dealt = live.filter(t => dealtFor(damageMessage, t.uuid) > 0);
-        if ( dealt.length ) await applyMasteryEffect(damageMessage ?? attackMessage, ctx, "vex", dealt);
-        return;
+        if ( !dealt.length ) return;
+        await applyMasteryEffect(damageMessage ?? attackMessage, ctx, "vex", dealt);
+        return postMasteryNotice(ctx, "vex", dealt);
       }
       case "sap":
-        return applyMasteryEffect(damageMessage ?? attackMessage, ctx, "sap", live);
+        await applyMasteryEffect(damageMessage ?? attackMessage, ctx, "sap", live);
+        return postMasteryNotice(ctx, "sap", live);
+      case "cleave": {
+        // A reminder, not a payout (design.md 1.9B amendment): the extra attack, its target
+        // and its rolls stay native. Once per combat turn — the option is once per turn, so
+        // is the nag; out of combat every hit reminds (the test range has no turns).
+        const c = game.combat;
+        if ( c?.started ) {
+          const stamp = `${c.id}:${c.round}:${c.turn}`;
+          if ( cleaveNoticed.get(ctx.attacker.uuid) === stamp ) return;
+          cleaveNoticed.set(ctx.attacker.uuid, stamp);
+        }
+        return postMasteryNotice(ctx, "cleave", live);
+      }
       case "slow": {
         const eligible = live.filter(t => (dealtFor(damageMessage, t.uuid) > 0)
           && (((t.actor.system.attributes?.movement?.walk ?? 0) > 0)
@@ -2604,7 +2738,7 @@ async function resolveHitMastery(damageMessage, attackMessage, hits) {
       case "push":
         return askOrTake(attackMessage, damageMessage, ctx, "push", live);
       default:
-        return; // cleave, nick: action economy, deliberately native
+        return; // nick: action economy, deliberately native
     }
   } catch(err) {
     console.error(`${TITLE} | Mastery rider failed.`, err);
@@ -2704,7 +2838,8 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
     let entry = flag.targets.find(x => x.uuid === t.uuid);
     if ( !entry ) flag.targets.push(entry = { uuid: t.uuid, name: t.name, img: actor.img ?? null, effects: [] });
     if ( !entry.effects.some(e => e.id === applied.id) ) {
-      entry.effects.push({ id: applied.id, name: applied.name, img: applied.img, reverted: false });
+      entry.effects.push({ id: applied.id, name: applied.name, img: applied.img,
+        description: applied.description ?? "", reverted: false });
     }
   }
   if ( flag.targets.length && receiptMessage ) await receiptMessage.setFlag(MODULE_ID, "effectReceipt", flag);
@@ -2724,9 +2859,74 @@ async function toppleCard(ctx, targets) {
       lines: [`[[/save ability=con dc=${dc} format=long]]`, "On a failure, it falls Prone."]
     }),
     flags: { [MODULE_ID]: { topple: {
+      dc, ability: "con",
+      weapon: { name: ctx.weapon.name, img: ctx.weapon.img },
       targets: targets.map(t => ({ uuid: t.uuid, name: t.name, done: false }))
     } } }
   });
+}
+
+/**
+ * The Topple card folds its own save (user call 2026-08-16 — the Phase 2 seam pressed in
+ * place, v1.5.0). The elect judges a Constitution save that answers a still-pending topple
+ * target against the DC stored on the card — the ask's DC, exactly the concentration fold's
+ * rule — and a failure presses the button itself: Prone, announced. The save ROLL stays
+ * human-pressed; the GM per-target button remains for saves rolled on paper.
+ *
+ * Recognizer (the 2.5 shape): the roll's actor must be a still-pending target, the ability
+ * must match, and the roll either chains to the topple card itself (the enricher click —
+ * buildPost stamps originatingMessage from the enclosing card, basic-roll.mjs:173) or
+ * chains to nothing at all (a bare sheet roll). A save chained to any OTHER message belongs
+ * to that chain and is never read as a Topple answer. Pre-v1.5.0 cards carry no dc on the
+ * flag and are skipped — their GM buttons still work.
+ */
+Hooks.on("createChatMessage", message => {
+  if ( !isActiveGM() ) return;
+  if ( message.getFlag("dnd5e", "roll.type") !== "save" ) return;
+  void foldToppleSave(message);
+});
+
+async function foldToppleSave(saveMessage) {
+  try {
+    const actor = saveMessage.getAssociatedActor?.();
+    const total = saveMessage.rolls?.[0]?.total;
+    if ( !actor || (typeof total !== "number") ) return;
+    const originId = saveMessage.getFlag("dnd5e", "originatingMessage");
+    let cards;
+    if ( originId ) {
+      const origin = game.messages.get(originId);
+      if ( !origin?.getFlag(MODULE_ID, "topple") ) return; // another chain's save
+      cards = [origin];
+    } else {
+      // Whole-log by design (the tail-window lesson); the oldest pending card answers first.
+      cards = game.messages.contents.filter(m => m.getFlag(MODULE_ID, "topple"));
+    }
+    for ( const card of cards ) {
+      const flag = foundry.utils.deepClone(card.getFlag(MODULE_ID, "topple"));
+      if ( !(flag?.dc > 0) ) continue;
+      if ( flag.ability && (saveMessage.getFlag("dnd5e", "roll.ability") !== flag.ability) ) continue;
+      const entry = flag.targets?.find(t => !t.done && (t.uuid === actor.uuid));
+      if ( !entry ) continue;
+      const success = total >= flag.dc;
+      entry.done = true;
+      entry.outcome = success ? "saved" : "prone";
+      await card.setFlag(MODULE_ID, "topple", flag);
+      if ( !success ) {
+        await actor.toggleStatusEffect("prone", { active: true });
+        await ChatMessage.create({
+          speaker: card.speaker,
+          content: bfCard({
+            img: flag.weapon?.img, eyebrow: "Weapon Mastery — Topple", tone: "good",
+            title: `${entry.name} falls Prone`,
+            subtitle: `Constitution save ${total} vs DC ${flag.dc}`
+          })
+        });
+      }
+      return; // one save answers one card
+    }
+  } catch(err) {
+    console.error(`${TITLE} | Topple fold failed.`, err);
+  }
 }
 
 /** Push: announce the option. Tokens are never moved — sliding one is free at the table. */
@@ -2751,6 +2951,80 @@ async function grazePayout(attackMessage, ctx, targets) {
   await applyDamagesWithReceipt(attackMessage, targets, [{
     value: mod, type, properties: new Set(ctx.weapon.system.properties ?? [])
   }], { note: "Graze — the miss still pays" });
+}
+
+/* --- the reminder: an informational table moment (1.9C amendment, 2026-08-16) -------------- */
+
+/** What each reminder says — the fact, in the mastery's own words. */
+const NOTICE_TEXT = {
+  vex: (ctx, names) => ({
+    title: "Vex — Advantage on your next attack",
+    lines: [`Against ${names}, before the end of your next turn. Claim it in the roll dialog — nothing applies it for you.`]
+  }),
+  sap: (ctx, names) => ({
+    title: `Sap — ${names} at Disadvantage`,
+    lines: [`On its next attack roll, before the start of ${ctx.attacker.name}'s next turn. The chip on the target carries the rule; the roll dialog is where it is honoured.`]
+  }),
+  cleave: (ctx, names) => ({
+    title: "Cleave — one extra attack available",
+    lines: [`One extra attack with ${ctx.weapon.name} against a second creature within 5 feet of ${names} — once on your turn, and its damage takes no ability modifier. Roll it from the sheet; nothing moves for you.`]
+  })
+};
+
+/** Reminders this client has shown, so a re-render never re-pops a dismissed one. */
+const shownMasteryNotices = new Set();
+
+/** Cleave reminds once per combat turn per attacker. */
+const cleaveNoticed = new Map();
+
+/**
+ * The elect posts the reminder card — the durable record, and the bus the popup rides: the
+ * card replicates everywhere, and whichever client owns the moment (canAnswerFor — the
+ * ask's own election) pops the view. "The design is for people to know weapon masteries
+ * and not forget they have those" (user call, 2026-08-16).
+ */
+async function postMasteryNotice(ctx, key, targets) {
+  const names = targets.map(t => t.name).join(", ");
+  const { title, lines } = NOTICE_TEXT[key](ctx, names);
+  const subtitle = `${ctx.attacker.name} — ${ctx.weapon.name}`;
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: ctx.attacker }),
+    content: bfCard({
+      img: ctx.weapon.img, eyebrow: `Weapon Mastery — ${masteryLabel(key)}`, tone: "good",
+      title, subtitle, lines
+    }),
+    flags: { [MODULE_ID]: { masteryNotice: {
+      key, attackerUuid: ctx.attacker.uuid,
+      weapon: { name: ctx.weapon.name, img: ctx.weapon.img },
+      title, subtitle, lines,
+      deadline: Date.now() + 15000, window: 15
+    } } }
+  });
+}
+
+/**
+ * The reminder popup: an informational table moment — ONE control (OK) and a 15-second
+ * auto-dismiss with the drain bar, because dismissal and expiry are the same non-event and
+ * nothing downstream waits. Deliberately NOT a decision: the two-control rule governs
+ * decisions, and a reminder has nothing to decide (design.md 1.9C amendment). Stale renders
+ * never pop — the deadline gates the popup, while the card stays as the record.
+ */
+async function showMasteryNotice(message, notice) {
+  const key = popupKey(message.id, "notice");
+  if ( livePopups.has(key) ) return;
+  const dialog = new foundry.applications.api.DialogV2({
+    window: { title: `${masteryLabel(notice.key)} — ${notice.weapon?.name ?? ""}`, icon: "fa-solid fa-medal" },
+    position: { width: 420 },
+    content: bfCard({
+      img: notice.weapon?.img, eyebrow: `Weapon Mastery — ${masteryLabel(notice.key)}`,
+      tone: "good", title: notice.title, subtitle: notice.subtitle, lines: notice.lines ?? []
+    }) + holdBarHTML({ status: "pending", deadline: notice.deadline, window: notice.window }, "reminder"),
+    buttons: [{ action: "ok", label: "OK", default: true }],
+    rejectClose: false
+  });
+  setTimeout(() => { if ( livePopups.get(key) === dialog ) void dialog.close(); },
+    Math.max(0, notice.deadline - Date.now()));
+  await openManagedPopup(key, message, dialog);
 }
 
 /* --- the ask: stamp → row → popup → answer → execute -------------------------------------- */
@@ -2824,6 +3098,7 @@ Hooks.on("updateChatMessage", message => {
 Hooks.on("deleteChatMessage", message => {
   disarmMasteryTimer(message.id);
   shownMasteryAsks.delete(message.id);
+  shownMasteryNotices.delete(message.id);
 });
 
 /**
@@ -2932,6 +3207,19 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     }
   }
 
+  // The reminder popup rides the notice card exactly as the ask popup rides its flag: the
+  // deadline gates staleness (an old log render must never nag), the shown-set gates
+  // re-pops, and canAnswerFor picks the client that owns the moment.
+  const notice = message.getFlag(MODULE_ID, "masteryNotice");
+  if ( notice ) {
+    const attacker = (() => { try { return fromUuidSync(notice.attackerUuid); } catch { return null; } })();
+    if ( canAnswerFor(attacker) && (notice.deadline > Date.now())
+      && !shownMasteryNotices.has(message.id) ) {
+      shownMasteryNotices.add(message.id);
+      void showMasteryNotice(message, notice);
+    }
+  }
+
   const topple = message.getFlag(MODULE_ID, "topple");
   if ( topple?.targets?.length && game.user.isGM ) {
     for ( const t of topple.targets ) {
@@ -2945,7 +3233,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         if ( actor instanceof Actor ) await actor.toggleStatusEffect("prone", { active: true });
         const flag = foundry.utils.deepClone(message.getFlag(MODULE_ID, "topple"));
         const entry = flag.targets.find(x => x.uuid === t.uuid);
-        if ( entry ) entry.done = true;
+        if ( entry ) { entry.done = true; entry.outcome = "prone"; }
         await message.setFlag(MODULE_ID, "topple", flag);
       });
       html.querySelector(".message-content")?.appendChild(button);
@@ -3512,6 +3800,91 @@ Hooks.on("preCreateChatMessage", doc => {
 });
 
 /* ---------------------------------------------------------------------------------------------
+ * Phase 3 (cast slice) — auto-apply on cast (design.md Phase 3, pulled ahead 2026-08-16).
+ *
+ * A used activity with no outcome gate resolves at cast, on the elect: a utility activity's
+ * effects land on every snapshot target (Bless, Mark Creature / Move Mark, Heroism), and a
+ * heal activity's self-rolled healing lands through the shared applier — calculateDamage
+ * negates healing-typed entries natively, and the "maximum"/"temphp" types ride the same
+ * treatAs plumbing off the roll message we pass as originatingMessage (actor.mjs:807/:868).
+ * Receipts + revert everywhere, as always.
+ *
+ * The bus: the STAMP is the trigger, never the setting. preCreate (initiating client) stamps
+ * the `castApply` payload on a qualifying usage card — or on its replacement, when 1.9D
+ * suppression eats the original — and `healPending` on a targeted healing roll. The elect
+ * reacts to the flag from createChatMessage AND from the render hook (the reload-resume
+ * discipline the v1.3.1 review established): an unstamped message can never be applied, so
+ * rendering last week's log is inert by construction.
+ *
+ * Deliberately OUT: save activities (Phase 2 — their cards are load-bearing), bare damage
+ * activities (Magic Missile is the negate hold's seam — auto-apply would beat a pending
+ * hold's verdict), and enchant/summon/forward (not effects-on-target casts).
+ * ------------------------------------------------------------------------------------------- */
+
+/** Same-client concurrency latch — create + render can fire in one tick, same as the
+ * mastery ask's executions latch and for the same reason. */
+const castExecutions = new Set();
+
+async function executeCastApply(message) {
+  if ( castExecutions.has(message.id) ) return;
+  castExecutions.add(message.id);
+  try {
+    const payload = message.getFlag(MODULE_ID, "castApply");
+    if ( !payload?.targets?.length ) return;
+    if ( message.getFlag(MODULE_ID, "effectReceipt")?.castDone ) return;
+    const activity = payload.activityUuid ? await fromUuid(payload.activityUuid) : null;
+    const effects = activity?.applicableEffects ?? [];
+    if ( !effects.length ) return;
+    // The caster's concentration effect, for origin linkage — the tray's own rule
+    // (concentration ?? effect); the riders' origin walk handles both shapes downstream.
+    const concentration = payload.concentration
+      ? (activity?.actor?.effects.get(payload.concentration) ?? null) : null;
+    await applyEffectsWithReceipt(message, effects, payload.targets, {
+      concentration, scaling: payload.scaling ?? 0,
+      spellLevel: payload.spellLevel ?? undefined,
+      marker: "castDone"
+    });
+  } catch(err) {
+    console.error(`${TITLE} | Cast auto-apply failed.`, err);
+  } finally {
+    castExecutions.delete(message.id);
+  }
+}
+
+async function applyCastHealing(message) {
+  const key = `heal:${message.id}`;
+  if ( castExecutions.has(key) ) return;
+  castExecutions.add(key);
+  try {
+    if ( message.getFlag(MODULE_ID, "receipt") ) return; // applied (or reverted) already
+    const targets = (message.getFlag("dnd5e", "targets") ?? [])
+      .map(t => ({ uuid: t.uuid, name: t.name }));
+    if ( !targets.length ) return;
+    const damages = dnd5e.dice.aggregateDamageRolls(message.rolls, { respectProperties: true })
+      .map(roll => ({
+        value: Math.max(0, roll.total),
+        type: roll.options.type,
+        properties: new Set(roll.options.properties ?? [])
+      }));
+    if ( !damages.length ) return;
+    await applyDamagesWithReceipt(message, targets, damages, { note: "Healing" });
+  } catch(err) {
+    console.error(`${TITLE} | Healing auto-apply failed.`, err);
+  } finally {
+    castExecutions.delete(key);
+  }
+}
+
+/** The elect volunteers for stamped casts — on arrival, and on render for reload resume. */
+function resolveStampedCast(message) {
+  if ( !isActiveGM() ) return;
+  if ( message.getFlag(MODULE_ID, "castApply") ) void executeCastApply(message);
+  if ( message.getFlag(MODULE_ID, "healPending") ) void applyCastHealing(message);
+}
+Hooks.on("createChatMessage", resolveStampedCast);
+Hooks.on("dnd5e.renderChatMessage", message => resolveStampedCast(message));
+
+/* ---------------------------------------------------------------------------------------------
  * Receipts — the revert row on damage cards. Public facts, GM-only pools and controls.
  * The flag is the state; this is a view.
  * ------------------------------------------------------------------------------------------- */
@@ -3702,6 +4075,15 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       stack.append(sub);
 
       line.append(icon, stack);
+
+      // What the effect DOES, on hover (user call 2026-08-16). The description is stored on
+      // the receipt entry at application time so the tooltip survives the effect's later
+      // deletion (cascade, revert, death); older entries fall back to the live document.
+      const tip = e.description || (() => {
+        try { return fromUuidSync(t.uuid)?.effects?.get(e.id)?.description ?? ""; }
+        catch { return ""; }
+      })();
+      if ( tip ) line.dataset.tooltip = tip;
 
       if ( e.reverted ) {
         const gone = document.createElement("span");
