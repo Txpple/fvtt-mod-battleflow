@@ -295,12 +295,15 @@ const out = await f.evaluate(async () => {
     await clearChips();
     {
       const { attackMsg, roll } = await attack(pcAttack());
-      const dmg = await waitDamage(attackMsg.getFlag('dnd5e', 'originatingMessage'), { flag: 'receipt' });
-      const vexed = await waitFor(() => victim.effects.find(e => (e.getFlag(MOD, 'mastery') === 'vex') && !e.disabled));
-      const receipt = dmg?.getFlag(MOD, 'effectReceipt');
+      const vexed = await waitFor(() => victim.effects.find(e => (e.getFlag(MOD, 'mastery') === 'vex') && !e.disabled), 12_000);
       ok('2. Vex (auto): damage dealt ⇒ Vexed chip with the weapon as origin',
         !!vexed && (vexed.origin === pc.items.get(blade.id).uuid),
         `vexed=${!!vexed} origin=${vexed?.origin} fumble=${roll?.isFumble}`);
+      // The chip proves the payout ran, so the receipt hunt starts AFTER it — waiting for
+      // the damage message first flaked once when the chain ran slow and the 10s window
+      // expired an instant before everything landed at once.
+      const dmg = await waitDamage(attackMsg.getFlag('dnd5e', 'originatingMessage'), { flag: 'effectReceipt' });
+      const receipt = dmg?.getFlag(MOD, 'effectReceipt');
       ok('2b. the Vexed chip joins the effect receipt',
         !!receipt?.targets?.some(t => (t.uuid === victim.uuid)
           && t.effects.some(e => e.id === vexed?.id)),
@@ -434,7 +437,12 @@ const out = await f.evaluate(async () => {
     {
       if (victim.statuses?.has?.('prone')) await victim.toggleStatusEffect('prone', { active: false });
       const before = game.messages.size;
-      const { attackMsg } = await attack(pcAttack());
+      const { attackMsg, roll } = await attack(pcAttack());
+      // vs AC 1 with advantage only a nat-1 fumble misses (1/400) — and a miss legitimately
+      // pays no Topple, so report the flake as a flake (the house pattern), not a failure.
+      if (roll?.isFumble) {
+        skip('topple: nat-1 fumble missed outright (flake, 1/400) — hit path not exercised');
+      } else {
       await waitDamage(attackMsg.getFlag('dnd5e', 'originatingMessage'), { flag: 'receipt' });
       const card = await waitFor(() => game.messages.contents.slice(before).find(m => m.getFlag(MOD, 'topple')));
       const dc = 8 + (pc.system.attributes?.prof ?? 0)
@@ -455,6 +463,7 @@ const out = await f.evaluate(async () => {
         !!prone && !!(await waitFor(() => game.messages.get(card?.id)?.getFlag(MOD, 'topple')?.targets?.every(t => t.done))),
         `prone=${!!prone} done=${flagDone}`);
       await victim.toggleStatusEffect('prone', { active: false });
+      }
     }
 
     // ================================================== 8. Topple hopeless skip: already prone
