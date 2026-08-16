@@ -69,6 +69,34 @@ whatever they find, so it drifts:
 
 ## Open items
 
+### To do first (user call, 2026-08-16): the second Molten box
+
+The user is provisioning a **second Molten instance as a dedicated test box** (Molten
+allows two; a second world on the SAME box would not do — one Foundry process serves one
+world, so only a second server tests while the table plays). Chosen over a local mirror
+deliberately: it keeps real internet latency, which is where this module's bug class
+(settle windows, replication races, derived-data beats) actually lives, and the speed gain
+of local was measured small (suite time is deliberate waits, not network).
+
+When the box exists, the user supplies its panel values in a new
+`../fvtt-mcp-molten5e/.env.test` (same key names as `.env`: server URL, magic URL, WebDAV
+URL + credentials, admin key). Then, in one pass:
+
+1. Clone the Greenrest world to it over WebDAV — write the push counterpart to
+   `pull-prod-to-local.mjs`. Users are world data, so DM Assistant and PC Assistant arrive
+   working, passwords included.
+2. Register + enable battleflow there (`register-module.mjs`, `configure-modules.mjs`).
+3. Add a target switch to the suites and `deploy-house-module.mjs` — default prod,
+   `BF_TARGET=test` reads `.env.test` — so today's workflow changes only on opt-in.
+4. Full four-suite battery green on the test box, then record the protocol here:
+   **iterate + battery on test → deploy prod → one full battery on prod → release.** The
+   prod battery stays forever: live-world DATA is itself coverage (the flat-AC Skeletal
+   Mage was a data bug no clean mirror would have caught). Refresh the test world from
+   prod periodically so the weird stays represented.
+
+This is the natural first step of Phase 2 — the two-client owner-election harness (PC
+Assistant) wants a box it can hammer.
+
 ### Standing
 
 1. **Riders, and the one case they deliberately refuse** (v1.2.0). A mark on the target pays out
