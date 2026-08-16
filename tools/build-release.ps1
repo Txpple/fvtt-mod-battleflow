@@ -25,9 +25,12 @@ $repo = Split-Path -Parent $PSScriptRoot
 $manifest = Get-Content (Join-Path $repo "module.json") -Raw | ConvertFrom-Json
 $version = $manifest.version
 
-# Exactly what ships. Keep in step with the release procedure in HANDOFF.md.
-$contents = @(
-  "scripts/battleflow.js",
+# Exactly what ships. scripts/ is enumerated (the split, v1.6.1) so a new phase file rides
+# along without a tooling change; the read-back below still verifies every entry by name.
+$scriptFiles = Get-ChildItem (Join-Path $repo "scripts") -Filter "*.js" | Sort-Object Name |
+  ForEach-Object { "scripts/$($_.Name)" }
+if ($scriptFiles -notcontains "scripts/battleflow.js") { throw "scripts/battleflow.js (the esmodules entry) is missing" }
+$contents = @($scriptFiles) + @(
   "module.json",
   "LICENSE",
   "README.md"
