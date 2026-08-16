@@ -83,33 +83,41 @@ whatever they find, so it drifts:
 
 ## Open items
 
-### FIRST: the user is walking the v1.6.0 checklist and will report results item by item
+### Where the plan points now (2026-08-16, end of the three-round testing day)
 
-Round-2 results came in: items 2/3/5/6 VERIFIED at the table ("rest are good"); topple
-worked once the Roll button was found, which produced the round-3 asks — **a popup for
-the topple save** and **the full Magic Missile rework** — both now shipped in v1.6.0,
-suite-proven, awaiting table verification. When a report arrives: read the actual log and
-flags before theorizing, reproduce in the harness, add the assertion.
+**All three live-testing rounds are VERIFIED at the table** — the 1.9 ladder, the cast
+slice, concentration pacing, the topple popup, and the Magic Missile rework all carry the
+user's "all looks good." Nothing from live play is open. The table is loaded for Tuesday;
+the box vends a stale version STRING (1.3.1) until the Foundry process restarts — purely
+cosmetic, and the restart can wait for the next natural bounce (below).
 
-The open verification list:
+**Next, in this order:**
 
-1. **Topple popup**: on a topple hit, the decider (GM for monsters, the owning player for
-   PCs) gets the popup — the concentration ask's surface (situational bonus,
-   Advantage/Normal/Disadvantage; every button rolls) — chained so the fold judges;
-   failure ⇒ dice → beat → Prone + announce. The card's Roll button recalls a dismissed
-   popup. Known corner: no timer; the GM's manual prone button covers paper rolls.
-2. **Magic Missile end-to-end**: cast at targets with suppression on ⇒ NO native card; a
-   module "casts Magic Missile" card appears instead (carrying the hold when a listed
-   reaction-holder is targeted); its damage AUTO-APPLIES per target once the hold
-   settles — negated target takes nothing, everyone else takes their darts, receipts on
-   the roll message. With nobody able to react, damage applies as soon as the caster's
-   client clears the claim (~a second). Known corners: a human pressing the tray early
-   still beats a pending verdict (a ruling, not a race); a damage card carrying EFFECTS
-   keeps its card.
+1. **The split.** `scripts/battleflow.js` is at **4,504 lines — past design.md §9's
+   ~4,500 trigger**, so per the doc's own rule the split LEADS Phase 2 rather than
+   trailing it. New `esmodules` entries need the one-time Foundry **process restart** —
+   the same restart that fixes the version string, so take both together (ask the user
+   for a Molten bounce moment; NEVER `game.shutDown()` through the bridge).
+2. **The second Molten box** (user call, unchanged below): `.env.test` values are still
+   awaited from the user; then the clone + register + `BF_TARGET` switch + battery, and
+   the take-turns protocol gets recorded here. The two-client Phase 2 harness wants it.
+3. **Phase 2 — saves** (design.md's Phase 2 note is the spec): generalize the 2.5
+   machine per target. The topple fold + popup shipped in v1.5/1.6 IS the working
+   miniature — recognizer, stored-DC judging, decider popup with native controls,
+   verdict pause — Phase 2 grows it to save activities proper, half-on-save through the
+   applier's threaded `multiplier`, `forceSuccess` aggregation (the LR corner), and the
+   PC Assistant two-client coverage (`probe-player-seam.mjs` is the proving spike).
 
-Also fixed in v1.6.0's battery, unreported: the verdict pause could let a setting flip
-re-address the concentration "holds" whisper (frozen at verdict time now), and two suite
-lessons (the section-window announcement leak; smoke-battleflow places the victim token).
+**Leftovers, all deliberate, none blocking** — so the next session treats reports against
+these as design conversations, not bugs: legendary resistance still arrives too late
+(Phase 2's `forceSuccess`); a sheet-rolled concentration save's card colors against DC 10
+while the verdict judges the real DC; a human pressing the damage tray early still beats
+a pending hold (a ruling); a damage card carrying EFFECTS keeps its card, and self-buff
+(affects-self) casts stay tray clicks; the topple popup has no timer (the GM button is
+the paper-roll backstop); hopeless skips are silent by design (the dead, the speedless —
+twice mistaken for bugs on 2026-08-16, so say so early if it recurs); the reaction
+effect's missing receipt/revert remains Phase 3's convergence gap; the save-activity
+slice of Phase 3 waits on Phase 2.
 
 ### To do next (user call, 2026-08-16): the second Molten box
 
