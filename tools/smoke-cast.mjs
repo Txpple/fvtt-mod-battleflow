@@ -45,7 +45,7 @@ const out = await f.evaluate(async () => {
   }
 
   const SETTING_KEYS = ['castApply', 'autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget',
-    'reactionHold', 'suppressAttackCards', 'suppressWeaponCards', 'suppressSpellCards',
+    'reactionHold', 'blockList', 'suppressAttackCards', 'suppressWeaponCards', 'suppressSpellCards',
     'suppressFeatureCards', 'suppressOtherCards', 'riders', 'effectRiders', 'masteryRiders',
     'concMode'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
@@ -305,7 +305,8 @@ const out = await f.evaluate(async () => {
         && (healReceipt?.targets?.[0]?.delta?.value === hpAfter - hpBefore),
       `rolled=${rolled} hp ${hpBefore}→${hpAfter} note=${healReceipt?.targets?.[0]?.note}`);
 
-    // ---------------------------------------------------- 4. exclusion: a damage activity is not ours
+    // ---------------------------------------------------- 4. damage activities: suppressed spam,
+    // never applied — EXCEPT a listed spell, whose card is the negate hold's home (v1.5.1).
     const mhpBefore = victim.system.attributes.hp.value;
     target(victimToken);
     await sleep(120);
@@ -314,12 +315,28 @@ const out = await f.evaluate(async () => {
     if (use === undefined) return { fatal: 'the Missile fixture cast was refused' };
     await sleep(2000);
     msgs = fresh(before);
-    ok('4a. a bare damage activity keeps its card, gets no stamp, and nothing applies',
-      (usageCards(msgs).length === 1) && !msgs.some(m => m.getFlag(MOD, 'castApply'))
+    ok('4a. an UNLISTED damage spell card is suppressed spam; nothing stamps, nothing applies',
+      (usageCards(msgs).length === 0) && !msgs.some(m => m.getFlag(MOD, 'castApply'))
         && !msgs.some(m => m.getFlag(MOD, 'healPending'))
         && !msgs.some(m => m.getFlag(MOD, 'receipt'))
         && (victim.system.attributes.hp.value === mhpBefore),
       `usageCards=${usageCards(msgs).length} hp ${mhpBefore}→${victim.system.attributes.hp.value}`);
+
+    // 4b: the SAME spell, listed as a blocked spell with the hold on — the card is
+    // load-bearing (hold home, Answer surface, the preApplyDamage veto's chain) and stays.
+    await set('reactionHold', true);
+    await set('blockList', 'BF Test Missile:Shield');
+    target(victimToken);
+    await sleep(120);
+    before = snap();
+    use = await activityOf(missileItem, 'damage').use({ subsequentActions: false }, { configure: false }, {});
+    if (use === undefined) return { fatal: 'the listed Missile cast was refused' };
+    await sleep(2000);
+    msgs = fresh(before);
+    ok('4b. a LISTED damage spell keeps its card while the reaction hold is on',
+      usageCards(msgs).length === 1,
+      `usageCards=${usageCards(msgs).length}`);
+    await set('reactionHold', false);
 
     // ---------------------------------------------------- 5. no targets, no feature
     target();

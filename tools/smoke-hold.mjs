@@ -108,6 +108,7 @@ const r = await f.evaluate(async () => {
         holdApplyEffect: game.settings.get(MOD, 'holdApplyEffect'),
         suppressAttackCards: game.settings.get(MOD, 'suppressAttackCards'),
         requireTarget: game.settings.get(MOD, 'requireTarget'),
+        castApply: game.settings.get(MOD, 'castApply'),
       },
       grenHP: foundry.utils.deepClone(gren.system._source.attributes.hp),
       grenAC: foundry.utils.deepClone(gren.system._source.attributes.ac),
@@ -131,6 +132,12 @@ const r = await f.evaluate(async () => {
     await game.settings.set(MOD, 'holdTimer', 0);
     await game.settings.set(MOD, 'suppressAttackCards', false);
     await game.settings.set(MOD, 'requireTarget', false);
+    // ⚠ Pinned ON, deliberately — the table runs both. Shield is itself a utility-with-
+    // effects cast, and the first battery with this on caught the cast slice stacking a
+    // second +5 on the reaction's own application (+10 AC, two chips, 2026-08-16). The
+    // affects-self gate in castApplyQualifies is what keeps the two machines apart; this
+    // pin is its permanent regression net.
+    await game.settings.set(MOD, 'castApply', true);
 
     // Start from a clean fixture rather than trusting the last run's teardown. A crashed run —
     // or a hand experiment at the console — can leave a cast feature or a cached Shield on BF

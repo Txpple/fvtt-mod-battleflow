@@ -816,8 +816,8 @@ const out = await f.evaluate(async () => {
         { data: { 'flags.dnd5e.originatingMessage': toppleMsg.id } });
       await until14(() => toppleMsg.getFlag(MOD, 'topple').targets[0].done);
       // The announcement posts AFTER the flag flips done (the handoff's same-breath race) —
-      // give it its own wait before counting.
-      await until14(() => fresh14(before14).some(m => m.content?.includes('falls Prone')), 4000);
+      // and since v1.5.1 also after the dice-animation pause — give it a generous wait.
+      await until14(() => fresh14(before14).some(m => m.content?.includes('falls Prone')), 10_000);
       const e14 = toppleMsg.getFlag(MOD, 'topple').targets[0];
       const announced = fresh14(before14).filter(m => m.content?.includes('falls Prone')).length;
       const sm14 = saveRolls14?.[0]?.parent;
@@ -857,12 +857,28 @@ const out = await f.evaluate(async () => {
       await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')));
       const topple3 = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
       if (topple3) {
+        // 14f first, while the card is still pending: the card must offer its own
+        // correctly-aimed Roll control — the native enricher rolls for the SELECTION,
+        // which right after an attack is the ATTACKER (bit live 2026-08-16).
+        let cardEl = null;
+        await until14(() => {
+          cardEl = document.querySelector(`.message[data-message-id="${topple3.id}"]`);
+          return !!cardEl;
+        }, 4000);
+        const rollBtn = cardEl && [...cardEl.querySelectorAll('button')]
+          .some(b => b.textContent?.includes('Roll save'));
+        ok('14f. a pending topple card offers its own Roll control (the selection trap)',
+          !!rollBtn, cardEl ? 'no Roll button in the rendered card' : 'card element not found');
+
         await victim.rollSavingThrow({ ability: 'con' }, { configure: false }, {});
         await until14(() => topple3.getFlag(MOD, 'topple').targets[0].done);
         const e14c = topple3.getFlag(MOD, 'topple').targets[0];
+        // Prone lands after the verdict pause since v1.5.1 — wait for the status itself,
+        // not just the flag.
+        await until14(() => victim.statuses.has('prone'), 10_000);
         ok('14e. a bare sheet save from a pending target answers the card',
           e14c.done && (e14c.outcome === 'prone') && victim.statuses.has('prone'),
-          `outcome=${e14c.outcome}`);
+          `outcome=${e14c.outcome} prone=${victim.statuses.has('prone')}`);
       } else {
         ok('14e. a bare sheet save from a pending target answers the card', false,
           'no third topple card (did the attack hit?)');
