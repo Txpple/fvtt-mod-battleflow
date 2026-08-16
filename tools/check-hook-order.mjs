@@ -53,7 +53,9 @@ const CHECKS = [
   ["dnd5e.renderChatMessage", "ui.js", "mastery.js",
     "hold rows render above mastery rows on a shared attack card"],
   ["dnd5e.renderChatMessage", "mastery.js", "receipts.js",
-    "mastery rows render above receipt rows on a shared attack card"]
+    "mastery rows render above receipt rows on a shared attack card"],
+  ["dnd5e.renderChatMessage", "saves.js", "receipts.js",
+    "save verdict rows render above receipt rows on a save card (held by the entry order + the lazy import of receipts.js in saves.js)"]
 ];
 let ok = true;
 for (const [hook, a, b, why] of CHECKS) {
