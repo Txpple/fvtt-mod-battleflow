@@ -322,8 +322,10 @@ const out = await f.evaluate(async () => {
         && (victim.system.attributes.hp.value === mhpBefore),
       `usageCards=${usageCards(msgs).length} hp ${mhpBefore}→${victim.system.attributes.hp.value}`);
 
-    // 4b: the SAME spell, listed as a blocked spell with the hold on — the card is
-    // load-bearing (hold home, Answer surface, the preApplyDamage veto's chain) and stays.
+    // 4b: the SAME spell, listed with the hold on — since v1.6.0 the card is SUPPRESSED
+    // too: the hold, when someone can react, rides a replacement card (smoke-hold 6f owns
+    // that end to end). Here nobody targeted can cast Shield, so the replacement appears
+    // as the cast's record with NO hold on it.
     await set('reactionHold', true);
     await set('blockList', 'BF Test Missile:Shield');
     target(victimToken);
@@ -331,11 +333,11 @@ const out = await f.evaluate(async () => {
     before = snap();
     use = await activityOf(missileItem, 'damage').use({ subsequentActions: false }, { configure: false }, {});
     if (use === undefined) return { fatal: 'the listed Missile cast was refused' };
-    await sleep(2000);
+    await sleep(2500);
     msgs = fresh(before);
-    ok('4b. a LISTED damage spell keeps its card while the reaction hold is on',
-      usageCards(msgs).length === 1,
-      `usageCards=${usageCards(msgs).length}`);
+    ok('4b. a LISTED damage spell is suppressed too; nobody can react, so no hold appears',
+      (usageCards(msgs).length === 0) && !msgs.some(m => m.getFlag(MOD, 'hold')),
+      `usageCards=${usageCards(msgs).length} holds=${msgs.filter(m => m.getFlag(MOD, 'hold')).length}`);
     await set('reactionHold', false);
 
     // ---------------------------------------------------- 5. no targets, no feature

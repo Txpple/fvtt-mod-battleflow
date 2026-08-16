@@ -457,6 +457,10 @@ const out = await f.evaluate(async () => {
       await smack(9);
       await waitFor(() => doneAskNew(t0));
       await sleep(800);
+      // Drain this section's own announcement before moving on: since the verdict pause
+      // (v1.6.0) the holds card lands seconds after the fold, and an undrained PUBLIC one
+      // leaks into section 10's window wearing the wrong whisper (bit 10c, 2026-08-16).
+      await waitFor(() => contentNew(t0, 'holds'));
       ok('9. the native request card is suppressed while the mode is on',
         !contentNew(t0, 'data-action="concentration"'),
         'a native concentration request card leaked through');
@@ -475,13 +479,21 @@ const out = await f.evaluate(async () => {
     {
       await set('concVisibility', false);
       await set('concMode', 'auto');
+      // Let every EARLIER section's paused announcement land before this window opens —
+      // since the verdict pause, a public holds card can trail its fold by seconds and
+      // leak into the next section's observation wearing the wrong whisper.
+      await sleep(3500);
       const t0 = marker();
       await smack(12);
       const done = await waitFor(() => doneAskNew(t0));
       const ask = done?.getFlag(MOD, 'concentration');
       const rollMsg = ask?.outcome?.rollMessageId ? game.messages.get(ask.outcome.rollMessageId) : null;
-      const holdsCard = newSince(t0).find(m =>
-        (m.speaker?.alias === 'Battle Flow') && m.content.includes('holds'));
+      // The announcement posts after the verdict pause — wait for it, and attribute it by
+      // THIS ask's own total-vs-DC signature, never by 'holds' alone.
+      const sig = `${ask?.outcome?.total} vs DC ${ask?.dc}`;
+      const holdsCard = await waitFor(() => newSince(t0).find(m =>
+        (m.speaker?.alias === 'Battle Flow') && m.content.includes('holds')
+        && m.content.includes(sig)) ?? null, 15000);
       ok('10. private mode whispers the ask', (done?.whisper?.length ?? 0) > 0,
         `whisper=${done?.whisper?.length}`);
       ok('10b. private mode whispers the roll', (rollMsg?.whisper?.length ?? 0) > 0,
