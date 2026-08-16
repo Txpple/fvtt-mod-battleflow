@@ -623,6 +623,14 @@ corrupts game state.
 > stays the bus. Attack activities remain 1.9A's (on hit); save activities remain Phase 2's
 > (their cards are load-bearing); **plain `damage` activities stay manual** — Magic Missile
 > is the negate hold's seam, and auto-applying there would beat every pending hold's verdict.
+> **Amended v1.5.1 (2026-08-16, same night):** the gate additionally requires the used
+> activity to AIM at creatures (`target.affects.type` present and not `self`) — a
+> range-self spell's target snapshot is incidental UI targeting, and Shield is itself a
+> utility-with-effects cast: without the gate the cast slice stacked a second +5 on top of
+> the reaction machinery's own application. Self-buffs stay the caster's own tray click.
+> Suppression also now eats bare damage-activity cards (Magic Missile's shape) — except a
+> BLOCKLISTED spell's card, which is load-bearing three ways while the reaction hold is on
+> (the hold's home, the Answer surface, and the preApplyDamage veto's chain) and stays.
 
 Auto-apply a used activity's effects, filtered by outcome — the native effect tray's semantics
 (`EffectApplicationElement._applyEffectToActor`), pressed automatically:

@@ -22,11 +22,15 @@
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.5.0** (2026-08-16 evening: the cast slice, the topple
-fold, the mastery reminders, receipt tooltips; same day as v1.3.0/v1.3.1 = Phase 1.9 and
-v1.4.0 = concentration), deployed, tags pushed, GitHub releases carry zip + manifest.
-**The box tracks the GitHub manifest** (repointed 2026-08-15 — the self-hosted dev
-manifest and zip are gone), so the process vends the real version string after a restart.
+Molten-hosted). Latest release **v1.5.1** (2026-08-16 night — the second live-testing
+round's six fixes: the topple card's own Roll button, +N-in-blue healing receipts,
+damage-spell card suppression with the blocklist carve-out, the affects-self gate that
+stops the cast slice re-applying Shield, the Dice-So-Nice-aware verdict pause, and — in
+**combatplus v1.3.0**, its own repo and release — per-side auto-defeated that works out of
+combat). v1.5.0 = the cast slice + topple fold + reminders + tooltips, v1.4.0 =
+concentration, v1.3.x = Phase 1.9, all the same day. Deployed, tags pushed, GitHub
+releases carry zip + manifest. **The box tracks the GitHub manifest** (repointed
+2026-08-15), so the process vends the real version string after a restart.
 
 | Phase | State |
 | --- | --- |
@@ -243,15 +247,44 @@ Assistant) wants a box it can hammer.
    seam, and an auto-apply would beat every pending hold's verdict — apply-before-answer
    (standing item 2) would stop being a corner and become the machine. Save activities wait
    for Phase 2; their cards stay load-bearing.
-13. **The Topple fold (v1.5.0).** Recognizer is the 2.5 shape: the save's actor must be a
-   still-pending target, the ability must match, and the roll is either chained to the
-   topple card itself (the enricher click — `buildPost` stamps `originatingMessage` from
-   the enclosing card, basic-roll.mjs:173) or chained to nothing (a bare sheet roll); a
-   save chained to any OTHER message belongs to that chain. Judged against the DC stored
-   on the card's flag — the ask's DC, exactly the concentration rule — failure presses
-   Prone + announces, success closes quietly, and the GM per-target button remains for
-   saves rolled on paper. Pre-v1.5.0 cards carry no `dc` and stay button-only. The
-   button-vs-fold write race is the same accepted clone-modify-write corner as item 11.
+   ⚠ **The activity must AIM at creatures** (v1.5.1): `target.affects.type` present and not
+   `self`, resolved off the activity (override-false inherits the item's). A range-self
+   spell's snapshot is incidental UI targeting — and **Shield is itself a utility-with-
+   effects cast**, so the first battery run with castApply ON caught the cast slice
+   stacking a second +5 on the reaction machinery's own application (+10 AC, two chips).
+   smoke-hold now pins castApply ON permanently as the coexistence net. Self-buffs stay
+   the caster's own tray click.
+   ⚠ **Damage-spell cards are suppressible spam since v1.5.1** — except a BLOCKLISTED
+   spell's card while the reaction hold is on, which is load-bearing three ways (the
+   hold's home, the Answer surface, and the preApplyDamage veto finds the verdict through
+   it: damage roll → originatingMessage → card). Eligibility is async and preCreate is
+   not, so the keep-gate is the conservative pair (hold on + spell listed), targeted or
+   not — at this table Magic Missile keeps its card, which is the price of the Shield
+   negate. Re-plumbing the veto to a message-free hold lookup would lift it; offered, not
+   built.
+13. **The Topple fold (v1.5.0; the Roll button v1.5.1).** Recognizer is the 2.5 shape: the
+   save's actor must be a still-pending target, the ability must match, and the roll is
+   either chained to the topple card itself (the enricher click — `buildPost` stamps
+   `originatingMessage` from the enclosing card, basic-roll.mjs:173) or chained to nothing
+   (a bare sheet roll); a save chained to any OTHER message belongs to that chain. Judged
+   against the DC stored on the card's flag — the ask's DC, exactly the concentration rule
+   — failure presses Prone + announces, success closes quietly, and the GM per-target
+   button remains for saves rolled on paper. Pre-v1.5.0 cards carry no `dc` and stay
+   button-only. The button-vs-fold write race is the same accepted clone-modify-write
+   corner as item 11.
+   ⚠ **The card carries its own per-target "Roll save" button** (v1.5.1, decider-gated by
+   canAnswerFor, native dialog, chained to the card) because **the native `[[/save]]`
+   enricher rolls for whatever token is SELECTED** — which right after an attack is the
+   ATTACKER, so the GM rolled Morgash's save at the dummy's topple and the fold rightly
+   ignored it (bit live 2026-08-16; the evidence was trash-cleared chat, so it was
+   reconstructed from the screenshot's selection ring). The enricher stays for tables
+   that select first.
+14b. **The verdict pause (v1.5.1).** `dramaticVerdictPause`: the concentration fold and
+   the topple failure wait out Dice So Nice's animation (when present) plus the Dramatic
+   Beat before their table-facing consequences — the break card, the cascade, the prone.
+   The MECHANICS never wait: flags are written and timers disarmed first, so the buzzer
+   cannot double-fire into the pause; the ask row's verdict text updating early is the
+   accepted residue.
 14. **Mastery reminders (v1.5.0).** The elect posts a `masteryNotice` bfCard when Vex or
    Sap lands and when a Cleave-weapon hit lands (once per combat turn per attacker,
    in-memory latch on the elect; out of combat every hit reminds — the test range has no
@@ -377,10 +410,12 @@ changes; `tools/scan-riders.mjs` does the same job for damage riders, finding th
 structural signature (a `damage` activity whose activation is overridden to nothing) rather than
 by name — that is where the Phase 1.75 seed list came from.
 
-The user's own test aids (2026-08-16): a **Practice Dummy** actor (~700 HP — big enough
-that damage assertions never hit the dead-skip) and a **"Clear Temp Effects (Scene)"**
-script macro in Matt's hotbar slot 2 (strips every temporary effect from every token actor
-on the current canvas, batch-deleted per actor).
+The user's own test aids (2026-08-16): a **Practice Dummy** actor (1000 HP — big enough
+that damage assertions never hit the dead-skip; **walk 30, given legs deliberately** so
+Slow and every speed-gated payout has something to bite — at walk 0 the hopeless-skip
+silently eats the Slow ask, which is exactly what the live "bow didn't slow" report was)
+and a **"Clear Temp Effects (Scene)"** script macro in Matt's hotbar slot 2 (strips every
+temporary effect from every token actor on the current canvas, batch-deleted per actor).
 
 Fixtures live in the world and are reused: scene **Battle Flow Test Range**, actors
 **BF Test Attacker** (NPC — also the Magic Missile caster in §6, which builds the spell on it
@@ -458,6 +493,13 @@ whole log cannot produce a false positive.
 card are computed separately, so a hold can resolve perfectly and still publish nonsense. Both
 bugs found on 2026-08-15 (v1.1.13, v1.1.14) were visible *only* in the announcement; every
 mechanical assertion passed straight through them.
+
+**combatplus v1.3.0** (2026-08-16, its own repo/release — changed for a Battle Flow
+report): auto-defeated split into per-side booleans (NPCs / PCs, both default ON — PCs at
+0 get the skull at this table by explicit user call) and the dead overlay no longer needs
+a combat. Interplay: Battle Flow's revert restores HP → combatplus itself clears the
+overlay on the heal-back, so the old one-way-cleanup contract now has a native echo;
+harmless in both orders.
 
 The user **logs in as the player accounts themselves** to dogfood the player side, so an
 "active player" in `get-world-info` is often just them in another browser. Logging that
