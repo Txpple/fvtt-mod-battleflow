@@ -38,6 +38,11 @@
  *     setting that suppresses the attack usage card (the Attack/Damage button card — spam
  *     under auto-resolution; the chain rides the attack-message-origin fallback), and a
  *     per-client setting that centers the system's roll dialogs instead of lower-right.
+ *   - Concentration assist (Phase 2.5): a concentrating creature that takes damage gets the
+ *     save run instead of a whisper card nobody reads — popup (or silent auto-roll) on the
+ *     owner's client, DC from the system, and on a failure the module presses the button the
+ *     system never presses itself: endConcentration, whose native cascade strips everything
+ *     riding the spell. At 0 HP there is no save; concentration just ends, announced.
  *
  * Architecture (design.md §4): the chat log is the state and the bus. No sockets, no
  * in-memory workflow object, no patching. The attacker's client volunteers the damage roll
@@ -97,7 +102,11 @@ const S = {
   riderUpgrades: "riderUpgrades",
   effectRiders: "effectRiders",
   masteryRiders: "masteryRiders",
-  masteryAsk: "masteryAsk"
+  masteryAsk: "masteryAsk",
+  concMode: "concMode",
+  concTimer: "concTimer",
+  concBreak: "concBreak",
+  concVisibility: "concVisibility"
 };
 
 const setting = key => game.settings.get(MODULE_ID, key);
@@ -296,6 +305,32 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: "ask",
     choices: { ask: "Ask the attacker", auto: "Take them automatically" }
   });
+
+  game.settings.register(MODULE_ID, S.concMode, {
+    name: "Concentration Checks",
+    hint: "When a concentrating creature takes damage, run the save instead of leaving the system's whisper card to be forgotten. \"Prompt\" pops the check up for whoever owns the concentrator — what hit them, for how much, the DC — with one button: Roll. \"Auto\" skips the popup and just rolls. Either way the dice land on the owning player's client when one is connected (their character, their dice), the GM's otherwise, and NPC concentrators get the identical treatment GM-side.",
+    scope: "world", config: true, type: String, default: "off",
+    choices: { off: "Off", prompt: "Prompt to roll", auto: "Roll automatically" }
+  });
+
+  game.settings.register(MODULE_ID, S.concTimer, {
+    name: "Concentration Timer Seconds",
+    hint: "How long the prompt waits before rolling the save itself. 0 waits indefinitely. Unlike the reaction hold's timer, expiry ROLLS rather than passes — a concentration save is mandatory, so the timer only ever decides who pressed the button.",
+    scope: "world", config: true, type: Number, default: 15,
+    range: { min: 0, max: 60, step: 1 }
+  });
+
+  game.settings.register(MODULE_ID, S.concBreak, {
+    name: "Failure Breaks Concentration",
+    hint: "A failed save ends concentration through the system's own path, and everything depending on it goes too — Bless strips from the whole party the moment the save is missed. The system never does this itself (a failed save changes nothing natively); this is the forgotten click the feature exists to press. Off announces the failure and leaves the ending to you.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
+  game.settings.register(MODULE_ID, S.concVisibility, {
+    name: "Concentration Checks Are Public",
+    hint: "On (default): the check and the roll play out in the open — the table gets to hold its breath over the party's Bless. Off: whispered to the concentrator's owners and the GM. A BROKEN concentration is announced publicly either way — the cascade strips icons across the whole table, and an icon vanishing must never be a mystery.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
 });
 
 // Settings-sheet polish (the combatplus idiom, from day one): a divider heading the module's
@@ -323,12 +358,14 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   addDivider(autoDamage, "Attack Resolver");
   addDivider(input(S.reactionHold), "Reaction Hold");
   addDivider(input(S.riders), "Hit Riders");
+  addDivider(input(S.concMode), "Concentration");
   addDivider(input(S.suppressAttackCards), "Table Polish");
 
   const hold = input(S.reactionHold);
   const riders = input(S.riders);
   const mastery = input(S.masteryRiders);
   const suppress = input(S.suppressAttackCards);
+  const conc = input(S.concMode);
   const syncAll = () => {
     setEnabled(input(S.dramaticBeat), autoDamage?.value !== "off");
     for ( const key of [S.interruptList, S.blockList, S.holdReveal, S.holdTimer, S.holdSkipFutile,
@@ -340,6 +377,8 @@ Hooks.on("renderSettingsConfig", (app, element) => {
     for ( const key of [S.suppressWeaponCards, S.suppressSpellCards, S.suppressFeatureCards,
       S.suppressOtherCards] )
       setEnabled(input(key), !!suppress?.checked);
+    for ( const key of [S.concTimer, S.concBreak, S.concVisibility] )
+      setEnabled(input(key), conc?.value !== "off");
   };
   syncAll();
   autoDamage?.addEventListener("change", syncAll);
@@ -347,6 +386,7 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   riders?.addEventListener("change", syncAll);
   mastery?.addEventListener("change", syncAll);
   suppress?.addEventListener("change", syncAll);
+  conc?.addEventListener("change", syncAll);
 });
 
 /* ---------------------------------------------------------------------------------------------
@@ -1529,9 +1569,11 @@ function reactionImg(actor, reactionName, ids) {
 
 /**
  * The draining bar for a hold, or "" when there is no timer. `deadline` and `window` both live
- * on the flag, so this is a pure function of state — no client keeps its own clock.
+ * on the flag, so this is a pure function of state — no client keeps its own clock. The label
+ * names the default action the buzzer takes — "answer" for the decisions, "roll" for the
+ * concentration ask, whose expiry rolls instead of passing.
  */
-function holdBarHTML(hold) {
+function holdBarHTML(hold, label = "to answer") {
   if ( !hold?.deadline || !hold?.window || (hold.status !== "pending") ) return "";
   const remaining = (hold.deadline - Date.now()) / 1000;
   if ( remaining <= 0 ) return "";
@@ -1546,7 +1588,7 @@ function holdBarHTML(hold) {
                   background:${TONE.good};"></div>
     </div>
     <span style="font-size:var(--font-size-10,10px);opacity:0.6;white-space:nowrap;">
-      ${hold.window}s to answer</span>
+      ${hold.window}s ${label}</span>
   </div>`;
 }
 
@@ -2785,31 +2827,37 @@ Hooks.on("deleteChatMessage", message => {
 });
 
 /**
- * The elect owns the one authoritative clock; expiry answers Pass (the AFK fallback).
- * Deliberately a TWIN of armHoldTimer, not a shared helper: the guards differ (one answer
- * vs per-target answers), the owners differ (elect vs continuing client), and the expiry
- * actions differ. Two fifteen-line twins read clearer than one three-lambda machine — if a
- * THIRD clock appears (Phase 2.5's concentration prompt), extract the shape then.
+ * The elect-owned buzzer for a single-answer ask — the shape the mastery ask and the
+ * concentration ask share exactly (elect owns the clock, one pending flag, one answer, expiry
+ * re-checks the live flag before acting). Extracted when the third clock appeared, per the
+ * standing note that used to sit here. The HOLD's clock stays its own machine on purpose:
+ * a different owner (the continuing client, not the elect) and per-target answers — folding
+ * it in would be the three-lambda machine the original note warned about.
  */
-function armMasteryTimer(message) {
-  const m = message?.getFlag(MODULE_ID, "mastery");
-  if ( !m?.deadline || (m.status !== "pending") || m.answer || !isActiveGM() ) return;
-  if ( masteryTimers.has(message.id) ) return;
-  masteryTimers.set(message.id, setTimeout(async () => {
-    masteryTimers.delete(message.id);
+function armAskTimer(timers, message, flagKey, expire) {
+  const flag = message?.getFlag(MODULE_ID, flagKey);
+  if ( !flag?.deadline || (flag.status !== "pending") || flag.answer || !isActiveGM() ) return;
+  if ( timers.has(message.id) ) return;
+  timers.set(message.id, setTimeout(async () => {
+    timers.delete(message.id);
     const live = game.messages.get(message.id);
-    const cur = live?.getFlag(MODULE_ID, "mastery");
+    const cur = live?.getFlag(MODULE_ID, flagKey);
     if ( !cur || (cur.status !== "pending") || cur.answer ) return;
-    await answerMastery(live, "pass", { timedOut: true });
-  }, Math.max(0, m.deadline - Date.now())));
+    await expire(live);
+  }, Math.max(0, flag.deadline - Date.now())));
 }
 
-function disarmMasteryTimer(messageId) {
-  const handle = masteryTimers.get(messageId);
+function disarmAskTimer(timers, messageId) {
+  const handle = timers.get(messageId);
   if ( handle === undefined ) return;
   clearTimeout(handle);
-  masteryTimers.delete(messageId);
+  timers.delete(messageId);
 }
+
+/** Expiry answers Pass — the AFK fallback for a decision nobody made. */
+const armMasteryTimer = message =>
+  armAskTimer(masteryTimers, message, "mastery", live => answerMastery(live, "pass", { timedOut: true }));
+const disarmMasteryTimer = messageId => disarmAskTimer(masteryTimers, messageId);
 
 /** The Use/Pass popup — the same two controls for everybody, on the hold's own bar. */
 async function showMasteryPopup(message, m) {
@@ -2903,6 +2951,564 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       html.querySelector(".message-content")?.appendChild(button);
     }
   }
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * Phase 2.5 — the concentration assist: damage → ask → roll → verdict → break.
+ *
+ * The moment has NO decision in it. A concentration save is mandatory — RAW offers no decline —
+ * so the popup carries exactly ONE control (Roll; the two-control rule governs decisions, and a
+ * fake second choice is the Skip button again), and the timer's expiry action is the roll
+ * itself, never a pass (design.md §2.4/§5). What the popup offers is dice agency: the save that
+ * might drop the party's Bless belongs in its owner's hand.
+ *
+ * The chat log is the bus, as everywhere. The GM elect stamps an ASK message off
+ * dnd5e.damageActor under the native prompt's exact guard — so ALL damage qualifies, whether
+ * this module applied it, the native tray did, or the GM dragged a number on a sheet. The
+ * owning player's client volunteers the roll (first-active-owner election, GM elect for NPCs
+ * and offline owners — their character, their dice, §4.1) through rollConcentration with the
+ * ask's DC as `target`, so the system's own success test marks the save card and the verdict
+ * below can never disagree with it. The roll message answers the ask (the module's rolls carry
+ * respondsTo; a save rolled straight from the sheet is detected like a sheet-cast answers a
+ * hold — the roll is the answer, the button is convenience). The elect folds the verdict and,
+ * on a failure, presses the button the system never presses itself: endConcentration, whose
+ * native dependentOn cascade strips every riding effect across the table.
+ *
+ * Zero HP is not a save: unconscious ⇒ incapacitated ⇒ concentration simply ends (a determined
+ * outcome, §2.1), and the system does NOT do this natively — verified 5.3.3, nothing links HP
+ * or statuses to endConcentration. Straight to the break, no ask.
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * What last hit whom — best-effort cause enrichment for the ask card, captured on the applying
+ * client at dnd5e.preApplyDamage (the one seam that still knows the originating message) and
+ * read back moments later by the damageActor handler. Damage applied outside applyDamage (a
+ * sheet edit) has no cause and the ask says only how much, which is the honest floor.
+ * ⚠ Healing rides the same hook (roll.type "healing" — the veto ground truth), hence the
+ * amount > 0 guard: a Cure Wounds must never be remembered as what "hit" someone.
+ */
+const recentDamageCauses = new Map();
+
+Hooks.on("dnd5e.preApplyDamage", (actor, amount, updates, options) => {
+  if ( setting(S.concMode) === "off" ) return;
+  if ( !(Number(amount) > 0) || !actor?.uuid ) return;
+  const message = options?.originatingMessage;
+  if ( !(message instanceof ChatMessage) ) return;
+  // Every usage AND damage card carries the whole messageFlags set (mixin.mjs:203/:895), so
+  // the item behind the damage is one flag read; the speaker names the attacker.
+  let source = null;
+  try { source = fromUuidSync(message.getFlag("dnd5e", "item")?.uuid ?? "")?.name ?? null; }
+  catch(err) { source = null; }
+  const attacker = message.getAssociatedActor?.()?.name ?? null;
+  if ( actor.concentration?.effects?.size ) {
+    recentDamageCauses.set(actor.uuid, { at: Date.now(), source, attacker });
+  }
+});
+
+function takeRecentCause(actorUuid) {
+  const cause = recentDamageCauses.get(actorUuid);
+  recentDamageCauses.delete(actorUuid);
+  if ( !cause || ((Date.now() - cause.at) > 3000) ) return null;
+  return (cause.source || cause.attacker) ? { source: cause.source, attacker: cause.attacker } : null;
+}
+
+/** What the actor is concentrating on, by name — the system's own fallback chain. */
+function concentratingOn(actor) {
+  return [...(actor?.concentration?.effects ?? [])].map(e => {
+    const data = e.getFlag("dnd5e", "item");
+    return data?.name ?? actor.items.get(data?.id)?.name ?? e.name;
+  });
+}
+
+/**
+ * The trigger. Mirrors the native prompt's guard exactly (attributes.mjs:548-551): a net HP
+ * loss where either temp went down or the pool sits below its effective max — the case that
+ * excludes is an hp.value drop caused by a max-HP reduction, which is not damage. Rest and
+ * advancement never reach this hook at all (onUpdateHP returns before firing it). The one
+ * native nicety not visible here is options.dnd5e.concentrationCheck === false (an API
+ * courtesy no system code sets); a module opting out of the native prompt still gets ours.
+ */
+Hooks.on("dnd5e.damageActor", (actor, changes) => {
+  if ( setting(S.concMode) === "off" ) return;
+  if ( !isActiveGM() ) return;                              // single writer stamps the ask
+  if ( !(actor instanceof Actor) ) return;
+  if ( !actor.concentration?.effects?.size ) return;
+  const hp = actor.system.attributes?.hp;
+  if ( !hp ) return;
+  if ( !((changes.temp < 0) || (hp.value < hp.effectiveMax)) ) return;
+  void stampConcentrationAsk(actor, changes);
+});
+
+/** The concentration ability exactly as rollConcentration will resolve it (actor.mjs:1728). */
+function concAbility(actor) {
+  const conc = actor.system.attributes?.concentration;
+  return (conc?.ability in CONFIG.DND5E.abilities) ? conc.ability
+    : CONFIG.DND5E.defaultAbilities.concentration;
+}
+
+const concRecipients = actor => [...new Set(game.users
+  .filter(u => u.isGM || actor?.testUserPermission?.(u, "OWNER")).map(u => u.id))];
+
+async function stampConcentrationAsk(actor, changes) {
+  const damage = -changes.total;
+  const names = concentratingOn(actor);
+
+  // Zero HP is not a save (see the section banner). The concentrator is down; end it.
+  if ( (actor.system.attributes.hp.value ?? 0) <= 0 ) {
+    await breakConcentration(actor, { names, reason: "down" });
+    return;
+  }
+
+  const dc = actor.getConcentrationDC(damage);              // the system's clamp(half, 10, 30)
+  const cause = takeRecentCause(actor.uuid);
+  const window = Math.max(0, Number(setting(S.concTimer)) || 0);
+  const abilityLabel = CONFIG.DND5E.abilities[concAbility(actor)]?.label ?? "Constitution";
+
+  await ChatMessage.create({
+    content: bfCard({
+      img: actor.img ?? null,
+      eyebrow: "Concentration check",
+      title: `${abilityLabel} save, DC ${dc}`,
+      subtitle: `${actor.name} — concentrating on ${names.join(", ") || "a spell"}`,
+      lines: [causeLine(cause, damage)],
+      tone: "pending"
+    }),
+    speaker: ChatMessage.getSpeaker({ actor }),
+    ...(setting(S.concVisibility) ? {} : { whisper: concRecipients(actor) }),
+    flags: { [MODULE_ID]: { concentration: {
+      status: "pending",
+      actorUuid: actor.uuid,
+      actorName: actor.name,
+      ability: concAbility(actor),
+      dc, damage, names,
+      // Which effects were at stake, snapshotted now: the break ends exactly these, and
+      // endConcentration tolerates one already gone (the spell may end while the save is
+      // in the air).
+      effectIds: [...actor.concentration.effects].map(e => e.id),
+      ...(cause ? { cause } : {}),
+      ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
+    } } }
+  });
+}
+
+/** "Took 12 damage from Morgash's Greatsword." — with whatever parts the cause actually has. */
+function causeLine(cause, damage) {
+  let from = "";
+  if ( cause?.attacker && cause?.source && (cause.attacker !== cause.source) ) {
+    from = ` from ${cause.attacker}'s ${cause.source}`;
+  } else if ( cause?.source ?? cause?.attacker ) {
+    from = ` from ${cause.source ?? cause.attacker}`;
+  }
+  return `Took <strong>${damage}</strong> damage${from}.`;
+}
+
+/**
+ * Whose client rolls: the first active non-GM owner (their character, their dice), the
+ * active-GM elect otherwise. Deterministic on every client — same sorted user list. Only the
+ * automatic paths consult this (auto mode's volunteer, and nobody for the buzzer — the elect
+ * owns that); a human pressing Roll is answered by canAnswerFor, like every other surface.
+ */
+function concRollerUser(actor) {
+  const owners = game.users
+    .filter(u => u.active && !u.isGM && actor.testUserPermission(u, "OWNER"))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  return owners[0] ?? game.users.activeGM;
+}
+
+/** Same-client re-entry latch (render resume + create watcher can volunteer in one tick). */
+const concRollsInFlight = new Set();
+
+/**
+ * Roll the save that answers an ask. The DC rides as `target`, so the system's own success
+ * test (basic-roll.mjs:221) marks the save card; the dialog is always skipped
+ * (configure: false) because the POPUP is the configuration surface — it carries the native
+ * dialog's own controls (situational bonus, Advantage/Normal/Disadvantage; user call
+ * 2026-08-16, "since it's so important to players"), delivered here as `mode` and `bonus`.
+ * The buzzer and auto mode pass neither: a straight data-driven roll, where sheet-borne
+ * modifiers (War Caster's advantage via concentration.roll.mode, save bonuses) still apply
+ * themselves — only the ad-hoc inputs expire with the timer.
+ *
+ * The mode is forced through the roll's own advantage/disadvantage booleans — exactly the
+ * pair applyKeybindings resolves into advantageMode (d20-roll.mjs:96), which it recomputes
+ * unconditionally, so setting advantageMode directly would be overwritten. mergeConfigs lets
+ * an explicit boolean override the data-driven one (basic-roll.mjs:465), which is precisely
+ * how clicking Normal on the native dialog out-votes War Caster for one roll.
+ */
+async function rollConcentrationAnswer(askMessage, { timedOut = false, mode = null, bonus = null } = {}) {
+  if ( concRollsInFlight.has(askMessage.id) ) return;
+  concRollsInFlight.add(askMessage.id);
+  try {
+    const ask = askMessage.getFlag(MODULE_ID, "concentration");
+    if ( !ask || (ask.status !== "pending") ) return;
+    // An answer that already landed wins, even though the ask still reads pending — the fold
+    // is the elect's job and may not have caught up. Whole-log by flag, never a tail window.
+    // Closes the re-render double-roll: the flag flips to done only after the fold, and the
+    // in-flight latch above cannot see across that gap.
+    if ( game.messages.some(m => m.getFlag(MODULE_ID, "respondsTo") === askMessage.id) ) return;
+    const rollOverride = {};
+    if ( mode === "advantage" ) rollOverride.options = { advantage: true, disadvantage: false };
+    else if ( mode === "disadvantage" ) rollOverride.options = { advantage: false, disadvantage: true };
+    else if ( mode === "normal" ) rollOverride.options = { advantage: false, disadvantage: false };
+    const part = (bonus ?? "").trim().replace(/^\+\s*/, "");
+    if ( part ) {
+      if ( Roll.validate(part) ) rollOverride.parts = [part];
+      else ui.notifications.warn(`${TITLE}: "${part}" is not a rollable bonus — rolling without it.`);
+    }
+    const actor = await fromUuid(ask.actorUuid);
+    if ( !(actor instanceof Actor) || !actor.isOwner ) return;
+    await actor.rollConcentration(
+      { target: ask.dc,
+        ...(Object.keys(rollOverride).length ? { rolls: [rollOverride] } : {}) },
+      { configure: false },
+      {
+        data: { flags: { [MODULE_ID]: {
+          // The hold's answer-channel key, reused with the same meaning: this message
+          // answers that one. The hold's own watcher no-ops on it (no hold flag there).
+          respondsTo: askMessage.id,
+          ...(timedOut ? { timedOut: true } : {})
+        } } },
+        ...(setting(S.concVisibility) ? {} : { rollMode: CONST.DICE_ROLL_MODES.PRIVATE })
+      }
+    );
+  } catch(err) {
+    console.error(`${TITLE} | Concentration roll failed — roll it from the sheet.`, err);
+  } finally {
+    concRollsInFlight.delete(askMessage.id);
+  }
+}
+
+/** Every still-pending ask for one actor, oldest first — the popup queue and the fold order. */
+function pendingConcAsks(actorUuid) {
+  return game.messages
+    .filter(m => {
+      const c = m.getFlag(MODULE_ID, "concentration");
+      return c && (c.status === "pending") && (c.actorUuid === actorUuid);
+    })
+    .sort((a, b) => a.timestamp - b.timestamp);
+}
+
+/**
+ * Which pending ask a message answers, if any: the module's own respondsTo stamp, or a bare
+ * sheet-rolled save matching a pending ask's actor and ability — no originatingMessage,
+ * because a save belonging to an activity chain (a spell's save, Phase 2's territory) must
+ * never be mistaken for a concentration answer.
+ */
+function concAskAnsweredBy(message) {
+  const respondsTo = message.getFlag(MODULE_ID, "respondsTo");
+  if ( respondsTo ) {
+    return game.messages.get(respondsTo)?.getFlag(MODULE_ID, "concentration") ? respondsTo : null;
+  }
+  const roll = message.getFlag("dnd5e", "roll");
+  if ( roll?.type !== "save" ) return null;
+  if ( message.getFlag("dnd5e", "originatingMessage") ) return null;
+  const actor = message.getAssociatedActor?.();
+  if ( !actor ) return null;
+  const oldest = pendingConcAsks(actor.uuid)[0];
+  if ( !oldest ) return null;
+  if ( (roll.ability ?? null) !== oldest.getFlag(MODULE_ID, "concentration").ability ) return null;
+  return oldest.id;
+}
+
+/** Same-client fold latch — the create watcher and the render resume can race in one tick. */
+const concFolds = new Set();
+
+/**
+ * The elect folds a roll into its ask and acts on the verdict. Success is the ask's DC against
+ * the roll total — the ask is the authority, not the roll's own target: a sheet-rolled save
+ * carries rollConcentration's default target of 10, and 12 vs a DC 14 ask must break. (The
+ * system's test is total >= target with no nat-1/nat-20 override on saves at 5.3.3, so the
+ * module-rolled card and this verdict are always the same fact.)
+ */
+async function foldConcentrationRoll(askMessage, rollMessage) {
+  if ( !askMessage || concFolds.has(askMessage.id) ) return;
+  concFolds.add(askMessage.id);
+  try {
+    const ask = foundry.utils.deepClone(askMessage.getFlag(MODULE_ID, "concentration") ?? {});
+    if ( ask.status !== "pending" ) return;
+    const roll = rollMessage.rolls?.[0];
+    if ( !roll ) return;
+
+    ask.status = "done";
+    ask.outcome = {
+      total: roll.total,
+      success: roll.total >= ask.dc,
+      ...(rollMessage.getFlag(MODULE_ID, "timedOut") ? { timedOut: true } : {}),
+      rollMessageId: rollMessage.id
+    };
+    disarmAskTimer(concTimers, askMessage.id);
+    await askMessage.setFlag(MODULE_ID, "concentration", ask);
+
+    const actor = await fromUuid(ask.actorUuid);
+    if ( ask.outcome.success ) {
+      // "Holds" is only true while there is something held — the spell may have ended by
+      // itself (duration, a manual right-click) while the save was in the air.
+      if ( actor?.concentration?.effects?.size ) await announceConcentrationHolds(actor, ask);
+    } else {
+      await breakConcentration(actor, { names: ask.names, effectIds: ask.effectIds, ask });
+    }
+  } finally {
+    concFolds.delete(askMessage.id);
+  }
+}
+
+/** Quiet good news — one line, visibility-scoped (announce by stakes, design.md §5). */
+async function announceConcentrationHolds(actor, ask) {
+  await ChatMessage.create({
+    content: bfCard({
+      img: actor?.img ?? null,
+      eyebrow: "Concentration",
+      title: `${ask.names?.join(", ") || "Concentration"} holds`,
+      subtitle: `${ask.outcome.total} vs DC ${ask.dc}`
+        + `${ask.outcome.timedOut ? " — rolled by the timer" : ""}`,
+      tone: "good"
+    }),
+    speaker: { alias: TITLE },
+    ...(setting(S.concVisibility) ? {} : { whisper: concRecipients(actor) })
+  });
+}
+
+/**
+ * End concentration the way the system would — endConcentration → effect.delete → the native
+ * dependentOn cascade strips every riding effect on every actor — and say so LOUDLY, always
+ * in public: the cascade just removed icons across the whole table, and an icon vanishing
+ * must never be a mystery (design.md §2.5). With Failure Breaks Concentration off, this
+ * announces and leaves the ending to the GM.
+ */
+async function breakConcentration(actor, { names = [], effectIds = null, ask = null, reason = null } = {}) {
+  const breaks = setting(S.concBreak);
+  if ( breaks && (actor instanceof Actor) ) {
+    const targets = effectIds ?? [...(actor.concentration?.effects ?? [])].map(e => e.id);
+    for ( const id of targets ) {
+      try { await actor.endConcentration(id); }
+      catch(err) { console.error(`${TITLE} | Could not end concentration.`, err); }
+    }
+  }
+  const what = names.length ? names.join(", ") : "concentration";
+  await ChatMessage.create({
+    content: bfCard({
+      img: actor?.img ?? null,
+      eyebrow: "Concentration broken",
+      title: `${what} ends`,
+      subtitle: reason === "down"
+        ? `${actor?.name ?? "The concentrator"} is down — no save at 0 HP`
+        : ask ? `${ask.outcome.total} vs DC ${ask.dc} — ${actor?.name ?? "the concentrator"} loses concentration`
+        : `${actor?.name ?? "The concentrator"} loses concentration`,
+      lines: breaks ? [] : [`<em>Breaking is off — end it from ${actor?.name ?? "the actor"}'s effects yourself.</em>`],
+      tone: "bad"
+    }),
+    speaker: { alias: TITLE }
+  });
+}
+
+/* --- the ask's clock, answer channel, and views -------------------------------------------- */
+
+const concTimers = new Map();
+
+/**
+ * Expiry ROLLS — the save always happens; the timer only decides who pressed the button. The
+ * buzzer re-checks for an answer that already landed (an unfolded roll must beat the clock,
+ * not race it), then rolls on the elect, who owns everything.
+ */
+const armConcTimer = message => armAskTimer(concTimers, message, "concentration", fireConcTimer);
+
+async function fireConcTimer(askMessage) {
+  const landed = game.messages.find(m => m.getFlag(MODULE_ID, "respondsTo") === askMessage.id);
+  if ( landed ) return foldConcentrationRoll(askMessage, landed);
+  const ask = askMessage.getFlag(MODULE_ID, "concentration");
+  const actor = await fromUuid(ask?.actorUuid ?? "");
+  if ( !(actor instanceof Actor) ) {
+    // The concentrator no longer exists; there is nothing to roll and nothing to break.
+    const gone = foundry.utils.deepClone(ask ?? {});
+    gone.status = "done";
+    gone.outcome = { voided: true };
+    await askMessage.setFlag(MODULE_ID, "concentration", gone);
+    return;
+  }
+  await rollConcentrationAnswer(askMessage, { timedOut: true });
+}
+
+/** Popups this client has auto-shown, so a re-render never stacks a second one. */
+const shownConcAsks = new Set();
+
+// The answer channel: the elect folds any roll that answers an ask — the module's own stamped
+// rolls and bare sheet-rolls alike. Everyone else's client just watches the flags change.
+Hooks.on("createChatMessage", message => {
+  if ( isActiveGM() ) {
+    const askId = concAskAnsweredBy(message);
+    if ( askId ) void foldConcentrationRoll(game.messages.get(askId), message);
+  }
+  // A fresh ask: arm the clock (elect-gated inside), and in auto mode the elected roller
+  // volunteers — their character, their dice, no popup.
+  const ask = message.getFlag(MODULE_ID, "concentration");
+  if ( ask?.status === "pending" ) {
+    armConcTimer(message);
+    if ( setting(S.concMode) === "auto" ) void autoRollConcentration(message);
+  }
+});
+
+async function autoRollConcentration(askMessage) {
+  const ask = askMessage.getFlag(MODULE_ID, "concentration");
+  const actor = await fromUuid(ask?.actorUuid ?? "");
+  if ( !(actor instanceof Actor) ) return;
+  if ( !(concRollerUser(actor)?.isSelf ?? false) ) return;
+  await rollConcentrationAnswer(askMessage);
+}
+
+// Every client closes a resolved ask's popup; the queue advances to the actor's next pending
+// ask by nudging its render, which re-offers the popup on whichever client owns it.
+Hooks.on("updateChatMessage", message => {
+  const ask = message.getFlag(MODULE_ID, "concentration");
+  if ( !ask ) return;
+  const dialog = livePopups.get(popupKey(message.id, "concentration"));
+  if ( dialog && (ask.status !== "pending") ) void dialog.close();
+  if ( ask.status !== "pending" ) {
+    disarmAskTimer(concTimers, message.id);
+    const next = pendingConcAsks(ask.actorUuid)[0];
+    if ( next ) {
+      shownConcAsks.delete(next.id);
+      try { ui.chat?.updateMessage?.(next); } catch(err) { /* row refreshes next render */ }
+    }
+  }
+});
+
+Hooks.on("deleteChatMessage", message => {
+  disarmAskTimer(concTimers, message.id);
+  shownConcAsks.delete(message.id);
+});
+
+/**
+ * The ask's row: pending = the draining bar plus a Roll control for whoever may answer
+ * (prompt mode recalls the popup — one input surface; auto mode needs no control at all);
+ * done = the outcome in one line. Stateless like every render hook here, with the same resume
+ * discipline as the hold and the mastery ask: a pending ask re-arms its clock, an answered-
+ * but-unfolded ask gets folded by the elect, and auto mode re-volunteers the roller.
+ */
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  const ask = message.getFlag(MODULE_ID, "concentration");
+  if ( !ask ) return;
+  const row = document.createElement("div");
+  row.className = "battleflow-concentration";
+
+  if ( ask.status === "pending" ) {
+    row.innerHTML = holdBarHTML(ask, "to roll");
+    scheduleBarSync(row);
+    armConcTimer(message);
+
+    // Resume: an answer landed while nobody could fold it (the elect reloaded between the
+    // roll message and the fold). Whole-log by flag — never a tail window.
+    if ( isActiveGM() ) {
+      const landed = game.messages.find(m => m.getFlag(MODULE_ID, "respondsTo") === message.id);
+      if ( landed ) void foldConcentrationRoll(message, landed);
+    }
+    if ( setting(S.concMode) === "auto" ) void autoRollConcentration(message);
+
+    const actor = (() => { try { return fromUuidSync(ask.actorUuid); } catch(err) { return null; } })();
+    if ( (setting(S.concMode) === "prompt") && canAnswerFor(actor) ) {
+      // Auto-show only for the OLDEST pending ask (multiple damage instances queue rather
+      // than stack popups); the button recalls this ask's popup regardless.
+      if ( pendingConcAsks(ask.actorUuid)[0]?.id === message.id && !shownConcAsks.has(message.id) ) {
+        shownConcAsks.add(message.id);
+        void showConcPopup(message, message.getFlag(MODULE_ID, "concentration"));
+      }
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = "Roll";
+      Object.assign(button.style, { width: "auto", margin: "0.25rem 0 0", padding: "0 0.6rem" });
+      button.addEventListener("click", () => {
+        shownConcAsks.delete(message.id);
+        void showConcPopup(message, message.getFlag(MODULE_ID, "concentration"));
+      });
+      row.appendChild(button);
+    }
+  } else {
+    const o = ask.outcome ?? {};
+    const line = document.createElement("div");
+    line.textContent = o.voided ? "The concentrator is gone — nothing to roll."
+      : `${o.total} vs DC ${ask.dc} — ${o.success ? "holds" : "broken"}${o.timedOut ? " (timer)" : ""}`;
+    Object.assign(line.style, {
+      marginTop: "0.3rem", fontSize: "var(--font-size-11, 11px)",
+      fontWeight: "bold", opacity: "0.8"
+    });
+    row.appendChild(line);
+  }
+  html.querySelector(".message-content")?.appendChild(row);
+});
+
+/**
+ * The popup — the ask's story over the native roll dialog's own controls: a situational
+ * bonus field and the Advantage/Normal/Disadvantage buttons, in the system's design language
+ * (user call, 2026-08-16 — a save this important gets the full surface, not a bare
+ * confirm). Every button is the same answer, roll, so this is still not a decision; the
+ * default button is hinted from actor data exactly as the native dialog hints it
+ * (_prepareButtonsContext, d20-configuration-dialog.mjs:29 — War Caster pre-selects
+ * Advantage). Dismissing is not an answer: the card keeps the bar and the Roll control, and
+ * the buzzer rolls regardless — without any of these inputs.
+ */
+async function showConcPopup(message, ask) {
+  if ( !ask || (ask.status !== "pending") ) return;
+  const actor = (() => { try { return fromUuidSync(ask.actorUuid); } catch(err) { return null; } })();
+  if ( !canAnswerFor(actor) ) return;
+  const key = popupKey(message.id, "concentration");
+  if ( livePopups.has(key) ) return;
+
+  const abilityLabel = CONFIG.DND5E.abilities[ask.ability]?.label ?? "Constitution";
+  const ADV = CONFIG.Dice.D20Roll.ADV_MODE;
+  const dataMode = actor?.system?.attributes?.concentration?.roll?.mode ?? ADV.NORMAL;
+  const def = (dataMode === ADV.ADVANTAGE) ? "advantage"
+    : (dataMode === ADV.DISADVANTAGE) ? "disadvantage" : "normal";
+
+  let dialog;
+  const roll = mode => rollConcentrationAnswer(message, {
+    mode, bonus: dialog?.element?.querySelector('input[name="bf-conc-bonus"]')?.value ?? ""
+  });
+  dialog = new foundry.applications.api.DialogV2({
+    window: { title: `Concentration — ${ask.names?.join(", ") || ask.actorName}`,
+      icon: "fa-solid fa-brain" },
+    position: { width: 440 },
+    content: bfCard({
+      img: actor?.img ?? null,
+      eyebrow: "Concentration check",
+      title: `${abilityLabel} save, DC ${ask.dc}`,
+      subtitle: `${ask.actorName} — concentrating on ${ask.names?.join(", ") || "a spell"}`,
+      lines: [
+        causeLine(ask.cause, ask.damage),
+        `A failed save ends <strong>${ask.names?.join(", ") || "the spell"}</strong>`
+          + `${setting(S.concBreak) ? "" : " (breaking is off — the GM ends it by hand)"}.`
+      ],
+      tone: "pending"
+    }) + `
+    <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
+      <label style="flex:1;font-size:var(--font-size-12,12px);">Situational Bonus</label>
+      <input type="text" name="bf-conc-bonus" placeholder="e.g. 1d4" autocomplete="off"
+             style="flex:1;min-width:0;text-align:center;">
+    </div>` + holdBarHTML(ask, "to roll"),
+    buttons: [
+      { action: "advantage", label: "Advantage", default: def === "advantage",
+        callback: () => roll("advantage") },
+      { action: "normal", label: "Normal", default: def === "normal",
+        callback: () => roll("normal") },
+      { action: "disadvantage", label: "Disadvantage", default: def === "disadvantage",
+        callback: () => roll("disadvantage") }
+    ],
+    rejectClose: false
+  });
+  await openManagedPopup(key, message, dialog);
+}
+
+/**
+ * The native concentration prompt (challengeConcentration's whispered roll-request card) is
+ * this feature's moment while the mode is on — a stale roll button under an automated flow is
+ * the attack-card spam again. Vetoed on the creating client, and ONLY while an active GM
+ * exists to stamp asks: a GM-less table degrades to native behavior, not to silence. A GM's
+ * own [[/concentration]] enricher request is safe — message content stores the raw enricher
+ * text (enrichment happens at render), never this rendered dataset markup.
+ */
+Hooks.on("preCreateChatMessage", doc => {
+  if ( setting(S.concMode) === "off" ) return;
+  if ( !game.users.activeGM ) return;
+  if ( !doc.whisper?.length || doc.rolls?.length ) return;
+  if ( !doc.content?.includes('data-action="concentration"') ) return;
+  return false;
 });
 
 /* ---------------------------------------------------------------------------------------------
