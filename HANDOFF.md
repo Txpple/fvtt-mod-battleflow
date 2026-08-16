@@ -299,6 +299,23 @@ The user **logs in as the player accounts themselves** to dogfood the player sid
 session out hands the hold back to the GM and unblocks the bridge — ask before assuming a
 connected player is someone else at the table.
 
+**Topology since 2026-08-16** (user changes, measured by `tools/probe-player-seam.mjs`):
+
+- **DM Assistant is role 4 now** (the standing elevation offer, executed). Measured with
+  both role-4 users connected: **the elect is DM Assistant, not Matt** (`activeGM` →
+  `getDesignatedUser`, a deterministic user-order pick). Implication: whenever the bridge
+  page is up during live play, IT applies damage with whatever code it LOADED — after any
+  deploy, bounce the bridge (disconnect-bridge; it reconnects fresh on the next call) or
+  its stale code is the table's resolver. Before the elevation Matt outranked it; that
+  protection is gone by design.
+- **PC Assistant** (role 1, player, **no password**) exists for two-client suite coverage.
+  Credentials live in `../fvtt-mcp-molten5e/.env` as `MOLTEN_TEST_USER` /
+  `MOLTEN_TEST_PASSWORD`; it OWNS **BF Test PC Attacker**. The proving spike
+  (`probe-player-seam.mjs`, read-only, safe mid-session) asserts: it joins and reaches
+  ready, it owns the fixture, and the `canAnswerFor` seam flips on the GM side the moment
+  it connects — the plumbing Phase 2's owner-election coverage stands on. The suites do
+  not use it yet; the first real two-client sections come with Phase 2.
+
 ## Ground truths that already cost a debugging session
 
 Most of these are commented at the line where it bit. Do not rediscover them.
