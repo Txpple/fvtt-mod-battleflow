@@ -286,7 +286,7 @@ Hooks.once("init", () => {
 
   game.settings.register(MODULE_ID, S.masteryRiders, {
     name: "Weapon Mastery Riders",
-    hint: "A weapon mastery pays out with the attack that earned it. Vex and Sap apply themselves (the rules give no choice); Slow, Topple, Push and Graze are the wielder's option — see Ask First. Effects are visible chips with the rule in their description; nothing ever modifies a d20, and Cleave/Nick (extra attacks) stay native. Requires the attack resolver to be on.",
+    hint: "A weapon mastery pays out with the attack that earned it. Vex and Sap apply themselves (the rules give no choice); Slow, Topple, Push and Graze are the wielder's option — see Ask First. Effects are visible chips with the rule in their description; nothing ever modifies a d20, and Cleave/Nick (extra attacks) stay native. On-hit payouts ride the damage roll wherever it came from — the resolver's auto-roll or the native Damage button. Graze alone needs the attack resolver on: a miss has no damage button to press.",
     scope: "world", config: true, type: Boolean, default: false
   });
 
@@ -378,6 +378,19 @@ function hitTargets(attackMessage) {
 }
 
 /**
+ * Does the attacker-side mode admit this actor's side of the table? One home for the
+ * npc/pc/all gate — Phase 1a and Graze both read it, and a mode added here reaches both.
+ */
+function modeAllows(actor) {
+  const mode = setting(S.autoDamage);
+  if ( mode === "off" ) return false;
+  const isPC = actor?.type === "character";
+  if ( (mode === "npc") && isPC ) return false;
+  if ( (mode === "pc") && !isPC ) return false;
+  return true;
+}
+
+/**
  * The attack roll a damage message descends from, walked through the system's registry:
  * damage → originating usage card → associated attack rolls (chronological) → the last one
  * rolled before this damage. When the origin itself IS an attack message (an attack rolled
@@ -465,15 +478,11 @@ Hooks.on("renderRollConfigurationDialog", (app, element) => {
  * ------------------------------------------------------------------------------------------- */
 
 Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
-  const mode = setting(S.autoDamage);
-  if ( (mode === "off") || !subject ) return;
   // The mode gates on the ATTACKER's side of the table, and this hook runs on whichever client
   // rolled — so "npc" is in practice the GM's client and "pc" a player's own. Everything
   // downstream is side-agnostic: auto-apply is the GM elect regardless of who attacked, and a
   // hold's continuation follows the roller (see isContinuingClient).
-  const isPC = subject.actor?.type === "character";
-  if ( (mode === "npc") && isPC ) return;
-  if ( (mode === "pc") && !isPC ) return;
+  if ( !subject || !modeAllows(subject.actor) ) return;
 
   const attackMessage = rolls[0]?.parent;
   if ( !(attackMessage instanceof ChatMessage) ) return; // rolled with create:false — no chain to ride
@@ -768,15 +777,19 @@ function inRunningCombat(actor) {
 }
 
 // Cleared when the actor's own turn comes round again.
+// ⚠ The CLEAR hooks are deliberately not gated on the feature toggle — only the SET is.
+// Killing the hold mid-combat (the §2.9 kill switch) used to strand every already-set
+// reactionSpent flag: the combat ended with the clears disabled, and re-enabling the
+// feature later silently suppressed those actors' first holds. Clearing is always harmless.
 Hooks.on("updateCombat", combat => {
-  if ( !setting(S.reactionHold) || !isActiveGM() ) return;
+  if ( !isActiveGM() ) return;
   const actor = combat.combatant?.actor;
   if ( actor?.getFlag(MODULE_ID, "reactionSpent") ) void actor.unsetFlag(MODULE_ID, "reactionSpent");
 });
 
 // …and when the fight ends, so nobody carries a spent reaction into the next one.
 Hooks.on("deleteCombat", combat => {
-  if ( !setting(S.reactionHold) || !isActiveGM() ) return;
+  if ( !isActiveGM() ) return;
   for ( const combatant of combat.combatants ) {
     if ( combatant.actor?.getFlag(MODULE_ID, "reactionSpent") )
       void combatant.actor.unsetFlag(MODULE_ID, "reactionSpent");
@@ -1053,8 +1066,12 @@ async function answerHoldsFor(activity, actor) {
   // each created its own. One casting, +10 AC (caught by smoke-hold 2026-08-15 — "AC moves
   // +5" read 12 → 22). RAW a reaction is cast once and covers every attack it answers, so
   // the effect lands once up front and the answers are sequenced behind it.
+  // ⚠ The WHOLE log, never a tail window. Under auto-resolution one multiattack round can
+  // emit dozens of messages (attacks, damage, receipts, announcements, mastery cards), and a
+  // tail-bounded scan silently missed the hold — the same trap the smoke suites document for
+  // damage searches. Pending holds are rare; the filter is one cheap in-memory pass.
   const answering = [];
-  for ( const message of game.messages.contents.slice(-25) ) {
+  for ( const message of game.messages.contents ) {
     const hold = message.getFlag(MODULE_ID, "hold");
     if ( !hold || (hold.status !== "pending") ) continue;
     const target = hold.targets.find(t => (t.uuid === actor.uuid) && !t.answer);
@@ -1091,6 +1108,12 @@ function hasReactionEffect(actor, reactionName, ids) {
     || (e.origin && item && e.origin.includes(item.id))));
 }
 
+// One of THREE effect appliers, and the differences are policy, not accident: this one is
+// the hold's self-cast sliver (name-or-origin dedupe for the clone-origin problem above; no
+// receipt yet — the response card announces instead). applyEffectRiders is native-tray
+// parity with the concentration origin rule and receipts; applyMasteryEffect applies
+// authored chips with weapon origins. Phase 3 (save-conditioned effects) is where they
+// converge on a shared core grown out of applyEffectRiders — do not unify them before it.
 async function applyReactionEffect(activity, actor, reactionName, ids) {
   try {
     // ⚠ A cast activity has no effects of its own — they live on the spell it links to. Its
@@ -1147,9 +1170,33 @@ Hooks.on("updateChatMessage", message => {
  * given a settle window to let the change land before the verdict is taken. Phase 3 closes
  * this properly by applying the effect itself.
  */
+/**
+ * Continuations this client is already driving. The body below AWAITS for up to holdSettle
+ * seconds with the flag still `pending`, and any OTHER update landing on the held message in
+ * that window (a mastery ask stamped on the same attack, a receipt) re-fires the
+ * updateChatMessage watcher, which would find "pending, all answered" and run the whole
+ * continuation AGAIN — double announcements and a second damage roll. Over-applying damage
+ * is the worst failure this module has, so the claim is taken before the first await.
+ * In-memory on purpose: the race is same-client re-entry (the watcher is already gated to
+ * one client by isContinuingClient), and a persisted claim would strand the hold if the
+ * claiming client died mid-continuation — the render hook's resume check below needs the
+ * flag still readable as "pending and ready".
+ */
+const continuationsInFlight = new Set();
+
 async function continueHold(attackMessage) {
+  if ( continuationsInFlight.has(attackMessage.id) ) return;
   const hold = foundry.utils.deepClone(attackMessage.getFlag(MODULE_ID, "hold"));
   if ( !hold || (hold.status !== "pending") ) return;
+  continuationsInFlight.add(attackMessage.id);
+  try {
+    return await driveHoldContinuation(attackMessage, hold);
+  } finally {
+    continuationsInFlight.delete(attackMessage.id);
+  }
+}
+
+async function driveHoldContinuation(attackMessage, hold) {
 
   // Safety net before the verdict: make sure a cast reaction's effect is actually ON the
   // actor. The casting client is supposed to have done this, but it only will if it owns the
@@ -1387,6 +1434,33 @@ const shownPopups = new Set();
 const livePopups = new Map();
 const popupKey = (messageId, uuid) => `${messageId}|${uuid}`;
 
+/**
+ * Register, render and lifecycle-manage a decision popup — ONE home for the discipline that
+ * a popup is a VIEW: whatever closes it (a button, the X, escape, or an answer landing
+ * anywhere else) releases the card row in exactly one place, and a failed render releases it
+ * immediately, because the card is always the fallback surface. Both machines (the hold and
+ * the mastery ask) and any future table moment (Phase 2.5) open their popups through this.
+ */
+async function openManagedPopup(key, message, dialog) {
+  const close = dialog.close.bind(dialog);
+  dialog.close = async (...args) => {
+    livePopups.delete(key);
+    try { ui.chat?.updateMessage?.(message); } catch(err) { /* row refreshes next render */ }
+    return close(...args);
+  };
+  livePopups.set(key, dialog);
+  try {
+    await dialog.render({ force: true });
+    scheduleBarSync(dialog.element);
+    // The row was drawn before this popup existed; redraw so it defers to the popup
+    // instead of offering a second set of controls.
+    ui.chat?.updateMessage?.(message);
+  } catch(err) {
+    livePopups.delete(key);
+    console.error(`${TITLE} | Could not open the popup — answer from the card.`, err);
+  }
+}
+
 /* ---------------------------------------------------------------------------------------------
  * The house card. Everything this module says out loud wears it.
  *
@@ -1617,6 +1691,10 @@ function revealLine(reveal, target) {
   return text;
 }
 
+// ⚠ THREE dnd5e.renderChatMessage hooks append rows to a card, and their on-card ORDER is
+// their registration order, which is their order in this file: the hold row (here), then
+// the mastery row + Topple affordance, then the receipt rows. Moving a section moves every
+// card's layout — if the file ever splits by phase, this ordering must be made explicit.
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const hold = message.getFlag(MODULE_ID, "hold");
   if ( !hold?.targets?.length ) return;
@@ -1691,7 +1769,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       // A reload lands here with the hold still open — re-arm the buzzer from the flag's
       // deadline rather than restarting the window.
       armHoldTimer(message);
-      if ( !canAnswerFor(actor) ) return;
+      // This target's decision is made; controls belong only to the still-undecided.
+      if ( target.answer || !canAnswerFor(actor) ) return;
 
       // ⚠ ONE input surface. When this client gets popups, the popup decides and the card only
       // watches — it offers a way to call the popup BACK (a dismissed popup must never strand
@@ -1723,6 +1802,15 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     });
   }
   html.querySelector(".message-content")?.appendChild(row);
+
+  // Resume a hold that is READY but has nobody driving it: every answer landed, then the
+  // continuing client reloaded before writing the verdict (the settle window makes that gap
+  // up to holdSettle seconds wide). The buzzer only passes UNANSWERED targets, so without
+  // this a fully-answered hold sat pending forever. Views are stateless and re-derive from
+  // the flag, so the view is exactly where readiness gets re-checked; the in-flight claim
+  // makes the drive idempotent across re-renders.
+  if ( (hold.status === "pending") && hold.targets.every(t => t.answer)
+    && isContinuingClient(hold) ) void continueHold(message);
 
   // The popup: attention for the person whose decision it is. Ephemeral by design — closing
   // it is not an answer, because the row above is the durable state.
@@ -1854,6 +1942,10 @@ async function holdPopupContent(target, roll, actor, hold) {
 async function showHoldPopup(attackMessage, hold) {
   const roll = attackMessage.rolls[0];
   for ( const target of hold.targets ) {
+    // An answered target's decision is made — reopening its popup (the card's Answer button
+    // recalls popups for the whole message) re-asked a question and produced a second
+    // "passes" card through the response channel.
+    if ( target.answer ) continue;
     const actor = await fromUuid(target.uuid);
     if ( !canAnswerFor(actor) ) continue;
 
@@ -1879,27 +1971,7 @@ async function showHoldPopup(attackMessage, hold) {
       buttons,
       rejectClose: false
     });
-
-    // Patch the instance rather than subclassing: whatever closes it — a button, the X, escape,
-    // or closeAnsweredPopups below — must release the card row in exactly one place.
-    const close = dialog.close.bind(dialog);
-    dialog.close = async (...args) => {
-      livePopups.delete(key);
-      try { ui.chat?.updateMessage?.(attackMessage); } catch(err) { /* row refreshes next render */ }
-      return close(...args);
-    };
-
-    livePopups.set(key, dialog);
-    try {
-      await dialog.render({ force: true });
-      scheduleBarSync(dialog.element);
-      // The row was drawn before this popup existed; redraw so it defers instead of offering
-      // a second set of buttons.
-      ui.chat?.updateMessage?.(attackMessage);
-    } catch(err) {
-      livePopups.delete(key);
-      console.error(`${TITLE} | Could not open the reaction popup — answer from the card.`, err);
-    }
+    await openManagedPopup(key, attackMessage, dialog);
   }
 }
 
@@ -2121,6 +2193,19 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
   const common = [...per[0]].filter(([key]) => per.every(m => m.has(key)));
   const dropped = new Set(per.flatMap(m => [...m.keys()]).filter(k => !per.every(m => m.has(k))));
   if ( dropped.size ) {
+    // §2.5: the caster earned that die, so the non-payment must reach the TABLE, not the
+    // console — whispered to the roller and the GM, since it is their by-hand roll to make.
+    const names = [...new Set([...dropped].map(k => k.split(":")[0]))].join(", ");
+    void ChatMessage.create({
+      content: bfCard({
+        eyebrow: "Rider — not folded in", title: "One roll, mixed targets", tone: "neutral",
+        lines: [`This damage roll serves targets that are not all marked, so `
+          + `<strong>${names}</strong> was left out rather than over-applied. `
+          + `Roll the bonus damage by hand for the marked target.`]
+      }),
+      whisper: [...new Set([game.userId, ...game.users.filter(u => u.isGM).map(u => u.id)])],
+      speaker: { alias: TITLE }
+    });
     console.warn(`${TITLE} | Rider(s) ${[...dropped].join(", ")} not folded in: one damage roll `
       + "covers targets that are not all marked. Roll the bonus damage by hand for the marked one.");
   }
@@ -2189,8 +2274,12 @@ async function applyToHitTargets(damageMessage, hits) {
  * `receiptMessage` (the damage card normally; the ATTACK card for Graze, where no damage
  * message exists because the attack missed). `note` rides each receipt entry and renders
  * beside the taken amount — it is how a Graze line says what it is.
+ *
+ * `multiplier` is threaded now so Phase 2 (half damage on a successful save) extends this
+ * applier instead of forking it — today every caller passes the default 1, and a non-1
+ * multiplier is recorded on the receipt entry so the row can say why the number halved.
  */
-async function applyDamagesWithReceipt(receiptMessage, hits, damages, { note } = {}) {
+async function applyDamagesWithReceipt(receiptMessage, hits, damages, { note, multiplier = 1 } = {}) {
   try {
     const receipts = [];
     for ( const target of hits ) {
@@ -2208,7 +2297,7 @@ async function applyDamagesWithReceipt(receiptMessage, hits, damages, { note } =
       // bypasses/modification/threshold; asking the same method twice cannot. (The extra
       // pass fires the calculate-damage hooks one more read-only time; nothing in this
       // module or combatplus listens to them.)
-      const calc = actor.calculateDamage(damages, { multiplier: 1, originatingMessage: receiptMessage });
+      const calc = actor.calculateDamage(damages, { multiplier, originatingMessage: receiptMessage });
       const traits = [];
       for ( const d of (calc || []) ) {
         const a = d.active ?? {};
@@ -2224,7 +2313,7 @@ async function applyDamagesWithReceipt(receiptMessage, hits, damages, { note } =
       }
 
       await actor.applyDamage(damages, {
-        multiplier: 1, isDelta: true, originatingMessage: receiptMessage, origin: receiptMessage
+        multiplier, isDelta: true, originatingMessage: receiptMessage, origin: receiptMessage
       });
       const after = actor.system._source.attributes.hp;
       receipts.push({
@@ -2232,6 +2321,7 @@ async function applyDamagesWithReceipt(receiptMessage, hits, damages, { note } =
         name: target.name,
         img: actor.img ?? null, // the portrait the row leads with (user call, 2026-08-15)
         ...(note ? { note } : {}),
+        ...(multiplier !== 1 ? { multiplier } : {}),
         prior,
         delta: {
           value: (after.value ?? 0) - (prior.value ?? 0),
@@ -2273,7 +2363,11 @@ function messageActivity(message) {
  */
 async function applyEffectRiders(damageMessage, attackMessage, hits) {
   try {
-    if ( damageMessage.getFlag(MODULE_ID, "effectReceipt") ) return; // one payout per roll
+    // One payout per roll — guarded by a RIDER-OWNED marker, not by the flag's existence:
+    // applyMasteryEffect writes entries into this same effectReceipt flag, so "any flag
+    // present" would make the riders silently skip if the stages ever reorder or a new
+    // writer appears. The mastery applier deep-clones and preserves this marker.
+    if ( damageMessage.getFlag(MODULE_ID, "effectReceipt")?.ridersDone ) return;
     const activity = messageActivity(attackMessage);
     const effects = activity?.applicableEffects ?? [];
     if ( !effects.length ) return;
@@ -2322,7 +2416,7 @@ async function applyEffectRiders(damageMessage, attackMessage, hits) {
       }
       if ( entry.effects.length ) receipts.push(entry);
     }
-    if ( receipts.length ) await damageMessage.setFlag(MODULE_ID, "effectReceipt", { targets: receipts });
+    if ( receipts.length ) await damageMessage.setFlag(MODULE_ID, "effectReceipt", { ridersDone: true, targets: receipts });
   } catch(err) {
     console.error(`${TITLE} | Effect riders failed.`, err);
   }
@@ -2481,7 +2575,6 @@ async function resolveHitMastery(damageMessage, attackMessage, hits) {
 // acknowledged in PLAN.md; nobody has asked for it).
 Hooks.on("createChatMessage", message => {
   if ( !setting(S.masteryRiders) || !isActiveGM() ) return;
-  if ( setting(S.autoDamage) === "off" ) return; // the riders ride the resolver
   if ( message.getFlag("dnd5e", "roll.type") !== "attack" ) return;
   if ( message.getFlag("dnd5e", "roll.mastery") !== "graze" ) return;
   void resolveMissMastery(message);
@@ -2491,9 +2584,11 @@ async function resolveMissMastery(attackMessage) {
   try {
     const ctx = masteryContext(attackMessage);
     if ( !ctx ) return;
-    const mode = setting(S.autoDamage);
-    if ( (mode === "npc") && (ctx.attacker.type === "character") ) return;
-    if ( (mode === "pc") && (ctx.attacker.type !== "character") ) return;
+    // Graze alone rides the RESOLVER, not just the chain: a missed attack has no damage
+    // button for a human to press, so with the resolver off there is no manual path to
+    // stand in for this payout — and paying it anyway would apply damage a table that
+    // turned auto-resolution off did not ask for.
+    if ( !modeAllows(ctx.attacker) ) return;
     if ( (ctx.attacker.system.abilities?.[ctx.ability]?.mod ?? 0) <= 0 ) return;
 
     const hitSet = new Set(hitTargets(attackMessage).map(t => t.uuid));
@@ -2644,19 +2739,35 @@ async function answerMastery(message, answer, { timedOut = false } = {}) {
   await message.setFlag(MODULE_ID, "mastery", m);
 }
 
-/** The elect claims the answer, then pays it out. Claim-first: a re-fire sees "done". */
+/**
+ * The elect claims the answer, then pays it out. The claim-first write makes SEQUENTIAL
+ * re-fires see "done" — but the render hook's resume check and the update watcher can both
+ * invoke this in the same tick, before the claim has landed, and each concurrent reader
+ * sees "pending" and pays again (three Slowed chips, −30 speed — caught by smoke-effects
+ * §5c the day the resume check was added). Same in-memory latch as continueHold, for the
+ * same reason: the race is same-client concurrency, and the elect gate already serializes
+ * across clients.
+ */
+const masteryExecutions = new Set();
+
 async function executeMasteryAnswer(message) {
-  const m = foundry.utils.deepClone(message.getFlag(MODULE_ID, "mastery") ?? {});
-  if ( (m.status !== "pending") || !m.answer ) return;
-  m.status = "done";
-  m.outcome = (m.answer === "use") ? "used" : (m.timedOut ? "timed out" : "passed");
-  disarmMasteryTimer(message.id);
-  await message.setFlag(MODULE_ID, "mastery", m);
-  if ( m.answer !== "use" ) return;
-  const ctx = masteryContext(message);
-  if ( !ctx ) return;
-  const damageMessage = m.damageMessageId ? game.messages.get(m.damageMessageId) : null;
-  await executeMasteryPayout(m.key, message, damageMessage, ctx, m.targets ?? []);
+  if ( masteryExecutions.has(message.id) ) return;
+  masteryExecutions.add(message.id);
+  try {
+    const m = foundry.utils.deepClone(message.getFlag(MODULE_ID, "mastery") ?? {});
+    if ( (m.status !== "pending") || !m.answer ) return;
+    m.status = "done";
+    m.outcome = (m.answer === "use") ? "used" : (m.timedOut ? "timed out" : "passed");
+    disarmMasteryTimer(message.id);
+    await message.setFlag(MODULE_ID, "mastery", m);
+    if ( m.answer !== "use" ) return;
+    const ctx = masteryContext(message);
+    if ( !ctx ) return;
+    const damageMessage = m.damageMessageId ? game.messages.get(m.damageMessageId) : null;
+    await executeMasteryPayout(m.key, message, damageMessage, ctx, m.targets ?? []);
+  } finally {
+    masteryExecutions.delete(message.id);
+  }
 }
 
 // The answer channel: every client closes an answered popup; the elect executes.
@@ -2673,7 +2784,13 @@ Hooks.on("deleteChatMessage", message => {
   shownMasteryAsks.delete(message.id);
 });
 
-/** The elect owns the one authoritative clock; expiry answers Pass (the AFK fallback). */
+/**
+ * The elect owns the one authoritative clock; expiry answers Pass (the AFK fallback).
+ * Deliberately a TWIN of armHoldTimer, not a shared helper: the guards differ (one answer
+ * vs per-target answers), the owners differ (elect vs continuing client), and the expiry
+ * actions differ. Two fifteen-line twins read clearer than one three-lambda machine — if a
+ * THIRD clock appears (Phase 2.5's concentration prompt), extract the shape then.
+ */
 function armMasteryTimer(message) {
   const m = message?.getFlag(MODULE_ID, "mastery");
   if ( !m?.deadline || (m.status !== "pending") || m.answer || !isActiveGM() ) return;
@@ -2720,21 +2837,7 @@ async function showMasteryPopup(message, m) {
     buttons,
     rejectClose: false
   });
-  const close = dialog.close.bind(dialog);
-  dialog.close = async (...args) => {
-    livePopups.delete(key);
-    try { ui.chat?.updateMessage?.(message); } catch(err) { /* row refreshes next render */ }
-    return close(...args);
-  };
-  livePopups.set(key, dialog);
-  try {
-    await dialog.render({ force: true });
-    scheduleBarSync(dialog.element);
-    ui.chat?.updateMessage?.(message);
-  } catch(err) {
-    livePopups.delete(key);
-    console.error(`${TITLE} | Could not open the mastery popup — answer from the card.`, err);
-  }
+  await openManagedPopup(key, message, dialog);
 }
 
 // The card rows: the mastery ask (pending: bar + Answer; done: the outcome), and the Topple
@@ -2758,6 +2861,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
     if ( pending ) {
       armMasteryTimer(message);
+      // Resume an ask that answered while nobody could execute: the elect reloaded (or came
+      // up later) between the answer flag landing and the payout. Same stateless-view
+      // discipline as the hold's resume check; executeMasteryAnswer is claim-first.
+      if ( m.answer && isActiveGM() ) void executeMasteryAnswer(message);
       const attacker = (() => { try { return fromUuidSync(m.attackerUuid); } catch { return null; } })();
       if ( canAnswerFor(attacker) && !m.answer ) {
         // ONE input surface: the popup decides, the card recalls a dismissed popup.
