@@ -6,9 +6,9 @@
 > snapshot, not a contract.
 >
 > **Phase 1.5 is done and dogfooded — start on Phase 1.75 (hit riders: Hunter's Mark, Hex)**
-> unless the user redirects. That phase was 3.5 until 2026-08-15, when the user moved it ahead
-> of saves; design.md carries why the move is safe. Nothing is tracked open against the
-> reaction hold. The standing notes below are design constraints rather than to-dos.
+> unless the user redirects; design.md carries the swept rider table and the four findings that
+> are binding on it. Nothing is tracked open against the reaction hold. The standing notes
+> below are design constraints rather than to-dos.
 
 ## Where things stand
 
@@ -23,7 +23,7 @@ manifest and zip are gone), so the process vends the real version string after a
 | 1 — attack resolver | ✅ shipped. Auto-roll damage on hit, auto-apply via GM elect, receipts + revert. |
 | 1.1 — dogfood polish | ✅ shipped. Tray auto-collapse, require-target gate, usage-card suppression, centered roll dialogs. |
 | 1.5 — reaction hold | ✅ **feature-complete at v1.1.16** and dogfooded — both triggers exist: an attack hit, and a listed spell. Magic Missile and the player-client seam were both played at the table 2026-08-15 with nothing reported; Magic Missile stays in normal dogfood rotation rather than on a list. |
-| 1.75 — hit riders | ⬜ **next.** Hunter's Mark / Hex, at `dnd5e.preRollDamageV2`. Was 3.5. |
+| 1.75 — hit riders | ⬜ **next.** Hunter's Mark / Hex, at `dnd5e.preRollDamageV2`. |
 | 2 — saves | ⬜ after 1.75. |
 | 2.5 — concentration | ⬜ has a queued user request (below). |
 | 3 — effect application | ⬜ two standing notes depend on it. |

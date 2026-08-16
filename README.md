@@ -43,8 +43,10 @@ Sibling of [Combat Plus](https://github.com/Txpple/fvtt-mod-combatplus) — Comb
 *UX* (music, gates, cues); Battle Flow is combat *resolution* (dice consequences). Separate so
 dnd5e churn can never take down the initiative gate mid-campaign.
 
-Built for one table. Public because there's no reason not to be, but generality is a non-goal —
-see design.md §8.
+A full **D&D 5e 2024** combat-resolution module, built by dogfooding. Curated content lists are
+swept from the official compendia, and nothing ships that has not been played — real table
+needs set the order of the work (design.md §1.1). What stays a permanent non-goal is a
+*platform*: no flags engine, no macro hooks, no extension points (design.md §8).
 
 ## License
 

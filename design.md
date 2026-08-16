@@ -23,10 +23,27 @@ entire job is **pressing the buttons whose outcomes are already determined**, wh
 - **leaving receipts** everywhere it acts (every application is revertible),
 - and **never removing the native buttons** — vanilla remains the substrate and the fallback.
 
-This is a one-table house module. It is deliberately **not** midi-qol: midi solves automation
-for ten thousand tables with a 50,000-line workflow engine, a flags platform, and three required
-dependency modules. We solve it for one table with a few hundred lines, curated lists instead of
-platforms, and zero dependencies. See §3 and RESEARCH.md for why that trade is safe.
+### 1.1 Scope
+
+**Battle Flow is a full D&D 5e 2024 combat-resolution module, built by dogfooding.** Two things
+follow, and neither limits the other:
+
+- **The rules target is all of 5e 2024**, as the dnd5e system ships it (5.3.3 on Foundry v14).
+  Curated content lists are built by **sweeping the official compendia** (`tools/scan-*.mjs`);
+  a spell that exists in 2024 and fits a shipped feature belongs on the list whether or not
+  anyone at the dogfood table has ever cast it. Coverage is not scoped to a party sheet.
+- **Dogfooding is the development method, and the table sets priority.** Nothing ships that
+  has not been played. When ordering work — which phase next, which entry on a list first,
+  which bug now — **what the table actually needs wins.** That is how the queue is sorted, not
+  how the scope is bounded.
+
+Breadth of *content* is not breadth of *mechanism*. No flags platform, no macro hooks, no
+extension points for homebrew (§8): the lists stay finite, hand-checked, and inspectable.
+
+It is deliberately **not** midi-qol: midi solves automation with a 50,000-line workflow engine,
+a flags platform, and three required dependency modules. We solve it with a few hundred lines,
+curated lists instead of platforms, and zero dependencies. See §3 and RESEARCH.md for why that
+trade is safe.
 
 ---
 
@@ -62,10 +79,11 @@ These are not aspirations; they are the rules the code is held to.
    An icon vanishing must never be a mystery; a wrong-target hit must never need surgery.
 
 6. **Curation over platforms.** Wherever midi built a general engine (reaction detection, aura
-   flags, conditional bonuses), Battle Flow ships a **short curated table** scoped to what this
-   table's four PCs and official-content monsters actually have (the interrupt-reaction list,
-   the damage-rider list). Platforms serve module authors; curation serves one table. Lists are
-   world settings — extending them is data entry, not code.
+   flags, conditional bonuses), Battle Flow ships a **curated table** (the interrupt-reaction
+   list, the damage-rider list), scoped to **what 5e 2024 official content actually ships** and
+   built by sweeping the compendia (`tools/scan-reactions.mjs`, `tools/scan-riders.mjs`). A
+   curated list is finite, hand-checked and inspectable; a platform is open-ended and someone
+   else's data model. Lists are world settings — extending them is data entry, not code.
 
 7. **Thin and deletable.** The dnd5e roadmap explicitly absorbs automation over time
    (conditional active effects, effect expiry, progressive chat cards). Every Battle Flow
@@ -332,35 +350,74 @@ rewind. So: a **hold point** between hit determination and the damage roll.
 
 ### Phase 1.75 — curated damage riders (the Hunter's Mark tier)
 
-*Was Phase 3.5; moved ahead of saves 2026-08-15 (user call). The move is legitimate because
-this phase never actually depended on Phase 3 — see the note under tier 2.*
+A rider is a damage roll you press **separately from casting the thing that granted it** —
+Hunter's Mark's "Bonus Mark Damage". This phase folds it into the weapon's own damage roll.
 
 Three tiers of damage-adders:
 
 1. **Flat, unconditional** (Divine Favor): already native — an active effect writing
-   `system.bonuses.mwak/rwak.damage` is folded into damage rolls by the system. Zero code, at
-   any phase; it only needs the effect to be *on* the caster.
-2. **Target-conditional** (Hunter's Mark, Hex): dnd5e 5.3.3 cannot express "only vs the marked
+   `system.bonuses.mwak/rwak.damage` is folded into damage rolls by the system. Zero code; it
+   only needs the effect to be *on* the caster.
+2. **Target-marked** (Hunter's Mark, Hex): dnd5e 5.3.3 cannot express "only vs the marked
    creature" (Conditional ActiveEffects is on the system roadmap — **delete this shim when it
-   ships**). The mark effect on the target **IS the state**: at `dnd5e.preRollDamageV2`
-   (attacker's client, config still mutable), check whether the hit target carries a mark whose
-   origin traces to this attacker's spell; if so, append the typed damage part **into the roll
-   config before rolling** — crit-doubling and resistance math come free. Formulas from a
-   **curated rider table** ("Hunter's Mark → 1d6 force vs bearer"), scoped to this table's
-   spells — not a babonus/midi-flags general engine. ~50–100 lines.
-   **What it needs is that the mark is present, not that we placed it.** Today the caster
-   applies it by hand from the native effect tray, which is exactly the click Phase 3 will
-   automate later; the rider reads the resulting effect either way. So Phase 3 is a comfort
-   ahead of this phase, never a prerequisite — the earlier wording ("the mark effect Phase 3
-   placed") overstated the coupling.
+   ships**). The marker effect on the target **IS the state**: at `dnd5e.preRollDamageV2`
+   (attacker's client, config still mutable), check whether the hit target carries a marker
+   whose origin traces to this attacker; if so, append the typed damage part **into the roll
+   config before rolling** — crit-doubling and resistance math come free. Formulas from the
+   **curated rider table** (§6), swept from official content by `tools/scan-riders.mjs`.
+   **What it needs is that the marker is present, not that we placed it.** The caster applies
+   it by hand from the native effect tray today, which is exactly the click Phase 3 automates
+   later; the rider reads the resulting effect either way. Phase 3 is a comfort here, never a
+   prerequisite.
 3. **Not touched**: Hex's ability-check disadvantage (conditions layer), moving the mark on a
    kill (a bonus-action decision — a human moment, not a button).
 
-Independent of Phase 1 as well: `preRollDamageV2` fires on the damage roll whether Battle Flow
-auto-rolled it or a human pressed the native Damage button, so the rider works with auto-damage
-off. **Ordering caveat inherited from the reaction hold:** a held attack rolls its damage after
-the answer, on the continuing client — still that client's `preRollDamageV2`, so nothing
-special is owed here, but the smoke suite should prove it rather than assume it.
+**Found by the sweep, and binding on the design** (`tools/scan-riders.mjs`, 23 hits / 13
+identifiers across `dnd5e.spells24`, `dnd5e.classes24`, `dnd-players-handbook.*`,
+`dnd-heroes-faerun.*`):
+
+- **The table is keyed by `system.identifier`, not by name.** A ranger's Favored Enemy casts
+  arrive as a *separate item* ("Hunter's Mark - Favored Enemy", a `cachedFor` copy) sharing
+  `identifier: "hunters-mark"` and the same marker effect id. Keying on the display name would
+  silently skip the free casts — the ones a ranger uses most. Same trap as the worn-shield /
+  Shield-spell collision in Phase 1.5.
+- **A rider can be UPGRADED by an attacker feature.** Ranger `foe-slayer` ships an "Improved
+  Hunter's Mark Damage" activity of `1d10` force and says in so many words: use this *in place
+  of* Bonus Mark Damage. So an entry needs an optional attacker-identifier override, or every
+  high-level ranger silently under-rolls. Two Hex identifiers (`hex`, `great-old-one-hex`)
+  likewise share one mechanism and one marker.
+- **Two casters can mark one creature.** Matching the marker by name or by its `marked` /
+  `cursed` status is therefore not enough: detection **must** be attacker-scoped through the
+  effect's `origin`. ⚠ Hunter's Mark is a Concentration spell, and when the caster is
+  concentrating the applied effect's `origin` is the **concentration effect** (§7), not the
+  spell item — verify the real shape in the world before writing the trace.
+- **Riders double on a crit, and that needs no setting.** 2024 PHB: *"Roll the attack's damage
+  dice twice… If the attack involves other damage dice, such as from the Rogue's Sneak Attack
+  feature, you also roll those dice twice."* A target-marked rider **is** part of the attack, so
+  it doubles — a determined outcome, not a choice (§2.1). Injecting the part into the weapon's
+  own roll config gets this for free: `configureDamage` raises the die count on every dice term
+  it finds, ours included. **`damage.critical.allow` is ignored, deliberately.** It reads
+  inconsistently across official content (compendium `hunters-mark` `true`; the Favored Enemy
+  copy and `foe-slayer` `false`) because it governs the standalone *button* — whether pressing
+  "Bonus Mark Damage" by itself offers a crit toggle, where the system has no attack to ask —
+  not whether the rule doubles the die. The corollary bounds the table: a damage-adder that is
+  **not** part of an attack (a start-of-turn tick, an AoE pulse) does not double, and is also
+  not a rider.
+- **Out of scope by §8, not merely unbuilt:** `conjure-minor-elementals` is a real rider
+  ("any attack you make deals an extra 2d8 when you hit a creature in the Emanation") but its
+  condition is a 15-foot emanation — **range math**, a permanent non-goal — and its damage type
+  is chosen per attack, a decision rather than an outcome (§2.1).
+- **Structural false positives to leave off:** `ensnaring-strike` (its activity is literally
+  "Start of Turn Damage"), and the AoE/retaliation family — `phantasmal-force`, `forbiddance`,
+  `storm-of-vengeance`, `vitriolic-sphere`, `wall-of-fire`, `hunger-of-hadar`,
+  `armor-of-agathys`, `death-armor`. They share the no-activation damage-activity shape without
+  being attack riders.
+
+Independent of Phase 1: `preRollDamageV2` fires whether Battle Flow auto-rolled the damage or a
+human pressed the native Damage button, so the rider works with auto-damage off. **Ordering
+caveat inherited from the reaction hold:** a held attack rolls its damage after the answer, on
+the continuing client — still that client's `preRollDamageV2`, so nothing special is owed, but
+the smoke suite should prove it rather than assume it.
 
 ### Phase 2 — saves
 
@@ -462,11 +519,19 @@ World, per-feature, default OFF unless noted:
 | Halving reactions | pause / post-hoc via revert+½ | 1.5 |
 | Hold timer | off (wait) / N seconds | 1.5 |
 | Popup shows the math | off / on (verdict included) | 1.5 |
-| Rider table | curated list (spell → formula/type vs bearer) | 1.75 |
+| Rider table | curated `identifier:formula:type[:attacker-identifier]` list (seed below) | 1.75 |
 | Saves | prompt everyone / auto NPCs / auto everyone | 2 |
 | Concentration | prompt / auto; break-on-failure on/off | 2.5 |
 | Effect auto-application | off / on | 3 |
 | Expiry sweep | off / on (only if core proves insufficient) | 4 |
+
+**Rider table seed** (Phase 1.75, from `tools/scan-riders.mjs` over official 2024 content —
+every target-marked rider it ships; the 4th field is an attacker-identifier override):
+
+```
+hunters-mark:1d6:force, hunters-mark:1d10:force:foe-slayer,
+hex:1d6:necrotic, great-old-one-hex:1d6:necrotic
+```
 
 Per-client: table-moment view (popup+card / card-only); later: per-player save opt-out
 ("prompt me instead of auto-rolling").
@@ -520,8 +585,9 @@ The 80% of midi-qol this module exists to refuse:
 - **A flags/aura platform** — curated tables only (§2.6).
 - **Templates/AoE target management** — targeting stays human.
 - **A macro platform** — no OnUse macros, no effect macros.
-- **Being a generic module for other tables** — public repo, MIT, but designed for exactly one
-  table; generality is never a reason to add code.
+- **An extension platform for homebrew** — the rules target is all of 5e 2024 (§1.1), but the
+  answer to "my custom spell needs this" is a world-setting list entry, never a new extension
+  point. What is permanently refused is a *platform*, not breadth of official content.
 
 ---
 
@@ -555,6 +621,7 @@ No other cross-module coupling; neither depends on the other.
 
 - **Before building**, locate the work on this page. If it isn't here, decide whether it's in
   scope — and if so, add it here first.
-- **When tempted to generalize**, re-read §2.6 and §8: curation over platforms, one table.
+- **When tempted to generalize**, re-read §2.6 and §8: curation over platforms. Breadth of
+  official 5e 2024 content is in scope; a new extension point never is.
 - **When a dnd5e release absorbs a feature**, delete ours and celebrate (§2.7).
 - **When this document and the code disagree**, that's a bug in one of them — surface it.
