@@ -405,8 +405,10 @@ zero coordination because of this.
   opened with "i dont want to do it if it overly complicates things". Answer with the real cost
   and a recommendation *before* building, not after.
 - They asked for independence on long stretches ("I'm going to AFK, do the work"). Ship, test,
-  release, and report honestly at the end. **They do not want commits or releases unasked** —
-  build and test freely, then offer the release.
+  release, and report honestly at the end. **They keep their git clean and want the rev cut when
+  the work is done** — never leave a bumped `module.json` dangling without the matching GitHub
+  release; a later fix becomes a new rev rather than a reason to hold one back. Build and test
+  freely, then *offer* the release — they say yes, but the offer is the courtesy.
 - They test immediately after a release, so say plainly what is live, what needs an F5, and
   what needs a process restart.
 - They cut prose that repeats itself. Say it once (standing item 6).
