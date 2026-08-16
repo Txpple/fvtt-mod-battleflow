@@ -2119,6 +2119,7 @@ async function applyToHitTargets(damageMessage, hits) {
       receipts.push({
         uuid: target.uuid,
         name: target.name,
+        img: actor.img ?? null, // the portrait the row leads with (user call, 2026-08-15)
         prior,
         delta: {
           value: (after.value ?? 0) - (prior.value ?? 0),
@@ -2194,9 +2195,23 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const line = document.createElement("div");
     Object.assign(line.style, { display: "flex", alignItems: "center", gap: "0.4rem" });
 
-    const icon = document.createElement("i");
-    icon.className = t.reverted ? "fa-solid fa-rotate-left" : "fa-solid fa-heart-crack";
-    Object.assign(icon.style, { flex: "0 0 auto", opacity: t.reverted ? "0.5" : "0.85" });
+    // Lead with the creature, the way the native trays do (user call, 2026-08-15). Old
+    // receipts in the log carry no img — they keep the plain state glyph.
+    let icon;
+    if ( t.img ) {
+      icon = document.createElement("img");
+      icon.src = t.img;
+      icon.alt = t.name;
+      Object.assign(icon.style, {
+        flex: "0 0 auto", width: "1.8em", height: "1.8em", objectFit: "cover",
+        borderRadius: "3px", border: "1px solid var(--color-border-light-2, #999a)",
+        ...(t.reverted ? { filter: "grayscale(1)", opacity: "0.5" } : {})
+      });
+    } else {
+      icon = document.createElement("i");
+      icon.className = t.reverted ? "fa-solid fa-rotate-left" : "fa-solid fa-heart-crack";
+      Object.assign(icon.style, { flex: "0 0 auto", opacity: t.reverted ? "0.5" : "0.85" });
+    }
 
     const name = document.createElement("span");
     name.textContent = t.name;
@@ -2206,11 +2221,15 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     // The WHY, public on purpose: "immune to cold" is the whole story of a rolled 9 that
     // lands as a 0, and the table just watched it land — a bare −0 HP reads as a bug
     // (reported live 2026-08-15). The reason is a fact, not a number; pools stay GM-only.
+    // ⚠ Its own line UNDER the name, never a flex sibling: the name span is `flex: 1` with
+    // basis 0, so in a narrow tray an inline reason squeezed it to zero width and "Ice
+    // Mephit" rendered one character per line (reported live 2026-08-15). A block sub-line
+    // is deterministic at every card width, popouts included.
     let why = null;
     if ( t.traits?.length && !t.reverted ) {
-      why = document.createElement("span");
+      why = document.createElement("div");
       why.textContent = t.traits.map(traitPhrase).filter(Boolean).join(", ");
-      Object.assign(why.style, { flex: "0 1 auto", fontStyle: "italic", opacity: "0.8" });
+      Object.assign(why.style, { fontStyle: "italic", opacity: "0.8", margin: "0 0 0 1.35rem" });
     }
 
     const lost = -((t.delta.value ?? 0) + (t.delta.temp ?? 0));
