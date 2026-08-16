@@ -8,9 +8,14 @@
 > **Phase 1.75 (hit riders) is shipped at v1.2.0, tested 8/8 and dogfooded** (2026-08-15,
 > reported good). **The user redirected the roadmap on 2026-08-15: Phase 1.9 (effect +
 > mastery riders) comes BEFORE Phase 2 — the full plan with decided calls is
-> [PLAN.md](PLAN.md); follow it. Its Release 1 (v1.2.1, the receipt says WHY) shipped
-> 2026-08-15; Phase 1.9 is the active work.** Nothing is tracked open against the reaction
-> hold or the riders. The standing notes below are design constraints rather than to-dos.
+> [PLAN.md](PLAN.md); follow it. As of the 2026-08-15 reboot breakpoint: v1.2.1 is
+> RELEASED; 1.9A (effect riders) and 1.9B/C (mastery riders + Use/Pass ask popup) are
+> BUILT, probe-verified end to end, committed, and hot-deployed to the live box with every
+> new setting defaulting OFF (table-safe, dark). PLAN.md's "STATE AT THE REBOOT BREAKPOINT"
+> block is the exact resume point: smoke-hold regression first, then 1.9D, the
+> smoke-effects suite, docs, and the v1.3.0 release.** Nothing is tracked open against the
+> reaction hold or the riders. The standing notes below are design constraints rather than
+> to-dos.
 
 ## Where things stand
 
@@ -28,7 +33,7 @@ process vends the real version string after a restart.
 | 1.1 — dogfood polish | ✅ shipped. Tray auto-collapse, require-target gate, usage-card suppression, centered roll dialogs. |
 | 1.5 — reaction hold | ✅ **feature-complete at v1.1.16** and dogfooded — both triggers exist: an attack hit, and a listed spell. Magic Missile and the player-client seam were both played at the table 2026-08-15 with nothing reported; Magic Missile stays in normal dogfood rotation rather than on a list. |
 | 1.75 — hit riders | ✅ shipped v1.2.0 and dogfooded. A mark pays out with the attack that earned it. |
-| 1.9 — effect + mastery riders | ⬜ **next**, after a v1.2.1 receipt fix — see [PLAN.md](PLAN.md). |
+| 1.9 — effect + mastery riders | 🔶 **A/B/C built + verified + deployed dark** (2026-08-15); 1.9D + suite + docs + v1.3.0 release remain — see [PLAN.md](PLAN.md). |
 | 2 — saves | ⬜ after 1.9. Topple's manual-save card is waiting to be upgraded in place. |
 | 2.5 — concentration | ⬜ has a queued user request (below). |
 | 3 — effect application | ⬜ two standing notes depend on it. |
