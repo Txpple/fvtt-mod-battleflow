@@ -6,9 +6,11 @@
 > snapshot, not a contract.
 >
 > **Phase 1.75 (hit riders) is shipped at v1.2.0, tested 8/8 and dogfooded** (2026-08-15,
-> reported good). **Start on Phase 2 (saves)** unless the user redirects. Nothing is tracked
-> open against the reaction hold or the riders. The standing notes below are design constraints
-> rather than to-dos.
+> reported good). **The user redirected the roadmap on 2026-08-15: build v1.2.1 (receipt
+> legibility) then Phase 1.9 (effect + mastery riders) BEFORE Phase 2 — the full plan with
+> decided calls is [PLAN.md](PLAN.md); follow it.** Nothing is tracked open against the
+> reaction hold or the riders. The standing notes below are design constraints rather than
+> to-dos.
 
 ## Where things stand
 
@@ -24,7 +26,8 @@ manifest and zip are gone), so the process vends the real version string after a
 | 1.1 — dogfood polish | ✅ shipped. Tray auto-collapse, require-target gate, usage-card suppression, centered roll dialogs. |
 | 1.5 — reaction hold | ✅ **feature-complete at v1.1.16** and dogfooded — both triggers exist: an attack hit, and a listed spell. Magic Missile and the player-client seam were both played at the table 2026-08-15 with nothing reported; Magic Missile stays in normal dogfood rotation rather than on a list. |
 | 1.75 — hit riders | ✅ shipped v1.2.0 and dogfooded. A mark pays out with the attack that earned it. |
-| 2 — saves | ⬜ **next.** |
+| 1.9 — effect + mastery riders | ⬜ **next**, after a v1.2.1 receipt fix — see [PLAN.md](PLAN.md). |
+| 2 — saves | ⬜ after 1.9. Topple's manual-save card is waiting to be upgraded in place. |
 | 2.5 — concentration | ⬜ has a queued user request (below). |
 | 3 — effect application | ⬜ two standing notes depend on it. |
 
