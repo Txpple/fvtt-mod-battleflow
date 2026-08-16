@@ -23,6 +23,11 @@
  *     grows a receipt row everyone can read — who took what, and the reason when traits
  *     changed the number — while HP pools and the per-target ↩ revert stay GM-only.
  *     Idempotent and reload-proof: the flag is the state, the row is just a view of it.
+ *   - Effect riders (Phase 1.9A): a hit applies the effects riding it — the attack
+ *     activity's own effect list lands on the targets it hit through the native application
+ *     path (same origin rules, same re-enable-instead-of-stack), per target, with a
+ *     per-effect receipt + revert on the damage card. Ray of Frost's slow arrives with its
+ *     damage instead of waiting for a click in the card's tray.
  *   - The reaction hold (Phase 1.5): when an attack hits someone holding a curated interrupt
  *     reaction, the chain pauses instead of resolving — popup for whoever owns the decision,
  *     durable row on the attack card, GM override, and a re-test against the target's LIVE
@@ -85,7 +90,8 @@ const S = {
   holdApplyEffect: "holdApplyEffect",
   riders: "riders",
   riderList: "riderList",
-  riderUpgrades: "riderUpgrades"
+  riderUpgrades: "riderUpgrades",
+  effectRiders: "effectRiders"
 };
 
 const setting = key => game.settings.get(MODULE_ID, key);
@@ -236,6 +242,12 @@ Hooks.once("init", () => {
     name: "Rider Upgrades",
     hint: 'Features that REPLACE a mark\'s damage, as "feature:mark" identifier pairs. The Ranger\'s level-20 Foe Slayer makes Hunter\'s Mark a d10 instead of a d6 — and like the mark itself, how much is read from the feature\'s own bonus-damage activity rather than typed here.',
     scope: "world", config: true, type: String, default: "foe-slayer:hunters-mark"
+  });
+
+  game.settings.register(MODULE_ID, S.effectRiders, {
+    name: "Effect Riders",
+    hint: "A hit applies the effects riding it: the attack's own effects land on the targets it hit, through the system's application path — Ray of Frost's slow arrives with its damage instead of waiting for a click in the card's tray. Every application leaves a receipt on the damage card with a per-effect revert.",
+    scope: "world", config: true, type: Boolean, default: false
   });
 });
 
@@ -2057,12 +2069,17 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
  * ------------------------------------------------------------------------------------------- */
 
 Hooks.on("createChatMessage", message => {
-  if ( !setting(S.autoApply) || !isActiveGM() ) return;
+  if ( !isActiveGM() ) return;
+  if ( !setting(S.autoApply) && !setting(S.effectRiders) ) return;
   if ( message.getFlag("dnd5e", "roll.type") !== "damage" ) return; // healing is typed "healing"
   const attackMessage = resolveAttackMessage(message);
   if ( !attackMessage ) return;
   const hits = hitTargets(attackMessage);
-  if ( hits.length ) void applyToHitTargets(message, hits);
+  if ( !hits.length ) return;
+  if ( setting(S.autoApply) ) void applyToHitTargets(message, hits);
+  // Effects ride the same moment, independently gated: per-target application, so the
+  // damage riders' split-target intersection refusal deliberately does NOT apply here.
+  if ( setting(S.effectRiders) ) void applyEffectRiders(message, attackMessage, hits);
 });
 
 /**
@@ -2140,6 +2157,95 @@ async function applyToHitTargets(damageMessage, hits) {
 }
 
 /* ---------------------------------------------------------------------------------------------
+ * Phase 1.9A — effect riders: a hit applies the effects riding it (PLAN.md section A).
+ * The attack activity's own effect list is the on-hit set; application mirrors the native
+ * tray's _applyEffectToActor (effect-application.mjs:182) — same origin rules
+ * (concentration ?? effect), same dependentOn cascade, same re-enable-instead-of-stack for
+ * an existing same-origin copy. Per-target on purpose: the damage riders' split-target
+ * intersection refusal does not apply to effects, because each target gets its own document.
+ * ------------------------------------------------------------------------------------------- */
+
+/** The activity behind a chain message, from the flag every activity message carries. */
+function messageActivity(message) {
+  const uuid = message?.getFlag("dnd5e", "activity")?.uuid;
+  if ( !uuid ) return null;
+  try { return fromUuidSync(uuid); } catch { return null; }
+}
+
+/**
+ * Apply the attack's riding effects to the targets it hit, and stamp the effect receipt.
+ * Runs on the active-GM elect (players cannot create effects on unowned actors).
+ */
+async function applyEffectRiders(damageMessage, attackMessage, hits) {
+  try {
+    if ( damageMessage.getFlag(MODULE_ID, "effectReceipt") ) return; // one payout per roll
+    const activity = messageActivity(attackMessage);
+    const effects = activity?.applicableEffects ?? [];
+    if ( !effects.length ) return;
+
+    // The usage card carries the cast's metadata (concentration id, scaling, spell level).
+    // Under suppression there is no card and a base-level non-concentration cast is assumed
+    // — today the carve-out guarantees an effect-carrying card survives, so this fallback is
+    // 1.9D future-proofing rather than a live path.
+    const usage = attackMessage.getOriginatingMessage?.();
+    const usageCard = (usage instanceof ChatMessage) ? usage : null;
+    const concentration = usageCard
+      ? usageCard.getAssociatedActor()?.effects.get(usageCard.system?.concentration) : null;
+
+    const receipts = [];
+    for ( const target of hits ) {
+      const actor = await fromUuid(target.uuid); // the targets snapshot carries ACTOR uuids
+      if ( !(actor instanceof Actor) ) continue;
+      const entry = { uuid: target.uuid, name: target.name, img: actor.img ?? null, effects: [] };
+      for ( const effect of effects ) {
+        const origin = concentration ?? effect;
+        const effectFlags = { flags: { dnd5e: {
+          dependentOn: origin.uuid,
+          scaling: usageCard?.system?.scaling ?? 0,
+          spellLevel: usageCard?.system?.spellLevel ?? undefined
+        } } };
+        // Native parity, bug-for-bug: an existing effect with this origin is re-enabled and
+        // re-clocked rather than duplicated. (Like the tray, a concentration spell carrying
+        // TWO effects collides with itself here — both share the concentration origin — but
+        // deviating from the button the module is pressing would be worse than matching it.)
+        const existing = actor.effects.find(e => e.origin === origin.uuid);
+        let applied;
+        if ( existing ) {
+          applied = await existing.update(foundry.utils.mergeObject({
+            ...effect.constructor.getInitialDuration(), disabled: false
+          }, effectFlags));
+        } else {
+          applied = await ActiveEffect.implementation.create(foundry.utils.mergeObject({
+            ...effect.toObject(), disabled: false, transfer: false, origin: origin.uuid
+          }, effectFlags), { parent: actor });
+        }
+        if ( applied ) entry.effects.push({ id: applied.id, name: applied.name, img: applied.img, reverted: false });
+      }
+      if ( entry.effects.length ) receipts.push(entry);
+    }
+    if ( receipts.length ) await damageMessage.setFlag(MODULE_ID, "effectReceipt", { targets: receipts });
+  } catch(err) {
+    console.error(`${TITLE} | Effect riders failed.`, err);
+  }
+}
+
+/**
+ * Remove one applied rider effect and mark its receipt entry. Tolerates the effect already
+ * being gone — the concentration cascade, a manual right-click, or the target's death may
+ * all beat the button. Idempotent and reload-proof like the damage revert.
+ */
+async function revertEffect(message, targetUuid, effectId) {
+  const flag = foundry.utils.deepClone(message.getFlag(MODULE_ID, "effectReceipt") ?? {});
+  const target = flag.targets?.find(t => t.uuid === targetUuid);
+  const entry = target?.effects?.find(e => e.id === effectId);
+  if ( !entry || entry.reverted ) return;
+  const actor = await fromUuid(targetUuid);
+  if ( actor instanceof Actor ) await actor.effects.get(effectId)?.delete();
+  entry.reverted = true;
+  await message.setFlag(MODULE_ID, "effectReceipt", flag);
+}
+
+/* ---------------------------------------------------------------------------------------------
  * Receipts — the revert row on damage cards. Public facts, GM-only pools and controls.
  * The flag is the state; this is a view.
  * ------------------------------------------------------------------------------------------- */
@@ -2160,7 +2266,8 @@ function traitPhrase({ type, outcome }) {
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const receipt = message.getFlag(MODULE_ID, "receipt");
-  if ( !receipt?.targets?.length ) return;
+  const effectReceipt = message.getFlag(MODULE_ID, "effectReceipt");
+  if ( !receipt?.targets?.length && !effectReceipt?.targets?.length ) return;
   // Everyone sees WHO the damage landed on — otherwise a rolled number sits on the card with
   // no indication of who took it. Only the GM sees the HP pool and the revert control: the
   // party has no business reading a monster's hit points off a chat card.
@@ -2178,7 +2285,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   // elements in it are not yet upgraded — `tray.open = false` writes a plain property that
   // shadows the accessor and never touches the attribute (the system's own _collapseTrays
   // uses toggleAttribute for the same reason, chat-message.mjs:166).
-  if ( receipt.targets.some(t => !t.reverted)
+  if ( receipt?.targets?.some(t => !t.reverted)
     && (game.settings.get("dnd5e", "autoCollapseChatTrays") !== "manual") ) {
     html.querySelector("damage-application")?.toggleAttribute("open", false);
   }
@@ -2191,51 +2298,62 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     fontSize: "var(--font-size-11, 11px)", lineHeight: "1.6"
   });
 
-  for ( const t of receipt.targets ) {
+  for ( const t of receipt?.targets ?? [] ) {
+    // The row mirrors the native tray's target entry (user call, 2026-08-15, third try):
+    // 32px portrait, a STACKED name column, numbers on the right. The stack is what makes
+    // it squeeze-proof — the title ellipsizes and the reason wraps BELOW the name inside
+    // the column, so no flex fight can ever render "Ice Mephit" one character per line
+    // again. The first attempt put the reason in the flex row (squeezed the name); the
+    // second styled it as a block but left it appended in the row (same squeeze).
     const line = document.createElement("div");
-    Object.assign(line.style, { display: "flex", alignItems: "center", gap: "0.4rem" });
+    Object.assign(line.style, { display: "flex", alignItems: "center", gap: "0.5rem", margin: "2px 0" });
 
-    // Lead with the creature, the way the native trays do (user call, 2026-08-15). Old
-    // receipts in the log carry no img — they keep the plain state glyph.
     let icon;
     if ( t.img ) {
       icon = document.createElement("img");
       icon.src = t.img;
       icon.alt = t.name;
+      icon.className = "gold-icon"; // native framing wherever the system styles reach the card
       Object.assign(icon.style, {
-        flex: "0 0 auto", width: "1.8em", height: "1.8em", objectFit: "cover",
-        borderRadius: "3px", border: "1px solid var(--color-border-light-2, #999a)",
+        flex: "0 0 auto", width: "32px", height: "32px", objectFit: "cover",
+        borderRadius: "4px",
         ...(t.reverted ? { filter: "grayscale(1)", opacity: "0.5" } : {})
       });
-    } else {
+    } else { // old receipts carry no img — they keep the plain state glyph
       icon = document.createElement("i");
       icon.className = t.reverted ? "fa-solid fa-rotate-left" : "fa-solid fa-heart-crack";
       Object.assign(icon.style, { flex: "0 0 auto", opacity: t.reverted ? "0.5" : "0.85" });
     }
 
-    const name = document.createElement("span");
-    name.textContent = t.name;
-    Object.assign(name.style, { flex: "1", fontWeight: "bold" });
-    if ( t.reverted ) name.style.textDecoration = "line-through";
+    const stack = document.createElement("div");
+    Object.assign(stack.style, {
+      flex: "1", minWidth: "0", display: "flex", flexDirection: "column", justifyContent: "center"
+    });
+
+    const title = document.createElement("span");
+    title.textContent = t.name;
+    Object.assign(title.style, {
+      fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
+    });
+    if ( t.reverted ) title.style.textDecoration = "line-through";
+    stack.append(title);
 
     // The WHY, public on purpose: "immune to cold" is the whole story of a rolled 9 that
     // lands as a 0, and the table just watched it land — a bare −0 HP reads as a bug
     // (reported live 2026-08-15). The reason is a fact, not a number; pools stay GM-only.
-    // ⚠ Its own line UNDER the name, never a flex sibling: the name span is `flex: 1` with
-    // basis 0, so in a narrow tray an inline reason squeezed it to zero width and "Ice
-    // Mephit" rendered one character per line (reported live 2026-08-15). A block sub-line
-    // is deterministic at every card width, popouts included.
-    let why = null;
     if ( t.traits?.length && !t.reverted ) {
-      why = document.createElement("div");
+      const why = document.createElement("span");
       why.textContent = t.traits.map(traitPhrase).filter(Boolean).join(", ");
-      Object.assign(why.style, { fontStyle: "italic", opacity: "0.8", margin: "0 0 0 1.35rem" });
+      Object.assign(why.style, { fontStyle: "italic", opacity: "0.8" });
+      stack.append(why);
     }
 
     const lost = -((t.delta.value ?? 0) + (t.delta.temp ?? 0));
     const from = (t.prior.value ?? 0) + (t.prior.temp ?? 0);
     const detail = document.createElement("span");
-    Object.assign(detail.style, { flex: "0 0 auto", fontVariantNumeric: "tabular-nums" });
+    Object.assign(detail.style, {
+      flex: "0 0 auto", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap"
+    });
     if ( t.reverted ) {
       detail.textContent = "reverted";
       detail.style.fontStyle = "italic";
@@ -2244,7 +2362,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       detail.textContent = isGM ? `−${lost} HP (${from} → ${from - lost})` : `−${lost} HP`;
     }
 
-    line.append(icon, name, ...(why ? [why] : []), detail);
+    line.append(icon, stack, detail);
 
     if ( isGM && !t.reverted ) {
       const button = document.createElement("button");
@@ -2259,6 +2377,71 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     }
 
     row.append(line);
+  }
+
+  // Effect riders (Phase 1.9A): what landed, per target — same stacked shape as the damage
+  // lines, led by the EFFECT's icon since that is the thing that arrived.
+  for ( const t of effectReceipt?.targets ?? [] ) {
+    for ( const e of t.effects ?? [] ) {
+      const line = document.createElement("div");
+      Object.assign(line.style, { display: "flex", alignItems: "center", gap: "0.5rem", margin: "2px 0" });
+
+      let icon;
+      if ( e.img ) {
+        icon = document.createElement("img");
+        icon.src = e.img;
+        icon.alt = e.name;
+        icon.className = "gold-icon";
+        Object.assign(icon.style, {
+          flex: "0 0 auto", width: "32px", height: "32px", objectFit: "cover",
+          borderRadius: "4px",
+          ...(e.reverted ? { filter: "grayscale(1)", opacity: "0.5" } : {})
+        });
+      } else {
+        icon = document.createElement("i");
+        icon.className = "fa-solid fa-wand-magic-sparkles";
+        Object.assign(icon.style, { flex: "0 0 auto", opacity: e.reverted ? "0.5" : "0.85" });
+      }
+
+      const stack = document.createElement("div");
+      Object.assign(stack.style, {
+        flex: "1", minWidth: "0", display: "flex", flexDirection: "column", justifyContent: "center"
+      });
+
+      const title = document.createElement("span");
+      title.textContent = e.name;
+      Object.assign(title.style, {
+        fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
+      });
+      if ( e.reverted ) title.style.textDecoration = "line-through";
+      stack.append(title);
+
+      const sub = document.createElement("span");
+      sub.textContent = `on ${t.name}`;
+      Object.assign(sub.style, { fontStyle: "italic", opacity: "0.8" });
+      stack.append(sub);
+
+      line.append(icon, stack);
+
+      if ( e.reverted ) {
+        const gone = document.createElement("span");
+        gone.textContent = "removed";
+        Object.assign(gone.style, { flex: "0 0 auto", fontStyle: "italic" });
+        line.append(gone);
+      } else if ( isGM ) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = "✕ Revert";
+        Object.assign(button.style, {
+          flex: "0 0 auto", width: "auto", margin: "0",
+          padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4"
+        });
+        button.addEventListener("click", () => revertEffect(message, t.uuid, e.id));
+        line.append(button);
+      }
+
+      row.append(line);
+    }
   }
 
   html.querySelector(".message-content")?.appendChild(row);
