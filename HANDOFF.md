@@ -1,17 +1,19 @@
 # HANDOFF.md — picking this up cold
 
-> Rewritten 2026-08-15 at the end of a long dogfood stretch (v1.1.2 → v1.1.15). Read
+> Rewritten 2026-08-15 at the end of a long dogfood stretch (v1.1.2 → v1.1.16). Read
 > [design.md](design.md) first — it is binding and wins every disagreement. This file is only
 > *where things stand* and *what already bit us*. Delete or rewrite it freely; it is a
 > snapshot, not a contract.
 >
-> **Start with Open item 1.** It is the last part of the reaction hold with no test behind it,
-> and no test *can* reach it from here — it needs a human in a player's browser.
+> **Two things want a human, in this order.** (1) Magic Missile shipped minutes ago and has
+> **zero table miles** — the suite proves it, nobody has played it. (2) Open item 1 is the last
+> seam of the reaction hold with no test behind it, and no test *can* reach it from here: it
+> needs a real player's browser.
 
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.1.15**, deployed, tag pushed, GitHub release carries zip +
+Molten-hosted). Latest release **v1.1.16**, deployed, tag pushed, GitHub release carries zip +
 manifest. **The box tracks the GitHub manifest** (repointed 2026-08-15 — the self-hosted dev
 manifest and zip are gone), so the process vends the real version string after a restart.
 
@@ -20,7 +22,7 @@ manifest and zip are gone), so the process vends the real version string after a
 | 0 — native settings | **The user's to do**, at the table. Not code. |
 | 1 — attack resolver | ✅ shipped. Auto-roll damage on hit, auto-apply via GM elect, receipts + revert. |
 | 1.1 — dogfood polish | ✅ shipped. Tray auto-collapse, require-target gate, usage-card suppression, centered roll dialogs. |
-| 1.5 — reaction hold | ✅ shipped, **actively being dogfooded**. PC side (Gren + Shield) has real table miles; the **monster side only started working at v1.1.12** and has few, but is covered end to end by `smoke-hold` §4d3–4d6. |
+| 1.5 — reaction hold | ✅ **feature-complete at v1.1.16** — both triggers now exist: an attack hit, and a listed spell. PC side (Gren + Shield) has real table miles; the **monster side only started working at v1.1.12**; the **spell side has none at all yet**. |
 | 2 — saves | ⬜ next, unless the user redirects. |
 | 2.5 — concentration | ⬜ has a queued user request (below). |
 | 3 — effect application | ⬜ two open items depend on it. |
@@ -40,7 +42,8 @@ whatever they find, so it drifts:
 | Dramatic Beat | 3s | |
 | Suppress Attack Cards | on | cards carrying effects survive anyway |
 | Require a Target | on | |
-| Reaction Hold | on | |
+| Reaction Hold | on | governs **both** triggers |
+| Spells a Reaction Blocks | `Magic Missile:Shield` | new in v1.1.16 — the second trigger |
 | Hold Shows the Math | **on** | default flipped in v1.1.8 — design.md §5 carries the correction |
 | Hold Timer | **15s** | 0 waits indefinitely |
 | Skip Hopeless Holds | **on** | gated on the reveal, deliberately — see the setting's hint |
@@ -62,16 +65,11 @@ whatever they find, so it drifts:
    everything else about that path (mode gate, stamp, answer, verdict) with a character-type
    attacker.
 
-2. **Magic Missile must trigger Shield** (user request, 2026-08-15). Shield's own text is
-   *"you have a +5 bonus to AC … and you take no damage from Magic Missile"*, and the activity
-   condition on the statblock says so too: *"when you are hit by an attack roll or targeted by
-   the Magic Missile spell"*. The hold only ever triggers on an **attack hit** —
-   `dnd5e.rollAttackV2` is the sole entry point — so the Magic Missile half has never existed.
-   This needs a second trigger: a usage of a listed spell against targets, pausing before its
-   damage for anyone holding a reaction whose condition covers it. Note the *kind* is neither
-   of the current two: Shield vs Magic Missile is not "raise AC" (there is no attack roll to
-   re-test) and not "reduce damage" — it is **negate entirely**. The interrupt-list grammar
-   (`Name:kind`) will need a third kind, and the verdict wording along with it.
+2. **Magic Missile has never been played.** The suite drives it end to end (§6) and both
+   directions pass, but every assertion was made by one GM client talking to itself. What the
+   harness cannot show: what the popup *feels* like mid-combat, whether the announcement reads
+   right on a busy log, and — the real question — whether a GM remembers to answer the hold
+   before pressing Apply. See standing item 3 for why that ordering is the accepted gap.
 
 3. **GWF: a 1 became a 3 on a normal hit but not on a crit** (observed on Morgash,
    2026-08-15). **Probably not ours, and probably not core either.** dnd5e 5.3.3 contains *no
@@ -88,7 +86,26 @@ whatever they find, so it drifts:
 
 ### Standing
 
-4. **The hold's UI is settled and shipped** (user calls, 2026-08-15) — recorded because it is
+4. **The second trigger, and the two things it deliberately does not solve** (v1.1.16).
+   Casting a spell on the **`blockList`** setting (`Spell:Reaction`, default
+   `Magic Missile:Shield`) stamps a hold on its own **usage card** at `dnd5e.postUseActivity` —
+   same flag shape, same popup, same card, same timer, same three answer channels — carrying
+   `trigger: "spell"` and a third kind, **`negate`**. No re-test, no settle window: the answer
+   IS the verdict. The block is enforced at **`dnd5e.preApplyDamage`**, the only seam that can
+   do anything, because nothing else in the module touches this spell (not an attack ⇒ Phase 1a
+   never rolls its damage, Phase 1b never applies it).
+   ⚠ **The dice roll anyway.** `DamageActivity._triggerSubsequentActions` rolls damage on use,
+   so it is on the table while the hold is open. Harmless *here* and only here: a negate answer
+   never depends on the number, so there is nothing to metagame — which is why this trigger does
+   not fight to suppress the roll the way the attack path does. Do not copy that reasoning to a
+   reaction whose answer depends on the damage.
+   ⚠ **Apply-before-answer wins.** A GM who presses Apply while the hold is still `pending`
+   beats the verdict and the damage lands. Vetoing pending applications is worse: a hold
+   answered Pass would then need a second Apply click nobody would remember to make. The card
+   reads "held — waiting on …" the whole time. If this bites in play, the fix is Phase 2/3
+   owning non-attack damage application, not a bigger veto.
+
+5. **The hold's UI is settled and shipped** (user calls, 2026-08-15) — recorded because it is
    binding on anything built next: **the popup decides, the card watches, the card is public
    so the table sees the moment.** One card shape (`bfCard`) for everything the module says out
    loud; the card carries no answer controls where popups are on, only an *Answer* button that
@@ -100,22 +117,27 @@ whatever they find, so it drifts:
    only where the GM already *is* the decider (an unowned monster) while being denied by
    `canAnswerFor` on the player-owned targets it was designed for. Reported by the user as
    "it seems like it should be a binary choice". The AFK fallback is the **timer**, not a
-   button. `smoke-hold` §4d3 asserts the control set is exactly `Cast/Pass`.
-5. **The hold timer is built** (v1.1.8–v1.1.10) — `holdTimer` seconds, 0 = wait indefinitely,
+   button. `smoke-hold` §4d3 and §6 both assert the control set is exactly `Cast/Pass`.
+6. **Cards say one thing, once.** The verdict card for a negate hold was two lines until the
+   user cut it back: "Magic Missile does nothing to Skeletal Mage" already says the whole thing,
+   and a second line restating it mechanically ("its damage is not applied to them") plus a
+   note about the other targets answered questions nobody watching had asked. Worth remembering
+   when writing the next announcement.
+7. **The hold timer is built** (v1.1.8–v1.1.10) — `holdTimer` seconds, 0 = wait indefinitely,
    live at 15s. The continuing client owns the one authoritative clock and re-checks at the
    buzzer; unanswered targets pass and are marked `timedOut`. The bar is built with
    `element.animate()` and positioned from the flag's absolute deadline, so popup and card
    agree exactly (measured drift 0). ⚠ Do not "simplify" it back to a CSS animation — see the
    ground truth below for why that silently desyncs.
-6. **Usage-card suppression vs effects — partially fixed.** Cards carrying effects are now
+8. **Usage-card suppression vs effects — partially fixed.** Cards carrying effects are now
    never suppressed (that was Ray of Frost's slow vanishing). The deeper fix is Phase 3
    applying effects itself, after which suppression can go back to being unconditional.
-7. **Phase 2.5 concentration visibility** (user request, 2026-08-15): a world setting for who
+9. **Phase 2.5 concentration visibility** (user request, 2026-08-15): a world setting for who
    sees the concentration check — everyone, or just the concentrator + DM. Public is the
    interesting default for table tension when a party-wide buff like Bless is at stake.
-8. **design.md §9 says "combatplus is the template."** The user has explicitly softened that:
-   combatplus is a *reference*, not a template — do what is correct for Battle Flow. The doc
-   sentence is a candidate for a §10-style correction.
+10. **design.md §9 says "combatplus is the template."** The user has explicitly softened that:
+    combatplus is a *reference*, not a template — do what is correct for Battle Flow. The doc
+    sentence is a candidate for a §10-style correction.
 
 ## How to work on this
 
@@ -135,6 +157,7 @@ failure. A bounce is `register-module.mjs --id … --manifest …`; enabling is
 `test:` the harness → `fix:`/`feat:` the code + `module.json` bump *(tag this one)* → `docs:`
 the handoff. Release title `vX.Y.Z — short phrase`; assets are `fvtt-mod-battleflow.zip`
 (containing `scripts/`, `module.json`, `LICENSE`, `README.md`) **and** a bare `module.json`.
+Commit bodies in this repo are **ASCII** — the log shows non-ASCII punctuation getting mangled.
 
 **Test** — both suites restore every setting they touch and delete their own chat messages:
 
@@ -148,7 +171,8 @@ node tools/smoke-hold.mjs
 
 `tools/scan-reactions.mjs` regenerates the [REACTIONS.md](REACTIONS.md) survey after content
 changes. Fixtures live in the world and are reused: scene **Battle Flow Test Range**, actors
-**BF Test Attacker** (NPC), **BF Test Victim** (NPC — wears a mundane shield for the
+**BF Test Attacker** (NPC — also the Magic Missile caster in §6, which builds the spell on it
+and sweeps it again on the way out), **BF Test Victim** (NPC — wears a mundane shield for the
 name-collision test, and hosts the statblock cast-activity fixture), **BF Test Shielder**
 (GM-owned clone of Gren) and **BF Test PC Attacker** (character-type). The suites **long rest
 every `BF Test` fixture on the way out** — they spend real slots and real HP, and nothing else
@@ -160,7 +184,18 @@ party is the user's call, not the harness's.
 GM-owned stand-in, **4c** the effect safety net, **4d** a mundane shield never holds,
 **4d2** an NPC paying with x/x uses, **4d3** the statblock cast activity end to end (+ the
 control set and the announcement wording), **4d4** at-will, **4d5** a PC attacker,
-**4d6** a flat AC, **4e** the timer, **4f** hopeless holds, **5** the crit skip.
+**4d6** a flat AC, **4e** the timer, **4f** hopeless holds, **5** the crit skip,
+**6** Magic Missile — the negate hold, the real block, the Pass control case, and a target who
+only *wears* a shield.
+
+⚠ **HP is a fixture resource, and forgetting to reset it makes a damage assertion lie.** The
+stand-in takes real, auto-applied hits in §4b–4c, so it reached §6 at **0 HP** — where "took no
+damage" and "took the lot" are the same reading. The negate assertion passed 0 → 0 while
+proving nothing; only its Pass counterpart failed (HP clamps at zero) and gave the pair away.
+`ensureShielder` now heals to full alongside the slots it already refilled, and both §6
+assertions check `hpBefore` against `hp.max` so a regression there fails loudly instead of
+passing vacuously. **Generalise this:** an assertion that a number did not move is only worth
+anything if the number could have moved.
 
 ⚠ **The harness runs as a GM, and the module deliberately refuses to let a GM answer a hold
 for a character a logged-in player owns.** So Gren's own Shield *cannot* be driven from the
@@ -242,7 +277,8 @@ Each of these is commented at the line where it bit. Do not rediscover them.
   bonus and cover, so the printed AC does not move (verified 16 → 16, and 21 under Shield).
   Since **v1.1.14** the verdict card names this case specifically instead of saying "its AC has
   not arrived", which is what sent a debugging session after a module bug that was not there.
-  `smoke-hold` §4d6 holds the line.
+  `smoke-hold` §4d6 holds the line. *(Note: this cannot bite the Magic Missile trigger — a
+  negate hold never reads AC at all.)*
 - `flags.dnd5e.originatingMessage` is stamped **only from a DOM click's enclosing card**. A
   programmatic roll must pass it explicitly or the roll never enters the message registry.
 - Hit/miss is computed at render time and **never persisted** — recompute downstream.
@@ -252,6 +288,28 @@ Each of these is commented at the line where it bit. Do not rediscover them.
   the dialog config is the **second** argument.
 - **An item added to a base actor reaches an unlinked token's delta stripped of its embedded
   effects and activities.** Set test fixtures up on the token actor, or use a linked token.
+- **The target snapshot is not an attack-roll thing.** `flags.dnd5e.targets` comes from the
+  activity mixin's `messageFlags` getter (`mixin.mjs:140`), which every usage card gets whole
+  (`mixin.mjs:203`) — and every damage card too (`:895`). So a spell with no attack roll
+  anywhere in it still tells you exactly who it was aimed at. That is what made the second
+  trigger cheap.
+- `_createUsageMessage` returns **plain data, not a ChatMessage**, when `create: false`
+  (`mixin.mjs:812`) — hence the `instanceof ChatMessage` guard on the spell trigger.
+- **`dnd5e.renderChatMessage` fires for EVERY message subtype** (`chat-message.mjs:142`, outside
+  the usage/roll branch), so a usage card grows the hold row exactly as an attack message does.
+- **A damage activity rolls its damage the moment it is used** —
+  `DamageActivity._triggerSubsequentActions` (`damage.mjs:53`), same as an attack activity rolls
+  its attack. `subsequentActions: false` suppresses it, which is how the harness controls timing.
+- **`dnd5e.preApplyDamage(actor, amount, updates, options)` cancels on an explicit `false`**
+  (`actor.mjs:754`), and the native tray passes the **damage message** as
+  `options.originatingMessage` (`damage-application.mjs:76`) — one `getOriginatingMessage()` hop
+  gets you the usage card. It fires on whichever client is applying, so a veto must not be
+  GM-gated. **Healing takes this same path** (`roll.type: "healing"`), so any veto must check
+  the roll type or it can refuse someone a cure.
+- **Spell-slot consumption is skippable in data**: `hasSpellSlotConsumption` is
+  `requiresSpellSlot && consumption.spellSlot` (`mixin.mjs:432`), so an activity built with
+  `consumption.spellSlot: false` casts with no slot at all. That is how §6 gives an NPC with no
+  slot maxima a working Magic Missile, and it is the shape innate casting really has.
 
 **The statblock caster (the monster side, and where most of the bugs lived)**
 
@@ -274,6 +332,9 @@ Each of these is commented at the line where it bit. Do not rediscover them.
   "Spellcasting"); `_prepareUsageConfig` sets `consume.spellSlot ??= !linked && …`, so a linked
   cast **never spends a slot**; and `config.cause.resources` routes payment to the **cast
   activity's own uses** instead. That is why a statblock caster with 0/0 slots can cast at all.
+  *(This is also why the spell trigger matches through `reactionNameFor`: a monster casting
+  Magic Missile arrives with the cached spell's activity, whose item really is named for the
+  spell.)*
 - **The system materializes that cached spell by itself**, about half a second after a cast
   activity is created on an actor. Creating one by hand (`getCachedSpellData()`) races it and
   leaves the actor with **two** items called Shield — a name collision the module then has to
@@ -295,11 +356,12 @@ Each of these is commented at the line where it bit. Do not rediscover them.
   literally "Shield" — and eleven such items existed in the world. Matching the interrupt list
   on name alone made every shield-carrying monster hold the chain for a spell it cannot cast
   ("Hobgoblin — Shield?" on a creature with no spells). Eligibility must require a real
-  reaction activation, at item level or on an overriding activity.
+  reaction activation, at item level or on an overriding activity — which is what
+  `usableReaction()` is, and why **both** triggers go through it.
 - **One name can match several items.** An armoured caster owns a worn shield AND (via the
   cached copy above) the Shield spell; `items.find()` returns whichever sorts first, and on an
   unlinked token the base actor's equipment sorts ahead of the delta-created spell.
-  `findInterrupt` learned this for **eligibility** (it tests every match). Every *other*
+  `usableReaction` handles this for **eligibility** (it tests every match). Every *other*
   question — has the effect landed, what is its AC bonus, what artwork and description does the
   popup show, what does the Cast fallback use — was still a bare name match until **v1.1.13**,
   and all of them read the worn shield: no effects, no bonus, no activities. The mechanics
@@ -311,9 +373,18 @@ Each of these is commented at the line where it bit. Do not rediscover them.
 
 One ES module, `scripts/battleflow.js`, no build step. Sections in order: settings + the
 settings-sheet polish, shared hit-test/chain helpers, table polish, the reaction hold
-(eligibility → trigger → answers → continuation → views), Phase 1a auto-damage, Phase 1b
-auto-apply, receipts. Every hook's first line checks its feature toggle; every feature ships
-**off**.
+(eligibility → **both triggers** → answers → continuation → the veto → views), Phase 1a
+auto-damage, Phase 1b auto-apply, receipts. Every hook's first line checks its feature toggle;
+every feature ships **off**.
+
+The hold has **two entry points and one machine**. `stampHoldIfInterrupted` (from
+`dnd5e.rollAttackV2`) writes a hold onto the **attack message**; `stampSpellHold` (from
+`dnd5e.postUseActivity`) writes the same shape onto a **usage card** with `trigger: "spell"`.
+Everything downstream is shared, and the four places that need a d20 branch on that one field —
+`continueHold`, the card row, the popup's situation line, and the response message's wording.
+Holds already in the log carry no `trigger` at all, which is exactly why the branches cannot
+reach the shipped attack path. **If you add a third trigger, add it as a stamp function and a
+`trigger` value, not as a second machine.**
 
 The load-bearing idea, worth re-reading in design.md §4 before changing anything: **the chat
 log is the state and the bus.** No sockets, no in-memory workflow object. State lives in flags
@@ -330,9 +401,14 @@ zero coordination because of this.
   assertion that would have caught it.
 - **When a report arrives, read the actual log and flags before theorising.** The flat-AC bug
   looked exactly like the module bug that had just been fixed; one read of `ac.calc` settled it.
+- **They will ask whether a feature is worth its complexity, and they mean it.** Magic Missile
+  opened with "i dont want to do it if it overly complicates things". Answer with the real cost
+  and a recommendation *before* building, not after.
 - They asked for independence on long stretches ("I'm going to AFK, do the work"). Ship, test,
-  release, and report honestly at the end.
+  release, and report honestly at the end. **They do not want commits or releases unasked** —
+  build and test freely, then offer the release.
 - They test immediately after a release, so say plainly what is live, what needs an F5, and
   what needs a process restart.
+- They cut prose that repeats itself. Say it once (standing item 6).
 - combatplus is a **reference, not a template**.
 - Surface doc/code disagreements rather than silently choosing (design.md §10).

@@ -29,7 +29,7 @@ Rollout (each phase behind its own setting, default off):
 | Phase | Feature |
 | --- | --- |
 | **1 ✓** | Attack resolver: auto-roll damage on hit, auto-apply to hit targets, revert receipts |
-| **1.5 ✓** | Reaction hold: Shield-window pause with popup + card row (a pause, not a system) |
+| **1.5 ✓** | Reaction hold: Shield-window pause with popup + card row (a pause, not a system), on a hit **or** on a listed spell — Magic Missile really is stopped |
 | 2 | Saves: auto-roll for everyone, half-damage-on-save made real |
 | 2.5 | Concentration assist: un-buryable prompt + break-on-failure |
 | 3 | Effect application on hit / failed save |
