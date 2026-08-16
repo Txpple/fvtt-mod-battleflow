@@ -1,6 +1,7 @@
 // Battle Flow Phase 1 smoke test — drives a real attack chain in the live world through the
 // bridge (same Foundry class the house scripts use) and asserts every link:
-//   hit → auto damage roll → auto apply → receipt → revert (real DOM click) → miss → silence.
+//   hit → auto damage roll → auto apply → receipt → revert (real DOM click) →
+//   immunity receipt (rolled N, took 0, and the row says WHY) → miss → silence.
 // Fixtures live on a dedicated "Battle Flow Test Range" scene (viewed LOCALLY, never
 // activated — players' scene is untouched). Settings are switched on for the test and back
 // OFF at the end: defaults-off is the design's dogfood contract.
@@ -78,6 +79,7 @@ let priorSettings = null;
       ok: true, prior,
       user: game.user.name,
       isActiveGM: game.users.activeGM?.isSelf ?? false,
+      elect: game.users.activeGM?.name ?? null,
       autoDamage: game.settings.get(MOD, 'autoDamage'),
       autoApply: game.settings.get(MOD, 'autoApply'),
       trays: game.settings.get('dnd5e', 'autoCollapseChatTrays'),
@@ -93,7 +95,9 @@ let priorSettings = null;
   // The auto-apply elect is whichever active GM outranks the rest — the bridge when alone,
   // a logged-in human GM otherwise. Either topology is a valid test; the receipt poll and
   // DOM asserts run on the bridge's own view regardless of which client applied.
-  if (!r.isActiveGM) console.log('  note: another GM client is the activeGM elect — testing the multi-client path');
+  // The applying client runs whatever code it LOADED — after a deploy, an open window is
+  // stale until refreshed. `node tools/reload-clients.mjs` refreshes every other client.
+  if (!r.isActiveGM) console.log(`  note: "${r.elect}" is the activeGM elect — ITS loaded code applies damage (stale until refreshed after a deploy)`);
   priorSettings = r.prior;
 }
 
@@ -311,6 +315,101 @@ if (!fx.ok) { process.exit(1); }
   report('revert restores the HP snapshot (real click)',
     r.ok && r.hp.value === r.expectedHp.value && (r.hp.temp ?? null) === (r.expectedHp.temp ?? null),
     r.ok ? `hp back to ${r.hp.value}; button removed on re-render: ${r.buttonGone}` : r.why);
+}
+
+// ------------------------------------------- 4b. the immunity receipt (rolled N, took 0, WHY)
+// A cold-immune Ice Mephit "took" a rolled 9 with nothing on the card saying why (reported
+// live 2026-08-15) — the receipt now carries the system's own trait verdicts. Immunity to the
+// weapon's OWN damage type (read from the item, never hardcoded) makes the victim take
+// nothing while the roll still lands.
+{
+  const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
+    const base = game.actors.get(victimId);
+    const priorDi = foundry.utils.deepClone(base.system._source.traits.di);
+    try {
+      const victim = canvas.tokens.get(victimToken).actor;
+      const attacker = game.actors.get(attackerId);
+      const weapon = attacker.items.getName(itemName);
+      const activity = weapon.system.activities.find(a => a.type === 'attack');
+      const types = new Set([
+        ...(weapon.system.damage?.base?.types ?? []),
+        ...((activity?.damage?.parts ?? []).flatMap(p => [...(p.types ?? [])])),
+      ]);
+      if (!types.size) return { ok: false, why: `${itemName} deals no typed damage — nothing to be immune to` };
+
+      await base.update({
+        'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1,
+        'system.traits.di.value': [...types],
+      });
+      // Full pool first: an assertion that a number did not move is only worth anything if
+      // the number could have moved (smoke-hold's §6 lesson, generalised in the handoff).
+      await victim.update({
+        'system.attributes.hp.value': victim.system.attributes.hp.max,
+        'system.attributes.hp.temp': 0,
+      });
+      const hp0 = victim.system._source.attributes.hp.value;
+      const max = victim.system.attributes.hp.max;
+
+      canvas.tokens.get(victimToken).setTarget(true, { releaseOthers: true });
+      const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
+      const usageId = results?.message?.id ?? null;
+      if (!usageId) return { ok: false, why: 'no usage message id' };
+      const rolls = await activity.rollAttack(
+        { advantage: true },
+        { configure: false },
+        { data: { 'flags.dnd5e.originatingMessage': usageId } });
+      const fumble = rolls?.[0]?.isFumble ?? false;
+
+      // Whole-log search by originating id — a tail window flakes (handoff ground truth).
+      let damageMsg = null;
+      for (let i = 0; i < 40 && !damageMsg; i++) {
+        await new Promise(r => setTimeout(r, 250));
+        damageMsg = game.messages.contents.find(m =>
+          m.getFlag('dnd5e', 'roll.type') === 'damage'
+          && m.getFlag('dnd5e', 'originatingMessage') === usageId
+          && m.getFlag('fvtt-mod-battleflow', 'receipt'));
+      }
+      if (!damageMsg) return { ok: true, fumble, noDamage: true };
+
+      const entry = damageMsg.getFlag('fvtt-mod-battleflow', 'receipt')
+        .targets.find(t => t.uuid === victim.uuid);
+      const rolled = damageMsg.rolls.reduce((n, r) => n + r.total, 0);
+      const hp1 = victim.system._source.attributes.hp.value;
+
+      // What the table is TOLD: the receipt row in this client's own chat DOM.
+      let rowText = '';
+      for (let i = 0; i < 20 && !rowText.includes('immune'); i++) {
+        await new Promise(r => setTimeout(r, 250));
+        rowText = document.querySelector(
+          `[data-message-id="${damageMsg.id}"] .battleflow-receipt`)?.textContent ?? '';
+      }
+      return { ok: true, fumble, rolled, entry, max, hp0, hp1, rowText: rowText.trim(), types: [...types] };
+    } catch (err) {
+      return { ok: false, why: `${err.message}\n${err.stack}` };
+    } finally {
+      await base.update({ 'system.traits.di': priorDi });
+    }
+  }, fx);
+
+  if (!r.ok) {
+    report('immunity receipt (rolled N, took 0, why)', false, r.why);
+  } else if (r.noDamage) {
+    if (r.fumble) console.log('  SKIP immunity receipt — nat-1 fumble missed outright (flake, 1/400)');
+    else report('immunity receipt (rolled N, took 0, why)', false, 'no receipted damage message appeared');
+  } else {
+    report('immune target starts with a pool that could move', r.hp0 === r.max, `hp ${r.hp0}/${r.max}`);
+    report('immune target takes nothing while the roll lands',
+      r.rolled > 0 && r.hp1 === r.hp0 && r.entry?.delta?.value === 0,
+      `rolled ${r.rolled}, hp ${r.hp0} → ${r.hp1}`);
+    report('receipt records taken 0 + the immunity verdict',
+      r.entry?.taken === 0 && (r.entry?.traits ?? []).some(t => t.outcome === 'immune' && r.types.includes(t.type)),
+      JSON.stringify({ taken: r.entry?.taken, traits: r.entry?.traits }));
+    // textContent concatenates the flex spans without whitespace (the spacing is CSS gap),
+    // so match the phrase itself, pinned to the actual damage type.
+    report('the row SAYS it — "immune to <type>"',
+      r.types.some(t => r.rowText.includes(`immune to ${t}`)),
+      `row: "${r.rowText}"`);
+  }
 }
 
 // -------------------------------------------------------------------------- 5. the miss test
