@@ -91,7 +91,9 @@ const S = {
   riders: "riders",
   riderList: "riderList",
   riderUpgrades: "riderUpgrades",
-  effectRiders: "effectRiders"
+  effectRiders: "effectRiders",
+  masteryRiders: "masteryRiders",
+  masteryAsk: "masteryAsk"
 };
 
 const setting = key => game.settings.get(MODULE_ID, key);
@@ -249,6 +251,19 @@ Hooks.once("init", () => {
     hint: "A hit applies the effects riding it: the attack's own effects land on the targets it hit, through the system's application path — Ray of Frost's slow arrives with its damage instead of waiting for a click in the card's tray. Every application leaves a receipt on the damage card with a per-effect revert.",
     scope: "world", config: true, type: Boolean, default: false
   });
+
+  game.settings.register(MODULE_ID, S.masteryRiders, {
+    name: "Weapon Mastery Riders",
+    hint: "A weapon mastery pays out with the attack that earned it. Vex and Sap apply themselves (the rules give no choice); Slow, Topple, Push and Graze are the wielder's option — see Ask First. Effects are visible chips with the rule in their description; nothing ever modifies a d20, and Cleave/Nick (extra attacks) stay native. Requires the attack resolver to be on.",
+    scope: "world", config: true, type: Boolean, default: false
+  });
+
+  game.settings.register(MODULE_ID, S.masteryAsk, {
+    name: "Mastery: Ask First",
+    hint: "\"Ask\" puts the optional masteries (Slow, Topple, Push, Graze) to the attacking player as a Use/Pass popup on the reaction hold's timer — players like being reminded of their options. \"Auto\" takes them silently for tables that find the popup tedious. Vex and Sap never ask; the rules make them automatic.",
+    scope: "world", config: true, type: String, default: "ask",
+    choices: { ask: "Ask the attacker", auto: "Take them automatically" }
+  });
 });
 
 // Settings-sheet polish (the combatplus idiom, from day one): a divider heading the module's
@@ -280,6 +295,7 @@ Hooks.on("renderSettingsConfig", (app, element) => {
 
   const hold = input(S.reactionHold);
   const riders = input(S.riders);
+  const mastery = input(S.masteryRiders);
   const syncAll = () => {
     setEnabled(input(S.dramaticBeat), autoDamage?.value !== "off");
     for ( const key of [S.interruptList, S.blockList, S.holdReveal, S.holdTimer, S.holdSkipFutile,
@@ -287,11 +303,13 @@ Hooks.on("renderSettingsConfig", (app, element) => {
       setEnabled(input(key), !!hold?.checked);
     for ( const key of [S.riderList, S.riderUpgrades] )
       setEnabled(input(key), !!riders?.checked);
+    setEnabled(input(S.masteryAsk), !!mastery?.checked);
   };
   syncAll();
   autoDamage?.addEventListener("change", syncAll);
   hold?.addEventListener("change", syncAll);
   riders?.addEventListener("change", syncAll);
+  mastery?.addEventListener("change", syncAll);
 });
 
 /* ---------------------------------------------------------------------------------------------
@@ -2070,17 +2088,29 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
 
 Hooks.on("createChatMessage", message => {
   if ( !isActiveGM() ) return;
-  if ( !setting(S.autoApply) && !setting(S.effectRiders) ) return;
+  if ( !setting(S.autoApply) && !setting(S.effectRiders) && !setting(S.masteryRiders) ) return;
   if ( message.getFlag("dnd5e", "roll.type") !== "damage" ) return; // healing is typed "healing"
   const attackMessage = resolveAttackMessage(message);
   if ( !attackMessage ) return;
   const hits = hitTargets(attackMessage);
   if ( !hits.length ) return;
-  if ( setting(S.autoApply) ) void applyToHitTargets(message, hits);
-  // Effects ride the same moment, independently gated: per-target application, so the
-  // damage riders' split-target intersection refusal deliberately does NOT apply here.
-  if ( setting(S.effectRiders) ) void applyEffectRiders(message, attackMessage, hits);
+  void resolveDamagePayouts(message, attackMessage, hits);
 });
+
+/**
+ * Everything a damage roll pays out, in a deterministic order: damage application first,
+ * then the card's effect riders, then the weapon mastery riding the attack — sequential
+ * because the mastery gates (Vex and Slow trigger only when damage was DEALT) read the
+ * receipt's per-target taken amounts, and a receipt only exists once application has run.
+ * Each stage is independently gated by its own setting.
+ */
+async function resolveDamagePayouts(damageMessage, attackMessage, hits) {
+  if ( setting(S.autoApply) ) await applyToHitTargets(damageMessage, hits);
+  // Per-target application: the damage riders' split-target intersection refusal
+  // deliberately does NOT apply to effects.
+  if ( setting(S.effectRiders) ) await applyEffectRiders(damageMessage, attackMessage, hits);
+  if ( setting(S.masteryRiders) ) await resolveHitMastery(damageMessage, attackMessage, hits);
+}
 
 /**
  * Apply a damage message's rolls to the given targets exactly as the native tray would, and
@@ -2090,14 +2120,23 @@ Hooks.on("createChatMessage", message => {
  * exact stored values.
  */
 async function applyToHitTargets(damageMessage, hits) {
-  try {
-    const damages = dnd5e.dice.aggregateDamageRolls(damageMessage.rolls, { respectProperties: true })
-      .map(roll => ({
-        value: Math.max(0, roll.total),
-        type: roll.options.type,
-        properties: new Set(roll.options.properties ?? [])
-      }));
+  const damages = dnd5e.dice.aggregateDamageRolls(damageMessage.rolls, { respectProperties: true })
+    .map(roll => ({
+      value: Math.max(0, roll.total),
+      type: roll.options.type,
+      properties: new Set(roll.options.properties ?? [])
+    }));
+  await applyDamagesWithReceipt(damageMessage, hits, damages);
+}
 
+/**
+ * The shared applier: land `damages` on every target and stamp the receipt onto
+ * `receiptMessage` (the damage card normally; the ATTACK card for Graze, where no damage
+ * message exists because the attack missed). `note` rides each receipt entry and renders
+ * beside the taken amount — it is how a Graze line says what it is.
+ */
+async function applyDamagesWithReceipt(receiptMessage, hits, damages, { note } = {}) {
+  try {
     const receipts = [];
     for ( const target of hits ) {
       const actor = await fromUuid(target.uuid); // the targets snapshot carries ACTOR uuids
@@ -2114,7 +2153,7 @@ async function applyToHitTargets(damageMessage, hits) {
       // bypasses/modification/threshold; asking the same method twice cannot. (The extra
       // pass fires the calculate-damage hooks one more read-only time; nothing in this
       // module or combatplus listens to them.)
-      const calc = actor.calculateDamage(damages, { multiplier: 1, originatingMessage: damageMessage });
+      const calc = actor.calculateDamage(damages, { multiplier: 1, originatingMessage: receiptMessage });
       const traits = [];
       for ( const d of (calc || []) ) {
         const a = d.active ?? {};
@@ -2130,13 +2169,14 @@ async function applyToHitTargets(damageMessage, hits) {
       }
 
       await actor.applyDamage(damages, {
-        multiplier: 1, isDelta: true, originatingMessage: damageMessage, origin: damageMessage
+        multiplier: 1, isDelta: true, originatingMessage: receiptMessage, origin: receiptMessage
       });
       const after = actor.system._source.attributes.hp;
       receipts.push({
         uuid: target.uuid,
         name: target.name,
         img: actor.img ?? null, // the portrait the row leads with (user call, 2026-08-15)
+        ...(note ? { note } : {}),
         prior,
         delta: {
           value: (after.value ?? 0) - (prior.value ?? 0),
@@ -2150,7 +2190,7 @@ async function applyToHitTargets(damageMessage, hits) {
         reverted: false
       });
     }
-    if ( receipts.length ) await damageMessage.setFlag(MODULE_ID, "receipt", { targets: receipts });
+    if ( receipts.length ) await receiptMessage.setFlag(MODULE_ID, "receipt", { targets: receipts });
   } catch(err) {
     console.error(`${TITLE} | Auto-apply failed.`, err);
   }
@@ -2211,9 +2251,11 @@ async function applyEffectRiders(damageMessage, attackMessage, hits) {
         const existing = actor.effects.find(e => e.origin === origin.uuid);
         let applied;
         if ( existing ) {
-          applied = await existing.update(foundry.utils.mergeObject({
+          // ⚠ `?? existing`: an empty-diff update returns undefined (same bug as the
+          // mastery applier) and the receipt entry would vanish with it.
+          applied = (await existing.update(foundry.utils.mergeObject({
             ...effect.constructor.getInitialDuration(), disabled: false
-          }, effectFlags));
+          }, effectFlags))) ?? existing;
         } else {
           applied = await ActiveEffect.implementation.create(foundry.utils.mergeObject({
             ...effect.toObject(), disabled: false, transfer: false, origin: origin.uuid
@@ -2244,6 +2286,460 @@ async function revertEffect(message, targetUuid, effectId) {
   entry.reverted = true;
   await message.setFlag(MODULE_ID, "effectReceipt", flag);
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * Phase 1.9B/C — weapon mastery riders (PLAN.md sections B and C).
+ *
+ * Detection is one flag read: the system stamps the mastery used onto
+ * `flags.dnd5e.roll.mastery` of the attack message (attack.mjs:167), and only when the
+ * wielder genuinely has that mastery with that weapon — eligibility, identity and the
+ * which-mastery choice are all pre-solved upstream. Masteries are PC-only in data (the
+ * trait lives on character actors alone), so the ask always has a natural owner: the
+ * attacking player.
+ *
+ * The payouts, by shape (2024 rules text decides the mode):
+ *   Vex, Sap        automatic — the rules give no choice. Authored effects, applied like 1.9A.
+ *   Slow            "you can" + requires damage dealt. Authored effect, −10 speed (self-enforcing).
+ *   Topple          "you can". A card carrying the native [[/save]] enricher + a GM prone
+ *                   button — the save stays MANUAL until Phase 2 upgrades this same card.
+ *   Push            "you can". Announce only; tokens are never moved.
+ *   Graze           pays on a MISS: flat ability-mod damage through the shared applier, with
+ *                   the receipt stamped on the ATTACK card (no damage message exists).
+ *   Cleave, Nick    out of scope — action economy stays native.
+ *
+ * THE FENCE (user call): nothing here ever modifies a d20. Vex/Sap enforcement-and-expiry
+ * is the deferred AC5e-sized lift; the chip is the reminder and the roll dialog is the
+ * enforcement surface. Durations are the RAW windows approximated to a round — in combat
+ * `rounds: 1`, else seconds — refresh, never stack.
+ *
+ * The ask (1.9C) is a hold miniaturized: the elect stamps a `mastery` flag on the attack
+ * message; every client renders a row; the DECIDER's client volunteers a Use/Pass popup
+ * (canAnswerFor the attacker — same two controls for everybody); the answer travels as a
+ * flag flip; the elect executes. Nothing downstream waits — it is a payout with a confirm,
+ * not an interrupt — so there is no continuation, no settle, no re-test. The timer reuses
+ * the hold's clock (holdTimer, 0 = wait forever), the elect owns the buzzer, expiry = Pass.
+ * ------------------------------------------------------------------------------------------- */
+
+/** The authored payout effects. Nothing ships these — the system's masteries are labels. */
+const MASTERY_EFFECTS = {
+  vex: {
+    name: "Vexed", img: "icons/svg/target.svg",
+    description: attacker => `${attacker.name} has Advantage on their next attack roll against this creature (Vex, before the end of ${attacker.name}'s next turn). Claim it in the roll dialog — nothing applies it for you.`
+  },
+  sap: {
+    name: "Sapped", img: "icons/svg/downgrade.svg",
+    description: attacker => `Disadvantage on its next attack roll (Sap, before the start of ${attacker.name}'s next turn). The reminder is this chip; the roll dialog is where it is honoured.`
+  },
+  slow: {
+    name: "Slowed", img: "icons/svg/net.svg",
+    description: attacker => `Speed reduced by 10 feet until the start of ${attacker.name}'s next turn (Slow).`,
+    changes: () => [
+      { key: "system.attributes.movement.walk", mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: "-10" },
+      { key: "system.attributes.movement.fly", mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: "-10" }
+    ]
+  }
+};
+
+/** What each optional mastery asks, in the popup's own words. */
+const MASTERY_RULES = {
+  slow: "Reduce its Speed by 10 feet until the start of your next turn.",
+  topple: "Force a Constitution saving throw. On a failure, it falls Prone.",
+  push: "Push it up to 10 feet straight away from you.",
+  graze: "The miss still deals your ability modifier in damage."
+};
+
+const masteryLabel = key => CONFIG.DND5E.weaponMasteries[key]?.label ?? key;
+
+/** Attacker, weapon and attack ability behind an attack message — or null. */
+function masteryContext(attackMessage) {
+  const activity = messageActivity(attackMessage);
+  const weapon = activity?.item;
+  const attacker = weapon?.actor;
+  if ( !activity || !weapon || !attacker ) return null;
+  return { activity, weapon, attacker, ability: activity.ability || "str" };
+}
+
+/**
+ * What this target actually TOOK from the damage roll — the Vex/Slow gate ("hit AND dealt
+ * damage"). The receipt's post-trait `taken` is the truth when auto-apply ran; without a
+ * receipt the roll total is the best available approximation (a target-specific immunity is
+ * invisible then, and that is accepted — the alternative is recomputing traits by hand).
+ */
+function dealtFor(damageMessage, uuid) {
+  const entry = damageMessage?.getFlag(MODULE_ID, "receipt")?.targets?.find(t => t.uuid === uuid);
+  if ( entry ) return (typeof entry.taken === "number") ? entry.taken
+    : -((entry.delta?.value ?? 0) + (entry.delta?.temp ?? 0));
+  return damageMessage?.rolls?.reduce((n, r) => n + r.total, 0) ?? 0;
+}
+
+/** Route a hit's mastery to its payout or its ask. Runs on the elect, after application. */
+async function resolveHitMastery(damageMessage, attackMessage, hits) {
+  try {
+    const key = attackMessage.getFlag("dnd5e", "roll.mastery");
+    if ( !key ) return;
+    const ctx = masteryContext(attackMessage);
+    if ( !ctx ) return;
+
+    // The dead are skipped everywhere: chips on corpses and questions about them are noise
+    // (the hopeless-hold precedent, applied to payouts).
+    const live = [];
+    for ( const t of hits ) {
+      const actor = await fromUuid(t.uuid);
+      if ( (actor instanceof Actor) && ((actor.system.attributes?.hp?.value ?? 0) > 0) )
+        live.push({ uuid: t.uuid, name: t.name, actor });
+    }
+    if ( !live.length ) return;
+
+    switch ( key ) {
+      case "vex": {
+        const dealt = live.filter(t => dealtFor(damageMessage, t.uuid) > 0);
+        if ( dealt.length ) await applyMasteryEffect(damageMessage ?? attackMessage, ctx, "vex", dealt);
+        return;
+      }
+      case "sap":
+        return applyMasteryEffect(damageMessage ?? attackMessage, ctx, "sap", live);
+      case "slow": {
+        const eligible = live.filter(t => (dealtFor(damageMessage, t.uuid) > 0)
+          && (((t.actor.system.attributes?.movement?.walk ?? 0) > 0)
+            || ((t.actor.system.attributes?.movement?.fly ?? 0) > 0)));
+        return askOrTake(attackMessage, damageMessage, ctx, "slow", eligible);
+      }
+      case "topple": {
+        const eligible = live.filter(t => !t.actor.statuses?.has?.("prone"));
+        return askOrTake(attackMessage, damageMessage, ctx, "topple", eligible);
+      }
+      case "push":
+        return askOrTake(attackMessage, damageMessage, ctx, "push", live);
+      default:
+        return; // cleave, nick: action economy, deliberately native
+    }
+  } catch(err) {
+    console.error(`${TITLE} | Mastery rider failed.`, err);
+  }
+}
+
+// Graze is the anti-rider: it pays on the MISS, where no damage message will ever exist, so
+// it hangs on the attack message itself. It deliberately reads only the attack AS ROLLED —
+// a Shield later flipping someone's hit to a miss does not re-open Graze for them (corner
+// acknowledged in PLAN.md; nobody has asked for it).
+Hooks.on("createChatMessage", message => {
+  if ( !setting(S.masteryRiders) || !isActiveGM() ) return;
+  if ( setting(S.autoDamage) === "off" ) return; // the riders ride the resolver
+  if ( message.getFlag("dnd5e", "roll.type") !== "attack" ) return;
+  if ( message.getFlag("dnd5e", "roll.mastery") !== "graze" ) return;
+  void resolveMissMastery(message);
+});
+
+async function resolveMissMastery(attackMessage) {
+  try {
+    const ctx = masteryContext(attackMessage);
+    if ( !ctx ) return;
+    const mode = setting(S.autoDamage);
+    if ( (mode === "npc") && (ctx.attacker.type === "character") ) return;
+    if ( (mode === "pc") && (ctx.attacker.type !== "character") ) return;
+    if ( (ctx.attacker.system.abilities?.[ctx.ability]?.mod ?? 0) <= 0 ) return;
+
+    const hitSet = new Set(hitTargets(attackMessage).map(t => t.uuid));
+    const missed = [];
+    for ( const t of (attackMessage.getFlag("dnd5e", "targets") ?? []) ) {
+      if ( hitSet.has(t.uuid) ) continue;
+      const actor = await fromUuid(t.uuid);
+      if ( (actor instanceof Actor) && ((actor.system.attributes?.hp?.value ?? 0) > 0) )
+        missed.push({ uuid: t.uuid, name: t.name });
+    }
+    if ( missed.length ) await askOrTake(attackMessage, null, ctx, "graze", missed);
+  } catch(err) {
+    console.error(`${TITLE} | Graze failed.`, err);
+  }
+}
+
+/** The optional masteries go through the gate: auto takes them, ask stamps the question. */
+async function askOrTake(attackMessage, damageMessage, ctx, key, targets) {
+  if ( !targets.length ) return; // hopeless: nothing left worth asking about
+  const clean = targets.map(t => ({ uuid: t.uuid, name: t.name }));
+  if ( setting(S.masteryAsk) === "auto" ) {
+    return executeMasteryPayout(key, attackMessage, damageMessage, ctx, clean);
+  }
+  await stampMasteryAsk(attackMessage, damageMessage, ctx, key, clean);
+}
+
+async function executeMasteryPayout(key, attackMessage, damageMessage, ctx, targets) {
+  switch ( key ) {
+    case "slow": return applyMasteryEffect(damageMessage ?? attackMessage, ctx, "slow", targets);
+    case "topple": return toppleCard(ctx, targets);
+    case "push": return pushCard(ctx, targets);
+    case "graze": return grazePayout(attackMessage, ctx, targets);
+  }
+}
+
+/**
+ * Apply one authored mastery effect to each target and join the damage card's effect
+ * receipt. Same discipline as 1.9A: refresh a same-origin copy (this weapon's uuid) instead
+ * of stacking, receipts are the visibility, revert is the native delete.
+ */
+async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
+  const def = MASTERY_EFFECTS[key];
+  if ( !def ) return;
+  const inCombat = inRunningCombat(ctx.attacker);
+  const flag = foundry.utils.deepClone(receiptMessage?.getFlag(MODULE_ID, "effectReceipt") ?? { targets: [] });
+  for ( const t of targets ) {
+    const actor = (t.actor instanceof Actor) ? t.actor : await fromUuid(t.uuid);
+    if ( !(actor instanceof Actor) ) continue;
+    const duration = inCombat ? { rounds: 1 } : { seconds: 6 };
+    const existing = actor.effects.find(e =>
+      (e.getFlag(MODULE_ID, "mastery") === key) && (e.origin === ctx.weapon.uuid));
+    let applied;
+    if ( existing ) {
+      const starts = ActiveEffect.implementation.getInitialDuration?.()?.duration ?? {};
+      // ⚠ `?? existing`: Document#update returns UNDEFINED when the diff is empty — a
+      // re-clock that changes nothing (same worldTime out of combat) — and the receipt
+      // entry silently vanished with it (caught by probe 2026-08-15). The refresh is still
+      // the payout; the receipt must say so either way.
+      applied = (await existing.update({ duration: { ...starts, ...duration }, disabled: false })) ?? existing;
+    } else {
+      applied = await ActiveEffect.implementation.create({
+        name: def.name, img: def.img,
+        description: def.description(ctx.attacker),
+        origin: ctx.weapon.uuid, disabled: false, transfer: false,
+        duration,
+        changes: def.changes?.() ?? [],
+        flags: { [MODULE_ID]: { mastery: key } }
+      }, { parent: actor });
+    }
+    if ( !applied ) continue;
+    let entry = flag.targets.find(x => x.uuid === t.uuid);
+    if ( !entry ) flag.targets.push(entry = { uuid: t.uuid, name: t.name, img: actor.img ?? null, effects: [] });
+    if ( !entry.effects.some(e => e.id === applied.id) ) {
+      entry.effects.push({ id: applied.id, name: applied.name, img: applied.img, reverted: false });
+    }
+  }
+  if ( flag.targets.length && receiptMessage ) await receiptMessage.setFlag(MODULE_ID, "effectReceipt", flag);
+}
+
+/** Topple: the demand, the native save link, and a GM affordance for the failure. */
+async function toppleCard(ctx, targets) {
+  const dc = 8 + (ctx.attacker.system.attributes?.prof ?? 0)
+    + (ctx.attacker.system.abilities?.[ctx.ability]?.mod ?? 0);
+  const names = targets.map(t => t.name).join(", ");
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: ctx.attacker }),
+    content: bfCard({
+      img: ctx.weapon.img, eyebrow: "Weapon Mastery — Topple", tone: "good",
+      title: `${names}: Constitution save, DC ${dc}`,
+      subtitle: `${ctx.attacker.name} — ${ctx.weapon.name}`,
+      lines: [`[[/save ability=con dc=${dc} format=long]]`, "On a failure, it falls Prone."]
+    }),
+    flags: { [MODULE_ID]: { topple: {
+      targets: targets.map(t => ({ uuid: t.uuid, name: t.name, done: false }))
+    } } }
+  });
+}
+
+/** Push: announce the option. Tokens are never moved — sliding one is free at the table. */
+async function pushCard(ctx, targets) {
+  const names = targets.map(t => t.name).join(", ");
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: ctx.attacker }),
+    content: bfCard({
+      img: ctx.weapon.img, eyebrow: "Weapon Mastery — Push", tone: "good",
+      title: `${ctx.attacker.name} can push ${names} 10 feet`,
+      subtitle: `${ctx.weapon.name} — straight away, Large or smaller`,
+      lines: ["Move the token; nothing is automated."]
+    })
+  });
+}
+
+/** Graze: the miss still pays the attack ability's modifier, through the shared applier. */
+async function grazePayout(attackMessage, ctx, targets) {
+  const mod = ctx.attacker.system.abilities?.[ctx.ability]?.mod ?? 0;
+  if ( mod <= 0 ) return;
+  const type = [...(ctx.weapon.system.damage?.base?.types ?? [])][0] ?? "";
+  await applyDamagesWithReceipt(attackMessage, targets, [{
+    value: mod, type, properties: new Set(ctx.weapon.system.properties ?? [])
+  }], { note: "Graze — the miss still pays" });
+}
+
+/* --- the ask: stamp → row → popup → answer → execute -------------------------------------- */
+
+/** Asks this client has already popped, so a re-render never stacks a second dialog. */
+const shownMasteryAsks = new Set();
+const masteryTimers = new Map();
+
+async function stampMasteryAsk(attackMessage, damageMessage, ctx, key, targets) {
+  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  await attackMessage.setFlag(MODULE_ID, "mastery", {
+    status: "pending", key,
+    weapon: { name: ctx.weapon.name, img: ctx.weapon.img },
+    attackerUuid: ctx.attacker.uuid,
+    damageMessageId: damageMessage?.id ?? null,
+    ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
+    targets
+  });
+  armMasteryTimer(attackMessage);
+}
+
+/** One answer, first writer wins. The decider owns the attack message (it is their roll). */
+async function answerMastery(message, answer, { timedOut = false } = {}) {
+  const m = foundry.utils.deepClone(message.getFlag(MODULE_ID, "mastery") ?? {});
+  if ( (m.status !== "pending") || m.answer ) return;
+  m.answer = answer;
+  if ( timedOut ) m.timedOut = true;
+  await message.setFlag(MODULE_ID, "mastery", m);
+}
+
+/** The elect claims the answer, then pays it out. Claim-first: a re-fire sees "done". */
+async function executeMasteryAnswer(message) {
+  const m = foundry.utils.deepClone(message.getFlag(MODULE_ID, "mastery") ?? {});
+  if ( (m.status !== "pending") || !m.answer ) return;
+  m.status = "done";
+  m.outcome = (m.answer === "use") ? "used" : (m.timedOut ? "timed out" : "passed");
+  disarmMasteryTimer(message.id);
+  await message.setFlag(MODULE_ID, "mastery", m);
+  if ( m.answer !== "use" ) return;
+  const ctx = masteryContext(message);
+  if ( !ctx ) return;
+  const damageMessage = m.damageMessageId ? game.messages.get(m.damageMessageId) : null;
+  await executeMasteryPayout(m.key, message, damageMessage, ctx, m.targets ?? []);
+}
+
+// The answer channel: every client closes an answered popup; the elect executes.
+Hooks.on("updateChatMessage", message => {
+  const m = message.getFlag(MODULE_ID, "mastery");
+  if ( !m ) return;
+  const dialog = livePopups.get(popupKey(message.id, "mastery"));
+  if ( dialog && ((m.status !== "pending") || m.answer) ) void dialog.close();
+  if ( isActiveGM() && (m.status === "pending") && m.answer ) void executeMasteryAnswer(message);
+});
+
+Hooks.on("deleteChatMessage", message => {
+  disarmMasteryTimer(message.id);
+  shownMasteryAsks.delete(message.id);
+});
+
+/** The elect owns the one authoritative clock; expiry answers Pass (the AFK fallback). */
+function armMasteryTimer(message) {
+  const m = message?.getFlag(MODULE_ID, "mastery");
+  if ( !m?.deadline || (m.status !== "pending") || m.answer || !isActiveGM() ) return;
+  if ( masteryTimers.has(message.id) ) return;
+  masteryTimers.set(message.id, setTimeout(async () => {
+    masteryTimers.delete(message.id);
+    const live = game.messages.get(message.id);
+    const cur = live?.getFlag(MODULE_ID, "mastery");
+    if ( !cur || (cur.status !== "pending") || cur.answer ) return;
+    await answerMastery(live, "pass", { timedOut: true });
+  }, Math.max(0, m.deadline - Date.now())));
+}
+
+function disarmMasteryTimer(messageId) {
+  const handle = masteryTimers.get(messageId);
+  if ( handle === undefined ) return;
+  clearTimeout(handle);
+  masteryTimers.delete(messageId);
+}
+
+/** The Use/Pass popup — the same two controls for everybody, on the hold's own bar. */
+async function showMasteryPopup(message, m) {
+  const attacker = (() => { try { return fromUuidSync(m.attackerUuid); } catch { return null; } })();
+  if ( !canAnswerFor(attacker) ) return;
+  const key = popupKey(message.id, "mastery");
+  if ( livePopups.has(key) ) return;
+
+  const label = masteryLabel(m.key);
+  const buttons = [
+    { action: "use", label: `Use ${label}`, default: true,
+      callback: () => answerMastery(message, "use") },
+    { action: "pass", label: "Pass",
+      callback: () => answerMastery(message, "pass") }
+  ];
+  const dialog = new foundry.applications.api.DialogV2({
+    window: { title: `${label} — ${m.weapon?.name ?? ""}`, icon: "fa-solid fa-medal" },
+    position: { width: 420 },
+    content: bfCard({
+      img: m.weapon?.img, eyebrow: "Weapon Mastery", tone: "neutral",
+      title: `${label}: use it?`,
+      subtitle: `${attacker?.name ?? "The attacker"} — ${m.weapon?.name ?? "weapon"}`,
+      lines: [MASTERY_RULES[m.key] ?? "", `Against: ${(m.targets ?? []).map(t => t.name).join(", ")}`]
+    }) + holdBarHTML(m),
+    buttons,
+    rejectClose: false
+  });
+  const close = dialog.close.bind(dialog);
+  dialog.close = async (...args) => {
+    livePopups.delete(key);
+    try { ui.chat?.updateMessage?.(message); } catch(err) { /* row refreshes next render */ }
+    return close(...args);
+  };
+  livePopups.set(key, dialog);
+  try {
+    await dialog.render({ force: true });
+    scheduleBarSync(dialog.element);
+    ui.chat?.updateMessage?.(message);
+  } catch(err) {
+    livePopups.delete(key);
+    console.error(`${TITLE} | Could not open the mastery popup — answer from the card.`, err);
+  }
+}
+
+// The card rows: the mastery ask (pending: bar + Answer; done: the outcome), and the Topple
+// card's GM prone affordance. Stateless like every render hook here.
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  const m = message.getFlag(MODULE_ID, "mastery");
+  if ( m ) {
+    const row = document.createElement("div");
+    row.className = "battleflow-mastery";
+    const label = masteryLabel(m.key);
+    const pending = m.status === "pending";
+    const outcome = m.outcome === "used" ? `${label} used`
+      : m.outcome === "timed out" ? "Passed (timer)" : "Passed";
+    row.innerHTML = bfCard({
+      img: m.weapon?.img, eyebrow: "Weapon Mastery",
+      tone: pending ? "neutral" : (m.outcome === "used" ? "good" : "neutral"),
+      title: pending ? `${label} — ${(m.targets ?? []).map(t => t.name).join(", ")}` : outcome,
+      subtitle: pending ? (MASTERY_RULES[m.key] ?? "") : `${label} — ${m.weapon?.name ?? ""}`
+    }) + (pending ? holdBarHTML(m) : "");
+    html.querySelector(".message-content")?.appendChild(row);
+
+    if ( pending ) {
+      armMasteryTimer(message);
+      const attacker = (() => { try { return fromUuidSync(m.attackerUuid); } catch { return null; } })();
+      if ( canAnswerFor(attacker) && !m.answer ) {
+        // ONE input surface: the popup decides, the card recalls a dismissed popup.
+        if ( !shownMasteryAsks.has(message.id) ) {
+          shownMasteryAsks.add(message.id);
+          void showMasteryPopup(message, m);
+        }
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = "Answer";
+        Object.assign(button.style, { width: "auto", margin: "0.25rem 0 0", padding: "0 0.6rem" });
+        button.addEventListener("click", () => {
+          void showMasteryPopup(message, message.getFlag(MODULE_ID, "mastery"));
+        });
+        row.appendChild(button);
+      }
+    }
+  }
+
+  const topple = message.getFlag(MODULE_ID, "topple");
+  if ( topple?.targets?.length && game.user.isGM ) {
+    for ( const t of topple.targets ) {
+      if ( t.done ) continue;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `${t.name} failed — Prone`;
+      Object.assign(button.style, { width: "auto", margin: "0.25rem 0.25rem 0 0", padding: "0 0.6rem" });
+      button.addEventListener("click", async () => {
+        const actor = await fromUuid(t.uuid);
+        if ( actor instanceof Actor ) await actor.toggleStatusEffect("prone", { active: true });
+        const flag = foundry.utils.deepClone(message.getFlag(MODULE_ID, "topple"));
+        const entry = flag.targets.find(x => x.uuid === t.uuid);
+        if ( entry ) entry.done = true;
+        await message.setFlag(MODULE_ID, "topple", flag);
+      });
+      html.querySelector(".message-content")?.appendChild(button);
+    }
+  }
+});
 
 /* ---------------------------------------------------------------------------------------------
  * Receipts — the revert row on damage cards. Public facts, GM-only pools and controls.
@@ -2325,44 +2821,58 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       Object.assign(icon.style, { flex: "0 0 auto", opacity: t.reverted ? "0.5" : "0.85" });
     }
 
-    const stack = document.createElement("div");
-    Object.assign(stack.style, {
-      flex: "1", minWidth: "0", display: "flex", flexDirection: "column", justifyContent: "center"
-    });
-
     const title = document.createElement("span");
     title.textContent = t.name;
     Object.assign(title.style, {
-      fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
+      flex: "1", minWidth: "0", fontWeight: "bold",
+      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
     });
     if ( t.reverted ) title.style.textDecoration = "line-through";
-    stack.append(title);
 
-    // The WHY, public on purpose: "immune to cold" is the whole story of a rolled 9 that
-    // lands as a 0, and the table just watched it land — a bare −0 HP reads as a bug
-    // (reported live 2026-08-15). The reason is a fact, not a number; pools stay GM-only.
-    if ( t.traits?.length && !t.reverted ) {
-      const why = document.createElement("span");
-      why.textContent = t.traits.map(traitPhrase).filter(Boolean).join(", ");
-      Object.assign(why.style, { fontStyle: "italic", opacity: "0.8" });
-      stack.append(why);
-    }
+    line.append(icon, title);
 
-    const lost = -((t.delta.value ?? 0) + (t.delta.temp ?? 0));
+    // The second row carries the story (user's layout call, 2026-08-15): the reason and the
+    // NUMBER, together, below the name — the top row is just who and the revert.
+    //
+    // ⚠ The number is `taken` (post-trait, pre-clamp), not the HP delta. A target already at
+    // 0 HP clamps every delta to −0, so a vulnerable Ice Mephit read "−0 HP" while the
+    // native tray said −14 (reported live 2026-08-15) — the delta answers "what did the pool
+    // do", but the table is owed "what did the hit deal". Pools stay GM-only.
+    const taken = (typeof t.taken === "number")
+      ? t.taken : -((t.delta.value ?? 0) + (t.delta.temp ?? 0));
     const from = (t.prior.value ?? 0) + (t.prior.temp ?? 0);
-    const detail = document.createElement("span");
-    Object.assign(detail.style, {
-      flex: "0 0 auto", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap"
-    });
+    const lost = -((t.delta.value ?? 0) + (t.delta.temp ?? 0));
+    const sub = document.createElement("div");
+    Object.assign(sub.style, { margin: "0 0 0 40px", lineHeight: "1.4" });
     if ( t.reverted ) {
-      detail.textContent = "reverted";
-      detail.style.fontStyle = "italic";
+      sub.textContent = "reverted";
+      sub.style.fontStyle = "italic";
     } else {
-      // The HP pool is GM-only; players get the fact and the number, not the monster's book.
-      detail.textContent = isGM ? `−${lost} HP (${from} → ${from - lost})` : `−${lost} HP`;
+      // A note (Graze) and the trait story share the reason slot, in that order.
+      const phrases = [...(t.note ? [t.note] : []),
+        ...(t.traits ?? []).map(traitPhrase).filter(Boolean)];
+      if ( phrases.length ) {
+        const why = document.createElement("span");
+        why.textContent = `${phrases.join(", ")} · `;
+        Object.assign(why.style, { fontStyle: "italic", opacity: "0.8" });
+        sub.append(why);
+      }
+      const amount = document.createElement("span");
+      amount.textContent = `−${taken} HP`;
+      // The same voice as the tray's own −12 above it (user call, 2026-08-15).
+      Object.assign(amount.style, {
+        fontVariantNumeric: "tabular-nums", fontWeight: "bold",
+        color: "var(--dnd5e-color-maroon, #740b0b)"
+      });
+      sub.append(amount);
+      if ( isGM ) {
+        // The pool is the GM's book: it says the −14 landed on a creature already at 0.
+        const pool = document.createElement("span");
+        pool.textContent = ` (${from} → ${from - lost})`;
+        Object.assign(pool.style, { fontVariantNumeric: "tabular-nums", opacity: "0.75" });
+        sub.append(pool);
+      }
     }
-
-    line.append(icon, stack, detail);
 
     if ( isGM && !t.reverted ) {
       const button = document.createElement("button");
@@ -2376,7 +2886,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       line.append(button);
     }
 
-    row.append(line);
+    row.append(line, sub);
   }
 
   // Effect riders (Phase 1.9A): what landed, per target — same stacked shape as the damage

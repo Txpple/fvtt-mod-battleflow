@@ -1,5 +1,42 @@
 # PLAN.md — v1.2.1 (receipt legibility) then v1.3.0 (Phase 1.9: effect & mastery riders)
 
+> ## STATE AT THE 2026-08-15 REBOOT BREAKPOINT (delete this block when stale)
+>
+> **Done, committed, deployed to the live box (defaults all OFF — table-safe):**
+> - v1.2.1 released (receipt says why; then three live UI iterations: two-row layout
+>   mirroring the native target entry, portrait lead, taken-amount headlined in maroon —
+>   the pool delta lies at 0 HP, `taken` is the truth).
+> - 1.9A effect riders: built, live-verified (Guiding Bolt end to end, re-clock not stack).
+> - 1.9B/C mastery riders + ask popup: built and **probe-verified end to end** — sap/vex
+>   (damage-gate both ways)/slow (30→20)/topple (DC + enricher + prone button)/graze (miss
+>   pays mod, receipt+note on the ATTACK card)/ask lifecycle (stamp, popup with exactly
+>   Use/Pass, bar, answer→execute, popup closes)/2s timer→Pass (timedOut)/effect revert.
+> - Bug found by probe and fixed in BOTH appliers: an empty-diff `Document#update` returns
+>   undefined and the receipt entry vanished — `?? existing` is the fix.
+> - `tools/reload-clients.mjs`: bridge-broadcast core "reload" to refresh stale clients
+>   after a deploy (standing user instruction: prefer the bridge; suite preflight names the
+>   elect).
+>
+> **Verified green this session:** smoke-battleflow (incl. new immunity section), smoke-riders 8/8.
+> **Not yet re-run after the mastery build:** smoke-hold — run it before anything ships.
+> **Not yet spot-checked:** push payout in AUTO mode (ask-mode push verified; pushCard uses
+> the same bfCard path as topple, which is verified — smoke-effects should cover it).
+>
+> **Remaining for v1.3.0, in order:** smoke-hold regression → 1.9D (section D below; keep
+> `suppressAttackCards` as the master gate + four per-source Booleans defaulting to
+> suppress, so migration is free; carve-out becomes "carries effects AND (!effectRiders OR
+> the card is a concentration cast — `doc.system.concentration` — whose origin linkage the
+> suppressed-card fallback cannot rebuild)") → `tools/smoke-effects.mjs` (section F; set
+> `suppressAttackCards` explicitly in preflight — its live value being ON is what sent three
+> probe generations chasing ghosts) → design.md Phase 1.9 section → HANDOFF rewrite →
+> release v1.3.0 → delete PLAN.md.
+>
+> **World state:** Matt logged out mid-session for a reboot; the bridge is the elect while
+> connected. Fixtures cleaned (no stray mastery effects, prone off, HP full). The user's
+> standing offer: elevate DM Assistant to role 4 and have Matt play from an Assistant login
+> so the bridge outranks whenever connected — needs the USER's click (a role-3 user cannot
+> promote); revisit when they're back.
+
 > Written 2026-08-15 from a design session with the user. Read [HANDOFF.md](HANDOFF.md) and
 > [design.md](design.md) first — design.md is binding, HANDOFF carries the ground truths and
 > the release/test mechanics; nothing there is restated here. Items marked **user call** are
