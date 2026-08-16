@@ -5,10 +5,10 @@
 > *where things stand* and *what already bit us*. Delete or rewrite it freely; it is a
 > snapshot, not a contract.
 >
-> **Phase 1.5 is done and dogfooded — start on Phase 2 (saves)** unless the user redirects.
-> The reaction hold has no tracked open items left; what remains against it is one small
-> question that is probably not even ours (GWF, below) and the standing notes, which are design
-> constraints rather than to-dos.
+> **Phase 1.5 is done and dogfooded — start on Phase 1.75 (hit riders: Hunter's Mark, Hex)**
+> unless the user redirects. That phase was 3.5 until 2026-08-15, when the user moved it ahead
+> of saves; design.md carries why the move is safe. Nothing is tracked open against the
+> reaction hold. The standing notes below are design constraints rather than to-dos.
 
 ## Where things stand
 
@@ -23,9 +23,10 @@ manifest and zip are gone), so the process vends the real version string after a
 | 1 — attack resolver | ✅ shipped. Auto-roll damage on hit, auto-apply via GM elect, receipts + revert. |
 | 1.1 — dogfood polish | ✅ shipped. Tray auto-collapse, require-target gate, usage-card suppression, centered roll dialogs. |
 | 1.5 — reaction hold | ✅ **feature-complete at v1.1.16** and dogfooded — both triggers exist: an attack hit, and a listed spell. Magic Missile and the player-client seam were both played at the table 2026-08-15 with nothing reported; Magic Missile stays in normal dogfood rotation rather than on a list. |
-| 2 — saves | ⬜ **next.** Unless the user redirects. |
+| 1.75 — hit riders | ⬜ **next.** Hunter's Mark / Hex, at `dnd5e.preRollDamageV2`. Was 3.5. |
+| 2 — saves | ⬜ after 1.75. |
 | 2.5 — concentration | ⬜ has a queued user request (below). |
-| 3 — effect application | ⬜ two open items depend on it. |
+| 3 — effect application | ⬜ two standing notes depend on it. |
 
 ⚠ **World data changed 2026-08-15:** the Skeletal Mage's `system.attributes.ac.calc` went
 `flat` → `natural`. Its `flat: 16` is untouched, so its printed AC is still 16 — but a flat AC
@@ -52,24 +53,9 @@ whatever they find, so it drifts:
 
 ## Open items
 
-### Next up, in order
-
-1. **GWF: a 1 became a 3 on a normal hit but not on a crit** (observed on Morgash,
-   2026-08-15). **Probably not ours, and probably not core either.** dnd5e 5.3.3 contains *no
-   implementation of Great Weapon Fighting* — `grep -rn -i "greatWeapon" module/` finds only
-   the feature-category label at `config.mjs:1814`. So the 1→3 comes from world data (an
-   effect, or a `min3` modifier on the damage part). Crit doubling runs through
-   `term.alter(cm, cb)` in `module/dice/damage-roll.mjs`, which raises the die COUNT on the
-   existing term and keeps its modifiers, so a genuine `min3` should survive into crit dice.
-   **The experiment that settles it:** turn auto-damage off, land a crit, and press the native
-   Damage button by hand. Same behaviour ⇒ it is the data or the system, and nothing to do with
-   this module — we call the identical `activity.rollDamage(..., { isCritical })` the native
-   button calls. Different behaviour ⇒ it IS ours, and the difference will be in the options we
-   pass at `rollDamageForAttack`.
-
 ### Standing
 
-4. **The second trigger, and the two things it deliberately does not solve** (v1.1.16).
+1. **The second trigger, and the two things it deliberately does not solve** (v1.1.16).
    Casting a spell on the **`blockList`** setting (`Spell:Reaction`, default
    `Magic Missile:Shield`) stamps a hold on its own **usage card** at `dnd5e.postUseActivity` —
    same flag shape, same popup, same card, same timer, same three answer channels — carrying
@@ -88,7 +74,7 @@ whatever they find, so it drifts:
    reads "held — waiting on …" the whole time. If this bites in play, the fix is Phase 2/3
    owning non-attack damage application, not a bigger veto.
 
-5. **The hold's UI is settled and shipped** (user calls, 2026-08-15) — recorded because it is
+2. **The hold's UI is settled and shipped** (user calls, 2026-08-15) — recorded because it is
    binding on anything built next: **the popup decides, the card watches, the card is public
    so the table sees the moment.** One card shape (`bfCard`) for everything the module says out
    loud; the card carries no answer controls where popups are on, only an *Answer* button that
@@ -101,26 +87,26 @@ whatever they find, so it drifts:
    `canAnswerFor` on the player-owned targets it was designed for. Reported by the user as
    "it seems like it should be a binary choice". The AFK fallback is the **timer**, not a
    button. `smoke-hold` §4d3 and §6 both assert the control set is exactly `Cast/Pass`.
-6. **Cards say one thing, once.** The verdict card for a negate hold was two lines until the
+3. **Cards say one thing, once.** The verdict card for a negate hold was two lines until the
    user cut it back: "Magic Missile does nothing to Skeletal Mage" already says the whole thing,
    and a second line restating it mechanically ("its damage is not applied to them") plus a
    note about the other targets answered questions nobody watching had asked. Worth remembering
    when writing the next announcement.
-7. **The hold timer is built** (v1.1.8–v1.1.10) — `holdTimer` seconds, 0 = wait indefinitely,
+4. **The hold timer is built** (v1.1.8–v1.1.10) — `holdTimer` seconds, 0 = wait indefinitely,
    live at 15s. The continuing client owns the one authoritative clock and re-checks at the
    buzzer; unanswered targets pass and are marked `timedOut`. The bar is built with
    `element.animate()` and positioned from the flag's absolute deadline, so popup and card
    agree exactly (measured drift 0). ⚠ Do not "simplify" it back to a CSS animation — see the
    ground truth below for why that silently desyncs.
-8. **Usage-card suppression vs effects — partially fixed.** Cards carrying effects are now
+5. **Usage-card suppression vs effects — partially fixed.** Cards carrying effects are now
    never suppressed (that was Ray of Frost's slow vanishing). The deeper fix is Phase 3
    applying effects itself, after which suppression can go back to being unconditional.
-9. **Phase 2.5 concentration visibility** (user request, 2026-08-15): a world setting for who
+6. **Phase 2.5 concentration visibility** (user request, 2026-08-15): a world setting for who
    sees the concentration check — everyone, or just the concentrator + DM. Public is the
    interesting default for table tension when a party-wide buff like Bless is at stake.
-10. **design.md §9 says "combatplus is the template."** The user has explicitly softened that:
-    combatplus is a *reference*, not a template — do what is correct for Battle Flow. The doc
-    sentence is a candidate for a §10-style correction.
+7. **design.md §9 says "combatplus is the template."** The user has explicitly softened that:
+   combatplus is a *reference*, not a template — do what is correct for Battle Flow. The doc
+   sentence is a candidate for a §10-style correction.
 
 ## How to work on this
 
@@ -221,7 +207,7 @@ connected player is someone else at the table.
 
 ## Ground truths that already cost a debugging session
 
-Each of these is commented at the line where it bit. Do not rediscover them.
+Most of these are commented at the line where it bit. Do not rediscover them.
 
 **Foundry / v14**
 
@@ -306,6 +292,17 @@ Each of these is commented at the line where it bit. Do not rediscover them.
   gets you the usage card. It fires on whichever client is applying, so a veto must not be
   GM-gated. **Healing takes this same path** (`roll.type: "healing"`), so any veto must check
   the roll type or it can refuse someone a cure.
+- ⚠ **A `min3` damage die survives crit doubling — the CARD is what lies.** Great Weapon
+  Fighting is not automated by the system (its own feature text says so); the premades and this
+  world both express it as a **custom damage formula**, `2d6min3` on the weapon's base part.
+  `configureDamage` raises the die COUNT through `term.alter(cm, cb)` and never touches
+  `term.modifiers`, so a crit rolls `4d6min3`. Measured on Morgash's greatsword, 250 rolls each
+  way: every die under 3 paid out as a 3, normal and crit alike. What misleads is the render —
+  Foundry's `min` leaves `result: 1` and sets `count: 3`, so the card prints the glyph **1**
+  with a faint `rerolled` class and the missing 2 shows up only in the total, identically on
+  both. **A correct crit looks exactly like a broken one; read the total, not the faces.**
+  *(Reported 2026-08-15 as "the 1 became a 3 on a normal hit but not on a crit"; closed by
+  building the real roll through `getDamageConfig` → `DamageRoll.build` with `create: false`.)*
 - **Spell-slot consumption is skippable in data**: `hasSpellSlotConsumption` is
   `requiresSpellSlot && consumption.spellSlot` (`mixin.mjs:432`), so an activity built with
   `consumption.spellSlot: false` casts with no slot at all. That is how §6 gives an NPC with no
@@ -411,6 +408,6 @@ zero coordination because of this.
   freely, then *offer* the release — they say yes, but the offer is the courtesy.
 - They test immediately after a release, so say plainly what is live, what needs an F5, and
   what needs a process restart.
-- They cut prose that repeats itself. Say it once (standing item 6).
+- They cut prose that repeats itself. Say it once (standing item 3).
 - combatplus is a **reference, not a template**.
 - Surface doc/code disagreements rather than silently choosing (design.md §10).

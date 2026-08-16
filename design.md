@@ -330,6 +330,38 @@ rewind. So: a **hold point** between hit determination and the damage roll.
   timeouts-as-protocol. The hold is the full extent, forever. Humans play reactions; the
   module just waits for them.
 
+### Phase 1.75 — curated damage riders (the Hunter's Mark tier)
+
+*Was Phase 3.5; moved ahead of saves 2026-08-15 (user call). The move is legitimate because
+this phase never actually depended on Phase 3 — see the note under tier 2.*
+
+Three tiers of damage-adders:
+
+1. **Flat, unconditional** (Divine Favor): already native — an active effect writing
+   `system.bonuses.mwak/rwak.damage` is folded into damage rolls by the system. Zero code, at
+   any phase; it only needs the effect to be *on* the caster.
+2. **Target-conditional** (Hunter's Mark, Hex): dnd5e 5.3.3 cannot express "only vs the marked
+   creature" (Conditional ActiveEffects is on the system roadmap — **delete this shim when it
+   ships**). The mark effect on the target **IS the state**: at `dnd5e.preRollDamageV2`
+   (attacker's client, config still mutable), check whether the hit target carries a mark whose
+   origin traces to this attacker's spell; if so, append the typed damage part **into the roll
+   config before rolling** — crit-doubling and resistance math come free. Formulas from a
+   **curated rider table** ("Hunter's Mark → 1d6 force vs bearer"), scoped to this table's
+   spells — not a babonus/midi-flags general engine. ~50–100 lines.
+   **What it needs is that the mark is present, not that we placed it.** Today the caster
+   applies it by hand from the native effect tray, which is exactly the click Phase 3 will
+   automate later; the rider reads the resulting effect either way. So Phase 3 is a comfort
+   ahead of this phase, never a prerequisite — the earlier wording ("the mark effect Phase 3
+   placed") overstated the coupling.
+3. **Not touched**: Hex's ability-check disadvantage (conditions layer), moving the mark on a
+   kill (a bonus-action decision — a human moment, not a button).
+
+Independent of Phase 1 as well: `preRollDamageV2` fires on the damage roll whether Battle Flow
+auto-rolled it or a human pressed the native Damage button, so the rider works with auto-damage
+off. **Ordering caveat inherited from the reaction hold:** a held attack rolls its damage after
+the answer, on the continuing client — still that client's `preRollDamageV2`, so nothing
+special is owed here, but the smoke suite should prove it rather than assume it.
+
 ### Phase 2 — saves
 
 - **Everyone auto-rolls** (target state): each player's client auto-rolls for save-activity
@@ -386,24 +418,6 @@ Auto-apply a used activity's effects, filtered by outcome — the native effect 
   `getInitialDuration` behavior — rounds in combat, seconds out).
 - Condition riders on statuses are native and come along free.
 
-### Phase 3.5 — curated damage riders (the Hunter's Mark tier)
-
-Three tiers of damage-adders:
-
-1. **Flat, unconditional** (Divine Favor): already native — an active effect writing
-   `system.bonuses.mwak/rwak.damage` is folded into damage rolls by the system. Phase 3 lands
-   the effect; zero code.
-2. **Target-conditional** (Hunter's Mark, Hex): dnd5e 5.3.3 cannot express "only vs the marked
-   creature" (Conditional ActiveEffects is on the system roadmap — **delete this shim when it
-   ships**). The mark effect Phase 3 placed on the target **IS the state**: at
-   `dnd5e.preRollDamageV2` (attacker's client, config still mutable), check whether the hit
-   target carries a mark whose origin traces to this attacker's spell; if so, append the typed
-   damage part **into the roll config before rolling** — crit-doubling and resistance math come
-   free. Formulas from a **curated rider table** ("Hunter's Mark → 1d6 force vs bearer"),
-   scoped to this table's spells — not a babonus/midi-flags general engine. ~50–100 lines.
-3. **Not touched**: Hex's ability-check disadvantage (conditions layer), moving the mark on a
-   kill (a bonus-action decision — a human moment, not a button).
-
 ### Phase 4 — effect expiry (verify first; possibly zero code)
 
 Bless (10 rounds, concentration) is the canonical case and usually dies by **concentration
@@ -448,10 +462,10 @@ World, per-feature, default OFF unless noted:
 | Halving reactions | pause / post-hoc via revert+½ | 1.5 |
 | Hold timer | off (wait) / N seconds | 1.5 |
 | Popup shows the math | off / on (verdict included) | 1.5 |
+| Rider table | curated list (spell → formula/type vs bearer) | 1.75 |
 | Saves | prompt everyone / auto NPCs / auto everyone | 2 |
 | Concentration | prompt / auto; break-on-failure on/off | 2.5 |
 | Effect auto-application | off / on | 3 |
-| Rider table | curated list (spell → formula/type vs bearer) | 3.5 |
 | Expiry sweep | off / on (only if core proves insufficient) | 4 |
 
 Per-client: table-moment view (popup+card / card-only); later: per-player save opt-out
@@ -486,7 +500,7 @@ active-GM-gated). Verified against `foundryvtt/dnd5e` tag `release-5.3.3` (commi
 | Effect application | `EffectApplicationElement._applyEffectToActor` semantics; `message.system.effects`; save-effect `onSave` flag | Phase 3 |
 | Concentration linkage | effect `origin` = concentration effect + `flags.dnd5e.dependentOn` ⇒ active-GM deletes dependents on break (the ONE native GM-proxy pattern) | Phases 2.5, 3 |
 | Concentration prompt | auto-whisper on HP loss w/ computed DC (`challengeConcentration`); **failed save does NOT end concentration natively** | Phase 2.5 |
-| `dnd5e.preRollDamageV2` | config mutable pre-roll — inject rider damage parts here (crit-doubling free) | Phase 3.5 |
+| `dnd5e.preRollDamageV2` | config mutable pre-roll — inject rider damage parts here (crit-doubling free) | Phase 1.75 |
 | Turn events | `dnd5e.preCombatRecovery` etc. — fire on the **active-GM** client | Reaction-spent clear, expiry sweep |
 | Native bonuses | `system.bonuses.<mwak/rwak/msak/rsak>.damage` folded into rolls | Tier-1 riders (free) |
 | Native settings | `attackRollVisibility`, `challengeVisibility`, `autoCollapseChatTrays`, `autoRecharge`, `autoRollNPCHP`, `bloodied` | Phase 0 |

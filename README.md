@@ -30,10 +30,10 @@ Rollout (each phase behind its own setting, default off):
 | --- | --- |
 | **1 ✓** | Attack resolver: auto-roll damage on hit, auto-apply to hit targets, revert receipts |
 | **1.5 ✓** | Reaction hold: Shield-window pause with popup + card row (a pause, not a system), on a hit **or** on a listed spell — Magic Missile really is stopped |
+| 1.75 | Curated damage riders (Hunter's Mark tier) |
 | 2 | Saves: auto-roll for everyone, half-damage-on-save made real |
 | 2.5 | Concentration assist: un-buryable prompt + break-on-failure |
 | 3 | Effect application on hit / failed save |
-| 3.5 | Curated damage riders (Hunter's Mark tier) |
 | 4 | Effect expiry (likely native on v14 core — verify first) |
 | 5 | Conditions layer (AC5e adoption candidate) |
 
