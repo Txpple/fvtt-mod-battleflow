@@ -5,10 +5,10 @@
 > *where things stand* and *what already bit us*. Delete or rewrite it freely; it is a
 > snapshot, not a contract.
 >
-> **Phase 1.5 is done and dogfooded — start on Phase 1.75 (hit riders: Hunter's Mark, Hex)**
-> unless the user redirects; design.md carries the swept rider table and the four findings that
-> are binding on it. Nothing is tracked open against the reaction hold. The standing notes
-> below are design constraints rather than to-dos.
+> **Phase 1.75 (hit riders) is built, tested 8/8 and released as v1.2.0 — but NOT yet
+> dogfooded.** It ships off; the user tests next. After that, Phase 2 (saves). Nothing is
+> tracked open against the reaction hold. The standing notes below are design constraints
+> rather than to-dos.
 
 ## Where things stand
 
@@ -23,8 +23,8 @@ manifest and zip are gone), so the process vends the real version string after a
 | 1 — attack resolver | ✅ shipped. Auto-roll damage on hit, auto-apply via GM elect, receipts + revert. |
 | 1.1 — dogfood polish | ✅ shipped. Tray auto-collapse, require-target gate, usage-card suppression, centered roll dialogs. |
 | 1.5 — reaction hold | ✅ **feature-complete at v1.1.16** and dogfooded — both triggers exist: an attack hit, and a listed spell. Magic Missile and the player-client seam were both played at the table 2026-08-15 with nothing reported; Magic Missile stays in normal dogfood rotation rather than on a list. |
-| 1.75 — hit riders | ⬜ **next.** Hunter's Mark / Hex, at `dnd5e.preRollDamageV2`. |
-| 2 — saves | ⬜ after 1.75. |
+| 1.75 — hit riders | ✅ shipped v1.2.0, **awaiting dogfood.** A mark pays out with the attack that earned it. |
+| 2 — saves | ⬜ **next**, once riders have seen a table. |
 | 2.5 — concentration | ⬜ has a queued user request (below). |
 | 3 — effect application | ⬜ two standing notes depend on it. |
 
@@ -32,6 +32,10 @@ manifest and zip are gone), so the process vends the real version string after a
 `flat` → `natural`. Its `flat: 16` is untouched, so its printed AC is still 16 — but a flat AC
 ignores every bonus, which made Shield inert on it. See the flat-AC ground truth; reverting the
 field restores the old behaviour, bug included.
+
+⚠ **Phase 1.75's three settings ship OFF and have never been on at the table.** `Hit Riders`,
+`Rider Table` (`hunters-mark, hex, great-old-one-hex`) and `Rider Upgrades`
+(`foe-slayer:hunters-mark`). They need an **F5** to appear in the sheet.
 
 **Live settings as left** — verify with a read before trusting this list; the suites restore
 whatever they find, so it drifts:
@@ -153,6 +157,10 @@ node tools/smoke-battleflow.mjs
 
 ```bash
 node tools/smoke-hold.mjs
+```
+
+```bash
+node tools/smoke-riders.mjs
 ```
 
 `tools/scan-reactions.mjs` regenerates the [REACTIONS.md](REACTIONS.md) survey after content
@@ -303,6 +311,24 @@ Most of these are commented at the line where it bit. Do not rediscover them.
   both. **A correct crit looks exactly like a broken one; read the total, not the faces.**
   *(Reported 2026-08-15 as "the 1 became a 3 on a normal hit but not on a crit"; closed by
   building the real roll through `getDamageConfig` → `DamageRoll.build` with `create: false`.)*
+- ⚠ **A `system.identifier` is NOT unique across rule versions.** `dnd5e.spells` (2014) ships a
+  Hunter's Mark with identifier `hunters-mark` and **no bonus-damage activity at all** — the
+  separate "Bonus Mark Damage" press is a 2024 modelling. `smoke-riders` picked it by taking the
+  first identifier match and scored **4/8 with every negative assertion passing vacuously**.
+  Select content by the SHAPE you need, not by the identifier alone.
+- **A mark names its placer through `origin`, and there are TWO shapes.** The effect tray writes
+  `origin = concentration ?? effect` (`effect-application.mjs:184`): normally the source item's
+  own effect (`Actor.x.Item.y.ActiveEffect.z`), but the caster's concentration effect when
+  `chatMessage.system.concentration` is set. A live mark on this table took the FIRST branch
+  while its ranger was concentrating throughout — so do not code to either. Walk the uuid up to
+  the nearest Actor, and if no Item was passed, read `flags.dnd5e.item` off the origin effect.
+  **Concentration is never a gate**: the dependent-effect cascade deletes the mark when
+  concentration breaks, so a mark still on the target is a mark that still counts.
+- **Injecting a damage part at `dnd5e.preRollDamageV2` gets crit doubling for free.** That hook
+  fires at `basic-roll.mjs:101`, *before* `applyKeybindings` at `:106` stamps `options.isCritical`
+  onto every entry in `config.rolls` — including one pushed by a module. Do not hand-roll it.
+  ⚠ And do not consult `damage.critical.allow`: it governs the standalone button (where there is
+  no attack to ask about) and reads inconsistently across official content.
 - **Spell-slot consumption is skippable in data**: `hasSpellSlotConsumption` is
   `requiresSpellSlot && consumption.spellSlot` (`mixin.mjs:432`), so an activity built with
   `consumption.spellSlot: false` casts with no slot at all. That is how §6 gives an NPC with no
