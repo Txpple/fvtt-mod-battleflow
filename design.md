@@ -529,25 +529,31 @@ v1.3.0 (2026-08-16).
 > own controls (situational bonus, Advantage/Normal/Disadvantage, default hinted from actor
 > data). Saving throws generalize that pattern per target — they do not invent a new one.
 
-- **Everyone auto-rolls** (target state): each player's client auto-rolls for save-activity
-  targets it owns (the usage card replicates everywhere — same volunteer pattern; first-active-
-  owner election prevents double rolls); the active-GM elect batch-rolls NPC targets and covers
-  offline owners. `actor.rollSavingThrow({ ability, target: dc }, { configure: false }, ...)`
-  with `originatingMessage` stamped so results chain to the card.
+- **The popup is the default, not the auto-roll** (user call, 2026-08-16, superseding the
+  earlier "everyone auto-rolls" target state): a save-activity target owned by a player gets
+  a **popup on that player's client** carrying the native roll dialog's own controls —
+  situational bonus + Advantage/Normal/Disadvantage, exactly the concentration ask's surface
+  — deliberately *unlike* midi-qol's silent roll-and-apply. The save is a table moment; the
+  player presses it. A **per-player client setting opts out** to silent auto-roll
+  (`configure: false`, data-driven), **default popup ON**. First-active-owner election picks
+  the client; the active-GM elect covers NPCs, offline owners, and the buzzer — the 2.5
+  machine per target, exactly.
 - **Aggregation**: watch `createChatMessage` for `flags.dnd5e.roll.type === "save"` with a
   matching originating message; respect the legendary-resistance `forceSuccess` flag on later
   updates.
 - **Application**: per-target and independent — each target's damage awaits only *that
-  target's* result (no table-wide barrier; an AFK player idles only their own resolution).
+  target's* result (no table-wide barrier; an AFK player idles only their own resolution),
+  then effect/damage apply per verdict through the shared appliers.
   `flags.dnd5e.roll.damageOnSave === "half"` ⇒ ½ multiplier on a success (display-only in the
-  native system; we make it real).
-- **Mode ladder** (world): prompt everyone (native buttons only) → auto NPCs only → auto
-  everyone. Later: per-player client opt-out ("prompt me instead") for players who want the
-  click.
-- **Accepted trade-off**: `configure: false` skips ad-hoc advantage/disadvantage dialogs.
-  Effect-driven bonuses (Bless dice, Magic Resistance, aura saves) live in actor data and apply
-  automatically; the rare situational call is a GM re-roll. The conditions layer (Phase 5)
-  closes most of the remainder.
+  native system; we make it real — the applier's threaded `multiplier` is already in place).
+- **Mode ladder** (world): off → on (popup default + per-player opt-out as above). The old
+  "auto everyone" world default is dropped by the same user call; auto is now the player's
+  own opt-out, not the table's imposition.
+- **Accepted trade-off**: the opt-out's `configure: false` skips ad-hoc
+  advantage/disadvantage dialogs for players who chose speed. Effect-driven bonuses (Bless
+  dice, Magic Resistance, aura saves) live in actor data and apply automatically either way;
+  the rare situational call is the popup's own fields, or a GM re-roll for the opted-out.
+  The conditions layer (Phase 5) closes most of the remainder.
 
 ### Phase 2.5 — concentration assist
 
@@ -799,17 +805,24 @@ House patterns inherited from the module family (combatplus is a **reference, no
 template** — the user softened the original "template" wording on 2026-08-15: consult it for
 idiom, then do what is correct for Battle Flow):
 
-- Single ES module (`scripts/battleflow.js`), no build step, no bundler. If the file outgrows
-  readability, split by phase — but fight for the single file first. **The trigger, so nobody
-  relitigates it** (2026-08-16 review): split when a phase can no longer be found by scrolling
-  the section banners — in practice somewhere past ~4,500 lines, likely when Phase 2.5 lands.
-  The shape when it happens: `battleflow.js` stays the only `esmodules` entry and imports
-  sibling files under `scripts/` (plain ES imports need no build step and no manifest change),
-  split along the existing section banners. Budget for the mechanics: `tools/build-release.ps1`
-  ships an explicit file list, and the deploy script enumerates files — both must learn the
-  new names, so the split is a release of its own, not a drive-by. The same review set the
-  stylesheet trigger: inline styles are the hot-deploy trade until the card/popup styling
-  grows again, at which point add the stylesheet and pay the one process bounce.
+- **The split happened at v1.6.1** (2026-08-16, at 4,504 lines — the ~4,500 trigger the
+  2026-08-16 review set). The shape is as prescribed: `battleflow.js` stays the only
+  `esmodules` entry and imports fourteen siblings under `scripts/` (plain ES imports, no
+  build step, no manifest change — proven live: the split deployed on an F5 alone), cut
+  verbatim along the section banners, one file per phase plus `core.js` (shared constants),
+  `shared.js` (hit test + chain walk), and `ui.js` (popup lifecycle, house card, countdown
+  bar, the hold's views). Two disciplines keep it sound, both enforced by comment at the
+  site: **registration order is import-graph evaluation order**, and the one order that
+  matters — the hold's `preApplyDamage` veto before concentration's cause capture — is held
+  by `hold.js` reaching `auto-apply.js` through a **lazy `import()`**; making that edge
+  static (or adding any new import from the hold/ui pair into the
+  auto-apply/mastery/concentration chain) reorders the hooks. When adding a same-hook
+  registration in a new file, check relative order against the flag guards before trusting
+  it. Tooling: `tools/build-release.ps1` enumerates `scripts/*.js` at build time and the
+  deploy script always walked the disk, so a new phase file ships with zero tooling change.
+  The stylesheet trigger stands: inline styles are the hot-deploy trade until the
+  card/popup styling grows again, at which point add the stylesheet and pay the one
+  process bounce.
 - `S` key-map + `setting()` getter. **Entry-point hooks check their feature toggle first;
   view and continuation hooks check for the presence of their flag instead** — an
   already-stamped moment (a pending hold, an unexecuted ask) must still render and resolve

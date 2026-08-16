@@ -1,38 +1,36 @@
 # HANDOFF.md — picking this up cold
 
-> Current at 2026-08-16, LATE evening — **v1.5.0 built, six-suite battery-proven, and
-> released in one AFK stretch**, off four user calls from the same afternoon's live
-> dogfooding. Read [design.md](design.md) first — it is binding and wins every
-> disagreement. This file is only *where things stand* and *what already bit us*.
-> Delete or rewrite it freely; it is a snapshot, not a contract.
+> Current at 2026-08-16, night — **v1.6.1: THE SPLIT, shipped and battery-proven in the
+> same unattended stretch the user asked for it in.** Read [design.md](design.md) first —
+> it is binding and wins every disagreement. This file is only *where things stand* and
+> *what already bit us*. Delete or rewrite it freely; it is a snapshot, not a contract.
 >
-> **v1.5.0** = the Phase 3 **cast slice pulled ahead** (a no-gate cast applies itself:
-> utility-activity effects land on every snapshot target, heal activities roll and land —
-> receipts + revert throughout, suppressed cards replaced by a payload-carrying module
-> card), the **Topple card folding its own save** (a failure applies Prone itself — the
-> first Phase 2 seam pressed in place), **reminder popups** for the automatic masteries and
-> Cleave (OK-only, 15s), and **effect-receipt hover tooltips**. All deployed; the GitHub
-> release is cut per the release log. **The live settings are fully loaded for Tuesday** —
-> the user walked the ladder themselves while testing (castApply ON, concMode PROMPT,
-> effect + mastery riders ON, masteryAsk ask) — verify with a read as always.
-> **Phase 2 (saves) is next**; the 2.5 machine (mode gate, ask + respondsTo fold, owner
-> election, buzzer-that-rolls, native-dialog popup) is still the pattern it generalizes,
-> and the topple fold is a working miniature of exactly that fold.
+> **v1.6.1** = `scripts/battleflow.js` (4,504 lines, past the §9 trigger) cut into **an
+> entry + 14 sibling ES modules** along the existing section banners — verbatim slices,
+> zero behavior change, proven three ways (byte-exact reconstruction, stubbed graph-load
+> with hook-order diff, full six-suite battery green on prod). The entry stayed the only
+> `esmodules` entry, so the split needed **no process restart** — it went live on an F5,
+> which settles the restart question this file used to carry the wrong way. See "The shape
+> of the thing" for the map and the ONE import rule that keeps hook order sound.
+> **Phase 2 (saves) is next** — the user's design call is recorded in design.md Phase 2:
+> the save is a POPUP on the owning player's client (the concentration ask's native-controls
+> surface), per-player opt-out to auto-roll, popup default ON — deliberately not midi-qol's
+> silent roll-and-apply. The 2.5 machine (mode gate, ask + respondsTo fold, owner election,
+> buzzer-that-rolls, native-dialog popup) is the pattern it generalizes; the topple fold is
+> the working miniature, and every seam Phase 2 needs is now an exported symbol a new
+> `saves.js` can import without touching the siblings.
 
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.6.0** (2026-08-16, the third round, from two
-checklist results: the **topple save popup** — the concentration ask's native-controls
-surface on the decider's client, the card's Roll button as its recall — and the **Magic
-Missile rework**: the blocklisted card suppresses after all (the hold rides a replacement
-bfCard, the damage roll is bridged to it, the veto gained a message-free fallback), and
-damage-activity damage **auto-applies per target** under Auto-Apply, claimed at birth and
-deferring on a pending hold, negated targets skipped). Earlier the same day: v1.5.1 (six
-table fixes + combatplus v1.3.0), v1.5.0 (cast slice, topple fold, reminders, tooltips),
-v1.4.0 (concentration), v1.3.x (Phase 1.9). Deployed, tags pushed, GitHub releases carry
-zip + manifest. **The box tracks the GitHub manifest** (repointed 2026-08-15), so the
-process vends the real version string after a restart.
+Molten-hosted). Latest release **v1.6.1** (2026-08-16, night): **the split** — pure
+refactor, no behavior change, full battery green on prod after deploy. Before it, the same
+day: v1.6.0 (topple save popup; Magic Missile rework — replacement-card hold, bridged
+damage roll, veto fallback, per-target auto-apply), v1.5.1 (six table fixes + combatplus
+v1.3.0), v1.5.0 (cast slice, topple fold, reminders, tooltips), v1.4.0 (concentration),
+v1.3.x (Phase 1.9). Deployed, tags pushed, GitHub releases carry zip + manifest. **The box
+tracks the GitHub manifest** (repointed 2026-08-15), so the process vends the real version
+string after a restart.
 
 | Phase | State |
 | --- | --- |
@@ -83,30 +81,32 @@ whatever they find, so it drifts:
 
 ## Open items
 
-### Where the plan points now (2026-08-16, end of the three-round testing day)
+### Where the plan points now (2026-08-16, night — post-split)
 
-**All three live-testing rounds are VERIFIED at the table** — the 1.9 ladder, the cast
-slice, concentration pacing, the topple popup, and the Magic Missile rework all carry the
-user's "all looks good." Nothing from live play is open. The table is loaded for Tuesday;
-the box vends a stale version STRING (1.3.1) until the Foundry process restarts — purely
-cosmetic, and the restart can wait for the next natural bounce (below).
+**All three live-testing rounds are VERIFIED at the table** (the 1.9 ladder, the cast
+slice, concentration pacing, the topple popup, the Magic Missile rework — all carry the
+user's "all looks good"), and **the split is done** (v1.6.1, this session, user-directed:
+"focus on the refactor… architecturally sound for the long haul"). Nothing from live play
+is open. The table is loaded for Tuesday; the box vends a stale version STRING (1.3.1)
+until the Foundry process restarts — purely cosmetic, still fine to wait for a natural
+bounce. The split itself needed no restart (design.md §9's import shape, proven live).
 
-**Next, in this order:**
+**Next: Phase 2 — saves.** design.md's Phase 2 note is the spec, freshly updated with the
+user's call (2026-08-16): **popup default** on the owning player's client with the native
+dialog's controls (situational bonus + Adv/Normal/Dis — the concentration ask's surface),
+**per-player opt-out** to silent auto-roll, then effect/damage per verdict — deliberately
+not midi-qol's auto-everything. Generalize the 2.5 machine per target; the topple fold +
+popup (v1.5/1.6) is the working miniature — recognizer, stored-DC judging, decider popup
+with native controls, verdict pause. Half-on-save rides the applier's threaded
+`multiplier`; `forceSuccess` aggregation closes the LR corner; two-client coverage rides
+PC Assistant (`probe-player-seam.mjs` is the proving spike). Build it as a new `saves.js`
+importing the exported seams (see the shape section) — the split left every one of them
+public for exactly this.
 
-1. **The split.** `scripts/battleflow.js` is at **4,504 lines — past design.md §9's
-   ~4,500 trigger**, so per the doc's own rule the split LEADS Phase 2 rather than
-   trailing it. New `esmodules` entries need the one-time Foundry **process restart** —
-   the same restart that fixes the version string, so take both together (ask the user
-   for a Molten bounce moment; NEVER `game.shutDown()` through the bridge).
-2. **The second Molten box** (user call, unchanged below): `.env.test` values are still
-   awaited from the user; then the clone + register + `BF_TARGET` switch + battery, and
-   the take-turns protocol gets recorded here. The two-client Phase 2 harness wants it.
-3. **Phase 2 — saves** (design.md's Phase 2 note is the spec): generalize the 2.5
-   machine per target. The topple fold + popup shipped in v1.5/1.6 IS the working
-   miniature — recognizer, stored-DC judging, decider popup with native controls,
-   verdict pause — Phase 2 grows it to save activities proper, half-on-save through the
-   applier's threaded `multiplier`, `forceSuccess` aggregation (the LR corner), and the
-   PC Assistant two-client coverage (`probe-player-seam.mjs` is the proving spike).
+**Struck: the second Molten box** (user, 2026-08-16: "we cant have a second box so strike
+that for now"). The full provisioning plan lives in this file's git history (section "the
+second Molten box", ≤ v1.6.0) if it ever returns. Suites keep running on prod, taking
+turns with live sessions — check who's connected before yanking clients.
 
 **Leftovers, all deliberate, none blocking** — so the next session treats reports against
 these as design conversations, not bugs: legendary resistance still arrives too late
@@ -118,36 +118,6 @@ the paper-roll backstop); hopeless skips are silent by design (the dead, the spe
 twice mistaken for bugs on 2026-08-16, so say so early if it recurs); the reaction
 effect's missing receipt/revert remains Phase 3's convergence gap; the save-activity
 slice of Phase 3 waits on Phase 2.
-
-### To do next (user call, 2026-08-16): the second Molten box
-
-The user is provisioning a **second Molten instance as a dedicated test box**. ⚠ **Molten
-allows two servers but only ONE can be active at a time** (user, 2026-08-16) — so this is a
-**take-turns box, not a parallel one**: no suite runs on test while the table plays on prod,
-and the protocol below must include switching which server is up (activate test → iterate +
-battery → deactivate → activate prod → deploy + one prod battery → release). Chosen over a
-local mirror deliberately: it keeps real internet latency, which is where this module's bug
-class (settle windows, replication races, derived-data beats) actually lives, and the speed
-gain of local was measured small (suite time is deliberate waits, not network).
-
-When the box exists, the user supplies its panel values in a new
-`../fvtt-mcp-molten5e/.env.test` (same key names as `.env`: server URL, magic URL, WebDAV
-URL + credentials, admin key). Then, in one pass:
-
-1. Clone the Greenrest world to it over WebDAV — write the push counterpart to
-   `pull-prod-to-local.mjs`. Users are world data, so DM Assistant and PC Assistant arrive
-   working, passwords included.
-2. Register + enable battleflow there (`register-module.mjs`, `configure-modules.mjs`).
-3. Add a target switch to the suites and `deploy-house-module.mjs` — default prod,
-   `BF_TARGET=test` reads `.env.test` — so today's workflow changes only on opt-in.
-4. Full four-suite battery green on the test box, then record the protocol here:
-   **iterate + battery on test → deploy prod → one full battery on prod → release.** The
-   prod battery stays forever: live-world DATA is itself coverage (the flat-AC Skeletal
-   Mage was a data bug no clean mirror would have caught). Refresh the test world from
-   prod periodically so the weird stays represented.
-
-This is the natural first step of Phase 2 — the two-client owner-election harness (PC
-Assistant) wants a box it can hammer.
 
 ### Standing
 
@@ -600,6 +570,16 @@ Most of these are commented at the line where it bit. Do not rediscover them.
   popouts. Any "do this once per message" latch in a render hook fires on a tree that gets
   replaced while the ones on screen skip. Render hooks must be **stateless**. (Also why a
   `querySelectorAll` over a message's controls returns each button more than once.)
+- ⚠ **ESM evaluation order is import-graph order, not entry-list order** (the split,
+  v1.6.1). A file's imports evaluate before its own body, so an "early" file importing a
+  "late" one registers the late file's hooks FIRST — and `Hooks.call` stops at the first
+  `false`, so relative order between same-hook registrations can be behavioral. The live
+  case: the hold's `preApplyDamage` veto must register before concentration's cause
+  capture, held by the lazy `import()` in `hold.js` (comment at the site). The cycles
+  between split files (hold↔ui, hold↔auto-damage, mastery↔concentration, mastery↔
+  auto-apply) are safe only because every crossing symbol is a hoisted `function`
+  declaration called at hook time, never at module-eval time — keep new cross-file
+  symbols to that shape or break the cycle.
 - **Detached render trees hold un-upgraded custom elements.** `tray.open = false` writes a
   plain property that shadows the accessor and never touches the attribute. Use
   `toggleAttribute` — which is exactly what the system's own `_collapseTrays` does.
@@ -852,17 +832,38 @@ Most of these are commented at the line where it bit. Do not rediscover them.
 
 ## The shape of the thing
 
-One ES module, `scripts/battleflow.js`, no build step (**4,156 lines — the ~4,500 split
-trigger in design.md §9 is one phase away; plan the split as part of Phase 2**). Sections
-in order: settings + the settings-sheet polish, shared hit-test/chain helpers, table
-polish (incl. per-source suppression + the cast-slice stamps/replacement), Phase 1a
-auto-damage, the reaction hold (eligibility → **both triggers** → answers → continuation →
-the veto → views), Phase 1.75 hit riders, Phase 1b auto-apply + the shared damage applier,
-Phase 1.9A effect riders + the shared effect applier (`applyEffectsWithReceipt` — the
-Phase 3 convergence, extracted at v1.5.0), Phase 1.9B/C mastery riders + the topple fold +
-the reminders + the ask, **Phase 2.5 concentration (cause capture → trigger → ask → roll →
-fold → break → views → native-card veto)**, **Phase 3 cast slice (stamp → elect executes →
-receipts)**, receipts. Entry-point hooks check their feature toggle; view/continuation
+**Fifteen ES modules under `scripts/`, no build step** (the split, v1.6.1 — verbatim
+banner-aligned slices of the old single file; `git show v1.6.0:scripts/battleflow.js` is
+the pre-split original when archaeology needs it). `battleflow.js` (98 lines) is the only
+`esmodules` entry: the module doc comment plus fourteen imports in original section order.
+
+| File | Lines | Holds |
+| --- | --- | --- |
+| `core.js` | 47 | MODULE_ID, TITLE, the `S` key map, `setting()`, `isActiveGM()` — the leaf everything imports |
+| `settings.js` | 288 | registration + settings-sheet polish |
+| `shared.js` | 63 | the hit test and the chain walk |
+| `polish.js` | 206 | no-target gate, per-source card suppression, cast-slice stamps, dialog centering |
+| `auto-damage.js` | 66 | Phase 1a — auto-roll damage on hit |
+| `hold.js` | 1069 | Phase 1.5 — the whole reaction-hold machine: eligibility, both triggers, answers, continuation, veto, spell-damage applier claim |
+| `ui.js` | 594 | popup lifecycle (`openManagedPopup`), the house card (`bfCard`), the countdown bar, the hold's views + timers |
+| `hit-riders.js` | 228 | Phase 1.75 — curated damage riders |
+| `auto-apply.js` | 139 | Phase 1b — the elect's applier, `applyDamagesWithReceipt`, the payout pipeline |
+| `effect-riders.js` | 130 | Phase 1.9A — `applyEffectsWithReceipt` (the Phase 3 convergence) |
+| `mastery.js` | 749 | Phase 1.9B/C — mastery riders, the ask (`armAskTimer` twins), the topple fold + popup, reminders |
+| `concentration.js` | 591 | Phase 2.5 — cause capture → ask → roll → fold → break, `dramaticVerdictPause` |
+| `cast.js` | 93 | Phase 3 cast slice — the elect executes stamped payloads |
+| `receipts.js` | 280 | the receipt/revert views |
+
+Cross-file symbols are plain named exports; the discipline that keeps hook ORDER sound is
+in design.md §9 and enforced by comment at the one place it bites: **`hold.js` reaches
+`auto-apply.js` through a lazy `import()`** so the hold's `preApplyDamage` veto registers
+before concentration's cause capture. Do not make that edge static, and when adding a
+same-hook registration in a new file, check relative order (the stubbed-load verifier in
+the 2026-08-16 session's scratchpad did this mechanically; rebuilding it is ~80 lines).
+Phase 2's `saves.js` imports its seams (`canAnswerFor`, `openManagedPopup`, `holdBarHTML`,
+`armAskTimer`/`disarmAskTimer`, `dramaticVerdictPause`, `applyDamagesWithReceipt` +
+`multiplier`, `applyEffectsWithReceipt`) and adds one import line to the entry — no
+sibling edits needed. Entry-point hooks check their feature toggle; view/continuation
 hooks check flag presence (the cast slice's stamps are exactly this discipline); every
 feature ships **off**.
 
