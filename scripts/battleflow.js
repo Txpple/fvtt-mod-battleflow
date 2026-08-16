@@ -502,6 +502,15 @@ function castApplyQualifies(doc) {
   const activityType = doc.getFlag("dnd5e", "activity")?.type;
   if ( (activityType !== "utility") && (activityType !== "heal") ) return false;
   if ( !(doc.getFlag("dnd5e", "targets") ?? []).length ) return false;
+  // ⚠ The activity must actually AIM at creatures. A range-self spell's target snapshot is
+  // incidental UI targeting, not the spell's aim — and Shield is a utility-with-effects
+  // cast, so without this gate the cast slice stacked a second +5 on top of the reaction
+  // machinery's own application (+10 AC, two chips — caught by smoke-hold the first time
+  // it ran with castApply on, 2026-08-16). Self-buffs stay the caster's own tray click.
+  let affects = null;
+  try { affects = fromUuidSync(doc.getFlag("dnd5e", "activity")?.uuid ?? "")?.target?.affects?.type ?? null; }
+  catch { affects = null; }
+  if ( !affects || (affects === "self") ) return false;
   // A heal's card is suppressible bare (its roll is the record); utility needs effects.
   return (activityType === "heal") || !!doc.system?.effects?.length;
 }
@@ -591,6 +600,30 @@ Hooks.on("preCreateChatMessage", doc => {
     }
     if ( doc.system?.effects?.length )
       doc.updateSource({ flags: { [MODULE_ID]: { castApply: castPayload(doc) } } });
+    return;
+  }
+
+  // A bare damage-activity card (Magic Missile's shape) is suppressible spam too (user call
+  // 2026-08-16) — EXCEPT when it may be a spell-hold's home. A LISTED spell's card is
+  // load-bearing three ways: the hold flag lives on it, the Answer surface renders on it,
+  // and the preApplyDamage veto finds the verdict THROUGH it (damage roll →
+  // originatingMessage → this card). Eligibility (usableReaction) is async and preCreate is
+  // not, so the gate is the conservative pair: reaction hold on + the spell listed ⇒ the
+  // card stays, targeted or not. Its damage still rolls (subsequent actions never had a
+  // card dependency) and the native tray on the ROLL message stays the manual apply path —
+  // damage activities are deliberately outside every auto-applier.
+  if ( activityType === "damage" ) {
+    if ( !setting(S.suppressAttackCards) || !setting(suppressBucketFor(doc)) ) return;
+    // Effects riding a damage card have no automated path (1.9A is attack-only, the cast
+    // slice excludes damage) — the card is their only apply surface. It survives.
+    if ( doc.system?.effects?.length ) return;
+    if ( setting(S.reactionHold) ) {
+      let name = null;
+      try { name = fromUuidSync(doc.getFlag("dnd5e", "item")?.uuid ?? "")?.name ?? null; }
+      catch { name = null; }
+      if ( name && blockEntries().some(e => e.spell.toLowerCase() === name.toLowerCase()) ) return;
+    }
+    return false;
   }
 });
 
@@ -2912,6 +2945,7 @@ async function foldToppleSave(saveMessage) {
       entry.outcome = success ? "saved" : "prone";
       await card.setFlag(MODULE_ID, "topple", flag);
       if ( !success ) {
+        await dramaticVerdictPause(saveMessage); // same instant-verdict class as the fold
         await actor.toggleStatusEffect("prone", { active: true });
         await ChatMessage.create({
           speaker: card.speaker,
@@ -3221,22 +3255,46 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   }
 
   const topple = message.getFlag(MODULE_ID, "topple");
-  if ( topple?.targets?.length && game.user.isGM ) {
+  if ( topple?.targets?.length ) {
     for ( const t of topple.targets ) {
       if ( t.done ) continue;
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = `${t.name} failed — Prone`;
-      Object.assign(button.style, { width: "auto", margin: "0.25rem 0.25rem 0 0", padding: "0 0.6rem" });
-      button.addEventListener("click", async () => {
-        const actor = await fromUuid(t.uuid);
-        if ( actor instanceof Actor ) await actor.toggleStatusEffect("prone", { active: true });
-        const flag = foundry.utils.deepClone(message.getFlag(MODULE_ID, "topple"));
-        const entry = flag.targets.find(x => x.uuid === t.uuid);
-        if ( entry ) { entry.done = true; entry.outcome = "prone"; }
-        await message.setFlag(MODULE_ID, "topple", flag);
-      });
-      html.querySelector(".message-content")?.appendChild(button);
+      const actor = (() => { try { return fromUuidSync(t.uuid); } catch { return null; } })();
+
+      // ⚠ The native [[/save]] enricher rolls for whatever token is SELECTED — which right
+      // after an attack is the ATTACKER, so the GM rolled Morgash's save at the dummy's
+      // topple and the fold rightly ignored it (bit live 2026-08-16). This button rolls
+      // the RIGHT actor, through the native dialog (dice agency), chained to this card so
+      // the fold can judge it. Rendered for whoever owns the decision (canAnswerFor —
+      // the owning player for a PC target, the GM for monsters).
+      if ( topple.dc && canAnswerFor(actor) ) {
+        const rollBtn = document.createElement("button");
+        rollBtn.type = "button";
+        rollBtn.textContent = `Roll save — ${t.name}`;
+        Object.assign(rollBtn.style, { width: "auto", margin: "0.25rem 0.25rem 0 0", padding: "0 0.6rem" });
+        rollBtn.addEventListener("click", async () => {
+          const live = await fromUuid(t.uuid);
+          if ( !(live instanceof Actor) ) return;
+          await live.rollSavingThrow({ ability: topple.ability || "con", target: topple.dc },
+            {}, { data: { "flags.dnd5e.originatingMessage": message.id } });
+        });
+        html.querySelector(".message-content")?.appendChild(rollBtn);
+      }
+
+      if ( game.user.isGM ) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = `${t.name} failed — Prone`;
+        Object.assign(button.style, { width: "auto", margin: "0.25rem 0.25rem 0 0", padding: "0 0.6rem" });
+        button.addEventListener("click", async () => {
+          const live = await fromUuid(t.uuid);
+          if ( live instanceof Actor ) await live.toggleStatusEffect("prone", { active: true });
+          const flag = foundry.utils.deepClone(message.getFlag(MODULE_ID, "topple"));
+          const entry = flag.targets.find(x => x.uuid === t.uuid);
+          if ( entry ) { entry.done = true; entry.outcome = "prone"; }
+          await message.setFlag(MODULE_ID, "topple", flag);
+        });
+        html.querySelector(".message-content")?.appendChild(button);
+      }
     }
   }
 });
@@ -3507,6 +3565,20 @@ const concFolds = new Set();
  * system's test is total >= target with no nat-1/nat-20 override on saves at 5.3.3, so the
  * module-rolled card and this verdict are always the same fact.)
  */
+/**
+ * Let the table SEE the roll before its verdict acts (user call 2026-08-16): wait out Dice
+ * So Nice's animation when that module is present, then the same dramatic beat the attack →
+ * damage reveal uses. The MECHANICS never wait — flags are written and timers disarmed
+ * before this runs, so the buzzer cannot double-fire into the pause; only the table-facing
+ * consequences (the break, the prone, the announcement) hold for the dice.
+ */
+async function dramaticVerdictPause(rollMessage) {
+  try { await game.dice3d?.waitFor3DAnimationByMessageID?.(rollMessage.id); }
+  catch(err) { /* dice are cosmetic; never let them block a verdict */ }
+  const beat = (Math.max(0, Number(setting(S.dramaticBeat)) || 0)) * 1000;
+  if ( beat ) await new Promise(r => setTimeout(r, beat));
+}
+
 async function foldConcentrationRoll(askMessage, rollMessage) {
   if ( !askMessage || concFolds.has(askMessage.id) ) return;
   concFolds.add(askMessage.id);
@@ -3525,6 +3597,10 @@ async function foldConcentrationRoll(askMessage, rollMessage) {
     };
     disarmAskTimer(concTimers, askMessage.id);
     await askMessage.setFlag(MODULE_ID, "concentration", ask);
+
+    // Claimed above; now let the dice land before the drama (the icons stripping mid-roll
+    // was the report — the row's verdict text updating early is accepted).
+    await dramaticVerdictPause(rollMessage);
 
     const actor = await fromUuid(ask.actorUuid);
     if ( ask.outcome.success ) {
@@ -4000,12 +4076,15 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         Object.assign(why.style, { fontStyle: "italic", opacity: "0.8" });
         sub.append(why);
       }
+      // Healing arrives as a NEGATIVE take (calculateDamage inverts healing types), and
+      // "−-25 HP" in damage red is what that looked like (user report 2026-08-16). A gain
+      // reads +N in a friendly blue; damage keeps the tray's own maroon voice.
+      const healed = taken < 0;
       const amount = document.createElement("span");
-      amount.textContent = `−${taken} HP`;
-      // The same voice as the tray's own −12 above it (user call, 2026-08-15).
+      amount.textContent = healed ? `+${-taken} HP` : `−${taken} HP`;
       Object.assign(amount.style, {
         fontVariantNumeric: "tabular-nums", fontWeight: "bold",
-        color: "var(--dnd5e-color-maroon, #740b0b)"
+        color: healed ? "var(--dnd5e-color-blue, #3a7ca5)" : "var(--dnd5e-color-maroon, #740b0b)"
       });
       sub.append(amount);
       if ( isGM ) {
