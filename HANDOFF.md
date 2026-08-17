@@ -1,5 +1,13 @@
 # HANDOFF.md — picking this up cold
 
+> ⚠⚠ **NEXT SESSION IS A TESTING WALK — START BY DOING NOTHING.** The user's explicit
+> instruction (2026-08-17, end of session): open by presenting THE v1.11.0 WALK checklist
+> below, then wait. Do not connect the bridge, run suites, read the world, or touch code.
+> The user works the list at the table one item at a time and reports; you AGGREGATE —
+> number the findings as they arrive, restate the FULL list state after every update (so
+> they never scroll), confirm/close items as they say so — and you ACT only when they say
+> go. Then: evidence first, one battery-green fix pass, release. Exactly today's pattern.
+
 > Current at 2026-08-17, evening — **v1.11.0 shipped: the walk's findings, closed in one
 > pass.** The user walked v1.10.0 live in the afternoon (protocol: report → aggregate →
 > "ok go"), producing five findings + one settings call; the fix pass ran autonomously —
@@ -127,23 +135,36 @@ The walk's outcome, kept because reports referencing these will keep arriving:
   binding versions are design.md's v1.11.0 amendments (cast slice, Phase 2, Phase 1.1,
   §6 timers).
 
-### 🚶 NEXT SESSION — the v1.11.0 eyeball list (short; everything is suite-proven)
+### 🚶 THE v1.11.0 WALK — the user's checklist for the next testing session
 
-1. **Second Wind with anything targeted** — heals Morgash, never the target; also works
-   with nobody targeted. (Divine Favor now auto-applies to Thomas at cast, same rule.)
-2. **Web: the placeTemplate button** — visible on the card until the template lands,
-   GONE while it stands, BACK if you delete the circle. (Deliberately not suite-pinned —
-   CRUD nudges don't fire headless.)
-3. **Web: no damage roll at cast** — the demand runs save-only; the burn 2d4 stays a
-   clickable enricher in the card text (native tray, GM-judged).
-4. **A two-target Shatter** — a bar under EVERY pending row, ticking side by side; 15s
-   now. If you want to SEE the GM-side popups this time: cast from Tom, then alt-tab to
-   Matt's window inside the 15s — they are there (the two-client probe proved the
-   chain; they were always closing unseen at 6s).
-5. **Topple → Prone chip's source line reads the attacker** (sheet: the effect's source
-   shows Morgash).
-6. ⑭ stands: a "year ago" timestamp → hover for the real date + note WHICH USER authored
-   it before clearing chat.
+The session protocol is the header's ⚠⚠ block: present this list, wait, aggregate,
+restate after every update, act only on "go". Everything below is suite-proven except
+item 2 (deliberately eyeball-only); the walk is the live confirmation. The settings
+table above is law — no settings changes needed. Every client must log back in first
+(the box was bounced for the v1.11.0 install).
+
+1. **Second Wind, wrong target up** — target the dummy, use Second Wind: Morgash heals,
+   the dummy doesn't. Then use it again with NOBODY targeted: still heals Morgash.
+   (Same rule now covers Divine Favor: cast it and the effect chips Thomas at cast, no
+   tray click.)
+2. **Web: the Place Measured Template button breathes** — on the fresh card the button
+   shows; place the template and it disappears; DELETE the circle off the canvas and it
+   comes back. (The one item no suite pins — headless CRUD limitation.)
+3. **Web casts save-only** — no damage roll posts at cast, the demand runs DEX-save
+   rows only, and the burn "2d4" in the card text is still a clickable enricher (native
+   tray, GM's call, per-verdict application never touches it).
+4. **Two-target Shatter (dummy + Jetten)** — a bar under EACH pending row, ticking side
+   by side on the same 15s clock. Optional popup check: cast from Tom's window, alt-tab
+   to Matt's inside the 15s — both popups are sitting there (they always were; at 6s
+   they closed unseen before anyone looked).
+5. **Topple → the Prone chip names Morgash** — knock the dummy prone, open its sheet:
+   the effect's SOURCE reads the attacker. Check it on a timer-rolled failure or the GM
+   button alike.
+6. **Timers read 15s everywhere** — hold, save/topple, concentration bars all drain the
+   same length; nothing still runs a short clock.
+7. **Watch ⑭** — if any "year ago" timestamp appears: hover for the real date and note
+   WHICH USER authored the message before clearing chat (the author names the broken
+   clock).
 
 **State at handoff:** working tree clean, the v1.11.0 three-commit train pushed (test →
 feat tagged v1.11.0 → docs); the GitHub release carries zip + bare module.json; the box
