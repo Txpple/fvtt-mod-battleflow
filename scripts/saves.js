@@ -69,20 +69,30 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
   if ( activity?.type !== "save" ) return;
   const message = (results?.message instanceof ChatMessage) ? results.message : null;
   if ( !message ) return; // used with create: false — no card, no bus, nothing to run
-  void stampSaveDemand(activity, message);
+  void stampSaveDemand(activity, message, results);
 });
 
-async function stampSaveDemand(activity, message) {
+async function stampSaveDemand(activity, message, results) {
   try {
     if ( message.getFlag(MODULE_ID, "saves") ) return; // never re-stamp
-    const targets = message.getFlag("dnd5e", "targets") ?? [];
+    // ⚠ A template spell's target set is what the TEMPLATE contains, not what was clicked —
+    // in both directions (user call 2026-08-16: the mephit was targeted but stood outside
+    // Moonbeam's circle; the dummy stood inside Shatter's untargeted). postUseActivity fires
+    // after _finalizeUsage, so a placed template is already in results.templates, awaited
+    // and real. Manual targeting stays the bus for everything without a template.
+    // Containment reads the drawn shape when one exists and falls back to document
+    // geometry otherwise (templateShape) — never await canvas readiness here: an await
+    // against template.object has been observed to never come back on the headless elect,
+    // and the fallback makes it unnecessary.
+    const contained = tokensInTemplates((results?.templates ?? []).filter(t => t?.parent));
+    const targets = contained ?? (message.getFlag("dnd5e", "targets") ?? []);
     if ( !targets.length ) return; // targetless casts stay native — the humans have it
     // A self-aimed save activity's snapshot is incidental UI targeting (the cast slice's
     // lesson). A BLANK affects is allowed on purpose, unlike the cast slice: hand-authored
     // statblock abilities often carry no affects data, and eating their saves in silence
     // would be a false negative the table can't see. The risk the cast slice gated against
     // (double-applying a self-buff) does not exist here — there is no second applier.
-    if ( (activity.target?.affects?.type ?? null) === "self" ) return;
+    if ( !contained && ((activity.target?.affects?.type ?? null) === "self") ) return;
     const dc = activity.save?.dc?.value;
     if ( !(dc > 0) ) return; // no DC prepared — nothing to judge against (pre-2024 data)
     const abilities = [...(activity.save?.ability ?? [])];
@@ -105,6 +115,8 @@ async function stampSaveDemand(activity, message) {
       hasDamage: !!activity.damage?.parts?.length,
       effectNames,
       activityUuid: activity.uuid,
+      templated: !!contained,
+      durationUnits: activity.item?.system?.duration?.units ?? null,
       item: { name: activity.item?.name ?? "the effect", img: activity.item?.img ?? null },
       casterName: activity.actor?.name ?? null,
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
@@ -113,8 +125,164 @@ async function stampSaveDemand(activity, message) {
       targets: targets.map(t => ({ uuid: t.uuid, name: t.name,
         done: false, outcome: null, total: null, rollMessageId: null }))
     });
+
+    // ⑯'s companion: with the card's Damage button hidden, the machine rolls the spell's
+    // damage itself the moment the demand stamps — the attack path's symmetry (1a rolls on
+    // hit). Chained to the card so upcast scaling and damageOnSave ride the native plumbing;
+    // per-target independence already handles a roll arriving before any verdict.
+    if ( activity.damage?.parts?.length ) {
+      try {
+        await activity.rollDamage({}, { configure: false },
+          { data: { "flags.dnd5e.originatingMessage": message.id } });
+      } catch(err) {
+        console.error(`${TITLE} | Could not auto-roll the save spell's damage.`, err);
+      }
+    }
   } catch(err) {
     console.error(`${TITLE} | Could not stamp the save demand.`, err);
+  }
+}
+
+/**
+ * The actors standing in the given templates, as demand-target entries — or null when no
+ * template exists (the manual snapshot's case, which must stay distinguishable from "a
+ * template with nobody in it", where the demand correctly stamps nothing). Center-point
+ * containment on the template's own scene; secret tokens stay out of it.
+ */
+function tokensInTemplates(templates) {
+  const docs = (templates ?? []).filter(t => t?.parent && templateShape(t));
+  if ( !docs.length ) return null;
+  const seen = new Set();
+  const entries = [];
+  for ( const doc of docs ) {
+    const shape = templateShape(doc);
+    for ( const tok of doc.parent.tokens ) {
+      if ( tok.isSecret || !tok.actor ) continue;
+      const c = tokenCenter(tok);
+      if ( !c || !shape.contains(c.x - doc.x, c.y - doc.y) ) continue;
+      const uuid = tok.actor.uuid;
+      if ( seen.has(uuid) ) continue;
+      seen.add(uuid);
+      entries.push({ uuid, name: tok.name });
+    }
+  }
+  return entries;
+}
+
+/** The template's shape — the drawn object's when it exists (every rendering client), a
+ * document-computed circle otherwise (a page whose template layer never drew, e.g. the
+ * harness). Non-circle types without a drawn shape are skipped rather than guessed. */
+function templateShape(doc) {
+  if ( doc.object?.shape ) return doc.object.shape;
+  if ( doc.t === "circle" ) {
+    const grid = doc.parent?.grid;
+    if ( !grid?.size || !grid?.distance ) return null;
+    return new PIXI.Circle(0, 0, (doc.distance ?? 0) * (grid.size / grid.distance));
+  }
+  return null;
+}
+
+/** A token's center from its document alone — object.center when drawn, geometry otherwise. */
+function tokenCenter(tok) {
+  if ( tok.object ) return tok.object.center;
+  const grid = tok.parent?.grid?.size;
+  if ( !grid ) return null;
+  return { x: tok.x + (tok.width * grid) / 2, y: tok.y + (tok.height * grid) / 2 };
+}
+
+/**
+ * A template moved (Moonbeam walks) or was re-placed while its demand is still pending:
+ * containment is authoritative, so the pending target set follows the area. Done entries
+ * keep their verdicts (history never re-rolls); pending entries outside drop; new arrivals
+ * join fresh. The elect owns the write — single-writer, like every world-visible mutation.
+ * The original placement's create event fires before the stamp exists and finds nothing.
+ */
+/** Every template on any scene that this activity placed — the origin flag is the tie. */
+function templatesForOrigin(activityUuid) {
+  const found = [];
+  for ( const scene of game.scenes ) {
+    for ( const t of scene.templates ) {
+      if ( t.getFlag("dnd5e", "origin") === activityUuid ) found.push(t);
+    }
+  }
+  return found;
+}
+
+/** Same-client latch: one containment refresh in flight per card. */
+const templateRefreshes = new Set();
+
+/**
+ * Re-derive a live demand's target set from its templates — the area is the authority, in
+ * both directions (2026-08-16: the mephit was targeted but outside Moonbeam; the dummy
+ * stood inside Shatter untargeted). Done entries keep their verdicts (history never
+ * re-rolls); pending entries outside drop; new arrivals join fresh. The elect owns the
+ * write. Idempotent: no template ⇒ no-op; an unchanged set writes nothing.
+ *
+ * ⚠ Driven from the RENDER hook as the reliability floor, with the template CRUD hooks as
+ * fast-paths — measured 2026-08-16: createMeasuredTemplate simply never dispatched on the
+ * headless elect for an embedded create (a listener registered around the create counted
+ * zero fires), so anything that MUST happen cannot ride those hooks alone. And NO awaiting
+ * canvas readiness anywhere in here — a shape-wait against template.object never came back
+ * on that same elect; templateShape's document-geometry fallback carries containment.
+ */
+async function refreshDemandFromTemplates(card) {
+  if ( !isActiveGM() || !setting(S.saves) ) return;
+  if ( templateRefreshes.has(card.id) ) return;
+  templateRefreshes.add(card.id);
+  try {
+    const flag = card.getFlag(MODULE_ID, "saves");
+    if ( (flag?.status !== "pending") || !(flag.targets ?? []).some(t => !t.done) ) return;
+    const templates = templatesForOrigin(flag.activityUuid);
+    if ( !templates.length ) return;
+    const contained = tokensInTemplates(templates) ?? [];
+    const merged = foundry.utils.deepClone(flag);
+    merged.templated = true;
+    const done = merged.targets.filter(t => t.done);
+    const keep = merged.targets.filter(t => !t.done && contained.some(c => c.uuid === t.uuid));
+    const fresh = contained.filter(c => !merged.targets.some(t => t.uuid === c.uuid))
+      .map(c => ({ ...c, done: false, outcome: null, total: null, rollMessageId: null }));
+    const next = [...done, ...keep, ...fresh];
+    if ( !next.length ) return; // never strand an empty demand — the buzzer owns it
+    const same = (merged.targets.length === flag.targets.length) && flag.templated
+      && flag.targets.every((t, i) => next[i]?.uuid === t.uuid) && (next.length === flag.targets.length);
+    merged.targets = next;
+    if ( same ) return; // unchanged — write nothing, the log stays quiet
+    await card.setFlag(MODULE_ID, "saves", merged);
+  } catch(err) {
+    console.error(`${TITLE} | Template containment refresh failed.`, err);
+  } finally {
+    templateRefreshes.delete(card.id);
+  }
+}
+
+/** The CRUD fast-path: when the hooks DO fire, refresh the newest live demand at once. */
+function refreshTemplatedDemands(templateDoc) {
+  const origin = templateDoc.getFlag("dnd5e", "origin");
+  if ( !origin || !isActiveGM() || !setting(S.saves) ) return;
+  const live = game.messages.contents.filter(m => {
+    const f = m.getFlag(MODULE_ID, "saves");
+    return (f?.status === "pending") && (f.activityUuid === origin)
+      && (f.targets ?? []).some(t => !t.done);
+  }).sort((a, b) => a.timestamp - b.timestamp);
+  const card = live.at(-1);
+  if ( card ) void refreshDemandFromTemplates(card);
+}
+Hooks.on("createMeasuredTemplate", doc => { refreshTemplatedDemands(doc); });
+Hooks.on("updateMeasuredTemplate", doc => { refreshTemplatedDemands(doc); });
+
+/**
+ * An INSTANTANEOUS spell's template is spent once every verdict's consequences landed —
+ * Shatter's circle has nothing left to say, so it leaves the canvas (user call 2026-08-16).
+ * Duration spells (Moonbeam, Web) keep theirs: the area persists and containment keeps
+ * reading it. The card keeps the spell's text either way — nothing is lost with the shape.
+ */
+async function cleanupSpentTemplates(card) {
+  const flag = card.getFlag(MODULE_ID, "saves");
+  if ( !flag?.templated || (flag.durationUnits !== "inst") ) return;
+  if ( !(flag.targets ?? []).every(t => t.done && (t.applied || (t.outcome === "gone"))) ) return;
+  for ( const scene of game.scenes ) {
+    const spent = scene.templates.filter(t => t.getFlag("dnd5e", "origin") === flag.activityUuid);
+    if ( spent.length ) await scene.deleteEmbeddedDocuments("MeasuredTemplate", spent.map(t => t.id));
   }
 }
 
@@ -291,6 +459,7 @@ async function applySaveConsequences(card, uuid, rollMessage = null) {
       done.applied = true;
       await card.setFlag(MODULE_ID, "saves", merged);
     }
+    await cleanupSpentTemplates(card);
   } catch(err) {
     console.error(`${TITLE} | Save consequences failed.`, err);
   } finally {
@@ -511,20 +680,6 @@ function saveRollerUser(actor) {
   return owners[0] ?? game.users.activeGM;
 }
 
-/** The per-player opt-out: this client's own saves roll silently, straight off the sheet. */
-async function autoRollSaves(card) {
-  if ( !setting(S.saveAutoRoll) ) return;
-  const flag = card.getFlag(MODULE_ID, "saves");
-  if ( flag?.status !== "pending" ) return;
-  for ( const entry of flag.targets ) {
-    if ( entry.done ) continue;
-    const actor = (() => { try { return fromUuidSync(entry.uuid); } catch { return null; } })();
-    if ( !(actor instanceof Actor) ) continue;
-    if ( !(saveRollerUser(actor)?.isSelf ?? false) ) continue; // exactly one client volunteers
-    await rollSaveAnswer(card, entry.uuid);
-  }
-}
-
 /* --- the answer channels and the resume discipline ------------------------------------------- */
 
 Hooks.on("createChatMessage", message => {
@@ -563,7 +718,6 @@ Hooks.on("updateChatMessage", message => {
     // The demand lands as an UPDATE (the system creates the card, the caster stamps it a
     // beat later), so arrival work rides here as well as on render.
     armSaveTimer(message);
-    void autoRollSaves(message);
   }
   if ( isActiveGM() ) {
     for ( const t of flag.targets ?? [] ) {
@@ -651,11 +805,13 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     row.appendChild(bar);
     scheduleBarSync(row);
     armSaveTimer(message);
-    void autoRollSaves(message);
 
     // Resume, stateless (the split discipline): an answer landed while nobody could fold;
     // a verdict landed while nobody could apply; damage landed while nobody could reconcile.
     if ( isActiveGM() ) {
+      // The containment floor: a pending demand follows its area on every render — the
+      // template CRUD hooks are only fast-paths (measured unreliable on the headless elect).
+      void refreshDemandFromTemplates(message);
       for ( const t of flag.targets ) {
         if ( t.done ) continue;
         const landed = game.messages.find(m => (m.getFlag(MODULE_ID, "respondsTo") === message.id)
@@ -668,7 +824,6 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       if ( t.done ) continue;
       const actor = (() => { try { return fromUuidSync(t.uuid); } catch { return null; } })();
       if ( !canAnswerFor(actor) ) continue;
-      if ( setting(S.saveAutoRoll) ) continue; // opted out: this client rolls, never asks
       // ONE input surface, queued: auto-show only for the actor's OLDEST pending demand;
       // the button recalls this card's popup regardless.
       if ( pendingSaveCardsFor(t.uuid)[0]?.id === message.id ) {
@@ -712,7 +867,11 @@ async function showSavePopup(card, uuid) {
   const actor = (() => { try { return fromUuidSync(uuid); } catch { return null; } })();
   if ( !canAnswerFor(actor) ) return;
   const key = popupKey(card.id, `save:${uuid}`);
-  if ( livePopups.has(key) ) return;
+  // Recall FRONTS a live popup rather than silently returning — "the Roll button does
+  // nothing" was the GM's live report (2026-08-16): the popup was open, buried, and the
+  // click ate itself. Reopen stays for the dismissed case.
+  const open = livePopups.get(key);
+  if ( open ) { open.bringToFront?.(); return; }
 
   const ability = flag.abilities[0];
   const abilityLabel = CONFIG.DND5E.abilities[ability]?.label ?? ability;
@@ -736,13 +895,15 @@ async function showSavePopup(card, uuid) {
     mode, bonus: dialog?.element?.querySelector('input[name="bf-save-bonus"]')?.value ?? ""
   });
   dialog = new foundry.applications.api.DialogV2({
-    window: { title: `${abilityLabel} Save — ${flag.item?.name ?? ""}`, icon: "fa-solid fa-shield-heart" },
+    window: { title: `${entry.name} — ${abilityLabel} Save`, icon: "fa-solid fa-shield-heart" },
     position: { width: 440 },
     content: bfCard({
-      img: flag.item?.img ?? null,
+      // WHO is rolling leads, portrait included — the GM processes queues of these and the
+      // creature is the load-bearing fact (user call 2026-08-16); the spell is subtitle work.
+      img: actor?.img ?? flag.item?.img ?? null,
       eyebrow: "Saving throw",
-      title: `${abilityLabel} save, DC ${flag.dc}`,
-      subtitle: `${entry.name} — ${flag.item?.name ?? "an effect"}`
+      title: `${entry.name}: ${abilityLabel} save, DC ${flag.dc}`,
+      subtitle: `${flag.item?.name ?? "An effect"}`
         + `${flag.casterName ? `, from ${flag.casterName}` : ""}`,
       lines: stakes,
       tone: "pending"

@@ -25,7 +25,6 @@ export const S = {
   holdTimer: "holdTimer",
   holdSkipFutile: "holdSkipFutile",
   holdSettle: "holdSettle",
-  holdView: "holdView",
   holdApplyEffect: "holdApplyEffect",
   riders: "riders",
   riderList: "riderList",
@@ -39,8 +38,8 @@ export const S = {
   concVisibility: "concVisibility",
   saves: "saves",
   saveTimer: "saveTimer",
-  saveAutoRoll: "saveAutoRoll",
-  castApply: "castApply"
+  castApply: "castApply",
+  hideCardButtons: "hideCardButtons"
 };
 
 export const setting = key => game.settings.get(MODULE_ID, key);

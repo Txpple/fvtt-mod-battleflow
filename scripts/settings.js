@@ -69,8 +69,14 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: Boolean, default: true
   });
 
+  game.settings.register(MODULE_ID, S.hideCardButtons, {
+    name: "Hide Redundant Buttons",
+    hint: "Hide the action buttons on chat cards — Attack, Damage, Saving Throw, Place Template and the rest — leaving only Refund Resource. The module runs those workflows itself (attacks auto-roll, saves pop up, damage applies by verdict), so the buttons are a second, manual path that mostly confuses; the card keeps its text, its targets and its effects tray.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
   game.settings.register(MODULE_ID, S.centerRollDialogs, {
-    name: "Center Roll Dialogs",
+    name: "Center Popups",
     hint: "Open the system's roll-configuration dialogs (attack, damage, saves) centered on the screen instead of docked at the lower right. Per player: this only affects your own client, and it is ON unless you turn it off.",
     // Client-scoped so any player can opt out, but ON by default — the docked lower-right
     // position is the thing people notice and dislike, and a per-client setting nobody knows
@@ -141,12 +147,6 @@ Hooks.once("init", () => {
     name: "Apply the Reaction's Own Effect",
     hint: "When a held target casts their reaction, put its self-effect on them — Shield's +5 AC arrives as an effect the native tray would otherwise wait for someone to click, and until it lands the re-test reads the old AC and calls it a hit. Only ever applies the cast reaction's own effect, to the caster, while their hold is open. Turn off if you would rather click the effects tray yourself.",
     scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.holdView, {
-    name: "Hold: Show Me the Popup",
-    hint: "On: reaction holds you can answer pop up in the middle of the screen. Off: no popup — the hold's buttons live on the attack card in chat only. Per player; GMs running monster-side holds often prefer card-only.",
-    scope: "client", config: true, type: Boolean, default: true
   });
 
   game.settings.register(MODULE_ID, S.riders, {
@@ -235,12 +235,6 @@ Hooks.once("init", () => {
     range: { min: 0, max: 60, step: 1 }
   });
 
-  game.settings.register(MODULE_ID, S.saveAutoRoll, {
-    name: "Saves: Auto-Roll Mine",
-    hint: "Skip the popup for your own characters' saves — they roll instantly, straight off the sheet. Effect-borne bonuses (Bless dice, War Caster) still apply themselves; what you give up is the popup's ad-hoc inputs (situational bonus, an advantage override). Per player: this only affects your own client.",
-    scope: "client", config: true, type: Boolean, default: false
-  });
-
   game.settings.register(MODULE_ID, S.castApply, {
     name: "Auto-Apply on Cast",
     hint: "A cast with no roll to gate on resolves itself: a no-save spell's effects land on every target it was aimed at (Bless on all three, Hunter's Mark's mark on the quarry), and healing rolls its dice and lands (Healing Word). Receipts with per-target revert, as everywhere. Attack spells ride the hit under Effect Riders; save spells wait for the saves phase; plain damage spells (Magic Missile) keep their manual tray — the reaction that negates them must stay answerable.",
@@ -287,7 +281,7 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   const syncAll = () => {
     setEnabled(input(S.dramaticBeat), autoDamage?.value !== "off");
     for ( const key of [S.interruptList, S.blockList, S.holdReveal, S.holdTimer, S.holdSkipFutile,
-      S.holdSettle, S.holdView, S.holdApplyEffect] )
+      S.holdSettle, S.holdApplyEffect] )
       setEnabled(input(key), !!hold?.checked);
     for ( const key of [S.riderList, S.riderUpgrades] )
       setEnabled(input(key), !!riders?.checked);
@@ -297,8 +291,7 @@ Hooks.on("renderSettingsConfig", (app, element) => {
       setEnabled(input(key), !!suppress?.checked);
     for ( const key of [S.concTimer, S.concBreak, S.concVisibility] )
       setEnabled(input(key), conc?.value !== "off");
-    for ( const key of [S.saveTimer, S.saveAutoRoll] )
-      setEnabled(input(key), !!saves?.checked);
+    setEnabled(input(S.saveTimer), !!saves?.checked);
   };
   syncAll();
   autoDamage?.addEventListener("change", syncAll);

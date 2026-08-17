@@ -281,7 +281,16 @@ const concFolds = new Set();
  * consequences (the break, the prone, the announcement) hold for the dice.
  */
 export async function dramaticVerdictPause(rollMessage) {
-  try { await game.dice3d?.waitFor3DAnimationByMessageID?.(rollMessage.id); }
+  // ⚠ CAPPED, not merely caught. A rejection lands in the catch, but a DSN promise that
+  // never RESOLVES (a cross-client animation that never played, a headless page) would hang
+  // this await forever — and everything behind the pause (the cascade, the prone, the break
+  // card) would silently never happen, which is exactly the live 2026-08-16 shape of
+  // "concentration read broken but Bless survived". Dice are cosmetic; six seconds is more
+  // drama than any roll needs.
+  try {
+    const dice = game.dice3d?.waitFor3DAnimationByMessageID?.(rollMessage.id);
+    if ( dice ) await Promise.race([dice, new Promise(r => setTimeout(r, 6000))]);
+  }
   catch(err) { /* dice are cosmetic; never let them block a verdict */ }
   const beat = (Math.max(0, Number(setting(S.dramaticBeat)) || 0)) * 1000;
   if ( beat ) await new Promise(r => setTimeout(r, beat));
@@ -296,21 +305,29 @@ async function foldConcentrationRoll(askMessage, rollMessage) {
     const roll = rollMessage.rolls?.[0];
     if ( !roll ) return;
 
+    const actor = await fromUuid(ask.actorUuid);
+    // Freeze the visibility choice AT VERDICT TIME — the pause below must not let a
+    // setting flip re-address the announcement (bit smoke-conc 10c the day the pause
+    // landed: the suite restored visibility while the dice were still tumbling). Stored on
+    // the outcome so a crash-resume announces to the same ears.
+    const whisper = setting(S.concVisibility) ? null : concRecipients(actor);
+
     ask.status = "done";
     ask.outcome = {
       total: roll.total,
       success: roll.total >= ask.dc,
       ...(rollMessage.getFlag(MODULE_ID, "timedOut") ? { timedOut: true } : {}),
-      rollMessageId: rollMessage.id
+      rollMessageId: rollMessage.id,
+      // The crash-resume contract (the saves machine's `applied` discipline): the
+      // consequence sets `applied` when it finishes, and a done-but-unapplied outcome older
+      // than the resume horizon gets re-driven by any GM render. answeredAt is both the
+      // horizon's clock and the new-era marker — an outcome without it predates this
+      // contract and stays untouched history.
+      answeredAt: Date.now(),
+      ...(whisper ? { whisperIds: whisper } : {})
     };
     disarmAskTimer(concTimers, askMessage.id);
     await askMessage.setFlag(MODULE_ID, "concentration", ask);
-
-    const actor = await fromUuid(ask.actorUuid);
-    // Freeze the visibility choice AT VERDICT TIME — the pause below must not let a
-    // setting flip re-address the announcement (bit smoke-conc 10c the day the pause
-    // landed: the suite restored visibility while the dice were still tumbling).
-    const whisper = setting(S.concVisibility) ? null : concRecipients(actor);
 
     // Claimed above; now let the dice land before the drama (the icons stripping mid-roll
     // was the report — the row's verdict text updating early is accepted).
@@ -323,8 +340,51 @@ async function foldConcentrationRoll(askMessage, rollMessage) {
     } else {
       await breakConcentration(actor, { names: ask.names, effectIds: ask.effectIds, ask });
     }
+    await markConcApplied(askMessage);
   } finally {
     concFolds.delete(askMessage.id);
+  }
+}
+
+/** The consequence finished — write the resume contract's receipt. */
+async function markConcApplied(askMessage) {
+  const live = game.messages.get(askMessage.id);
+  const cur = foundry.utils.deepClone(live?.getFlag(MODULE_ID, "concentration") ?? null);
+  if ( !cur?.outcome || cur.outcome.applied ) return;
+  cur.outcome.applied = true;
+  await live.setFlag(MODULE_ID, "concentration", cur);
+}
+
+/** Same-client latch for the crash-resume below. */
+const concResumes = new Set();
+
+/**
+ * Crash-resume: the fold flipped the flag to done, then its client died inside the verdict
+ * pause — the cascade and the break card never happened, and nothing would ever re-drive
+ * them (the done status is exactly what every other path checks before acting). Any GM
+ * render re-drives a done-but-unapplied outcome once it is stale enough that no live fold
+ * can still be inside its pause. Idempotent: endConcentration on already-gone effects
+ * no-ops into its catch, and the announcement re-posts — a duplicate card after a real
+ * crash is self-explaining, where silence was the bug.
+ */
+async function resumeConcOutcome(askMessage) {
+  if ( concResumes.has(askMessage.id) ) return;
+  concResumes.add(askMessage.id);
+  try {
+    const ask = foundry.utils.deepClone(askMessage.getFlag(MODULE_ID, "concentration") ?? {});
+    if ( (ask.status !== "done") || !ask.outcome?.answeredAt || ask.outcome.applied ) return;
+    const actor = await fromUuid(ask.actorUuid);
+    const whisper = ask.outcome.whisperIds ?? null;
+    if ( ask.outcome.success ) {
+      if ( actor?.concentration?.effects?.size ) await announceConcentrationHolds(actor, ask, whisper);
+    } else {
+      await breakConcentration(actor, { names: ask.names, effectIds: ask.effectIds, ask });
+    }
+    await markConcApplied(askMessage);
+  } catch(err) {
+    console.error(`${TITLE} | Concentration outcome resume failed.`, err);
+  } finally {
+    concResumes.delete(askMessage.id);
   }
 }
 
@@ -464,6 +524,12 @@ Hooks.on("deleteChatMessage", message => {
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const ask = message.getFlag(MODULE_ID, "concentration");
   if ( !ask ) return;
+
+  // The crash-resume: done-but-unapplied, stale past any live pause, new-era stamps only
+  // (answeredAt is the marker — pre-contract history stays history).
+  if ( (ask.status === "done") && ask.outcome?.answeredAt && !ask.outcome.applied
+    && isActiveGM() && (Date.now() - ask.outcome.answeredAt > 20_000) ) void resumeConcOutcome(message);
+
   const row = document.createElement("div");
   row.className = "battleflow-concentration";
 
@@ -527,7 +593,8 @@ async function showConcPopup(message, ask) {
   const actor = (() => { try { return fromUuidSync(ask.actorUuid); } catch(err) { return null; } })();
   if ( !canAnswerFor(actor) ) return;
   const key = popupKey(message.id, "concentration");
-  if ( livePopups.has(key) ) return;
+  const open = livePopups.get(key);
+  if ( open ) { open.bringToFront?.(); return; } // recall fronts the live popup, never a silent no-op
 
   const abilityLabel = CONFIG.DND5E.abilities[ask.ability]?.label ?? "Constitution";
   const ADV = CONFIG.Dice.D20Roll.ADV_MODE;

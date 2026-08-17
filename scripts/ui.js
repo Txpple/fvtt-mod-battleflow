@@ -366,28 +366,16 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       // watches — it offers a way to call the popup BACK (a dismissed popup must never strand
       // the decision) but never a second set of answer controls. With popups off the card is
       // the only surface there is, so it carries the real buttons.
+      // The popup decides, the card recalls it — the card-only mode (the old holdView
+      // opt-out) left with the settings collapse (2026-08-16): one input surface, always.
       const controls = document.createElement("div");
       Object.assign(controls.style, {
         display: "flex", gap: "0.3rem", marginTop: "0.4rem", justifyContent: "flex-end"
       });
-      if ( setting(S.holdView) ) {
-        controls.append(holdButton("Answer", () => {
-          shownPopups.delete(message.id);
-          void showHoldPopup(message, message.getFlag(MODULE_ID, "hold"));
-        }));
-      } else {
-        // ⚠ TWO buttons, because the decision has two answers. A GM-only "Skip" used to sit
-        // here as the AFK override from design.md §5, but it called the same code as Pass and
-        // every consumer downstream tests only `answer === "cast"` — so it was a third control
-        // for a binary choice, and it appeared only where the GM already IS the decider (an
-        // unowned monster). On a player's character canAnswerFor denies the GM outright, so it
-        // was missing from the one case it was written for. The hold timer took that job
-        // properly at v1.1.8: unanswered targets auto-pass and are marked timedOut.
-        controls.append(
-          holdButton("Cast", () => castReaction(target)),
-          holdButton("Pass", () => answerHold(message, target.uuid, "pass"))
-        );
-      }
+      controls.append(holdButton("Answer", () => {
+        shownPopups.delete(message.id);
+        void showHoldPopup(message, message.getFlag(MODULE_ID, "hold"));
+      }));
       block.append(controls);
     });
   }
@@ -404,7 +392,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
   // The popup: attention for the person whose decision it is. Ephemeral by design — closing
   // it is not an answer, because the row above is the durable state.
-  if ( (hold.status === "pending") && setting(S.holdView) && !shownPopups.has(message.id) ) {
+  if ( (hold.status === "pending") && !shownPopups.has(message.id) ) {
     shownPopups.add(message.id);
     void showHoldPopup(message, hold);
   }

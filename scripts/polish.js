@@ -192,6 +192,19 @@ Hooks.on("preCreateChatMessage", doc => {
   }
 });
 
+// Hide the cards' action buttons — the module RUNS those workflows (attacks auto-roll,
+// saves pop up on their owners, damage applies by verdict), so the buttons are a second,
+// manual path that forks the machine: a save button that rolls for whatever token is
+// SELECTED (the live topple trap), a damage button that double-rolls. Refund Resource
+// stays — it is bookkeeping, not workflow. Display-level and stateless (every DOM tree);
+// the handlers underneath survive, so anything that still slips through folds normally.
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  if ( !setting(S.hideCardButtons) ) return;
+  for ( const button of html.querySelectorAll(".card-buttons button[data-action]") ) {
+    if ( button.dataset.action !== "refundResource" ) button.style.display = "none";
+  }
+});
+
 // Center the system's roll-configuration dialogs (dnd5e docks them lower-right:
 // left = innerWidth - 710, top = clientY - 80). First render only — re-renders fire on every
 // option change in the dialog, and re-centering those would fight the user dragging it.

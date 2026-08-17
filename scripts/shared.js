@@ -2,7 +2,7 @@
  * Battle Flow — Shared helpers: the hit test and the chain walk.
  * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, S, setting } from "./core.js";
+import { MODULE_ID, TITLE, S, setting } from "./core.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Shared: the hit test and the chain walk
@@ -59,5 +59,36 @@ export function resolveAttackMessage(damageMessage) {
   return origin.getAssociatedRolls("attack")
     .filter(m => m.timestamp <= damageMessage.timestamp)
     .pop() ?? null;
+}
+
+/**
+ * Put a status condition on an actor and make sure it actually LANDED.
+ *
+ * ⚠ `toggleStatusEffect(id, { active: true })` resolves without doing anything when ANY
+ * effect carrying that status already exists — a DISABLED leftover included — and it can
+ * come back empty-handed when another module's create-hook interferes. Both no-ops are
+ * silent, and one of them is the live "topple failed but nothing fell prone" report
+ * (2026-08-16): the verdict announced and the press did nothing. So: enable a disabled
+ * carrier if that is what exists, toggle otherwise, VERIFY, and build the effect directly
+ * as the last resort — loudly, because a status that cannot land is a table-facing failure.
+ */
+export async function forceStatus(actor, statusId) {
+  if ( !(actor instanceof Actor) ) return false;
+  const existing = actor.effects.find(e => e.statuses.has(statusId));
+  if ( existing ) {
+    if ( existing.disabled ) await existing.update({ disabled: false });
+  } else {
+    await actor.toggleStatusEffect(statusId, { active: true });
+  }
+  if ( actor.statuses.has(statusId) ) return true;
+  try {
+    const effect = await ActiveEffect.implementation.fromStatusEffect(statusId);
+    await ActiveEffect.implementation.create(effect, { parent: actor, keepId: true });
+  } catch(err) {
+    console.error(`${TITLE} | Could not build status "${statusId}" directly.`, err);
+  }
+  const landed = actor.statuses.has(statusId);
+  if ( !landed ) console.error(`${TITLE} | Status "${statusId}" refused to land on ${actor.name} — check for a module vetoing effect creation.`);
+  return landed;
 }
 

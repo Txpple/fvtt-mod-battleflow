@@ -5,7 +5,8 @@
 import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
 import { hitTargets, modeAllows } from "./shared.js";
 import { inRunningCombat, canAnswerFor } from "./hold.js";
-import { livePopups, popupKey, openManagedPopup, bfCard, holdBarHTML } from "./ui.js";
+import { livePopups, popupKey, openManagedPopup, bfCard, holdBarHTML, scheduleBarSync } from "./ui.js";
+import { forceStatus } from "./shared.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { messageActivity, joinEffectReceipt } from "./effect-riders.js";
 import { dramaticVerdictPause } from "./concentration.js";
@@ -297,7 +298,8 @@ async function showTopplePopup(message, topple, target) {
   const actor = (() => { try { return fromUuidSync(target.uuid); } catch { return null; } })();
   if ( !canAnswerFor(actor) ) return;
   const key = popupKey(message.id, `topple:${target.uuid}`);
-  if ( livePopups.has(key) ) return;
+  const open = livePopups.get(key);
+  if ( open ) { open.bringToFront?.(); return; } // recall fronts the live popup, never a silent no-op
   let dialog;
   const roll = mode => rollToppleSave(message, target, {
     mode, bonus: dialog?.element?.querySelector('input[name="bf-topple-bonus"]')?.value ?? ""
@@ -370,6 +372,32 @@ Hooks.on("createChatMessage", message => {
   void foldToppleSave(message);
 });
 
+/**
+ * The topple failure's consequence — the press, the announcement, and the resume receipt.
+ * Split from the fold so the crash-resume can re-drive it: if the folding client dies inside
+ * the verdict pause, the entry sits done+prone with no Prone on the token and no card — any
+ * GM render past the resume horizon re-runs this. Idempotent by the `applied` receipt, and
+ * the press VERIFIES (forceStatus) instead of trusting a toggle that no-ops silently over a
+ * disabled leftover or a vetoed create (the live 2026-08-16 report).
+ */
+async function applyToppleFailure(card, uuid) {
+  const flag = foundry.utils.deepClone(card.getFlag(MODULE_ID, "topple"));
+  const entry = flag?.targets?.find(t => t.uuid === uuid);
+  if ( !entry || (entry.outcome !== "prone") || entry.applied ) return;
+  const actor = (() => { try { return fromUuidSync(uuid); } catch { return null; } })();
+  if ( actor instanceof Actor ) await forceStatus(actor, "prone");
+  await ChatMessage.create({
+    speaker: card.speaker,
+    content: bfCard({
+      img: flag.weapon?.img, eyebrow: "Weapon Mastery — Topple", tone: "good",
+      title: `${entry.name} falls Prone`,
+      subtitle: `Constitution save ${entry.total ?? "?"} vs DC ${flag.dc}`
+    })
+  });
+  entry.applied = true;
+  await card.setFlag(MODULE_ID, "topple", flag);
+}
+
 async function foldToppleSave(saveMessage) {
   try {
     const actor = saveMessage.getAssociatedActor?.();
@@ -394,18 +422,15 @@ async function foldToppleSave(saveMessage) {
       const success = total >= flag.dc;
       entry.done = true;
       entry.outcome = success ? "saved" : "prone";
+      entry.total = total;
+      // The crash-resume contract (the saves machine's `applied` discipline): answeredAt is
+      // the horizon's clock and the new-era marker; a success has no consequence to resume.
+      entry.answeredAt = Date.now();
+      if ( success ) entry.applied = true;
       await card.setFlag(MODULE_ID, "topple", flag);
       if ( !success ) {
         await dramaticVerdictPause(saveMessage); // same instant-verdict class as the fold
-        await actor.toggleStatusEffect("prone", { active: true });
-        await ChatMessage.create({
-          speaker: card.speaker,
-          content: bfCard({
-            img: flag.weapon?.img, eyebrow: "Weapon Mastery — Topple", tone: "good",
-            title: `${entry.name} falls Prone`,
-            subtitle: `Constitution save ${total} vs DC ${flag.dc}`
-          })
-        });
+        await applyToppleFailure(card, entry.uuid);
       }
       return; // one save answers one card
     }
@@ -496,7 +521,8 @@ async function postMasteryNotice(ctx, key, targets) {
  */
 async function showMasteryNotice(message, notice) {
   const key = popupKey(message.id, "notice");
-  if ( livePopups.has(key) ) return;
+  const open = livePopups.get(key);
+  if ( open ) { open.bringToFront?.(); return; }
   const dialog = new foundry.applications.api.DialogV2({
     window: { title: `${masteryLabel(notice.key)} — ${notice.weapon?.name ?? ""}`, icon: "fa-solid fa-medal" },
     position: { width: 420 },
@@ -625,7 +651,8 @@ async function showMasteryPopup(message, m) {
   const attacker = (() => { try { return fromUuidSync(m.attackerUuid); } catch { return null; } })();
   if ( !canAnswerFor(attacker) ) return;
   const key = popupKey(message.id, "mastery");
-  if ( livePopups.has(key) ) return;
+  const open = livePopups.get(key);
+  if ( open ) { open.bringToFront?.(); return; }
 
   const label = masteryLabel(m.key);
   const buttons = [
@@ -667,6 +694,9 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       subtitle: pending ? (MASTERY_RULES[m.key] ?? "") : `${label} — ${m.weapon?.name ?? ""}`
     }) + (pending ? holdBarHTML(m) : "");
     html.querySelector(".message-content")?.appendChild(row);
+    // The bar only drains once synced — the popup always got this via openManagedPopup and
+    // the card row forgot it, so the card sat frozen at full (reported live 2026-08-16).
+    if ( pending ) scheduleBarSync(row);
 
     if ( pending ) {
       armMasteryTimer(message);
@@ -709,6 +739,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const topple = message.getFlag(MODULE_ID, "topple");
   if ( topple?.targets?.length ) {
     for ( const t of topple.targets ) {
+      // Crash-resume: a folded failure whose press and announcement died with their client —
+      // done+prone, unapplied, stale past any live pause. Elect-driven, new-era stamps only.
+      if ( (t.outcome === "prone") && t.answeredAt && !t.applied && isActiveGM()
+        && (Date.now() - t.answeredAt > 20_000) ) void applyToppleFailure(message, t.uuid);
       if ( t.done ) continue;
       const actor = (() => { try { return fromUuidSync(t.uuid); } catch { return null; } })();
 
@@ -740,10 +774,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         Object.assign(button.style, { width: "auto", margin: "0.25rem 0.25rem 0 0", padding: "0 0.6rem" });
         button.addEventListener("click", async () => {
           const live = await fromUuid(t.uuid);
-          if ( live instanceof Actor ) await live.toggleStatusEffect("prone", { active: true });
+          if ( live instanceof Actor ) await forceStatus(live, "prone");
           const flag = foundry.utils.deepClone(message.getFlag(MODULE_ID, "topple"));
           const entry = flag.targets.find(x => x.uuid === t.uuid);
-          if ( entry ) { entry.done = true; entry.outcome = "prone"; }
+          if ( entry ) { entry.done = true; entry.outcome = "prone"; entry.applied = true; entry.answeredAt = Date.now(); }
           await message.setFlag(MODULE_ID, "topple", flag);
         });
         html.querySelector(".message-content")?.appendChild(button);
