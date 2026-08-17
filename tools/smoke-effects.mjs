@@ -73,6 +73,11 @@ const out = await f.evaluate(async () => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
+    // ⚠ SETTINGS FIRST, in their own guard — a cleanup error later in this sequence must
+    // never leave the table wearing suite settings (bit live 2026-08-17). The user's
+    // config is sacred; the rest is best-effort.
+    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
+    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
     try {
       // ⚠ Batched deletes per collection — a synthetic actor rebuilds its collections from
       // the delta on every write, so a one-at-a-time loop deletes already-dropped documents.
@@ -105,7 +110,6 @@ const out = await f.evaluate(async () => {
         await game.actors.get(actorId)?.update(data);
       }
       game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
-      for (const [k, v] of Object.entries(prior)) await set(k, v);
       // Sweep this run's own chat: everything since suiteStart that is ours — fixture
       // speakers, the module's announcement alias, or a module flag.
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)

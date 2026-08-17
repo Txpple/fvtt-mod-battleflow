@@ -84,9 +84,9 @@ update this table, never fight it:
 
 | Setting | Value | |
 | --- | --- | --- |
-| Auto-Roll Damage on Hit | **`off`** | the user's call, 2026-08-17 — attacks keep their manual damage press for now |
+| Auto-Roll Damage on Hit | **`all`** | ⚠ an earlier snapshot read `off` and mis-recorded it as the user's call — it was SUITE RESIDUE from a failed run's skipped teardown (see the suites' settings-first rule); the user corrected it, and was rightly annoyed |
 | Auto-Apply Damage | on | active-GM elect, receipts + revert |
-| Dramatic Beat | **0s** | user turned the beat off 2026-08-17 |
+| Dramatic Beat | **3s** | same residue incident — `0` was the suites' pin, not the user's taste |
 | Suppress Attack Cards | on | cards carrying effects survive anyway |
 | Require a Target | on | |
 | Reaction Hold | on | governs **both** triggers |
@@ -531,6 +531,14 @@ node tools/smoke-saves.mjs
 suites reuse, and smoke-effects §14's stray-token sweep — and smoke-saves' own sweep —
 can legitimately have removed it ("BF Test Victim has no token" from smoke-hold means
 exactly this, not a bug). Run smoke-saves LAST for the same reason.
+
+⚠ **Every suite teardown restores SETTINGS FIRST, in its own guard** (fixed 2026-08-17
+after it bit the user): the teardowns used to run one try/catch around the whole cleanup
+sequence with the settings restore in the middle, so any earlier cleanup error silently
+skipped it — a night of failed diagnostic runs left `autoDamage: off` + `dramaticBeat: 0`
+residue on the live table, which then got mis-read as the user's own tuning. The user's
+config is sacred; deletes and sweeps are best-effort. After ANY test session, verify the
+world settings against the reference table above.
 
 ⚠ **A suite fixture that presses a status must plant CANONICAL-id carriers only**
 (learned 2026-08-16, expensively): smoke-effects §14 plants a disabled Prone leftover as

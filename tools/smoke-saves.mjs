@@ -74,6 +74,12 @@ const out = await f.evaluate(async () => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
+    // ⚠ SETTINGS FIRST, in their own guard — a cleanup error later in this sequence must
+    // never leave the table wearing suite settings (bit live 2026-08-17: a failed run's
+    // teardown skipped the restore and autoDamage/dramaticBeat residue got mistaken for
+    // the user's own tuning). The user's config is sacred; the rest is best-effort.
+    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
+    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
     try {
       await clearChips();
       for (const [actorId, ids] of Object.entries(created.items.reduce((m, i) => {
@@ -91,7 +97,6 @@ const out = await f.evaluate(async () => {
         await game.actors.get(actorId)?.update(data);
       }
       game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
-      for (const [k, v] of Object.entries(prior)) await set(k, v);
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
           || Object.keys(m.flags?.[MOD] ?? {}).length));

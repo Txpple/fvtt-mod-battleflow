@@ -86,6 +86,11 @@ const out = await f.evaluate(async () => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
+    // ⚠ SETTINGS FIRST, in their own guard — a cleanup error later in this sequence must
+    // never leave the table wearing suite settings (bit live 2026-08-17). The user's
+    // config is sacred; the rest is best-effort.
+    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
+    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
     try {
       // End any concentration the run left standing (endConcentration cascades dependents,
       // which also sweeps the victim's rider effect if a break section died mid-way).
@@ -112,7 +117,6 @@ const out = await f.evaluate(async () => {
         await game.actors.get(actorId)?.update(data);
       }
       game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
-      for (const [k, v] of Object.entries(prior)) await set(k, v);
       // Sweep this run's chat: everything created since the suite's opening snapshot that is
       // ours — fixture speakers, the module's announcement alias, any module-flagged message
       // (asks and stamped rolls), and the native request card the off-half lets through.
