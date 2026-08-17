@@ -28,7 +28,7 @@ const out = await f.evaluate(async () => {
   console.error = (...a) => { errors.push(a.map(x => String(x?.message ?? x)).join(' ')); origError(...a); };
 
   const KEYS = ['reactionHold', 'holdApplyEffect', 'holdSettle', 'holdTimer', 'holdSkipFutile',
-    'holdReveal', 'holdView', 'autoDamage', 'autoApply', 'dramaticBeat', 'suppressAttackCards',
+    'holdReveal', 'autoDamage', 'autoApply', 'dramaticBeat', 'suppressAttackCards',
     'requireTarget', 'masteryRiders', 'effectRiders', 'riders', 'concMode', 'castApply', 'saves'];
   const prior = Object.fromEntries(KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
@@ -45,7 +45,6 @@ const out = await f.evaluate(async () => {
     await set('holdTimer', 0);
     await set('holdSkipFutile', false);   // strays allowed — the hypothesis under test
     await set('holdReveal', true);
-    await set('holdView', false);         // card-only: the Cast button lives on the row
     await set('autoDamage', 'all');
     await set('autoApply', false);
     await set('dramaticBeat', 0);
@@ -102,11 +101,22 @@ const out = await f.evaluate(async () => {
     const pendingBefore = game.messages.filter(m => m.getFlag(MOD, 'hold')?.status === 'pending')
       .map(m => ({ id: m.id, isTheAttack: m.id === atk.msgId, ts: m.timestamp }));
 
-    // click the card's Cast button, like the suite
-    const btn = Array.from(document.querySelectorAll(
-      `[data-message-id="${atk.msgId}"] .battleflow-hold button`))
-      .find(b => b.textContent.trim() === 'Cast');
-    if (!btn) return { fatal: 'no Cast button rendered' };
+    // click the POPUP's Cast button, like the suite (card-only mode left with the settings
+    // collapse — the popup is the one surface).
+    const { livePopups: LP } = await import('/modules/fvtt-mod-battleflow/scripts/ui.js');
+    const popupButtons = messageId => {
+      for (const [k, d] of LP.entries()) {
+        if (!k.startsWith(`${messageId}|`) && (k !== messageId)) continue;
+        return [...(d.element?.querySelectorAll('footer button, .form-footer button') ?? [])];
+      }
+      return [];
+    };
+    let btn = null;
+    for (let i = 0; (i < 40) && !btn; i++) {
+      btn = popupButtons(atk.msgId).find(b => b.textContent.trim().startsWith('Cast'));
+      if (!btn) await sleep(200);
+    }
+    if (!btn) return { fatal: 'no Cast button rendered on the hold popup' };
     btn.click();
 
     const resolved = await (async () => {

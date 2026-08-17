@@ -104,7 +104,6 @@ const r = await f.evaluate(async () => {
         holdReveal: game.settings.get(MOD, 'holdReveal'),
         holdTimer: game.settings.get(MOD, 'holdTimer'),
         holdSkipFutile: game.settings.get(MOD, 'holdSkipFutile'),
-        holdView: game.settings.get(MOD, 'holdView'),
         holdApplyEffect: game.settings.get(MOD, 'holdApplyEffect'),
         suppressAttackCards: game.settings.get(MOD, 'suppressAttackCards'),
         requireTarget: game.settings.get(MOD, 'requireTarget'),
@@ -123,7 +122,6 @@ const r = await f.evaluate(async () => {
     await game.settings.set(MOD, 'blockList', 'Magic Missile:Shield');
     await game.settings.set(MOD, 'holdSettle', 6);
     await game.settings.set(MOD, 'holdApplyEffect', true);
-    await game.settings.set(MOD, 'holdView', false); // no popup: the bridge cannot dismiss it
     await game.settings.set(MOD, 'holdReveal', true);
     // ⚠ OFF for the classic sections, which assume every hit holds. With it on, any attack
     // landing 5+ over Gren's AC is correctly skipped as hopeless and those sections fail with
@@ -402,12 +400,27 @@ const r = await f.evaluate(async () => {
       return null;
     };
 
-    // The card's OWN Cast control. Driving this rather than a hand-rolled `use` is the point:
-    // it is the control that shipped once as a button that answered without casting, and it is
-    // the only path that exercises the itemId/activityId the hold recorded.
-    const castButtonFor = messageId => Array.from(document.querySelectorAll(
-      `[data-message-id="${messageId}"] .battleflow-hold button`))
-      .find(b => b.textContent.trim() === 'Cast');
+    // The popup's OWN Cast control. Driving this rather than a hand-rolled `use` is the
+    // point: it is the control that shipped once as a button that answered without casting,
+    // and it is the only path that exercises the itemId/activityId the hold recorded. The
+    // card-only mode left with the settings collapse (2026-08-16), so the popup is THE
+    // surface — found through the module's own livePopups registry (ESM singleton), never
+    // by scraping dialog text.
+    const { livePopups: LP } = await import('/modules/fvtt-mod-battleflow/scripts/ui.js');
+    const holdPopupFor = messageId => {
+      for (const [k, d] of LP.entries()) if (k.startsWith(`${messageId}|`) || (k === messageId)) return d;
+      return null;
+    };
+    const popupButtons = messageId => {
+      const el = holdPopupFor(messageId)?.element;
+      return el ? [...el.querySelectorAll('footer button, .form-footer button')] : [];
+    };
+    // The popup names the reaction on its button ("Cast Shield"); the shape assertions
+    // normalize that back to the binary pair.
+    const castButtonFor = messageId => popupButtons(messageId)
+      .find(b => b.textContent.trim().startsWith('Cast'));
+    const buttonShapeOf = messageId => [...new Set(popupButtons(messageId)
+      .map(b => b.textContent.trim()).map(t => t.startsWith('Cast') ? 'Cast' : t))].join('/');
 
     /**
      * How the module DESCRIBED a resolved hold, as one token. The card is the table's record and
@@ -544,10 +557,8 @@ const r = await f.evaluate(async () => {
       // real control catches that class of bug. Falls back to a direct use if the row has
       // not rendered in this headless context.
       const slotsBefore = victimActor.system.spells.spell1.value;
-      const castButton = Array.from(document.querySelectorAll(
-        `[data-message-id="${atk.msg.id}"] .battleflow-hold button`))
-        .find(b => b.textContent.trim() === 'Cast');
-      if (!castButton) throw new Error('the hold row rendered no Cast button for a GM-owned target');
+      const castButton = await waitFor(() => castButtonFor(atk.msg.id), 8000);
+      if (!castButton) throw new Error('the hold popup rendered no Cast button for a GM-owned target');
       castButton.click();
 
       const done = await waitFor(() => {
@@ -617,10 +628,8 @@ const r = await f.evaluate(async () => {
       }
       if (held.length < 2) throw new Error(`only ${held.length} hold(s) stamped; need 2`);
 
-      // ONE cast, driven from the first hold's card button.
-      const castButton = Array.from(document.querySelectorAll(
-        `[data-message-id="${held[0]}"] .battleflow-hold button`))
-        .find(b => b.textContent.trim() === 'Cast');
+      // ONE cast, driven from the first hold's popup.
+      const castButton = await waitFor(() => castButtonFor(held[0]), 8000);
       if (!castButton) throw new Error('no Cast button on the first of the two holds');
       castButton.click();
 
@@ -816,12 +825,11 @@ const r = await f.evaluate(async () => {
       // asks `answer === "cast"` — so it was one decision with three controls, and it made the
       // GM's surface a different shape from the player's for no behavioural difference at all.
       // Deduped: a message renders into several DOM trees, so the raw list repeats.
-      const buttonShape = [...new Set(Array.from(document.querySelectorAll(
-        `[data-message-id="${atk.msg.id}"] .battleflow-hold button`))
-        .map(b => b.textContent.trim()))].join('/');
+      await waitFor(() => popupButtons(atk.msg.id).length, 8000);
+      const buttonShape = buttonShapeOf(atk.msg.id);
 
       const button = pending ? castButtonFor(atk.msg.id) : null;
-      if (pending && !button) throw new Error('the hold row rendered no Cast button for the statblock caster');
+      if (pending && !button) throw new Error('the hold popup rendered no Cast button for the statblock caster');
       button?.click();
 
       const done = pending ? await waitFor(() => {
@@ -955,8 +963,8 @@ const r = await f.evaluate(async () => {
         const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'pending' ? h : null;
       });
-      const button = pending ? castButtonFor(atk.msg.id) : null;
-      if (pending && !button) throw new Error('the hold row rendered no Cast button on the PC attack');
+      const button = pending ? await waitFor(() => castButtonFor(atk.msg.id), 8000) : null;
+      if (pending && !button) throw new Error('the hold popup rendered no Cast button on the PC attack');
       button?.click();
       const done = pending ? await waitFor(() => {
         const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
@@ -1003,8 +1011,8 @@ const r = await f.evaluate(async () => {
         const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'pending' ? h : null;
       });
-      const button = pending ? castButtonFor(atk.msg.id) : null;
-      if (pending && !button) throw new Error('the hold row rendered no Cast button on the flat-AC caster');
+      const button = pending ? await waitFor(() => castButtonFor(atk.msg.id), 8000) : null;
+      if (pending && !button) throw new Error('the hold popup rendered no Cast button on the flat-AC caster');
       button?.click();
       const done = pending ? await waitFor(() => {
         const h = game.messages.get(atk.msg.id)?.getFlag(MOD, 'hold');
@@ -1215,13 +1223,10 @@ const r = await f.evaluate(async () => {
 
         // The control set is the same binary pair an attack hold offers — one decision, two
         // buttons, and no GM-only third (the v1.1.15 regression, guarded here too).
-        const buttons = Array.from(document.querySelectorAll(
-          `[data-message-id="${usageMsg.id}"] .battleflow-hold button`))
-          .map(b => b.textContent.trim());
-        const castButton = Array.from(document.querySelectorAll(
-          `[data-message-id="${usageMsg.id}"] .battleflow-hold button`))
-          .find(b => b.textContent.trim() === 'Cast');
-        if (!castButton) throw new Error('the spell hold rendered no Cast button');
+        await waitFor(() => popupButtons(usageMsg.id).length, 8000);
+        const buttons = buttonShapeOf(usageMsg.id).split('/');
+        const castButton = castButtonFor(usageMsg.id);
+        if (!castButton) throw new Error('the spell hold popup rendered no Cast button');
         castButton.click();
 
         const done = await waitFor(() => {
@@ -1261,10 +1266,9 @@ const r = await f.evaluate(async () => {
           const h = game.messages.get(usageMsg.id)?.getFlag(MOD, 'hold');
           return h?.status === 'pending' ? h : null;
         });
-        const passButton = Array.from(document.querySelectorAll(
-          `[data-message-id="${usageMsg.id}"] .battleflow-hold button`))
-          .find(b => b.textContent.trim() === 'Pass');
-        if (!passButton) throw new Error('the spell hold rendered no Pass button');
+        const passButton = await waitFor(() => popupButtons(usageMsg.id)
+          .find(b => b.textContent.trim() === 'Pass'), 8000);
+        if (!passButton) throw new Error('the spell hold popup rendered no Pass button');
         passButton.click();
 
         const done = await waitFor(() => {
@@ -1309,9 +1313,7 @@ const r = await f.evaluate(async () => {
         // mistaken for the suppressed Missile card.
         const usageCardsBeforeAnswer = freshMsgs().filter(m =>
           (m.type === 'usage') || (m.getFlag('dnd5e', 'messageType') === 'usage')).length;
-        const castBtn = Array.from(document.querySelectorAll(
-          `[data-message-id="${holdMsg?.id}"] .battleflow-hold button`))
-          .find(b => b.textContent.trim() === 'Cast');
+        const castBtn = await waitFor(() => castButtonFor(holdMsg?.id), 8000);
         castBtn?.click();
         await waitFor(() => (game.messages.get(holdMsg?.id)?.getFlag(MOD, 'hold')?.status === 'resolved')
           ? true : null, 25000);

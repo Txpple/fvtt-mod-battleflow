@@ -46,10 +46,12 @@ const out = await f.evaluate(async () => {
     });
     report.cardId = card.id;
     report.victimUuid = victim.uuid;
+    report.effectsBefore = victim.effects.map(e => ({ name: e.name, statuses: [...e.statuses], disabled: e.disabled }));
 
     const rolls = await victim.rollSavingThrow({ ability: 'con' }, { configure: false },
       { data: { 'flags.dnd5e.originatingMessage': card.id } });
-    await sleep(2500);
+    // Cover the verdict pause: Dramatic Beat (3s live) + DSN margin, or the press reads early.
+    await sleep(9000);
 
     const saveMsg = rolls?.[0]?.parent ?? null;
     report.saveMsgFound = !!saveMsg;
@@ -66,6 +68,12 @@ const out = await f.evaluate(async () => {
     const after = game.messages.get(card.id)?.getFlag(MOD, 'topple');
     report.after = foundry.utils.deepClone(after);
     report.prone = victim.statuses?.has?.('prone') ?? null;
+    report.effectsAfter = victim.effects.map(e => ({ name: e.name, statuses: [...e.statuses], disabled: e.disabled }));
+    const announce = game.messages.contents.find(m => m.content?.includes?.('falls Prone'));
+    report.announce = announce
+      ? { id: announce.id, timestamp: announce.timestamp, clientNow: Date.now(), skewMs: Date.now() - announce.timestamp }
+      : null;
+    report.activeModules = [...game.modules.values()].filter(m => m.active).map(m => m.id);
 
     // cleanup
     await victim.update({ 'system.bonuses.abilities.save': priorBonus });

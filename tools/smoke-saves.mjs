@@ -48,7 +48,7 @@ const out = await f.evaluate(async () => {
     return { fatal: 'setting saves not registered — this client is running OLD code (F5)' };
   }
 
-  const SETTING_KEYS = ['saves', 'saveTimer', 'saveAutoRoll', 'autoDamage', 'autoApply',
+  const SETTING_KEYS = ['saves', 'saveTimer', 'autoDamage', 'autoApply',
     'dramaticBeat', 'requireTarget', 'reactionHold', 'suppressAttackCards',
     'suppressWeaponCards', 'suppressSpellCards', 'suppressFeatureCards', 'suppressOtherCards',
     'riders', 'effectRiders', 'masteryRiders', 'concMode', 'castApply'];
@@ -62,7 +62,7 @@ const out = await f.evaluate(async () => {
   if (!scene || !victim || !npc || !shielder) return { fatal: 'missing fixture: scene or BF Test actors' };
 
   const CHIP_NAMES = ['BF Poisoned', 'BF Splashed'];
-  const created = { items: [], tokens: [] };
+  const created = { items: [], tokens: [], templates: [] };
   const priorActor = {};
   let restored = false;
   const clearChips = async () => {
@@ -85,6 +85,8 @@ const out = await f.evaluate(async () => {
       }
       const liveTokens = created.tokens.filter(id => scene.tokens.get(id));
       if (liveTokens.length) await scene.deleteEmbeddedDocuments('Token', liveTokens);
+      const liveTemplates = created.templates.filter(id => scene.templates.get(id));
+      if (liveTemplates.length) await scene.deleteEmbeddedDocuments('MeasuredTemplate', liveTemplates);
       for (const [actorId, data] of Object.entries(priorActor)) {
         await game.actors.get(actorId)?.update(data);
       }
@@ -102,7 +104,6 @@ const out = await f.evaluate(async () => {
   try {
     await set('saves', true);
     await set('saveTimer', 0);
-    await set('saveAutoRoll', false);
     await set('autoApply', true);        // the damage half of the machine is under test
     await set('autoDamage', 'off');      // no attacks in this suite
     await set('dramaticBeat', 0);
@@ -168,6 +169,7 @@ const out = await f.evaluate(async () => {
       name: 'BF Test Poison Burst', type: 'spell',
       system: {
         level: 1, school: 'evo', properties: ['vocal'],
+        duration: { units: 'inst' },   // §8's spent-template rule reads this off the stamp
         target: { affects: { type: 'creature', count: '2', choice: false } },
         range: { value: '60', units: 'ft' },
         method: 'spell', prepared: 1, identifier: 'bf-test-poison-burst',
@@ -228,7 +230,6 @@ const out = await f.evaluate(async () => {
     // ============================================== 1. the stamp + two forced verdicts + effects
     let card1;
     {
-      await set('saveAutoRoll', true);           // the silent path first — deterministic
       await saveBonus(victim, '-30');            // forced failure vs DC 15
       await saveBonus(shielder, '+30');          // forced success vs DC 15
       await healFull(victim);
@@ -240,6 +241,40 @@ const out = await f.evaluate(async () => {
       if (use === undefined) return { fatal: 'the save fixture cast was refused' };
       card1 = use?.message instanceof ChatMessage ? use.message : null;
       if (!card1) return { fatal: 'the save cast produced no usage card' };
+      await until(() => card1.getFlag(MOD, 'saves'));
+
+      // ⑯'s companion, asserted at the source: the machine rolled the card's damage AT THE
+      // STAMP — nobody pressed anything (the table hides every card button). §2 owns the
+      // late-arrival ordering, so the auto roll is asserted and then deleted to keep that
+      // ordering constructible.
+      const autoDmg = await until(() => fresh(before).find(m =>
+        (m.getFlag('dnd5e', 'roll.type') === 'damage')
+        && (m.getFlag('dnd5e', 'originatingMessage') === card1.id)));
+      ok('1a2. the demand rolls its own damage at the stamp (the hidden-buttons companion)',
+        !!autoDmg && (autoDmg.getFlag('dnd5e', 'roll.damageOnSave') === 'half'),
+        `auto=${!!autoDmg} onSave=${autoDmg?.getFlag('dnd5e', 'roll.damageOnSave')}`);
+
+      // ⑯ at the DOM: the save card carries real Save/Damage buttons, and every one of them
+      // is hidden — a zero-button card would make this pass vacuously, so the count guards.
+      const cardEl = document.querySelector(`[data-message-id="${card1.id}"]`);
+      const btns = [...(cardEl?.querySelectorAll('.card-buttons button[data-action]') ?? [])];
+      const visibleBtns = btns.filter(b =>
+        (b.dataset.action !== 'refundResource') && (b.style.display !== 'none'));
+      ok('1a3. the card\'s action buttons are hidden — the machine owns the workflow',
+        (btns.length > 0) && (visibleBtns.length === 0),
+        `buttons=${btns.length} visible=[${visibleBtns.map(b => b.dataset.action).join()}]`);
+      if (autoDmg) await ChatMessage.deleteDocuments([autoDmg.id]);
+
+      // Both targets answer through the popup — the ONE input surface now that the silent
+      // opt-out is gone (the settings collapse, user call 2026-08-16). Different actors, so
+      // both popups offer at once; each Normal click is the machine's own roll channel.
+      for (let i = 0; i < 2; i++) {
+        const popup = await until(() => savePopups()[0], 8000);
+        if (!popup) break;
+        [...popup.querySelectorAll('footer button, .form-footer button')]
+          .find(b => b.textContent.trim() === 'Normal')?.click();
+        await until(() => !document.contains(popup), 8000);
+      }
       await until(() => {
         const f2 = card1.getFlag(MOD, 'saves');
         return f2 && f2.targets.every(t => t.done && t.applied);
@@ -307,7 +342,6 @@ const out = await f.evaluate(async () => {
 
     // ============================================== 3. damage BEFORE the verdict + the popup path
     {
-      await set('saveAutoRoll', false);
       await clearChips();
       await saveBonus(victim, '');               // neutral: the popup's own +30 must be the reason
       const vMax = await healFull(victim);
@@ -318,7 +352,7 @@ const out = await f.evaluate(async () => {
       const card = use?.message instanceof ChatMessage ? use.message : null;
       if (!card) return { fatal: 'section 3 cast produced no card' };
       await until(() => card.getFlag(MOD, 'saves'));
-      await rollDamageChained(card);
+      // The stamp's own auto-roll IS the early damage now — nothing to press.
       const dmg = await until(() => fresh(before).find(m => m.getFlag('dnd5e', 'roll.type') === 'damage'));
       await sleep(1800);
       ok('3a. a pending target\'s damage WAITS — per-target independence, nothing applied',
@@ -333,6 +367,12 @@ const out = await f.evaluate(async () => {
         (labels.join('/') === 'Advantage/Normal/Disadvantage')
           && !!popup?.querySelector('input[name="bf-save-bonus"]'),
         `buttons=[${labels.join('|')}] input=${!!popup?.querySelector('input[name="bf-save-bonus"]')}`);
+      // The demand stores the TOKEN's name (the snapshot's field) — compare against that,
+      // not the actor name (the fixture's prototype token is "Hobgoblin").
+      const rollerName = card.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? 'BF Test Victim';
+      ok('3b2. the popup leads with WHO is rolling — the creature owns the title',
+        ((popup?.querySelector('.window-title')?.textContent ?? '').includes(rollerName)),
+        `title="${popup?.querySelector('.window-title')?.textContent?.trim()}" expected="${rollerName}"`);
 
       const input = popup?.querySelector('input[name="bf-save-bonus"]');
       if (input) input.value = '+30';
@@ -411,13 +451,16 @@ const out = await f.evaluate(async () => {
           && (roll?.getFlag(MOD, 'timedOut') === true)
           && (roll?.rolls?.[0]?.options?.advantageMode === 0),
         `timedOut=${entry?.timedOut} outcome=${entry?.outcome} advMode=${roll?.rolls?.[0]?.options?.advantageMode}`);
+      // Quiesce before leaving: the stamp auto-rolls damage now, and this verdict's late
+      // application would otherwise land INSIDE §6's freshly healed pool (bit 2026-08-16:
+      // hp read 0/11 where 1/11 was earned).
+      await until(() => entryOf(card, victim)?.applied);
       await set('saveTimer', 0);
     }
 
     // ============================================== 6. legendary resistance overturns the verdict
     {
       await clearChips();
-      await set('saveAutoRoll', true);
       await saveBonus(victim, '-30');
       const vMax = await healFull(victim);
       await victim.update({ 'system.resources.legres.max': 1, 'system.resources.legres.spent': 0 });
@@ -427,8 +470,10 @@ const out = await f.evaluate(async () => {
       const use = await saveActivity().use({}, { configure: false }, {});
       const card = use?.message instanceof ChatMessage ? use.message : null;
       if (!card) return { fatal: 'section 6 cast produced no card' };
+      await until(() => card.getFlag(MOD, 'saves'));
+      await sleep(600); // the popup offers itself; the bare roll answers first (§4's channel)
+      await victim.rollSavingThrow({ ability: 'con' }, { configure: false }, {});
       await until(() => entryOf(card, victim)?.applied);
-      await rollDamageChained(card);
       const dmg = await until(() => fresh(before).find(m =>
         (m.getFlag('dnd5e', 'roll.type') === 'damage')
         && m.getFlag(MOD, 'receipt')?.targets?.some(t => t.uuid === victim.uuid)));
@@ -476,7 +521,6 @@ const out = await f.evaluate(async () => {
     // ============================================== 7. the exclusions
     {
       await clearChips();
-      await set('saveAutoRoll', false);
 
       await set('saves', false);
       target(victimToken);
@@ -503,6 +547,109 @@ const out = await f.evaluate(async () => {
       await sleep(1200);
       ok('7c. a self-aimed save activity never stamps (incidental UI targeting)',
         !!card && !card.getFlag(MOD, 'saves'), `flag=${!!card?.getFlag(MOD, 'saves')}`);
+    }
+
+    // ============================================== 8. templates: containment IS the target set
+    {
+      await clearChips();
+      await saveBonus(victim, '-30');
+      await saveBonus(shielder, '+30');
+      await healFull(victim);
+      await healFull(shielder);
+      target(shielderToken);              // the manual snapshot aims WRONG on purpose
+      await sleep(120);
+      const before = snap();
+      const use = await saveActivity().use({}, { configure: false }, {});
+      const card = use?.message instanceof ChatMessage ? use.message : null;
+      if (!card) return { fatal: 'section 8 cast produced no card' };
+      await until(() => card.getFlag(MOD, 'saves'));
+
+      // The template lands over the VICTIM only. Adoption must swing the demand both ways:
+      // the untargeted victim standing inside joins; the targeted shielder outside drops
+      // (the live Shatter and Moonbeam reports, one mechanism).
+      let hookFired = 0;
+      const hid = Hooks.on('createMeasuredTemplate', () => { hookFired++; });
+      // Radius 5 ft (100px) ON PURPOSE: the fixture tokens stand 200px apart and
+      // PIXI.Circle.contains is boundary-INCLUSIVE — a 10 ft circle puts the neighbor
+      // exactly on the rim and "outside" stops being testable (bit 2026-08-16).
+      const [tpl] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
+        t: 'circle', x: victimToken.center.x, y: victimToken.center.y, distance: 5,
+        flags: { dnd5e: { origin: card.getFlag(MOD, 'saves').activityUuid } }
+      }]);
+      created.templates.push(tpl.id);
+      // The adoption floor rides the card's RENDER (the CRUD hooks measurably never fire on
+      // this page) — nudge one, exactly as any table chatter would.
+      await sleep(300);
+      try { ui.chat?.updateMessage?.(card); } catch { /* re-renders next message anyway */ }
+      const adopted = await until(() => {
+        const f2 = card.getFlag(MOD, 'saves');
+        return (f2?.templated && f2.targets.some(t => t.uuid === victim.uuid)
+          && !f2.targets.some(t => t.uuid === shielder.uuid)) ? f2 : null;
+      });
+      Hooks.off('createMeasuredTemplate', hid);
+      if (!adopted) {
+        const f2 = card.getFlag(MOD, 'saves');
+        log.push(`8a dbg: ${JSON.stringify({
+          hookFired,
+          hookCount: Hooks.events.createMeasuredTemplate?.length ?? 0,
+          tplExists: !!scene.templates.get(tpl.id),
+          tplOrigin: tpl.getFlag('dnd5e', 'origin'),
+          cardActivity: f2?.activityUuid,
+          equal: tpl.getFlag('dnd5e', 'origin') === f2?.activityUuid,
+          status: f2?.status, undone: (f2?.targets ?? []).filter(t => !t.done).length,
+          activeGM: game.users.activeGM?.isSelf ?? null,
+          victimCenter: victimToken?.center, tplXY: { x: tpl.x, y: tpl.y }
+        })}`);
+      }
+      ok('8a. a template adopts the demand: containment in, stale manual targets out',
+        !!adopted && (adopted.targets.length === 1),
+        `templated=${!!adopted?.templated} targets=[${(card.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.name).join()}]`);
+
+      // Moonbeam walks: the circle lands on the shielder — the pending set follows the
+      // area. `templated` must already be true here or this assertion could pass on the
+      // original manual snapshot (the vacuous-pass trap, caught 2026-08-16). Expressed as
+      // delete + re-place because tpl.update() measurably no-ops on this headless page
+      // (same half-dead template plumbing as the create hook); live moves and re-places
+      // funnel into the identical recompute.
+      await scene.deleteEmbeddedDocuments('MeasuredTemplate', [tpl.id]);
+      const [tpl2] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
+        t: 'circle', x: shielderToken.center.x, y: shielderToken.center.y, distance: 5,
+        flags: { dnd5e: { origin: card.getFlag(MOD, 'saves').activityUuid } }
+      }]);
+      created.templates.push(tpl2.id);
+      await sleep(300);
+      try { ui.chat?.updateMessage?.(card); } catch { /* re-renders next message anyway */ }
+      const walked = await until(() => {
+        const f2 = card.getFlag(MOD, 'saves');
+        return (f2?.templated && f2.targets.some(t => t.uuid === shielder.uuid)
+          && !f2.targets.some(t => t.uuid === victim.uuid)) ? f2 : null;
+      });
+      if (!walked) {
+        const f2 = card.getFlag(MOD, 'saves');
+        const tplNow = scene.templates.get(tpl.id);
+        log.push(`8b dbg: ${JSON.stringify({
+          tplXY: { x: tplNow?.x, y: tplNow?.y }, shielderCenter: shielderToken.center,
+          origin: tplNow?.getFlag('dnd5e', 'origin'),
+          targets: f2?.targets?.map(t => ({ n: t.name, done: t.done, applied: t.applied })),
+          templated: f2?.templated
+        })}`);
+      }
+      ok('8b. the area moved and the pending set moved with it',
+        !!walked, `templated=${!!card.getFlag(MOD, 'saves')?.templated} `
+          + `targets=[${(card.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.name).join()}]`);
+
+      // Resolve the walked demand; the fixture is INSTANTANEOUS, so the spent template
+      // leaves the canvas with the last consequence.
+      const autoDmg8 = fresh(before).find(m =>
+        (m.getFlag('dnd5e', 'roll.type') === 'damage')
+        && (m.getFlag('dnd5e', 'originatingMessage') === card.id));
+      await sleep(600);
+      await shielder.rollSavingThrow({ ability: 'con' }, { configure: false }, {});
+      await until(() => (card.getFlag(MOD, 'saves')?.targets ?? []).every(t => t.done && t.applied));
+      await until(() => !scene.templates.get(tpl2.id), 8000);
+      ok('8c. the instantaneous template is spent once every consequence landed',
+        !scene.templates.get(tpl2.id),
+        `template=${!!scene.templates.get(tpl2.id)} autoDmg=${!!autoDmg8}`);
     }
 
     return { log, results, skips };

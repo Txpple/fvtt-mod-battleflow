@@ -774,6 +774,18 @@ const out = await f.evaluate(async () => {
       log.push(`14: swept ${strayVictimTokens.length} stray victim token(s) off the range`);
     }
     if (victim.statuses?.has?.('prone')) await victim.toggleStatusEffect('prone', { active: false });
+    // ④'s regression net (2026-08-16): a DISABLED Prone leftover makes
+    // toggleStatusEffect({active: true}) a silent no-op — the live "topple failed but
+    // nothing fell prone". The press must land THROUGH it (forceStatus enables the
+    // carrier), so plant exactly that leftover before the failing save.
+    // ⚠ CANONICAL id on purpose: toggleStatusEffect(false) — every cleanup in this suite —
+    // only ever removes the canonical-id effect. A random-id carrier, once enabled, outlives
+    // every cleanup and hopeless-gates the rest of the run (how 2026-08-16's battery
+    // poisoned itself: §7/14d/14e all starved behind an immortal Prone).
+    await victim.createEmbeddedDocuments('ActiveEffect', [{
+      _id: 'dnd5eprone000000', name: 'Prone', statuses: ['prone'], disabled: true,
+      img: 'icons/svg/falling.svg'
+    }], { keepId: true });
     priorActor[victim.id]['system.bonuses.abilities.save'] =
       victim.system._source.bonuses?.abilities?.save ?? '';
     const snap14 = () => new Set(game.messages.contents.map(m => m.id));
@@ -818,12 +830,16 @@ const out = await f.evaluate(async () => {
       // The announcement posts AFTER the flag flips done (the handoff's same-breath race) —
       // and since v1.5.1 also after the dice-animation pause — give it a generous wait.
       await until14(() => fresh14(before14).some(m => m.content?.includes('falls Prone')), 10_000);
+      // The applied receipt is written AFTER the announcement posts — wait for it or the
+      // assert races the last flag write (the same-breath lesson, applied-side).
+      await until14(() => toppleMsg.getFlag(MOD, 'topple').targets[0].applied, 8000);
       const e14 = toppleMsg.getFlag(MOD, 'topple').targets[0];
       const announced = fresh14(before14).filter(m => m.content?.includes('falls Prone')).length;
       const sm14 = saveRolls14?.[0]?.parent;
-      ok('14c. a failed save applies Prone itself, marks done, and announces once',
-        e14.done && (e14.outcome === 'prone') && victim.statuses.has('prone') && (announced === 1),
-        `outcome=${e14.outcome} prone=${victim.statuses.has('prone')} announced=${announced}`
+      ok('14c. a failed save presses Prone THROUGH a disabled leftover, marks applied, announces once',
+        e14.done && (e14.outcome === 'prone') && victim.statuses.has('prone')
+          && (e14.applied === true) && (announced === 1),
+        `outcome=${e14.outcome} prone=${victim.statuses.has('prone')} applied=${e14.applied} announced=${announced}`
           + ` | save: type=${sm14?.getFlag('dnd5e', 'roll.type')} origin=${sm14?.getFlag('dnd5e', 'originatingMessage')}`
           + ` total=${sm14?.rolls?.[0]?.total} assoc=${sm14?.getAssociatedActor?.()?.uuid} expected=${victim.uuid}`);
 

@@ -615,6 +615,35 @@ const out = await f.evaluate(async () => {
         !!card && (card.whisper?.length === 0), card ? '' : 'no down-wording card');
       await healFull();
     }
+
+    // ================================================== 14. the crash-resume re-drives a dead fold
+    {
+      const eff = concEffects()[0] ?? await ensureConc();
+      if (!eff) return { fatal: 'recast failed for section 14 (slots?)' };
+      const t0 = marker();
+      // Forge the crash's exact residue (the live 2026-08-16 shape): an ask folded to done
+      // (failed), never applied — the folding client died inside the verdict pause, the row
+      // said "broken" and Bless survived. answeredAt sits past the resume horizon; any GM
+      // render must run the cascade, post the break card, and write the applied receipt.
+      await ChatMessage.create({
+        speaker: { alias: 'Battle Flow' },
+        content: 'probe: crash-resume ask',
+        flags: { [MOD]: { concentration: {
+          status: 'done', actorUuid: shielder.uuid, ability: 'con', dc: 30, damage: 60,
+          names: [spell.name], effectIds: [eff.id],
+          outcome: { total: 3, success: false, rollMessageId: null, answeredAt: Date.now() - 30_000 }
+        } } }
+      });
+      const gone = await waitFor(() => concEffects().length === 0, 10_000);
+      const card14 = await waitFor(() => contentNew(t0, 'ends'));
+      const askAfter = newSince(t0).find(m => m.getFlag(MOD, 'concentration')?.outcome);
+      // The applied receipt lands AFTER the break card — wait for it, never race it.
+      await waitFor(() => askAfter?.getFlag(MOD, 'concentration')?.outcome?.applied === true, 8000);
+      ok('14. a done-but-unapplied fold re-drives: cascade, break card, applied receipt',
+        !!gone && !!card14 && (askAfter?.getFlag(MOD, 'concentration')?.outcome?.applied === true),
+        `effects=${concEffects().length} card=${!!card14} `
+          + `applied=${askAfter?.getFlag(MOD, 'concentration')?.outcome?.applied}`);
+    }
   } catch (err) {
     ok('SUITE', false, `unhandled: ${err?.message}\n${err?.stack}`);
   } finally {
