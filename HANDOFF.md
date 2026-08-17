@@ -1,10 +1,27 @@
 # HANDOFF.md — picking this up cold
 
-> Current at 2026-08-16, late night — **v1.7.0: PHASE 2 (saving throws) + Phase 3's save
-> slice, shipped and seven-suite battery-proven in the same unattended stretch.** Read
-> [design.md](design.md) first — it is binding and wins every disagreement. This file is
-> only *where things stand* and *what already bit us*. Delete or rewrite it freely; it is
-> a snapshot, not a contract.
+> Current at 2026-08-16, late night — **v1.7.0 (Phase 2, saving throws + Phase 3's save
+> slice) AND v1.8.0 (the Phase 3 convergence), both shipped and seven-suite
+> battery-proven in the same unattended stretch — the code phases through 3 are DONE.**
+> Read [design.md](design.md) first — it is binding and wins every disagreement. This file
+> is only *where things stand* and *what already bit us*. Delete or rewrite it freely; it
+> is a snapshot, not a contract.
+>
+> **v1.8.0** = the convergence, the release train's second controlled step:
+> `applyEffectsTo` is now THE application loop for every document-copy effect the module
+> lands (riders, cast slice, save slice, and the reaction's self-cast sliver — the latter
+> via two narrow policy options, `matchNames` for the clone-origin dedupe and `extraFlags`
+> for the `reactionEffect` marker); `joinEffectReceipt` is THE receipt bookkeeping, shared
+> by every writer including the mastery chips; and **the reaction effect has its
+> receipt/revert** — the one §2.5 gap standing, closed. The receipt rides the answering
+> player's own response message (they cannot flag anyone else's), or the held message
+> itself when the answering client owns it (GM answers, the safety net, the isOwner fold);
+> one cast answering many holds leaves ONE receipt, on the OLDEST pending hold —
+> `probe-reaction-receipt.mjs` proved that placement with a two-hold ledger when the new
+> suite assertion first watched the wrong message. `applyMasteryEffect` deliberately stays
+> its own applier (authored data, flag-keyed dedupe, combat durations — recorded at the
+> site). `hold.js` → `effect-riders.js` is a STATIC edge and safe (effect-riders registers
+> no hooks); the four load-bearing orderings all hold.
 >
 > **v1.7.0** = the 2.5 machine generalized per target, exactly as the plan prescribed: a
 > new `saves.js` (766 lines) importing the exported seams plus ONE entry import — no
@@ -26,15 +43,16 @@
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.7.0** (2026-08-16, late night): **Phase 2 saving
-throws + Phase 3's save slice** — new machine, ships OFF, full seven-suite battery green
-on prod after deploy (the new suite caught one real discipline break pre-release: the
-damage reconcile undercutting the verdict pause — fixed before the tag). Before it, the
-same day: v1.6.1 (the split), v1.6.0 (topple save popup; Magic Missile rework), v1.5.1
-(six table fixes + combatplus v1.3.0), v1.5.0 (cast slice, topple fold, reminders,
-tooltips), v1.4.0 (concentration), v1.3.x (Phase 1.9). Deployed, tags pushed, GitHub
-releases carry zip + manifest. **The box tracks the GitHub manifest** (repointed
-2026-08-15), so the process vends the real version string after a restart.
+Molten-hosted). Latest releases, both 2026-08-16 late night: **v1.8.0** (the Phase 3
+convergence — unified appliers, the reaction receipt/revert) and **v1.7.0** (Phase 2
+saving throws + Phase 3's save slice — new machine, ships OFF; its new suite caught one
+real discipline break pre-release: the damage reconcile undercutting the verdict pause —
+fixed before the tag). Before them, the same day: v1.6.1 (the split), v1.6.0 (topple save
+popup; Magic Missile rework), v1.5.1 (six table fixes + combatplus v1.3.0), v1.5.0 (cast
+slice, topple fold, reminders, tooltips), v1.4.0 (concentration), v1.3.x (Phase 1.9).
+Deployed, tags pushed, GitHub releases carry zip + manifest. **The box tracks the GitHub
+manifest** (repointed 2026-08-15), so the process vends the real version string after a
+restart.
 
 | Phase | State |
 | --- | --- |
@@ -46,7 +64,7 @@ releases carry zip + manifest. **The box tracks the GitHub manifest** (repointed
 | 1.9 — effect + mastery riders | ✅ **shipped v1.3.0** (2026-08-16), suite-verified end to end. Not yet dogfooded — every switch is OFF at the table until the user walks the ladder. |
 | 2 — saves | ✅ **shipped v1.7.0** (2026-08-16), suite-verified end to end. Not yet dogfooded — ships OFF until the user walks it (`saves`, plus `saveTimer` 15s and the per-client `saveAutoRoll` opt-out). |
 | 2.5 — concentration | ✅ shipped v1.4.0; **live at the table** since 2026-08-16 evening (`concMode: prompt`, user-walked). |
-| 3 — effect application | 🟨 **cast slice v1.5.0; save slice v1.7.0** (failed-save effects + `onSave` + half-on-save through the shared appliers); 1.9A covers the attack slice; the CONVERGENCE (unified appliers + reaction receipt/revert) is the standing next step — its own diff. |
+| 3 — effect application | ✅ **COMPLETE at v1.8.0**: attack slice (1.9A), cast slice (v1.5.0), save slice (v1.7.0), and the convergence (v1.8.0 — unified appliers + the reaction receipt/revert). |
 
 ⚠ **World data changed 2026-08-15:** the Skeletal Mage's `system.attributes.ac.calc` went
 `flat` → `natural`. Its `flat: 16` is untouched, so its printed AC is still 16 — but a flat AC
@@ -98,18 +116,18 @@ is open. The table is loaded for Tuesday; the box vends a stale version STRING (
 until the Foundry process restarts — purely cosmetic, still fine to wait for a natural
 bounce. The split itself needed no restart (design.md §9's import shape, proven live).
 
-**Phase 2 + the Phase 3 save slice SHIPPED (v1.7.0, this session, autonomously per the
-user's "execute phase 2 and 3, ill be afk")** — the machine is exactly the spec'd shape
-(see the header blurb), battery-green, and OFF at the table. **Next: the Phase 3
-convergence** — unify the three effect appliers around `applyEffectsWithReceipt` (the
-hold's `applyReactionEffect` is the one appliance still outside it) and give the reaction
-effect its missing receipt/revert, the one §2.5 gap standing — same release train, its
-own diff, battery again before the tag (design.md Phase 3 headnote). Not yet done in this
-stretch: two-client save coverage on PC Assistant (`probe-player-seam.mjs` is the proving
-spike; the suites still run single-client), and the dogfood walk itself — the user turns
-`saves` on when they choose. ⚠ Tuesday is live play: anything deployed before it ships
-**OFF by default** (house rule) and battery-green, and that is the only gate a mid-week
-deploy needs — v1.7.0 clears both.
+**Phases 2 and 3 SHIPPED COMPLETE (v1.7.0 + v1.8.0, this session, autonomously per the
+user's "execute phase 2 and 3, ill be afk")** — both battery-green, the save machine OFF
+at the table, the convergence behavior-invisible except for the reaction's new receipt
+rows. **What the ladder points at next**, none of it urgent and most of it not code:
+the user walks the saves ladder at the table (turn `saves` on, dogfood, report); Phase 4
+is an EXPERIMENT first (cast Bless, run ten rounds, watch — likely zero code, see
+design.md); Phase 5 (conditions) stays an adopt-AC5e decision deferred to dogfood; and
+two-client save coverage on PC Assistant remains unbuilt (`probe-player-seam.mjs` is the
+proving spike; the suites run single-client — the popup/opt-out election is exercised
+GM-side only). ⚠ Tuesday is live play: anything deployed before it ships **OFF by
+default** (house rule) and battery-green, and that is the only gate a mid-week deploy
+needs — v1.7.0 and v1.8.0 both clear it (the convergence changes no defaults).
 
 **Struck: the second Molten box** (user, 2026-08-16: "we cant have a second box so strike
 that for now"). The full provisioning plan lives in this file's git history (section "the
@@ -117,15 +135,17 @@ second Molten box", ≤ v1.6.0) if it ever returns. Suites keep running on prod,
 turns with live sessions — check who's connected before yanking clients.
 
 **Leftovers, all deliberate, none blocking** — so the next session treats reports against
-these as design conversations, not bugs: legendary resistance still arrives too late
-(Phase 2's `forceSuccess`); a sheet-rolled concentration save's card colors against DC 10
-while the verdict judges the real DC; a human pressing the damage tray early still beats
-a pending hold (a ruling); a damage card carrying EFFECTS keeps its card, and self-buff
-(affects-self) casts stay tray clicks; the topple popup has no timer (the GM button is
-the paper-roll backstop); hopeless skips are silent by design (the dead, the speedless —
-twice mistaken for bugs on 2026-08-16, so say so early if it recurs); the reaction
-effect's missing receipt/revert remains Phase 3's convergence gap; the save-activity
-slice of Phase 3 waits on Phase 2.
+these as design conversations, not bugs: legendary resistance on a CONCENTRATION save
+still arrives too late (2.5's recorded corner — the SAVE machine's LR overturn shipped at
+v1.7.0, but concentration's fold is its own machine and still cascades before a flip);
+a sheet-rolled concentration save's card colors against DC 10 while the verdict judges
+the real DC; a human pressing the damage tray early still beats a pending hold (a
+ruling); a damage card carrying EFFECTS keeps its card, and self-buff (affects-self)
+casts stay tray clicks; the topple popup has no timer (the GM button is the paper-roll
+backstop); hopeless skips are silent by design (the dead, the speedless — twice mistaken
+for bugs on 2026-08-16, so say so early if it recurs); the save machine's own corners are
+standing item 15's list (multi-ability first-listed, consumed-item effects, dead targets
+still roll, conc-ask deference, no announcement cards).
 
 ### Standing
 
@@ -248,9 +268,10 @@ slice of Phase 3 waits on Phase 2.
    not 1) so half-on-save extends the applier instead of forking it. What it deliberately
    did NOT do: merge the two table-moment machines (the popup lifecycle is shared via
    `openManagedPopup`; the timers stay twins until Phase 2.5 makes a third), or unify the
-   three effect appliers (Phase 3 is the convergence point, growing out of
-   `applyEffectRiders` — which also finally gives the reaction effect its missing
-   receipt/revert, the one §2.5 gap left standing).
+   three effect appliers — *that unification happened at v1.8.0 exactly as this review
+   predicted*: grown out of `applyEffectRiders` (`applyEffectsTo` + `joinEffectReceipt`),
+   with the reaction receipt/revert closed and only the mastery applier left separate, by
+   recorded policy.
 11. **Accepted corner — mixed-ownership answer race.** On a multi-target hold with a
    player-owned and a GM-answered target, the GM's direct flag write and the continuing
    client's response-message fold can clone-modify-write the `hold` flag concurrently;
@@ -487,6 +508,10 @@ Cheap to re-run; extend it rather than adding printf debugging to a suite.
 `tools/probe-missile-hp.mjs` is its sibling for the hold: it replays smoke-hold 6a with a
 ledger of every message, damage event and HP write — the tool that proved the stand-in's
 mystery damage came from the suite's own stray holds, not the module (below).
+`tools/probe-reaction-receipt.mjs` (v1.8.0) replays smoke-hold 4b with a pending-holds
+ledger — the tool that proved the reaction receipt lands on the OLDEST pending hold the
+cast answered (the suite's retry loop leaves strays older than the watched attack), which
+re-aimed the fix at the assertion instead of the machine.
 
 `tools/scan-reactions.mjs` regenerates the [REACTIONS.md](REACTIONS.md) survey after content
 changes; `tools/scan-riders.mjs` does the same job for damage riders, finding them by the
@@ -896,12 +921,12 @@ purpose** (its verdict row must register first; see the import-order rule below)
 | `shared.js` | 63 | the hit test and the chain walk |
 | `polish.js` | 206 | no-target gate, per-source card suppression, cast-slice stamps, dialog centering |
 | `auto-damage.js` | 66 | Phase 1a — auto-roll damage on hit |
-| `hold.js` | 1069 | Phase 1.5 — the whole reaction-hold machine: eligibility, both triggers, answers, continuation, veto, spell-damage applier claim |
+| `hold.js` | 1095 | Phase 1.5 — the whole reaction-hold machine: eligibility, both triggers, answers, continuation, veto, spell-damage applier claim; the reaction effect's application + receipt (v1.8.0) |
 | `ui.js` | 594 | popup lifecycle (`openManagedPopup`), the house card (`bfCard`), the countdown bar, the hold's views + timers |
 | `hit-riders.js` | 228 | Phase 1.75 — curated damage riders |
 | `auto-apply.js` | 139 | Phase 1b — the elect's applier, `applyDamagesWithReceipt`, the payout pipeline |
-| `effect-riders.js` | 130 | Phase 1.9A — `applyEffectsWithReceipt` (the Phase 3 convergence) |
-| `mastery.js` | 749 | Phase 1.9B/C — mastery riders, the ask (`armAskTimer` twins), the topple fold + popup, reminders |
+| `effect-riders.js` | 168 | Phase 1.9A + the v1.8.0 convergence core: `applyEffectsTo` (THE application loop), `joinEffectReceipt` (THE receipt bookkeeping), `applyEffectsWithReceipt` |
+| `mastery.js` | 754 | Phase 1.9B/C — mastery riders, the ask (`armAskTimer` twins), the topple fold + popup, reminders; its applier stays separate BY POLICY (authored data — see the comment at the site) |
 | `concentration.js` | 591 | Phase 2.5 — cause capture → ask → roll → fold → break, `dramaticVerdictPause` |
 | `cast.js` | 93 | Phase 3 cast slice — the elect executes stamped payloads |
 | `saves.js` | 766 | Phase 2 + Phase 3 save slice — demand stamp, per-target popups/rolls, fold vs stored DC, consequences through the shared appliers, LR overturn |
@@ -953,7 +978,8 @@ reach the shipped attack path. **If you add a third trigger, add it as a stamp f
 | attack message | `receipt` | Graze only — the miss's damage receipt lands here (no damage message exists) |
 | damage message | `receipt` | per-target prior HP/deltas/taken/traits/multiplier + reverted markers |
 | damage message | `effectReceipt` | applied effects per target, each entry carrying `description` (the hover tooltip) + per-stage idempotence markers (`ridersDone` / `castDone`) |
-| response message | `respondsTo`, `uuid`, `answer`, `ac`, `effectLanded` | a player's answer traveling to the continuing client |
+| response message | `respondsTo`, `uuid`, `answer`, `ac`, `effectLanded`, `effectReceipt` | a player's answer traveling to the continuing client; since v1.8.0 the reaction effect's receipt rides here (the answering player owns this message and no other) |
+| held message (attack / usage card) | `effectReceipt` | the reaction effect's receipt when the ANSWERING client owns the held message (GM answers, the safety net) — v1.8.0 |
 | bfCard message | `topple` | the Topple demand: `dc`, `ability`, `weapon`, per-target `done` + `outcome` ("prone"/"saved") — the fold judges by this dc |
 | usage card OR replacement bfCard | `castApply` | the cast payload: activityUuid, concentration id, scaling, spellLevel, targets — the stamp IS the trigger |
 | healing roll message | `healPending` | the initiating client's claim; the elect applies and the receipt marks it done |

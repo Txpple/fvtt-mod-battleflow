@@ -644,8 +644,16 @@ corrupts game state.
 >
 > **The save slice shipped at v1.7.0** (failed-save effects with the per-effect `onSave`
 > flag honored, half-on-save through the applier's threaded multiplier, per-target and
-> order-independent, legendary resistance overturning receipts-and-all). The convergence is
-> the standing next step.
+> order-independent, legendary resistance overturning receipts-and-all). **The convergence
+> shipped at v1.8.0**, closing the phase: `applyEffectsTo` is the one application loop for
+> every document-copy effect (riders, cast, saves, the reaction sliver — two narrow policy
+> options, `matchNames` and `extraFlags`, exist for the sliver and stay that narrow);
+> `joinEffectReceipt` is the one receipt bookkeeping, shared by everything including the
+> mastery chips; and the reaction effect has its receipt/revert (the §2.5 gap) — on the
+> answering player's own response message, or on the held message when the answering client
+> owns it. `applyMasteryEffect` deliberately remains its own applier: authored data, a
+> flag-keyed dedupe, combat-aware durations — forcing those through the shared loop would
+> be a lambda per policy (the decision is recorded at the site).
 
 > **The cast-time slice shipped early (2026-08-16, user call, v1.5.0)** — *"for spells that
 > have effects/rolls that are not saving required (Bless, healing), the effect auto-applies;
