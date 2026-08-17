@@ -283,6 +283,13 @@ off), none changing the resolution chain:
   > replacement-bfCard plumbing (the hold's §6f bus, the cast slice's replacement) are
   > deleted outright — settings, functionality and all, the holdView/saveAutoRoll
   > precedent. The native card is always the bus again.
+  > **Amended v1.11.0 (finding ②): Place Measured Template is CONDITIONAL** — it shows
+  > only while NO template of this card's activity stands (origin-flag tie, the adoption
+  > match). With the circle down, the button's one remaining power is placing a second
+  > copy; deleting the template brings it back, so the canceled-placement path (cast →
+  > cancel → place from the card) stays alive. Template CRUD re-renders the card as a
+  > fast-path; the render pass is the floor (the CRUD-hooks-unreliable-headless ground
+  > truth).
 - **Damage receipts are for the whole table, the HP pool is not.** Everyone sees *who* the
   damage landed on and how much; the before → after hit points and the revert control stay
   GM-only. A rolled number with no named target is the thing players actually complained
@@ -392,7 +399,9 @@ rewind. So: a **hold point** between hit determination and the damage roll.
   > setting for shield should be disclosing the attack roll so the player knows if it will be
   > useful to cast shield."* A reaction spends a real resource on a guess, and a table that
   > cannot see whether the guess pays is not tense, it is annoyed. RAW remains one toggle away.
-- **Hold timer** (world): off (default — wait indefinitely, human-paced) or N seconds (≈5 for
+- **Hold timer** (world): 15s default since v1.11.0 (user call 2026-08-17: every timer
+  defaults to 15s — a window a human at a watched window can win); 0 waits indefinitely,
+  human-paced. Originally shipped defaulting off / N seconds (≈5 for
   a snappy table): live countdown bar in popup + card row, then auto-continue as Pass + quiet
   log line ("Gren's reaction window passed"). Mechanics per §4.3. A late cast that beats the
   final recheck but loses the race = revert case.
@@ -584,6 +593,33 @@ v1.3.0 (2026-08-16).
 > math); a bare sheet roll defers to a pending concentration ask (the recognizers cannot be
 > told apart); and there are NO verdict announcement cards — the card's per-target rows and
 > the receipts say everything once (standing item 4's rule).
+>
+> **Amended v1.11.0 (2026-08-17, the walk's findings):**
+> - **`onSave: "full"` is rider damage, not the save's consequence.** The system's own
+>   PHB data nests situational damage ON the save activity with onSave "full" (Web's burn
+>   clause: 2d4 fire for starting a turn in burning webs — the save is about Restrained).
+>   Damage the save does not modulate never rides the demand: the stamp carries no damage
+>   dimension (`hasDamage: false`), nothing auto-rolls, and the reconcile pass refuses
+>   chained damage outright — a burn-enricher click would otherwise re-apply by verdict
+>   through the side door. The card text's enricher stays clickable through the native
+>   tray, GM-judged, which is exactly what situational damage is. (Finding ③: Web
+>   auto-rolled its burn at the stamp and applied it to a timer-failed target.)
+> - **Every pending row drains its own bar** — "two timers tick side by side" (the user's
+>   stated expectation on a two-target demand; a single bar under the last row read as
+>   that row's alone). Each bar anchors to the same absolute deadline; §4.3's pairing and
+>   drift-0 rules are untouched.
+> - **The pressed Prone names its source**: the topple stamp carries `attackerUuid`, and
+>   both press paths (the fold's auto-press and the GM button) land the chip with
+>   `origin` = the attacker, through `forceStatus`'s direct build (finding ⑤ — the
+>   mastery chips already carried the weapon as origin; the bare status press was the
+>   gap). Canonical-id discipline unchanged.
+> - **Topology reality, documented after a two-client repro** (probe-popup-topology.mjs):
+>   the popup chain is correct cross-client — a demand stamped by the caster's client
+>   opens its popup on the decider's client and closes at resolution. A popup on a window
+>   nobody is watching lives exactly the timer's length and is never seen; one human
+>   driving two windows sees only the acting window's popups. That is attention, not a
+>   defect; the 15s default (below) is the mitigation, and at a real table each human
+>   watches their own window.
 
 > **The machine already exists (2026-08-16, user architectural call).** Phase 2.5 shipped
 > first and is deliberately the seed: the mode gate (prompt / auto), the ask-message +
@@ -743,6 +779,19 @@ corrupts game state.
 > **Amended v1.10.0:** with suppression removed (Phase 1.1 note), the replacement-card
 > and damage-bridge plumbing above is deleted — the native card is always the bus; the
 > veto's whole-log fallback stays for genuinely unbridged rolls.
+> **Amended v1.11.0 (2026-08-17, user call — finding ①: Morgash Second-Winded the target
+> dummy): SELF-tagged activities SELF-AIM.** "Anything that is tagged SELF should self
+> aim": a `heal` or `utility` activity whose `target.affects.type` is `self` ignores the
+> UI snapshot, aims at its own actor, and needs no target at all — Second Wind heals
+> Morgash with the dummy targeted or with nobody targeted; Divine Favor's effect lands on
+> its caster at cast. This SUPERSEDES v1.5.1's "self-buffs stay the caster's own tray
+> click" stance. What survives of v1.5.1 is its original catch, kept as a carve-out: a
+> LISTED reaction (interrupt list) with "Apply the Reaction's Own Effect" on is the hold
+> machinery's to apply — the cast slice keeps its hands off Shield entirely, listed
+> reactions never self-aim (smoke-hold's castApply-ON coexistence net still polices the
+> +10-two-chips regression; smoke-cast §6d pins the carve-out itself). Blank `affects`
+> still disqualifies (hand-authored shapes carry no aim data and the slice must not
+> guess), and the save machine's own self-gate is untouched.
 
 Auto-apply a used activity's effects, filtered by outcome — the native effect tray's semantics
 (`EffectApplicationElement._applyEffectToActor`), pressed automatically:
@@ -794,12 +843,12 @@ World, per-feature, default OFF unless noted:
 | Dramatic beat before damage | off / seconds | 1 |
 | Require a target to attack | off / on | 1.1 |
 | ~~Suppress attack usage cards~~ | **removed v1.10.0** (with the whole suppression machinery — cards always post) | 1.1 |
-| Hide redundant card buttons | on (default, world) — every card action button hidden except Refund Resource and Place Measured Template; **shipped v1.9.5**, keep-list amended v1.10.0 | 1.9 |
+| Hide redundant card buttons | on (default, world) — every card action button hidden except Refund Resource and Place Measured Template (conditional since v1.11.0: hidden while its template stands); **shipped v1.9.5**, keep-list amended v1.10.0/v1.11.0 | 1.9 |
 | Center roll dialogs (per client) | off / on — **ships ON**, the one recorded default-off exception (user call 2026-08-15: a per-client comfort nobody knows to look for starts wrong on every new login) | 1.1 |
 | Reaction hold | off / on + curated interrupt list (entries: name, AC-type/damage-type) | 1.5 |
 | Spells a reaction blocks | curated list (`Spell:Reaction`, default `Magic Missile:Shield`) | 1.5 |
 | Halving reactions | pause / post-hoc via revert+½ — **not built**; damage-kind holds announce and leave the reduction manual | 1.5 |
-| Hold timer | off (wait) / N seconds | 1.5 |
+| Hold timer | 15s default (v1.11.0 — every timer 15s; 0 waits) | 1.5 |
 | Popup shows the math | off / on (verdict included) | 1.5 |
 | Hit riders | off / on | 1.75 |
 | Rider table | curated identifier list — **how much** is read from the content, never listed | 1.75 |
