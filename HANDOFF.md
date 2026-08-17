@@ -75,25 +75,30 @@ release bits.
 ignores every bonus, which made Shield inert on it. See the flat-AC ground truth; reverting the
 field restores the old behaviour, bug included.
 
-**Live settings as left** — verify with a read before trusting this list; the suites restore
-whatever they find, so it drifts:
+**Live settings — THE USER'S REFERENCE CONFIGURATION** (read off the box 2026-08-17 after
+v1.9.5, at the user's explicit instruction: *"whenever you test, leave them like that"*).
+⚠ STANDING RULE: after ANY suite, probe, or test session, VERIFY the world settings
+against this table and restore drift — the suites' restore-what-they-find is necessary
+but not sufficient (a crashed run restores nothing). When the USER changes a setting,
+update this table, never fight it:
 
 | Setting | Value | |
 | --- | --- | --- |
-| Auto-Roll Damage on Hit | `all` | `pc` / `npc` isolate one side for testing |
+| Auto-Roll Damage on Hit | **`off`** | the user's call, 2026-08-17 — attacks keep their manual damage press for now |
 | Auto-Apply Damage | on | active-GM elect, receipts + revert |
-| Dramatic Beat | 3s | |
+| Dramatic Beat | **0s** | user turned the beat off 2026-08-17 |
 | Suppress Attack Cards | on | cards carrying effects survive anyway |
 | Require a Target | on | |
 | Reaction Hold | on | governs **both** triggers |
 | Spells a Reaction Blocks | `Magic Missile:Shield` | new in v1.1.16 — the second trigger |
+| Reaction List | `Shield:ac, Absorb Elements:damage, Uncanny Dodge:damage, Defensive Duelist:ac, Illusory Self:ac, Glorious Defense:ac, Parry:ac, Counterattack:ac, Defensive Stance:ac, Riposte:ac, Whirlwind of Sand:ac, Deflect Attacks:damage, Stone's Endurance:damage` | user-expanded 2026-08-17 — nine new entries beyond the original four |
 | Hold Shows the Math | **on** | default flipped in v1.1.8 — design.md §5 carries the correction |
-| Hold Timer | **15s** | 0 waits indefinitely |
+| Hold Timer | **12s** | user-tuned from 15; 0 waits indefinitely |
 | Skip Hopeless Holds | **on** | gated on the reveal, deliberately — see the setting's hint |
 | Apply the Reaction's Effect | on | |
 | Hold Settle | 8s | |
 | Hide Redundant Buttons | **on (the default)** | NEW v1.9.5 — every card action button hidden except Refund Resource |
-| Hit Riders | **off** | new in v1.2.0 |
+| Hit Riders | **on** | user flipped ON 2026-08-17 |
 | Rider Table | `hunters-mark, hex, great-old-one-hex` | identifiers only — the damage is read from the content |
 | Rider Upgrades | `foe-slayer:hunters-mark` | replaces the die, never stacks |
 | Effect Riders | **on** | user-walked ON 2026-08-16 — a hit applies the card's effects |
@@ -105,7 +110,7 @@ whatever they find, so it drifts:
 | Failure Breaks Concentration | **on** | inert until the mode is on — the forgotten click the phase exists to press |
 | Concentration Checks Are Public | **on** | off = whispered to owners + GM; the break card is ALWAYS public |
 | Resolve Saving Throws | **on** | user-walked ON 2026-08-16 during the live dogfood |
-| Save Timer | 15s | expiry ROLLS (data-driven, straight); 0 waits indefinitely; inert until saves is on |
+| Save Timer | **6s** | user-tuned from 15 — a fast table; expiry ROLLS; inert until saves is on |
 | Auto-Apply on Cast | **on** | new in v1.5.0 — no-gate casts (utility effects + healing) apply themselves; damage spells deliberately excluded |
 | Center Popups | on (per client, the default) | v1.9.5: THE ONLY client setting left — `holdView` and `saveAutoRoll` are deleted, code paths and all |
 
