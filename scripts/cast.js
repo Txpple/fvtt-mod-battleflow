@@ -64,8 +64,12 @@ async function applyCastHealing(message) {
   castExecutions.add(key);
   try {
     if ( message.getFlag(MODULE_ID, "receipt") ) return; // applied (or reverted) already
-    const targets = (message.getFlag("dnd5e", "targets") ?? [])
-      .map(t => ({ uuid: t.uuid, name: t.name }));
+    // A SELF-aimed heal carries its target ON the stamp (v1.11.0 self-aim, finding ① —
+    // the dnd5e targets snapshot is incidental UI targeting for a range-self activity).
+    const stamp = message.getFlag(MODULE_ID, "healPending");
+    const targets = stamp?.selfAim
+      ? [{ uuid: stamp.uuid, name: stamp.name }]
+      : (message.getFlag("dnd5e", "targets") ?? []).map(t => ({ uuid: t.uuid, name: t.name }));
     if ( !targets.length ) return;
     const damages = dnd5e.dice.aggregateDamageRolls(message.rolls, { respectProperties: true })
       .map(roll => ({

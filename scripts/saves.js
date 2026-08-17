@@ -113,12 +113,23 @@ async function stampSaveDemand(activity, message, results) {
       always: entries.filter(e => e.onSave).map(e => e.effect.name)
     };
 
+    // ⚠ `onSave: "full"` marks damage the save does NOT modulate — situational rider
+    // damage stored on the save activity (Web's burn clause: 2d4 fire for starting a turn
+    // in burning webs, nested there in the system's own PHB data). It is not the save's
+    // consequence, so the demand carries no damage dimension at all: no auto-roll, no
+    // per-verdict application (finding ③, 2026-08-17 — Web auto-rolled its burn at the
+    // stamp and applied 8 to a timer-failed target; RAW deals that only when the webs
+    // burn). The card text's own damage enricher stays clickable and lands through the
+    // native tray, GM-judged — exactly what situational damage needs.
+    const onSave = activity.damage?.onSave ?? "half";
+    const saveModulated = !!activity.damage?.parts?.length && (onSave !== "full");
+
     const window = Math.max(0, Number(setting(S.saveTimer)) || 0);
     await message.setFlag(MODULE_ID, "saves", {
       status: "pending",
       abilities, dc,
-      damageOnSave: activity.damage?.onSave ?? "half",
-      hasDamage: !!activity.damage?.parts?.length,
+      damageOnSave: onSave,
+      hasDamage: saveModulated,
       effectNames,
       activityUuid: activity.uuid,
       templated: !!contained,
@@ -136,7 +147,8 @@ async function stampSaveDemand(activity, message, results) {
     // damage itself the moment the demand stamps — the attack path's symmetry (1a rolls on
     // hit). Chained to the card so upcast scaling and damageOnSave ride the native plumbing;
     // per-target independence already handles a roll arriving before any verdict.
-    if ( activity.damage?.parts?.length ) {
+    // Save-modulated damage only — rider damage (onSave "full") never rolls here.
+    if ( saveModulated ) {
       try {
         await activity.rollDamage({}, { configure: false },
           { data: { "flags.dnd5e.originatingMessage": message.id } });
@@ -555,6 +567,11 @@ async function reconcileSaveDamage(card, onlyUuid = null) {
   if ( !setting(S.autoApply) ) return;
   const flag = card.getFlag(MODULE_ID, "saves");
   if ( !flag ) return;
+  // A demand with no damage dimension (no parts, or rider damage the save doesn't
+  // modulate — the onSave "full" stamp rule) never applies chained damage by verdict:
+  // a Web-burn enricher click chains to the card, and per-verdict application would
+  // re-create finding ③ through the side door. The native tray owns those rolls.
+  if ( !flag.hasDamage ) return;
   for ( const damageMessage of saveDamageMessages(card) ) {
     for ( const entry of flag.targets ) {
       if ( !entry.done ) continue;
@@ -820,12 +837,19 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       line.textContent = `${t.name} — ${abilityLabel} save DC ${flag.dc}, waiting on ${roller?.name ?? "the GM"}`;
     }
     row.appendChild(line);
+    // EVERY pending row runs the demand's bar (v1.11.0, finding ④ — "two timers tick
+    // side by side" was the user's expectation on a two-target demand; the single bar
+    // under the last row read as that row's alone, with the others' "missing"). Each bar
+    // anchors to the same absolute deadline, so the popup pairing and the drift-0 rule
+    // are untouched — a resolved row's bar leaves with its pending text.
+    if ( pending && !t.done ) {
+      const bar = document.createElement("div");
+      bar.innerHTML = holdBarHTML(flag, "to roll");
+      row.appendChild(bar);
+    }
   }
 
   if ( pending ) {
-    const bar = document.createElement("div");
-    bar.innerHTML = holdBarHTML(flag, "to roll");
-    row.appendChild(bar);
     scheduleBarSync(row);
     armSaveTimer(message);
 

@@ -282,6 +282,7 @@ async function toppleCard(ctx, targets) {
     }),
     flags: { [MODULE_ID]: { topple: {
       dc, ability: "con",
+      attackerUuid: ctx.attacker.uuid,
       weapon: { name: ctx.weapon.name, img: ctx.weapon.img },
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
       targets: targets.map(t => ({ uuid: t.uuid, name: t.name, done: false }))
@@ -458,7 +459,9 @@ async function applyToppleFailure(card, uuid) {
   const entry = flag?.targets?.find(t => t.uuid === uuid);
   if ( !entry || (entry.outcome !== "prone") || entry.applied ) return;
   const actor = (() => { try { return fromUuidSync(uuid); } catch { return null; } })();
-  if ( actor instanceof Actor ) await forceStatus(actor, "prone");
+  // The chip names its source (v1.11.0, finding ⑤) — pre-v1.11.0 cards carry no
+  // attackerUuid and press sourceless, exactly as before.
+  if ( actor instanceof Actor ) await forceStatus(actor, "prone", { origin: flag.attackerUuid ?? null });
   await ChatMessage.create({
     speaker: card.speaker,
     content: bfCard({
@@ -891,7 +894,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         Object.assign(button.style, { width: "auto", margin: "0.25rem 0.25rem 0 0", padding: "0 0.6rem" });
         button.addEventListener("click", async () => {
           const live = await fromUuid(t.uuid);
-          if ( live instanceof Actor ) await forceStatus(live, "prone");
+          if ( live instanceof Actor ) await forceStatus(live, "prone",
+            { origin: message.getFlag(MODULE_ID, "topple")?.attackerUuid ?? null });
           const flag = foundry.utils.deepClone(message.getFlag(MODULE_ID, "topple"));
           const entry = flag.targets.find(x => x.uuid === t.uuid);
           if ( entry ) { entry.done = true; entry.outcome = "prone"; entry.applied = true; entry.answeredAt = Date.now(); }

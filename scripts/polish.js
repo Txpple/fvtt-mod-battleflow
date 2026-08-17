@@ -9,7 +9,7 @@
  * switch left. design.md §5 Phase 1.1 carries the full policy.
  */
 import { MODULE_ID, S, setting } from "./core.js";
-import { blockEntries } from "./hold.js";
+import { blockEntries, interruptEntries } from "./hold.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Table polish — the no-target gate, the birth stamps, hidden buttons, dialog centering
@@ -39,29 +39,46 @@ function castApplyQualifies(doc) {
   if ( !setting(S.castApply) ) return false;
   const activityType = doc.getFlag("dnd5e", "activity")?.type;
   if ( (activityType !== "utility") && (activityType !== "heal") ) return false;
-  if ( !(doc.getFlag("dnd5e", "targets") ?? []).length ) return false;
-  // ⚠ The activity must actually AIM at creatures. A range-self spell's target snapshot is
-  // incidental UI targeting, not the spell's aim — and Shield is a utility-with-effects
-  // cast, so without this gate the cast slice stacked a second +5 on top of the reaction
-  // machinery's own application (+10 AC, two chips — caught by smoke-hold the first time
-  // it ran with castApply on, 2026-08-16). Self-buffs stay the caster's own tray click.
-  let affects = null;
-  try { affects = fromUuidSync(doc.getFlag("dnd5e", "activity")?.uuid ?? "")?.target?.affects?.type ?? null; }
-  catch { affects = null; }
-  if ( !affects || (affects === "self") ) return false;
-  // A heal qualifies bare (its roll message is the record and carries the stamp);
-  // utility needs effects to have anything to apply.
-  return (activityType === "heal") || !!doc.system?.effects?.length;
+  let activity = null;
+  try { activity = fromUuidSync(doc.getFlag("dnd5e", "activity")?.uuid ?? ""); }
+  catch { activity = null; }
+  const affects = activity?.target?.affects?.type ?? null;
+  // BLANK affects stays out — hand-authored shapes carry no aim data and the cast slice
+  // must not guess (unchanged from v1.5.1).
+  if ( !affects ) return false;
+  const payloadWorthy = (activityType === "heal") || !!doc.system?.effects?.length;
+  if ( affects !== "self" ) {
+    return payloadWorthy && !!(doc.getFlag("dnd5e", "targets") ?? []).length;
+  }
+  // A SELF-tagged activity SELF-AIMS (v1.11.0, user call: "anything that is tagged SELF
+  // should self aim") — the caster is the target, any UI snapshot is incidental (Second
+  // Wind healed the targeted dummy, 2026-08-17), and no UI target is required at all.
+  // Supersedes the v1.5.1 "self-buffs stay tray clicks" stance; design.md §2.6 amended.
+  // ⚠ The one carve-out is v1.5.1's ORIGINAL catch, kept as a carve-out instead of a
+  // blanket gate: a LISTED reaction with "Apply the Reaction's Own Effect" on is applied
+  // by the hold machinery when cast through a hold (Shield's +5 — the +10-two-chips bug,
+  // 2026-08-16), so the cast slice keeps its hands off listed reactions entirely.
+  if ( setting(S.reactionHold) && setting(S.holdApplyEffect) ) {
+    const itemName = (activity?.item?.name ?? "").toLowerCase();
+    if ( interruptEntries().some(e => e.name.toLowerCase() === itemName) ) return false;
+  }
+  return payloadWorthy;
 }
 
 /** Everything the elect needs to apply a cast, captured off the card at preCreate. */
 function castPayload(doc) {
+  let activity = null;
+  try { activity = fromUuidSync(doc.getFlag("dnd5e", "activity")?.uuid ?? ""); }
+  catch { activity = null; }
+  const self = (activity?.target?.affects?.type === "self") ? activity?.actor : null;
   return {
     activityUuid: doc.getFlag("dnd5e", "activity")?.uuid ?? null,
     concentration: doc.system?.concentration ?? null,
     scaling: doc.system?.scaling ?? 0,
     spellLevel: doc.system?.spellLevel ?? null,
-    targets: (doc.getFlag("dnd5e", "targets") ?? []).map(t => ({ uuid: t.uuid, name: t.name }))
+    // A SELF-tagged activity aims at its own actor — the snapshot is incidental (v1.11.0).
+    targets: self ? [{ uuid: self.uuid, name: self.name }]
+      : (doc.getFlag("dnd5e", "targets") ?? []).map(t => ({ uuid: t.uuid, name: t.name }))
   };
 }
 
@@ -70,9 +87,20 @@ Hooks.on("preCreateChatMessage", doc => {
   // creation, on the initiating client. The STAMP, never the setting, is what the elect
   // keys on later — an unstamped message can never be applied, so a render of last week's
   // log is inert by construction, and a mid-session kill still resolves what was stamped.
-  if ( setting(S.castApply) && (doc.getFlag("dnd5e", "roll.type") === "healing")
-    && (doc.getFlag("dnd5e", "targets") ?? []).length ) {
-    doc.updateSource({ flags: { [MODULE_ID]: { healPending: true } } });
+  // A SELF-tagged heal aims at its own actor and needs no UI target at all (v1.11.0,
+  // finding ① — Second Wind healed the targeted dummy because this stamp read the
+  // incidental snapshot; the self-aim gate existed on the castApply path since v1.5.1
+  // and the heal-roll path had missed it).
+  if ( setting(S.castApply) && (doc.getFlag("dnd5e", "roll.type") === "healing") ) {
+    let activity = null;
+    try { activity = fromUuidSync(doc.getFlag("dnd5e", "activity")?.uuid ?? ""); }
+    catch { activity = null; }
+    if ( (activity?.target?.affects?.type === "self") && activity?.actor ) {
+      doc.updateSource({ flags: { [MODULE_ID]: { healPending: {
+        selfAim: true, uuid: activity.actor.uuid, name: activity.actor.name } } } });
+    } else if ( (doc.getFlag("dnd5e", "targets") ?? []).length ) {
+      doc.updateSource({ flags: { [MODULE_ID]: { healPending: true } } });
+    }
   }
 
   // The no-attack damage applier's birth stamp (v1.6.0, user call: "it should auto
@@ -124,12 +152,46 @@ Hooks.on("preCreateChatMessage", doc => {
 // level and stateless (every DOM tree); the handlers underneath survive, so anything that
 // still slips through folds normally.
 const KEPT_CARD_BUTTONS = new Set(["refundResource", "placeTemplate"]);
+
+/** Does a template this card's activity placed still stand on any scene? Same origin tie
+ * as the save machine's adoption (flags.dnd5e.origin === the activity uuid). */
+function cardTemplateStands(message) {
+  const origin = message.getFlag("dnd5e", "activity")?.uuid;
+  if ( !origin ) return false;
+  for ( const scene of game.scenes ) {
+    if ( scene.templates.some(t => t.getFlag("dnd5e", "origin") === origin) ) return true;
+  }
+  return false;
+}
+
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   if ( !setting(S.hideCardButtons) ) return;
+  // Place Measured Template survives the cut ONLY while no template stands (v1.11.0,
+  // finding ② — with the circle already down, the button's one remaining power is
+  // placing a SECOND copy). Deleting the template brings it back: the canceled-placement
+  // path (cast → cancel → place from the card) must stay alive.
+  const templateStands = cardTemplateStands(message);
   for ( const button of html.querySelectorAll(".card-buttons button[data-action]") ) {
-    if ( !KEPT_CARD_BUTTONS.has(button.dataset.action) ) button.style.display = "none";
+    const keep = KEPT_CARD_BUTTONS.has(button.dataset.action)
+      && !((button.dataset.action === "placeTemplate") && templateStands);
+    if ( !keep ) button.style.display = "none";
   }
 });
+
+// The live toggle: a template landing or leaving re-renders its card so the button
+// tracks the world without waiting for the next natural render. CRUD hooks are a
+// fast-path only (they measured unreliable on headless clients — the containment
+// ground truth); the render pass above is the floor that always corrects.
+function refreshCardsForTemplate(templateDoc) {
+  const origin = templateDoc.getFlag("dnd5e", "origin");
+  if ( !origin || !setting(S.hideCardButtons) ) return;
+  for ( const m of game.messages.contents ) {
+    if ( m.getFlag("dnd5e", "activity")?.uuid !== origin ) continue;
+    try { ui.chat?.updateMessage?.(m); } catch(err) { /* next render corrects */ }
+  }
+}
+Hooks.on("createMeasuredTemplate", refreshCardsForTemplate);
+Hooks.on("deleteMeasuredTemplate", refreshCardsForTemplate);
 
 // Center the system's roll-configuration dialogs (dnd5e docks them lower-right:
 // left = innerWidth - 710, top = clientY - 80). First render only — re-renders fire on every

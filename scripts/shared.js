@@ -69,23 +69,29 @@ export function resolveAttackMessage(damageMessage) {
  * come back empty-handed when another module's create-hook interferes. Both no-ops are
  * silent, and one of them is the live "topple failed but nothing fell prone" report
  * (2026-08-16): the verdict announced and the press did nothing. So: enable a disabled
- * carrier if that is what exists, toggle otherwise, VERIFY, and build the effect directly
- * as the last resort — loudly, because a status that cannot land is a table-facing failure.
+ * carrier if that is what exists; otherwise BUILD the effect directly — since v1.11.0
+ * the direct build leads because it can carry an `origin` naming who pressed it
+ * (finding ⑤: the Prone chip's source should say Morgash), which toggleStatusEffect
+ * cannot. fromStatusEffect keeps the CANONICAL id and keepId preserves it — the id every
+ * suite cleanup keys on (the immortal-prone lesson). The toggle stays as the fallback,
+ * the verify stays loud: a status that cannot land is a table-facing failure.
  */
-export async function forceStatus(actor, statusId) {
+export async function forceStatus(actor, statusId, { origin = null } = {}) {
   if ( !(actor instanceof Actor) ) return false;
   const existing = actor.effects.find(e => e.statuses.has(statusId));
   if ( existing ) {
-    if ( existing.disabled ) await existing.update({ disabled: false });
+    // Enabling our press on a disabled leftover stamps the source; an already-ACTIVE
+    // effect keeps its own history — origin is only written by whoever lands it.
+    if ( existing.disabled ) await existing.update({ disabled: false, ...(origin ? { origin } : {}) });
   } else {
-    await actor.toggleStatusEffect(statusId, { active: true });
-  }
-  if ( actor.statuses.has(statusId) ) return true;
-  try {
-    const effect = await ActiveEffect.implementation.fromStatusEffect(statusId);
-    await ActiveEffect.implementation.create(effect, { parent: actor, keepId: true });
-  } catch(err) {
-    console.error(`${TITLE} | Could not build status "${statusId}" directly.`, err);
+    try {
+      const effect = await ActiveEffect.implementation.fromStatusEffect(statusId);
+      if ( origin ) effect.updateSource({ origin });
+      await ActiveEffect.implementation.create(effect, { parent: actor, keepId: true });
+    } catch(err) {
+      console.error(`${TITLE} | Could not build status "${statusId}" directly.`, err);
+    }
+    if ( !actor.statuses.has(statusId) ) await actor.toggleStatusEffect(statusId, { active: true });
   }
   const landed = actor.statuses.has(statusId);
   if ( !landed ) console.error(`${TITLE} | Status "${statusId}" refused to land on ${actor.name} — check for a module vetoing effect creation.`);

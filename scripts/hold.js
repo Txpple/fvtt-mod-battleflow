@@ -25,7 +25,7 @@ import { applyEffectsTo, joinEffectReceipt } from "./effect-riders.js";
  * ------------------------------------------------------------------------------------------- */
 
 /** Parse the curated "Name:kind, Name:kind" world setting. Unknown kinds default to ac. */
-function interruptEntries() {
+export function interruptEntries() {
   return String(setting(S.interruptList) ?? "").split(",").map(chunk => {
     const [name, kind] = chunk.split(":").map(s => s?.trim());
     if ( !name ) return null;

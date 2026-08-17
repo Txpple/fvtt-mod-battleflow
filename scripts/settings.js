@@ -95,8 +95,10 @@ Hooks.once("init", () => {
 
   game.settings.register(MODULE_ID, S.holdTimer, {
     name: "Hold Timer Seconds",
-    hint: "How long a held player has to answer before the hold passes itself and the attack resolves. 0 waits indefinitely — human-paced, and correct for a thoughtful table. About 5–10 keeps a big fight moving. A draining bar shows the time left on both the popup and the card.",
-    scope: "world", config: true, type: Number, default: 0,
+    hint: "How long a held player has to answer before the hold passes itself and the attack resolves. 0 waits indefinitely — human-paced, and correct for a thoughtful table. A draining bar shows the time left on both the popup and the card.",
+    // Default 15 since v1.11.0 (user call 2026-08-17: every timer defaults to 15s) — a
+    // popup that can pass itself needs a window a human at a watched window can win.
+    scope: "world", config: true, type: Number, default: 15,
     range: { min: 0, max: 60, step: 1 }
   });
 
