@@ -567,6 +567,24 @@ const r = await f.evaluate(async () => {
         slotsBefore,
         slotsAfter: victimActor.system.spells.spell1.value,
         usedCardButton: !!castButton,
+        // v1.8.0 (the convergence): the reaction's effect leaves a standard receipt — on the
+        // OLDEST pending hold the cast answered (one cast answers many holds; the effect
+        // landed once, so the receipt rides the first answer, which is not necessarily the
+        // attack this section watched: the retry loop above can leave older strays). Probe:
+        // probe-reaction-receipt.mjs. Assert the receipt exists for the shielder EXACTLY
+        // once, wherever the machine put it.
+        effectReceipt: (() => {
+          const holders = game.messages.contents.filter(m =>
+            m.getFlag(MOD, 'effectReceipt')?.targets?.some(t => t.uuid === victimActor.uuid));
+          const eff = holders
+            .flatMap(m => m.getFlag(MOD, 'effectReceipt').targets)
+            .filter(t => t.uuid === victimActor.uuid)
+            .flatMap(t => t.effects ?? [])
+            .find(e => e.name === 'Imperceptible Barrier');
+          return { present: !!eff, messages: holders.length, name: eff?.name ?? null,
+            marked: eff ? (victimActor.effects.get(eff.id)?.getFlag(MOD, 'reactionEffect') === true) : false,
+            live: !!(eff && victimActor.effects.get(eff.id)) };
+        })(),
       };
       for (const e of victimActor.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
       await victimActor.unsetFlag(MOD, 'reactionSpent');
@@ -1443,6 +1461,13 @@ report('REAL cast: the Cast control actually spends the slot (it is a cast, not 
 report("REAL cast: the module lands the reaction's effect and AC moves +5",
   x.realCast?.effectApplied === true && x.realCast?.acAfter === x.realCast?.acBefore + 5,
   `AC ${x.realCast?.acBefore} → ${x.realCast?.acAfter}, effect applied: ${x.realCast?.effectApplied}`);
+report("REAL cast: the reaction's effect leaves exactly ONE receipt, live and marked (v1.8.0)",
+  x.realCast?.effectReceipt?.present === true
+    && x.realCast?.effectReceipt?.messages === 1
+    && x.realCast?.effectReceipt?.name === 'Imperceptible Barrier'
+    && x.realCast?.effectReceipt?.live === true
+    && x.realCast?.effectReceipt?.marked === true,
+  JSON.stringify(x.realCast?.effectReceipt));
 report('STATBLOCK: a feature\'s cast activity holds the chain',
   x.statblockCast?.pending === true && x.statblockCast?.reaction === 'Shield',
   `pending=${x.statblockCast?.pending}, reaction=${x.statblockCast?.reaction}`);
