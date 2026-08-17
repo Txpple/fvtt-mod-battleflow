@@ -7,6 +7,9 @@
 > findings as they arrive, restate the FULL list state after every update (so they
 > never scroll), confirm/close items as they say so — and you ACT only when they say
 > go. Then: evidence first, one battery-green fix pass, release. Exactly the pattern.
+> ⚠ FREEZE (user, 2026-08-17 pre-walk): **no more changes until after Tuesday night's
+> live session (2026-08-19).** Walk findings get numbered and recorded; the fix pass
+> and release wait for Wednesday. Tuesday plays v1.14.0 exactly as deployed.
 > ⚠ NEW OPERATIONAL LESSON, learned the hard way this walk: **connecting bridge/probe
 > GM sessions DURING a walk steals the apply/sweep ELECT from the user's window**
 > (isActiveGM sorts DM Assistant ahead of Matt) — a probe mid-walk can strand
@@ -146,7 +149,8 @@ The walk's outcome, kept because reports referencing these will keep arriving:
 ### 🚶 THE v1.14.0 WALK — the user's checklist for the next testing session
 
 The session protocol is the header's ⚠⚠ block: present this, wait, aggregate, act only
-on "go". Suite-proven (smoke-saves §12/§13 pin the exact fixes); the walk is the live
+on "go" — amended this round by the FREEZE: findings are recorded, but no fix ships
+until after Tuesday night (2026-08-19). Suite-proven (smoke-saves §12/§13 pin the exact fixes); the walk is the live
 confirmation. The settings table above is law — no settings changes needed. **Every
 client should F5 once before starting** (v1.14.0 went out over WebDAV; a stale window
 as elect runs old code).
@@ -194,8 +198,16 @@ at v1.10.0, the v1.10.0 walk's ①–⑥ at v1.11.0, the v1.11.0 walk's ②–�
 v1.12.0 walk's ① at v1.13.0 — resolution maps live in this file's git history and in
 design.md's amendments). Closed as a RULING, not code: **Ⓓ1 — GM required for full
 functionality** (design.md §8 keeps the full itemization). Open as a QUESTION, not a
-bug: **the concentration ask still popups the GM for offline-owner PCs** — finding ④
-deliberately did not touch it; ask the user before extending the filter there. What
+bug — REOPENED as a post-Tuesday CHECK (user, 2026-08-17 pre-walk): **does the
+concentration ask still popup the GM for offline-owner PCs?** The user reports not
+seeing it lately and likes the quiet ("fine and good"), but the SOURCE carries no
+filter — concentration.js:550 gates on concMode + canAnswerFor only; finding ④'s
+`isGM && hasPlayerOwner` quiet lives in saves.js:1113 and mastery.js:880 alone — so
+the non-sightings are probably the probe sessions' elect steal (the popup landing on
+the bridge page, not the user's window) or the scenario simply not arising. VERIFY
+live after Tuesday, then rule: if it still pops and the user wants it gone, the fix
+is the same two-line gate (the conc buzzer already ROLLS on expiry, nothing goes
+unresolved). What
 remains open:
 
 - **⑭ The year-off timestamps — RETIRED** (user call, the v1.12.0 walk: "stop
@@ -260,8 +272,9 @@ bare cast waits forever even as areas land (one area, one demand); a claim reach
 elect's CURRENT scene only (a toolbar draw on another scene adopts nothing — the
 dialog-placement path still works cross-scene); a SECOND cube drawn while a claimed one
 stands is ignored until the first is deleted (re-place or move the first instead); the
-concentration ask still popups the GM for offline-owner PCs (finding ④'s deliberate
-non-extension — open question, not a bug); "cast with no GM logged in, nothing
+concentration ask still popups the GM for offline-owner PCs PER SOURCE (finding ④'s
+deliberate non-extension — reopened 2026-08-17 as a post-Tuesday CHECK: the user
+stopped seeing it, probably the elect steal; verify live, then rule); "cast with no GM logged in, nothing
 applied" is the Ⓓ1 ruling working as designed; **a placed template DRAWS oversized on
 this 140px grid** (the v14 shim renders the corrupted field — the DEMAND is spell-true
 since v1.14.0, the PICTURE is upstream's lie: report "the cube looks fat" as known,
