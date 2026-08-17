@@ -46,7 +46,7 @@ const out = await f.evaluate(async () => {
 
   const SETTING_KEYS = ['castApply', 'autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'blockList', 'riders', 'effectRiders', 'masteryRiders',
-    'concMode'];
+    'concMode', 'interruptList', 'holdApplyEffect'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -72,8 +72,9 @@ const out = await f.evaluate(async () => {
       // (active-GM — this client) strips the applied chips with it.
       for (const e of [...(npc.concentration?.effects ?? [])]) { try { await e.delete(); } catch { /* gone */ } }
       // Sweep stragglers on the targets by name (batched — the synthetic-actor lesson).
-      for (const a of [victim, shielder]) {
-        const strays = a.effects.filter(e => e.name.startsWith('BF Blessed'));
+      for (const a of [victim, shielder, npc]) {
+        const strays = a.effects.filter(e =>
+          e.name.startsWith('BF Blessed') || e.name.startsWith('BF Favored'));
         if (strays.length) await a.deleteEmbeddedDocuments('ActiveEffect', strays.map(e => e.id));
       }
       for (const [actorId, ids] of Object.entries(created.items.reduce((m, i) => {
@@ -353,6 +354,140 @@ const out = await f.evaluate(async () => {
       (use !== undefined) && (usageCards(msgs).length === 1)
         && !msgs.some(m => m.getFlag(MOD, 'castApply')),
       `usageCards=${usageCards(msgs).length}`);
+
+    // ---------------------------------------------------- 6. SELF-tagged activities self-aim (v1.11.0)
+    // "Anything that is tagged SELF should self aim" (user call 2026-08-17, finding ① —
+    // Morgash Second-Winded the target dummy through the incidental snapshot). A self
+    // activity ignores the UI targets, aims at its own actor, and needs no target at all.
+    // Supersedes the v1.5.1 "self-buffs stay tray clicks" stance; the carve-out below (6d)
+    // is what SURVIVES of v1.5.1 — a listed reaction stays the hold machinery's.
+    const [windItem] = await npc.createEmbeddedDocuments('Item', [{
+      name: 'BF Test Second Wind', type: 'feat',
+      system: {
+        type: { value: 'class' },
+        activities: {
+          bfselfheal000000: {
+            _id: 'bfselfheal000000', type: 'heal',
+            activation: { type: 'bonus', override: false },
+            consumption: { targets: [], spellSlot: false },
+            range: { override: false, units: 'self' },
+            target: { override: false, prompt: false,
+              affects: { type: 'self', count: '', choice: false } },
+            healing: { number: 1, denomination: 4, bonus: '', types: ['healing'],
+              custom: { enabled: true, formula: '7' } }
+          }
+        }
+      }
+    }]);
+    created.items.push({ actorId: npc.id, id: windItem.id });
+
+    priorActor[npc.id] = {
+      'system.attributes.hp.value': npc.system._source.attributes.hp.value,
+    };
+    const npcMax = npc.system.attributes.hp.max;
+    await npc.update({ 'system.attributes.hp.value': Math.max(1, npcMax - 10) });
+    const npcBefore = npc.system.attributes.hp.value;
+    const vBefore6 = victim.system.attributes.hp.value;
+    target(victimToken); // the WRONG target, on purpose — the accident ① reproduces
+    await sleep(120);
+    before = snap();
+    use = await activityOf(windItem, 'heal').use({ subsequentActions: false }, { configure: false }, {});
+    if (use === undefined) return { fatal: 'the Second Wind fixture use was refused' };
+    await activityOf(windItem, 'heal').rollDamage({}, { configure: false },
+      use?.message?.id ? { data: { 'flags.dnd5e.originatingMessage': use.message.id } } : {});
+    await until(() => fresh(before).some(m => m.getFlag(MOD, 'receipt')));
+    msgs = fresh(before);
+    const windRoll = msgs.find(m => m.getFlag('dnd5e', 'roll.type') === 'healing');
+    const windStamp = windRoll?.getFlag(MOD, 'healPending');
+    const windReceipt = windRoll?.getFlag(MOD, 'receipt');
+    ok('6a. a SELF heal aims at its caster — the wrong target is ignored, the stamp says self',
+      (windStamp?.selfAim === true) && (windStamp?.uuid === npc.uuid)
+        && (npc.system.attributes.hp.value === Math.min(npcMax, npcBefore + 7))
+        && (victim.system.attributes.hp.value === vBefore6)
+        && (windReceipt?.targets?.length === 1) && (windReceipt?.targets?.[0]?.uuid === npc.uuid),
+      `stamp=${JSON.stringify(windStamp ?? null)} npc ${npcBefore}→${npc.system.attributes.hp.value}`
+        + ` victim ${vBefore6}→${victim.system.attributes.hp.value}`);
+
+    await npc.update({ 'system.attributes.hp.value': Math.max(1, npcMax - 10) });
+    const npcBefore2 = npc.system.attributes.hp.value;
+    target(); // nobody targeted at all — the stamp must not need a snapshot
+    await sleep(120);
+    before = snap();
+    use = await activityOf(windItem, 'heal').use({ subsequentActions: false }, { configure: false }, {});
+    if (use === undefined) return { fatal: 'the bare Second Wind use was refused' };
+    await activityOf(windItem, 'heal').rollDamage({}, { configure: false },
+      use?.message?.id ? { data: { 'flags.dnd5e.originatingMessage': use.message.id } } : {});
+    await until(() => fresh(before).some(m => m.getFlag(MOD, 'receipt')));
+    ok('6b. a SELF heal needs no target at all — a bare cast lands on the caster',
+      npc.system.attributes.hp.value === Math.min(npcMax, npcBefore2 + 7),
+      `npc ${npcBefore2}→${npc.system.attributes.hp.value}`);
+
+    const FAV = 'bffavoreffect000';
+    const [favorItem] = await npc.createEmbeddedDocuments('Item', [{
+      name: 'BF Test Favor', type: 'spell',
+      system: {
+        level: 1, school: 'evo', properties: ['vocal'],
+        target: { affects: { type: 'self', count: '', choice: false } },
+        range: { units: 'self' },
+        method: 'spell', prepared: 1, identifier: 'bf-test-favor',
+        activities: {
+          bfselfutil000000: {
+            _id: 'bfselfutil000000', type: 'utility',
+            activation: { type: 'bonus', override: false },
+            consumption: { targets: [], spellSlot: false },
+            effects: [{ _id: FAV }],
+            target: { override: false, prompt: false }
+          }
+        }
+      },
+      effects: [{
+        _id: FAV, name: 'BF Favored', transfer: false, disabled: false,
+        img: 'icons/svg/sun.svg', duration: { seconds: 60 },
+        description: '<p>+1d4 melee damage (BF test fixture).</p>',
+        changes: [{ key: 'system.bonuses.mwak.damage', mode: 2, value: '1d4' }]
+      }]
+    }]);
+    created.items.push({ actorId: npc.id, id: favorItem.id });
+
+    target(victimToken); // wrong target up again — the chip must not land there
+    await sleep(120);
+    before = snap();
+    use = await activityOf(favorItem, 'utility').use({}, { configure: false }, {});
+    if (use === undefined) return { fatal: 'the Favor fixture cast was refused' };
+    await until(() => fresh(before).some(m => m.getFlag(MOD, 'effectReceipt')?.castDone));
+    msgs = fresh(before);
+    const favorCard = usageCards(msgs).find(m => m.getFlag(MOD, 'castApply'));
+    ok('6c. a SELF utility applies its effect to the caster, never the snapshot',
+      !!favorCard && (favorCard.getFlag(MOD, 'castApply').targets?.length === 1)
+        && (favorCard.getFlag(MOD, 'castApply').targets?.[0]?.uuid === npc.uuid)
+        && !!npc.effects.find(e => e.name === 'BF Favored')
+        && !victim.effects.find(e => e.name === 'BF Favored'),
+      `card=${!!favorCard} payloadTargets=${JSON.stringify(favorCard?.getFlag(MOD, 'castApply')?.targets ?? null)}`
+        + ` npcChip=${!!npc.effects.find(e => e.name === 'BF Favored')}`
+        + ` victimChip=${!!victim.effects.find(e => e.name === 'BF Favored')}`);
+
+    // 6d. The carve-out — what SURVIVES of v1.5.1: a LISTED reaction with Apply the
+    // Reaction's Own Effect on is the hold machinery's to apply (Shield's +5 — the
+    // +10-two-chips catch, 2026-08-16). The cast slice must keep its hands off.
+    await set('reactionHold', true);
+    await set('holdApplyEffect', true);
+    await set('interruptList', 'BF Test Favor:ac');
+    await npc.deleteEmbeddedDocuments('ActiveEffect',
+      npc.effects.filter(e => e.name === 'BF Favored').map(e => e.id));
+    target();
+    await sleep(120);
+    before = snap();
+    use = await activityOf(favorItem, 'utility').use({}, { configure: false }, {});
+    await sleep(1800);
+    msgs = fresh(before);
+    ok('6d. a LISTED reaction never self-aims — the hold machinery owns its application',
+      (use !== undefined) && !msgs.some(m => m.getFlag(MOD, 'castApply'))
+        && !npc.effects.some(e => e.name === 'BF Favored'),
+      `castApplyStamps=${msgs.filter(m => m.getFlag(MOD, 'castApply')).length}`
+        + ` chip=${!!npc.effects.find(e => e.name === 'BF Favored')}`);
+    await set('reactionHold', false);
+    await set('interruptList', prior.interruptList);
+    await set('holdApplyEffect', prior.holdApplyEffect);
 
     return { log, results, skips };
   } catch (err) {

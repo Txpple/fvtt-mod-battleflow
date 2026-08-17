@@ -190,6 +190,18 @@ const out = await f.evaluate(async () => {
             effects: [],
             save: { ability: ['con'], dc: { calculation: '', formula: '15' } },
             target: { override: true, affects: { type: 'self' }, prompt: false }
+          },
+          // §9's shape — Web's burn clause: damage stored ON the save activity with
+          // onSave "full", i.e. damage the save does not modulate. Rider damage, not the
+          // save's consequence (finding ③, 2026-08-17).
+          bfsavefull000000: {
+            _id: 'bfsavefull000000', type: 'save',
+            activation: { type: 'action', override: false },
+            consumption: { targets: [], spellSlot: false },
+            damage: { onSave: 'full', parts: [{ custom: { enabled: true, formula: '10' }, types: ['fire'] }] },
+            effects: [],
+            save: { ability: ['con'], dc: { calculation: '', formula: '15' } },
+            target: { override: false, prompt: true }
           }
         }
       },
@@ -206,6 +218,7 @@ const out = await f.evaluate(async () => {
 
     const saveActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsaveact0000000');
     const selfActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsaveself000000');
+    const fullActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsavefull000000');
     const target = (...tokens) => {
       game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
       tokens.forEach((t, i) => t.setTarget(true, { releaseOthers: i === 0 }));
@@ -694,6 +707,61 @@ const out = await f.evaluate(async () => {
       const chained8d = game.messages.contents.filter(m =>
         m.getFlag('dnd5e', 'originatingMessage') === msg8d.id);
       await ChatMessage.deleteDocuments([msg8d.id, ...chained8d.map(m => m.id)]);
+    }
+
+    // ============================================== 9. rider damage (onSave "full") + per-row bars
+    // Web's shape (finding ③, 2026-08-17): the burn 2d4 lives ON the save activity with
+    // onSave "full" — damage the save does not modulate is not the save's consequence.
+    // The demand stamps with no damage dimension: no auto-roll, no per-verdict
+    // application, even on a failure. And ④'s card half: every pending row drains its
+    // own bar ("two timers tick side by side" — the walk's stated expectation).
+    {
+      await clearChips();
+      await saveBonus(victim, '-30');            // forced failure — ③'s dangerous case
+      await saveBonus(shielder, '+30');
+      const vMax9 = await healFull(victim);
+      await healFull(shielder);
+      await set('saveTimer', 4);                 // bars need a window; the buzzer backstops
+      target(victimToken, shielderToken);
+      await sleep(120);
+      const before = snap();
+      const use = await fullActivity().use({}, { configure: false }, {});
+      const card = use?.message instanceof ChatMessage ? use.message : null;
+      if (!card) return { fatal: 'section 9 cast produced no card' };
+      const flag9 = await until(() => card.getFlag(MOD, 'saves'));
+
+      ok('9a. onSave "full" is rider damage — the demand stamps with NO damage dimension',
+        (flag9?.damageOnSave === 'full') && (flag9?.hasDamage === false),
+        `onSave=${flag9?.damageOnSave} hasDamage=${flag9?.hasDamage}`);
+
+      // ④ at the DOM — re-query per poll: a re-render REPLACES the card element.
+      const barCount = () => document.querySelector(`[data-message-id="${card.id}"]`)
+        ?.querySelectorAll('[data-bf-deadline]')?.length ?? 0;
+      await until(() => barCount() === 2, 2500);
+      const pending9 = card.getFlag(MOD, 'saves').targets.filter(t => !t.done).length;
+      ok('9c. every pending row drains its own bar', (pending9 === 2) && (barCount() === 2),
+        `pending=${pending9} bars=${barCount()}`);
+
+      await sleep(900); // an auto-roll would land inside this window if the gate regressed
+      const autoDmg9 = fresh(before).find(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
+        && (m.getFlag('dnd5e', 'originatingMessage') === card.id));
+      ok('9b. rider damage never auto-rolls at the stamp', !autoDmg9, `autoRolled=${!!autoDmg9}`);
+
+      // Resolve through the popups (the §1 idiom); if the 4s buzzer wins a race instead,
+      // the assertions below hold under either path (timer rolls are straight, -30 fails).
+      for (let i = 0; i < 2; i++) {
+        const popup = await until(() => savePopups()[0], 6000);
+        if (!popup) break;
+        [...popup.querySelectorAll('footer button, .form-footer button')]
+          .find(b => b.textContent.trim() === 'Normal')?.click();
+        await until(() => !document.contains(popup), 6000);
+      }
+      await until(() => card.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), 12000);
+      const e9 = entryOf(card, victim);
+      ok('9d. a FAILED save against rider damage applies no damage at all',
+        (e9?.outcome === 'failed') && (victim.system.attributes.hp.value === vMax9),
+        `outcome=${e9?.outcome} hp=${victim.system.attributes.hp.value}/${vMax9}`);
+      await set('saveTimer', 0);
     }
 
     return { log, results, skips };

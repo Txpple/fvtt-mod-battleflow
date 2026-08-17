@@ -464,6 +464,12 @@ const out = await f.evaluate(async () => {
       ok('7b. the card\'s prone button really knocks the target prone',
         !!prone && !!(await waitFor(() => game.messages.get(card?.id)?.getFlag(MOD, 'topple')?.targets?.every(t => t.done))),
         `prone=${!!prone} done=${flagDone}`);
+      // v1.11.0 (finding ⑤): the pressed chip names WHO pressed it — the attacker rides
+      // the topple stamp and lands as the effect's origin, on the GM-button path here.
+      const proneEffect7 = victim.effects.find(e => e.statuses?.has?.('prone'));
+      ok('7c. the pressed Prone names its source — the attacker',
+        proneEffect7?.origin === pc.uuid,
+        `origin=${proneEffect7?.origin ?? 'none'} attacker=${pc.uuid}`);
       await victim.toggleStatusEffect('prone', { active: false });
       }
     }
@@ -762,6 +768,15 @@ const out = await f.evaluate(async () => {
         `outcome=${e14.outcome} prone=${victim.statuses.has('prone')} applied=${e14.applied} announced=${announced}`
           + ` | save: type=${sm14?.getFlag('dnd5e', 'roll.type')} origin=${sm14?.getFlag('dnd5e', 'originatingMessage')}`
           + ` total=${sm14?.rolls?.[0]?.total} assoc=${sm14?.getAssociatedActor?.()?.uuid} expected=${victim.uuid}`);
+
+      // v1.11.0 (finding ⑤), the ENABLE branch: pressing THROUGH the disabled leftover
+      // stamps the source onto the carrier it enables — origin comes from the topple
+      // stamp's attackerUuid, whoever swung.
+      const prone14 = victim.effects.find(e => e.statuses?.has?.('prone'));
+      ok('14c2. the pressed-through chip names its source from the topple stamp',
+        !!toppleMsg.getFlag(MOD, 'topple').attackerUuid
+          && (prone14?.origin === toppleMsg.getFlag(MOD, 'topple').attackerUuid),
+        `origin=${prone14?.origin ?? 'none'} attackerUuid=${toppleMsg.getFlag(MOD, 'topple').attackerUuid ?? 'none'}`);
 
       await victim.toggleStatusEffect('prone', { active: false });
       await victim.update({ 'system.abilities.con.bonuses.save': '+30' });
