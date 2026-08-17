@@ -1,69 +1,67 @@
 # HANDOFF.md — picking this up cold
 
 > ⚠⚠ **NEXT SESSION IS A TESTING WALK — START BY DOING NOTHING.** The user's standing
-> protocol (proven three walks running): open by presenting THE v1.12.0 WALK checklist
-> below, then wait. Do not connect the bridge, run suites, read the world, or touch code.
-> The user works the list at the table one item at a time and reports; you AGGREGATE —
-> number the findings as they arrive, restate the FULL list state after every update (so
-> they never scroll), confirm/close items as they say so — and you ACT only when they say
-> go. Then: evidence first, one battery-green fix pass, release. Exactly the pattern.
+> protocol (proven FOUR walks running): open by presenting THE v1.13.0 WALK checklist
+> below (ONE item this time — the user's call), then wait. Do not connect the bridge, run
+> suites, read the world, or touch code. The user works the list at the table and
+> reports; you AGGREGATE — number the findings as they arrive, restate the FULL list
+> state after every update (so they never scroll), confirm/close items as they say so —
+> and you ACT only when they say go. Then: evidence first, one battery-green fix pass,
+> release. Exactly the pattern.
 
-> Current at 2026-08-17, night — **v1.12.0 shipped: the v1.11.0 walk's findings, closed
-> in one pass.** The user walked v1.11.0 in the evening (protocol held: report →
-> aggregate → "ok go"), producing three findings + one closed discussion; the fix pass
-> ran autonomously — the walk itself supplied the live evidence (Shatter-with-targets
-> demanded rows minutes after Web-targetless didn't, same topology, GM present — that
-> contrast IS finding ③'s repro), the code read localized it, then fixes, then
-> battery-green across all seven suites. smoke-saves needed two runs: the first run's
-> four failures were ALL harness defects in the brand-new sections, none in the module
-> (the token-name lesson, recorded in the suite notes below). Read
+> Current at 2026-08-17 — **v1.13.0 shipped: the v1.12.0 walk's one finding, closed in
+> one pass.** The user walked v1.12.0 in the afternoon (protocol held: report →
+> aggregate → "ok go"); five of six items confirmed ✅ on the first try — finding ②③④
+> fixes all held live — and the walk produced ONE finding. The fix pass ran
+> autonomously: the probe supplied the evidence (four correctly-WAITING Web demands, one
+> origin-tied rect over two tokens, zero adoption — and the "Gren eventually rolled"
+> mystery was a separate, correctly-working manual-target cast riding finding ④'s
+> buzzer), the code read localized it, then fixes, suite recut, battery. Read
 > [design.md](design.md) first — it is binding and has absorbed everything through
-> v1.12.0 (the waiting demand, the GM popup filter, the restored keep-list, the no-GM
-> non-goal). This file is only *where things stand* and *what already bit us*.
+> v1.13.0. This file is only *where things stand* and *what already bit us*.
 >
-> **v1.12.0 in one breath (the walk's findings ②–④ + the ruling):**
-> - **② The keep-list is exactly `refundResource` again** (user call, their THIRD ask —
->   the v1.9.5 spec restored; v1.11.0's conditional was the wrong resolution). The
->   v1.10.0 Place Measured Template exemption and the v1.11.0 conditional machinery are
->   deleted outright. Placement lives in the cast-time usage prompt and the canvas
->   template controls; flipping Hide Redundant Buttons off restores every button — that
->   IS the settings gate. smoke-saves §10b pins it at the DOM, count-guarded.
-> - **③ A targetless TEMPLATE cast stamps a WAITING demand.** The old stamp bailed on
->   zero targets and adoption can only retarget a demand that exists — so Web's natural
->   flow (cast bare, place after) produced no saves at all (caught live: Gren's Web over
->   two tokens, no DEX rows, GM present). Now `target.template.type` ⇒ stamp with zero
->   targets, `awaitingTemplate: true`, window but NO deadline (armAskTimer no-ops
->   without one — nothing buzzes an empty wait); the card says "waiting for the
->   template's area"; adoption accepts the empty demand as a customer, fills it from the
->   placed area, and stamps the deadline from THAT moment — full window from the first
->   instant somebody can roll. No template shape anywhere ⇒ still native (§7b).
->   Emanation spells (Spirit Guardians) ride this too. smoke-saves §10 pins the chain
->   end to end.
-> - **④ The GM's unsolicited popups are non-player-owned targets only** (user call: "as
->   a GM i dont care to see other player saves"). canAnswerFor's offline-owner fallback
->   feeds the BUZZER now, not the GM's popup stack — save demands and topple asks both
->   gate their auto-show on `isGM && hasPlayerOwner`. The row says "waiting on the timer
->   (owner offline)" (with a 0 window the GM stays named — the Roll button is then the
->   real path); recall is a deliberate click and never filtered; owners present were
->   never routed to the GM anyway. smoke-saves §11 pins it with BF Test PC Attacker.
->   ⚠ The CONCENTRATION ask deliberately keeps its GM fallback popup — a break is
->   heavier than a save and the user hasn't asked; recorded open question (design.md
->   Phase 2 amendments), raise it when it comes up, don't silently extend ④.
-> - **Ⓓ1 CLOSED AS A RULING — GM required for full functionality** (user: "so close
->   this convo out, we'll keep as is"). Now design.md §8's permanent non-goal with the
->   full possible/impossible/risky itemization preserved there. "No GM logged in,
->   nothing applied" is by-design — the walk's finding ① was withdrawn on exactly this,
->   so say it EARLY when the next such report arrives.
+> **v1.13.0 in one breath (the walk's finding ①, three walls):**
+> - **① A placed template never filled the WAITING demand — two independent gaps, both
+>   real (and the fix's first cut exposed a third).** GAP ONE: `templateShape`'s
+>   document-geometry fallback covered CIRCLES only, and `createMeasuredTemplate` fires
+>   before the canvas computes `object.shape` even on a live client — so a cube spell's
+>   rect had NO shape at the only moment the fast-path looked, containment found nothing,
+>   and nothing retried (the render floor only re-runs on a re-render, which never came).
+>   Web's cube sat over two tokens demanding no saves while the suite stayed green on its
+>   circle fixture. GAP THREE (the live re-test, same session): hand-rolled EUCLIDEAN
+>   geometry over-swept in this GRIDDED world (`gridTemplates` ON — Salyth demanded from
+>   outside the drawn cube), so the fallback now calls CORE'S OWN shape statics
+>   (grid-aware, doc-native units, current-scene; deprecated-until-16 note in the code);
+>   the drawn shape still wins when present. GAP TWO: the TOOLBAR draw — the
+>   walk's instructed path — stamps no `dnd5e.origin`, so origin matching alone could
+>   never tie it. A WAITING demand now CLAIMS the newest origin-less template of its
+>   expected shape (the stamp's new `templateType` field through the system's own
+>   `areaTargetTypes` map; elect's current scene only — `_stats.createdTime` reads null
+>   on this box, so the created-after gate can't carry the fossil bound alone) by
+>   WRITING the origin onto it: downstream, moves/re-place/spent-sweep see a dialog
+>   placement exactly. Plus the NEWEST-WAITING-CUSTOMER gate: the walk left four bare
+>   same-activity casts waiting, and without it one cube fills all four (four popup
+>   sets); only the newest waiting cast is the customer. smoke-saves §10 recut to the
+>   live shape: cube activity, origin-less rect, claim asserted, gate pinned (10d2).
+> - **Watch ⑭ RETIRED** (user call, this walk: "stop watching") — three sessions, no
+>   sighting. Re-open only on a fresh sighting; the hover-for-real-date + note-the-author
+>   drill is preserved in the retired entry below.
+> - The v1.12.0 walk's ✅ items in one line: keep-list = Refund Resource exactly, both
+>   flip directions; Shatter GM-popup filter (dummy pops, offline-owner PC rides the
+>   buzzer, "(timer)" mark); topple twin of the same; never-placed Web waits quietly
+>   forever. Item 1's classic during-dialog placement went UNTESTED at the table
+>   (suite-covered at §8/§10; stamp-time containment untouched by this fix).
 
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.12.0** (2026-08-17 night — the v1.11.0 walk's
-findings, above). Before it, all 2026-08-17: v1.11.0 (evening), v1.10.0 (afternoon;
-v1.9.6 burned as its staging diagnostic), v1.9.5 (the dogfood sixteen, small hours);
-and on 2026-08-16: v1.8.0 (the Phase 3 convergence), v1.7.0 (Phase 2 saving throws +
-the save slice), v1.6.1 (the split), v1.6.0, v1.5.1, v1.5.0, v1.4.0, v1.3.x. Deployed,
-tags pushed, GitHub releases carry zip + manifest. **The box tracks the GitHub
+Molten-hosted). Latest release **v1.13.0** (2026-08-17 — the v1.12.0 walk's finding ①,
+above). Before it, all 2026-08-17: v1.12.0 (night, the v1.11.0 walk's findings),
+v1.11.0 (evening), v1.10.0 (afternoon; v1.9.6 burned as its staging diagnostic), v1.9.5
+(the dogfood sixteen, small hours); and on 2026-08-16: v1.8.0 (the Phase 3
+convergence), v1.7.0 (Phase 2 saving throws + the save slice), v1.6.1 (the split),
+v1.6.0, v1.5.1, v1.5.0, v1.4.0, v1.3.x. Deployed, tags pushed, GitHub releases carry
+zip + manifest. **The box tracks the GitHub
 manifest**, the vended version string is REAL (staging installs bounce the process),
 and the box currently runs a staging-installed copy of the exact v1.12.0 release bits
 (verified vending 1.12.0 post-install, settings CLEAN).
@@ -124,79 +122,79 @@ update this table, never fight it:
 
 ## Open items
 
-### ✅ THE v1.11.0 WALK — COMPLETE (2026-08-17 evening) + v1.12.0 CLOSED ITS FINDINGS
+### ✅ THE v1.12.0 WALK — COMPLETE (2026-08-17 afternoon) + v1.13.0 CLOSED ITS FINDING
 
 The walk's outcome, kept because reports referencing these will keep arriving:
-- Item 1 ✅ SELF-aim (Second Wind/Divine Favor) · Item 3 ✅ the CAST half (no damage
-  roll at cast; the enricher stays native) — its DEX-rows half became finding ③ ·
-  Item 4 ✅ per-row bars side by side, popups present · Item 5 ✅ the Prone chip names
-  its attacker · Item 6 ✅ every bar drains per config (holdTimer / saveTimer /
-  concTimer; the mastery reminder's 15s is the one hardcoded clock) · Item 7 ✅ chat
-  log reviewed by agent (45/45 messages sane) — **watch ⑭ had NO sighting again** and
-  stands unchanged.
-- Item 2 ⛔ superseded by finding ② (the conditional "breathing" was never the ask).
-- Finding ① ⛔ withdrawn by the user — no GM was logged in; it became the Ⓓ1
-  discussion, which closed as the GM-required ruling (header + design.md §8).
-- **Findings ②③④ → ALL SHIPPED at v1.12.0** (the header's one-breath list). The
-  session ledger lives in this file's git history; the binding versions are design.md's
-  v1.12.0 amendments (Phase 1.1, Phase 2, §6, §8).
+- Item 2 ✅ keep-list is Refund Resource exactly, OFF restores every button, back ON ·
+  Item 3 ✅ Shatter GM-popup filter (dummy pops the GM; offline-owner PC silent, row
+  says "waiting on the timer (owner offline)", buzzer rolls "(timer)") · Item 4 ✅ the
+  topple twin of 3 · Item 5 ✅ never-placed Web waits quietly forever · Item 6 ✅ watch
+  ⑭ clean a third session — **RETIRED on the user's call ("stop watching")**.
+- Item 1 🔴 became finding ① (the header's one-breath list): the bare-cast WAITING half
+  behaved; the placed cube filled nothing. Its classic during-dialog half went untested
+  at the table (suite-covered; stamp-time containment untouched by the fix).
+- The walk's side mystery, resolved by the probe so the next session doesn't re-chase
+  it: "Gren eventually made a save throw" was a SEPARATE cast (Matt, 17:58, Gren
+  manually targeted, `templated: false`) riding finding ④'s buzzer exactly as designed
+  — the GM popup filter suppressed the popup, the row named the timer, the buzzer
+  rolled 18 "(timer)". Not adoption, not a bug.
+- **Finding ① → SHIPPED at v1.13.0** (the header's one-breath list). The session ledger
+  lives in this file's git history; the binding version is design.md's v1.13.0
+  amendment (Phase 2).
 
-### 🚶 THE v1.12.0 WALK — the user's checklist for the next testing session
+### 🚶 THE v1.13.0 WALK — the user's checklist for the next testing session
 
-The session protocol is the header's ⚠⚠ block: present this list, wait, aggregate,
-restate after every update, act only on "go". Everything below is suite-proven; the
-walk is the live confirmation. The settings table above is law — no settings changes
-needed. Every client must log back in first (the box was bounced for the v1.12.0
-install).
+ONE item this time (the user's call). The session protocol is the header's ⚠⚠ block:
+present this, wait, aggregate, act only on "go". Suite-proven (smoke-saves §10 recut to
+this exact shape); the walk is the live confirmation. The settings table above is law —
+no settings changes needed. Every client must log back in first (the box was bounced
+for the v1.13.0 install).
 
-1. **Web cast bare, then placed** — cast Web with NOBODY targeted and skip/cancel
-   placement: the card reads "Constitution/DEX save DC … — waiting for the template's
-   area" and nothing ticks. Place the cube (canvas template controls) over the dummy +
-   somebody: rows appear for whoever stands inside, a FULL 15s bar starts from the
-   placement moment, popups land on the deciders, no damage rolls, the burn "2d4"
-   enricher stays native. (Then the classic path once: place DURING the cast dialog —
-   rows appear straight from the stamp.)
-2. **The card shows ONE button** — Web's fresh card carries Refund Resource and nothing
-   else; Place Measured Template is hidden. Flip Hide Redundant Buttons OFF: every
-   button returns. Flip it back ON. (The settings gate, live.)
-3. **Shatter at dummy + Jetten (Andrew offline)** — the dummy's popup opens for the GM;
-   Jetten gets NO popup anywhere, the row reads "waiting on the timer (owner offline)",
-   and the 15s buzzer rolls Jetten marked "(timer)". The card's Roll button still
-   recalls Jetten's popup on a deliberate click — that path is filtered never.
-4. **Topple a PC with its owner offline** (optional twin of 3) — no GM popup; the
-   saveTimer buzzer rolls it; the dummy's topple still pops the GM as before.
-5. **A never-placed Web** (optional corner check) — cast bare, never place, walk away:
-   the card keeps its quiet waiting line forever, no rows, no clock. Deliberate — say
-   so if it reads as a bug at the table.
-6. **Watch ⑭** — if any "year ago" timestamp appears: hover for the real date and note
-   WHICH USER authored the message before clearing chat (the author names the broken
-   clock). Two sessions with no sighting now.
+1. **Web cast bare, then the TOOLBAR cube over people** — cast Web with NOBODY targeted,
+   skip/cancel placement: the card reads "Dexterity save DC 14 — waiting for the
+   template's area", nothing ticks. Draw the 20 ft cube from the CANVAS TEMPLATE
+   CONTROLS (the toolbar — the exact path that failed) over the dummy + somebody: rows
+   appear for whoever stands inside, a FULL 15s bar starts from the draw moment, popups
+   land on the deciders (the offline-owner PC rides the buzzer per finding ④), no
+   damage rolls, the burn "2d4" enricher stays native. Bonus checks if the table is
+   willing: MOVE the placed cube — containment follows; and a second bare Web after the
+   first — only the NEWEST waiting cast grabs the next draw (the older waits forever,
+   which is item 5's old deliberate shape).
 
-**State at handoff:** working tree clean, the v1.12.0 three-commit train pushed (test →
-feat tagged v1.12.0 → docs); the GitHub release carries zip + bare module.json; the box
-runs a staging-installed copy of the exact v1.12.0 release bits (the process was bounced
-for the install — any client that was connected needs to log back in; nobody was); world
-up, bridge disconnected; the user's settings verified drift-free against the reference
-table after the battery AND after the install (`verify-settings.mjs` CLEAN twice). No
-code changes are in flight.
+**State at handoff:** working tree clean, the v1.13.0 three-commit train pushed (test →
+feat tagged v1.13.0 → docs); the GitHub release carries zip + bare module.json; the box
+runs a staging-installed copy of the exact v1.13.0 release bits (the process was bounced
+for the install — every client needs to log back in; the user was asked to hold and
+nobody was connected); world up, bridge disconnected; the user's settings verified
+drift-free against the reference table after the battery AND after the install
+(`verify-settings.mjs` CLEAN twice). Party Camp's walk-debris Web template was swept
+(the claimed cube would have fed the NEXT bare cast instantly — one probe-verified
+delete); the four stale pre-v1.13.0 waiting Web cards in chat are inert (no
+`templateType`, can never claim) and the user clears chat at their leisure. The
+v1.13.0 fix pass ran DOUBLE: the first cut shipped Euclidean fallback geometry, the
+user's live re-test caught it over-sweeping the same afternoon (Salyth demanded from
+outside the cube — gap three in the one-breath list), and the grid-aware recut
+deployed before the battery ran; the deploy-wait-verify cache dance ran twice, both
+probed fresh before any suite. No code changes are in flight.
 
-### Where the plan points now (2026-08-17, night — post-v1.12.0)
+### Where the plan points now (2026-08-17 — post-v1.13.0)
 
-**Four feedback rounds are closed** (the dogfood sixteen at v1.9.5/v1.10.0, round two
-at v1.10.0, the v1.10.0 walk's ①–⑥ at v1.11.0, the v1.11.0 walk's ②–④ at v1.12.0 —
-resolution maps live in this file's git history and in design.md's amendments). Closed
-as a RULING, not code: **Ⓓ1 — GM required for full functionality** (design.md §8 keeps
-the full itemization). Open as a QUESTION, not a bug: **the concentration ask still
-popups the GM for offline-owner PCs** — finding ④ deliberately did not touch it; ask
-the user before extending the filter there. What remains open:
+**Five feedback rounds are closed** (the dogfood sixteen at v1.9.5/v1.10.0, round two
+at v1.10.0, the v1.10.0 walk's ①–⑥ at v1.11.0, the v1.11.0 walk's ②–④ at v1.12.0, the
+v1.12.0 walk's ① at v1.13.0 — resolution maps live in this file's git history and in
+design.md's amendments). Closed as a RULING, not code: **Ⓓ1 — GM required for full
+functionality** (design.md §8 keeps the full itemization). Open as a QUESTION, not a
+bug: **the concentration ask still popups the GM for offline-owner PCs** — finding ④
+deliberately did not touch it; ask the user before extending the filter there. What
+remains open:
 
-- **⑭ The year-off timestamps** — two cards on 2026-08-16 rendered "11m 364d ago" (the
-  topple announcement, a Heroism heal roll) among correctly-stamped neighbors. The module
-  passes NO timestamps (grep-verified — all four `timestamp` mentions are reads), the
-  bridge's clock measured exact, and the probe could not reproduce. NO sighting during
-  the v1.10.0 walk. WATCH ITEM: next sighting, hover the card for its real date and note
-  which USER authored it — the message's creating client stamps the timestamp, so the
-  author names the broken clock.
+- **⑭ The year-off timestamps — RETIRED** (user call, the v1.12.0 walk: "stop
+  watching"; three sessions clean). Two cards on 2026-08-16 rendered "11m 364d ago"
+  among correctly-stamped neighbors; the module passes NO timestamps (grep-verified),
+  the bridge's clock measured exact, the probe could not reproduce, and it never
+  recurred. Not carried on any walk list anymore. If it EVER resurfaces: hover the card
+  for its real date and note which USER authored it — the message's creating client
+  stamps the timestamp, so the author names the broken clock.
 - **Phase 4** stays an experiment first (cast Bless, watch ten rounds — likely zero
   code); **Phase 5** stays the adopt-AC5e decision; **two-client save coverage** is no
   longer hypothetical — `probe-popup-topology.mjs` (NEW at v1.11.0) is a working
@@ -204,14 +202,17 @@ the user before extending the filter there. What remains open:
   render, and DOM state); growing it into a suite is the natural next step if
   cross-client regressions worry anyone.
 
-⚠ Tuesday is live play. v1.12.0 clears battery-green. Player-facing changes since the
-table last sat (cumulative v1.11.0 + v1.12.0): SELF abilities (Second Wind, Divine
-Favor) apply to their user no matter what's targeted; every timer runs 15s; a
+⚠ Tuesday is live play. v1.13.0 clears battery-green. Player-facing changes since the
+table last sat (cumulative v1.11.0 + v1.12.0 + v1.13.0): SELF abilities (Second Wind,
+Divine Favor) apply to their user no matter what's targeted; every timer runs 15s; a
 multi-target save card drains a bar under every pending row; Web-class spells no longer
 roll their situational damage at cast; the pressed Prone chip names its attacker; an
 area spell cast bare WAITS for its template and demands saves from whoever the placed
-area contains (full window from placement); every card button except Refund Resource is
-hidden; and an offline player's PC resolves its saves by timer without popping the GM.
+area contains (full window from placement) — and since v1.13.0 the plain TOOLBAR-drawn
+cube/cone/line counts as that template (the walk's finding ①: only dialog-placed areas
+ever tied before, and cubes had no geometry at all); every card button except Refund
+Resource is hidden; and an offline player's PC resolves its saves by timer without
+popping the GM.
 **Every connected client needs to log back in** — the box was bounced for the install.
 
 **World content, fixed this session (not module code):** Thomas's Divine Favor and
@@ -244,6 +245,11 @@ no-hold Shield cast is a tray click, by design); a never-placed template leaves 
 demand quietly WAITING on the card forever (v1.12.0 — no rows, no clock, deliberate);
 a token entering a STANDING area joins the demand only when a card re-render runs the
 containment floor (semi-live, not turn-based — Phase 4 owns turn-time truth); the
+toolbar claim (v1.13.0) serves the NEWEST waiting cast only — an older same-activity
+bare cast waits forever even as areas land (one area, one demand); a claim reaches the
+elect's CURRENT scene only (a toolbar draw on another scene adopts nothing — the
+dialog-placement path still works cross-scene); a SECOND cube drawn while a claimed one
+stands is ignored until the first is deleted (re-place or move the first instead); the
 concentration ask still popups the GM for offline-owner PCs (finding ④'s deliberate
 non-extension — open question, not a bug); and "cast with no GM logged in, nothing
 applied" is the Ⓓ1 ruling working as designed. *(Graduated at v1.11.0: "self-buffs
@@ -523,10 +529,32 @@ stay tray clicks" is DEAD — SELF-tagged activities self-aim now, finding ①.)
    status never leaves "pending", so anything looser drags in every fossil card the same
    activity ever stamped — recast Moonbeam and yesterday's cards all match). Containment
    is center-point against the drawn shape when one exists, else document-geometry
-   (circles); `templated: true` marks adoption, `durationUnits` gates the spent-template
-   sweep. Manual targeting stays the bus for template-less casts, and `tokensInTemplates`
-   distinguishes "no template" (null → snapshot) from "empty template" ([] → nobody
-   saves) on purpose.
+   (ALL types since v1.13.0); `templated: true` marks adoption, `durationUnits` gates
+   the spent-template sweep. Manual targeting stays the bus for template-less casts, and
+   `tokensInTemplates` distinguishes "no template" (null → snapshot) from "empty
+   template" ([] → nobody saves) on purpose.
+   ⚠⚠ **v1.13.0 (the v1.12.0 walk's finding ①): every template type computes document
+   geometry, and the toolbar draw is claimable.** Ground truths that were expensive:
+   `templateShape`'s fallback was CIRCLE-only, and `createMeasuredTemplate` fires
+   before the canvas computes `object.shape` EVEN ON A LIVE CLIENT — so a cube's rect
+   had no shape at the only moment the fast-path looked, and the render floor never
+   re-fired (renders only happen on re-render). The suite stayed green on its circle
+   fixture while the live cube adopted nothing — §10 is recut to cube + origin-less
+   rect so that gap cannot reopen. Geometry is CORE'S: the fallback calls the
+   objectClass shape statics (grid-aware — this world runs `gridTemplates` ON, and the
+   live re-test proved Euclidean math over-sweeps it: Salyth demanded from outside the
+   drawn cube; deprecated since v14 until 16, one console warning per session, migrate
+   to ShapeData when 16 lands; current-scene only — cross-scene falls to Euclidean).
+   The CLAIM: a WAITING demand takes the newest
+   origin-less template of its expected shape (`templateType` on the stamp →
+   `CONFIG.DND5E.areaTargetTypes[type].template` — never hardcoded) on the elect's
+   current scene, and WRITES `dnd5e.origin` onto it — stamp-once, then moves/re-place/
+   spent-sweep ride the origin-tied path unchanged. `_stats.createdTime` READS NULL on
+   this box (measured), so the created-after gate is best-effort and the current-scene
+   restriction is the real fossil wall. The NEWEST-WAITING-CUSTOMER gate: among
+   same-activity zero-target pending cards only the newest adopts (the walk's four bare
+   casts × one cube = four popup sets without it). Pre-v1.13.0 cards carry no
+   `templateType` and never claim — origin-tied adoption serves them unchanged.
 
 ## How to work on this
 
@@ -666,9 +694,11 @@ the same-breath lesson, applied-side).
 ⚠ **smoke-saves §8 (templates) leans on primitives that WORK headless**: the adoption
 floor is nudged via `ui.chat.updateMessage` renders (the CRUD hooks never dispatch here —
 ground truths), the walk is expressed as delete + re-place (`tpl.update()` silently
-no-ops here), and the fixture circle is radius 5 ft because the tokens stand 200px apart
-and `PIXI.Circle.contains` is boundary-INCLUSIVE — a 10 ft circle put the neighbor
-exactly on the rim and "outside" stopped being testable.
+no-ops here), and the fixture circle is radius **2.5 ft** (retuned v1.13.0 for core's
+grid-aware shapes): the tokens stand 200px apart — ONE GRID SQUARE over — and a gridded
+5 ft circle covers the whole adjacent square, exactly the way the old 10 ft Euclidean
+rim (boundary-INCLUSIVE) once did; 2.5 ft is out-of-reach under BOTH branches of core's
+`gridTemplates` setting, so "outside" stays testable whatever the world runs.
 
 `tools/check-hook-order.mjs` (new at v1.6.1) is the split's static companion — run it
 before the battery whenever a file, an import, or a same-hook registration was added; it
@@ -700,11 +730,19 @@ table this cannot happen (the bridge is one page; humans are different users); i
 a harness topology, so the fix is protocol, not code. `smoke-effects` §9 asserts the
 announcement count so a double-elect now fails loudly at the source.
 
-`tools/smoke-saves.mjs` (43 assertions at v1.12.0) proves the save machine, sections
+`tools/smoke-saves.mjs` (44 assertions at v1.13.0) proves the save machine, sections
 (**9** new at v1.11.0: rider damage never rolls or applies + a bar per pending row;
-**10** new at v1.12.0: the WAITING demand — bare template cast stamps zero targets/no
-deadline, Place Template exists-and-hides [finding ②'s DOM pin, count-guarded], the
-placed area fills it, arms the clock from that moment, asks, and runs to a receipt;
+**10** new at v1.12.0, RECUT at v1.13.0 to finding ①'s live shape: a CUBE activity cast
+bare TWICE stamps WAITING demands [zero targets/no deadline/`templateType: "cube"`],
+Place Template exists-and-hides [finding ②'s DOM pin, count-guarded], then an
+origin-LESS RECT — the toolbar draw, geometry-fallback-only on the headless page — is
+CLAIMED and fills the NEWEST demand, arms the clock from that moment, asks, and runs to
+a receipt, while the OLDER waiting cast stays untouched [10d2, the newest-customer
+gate's pin]. ⚠ 10d pins the FILL, not the origin write: template setFlag silently
+no-ops on this page (§8's tpl.update() ground truth), so persistence is live-proven
+instead (the 2026-08-17 re-test's claimed template read back origin-tied on the probe)
+— a waiting demand filling from an origin-less rect is itself reachable only through
+claimBareTemplate;
 **11** new at v1.12.0: the GM popup filter — BF Test PC Attacker [player-owned, owner
 offline] gets no popup while the NPC control's popup shows in the same breath, the row
 names the timer, the buzzer resolves it marked):

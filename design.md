@@ -657,6 +657,43 @@ v1.3.0 (2026-08-16).
 >   for now — a break is heavier than a save, and the user has not asked; recorded as an
 >   open question, not an accident.
 
+> **Amended v1.13.0 (2026-08-17, the v1.12.0 walk's finding ①): the toolbar draw is a
+> first-class placement path.**
+> - **Every template type has document geometry — CORE'S, not ours.** `templateShape`
+>   computed a fallback shape for circles only; a cube spell's rect had no shape anywhere
+>   it mattered — the harness never draws, and on a LIVE client `createMeasuredTemplate`
+>   fires before the canvas computes `object.shape` (measured: the walk's origin-tied
+>   cube stood over two tokens while four waiting demands stayed empty — the fast-path
+>   found no usable template and nothing retried). The first cut hand-rolled EUCLIDEAN
+>   shapes and the live re-test caught it sweeping wider than the drawn area (Salyth
+>   demanded from outside the cube): this world runs core's `gridTemplates` setting ON,
+>   where every template is a GRID-BUILT polygon. Now the fallback calls core's own
+>   `getCircleShape/getRectShape/getConeShape/getRayShape` statics — the exact grid-aware
+>   branch the renderer uses, doc-native units — so containment and the drawn highlight
+>   are the same truth by construction (the user's ask, verbatim: match what the template
+>   actually shows). The statics are deprecated since v14 (until 16; ShapeData replaces
+>   them — migrate then) and read `canvas.grid`, so they serve the CURRENT scene only;
+>   cross-scene templates fall to the Euclidean math (approximate under gridTemplates —
+>   accepted: claims are current-scene-only and cross-scene demands are dialog-placed).
+>   The drawn shape still wins when it exists.
+> - **A WAITING demand may CLAIM an origin-less template (the toolbar draw).** The canvas
+>   template controls stamp no `dnd5e.origin`, so origin matching alone made the card's
+>   "waiting for the template's area" line point at a placement path that could not work.
+>   The claim: the newest origin-less template of the demand's EXPECTED shape (the
+>   system's own `areaTargetTypes` map from the stamp's new `templateType` field — never
+>   hardcoded), on the elect's CURRENT scene only (the fossil bound; `_stats.createdTime`
+>   reads null on this box, so the created-after gate cannot carry it alone), gets the
+>   origin flag WRITTEN onto it — from that moment moves, re-placement, and the spent
+>   sweep treat it exactly like a dialog placement. Stamp-once: a claimed template can
+>   never be re-claimed. Pre-v1.13.0 cards carry no `templateType` and simply never
+>   claim — origin-tied adoption serves them unchanged.
+> - **One area fills exactly one demand (the newest-waiting-customer gate).** The walk
+>   left four bare same-activity Web casts waiting; without a gate, one placement fills
+>   all four (four popup sets for one cube — same-uuid demands all match the origin).
+>   Among WAITING demands, only the newest same-activity cast is the customer; older
+>   waiting casts stay waiting forever, which is already the never-placed cast's
+>   deliberate shape.
+
 > **The machine already exists (2026-08-16, user architectural call).** Phase 2.5 shipped
 > first and is deliberately the seed: the mode gate (prompt / auto), the ask-message +
 > respondsTo-fold answer channel, first-active-owner election with the GM elect as fallback,
