@@ -209,10 +209,13 @@ const out = await f.evaluate(async () => {
             save: { ability: ['con'], dc: { calculation: '', formula: '15' } },
             target: { override: false, prompt: true }
           },
-          // §10's shape — Web's TEMPLATE flow (v1.12.0 finding ③): a template-shaped save
-          // activity cast bare, area placed after. prompt: true matches the live spell's
-          // data; the harness passes create.measuredTemplate false at use (the canceled-
-          // preview path — a real drawPreview never resolves on this headless page).
+          // §10's shape — Web's TEMPLATE flow (v1.12.0 finding ③; re-cut at v1.13.0 for
+          // the walk's finding ①): a CUBE save activity cast bare, area placed after as an
+          // origin-LESS rect — the toolbar draw. Cube ⇒ rect is the type the old
+          // circle-only geometry fallback could not shape, which is exactly how the suite
+          // stayed green while the live cube adopted nothing. prompt: true matches the
+          // live spell's data; the harness passes create.measuredTemplate false at use
+          // (the canceled-preview path — a real drawPreview never resolves headless).
           bfsavetmpl000000: {
             _id: 'bfsavetmpl000000', type: 'save',
             activation: { type: 'action', override: false },
@@ -221,7 +224,7 @@ const out = await f.evaluate(async () => {
             effects: [],
             save: { ability: ['con'], dc: { calculation: '', formula: '15' } },
             target: { override: true, prompt: true,
-              template: { type: 'sphere', size: '5', units: 'ft', count: '' },
+              template: { type: 'cube', size: '10', units: 'ft', count: '' },
               affects: { type: 'creature', count: '', choice: false } }
           }
         }
@@ -603,11 +606,14 @@ const out = await f.evaluate(async () => {
       // (the live Shatter and Moonbeam reports, one mechanism).
       let hookFired = 0;
       const hid = Hooks.on('createMeasuredTemplate', () => { hookFired++; });
-      // Radius 5 ft (100px) ON PURPOSE: the fixture tokens stand 200px apart and
-      // PIXI.Circle.contains is boundary-INCLUSIVE — a 10 ft circle puts the neighbor
-      // exactly on the rim and "outside" stops being testable (bit 2026-08-16).
+      // Radius 2.5 ft ON PURPOSE (retuned v1.13.0 for CORE's grid-aware shapes): the
+      // fixture tokens stand 200px apart — one grid square over — and a GRIDDED 5 ft
+      // circle covers the whole adjacent square, so "outside" stopped being testable
+      // exactly the way the old 10 ft Euclidean rim did (bit 2026-08-16). 2.5 ft covers
+      // only the origin square gridded AND only a 70px disc Euclidean: the neighbor is
+      // out under either branch, whatever core's gridTemplates setting says.
       const [tpl] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
-        t: 'circle', x: victimToken.center.x, y: victimToken.center.y, distance: 5,
+        t: 'circle', x: victimToken.center.x, y: victimToken.center.y, distance: 2.5,
         flags: { dnd5e: { origin: card.getFlag(MOD, 'saves').activityUuid } }
       }]);
       created.templates.push(tpl.id);
@@ -657,7 +663,7 @@ const out = await f.evaluate(async () => {
       // funnel into the identical recompute.
       await scene.deleteEmbeddedDocuments('MeasuredTemplate', [tpl.id]);
       const [tpl2] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
-        t: 'circle', x: shielderToken.center.x, y: shielderToken.center.y, distance: 5,
+        t: 'circle', x: shielderToken.center.x, y: shielderToken.center.y, distance: 2.5,
         flags: { dnd5e: { origin: card.getFlag(MOD, 'saves').activityUuid } }
       }]);
       created.templates.push(tpl2.id);
@@ -703,7 +709,7 @@ const out = await f.evaluate(async () => {
       // live flow produces: the stamp must contain, not snapshot.
       await clearChips();
       const [tpl8d] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
-        t: 'circle', x: victimToken.center.x, y: victimToken.center.y, distance: 5
+        t: 'circle', x: victimToken.center.x, y: victimToken.center.y, distance: 2.5
       }]);
       created.templates.push(tpl8d.id);
       const msg8d = await ChatMessage.create({
@@ -802,6 +808,14 @@ const out = await f.evaluate(async () => {
       await set('saveTimer', 15);
       target();                            // BARE on purpose — the whole finding
       await sleep(120);
+      // TWO bare casts: the older is the newest-customer gate's pin (finding ①'s probe
+      // found FOUR same-activity waiting cards — one placement must fill exactly one).
+      const useOld10 = await tmplActivity().use(
+        { create: { measuredTemplate: false } }, { configure: false }, {});
+      const cardOld10 = useOld10?.message instanceof ChatMessage ? useOld10.message : null;
+      if (!cardOld10) return { fatal: 'section 10 older cast produced no card' };
+      await until(() => cardOld10.getFlag(MOD, 'saves'), 6000);
+      await sleep(150); // distinct timestamps — the gate sorts by them
       const snap10 = snap();
       const use10 = await tmplActivity().use(
         { create: { measuredTemplate: false } }, { configure: false }, {});
@@ -811,9 +825,10 @@ const out = await f.evaluate(async () => {
 
       ok('10a. a targetless template cast stamps a WAITING demand — zero targets, no deadline',
         !!flag10 && (flag10.status === 'pending') && ((flag10.targets ?? []).length === 0)
-          && (flag10.awaitingTemplate === true) && !flag10.deadline && (flag10.window === 15),
+          && (flag10.awaitingTemplate === true) && !flag10.deadline && (flag10.window === 15)
+          && (flag10.templateType === 'cube'),
         `flag=${!!flag10} targets=${flag10?.targets?.length} awaiting=${flag10?.awaitingTemplate} `
-          + `deadline=${flag10?.deadline} window=${flag10?.window}`);
+          + `deadline=${flag10?.deadline} window=${flag10?.window} tmplType=${flag10?.templateType}`);
 
       // ②'s pin at the DOM: this card carries a REAL Place Measured Template button and it
       // is hidden with the rest — the count guards the vacuous pass.
@@ -832,13 +847,15 @@ const out = await f.evaluate(async () => {
       }, 4000);
       ok('10c. the waiting card says so', !!waitLine10, `line="${(waitLine10 ?? '').trim()}"`);
 
-      // The area lands (canvas controls / re-place — origin-tied like every adoption); the
-      // render floor notices, the arrival joins, and the clock starts NOW, full window.
+      // The area lands as the TOOLBAR draws it: an origin-LESS rect (finding ①'s exact
+      // shape — a cube spell, no dnd5e origin flag, no drawn canvas shape on this headless
+      // page, so only the rect geometry fallback can contain anything). The waiting demand
+      // must CLAIM it — stamp the origin on — fill, and arm the clock from that moment.
+      const gpx10 = scene.grid.size / scene.grid.distance;
+      const side10 = 200 / gpx10; // a 200px square around the victim, in scene units
       const [tpl10] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
-        t: 'circle', x: victimToken.center.x, y: victimToken.center.y, distance: 5,
-        // The activity's own uuid IS the stamp's activityUuid — read it from the source so
-        // a regression in the stamp fails 10a/10d as assertions, not as a crash here.
-        flags: { dnd5e: { origin: tmplActivity().uuid } }
+        t: 'rect', x: victimToken.center.x - 100, y: victimToken.center.y - 100,
+        direction: 45, distance: side10 * Math.SQRT2
       }]);
       created.templates.push(tpl10.id);
       await sleep(300);
@@ -848,11 +865,25 @@ const out = await f.evaluate(async () => {
         return (f?.templated && !f.awaitingTemplate && f.deadline
           && f.targets.some(t => t.uuid === victim.uuid)) ? f : null;
       });
-      ok('10d. the placed area fills the waiting demand and arms the clock from that moment',
+      // ⚠ The claim's origin WRITE cannot be asserted on this page: template updates
+      // silently no-op here (§8's tpl.update() ground truth — setFlag resolves, nothing
+      // persists, the collection reads null). The fill itself IS the claim's pin: a
+      // WAITING demand can only be fed by templatesForOrigin (empty — the rect is
+      // origin-less) or claimBareTemplate, so rows appearing at all proves the claim
+      // selected and used the toolbar rect. Origin persistence is LIVE-proven: the
+      // 2026-08-17 re-test's claimed template read back origin-tied on the probe.
+      ok('10d. the toolbar rect is claimed and fills the waiting demand, clock armed from that moment',
         !!adopted10 && (adopted10.targets.length === 1) && (adopted10.deadline > Date.now())
           && (adopted10.deadline <= Date.now() + 15_500),
         `targets=[${(card10.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.name).join()}] `
-          + `deadline=${adopted10?.deadline} now=${Date.now()}`);
+          + `deadline=${adopted10?.deadline} now=${Date.now()} `
+          + `originOnPage=${JSON.stringify(scene.templates.get(tpl10.id)?.getFlag('dnd5e', 'origin') ?? null)}`);
+      const oldFlag10 = cardOld10.getFlag(MOD, 'saves');
+      ok('10d2. the OLDER waiting cast is not the customer — one area fills exactly one demand',
+        (oldFlag10?.status === 'pending') && ((oldFlag10?.targets ?? []).length === 0)
+          && (oldFlag10?.awaitingTemplate === true) && !oldFlag10?.deadline,
+        `older: targets=${oldFlag10?.targets?.length} awaiting=${oldFlag10?.awaitingTemplate} `
+          + `deadline=${oldFlag10?.deadline}`);
 
       // The arrival is ASKED (an NPC — the GM's popup rightly shows), and the machine runs
       // to the receipt: -30 fails, the half-rule damage applies at ×1.
