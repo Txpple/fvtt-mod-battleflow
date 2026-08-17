@@ -181,9 +181,9 @@ up, bridge disconnected; settings verified drift-free after the battery
 next session should know: (a) **four stale WAITING demand cards from the user's walk
 testing stand in chat** (19:42–19:51 — zero targets, `templateType` present, so they
 CAN claim/adopt future matching areas; deletion was proposed but NOT approved — ask
-the user, or let them clear chat); (b) the **upstream shim defect is unfiled** — the
-probe evidence (factors ×1.4/×1.0/×0.7 by grid size, width→raw px, client exonerated)
-is ready to file against Foundry VTT (and dnd5e for awareness) whenever the user wants;
+the user, or let them clear chat); (b) the **upstream shim defect stays UNFILED as a RULING** (user, 2026-08-17 night:
+"no to upstream bug report, they will never read it") — do not offer again; the probe
+evidence stays committed in tools/ if the stance ever changes;
 (c) the user hand-deleted walk-debris templates mid-session — canvas deletions around
 19:40 are theirs, not the sweep's.
 
