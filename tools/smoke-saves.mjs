@@ -5,6 +5,10 @@
 // arrival orders (damage after verdicts AND damage waiting on a pending target), the popup's
 // native-dialog controls reaching the real dice, a bare sheet roll answering, the buzzer
 // rolling, and legendary resistance overturning a folded failure receipts-and-all.
+// v1.12.0 adds §10 (the WAITING demand: a bare template cast stamps zero targets and no
+// deadline, the placed area delivers targets and arms the clock — findings ②+③) and §11
+// (the GM's unsolicited popups are non-player-owned targets only; the quiet PC rides the
+// buzzer — finding ④).
 //
 // Harness discipline (HANDOFF): every setting touched is restored to whatever was found;
 // every message this run creates is deleted on the way out; BF Test fixtures are long-rested;
@@ -127,7 +131,9 @@ const out = await f.evaluate(async () => {
     // getSpeaker resolves through the actor's OLDEST token on the viewed scene, and a stale
     // unlinked one would make section 4's bare sheet roll arrive with a synthetic uuid the
     // fold can never match. smoke-battleflow re-places its own victim token next run.
-    const stale = scene.tokens.filter(t => [victim.id, shielder.id].includes(t.actorId)).map(t => t.id);
+    const pcActor = game.actors.getName('BF Test PC Attacker'); // §11's player-owned fixture
+    const stale = scene.tokens.filter(t =>
+      [victim.id, shielder.id, ...(pcActor ? [pcActor.id] : [])].includes(t.actorId)).map(t => t.id);
     if (stale.length) await scene.deleteEmbeddedDocuments('Token', stale);
     const mkToken = async (actor, x) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [
@@ -202,6 +208,21 @@ const out = await f.evaluate(async () => {
             effects: [],
             save: { ability: ['con'], dc: { calculation: '', formula: '15' } },
             target: { override: false, prompt: true }
+          },
+          // §10's shape — Web's TEMPLATE flow (v1.12.0 finding ③): a template-shaped save
+          // activity cast bare, area placed after. prompt: true matches the live spell's
+          // data; the harness passes create.measuredTemplate false at use (the canceled-
+          // preview path — a real drawPreview never resolves on this headless page).
+          bfsavetmpl000000: {
+            _id: 'bfsavetmpl000000', type: 'save',
+            activation: { type: 'action', override: false },
+            consumption: { targets: [], spellSlot: false },
+            damage: { onSave: 'half', parts: [{ custom: { enabled: true, formula: '10' }, types: ['poison'] }] },
+            effects: [],
+            save: { ability: ['con'], dc: { calculation: '', formula: '15' } },
+            target: { override: true, prompt: true,
+              template: { type: 'sphere', size: '5', units: 'ft', count: '' },
+              affects: { type: 'creature', count: '', choice: false } }
           }
         }
       },
@@ -219,6 +240,7 @@ const out = await f.evaluate(async () => {
     const saveActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsaveact0000000');
     const selfActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsaveself000000');
     const fullActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsavefull000000');
+    const tmplActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsavetmpl000000');
     const target = (...tokens) => {
       game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
       tokens.forEach((t, i) => t.setTarget(true, { releaseOthers: i === 0 }));
@@ -549,7 +571,7 @@ const out = await f.evaluate(async () => {
       use = await saveActivity().use({}, { configure: false }, {});
       card = use?.message instanceof ChatMessage ? use.message : null;
       await sleep(1200);
-      ok('7b. a targetless cast keeps its native card and is left to the humans',
+      ok('7b. a targetless cast with NO template shape stays native (a waiting demand needs an area to wait for)',
         !!card && !card.getFlag(MOD, 'saves'), `flag=${!!card?.getFlag(MOD, 'saves')}`);
 
       target(victimToken);
@@ -764,12 +786,175 @@ const out = await f.evaluate(async () => {
       await set('saveTimer', 0);
     }
 
+    // ============================================== 10. the waiting demand (v1.12.0, findings ②+③)
+    // Web's natural flow: a template-shaped save activity cast BARE — no targets, no
+    // placement (create.measuredTemplate false = the canceled-preview path, the only
+    // headless-safe one). The old code stamped nothing and adoption had no customer, so
+    // the area produced no saves at all (the live Web report). The demand must stamp
+    // WAITING (zero targets, no deadline), the card must say so, Place Measured Template
+    // must hide with every other button (finding ② — the keep-list is exactly
+    // refundResource again), and the placed area must deliver targets, arm the clock from
+    // that moment, ask, and run the whole machine to a receipt.
+    {
+      await clearChips();
+      await saveBonus(victim, '-30');
+      const vMax10 = await healFull(victim);
+      await set('saveTimer', 15);
+      target();                            // BARE on purpose — the whole finding
+      await sleep(120);
+      const snap10 = snap();
+      const use10 = await tmplActivity().use(
+        { create: { measuredTemplate: false } }, { configure: false }, {});
+      const card10 = use10?.message instanceof ChatMessage ? use10.message : null;
+      if (!card10) return { fatal: 'section 10 cast produced no card' };
+      const flag10 = await until(() => card10.getFlag(MOD, 'saves'), 6000);
+
+      ok('10a. a targetless template cast stamps a WAITING demand — zero targets, no deadline',
+        !!flag10 && (flag10.status === 'pending') && ((flag10.targets ?? []).length === 0)
+          && (flag10.awaitingTemplate === true) && !flag10.deadline && (flag10.window === 15),
+        `flag=${!!flag10} targets=${flag10?.targets?.length} awaiting=${flag10?.awaitingTemplate} `
+          + `deadline=${flag10?.deadline} window=${flag10?.window}`);
+
+      // ②'s pin at the DOM: this card carries a REAL Place Measured Template button and it
+      // is hidden with the rest — the count guards the vacuous pass.
+      const cardEl10 = await until(() => document.querySelector(`[data-message-id="${card10.id}"]`), 4000);
+      const btns10 = [...(cardEl10?.querySelectorAll('.card-buttons button[data-action]') ?? [])];
+      const hasPlace10 = btns10.some(b => b.dataset.action === 'placeTemplate');
+      const visible10 = btns10.filter(b =>
+        (b.dataset.action !== 'refundResource') && (b.style.display !== 'none'));
+      ok('10b. Place Measured Template exists and hides — the keep-list is refundResource only',
+        hasPlace10 && (visible10.length === 0),
+        `placeBtn=${hasPlace10} visible=[${visible10.map(b => b.dataset.action).join()}]`);
+      const waitLine10 = await until(() => {
+        const t = document.querySelector(`[data-message-id="${card10.id}"]`)
+          ?.querySelector('.battleflow-saves')?.textContent ?? '';
+        return t.includes("waiting for the template's area") ? t : null;
+      }, 4000);
+      ok('10c. the waiting card says so', !!waitLine10, `line="${(waitLine10 ?? '').trim()}"`);
+
+      // The area lands (canvas controls / re-place — origin-tied like every adoption); the
+      // render floor notices, the arrival joins, and the clock starts NOW, full window.
+      const [tpl10] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
+        t: 'circle', x: victimToken.center.x, y: victimToken.center.y, distance: 5,
+        // The activity's own uuid IS the stamp's activityUuid — read it from the source so
+        // a regression in the stamp fails 10a/10d as assertions, not as a crash here.
+        flags: { dnd5e: { origin: tmplActivity().uuid } }
+      }]);
+      created.templates.push(tpl10.id);
+      await sleep(300);
+      try { ui.chat?.updateMessage?.(card10); } catch { /* re-renders next message anyway */ }
+      const adopted10 = await until(() => {
+        const f = card10.getFlag(MOD, 'saves');
+        return (f?.templated && !f.awaitingTemplate && f.deadline
+          && f.targets.some(t => t.uuid === victim.uuid)) ? f : null;
+      });
+      ok('10d. the placed area fills the waiting demand and arms the clock from that moment',
+        !!adopted10 && (adopted10.targets.length === 1) && (adopted10.deadline > Date.now())
+          && (adopted10.deadline <= Date.now() + 15_500),
+        `targets=[${(card10.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.name).join()}] `
+          + `deadline=${adopted10?.deadline} now=${Date.now()}`);
+
+      // The arrival is ASKED (an NPC — the GM's popup rightly shows), and the machine runs
+      // to the receipt: -30 fails, the half-rule damage applies at ×1.
+      // ⚠ Match the popup by the ENTRY's stored name, never the actor's — adoption names
+      // entries after their TOKEN, and this victim's token is literally "Hobgoblin" (the
+      // prototype it was cloned from; smoke-battleflow's receipts print the same). The
+      // first run of this section looked for "BF Test Victim" and missed a popup that was
+      // correctly open.
+      const entryName10 = adopted10.targets[0]?.name ?? victim.name;
+      const popup10 = await until(() => savePopups().find(p => p.textContent.includes(entryName10)), 6000);
+      ok('10e. the arrival gets its ask', !!popup10,
+        `popups=${savePopups().length} lookingFor="${entryName10}"`);
+      [...(popup10?.querySelectorAll('footer button, .form-footer button') ?? [])]
+        .find(b => b.textContent.trim() === 'Normal')?.click();
+      await until(() => card10.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), 20000);
+      const e10 = entryOf(card10, victim);
+      const dmg10 = fresh(snap10).find(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
+        && (m.getFlag('dnd5e', 'originatingMessage') === card10.id));
+      ok('10f. the adopted demand runs the whole machine — verdict, damage, receipt',
+        (e10?.outcome === 'failed') && (victim.system.attributes.hp.value === vMax10 - 10),
+        `outcome=${e10?.outcome} applied=${e10?.applied} dmgRolled=${!!dmg10} `
+          + `hp=${victim.system.attributes.hp.value}/${vMax10}`);
+      await set('saveTimer', 0);
+    }
+
+    // ============================================== 11. the GM popup filter (v1.12.0, finding ④)
+    // A player-owned target whose owner is OFFLINE falls to the GM by canAnswerFor — and
+    // the GM's unsolicited popup stack is exactly where it must NOT land ("as a GM i dont
+    // care to see other player saves"). The NPC control's popup shows in the same breath
+    // (this section can never pass by nobody popping at all); the PC rides the buzzer,
+    // marked as the timer's press, and the card row says so.
+    {
+      await clearChips();
+      const ownedOk = !!pcActor?.hasPlayerOwner
+        && !game.users.some(u => !u.isGM && u.active && pcActor.testUserPermission(u, 'OWNER'));
+      if (!ownedOk) {
+        skips.push(`11: BF Test PC Attacker ownership precondition not met `
+          + `(actor=${!!pcActor} hasPlayerOwner=${pcActor?.hasPlayerOwner})`);
+      } else {
+        priorActor[pcActor.id] = {
+          'system.abilities.con.bonuses.save': pcActor.system._source.abilities?.con?.bonuses?.save ?? '',
+          'system.attributes.hp.value': pcActor.system._source.attributes.hp.value,
+          ...(priorActor[pcActor.id] ?? {})
+        };
+        await pcActor.update({ 'system.abilities.con.bonuses.save': '-30' });
+        await saveBonus(victim, '-30');
+        await healFull(victim);
+        await healFull(pcActor);
+        const pcToken = await mkToken(pcActor, 1400);
+        if (!pcToken) return { fatal: 'section 11 PC token never reached the canvas' };
+        // 8s window: the pending-state assertions below need a few seconds to LOOK before
+        // the buzzer resolves everything out from under them (the first run set 4s and its
+        // own 6s popup poll outlived the entire demand — open=0 proved only that the
+        // machine had already finished). The buzzer is still the quiet PC's resolver.
+        await set('saveTimer', 8);
+        target(victimToken, pcToken);
+        await sleep(120);
+        const use11 = await saveActivity().use({}, { configure: false }, {});
+        const card11 = use11?.message instanceof ChatMessage ? use11.message : null;
+        if (!card11) return { fatal: 'section 11 cast produced no card' };
+        const flag11 = await until(() => card11.getFlag(MOD, 'saves'));
+        // Entry names are TOKEN names (this victim's token is "Hobgoblin") — match popups
+        // by what the demand actually stored, never by actor name.
+        const nameOf11 = a => flag11?.targets?.find(t => t.uuid === a.uuid)?.name ?? a.name;
+        const npcName11 = nameOf11(victim);
+        const pcName11 = nameOf11(pcActor);
+
+        const npcPopup = await until(() => savePopups().find(p => p.textContent.includes(npcName11)), 4000);
+        const pcPopup = savePopups().find(p => p.textContent.includes(pcName11));
+        ok('11a. the GM\'s unsolicited popups are non-player-owned targets only',
+          !!npcPopup && !pcPopup,
+          `npcPopup=${!!npcPopup} pcPopup=${!!pcPopup} open=${savePopups().length} `
+            + `names=["${npcName11}","${pcName11}"]`);
+
+        const rowText11 = await until(() => {
+          const t = document.querySelector(`[data-message-id="${card11.id}"]`)
+            ?.querySelector('.battleflow-saves')?.textContent ?? '';
+          return t.includes('the timer (owner offline)') ? t : null;
+        }, 3000);
+        ok('11b. the card row names the timer, not the GM, for the offline-owner PC',
+          !!rowText11, `row="${(rowText11 ?? '').trim()}"`);
+
+        // Resolve the NPC through its popup; the buzzer rolls the quiet PC.
+        [...(npcPopup?.querySelectorAll('footer button, .form-footer button') ?? [])]
+          .find(b => b.textContent.trim() === 'Normal')?.click();
+        await until(() => card11.getFlag(MOD, 'saves')?.targets?.every(t => t.done), 20000);
+        const ePc = entryOf(card11, pcActor);
+        ok('11c. the buzzer resolves the quiet PC — timed out, judged, done',
+          (ePc?.done === true) && (ePc?.timedOut === true) && (ePc?.outcome === 'failed'),
+          `done=${ePc?.done} timedOut=${ePc?.timedOut} outcome=${ePc?.outcome}`);
+        await until(() => card11.getFlag(MOD, 'saves')?.targets?.every(t => t.applied), 12000);
+        await set('saveTimer', 0);
+      }
+    }
+
     return { log, results, skips };
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
   } finally {
     await teardown();
-    for (const a of [victim, shielder, npc].filter(Boolean)) {
+    for (const a of [victim, shielder, npc, game.actors.getName('BF Test PC Attacker')]
+      .filter(Boolean)) {
       try { await a.longRest?.({ dialog: false, chat: false }); } catch { /* fine */ }
     }
   }
