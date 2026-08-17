@@ -694,6 +694,56 @@ v1.3.0 (2026-08-16).
 >   waiting casts stay waiting forever, which is already the never-placed cast's
 >   deliberate shape.
 
+> **Amended v1.14.0 (2026-08-17 night, the v1.13.0 walk's findings ①+②): spell-truth
+> geometry, because the DOCUMENT lies on this build.**
+> - **The v14 region-shim ground truth (probes 7–9, tools/probe-template-geometry*.mjs).**
+>   Foundry 14 eliminated MeasuredTemplates as a document type and shims them onto
+>   Regions; on this box (14.364 stable, Molten-hosted) the CREATE round-trip scales the
+>   stored `distance` by **gridSize/100** and returns `width` as **raw pixels** — measured
+>   ×1.4 on the 140 px Party Camp, ×0.7 on a 70 px scene, and exactly ×1.0 on the 100 px
+>   Battle Flow Test Range, which is why every battery was structurally blind to it. The
+>   client pipeline is exonerated (local clean/validate leaves values untouched; no hooks,
+>   no wrappers — probe 8), and two different human clients plus the bridge produced the
+>   identical corruption, so it is server-side and deterministic. The renderer draws from
+>   the same lying field: shape, highlight, and doc-math all agree with each other and are
+>   all oversized against the SPELL. Deserves filing upstream against Foundry (and dnd5e
+>   for awareness); until then the module must not trust `distance`/`width` on any
+>   dnd5e-placed template.
+> - **Containment is SPELL-TRUTH FIRST (`honestDims`).** dnd5e's placement stamps
+>   `flags.dnd5e.dimensions` (`size`, honest, in scene units) on every dialog-placed
+>   template, and the shim never touches flags — so geometry is built from the dimensions
+>   flag when present: a cube's rect side is `size` (diagonal `hypot(size,size)`), a
+>   sphere's radius is `size`, a ray takes `dimensions.width`. This deliberately
+>   SUPERSEDES standing item 17's "the drawn shape wins when it exists" while the shim
+>   lies — the drawn object IS the corrupted doc — and is self-healing: once upstream
+>   fixes the shim, doc values equal dimensions-derived values and every branch agrees
+>   again. `adjustedSize` placements (emanations sized up by the hovered token) keep doc
+>   math — their final size lives only in `distance`. Toolbar-drawn and foreign templates
+>   carry no dimensions flag and keep the v1.13.0 ladder (drawn shape → core statics →
+>   Euclidean). Correction to the v1.13.0 amendment above: `gridTemplates` is OFF on this
+>   box (probe-read; the ON was a misread) — the "Euclidean over-sweep" the live re-test
+>   saw was the shim's ×1.4 wearing a geometry costume, and the walk's Salyth demands
+>   (Web, Entangle, Fireball ×3) were all this one defect.
+> - **A token stands in the area if ANY of its occupied grid squares does** (midi-qol's
+>   long-standing model): containment samples every occupied square's center instead of
+>   the single token center, so a 2×2 body half inside the area saves like the table
+>   expects. 1×1 tokens sample exactly the old center — no fixture drift.
+> - **The spent sweep is a CONVERGENT FLOOR, not a completion one-shot (finding ②).**
+>   Stale Fireball circles stood with every target applied: the one-shot demonstrably got
+>   lost live, prime suspect an elect flip mid-chain (probe GM sessions connecting and
+>   disconnecting through the walk re-elect the apply/sweep owner — ⚠ operational lesson:
+>   do not run bridge probes during a live walk without expecting to steal the elect).
+>   The render/update floors now re-offer the sweep for done demands — idempotent, cheap,
+>   converges whoever the elect is by then. Its fossil wall: a NEWER same-activity save
+>   card disarms an old card's sweep forever, because a recast reuses the activity uuid
+>   and an old done card must never delete the current cast's area. (Accepted sliver: a
+>   full-log re-render landing in the ms between a new cast's template and its stamp.)
+> - **smoke-saves §12 builds its own 140 px scene** — the suite's 100 px range sits
+>   exactly on the shim's blind spot, so the geometry pin lives on a scene where the lie
+>   is visible. The section logs `shimFactor` each run; its assertions are factor-proof,
+>   so the upstream fix will announce itself in the transcript without breaking the
+>   battery. §13 pins the sweep's one-shot, the convergent floor, and the fossil wall.
+
 > **The machine already exists (2026-08-16, user architectural call).** Phase 2.5 shipped
 > first and is deliberately the seed: the mode gate (prompt / auto), the ask-message +
 > respondsTo-fold answer channel, first-active-owner election with the GM elect as fallback,

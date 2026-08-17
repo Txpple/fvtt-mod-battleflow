@@ -1,70 +1,72 @@
 # HANDOFF.md — picking this up cold
 
 > ⚠⚠ **NEXT SESSION IS A TESTING WALK — START BY DOING NOTHING.** The user's standing
-> protocol (proven FOUR walks running): open by presenting THE v1.13.0 WALK checklist
-> below (ONE item this time — the user's call), then wait. Do not connect the bridge, run
-> suites, read the world, or touch code. The user works the list at the table and
-> reports; you AGGREGATE — number the findings as they arrive, restate the FULL list
-> state after every update (so they never scroll), confirm/close items as they say so —
-> and you ACT only when they say go. Then: evidence first, one battery-green fix pass,
-> release. Exactly the pattern.
+> protocol (proven FIVE walks running): open by presenting THE v1.14.0 WALK checklist
+> below, then wait. Do not connect the bridge, run suites, read the world, or touch
+> code. The user works the list at the table and reports; you AGGREGATE — number the
+> findings as they arrive, restate the FULL list state after every update (so they
+> never scroll), confirm/close items as they say so — and you ACT only when they say
+> go. Then: evidence first, one battery-green fix pass, release. Exactly the pattern.
+> ⚠ NEW OPERATIONAL LESSON, learned the hard way this walk: **connecting bridge/probe
+> GM sessions DURING a walk steals the apply/sweep ELECT from the user's window**
+> (isActiveGM sorts DM Assistant ahead of Matt) — a probe mid-walk can strand
+> one-shots mid-chain. Probe between walk items only if unavoidable, and expect elect
+> churn in what you observe afterward.
 
-> Current at 2026-08-17 — **v1.13.0 shipped: the v1.12.0 walk's one finding, closed in
-> one pass.** The user walked v1.12.0 in the afternoon (protocol held: report →
-> aggregate → "ok go"); five of six items confirmed ✅ on the first try — finding ②③④
-> fixes all held live — and the walk produced ONE finding. The fix pass ran
-> autonomously: the probe supplied the evidence (four correctly-WAITING Web demands, one
-> origin-tied rect over two tokens, zero adoption — and the "Gren eventually rolled"
-> mystery was a separate, correctly-working manual-target cast riding finding ④'s
-> buzzer), the code read localized it, then fixes, suite recut, battery. Read
+> Current at 2026-08-17 night — **v1.14.0 shipped: the v1.13.0 walk's two findings,
+> closed in one pass.** The walk (afternoon/evening) put v1.13.0's fix in front of live
+> dialog-placed areas and it demanded the WRONG PEOPLE — Salyth from outside every
+> drawn cube/square (Web, Entangle) and marginally at Fireball — plus instantaneous
+> areas stopped sweeping. Eleven read-only probes (`tools/probe-template-geometry*.mjs`
+> and friends, all committed) ran the diagnosis to bedrock, the user said "go", and
+> the fix pass ran: code, suite recut, battery 49/49, release. Read
 > [design.md](design.md) first — it is binding and has absorbed everything through
-> v1.13.0. This file is only *where things stand* and *what already bit us*.
+> v1.14.0. This file is only *where things stand* and *what already bit us*.
 >
-> **v1.13.0 in one breath (the walk's finding ①, three walls):**
-> - **① A placed template never filled the WAITING demand — two independent gaps, both
->   real (and the fix's first cut exposed a third).** GAP ONE: `templateShape`'s
->   document-geometry fallback covered CIRCLES only, and `createMeasuredTemplate` fires
->   before the canvas computes `object.shape` even on a live client — so a cube spell's
->   rect had NO shape at the only moment the fast-path looked, containment found nothing,
->   and nothing retried (the render floor only re-runs on a re-render, which never came).
->   Web's cube sat over two tokens demanding no saves while the suite stayed green on its
->   circle fixture. GAP THREE (the live re-test, same session): hand-rolled EUCLIDEAN
->   geometry over-swept in this GRIDDED world (`gridTemplates` ON — Salyth demanded from
->   outside the drawn cube), so the fallback now calls CORE'S OWN shape statics
->   (grid-aware, doc-native units, current-scene; deprecated-until-16 note in the code);
->   the drawn shape still wins when present. GAP TWO: the TOOLBAR draw — the
->   walk's instructed path — stamps no `dnd5e.origin`, so origin matching alone could
->   never tie it. A WAITING demand now CLAIMS the newest origin-less template of its
->   expected shape (the stamp's new `templateType` field through the system's own
->   `areaTargetTypes` map; elect's current scene only — `_stats.createdTime` reads null
->   on this box, so the created-after gate can't carry the fossil bound alone) by
->   WRITING the origin onto it: downstream, moves/re-place/spent-sweep see a dialog
->   placement exactly. Plus the NEWEST-WAITING-CUSTOMER gate: the walk left four bare
->   same-activity casts waiting, and without it one cube fills all four (four popup
->   sets); only the newest waiting cast is the customer. smoke-saves §10 recut to the
->   live shape: cube activity, origin-less rect, claim asserted, gate pinned (10d2).
-> - **Watch ⑭ RETIRED** (user call, this walk: "stop watching") — three sessions, no
->   sighting. Re-open only on a fresh sighting; the hover-for-real-date + note-the-author
->   drill is preserved in the retired entry below.
-> - The v1.12.0 walk's ✅ items in one line: keep-list = Refund Resource exactly, both
->   flip directions; Shatter GM-popup filter (dummy pops, offline-owner PC rides the
->   buzzer, "(timer)" mark); topple twin of the same; never-placed Web waits quietly
->   forever. Item 1's classic during-dialog placement went UNTESTED at the table
->   (suite-covered at §8/§10; stamp-time containment untouched by this fix).
+> **v1.14.0 in one breath (the walk's findings ① + ②):**
+> - **① THE v14 REGION-SHIM CORRUPTION (upstream, probe-proven).** Foundry 14 shims
+>   MeasuredTemplates onto Regions, and this box's CREATE round-trip scales the stored
+>   `distance` by **gridSize/100** (×1.4 on Party Camp's 140px grid; ×0.7 on 70px;
+>   exactly ×1.0 on the 100px Test Range — which is why every battery was structurally
+>   blind) and returns `width` as RAW PIXELS. Two human clients + the bridge produced
+>   identical corruption; the client pipeline is exonerated (probe 8: local
+>   clean/validate is a no-op; no hooks, no wrappers); the renderer draws from the same
+>   lying field, so the oversized area is what the table SEES too. dnd5e sends honest
+>   values (`fromActivity` read from live source) — the corruption is server-side.
+>   **The fix is SPELL-TRUTH: containment builds geometry from
+>   `flags.dnd5e.dimensions` first** (honest, shim-proof, stamped by every dialog
+>   placement), superseding drawn-shape-first while the doc lies; self-healing when
+>   upstream fixes the shim. Toolbar draws (no dimensions flag) and adjustedSize
+>   emanations keep the v1.13.0 ladder — a toolbar area therefore demands
+>   SCREEN-truth (what you drew, possibly oversized), a dialog area demands
+>   SPELL-truth. Plus: containment now samples EVERY occupied grid square per token
+>   (midi-qol's model) — a 2×2 body half inside the area saves. ⚠ v1.13.0's
+>   "gridTemplates ON" was a MISREAD — the setting is OFF on this box (probe 1); the
+>   over-sweep that looked like grid-polygon math was this shim all along.
+> - **② THE SPENT SWEEP CONVERGES.** Stale Fireball circles stood with every target
+>   `applied: true` — the completion one-shot got lost (prime suspect: the probe
+>   sessions' elect steal, the header's new lesson). The sweep is a convergent
+>   render/update FLOOR on done cards now, guarded by the NEWEST-CAST FOSSIL WALL: a
+>   newer same-activity card disarms an old card's sweep forever (a recast reuses the
+>   activity uuid; history must never delete the current cast's area).
+> - smoke-saves §12 (suite-built 140px scene, factor-proof spell-truth assert,
+>   `shimFactor` logged each run so an upstream fix announces itself) and §13 (sweep
+>   one-shot + floor + fossil wall). Battery 49/49; verify-settings CLEAN.
 
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.13.0** (2026-08-17 — the v1.12.0 walk's finding ①,
-above). Before it, all 2026-08-17: v1.12.0 (night, the v1.11.0 walk's findings),
-v1.11.0 (evening), v1.10.0 (afternoon; v1.9.6 burned as its staging diagnostic), v1.9.5
-(the dogfood sixteen, small hours); and on 2026-08-16: v1.8.0 (the Phase 3
-convergence), v1.7.0 (Phase 2 saving throws + the save slice), v1.6.1 (the split),
-v1.6.0, v1.5.1, v1.5.0, v1.4.0, v1.3.x. Deployed, tags pushed, GitHub releases carry
-zip + manifest. **The box tracks the GitHub
-manifest**, the vended version string is REAL (staging installs bounce the process),
-and the box currently runs a staging-installed copy of the exact v1.12.0 release bits
-(verified vending 1.12.0 post-install, settings CLEAN).
+Molten-hosted). Latest release **v1.14.0** (2026-08-17 night — the v1.13.0 walk's two
+findings, above). Before it, all 2026-08-17: v1.13.0 (afternoon), v1.12.0 (night
+prior, the v1.11.0 walk's findings), v1.11.0 (evening), v1.10.0 (afternoon; v1.9.6
+burned as its staging diagnostic), v1.9.5 (the dogfood sixteen, small hours); and on
+2026-08-16: v1.8.0 (the Phase 3 convergence), v1.7.0 (Phase 2 saving throws + the save
+slice), v1.6.1 (the split), v1.6.0, v1.5.1, v1.5.0, v1.4.0, v1.3.x. Deployed, tags
+pushed, GitHub releases carry zip + manifest. **The box tracks the GitHub manifest.**
+⚠ Current deploy state: the box runs the v1.13.0 INSTALL with **v1.14.0 scripts
+hot-deployed over WebDAV** (fresh-served, probe-verified `honestDims` on the wire);
+module.json vends 1.13.0 until the next process restart, at which point the manifest
+pulls the real v1.14.0 install. No bounce was performed — the table was live.
 
 | Phase | State |
 | --- | --- |
@@ -122,60 +124,68 @@ update this table, never fight it:
 
 ## Open items
 
-### ✅ THE v1.12.0 WALK — COMPLETE (2026-08-17 afternoon) + v1.13.0 CLOSED ITS FINDING
+### ✅ THE v1.13.0 WALK — COMPLETE (2026-08-17) + v1.14.0 CLOSED BOTH FINDINGS
 
 The walk's outcome, kept because reports referencing these will keep arriving:
-- Item 2 ✅ keep-list is Refund Resource exactly, OFF restores every button, back ON ·
-  Item 3 ✅ Shatter GM-popup filter (dummy pops the GM; offline-owner PC silent, row
-  says "waiting on the timer (owner offline)", buzzer rolls "(timer)") · Item 4 ✅ the
-  topple twin of 3 · Item 5 ✅ never-placed Web waits quietly forever · Item 6 ✅ watch
-  ⑭ clean a third session — **RETIRED on the user's call ("stop watching")**.
-- Item 1 🔴 became finding ① (the header's one-breath list): the bare-cast WAITING half
-  behaved; the placed cube filled nothing. Its classic during-dialog half went untested
-  at the table (suite-covered; stamp-time containment untouched by the fix).
-- The walk's side mystery, resolved by the probe so the next session doesn't re-chase
-  it: "Gren eventually made a save throw" was a SEPARATE cast (Matt, 17:58, Gren
-  manually targeted, `templated: false`) riding finding ④'s buzzer exactly as designed
-  — the GM popup filter suppressed the popup, the row named the timer, the buzzer
-  rolled 18 "(timer)". Not adoption, not a bug.
-- **Finding ① → SHIPPED at v1.13.0** (the header's one-breath list). The session ledger
-  lives in this file's git history; the binding version is design.md's v1.13.0
-  amendment (Phase 2).
+- Item 1's dialog-placement half 🔴 became **finding ①**: Web (18:20 AND 19:03),
+  Entangle (19:06) and Fireball (19:11/19:13) all demanded Salyth from OUTSIDE the
+  drawn area — the v14 region shim's ×(gridSize/100) create-corruption (the header's
+  one-breath list; the full evidence trail is probes 1–9 in tools/, committed). Shatter
+  passed BOTH rounds purely on token spacing — its corrupt circle happened to contain
+  the right set. The TOOLBAR half of item 1 went UNTESTED at the table (suite-covered
+  at §10; re-queued below).
+- **Finding ②** (user report, probe-corroborated): instantaneous spells' areas stopped
+  sweeping — two stale Fireball circles stood with every target applied. The user
+  hand-cleaned the canvas mid-session ("that was me" — do not chase the deletions).
+- The retired watch-⑭ "11m 364d ago" render GHOST resurfaced on three buzzer save
+  cards (19:13:20) — their DATA timestamps are sane, so this sighting is render-side
+  only; the watch stays retired unless the user re-opens it.
+- **Both findings → SHIPPED at v1.14.0.** The binding record is design.md's v1.14.0
+  amendment (Phase 2); the session ledger lives in this file's git history.
 
-### 🚶 THE v1.13.0 WALK — the user's checklist for the next testing session
+### 🚶 THE v1.14.0 WALK — the user's checklist for the next testing session
 
-ONE item this time (the user's call). The session protocol is the header's ⚠⚠ block:
-present this, wait, aggregate, act only on "go". Suite-proven (smoke-saves §10 recut to
-this exact shape); the walk is the live confirmation. The settings table above is law —
-no settings changes needed. Every client must log back in first (the box was bounced
-for the v1.13.0 install).
+The session protocol is the header's ⚠⚠ block: present this, wait, aggregate, act only
+on "go". Suite-proven (smoke-saves §12/§13 pin the exact fixes); the walk is the live
+confirmation. The settings table above is law — no settings changes needed. **Every
+client should F5 once before starting** (v1.14.0 went out over WebDAV; a stale window
+as elect runs old code).
 
-1. **Web cast bare, then the TOOLBAR cube over people** — cast Web with NOBODY targeted,
-   skip/cancel placement: the card reads "Dexterity save DC 14 — waiting for the
-   template's area", nothing ticks. Draw the 20 ft cube from the CANVAS TEMPLATE
-   CONTROLS (the toolbar — the exact path that failed) over the dummy + somebody: rows
-   appear for whoever stands inside, a FULL 15s bar starts from the draw moment, popups
-   land on the deciders (the offline-owner PC rides the buzzer per finding ④), no
-   damage rolls, the burn "2d4" enricher stays native. Bonus checks if the table is
-   willing: MOVE the placed cube — containment follows; and a second bare Web after the
-   first — only the NEWEST waiting cast grabs the next draw (the older waits forever,
-   which is item 5's old deliberate shape).
+1. **The Salyth re-test, dialog path** — at Party Camp, dialog-place Web (or Entangle
+   or Fireball) so the drawn area sits NEAR Salyth-the-way-it-was: rows must be
+   SPELL-TRUE — only tokens within the real 20 ft area demanded, the bystander a
+   square outside stays out. ⚠ Expect the DRAWN texture/highlight to still LOOK
+   oversized (~40% on this grid) — that is the upstream shim drawing the corrupted
+   field, not the module; the demand follows the spell, not the picture. If rows match
+   the spell while the picture is fat, that is the fix WORKING.
+2. **Instantaneous cleanup** — Fireball/Shatter: after every save resolves and damage
+   lands, the template leaves the canvas by itself (finding ②'s floor). A Web/Entangle
+   area (duration spells) correctly stays.
+3. **The TOOLBAR half of the old item 1** (still unwalked live) — cast Web bare
+   (card says "waiting for the template's area"), then draw a 20 ft cube from the
+   canvas template controls over the dummy + somebody: rows appear for whoever stands
+   in the DRAWN area, full 15s bar from the draw moment. ⚠ The toolbar path is
+   SCREEN-truth (no dimensions flag to rescue it — if the drawn cube stores oversized,
+   the rows follow the oversized drawing; that mismatch with the dialog path is the
+   recorded upstream-defect residue, not a module bug).
+4. **Big-token sampling, if convenient** — drop a 2×2 creature half inside an area:
+   it should be demanded now (center-only testing missed it before v1.14.0).
 
-**State at handoff:** working tree clean, the v1.13.0 three-commit train pushed (test →
-feat tagged v1.13.0 → docs); the GitHub release carries zip + bare module.json; the box
-runs a staging-installed copy of the exact v1.13.0 release bits (the process was bounced
-for the install — every client needs to log back in; the user was asked to hold and
-nobody was connected); world up, bridge disconnected; the user's settings verified
-drift-free against the reference table after the battery AND after the install
-(`verify-settings.mjs` CLEAN twice). Party Camp's walk-debris Web template was swept
-(the claimed cube would have fed the NEXT bare cast instantly — one probe-verified
-delete); the four stale pre-v1.13.0 waiting Web cards in chat are inert (no
-`templateType`, can never claim) and the user clears chat at their leisure. The
-v1.13.0 fix pass ran DOUBLE: the first cut shipped Euclidean fallback geometry, the
-user's live re-test caught it over-sweeping the same afternoon (Salyth demanded from
-outside the cube — gap three in the one-breath list), and the grid-aware recut
-deployed before the battery ran; the deploy-wait-verify cache dance ran twice, both
-probed fresh before any suite. No code changes are in flight.
+**State at handoff:** working tree clean, the v1.14.0 three-commit train pushed (test →
+feat tagged v1.14.0 → docs); the GitHub release carries zip + bare module.json; the box
+runs the v1.13.0 install with v1.14.0 scripts hot-deployed (probe-verified fresh on the
+wire; module.json vends 1.13.0 until the next natural restart, which will pull the real
+v1.14.0 install from the manifest — no bounce was performed, the table was live); world
+up, bridge disconnected; settings verified drift-free after the battery
+(`verify-settings.mjs` CLEAN). Battery 49/49 with the new §12/§13. ⚠ Loose ends the
+next session should know: (a) **four stale WAITING demand cards from the user's walk
+testing stand in chat** (19:42–19:51 — zero targets, `templateType` present, so they
+CAN claim/adopt future matching areas; deletion was proposed but NOT approved — ask
+the user, or let them clear chat); (b) the **upstream shim defect is unfiled** — the
+probe evidence (factors ×1.4/×1.0/×0.7 by grid size, width→raw px, client exonerated)
+is ready to file against Foundry VTT (and dnd5e for awareness) whenever the user wants;
+(c) the user hand-deleted walk-debris templates mid-session — canvas deletions around
+19:40 are theirs, not the sweep's.
 
 ### Where the plan points now (2026-08-17 — post-v1.13.0)
 
@@ -251,9 +261,15 @@ elect's CURRENT scene only (a toolbar draw on another scene adopts nothing — t
 dialog-placement path still works cross-scene); a SECOND cube drawn while a claimed one
 stands is ignored until the first is deleted (re-place or move the first instead); the
 concentration ask still popups the GM for offline-owner PCs (finding ④'s deliberate
-non-extension — open question, not a bug); and "cast with no GM logged in, nothing
-applied" is the Ⓓ1 ruling working as designed. *(Graduated at v1.11.0: "self-buffs
-stay tray clicks" is DEAD — SELF-tagged activities self-aim now, finding ①.)*
+non-extension — open question, not a bug); "cast with no GM logged in, nothing
+applied" is the Ⓓ1 ruling working as designed; **a placed template DRAWS oversized on
+this 140px grid** (the v14 shim renders the corrupted field — the DEMAND is spell-true
+since v1.14.0, the PICTURE is upstream's lie: report "the cube looks fat" as known,
+"the wrong people saved" as a bug); and **the dialog path and the toolbar path answer
+different truths by design while the shim lies** (dialog = spell-truth via the honest
+dimensions flag; toolbar = screen-truth — no flag exists to rescue it). *(Graduated at
+v1.11.0: "self-buffs stay tray clicks" is DEAD — SELF-tagged activities self-aim now,
+finding ①.)*
 
 ### Standing
 
@@ -555,6 +571,17 @@ stay tray clicks" is DEAD — SELF-tagged activities self-aim now, finding ①.)
    same-activity zero-target pending cards only the newest adopts (the walk's four bare
    casts × one cube = four popup sets without it). Pre-v1.13.0 cards carry no
    `templateType` and never claim — origin-tied adoption serves them unchanged.
+   ⚠⚠ **v1.14.0 (the v1.13.0 walk's findings): SPELL-TRUTH supersedes drawn-shape-first
+   while the v14 region shim lies.** The header's one-breath list and design.md's
+   v1.14.0 amendment are the record: the CREATE round-trip scales stored `distance` by
+   gridSize/100 and returns `width` as raw pixels, the renderer draws the same lie, so
+   `honestDims` (flags.dnd5e.dimensions — shim-proof) now outranks the drawn shape and
+   every doc-math branch for dnd5e-placed templates; adjustedSize emanations and
+   toolbar draws keep the v1.13.0 ladder (screen-truth). Containment samples every
+   occupied grid square per token (midi-qol's model). The spent sweep is a convergent
+   done-card floor with a newest-cast fossil wall. smoke-saves §12 pins the geometry on
+   a suite-built 140px scene (the 100px Test Range is the shim's exact blind spot —
+   never trust a template-geometry assertion that only ran there), §13 pins the sweep.
 
 ## How to work on this
 
