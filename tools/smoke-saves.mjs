@@ -49,8 +49,7 @@ const out = await f.evaluate(async () => {
   }
 
   const SETTING_KEYS = ['saves', 'saveTimer', 'autoDamage', 'autoApply',
-    'dramaticBeat', 'requireTarget', 'reactionHold', 'suppressAttackCards',
-    'suppressWeaponCards', 'suppressSpellCards', 'suppressFeatureCards', 'suppressOtherCards',
+    'dramaticBeat', 'requireTarget', 'reactionHold',
     'riders', 'effectRiders', 'masteryRiders', 'concMode', 'castApply'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
@@ -119,13 +118,8 @@ const out = await f.evaluate(async () => {
     await set('masteryRiders', false);
     await set('concMode', 'off');        // its bare-save recognizer must never be in play
     await set('castApply', false);       // the save machine stands alone
-    // Suppression master ON for the whole run: a save card is load-bearing and must survive
-    // every bucket — each section's card-exists assertion rides on this.
-    await set('suppressAttackCards', true);
-    await set('suppressWeaponCards', true);
-    await set('suppressSpellCards', true);
-    await set('suppressFeatureCards', true);
-    await set('suppressOtherCards', true);
+    // (The suppression machinery is gone at v1.10.0 — cards always post; each section's
+    // card-exists assertion now rides on nothing but the module leaving cards alone.)
 
     // -------------------------------------------------- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
@@ -285,7 +279,7 @@ const out = await f.evaluate(async () => {
         return f2 && f2.targets.every(t => t.done && t.applied);
       });
       const flag = card1.getFlag(MOD, 'saves');
-      ok('1a. the save card survives full suppression and carries the demand stamp',
+      ok('1a. the save card posts and carries the demand stamp',
         (usageCards(fresh(before)).length === 1) && !!flag
           && (flag.dc === 15) && (flag.abilities?.join() === 'con')
           && (flag.damageOnSave === 'half') && (flag.hasDamage === true)
@@ -610,6 +604,16 @@ const out = await f.evaluate(async () => {
         !!adopted && (adopted.targets.length === 1),
         `templated=${!!adopted?.templated} targets=[${(card.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.name).join()}]`);
 
+      // 8a2 (v1.10.0 — the strand fix): the dropped snapshot target's popup CLOSES. The
+      // shielder's popup auto-showed on this client at the stamp; the drop's flag write
+      // must sweep it wherever it lives — a popup asking a withdrawn question with a dead
+      // bar was the live Shatter/Gren report (2026-08-17).
+      const strandGone = await until(() => !savePopups().some(p =>
+        p.textContent?.includes(shielder.name)), 6000);
+      ok('8a2. the dropped entry\'s popup closes — no stranded question on screen',
+        !!strandGone,
+        `open save popups: ${savePopups().length}`);
+
       // Moonbeam walks: the circle lands on the shielder — the pending set follows the
       // area. `templated` must already be true here or this assertion could pass on the
       // original manual snapshot (the vacuous-pass trap, caught 2026-08-16). Expressed as
@@ -655,6 +659,41 @@ const out = await f.evaluate(async () => {
       ok('8c. the instantaneous template is spent once every consequence landed',
         !scene.templates.get(tpl2.id),
         `template=${!!scene.templates.get(tpl2.id)} autoDmg=${!!autoDmg8}`);
+
+      // 8d (v1.10.0 — the stamp's 5.3.3 nesting): results.templates entries are ARRAYS
+      // (#placeTemplate pushes drawPreview()'s resolution — the raw createEmbeddedDocuments
+      // result), and unflattened they made every live placement-during-usage fall back to
+      // the manual snapshot (how Gren got Shatter's popup, 2026-08-17). The harness cannot
+      // drive drawPreview, so the hook is fired by hand with the exact nested shape the
+      // live flow produces: the stamp must contain, not snapshot.
+      await clearChips();
+      const [tpl8d] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
+        t: 'circle', x: victimToken.center.x, y: victimToken.center.y, distance: 5
+      }]);
+      created.templates.push(tpl8d.id);
+      const msg8d = await ChatMessage.create({
+        speaker: ChatMessage.getSpeaker({ actor: npc }),
+        content: '<p>BF 8d stamp-path fixture</p>',
+        flags: { dnd5e: {
+          targets: [{ uuid: shielder.uuid, name: shielder.name, img: null, ac: null }],
+          activity: { id: saveActivity().id, uuid: saveActivity().uuid, type: 'save' }
+        } }
+      });
+      Hooks.callAll('dnd5e.postUseActivity', saveActivity(), {},
+        { message: msg8d, templates: [[tpl8d]] });
+      const stamped8d = await until(() => {
+        const f = msg8d.getFlag(MOD, 'saves');
+        return (f?.targets?.length ? f : null);
+      }, 6000);
+      ok('8d. the stamp flattens results.templates: contained targets in, the snapshot out',
+        !!stamped8d && (stamped8d.templated === true)
+          && stamped8d.targets.some(t => t.uuid === victim.uuid)
+          && !stamped8d.targets.some(t => t.uuid === shielder.uuid),
+        `templated=${stamped8d?.templated} targets=[${(stamped8d?.targets ?? []).map(t => t.name).join()}]`);
+      // Sweep the fixture message and anything chained to it before teardown counts cards.
+      const chained8d = game.messages.contents.filter(m =>
+        m.getFlag('dnd5e', 'originatingMessage') === msg8d.id);
+      await ChatMessage.deleteDocuments([msg8d.id, ...chained8d.map(m => m.id)]);
     }
 
     return { log, results, skips };

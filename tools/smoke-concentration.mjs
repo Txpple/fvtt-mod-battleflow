@@ -68,7 +68,7 @@ const out = await f.evaluate(async () => {
 
   const SETTING_KEYS = ['concMode', 'concTimer', 'concBreak', 'concVisibility',
     'autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget', 'reactionHold',
-    'suppressAttackCards', 'riders', 'effectRiders', 'masteryRiders'];
+    'riders', 'effectRiders', 'masteryRiders'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -147,7 +147,6 @@ const out = await f.evaluate(async () => {
     await set('dramaticBeat', 0);
     await set('requireTarget', false);
     await set('reactionHold', false);
-    await set('suppressAttackCards', false);
     await set('riders', false);
     await set('effectRiders', false);
     await set('masteryRiders', false);

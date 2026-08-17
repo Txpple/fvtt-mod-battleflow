@@ -36,7 +36,7 @@ const out = await f.evaluate(async () => {
   if (canvas.scene?.id !== scene.id) await scene.view();
 
   const KEYS = ['autoDamage', 'autoApply', 'dramaticBeat', 'reactionHold', 'holdTimer',
-    'holdSkipFutile', 'suppressAttackCards', 'requireTarget', 'concMode'];
+    'holdSkipFutile', 'requireTarget', 'concMode'];
   const prior = Object.fromEntries(KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
   await set('autoDamage', 'all');
@@ -45,7 +45,6 @@ const out = await f.evaluate(async () => {
   await set('reactionHold', true);
   await set('holdTimer', 0);
   await set('holdSkipFutile', false);
-  await set('suppressAttackCards', false);
   await set('requireTarget', false);
   await set('concMode', 'off');
 

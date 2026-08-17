@@ -105,7 +105,6 @@ const r = await f.evaluate(async () => {
         holdTimer: game.settings.get(MOD, 'holdTimer'),
         holdSkipFutile: game.settings.get(MOD, 'holdSkipFutile'),
         holdApplyEffect: game.settings.get(MOD, 'holdApplyEffect'),
-        suppressAttackCards: game.settings.get(MOD, 'suppressAttackCards'),
         requireTarget: game.settings.get(MOD, 'requireTarget'),
         castApply: game.settings.get(MOD, 'castApply'),
       },
@@ -128,7 +127,6 @@ const r = await f.evaluate(async () => {
     // "hold never went pending" — the feature working, not breaking. Section 4f owns it.
     await game.settings.set(MOD, 'holdSkipFutile', false);
     await game.settings.set(MOD, 'holdTimer', 0);
-    await game.settings.set(MOD, 'suppressAttackCards', false);
     await game.settings.set(MOD, 'requireTarget', false);
     // ⚠ Pinned ON, deliberately — the table runs both. Shield is itself a utility-with-
     // effects cast, and the first battery with this on caught the cast slice stacking a
@@ -1287,12 +1285,14 @@ const r = await f.evaluate(async () => {
         await shielder.unsetFlag(MOD, 'reactionSpent');
       }
 
-      // -- 6f: v1.6.0 — the SUPPRESSED cast: the hold rides a replacement card, the roll ------
-      //        bridges to it, the claim defers the applier, and the negated verdict releases
-      //        it with the shielded target skipped.
+      // -- 6f: the claim → defer → release chain on the NATIVE card (v1.10.0: the ---------
+      //        suppression replacement and its bridge are gone; the card is always the bus).
+      //        The roll is chained the way the native subsequent roll chains itself
+      //        (originatingMessage → the usage card); the claim defers the applier while
+      //        the hold is pending, and the negated verdict releases it with the shielded
+      //        target skipped.
       {
         const { actor: shielder, token: shielderToken } = await ensureShielder();
-        await game.settings.set(MOD, 'suppressAttackCards', true);
         const before = new Set(game.messages.contents.map(m => m.id));
         shielderToken.setTarget(true, { releaseOthers: true });
         await sleep(120);
@@ -1300,35 +1300,36 @@ const r = await f.evaluate(async () => {
         const freshMsgs = () => game.messages.contents.filter(m => !before.has(m.id));
         const holdMsg = await waitFor(() => freshMsgs().find(m =>
           m.getFlag(MOD, 'hold')?.status === 'pending') ?? null, 10000);
-        // Roll the damage the suppressed-native way: NO originatingMessage — the bridge is
-        // what ties it to the replacement.
-        const rolls = await missile().rollDamage({}, { configure: false }, {});
+        const heldOnUsage = !!holdMsg && ((holdMsg.type === 'usage')
+          || (holdMsg.getFlag('dnd5e', 'messageType') === 'usage'));
+        const rolls = await missile().rollDamage({}, { configure: false },
+          holdMsg ? { data: { 'flags.dnd5e.originatingMessage': holdMsg.id } } : {});
         const damageMsg = rolls?.[0]?.parent;
-        const bridged = await waitFor(() =>
-          (game.messages.get(damageMsg?.id)?.getFlag('dnd5e', 'originatingMessage') === holdMsg?.id)
-            ? true : null, 8000);
+        // ⚠ Captured AT THE ROLL: the claim is stamped at preCreate (baked into the doc)
+        // and the resolution releases it later — reading this flag after the answer reads
+        // the released state and calls the machine broken (this suite's own first run).
+        const pendingAtRoll = damageMsg?.getFlag(MOD, 'spellHoldPending') === true;
         const hpBefore = shielder.system.attributes.hp.value;
-        // Count the suppression BEFORE answering: the Cast answer legitimately casts
-        // Shield, whose own (self-buff) usage card survives by design and must not be
-        // mistaken for the suppressed Missile card.
-        const usageCardsBeforeAnswer = freshMsgs().filter(m =>
-          (m.type === 'usage') || (m.getFlag('dnd5e', 'messageType') === 'usage')).length;
+        // The defer is a real assertion: claimed + pending + nothing applied yet.
+        await sleep(1500);
+        const deferredHp = shielder.system.attributes.hp.value;
+        const deferredReceipt = !!game.messages.get(damageMsg?.id)?.getFlag(MOD, 'receipt');
         const castBtn = await waitFor(() => castButtonFor(holdMsg?.id), 8000);
         castBtn?.click();
         await waitFor(() => (game.messages.get(holdMsg?.id)?.getFlag(MOD, 'hold')?.status === 'resolved')
           ? true : null, 25000);
         await sleep(3000); // the release write + any (wrong) application get every chance
-        results.missileSuppressed = {
-          usageCards: usageCardsBeforeAnswer,
+        results.missileClaim = {
           held: !!holdMsg,
-          bridged: bridged === true,
+          heldOnUsage,
           claimed: damageMsg?.getFlag(MOD, 'spellDamage') === true,
+          pendingAtRoll,
+          deferredHeld: (deferredHp === hpBefore) && !deferredReceipt,
           pendingNow: game.messages.get(damageMsg?.id)?.getFlag(MOD, 'spellHoldPending'),
           hpBefore, hpAfter: shielder.system.attributes.hp.value,
           hpMax: shielder.system.attributes.hp.max,
           receipt: !!game.messages.get(damageMsg?.id)?.getFlag(MOD, 'receipt'),
         };
-        await game.settings.set(MOD, 'suppressAttackCards', false);
         for (const e of shielder.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
         await shielder.unsetFlag(MOD, 'reactionSpent');
       }
@@ -1578,16 +1579,17 @@ report('MAGIC MISSILE: passing lets the missiles land in full',
   && x.missilePassed?.rolled > 0 && x.missilePassed?.hpBefore > x.missilePassed?.rolled
   && x.missilePassed?.hpAfter === x.missilePassed?.hpBefore - x.missilePassed?.rolled,
   JSON.stringify(x.missilePassed));
-report('MAGIC MISSILE v1.6.0: a suppressed cast holds on a replacement card and the roll bridges to it',
-  x.missileSuppressed?.usageCards === 0 && x.missileSuppressed?.held
-  && x.missileSuppressed?.bridged && x.missileSuppressed?.claimed,
-  JSON.stringify(x.missileSuppressed));
-report('MAGIC MISSILE v1.6.0: the negated verdict releases the claim and the applier skips the shielded target',
-  (x.missileSuppressed?.pendingNow === false)
-  && x.missileSuppressed?.hpBefore === x.missileSuppressed?.hpMax
-  && x.missileSuppressed?.hpAfter === x.missileSuppressed?.hpBefore
-  && !x.missileSuppressed?.receipt,
-  JSON.stringify(x.missileSuppressed));
+report('MAGIC MISSILE v1.10.0: the hold lives on the NATIVE card; the chained roll is claimed and defers while pending',
+  x.missileClaim?.held && x.missileClaim?.heldOnUsage
+  && x.missileClaim?.claimed && x.missileClaim?.pendingAtRoll
+  && x.missileClaim?.deferredHeld,
+  JSON.stringify(x.missileClaim));
+report('MAGIC MISSILE v1.10.0: the negated verdict releases the claim and the applier skips the shielded target',
+  (x.missileClaim?.pendingNow === false)
+  && x.missileClaim?.hpBefore === x.missileClaim?.hpMax
+  && x.missileClaim?.hpAfter === x.missileClaim?.hpBefore
+  && !x.missileClaim?.receipt,
+  JSON.stringify(x.missileClaim));
 report('MAGIC MISSILE: a target who merely WEARS a shield is never asked',
   x.missileNoReaction?.skipped
   || (x.missileNoReaction?.held === false && x.missileNoReaction?.knowsShieldSpell === false),

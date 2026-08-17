@@ -30,7 +30,7 @@ const out = await f.evaluate(async () => {
 
   const KEYS = ['masteryRiders', 'masteryAsk', 'autoDamage', 'autoApply', 'dramaticBeat',
     'requireTarget', 'reactionHold', 'riders', 'effectRiders', 'concMode', 'castApply',
-    'saves', 'suppressAttackCards'];
+    'saves', 'saveTimer'];
   const prior = Object.fromEntries(KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -51,7 +51,9 @@ const out = await f.evaluate(async () => {
     await set('concMode', 'off');
     await set('castApply', false);
     await set('saves', false);
-    await set('suppressAttackCards', false);
+    // ⚠ saveTimer 0: the topple buzzer (v1.10.0) rides it, and this probe's ledger must
+    // watch a demand nobody resolves — a live buzzer would roll it mid-observation.
+    await set('saveTimer', 0);
 
     if (canvas.scene?.id !== scene.id) await scene.view();
     report.victimEffects0 = victim.effects.map(e => ({ name: e.name, statuses: [...e.statuses], disabled: e.disabled }));

@@ -1,8 +1,8 @@
 // Battle Flow Phase 3 (cast slice) smoke test — auto-apply on cast, driven end to end in
 // the live world: a no-save utility cast's effects land on every target (with concentration
-// linkage, on BOTH buses — the native card and the suppression replacement), a heal
-// activity's self-rolled healing lands through the shared applier, and the exclusions
-// (damage activities, targetless casts) stay untouched.
+// linkage) on the native card — always the bus since v1.10.0 ripped the suppression
+// machinery out — a heal activity's self-rolled healing lands through the shared applier,
+// and the exclusions (damage activities, targetless casts) stay untouched.
 //
 // Harness discipline (HANDOFF): every setting touched is restored to whatever was found;
 // every message this run creates is deleted on the way out; BF Test fixtures are long-rested;
@@ -45,8 +45,7 @@ const out = await f.evaluate(async () => {
   }
 
   const SETTING_KEYS = ['castApply', 'autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget',
-    'reactionHold', 'blockList', 'suppressAttackCards', 'suppressWeaponCards', 'suppressSpellCards',
-    'suppressFeatureCards', 'suppressOtherCards', 'riders', 'effectRiders', 'masteryRiders',
+    'reactionHold', 'blockList', 'riders', 'effectRiders', 'masteryRiders',
     'concMode'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
@@ -110,11 +109,6 @@ const out = await f.evaluate(async () => {
     await set('effectRiders', false);   // the cast slice stands alone
     await set('masteryRiders', false);
     await set('concMode', 'off');
-    await set('suppressAttackCards', false);
-    await set('suppressWeaponCards', true);
-    await set('suppressSpellCards', true);
-    await set('suppressFeatureCards', true);
-    await set('suppressOtherCards', true);
 
     // -------------------------------------------------- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
@@ -220,7 +214,7 @@ const out = await f.evaluate(async () => {
     const usageCards = msgs => msgs.filter(m =>
       (m.type === 'usage') || (m.getFlag('dnd5e', 'messageType') === 'usage'));
 
-    // ---------------------------------------------------- 1. native-card bus (suppression off)
+    // ---------------------------------------------------- 1. the native-card bus
     target(victimToken, shielderToken);
     await sleep(120);
     let before = snap();
@@ -229,7 +223,7 @@ const out = await f.evaluate(async () => {
     await until(() => fresh(before).some(m => m.getFlag(MOD, 'effectReceipt')?.castDone));
     let msgs = fresh(before);
     const nativeCard = usageCards(msgs).find(m => m.getFlag(MOD, 'castApply'));
-    ok('1a. with suppression off, the native card survives and carries the payload stamp',
+    ok('1a. the native card posts and carries the payload stamp',
       !!nativeCard && (nativeCard.getFlag(MOD, 'castApply').targets?.length === 2),
       `card=${!!nativeCard} targets=${nativeCard?.getFlag(MOD, 'castApply')?.targets?.length}`);
 
@@ -251,8 +245,16 @@ const out = await f.evaluate(async () => {
       !!receipt1?.targets?.[0]?.effects?.[0]?.description?.includes?.('1d4'),
       `description=${JSON.stringify(receipt1?.targets?.[0]?.effects?.[0]?.description ?? null)}`);
 
-    // ---------------------------------------------------- 2. the replacement bus (suppression on)
-    await set('suppressAttackCards', true); // spell bucket already pinned true
+    // ---------------------------------------------------- 2. the rip stayed ripped (v1.10.0)
+    // The suppression machinery is DELETED, settings and all — a re-registration is the
+    // regression this guards against. And "every use shows its first card" is a count:
+    // one cast, exactly one usage card, no replacement bfCards anywhere.
+    ok('2a. the suppression settings are unregistered (the machinery stayed dead)',
+      ['suppressAttackCards', 'suppressWeaponCards', 'suppressSpellCards',
+        'suppressFeatureCards', 'suppressOtherCards']
+        .every(k => !game.settings.settings.has(`${MOD}.${k}`)),
+      'a suppress* key is registered again');
+
     target(victimToken, shielderToken);
     await sleep(120);
     before = snap();
@@ -260,22 +262,19 @@ const out = await f.evaluate(async () => {
     if (use === undefined) return { fatal: 'the second Bless cast was refused' };
     await until(() => fresh(before).some(m => m.getFlag(MOD, 'effectReceipt')?.castDone));
     msgs = fresh(before);
-    const replacement = msgs.find(m => m.getFlag(MOD, 'castApply') && !usageCards([m]).length);
-    const suppressed = usageCards(msgs).length === 0;
-    ok('2a. with suppression on, the native card dies and the replacement card is the bus',
-      suppressed && !!replacement && replacement.content.includes('casts'),
-      `usageCards=${usageCards(msgs).length} replacement=${!!replacement}`);
+    const secondCard = usageCards(msgs).find(m => m.getFlag(MOD, 'castApply'));
+    ok('2b. every use shows its first card: exactly one usage card, the stamp on it',
+      (usageCards(msgs).length === 1) && !!secondCard
+        && !msgs.some(m => m.getFlag(MOD, 'castApply') && !usageCards([m]).length),
+      `usageCards=${usageCards(msgs).length}`);
 
-    const receipt2 = replacement?.getFlag(MOD, 'effectReceipt');
+    const receipt2 = secondCard?.getFlag(MOD, 'effectReceipt');
     const concEffect2 = [...(npc.concentration?.effects ?? [])][0];
-    ok('2b. the payload path still lands both targets, receipts on the replacement',
+    ok('2c. the re-cast lands both targets again, receipts + concentration linkage on the card',
       !!chipOn(victim) && !!chipOn(shielder) && !!receipt2?.castDone
-        && (receipt2?.targets?.length === 2),
-      `victim=${!!chipOn(victim)} shielder=${!!chipOn(shielder)} receiptTargets=${receipt2?.targets?.length}`);
-
-    ok('2c. concentration linkage survives suppression (the payload carries it)',
-      !!concEffect2 && (chipOn(victim)?.origin === concEffect2.uuid),
-      `conc=${concEffect2?.uuid ?? 'NONE'} origin=${chipOn(victim)?.origin}`);
+        && (receipt2?.targets?.length === 2)
+        && !!concEffect2 && (chipOn(victim)?.origin === concEffect2.uuid),
+      `victim=${!!chipOn(victim)} shielder=${!!chipOn(shielder)} receiptTargets=${receipt2?.targets?.length} origin=${chipOn(victim)?.origin}`);
 
     // ---------------------------------------------------- 3. healing: dice roll, heal up
     const hpMax = victim.system.attributes.hp.max;
@@ -299,8 +298,8 @@ const out = await f.evaluate(async () => {
     const healReceipt = healRoll?.getFlag(MOD, 'receipt');
     const rolled = healRoll?.rolls?.reduce((n, r) => n + r.total, 0) ?? 0;
     const hpAfter = victim.system.attributes.hp.value;
-    ok('3a. the heal usage card is suppressed bare; the roll message carries the stamp',
-      (usageCards(msgs).length === 0) && !!healRoll && !!healRoll.getFlag(MOD, 'healPending')
+    ok('3a. the heal keeps its card (v1.10.0 — every use posts); the roll carries the stamp',
+      (usageCards(msgs).length === 1) && !!healRoll && !!healRoll.getFlag(MOD, 'healPending')
         && !msgs.some(m => m.getFlag(MOD, 'castApply')),
       `usageCards=${usageCards(msgs).length} roll=${!!healRoll}`);
     ok('3b. the healing landed for exactly the rolled total, receipt on the roll (autoApply OFF)',
@@ -309,8 +308,8 @@ const out = await f.evaluate(async () => {
         && (healReceipt?.targets?.[0]?.delta?.value === hpAfter - hpBefore),
       `rolled=${rolled} hp ${hpBefore}→${hpAfter} note=${healReceipt?.targets?.[0]?.note}`);
 
-    // ---------------------------------------------------- 4. damage activities: suppressed spam,
-    // never applied — EXCEPT a listed spell, whose card is the negate hold's home (v1.5.1).
+    // ---------------------------------------------------- 4. damage activities: the card posts,
+    // the cast slice keeps its hands off — Magic Missile is the negate hold's seam.
     const mhpBefore = victim.system.attributes.hp.value;
     target(victimToken);
     await sleep(120);
@@ -319,17 +318,16 @@ const out = await f.evaluate(async () => {
     if (use === undefined) return { fatal: 'the Missile fixture cast was refused' };
     await sleep(2000);
     msgs = fresh(before);
-    ok('4a. an UNLISTED damage spell card is suppressed spam; nothing stamps, nothing applies',
-      (usageCards(msgs).length === 0) && !msgs.some(m => m.getFlag(MOD, 'castApply'))
+    ok('4a. an UNLISTED damage spell keeps its card; nothing stamps, nothing applies',
+      (usageCards(msgs).length === 1) && !msgs.some(m => m.getFlag(MOD, 'castApply'))
         && !msgs.some(m => m.getFlag(MOD, 'healPending'))
         && !msgs.some(m => m.getFlag(MOD, 'receipt'))
         && (victim.system.attributes.hp.value === mhpBefore),
       `usageCards=${usageCards(msgs).length} hp ${mhpBefore}→${victim.system.attributes.hp.value}`);
 
-    // 4b: the SAME spell, listed with the hold on — since v1.6.0 the card is SUPPRESSED
-    // too: the hold, when someone can react, rides a replacement card (smoke-hold 6f owns
-    // that end to end). Here nobody targeted can cast Shield, so the replacement appears
-    // as the cast's record with NO hold on it.
+    // 4b: the SAME spell, listed with the hold on — the native card is the hold's home
+    // (v1.10.0: no replacement plumbing left). Here nobody targeted can cast Shield, so
+    // the card posts with NO hold on it and the cast slice still stays out.
     await set('reactionHold', true);
     await set('blockList', 'BF Test Missile:Shield');
     target(victimToken);
@@ -339,8 +337,8 @@ const out = await f.evaluate(async () => {
     if (use === undefined) return { fatal: 'the listed Missile cast was refused' };
     await sleep(2500);
     msgs = fresh(before);
-    ok('4b. a LISTED damage spell is suppressed too; nobody can react, so no hold appears',
-      (usageCards(msgs).length === 0) && !msgs.some(m => m.getFlag(MOD, 'hold')),
+    ok('4b. a LISTED damage spell keeps its card; nobody can react, so no hold stamps on it',
+      (usageCards(msgs).length === 1) && !msgs.some(m => m.getFlag(MOD, 'hold')),
       `usageCards=${usageCards(msgs).length} holds=${msgs.filter(m => m.getFlag(MOD, 'hold')).length}`);
     await set('reactionHold', false);
 

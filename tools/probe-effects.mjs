@@ -29,7 +29,7 @@ const out = await f.evaluate(async () => {
   const suiteStart = Date.now();
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget',
-    'reactionHold', 'suppressAttackCards', 'riders', 'effectRiders', 'masteryRiders',
+    'reactionHold', 'riders', 'effectRiders', 'masteryRiders',
     'masteryAsk', 'holdTimer'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
 
@@ -51,7 +51,7 @@ const out = await f.evaluate(async () => {
 
   try {
     for (const [k, v] of Object.entries({ autoDamage: 'all', autoApply: true, dramaticBeat: 0,
-      requireTarget: false, reactionHold: false, suppressAttackCards: false, riders: false,
+      requireTarget: false, reactionHold: false, riders: false,
       effectRiders: true, masteryRiders: true, masteryAsk: 'auto', holdTimer: 0 })) {
       await game.settings.set(MOD, k, v);
     }

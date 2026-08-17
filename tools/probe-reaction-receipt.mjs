@@ -28,7 +28,7 @@ const out = await f.evaluate(async () => {
   console.error = (...a) => { errors.push(a.map(x => String(x?.message ?? x)).join(' ')); origError(...a); };
 
   const KEYS = ['reactionHold', 'holdApplyEffect', 'holdSettle', 'holdTimer', 'holdSkipFutile',
-    'holdReveal', 'autoDamage', 'autoApply', 'dramaticBeat', 'suppressAttackCards',
+    'holdReveal', 'autoDamage', 'autoApply', 'dramaticBeat',
     'requireTarget', 'masteryRiders', 'effectRiders', 'riders', 'concMode', 'castApply', 'saves'];
   const prior = Object.fromEntries(KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
@@ -48,7 +48,6 @@ const out = await f.evaluate(async () => {
     await set('autoDamage', 'all');
     await set('autoApply', false);
     await set('dramaticBeat', 0);
-    await set('suppressAttackCards', false);
     await set('requireTarget', false);
     await set('masteryRiders', false);
     await set('effectRiders', false);

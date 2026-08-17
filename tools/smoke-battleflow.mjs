@@ -51,7 +51,6 @@ let priorSettings = null;
       autoDamage: game.settings.get(MOD, 'autoDamage'),
       autoApply: game.settings.get(MOD, 'autoApply'),
       dramaticBeat: game.settings.get(MOD, 'dramaticBeat'),
-      suppressAttackCards: game.settings.get(MOD, 'suppressAttackCards'),
       requireTarget: game.settings.get(MOD, 'requireTarget'),
       reactionHold: game.settings.get(MOD, 'reactionHold'),
       effectRiders: game.settings.get(MOD, 'effectRiders'),
@@ -61,15 +60,11 @@ let priorSettings = null;
     await game.settings.set(MOD, 'autoApply', true);
     await game.settings.set(MOD, 'dramaticBeat', 0);
     // The test exercises the primary (usage-card) chain and always targets first, so the
-    // polish gates stay out of the way; both are restored with the rest at the end.
-    await game.settings.set(MOD, 'suppressAttackCards', false);
+    // no-target gate stays out of the way; restored with the rest at the end.
     await game.settings.set(MOD, 'requireTarget', false);
     // This suite is about the Phase 1 chain; a reaction hold would legitimately stop it dead.
     await game.settings.set(MOD, 'reactionHold', false);
-    // The 1.9 features get their own suite (smoke-effects). Pinned off here because 5b's
-    // "an effect-carrying card survives suppression" is only true while Effect Riders is
-    // off — with riders on the card is legitimately suppressible (1.9D) and the assertion
-    // would chase a ghost.
+    // The 1.9 features get their own suite (smoke-effects).
     await game.settings.set(MOD, 'effectRiders', false);
     await game.settings.set(MOD, 'masteryRiders', false);
     // Scrub any reaction the hold suite may have left on the test NPC — a stray Shield there
@@ -458,7 +453,10 @@ if (!fx.ok) { process.exit(1); }
     r.ok ? `attack ${r.attackTotal} vs AC 40${r.isCritical ? ' (CRIT — flake, hit is correct)' : ''}; damage appeared: ${r.damageAppeared}` : r.why);
 }
 
-// ------------------------------------------- 5b. polish gates: suppression + no-target
+// ------------------------------------------- 5b. polish gates: the card always posts + no-target
+// v1.10.0 ripped the suppression machinery out (user call: cards always post, buttons hide).
+// What this section now owns: every use posts exactly one card, the suppress* settings stay
+// unregistered, and the no-target gate still refuses an untargeted attack.
 {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
     const MOD = 'fvtt-mod-battleflow';
@@ -473,57 +471,17 @@ if (!fx.ok) { process.exit(1); }
         ((m.type === 'usage') || (m.getFlag('dnd5e', 'messageType') === 'usage'))
         && m.speaker?.alias?.startsWith('BF Test'));
 
-      // (a) Suppression ON: using an attack must create no usage card.
-      await game.settings.set(MOD, 'suppressAttackCards', true);
+      // (a) The rip stayed ripped: no suppress* setting is registered.
+      out.suppressGone = ['suppressAttackCards', 'suppressWeaponCards', 'suppressSpellCards',
+        'suppressFeatureCards', 'suppressOtherCards']
+        .every(k => !game.settings.settings.has(`${MOD}.${k}`));
+
+      // (b) Every use shows its first card: one attack, exactly one usage card.
       canvas.tokens.get(victimToken).setTarget(true, { releaseOthers: true });
       const before = usageCards().length;
       await activity().use({ subsequentActions: false }, { configure: false }, {});
       await new Promise(r => setTimeout(r, 1500));
-      out.suppressedDelta = usageCards().length - before;
-
-      // (b) Suppression OFF: the native card comes back (the escape hatch really works).
-      await game.settings.set(MOD, 'suppressAttackCards', false);
-      const before2 = usageCards().length;
-      await activity().use({ subsequentActions: false }, { configure: false }, {});
-      await new Promise(r => setTimeout(r, 1500));
-      out.restoredDelta = usageCards().length - before2;
-
-      // (b2) An attack card that CARRIES EFFECTS is never suppressed — that tray is the only
-      // way a spell's riders reach a target (Ray of Frost's slow vanished when it wasn't).
-      await game.settings.set(MOD, 'suppressAttackCards', true);
-      // Prefer the GM-owned stand-in over the live PC. Gren is played at the table and runs
-      // himself out of spell slots; a cast refused for want of a slot creates no card at all
-      // and reads here as "suppression ate it" — a fixture failure wearing a bug's clothes
-      // (bit 2026-08-15, when he was at 0/4). The clone is ours and is topped back up.
-      const spellCaster = game.actors.getName('BF Test Shielder')
-        ?? game.actors.getName('Gren Greenmantle');
-      const riderSpell = spellCaster?.items.find(i =>
-        i.type === 'spell'
-        && i.system.activities?.some?.(a => a.type === 'attack')
-        && i.effects?.size);
-      // A levelled spell with no slot left cannot be cast, so the path is unexercised rather
-      // than broken — say which, instead of failing.
-      const level = riderSpell?.system.level ?? 0;
-      const slotted = !level || Object.entries(spellCaster?.system.spells ?? {}).some(([key, slot]) => {
-        const numbered = /^spell(\d+)$/.exec(key);
-        const slotLevel = numbered ? Number(numbered[1]) : slot?.level;
-        return slot?.value && slot?.max && Number.isFinite(slotLevel) && (slotLevel >= level);
-      });
-      if (riderSpell && !slotted) out.effectCard = { spell: null, why: `${spellCaster.name} has no level-${level} slot left` };
-      if (riderSpell && slotted) {
-        const act = riderSpell.system.activities.contents.find(a => a.type === 'attack');
-        const before = game.messages.size;
-        await act.use({ subsequentActions: false }, { configure: false }, {});
-        await new Promise(r => setTimeout(r, 1200));
-        const created = game.messages.contents.slice(before);
-        out.effectCard = {
-          spell: riderSpell.name,
-          cardSurvived: created.some(m => (m.type === 'usage') && m.system?.effects?.length),
-        };
-      } else if (!riderSpell) {
-        out.effectCard = { spell: null, why: 'no attack-roll spell with effects found' };
-      }
-      await game.settings.set(MOD, 'suppressAttackCards', false);
+      out.cardDelta = usageCards().length - before;
 
       // (c) No-target gate: with nothing targeted the use is refused outright.
       await game.settings.set(MOD, 'requireTarget', true);
@@ -536,21 +494,14 @@ if (!fx.ok) { process.exit(1); }
       await game.settings.set(MOD, 'requireTarget', false);
       return { ok: true, ...out };
     } catch (err) {
-      await game.settings.set(MOD, 'suppressAttackCards', false);
       await game.settings.set(MOD, 'requireTarget', false);
       return { ok: false, why: `${err.message}\n${err.stack}` };
     }
   }, fx);
-  report('suppress attack usage cards (on → none created)', r.ok && r.suppressedDelta === 0,
-    r.ok ? `cards created: ${r.suppressedDelta}` : r.why);
-  report('suppression off → native card returns', r.ok && r.restoredDelta === 1,
-    r.ok ? `cards created: ${r.restoredDelta}` : r.why);
-  if (r.effectCard?.spell) {
-    report('an attack card carrying effects survives suppression', r.effectCard.cardSurvived === true,
-      `${r.effectCard.spell}: card survived = ${r.effectCard.cardSurvived}`);
-  } else {
-    console.log(`  SKIP rider-card path not exercised — ${r.effectCard?.why ?? 'unavailable'}`);
-  }
+  report('the suppression machinery stays ripped (no suppress* settings registered)',
+    r.ok && r.suppressGone === true, r.ok ? '' : r.why);
+  report('every use shows its first card (one attack → one usage card)', r.ok && r.cardDelta === 1,
+    r.ok ? `cards created: ${r.cardDelta}` : r.why);
   report('no-target gate refuses the attack', r.ok && r.gateRefused && r.gateMessagesCreated === 0,
     r.ok ? `refused=${r.gateRefused}, messages created: ${r.gateMessagesCreated}` : r.why);
 }
@@ -644,7 +595,6 @@ if (!fx.ok) { process.exit(1); }
     await game.settings.set(MOD, 'autoDamage', prior?.autoDamage ?? 'off');
     await game.settings.set(MOD, 'autoApply', prior?.autoApply ?? false);
     await game.settings.set(MOD, 'dramaticBeat', prior?.dramaticBeat ?? 0);
-    await game.settings.set(MOD, 'suppressAttackCards', prior?.suppressAttackCards ?? false);
     await game.settings.set(MOD, 'requireTarget', prior?.requireTarget ?? false);
     await game.settings.set(MOD, 'reactionHold', prior?.reactionHold ?? false);
     await game.settings.set(MOD, 'effectRiders', prior?.effectRiders ?? false);

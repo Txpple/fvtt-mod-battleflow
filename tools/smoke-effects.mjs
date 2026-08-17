@@ -1,15 +1,13 @@
-// Battle Flow Phase 1.9 smoke test — effect riders, mastery riders, the Use/Pass ask, and
-// per-source card suppression, driven end to end in the live world.
+// Battle Flow Phase 1.9 smoke test — effect riders, mastery riders, the Use/Pass ask, the
+// topple fold + its timer, and the reminders, driven end to end in the live world.
+// (The per-source suppression sections died with the machinery at v1.10.0 — the preflight
+// now FAILS if any suppress* setting is still registered, the reverse of the old ghost.)
 //
 // Harness discipline (HANDOFF): every setting touched is restored to whatever was found;
 // every message this run creates is deleted on the way out; BF Test fixtures are long-rested
 // (they spend real HP and real slots); HP is topped up before any "did not move" assertion
 // (a number that could not have moved proves nothing); damage searches go by originating id
 // over the WHOLE log, never a tail window.
-//
-// ⚠ suppressAttackCards is pinned EXPLICITLY in preflight. Its live value being ON once sent
-// three probe generations chasing ghosts — a suppressed card reads as "the module ate my
-// message" from inside any assertion that expected one.
 import { readFileSync } from 'node:fs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
 
@@ -46,17 +44,18 @@ const out = await f.evaluate(async () => {
 
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
-  for (const key of ['effectRiders', 'masteryRiders', 'masteryAsk', 'suppressWeaponCards',
-    'suppressSpellCards', 'suppressFeatureCards', 'suppressOtherCards', 'castApply']) {
+  for (const key of ['effectRiders', 'masteryRiders', 'masteryAsk', 'castApply']) {
     if (!game.settings.settings.has(`${MOD}.${key}`)) {
       return { fatal: `setting ${key} not registered — this client is running OLD code (F5)` };
     }
   }
+  if (game.settings.settings.has(`${MOD}.suppressAttackCards`)) {
+    return { fatal: 'suppressAttackCards is registered — this client is running PRE-RIP code (F5)' };
+  }
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget',
-    'reactionHold', 'suppressAttackCards', 'suppressWeaponCards', 'suppressSpellCards',
-    'suppressFeatureCards', 'suppressOtherCards', 'riders', 'effectRiders', 'masteryRiders',
-    'masteryAsk', 'holdTimer', 'castApply'];
+    'reactionHold', 'riders', 'effectRiders', 'masteryRiders',
+    'masteryAsk', 'holdTimer', 'saveTimer', 'castApply'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -127,16 +126,14 @@ const out = await f.evaluate(async () => {
     await set('dramaticBeat', 0);
     await set('requireTarget', false);
     await set('reactionHold', false);
-    await set('suppressAttackCards', false); // explicit — the ghost-chaser
-    await set('suppressWeaponCards', true);
-    await set('suppressSpellCards', true);
-    await set('suppressFeatureCards', true);
-    await set('suppressOtherCards', true);
     await set('riders', false);
     await set('effectRiders', true);
     await set('masteryRiders', true);
     await set('masteryAsk', 'auto');
     await set('holdTimer', 0);
+    // ⚠ 0 for the classic topple sections (§14 forces outcomes through chained rolls and
+    // must never race a buzzer); §14g pins its own short window and restores this.
+    await set('saveTimer', 0);
     await set('castApply', false); // the cast slice has its own suite; isolation here
 
     // -------------------------------------------------- fixtures
@@ -649,111 +646,27 @@ const out = await f.evaluate(async () => {
       ok('12b. revert tolerates an effect that is already gone',
         !!marked2, `marked=${!!marked2}`);
 
-      // ============================================ 13. suppression per-source + the carve-out
+      // ============================================ 13. every use shows its first card (v1.10.0)
+      // The suppression machinery is deleted; what stays asserted is the COUNT (one cast,
+      // exactly one card) and COEXISTENCE — the card posts AND the riders land the effect,
+      // where 1.9D used to trade one for the other.
       const usageCards = () => game.messages.contents.filter(m =>
         ((m.type === 'usage') || (m.getFlag('dnd5e', 'messageType') === 'usage'))
         && m.speaker?.alias?.startsWith?.('BF Test'));
 
-      await set('suppressAttackCards', true);
       await setMastery('vex');
-
-      // (a) weapon bucket: suppressed by default…
-      let before = usageCards().length;
-      await attack(pcAttack()).then(r => waitDamage(r.attackMsg.getFlag('dnd5e', 'originatingMessage') ?? r.attackMsg.id));
-      ok('13. weapon attack card suppressed (master + weapon bucket on)',
-        usageCards().length === before, `delta=${usageCards().length - before}`);
-
-      // …and the per-source escape hatch restores exactly that bucket.
-      await set('suppressWeaponCards', false);
-      before = usageCards().length;
-      await attack(pcAttack()).then(r => waitDamage(r.attackMsg.getFlag('dnd5e', 'originatingMessage') ?? r.attackMsg.id));
-      ok('13b. weapon bucket off ⇒ the weapon card survives while the master stays on',
-        usageCards().length === before + 1, `delta=${usageCards().length - before}`);
-      await set('suppressWeaponCards', true);
-
-      // (b) the NEW path: spell card suppressed with riders ON — and the effect still lands.
       await clearChips();
       await clearSpellChips();
       await healFull();
       await restCaster();
-      before = usageCards().length;
-      const sup = await attack(spellAttack(), { origin: false });
-      const dmgS = sup.failed ? null : await waitDamage(sup.attackMsg.id, { flag: 'effectReceipt' });
-      ok('13c. with Effect Riders ON the spell card is suppressed AND the effect lands anyway',
-        !sup.failed && (usageCards().length === before) && !!chip() && !!dmgS,
-        sup.failed ? 'FIXTURE: the cast itself was refused (slots?)'
-          : `cardDelta=${usageCards().length - before} chip=${chip()?.name ?? 'none'} receipt=${!!dmgS}`);
-
-      // (c) riders OFF: the carve-out keeps the card (exactly the pre-1.9D behavior).
-      await set('effectRiders', false);
-      await clearChips();
-      await clearSpellChips();
-      before = usageCards().length;
-      const off = await attack(spellAttack());
-      await sleep(1500);
-      ok('13d. with Effect Riders OFF an effect-carrying spell card survives (carve-out)',
-        !off.failed && (usageCards().length === before + 1),
-        off.failed ? 'FIXTURE: the cast itself was refused (slots?)'
-          : `delta=${usageCards().length - before}`);
-      await set('effectRiders', true);
-
-      // (d) a concentration cast keeps its card even with riders ON (origin linkage).
-      const conc = await findSpell({ concentration: true });
-      if (!conc) {
-        skip('concentration carve-out: no concentration attack spell with effects found');
-      } else {
-        log.push(`concentration spell: ${conc.item.name} (on ${conc.actor.name}, level ${conc.item.system.level})`);
-        try { await conc.actor.longRest({ dialog: false, chat: false }); } catch { /* fine */ }
-        // A levelled spell on a classless fixture has no slot to spend — override the pool
-        // (character slot maxima honor system.spells.spellN.override) so the cast is real.
-        const lvl = conc.item.system.level;
-        if ((lvl > 0) && (conc.actor.type === 'character')) {
-          const k = `spell${lvl}`;
-          priorActor[conc.actor.id] = { ...(priorActor[conc.actor.id] ?? {}),
-            [`system.spells.${k}.override`]: conc.actor.system._source.spells?.[k]?.override ?? null,
-            [`system.spells.${k}.value`]: conc.actor.system._source.spells?.[k]?.value ?? 0 };
-          await conc.actor.update({
-            [`system.spells.${k}.override`]: 2, [`system.spells.${k}.value`]: 2 });
-        }
-        const concAttack = conc.actor.items.get(conc.item.id).system.activities.find(a => a.type === 'attack');
-        before = usageCards().length;
-        victimToken.setTarget(true, { releaseOthers: true });
-        await sleep(80);
-        const r = await concAttack.use({ subsequentActions: false }, { configure: false }, {});
-        await sleep(1200);
-        const survived = usageCards().length === before + 1;
-        ok('13e. a concentration cast keeps its card even with riders on',
-          (r !== undefined) && survived && !!r?.message?.system?.concentration,
-          (r === undefined) ? 'FIXTURE: the cast itself was refused (slots?)'
-            : `delta=${usageCards().length - before} concentration=${r?.message?.system?.concentration ?? 'none'}`);
-        // End the concentration this cast began, so nothing lingers on the fixture.
-        try {
-          for (const e of conc.actor.concentration?.effects ?? []) await e.delete();
-        } catch { /* fine */ }
-      }
-
-      // (e) the monster bucket: whichever item type this world's statblock attacks use
-      // (PLAN E2 — answered empirically and locked with an assertion).
-      const npcItem = npc.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
-      const npcActivity = npcItem?.system.activities.find(a => a.type === 'attack');
-      const bucket = (npcItem?.type === 'weapon') ? 'suppressWeaponCards'
-        : (npcItem?.type === 'spell') ? 'suppressSpellCards'
-        : (npcItem?.type === 'feat') ? 'suppressFeatureCards' : 'suppressOtherCards';
-      log.push(`monster attack item type: ${npcItem?.type} ⇒ ${bucket}`);
-      before = usageCards().length;
-      await attack(npcActivity);
-      await sleep(1200);
-      const suppressedNpc = usageCards().length === before;
-      await set(bucket, false);
-      before = usageCards().length;
-      await attack(npcActivity);
-      await sleep(1200);
-      const survivedNpc = usageCards().length === before + 1;
-      ok(`13f. a monster attack (${npcItem?.type}) obeys its own bucket (${bucket})`,
-        suppressedNpc && survivedNpc,
-        `suppressed=${suppressedNpc} survived after bucket off=${survivedNpc}`);
-      await set(bucket, true);
-      await set('suppressAttackCards', false);
+      const before13 = usageCards().length;
+      const co = await attack(spellAttack());
+      const dmg13 = co.failed ? null
+        : await waitDamage(co.usageId ?? co.attackMsg.id, { flag: 'effectReceipt' });
+      ok('13. the spell card posts (exactly one) AND the riders land the effect anyway',
+        !co.failed && (usageCards().length === before13 + 1) && !!chip() && !!dmg13,
+        co.failed ? 'FIXTURE: the cast itself was refused (slots?)'
+          : `cardDelta=${usageCards().length - before13} chip=${chip()?.name ?? 'none'} receipt=${!!dmg13}`);
     }
 
     // ---------------------------------------------------- 14. the Topple card folds its own save
@@ -764,7 +677,6 @@ const out = await f.evaluate(async () => {
     // suite's lesson: a suite that can lose a coin flip lies once a week.
     await set('autoApply', true);
     await set('masteryAsk', 'auto');
-    await set('suppressAttackCards', false);
     await setMastery('topple');
     await healFull();
     await acFlat(1); // fumble-only misses — the victim's natural AC gave a real ~12% flake
@@ -790,8 +702,12 @@ const out = await f.evaluate(async () => {
       _id: 'dnd5eprone000000', name: 'Prone', statuses: ['prone'], disabled: true,
       img: 'icons/svg/falling.svg'
     }], { keepId: true });
-    priorActor[victim.id]['system.bonuses.abilities.save'] =
-      victim.system._source.bonuses?.abilities?.save ?? '';
+    // ⚠ Force outcomes through the PER-ABILITY save bonus (abilities.con.bonuses.save) —
+    // the smoke-saves channel. The global system.bonuses.abilities.save is NOT folded into
+    // rollSavingThrow at 5.3.3 (measured 2026-08-17: bonus "+30", saveTotal 10), so the old
+    // ±30 here never forced anything and §14d was a coin flip the whole time.
+    priorActor[victim.id]['system.abilities.con.bonuses.save'] =
+      victim.system._source.abilities?.con?.bonuses?.save ?? '';
     const snap14 = () => new Set(game.messages.contents.map(m => m.id));
     const fresh14 = before => game.messages.contents.filter(m => !before.has(m.id));
     const until14 = async (fn, ms = 8000) => {
@@ -819,7 +735,7 @@ const out = await f.evaluate(async () => {
       toppleMsg ? `dc=${tflag.dc}` : `no topple card — ${diag14()}`);
 
     if (toppleMsg && atk14.attackMsg) {
-      await victim.update({ 'system.bonuses.abilities.save': '-30' });
+      await victim.update({ 'system.abilities.con.bonuses.save': '-30' });
       await victim.rollSavingThrow({ ability: 'con' }, { configure: false },
         { data: { 'flags.dnd5e.originatingMessage': atk14.attackMsg.id } });
       await sleep(1200);
@@ -848,29 +764,47 @@ const out = await f.evaluate(async () => {
           + ` total=${sm14?.rolls?.[0]?.total} assoc=${sm14?.getAssociatedActor?.()?.uuid} expected=${victim.uuid}`);
 
       await victim.toggleStatusEffect('prone', { active: false });
-      await victim.update({ 'system.bonuses.abilities.save': '+30' });
-      await healFull(); // the victim has 11 max HP and the section's own attacks kill it —
-                        // the dead-skip then eats the next topple card (the fixture-HP trap)
-      before14 = snap14();
-      await attack(pcAttack());
-      await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')));
-      const topple2 = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
+      await victim.update({ 'system.abilities.con.bonuses.save': '+30' });
+      // ⚠ Retry the attack until a topple card appears (bounded): vs AC 1 only a fumble
+      // misses, but a double-nat-1 under advantage IS a real 0.25% — and it hit this
+      // section twice on 2026-08-17. Heal + un-prone between tries (the dead-skip and
+      // already-prone gates both eat the card silently).
+      let topple2 = null;
+      let atk14d = null;
+      for (let try14d = 0; (try14d < 4) && !topple2; try14d++) {
+        await victim.toggleStatusEffect('prone', { active: false });
+        await healFull(); // 11 max HP — the section's own attacks kill it (the fixture-HP trap)
+        before14 = snap14();
+        atk14d = await attack(pcAttack());
+        await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')), 12_000);
+        topple2 = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
+      }
       if (topple2) {
         const preAnnounce = snap14();
-        await victim.rollSavingThrow({ ability: 'con' }, { configure: false },
+        const rolls14d = await victim.rollSavingThrow({ ability: 'con' }, { configure: false },
           { data: { 'flags.dnd5e.originatingMessage': topple2.id } });
         await until14(() => topple2.getFlag(MOD, 'topple').targets[0].done);
         const e14b = topple2.getFlag(MOD, 'topple').targets[0];
         const announced2 = fresh14(preAnnounce).filter(m => m.content?.includes('falls Prone')).length;
         ok('14d. a successful save closes the question quietly — no prone, no card',
           e14b.done && (e14b.outcome === 'saved') && !victim.statuses.has('prone') && (announced2 === 0),
-          `outcome=${e14b.outcome} prone=${victim.statuses.has('prone')} announced=${announced2}`);
+          `outcome=${e14b.outcome} prone=${victim.statuses.has('prone')} announced=${announced2}`
+            + ` | saveTotal=${rolls14d?.[0]?.total} dc=${topple2.getFlag(MOD, 'topple').dc}`
+            + ` bonusNow=${JSON.stringify(victim.system.abilities?.con?.bonuses?.save ?? null)}`);
       } else {
         ok('14d. a successful save closes the question quietly — no prone, no card', false,
-          'no second topple card (did the attack hit?)');
+          `no second topple card — ${JSON.stringify({
+            attackTotal: atk14d?.roll?.total ?? null,
+            isCrit: atk14d?.roll?.isCritical ?? null,
+            mastery: atk14d?.attackMsg?.getFlag('dnd5e', 'roll.mastery') ?? null,
+            victimHp: victim.system.attributes.hp.value,
+            victimProne: victim.statuses.has('prone'),
+            dmgAppeared: fresh14(before14).some(m => m.getFlag('dnd5e', 'roll.type') === 'damage'),
+            freshCount: fresh14(before14).length
+          })}`);
       }
 
-      await victim.update({ 'system.bonuses.abilities.save': '-30' });
+      await victim.update({ 'system.abilities.con.bonuses.save': '-30' });
       await healFull();
       before14 = snap14();
       await attack(pcAttack());
@@ -903,9 +837,53 @@ const out = await f.evaluate(async () => {
         ok('14e. a bare sheet save from a pending target answers the card', false,
           'no third topple card (did the attack hit?)');
       }
+
+      // 14g–i. the buzzer (v1.10.0): the demand stamps saveTimer's deadline, the card runs
+      // the bar (the pairing rule, asserted at the DOM by the [data-bf-deadline] node the
+      // drain animates on), and expiry ROLLS the still-pending target straight — marked as
+      // the timer's press — with the failure pressing Prone. The -30 save bonus from 14e is
+      // still on, so the outcome is forced, not flipped.
+      await set('saveTimer', 3);
+      let topple4 = null;
+      for (let try14g = 0; (try14g < 4) && !topple4; try14g++) {
+        await victim.toggleStatusEffect('prone', { active: false });
+        await healFull();
+        before14 = snap14();
+        await attack(pcAttack());
+        await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')), 12_000);
+        topple4 = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
+      }
+      if (topple4) {
+        const t4 = topple4.getFlag(MOD, 'topple');
+        ok('14g. the topple demand stamps the save timer (window + deadline on the flag)',
+          (t4.window === 3) && (t4.deadline > Date.now() - 60_000),
+          `window=${t4.window ?? 'none'} deadline=${t4.deadline ?? 'none'}`);
+        let barEl = null;
+        await until14(() => {
+          barEl = document.querySelector(`.message[data-message-id="${topple4.id}"] [data-bf-deadline]`);
+          return !!barEl;
+        }, 4000);
+        ok('14h. the topple card runs the deadline bar (the pairing rule at the DOM)',
+          !!barEl, 'no [data-bf-deadline] node in the rendered topple card');
+        // Nobody rolls. The buzzer must — and its roll is marked as the timer's press.
+        await until14(() => topple4.getFlag(MOD, 'topple').targets[0].done, 12_000);
+        const e14g = topple4.getFlag(MOD, 'topple').targets[0];
+        await until14(() => victim.statuses.has('prone'), 10_000);
+        const timerRoll = game.messages.contents.find(m =>
+          (m.getFlag('dnd5e', 'originatingMessage') === topple4.id)
+          && m.getFlag(MOD, 'timedOut'));
+        ok('14i. the buzzer rolls the unanswered save (marked) and the failure presses Prone',
+          e14g.done && (e14g.outcome === 'prone') && (e14g.timedOut === true)
+            && !!timerRoll && victim.statuses.has('prone'),
+          `outcome=${e14g.outcome} timedOut=${e14g.timedOut} timerRoll=${!!timerRoll} prone=${victim.statuses.has('prone')}`);
+      } else {
+        ok('14g. the topple demand stamps the save timer (window + deadline on the flag)', false,
+          'no fourth topple card (did the attack hit?)');
+      }
+      await set('saveTimer', 0);
       await victim.toggleStatusEffect('prone', { active: false });
-      await victim.update({ 'system.bonuses.abilities.save':
-        priorActor[victim.id]['system.bonuses.abilities.save'] });
+      await victim.update({ 'system.abilities.con.bonuses.save':
+        priorActor[victim.id]['system.abilities.con.bonuses.save'] });
     }
 
     // ---------------------------------------------------- 15. the reminders (vex / sap / cleave)
@@ -913,11 +891,15 @@ const out = await f.evaluate(async () => {
     // durable record (flag masteryNotice, 15s window); the popup is a per-client view of it
     // and is not asserted here — popup discipline is the managed-popup machinery's, already
     // proven by the ask and the concentration suite.
-    await healFull();
     await setMastery('vex');
     let before15 = snap14();
-    await attack(pcAttack());
-    await until14(() => fresh14(before15).some(m => m.getFlag(MOD, 'masteryNotice')?.key === 'vex'));
+    for (let try15 = 0; try15 < 4; try15++) {
+      await healFull(); // dead targets are skipped — every §15 attack starts from full
+      before15 = snap14();
+      await attack(pcAttack());
+      await until14(() => fresh14(before15).some(m => m.getFlag(MOD, 'masteryNotice')?.key === 'vex'), 10_000);
+      if (fresh14(before15).some(m => m.getFlag(MOD, 'masteryNotice')?.key === 'vex')) break;
+    }
     let msgs15 = fresh14(before15);
     const vexNotice = msgs15.find(m => m.getFlag(MOD, 'masteryNotice')?.key === 'vex');
     const vexChip = victim.effects.find(e => e.getFlag(MOD, 'mastery') === 'vex');
@@ -925,6 +907,15 @@ const out = await f.evaluate(async () => {
       !!vexChip && !!vexNotice && (vexNotice.getFlag(MOD, 'masteryNotice').window === 15)
         && vexNotice.content.includes('Weapon Mastery'),
       `chip=${!!vexChip} notice=${!!vexNotice}`);
+    // The pairing rule (v1.10.0): the popup's 15s drain runs on the CARD too — asserted at
+    // the DOM by the bar node the drain animates on, while the window is still open.
+    let noticeBar = null;
+    await until14(() => {
+      noticeBar = document.querySelector(`.message[data-message-id="${vexNotice?.id}"] [data-bf-deadline]`);
+      return !!noticeBar;
+    }, 4000);
+    ok('15a2. the reminder card runs the 15s bar (the pairing rule at the DOM)',
+      !!noticeBar, 'no [data-bf-deadline] node in the rendered notice card');
     const dmg15 = msgs15.find(m => m.getFlag(MOD, 'effectReceipt')?.targets?.length);
     ok('15b. the mastery receipt entry carries the effect description (the tooltip)',
       !!dmg15?.getFlag(MOD, 'effectReceipt')?.targets?.[0]?.effects?.[0]?.description,
