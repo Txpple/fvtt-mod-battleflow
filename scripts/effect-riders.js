@@ -58,35 +58,43 @@ export async function applyEffectRiders(damageMessage, attackMessage, hits) {
 }
 
 /**
- * The one effect applier — 1.9A's loop, extracted the day the cast slice arrived (the
- * Phase 3 convergence the v1.3.1 review predicted; the reaction effect's missing receipt is
- * now the only appliance left outside it). Apply `effects` to every target, mirroring the
- * native tray's _applyEffectToActor: same origin rule (concentration ?? effect), same
- * dependentOn cascade, same re-enable-instead-of-stack. Entries merge into
- * `receiptMessage`'s effectReceipt flag under the caller's own done-`marker`, so the rider
- * and cast stages can never mistake each other's work for their own.
+ * THE application loop — every document-copy effect application in the module runs through
+ * here (the Phase 3 convergence, completed v1.8.0): the riders, the cast slice, the save
+ * slice, and the reaction's self-cast sliver. Mirrors the native tray's
+ * _applyEffectToActor: same origin rule (concentration ?? effect), same dependentOn
+ * cascade, same re-enable-instead-of-stack. Returns receipt-shaped entries
+ * ([{uuid, name, img, effects: [...]}], only targets where something landed) so callers
+ * that cannot write a flag yet (the hold's answering client, whose response message does
+ * not exist until after the application) still get the receipt to carry.
+ *
+ * The two policy options exist for the reaction sliver and stay this narrow:
+ *  - `matchNames`: dedupe by name AS WELL AS origin — the casting client applies from an
+ *    item CLONE (Activity#use clones the item), so its origin uuid differs from the one
+ *    the continuing client would compute, and an origin-only test would happily apply
+ *    Shield twice.
+ *  - `extraFlags`: merged into the created/updated effect — how the reaction path keeps
+ *    its `reactionEffect` marker (the flag inventory's "which module path created it").
  */
-export async function applyEffectsWithReceipt(receiptMessage, effects, targets,
-  { concentration = null, scaling = 0, spellLevel, marker } = {}) {
-  const flag = foundry.utils.deepClone(
-    receiptMessage.getFlag(MODULE_ID, "effectReceipt") ?? { targets: [] });
+export async function applyEffectsTo(targets, effects,
+  { concentration = null, scaling = 0, spellLevel, matchNames = false, extraFlags = null } = {}) {
+  const out = [];
   for ( const target of targets ) {
     const actor = await fromUuid(target.uuid); // the targets snapshot carries ACTOR uuids
     if ( !(actor instanceof Actor) ) continue;
-    let entry = flag.targets.find(t => t.uuid === target.uuid);
-    if ( !entry ) flag.targets.push(entry = { uuid: target.uuid, name: target.name, img: actor.img ?? null, effects: [] });
+    const entry = { uuid: target.uuid, name: target.name, img: actor.img ?? null, effects: [] };
     for ( const effect of effects ) {
       const origin = concentration ?? effect;
-      const effectFlags = { flags: { dnd5e: {
+      const effectFlags = foundry.utils.mergeObject({ flags: { dnd5e: {
         dependentOn: origin.uuid,
         scaling,
         spellLevel
-      } } };
+      } } }, { flags: extraFlags ?? {} });
       // Native parity, bug-for-bug: an existing effect with this origin is re-enabled and
       // re-clocked rather than duplicated. (Like the tray, a concentration spell carrying
       // TWO effects collides with itself here — both share the concentration origin — but
       // deviating from the button the module is pressing would be worse than matching it.)
-      const existing = actor.effects.find(e => e.origin === origin.uuid);
+      const existing = actor.effects.find(e => (e.origin === origin.uuid)
+        || (matchNames && (e.name === effect.name)));
       let applied;
       if ( existing ) {
         // ⚠ `?? existing`: an empty-diff update returns undefined (same bug as the
@@ -104,8 +112,38 @@ export async function applyEffectsWithReceipt(receiptMessage, effects, targets,
           description: applied.description ?? "", reverted: false });
       }
     }
-    if ( !entry.effects.length ) flag.targets.splice(flag.targets.indexOf(entry), 1);
+    if ( entry.effects.length ) out.push(entry);
   }
+  return out;
+}
+
+/**
+ * Merge one applied-entry into an effectReceipt flag object — THE receipt bookkeeping,
+ * shared by every writer (the appliers here, the mastery chips, the hold's answer paths)
+ * so the merge discipline can never drift between them: entries keyed by uuid, effects
+ * deduped by id, nothing ever overwritten.
+ */
+export function joinEffectReceipt(flag, entry) {
+  let target = flag.targets.find(t => t.uuid === entry.uuid);
+  if ( !target ) flag.targets.push(target = { uuid: entry.uuid, name: entry.name, img: entry.img ?? null, effects: [] });
+  for ( const e of entry.effects ) {
+    if ( !target.effects.some(x => x.id === e.id) ) target.effects.push(e);
+  }
+  return target;
+}
+
+/**
+ * Apply and stamp in one move — the shape the riders, the cast slice and the save slice
+ * use, where the receipt message already exists. Entries merge into `receiptMessage`'s
+ * effectReceipt flag under the caller's own done-`marker`, so the rider and cast stages
+ * can never mistake each other's work for their own.
+ */
+export async function applyEffectsWithReceipt(receiptMessage, effects, targets,
+  { concentration = null, scaling = 0, spellLevel, marker } = {}) {
+  const flag = foundry.utils.deepClone(
+    receiptMessage.getFlag(MODULE_ID, "effectReceipt") ?? { targets: [] });
+  const entries = await applyEffectsTo(targets, effects, { concentration, scaling, spellLevel });
+  for ( const entry of entries ) joinEffectReceipt(flag, entry);
   // The marker is written even when nothing landed — "asked and answered" must be
   // re-run-proof, or every render would retry a cast whose targets are all gone.
   if ( marker ) flag[marker] = true;

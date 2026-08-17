@@ -7,7 +7,7 @@ import { hitTargets, modeAllows } from "./shared.js";
 import { inRunningCombat, canAnswerFor } from "./hold.js";
 import { livePopups, popupKey, openManagedPopup, bfCard, holdBarHTML } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
-import { messageActivity } from "./effect-riders.js";
+import { messageActivity, joinEffectReceipt } from "./effect-riders.js";
 import { dramaticVerdictPause } from "./concentration.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -214,6 +214,14 @@ async function executeMasteryPayout(key, attackMessage, damageMessage, ctx, targ
  * Apply one authored mastery effect to each target and join the damage card's effect
  * receipt. Same discipline as 1.9A: refresh a same-origin copy (this weapon's uuid) instead
  * of stacking, receipts are the visibility, revert is the native delete.
+ *
+ * Deliberately NOT routed through applyEffectsTo (the v1.8.0 convergence decision, recorded
+ * so nobody re-attempts it): these chips are AUTHORED DATA, not copies of an existing
+ * ActiveEffect document — there is no source document to toObject(), the dedupe key is the
+ * module's own mastery flag + weapon origin rather than an origin uuid, and the durations
+ * are combat-aware. Forcing that through the shared loop would mean a lambda per policy —
+ * the three-lambda machine the timer note warned about. What IS shared is the receipt
+ * bookkeeping (joinEffectReceipt), which is where the actual bugs lived.
  */
 async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
   const def = MASTERY_EFFECTS[key];
@@ -245,12 +253,9 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
       }, { parent: actor });
     }
     if ( !applied ) continue;
-    let entry = flag.targets.find(x => x.uuid === t.uuid);
-    if ( !entry ) flag.targets.push(entry = { uuid: t.uuid, name: t.name, img: actor.img ?? null, effects: [] });
-    if ( !entry.effects.some(e => e.id === applied.id) ) {
-      entry.effects.push({ id: applied.id, name: applied.name, img: applied.img,
-        description: applied.description ?? "", reverted: false });
-    }
+    joinEffectReceipt(flag, { uuid: t.uuid, name: t.name, img: actor.img ?? null,
+      effects: [{ id: applied.id, name: applied.name, img: applied.img,
+        description: applied.description ?? "", reverted: false }] });
   }
   if ( flag.targets.length && receiptMessage ) await receiptMessage.setFlag(MODULE_ID, "effectReceipt", flag);
 }

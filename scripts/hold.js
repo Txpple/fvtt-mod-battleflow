@@ -6,6 +6,9 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
 import { hitTargets } from "./shared.js";
 import { rollDamageForAttack } from "./auto-damage.js";
 import { bfCard, reactionImg, armHoldTimer, disarmHoldTimer, reactionACBonus, closeAnsweredPopups } from "./ui.js";
+// Safe as a STATIC edge (unlike auto-apply.js below): effect-riders.js registers no hooks,
+// so evaluating it early cannot reorder anything — check-hook-order.mjs proves it.
+import { applyEffectsTo, joinEffectReceipt } from "./effect-riders.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1.5 — the reaction hold (a pause, NOT a system)
@@ -524,8 +527,13 @@ export function canAnswerFor(actor) {
   return false;
 }
 
-/** Record an answer for one held target and continue once every held target has answered. */
-export async function answerHold(attackMessage, uuid, answer) {
+/** Record an answer for one held target and continue once every held target has answered.
+ * `appliedEffects` (receipt-shaped entries from applyEffectsTo) rides along when the
+ * answering client just applied the reaction's own effect — the receipt must be written by
+ * a client that OWNS its message, which is exactly what splits the two branches below:
+ * the response message is the answering player's own (receipt embedded at creation), and
+ * the direct branch runs only where this client owns the held message itself. */
+export async function answerHold(attackMessage, uuid, answer, { appliedEffects = [] } = {}) {
   const hold = foundry.utils.deepClone(attackMessage.getFlag(MODULE_ID, "hold") ?? {});
   if ( hold.status !== "pending" ) return;
   const target = hold.targets?.find(t => t.uuid === uuid);
@@ -569,9 +577,19 @@ export async function answerHold(attackMessage, uuid, answer) {
         tone: cast ? "good" : "neutral"
       }),
       speaker: ChatMessage.getSpeaker({ actor }),
-      flags: { [MODULE_ID]: { respondsTo: attackMessage.id, uuid, answer, ac, effectLanded } }
+      // The reaction's own receipt (v1.8.0 — the §2.5 gap closed) rides the answering
+      // player's OWN message, because they cannot flag someone else's: the standard
+      // effectReceipt shape, so receipts.js renders the row + the GM's revert for free.
+      flags: { [MODULE_ID]: { respondsTo: attackMessage.id, uuid, answer, ac, effectLanded,
+        ...(appliedEffects.length ? { effectReceipt: { targets: appliedEffects } } : {}) } }
     });
     return;
+  }
+  if ( appliedEffects.length ) {
+    const receipt = foundry.utils.deepClone(
+      attackMessage.getFlag(MODULE_ID, "effectReceipt") ?? { targets: [] });
+    for ( const entry of appliedEffects ) joinEffectReceipt(receipt, entry);
+    await attackMessage.setFlag(MODULE_ID, "effectReceipt", receipt);
   }
   await attackMessage.setFlag(MODULE_ID, "hold", hold);
 }
@@ -633,8 +651,14 @@ async function answerHoldsFor(activity, actor) {
   }
   if ( !answering.length ) return;
 
-  if ( setting(S.holdApplyEffect) ) await applyReactionEffect(activity, actor, answering[0].reaction);
-  for ( const { message, uuid } of answering ) await answerHold(message, uuid, "cast");
+  let applied = [];
+  if ( setting(S.holdApplyEffect) ) applied = await applyReactionEffect(activity, actor, answering[0].reaction);
+  // The effect landed ONCE (RAW: one cast covers every attack it answers), so its receipt
+  // rides the FIRST answer only — a receipt per hold would say it applied twice.
+  for ( let i = 0; i < answering.length; i++ ) {
+    const { message, uuid } = answering[i];
+    await answerHold(message, uuid, "cast", { appliedEffects: i === 0 ? applied : [] });
+  }
 }
 
 /**
@@ -662,12 +686,14 @@ function hasReactionEffect(actor, reactionName, ids) {
     || (e.origin && item && e.origin.includes(item.id))));
 }
 
-// One of THREE effect appliers, and the differences are policy, not accident: this one is
-// the hold's self-cast sliver (name-or-origin dedupe for the clone-origin problem above; no
-// receipt yet — the response card announces instead). applyEffectRiders is native-tray
-// parity with the concentration origin rule and receipts; applyMasteryEffect applies
-// authored chips with weapon origins. Phase 3 (save-conditioned effects) is where they
-// converge on a shared core grown out of applyEffectRiders — do not unify them before it.
+// The reaction's self-cast sliver, CONVERGED at v1.8.0: the application runs through the
+// one shared loop (applyEffectsTo — name-or-origin dedupe for the clone-origin problem
+// above, the reactionEffect marker via extraFlags), and the entries it returns become the
+// standard effectReceipt on whichever message the answer path OWNS (the response message,
+// or the held message itself) — the §2.5 receipt/revert gap, closed. Two appliers remain
+// in the module by POLICY, not accident: this shared loop for document copies, and
+// applyMasteryEffect for authored chips (see its comment for why that stays separate).
+// Returns receipt-shaped entries; [] when nothing landed or the application failed.
 async function applyReactionEffect(activity, actor, reactionName, ids) {
   try {
     // ⚠ A cast activity has no effects of its own — they live on the spell it links to. Its
@@ -679,22 +705,14 @@ async function applyReactionEffect(activity, actor, reactionName, ids) {
       const spell = reactionItem(actor, reactionName, ids);
       effects = (spell?.effects?.contents ?? []).filter(e => !e.transfer);
     }
-    for ( const effect of effects ) {
-      const existing = actor.effects.find(e => (e.origin === effect.uuid) || (e.name === effect.name));
-      if ( existing ) {
-        await existing.update({ ...effect.constructor.getInitialDuration(), disabled: false });
-        continue;
-      }
-      await ActiveEffect.implementation.create({
-        ...effect.toObject(),
-        disabled: false,
-        transfer: false,
-        origin: effect.uuid,
-        flags: { dnd5e: { dependentOn: effect.uuid }, [MODULE_ID]: { reactionEffect: true } }
-      }, { parent: actor });
-    }
+    if ( !effects.length ) return [];
+    return await applyEffectsTo([{ uuid: actor.uuid, name: actor.name }], effects, {
+      matchNames: true,
+      extraFlags: { [MODULE_ID]: { reactionEffect: true } }
+    });
   } catch(err) {
     console.error(`${TITLE} | Could not apply the reaction's effect — apply it from the card.`, err);
+    return [];
   }
 }
 
@@ -773,7 +791,15 @@ async function driveHoldContinuation(attackMessage, hold) {
       // activityId the hold recorded, so the cached spell is found rather than a worn shield.
       const item = reactionItem(actor, target.reaction, target);
       const activity = item?.system.activities?.contents?.[0];
-      await applyReactionEffect(activity, actor, target.reaction, target);
+      const entries = await applyReactionEffect(activity, actor, target.reaction, target);
+      if ( entries.length ) {
+        // The continuing client owns the held message (its roll, or the GM fallback), so
+        // the safety net's receipt lands there — same shape, same rows, same revert.
+        const receipt = foundry.utils.deepClone(
+          attackMessage.getFlag(MODULE_ID, "effectReceipt") ?? { targets: [] });
+        for ( const entry of entries ) joinEffectReceipt(receipt, entry);
+        await attackMessage.setFlag(MODULE_ID, "effectReceipt", receipt);
+      }
     }
   }
 
