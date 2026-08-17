@@ -165,6 +165,42 @@ applies per verdict). The rest of the checklist walk continues at the table; ite
 ①③④⑥⑨⑪⑬⑮ + the settings-menu sanity check were not yet individually confirmed, and one
 watch item stands (⑭ year-off timestamps — hover + note the AUTHOR).
 
+### 🚶 THE v1.10.0 WALK — the user's checklist for the next testing session
+
+Everything below is suite-proven; this walk is the live confirmation. The protocol
+stands: number the findings, aggregate everything, then one battery-green fix pass, then
+release. The settings table above is law — the walk needs no settings changes. The party
+is as the user left it (Gren long-rested himself 12:17); `tools/maintain-party.mjs` is
+the clean-slate lever if wanted. Every client must log back in first (the box was
+bounced for the install).
+
+1. **Cards always post.** Swing a weapon, cast an attack spell, cast a save spell, cast
+   a heal — every use shows its first card, buttons hidden except Refund Resource and
+   **Place Measured Template** (that one is back on purpose).
+2. **Shatter, template placed during the cast** — the fixed stamp: ONLY creatures inside
+   the circle get popups, even with stale manual targets up (this morning's Gren case —
+   the popup should now never open for an outsider). The popups and the card rows run
+   the 6s bar together.
+3. **Shatter, placement CANCELED, then placed from the card's button** — the adoption
+   path: the demand stamps from the manual snapshot first, then swings to the area when
+   the template lands; any snapshot target's popup that opened CLOSES ITSELF the moment
+   they drop out. (This is the strand fix visible live.)
+4. **Moonbeam walked** — drag/re-place the circle mid-demand: pending targets follow the
+   area, dropped popups close, new arrivals get fresh asks.
+5. **Topple** — the popup AND the card drain the same 6s bar; let one expire untouched:
+   the save rolls itself and the announcement says "rolled by the timer". The GM
+   per-target prone button still works for paper rolls.
+6. **A Vex/Sap/Cleave reminder** — the notice CARD now drains its 15s bar publicly (the
+   pairing rule); the popup behaves as before.
+7. **Slow mastery payout** — the Slowed chip lands with NO purple ring (the AA config
+   fix). If handy, cast the actual Slow spell too: ITS animation should still play (the
+   exact-match survives). A ring anywhere here → item 2's if-it-recurs note above.
+8. **Settings sheet sanity** — the five Suppress rows are GONE; Table Polish starts at
+   Hide Redundant Buttons; nothing else moved.
+9. **Still standing from round one:** items ①③④⑥⑨⑪⑬⑮ unconfirmed, and watch item ⑭ —
+   if a "year ago" timestamp appears, hover it for the real date and note WHICH USER
+   authored the message before clearing chat.
+
 **State at handoff:** working tree clean, the v1.10.0 three-commit train pushed (test →
 feat tagged v1.10.0 → docs); the GitHub release carries zip + bare module.json; the box
 runs a staging-installed copy of the exact v1.10.0 release bits (the process was bounced
