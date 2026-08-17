@@ -116,6 +116,65 @@ update this table, never fight it:
 
 ## Open items
 
+### ⚡ ROUND TWO feedback — aggregated 2026-08-17, NOT YET FIXED. The next session's queue.
+
+The user walked v1.9.5's checklist live and opened a second feedback round (the protocol:
+aggregate everything, then fix in one battery-green pass, then release). Four items
+stand, plus one question awaiting their answer. **Settings discipline applies: their
+reference table above is law — verify after every run.**
+
+1. **Topple saves get the timer** — no bar on the topple save popup, none on the card row
+   ("Morgash waiting for the DM"), and the user invoked the universal design language:
+   every table moment carries the deadline bar and one authoritative clock. This SETTLES
+   the old "topple timer v1" decision as YES. Shape: adopt the SAVE machine's semantics —
+   deadline stamped on the topple flag, `holdBarHTML` bar on popup + card row (+
+   `scheduleBarSync`), buzzer that ROLLS at expiry (a demanded save is mandatory — marked
+   `timedOut`, straight and data-driven), riding the existing `saveTimer` setting (6s at
+   this table), no new setting. The GM prone button stays as the paper-roll backstop.
+2. **The Slow VFX ring still appears** — it is NOT dnd5e-native: Automated Animations
+   (with the JB2A / dnd5e-animations preset packs, all active — probe-confirmed module
+   list) plays a looping ring when the Slowed condition lands. Last round this was parked
+   as "config awaiting the user's word" and that read as *fixed* on their side —
+   communication failure, now in scope. Fix: disable the Slowed-condition animation in
+   the AA/preset config over the bridge; if AA's settings format is too fragile to write
+   safely, STOP and hand the user the exact clicks in AA's menu instead. The module's own
+   application is already a plain status chip.
+3. **Every use shows its FIRST card** — weapon attacks, attack spells, spells: the card
+   always posts as the record, `hideCardButtons` (already live) strips the workflow
+   buttons. The user's understanding of the v1.9.5 agreement; what shipped was the
+   button-half only, and their table still has all suppression buckets ON eating the
+   cards. Immediate fix: suppression OFF at the table (master off; update the reference
+   table rows when done). **OPEN QUESTION posed to the user**: (A) settings-only flip,
+   zero risk, keeps the option — or (B) rip the suppression machinery out entirely (the
+   honest collapse: four bucket settings, the carve-outs, AND the replacement-bfCard
+   plumbing the hold's §6f and cast slice grew to survive suppression — a real
+   simplification but it touches load-bearing paths and a dozen suite sections; its own
+   deliberate pass, not a mid-round rider). No answer yet.
+4. **A containment-dropped target's popup strands open** — live: Shatter's template
+   placed away from the (still-manually-targeted) Practice Dummy; the demand ended up
+   correct (dummy excluded — no verdict, no damage; Jetten inside got the save and the
+   buzzer rolled it), but the demand STAMPED with the stale snapshot first, the dummy's
+   popup opened, and the containment refresh then removed the entry — and the popup-close
+   pass only closes popups for DONE entries, not entries that no longer exist. The popup
+   sat asking a withdrawn question. Fix: (a) the containment refresh closes + disarms the
+   popup of any pending entry it drops, and the close pass also sweeps popups whose entry
+   is GONE; (b) chase why stamp-time containment (results.templates) let the outside
+   target in at all on a live rendering client — the adoption floor caught it, but the
+   popup should never open. Verify while there: Jetten's timer-failure applied its
+   damage (the report's screenshot crops before the answer).
+
+**Round-one checklist, user-verified so far:** Divine Favor ✓ (effect applies), template
+cleanup ✓ (instantaneous spent, duration stays), save-spell damage ✓ (auto-rolls and
+applies per verdict). The rest of the checklist walk continues at the table; items
+①③④⑥⑨⑪⑬⑮ + the settings-menu sanity check were not yet individually confirmed, and the
+two watch items stand (⑭ year-off timestamps — hover + note the AUTHOR; ② is now round
+two's item 1).
+
+**State at handoff:** working tree clean, everything through the teardown-hardening
+commit pushed; v1.9.5 released and installed on the box (staging copy == release bits);
+world up, bridge disconnected; the party maintained (maintain-party.mjs); the user's
+settings exactly as the reference table records. No code changes are in flight.
+
 ### Where the plan points now (2026-08-17, small hours — post-v1.9.5)
 
 **The dogfood sixteen are closed** — the user's live saves walk (2026-08-16) produced
