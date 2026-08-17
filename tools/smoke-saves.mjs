@@ -8,7 +8,10 @@
 // v1.12.0 adds §10 (the WAITING demand: a bare template cast stamps zero targets and no
 // deadline, the placed area delivers targets and arms the clock — findings ②+③) and §11
 // (the GM's unsolicited popups are non-player-owned targets only; the quiet PC rides the
-// buzzer — finding ④).
+// buzzer — finding ④). v1.14.0 adds §12 (spell-truth geometry on a suite-built 140px
+// scene — the v14 region shim scales stored distance by gridSize/100, invisible on this
+// 100px range, and containment must follow the honest dnd5e dimensions flag instead) and
+// §13 (the spent sweep as a convergent floor + its newest-cast fossil wall).
 //
 // Harness discipline (HANDOFF): every setting touched is restored to whatever was found;
 // every message this run creates is deleted on the way out; BF Test fixtures are long-rested;
@@ -26,7 +29,7 @@ for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
   if (m) env[m[1]] = m[2];
 }
 
-setTimeout(() => { console.error('[saves] WATCHDOG 420s'); process.exit(3); }, 420_000);
+setTimeout(() => { console.error('[saves] WATCHDOG 560s'); process.exit(3); }, 560_000);
 
 const f = new Foundry({
   serverUrl: env.MOLTEN_SERVER_URL, magicUrl: env.MOLTEN_MAGIC_URL,
@@ -67,6 +70,7 @@ const out = await f.evaluate(async () => {
   const CHIP_NAMES = ['BF Poisoned', 'BF Splashed'];
   const created = { items: [], tokens: [], templates: [] };
   const priorActor = {};
+  let shimScene = null; // §12's own 140px scene — deleted whole in teardown
   let restored = false;
   const clearChips = async () => {
     for (const a of [victim, shielder]) {
@@ -96,6 +100,7 @@ const out = await f.evaluate(async () => {
       if (liveTokens.length) await scene.deleteEmbeddedDocuments('Token', liveTokens);
       const liveTemplates = created.templates.filter(id => scene.templates.get(id));
       if (liveTemplates.length) await scene.deleteEmbeddedDocuments('MeasuredTemplate', liveTemplates);
+      if (shimScene && game.scenes.get(shimScene.id)) await shimScene.delete();
       for (const [actorId, data] of Object.entries(priorActor)) {
         await game.actors.get(actorId)?.update(data);
       }
@@ -977,6 +982,131 @@ const out = await f.evaluate(async () => {
         await until(() => card11.getFlag(MOD, 'saves')?.targets?.every(t => t.applied), 12000);
         await set('saveTimer', 0);
       }
+    }
+
+    // ============================================== 12. spell-truth geometry (v1.13.0 walk finding ①)
+    // Foundry 14's region shim scales a template's stored `distance` by gridSize/100 in
+    // the CREATE round-trip (probes 7–9, 2026-08-17: ×1.4 on 140px, ×0.7 on 70px, and
+    // `width` comes back as raw pixels) — invisible on this 100px range, which is exactly
+    // how every battery stayed green while the live 140px table demanded Salyth from
+    // outside every drawn cube. This section builds its own 140px scene and pins the
+    // rescue: containment reads the honest dnd5e `dimensions` flag, so the demand matches
+    // the SPELL whatever the server did to the stored field. The assertions are
+    // FACTOR-PROOF — they hold whether the shim lies or is one day fixed upstream
+    // (shimFactor is logged so the fix announces itself in the transcript).
+    let card12 = null;               // §13 rides this demand's completed lifecycle
+    let tpl12Id = null;
+    const actUuid12 = tmplActivity().uuid;
+    {
+      await clearChips();
+      await saveBonus(victim, '-30');
+      await healFull(victim);
+      shimScene = await Scene.create({
+        name: 'BF Shim Range', width: 2800, height: 2100, tokenVision: false,
+        grid: { type: 1, size: 140, distance: 5, units: 'ft' }
+      });
+      const proto = a => foundry.utils.mergeObject(a.prototypeToken.toObject(),
+        { actorId: a.id, actorLink: true }, { inplace: false });
+      // A 10 ft cube at (1400,1400): honest side 280px. IN stands in the cube's first
+      // square (center 1470,1470); OUT stands with its center 350px from the origin —
+      // outside the honest 280, inside a ×1.4 phantom's 392 (the Salyth position).
+      // DISTINCT actors on purpose: entries dedupe by actor uuid, so one actor's two
+      // tokens could never discriminate the phantom from the truth.
+      await shimScene.createEmbeddedDocuments('Token',
+        [foundry.utils.mergeObject(proto(victim), { x: 1400, y: 1400 }, { inplace: false })]);
+      await shimScene.createEmbeddedDocuments('Token',
+        [foundry.utils.mergeObject(proto(shielder), { x: 1680, y: 1400 }, { inplace: false })]);
+      target();                       // bare — the WAITING stamp is adoption's customer
+      await sleep(120);
+      const use12 = await tmplActivity().use(
+        { create: { measuredTemplate: false } }, { configure: false }, {});
+      card12 = use12?.message instanceof ChatMessage ? use12.message : null;
+      if (!card12) return { fatal: 'section 12 cast produced no card' };
+      await until(() => card12.getFlag(MOD, 'saves'), 6000);
+
+      // The dialog placement's exact shape on the shim scene: origin-tied, honest
+      // dimensions stamped, honest diagonal SENT — whatever the server stores is its
+      // truth, and the rescue must not care.
+      const sent12 = Math.hypot(10, 10);
+      const [tpl12] = await shimScene.createEmbeddedDocuments('MeasuredTemplate', [{
+        t: 'rect', x: 1400, y: 1400, direction: 45, distance: sent12,
+        flags: { dnd5e: { origin: actUuid12, dimensions: { size: 10, adjustedSize: false } } }
+      }]);
+      tpl12Id = tpl12.id;
+      const stored12 = shimScene.templates.get(tpl12.id)?.distance ?? NaN;
+      log.push(`section 12 shimFactor=${(stored12 / sent12).toFixed(3)} `
+        + `(sent ${sent12.toFixed(3)}, stored ${stored12.toFixed(3)}) — 1.000 means upstream healed`);
+
+      try { ui.chat?.updateMessage?.(card12); } catch { /* the next render carries it */ }
+      const adopted12 = await until(() => {
+        const f = card12.getFlag(MOD, 'saves');
+        return (f?.templated && (f.targets ?? []).length) ? f : null;
+      });
+      const uuids12 = (adopted12?.targets ?? []).map(t => t.uuid);
+      ok('12a. containment is spell-true on a 140px grid — the honest dimensions flag wins',
+        !!adopted12 && uuids12.includes(victim.uuid) && !uuids12.includes(shielder.uuid)
+          && (uuids12.length === 1),
+        `targets=[${(adopted12?.targets ?? []).map(t => t.name).join()}] `
+          + `shim=${(stored12 / sent12).toFixed(3)}`);
+
+      // Run it to done for §13: the popup asks for the NPC arrival, -30 fails, applied lands.
+      const name12 = adopted12?.targets?.[0]?.name ?? victim.name;
+      const popup12 = await until(() => savePopups().find(p => p.textContent.includes(name12)), 6000);
+      [...(popup12?.querySelectorAll('footer button, .form-footer button') ?? [])]
+        .find(b => b.textContent.trim() === 'Normal')?.click();
+      const done12 = await until(() => {
+        const f = card12.getFlag(MOD, 'saves');
+        return f?.targets?.every(t => t.done && t.applied) ? f : null;
+      }, 20000);
+      ok('12b. the shim-scene demand runs to applied', !!done12,
+        `state=${JSON.stringify((card12.getFlag(MOD, 'saves')?.targets ?? [])
+          .map(t => ({ done: t.done, applied: t.applied })))}`);
+    }
+
+    // ============================================== 13. the spent sweep converges (finding ②)
+    // The completion one-shot demonstrably got lost live (stale Fireball circles with
+    // every target applied — the prime suspect is an elect flip mid-chain: probe GM
+    // sessions were connecting and disconnecting through the walk). The sweep is a
+    // convergent floor now: done + instantaneous + origin-still-standing ⇒ swept on the
+    // next render, whoever the elect is by then — and a NEWER same-activity card disarms
+    // an old card's sweep forever (the fossil wall: a recast reuses the activity uuid,
+    // and an old card must never delete the current cast's area).
+    {
+      // 13a: the completion one-shot swept §12's template (durationUnits "inst" rides
+      // the fixture item).
+      const gone13 = await until(() => !shimScene.templates.get(tpl12Id), 8000);
+      ok('13a. an instantaneous demand sweeps its area at completion', !!gone13,
+        `still=${!!shimScene.templates.get(tpl12Id)}`);
+
+      // 13b: a stale leftover — the lost-one-shot shape — converges on the next render.
+      const [stale13] = await shimScene.createEmbeddedDocuments('MeasuredTemplate', [{
+        t: 'rect', x: 1400, y: 1400, direction: 45, distance: Math.hypot(10, 10),
+        flags: { dnd5e: { origin: actUuid12, dimensions: { size: 10, adjustedSize: false } } }
+      }]);
+      try { ui.chat?.updateMessage?.(card12); } catch { /* render floor */ }
+      const swept13 = await until(() => !shimScene.templates.get(stale13.id), 8000);
+      ok('13b. a done demand re-sweeps a stale area on render — the convergent floor', !!swept13,
+        `still=${!!shimScene.templates.get(stale13.id)}`);
+
+      // 13c: the fossil wall. The stub is status DONE and carries no `templated`, so no
+      // floor in the machine can act on it — it exists only to be newer.
+      const stub13 = await ChatMessage.create({
+        content: 'BF test — newer same-activity stub (section 13c)',
+        flags: { [MOD]: { saves: { status: 'done', activityUuid: actUuid12, targets: [] } } }
+      });
+      const [stale13c] = await shimScene.createEmbeddedDocuments('MeasuredTemplate', [{
+        t: 'rect', x: 1400, y: 1400, direction: 45, distance: Math.hypot(10, 10),
+        flags: { dnd5e: { origin: actUuid12, dimensions: { size: 10, adjustedSize: false } } }
+      }]);
+      try { ui.chat?.updateMessage?.(card12); } catch { /* render floor */ }
+      await sleep(1500);
+      const held13 = !!shimScene.templates.get(stale13c.id);
+      ok('13c. a newer same-activity cast disarms an old card\'s sweep — the fossil wall',
+        held13, `survived=${held13}`);
+      if (shimScene.templates.get(stale13c.id)) {
+        await shimScene.deleteEmbeddedDocuments('MeasuredTemplate', [stale13c.id]);
+      }
+      await ChatMessage.deleteDocuments([stub13.id]);
     }
 
     return { log, results, skips };
