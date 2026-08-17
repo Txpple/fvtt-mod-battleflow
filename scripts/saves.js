@@ -141,6 +141,9 @@ async function stampSaveDemand(activity, message, results) {
       hasDamage: saveModulated,
       effectNames,
       activityUuid: activity.uuid,
+      // The dnd5e area type (cube, sphere, …) — adoption's shape gate for a TOOLBAR-drawn
+      // template, which carries no origin flag to match by (the v1.12.0 walk's finding ①).
+      templateType: activity.target?.template?.type ?? null,
       templated: !!contained,
       ...(awaiting ? { awaitingTemplate: true } : {}),
       durationUnits: activity.item?.system?.duration?.units ?? null,
@@ -199,15 +202,64 @@ function tokensInTemplates(templates) {
   return entries;
 }
 
-/** The template's shape — the drawn object's when it exists (every rendering client), a
- * document-computed circle otherwise (a page whose template layer never drew, e.g. the
- * harness). Non-circle types without a drawn shape are skipped rather than guessed. */
+/** The template's shape — the drawn object's when it exists, else CORE'S OWN shape
+ * builders, else Euclidean math. Two expensive truths (v1.12.0 walk finding ① + its live
+ * re-test, 2026-08-17): the fallback used to cover CIRCLES only — the harness never
+ * draws, and on a live client createMeasuredTemplate fires BEFORE the canvas computes
+ * object.shape, so a cube's rect had no shape at the only moment adoption looked and
+ * "waiting kept waiting". And hand-rolled EUCLIDEAN geometry is the wrong truth in a
+ * gridded world: this world runs the core `gridTemplates` setting ON, where shapes are
+ * grid-built polygons — the Euclidean rect for the walk's cube was 784px wide against
+ * the drawn 560px, and Salyth got demanded from outside the visible area. Core's
+ * getCircleShape/getRectShape/getConeShape/getRayShape statics run the exact grid-aware
+ * branch the renderer uses (doc-native units: scene units + degrees). They are
+ * deprecated since v14 (until 16, ShapeData replaces them — one console warning per
+ * session; migrate when 16 lands) and they read canvas.grid, so they are the truth for
+ * the CURRENT scene only; a cross-scene template falls to the Euclidean math (exact when
+ * gridTemplates is off, approximate otherwise — adoption's claim is current-scene-only
+ * anyway, and cross-scene demands are dialog-placed). */
 function templateShape(doc) {
   if ( doc.object?.shape ) return doc.object.shape;
-  if ( doc.t === "circle" ) {
-    const grid = doc.parent?.grid;
-    if ( !grid?.size || !grid?.distance ) return null;
-    return new PIXI.Circle(0, 0, (doc.distance ?? 0) * (grid.size / grid.distance));
+  if ( (doc.parent === canvas?.scene) && canvas?.dimensions?.distancePixels ) {
+    try {
+      const cls = CONFIG.MeasuredTemplate?.objectClass;
+      switch ( doc.t ) {
+        case "circle": return cls.getCircleShape(doc.distance ?? 0);
+        case "rect": return cls.getRectShape(doc.distance ?? 0, doc.direction ?? 0);
+        case "cone": return cls.getConeShape(doc.distance ?? 0, doc.direction ?? 0,
+          doc.angle || CONFIG.MeasuredTemplate?.defaults?.angle || 53.13);
+        case "ray": return cls.getRayShape(doc.distance ?? 0, doc.direction ?? 0, doc.width ?? 0);
+      }
+    } catch(err) {
+      console.warn(`${TITLE} | Core template shape builder failed; using Euclidean fallback.`, err);
+    }
+  }
+  const grid = doc.parent?.grid;
+  if ( !grid?.size || !grid?.distance ) return null;
+  const d = (doc.distance ?? 0) * (grid.size / grid.distance);
+  const dir = Math.toRadians(doc.direction ?? 0);
+  switch ( doc.t ) {
+    case "circle": return new PIXI.Circle(0, 0, d);
+    case "rect": {
+      const dx = Math.cos(dir) * d, dy = Math.sin(dir) * d;
+      return new PIXI.Rectangle(Math.min(0, dx), Math.min(0, dy), Math.abs(dx), Math.abs(dy));
+    }
+    case "ray": {
+      const w = (doc.width ?? 0) * (grid.size / grid.distance);
+      const dx = Math.cos(dir), dy = Math.sin(dir);
+      const ox = -dy * (w / 2), oy = dx * (w / 2);
+      return new PIXI.Polygon([ox, oy, dx * d + ox, dy * d + oy, dx * d - ox, dy * d - oy, -ox, -oy]);
+    }
+    case "cone": {
+      const angle = Math.toRadians(doc.angle || 53.13);
+      const points = [0, 0];
+      const steps = 12;
+      for ( let i = 0; i <= steps; i++ ) {
+        const a = dir - (angle / 2) + (angle * i / steps);
+        points.push(Math.cos(a) * d, Math.sin(a) * d);
+      }
+      return new PIXI.Polygon(points);
+    }
   }
   return null;
 }
@@ -238,6 +290,48 @@ function templatesForOrigin(activityUuid) {
   return found;
 }
 
+/** The foundry template type a demand's area will wear (cube → rect &c.) — the system's
+ * own map, so the module never hardcodes the correspondence. Null when the demand predates
+ * templateType (pre-v1.13.0 stamps) or the type is unmapped: no toolbar adoption, only the
+ * origin-tied paths. */
+function expectedTemplateT(flag) {
+  if ( !flag.templateType ) return null;
+  return CONFIG.DND5E?.areaTargetTypes?.[flag.templateType]?.template ?? null;
+}
+
+/**
+ * A TOOLBAR-drawn template carries no dnd5e origin flag — there is nothing for
+ * templatesForOrigin to ever match, so before v1.13.0 the card's own "waiting for the
+ * template's area" line pointed at a placement path that could not work (the v1.12.0
+ * walk's finding ①). The waiting demand may CLAIM such a template: the newest origin-less
+ * template of the demand's expected shape, on the ELECT'S CURRENT SCENE only (the toolbar
+ * draw happens where the table is looking; and _stats.createdTime has been observed
+ * unreadable on this box, so the created-after gate cannot carry the fossil bound alone —
+ * the scene restriction is the second wall). The claim writes the origin flag onto the
+ * template, so from that moment every downstream mechanism — moves, re-placement, the
+ * spent sweep — treats it exactly like a dialog placement. Elect write, like every
+ * world-visible mutation.
+ */
+async function claimBareTemplate(card, flag) {
+  const expected = expectedTemplateT(flag);
+  if ( !expected ) return null;
+  const here = canvas?.scene;
+  if ( !here ) return null;
+  const candidates = [];
+  for ( const t of here.templates ) {
+    if ( t.getFlag("dnd5e", "origin") ) continue;
+    if ( t.t !== expected ) continue;
+    const born = t._stats?.createdTime ?? t._source?._stats?.createdTime ?? null;
+    if ( born && (born < card.timestamp) ) continue; // predates the cast — decoration
+    candidates.push({ t, born: born ?? 0 });
+  }
+  if ( !candidates.length ) return null;
+  candidates.sort((a, b) => a.born - b.born);
+  const tpl = candidates.at(-1).t;
+  await tpl.setFlag("dnd5e", "origin", flag.activityUuid);
+  return tpl;
+}
+
 /** Same-client latch: one containment refresh in flight per card. */
 const templateRefreshes = new Set();
 
@@ -266,7 +360,28 @@ async function refreshDemandFromTemplates(card) {
     // customer too: it exists precisely so the area can deliver its targets later.
     const wasWaiting = !(flag.targets ?? []).length;
     if ( !wasWaiting && !(flag.targets ?? []).some(t => !t.done) ) return;
-    const templates = templatesForOrigin(flag.activityUuid);
+    // ONE customer per area among WAITING casts: the newest same-activity waiting demand
+    // owns any arriving template (the fossil rule, standing item 17, applied to waiting —
+    // the v1.12.0 walk left FOUR bare Web casts waiting, and without this gate one placed
+    // cube fills all four: four popup sets for one area. Older waiting casts stay waiting
+    // forever, which is already item 5's deliberate shape).
+    if ( wasWaiting ) {
+      const newer = game.messages.contents.some(m => {
+        if ( (m.id === card.id) || (m.timestamp <= card.timestamp) ) return false;
+        const f = m.getFlag(MODULE_ID, "saves");
+        return (f?.status === "pending") && (f.activityUuid === flag.activityUuid)
+          && !(f.targets ?? []).length;
+      });
+      if ( newer ) return;
+    }
+    let templates = templatesForOrigin(flag.activityUuid);
+    // Nothing origin-tied: a waiting demand may claim a toolbar-drawn (origin-less)
+    // template of its expected shape — the claim stamps the origin, so this branch runs
+    // at most once per template ever.
+    if ( !templates.length && wasWaiting ) {
+      const claimed = await claimBareTemplate(card, flag);
+      if ( claimed ) templates = [claimed];
+    }
     if ( !templates.length ) return;
     const contained = tokensInTemplates(templates) ?? [];
     const merged = foundry.utils.deepClone(flag);
@@ -296,15 +411,19 @@ async function refreshDemandFromTemplates(card) {
   }
 }
 
-/** The CRUD fast-path: when the hooks DO fire, refresh the newest live demand at once. */
+/** The CRUD fast-path: when the hooks DO fire, refresh the newest live demand at once.
+ * An origin-LESS template (the toolbar draw, finding ①) is offered to the newest WAITING
+ * demand expecting its shape — the refresh's claim does the actual tying. */
 function refreshTemplatedDemands(templateDoc) {
+  if ( !isActiveGM() || !setting(S.saves) ) return;
   const origin = templateDoc.getFlag("dnd5e", "origin");
-  if ( !origin || !isActiveGM() || !setting(S.saves) ) return;
   const live = game.messages.contents.filter(m => {
     const f = m.getFlag(MODULE_ID, "saves");
-    return (f?.status === "pending") && (f.activityUuid === origin)
+    if ( f?.status !== "pending" ) return false;
+    if ( origin ) return (f.activityUuid === origin)
       // Undone targets, or a WAITING demand (zero targets) whose area just arrived.
       && (!(f.targets ?? []).length || (f.targets ?? []).some(t => !t.done));
+    return !(f.targets ?? []).length && (expectedTemplateT(f) === templateDoc.t);
   }).sort((a, b) => a.timestamp - b.timestamp);
   const card = live.at(-1);
   if ( card ) void refreshDemandFromTemplates(card);
