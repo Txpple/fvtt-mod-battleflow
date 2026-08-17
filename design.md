@@ -180,6 +180,21 @@ bar or notification stack — the bar is drawn privately in the popup/card.
 ⚠ DialogV2's `render` hook receives the APPLICATION, not an element (house ground truth from
 partystash).
 
+> **Amended 2026-08-17 (v1.10.0, user calls) — the table-moment contract, made binding for
+> every popup surface:**
+> - **The pairing rule.** Whenever a popup timer runs, a corresponding PUBLIC CARD runs the
+>   same bar — *"the popup is for the user to see, the card is for the table to see"* (and
+>   the decider sees both; the card stays public to everyone). Same flag deadline on both
+>   surfaces, both synced through `scheduleBarSync` (drift 0 is the measured standard). No
+>   timed popup without its table-facing card; no card bar frozen while the popup drains.
+> - **A popup closes when its question is withdrawn.** Dropped demand entries (template
+>   containment moving on), resolved moments, and deleted cards all sweep their popups —
+>   a popup asking a question the machine has already withdrawn is a lie on screen.
+> - **Every table moment carries the deadline bar and one authoritative clock that RESOLVES
+>   it at expiry** — pass for decisions, roll for demanded saves, dismiss for reminders.
+>   A moment that can wait forever does so only by explicit setting (timer 0), never by a
+>   missing buzzer.
+
 ---
 
 ## 5. The phase ladder
@@ -256,6 +271,18 @@ off), none changing the resolution chain:
   > when the riders will *not* handle them — Effect Riders off, or a concentration cast,
   > whose origin linkage only the card can supply. With riders on, an ordinary
   > effect-carrying card may go; the effects land anyway.
+  > **REMOVED at v1.10.0 (user call, 2026-08-17: "we rip out the card suppression
+  > machinery, and we just have machinery to hide non-refund-resource buttons").** The
+  > dogfood walk recalibrated the diagnosis: the card's COST was never the card — it was
+  > the action buttons, a second manual path that forks the machine. So **every use posts
+  > its first card** (the description, the targets, the effects tray are the record), and
+  > **Hide Redundant Buttons** (v1.9.5, world, default ON) is the ONLY card-shaping
+  > machinery: every `.card-buttons` action hidden except Refund Resource and Place
+  > Measured Template — the two that are bookkeeping/aiming rather than workflow, with no
+  > automated equivalent. The master, the four buckets, the carve-outs, and the
+  > replacement-bfCard plumbing (the hold's §6f bus, the cast slice's replacement) are
+  > deleted outright — settings, functionality and all, the holdView/saveAutoRoll
+  > precedent. The native card is always the bus again.
 - **Damage receipts are for the whole table, the HP pool is not.** Everyone sees *who* the
   damage landed on and how much; the before → after hit points and the revert control stay
   GM-only. A rolled number with no named target is the thing players actually complained
@@ -514,6 +541,9 @@ v1.3.0 (2026-08-16).
   (Effect Riders off, or a concentration cast — its origin linkage lives on the card and the
   suppressed-card fallback cannot rebuild it). Scope guard: attack-activity cards only;
   save-spell cards are load-bearing until Phase 2.
+  > **REMOVED at v1.10.0** — see the Phase 1.1 suppression note for the full policy: cards
+  > always post, `hideCardButtons` (v1.9.5) is the surviving card-shaping machinery, and
+  > the whole 1.9D switch block is deleted.
 - ⚠ **THE FENCE (user call, permanent for this phase): nothing here ever modifies a d20.**
   Advantage/disadvantage enforcement and consumed-on-use expiry (the AC5e-sized lift) are
   explicitly out of scope — the applied chip is the reminder and the roll dialog's adv/dis
@@ -525,6 +555,28 @@ v1.3.0 (2026-08-16).
 > **Shipped v1.7.0 (2026-08-16, joint with Phase 3's save slice), exactly as the note below
 > prescribed.** One new sibling (`saves.js`) plus one entry import; the 2.5 machine
 > generalized per target; battery-proven (smoke-saves, 22 assertions) and OFF by default.
+
+> **Amended 2026-08-16/17 (v1.9.5–v1.10.0, user calls): template containment IS the target
+> set, in both directions.** A save demand whose activity placed a template derives its
+> targets from the AREA — at the stamp (`results.templates` at postUseActivity), by
+> adoption when a matching-origin template appears later, and as the area moves or
+> re-places: done entries keep their verdicts, pending entries outside drop (and their
+> popups close — the §4.3 withdrawal rule), arrivals join fresh. Manual targeting stays
+> the bus for template-less casts, and "no template" (snapshot) is distinguished from "an
+> empty template" (nobody saves) on purpose. Instantaneous templates are spent once every
+> verdict's consequences land; duration spells keep theirs. ⚠ Ground truth (v1.10.0, read
+> from 5.3.3 source after two live misfires): `results.templates` entries are **arrays**,
+> not documents — `#placeTemplate` pushes `drawPreview()`'s resolution, which is the raw
+> `createEmbeddedDocuments` result. Flatten before containment, or every live placement
+> silently falls back to the manual snapshot.
+>
+> **The topple demand joined the save machine's timer at v1.10.0** (user call, round two:
+> the universal design language — every table moment carries the deadline bar and one
+> authoritative clock). The topple flag stamps `saveTimer`'s deadline, the bar runs on
+> popup + card row, and the buzzer ROLLS the still-pending targets straight and
+> data-driven (a demanded save is mandatory), marked as the timer's press. The GM
+> per-target prone button remains the paper-roll backstop. v1's "no timer" stance is
+> superseded.
 > Deliberate corners, recorded in the file's banner: a multi-ability save ("Str or Dex")
 > auto-rolls the FIRST listed ability (the fold accepts any listed one, so the other is a
 > sheet roll away); a consumed item strands its effects (they live on the item document);
@@ -688,6 +740,9 @@ corrupts game state.
 > applies those). The topple ask also gained its popup: the same native-controls surface
 > the concentration ask carries, on the decider's client ("the cards are difficult to
 > follow").
+> **Amended v1.10.0:** with suppression removed (Phase 1.1 note), the replacement-card
+> and damage-bridge plumbing above is deleted — the native card is always the bus; the
+> veto's whole-log fallback stays for genuinely unbridged rolls.
 
 Auto-apply a used activity's effects, filtered by outcome — the native effect tray's semantics
 (`EffectApplicationElement._applyEffectToActor`), pressed automatically:
@@ -738,7 +793,8 @@ World, per-feature, default OFF unless noted:
 | Auto-apply damage | off / on | 1 |
 | Dramatic beat before damage | off / seconds | 1 |
 | Require a target to attack | off / on | 1.1 |
-| Suppress attack usage cards | off / on (master over the 1.9D per-source switches) | 1.1 |
+| ~~Suppress attack usage cards~~ | **removed v1.10.0** (with the whole suppression machinery — cards always post) | 1.1 |
+| Hide redundant card buttons | on (default, world) — every card action button hidden except Refund Resource and Place Measured Template; **shipped v1.9.5**, keep-list amended v1.10.0 | 1.9 |
 | Center roll dialogs (per client) | off / on — **ships ON**, the one recorded default-off exception (user call 2026-08-15: a per-client comfort nobody knows to look for starts wrong on every new login) | 1.1 |
 | Reaction hold | off / on + curated interrupt list (entries: name, AC-type/damage-type) | 1.5 |
 | Spells a reaction blocks | curated list (`Spell:Reaction`, default `Magic Missile:Shield`) | 1.5 |
@@ -751,7 +807,7 @@ World, per-feature, default OFF unless noted:
 | Effect riders | off / on | 1.9 |
 | Mastery riders | off / on | 1.9 |
 | Mastery: ask first | ask / auto (Vex and Sap never ask — the rules make them automatic) | 1.9 |
-| Per-source suppression | weapon / spell / feature / other, each on under the 1.1 master | 1.9 |
+| ~~Per-source suppression~~ | **removed v1.10.0** with the master | 1.9 |
 | Saves | off / on — **shipped v1.7.0**: popup default, per-player client opt-out to auto-roll, save timer (15s default; expiry ROLLS); the old "prompt/auto everyone" ladder is superseded by the 2026-08-16 user call | 2 |
 | Concentration | off / prompt / auto | 2.5 |
 | Concentration timer | seconds, default 15; 0 waits; expiry ROLLS (prompt mode's buzzer) | 2.5 |
@@ -774,6 +830,10 @@ Rider upgrades    foe-slayer:hunters-mark
 Per-client: table-moment view (popup+card / card-only); the per-player save opt-out
 **shipped v1.7.0** as `saveAutoRoll` — inverted from this line's first guess by the
 2026-08-16 call: the POPUP is the default, and the opt-out is to silent auto-roll.
+> **Superseded by the v1.9.5 settings collapse (user call: "max options later, one switch
+> now"):** `holdView` and `saveAutoRoll` are DELETED, functionality and all. Exactly ONE
+> client setting remains — Center Popups (default on). The popup is the one input surface;
+> recall always fronts a live popup.
 
 The "~12 world settings at full build" this section first estimated is long blown: **23
 world + 2 client are registered at v1.3.1**, heading for ~30 by Phase 3. The settings-sheet

@@ -1,62 +1,68 @@
 # HANDOFF.md — picking this up cold
 
-> Current at 2026-08-17, small hours — **v1.9.5 shipped: the dogfood sixteen.** The user
-> walked the saves ladder live on 2026-08-16 (two browser windows, real spells, the
-> Practice Dummy) and came back with sixteen numbered feedback items; this release is all
-> of them — four bug fixes, three features, one settings collapse, plus two world-content
-> repairs and a pile of protocol lessons that cost most of a night. Battery-green across
-> all seven suites. Read [design.md](design.md) first — it is binding and wins every
-> disagreement (⚠ it has NOT yet absorbed v1.9.5's new policies — the card-button stance
-> and template containment await their design.md paragraphs; this file carries them
-> meanwhile). This file is only *where things stand* and *what already bit us*.
+> Current at 2026-08-17, afternoon — **v1.10.0 shipped: round two closed, autonomously.**
+> The user walked v1.9.5 live in the morning (the Shatter/Gren screenshot), settled the
+> open suppression question ("we rip out the card suppression machinery"), added the
+> popup-conformance ask and the pairing rule, and went AFK with "go and make these
+> changes autonomously." This release is the whole round-two queue — five items — plus
+> one world-config fix (the Slow VFX ring) and one live-world root cause found in dnd5e
+> source (the results.templates nesting). Battery-green across all seven suites
+> (v1.9.6 burned as the staging diagnostic). Read [design.md](design.md) first — it is
+> binding, and it HAS now absorbed everything through v1.10.0 (the card-button stance,
+> template containment, the suppression removal, and the §4.3 table-moment contract with
+> the pairing rule). This file is only *where things stand* and *what already bit us*.
 >
-> **v1.9.5 in one breath** — versions 1.9.1–1.9.4 were burned as staging diagnostics
-> (see the deploy protocol below), never released:
-> - **Hide Redundant Buttons** (world, DEFAULT ON): every card action button hidden except
->   Refund Resource — the machine runs those workflows now, and the buttons were a second,
->   manual path that forked it (the save button rolls for whatever token is SELECTED — the
->   live topple trap). Display-level, stateless render hook; native handlers survive as a
->   compatibility net. The save machine auto-rolls a save spell's damage AT THE STAMP as
->   the companion (nothing else would roll it with the button hidden).
-> - **Template containment IS the target set** (both directions, user call): a save demand
->   with a placed template derives its targets from the area — at cast (results.templates
->   at postUseActivity), on adoption (a template appearing later), and as the area moves.
->   The render hook is the RELIABILITY FLOOR for refresh; template CRUD hooks are only
->   fast-paths (measured dead on the headless elect — ground truths). Manual targeting
->   stays the bus for everything without a template.
-> - **Instantaneous templates are spent**: once every verdict's consequences landed,
->   `duration.units === "inst"` templates leave the canvas; duration spells keep theirs.
-> - **The settings collapse** (user call: "max options later, one switch now"): client
->   settings are down to exactly ONE — Center Popups (renamed centerRollDialogs, default
->   on). `holdView` (card-only holds) and `saveAutoRoll` (silent saves) are DELETED,
->   functionality and all; the popup is the one input surface, and its recall now FRONTS a
->   live popup instead of silently no-oping (the "Roll button does nothing" report).
-> - **The announce-lands/apply-dies pair fixed**: the topple press goes through
->   `forceStatus` (shared.js) — enable a disabled carrier, verify, build directly as last
->   resort — because `toggleStatusEffect(active:true)` NO-OPS over any existing carrier,
->   disabled included (the live "topple failed but nothing fell prone"). The verdict pause
->   CAPS its Dice So Nice wait at 6s (a never-resolving DSN promise hung the whole
->   consequence chain — the live "concentration broke but Bless survived"). Both topple
->   and concentration folds now carry the saves machine's `applied` receipt + a 20s
->   crash-resume: a fold whose client died mid-pause gets its consequences re-driven by
->   any GM render.
-> - **Save popups lead with WHO rolls** (name in title, token art up front) — the GM
->   processes queues of these; the spell is subtitle material.
-> - The mastery ask card's bar actually drains now (`scheduleBarSync` was never called on
->   the card row — the popup had it).
+> **v1.10.0 in one breath:**
+> - **The suppression machinery is GONE** (user call, option B): the master, the four
+>   per-source buckets, the carve-outs, the replacement-bfCard plumbing (the hold's §6f
+>   bus, the cast slice's replacement) — deleted, settings and functionality, the
+>   holdView/saveAutoRoll precedent. **Every use posts its first card; the native card is
+>   always the bus.** `hideCardButtons` is the one card-shaping switch left, and its
+>   keep-list gained **Place Measured Template** (nothing automates placement, and a
+>   placed template is how a save demand finds its targets — hiding the only post-cast
+>   placement affordance starved containment).
+> - **The topple demand rides the save machine's clock**: `saveTimer`'s deadline stamps on
+>   the topple flag, the bar drains on popup + card row, and the buzzer ROLLS the
+>   still-pending targets at expiry — straight, data-driven, marked "rolled by the timer".
+>   The GM prone button stays the paper-roll backstop. (Round-two item 1; the old "no
+>   timer in v1" stance is superseded in design.md too.)
+> - **The stamp flattens `results.templates`** — the round-two item 4 root cause, read
+>   from 5.3.3 source: `#placeTemplate` pushes `drawPreview()`'s resolution, which is the
+>   raw `createEmbeddedDocuments` result — an ARRAY per placement. Unflattened, the
+>   `t?.parent` filter dropped every live placement and the stamp silently fell back to
+>   the manual snapshot — which is exactly how Gren got Shatter's popup (the demand
+>   stamped the manual trio, adoption dragged it back to the area, and the dropped
+>   targets' popups stranded). One `.flat()`; smoke-saves §8d pins it by firing the hook
+>   with the live shape.
+> - **A withdrawn question closes its popup** (round-two item 4a + the §4.3 rule): the
+>   save close pass sweeps popups whose entry no longer exists and clears their
+>   shown-latches (re-arrivals ask fresh); the topple watcher closes popups a sheet roll
+>   answered (they used to strand open, still asking).
+> - **The pairing rule** (user call: "the popup is for the user to see, the card is for
+>   the table to see" — and the decider sees both): whenever a popup timer runs, the
+>   public card runs the SAME bar. The mastery reminder card gained the 15s drain its
+>   popup always had; the topple card runs the demand's bar; everything syncs from the
+>   flag's absolute deadline (drift 0). Binding in design.md §4.3.
+> - **The Slow VFX ring is dead** (round-two item 2, world config not module code):
+>   Automated Animations' aefx preset **"Slowed" deleted** (backup:
+>   [tools/aa-slowed-preset.backup.json](tools/aa-slowed-preset.backup.json)) and the
+>   sibling **"Slow" entry gained `advanced.excludedTerms: ["slowed"]`** — AA's matcher
+>   (read from its bundled source) is exact-first THEN includes-fallback, so deleting
+>   "Slowed" alone would have let "Slow" partial-match the chip and the ring survive.
+>   The Slow SPELL keeps its animation via its exact match. Verified at the matcher
+>   level; the user should eyeball a Slowed chip next session.
 
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.9.5** (2026-08-17 small hours — the dogfood sixteen,
-above). Before it, all on 2026-08-16: v1.8.0 (the Phase 3 convergence — unified appliers,
-the reaction receipt/revert), v1.7.0 (Phase 2 saving throws + the save slice), v1.6.1
-(the split), v1.6.0, v1.5.1, v1.5.0, v1.4.0, v1.3.x. Deployed, tags pushed, GitHub
-releases carry zip + manifest. **The box tracks the GitHub manifest** — and as of v1.9.5
-the process was bounced twice, so **the vended version string is finally REAL** (it had
-been stuck at 1.3.1 since that release; see the deploy protocol for why that mattered far
-beyond cosmetics). The box currently runs a staging-installed copy of the exact v1.9.5
-release bits.
+Molten-hosted). Latest release **v1.10.0** (2026-08-17 afternoon — round two closed,
+above; v1.9.6 was burned as its staging diagnostic, never released). Before it: v1.9.5
+(the dogfood sixteen, same day's small hours), and on 2026-08-16: v1.8.0 (the Phase 3
+convergence), v1.7.0 (Phase 2 saving throws + the save slice), v1.6.1 (the split),
+v1.6.0, v1.5.1, v1.5.0, v1.4.0, v1.3.x. Deployed, tags pushed, GitHub releases carry
+zip + manifest. **The box tracks the GitHub manifest**, the vended version string is
+REAL (staging installs bounce the process), and the box currently runs a
+staging-installed copy of the exact v1.10.0 release bits.
 
 | Phase | State |
 | --- | --- |
@@ -87,7 +93,6 @@ update this table, never fight it:
 | Auto-Roll Damage on Hit | **`all`** | ⚠ an earlier snapshot read `off` and mis-recorded it as the user's call — it was SUITE RESIDUE from a failed run's skipped teardown (see the suites' settings-first rule); the user corrected it, and was rightly annoyed |
 | Auto-Apply Damage | on | active-GM elect, receipts + revert |
 | Dramatic Beat | **3s** | same residue incident — `0` was the suites' pin, not the user's taste |
-| Suppress Attack Cards | on | cards carrying effects survive anyway |
 | Require a Target | on | |
 | Reaction Hold | on | governs **both** triggers |
 | Spells a Reaction Blocks | `Magic Missile:Shield` | new in v1.1.16 — the second trigger |
@@ -97,124 +102,110 @@ update this table, never fight it:
 | Skip Hopeless Holds | **on** | gated on the reveal, deliberately — see the setting's hint |
 | Apply the Reaction's Effect | on | |
 | Hold Settle | 8s | |
-| Hide Redundant Buttons | **on (the default)** | NEW v1.9.5 — every card action button hidden except Refund Resource |
+| Hide Redundant Buttons | **on (the default)** | v1.9.5; keep-list since v1.10.0: Refund Resource AND Place Measured Template |
 | Hit Riders | **on** | user flipped ON 2026-08-17 |
 | Rider Table | `hunters-mark, hex, great-old-one-hex` | identifiers only — the damage is read from the content |
 | Rider Upgrades | `foe-slayer:hunters-mark` | replaces the die, never stacks |
 | Effect Riders | **on** | user-walked ON 2026-08-16 — a hit applies the card's effects |
 | Weapon Mastery Riders | **on** | user-walked ON 2026-08-16 — Vex/Sap auto + reminder, the rest ask |
 | Mastery: Ask First | `ask` | `auto` is the tedium escape hatch (silences asks, not reminders) |
-| Suppress: Weapon / Spell / Feature / Other | **all on** | new in v1.3.0 — inert until the master above them is on; defaults preserve the old boolean's behavior exactly |
 | Concentration Checks | **prompt** | user-walked ON during 2026-08-16 evening testing |
 | Concentration Timer | 15s | expiry ROLLS (data-driven, straight); 0 waits indefinitely |
 | Failure Breaks Concentration | **on** | inert until the mode is on — the forgotten click the phase exists to press |
 | Concentration Checks Are Public | **on** | off = whispered to owners + GM; the break card is ALWAYS public |
 | Resolve Saving Throws | **on** | user-walked ON 2026-08-16 during the live dogfood |
-| Save Timer | **6s** | user-tuned from 15 — a fast table; expiry ROLLS; inert until saves is on |
+| Save Timer | **6s** | user-tuned from 15 — a fast table; expiry ROLLS; inert until saves is on. Since v1.10.0 the TOPPLE demand rides this same clock |
 | Auto-Apply on Cast | **on** | new in v1.5.0 — no-gate casts (utility effects + healing) apply themselves; damage spells deliberately excluded |
 | Center Popups | on (per client, the default) | v1.9.5: THE ONLY client setting left — `holdView` and `saveAutoRoll` are deleted, code paths and all |
 
 ## Open items
 
-### ⚡ ROUND TWO feedback — aggregated 2026-08-17, NOT YET FIXED. The next session's queue.
+### ✅ ROUND TWO — CLOSED at v1.10.0 (2026-08-17, autonomously, user AFK)
 
-The user walked v1.9.5's checklist live and opened a second feedback round (the protocol:
-aggregate everything, then fix in one battery-green pass, then release). Four items
-stand, plus one question awaiting their answer. **Settings discipline applies: their
-reference table above is law — verify after every run.**
+The round-two queue shipped whole; the header carries the what. Kept here: the evidence
+trail and the per-item resolution, because reports referencing these items will keep
+arriving. **Settings discipline applied and verified: the reference table above was
+checked drift-free over the bridge after the battery and after the release install.**
 
-1. **Topple saves get the timer** — no bar on the topple save popup, none on the card row
-   ("Morgash waiting for the DM"), and the user invoked the universal design language:
-   every table moment carries the deadline bar and one authoritative clock. This SETTLES
-   the old "topple timer v1" decision as YES. Shape: adopt the SAVE machine's semantics —
-   deadline stamped on the topple flag, `holdBarHTML` bar on popup + card row (+
-   `scheduleBarSync`), buzzer that ROLLS at expiry (a demanded save is mandatory — marked
-   `timedOut`, straight and data-driven), riding the existing `saveTimer` setting (6s at
-   this table), no new setting. The GM prone button stays as the paper-roll backstop.
-2. **The Slow VFX ring still appears** — it is NOT dnd5e-native: Automated Animations
-   (with the JB2A / dnd5e-animations preset packs, all active — probe-confirmed module
-   list) plays a looping ring when the Slowed condition lands. Last round this was parked
-   as "config awaiting the user's word" and that read as *fixed* on their side —
-   communication failure, now in scope. Fix: disable the Slowed-condition animation in
-   the AA/preset config over the bridge; if AA's settings format is too fragile to write
-   safely, STOP and hand the user the exact clicks in AA's menu instead. The module's own
-   application is already a plain status chip.
-3. **Every use shows its FIRST card** — weapon attacks, attack spells, spells: the card
-   always posts as the record, `hideCardButtons` (already live) strips the workflow
-   buttons. The user's understanding of the v1.9.5 agreement; what shipped was the
-   button-half only, and their table still has all suppression buckets ON eating the
-   cards. Immediate fix: suppression OFF at the table (master off; update the reference
-   table rows when done). **OPEN QUESTION posed to the user**: (A) settings-only flip,
-   zero risk, keeps the option — or (B) rip the suppression machinery out entirely (the
-   honest collapse: four bucket settings, the carve-outs, AND the replacement-bfCard
-   plumbing the hold's §6f and cast slice grew to survive suppression — a real
-   simplification but it touches load-bearing paths and a dozen suite sections; its own
-   deliberate pass, not a mid-round rider). No answer yet.
-4. **A containment-dropped target's popup strands open** — live: Shatter's template
-   placed away from the (still-manually-targeted) Practice Dummy; the demand ended up
-   correct (dummy excluded — no verdict, no damage; Jetten inside got the save and the
-   buzzer rolled it), but the demand STAMPED with the stale snapshot first, the dummy's
-   popup opened, and the containment refresh then removed the entry — and the popup-close
-   pass only closes popups for DONE entries, not entries that no longer exist. The popup
-   sat asking a withdrawn question. Fix: (a) the containment refresh closes + disarms the
-   popup of any pending entry it drops, and the close pass also sweeps popups whose entry
-   is GONE; (b) chase why stamp-time containment (results.templates) let the outside
-   target in at all on a live rendering client — the adoption floor caught it, but the
-   popup should never open. Verify while there: Jetten's timer-failure applied its
-   damage (the report's screenshot crops before the answer).
+1. **Topple saves get the timer** — SHIPPED as the header describes. smoke-effects
+   §14g–i pin the stamp, the card bar (at the DOM), and the buzzer's marked roll.
+2. **The Slow VFX ring** — FIXED in world config as the header describes (delete
+   "Slowed" aefx + excludedTerms on "Slow"; backup JSON in tools/). Awaiting the user's
+   visual confirmation; if a ring STILL appears, suspect a different AA menu entry —
+   probe with the aefx-inventory approach (the session's scratch probes are described
+   in this file's git history) rather than guessing.
+3. **Every use shows its first card / the suppression rip (option B)** — SHIPPED. The
+   settings vanished from the sheet (the table's Suppress rows above are gone with
+   them); nothing needed flipping at the table because the machinery no longer exists.
+   smoke-battleflow §5b and smoke-cast §2a assert the suppress* keys STAY unregistered.
+4. **The containment strand** — FIXED twice over: the `.flat()` root cause (stamp-time
+   containment now real on live clients — the popup never opens for a snapshot target
+   when a template was placed during usage) and the close-pass sweep (an entry dropped
+   by adoption/walk closes its popup wherever it lives, and its shown-latch clears so a
+   re-arrival asks fresh). The evidence that drove it, kept for the record: three live
+   Shatter casts 2026-08-17 midday, manual trio targeted (Dummy, Jetten, Gren), every
+   demand stamped the snapshot, adoption dragged each back to the template's contents,
+   Gren's orphaned popup sat with a dead bar on Tom's window while no Gren save ever
+   landed. Post-release flag read of all three demand cards confirmed: all
+   `templated: true`, final targets exclude Gren, Jetten's cast-3 timer-failure (11 vs
+   DC 14, `timedOut`) applied its 11 damage with a clean receipt — the item's "verify
+   while there" is verified.
+5. **The popup conformance pass + the pairing rule** — DONE across all six surfaces
+   (hold decision, concentration ask, save demand, topple ask, mastery ask, mastery
+   reminder). Found and fixed: the topple surface's missing everything (item 1), the
+   save strand (item 4), the mastery reminder card's missing 15s bar, and the topple
+   popup stranding open when a sheet roll answered it. Already conformant: hold,
+   concentration, mastery ask (bar both surfaces, buzzer resolves, close-on-answer,
+   global delete sweep in ui.js). The contract is now design.md §4.3's amended text —
+   pairing rule included, binding.
 
 **Round-one checklist, user-verified so far:** Divine Favor ✓ (effect applies), template
 cleanup ✓ (instantaneous spent, duration stays), save-spell damage ✓ (auto-rolls and
 applies per verdict). The rest of the checklist walk continues at the table; items
-①③④⑥⑨⑪⑬⑮ + the settings-menu sanity check were not yet individually confirmed, and the
-two watch items stand (⑭ year-off timestamps — hover + note the AUTHOR; ② is now round
-two's item 1).
+①③④⑥⑨⑪⑬⑮ + the settings-menu sanity check were not yet individually confirmed, and one
+watch item stands (⑭ year-off timestamps — hover + note the AUTHOR).
 
-**State at handoff:** working tree clean, everything through the teardown-hardening
-commit pushed; v1.9.5 released and installed on the box (staging copy == release bits);
-world up, bridge disconnected; the party maintained (maintain-party.mjs); the user's
-settings exactly as the reference table records. No code changes are in flight.
+**State at handoff:** working tree clean, the v1.10.0 three-commit train pushed (test →
+feat tagged v1.10.0 → docs); the GitHub release carries zip + bare module.json; the box
+runs a staging-installed copy of the exact v1.10.0 release bits (the process was bounced
+for the install — any client that was connected needs to log back in); world up, bridge
+disconnected; the user's settings verified drift-free against the reference table after
+the battery AND after the install. The AA world-config change (the Slow ring) is live;
+its backup JSON is in tools/. No code changes are in flight.
 
-### Where the plan points now (2026-08-17, small hours — post-v1.9.5)
+### Where the plan points now (2026-08-17, afternoon — post-v1.10.0)
 
-**The dogfood sixteen are closed** — the user's live saves walk (2026-08-16) produced
-sixteen numbered items; v1.9.5 resolves them all except the deliberate leftovers below.
-The resolution map, for reports that reference the numbers: ① could not reproduce (no
-"Concentration" string exists on any topple surface — likely a "Constitution" misread;
-screenshot it if it recurs); ② awaits a user decision (below); ③④⑤⑥⑦⑧⑨⑩⑪⑯ fixed/built
-as the header describes (⑩ dissolved into ⑯ — save cards stay visible, buttons hide);
-⑫ was world content, both spells repaired; ⑬ was working-as-designed (Heroism cast
-without targeting — the machine correctly stayed out; target the recipient and it all
-auto-applies); ⑭⑮ diagnosed (⑮ fixed via the pause cap + crash-resume; ⑭ still open,
-below).
+**Both feedback rounds are closed.** The dogfood sixteen's resolution map, for reports
+that reference the numbers: ① could not reproduce (likely a "Constitution" misread;
+screenshot it if it recurs); ② shipped at v1.10.0 (the topple timer — round two item 1);
+③④⑤⑥⑦⑧⑨⑩⑪⑯ fixed/built at v1.9.5 (⑩ dissolved into ⑯); ⑫ was world content, both
+spells repaired; ⑬ was working-as-designed (Heroism cast without targeting); ⑮ fixed via
+the pause cap + crash-resume; ⑤ (Slow VFX) fixed in world config at v1.10.0; ⑭ still
+open, below.
 
 **Open, wearing their owners:**
-- **② Topple save timer** — USER DECISION pending. v1 deliberately shipped no timer (the
-  GM prone button is the paper-roll backstop); the save machine's timer+buzzer pattern
-  now exists to borrow if wanted. Say yes and it is an afternoon's work.
 - **⑭ The year-off timestamps** — two cards on 2026-08-16 rendered "11m 364d ago" (the
   topple announcement, a Heroism heal roll) among correctly-stamped neighbors. The module
   passes NO timestamps (grep-verified — all four `timestamp` mentions are reads), the
   bridge's clock measured exact, and the probe could not reproduce. WATCH ITEM: next
   sighting, hover the card for its real date and note which USER authored it — the
   message's creating client stamps the timestamp, so the author names the broken clock.
-- **⑤ The Slow VFX** — Automated Animations (with JB2A/dnd5e-animations/Sequencer, all
-  active) reacting to the Slowed condition; config, not module code. Turn it off in AA's
-  own menus, or ask for it — the module's own application is a plain status.
+- **Slow VFX visual confirmation** — the matcher-level fix is verified; the user should
+  see a Slowed chip land ring-free next session (item 2's note above has the
+  if-it-recurs path).
 - **Self-buff auto-apply** — Divine Favor's effect exists now, but affects-self casts
   stay tray clicks by the recorded v1.5.1 call. Revisit as a design conversation if the
   tray click grates.
-- **design.md fold-in** — the card-button stance (§5-adjacent) and template containment
-  (Phase 2 amendment) need their binding paragraphs; this file carries them meanwhile.
 - **Phase 4** stays an experiment first (cast Bless, watch ten rounds — likely zero
   code); **Phase 5** stays the adopt-AC5e decision; **two-client save coverage** on PC
   Assistant remains unbuilt (`probe-player-seam.mjs` is the spike; ⑮'s live shape was the
   first true two-client exercise and argues for building it soon).
 
-⚠ Tuesday is live play. v1.9.5 clears battery-green, **but the ships-OFF house rule is
-KNOWINGLY broken twice, by explicit user instruction**: Hide Redundant Buttons defaults
-ON, and the two deleted client settings change player-facing behavior (popups always
-show; no silent saves). Every connected client needs an F5 to pick the release up.
+⚠ Tuesday is live play. v1.10.0 clears battery-green. Player-facing changes since the
+table last sat: every use posts its card (buttons still hidden), topple saves run the
+6s clock and roll themselves at the buzzer, reminder cards drain their bar publicly,
+and the Slow ring is gone. **Every connected client needs an F5 to pick the release
+up** — the box was bounced for the install, so anyone connected got logged out anyway.
 
 **World content, fixed this session (not module code):** Thomas's Divine Favor and
 Salyth's Thaumaturgy both arrived from the DDB level-1 import with their embedded
@@ -237,12 +228,13 @@ still arrives too late (2.5's recorded corner — the SAVE machine's LR overturn
 v1.7.0, but concentration's fold is its own machine and still cascades before a flip);
 a sheet-rolled concentration save's card colors against DC 10 while the verdict judges
 the real DC; a human pressing the damage tray early still beats a pending hold (a
-ruling); a damage card carrying EFFECTS keeps its card, and self-buff (affects-self)
-casts stay tray clicks; the topple popup has no timer (the GM button is the paper-roll
-backstop); hopeless skips are silent by design (the dead, the speedless — twice mistaken
-for bugs on 2026-08-16, so say so early if it recurs); the save machine's own corners are
-standing item 15's list (multi-ability first-listed, consumed-item effects, dead targets
-still roll, conc-ask deference, no announcement cards).
+ruling); self-buff (affects-self) casts stay tray clicks; hopeless skips are silent by
+design (the dead, the speedless — twice mistaken for bugs on 2026-08-16, so say so early
+if it recurs); the save machine's own corners are standing item 15's list (multi-ability
+first-listed, consumed-item effects, dead targets still roll, conc-ask deference, no
+announcement cards). *(Two former leftovers graduated at v1.10.0: the topple popup HAS
+its timer now, and "a damage card carrying effects keeps its card" is vacuous — every
+card keeps itself.)*
 
 ### Standing
 
@@ -281,12 +273,13 @@ still roll, conc-ask deference, no announcement cards).
    still beats a pending verdict — a ruling, not a race — and the veto still refuses
    negated targets on any manual path (origin walk, plus a v1.6.0 whole-log fallback by
    spell + actor for unbridged rolls).
-   ⚠ **The usage card stopped being load-bearing (v1.6.0).** Under 1.9D suppression the
-   hold rides a REPLACEMENT bfCard (`postSpellHoldCard` — same dnd5e target/item/activity
-   flags a usage card carries), and the casting client bridges the damage roll to it
-   (`linkSpellDamage` stamps `originatingMessage`), so the rows, the popup, the three
-   answer channels, the fold, and the veto's origin walk all work unchanged. With
-   suppression off the native card still serves. smoke-hold §6f owns this end to end.
+   ⚠ **The usage card is load-bearing again, and permanently (v1.10.0).** The v1.6.0
+   replacement-bfCard bus (`postSpellHoldCard`) and its damage bridge existed only to
+   survive suppression; with the machinery ripped out, the native card is ALWAYS the
+   hold's home. What survives of that era: the claim/defer/release chain (`spellDamage` /
+   `spellHoldPending`, released by the caster when nobody holds and by the resolution
+   for chained rolls) and the veto's whole-log fallback for genuinely unbridged rolls.
+   smoke-hold §6f now owns exactly that chain on the native card.
 
 3. **The hold's UI is settled and shipped** (user calls, 2026-08-15) — recorded because it is
    binding on anything built next: **the popup decides, the card watches, the card is public
@@ -461,33 +454,44 @@ still roll, conc-ask deference, no announcement cards).
    an old log never nags. Not gated by `masteryAsk` — auto silences asks, not reminders.
    Design language recorded in design.md 1.9C: a reminder of a time-limited fact is a
    table moment; what stays banned is a fake choice and results dressed as popups.
-16. **Cards keep their text; the machine keeps the workflow (v1.9.5, user calls).** The
-   feedback walk recalibrated the suppression stance: the card's VALUE is its description,
-   effects tray, and targets — its COST was the action buttons, a manual second path that
-   forks the machine (a save button rolling for the SELECTED token; a damage button
-   double-rolling). So `hideCardButtons` (world, default ON) hides every
-   `.card-buttons button[data-action]` except `refundResource`, display-level and
+16. **Cards keep their text; the machine keeps the workflow (v1.9.5 → completed
+   v1.10.0, user calls).** The feedback walk recalibrated the suppression stance: the
+   card's VALUE is its description, effects tray, and targets — its COST was the action
+   buttons, a manual second path that forks the machine (a save button rolling for the
+   SELECTED token; a damage button double-rolling). So `hideCardButtons` (world, default
+   ON) hides every `.card-buttons button[data-action]` except the keep-list —
+   `refundResource`, and since v1.10.0 `placeTemplate` (nothing automates placement, and
+   a placed template is how a save demand finds its targets) — display-level and
    stateless; the handlers survive underneath, and the fold still ACCEPTS a native-button
    roll that sneaks through (popouts, other modules). The companion: the save machine
    auto-rolls its spell's damage at the stamp (chained to the card, so upcast scaling and
    `damageOnSave` ride the native plumbing) — with the button hidden, nothing else would.
-   The v1.7.0 exemption ("save cards are load-bearing, never suppressed") STANDS — the
-   card stays the bus; only its buttons went. The settings collapse rode the same call:
-   ONE client checkbox (Center Popups), `holdView`'s card-only mode and `saveAutoRoll`'s
-   silent path deleted outright, popups always the input surface, recall always fronts.
-17. **Template containment is the target authority (v1.9.5, user call, both directions).**
-   A save demand with a placed template takes its targets from the area: at the stamp
-   (`results.templates` — postUseActivity fires after `_finalizeUsage`, so placement is
-   already awaited), by ADOPTION when a matching-origin template appears later, and as the
-   area moves/re-places — done entries keep their verdicts, pending entries outside drop,
-   arrivals join fresh. ONE customer per refresh: the newest matching demand with undone
-   targets (a demand's status never leaves "pending", so anything looser drags in every
-   fossil card the same activity ever stamped — recast Moonbeam and yesterday's cards all
-   match). Containment is center-point against the drawn shape when one exists, else
-   document-geometry (circles); `templated: true` marks adoption, `durationUnits` gates
-   the spent-template sweep. Manual targeting stays the bus for template-less casts, and
-   `tokensInTemplates` distinguishes "no template" (null → snapshot) from "empty template"
-   ([] → nobody saves) on purpose.
+   **At v1.10.0 the other half landed: the suppression machinery is deleted outright**
+   (user: "we rip out the card suppression machinery, and we just have machinery to hide
+   non-refund-resource buttons") — every use posts its first card, and `hideCardButtons`
+   is the only card-shaping switch in the module. The settings collapse rode the same
+   philosophy: ONE client checkbox (Center Popups), `holdView` and `saveAutoRoll`
+   deleted outright, popups always the input surface, recall always fronts.
+17. **Template containment is the target authority (v1.9.5, user call, both directions;
+   made REAL on live clients at v1.10.0).** A save demand with a placed template takes
+   its targets from the area: at the stamp (`results.templates` — postUseActivity fires
+   after `_finalizeUsage`, so placement is already awaited), by ADOPTION when a
+   matching-origin template appears later, and as the area moves/re-places — done entries
+   keep their verdicts, pending entries outside drop **and their popups close (v1.10.0 —
+   the close pass sweeps popups whose entry is gone and clears their shown-latches)**,
+   arrivals join fresh. ⚠⚠ **`results.templates` entries are ARRAYS, not documents**
+   (5.3.3 ground truth, read from source after two live misfires): `#placeTemplate`
+   pushes `drawPreview()`'s resolution — the raw `createEmbeddedDocuments` result — so
+   the stamp must `.flat()` before the parent filter or every live placement silently
+   falls back to the manual snapshot (that was the whole Shatter/Gren strand). ONE
+   customer per refresh: the newest matching demand with undone targets (a demand's
+   status never leaves "pending", so anything looser drags in every fossil card the same
+   activity ever stamped — recast Moonbeam and yesterday's cards all match). Containment
+   is center-point against the drawn shape when one exists, else document-geometry
+   (circles); `templated: true` marks adoption, `durationUnits` gates the spent-template
+   sweep. Manual targeting stays the bus for template-less casts, and `tokensInTemplates`
+   distinguishes "no template" (null → snapshot) from "empty template" ([] → nobody
+   saves) on purpose.
 
 ## How to work on this
 
@@ -651,7 +655,7 @@ table this cannot happen (the bridge is one page; humans are different users); i
 a harness topology, so the fix is protocol, not code. `smoke-effects` §9 asserts the
 announcement count so a double-elect now fails loudly at the source.
 
-`tools/smoke-saves.mjs` (28 assertions at v1.9.5) proves the save machine, sections:
+`tools/smoke-saves.mjs` (30 assertions at v1.10.0) proves the save machine, sections:
 **1** the stamp + the auto-rolled damage (asserted then DELETED so §2's late-arrival
 ordering stays constructible) + hidden card buttons at the DOM (count-guarded — a
 zero-button card would pass vacuously) + two popup-clicked forced verdicts (±30 con save
@@ -663,7 +667,10 @@ stored DC, **5** the buzzer rolls (marked, straight) + a quiesce before leaving 
 auto-roll's late application otherwise lands inside §6's healed pool), **6** legendary
 resistance overturns the folded failure via a bare-roll answer, **7** the exclusions
 (setting off, targetless, self-aimed), **8** templates: adoption swings the demand both
-ways, the walked area retargets, and the spent instantaneous template leaves the canvas.
+ways (8a2: the dropped entry's POPUP CLOSES — the strand fix at the DOM), the walked
+area retargets, the spent instantaneous template leaves the canvas, and 8d fires
+postUseActivity by hand with the NESTED results.templates shape the live flow produces
+— the stamp must contain, not snapshot (the `.flat()` regression net).
 Its fixture is an in-suite innate save spell on BF Test Attacker (flat 10 damage so half
 is exact; DC from a custom formula; `duration: inst` for §8's sweep; two effects, one
 `onSave`). Forced outcomes via the targets' own `abilities.con.bonuses.save` (±30).
@@ -679,8 +686,16 @@ spells (`consumption.spellSlot: false`) on BF Test Attacker.
 
 `smoke-effects` grew **14** (the topple fold: card carries dc/ability/weapon; a decoy
 chained save is ignored; forced failure → Prone + one announcement; forced success closes
-quietly; a bare sheet save answers) and **15** (vex/sap/cleave reminders + the receipt
-tooltip field). Both force outcomes through the actor's own save bonus (±30).
+quietly; a bare sheet save answers; **14g–i at v1.10.0**: the demand stamps `saveTimer`'s
+window+deadline, the card runs the bar — asserted at the DOM via `[data-bf-deadline]` —
+and the buzzer rolls the unanswered save marked as the timer's press) and **15**
+(vex/sap/cleave reminders + the receipt tooltip field; **15a2**: the reminder card runs
+its 15s bar — the pairing rule at the DOM). ⚠ Outcomes are forced through the PER-ABILITY
+`abilities.con.bonuses.save` (±30) since 2026-08-17 — the global
+`system.bonuses.abilities.save` is NOT folded into `rollSavingThrow` at 5.3.3 (measured:
+bonus "+30", save total 10), so §14's old forcing never forced and 14d was a coin flip
+the whole time. The topple attacks also RETRY on a fumble: vs AC 1 only a nat-1 misses,
+and a double-nat-1 under advantage (0.25%) hit twice in one afternoon.
 
 `tools/probe-topple.mjs` is the fold's isolated one-shot (stamps a minimal topple card,
 rolls a chained save, dumps every recognizer gate) — it proved the module correct while the
@@ -995,6 +1010,16 @@ Most of these are commented at the line where it bit. Do not rediscover them.
   (`basic-roll.mjs:173`), and the enricher passes the click event through — a save rolled
   from the topple card's `[[/save]]` button arrives chained to that card. Confirmed live;
   the fold rides it.
+- ⚠⚠ **`results.templates` entries are ARRAYS, not documents** (found 2026-08-17 after
+  two live misfires): `#placeTemplate` (mixin.mjs:1111) does `templates.push(result)`
+  where `result` is `await template.drawPreview()` — and drawPreview resolves with the
+  raw `createEmbeddedDocuments` return, an array. Any consumer filtering entries by
+  document fields (`t?.parent`) silently drops every live placement. `.flat()` first.
+- ⚠ **The global `system.bonuses.abilities.save` is NOT folded into `rollSavingThrow`**
+  (measured 2026-08-17: bonus "+30" on the actor, save total 10). Force save outcomes
+  through the per-ability `system.abilities.<abl>.bonuses.save` — the channel
+  smoke-saves always used and smoke-effects §14 now uses; the old global-bonus forcing
+  made §14d a coin flip for its whole life.
 
 **Concentration (5.3.3, the 2.5 seams)**
 
@@ -1121,20 +1146,20 @@ purpose** (its verdict row must register first; see the import-order rule below)
 
 | File | Lines | Holds |
 | --- | --- | --- |
-| `core.js` | 47 | MODULE_ID, TITLE, the `S` key map, `setting()`, `isActiveGM()` — the leaf everything imports |
-| `settings.js` | 268 | registration + settings-sheet polish |
-| `shared.js` | 88 | the hit test, the chain walk, and `forceStatus` (the verified status press) |
-| `polish.js` | 206 | no-target gate, per-source card suppression, cast-slice stamps, dialog centering |
+| `core.js` | 44 | MODULE_ID, TITLE, the `S` key map, `setting()`, `isActiveGM()` — the leaf everything imports |
+| `settings.js` | 270 | registration + settings-sheet polish |
+| `shared.js` | 94 | the hit test, the chain walk, and `forceStatus` (the verified status press) |
+| `polish.js` | 145 | no-target gate, the cast-slice birth stamps, hidden card buttons (the keep-list), dialog centering — the suppression machinery died here at v1.10.0 |
 | `auto-damage.js` | 66 | Phase 1a — auto-roll damage on hit |
-| `hold.js` | 1095 | Phase 1.5 — the whole reaction-hold machine: eligibility, both triggers, answers, continuation, veto, spell-damage applier claim; the reaction effect's application + receipt (v1.8.0) |
-| `ui.js` | 539 | popup lifecycle (`openManagedPopup`), the house card (`bfCard`), the countdown bar, the hold's views + timers |
+| `hold.js` | 1050 | Phase 1.5 — the whole reaction-hold machine: eligibility, both triggers, answers, continuation, veto, spell-damage applier claim; the reaction effect's application + receipt (v1.8.0) |
+| `ui.js` | 582 | popup lifecycle (`openManagedPopup`), the house card (`bfCard`), the countdown bar + `scheduleBarSync`, the hold's views + timers, the global delete sweep |
 | `hit-riders.js` | 228 | Phase 1.75 — curated damage riders |
 | `auto-apply.js` | 139 | Phase 1b — the elect's applier, `applyDamagesWithReceipt`, the payout pipeline |
-| `effect-riders.js` | 168 | Phase 1.9A + the v1.8.0 convergence core: `applyEffectsTo` (THE application loop), `joinEffectReceipt` (THE receipt bookkeeping), `applyEffectsWithReceipt` |
-| `mastery.js` | 754 | Phase 1.9B/C — mastery riders, the ask (`armAskTimer` twins), the topple fold + popup, reminders; its applier stays separate BY POLICY (authored data — see the comment at the site) |
-| `concentration.js` | 591 | Phase 2.5 — cause capture → ask → roll → fold → break, `dramaticVerdictPause` |
+| `effect-riders.js` | 166 | Phase 1.9A + the v1.8.0 convergence core: `applyEffectsTo` (THE application loop), `joinEffectReceipt` (THE receipt bookkeeping), `applyEffectsWithReceipt` |
+| `mastery.js` | 905 | Phase 1.9B/C — mastery riders, the ask (`armAskTimer` twins), the topple fold + popup + its v1.10.0 buzzer (`saveTimer` semantics), reminders (+ the card bar); its applier stays separate BY POLICY (authored data — see the comment at the site) |
+| `concentration.js` | 658 | Phase 2.5 — cause capture → ask → roll → fold → break, `dramaticVerdictPause` |
 | `cast.js` | 93 | Phase 3 cast slice — the elect executes stamped payloads |
-| `saves.js` | 865 | Phase 2 + Phase 3 save slice — demand stamp (+ the stamp's damage auto-roll), per-target popups/rolls, fold vs stored DC, consequences through the shared appliers, LR overturn, template containment (stamp/adopt/refresh/spent-sweep) |
+| `saves.js` | 950 | Phase 2 + Phase 3 save slice — demand stamp (+ the stamp's damage auto-roll + the results.templates `.flat()`), per-target popups/rolls, fold vs stored DC, consequences through the shared appliers, LR overturn, template containment (stamp/adopt/refresh/spent-sweep) + the strand close-pass |
 | `receipts.js` | 280 | the receipt/revert views (`revertTarget` exported at v1.7.0 for the LR unwind) |
 
 Cross-file symbols are plain named exports; the discipline that keeps hook ORDER sound is
@@ -1185,8 +1210,8 @@ reach the shipped attack path. **If you add a third trigger, add it as a stamp f
 | damage message | `effectReceipt` | applied effects per target, each entry carrying `description` (the hover tooltip) + per-stage idempotence markers (`ridersDone` / `castDone`) |
 | response message | `respondsTo`, `uuid`, `answer`, `ac`, `effectLanded`, `effectReceipt` | a player's answer traveling to the continuing client; since v1.8.0 the reaction effect's receipt rides here (the answering player owns this message and no other) |
 | held message (attack / usage card) | `effectReceipt` | the reaction effect's receipt when the ANSWERING client owns the held message (GM answers, the safety net) — v1.8.0 |
-| bfCard message | `topple` | the Topple demand: `dc`, `ability`, `weapon`, per-target `done` + `outcome` ("prone"/"saved") — the fold judges by this dc |
-| usage card OR replacement bfCard | `castApply` | the cast payload: activityUuid, concentration id, scaling, spellLevel, targets — the stamp IS the trigger |
+| bfCard message | `topple` | the Topple demand: `dc`, `ability`, `weapon`, `window`/`deadline` (v1.10.0 — rides `saveTimer`; buzzer rolls at expiry), per-target `done` + `outcome` ("prone"/"saved"/"gone") + `timedOut` — the fold judges by this dc |
+| usage card | `castApply` | the cast payload: activityUuid, concentration id, scaling, spellLevel, targets — the stamp IS the trigger (always the native card since v1.10.0) |
 | save usage card (v1.9.5 additions) | `saves.templated`, `saves.durationUnits`, per-target `answeredAt`/`applied`/`total` | containment authority marker, the spent-template gate, and the crash-resume receipts |
 | topple bfCard (v1.9.5 additions) | per-target `total`, `answeredAt`, `applied` | the fold's crash-resume contract — outcome without `applied` past 20s re-drives the press+announcement |
 | conc ask (v1.9.5 additions) | `outcome.answeredAt`, `outcome.whisperIds`, `outcome.applied` | same contract for the break/holds consequence; whisper stored so a resume addresses the same ears |
@@ -1194,7 +1219,6 @@ reach the shipped attack path. **If you add a third trigger, add it as a stamp f
 | bfCard message | `masteryNotice` | the reminder: key, attacker, weapon, wording, deadline/window (popup auto-dismiss) |
 | damage-activity roll | `spellDamage` | the auto-applier's birth claim (v1.6.0) — unstamped history is inert |
 | damage-activity roll | `spellHoldPending` | a blocklisted spell's hold claim: true from birth, false = released (caster cleared it, or the hold resolved) — the applier acts on the release |
-| replacement bfCard (suppressed spell cast) | dnd5e `targets`/`item`/`activity` + `hold` | postSpellHoldCard — the hold's home when 1.9D ate the usage card; damage bridges here via `originatingMessage` |
 | ask message (bfCard) | `concentration` | the concentration ask: status, actor, ability, dc, damage, names, effectIds snapshot, cause, deadline, outcome |
 | concentration roll message | `respondsTo`, `timedOut` | which ask this roll answers (the hold's answer-channel key, same meaning); whether the buzzer pressed it |
 | save usage card | `saves` | the Phase 2 demand: status, abilities, dc, damageOnSave, hasDamage, effectNames by outcome, activityUuid, item, casterName, deadline, per-target array (done/outcome/total/rollMessageId/timedOut/forced/applied) |
