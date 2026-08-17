@@ -371,9 +371,10 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
   if ( !setting(S.reactionHold) ) return;
   // The usage card is the held document here, exactly as the attack message is over there — and
   // it already carries the same target snapshot, because getTargetDescriptors() is baked into
-  // every activity's messageFlags (mixin.mjs), not into attack rolls specifically. Since
-  // v1.6.0 a SUPPRESSED card is no obstacle: the hold rides a replacement bfCard instead.
+  // every activity's messageFlags (mixin.mjs), not into attack rolls specifically. Cards are
+  // never suppressed (v1.10.0), so the native card is always the bus.
   const message = (results?.message instanceof ChatMessage) ? results.message : null;
+  if ( !message ) return; // used with create: false — no card, no bus, nothing to hold
 
   void (async () => {
     // ⚠ Match what was CAST, not what owns the activity — the same rule the answer side lives
@@ -384,64 +385,21 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
     if ( !spellName ) return;
     const entries = blockEntries().filter(e => e.spell.toLowerCase() === spellName);
     if ( !entries.length ) return;
-    let holdMessage = message;
-    if ( !holdMessage ) {
-      holdMessage = await postSpellHoldCard(activity);
-      if ( !holdMessage ) return; // used with create:false and no targets — nothing to hold
-    }
-    await stampSpellHold(holdMessage, entries);
-    await linkSpellDamage(activity, holdMessage, { suppressed: !message });
+    await stampSpellHold(message, entries);
+    await releaseUnheldSpellDamage(activity, message);
   })();
 });
 
 /**
- * The hold's home when 1.9D suppression ate the usage card (v1.6.0): a replacement bfCard
- * carrying the SAME dnd5e flags a usage card would — targets, item, activity — so every
- * downstream consumer (the rows, the popup, the three answer channels, the fold, the
- * veto's origin walk, the late applier) works unchanged. Created by the casting client;
- * players can create their own messages.
+ * When NO hold stamped (nobody eligible, everyone spent), clear the damage roll's pending
+ * claim (spellHoldPending: false) so the auto-applier stops waiting and applies. A stamped
+ * hold needs nothing here: the native chain already ties the roll to the usage card, and
+ * the hold's own resolution releases the claim. The subsequent damage roll can land a beat
+ * after this runs — poll briefly for it.
  */
-async function postSpellHoldCard(activity) {
+async function releaseUnheldSpellDamage(activity, holdMessage) {
   try {
-    const item = activity?.item;
-    const targets = [...game.user.targets].map(t => ({
-      uuid: t.actor?.uuid, name: t.actor?.name ?? t.name,
-      img: t.actor?.img ?? null, ac: t.actor?.system?.attributes?.ac?.value ?? null
-    })).filter(t => t.uuid);
-    if ( !item || !targets.length ) return null;
-    return await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: item.actor }),
-      content: bfCard({
-        img: item.img, eyebrow: "Cast", tone: "neutral",
-        title: `${item.actor?.name ?? "Someone"} casts ${item.name}`,
-        subtitle: `At ${targets.map(t => t.name).join(", ")}`
-      }),
-      flags: { dnd5e: {
-        targets,
-        item: { id: item.id, uuid: item.uuid, type: item.type },
-        activity: { id: activity.id, uuid: activity.uuid, type: activity.type }
-      } }
-    });
-  } catch(err) {
-    console.error(`${TITLE} | Could not post the spell-hold card.`, err);
-    return null;
-  }
-}
-
-/**
- * Tie the spell's own damage roll to the hold question's outcome, on the casting client
- * (it owns both messages). Two jobs, both bus-writes the elect reacts to:
- *  - hold stamped + suppressed card: bridge the roll's originatingMessage to the
- *    replacement, so the origin walk (the veto, the fold's registry, the late applier)
- *    works exactly as it does when the usage card exists.
- *  - no hold stamped (nobody eligible, everyone spent): clear the roll's pending claim
- *    (spellHoldPending: false) so the auto-applier stops waiting and applies.
- * The subsequent damage roll can land a beat after this runs — poll briefly for it.
- */
-async function linkSpellDamage(activity, holdMessage, { suppressed = false } = {}) {
-  try {
-    const held = !!holdMessage.getFlag(MODULE_ID, "hold");
-    if ( held && !suppressed ) return; // native chain already ties them — nothing to do
+    if ( holdMessage.getFlag(MODULE_ID, "hold") ) return; // held — resolution owns the release
     const itemUuid = activity?.item?.uuid ?? null;
     if ( !itemUuid ) return;
     const deadline = Date.now() + 4000;
@@ -452,16 +410,14 @@ async function linkSpellDamage(activity, holdMessage, { suppressed = false } = {
         && (m.author?.id === game.user.id)
         && (m.getFlag("dnd5e", "item")?.uuid === itemUuid)
         && (m.getFlag(MODULE_ID, "spellDamage") === true)
-        && (suppressed ? !m.getFlag("dnd5e", "originatingMessage") : true)
         && (m.timestamp >= holdMessage.timestamp - 10_000)).pop() ?? null;
       if ( !damage ) await new Promise(r => setTimeout(r, 200));
     }
     if ( !damage ) return; // rolled with subsequentActions:false, or autoApply off — fine
-    if ( held ) await damage.setFlag("dnd5e", "originatingMessage", holdMessage.id);
-    else if ( damage.getFlag(MODULE_ID, "spellHoldPending") )
+    if ( damage.getFlag(MODULE_ID, "spellHoldPending") )
       await damage.setFlag(MODULE_ID, "spellHoldPending", false);
   } catch(err) {
-    console.error(`${TITLE} | Could not link the spell's damage to its hold.`, err);
+    console.error(`${TITLE} | Could not release the spell damage claim.`, err);
   }
 }
 
@@ -948,9 +904,8 @@ Hooks.on("dnd5e.preApplyDamage", (actor, amount, updates, options) => {
   if ( damageMessage?.getFlag("dnd5e", "roll.type") !== "damage" ) return;
   const origin = damageMessage.getOriginatingMessage?.();
   let hold = (origin && (origin !== damageMessage)) ? origin.getFlag(MODULE_ID, "hold") : null;
-  // Fallback (v1.6.0): a suppressed-card cast whose bridge has not landed yet still gets
-  // the block — find the governing hold by spell + actor, newest first, whole log (the
-  // tail-window lesson). Belt to the bridge's braces.
+  // Fallback (v1.6.0): a genuinely unbridged roll still gets the block — find the governing
+  // hold by spell + actor, newest first, whole log (the tail-window lesson).
   if ( !hold && damageMessage.getFlag(MODULE_ID, "spellDamage") ) {
     let name = null;
     try { name = fromUuidSync(damageMessage.getFlag("dnd5e", "item")?.uuid ?? "")?.name?.toLowerCase() ?? null; }

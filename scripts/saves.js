@@ -45,9 +45,9 @@ import { applyEffectsWithReceipt, revertEffect } from "./effect-riders.js";
  * which is exactly why the popup aims at the right actor by construction) but they chain to
  * the card, so the fold reads them; a bare sheet roll answers the oldest pending demand for
  * that actor (deferring to a pending concentration ask, whose recognizer this cannot be told
- * apart from). Save usage cards are never suppressed (polish.js falls through on type
- * "save"), and no other applier touches this chain: auto-apply's walk requires an attack,
- * and the v1.6.0 spellDamage claim requires a bare damage activity.
+ * apart from). No card is ever suppressed since v1.10.0 — the demand's card is always the
+ * native one — and no other applier touches this chain: auto-apply's walk requires an
+ * attack, and the v1.6.0 spellDamage claim requires a bare damage activity.
  *
  * Corners, accepted and recorded:
  *  - A multi-ability save ("Str or Dex") auto-rolls the FIRST listed ability; the popup rolls
@@ -80,11 +80,17 @@ async function stampSaveDemand(activity, message, results) {
     // Moonbeam's circle; the dummy stood inside Shatter's untargeted). postUseActivity fires
     // after _finalizeUsage, so a placed template is already in results.templates, awaited
     // and real. Manual targeting stays the bus for everything without a template.
+    // ⚠⚠ results.templates entries are ARRAYS, not documents (5.3.3 ground truth, read from
+    // source after two live misfires): #placeTemplate pushes drawPreview()'s resolution,
+    // which is the raw createEmbeddedDocuments result — an array per placement. Unflattened,
+    // the parent filter dropped every live placement and the stamp silently fell back to the
+    // manual snapshot (the Shatter/Gren strand, 2026-08-17) — the adoption floor then had to
+    // drag the demand back to the area, stranding the snapshot targets' popups.
     // Containment reads the drawn shape when one exists and falls back to document
     // geometry otherwise (templateShape) — never await canvas readiness here: an await
     // against template.object has been observed to never come back on the headless elect,
     // and the fallback makes it unnecessary.
-    const contained = tokensInTemplates((results?.templates ?? []).filter(t => t?.parent));
+    const contained = tokensInTemplates((results?.templates ?? []).flat().filter(t => t?.parent));
     const targets = contained ?? (message.getFlag("dnd5e", "targets") ?? []);
     if ( !targets.length ) return; // targetless casts stay native — the humans have it
     // A self-aimed save activity's snapshot is incidental UI targeting (the cast slice's
@@ -712,6 +718,23 @@ Hooks.on("updateChatMessage", message => {
   for ( const t of flag.targets ?? [] ) {
     const dialog = livePopups.get(popupKey(message.id, `save:${t.uuid}`));
     if ( dialog && (t.done || (flag.status !== "pending")) ) void dialog.close();
+  }
+  // A DROPPED entry's popup is asking a withdrawn question (the live Shatter strand,
+  // 2026-08-17: containment moved the demand off a snapshot target, and the popup sat open
+  // with a dead bar and no buzzer ever coming — the buzzer only knows entries that still
+  // exist). Sweep every popup for this card whose entry is GONE, and clear its shown-latch
+  // so a re-arrival gets a fresh ask. Runs on every client — the popup lives wherever
+  // canAnswerFor put it, not where the refresh ran.
+  const savePrefix = `${message.id}|save:`;
+  for ( const [key, dialog] of [...livePopups] ) {
+    if ( !key.startsWith(savePrefix) ) continue;
+    const uuid = key.slice(savePrefix.length);
+    if ( !(flag.targets ?? []).some(t => t.uuid === uuid) ) void dialog.close();
+  }
+  for ( const key of [...shownSaveAsks] ) {
+    if ( !key.startsWith(`${message.id}|`) ) continue;
+    const uuid = key.slice(`${message.id}|`.length);
+    if ( !(flag.targets ?? []).some(t => t.uuid === uuid) ) shownSaveAsks.delete(key);
   }
   if ( flag.status !== "pending" ) disarmAskTimer(saveTimers, message.id);
   else {

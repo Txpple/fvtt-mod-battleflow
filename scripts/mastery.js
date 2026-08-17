@@ -266,6 +266,12 @@ async function toppleCard(ctx, targets) {
   const dc = 8 + (ctx.attacker.system.attributes?.prof ?? 0)
     + (ctx.attacker.system.abilities?.[ctx.ability]?.mod ?? 0);
   const names = targets.map(t => t.name).join(", ");
+  // The topple demand rides the SAVE machine's clock (v1.10.0, user call — the universal
+  // design language: every table moment carries the deadline bar and one authoritative
+  // clock). Same setting, same semantics: expiry ROLLS, because a demanded save is
+  // mandatory. saveTimer 0 waits indefinitely — the GM prone button is always the
+  // paper-roll backstop either way.
+  const window = Math.max(0, Number(setting(S.saveTimer)) || 0);
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: ctx.attacker }),
     content: bfCard({
@@ -277,6 +283,7 @@ async function toppleCard(ctx, targets) {
     flags: { [MODULE_ID]: { topple: {
       dc, ability: "con",
       weapon: { name: ctx.weapon.name, img: ctx.weapon.img },
+      ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
       targets: targets.map(t => ({ uuid: t.uuid, name: t.name, done: false }))
     } } }
   });
@@ -291,8 +298,9 @@ const shownToppleAsks = new Set();
  * over the native dialog's own controls (situational bonus, Advantage/Normal/Disadvantage)
  * — because it is the same class of moment: a save someone must roll NOW. Every button is
  * the same answer (roll, chained to the card so the fold judges); dismissing is not an
- * answer — the card's Roll button recalls this popup. No timer in v1: the GM's manual
- * prone button is the backstop for a save rolled on paper.
+ * answer — the card's Roll button recalls this popup. Since v1.10.0 the demand carries the
+ * save machine's timer (the flag's deadline), so the popup runs the same bar the card runs
+ * — the pairing rule — and the buzzer below rolls whoever the clock catches.
  */
 async function showTopplePopup(message, topple, target) {
   const actor = (() => { try { return fromUuidSync(target.uuid); } catch { return null; } })();
@@ -318,7 +326,7 @@ async function showTopplePopup(message, topple, target) {
       <label style="flex:1;font-size:var(--font-size-12,12px);">Situational Bonus</label>
       <input type="text" name="bf-topple-bonus" placeholder="e.g. 1d4" autocomplete="off"
              style="flex:1;min-width:0;text-align:center;">
-    </div>`,
+    </div>` + holdBarHTML({ status: "pending", deadline: topple.deadline, window: topple.window }, "to roll"),
     buttons: [
       { action: "advantage", label: "Advantage", callback: () => roll("advantage") },
       { action: "normal", label: "Normal", default: true, callback: () => roll("normal") },
@@ -329,8 +337,9 @@ async function showTopplePopup(message, topple, target) {
   await openManagedPopup(key, message, dialog);
 }
 
-/** Roll one pending topple target's save, chained to the card — the fold does the rest. */
-async function rollToppleSave(message, target, { mode = null, bonus = null } = {}) {
+/** Roll one pending topple target's save, chained to the card — the fold does the rest.
+ * The buzzer's press rides the same path with `timedOut`, straight and data-driven. */
+async function rollToppleSave(message, target, { mode = null, bonus = null, timedOut = false } = {}) {
   const flag = message.getFlag(MODULE_ID, "topple");
   const entry = flag?.targets?.find(t => t.uuid === target.uuid);
   if ( !entry || entry.done ) return;
@@ -349,7 +358,71 @@ async function rollToppleSave(message, target, { mode = null, bonus = null } = {
     { ability: flag.ability || "con", target: flag.dc,
       ...(Object.keys(rollOverride).length ? { rolls: [rollOverride] } : {}) },
     { configure: false },
-    { data: { "flags.dnd5e.originatingMessage": message.id } });
+    { data: {
+      "flags.dnd5e.originatingMessage": message.id,
+      ...(timedOut ? { [`flags.${MODULE_ID}.timedOut`]: true } : {})
+    } });
+}
+
+/* --- the topple buzzer: expiry ROLLS, on the elect (v1.10.0) --------------------------------
+ * The save machine's semantics on the topple demand: the deadline is stamped on the flag by
+ * the caster's clock, the elect owns the buzzer, and an unanswered target's save is rolled
+ * straight and data-driven at expiry — a demanded save is mandatory, so the timer only ever
+ * decides who pressed the button. An answer already in the log beats the clock; a target
+ * that no longer exists is voided (the save buzzer's rule — a demand must never sit pending
+ * forever behind a buzzer that already fired).
+ * ------------------------------------------------------------------------------------------- */
+const toppleTimers = new Map();
+
+function armToppleTimer(message) {
+  const flag = message?.getFlag(MODULE_ID, "topple");
+  if ( !flag?.deadline || !isActiveGM() ) return;
+  if ( !(flag.targets ?? []).some(t => !t.done) ) return;
+  if ( toppleTimers.has(message.id) ) return;
+  toppleTimers.set(message.id, setTimeout(() => {
+    toppleTimers.delete(message.id);
+    void fireToppleTimer(message.id);
+  }, Math.max(0, flag.deadline - Date.now())));
+}
+
+function disarmToppleTimer(messageId) {
+  const handle = toppleTimers.get(messageId);
+  if ( handle === undefined ) return;
+  clearTimeout(handle);
+  toppleTimers.delete(messageId);
+}
+
+async function fireToppleTimer(messageId) {
+  try {
+    const card = game.messages.get(messageId);
+    const flag = card?.getFlag(MODULE_ID, "topple");
+    if ( !flag ) return;
+    for ( const t of (flag.targets ?? []) ) {
+      if ( t.done ) continue;
+      // An unfolded answer beats the clock, not races it.
+      const landed = game.messages.contents.find(m =>
+        (m.getFlag("dnd5e", "roll.type") === "save")
+        && (m.getFlag("dnd5e", "originatingMessage") === card.id)
+        && (m.getAssociatedActor?.()?.uuid === t.uuid));
+      if ( landed ) { void foldToppleSave(landed); continue; }
+      const actor = await fromUuid(t.uuid).catch(() => null);
+      if ( !(actor instanceof Actor) ) {
+        const merged = foundry.utils.deepClone(card.getFlag(MODULE_ID, "topple"));
+        const gone = merged.targets?.find(x => !x.done && (x.uuid === t.uuid));
+        if ( gone ) {
+          gone.done = true;
+          gone.outcome = "gone";
+          gone.applied = true; // nothing to press
+          gone.answeredAt = Date.now();
+          await card.setFlag(MODULE_ID, "topple", merged);
+        }
+        continue;
+      }
+      await rollToppleSave(card, t, { timedOut: true });
+    }
+  } catch(err) {
+    console.error(`${TITLE} | Topple buzzer failed.`, err);
+  }
 }
 
 /**
@@ -392,6 +465,7 @@ async function applyToppleFailure(card, uuid) {
       img: flag.weapon?.img, eyebrow: "Weapon Mastery — Topple", tone: "good",
       title: `${entry.name} falls Prone`,
       subtitle: `Constitution save ${entry.total ?? "?"} vs DC ${flag.dc}`
+        + `${entry.timedOut ? " — rolled by the timer" : ""}`
     })
   });
   entry.applied = true;
@@ -423,11 +497,13 @@ async function foldToppleSave(saveMessage) {
       entry.done = true;
       entry.outcome = success ? "saved" : "prone";
       entry.total = total;
+      if ( saveMessage.getFlag(MODULE_ID, "timedOut") ) entry.timedOut = true;
       // The crash-resume contract (the saves machine's `applied` discipline): answeredAt is
       // the horizon's clock and the new-era marker; a success has no consequence to resume.
       entry.answeredAt = Date.now();
       if ( success ) entry.applied = true;
       await card.setFlag(MODULE_ID, "topple", flag);
+      if ( flag.targets.every(t => t.done) ) disarmToppleTimer(card.id);
       if ( !success ) {
         await dramaticVerdictPause(saveMessage); // same instant-verdict class as the fold
         await applyToppleFailure(card, entry.uuid);
@@ -597,17 +673,33 @@ async function executeMasteryAnswer(message) {
   }
 }
 
-// The answer channel: every client closes an answered popup; the elect executes.
+// The answer channel: every client closes an answered popup; the elect executes. The topple
+// demand shares this watcher: a done entry's popup closes wherever it lives (a sheet roll
+// answering the topple used to leave the popup open, still asking — the §4.3 withdrawal
+// rule), and the buzzer disarms the moment nothing is pending.
 Hooks.on("updateChatMessage", message => {
   const m = message.getFlag(MODULE_ID, "mastery");
-  if ( !m ) return;
-  const dialog = livePopups.get(popupKey(message.id, "mastery"));
-  if ( dialog && ((m.status !== "pending") || m.answer) ) void dialog.close();
-  if ( isActiveGM() && (m.status === "pending") && m.answer ) void executeMasteryAnswer(message);
+  if ( m ) {
+    const dialog = livePopups.get(popupKey(message.id, "mastery"));
+    if ( dialog && ((m.status !== "pending") || m.answer) ) void dialog.close();
+    if ( isActiveGM() && (m.status === "pending") && m.answer ) void executeMasteryAnswer(message);
+  }
+
+  const topple = message.getFlag(MODULE_ID, "topple");
+  if ( topple ) {
+    for ( const t of (topple.targets ?? []) ) {
+      if ( !t.done ) continue;
+      const dialog = livePopups.get(popupKey(message.id, `topple:${t.uuid}`));
+      if ( dialog ) void dialog.close();
+    }
+    if ( !(topple.targets ?? []).some(t => !t.done) ) disarmToppleTimer(message.id);
+    else armToppleTimer(message);
+  }
 });
 
 Hooks.on("deleteChatMessage", message => {
   disarmMasteryTimer(message.id);
+  disarmToppleTimer(message.id);
   shownMasteryAsks.delete(message.id);
   shownMasteryNotices.delete(message.id);
   for ( const key of shownToppleAsks ) if ( key.startsWith(`${message.id}|`) ) shownToppleAsks.delete(key);
@@ -728,6 +820,18 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   // re-pops, and canAnswerFor picks the client that owns the moment.
   const notice = message.getFlag(MODULE_ID, "masteryNotice");
   if ( notice ) {
+    // The pairing rule (design.md §4.3, v1.10.0): while the popup's 15s drain runs for its
+    // owner, the SAME bar runs on the card for the table. holdBarHTML returns "" once the
+    // moment has passed, so an old log renders no bar — every client, no latch, stateless.
+    if ( notice.deadline > Date.now() ) {
+      const bar = document.createElement("div");
+      bar.innerHTML = holdBarHTML(
+        { status: "pending", deadline: notice.deadline, window: notice.window }, "reminder");
+      if ( bar.innerHTML.trim() ) {
+        html.querySelector(".message-content")?.appendChild(bar);
+        scheduleBarSync(bar);
+      }
+    }
     const attacker = (() => { try { return fromUuidSync(notice.attackerUuid); } catch { return null; } })();
     if ( canAnswerFor(attacker) && (notice.deadline > Date.now())
       && !shownMasteryNotices.has(message.id) ) {
@@ -738,6 +842,19 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
   const topple = message.getFlag(MODULE_ID, "topple");
   if ( topple?.targets?.length ) {
+    // The demand's bar, card-side (v1.10.0 — the pairing rule): drains in step with every
+    // popup, and the buzzer re-arms statelessly on render (a reload resumes the clock from
+    // the flag's absolute deadline, the hold timer's discipline).
+    if ( topple.deadline && topple.targets.some(t => !t.done) ) {
+      const bar = document.createElement("div");
+      bar.innerHTML = holdBarHTML(
+        { status: "pending", deadline: topple.deadline, window: topple.window }, "to roll");
+      if ( bar.innerHTML.trim() ) {
+        html.querySelector(".message-content")?.appendChild(bar);
+        scheduleBarSync(bar);
+      }
+      armToppleTimer(message);
+    }
     for ( const t of topple.targets ) {
       // Crash-resume: a folded failure whose press and announcement died with their client —
       // done+prone, unapplied, stale past any live pause. Elect-driven, new-era stamps only.

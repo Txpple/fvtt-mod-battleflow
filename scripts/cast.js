@@ -17,11 +17,11 @@ import { applyEffectsWithReceipt } from "./effect-riders.js";
  * Receipts + revert everywhere, as always.
  *
  * The bus: the STAMP is the trigger, never the setting. preCreate (initiating client) stamps
- * the `castApply` payload on a qualifying usage card — or on its replacement, when 1.9D
- * suppression eats the original — and `healPending` on a targeted healing roll. The elect
- * reacts to the flag from createChatMessage AND from the render hook (the reload-resume
- * discipline the v1.3.1 review established): an unstamped message can never be applied, so
- * rendering last week's log is inert by construction.
+ * the `castApply` payload on a qualifying usage card — always the native card since v1.10.0
+ * (the suppression machinery and its replacement bfCard are gone) — and `healPending` on a
+ * targeted healing roll. The elect reacts to the flag from createChatMessage AND from the
+ * render hook (the reload-resume discipline the v1.3.1 review established): an unstamped
+ * message can never be applied, so rendering last week's log is inert by construction.
  *
  * Deliberately OUT: save activities (Phase 2 — their cards are load-bearing), bare damage
  * activities (Magic Missile is the negate hold's seam — auto-apply would beat a pending

@@ -35,43 +35,13 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: Boolean, default: false
   });
 
-  game.settings.register(MODULE_ID, S.suppressAttackCards, {
-    name: "Suppress Attack Usage Cards",
-    hint: "Skip the chat card with Attack/Damage buttons that posting an attack normally creates — under auto-resolution the workflow record is the attack roll, the damage roll, and the receipt. The four switches below choose which sources it applies to; turning this off restores every native card immediately.",
-    scope: "world", config: true, type: Boolean, default: false
-  });
-
-  // Per-source suppression (Phase 1.9D). The master above stays the one switch a table
-  // reaches for; these four choose WHICH attack cards it eats, bucketed by the item type
-  // behind the activity. They default to suppressed so a world that turned the old boolean
-  // on carries forward with identical behavior without anyone touching settings.
-  game.settings.register(MODULE_ID, S.suppressWeaponCards, {
-    name: "Suppress: Weapon Attacks",
-    hint: "Attack cards whose activity lives on a weapon — swords, bows, and most monster attacks.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.suppressSpellCards, {
-    name: "Suppress: Attack-Roll Spells",
-    hint: "Attack cards whose activity lives on a spell (Ray of Frost, Guiding Bolt). A spell card carrying effects still survives while Effect Riders is off — the card is the only place those effects can be applied from — and a concentration cast keeps its card either way, because the effects' concentration linkage cannot be rebuilt without it.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.suppressFeatureCards, {
-    name: "Suppress: Feature Attacks",
-    hint: "Attack cards whose activity lives on a feature — class features and statblock abilities modelled as features.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.suppressOtherCards, {
-    name: "Suppress: Everything Else",
-    hint: "Attack cards from any other item type — consumables, tools, and the tail.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
+  // The suppression machinery (the 1.1 master + the 1.9D buckets) was REMOVED at v1.10.0
+  // (user call 2026-08-17: "we rip out the card suppression machinery, and we just have
+  // machinery to hide non-refund-resource buttons"). Every use posts its first card; the
+  // one card-shaping switch left is hideCardButtons below.
   game.settings.register(MODULE_ID, S.hideCardButtons, {
     name: "Hide Redundant Buttons",
-    hint: "Hide the action buttons on chat cards — Attack, Damage, Saving Throw, Place Template and the rest — leaving only Refund Resource. The module runs those workflows itself (attacks auto-roll, saves pop up, damage applies by verdict), so the buttons are a second, manual path that mostly confuses; the card keeps its text, its targets and its effects tray.",
+    hint: "Hide the action buttons on chat cards — Attack, Damage, Saving Throw and the rest — leaving only Refund Resource and Place Measured Template. The module runs those workflows itself (attacks auto-roll, saves pop up, damage applies by verdict), so the buttons are a second, manual path that mostly confuses; the card keeps its text, its targets and its effects tray. Placing a template stays pressable because nothing automates it — and a placed template is how a save spell finds its targets.",
     scope: "world", config: true, type: Boolean, default: true
   });
 
@@ -270,12 +240,11 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   addDivider(input(S.concMode), "Concentration");
   addDivider(input(S.saves), "Saving Throws");
   addDivider(input(S.castApply), "Casts");
-  addDivider(input(S.suppressAttackCards), "Table Polish");
+  addDivider(input(S.hideCardButtons), "Table Polish");
 
   const hold = input(S.reactionHold);
   const riders = input(S.riders);
   const mastery = input(S.masteryRiders);
-  const suppress = input(S.suppressAttackCards);
   const conc = input(S.concMode);
   const saves = input(S.saves);
   const syncAll = () => {
@@ -286,9 +255,6 @@ Hooks.on("renderSettingsConfig", (app, element) => {
     for ( const key of [S.riderList, S.riderUpgrades] )
       setEnabled(input(key), !!riders?.checked);
     setEnabled(input(S.masteryAsk), !!mastery?.checked);
-    for ( const key of [S.suppressWeaponCards, S.suppressSpellCards, S.suppressFeatureCards,
-      S.suppressOtherCards] )
-      setEnabled(input(key), !!suppress?.checked);
     for ( const key of [S.concTimer, S.concBreak, S.concVisibility] )
       setEnabled(input(key), conc?.value !== "off");
     setEnabled(input(S.saveTimer), !!saves?.checked);
@@ -298,7 +264,6 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   hold?.addEventListener("change", syncAll);
   riders?.addEventListener("change", syncAll);
   mastery?.addEventListener("change", syncAll);
-  suppress?.addEventListener("change", syncAll);
   conc?.addEventListener("change", syncAll);
   saves?.addEventListener("change", syncAll);
 });

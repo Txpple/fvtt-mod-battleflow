@@ -36,11 +36,9 @@ export async function applyEffectRiders(damageMessage, attackMessage, hits) {
     if ( !effects.length ) return;
 
     // The usage card carries the cast's metadata (concentration id, scaling, spell level).
-    // Under suppression there is no card and a base-level non-concentration cast is assumed.
-    // Since 1.9D this is a LIVE path: with Effect Riders on, a non-concentration attack
-    // spell's card is suppressible (Ray of Frost — the effects land right here instead).
-    // The carve-out keeps every card this fallback cannot stand in for: riders off, or a
-    // concentration cast, whose origin linkage only the card can supply.
+    // Cards are never suppressed since v1.10.0, so the no-card fallback below (base-level,
+    // non-concentration assumed) only covers genuinely chainless rolls — kept because the
+    // registry walk can still come up empty (a roll made without its card in the log).
     const usage = attackMessage.getOriginatingMessage?.();
     const usageCard = (usage instanceof ChatMessage) ? usage : null;
     const concentration = usageCard

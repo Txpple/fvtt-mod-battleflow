@@ -1,13 +1,18 @@
 /**
- * Battle Flow — Table polish: the no-target gate, per-source card suppression (with the cast-slice stamps and the replacement bfCard), dialog centering.
+ * Battle Flow — Table polish: the no-target gate, the cast-slice birth stamps, hidden card buttons, dialog centering.
  * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
+ *
+ * ⚠ The card SUPPRESSION machinery (the 1.1 master + the 1.9D per-source buckets + the
+ * replacement-bfCard plumbing) was REMOVED at v1.10.0 — user call, 2026-08-17: "we rip out
+ * the card suppression machinery, and we just have machinery to hide non-refund-resource
+ * buttons." Every use posts its first card; hideCardButtons below is the one card-shaping
+ * switch left. design.md §5 Phase 1.1 carries the full policy.
  */
-import { MODULE_ID, TITLE, S, setting } from "./core.js";
+import { MODULE_ID, S, setting } from "./core.js";
 import { blockEntries } from "./hold.js";
-import { bfCard } from "./ui.js";
 
 /* ---------------------------------------------------------------------------------------------
- * Table polish — the no-target gate, attack-card suppression, dialog centering
+ * Table polish — the no-target gate, the birth stamps, hidden buttons, dialog centering
  * ------------------------------------------------------------------------------------------- */
 
 // Require a target to attack: cancel the use before anything rolls or consumes. Same
@@ -19,25 +24,6 @@ Hooks.on("dnd5e.preUseActivity", activity => {
   ui.notifications.warn(`No target selected — ${activity.item?.name ?? "the attack"} stays sheathed. Target something, then attack.`);
   return false;
 });
-
-// Suppress the usage card (the Attack/Damage button card) for attack activities. The veto
-// runs on the initiating client (preCreate document hooks are local). Without the card,
-// dnd5e's own rollAttack gets no originatingMessage — the resolver's chain walk already
-// falls back to the attack message itself as the origin, so auto-damage and auto-apply are
-// unaffected. Consumption still happens; only its display card is skipped.
-//
-// Scope guard: attack-activity cards ONLY. Save-spell cards are load-bearing (targets click
-// their saves there) until Phase 2 rolls saves itself.
-/** The 1.9D per-source bucket for a usage card, by the item type behind the activity —
- * read straight off the card's own flags (messageFlags stamps `item: {type, id, uuid}` on
- * every usage card, mixin.mjs:139). No async resolution, no registry walk. */
-function suppressBucketFor(doc) {
-  const itemType = doc.getFlag("dnd5e", "item")?.type;
-  return (itemType === "weapon") ? S.suppressWeaponCards
-    : (itemType === "spell") ? S.suppressSpellCards
-    : (itemType === "feat") ? S.suppressFeatureCards
-    : S.suppressOtherCards;
-}
 
 /**
  * Phase 3's structural gate — no name list, a shape (design.md §2.6 done right): a used
@@ -63,11 +49,12 @@ function castApplyQualifies(doc) {
   try { affects = fromUuidSync(doc.getFlag("dnd5e", "activity")?.uuid ?? "")?.target?.affects?.type ?? null; }
   catch { affects = null; }
   if ( !affects || (affects === "self") ) return false;
-  // A heal's card is suppressible bare (its roll is the record); utility needs effects.
+  // A heal qualifies bare (its roll message is the record and carries the stamp);
+  // utility needs effects to have anything to apply.
   return (activityType === "heal") || !!doc.system?.effects?.length;
 }
 
-/** Everything the elect needs to apply a cast, captured off the card (or its doomed data). */
+/** Everything the elect needs to apply a cast, captured off the card at preCreate. */
 function castPayload(doc) {
   return {
     activityUuid: doc.getFlag("dnd5e", "activity")?.uuid ?? null,
@@ -76,34 +63,6 @@ function castPayload(doc) {
     spellLevel: doc.system?.spellLevel ?? null,
     targets: (doc.getFlag("dnd5e", "targets") ?? []).map(t => ({ uuid: t.uuid, name: t.name }))
   };
-}
-
-/**
- * The replacement card for a suppressed cast: created on the CASTING client from the doomed
- * card's own data (preCreate is local, and players can create their own messages), carrying
- * the payload the elect applies from. Chat-log-as-bus survives suppression this way — a
- * vetoed card leaves nothing to react to, so the replacement IS the bus, and the receipt
- * carrier, and the table's record of the cast, in one message.
- */
-async function postCastReplacement(doc) {
-  try {
-    const payload = castPayload(doc);
-    let item = null;
-    try { item = fromUuidSync(doc.getFlag("dnd5e", "item")?.uuid ?? ""); } catch { item = null; }
-    const caster = doc.speaker?.alias ?? item?.actor?.name ?? "Someone";
-    const names = payload.targets.map(t => t.name).join(", ");
-    await ChatMessage.create({
-      speaker: doc.speaker,
-      content: bfCard({
-        img: item?.img, eyebrow: "Cast", tone: "good",
-        title: `${caster} casts ${item?.name ?? "a spell"}`,
-        subtitle: names ? `On ${names}` : ""
-      }),
-      flags: { [MODULE_ID]: { castApply: payload } }
-    });
-  } catch(err) {
-    console.error(`${TITLE} | Could not post the cast card.`, err);
-  }
 }
 
 Hooks.on("preCreateChatMessage", doc => {
@@ -123,8 +82,8 @@ Hooks.on("preCreateChatMessage", doc => {
   // which makes the auto-applier defer until the hold question settles: the caster
   // clears it if no hold stamps, the hold's resolution releases it otherwise. The claim
   // is stamped from birth precisely so the applier can never lose a race to the hold.
-  // NOT gated on autoApply: the stamp is also what linkSpellDamage bridges through, and
-  // the veto needs that bridge whether or not anything auto-applies.
+  // NOT gated on autoApply: the stamp is also what the veto's fallback keys on, whether
+  // or not anything auto-applies.
   if ( (doc.getFlag("dnd5e", "roll.type") === "damage")
     && (doc.getFlag("dnd5e", "activity")?.type === "damage")
     && (doc.getFlag("dnd5e", "targets") ?? []).length ) {
@@ -146,62 +105,29 @@ Hooks.on("preCreateChatMessage", doc => {
   // (bit live 2026-08-15). Accept both so old worlds and new agree.
   const isUsage = (doc.type === "usage") || (doc.getFlag("dnd5e", "messageType") === "usage");
   if ( !isUsage ) return;
-  const activityType = doc.getFlag("dnd5e", "activity")?.type;
 
-  if ( activityType === "attack" ) {
-    if ( !setting(S.suppressAttackCards) ) return;
-    if ( !setting(suppressBucketFor(doc)) ) return;
-    // ⚠ A card carrying effects the riders will NOT handle must survive. With Effect Riders
-    // off the card is the only place its effects can be applied from — suppressing it silently
-    // ate Ray of Frost's slow (reported live 2026-08-15). With riders ON the card can go, the
-    // effects land anyway — EXCEPT a concentration cast: the rider applier resolves the
-    // concentration effect for origin linkage off the usage card (`system.concentration`,
-    // stamped into the message data before creation, mixin.mjs:248), and the suppressed-card
-    // fallback cannot rebuild that linkage — so those cards stay.
-    if ( doc.system?.effects?.length
-      && (!setting(S.effectRiders) || doc.system?.concentration) ) return;
-    return false;
-  }
-
-  // Phase 3 (cast slice): a no-gate cast the applier will handle. Suppressed under the same
-  // 1.9D switches as attack cards — and REPLACED, because the replacement card is the bus.
-  // Unlike 1.9A's carve-out, a concentration cast's card can go here: the payload carries
-  // the linkage the bare suppression could not rebuild. With suppression off, the native
-  // card itself is stamped and stays the bus.
-  if ( castApplyQualifies(doc) ) {
-    if ( setting(S.suppressAttackCards) && setting(suppressBucketFor(doc)) ) {
-      if ( doc.system?.effects?.length ) void postCastReplacement(doc); // a bare heal needs no replacement
-      return false;
-    }
-    if ( doc.system?.effects?.length )
-      doc.updateSource({ flags: { [MODULE_ID]: { castApply: castPayload(doc) } } });
-    return;
-  }
-
-  // A bare damage-activity card (Magic Missile's shape) is suppressible spam (user call
-  // 2026-08-16). Since v1.6.0 that includes BLOCKLISTED spells: the hold no longer needs
-  // this card — it rides a replacement bfCard (postSpellHoldCard) that carries the same
-  // target/item/activity flags, and the damage roll is bridged to it, so the rows, the
-  // answers, the fold and the veto's origin walk all work unchanged.
-  if ( activityType === "damage" ) {
-    if ( !setting(S.suppressAttackCards) || !setting(suppressBucketFor(doc)) ) return;
-    // Effects riding a damage card have no automated path (1.9A is attack-only, the cast
-    // slice excludes damage) — the card is their only apply surface. It survives.
-    if ( doc.system?.effects?.length ) return;
-    return false;
+  // Phase 3 (cast slice): a no-gate cast the applier will handle — the native card is the
+  // bus, stamped with the payload the elect executes from. Cards are never suppressed
+  // (v1.10.0); a bare heal needs no stamp here because its roll message carries healPending.
+  if ( castApplyQualifies(doc) && doc.system?.effects?.length ) {
+    doc.updateSource({ flags: { [MODULE_ID]: { castApply: castPayload(doc) } } });
   }
 });
 
 // Hide the cards' action buttons — the module RUNS those workflows (attacks auto-roll,
 // saves pop up on their owners, damage applies by verdict), so the buttons are a second,
 // manual path that forks the machine: a save button that rolls for whatever token is
-// SELECTED (the live topple trap), a damage button that double-rolls. Refund Resource
-// stays — it is bookkeeping, not workflow. Display-level and stateless (every DOM tree);
-// the handlers underneath survive, so anything that still slips through folds normally.
+// SELECTED (the live topple trap), a damage button that double-rolls. Two survive:
+// Refund Resource (bookkeeping, not workflow) and Place Measured Template (v1.10.0 —
+// nothing automates placement, and a placed template is how a save demand finds its
+// targets; hiding the only post-cast placement affordance starved containment). Display-
+// level and stateless (every DOM tree); the handlers underneath survive, so anything that
+// still slips through folds normally.
+const KEPT_CARD_BUTTONS = new Set(["refundResource", "placeTemplate"]);
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   if ( !setting(S.hideCardButtons) ) return;
   for ( const button of html.querySelectorAll(".card-buttons button[data-action]") ) {
-    if ( button.dataset.action !== "refundResource" ) button.style.display = "none";
+    if ( !KEPT_CARD_BUTTONS.has(button.dataset.action) ) button.style.display = "none";
   }
 });
 

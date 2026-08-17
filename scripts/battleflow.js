@@ -33,11 +33,12 @@
  *     durable row on the attack card, GM override, and a re-test against the target's LIVE
  *     AC once answered (a Shield that turns the hit into a miss ends the chain and the
  *     damage dice never exist). The module waits for a human; it never plays the reaction.
- *   - Table polish (first dogfood feedback, 2026-08-15): a no-target gate that cancels an
- *     attack before anything rolls or consumes ("popup error, then exit out"), a world
- *     setting that suppresses the attack usage card (the Attack/Damage button card — spam
- *     under auto-resolution; the chain rides the attack-message-origin fallback), and a
- *     per-client setting that centers the system's roll dialogs instead of lower-right.
+ *   - Table polish (first dogfood feedback, 2026-08-15; recut 2026-08-17): a no-target gate
+ *     that cancels an attack before anything rolls or consumes ("popup error, then exit
+ *     out"), hidden card action buttons (every use posts its first card, the machine runs
+ *     the workflows — only Refund Resource and Place Measured Template stay pressable), and
+ *     a per-client setting that centers the system's roll dialogs instead of lower-right.
+ *     The card SUPPRESSION machinery was removed at v1.10.0 (design.md §5 Phase 1.1).
  *   - Concentration assist (Phase 2.5): a concentrating creature that takes damage gets the
  *     save run instead of a whisper card nobody reads — popup (or silent auto-roll) on the
  *     owner's client, DC from the system, and on a failure the module presses the button the
