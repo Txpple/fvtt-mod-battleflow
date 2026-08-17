@@ -145,53 +145,23 @@ Hooks.on("preCreateChatMessage", doc => {
 // Hide the cards' action buttons — the module RUNS those workflows (attacks auto-roll,
 // saves pop up on their owners, damage applies by verdict), so the buttons are a second,
 // manual path that forks the machine: a save button that rolls for whatever token is
-// SELECTED (the live topple trap), a damage button that double-rolls. Two survive:
-// Refund Resource (bookkeeping, not workflow) and Place Measured Template (v1.10.0 —
-// nothing automates placement, and a placed template is how a save demand finds its
-// targets; hiding the only post-cast placement affordance starved containment). Display-
-// level and stateless (every DOM tree); the handlers underneath survive, so anything that
-// still slips through folds normally.
-const KEPT_CARD_BUTTONS = new Set(["refundResource", "placeTemplate"]);
-
-/** Does a template this card's activity placed still stand on any scene? Same origin tie
- * as the save machine's adoption (flags.dnd5e.origin === the activity uuid). */
-function cardTemplateStands(message) {
-  const origin = message.getFlag("dnd5e", "activity")?.uuid;
-  if ( !origin ) return false;
-  for ( const scene of game.scenes ) {
-    if ( scene.templates.some(t => t.getFlag("dnd5e", "origin") === origin) ) return true;
-  }
-  return false;
-}
+// SELECTED (the live topple trap), a damage button that double-rolls. Exactly ONE
+// survives: Refund Resource — bookkeeping, not workflow (the v1.9.5 spec, restored at
+// v1.12.0 by the user's third ask; the v1.10.0/v1.11.0 Place Measured Template exemption
+// and its conditional template-standing machinery are deleted outright). Post-cast
+// placement lives in the cast-time usage prompt and the canvas template controls, and the
+// save machine's WAITING demand (saves.js, v1.12.0) adopts an area whenever it lands —
+// the containment-starvation rationale is gone. Display-level and stateless (every DOM
+// tree); the handlers underneath survive, so anything that still slips through folds
+// normally.
+const KEPT_CARD_BUTTONS = new Set(["refundResource"]);
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   if ( !setting(S.hideCardButtons) ) return;
-  // Place Measured Template survives the cut ONLY while no template stands (v1.11.0,
-  // finding ② — with the circle already down, the button's one remaining power is
-  // placing a SECOND copy). Deleting the template brings it back: the canceled-placement
-  // path (cast → cancel → place from the card) must stay alive.
-  const templateStands = cardTemplateStands(message);
   for ( const button of html.querySelectorAll(".card-buttons button[data-action]") ) {
-    const keep = KEPT_CARD_BUTTONS.has(button.dataset.action)
-      && !((button.dataset.action === "placeTemplate") && templateStands);
-    if ( !keep ) button.style.display = "none";
+    if ( !KEPT_CARD_BUTTONS.has(button.dataset.action) ) button.style.display = "none";
   }
 });
-
-// The live toggle: a template landing or leaving re-renders its card so the button
-// tracks the world without waiting for the next natural render. CRUD hooks are a
-// fast-path only (they measured unreliable on headless clients — the containment
-// ground truth); the render pass above is the floor that always corrects.
-function refreshCardsForTemplate(templateDoc) {
-  const origin = templateDoc.getFlag("dnd5e", "origin");
-  if ( !origin || !setting(S.hideCardButtons) ) return;
-  for ( const m of game.messages.contents ) {
-    if ( m.getFlag("dnd5e", "activity")?.uuid !== origin ) continue;
-    try { ui.chat?.updateMessage?.(m); } catch(err) { /* next render corrects */ }
-  }
-}
-Hooks.on("createMeasuredTemplate", refreshCardsForTemplate);
-Hooks.on("deleteMeasuredTemplate", refreshCardsForTemplate);
 
 // Center the system's roll-configuration dialogs (dnd5e docks them lower-right:
 // left = innerWidth - 710, top = clientY - 80). First render only — re-renders fire on every

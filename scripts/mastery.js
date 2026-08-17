@@ -872,8 +872,14 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       // surface aims at the RIGHT actor: a popup on the decider's client (v1.6.0 — "the
       // cards are difficult to follow"), with the card's Roll button as its recall.
       if ( topple.dc && canAnswerFor(actor) ) {
+        // The GM's unsolicited popups are non-player-owned targets only (v1.12.0,
+        // finding ④ — the save machine's rule, and the topple demand is a save): a
+        // player-owned target whose owner is offline rides the saveTimer buzzer; the
+        // Roll button below recalls deliberately, and the GM prone button is the paper
+        // backstop either way.
+        const gmQuiet = game.user.isGM && !!actor?.hasPlayerOwner;
         const shownKey = `${message.id}|${t.uuid}`;
-        if ( !shownToppleAsks.has(shownKey) ) {
+        if ( !gmQuiet && !shownToppleAsks.has(shownKey) ) {
           shownToppleAsks.add(shownKey);
           void showTopplePopup(message, topple, t);
         }

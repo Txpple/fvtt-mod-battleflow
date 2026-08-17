@@ -92,7 +92,15 @@ async function stampSaveDemand(activity, message, results) {
     // and the fallback makes it unnecessary.
     const contained = tokensInTemplates((results?.templates ?? []).flat().filter(t => t?.parent));
     const targets = contained ?? (message.getFlag("dnd5e", "targets") ?? []);
-    if ( !targets.length ) return; // targetless casts stay native — the humans have it
+    // A TEMPLATE-SHAPED activity's targetless cast stamps a WAITING demand (v1.12.0,
+    // finding ③ — the natural Web flow is cast bare, then place: the old bail meant
+    // adoption had no customer and the area produced no saves at all). The demand stamps
+    // with zero targets and NO deadline; adoption fills it when the template lands and
+    // arms the clock on the first arrivals (armAskTimer no-ops without a deadline, so
+    // nothing buzzes an empty wait). A targetless cast with no template shape anywhere
+    // in its data still stays native — no area is ever coming.
+    const templateShaped = !!activity.target?.template?.type;
+    if ( !targets.length && !templateShaped ) return; // targetless, no area coming — the humans have it
     // A self-aimed save activity's snapshot is incidental UI targeting (the cast slice's
     // lesson). A BLANK affects is allowed on purpose, unlike the cast slice: hand-authored
     // statblock abilities often carry no affects data, and eating their saves in silence
@@ -125,6 +133,7 @@ async function stampSaveDemand(activity, message, results) {
     const saveModulated = !!activity.damage?.parts?.length && (onSave !== "full");
 
     const window = Math.max(0, Number(setting(S.saveTimer)) || 0);
+    const awaiting = !targets.length; // template-shaped, area not placed yet (the gate above)
     await message.setFlag(MODULE_ID, "saves", {
       status: "pending",
       abilities, dc,
@@ -133,10 +142,13 @@ async function stampSaveDemand(activity, message, results) {
       effectNames,
       activityUuid: activity.uuid,
       templated: !!contained,
+      ...(awaiting ? { awaitingTemplate: true } : {}),
       durationUnits: activity.item?.system?.duration?.units ?? null,
       item: { name: activity.item?.name ?? "the effect", img: activity.item?.img ?? null },
       casterName: activity.actor?.name ?? null,
-      ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
+      // A waiting demand carries its window but NO deadline — the clock starts when the
+      // area delivers its first targets (the adoption write), not while nobody can roll.
+      ...(window ? (awaiting ? { window } : { window, deadline: Date.now() + (window * 1000) }) : {}),
       // Per-target state is an ARRAY with uuid fields — never a uuid-keyed map (the dotted
       // key expansion ground truth).
       targets: targets.map(t => ({ uuid: t.uuid, name: t.name,
@@ -249,22 +261,33 @@ async function refreshDemandFromTemplates(card) {
   templateRefreshes.add(card.id);
   try {
     const flag = card.getFlag(MODULE_ID, "saves");
-    if ( (flag?.status !== "pending") || !(flag.targets ?? []).some(t => !t.done) ) return;
+    if ( flag?.status !== "pending" ) return;
+    // A WAITING demand (zero targets — the v1.12.0 targetless template stamp) is a
+    // customer too: it exists precisely so the area can deliver its targets later.
+    const wasWaiting = !(flag.targets ?? []).length;
+    if ( !wasWaiting && !(flag.targets ?? []).some(t => !t.done) ) return;
     const templates = templatesForOrigin(flag.activityUuid);
     if ( !templates.length ) return;
     const contained = tokensInTemplates(templates) ?? [];
     const merged = foundry.utils.deepClone(flag);
     merged.templated = true;
-    const done = merged.targets.filter(t => t.done);
-    const keep = merged.targets.filter(t => !t.done && contained.some(c => c.uuid === t.uuid));
-    const fresh = contained.filter(c => !merged.targets.some(t => t.uuid === c.uuid))
+    const done = (merged.targets ?? []).filter(t => t.done);
+    const keep = (merged.targets ?? []).filter(t => !t.done && contained.some(c => c.uuid === t.uuid));
+    const fresh = contained.filter(c => !(merged.targets ?? []).some(t => t.uuid === c.uuid))
       .map(c => ({ ...c, done: false, outcome: null, total: null, rollMessageId: null }));
     const next = [...done, ...keep, ...fresh];
-    if ( !next.length ) return; // never strand an empty demand — the buzzer owns it
+    if ( !next.length ) return; // a waiting demand keeps waiting; a populated one never strands
     const same = (merged.targets.length === flag.targets.length) && flag.templated
       && flag.targets.every((t, i) => next[i]?.uuid === t.uuid) && (next.length === flag.targets.length);
     merged.targets = next;
     if ( same ) return; // unchanged — write nothing, the log stays quiet
+    // The first arrivals start the clock a waiting stamp deliberately withheld: deadline
+    // from NOW (the elect's clock — the skew note in the file banner already covers it),
+    // so the table gets the full window from the moment there is somebody to roll.
+    if ( wasWaiting ) {
+      merged.awaitingTemplate = false;
+      if ( merged.window && !merged.deadline ) merged.deadline = Date.now() + (merged.window * 1000);
+    }
     await card.setFlag(MODULE_ID, "saves", merged);
   } catch(err) {
     console.error(`${TITLE} | Template containment refresh failed.`, err);
@@ -280,7 +303,8 @@ function refreshTemplatedDemands(templateDoc) {
   const live = game.messages.contents.filter(m => {
     const f = m.getFlag(MODULE_ID, "saves");
     return (f?.status === "pending") && (f.activityUuid === origin)
-      && (f.targets ?? []).some(t => !t.done);
+      // Undone targets, or a WAITING demand (zero targets) whose area just arrived.
+      && (!(f.targets ?? []).length || (f.targets ?? []).some(t => !t.done));
   }).sort((a, b) => a.timestamp - b.timestamp);
   const card = live.at(-1);
   if ( card ) void refreshDemandFromTemplates(card);
@@ -811,7 +835,28 @@ function verdictText(flag, t) {
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const flag = message.getFlag(MODULE_ID, "saves");
-  if ( !flag?.targets?.length ) return;
+  if ( !flag ) return;
+
+  // A WAITING demand (the v1.12.0 targetless template stamp): zero targets, clock unarmed.
+  // Say so — a silent card here is indistinguishable from finding ③'s bug — and run the
+  // adoption floor on the elect: the CRUD hooks are only fast-paths (the headless ground
+  // truth), so a render is what reliably notices the placed area.
+  if ( !flag.targets?.length ) {
+    if ( flag.status !== "pending" ) return;
+    if ( isActiveGM() ) void refreshDemandFromTemplates(message);
+    const abilityLabel = CONFIG.DND5E.abilities[flag.abilities?.[0]]?.label ?? flag.abilities?.[0] ?? "";
+    const row = document.createElement("div");
+    row.className = "battleflow-saves";
+    row.style.marginTop = "0.35rem";
+    const line = document.createElement("div");
+    Object.assign(line.style, {
+      fontSize: "var(--font-size-11, 11px)", lineHeight: "1.6", fontWeight: "bold", opacity: "0.75"
+    });
+    line.textContent = `${abilityLabel} save DC ${flag.dc} — waiting for the template's area`;
+    row.appendChild(line);
+    html.querySelector(".message-content")?.appendChild(row);
+    return;
+  }
 
   const row = document.createElement("div");
   row.className = "battleflow-saves";
@@ -834,7 +879,13 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       const actor = (() => { try { return fromUuidSync(t.uuid); } catch { return null; } })();
       const roller = (actor instanceof Actor) ? saveRollerUser(actor) : null;
       line.style.opacity = "0.75";
-      line.textContent = `${t.name} — ${abilityLabel} save DC ${flag.dc}, waiting on ${roller?.name ?? "the GM"}`;
+      // A player-owned target whose owner is offline rides the buzzer, not the GM's popup
+      // stack (finding ④) — "waiting on Matt the DM" was a lie the moment nothing popped.
+      // With no window there is no buzzer, so the GM (whose Roll button is the real path)
+      // stays named.
+      const waitingOn = (roller?.isGM && actor?.hasPlayerOwner && flag.window)
+        ? "the timer (owner offline)" : (roller?.name ?? "the GM");
+      line.textContent = `${t.name} — ${abilityLabel} save DC ${flag.dc}, waiting on ${waitingOn}`;
     }
     row.appendChild(line);
     // EVERY pending row runs the demand's bar (v1.11.0, finding ④ — "two timers tick
@@ -871,9 +922,16 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       if ( t.done ) continue;
       const actor = (() => { try { return fromUuidSync(t.uuid); } catch { return null; } })();
       if ( !canAnswerFor(actor) ) continue;
+      // The GM's UNSOLICITED popups are non-player-owned targets only (v1.12.0, finding ④,
+      // user call: "as a GM i dont care to see other player saves"). canAnswerFor falls
+      // back to the GM when a player-owned actor's owner is offline — that target rides
+      // the buzzer instead (or the Roll button below: recall is a deliberate click, never
+      // spam). Player-owned with an owner PRESENT never reaches here (canAnswerFor is
+      // false on the GM client); NPCs and unowned characters keep their popups.
+      const gmQuiet = game.user.isGM && !!actor?.hasPlayerOwner;
       // ONE input surface, queued: auto-show only for the actor's OLDEST pending demand;
       // the button recalls this card's popup regardless.
-      if ( pendingSaveCardsFor(t.uuid)[0]?.id === message.id ) {
+      if ( !gmQuiet && (pendingSaveCardsFor(t.uuid)[0]?.id === message.id) ) {
         const shownKey = `${message.id}|${t.uuid}`;
         if ( !shownSaveAsks.has(shownKey) ) {
           shownSaveAsks.add(shownKey);
