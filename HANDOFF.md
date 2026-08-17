@@ -1,68 +1,72 @@
 # HANDOFF.md — picking this up cold
 
-> ⚠⚠ **NEXT SESSION IS A TESTING WALK — START BY DOING NOTHING.** The user's explicit
-> instruction (2026-08-17, end of session): open by presenting THE v1.11.0 WALK checklist
+> ⚠⚠ **NEXT SESSION IS A TESTING WALK — START BY DOING NOTHING.** The user's standing
+> protocol (proven three walks running): open by presenting THE v1.12.0 WALK checklist
 > below, then wait. Do not connect the bridge, run suites, read the world, or touch code.
 > The user works the list at the table one item at a time and reports; you AGGREGATE —
 > number the findings as they arrive, restate the FULL list state after every update (so
 > they never scroll), confirm/close items as they say so — and you ACT only when they say
-> go. Then: evidence first, one battery-green fix pass, release. Exactly today's pattern.
+> go. Then: evidence first, one battery-green fix pass, release. Exactly the pattern.
 
-> Current at 2026-08-17, evening — **v1.11.0 shipped: the walk's findings, closed in one
-> pass.** The user walked v1.10.0 live in the afternoon (protocol: report → aggregate →
-> "ok go"), producing five findings + one settings call; the fix pass ran autonomously —
-> evidence from the live world first (two new probes), then fixes, then battery-green
-> across all seven suites. Read [design.md](design.md) first — it is binding and has
-> absorbed everything through v1.11.0 (self-aim, rider damage, the conditional keep-list,
-> per-row bars, 15s defaults, the popup-topology note). This file is only *where things
-> stand* and *what already bit us*.
+> Current at 2026-08-17, night — **v1.12.0 shipped: the v1.11.0 walk's findings, closed
+> in one pass.** The user walked v1.11.0 in the evening (protocol held: report →
+> aggregate → "ok go"), producing three findings + one closed discussion; the fix pass
+> ran autonomously — the walk itself supplied the live evidence (Shatter-with-targets
+> demanded rows minutes after Web-targetless didn't, same topology, GM present — that
+> contrast IS finding ③'s repro), the code read localized it, then fixes, then
+> battery-green across all seven suites. smoke-saves needed two runs: the first run's
+> four failures were ALL harness defects in the brand-new sections, none in the module
+> (the token-name lesson, recorded in the suite notes below). Read
+> [design.md](design.md) first — it is binding and has absorbed everything through
+> v1.12.0 (the waiting demand, the GM popup filter, the restored keep-list, the no-GM
+> non-goal). This file is only *where things stand* and *what already bit us*.
 >
-> **v1.11.0 in one breath (the walk's findings ①–⑥):**
-> - **① SELF-tagged activities SELF-AIM** (user call: "anything that is tagged SELF
->   should self aim" — Morgash Second-Winded the target dummy). A heal/utility activity
->   with `affects.type: "self"` ignores the UI snapshot, aims at its own actor, needs no
->   target at all. Supersedes v1.5.1's "self-buffs stay tray clicks". The carve-out (what
->   survives of v1.5.1): LISTED reactions with Apply-the-Reaction's-Effect on never
->   self-aim — Shield stays the hold machinery's (smoke-cast §6d pins it; smoke-hold's
->   coexistence net still polices the +10-two-chips regression).
-> - **② Place Measured Template is now CONDITIONAL**: hidden while a template of this
->   card's activity stands (origin-flag tie), back when it's deleted — the
->   canceled-placement path stays alive. NOT suite-pinned (the CRUD nudges don't fire
->   headless); eyeball live: cast Web, place → button gone; delete the template → back.
-> - **③ `onSave: "full"` is rider damage** — Web's burn 2d4 lives ON the save activity
->   in the system's own PHB data, tagged full because the save doesn't modulate it. The
->   demand now stamps NO damage dimension for it: no auto-roll, no per-verdict
->   application, and the reconcile refuses chained damage (the enricher-click side door).
->   The card's enricher stays clickable through the native tray, GM-judged. smoke-saves
->   §9 pins all of it. (The walk's Web cast auto-rolled 8 and applied it to Jetten's
->   timer-failure; both long rests since washed it — nothing to revert.)
-> - **④ The "no popup on Matt" mystery is TOPOLOGY, not code** — probed to ground with a
->   two-client repro (tools/probe-popup-topology.mjs): the cross-client chain works;
->   popups opened on the decider's client and closed at resolution. EVERY save all
->   session was GM-decided while the user drove the OTHER window — a 6s popup on an
->   unwatched window lives and dies unseen (flag forensics: every demand target all
->   session resolved timedOut). Fixes that DID ship: a bar under EVERY pending row
->   ("two timers tick side by side" — smoke-saves §9c), and the 15s defaults below.
-> - **⑤ Pressed conditions name their source**: the topple stamp carries `attackerUuid`,
->   both press paths land Prone with `origin` = the attacker (forceStatus grew an origin
->   option, direct-build first, canonical id kept). The mastery chips already carried the
->   weapon. smoke-effects §7c + §14c2 pin both paths.
-> - **⑥ Every timer defaults to 15s** (user call, made at the table where they also set
->   the live values): holdTimer's default 0 → 15; conc/save were already 15. The
->   REFERENCE TABLE below carries the user's live 15s values — Save Timer 6→15 and Hold
->   Timer 12→15 are USER changes, never fight them.
+> **v1.12.0 in one breath (the walk's findings ②–④ + the ruling):**
+> - **② The keep-list is exactly `refundResource` again** (user call, their THIRD ask —
+>   the v1.9.5 spec restored; v1.11.0's conditional was the wrong resolution). The
+>   v1.10.0 Place Measured Template exemption and the v1.11.0 conditional machinery are
+>   deleted outright. Placement lives in the cast-time usage prompt and the canvas
+>   template controls; flipping Hide Redundant Buttons off restores every button — that
+>   IS the settings gate. smoke-saves §10b pins it at the DOM, count-guarded.
+> - **③ A targetless TEMPLATE cast stamps a WAITING demand.** The old stamp bailed on
+>   zero targets and adoption can only retarget a demand that exists — so Web's natural
+>   flow (cast bare, place after) produced no saves at all (caught live: Gren's Web over
+>   two tokens, no DEX rows, GM present). Now `target.template.type` ⇒ stamp with zero
+>   targets, `awaitingTemplate: true`, window but NO deadline (armAskTimer no-ops
+>   without one — nothing buzzes an empty wait); the card says "waiting for the
+>   template's area"; adoption accepts the empty demand as a customer, fills it from the
+>   placed area, and stamps the deadline from THAT moment — full window from the first
+>   instant somebody can roll. No template shape anywhere ⇒ still native (§7b).
+>   Emanation spells (Spirit Guardians) ride this too. smoke-saves §10 pins the chain
+>   end to end.
+> - **④ The GM's unsolicited popups are non-player-owned targets only** (user call: "as
+>   a GM i dont care to see other player saves"). canAnswerFor's offline-owner fallback
+>   feeds the BUZZER now, not the GM's popup stack — save demands and topple asks both
+>   gate their auto-show on `isGM && hasPlayerOwner`. The row says "waiting on the timer
+>   (owner offline)" (with a 0 window the GM stays named — the Roll button is then the
+>   real path); recall is a deliberate click and never filtered; owners present were
+>   never routed to the GM anyway. smoke-saves §11 pins it with BF Test PC Attacker.
+>   ⚠ The CONCENTRATION ask deliberately keeps its GM fallback popup — a break is
+>   heavier than a save and the user hasn't asked; recorded open question (design.md
+>   Phase 2 amendments), raise it when it comes up, don't silently extend ④.
+> - **Ⓓ1 CLOSED AS A RULING — GM required for full functionality** (user: "so close
+>   this convo out, we'll keep as is"). Now design.md §8's permanent non-goal with the
+>   full possible/impossible/risky itemization preserved there. "No GM logged in,
+>   nothing applied" is by-design — the walk's finding ① was withdrawn on exactly this,
+>   so say it EARLY when the next such report arrives.
 
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.11.0** (2026-08-17 evening — the walk's findings,
-above). Before it: v1.10.0 (round two, same day afternoon; v1.9.6 burned as its staging
-diagnostic), v1.9.5 (the dogfood sixteen, small hours), and on 2026-08-16: v1.8.0 (the
-Phase 3 convergence), v1.7.0 (Phase 2 saving throws + the save slice), v1.6.1 (the
-split), v1.6.0, v1.5.1, v1.5.0, v1.4.0, v1.3.x. Deployed, tags pushed, GitHub releases
-carry zip + manifest. **The box tracks the GitHub manifest**, the vended version string
-is REAL (staging installs bounce the process), and the box currently runs a
-staging-installed copy of the exact v1.11.0 release bits.
+Molten-hosted). Latest release **v1.12.0** (2026-08-17 night — the v1.11.0 walk's
+findings, above). Before it, all 2026-08-17: v1.11.0 (evening), v1.10.0 (afternoon;
+v1.9.6 burned as its staging diagnostic), v1.9.5 (the dogfood sixteen, small hours);
+and on 2026-08-16: v1.8.0 (the Phase 3 convergence), v1.7.0 (Phase 2 saving throws +
+the save slice), v1.6.1 (the split), v1.6.0, v1.5.1, v1.5.0, v1.4.0, v1.3.x. Deployed,
+tags pushed, GitHub releases carry zip + manifest. **The box tracks the GitHub
+manifest**, the vended version string is REAL (staging installs bounce the process),
+and the box currently runs a staging-installed copy of the exact v1.12.0 release bits
+(verified vending 1.12.0 post-install, settings CLEAN).
 
 | Phase | State |
 | --- | --- |
@@ -102,7 +106,7 @@ update this table, never fight it:
 | Skip Hopeless Holds | **on** | gated on the reveal, deliberately — see the setting's hint |
 | Apply the Reaction's Effect | on | |
 | Hold Settle | 8s | |
-| Hide Redundant Buttons | **on (the default)** | v1.9.5; keep-list since v1.10.0: Refund Resource AND Place Measured Template — the latter CONDITIONAL since v1.11.0 (hidden while its template stands, back on delete) |
+| Hide Redundant Buttons | **on (the default)** | v1.9.5; keep-list since v1.12.0: **exactly Refund Resource** (finding ②, the user's third ask — the v1.9.5 spec restored; the v1.10.0/v1.11.0 Place Template detour deleted) |
 | Hit Riders | **on** | user flipped ON 2026-08-17 |
 | Rider Table | `hunters-mark, hex, great-old-one-hex` | identifiers only — the damage is read from the content |
 | Rider Upgrades | `foe-slayer:hunters-mark` | replaces the die, never stacks |
@@ -120,65 +124,71 @@ update this table, never fight it:
 
 ## Open items
 
-### ✅ THE v1.10.0 WALK — COMPLETE (2026-08-17 afternoon) + v1.11.0 CLOSED ITS FINDINGS
+### ✅ THE v1.11.0 WALK — COMPLETE (2026-08-17 evening) + v1.12.0 CLOSED ITS FINDINGS
 
 The walk's outcome, kept because reports referencing these will keep arriving:
-- Walk 1 ✅ cards always post (keep-list correct) · Walk 5 ✅ topple timer · Walk 6 ✅
-  reminder card's public 15s bar · Walk 7 ✅ **Slow ring dead — the round-two AA fix is
-  now user-verified visually** (its if-it-recurs note retires; backup JSON stays in
-  tools/).
-- Walks 2/3/4/8/9 ⛔ closed by the user in favor of the findings (below). Round one's
-  stragglers ①③④⑥⑨⑪⑬⑮ retired unconfirmed with them; watch item ⑭ (year-off
-  timestamps) had NO sighting this session and stands unchanged.
-- **Findings ①–⑥ → ALL SHIPPED at v1.11.0** (the header's one-breath list). Evidence
-  and per-finding detail: the session ledger lives in this file's git history; the
-  binding versions are design.md's v1.11.0 amendments (cast slice, Phase 2, Phase 1.1,
-  §6 timers).
+- Item 1 ✅ SELF-aim (Second Wind/Divine Favor) · Item 3 ✅ the CAST half (no damage
+  roll at cast; the enricher stays native) — its DEX-rows half became finding ③ ·
+  Item 4 ✅ per-row bars side by side, popups present · Item 5 ✅ the Prone chip names
+  its attacker · Item 6 ✅ every bar drains per config (holdTimer / saveTimer /
+  concTimer; the mastery reminder's 15s is the one hardcoded clock) · Item 7 ✅ chat
+  log reviewed by agent (45/45 messages sane) — **watch ⑭ had NO sighting again** and
+  stands unchanged.
+- Item 2 ⛔ superseded by finding ② (the conditional "breathing" was never the ask).
+- Finding ① ⛔ withdrawn by the user — no GM was logged in; it became the Ⓓ1
+  discussion, which closed as the GM-required ruling (header + design.md §8).
+- **Findings ②③④ → ALL SHIPPED at v1.12.0** (the header's one-breath list). The
+  session ledger lives in this file's git history; the binding versions are design.md's
+  v1.12.0 amendments (Phase 1.1, Phase 2, §6, §8).
 
-### 🚶 THE v1.11.0 WALK — the user's checklist for the next testing session
+### 🚶 THE v1.12.0 WALK — the user's checklist for the next testing session
 
 The session protocol is the header's ⚠⚠ block: present this list, wait, aggregate,
-restate after every update, act only on "go". Everything below is suite-proven except
-item 2 (deliberately eyeball-only); the walk is the live confirmation. The settings
-table above is law — no settings changes needed. Every client must log back in first
-(the box was bounced for the v1.11.0 install).
+restate after every update, act only on "go". Everything below is suite-proven; the
+walk is the live confirmation. The settings table above is law — no settings changes
+needed. Every client must log back in first (the box was bounced for the v1.12.0
+install).
 
-1. **Second Wind, wrong target up** — target the dummy, use Second Wind: Morgash heals,
-   the dummy doesn't. Then use it again with NOBODY targeted: still heals Morgash.
-   (Same rule now covers Divine Favor: cast it and the effect chips Thomas at cast, no
-   tray click.)
-2. **Web: the Place Measured Template button breathes** — on the fresh card the button
-   shows; place the template and it disappears; DELETE the circle off the canvas and it
-   comes back. (The one item no suite pins — headless CRUD limitation.)
-3. **Web casts save-only** — no damage roll posts at cast, the demand runs DEX-save
-   rows only, and the burn "2d4" in the card text is still a clickable enricher (native
-   tray, GM's call, per-verdict application never touches it).
-4. **Two-target Shatter (dummy + Jetten)** — a bar under EACH pending row, ticking side
-   by side on the same 15s clock. Optional popup check: cast from Tom's window, alt-tab
-   to Matt's inside the 15s — both popups are sitting there (they always were; at 6s
-   they closed unseen before anyone looked).
-5. **Topple → the Prone chip names Morgash** — knock the dummy prone, open its sheet:
-   the effect's SOURCE reads the attacker. Check it on a timer-rolled failure or the GM
-   button alike.
-6. **Timers read 15s everywhere** — hold, save/topple, concentration bars all drain the
-   same length; nothing still runs a short clock.
-7. **Watch ⑭** — if any "year ago" timestamp appears: hover for the real date and note
+1. **Web cast bare, then placed** — cast Web with NOBODY targeted and skip/cancel
+   placement: the card reads "Constitution/DEX save DC … — waiting for the template's
+   area" and nothing ticks. Place the cube (canvas template controls) over the dummy +
+   somebody: rows appear for whoever stands inside, a FULL 15s bar starts from the
+   placement moment, popups land on the deciders, no damage rolls, the burn "2d4"
+   enricher stays native. (Then the classic path once: place DURING the cast dialog —
+   rows appear straight from the stamp.)
+2. **The card shows ONE button** — Web's fresh card carries Refund Resource and nothing
+   else; Place Measured Template is hidden. Flip Hide Redundant Buttons OFF: every
+   button returns. Flip it back ON. (The settings gate, live.)
+3. **Shatter at dummy + Jetten (Andrew offline)** — the dummy's popup opens for the GM;
+   Jetten gets NO popup anywhere, the row reads "waiting on the timer (owner offline)",
+   and the 15s buzzer rolls Jetten marked "(timer)". The card's Roll button still
+   recalls Jetten's popup on a deliberate click — that path is filtered never.
+4. **Topple a PC with its owner offline** (optional twin of 3) — no GM popup; the
+   saveTimer buzzer rolls it; the dummy's topple still pops the GM as before.
+5. **A never-placed Web** (optional corner check) — cast bare, never place, walk away:
+   the card keeps its quiet waiting line forever, no rows, no clock. Deliberate — say
+   so if it reads as a bug at the table.
+6. **Watch ⑭** — if any "year ago" timestamp appears: hover for the real date and note
    WHICH USER authored the message before clearing chat (the author names the broken
-   clock).
+   clock). Two sessions with no sighting now.
 
-**State at handoff:** working tree clean, the v1.11.0 three-commit train pushed (test →
-feat tagged v1.11.0 → docs); the GitHub release carries zip + bare module.json; the box
-runs a staging-installed copy of the exact v1.11.0 release bits (the process was bounced
-for the install — any client that was connected needs to log back in); world up, bridge
-disconnected; the user's settings verified drift-free against the reference table (with
-the new 15s timer values) after the battery AND after the install. No code changes are
-in flight.
+**State at handoff:** working tree clean, the v1.12.0 three-commit train pushed (test →
+feat tagged v1.12.0 → docs); the GitHub release carries zip + bare module.json; the box
+runs a staging-installed copy of the exact v1.12.0 release bits (the process was bounced
+for the install — any client that was connected needs to log back in; nobody was); world
+up, bridge disconnected; the user's settings verified drift-free against the reference
+table after the battery AND after the install (`verify-settings.mjs` CLEAN twice). No
+code changes are in flight.
 
-### Where the plan points now (2026-08-17, evening — post-v1.11.0)
+### Where the plan points now (2026-08-17, night — post-v1.12.0)
 
-**Three feedback rounds are closed** (the dogfood sixteen at v1.9.5/v1.10.0, round two
-at v1.10.0, the walk's ①–⑥ at v1.11.0 — resolution maps live in this file's git history
-and in design.md's amendments). What remains open:
+**Four feedback rounds are closed** (the dogfood sixteen at v1.9.5/v1.10.0, round two
+at v1.10.0, the v1.10.0 walk's ①–⑥ at v1.11.0, the v1.11.0 walk's ②–④ at v1.12.0 —
+resolution maps live in this file's git history and in design.md's amendments). Closed
+as a RULING, not code: **Ⓓ1 — GM required for full functionality** (design.md §8 keeps
+the full itemization). Open as a QUESTION, not a bug: **the concentration ask still
+popups the GM for offline-owner PCs** — finding ④ deliberately did not touch it; ask
+the user before extending the filter there. What remains open:
 
 - **⑭ The year-off timestamps** — two cards on 2026-08-16 rendered "11m 364d ago" (the
   topple announcement, a Heroism heal roll) among correctly-stamped neighbors. The module
@@ -194,13 +204,15 @@ and in design.md's amendments). What remains open:
   render, and DOM state); growing it into a suite is the natural next step if
   cross-client regressions worry anyone.
 
-⚠ Tuesday is live play. v1.11.0 clears battery-green. Player-facing changes since the
-table last sat: SELF abilities (Second Wind, Divine Favor) apply to their user no matter
-what's targeted; every timer runs 15s; a multi-target save card drains a bar under every
-pending row; Web-class spells no longer roll their situational damage at cast; the
-pressed Prone chip names its attacker; Place Measured Template hides once the template
-is down. **Every connected client needs an F5 to pick the release up** — the box was
-bounced for the install, so anyone connected got logged out anyway.
+⚠ Tuesday is live play. v1.12.0 clears battery-green. Player-facing changes since the
+table last sat (cumulative v1.11.0 + v1.12.0): SELF abilities (Second Wind, Divine
+Favor) apply to their user no matter what's targeted; every timer runs 15s; a
+multi-target save card drains a bar under every pending row; Web-class spells no longer
+roll their situational damage at cast; the pressed Prone chip names its attacker; an
+area spell cast bare WAITS for its template and demands saves from whoever the placed
+area contains (full window from placement); every card button except Refund Resource is
+hidden; and an offline player's PC resolves its saves by timer without popping the GM.
+**Every connected client needs to log back in** — the box was bounced for the install.
 
 **World content, fixed this session (not module code):** Thomas's Divine Favor and
 Salyth's Thaumaturgy both arrived from the DDB level-1 import with their embedded
@@ -228,7 +240,13 @@ for bugs on 2026-08-16, so say so early if it recurs); the save machine's own co
 are standing item 15's list (multi-ability first-listed, consumed-item effects, dead
 targets still roll, conc-ask deference, no announcement cards); a LISTED reaction never
 self-aims (the v1.11.0 carve-out — Shield through the hold machinery only, so a
-no-hold Shield cast is a tray click, by design). *(Graduated at v1.11.0: "self-buffs
+no-hold Shield cast is a tray click, by design); a never-placed template leaves its
+demand quietly WAITING on the card forever (v1.12.0 — no rows, no clock, deliberate);
+a token entering a STANDING area joins the demand only when a card re-render runs the
+containment floor (semi-live, not turn-based — Phase 4 owns turn-time truth); the
+concentration ask still popups the GM for offline-owner PCs (finding ④'s deliberate
+non-extension — open question, not a bug); and "cast with no GM logged in, nothing
+applied" is the Ⓓ1 ruling working as designed. *(Graduated at v1.11.0: "self-buffs
 stay tray clicks" is DEAD — SELF-tagged activities self-aim now, finding ①.)*
 
 ### Standing
@@ -429,7 +447,13 @@ stay tray clicks" is DEAD — SELF-tagged activities self-aim now, finding ①.)
    damage dimension for it: `hasDamage: false`, no auto-roll, and the reconcile refuses
    ALL chained damage on such a demand (the enricher-click side door). The card's
    enricher stays clickable through the native tray. smoke-saves §9. Also since v1.11.0:
-   a bar under EVERY pending row (finding ④ — same absolute deadline each).
+   a bar under EVERY pending row (finding ④ — same absolute deadline each). ⚠ Since
+   v1.12.0: a targetless TEMPLATE cast stamps a WAITING demand (zero targets, window
+   without deadline, `awaitingTemplate`; the card says so; adoption fills it and arms
+   the clock from that moment — smoke-saves §10), and the GM's unsolicited popups are
+   non-player-owned targets only (`isGM && hasPlayerOwner` gates the auto-show on save
+   demands AND topple asks; the offline-owner PC rides the buzzer, the row reads
+   "waiting on the timer (owner offline)" — smoke-saves §11).
    The flow: the casting client
    stamps `saves` on the save activity's own usage card (postUseActivity; DC, abilities,
    damageOnSave, effect names by outcome, per-target array) → popups on `canAnswerFor`
@@ -464,11 +488,11 @@ stay tray clicks" is DEAD — SELF-tagged activities self-aim now, finding ①.)
    card's VALUE is its description, effects tray, and targets — its COST was the action
    buttons, a manual second path that forks the machine (a save button rolling for the
    SELECTED token; a damage button double-rolling). So `hideCardButtons` (world, default
-   ON) hides every `.card-buttons button[data-action]` except the keep-list —
-   `refundResource`, and since v1.10.0 `placeTemplate` (nothing automates placement, and
-   a placed template is how a save demand finds its targets) — CONDITIONAL since v1.11.0
-   (finding ②): hidden while a matching-origin template stands, back when it's deleted,
-   so the canceled-placement path stays alive (CRUD re-render fast-path + render floor).
+   ON) hides every `.card-buttons button[data-action]` except the keep-list — **exactly
+   `refundResource` since v1.12.0** (finding ②, the user's third ask: the v1.9.5 spec
+   restored; the v1.10.0 `placeTemplate` exemption and v1.11.0's conditional
+   template-standing machinery are deleted outright — the WAITING demand plus the
+   cast-time placement prompt dissolved the containment-starvation rationale).
    Display-level and
    stateless; the handlers survive underneath, and the fold still ACCEPTS a native-button
    roll that sneaks through (popouts, other modules). The companion: the save machine
@@ -487,7 +511,10 @@ stay tray clicks" is DEAD — SELF-tagged activities self-aim now, finding ①.)
    matching-origin template appears later, and as the area moves/re-places — done entries
    keep their verdicts, pending entries outside drop **and their popups close (v1.10.0 —
    the close pass sweeps popups whose entry is gone and clears their shown-latches)**,
-   arrivals join fresh. ⚠⚠ **`results.templates` entries are ARRAYS, not documents**
+   arrivals join fresh. **A WAITING demand (zero targets — v1.12.0's targetless template
+   stamp) is a customer too**: adoption fills it from the area and stamps the deadline
+   from that moment (`window` was stored at cast, the clock starts when somebody can
+   roll); a template over nobody leaves it waiting. ⚠⚠ **`results.templates` entries are ARRAYS, not documents**
    (5.3.3 ground truth, read from source after two live misfires): `#placeTemplate`
    pushes `drawPreview()`'s resolution — the raw `createEmbeddedDocuments` result — so
    the stamp must `.flat()` before the parent filter or every live placement silently
@@ -673,8 +700,21 @@ table this cannot happen (the bridge is one page; humans are different users); i
 a harness topology, so the fix is protocol, not code. `smoke-effects` §9 asserts the
 announcement count so a double-elect now fails loudly at the source.
 
-`tools/smoke-saves.mjs` (34 assertions at v1.11.0) proves the save machine, sections
-(**9** is new at v1.11.0: rider damage never rolls or applies + a bar per pending row):
+`tools/smoke-saves.mjs` (43 assertions at v1.12.0) proves the save machine, sections
+(**9** new at v1.11.0: rider damage never rolls or applies + a bar per pending row;
+**10** new at v1.12.0: the WAITING demand — bare template cast stamps zero targets/no
+deadline, Place Template exists-and-hides [finding ②'s DOM pin, count-guarded], the
+placed area fills it, arms the clock from that moment, asks, and runs to a receipt;
+**11** new at v1.12.0: the GM popup filter — BF Test PC Attacker [player-owned, owner
+offline] gets no popup while the NPC control's popup shows in the same breath, the row
+names the timer, the buzzer resolves it marked):
+⚠ **Match popups by the ENTRY's stored token name, never the actor name** (learned
+v1.12.0, four failures in one run): adoption and the UI snapshot both name entries
+after their TOKEN, and BF Test Victim's token is literally "Hobgoblin" — a matcher
+looking for the actor name misses a popup that is correctly open. And give
+pending-state assertions a window longer than their own polling patience (§11's first
+run set a 4s buzzer, then polled 6s for a popup the buzzer had already closed —
+`open=0` proved only that the machine had finished).
 **1** the stamp + the auto-rolled damage (asserted then DELETED so §2's late-arrival
 ordering stays constructible) + hidden card buttons at the DOM (count-guarded — a
 zero-button card would pass vacuously) + two popup-clicked forced verdicts (±30 con save

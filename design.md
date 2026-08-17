@@ -290,6 +290,14 @@ off), none changing the resolution chain:
   > cancel → place from the card) stays alive. Template CRUD re-renders the card as a
   > fast-path; the render pass is the floor (the CRUD-hooks-unreliable-headless ground
   > truth).
+  > **OVERTURNED at v1.12.0 (the v1.11.0 walk's finding ②, the user's third ask): the
+  > keep-list is exactly Refund Resource — the v1.9.5 spec, restored.** The v1.10.0
+  > Place Measured Template exemption and the v1.11.0 conditional machinery are deleted
+  > outright. The containment-starvation rationale that justified the exemption is gone:
+  > placement lives in the cast-time usage prompt and the canvas template controls, and
+  > the save machine's WAITING demand (Phase 2, v1.12.0) adopts an area whenever and
+  > however it lands. Flipping Hide Redundant Buttons off restores every button — that IS
+  > the settings gate.
 - **Damage receipts are for the whole table, the HP pool is not.** Everyone sees *who* the
   damage landed on and how much; the before → after hit points and the revert control stay
   GM-only. A rolled number with no named target is the thing players actually complained
@@ -620,6 +628,34 @@ v1.3.0 (2026-08-16).
 >   driving two windows sees only the acting window's popups. That is attention, not a
 >   defect; the 15s default (below) is the mitigation, and at a real table each human
 >   watches their own window.
+>
+> **Amended v1.12.0 (2026-08-17 evening, the v1.11.0 walk's findings):**
+> - **A targetless TEMPLATE cast stamps a WAITING demand (finding ③).** The old stamp
+>   bailed on zero targets, and adoption can only retarget a demand that exists — so
+>   Web's natural flow (cast bare, place the area after) produced no saves at all. Now:
+>   an activity whose `target.template.type` is set stamps with zero targets,
+>   `awaitingTemplate: true`, its window but NO deadline (armAskTimer no-ops without
+>   one — nothing buzzes an empty wait); the card says "waiting for the template's
+>   area"; adoption accepts the empty demand as a customer, fills it from the placed
+>   area, and stamps the deadline from THAT moment (the elect's clock), so the table
+>   gets the full window from the first instant somebody can actually roll. A targetless
+>   cast with no template shape anywhere still stays native. Accepted corners: a cast
+>   whose template is never placed leaves an inert waiting demand on the card (no rows,
+>   no clock — harmless, and honest about what happened); and a token entering a
+>   STANDING area joins only when a card re-render runs the containment floor —
+>   semi-live, not turn-based (Phase 4's expiry experiment owns turn-time truth).
+> - **The GM's unsolicited popups are non-player-owned targets only (finding ④, user
+>   call: "as a GM i dont care to see other player saves").** `canAnswerFor` falls back
+>   to the GM when a player-owned actor's owner is offline; that fallback now feeds the
+>   BUZZER, not the GM's popup stack — the demand popup and the topple ask both gate
+>   their auto-show on `game.user.isGM && actor.hasPlayerOwner`. The card row says
+>   "waiting on the timer (owner offline)" instead of naming a GM who will never be
+>   asked (with a 0 window — no buzzer — the GM stays named: the Roll button is then the
+>   real path). Recall is a deliberate click and never filtered; owners present are
+>   untouched (canAnswerFor already refuses the GM there); NPCs and unowned characters
+>   keep their popups. The concentration ask deliberately keeps its GM fallback popup
+>   for now — a break is heavier than a save, and the user has not asked; recorded as an
+>   open question, not an accident.
 
 > **The machine already exists (2026-08-16, user architectural call).** Phase 2.5 shipped
 > first and is deliberately the seed: the mode gate (prompt / auto), the ask-message +
@@ -843,7 +879,7 @@ World, per-feature, default OFF unless noted:
 | Dramatic beat before damage | off / seconds | 1 |
 | Require a target to attack | off / on | 1.1 |
 | ~~Suppress attack usage cards~~ | **removed v1.10.0** (with the whole suppression machinery — cards always post) | 1.1 |
-| Hide redundant card buttons | on (default, world) — every card action button hidden except Refund Resource and Place Measured Template (conditional since v1.11.0: hidden while its template stands); **shipped v1.9.5**, keep-list amended v1.10.0/v1.11.0 | 1.9 |
+| Hide redundant card buttons | on (default, world) — every card action button hidden except **Refund Resource, exactly** (the v1.9.5 spec, restored v1.12.0 after the v1.10.0/v1.11.0 Place Measured Template detour — finding ②, the user's third ask); **shipped v1.9.5** | 1.9 |
 | Center roll dialogs (per client) | off / on — **ships ON**, the one recorded default-off exception (user call 2026-08-15: a per-client comfort nobody knows to look for starts wrong on every new login) | 1.1 |
 | Reaction hold | off / on + curated interrupt list (entries: name, AC-type/damage-type) | 1.5 |
 | Spells a reaction blocks | curated list (`Spell:Reaction`, default `Magic Missile:Shield`) | 1.5 |
@@ -939,6 +975,15 @@ The 80% of midi-qol this module exists to refuse:
 - **An extension platform for homebrew** — the rules target is all of 5e 2024 (§1.1), but the
   answer to "my custom spell needs this" is a world-setting list entry, never a new extension
   point. What is permanently refused is a *platform*, not breadth of official content.
+- **A no-GM degraded mode** (user call, 2026-08-17, closing the Ⓓ1 discussion: "we'll keep
+  as is — GM required for full functionality"). Every world-visible write runs on the
+  active-GM elect; with no GM client connected the automation stands down and the native
+  tray remains the manual path. The honest split that closed it: player-owned targets COULD
+  be served by owner-routed writes, but unowned actors are a hard permission wall (no GM to
+  proxy through), so any degraded mode partially applies mixed target sets — and silent
+  partial application is this module's worst failure class (the rider intersection rule's
+  own reasoning). "Cast with no GM logged in and nothing applied" is by-design, not a bug —
+  the finding-① precedent from the v1.11.0 walk.
 
 ---
 
