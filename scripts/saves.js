@@ -191,8 +191,8 @@ function tokensInTemplates(templates) {
     const shape = templateShape(doc);
     for ( const tok of doc.parent.tokens ) {
       if ( tok.isSecret || !tok.actor ) continue;
-      const c = tokenCenter(tok);
-      if ( !c || !shape.contains(c.x - doc.x, c.y - doc.y) ) continue;
+      const pts = tokenSamplePoints(tok);
+      if ( !pts.some(p => shape.contains(p.x - doc.x, p.y - doc.y)) ) continue;
       const uuid = tok.actor.uuid;
       if ( seen.has(uuid) ) continue;
       seen.add(uuid);
@@ -202,33 +202,55 @@ function tokensInTemplates(templates) {
   return entries;
 }
 
-/** The template's shape — the drawn object's when it exists, else CORE'S OWN shape
- * builders, else Euclidean math. Two expensive truths (v1.12.0 walk finding ① + its live
- * re-test, 2026-08-17): the fallback used to cover CIRCLES only — the harness never
- * draws, and on a live client createMeasuredTemplate fires BEFORE the canvas computes
- * object.shape, so a cube's rect had no shape at the only moment adoption looked and
- * "waiting kept waiting". And hand-rolled EUCLIDEAN geometry is the wrong truth in a
- * gridded world: this world runs the core `gridTemplates` setting ON, where shapes are
- * grid-built polygons — the Euclidean rect for the walk's cube was 784px wide against
- * the drawn 560px, and Salyth got demanded from outside the visible area. Core's
- * getCircleShape/getRectShape/getConeShape/getRayShape statics run the exact grid-aware
- * branch the renderer uses (doc-native units: scene units + degrees). They are
- * deprecated since v14 (until 16, ShapeData replaces them — one console warning per
- * session; migrate when 16 lands) and they read canvas.grid, so they are the truth for
- * the CURRENT scene only; a cross-scene template falls to the Euclidean math (exact when
- * gridTemplates is off, approximate otherwise — adoption's claim is current-scene-only
- * anyway, and cross-scene demands are dialog-placed). */
+/**
+ * ⚠⚠ THE v14 REGION-SHIM GROUND TRUTH (the v1.13.0 walk's finding ①, probes 7–9,
+ * 2026-08-17): Foundry 14 shims MeasuredTemplates onto Regions, and this build's CREATE
+ * round-trip corrupts the stored units — `distance` comes back ×(gridSize/100) (×1.4 on a
+ * 140px grid, ×0.7 on 70px, invisible on the 100px test range) and `width` comes back as
+ * RAW PIXELS. The client pipeline is clean (probe 8: local clean/validate leaves values
+ * untouched); the scaling happens server-side. The renderer draws from the same lying
+ * field, so the PLACED area (shape, highlight, and any doc-math) is uniformly oversized —
+ * only the dnd5e `dimensions` flag survives honest, because fromActivity stamps the
+ * spell's own size and the shim never touches flags.
+ *
+ * So: SPELL-TRUTH FIRST. When the placement stamped honest dimensions, geometry is built
+ * from them — the demand matches the 20 ft cube the caster cast and the honest preview
+ * they aimed, not the corrupted stored field. This deliberately supersedes the
+ * drawn-shape-first rule (standing item 17) while the shim lies: the drawn object IS the
+ * corrupted doc. Self-healing — once upstream fixes the shim, doc.distance equals the
+ * dimensions-derived value and every branch agrees again. adjustedSize placements
+ * (emanations sized up by token) keep doc math: their final size lives only in distance.
+ */
+function honestDims(doc) {
+  const dim = doc.flags?.dnd5e?.dimensions;
+  if ( !(dim?.size > 0) || dim.adjustedSize ) return null;
+  if ( (doc.t === "ray") && !(dim.width > 0) ) return null;
+  return {
+    // A dnd5e cube rides a rect drawn corner-to-corner: distance is the diagonal.
+    distance: (doc.t === "rect") ? Math.hypot(dim.size, dim.size) : dim.size,
+    width: (doc.t === "ray") ? dim.width : (doc.width ?? 0)
+  };
+}
+
+/** The template's shape — honest dnd5e dimensions when stamped (the shim note above),
+ * else the drawn object's, else core's own shape builders (deprecated since v14, until
+ * 16 — migrate to ShapeData when 16 lands; current-scene only), else Euclidean math.
+ * The fallback ladder below the rescue is v1.13.0's, kept for toolbar-drawn and
+ * foreign templates that carry no dimensions flag. */
 function templateShape(doc) {
-  if ( doc.object?.shape ) return doc.object.shape;
+  const honest = honestDims(doc);
+  const distance = honest?.distance ?? doc.distance ?? 0;
+  const width = honest?.width ?? doc.width ?? 0;
+  if ( !honest && doc.object?.shape ) return doc.object.shape;
   if ( (doc.parent === canvas?.scene) && canvas?.dimensions?.distancePixels ) {
     try {
       const cls = CONFIG.MeasuredTemplate?.objectClass;
       switch ( doc.t ) {
-        case "circle": return cls.getCircleShape(doc.distance ?? 0);
-        case "rect": return cls.getRectShape(doc.distance ?? 0, doc.direction ?? 0);
-        case "cone": return cls.getConeShape(doc.distance ?? 0, doc.direction ?? 0,
+        case "circle": return cls.getCircleShape(distance);
+        case "rect": return cls.getRectShape(distance, doc.direction ?? 0);
+        case "cone": return cls.getConeShape(distance, doc.direction ?? 0,
           doc.angle || CONFIG.MeasuredTemplate?.defaults?.angle || 53.13);
-        case "ray": return cls.getRayShape(doc.distance ?? 0, doc.direction ?? 0, doc.width ?? 0);
+        case "ray": return cls.getRayShape(distance, doc.direction ?? 0, width);
       }
     } catch(err) {
       console.warn(`${TITLE} | Core template shape builder failed; using Euclidean fallback.`, err);
@@ -236,7 +258,7 @@ function templateShape(doc) {
   }
   const grid = doc.parent?.grid;
   if ( !grid?.size || !grid?.distance ) return null;
-  const d = (doc.distance ?? 0) * (grid.size / grid.distance);
+  const d = distance * (grid.size / grid.distance);
   const dir = Math.toRadians(doc.direction ?? 0);
   switch ( doc.t ) {
     case "circle": return new PIXI.Circle(0, 0, d);
@@ -245,7 +267,7 @@ function templateShape(doc) {
       return new PIXI.Rectangle(Math.min(0, dx), Math.min(0, dy), Math.abs(dx), Math.abs(dy));
     }
     case "ray": {
-      const w = (doc.width ?? 0) * (grid.size / grid.distance);
+      const w = width * (grid.size / grid.distance);
       const dx = Math.cos(dir), dy = Math.sin(dir);
       const ox = -dy * (w / 2), oy = dx * (w / 2);
       return new PIXI.Polygon([ox, oy, dx * d + ox, dy * d + oy, dx * d - ox, dy * d - oy, -ox, -oy]);
@@ -270,6 +292,25 @@ function tokenCenter(tok) {
   const grid = tok.parent?.grid?.size;
   if ( !grid ) return null;
   return { x: tok.x + (tok.width * grid) / 2, y: tok.y + (tok.height * grid) / 2 };
+}
+
+/** Every occupied grid square's center for a token — the 5e "does the area touch you on
+ * the grid" question, one sample per square (midi-qol's long-standing model). A large
+ * token counts when ANY of its squares stands in the area — center-only testing missed a
+ * 2×2 body half inside. Sub-square tokens keep the single center sample. */
+function tokenSamplePoints(tok) {
+  const grid = tok.parent?.grid?.size;
+  if ( !grid ) return [];
+  const w = Math.round(tok.width ?? 1), h = Math.round(tok.height ?? 1);
+  if ( (w < 1) || (h < 1) || ((w === 1) && (h === 1)) ) {
+    const c = tokenCenter(tok);
+    return c ? [c] : [];
+  }
+  const points = [];
+  for ( let i = 0; i < w; i++ ) {
+    for ( let j = 0; j < h; j++ ) points.push({ x: tok.x + ((i + 0.5) * grid), y: tok.y + ((j + 0.5) * grid) });
+  }
+  return points;
 }
 
 /**
@@ -436,11 +477,30 @@ Hooks.on("updateMeasuredTemplate", doc => { refreshTemplatedDemands(doc); });
  * Shatter's circle has nothing left to say, so it leaves the canvas (user call 2026-08-16).
  * Duration spells (Moonbeam, Web) keep theirs: the area persists and containment keeps
  * reading it. The card keeps the spell's text either way — nothing is lost with the shape.
+ *
+ * ⚠ Since v1.14.0 this is a CONVERGENT FLOOR, not only a completion one-shot (the
+ * v1.13.0 walk's finding ②): the one-shot at the last consequence pass demonstrably got
+ * lost live — stale Fireball circles stood with every target applied — most plausibly to
+ * an elect flip mid-chain (a second GM session connecting/disconnecting re-elects; probe
+ * sessions did exactly that during the walk). The render/update floors now re-offer the
+ * sweep for done demands, so a lost one-shot converges on the next render, whoever the
+ * elect is by then. Idempotent and cheap: the origin filter usually finds nothing.
+ *
+ * ⚠ The NEWEST-CAST fossil wall: re-casting the same activity reuses the same
+ * activityUuid, so an OLD done card's sweep would delete the CURRENT cast's area. Any
+ * newer same-activity save card disarms this card's sweep forever. (The narrow blind
+ * spot — a re-render landing in the ms between the new cast's template and its stamp —
+ * needs a full-log re-render inside that window; accepted.)
  */
 async function cleanupSpentTemplates(card) {
   const flag = card.getFlag(MODULE_ID, "saves");
   if ( !flag?.templated || (flag.durationUnits !== "inst") ) return;
   if ( !(flag.targets ?? []).every(t => t.done && (t.applied || (t.outcome === "gone"))) ) return;
+  const superseded = game.messages.contents.some(m => {
+    if ( (m.id === card.id) || (m.timestamp <= card.timestamp) ) return false;
+    return m.getFlag(MODULE_ID, "saves")?.activityUuid === flag.activityUuid;
+  });
+  if ( superseded ) return;
   for ( const scene of game.scenes ) {
     const spent = scene.templates.filter(t => t.getFlag("dnd5e", "origin") === flag.activityUuid);
     if ( spent.length ) await scene.deleteEmbeddedDocuments("MeasuredTemplate", spent.map(t => t.id));
@@ -906,6 +966,9 @@ Hooks.on("updateChatMessage", message => {
     for ( const t of flag.targets ?? [] ) {
       if ( t.done && !t.applied ) void applySaveConsequences(message, t.uuid);
     }
+    // The sweep's convergent floor (finding ②): a done demand re-offers its spent-area
+    // cleanup here, so a one-shot lost to an elect flip lands on the next update.
+    if ( flag.status !== "pending" ) void cleanupSpentTemplates(message);
   }
   // The queue advances: a resolved target may free the next demand card for its actor.
   for ( const t of flag.targets ?? [] ) {
@@ -1073,6 +1136,9 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       if ( t.done && !t.applied ) void applySaveConsequences(message, t.uuid);
     }
     if ( flag.targets.some(t => t.done) ) void reconcileSaveDamage(message);
+    // The sweep's convergent floor (finding ②) — render side, the reload-resume twin of
+    // the update floor above.
+    if ( flag.status !== "pending" ) void cleanupSpentTemplates(message);
   }
   html.querySelector(".message-content")?.appendChild(row);
 });
