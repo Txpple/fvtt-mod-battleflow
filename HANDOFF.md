@@ -12,6 +12,15 @@
 > expected outcome is a RULING and zero code, so "nothing to fix" is a SUCCESS here, not
 > an empty session.
 
+> 📋 **THE FLOW BACKLOG LIVES IN [FLOW.md](FLOW.md)** (NEW, 2026-08-19). Session 4's
+> FLOW/polish track — 11 items in 3 phases, built from the transcript + chat-log audit,
+> then RECONCILED against the v1.15.0 tree (four items had already shipped). It is a
+> separate track from this file's bug ledger and carries its own build order.
+> ⚠ **It supersedes the Desktop scratch .txt entirely — that file is no longer a reference.**
+> ⚠ **It contains an OPEN ORDERING DECISION:** its item 11 argues session 4 was the Phase 5
+> AC5e tripwire firing, which conflicts with Phase 4 holding the deck slot above. Unresolved
+> — the user rules.
+
 > ⚠⚠ **THE STANDING SESSION CYCLE** (named by the user 2026-08-19: *"i like it when you
 > do the fixes, make a handoff ready and when i start the handoff i have a testing check
 > list — we've been doing that a while now"*). This is now PROCEDURE, not habit:
