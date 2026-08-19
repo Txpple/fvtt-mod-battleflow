@@ -192,7 +192,23 @@ async function findInterrupt(actor, { isCritical }) {
     // A natural 20 hits regardless of AC, so an AC-type reaction cannot save it — no pause.
     if ( isCritical && (entry.kind === "ac") ) continue;
     const found = await usableReaction(actor, entry.name);
-    if ( found ) return { entry, ...found };
+    if ( !found ) continue;
+    // ALREADY STANDING ⇒ DON'T ASK AGAIN (user call, the v1.15.0 walk's finding ⑥: "if they
+    // have shield up, just dont prompt for shield"). Gren was re-prompted for Shield with his
+    // +5 already active — a pause offering a choice that changes nothing, which is the false
+    // stop this gate exists to prevent (design.md §8: the GM/player click economy).
+    //
+    // Narrow on purpose, twice over:
+    //  - `ac` kind ONLY. An AC bonus does not stack, so a second cast is pure waste. A
+    //    `damage` reaction is a different question — Absorb Elements grants resistance to the
+    //    TRIGGERING damage type, so a standing one is no reason to refuse the next trigger.
+    //  - The attack trigger ONLY. This function is not on the spell/negate path, and that is
+    //    deliberate: a standing Shield already grants "no damage from Magic Missile", so
+    //    silently skipping the hold there would apply damage to someone immune to it. That
+    //    trigger keeps asking until it can auto-negate (not built; recorded in design.md).
+    if ( (entry.kind === "ac") && hasReactionEffect(actor, entry.name,
+      { itemId: found.item.id, activityId: found.activity?.id }) ) continue;
+    return { entry, ...found };
   }
   return null;
 }

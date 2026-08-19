@@ -407,11 +407,18 @@ async function refreshDemandFromTemplates(card) {
     // cube fills all four: four popup sets for one area. Older waiting casts stay waiting
     // forever, which is already item 5's deliberate shape).
     if ( wasWaiting ) {
+      // ⚠ ANY newer same-activity cast disarms this one — not just a newer cast that is
+      // still WAITING. The narrower test (v1.13.0) held only until the newer demand
+      // adopted: the claim stamps `origin = activityUuid` onto the toolbar template, the
+      // newer card then has targets and stops counting as "newer waiting", and this older
+      // card walks straight into templatesForOrigin — which now MATCHES, because the
+      // origin it was just stamped with is shared by every cast of that activity. Both
+      // demands then own one area and both apply damage (smoke-saves §10d2/§10f, caught
+      // 2026-08-19: the victim died at 0/11 off one rect). Same fossil rule as the sweep's
+      // wall, stated the same way: the NEWEST cast owns the area, period.
       const newer = game.messages.contents.some(m => {
         if ( (m.id === card.id) || (m.timestamp <= card.timestamp) ) return false;
-        const f = m.getFlag(MODULE_ID, "saves");
-        return (f?.status === "pending") && (f.activityUuid === flag.activityUuid)
-          && !(f.targets ?? []).length;
+        return m.getFlag(MODULE_ID, "saves")?.activityUuid === flag.activityUuid;
       });
       if ( newer ) return;
     }
@@ -492,7 +499,7 @@ Hooks.on("updateMeasuredTemplate", doc => { refreshTemplatedDemands(doc); });
  * spot — a re-render landing in the ms between the new cast's template and its stamp —
  * needs a full-log re-render inside that window; accepted.)
  */
-async function cleanupSpentTemplates(card) {
+async function cleanupSpentTemplates(card, { endedConcentrationId = null } = {}) {
   const flag = card.getFlag(MODULE_ID, "saves");
   if ( !flag?.templated ) return;
   if ( !(flag.targets ?? []).every(t => t.done && (t.applied || (t.outcome === "gone"))) ) return;
@@ -509,9 +516,16 @@ async function cleanupSpentTemplates(card) {
   if ( flag.durationUnits !== "inst" ) {
     const concId = card.system?.concentration;
     if ( !concId ) return;
-    const caster = card.getAssociatedActor?.();
-    if ( !(caster instanceof Actor) ) return;
-    if ( caster.effects.get(concId) ) return; // still concentrating — the area is alive
+    // ⚠ The hook's hint, not a collection read, decides the just-ended case: `deleteActiveEffect`
+    // can fire while the effect is still in the parent's collection, and reading it there raced
+    // the sweep into never running (2026-08-19, smoke-saves §14c). The trigger KNOWS which
+    // concentration ended; trust it, and only fall back to the live read for the floor's own
+    // later re-offers (render/update), where no hint exists and the collection is settled.
+    if ( endedConcentrationId !== concId ) {
+      const caster = card.getAssociatedActor?.();
+      if ( !(caster instanceof Actor) ) return;
+      if ( caster.effects.get(concId) ) return; // still concentrating — the area is alive
+    }
   }
   const superseded = game.messages.contents.some(m => {
     if ( (m.id === card.id) || (m.timestamp <= card.timestamp) ) return false;
@@ -538,7 +552,9 @@ Hooks.on("deleteActiveEffect", effect => {
   if ( !(effect.parent instanceof Actor) ) return;
   for ( const m of game.messages.contents ) {
     if ( m.system?.concentration !== effect.id ) continue;
-    if ( m.getFlag(MODULE_ID, "saves")?.templated ) void cleanupSpentTemplates(m);
+    if ( m.getFlag(MODULE_ID, "saves")?.templated ) {
+      void cleanupSpentTemplates(m, { endedConcentrationId: effect.id });
+    }
   }
 });
 
