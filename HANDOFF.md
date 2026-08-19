@@ -1,75 +1,97 @@
 # HANDOFF.md — picking this up cold
 
-> ⚠⚠ **NEXT SESSION IS A TESTING WALK — START BY DOING NOTHING.** The user's standing
-> protocol (proven FIVE walks running): open by presenting THE v1.14.0 WALK checklist
-> below, then wait. Do not connect the bridge, run suites, read the world, or touch
-> code. The user works the list at the table and reports; you AGGREGATE — number the
-> findings as they arrive, restate the FULL list state after every update (so they
-> never scroll), confirm/close items as they say so — and you ACT only when they say
-> go. Then: evidence first, one battery-green fix pass, release. Exactly the pattern.
-> ⚠ FREEZE (user, 2026-08-17 pre-walk): **no more changes until after Tuesday night's
-> live session (2026-08-19).** Walk findings get numbered and recorded; the fix pass
-> and release wait for Wednesday. Tuesday plays v1.14.0 exactly as deployed.
-> ⚠ NEW OPERATIONAL LESSON, learned the hard way this walk: **connecting bridge/probe
-> GM sessions DURING a walk steals the apply/sweep ELECT from the user's window**
-> (isActiveGM sorts DM Assistant ahead of Matt) — a probe mid-walk can strand
-> one-shots mid-chain. Probe between walk items only if unavoidable, and expect elect
-> churn in what you observe afterward.
+> ⚠⚠ **NEXT SESSION IS A TESTING WALK — START BY DOING NOTHING.** Open by presenting
+> THE CARRY-OVER WALK checklist below, then wait. Do not connect the bridge, run suites,
+> read the world, or touch code. The user works the list at the table and reports; you
+> AGGREGATE — number the findings as they arrive, restate the FULL list state after
+> every update (so they never scroll), confirm/close items as they say so — and you ACT
+> only when they say go.
 
-> Current at 2026-08-17 night — **v1.14.0 shipped: the v1.13.0 walk's two findings,
-> closed in one pass.** The walk (afternoon/evening) put v1.13.0's fix in front of live
-> dialog-placed areas and it demanded the WRONG PEOPLE — Salyth from outside every
-> drawn cube/square (Web, Entangle) and marginally at Fireball — plus instantaneous
-> areas stopped sweeping. Eleven read-only probes (`tools/probe-template-geometry*.mjs`
-> and friends, all committed) ran the diagnosis to bedrock, the user said "go", and
-> the fix pass ran: code, suite recut, battery 49/49, release. Read
-> [design.md](design.md) first — it is binding and has absorbed everything through
-> v1.14.0. This file is only *where things stand* and *what already bit us*.
+> ⚠⚠ **THE STANDING SESSION CYCLE** (named by the user 2026-08-19: *"i like it when you
+> do the fixes, make a handoff ready and when i start the handoff i have a testing check
+> list — we've been doing that a while now"*). This is now PROCEDURE, not habit:
+> **findings → probe to bedrock → user says "go" → Claude does the fixes in ONE
+> battery-green pass → release → HANDOFF rewritten with the next checklist ready.**
+> A session opened on this file STARTS by presenting the checklist. A fix pass ENDS by
+> recutting it. Neither step is optional, and neither waits to be asked for.
+
+> ⚠ **THE BRIDGE NEVER CONNECTS DURING LIVE PLAY** (standing, after the 2026-08-18
+> session): not for scripts, not for MCP content edits — loot and fixes wait for a break
+> or the morning. `isActiveGM()` is per-USER, so any second session on a GM-capable
+> account steals the apply/sweep elect from the user's window. v1.15.0 makes the module
+> CONVERGE when that happens (twin asks and twin chips delete themselves) but the
+> operational rule stands: ONE GM-capable client during play.
+
+> Current at 2026-08-19 — **v1.15.0 SHIPPED, TABLE-CONFIRMED, AND LIVE ON PROD: four of
+> the 2026-08-18 live session's seven findings closed in code, three closed as not-module,
+> plus finding ⑥ raised and fixed during the walk itself.** Every item was confirmed at the
+> table by the user before release. The freeze lifted when Tuesday's session ended. Diagnosis ran off the FULL CHAT LOG plus three read-only
+> probes (`tools/probe-session4.mjs`, `probe-topple-session4.mjs`,
+> `probe-doubles-session4.mjs`, all committed) rather than a clean-room re-verify — the
+> log turned out to be a better witness than a re-run would have been, because it records
+> what actually happened rather than what happens next time. Read [design.md](design.md)
+> first — it is binding and has absorbed everything through v1.15.0. This file is only
+> *where things stand* and *what already bit us*.
 >
-> **v1.14.0 in one breath (the walk's findings ① + ②):**
-> - **① THE v14 REGION-SHIM CORRUPTION (upstream, probe-proven).** Foundry 14 shims
->   MeasuredTemplates onto Regions, and this box's CREATE round-trip scales the stored
->   `distance` by **gridSize/100** (×1.4 on Party Camp's 140px grid; ×0.7 on 70px;
->   exactly ×1.0 on the 100px Test Range — which is why every battery was structurally
->   blind) and returns `width` as RAW PIXELS. Two human clients + the bridge produced
->   identical corruption; the client pipeline is exonerated (probe 8: local
->   clean/validate is a no-op; no hooks, no wrappers); the renderer draws from the same
->   lying field, so the oversized area is what the table SEES too. dnd5e sends honest
->   values (`fromActivity` read from live source) — the corruption is server-side.
->   **The fix is SPELL-TRUTH: containment builds geometry from
->   `flags.dnd5e.dimensions` first** (honest, shim-proof, stamped by every dialog
->   placement), superseding drawn-shape-first while the doc lies; self-healing when
->   upstream fixes the shim. Toolbar draws (no dimensions flag) and adjustedSize
->   emanations keep the v1.13.0 ladder — a toolbar area therefore demands
->   SCREEN-truth (what you drew, possibly oversized), a dialog area demands
->   SPELL-truth. Plus: containment now samples EVERY occupied grid square per token
->   (midi-qol's model) — a 2×2 body half inside the area saves. ⚠ v1.13.0's
->   "gridTemplates ON" was a MISREAD — the setting is OFF on this box (probe 1); the
->   over-sweep that looked like grid-polygon math was this shim all along.
-> - **② THE SPENT SWEEP CONVERGES.** Stale Fireball circles stood with every target
->   `applied: true` — the completion one-shot got lost (prime suspect: the probe
->   sessions' elect steal, the header's new lesson). The sweep is a convergent
->   render/update FLOOR on done cards now, guarded by the NEWEST-CAST FOSSIL WALL: a
->   newer same-activity card disarms an old card's sweep forever (a recast reuses the
->   activity uuid; history must never delete the current cast's area).
-> - smoke-saves §12 (suite-built 140px scene, factor-proof spell-truth assert,
->   `shimFactor` logged each run so an upstream fix announces itself) and §13 (sweep
->   one-shot + floor + fossil wall). Battery 49/49; verify-settings CLEAN.
+> **v1.15.0 in one breath:**
+> - **⓪ THE ELECT IS PER-USER — the night's root cause, probe-proven.**
+>   `game.users.activeGM` names a USER, so `isActiveGM()` is true on EVERY client logged
+>   into that account at once. Two zombie script sessions held DM Assistant from ~20:20
+>   to 21:05 and the bridge reconnected in stretches after. The twin Topple asks at
+>   00:37:24 are both authored by DM Assistant off ONE swing, and they reached
+>   CONTRADICTORY verdicts (prone-by-timer 10 AND saved-by-hand 21). Foundry exposes no
+>   cross-client session identity, so the race cannot be prevented — it CONVERGES now:
+>   every topple ask carries `sourceMessageId` and a twin over the same source deletes
+>   itself (elder wins by timestamp, then id); every module-applied effect carries a
+>   fingerprint (`flags.battleflow.applied`, or the chip applier's `mastery`) and a twin
+>   chip does the same. Fingerprints ONLY — another module's deliberate stack is safe.
+> - **④ ONE ROLL ANSWERS ONE MACHINE.** Edda's single d20 at 01:15:08 answered her
+>   concentration ask AND was eaten by the topple fold's whole-log fallback — her open
+>   Topple popup vanished "resolved" having never been rolled for. The fold now refuses
+>   any roll carrying another machine's `respondsTo`, and a BARE roll defers conc →
+>   saves → topple (the ship order). `saves.js` has had this guard since v1.7.0; mastery
+>   was the only recognizer missing it.
+> - **⑤ A VERDICT ALWAYS ANNOUNCES.** All eight Topple asks resolved correctly in the
+>   data while the user pressed Prone by hand all night: the five "lost" verdicts were
+>   SAVES (19, 22, 19, 17, 21), and a success said nothing at all. A public ask with a
+>   draining bar that ends in silence reads as a dropped machine — so a successful topple
+>   save now posts "<name> stays standing", the concentration fold's idiom. **Binding
+>   design language: a table moment opened in public is closed in public.**
+> - **① A DURATION AREA DIES WITH ITS CONCENTRATION.** Faerie Fire's region outlived the
+>   spell (the native end-of-concentration cascade owns that delete and lost it — same
+>   lost-one-shot class as v1.14.0's finding ②). The spent-sweep floor now covers
+>   duration areas: demand done + the usage card's concentration effect gone ⇒ swept,
+>   immediately via `deleteActiveEffect` and convergently on render. The chips cascading
+>   away with it at TRUE spell end is correct; that only hurt because the user was
+>   deleting the region by hand to clean up after the machine.
+> - **Closed as NOT-MODULE:** ③ Life Drain "asked twice" (nine demands in the log, all
+>   singletons, well separated — not reproduced); ⑥ Shield re-prompting while Shield was
+>   up (the card reads `AC 15 → 20`, so the +5 was NOT active — the module was right);
+>   ⑦ Innate Sorcery (WORLD CONTENT: the DDB import stripped its ActiveEffect — grafted
+>   back from the PHB compendium, `tools/fix-innate-sorcery.mjs`, and the same sweep
+>   found it was the party's LAST ghost reference). ② Bane's double demand is two
+>   separate dnd5e usage cards 2 s apart from one player's client — the module stamped
+>   each faithfully; watch for a repeat before building cross-message dedupe.
 
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.14.0** (2026-08-17 night — the v1.13.0 walk's two
-findings, above). Before it, all 2026-08-17: v1.13.0 (afternoon), v1.12.0 (night
+Molten-hosted). Latest release **v1.15.0** (2026-08-19 — the 2026-08-18 session's findings
+plus the walk's ⑥, table-confirmed before release). Before it: v1.14.0 (2026-08-17 night —
+the v1.13.0 walk's two findings), and all 2026-08-17: v1.13.0 (afternoon), v1.12.0 (night
 prior, the v1.11.0 walk's findings), v1.11.0 (evening), v1.10.0 (afternoon; v1.9.6
 burned as its staging diagnostic), v1.9.5 (the dogfood sixteen, small hours); and on
 2026-08-16: v1.8.0 (the Phase 3 convergence), v1.7.0 (Phase 2 saving throws + the save
 slice), v1.6.1 (the split), v1.6.0, v1.5.1, v1.5.0, v1.4.0, v1.3.x. Deployed, tags
 pushed, GitHub releases carry zip + manifest. **The box tracks the GitHub manifest.**
-⚠ Current deploy state: the box runs the v1.13.0 INSTALL with **v1.14.0 scripts
-hot-deployed over WebDAV** (fresh-served, probe-verified `honestDims` on the wire);
-module.json vends 1.13.0 until the next process restart, at which point the manifest
-pulls the real v1.14.0 install. No bounce was performed — the table was live.
+⚠ Current deploy state (2026-08-19): **v1.15.0 scripts are deployed to prod over WebDAV and
+byte-verified** (every file md5-matched against the repo) and prod's `module.json` on disk
+reads 1.15.0. Prod was IDLE at deploy — no live table was touched. The running Foundry
+process keeps vending the older version string as the script cache key until its next
+natural restart, at which point the manifest pulls the real v1.15.0 install; expected, not
+a failure. **No bounce was performed.** ⚠ Any client that was open through the deploy needs
+ONE F5 — a window runs whatever code it loaded, and a stale window that holds the elect
+runs old code for everyone.
 
 | Phase | State |
 | --- | --- |
@@ -127,72 +149,34 @@ update this table, never fight it:
 
 ## Open items
 
-### 🔴 THE 2026-08-18 LIVE SESSION (session 4, the Hollow) — findings recorded under the FREEZE
+### ✅ THE 2026-08-18 LIVE SESSION (session 4, the Hollow) — CLOSED at v1.15.0
 
-Recorded live from the user's table reports, per the standing protocol; **no fix ships
-before Wednesday.** Numbered here for the fix pass; the campaign-side ledger is
-`fvtt-campaign-greenrest/todo.md` §0 (same items, table-workaround framing).
+Findings ①–⑦ were recorded live under the freeze and resolved 2026-08-19 from the chat
+log + three committed probes. Full reasoning is design.md's v1.15.0 amendment; the
+one-breath version is the header. Disposition, kept because reports referencing these
+will keep arriving:
 
-> ⚠⚠ **FINDING ⓪ FIRST — EVERY FINDING BELOW IS ELECT-CONTAMINATED, and the assistant
-> did the contaminating.** The header's elect-steal lesson (probe GM sessions steal the
-> apply/sweep elect from the user's window) applied ALL NIGHT and was only recognized at
-> ~21:45: two one-off volume scripts connected as DM Assistant pre-session and their
-> processes never exited — **two zombie headless GM clients held the elect from ~20:20
-> to 21:05 of live play** — and after they were killed, the assistant's MCP bridge
-> reconnected repeatedly mid-session (loot minting, item fixes), stealing the elect
-> again in stretches. Battleflow popups landing on an invisible headless window and
-> one-shots stranding on a dead elect are the KNOWN symptoms of exactly this. So:
-> **every finding below must re-verify in a clean single-GM room on Wednesday before
-> any code is touched** — the module may be innocent of most of tonight.
-> **New standing rule (extends the header's walk lesson): the bridge NEVER connects
-> during live play** — not for scripts, not for MCP content edits; loot and fixes wait
-> for a break or the morning. If the table asks for a live change anyway, warn that it
-> costs the elect, connect, do it, disconnect immediately.
+| # | What was reported | Disposition |
+| --- | --- | --- |
+| ⓪ | elect contamination all night (two zombie GM clients + bridge reconnects) | **ROOT CAUSE, fixed** — per-user elect; twin asks + twin chips now converge |
+| ① | Faerie Fire's region outlived the spell; hand-deleting it stripped the chips | **fixed** — duration areas sweep when concentration ends |
+| ② | double application ×4 sightings | **split**: Topple ×2 = ⓪ (fixed); Bane ×2 = two real usage cards from one client (watch); chips = no duplicate effect survives anywhere in the world |
+| ③ | Life Drain demanded its save twice | **not reproduced** — nine demands in the log, all singletons |
+| ④ | Topple ask + concentration ask collided; Topple vanished unresolved | **fixed** — one roll answers one machine |
+| ⑤ | Topple verdicts with no follow-through; Prone pressed by hand all night | **fixed** — every failure DID press Prone; the silence on a SAVE was the bug |
+| ⑥ | Shield held while Shield was already up | **not reproduced** — the card reads AC 15 → 20; the +5 was not active |
+| ⑦ | Innate Sorcery applies nothing | **world content, fixed** — ActiveEffect grafted from the PHB compendium |
 
-- **① Faerie Fire's template region outlived the spell** — no sweep at duration end
-  (a duration/concentration area, so the spent-sweep correctly ignored it; whatever
-  should clear it at END never fired), and the user deleting the region by hand
-  **stripped the Faerie Fire chips off the marked targets** (region-linked application
-  linking working as built, but it turns the manual cleanup into a debuff wipe
-  mid-fight). Elect-suspect: concentration-linked cleanup runs on the activeGM.
-- **② Double application, four independent sightings** — Hunter's Mark chip x2 and
-  Slow mastery chip x2 (Jetten vs a wight), Topple x2 on a swing (Morgash), and
-  Entangle pressing double Restrained on a failed save. If any of it reproduces clean,
-  the suspect is two apply paths coexisting per source (cast slice / effect riders /
-  save machine / native tray); under tonight's elect churn, two GM-capable clients is
-  the cheaper explanation.
-- **③ Life Drain demanded its save TWICE** — the wight save feature prompted Morgash's
-  roll two times ("weird double up").
-- **④ The two table-moment machines collided** — one hit (Morgash on Edda) raised the
-  Topple ask AND her concentration ask; resolving the concentration roll made the
-  Topple popup vanish unresolved (no recall, save never rolled). The asks queue
-  per-machine, not per-actor-across-machines.
-- **⑤ Topple verdicts with no follow-through** — repeated (Osric and others): target
-  rolls, pass/fail marks, and a failure never presses Prone. The user pressed Prone by
-  hand all night. Elect-suspect (the fold's press step runs on the elect), but note ②'s
-  double-Topple sighting means the topple path misbehaved in BOTH directions tonight.
-- **⑥ Shield held while Shield was already up** — Gren, arrow from a Skeletal Archer:
-  the hold re-prompted while his +5 was active (and his reaction spent). Expected:
-  reactionSpent suppression + an active-Shield gate = no hold. Re-verify clean;
-  reactionSpent clears are turn-hook-driven and elect churn could have eaten the spend.
-- **⑦ Innate Sorcery applies nothing on use** (Gren) — no chip, honor-system buff.
-  Wednesday check: does the PHB compendium item even carry an ActiveEffect (item-data
-  gap → world-content fix, not module), and if it does, why the SELF-aim cast slice
-  didn't land it (the world copy may predate v1.11.0 self-aim).
+⚠ The four stale WAITING demand cards from 2026-08-17 (19:42–19:51) still stand in chat,
+deletion still unapproved — ask the user or let them clear chat.
 
-⚠ **The v1.14.0 WALK below is still UNWALKED** — tonight was live play, not the testing
-walk. Wednesday's order: clean-room re-verify findings ①–⑦ (single GM, no bridge), fix
-pass on what survives, THEN the walk checklist (its Salyth/toolbar/big-token items are
-untouched by tonight). The four stale WAITING demand cards from 2026-08-17 (19:42–19:51)
-also still stand in chat, deletion still unapproved.
-
-**World content, fixed live tonight (not module code):** Gren's Wand of the War Mage +1
-was a raw DMG enchant-TEMPLATE copy (riders never fire unapplied) — shimmed with a plain
-transferring +1 msak/rsak effect (`Tu0htbQAllmONqwv`); Wednesday: apply the real
-enchantment or strip the template cruft, and sweep other actors for the same silent
-pattern. Adrenaline Rush's activity renamed + chat flavor now says Temp HP (mechanics
-were already correct). Wight "Necrotic Sword" minted as loot (world item + party-stash
-copy, qty 2). Hollow soundscape volumes re-tuned (campaign todo has the mix).
+**World content fixed 2026-08-18/19 (not module code):** Gren's Wand of the War Mage +1
+was a raw DMG enchant-TEMPLATE copy — shimmed with a plain transferring +1 msak/rsak
+effect (`Tu0htbQAllmONqwv`); **Wednesday's leftover: apply the real enchantment or strip
+the template cruft, and sweep other actors for the same silent pattern** (the
+`fix-innate-sorcery.mjs` ghost sweep covers activity→effect references, NOT this
+enchant-template shape). Adrenaline Rush's activity renamed + chat flavor says Temp HP.
+Wight "Necrotic Sword" minted as loot. Hollow soundscape volumes re-tuned.
 
 ### ✅ THE v1.13.0 WALK — COMPLETE (2026-08-17) + v1.14.0 CLOSED BOTH FINDINGS
 
@@ -213,14 +197,78 @@ The walk's outcome, kept because reports referencing these will keep arriving:
 - **Both findings → SHIPPED at v1.14.0.** The binding record is design.md's v1.14.0
   amendment (Phase 2); the session ledger lives in this file's git history.
 
-### 🚶 THE v1.14.0 WALK — the user's checklist for the next testing session
+### 🧪 THE LOCAL SANDBOX IS THE TEST ENVIRONMENT (NEW, 2026-08-19)
 
-The session protocol is the header's ⚠⚠ block: present this, wait, aggregate, act only
-on "go" — amended this round by the FREEZE: findings are recorded, but no fix ships
-until after Tuesday night (2026-08-19). Suite-proven (smoke-saves §12/§13 pin the exact fixes); the walk is the live
-confirmation. The settings table above is law — no settings changes needed. **Every
-client should F5 once before starting** (v1.14.0 went out over WebDAV; a stale window
-as elect runs old code).
+User's call, mid-session: *"going forward that is our test environment."* This replaces
+"suites run on prod, taking turns with the table" everywhere it appears below.
+
+- **What it is.** A local Foundry (v14.365) serving a byte copy of prod's world, imaged by
+  `fvtt-mcp-molten5e/scripts/pull-prod-to-local.mjs`. Same world id, same users, same
+  fixtures — which is exactly why a suite pointed at the WRONG instance is invisible until
+  it is expensive. Two MCP namespaces coexist in one session: **`foundry-local5e`** (sandbox)
+  and **`foundry-molten5e`** (prod); the instance is fixed by which server the call goes to.
+- **How the harness chooses.** `tools/target.mjs` — **local by default**, `BF_TARGET=prod` to
+  opt out deliberately. All 35 harnesses route through it and every run prints its target.
+  Content flows prod→local ONLY; code flows local→prod ONLY.
+- **The suites have their own identity: `Tester Assistant`** (role 3, password in the
+  gitignored `.env` as `BF_SUITE_PASSWORD`, never in repo code). The MCP bridge keeps
+  `DM Assistant`. This is NOT for parallelism — `preflightSoleGM` still aborts when more
+  than one GM-capable client is connected, because the elect picks exactly one. It is for
+  DETECTABILITY: sharing one account made a bridge/suite collision unreadable, because
+  **both `game.users` and `/api/status` count USERS, not sockets** (measured — a bridge and
+  a suite connected simultaneously still reported `users: 1`). That is finding ⓪'s blindness
+  aimed at the test harness, and it cost a confusing 9-failure concentration run.
+- ⚠⚠ **A FILE DEPLOY IS NOT ENOUGH AFTER A VERSION BUMP.** Foundry registers `module.json`
+  at PROCESS BOOT. Deploy v1.15.0 files while the process still registers 1.14.0 and it keeps
+  vending the old version as the script cache key — a MIXED code state that produced bizarre
+  half-failures (concentration 42/47, effects fatal) which vanished on restart. A world reload
+  suffices for script edits with NO version change; a version bump needs the process bounced.
+- **Restarting it:** close gracefully with `CloseMainWindow()` — **never `Stop-Process`**, the
+  LevelDB is at risk — relaunch **minimized** (user's ask: *"so my screen isnt spammed"*),
+  then launch the world over HTTP with `LOCAL_ADMIN_KEY` (`POST /auth` adminAuth → `POST
+  /setup` launchWorld) and poll `/api/status` until `active`.
+- ⚠ **A refresh overwrites the module under test** — re-run
+  `node scripts/deploy-house-module.mjs fvtt-mod-battleflow --local` after every pull, unless
+  the version you want is already what prod carries.
+- ⚠ **The battery must start with `smoke-battleflow`** — it builds the test scene, actors and
+  tokens every other suite assumes. Two mid-session failures were nothing but missing fixtures.
+- **What it bought:** connects are instant (no Molten wake), and the ~5-minute front-cache
+  quiet period per deploy is GONE. That wait cost ~15 minutes in one session and twice caused
+  reasoning against stale code.
+
+### ✅ THE v1.15.0 WALK — COMPLETE (2026-08-19, in the SANDBOX)
+
+The user walked it in the local sandbox and confirmed **every fix**, in this order: ⑤ Innate
+Sorcery, ① the Topple/concentration collision, ② the announcing success, ③ no doubles,
+④ the duration sweep, and the two sanity-checks (Life Drain ×2, Bane ×2) as NOT REPRODUCING
+— note those two had NO code change, so "fixed" means the clean single-GM room removed the
+elect contamination that most likely caused them. Re-open them if they ever recur.
+
+**The walk raised ONE new finding, fixed and confirmed in the same session:**
+- **⑥ A reaction already standing was offered again.** Gren was re-prompted for Shield with
+  his +5 active. `findInterrupt` never consulted `hasReactionEffect` — the helper the ANSWER
+  path had used since v1.8.0 to avoid double-applying; only the eligibility side never asked.
+  User's call, verbatim: *"if they have shield up, just dont prompt for shield."* Narrow on
+  purpose and both limits are load-bearing: **`ac` kind only** (an AC bonus does not stack,
+  while Absorb Elements resists the TRIGGERING type and deserves the next ask) and **the
+  attack trigger only** (a standing Shield already grants "no damage from Magic Missile", so
+  skipping the hold on the negate path would apply damage to someone IMMUNE to it — that fix
+  would have been worse than the bug). Deliberately independent of `reactionSpent` and of
+  combat rounds, per the user: *"we dont have timers and combat rounds yet"* — which is also
+  why the repro worked out of combat, where `reactionSpent` is never set at all.
+  smoke-hold §4a2 pins it, asserting the effect is verifiably UP so a fixture that never
+  raised it cannot pass by proving nothing.
+
+### 🚶 THE CARRY-OVER WALK — the user's checklist for the next testing session
+
+⚠ Items 1–4 below have now carried UNWALKED across three sessions (the 18th was live play;
+the 19th walked only the v1.15.0 fixes). They are the geometry items and they are the oldest
+debt on this list.
+
+Present this, wait, aggregate, act only on "go" (the header's standing cycle). The
+settings table above is law — no settings changes needed. **Every client should F5 once
+before starting** (a stale window as elect runs old code).
+⚠ **ONE GM-capable client** — no bridge, no scripts, no suites running alongside.
 
 1. **The Salyth re-test, dialog path** — at Party Camp, dialog-place Web (or Entangle
    or Fireball) so the drawn area sits NEAR Salyth-the-way-it-was: rows must be
@@ -230,51 +278,63 @@ as elect runs old code).
    field, not the module; the demand follows the spell, not the picture. If rows match
    the spell while the picture is fat, that is the fix WORKING.
 2. **Instantaneous cleanup** — Fireball/Shatter: after every save resolves and damage
-   lands, the template leaves the canvas by itself (finding ②'s floor). A Web/Entangle
-   area (duration spells) correctly stays.
-3. **The TOOLBAR half of the old item 1** (still unwalked live) — cast Web bare
-   (card says "waiting for the template's area"), then draw a 20 ft cube from the
-   canvas template controls over the dummy + somebody: rows appear for whoever stands
-   in the DRAWN area, full 15s bar from the draw moment. ⚠ The toolbar path is
-   SCREEN-truth (no dimensions flag to rescue it — if the drawn cube stores oversized,
-   the rows follow the oversized drawing; that mismatch with the dialog path is the
-   recorded upstream-defect residue, not a module bug).
+   lands, the template leaves the canvas by itself.
+3. **The TOOLBAR path** (still unwalked live) — cast Web bare (card says "waiting for
+   the template's area"), then draw a 20 ft cube from the canvas template controls over
+   the dummy + somebody: rows appear for whoever stands in the DRAWN area, full 15s bar
+   from the draw moment. ⚠ Toolbar draws answer SCREEN-truth by design — no dimensions
+   flag exists to rescue them, so an oversized drawing demands oversized. The mismatch
+   with the dialog path is recorded upstream residue, not a module bug.
 4. **Big-token sampling, if convenient** — drop a 2×2 creature half inside an area:
-   it should be demanded now (center-only testing missed it before v1.14.0).
+   it should be demanded (center-only testing missed it before v1.14.0).
+**State at handoff (2026-08-19, end of the fix-pass session):** the v1.15.0 three-commit
+train is pushed (test → feat tagged v1.15.0 → docs) and the GitHub release carries zip +
+bare module.json. **PROD is deployed and byte-verified** — every script md5-matched against
+the repo, `module.json` on the box reads 1.15.0 (the running process keeps vending the old
+string until its next natural restart; expected, not a failure). Prod was idle at deploy —
+no live table was touched. **The SANDBOX was then refreshed from the new prod**
+(`pull-prod-to-local.mjs`: 382 files, 151 deletions, world DB integrity verified) and
+relaunched; its registry and served manifest both read 1.15.0, `smoke-battleflow` ALL PASS
+and `verify-settings` CLEAN on the refreshed copy.
 
-**State at handoff:** working tree clean, the v1.14.0 three-commit train pushed (test →
-feat tagged v1.14.0 → docs); the GitHub release carries zip + bare module.json; the box
-runs the v1.13.0 install with v1.14.0 scripts hot-deployed (probe-verified fresh on the
-wire; module.json vends 1.13.0 until the next natural restart, which will pull the real
-v1.14.0 install from the manifest — no bounce was performed, the table was live); world
-up, bridge disconnected; settings verified drift-free after the battery
-(`verify-settings.mjs` CLEAN). Battery 49/49 with the new §12/§13. ⚠ Loose ends the
-next session should know: (a) **four stale WAITING demand cards from the user's walk
-testing stand in chat** (19:42–19:51 — zero targets, `templateType` present, so they
-CAN claim/adopt future matching areas; deletion was proposed but NOT approved — ask
-the user, or let them clear chat); (b) the **upstream shim defect stays UNFILED as a RULING** (user, 2026-08-17 night:
-"no to upstream bug report, they will never read it") — do not offer again; the probe
-evidence stays committed in tools/ if the stance ever changes;
-(c) the user hand-deleted walk-debris templates mid-session — canvas deletions around
-19:40 are theirs, not the sweep's.
+Battery on the sandbox, all green at v1.15.0: battleflow ALL PASS · hold ALL PASS (incl. the
+new §4a2) · cast 17/17 · riders 8/8 · concentration 47/47 · effects 46/46 · saves 49/49.
+`shimFactor` still logs **1.400** on 14.365 — the upstream v14 region-shim defect reproduces
+locally and has NOT healed.
 
-### Where the plan points now (2026-08-17 — post-v1.13.0)
+⚠ **Loose ends the next session should know:**
+- **Thomas A. Invictus reads 16/36 HP after `maintain-party.mjs` long-rested him**
+  (2026-08-19). Every other PC came back full. Worth a look before play — it may be a
+  tempmax/Hollowed interaction like the one that bit the test fixture (below), or simply
+  a rest that ran while something was still applied.
+- The **BF Test Shielder fixture** had picked up the campaign's **Hollowed** effect
+  (`hp.tempmax -3`), which made `hp.max` a lie about "whole" and failed two smoke-hold
+  asserts for a night. Stripped from the FIXTURE only — the live PCs keep theirs, that
+  call is the user's. smoke-hold now snapshots `effectiveMax`.
+- The **upstream shim defect stays UNFILED as a RULING** (user, 2026-08-17: "no to
+  upstream bug report, they will never read it") — do not offer again.
+- **`keepId` is silently vetoed for the assistant-role bridge** and the create resolves
+  null — a suite that trusts it asserts against phantoms (cost an hour on 2026-08-19).
+  Same shape: an ActiveEffect create whose `origin` uuid does not resolve is nulled too.
 
-**Five feedback rounds are closed** (the dogfood sixteen at v1.9.5/v1.10.0, round two
+### Where the plan points now (2026-08-19 — post-v1.15.0)
+
+**Six feedback rounds are closed** — the sixth is the 2026-08-18 live session's ①–⑦ at
+v1.15.0 (the disposition table above); the first five were
+the dogfood sixteen at v1.9.5/v1.10.0, round two
 at v1.10.0, the v1.10.0 walk's ①–⑥ at v1.11.0, the v1.11.0 walk's ②–④ at v1.12.0, the
-v1.12.0 walk's ① at v1.13.0 — resolution maps live in this file's git history and in
-design.md's amendments). Closed as a RULING, not code: **Ⓓ1 — GM required for full
+v1.12.0 walk's ① at v1.13.0. Resolution maps live in this file's git history and in
+design.md's amendments. Closed as a RULING, not code: **Ⓓ1 — GM required for full
 functionality** (design.md §8 keeps the full itemization). Open as a QUESTION, not a
-bug — REOPENED as a post-Tuesday CHECK (user, 2026-08-17 pre-walk): **does the
-concentration ask still popup the GM for offline-owner PCs?** The user reports not
-seeing it lately and likes the quiet ("fine and good"), but the SOURCE carries no
-filter — concentration.js:550 gates on concMode + canAnswerFor only; finding ④'s
-`isGM && hasPlayerOwner` quiet lives in saves.js:1113 and mastery.js:880 alone — so
-the non-sightings are probably the probe sessions' elect steal (the popup landing on
-the bridge page, not the user's window) or the scenario simply not arising. VERIFY
-live after Tuesday, then rule: if it still pops and the user wants it gone, the fix
-is the same two-line gate (the conc buzzer already ROLLS on expiry, nothing goes
-unresolved). What
+bug — STILL OPEN as a CHECK: **does the concentration ask still popup the GM for
+offline-owner PCs?** The user reports not seeing it and likes the quiet ("fine and
+good"), but the SOURCE carries no filter — concentration.js gates on concMode +
+canAnswerFor only, while the `isGM && hasPlayerOwner` quiet lives in saves.js and
+mastery.js alone. The 2026-08-18 session did NOT settle this (its whole night was
+elect-contaminated, so a non-sighting proves nothing — the popup may simply have been
+landing on a headless window). Verify on the v1.15.0 walk, in a single-GM room, then
+rule: if it still pops and the user wants it gone, the fix is the same two-line gate
+(the conc buzzer already ROLLS on expiry, nothing goes unresolved). What
 remains open:
 
 - **⑭ The year-off timestamps — RETIRED** (user call, the v1.12.0 walk: "stop
@@ -316,8 +376,11 @@ clean, rested, and full-HP.
 
 **Struck: the second Molten box** (user, 2026-08-16: "we cant have a second box so strike
 that for now"). The full provisioning plan lives in this file's git history (section "the
-second Molten box", ≤ v1.6.0) if it ever returns. Suites keep running on prod, taking
-turns with live sessions — check who's connected before yanking clients.
+second Molten box", ≤ v1.6.0) if it ever returns. ⚠ **SUPERSEDED 2026-08-19:** suites no
+longer run on prod by default — the LOCAL SANDBOX is the test environment (its own section
+above), which is what the struck second box was ever needed for, at no cost. A prod run is
+still possible with `BF_TARGET=prod` and still has to take turns with the table — check
+who's connected before yanking clients.
 
 **Leftovers, all deliberate, none blocking** — so the next session treats reports against
 these as design conversations, not bugs: legendary resistance on a CONCENTRATION save

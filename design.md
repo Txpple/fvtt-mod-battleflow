@@ -800,6 +800,9 @@ v1.3.0 (2026-08-16).
 >   true spell-end the dependents cascade stripping the chips is CORRECT. Non-concentration
 >   duration areas stay the GM's (leftover, recorded); an unresolvable caster leaves the
 >   area standing rather than guessing.
+>   smoke-hold §4a2 pins finding ⑥ (source found, effect verifiably UP, no hold, damage flows
+>   — the hadSource/effectUp fields are part of the assertion so a fixture that never raised
+>   the effect cannot pass by proving nothing).
 > - **Not fixed, deliberately:** the Bane double-demand (two usage cards 2 s apart from
 >   one player's client — watch for a repeat before building cross-message dedupe); Life
 >   Drain's "asked twice" (nine demands in the data, all singletons — not reproduced);
@@ -807,6 +810,20 @@ v1.3.0 (2026-08-16).
 >   active when the hold fired — the module was right); Innate Sorcery (WORLD CONTENT —
 >   the DDB import stripped its effect; grafted back from the PHB compendium 2026-08-19,
 >   the party's only remaining ghost reference).
+> - **A reaction ALREADY STANDING is never offered again (the v1.15.0 walk's finding ⑥,
+>   user call: "if they have shield up, just dont prompt for shield").** Gren was re-prompted
+>   for Shield with his +5 active — a pause offering a choice that changes nothing, which is
+>   the false stop the eligibility gate exists to prevent (§8's click economy). `findInterrupt`
+>   now consults `hasReactionEffect` — the helper the ANSWER path already used to avoid
+>   double-applying; only the eligibility side had never asked. Narrow twice over, and both
+>   halves are load-bearing: **`ac` kind only**, because an AC bonus does not stack while a
+>   `damage` reaction is a different question every time (Absorb Elements resists the
+>   TRIGGERING type, so a standing one is no reason to refuse the next trigger); and **the
+>   attack trigger only**, because a standing Shield already grants "no damage from Magic
+>   Missile" — skipping the hold on the spell/negate path would apply damage to someone immune
+>   to it. That path keeps asking until it can auto-negate, which is not built. Deliberately
+>   independent of `reactionSpent` and of combat rounds (user: "we dont have timers and combat
+>   rounds yet"): the walk reproduced this OUT of combat, where `reactionSpent` is never set.
 > - **Suite truth:** smoke-effects §14d is RECUT (success announces), §16 pins the theft
 >   guard, the bare-roll deference, twin-ask supersede, and twin-chip dedupe; smoke-saves
 >   §14 pins the duration sweep (stands while concentration holds, sweeps on its end).
