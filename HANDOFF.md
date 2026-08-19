@@ -1,11 +1,16 @@
 # HANDOFF.md — picking this up cold
 
-> ⚠⚠ **NEXT SESSION IS A TESTING WALK — START BY DOING NOTHING.** Open by presenting
-> THE CARRY-OVER WALK checklist below, then wait. Do not connect the bridge, run suites,
-> read the world, or touch code. The user works the list at the table and reports; you
-> AGGREGATE — number the findings as they arrive, restate the FULL list state after
-> every update (so they never scroll), confirm/close items as they say so — and you ACT
-> only when they say go.
+> ⚠⚠ **NEXT SESSION IS THE PHASE 4 EXPERIMENT — START BY DOING NOTHING.** Open by
+> presenting **🧪 THE NEXT SESSION — PHASE 4** checklist below, then wait. Do not connect
+> the bridge, run suites, read the world, or touch code. The user works the list at the
+> table and reports; you AGGREGATE — number the findings as they arrive, restate the FULL
+> list state after every update (so they never scroll), confirm/close items as they say
+> so — and you ACT only when they say go.
+>
+> ⚠ **The carry-over walk that used to live here is CLOSED CLEAN** (2026-08-19, its own
+> section below). Do not present it again. Phase 4 is an EXPERIMENT, not a fix pass: the
+> expected outcome is a RULING and zero code, so "nothing to fix" is a SUCCESS here, not
+> an empty session.
 
 > ⚠⚠ **THE STANDING SESSION CYCLE** (named by the user 2026-08-19: *"i like it when you
 > do the fixes, make a handoff ready and when i start the handoff i have a testing check
@@ -22,7 +27,17 @@
 > CONVERGE when that happens (twin asks and twin chips delete themselves) but the
 > operational rule stands: ONE GM-capable client during play.
 
-> Current at 2026-08-19 — **v1.15.0 SHIPPED, TABLE-CONFIRMED, AND LIVE ON PROD: four of
+> Current at 2026-08-19 (second session of the day) — **THE CARRY-OVER WALK CLOSED CLEAN:
+> ZERO findings, ZERO code, no release.** The user walked the four geometry items in one
+> pass: ② instantaneous cleanup, ③ the toolbar path and ④ big-token sampling all CONFIRMED
+> at the table, ① ruled NOT A CONCERN (and recorded as unwalked, not as verified). Two
+> long-running questions closed as RULINGS in the same pass — the concentration popup for
+> offline-owner PCs is FINE as-is, and Thomas's 16/36 HP is Life Drain resolving via plot.
+> **The shipped code did not change; everything below about v1.15.0 still stands.**
+> ⚠ The oldest debt on this file is now paid — **v1.13.0's finding ① (the toolbar path) is
+> table-verified two releases late**, and Phase 4 takes the next checklist slot.
+>
+> **The release state, unchanged** — **v1.15.0 SHIPPED, TABLE-CONFIRMED, AND LIVE ON PROD: four of
 > the 2026-08-18 live session's seven findings closed in code, three closed as not-module,
 > plus finding ⑥ raised and fixed during the walk itself.** Every item was confirmed at the
 > table by the user before release. The freeze lifted when Tuesday's session ended. Diagnosis ran off the FULL CHAT LOG plus three read-only
@@ -259,34 +274,64 @@ elect contamination that most likely caused them. Re-open them if they ever recu
   smoke-hold §4a2 pins it, asserting the effect is verifiably UP so a fixture that never
   raised it cannot pass by proving nothing.
 
-### 🚶 THE CARRY-OVER WALK — the user's checklist for the next testing session
+### ✅ THE CARRY-OVER WALK — CLOSED CLEAN (2026-08-19, the geometry session)
 
-⚠ Items 1–4 below have now carried UNWALKED across three sessions (the 18th was live play;
-the 19th walked only the v1.15.0 fixes). They are the geometry items and they are the oldest
-debt on this list.
+**The geometry debt is paid.** Items ①–④ had carried UNWALKED across three sessions (the
+18th was live play; the 19th's first session walked only the v1.15.0 fixes). The user
+worked the whole list in one pass and it produced **ZERO findings** — the first walk in
+seven rounds with nothing to fix. No code was written. No release followed.
 
-Present this, wait, aggregate, act only on "go" (the header's standing cycle). The
-settings table above is law — no settings changes needed. **Every client should F5 once
-before starting** (a stale window as elect runs old code).
+| | Item | Outcome |
+| --- | --- | --- |
+| ① | The Salyth re-test, dialog path | ⛔ **Closed as NOT A CONCERN** — user ruling. ⚠ **Recorded honestly: NOT walked, NOT verified.** The spell-true containment fix (v1.14.0) remains suite-covered but never table-confirmed on this path. If area geometry is ever suspected again, this is the untested seam — start here. |
+| ② | Instantaneous cleanup | ✅ **CONFIRMED at the table.** Fireball/Shatter templates leave the canvas by themselves once saves resolve and damage lands. |
+| ③ | The TOOLBAR path | ✅ **CONFIRMED at the table.** Bare cast waits for its area, the toolbar-drawn cube claims it, rows come from the DRAWN area. This was the oldest never-walked-live item on the file — **v1.13.0's finding ① is finally table-verified**, two releases after it shipped. |
+| ④ | Big-token sampling | ✅ **CONFIRMED at the table.** A 2×2 creature half inside an area is demanded — the corner center-only testing missed before v1.14.0. |
+
+**Two questions closed as RULINGS in the same session, neither one code:**
+- **The concentration popup for offline-owner PCs — RULED FINE, question closed.** It had
+  been open as a CHECK since 2026-08-17 (does the ask still pop the GM for a PC whose owner
+  is offline?). The user's call: *"this is fine remove from list."* The behaviour is
+  ACCEPTED AS-IS — the two-line `isGM && hasPlayerOwner` gate that saves.js and mastery.js
+  carry is **deliberately NOT extended** to concentration.js. Do not re-raise it, do not
+  "harmonize" the three machines on a tidiness argument. Still true and still fine: the
+  conc buzzer ROLLS on expiry, so nothing goes unresolved either way.
+- **Thomas A. Invictus at 16/36 HP — GAMEPLAY, not a defect.** He is Life Drained and
+  **resolves it via PLOT**. `maintain-party.mjs` did its job; the long rest is not broken;
+  there is no tempmax/Hollowed bug here. ⚠ **Do not "fix" this actor's HP** — it is a
+  story state the user is running deliberately.
+
+### 🧪 THE NEXT SESSION — PHASE 4, THE EXPERIMENT (the user's checklist)
+
+Chosen at the recut as the cheapest real answer now that the walk debt is clear. **This is
+an EXPERIMENT, not a fix pass — the expected outcome is ZERO code.** Phase 4 is turn-time
+truth (durations ticking, areas re-evaluating as tokens move on their turn). The question
+it has to answer first is whether dnd5e 5.3.3 already does enough of it natively that the
+module should stay out.
+
+Present this, wait, aggregate, act only on "go" (the header's standing cycle). The settings
+table above is law — no settings changes needed. **Every client F5 once** before starting.
 ⚠ **ONE GM-capable client** — no bridge, no scripts, no suites running alongside.
 
-1. **The Salyth re-test, dialog path** — at Party Camp, dialog-place Web (or Entangle
-   or Fireball) so the drawn area sits NEAR Salyth-the-way-it-was: rows must be
-   SPELL-TRUE — only tokens within the real 20 ft area demanded, the bystander a
-   square outside stays out. ⚠ Expect the DRAWN texture/highlight to still LOOK
-   oversized (~40% on this grid) — that is the upstream shim drawing the corrupted
-   field, not the module; the demand follows the spell, not the picture. If rows match
-   the spell while the picture is fat, that is the fix WORKING.
-2. **Instantaneous cleanup** — Fireball/Shatter: after every save resolves and damage
-   lands, the template leaves the canvas by itself.
-3. **The TOOLBAR path** (still unwalked live) — cast Web bare (card says "waiting for
-   the template's area"), then draw a 20 ft cube from the canvas template controls over
-   the dummy + somebody: rows appear for whoever stands in the DRAWN area, full 15s bar
-   from the draw moment. ⚠ Toolbar draws answer SCREEN-truth by design — no dimensions
-   flag exists to rescue them, so an oversized drawing demands oversized. The mismatch
-   with the dialog path is recorded upstream residue, not a module bug.
-4. **Big-token sampling, if convenient** — drop a 2×2 creature half inside an area:
-   it should be demanded (center-only testing missed it before v1.14.0).
+1. **Cast Bless and watch ten rounds.** Roll initiative with the party + something to
+   fight. Note, per round: does the duration tick down on its own? Does it announce
+   anything? Does it EXPIRE on its own at round 10, or does it sit there forever until
+   somebody deletes it by hand?
+2. **Concentration through the rounds.** With Bless up, take a hit — does the
+   concentration ask fire on schedule, and does breaking it clear Bless from every target
+   (the cascade), or does it strand chips behind?
+3. **A standing area, over time.** Leave a Web (or Faerie Fire) region up and MOVE a token
+   into it mid-combat, on that token's turn. Does it join the demand? ⚠ Known and
+   deliberate: containment is **semi-live** — a token entering a standing area joins only
+   when a card re-render runs the floor. If it only picks up on the next render, that is
+   the RECORDED behaviour, not a finding. Phase 4 exists precisely to decide whether
+   turn-time truth is worth owning.
+4. **The verdict question, for the user to answer out loud:** after ten rounds, does
+   anything actually feel MISSING? If native durations carry the weight, Phase 4 closes
+   as a RULING (no code) and the plan advances to Phase 5 — the adopt-AC5e decision.
+
+### 📦 Deploy + battery state (unchanged by the walk)
+
 **State at handoff (2026-08-19, end of the fix-pass session):** the v1.15.0 three-commit
 train is pushed (test → feat tagged v1.15.0 → docs) and the GitHub release carries zip +
 bare module.json. **PROD is deployed and byte-verified** — every script md5-matched against
@@ -302,11 +347,16 @@ new §4a2) · cast 17/17 · riders 8/8 · concentration 47/47 · effects 46/46 �
 `shimFactor` still logs **1.400** on 14.365 — the upstream v14 region-shim defect reproduces
 locally and has NOT healed.
 
+⚠ **The walk session that followed changed NOTHING about the above** — no code, no deploy,
+no version bump, no suite run. Prod and the sandbox are both still exactly as that fix-pass
+session left them, and the battery numbers above are still the current ones. The only
+artifacts of the walk are the closures and rulings recorded in this file.
+
 ⚠ **Loose ends the next session should know:**
-- **Thomas A. Invictus reads 16/36 HP after `maintain-party.mjs` long-rested him**
-  (2026-08-19). Every other PC came back full. Worth a look before play — it may be a
-  tempmax/Hollowed interaction like the one that bit the test fixture (below), or simply
-  a rest that ran while something was still applied.
+- ~~**Thomas A. Invictus reads 16/36 HP**~~ — **CLOSED as GAMEPLAY (2026-08-19).** He is
+  Life Drained and resolves it via plot. Not a `maintain-party.mjs` bug, not a tempmax
+  interaction. ⚠ Do not "fix" it and do not re-flag it — a future session seeing a PC
+  short of full HP after a rest should check the fiction before the code.
 - The **BF Test Shielder fixture** had picked up the campaign's **Hollowed** effect
   (`hp.tempmax -3`), which made `hp.max` a lie about "whole" and failed two smoke-hold
   asserts for a night. Stripped from the FIXTURE only — the live PCs keep theirs, that
@@ -325,16 +375,13 @@ the dogfood sixteen at v1.9.5/v1.10.0, round two
 at v1.10.0, the v1.10.0 walk's ①–⑥ at v1.11.0, the v1.11.0 walk's ②–④ at v1.12.0, the
 v1.12.0 walk's ① at v1.13.0. Resolution maps live in this file's git history and in
 design.md's amendments. Closed as a RULING, not code: **Ⓓ1 — GM required for full
-functionality** (design.md §8 keeps the full itemization). Open as a QUESTION, not a
-bug — STILL OPEN as a CHECK: **does the concentration ask still popup the GM for
-offline-owner PCs?** The user reports not seeing it and likes the quiet ("fine and
-good"), but the SOURCE carries no filter — concentration.js gates on concMode +
+functionality** (design.md §8 keeps the full itemization). **ALSO CLOSED as a RULING
+(2026-08-19): the concentration ask popping the GM for offline-owner PCs.** It ran open
+as a CHECK from 2026-08-17; the user ruled it *"fine"* and struck it from the list. The
+asymmetry is now DELIBERATE and load-bearing: concentration.js gates on concMode +
 canAnswerFor only, while the `isGM && hasPlayerOwner` quiet lives in saves.js and
-mastery.js alone. The 2026-08-18 session did NOT settle this (its whole night was
-elect-contaminated, so a non-sighting proves nothing — the popup may simply have been
-landing on a headless window). Verify on the v1.15.0 walk, in a single-GM room, then
-rule: if it still pops and the user wants it gone, the fix is the same two-line gate
-(the conc buzzer already ROLLS on expiry, nothing goes unresolved). What
+mastery.js alone — three machines, two behaviours, on purpose. ⚠ Do not extend the gate
+to concentration on a consistency argument; it was offered and declined. What
 remains open:
 
 - **⑭ The year-off timestamps — RETIRED** (user call, the v1.12.0 walk: "stop
@@ -344,14 +391,22 @@ remains open:
   recurred. Not carried on any walk list anymore. If it EVER resurfaces: hover the card
   for its real date and note which USER authored it — the message's creating client
   stamps the timestamp, so the author names the broken clock.
-- **Phase 4** stays an experiment first (cast Bless, watch ten rounds — likely zero
-  code); **Phase 5** stays the adopt-AC5e decision; **two-client save coverage** is no
+- **Phase 4 is now ON DECK as the next session's checklist** (see its section above) — it
+  stays an EXPERIMENT first: cast Bless, watch ten rounds, likely zero code. It got the
+  slot because the walk debt cleared and nothing else is owed. **Phase 5** stays the
+  adopt-AC5e decision and follows Phase 4's verdict. **Two-client save coverage** is no
   longer hypothetical — `probe-popup-topology.mjs` (NEW at v1.11.0) is a working
   two-client harness (PC Assistant casts, the GM observer ledgers every hook, dialog
   render, and DOM state); growing it into a suite is the natural next step if
   cross-client regressions worry anyone.
 
-⚠ Tuesday is live play. v1.13.0 clears battery-green. Player-facing changes since the
+⚠ **STALE HEADLINE, KEPT FOR ITS LIST** — "Tuesday is live play" meant 2026-08-18, which
+has HAPPENED (it is the session whose ①–⑦ v1.15.0 answers). The changelog below is written
+as of v1.13.0 and does not include v1.14.0's containment fix or v1.15.0's convergence
+work; read it as a snapshot, not as current. What follows is still the best single list of
+what the PLAYERS notice:
+
+v1.13.0 clears battery-green. Player-facing changes since the
 table last sat (cumulative v1.11.0 + v1.12.0 + v1.13.0): SELF abilities (Second Wind,
 Divine Favor) apply to their user no matter what's targeted; every timer runs 15s; a
 multi-target save card drains a bar under every pending row; Web-class spells no longer
@@ -403,8 +458,8 @@ elect's CURRENT scene only (a toolbar draw on another scene adopts nothing — t
 dialog-placement path still works cross-scene); a SECOND cube drawn while a claimed one
 stands is ignored until the first is deleted (re-place or move the first instead); the
 concentration ask still popups the GM for offline-owner PCs PER SOURCE (finding ④'s
-deliberate non-extension — reopened 2026-08-17 as a post-Tuesday CHECK: the user
-stopped seeing it, probably the elect steal; verify live, then rule); "cast with no GM logged in, nothing
+deliberate non-extension — **RULED FINE and CLOSED 2026-08-19**: no longer a check, no
+longer a candidate fix, do not offer the gate again); "cast with no GM logged in, nothing
 applied" is the Ⓓ1 ruling working as designed; **a placed template DRAWS oversized on
 this 140px grid** (the v14 shim renders the corrupted field — the DEMAND is spell-true
 since v1.14.0, the PICTURE is upstream's lie: report "the cube looks fat" as known,
