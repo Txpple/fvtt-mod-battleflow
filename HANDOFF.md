@@ -1,25 +1,39 @@
 # HANDOFF.md — picking this up cold
 
-> ⚠⚠ **NEXT SESSION IS THE PHASE 4 EXPERIMENT — START BY DOING NOTHING.** Open by
-> presenting **🧪 THE NEXT SESSION — PHASE 4** checklist below, then wait. Do not connect
-> the bridge, run suites, read the world, or touch code. The user works the list at the
-> table and reports; you AGGREGATE — number the findings as they arrive, restate the FULL
-> list state after every update (so they never scroll), confirm/close items as they say
-> so — and you ACT only when they say go.
+> ⚠⚠ **NEXT SESSION IS THE v1.16.0 TESTING WALK — START BY DOING NOTHING.** Open by
+> presenting **🚶 THE v1.16.0 WALK** checklist below, then wait. Do not connect the bridge,
+> run suites, read the world, or touch code. The user works the list at the table and
+> reports; you AGGREGATE — number the findings as they arrive, restate the FULL list state
+> after every update (so they never scroll), confirm/close items as they say so — and you
+> ACT only when they say go.
 >
-> ⚠ **The carry-over walk that used to live here is CLOSED CLEAN** (2026-08-19, its own
-> section below). Do not present it again. Phase 4 is an EXPERIMENT, not a fix pass: the
-> expected outcome is a RULING and zero code, so "nothing to fix" is a SUCCESS here, not
-> an empty session.
+> ⚠⚠ **PROD IS STILL ON v1.15.0. NOTHING FROM v1.16.0 HAS REACHED THE TABLE.** The release
+> is cut and tagged and the SANDBOX runs it, but no prod deploy was performed — it was not
+> asked for. **The walk below therefore happens in the SANDBOX**, and a prod deploy is a
+> separate, deliberate step afterwards (and a version bump needs the box BOUNCED, not just
+> file-copied). ⚠ The live table also still carries **`Riposte:ac`** in its Reaction List;
+> that setting was struck in the sandbox only.
+>
+> ⚠ **Phase 4 and the carry-over walk both still stand, and neither is next.** Phase 4's
+> checklist is still below and still valid — it needs TABLE time (ten rounds of Bless), so
+> it rides a real session. The carry-over walk is CLOSED CLEAN; do not present it again.
 
-> 📋 **THE FLOW BACKLOG LIVES IN [FLOW.md](FLOW.md)** (NEW, 2026-08-19). Session 4's
-> FLOW/polish track — 11 items in 3 phases, built from the transcript + chat-log audit,
-> then RECONCILED against the v1.15.0 tree (four items had already shipped). It is a
-> separate track from this file's bug ledger and carries its own build order.
+> 📋 **THE FLOW BACKLOG LIVES IN [FLOW.md](FLOW.md)** (2026-08-19). Session 4's FLOW/polish
+> track — 14 items, built from the transcript + chat-log audit, RECONCILED against the tree
+> (four items had already shipped in v1.15.0), and carrying its own build order. It is a
+> separate track from this file's bug ledger. **Read it before building anything.**
 > ⚠ **It supersedes the Desktop scratch .txt entirely — that file is no longer a reference.**
-> ⚠ **It contains an OPEN ORDERING DECISION:** its item 11 argues session 4 was the Phase 5
-> AC5e tripwire firing, which conflicts with Phase 4 holding the deck slot above. Unresolved
-> — the user rules.
+> **Done and shipped in v1.16.0:** build-order 0 (strike `Riposte:ac`), 1 (target decoration),
+> 13 (temp HP card), 14 (the DM's quiet). **Next in its order: #2, the Cleave arm-button** —
+> small, shape fully agreed, and its twin-card half already shipped in v1.15.0.
+> ⚠ **ONE QUESTION THE WALK MUST ANSWER FOR IT:** does using a CONSUMABLE raise any dialog?
+> A no un-folds FLOW item 4 (potions self-aim) back into real work. Walk item 2 covers it.
+>
+> ✅ **The AC5e-vs-Phase-4 ordering conflict is RESOLVED, not open.** It was never a fight
+> over one slot — Phase 4 needs the TABLE (ten rounds of Bless, rides a real session) and
+> AC5e needs the BENCH (install in the sandbox, watch, decide). User's call 2026-08-19:
+> *"ok thats fine re ac5e on bench. we are not there yet, we are working on the items list."*
+> **The FLOW build order has the deck; AC5e waits.**
 
 > ⚠⚠ **THE STANDING SESSION CYCLE** (named by the user 2026-08-19: *"i like it when you
 > do the fixes, make a handoff ready and when i start the handoff i have a testing check
@@ -36,7 +50,16 @@
 > CONVERGE when that happens (twin asks and twin chips delete themselves) but the
 > operational rule stands: ONE GM-capable client during play.
 
-> Current at 2026-08-19 (second session of the day) — **THE CARRY-OVER WALK CLOSED CLEAN:
+> ⚠ **Current at 2026-08-19 (third session of the day) — v1.16.0 IS CUT, TAGGED, RELEASED
+> AND RUNNING IN THE SANDBOX; PROD IS UNTOUCHED AND STILL ON v1.15.0.** Four changes, all
+> raised by the user at the table and all machine-verified before release, NONE yet seen by
+> a human: the use dialog now says who it is aimed at (token art + absolute disposition, on
+> both the attack roll dialog and the spell/item usage dialog); temp HP stops rendering as
+> `−0 HP` in damage red; the DM stops getting the players' hold popups; and `Riposte:ac` is
+> struck from the Reaction List. Battery green on the released build and `verify-settings`
+> CLEAN. Full detail per item lives in [FLOW.md](FLOW.md) — this file carries the walk.
+>
+> **The previous session, kept because its rulings are still law** — **THE CARRY-OVER WALK CLOSED CLEAN:
 > ZERO findings, ZERO code, no release.** The user walked the four geometry items in one
 > pass: ② instantaneous cleanup, ③ the toolbar path and ④ big-token sampling all CONFIRMED
 > at the table, ① ruled NOT A CONCERN (and recorded as unwalked, not as verified). Two
@@ -100,8 +123,10 @@
 ## Where things stand
 
 **Shipped and live** in *The Broken Heart of Greenrest* (Foundry 14.364 + dnd5e 5.3.3,
-Molten-hosted). Latest release **v1.15.0** (2026-08-19 — the 2026-08-18 session's findings
-plus the walk's ⑥, table-confirmed before release). Before it: v1.14.0 (2026-08-17 night —
+Molten-hosted). Latest release **v1.16.0** (2026-08-19 — the target block, the temp-HP card,
+the DM's quiet, and the struck `Riposte:ac`; sandbox-verified, **NOT deployed to prod**, and
+NOT yet seen by a human). Before it: **v1.15.0** (2026-08-19 — the 2026-08-18 session's
+findings plus the walk's ⑥, table-confirmed before release), and before that: v1.14.0 (2026-08-17 night —
 the v1.13.0 walk's two findings), and all 2026-08-17: v1.13.0 (afternoon), v1.12.0 (night
 prior, the v1.11.0 walk's findings), v1.11.0 (evening), v1.10.0 (afternoon; v1.9.6
 burned as its staging diagnostic), v1.9.5 (the dogfood sixteen, small hours); and on
@@ -310,7 +335,48 @@ seven rounds with nothing to fix. No code was written. No release followed.
   there is no tempmax/Hollowed bug here. ⚠ **Do not "fix" this actor's HP** — it is a
   story state the user is running deliberately.
 
-### 🧪 THE NEXT SESSION — PHASE 4, THE EXPERIMENT (the user's checklist)
+### 🚶 THE v1.16.0 WALK — the user's checklist for the next testing session
+
+⚠ **Walk this in the SANDBOX** — prod never received v1.16.0. Every client F5 once.
+**ONE GM-capable client**; no bridge, no scripts, no suites running alongside. The settings
+table above is law and already matches the sandbox (`verify-settings` CLEAN at handoff).
+
+⚠ **Everything below is MACHINE-verified and HUMAN-unverified.** Probes drove real dialogs
+and read the real DOM, but nobody has looked at any of it. That is the whole point of this list.
+
+1. **The target block, attack path** — open an attack with two targets, one enemy and one
+   ally. Below the ADVANTAGE / NORMAL / DISADVANTAGE row there should be a block: a heading
+   counting the targets, then one row each carrying the **token's own art** at 32px, the
+   name, and the disposition word. The art's border is the same colour the canvas draws
+   around that token. ⚠ Deliberately NO warning icon on the ally — spells legitimately target
+   allies, and the user struck the `[!]` flag for exactly that reason. Judge the LOOK here:
+   size, spacing, whether it crowds the dialog.
+2. **The target block, spell/item path** — cast something with a slot-level choice. The same
+   block should appear on that dialog too (a different application class, separately hooked).
+   ⚠ **A CONSUMABLE IS THE OPEN QUESTION** — drink a potion and report whether ANY dialog
+   opens at all. If none does, FLOW item 4 (potions self-aim) comes back as real work; if one
+   does, the decoration covers it and item 4 stays folded. This is the single fact that
+   decides it, and no probe could answer it (the sandbox party carried no consumable).
+3. **Zero targets** — use a spell with nothing targeted. The block should say **"No targets"**
+   in the damage red. (Attacks cannot reach this — the require-a-target gate gets there first.)
+4. **Live re-target** — with a dialog standing open, click a different token on the canvas.
+   The block should repaint underneath it: the count changes, rows come and go.
+5. **Temp HP** — have Morgash use his Dash (or anything granting temp HP). The receipt row
+   must read **`+N temp HP` in blue**, not `−0 HP` in damage red. ⚠ A hit that both damages
+   AND grants should read `−3 HP · +4 temp` — both halves, neither hidden.
+6. **The DM's quiet** — get Gren hit in the Shield window while **Gren's player is NOT logged
+   in** (that is the case that was broken; with the player present it always behaved). The DM
+   should get **NO popup** — only the card, its row, and the 15s bar draining. Then press the
+   card's **Answer** button: the popup SHOULD appear, because a deliberate click is not spam.
+7. **Riposte is quiet now** — get Morgash hit in melee. He should NOT be offered a Riposte
+   hold any more. ⚠ Riposte itself is still un-automated (FLOW item 1); this only stops the
+   nonsense prompt, it does not make the maneuver work.
+
+**If the walk is clean, the next steps in order are:** deploy v1.16.0 to prod (bounce the box
+— a version bump does not register on a file copy), strike `Riposte:ac` on prod too, then
+FLOW build-order #2, the Cleave arm-button.
+
+### 🧪 STILL ON THE SHELF — PHASE 4, THE EXPERIMENT (not next; needs table time)
 
 Chosen at the recut as the cheapest real answer now that the walk debt is clear. **This is
 an EXPERIMENT, not a fix pass — the expected outcome is ZERO code.** Phase 4 is turn-time
@@ -339,7 +405,43 @@ table above is law — no settings changes needed. **Every client F5 once** befo
    anything actually feel MISSING? If native durations carry the weight, Phase 4 closes
    as a RULING (no code) and the plan advances to Phase 5 — the adopt-AC5e decision.
 
-### 📦 Deploy + battery state (unchanged by the walk)
+### 📦 Deploy + battery state — v1.16.0 (2026-08-19, THIRD session)
+
+⚠⚠ **THE ONE THING TO KNOW: PROD DID NOT RECEIVE v1.16.0.** The release is cut, tagged
+`v1.16.0`, and the GitHub release carries zip + bare `module.json` — but **no prod deploy was
+run**, because none was asked for. Prod still serves **v1.15.0** and its Reaction List still
+contains **`Riposte:ac`**. Deploying it later is TWO steps, not one: copy the files, then
+**bounce the box** (Foundry registers `module.json` at PROCESS BOOT, so a file copy alone
+leaves it vending the old version as the script cache key — that mixed state has produced
+bizarre half-failures before), and separately strike `Riposte:ac` from prod's setting.
+
+**The SANDBOX is fully on v1.16.0** — deployed byte-identical, process gracefully closed and
+relaunched, world relaunched, and its registry verified reading `1.16.0` with the module
+active. `interruptList` verified with Riposte gone.
+
+**Battery on the sandbox at v1.16.0, all green:** battleflow ALL PASS · cast 17/17 ·
+riders 8/8 · effects 46/46 · hold ALL PASS · concentration 47/47 · saves 49/49 ·
+`verify-settings` **CLEAN**.
+
+⚠ **THREE HARNESS TRAPS THIS SESSION COST REAL TIME — do not re-derive them:**
+- **The local Foundry DIED TWICE mid-session**, both times under repeated Playwright probe
+  connections, and both times it read as "my code is broken" before `curl /api/status` showed
+  the process simply gone. **Check the sandbox is alive before believing a probe failure.**
+  Relaunch is the documented dance: graceful `CloseMainWindow()` (never `Stop-Process`),
+  relaunch MINIMIZED, then launch the world over HTTP.
+- **A roll dialog takes ~9 SECONDS to auto-render in the Playwright sandbox** (Chrome
+  throttles timers in a backgrounded page). Fixed waits of 700 ms and 3 s both found nothing
+  and read exactly like a dead hook. **Poll, never sleep a guess.** Also
+  `rollAttack(..., {configure:true}, ...)` never resolves — it is waiting for a human — so it
+  must be fired and left pending.
+- **Suites run BACK-TO-BACK with no gap corrupt each other.** A tight `for` loop produced
+  `effects 43/46` twice; standalone it is `46/46` every time. Both `game.users` and
+  `/api/status` count USERS not SOCKETS, so two overlapping suite sessions on the one
+  `Tester Assistant` account are INVISIBLE and contest the elect. **Leave a settle gap
+  between suites**, and re-run `smoke-battleflow` whenever another suite reports a missing
+  fixture.
+
+### 📦 Previous deploy state (v1.15.0)
 
 **State at handoff (2026-08-19, end of the fix-pass session):** the v1.15.0 three-commit
 train is pushed (test → feat tagged v1.15.0 → docs) and the GitHub release carries zip +

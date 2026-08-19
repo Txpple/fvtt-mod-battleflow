@@ -672,7 +672,7 @@ Shipped items dropped; the free setting fix promoted to the top.
 | ~~1~~ | ~~**Target decoration**~~ (item 2) | ✅ **DONE 2026-08-19** — both dialog classes hooked and verified in the sandbox. ⚠ Unreleased; sandbox only. The potion-dialog question it was also meant to answer is STILL OPEN. |
 | ~~13~~ | ~~**Temp HP card**~~ (item 13) | ✅ **DONE 2026-08-19** — display fix, verified. ⚠ Unreleased; sandbox only. |
 | ~~14~~ | ~~**DM stops getting player hold popups**~~ (item 14) | ✅ **DONE 2026-08-19** — `gmQuiet` finally reaches the hold. ⚠ Unreleased; sandbox only. |
-| **2** | **Cleave arm-button** (item 8) | Small, shape fully agreed, twin-card half already shipped. |
+| **2** | **Cleave arm-button** (item 8) | ⚠ **NEXT UP.** Small, shape fully agreed, twin-card half already shipped in v1.15.0. |
 | **3** | **Player-rolled damage popup** (item 3) | Self-contained, player asked for it. Carries the design.md amendment. |
 | **4** | **Post-roll folds** — Precision, then Riposte (item 1) | The headline, biggest build. |
 | **5** | **Magic Missile volley fold** (item 6) | Rides the existing `spellDamage` claim path. |
