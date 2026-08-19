@@ -3,6 +3,7 @@
 // cast, every message carrying effectReceipt afterwards, and any Battle Flow console errors.
 import { readFileSync } from 'node:fs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+import { foundryConfig } from './target.mjs';
 
 const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
 const env = {};
@@ -12,11 +13,7 @@ for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
   if (m) env[m[1]] = m[2];
 }
 setTimeout(() => { console.error('[probe] WATCHDOG 180s'); process.exit(3); }, 180_000);
-const f = new Foundry({
-  serverUrl: env.MOLTEN_SERVER_URL, magicUrl: env.MOLTEN_MAGIC_URL,
-  user: env.FOUNDRY_USER || 'Claude', password: env.FOUNDRY_PASSWORD,
-  adminKey: env.MOLTEN_ADMIN_KEY, worldId: env.MOLTEN_WORLD_ID,
-});
+const f = new Foundry(foundryConfig(env));
 await f.connect();
 
 const out = await f.evaluate(async () => {

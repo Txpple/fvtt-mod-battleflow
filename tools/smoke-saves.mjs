@@ -20,6 +20,7 @@
 // nothing).
 import { readFileSync } from 'node:fs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+import { foundryConfig, preflightSoleGM } from './target.mjs';
 
 const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
 const env = {};
@@ -31,13 +32,10 @@ for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
 
 setTimeout(() => { console.error('[saves] WATCHDOG 560s'); process.exit(3); }, 560_000);
 
-const f = new Foundry({
-  serverUrl: env.MOLTEN_SERVER_URL, magicUrl: env.MOLTEN_MAGIC_URL,
-  user: env.FOUNDRY_USER || 'Claude', password: env.FOUNDRY_PASSWORD,
-  adminKey: env.MOLTEN_ADMIN_KEY, worldId: env.MOLTEN_WORLD_ID,
-});
+const f = new Foundry(foundryConfig(env));
 console.log('[saves] connecting…');
 await f.connect();
+await preflightSoleGM(f);
 console.log('[saves] connected');
 
 const out = await f.evaluate(async () => {
@@ -808,6 +806,18 @@ const out = await f.evaluate(async () => {
     // that moment, ask, and run the whole machine to a receipt.
     {
       await clearChips();
+      // ⚠ SWEEP ORIGIN-LESS TEMPLATES FIRST. A waiting demand legitimately CLAIMS any
+      // unowned template of its shape on the current scene — so a leftover rect from an
+      // earlier section (or from a crashed run, which is how this was found on
+      // 2026-08-19) is claimed by the OLDER cast the instant it stamps, before the newer
+      // cast even exists. 10d2 then fails reporting a fossil-wall breach that never
+      // happened: the module was right and the range was dirty. Three strays were
+      // standing when this was diagnosed.
+      const strayAreas10 = scene.templates.filter(t => !t.getFlag('dnd5e', 'origin'));
+      if (strayAreas10.length) {
+        log.push(`section 10 swept ${strayAreas10.length} origin-less leftover template(s)`);
+        await scene.deleteEmbeddedDocuments('MeasuredTemplate', strayAreas10.map(t => t.id));
+      }
       await saveBonus(victim, '-30');
       const vMax10 = await healFull(victim);
       await set('saveTimer', 15);
@@ -856,6 +866,15 @@ const out = await f.evaluate(async () => {
       // shape — a cube spell, no dnd5e origin flag, no drawn canvas shape on this headless
       // page, so only the rect geometry fallback can contain anything). The waiting demand
       // must CLAIM it — stamp the origin on — fill, and arm the clock from that moment.
+      // ⚠ Snapshot the OLDER demand BEFORE the rect exists: if it is already templated
+      // here, it claimed some EARLIER section's leftover area and 10d2's failure has
+      // nothing to do with this rect (the 2026-08-19 hunt).
+      const oldBefore10 = {
+        targets: (cardOld10.getFlag(MOD, 'saves')?.targets ?? []).length,
+        templated: cardOld10.getFlag(MOD, 'saves')?.templated ?? false,
+        scenePool: scene.templates.map(t => ({ id: t.id, t: t.t,
+          origin: t.getFlag('dnd5e', 'origin') ?? null })),
+      };
       const gpx10 = scene.grid.size / scene.grid.distance;
       const side10 = 200 / gpx10; // a 200px square around the victim, in scene units
       const [tpl10] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
@@ -888,7 +907,16 @@ const out = await f.evaluate(async () => {
         (oldFlag10?.status === 'pending') && ((oldFlag10?.targets ?? []).length === 0)
           && (oldFlag10?.awaitingTemplate === true) && !oldFlag10?.deadline,
         `older: targets=${oldFlag10?.targets?.length} awaiting=${oldFlag10?.awaitingTemplate} `
-          + `deadline=${oldFlag10?.deadline}`);
+          + `deadline=${oldFlag10?.deadline}`
+          // the fossil wall's own inputs — when this fails, say WHY it failed
+          + ` | oldTs=${cardOld10.timestamp} newTs=${card10.timestamp}`
+          + ` sameActivity=${oldFlag10?.activityUuid === card10.getFlag(MOD, 'saves')?.activityUuid}`
+          + ` oldStatus=${oldFlag10?.status} oldTemplated=${oldFlag10?.templated}`
+          + ` tplOrigin=${JSON.stringify(scene.templates.get(tpl10.id)?.getFlag('dnd5e', 'origin') ?? null)}`
+          + ` oldBefore=${JSON.stringify(oldBefore10)}`
+          + ` newerSeenFromOld=${game.messages.contents.some(m => (m.id !== cardOld10.id)
+              && (m.timestamp > cardOld10.timestamp)
+              && (m.getFlag(MOD, 'saves')?.activityUuid === oldFlag10?.activityUuid))}`);
 
       // The arrival is ASKED (an NPC — the GM's popup rightly shows), and the machine runs
       // to the receipt: -30 fails, the half-rule damage applies at ×1.
@@ -1107,6 +1135,90 @@ const out = await f.evaluate(async () => {
         await shimScene.deleteEmbeddedDocuments('MeasuredTemplate', [stale13c.id]);
       }
       await ChatMessage.deleteDocuments([stub13.id]);
+    }
+
+    // ============================================== 14. the duration sweep (2026-08-18 finding ①)
+    // Faerie Fire's region outlived the spell: the native end-of-concentration cascade owns
+    // that deletion but demonstrably lost it (the same lost-one-shot class as §13's), so the
+    // sweep floor extends to DURATION areas — spent when the caster no longer wears the
+    // concentration effect the usage card names (system.concentration). While concentration
+    // holds, the area is alive and must never sweep.
+    {
+      const [concItem] = await npc.createEmbeddedDocuments('Item', [{
+        name: 'BF Test Clinging Web', type: 'spell',
+        system: {
+          level: 1, school: 'con', properties: ['vocal', 'concentration'],
+          duration: { units: 'minute', value: '1' },
+          range: { value: '60', units: 'ft' },
+          method: 'spell', prepared: 1, identifier: 'bf-test-clinging-web',
+          target: { affects: { type: 'creature', count: '', choice: false } },
+          activities: {
+            bfsaveconc000000: {
+              _id: 'bfsaveconc000000', type: 'save',
+              activation: { type: 'action', override: false },
+              consumption: { targets: [], spellSlot: false },
+              damage: { onSave: 'half', parts: [{ custom: { enabled: true, formula: '10' }, types: ['poison'] }] },
+              effects: [],
+              save: { ability: ['con'], dc: { calculation: '', formula: '15' } },
+              target: { override: true, prompt: true,
+                template: { type: 'cube', size: '10', units: 'ft', count: '' },
+                affects: { type: 'creature', count: '', choice: false } }
+            }
+          }
+        }
+      }]);
+      created.items.push({ actorId: npc.id, id: concItem.id });
+      const concActivity = () => npc.items.get(concItem.id).system.activities.get('bfsaveconc000000');
+
+      await clearChips();
+      await saveBonus(victim, '-30');
+      await healFull(victim);
+      target(); // bare — the WAITING stamp, exactly the live Web/Faerie Fire flow
+      await sleep(120);
+      const use14 = await concActivity().use(
+        { create: { measuredTemplate: false } }, { configure: false }, {});
+      const card14 = use14?.message instanceof ChatMessage ? use14.message : null;
+      if (!card14) return { fatal: 'section 14 cast produced no card' };
+      await until(() => card14.getFlag(MOD, 'saves'), 6000);
+      const concEff14 = card14.system?.concentration
+        ? npc.effects.get(card14.system.concentration) : null;
+      ok('14a. the concentration cast stamps its demand and the card names the effect',
+        !!card14.getFlag(MOD, 'saves') && !!concEff14,
+        `flag=${!!card14.getFlag(MOD, 'saves')} concId=${card14.system?.concentration ?? 'MISSING'} `
+          + `effect=${!!concEff14}`);
+
+      const actUuid14 = concActivity().uuid;
+      const [tpl14] = await shimScene.createEmbeddedDocuments('MeasuredTemplate', [{
+        t: 'rect', x: 1400, y: 1400, direction: 45, distance: Math.hypot(10, 10),
+        flags: { dnd5e: { origin: actUuid14, dimensions: { size: 10, adjustedSize: false } } }
+      }]);
+      try { ui.chat?.updateMessage?.(card14); } catch { /* the next render carries it */ }
+      const adopted14 = await until(() => {
+        const f = card14.getFlag(MOD, 'saves');
+        return (f?.templated && (f.targets ?? []).length) ? f : null;
+      });
+      const name14 = adopted14?.targets?.[0]?.name ?? victim.name;
+      const popup14 = await until(() => savePopups().find(p => p.textContent.includes(name14)), 6000);
+      [...(popup14?.querySelectorAll('footer button, .form-footer button') ?? [])]
+        .find(b => b.textContent.trim() === 'Normal')?.click();
+      const done14 = await until(() => {
+        const f = card14.getFlag(MOD, 'saves');
+        return f?.targets?.every(t => t.done && t.applied) ? f : null;
+      }, 20000);
+
+      // 14b: done and applied — and the area STANDS, because the spell is still up.
+      try { ui.chat?.updateMessage?.(card14); } catch { /* render floor */ }
+      await sleep(2000);
+      ok('14b. a DURATION area stands after its demand completes — concentration is alive',
+        !!done14 && !!shimScene.templates.get(tpl14.id),
+        `done=${!!done14} still=${!!shimScene.templates.get(tpl14.id)}`);
+
+      // 14c: concentration ends — the deleteActiveEffect trigger sweeps the orphaned area.
+      if (concEff14) await concEff14.delete();
+      const gone14 = await until(() => !shimScene.templates.get(tpl14.id), 8000);
+      ok('14c. concentration ends and the orphaned area sweeps — finding ① converges',
+        !!concEff14 && !!gone14,
+        `concEffect=${!!concEff14} still=${!!shimScene.templates.get(tpl14.id)}`);
     }
 
     return { log, results, skips };

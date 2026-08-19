@@ -10,6 +10,7 @@
 // the ownership test turns on, so leaving that ambiguous would make a passing suite meaningless.
 import { readFileSync } from 'node:fs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+import { foundryConfig, preflightSoleGM } from './target.mjs';
 
 const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
 const env = {};
@@ -21,13 +22,10 @@ for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
 
 setTimeout(() => { console.error('[riders] WATCHDOG: 300s — hard abort'); process.exit(3); }, 300_000);
 
-const f = new Foundry({
-  serverUrl: env.MOLTEN_SERVER_URL, magicUrl: env.MOLTEN_MAGIC_URL,
-  user: env.FOUNDRY_USER || 'Claude', password: env.FOUNDRY_PASSWORD,
-  adminKey: env.MOLTEN_ADMIN_KEY, worldId: env.MOLTEN_WORLD_ID,
-});
+const f = new Foundry(foundryConfig(env));
 console.log('[riders] connecting…');
 await f.connect();
+await preflightSoleGM(f);
 console.log('[riders] connected');
 
 const out = await f.evaluate(async () => {

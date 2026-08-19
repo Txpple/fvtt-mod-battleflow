@@ -11,6 +11,7 @@
 // demand card is deleted before the buzzer, so nothing ever rolls.
 import { readFileSync } from 'node:fs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+import { foundryConfig, playerConfig } from './target.mjs';
 
 const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
 const env = {};
@@ -21,11 +22,7 @@ for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
 }
 setTimeout(() => { console.error('[topo] WATCHDOG 240s'); process.exit(3); }, 240_000);
 
-const gm = new Foundry({
-  serverUrl: env.MOLTEN_SERVER_URL, magicUrl: env.MOLTEN_MAGIC_URL,
-  user: env.FOUNDRY_USER || 'Claude', password: env.FOUNDRY_PASSWORD,
-  adminKey: env.MOLTEN_ADMIN_KEY, worldId: env.MOLTEN_WORLD_ID,
-});
+const gm = new Foundry(foundryConfig(env));
 console.log('[topo] GM observer connecting…');
 await gm.connect();
 
@@ -120,11 +117,7 @@ if (fixture.fatal) { console.error(`[topo] FATAL: ${fixture.fatal}`); process.ex
 console.log(`[topo] victim token ready (${fixture.tokenId})`);
 
 console.log('[topo] player connecting…');
-const player = new Foundry({
-  serverUrl: env.MOLTEN_SERVER_URL, magicUrl: env.MOLTEN_MAGIC_URL,
-  user: env.MOLTEN_TEST_USER, password: env.MOLTEN_TEST_PASSWORD ?? '',
-  worldId: env.MOLTEN_WORLD_ID,
-});
+const player = new Foundry(playerConfig(env));
 await player.connect();
 
 // The player builds a zero-consequence save spell on its own actor and casts it at the

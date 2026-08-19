@@ -107,6 +107,19 @@ These are not aspirations; they are the rules the code is held to.
    killed mid-session without touching the others. Settings-sheet dividers and dependent-field
    grey-out (the combatplus idiom) from day one.
 
+10. **Mechanisms in code, membership in settings, amounts in content** (named 2026-08-19,
+   after an architecture check found it already true everywhere). The code knows KINDS —
+   an AC-recheck reaction, a damage-reduce reaction, a negate, the closed 8-mastery set,
+   the generic save/concentration/cast machines. WHICH abilities participate is a
+   user-curated settings list (Shield is a list entry, not a code path — Absorb Elements
+   and the nine 2026-08-17 additions rode in free). HOW MUCH is always read from the
+   content's own data, never configured. A new ability must cost a list entry, zero code;
+   code grows only when a genuinely new KIND of question appears — and if kinds start
+   arriving faster than one a phase, that is the Phase 5 (adopt-AC5e) tripwire, not a
+   license to special-case names. The fix for an ability that misbehaves is almost always
+   CONTENT (the Innate Sorcery graft, the Divine Favor/Thaumaturgy grafts, the Wand shim),
+   not teaching the module its name.
+
 ---
 
 ## 3. Why not midi-qol / DAE (the one-paragraph version)
@@ -743,6 +756,63 @@ v1.3.0 (2026-08-16).
 >   is visible. The section logs `shimFactor` each run; its assertions are factor-proof,
 >   so the upstream fix will announce itself in the transcript without breaking the
 >   battery. §13 pins the sweep's one-shot, the convergent floor, and the fossil wall.
+
+> **Amended v1.15.0 (2026-08-19, the 2026-08-18 live session's findings — recorded under
+> the freeze, fixed after it lifted): one roll answers one machine, twins converge, and a
+> duration area dies with its concentration.**
+> - **The per-user elect is ground truth (finding ⓪).** `game.users.activeGM` names a
+>   USER; `isActiveGM()` is therefore true on EVERY client logged into that account at
+>   once — the night's two zombie script sessions plus the bridge all counted, and the
+>   probe-proven result was twin Topple asks off one swing reaching CONTRADICTORY
+>   verdicts, plus doubled chips (Hunter's Mark ×2, Slow ×2, Entangle's Restrained ×2).
+>   Foundry exposes no cross-client session identity, so the race cannot be prevented —
+>   it is CONVERGED instead, the sweep-floor philosophy applied to creation: every topple
+>   ask carries its provenance (`sourceMessageId`, the damage message that earned it) and
+>   a twin arriving over an already-asked source deletes itself (deterministic: timestamp,
+>   then id — the elder keeps the question); every module-applied effect carries a
+>   fingerprint (`flags.battleflow.applied`, or the chip applier's own `mastery` flag) and
+>   a twin chip (same actor, name, origin, both fingerprinted) deletes itself the same
+>   way. Fingerprints only — another module's deliberate same-name stack is untouchable.
+>   Operationally the rule stands regardless: ONE GM-capable client during play.
+> - **One roll answers one machine — recognizer priority conc → saves → topple, the ship
+>   order (finding ④).** Edda's single roll answered her concentration ask AND was claimed
+>   by the topple fold's whole-log fallback (her Topple popup vanished "resolved"). The
+>   rule, now uniform: a roll carrying another machine's stamp (`respondsTo`) is NEVER
+>   read by a different machine, and a BARE roll defers upward — topple yields to a
+>   pending save demand or concentration ask for the same actor+ability, saves yield to
+>   concentration (already shipped v1.7.0). The deferred-to machine's popup and buzzer
+>   still stand, so nothing resolves by theft and nothing goes unanswered.
+> - **A verdict always announces (finding ⑤, overturning v1.6.0's "a success closes
+>   quietly").** Eight of eight Topple asks resolved correctly in the data while the user
+>   pressed Prone by hand all night — the five "lost" verdicts were successes that said
+>   nothing, and a public ask with a draining bar that ends in silence reads as a dropped
+>   machine. The topple save now posts its one-line verdict card ("stays standing", roll
+>   vs DC) exactly as the concentration fold's "holds" card does. Design language, made
+>   binding: every table moment the module OPENS in public, it CLOSES in public.
+> - **The spent sweep extends to DURATION areas (finding ①).** Faerie Fire's region
+>   outlived the spell (native end-of-concentration cascade owns that deletion and
+>   demonstrably lost it — elect-suspect), and hand-deleting the region stripped the
+>   marked targets' chips mid-fight (dependents cascade working as built, at the worst
+>   moment). The sweep floor's duration rule: a templated demand, all targets done and
+>   applied, whose usage card names a concentration effect (`system.concentration`) the
+>   caster NO LONGER WEARS is spent — swept by the same convergent floor, triggered
+>   immediately by `deleteActiveEffect` on the named effect, fossil wall unchanged. At
+>   true spell-end the dependents cascade stripping the chips is CORRECT. Non-concentration
+>   duration areas stay the GM's (leftover, recorded); an unresolvable caster leaves the
+>   area standing rather than guessing.
+> - **Not fixed, deliberately:** the Bane double-demand (two usage cards 2 s apart from
+>   one player's client — watch for a repeat before building cross-message dedupe); Life
+>   Drain's "asked twice" (nine demands in the data, all singletons — not reproduced);
+>   Shield re-prompting while Shield was up (the card shows AC 15 → 20, so the +5 was NOT
+>   active when the hold fired — the module was right); Innate Sorcery (WORLD CONTENT —
+>   the DDB import stripped its effect; grafted back from the PHB compendium 2026-08-19,
+>   the party's only remaining ghost reference).
+> - **Suite truth:** smoke-effects §14d is RECUT (success announces), §16 pins the theft
+>   guard, the bare-roll deference, twin-ask supersede, and twin-chip dedupe; smoke-saves
+>   §14 pins the duration sweep (stands while concentration holds, sweeps on its end).
+>   smoke-effects' non-concentration spell pick is pinned to CANTRIPS — the slotless
+>   fixture PC made the old leveled pick's stability an accident (the 2026-08-19 battery
+>   abort).
 
 > **The machine already exists (2026-08-16, user architectural call).** Phase 2.5 shipped
 > first and is deliberately the seed: the mode gate (prompt / auto), the ask-message +

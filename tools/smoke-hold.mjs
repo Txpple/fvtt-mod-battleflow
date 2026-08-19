@@ -9,6 +9,7 @@
 // AC and spell slots exactly as it found them.
 import { readFileSync } from 'node:fs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+import { foundryConfig, preflightSoleGM } from './target.mjs';
 
 const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
 const env = {};
@@ -22,13 +23,10 @@ for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
 // nothing at all — the one failure mode with no diagnostic value.
 setTimeout(() => { console.error('[hold] WATCHDOG 600s'); process.exit(3); }, 600_000);
 
-const f = new Foundry({
-  serverUrl: env.MOLTEN_SERVER_URL, magicUrl: env.MOLTEN_MAGIC_URL,
-  user: env.FOUNDRY_USER || 'Claude', password: env.FOUNDRY_PASSWORD,
-  adminKey: env.MOLTEN_ADMIN_KEY, worldId: env.MOLTEN_WORLD_ID,
-});
+const f = new Foundry(foundryConfig(env));
 console.log('[hold] connecting…');
 await f.connect();
+await preflightSoleGM(f);
 console.log('[hold] connected');
 
 let failures = 0;
@@ -107,6 +105,7 @@ const r = await f.evaluate(async () => {
         holdApplyEffect: game.settings.get(MOD, 'holdApplyEffect'),
         requireTarget: game.settings.get(MOD, 'requireTarget'),
         castApply: game.settings.get(MOD, 'castApply'),
+        masteryRiders: game.settings.get(MOD, 'masteryRiders'),
       },
       grenHP: foundry.utils.deepClone(gren.system._source.attributes.hp),
       grenAC: foundry.utils.deepClone(gren.system._source.attributes.ac),
@@ -134,6 +133,12 @@ const r = await f.evaluate(async () => {
     // affects-self gate in castApplyQualifies is what keeps the two machines apart; this
     // pin is its permanent regression net.
     await game.settings.set(MOD, 'castApply', true);
+    // ⚠ Masteries are OUT OF SCOPE here and must be pinned OFF: the windowed attack
+    // searches miss constantly, and a PC attacker whose blade sits on Graze (an aborted
+    // smoke-effects run leaves the last setMastery in place) pays its flat ability mod
+    // to the stand-in on every one of those misses — a deterministic -3 that broke the
+    // negate section's hpBefore===hpMax guard on 2026-08-19.
+    await game.settings.set(MOD, 'masteryRiders', false);
 
     // Start from a clean fixture rather than trusting the last run's teardown. A crashed run —
     // or a hand experiment at the console — can leave a cast feature or a cached Shield on BF
@@ -519,6 +524,36 @@ const r = await f.evaluate(async () => {
         damageRolled: !!damageFor(usageId),
         why: diagnose(usageId, total),
       };
+      await gren.unsetFlag(MOD, 'reactionSpent');
+    }
+
+    // ---- 4a2. an AC reaction ALREADY STANDING ⇒ no hold (v1.15.0 walk finding ⑥) ------------
+    // "if they have shield up, just dont prompt for shield" (user, 2026-08-19). Gren was
+    // re-prompted with his +5 already active — a choice that changes nothing. Deliberately
+    // independent of reactionSpent and of combat rounds: the walk reproduced it OUT of
+    // combat, where reactionSpent is never set at all.
+    {
+      await gren.unsetFlag(MOD, 'reactionSpent');
+      const shieldItem = gren.items.find(i => (i.name.toLowerCase() === 'shield')
+        && i.effects.size);
+      const src = shieldItem?.effects.contents[0];
+      let standing = null;
+      if (src) {
+        const data = src.toObject();
+        data.disabled = false;
+        data.origin = src.uuid;
+        [standing] = await gren.createEmbeddedDocuments('ActiveEffect', [data]);
+      }
+      const { usageId, msg, total } = await plainHitOnGren();
+      await sleep(2500);
+      results.standingSuppresses = {
+        hadSource: !!src,
+        effectUp: !!(standing && gren.effects.get(standing.id)),
+        held: !!game.messages.get(msg.id)?.getFlag(MOD, 'hold'),
+        damageRolled: !!damageFor(usageId),
+        why: diagnose(usageId, total),
+      };
+      if (standing) await gren.effects.get(standing.id)?.delete();
       await gren.unsetFlag(MOD, 'reactionSpent');
     }
 
@@ -1202,7 +1237,9 @@ const r = await f.evaluate(async () => {
         // the damage landed — an actor at 0 makes "lost nothing" and "lost everything" identical.
         return {
           rolled, hpBefore, hpAfter: actor.system.attributes.hp.value,
-          hpMax: actor.system.attributes.hp.max,
+          // effectiveMax, not max: a tempmax debuff (the Hollow's -3 on the Gren clone,
+          // 2026-08-19) makes raw max unreachable — "whole" means effective max.
+          hpMax: actor.system.attributes.hp.effectiveMax ?? actor.system.attributes.hp.max,
         };
       };
 
@@ -1327,7 +1364,7 @@ const r = await f.evaluate(async () => {
           deferredHeld: (deferredHp === hpBefore) && !deferredReceipt,
           pendingNow: game.messages.get(damageMsg?.id)?.getFlag(MOD, 'spellHoldPending'),
           hpBefore, hpAfter: shielder.system.attributes.hp.value,
-          hpMax: shielder.system.attributes.hp.max,
+          hpMax: shielder.system.attributes.hp.effectiveMax ?? shielder.system.attributes.hp.max,
           receipt: !!game.messages.get(damageMsg?.id)?.getFlag(MOD, 'receipt'),
         };
         for (const e of shielder.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
@@ -1456,6 +1493,13 @@ report('pass → the chain proceeds and damage rolls',
 report('reaction already spent ⇒ no hold, damage flows',
   x.spentSuppresses?.held === false && x.spentSuppresses?.damageRolled === true,
   JSON.stringify(x.spentSuppresses));
+// v1.15.0 walk finding ⑥. The hadSource/effectUp fields are part of the assertion, not
+// decoration: without them a fixture that never got the effect up would "pass" by proving
+// nothing at all — the 0-HP trap this suite already learned once.
+report('an AC reaction ALREADY STANDING ⇒ no hold, damage flows (finding ⑥)',
+  x.standingSuppresses?.hadSource === true && x.standingSuppresses?.effectUp === true
+  && x.standingSuppresses?.held === false && x.standingSuppresses?.damageRolled === true,
+  JSON.stringify(x.standingSuppresses));
 report('REAL cast: the reaction answers its own hold', x.realCast?.pending && x.realCast?.answered === 'cast',
   `pending=${x.realCast?.pending}, answer=${x.realCast?.answered}, via card button=${x.realCast?.usedCardButton}`);
 report('REAL cast: the Cast control actually spends the slot (it is a cast, not a vote)',

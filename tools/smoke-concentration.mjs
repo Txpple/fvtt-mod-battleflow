@@ -19,6 +19,7 @@
 // the double-apply lesson of 2026-08-16, and here it would stamp every ask twice).
 import { readFileSync } from 'node:fs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+import { foundryConfig, preflightSoleGM } from './target.mjs';
 
 const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
 const env = {};
@@ -31,13 +32,10 @@ for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
 // Three casts, a dozen damage/poll cycles, one real attack chain, one 3.5s timer wait.
 setTimeout(() => { console.error('[conc] WATCHDOG 480s'); process.exit(3); }, 480_000);
 
-const f = new Foundry({
-  serverUrl: env.MOLTEN_SERVER_URL, magicUrl: env.MOLTEN_MAGIC_URL,
-  user: env.FOUNDRY_USER || 'Claude', password: env.FOUNDRY_PASSWORD,
-  adminKey: env.MOLTEN_ADMIN_KEY, worldId: env.MOLTEN_WORLD_ID,
-});
+const f = new Foundry(foundryConfig(env));
 console.log('[conc] connecting…');
 await f.connect();
+await preflightSoleGM(f);
 console.log('[conc] connected');
 
 const out = await f.evaluate(async () => {

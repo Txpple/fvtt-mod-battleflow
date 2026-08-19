@@ -10,6 +10,7 @@
 // over the WHOLE log, never a tail window.
 import { readFileSync } from 'node:fs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+import { foundryConfig, preflightSoleGM } from './target.mjs';
 
 const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
 const env = {};
@@ -23,13 +24,10 @@ for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
 // watchdog reports nothing, so the ceiling is generous.
 setTimeout(() => { console.error('[effects] WATCHDOG 600s'); process.exit(3); }, 600_000);
 
-const f = new Foundry({
-  serverUrl: env.MOLTEN_SERVER_URL, magicUrl: env.MOLTEN_MAGIC_URL,
-  user: env.FOUNDRY_USER || 'Claude', password: env.FOUNDRY_PASSWORD,
-  adminKey: env.MOLTEN_ADMIN_KEY, worldId: env.MOLTEN_WORLD_ID,
-});
+const f = new Foundry(foundryConfig(env));
 console.log('[effects] connecting…');
 await f.connect();
+await preflightSoleGM(f);
 console.log('[effects] connected');
 
 const out = await f.evaluate(async () => {
@@ -64,6 +62,7 @@ const out = await f.evaluate(async () => {
   const shielder = game.actors.getName('BF Test Shielder');
   let pc = game.actors.getName('BF Test PC Attacker');
   const npc = game.actors.getName('BF Test Attacker');
+  let priorBlade = null; // the blade's run-start mastery — setMastery mutates it per section
   if (!scene || !victim || !npc) return { fatal: 'missing fixture: scene or BF Test actors' };
 
   const created = { items: [], effects: [], tokens: [] };
@@ -89,10 +88,19 @@ const out = await f.evaluate(async () => {
       }
       // Mastery/rider effects the MODULE created land outside `created` — sweep every BF
       // fixture for module-flagged and known-name chips, plus prone.
+      // ⚠ Restore the blade's mastery FIRST: setMastery mutates the persistent PC's
+      // weapon per section and an aborted run leaves the LAST section's key in place —
+      // two 2026-08-19 aborts at section 11 left it on 'graze', and smoke-hold's windowed
+      // misses then paid a deterministic -3 to its stand-in. The mutation must never
+      // outlive the run.
+      if (priorBlade && pc) {
+        await pc.items.get(priorBlade.id)?.update({ 'system.mastery': priorBlade.mastery });
+      }
       for (const a of [victim, shielder, pc, npc].filter(Boolean)) {
         const strays = a.effects.filter(e => e.getFlag(MOD, 'mastery')
           || ['Vexed', 'Sapped', 'Slowed', 'Reduced Movement'].includes(e.name)
-          || e.getFlag(MOD, 'reactionEffect'));
+          || e.getFlag(MOD, 'reactionEffect')
+          || e.getFlag(MOD, 'applied'));
         if (strays.length) await a.deleteEmbeddedDocuments('ActiveEffect', strays.map(e => e.id));
         if (a.statuses?.has?.('prone')) await a.toggleStatusEffect('prone', { active: false });
       }
@@ -171,6 +179,7 @@ const out = await f.evaluate(async () => {
     };
     const blade = await findWeapon();
     if (!blade) return { fatal: 'no mastery-bearing weapon found on the PC or in any pack' };
+    priorBlade = { id: blade.id, mastery: blade.system._source.mastery };
     log.push(`weapon: ${blade.name} (base ${blade.system.type.baseItem}, ships ${blade.system.mastery})`);
 
     // Mastery eligibility is trait + weapon (weapon.mjs:327): the actor must have mastery
@@ -558,6 +567,11 @@ const out = await f.evaluate(async () => {
           if (!attackWithEffects(doc)) continue;
           if ((doc.system.properties?.has?.('concentration') ?? false) !== concentration) continue;
           if (concentration && doc.system.level > 3) continue; // castable by the fixture
+          // ⚠ The non-conc pick must be a CANTRIP: the fixture PC has no slot pool, and a
+          // leveled pick's use comes back UNDEFINED (refused) — which is how the battery
+          // aborted on 2026-08-19 when the pack walk started surfacing Guiding Bolt ahead
+          // of Ray of Frost. The pick was only ever stable by accident; pin the shape.
+          if (!concentration && doc.system.level > 0) continue;
           const [made] = await pc.createEmbeddedDocuments('Item', [doc.toObject()]);
           created.items.push({ actorId: pc.id, id: made.id });
           return { item: made, actor: pc };
@@ -584,7 +598,14 @@ const out = await f.evaluate(async () => {
       const restCaster = async () => { try { await rof.actor.longRest({ dialog: false, chat: false }); } catch { /* fine */ } };
       await restCaster();
 
-      const { attackMsg, usageId } = await attack(spellAttack());
+      const { attackMsg, usageId, failed } = await attack(spellAttack());
+      if (failed || !(usageId ?? attackMsg?.id)) {
+        // A refused use is a FIXTURE fact, not a module bug — name it instead of dying on
+        // a null id (the 2026-08-19 abort read as a mystery crash until probed).
+        ok('11. a spell hit applies the card\'s effects to the target (1.9A)', false,
+          `FIXTURE: the cast itself was refused (${rof.item.name} on ${rof.actor.name})`);
+        throw new Error(`FIXTURE: cast refused — ${rof.item.name} on ${rof.actor.name} (slotless?)`);
+      }
       const dmg = await waitDamage(usageId ?? attackMsg.id, { flag: 'effectReceipt' });
       const applied = chip();
       const receipt = dmg?.getFlag(MOD, 'effectReceipt');
@@ -800,14 +821,20 @@ const out = await f.evaluate(async () => {
           { data: { 'flags.dnd5e.originatingMessage': topple2.id } });
         await until14(() => topple2.getFlag(MOD, 'topple').targets[0].done);
         const e14b = topple2.getFlag(MOD, 'topple').targets[0];
+        // RECUT at v1.15.0 (the 2026-08-18 session's finding ⑤, overturning v1.6.0's
+        // "closes quietly"): a public ask that resolves in silence reads as a dropped
+        // machine — the success must announce, exactly one card, and still no Prone.
+        await until14(() => fresh14(preAnnounce).some(m => m.content?.includes('stays standing')), 10_000);
         const announced2 = fresh14(preAnnounce).filter(m => m.content?.includes('falls Prone')).length;
-        ok('14d. a successful save closes the question quietly — no prone, no card',
-          e14b.done && (e14b.outcome === 'saved') && !victim.statuses.has('prone') && (announced2 === 0),
-          `outcome=${e14b.outcome} prone=${victim.statuses.has('prone')} announced=${announced2}`
+        const stood2 = fresh14(preAnnounce).filter(m => m.content?.includes('stays standing')).length;
+        ok('14d. a successful save announces — stays standing, once, and no Prone',
+          e14b.done && (e14b.outcome === 'saved') && !victim.statuses.has('prone')
+            && (announced2 === 0) && (stood2 === 1),
+          `outcome=${e14b.outcome} prone=${victim.statuses.has('prone')} prone-cards=${announced2} stood-cards=${stood2}`
             + ` | saveTotal=${rolls14d?.[0]?.total} dc=${topple2.getFlag(MOD, 'topple').dc}`
             + ` bonusNow=${JSON.stringify(victim.system.abilities?.con?.bonuses?.save ?? null)}`);
       } else {
-        ok('14d. a successful save closes the question quietly — no prone, no card', false,
+        ok('14d. a successful save announces — stays standing, once, and no Prone', false,
           `no second topple card — ${JSON.stringify({
             attackTotal: atk14d?.roll?.total ?? null,
             isCrit: atk14d?.roll?.isCritical ?? null,
@@ -957,6 +984,112 @@ const out = await f.evaluate(async () => {
       !!cleaveNotice && !victim.effects.some(e => e.getFlag(MOD, 'mastery') === 'cleave')
         && !msgs15.some(m => m.getFlag(MOD, 'mastery')),
       `notice=${!!cleaveNotice}`);
+
+    // ---------------------------------- 16. the 2026-08-18 session's fixes (v1.15.0)
+    // ④ the fold refuses other machines' rolls; ⓪/② twin asks and twin chips converge.
+    await setMastery('topple');
+    await victim.update({ 'system.abilities.con.bonuses.save': '+30' }); // every save succeeds — no Prone side-effects
+    let card16 = null;
+    for (let try16 = 0; (try16 < 4) && !card16; try16++) {
+      await victim.toggleStatusEffect('prone', { active: false });
+      await healFull();
+      const b16 = snap14();
+      await attack(pcAttack());
+      await until14(() => fresh14(b16).some(m => m.getFlag(MOD, 'topple')), 12_000);
+      card16 = fresh14(b16).find(m => m.getFlag(MOD, 'topple'));
+    }
+    if (card16) {
+      // 16a. provenance: the ask names the damage message that earned it (the supersede's key).
+      ok('16a. the topple ask carries its provenance (sourceMessageId)',
+        !!card16.getFlag(MOD, 'topple').sourceMessageId,
+        `sourceMessageId=${card16.getFlag(MOD, 'topple').sourceMessageId ?? 'MISSING'}`);
+
+      // 16b. finding ④, the theft: a roll stamped as ANOTHER machine's answer (respondsTo)
+      // must never fold the topple — Edda's concentration answer was claimed live.
+      await victim.rollSavingThrow({ ability: 'con' }, { configure: false },
+        { data: { flags: { [MOD]: { respondsTo: 'bfstubforeign000' } } } });
+      await sleep(1500);
+      ok('16b. a respondsTo roll (another machine\'s answer) never folds the topple',
+        card16.getFlag(MOD, 'topple').targets[0].done === false,
+        `done=${card16.getFlag(MOD, 'topple').targets[0].done}`);
+
+      // 16c. finding ④, the bare-roll half: while a concentration ask PENDS for the same
+      // actor and ability, a bare sheet roll is the conc machine's (ship-order priority);
+      // the topple stands for its own popup and buzzer.
+      const stub16 = await ChatMessage.create({ content: 'BF test — pending conc ask stub',
+        flags: { [MOD]: { concentration: {
+          status: 'pending', actorUuid: victim.uuid, ability: 'con', dc: 10 } } } });
+      await victim.rollSavingThrow({ ability: 'con' }, { configure: false }, {});
+      await sleep(1500);
+      ok('16c. a bare roll defers to a pending concentration ask — the topple stands',
+        card16.getFlag(MOD, 'topple').targets[0].done === false,
+        `done=${card16.getFlag(MOD, 'topple').targets[0].done}`);
+
+      // 16d. the ask resolved and gone, the next bare roll is the topple's again — and the
+      // success ANNOUNCES (finding ⑤ at the fold's bare path).
+      await ChatMessage.deleteDocuments([stub16.id]);
+      const pre16d = snap14();
+      await victim.rollSavingThrow({ ability: 'con' }, { configure: false }, {});
+      await until14(() => card16.getFlag(MOD, 'topple').targets[0].done, 8000);
+      await until14(() => fresh14(pre16d).some(m => m.content?.includes('stays standing')), 10_000);
+      const e16 = card16.getFlag(MOD, 'topple').targets[0];
+      ok('16d. with the ask gone the bare roll answers the topple, and the save announces',
+        e16.done && (e16.outcome === 'saved')
+          && fresh14(pre16d).some(m => m.content?.includes('stays standing')),
+        `done=${e16.done} outcome=${e16.outcome}`);
+
+      // 16e. finding ⓪/②, the twin ask: isActiveGM() is per-USER — two sessions on one
+      // account both stamp. A twin arriving over the same sourceMessageId deletes itself;
+      // the elder keeps the question. (Targets arrive done so no popup flashes.)
+      const twin16 = await ChatMessage.create({ content: 'BF test — twin topple ask',
+        flags: { [MOD]: { topple: {
+          dc: 14, ability: 'con',
+          sourceMessageId: card16.getFlag(MOD, 'topple').sourceMessageId,
+          targets: [{ uuid: victim.uuid, name: victim.name,
+            done: true, outcome: 'saved', applied: true }] } } } });
+      const gone16 = await until14(() => !game.messages.get(twin16.id), 6000);
+      ok('16e. a twin ask over the same source supersedes itself — the elder keeps the question',
+        !!gone16 && !!game.messages.get(card16.id),
+        `twinGone=${!!gone16} elderStands=${!!game.messages.get(card16.id)}`);
+    } else {
+      for (const name of ['16a. the topple ask carries its provenance (sourceMessageId)',
+        '16b. a respondsTo roll (another machine\'s answer) never folds the topple',
+        '16c. a bare roll defers to a pending concentration ask — the topple stands',
+        '16d. with the ask gone the bare roll answers the topple, and the save announces',
+        '16e. a twin ask over the same source supersedes itself — the elder keeps the question']) {
+        ok(name, false, 'no topple card after 4 attacks (fixture)');
+      }
+    }
+
+    // 16f. finding ⓪/②, the twin chip: two module-fingerprinted effects with the same name
+    // and origin converge to one — the newcomer deletes itself, the elder stands.
+    // Clean slate: a crashed prior run's twin chips are ELDERS to this section's pair
+    // and would eat both newcomers (bit 2026-08-19, take 3).
+    for (const stale of victim.effects.filter(e => e.name === 'BF Twin Chip')) await stale.delete();
+    // ⚠ The origin must RESOLVE — this box nulls an ActiveEffect create whose origin
+    // uuid points at nothing (probed 2026-08-19: every synthetic-origin attempt of this
+    // section silently created NOTHING and the assert was reading phantoms). The victim's
+    // own uuid is the cheapest real origin. The elder's create is race-free (no twin
+    // exists yet) so ITS return is safe to hold; the newcomer's return is NOT held — the
+    // watcher can delete it before the creation workflow resolves, which is the fix
+    // winning its race. Converge on the COUNT.
+    const eA16 = await ActiveEffect.implementation.create({
+      name: 'BF Twin Chip', origin: victim.uuid,
+      flags: { [MOD]: { applied: true } } }, { parent: victim });
+    await sleep(60); // distinct server creation stamps — the dedupe orders by them
+    void ActiveEffect.implementation.create({
+      name: 'BF Twin Chip', origin: victim.uuid,
+      flags: { [MOD]: { applied: true } } }, { parent: victim });
+    await sleep(600); // let the twin land before asking for convergence
+    const converged16 = await until14(() =>
+      victim.effects.filter(e => e.name === 'BF Twin Chip').length === 1, 6000);
+    ok('16f. a twin fingerprinted chip converges to one — newcomer deletes, elder stands',
+      !!converged16 && !!eA16 && !!victim.effects.get(eA16.id),
+      `converged=${!!converged16} elderStands=${!!(eA16 && victim.effects.get(eA16.id))} `
+        + `count=${victim.effects.filter(e => e.name === 'BF Twin Chip').length}`);
+    for (const e of victim.effects.filter(e => e.name === 'BF Twin Chip')) await e.delete();
+    await victim.update({ 'system.abilities.con.bonuses.save':
+      priorActor[victim.id]['system.abilities.con.bonuses.save'] });
 
     return { log, results, skips };
   } catch (err) {

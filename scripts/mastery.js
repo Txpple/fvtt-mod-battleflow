@@ -205,7 +205,7 @@ async function askOrTake(attackMessage, damageMessage, ctx, key, targets) {
 async function executeMasteryPayout(key, attackMessage, damageMessage, ctx, targets) {
   switch ( key ) {
     case "slow": return applyMasteryEffect(damageMessage ?? attackMessage, ctx, "slow", targets);
-    case "topple": return toppleCard(ctx, targets);
+    case "topple": return toppleCard(ctx, targets, damageMessage ?? attackMessage);
     case "push": return pushCard(ctx, targets);
     case "graze": return grazePayout(attackMessage, ctx, targets);
   }
@@ -262,7 +262,7 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
 }
 
 /** Topple: the demand, the native save link, and a GM affordance for the failure. */
-async function toppleCard(ctx, targets) {
+async function toppleCard(ctx, targets, sourceMessage = null) {
   const dc = 8 + (ctx.attacker.system.attributes?.prof ?? 0)
     + (ctx.attacker.system.abilities?.[ctx.ability]?.mod ?? 0);
   const names = targets.map(t => t.name).join(", ");
@@ -283,12 +283,40 @@ async function toppleCard(ctx, targets) {
     flags: { [MODULE_ID]: { topple: {
       dc, ability: "con",
       attackerUuid: ctx.attacker.uuid,
+      // Provenance for the twin-ask supersede below: WHICH damage message earned this
+      // demand. One swing asks once, whichever clients think they are the elect.
+      sourceMessageId: sourceMessage?.id ?? null,
       weapon: { name: ctx.weapon.name, img: ctx.weapon.img },
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
       targets: targets.map(t => ({ uuid: t.uuid, name: t.name, done: false }))
     } } }
   });
 }
+
+/* --- the twin-ask supersede (the 2026-08-18 session's finding ⓪/②) -------------------------
+ * `isActiveGM()` is per-USER, not per-CLIENT: two sessions logged in as the same account
+ * BOTH pass it, and both stamp the ask — the session's twin Topple cards (00:37:24, both by
+ * DM Assistant, contradictory verdicts: prone-by-timer AND saved-by-hand off one swing) are
+ * the proof. Foundry exposes no cross-client session identity, so the race cannot be
+ * prevented; it CAN be converged: every ask carries its provenance (sourceMessageId), and
+ * when an ask arrives whose source already has an ELDER ask, the newcomer deletes itself.
+ * Deterministic on every client (timestamp, then id), idempotent (a twin already deleted is
+ * a caught no-op). The elder keeps the popups, the timer and the verdict. */
+Hooks.on("createChatMessage", message => {
+  if ( !isActiveGM() ) return;
+  const flag = message.getFlag(MODULE_ID, "topple");
+  if ( !flag?.sourceMessageId ) return;
+  const elder = game.messages.contents.some(m => {
+    if ( m.id === message.id ) return false;
+    if ( m.getFlag(MODULE_ID, "topple")?.sourceMessageId !== flag.sourceMessageId ) return false;
+    return (m.timestamp < message.timestamp)
+      || ((m.timestamp === message.timestamp) && (m.id < message.id));
+  });
+  if ( elder ) {
+    disarmToppleTimer(message.id);
+    message.delete().catch(() => { /* the other twin got there first */ });
+  }
+});
 
 /** Topple popups this client has offered (message.id|uuid), never re-popped on render. */
 const shownToppleAsks = new Set();
@@ -487,6 +515,27 @@ async function foldToppleSave(saveMessage) {
       if ( !origin?.getFlag(MODULE_ID, "topple") ) return; // another chain's save
       cards = [origin];
     } else {
+      // ANOTHER MACHINE'S STAMPED ANSWER IS NEVER A TOPPLE ANSWER (the 2026-08-18 session's
+      // finding ④, probe-proven): Edda's concentration answer — respondsTo on the roll, no
+      // originatingMessage — fell through to this whole-log branch and was claimed as her
+      // Topple save too; one roll, two verdicts, and her still-open Topple popup vanished
+      // resolved-by-theft. saves.js has refused respondsTo rolls since v1.7.0; this fold
+      // was the only recognizer missing the guard.
+      if ( saveMessage.getFlag(MODULE_ID, "respondsTo") ) return;
+      // And a BARE roll defers to the older machines, exactly saves.js's rule (priority
+      // conc → saves → topple, the ship order): when a pending concentration ask or save
+      // demand names this actor with a matching ability, the bare roll is theirs — the
+      // topple's own popup and buzzer still stand, so nothing goes unresolved.
+      const ability = saveMessage.getFlag("dnd5e", "roll.ability") ?? null;
+      const spokenFor = game.messages.some(m => {
+        const c = m.getFlag(MODULE_ID, "concentration");
+        if ( c && (c.status === "pending") && (c.actorUuid === actor.uuid)
+          && (c.ability === ability) ) return true;
+        const s = m.getFlag(MODULE_ID, "saves");
+        return !!s && (s.status === "pending") && s.abilities?.includes(ability)
+          && s.targets?.some(t => !t.done && (t.uuid === actor.uuid));
+      });
+      if ( spokenFor ) return;
       // Whole-log by design (the tail-window lesson); the oldest pending card answers first.
       cards = game.messages.contents.filter(m => m.getFlag(MODULE_ID, "topple"));
     }
@@ -510,6 +559,22 @@ async function foldToppleSave(saveMessage) {
       if ( !success ) {
         await dramaticVerdictPause(saveMessage); // same instant-verdict class as the fold
         await applyToppleFailure(card, entry.uuid);
+      } else {
+        // A SUCCESS ANNOUNCES TOO (the 2026-08-18 session's finding ⑤, overturning the
+        // v1.6.0 "closes quietly" choice): a public ask with a bar that resolves in
+        // silence reads as a dropped machine — the user pressed Prone by hand all night,
+        // sometimes on creatures that had SAVED, because nothing said the verdict landed.
+        // Same shape as concentration's "holds" card: one line, the roll against the DC.
+        await dramaticVerdictPause(saveMessage);
+        await ChatMessage.create({
+          speaker: card.speaker,
+          content: bfCard({
+            img: flag.weapon?.img, eyebrow: "Weapon Mastery — Topple", tone: "neutral",
+            title: `${entry.name} stays standing`,
+            subtitle: `Constitution save ${entry.total ?? "?"} vs DC ${flag.dc}`
+              + `${entry.timedOut ? " — rolled by the timer" : ""}`
+          })
+        });
       }
       return; // one save answers one card
     }

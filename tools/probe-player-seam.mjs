@@ -9,6 +9,7 @@
 //      source so the tie-break rule is documented from the horse's mouth
 import { readFileSync } from 'node:fs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+import { foundryConfig, playerConfig } from './target.mjs';
 
 const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
 const env = {};
@@ -25,11 +26,7 @@ const report = (name, ok, detail = '') => {
   console.log(`  ${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
 };
 
-const gm = new Foundry({
-  serverUrl: env.MOLTEN_SERVER_URL, magicUrl: env.MOLTEN_MAGIC_URL,
-  user: env.FOUNDRY_USER || 'Claude', password: env.FOUNDRY_PASSWORD,
-  adminKey: env.MOLTEN_ADMIN_KEY, worldId: env.MOLTEN_WORLD_ID,
-});
+const gm = new Foundry(foundryConfig(env));
 console.log('[seam] GM connecting…');
 await gm.connect();
 
@@ -57,11 +54,7 @@ report('baseline: no active player owns the fixture yet', before.playerSeamOccup
   `occupied=${before.playerSeamOccupied}`);
 
 console.log('[seam] player connecting…');
-const player = new Foundry({
-  serverUrl: env.MOLTEN_SERVER_URL, magicUrl: env.MOLTEN_MAGIC_URL,
-  user: env.MOLTEN_TEST_USER, password: env.MOLTEN_TEST_PASSWORD ?? '',
-  worldId: env.MOLTEN_WORLD_ID,
-});
+const player = new Foundry(playerConfig(env));
 await player.connect();
 
 const playerSide = await player.evaluate(async () => {

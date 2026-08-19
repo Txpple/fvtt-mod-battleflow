@@ -494,8 +494,25 @@ Hooks.on("updateMeasuredTemplate", doc => { refreshTemplatedDemands(doc); });
  */
 async function cleanupSpentTemplates(card) {
   const flag = card.getFlag(MODULE_ID, "saves");
-  if ( !flag?.templated || (flag.durationUnits !== "inst") ) return;
+  if ( !flag?.templated ) return;
   if ( !(flag.targets ?? []).every(t => t.done && (t.applied || (t.outcome === "gone"))) ) return;
+  // An INSTANTANEOUS area is spent when its last consequence lands (v1.14.0). A DURATION
+  // area is spent when the CONCENTRATION that sustains it is gone (the 2026-08-18 session's
+  // finding ①: Faerie Fire's region outlived the spell — the native end-of-concentration
+  // cascade owns that deletion but demonstrably lost it, the same lost-one-shot class as
+  // finding ② was, so the same convergent floor answers it). The usage card carries its own
+  // concentration effect id (system.concentration, stamped by the system at cast); when the
+  // caster no longer wears that effect, the spell is over and the area goes — dependents
+  // (the marked targets' chips) correctly cascading with it. A non-concentration duration
+  // area stays the GM's to clear (leftover, recorded); an unresolvable caster leaves the
+  // area standing rather than guessing.
+  if ( flag.durationUnits !== "inst" ) {
+    const concId = card.system?.concentration;
+    if ( !concId ) return;
+    const caster = card.getAssociatedActor?.();
+    if ( !(caster instanceof Actor) ) return;
+    if ( caster.effects.get(concId) ) return; // still concentrating — the area is alive
+  }
   const superseded = game.messages.contents.some(m => {
     if ( (m.id === card.id) || (m.timestamp <= card.timestamp) ) return false;
     return m.getFlag(MODULE_ID, "saves")?.activityUuid === flag.activityUuid;
@@ -503,9 +520,27 @@ async function cleanupSpentTemplates(card) {
   if ( superseded ) return;
   for ( const scene of game.scenes ) {
     const spent = scene.templates.filter(t => t.getFlag("dnd5e", "origin") === flag.activityUuid);
-    if ( spent.length ) await scene.deleteEmbeddedDocuments("MeasuredTemplate", spent.map(t => t.id));
+    // Tolerate the race against the native cascade deleting the same documents — whichever
+    // cleanup wins, the other's miss must not throw the floor off its next offer.
+    try {
+      if ( spent.length ) await scene.deleteEmbeddedDocuments("MeasuredTemplate", spent.map(t => t.id));
+    } catch(err) { /* already gone — the cascade or the other elect twin got there */ }
   }
 }
+
+/* The trigger for the duration half of the floor above: the moment a concentration effect
+ * is deleted, the elect re-offers the sweep to every templated demand that cast rode —
+ * matched by the id the system stamped on the usage card. The render/update floors remain
+ * the convergent backstop (a lost trigger lands on the next render, whoever the elect is
+ * by then); this hook just makes the common case immediate. */
+Hooks.on("deleteActiveEffect", effect => {
+  if ( !isActiveGM() ) return;
+  if ( !(effect.parent instanceof Actor) ) return;
+  for ( const m of game.messages.contents ) {
+    if ( m.system?.concentration !== effect.id ) continue;
+    if ( m.getFlag(MODULE_ID, "saves")?.templated ) void cleanupSpentTemplates(m);
+  }
+});
 
 /* --- the roll: whoever owns the decision presses it ----------------------------------------- */
 

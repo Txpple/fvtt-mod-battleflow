@@ -2,7 +2,7 @@
  * Battle Flow — Phase 1.9A: effect riders and the shared effect applier (applyEffectsWithReceipt - the Phase 3 convergence point).
  * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE } from "./core.js";
+import { MODULE_ID, TITLE, isActiveGM } from "./core.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1.9A — effect riders: a hit applies the effects riding it (PLAN.md section A).
@@ -82,11 +82,16 @@ export async function applyEffectsTo(targets, effects,
     const entry = { uuid: target.uuid, name: target.name, img: actor.img ?? null, effects: [] };
     for ( const effect of effects ) {
       const origin = concentration ?? effect;
-      const effectFlags = foundry.utils.mergeObject({ flags: { dnd5e: {
-        dependentOn: origin.uuid,
-        scaling,
-        spellLevel
-      } } }, { flags: extraFlags ?? {} });
+      const effectFlags = foundry.utils.mergeObject({ flags: {
+        dnd5e: {
+          dependentOn: origin.uuid,
+          scaling,
+          spellLevel
+        },
+        // The module's application fingerprint — the twin-dedupe floor below polices ONLY
+        // effects wearing it, so it can never delete another module's deliberate stack.
+        [MODULE_ID]: { applied: true }
+      } }, { flags: extraFlags ?? {} });
       // Native parity, bug-for-bug: an existing effect with this origin is re-enabled and
       // re-clocked rather than duplicated. (Like the tray, a concentration spell carrying
       // TWO effects collides with itself here — both share the concentration origin — but
@@ -164,3 +169,30 @@ export async function revertEffect(message, targetUuid, effectId) {
   await message.setFlag(MODULE_ID, "effectReceipt", flag);
 }
 
+
+/* --- the twin-chip dedupe floor (the 2026-08-18 session's finding ⓪/②) ---------------------
+ * `isActiveGM()` is per-USER: two sessions on the same account both pass it, both run an
+ * applier, and the existing re-enable-instead-of-stack check races replication — each
+ * client reads "no existing copy" before the other's create arrives, and the chip lands
+ * twice (the session's Hunter's Mark ×2, Slow ×2, double Restrained). The race cannot be
+ * prevented (no cross-client session identity exists), so it converges here instead: when
+ * a module-fingerprinted effect arrives and an ELDER effect with the same name and origin
+ * already stands on the same actor, the newcomer deletes itself. Fingerprints only —
+ * `applied` (the shared loop above) and `mastery` (the chip applier's own flag) — so
+ * another module's deliberate same-name stack is never touched. Deterministic (creation
+ * time, then id), idempotent (the other twin's delete is a caught no-op).
+ */
+Hooks.on("createActiveEffect", effect => {
+  if ( !isActiveGM() ) return;
+  const actor = effect.parent;
+  if ( !(actor instanceof Actor) ) return;
+  const fingerprinted = e => !!(e.getFlag(MODULE_ID, "applied") || e.getFlag(MODULE_ID, "mastery"));
+  if ( !fingerprinted(effect) ) return;
+  const born = e => e._stats?.createdTime ?? 0;
+  const elder = actor.effects.some(e => {
+    if ( (e.id === effect.id) || !fingerprinted(e) ) return false;
+    if ( (e.name !== effect.name) || (e.origin !== effect.origin) ) return false;
+    return (born(e) < born(effect)) || ((born(e) === born(effect)) && (e.id < effect.id));
+  });
+  if ( elder ) effect.delete().catch(() => { /* the other twin got there first */ });
+});
