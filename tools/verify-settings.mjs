@@ -25,7 +25,7 @@ const REFERENCE = {
   requireTarget: true,
   reactionHold: true,
   blockList: 'Magic Missile:Shield',
-  interruptList: 'Shield:ac, Absorb Elements:damage, Uncanny Dodge:damage, Defensive Duelist:ac, Illusory Self:ac, Glorious Defense:ac, Parry:ac, Counterattack:ac, Defensive Stance:ac, Riposte:ac, Whirlwind of Sand:ac, Deflect Attacks:damage, Stone\'s Endurance:damage',
+  interruptList: 'Shield:ac, Absorb Elements:damage, Uncanny Dodge:damage, Defensive Duelist:ac, Illusory Self:ac, Glorious Defense:ac, Parry:ac, Counterattack:ac, Defensive Stance:ac, Whirlwind of Sand:ac, Deflect Attacks:damage, Stone\'s Endurance:damage',
   holdReveal: true,
   holdTimer: 15,          // user 2026-08-17: all timers 15s (was 12)
   holdSkipFutile: true,

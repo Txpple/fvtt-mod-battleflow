@@ -149,7 +149,7 @@ update this table, never fight it:
 | Require a Target | on | |
 | Reaction Hold | on | governs **both** triggers |
 | Spells a Reaction Blocks | `Magic Missile:Shield` | new in v1.1.16 — the second trigger |
-| Reaction List | `Shield:ac, Absorb Elements:damage, Uncanny Dodge:damage, Defensive Duelist:ac, Illusory Self:ac, Glorious Defense:ac, Parry:ac, Counterattack:ac, Defensive Stance:ac, Riposte:ac, Whirlwind of Sand:ac, Deflect Attacks:damage, Stone's Endurance:damage` | user-expanded 2026-08-17 — nine new entries beyond the original four |
+| Reaction List | `Shield:ac, Absorb Elements:damage, Uncanny Dodge:damage, Defensive Duelist:ac, Illusory Self:ac, Glorious Defense:ac, Parry:ac, Counterattack:ac, Defensive Stance:ac, Whirlwind of Sand:ac, Deflect Attacks:damage, Stone's Endurance:damage` | user-expanded 2026-08-17; ⚠ `Riposte:ac` STRUCK 2026-08-19 — it is not an AC boost and could never fire correctly (see FLOW item 1), so it was offered on every hit and answered with a bare 1d8 |
 | Hold Shows the Math | **on** | default flipped in v1.1.8 — design.md §5 carries the correction |
 | Hold Timer | **15s** | user re-tuned 2026-08-17 evening ("all my timers to 15s") — also the module default since v1.11.0; 0 waits indefinitely |
 | Skip Hopeless Holds | **on** | gated on the reveal, deliberately — see the setting's hint |

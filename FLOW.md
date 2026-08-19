@@ -80,9 +80,31 @@ the damage formula on any of the three.
 - *Riposte*: trigger on enemy melee **miss** → hold → attack rolls INSIDE the fold → die
   appended to damage on hit.
 
-⚠ **Do this first, it is free:** remove `Riposte:ac` from the Reaction List setting. Per the
-reconciliation it can never fire correctly — wrong trigger (hits, not misses) and wrong kind
-(AC bonus, not an attack). Leaving it there means the machine offers a nonsense hold.
+✅ **`Riposte:ac` STRUCK from the Reaction List, 2026-08-19** — build-order step 0, done.
+It could never fire correctly: wrong trigger (the hold offers on **hits**, Riposte triggers on
+a **miss**) and wrong kind (`ac` raises AC; Riposte makes an attack).
+
+⚠ **It was not inert — it fired on every hit, and here is the mechanism.**
+`reactionACBonus` ([ui.js:244](scripts/ui.js:244)) reads a numeric
+`system.attributes.ac.bonus` change off the reaction's own effect. Riposte has **no effects at
+all**, so it returns `null` — and `holdWouldMatter` ([hold.js:363](scripts/hold.js:363)) then
+returns **true**: *"unmeasurable bonus — ask the human."* That default is correct for a
+proficiency-scaled boost like Defensive Duelist, but for something that is not an AC boost at
+all it means the hold was offered **every time Morgash was hit**, and answering it posted a
+bare `1d8` with no attack behind it — the exact session-4 symptom. Both "hopeless hold" guards
+were ON and neither caught it, because the null branch bypasses them by design.
+
+**Audited, not guessed** — `tools/audit-reaction-list.mjs` (NEW) walks the setting against the
+world's real items. The list turned out to be almost entirely **inert placeholders**: only
+**Shield** (correct — the spell holders all carry `ac.bonus = 5`) and **Riposte** resolved to
+any item at all. Absorb Elements, Uncanny Dodge, Defensive Duelist, Illusory Self, Glorious
+Defense, Parry, Counterattack, Defensive Stance, Whirlwind of Sand, Deflect Attacks and
+Stone's Endurance are held by nobody in this world, so they cost nothing where they sit.
+⚠ An earlier guess that **Parry** and **Counterattack** were also miscategorised was WRONG and
+is retracted — nobody has them, so their kind never matters until somebody does.
+
+⚠ **Re-add Riposte only through item 1's fold**, never back into this list — the fold owns the
+miss trigger, and an `ac` entry would resume offering the nonsense hold beside it.
 
 ## 2. Targets shown in the use/roll dialog — ✅ BUILT + VERIFIED 2026-08-19
 **⚠ This item now ABSORBS the probe pass** (user call, 2026-08-19: *"basically this is item 1,
@@ -646,7 +668,7 @@ Shipped items dropped; the free setting fix promoted to the top.
 
 | # | Item | Why here |
 | --- | --- | --- |
-| **0** | **Strike `Riposte:ac` from the Reaction List** (item 1) | Free, no code. It can never fire correctly and currently offers a nonsense hold. |
+| ~~0~~ | ~~**Strike `Riposte:ac`**~~ (item 1) | ✅ **DONE 2026-08-19** — struck from the world setting, the verify-settings reference and the HANDOFF table together. Shipped in v1.16.0. |
 | ~~1~~ | ~~**Target decoration**~~ (item 2) | ✅ **DONE 2026-08-19** — both dialog classes hooked and verified in the sandbox. ⚠ Unreleased; sandbox only. The potion-dialog question it was also meant to answer is STILL OPEN. |
 | ~~13~~ | ~~**Temp HP card**~~ (item 13) | ✅ **DONE 2026-08-19** — display fix, verified. ⚠ Unreleased; sandbox only. |
 | ~~14~~ | ~~**DM stops getting player hold popups**~~ (item 14) | ✅ **DONE 2026-08-19** — `gmQuiet` finally reaches the hold. ⚠ Unreleased; sandbox only. |
