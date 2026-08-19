@@ -127,6 +127,67 @@ update this table, never fight it:
 
 ## Open items
 
+### 🔴 THE 2026-08-18 LIVE SESSION (session 4, the Hollow) — findings recorded under the FREEZE
+
+Recorded live from the user's table reports, per the standing protocol; **no fix ships
+before Wednesday.** Numbered here for the fix pass; the campaign-side ledger is
+`fvtt-campaign-greenrest/todo.md` §0 (same items, table-workaround framing).
+
+> ⚠⚠ **FINDING ⓪ FIRST — EVERY FINDING BELOW IS ELECT-CONTAMINATED, and the assistant
+> did the contaminating.** The header's elect-steal lesson (probe GM sessions steal the
+> apply/sweep elect from the user's window) applied ALL NIGHT and was only recognized at
+> ~21:45: two one-off volume scripts connected as DM Assistant pre-session and their
+> processes never exited — **two zombie headless GM clients held the elect from ~20:20
+> to 21:05 of live play** — and after they were killed, the assistant's MCP bridge
+> reconnected repeatedly mid-session (loot minting, item fixes), stealing the elect
+> again in stretches. Battleflow popups landing on an invisible headless window and
+> one-shots stranding on a dead elect are the KNOWN symptoms of exactly this. So:
+> **every finding below must re-verify in a clean single-GM room on Wednesday before
+> any code is touched** — the module may be innocent of most of tonight.
+> **New standing rule (extends the header's walk lesson): the bridge NEVER connects
+> during live play** — not for scripts, not for MCP content edits; loot and fixes wait
+> for a break or the morning. If the table asks for a live change anyway, warn that it
+> costs the elect, connect, do it, disconnect immediately.
+
+- **① Faerie Fire's template region outlived the spell** — no sweep at duration end
+  (a duration/concentration area, so the spent-sweep correctly ignored it; whatever
+  should clear it at END never fired), and the user deleting the region by hand
+  **stripped the Faerie Fire chips off the marked targets** (region-linked application
+  linking working as built, but it turns the manual cleanup into a debuff wipe
+  mid-fight). Elect-suspect: concentration-linked cleanup runs on the activeGM.
+- **② Double application, four independent sightings** — Hunter's Mark chip x2 and
+  Slow mastery chip x2 (Jetten vs a wight), Topple x2 on a swing (Morgash), and
+  Entangle pressing double Restrained on a failed save. If any of it reproduces clean,
+  the suspect is two apply paths coexisting per source (cast slice / effect riders /
+  save machine / native tray); under tonight's elect churn, two GM-capable clients is
+  the cheaper explanation.
+- **③ Life Drain demanded its save TWICE** — the wight save feature prompted Morgash's
+  roll two times ("weird double up").
+- **④ The two table-moment machines collided** — one hit (Morgash on Edda) raised the
+  Topple ask AND her concentration ask; resolving the concentration roll made the
+  Topple popup vanish unresolved (no recall, save never rolled). The asks queue
+  per-machine, not per-actor-across-machines.
+- **⑤ Topple verdicts with no follow-through** — repeated (Osric and others): target
+  rolls, pass/fail marks, and a failure never presses Prone. The user pressed Prone by
+  hand all night. Elect-suspect (the fold's press step runs on the elect), but note ②'s
+  double-Topple sighting means the topple path misbehaved in BOTH directions tonight.
+- **⑥ Shield held while Shield was already up** — Gren, arrow from a Skeletal Archer:
+  the hold re-prompted while his +5 was active (and his reaction spent). Expected:
+  reactionSpent suppression + an active-Shield gate = no hold. Re-verify clean;
+  reactionSpent clears are turn-hook-driven and elect churn could have eaten the spend.
+- **⑦ Innate Sorcery applies nothing on use** (Gren) — no chip, honor-system buff.
+  Wednesday check: does the PHB compendium item even carry an ActiveEffect (item-data
+  gap → world-content fix, not module), and if it does, why the SELF-aim cast slice
+  didn't land it (the world copy may predate v1.11.0 self-aim).
+
+**World content, fixed live tonight (not module code):** Gren's Wand of the War Mage +1
+was a raw DMG enchant-TEMPLATE copy (riders never fire unapplied) — shimmed with a plain
+transferring +1 msak/rsak effect (`Tu0htbQAllmONqwv`); Wednesday: apply the real
+enchantment or strip the template cruft, and sweep other actors for the same silent
+pattern. Adrenaline Rush's activity renamed + chat flavor now says Temp HP (mechanics
+were already correct). Wight "Necrotic Sword" minted as loot (world item + party-stash
+copy, qty 2). Hollow soundscape volumes re-tuned (campaign todo has the mix).
+
 ### ✅ THE v1.13.0 WALK — COMPLETE (2026-08-17) + v1.14.0 CLOSED BOTH FINDINGS
 
 The walk's outcome, kept because reports referencing these will keep arriving:
