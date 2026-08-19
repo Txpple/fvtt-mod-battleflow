@@ -7,12 +7,21 @@
 > after every update (so they never scroll), confirm/close items as they say so — and you
 > ACT only when they say go.
 >
-> ⚠⚠ **PROD IS STILL ON v1.15.0. NOTHING FROM v1.16.0 HAS REACHED THE TABLE.** The release
-> is cut and tagged and the SANDBOX runs it, but no prod deploy was performed — it was not
-> asked for. **The walk below therefore happens in the SANDBOX**, and a prod deploy is a
-> separate, deliberate step afterwards (and a version bump needs the box BOUNCED, not just
-> file-copied). ⚠ The live table also still carries **`Riposte:ac`** in its Reaction List;
-> that setting was struck in the sandbox only.
+> ✅ **PROD IS DEPLOYED (2026-08-19) — v1.16.0 code is live on the box and `Riposte:ac` is
+> struck there too.** Prod was IDLE at deploy (0 users); no live table was touched. All 17
+> files md5-matched, and the new code was confirmed SERVED by the running server — `polish.js`
+> and `ui.js` fetched through prod both carry the v1.16.0 fingerprints. `verify-settings`
+> against prod: **CLEAN**.
+>
+> ⚠⚠ **BUT PROD'S PROCESS STILL REGISTERS `1.14.0`** — not 1.15.0, not 1.16.0. Foundry scans
+> the package registry at PROCESS BOOT, and that box has not restarted through two releases.
+> There is NO tooling to bounce a Molten box (`register-module.mjs` says it outright: a WebDAV
+> drop plus a world shutdown/relaunch never registers) — **it needs a restart from Molten's
+> own control panel, which is the user's to do.** The code is live regardless; it is the
+> version STRING that is stale.
+> ⚠ **Every client that had the world open should HARD-refresh once** (Ctrl+Shift+R). A window
+> runs whatever code it loaded, and a stale window holding the elect runs old code for
+> everyone.
 >
 > ⚠ **Phase 4 and the carry-over walk both still stand, and neither is next.** Phase 4's
 > checklist is still below and still valid — it needs TABLE time (ten rounds of Bless), so
@@ -337,7 +346,9 @@ seven rounds with nothing to fix. No code was written. No release followed.
 
 ### 🚶 THE v1.16.0 WALK — the user's checklist for the next testing session
 
-⚠ **Walk this in the SANDBOX** — prod never received v1.16.0. Every client F5 once.
+⚠ **Walk it in the SANDBOX** (the test environment) — though prod now carries the same code,
+so a table sighting counts too. Every client F5 once — **hard** refresh on prod, whose process
+still registers 1.14.0.
 **ONE GM-capable client**; no bridge, no scripts, no suites running alongside. The settings
 table above is law and already matches the sandbox (`verify-settings` CLEAN at handoff).
 
@@ -372,9 +383,10 @@ and read the real DOM, but nobody has looked at any of it. That is the whole poi
    hold any more. ⚠ Riposte itself is still un-automated (FLOW item 1); this only stops the
    nonsense prompt, it does not make the maneuver work.
 
-**If the walk is clean, the next steps in order are:** deploy v1.16.0 to prod (bounce the box
-— a version bump does not register on a file copy), strike `Riposte:ac` on prod too, then
-FLOW build-order #2, the Cleave arm-button.
+**If the walk is clean, the next step is FLOW build-order #2 — the Cleave arm-button.** The
+prod deploy and the prod setting change are both DONE (2026-08-19). The only outstanding
+prod chore is a **Molten control-panel restart** so the box stops registering 1.14.0; that is
+the user's to do and nothing is broken until it happens.
 
 ### 🧪 STILL ON THE SHELF — PHASE 4, THE EXPERIMENT (not next; needs table time)
 
@@ -407,13 +419,22 @@ table above is law — no settings changes needed. **Every client F5 once** befo
 
 ### 📦 Deploy + battery state — v1.16.0 (2026-08-19, THIRD session)
 
-⚠⚠ **THE ONE THING TO KNOW: PROD DID NOT RECEIVE v1.16.0.** The release is cut, tagged
-`v1.16.0`, and the GitHub release carries zip + bare `module.json` — but **no prod deploy was
-run**, because none was asked for. Prod still serves **v1.15.0** and its Reaction List still
-contains **`Riposte:ac`**. Deploying it later is TWO steps, not one: copy the files, then
-**bounce the box** (Foundry registers `module.json` at PROCESS BOOT, so a file copy alone
-leaves it vending the old version as the script cache key — that mixed state has produced
-bizarre half-failures before), and separately strike `Riposte:ac` from prod's setting.
+✅ **PROD IS DEPLOYED.** The release is cut, tagged `v1.16.0`, the GitHub release carries zip
++ bare `module.json`, and prod received all 17 files byte-identical over WebDAV. Prod was IDLE
+(0 users) — no live table was touched. `Riposte:ac` struck on prod as well; `verify-settings`
+against prod reads CLEAN. The new code was verified **as served by the running box**, not just
+as bytes on disk: `polish.js` and `ui.js` fetched through prod carry the target block, the
+usage-dialog hook and the `hasPlayerOwner` quiet.
+
+⚠⚠ **PROD'S PROCESS REGISTERS `1.14.0` AND WILL UNTIL SOMEBODY RESTARTS IT.** Not 1.15.0,
+not 1.16.0 — that box has not booted through two releases. Foundry scans the package registry
+at PROCESS BOOT, and **no tooling can bounce a Molten box**: `register-module.mjs` states it
+plainly — a WebDAV drop plus a world shutdown/relaunch never registers. **Restarting it is a
+Molten control-panel action and belongs to the user.** Nothing is broken by the staleness; the
+code is live and serving. What it costs is the version STRING (and with it the manifest's idea
+of what is installed).
+⚠ **Every client that had the world open needs ONE HARD refresh** (Ctrl+Shift+R) — a window
+runs whatever code it loaded, and a stale window holding the elect runs old code for everyone.
 
 **The SANDBOX is fully on v1.16.0** — deployed byte-identical, process gracefully closed and
 relaunched, world relaunched, and its registry verified reading `1.16.0` with the module
