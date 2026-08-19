@@ -180,6 +180,12 @@ before Wednesday.** Numbered here for the fix pass; the campaign-side ledger is
   gap → world-content fix, not module), and if it does, why the SELF-aim cast slice
   didn't land it (the world copy may predate v1.11.0 self-aim).
 
+⚠ **The v1.14.0 WALK below is still UNWALKED** — tonight was live play, not the testing
+walk. Wednesday's order: clean-room re-verify findings ①–⑦ (single GM, no bridge), fix
+pass on what survives, THEN the walk checklist (its Salyth/toolbar/big-token items are
+untouched by tonight). The four stale WAITING demand cards from 2026-08-17 (19:42–19:51)
+also still stand in chat, deletion still unapproved.
+
 **World content, fixed live tonight (not module code):** Gren's Wand of the War Mage +1
 was a raw DMG enchant-TEMPLATE copy (riders never fire unapplied) — shimmed with a plain
 transferring +1 msak/rsak effect (`Tu0htbQAllmONqwv`); Wednesday: apply the real
