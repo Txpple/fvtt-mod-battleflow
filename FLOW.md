@@ -84,7 +84,7 @@ the damage formula on any of the three.
 reconciliation it can never fire correctly — wrong trigger (hits, not misses) and wrong kind
 (AC bonus, not an attack). Leaving it there means the machine offers a nonsense hold.
 
-## 2. Targets shown in the use/roll dialog — 🔵 NEXT UP (probe folded in)
+## 2. Targets shown in the use/roll dialog — ✅ BUILT + VERIFIED 2026-08-19
 **⚠ This item now ABSORBS the probe pass** (user call, 2026-08-19: *"basically this is item 1,
 too, so fold these topics together"*). The probe questions were never separable from the
 build — they are step A of it.
@@ -105,7 +105,17 @@ canvas — was scoped in and **scoped straight back out**; see the deferred sect
   explicit "No targets" line. A spell reaching the dialog with nothing targeted is exactly the
   mistake this exists to surface, and the `requireTarget` veto only guards `attack` activities
   ([polish.js:20](scripts/polish.js:20)), so spells and items arrive here ungated.
-- Each row: target name + a **disposition icon**, ally vs enemy.
+- Each row: the target's **token art**, its name, and its disposition in words.
+  ✅ **Portraits landed 2026-08-19** (user: *"put the actor tokens in… like they are included
+  on the cards for hp changes"*). 32px, `gold-icon` class, 4px radius — the receipt card's own
+  damage-row framing, deliberately. The **token texture** is used, not the actor portrait,
+  because the question this block answers is "is that the thing I clicked on the canvas?", so
+  it should show what is ON the canvas; it falls back to the actor portrait, then to the
+  disposition glyph, so art-less tokens still render a row instead of a hole.
+  Disposition now rides the portrait's **border** in the canvas colour rather than a separate
+  glyph. ⚠ The disposition WORD stays and is not decoration — with the glyph gone, colour
+  would otherwise be the only ally/enemy carrier, which fails for colour-blind players and in
+  every screenshot. Frame colour, `alt` text and the word are three independent carriers.
   ⚠ **NOT a warning flag.** The audit's original design was `[!]` on "anything suspicious";
   the user struck it 2026-08-19: *"don't use `!` because it's like a flag, and some spells are
   meant to cast on allies. If there's an icon indicating enemy vs ally that would be helpful."*
@@ -117,12 +127,41 @@ canvas — was scoped in and **scoped straight back out**; see the deferred sect
   borders — friendly / neutral / hostile. Foundry ships FontAwesome, so no new assets. Use
   colour AND glyph, never colour alone (a red-green-only cue fails for colour-blind players
   and is unreadable in scrollback screenshots).
-- ⚠ **Decide during the build: ABSOLUTE disposition or RELATIVE to the roller?** Absolute
-  (the target's own friendly/neutral/hostile) matches the canvas borders exactly and is
-  unambiguous to learn — **recommended**. Relative ("ally *of the attacker*") reads better
-  when the GM rolls for a monster, where a `friendly` token is that monster's enemy. Absolute
-  is the safer default precisely because it never disagrees with what the canvas is showing.
+- ✅ **DECIDED 2026-08-19: ABSOLUTE disposition** (user call, *"yes use absolute
+  disposition"*). The icon reads the target's OWN friendly / neutral / hostile, exactly as the
+  canvas border shows it — **never relative to whoever is rolling**. It therefore can never
+  disagree with what is on screen, and it means the same thing on every dialog on every
+  client. ⚠ The known consequence, accepted: when the GM rolls for a monster, a `friendly`
+  token is that monster's *enemy* but still draws the ally icon. The GM knows the fiction;
+  a cue that silently flips meaning depending on who is rolling would be worse than one that
+  is always literal.
 - **It must appear on every use dialog class**, not just attack rolls — attacks, spells, items.
+
+### ✅ WHAT SHIPPED (2026-08-19, unversioned — deployed to the SANDBOX only)
+Both dialog classes are hooked in `polish.js` and both were seen rendering the block:
+
+| Probed question | Answer, measured |
+| --- | --- |
+| Which classes render? | **`AttackRollConfigurationDialog`** (attack rolls) and **`ActivityUsageDialog`** (spell/item use, where slot level is chosen). Both confirmed painting the block. Enchant/Summon/Transform/Order subclass the usage dialog, and ApplicationV2 fires render hooks for **every class in the inheritance chain**, so the two base-name hooks cover all of them. |
+| Does a potion raise a dialog? | ⚠ **STILL OPEN** — the sandbox party carried no consumable to open one with. Item 4's un-fold still hangs on this. |
+| Multi-projectile count field | ⚠ **NOT PROBED** — deferred to item 6's own build. |
+
+Verified by `tools/probe-target-block.mjs` (NEW): two mixed targets render two rows with the
+right glyph and the exact canvas colour; untargeting on canvas **repaints live under a
+standing dialog**; a re-render leaves exactly **one** block, never two; zero targets render
+"No targets"; a neutral target reads "neutral". Colours came back `rgb(231,33,36)` hostile,
+`rgb(67,223,223)` friendly, `rgb(241,216,54)` neutral — `CONFIG.Canvas.dispositionColors`
+exactly, so the block cannot disagree with the token border.
+
+⚠ **HARNESS TIMING, or the next person will think the hook is broken:** the dialog takes
+**~9 seconds** to auto-render in the Playwright sandbox (Chrome throttles timers in a
+backgrounded page). Fixed waits of 700 ms and 3 s both found nothing and read exactly like a
+dead hook. **Poll, never sleep a guess.** Also: `rollAttack(..., {configure: true}, ...)`
+never resolves — it is waiting for a human — so it must be fired and left pending.
+
+⚠ **Not yet seen by a human at the table.** Everything above is machine-verified in the
+sandbox; nothing is on prod. The table check is one line: open an attack and a slot-level
+spell and look at the bottom of the dialog.
 
 ### Step A — the PROBE (read-only, answers three questions at once)
 This repo has been burned three times guessing system internals (`results.templates` being
@@ -417,6 +456,86 @@ expired one.** Expiry depends entirely on the combat round advancing natively.
 experiment rules on whether the module should own turn-time at all. If native duration handling
 carries the weight, this item dissolves; if it doesn't, this is the concrete cost.
 
+## 13. Temp HP renders as "−0 HP" in damage red — ✅ FIXED + VERIFIED 2026-08-19
+⚠ **Not from the session-4 audit — reported by the user during the FLOW planning pass.** This
+is a **defect**, not polish: the card actively misreports what happened. It sits on this list
+because this list is what's on deck, but treat it as a bug.
+
+**Symptom.** Morgash uses his Dash, which grants temporary HP. The receipt card shows
+**`−0 HP` in damage maroon** instead of the temp HP granted.
+
+**Root cause — located, high confidence.** [receipts.js:126](scripts/receipts.js:126):
+```js
+const healed = taken < 0;
+amount.textContent = healed ? `+${-taken} HP` : `−${taken} HP`;
+```
+The card knows exactly **two** kinds — damage and healing — and separates them by the sign of
+`taken`. Healing works because `calculateDamage` inverts healing types into a negative take.
+**Temp HP is a third kind and produces a take of `0`.** `0 < 0` is false, so it falls through
+to the damage branch and prints `−0 HP` in maroon. ⚠ If the value is negative zero, `-0 < 0`
+is **also false** in JS — same branch, same output, and that is the likelier exact source of
+the reported string.
+
+**Why the pooled number can't fix it.** [receipts.js:106](scripts/receipts.js:106)–108 sums
+`delta.value + delta.temp` into one figure. Temp HP moves `hp.temp` and leaves `hp.value`
+alone, so the *pool* story and the *temp* story need to be told separately — the fix is a
+third branch reading `delta.temp` directly ([auto-apply.js:113](scripts/auto-apply.js:113)
+already computes it), **not** a tweak to the sign test.
+
+✅ **SEVERITY SETTLED BY MEASUREMENT, not inference — it was only ever the card.** Probed
+against dnd5e 5.3.3 in the sandbox (`tools/probe-temp-hp-card.mjs`, NEW):
+`calculateDamage([{type:'temphp', value:7}])` returns **`{amount: 0, temp: 7}`** — confirming
+`amount` is 0 — and `applyDamage` moved the actor's `hp.temp` **0 → 7**. The grant always
+landed. Morgash had his temp HP the whole time; the receipt just described it as damage.
+
+✅ **THE FIX, verified through the real render path** — four receipt rows rendered and read
+back out of the DOM:
+
+| Case | Renders | Colour |
+| --- | --- | --- |
+| pure temp grant | `+7 temp HP` | blue |
+| plain damage | `−3 HP` | maroon |
+| mixed (damage + temp) | `−3 HP · +4 temp` | maroon + blue |
+| healing | `+5 HP` | blue |
+
+⚠ **`−0 HP` has bitten before, from a DIFFERENT cause** — the comment at
+[receipts.js:100](scripts/receipts.js:100) records a target already at 0 HP clamping every
+delta to `−0` (the vulnerable Ice Mephit, 2026-08-15). **Two paths now produce the same bad
+string.** Fixing one will not fix the other, and a suite assert that only pins one will pass
+while the other regresses.
+
+## 14. The DM was getting the players' hold popups — ✅ FIXED + VERIFIED 2026-08-19
+User: *"As a DM, I shouldn't see Gren's shield popup. DM doesn't want to be spammed with
+player popups. DM can just see the card timer tick. This was a requirement and it worked
+before, but now broken."*
+
+**It was a real gap, and it was never in the hold machine at all.** The rule is the save
+machine's — **the GM's UNSOLICITED popups are non-player-owned targets only** (v1.12.0
+finding ④, *"as a GM i dont care to see other player saves"*). `gmQuiet` has lived in
+[saves.js:1164](scripts/saves.js:1164) and [mastery.js:945](scripts/mastery.js:945) ever
+since. **The hold was the one machine that never got it** — `showHoldPopup` gated on
+`canAnswerFor` alone.
+
+⚠ **WHY IT LOOKED LIKE A REGRESSION WHEN NOTHING REGRESSED.** `canAnswerFor`
+([hold.js:494](scripts/hold.js:494)) returns false on the GM client whenever an active
+player owner exists — so for as long as the players were logged in, the DM correctly saw
+nothing and the requirement looked satisfied. It deliberately **falls back to the GM when the
+owner is OFFLINE**, which is precisely the case a DM hits when testing alone. `hold.js` has
+not changed since v1.15.0 (git-verified); what changed was who was connected.
+
+**The fix:** `showHoldPopup` takes `{ manual }` and skips the auto-popup when
+`game.user.isGM && actor.hasPlayerOwner`. The card's **Answer** button passes `manual: true`,
+so a deliberate click can always summon the question — the same escape hatch saves and mastery
+keep in their Roll buttons. A player-owned target with an absent owner now rides the hold
+timer, which is right twice over: expiry is a PASS, and an absent player was never going to
+spend a reaction. NPCs and unowned creatures keep their popups — the monster side is the GM's.
+
+**Verified** by `tools/probe-gm-hold-quiet.mjs` (NEW) against exactly the offline-owner case
+(`grenHasPlayerOwner: true`, `activeNonGMOwner: false`): the hold still stamps `pending`; the
+DM gets **zero** popups; the card still renders its row *"Reaction — held · Shield · Gren ·
+waiting on Tom"* **with the 15s drain bar** (`data-bf-deadline` present); and clicking Answer
+still opens it. `smoke-hold` ALL PASS with the change in.
+
 ---
 
 # PHASE 3
@@ -427,8 +546,17 @@ with the trigger written down: *"decision deferred to dogfood: adopt when the ta
 noticing missing condition math."*
 
 ⚠ **SESSION 4 IS THAT TRIPWIRE FIRING** — condition math was the most-asked question of the
-night. **This conflicts with the current HANDOFF, which puts Phase 4 on deck and Phase 5
-behind it.** The two cannot both be next; the ordering is an open user decision.
+night.
+
+✅ **THE "CONFLICT" WITH PHASE 4 IS DISSOLVED, NOT DECIDED (2026-08-19).** It was framed as a
+fight over one deck slot; it is not one, because **the two need different resources**:
+- **Phase 4 needs THE TABLE** — a real combat, ten rounds of Bless, the user watching. It
+  rides along with the next actual play session and costs no bench time.
+- **Phase 5 / AC5e needs THE BENCH** — install into the local sandbox, watch what it decorates,
+  decide. It needs no table time at all, which is exactly what the sandbox exists for.
+
+Neither blocks the other. **Recommended: evaluate AC5e at the bench** (higher value, no table
+cost), and let Phase 4's Bless observation happen during the next real session.
 
 **Boundary is complementary** (RESEARCH.md): AC5e **decorates rolls** (conditions/range/cover →
 adv/dis/auto-crit) and never applies damage or effects; Battleflow **applies** and never
@@ -519,7 +647,9 @@ Shipped items dropped; the free setting fix promoted to the top.
 | # | Item | Why here |
 | --- | --- | --- |
 | **0** | **Strike `Riposte:ac` from the Reaction List** (item 1) | Free, no code. It can never fire correctly and currently offers a nonsense hold. |
-| **1** | **Target decoration, probe folded in** (item 2) — Step A probe, then Step B display-only build | ⚠ **NEXT UP.** The probe and the build are one item now (user call). The probe also answers item 4's un-fold question and item 6's count field. Smallest real win, existing seam, no setting, no timer, no elect. |
+| ~~1~~ | ~~**Target decoration**~~ (item 2) | ✅ **DONE 2026-08-19** — both dialog classes hooked and verified in the sandbox. ⚠ Unreleased; sandbox only. The potion-dialog question it was also meant to answer is STILL OPEN. |
+| ~~13~~ | ~~**Temp HP card**~~ (item 13) | ✅ **DONE 2026-08-19** — display fix, verified. ⚠ Unreleased; sandbox only. |
+| ~~14~~ | ~~**DM stops getting player hold popups**~~ (item 14) | ✅ **DONE 2026-08-19** — `gmQuiet` finally reaches the hold. ⚠ Unreleased; sandbox only. |
 | **2** | **Cleave arm-button** (item 8) | Small, shape fully agreed, twin-card half already shipped. |
 | **3** | **Player-rolled damage popup** (item 3) | Self-contained, player asked for it. Carries the design.md amendment. |
 | **4** | **Post-roll folds** — Precision, then Riposte (item 1) | The headline, biggest build. |

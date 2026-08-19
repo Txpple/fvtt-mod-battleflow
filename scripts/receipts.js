@@ -124,14 +124,40 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       // Healing arrives as a NEGATIVE take (calculateDamage inverts healing types), and
       // "−-25 HP" in damage red is what that looked like (user report 2026-08-16). A gain
       // reads +N in a friendly blue; damage keeps the tray's own maroon voice.
+      //
+      // ⚠ TEMP HP IS A THIRD KIND, not a signed HP number (user report 2026-08-19, Morgash's
+      // Dash read "−0 HP" in damage maroon). dnd5e 5.3.3's calculateDamage routes a `temphp`
+      // entry into `damages.temp` and NEVER into `damages.amount` — and the healing-negation
+      // block right above it covers "healing" and "maximum" ONLY, so temp is not inverted
+      // either. A pure temp grant therefore lands here with `taken === 0`, which failed the
+      // `taken < 0` gain test and fell through to the damage voice. The pool genuinely did
+      // not move; `hp.temp` did, and only the delta knows it. (The value itself applies
+      // correctly — applyDamage sets hp.temp to the greater of old and new — so this was
+      // always a card that lied, never a grant that went missing.)
+      const tempGained = Math.max(0, t.delta?.temp ?? 0);
+      // `taken === 0` also catches −0, which is what a zeroed calc actually produces.
+      const tempOnly = (tempGained > 0) && (taken === 0);
       const healed = taken < 0;
       const amount = document.createElement("span");
-      amount.textContent = healed ? `+${-taken} HP` : `−${taken} HP`;
+      amount.textContent = tempOnly ? `+${tempGained} temp HP`
+        : healed ? `+${-taken} HP` : `−${taken} HP`;
       Object.assign(amount.style, {
         fontVariantNumeric: "tabular-nums", fontWeight: "bold",
-        color: healed ? "var(--dnd5e-color-blue, #3a7ca5)" : "var(--dnd5e-color-maroon, #740b0b)"
+        color: (tempOnly || healed) ? "var(--dnd5e-color-blue, #3a7ca5)"
+          : "var(--dnd5e-color-maroon, #740b0b)"
       });
       sub.append(amount);
+      // A MIXED entry (damage or healing that also granted temp) keeps its own number and
+      // appends the temp rather than hiding one behind the other.
+      if ( (tempGained > 0) && !tempOnly ) {
+        const extra = document.createElement("span");
+        extra.textContent = ` · +${tempGained} temp`;
+        Object.assign(extra.style, {
+          fontVariantNumeric: "tabular-nums", opacity: "0.85",
+          color: "var(--dnd5e-color-blue, #3a7ca5)"
+        });
+        sub.append(extra);
+      }
       if ( isGM ) {
         // The pool is the GM's book: it says the −14 landed on a creature already at 0.
         const pool = document.createElement("span");

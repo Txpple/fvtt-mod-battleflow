@@ -200,17 +200,27 @@ const r = await f.evaluate(async () => {
     // amount of AC saves you from it), so the hold tests must not roll them by accident.
     // `window` additionally demands a total inside [AC, AC+4], the band where Shield's +5
     // actually flips the outcome — otherwise "cast → miss" would be untestable.
-    const plainHitOnGren = async ({ window = false } = {}) => {
-      const tries = window ? 40 : 12;
+    // ⚠ `live: true` measures the hit against Gren's AC AT ROLL TIME instead of the captured
+    // `baseAC`. §4a2 raises a standing Shield on purpose (+5 → 17), so a "hit" of 12–16 by the
+    // base measure is a MISS to the module, no damage rolls, and "damage flows" fails — which
+    // is exactly what it did on roughly half of all runs from v1.15.0 until 2026-08-19, when
+    // the assert was finally run more than once in a sitting. It passed at v1.15.0 on a lucky
+    // roll and was recorded as green. The diagnose() comment below already warned about this
+    // shape for a STRAY effect; the one section that raises the effect DELIBERATELY was still
+    // using the base test. A flaky assert is worse than no assert — it gets blamed on whatever
+    // change happens to be in flight.
+    const plainHitOnGren = async ({ window = false, live = false } = {}) => {
+      const tries = (window || live) ? 40 : 12;
       for (let i = 0; i < tries; i++) {
-        const a = await attackGren(window ? { advantage: true } : {});
-        const hits = a.total >= baseAC;
+        const floor = live ? (gren.system.attributes.ac.value ?? baseAC) : baseAC;
+        const a = await attackGren((window || live) ? { advantage: true } : {});
+        const hits = a.total >= floor;
         const flips = !window || (a.total < baseAC + 5);
         if (!a.crit && !a.fumble && hits && flips) return a;
-        log.push(`discarded: total=${a.total} crit=${a.crit} fumble=${a.fumble} (AC ${baseAC})`);
+        log.push(`discarded: total=${a.total} crit=${a.crit} fumble=${a.fumble} (AC ${floor})`);
         await sleep(120);
       }
-      throw new Error(`could not roll a plain hit${window ? ` in [${baseAC}, ${baseAC + 4}]` : ''} in ${tries} attempts`);
+      throw new Error(`could not roll a plain hit${window ? ` in [${baseAC}, ${baseAC + 4}]` : ''}${live ? ' over Gren\'s LIVE AC' : ''} in ${tries} attempts`);
     };
     // ⚠ Search the WHOLE log, not a tail window. An originating id is unique to one attack, so
     // a wider search cannot produce a false positive — but a tail window produces false
@@ -544,7 +554,9 @@ const r = await f.evaluate(async () => {
         data.origin = src.uuid;
         [standing] = await gren.createEmbeddedDocuments('ActiveEffect', [data]);
       }
-      const { usageId, msg, total } = await plainHitOnGren();
+      // LIVE AC, not base — the standing Shield above just moved it +5, and this assert's
+      // second half ("damage flows") can only be true of an attack that actually connects.
+      const { usageId, msg, total } = await plainHitOnGren({ live: true });
       await sleep(2500);
       results.standingSuppresses = {
         hadSource: !!src,

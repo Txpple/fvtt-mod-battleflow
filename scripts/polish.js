@@ -163,6 +163,199 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   }
 });
 
+/* ---------------------------------------------------------------------------------------------
+ * The target block (FLOW item 2) — the dialog says who it is aimed at, before the dice
+ *
+ * The mistake this catches, priced live 2026-08-18 at 02:11:15: "I'm trying to target Oscar"
+ * — Goldthorn hit MORGASH for 8, reverted by hand. The player had a stale target and no
+ * surface told them so until the damage landed.
+ *
+ * DISPLAY-ONLY, DELIBERATELY. An earlier design put a checkbox on each row to untarget from
+ * the dialog; it was scoped out (user call, 2026-08-19) because every downstream machine here
+ * reads the message SNAPSHOT — `flags.dnd5e.targets` in hold, saves, mastery, shared and cast —
+ * while only the requireTarget veto and hit-riders read `game.user.targets` live. Until it is
+ * MEASURED that dnd5e stamps that flag after the dialog resolves, a checkbox would change the
+ * canvas and not the roll: a control that looks authoritative and lies. Because this stays
+ * display-only and stateless it is the same class as hideCardButtons and carries NO setting.
+ * Closing the dialog is still the cancel, so the veto survives — it just isn't a forced ack.
+ *
+ * The icon is NEUTRAL INFORMATION ON EVERY ROW, never a judgement on any row (user call,
+ * 2026-08-19: "don't use ! because it's like a flag, and some spells are meant to cast on
+ * allies"). Bless, Bane and every heal legitimately aim at allies; an alarm on all of those
+ * trains the table to ignore it. The reader does the catching — a skull on the person you
+ * meant to heal is the whole mechanism.
+ * ------------------------------------------------------------------------------------------- */
+
+const TARGET_BLOCK_CLASS = "battleflow-target-block";
+
+/** Dialogs currently carrying a block, so a canvas re-target can refresh them. */
+const openTargetBlocks = new Set();
+
+/** A Foundry disposition colour as CSS, so the row can never disagree with the token border. */
+function dispositionHex(value, fallback) {
+  return (typeof value === "number") ? `#${value.toString(16).padStart(6, "0")}` : fallback;
+}
+
+/**
+ * ABSOLUTE disposition, never relative to whoever is rolling (user call, 2026-08-19). The row
+ * reads the target's OWN friendly/neutral/hostile exactly as the canvas border draws it, so it
+ * means the same thing on every dialog on every client and can never contradict the screen.
+ * ⚠ Known and accepted: when the GM rolls for a monster, a `friendly` token is that monster's
+ * enemy but still draws the ally icon. The GM knows the fiction; a cue that silently flips
+ * meaning depending on who holds the dice would be worse than one that is always literal.
+ * Colour is never the only carrier — glyph, colour and word all say it (colour-blind readers,
+ * and screenshots in scrollback).
+ */
+function dispositionStyle(token) {
+  const D = CONST.TOKEN_DISPOSITIONS;
+  const colors = CONFIG.Canvas?.dispositionColors ?? {};
+  switch ( token?.document?.disposition ) {
+    case D.FRIENDLY:
+      return { icon: "fa-solid fa-shield-halved", label: "ally",
+        color: dispositionHex(colors.FRIENDLY, "#43dfdf") };
+    case D.NEUTRAL:
+      return { icon: "fa-solid fa-circle-half-stroke", label: "neutral",
+        color: dispositionHex(colors.NEUTRAL, "#f1d836") };
+    case D.HOSTILE:
+      return { icon: "fa-solid fa-skull", label: "enemy",
+        color: dispositionHex(colors.HOSTILE, "#e72124") };
+    case D.SECRET:
+      return { icon: "fa-solid fa-eye-slash", label: "secret",
+        color: dispositionHex(colors.SECRET, "#a612d4") };
+    // A token with no readable disposition says so rather than guessing — calling an unknown
+    // "enemy" would be exactly the false alarm the [!] flag was struck for.
+    default:
+      return { icon: "fa-solid fa-circle-question", label: "unknown", color: "inherit" };
+  }
+}
+
+/** The block itself, built fresh from live targets every time it is painted. */
+function buildTargetBlock() {
+  const block = document.createElement("div");
+  block.className = TARGET_BLOCK_CLASS;
+  Object.assign(block.style, {
+    margin: "0.5rem 0 0", padding: "0.35rem 0.5rem",
+    border: "1px solid var(--color-border-light-2, #999a)", borderRadius: "4px",
+    fontSize: "var(--font-size-12, 12px)", lineHeight: "1.5"
+  });
+
+  const targets = Array.from(game.user.targets);
+
+  // The ZERO case is not an edge case — it is the point. requireTarget only guards `attack`
+  // activities (the veto at the top of this file), so a spell or an item reaches this dialog
+  // with nothing targeted and nothing else says so.
+  const heading = document.createElement("div");
+  heading.textContent = targets.length ? `Targeted — ${targets.length}` : "No targets";
+  Object.assign(heading.style, {
+    fontWeight: "bold",
+    ...(targets.length ? { opacity: "0.85" } : { color: "var(--dnd5e-color-maroon, #740b0b)" })
+  });
+  block.append(heading);
+
+  for ( const token of targets ) {
+    const { icon, label, color } = dispositionStyle(token);
+    const row = document.createElement("div");
+    Object.assign(row.style, {
+      display: "flex", alignItems: "center", gap: "0.5rem", margin: "2px 0"
+    });
+
+    // THE TOKEN'S OWN ART, framed exactly like the receipt card's damage rows (user call,
+    // 2026-08-19: "put the actor tokens in… like they are included on the cards for hp
+    // changes"). The token texture beats the actor portrait here because the question this
+    // block answers is "is that the thing I clicked on the canvas?" — so it should show what
+    // is ON the canvas. Falls back to the actor portrait, then to the disposition glyph, so a
+    // token with no art still renders a row rather than a hole.
+    const art = token.document?.texture?.src || token.actor?.img || null;
+    let portrait;
+    if ( art ) {
+      portrait = document.createElement("img");
+      portrait.src = art;
+      portrait.alt = label;
+      portrait.className = "gold-icon"; // the receipts' native framing, same as the HP rows
+      Object.assign(portrait.style, {
+        flex: "0 0 auto", width: "32px", height: "32px", objectFit: "cover", borderRadius: "4px",
+        // Disposition rides the FRAME rather than a separate glyph — the border is the same
+        // colour the canvas draws around that token, so the two cannot disagree.
+        border: `2px solid ${color}`
+      });
+    } else {
+      portrait = document.createElement("i");
+      portrait.className = icon;
+      Object.assign(portrait.style, { flex: "0 0 auto", width: "32px", textAlign: "center", color });
+    }
+    portrait.title = label;
+
+    const name = document.createElement("span");
+    name.textContent = token.document?.name ?? token.name ?? "Unknown";
+    Object.assign(name.style, {
+      flex: "1", minWidth: "0", fontWeight: "bold",
+      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
+    });
+
+    // ⚠ The WORD stays, and is not decoration. With the glyph gone, colour would otherwise be
+    // the only thing separating ally from enemy — unreadable for a colour-blind player and in
+    // any screenshot. Frame colour, alt text and this word are three independent carriers.
+    const word = document.createElement("span");
+    word.textContent = label;
+    Object.assign(word.style, { flex: "0 0 auto", opacity: "0.7", fontSize: "0.9em", color });
+
+    row.append(portrait, name, word);
+    block.append(row);
+  }
+  return block;
+}
+
+/**
+ * Idempotent repaint: the old block is removed, never appended beside.
+ * ⚠ Deliberately does NOT gate on `element.isConnected`. The render hook fires while the
+ * dialog's element is still DETACHED — it is inserted into the document afterwards — so an
+ * isConnected guard here rejects every genuine open and the block only ever appeared on a
+ * forced re-render (measured 2026-08-19, probe-target-block.mjs). Appending to a detached
+ * element is fine: the block travels with it when the app inserts it.
+ */
+function paintTargetBlock(element) {
+  if ( !element ) return;
+  for ( const stale of element.querySelectorAll(`.${TARGET_BLOCK_CLASS}`) ) stale.remove();
+  element.append(buildTargetBlock());
+}
+
+// ⚠ THE OPPOSITE RE-RENDER DISCIPLINE FROM THE CENTERING DIRECTLY BELOW — deliberately, and
+// do not "harmonize" them. Centering is FIRST RENDER ONLY because re-centering would fight the
+// user dragging the window. This repaints on EVERY render: re-renders fire on every option
+// change (advantage, attack mode, roll mode), and a stale target list is worse than no list.
+// Rebuilding from live state each pass costs nothing and cannot drift.
+//
+// It is also registered BEFORE the centering hook on purpose: hooks run in registration order,
+// so the block exists by the time centering measures offsetHeight. Move it after and every
+// dialog centres as though it were shorter than it is.
+Hooks.on("renderRollConfigurationDialog", (app, element) => {
+  paintTargetBlock(element);
+  openTargetBlocks.add(app);
+});
+
+// The SPELL/ITEM half (user: "it showed for attacks, spells, items, etc"). The usage dialog —
+// where a spell's slot level is chosen — is a different application class from the roll
+// dialog: `ActivityUsageDialog` (probed 2026-08-19; Enchant/Summon/Transform/Order subclass
+// it, and ApplicationV2 fires render hooks for every class in the inheritance chain, so the
+// base name covers all of them). Same paint, same discipline, same block.
+// VERIFIED rendering a real ActivityUsageDialog with the block present (2026-08-19).
+Hooks.on("renderActivityUsageDialog", (app, element) => {
+  paintTargetBlock(element);
+  openTargetBlocks.add(app);
+});
+
+// The canvas can re-target while the dialog stands, and that fires no dialog re-render at all.
+// A list that quietly ignores the canvas is the same class of lie as the rejected checkbox.
+// ⚠ The set holds the APP, not the element: an element is detached at hook time and is
+// REPLACED on re-render, so a set of elements both drops live dialogs and leaks dead ones.
+// The app answers "am I still up?" honestly through its own lifecycle.
+Hooks.on("targetToken", () => {
+  for ( const app of openTargetBlocks ) {
+    if ( app.rendered && app.element ) paintTargetBlock(app.element);
+    else openTargetBlocks.delete(app); // closed dialogs drop out on the next re-target
+  }
+});
+
 // Center the system's roll-configuration dialogs (dnd5e docks them lower-right:
 // left = innerWidth - 710, top = clientY - 80). First render only — re-renders fire on every
 // option change in the dialog, and re-centering those would fight the user dragging it.

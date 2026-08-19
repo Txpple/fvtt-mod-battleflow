@@ -374,7 +374,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       });
       controls.append(holdButton("Answer", () => {
         shownPopups.delete(message.id);
-        void showHoldPopup(message, message.getFlag(MODULE_ID, "hold"));
+        // `manual` — a deliberate click, so it bypasses the GM's player-owned quiet above.
+        void showHoldPopup(message, message.getFlag(MODULE_ID, "hold"), { manual: true });
       }));
       block.append(controls);
     });
@@ -517,7 +518,7 @@ async function holdPopupContent(target, roll, actor, hold) {
  * (reported live 2026-08-15). Now the instance is held so the hold's own update can close it,
  * and closing for ANY reason releases the decision back to the card row.
  */
-async function showHoldPopup(attackMessage, hold) {
+async function showHoldPopup(attackMessage, hold, { manual = false } = {}) {
   const roll = attackMessage.rolls[0];
   for ( const target of hold.targets ) {
     // An answered target's decision is made — reopening its popup (the card's Answer button
@@ -526,6 +527,26 @@ async function showHoldPopup(attackMessage, hold) {
     if ( target.answer ) continue;
     const actor = await fromUuid(target.uuid);
     if ( !canAnswerFor(actor) ) continue;
+
+    // THE GM'S UNSOLICITED POPUPS ARE NON-PLAYER-OWNED TARGETS ONLY. This is the save
+    // machine's rule (v1.12.0 finding ④, user: "as a GM i dont care to see other player
+    // saves"), and `gmQuiet` has lived in saves.js and mastery.js since — the hold was the
+    // one machine that never got it. Restated against the hold 2026-08-19: "as a DM, I
+    // shouldn't see Gren's shield popup. DM doesn't want to be spammed with player popups.
+    // DM can just see the card timer tick."
+    //
+    // ⚠ The case this actually fixes is the OFFLINE owner. A player-owned target whose owner
+    // is PRESENT never reaches this line — canAnswerFor is already false on the GM client,
+    // which is why the requirement looked satisfied for as long as the players were logged
+    // in and looked broken the moment the DM tested alone. canAnswerFor deliberately falls
+    // back to the GM when the owner is away; that fallback is what was spamming the DM.
+    // Such a target now rides the hold timer instead, which is the right answer twice over:
+    // expiry is a PASS, and an absent player was never going to spend a reaction anyway.
+    // NPCs and unowned characters keep their popups — the monster side is the GM's to answer.
+    //
+    // `manual` is the deliberate-recall escape hatch: the card's Answer button passes it, so
+    // the DM can always summon the question on purpose. A click is never spam.
+    if ( !manual && game.user.isGM && actor?.hasPlayerOwner ) continue;
 
     const key = popupKey(attackMessage.id, target.uuid);
     if ( livePopups.has(key) ) continue;
