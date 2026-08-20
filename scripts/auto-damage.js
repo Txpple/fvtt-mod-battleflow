@@ -69,25 +69,58 @@ export async function rollDamageForAttack(activity, attackMessage) {
   }
 }
 
+/**
+ * Roll a SAVE activity's damage, chained to its own usage card — the twin of the function above,
+ * and deliberately its neighbour. It lives here rather than in saves.js for the property that
+ * makes the whole family safe: the auto-roll and the player's button call ONE function, so
+ * nothing downstream can tell who pressed it. Split across two files, the two paths drift.
+ *
+ * No attack mode, no ammunition and no crit — a save spell has none of them; the empty config is
+ * exactly what saves.js passed inline before the popup existed, kept byte-for-byte so upcast
+ * scaling and `damageOnSave` keep riding the native plumbing. `originatingMessage` is stamped
+ * explicitly because a programmatic roll has no DOM click to inherit it from, and without it
+ * `saveDamageMessages` never finds the roll and the verdict fold has nothing to apply.
+ */
+export async function rollDamageForSave(activity, card) {
+  try {
+    await activity.rollDamage({}, { configure: false },
+      { data: { "flags.dnd5e.originatingMessage": card.id } });
+  } catch(err) {
+    console.error(`${TITLE} | Could not auto-roll the save spell's damage.`, err);
+  }
+}
+
 
 /* ---------------------------------------------------------------------------------------------
  * The player's own roll (FLOW item 3) — offered, never taken
  *
  * A player asked for their dice back: "give me a Roll Damage button, and roll it anyway if I
- * miss it." That is the whole feature, and it is cheap for one reason — `dnd5e.rollAttackV2`
- * fires on WHICHEVER CLIENT ROLLED, so this popup lands on the attacker's own screen with no
- * elect, no canAnswerFor and nothing crossing the wire. It is the first table moment in this
- * module that needs no card, because nobody else is waiting on it.
+ * miss it." That is the whole feature, and it is cheap for one reason — the hooks it hangs off
+ * fire on WHICHEVER CLIENT ACTED, so the popup lands on that player's own screen with no elect,
+ * no canAnswerFor and nothing crossing the wire. It is the first table moment in this module
+ * that needs no card, because nobody else is waiting on it.
  *
- * ⚠ THE PROPERTY THAT STOPS IT FORKING THE MACHINE: the button and the buzzer call the SAME
- * `rollDamageForAttack()`. Crit, ammunition, attack mode and `originatingMessage` are
- * byte-identical either way, so auto-apply, the riders and the receipts cannot tell who
- * pressed it — and the worst case of every failure path below is today's behaviour.
+ * TWO PATHS REACH IT, and the second was the v1.18.0 walk's only finding — the first shipped
+ * answering attacks alone, which left every save spell and every area rolling its own dice
+ * behind the player's back:
+ *   • ATTACKS — `dnd5e.rollAttackV2` (this file), on hit. Carries the crit, because there is
+ *     an attack roll to have critted.
+ *   • SAVE SPELLS AND AREAS — `dnd5e.postUseActivity` (saves.js's demand stamp), at the stamp.
+ *     Vicious Mockery, Fireball, Web. No crit; the stakes take the badge's slot.
+ * Both hooks share the locality above, which is why the second path cost a card and a thunk
+ * rather than a machine.
+ *
+ * ⚠ THE PROPERTY THAT STOPS IT FORKING THE MACHINE: on each path the button and the buzzer
+ * call the SAME roll function — `rollDamageForAttack()` or `rollDamageForSave()`, never a
+ * popup-only variant. Crit, ammunition, attack mode and `originatingMessage` are byte-identical
+ * whoever pressed it, so auto-apply, the riders, the verdict fold and the receipts cannot tell
+ * a player's dice from the machine's — and the worst case of every failure path below is
+ * today's behaviour.
  *
  * ⚠ KNOWN LIMIT, deliberately not engineered around: the window lives in a `setTimeout` on one
  * client, so an F5 mid-popup loses the roll (today's 3s beat has the same hole, 5x narrower).
  * Making it survive a reload means a flag, a re-render popper and an elect for "who rolls if
- * the roller never comes back" \u2014 the exact cross-client machinery whose absence makes this
+ * the roller never comes back" — the exact cross-client machinery whose absence makes this
  * item small. If it ever bites at the table, that is the follow-up; the GM rolls it by hand.
  * ------------------------------------------------------------------------------------------- */
 
@@ -102,14 +135,18 @@ const CRIT_BADGE = `<span style="display:inline-block;padding:0.05rem 0.45rem;bo
   font-size:var(--font-size-11,11px);text-transform:uppercase;">&#10022; Critical Hit</span>`;
 
 /**
- * Ask the attacker to roll their own damage, with a 15-second buzzer that rolls it for them.
+ * The shell EVERY damage offer wears, and the reason there is only one of it: the button, the X
+ * and the buzzer all funnel through ONE `roll` thunk, so no flavour can drift into rolling
+ * something its twin would not have. The flavours differ in what the card SAYS and what `roll`
+ * DOES — never in how the window behaves. A third flavour means writing copy, not re-deciding
+ * what a dismissal means.
  *
- * ONE POPUP PER ATTACK, never per target (HANDOFF standing item 1): one damage roll serves
- * every target the attack hit, so asking twice would be asking about dice that do not exist.
- * `popupKey` + `livePopups` make that structural — a second call while one is open raises the
- * open one instead of stacking a twin.
+ * ONE POPUP PER ROLL, never per target (HANDOFF standing item 1): one damage roll serves every
+ * target, so asking twice would be asking about dice that do not exist. `popupKey` + `livePopups`
+ * make that structural — a second call while one is open raises the open one instead of stacking
+ * a twin. The key is keyed to the CARD's id, so an attack chain and a save chain cannot collide.
  */
-export async function offerDamageRoll(activity, attackMessage) {
+async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, buttonIcon, ...card }) {
   // ⚠ Lazily bound, the same discipline hold.js and saves.js keep (v1.6.1's ESM order trap).
   // A STATIC import of ui.js here evaluates it during THIS file's own import — the entry reaches
   // auto-damage.js through polish.js -> hold.js, at which point hold has not yet reached its own
@@ -118,16 +155,10 @@ export async function offerDamageRoll(activity, attackMessage) {
   // them, the dynamic form leaves the whole evaluation order byte-identical. Keep this dynamic.
   const { livePopups, popupKey, openManagedPopup, bfCard, holdBarHTML } = await import("./ui.js");
 
-  const key = popupKey(attackMessage.id, "damage");
+  const key = popupKey(message.id, "damage");
   const open = livePopups.get(key);
   if ( open ) { open.bringToFront?.(); return; }
 
-  // ⚠ ONE SOURCE FOR THE CRIT, and it is the roll's own. `rollDamageForAttack` reads this exact
-  // expression to decide what it rolls, so the badge cannot disagree with the dice. Deriving it
-  // instead from the d20 face and a crit threshold would be a second opinion about a settled
-  // fact — and a second opinion on a card people trust is worse than no badge at all.
-  const isCritical = attackMessage.rolls[0]?.isCritical ?? false;
-  const names = hitTargets(attackMessage).map(t => t.name).filter(Boolean).join(", ");
   const deadline = Date.now() + (PLAYER_ROLL_WINDOW * 1000);
 
   // Idempotent by construction: the button, the dismissal and the buzzer all come through here,
@@ -137,37 +168,25 @@ export async function offerDamageRoll(activity, attackMessage) {
   const fire = () => {
     if ( fired ) return;
     fired = true;
-    void rollDamageForAttack(activity, attackMessage);
+    void roll();
   };
 
   const dialog = new foundry.applications.api.DialogV2({
-    window: {
-      title: isCritical ? "Critical Hit — roll damage" : "Roll damage",
-      icon: isCritical ? "fa-solid fa-burst" : "fa-solid fa-dice-d6"
-    },
+    window: { title: windowTitle, icon: windowIcon },
     position: { width: 420 },
-    content: bfCard({
-      img: activity.item?.img,
-      eyebrow: "Damage — your roll",
-      tone: "pending",
-      title: isCritical ? "Critical hit — roll it" : "Roll your damage",
-      subtitle: `${activity.item?.name ?? "Attack"} — ${attackMessage.getAssociatedActor()?.name ?? ""}`,
-      lines: [
-        isCritical ? `${CRIT_BADGE} <span style="opacity:0.85;">Already set on the roll — nothing extra to do.</span>` : null,
-        names ? `Against <strong>${names}</strong>.` : null
-      ]
-    }) + holdBarHTML({ status: "pending", deadline, window: PLAYER_ROLL_WINDOW }, "to roll"),
+    content: bfCard({ tone: "pending", ...card })
+      + holdBarHTML({ status: "pending", deadline, window: PLAYER_ROLL_WINDOW }, "to roll"),
     buttons: [{
       action: "roll",
-      label: isCritical ? "Roll Critical Damage" : "Roll Damage",
-      icon: isCritical ? "fa-solid fa-burst" : "fa-solid fa-dice-d6",
+      label: buttonLabel,
+      icon: buttonIcon,
       default: true,
       callback: () => fire()
     }],
     rejectClose: false
   });
 
-  // Dismissing is not a veto \u2014 it is "stop asking me, get on with it", so the X and Escape roll
+  // Dismissing is not a veto — it is "stop asking me, get on with it", so the X and Escape roll
   // IMMEDIATELY rather than leaving the table sitting in silence until the buzzer. The guard in
   // `fire` is what makes this safe to stack under the button's own callback.
   const close = dialog.close.bind(dialog);
@@ -177,10 +196,93 @@ export async function offerDamageRoll(activity, attackMessage) {
   // if the popup never rendered or was closed by something this function never hears about.
   setTimeout(() => { void dialog.close(); }, PLAYER_ROLL_WINDOW * 1000);
 
-  await openManagedPopup(key, attackMessage, dialog);
+  await openManagedPopup(key, message, dialog);
 
   // A render that failed leaves NO surface to press: Hide Redundant Buttons is world-default ON,
   // so the native Damage button is not there to fall back to. Roll now rather than make the
   // table wait 15 seconds for a popup that does not exist.
   if ( livePopups.get(key) !== dialog ) fire();
+}
+
+/**
+ * Ask the ATTACKER to roll their own damage, with a 15-second buzzer that rolls it for them.
+ */
+export async function offerDamageRoll(activity, attackMessage) {
+  // ⚠ ONE SOURCE FOR THE CRIT, and it is the roll's own. `rollDamageForAttack` reads this exact
+  // expression to decide what it rolls, so the badge cannot disagree with the dice. Deriving it
+  // instead from the d20 face and a crit threshold would be a second opinion about a settled
+  // fact — and a second opinion on a card people trust is worse than no badge at all.
+  const isCritical = attackMessage.rolls[0]?.isCritical ?? false;
+  const names = hitTargets(attackMessage).map(t => t.name).filter(Boolean).join(", ");
+
+  return offerRoll(attackMessage, {
+    roll: () => rollDamageForAttack(activity, attackMessage),
+    windowTitle: isCritical ? "Critical Hit — roll damage" : "Roll damage",
+    windowIcon: isCritical ? "fa-solid fa-burst" : "fa-solid fa-dice-d6",
+    buttonLabel: isCritical ? "Roll Critical Damage" : "Roll Damage",
+    buttonIcon: isCritical ? "fa-solid fa-burst" : "fa-solid fa-dice-d6",
+    img: activity.item?.img,
+    eyebrow: "Damage — your roll",
+    title: isCritical ? "Critical hit — roll it" : "Roll your damage",
+    subtitle: `${activity.item?.name ?? "Attack"} — ${attackMessage.getAssociatedActor()?.name ?? ""}`,
+    lines: [
+      isCritical ? `${CRIT_BADGE} <span style="opacity:0.85;">Already set on the roll — nothing extra to do.</span>` : null,
+      names ? `Against <strong>${names}</strong>.` : null
+    ]
+  });
+}
+
+/**
+ * Ask the CASTER to roll a save spell's damage — Vicious Mockery's d4, Fireball's 8d6, and every
+ * area in between. The v1.18.0 walk's one finding: the popup answered attacks and nothing else,
+ * because it only ever hung off `dnd5e.rollAttackV2`, and a save spell never rolls an attack.
+ *
+ * ⚠ NO CRIT BADGE, and that is not an omission — a save spell has no attack roll to crit on, so
+ * there is no settled fact to report. The stakes line takes the badge's slot instead: what a
+ * successful save does to this number is the thing the roller wants to know while the dice are
+ * still in their hand.
+ *
+ * ⚠ WHY LEAVING THE ROLL HANGING IS SAFE, and the reason this stayed small: the save slice was
+ * built order-independent from the start. `reconcileSaveDamage` applies chained damage on
+ * ARRIVAL, verdicts or no verdicts, behind a receipt-gated latch — its own docstring reads
+ * "damage before verdicts, verdicts before damage, or interleaved". A roll landing fifteen
+ * seconds after the saves needs no new machinery; it is the case already handled.
+ *
+ * ⚠ THE AREA NOT PLACED YET (`awaitingTemplate` — cast Web bare, then place it) is offered the
+ * roll ANYWAY, targetless. The dice do not need to know who they land on; only the application
+ * does, and that waits for adoption regardless. Deferring the offer until the template lands
+ * would invent a NEW way to stall — a spell nobody ever places would never roll at all — and
+ * this family's rule is that the worst case of every failure path is today's behaviour.
+ *
+ * ⚠ RIDER DAMAGE NEVER REACHES HERE. The caller gates on `saveModulated`, which excludes
+ * `onSave: "full"` (Web's burn clause, finding ③, 2026-08-17). Riding the caller's existing gate
+ * rather than re-testing here is what stops this popup re-opening that door.
+ */
+export async function offerSaveDamageRoll(activity, card, { damageOnSave, targets, awaiting } = {}) {
+  const names = (targets ?? []).map(t => t.name).filter(Boolean).join(", ");
+  // Deliberately the save popup's own phrasing (saves.js's stakes block), trimmed to sit beside
+  // the dice: the caster and the target should read the same rule in the same words.
+  const stake = (damageOnSave === "half") ? "A successful save <strong>halves</strong> it."
+    : (damageOnSave === "none") ? "A successful save avoids it <strong>entirely</strong>."
+    : null;
+
+  return offerRoll(card, {
+    roll: () => rollDamageForSave(activity, card),
+    windowTitle: "Roll damage",
+    windowIcon: "fa-solid fa-dice-d6",
+    buttonLabel: "Roll Damage",
+    buttonIcon: "fa-solid fa-dice-d6",
+    img: activity.item?.img,
+    eyebrow: "Damage — your roll",
+    title: "Roll your damage",
+    subtitle: `${activity.item?.name ?? "Spell"} — ${activity.actor?.name ?? ""}`,
+    lines: [
+      stake,
+      names ? `Against <strong>${names}</strong>.` : null,
+      // Says WHY the line above is missing, rather than leaving the roller to wonder.
+      (awaiting && !names)
+        ? `<span style="opacity:0.85;">The area is not placed yet — your dice can go first.</span>`
+        : null
+    ]
+  });
 }

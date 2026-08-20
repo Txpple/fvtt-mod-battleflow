@@ -801,15 +801,86 @@ when the mod is negative** — and the 1.9 fence that killed silent Cleave detec
 Extra Attack milestone makes *"second swing, same weapon, different target"* an ordinary turn, so
 the player declares and the machine obeys; it never guesses).
 
-## PASS B — THE PLAYER-ROLLED DAMAGE POPUP — ✅ BUILT v1.18.0
+## PASS B — THE PLAYER-ROLLED DAMAGE POPUP — ✅ BUILT + WALKED + EXTENDED (v1.18.0)
 *(was slot 3 — FLOW item 3)*
 
 | Item | What it is | Where it landed |
 | --- | --- | --- |
-| **3** | **Player-rolled damage popup + crit indicator** | ✅ **BUILT v1.18.0.** Standing alone was the right shape: it carries the design.md Per-client amendment, and that reversal is recorded in one diff instead of buried in another pass's. **Awaiting the walk.** |
+| **3** | **Player-rolled damage popup + crit indicator** | ✅ **BUILT v1.18.0**, then **WALKED 9/9 CLEAN 2026-08-20** — third clean walk in a row, zero findings against what was built. |
+| **3b** | **The same offer for SAVE SPELLS and AREAS** | ✅ **BUILT 2026-08-20**, bundled into the same unreleased v1.18.0 at the user's call. The walk's one gap, and it was a coverage gap rather than a defect. |
 
-⚠ **NEXT: the walk.** Nothing else in this file moves until a human has seen the popup at the
-table. The checklist is in HANDOFF.md.
+### The walk's finding — a gap, not a bug
+
+The user's words: *"we do not however have the player roll for (a) spells that apply damage like
+vicous mockery based on save, nb some save for half and some save for no damage, which wouldn't
+prompt a window and (b) damage from aoe/template based spells."*
+
+**(a) and (b) were one code path, not two.** The popup hung off `dnd5e.rollAttackV2`, and a save
+spell never rolls an attack. Save spells and areas both roll their damage somewhere else
+entirely — the demand stamp at [saves.js:167](scripts/saves.js:167) — so one wiring covered both.
+
+**Why it stayed small, and the property to keep:** `dnd5e.postUseActivity` already runs on the
+CASTING client, the same locality that let the attack popup skip the elect, `canAnswerFor` and
+the wire. Nothing about the offer crosses a client boundary on either path.
+
+⚠ **THE OFFER IS NOT AWAITED at the stamp.** The demand is already written by then and the
+targets' save asks arm off the FLAG, not off that call returning — so the caster's 15s window
+and the targets' own windows run concurrently, on purpose. A caster thinking about dice must
+never hold up the table's saves.
+
+**Three corners settled in the build, all recorded in-code:**
+- **No crit badge** on a save popup — a spell has no attack roll to crit on, so there is no
+  settled fact to report. The stakes line (*a save halves it* / *avoids it entirely*) takes the
+  badge's slot, in the save popup's own words.
+- **An area not placed yet** (`awaitingTemplate` — cast Web bare, then place it) is offered the
+  roll ANYWAY, targetless, and the card says why it names nobody. The dice never needed to know
+  who they land on; only the application does, and that waits for adoption regardless. Deferring
+  would invent a new way to stall — a spell nobody places would never roll at all.
+- **Rider damage is untouched.** The offer rides the caller's existing `saveModulated` gate
+  rather than re-testing, so `onSave: "full"` (Web's burn clause, finding ③) still rolls nothing.
+  Pinned by probe assertion 9, because that is a property of the WIRING and nothing else catches it.
+
+### ⚠⚠ WHAT THE WALK'S GAP UNCOVERED — a pre-existing double-application
+
+Building 3b made an old latent race routine, and the probe caught it. **Recorded in full in
+[core.js](scripts/core.js) beside the fix.** In short: both receipt flags are *merged* rather
+than overwritten (v1.6.0, because a spell hold splits one roll's application across time), and
+nothing serialized concurrent merges. The save slice runs two targets' consequence passes at
+once against one card, so each merged into its own pre-read copy and the later write dropped the
+other's entries. A lost entry is two faults — the card under-reports who took damage, **and
+`reconcileSaveDamage` uses the receipt as its idempotence guard, so the damage lands on that
+target a second time.**
+
+**Measured, not inferred:** three `applyDamage` calls for two targets, a flat-10 spell taking
+**20** off the failed save, and a receipt naming only the target that saved.
+
+⚠ **IT IS OLDER THAN THIS FEATURE — proven by a control.** Probe assertion 13 runs the identical
+ordering with the popup OFF and failed identically before the fix. What the popup changed is
+*reachability*: while the stamp auto-rolled at cast time the dice were always there before any
+verdict, so "verdicts first, damage after" was practically unreachable. The popup makes "the
+caster is still holding their dice while the saves resolve" the ORDINARY case.
+
+**The fix** is `queueFlagWrite` in [core.js](scripts/core.js) — a per-(message, flag) promise
+chain around the read-merge-write. Both receipt writers use it: `applyDamagesWithReceipt` and
+`applyEffectsWithReceipt`. The effect one had the SAME defect with a WIDER window (it read the
+flag *before* its long await), and a lost effect entry also strands the legendary-resistance
+unwind, which reads `effectReceipt` to know what a failure applied.
+
+⚠ **FOUR SITES STILL UNSERIALIZED, deliberately — the complete list, so nobody has to re-find it:**
+
+| Where | Shape | Why left alone |
+| --- | --- | --- |
+| `revertEffect` ([effect-riders.js](scripts/effect-riders.js)) | clone → mutate → `setFlag` | Human-click driven, one at a time. |
+| `revertTarget` ([receipts.js:270](scripts/receipts.js:270)) | same | Same; also the LR unwind calls it strictly sequentially. |
+| [hold.js:560](scripts/hold.js:560) | writes `effectReceipt` on the ATTACK card | Two holds answering at once on one attack could race it. **No measured failure** — and hold.js is the most fragile file in the tree, so it was not touched on inference while a battery was already running against this build. |
+| [hold.js:770](scripts/hold.js:770) | same, the safety-net path | Same reasoning. |
+
+**The rule if any of these is ever touched:** route it through `queueFlagWrite` rather than
+re-deriving the merge. The helper takes `(message, flagKey, mutate)` and nothing else.
+
+⚠ **NEXT: the walk of 3b.** The checklist is in HANDOFF.md. v1.18.0 stays **untagged** until a
+human has seen the save/area popup at the table — the user's call was to hold the release and
+ship attacks, save spells and areas as one thing.
 
 ## PASS C — THE VOLLEYS
 *(was slots 5 + 7 — both halves of FLOW item 6)*

@@ -1118,10 +1118,41 @@ Per-client: table-moment view (popup+card / card-only); the per-player save opt-
 > not discoverable on its own and is not meant to be.
 >
 > **The property that makes it safe, and the one to keep:** the button and the buzzer call
-> the SAME `rollDamageForAttack()`, so crit, ammunition, attack mode and `originatingMessage`
-> are byte-identical whichever fires. Auto-apply, the riders and the receipts cannot tell who
+> the SAME roll function, so crit, ammunition, attack mode and `originatingMessage` are
+> byte-identical whichever fires. Auto-apply, the riders and the receipts cannot tell who
 > pressed it — which is why every failure path (render failed, popup dismissed, window
 > closed, timer expired) degrades to today's behaviour rather than to a fork.
+>
+> **EXTENDED before release, 2026-08-20 — the setting spans all THREE damage paths.** The
+> first cut answered attacks alone, and the v1.18.0 walk found the hole in one sitting: a save
+> spell never rolls an attack, so Vicious Mockery, Fireball and every area still rolled their
+> dice behind the caster's back. The offer now also hangs off the save demand's stamp
+> (`dnd5e.postUseActivity`, saves.js), which carries the same locality that made the attack
+> path cheap — it runs on the CASTING client, so still no elect, no `canAnswerFor`, nothing on
+> the wire. **One switch, not two:** asking the table to opt into the same answer twice would
+> be the settings collapse's exact failure re-created inside a single feature.
+>
+> ⚠ **THE GREY-OUT NOW HAS TWO OWNERS.** The setting sits under the Attack Resolver divider
+> and was greyed out when Auto-Roll Damage was Off — which became a control that reads as
+> inert and still fires, because the save path keys off Saving Throws instead. It enables
+> while EITHER path can reach it. It stays under Attack Resolver on purpose: the walk
+> confirmed people find it there, and moving a control the table has just learned costs more
+> than the divider's slight inaccuracy. **Any setting that spans two divider groups has to
+> answer this question.**
+>
+> ⚠⚠ **AND IT MADE AN OLD RACE ROUTINE — the reason `queueFlagWrite` exists** (core.js, where
+> the measurement is recorded). Both receipt flags are merged rather than overwritten, and
+> nothing serialized concurrent merges; the save slice runs two targets' consequence passes at
+> once against one card, so each merged into its own pre-read copy and the later write dropped
+> the other's entries. A lost receipt entry is two faults — the card under-reports, **and
+> `reconcileSaveDamage` uses the receipt as its idempotence guard, so the damage applies a
+> second time.** Measured at 20 damage from a flat-10 spell. It is OLDER than this feature (a
+> popup-OFF control reproduces it), but while the stamp auto-rolled at cast time the triggering
+> order was practically unreachable; the popup makes it ordinary.
+>
+> **The lesson worth carrying past this feature:** a change that only moves WHEN something
+> happens can still be the change that makes a latent race reachable. The offer added no new
+> writer and no new state — it added fifteen seconds of delay, and that was enough.
 
 The "~12 world settings at full build" this section first estimated is long blown: **23
 world + 2 client are registered at v1.3.1**, heading for ~30 by Phase 3. The settings-sheet

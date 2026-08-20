@@ -2,7 +2,7 @@
  * Battle Flow — Phase 1b: auto-apply damage on the active-GM elect, the shared receipt applier, and the payout pipeline (application, then effect riders, then mastery).
  * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
 import { hitTargets, resolveAttackMessage } from "./shared.js";
 import { applyEffectRiders } from "./effect-riders.js";
 import { resolveHitMastery } from "./mastery.js";
@@ -123,14 +123,16 @@ export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { n
     if ( receipts.length ) {
       // MERGE, never overwrite (v1.6.0): a spell hold can split one roll's application in
       // time — unheld targets land at once, a held target lands after its verdict — and
-      // the second write must not eat the first's entries.
-      const existing = foundry.utils.deepClone(
-        receiptMessage.getFlag(MODULE_ID, "receipt") ?? { targets: [] });
-      for ( const r of receipts ) {
-        const i = existing.targets.findIndex(t => t.uuid === r.uuid);
-        if ( i >= 0 ) existing.targets[i] = r; else existing.targets.push(r);
-      }
-      await receiptMessage.setFlag(MODULE_ID, "receipt", existing);
+      // the second write must not eat the first's entries. Through `queueFlagWrite` so two
+      // CONCURRENT writers cannot each merge into the same pre-read copy and drop one another's
+      // entries — a lost entry also defeats reconcileSaveDamage's idempotence guard and the
+      // damage lands twice. The measurement that found it is recorded in core.js.
+      await queueFlagWrite(receiptMessage, "receipt", existing => {
+        for ( const r of receipts ) {
+          const i = existing.targets.findIndex(t => t.uuid === r.uuid);
+          if ( i >= 0 ) existing.targets[i] = r; else existing.targets.push(r);
+        }
+      });
     }
   } catch(err) {
     console.error(`${TITLE} | Auto-apply failed.`, err);

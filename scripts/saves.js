@@ -9,6 +9,12 @@ import { armAskTimer, disarmAskTimer } from "./mastery.js";
 import { dramaticVerdictPause } from "./concentration.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt, revertEffect } from "./effect-riders.js";
+// ⚠ SAFE STATICALLY, unlike auto-damage.js's own ui.js import (v1.6.1's ESM order trap): the
+// entry reaches auto-damage.js at battleflow.js:90 — earlier still via polish.js -> hold.js —
+// and saves.js only at :102, so this module is fully evaluated before this line is read and no
+// hook registration moves. Re-checked with check-hook-order; do not promote it to dynamic
+// without re-running that.
+import { offerSaveDamageRoll, rollDamageForSave } from "./auto-damage.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 2 — saving throws (design.md Phase 2), shipping WITH Phase 3's save slice: a save's
@@ -164,12 +170,23 @@ async function stampSaveDemand(activity, message, results) {
     // per-target independence already handles a roll arriving before any verdict.
     // Save-modulated damage only — rider damage (onSave "full") never rolls here.
     if ( saveModulated ) {
-      try {
-        await activity.rollDamage({}, { configure: false },
-          { data: { "flags.dnd5e.originatingMessage": message.id } });
-      } catch(err) {
-        console.error(`${TITLE} | Could not auto-roll the save spell's damage.`, err);
+      // The caster asked for their own dice back, exactly as the attacker did (FLOW item 3;
+      // the v1.18.0 walk's only finding was that the popup never reached this path). It costs
+      // nothing extra to offer here for one reason: THIS HOOK ALREADY RUNS ON THE CASTING
+      // CLIENT — postUseActivity fires wherever `use()` was called — which is the same
+      // locality that let the attack popup skip the elect, canAnswerFor and the wire. Nothing
+      // about the popup crosses a client boundary, so nothing about it needs one.
+      //
+      // ⚠ NOT awaited, and that is the point: the stamp must not sit inside a fifteen-second
+      // window. Everything after this line is done, the demand is already written, and the
+      // targets' own save asks arm off the FLAG — not off this call returning. The two windows
+      // run concurrently on purpose; a caster thinking about dice must never hold up the
+      // table's saves.
+      if ( setting(S.playerRollDamage) ) {
+        void offerSaveDamageRoll(activity, message,
+          { damageOnSave: onSave, targets, awaiting });
       }
+      else await rollDamageForSave(activity, message);
     }
   } catch(err) {
     console.error(`${TITLE} | Could not stamp the save demand.`, err);

@@ -31,9 +31,12 @@ Hooks.once("init", () => {
   // setting nobody knows to look for means every new login starts wrong — so the safe default
   // is the one that changes nothing until you go find it, and the patch notes carry the pointer.
   // The window is the family's 15s and carries NO setting of its own: one switch, not two.
+  // ⚠ ONE SWITCH ACROSS ALL THREE DAMAGE PATHS — attacks, save spells and areas. The first cut
+  // covered attacks alone and the walk found the hole immediately; a second switch for "and my
+  // spells too" would be asking the table to opt into the same answer twice.
   game.settings.register(MODULE_ID, S.playerRollDamage, {
     name: "Roll Your Own Damage",
-    hint: "When your attack hits, ask before rolling the damage: a popup with one button and a 15-second timer, on your client alone. Press it and the dice roll exactly as the automation would have rolled them — same damage, same crit, same everything downstream — and the buzzer rolls for you if you miss the window, so a missed popup can never stall the table. The popup also says when the hit was a CRITICAL. Per player: this affects your own client only, and it is OFF unless you turn it on.",
+    hint: "Ask before rolling YOUR damage, instead of the automation rolling it for you: a popup with one button and a 15-second timer, on your client alone. It covers every roll the machine would have taken — an attack that hits, a save spell like Vicious Mockery or Fireball, and areas like Web. Press it and the dice roll exactly as the automation would have rolled them — same damage, same crit, same everything downstream — and the buzzer rolls for you if you miss the window, so a missed popup can never stall the table. An attack popup also says when the hit was a CRITICAL; a spell popup says what a successful save does to the number. Per player: this affects your own client only, and it is OFF unless you turn it on.",
     scope: "client", config: true, type: Boolean, default: false
   });
 
@@ -265,7 +268,14 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   const saves = input(S.saves);
   const syncAll = () => {
     setEnabled(input(S.dramaticBeat), autoDamage?.value !== "off");
-    setEnabled(input(S.playerRollDamage), autoDamage?.value !== "off");
+    // ⚠ TWO OWNERS since the save path joined it: the popup fires for attacks under Auto-Roll
+    // Damage and for save spells and areas under Saving Throws. Greying it out on the attack
+    // switch alone would leave a control that reads as inert and still fires — the "looks
+    // authoritative and lies" failure the untarget checkboxes were scoped out over. Enabled
+    // while EITHER path can reach it. (It stays under the Attack Resolver divider on purpose:
+    // the v1.18.0 walk confirmed people find it there, and moving a control the table has just
+    // learned costs more than the divider's slight inaccuracy.)
+    setEnabled(input(S.playerRollDamage), (autoDamage?.value !== "off") || !!saves?.checked);
     for ( const key of [S.interruptList, S.blockList, S.holdReveal, S.holdTimer, S.holdSkipFutile,
       S.holdSettle, S.holdApplyEffect] )
       setEnabled(input(key), !!hold?.checked);

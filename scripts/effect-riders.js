@@ -2,7 +2,7 @@
  * Battle Flow — Phase 1.9A: effect riders and the shared effect applier (applyEffectsWithReceipt - the Phase 3 convergence point).
  * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, isActiveGM } from "./core.js";
+import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite } from "./core.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1.9A — effect riders: a hit applies the effects riding it (PLAN.md section A).
@@ -143,14 +143,22 @@ export function joinEffectReceipt(flag, entry) {
  */
 export async function applyEffectsWithReceipt(receiptMessage, effects, targets,
   { concentration = null, scaling = 0, spellLevel, marker } = {}) {
-  const flag = foundry.utils.deepClone(
-    receiptMessage.getFlag(MODULE_ID, "effectReceipt") ?? { targets: [] });
   const entries = await applyEffectsTo(targets, effects, { concentration, scaling, spellLevel });
-  for ( const entry of entries ) joinEffectReceipt(flag, entry);
-  // The marker is written even when nothing landed — "asked and answered" must be
-  // re-run-proof, or every render would retry a cast whose targets are all gone.
-  if ( marker ) flag[marker] = true;
-  if ( flag.targets.length || marker ) await receiptMessage.setFlag(MODULE_ID, "effectReceipt", flag);
+  if ( !entries.length && !marker ) return;
+  // ⚠ THE READ MOVED BELOW THE AWAIT, and the write is queued (core.js `queueFlagWrite`). This
+  // used to clone the flag FIRST and merge into that copy after `applyEffectsTo` — a window
+  // wide enough to drive a save through, and the save slice does: per-target independence runs
+  // two targets' consequence passes concurrently against one card, so each merged into its own
+  // stale copy and the later write dropped the other's entries. Same defect the damage receipt
+  // had, wider window. A lost effect entry also strands the legendary-resistance unwind, which
+  // reads effectReceipt to know what a failure applied and must now un-apply.
+  await queueFlagWrite(receiptMessage, "effectReceipt", flag => {
+    flag.targets ??= [];
+    for ( const entry of entries ) joinEffectReceipt(flag, entry);
+    // The marker is written even when nothing landed — "asked and answered" must be
+    // re-run-proof, or every render would retry a cast whose targets are all gone.
+    if ( marker ) flag[marker] = true;
+  });
 }
 
 /**
