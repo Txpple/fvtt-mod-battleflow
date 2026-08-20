@@ -43,6 +43,15 @@ const out = await f.evaluate(async () => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const suiteStart = Date.now();
 
+  // Console-error capture (diagnostic, removed noise-free when green): the module logs its
+  // failures there and the suite otherwise cannot see them.
+  const consoleErrors = [];
+  const origConsoleError = console.error;
+  console.error = (...a) => {
+    try { consoleErrors.push(a.map(x => x?.message ?? String(x)).join(' | ').slice(0, 300)); } catch {}
+    origConsoleError(...a);
+  };
+
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
   if (!game.settings.settings.has(`${MOD}.maneuverFolds`)) {
@@ -51,7 +60,8 @@ const out = await f.evaluate(async () => {
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'riders', 'effectRiders', 'masteryRiders', 'playerRollDamage',
-    'holdTimer', 'holdSkipFutile', 'holdReveal', 'castApply', 'maneuverFolds'];
+    'holdTimer', 'holdSkipFutile', 'holdReveal', 'castApply', 'maneuverFolds',
+    'saves', 'saveTimer'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -60,7 +70,7 @@ const out = await f.evaluate(async () => {
   const victim = game.actors.getName('BF Test Victim');
   if (!scene || !enemy || !victim) return { fatal: 'missing fixtures — run smoke-battleflow first' };
 
-  const created = { tokens: [], enemyItems: [] };
+  const created = { tokens: [], enemyItems: [], victimItems: [] };
   let pc = null;
   const priorActor = {};
   let restored = false;
@@ -74,6 +84,9 @@ const out = await f.evaluate(async () => {
       if (liveTokens.length) await scene.deleteEmbeddedDocuments('Token', liveTokens);
       const liveItems = created.enemyItems.filter(id => enemy.items.get(id));
       if (liveItems.length) await enemy.deleteEmbeddedDocuments('Item', liveItems);
+      const liveVictimItems = created.victimItems.filter(id => victim.items.get(id));
+      if (liveVictimItems.length) await victim.deleteEmbeddedDocuments('Item', liveVictimItems);
+      for (const e of victim.effects.filter(x => x.name === 'BF Test Prone')) await e.delete().catch(() => {});
       for (const [actorId, data] of Object.entries(priorActor)) {
         await game.actors.get(actorId)?.update(data);
       }
@@ -103,6 +116,8 @@ const out = await f.evaluate(async () => {
     await set('holdSkipFutile', false);
     await set('holdReveal', true);
     await set('castApply', false);
+    await set('saves', false);
+    await set('saveTimer', 1);
     await set('maneuverFolds', 'Precision Attack:precision, Riposte:riposte');
 
     // -------------------------------------------------- fixtures
@@ -352,10 +367,12 @@ const out = await f.evaluate(async () => {
         JSON.stringify({ reactors: flag?.reactors?.map(r => r.name),
           attackerUuid: flag?.attackerUuid, want: enemy.uuid }));
       const popup = await until(() => dialogsWith('Riposte with')[0], 6000);
-      ok('R2a. the popup carries Riposte/Pass and the weapon choice',
+      // v1.19.x finding ④: ONE equipped melee weapon skips the dropdown — the popup NAMES it.
+      ok('R2a. the popup carries Riposte/Pass and NAMES the single weapon (no dropdown, ④)',
         !!popup && !!popup.querySelector('button[data-action="riposte"]')
-          && !!popup.querySelector('select[name="bf-riposte-weapon"]'),
-        `popup=${!!popup}`);
+          && !popup.querySelector('select[name="bf-riposte-weapon"]')
+          && (popup.innerHTML ?? '').includes(enemyWeapon.name),
+        `popup=${!!popup} select=${!!popup?.querySelector('select[name="bf-riposte-weapon"]')}`);
 
       popup?.querySelector('button[data-action="riposte"]')?.click();
       const driven = await until(() => game.messages.contents.find(m =>
@@ -385,6 +402,10 @@ const out = await f.evaluate(async () => {
       ok('R2f. out of combat the reaction flag stays unset (the hold\'s own carve-out)',
         !pc.getFlag(MOD, 'reactionSpent'),
         `flag=${!!pc.getFlag(MOD, 'reactionSpent')}`);
+      const rFlag = msg?.getFlag(MOD, 'riposte');
+      ok('R2g. the chosen weapon is RECORDED on the fold — the card can name it (④)',
+        rFlag?.reactors?.[0]?.weaponName === enemyWeapon.name,
+        `weaponName=${rFlag?.reactors?.[0]?.weaponName} want=${enemyWeapon.name}`);
     }
 
     /* R3 — a spent reaction is never offered. */
@@ -490,10 +511,281 @@ const out = await f.evaluate(async () => {
       await closeDialogs('Riposte');
     }
 
-    return { log, results, skips };
+    /* ============================================== P8 — finding ①: player-owned, owner OFFLINE */
+    // The walk's regression: the old fold gate (`isGM && hasPlayerOwner`) was mutually
+    // exclusive with canAnswerFor's own active-owner check, so a GM alone in the room got
+    // the card and the buzzer but never the popup. Ruling: player-first, GM fallback.
+    {
+      const playerUser = game.users.find(u => !u.isGM);
+      if (!playerUser) {
+        skips.push('P8 — no player user in this world; the ①-gate pin not exercised');
+      } else {
+        // Object form, never a dotted key — the dotted write raises "ownership: is not a
+        // mapping" validation noise; and the ownership must PROVABLY land or this pin
+        // passes vacuously (the popup shows either way when hasPlayerOwner stayed false).
+        await pc.update({ ownership: { [playerUser.id]: CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER } });
+        ok('P8a. the fixture is really player-owned (the pin cannot pass vacuously)',
+          pc.hasPlayerOwner === true, `hasPlayerOwner=${pc.hasPlayerOwner}`);
+        const { msg, flag } = await missUntilStamped(pcAttackAct(), victimToken, 'precision');
+        if (!flag) {
+          ok('P8b. player-owned attacker, owner offline — the GM STILL gets the popup (①)', false, 'no stamp in 8 tries');
+        } else {
+          const popup = await until(() => dialogsWith('Use Precision Attack')[0], 6000);
+          ok('P8b. player-owned attacker, owner offline — the GM STILL gets the popup (①)',
+            !!popup, `popup=${!!popup}`);
+          popup?.querySelector('button[data-action="pass"]')?.click();
+          await until(() => msg.getFlag(MOD, 'precision')?.status === 'resolved', 6000);
+        }
+        await pc.update({ ownership: { [playerUser.id]: CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE } });
+      }
+    }
+
+    /* ============================================== M1 — finding ④: two weapons, smart default */
+    {
+      const [offhand] = await pc.createEmbeddedDocuments('Item', [
+        foundry.utils.mergeObject(enemyWeapon.toObject(), {
+          name: 'BF Test Offhand', system: { equipped: true } }, { inplace: false })]);
+      // Attack once WITH the offhand so it becomes the log's latest — the default must track
+      // USAGE, not inventory order (options[0] is the original weapon).
+      const offAct = pc.items.get(offhand.id)?.system.activities.find(a => a.type === 'attack');
+      await acFlat(victim, 1);
+      const { msg: offMsg } = await attack(offAct, victimToken);
+      await waitDamage(offMsg?.getFlag('dnd5e', 'originatingMessage'), 8000);
+      await acFlat(victim, 25);
+      await closeDialogs('Weapon Mastery');
+
+      const { msg, flag } = await missUntilStamped(enemyAttackAct(), pcToken, 'riposte');
+      if (!flag) {
+        ok('M1. two weapons — the dropdown returns, preselected to the LAST-ATTACKED (④)', false, 'no stamp in 8 tries');
+      } else {
+        const popup = await until(() => dialogsWith('Riposte with')[0], 6000);
+        const select = popup?.querySelector('select[name="bf-riposte-weapon"]');
+        ok('M1. two weapons — the dropdown returns, preselected to the LAST-ATTACKED (④)',
+          !!select && (select.value === offhand.id),
+          `select=${!!select} value=${select?.value} want=${offhand.id}`);
+        popup?.querySelector('button[data-action="pass"]')?.click();
+        await until(() => msg.getFlag(MOD, 'riposte')?.status === 'resolved', 6000);
+      }
+      await pc.deleteEmbeddedDocuments('Item', [offhand.id]).catch(() => {});
+      await closeDialogs('Riposte');
+    }
+
+    /* ============================================== B — finding ⑤: the bash choice (Prone or push) */
+    await set('saves', true);
+    await set('maneuverFolds', 'Precision Attack:precision, Riposte:riposte, '
+      + 'BF Shield Master:bash, BF Shield Master:interpose, BF Great Weapon Master:hew');
+    // The bash fixture: a listed feat whose save activity presses an effect on failure —
+    // the Shield Bash shape (DC 30 so the victim ALWAYS fails; effect wired by REAL id
+    // after creation, never by assumed keepId).
+    const [bashFeat] = await pc.createEmbeddedDocuments('Item', [{
+      name: 'BF Shield Master', type: 'feat',
+      system: { type: { value: 'feat' }, activities: {
+        bfbash0000000000: {
+          _id: 'bfbash0000000000', type: 'save',
+          activation: { type: '', override: false },
+          damage: { parts: [], onSave: 'half' },
+          effects: [],
+          save: { ability: ['str'], dc: { calculation: '', formula: '30' } },
+          target: { affects: { type: 'creature' } }
+        }
+      } },
+      effects: [{ name: 'BF Test Prone', icon: 'icons/svg/falling.svg',
+        transfer: false, statuses: ['prone'] }]
+    }]);
+    const proneEffect = bashFeat.effects.contents[0];
+    await bashFeat.update({
+      'system.activities.bfbash0000000000.effects': [{ _id: proneEffect.id, onSave: false }] });
+    const bashAct = () => pc.items.get(bashFeat.id)?.system.activities.get('bfbash0000000000');
+    const castAt = async (activity, token) => {
+      // Two tries with a stamp-wait: the demand rides the dnd5e targets snapshot, and a
+      // target that lands late stamps NOTHING (saves.js's targetless gate) — which is
+      // indistinguishable from a product bug unless the retry is logged.
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+        token.setTarget(true, { releaseOthers: true });
+        await sleep(250);
+        const use = await activity.use({ subsequentActions: false }, { configure: false }, {});
+        const card = use?.message?.id ? game.messages.get(use.message.id) : null;
+        const stamped = await until(() => card?.getFlag(MOD, 'saves'), 5000);
+        if (stamped) return card;
+        log.push(`castAt: the demand did not stamp (attempt ${attempt}: card=${!!card}, userTargets=${game.user.targets.size}, `
+          + `dnd5eTargets=${JSON.stringify((card?.getFlag('dnd5e', 'targets') ?? []).map(t => t.name))}, `
+          + `tokenDestroyed=${!!token?.destroyed}, tokenActor=${token?.actor?.name ?? null}) — retrying`);
+      }
+      return null;
+    };
+
+    /* B1 — the failed save opens the choice; the verdict line is source-first, saver-spoken. */
+    // ⚠ The victim must be ALIVE before every bash cast: it is an NPC, earlier sections'
+    // applied damage can leave it at 0, and the DEAD-TARGET GATE (walk item 11, correct
+    // behaviour) then stamps nothing — which reads exactly like a product bug (it cost a
+    // run to diagnose; the castAt retry log now names the gate's inputs for next time).
+    const reviveVictim = () => victim.update({
+      'system.attributes.hp.value': victim.system.attributes.hp.max });
+    {
+      await reviveVictim();
+      const card = await castAt(bashAct(), victimToken);
+      const choice = await until(() => {
+        const t = card?.getFlag(MOD, 'saves')?.targets?.[0];
+        return (t?.choice && !t.choice.answer) ? t.choice : null;
+      }, 20000);
+      ok('B1a. a failed listed save opens the bash choice instead of hard-pressing (⑤)',
+        choice?.kind === 'bash',
+        `choice=${choice ? choice.kind : JSON.stringify(card?.getFlag(MOD, 'saves')?.targets?.[0] ?? null)}`);
+      const verdict = game.messages.contents.find(m =>
+        m.getFlag(MOD, 'verdictLine')?.sourceMessageId === card?.id);
+      ok('B1b. the verdict line leads with the SOURCE and speaks as the SAVER (⑦/⑧)',
+        !!verdict && (verdict.content ?? '').includes('BF Shield Master — ')
+          && (verdict.speaker?.actor === victim.id),
+        `sourceTitle=${(verdict?.content ?? '').includes('BF Shield Master — ')} speaker=${verdict?.speaker?.actor} want=${victim.id}`);
+      const popup = await until(() => dialogsWith('Knock Prone')[0], 6000);
+      ok('B1c. the choice popup carries Knock Prone / Push 5 feet',
+        !!popup && !!popup.querySelector('button[data-action="prone"]')
+          && !!popup.querySelector('button[data-action="push"]'),
+        `popup=${!!popup}`);
+      popup?.querySelector('button[data-action="push"]')?.click();
+      const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 15000);
+      const pressed = victim.effects.some(e => e.name === 'BF Test Prone');
+      const pushMsg = game.messages.contents.find(m => (m.timestamp >= suiteStart)
+        && /pushes .* 5 feet/.test(m.content ?? ''));
+      ok('B1d. push — NO press lands, the announce card does (the Push idiom)',
+        !!applied && !pressed && !!pushMsg,
+        `applied=${!!applied} pressed=${pressed} pushMsg=${!!pushMsg}`);
+    }
+
+    /* B2 — the prone answer presses through the ordinary chain. */
+    {
+      await reviveVictim();
+      const card = await castAt(bashAct(), victimToken);
+      const popup = await until(() => dialogsWith('Knock Prone')[0], 20000);
+      popup?.querySelector('button[data-action="prone"]')?.click();
+      const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 15000);
+      const eff = await until(() => victim.effects.find(e => e.name === 'BF Test Prone'), 6000);
+      ok('B2. prone — the press lands through the ordinary effects chain',
+        !!applied && !!eff, `applied=${!!applied} effect=${!!eff}`);
+      await eff?.delete().catch(() => {});
+    }
+
+    /* B3 — the buzzer defaults to Prone and says so. */
+    {
+      await set('holdTimer', 2);
+      await reviveVictim();
+      const card = await castAt(bashAct(), victimToken);
+      const t = await until(() => {
+        const x = card?.getFlag(MOD, 'saves')?.targets?.[0];
+        return (x?.choice?.answer && x.applied) ? x : null;
+      }, 25000);
+      const eff = victim.effects.find(e => e.name === 'BF Test Prone');
+      ok('B3. left alone — the buzzer defaults the bash to Prone (stated on the card)',
+        (t?.choice?.answer === 'prone') && !!t?.choice?.timedOut && !!eff,
+        `answer=${t?.choice?.answer} timedOut=${!!t?.choice?.timedOut} eff=${!!eff}`);
+      await eff?.delete().catch(() => {});
+      await set('holdTimer', 0);
+      await closeDialogs('BF Shield Master');
+    }
+
+    /* ============================================== I — finding ⑥: Interpose (save-success reaction) */
+    // The saver's side: an equipped shield + the listed feat on the VICTIM, a DEX half-damage
+    // demand from the PC (DC 1 + dex 16 so the victim ALWAYS saves).
+    priorActor[victim.id]['system.abilities.dex.value'] = victim.system._source.abilities.dex.value;
+    await victim.update({ 'system.abilities.dex.value': 16 });
+    {
+      const [shield] = await victim.createEmbeddedDocuments('Item', [{
+        name: 'BF Test Shield', type: 'equipment',
+        system: { type: { value: 'shield' }, equipped: true, armor: { value: 2 } }
+      }]);
+      created.victimItems.push(shield.id);
+      const [interposeFeat] = await victim.createEmbeddedDocuments('Item', [{
+        name: 'BF Shield Master', type: 'feat', system: { type: { value: 'feat' } } }]);
+      created.victimItems.push(interposeFeat.id);
+    }
+    const [dexBlast] = await pc.createEmbeddedDocuments('Item', [{
+      name: 'BF Test Dex Blast', type: 'feat',
+      system: { type: { value: 'feat' }, activities: {
+        bfdexblast000000: {
+          _id: 'bfdexblast000000', type: 'save',
+          activation: { type: '', override: false },
+          damage: { parts: [{ custom: { enabled: true, formula: '10' }, types: ['fire'] }], onSave: 'half' },
+          save: { ability: ['dex'], dc: { calculation: '', formula: '1' } },
+          target: { affects: { type: 'creature' } }
+        }
+      } } }]);
+    const dexAct = () => pc.items.get(dexBlast.id)?.system.activities.get('bfdexblast000000');
+
+    /* I1 — use: the Reaction turns half into NONE, with the validation card. */
+    {
+      await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
+      const hpBefore = victim.system.attributes.hp.value;
+      const card = await castAt(dexAct(), victimToken);
+      const choice = await until(() => {
+        const t = card?.getFlag(MOD, 'saves')?.targets?.[0];
+        return (t?.choice && !t.choice.answer) ? t.choice : null;
+      }, 20000);
+      ok('I1a. a successful DEX half-damage save with a shield opens the Interpose offer (⑥)',
+        choice?.kind === 'interpose',
+        `choice=${choice ? choice.kind : JSON.stringify(card?.getFlag(MOD, 'saves')?.targets?.[0] ?? null)}`);
+      const popup = await until(() => dialogsWith('take no damage')[0], 6000);
+      popup?.querySelector('button[data-action="use"]')?.click();
+      const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 15000);
+      const validation = game.messages.contents.find(m => (m.timestamp >= suiteStart)
+        && /takes no damage/.test(m.content ?? ''));
+      ok('I1b. use — NOTHING applies, the validation card posts, out of combat no reaction flag',
+        !!applied && (victim.system.attributes.hp.value === hpBefore) && !!validation
+          && !victim.getFlag(MOD, 'reactionSpent'),
+        `applied=${!!applied} hp ${hpBefore}→${victim.system.attributes.hp.value} card=${!!validation}`);
+    }
+
+    /* I2 — the buzzer PASSES (a Reaction is never spent by a timer): half applies. */
+    {
+      await set('holdTimer', 2);
+      await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
+      const hpBefore = victim.system.attributes.hp.value;
+      const card = await castAt(dexAct(), victimToken);
+      const t = await until(() => {
+        const x = card?.getFlag(MOD, 'saves')?.targets?.[0];
+        return (x?.choice?.answer && x.applied) ? x : null;
+      }, 25000);
+      const dropped = hpBefore - victim.system.attributes.hp.value;
+      ok('I2. left alone — the buzzer passes and the saved HALF (5 of 10) applies normally',
+        (t?.choice?.answer === 'pass') && !!t?.choice?.timedOut && (dropped === 5),
+        `answer=${t?.choice?.answer} timedOut=${!!t?.choice?.timedOut} dropped=${dropped}`);
+      await set('holdTimer', 0);
+      await closeDialogs('BF Shield Master');
+      await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
+    }
+
+    /* ============================================== H — scope-add ②: the Hew reminder (kill path) */
+    {
+      const [gwm] = await pc.createEmbeddedDocuments('Item', [{
+        name: 'BF Great Weapon Master', type: 'feat', system: { type: { value: 'feat' } } }]);
+      await acFlat(victim, 1);
+      let hew = null, dmg = null;
+      for (let i = 0; i < 6 && !hew; i++) {
+        await victim.update({ 'system.attributes.hp.value': 1 });
+        const { msg } = await attack(pcAttackAct(), victimToken);
+        dmg = await waitDamage(msg?.getFlag('dnd5e', 'originatingMessage'), 10000);
+        if (!dmg) { log.push(`H1: attempt ${i + 1} rolled no damage (fumble) — retrying`); continue; }
+        hew = await until(() => game.messages.contents.find(m => (m.timestamp >= suiteStart)
+          && /Hew — .*can attack again/.test(m.content ?? '')), 10000);
+      }
+      ok('H1. a module-applied KILL with a melee weapon posts the Hew reminder (②)',
+        !!hew && (victim.system.attributes.hp.value <= 0) && (dmg?.getFlag(MOD, 'hewNoticed') === true),
+        `hew=${!!hew} hp=${victim.system.attributes.hp.value} noticed=${!!dmg?.getFlag(MOD, 'hewNoticed')}`);
+      const hewCount = game.messages.contents.filter(m => (m.timestamp >= suiteStart)
+        && /Hew — /.test(m.content ?? '')).length;
+      ok('H2. exactly ONE reminder for the swing (the crit-defers-to-kill dedupe)',
+        hewCount === 1, `count=${hewCount}`);
+      await pc.deleteEmbeddedDocuments('Item', [gwm.id]).catch(() => {});
+      await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
+      await acFlat(victim, 25);
+      skips.push('H — the CRIT trigger is not forced headlessly (nat-20 farming under disadvantage); the kill path pins the shared card/melee/entry machinery');
+    }
+
+    return { log, results, skips, consoleErrors };
   } catch (err) {
-    return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
+    return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips, consoleErrors };
   } finally {
+    console.error = origConsoleError;
     await teardown();
   }
 }, null);
@@ -511,5 +803,9 @@ for (const r of out.results) {
   console.log(`  ${r.pass ? 'PASS' : 'FAIL'} ${r.name}${r.pass ? '' : ` — ${r.detail}`}`);
 }
 for (const s of out.skips ?? []) console.log(`  SKIP ${s}`);
+if (out.consoleErrors?.length) {
+  console.log('\n  CONSOLE ERRORS DURING THE RUN:');
+  for (const e of out.consoleErrors) console.log(`   ⚠ ${e}`);
+}
 console.log(`\n[maneuvers] ${out.results.length - failures}/${out.results.length} passed`);
 process.exit(failures ? 1 : 0);
