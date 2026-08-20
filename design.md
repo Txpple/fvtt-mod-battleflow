@@ -502,6 +502,83 @@ how `Riposte:ac` produced an every-hit nonsense hold for three sessions.
   still need their own claim shape — "this roll is mine, there are N" — the `spellDamage`
   stamp is a deferral, not a suppression; that stays with Pass C.)
 
+#### The v1.19.0 walk amendment (2026-08-20, ninth session — eight findings, all built)
+
+The user walked Pass A and it grew the phase. Every ruling below is theirs and binding:
+
+- **① THE FOLD POPUPS CARRY NO GM-QUIET OF THEIR OWN.** The walk's first finding: with only
+  the GM in the room, the Precision popup never raised — the fold's extra
+  `isGM && hasPlayerOwner` gate was **mutually exclusive** with `canAnswerFor`'s own
+  active-owner check (canAnswerFor already gives the GM the answer ONLY when no owning
+  player is connected), so their conjunction was never true on a GM client. The gate is
+  DELETED; `canAnswerFor` alone routes: **the player's client gets the popup; the DM gets
+  it when no owning player is connected** (ruling, verbatim intent: "players client gets
+  the popup, if dm is possessing player and player is not there, then dm gets popup").
+  ⚠ This ruling is the FOLDS'. The saves machine's own GM-quiet (v1.12.0, "as a GM i dont
+  care to see other player saves") and the holds' (v1.16.0) were WALKED and stand — do not
+  harmonize them onto this.
+- **② HEW (`hew`), reminder-card-only by ruling** — Great Weapon Master's third bullet
+  (crit or kill with a melee weapon ⇒ one attack with the same weapon as a Bonus Action).
+  The Push idiom: a card states the option, nothing rolls, nothing arms, nothing times
+  out. Crit trigger posts from the roller's client; kill trigger posts from the elect off
+  the receipt it just wrote (⚠ the damage's `originatingMessage` is the USAGE card — the
+  chain resolves through `getAssociatedRolls("attack")`, the die injection's measured
+  shape; a hand-tray kill posts no receipt and so no reminder, recorded and accepted). A
+  crit that kills reminds ONCE (the kill path defers to the crit's stamp).
+- **③ AN ARMED CLEAVE ANNOUNCES IN THE DAMAGE POPUP** — the v1.18.0 popup gains a line
+  ("this is the armed Cleave swing: the ability modifier is dropped") via a read-only
+  `cleaveArmedFor` reached by LAZY import (a static edge would drag mastery's imports
+  ahead of hold.js in the §9 entry order).
+- **④ THE RIPOSTE WEAPON FLOW** (the walk: "unclear how a weapon is picked"): the dropdown
+  defaults to the weapon the reactor LAST ATTACKED with (the log is the witness; inventory
+  order told nobody anything); ONE equipped melee weapon skips the dropdown entirely and
+  is named in the popup and button; the chosen weapon is STORED on the reactor entry at
+  answer time (so the crash-resume drives the chosen weapon, not a fallback) and the
+  resolved card names it ("Riposte — X strikes back with Longsword").
+- **⑤ BASH (`bash`) — the failure's consequence is the attacker's CHOICE** (Shield
+  Bash's own text: push 5 feet or Prone, your choice). A failed save on a demand whose
+  item IS the listed feat holds that target's consequence pass between verdict-announce
+  and application: a two-control popup to the attacker (①'s routing) — **Knock Prone**
+  (the ordinary press, receipts and all) or **Push 5 feet** (the Push mastery's idiom: an
+  announce card, a hand-moved token, NO press). Expiry defaults to **Prone** — the machine
+  finishes what the failure started, and the card says "defaulted by the timer".
+- **⑥ INTERPOSE (`interpose`) — the save-success reaction** (Interpose Shield: a
+  successful DEX save against half-on-success damage while holding a shield ⇒ spend the
+  Reaction, take NOTHING). Same choice machinery as ⑤ on the SAVED branch: gates are
+  autoApply on (a "no damage" promise is only honest when the module is the applier),
+  `hasDamage` + `damageOnSave: half`, DEX among the save abilities, the listed item on the
+  SAVER, an equipped shield, `!reactionSpent`. Accept ⇒ the damage entry's multiplier
+  resolves to **null** (no application, no receipt — the applier never fires) and a
+  **validation card** posts (the walk's explicit ask: a zeroed number must never read as a
+  dropped machine); the Reaction is spent in combat, the hold family's carve-out. Expiry
+  **passes** — a Reaction is never spent by a timer.
+  - **The choice machine is ONE mechanism** for ⑤ and ⑥: a per-target `choice` sub-object
+    on the saves flag, stamped by the elect inside the consequence pass (which then
+    returns; `applied` stays false so the update/render floors resume it), answered
+    player-first via the fold routing, folded by the elect when the answerer cannot write
+    (the §4.1 relay — see below), buzzed by an elect timer off the earliest stored
+    deadline, closed everywhere on answer.
+- **⑦ SOURCE, THEN RESULT — binding wording law for every follow-up line** (the walk:
+  "all these follow ups should say the source of the ability, then the result"). Verdict
+  lines read "Shield Bash — Thomas holds", maneuver cards "Precision Attack — used, now
+  hits", Riposte rows "Riposte — X strikes back with Y", Topple "Topple — X stays
+  standing", Hew "Hew — X can attack again". New cards inherit the shape by default.
+- **⑧ A VERDICT SPEAKS AS ITS SUBJECT.** "Thomas holds" rendered under the CASTER's
+  (Salyth's) title card — verdict lines (saves + topple success) now speak as the actor
+  the result is about, falling back to the card's speaker only when the uuid no longer
+  resolves.
+- **📌 THE §4.1 RELAY EXTENDS TO FOLD ANSWERS.** A player cannot update someone else's
+  chat message (ChatMessage update permission is author-or-GM — measured against core's
+  own metadata: no `update` entry, so the OWNER default rules, and `getUserLevel` grants
+  OWNER to the author alone). Riposte answers and save-choice answers from non-owning
+  clients therefore travel as the answerer's OWN message (`riposteAnswer` /
+  `saveChoiceAnswer` flags) and the ELECT folds them in — hold.js `answerHold`'s split,
+  applied to the folds. The riposte relay branch drives its own accepted attack
+  immediately (`trusted` — waiting for the fold round-trip would idle the player's dice);
+  the elect's 20s crash-resume covers a client that died between relay and drive. ⚠ This
+  gap was INVISIBLE in every GM-only walk room — the GM owns everything — and would have
+  bitten the first real player answer.
+
 ### Phase 1.75 — curated damage riders (the Hunter's Mark tier)
 
 A rider is a damage roll you press **separately from casting the thing that granted it** —

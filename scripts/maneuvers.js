@@ -14,9 +14,12 @@ import { armAskTimer, disarmAskTimer } from "./mastery.js";
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 
 /* ---------------------------------------------------------------------------------------------
- * Phase 1.6 — the maneuver folds (FLOW item 1, built v1.19.0 after probes P1-P3).
+ * Phase 1.6 — the maneuver folds (FLOW item 1, built v1.19.0 after probes P1-P3; the walk's
+ * findings grew the list: "interpose" and "bash" live as save-card CHOICES in saves.js off
+ * this file's helpers, "hew" is the reminder block below, and the fold popups now route
+ * player-first with the GM as fallback — canAnswerFor alone, no GM-quiet of their own).
  *
- * Two folds, one list (`maneuverFolds`, and the LIST is the switch):
+ * The folds, one list (`maneuverFolds`, and the LIST is the switch):
  *
  *   PRECISION ("your own attack missed"): the attacker's client stamps a `precision` flag on
  *   the missed attack message; the attacker is offered the maneuver (Use/Pass, the hold's
@@ -66,7 +69,7 @@ import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 
 /* --- the list: strict parse, the list is the switch ---------------------------------------- */
 
-const MANEUVER_KINDS = new Set(["precision", "riposte"]);
+const MANEUVER_KINDS = new Set(["precision", "riposte", "interpose", "bash", "hew"]);
 const warnedKinds = new Set();
 
 export function maneuverEntries() {
@@ -77,7 +80,7 @@ export function maneuverEntries() {
       if ( !name || !MANEUVER_KINDS.has(kind?.toLowerCase()) ) {
         if ( !warnedKinds.has(chunk) ) {
           warnedKinds.add(chunk);
-          console.warn(`${TITLE} | Maneuver Folds: "${chunk}" has no recognised kind (precision/riposte) — ignored, never guessed.`);
+          console.warn(`${TITLE} | Maneuver Folds: "${chunk}" has no recognised kind (precision/riposte/interpose/bash/hew) — ignored, never guessed.`);
         }
         return null;
       }
@@ -85,6 +88,25 @@ export function maneuverEntries() {
     })
     .filter(Boolean);
 }
+
+/**
+ * The folds entry of `kind` this actor actually carries — the listed item, by name. The
+ * pool-drawing kinds (precision/riposte) still go through usableManeuver for consumption;
+ * interpose/bash/hew have no pool of their own, so the item's PRESENCE is the capability
+ * and everything past that (shield in hand, verdict, melee) belongs to the caller.
+ */
+export function foldEntryFor(actor, kind) {
+  for ( const entry of maneuverEntries() ) {
+    if ( entry.kind !== kind ) continue;
+    const item = actor?.items?.find(i => i.name.toLowerCase() === entry.name.toLowerCase());
+    if ( item ) return { entry, item };
+  }
+  return null;
+}
+
+/** An equipped shield — Interpose's "holding a Shield" clause, read off the sheet. */
+export const equippedShield = actor =>
+  !!actor?.itemTypes?.equipment?.some(i => (i.system.type?.value === "shield") && i.system.equipped);
 
 /**
  * The actor's usable copy of a listed maneuver: the item by name (case-insensitive), its
@@ -112,7 +134,11 @@ function maneuverDieFormula(activity) {
     || null;
 }
 
-const gmQuietFor = actor => game.user.isGM && !!actor?.hasPlayerOwner;
+// v1.19.x finding ①: the folds carry NO GM-quiet of their own — canAnswerFor already routes
+// player-first with the GM as fallback (an active owning player excludes the GM entirely), and
+// the old extra `isGM && hasPlayerOwner` gate was mutually exclusive with it: with only the GM
+// in the room, NOBODY got the popup. The user's ruling: the player's client gets the popup;
+// the DM gets it when no owning player is connected.
 
 /* =============================================================================================
  * PRECISION ATTACK
@@ -248,7 +274,7 @@ async function resolvePrecision(message) {
       content: bfCard({
         img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`,
         tone: anyHit ? "good" : "neutral",
-        title: anyHit ? "The miss becomes a hit" : "Still a miss",
+        title: anyHit ? `${flag.itemName} — the miss becomes a hit` : `${flag.itemName} — still a miss`,
         subtitle: `${attacker.name} spends a superiority die`,
         lines
       })
@@ -323,6 +349,21 @@ function meleeOptions(actor) {
     }
   }
   return out;
+}
+
+/** The weapon this reactor last ATTACKED with, off the log (v1.19.x finding ④ — the walk's
+ * "how is the weapon picked?"): newest attack message by this actor whose activity names an
+ * item still among the options. Inventory order was the old default and told nobody anything. */
+function preferredMeleeOption(actor, options) {
+  if ( options.length <= 1 ) return options[0] ?? null;
+  const mine = game.messages.contents.slice(-100).reverse().filter(m =>
+    (m.getFlag("dnd5e", "roll.type") === "attack") && (m.getAssociatedActor?.()?.uuid === actor.uuid));
+  for ( const m of mine ) {
+    const itemId = m.getFlag("dnd5e", "activity")?.uuid?.match(/\.Item\.([^.]+)\./)?.[1] ?? null;
+    const match = itemId ? options.find(o => o.itemId === itemId) : null;
+    if ( match ) return match;
+  }
+  return options[0];
 }
 
 /** Stamp: the elect, on the ENEMY's attack message — the Graze miss-path template. */
@@ -413,14 +454,42 @@ async function fireRiposteTimer(messageId) {
   }
 }
 
-/** One reactor's answer — claim through the flag lock; "riposte" executes on this client. */
-async function answerRiposte(message, uuid, answer, { weaponId = null } = {}) {
+/** One reactor's answer — claim through the flag lock; "riposte" executes on this client.
+ * ⚠ A PLAYER reactor cannot update the enemy's attack message (ChatMessage update is
+ * author-or-GM), so their answer travels as their OWN message and the elect folds it in —
+ * hold.js answerHold's §4.1 split, applied here. The driven attack still runs on the
+ * answering client (their dice, their pool); the fold and the drive are independent, and
+ * the elect's 20s crash-resume covers a client that died between the two. */
+async function answerRiposte(message, uuid, answer, { weaponId = null, weaponName = null } = {}) {
+  if ( !message.isOwner ) {
+    const live = message.getFlag(MODULE_ID, "riposte");
+    const reactor = live?.reactors?.find(x => x.uuid === uuid);
+    if ( !reactor || reactor.answer || (live.status !== "pending") ) return;
+    const actor = (() => { try { return fromUuidSync(uuid); } catch { return null; } })();
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor }),
+      content: bfCard({
+        img: reactor.itemImg, eyebrow: `Maneuver — ${reactor.itemName}`,
+        tone: (answer === "riposte") ? "good" : "neutral",
+        title: (answer === "riposte")
+          ? `${reactor.itemName} — ${reactor.name} strikes back${weaponName ? ` with ${weaponName}` : ""}`
+          : `${reactor.itemName} — ${reactor.name} declines`,
+        subtitle: `${live.attackerName}'s melee attack missed`
+      }),
+      flags: { [MODULE_ID]: { riposteAnswer: {
+        messageId: message.id, uuid, answer, weaponId, weaponName
+      } } }
+    });
+    if ( answer === "riposte" ) await resolveRiposte(message, uuid, weaponId, { trusted: true });
+    return;
+  }
   let claimed = false;
   await queueFlagWrite(message, "riposte", current => {
     const r = (current.reactors ?? []).find(x => x.uuid === uuid);
     if ( !r || r.answer || (current.status !== "pending") ) return;
     r.answer = answer;
     r.answeredAt = Date.now();   // the crash-resume horizon (the topple discipline)
+    if ( weaponId ) { r.weaponId = weaponId; r.weaponName = weaponName; }
     if ( (current.reactors ?? []).every(x => x.answer) ) current.status = "resolved";
     claimed = true;
   });
@@ -428,19 +497,39 @@ async function answerRiposte(message, uuid, answer, { weaponId = null } = {}) {
   await resolveRiposte(message, uuid, weaponId);
 }
 
+/** A relayed answer landing: the elect folds it into the riposte flag (idempotent — the
+ * claim rules are the same as the direct path's, so a twin relay changes nothing). */
+Hooks.on("createChatMessage", message => {
+  const a = message.getFlag(MODULE_ID, "riposteAnswer");
+  if ( !a?.messageId || !isActiveGM() ) return;
+  const held = game.messages.get(a.messageId);
+  if ( !held?.getFlag(MODULE_ID, "riposte") ) return;
+  void queueFlagWrite(held, "riposte", current => {
+    const r = (current.reactors ?? []).find(x => x.uuid === a.uuid);
+    if ( !r || r.answer || (current.status !== "pending") ) return;
+    r.answer = a.answer;
+    r.answeredAt = Date.now();
+    if ( a.weaponId ) { r.weaponId = a.weaponId; r.weaponName = a.weaponName; }
+    if ( (current.reactors ?? []).every(x => x.answer) ) current.status = "resolved";
+  });
+});
+
 /** Has this reactor's driven attack already been made? The provenance flags ARE the receipt. */
 const riposteDriven = (messageId, uuid) => game.messages.contents.some(m =>
   (m.getFlag(MODULE_ID, "riposteFor") === messageId) && (m.getFlag(MODULE_ID, "riposteBy") === uuid));
 
-/** The accept path: use the maneuver, spend the reaction, arm the die, drive the attack. */
-async function resolveRiposte(message, uuid, weaponId) {
+/** The accept path: use the maneuver, spend the reaction, arm the die, drive the attack.
+ * `trusted` is the relay branch trusting its OWN just-posted answer — the flag fold happens
+ * on the elect a beat later, and waiting for the round-trip would idle the player's dice. */
+async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {}) {
   const key = `${message.id}|${uuid}`;
   if ( riposteInFlight.has(key) ) return;
   riposteInFlight.add(key);
   try {
     const flag = message.getFlag(MODULE_ID, "riposte");
     const reactor = flag?.reactors?.find(r => r.uuid === uuid);
-    if ( !reactor || (reactor.answer !== "riposte") ) return;
+    if ( !reactor ) return;
+    if ( !trusted && (reactor.answer !== "riposte") ) return;
     if ( riposteDriven(message.id, uuid) ) return;   // idempotent — the attack already exists
     const actor = await fromUuid(uuid);
     if ( !(actor instanceof Actor) ) return;
@@ -469,7 +558,8 @@ async function resolveRiposte(message, uuid, weaponId) {
       //    P3-measured shape: use() for the usage card, rollAttack chained to it, module
       //    provenance in FLAT message data (nested data is invisible to the riders).
       const options = meleeOptions(actor);
-      const chosen = options.find(o => o.itemId === weaponId) ?? options[0];
+      const wantId = weaponId ?? reactor.weaponId ?? null;   // the stored choice survives a crash-resume
+      const chosen = options.find(o => o.itemId === wantId) ?? preferredMeleeOption(actor, options);
       if ( !chosen ) return;
       const weapon = actor.items.get(chosen.itemId);
       const weaponAct = weapon?.system.activities?.contents?.find(a => a.id === chosen.activityId);
@@ -544,12 +634,26 @@ async function showRipostePopup(message, flag, reactor) {
   const key = popupKey(message.id, `riposte:${reactor.uuid}`);
   const open = livePopups.get(key);
   if ( open ) { open.bringToFront?.(); return; }
-  const options = (actor ? meleeOptions(actor) : [])
-    .map(o => `<option value="${o.itemId}">${o.label}</option>`).join("");
+  // The weapon choice (finding ④, the walk's ruling): default to the weapon last attacked
+  // with; a single equipped melee weapon skips the dropdown entirely and is simply NAMED.
+  const options = actor ? meleeOptions(actor) : [];
+  const preferred = actor ? preferredMeleeOption(actor, options) : null;
+  const selectHTML = (options.length > 1) ? `
+    <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
+      <label style="flex:1;font-size:var(--font-size-12,12px);">Riposte with</label>
+      <select name="bf-riposte-weapon" style="flex:1;min-width:0;">${options
+        .map(o => `<option value="${o.itemId}"${o.itemId === preferred?.itemId ? " selected" : ""}>${o.label}</option>`)
+        .join("")}</select>
+    </div>` : "";
   let dialog;
-  const answer = kind => answerRiposte(message, reactor.uuid, kind, {
-    weaponId: dialog?.element?.querySelector('select[name="bf-riposte-weapon"]')?.value ?? null
-  });
+  const answer = kind => {
+    const chosenId = dialog?.element?.querySelector('select[name="bf-riposte-weapon"]')?.value
+      ?? preferred?.itemId ?? null;
+    return answerRiposte(message, reactor.uuid, kind, {
+      weaponId: chosenId,
+      weaponName: options.find(o => o.itemId === chosenId)?.label ?? preferred?.label ?? null
+    });
+  };
   dialog = new foundry.applications.api.DialogV2({
     window: { title: `Riposte — ${reactor.name}`, icon: "fa-solid fa-reply" },
     position: { width: 440 },
@@ -557,19 +661,98 @@ async function showRipostePopup(message, flag, reactor) {
       img: reactor.itemImg, eyebrow: `Maneuver — ${reactor.itemName}`, tone: "pending",
       title: `${flag.attackerName} missed you`,
       subtitle: "Spend your reaction and a superiority die: strike back, the die joins the damage.",
-      lines: []
-    }) + `
-    <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
-      <label style="flex:1;font-size:var(--font-size-12,12px);">Riposte with</label>
-      <select name="bf-riposte-weapon" style="flex:1;min-width:0;">${options}</select>
-    </div>` + holdBarHTML(flag, "to answer"),
+      lines: (options.length === 1) ? [`Riposte with <strong>${preferred?.label ?? "your weapon"}</strong> — your one equipped melee weapon.`] : []
+    }) + selectHTML + holdBarHTML(flag, "to answer"),
     buttons: [
-      { action: "riposte", label: "Riposte", default: true, callback: () => answer("riposte") },
+      { action: "riposte", label: preferred && (options.length === 1) ? `Riposte with ${preferred.label}` : "Riposte",
+        default: true, callback: () => answer("riposte") },
       { action: "pass", label: "Pass", callback: () => answer("declined") }
     ],
     rejectClose: false
   });
   await openManagedPopup(key, message, dialog);
+}
+
+/* =============================================================================================
+ * HEW (v1.19.x, walk scope-add ②) — reminder-card-only by the user's ruling: Great Weapon
+ * Master's third bullet ("Immediately after you score a Critical Hit with a Melee weapon or
+ * reduce a creature to 0 Hit Points with one, you can make one attack with the same weapon
+ * as a Bonus Action"). Nothing rolls, nothing arms, nothing times out — the Push mastery's
+ * announce idiom: the card states the option, the player swings from the sheet.
+ * Two triggers, one card per swing: the CRIT posts from the roller's own client at attack
+ * time; the KILL posts from the elect when a receipt shows a target at 0 HP — and defers to
+ * the crit's card when both fire on one swing. A hand-tray kill posts no receipt and so no
+ * reminder; module-applied damage is the only exact witness of "reduced to 0".
+ * ========================================================================================== */
+
+async function postHewReminder(attacker, featItem, weapon, why) {
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: attacker }),
+    content: bfCard({
+      img: featItem.img, eyebrow: `Feat — ${featItem.name}`, tone: "good",
+      title: `Hew — ${attacker.name} can attack again`,
+      subtitle: why,
+      lines: [`One attack with <strong>${weapon?.name ?? "the same weapon"}</strong> as a Bonus Action. Swing it from the sheet; nothing is automated.`]
+    })
+  });
+}
+
+/** The crit trigger — the roller's own client (the precision stamp's locality). */
+Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
+  try {
+    if ( !subject || (subject.type !== "attack") ) return;
+    if ( subject.attack?.type?.value !== "melee" ) return;
+    const roll = rolls?.[0];
+    if ( !roll?.isCritical ) return;
+    const attacker = subject.actor;
+    const message = roll.parent;
+    if ( !attacker || !(message instanceof ChatMessage) ) return;
+    if ( message.getFlag(MODULE_ID, "hewNoticed") ) return;
+    if ( !modeAllows(attacker) ) return;
+    const found = foldEntryFor(attacker, "hew");
+    if ( !found ) return;
+    await message.setFlag(MODULE_ID, "hewNoticed", true);
+    await postHewReminder(attacker, found.item, subject.item, "A Critical Hit with a melee weapon");
+  } catch(err) {
+    console.error(`${TITLE} | Hew crit reminder failed.`, err);
+  }
+});
+
+/** The kill trigger — the elect, off the receipt it just wrote. */
+async function maybeHewKillReminder(damageMessage) {
+  try {
+    if ( !isActiveGM() ) return;
+    if ( damageMessage.getFlag(MODULE_ID, "hewNoticed") ) return;
+    const receipt = damageMessage.getFlag(MODULE_ID, "receipt");
+    if ( !receipt?.targets?.length ) return;
+    // The damage's originating message is the USAGE card, not the attack roll — resolve the
+    // chain through the registry exactly as the die injection above does (its measured shape).
+    const originId = damageMessage.getFlag("dnd5e", "originatingMessage");
+    const origin = originId ? game.messages.get(originId) : null;
+    if ( !origin ) return;
+    const attackMessage = (origin.getFlag("dnd5e", "roll.type") === "attack")
+      ? origin
+      : ((origin.getAssociatedRolls?.("attack") ?? []).at(-1) ?? null);
+    if ( !attackMessage || (attackMessage.getFlag("dnd5e", "roll.type") !== "attack") ) return;
+    if ( attackMessage.getFlag(MODULE_ID, "hewNoticed") ) return;   // the crit already said it
+    const activity = await fromUuid(attackMessage.getFlag("dnd5e", "activity")?.uuid ?? "").catch(() => null);
+    if ( activity?.attack?.type?.value !== "melee" ) return;
+    const attacker = attackMessage.getAssociatedActor?.();
+    if ( !attacker || !modeAllows(attacker) ) return;
+    const found = foldEntryFor(attacker, "hew");
+    if ( !found ) return;
+    const downed = [];
+    for ( const t of receipt.targets ?? [] ) {
+      if ( t.reverted ) continue;
+      const actor = await fromUuid(t.uuid).catch(() => null);
+      if ( actor && ((actor.system?.attributes?.hp?.value ?? 1) <= 0) ) downed.push(t.name ?? actor.name);
+    }
+    if ( !downed.length ) return;
+    await damageMessage.setFlag(MODULE_ID, "hewNoticed", true);
+    await postHewReminder(attacker, found.item, activity.item, `${downed.join(", ")} down to 0 HP`);
+  } catch(err) {
+    console.error(`${TITLE} | Hew kill reminder failed.`, err);
+  }
 }
 
 /* =============================================================================================
@@ -586,10 +769,11 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     row.innerHTML = bfCard({
       img: p.itemImg, eyebrow: `Maneuver — ${p.itemName}`,
       tone: pending ? "pending" : (p.outcome === "used" ? "good" : "neutral"),
-      title: pending ? "The attack missed — the maneuver is offered"
+      // Source, then result (finding ⑦ — the walk's global wording rule).
+      title: pending ? `${p.itemName} — offered: the attack missed`
         : (p.outcome === "used"
-          ? `${p.itemName} used${(p.targets ?? []).some(t => t.verdict === "hit") ? " — now hits" : " — still misses"}`
-          : `Passed${p.timedOut ? " (timer)" : ""}`),
+          ? `${p.itemName} — used${(p.targets ?? []).some(t => t.verdict === "hit") ? ", now hits" : ", still misses"}`
+          : `${p.itemName} — passed${p.timedOut ? " (timer)" : ""}`),
       subtitle: (p.targets ?? []).map(t => t.name).join(", ")
     }) + (pending ? holdBarHTML(p, "to answer") : "");
     html.querySelector(".message-content")?.appendChild(row);
@@ -598,7 +782,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       armPrecisionTimer(message);
       const attacker = (() => { try { return fromUuidSync(p.attackerUuid); } catch { return null; } })();
       if ( canAnswerFor(attacker) && !p.answer ) {
-        if ( !gmQuietFor(attacker) && !shownPrecision.has(message.id) ) {
+        if ( !shownPrecision.has(message.id) ) {
           shownPrecision.add(message.id);
           void showPrecisionPopup(message, p);
         }
@@ -632,9 +816,12 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       line.innerHTML = bfCard({
         img: reactor.itemImg, eyebrow: `Maneuver — ${reactor.itemName}`,
         tone: !reactor.answer ? "pending" : (reactor.answer === "riposte" ? "good" : "neutral"),
-        title: !reactor.answer ? `${reactor.name} may riposte`
-          : (reactor.answer === "riposte" ? `${reactor.name} ripostes`
-            : `${reactor.name} declined${reactor.timedOut ? " (timer)" : ""}`),
+        // Source, then result (⑦); the resolved line NAMES the weapon (④ — the walk's
+        // "unclear how a weapon is picked" is answered on the card, not just in the popup).
+        title: !reactor.answer ? `${reactor.itemName} — ${reactor.name} may strike back`
+          : (reactor.answer === "riposte"
+            ? `${reactor.itemName} — ${reactor.name} strikes back${reactor.weaponName ? ` with ${reactor.weaponName}` : ""}`
+            : `${reactor.itemName} — ${reactor.name} declined${reactor.timedOut ? " (timer)" : ""}`),
         subtitle: `${r.attackerName}'s melee attack missed`
       });
       row.appendChild(line);
@@ -644,7 +831,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         row.appendChild(bar);
         const actor = (() => { try { return fromUuidSync(reactor.uuid); } catch { return null; } })();
         if ( canAnswerFor(actor) ) {
-          if ( !gmQuietFor(actor) && !shownRiposte.has(`${message.id}|${reactor.uuid}`) ) {
+          if ( !shownRiposte.has(`${message.id}|${reactor.uuid}`) ) {
             shownRiposte.add(`${message.id}|${reactor.uuid}`);
             void showRipostePopup(message, r, reactor);
           }
@@ -680,6 +867,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
 // Every client closes answered popups; the timers disarm when nothing is pending.
 Hooks.on("updateChatMessage", message => {
+  // The Hew kill trigger rides receipt writes — the elect's own update landing back.
+  if ( message.getFlag(MODULE_ID, "receipt") ) void maybeHewKillReminder(message);
   const p = message.getFlag(MODULE_ID, "precision");
   if ( p ) {
     const dialog = livePopups.get(popupKey(message.id, "precision"));

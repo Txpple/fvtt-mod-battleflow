@@ -192,14 +192,14 @@ Hooks.once("init", () => {
 
   game.settings.register(MODULE_ID, S.maneuverFolds, {
     name: "Maneuver Folds",
-    hint: 'Post-roll maneuver folds, as "Name:kind" separated by commas. kind is "precision" (your own attack misses — the maneuver\'s die is offered, patches the total, and a hit that emerges is resolved like any other) or "riposte" (an enemy\'s melee attack misses you — the reaction is offered, a real attack rolls inside the fold, and the maneuver\'s die joins its damage). Names must match the item on the actor; the die and its cost are read from the item, never typed here. An empty list turns both folds off. Unknown kinds are ignored, never guessed.',
+    hint: 'Post-roll maneuver folds, as "Name:kind" separated by commas. kind is "precision" (your own attack misses — the maneuver\'s die is offered, patches the total, and a hit that emerges is resolved like any other), "riposte" (an enemy\'s melee attack misses you — the reaction is offered, a real attack rolls inside the fold, and the maneuver\'s die joins its damage), "interpose" (you SAVE against a Dexterity half-damage effect holding a shield — the Reaction is offered and turns half into none), "bash" (your own listed save demand FAILS — choose the Prone press or the announced 5-foot push), or "hew" (a crit or a kill with a melee weapon — a reminder card only, nothing automated). Names must match the item on the actor; dice and costs are read from the item, never typed here. An empty list turns every fold off. Unknown kinds are ignored, never guessed.',
     // The LIST is the switch — no separate boolean, no separate timer (the folds ride the
     // hold family's clock and reveal settings). ⚠ Riposte lives HERE and must never return
     // to the Interrupt Reactions list above: the hold offers on HITS and treats unknown
     // kinds as "ac", which is exactly the mis-wiring v1.16.0 struck (an every-hit nonsense
     // hold answered with a bare 1d8). This parser is strict where that one is forgiving.
     scope: "world", config: true, type: String,
-    default: "Precision Attack:precision, Riposte:riposte"
+    default: "Precision Attack:precision, Riposte:riposte, Shield Master:interpose, Shield Master:bash, Great Weapon Master:hew"
   });
 
   game.settings.register(MODULE_ID, S.concMode, {

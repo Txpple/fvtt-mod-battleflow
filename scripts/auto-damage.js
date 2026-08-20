@@ -214,6 +214,11 @@ export async function offerDamageRoll(activity, attackMessage) {
   // fact — and a second opinion on a card people trust is worse than no badge at all.
   const isCritical = attackMessage.rolls[0]?.isCritical ?? false;
   const names = hitTargets(attackMessage).map(t => t.name).filter(Boolean).join(", ");
+  // The armed Cleave announces itself BEFORE the dice (v1.19.x finding ③ — the walk: "the
+  // roll damage popup should make a note that it's a cleave"). Lazy import on purpose: a
+  // static edge here drags mastery.js's imports ahead of hold.js in the §9 entry order.
+  const { cleaveArmedFor } = await import("./mastery.js");
+  const cleaveArm = cleaveArmedFor(activity.item);
 
   return offerRoll(attackMessage, {
     roll: () => rollDamageForAttack(activity, attackMessage),
@@ -226,6 +231,7 @@ export async function offerDamageRoll(activity, attackMessage) {
     title: isCritical ? "Critical hit — roll it" : "Roll your damage",
     subtitle: `${activity.item?.name ?? "Attack"} — ${attackMessage.getAssociatedActor()?.name ?? ""}`,
     lines: [
+      cleaveArm ? `<strong>Cleave</strong> — this is the armed Cleave swing: the ability modifier is dropped from this roll.` : null,
       isCritical ? `${CRIT_BADGE} <span style="opacity:0.85;">Already set on the roll — nothing extra to do.</span>` : null,
       names ? `Against <strong>${names}</strong>.` : null
     ]

@@ -3,7 +3,7 @@
  * Split shape (design.md §9); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
-import { canAnswerFor } from "./hold.js";
+import { canAnswerFor, inRunningCombat } from "./hold.js";
 import { livePopups, popupKey, openManagedPopup, bfCard, holdBarHTML, scheduleBarSync } from "./ui.js";
 import { armAskTimer, disarmAskTimer } from "./mastery.js";
 import { dramaticVerdictPause } from "./concentration.js";
@@ -770,13 +770,18 @@ async function announceSaveVerdict(card, flag, entry) {
     });
     if ( !claimed ) return;
     const saved = entry.outcome === "saved";
+    // The line speaks AS THE SAVER, not the caster (v1.19.x finding ⑧ — "Thomas holds"
+    // rendered under Salyth's card), and the title leads with the SOURCE (finding ⑦ —
+    // the walk's global rule: the ability, then the result).
+    const saver = (() => { try { return fromUuidSync(entry.uuid); } catch { return null; } })();
     await ChatMessage.create({
-      speaker: card.speaker,
+      speaker: (saver instanceof Actor) ? ChatMessage.getSpeaker({ actor: saver }) : card.speaker,
       content: bfCard({
         img: flag.item?.img ?? null,
         eyebrow: `Saving Throw — ${flag.item?.name ?? "the effect"}`,
         tone: saved ? "good" : "bad",
-        title: saved ? `${entry.name} holds` : `${entry.name} fails`,
+        title: saved ? `${flag.item?.name ?? "The effect"} — ${entry.name} holds`
+                     : `${flag.item?.name ?? "The effect"} — ${entry.name} fails`,
         subtitle: verdictText(flag, entry) ?? ""
       }),
       flags: { [MODULE_ID]: { verdictLine: {
@@ -809,6 +814,260 @@ Hooks.on("createChatMessage", message => {
   if ( elder ) message.delete().catch(() => { /* the other twin got there first */ });
 });
 
+/* --- the fold choices (v1.19.x, walk findings ⑤/⑥): a verdict can open a decision ----------- *
+ * Two choices, both keyed off the maneuver-folds list (the list stays the switch) and both
+ * holding one target's consequence pass between the verdict's announce and its application:
+ *
+ *   INTERPOSE (kind "interpose", the saver's): a successful DEX save against half-on-success
+ *   damage, shield in hand — the Reaction turns half into NONE. Expiry passes; a Reaction is
+ *   never spent by a timer.
+ *
+ *   BASH (kind "bash", the attacker's): this demand IS the listed feat's own save and it
+ *   FAILED — the feat's either/or: knock Prone (the ordinary press, receipts and all) or the
+ *   5-foot push (the Push mastery's idiom: a card, a hand-moved token, no press). Expiry
+ *   defaults to Prone — the machine finishes what the failure started, and says so.
+ *
+ * The answer travels like every fold answer (finding ①'s routing): the popup goes to the
+ * subject's owner, the GM when no owning player is connected; a non-owner's answer rides its
+ * own message (§4.1) and the elect folds it in. The consequence pass resumes off the update.
+ * ------------------------------------------------------------------------------------------- */
+
+const saveChoiceTimers = new Map();
+const shownSaveChoiceAsks = new Set();
+
+/** What choice, if any, this verdict opens — null for almost every save in the game. */
+async function saveChoiceSpec(card, flag, entry) {
+  const { foldEntryFor, equippedShield } = await import("./maneuvers.js");
+  if ( entry.outcome === "saved" ) {
+    if ( !setting(S.autoApply) ) return null;   // "no damage" is only honest when the module applies
+    if ( !flag.hasDamage || (flag.damageOnSave !== "half") ) return null;
+    if ( !(flag.abilities ?? []).includes("dex") ) return null;
+    const saver = await fromUuid(entry.uuid).catch(() => null);
+    if ( !(saver instanceof Actor) ) return null;
+    if ( saver.getFlag(MODULE_ID, "reactionSpent") ) return null;
+    const found = foldEntryFor(saver, "interpose");
+    if ( !found || !equippedShield(saver) ) return null;
+    return { kind: "interpose", itemName: found.item.name, itemImg: found.item.img, subjectUuid: entry.uuid };
+  }
+  if ( entry.outcome === "failed" ) {
+    const attacker = card.getAssociatedActor?.();
+    if ( !attacker ) return null;
+    const found = foldEntryFor(attacker, "bash");
+    if ( !found ) return null;
+    if ( found.item.name.toLowerCase() !== String(flag.item?.name ?? "").toLowerCase() ) return null;
+    const activity = flag.activityUuid ? await fromUuid(flag.activityUuid).catch(() => null) : null;
+    const applicable = new Set((activity?.applicableEffects ?? []).map(e => e.id));
+    const presses = (activity?.effects ?? []).some(e => e.effect && applicable.has(e.effect.id) && !e.onSave);
+    if ( !presses ) return null;   // nothing to choose between — the push against no press is no choice
+    return { kind: "bash", itemName: found.item.name, itemImg: found.item.img,
+      subjectUuid: attacker.uuid, attackerName: attacker.name };
+  }
+  return null;
+}
+
+/** True while a choice HOLDS this target's pass — stamps it on first sight. */
+async function gateSaveChoice(card, flag, entry) {
+  if ( entry.applied ) return false;
+  if ( entry.choice ) return !entry.choice.answer;
+  const spec = await saveChoiceSpec(card, flag, entry);
+  if ( !spec ) return false;
+  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  await queueFlagWrite(card, "saves", current => {
+    const t = current.targets?.find(x => x.uuid === entry.uuid);
+    if ( !t || t.applied || t.choice ) return;
+    t.choice = { ...spec, answer: null,
+      ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}) };
+  });
+  armSaveChoiceTimer(card);
+  const live = card.getFlag(MODULE_ID, "saves")?.targets?.find(x => x.uuid === entry.uuid)?.choice;
+  return !!live && !live.answer;
+}
+
+/** One answer, first writer wins; a non-owner's answer relays as their own message (§4.1). */
+async function answerSaveChoice(card, uuid, answer) {
+  const flag = card.getFlag(MODULE_ID, "saves");
+  const entry = flag?.targets?.find(t => t.uuid === uuid);
+  const c = entry?.choice;
+  if ( !c || c.answer ) return;
+  if ( !card.isOwner ) {
+    const subject = await fromUuid(c.subjectUuid ?? uuid).catch(() => null);
+    const labels = {
+      use: `${c.itemName} — ${entry.name} takes no damage`,
+      pass: `${c.itemName} — passed, half damage stands`,
+      prone: `${c.itemName} — ${c.attackerName ?? "the attacker"} chooses Prone`,
+      push: `${c.itemName} — ${c.attackerName ?? "the attacker"} chooses the push`
+    };
+    await ChatMessage.create({
+      speaker: (subject instanceof Actor) ? ChatMessage.getSpeaker({ actor: subject }) : undefined,
+      content: bfCard({
+        img: c.itemImg, eyebrow: `Maneuver — ${c.itemName}`,
+        tone: (answer === "pass") ? "neutral" : "good",
+        title: labels[answer] ?? `${c.itemName} — ${answer}`,
+        subtitle: flag.item?.name ?? ""
+      }),
+      flags: { [MODULE_ID]: { saveChoiceAnswer: { cardId: card.id, uuid, answer } } }
+    });
+    return;
+  }
+  await queueFlagWrite(card, "saves", current => {
+    const t = current.targets?.find(x => x.uuid === uuid);
+    const cc = t?.choice;
+    if ( !cc || cc.answer ) return;
+    cc.answer = answer;
+    cc.answeredAt = Date.now();
+  });
+}
+
+/** A relayed choice answer landing: the elect folds it in (idempotent, first answer wins). */
+Hooks.on("createChatMessage", message => {
+  const a = message.getFlag(MODULE_ID, "saveChoiceAnswer");
+  if ( !a?.cardId || !isActiveGM() ) return;
+  const card = game.messages.get(a.cardId);
+  if ( !card?.getFlag(MODULE_ID, "saves") ) return;
+  void queueFlagWrite(card, "saves", current => {
+    const t = current.targets?.find(x => x.uuid === a.uuid);
+    const c = t?.choice;
+    if ( !c || c.answer ) return;
+    c.answer = a.answer;
+    c.answeredAt = Date.now();
+  });
+});
+
+function disarmSaveChoiceTimer(cardId) {
+  const handle = saveChoiceTimers.get(cardId);
+  if ( handle === undefined ) return;
+  clearTimeout(handle);
+  saveChoiceTimers.delete(cardId);
+}
+
+function armSaveChoiceTimer(card) {
+  if ( !isActiveGM() ) return;
+  const flag = card.getFlag(MODULE_ID, "saves");
+  const pending = (flag?.targets ?? []).filter(t => t.choice && !t.choice.answer && t.choice.deadline);
+  if ( !pending.length ) { disarmSaveChoiceTimer(card.id); return; }
+  if ( saveChoiceTimers.has(card.id) ) return;
+  const next = Math.min(...pending.map(t => t.choice.deadline));
+  saveChoiceTimers.set(card.id, setTimeout(() => {
+    saveChoiceTimers.delete(card.id);
+    void fireSaveChoiceTimer(card.id);
+  }, Math.max(0, next - Date.now())));
+}
+
+/** Expiry defaults: bash → Prone; interpose → pass. The update the write raises drives the
+ * consequence pass and any later deadline re-arms below. */
+async function fireSaveChoiceTimer(cardId) {
+  try {
+    const card = game.messages.get(cardId);
+    if ( !card ) return;
+    const now = Date.now();
+    await queueFlagWrite(card, "saves", current => {
+      for ( const t of current.targets ?? [] ) {
+        const c = t.choice;
+        if ( !c || c.answer || !c.deadline || (c.deadline > now) ) continue;
+        c.answer = (c.kind === "bash") ? "prone" : "pass";
+        c.timedOut = true;
+        c.answeredAt = now;
+      }
+    });
+    armSaveChoiceTimer(card);
+  } catch(err) {
+    console.error(`${TITLE} | Save-choice buzzer failed.`, err);
+  }
+}
+
+/** The choice popup — two controls, the hold's bar, the fold family's routing. */
+async function showSaveChoicePopup(card, uuid) {
+  const flag = card.getFlag(MODULE_ID, "saves");
+  const entry = flag?.targets?.find(t => t.uuid === uuid);
+  const c = entry?.choice;
+  if ( !c || c.answer ) return;
+  const subject = (() => { try { return fromUuidSync(c.subjectUuid); } catch { return null; } })();
+  if ( !canAnswerFor(subject) ) return;
+  const key = popupKey(card.id, `choice:${uuid}`);
+  const open = livePopups.get(key);
+  if ( open ) { open.bringToFront?.(); return; }
+  const interpose = c.kind === "interpose";
+  const dialog = new foundry.applications.api.DialogV2({
+    window: { title: `${c.itemName} — ${subject?.name ?? ""}`,
+      icon: interpose ? "fa-solid fa-shield" : "fa-solid fa-hand-fist" },
+    position: { width: 440 },
+    content: bfCard({
+      img: c.itemImg, eyebrow: `Maneuver — ${c.itemName}`, tone: "pending",
+      title: interpose ? `${c.itemName} — take no damage?`
+                       : `${c.itemName} — ${entry.name} failed: choose`,
+      subtitle: interpose
+        ? `${entry.name} saved against ${flag.item?.name ?? "the effect"} — spend the Reaction to take none of the damage instead of half.`
+        : `Knock ${entry.name} Prone, or push them 5 feet (the token moves by hand).`,
+      lines: []
+    }) + (c.deadline ? holdBarHTML(c, "to answer") : ""),
+    buttons: interpose
+      ? [
+        { action: "use", label: `Use ${c.itemName}`, default: true,
+          callback: () => answerSaveChoice(card, uuid, "use") },
+        { action: "pass", label: "Pass — take half",
+          callback: () => answerSaveChoice(card, uuid, "pass") }
+      ]
+      : [
+        { action: "prone", label: "Knock Prone", default: true,
+          callback: () => answerSaveChoice(card, uuid, "prone") },
+        { action: "push", label: "Push 5 feet",
+          callback: () => answerSaveChoice(card, uuid, "push") }
+      ],
+    rejectClose: false
+  });
+  await openManagedPopup(key, card, dialog);
+}
+
+/** The bash outcome, announced once — the push follows the Push mastery's idiom (a card, a
+ * hand-moved token); Prone's press runs the ordinary effects pass with its receipt. */
+async function announceBashOutcome(card, flag, entry) {
+  const c = entry.choice;
+  if ( !c?.answer || c.announced ) return;
+  let claimed = false;
+  await queueFlagWrite(card, "saves", current => {
+    const t = current.targets?.find(x => x.uuid === entry.uuid);
+    if ( t?.choice && !t.choice.announced ) { t.choice.announced = true; claimed = true; }
+  });
+  if ( !claimed ) return;
+  const attacker = card.getAssociatedActor?.();
+  const push = c.answer === "push";
+  await ChatMessage.create({
+    speaker: attacker ? ChatMessage.getSpeaker({ actor: attacker }) : card.speaker,
+    content: bfCard({
+      img: c.itemImg, eyebrow: `Maneuver — ${c.itemName}`, tone: "good",
+      title: push
+        ? `${c.itemName} — ${attacker?.name ?? "the attacker"} pushes ${entry.name} 5 feet`
+        : `${c.itemName} — ${attacker?.name ?? "the attacker"} knocks ${entry.name} Prone`,
+      subtitle: c.timedOut ? "defaulted by the timer" : "the attacker's choice",
+      lines: push ? ["Straight away from the attacker. Move the token; nothing is automated."] : []
+    })
+  });
+}
+
+/** Interpose settles: the Reaction is spent (in combat), the validation card posts — the
+ * walk's ask: a zeroed number must never read as a dropped machine. */
+async function settleInterpose(card, flag, entry) {
+  const c = entry.choice;
+  if ( (c?.answer !== "use") || c.validated ) return;
+  let claimed = false;
+  await queueFlagWrite(card, "saves", current => {
+    const t = current.targets?.find(x => x.uuid === entry.uuid);
+    if ( t?.choice && !t.choice.validated ) { t.choice.validated = true; claimed = true; }
+  });
+  if ( !claimed ) return;
+  const saver = await fromUuid(entry.uuid).catch(() => null);
+  if ( (saver instanceof Actor) && inRunningCombat(saver) ) void saver.setFlag(MODULE_ID, "reactionSpent", true);
+  await ChatMessage.create({
+    speaker: (saver instanceof Actor) ? ChatMessage.getSpeaker({ actor: saver }) : card.speaker,
+    content: bfCard({
+      img: c.itemImg, eyebrow: `Maneuver — ${c.itemName}`, tone: "good",
+      title: `${c.itemName} — ${entry.name} takes no damage`,
+      subtitle: `${flag.item?.name ?? "The effect"}: the Reaction turns half into none.`,
+      lines: ["The saving throw held; the shield does the rest."]
+    })
+  });
+}
+
 /* --- the consequences: Phase 3's save slice, per target, receipts throughout ---------------- */
 
 /** Same-client latch across the verdict pause — fold, update watcher and render can overlap. */
@@ -840,7 +1099,18 @@ async function applySaveConsequences(card, uuid, rollMessage = null) {
     // re-read, so a legendary-resistance flip mid-pause announces the FINAL verdict.
     await announceSaveVerdict(card, flag, entry);
 
+    // A fold CHOICE can hold this target's pass here (v1.19.x, findings ⑤/⑥): Interpose on
+    // a successful DEX save, the bash's Prone-or-push on a failed listed save. `applied`
+    // stays false, so the update/render floors resume the pass the moment the answer (or
+    // the buzzer's default) lands in the flag.
+    if ( await gateSaveChoice(card, flag, entry) ) return;
+    flag = card.getFlag(MODULE_ID, "saves");   // the choice write moved the flag — re-read
+    entry = flag?.targets?.find(t => t.uuid === uuid);
+    if ( !entry?.done || entry.applied ) return;
+
     await applySaveEffects(card, flag, entry);
+    if ( (entry.choice?.kind === "bash") && entry.choice.answer ) await announceBashOutcome(card, flag, entry);
+    if ( entry.choice?.kind === "interpose" ) await settleInterpose(card, flag, entry);
     await reconcileSaveDamage(card, uuid);
 
     const merged = foundry.utils.deepClone(card.getFlag(MODULE_ID, "saves") ?? {});
@@ -865,6 +1135,9 @@ async function applySaveConsequences(card, uuid, rollMessage = null) {
  * along), same receipts, same revert.
  */
 async function applySaveEffects(card, flag, entry) {
+  // The bash's push REPLACES the failure's press (v1.19.x finding ⑤ — the feat's own
+  // either/or); announceBashOutcome is that path's record.
+  if ( (entry.choice?.kind === "bash") && (entry.choice.answer === "push") ) return;
   const activity = flag.activityUuid ? await fromUuid(flag.activityUuid) : null;
   if ( !activity ) return; // the item is gone (a consumed scroll) — accepted corner above
   const applicable = new Set((activity.applicableEffects ?? []).map(e => e.id));
@@ -892,6 +1165,9 @@ function saveDamageMessages(card) {
 /** What a verdict does to the number: 1 on a failure; the activity's own word on a success;
  * nothing at all for any other outcome (a "gone" target has nobody to pay). */
 function saveMultiplier(entry, damageOnSave) {
+  // Interpose (v1.19.x finding ⑥): an accepted Reaction turns the successful save's half
+  // into NOTHING — no application, no receipt; the validation card is the record.
+  if ( (entry.choice?.kind === "interpose") && (entry.choice.answer === "use") ) return null;
   if ( entry.outcome === "failed" ) return 1;
   if ( entry.outcome !== "saved" ) return null;
   if ( damageOnSave === "half" ) return 0.5;
@@ -1131,7 +1407,11 @@ Hooks.on("updateChatMessage", message => {
   for ( const t of flag.targets ?? [] ) {
     const dialog = livePopups.get(popupKey(message.id, `save:${t.uuid}`));
     if ( dialog && (t.done || (flag.status !== "pending")) ) void dialog.close();
+    // The fold choices' popups close the same way (v1.19.x ⑤/⑥), and their buzzer re-arms.
+    const choiceDialog = livePopups.get(popupKey(message.id, `choice:${t.uuid}`));
+    if ( choiceDialog && (!t.choice || t.choice.answer) ) void choiceDialog.close();
   }
+  armSaveChoiceTimer(message);
   // A DROPPED entry's popup is asking a withdrawn question (the live Shatter strand,
   // 2026-08-17: containment moved the demand off a snapshot target, and the popup sat open
   // with a dead bar and no buzzer ever coming — the buzzer only knows entries that still
@@ -1176,7 +1456,9 @@ Hooks.on("updateChatMessage", message => {
 
 Hooks.on("deleteChatMessage", message => {
   disarmAskTimer(saveTimers, message.id);
+  disarmSaveChoiceTimer(message.id);
   for ( const key of shownSaveAsks ) if ( key.startsWith(`${message.id}|`) ) shownSaveAsks.delete(key);
+  for ( const key of shownSaveChoiceAsks ) if ( key.includes(`|${message.id}|`) ) shownSaveChoiceAsks.delete(key);
 });
 
 /* --- the views: the card row and the popup --------------------------------------------------- */
@@ -1326,6 +1608,38 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       row.appendChild(button);
     }
   }
+
+  // Fold choices (v1.19.x ⑤/⑥): a pending choice pops for whoever owns its SUBJECT —
+  // player-first, GM fallback (finding ①'s routing) — carries its own bar, keeps an Answer
+  // recall, and re-arms its buzzer on render. Deliberately OUTSIDE `pending`: choices open
+  // after a verdict, so the demand itself may already read resolved.
+  let choiceBars = false;
+  for ( const t of flag.targets ?? [] ) {
+    const c = t.choice;
+    if ( !c || c.answer || t.applied ) continue;
+    if ( c.deadline ) {
+      const bar = document.createElement("div");
+      bar.innerHTML = holdBarHTML(c, "to answer");
+      row.appendChild(bar);
+      choiceBars = true;
+    }
+    const subject = (() => { try { return fromUuidSync(c.subjectUuid); } catch { return null; } })();
+    if ( !canAnswerFor(subject) ) continue;
+    const shownKey = `choice|${message.id}|${t.uuid}`;
+    if ( !shownSaveChoiceAsks.has(shownKey) ) {
+      shownSaveChoiceAsks.add(shownKey);
+      void showSaveChoicePopup(message, t.uuid);
+    }
+    const recall = document.createElement("button");
+    recall.type = "button";
+    recall.textContent = `Answer — ${c.itemName}`;
+    Object.assign(recall.style, { width: "auto", margin: "0.25rem 0.25rem 0 0", padding: "0 0.6rem" });
+    recall.addEventListener("click", () => void showSaveChoicePopup(message, t.uuid));
+    row.appendChild(recall);
+  }
+  if ( choiceBars && !pending ) scheduleBarSync(row);
+  armSaveChoiceTimer(message);
+
   if ( isActiveGM() ) {
     for ( const t of flag.targets ) {
       if ( t.done && !t.applied ) void applySaveConsequences(message, t.uuid);

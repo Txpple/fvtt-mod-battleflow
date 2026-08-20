@@ -566,11 +566,14 @@ async function foldToppleSave(saveMessage) {
         // sometimes on creatures that had SAVED, because nothing said the verdict landed.
         // Same shape as concentration's "holds" card: one line, the roll against the DC.
         await dramaticVerdictPause(saveMessage);
+        // Source-then-result and the saver's own card (v1.19.x findings ⑦/⑧ — the same
+        // sweep as the save verdict line).
+        const stander = (() => { try { return fromUuidSync(entry.uuid); } catch { return null; } })();
         await ChatMessage.create({
-          speaker: card.speaker,
+          speaker: (stander instanceof Actor) ? ChatMessage.getSpeaker({ actor: stander }) : card.speaker,
           content: bfCard({
             img: flag.weapon?.img, eyebrow: "Weapon Mastery — Topple", tone: "neutral",
-            title: `${entry.name} stays standing`,
+            title: `Topple — ${entry.name} stays standing`,
             subtitle: `Constitution save ${entry.total ?? "?"} vs DC ${flag.dc}`
               + `${entry.timedOut ? " — rolled by the timer" : ""}`
           })
@@ -748,6 +751,17 @@ function liveCleaveArm(actor) {
   if ( !arm ) return null;
   if ( !cleaveArmFresh(arm) ) { void actor.unsetFlag(MODULE_ID, "cleaveArm"); return null; }
   return arm;
+}
+
+/** The arm that will bite THIS item's next damage roll, or null — the v1.19.x damage
+ * popup's question (finding ③: the popup must say the Cleave before the dice do). Read-only;
+ * the strip below stays the only consumer. Reached from auto-damage.js by LAZY import — the
+ * entry evaluates that file before this one, and a static edge would drag concentration.js
+ * ahead of hold.js (the §9 order the entry warns about). */
+export function cleaveArmedFor(item) {
+  if ( item?.type !== "weapon" ) return null;
+  const arm = liveCleaveArm(item.actor);
+  return (arm && (arm.itemId === item.id)) ? arm : null;
 }
 
 // THE STRIP. Runs on whichever client rolls the damage (the resolver's auto-roll, the v1.18.0
@@ -1013,7 +1027,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         const armed = document.createElement("div");
         armed.innerHTML = bfCard({
           img: notice.weapon?.img, eyebrow: "Weapon Mastery — Cleave", tone: "good",
-          title: "Armed",
+          title: "Cleave — armed",
           subtitle: `The next ${arm.itemName || "weapon"} damage roll drops the ability modifier.`
         });
         html.querySelector(".message-content")?.appendChild(armed);
@@ -1038,7 +1052,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const line = document.createElement("div");
     line.innerHTML = bfCard({
       eyebrow: "Weapon Mastery — Cleave", tone: "neutral",
-      title: "Ability modifier dropped",
+      title: "Cleave — ability modifier dropped",
       subtitle: `${stripped.itemName || "The weapon"}'s Cleave — this roll takes no ability modifier.`
     });
     html.querySelector(".message-content")?.appendChild(line);

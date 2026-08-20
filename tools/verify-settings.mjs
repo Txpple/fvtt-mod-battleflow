@@ -38,7 +38,7 @@ const REFERENCE = {
   effectRiders: true,
   masteryRiders: true,
   masteryAsk: 'ask',
-  maneuverFolds: 'Precision Attack:precision, Riposte:riposte',   // v1.19.0 — the list IS the switch
+  maneuverFolds: 'Precision Attack:precision, Riposte:riposte, Shield Master:interpose, Shield Master:bash, Great Weapon Master:hew',   // v1.19.0 — the list IS the switch; interpose/bash/hew joined at the walk's scope-adds
   concMode: 'prompt',
   concTimer: 15,
   concBreak: true,
