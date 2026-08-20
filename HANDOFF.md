@@ -106,12 +106,42 @@ scripted from here (prod's `/setup` 403s an authenticated admin session).
 > A session opened on this file STARTS by presenting the checklist. A fix pass ENDS by
 > recutting it. Neither step is optional, and neither waits to be asked for.
 
-> ⚠ **THE BRIDGE NEVER CONNECTS DURING LIVE PLAY** (standing, after the 2026-08-18
-> session): not for scripts, not for MCP content edits — loot and fixes wait for a break
-> or the morning. `isActiveGM()` is per-USER, so any second session on a GM-capable
-> account steals the apply/sweep elect from the user's window. v1.15.0 makes the module
-> CONVERGE when that happens (twin asks and twin chips delete themselves) but the
-> operational rule stands: ONE GM-capable client during play.
+> ⚠ **ONE GM-CAPABLE CLIENT PER ACCOUNT DURING PLAY** (standing, after the 2026-08-18
+> session — but the MECHANISM was re-derived 2026-08-19 and the old wording, *"the bridge
+> never connects during live play"*, is RETIRED: it was built on a misreading of the elect).
+>
+> **What is true.** `isActiveGM()` is per-USER: `game.users.activeGM` names an ACCOUNT, so it
+> is true in EVERY session logged into that account at once. Two sessions on the **elected**
+> account both run the apply/sweep — exactly session 4's twin asks reaching contradictory
+> verdicts. v1.15.0 makes the module CONVERGE when it happens (twin asks and twin chips delete
+> themselves); one client per GM-capable account is still the rule. Note this bites a stale
+> second window on the USER'S OWN account just as hard as anything headless.
+>
+> **What is NOT true: a second session does not "steal" the elect from the user's window.**
+> Core's `Users#activeGM` → `getDesignatedUser` designates the **highest ROLE** among active
+> GMs (id breaks ties only between EQUAL roles), and its own doc comment reads *"non-assistant
+> if possible"*. `Matt the DM` is role 4; `DM Assistant` and `Tester Assistant` are role 3 — so
+> **the user's window holds the elect for as long as it stays connected.** Verified three ways
+> on 2026-08-19: prod's served `foundry.mjs` (14.364) is BYTE-IDENTICAL to the sandbox's 14.365
+> on `getDesignatedUser`; and with a real Matt-the-DM window AND the bridge connected at once,
+> `game.users.activeGM` = Matt the DM, `bridgeHoldsElect: false`.
+>
+> ⇒ **Live MCP assistance during play is therefore ALLOWED** — it is half the point of the
+> tooling (`fvtt-mcp-molten5e` design.md §1, half 2), and a blanket ban deleted it by accident.
+>
+> ⚠ **The real residual risk: the bridge is a HOT STANDBY.** Role 3 inherits the elect the
+> instant no role-4 client is connected — an F5, a reconnect, a slept laptop — and module work
+> landing in that gap goes to the invisible headless window. Leaked bridge processes and the
+> `process.exit()` rule matter for exactly this reason, not because a connect is itself theft.
+>
+> 🔎 **Diagnostic corollary.** Session 4's twin Topple asks were authored by `DM Assistant`, so
+> under role-priority NO role-4 client can have been connected at 00:37:24 — the user's own
+> window had dropped by then. Worth remembering as a read on the logs, not just a rule.
+>
+> 💡 **Permanent fix if ever wanted (NOT built).** `isActiveGM()` is one line in `scripts/core.js`
+> wrapping core's elect. Excluding a designated bridge account there would make the bridge
+> permanently elect-INELIGIBLE while keeping its GM powers for MCP work — removing the hot-standby
+> risk structurally instead of managing it by rule.
 
 > ⚠ **Current at 2026-08-19 (third session of the day) — v1.16.0 IS CUT, TAGGED, RELEASED
 > AND RUNNING IN THE SANDBOX; PROD IS UNTOUCHED AND STILL ON v1.15.0.** Four changes, all
@@ -493,8 +523,9 @@ consider a distinctive icon before it lives next to the things pressed in a hurr
   **REFUSES to write to prod while any other user is connected** and it never EXECUTES the macro.
 
 **⏸ WHY PROD IS PENDING:** prod went from **0 users to 1** between the status check and the
-write, so the standing rule bit (*the bridge never connects during live play — not for scripts,
-not for MCP content edits*). `/api/status` gives a count, not names, so who it was is unknown.
+write, so the tool's own sole-occupancy guard bit. `/api/status` gives a count, not names, so who
+it was is unknown. (The guard is about writing to a world someone else is using — NOT the retired
+*"bridge never connects during live play"* rule, which the block at the top of this file corrects.)
 **To finish: confirm prod is idle, then `BF_TARGET=prod node tools/apply-macro-clear-rest.mjs`.**
 Do not execute the macro on prod to test it — read the document back instead; the behaviour is
 already proven on the sandbox.
