@@ -1,10 +1,14 @@
 # HANDOFF.md — picking this up cold
 
-> ⚠⚠ **NEXT SESSION STARTS WITH THE PROD BOUNCE — present it, then WAIT.** It is ONE manual
-> step the user must perform in the Molten panel (see below), and nothing else should happen
-> until it is done or deliberately deferred. After it, the deck is FLOW build-order #2, the
-> Cleave arm-button. Do not connect the bridge, run suites or touch code until the user says
-> go; aggregate what they report and restate the full state after every update.
+> ✅✅ **EVERYTHING IS SHIPPED, DEPLOYED, BOUNCED AND VERIFIED — THERE IS NO DEBT LEFT.**
+> **Prod registers 1.17.0** (user bounced it 2026-08-19), `BF_TARGET=prod verify-settings`
+> **CLEAN**, and the three-releases-behind version drift that has ridden this file since
+> v1.15.0 is **PAID OFF**. Prod and the sandbox now agree on code, version and settings for
+> the first time in four sessions.
+>
+> ⚠⚠ **NEXT SESSION OPENS ON FLOW BUILD-ORDER #2 — THE CLEAVE ARM-BUTTON.** There is no
+> checklist to present and no walk outstanding: both are closed clean. Open by confirming the
+> deck with the user, then build. Do not connect the bridge or touch code until they say go.
 >
 > ✅ **v1.17.0 IS CUT, TAGGED, RELEASED, TABLE-TESTED AND DEPLOYED.** The potion default was
 > walked by the user and confirmed good before release. Both walks on this file are CLOSED.
@@ -14,17 +18,15 @@
 > the zero-target case, live re-target repaint, the temp-HP card, the DM's quiet, and the
 > struck Riposte prompt. **Do not present that list again.**
 >
-> ⚠⚠ **PROD HAS v1.17.0'S FILES BUT ITS PROCESS STILL REGISTERS 1.14.0 — ONE MANUAL STEP
-> IS OUTSTANDING AND ONLY THE USER CAN DO IT.** Every file was deployed over WebDAV and
-> byte-verified (17 files md5-matched, prod idle at 0 users). But Foundry registers
-> `module.json` at PROCESS BOOT, and prod's process last booted on v1.14.0 — it is now
-> **THREE releases behind on its own version string**, which is that debt compounding, not a
-> new fault. **The scripts ARE live on the next world reload; only the version string is
-> stale.**
-> ⚠ **A BOUNCE CANNOT BE DONE OVER HTTP — do not try.** Prod's `/setup` returns **403** to an
-> authenticated admin session (measured 2026-08-19, `MOLTEN_ADMIN_KEY`), so the world can be
-> shut down but NOT relaunched from here. **Never shut prod's world down from a script.** The
-> bounce is a **Molten hosting-panel restart** and it is the user's to perform.
+> ✅ **PROD IS FULLY CURRENT.** Files deployed over WebDAV and byte-verified (17 files
+> md5-matched, prod IDLE at 0 users), process bounced from the Molten panel by the user, and
+> **`game.modules.get('fvtt-mod-battleflow').version` reads 1.17.0**. Verified after the
+> bounce, not assumed.
+> ⚠ **THE RULE THAT GOT US HERE, KEEP IT:** a file deploy is HALF a prod release — Foundry
+> reads `module.json` at PROCESS BOOT — and **the bounce cannot be scripted**: prod's `/setup`
+> returns **403** to an authenticated admin session, so a script can shut the world down and
+> then fail to bring it back. **Never attempt it from here.** Every version bump ends by
+> handing the bounce to the user and verifying the registered version afterwards.
 >
 > ✅ **`Riposte:ac` IS ALREADY GONE FROM PROD — the previous handoff's claim was STALE.**
 > `BF_TARGET=prod node tools/verify-settings.mjs` reports **CLEAN**: every prod setting matches
@@ -380,25 +382,20 @@ judge, the user walked it and raised nothing. Treat it as accepted-as-shipped �
 starts to grate, clearing the target on completion is a small change and this is where the
 decision was made.
 
-### 🚶 THE PROD BOUNCE — the one outstanding manual step
+### ✅ THE PROD BOUNCE — DONE AND VERIFIED 2026-08-19
 
-1. **Restart the Foundry process from the Molten hosting panel.** Prod holds v1.17.0's files
-   (byte-verified) but its process still registers **1.14.0**, because Foundry reads
-   `module.json` at PROCESS BOOT. ⚠ **This cannot be scripted** — prod's `/setup` returns 403
-   to an authenticated admin session, so a script can shut the world down and NOT bring it
-   back. Never attempt it from here.
-2. **Then verify**, and this is the whole point of the step:
-   ```
-   BF_TARGET=prod node tools/verify-settings.mjs
-   ```
-   plus a read of `game.modules.get('fvtt-mod-battleflow').version` — it must say **1.17.0**.
-   Settings were already CLEAN before the bounce and should stay so.
-3. **Nothing else is owed to prod.** `Riposte:ac` is already absent there; the files are
-   already correct. This is purely the version string catching up with the disk.
+The user restarted the Foundry process from the Molten hosting panel. Verified straight after:
+**`game.modules.get('fvtt-mod-battleflow').version` reads 1.17.0** and
+`BF_TARGET=prod node tools/verify-settings.mjs` reports **CLEAN**. Prod was idle throughout.
+**Nothing is owed to prod. Do not re-raise the bounce, the version drift, or `Riposte:ac`.**
 
-**After the bounce the deck is FLOW build-order #2, the Cleave arm-button** — small, shape
-fully agreed, twin-card half already shipped in v1.15.0. Phase 4 still needs a real session.
-
+⚠ **The lesson that outlives this, and it is the reason the drift reached THREE releases:**
+a file deploy is only half a prod release. Foundry reads `module.json` at PROCESS BOOT, and
+**the bounce cannot be scripted** — prod's `/setup` returns **403** to an authenticated admin
+session, so a script can shut the world down and then fail to bring it back. **Never attempt
+it from here.** Every future version bump ends with the same handoff to the user: bounce from
+the Molten panel, then verify the registered version. Budget it into the release, do not let
+it accumulate again.
 
 ### 🧪 STILL ON THE SHELF — PHASE 4, THE EXPERIMENT (not next; needs table time)
 
@@ -434,7 +431,7 @@ table above is law — no settings changes needed. **Every client F5 once** befo
 ✅ **RELEASED AND DEPLOYED.** Tagged `v1.17.0`, pushed, GitHub release carries zip + bare
 `module.json`. Prod deployed over WebDAV and byte-verified — **17 files md5-matched, prod
 IDLE at 0 users**. The SANDBOX was deployed and PROCESS-BOUNCED and now registers **1.17.0**.
-⚠ **Prod's process still registers 1.14.0 until the Molten-panel bounce** — see the step above.
+✅ **Prod was bounced by the user and verified reading 1.17.0**, with prod `verify-settings` CLEAN.
 
 **Battery on the sandbox with the change in, all green:** battleflow ALL PASS · cast 17/17 ·
 riders 8/8 · effects 46/46 · hold ALL PASS · concentration 47/47 · saves 49/49 ·
@@ -472,7 +469,7 @@ against prod reads CLEAN. The new code was verified **as served by the running b
 as bytes on disk: `polish.js` and `ui.js` fetched through prod carry the target block, the
 usage-dialog hook and the `hasPlayerOwner` quiet.
 
-⚠⚠ **PROD'S PROCESS REGISTERS `1.14.0` AND WILL UNTIL SOMEBODY RESTARTS IT.** Not 1.15.0,
+~~⚠⚠ **PROD'S PROCESS REGISTERS `1.14.0` AND WILL UNTIL SOMEBODY RESTARTS IT.**~~ ✅ **RESOLVED 2026-08-19 — the user bounced the box from the Molten panel and it now registers 1.17.0. Kept because the REASON still binds:** Not 1.15.0,
 not 1.16.0 — that box has not booted through two releases. Foundry scans the package registry
 at PROCESS BOOT, and **no tooling can bounce a Molten box**: `register-module.mjs` states it
 plainly — a WebDAV drop plus a world shutdown/relaunch never registers. **Restarting it is a
