@@ -1,17 +1,61 @@
 # HANDOFF.md — picking this up cold
 
-> ✅✅ **EVERYTHING IS SHIPPED, DEPLOYED, BOUNCED AND VERIFIED — THERE IS NO DEBT LEFT.**
-> **Prod registers 1.17.0** (user bounced it 2026-08-19), `BF_TARGET=prod verify-settings`
-> **CLEAN**, and the three-releases-behind version drift that has ridden this file since
-> v1.15.0 is **PAID OFF**. Prod and the sandbox now agree on code, version and settings for
-> the first time in four sessions.
+> ⚠⚠ **THIS SESSION OPENS ON A WALK. v1.18.0 IS BUILT AND UNSEEN — PRESENT THE CHECKLIST
+> BELOW FIRST.** The player-rolled damage popup (FLOW item 3 / Pass B) plus the crit indicator
+> is built, 9/9 on its own probe, battery-green, deployed to the sandbox and the box is
+> **BOUNCED AND REGISTERING 1.18.0**. **No human has seen it.** It is **NOT tagged, NOT
+> released and NOT on prod** — deliberately: v1.17.0's pattern was table-test first, release
+> after, and this follows it.
 >
-> ⚠⚠ **NEXT SESSION OPENS ON FLOW BUILD-ORDER #2 — THE CLEAVE ARM-BUTTON.** There is no
-> checklist to present and no walk outstanding: both are closed clean. Open by confirming the
-> deck with the user, then build. Do not connect the bridge or touch code until they say go.
+> ✅ **PROD IS CLEAN AND UNTOUCHED at 1.17.0**, `BF_TARGET=prod verify-settings` CLEAN. The
+> four-session version drift stays paid off — **no CODE was deployed to prod this session.**
+>
+> ⏸⏸ **ONE THING IS LEFT UNFINISHED AND IT IS NOT CODE — THE GM-BAR MACRO.** *Clear Temp
+> Effects + Full Rest (Scene)* is applied and verified on the SANDBOX and **still pending on
+> PROD**: prod went 0 → 1 users mid-write and the never-during-live-play rule stopped it. The
+> macro body and its applier are committed — see **“The Clear + Full Rest macro”** below for the
+> one command that finishes it. **Confirm prod is idle first.**
+>
+> ⚠⚠ **THE DECK WAS RE-CUT, AND THEN PASS A WAS DEFERRED.** The old seven slots became THREE
+> PASSES at the user's call (*"i would rather bundle 2, 4 and 6 in one pass. 3 in another pass,
+> 5 and 7 in a another pass"*): **A** = Cleave arm-button + post-roll folds + Shield Master and
+> the success verdicts; **B** = the player-rolled damage popup; **C** = both volleys. Then A was
+> deferred — *"i dont want to do A, tedious, can we try B please"* — and **B was built first
+> and out of order.** A is waiting on appetite, not on a blocker. **C should still not go
+> before A** (item 6's per-ray rider question is answered by watching A at the table).
+
+## ⬜ THE CHECKLIST — walk v1.18.0 in the sandbox
+
+The box is up, minimized, on 1.18.0. **The setting ships OFF and is PER-CLIENT**, so nothing
+changes until you turn it on: **Settings → Battle Flow → Attack Resolver → "Roll Your Own
+Damage"**. Turn it on for the client you want to test as.
+
+| # | What to check | What should happen |
+| --- | --- | --- |
+| ① | **The setting is findable and off.** | Under Attack Resolver, below Dramatic Beat. Greyed out when Auto-Roll Damage is Off. Nothing changes while it stays off. |
+| ② | **Turn it on. Hit something.** | A popup on YOUR client only — weapon art, *Damage — your roll*, who it is aimed at, a draining 15s bar, one **Roll Damage** button. The dice do NOT roll yet. |
+| ③ | **Press the button.** | Damage rolls exactly as it used to — same auto-apply, same receipt, same revert. Nothing downstream should look different. |
+| ④ | **✨ Crit it.** | Gold **CRITICAL HIT** badge, button reads **Roll Critical Damage**, window title says Critical. It reads the roll's own crit flag, so it cannot lie — but confirm it FIRES when you actually crit. |
+| ⑤ | **Ignore one. Let the bar run out.** | At 15s it rolls itself. A missed popup must never stall the table. |
+| ⑥ | **X out of one.** | It rolls IMMEDIATELY — dismissing means *get on with it*, not *cancel*. |
+| ⑦ | **Two targets, one attack.** | **ONE** popup, not two. One damage roll serves every target it hit. |
+| ⑧ | **A held reaction (Shield) that still hits.** | After the hold resolves you STILL get the popup — that is the moment you most want your own dice. |
+| ⑨ | **The GM's own side.** | It is per-client, so the GM only gets popups for attacks the GM rolls. Check it does not follow the players' attacks onto your screen. |
+
+⚠ **KNOWN LIMIT to confirm you are happy with, not a bug to report:** the 15s window is a
+`setTimeout` on one client, so an **F5 mid-popup loses that roll** (today's 3s beat has the
+same hole, 5× narrower). Making it survive a reload needs a flag + a re-render popper + an
+elect for *who rolls if the roller never comes back* — the cross-client machinery whose
+absence is exactly why this item was small. Say the word if it bites and it becomes a
+follow-up.
+
+**After the walk:** findings → fixes → one battery-green pass → tag + GitHub release → prod
+deploy → **the user bounces prod** → verify the registered version. The bounce is never
+scripted from here (prod's `/setup` 403s an authenticated admin session).
 >
 > ✅ **v1.17.0 IS CUT, TAGGED, RELEASED, TABLE-TESTED AND DEPLOYED.** The potion default was
-> walked by the user and confirmed good before release. Both walks on this file are CLOSED.
+> walked by the user and confirmed good before release. Its walk is CLOSED; the OPEN walk on
+> this file is v1.18.0's, above.
 >
 > ⚠⚠ **THE v1.16.0 WALK CLOSED CLEAN — 7 of 7, ZERO findings, no code.** Second clean walk
 > in a row. Every v1.16.0 item is now TABLE-verified: the target block on both dialog classes,
@@ -40,10 +84,11 @@
 > (four items had already shipped in v1.15.0), and carrying its own build order. It is a
 > separate track from this file's bug ledger. **Read it before building anything.**
 > ⚠ **It supersedes the Desktop scratch .txt entirely — that file is no longer a reference.**
-> **Done and shipped:** **v1.17.0** — build-order 4 (potions default to the drinker).
-> **v1.16.0** — build-order 0 (strike `Riposte:ac`), 1 (target decoration),
-> 13 (temp HP card), 14 (the DM's quiet). **Next in its order: #2, the Cleave arm-button** —
-> small, shape fully agreed, and its twin-card half already shipped in v1.15.0.
+> **Done and shipped:** **v1.18.0** — PASS B (the player-rolled damage popup + the crit
+> indicator), BUILT AND AWAITING ITS WALK. **v1.17.0** — build-order 4 (potions default to the
+> drinker). **v1.16.0** — build-order 0 (strike `Riposte:ac`), 1 (target decoration),
+> 13 (temp HP card), 14 (the DM's quiet). **After the walk: PASS A, the fold pass** — deferred
+> once as tedious, so confirm appetite before opening it rather than assuming it is next.
 > ✅ **That track's open question is ANSWERED:** a consumable DOES raise a dialog, so the
 > decoration reaches potions and item 4's reversal trigger is permanently dead.
 >
@@ -425,6 +470,95 @@ table above is law — no settings changes needed. **Every client F5 once** befo
 4. **The verdict question, for the user to answer out loud:** after ten rounds, does
    anything actually feel MISSING? If native durations carry the weight, Phase 4 closes
    as a RULING (no code) and the plan advances to Phase 5 — the adopt-AC5e decision.
+
+### 🔧 The Clear + Full Rest macro — SANDBOX DONE, PROD PENDING (2026-08-19)
+
+⚠⚠ **THIS IS THE ONE THING LEFT UNFINISHED THIS SESSION, AND IT IS NOT CODE.** The user asked
+for the GM-bar macro **Clear Temp Effects (Scene)** to ALSO do a full rest, on BOTH worlds.
+**Sandbox: applied and verified. PROD: NOT APPLIED.**
+
+**What it is now:** renamed **Clear Temp Effects + Full Rest (Scene)**, same document id
+`8ablqYRiKDOEWLPz`, still pinned to **Matt the DM slot 2**. Updated **IN PLACE** — a
+delete + create would silently unpin the hotbar button, which is why the applier never does that.
+
+**Scope is EVERYTHING ON THE SCENE, monsters included** — the user's explicit choice when asked
+(the alternative offered was PCs-only). It restores NPC spell slots, features, hit dice and
+legendary resistances too. **That makes it the wrong button to press mid-fight on prod**;
+consider a distinctive icon before it lives next to the things pressed in a hurry.
+
+**In the repo, so it survives a session:**
+- [tools/macro-clear-and-rest.js](tools/macro-clear-and-rest.js) — the macro body, verbatim.
+- [tools/apply-macro-clear-rest.mjs](tools/apply-macro-clear-rest.mjs) — writes it in place.
+  `node tools/apply-macro-clear-rest.mjs` for the sandbox, `BF_TARGET=prod …` for prod. It
+  **REFUSES to write to prod while any other user is connected** and it never EXECUTES the macro.
+
+**⏸ WHY PROD IS PENDING:** prod went from **0 users to 1** between the status check and the
+write, so the standing rule bit (*the bridge never connects during live play — not for scripts,
+not for MCP content edits*). `/api/status` gives a count, not names, so who it was is unknown.
+**To finish: confirm prod is idle, then `BF_TARGET=prod node tools/apply-macro-clear-rest.mjs`.**
+Do not execute the macro on prod to test it — read the document back instead; the behaviour is
+already proven on the sandbox.
+
+**Two 5.3.3 facts this bought, both load-bearing:**
+- **`longRest()` defaults `dialog: true`** — without `{ dialog: false }` it pops one rest
+  configuration dialog PER ACTOR, which on a populated scene is unusable. `chat: false` too, or
+  every actor posts its own rest card.
+- **`initiateRest` returns `undefined` when it BAILS** (a vehicle, or any module vetoing
+  `dnd5e.preLongRest`) and an object when it actually rested. The first version counted the bail
+  as a success and reported *"long-rested 2 of 2"* for a rest that had not happened. **Count the
+  return value, never the absence of a throw.**
+
+⚠ **A TEST TRAP worth remembering — it produced three false failures.** The Test Range's tokens
+are **UNLINKED**, so `token.actor` is a SYNTHETIC actor with its own uuid (its name is the
+token's — "Hobgoblin" — not the base actor's "BF Test Victim"). A verification that sets HP on
+the sidebar document and reads it back sees nothing move, and blames the macro. **Assert on the
+token actor — that is what anything scene-scoped actually operates on.**
+
+⚠ **Gren Greenmantle rests to 23/26 and that is FULL for him** — the `Hollowed` effect carries
+`system.attributes.hp.tempmax -3`, so his `effectiveMax` is 23. **User's ruling: max-HP loss from
+a wight, campaign content, not a bug.** Use `hp.effectiveMax`, never `hp.max`, in any assertion
+about a party member being "topped up".
+
+
+### 📦 Deploy + battery state — v1.18.0 (2026-08-19, FIFTH session)
+
+⚠ **BUILT, NOT RELEASED.** No tag, no GitHub release, **prod untouched and still on 1.17.0.**
+The sandbox has it: deployed over the local path, **process-bounced by Claude** (graceful
+`CloseMainWindow()`, minimized relaunch, world launched over HTTP) and
+`game.modules.get('fvtt-mod-battleflow').version` reads **1.18.0** — verified after the bounce,
+not assumed. `playerRollDamage` registers, scope **client**, value **false**.
+
+**Battery on the sandbox with the change in, all green:** battleflow ALL PASS · hold ALL PASS ·
+cast 17/17 · riders 8/8 · effects 46/46 · concentration 47/47 · saves 49/49 ·
+`verify-settings` **CLEAN** (re-run after the bounce, still CLEAN).
+Plus **`probe-player-damage` 9/9** (new, committed).
+
+✅ **The hold trap was dodged by ORDER, not luck** — `hold` ran STANDALONE immediately after
+`smoke-battleflow` and passed first time. Third session running, the documented fix holds:
+**battleflow → hold → everything else.**
+
+✅ **`check-hook-order` was run, and it EARNED ITS KEEP.** A static `import ... from "./ui.js"`
+in auto-damage.js MOVED the evaluation order — the entry reaches auto-damage through
+polish.js → hold.js, before hold reaches its own ui import, so ui.js's renderChatMessage and
+deleteChatMessage registrations ran ahead of auto-damage's. All four load-bearing assertions
+still passed, so it would have shipped silently. Converted to a **lazy `await import()`** inside
+the function (hold.js and saves.js keep the same discipline) and the order is now **byte-identical
+to HEAD, diffed both ways**. Keep it dynamic.
+
+⚠ **A NEW 5.3.3 DECOY, and it cost a probe run:** `D20Roll#isCritical` is
+`this.d20.isCriticalSuccess`, which reads the **D20Die TERM's** `options.criticalSuccess`. The
+ROLL also carries `options.criticalSuccess` — present, numeric, entirely plausible, **read by
+nothing**. Setting it changes no answer. Recorded in design.md §7 and pinned by
+`probe-player-damage` assertion 9 so it can never cost a second run.
+
+⚠ **A second target needs a second ACTOR, not a second token** — descriptors key on the actor
+uuid, so two tokens of one linked actor collapse to a single snapshot row and "one popup for two
+targets" is unanswerable. Same shape as the Practice Dummy trap. The probe creates a hidden
+`BF Probe Second Target` at AC 1 and deletes it in teardown.
+
+⚠ **The sandbox is on Foundry 14.365** (this file said 14.364 through v1.17.0). Noticed, not
+chased — nothing in the battery moved.
+
 
 ### 📦 Deploy + battery state — v1.17.0 (2026-08-19, FOURTH session)
 

@@ -259,7 +259,42 @@ stays out.
 "display-only ⇒ no setting needed" argument above. If it ever returns, the setting question
 returns with it.
 
-## 3. Player-rolled damage popup — 🔵 STANDS *(direct player request)*
+## 3. Player-rolled damage popup — ✅ BUILT + BATTERY-GREEN 2026-08-19 (v1.18.0, PASS B)
+
+### ✅ WHAT SHIPPED — v1.18.0, the whole item plus a crit indicator the user asked for
+**The setting:** `playerRollDamage`, **client-scoped, default OFF** (decision 1 as recommended),
+registered under Attack Resolver and greyed out with `dramaticBeat` when auto-damage is off.
+**The seam:** [auto-damage.js:34](scripts/auto-damage.js) — the `setTimeout` is replaced by
+`offerDamageRoll()` when the setting is on. **The popup absorbs the dramatic beat** rather than
+stacking a 15s window behind it (decision 2); **bare button, no damage-config dialog** (decision 3);
+**15s, hard-coded** to the family's window, carrying NO second setting — one switch, not two.
+**Decision 4 is DISCHARGED:** design.md's Per-client section now carries the amendment, with the
+test any future client setting has to pass (*it changes who presses the button and nothing else*).
+
+**✨ THE CRIT INDICATOR** (user's ask, same breath as the go): four surfaces — a gold
+**CRITICAL HIT** badge in the card, the button reading *Roll Critical Damage*, the window title,
+and the icon. All four read `attackMessage.rolls[0].isCritical`, **the exact expression
+`rollDamageForAttack` uses to decide what it rolls**, so the badge cannot disagree with the dice.
+
+**The corner is DECIDED:** the hold's continuation offers the popup too — losing your dice
+exactly when someone threw a Shield at you is the worst moment to lose them — but only while
+`hold.continuedBy === game.user.id`, so a GM who inherited an offline player's chain just rolls.
+
+⚠ **KNOWN LIMIT, deliberately not engineered around:** the window is a `setTimeout` on one
+client, so an F5 mid-popup loses the roll (today's 3s beat has the same hole, 5× narrower).
+Surviving a reload needs a flag, a re-render popper and an elect for *who rolls if the roller
+never comes back* — the exact cross-client machinery whose absence made this item small.
+
+⚠ **A 5.3.3 DECOY, measured and now pinned in design.md §7:** `D20Roll#isCritical` reads
+`this.d20.isCriticalSuccess` — the **DIE TERM's** options. The roll's own
+`options.criticalSuccess` is present, numeric, plausible and read by nothing. It cost one probe
+run; `probe-player-damage` assertion 9 exists so it can never cost another.
+
+**Proof:** `tools/probe-player-damage.mjs` **9/9** — setting off (no regression), popup opens and
+the dice wait, ONE popup for two hit targets, non-crit clean, crit loud, button rolls stamped,
+dismissal rolls immediately, the buzzer rolls it, and the decoy stays dead.
+
+### The original spec, kept as history
 Player misses rolling their own damage dice. Wants a "Roll Damage" button with a 15s timer
 that rolls anyway if missed.
 
@@ -724,26 +759,77 @@ Matthew on mic: *"you still have to remember to give yourself advantage for now.
 
 ---
 
-# BUILD ORDER — rebuilt 2026-08-19
+# BUILD ORDER — rebuilt 2026-08-19, then RE-CUT INTO THREE PASSES 2026-08-19
 
-Shipped items dropped; the free setting fix promoted to the top.
+Shipped items dropped. The re-cut is the user's call, verbatim: *"i would rather bundle 2, 4 and
+6 in one pass. 3 in another pass, 5 and 7 in a another pass."* The order below is no longer seven
+slots — it is **three passes**, each one battery-green run and one release.
 
-| # | Item | Why here |
+## ✅ SHIPPED — dropped from the order
+
+| Was | Item | Where it landed |
 | --- | --- | --- |
 | ~~0~~ | ~~**Strike `Riposte:ac`**~~ (item 1) | ✅ **SHIPPED v1.16.0** — struck from the world setting, the verify-settings reference and the HANDOFF table together. Verified absent on PROD too (verify-settings CLEAN). |
 | ~~1~~ | ~~**Target decoration**~~ (item 2) | ✅ **SHIPPED v1.16.0** — both dialog classes hooked, then **TABLE-verified clean in the v1.16.0 walk**. The potion-dialog question is ANSWERED: a consumable raises a dialog. |
 | ~~13~~ | ~~**Temp HP card**~~ (item 13) | ✅ **SHIPPED v1.16.0** — display fix, table-verified in the walk. |
 | ~~14~~ | ~~**DM stops getting player hold popups**~~ (item 14) | ✅ **SHIPPED v1.16.0** — `gmQuiet` finally reaches the hold; table-verified in the walk. |
 | ~~4~~ | ~~**Potions default to the drinker**~~ (item 4) | ✅ **SHIPPED v1.17.0** — re-shaped from the folded self-aim item at the user's ask; built, 5/5 verified, battery green, table-tested, released and deployed. |
-| **2** | **Cleave arm-button** (item 8) | ⚠ **NEXT UP.** Small, shape fully agreed, twin-card half already shipped in v1.15.0. |
-| **3** | **Player-rolled damage popup** (item 3) | Self-contained, player asked for it. Carries the design.md amendment. |
-| **4** | **Post-roll folds** — Precision, then Riposte (item 1) | The headline, biggest build. |
-| **5** | **Magic Missile volley fold** (item 6) | Rides the existing `spellDamage` claim path. |
-| **6** | **Shield Master fold + saves success verdicts** (items 5 + 7 remainder) | Same fix class; item 5 is verified unbuilt. |
-| **7** | **Scorching Ray volley** (item 6) | Inherits everything from #5. |
+| ~~B~~ | ~~**Player-rolled damage popup**~~ (item 3) | ✅ **BUILT v1.18.0** — taken OUT OF ORDER at the user's call (*"i dont want to do A, tedious, can we try B please"*), plus the crit indicator they asked for in the same breath. 9/9 probe, battery green, sandbox-deployed. **NOT yet walked by a human, NOT released, NOT on prod.** |
 
-**Not in this order — they need a decision first:**
-- **Item 11 (AC5e)** — conflicts with Phase 4's deck slot. User ruling needed on which is next.
+## PASS A — THE FOLD PASS
+*(was slots 2 + 4 + 6 — FLOW items 8, 1, and 5 + 7-remainder)*
+
+⚠ **DEFERRED 2026-08-19 at the user's call:** *"i dont want to do A, tedious."* Pass B was
+taken first instead. The pass is unchanged and still the biggest thing in this file — it is
+waiting on appetite, not on a blocker.
+
+| Item | What it is | Why it rides here |
+| --- | --- | --- |
+| **8** | **Cleave arm-button** | Small, shape fully agreed, twin-card half already shipped in v1.15.0. Opens the pass because it is the cheapest thing that touches the damage-roll seam. |
+| **1** | **Post-roll folds — Precision Attack, then Riposte** | The headline, and the biggest build in this file. |
+| **5 + 7** | **Shield Master bash fold + the remaining silent success verdicts** | Same fix class as item 1; item 5 is verified genuinely unbuilt, item 7 is half shipped. |
+
+**Why they bundle:** one seam and one idiom across all three — a table moment the machine
+currently resolves silently, in the wrong place, or not at all, closed by a fold or an arm at a
+roll hook. Item 8 **subtracts** a part at `dnd5e.preRollDamageV2`; items 1 and 5 **add** a fold at
+the post-roll seam; item 7 is the announcement half those folds already owe (*a table moment
+opened in public is closed in public*). One pass means one battery-green run and one release
+across the whole class instead of three.
+
+⚠ **Carry into the build, both non-optional:** item 8's RAW corner — **skip the modifier strip
+when the mod is negative** — and the 1.9 fence that killed silent Cleave detection (the level-5
+Extra Attack milestone makes *"second swing, same weapon, different target"* an ordinary turn, so
+the player declares and the machine obeys; it never guesses).
+
+## PASS B — THE PLAYER-ROLLED DAMAGE POPUP — ✅ BUILT v1.18.0
+*(was slot 3 — FLOW item 3)*
+
+| Item | What it is | Where it landed |
+| --- | --- | --- |
+| **3** | **Player-rolled damage popup + crit indicator** | ✅ **BUILT v1.18.0.** Standing alone was the right shape: it carries the design.md Per-client amendment, and that reversal is recorded in one diff instead of buried in another pass's. **Awaiting the walk.** |
+
+⚠ **NEXT: the walk.** Nothing else in this file moves until a human has seen the popup at the
+table. The checklist is in HANDOFF.md.
+
+## PASS C — THE VOLLEYS
+*(was slots 5 + 7 — both halves of FLOW item 6)*
+
+⚠ **Still gated on Pass A**, and that has not changed by A being deferred: item 6's open
+question (*do hit riders fold per-ray?*) collides with standing item 1's all-targets-or-nothing
+rule, which rays invert. A answers it at the table. **C should not go before A.**
+
+| Item | What it is | Why they bundle |
+| --- | --- | --- |
+| **6a** | **Magic Missile volley fold** | Rides the existing `spellDamage` claim path. |
+| **6b** | **Scorching Ray volley** | Inherits everything from 6a. |
+
+**Why they bundle:** those two slots were never two items. Both are FLOW **item 6**, the
+multi-projectile fold, split across the order only because Scorching Ray was gated on Magic
+Missile proving the path first. Rejoining them repairs a split the old order created.
+
+**Not in any pass — they need a decision first:**
+- **Item 11 (AC5e)** — needs the BENCH, not the deck. User's ruling 2026-08-19: *"ok thats fine
+  re ac5e on bench. we are not there yet, we are working on the items list."*
 - **Item 12 (short-duration expiry)** — gated on Phase 4's verdict; may dissolve entirely.
 - **Items 9, 10 (Guidance, Light)** — Phase 2, unscheduled.
 - ~~**Item 4 (potions self-aim)**~~ — **CLOSED 2026-08-19.** The walk found a potion DOES raise

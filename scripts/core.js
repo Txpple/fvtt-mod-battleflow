@@ -10,6 +10,7 @@ export const TITLE = "Battle Flow";
 export const S = {
   autoDamage: "autoDamage",
   dramaticBeat: "dramaticBeat",
+  playerRollDamage: "playerRollDamage",
   autoApply: "autoApply",
   requireTarget: "requireTarget",
   centerRollDialogs: "centerRollDialogs",

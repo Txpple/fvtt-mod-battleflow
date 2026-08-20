@@ -4,7 +4,7 @@
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
 import { hitTargets } from "./shared.js";
-import { rollDamageForAttack } from "./auto-damage.js";
+import { rollDamageForAttack, offerDamageRoll } from "./auto-damage.js";
 import { bfCard, reactionImg, armHoldTimer, disarmHoldTimer, reactionACBonus, closeAnsweredPopups } from "./ui.js";
 // Safe as a STATIC edge (unlike auto-apply.js below): effect-riders.js registers no hooks,
 // so evaluating it early cannot reorder anything — check-hook-order.mjs proves it.
@@ -852,7 +852,16 @@ async function driveHoldContinuation(attackMessage, hold) {
   // miss ends the chain here, and the dice never exist.
   if ( !hitTargets(attackMessage).length ) return;
   const activity = await fromUuid(attackMessage.getFlag("dnd5e", "activity")?.uuid);
-  if ( activity ) await rollDamageForAttack(activity, attackMessage);
+  if ( !activity ) return;
+
+  // The player's own roll reaches THIS path too — losing your dice exactly when someone just
+  // threw a Shield at you would be the worst moment to lose them. Offered only when the
+  // continuation is still running on the attacker's OWN client: `continuedBy` is the user who
+  // rolled the attack, and `isContinuingClient` hands the chain to the active GM when that user
+  // has gone offline. Nobody should be asked to roll dice that are not theirs.
+  if ( setting(S.playerRollDamage) && (hold.continuedBy === game.user.id) )
+    return void offerDamageRoll(activity, attackMessage);
+  await rollDamageForAttack(activity, attackMessage);
 }
 
 /**

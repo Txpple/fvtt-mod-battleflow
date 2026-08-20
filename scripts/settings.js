@@ -23,6 +23,20 @@ Hooks.once("init", () => {
     range: { min: 0, max: 10, step: 0.5 }
   });
 
+  // ⚠ A per-CLIENT setting, and a DELIBERATE reversal of "max options later, one switch
+  // now" — recorded as one in design.md's Per-client section. v1.9.5 DELETED `saveAutoRoll`,
+  // whose shape was "the POPUP is the default, the opt-out is silent auto-roll"; this is that
+  // mirrored, and it exists because a player asked for their own dice back (FLOW item 3).
+  // Default OFF for the reason centerRollDialogs records the other way round: a per-client
+  // setting nobody knows to look for means every new login starts wrong — so the safe default
+  // is the one that changes nothing until you go find it, and the patch notes carry the pointer.
+  // The window is the family's 15s and carries NO setting of its own: one switch, not two.
+  game.settings.register(MODULE_ID, S.playerRollDamage, {
+    name: "Roll Your Own Damage",
+    hint: "When your attack hits, ask before rolling the damage: a popup with one button and a 15-second timer, on your client alone. Press it and the dice roll exactly as the automation would have rolled them — same damage, same crit, same everything downstream — and the buzzer rolls for you if you miss the window, so a missed popup can never stall the table. The popup also says when the hit was a CRITICAL. Per player: this affects your own client only, and it is OFF unless you turn it on.",
+    scope: "client", config: true, type: Boolean, default: false
+  });
+
   game.settings.register(MODULE_ID, S.autoApply, {
     name: "Auto-Apply Damage",
     hint: "The active GM's client applies a rolled attack's damage to the targets that attack hit, through the system's own resistance and immunity math. Every application leaves a receipt on the damage card with a per-target revert. The native damage tray stays available for manual calls, and collapses on applied cards as if Apply had been pressed.",
@@ -251,6 +265,7 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   const saves = input(S.saves);
   const syncAll = () => {
     setEnabled(input(S.dramaticBeat), autoDamage?.value !== "off");
+    setEnabled(input(S.playerRollDamage), autoDamage?.value !== "off");
     for ( const key of [S.interruptList, S.blockList, S.holdReveal, S.holdTimer, S.holdSkipFutile,
       S.holdSettle, S.holdApplyEffect] )
       setEnabled(input(key), !!hold?.checked);

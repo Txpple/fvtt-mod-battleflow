@@ -1055,6 +1055,7 @@ World, per-feature, default OFF unless noted:
 | ~~Suppress attack usage cards~~ | **removed v1.10.0** (with the whole suppression machinery — cards always post) | 1.1 |
 | Hide redundant card buttons | on (default, world) — every card action button hidden except **Refund Resource, exactly** (the v1.9.5 spec, restored v1.12.0 after the v1.10.0/v1.11.0 Place Measured Template detour — finding ②, the user's third ask); **shipped v1.9.5** | 1.9 |
 | Center roll dialogs (per client) | off / on — **ships ON**, the one recorded default-off exception (user call 2026-08-15: a per-client comfort nobody knows to look for starts wrong on every new login) | 1.1 |
+| Roll your own damage (per client) | off / on — **ships OFF**, and the SECOND per-client setting (v1.18.0). Offers the attacker a Roll Damage button with the family's 15s buzzer instead of rolling for them, and says when the hit was a CRITICAL. See the amendment in §6 — this is a deliberate, recorded reversal of the v1.9.5 collapse | 1a |
 | Reaction hold | off / on + curated interrupt list (entries: name, AC-type/damage-type) | 1.5 |
 | Spells a reaction blocks | curated list (`Spell:Reaction`, default `Magic Missile:Shield`) | 1.5 |
 | Halving reactions | pause / post-hoc via revert+½ — **not built**; damage-kind holds announce and leave the reduction manual | 1.5 |
@@ -1094,6 +1095,34 @@ Per-client: table-moment view (popup+card / card-only); the per-player save opt-
 > client setting remains — Center Popups (default on). The popup is the one input surface;
 > recall always fronts a live popup.
 
+> **AMENDMENT, v1.18.0 — the collapse is PARTIALLY REVERSED, deliberately and once**
+> (FLOW item 3; a player asked for their own dice back). `playerRollDamage` re-introduces a
+> per-client setting of EXACTLY the shape v1.9.5 deleted: `saveAutoRoll` was "the POPUP is
+> the default, the opt-out is silent auto-roll", and this is that mirrored — silent
+> auto-roll is the default, the opt-in is the popup. Recording it here so it never reads as
+> drift. **Two client settings now: Center Popups and Roll Your Own Damage.**
+>
+> **Why this one earns the reversal where `saveAutoRoll` did not.** A save is OWED — the
+> table is waiting on it, so a per-player opt-out changed how long everyone else waits, and
+> that is a world decision wearing a client setting. A damage roll is OWNED: it is the
+> attacker's own dice on the attacker's own client, nobody else is blocked on it, and the
+> buzzer means the table's timing is identical either way. The setting therefore changes
+> **who presses the button and nothing else** — which is the test any future client setting
+> has to pass.
+>
+> **It ships OFF, and that is the opposite call from Center Popups on purpose.** Both obey
+> the same rule — *a per-client setting nobody knows to look for must not start wrong* — and
+> the rule cuts different ways depending on which state is the surprise. Centered dialogs are
+> what people expect, so ON is the safe default. Being ASKED to roll when you were not asked
+> yesterday is the surprise, so OFF is. The patch notes carry the pointer; the setting is
+> not discoverable on its own and is not meant to be.
+>
+> **The property that makes it safe, and the one to keep:** the button and the buzzer call
+> the SAME `rollDamageForAttack()`, so crit, ammunition, attack mode and `originatingMessage`
+> are byte-identical whichever fires. Auto-apply, the riders and the receipts cannot tell who
+> pressed it — which is why every failure path (render failed, popup dismissed, window
+> closed, timer expired) degrades to today's behaviour rather than to a fork.
+
 The "~12 world settings at full build" this section first estimated is long blown: **23
 world + 2 client are registered at v1.3.1**, heading for ~30 by Phase 3. The settings-sheet
 **section dividers + dependent-field grey-out idiom** (shipped from day one, not
@@ -1113,6 +1142,7 @@ active-GM-gated). Verified against `foundryvtt/dnd5e` tag `release-5.3.3` (commi
 | `dnd5e.rollAttackV2` | `(rolls: D20Roll[], { subject: AttackActivity, ammoUpdate })` — after evaluation+message, before ammo consumption | Phase 1 trigger |
 | Target snapshot | `flags.dnd5e.targets = [{uuid, name, img, ac}]` on usage/attack/damage messages; AC null under cover status | Hit testing |
 | Hit test | `isCritical \|\| (!isFumble && total >= ac)` — computed at render, **never persisted**; recompute downstream | Phases 1, 1.5 |
+| Crit flag | `D20Roll#isCritical` ⇒ `this.d20.isCriticalSuccess` ⇒ the **D20Die TERM's** `options.criticalSuccess`. ⚠ **The roll's OWN `options.criticalSuccess` is a DECOY** — present, numeric, plausible, and read by nothing; only `roll.d20.options` moves the answer (measured 2026-08-19, `probe-player-damage` assertion 9 pins it) | Phase 1a crit badge, harnesses that need to force a crit |
 | `dnd5e.rollDamageV2` | `(rolls: DamageRoll[], { subject })`; options carry `type`, `properties`, `isCritical` | Phase 1 apply trigger (via createChatMessage on GM-elect) |
 | Damage build | `aggregateDamageRolls(rolls, { respectProperties: true })` → `{value, type, properties}` | Phase 1 |
 | `Actor5e#applyDamage` | `(damages, { isDelta: true, origin })` — full di/dr/dv/dm/threshold/temp math; local + ownership-gated | Phase 1 |
