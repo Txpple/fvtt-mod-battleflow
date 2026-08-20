@@ -4,11 +4,11 @@
 
 | | |
 | --- | --- |
-| **Do first** | **Verify prod registers 1.18.0** (`read-version`, or `game.modules.get('fvtt-mod-battleflow').version`). The bounce was handed to the user and had **NOT happened** when this was cut. That is the ONLY open item. |
+| **Do first** | **Nothing is owed.** The bounce is DONE and VERIFIED (2026-08-20, eighth session). Next is a choice, not a debt: confirm appetite for Pass A, or nothing. |
 | Repo | `main` @ `0e411cf`, pushed. **Tagged `v1.18.0`.** Clean apart from this file's own commit. |
-| Release | ✅ **v1.18.0 IS CUT, TAGGED, PUBLISHED AND ON PROD'S DISK.** Nothing about it is pending except the bounce. |
+| Release | ✅ **v1.18.0 IS CUT, TAGGED, PUBLISHED, DEPLOYED AND REGISTERED ON PROD.** Fully closed. |
 | Sandbox | Up, minimized, world active, 1.18.0, `verify-settings` **CLEAN**. |
-| Prod | Disk **1.18.0** (17/17 md5-MATCH). Process still registers **1.17.0 — UNBOUNCED.** `verify-settings` **CLEAN**. |
+| Prod | ✅ **Registers 1.18.0** (measured post-boot, 2026-08-20) on disk byte-verified 17/17. `verify-settings` **CLEAN**, re-run after the boot. |
 | Walked clean | **v1.18.0 IN FULL — 12/12, ZERO findings.** Fourth clean walk in a row. **CLOSED; do not present it again.** |
 | Next build | **Confirm appetite first.** Pass A is still deferred as *"tedious"*; do not assume it. |
 | Bridge | Disconnected on BOTH worlds. Suites join as `Tester Assistant`. |
@@ -20,14 +20,16 @@
 > built around — *Roll Your Own Damage*, across attacks, save spells and areas — was walked
 > **12/12 with zero findings**, went battery-green, and is tagged and released.
 >
-> ⚠ **THE ONE THING LEFT: THE PROD BOUNCE.** Prod's disk carries v1.18.0 byte-for-byte, but
-> Foundry reads `module.json` at PROCESS BOOT, so the running process still vends **1.17.0**.
-> This was **measured, not assumed** — a direct read of `game.modules.get(…).version` on prod
-> returned `1.17.0` after the deploy. The bounce is the user's to make from the Molten panel and
-> **cannot be scripted from here** (prod's `/setup` 403s an authenticated admin session; a script
-> can shut the world down and then fail to bring it back). **First action next session: ask
-> whether the bounce happened, then VERIFY the registered version rather than believing the
-> answer.** Until it reads 1.18.0 the table is playing 1.17.0 code.
+> ✅ **THE BOUNCE IS DONE AND VERIFIED (2026-08-20, eighth session)** — and it produced a
+> **new working pattern worth keeping.** The session opened on verify-don't-believe: a direct
+> read of prod's `game.modules.get(…).version` returned **1.17.0** (still unbounced). The user
+> then **took prod DOWN from the Molten panel and handed the wake to Claude** — and the wake
+> half IS scriptable: the MCP's ordinary Magic-URL connect boots the process fresh, which is
+> exactly when Foundry re-reads `module.json`. Post-boot read: **1.18.0**, and
+> `BF_TARGET=prod verify-settings` **CLEAN** re-run after it. ⚠ Two operational notes for the
+> next time this pattern runs: a cold Molten boot blows the 120s watchdog — the version-read
+> needed ~540s headroom — and the un-scriptable part was only ever the SHUTDOWN/RESTART
+> (`/setup` 403s); **down-by-user then wake-by-connect** is a legitimate full bounce.
 >
 > ✅ **THE USER'S HOLD-AND-BUNDLE CALL PAID OFF.** Attacks, save spells and areas shipped as one
 > v1.18.0, with one walk over the whole feature and one tag — exactly as decided. Because the
@@ -170,9 +172,9 @@ Everything below this line is older context, kept only because its rulings still
 > struck Riposte prompt. **Do not present that list again.**
 >
 > ⚠ **SUPERSEDED — this described the v1.17.0 release, whose bounce DID complete** (verified
-> after it, not assumed). **v1.18.0's has not.** Its files are deployed and byte-verified but the
-> process still vends 1.17.0 — see the top of this file. The rule below is exactly why that
-> distinction is tracked.
+> after it, not assumed). **v1.18.0's completed too, 2026-08-20** — down-by-user from the
+> Molten panel, wake-by-connect, then the registered version read back 1.18.0. The rule below
+> is exactly why that distinction is tracked.
 > ⚠ **THE RULE THAT GOT US HERE, KEEP IT:** a file deploy is HALF a prod release — Foundry
 > reads `module.json` at PROCESS BOOT — and **the bounce cannot be scripted**: prod's `/setup`
 > returns **403** to an authenticated admin session, so a script can shut the world down and

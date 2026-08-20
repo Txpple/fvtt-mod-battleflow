@@ -774,7 +774,7 @@ slots — it is **three passes**, each one battery-green run and one release.
 | ~~13~~ | ~~**Temp HP card**~~ (item 13) | ✅ **SHIPPED v1.16.0** — display fix, table-verified in the walk. |
 | ~~14~~ | ~~**DM stops getting player hold popups**~~ (item 14) | ✅ **SHIPPED v1.16.0** — `gmQuiet` finally reaches the hold; table-verified in the walk. |
 | ~~4~~ | ~~**Potions default to the drinker**~~ (item 4) | ✅ **SHIPPED v1.17.0** — re-shaped from the folded self-aim item at the user's ask; built, 5/5 verified, battery green, table-tested, released and deployed. |
-| ~~B~~ | ~~**Player-rolled damage popup**~~ (item 3) | ✅ **BUILT v1.18.0** — taken OUT OF ORDER at the user's call (*"i dont want to do A, tedious, can we try B please"*), plus the crit indicator they asked for in the same breath. 9/9 probe, battery green. **WALKED 12/12 CLEAN, RELEASED AND ON PROD'S DISK 2026-08-20** (bounce pending). |
+| ~~B~~ | ~~**Player-rolled damage popup**~~ (item 3) | ✅ **BUILT v1.18.0** — taken OUT OF ORDER at the user's call (*"i dont want to do A, tedious, can we try B please"*), plus the crit indicator they asked for in the same breath. 9/9 probe, battery green. **WALKED 12/12 CLEAN, RELEASED, AND REGISTERED ON PROD 2026-08-20** (bounced + verified). |
 
 ## PASS A — THE FOLD PASS
 *(was slots 2 + 4 + 6 — FLOW items 8, 1, and 5 + 7-remainder)*
