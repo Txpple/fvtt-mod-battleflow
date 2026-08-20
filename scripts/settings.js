@@ -81,10 +81,15 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.interruptList, {
     name: "Interrupt Reactions",
     hint: 'Which reactions pause the chain, as "Name:kind" separated by commas. kind is "ac" (raises AC — the hold re-tests the attack against the new AC, and crits skip the pause since a natural 20 hits regardless) or "damage" (reduces damage — the hold pauses and announces; the reduction itself stays a human call). Names must match the item on the actor. See REACTIONS.md for the full survey.',
+    // ⚠ Riposte is deliberately ABSENT: it triggers on a MISS (the hold offers on hits) and it is
+    // not an AC boost, so an entry here can only ever produce the every-hit nonsense hold that was
+    // struck from the live worlds at v1.16.0. It lives in the Maneuver Folds list instead. This
+    // default carried it until v1.19.0 — the strike missed the registered default, so a fresh
+    // world or Reset Defaults kept re-seeding the bug.
     scope: "world", config: true, type: String,
     default: "Shield:ac, Absorb Elements:damage, Uncanny Dodge:damage, Defensive Duelist:ac, "
       + "Illusory Self:ac, Glorious Defense:ac, Parry:ac, Counterattack:ac, Defensive Stance:ac, "
-      + "Riposte:ac, Whirlwind of Sand:ac, Deflect Attacks:damage, Stone's Endurance:damage"
+      + "Whirlwind of Sand:ac, Deflect Attacks:damage, Stone's Endurance:damage"
   });
 
   game.settings.register(MODULE_ID, S.blockList, {
@@ -183,6 +188,18 @@ Hooks.once("init", () => {
     hint: "\"Ask\" puts the optional masteries (Slow, Topple, Push, Graze) to the attacking player as a Use/Pass popup on the reaction hold's timer — players like being reminded of their options. \"Auto\" takes them silently for tables that find the popup tedious. Vex and Sap never ask; the rules make them automatic.",
     scope: "world", config: true, type: String, default: "ask",
     choices: { ask: "Ask the attacker", auto: "Take them automatically" }
+  });
+
+  game.settings.register(MODULE_ID, S.maneuverFolds, {
+    name: "Maneuver Folds",
+    hint: 'Post-roll maneuver folds, as "Name:kind" separated by commas. kind is "precision" (your own attack misses — the maneuver\'s die is offered, patches the total, and a hit that emerges is resolved like any other) or "riposte" (an enemy\'s melee attack misses you — the reaction is offered, a real attack rolls inside the fold, and the maneuver\'s die joins its damage). Names must match the item on the actor; the die and its cost are read from the item, never typed here. An empty list turns both folds off. Unknown kinds are ignored, never guessed.',
+    // The LIST is the switch — no separate boolean, no separate timer (the folds ride the
+    // hold family's clock and reveal settings). ⚠ Riposte lives HERE and must never return
+    // to the Interrupt Reactions list above: the hold offers on HITS and treats unknown
+    // kinds as "ac", which is exactly the mis-wiring v1.16.0 struck (an every-hit nonsense
+    // hold answered with a bare 1d8). This parser is strict where that one is forgiving.
+    scope: "world", config: true, type: String,
+    default: "Precision Attack:precision, Riposte:riposte"
   });
 
   game.settings.register(MODULE_ID, S.concMode, {

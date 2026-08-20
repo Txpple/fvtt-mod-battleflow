@@ -431,6 +431,77 @@ rewind. So: a **hold point** between hit determination and the damage roll.
   timeouts-as-protocol. The hold is the full extent, forever. Humans play reactions; the
   module just waits for them.
 
+### Phase 1.6 — the maneuver folds (SHIPPED v1.19.0, 2026-08-20 — FLOW item 1 + Pass A)
+
+Two post-roll folds for the table moments the machine used to resolve in the wrong place or
+not at all (session 4's Precision/Riposte stalls, ~45–65s each, every use out of order). One
+world list, `maneuverFolds` (`Name:kind`), and **the list is the switch** — no boolean, no
+timer of its own (the folds ride `holdTimer`/`holdSkipFutile`/`holdReveal`), no client
+settings. The parser is **STRICT**: unknown kinds drop with a console warning, never default
+— the exact inversion of the interrupt list's forgiving parse, because that forgiveness is
+how `Riposte:ac` produced an every-hit nonsense hold for three sessions.
+
+- **PRECISION** (`precision` — "my own attack missed"): the roller's client stamps a
+  `precision` flag on the missed attack message; Use/Pass popup for whoever owns the attacker
+  (two controls, drain bar, expiry = **Pass** — a maneuver nobody claims is a maneuver not
+  used). Accepting REALLY uses the maneuver activity (the pool is consumed by the system —
+  the castReaction honesty rule; recording "used" without using shipped a lie once), rolls
+  the die publicly with `respondsTo` provenance, writes per-target verdicts, announces the
+  arithmetic (`13 + 4 = 17 vs AC 15 — now hits`) in ONE merged card, then re-drives the
+  damage exactly as the hold's continuation does (the player's own dice honoured via
+  `playerRollDamage`, the straight roll otherwise).
+  - **The verdict channel is hitTargets' own** (shared.js): a second override read beside the
+    hold's, hold precedence, disjoint sets in practice (holds stamp hits, precision stamps
+    misses). No roll is ever patched — the d20 stands, the total stands, the VERDICT is the
+    module's own datum, and every consumer (auto-damage, auto-apply at damage-arrival, the
+    riders) honours it through the one shared read. Chain B needed zero changes.
+  - **Clean misses only, a deliberate scope fence**: the offer never fires when the attack
+    hit anybody. One damage roll serves every target it hit (standing item 1) — patching a
+    miss in behind an already-rolled mixed swing would double-apply or demand per-target
+    damage, the exact "much bigger change" that item warns about. The table case (a
+    single-target swing) is untouched by the fence.
+  - **Graze collision (user ruling 2026-08-20): announce, never unwind.** Graze pays on the
+    miss and, by its own recorded ruling, reads the attack as rolled (a hold flipping a hit
+    to a miss does not re-open it). Precision flipping the other way inherits the symmetric
+    stance: the announce card names the conflict ("Graze already paid — revert its receipt
+    if you rule it void") and the human presses the existing revert if they rule it void.
+  - A fumble is excluded (a natural 1 stands) and a null-AC target stays with the humans.
+- **RIPOSTE** (`riposte` — "an enemy's MELEE attack missed me"): the elect stamps a
+  `riposte` flag on the ENEMY's attack message — the Graze miss-path template
+  (createChatMessage, complement of hitTargets, read **as rolled**: a later hold flip never
+  re-opens it). Per eligible reactor (alive, listed usable maneuver, a melee weapon
+  equipped, `!reactionSpent`, not the attacker, `modeAllows`): Riposte/Pass popup on their
+  own client with a weapon `<select>` (an input, not a third control), expiry = **decline**.
+  Accepting really uses the maneuver (pool spent; the reaction is spent too — set explicitly
+  with the hold's own in-combat carve-out, since the hold's setter is gated on its toggle),
+  then **drives a REAL attack** at the original attacker through the ordinary pipeline —
+  use() + rollAttack with the FLAT `flags.dnd5e.originatingMessage` key and `riposteFor`/
+  `riposteBy` provenance — and the superiority die joins that attack's damage as a **pushed
+  rolls entry** (the hit-riders idiom; the base entry is never mutated). A driven attack
+  never chains a second offer (`riposteFor` is the guard), and the reactor's targets are
+  restored after the drive.
+- **⚠ NEITHER FOLD TOUCHES THE `hold` FLAG, AND RIPOSTE NEVER RE-ENTERS THE INTERRUPT
+  LIST** — three measured hazards (2026-08-20): one message carries at most one hold
+  (hold.js's re-stamp guard); `hitTargets` treats ANY hold verdict as authoritative
+  truthiness (a miss-fold writing there would rewrite the original hit set for every
+  consumer); and a name in the interrupt list re-arms three unrelated behaviours off the
+  name alone (the cast-is-the-answer matcher, `reactionSpent`'s setter, the cast slice's
+  disqualifier). Own flags, own popup namespaces (`precision`, `riposte:<uuid>`), own
+  timers; hold.js is imported for two exports and edited not at all.
+- **Both folds ride the resolver** (`modeAllows` — Graze's argument): their payoff is driven
+  damage, and with the resolver off there is no path for it the table asked for.
+- **Crash-resume**: answers are claimed through `queueFlagWrite` with `answeredAt`; the
+  elect resumes a claimed-but-undriven answer past a 20s horizon (the topple discipline),
+  and Riposte's drive is idempotent by its provenance flags (the driven attack IS the
+  receipt). Render re-arms timers from the flag's absolute deadline — the F5-proof shape.
+- **📌 THE PER-ROLL RIDER RULING (what Pass C inherits — the volley gate's answer):** a
+  module-driven attack that stamps the FLAT originating key is a REAL attack; the riders
+  ride it unchanged, because riderTargets' first branch resolves the chain. **Riders ride
+  attack ROLLS; the all-targets-or-nothing intersection lives WITHIN one damage roll; N
+  driven rolls are N independent rider folds.** Riposte is the shipped precedent. (Volleys
+  still need their own claim shape — "this roll is mine, there are N" — the `spellDamage`
+  stamp is a deferral, not a suppression; that stays with Pass C.)
+
 ### Phase 1.75 — curated damage riders (the Hunter's Mark tier)
 
 A rider is a damage roll you press **separately from casting the thing that granted it** —
@@ -579,6 +650,20 @@ v1.3.0 (2026-08-16).
   explicitly out of scope — the applied chip is the reminder and the roll dialog's adv/dis
   buttons are the enforcement surface. `dnd5e.preRollAttackV2` exists if a later phase wants
   enforcement; nothing here blocks it.
+  > **The fence's RESOLVED READING (v1.19.0, recorded because FLOW's one-line restatement
+  > reads broader than this text):** what the fence forbids is silently ENFORCING or
+  > altering a d20's roll conditions — guessing at advantage, re-rolling, patching dice.
+  > Phase 1.6's Precision fold does none of that: the d20 stands, the total stands, and a
+  > DECLARED, player-pressed maneuver writes a VERDICT through the module's own override
+  > channel (the hold has done exactly this since Phase 1.5, in the other direction). The
+  > same reading is why silent Cleave detection stayed rejected — that one WAS a guess.
+  > **The v1.19.0 Cleave arm rides this line too:** the ability-modifier strip runs at
+  > `dnd5e.preRollDamageV2` (a DAMAGE part, never a d20), only when armed by an explicit
+  > press, skipping a negative mod (the system's own off-hand predicate, mirrored). The
+  > arm control lives on the reminder POPUP as its decision pair (Arm the Cleave /
+  > Dismiss) — the recorded exception to "Cleave's reminder is an OK-popup": the moment
+  > gained something to decide, so it gained the two controls, and the card stays
+  > recall-only per the one-input-surface rule.
 
 ### Phase 2 — saves
 
@@ -864,6 +949,33 @@ v1.3.0 (2026-08-16).
   the rare situational call is the popup's own fields, or a GM re-roll for the opted-out.
   The conditions layer (Phase 5) closes most of the remainder.
 
+> **AMENDMENT, v1.19.0 (2026-08-20) — two deliberate reversals, both the user's calls:**
+>
+> - **⑦ VERDICTS ANNOUNCE (FLOW item 7, reversing the "NO verdict announcement cards"
+>   corner).** The demand card's rows fold verdicts silently, so on scrollback an open
+>   demand was indistinguishable from a stalled one — the same silence finding ⑤ priced for
+>   Topple, and the binding language already existed: *a table moment opened in public is
+>   closed in public.* One public bfCard per verdict — tone `good` "holds" / `bad` "fails"
+>   — posted from `applySaveConsequences` after the pause + re-read (so a legendary-
+>   resistance flip mid-pause announces the FINAL verdict), wording promoted from
+>   `verdictText` so the card can never disagree with the row, and never claiming damage
+>   LANDED (autoApply may be off — verdictText already keeps that honesty). Idempotent: the
+>   `announced` claim goes through `queueFlagWrite` BEFORE posting; a twin-elect race
+>   converges by the topple's sourceMessageId supersede, keyed (card, target, forced).
+>   Buzzer-voided "gone" targets get ONE merged card. **An LR flip AFTER the fail line
+>   posted announces the corrected verdict too** (forced-marked so the supersede never eats
+>   it) — two lines is honest history: the failure happened, then the resistance overturned
+>   it.
+> - **THE DEAD-TARGET GATE (user call 2026-08-20, reversing the recorded "dead targets
+>   still roll" corner).** `stampSaveDemand` and the adoption floor skip DEAD targets; a
+>   cast whose every target is dead stamps NOTHING — no demand, no auto-roll, no caster
+>   damage offer: fully native. **The predicate is deliberately NARROWER than mastery's
+>   plain hp≤0**: dead status, or an NPC at 0 HP — because a DYING PC (0 HP, death saves
+>   ahead) must still be demanded, take the area's damage and eat the failure; mastery
+>   keeps its own predicate (chips on downed PCs are still noise). Two predicates, two
+>   stakes; the divergence is the point, not drift. Unconscious-with-HP still rolls; RAW
+>   Str/Dex auto-failure stays Phase 5's.
+
 ### Phase 2.5 — concentration assist
 
 Native 5.3.3 already computes the DC (10 or half damage, clamped to 30 under modern rules —
@@ -1061,6 +1173,7 @@ World, per-feature, default OFF unless noted:
 | Halving reactions | pause / post-hoc via revert+½ — **not built**; damage-kind holds announce and leave the reduction manual | 1.5 |
 | Hold timer | 15s default (v1.11.0 — every timer 15s; 0 waits) | 1.5 |
 | Popup shows the math | off / on (verdict included) | 1.5 |
+| Maneuver folds | curated `Name:kind` list (`precision` / `riposte`), default `Precision Attack:precision, Riposte:riposte` — **the list IS the switch** (empty disables); STRICT parse, unknown kinds dropped with a warning, never defaulted; the folds ride the hold family's clock/reveal/futile settings, no timer or boolean of their own — **shipped v1.19.0** | 1.6 |
 | Hit riders | off / on | 1.75 |
 | Rider table | curated identifier list — **how much** is read from the content, never listed | 1.75 |
 | Rider upgrades | curated `feature:mark` pairs, damage likewise read from the feature | 1.75 |

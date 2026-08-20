@@ -28,6 +28,7 @@ export const S = {
   effectRiders: "effectRiders",
   masteryRiders: "masteryRiders",
   masteryAsk: "masteryAsk",
+  maneuverFolds: "maneuverFolds",
   concMode: "concMode",
   concTimer: "concTimer",
   concBreak: "concBreak",

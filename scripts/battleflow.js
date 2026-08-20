@@ -94,6 +94,10 @@ import "./hit-riders.js";
 import "./auto-apply.js";
 import "./effect-riders.js";
 import "./mastery.js";
+// ⚠ maneuvers.js after mastery.js, before concentration.js ON PURPOSE (v1.19.0): its card
+// rows must render below the mastery rows and above the saves verdict row / receipt rows —
+// renderChatMessage surface order IS registration order. check-hook-order.mjs asserts it.
+import "./maneuvers.js";
 import "./concentration.js";
 import "./cast.js";
 // ⚠ saves.js before receipts.js ON PURPOSE: its verdict row must register (and so render)

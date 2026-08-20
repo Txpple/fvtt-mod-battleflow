@@ -2,7 +2,7 @@
  * Battle Flow — Phase 2: saving throws, joint with Phase 3's save slice - demand, roll, verdict, consequences.
  * Split shape (design.md §9); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
 import { canAnswerFor } from "./hold.js";
 import { livePopups, popupKey, openManagedPopup, bfCard, holdBarHTML, scheduleBarSync } from "./ui.js";
 import { armAskTimer, disarmAskTimer } from "./mastery.js";
@@ -61,14 +61,40 @@ import { offerSaveDamageRoll, rollDamageForSave } from "./auto-damage.js";
  *    button — the fold accepts any listed ability.
  *  - A consumed item (a scroll's last use) can strand its effects: they live on the item
  *    document, so once it is gone a late verdict applies damage but not effects.
- *  - Dead and unconscious targets are still asked/rolled — RAW auto-failure for Str/Dex saves
- *    while unconscious is a condition-layer rule (Phase 5), not automated here.
+ *  - ⚠ DEAD targets are SKIPPED at the stamp since v1.19.0 — a USER CALL (2026-08-20)
+ *    deliberately REVERSING the earlier recorded corner ("dead targets still roll"). The
+ *    predicate is deliberately NARROWER than mastery's plain hp<=0: dead status, or an NPC
+ *    at 0 HP — because a DYING PC (0 HP, death saves ahead) must still be demanded, take the
+ *    area's damage, and eat the failure. Unconscious-with-HP targets still roll; RAW Str/Dex
+ *    auto-failure while unconscious stays a condition-layer rule (Phase 5). A cast whose
+ *    every target is dead stamps NOTHING — no demand, no auto-roll, no caster damage offer:
+ *    fully native.
  *  - The demand's deadline is stamped on the casting client's clock and the buzzer runs on
  *    the elect's; a couple of seconds of skew moves the buzzer, never the verdict (it
  *    re-checks state before acting).
  * ------------------------------------------------------------------------------------------- */
 
 /* --- the stamp: the casting client writes the demand on the usage card --------------------- */
+
+/**
+ * Dead by THIS machine's definition (v1.19.0, the user's dead-target gate): the dead status,
+ * or an NPC at 0 HP. Deliberately NARROWER than mastery's chip-noise skip (plain hp<=0) and
+ * deliberately not shared with it — a dying PC at 0 HP must still be demanded (the area's
+ * damage is real and so are the death-save failures), while a downed PC's mastery chips are
+ * still noise. Two predicates, two stakes; the divergence is the point, not drift.
+ */
+function deadForSaves(actor) {
+  if ( actor.statuses?.has?.("dead") ) return true;
+  return (actor.type === "npc") && ((actor.system.attributes?.hp?.value ?? 0) <= 0);
+}
+
+/** Stamp-time filter: an unresolvable uuid stays IN (the buzzer voids gone targets — never
+ * eat a demand on a lookup miss); a dead one stays out. */
+function saveDemandable(t) {
+  const actor = (() => { try { return fromUuidSync(t.uuid); } catch { return null; } })();
+  if ( !(actor instanceof Actor) ) return true;
+  return !deadForSaves(actor);
+}
 
 Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
   if ( !setting(S.saves) ) return;
@@ -97,7 +123,14 @@ async function stampSaveDemand(activity, message, results) {
     // against template.object has been observed to never come back on the headless elect,
     // and the fallback makes it unnecessary.
     const contained = tokensInTemplates((results?.templates ?? []).flat().filter(t => t?.parent));
-    const targets = contained ?? (message.getFlag("dnd5e", "targets") ?? []);
+    const raw = contained ?? (message.getFlag("dnd5e", "targets") ?? []);
+    // THE DEAD-TARGET GATE (v1.19.0 — the user call recorded in the corner list above). The
+    // filter runs on the RESOLVED set only; raw emptiness keeps its meaning (a bare template
+    // cast still stamps a WAITING demand below). Placed BEFORE the setFlag so an all-dead
+    // cast starves everything downstream by construction: no demand, no auto-roll, and no
+    // v1.18.0 caster damage offer — the offer block never runs.
+    const targets = raw.filter(saveDemandable);
+    if ( raw.length && !targets.length ) return; // every target is dead — fully native cast
     // A TEMPLATE-SHAPED activity's targetless cast stamps a WAITING demand (v1.12.0,
     // finding ③ — the natural Web flow is cast bare, then place: the old bail meant
     // adoption had no customer and the area produced no saves at all). The demand stamps
@@ -454,6 +487,9 @@ async function refreshDemandFromTemplates(card) {
     const done = (merged.targets ?? []).filter(t => t.done);
     const keep = (merged.targets ?? []).filter(t => !t.done && contained.some(c => c.uuid === t.uuid));
     const fresh = contained.filter(c => !(merged.targets ?? []).some(t => t.uuid === c.uuid))
+      // The dead-target gate reaches adoption too (v1.19.0): a corpse standing in the placed
+      // area never joins the demand — same filter, same predicate, same user call.
+      .filter(saveDemandable)
       .map(c => ({ ...c, done: false, outcome: null, total: null, rollMessageId: null }));
     const next = [...done, ...keep, ...fresh];
     if ( !next.length ) return; // a waiting demand keeps waiting; a populated one never strands
@@ -713,6 +749,66 @@ async function foldSaveAnswer(card, uuid, rollMessage) {
   }
 }
 
+/* --- the verdict line: a table moment opened in public is closed in public ------------------ *
+ * v1.19.0 (FLOW item 7) — a deliberate, user-sanctioned REVERSAL of standing item 15's "NO
+ * verdict announcement cards": the demand card's rows fold verdicts silently, so on scrollback
+ * an open demand was indistinguishable from a stalled one — the same silence finding ⑤ priced
+ * for Topple. One public card per verdict, tone by stakes (good holds / bad fails), wording
+ * from verdictText so the card can never disagree with the row. It says the VERDICT and the
+ * stakes-word only — never "damage landed" (autoApply may be off; verdictText already keeps
+ * that honesty). Idempotence: `announced` is claimed through queueFlagWrite BEFORE posting —
+ * two targets' consequence passes run concurrently against one card, which is exactly the
+ * measured shape queueFlagWrite exists for. Twin-supersede below covers the two-elects race. */
+
+async function announceSaveVerdict(card, flag, entry) {
+  try {
+    if ( entry.announced ) return;
+    let claimed = false;
+    await queueFlagWrite(card, "saves", current => {
+      const t = current.targets?.find(x => x.uuid === entry.uuid);
+      if ( t && t.done && !t.announced ) { t.announced = true; claimed = true; }
+    });
+    if ( !claimed ) return;
+    const saved = entry.outcome === "saved";
+    await ChatMessage.create({
+      speaker: card.speaker,
+      content: bfCard({
+        img: flag.item?.img ?? null,
+        eyebrow: `Saving Throw — ${flag.item?.name ?? "the effect"}`,
+        tone: saved ? "good" : "bad",
+        title: saved ? `${entry.name} holds` : `${entry.name} fails`,
+        subtitle: verdictText(flag, entry) ?? ""
+      }),
+      flags: { [MODULE_ID]: { verdictLine: {
+        sourceMessageId: card.id, uuid: entry.uuid,
+        // Part of the supersede KEY: a legendary-resistance correction re-announces the same
+        // (card, target) with forced=true, and must never be eaten as the fail line's twin.
+        forced: !!entry.forced
+      } } }
+    });
+  } catch(err) {
+    console.error(`${TITLE} | Verdict line failed.`, err);
+  }
+}
+
+/* The twin-line supersede — the topple card's sourceMessageId idiom, applied to the new
+ * elect-posted card: isActiveGM() is per-USER, so two sessions on one account can both
+ * announce. Keyed (sourceMessageId, uuid); the elder stays, the newcomer deletes itself. */
+Hooks.on("createChatMessage", message => {
+  if ( !isActiveGM() ) return;
+  const v = message.getFlag(MODULE_ID, "verdictLine");
+  if ( !v?.sourceMessageId ) return;
+  const elder = game.messages.contents.some(m => {
+    if ( m.id === message.id ) return false;
+    const o = m.getFlag(MODULE_ID, "verdictLine");
+    if ( !o || (o.sourceMessageId !== v.sourceMessageId) || (o.uuid !== v.uuid)
+      || (!!o.forced !== !!v.forced) ) return false;
+    return (m.timestamp < message.timestamp)
+      || ((m.timestamp === message.timestamp) && (m.id < message.id));
+  });
+  if ( elder ) message.delete().catch(() => { /* the other twin got there first */ });
+});
+
 /* --- the consequences: Phase 3's save slice, per target, receipts throughout ---------------- */
 
 /** Same-client latch across the verdict pause — fold, update watcher and render can overlap. */
@@ -738,6 +834,11 @@ async function applySaveConsequences(card, uuid, rollMessage = null) {
     flag = card.getFlag(MODULE_ID, "saves"); // the pause is wide — re-read before acting
     entry = flag?.targets?.find(t => t.uuid === uuid);
     if ( !entry?.done || entry.applied ) return;
+
+    // The verdict ANNOUNCES before its consequences land (v1.19.0, FLOW item 7 — the line
+    // sits above the receipt rows, per "cards say one thing, once"), and AFTER the pause +
+    // re-read, so a legendary-resistance flip mid-pause announces the FINAL verdict.
+    await announceSaveVerdict(card, flag, entry);
 
     await applySaveEffects(card, flag, entry);
     await reconcileSaveDamage(card, uuid);
@@ -888,6 +989,11 @@ async function flipForcedSave(rollMessage) {
       if ( entry.outcome !== "failed" ) return; // already saved, or already flipped
       entry.outcome = "saved";
       entry.forced = true;
+      // The fail line already posted (v1.19.0) — clear the claim so the CORRECTED verdict
+      // announces too. Two lines is honest history: the failure happened, then the
+      // resistance overturned it; the forced marker keeps the twin-supersede from eating
+      // the correction as a duplicate.
+      entry.announced = false;
       await card.setFlag(MODULE_ID, "saves", flag);
       // ALWAYS unwind, whatever `applied` says: the effects pass and the damage pass are
       // independently timed (damage can land through the arrival path before the effects
@@ -895,6 +1001,7 @@ async function flipForcedSave(rollMessage) {
       // an unwind over empty receipts is a no-op, and a still-pending consequence pass
       // re-reads the flipped flag after its pause and applies the success path itself.
       await unwindFailedConsequences(card, entry);
+      await announceSaveVerdict(card, flag, entry);   // the corrected verdict, forced-marked
       return; // one roll answers one entry
     }
   } catch(err) {
@@ -939,6 +1046,7 @@ const armSaveTimer = message => armAskTimer(saveTimers, message, "saves", fireSa
 async function fireSaveTimer(card) {
   const flag = card.getFlag(MODULE_ID, "saves");
   if ( !flag || (flag.status !== "pending") ) return;
+  const goneNames = [];
   for ( const entry of flag.targets ) {
     if ( entry.done ) continue;
     // An unfolded answer beats the clock, not races it.
@@ -955,12 +1063,29 @@ async function fireSaveTimer(card) {
         gone.done = true;
         gone.outcome = "gone";
         gone.applied = true; // nothing to apply to
+        gone.announced = true; // the merged card below is its line — never one per target
         if ( merged.targets.every(t => t.done) ) merged.status = "done";
         await card.setFlag(MODULE_ID, "saves", merged);
+        goneNames.push(gone.name);
       }
       continue;
     }
     await rollSaveAnswer(card, entry.uuid, { timedOut: true });
+  }
+  // A "gone" verdict never reaches applySaveConsequences (stamped applied above), so its
+  // public line emits here — ONE merged card however many vanished (v1.19.0, FLOW item 7).
+  if ( goneNames.length ) {
+    await ChatMessage.create({
+      speaker: card.speaker,
+      content: bfCard({
+        img: flag.item?.img ?? null,
+        eyebrow: `Saving Throw — ${flag.item?.name ?? "the effect"}`,
+        tone: "neutral",
+        title: goneNames.length === 1 ? `${goneNames[0]} is gone` : `${goneNames.join(", ")} are gone`,
+        subtitle: "nothing to roll — the demand is closed for them"
+      }),
+      flags: { [MODULE_ID]: { verdictLine: { sourceMessageId: card.id, uuid: "gone" } } }
+    }).catch(err => console.error(`${TITLE} | Gone line failed.`, err));
   }
 }
 
@@ -1069,7 +1194,9 @@ function pendingSaveCardsFor(actorUuid) {
     .sort((a, b) => a.timestamp - b.timestamp);
 }
 
-/** One verdict, in table English — the row and nothing else derives this. */
+/** One verdict, in table English — derived here and NOWHERE else: the card row and the
+ * v1.19.0 public verdict line (announceSaveVerdict) are its only two callers, which is what
+ * makes it impossible for the card to disagree with the row. */
 function verdictText(flag, t) {
   if ( !t.done ) return null;
   if ( t.outcome === "gone" ) return "the target is gone — nothing to roll";

@@ -60,7 +60,26 @@
 
 # PHASE 1 — THE FOLD WORK
 
-## 1. Post-roll folds: Precision Attack + Riposte — 🔵 STANDS
+## 1. Post-roll folds: Precision Attack + Riposte — ✅ BUILT + BATTERY-GREEN 2026-08-20 (v1.19.0, PASS A)
+
+> ✅ **SHIPPED as design.md Phase 1.6** — `scripts/maneuvers.js`, a NEW file; hold.js took
+> ZERO edits. One world list `maneuverFolds` (`Precision Attack:precision, Riposte:riposte`),
+> and the LIST is the switch. Precision writes hit verdicts through `hitTargets`' own
+> override channel (no roll is ever patched — the hold's channel with the arrow reversed)
+> then re-drives the damage per the hold-continuation template; Riposte stamps off the Graze
+> miss-path template and drives a REAL attack with the die pushed into its damage (the
+> hit-riders idiom). Deviations from the shape below, all recorded in design.md: **clean
+> misses only** for Precision (a mixed hit+miss swing's damage already rolled — standing
+> item 1's per-roll rule), verdict-channel instead of total-patching, and the die really
+> spends via `activity.use()` (the castReaction honesty rule). Graze × Precision = announce,
+> never unwind (user ruling). `tools/smoke-maneuvers.mjs` 22/22 — its OWN suite, a recorded
+> deviation from "extend smoke-hold": the folds share nothing with the hold and smoke-hold
+> is the most fragile suite around the most fragile file.
+> **📌 The Pass C unblock is RECORDED (design.md Phase 1.6):** riders ride attack ROLLS —
+> N driven rolls are N independent rider folds; Riposte is the shipped precedent. Volleys
+> still need their own claim shape ("this roll is mine, there are N") — `spellDamage` is a
+> deferral, not a suppression.
+
 The headline item. Both are post-hoc modification the system cannot do.
 
 **Precision Attack** — 4 occurrences (00:46, 01:14, 02:42, 03:01, all Morgash), ~45–65s stall
@@ -429,17 +448,34 @@ use raises **no dialog of any class** — not a roll dialog, not a usage/consump
 then item 2 structurally cannot see it, and this item is un-folded and returns to the build
 order. That is the single fact that decides it.
 
-## 5. Shield Master bash → Topple-style fold — 🔵 STANDS *(verified genuinely unbuilt)*
+## 5. Shield Master bash → Topple-style fold — ✅ CLOSED 2026-08-20 (v1.19.0, and it was never a module gap)
+
+> ✅ **THE PROBE OVERTURNED THE PREMISE.** The save machine already accepts a FEAT's save
+> activity end to end (`stampSaveDemand` gates only on `activity.type === "save"`), and
+> Thomas A. Invictus's Shield Master already carries the correct content: "Shield Bashed",
+> `statuses:["prone"]`, bound 1/1 to the Shield Bash save activity (probe-maneuvers +
+> `tools/fix-shield-master.mjs`, verified). The session-4 "nothing pressed Prone" reads as
+> the contaminated-elect night, not missing code or content. **User ruling: CONTENT route**
+> — no demand machine was built. What shipped: `tools/fix-shield-master.mjs` (per-world
+> verify, graft-only-if-missing, and a sweep of every feat save activity with no bound
+> effects — the sandbox sweep found only damage-consequence feats, correct as data);
+> smoke-saves §17 pins the whole shape end to end (fail presses Prone, receipted; pass
+> posts item 7's "holds" line); and the passes' visibility IS item 7. The "redundancy
+> gates" ask was superseded by the user-ordered DEAD-TARGET GATE (see item 7's amendment
+> block in design.md Phase 2): dead targets are skipped at the stamp for ALL save demands;
+> already-prone re-press stays harmless via effect dedupe (recorded, not coded).
+
+The original shape, kept as history:
 4 uses (01:19, 01:51, 02:51, 02:59). Full ~1,100-char feat description posted every time, save
 rolled every time, and on **both** failures (Skeleton save 2 vs DC 14; Osric 5) nothing pressed
 Prone. No verdict card even on the passes, so the demand visually never resolves.
 
-⚠ **Verified: `grep -ri "shield master" scripts/` returns ZERO hits.** Genuinely unhandled —
-same fix class as the ledgered Topple gap but a different, unhandled feature. Route it through
-the Topple-style demand + verdict + condition press.
+⚠ ~~**Verified: `grep -ri "shield master" scripts/` returns ZERO hits.** Genuinely unhandled~~
+— true then, and still true (zero hits BY DESIGN — the machine is generic, the fix is content).
 
 **Also add while in there** (from gm-notes.md): it offered itself against a creature that was
-already dead, and Topple prompted an already-prone target. **Redundancy gates.**
+already dead, and Topple prompted an already-prone target. ~~**Redundancy gates.**~~ → the
+dead-target gate, above.
 
 ## 6. Multi-projectile fold — 🔵 STANDS
 **BUILD MAGIC MISSILE FIRST.** It rides the already-instrumented `spellDamage` claim path
@@ -486,7 +522,16 @@ invert that**.
 
 **Row model to reuse:** saves.js's demand-card per-target rows (`targets: [{uuid, name, done}]`).
 
-## 7. Silent success verdicts — 🟡 HALF SHIPPED
+## 7. Silent success verdicts — ✅ COMPLETE 2026-08-20 (v1.19.0 closes the saves half)
+
+> ✅ **THE REMAINING HALF SHIPPED.** Every save verdict now posts ONE public line — tone
+> `good` "Osric holds — 19 vs DC 15 — saved — half damage" / `bad` on a failure — wording
+> promoted from `verdictText` (the row and the card cannot disagree), posted after the
+> verdict pause + re-read, idempotent via a queueFlagWrite-claimed `announced`, twin-elect
+> races converged by a sourceMessageId supersede, buzzer-voided "gone" targets merged into
+> one card, and a legendary-resistance flip announcing its CORRECTED verdict (forced-marked)
+> beside the honest fail line. This is the sanctioned reversal of standing item 15 —
+> design.md Phase 2's v1.19.0 amendment carries it. smoke-saves §15 pins all four corners.
 A design conversation, not a bug — HANDOFF standing item 15 records "NO verdict announcement
 cards" as deliberate. Session 4 priced it.
 
@@ -504,7 +549,24 @@ Silent successes still stand for: **Command, Faerie Fire, Entangle, Shatter, Nec
 (and Shield Master passes, once item 5 exists).
 **Proposal:** always post the verdict line, pass or fail — `"Osric holds — 19 vs DC 14"`.
 
-## 8. Cleave arm-button — 🔵 STANDS *(twin-card half already covered)*
+## 8. Cleave arm-button — ✅ BUILT + BATTERY-GREEN 2026-08-20 (v1.19.0, PASS A)
+
+> ✅ **SHIPPED, with one recorded deviation from the adopted shape below:** the ARM control
+> lives on the reminder POPUP as its decision pair (**Arm the Cleave** / Dismiss — the
+> two-control rule; the reminder gained something to decide, so it stopped being an
+> OK-popup), and the card stays recall-only per the one-input-surface rule, showing an
+> "Armed" line while the arm stands. The arm is a one-shot ACTOR flag (`cleaveArm`,
+> attacker-client written), stale by STAMP COMPARISON (`combat:round:turn` mismatch IS
+> expiry — no hook, survives reload) or 60s out of combat. The strip runs at
+> `dnd5e.preRollDamageV2` on whoever rolls: finds the entry with **`.base === true`**
+> (never index 0 — ammo splices, probe-verified), removes the literal `"@mod"` part only,
+> **skips when `data.mod < 0`** (the RAW corner — probe-verified live, the system keeps
+> "@mod" in parts with a negative value), consumes the arm either way, and stamps
+> `cleaveStripped` so the damage card SAYS the modifier was dropped. Card copy rewritten —
+> it no longer instructs the move the sheet cannot make. smoke-effects §17 (6 asserts,
+> including the finesse-blade lesson: the fixture dagger is DEX-based, so the negative-mod
+> case lowers BOTH abilities).
+
 Fired once all session, but the shape is agreed, so it is cheap to close.
 
 **The trap:** the reminder card says *"its damage takes no ability modifier. Roll it from the
@@ -776,12 +838,21 @@ slots — it is **three passes**, each one battery-green run and one release.
 | ~~4~~ | ~~**Potions default to the drinker**~~ (item 4) | ✅ **SHIPPED v1.17.0** — re-shaped from the folded self-aim item at the user's ask; built, 5/5 verified, battery green, table-tested, released and deployed. |
 | ~~B~~ | ~~**Player-rolled damage popup**~~ (item 3) | ✅ **BUILT v1.18.0** — taken OUT OF ORDER at the user's call (*"i dont want to do A, tedious, can we try B please"*), plus the crit indicator they asked for in the same breath. 9/9 probe, battery green. **WALKED 12/12 CLEAN, RELEASED, AND REGISTERED ON PROD 2026-08-20** (bounced + verified). |
 
-## PASS A — THE FOLD PASS
+## PASS A — THE FOLD PASS — ✅ BUILT + BATTERY-GREEN 2026-08-20 (v1.19.0)
 *(was slots 2 + 4 + 6 — FLOW items 8, 1, and 5 + 7-remainder)*
 
-⚠ **DEFERRED 2026-08-19 at the user's call:** *"i dont want to do A, tedious."* Pass B was
-taken first instead. The pass is unchanged and still the biggest thing in this file — it is
-waiting on appetite, not on a blocker.
+✅ **THE APPETITE ARRIVED AND THE PASS SHIPPED IN ONE SESSION** (planned to bedrock first:
+three explorer sweeps, three committed probes — `probe-preroll-parts` 5/5,
+`probe-maneuvers`, `probe-drive-attack` 4/4 — then built in the plan's order). Item 8 the
+Cleave arm; the dead-target gate (user-ordered, all save demands); item 7's verdict lines;
+item 5 resolved as CONTENT (the probe overturned the premise — see the item); items 1a/1b
+as `scripts/maneuvers.js` with its own suite. Battery green in one pass: battleflow ALL
+PASS · hold ALL PASS · cast 17/17 · riders 8/8 · **maneuvers 22/22 (NEW)** · effects
+**52/52** (+6) · concentration 47/47 · saves **58/58** (+9) · probe-player-damage 9/9 ·
+probe-save-damage-popup 13/13 · check-hook-order 6/6 · verify-settings CLEAN.
+
+⚠ The deferral history, kept: *"i dont want to do A, tedious"* (2026-08-19) — Pass B was
+taken first instead.
 
 | Item | What it is | Why it rides here |
 | --- | --- | --- |
@@ -882,12 +953,19 @@ re-deriving the merge. The helper takes `(message, flagKey, mutate)` and nothing
 released and deployed.** The user's hold-and-bundle call held: attacks, save spells and areas
 shipped as one thing, with one walk and one tag. **Pass B is CLOSED.**
 
-## PASS C — THE VOLLEYS
+## PASS C — THE VOLLEYS — ⚑ GATE LIFTED 2026-08-20 (Pass A shipped; the ruling is recorded)
 *(was slots 5 + 7 — both halves of FLOW item 6)*
 
-⚠ **Still gated on Pass A**, and that has not changed by A being deferred: item 6's open
-question (*do hit riders fold per-ray?*) collides with standing item 1's all-targets-or-nothing
-rule, which rays invert. A answers it at the table. **C should not go before A.**
+✅ **The per-ray rider question is ANSWERED** (design.md Phase 1.6, the shipped Riposte as
+precedent): riders ride attack ROLLS; the all-targets-or-nothing intersection lives WITHIN
+one damage roll; N driven rolls are N independent rider folds — so Scorching Ray's rays
+each fold their own riders (RAW for on-hit riders) and Magic Missile (no attack rolls)
+takes none. What Pass C still needs of its own: the NEW claim shape (*"this roll is mine,
+and there are N"* — `spellDamage` is a deferral, not a suppression; the natural seam is the
+same preCreateChatMessage stamp with a count field), the volley card/row model, and the
+per-ray hold question. The drive channel it inherits is shipped and suite-pinned.
+⚠ The TABLE half of the gate remains prudent: walk Pass A (v1.19.0's checklist) before
+opening C, so the fold idiom has table confirmation behind it.
 
 | Item | What it is | Why they bundle |
 | --- | --- | --- |

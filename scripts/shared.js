@@ -24,8 +24,15 @@ export function hitTargets(attackMessage) {
   // descriptor's AC is stale, and auto-apply would otherwise damage a target the module
   // already announced as missed (design.md §5 Phase 1.5, the stale-AC trap).
   const held = attackMessage.getFlag(MODULE_ID, "hold")?.targets ?? [];
+  // The PRECISION fold's verdicts are the same channel with the arrow reversed (v1.19.0,
+  // FLOW item 1a): a declared maneuver patches a miss into a hit after the fact, and every
+  // consumer — auto-damage, auto-apply at damage-arrival, the riders — honours it through
+  // this one read. Hold verdicts take precedence; in practice the sets are disjoint (a hold
+  // stamps hits, precision stamps misses).
+  const precision = attackMessage.getFlag(MODULE_ID, "precision")?.targets ?? [];
   return targets.filter(t => {
-    const verdict = held.find(h => h.uuid === t.uuid)?.verdict;
+    const verdict = held.find(h => h.uuid === t.uuid)?.verdict
+      ?? precision.find(p => p.uuid === t.uuid)?.verdict;
     if ( verdict ) return verdict === "hit";
     return (t.ac !== null) && (t.ac !== undefined)
       && (roll.isCritical || (!roll.isFumble && (roll.total >= t.ac)));

@@ -621,7 +621,12 @@ const NOTICE_TEXT = {
   }),
   cleave: (ctx, names) => ({
     title: "Cleave — one extra attack available",
-    lines: [`One extra attack with ${ctx.weapon.name} against a second creature within 5 feet of ${names} — once on your turn, and its damage takes no ability modifier. Roll it from the sheet; nothing moves for you.`]
+    // ⚠ v1.19.0 (FLOW item 8): the old copy said "Roll it from the sheet" and told the player
+    // to omit the ability modifier — a move the sheet cannot make, so the instruction was
+    // unfollowable and, with auto-damage on, the machine rolled `1dX+mod` before any human
+    // could intervene. The card now offers the ARM instead: press it and the next damage
+    // roll with this weapon drops the flat ability-modifier part itself.
+    lines: [`One extra attack with ${ctx.weapon.name} against a second creature within 5 feet of ${names} — once on your turn, and its damage takes no ability modifier. Press "Arm the Cleave" and the next ${ctx.weapon.name} damage roll drops the modifier for you; Dismiss to resolve it yourself.`]
   })
 };
 
@@ -649,7 +654,9 @@ async function postMasteryNotice(ctx, key, targets) {
     }),
     flags: { [MODULE_ID]: { masteryNotice: {
       key, attackerUuid: ctx.attacker.uuid,
-      weapon: { name: ctx.weapon.name, img: ctx.weapon.img },
+      // `id` since v1.19.0 — the Cleave arm keys the strip on "this exact weapon", and a
+      // name is not an identity (two daggers). Older cards without it arm nothing, harmlessly.
+      weapon: { id: ctx.weapon.id, name: ctx.weapon.name, img: ctx.weapon.img },
       title, subtitle, lines,
       deadline: Date.now() + 15000, window: 15
     } } }
@@ -662,11 +669,25 @@ async function postMasteryNotice(ctx, key, targets) {
  * nothing downstream waits. Deliberately NOT a decision: the two-control rule governs
  * decisions, and a reminder has nothing to decide (design.md 1.9C amendment). Stale renders
  * never pop — the deadline gates the popup, while the card stays as the record.
+ *
+ * ⚠ CLEAVE IS THE RECORDED EXCEPTION since v1.19.0 (FLOW item 8): its popup IS a decision —
+ * "is my next attack the Cleave?" — so it carries the decision pair (Arm the Cleave / Dismiss)
+ * instead of OK. That is the design-conforming reading of FLOW's "the card grows ONE button":
+ * cards stay recall-only (the HANDOFF one-input-surface rule), so the control lives on the
+ * popup and the card's button below recalls it. Never pressed ⇒ today's behaviour exactly —
+ * the auto-dismiss and the drain bar are unchanged, and dismissal arms nothing.
  */
 async function showMasteryNotice(message, notice) {
   const key = popupKey(message.id, "notice");
   const open = livePopups.get(key);
   if ( open ) { open.bringToFront?.(); return; }
+  const buttons = (notice.key === "cleave")
+    ? [
+      { action: "arm", label: "Arm the Cleave", default: true,
+        callback: () => armCleave(notice) },
+      { action: "dismiss", label: "Dismiss" }
+    ]
+    : [{ action: "ok", label: "OK", default: true }];
   const dialog = new foundry.applications.api.DialogV2({
     window: { title: `${masteryLabel(notice.key)} — ${notice.weapon?.name ?? ""}`, icon: "fa-solid fa-medal" },
     position: { width: 420 },
@@ -674,13 +695,90 @@ async function showMasteryNotice(message, notice) {
       img: notice.weapon?.img, eyebrow: `Weapon Mastery — ${masteryLabel(notice.key)}`,
       tone: "good", title: notice.title, subtitle: notice.subtitle, lines: notice.lines ?? []
     }) + holdBarHTML({ status: "pending", deadline: notice.deadline, window: notice.window }, "reminder"),
-    buttons: [{ action: "ok", label: "OK", default: true }],
+    buttons,
     rejectClose: false
   });
   setTimeout(() => { if ( livePopups.get(key) === dialog ) void dialog.close(); },
     Math.max(0, notice.deadline - Date.now()));
   await openManagedPopup(key, message, dialog);
 }
+
+/* --- the Cleave arm (v1.19.0, FLOW item 8) --------------------------------------------------
+ * The player DECLARES the cleave; the machine does the one thing the sheet cannot: drop the
+ * flat ability-modifier part from that one damage roll. Silent detection was REJECTED and
+ * stays rejected (the 1.9 fence: at level 5, Extra Attack makes "second swing, same weapon,
+ * different target" an ordinary turn — a guess would strip real damage). The arm is an ACTOR
+ * flag written by the arming client (the attacker's own — the same locality as the v1.18.0
+ * popup: the reminder popped where canAnswerFor(attacker), and preRollDamageV2 runs on
+ * whichever client rolls, with the actor flag replicated to both). One-shot, and stale by
+ * STAMP COMPARISON rather than by a timer: in combat the arm carries `${combat.id}:${round}:
+ * ${turn}` (the cleaveNoticed idiom) and any mismatch at read time IS expiry — no hook, no
+ * elect, survives a reload. Out of combat there is no turn to end, so the arm expires after
+ * 60s or on use, whichever comes first.
+ * ------------------------------------------------------------------------------------------- */
+
+const CLEAVE_ARM_TTL_MS = 60_000;   // out-of-combat only; in combat the turn stamp governs
+
+const combatStamp = () => {
+  const c = game.combat;
+  return c?.started ? `${c.id}:${c.round}:${c.turn}` : null;
+};
+
+async function armCleave(notice) {
+  const attacker = (() => { try { return fromUuidSync(notice.attackerUuid); } catch { return null; } })();
+  if ( !(attacker instanceof Actor) || !notice.weapon?.id ) return;
+  await attacker.setFlag(MODULE_ID, "cleaveArm", {
+    itemId: notice.weapon.id, itemName: notice.weapon.name ?? "",
+    stamp: combatStamp(), armedAt: Date.now()
+  });
+  ui.notifications.info(`${TITLE}: Cleave armed — the next ${notice.weapon.name} damage roll drops the ability modifier.`);
+}
+
+/** Freshness, read-only — the render block asks the same question without consuming. */
+function cleaveArmFresh(arm) {
+  if ( !arm ) return false;
+  return arm.stamp
+    ? (arm.stamp === combatStamp())
+    : ((combatStamp() === null) && (Date.now() - (arm.armedAt ?? 0) <= CLEAVE_ARM_TTL_MS));
+}
+
+/** The live arm on an actor, with staleness applied at read time (stale ⇒ unset, null). */
+function liveCleaveArm(actor) {
+  const arm = actor?.getFlag(MODULE_ID, "cleaveArm");
+  if ( !arm ) return null;
+  if ( !cleaveArmFresh(arm) ) { void actor.unsetFlag(MODULE_ID, "cleaveArm"); return null; }
+  return arm;
+}
+
+// THE STRIP. Runs on whichever client rolls the damage (the resolver's auto-roll, the v1.18.0
+// popup's button, or a native press — all three converge here), synchronously, before the
+// dice exist. The arm is consumed either way; the strip itself is skipped when the modifier
+// is NEGATIVE (the RAW corner, mirroring the system's own off-hand predicate at
+// AttackActivity#_processDamagePart: removing a minus would RAISE the damage).
+Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+  try {
+    const activity = config.subject;
+    if ( activity?.type !== "attack" ) return;
+    const item = activity.item;
+    if ( item?.type !== "weapon" ) return;
+    const arm = liveCleaveArm(item.actor);
+    if ( !arm || (arm.itemId !== item.id) ) return;
+    void item.actor.unsetFlag(MODULE_ID, "cleaveArm");   // one-shot, consumed even when skipped
+    // The BASE entry, never index 0 — ammunition can splice ahead of it (probe-preroll-parts).
+    const base = (config.rolls ?? []).find(r => r.base === true);
+    if ( !base ) return;
+    if ( (base.data?.mod ?? 0) < 0 ) return;             // the RAW corner: a penalty stays
+    const ix = (base.parts ?? []).findIndex(p => String(p).includes("@mod"));
+    if ( ix < 0 ) return;                                 // nothing to drop (thrown natural, offhand…)
+    base.parts.splice(ix, 1);                             // "@mod" only — @magicalBonus/@ammoBonus stay
+    // The receipt line: message-data mutations at this hook persist onto the created damage
+    // message (probe-preroll-parts assertion 5), so the card can SAY the modifier was dropped.
+    foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.cleaveStripped`,
+      { itemName: arm.itemName ?? item.name });
+  } catch(err) {
+    console.error(`${TITLE} | Cleave strip failed.`, err);
+  }
+});
 
 /* --- the ask: stamp → row → popup → answer → execute -------------------------------------- */
 
@@ -906,6 +1004,44 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       shownMasteryNotices.add(message.id);
       void showMasteryNotice(message, notice);
     }
+    // Cleave only (v1.19.0): the card states the arm when it stands, and recalls the decision
+    // popup while the moment is live — one input surface, the card watches (read-only here:
+    // display must never consume a stale arm, the strip owns that).
+    if ( notice.key === "cleave" ) {
+      const arm = (attacker instanceof Actor) ? attacker.getFlag(MODULE_ID, "cleaveArm") : null;
+      if ( cleaveArmFresh(arm) && (arm.itemId === notice.weapon?.id) ) {
+        const armed = document.createElement("div");
+        armed.innerHTML = bfCard({
+          img: notice.weapon?.img, eyebrow: "Weapon Mastery — Cleave", tone: "good",
+          title: "Armed",
+          subtitle: `The next ${arm.itemName || "weapon"} damage roll drops the ability modifier.`
+        });
+        html.querySelector(".message-content")?.appendChild(armed);
+      } else if ( canAnswerFor(attacker) && (notice.deadline > Date.now()) ) {
+        const recall = document.createElement("button");
+        recall.type = "button";
+        recall.textContent = "Answer";
+        Object.assign(recall.style, { width: "auto", margin: "0.25rem 0 0", padding: "0 0.6rem" });
+        recall.addEventListener("click", () => {
+          void showMasteryNotice(message, message.getFlag(MODULE_ID, "masteryNotice"));
+        });
+        html.querySelector(".message-content")?.appendChild(recall);
+      }
+    }
+  }
+
+  // The strip's receipt (v1.19.0): the damage card SAYS the modifier was dropped, so the roll
+  // reading lower than usual is explained where everyone looks. Stateless, from the flag the
+  // strip stamped at preRollDamageV2 time.
+  const stripped = message.getFlag(MODULE_ID, "cleaveStripped");
+  if ( stripped ) {
+    const line = document.createElement("div");
+    line.innerHTML = bfCard({
+      eyebrow: "Weapon Mastery — Cleave", tone: "neutral",
+      title: "Ability modifier dropped",
+      subtitle: `${stripped.itemName || "The weapon"}'s Cleave — this roll takes no ability modifier.`
+    });
+    html.querySelector(".message-content")?.appendChild(line);
   }
 
   const topple = message.getFlag(MODULE_ID, "topple");

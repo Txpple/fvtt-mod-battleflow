@@ -1,24 +1,54 @@
 # HANDOFF.md — picking this up cold
 
-## State at a glance — 2026-08-20, end of the seventh session
+## State at a glance — 2026-08-20, end of the eighth session
 
 | | |
 | --- | --- |
-| **Do first** | **Nothing is owed.** The bounce is DONE and VERIFIED (2026-08-20, eighth session). Next is a choice, not a debt: confirm appetite for Pass A, or nothing. |
-| Repo | `main` @ `0e411cf`, pushed. **Tagged `v1.18.0`.** Clean apart from this file's own commit. |
-| Release | ✅ **v1.18.0 IS CUT, TAGGED, PUBLISHED, DEPLOYED AND REGISTERED ON PROD.** Fully closed. |
-| Sandbox | Up, minimized, world active, 1.18.0, `verify-settings` **CLEAN**. |
-| Prod | ✅ **Registers 1.18.0** (measured post-boot, 2026-08-20) on disk byte-verified 17/17. `verify-settings` **CLEAN**, re-run after the boot. |
-| Walked clean | **v1.18.0 IN FULL — 12/12, ZERO findings.** Fourth clean walk in a row. **CLOSED; do not present it again.** |
-| Next build | **Confirm appetite first.** Pass A is still deferred as *"tedious"*; do not assume it. |
+| **Do first** | **PRESENT THE v1.19.0 WALK CHECKLIST** (below — 11 items). Pass A is BUILT and battery-green in the sandbox; the walk is the only thing between it and the release. The v1.18.0 pattern exactly: built, NOT tagged, walk first. |
+| Repo | `main`, pushed. **NOT tagged** — v1.19.0 waits on the walk. `module.json` already reads 1.19.0 (the v1.18.0 shape: the bump rides the build commit, the tag rides the walk). |
+| Release | ⚠ **v1.19.0 BUILT, NOT RELEASED.** No tag, no GitHub release, **prod untouched and still on 1.18.0.** |
+| Sandbox | Up, minimized, world active, **registers 1.19.0** (deployed + process-bounced by Claude, verified). `verify-settings` **CLEAN** (the reference table grew a row — Maneuver Folds). |
+| Prod | **1.18.0**, registered and CLEAN — fully current for what is released. ⚠ Prod's verify-settings will report `maneuverFolds` missing until v1.19.0 deploys; that is the version skew, not drift. |
+| Walked clean | v1.18.0 (12/12, closed). **v1.19.0 is UNWALKED — its checklist is below.** |
+| Next build | Nothing until the walk. After it: the release cycle, then **Pass C (the volleys) — its rider gate is LIFTED** (the ruling shipped with Pass A; design.md Phase 1.6), gated now only on this walk closing. |
 | Bridge | Disconnected on BOTH worlds. Suites join as `Tester Assistant`. |
 
 ---
 
-> ✅✅ **v1.18.0 SHIPPED. THERE IS NO OPEN WALK ON THIS FILE.** For the first time in seven
-> sessions this handoff opens with nothing to present. The feature the last three sessions were
-> built around — *Roll Your Own Damage*, across attacks, save spells and areas — was walked
-> **12/12 with zero findings**, went battery-green, and is tagged and released.
+## 📋 THE v1.19.0 WALK — PRESENT THIS LIST (Pass A: the fold pass)
+
+Sandbox, one GM-capable client, every client F5 once. Settings are already the reference
+table (verify-settings CLEAN); nothing needs changing. Morgash carries the real maneuvers;
+Thomas carries the real Shield Master. Items 5 and 7 need a superiority die available
+(short rest restores the pool).
+
+| # | Item | What to look for |
+| --- | --- | --- |
+| 1 | Cleave reminder — hit with a Cleave-mastery weapon | The popup now offers **Arm the Cleave / Dismiss** (a decision, not OK); the card keeps an Answer recall |
+| 2 | Press Arm, make the second swing | The damage roll **drops the ability modifier**, and the damage card says so ("Ability modifier dropped") |
+| 3 | Arm and DON'T swing; end the turn | Next turn's rolls are normal — the arm expired silently with the turn |
+| 4 | Morgash misses; the Precision offer appears | Two controls (Use Precision Attack / Pass), margins shown, 15s bar. **Pass** → the miss stands, no die spent |
+| 5 | Miss again, close this time; **Use** it | The pool spends 1, the die rolls PUBLICLY, the card announces the arithmetic ("13 + 4 = 17 vs AC 15 — now hits"), and a flipped hit rolls damage like any hit (your own dice popup included) |
+| 6 | An enemy MELEE attack misses Morgash | The **Riposte** popup: weapon choice + Riposte/Pass. Accept → a REAL attack at the attacker, the superiority die inside its damage, the reaction spent (in combat: no hold offers for him that round) |
+| 7 | An enemy RANGED attack misses him; also try Decline | Ranged: **no offer** (melee-gated). Decline: nothing rolls, nothing spends |
+| 8 | Thomas's Shield Bash at something that FAILS | The demand runs; the failure **presses Prone** with a receipt; the verdict line announces the failure |
+| 9 | Shield Bash (or any save spell) at something that SAVES | A public **"holds — N vs DC X"** line, good-tone. The silence is gone (FLOW item 7) |
+| 10 | Any save spell at TWO targets; F5 mid-flow once | One line per verdict, no duplicates after the reload |
+| 11 | Cast a save spell at a mix of DEAD + living targets, then at corpses only | Only the living are demanded; corpses-only casts stay fully native (no demand, no damage). ⚠ **Judge the boundary**: a DYING PC (0 HP) is still demanded on purpose — say if that feels wrong at the table |
+
+⚠ **Known and deliberate, walked past on purpose:** Precision offers only on CLEAN misses
+(an attack that hit somebody keeps its damage untouched — one roll serves every target);
+a natural 1 is never offered; Graze + Precision on one miss announces the conflict and
+unwinds nothing (the GM's revert is the lever). The 15s windows share the F5 caveat the
+family has always had — except the fold flags re-arm from their stored deadlines on render.
+
+---
+
+> ✅✅ **v1.18.0 SHIPPED AND FULLY CLOSED** (walked 12/12, tagged, released, prod registers
+> it — the bounce landed 2026-08-20 by the down-by-user/wake-by-connect pattern). **The
+> eighth session then built PASS A in one sitting**: planned to bedrock (three explorer
+> sweeps, three committed probes), user rulings taken on the three open forks, built,
+> suite-covered and battery-green. **THE OPEN WALK IS v1.19.0's — the checklist above.**
 >
 > ✅ **THE BOUNCE IS DONE AND VERIFIED (2026-08-20, eighth session)** — and it produced a
 > **new working pattern worth keeping.** The session opened on verify-don't-believe: a direct
@@ -389,6 +419,7 @@ update this table, never fight it:
 | Effect Riders | **on** | user-walked ON 2026-08-16 — a hit applies the card's effects |
 | Weapon Mastery Riders | **on** | user-walked ON 2026-08-16 — Vex/Sap auto + reminder, the rest ask |
 | Mastery: Ask First | `ask` | `auto` is the tedium escape hatch (silences asks, not reminders) |
+| Maneuver Folds | `Precision Attack:precision, Riposte:riposte` | **new in v1.19.0** — the list IS the switch (empty disables both folds); strict parse, unknown kinds dropped, never guessed; rides the hold family's timer/reveal/futile settings. ⚠ Riposte lives HERE and must never return to the Reaction List |
 | Concentration Checks | **prompt** | user-walked ON during 2026-08-16 evening testing |
 | Concentration Timer | 15s | expiry ROLLS (data-driven, straight); 0 waits indefinitely |
 | Failure Breaks Concentration | **on** | inert until the mode is on — the forgotten click the phase exists to press |
@@ -667,6 +698,68 @@ token actor — that is what anything scene-scoped actually operates on.**
 a wight, campaign content, not a bug.** Use `hp.effectiveMax`, never `hp.max`, in any assertion
 about a party member being "topped up".
 
+
+### 📦 Deploy + battery state — v1.19.0 (2026-08-20, EIGHTH session)
+
+⚠ **BUILT, NOT RELEASED.** No tag, no GitHub release, **prod untouched on 1.18.0.** The
+sandbox has it: deployed, **process-bounced by Claude** (graceful close, minimized relaunch,
+suite-launched world) and `game.modules.get('fvtt-mod-battleflow').version` reads **1.19.0**
+— verified after the bounce, not assumed. `module.json` bumped in the build commit (the
+v1.18.0 shape: the tag will ride the post-walk release commit with no bump of its own).
+
+**What Pass A is, in one breath:** `scripts/maneuvers.js` (NEW — Precision + Riposte folds;
+hold.js untouched), the Cleave arm (mastery.js: decision popup + one-shot actor flag + the
+`@mod` strip with the negative-mod RAW skip), save verdict LINES + the LR-corrected line
+(saves.js — the sanctioned reversal of "no verdict cards"), the DEAD-TARGET GATE (user
+call, all save demands; dying PCs still roll — the predicate is deliberately narrower than
+mastery's), Shield Master closed as CONTENT (the probe found Thomas's feat already correct;
+`tools/fix-shield-master.mjs` verifies/grafts/sweeps per world), the `Riposte:ac` strike
+finally reaching the REGISTERED DEFAULT (settings.js — the v1.16.0 strike missed it, so
+Reset Defaults kept re-seeding the bug), and one new world setting **`maneuverFolds`**
+(the list IS the switch). Full record: design.md Phase 1.6 + the Phase 2 v1.19.0 amendment;
+FLOW items 1, 5, 7, 8 reconciled; **the Pass C rider gate is LIFTED** (the per-roll ruling
+is recorded with Riposte as the shipped precedent).
+
+**Battery on the sandbox with everything in, all green, ONE pass:**
+
+| Suite | Result |
+| --- | --- |
+| `smoke-battleflow` | ALL PASS |
+| `smoke-hold` | ALL PASS (standalone straight after, as always) |
+| `smoke-cast` | 17/17 |
+| `smoke-riders` | 8/8 |
+| **`smoke-maneuvers`** | **22/22 — NEW** (the folds' own suite; a recorded deviation from "extend smoke-hold": the folds share nothing with the hold, and smoke-hold is the most fragile suite around the most fragile file) |
+| `smoke-effects` | **52/52** (+6: §17 the Cleave arm — after `reset-fixture-state`, as always) |
+| `smoke-concentration` | 47/47 |
+| `smoke-saves` | **58/58** (+9: §15 verdict lines, §16 the dead gate, §17 the bash shape; §11 SKIP expected) |
+| `probe-player-damage` | 9/9 (after a `smoke-battleflow` token rebuild, as always) |
+| `probe-save-damage-popup` | 13/13 |
+| `check-hook-order` | 6/6 (two NEW pins: mastery→maneuvers→saves render order) |
+| `verify-settings` | **CLEAN** on the sandbox (the REFERENCE grew the Maneuver Folds row) |
+
+**Step-0 probes, committed:** `probe-preroll-parts` (5/5 — the `preRollDamageV2` entry shape:
+`.base===true` marks the weapon entry, `"@mod"` stays in parts with a NEGATIVE `data.mod`,
+pushed entries crit-double, message-data mutations persist), `probe-maneuvers` (Morgash's
+real shapes: Precision = utility whose `use()` consumes but rolls NOTHING — the fold rolls
+the die itself; Riposte = damage activity with real `reaction` activation so `reactionSpent`
+trips naturally; `@scale.battle-master.superiority` = 4d8; **Thomas's Shield Master already
+carries the bound Prone effect** — the content gap never existed), `probe-drive-attack`
+(4/4 — setTarget-then-roll fills the snapshot, the driven attack fires `rollAttackV2`
+locally, FLAT module flags survive onto the message, melee/ranged lives at
+`activity.attack.type.value`).
+
+⚠ **Traps this session paid for once, so nobody pays twice:**
+- **The oldest-token speaker trap, third appearance:** smoke-battleflow leaves UNLINKED
+  fixture tokens; a suite that makes the enemy attack then reads base-actor uuids gets
+  SYNTHETIC token-actor uuids everywhere. Pre-sweep fixture tokens before creating linked
+  ones (smoke-maneuvers does now; smoke-saves already did).
+- **The fixture blade is FINESSE** (a dagger with a +1 was picked by shape): a negative-mod
+  test that lowers STR alone leaves the +3 DEX mod live. Lower BOTH.
+- One transient smoke-battleflow double-failure when run hot on smoke-saves' heels — clean
+  on re-run, plus a 3-setting drift verify-settings caught and --fix restored. The standing
+  rule (verify after any test run) did its job; nothing to chase.
+- The sandbox app had VANISHED again before the session's first suite (fourth documented
+  time). The documented relaunch (minimized, then just run a suite) worked first try.
 
 ### 📦 Deploy + battery state — v1.18.0 (2026-08-19, FIFTH session)
 
@@ -1148,10 +1241,14 @@ finding ①.)*
    re-fought**: any receipt entry, reverted included, reads as "handled" — only the LR
    unwind re-applies, explicitly. Corners, all deliberate: multi-ability saves auto-roll
    the FIRST listed ability (the fold accepts any listed); a consumed item strands its
-   effects; dead targets still roll (Phase 5 owns RAW auto-fail); bare rolls defer to a
-   pending concentration ask; NO verdict announcement cards (the rows + receipts say it
-   once); the demand's deadline is stamped on the caster's clock and the buzzer runs on the
-   elect's — skew moves the buzzer, never the verdict.
+   effects; ~~dead targets still roll (Phase 5 owns RAW auto-fail)~~ **⚠ REVERSED v1.19.0
+   by user call — DEAD targets (dead status, or an NPC at 0 HP) are skipped at the stamp;
+   dying PCs still roll; RAW auto-fail stays Phase 5's**; bare rolls defer to a
+   pending concentration ask; ~~NO verdict announcement cards (the rows + receipts say it
+   once)~~ **⚠ REVERSED v1.19.0 (FLOW item 7, sanctioned) — every verdict posts one public
+   line; design.md Phase 2's amendment carries it**; the demand's deadline is stamped on
+   the caster's clock and the buzzer runs on the elect's — skew moves the buzzer, never
+   the verdict.
 14. **Mastery reminders (v1.5.0).** The elect posts a `masteryNotice` bfCard when Vex or
    Sap lands and when a Cleave-weapon hit lands (once per combat turn per attacker,
    in-memory latch on the elect; out of combat every hit reminds — the test range has no
