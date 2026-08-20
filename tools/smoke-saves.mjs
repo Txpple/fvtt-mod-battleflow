@@ -1221,6 +1221,229 @@ const out = await f.evaluate(async () => {
         `concEffect=${!!concEff14} still=${!!shimScene.templates.get(tpl14.id)}`);
     }
 
+    // ============================================== 15. the verdict LINES (v1.19.0, FLOW item 7)
+    // A table moment opened in public closes in public: each verdict posts ONE bfCard —
+    // "holds" good / "fails" bad, wording promoted from verdictText — idempotent under the
+    // announced guard, and a legendary-resistance flip posts the CORRECTED line (forced-
+    // marked so the twin-supersede never eats it) while the honest fail line stands.
+    {
+      const linesFor = (cardId, uuid, forced = null) => game.messages.contents.filter(m => {
+        const v = m.getFlag(MOD, 'verdictLine');
+        return v && (v.sourceMessageId === cardId) && (v.uuid === uuid)
+          && ((forced === null) || (!!v.forced === forced));
+      });
+      await clearChips();
+      await saveBonus(victim, '-30');
+      await saveBonus(shielder, '+30');
+      await healFull(victim);
+      await healFull(shielder);
+      await victim.update({ 'system.resources.legres.max': 1, 'system.resources.legres.spent': 0 });
+      await set('saveTimer', 2);                 // the buzzer rolls both; verdicts land fast
+      target(victimToken, shielderToken);
+      await sleep(120);
+      const use15 = await saveActivity().use({}, { configure: false }, {});
+      const card15 = use15?.message instanceof ChatMessage ? use15.message : null;
+      if (!card15) return { fatal: 'section 15 cast produced no card' };
+      const done15 = await until(() => {
+        const f = card15.getFlag(MOD, 'saves');
+        return f?.targets?.every(t => t.done && t.applied) ? f : null;
+      }, 25000);
+      await sleep(1200); // the announce rides after the (zero) pause — let the creates land
+
+      const failLines = await until(() => {
+        const l = linesFor(card15.id, victim.uuid, false);
+        return l.length ? l : null;
+      }, 8000) ?? [];
+      const holdLines = linesFor(card15.id, shielder.uuid, false);
+      ok('15a. one public line per verdict — "fails" bad for the failure, "holds" good for the save',
+        !!done15 && (failLines.length === 1) && /fails/.test(failLines[0]?.content ?? '')
+          && (holdLines.length === 1) && /holds/.test(holdLines[0]?.content ?? ''),
+        `fail=${failLines.length} hold=${holdLines.length}`);
+      ok('15b. the line carries verdictText verbatim — total, DC and the stakes-word',
+        /vs DC 15/.test(failLines[0]?.content ?? '') && /vs DC 15/.test(holdLines[0]?.content ?? '')
+          && /half damage/.test(holdLines[0]?.content ?? ''),
+        `failContent has DC=${/vs DC 15/.test(failLines[0]?.content ?? '')}`);
+
+      // 15c — a render storm re-announces nothing (the announced guard through queueFlagWrite).
+      for (let i = 0; i < 3; i++) { try { ui.chat?.updateMessage?.(card15); } catch {} }
+      await sleep(1500);
+      ok('15c. re-renders add no second line — announced is claimed before posting',
+        (linesFor(card15.id, victim.uuid, false).length === 1)
+          && (linesFor(card15.id, shielder.uuid, false).length === 1),
+        `victim=${linesFor(card15.id, victim.uuid, false).length} shielder=${linesFor(card15.id, shielder.uuid, false).length}`);
+
+      // 15d — legendary resistance flips the failure AFTER its line posted: the corrected
+      // "holds (legendary resistance)" line posts forced-marked; the fail line STANDS.
+      const entry15 = card15.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === victim.uuid);
+      const rollMsg15 = entry15?.rollMessageId ? game.messages.get(entry15.rollMessageId) : null;
+      if (rollMsg15) await rollMsg15.setFlag('dnd5e', 'roll.forceSuccess', true);
+      const corrected = await until(() => {
+        const l = linesFor(card15.id, victim.uuid, true);
+        return l.length ? l : null;
+      }, 10000) ?? [];
+      const flipped15 = card15.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === victim.uuid);
+      ok('15d. the LR flip announces the CORRECTED verdict; the honest fail line stands',
+        !!rollMsg15 && (flipped15?.outcome === 'saved') && (flipped15?.forced === true)
+          && (corrected.length === 1) && /legendary resistance/.test(corrected[0]?.content ?? '')
+          && (linesFor(card15.id, victim.uuid, false).length === 1),
+        `flipped=${flipped15?.outcome}/${flipped15?.forced} corrected=${corrected.length}`);
+
+      await set('saveTimer', 0);
+      await victim.update({ 'system.resources.legres.max':
+        priorActor[victim.id]['system.resources.legres.max'],
+        'system.resources.legres.spent': priorActor[victim.id]['system.resources.legres.spent'] });
+    }
+
+    // ============================================== 16. the DEAD-TARGET gate (v1.19.0, user call)
+    // The user's reversal of the old "dead targets still roll" corner: DEAD (dead status, or
+    // an NPC at 0 HP) is skipped at the stamp and at adoption; an all-dead cast stamps
+    // NOTHING — no demand, no auto-roll; a DYING PC (character at 0 HP) still rolls.
+    {
+      // 16a — mixed: the dead NPC is dropped from the rows, the living one is demanded.
+      await saveBonus(victim, '');
+      await saveBonus(shielder, '');
+      await victim.update({ 'system.attributes.hp.value': 0 });   // npc at 0 ⇒ dead
+      await healFull(shielder);
+      target(victimToken, shielderToken);
+      await sleep(120);
+      const before16a = snap();
+      const use16a = await saveActivity().use({}, { configure: false }, {});
+      const card16a = use16a?.message instanceof ChatMessage ? use16a.message : null;
+      const flag16a = await until(() => card16a?.getFlag(MOD, 'saves'), 6000);
+      ok('16a. mixed dead+living — only the living target is stamped',
+        !!flag16a && (flag16a.targets.length === 1)
+          && (flag16a.targets[0].uuid === shielder.uuid),
+        `targets=${JSON.stringify(flag16a?.targets?.map(t => t.name))}`);
+      await ChatMessage.deleteDocuments(fresh(before16a).map(m => m.id)).catch(() => {});
+
+      // 16b — all dead: NO saves flag, NO auto damage roll, fully native.
+      await shielder.update({ 'system.attributes.hp.value': 0 });
+      target(victimToken, shielderToken);
+      await sleep(120);
+      const before16b = snap();
+      const use16b = await saveActivity().use({}, { configure: false }, {});
+      const card16b = use16b?.message instanceof ChatMessage ? use16b.message : null;
+      await sleep(2500);
+      const autoDmg16b = fresh(before16b).find(m =>
+        (m.getFlag('dnd5e', 'roll.type') === 'damage')
+        && (m.getFlag('dnd5e', 'originatingMessage') === card16b?.id));
+      ok('16b. every target dead — no demand stamps and no damage auto-rolls (fully native)',
+        !!card16b && !card16b.getFlag(MOD, 'saves') && !autoDmg16b,
+        `flag=${!!card16b?.getFlag(MOD, 'saves')} autoDmg=${!!autoDmg16b}`);
+      await ChatMessage.deleteDocuments(fresh(before16b).map(m => m.id)).catch(() => {});
+
+      // 16c — the boundary the predicate is NARROWER for: a dying PC (character, 0 HP) is
+      // still demanded — the area's damage and the death-save failures are real.
+      if (pcActor) {
+        priorActor[pcActor.id] = {
+          ...(priorActor[pcActor.id] ?? {}),
+          'system.attributes.hp.value': pcActor.system._source.attributes.hp.value
+        };
+        const pcToken16 = await mkToken(pcActor, 1600);
+        await pcActor.update({ 'system.attributes.hp.value': 0 });
+        target(pcToken16);
+        await sleep(120);
+        const before16c = snap();
+        const use16c = await saveActivity().use({}, { configure: false }, {});
+        const card16c = use16c?.message instanceof ChatMessage ? use16c.message : null;
+        const flag16c = await until(() => card16c?.getFlag(MOD, 'saves'), 6000);
+        ok('16c. a DYING PC (0 HP character) is still demanded — the gate is dead-only',
+          !!flag16c && (flag16c.targets.length === 1)
+            && (flag16c.targets[0].uuid === pcActor.uuid),
+          `targets=${JSON.stringify(flag16c?.targets?.map(t => t.name))}`);
+        await ChatMessage.deleteDocuments(fresh(before16c).map(m => m.id)).catch(() => {});
+        await pcActor.update({ 'system.attributes.hp.value':
+          priorActor[pcActor.id]['system.attributes.hp.value'] });
+      } else {
+        skips.push('16c — no BF Test PC Attacker fixture; run smoke-battleflow first');
+      }
+      await healFull(victim);
+      await healFull(shielder);
+    }
+
+    // ============================================== 17. the BASH shape (v1.19.0, FLOW item 5)
+    // Shield Master's fix is CONTENT (user ruling): a feat's save activity with a BOUND
+    // status effect is already a full customer of this machine — receipts, revert, verdict
+    // lines and the press all come free. This section pins the shape end to end so the
+    // world's real feat (Thomas's, verified by tools/fix-shield-master.mjs) can never
+    // silently regress in the machine.
+    {
+      const EFF_BASH = 'bfbashprone00000';
+      const [bashItem] = await npc.createEmbeddedDocuments('Item', [{
+        name: 'BF Test Bash', type: 'feat',
+        system: {
+          type: { value: 'feat' },
+          activities: {
+            bfbashact0000000: {
+              _id: 'bfbashact0000000', type: 'save',
+              activation: { type: 'bonus', override: false },
+              consumption: { targets: [] },
+              damage: { onSave: 'none', parts: [] },
+              effects: [{ _id: EFF_BASH, onSave: false }],
+              save: { ability: ['con'], dc: { calculation: '', formula: '15' } },
+              target: { override: false, prompt: true,
+                affects: { type: 'creature', count: '1', choice: false } }
+            }
+          }
+        },
+        effects: [
+          { _id: EFF_BASH, name: 'BF Bashed Prone', transfer: false, disabled: false,
+            img: 'icons/svg/falling.svg', statuses: ['prone'],
+            description: '<p>Knocked Prone (BF bash fixture).</p>' }
+        ]
+      }]);
+      created.items.push({ actorId: npc.id, id: bashItem.id });
+      const bashActivity = () => npc.items.get(bashItem.id).system.activities.get('bfbashact0000000');
+
+      await set('saveTimer', 2);
+      // 17a — the failure presses Prone through the ordinary machine, receipted.
+      await saveBonus(victim, '-30');
+      await healFull(victim);
+      if (victim.statuses?.has?.('prone')) await victim.toggleStatusEffect('prone', { active: false });
+      target(victimToken);
+      await sleep(120);
+      const use17a = await bashActivity().use({}, { configure: false }, {});
+      const card17a = use17a?.message instanceof ChatMessage ? use17a.message : null;
+      const done17a = await until(() => {
+        const f = card17a?.getFlag(MOD, 'saves');
+        return f?.targets?.every(t => t.done && t.applied) ? f : null;
+      }, 25000);
+      await sleep(800);
+      const receipt17a = card17a?.getFlag(MOD, 'effectReceipt');
+      ok('17a. a FEAT save activity with a bound status effect presses Prone on the failure, receipted',
+        !!done17a && victim.statuses?.has?.('prone')
+          && !!receipt17a?.targets?.some(t => (t.uuid === victim.uuid)
+            && t.effects.some(e => e.name === 'BF Bashed Prone')),
+        `prone=${victim.statuses?.has?.('prone')} receipt=${!!receipt17a}`);
+
+      // 17b — the pass leaves the target standing, and item 7's line says "holds".
+      await saveBonus(shielder, '+30');
+      await healFull(shielder);
+      if (shielder.statuses?.has?.('prone')) await shielder.toggleStatusEffect('prone', { active: false });
+      target(shielderToken);
+      await sleep(120);
+      const use17b = await bashActivity().use({}, { configure: false }, {});
+      const card17b = use17b?.message instanceof ChatMessage ? use17b.message : null;
+      const done17b = await until(() => {
+        const f = card17b?.getFlag(MOD, 'saves');
+        return f?.targets?.every(t => t.done && t.applied) ? f : null;
+      }, 25000);
+      await sleep(1200);
+      const holdLine17 = game.messages.contents.find(m => {
+        const v = m.getFlag(MOD, 'verdictLine');
+        return v && (v.sourceMessageId === card17b?.id) && (v.uuid === shielder.uuid);
+      });
+      ok('17b. the pass stays standing and the verdict line says holds',
+        !!done17b && !shielder.statuses?.has?.('prone')
+          && !!holdLine17 && /holds/.test(holdLine17?.content ?? ''),
+        `prone=${shielder.statuses?.has?.('prone')} line=${!!holdLine17}`);
+
+      await set('saveTimer', 0);
+      if (victim.statuses?.has?.('prone')) await victim.toggleStatusEffect('prone', { active: false });
+      await saveBonus(victim, '');
+      await saveBonus(shielder, '');
+    }
+
     return { log, results, skips };
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };

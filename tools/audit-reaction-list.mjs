@@ -74,7 +74,35 @@ const out = await f.evaluate(async () => {
     rows.push({ ...e, holders, desc, resolvesBonus: sample?.acBonus ?? null,
       anyReactionHolder: holders.some(h => h.activation === 'reaction') });
   }
-  return { raw, rows };
+
+  // v1.19.0 — the Maneuver Folds list gets the same walk: for each entry, who holds the item,
+  // does its first activity resolve a die formula, and can the pool pay for it. A listed name
+  // nobody holds is inert (costs nothing); a holder with no formula is a misconfiguration the
+  // fold would silently skip.
+  const rawFolds = game.settings.get(MOD, 'maneuverFolds') ?? '';
+  const foldRows = [];
+  for (const chunk of rawFolds.split(',').map(c => c.trim()).filter(Boolean)) {
+    const [name, kind] = chunk.split(':').map(x => x?.trim());
+    const holders = [];
+    for (const actor of game.actors) {
+      const item = actor.items.find(i => i.name?.toLowerCase() === name?.toLowerCase());
+      if (!item) continue;
+      const act = item.system.activities?.contents?.[0] ?? null;
+      const formula = act?.roll?.formula || act?.damage?.parts?.[0]?.formula || null;
+      const pools = (act?.consumption?.targets ?? [])
+        .filter(t => t.type === 'itemUses')
+        .map(t => {
+          const pool = t.target ? actor.items.get(t.target) : item;
+          return pool ? `${pool.name} ${pool.system.uses?.value ?? '?'}/${pool.system.uses?.max ?? '?'}` : '(missing pool!)';
+        });
+      holders.push({ actor: actor.name, hasPlayerOwner: !!actor.hasPlayerOwner,
+        activityType: act?.type ?? null, activation: act?.activation?.type ?? null,
+        formula, pools });
+    }
+    foldRows.push({ chunk, name, kind: kind?.toLowerCase() ?? '(none)', holders,
+      kindKnown: ['precision', 'riposte'].includes(kind?.toLowerCase()) });
+  }
+  return { raw, rows, rawFolds, foldRows };
 });
 
 console.log(`\n[audit] Reaction List setting:\n  ${out.raw}\n`);
@@ -96,6 +124,19 @@ for (const r of out.rows) {
     : 'damage kind — always offered by design (it always reduces something)';
   console.log(`   verdict: ${verdict}`);
   if (r.desc) console.log(`   text: "${r.desc}"`);
+}
+console.log('\n' + '='.repeat(100));
+
+console.log(`\n[audit] Maneuver Folds setting (v1.19.0):\n  ${out.rawFolds}\n`);
+console.log('='.repeat(100));
+for (const r of out.foldRows) {
+  console.log(`\n${r.name}   [kind: ${r.kind}${r.kindKnown ? '' : ' — UNKNOWN, the strict parser DROPS this entry'}]`);
+  if (!r.holders.length) { console.log('   — nobody in this world has an item by that name (inert entry)'); continue; }
+  for (const h of r.holders) {
+    console.log(`   held by ${h.actor}${h.hasPlayerOwner ? ' (PC)' : ''} · activity=${h.activityType}`
+      + ` · activation=${h.activation ?? '(none)'} · die=${h.formula ?? 'NONE — the fold would skip this holder'}`
+      + (h.pools.length ? ` · pool: ${h.pools.join(', ')}` : ' · no consumption'));
+  }
 }
 console.log('\n' + '='.repeat(100));
 process.exit(0);

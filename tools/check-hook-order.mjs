@@ -55,7 +55,11 @@ const CHECKS = [
   ["dnd5e.renderChatMessage", "mastery.js", "receipts.js",
     "mastery rows render above receipt rows on a shared attack card"],
   ["dnd5e.renderChatMessage", "saves.js", "receipts.js",
-    "save verdict rows render above receipt rows on a save card (held by the entry order + the lazy import of receipts.js in saves.js)"]
+    "save verdict rows render above receipt rows on a save card (held by the entry order + the lazy import of receipts.js in saves.js)"],
+  ["dnd5e.renderChatMessage", "mastery.js", "maneuvers.js",
+    "mastery rows render above the maneuver fold rows on a shared attack card (v1.19.0 entry order)"],
+  ["dnd5e.renderChatMessage", "maneuvers.js", "saves.js",
+    "maneuver rows render above the saves rows (the entry imports maneuvers.js before saves.js)"]
 ];
 let ok = true;
 for (const [hook, a, b, why] of CHECKS) {

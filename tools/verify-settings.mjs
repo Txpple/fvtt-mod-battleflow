@@ -38,6 +38,7 @@ const REFERENCE = {
   effectRiders: true,
   masteryRiders: true,
   masteryAsk: 'ask',
+  maneuverFolds: 'Precision Attack:precision, Riposte:riposte',   // v1.19.0 — the list IS the switch
   concMode: 'prompt',
   concTimer: 15,
   concBreak: true,

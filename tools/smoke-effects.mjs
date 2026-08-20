@@ -1091,6 +1091,108 @@ const out = await f.evaluate(async () => {
     await victim.update({ 'system.abilities.con.bonuses.save':
       priorActor[victim.id]['system.abilities.con.bonuses.save'] });
 
+    // ================================================== 17. the Cleave arm (v1.19.0, FLOW item 8)
+    // The reminder popup is now a DECISION (Arm the Cleave / Dismiss); the arm is a one-shot
+    // actor flag; the strip drops the literal "@mod" part from the BASE entry of the next
+    // damage roll with that weapon, skipping when the mod is negative (the RAW corner), and
+    // expiring by STAMP MISMATCH (in combat) or 60s TTL (out of combat).
+    await setMastery('cleave');
+    await acFlat(1);
+    await healFull();
+    await clearChips();
+    {
+      const cleaveDialogs = () => [...document.querySelectorAll('.application')]
+        .filter(el => (el.innerHTML ?? '').includes('Arm the Cleave'));
+      const closeCleaveDialogs = async () => {
+        for (const el of [...document.querySelectorAll('.application')]
+          .filter(el => (el.innerHTML ?? '').includes('Weapon Mastery'))) {
+          try { (el.querySelector('[data-action="close"]') ?? el.querySelector('.header-control'))?.click(); } catch {}
+        }
+        await sleep(300);
+      };
+      const modOf = () => pc.system.abilities.str.mod; // the blade is STR-based at 16 (+3)
+
+      // 17a — the reminder pops with the Arm control; pressing it writes the actor flag.
+      {
+        const { attackMsg } = await attack(pcAttack());
+        await waitDamage(attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id, { flag: 'receipt' });
+        const dialog = await waitFor(() => cleaveDialogs()[0], 8000);
+        ok('17a. the Cleave reminder offers Arm/Dismiss (a decision, not an OK)',
+          !!dialog && !!dialog.querySelector('button[data-action="arm"]')
+            && !!dialog.querySelector('button[data-action="dismiss"]'),
+          `dialog=${!!dialog} arm=${!!dialog?.querySelector('button[data-action="arm"]')}`);
+        dialog?.querySelector('button[data-action="arm"]')?.click();
+        const arm = await waitFor(() => pc.getFlag(MOD, 'cleaveArm'), 5000);
+        ok('17b. Arm writes the one-shot actor flag keyed to THIS weapon',
+          (arm?.itemId === blade.id) && (arm?.stamp === null),
+          `arm=${JSON.stringify(arm)}`);
+        await closeCleaveDialogs();
+      }
+
+      // 17c — the armed swing: "@mod" leaves the BASE entry, the receipt line lands, the
+      // arm is consumed. (str 16 ⇒ the unstripped formula would carry "+ 3".)
+      {
+        const { attackMsg } = await attack(pcAttack());
+        const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+        const dmg = await waitDamage(originId, { flag: 'receipt' });
+        const formula = dmg?.rolls?.[0]?.formula ?? '';
+        ok('17c. armed — the damage roll drops the ability modifier',
+          !!dmg && !formula.includes(`+ ${modOf()}`) && !!dmg.getFlag(MOD, 'cleaveStripped')
+            && !pc.getFlag(MOD, 'cleaveArm'),
+          `formula="${formula}" stripped=${!!dmg?.getFlag(MOD, 'cleaveStripped')} armLeft=${!!pc.getFlag(MOD, 'cleaveArm')}`);
+        await closeCleaveDialogs();
+      }
+
+      // 17d — the RAW corner: a NEGATIVE mod is never stripped (removing a minus would RAISE
+      // the damage), but the arm is still consumed. ⚠ BOTH abilities go to 6 — the fixture
+      // blade can be FINESSE (a dagger was picked on this suite's first run), and lowering
+      // STR alone leaves a +3 DEX mod that the strip then rightly removes.
+      {
+        await pc.update({ 'system.abilities.str.value': 6, 'system.abilities.dex.value': 6 }); // mod −2
+        await pc.setFlag(MOD, 'cleaveArm',
+          { itemId: blade.id, itemName: blade.name, stamp: null, armedAt: Date.now() });
+        const { attackMsg } = await attack(pcAttack());
+        const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+        const dmg = await waitDamage(originId, { flag: 'receipt' });
+        const formula = dmg?.rolls?.[0]?.formula ?? '';
+        ok('17d. negative mod — the strip SKIPS (the penalty stays), the arm still consumes',
+          !!dmg && /-\s*2/.test(formula) && !dmg.getFlag(MOD, 'cleaveStripped')
+            && !pc.getFlag(MOD, 'cleaveArm'),
+          `formula="${formula}" stripped=${!!dmg?.getFlag(MOD, 'cleaveStripped')} armLeft=${!!pc.getFlag(MOD, 'cleaveArm')}`);
+        await pc.update({ 'system.abilities.str.value': 16, 'system.abilities.dex.value': 16 });
+        await closeCleaveDialogs();
+      }
+
+      // 17e — staleness: a combat stamp that matches no live combat (the turn moved on, the
+      // fight ended, the arm was yesterday's) strips NOTHING and cleans itself up.
+      {
+        await pc.setFlag(MOD, 'cleaveArm',
+          { itemId: blade.id, itemName: blade.name, stamp: 'staleCombat:1:0', armedAt: Date.now() });
+        const { attackMsg } = await attack(pcAttack());
+        const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+        const dmg = await waitDamage(originId, { flag: 'receipt' });
+        const formula = dmg?.rolls?.[0]?.formula ?? '';
+        ok('17e. a stale combat stamp never strips — mismatch IS expiry, the flag self-cleans',
+          !!dmg && formula.includes(`+ ${modOf()}`) && !dmg.getFlag(MOD, 'cleaveStripped')
+            && !pc.getFlag(MOD, 'cleaveArm'),
+          `formula="${formula}" armLeft=${!!pc.getFlag(MOD, 'cleaveArm')}`);
+        await closeCleaveDialogs();
+      }
+
+      // 17f — the unarmed baseline: no flag, no strip, byte-identical to before the feature.
+      {
+        const { attackMsg } = await attack(pcAttack());
+        const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+        const dmg = await waitDamage(originId, { flag: 'receipt' });
+        const formula = dmg?.rolls?.[0]?.formula ?? '';
+        ok('17f. unarmed — the modifier rides as always, no strip stamp',
+          !!dmg && formula.includes(`+ ${modOf()}`) && !dmg.getFlag(MOD, 'cleaveStripped'),
+          `formula="${formula}"`);
+        await closeCleaveDialogs();
+      }
+      await pc.unsetFlag(MOD, 'cleaveArm').catch(() => {});
+    }
+
     return { log, results, skips };
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
