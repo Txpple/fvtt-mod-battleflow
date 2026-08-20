@@ -106,7 +106,10 @@ is retracted — nobody has them, so their kind never matters until somebody doe
 ⚠ **Re-add Riposte only through item 1's fold**, never back into this list — the fold owns the
 miss trigger, and an `ac` entry would resume offering the nonsense hold beside it.
 
-## 2. Targets shown in the use/roll dialog — ✅ BUILT + VERIFIED 2026-08-19
+## 2. Targets shown in the use/roll dialog — ✅ BUILT + TABLE-VERIFIED 2026-08-19
+
+> ✅ **Table-walked clean in the v1.16.0 walk (all four of its checks) and the potion question
+> it carried is ANSWERED: a consumable DOES raise a dialog, and the block decorates it.**
 **⚠ This item now ABSORBS the probe pass** (user call, 2026-08-19: *"basically this is item 1,
 too, so fold these topics together"*). The probe questions were never separable from the
 build — they are step A of it.
@@ -295,7 +298,66 @@ path offers the popup too.
 
 *Timer 15s matches the family (hold / save / conc all 15s; 0 = wait indefinitely).*
 
-## 4. Potions self-aim — 🟠 FOLDED INTO ITEM 2 (user call, 2026-08-19)
+## 4. Potions default to the drinker — ✅ BUILT + VERIFIED 2026-08-19 (re-shaped)
+
+**RE-SHAPED AND BUILT, and it is NOT the item that was folded.** The v1.16.0 walk answered the
+folded item's open question — a potion DOES raise a dialog, so the reversal trigger never
+fired and the original "self-aim" item stayed dead. The user then asked for something else:
+
+> *"1 - if no target, then auto target self. 2 - if target exists, then use that."*
+> *"if a person has nothing targeted to drink a potion, it should be easy, like second wind.
+> but potions can be applied to others, so they need the option to do that."*
+
+⚠ **A DEFAULT, NOT A FORCE — that distinction is the whole design.** v1.11.0's `affects: self`
+self-aim DISCARDS the snapshot, which is right for Second Wind (no other sensible target) and
+wrong for a potion (handing one to a downed ally is a real table move). Filling only the EMPTY
+case retires the *"self-aim UNLESS the target is friendly"* carve-out the old shape needed — no
+friendliness is inferred anywhere.
+
+⚠ **It does NOT fix either recorded sighting, and was never meant to.** Both had a target set
+(the chest at 02:41:58, Cadoc at 03:23:17), so rule 2 fires and the potion still goes where it
+was aimed. **The target block (item 2) is what catches those** — you now see `Chest · neutral`
+before confirming. The two items cover different halves.
+
+**MEASURED before building** (`tools/probe-potion-aim.mjs`), both facts load-bearing:
+- Healing potions carry **`affects.type: "creature"`, activity type `heal`** — NOT `self`, NOT
+  blank. So the module was never wrong to leave them alone, the "blank affects must not guess"
+  rule is not in play, and filling an empty aim is a default INSIDE what the data allows.
+  ⚠ The content is inconsistent across the party: Selma's Elixir of Health, Antitoxin and
+  Potion of Resistance DO carry `affects: self` and already self-aim. Tagging the rest `self`
+  was rejected as the fix precisely because `self` forces.
+- **`messageFlags` snapshots targets BEFORE `dnd5e.preUseActivity` fires** (dnd5e 5.3.3
+  `Activity#use`). A three-case control proved it: target set before `use()` → stamped; target
+  set inside the hook → empty. So the canvas cannot be the seam; `messageConfig` is passed in
+  mutable and IS the seam.
+
+**WHAT SHIPPED** — one hook in [polish.js](scripts/polish.js), beside the `requireTarget` veto
+that uses the same event. Both sides are written on purpose: the SNAPSHOT is what every
+downstream machine reads (hold, saves, mastery, shared, cast), the LIVE TARGET is what the
+dialog's target block paints — so the table SEES the default before confirming instead of
+learning where it went from the receipt (user call: *"at least in this scenario they may catch
+a mis target when drinking"*).
+
+**The gate is structural, NO NAME LIST:** `consumable` + `heal` + `affects: creature` + no
+template. That separates a drinkable potion from **Oil**, which is also subtype `potion` but is
+`save`/`creature` plus `damage`/`space`-with-template because you THROW it.
+
+**NO SETTING**, deliberately — the same reason v1.11.0's self-aim has none, and the application
+it feeds is already gated by `castApply`.
+
+**Verified 5/5** (`tools/probe-potion-selfaim.mjs`): potion with no target fills both sides ·
+potion with someone else targeted is untouched · oil-save stays out · oil-area stays out · the
+same `heal`/`creature` shape on a SPELL stays out. Battery green alongside it.
+
+⚠ **Two probe traps, both cost a run — do not re-derive:** a template-bearing activity's
+`use()` **never resolves** (parked waiting for a human to place the template) and hung a probe
+past its watchdog — race every use, never await one unbounded. And Party Camp's two Practice
+Dummy tokens **share one actor**, so `getTargetDescriptors` keys them to one uuid and any
+"did the other target survive" assertion is unanswerable until a distinct bystander exists.
+
+### The original folded shape, kept as history
+
+
 **Dropped from the build order as its own step** — the user's call: *"remove 5, we'll handle
 it with target decoration."* The roll-dialog decoration (item 2) is expected to catch the
 mis-target before it lands, making a dedicated self-aim machine unnecessary.
@@ -668,10 +730,11 @@ Shipped items dropped; the free setting fix promoted to the top.
 
 | # | Item | Why here |
 | --- | --- | --- |
-| ~~0~~ | ~~**Strike `Riposte:ac`**~~ (item 1) | ✅ **DONE 2026-08-19** — struck from the world setting, the verify-settings reference and the HANDOFF table together. Shipped in v1.16.0. |
-| ~~1~~ | ~~**Target decoration**~~ (item 2) | ✅ **DONE 2026-08-19** — both dialog classes hooked and verified in the sandbox. ⚠ Unreleased; sandbox only. The potion-dialog question it was also meant to answer is STILL OPEN. |
-| ~~13~~ | ~~**Temp HP card**~~ (item 13) | ✅ **DONE 2026-08-19** — display fix, verified. ⚠ Unreleased; sandbox only. |
-| ~~14~~ | ~~**DM stops getting player hold popups**~~ (item 14) | ✅ **DONE 2026-08-19** — `gmQuiet` finally reaches the hold. ⚠ Unreleased; sandbox only. |
+| ~~0~~ | ~~**Strike `Riposte:ac`**~~ (item 1) | ✅ **SHIPPED v1.16.0** — struck from the world setting, the verify-settings reference and the HANDOFF table together. Verified absent on PROD too (verify-settings CLEAN). |
+| ~~1~~ | ~~**Target decoration**~~ (item 2) | ✅ **SHIPPED v1.16.0** — both dialog classes hooked, then **TABLE-verified clean in the v1.16.0 walk**. The potion-dialog question is ANSWERED: a consumable raises a dialog. |
+| ~~13~~ | ~~**Temp HP card**~~ (item 13) | ✅ **SHIPPED v1.16.0** — display fix, table-verified in the walk. |
+| ~~14~~ | ~~**DM stops getting player hold popups**~~ (item 14) | ✅ **SHIPPED v1.16.0** — `gmQuiet` finally reaches the hold; table-verified in the walk. |
+| ~~4~~ | ~~**Potions default to the drinker**~~ (item 4) | ✅ **SHIPPED v1.17.0** — re-shaped from the folded self-aim item at the user's ask; built, 5/5 verified, battery green, table-tested, released and deployed. |
 | **2** | **Cleave arm-button** (item 8) | ⚠ **NEXT UP.** Small, shape fully agreed, twin-card half already shipped in v1.15.0. |
 | **3** | **Player-rolled damage popup** (item 3) | Self-contained, player asked for it. Carries the design.md amendment. |
 | **4** | **Post-roll folds** — Precision, then Riposte (item 1) | The headline, biggest build. |
@@ -683,7 +746,12 @@ Shipped items dropped; the free setting fix promoted to the top.
 - **Item 11 (AC5e)** — conflicts with Phase 4's deck slot. User ruling needed on which is next.
 - **Item 12 (short-duration expiry)** — gated on Phase 4's verdict; may dissolve entirely.
 - **Items 9, 10 (Guidance, Light)** — Phase 2, unscheduled.
-- **Item 4 (potions self-aim)** — FOLDED into #1's decoration by user call. ⚠ Returns to the
-  order only if the probe finds a potion use raises no dialog to decorate.
-- **Untarget checkboxes** — scoped out of #1 by user call. ⚠ Returns only if the probe measures
-  `flags.dnd5e.targets` as stamped AFTER the dialog resolves. See item 2's deferred section.
+- ~~**Item 4 (potions self-aim)**~~ — **CLOSED 2026-08-19.** The walk found a potion DOES raise
+  a dialog, so the folded item never un-folded; it was then RE-SHAPED at the user's ask and
+  BUILT (see item 4 above). Nothing here is pending.
+- ~~**Untarget checkboxes**~~ — **CLOSED 2026-08-19, and now MEASURED rather than assumed.** The
+  return condition was "`flags.dnd5e.targets` stamped AFTER the dialog resolves". It is stamped
+  **BEFORE**: `messageFlags` builds it at the top of `Activity#use`, ahead of both
+  `preUseActivity` and the dialog's creation (dnd5e 5.3.3). A dialog checkbox would therefore
+  change the canvas and NOT the roll — exactly the "control that looks authoritative and lies"
+  the scope-out feared. **It stays scoped out permanently.**

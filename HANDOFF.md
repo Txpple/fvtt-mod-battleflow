@@ -1,42 +1,49 @@
 # HANDOFF.md — picking this up cold
 
-> ⚠⚠ **NEXT SESSION IS THE v1.16.0 TESTING WALK — START BY DOING NOTHING.** Open by
-> presenting **🚶 THE v1.16.0 WALK** checklist below, then wait. Do not connect the bridge,
-> run suites, read the world, or touch code. The user works the list at the table and
-> reports; you AGGREGATE — number the findings as they arrive, restate the FULL list state
-> after every update (so they never scroll), confirm/close items as they say so — and you
-> ACT only when they say go.
+> ⚠⚠ **NEXT SESSION STARTS WITH THE PROD BOUNCE — present it, then WAIT.** It is ONE manual
+> step the user must perform in the Molten panel (see below), and nothing else should happen
+> until it is done or deliberately deferred. After it, the deck is FLOW build-order #2, the
+> Cleave arm-button. Do not connect the bridge, run suites or touch code until the user says
+> go; aggregate what they report and restate the full state after every update.
 >
-> ✅ **PROD IS DEPLOYED (2026-08-19) — v1.16.0 code is live on the box and `Riposte:ac` is
-> struck there too.** Prod was IDLE at deploy (0 users); no live table was touched. All 17
-> files md5-matched, and the new code was confirmed SERVED by the running server — `polish.js`
-> and `ui.js` fetched through prod both carry the v1.16.0 fingerprints. `verify-settings`
-> against prod: **CLEAN**.
+> ✅ **v1.17.0 IS CUT, TAGGED, RELEASED, TABLE-TESTED AND DEPLOYED.** The potion default was
+> walked by the user and confirmed good before release. Both walks on this file are CLOSED.
 >
-> ⚠⚠ **BUT PROD'S PROCESS STILL REGISTERS `1.14.0`** — not 1.15.0, not 1.16.0. Foundry scans
-> the package registry at PROCESS BOOT, and that box has not restarted through two releases.
-> There is NO tooling to bounce a Molten box (`register-module.mjs` says it outright: a WebDAV
-> drop plus a world shutdown/relaunch never registers) — **it needs a restart from Molten's
-> own control panel, which is the user's to do.** The code is live regardless; it is the
-> version STRING that is stale.
-> ⚠ **Every client that had the world open should HARD-refresh once** (Ctrl+Shift+R). A window
-> runs whatever code it loaded, and a stale window holding the elect runs old code for
-> everyone.
+> ⚠⚠ **THE v1.16.0 WALK CLOSED CLEAN — 7 of 7, ZERO findings, no code.** Second clean walk
+> in a row. Every v1.16.0 item is now TABLE-verified: the target block on both dialog classes,
+> the zero-target case, live re-target repaint, the temp-HP card, the DM's quiet, and the
+> struck Riposte prompt. **Do not present that list again.**
 >
-> ⚠ **Phase 4 and the carry-over walk both still stand, and neither is next.** Phase 4's
-> checklist is still below and still valid — it needs TABLE time (ten rounds of Bless), so
-> it rides a real session. The carry-over walk is CLOSED CLEAN; do not present it again.
-
+> ⚠⚠ **PROD HAS v1.17.0'S FILES BUT ITS PROCESS STILL REGISTERS 1.14.0 — ONE MANUAL STEP
+> IS OUTSTANDING AND ONLY THE USER CAN DO IT.** Every file was deployed over WebDAV and
+> byte-verified (17 files md5-matched, prod idle at 0 users). But Foundry registers
+> `module.json` at PROCESS BOOT, and prod's process last booted on v1.14.0 — it is now
+> **THREE releases behind on its own version string**, which is that debt compounding, not a
+> new fault. **The scripts ARE live on the next world reload; only the version string is
+> stale.**
+> ⚠ **A BOUNCE CANNOT BE DONE OVER HTTP — do not try.** Prod's `/setup` returns **403** to an
+> authenticated admin session (measured 2026-08-19, `MOLTEN_ADMIN_KEY`), so the world can be
+> shut down but NOT relaunched from here. **Never shut prod's world down from a script.** The
+> bounce is a **Molten hosting-panel restart** and it is the user's to perform.
+>
+> ✅ **`Riposte:ac` IS ALREADY GONE FROM PROD — the previous handoff's claim was STALE.**
+> `BF_TARGET=prod node tools/verify-settings.mjs` reports **CLEAN**: every prod setting matches
+> the reference table, Riposte included. **There is nothing to strike. Do not re-raise it.**
+>
+> ⚠ **Phase 4 still stands and is still not next.** Its checklist is below and still valid —
+> it needs TABLE time (ten rounds of Bless), so it rides a real session.
+>
 > 📋 **THE FLOW BACKLOG LIVES IN [FLOW.md](FLOW.md)** (2026-08-19). Session 4's FLOW/polish
 > track — 14 items, built from the transcript + chat-log audit, RECONCILED against the tree
 > (four items had already shipped in v1.15.0), and carrying its own build order. It is a
 > separate track from this file's bug ledger. **Read it before building anything.**
 > ⚠ **It supersedes the Desktop scratch .txt entirely — that file is no longer a reference.**
-> **Done and shipped in v1.16.0:** build-order 0 (strike `Riposte:ac`), 1 (target decoration),
+> **Done and shipped:** **v1.17.0** — build-order 4 (potions default to the drinker).
+> **v1.16.0** — build-order 0 (strike `Riposte:ac`), 1 (target decoration),
 > 13 (temp HP card), 14 (the DM's quiet). **Next in its order: #2, the Cleave arm-button** —
 > small, shape fully agreed, and its twin-card half already shipped in v1.15.0.
-> ⚠ **ONE QUESTION THE WALK MUST ANSWER FOR IT:** does using a CONSUMABLE raise any dialog?
-> A no un-folds FLOW item 4 (potions self-aim) back into real work. Walk item 2 covers it.
+> ✅ **That track's open question is ANSWERED:** a consumable DOES raise a dialog, so the
+> decoration reaches potions and item 4's reversal trigger is permanently dead.
 >
 > ✅ **The AC5e-vs-Phase-4 ordering conflict is RESOLVED, not open.** It was never a fight
 > over one slot — Phase 4 needs the TABLE (ten rounds of Bless, rides a real session) and
@@ -344,49 +351,54 @@ seven rounds with nothing to fix. No code was written. No release followed.
   there is no tempmax/Hollowed bug here. ⚠ **Do not "fix" this actor's HP** — it is a
   story state the user is running deliberately.
 
-### 🚶 THE v1.16.0 WALK — the user's checklist for the next testing session
+### ✅ THE v1.16.0 WALK — CLOSED CLEAN 2026-08-19 (7 of 7, zero findings)
 
-⚠ **Walk it in the SANDBOX** (the test environment) — though prod now carries the same code,
-so a table sighting counts too. Every client F5 once — **hard** refresh on prod, whose process
-still registers 1.14.0.
-**ONE GM-capable client**; no bridge, no scripts, no suites running alongside. The settings
-table above is law and already matches the sandbox (`verify-settings` CLEAN at handoff).
+Walked in the sandbox by the user in one pass. **Do not present this list again.** Every item
+confirmed at the table: ① the target block on the attack path (look, size and spacing all
+judged fine; no warning icon on the ally, as designed) · ② the same block on the spell/item
+path · ③ the zero-target "No targets" in damage red · ④ live re-target repainting under an
+open dialog ("NICE") · ⑤ temp HP as `+N temp HP` in blue · ⑥ the DM's quiet with the player
+logged out, and the Answer button still raising the popup · ⑦ no Riposte hold offered on a
+melee hit.
 
-⚠ **Everything below is MACHINE-verified and HUMAN-unverified.** Probes drove real dialogs
-and read the real DOM, but nobody has looked at any of it. That is the whole point of this list.
+**The question the walk existed to answer:** a consumable **DOES** raise a dialog, and it looks
+the same as a spell's. So the target decoration reaches potions, the folded FLOW item 4 never
+un-folded, and its reversal trigger is permanently dead. See FLOW.md item 4.
 
-1. **The target block, attack path** — open an attack with two targets, one enemy and one
-   ally. Below the ADVANTAGE / NORMAL / DISADVANTAGE row there should be a block: a heading
-   counting the targets, then one row each carrying the **token's own art** at 32px, the
-   name, and the disposition word. The art's border is the same colour the canvas draws
-   around that token. ⚠ Deliberately NO warning icon on the ally — spells legitimately target
-   allies, and the user struck the `[!]` flag for exactly that reason. Judge the LOOK here:
-   size, spacing, whether it crowds the dialog.
-2. **The target block, spell/item path** — cast something with a slot-level choice. The same
-   block should appear on that dialog too (a different application class, separately hooked).
-   ⚠ **A CONSUMABLE IS THE OPEN QUESTION** — drink a potion and report whether ANY dialog
-   opens at all. If none does, FLOW item 4 (potions self-aim) comes back as real work; if one
-   does, the decoration covers it and item 4 stays folded. This is the single fact that
-   decides it, and no probe could answer it (the sandbox party carried no consumable).
-3. **Zero targets** — use a spell with nothing targeted. The block should say **"No targets"**
-   in the damage red. (Attacks cannot reach this — the require-a-target gate gets there first.)
-4. **Live re-target** — with a dialog standing open, click a different token on the canvas.
-   The block should repaint underneath it: the count changes, rows come and go.
-5. **Temp HP** — have Morgash use his Dash (or anything granting temp HP). The receipt row
-   must read **`+N temp HP` in blue**, not `−0 HP` in damage red. ⚠ A hit that both damages
-   AND grants should read `−3 HP · +4 temp` — both halves, neither hidden.
-6. **The DM's quiet** — get Gren hit in the Shield window while **Gren's player is NOT logged
-   in** (that is the case that was broken; with the player present it always behaved). The DM
-   should get **NO popup** — only the card, its row, and the 15s bar draining. Then press the
-   card's **Answer** button: the popup SHOULD appear, because a deliberate click is not spam.
-7. **Riposte is quiet now** — get Morgash hit in melee. He should NOT be offered a Riposte
-   hold any more. ⚠ Riposte itself is still un-automated (FLOW item 1); this only stops the
-   nonsense prompt, it does not make the maneuver work.
+⚠ **One half of ⑤ was not walked and is NOT a finding:** the COMBINED case
+(`−3 HP · +4 temp` on a hit that both damages and grants) was left to come up naturally. The
+grant-only case is confirmed.
 
-**If the walk is clean, the next step is FLOW build-order #2 — the Cleave arm-button.** The
-prod deploy and the prod setting change are both DONE (2026-08-19). The only outstanding
-prod chore is a **Molten control-panel restart** so the box stops registering 1.14.0; that is
-the user's to do and nothing is broken until it happens.
+### ✅ THE POTION WALK — CLOSED CLEAN 2026-08-19 (tested, then released)
+
+The user walked the potion default in the sandbox and reported *"tested and looks good"*, then
+authorised the full release cycle. **Do not present this list again.** Shipped as **v1.17.0**.
+
+⚠ **The one taste question was answered by silence, not by a ruling:** the drinker STAYS
+TARGETED on the canvas after drinking. It was called out in the checklist as the thing to
+judge, the user walked it and raised nothing. Treat it as accepted-as-shipped — but if it ever
+starts to grate, clearing the target on completion is a small change and this is where the
+decision was made.
+
+### 🚶 THE PROD BOUNCE — the one outstanding manual step
+
+1. **Restart the Foundry process from the Molten hosting panel.** Prod holds v1.17.0's files
+   (byte-verified) but its process still registers **1.14.0**, because Foundry reads
+   `module.json` at PROCESS BOOT. ⚠ **This cannot be scripted** — prod's `/setup` returns 403
+   to an authenticated admin session, so a script can shut the world down and NOT bring it
+   back. Never attempt it from here.
+2. **Then verify**, and this is the whole point of the step:
+   ```
+   BF_TARGET=prod node tools/verify-settings.mjs
+   ```
+   plus a read of `game.modules.get('fvtt-mod-battleflow').version` — it must say **1.17.0**.
+   Settings were already CLEAN before the bounce and should stay so.
+3. **Nothing else is owed to prod.** `Riposte:ac` is already absent there; the files are
+   already correct. This is purely the version string catching up with the disk.
+
+**After the bounce the deck is FLOW build-order #2, the Cleave arm-button** — small, shape
+fully agreed, twin-card half already shipped in v1.15.0. Phase 4 still needs a real session.
+
 
 ### 🧪 STILL ON THE SHELF — PHASE 4, THE EXPERIMENT (not next; needs table time)
 
@@ -416,6 +428,40 @@ table above is law — no settings changes needed. **Every client F5 once** befo
 4. **The verdict question, for the user to answer out loud:** after ten rounds, does
    anything actually feel MISSING? If native durations carry the weight, Phase 4 closes
    as a RULING (no code) and the plan advances to Phase 5 — the adopt-AC5e decision.
+
+### 📦 Deploy + battery state — v1.17.0 (2026-08-19, FOURTH session)
+
+✅ **RELEASED AND DEPLOYED.** Tagged `v1.17.0`, pushed, GitHub release carries zip + bare
+`module.json`. Prod deployed over WebDAV and byte-verified — **17 files md5-matched, prod
+IDLE at 0 users**. The SANDBOX was deployed and PROCESS-BOUNCED and now registers **1.17.0**.
+⚠ **Prod's process still registers 1.14.0 until the Molten-panel bounce** — see the step above.
+
+**Battery on the sandbox with the change in, all green:** battleflow ALL PASS · cast 17/17 ·
+riders 8/8 · effects 46/46 · hold ALL PASS · concentration 47/47 · saves 49/49 ·
+`verify-settings` **CLEAN**. Plus `probe-potion-selfaim` 5/5.
+
+⚠ **`hold` aborted on the first pass and it was NOT a regression** — it died in setup with
+"BF Test Victim has no token", before any assertion, because a suite between it and
+`smoke-battleflow` strips that fixture's token. Re-running `smoke-battleflow` and then `hold`
+STANDALONE is the documented fix and it passed clean. This is the third session this trap has
+cost time; **run `hold` standalone after a fixture rebuild, always.**
+
+⚠ **The sandbox was relaunched from a COLD PROCESS this session** (the user closed the whole
+app, not just the window), so `module.json` re-registered at boot and the box is cleanly on
+1.16.0. Launch dance used: `Start-Process ... -WindowStyle Minimized`, then the world over HTTP.
+⚠ **The HTTP world launch needs a SESSION first** — `GET /auth` to get the `session` cookie,
+THEN `POST /auth` adminAuth, THEN `POST /setup` launchWorld. Skipping the GET returns the setup
+HTML from /auth and then a 403 from /setup, which reads exactly like a wrong admin key and is
+not. Script kept at the scratchpad path; the admin key is `LOCAL_ADMIN_KEY` in the MCP `.env`.
+
+⚠ **TWO NEW PROBE TRAPS, both cost a run:**
+- **A template-bearing activity's `use()` NEVER RESOLVES** — it parks waiting for a human to
+  place the template. A plain `await` on it hung a probe past its watchdog. **Race every use**
+  (`Promise.race([act.use(...), sleep(n)])`), and delete any template it leaves behind.
+- **Party Camp's two Practice Dummy tokens SHARE ONE ACTOR**, so `getTargetDescriptors` keys
+  them to a single uuid. Any "did the other target survive" assertion is unanswerable on that
+  scene until a distinct throwaway bystander actor exists. Create one, delete it after.
+
 
 ### 📦 Deploy + battery state — v1.16.0 (2026-08-19, THIRD session)
 
