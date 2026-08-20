@@ -774,7 +774,7 @@ slots — it is **three passes**, each one battery-green run and one release.
 | ~~13~~ | ~~**Temp HP card**~~ (item 13) | ✅ **SHIPPED v1.16.0** — display fix, table-verified in the walk. |
 | ~~14~~ | ~~**DM stops getting player hold popups**~~ (item 14) | ✅ **SHIPPED v1.16.0** — `gmQuiet` finally reaches the hold; table-verified in the walk. |
 | ~~4~~ | ~~**Potions default to the drinker**~~ (item 4) | ✅ **SHIPPED v1.17.0** — re-shaped from the folded self-aim item at the user's ask; built, 5/5 verified, battery green, table-tested, released and deployed. |
-| ~~B~~ | ~~**Player-rolled damage popup**~~ (item 3) | ✅ **BUILT v1.18.0** — taken OUT OF ORDER at the user's call (*"i dont want to do A, tedious, can we try B please"*), plus the crit indicator they asked for in the same breath. 9/9 probe, battery green, sandbox-deployed. **NOT yet walked by a human, NOT released, NOT on prod.** |
+| ~~B~~ | ~~**Player-rolled damage popup**~~ (item 3) | ✅ **BUILT v1.18.0** — taken OUT OF ORDER at the user's call (*"i dont want to do A, tedious, can we try B please"*), plus the crit indicator they asked for in the same breath. 9/9 probe, battery green. **WALKED 12/12 CLEAN, RELEASED AND ON PROD'S DISK 2026-08-20** (bounce pending). |
 
 ## PASS A — THE FOLD PASS
 *(was slots 2 + 4 + 6 — FLOW items 8, 1, and 5 + 7-remainder)*
@@ -801,13 +801,13 @@ when the mod is negative** — and the 1.9 fence that killed silent Cleave detec
 Extra Attack milestone makes *"second swing, same weapon, different target"* an ordinary turn, so
 the player declares and the machine obeys; it never guesses).
 
-## PASS B — THE PLAYER-ROLLED DAMAGE POPUP — ✅ BUILT + WALKED + EXTENDED (v1.18.0)
+## PASS B — THE PLAYER-ROLLED DAMAGE POPUP — ✅ BUILT + WALKED + SHIPPED (v1.18.0)
 *(was slot 3 — FLOW item 3)*
 
 | Item | What it is | Where it landed |
 | --- | --- | --- |
 | **3** | **Player-rolled damage popup + crit indicator** | ✅ **BUILT v1.18.0**, then **WALKED 9/9 CLEAN 2026-08-20** — third clean walk in a row, zero findings against what was built. |
-| **3b** | **The same offer for SAVE SPELLS and AREAS** | ✅ **BUILT 2026-08-20**, bundled into the same unreleased v1.18.0 at the user's call. The walk's one gap, and it was a coverage gap rather than a defect. |
+| **3b** | **The same offer for SAVE SPELLS and AREAS** | ✅ **BUILT 2026-08-20** and bundled into the same v1.18.0 at the user's call — the walk's one gap, a coverage gap rather than a defect. **Walked 12/12 clean over the whole feature and SHIPPED.** |
 
 ### The walk's finding — a gap, not a bug
 
@@ -878,9 +878,9 @@ unwind, which reads `effectReceipt` to know what a failure applied.
 **The rule if any of these is ever touched:** route it through `queueFlagWrite` rather than
 re-deriving the merge. The helper takes `(message, flagKey, mutate)` and nothing else.
 
-⚠ **NEXT: the walk of 3b.** The checklist is in HANDOFF.md. v1.18.0 stays **untagged** until a
-human has seen the save/area popup at the table — the user's call was to hold the release and
-ship attacks, save spells and areas as one thing.
+✅ **DONE — the walk of 3b closed 12/12 with zero findings on 2026-08-20, and v1.18.0 is tagged,
+released and deployed.** The user's hold-and-bundle call held: attacks, save spells and areas
+shipped as one thing, with one walk and one tag. **Pass B is CLOSED.**
 
 ## PASS C — THE VOLLEYS
 *(was slots 5 + 7 — both halves of FLOW item 6)*

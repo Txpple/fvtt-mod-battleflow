@@ -1,86 +1,158 @@
 # HANDOFF.md — picking this up cold
 
-## State at a glance — 2026-08-19, end of the fifth session
+## State at a glance — 2026-08-20, end of the seventh session
 
 | | |
 | --- | --- |
-| **Do first** | **Present the walk checklist below.** The user has walk results to give. |
-| Repo | `main` @ `a326755`, clean, pushed. **No tag at HEAD — v1.18.0 is UNRELEASED on purpose.** |
-| Sandbox | Up, minimized, world active, **registering 1.18.0**. `verify-settings` CLEAN. |
-| Prod | Code still **1.17.0** and untouched. `verify-settings` CLEAN. Only the MACRO reached it. |
-| Built, unseen | **v1.18.0** — player-rolled damage popup + crit indicator (FLOW item 3 / Pass B). |
-| Done, closed | The GM-bar macro *Clear Temp Effects + Full Rest (Scene)*, **both worlds**. |
-| Next build | **Confirm appetite first.** Pass A was deferred as *"tedious"*; do not assume it. |
-| Bridge | Disconnected on both worlds. Suites join as `Tester Assistant`, not the bridge. |
-
-⚠ **Read the corrected elect block further down before reasoning about who may connect to a
-live world.** The old *"the bridge never connects during live play"* rule is **RETIRED** — it was
-a misreading, live MCP assistance is allowed, and the real rule is one GM-capable client **per
-account** plus the hot-standby risk. Do not re-derive the ban.
+| **Do first** | **Verify prod registers 1.18.0** (`read-version`, or `game.modules.get('fvtt-mod-battleflow').version`). The bounce was handed to the user and had **NOT happened** when this was cut. That is the ONLY open item. |
+| Repo | `main` @ `0e411cf`, pushed. **Tagged `v1.18.0`.** Clean apart from this file's own commit. |
+| Release | ✅ **v1.18.0 IS CUT, TAGGED, PUBLISHED AND ON PROD'S DISK.** Nothing about it is pending except the bounce. |
+| Sandbox | Up, minimized, world active, 1.18.0, `verify-settings` **CLEAN**. |
+| Prod | Disk **1.18.0** (17/17 md5-MATCH). Process still registers **1.17.0 — UNBOUNCED.** `verify-settings` **CLEAN**. |
+| Walked clean | **v1.18.0 IN FULL — 12/12, ZERO findings.** Fourth clean walk in a row. **CLOSED; do not present it again.** |
+| Next build | **Confirm appetite first.** Pass A is still deferred as *"tedious"*; do not assume it. |
+| Bridge | Disconnected on BOTH worlds. Suites join as `Tester Assistant`. |
 
 ---
 
-> ⚠⚠ **THIS SESSION OPENS ON A WALK. v1.18.0 IS BUILT AND UNSEEN — PRESENT THE CHECKLIST
-> BELOW FIRST.** The player-rolled damage popup (FLOW item 3 / Pass B) plus the crit indicator
-> is built, 9/9 on its own probe, battery-green, deployed to the sandbox and the box is
-> **BOUNCED AND REGISTERING 1.18.0**. **No human has seen it.** It is **NOT tagged, NOT
-> released and NOT on prod** — deliberately: v1.17.0's pattern was table-test first, release
-> after, and this follows it.
+> ✅✅ **v1.18.0 SHIPPED. THERE IS NO OPEN WALK ON THIS FILE.** For the first time in seven
+> sessions this handoff opens with nothing to present. The feature the last three sessions were
+> built around — *Roll Your Own Damage*, across attacks, save spells and areas — was walked
+> **12/12 with zero findings**, went battery-green, and is tagged and released.
 >
-> ✅ **PROD IS CLEAN AND UNTOUCHED at 1.17.0**, `BF_TARGET=prod verify-settings` CLEAN. The
-> four-session version drift stays paid off — **no CODE was deployed to prod this session.**
+> ⚠ **THE ONE THING LEFT: THE PROD BOUNCE.** Prod's disk carries v1.18.0 byte-for-byte, but
+> Foundry reads `module.json` at PROCESS BOOT, so the running process still vends **1.17.0**.
+> This was **measured, not assumed** — a direct read of `game.modules.get(…).version` on prod
+> returned `1.17.0` after the deploy. The bounce is the user's to make from the Molten panel and
+> **cannot be scripted from here** (prod's `/setup` 403s an authenticated admin session; a script
+> can shut the world down and then fail to bring it back). **First action next session: ask
+> whether the bounce happened, then VERIFY the registered version rather than believing the
+> answer.** Until it reads 1.18.0 the table is playing 1.17.0 code.
 >
-> ✅ **THE GM-BAR MACRO IS DONE ON BOTH WORLDS.** *Clear Temp Effects + Full Rest (Scene)* is
-> applied and verified on the SANDBOX and **APPLIED TO PROD** (2026-08-19, at the user's explicit
-> go, with `BF_MACRO_FORCE=1` while one PLAYER — Andrew — was connected). Same document id, same
-> hotbar pin, prod's copy byte-for-byte the sandbox's. Nothing outstanding.
->
-> ⚠⚠ **THE DECK WAS RE-CUT, AND THEN PASS A WAS DEFERRED.** The old seven slots became THREE
-> PASSES at the user's call (*"i would rather bundle 2, 4 and 6 in one pass. 3 in another pass,
-> 5 and 7 in a another pass"*): **A** = Cleave arm-button + post-roll folds + Shield Master and
-> the success verdicts; **B** = the player-rolled damage popup; **C** = both volleys. Then A was
-> deferred — *"i dont want to do A, tedious, can we try B please"* — and **B was built first
-> and out of order.** A is waiting on appetite, not on a blocker. **C should still not go
-> before A** (item 6's per-ray rider question is answered by watching A at the table).
+> ✅ **THE USER'S HOLD-AND-BUNDLE CALL PAID OFF.** Attacks, save spells and areas shipped as one
+> v1.18.0, with one walk over the whole feature and one tag — exactly as decided. Because the
+> version string never moved between the two halves, the sandbox needed no process bounce all the
+> way through; a world reload carried every script edit.
 
-## ⬜ THE CHECKLIST — walk v1.18.0 in the sandbox
+## ✅ THE v1.18.0 WALK — CLOSED CLEAN 2026-08-20 (12 of 12, zero findings)
 
-The box is up, minimized, on 1.18.0. **The setting ships OFF and is PER-CLIENT**, so nothing
-changes until you turn it on: **Settings → Battle Flow → Attack Resolver → "Roll Your Own
-Damage"**. Turn it on for the client you want to test as.
+**Do not present this list again.** Recorded so nobody re-derives what it covered:
 
-| # | What to check | What should happen |
+| # | Item | Verdict |
 | --- | --- | --- |
-| ① | **The setting is findable and off.** | Under Attack Resolver, below Dramatic Beat. Greyed out when Auto-Roll Damage is Off. Nothing changes while it stays off. |
-| ② | **Turn it on. Hit something.** | A popup on YOUR client only — weapon art, *Damage — your roll*, who it is aimed at, a draining 15s bar, one **Roll Damage** button. The dice do NOT roll yet. |
-| ③ | **Press the button.** | Damage rolls exactly as it used to — same auto-apply, same receipt, same revert. Nothing downstream should look different. |
-| ④ | **✨ Crit it.** | Gold **CRITICAL HIT** badge, button reads **Roll Critical Damage**, window title says Critical. It reads the roll's own crit flag, so it cannot lie — but confirm it FIRES when you actually crit. |
-| ⑤ | **Ignore one. Let the bar run out.** | At 15s it rolls itself. A missed popup must never stall the table. |
-| ⑥ | **X out of one.** | It rolls IMMEDIATELY — dismissing means *get on with it*, not *cancel*. |
-| ⑦ | **Two targets, one attack.** | **ONE** popup, not two. One damage roll serves every target it hit. |
-| ⑧ | **A held reaction (Shield) that still hits.** | After the hold resolves you STILL get the popup — that is the moment you most want your own dice. |
-| ⑨ | **The GM's own side.** | It is per-client, so the GM only gets popups for attacks the GM rolls. Check it does not follow the players' attacks onto your screen. |
+| 1 | Vicious Mockery — *"A successful save avoids it entirely."* | ✅ |
+| 2 | Fireball — *"A successful save halves it."* | ✅ |
+| 3 | No CRITICAL badge on a spell; plain title and button | ✅ |
+| 4 | Press it — full / half / zero exactly as the save dictates | ✅ |
+| 5 | Bar runs out — self-rolls; targets' save popups NOT blocked | ✅ |
+| 6 | X out — rolls IMMEDIATELY, never cancels | ✅ |
+| 7 | Area at 3+ targets — ONE popup, not one per target | ✅ |
+| 8 | **Saves resolved BEFORE the press — each target hit exactly once** | ✅ **the `queueFlagWrite` fix holds at the table** |
+| 9 | Area cast bare then placed — no "Against …" line, says why | ✅ |
+| 10 | Web's burn clause (`onSave: "full"`) — no popup, no roll | ✅ |
+| 11 | GM's own side — per-client, own casts only | ✅ |
+| 12 | Plain weapon attack — unchanged, crit badge intact | ✅ |
 
-⚠ **KNOWN LIMIT to confirm you are happy with, not a bug to report:** the 15s window is a
-`setTimeout` on one client, so an **F5 mid-popup loses that roll** (today's 3s beat has the
-same hole, 5× narrower). Making it survive a reload needs a flag + a re-render popper + an
-elect for *who rolls if the roller never comes back* — the cross-client machinery whose
-absence is exactly why this item was small. Say the word if it bites and it becomes a
-follow-up.
-
-**After the walk:** findings → fixes → one battery-green pass → tag + GitHub release → prod
-deploy → **the user bounces prod** → verify the registered version. The bounce is never
-scripted from here (prod's `/setup` 403s an authenticated admin session).
+⚠ **KNOWN LIMIT, walked past deliberately and still accepted:** the 15s window is a `setTimeout`
+on one client, so an **F5 mid-popup loses that roll**. Surviving a reload needs a flag, a
+re-render popper and an elect for *who rolls if the roller never comes back* — the cross-client
+machinery whose absence is why this item stayed small. It becomes a follow-up only if it bites.
 
 ### What NOT to redo
 
-The build is finished and on the box. **Do not rebuild, redeploy or re-run the battery to
-"check"** — v1.18.0 is deployed to the sandbox, the process is bounced, and
-`game.modules.get('fvtt-mod-battleflow').version` reads **1.18.0**. The battery was green on
-exactly that build (battleflow · hold · cast 17/17 · riders 8/8 · effects 46/46 · conc 47/47 ·
-saves 49/49 · verify-settings CLEAN · probe-player-damage 9/9). Re-running it costs ~20 minutes
-and answers a question nobody asked. **Take the walk results, fix what they found, THEN one
-battery pass over the fixes.**
+- **The v1.18.0 walk.** 12/12, zero findings, CLOSED. Both halves.
+- **The release.** Tagged, pushed, published, prod's disk written and byte-verified.
+- **Re-deriving the double-application.** Measured, fixed and written up in three places
+  ([core.js](scripts/core.js), [FLOW.md](FLOW.md), [design.md](design.md)). Assertion 13 in
+  `probe-save-damage-popup` is the control proving it predates the feature.
+- **Rebuilding to "check".** The sandbox and prod both hold this exact code, byte-verified.
+
+### 📦 Release + battery state — v1.18.0 (2026-08-20, SEVENTH session)
+
+✅ **RELEASED.** Two commits, tag on the second, house pattern:
+
+| Commit | |
+| --- | --- |
+| `8fcc1fe` | `test:` the save/area probe + `reset-fixture-state` |
+| `0e411cf` | `feat:` the caster is offered their own dice too **← `v1.18.0` tagged here** |
+
+⚠ `module.json` was **already at 1.18.0** from `5a4b13a` (the fifth session's attack half), so the
+tagged commit carries no bump of its own. That is correct here and not a pattern to copy blindly.
+
+**GitHub release** `v1.18.0 - the caster is offered their own dice too` is public, with both
+assets: `fvtt-mod-battleflow.zip` (136,410 bytes, **19 entries, forward slashes verified**) and a
+bare `module.json` (1,445 bytes). The notes cover the WHOLE feature, both halves, because
+v1.18.0 was never released in between.
+
+**Prod deploy:** `node scripts/deploy-house-module.mjs fvtt-mod-battleflow` — **17/17 files
+md5-MATCH**, run while prod was **IDLE at 0 users** (checked first, as always). Then
+`BF_TARGET=prod verify-settings` **CLEAN**.
+
+**Battery on the sandbox before the tag, all green — every number matched the recorded baseline:**
+
+| Suite | Result |
+| --- | --- |
+| `smoke-battleflow` | ALL PASS |
+| `smoke-hold` | ALL PASS (run straight after battleflow, as always) |
+| `smoke-cast` | 17/17 |
+| `smoke-riders` | 8/8 |
+| `smoke-effects` | 46/46 (after `reset-fixture-state`) |
+| `smoke-concentration` | 47/47 |
+| `smoke-saves` | 49/49 (§11 SKIPs on PC Attacker ownership — expected) |
+| `probe-player-damage` | 9/9 (after a `smoke-battleflow` token rebuild) |
+| `probe-save-damage-popup` | 13/13 |
+| `verify-settings` | **CLEAN**, both worlds |
+
+✅ **BOTH DOCUMENTED TRAPS FIRED, AND THE DOCS PAID FOR THEMSELVES.** `probe-player-damage` went
+FATAL on stripped tokens and `smoke-effects` needed `reset-fixture-state` first. Because both
+were written down, they cost minutes instead of the hour they cost last time. **Keep running
+`reset-fixture-state` before `smoke-effects`, and `smoke-battleflow` before
+`probe-player-damage`, as routine rather than as a reaction to a failure.**
+
+### ⚠ "Close the box" is ambiguous — say which box
+
+Asked to close the Foundry **window** so the suites could have the world (preflight had aborted
+on two GM-capable clients: *Matt the DM* + *Tester Assistant*), the user closed the **whole
+application**. The next suite then burned its full **300s watchdog** connecting to a dead port.
+Cheap to recover, easy to avoid: **say "close the browser tab / log out of the world", not
+"close the box"** — and when a suite watchdogs at connect, check `/api/status` and the process
+list before suspecting the suite.
+
+The relaunch worked exactly as this file documents, first try: start the app **minimized**, then
+just run a suite — `/api/status` reported `{"active":false}` and `smoke-battleflow` launched the
+world itself in about 12 seconds. **The documented procedure is correct; do not re-derive it.**
+
+### Environment corrections from the SIXTH session - both cost time, both still binding
+
+⚠ **`LOCAL_ADMIN_KEY` IS NOW `Dummy`** in the MCP `.env` (user instruction, 2026-08-20: *"update
+the local admin key in env to Dummy"*). The old value was being rejected by the box and blocked
+every suite until it was changed.
+
+⚠⚠ **THE DOCUMENTED HTTP WORLD-LAUNCH DANCE DOES NOT WORK — this file used to say it did.**
+On Foundry **14.365**, `POST /auth` adminAuth 302s straight back to `/auth` (its *failure*
+redirect) and `POST /setup` then answers **403 "You lack server administrator permission"**,
+which reads exactly like a wrong admin key and is not. Re-capturing the session cookie after
+adminAuth does not help; the page is client-rendered, so there is no server-side form to post to.
+**The way to bring a cold box up:** start the app minimized, then **just run any suite** —
+`tools/target.mjs` hands `LOCAL_ADMIN_KEY` to the MCP and `Foundry.connect()` launches an idle
+world itself via Playwright, in about 12 seconds. A `launch-local-world.mjs` tool was written this
+session, proved not to work, and was **deleted rather than left in `tools/` to mislead.**
+
+⚠ **The sandbox app vanished twice this session** with no explanation, once mid-testing. It is
+stable when idle (watched for 80s+ at a stretch). If it is gone, relaunch it minimized and carry
+on — nothing was lost either time.
+
+### Two new probe traps, both cost a run
+
+- ⚠⚠ **`Actor.createDocuments` DOES NOT RETURN DOCUMENTS IN THE ORDER PASSED** (measured, dnd5e
+  5.3.3 / Foundry 14.365). A five-document create came back shuffled, so a positional destructure
+  bound `tgtC` to the actor named "Target B" and every identity in that probe section was off by
+  one — which looked *exactly* like a product bug for two runs. **Bind by name after a bulk
+  create, never by position.** Positional destructuring of `createDocuments` is a latent bug
+  anywhere it appears in `tools/`.
+- ⚠ **A probe section must state its own setting preconditions.** A control section that turned
+  the popup OFF silently broke the *next* section, which needed it ON. Sections inherit whatever
+  the one before them left behind.
 
 Everything below this line is older context, kept only because its rulings still bind.
 
@@ -89,18 +161,18 @@ Everything below this line is older context, kept only because its rulings still
 ## Older context — still law, already actioned
 
 > ✅ **v1.17.0 IS CUT, TAGGED, RELEASED, TABLE-TESTED AND DEPLOYED.** The potion default was
-> walked by the user and confirmed good before release. Its walk is CLOSED; the OPEN walk on
-> this file is v1.18.0's, above.
+> walked by the user and confirmed good before release. Its walk is CLOSED — and so is
+> v1.18.0's. **There is NO open walk on this file.**
 >
 > ⚠⚠ **THE v1.16.0 WALK CLOSED CLEAN — 7 of 7, ZERO findings, no code.** Second clean walk
 > in a row. Every v1.16.0 item is now TABLE-verified: the target block on both dialog classes,
 > the zero-target case, live re-target repaint, the temp-HP card, the DM's quiet, and the
 > struck Riposte prompt. **Do not present that list again.**
 >
-> ✅ **PROD IS FULLY CURRENT.** Files deployed over WebDAV and byte-verified (17 files
-> md5-matched, prod IDLE at 0 users), process bounced from the Molten panel by the user, and
-> **`game.modules.get('fvtt-mod-battleflow').version` reads 1.17.0**. Verified after the
-> bounce, not assumed.
+> ⚠ **SUPERSEDED — this described the v1.17.0 release, whose bounce DID complete** (verified
+> after it, not assumed). **v1.18.0's has not.** Its files are deployed and byte-verified but the
+> process still vends 1.17.0 — see the top of this file. The rule below is exactly why that
+> distinction is tracked.
 > ⚠ **THE RULE THAT GOT US HERE, KEEP IT:** a file deploy is HALF a prod release — Foundry
 > reads `module.json` at PROCESS BOOT — and **the bounce cannot be scripted**: prod's `/setup`
 > returns **403** to an authenticated admin session, so a script can shut the world down and
@@ -120,9 +192,9 @@ Everything below this line is older context, kept only because its rulings still
 > separate track from this file's bug ledger. **Read it before building anything.**
 > ⚠ **It supersedes the Desktop scratch .txt entirely — that file is no longer a reference.**
 > **Done and shipped:** **v1.18.0** — PASS B (the player-rolled damage popup + the crit
-> indicator), BUILT AND AWAITING ITS WALK. **v1.17.0** — build-order 4 (potions default to the
+> indicator) across attacks, save spells AND areas — **WALKED 12/12 AND RELEASED.** **v1.17.0** — build-order 4 (potions default to the
 > drinker). **v1.16.0** — build-order 0 (strike `Riposte:ac`), 1 (target decoration),
-> 13 (temp HP card), 14 (the DM's quiet). **After the walk: PASS A, the fold pass** — deferred
+> 13 (temp HP card), 14 (the DM's quiet). **Next up: PASS A, the fold pass** — deferred
 > once as tedious, so confirm appetite before opening it rather than assuming it is next.
 > ✅ **That track's open question is ANSWERED:** a consumable DOES raise a dialog, so the
 > decoration reaches potions and item 4's reversal trigger is permanently dead.
