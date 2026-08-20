@@ -1,5 +1,25 @@
 # HANDOFF.md — picking this up cold
 
+## State at a glance — 2026-08-19, end of the fifth session
+
+| | |
+| --- | --- |
+| **Do first** | **Present the walk checklist below.** The user has walk results to give. |
+| Repo | `main` @ `a326755`, clean, pushed. **No tag at HEAD — v1.18.0 is UNRELEASED on purpose.** |
+| Sandbox | Up, minimized, world active, **registering 1.18.0**. `verify-settings` CLEAN. |
+| Prod | Code still **1.17.0** and untouched. `verify-settings` CLEAN. Only the MACRO reached it. |
+| Built, unseen | **v1.18.0** — player-rolled damage popup + crit indicator (FLOW item 3 / Pass B). |
+| Done, closed | The GM-bar macro *Clear Temp Effects + Full Rest (Scene)*, **both worlds**. |
+| Next build | **Confirm appetite first.** Pass A was deferred as *"tedious"*; do not assume it. |
+| Bridge | Disconnected on both worlds. Suites join as `Tester Assistant`, not the bridge. |
+
+⚠ **Read the corrected elect block further down before reasoning about who may connect to a
+live world.** The old *"the bridge never connects during live play"* rule is **RETIRED** — it was
+a misreading, live MCP assistance is allowed, and the real rule is one GM-capable client **per
+account** plus the hot-standby risk. Do not re-derive the ban.
+
+---
+
 > ⚠⚠ **THIS SESSION OPENS ON A WALK. v1.18.0 IS BUILT AND UNSEEN — PRESENT THE CHECKLIST
 > BELOW FIRST.** The player-rolled damage popup (FLOW item 3 / Pass B) plus the crit indicator
 > is built, 9/9 on its own probe, battery-green, deployed to the sandbox and the box is
@@ -51,7 +71,23 @@ follow-up.
 **After the walk:** findings → fixes → one battery-green pass → tag + GitHub release → prod
 deploy → **the user bounces prod** → verify the registered version. The bounce is never
 scripted from here (prod's `/setup` 403s an authenticated admin session).
->
+
+### What NOT to redo
+
+The build is finished and on the box. **Do not rebuild, redeploy or re-run the battery to
+"check"** — v1.18.0 is deployed to the sandbox, the process is bounced, and
+`game.modules.get('fvtt-mod-battleflow').version` reads **1.18.0**. The battery was green on
+exactly that build (battleflow · hold · cast 17/17 · riders 8/8 · effects 46/46 · conc 47/47 ·
+saves 49/49 · verify-settings CLEAN · probe-player-damage 9/9). Re-running it costs ~20 minutes
+and answers a question nobody asked. **Take the walk results, fix what they found, THEN one
+battery pass over the fixes.**
+
+Everything below this line is older context, kept only because its rulings still bind.
+
+---
+
+## Older context — still law, already actioned
+
 > ✅ **v1.17.0 IS CUT, TAGGED, RELEASED, TABLE-TESTED AND DEPLOYED.** The potion default was
 > walked by the user and confirmed good before release. Its walk is CLOSED; the OPEN walk on
 > this file is v1.18.0's, above.
