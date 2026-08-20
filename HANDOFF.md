@@ -10,11 +10,10 @@
 > ✅ **PROD IS CLEAN AND UNTOUCHED at 1.17.0**, `BF_TARGET=prod verify-settings` CLEAN. The
 > four-session version drift stays paid off — **no CODE was deployed to prod this session.**
 >
-> ⏸⏸ **ONE THING IS LEFT UNFINISHED AND IT IS NOT CODE — THE GM-BAR MACRO.** *Clear Temp
-> Effects + Full Rest (Scene)* is applied and verified on the SANDBOX and **still pending on
-> PROD**: prod went 0 → 1 users mid-write and the never-during-live-play rule stopped it. The
-> macro body and its applier are committed — see **“The Clear + Full Rest macro”** below for the
-> one command that finishes it. **Confirm prod is idle first.**
+> ✅ **THE GM-BAR MACRO IS DONE ON BOTH WORLDS.** *Clear Temp Effects + Full Rest (Scene)* is
+> applied and verified on the SANDBOX and **APPLIED TO PROD** (2026-08-19, at the user's explicit
+> go, with `BF_MACRO_FORCE=1` while one PLAYER — Andrew — was connected). Same document id, same
+> hotbar pin, prod's copy byte-for-byte the sandbox's. Nothing outstanding.
 >
 > ⚠⚠ **THE DECK WAS RE-CUT, AND THEN PASS A WAS DEFERRED.** The old seven slots became THREE
 > PASSES at the user's call (*"i would rather bundle 2, 4 and 6 in one pass. 3 in another pass,
@@ -501,7 +500,7 @@ table above is law — no settings changes needed. **Every client F5 once** befo
    anything actually feel MISSING? If native durations carry the weight, Phase 4 closes
    as a RULING (no code) and the plan advances to Phase 5 — the adopt-AC5e decision.
 
-### 🔧 The Clear + Full Rest macro — SANDBOX DONE, PROD PENDING (2026-08-19)
+### 🔧 The Clear + Full Rest macro — DONE ON BOTH WORLDS (2026-08-19)
 
 ⚠⚠ **THIS IS THE ONE THING LEFT UNFINISHED THIS SESSION, AND IT IS NOT CODE.** The user asked
 for the GM-bar macro **Clear Temp Effects (Scene)** to ALSO do a full rest, on BOTH worlds.
@@ -522,13 +521,21 @@ consider a distinctive icon before it lives next to the things pressed in a hurr
   `node tools/apply-macro-clear-rest.mjs` for the sandbox, `BF_TARGET=prod …` for prod. It
   **REFUSES to write to prod while any other user is connected** and it never EXECUTES the macro.
 
-**⏸ WHY PROD IS PENDING:** prod went from **0 users to 1** between the status check and the
-write, so the tool's own sole-occupancy guard bit. `/api/status` gives a count, not names, so who
-it was is unknown. (The guard is about writing to a world someone else is using — NOT the retired
-*"bridge never connects during live play"* rule, which the block at the top of this file corrects.)
-**To finish: confirm prod is idle, then `BF_TARGET=prod node tools/apply-macro-clear-rest.mjs`.**
-Do not execute the macro on prod to test it — read the document back instead; the behaviour is
-already proven on the sandbox.
+**✅ PROD IS DONE (2026-08-19).** Applied with
+`BF_TARGET=prod BF_MACRO_FORCE=1 node tools/apply-macro-clear-rest.mjs` at the user's explicit
+go. Prod's copy went 850 → 3525 bytes, id `8ablqYRiKDOEWLPz` unchanged, still pinned to **Matt
+the DM slot 2**, `restCallPresent` and `honestCount` both true. **The macro was NOT executed on
+prod** — the behaviour was proven on the sandbox and read back as a document here, which is the
+right shape for a full-board reset button.
+
+⚠ **One PLAYER (`Andrew`) was connected during the write**, which is why the force flag was
+needed — the guard is about not swapping a reset button under a live table, and the user made
+that call. Worth knowing for the log: with only a player and the bridge connected, **`DM
+Assistant` was the highest-role active GM and therefore HELD THE ELECT for the length of that
+run** — the hot-standby case, exactly as the corrected block at the top of this file describes.
+It lasted seconds because the applier ends in `process.exit(0)`; a leaked process would have
+left the elect in an invisible headless window with a player at the table. **That is the reason
+the exit discipline matters.**
 
 **Two 5.3.3 facts this bought, both load-bearing:**
 - **`longRest()` defaults `dialog: true`** — without `{ dialog: false }` it pops one rest
