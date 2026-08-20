@@ -25,6 +25,78 @@ Hooks.on("dnd5e.preUseActivity", activity => {
   return false;
 });
 
+/* ---------------------------------------------------------------------------------------------
+ * A DRUNK POTION DEFAULTS TO THE DRINKER (FLOW item 4, re-shaped 2026-08-19 after the v1.16.0
+ * walk). User's shape: "if no target, then auto target self; if target exists, then use that."
+ *
+ * ⚠ THIS IS A DEFAULT, NOT A FORCE — and that is the whole design. v1.11.0's `affects: self`
+ * self-aim DISCARDS the snapshot, which is right for Second Wind (there is no other sensible
+ * target) and wrong for a potion (handing one to a downed ally is a real table move). So the
+ * empty case is filled and a real target always wins. This retires the "self-aim UNLESS the
+ * target is friendly" carve-out FLOW item 4 had to invent — no friendliness is inferred here.
+ *
+ * MEASURED, 2026-08-19 (tools/probe-potion-aim.mjs), both facts load-bearing:
+ * - Healing potions carry `affects.type: "creature"`, activity type `heal` — NOT `self` and
+ *   NOT blank. So the module was never wrong to leave them alone (the 02:41:58 "healed the
+ *   chest" sighting is faithful behaviour), the "blank affects must not guess" rule is not in
+ *   play, and filling an empty aim is a default INSIDE what the data already allows.
+ * - `messageFlags` snapshots targets BEFORE this hook fires (dnd5e 5.3.3 Activity#use), so
+ *   setting a canvas target here does NOT reach the card — a three-case control proved it
+ *   (target set before use: stamped; set in this hook: empty). The snapshot must be written
+ *   directly. `messageConfig` is passed in mutable for exactly this.
+ *
+ * BOTH sides are written on purpose: the SNAPSHOT is what every downstream machine reads
+ * (hold, saves, mastery, shared, cast), and the LIVE TARGET is what the dialog's target block
+ * paints — so the table SEES the default before confirming instead of learning where it went
+ * from the receipt afterwards (user call, 2026-08-19).
+ *
+ * The gate is structural and carries NO NAME LIST, keeping faith with the cast slice: `heal`
+ * + `creature` + no template separates a drinkable potion from Oil, which is also subtype
+ * `potion` but is `save`/`creature` plus `damage`/`space`-with-template because you THROW it.
+ * No setting, for the same reason self-aim has none — and the application it feeds is already
+ * gated by castApply.
+ * ------------------------------------------------------------------------------------------- */
+
+/** A consumable whose aim is "one creature, no template" — a potion you drink. */
+function potionDefaultsToDrinker(activity) {
+  if ( activity?.item?.type !== "consumable" ) return false;
+  if ( activity.type !== "heal" ) return false;
+  if ( activity.target?.affects?.type !== "creature" ) return false;
+  if ( activity.target?.template?.type ) return false;
+  return true;
+}
+
+/** The system's own target descriptor shape (getTargetDescriptors) — name off the TOKEN,
+ *  identity off its actor, and AC nulled under total cover exactly as the system nulls it. */
+function targetDescriptor(token, actor) {
+  const subject = token?.actor ?? actor;
+  if ( !subject?.uuid ) return null;
+  const ac = subject.statuses?.has("coverTotal") ? null : subject.system?.attributes?.ac?.value;
+  return { name: token?.name ?? subject.name, img: subject.img, uuid: subject.uuid, ac: ac ?? null };
+}
+
+Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig, messageConfig) => {
+  if ( !potionDefaultsToDrinker(activity) ) return;
+
+  // RULE 2 — a real target always wins. BOTH sides must be empty before filling: the snapshot
+  // decides the outcome, the live set decides what the dialog shows, and acting on a
+  // disagreement between them would target the canvas without changing the roll.
+  const path = "data.flags.dnd5e.targets";
+  const snapshot = foundry.utils.getProperty(messageConfig ?? {}, path);
+  if ( game.user.targets.size || (Array.isArray(snapshot) && snapshot.length) ) return;
+
+  const actor = activity.actor;
+  if ( !actor ) return;
+  // A token is needed to TARGET, but not to aim: an off-scene drinker still gets the snapshot
+  // so the heal lands, matching how `affects: self` needs no token at all.
+  const token = actor.getActiveTokens?.()?.[0] ?? null;
+  const descriptor = targetDescriptor(token, actor);
+  if ( !descriptor ) return;
+
+  foundry.utils.setProperty(messageConfig, path, [descriptor]);
+  token?.setTarget(true, { releaseOthers: false });
+});
+
 /**
  * Phase 3's structural gate — no name list, a shape (design.md §2.6 done right): a used
  * activity with NO outcome gate. `utility` carrying effects applies them at cast (Bless,
