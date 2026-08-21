@@ -222,9 +222,10 @@ const out = await f.evaluate(async () => {
       dlg1 ? 'dialog found' : 'NO dialog');
     // (hh), v1.20.0 walk 1 (user, on the dart popup screenshot): "in thee row where it
     // says thomas -- 3" — every dart row leads with its target's token icon, law-8 tooltip.
-    ok('1c2 (hh) each dart row leads with its target token icon (tooltip = the name)',
+    ok('1c2 (hh) each dart row is one card-grammar line: [icon] Name is targeted [n]',
       !!dlg1 && [...dlg1.element.querySelectorAll('[data-bf-volley-uuid]')].every(inp =>
-        !!inp.parentElement?.querySelector('img[data-tooltip]')));
+        !!inp.parentElement?.querySelector('img[data-tooltip]')
+        && inp.parentElement.textContent.includes('is targeted')));
     if (dlg1) {
       const steppers = dlg1.element.querySelectorAll('[data-bf-volley-uuid]');
       for (const s of steppers) s.value = (s.dataset.bfVolleyUuid === victim.uuid) ? '2' : '1';
@@ -377,6 +378,24 @@ const out = await f.evaluate(async () => {
       (rayDamage.length === 3) && rayDamage.every(m => m.rolls?.[0]?.formula?.includes('2d6'))
         && rayDamage.every(m => !!m.getFlag(MOD, 'receipt')),
       `damage=${rayDamage.length}`);
+    // (ii): the walk's "the damage didnt auto apply" — the registry walk resolved every ray
+    // damage to the LAST ray's attack (three rays share one usage card), so ray 1's dice
+    // re-tested against ray 3's outcome. The attackFor stamp is the fix; this pins that each
+    // damage names its own attack AND its receipt landed on exactly that ray's aimed target
+    // — the identity assert 3e never made.
+    ok('3e2 (ii) each ray damage names ITS OWN attack; its receipt lands on THAT ray\'s target',
+      rayDamage.every(m => {
+        const atk = game.messages.get(m.getFlag(MOD, 'attackFor'));
+        const aimed = (atk?.getFlag('dnd5e', 'targets') ?? [])[0]?.uuid;
+        const got = (m.getFlag(MOD, 'receipt')?.targets ?? []).map(t => t.uuid);
+        return !!atk && !!atk.getFlag(MOD, 'volleyRay') && !!aimed
+          && (got.length === 1) && (got[0] === aimed);
+      }),
+      JSON.stringify(rayDamage.map(m => ({
+        ray: game.messages.get(m.getFlag(MOD, 'attackFor'))?.getFlag(MOD, 'volleyRay') ?? null,
+        aimed: (game.messages.get(m.getFlag(MOD, 'attackFor'))?.getFlag('dnd5e', 'targets') ?? [])[0]?.name ?? null,
+        got: (m.getFlag(MOD, 'receipt')?.targets ?? []).map(t => t.name)
+      }))));
     ok('3f (ee) each ray attack names its ray and target on the card',
       !!document.querySelector(`[data-message-id="${rays[0]?.id}"] .bf-volley-aim img[data-tooltip]`)
         && !!document.querySelector(`[data-message-id="${rays[0]?.id}"] .bf-volley-aim`)

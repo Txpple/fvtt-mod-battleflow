@@ -494,7 +494,7 @@ const r = await f.evaluate(async () => {
         total,
         dmg: dmgStateFor(usageId),
         rolledWhileHeld: !!rolled && (game.messages.get(msg.id)?.getFlag(MOD, 'hold')?.status === 'pending'),
-        claimNamesAttack: rolled?.getFlag(MOD, 'attackHoldFor') === msg.id,
+        claimNamesAttack: rolled?.getFlag(MOD, 'attackFor') === msg.id,
       };
 
       // ---- 2. CAST answers it; live AC re-test turns the hit into a miss -------------------
