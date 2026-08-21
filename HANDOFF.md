@@ -1,45 +1,90 @@
 # HANDOFF.md — picking this up cold
 
-## State at a glance — 2026-08-20 (small hours), end of the ELEVENTH session (round 4 BUILT)
+## State at a glance — 2026-08-21, end of the TWELFTH session (round 5 BUILT)
 
 | | |
 | --- | --- |
-| **Do first** | **PRESENT THE WALK-5 CHECKLIST** (below — round 4's proofs + walk 4's six unfinished items). Round 4 is BUILT and battery-green: the staircase queue (s), cleave surviving the kill (u), the quiet maneuver use (v), and the table-visible damage wait (w). ⚠ **Every client F5 once first** — scripts changed, same version, no bounce needed. |
-| Repo | `main`, pushed. **NOT tagged** — v1.19.0 waits on the walk closing. `module.json` reads 1.19.0 (FOUR fix rounds folded into the one unreleased build). |
-| Release | ⚠ **v1.19.0 BUILT (walks 1–3's twenty-five + round 4's four), NOT RELEASED.** No tag, no GitHub release, **prod's module untouched on 1.18.0.** |
-| Sandbox | Up, minimized, **round-4 code deployed + byte-verified**, `verify-settings` **CLEAN**. ⚠ It had VANISHED again mid-session (SEVENTH time — the clean-shutdown pattern); the documented relaunch (minimized, then any suite) worked first try, again. The ask stands: log out of the world tab, **leave the minimized app running**. |
-| Prod | Module **1.18.0**, untouched. ⚠ **ONE deliberate prod write this session (user instruction): the Clear Temp Effects + Full Rest macro now also strips bare conditions** — applied in place (id kept, Matt slot 2 pin verified) on BOTH worlds. At the release: deploy, bounce, then `BF_TARGET=prod verify-settings --fix` (grown Maneuver Folds + dramaticBeat 0 + **damageTimer 15, new**). |
-| Walked | v1.18.0 12/12. v1.19.0: walk 1 → 8 built; walk 2 → 9 built; walk 3 → 8 built; **walk 4 → 6 of 14 passed, 2 findings closed as misreads, 4 findings BUILT this session (the record below)**. Items 7, 9(kill), 10(card bar), 11, 13, 14 carry into walk 5. |
+| **Do first** | **PRESENT THE WALK-6 CHECKLIST** (below — round 5's proofs + the carried F5 survivor). Round 5 is BUILT and battery-green: the standard prone chip (x), interpose post-verdict (y), verbatim rule lines (z), icon tooltips (aa). ⚠ **Every client F5 once first** — scripts changed, same version, no bounce needed. |
+| Repo | `main`, pushed. **NOT tagged** — v1.19.0 waits on the walk closing. `module.json` reads 1.19.0 (FIVE fix rounds folded into the one unreleased build). |
+| Release | ⚠ **v1.19.0 BUILT (walks 1–3's twenty-five + round 4's four + round 5's four), NOT RELEASED.** No tag, no GitHub release, **prod's module untouched on 1.18.0.** |
+| Sandbox | Up, minimized, **round-5 code deployed + byte-verified**, `verify-settings` **CLEAN**. ⚠ It VANISHED at battery start again (EIGHTH time — the clean-shutdown pattern, the same moment as round 4); the documented relaunch (minimized, then any suite) worked first try, again. The ask stands: log out of the world tab, **leave the minimized app running**. |
+| Prod | Module **1.18.0**, untouched this session. At the release: deploy, bounce, then `BF_TARGET=prod verify-settings --fix` (grown Maneuver Folds + dramaticBeat 0 + damageTimer 15). The round-4 macro write on both worlds stands. |
+| Walked | v1.18.0 12/12. v1.19.0: walk 1 → 8 built; walk 2 → 9 built; walk 3 → 8 built; walk 4 → 6 passed + 4 built; **walk 5 → 9 of 11 passed (1–8, 10 — round 4 proven 5-for-5 at the table), item 9 SUPERSEDED mid-walk by (y), item 11 CARRIED as walk 6's final test; 4 findings (x)(y)(z)(aa) BUILT this session (the record below)**. |
 | Testing setup | ⚠ **THE USER RUNS TWO WINDOWS**: GM (Matt the DM) + a player window owning Thomas/Morgash. Player-first routing (①/(h)) sends THEIR popups to window two whenever it is connected — "nothing popped" reports must always ask WHICH window. |
-| Bridge | Disconnected on BOTH worlds. Suites join as `Tester Assistant`. |
+| Bridge | Disconnected on BOTH worlds (reconnected read-only twice this session for the rule-text pulls, disconnected after). Suites join as `Tester Assistant`. |
 
 ---
 
-## 📋 THE WALK-5 CHECKLIST — PRESENT THIS LIST (round 4's proofs + walk 4's remainder)
+## 📋 THE WALK-6 CHECKLIST — PRESENT THIS LIST (round 5's proofs + the carried survivor)
 
 Sandbox, the two-window setup as usual, **every client F5 once** (scripts changed, version
-did not). Settings are already the reference table (`verify-settings` CLEAN — `damageTimer`
-joined it at 15). Items 1–5 verify round 4; 6–11 are walk 4's unfinished business.
+did not). Settings are already the reference table (`verify-settings` CLEAN). Items 1–7
+verify round 5; item 8 is the carried F5 survivor and the walk's FINAL test.
 
 | # | Do | Expect |
 | --- | --- | --- |
-| 1 | **(s)** Stack two+ popups (e.g. hit → damage offer + bash offer, or pile three) | The standard STAIRCASE: each ~36px down-right, every title bar readable — and the FIRST event's popup in FRONT, later ones layered BEHIND: you click through in the order things happened. Closing one lets the next slot reuse cleanly |
-| 2 | **(u)** Morgash (Cleave weapon) KILLS a target | The **Cleave reminder still pops** — the kill is its moment. ⚠ In a RUNNING combat it reminds once per turn (advance the turn or end combat between swings — that quiet is RAW, not a bug) |
-| 3 | **(u)→(j)** "Arm the Cleave" off that reminder (walk-4 item 8, unblocked) | The press acks (bar/recall go) AND the **"Cleave — armed"** card stays; the next swing still strips the modifier |
-| 4 | **(v)** Take a Riposte (accept, strike back) | **NO native "Damage Roll — Riposte" d8 dialog appears, ever.** The flow is only: offer → strike → celebration popup → one dice group |
-| 5 | **(w)** Player dice on, hit something, DON'T roll yet — look at the OTHER window | The attack card shows **"Waiting on the dice"** with the draining bar on BOTH windows (15s). Let it expire once: the module rolls, never cancels. The popup's own bar matches |
-| 6 | **(j)** Press a notice button **on the player window** (walk-4 item 7) | Their view clears at once; the GM's card bar drains out as the window — DELIBERATE (a player cannot write the elect's message) |
-| 7 | **(k)** GWM crit that KILLS (walk-4 item 9's open half) | Damage first, then exactly ONE "Hew — attack again" reminder — never two |
-| 8 | **(n)** Bash failure or interpose gamble — look at the CHAT CARD (walk-4 item 10's open half) | The card ROW runs the same draining bar the popup runs (the popup half was confirmed in walk 4) |
-| 9 | **(m)** Answer the interpose from window two (walk-4 item 11) | Relay card says **"spends the Reaction"** / "the Reaction is kept" — never an outcome; Pass button is bare **"Pass"**; the settle card after the verdict still states the result |
-| 10 | **(g)** Thomas melee-hits with Shield Master listed (walk-4 item 13) | WHICH window pops the bash offer? Expected: the PLAYER window (①-routing). Offers popped in walk 4 but the window went unrecorded |
-| 11 | **Item 10** (fourth deferral) Save spell at TWO targets; resolve the first, **F5 while the second bar runs** | After reload the second demand is alive (bar from its stored deadline), resolves, ONE verdict line per target, damage once each |
+| 1 | **(x)** Bash a dummy prone (accept the offer, choose Knock Prone — or let the choice buzzer default) | The chip on the token is the **STANDARD Prone** — the same icon and name Topple lands (canonical condition), sourced to the attacker. **No "Shield Bashed" chip, ever** |
+| 2 | **(y)** Thomas (shield equipped + Shield Master) **FAILS** a DEX half-damage save (Fireball works) | **NO interpose offer at all** — full damage applies, the Reaction untouched. The pre-roll gamble is gone |
+| 3 | **(y)** Thomas **SAVES** that same spell | THE OFFER POPS NOW — after the verdict: "take no damage?", quoting the feat ("…holding a Shield"). **Use** → zero damage + the "takes no damage" settle card. The half WAITS while the choice pends |
+| 4 | **(y)** Save again, let the offer **EXPIRE** | Takes the **half**; the Reaction is kept — a timer never spends it |
+| 5 | **(z)** Read the popups as they come (bash, riposte, precision, topple demand, interpose, Cleave/Hew/Vex/Sap notices) | Each quotes the **actual 2024 rule text** in quotation marks — exact wording — with the module's hints ("nothing is automated", the arm note, the margins) as separate lines |
+| 6 | **(aa)** Hover icons in cards: any card portrait, receipt-row icons, the hold popup portrait | A tooltip names what the icon is |
+| 7 | **(m recut)** Answer the interpose from window two (walk-4 item 11's re-cut) | Relay card: **"spends the Reaction: no damage"** / "passed, the Reaction is kept"; the decline button reads **"Take half"** (the outcome is known now — deliberate); the settle card still posts |
+| 8 | **FINAL — the F5 survivor** (fourth deferral) Save spell at TWO targets; resolve the first, **F5 while the second bar runs** | After reload the second demand is alive (bar from its stored deadline), resolves, ONE verdict line per target, damage once each |
 
 ⚠ Known and deliberate, walked past on purpose: Precision offers only on CLEAN misses; a
 natural 1 is never offered; Graze + Precision on one driven miss is (e)-KEEP (RAW); a
-hand-tray kill posts no Hew reminder (no receipt to witness it). ⚠ The upgraded clear
-macro now also sweeps decorative statuses (the "Full Larder" crate's Dead marker) — say so
-if Dead should be exempted.
+hand-tray kill posts no Hew reminder; in a RUNNING combat Cleave reminds once per turn.
+⚠ New known-and-deliberate from round 5: an UNLISTED feat's save still presses its own
+bound effect (only the listed bash routes to the standard chip — saves 17a is the pin);
+and the "saved — half damage" verdict line before an interpose accept is the SAVE's own
+consequence — the settle card then narrates the shield turning it to zero.
+
+---
+
+## ✅ ROUND 5 IS BUILT — ONE PRONE, THE VERDICT'S REACTION, THE RULES SPEAK, ICONS NAME THEMSELVES (2026-08-21, TWELFTH session)
+
+Walk 5 ran its checklist to 9 of 11: items 1–7 and 10 passed clean (round 4 proven
+5-for-5 at the table), item 8 passed its bash half, item 9 was SUPERSEDED mid-walk by (y),
+and item 11 carries into walk 6 as its final test — the user's call verbatim: *"do a new
+pass with new items, leaving 11 open as final test."* Four findings, all ruled at the
+table, all built, all suite-pinned:
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| (x) | Bash's prone landed the item's custom "Shield Bashed" chip; Topple lands the standard Prone (user: *"just use the standard prone chip fro bash"*) | ✅ the bash Prone press IS Topple's press — `forceStatus` → the canonical chip (`dnd5eprone000000`), origin names the attacker; the generic effects pass skips ANY bash answer; the item's own effect is decoration the module never applies. fix-shield-master.mjs demoted to content hygiene. Pinned: maneuvers B2/B3/B4d |
+| (y) | *"the shield master reaction save happens AFTER they pass their save, and doesnt fire if they do"* — the user re-read the rule mid-walk and asked for a reading; Claude CONCURRED (the 2024 tail conjoins "you succeed … and are holding a Shield" as preconditions of the Reaction; the text has no spent-and-failed state at all — feat text pulled verbatim from this world's own PHB compendium) | ✅ **re-walk finding (f)'s pre-roll gamble is OVERTURNED** — no choice stamps at demand or adoption; the SAVED verdict opens it (eligibility read there); accept → half becomes none, Reaction spent at settle; a failure never offers and never spends; expiry takes the half; the save-ask deferral died as dead code. Buttons state knowns now ("Take half") — design.md law 3 scoped to pre-outcome declarations. Pinned: maneuvers I1a–I1d (post-verdict open, use → none), I3 (the failed-save negative) |
+| (z) | Popup effect text was Claude-authored paraphrase (user: *"can you just use the actual mastery/feat language so its exact"* … *"but still keep the hints"*) | ✅ design.md law 7: every moment popup quotes the 2024 text VERBATIM via ui.js `ruleLine()` — RULE_TEXT (maneuvers.js: precision/riposte/bash/interpose/hew, read off this world's PHB items) + MASTERY_RULES (mastery.js: all seven masteries, matched against the system's own rules journal by **tools/probe-mastery-rules.mjs**, committed as the drift check); the module's operational hints ride as separate lines. Pinned: B1c ("cause it to have the Prone condition"), I1c ("holding a Shield") |
+| (aa) | Card icons had no hover text (user: *"wherever theres an icon, in cards, there should be tooltip for the same"*) | ✅ design.md law 8: the bfCard portrait (alt + data-tooltip = the eyebrow), both receipt-row icon shapes, and the hold popup portrait. Pinned inside B1c/I1c (`img[data-tooltip]` in the popup DOM) |
+
+**⚙ Also this session:** design.md §4.3 carries the walk-5 amendment — moment-map rows 4–5
+recut, laws 7 (verbatim rule line) and 8 (icon tooltips) added, law 3's scope note, (f)
+marked overturned, ⑤/⑥ updated to match the machines again.
+
+**Battery, all green (post-fix, this exact code deployed + byte-verified, one pass):**
+battleflow ALL PASS ×2 · hold ALL PASS · **maneuvers 54/54** (B2/B3/B4d the canonical-chip
+pins — id, origin, custom-effect absence; I1a–d the post-verdict set; I3 the failed-save
+negative; B1c/I1c the verbatim + tooltip DOM) · cast 17/17 · riders 8/8 · effects 54/54 ·
+concentration 47/47 · **saves 61/61** (17a still passing IS the unlisted-feat proof) ·
+probe-player-damage 11/11 · probe-save-damage-popup 13/13 · check-hook-order ALL PASS
+(registrations unchanged — the new saves.js static imports of forceStatus/ruleLine ride
+existing edges) · verify-settings **CLEAN**.
+
+⚠ **Round-5 notes, paid once:**
+- The sandbox VANISHED at battery start again (EIGHTH, the clean-shutdown pattern — the
+  same moment it picked in round 4). The documented recovery worked first try, again:
+  relaunch minimized, run a suite, the world self-launches in ~12s.
+- The (y) ruling came from the TABLE mid-walk: the user questioned their own (f) ruling
+  and asked for a rules read. The feat text was pulled from the world itself (Thomas's
+  item and the PHB compendium entry agree, verbatim) — read the CONTENT, not memory.
+- The verbatim mastery texts were NOT trusted from memory either:
+  tools/probe-mastery-rules.mjs reads `CONFIG.DND5E.weaponMasteries[*].reference` off the
+  live system and prints the rule paragraphs + the canonical prone status; the constants
+  were matched against its output (curly apostrophes included — the source mixes ’ and ').
+  Re-run it whenever dnd5e bumps.
+- Walk-5 items 9/11 disposition, for the record: 9 (the gamble's wording) tested behavior
+  (y) deletes — superseded, its re-cut is walk-6 item 7; 11 (the F5 survivor) was never
+  reached — carried as walk-6 item 8, the final test.
 
 ---
 
