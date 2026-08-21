@@ -8,7 +8,7 @@ import { hitTargets, modeAllows } from "./shared.js";
 import { canAnswerFor, inRunningCombat } from "./hold.js";
 import { livePopups, popupKey, openMomentPopup, bfCard, holdBarHTML, momentBarHTML,
   momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,
-  armAskTimer, disarmAskTimer, armDeadline, disarmDeadline } from "./ui.js";
+  armAskTimer, disarmAskTimer, armDeadline, disarmDeadline, ruleLine } from "./ui.js";
 import { combatStamp } from "./mastery.js";
 // Safe statically (the saves.js:12 argument): the entry evaluates auto-damage.js at :90 and
 // this file at :97, so nothing here can reorder auto-damage's registrations. Re-checked with
@@ -72,6 +72,20 @@ import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 /* --- the list: strict parse, the list is the switch ---------------------------------------- */
 
 const MANEUVER_KINDS = new Set(["precision", "riposte", "interpose", "bash", "hew"]);
+
+/** Walk-5 (z): the rule line every popup quotes — the 2024 text VERBATIM, read off this
+ * world's own PHB compendium items 2026-08-21 (punctuation included; the source mixes curly
+ * and straight apostrophes). The popups keep the module's operational hints as separate
+ * lines; these strings are the rules and must never be paraphrased. Keyed by KIND — the
+ * folds list maps items onto kinds, and each kind's mechanics are these features'. */
+export const RULE_TEXT = {
+  precision: "When you miss with an attack roll, you can expend one Superiority Die, roll that die, and add it to the attack roll, potentially causing the attack to hit.",
+  riposte: "When a creature misses you with a melee attack roll, you can take a Reaction and expend one Superiority Die to make a melee attack roll with a weapon or an Unarmed Strike against the creature. If you hit, add the Superiority Die to the attack's damage.",
+  bash: "If you attack a creature within 5 feet of you as part of the Attack action and hit with a Melee weapon, you can immediately bash the target with your Shield if it’s equipped, forcing the target to make a Strength saving throw (DC 8 plus your Strength modifier and Proficiency Bonus). On a failed save, you either push the target 5 feet from you or cause it to have the Prone condition (your choice). You can use this benefit only once on each of your turns.",
+  bashChoice: "On a failed save, you either push the target 5 feet from you or cause it to have the Prone condition (your choice).",
+  interpose: "If you’re subjected to an effect that allows you to make a Dexterity saving throw to take only half damage, you can take a Reaction to take no damage if you succeed on the saving throw and are holding a Shield.",
+  hew: "Immediately after you score a Critical Hit with a Melee weapon or reduce a creature to 0 Hit Points with one, you can make one attack with the same weapon as a Bonus Action."
+};
 const warnedKinds = new Set();
 
 export function maneuverEntries() {
@@ -298,7 +312,9 @@ async function resolvePrecision(message) {
 /** The Use/Pass popup — the hold family's two controls, the margin shown under holdReveal. */
 async function showPrecisionPopup(message, flag) {
   const attacker = (() => { try { return fromUuidSync(flag.attackerUuid); } catch { return null; } })();
-  const lines = [];
+  // (z): the rule line is the maneuver's own sentence, verbatim; the margins and the
+  // spent-either-way note stay as the module's hints.
+  const lines = [ruleLine(RULE_TEXT.precision)];
   if ( setting(S.holdReveal) ) {
     for ( const t of flag.targets ?? [] ) lines.push(`Needs +${t.margin} to reach ${t.name} (AC ${t.ac} vs ${flag.attackTotal}).`);
   }
@@ -308,7 +324,6 @@ async function showPrecisionPopup(message, flag) {
     content: bfCard({
       img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`, tone: "pending",
       title: "The attack missed — patch it?",
-      subtitle: `${flag.itemName}: roll the die and add it to the attack total.`,
       lines
     }) + holdBarHTML(flag, "to answer"),
     buttons: [
@@ -686,8 +701,10 @@ async function showRipostePopup(message, flag, reactor) {
     content: bfCard({
       img: reactor.itemImg, eyebrow: `Maneuver — ${reactor.itemName}`, tone: "pending",
       title: `${flag.attackerName} missed you`,
-      subtitle: "Spend your reaction and a superiority die: strike back, the die joins the damage.",
-      lines: (options.length === 1) ? [`Riposte with <strong>${preferred?.label ?? "your weapon"}</strong> — your one melee weapon.`] : []
+      // (z): the rule line is the maneuver's own sentence, verbatim; the one-weapon note
+      // stays as the module's hint.
+      lines: [ruleLine(RULE_TEXT.riposte),
+        ...((options.length === 1) ? [`Riposte with <strong>${preferred?.label ?? "your weapon"}</strong> — your one melee weapon.`] : [])]
     }) + selectHTML + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "riposte", label: preferred && (options.length === 1) ? `Riposte with ${preferred.label}` : "Riposte",
@@ -721,7 +738,10 @@ async function postHewReminder(attacker, featItem, weapon, why) {
       img: featItem.img, eyebrow: `Feat — ${featItem.name}`, tone: "good",
       title: `Hew — ${attacker.name} can attack again`,
       subtitle: why,
-      lines: [`One attack with <strong>${weapon?.name ?? "the same weapon"}</strong> as a Bonus Action. Swing it from the sheet; nothing is automated.`]
+      // (z): the rule line is the feat's own sentence, verbatim; the swing note stays as
+      // the module's hint.
+      lines: [ruleLine(RULE_TEXT.hew),
+        `Swing <strong>${weapon?.name ?? "the same weapon"}</strong> from the sheet; nothing is automated.`]
     }),
     flags: { [MODULE_ID]: { hewNotice: {
       attackerUuid: attacker.uuid, itemName: featItem.name, itemImg: featItem.img,
@@ -740,7 +760,8 @@ async function showHewPopup(message, notice) {
       img: notice.itemImg, eyebrow: `Feat — ${notice.itemName}`, tone: "good",
       title: `Hew — ${attacker?.name ?? "you"} can attack again`,
       subtitle: notice.why,
-      lines: [`One attack with <strong>${notice.weaponName ?? "the same weapon"}</strong> as a Bonus Action. Swing it from the sheet; nothing is automated.`]
+      lines: [ruleLine(RULE_TEXT.hew),
+        `Swing <strong>${notice.weaponName ?? "the same weapon"}</strong> from the sheet; nothing is automated.`]
     }) + momentBarHTML(notice, "reminder"),
     // The ACK (law 2, finding (j)): OK resolves the card's pending presentation everywhere.
     buttons: [{ action: "ok", label: "OK", default: true,
@@ -995,8 +1016,9 @@ async function showBashOfferPopup(message, flag) {
     content: bfCard({
       img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`, tone: "pending",
       title: `${flag.itemName} — bash ${options.length === 1 ? options[0].name : "the target"}?`,
-      subtitle: "The hit lands — force the Strength save: Prone or the 5-foot push on a failure. Once on your turn.",
-      lines: []
+      // (z): the rule line is the feat's own passage, verbatim — trigger, either/or and the
+      // once-a-turn limit all in the feature's words.
+      lines: [ruleLine(RULE_TEXT.bash)]
     }) + selectHTML + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "use", label: `Use ${flag.itemName}`, default: true, callback: () => answer("use") },

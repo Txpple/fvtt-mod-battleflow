@@ -7,7 +7,7 @@ import { hitTargets, modeAllows } from "./shared.js";
 import { inRunningCombat, canAnswerFor } from "./hold.js";
 import { livePopups, popupKey, openMomentPopup, bfCard, holdBarHTML, momentBarHTML,
   momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,
-  armAskTimer, disarmAskTimer, armDeadline, disarmDeadline } from "./ui.js";
+  armAskTimer, disarmAskTimer, armDeadline, disarmDeadline, ruleLine } from "./ui.js";
 import { forceStatus } from "./shared.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { messageActivity, joinEffectReceipt } from "./effect-riders.js";
@@ -66,12 +66,18 @@ const MASTERY_EFFECTS = {
   }
 };
 
-/** What each optional mastery asks, in the popup's own words. */
+/** Walk-5 (z): what each mastery popup quotes — the 2024 property text VERBATIM, matched
+ * against the system's own rules journal by tools/probe-mastery-rules.mjs (2026-08-21,
+ * dnd5e 5.3.3; punctuation included). Never paraphrase these; the module's operational
+ * hints ride as separate lines wherever they are needed. */
 const MASTERY_RULES = {
-  slow: "Reduce its Speed by 10 feet until the start of your next turn.",
-  topple: "Force a Constitution saving throw. On a failure, it falls Prone.",
-  push: "Push it up to 10 feet straight away from you.",
-  graze: "The miss still deals your ability modifier in damage."
+  slow: "If you hit a creature with this weapon and deal damage to it, you can reduce its Speed by 10 feet until the start of your next turn. If the creature is hit more than once by weapons that have this property, the Speed reduction doesn’t exceed 10 feet.",
+  topple: "If you hit a creature with this weapon, you can force the creature to make a Constitution saving throw (DC 8 plus the ability modifier used to make the attack roll and your Proficiency Bonus). On a failed save, the creature has the Prone condition.",
+  push: "If you hit a creature with this weapon, you can push the creature up to 10 feet straight away from yourself if it is Large or smaller.",
+  graze: "If your attack roll with this weapon misses a creature, you can deal damage to that creature equal to the ability modifier you used to make the attack roll. This damage is the same type dealt by the weapon, and the damage can be increased only by increasing the ability modifier.",
+  vex: "If you hit a creature with this weapon and deal damage to the creature, you have Advantage on your next attack roll against that creature before the end of your next turn.",
+  sap: "If you hit a creature with this weapon, that creature has Disadvantage on its next attack roll before the start of your next turn.",
+  cleave: "If you hit a creature with a melee attack roll using this weapon, you can make a melee attack roll with the weapon against a second creature within 5 feet of the first that is also within your reach. On a hit, the second creature takes the weapon’s damage, but don’t add your ability modifier to that damage unless that modifier is negative. You can make this extra attack only once per turn."
 };
 
 const masteryLabel = key => CONFIG.DND5E.weaponMasteries[key]?.label ?? key;
@@ -346,7 +352,10 @@ async function showTopplePopup(message, topple, target) {
       img: topple.weapon?.img ?? null,
       eyebrow: "Weapon Mastery — Topple",
       title: `${target.name}: Constitution save, DC ${topple.dc}`,
-      subtitle: `${topple.weapon?.name ?? "The weapon"} demands it — on a failure, ${target.name} falls Prone.`,
+      subtitle: `${topple.weapon?.name ?? "The weapon"} demands it.`,
+      // (z): the consequence in the property's own words — the verbatim final sentence of
+      // the Topple rule (the demand speaks to the TARGET; the trigger half is the attacker's).
+      lines: [ruleLine("On a failed save, the creature has the Prone condition.")],
       tone: "pending"
     }) + `
     <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
@@ -601,22 +610,27 @@ async function grazePayout(attackMessage, ctx, targets) {
 
 /** What each reminder says — the fact, in the mastery's own words. */
 const NOTICE_TEXT = {
+  // (z): the rule line is the property's own text, verbatim; the claim/chip/arm notes stay
+  // as the module's hints.
   vex: (ctx, names) => ({
     title: "Vex — Advantage on your next attack",
-    lines: [`Against ${names}, before the end of your next turn. Claim it in the roll dialog — nothing applies it for you.`]
+    lines: [ruleLine(MASTERY_RULES.vex),
+      `Against ${names}. Claim it in the roll dialog — nothing applies it for you.`]
   }),
   sap: (ctx, names) => ({
     title: `Sap — ${names} at Disadvantage`,
-    lines: [`On its next attack roll, before the start of ${ctx.attacker.name}'s next turn. The chip on the target carries the rule; the roll dialog is where it is honoured.`]
+    lines: [ruleLine(MASTERY_RULES.sap),
+      `The chip on ${names} carries the rule; the roll dialog is where it is honoured.`]
   }),
   cleave: (ctx, names) => ({
     title: "Cleave — one extra attack available",
     // ⚠ v1.19.0 (FLOW item 8): the old copy said "Roll it from the sheet" and told the player
     // to omit the ability modifier — a move the sheet cannot make, so the instruction was
     // unfollowable and, with auto-damage on, the machine rolled `1dX+mod` before any human
-    // could intervene. The card now offers the ARM instead: press it and the next damage
-    // roll with this weapon drops the flat ability-modifier part itself.
-    lines: [`One extra attack with ${ctx.weapon.name} against a second creature within 5 feet of ${names} — once on your turn, and its damage takes no ability modifier. Press "Arm the Cleave" and the next ${ctx.weapon.name} damage roll drops the modifier for you; Dismiss to resolve it yourself — or if you've already Cleaved this turn.`]
+    // could intervene. The card offers the ARM instead: press it and the next damage roll
+    // with this weapon drops the flat ability-modifier part itself.
+    lines: [ruleLine(MASTERY_RULES.cleave),
+      `Press "Arm the Cleave" and the next ${ctx.weapon.name} damage roll drops the modifier for you; Dismiss to resolve it yourself — or if you've already Cleaved this turn.`]
   })
 };
 

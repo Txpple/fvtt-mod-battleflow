@@ -84,6 +84,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       icon.className = t.reverted ? "fa-solid fa-rotate-left" : "fa-solid fa-heart-crack";
       Object.assign(icon.style, { flex: "0 0 auto", opacity: t.reverted ? "0.5" : "0.85" });
     }
+    icon.dataset.tooltip = t.name; // walk-5 (aa): every card icon names itself on hover
 
     const title = document.createElement("span");
     title.textContent = t.name;
@@ -205,6 +206,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         icon.className = "fa-solid fa-wand-magic-sparkles";
         Object.assign(icon.style, { flex: "0 0 auto", opacity: e.reverted ? "0.5" : "0.85" });
       }
+      icon.dataset.tooltip = e.name; // walk-5 (aa): every card icon names itself on hover
 
       const stack = document.createElement("div");
       Object.assign(stack.style, {

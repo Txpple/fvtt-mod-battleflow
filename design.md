@@ -230,8 +230,8 @@ partystash).
 > | 1 | Reaction hold — attack | `hold` · attack msg | attacker's, on hit | canAnswerFor + the GM player-owned quiet (manual recall) | Cast / Pass | flag write · §4.1 response msg · the cast itself | continueHold: settle → live-AC re-test → verdict → damage | pass (continuing client's clock) |
 > | 2 | Reaction hold — spell | `hold` trigger:"spell" · usage card | caster's, at use | same | Cast / Pass | same | continueSpellHold + the preApplyDamage veto | pass |
 > | 3 | Save demand | `saves` · usage card | casting client, at use | canAnswerFor, queued oldest-first | Adv/Norm/Dis + bonus (every button = roll) | `respondsTo`+`saveFor` roll · native button chain · bare roll | fold vs stored DC → verdict line → consequences | roll (elect) |
-> | 4 | Save choice — interpose | `saves.targets[].choice` | with the demand, pre-roll (+ adoption) | canAnswerFor(saver) | Use / Pass | flag write · §4.1 `saveChoiceAnswer` | settleInterpose at the verdict | pass (elect) |
-> | 5 | Save choice — bash | `saves.targets[].choice` | at the failed verdict (elect) | canAnswerFor(attacker) | Prone / Push | same | the press, or the push card | prone (elect) |
+> | 4 | Save choice — interpose | `saves.targets[].choice` | at the SAVED verdict (elect) — walk-5 (y) restored ⑥'s shape; a failure never offers | canAnswerFor(saver) | Use / Take half | flag write · §4.1 `saveChoiceAnswer` | settleInterpose on the accept (the Reaction spends there and only there) | pass — take half (elect) |
+> | 5 | Save choice — bash | `saves.targets[].choice` | at the failed verdict (elect) | canAnswerFor(attacker) | Prone / Push | same | the STANDARD Prone press (forceStatus — walk-5 (x)), or the push card | prone (elect) |
 > | 6 | Topple demand | `topple` · own card | elect | canAnswerFor per target | Adv/Norm/Dis + bonus | chained roll · bare roll (defers conc → saves) | fold → press / stays-standing card | roll (elect) |
 > | 7 | Concentration ask | `concentration` · own card | elect, off damageActor | canAnswerFor, queued | Adv/Norm/Dis + bonus | `respondsTo` roll · bare roll | fold → holds / break | roll (elect) |
 > | 8 | Mastery ask | `mastery` · attack msg | elect, after application | canAnswerFor(attacker) | Use / Pass | flag write (the attacker owns the msg) | elect executes the payout | pass (elect) |
@@ -269,7 +269,9 @@ partystash).
 >    (their update watchers close answered popups); the notice family was the violating
 >    class and now rides the ACK.
 > 3. **Declaration never claims an outcome (m):** buttons and relay cards at decision time
->    state the SPEND or the choice; only the verdict's settle card states results.
+>    state the SPEND or the choice; only the verdict's settle card states results. Scope
+>    clarified by walk-5 (y): the law binds declarations made BEFORE the outcome exists — a
+>    post-verdict choice states knowns ("Take half" is legal once the save is in).
 > 4. **Source, then result (⑦):** every follow-up line leads with the ability.
 > 5. **The celebration (l):** every attack-damage popup celebrates the hit — "You hit! —
 >    roll damage"; crits louder on the one yellow badge; a riposte named as itself (p).
@@ -281,6 +283,17 @@ partystash).
 >    so the player clicks through in the order things happened (user ruling verbatim:
 >    *"the ux has to be the player clicks through in the order of events"* — a bash
 >    exists because the hit landed; the hit answers first).
+> 7. **The rule line is verbatim (walk-5 (z), user ruling: "just use the actual
+>    mastery/feat language so its exact"):** a popup describing a feature's effect quotes
+>    the feature's own 2024 text — `ruleLine()` dress, RULE_TEXT / MASTERY_RULES words,
+>    matched against the world's own compendium (tools/probe-mastery-rules.mjs is the
+>    drift check). The module's operational hints ("nothing is automated", "swing it from
+>    the sheet", the Cleave arm note) stay — as separate lines, never blended into the
+>    quote.
+> 8. **Every card icon names itself (walk-5 (aa)):** any icon rendered in a card or popup
+>    card carries `data-tooltip` (and `alt`) with the thing it depicts — the bfCard
+>    portrait names the eyebrow/title, receipt-row icons name their target or effect, the
+>    hold popup's portrait names the reaction.
 >
 > **Amended 2026-08-20 (v1.19.0 walk 4):** four fixes, all suite-pinned:
 > - **(s) law 6 recut** — the cascade became the staircase queue above (maneuvers Q1–Q3
@@ -300,6 +313,32 @@ partystash).
 >   wait), the window now `damageTimer` (world, default 15; 0 waits indefinitely).
 >   Expiry still ROLLS — the timer only ever decides who pressed the button
 >   (probe-player-damage 10/11).
+>
+> **Amended 2026-08-21 (v1.19.0 walk 5):** four fixes, all suite-pinned:
+> - **(x) one universal prone** (user: "just use the standard prone chip for bash") — the
+>   bash Prone press is Topple's press: `forceStatus` builds the CANONICAL Prone status
+>   chip (keepId `dnd5eprone000000`, origin names the presser), and the generic effects
+>   pass skips a bash answer entirely — the item's own "Shield Bashed" effect is world
+>   decoration the module no longer applies (maneuvers B2/B3/B4d pin id, origin and the
+>   custom effect's absence). tools/fix-shield-master.mjs still verifies the CONTENT;
+>   its graft is now belt-and-braces, not load-bearing.
+> - **(y) interpose is post-verdict, success-only** — finding (f)'s pre-roll gamble is
+>   OVERTURNED (the user re-read the rule; Claude's reading concurred: the 2024 tail
+>   "…if you succeed on the saving throw and are holding a Shield" conjoins two
+>   preconditions, and the rule text has no spent-and-failed state at all). Map row 4
+>   restored to ⑥'s shape: no choice stamps with the demand or at adoption; the SAVED
+>   verdict opens it (eligibility read there); accept turns half into none, spends the
+>   Reaction at settle; a failure never offers and never spends; expiry takes the half.
+>   The save ask never defers again (the pre-roll pend is impossible). Pins: maneuvers
+>   I1a–I1d (post-verdict open, use → none) and I3 (the failed-save negative).
+> - **(z) the verbatim rule line** — law 7 above; RULE_TEXT (maneuvers.js, read off this
+>   world's PHB items) + MASTERY_RULES (mastery.js, matched against the system's rules
+>   journal by tools/probe-mastery-rules.mjs) quoted via `ruleLine()` in every offer,
+>   choice, demand and notice popup; the module's hints ride as separate lines. Pins:
+>   maneuvers B1c ("cause it to have the Prone condition"), I1c ("holding a Shield").
+> - **(aa) icon tooltips** — law 8 above; the bfCard portrait (alt + data-tooltip = the
+>   eyebrow), both receipt-row icon shapes, and the hold popup portrait. Pinned inside
+>   B1c/I1c (`img[data-tooltip]` in the popup DOM).
 
 ---
 
@@ -632,12 +671,19 @@ The user walked Pass A and it grew the phase. Every ruling below is theirs and b
   Bash's own text: push 5 feet or Prone, your choice). A failed save on a demand whose
   item IS the listed feat holds that target's consequence pass between verdict-announce
   and application: a two-control popup to the attacker (①'s routing) — **Knock Prone**
-  (the ordinary press, receipts and all) or **Push 5 feet** (the Push mastery's idiom: an
-  announce card, a hand-moved token, NO press). Expiry defaults to **Prone** — the machine
-  finishes what the failure started, and the card says "defaulted by the timer".
+  (since walk-5 (x): the STANDARD Prone chip via forceStatus — Topple's press, canonical
+  id, origin names the presser; the item's own effect is never applied) or **Push 5 feet**
+  (the Push mastery's idiom: an announce card, a hand-moved token, NO press). Expiry
+  defaults to **Prone** — the machine finishes what the failure started, and the card says
+  "defaulted by the timer".
 - **⑥ INTERPOSE (`interpose`) — the save-success reaction** (Interpose Shield: a
   successful DEX save against half-on-success damage while holding a shield ⇒ spend the
-  Reaction, take NOTHING). Same choice machinery as ⑤ on the SAVED branch: gates are
+  Reaction, take NOTHING). ⚠ This shape was recut into a pre-roll gamble by re-walk
+  finding (f) and RESTORED by walk-5 (y) — the rule's conditional tail conjoins "you
+  succeed" with "are holding a Shield", both preconditions of the Reaction, and the text
+  has no spent-and-failed state. The accept button pair is Use / **Take half** (the
+  outcome is known at choice time — law 3's scope note). Same choice machinery as ⑤ on
+  the SAVED branch: gates are
   autoApply on (a "no damage" promise is only honest when the module is the applier),
   `hasDamage` + `damageOnSave: half`, DEX among the save abilities, the listed item on the
   SAVER, an equipped shield, `!reactionSpent`. Accept ⇒ the damage entry's multiplier
@@ -686,9 +732,13 @@ itself the round's headline ruling:
   the reminder now POPS (the mastery notice family's OK-only shape — drain bar, auto-close
   at the deadline, `canAnswerFor` routing) with the card as the durable record. Every
   future easy-to-forget moment inherits this law by default.
-- **(f) INTERPOSE IS A GAMBLE DECLARED BEFORE THE ROLL** (user's order-of-operations
-  ruling, and the feat's own tense — it also explains the re-walk's silence: the old
-  post-verdict offer fired only on "saved", and Thomas failed both Fireballs by timer).
+- **(f) INTERPOSE IS A GAMBLE DECLARED BEFORE THE ROLL — ⚠ OVERTURNED BY WALK-5 (y)
+  (2026-08-21): the user re-read the feat at the table and the post-verdict, success-only
+  shape is the rule; ⑥ above is current again. Kept as the record of why the machine
+  visited the pre-roll shape at all.** (Original ruling and rationale: user's
+  order-of-operations call, and the feat's own tense — it also explained the re-walk's
+  silence: the old post-verdict offer fired only on "saved", and Thomas failed both
+  Fireballs by timer.)
   Eligibility is read where the demand STAMPS (and at area adoption): the choice rides the
   target entry from birth, its popup precedes the save ask (the ask defers while a choice
   pends; the Roll button never locks), and the verdict settles it — save held ⇒ zero, no
@@ -754,9 +804,11 @@ trios and button factories are gone.
   one crit source. The save-damage offer keeps its stakes-line identity untouched.
 - **(m) in the choice machine:** the relay card's use-label reads "spends the Reaction"
   (it said "takes no damage" before a save that then failed — proven live), the pass-label
-  "the Reaction is kept", and the interpose Pass button is bare "Pass" (the "— take half"
-  claim died; a passed-then-failed save takes full). Settle cards are unchanged — verdicts
-  state results.
+  "the Reaction is kept", and the interpose Pass button was bare "Pass" while the gamble
+  was pre-roll. ⚠ Walk-5 (y) moved interpose POST-verdict, so its buttons/labels state
+  knowns again ("Take half", "spends the Reaction: no damage") — law 3's scope note; the
+  BASH labels still declare only the choice. Settle cards are unchanged — verdicts state
+  results.
 - **(n) is structural now:** both choice-bar call sites draw momentBarHTML (the pure
   `{deadline, window}` primitive), and the suite asserts the bar's DOM
   (`data-bf-deadline`) so an invisible bar can never pass again.

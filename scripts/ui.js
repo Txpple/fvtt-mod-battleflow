@@ -198,8 +198,12 @@ const TONE = {
  */
 export function bfCard({ img, eyebrow, title, subtitle, lines = [], tone = "neutral" }) {
   const accent = TONE[tone] ?? TONE.neutral;
+  // Walk-5 (aa): every card icon says what it is on hover — the eyebrow (or the title) is
+  // the name. Tags out, quotes escaped: these strings go into an attribute.
+  const tip = String(eyebrow || title || "").replace(/<[^>]*>/g, "").replace(/"/g, "&quot;");
   const portrait = img
-    ? `<img src="${img}" alt="" style="width:40px;height:40px;flex:0 0 auto;border-radius:4px;
+    ? `<img src="${img}" alt="${tip}" data-tooltip="${tip}"
+         style="width:40px;height:40px;flex:0 0 auto;border-radius:4px;
          border:1px solid var(--color-border-dark,#0006);object-fit:cover;">`
     : "";
   const body = lines.filter(Boolean).map(line =>
@@ -227,6 +231,11 @@ export function bfCard({ img, eyebrow, title, subtitle, lines = [], tone = "neut
 export function reactionImg(actor, reactionName, ids) {
   return reactionItem(actor, reactionName, ids)?.img ?? null;
 }
+
+/** Walk-5 (z): the verbatim rule quote as a card line — one shape wherever a popup cites
+ * the actual feature text. The words come from the caller (RULE_TEXT / MASTERY_RULES);
+ * this is only the dress. */
+export const ruleLine = text => `<em>“${text}”</em>`;
 
 /* ---------------------------------------------------------------------------------------------
  * The countdown bar (design.md §4.3).
@@ -674,7 +683,9 @@ async function holdPopupContent(target, roll, actor, hold) {
   return `
   <div style="display:flex;gap:0.6rem;align-items:center;padding-bottom:0.5rem;
               border-bottom:1px solid var(--color-border-light-2,#999a);">
-    <img src="${img}" alt="" style="width:48px;height:48px;flex:0 0 auto;border-radius:4px;
+    <img src="${img}" alt="${String(target.reaction ?? "").replace(/"/g, "&quot;")}"
+         data-tooltip="${String(target.reaction ?? "").replace(/"/g, "&quot;")}"
+         style="width:48px;height:48px;flex:0 0 auto;border-radius:4px;
          border:1px solid var(--color-border-dark,#0006);object-fit:cover;">
     <div style="flex:1;min-width:0;">
       <div style="font-family:var(--font-h1,inherit);font-size:var(--font-size-18,18px);
