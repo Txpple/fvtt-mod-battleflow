@@ -6,6 +6,20 @@ import { MODULE_ID, TITLE, S, setting } from "./core.js";
 import { hitTargets, modeAllows } from "./shared.js";
 import { stampHoldIfInterrupted } from "./hold.js";
 
+const esc = s => String(s ?? "").replace(/[&<>"]/g,
+  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/** (hh): the "Against …" line names each target with its token icon (law 8 tooltip) —
+ * the roll popup was the one volley surface still naming targets in text alone. Pure
+ * render off the roll's own snapshot; a target without an image degrades to its name. */
+const againstLine = targets => {
+  const list = (targets ?? []).filter(t => t?.name);
+  if ( !list.length ) return null;
+  return `Against ${list.map(t =>
+    `${t.img ? `<img src="${esc(t.img)}" alt="${esc(t.name)}" data-tooltip="${esc(t.name)}"
+      style="width:18px;height:18px;border:none;border-radius:3px;object-fit:cover;vertical-align:-4px;margin-right:2px;">` : ""}<strong>${esc(t.name)}</strong>`).join(", ")}.`;
+};
+
 /* ---------------------------------------------------------------------------------------------
  * Phase 1a — auto-roll damage on hit (the attacker's client; its attack, its dice)
  * ------------------------------------------------------------------------------------------- */
@@ -26,9 +40,12 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
   const hits = hitTargets(attackMessage);
   if ( !hits.length ) return; // a miss means the damage dice never exist
 
-  // The one legitimate interrupt: someone hit is holding a Shield-class reaction. Pause here
-  // rather than rolling damage, and let a human answer (design.md §5 Phase 1.5).
-  if ( await stampHoldIfInterrupted(attackMessage, rolls[0], hits) ) return;
+  // The one legitimate interrupt: someone hit is holding a Shield-class reaction. Since the
+  // v1.20.0 walk-1 ruling (gg) the hold pauses the APPLICATION, never the dice — "the shoudl
+  // just roll damage, and not wait for shield" — exactly the darts' pattern item 6 walked.
+  // The stamp still raises the popup and the clock; the roll below is born attackHoldPending
+  // (rollDamageForAttack reads the hold), and the resolution releases or discards it.
+  await stampHoldIfInterrupted(attackMessage, rolls[0], hits);
 
   // The player asked for their own dice back: offer the roll instead of taking it. The popup
   // IS the pause, so it ABSORBS the dramatic beat rather than stacking a 15s window behind a
@@ -59,10 +76,19 @@ export async function rollDamageForAttack(activity, attackMessage) {
     }
     const isCritical = attackMessage.rolls[0]?.isCritical ?? false;
     const originId = attackMessage.getFlag("dnd5e", "originatingMessage") ?? attackMessage.id;
+    // (gg): a roll made while the attack's hold is still open is born claimed — the applier
+    // waits on the flag and the hold's resolution releases it (a Shield-flipped target just
+    // drops out of hitTargets, so its dice do nothing). Read at ROLL time, not offer time:
+    // a hold that resolved while the popup sat open needs no claim and applies straight.
+    const holdPending = attackMessage.getFlag(MODULE_ID, "hold")?.status === "pending";
     await activity.rollDamage(
       { ammunition, attackMode, isCritical },
       { configure: false },
-      { data: { "flags.dnd5e.originatingMessage": originId } }
+      { data: { "flags.dnd5e.originatingMessage": originId,
+        ...(holdPending ? {
+          [`flags.${MODULE_ID}.attackHoldPending`]: true,
+          [`flags.${MODULE_ID}.attackHoldFor`]: attackMessage.id
+        } : {}) } }
     );
   } catch(err) {
     console.error(`${TITLE} | Auto-roll damage failed.`, err);
@@ -230,7 +256,7 @@ export async function offerDamageRoll(activity, attackMessage) {
   // instead from the d20 face and a crit threshold would be a second opinion about a settled
   // fact — and a second opinion on a card people trust is worse than no badge at all.
   const isCritical = attackMessage.rolls[0]?.isCritical ?? false;
-  const names = hitTargets(attackMessage).map(t => t.name).filter(Boolean).join(", ");
+  const against = againstLine(hitTargets(attackMessage));
   // The armed Cleave announces itself BEFORE the dice (v1.19.x finding ③ — the walk: "the
   // roll damage popup should make a note that it's a cleave"). Lazy import on purpose: a
   // static edge here drags mastery.js's imports ahead of hold.js in the §9 entry order.
@@ -265,7 +291,7 @@ export async function offerDamageRoll(activity, attackMessage) {
       precisionUsed ? `<strong>Precision Attack</strong> turned the miss — this hit is yours to roll.` : null,
       cleaveArm ? `<strong>Cleave</strong> — this is the armed Cleave swing: the ability modifier is dropped from this roll.` : null,
       isCritical ? `${CRIT_BADGE} <span style="opacity:0.85;">Already set on the roll — nothing extra to do.</span>` : null,
-      names ? `Against <strong>${names}</strong>.` : null
+      against
     ]
   });
 }
@@ -297,7 +323,7 @@ export async function offerDamageRoll(activity, attackMessage) {
  * rather than re-testing here is what stops this popup re-opening that door.
  */
 export async function offerSaveDamageRoll(activity, card, { damageOnSave, targets, awaiting } = {}) {
-  const names = (targets ?? []).map(t => t.name).filter(Boolean).join(", ");
+  const against = againstLine(targets);
   // Deliberately the save popup's own phrasing (saves.js's stakes block), trimmed to sit beside
   // the dice: the caster and the target should read the same rule in the same words.
   const stake = (damageOnSave === "half") ? "A successful save <strong>halves</strong> it."
@@ -316,9 +342,9 @@ export async function offerSaveDamageRoll(activity, card, { damageOnSave, target
     subtitle: `${activity.item?.name ?? "Spell"} — ${activity.actor?.name ?? ""}`,
     lines: [
       stake,
-      names ? `Against <strong>${names}</strong>.` : null,
+      against,
       // Says WHY the line above is missing, rather than leaving the roller to wonder.
-      (awaiting && !names)
+      (awaiting && !against)
         ? `<span style="opacity:0.85;">The area is not placed yet — your dice can go first.</span>`
         : null
     ]

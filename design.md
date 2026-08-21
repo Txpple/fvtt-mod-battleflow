@@ -227,7 +227,7 @@ partystash).
 >
 > | # | Moment | Flag · message | Stamp (client) | Route | Controls | Answer channels | Resolve | Expiry |
 > | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-> | 1 | Reaction hold — attack | `hold` · attack msg | attacker's, on hit | canAnswerFor + the GM player-owned quiet (manual recall) | Cast / Pass | flag write · §4.1 response msg · the cast itself | continueHold: settle → live-AC re-test → verdict → damage | pass (continuing client's clock) |
+> | 1 | Reaction hold — attack | `hold` · attack msg | attacker's, on hit | canAnswerFor + the GM player-owned quiet (manual recall) | Cast / Pass | flag write · §4.1 response msg · the cast itself | continueHold: settle → live-AC re-test → verdict → RELEASE the born-claimed dice ((gg): rolled at attack time, `attackHoldPending`; a flipped target drops out of the application) | pass (continuing client's clock) |
 > | 2 | Reaction hold — spell | `hold` trigger:"spell" · usage card | caster's, at use | same | Cast / Pass | same | continueSpellHold + the preApplyDamage veto | pass |
 > | 3 | Save demand | `saves` · usage card | casting client, at use | canAnswerFor, queued oldest-first | Adv/Norm/Dis + bonus (every button = roll) | `respondsTo`+`saveFor` roll · native button chain · bare roll | fold vs stored DC → verdict line → consequences | roll (elect) |
 > | 4 | Save choice — interpose | `saves.targets[].choice` | at the SAVED verdict (elect) — walk-5 (y) restored ⑥'s shape; a failure never offers | canAnswerFor(saver) | Use / Take half | flag write · §4.1 `saveChoiceAnswer` | settleInterpose on the accept (the Reaction spends there and only there) | pass — take half (elect) |
@@ -461,6 +461,22 @@ Auto-resolution has one legitimate interrupt: Shield-class reactions trigger on 
 instantly would make every Shield decision perfectly informed (metagame leak) and every fix a
 rewind. So: a **hold point** between hit determination and the damage roll.
 
+> **Recut by (gg), the v1.20.0 walk (2026-08-21) — the hold pauses the APPLICATION, never
+> the dice.** User verbatim, from the table (a Scorching Ray volley stalled behind Gren's
+> Shield popup): *"the shoudl just roll damage, and not wait for shield, if its a miss then
+> it just doesnt do anything. i thnk this is kinda like MM too"* — and it is exactly the
+> darts' pattern the same walk's item 6 proved. The roll happens at attack time, born
+> `attackHoldPending` + `attackHoldFor` (auto-damage.js reads the hold at ROLL time); the
+> elect's applier waits on the claim (the `spellHoldPending` idiom on the attack chain,
+> three triggers: arrival, the release write, render-resume); the resolution RELEASES the
+> claim instead of rolling, and `hitTargets`' verdict override drops every Shield-flipped
+> target — an all-flipped release applies to nobody and the dice do nothing. The metagame
+> leak the original design avoided is ACCEPTED by this ruling: the defender may see the
+> rolled damage before answering, exactly as Magic Missile's darts always showed it —
+> and `damage`-kind reactions genuinely improve (the defender reduces a number they can
+> finally read). The post-answer roll site died as code; a roll still sitting in an open
+> offer window needs nothing (it reads the resolved hold at roll time and applies straight).
+
 - **Trigger**: on a hit, check the hit target against a **curated world-setting list** of
   interrupt reactions — default Shield-class (retroactive-miss) only; entries carry a one-bit
   classifier: AC-type (skip the pause on crits — a nat 20 hits regardless) vs damage-type
@@ -501,6 +517,8 @@ rewind. So: a **hold point** between hit determination and the damage roll.
     > defers until the hold resolves, then applies per verdict (negated targets skipped).
     > Only a human pressing the tray early still wins, which is a ruling, not a race. This
     > is the "Phase 2/3 owning non-attack damage application" the original note promised.
+    > **(gg) extended the same birth-claim to the ATTACK chain** (`attackHoldPending`), so
+    > both hold families now share one shape: dice at once, application on the verdict.
     > The usage card also stopped being load-bearing: under suppression the hold rides a
     > replacement card, the damage roll is bridged to it (originatingMessage), and the veto
     > gained a message-free fallback lookup.
@@ -532,7 +550,9 @@ rewind. So: a **hold point** between hit determination and the damage roll.
   > targets no player owns. See §2.4's matching correction.
 - **Re-resolution**: re-run the hit test against the target's **LIVE** AC (⚠ the stored target
   descriptor's AC is stale after Shield) — now a miss ⇒ post "Shield: 19 vs AC 20 — the attack
-  misses," chain ends, damage never rolled; still a hit ⇒ damage proceeds. The verdict is
+  misses," chain ends, ~~damage never rolled~~ **the already-rolled dice are released and apply
+  to nobody ((gg) — the announcement is the record; no receipt, no HP)**; still a hit ⇒ the
+  release ends in the real application. The verdict is
   written onto the hold and **overrides the snapshot for auto-apply too**, which would
   otherwise re-derive "hit" from the stale AC and damage a target we just announced as missed.
   ⚠ **The AC does not move when the cast happens.** Shield's +5 arrives as a non-transfer
@@ -888,6 +908,15 @@ volley. `tools/smoke-volleys.mjs` 24/24 is its suite.
   snapshot (pure render, no lookups). Dart rolls carry `volleyTarget`, ray attacks
   `volleyRay`; a ray's follow-up damage chains off its attack card, which names the target
   right above it.
+- **THE AIM ON EVERY SURFACE ((hh), the v1.20.0 walk, 2026-08-21):** (ee)'s icon reaches
+  the two surfaces that still named targets in text alone. The POPUP: every dart row leads
+  with its target's token icon (user, on the screenshot: *"in thee row where it says thomas
+  -- 3"*), and every ray row carries its PICK's icon, tracking the select via a change
+  listener (*"match that pattern for rays too"*) — the stamp records `img` off the target
+  snapshot for exactly this. The ROLL POPUP: the damage offer's "Against …" line renders
+  icon + name per target (one `againstLine` helper serves the attack AND save flavours —
+  the family's one-shell rule). Law-8 tooltips everywhere; an imageless target degrades to
+  its name.
 - **The popup** is the caster's own (damage-offer locality — no elect, no relay): steppers
   per target (darts) or a target select per ray, one Fire button, the family bar. The X
   fires as aimed ("get on with it", never a cancel); the buzzer fires the EVEN SPREAD

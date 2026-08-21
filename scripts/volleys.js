@@ -114,7 +114,7 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
   const message = (results?.message instanceof ChatMessage) ? results.message : null;
   if ( !message ) return;
   const targets = (message.getFlag("dnd5e", "targets") ?? [])
-    .map(t => ({ uuid: t.uuid, name: t.name }));
+    .map(t => ({ uuid: t.uuid, name: t.name, img: t.img ?? null }));
   // The message's own spellLevel is the cast level the system stands behind (see
   // castLevelOf's warning) — the config is only the fallback for content that never
   // stamps one.
@@ -191,11 +191,23 @@ async function openVolleyPopup(message) {
   if ( open ) { open.bringToFront?.(); return; }
 
   const noun = unitNoun(v);
+  // (hh): every popup row shows WHO — the target's token icon beside its name (law 8
+  // tooltip), read off the stamped snapshot. A target without an image degrades to its name.
+  const iconHTML = t => t?.img
+    ? `<img src="${esc(t.img)}" alt="${esc(t.name)}" data-tooltip="${esc(t.name)}"
+        style="width:22px;height:22px;border:none;border-radius:4px;object-fit:cover;flex:0 0 auto;">`
+    : "";
+  // The ray variant always renders the element (hidden when imageless) so the change
+  // listener below has something to reveal when the pick moves to a target WITH an image.
+  const rayIconHTML = (i, t) => `<img data-bf-volley-icon="${i}" src="${esc(t?.img ?? "")}"
+      alt="${esc(t?.name ?? "")}" ${t?.img ? `data-tooltip="${esc(t.name)}"` : ""}
+      style="width:22px;height:22px;border:none;border-radius:4px;object-fit:cover;flex:0 0 auto;${t?.img ? "" : "display:none;"}">`;
   const rows = (v.kind === "damage")
     // One stepper per target: how many darts land there.
     ? v.targets.map((t, i) => {
       const def = defaultAssignment(v).find(a => a.uuid === t.uuid)?.count ?? 0;
       return `<div style="display:flex;align-items:center;gap:0.5rem;margin:0.15rem 0;">
+        ${iconHTML(t)}
         <label style="flex:1;">${esc(t.name)}</label>
         <input type="number" data-bf-volley-uuid="${esc(t.uuid)}" value="${def}"
           min="0" max="${v.n}" step="1" style="width:4rem;text-align:center;">
@@ -204,12 +216,16 @@ async function openVolleyPopup(message) {
     // One target pick per ray — and the ray's mode ((dd), RAW; the concentration popup's
     // Adv/Normal/Dis is the in-house precedent). "Normal" passes NO override so sheet-borne
     // modifiers keep applying themselves; only an explicit pick forces the booleans.
+    // The row's icon is the SELECTED target's (the dart-row pattern, user ask (hh)) — a
+    // change listener bound after render keeps it tracking the pick.
     : Array.from({ length: v.n }, (_, i) => {
       const def = defaultAssignment(v)[i]?.uuid;
+      const defTarget = v.targets.find(t => t.uuid === def);
       const options = v.targets.map(t =>
         `<option value="${esc(t.uuid)}" ${t.uuid === def ? "selected" : ""}>${esc(t.name)}</option>`).join("");
       return `<div style="display:flex;align-items:center;gap:0.5rem;margin:0.15rem 0;">
         <label style="flex:1;">Ray ${i + 1}</label>
+        ${rayIconHTML(i, defTarget)}
         <select data-bf-volley-ray="${i}" style="width:9.5rem;">${options}</select>
         <select data-bf-volley-mode="${i}" style="width:7.5rem;">
           <option value="normal" selected>Normal</option>
@@ -254,7 +270,20 @@ async function openVolleyPopup(message) {
 
   await openManagedPopup(key, message, dialog);
   // Render failed → no surface to press, and the native buttons are hidden: fire now.
-  if ( livePopups.get(key) !== dialog ) void fireVolley(message, null);
+  if ( livePopups.get(key) !== dialog ) return void fireVolley(message, null);
+  // (hh): each ray row's icon tracks its own select, so the row always shows WHO the ray
+  // is on. Bound after render because DialogV2 owns the DOM until now.
+  for ( const sel of dialog.element?.querySelectorAll?.("[data-bf-volley-ray]") ?? [] ) {
+    sel.addEventListener("change", () => {
+      const icon = dialog.element?.querySelector?.(`[data-bf-volley-icon="${sel.dataset.bfVolleyRay}"]`);
+      if ( !icon ) return;
+      const t = v.targets.find(x => x.uuid === sel.value);
+      if ( t?.img ) {
+        icon.src = t.img; icon.alt = t.name; icon.dataset.tooltip = t.name;
+        icon.style.display = "";
+      } else icon.style.display = "none";
+    });
+  }
 }
 
 /** Read the popup's inputs into an assignment; null/garbage falls back to the default. */

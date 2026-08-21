@@ -4,7 +4,10 @@
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
 import { hitTargets } from "./shared.js";
-import { rollDamageForAttack, offerDamageRoll } from "./auto-damage.js";
+// ⚠ Bare on purpose since (gg) retired the post-answer roll (the continuation releases the
+// claim instead): the import itself still pins auto-damage.js's evaluation — and with it every
+// hook registration order check-hook-order asserts — exactly where the §9 entry graph has it.
+import "./auto-damage.js";
 import { bfCard, reactionImg, armHoldTimer, disarmHoldTimer, reactionACBonus, closeAnsweredPopups } from "./ui.js";
 // Safe as a STATIC edge (unlike auto-apply.js below): effect-riders.js registers no hooks,
 // so evaluating it early cannot reorder anything — check-hook-order.mjs proves it.
@@ -848,20 +851,18 @@ async function driveHoldContinuation(attackMessage, hold) {
     speaker: { alias: TITLE }
   });
 
-  // Damage rolls only if something is still hit — a Shield that turned the only hit into a
-  // miss ends the chain here, and the dice never exist.
-  if ( !hitTargets(attackMessage).length ) return;
-  const activity = await fromUuid(attackMessage.getFlag("dnd5e", "activity")?.uuid);
-  if ( !activity ) return;
-
-  // The player's own roll reaches THIS path too — losing your dice exactly when someone just
-  // threw a Shield at you would be the worst moment to lose them. Offered only when the
-  // continuation is still running on the attacker's OWN client: `continuedBy` is the user who
-  // rolled the attack, and `isContinuingClient` hands the chain to the active GM when that user
-  // has gone offline. Nobody should be asked to roll dice that are not theirs.
-  if ( setting(S.playerRollDamage) && (hold.continuedBy === game.user.id) )
-    return void offerDamageRoll(activity, attackMessage);
-  await rollDamageForAttack(activity, attackMessage);
+  // (gg), the v1.20.0 walk-1 ruling: the dice rolled AT ATTACK TIME (auto-damage.js stamps
+  // them `attackHoldPending`), so resolution RELEASES the claim instead of rolling — the
+  // darts' pattern on the attack chain. The applier re-reads hitTargets, whose verdict
+  // override drops every Shield-flipped target, so an all-flipped release applies to nobody
+  // and the dice do nothing (the announcement above already said "The attack misses").
+  // A roll still in an open offer window needs nothing here: rollDamageForAttack reads the
+  // hold at ROLL time, finds it resolved, stamps no claim, and applies straight.
+  for ( const dmg of game.messages.contents.filter(m =>
+    (m.getFlag(MODULE_ID, "attackHoldFor") === attackMessage.id)
+    && (m.getFlag(MODULE_ID, "attackHoldPending") === true) ) ) {
+    await dmg.setFlag(MODULE_ID, "attackHoldPending", false);
+  }
 }
 
 /**
