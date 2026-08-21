@@ -208,6 +208,74 @@ partystash).
 >   A moment that can wait forever does so only by explicit setting (timer 0), never by a
 >   missing buzzer.
 
+> **Amended 2026-08-21 (v1.19.0 round 3 — THE MOMENT AUDIT + THE SPINE, the user's mandate):**
+> three walks of findings traced to one cause — each new moment machine COPIED the
+> stamp/route/pop/answer/resolve idiom instead of composing it, and every copy drifted
+> ((n) was a copied bar call missing a hidden contract, (j) a whole family built without
+> the ack concept, eleven separate shown-latch sets with four different key shapes). The
+> user's charge, verbatim: *"if this is truly to work long term, stuff needs to be built
+> out highly modularly and highly scalable as we build."* So:
+>
+> **THE MANDATE (binding).** No new moment machine may hand-roll stamp, route, pop, bar,
+> answer, resolve or expire again. New machines COMPOSE the spine below; code review of any
+> new moment starts by checking each row of the composition contract against it. A new
+> primitive is added to ui.js only when a genuinely new KIND of surface behaviour appears —
+> the §2.10 rule applied to UI.
+>
+> **THE MOMENT MAP** — every machine, one row, and the map is maintained WITH the machines
+> (a new moment adds its row in the same commit):
+>
+> | # | Moment | Flag · message | Stamp (client) | Route | Controls | Answer channels | Resolve | Expiry |
+> | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+> | 1 | Reaction hold — attack | `hold` · attack msg | attacker's, on hit | canAnswerFor + the GM player-owned quiet (manual recall) | Cast / Pass | flag write · §4.1 response msg · the cast itself | continueHold: settle → live-AC re-test → verdict → damage | pass (continuing client's clock) |
+> | 2 | Reaction hold — spell | `hold` trigger:"spell" · usage card | caster's, at use | same | Cast / Pass | same | continueSpellHold + the preApplyDamage veto | pass |
+> | 3 | Save demand | `saves` · usage card | casting client, at use | canAnswerFor, queued oldest-first | Adv/Norm/Dis + bonus (every button = roll) | `respondsTo`+`saveFor` roll · native button chain · bare roll | fold vs stored DC → verdict line → consequences | roll (elect) |
+> | 4 | Save choice — interpose | `saves.targets[].choice` | with the demand, pre-roll (+ adoption) | canAnswerFor(saver) | Use / Pass | flag write · §4.1 `saveChoiceAnswer` | settleInterpose at the verdict | pass (elect) |
+> | 5 | Save choice — bash | `saves.targets[].choice` | at the failed verdict (elect) | canAnswerFor(attacker) | Prone / Push | same | the press, or the push card | prone (elect) |
+> | 6 | Topple demand | `topple` · own card | elect | canAnswerFor per target | Adv/Norm/Dis + bonus | chained roll · bare roll (defers conc → saves) | fold → press / stays-standing card | roll (elect) |
+> | 7 | Concentration ask | `concentration` · own card | elect, off damageActor | canAnswerFor, queued | Adv/Norm/Dis + bonus | `respondsTo` roll · bare roll | fold → holds / break | roll (elect) |
+> | 8 | Mastery ask | `mastery` · attack msg | elect, after application | canAnswerFor(attacker) | Use / Pass | flag write (the attacker owns the msg) | elect executes the payout | pass (elect) |
+> | 9 | Mastery notice (Vex/Sap/Cleave) | `masteryNotice` · own card | elect | canAnswerFor(attacker) | OK · Arm/Dismiss (Cleave) | **the ACK** | presentation resolves; Arm also arms | auto-dismiss at the deadline |
+> | 10 | Hew notice | `hewNotice` · own card | elect, at the crit's damage roll / the kill receipt | canAnswerFor(attacker) | OK | **the ACK** | presentation resolves | auto-dismiss |
+> | 11 | Precision offer | `precision` · attack msg | roller's, on a clean miss | canAnswerFor(attacker) | Use / Pass | flag write (the roller owns the msg) | use → die → verdicts → re-drive | pass (elect) |
+> | 12 | Riposte offer | `riposte` · enemy's attack msg | elect, on a melee miss | canAnswerFor per reactor | Riposte / Pass + weapon select | flag write · §4.1 `riposteAnswer` (trusted drive) | drive a real attack; hit celebrates, miss announces | decline (elect) |
+> | 13 | Bash offer | `bashOffer` · attacker's attack msg | attacker's, on a melee hit | canAnswerFor(attacker) | Use / Pass + target select | flag write | drive the feat's own save activity | pass (elect) |
+> | 14 | Damage offer (attack / save) | none — locality, no card | roller's / caster's client | none: the popup is local | Roll | the one `fire` thunk (X and buzzer roll too) | rollDamageForAttack / rollDamageForSave | roll (local 15s) |
+>
+> **THE SPINE (ui.js)** — the mechanisms every row above composes; each was extracted from
+> the machines that had drifted apart around it:
+>
+> | Primitive | What it owns |
+> | --- | --- |
+> | `openManagedPopup` | the single door: lifecycle, row-release on close, **the cascade** — concurrent popups offset ~28px so a pile never masquerades as one window (law 6) |
+> | `openMomentPopup` | the popper discipline: canAnswerFor gate, `popupKey`, front-a-live-popup-on-recall, DialogV2 construction, notice auto-close. `gate: false` skips canAnswerFor (locality popups); a null subject with the gate on is refused |
+> | `shownMoments` + `popupKey` | ONE shown-latch registry — **the latch key IS the popup key** — with ONE delete-sweep in ui.js; machines un-latch through the same key when their queue advances |
+> | `momentBarHTML` | the bar as a pure function of `{deadline, window}` — no status contract to forget (finding (n) is what the hidden contract cost). `holdBarHTML` remains the status-gated wrapper for whole flags |
+> | `momentButton` | the one recall/answer button factory |
+> | `acknowledgeMoment` / `momentAcknowledged` | **the ACK (law 2)**: any notice button resolves the card's pending presentation — durable via message flag when the acknowledger can write (GM/author — every solo case), client-local otherwise (spectators' bars drain out as the window) |
+> | `armAskTimer` / `disarmAskTimer` | the elect-owned single-answer clock (moved here from mastery.js — the spine was living in a machine) |
+> | `armDeadline` / `disarmDeadline` | the raw deadline timer the per-target clocks (topple, riposte, save-choice, hold) build their own gates on |
+>
+> `dramaticVerdictPause` (concentration.js) stays where it is — moving it re-orders the
+> import graph for zero behaviour; it is the shared verdict pacing, imported by saves and
+> mastery. `offerRoll` (auto-damage.js) is a legitimate DIRECT customer of
+> `openManagedPopup`: its close-fires-roll wiring is its own documented shell, and the
+> cascade covers it through the single door.
+>
+> **THE LAWS the spine encodes** (each user-ruled; the round-3 fixes are their proofs):
+> 1. **The popup law (c):** easy-to-forget moments get popup notifications, not just cards.
+> 2. **Acknowledge resolves (j):** any notice button press resolves its card's pending
+>    presentation — bar gone, recall gone, popup gone. The ask machines already comply
+>    (their update watchers close answered popups); the notice family was the violating
+>    class and now rides the ACK.
+> 3. **Declaration never claims an outcome (m):** buttons and relay cards at decision time
+>    state the SPEND or the choice; only the verdict's settle card states results.
+> 4. **Source, then result (⑦):** every follow-up line leads with the ability.
+> 5. **The celebration (l):** every attack-damage popup celebrates the hit — "You hit! —
+>    roll damage"; crits louder on the one yellow badge; a riposte named as itself (p).
+>    The save-damage popup keeps its stakes-line identity (no attack roll to celebrate).
+> 6. **The stack is visible (q):** openManagedPopup cascades concurrent popups.
+
 ---
 
 ## 5. The phase ladder
@@ -633,6 +701,43 @@ itself the round's headline ruling:
   riposte is RAW-legal and follows the per-roll ruling (driven attacks are real attacks).
   The user asked about the rules, did not rule; the fence (one guard on `riposteFor`) is
   recorded here as the lever if the cascade ever grates at the table.
+
+#### The round-3 amendment (2026-08-21 — the walk-3 findings, landed ON the spine)
+
+The §4.3 spine amendment carries the laws and the mechanism table; this records what
+changed in THIS phase's machines. Every machine here now composes the spine (openMomentPopup,
+shownMoments, momentBarHTML, momentButton, armDeadline) — the per-machine latch sets, timer
+trios and button factories are gone.
+
+- **(k) BOTH Hew triggers live on the damage side.** The crit reminder posted from
+  rollAttackV2 — BEFORE the damage, and with the damage popup open, before it by the whole
+  window ("attack again" preceding the attack's own resolution). Both triggers now key off
+  the crit's damage MESSAGE: the crit posts when that roll EXISTS (elect,
+  createChatMessage), the kill stays receipt-side, and the dedupe is ONE `hewNoticed` flag
+  on the damage message — a per-message check queue (the queueFlagWrite idiom) serializes
+  the two so a crit-that-kills still reminds exactly once, the crit's post winning. A crit
+  whose damage is never rolled posts no reminder — the kill path's accepted hand-tray gap,
+  now shared.
+- **(p) THE RIPOSTE SWINGS OUT LOUD.** A driven attack that HITS celebrates in the damage
+  offer as the riposte's own moment ("Your riposte hit! — roll damage", the die-riding
+  note, crit variant "Critical riposte!"); a MISS posts "Riposte — the strike back misses"
+  from the rolling client, so the Graze/Precision offers that may follow ((e)-KEEP) arrive
+  from an announced miss instead of from nowhere.
+- **(l) lands at its chokepoint:** offerDamageRoll is the ONE celebration site — plain
+  swings, riposte drives and precision re-drives all read their flavor off the attack
+  message's own flags there (riposteFor / precision.outcome), and the crit badge stays the
+  one crit source. The save-damage offer keeps its stakes-line identity untouched.
+- **(m) in the choice machine:** the relay card's use-label reads "spends the Reaction"
+  (it said "takes no damage" before a save that then failed — proven live), the pass-label
+  "the Reaction is kept", and the interpose Pass button is bare "Pass" (the "— take half"
+  claim died; a passed-then-failed save takes full). Settle cards are unchanged — verdicts
+  state results.
+- **(n) is structural now:** both choice-bar call sites draw momentBarHTML (the pure
+  `{deadline, window}` primitive), and the suite asserts the bar's DOM
+  (`data-bf-deadline`) so an invisible bar can never pass again.
+- **(j) reaches Hew:** the OK acknowledges through the spine's ACK — bar, recall and popup
+  resolve; the mastery notices (Vex/Sap/Cleave) ride the same call in their own file, Arm
+  keeping the "Cleave — armed" card.
 
 ### Phase 1.75 — curated damage riders (the Hunter's Mark tier)
 

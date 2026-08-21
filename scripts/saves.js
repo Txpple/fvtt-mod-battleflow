@@ -4,8 +4,9 @@
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
 import { canAnswerFor, inRunningCombat } from "./hold.js";
-import { livePopups, popupKey, openManagedPopup, bfCard, holdBarHTML, scheduleBarSync } from "./ui.js";
-import { armAskTimer, disarmAskTimer } from "./mastery.js";
+import { livePopups, popupKey, openMomentPopup, bfCard, holdBarHTML, momentBarHTML,
+  momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
+  armDeadline, disarmDeadline } from "./ui.js";
 import { dramaticVerdictPause } from "./concentration.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt, revertEffect } from "./effect-riders.js";
@@ -848,7 +849,6 @@ Hooks.on("createChatMessage", message => {
  * ------------------------------------------------------------------------------------------- */
 
 const saveChoiceTimers = new Map();
-const shownSaveChoiceAsks = new Set();
 
 /** Interpose eligibility at DEMAND time (finding (f)): the listed feat on the saver, a
  * shield in hand, the Reaction free — read where the demand stamps, popup before the roll. */
@@ -913,9 +913,12 @@ async function answerSaveChoice(card, uuid, answer) {
   if ( !c || c.answer ) return;
   if ( !card.isOwner ) {
     const subject = await fromUuid(c.subjectUuid ?? uuid).catch(() => null);
+    // DECLARATION NEVER CLAIMS AN OUTCOME (design.md §4.3 law 3, finding (m) — this card
+    // said "takes no damage" BEFORE a save that then failed): the relay states the SPEND or
+    // the choice; the verdict's settle card states results.
     const labels = {
-      use: `${c.itemName} — ${entry.name} takes no damage`,
-      pass: `${c.itemName} — passed, half damage stands`,
+      use: `${c.itemName} — ${entry.name} spends the Reaction`,
+      pass: `${c.itemName} — passed, the Reaction is kept`,
       prone: `${c.itemName} — ${c.attackerName ?? "the attacker"} chooses Prone`,
       push: `${c.itemName} — ${c.attackerName ?? "the attacker"} chooses the push`
     };
@@ -955,24 +958,15 @@ Hooks.on("createChatMessage", message => {
   });
 });
 
-function disarmSaveChoiceTimer(cardId) {
-  const handle = saveChoiceTimers.get(cardId);
-  if ( handle === undefined ) return;
-  clearTimeout(handle);
-  saveChoiceTimers.delete(cardId);
-}
+const disarmSaveChoiceTimer = cardId => disarmDeadline(saveChoiceTimers, cardId);
 
 function armSaveChoiceTimer(card) {
   if ( !isActiveGM() ) return;
   const flag = card.getFlag(MODULE_ID, "saves");
   const pending = (flag?.targets ?? []).filter(t => t.choice && !t.choice.answer && t.choice.deadline);
   if ( !pending.length ) { disarmSaveChoiceTimer(card.id); return; }
-  if ( saveChoiceTimers.has(card.id) ) return;
-  const next = Math.min(...pending.map(t => t.choice.deadline));
-  saveChoiceTimers.set(card.id, setTimeout(() => {
-    saveChoiceTimers.delete(card.id);
-    void fireSaveChoiceTimer(card.id);
-  }, Math.max(0, next - Date.now())));
+  armDeadline(saveChoiceTimers, card.id, Math.min(...pending.map(t => t.choice.deadline)),
+    fireSaveChoiceTimer);
 }
 
 /** Expiry defaults: bash → Prone; interpose → pass. The update the write raises drives the
@@ -997,22 +991,17 @@ async function fireSaveChoiceTimer(cardId) {
   }
 }
 
-/** The choice popup — two controls, the hold's bar, the fold family's routing. */
+/** The choice popup — two controls, the moment bar, the fold family's routing. */
 async function showSaveChoicePopup(card, uuid) {
   const flag = card.getFlag(MODULE_ID, "saves");
   const entry = flag?.targets?.find(t => t.uuid === uuid);
   const c = entry?.choice;
   if ( !c || c.answer ) return;
   const subject = (() => { try { return fromUuidSync(c.subjectUuid); } catch { return null; } })();
-  if ( !canAnswerFor(subject) ) return;
-  const key = popupKey(card.id, `choice:${uuid}`);
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; }
   const interpose = c.kind === "interpose";
-  const dialog = new foundry.applications.api.DialogV2({
-    window: { title: `${c.itemName} — ${subject?.name ?? ""}`,
-      icon: interpose ? "fa-solid fa-shield" : "fa-solid fa-hand-fist" },
-    position: { width: 440 },
+  await openMomentPopup(card, `choice:${uuid}`, subject, {
+    title: `${c.itemName} — ${subject?.name ?? ""}`,
+    icon: interpose ? "fa-solid fa-shield" : "fa-solid fa-hand-fist",
     content: bfCard({
       img: c.itemImg, eyebrow: `Maneuver — ${c.itemName}`, tone: "pending",
       // The interpose ask is PRE-ROLL since finding (f): a gamble, in the feat's own tense.
@@ -1022,12 +1011,17 @@ async function showSaveChoicePopup(card, uuid) {
         ? `${flag.item?.name ?? "The effect"} demands a Dexterity save. Take the Reaction now: a save that SUCCEEDS deals you no damage at all; a failed save takes the full damage either way.`
         : `Knock ${entry.name} Prone, or push them 5 feet (the token moves by hand).`,
       lines: []
-    }) + (c.deadline ? holdBarHTML(c, "to answer") : ""),
+      // The choice sub-object through momentBarHTML, NEVER holdBarHTML (finding (n)): it
+      // carries no `status`, and the status-gated wrapper silently ate the bar at both of
+      // this machine's call sites — the suite asserts the bar's DOM now.
+    }) + momentBarHTML(c, "to answer"),
     buttons: interpose
       ? [
         { action: "use", label: `Use ${c.itemName}`, default: true,
           callback: () => answerSaveChoice(card, uuid, "use") },
-        { action: "pass", label: "Pass — take half",
+        // "Pass" alone (law 3, finding (m)): "— take half" claimed an outcome the save had
+        // not rolled yet — a passed-then-failed save takes FULL damage; the verdict decides.
+        { action: "pass", label: "Pass",
           callback: () => answerSaveChoice(card, uuid, "pass") }
       ]
       : [
@@ -1035,10 +1029,8 @@ async function showSaveChoicePopup(card, uuid) {
           callback: () => answerSaveChoice(card, uuid, "prone") },
         { action: "push", label: "Push 5 feet",
           callback: () => answerSaveChoice(card, uuid, "push") }
-      ],
-    rejectClose: false
+      ]
   });
-  await openManagedPopup(key, card, dialog);
 }
 
 /** The bash outcome, announced once — the push follows the Push mastery's idiom (a card, a
@@ -1453,10 +1445,12 @@ Hooks.on("updateChatMessage", message => {
     const uuid = key.slice(savePrefix.length);
     if ( !(flag.targets ?? []).some(t => t.uuid === uuid) ) void dialog.close();
   }
-  for ( const key of [...shownSaveAsks] ) {
-    if ( !key.startsWith(`${message.id}|`) ) continue;
-    const uuid = key.slice(`${message.id}|`.length);
-    if ( !(flag.targets ?? []).some(t => t.uuid === uuid) ) shownSaveAsks.delete(key);
+  // The latch key IS the popup key (the spine), so the dropped-entry sweep un-latches
+  // through the same prefix — a re-arrival gets a fresh ask.
+  for ( const key of [...shownMoments] ) {
+    if ( !key.startsWith(savePrefix) ) continue;
+    const uuid = key.slice(savePrefix.length);
+    if ( !(flag.targets ?? []).some(t => t.uuid === uuid) ) shownMoments.delete(key);
   }
   if ( flag.status !== "pending" ) disarmAskTimer(saveTimers, message.id);
   else {
@@ -1477,23 +1471,19 @@ Hooks.on("updateChatMessage", message => {
     if ( !t.done ) continue;
     const next = pendingSaveCardsFor(t.uuid)[0];
     if ( next && (next.id !== message.id) ) {
-      shownSaveAsks.delete(`${next.id}|${t.uuid}`);
+      shownMoments.delete(popupKey(next.id, `save:${t.uuid}`));
       try { ui.chat?.updateMessage?.(next); } catch(err) { /* row refreshes next render */ }
     }
   }
 });
 
+// The shown-latches ride ui.js's one delete-sweep; only this machine's clocks disarm here.
 Hooks.on("deleteChatMessage", message => {
   disarmAskTimer(saveTimers, message.id);
   disarmSaveChoiceTimer(message.id);
-  for ( const key of shownSaveAsks ) if ( key.startsWith(`${message.id}|`) ) shownSaveAsks.delete(key);
-  for ( const key of shownSaveChoiceAsks ) if ( key.includes(`|${message.id}|`) ) shownSaveChoiceAsks.delete(key);
 });
 
 /* --- the views: the card row and the popup --------------------------------------------------- */
-
-/** Popups this client has auto-shown (card.id|uuid), so a re-render never stacks a second. */
-const shownSaveAsks = new Set();
 
 /** Every still-pending demand naming this actor, oldest first — the popup queue. */
 function pendingSaveCardsFor(actorUuid) {
@@ -1619,22 +1609,17 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       const choicePending = !!t.choice && !t.choice.answer;
       // ONE input surface, queued: auto-show only for the actor's OLDEST pending demand;
       // the button recalls this card's popup regardless.
+      const shownKey = popupKey(message.id, `save:${t.uuid}`);
       if ( !choicePending && (pendingSaveCardsFor(t.uuid)[0]?.id === message.id) ) {
-        const shownKey = `${message.id}|${t.uuid}`;
-        if ( !shownSaveAsks.has(shownKey) ) {
-          shownSaveAsks.add(shownKey);
+        if ( !shownMoments.has(shownKey) ) {
+          shownMoments.add(shownKey);
           void showSavePopup(message, t.uuid);
         }
       }
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = `Roll — ${t.name}`;
-      Object.assign(button.style, { width: "auto", margin: "0.25rem 0.25rem 0 0", padding: "0 0.6rem" });
-      button.addEventListener("click", () => {
-        shownSaveAsks.delete(`${message.id}|${t.uuid}`);
+      row.appendChild(momentButton(`Roll — ${t.name}`, () => {
+        shownMoments.delete(shownKey);
         void showSavePopup(message, t.uuid);
-      });
-      row.appendChild(button);
+      }));
     }
   }
 
@@ -1647,24 +1632,22 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const c = t.choice;
     if ( !c || c.answer || t.applied ) continue;
     if ( c.deadline ) {
+      // momentBarHTML, never holdBarHTML (finding (n)): the sub-object has no status, and
+      // the status-gated wrapper rendered "" here for a whole round — the card showed a
+      // pending choice with no drain anywhere on screen.
       const bar = document.createElement("div");
-      bar.innerHTML = holdBarHTML(c, "to answer");
+      bar.innerHTML = momentBarHTML(c, "to answer");
       row.appendChild(bar);
       choiceBars = true;
     }
     const subject = (() => { try { return fromUuidSync(c.subjectUuid); } catch { return null; } })();
     if ( !canAnswerFor(subject) ) continue;
-    const shownKey = `choice|${message.id}|${t.uuid}`;
-    if ( !shownSaveChoiceAsks.has(shownKey) ) {
-      shownSaveChoiceAsks.add(shownKey);
+    const shownKey = popupKey(message.id, `choice:${t.uuid}`);
+    if ( !shownMoments.has(shownKey) ) {
+      shownMoments.add(shownKey);
       void showSaveChoicePopup(message, t.uuid);
     }
-    const recall = document.createElement("button");
-    recall.type = "button";
-    recall.textContent = `Answer — ${c.itemName}`;
-    Object.assign(recall.style, { width: "auto", margin: "0.25rem 0.25rem 0 0", padding: "0 0.6rem" });
-    recall.addEventListener("click", () => void showSaveChoicePopup(message, t.uuid));
-    row.appendChild(recall);
+    row.appendChild(momentButton(`Answer — ${c.itemName}`, () => void showSaveChoicePopup(message, t.uuid)));
   }
   if ( choiceBars && !pending ) scheduleBarSync(row);
   armSaveChoiceTimer(message);
@@ -1693,13 +1676,6 @@ async function showSavePopup(card, uuid) {
   const entry = flag?.targets?.find(t => t.uuid === uuid);
   if ( !entry || entry.done || (flag.status !== "pending") ) return;
   const actor = (() => { try { return fromUuidSync(uuid); } catch { return null; } })();
-  if ( !canAnswerFor(actor) ) return;
-  const key = popupKey(card.id, `save:${uuid}`);
-  // Recall FRONTS a live popup rather than silently returning — "the Roll button does
-  // nothing" was the GM's live report (2026-08-16): the popup was open, buried, and the
-  // click ate itself. Reopen stays for the dismissed case.
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; }
 
   const ability = flag.abilities[0];
   const abilityLabel = CONFIG.DND5E.abilities[ability]?.label ?? ability;
@@ -1722,9 +1698,8 @@ async function showSavePopup(card, uuid) {
   const roll = mode => rollSaveAnswer(card, uuid, {
     mode, bonus: dialog?.element?.querySelector('input[name="bf-save-bonus"]')?.value ?? ""
   });
-  dialog = new foundry.applications.api.DialogV2({
-    window: { title: `${entry.name} — ${abilityLabel} Save`, icon: "fa-solid fa-shield-heart" },
-    position: { width: 440 },
+  dialog = await openMomentPopup(card, `save:${uuid}`, actor, {
+    title: `${entry.name} — ${abilityLabel} Save`, icon: "fa-solid fa-shield-heart",
     content: bfCard({
       // WHO is rolling leads, portrait included — the GM processes queues of these and the
       // creature is the load-bearing fact (user call 2026-08-16); the spell is subtitle work.
@@ -1748,8 +1723,6 @@ async function showSavePopup(card, uuid) {
         callback: () => roll("normal") },
       { action: "disadvantage", label: "Disadvantage", default: def === "disadvantage",
         callback: () => roll("disadvantage") }
-    ],
-    rejectClose: false
+    ]
   });
-  await openManagedPopup(key, card, dialog);
 }

@@ -5,7 +5,9 @@
 import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
 import { hitTargets, modeAllows } from "./shared.js";
 import { inRunningCombat, canAnswerFor } from "./hold.js";
-import { livePopups, popupKey, openManagedPopup, bfCard, holdBarHTML, scheduleBarSync } from "./ui.js";
+import { livePopups, popupKey, openMomentPopup, bfCard, holdBarHTML, momentBarHTML,
+  momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,
+  armAskTimer, disarmAskTimer, armDeadline, disarmDeadline } from "./ui.js";
 import { forceStatus } from "./shared.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { messageActivity, joinEffectReceipt } from "./effect-riders.js";
@@ -318,9 +320,6 @@ Hooks.on("createChatMessage", message => {
   }
 });
 
-/** Topple popups this client has offered (message.id|uuid), never re-popped on render. */
-const shownToppleAsks = new Set();
-
 /**
  * The topple save's table moment (v1.6.0, user call: "the GM didn't get a popup — the
  * cards are difficult to follow"). The same surface as the concentration ask — the story
@@ -333,17 +332,12 @@ const shownToppleAsks = new Set();
  */
 async function showTopplePopup(message, topple, target) {
   const actor = (() => { try { return fromUuidSync(target.uuid); } catch { return null; } })();
-  if ( !canAnswerFor(actor) ) return;
-  const key = popupKey(message.id, `topple:${target.uuid}`);
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; } // recall fronts the live popup, never a silent no-op
   let dialog;
   const roll = mode => rollToppleSave(message, target, {
     mode, bonus: dialog?.element?.querySelector('input[name="bf-topple-bonus"]')?.value ?? ""
   });
-  dialog = new foundry.applications.api.DialogV2({
-    window: { title: `Topple — ${target.name}`, icon: "fa-solid fa-person-falling" },
-    position: { width: 440 },
+  dialog = await openMomentPopup(message, `topple:${target.uuid}`, actor, {
+    title: `Topple — ${target.name}`, icon: "fa-solid fa-person-falling",
     content: bfCard({
       img: topple.weapon?.img ?? null,
       eyebrow: "Weapon Mastery — Topple",
@@ -355,15 +349,13 @@ async function showTopplePopup(message, topple, target) {
       <label style="flex:1;font-size:var(--font-size-12,12px);">Situational Bonus</label>
       <input type="text" name="bf-topple-bonus" placeholder="e.g. 1d4" autocomplete="off"
              style="flex:1;min-width:0;text-align:center;">
-    </div>` + holdBarHTML({ status: "pending", deadline: topple.deadline, window: topple.window }, "to roll"),
+    </div>` + momentBarHTML(topple, "to roll"),
     buttons: [
       { action: "advantage", label: "Advantage", callback: () => roll("advantage") },
       { action: "normal", label: "Normal", default: true, callback: () => roll("normal") },
       { action: "disadvantage", label: "Disadvantage", callback: () => roll("disadvantage") }
-    ],
-    rejectClose: false
+    ]
   });
-  await openManagedPopup(key, message, dialog);
 }
 
 /** Roll one pending topple target's save, chained to the card — the fold does the rest.
@@ -407,19 +399,10 @@ function armToppleTimer(message) {
   const flag = message?.getFlag(MODULE_ID, "topple");
   if ( !flag?.deadline || !isActiveGM() ) return;
   if ( !(flag.targets ?? []).some(t => !t.done) ) return;
-  if ( toppleTimers.has(message.id) ) return;
-  toppleTimers.set(message.id, setTimeout(() => {
-    toppleTimers.delete(message.id);
-    void fireToppleTimer(message.id);
-  }, Math.max(0, flag.deadline - Date.now())));
+  armDeadline(toppleTimers, message.id, flag.deadline, fireToppleTimer);
 }
 
-function disarmToppleTimer(messageId) {
-  const handle = toppleTimers.get(messageId);
-  if ( handle === undefined ) return;
-  clearTimeout(handle);
-  toppleTimers.delete(messageId);
-}
+const disarmToppleTimer = messageId => disarmDeadline(toppleTimers, messageId);
 
 async function fireToppleTimer(messageId) {
   try {
@@ -633,9 +616,6 @@ const NOTICE_TEXT = {
   })
 };
 
-/** Reminders this client has shown, so a re-render never re-pops a dismissed one. */
-const shownMasteryNotices = new Set();
-
 /** Cleave reminds once per combat turn per attacker. */
 const cleaveNoticed = new Map();
 
@@ -681,29 +661,30 @@ async function postMasteryNotice(ctx, key, targets) {
  * the auto-dismiss and the drain bar are unchanged, and dismissal arms nothing.
  */
 async function showMasteryNotice(message, notice) {
-  const key = popupKey(message.id, "notice");
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; }
+  const attacker = (() => { try { return fromUuidSync(notice.attackerUuid); } catch { return null; } })();
+  // THE ACK (design.md §4.3 law 2, finding (j)): ANY notice button resolves the card's
+  // pending presentation — bar, recall, popup, all of it. Arm additionally arms (and the
+  // "Cleave — armed" card the render block draws is gated on the arm, not the ack, so it
+  // stays). Closing the popup with the X remains a non-event: the bar drains out.
   const buttons = (notice.key === "cleave")
     ? [
       { action: "arm", label: "Arm the Cleave", default: true,
-        callback: () => armCleave(notice) },
-      { action: "dismiss", label: "Dismiss" }
+        callback: () => { void armCleave(notice); void acknowledgeMoment(message, "masteryNotice"); } },
+      { action: "dismiss", label: "Dismiss",
+        callback: () => acknowledgeMoment(message, "masteryNotice") }
     ]
-    : [{ action: "ok", label: "OK", default: true }];
-  const dialog = new foundry.applications.api.DialogV2({
-    window: { title: `${masteryLabel(notice.key)} — ${notice.weapon?.name ?? ""}`, icon: "fa-solid fa-medal" },
-    position: { width: 420 },
+    : [{ action: "ok", label: "OK", default: true,
+        callback: () => acknowledgeMoment(message, "masteryNotice") }];
+  await openMomentPopup(message, "notice", attacker, {
+    title: `${masteryLabel(notice.key)} — ${notice.weapon?.name ?? ""}`, icon: "fa-solid fa-medal",
+    width: 420,
     content: bfCard({
       img: notice.weapon?.img, eyebrow: `Weapon Mastery — ${masteryLabel(notice.key)}`,
       tone: "good", title: notice.title, subtitle: notice.subtitle, lines: notice.lines ?? []
-    }) + holdBarHTML({ status: "pending", deadline: notice.deadline, window: notice.window }, "reminder"),
+    }) + momentBarHTML(notice, "reminder"),
     buttons,
-    rejectClose: false
+    autoCloseAt: notice.deadline
   });
-  setTimeout(() => { if ( livePopups.get(key) === dialog ) void dialog.close(); },
-    Math.max(0, notice.deadline - Date.now()));
-  await openManagedPopup(key, message, dialog);
 }
 
 /* --- the Cleave arm (v1.19.0, FLOW item 8) --------------------------------------------------
@@ -797,8 +778,6 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
 
 /* --- the ask: stamp → row → popup → answer → execute -------------------------------------- */
 
-/** Asks this client has already popped, so a re-render never stacks a second dialog. */
-const shownMasteryAsks = new Set();
 const masteryTimers = new Map();
 
 async function stampMasteryAsk(attackMessage, damageMessage, ctx, key, targets) {
@@ -866,6 +845,13 @@ Hooks.on("updateChatMessage", message => {
     if ( isActiveGM() && (m.status === "pending") && m.answer ) void executeMasteryAnswer(message);
   }
 
+  // A durably-acknowledged notice closes its popup wherever it lives (the ACK, law 2) —
+  // the local-ack path closes its own popup by the button press itself.
+  if ( message.getFlag(MODULE_ID, "masteryNotice")?.acknowledged ) {
+    const dialog = livePopups.get(popupKey(message.id, "notice"));
+    if ( dialog ) void dialog.close();
+  }
+
   const topple = message.getFlag(MODULE_ID, "topple");
   if ( topple ) {
     for ( const t of (topple.targets ?? []) ) {
@@ -878,41 +864,14 @@ Hooks.on("updateChatMessage", message => {
   }
 });
 
+// The shown-latches ride ui.js's one delete-sweep; only this machine's clocks disarm here.
 Hooks.on("deleteChatMessage", message => {
   disarmMasteryTimer(message.id);
   disarmToppleTimer(message.id);
-  shownMasteryAsks.delete(message.id);
-  shownMasteryNotices.delete(message.id);
-  for ( const key of shownToppleAsks ) if ( key.startsWith(`${message.id}|`) ) shownToppleAsks.delete(key);
 });
 
-/**
- * The elect-owned buzzer for a single-answer ask — the shape the mastery ask and the
- * concentration ask share exactly (elect owns the clock, one pending flag, one answer, expiry
- * re-checks the live flag before acting). Extracted when the third clock appeared, per the
- * standing note that used to sit here. The HOLD's clock stays its own machine on purpose:
- * a different owner (the continuing client, not the elect) and per-target answers — folding
- * it in would be the three-lambda machine the original note warned about.
- */
-export function armAskTimer(timers, message, flagKey, expire) {
-  const flag = message?.getFlag(MODULE_ID, flagKey);
-  if ( !flag?.deadline || (flag.status !== "pending") || flag.answer || !isActiveGM() ) return;
-  if ( timers.has(message.id) ) return;
-  timers.set(message.id, setTimeout(async () => {
-    timers.delete(message.id);
-    const live = game.messages.get(message.id);
-    const cur = live?.getFlag(MODULE_ID, flagKey);
-    if ( !cur || (cur.status !== "pending") || cur.answer ) return;
-    await expire(live);
-  }, Math.max(0, flag.deadline - Date.now())));
-}
-
-export function disarmAskTimer(timers, messageId) {
-  const handle = timers.get(messageId);
-  if ( handle === undefined ) return;
-  clearTimeout(handle);
-  timers.delete(messageId);
-}
+// armAskTimer/disarmAskTimer moved to ui.js at round 3 — the elect-owned single-answer clock
+// is the spine's, not this machine's. The imports above carry them back in.
 
 /** Expiry answers Pass — the AFK fallback for a decision nobody made. */
 const armMasteryTimer = message =>
@@ -922,31 +881,22 @@ const disarmMasteryTimer = messageId => disarmAskTimer(masteryTimers, messageId)
 /** The Use/Pass popup — the same two controls for everybody, on the hold's own bar. */
 async function showMasteryPopup(message, m) {
   const attacker = (() => { try { return fromUuidSync(m.attackerUuid); } catch { return null; } })();
-  if ( !canAnswerFor(attacker) ) return;
-  const key = popupKey(message.id, "mastery");
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; }
-
   const label = masteryLabel(m.key);
-  const buttons = [
-    { action: "use", label: `Use ${label}`, default: true,
-      callback: () => answerMastery(message, "use") },
-    { action: "pass", label: "Pass",
-      callback: () => answerMastery(message, "pass") }
-  ];
-  const dialog = new foundry.applications.api.DialogV2({
-    window: { title: `${label} — ${m.weapon?.name ?? ""}`, icon: "fa-solid fa-medal" },
-    position: { width: 420 },
+  await openMomentPopup(message, "mastery", attacker, {
+    title: `${label} — ${m.weapon?.name ?? ""}`, icon: "fa-solid fa-medal", width: 420,
     content: bfCard({
       img: m.weapon?.img, eyebrow: "Weapon Mastery", tone: "neutral",
       title: `${label}: use it?`,
       subtitle: `${attacker?.name ?? "The attacker"} — ${m.weapon?.name ?? "weapon"}`,
       lines: [MASTERY_RULES[m.key] ?? "", `Against: ${(m.targets ?? []).map(t => t.name).join(", ")}`]
     }) + holdBarHTML(m),
-    buttons,
-    rejectClose: false
+    buttons: [
+      { action: "use", label: `Use ${label}`, default: true,
+        callback: () => answerMastery(message, "use") },
+      { action: "pass", label: "Pass",
+        callback: () => answerMastery(message, "pass") }
+    ]
   });
-  await openManagedPopup(key, message, dialog);
 }
 
 // The card rows: the mastery ask (pending: bar + Answer; done: the outcome), and the Topple
@@ -980,18 +930,14 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       const attacker = (() => { try { return fromUuidSync(m.attackerUuid); } catch { return null; } })();
       if ( canAnswerFor(attacker) && !m.answer ) {
         // ONE input surface: the popup decides, the card recalls a dismissed popup.
-        if ( !shownMasteryAsks.has(message.id) ) {
-          shownMasteryAsks.add(message.id);
+        const shownKey = popupKey(message.id, "mastery");
+        if ( !shownMoments.has(shownKey) ) {
+          shownMoments.add(shownKey);
           void showMasteryPopup(message, m);
         }
-        const button = document.createElement("button");
-        button.type = "button";
-        button.textContent = "Answer";
-        Object.assign(button.style, { width: "auto", margin: "0.25rem 0 0", padding: "0 0.6rem" });
-        button.addEventListener("click", () => {
+        row.appendChild(momentButton("Answer", () => {
           void showMasteryPopup(message, message.getFlag(MODULE_ID, "mastery"));
-        });
-        row.appendChild(button);
+        }, { margin: "0.25rem 0 0" }));
       }
     }
   }
@@ -1001,22 +947,24 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   // re-pops, and canAnswerFor picks the client that owns the moment.
   const notice = message.getFlag(MODULE_ID, "masteryNotice");
   if ( notice ) {
-    // The pairing rule (design.md §4.3, v1.10.0): while the popup's 15s drain runs for its
-    // owner, the SAME bar runs on the card for the table. holdBarHTML returns "" once the
-    // moment has passed, so an old log renders no bar — every client, no latch, stateless.
-    if ( notice.deadline > Date.now() ) {
+    // A notice is LIVE while its window drains AND nobody has acknowledged it (the ACK,
+    // law 2 — finding (j)): any button press resolves the presentation, so bar, auto-pop
+    // and recall all gate here. The pairing rule (v1.10.0) is otherwise unchanged: while
+    // the popup's drain runs for its owner, the SAME bar runs on the card for the table,
+    // and momentBarHTML returns "" once the moment has passed — stateless, every client.
+    const live = (notice.deadline > Date.now()) && !momentAcknowledged(message, "masteryNotice");
+    if ( live ) {
       const bar = document.createElement("div");
-      bar.innerHTML = holdBarHTML(
-        { status: "pending", deadline: notice.deadline, window: notice.window }, "reminder");
+      bar.innerHTML = momentBarHTML(notice, "reminder");
       if ( bar.innerHTML.trim() ) {
         html.querySelector(".message-content")?.appendChild(bar);
         scheduleBarSync(bar);
       }
     }
     const attacker = (() => { try { return fromUuidSync(notice.attackerUuid); } catch { return null; } })();
-    if ( canAnswerFor(attacker) && (notice.deadline > Date.now())
-      && !shownMasteryNotices.has(message.id) ) {
-      shownMasteryNotices.add(message.id);
+    const shownKey = popupKey(message.id, "notice");
+    if ( canAnswerFor(attacker) && live && !shownMoments.has(shownKey) ) {
+      shownMoments.add(shownKey);
       void showMasteryNotice(message, notice);
     }
     // Cleave only (v1.19.0): the card states the arm when it stands, and recalls the decision
@@ -1032,15 +980,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
           subtitle: `The next ${arm.itemName || "weapon"} damage roll drops the ability modifier.`
         });
         html.querySelector(".message-content")?.appendChild(armed);
-      } else if ( canAnswerFor(attacker) && (notice.deadline > Date.now()) ) {
-        const recall = document.createElement("button");
-        recall.type = "button";
-        recall.textContent = "Answer";
-        Object.assign(recall.style, { width: "auto", margin: "0.25rem 0 0", padding: "0 0.6rem" });
-        recall.addEventListener("click", () => {
+      } else if ( canAnswerFor(attacker) && live ) {
+        html.querySelector(".message-content")?.appendChild(momentButton("Answer", () => {
           void showMasteryNotice(message, message.getFlag(MODULE_ID, "masteryNotice"));
-        });
-        html.querySelector(".message-content")?.appendChild(recall);
+        }, { margin: "0.25rem 0 0" }));
       }
     }
   }
@@ -1066,8 +1009,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     // the flag's absolute deadline, the hold timer's discipline).
     if ( topple.deadline && topple.targets.some(t => !t.done) ) {
       const bar = document.createElement("div");
-      bar.innerHTML = holdBarHTML(
-        { status: "pending", deadline: topple.deadline, window: topple.window }, "to roll");
+      bar.innerHTML = momentBarHTML(topple, "to roll");
       if ( bar.innerHTML.trim() ) {
         html.querySelector(".message-content")?.appendChild(bar);
         scheduleBarSync(bar);
@@ -1093,27 +1035,18 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         // solo-GM room watched the buzzer eat every player-owned save ("failed (timer)",
         // twice, in the walk's log). The v1.12.0 taste is intact: an ONLINE owner still
         // excludes the GM inside canAnswerFor; only the nobody-home case now pops.
-        const shownKey = `${message.id}|${t.uuid}`;
-        if ( !shownToppleAsks.has(shownKey) ) {
-          shownToppleAsks.add(shownKey);
+        const shownKey = popupKey(message.id, `topple:${t.uuid}`);
+        if ( !shownMoments.has(shownKey) ) {
+          shownMoments.add(shownKey);
           void showTopplePopup(message, topple, t);
         }
-        const rollBtn = document.createElement("button");
-        rollBtn.type = "button";
-        rollBtn.textContent = `Roll save — ${t.name}`;
-        Object.assign(rollBtn.style, { width: "auto", margin: "0.25rem 0.25rem 0 0", padding: "0 0.6rem" });
-        rollBtn.addEventListener("click", () => {
+        html.querySelector(".message-content")?.appendChild(momentButton(`Roll save — ${t.name}`, () => {
           void showTopplePopup(message, message.getFlag(MODULE_ID, "topple"), t);
-        });
-        html.querySelector(".message-content")?.appendChild(rollBtn);
+        }));
       }
 
       if ( game.user.isGM ) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.textContent = `${t.name} failed — Prone`;
-        Object.assign(button.style, { width: "auto", margin: "0.25rem 0.25rem 0 0", padding: "0 0.6rem" });
-        button.addEventListener("click", async () => {
+        html.querySelector(".message-content")?.appendChild(momentButton(`${t.name} failed — Prone`, async () => {
           const live = await fromUuid(t.uuid);
           if ( live instanceof Actor ) await forceStatus(live, "prone",
             { origin: message.getFlag(MODULE_ID, "topple")?.attackerUuid ?? null });
@@ -1121,8 +1054,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
           const entry = flag.targets.find(x => x.uuid === t.uuid);
           if ( entry ) { entry.done = true; entry.outcome = "prone"; entry.applied = true; entry.answeredAt = Date.now(); }
           await message.setFlag(MODULE_ID, "topple", flag);
-        });
-        html.querySelector(".message-content")?.appendChild(button);
+        }));
       }
     }
   }

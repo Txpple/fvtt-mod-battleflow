@@ -2,7 +2,7 @@
  * Battle Flow — Phase 1a: auto-roll damage on hit, on the attacker's own client.
  * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
  */
-import { TITLE, S, setting } from "./core.js";
+import { MODULE_ID, TITLE, S, setting } from "./core.js";
 import { hitTargets, modeAllows } from "./shared.js";
 import { stampHoldIfInterrupted } from "./hold.js";
 
@@ -153,7 +153,7 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
   // ui import — which runs ui.js's body, and its renderChatMessage/deleteChatMessage
   // registrations, ahead of this file's. Measured with check-hook-order: the static form moves
   // them, the dynamic form leaves the whole evaluation order byte-identical. Keep this dynamic.
-  const { livePopups, popupKey, openManagedPopup, bfCard, holdBarHTML } = await import("./ui.js");
+  const { livePopups, popupKey, openManagedPopup, bfCard, momentBarHTML } = await import("./ui.js");
 
   const key = popupKey(message.id, "damage");
   const open = livePopups.get(key);
@@ -175,7 +175,7 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
     window: { title: windowTitle, icon: windowIcon },
     position: { width: 420 },
     content: bfCard({ tone: "pending", ...card })
-      + holdBarHTML({ status: "pending", deadline, window: PLAYER_ROLL_WINDOW }, "to roll"),
+      + momentBarHTML({ deadline, window: PLAYER_ROLL_WINDOW }, "to roll"),
     buttons: [{
       action: "roll",
       label: buttonLabel,
@@ -220,17 +220,32 @@ export async function offerDamageRoll(activity, attackMessage) {
   const { cleaveArmedFor } = await import("./mastery.js");
   const cleaveArm = cleaveArmedFor(activity.item);
 
+  // THE CELEBRATION (design.md §4.3 law 5, finding (l)): every attack-damage popup leads
+  // with the HIT — the moment the player earned — and the dice ask rides it. One design,
+  // consistent flavors: crits get louder on the one badge; a riposte is named as itself
+  // (finding (p) — its hit is the riposte's own moment, and the die-riding note explains
+  // the roll that is about to look bigger than the weapon); a precision re-drive names the
+  // maneuver that turned the miss. This is the single chokepoint — plain swings, riposte
+  // drives and precision re-drives all celebrate here or not at all.
+  const riposte = !!attackMessage.getFlag(MODULE_ID, "riposteFor");
+  const precisionUsed = attackMessage.getFlag(MODULE_ID, "precision")?.outcome === "used";
+  const headline = isCritical
+    ? (riposte ? "Critical riposte! — roll damage" : "Critical hit! — roll damage")
+    : (riposte ? "Your riposte hit! — roll damage" : "You hit! — roll damage");
+
   return offerRoll(attackMessage, {
     roll: () => rollDamageForAttack(activity, attackMessage),
-    windowTitle: isCritical ? "Critical Hit — roll damage" : "Roll damage",
+    windowTitle: headline,
     windowIcon: isCritical ? "fa-solid fa-burst" : "fa-solid fa-dice-d6",
     buttonLabel: isCritical ? "Roll Critical Damage" : "Roll Damage",
     buttonIcon: isCritical ? "fa-solid fa-burst" : "fa-solid fa-dice-d6",
     img: activity.item?.img,
     eyebrow: "Damage — your roll",
-    title: isCritical ? "Critical hit — roll it" : "Roll your damage",
+    title: headline,
     subtitle: `${activity.item?.name ?? "Attack"} — ${attackMessage.getAssociatedActor()?.name ?? ""}`,
     lines: [
+      riposte ? `<strong>Riposte</strong> — the superiority die rides this roll${isCritical ? " and crit-doubles with it" : ""}.` : null,
+      precisionUsed ? `<strong>Precision Attack</strong> turned the miss — this hit is yours to roll.` : null,
       cleaveArm ? `<strong>Cleave</strong> — this is the armed Cleave swing: the ability modifier is dropped from this roll.` : null,
       isCritical ? `${CRIT_BADGE} <span style="opacity:0.85;">Already set on the roll — nothing extra to do.</span>` : null,
       names ? `Against <strong>${names}</strong>.` : null

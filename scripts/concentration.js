@@ -4,8 +4,8 @@
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
 import { canAnswerFor } from "./hold.js";
-import { livePopups, popupKey, openManagedPopup, bfCard, holdBarHTML, scheduleBarSync } from "./ui.js";
-import { armAskTimer, disarmAskTimer } from "./mastery.js";
+import { livePopups, popupKey, openMomentPopup, bfCard, holdBarHTML, momentButton,
+  scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer } from "./ui.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 2.5 — the concentration assist: damage → ask → roll → verdict → break.
@@ -465,9 +465,6 @@ async function fireConcTimer(askMessage) {
   await rollConcentrationAnswer(askMessage, { timedOut: true });
 }
 
-/** Popups this client has auto-shown, so a re-render never stacks a second one. */
-const shownConcAsks = new Set();
-
 // The answer channel: the elect folds any roll that answers an ask — the module's own stamped
 // rolls and bare sheet-rolls alike. Everyone else's client just watches the flags change.
 Hooks.on("createChatMessage", message => {
@@ -503,15 +500,15 @@ Hooks.on("updateChatMessage", message => {
     disarmAskTimer(concTimers, message.id);
     const next = pendingConcAsks(ask.actorUuid)[0];
     if ( next ) {
-      shownConcAsks.delete(next.id);
+      shownMoments.delete(popupKey(next.id, "concentration"));
       try { ui.chat?.updateMessage?.(next); } catch(err) { /* row refreshes next render */ }
     }
   }
 });
 
+// The shown-latch rides ui.js's one delete-sweep; only this machine's clock disarms here.
 Hooks.on("deleteChatMessage", message => {
   disarmAskTimer(concTimers, message.id);
-  shownConcAsks.delete(message.id);
 });
 
 /**
@@ -550,19 +547,15 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     if ( (setting(S.concMode) === "prompt") && canAnswerFor(actor) ) {
       // Auto-show only for the OLDEST pending ask (multiple damage instances queue rather
       // than stack popups); the button recalls this ask's popup regardless.
-      if ( pendingConcAsks(ask.actorUuid)[0]?.id === message.id && !shownConcAsks.has(message.id) ) {
-        shownConcAsks.add(message.id);
+      const shownKey = popupKey(message.id, "concentration");
+      if ( pendingConcAsks(ask.actorUuid)[0]?.id === message.id && !shownMoments.has(shownKey) ) {
+        shownMoments.add(shownKey);
         void showConcPopup(message, message.getFlag(MODULE_ID, "concentration"));
       }
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = "Roll";
-      Object.assign(button.style, { width: "auto", margin: "0.25rem 0 0", padding: "0 0.6rem" });
-      button.addEventListener("click", () => {
-        shownConcAsks.delete(message.id);
+      row.appendChild(momentButton("Roll", () => {
+        shownMoments.delete(shownKey);
         void showConcPopup(message, message.getFlag(MODULE_ID, "concentration"));
-      });
-      row.appendChild(button);
+      }, { margin: "0.25rem 0 0" }));
     }
   } else {
     const o = ask.outcome ?? {};
@@ -591,10 +584,6 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 async function showConcPopup(message, ask) {
   if ( !ask || (ask.status !== "pending") ) return;
   const actor = (() => { try { return fromUuidSync(ask.actorUuid); } catch(err) { return null; } })();
-  if ( !canAnswerFor(actor) ) return;
-  const key = popupKey(message.id, "concentration");
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; } // recall fronts the live popup, never a silent no-op
 
   const abilityLabel = CONFIG.DND5E.abilities[ask.ability]?.label ?? "Constitution";
   const ADV = CONFIG.Dice.D20Roll.ADV_MODE;
@@ -606,10 +595,9 @@ async function showConcPopup(message, ask) {
   const roll = mode => rollConcentrationAnswer(message, {
     mode, bonus: dialog?.element?.querySelector('input[name="bf-conc-bonus"]')?.value ?? ""
   });
-  dialog = new foundry.applications.api.DialogV2({
-    window: { title: `Concentration — ${ask.names?.join(", ") || ask.actorName}`,
-      icon: "fa-solid fa-brain" },
-    position: { width: 440 },
+  dialog = await openMomentPopup(message, "concentration", actor, {
+    title: `Concentration — ${ask.names?.join(", ") || ask.actorName}`,
+    icon: "fa-solid fa-brain",
     content: bfCard({
       img: actor?.img ?? null,
       eyebrow: "Concentration check",
@@ -634,10 +622,8 @@ async function showConcPopup(message, ask) {
         callback: () => roll("normal") },
       { action: "disadvantage", label: "Disadvantage", default: def === "disadvantage",
         callback: () => roll("disadvantage") }
-    ],
-    rejectClose: false
+    ]
   });
-  await openManagedPopup(key, message, dialog);
 }
 
 /**

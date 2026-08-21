@@ -1,8 +1,10 @@
 /**
- * Battle Flow — The table-moment surfaces: the managed-popup lifecycle, the house card (bfCard), the countdown bar, and the hold's own row/popup views and timers.
+ * Battle Flow — THE SPINE (design.md §4.3, the moment map): the managed-popup lifecycle +
+ * cascade, the popper discipline, the one shown-latch registry, the countdown bar, the ACK,
+ * the moment clocks, the house card (bfCard) — plus the hold's own row/popup views.
  * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
 import { reactionItem, isContinuingClient, canAnswerFor, answerHold, continueHold } from "./hold.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -10,8 +12,16 @@ import { reactionItem, isContinuingClient, canAnswerFor, answerHold, continueHol
  * Both are pure views of the flag — dismissing the popup is not an answer.
  * ------------------------------------------------------------------------------------------- */
 
-/** Popups already shown by this client, so a re-render never stacks a second one. */
-const shownPopups = new Set();
+/**
+ * THE ONE SHOWN-LATCH REGISTRY (the spine). Popups a client has auto-shown, so a re-render
+ * never stacks a second one — and the LATCH KEY IS THE POPUP KEY (`popupKey(messageId, sub)`),
+ * which is what lets ONE delete-sweep below clean every machine's latches. Eleven per-machine
+ * sets used to hold this state with four different key shapes, and their per-file cleanup
+ * loops drifted (the copies are what round 3 exists to end). Machines un-latch through the
+ * same key when their queue advances (a resolved conc ask re-offers the next, a save demand's
+ * dropped entry re-arms a fresh ask).
+ */
+export const shownMoments = new Set();
 
 /**
  * Popups currently on screen, keyed message+target. The popup is the ANSWER SURFACE and the
@@ -36,9 +46,20 @@ export async function openManagedPopup(key, message, dialog) {
     try { ui.chat?.updateMessage?.(message); } catch(err) { /* row refreshes next render */ }
     return close(...args);
   };
+  // THE CASCADE (design.md §4.3 law 6): count the popups already ON SCREEN before this one
+  // joins the registry — concurrent popups offset ~28px each so a pile never masquerades as
+  // one window (the round-3 sighting: a legitimate Cleave reminder buried under a riposte's
+  // damage offer read as "no popup at all"). Modulo keeps a pathological pile on screen.
+  const depth = [...livePopups.values()].filter(d => d.rendered).length % 8;
   livePopups.set(key, dialog);
   try {
     await dialog.render({ force: true });
+    if ( depth ) {
+      const { left, top } = dialog.position ?? {};
+      if ( Number.isFinite(left) && Number.isFinite(top) ) {
+        dialog.setPosition({ left: left + (depth * 28), top: top + (depth * 28) });
+      }
+    }
     scheduleBarSync(dialog.element);
     // The row was drawn before this popup existed; redraw so it defers to the popup
     // instead of offering a second set of controls.
@@ -47,6 +68,76 @@ export async function openManagedPopup(key, message, dialog) {
     livePopups.delete(key);
     console.error(`${TITLE} | Could not open the popup — answer from the card.`, err);
   }
+}
+
+/**
+ * THE POPPER DISCIPLINE (the spine): every machine popup opens through this — the
+ * canAnswerFor gate, the shared key, front-a-live-popup-on-recall (a recall must never be a
+ * silent no-op — "the Roll button does nothing" was a live report), DialogV2 construction,
+ * and the notice family's auto-close. Content and buttons stay the machine's own; pass
+ * `gate: false` to skip canAnswerFor (locality popups whose hook already runs on the right
+ * client) — a NULL subject with the gate on is refused, exactly as a broken uuid should be.
+ * Returns the dialog, or null when gated off or already open.
+ */
+export async function openMomentPopup(message, sub, subject, {
+  title, icon, width = 440, content, buttons, autoCloseAt = null, gate = true
+} = {}) {
+  if ( gate && !canAnswerFor(subject) ) return null;
+  const key = popupKey(message.id, sub);
+  const open = livePopups.get(key);
+  if ( open ) { open.bringToFront?.(); return null; }
+  const dialog = new foundry.applications.api.DialogV2({
+    window: { title, icon },
+    position: { width },
+    content, buttons,
+    rejectClose: false
+  });
+  if ( autoCloseAt ) setTimeout(() => {
+    if ( livePopups.get(key) === dialog ) void dialog.close();
+  }, Math.max(0, autoCloseAt - Date.now()));
+  await openManagedPopup(key, message, dialog);
+  return dialog;
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * THE ACK (design.md §4.3 law 2 — finding (j)): any notice button press resolves its card's
+ * pending presentation — bar gone, recall gone, popup gone. Durable via a flag write where
+ * the acknowledger CAN write (the author or a GM — every solo case); client-local otherwise,
+ * where the spectators' bars simply drain out as the window (the recorded trade: a player
+ * cannot write the elect's message, and relaying an acknowledgement would spend a §4.1
+ * message on a non-event). The ask machines already comply through their answer flags; the
+ * notice family (Vex/Sap/Cleave/Hew) rides this.
+ * ------------------------------------------------------------------------------------------- */
+
+const localAcks = new Set();
+
+export function momentAcknowledged(message, flagKey) {
+  return (message.getFlag(MODULE_ID, flagKey)?.acknowledged === true)
+    || localAcks.has(`${message.id}|${flagKey}`);
+}
+
+export async function acknowledgeMoment(message, flagKey) {
+  if ( momentAcknowledged(message, flagKey) ) return;
+  if ( message.isOwner ) {
+    const flag = foundry.utils.deepClone(message.getFlag(MODULE_ID, flagKey) ?? {});
+    flag.acknowledged = true;
+    await message.setFlag(MODULE_ID, flagKey, flag);   // the update re-renders every client
+    return;
+  }
+  localAcks.add(`${message.id}|${flagKey}`);
+  try { ui.chat?.updateMessage?.(message); } catch(err) { /* row refreshes next render */ }
+}
+
+/** The one recall/answer button factory — eight hand-rolled copies collapsed here. */
+export function momentButton(label, onClick, style = {}) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = label;
+  Object.assign(button.style, {
+    width: "auto", margin: "0.25rem 0.25rem 0 0", padding: "0 0.6rem", ...style
+  });
+  button.addEventListener("click", () => onClick());
+  return button;
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -116,28 +207,38 @@ export function reactionImg(actor, reactionName, ids) {
  * ------------------------------------------------------------------------------------------- */
 
 /**
- * The draining bar for a hold, or "" when there is no timer. `deadline` and `window` both live
- * on the flag, so this is a pure function of state — no client keeps its own clock. The label
- * names the default action the buzzer takes — "answer" for the decisions, "roll" for the
- * concentration ask, whose expiry rolls instead of passing.
+ * THE BAR (the spine): a pure function of `{deadline, window}` — no status field, no hidden
+ * contract. This is the primitive every moment surface draws; the wrapper below adds the
+ * status gate for whole flags. Finding (n) is what the hidden contract cost: the save-choice
+ * sub-object carries no `status`, both of its call sites passed it to the status-gated
+ * wrapper, and the choice bars never rendered anywhere — invisible, and invisible to every
+ * flag-level assertion too. The label names the default action the buzzer takes — "answer"
+ * for the decisions, "roll" for the demanded saves, whose expiry rolls instead of passing.
  */
-export function holdBarHTML(hold, label = "to answer") {
-  if ( !hold?.deadline || !hold?.window || (hold.status !== "pending") ) return "";
-  const remaining = (hold.deadline - Date.now()) / 1000;
-  if ( remaining <= 0 ) return "";
-  // Negative delay = start the animation already part-way through, which is what makes a
-  // reload pick the bar up exactly where it should be rather than restarting it.
-  const elapsed = hold.window - remaining;
+export function momentBarHTML(spec, label = "to answer") {
+  if ( !spec?.deadline || !spec?.window ) return "";
+  if ( (spec.deadline - Date.now()) <= 0 ) return "";
   return `
   <div style="margin-top:0.45rem;display:flex;align-items:center;gap:0.4rem;">
     <div style="flex:1;height:6px;border-radius:3px;background:rgba(0,0,0,0.18);overflow:hidden;">
-      <div data-bf-deadline="${hold.deadline}" data-bf-window="${hold.window}"
+      <div data-bf-deadline="${spec.deadline}" data-bf-window="${spec.window}"
            style="height:100%;width:100%;border-radius:3px;
                   background:${TONE.good};"></div>
     </div>
     <span style="font-size:var(--font-size-10,10px);opacity:0.6;white-space:nowrap;">
-      ${hold.window}s ${label}</span>
+      ${spec.window}s ${label}</span>
   </div>`;
+}
+
+/**
+ * The status-gated wrapper for WHOLE flags (`hold`, `saves`, `mastery`, `precision`, …):
+ * a resolved moment renders no bar even while its deadline is still in the future. Pass a
+ * sub-object (a choice, a notice) to momentBarHTML directly, gated by its own answer state
+ * at the call site — never through here, where the missing status silently eats the bar.
+ */
+export function holdBarHTML(hold, label = "to answer") {
+  if ( hold?.status !== "pending" ) return "";
+  return momentBarHTML(hold, label);
 }
 
 /**
@@ -193,29 +294,65 @@ export function scheduleBarSync(root) {
   setTimeout(() => syncHoldBars(root), 400);
 }
 
+/* ---------------------------------------------------------------------------------------------
+ * THE MOMENT CLOCKS (the spine). armDeadline/disarmDeadline is the raw primitive — one timer
+ * per id, absolute deadline, re-arm is a no-op; every machine clock builds its own GATE on it
+ * (who owns the clock, what counts as pending) and its own FIRE (what expiry means). Three
+ * hand-rolled arm/disarm trios used to reimplement the primitive with small drifts.
+ * ------------------------------------------------------------------------------------------- */
+
+export function armDeadline(timers, id, deadline, fire) {
+  if ( !deadline || timers.has(id) ) return;
+  timers.set(id, setTimeout(() => {
+    timers.delete(id);
+    void fire(id);
+  }, Math.max(0, deadline - Date.now())));
+}
+
+export function disarmDeadline(timers, id) {
+  const handle = timers.get(id);
+  if ( handle === undefined ) return;
+  clearTimeout(handle);
+  timers.delete(id);
+}
+
 /**
- * The buzzer. Armed by whichever client owns the continuation — one authoritative clock, not a
- * cross-client timeout — and re-checked at the buzzer, because an answer landing in the last
- * instant must beat the timer rather than race it.
+ * The elect-owned single-answer clock — the mastery ask, the concentration ask, the save
+ * demand, precision and the bash offer are true twins here (one pending flag, one answer,
+ * expiry re-checks the live flag before acting). Moved here from mastery.js at round 3: the
+ * spine was living in a machine file. The HOLD's clock below stays its own gate on purpose —
+ * a different owner (the continuing client, not the elect) and per-target answers.
+ */
+export function armAskTimer(timers, message, flagKey, expire) {
+  const flag = message?.getFlag(MODULE_ID, flagKey);
+  if ( !flag?.deadline || (flag.status !== "pending") || flag.answer || !isActiveGM() ) return;
+  armDeadline(timers, message.id, flag.deadline, async () => {
+    const live = game.messages.get(message.id);
+    const cur = live?.getFlag(MODULE_ID, flagKey);
+    if ( !cur || (cur.status !== "pending") || cur.answer ) return;
+    await expire(live);
+  });
+}
+
+export function disarmAskTimer(timers, messageId) {
+  disarmDeadline(timers, messageId);
+}
+
+/**
+ * The hold's buzzer. Armed by whichever client owns the continuation — one authoritative
+ * clock, not a cross-client timeout — and re-checked at the buzzer, because an answer landing
+ * in the last instant must beat the timer rather than race it.
  */
 const armedTimers = new Map();
 
 export function armHoldTimer(message) {
   const hold = message?.getFlag(MODULE_ID, "hold");
   if ( !hold?.deadline || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
-  if ( armedTimers.has(message.id) ) return;
-  const delay = Math.max(0, hold.deadline - Date.now());
-  armedTimers.set(message.id, setTimeout(() => {
-    armedTimers.delete(message.id);
-    void fireHoldTimer(message.id);
-  }, delay));
+  armDeadline(armedTimers, message.id, hold.deadline, fireHoldTimer);
 }
 
 export function disarmHoldTimer(messageId) {
-  const handle = armedTimers.get(messageId);
-  if ( handle === undefined ) return;
-  clearTimeout(handle);
-  armedTimers.delete(messageId);
+  disarmDeadline(armedTimers, messageId);
 }
 
 /** At the buzzer, every unanswered target passes — the default outcome of an unmade decision. */
@@ -372,11 +509,11 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       Object.assign(controls.style, {
         display: "flex", gap: "0.3rem", marginTop: "0.4rem", justifyContent: "flex-end"
       });
-      controls.append(holdButton("Answer", () => {
-        shownPopups.delete(message.id);
+      controls.append(momentButton("Answer", () => {
+        shownMoments.delete(popupKey(message.id, "hold"));
         // `manual` — a deliberate click, so it bypasses the GM's player-owned quiet above.
         void showHoldPopup(message, message.getFlag(MODULE_ID, "hold"), { manual: true });
-      }));
+      }, { flex: "0 0 auto", margin: "0", padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4" }));
       block.append(controls);
     });
   }
@@ -393,8 +530,9 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
   // The popup: attention for the person whose decision it is. Ephemeral by design — closing
   // it is not an answer, because the row above is the durable state.
-  if ( (hold.status === "pending") && !shownPopups.has(message.id) ) {
-    shownPopups.add(message.id);
+  const shownKey = popupKey(message.id, "hold");
+  if ( (hold.status === "pending") && !shownMoments.has(shownKey) ) {
+    shownMoments.add(shownKey);
     void showHoldPopup(message, hold);
   }
 });
@@ -436,18 +574,6 @@ async function castReaction(target) {
   // lowest available slot, which is what a Shield cast wants. A player who needs to upcast
   // casts from their sheet instead — that is detected identically (design.md §5).
   await activity.use({}, { configure: false }, {});
-}
-
-function holdButton(label, onClick) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.textContent = label;
-  Object.assign(button.style, {
-    flex: "0 0 auto", width: "auto", margin: "0", padding: "0 0.4rem",
-    fontSize: "inherit", lineHeight: "1.4"
-  });
-  button.addEventListener("click", () => onClick());
-  return button;
 }
 
 /**
@@ -548,29 +674,21 @@ async function showHoldPopup(attackMessage, hold, { manual = false } = {}) {
     // the DM can always summon the question on purpose. A click is never spam.
     if ( !manual && game.user.isGM && actor?.hasPlayerOwner ) continue;
 
-    const key = popupKey(attackMessage.id, target.uuid);
-    if ( livePopups.has(key) ) continue;
-
     // ⚠ THE SAME TWO BUTTONS FOR EVERYONE. The question is binary — take the reaction or don't
     // — and it is the same question whoever is answering it. A GM-only third button ("Skip")
     // stood here until v1.1.15 and made the GM's popup a different shape from the player's for
     // no behavioural difference at all: it ran the same code as Pass, and the whole chain only
     // ever asks `answer === "cast"`. See the card controls for why it went.
-    const buttons = [
-      { action: "cast", label: `Cast ${target.reaction}`, default: true,
-        callback: () => castReaction(target) },
-      { action: "pass", label: "Pass",
-        callback: () => answerHold(attackMessage, target.uuid, "pass") }
-    ];
-
-    const dialog = new foundry.applications.api.DialogV2({
-      window: { title: target.reaction, icon: "fa-solid fa-shield-halved" },
-      position: { width: 460 },
+    await openMomentPopup(attackMessage, target.uuid, actor, {
+      title: target.reaction, icon: "fa-solid fa-shield-halved", width: 460,
       content: await holdPopupContent(target, roll, actor, hold),
-      buttons,
-      rejectClose: false
+      buttons: [
+        { action: "cast", label: `Cast ${target.reaction}`, default: true,
+          callback: () => castReaction(target) },
+        { action: "pass", label: "Pass",
+          callback: () => answerHold(attackMessage, target.uuid, "pass") }
+      ]
     });
-    await openManagedPopup(key, attackMessage, dialog);
   }
 }
 
@@ -580,13 +698,19 @@ async function showHoldPopup(attackMessage, hold, { manual = false } = {}) {
  * stacked on every client that could answer, asking about attacks that no longer exist
  * (reported live 2026-08-15: "close all the popup window spam").
  */
+// THE ONE DELETE-SWEEP (the spine): a deleted message takes its popups, every machine's
+// shown-latches and any local acknowledgements with it — the uniform `${messageId}|` key
+// prefix is what makes one sweep cover them all (five per-machine cleanup loops collapsed
+// here, two of which had already drifted apart on key shape).
 Hooks.on("deleteChatMessage", message => {
   for ( const [key, dialog] of [...livePopups] ) {
     if ( !key.startsWith(`${message.id}|`) ) continue;
     livePopups.delete(key);
     void dialog.close();
   }
-  shownPopups.delete(message.id);
+  const prefix = `${message.id}|`;
+  for ( const key of [...shownMoments] ) if ( key.startsWith(prefix) ) shownMoments.delete(key);
+  for ( const key of [...localAcks] ) if ( key.startsWith(prefix) ) localAcks.delete(key);
   disarmHoldTimer(message.id);   // no message, no hold, nothing for the buzzer to pass
 });
 

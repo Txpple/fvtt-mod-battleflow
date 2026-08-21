@@ -6,8 +6,10 @@
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
 import { hitTargets, modeAllows } from "./shared.js";
 import { canAnswerFor, inRunningCombat } from "./hold.js";
-import { livePopups, popupKey, openManagedPopup, bfCard, holdBarHTML, scheduleBarSync } from "./ui.js";
-import { armAskTimer, disarmAskTimer, combatStamp } from "./mastery.js";
+import { livePopups, popupKey, openMomentPopup, bfCard, holdBarHTML, momentBarHTML,
+  momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,
+  armAskTimer, disarmAskTimer, armDeadline, disarmDeadline } from "./ui.js";
+import { combatStamp } from "./mastery.js";
 // Safe statically (the saves.js:12 argument): the entry evaluates auto-damage.js at :90 and
 // this file at :97, so nothing here can reorder auto-damage's registrations. Re-checked with
 // check-hook-order; do not move this file's entry position without re-running it.
@@ -145,7 +147,6 @@ function maneuverDieFormula(activity) {
  * ========================================================================================== */
 
 const precisionTimers = new Map();
-const shownPrecision = new Set();
 const precisionInFlight = new Set();
 
 /** Stamp: the roller's own client, on the attack message it authored. */
@@ -297,18 +298,13 @@ async function resolvePrecision(message) {
 /** The Use/Pass popup — the hold family's two controls, the margin shown under holdReveal. */
 async function showPrecisionPopup(message, flag) {
   const attacker = (() => { try { return fromUuidSync(flag.attackerUuid); } catch { return null; } })();
-  if ( !canAnswerFor(attacker) ) return;
-  const key = popupKey(message.id, "precision");
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; }
   const lines = [];
   if ( setting(S.holdReveal) ) {
     for ( const t of flag.targets ?? [] ) lines.push(`Needs +${t.margin} to reach ${t.name} (AC ${t.ac} vs ${flag.attackTotal}).`);
   }
   lines.push("The superiority die is spent either way it lands.");
-  const dialog = new foundry.applications.api.DialogV2({
-    window: { title: `Precision Attack — ${attacker?.name ?? ""}`, icon: "fa-solid fa-crosshairs" },
-    position: { width: 440 },
+  await openMomentPopup(message, "precision", attacker, {
+    title: `Precision Attack — ${attacker?.name ?? ""}`, icon: "fa-solid fa-crosshairs",
     content: bfCard({
       img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`, tone: "pending",
       title: "The attack missed — patch it?",
@@ -320,10 +316,8 @@ async function showPrecisionPopup(message, flag) {
         callback: () => answerPrecision(message, "use") },
       { action: "pass", label: "Pass",
         callback: () => answerPrecision(message, "pass") }
-    ],
-    rejectClose: false
+    ]
   });
-  await openManagedPopup(key, message, dialog);
 }
 
 /* =============================================================================================
@@ -331,7 +325,6 @@ async function showPrecisionPopup(message, flag) {
  * ========================================================================================== */
 
 const riposteTimers = new Map();
-const shownRiposte = new Set();
 const riposteInFlight = new Set();
 
 /** One-shot armed dice for the injection below: reactor uuid → {formula, type, armedAt}. */
@@ -423,24 +416,16 @@ Hooks.on("createChatMessage", async message => {
   }
 });
 
-/* Per-reactor answers don't fit armAskTimer's single-answer shape — the topple timer's idiom. */
+/* Per-reactor answers don't fit armAskTimer's single-answer shape — the per-target gate on
+ * the spine's raw clock (the topple timer's idiom). */
 function armRiposteTimer(message) {
   const flag = message?.getFlag(MODULE_ID, "riposte");
   if ( !flag?.deadline || (flag.status !== "pending") || !isActiveGM() ) return;
   if ( !(flag.reactors ?? []).some(r => !r.answer) ) return;
-  if ( riposteTimers.has(message.id) ) return;
-  riposteTimers.set(message.id, setTimeout(() => {
-    riposteTimers.delete(message.id);
-    void fireRiposteTimer(message.id);
-  }, Math.max(0, flag.deadline - Date.now())));
+  armDeadline(riposteTimers, message.id, flag.deadline, fireRiposteTimer);
 }
 
-function disarmRiposteTimer(messageId) {
-  const handle = riposteTimers.get(messageId);
-  if ( handle === undefined ) return;
-  clearTimeout(handle);
-  riposteTimers.delete(messageId);
-}
+const disarmRiposteTimer = messageId => disarmDeadline(riposteTimers, messageId);
 
 /** Expiry DECLINES — a reaction nobody took is a reaction not taken (the hold's pass, not
  * the save machine's roll: nothing here is mandatory). */
@@ -638,14 +623,40 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
   }
 });
 
+/* The riposte's swing never ends in silence (finding (p)): a MISS announces itself, so any
+ * Graze/Precision offer that follows ((e)-KEEP — driven attacks are real attacks) arrives
+ * from an announced miss instead of from nowhere. The ROLLING client posts (rollAttackV2's
+ * locality — one client, one card); the HIT half of (p) lives in offerDamageRoll, which
+ * names the riposte as its own moment and notes the riding die. */
+Hooks.on("dnd5e.rollAttackV2", async rolls => {
+  try {
+    const message = rolls?.[0]?.parent;
+    if ( !(message instanceof ChatMessage) ) return;
+    const riposteFor = message.getFlag(MODULE_ID, "riposteFor");
+    if ( !riposteFor ) return;
+    if ( hitTargets(message).length ) return;   // the hit's moment is the damage offer
+    const reactor = message.getAssociatedActor?.();
+    const held = game.messages.get(riposteFor)?.getFlag(MODULE_ID, "riposte");
+    const r = held?.reactors?.find(x => x.uuid === message.getFlag(MODULE_ID, "riposteBy"));
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: reactor }),
+      content: bfCard({
+        img: r?.itemImg ?? null, eyebrow: `Maneuver — ${r?.itemName ?? "Riposte"}`,
+        tone: "neutral",
+        title: `${r?.itemName ?? "Riposte"} — the strike back misses`,
+        subtitle: `${reactor?.name ?? "The reactor"}'s answer to ${held?.attackerName ?? "the attacker"}`
+          + `${r?.weaponName ? ` — ${r.weaponName}` : ""}`
+      })
+    });
+  } catch(err) {
+    console.error(`${TITLE} | Riposte miss announce failed.`, err);
+  }
+});
+
 /** The Riposte/Pass popup — two controls plus the weapon choice (an input, like the topple
  * bonus field: inputs inform the answer, they are not answers). */
 async function showRipostePopup(message, flag, reactor) {
   const actor = (() => { try { return fromUuidSync(reactor.uuid); } catch { return null; } })();
-  if ( !canAnswerFor(actor) ) return;
-  const key = popupKey(message.id, `riposte:${reactor.uuid}`);
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; }
   // The weapon choice (finding ④, the walk's ruling): default to the weapon last attacked
   // with; a single equipped melee weapon skips the dropdown entirely and is simply NAMED.
   const options = actor ? meleeOptions(actor) : [];
@@ -667,9 +678,8 @@ async function showRipostePopup(message, flag, reactor) {
       weaponName: options.find(o => o.itemId === chosenId)?.name ?? preferred?.name ?? null
     });
   };
-  dialog = new foundry.applications.api.DialogV2({
-    window: { title: `Riposte — ${reactor.name}`, icon: "fa-solid fa-reply" },
-    position: { width: 440 },
+  dialog = await openMomentPopup(message, `riposte:${reactor.uuid}`, actor, {
+    title: `Riposte — ${reactor.name}`, icon: "fa-solid fa-reply",
     content: bfCard({
       img: reactor.itemImg, eyebrow: `Maneuver — ${reactor.itemName}`, tone: "pending",
       title: `${flag.attackerName} missed you`,
@@ -680,10 +690,8 @@ async function showRipostePopup(message, flag, reactor) {
       { action: "riposte", label: preferred && (options.length === 1) ? `Riposte with ${preferred.label}` : "Riposte",
         default: true, callback: () => answer("riposte") },
       { action: "pass", label: "Pass", callback: () => answer("declined") }
-    ],
-    rejectClose: false
+    ]
   });
-  await openManagedPopup(key, message, dialog);
 }
 
 /* =============================================================================================
@@ -720,32 +728,22 @@ async function postHewReminder(attacker, featItem, weapon, why) {
   });
 }
 
-/** Popups this client has shown for Hew reminders — a re-render never stacks a second. */
-const shownHew = new Set();
-
 /** The Hew popup — the mastery notice's OK-only shape on the fold's own namespace. */
 async function showHewPopup(message, notice) {
   const attacker = (() => { try { return fromUuidSync(notice.attackerUuid); } catch { return null; } })();
-  if ( !canAnswerFor(attacker) ) return;
-  const key = popupKey(message.id, "hew");
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; }
-  const dialog = new foundry.applications.api.DialogV2({
-    window: { title: `Hew — ${attacker?.name ?? ""}`, icon: "fa-solid fa-axe-battle" },
-    position: { width: 420 },
+  await openMomentPopup(message, "hew", attacker, {
+    title: `Hew — ${attacker?.name ?? ""}`, icon: "fa-solid fa-axe-battle", width: 420,
     content: bfCard({
       img: notice.itemImg, eyebrow: `Feat — ${notice.itemName}`, tone: "good",
       title: `Hew — ${attacker?.name ?? "you"} can attack again`,
       subtitle: notice.why,
       lines: [`One attack with <strong>${notice.weaponName ?? "the same weapon"}</strong> as a Bonus Action. Swing it from the sheet; nothing is automated.`]
-    }) + (notice.deadline ? holdBarHTML({ status: "pending", deadline: notice.deadline, window: notice.window }, "reminder") : ""),
-    buttons: [{ action: "ok", label: "OK", default: true }],
-    rejectClose: false
+    }) + momentBarHTML(notice, "reminder"),
+    // The ACK (law 2, finding (j)): OK resolves the card's pending presentation everywhere.
+    buttons: [{ action: "ok", label: "OK", default: true,
+      callback: () => acknowledgeMoment(message, "hewNotice") }],
+    autoCloseAt: notice.deadline || null
   });
-  if ( notice.deadline ) setTimeout(() => {
-    if ( livePopups.get(key) === dialog ) void dialog.close();
-  }, Math.max(0, notice.deadline - Date.now()));
-  await openManagedPopup(key, message, dialog);
 }
 
 /** The reminder pops while the moment is live — the notice family's render discipline. */
@@ -753,61 +751,93 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const notice = message.getFlag(MODULE_ID, "hewNotice");
   if ( !notice ) return;
   if ( !notice.deadline || (notice.deadline <= Date.now()) ) return;
+  if ( momentAcknowledged(message, "hewNotice") ) return;   // the ACK ends the presentation
   const row = document.createElement("div");
-  row.innerHTML = holdBarHTML({ status: "pending", deadline: notice.deadline, window: notice.window }, "reminder");
+  row.innerHTML = momentBarHTML(notice, "reminder");
   html.querySelector(".message-content")?.appendChild(row);
   scheduleBarSync(row);
   const attacker = (() => { try { return fromUuidSync(notice.attackerUuid); } catch { return null; } })();
-  if ( canAnswerFor(attacker) && !shownHew.has(message.id) ) {
-    shownHew.add(message.id);
+  const shownKey = popupKey(message.id, "hew");
+  if ( canAnswerFor(attacker) && !shownMoments.has(shownKey) ) {
+    shownMoments.add(shownKey);
     void showHewPopup(message, notice);
   }
 });
 
-/** The crit trigger — the roller's own client (the precision stamp's locality). */
-Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
-  try {
-    if ( !subject || (subject.type !== "attack") ) return;
-    if ( subject.attack?.type?.value !== "melee" ) return;
-    const roll = rolls?.[0];
-    if ( !roll?.isCritical ) return;
-    const attacker = subject.actor;
-    const message = roll.parent;
-    if ( !attacker || !(message instanceof ChatMessage) ) return;
-    if ( message.getFlag(MODULE_ID, "hewNoticed") ) return;
-    if ( !modeAllows(attacker) ) return;
-    const found = foldEntryFor(attacker, "hew");
-    if ( !found ) return;
-    await message.setFlag(MODULE_ID, "hewNoticed", true);
-    await postHewReminder(attacker, found.item, subject.item, "A Critical Hit with a melee weapon");
-  } catch(err) {
-    console.error(`${TITLE} | Hew crit reminder failed.`, err);
-  }
-});
+/* --- the Hew triggers (finding (k)): BOTH live on the damage side now ------------------------
+ * The old crit trigger posted from rollAttackV2 — the reminder arrived BEFORE the damage was
+ * rolled, so "attack again" preceded the attack's own resolution on screen (and with the
+ * damage popup open, preceded it by the whole window). Both triggers now key off the crit's
+ * damage MESSAGE: damage first, then "attack again", and the dedupe is ONE flag on that
+ * message — a crit that kills still reminds once (create precedes the receipt update, so the
+ * crit's post wins and the kill defers). Both run on the elect; the per-message check queue
+ * serializes the two triggers so neither can double-post nor eat the other's turn.
+ * ------------------------------------------------------------------------------------------- */
 
-/** The kill trigger — the elect, off the receipt it just wrote. */
-async function maybeHewKillReminder(damageMessage) {
+const hewChecks = new Map();
+
+function queueHewCheck(damageMessage, fn) {
+  // The queueFlagWrite idiom (core.js): the stored link never rejects, so the chain cannot
+  // break, and the map self-cleans when its tail drains.
+  const prior = hewChecks.get(damageMessage.id) ?? Promise.resolve();
+  const next = prior.then(fn, fn);
+  const tail = next.catch(() => {});
+  hewChecks.set(damageMessage.id, tail);
+  void tail.then(() => { if ( hewChecks.get(damageMessage.id) === tail ) hewChecks.delete(damageMessage.id); });
+  return next;
+}
+
+/** The chain behind a damage message, resolved for Hew — the die injection's measured shape:
+ * the damage's originatingMessage is the USAGE card, not the attack roll. Null when this
+ * damage cannot earn a Hew (no melee attack chain, no listed carrier, resolver off). */
+async function hewChainContext(damageMessage) {
+  const originId = damageMessage.getFlag("dnd5e", "originatingMessage");
+  const origin = originId ? game.messages.get(originId) : null;
+  if ( !origin ) return null;
+  const attackMessage = (origin.getFlag("dnd5e", "roll.type") === "attack")
+    ? origin
+    : ((origin.getAssociatedRolls?.("attack") ?? []).at(-1) ?? null);
+  if ( !attackMessage || (attackMessage.getFlag("dnd5e", "roll.type") !== "attack") ) return null;
+  const activity = await fromUuid(attackMessage.getFlag("dnd5e", "activity")?.uuid ?? "").catch(() => null);
+  if ( activity?.attack?.type?.value !== "melee" ) return null;
+  const attacker = attackMessage.getAssociatedActor?.();
+  if ( !attacker || !modeAllows(attacker) ) return null;
+  const found = foldEntryFor(attacker, "hew");
+  if ( !found ) return null;
+  return { attackMessage, activity, attacker, found };
+}
+
+/** The crit trigger — the elect, the moment the crit's damage roll EXISTS. */
+async function maybeHewCritReminder(damageMessage) {
   try {
     if ( !isActiveGM() ) return;
     if ( damageMessage.getFlag(MODULE_ID, "hewNoticed") ) return;
+    const ctx = await hewChainContext(damageMessage);
+    if ( !ctx ) return;
+    if ( !(ctx.attackMessage.rolls?.[0]?.isCritical ?? false) ) return;
+    await damageMessage.setFlag(MODULE_ID, "hewNoticed", true);
+    await postHewReminder(ctx.attacker, ctx.found.item, ctx.activity.item, "A Critical Hit with a melee weapon");
+  } catch(err) {
+    console.error(`${TITLE} | Hew crit reminder failed.`, err);
+  }
+}
+
+Hooks.on("createChatMessage", message => {
+  if ( !isActiveGM() ) return;
+  if ( message.getFlag("dnd5e", "roll.type") !== "damage" ) return;
+  void queueHewCheck(message, () => maybeHewCritReminder(message));
+});
+
+/** The kill trigger — the elect, off the receipt it just wrote. A hand-tray kill posts no
+ * receipt and so no reminder (recorded and accepted). */
+async function maybeHewKillReminder(damageMessage) {
+  try {
+    if ( !isActiveGM() ) return;
+    if ( damageMessage.getFlag(MODULE_ID, "hewNoticed") ) return;   // the crit already said it
     const receipt = damageMessage.getFlag(MODULE_ID, "receipt");
     if ( !receipt?.targets?.length ) return;
-    // The damage's originating message is the USAGE card, not the attack roll — resolve the
-    // chain through the registry exactly as the die injection above does (its measured shape).
-    const originId = damageMessage.getFlag("dnd5e", "originatingMessage");
-    const origin = originId ? game.messages.get(originId) : null;
-    if ( !origin ) return;
-    const attackMessage = (origin.getFlag("dnd5e", "roll.type") === "attack")
-      ? origin
-      : ((origin.getAssociatedRolls?.("attack") ?? []).at(-1) ?? null);
-    if ( !attackMessage || (attackMessage.getFlag("dnd5e", "roll.type") !== "attack") ) return;
-    if ( attackMessage.getFlag(MODULE_ID, "hewNoticed") ) return;   // the crit already said it
-    const activity = await fromUuid(attackMessage.getFlag("dnd5e", "activity")?.uuid ?? "").catch(() => null);
-    if ( activity?.attack?.type?.value !== "melee" ) return;
-    const attacker = attackMessage.getAssociatedActor?.();
-    if ( !attacker || !modeAllows(attacker) ) return;
-    const found = foldEntryFor(attacker, "hew");
-    if ( !found ) return;
+    const ctx = await hewChainContext(damageMessage);
+    if ( !ctx ) return;
     const downed = [];
     for ( const t of receipt.targets ?? [] ) {
       if ( t.reverted ) continue;
@@ -816,7 +846,7 @@ async function maybeHewKillReminder(damageMessage) {
     }
     if ( !downed.length ) return;
     await damageMessage.setFlag(MODULE_ID, "hewNoticed", true);
-    await postHewReminder(attacker, found.item, activity.item, `${downed.join(", ")} down to 0 HP`);
+    await postHewReminder(ctx.attacker, ctx.found.item, ctx.activity.item, `${downed.join(", ")} down to 0 HP`);
   } catch(err) {
     console.error(`${TITLE} | Hew kill reminder failed.`, err);
   }
@@ -836,7 +866,6 @@ async function maybeHewKillReminder(damageMessage) {
  * ========================================================================================== */
 
 const bashOfferTimers = new Map();
-const shownBashOffers = new Set();
 const bashOfferInFlight = new Set();
 
 Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
@@ -946,10 +975,6 @@ async function resolveBashOffer(message) {
 /** The Use/Pass popup — a target select only when the swing struck more than one. */
 async function showBashOfferPopup(message, flag) {
   const attacker = (() => { try { return fromUuidSync(flag.attackerUuid); } catch { return null; } })();
-  if ( !canAnswerFor(attacker) ) return;
-  const key = popupKey(message.id, "bashoffer");
-  const open = livePopups.get(key);
-  if ( open ) { open.bringToFront?.(); return; }
   const options = flag.targets ?? [];
   const selectHTML = (options.length > 1) ? `
     <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
@@ -962,9 +987,8 @@ async function showBashOfferPopup(message, flag) {
     targetUuid: dialog?.element?.querySelector('select[name="bf-bash-target"]')?.value
       ?? options[0]?.uuid ?? null
   });
-  dialog = new foundry.applications.api.DialogV2({
-    window: { title: `${flag.itemName} — ${attacker?.name ?? ""}`, icon: "fa-solid fa-shield-halved" },
-    position: { width: 440 },
+  dialog = await openMomentPopup(message, "bashoffer", attacker, {
+    title: `${flag.itemName} — ${attacker?.name ?? ""}`, icon: "fa-solid fa-shield-halved",
     content: bfCard({
       img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`, tone: "pending",
       title: `${flag.itemName} — bash ${options.length === 1 ? options[0].name : "the target"}?`,
@@ -974,10 +998,8 @@ async function showBashOfferPopup(message, flag) {
     buttons: [
       { action: "use", label: `Use ${flag.itemName}`, default: true, callback: () => answer("use") },
       { action: "pass", label: "Pass", callback: () => answer("pass") }
-    ],
-    rejectClose: false
+    ]
   });
-  await openManagedPopup(key, message, dialog);
 }
 
 /* =============================================================================================
@@ -1007,18 +1029,14 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       armPrecisionTimer(message);
       const attacker = (() => { try { return fromUuidSync(p.attackerUuid); } catch { return null; } })();
       if ( canAnswerFor(attacker) && !p.answer ) {
-        if ( !shownPrecision.has(message.id) ) {
-          shownPrecision.add(message.id);
+        const shownKey = popupKey(message.id, "precision");
+        if ( !shownMoments.has(shownKey) ) {
+          shownMoments.add(shownKey);
           void showPrecisionPopup(message, p);
         }
-        const recall = document.createElement("button");
-        recall.type = "button";
-        recall.textContent = "Answer";
-        Object.assign(recall.style, { width: "auto", margin: "0.25rem 0 0", padding: "0 0.6rem" });
-        recall.addEventListener("click", () => {
+        row.appendChild(momentButton("Answer", () => {
           void showPrecisionPopup(message, message.getFlag(MODULE_ID, "precision"));
-        });
-        row.appendChild(recall);
+        }, { margin: "0.25rem 0 0" }));
       }
       // Crash-resume, elect-owned with the topple's 20s horizon: an ACCEPTED answer whose
       // executing client died sits answer="use", still pending. The normal path resolves on
@@ -1056,20 +1074,16 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         row.appendChild(bar);
         const actor = (() => { try { return fromUuidSync(reactor.uuid); } catch { return null; } })();
         if ( canAnswerFor(actor) ) {
-          if ( !shownRiposte.has(`${message.id}|${reactor.uuid}`) ) {
-            shownRiposte.add(`${message.id}|${reactor.uuid}`);
+          const shownKey = popupKey(message.id, `riposte:${reactor.uuid}`);
+          if ( !shownMoments.has(shownKey) ) {
+            shownMoments.add(shownKey);
             void showRipostePopup(message, r, reactor);
           }
-          const recall = document.createElement("button");
-          recall.type = "button";
-          recall.textContent = `Answer — ${reactor.name}`;
-          Object.assign(recall.style, { width: "auto", margin: "0.25rem 0.25rem 0 0", padding: "0 0.6rem" });
-          recall.addEventListener("click", () => {
+          row.appendChild(momentButton(`Answer — ${reactor.name}`, () => {
             const live = message.getFlag(MODULE_ID, "riposte");
             const lr = live?.reactors?.find(x => x.uuid === reactor.uuid);
             if ( live && lr && !lr.answer ) void showRipostePopup(message, live, lr);
-          });
-          row.appendChild(recall);
+          }));
         }
       }
     }
@@ -1108,18 +1122,14 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       armBashOfferTimer(message);
       const attacker = (() => { try { return fromUuidSync(b.attackerUuid); } catch { return null; } })();
       if ( canAnswerFor(attacker) && !b.answer ) {
-        if ( !shownBashOffers.has(message.id) ) {
-          shownBashOffers.add(message.id);
+        const shownKey = popupKey(message.id, "bashoffer");
+        if ( !shownMoments.has(shownKey) ) {
+          shownMoments.add(shownKey);
           void showBashOfferPopup(message, b);
         }
-        const recall = document.createElement("button");
-        recall.type = "button";
-        recall.textContent = "Answer";
-        Object.assign(recall.style, { width: "auto", margin: "0.25rem 0 0", padding: "0 0.6rem" });
-        recall.addEventListener("click", () => {
+        row.appendChild(momentButton("Answer", () => {
           void showBashOfferPopup(message, message.getFlag(MODULE_ID, "bashOffer"));
-        });
-        row.appendChild(recall);
+        }, { margin: "0.25rem 0 0" }));
       }
     }
     // Crash-resume, elect-owned, the precision block's 20s horizon: an accepted offer whose
@@ -1133,8 +1143,16 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
 // Every client closes answered popups; the timers disarm when nothing is pending.
 Hooks.on("updateChatMessage", message => {
-  // The Hew kill trigger rides receipt writes — the elect's own update landing back.
-  if ( message.getFlag(MODULE_ID, "receipt") ) void maybeHewKillReminder(message);
+  // The Hew kill trigger rides receipt writes — the elect's own update landing back. Through
+  // the check queue, so it can never interleave with the crit trigger's create-side check.
+  if ( message.getFlag(MODULE_ID, "receipt") && isActiveGM() ) {
+    void queueHewCheck(message, () => maybeHewKillReminder(message));
+  }
+  // A durably-acknowledged Hew notice closes its popup wherever it lives (the ACK, law 2).
+  if ( message.getFlag(MODULE_ID, "hewNotice")?.acknowledged ) {
+    const dialog = livePopups.get(popupKey(message.id, "hew"));
+    if ( dialog ) void dialog.close();
+  }
   const p = message.getFlag(MODULE_ID, "precision");
   if ( p ) {
     const dialog = livePopups.get(popupKey(message.id, "precision"));
@@ -1159,12 +1177,9 @@ Hooks.on("updateChatMessage", message => {
   }
 });
 
+// The shown-latches ride ui.js's one delete-sweep; only this machine's clocks disarm here.
 Hooks.on("deleteChatMessage", message => {
   disarmAskTimer(precisionTimers, message.id);
   disarmAskTimer(bashOfferTimers, message.id);
   disarmRiposteTimer(message.id);
-  shownPrecision.delete(message.id);
-  shownBashOffers.delete(message.id);
-  shownHew.delete(message.id);
-  for ( const key of shownRiposte ) if ( key.startsWith(`${message.id}|`) ) shownRiposte.delete(key);
 });
