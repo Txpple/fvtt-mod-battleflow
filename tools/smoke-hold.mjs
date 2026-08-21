@@ -106,6 +106,7 @@ const r = await f.evaluate(async () => {
         requireTarget: game.settings.get(MOD, 'requireTarget'),
         castApply: game.settings.get(MOD, 'castApply'),
         masteryRiders: game.settings.get(MOD, 'masteryRiders'),
+        volleys: game.settings.get(MOD, 'volleys'),
       },
       grenHP: foundry.utils.deepClone(gren.system._source.attributes.hp),
       grenAC: foundry.utils.deepClone(gren.system._source.attributes.ac),
@@ -139,6 +140,12 @@ const r = await f.evaluate(async () => {
     // to the stand-in on every one of those misses — a deterministic -3 that broke the
     // negate section's hpBefore===hpMax guard on 2026-08-19.
     await game.settings.set(MOD, 'masteryRiders', false);
+    // ⚠ Volleys are OUT OF SCOPE here and must be pinned OFF (v1.20.0, the masteryRiders
+    // precedent): Gren's real Magic Missile now carries the volley count, so with the fold
+    // on, the spell-trigger sections get a volley popup beside the hold popup and the
+    // dialog searches find the wrong window. The volley×hold CLAIM compose is pinned in
+    // smoke-volleys §6; this suite owns the hold alone.
+    await game.settings.set(MOD, 'volleys', false);
 
     // Start from a clean fixture rather than trusting the last run's teardown. A crashed run —
     // or a hand experiment at the console — can leave a cast feature or a cached Shield on BF

@@ -46,7 +46,9 @@ const REFERENCE = {
   saves: true,
   saveTimer: 15,          // user 2026-08-17: all timers 15s (was 6)
   damageTimer: 15,        // new in v1.19.0 walk-4 (w) — the offered roll's clock, family default
-  castApply: true
+  castApply: true,
+  volleys: true,          // new in v1.20.0 (Pass C) — structural multi-projectile fold; rides the resolver mode + damageTimer
+  resourceNotices: true   // new in v1.20.0 (user ask) — the spend flash + card line; recovery-rhythm pools only
 };
 
 const f = new Foundry(foundryConfig(env));

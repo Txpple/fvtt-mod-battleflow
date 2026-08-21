@@ -59,7 +59,13 @@ const CHECKS = [
   ["dnd5e.renderChatMessage", "mastery.js", "maneuvers.js",
     "mastery rows render above the maneuver fold rows on a shared attack card (v1.19.0 entry order)"],
   ["dnd5e.renderChatMessage", "maneuvers.js", "saves.js",
-    "maneuver rows render above the saves rows (the entry imports maneuvers.js before saves.js)"]
+    "maneuver rows render above the saves rows (the entry imports maneuvers.js before saves.js)"],
+  ["dnd5e.renderChatMessage", "volleys.js", "saves.js",
+    "the volley row renders above the saves rows on a shared usage card (v1.20.0 entry order)"],
+  ["dnd5e.renderChatMessage", "receipts.js", "resources.js",
+    "the spend line is the usage card's footer — below every workflow row (v1.20.0 entry order)"],
+  ["dnd5e.preRollDamageV2", "hit-riders.js", "volleys.js",
+    "the dart multiplier copies the base entry AFTER the riders decided — a rider must never be duplicated per dart (riders are attack-gated and darts are damage-activity rolls, so the sets are disjoint; the order keeps that structural)"]
 ];
 let ok = true;
 for (const [hook, a, b, why] of CHECKS) {
