@@ -21,7 +21,7 @@ setTimeout(() => { console.error('[verify] WATCHDOG 120s'); process.exit(3); }, 
 const REFERENCE = {
   autoDamage: 'all',
   autoApply: true,
-  dramaticBeat: 3,
+  dramaticBeat: 0,   // user call 2026-08-20 (third walk): "set all the beats to 0" — 0 is the DELIBERATE table value now, not suite residue; the module default already agrees
   requireTarget: true,
   reactionHold: true,
   blockList: 'Magic Missile:Shield',

@@ -1,46 +1,103 @@
 # HANDOFF.md — picking this up cold
 
-## State at a glance — 2026-08-20, end of the NINTH session (two fix rounds deep)
+## State at a glance — 2026-08-21 (small hours), end of the NINTH session (three rounds deep)
 
 | | |
 | --- | --- |
-| **Do first** | **PRESENT THE v1.19.0 THIRD-WALK CHECKLIST** (below — 8 items + deferred item 10). The first walk produced eight findings (all built); the RE-walk produced nine more, **(a)–(i), ALL BUILT and battery-green the same night** — the popup design law, the pre-roll Interpose gamble, the on-hit bash offer, the save-popper routing fix that had made items 1/6 "untestable". ⚠ **Every client F5 once first** — scripts changed, same version, no bounce. |
-| Repo | `main`, pushed. **NOT tagged** — v1.19.0 waits on the walk closing. `module.json` still reads 1.19.0 (both fix rounds folded into the unreleased build). |
-| Release | ⚠ **v1.19.0 BUILT (first walk's eight + re-walk's nine), NOT RELEASED.** No tag, no GitHub release, **prod untouched on 1.18.0.** |
-| Sandbox | Up, minimized, **current code deployed + byte-verified** (world-reload class). `verify-settings` **CLEAN**. ⚠ **THE APP KEEPS GETTING CLOSED — the log shows CLEAN, deliberate shutdowns**, not crashes ("Shut-down success. Goodbye!"). If tidying up: close the browser tab / log out of the world; **the minimized app itself must stay running** for the suites. |
-| Prod | **1.18.0**, registered and CLEAN for what is released. ⚠ At the v1.19.0 release: deploy, bounce, then `BF_TARGET=prod node tools/verify-settings.mjs --fix` (the grown Maneuver Folds value). |
-| Walked clean | v1.18.0 (12/12). **v1.19.0: first walk 10/11 (eight findings, built); re-walk blocked mid-list by (f)/(g)/(h) (nine findings, built). The third walk below is open; item 10 still deferred-open.** |
-| Next build | Nothing until the walk closes. Then the release cycle, then **Pass C (the volleys)** — rider gate LIFTED. |
+| **Do first** | **RUN THE ROUND-3 FIX PASS — findings (j)–(q) below, THE NORTH STAR first.** The user's explicit instruction closing the session: *"make a handoff of all these issues, make a north star of the several global reviews ive asked, and you will start working on them in a new context window."* No checklist to present — the build IS the do-first; the walk-4 checklist gets cut at the recut, per the standing cycle. |
+| Repo | `main`, pushed. **NOT tagged** — v1.19.0 waits on the walk closing. `module.json` reads 1.19.0 (three fix rounds will have folded into the one unreleased build). |
+| Release | ⚠ **v1.19.0 BUILT (walk 1's eight + re-walk's nine + round 3 pending), NOT RELEASED.** No tag, no GitHub release, **prod untouched on 1.18.0.** |
+| Sandbox | Up, minimized, round-2 code deployed + byte-verified. `verify-settings` **CLEAN** (beats now 0 — see the table). ⚠ The app's disappearances are **CLEAN SHUTDOWNS** (log: "Goodbye!") — somebody closes it; the ask, precisely: log out of the world tab, **leave the minimized app running**. |
+| Prod | **1.18.0**, registered and CLEAN for what is released. At the release: deploy, bounce, then `BF_TARGET=prod verify-settings --fix` (grown Maneuver Folds + dramaticBeat 0). |
+| Walked | v1.18.0 12/12. v1.19.0: walk 1 → 8 findings (built); walk 2 → 9 findings (built); **walk 3 → 8 findings (j)–(q), UNBUILT — the ledger below.** Verified in walk 3 (mostly via chat-log evidence): (h) routing ✅, (f) flow ✅, ⑦⑧ holds line ✅, (i) carried-weapons dropdown ✅, (a) wording ✅. Open walk items: ① GM-alone, (g) window-two question, item 10 (deferred three times). |
+| Testing setup | ⚠ **THE USER RUNS TWO WINDOWS**: GM (Matt the DM) + a player window owning Thomas/Morgash. Player-first routing (①/(h)) sends THEIR popups to window two whenever it is connected — "nothing popped" reports must always ask WHICH window. The §4.1 relay is proven live (riposte accepts, interpose answers all arrived through it). |
 | Bridge | Disconnected on BOTH worlds. Suites join as `Tester Assistant`. |
 
 ---
 
-## 📋 THE v1.19.0 THIRD WALK — PRESENT THIS LIST (the re-walk's nine, plus what it un-blocked)
+## 🌟 THE NORTH STAR — the user's global reviews, in one charter
 
-Sandbox, one GM-capable client, **every client F5 once**. Settings are the reference table
-(verify-settings CLEAN). Thomas: Shield Master + shield equipped + First Light. Morgash:
-maneuvers + Great Weapon Master + carried melee weapons. Each item names its finding.
+The user has asked, across three walks, for a set of GLOBAL properties — not point fixes.
+Round 3 exists to deliver them as a SYSTEM. The instructions that named it, verbatim and
+in escalating order:
 
-| # | Item | What to look for |
+> *"this needs some kind of significant check here because there are a lot of things
+> queueing and you are losing track and stuff is dropping. extra to do: review
+> architecture to make sure this isnt patchwork spotty code, and is truly modular."*
+>
+> *"just, thematically, the architecture seems to be buckling here, as we start to add
+> more features they keep breaking"*
+>
+> *"if this is truly to work long term, stuff needs to be built out highly modularly and
+> highly scalable as we build"*
+
+**The diagnosis is correct and the handoff should say so plainly:** three sessions of
+speed-built moment machines COPIED the popup/bar/answer idiom instead of extracting it,
+and every copy drifted — (n) is a copied bar call missing the status contract, (m) is a
+copied label outliving its semantics, (j) is a whole family built without the ack concept
+the ask machines had. Each new feature multiplied the copies, so each new feature broke
+something. **This is not a one-time cleanup — it is a MANDATE going forward: no new moment
+machine may hand-roll stamp/route/pop/answer/resolve again. New features COMPOSE the
+spine; the spine is the product; the round's fixes are its proofs.** Pass C (the volleys)
+and everything after builds on it or doesn't build.
+
+**Build order — the audit FIRST, the point fixes land ON the consolidated spine:**
+
+1. **📐 (o) THE MOMENT-MACHINERY AUDIT + CONSOLIDATION.** Enumerate every "moment"
+   machine — hold (attack + spell/negate), save ask, topple ask, concentration ask,
+   mastery ask, mastery notices (Vex/Sap/Cleave), Hew notice, precision, riposte, bash
+   offer, save-choice (interpose/bash), the two damage-roll offers — and produce **the
+   moment map** in design.md: one table, every machine, its stamp → route → pop → answer
+   → resolve → expire. Then EXTRACT the shared spine into ui.js: one bar helper with the
+   wrapped `{status:"pending"}` contract (finding (n) is what copies cost), one popper
+   discipline (shown-latch + canAnswerFor + recall), one acknowledge/answer shape, the
+   cascade (q). The twelve machines ride one spine; drift becomes impossible instead of
+   caught.
+2. **The global LAWS the spine must encode** (each user-ruled, each currently spot-fixed):
+   - **The popup law (c):** easy-to-forget moments get popup notifications, not just cards.
+   - **Acknowledge resolves (j):** any popup button press resolves its card's pending
+     presentation — bar gone, recall gone. The notice family (Vex/Sap/Cleave/Hew) is the
+     entire violating class; every ask machine already complies.
+   - **Declaration never claims an outcome (m):** buttons and relay cards at decision time
+     state the SPEND/choice; only the verdict's settle card states results. (The interpose
+     relay said "takes no damage" before the roll; the Pass button said "take half".)
+   - **Source, then result (⑦):** every follow-up line leads with the ability.
+   - **The celebration (l):** every attack-damage popup celebrates — "You hit! — roll
+     damage"; crits louder, built on the existing yellow badge (the one crit source);
+     riposte named as itself (p). One design, consistent flavors.
+   - **The stack is visible (q):** openManagedPopup (the single door every popup already
+     uses) cascades concurrent popups ~28px so a pile never masquerades as one window.
+3. **Then the point fixes** that remain after the spine absorbs their class — see the ledger.
+
+---
+
+## 🔴 THE ROUND-3 LEDGER — findings (j)–(q), specs as ruled
+
+| # | Finding | The spec, as discussed and ruled |
 | --- | --- | --- |
-| 1 | **①** Morgash misses / an enemy melee-misses him (GM-only room) | Precision and Riposte popups **raise unprompted** — finally testable now that (h) unblocked the room |
-| 2 | **(h)** Cast any save spell at Thomas (owner offline) | **His save popup reaches YOU** — no more watching "failed (timer)" eat it; the card row names the roller, not "the timer (owner offline)" |
-| 3 | **(d)(i)** Riposte again | The superiority die sits **inside the one damage roll** — one dice group, one total (a riposte crit doubles it too). The weapon list shows **everything he carries** — stowed ones say "(stowed)", default is still his last-attacked |
-| 4 | **(g)** Thomas HITS with First Light (no sheet press) | The **Shield Bash offer popup** rides the hit: Use → the save runs at the struck target → on failure the **Knock Prone / Push 5 feet** choice (both paths + the timer's Prone default). Once per turn in combat |
-| 5 | **(f)** Fireball at Thomas, shield in hand | The **Interpose offer comes BEFORE his save**: "spend your Reaction?" Then the save. Held → **zero damage** + validation card. Failed → **full damage** + "the Reaction is spent — the gamble lost". Pass/timer → ordinary half. His save ask waits its turn behind the choice |
-| 6 | **⑦⑧** Someone SAVES | "**Fireball — X holds** (N vs DC X)", good-tone, under **X's** card (the fail half already verified from the walk's log) |
-| 7 | **② (c)** Morgash crits or kills (melee) | The Hew reminder **POPS** (OK popup, 15s bar) — the card stays as the record. One reminder even on a crit-kill |
-| 8 | **(a)** Glance at the Cleave reminder | The Dismiss line now ends "…or if you've already Cleaved this turn" |
-| 9 | **Item 10** (deferred twice) | Save spell at TWO targets; resolve the first, **F5 while the second bar runs** — the demand survives, one verdict line per target, damage once each |
+| (j) | **Notice cards ignore the acknowledge** (Cleave reported, then Hew — full scan confirmed the class = the notice family only) | Any notice button (OK / Arm / Dismiss) resolves the card: bar, popup, recall all go. Durable ack via message flag where the acknowledger can write (GM/author — every solo case); client-local otherwise (spectators' bars drain out as the window). Arm keeps the "Cleave — armed" card |
+| (k) | **Hew fires before the damage** | Both triggers move to the damage side: the reminder posts only once the crit's damage roll EXISTS (kill already lives there — receipt-time). Damage first, then "attack again". Unifies dedupe on the damage message |
+| (l) | **Damage popups don't celebrate the hit** | "You hit! — roll damage" on the normal path; crit louder on the yellow badge; single chokepoint `offerDamageRoll` covers plain/riposte/precision re-drives. Save-damage popup keeps its stakes-line identity (no attack roll to celebrate) |
+| (m) | **Declaration-time labels claim outcomes** | The choice relay card says "spends the Reaction" (proven live: it said "takes no damage" BEFORE a save that then failed); the interpose Pass button drops "— take half" (a passed-then-failed save takes full; the verdict decides) |
+| (n) | **Choice bars never rendered** | `holdBarHTML` requires `status:"pending"`; the choice sub-object has none — wrap at both call sites (popup + card row), and the suite asserts the bar's DOM (`data-bf-deadline`) so invisibility can never pass again |
+| (o) | **The architecture audit** | The North Star item 1 — the map, then the spine |
+| (p) | **The riposte swings in silence** | Hit → the damage gate is the riposte's own moment ("Your riposte hit!", die-riding note). Miss → "Riposte — the strike back misses" card, THEN any Graze/Precision offers arrive from an announced miss, not from nowhere |
+| (q) | **Stacked popups hide each other** | The cascade in openManagedPopup — North Star law 6. (Sighting that raised it: Cleave legitimately reminding on a riposte swing — (e)-KEEP working — buried under the pile) |
 
-⚖ **Standing judgment (e), defaulted to KEEP:** Graze/Precision offering on a missed
-driven riposte is RAW-legal (driven attacks are real attacks — the per-roll ruling). If
-the cascade grates, say so — the fence is one guard.
+**⚖ Standing judgments:** (e) folds on driven attacks — KEPT (RAW; the fence is one
+`riposteFor` guard if it ever grates). Weapon-swap economy and unarmed-strike riposte —
+recorded open corners, not built.
 
-⚠ **Known and deliberate:** Hew's KILL trigger fires on module-applied damage only; the
-Interpose offer needs Auto-Apply on; interpose expiry passes, bash-choice expiry presses
-Prone; notice popups (Hew) show only inside a live timer window — with Hold Timer 0 the
-card alone posts.
+**❓ The one unresolved sighting:** (g)'s bash offer "did not occur" on Thomas's hit — the
+Sap cards posted (machinery lives) and BOTH popups route to window two by the user's own
+①-ruling, so the likeliest answer is "popped unseen on the player window"; the user was
+asked to check there next swing. If window two was silent TOO, (g) has a real bug —
+reproduce before assuming. The suite's B4 passes headlessly (GM-alone room).
+
+**⚙ Done mid-walk-3, already live:** all beats 0 — the user's call ("set all the beats to
+0. make this the default config"): module default already 0, reference table updated
+(with the history note — 0 is now DELIBERATE, not suite residue), world value --fixed.
+`dramaticBeat` is the ONE beat knob (it also drives every dramaticVerdictPause).
 
 ---
 
