@@ -1,9 +1,11 @@
 // Battle Flow v1.20.0 (Pass C) smoke test — the volley folds, driven end to end in the live
-// world: detection is structural (target.affects.count 2+ on an attack/damage spell
-// activity), the native single follow-up is suppressed, the caster's popup aims every
-// projectile, darts aggregate per target into ONE roll message (k dice groups), rays drive
-// N real attacks through the ordinary pipeline, the blocklist claim rides the driven rolls,
-// and expiry fires the even spread.
+// world: membership is the REGISTRY (volley-registry.js, finding (ff) — fixtures join it
+// through the module api seam and real-name sections pin the shipped entries), the native
+// single follow-up is suppressed, the caster's popup aims every projectile (per-ray
+// Adv/Normal/Dis under (dd)), darts aggregate per target into ONE roll message (k dice
+// groups), rays drive N real attacks through the ordinary pipeline, every driven roll names
+// its target on the card ((ee)), the blocklist claim rides the driven rolls, distinct-target
+// entries never double up ((ff)/Steel Wind Strike), and expiry fires the even spread.
 //
 // Harness discipline (HANDOFF): settings restored to whatever was found (settings FIRST in
 // teardown, own guard); every message deleted on the way out; new-message searches by
@@ -21,7 +23,7 @@ for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
   if (m) env[m[1]] = m[2];
 }
 
-setTimeout(() => { console.error('[volleys] WATCHDOG 420s'); process.exit(3); }, 420_000);
+setTimeout(() => { console.error('[volleys] WATCHDOG 540s'); process.exit(3); }, 540_000);
 
 const f = new Foundry(foundryConfig(env));
 console.log('[volleys] connecting…');
@@ -42,6 +44,8 @@ const out = await f.evaluate(async () => {
   if (!game.settings.settings.has(`${MOD}.volleys`)) {
     return { fatal: 'setting volleys not registered — this client is running OLD code (F5)' };
   }
+  const registry = mod.api?.volleyRegistry;
+  if (!registry) return { fatal: 'volley registry api missing — this client is running OLD code (F5)' };
 
   const SETTING_KEYS = ['volleys', 'autoDamage', 'autoApply', 'playerRollDamage', 'dramaticBeat',
     'damageTimer', 'requireTarget', 'reactionHold', 'blockList', 'riders', 'effectRiders',
@@ -57,12 +61,17 @@ const out = await f.evaluate(async () => {
 
   const created = { items: [], tokens: [] };
   const priorActor = {};
+  // Fixture registry entries — added in §0, deleted on the way out; the SHIPPED entries
+  // (Magic Missile, Scorching Ray, Eldritch Blast, Steel Wind Strike) are never touched.
+  const TEST_ENTRIES = ['BF Volley Missile', 'BF Volley Up', 'BF Volley Rays', 'BF Volley Unlisted'];
   let restored = false;
   const teardown = async () => {
     if (restored) return;
     restored = true;
     try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
     catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    try { for (const n of TEST_ENTRIES) registry.delete(n); }
+    catch (err) { log.push(`TEARDOWN registry ERROR: ${err?.message}`); }
     try {
       for (const [actorId, ids] of Object.entries(created.items.reduce((m, i) => {
         (m[i.actorId] ??= []).push(i.id); return m;
@@ -116,6 +125,12 @@ const out = await f.evaluate(async () => {
     await set('saves', false);
     await set('castApply', false);
     await set('resourceNotices', false);   // the resources suite owns those asserts
+
+    // Fixture names join the registry through the api seam (the (ff) design's own test
+    // surface) — membership is name-keyed, so scratch spells register like premium ones.
+    registry.set('BF Volley Missile', { kind: 'damage', count: '2 + @item.level' });
+    registry.set('BF Volley Up',      { kind: 'damage', count: '2 + @item.level' });
+    registry.set('BF Volley Rays',    { kind: 'attack', count: '1 + @item.level' });
 
     // -------------------------------------------------- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
@@ -243,6 +258,13 @@ const out = await f.evaluate(async () => {
       !!card1?.system?.deltas?.item && Object.keys(card1.system.deltas.item).length > 0
         && (mmItem.getFlag('dnd5e', 'consumed') == null),
       JSON.stringify(card1?.system?.deltas ?? null));
+    // ⚠ the name asserted is the SNAPSHOT's (token name — BF Test Victim's prototype token
+    // is named "Hobgoblin"), never the actor name.
+    ok('1j (ee) each dart roll names its target on the card — icon with tooltip + name',
+      [forVictim, forShielder].every(m =>
+        !!document.querySelector(`[data-message-id="${m?.id}"] .bf-volley-aim img[data-tooltip]`)
+          && !!document.querySelector(`[data-message-id="${m?.id}"] .bf-volley-aim`)
+            ?.textContent.includes((m?.getFlag('dnd5e', 'targets') ?? [])[0]?.name ?? '@@')));
 
     // ============================================================ §2 upcast — the count scales
     // The REAL channel: a slot pick. The system re-resolves bare `scaling` during consume
@@ -331,6 +353,10 @@ const out = await f.evaluate(async () => {
       (rayDamage.length === 3) && rayDamage.every(m => m.rolls?.[0]?.formula?.includes('2d6'))
         && rayDamage.every(m => !!m.getFlag(MOD, 'receipt')),
       `damage=${rayDamage.length}`);
+    ok('3f (ee) each ray attack names its ray and target on the card',
+      !!document.querySelector(`[data-message-id="${rays[0]?.id}"] .bf-volley-aim img[data-tooltip]`)
+        && !!document.querySelector(`[data-message-id="${rays[0]?.id}"] .bf-volley-aim`)
+          ?.textContent.includes('Ray 1'));
 
     // ============================================================ §4 negatives — never a volley
     log.push('§4 negatives');
@@ -344,15 +370,15 @@ const out = await f.evaluate(async () => {
     ok('4a volleys OFF: no volley flag, the native path untouched',
       !fresh(before).some(m => m.getFlag(MOD, 'volley')));
     await set('volleys', true);
-    // (b) a single-projectile count
-    await mmItem.update({ 'system.target.affects.count': '1' });
+    // (b) a single-projectile count — the REGISTRY's count; content counts decide nothing
+    registry.set('BF Volley Missile', { kind: 'damage', count: '1' });
     targetBoth();
     before = snap();
     await mmAct.use({}, { configure: false }, {});
     await sleep(1500);
     closeStrays();
-    ok('4b count 1: not a volley', !fresh(before).some(m => m.getFlag(MOD, 'volley')));
-    await mmItem.update({ 'system.target.affects.count': '2 + @item.level' });
+    ok('4b registry count 1: not a volley', !fresh(before).some(m => m.getFlag(MOD, 'volley')));
+    registry.set('BF Volley Missile', { kind: 'damage', count: '2 + @item.level' });
     // (c) targetless
     game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
     before = snap();
@@ -360,6 +386,31 @@ const out = await f.evaluate(async () => {
     await sleep(1500);
     closeStrays();
     ok('4c targetless cast: not a volley (native path keeps it)',
+      !fresh(before).some(m => m.getFlag(MOD, 'volley')));
+    // (d) the census false positive (Dimension Door's shape): a CONTENT count of 2 with a
+    // damage activity, but the name is UNLISTED — never a volley under (ff).
+    const [unlisted] = await npc.createEmbeddedDocuments('Item', [{
+      name: 'BF Volley Unlisted', type: 'spell',
+      system: {
+        level: 4, school: 'con', properties: ['vocal'],
+        method: 'spell', prepared: 1, identifier: 'bf-volley-unlisted',
+        target: { affects: { type: 'willing', count: '2' }, template: { type: '' } },
+        activities: { bfvolleyunlist00: {
+          _id: 'bfvolleyunlist00', type: 'damage', name: 'Mishap',
+          activation: { type: 'action' },
+          target: { override: false, affects: {}, template: {} },
+          damage: { parts: [{ number: 4, denomination: 6, bonus: '', types: ['force'] }] },
+          consumption: { targets: [], scaling: { allowed: false, max: '' }, spellSlot: false }
+        } }
+      }
+    }]);
+    created.items.push({ actorId: npc.id, id: unlisted.id });
+    targetBoth();
+    before = snap();
+    await unlisted.system.activities.contents[0].use({}, { configure: false }, {});
+    await sleep(1500);
+    closeStrays();
+    ok('4d an UNLISTED spell with content count 2 + damage never volleys (the Dimension Door pin)',
       !fresh(before).some(m => m.getFlag(MOD, 'volley')));
 
     // ============================================================ §5 expiry fires the spread
@@ -408,6 +459,126 @@ const out = await f.evaluate(async () => {
     ok('6c with no hold on the card, the volley released its own claim and the roll applied',
       claimed.every(m => (m.getFlag(MOD, 'spellHoldPending') === false) && !!m.getFlag(MOD, 'receipt')),
       JSON.stringify(claimed.map(m => [m.getFlag(MOD, 'spellHoldPending'), !!m.getFlag(MOD, 'receipt')])));
+    await set('reactionHold', false);
+    await set('blockList', prior.blockList);
+
+    // ============================================================ §7 the registry IS membership ((ff))
+    log.push('§7 registry');
+    ok('7a the shipped registry carries the census four',
+      ['Magic Missile', 'Scorching Ray', 'Eldritch Blast', 'Steel Wind Strike'].every(n => registry.has(n)),
+      [...registry.keys()].join(', '));
+    // Real-name Scorching Ray with NO count field anywhere — the (bb) pin: the 2024 pack
+    // ships it bare, and the registry makes it volley anyway.
+    const [srReal] = await npc.createEmbeddedDocuments('Item', [{
+      name: 'Scorching Ray', type: 'spell',
+      system: {
+        level: 2, school: 'evo', properties: ['vocal'],
+        range: { value: '120', units: 'ft' },
+        method: 'spell', prepared: 1, identifier: 'bf-scorching-ray',
+        target: { affects: { type: '', count: '' }, template: { type: '' } },
+        activities: { bfsrreal00000000: {
+          _id: 'bfsrreal00000000', type: 'attack', name: 'Rays',
+          activation: { type: 'action' },
+          target: { override: false, affects: {}, template: {} },
+          attack: { type: { value: 'ranged', classification: 'spell' }, bonus: '30', flat: true },
+          damage: { includeBase: true, parts: [{ number: 2, denomination: 6, bonus: '', types: ['fire'] }] },
+          consumption: { targets: [], scaling: { allowed: false, max: '' }, spellSlot: false }
+        } }
+      }
+    }]);
+    created.items.push({ actorId: npc.id, id: srReal.id });
+    targetBoth();
+    before = snap();
+    await srReal.system.activities.contents[0].use({}, { configure: false }, {});
+    await sleep(1200);
+    const card7 = fresh(before).find(m => m.getFlag(MOD, 'volley'));
+    const v7 = card7?.getFlag(MOD, 'volley');
+    ok('7b a BARE Scorching Ray volleys off the shipped entry — 3 rays at 2nd',
+      (v7?.kind === 'attack') && (v7?.n === 3) && (v7?.status === 'pending'),
+      JSON.stringify({ kind: v7?.kind, n: v7?.n }));
+    await findDialog('Scorching Ray')?.close();   // fire the default spread
+    await sleep(4500);
+    const rays7 = fresh(before).filter(m => (m.getFlag('dnd5e', 'roll.type') === 'attack') && m.getFlag(MOD, 'volleyRay'));
+    ok('7c its three rays drove for real', rays7.length === 3, `rays=${rays7.length}`);
+    // Eldritch Blast's beams band by CHARACTER level — the count fn, pinned pure (no world
+    // actor carries EB; the machinery it rides is the same evaluator §7b just exercised).
+    const eb = registry.get('Eldritch Blast');
+    const beams = (level, cr = null) => eb.count({ rollData: { details: { level, ...(cr != null ? { cr } : {}) } } });
+    ok('7d EB bands: 1 beam to 4th, 2 at 5th, 3 at 11th, 4 at 17th — and CR carries an NPC',
+      (beams(4) === 1) && (beams(5) === 2) && (beams(11) === 3) && (beams(17) === 4)
+        && (beams(20) === 4) && (beams(0, 7) === 2),
+      JSON.stringify([beams(4), beams(5), beams(11), beams(17), beams(0, 7)]));
+
+    // ============================================================ §8 distinct targets (Steel Wind Strike)
+    log.push('§8 distinct');
+    const [sws] = await npc.createEmbeddedDocuments('Item', [{
+      name: 'Steel Wind Strike', type: 'spell',
+      system: {
+        level: 5, school: 'con', properties: ['somatic'],
+        range: { value: '30', units: 'ft' },
+        method: 'spell', prepared: 1, identifier: 'bf-steel-wind',
+        target: { affects: { type: '', count: '' }, template: { type: '' } },
+        activities: { bfswstrike000000: {
+          _id: 'bfswstrike000000', type: 'attack', name: 'Flurry',
+          activation: { type: 'action' },
+          target: { override: false, affects: {}, template: {} },
+          attack: { type: { value: 'melee', classification: 'spell' }, bonus: '30', flat: true },
+          damage: { includeBase: true, parts: [{ number: 1, denomination: 6, bonus: '', types: ['force'] }] },
+          consumption: { targets: [], scaling: { allowed: false, max: '' }, spellSlot: false }
+        } }
+      }
+    }]);
+    created.items.push({ actorId: npc.id, id: sws.id });
+    targetBoth();
+    before = snap();
+    await sws.system.activities.contents[0].use({}, { configure: false }, {});
+    await sleep(1200);
+    const card8 = fresh(before).find(m => m.getFlag(MOD, 'volley'));
+    const v8 = card8?.getFlag(MOD, 'volley');
+    ok('8a n clamps to the target count and the flag says distinct — 2 targets, 2 rays, not 5',
+      (v8?.n === 2) && (v8?.distinct === true), JSON.stringify({ n: v8?.n, d: v8?.distinct }));
+    const dlg8 = findDialog('Steel Wind Strike');
+    if (dlg8) {
+      // Duplicate picks must fall back to the one-each default, never fire doubled.
+      for (const sel of dlg8.element.querySelectorAll('[data-bf-volley-ray]')) sel.value = victim.uuid;
+      dlg8.element.querySelector('button[data-action="fire"]')?.click();
+    }
+    await sleep(4000);
+    const rays8 = fresh(before).filter(m => (m.getFlag('dnd5e', 'roll.type') === 'attack') && m.getFlag(MOD, 'volleyRay'));
+    const targets8 = rays8.map(m => (m.getFlag('dnd5e', 'targets') ?? [])[0]?.uuid).sort();
+    ok('8b duplicate picks fell back to one-each: two attacks, DISTINCT targets',
+      (rays8.length === 2) && (new Set(targets8).size === 2),
+      JSON.stringify(targets8));
+
+    // ============================================================ §9 per-ray adv/dis ((dd))
+    log.push('§9 adv/dis');
+    targetBoth();
+    before = snap();
+    await srAct.use({}, { configure: false }, {});
+    await sleep(1200);
+    const dlg9 = findDialog('BF Volley Rays');
+    ok('9a the popup offers a mode select per ray',
+      !!dlg9 && (dlg9.element.querySelectorAll('[data-bf-volley-mode]').length === 3));
+    if (dlg9) {
+      dlg9.element.querySelector('[data-bf-volley-mode="0"]').value = 'advantage';
+      dlg9.element.querySelector('[data-bf-volley-mode="1"]').value = 'disadvantage';
+      dlg9.element.querySelector('button[data-action="fire"]')?.click();
+    }
+    await sleep(4500);
+    const rays9 = fresh(before).filter(m => (m.getFlag('dnd5e', 'roll.type') === 'attack') && m.getFlag(MOD, 'volleyRay'))
+      .sort((a, b) => a.getFlag(MOD, 'volleyRay') - b.getFlag(MOD, 'volleyRay'));
+    // dnd5e renders its advantage modifier as 2d20adv / 2d20dis (its own alias, not kh/kl).
+    ok('9b ray 1 rolled at advantage, ray 2 at disadvantage, ray 3 a bare d20',
+      (rays9.length === 3)
+        && /2d20(adv|kh)/.test(rays9[0]?.rolls?.[0]?.formula ?? '')
+        && /2d20(dis|kl)/.test(rays9[1]?.rolls?.[0]?.formula ?? '')
+        && (rays9[2]?.rolls?.[0]?.formula ?? '').includes('1d20'),
+      JSON.stringify(rays9.map(m => m.rolls?.[0]?.formula ?? null)));
+    const v9 = fresh(before).find(m => m.getFlag(MOD, 'volley'))?.getFlag(MOD, 'volley');
+    ok('9c the resolved assignment carries the modes (and normal carries none)',
+      (v9?.assignment?.[0]?.mode === 'advantage') && (v9?.assignment?.[1]?.mode === 'disadvantage')
+        && (v9?.assignment?.[2]?.mode === undefined),
+      JSON.stringify(v9?.assignment ?? null));
 
     await teardown();
   } catch (err) {

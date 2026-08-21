@@ -1,7 +1,9 @@
 // Battle Flow v1.20.0 smoke test — resource use notices: a player-owned actor spending a
 // recovery-rhythm pool flashes the banner on this client and grows the durable card line;
 // pools without recovery, NPC spends and the OFF switch all stay silent. All three measured
-// pool shapes are pinned: self item-uses, cross-item pool, activity-level uses.
+// pool shapes are pinned: self item-uses, cross-item pool, activity-level uses. (cc): an
+// ability with dice of its own flashes AFTER those dice (release by card link, 12s
+// fallback); the card line never waits.
 //
 // Harness discipline (HANDOFF): settings restored first in their own guard; fixture
 // ownership snapshotted and restored EXACTLY; messages deleted by id-set difference.
@@ -192,6 +194,56 @@ const out = await f.evaluate(async () => {
     ok('4c the switch off silences both surfaces',
       !bannerNow() && !(card4c && lineFor(card4c.id)));
     await set('resourceNotices', true);
+
+    // ============================================================ §5 (cc) the flash waits for the dice
+    log.push('§5 deferred flash');
+    const [healFeat] = await victim.createEmbeddedDocuments('Item', [{
+      name: 'BF Notice Heal', type: 'feat',
+      system: {
+        uses: { spent: 0, max: '3', recovery: [{ period: 'sr', type: 'recoverAll' }] },
+        activities: { bfnoticeheal0000: { _id: 'bfnoticeheal0000', type: 'heal', name: 'Heal',
+          activation: { type: 'bonus' },
+          healing: { number: 1, denomination: 10, bonus: '1', types: ['healing'] },
+          consumption: { targets: [{ type: 'itemUses', target: '', value: '1' }] } } }
+      }
+    }]);
+    created.items.push(healFeat.id);
+    const card5 = await useAndCard(healFeat.system.activities.contents[0]);
+    ok('5a the use alone flashes NOTHING — the ability has dice of its own to roll',
+      !!card5 && !bannerNow(), bannerNow()?.textContent?.slice(0, 60) ?? 'quiet');
+    ok('5b the durable card line does NOT wait (the ledger is immediate)',
+      !!card5 && !!lineFor(card5.id) && lineFor(card5.id).textContent.includes('2 of 3'));
+    // The card button is the player's real path (hidden by hideCardButtons but never
+    // removed) — click it, submit the native config dialog, and the flash releases.
+    const healBtn = document.querySelector(`[data-message-id="${card5?.id}"] button[data-action="rollHealing"]`);
+    ok('5c the heal button exists on the card', !!healBtn);
+    const beforeRoll = new Set(game.messages.contents.map(m => m.id));
+    healBtn?.click();
+    await sleep(1200);
+    const cfgDlg = [...foundry.applications.instances.values()]
+      .find(a => a.constructor?.name?.includes('RollConfiguration') && a.rendered);
+    cfgDlg?.element.querySelector('button[type="submit"]')?.click();
+    await sleep(2000);
+    const healRoll = game.messages.contents.find(m => !beforeRoll.has(m.id) && m.rolls?.length);
+    ok('5d the roll links to the card (the (cc) linkage pin, card-button path)',
+      !!healRoll && (healRoll.getFlag('dnd5e', 'originatingMessage') === card5?.id),
+      JSON.stringify({ link: healRoll?.getFlag('dnd5e', 'originatingMessage') ?? null, card: card5?.id }));
+    const b5 = bannerNow();
+    ok('5e the flash released WITH the dice — after the roll, not the use',
+      !!b5 && b5.textContent.includes('used BF Notice Heal')
+        && b5.textContent.includes('2 of 3 remaining'),
+      b5 ? b5.textContent.trim().slice(0, 120) : 'NO banner');
+    await sleep(4200);
+
+    // ============================================================ §6 (cc) the fallback timer
+    log.push('§6 fallback');
+    const card6 = await useAndCard(healFeat.system.activities.contents[0]);
+    ok('6a still quiet right after the use', !!card6 && !bannerNow());
+    await sleep(13_000);   // FLASH_FALLBACK_MS is 12s — a player who never rolls still flashes
+    const b6 = bannerNow();
+    ok('6b the fallback flashed it: never rolled, still announced',
+      !!b6 && b6.textContent.includes('1 of 3 remaining'),
+      b6 ? b6.textContent.trim().slice(0, 120) : 'NO banner');
 
     await teardown();
   } catch (err) {
