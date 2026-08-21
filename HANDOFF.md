@@ -1,45 +1,70 @@
 # HANDOFF.md — picking this up cold
 
-## State at a glance — 2026-08-20, end of the NINTH session
+## State at a glance — 2026-08-20, end of the NINTH session (two fix rounds deep)
 
 | | |
 | --- | --- |
-| **Do first** | **PRESENT THE v1.19.0 RE-WALK CHECKLIST** (below — 8 items + the deferred item 10). The first walk ran 2026-08-20 (10 of 11 walked; item 10 deferred by the user until the fixes landed), produced EIGHT findings, and **all eight are BUILT and battery-green in the sandbox**. The re-walk is what stands between v1.19.0 and its tag. ⚠ **Every client F5 once first** — scripts changed, same version, no bounce needed. |
-| Repo | `main`, pushed. **NOT tagged** — v1.19.0 waits on the re-walk. `module.json` still reads 1.19.0 (the walk findings folded into the unreleased build; the tag rides the walk closing). |
-| Release | ⚠ **v1.19.0 BUILT (now with the walk's eight), NOT RELEASED.** No tag, no GitHub release, **prod untouched and still on 1.18.0.** |
-| Sandbox | Up, minimized, world active, registers 1.19.0, **current code deployed + byte-verified** (world-reload class — no version change, no bounce). `verify-settings` **CLEAN** — ⚠ the reference's **Maneuver Folds row GREW** (interpose/bash/hew — see the settings table). |
-| Prod | **1.18.0**, registered and CLEAN for what is released. ⚠ After the v1.19.0 release deploys, run `BF_TARGET=prod node tools/verify-settings.mjs --fix` — prod's world needs the grown Maneuver Folds value too. |
-| Walked clean | v1.18.0 (12/12, closed). **v1.19.0 first walk: 10/11 walked, eight findings — ALL BUILT. Item 10 deferred. The re-walk below is open.** |
-| Next build | Nothing until the re-walk. After it: the release cycle, then **Pass C (the volleys)** — rider gate LIFTED, waiting only on this walk closing. |
+| **Do first** | **PRESENT THE v1.19.0 THIRD-WALK CHECKLIST** (below — 8 items + deferred item 10). The first walk produced eight findings (all built); the RE-walk produced nine more, **(a)–(i), ALL BUILT and battery-green the same night** — the popup design law, the pre-roll Interpose gamble, the on-hit bash offer, the save-popper routing fix that had made items 1/6 "untestable". ⚠ **Every client F5 once first** — scripts changed, same version, no bounce. |
+| Repo | `main`, pushed. **NOT tagged** — v1.19.0 waits on the walk closing. `module.json` still reads 1.19.0 (both fix rounds folded into the unreleased build). |
+| Release | ⚠ **v1.19.0 BUILT (first walk's eight + re-walk's nine), NOT RELEASED.** No tag, no GitHub release, **prod untouched on 1.18.0.** |
+| Sandbox | Up, minimized, **current code deployed + byte-verified** (world-reload class). `verify-settings` **CLEAN**. ⚠ **THE APP KEEPS GETTING CLOSED — the log shows CLEAN, deliberate shutdowns**, not crashes ("Shut-down success. Goodbye!"). If tidying up: close the browser tab / log out of the world; **the minimized app itself must stay running** for the suites. |
+| Prod | **1.18.0**, registered and CLEAN for what is released. ⚠ At the v1.19.0 release: deploy, bounce, then `BF_TARGET=prod node tools/verify-settings.mjs --fix` (the grown Maneuver Folds value). |
+| Walked clean | v1.18.0 (12/12). **v1.19.0: first walk 10/11 (eight findings, built); re-walk blocked mid-list by (f)/(g)/(h) (nine findings, built). The third walk below is open; item 10 still deferred-open.** |
+| Next build | Nothing until the walk closes. Then the release cycle, then **Pass C (the volleys)** — rider gate LIFTED. |
 | Bridge | Disconnected on BOTH worlds. Suites join as `Tester Assistant`. |
 
 ---
 
-## 📋 THE v1.19.0 RE-WALK — PRESENT THIS LIST (the walk's eight findings + deferred item 10)
+## 📋 THE v1.19.0 THIRD WALK — PRESENT THIS LIST (the re-walk's nine, plus what it un-blocked)
 
-Sandbox, one GM-capable client, **every client F5 once** (scripts changed, version did not).
-Settings are already the reference table (verify-settings CLEAN); nothing needs changing.
-Morgash carries the maneuvers + Great Weapon Master; Thomas carries Shield Master (shield
-equipped for item 5). The first walk's mechanics all passed — this list verifies the FIXES,
-so each item names its finding.
+Sandbox, one GM-capable client, **every client F5 once**. Settings are the reference table
+(verify-settings CLEAN). Thomas: Shield Master + shield equipped + First Light. Morgash:
+maneuvers + Great Weapon Master + carried melee weapons. Each item names its finding.
 
 | # | Item | What to look for |
 | --- | --- | --- |
-| 1 | **①** Morgash misses (GM-only room) | The Precision popup **now raises unprompted** — no Answer-button hunt. Same for Riposte on an enemy melee miss. (At the real table: the owning player's client gets it; you get it only when they're not connected) |
-| 2 | **④** Riposte popup, one melee weapon equipped | **No dropdown** — the popup and button NAME the weapon ("Riposte with Longsword"). With TWO equipped: dropdown returns, **preselected to the weapon he last attacked with**; the resolved card names what swung |
-| 3 | **③** Arm the Cleave, make the second swing | Your damage POPUP (not just the card after) says **"Cleave — the ability modifier is dropped from this roll"** |
-| 4 | **⑤** Thomas's Shield Bash at something that FAILS | A **choice popup: Knock Prone / Push 5 feet**. Prone → the press + receipt as before. Push → NO press; an announce card ("Shield Master — Thomas pushes X 5 feet"), token moves by hand. Let one expire → defaults to Prone, card says "defaulted by the timer" |
-| 5 | **⑥** Fireball (or any DEX-half spell) at Thomas; he SAVES | The **Interpose offer**: Use Reaction → **zero damage** + a validation card ("Shield Master — Thomas takes no damage"). Pass (or timer) → half applies as normal. No shield equipped / STR save / already-reacted → no offer |
-| 6 | **⑦⑧** Any save verdict line | Reads **"Shield Bash — Thomas holds (N vs DC X)"** — source first, then result — and sits under **Thomas's** title card, not the caster's |
-| 7 | **②** Morgash CRITS (or kills) with a melee weapon | A **Hew reminder card**: "Hew — Morgash can attack again", one attack with the same weapon as a Bonus Action. Card only — nothing rolls for you. One card even on a crit-kill |
-| 8 | **Deferred item 10** | Save spell at TWO targets; resolve the FIRST save, **F5 while the second bar runs**; after reload the second demand is alive (bar from its stored deadline), resolves, and chat shows exactly ONE verdict line per target, damage once each |
+| 1 | **①** Morgash misses / an enemy melee-misses him (GM-only room) | Precision and Riposte popups **raise unprompted** — finally testable now that (h) unblocked the room |
+| 2 | **(h)** Cast any save spell at Thomas (owner offline) | **His save popup reaches YOU** — no more watching "failed (timer)" eat it; the card row names the roller, not "the timer (owner offline)" |
+| 3 | **(d)(i)** Riposte again | The superiority die sits **inside the one damage roll** — one dice group, one total (a riposte crit doubles it too). The weapon list shows **everything he carries** — stowed ones say "(stowed)", default is still his last-attacked |
+| 4 | **(g)** Thomas HITS with First Light (no sheet press) | The **Shield Bash offer popup** rides the hit: Use → the save runs at the struck target → on failure the **Knock Prone / Push 5 feet** choice (both paths + the timer's Prone default). Once per turn in combat |
+| 5 | **(f)** Fireball at Thomas, shield in hand | The **Interpose offer comes BEFORE his save**: "spend your Reaction?" Then the save. Held → **zero damage** + validation card. Failed → **full damage** + "the Reaction is spent — the gamble lost". Pass/timer → ordinary half. His save ask waits its turn behind the choice |
+| 6 | **⑦⑧** Someone SAVES | "**Fireball — X holds** (N vs DC X)", good-tone, under **X's** card (the fail half already verified from the walk's log) |
+| 7 | **② (c)** Morgash crits or kills (melee) | The Hew reminder **POPS** (OK popup, 15s bar) — the card stays as the record. One reminder even on a crit-kill |
+| 8 | **(a)** Glance at the Cleave reminder | The Dismiss line now ends "…or if you've already Cleaved this turn" |
+| 9 | **Item 10** (deferred twice) | Save spell at TWO targets; resolve the first, **F5 while the second bar runs** — the demand survives, one verdict line per target, damage once each |
 
-⚠ **Known and deliberate, walked past on purpose (unchanged from the first walk):**
-Precision offers only on CLEAN misses; a natural 1 is never offered; Graze + Precision
-announces the conflict and unwinds nothing. NEW and deliberate: Hew's KILL trigger fires
-only on module-applied damage (a hand-tray kill posts no receipt, so no reminder); the
-Interpose offer needs Auto-Apply on (a "no damage" promise is only honest when the module
-is the applier); interpose expiry PASSES (a Reaction is never spent by a timer).
+⚖ **Standing judgment (e), defaulted to KEEP:** Graze/Precision offering on a missed
+driven riposte is RAW-legal (driven attacks are real attacks — the per-roll ruling). If
+the cascade grates, say so — the fence is one guard.
+
+⚠ **Known and deliberate:** Hew's KILL trigger fires on module-applied damage only; the
+Interpose offer needs Auto-Apply on; interpose expiry passes, bash-choice expiry presses
+Prone; notice popups (Hew) show only inside a live timer window — with Hold Timer 0 the
+card alone posts.
+
+---
+
+### ✅ THE RE-WALK — BLOCKED MID-LIST 2026-08-20 (ninth session), NINE FINDINGS (a)–(i), ALL BUILT
+
+**Do not present the re-walk list again** — the third walk above supersedes it. Walked: 3
+✅+(a), 2 partially (naming ✅ from the log). Blocked by machinery: 1, 4, 5, 6, 7 — the user's
+call, verbatim: "basically 1 and 6 are untestable in this state." The chat log was the
+witness for the whole diagnosis ("review the chat logs, evidence is all there"):
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| (a) | Cleave Dismiss line lacks the already-cleaved case | ✅ wording added |
+| (b) | "Hew crit gave no notification at all" | **NOT A BUG — the log shows the crit card posted at 23:41:24 and was scrolled past.** Closed into (c) |
+| (c) | **DESIGN LAW (user verbatim): "give players popup notifications on easy things to forget"** | Hew pops (notice-family OK shape); the law binds future moments |
+| (d) | The riposte die rendered as its own dice group ("a separate window") | Baked into the base roll — one group, crit-doubles |
+| (e) | Graze+Precision offered on a missed driven riposte — "not sure the rules" | RAW-legal, per-roll ruling; OPEN judgment, defaulted KEEP |
+| (f) | Interpose never offered; ruling: offer BEFORE the roll | Rebuilt as the pre-roll gamble (stamp-time + adoption); zero on hold, full + vain card on fail |
+| (g) | "Shield bash never triggered a popup attacking combat dummy" | The HIT is the trigger now — offer → drive → demand → choice |
+| (h) | Thomas failed two Fireballs "(timer)" — his popup reached nobody | saves + topple drop the ①-class quiet; canAnswerFor alone routes. Concentration untouched (standing ruling) |
+| (i) | "equipped weapon… makes an assumption that isn't likely true" (2024 swap) | The list is every CARRIED melee weapon, stowed labelled, sheet never mutated |
+
+**Also proved at the table:** the §4.1 relay carried both riposte accepts from a second
+window; the ⑦⑧ verdict wording was live and correct in the log all along (fail half).
 
 ---
 
@@ -728,6 +753,31 @@ token actor — that is what anything scene-scoped actually operates on.**
 a wight, campaign content, not a bug.** Use `hp.effectiveMax`, never `hp.max`, in any assertion
 about a party member being "topped up".
 
+
+### 📦 Deploy + battery state — the RE-WALK round (a)–(i) (2026-08-20, NINTH session, round 2)
+
+⚠ **STILL BUILT-NOT-RELEASED** — same unreleased v1.19.0, same world-reload deploy class.
+Two commits (`test:` 959d181, `feat:` 529f38c), design.md's re-walk amendment on the feat.
+
+**Battery, all green:** battleflow ALL PASS ×2 · hold ALL PASS · **maneuvers 44/44** (was
+37: R2d rewritten for the baked-in die, B4 the on-hit bash chain, I1–I3 the pre-roll
+gamble all three ways, H3 the Hew popup) · cast 17/17 · riders 8/8 · effects 52/52 ·
+concentration 47/47 · **saves 61/61** (§11 UN-SKIPPED — it sets its own ownership now and
+pins the (h) routing; the old "owner offline" row-text assert died with the quiet it
+described) · probe-player-damage 9/9 · probe-save-damage-popup 13/13 · check-hook-order
+6/6 · verify-settings **CLEAN**.
+
+⚠ **Round-2 traps, paid once:**
+- **The sandbox app's vanishes are CLEAN SHUTDOWNS, not crashes** — the debug log reads
+  "Shutting down… Goodbye!" at each disappearance (twice this round, mid-suite once).
+  Somebody is closing the app. The ask, precisely worded: **log out of the world / close
+  the browser tab; leave the minimized app running.** When a suite watchdogs at connect,
+  check `/api/status` first (the standing rule) — and now also expect this cause.
+- **The suite's own connect can launch the world via admin /setup** (the MCP grew that
+  path); a cold app + one suite run is still the whole recovery.
+- The dead-target-gate suite trap from round 1 nearly recurred in B4 (the swing's own
+  auto-applied damage can corpse the demand's target mid-chain) — B4 raises the victim's
+  hp.max to 1000 for the section instead of hoping.
 
 ### 📦 Deploy + battery state — v1.19.0 + the walk's eight (2026-08-20, NINTH session)
 
