@@ -30,14 +30,23 @@ Hooks.once("init", () => {
   // Default OFF for the reason centerRollDialogs records the other way round: a per-client
   // setting nobody knows to look for means every new login starts wrong — so the safe default
   // is the one that changes nothing until you go find it, and the patch notes carry the pointer.
-  // The window is the family's 15s and carries NO setting of its own: one switch, not two.
   // ⚠ ONE SWITCH ACROSS ALL THREE DAMAGE PATHS — attacks, save spells and areas. The first cut
   // covered attacks alone and the walk found the hole immediately; a second switch for "and my
   // spells too" would be asking the table to opt into the same answer twice.
   game.settings.register(MODULE_ID, S.playerRollDamage, {
     name: "Roll Your Own Damage",
-    hint: "Ask before rolling YOUR damage, instead of the automation rolling it for you: a popup with one button and a 15-second timer, on your client alone. It covers every roll the machine would have taken — an attack that hits, a save spell like Vicious Mockery or Fireball, and areas like Web. Press it and the dice roll exactly as the automation would have rolled them — same damage, same crit, same everything downstream — and the buzzer rolls for you if you miss the window, so a missed popup can never stall the table. An attack popup also says when the hit was a CRITICAL; a spell popup says what a successful save does to the number. Per player: this affects your own client only, and it is OFF unless you turn it on.",
+    hint: "Ask before rolling YOUR damage, instead of the automation rolling it for you: a popup with one button and a timer, on your client alone. It covers every roll the machine would have taken — an attack that hits, a save spell like Vicious Mockery or Fireball, and areas like Web. Press it and the dice roll exactly as the automation would have rolled them — same damage, same crit, same everything downstream — and the buzzer rolls for you if you miss the window, so a missed popup can never stall the table. An attack popup also says when the hit was a CRITICAL; a spell popup says what a successful save does to the number. Per player: this affects your own client only, and it is OFF unless you turn it on.",
     scope: "client", config: true, type: Boolean, default: false
+  });
+
+  // The window HAD no setting ("one switch, not two") while the popup was invisible to
+  // everyone but its roller. Walk-4 finding (w) made the wait a TABLE moment — the card runs
+  // the same draining bar for everyone — and a visible clock earns the family's own knob.
+  game.settings.register(MODULE_ID, S.damageTimer, {
+    name: "Damage Roll Timer Seconds",
+    hint: "How long an offered damage roll waits before the module rolls it. 0 waits indefinitely. Expiry ROLLS, never cancels — closing the popup does the same — so the timer only ever decides who pressed the button. The draining bar shows on the roller's popup AND on the card, so the whole table can see the dice everyone is waiting on.",
+    scope: "world", config: true, type: Number, default: 15,
+    range: { min: 0, max: 60, step: 1 }
   });
 
   game.settings.register(MODULE_ID, S.autoApply, {
@@ -293,6 +302,7 @@ Hooks.on("renderSettingsConfig", (app, element) => {
     // the v1.18.0 walk confirmed people find it there, and moving a control the table has just
     // learned costs more than the divider's slight inaccuracy.)
     setEnabled(input(S.playerRollDamage), (autoDamage?.value !== "off") || !!saves?.checked);
+    setEnabled(input(S.damageTimer), (autoDamage?.value !== "off") || !!saves?.checked);
     for ( const key of [S.interruptList, S.blockList, S.holdReveal, S.holdTimer, S.holdSkipFutile,
       S.holdSettle, S.holdApplyEffect] )
       setEnabled(input(key), !!hold?.checked);

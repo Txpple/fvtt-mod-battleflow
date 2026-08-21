@@ -107,14 +107,16 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits) {
     if ( !ctx ) return;
 
     // The dead are skipped everywhere: chips on corpses and questions about them are noise
-    // (the hopeless-hold precedent, applied to payouts).
-    const live = [];
+    // (the hopeless-hold precedent, applied to payouts) — EXCEPT Cleave, whose reminder is
+    // about the attacker's NEXT swing, not the victim: the kill is its signature moment,
+    // and the dead-skip ate it precisely then (walk-4 finding (u)).
+    const struck = [];
     for ( const t of hits ) {
       const actor = await fromUuid(t.uuid);
-      if ( (actor instanceof Actor) && ((actor.system.attributes?.hp?.value ?? 0) > 0) )
-        live.push({ uuid: t.uuid, name: t.name, actor });
+      if ( actor instanceof Actor ) struck.push({ uuid: t.uuid, name: t.name, actor });
     }
-    if ( !live.length ) return;
+    const live = struck.filter(t => (t.actor.system.attributes?.hp?.value ?? 0) > 0);
+    if ( !live.length && (key !== "cleave") ) return;
 
     switch ( key ) {
       case "vex": {
@@ -130,13 +132,15 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits) {
         // A reminder, not a payout (design.md 1.9B amendment): the extra attack, its target
         // and its rolls stay native. Once per combat turn — the option is once per turn, so
         // is the nag; out of combat every hit reminds (the test range has no turns).
+        if ( !struck.length ) return;
         const c = game.combat;
         if ( c?.started ) {
           const stamp = `${c.id}:${c.round}:${c.turn}`;
           if ( cleaveNoticed.get(ctx.attacker.uuid) === stamp ) return;
           cleaveNoticed.set(ctx.attacker.uuid, stamp);
         }
-        return postMasteryNotice(ctx, "cleave", live);
+        // `struck`, not `live` — the corpse still anchors "within 5 feet of" (finding (u)).
+        return postMasteryNotice(ctx, "cleave", struck);
       }
       case "slow": {
         const eligible = live.filter(t => (dealtFor(damageMessage, t.uuid) > 0)

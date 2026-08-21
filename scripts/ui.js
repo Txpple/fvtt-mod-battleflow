@@ -33,6 +33,17 @@ export const livePopups = new Map();
 export const popupKey = (messageId, uuid) => `${messageId}|${uuid}`;
 
 /**
+ * THE CASCADE'S BOOKKEEPING (walk-4 finding (s)): the pile is the standard OS staircase —
+ * a common top-left anchor (the first popup of an empty pile donates its own rendered
+ * position), one title-bar step per slot so every header stays readable, and slots reused
+ * as popups close so a newcomer never lands exactly on a survivor (the depth-count hole).
+ * The anchor dies with the pile.
+ */
+const popupSlots = new Map();       // popup key → staircase slot
+let cascadeAnchor = null;           // {left, top} the staircase grows from
+const CASCADE_STEP = 36;            // ≈ one window header — the full title stays visible
+
+/**
  * Register, render and lifecycle-manage a decision popup — ONE home for the discipline that
  * a popup is a VIEW: whatever closes it (a button, the X, escape, or an answer landing
  * anywhere else) releases the card row in exactly one place, and a failed render releases it
@@ -43,21 +54,40 @@ export async function openManagedPopup(key, message, dialog) {
   const close = dialog.close.bind(dialog);
   dialog.close = async (...args) => {
     livePopups.delete(key);
+    popupSlots.delete(key);
+    if ( !popupSlots.size ) cascadeAnchor = null;   // the staircase dies with its pile
     try { ui.chat?.updateMessage?.(message); } catch(err) { /* row refreshes next render */ }
     return close(...args);
   };
-  // THE CASCADE (design.md §4.3 law 6): count the popups already ON SCREEN before this one
-  // joins the registry — concurrent popups offset ~28px each so a pile never masquerades as
-  // one window (the round-3 sighting: a legitimate Cleave reminder buried under a riposte's
-  // damage offer read as "no popup at all"). Modulo keeps a pathological pile on screen.
-  const depth = [...livePopups.values()].filter(d => d.rendered).length % 8;
+  // THE CASCADE (design.md §4.3 law 6, recut by walk-4 finding (s)): the pile is a QUEUE IN
+  // EVENT ORDER. Layout is the standard staircase — common anchor, smallest free slot, one
+  // header-height step down-right so nothing masquerades as one window (the round-3 burial)
+  // — and Z-ORDER IS CAUSAL ORDER (user ruling): the FIRST moment's popup stays in FRONT,
+  // every later arrival layers BEHIND it, and the player clicks through in the order things
+  // happened. A bash exists because the hit landed; the hit answers first. Modulo keeps a
+  // pathological pile on screen.
+  const used = new Set(popupSlots.values());
+  let slot = 0;
+  while ( used.has(slot) ) slot += 1;
+  popupSlots.set(key, slot);
   livePopups.set(key, dialog);
   try {
     await dialog.render({ force: true });
-    if ( depth ) {
-      const { left, top } = dialog.position ?? {};
-      if ( Number.isFinite(left) && Number.isFinite(top) ) {
-        dialog.setPosition({ left: left + (depth * 28), top: top + (depth * 28) });
+    const { left, top } = dialog.position ?? {};
+    if ( Number.isFinite(left) && Number.isFinite(top) ) {
+      if ( !cascadeAnchor ) cascadeAnchor = { left, top };
+      const step = (slot % 8) * CASCADE_STEP;
+      const want = { left: cascadeAnchor.left + step, top: cascadeAnchor.top + step };
+      if ( (want.left !== left) || (want.top !== top) ) dialog.setPosition(want);
+    }
+    if ( slot ) {
+      // Re-front the elders, deepest first, so slot 0 ends on top and this newcomer sits
+      // at the BACK of the pile — its turn comes when the earlier moments are answered.
+      const elders = [...popupSlots.entries()].filter(([k]) => k !== key)
+        .sort(([, a], [, b]) => b - a);
+      for ( const [k] of elders ) {
+        const d = livePopups.get(k);
+        if ( d?.rendered ) { try { d.bringToFront?.(); } catch(err) { /* fronting is best-effort */ } }
       }
     }
     scheduleBarSync(dialog.element);
@@ -66,6 +96,8 @@ export async function openManagedPopup(key, message, dialog) {
     ui.chat?.updateMessage?.(message);
   } catch(err) {
     livePopups.delete(key);
+    popupSlots.delete(key);
+    if ( !popupSlots.size ) cascadeAnchor = null;
     console.error(`${TITLE} | Could not open the popup — answer from the card.`, err);
   }
 }
@@ -422,7 +454,27 @@ function revealLine(reveal, target) {
 // their registration order, which is their order in this file: the hold row (here), then
 // the mastery row + Topple affordance, then the receipt rows. Moving a section moves every
 // card's layout — if the file ever splits by phase, this ordering must be made explicit.
+// The damage-offer bar rides THIS registration (above the hold rows) rather than its own —
+// a new registration would move the pinned hook order for one small row.
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  // THE TABLE'S VIEW OF AN OFFERED ROLL (walk-4 finding (w)): while a damage popup waits on
+  // its roller, every client shows the same draining bar on the card. Gated on the deadline
+  // still being live: a roller who vanished mid-window (the documented F5 limit) leaves a
+  // drained bar until the next render quietly drops the row — never a stale "waiting" card.
+  const offer = message.getFlag(MODULE_ID, "damageOffer");
+  if ( (offer?.status === "pending") && (offer.deadline > Date.now()) ) {
+    const row = document.createElement("div");
+    row.className = "battleflow-damage-offer";
+    row.style.margin = "0.4rem 0 0";
+    row.innerHTML = bfCard({
+      eyebrow: "Damage", tone: "pending",
+      title: "Waiting on the dice",
+      subtitle: `${message.getAssociatedActor()?.name ?? "The roller"} has the damage roll`
+    }) + momentBarHTML(offer, "to roll");
+    html.querySelector(".message-content")?.appendChild(row);
+    scheduleBarSync(row);
+  }
+
   const hold = message.getFlag(MODULE_ID, "hold");
   if ( !hold?.targets?.length ) return;
 
@@ -573,7 +625,9 @@ async function castReaction(target) {
   // picker inside it spends the moment this feature exists to protect. The system picks the
   // lowest available slot, which is what a Shield cast wants. A player who needs to upcast
   // casts from their sheet instead — that is detected identically (design.md §5).
-  await activity.use({}, { configure: false }, {});
+  // subsequentActions:false — the (v) guard: a reaction whose activity carries a damage part
+  // must not chain dnd5e's own follow-up roll; the module drives everything after the use.
+  await activity.use({ subsequentActions: false }, { configure: false }, {});
 }
 
 /**

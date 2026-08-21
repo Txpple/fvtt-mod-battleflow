@@ -234,7 +234,7 @@ async function resolvePrecision(message) {
     // 1. REALLY use it — the system consumes the pool (P2: use() consumes, posts a card,
     //    rolls nothing). Recording "used" without using shipped a lie once (ui.js:407);
     //    never again.
-    await activity.use({}, { configure: false }, {
+    await activity.use({ subsequentActions: false }, { configure: false }, {
       data: { flags: { dnd5e: { originatingMessage: message.id } } }
     });
 
@@ -540,7 +540,10 @@ async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {})
       const item = actor.items.get(reactor.itemId);
       const activity = item?.system.activities?.contents?.find(a => a.id === reactor.activityId);
       if ( !activity ) return;
-      await activity.use({}, { configure: false }, {
+      //    ⚠ subsequentActions:false or dnd5e follows the use by rolling the maneuver's own
+      //    damage activity — a native d8 config dialog parked over the whole resolution
+      //    (walk-4 finding (v)). Consumption and the card are all this step wants.
+      await activity.use({ subsequentActions: false }, { configure: false }, {
         data: { flags: { [MODULE_ID]: { riposteUse: message.id } } }
       });
       if ( inRunningCombat(actor) ) void actor.setFlag(MODULE_ID, "reactionSpent", true);
@@ -954,7 +957,7 @@ async function resolveBashOffer(message) {
       token.setTarget(true, { releaseOthers: true });
     }
     try {
-      await activity.use({}, { configure: false }, {
+      await activity.use({ subsequentActions: false }, { configure: false }, {
         data: { flags: { [MODULE_ID]: { bashFor: message.id } } }
       });
       if ( inRunningCombat(attacker) ) {

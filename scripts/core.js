@@ -11,6 +11,7 @@ export const S = {
   autoDamage: "autoDamage",
   dramaticBeat: "dramaticBeat",
   playerRollDamage: "playerRollDamage",
+  damageTimer: "damageTimer",
   autoApply: "autoApply",
   requireTarget: "requireTarget",
   centerRollDialogs: "centerRollDialogs",

@@ -124,8 +124,10 @@ export async function rollDamageForSave(activity, card) {
  * item small. If it ever bites at the table, that is the follow-up; the GM rolls it by hand.
  * ------------------------------------------------------------------------------------------- */
 
-/** The family's window (hold / save / concentration all 15s). One switch, not two. */
-const PLAYER_ROLL_WINDOW = 15;
+/** The family's window — `damageTimer` since walk-4 finding (w) (default 15 with the rest
+ * of the family; 0 waits indefinitely and draws no bar). It graduated from a constant when
+ * the wait became visible to the whole table, not just the roller. */
+const playerRollWindow = () => Math.max(0, Number(setting(S.damageTimer)) || 0);
 
 /**
  * The crit badge. Loud on purpose and NEVER shown on a guess — see the single source below.
@@ -159,7 +161,17 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
   const open = livePopups.get(key);
   if ( open ) { open.bringToFront?.(); return; }
 
-  const deadline = Date.now() + (PLAYER_ROLL_WINDOW * 1000);
+  const window = playerRollWindow();
+  const deadline = window ? Date.now() + (window * 1000) : null;
+
+  // THE TABLE'S VIEW (walk-4 finding (w)): the wait is stamped on the card, so every client
+  // renders the same draining bar the roller's popup runs — "we are waiting on dice" stops
+  // being knowledge private to the one holding them. The roller authors this message, so the
+  // write is theirs to make; failing to stamp must never block the offer itself.
+  if ( deadline ) {
+    void message.setFlag(MODULE_ID, "damageOffer", { status: "pending", deadline, window })
+      .catch(() => { /* the popup still offers; only the table's bar is lost */ });
+  }
 
   // Idempotent by construction: the button, the dismissal and the buzzer all come through here,
   // and only the first one through rolls. Everything else is a no-op, which is why none of the
@@ -169,13 +181,17 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
     if ( fired ) return;
     fired = true;
     void roll();
+    // The moment resolves: fold the card's bar everywhere. Merge-write keeps the deadline
+    // for the record; the row gates on status alone.
+    if ( deadline ) void message.setFlag(MODULE_ID, "damageOffer", { status: "done" })
+      .catch(() => { /* a stale bar drains to empty and the next render drops it */ });
   };
 
   const dialog = new foundry.applications.api.DialogV2({
     window: { title: windowTitle, icon: windowIcon },
     position: { width: 420 },
     content: bfCard({ tone: "pending", ...card })
-      + momentBarHTML({ deadline, window: PLAYER_ROLL_WINDOW }, "to roll"),
+      + (deadline ? momentBarHTML({ deadline, window }, "to roll") : ""),
     buttons: [{
       action: "roll",
       label: buttonLabel,
@@ -194,7 +210,8 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
 
   // The buzzer. Unconditional on purpose: it does not test livePopups, so it still rolls even
   // if the popup never rendered or was closed by something this function never hears about.
-  setTimeout(() => { void dialog.close(); }, PLAYER_ROLL_WINDOW * 1000);
+  // A 0 window arms nothing — the popup waits for a human, and only the X or the button roll.
+  if ( window ) setTimeout(() => { void dialog.close(); }, window * 1000);
 
   await openManagedPopup(key, message, dialog);
 
@@ -205,7 +222,7 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
 }
 
 /**
- * Ask the ATTACKER to roll their own damage, with a 15-second buzzer that rolls it for them.
+ * Ask the ATTACKER to roll their own damage, with a `damageTimer` buzzer that rolls it for them.
  */
 export async function offerDamageRoll(activity, attackMessage) {
   // ⚠ ONE SOURCE FOR THE CRIT, and it is the roll's own. `rollDamageForAttack` reads this exact

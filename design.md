@@ -240,14 +240,14 @@ partystash).
 > | 11 | Precision offer | `precision` · attack msg | roller's, on a clean miss | canAnswerFor(attacker) | Use / Pass | flag write (the roller owns the msg) | use → die → verdicts → re-drive | pass (elect) |
 > | 12 | Riposte offer | `riposte` · enemy's attack msg | elect, on a melee miss | canAnswerFor per reactor | Riposte / Pass + weapon select | flag write · §4.1 `riposteAnswer` (trusted drive) | drive a real attack; hit celebrates, miss announces | decline (elect) |
 > | 13 | Bash offer | `bashOffer` · attacker's attack msg | attacker's, on a melee hit | canAnswerFor(attacker) | Use / Pass + target select | flag write | drive the feat's own save activity | pass (elect) |
-> | 14 | Damage offer (attack / save) | none — locality, no card | roller's / caster's client | none: the popup is local | Roll | the one `fire` thunk (X and buzzer roll too) | rollDamageForAttack / rollDamageForSave | roll (local 15s) |
+> | 14 | Damage offer (attack / save) | `damageOffer` · attack msg / usage card (w) | roller's / caster's client | the popup is local; THE CARD BAR IS PUBLIC — every client renders the wait | Roll | the one `fire` thunk (X and buzzer roll too; the roll folds the flag to done) | rollDamageForAttack / rollDamageForSave | roll (local `damageTimer`, default 15s; 0 waits) |
 >
 > **THE SPINE (ui.js)** — the mechanisms every row above composes; each was extracted from
 > the machines that had drifted apart around it:
 >
 > | Primitive | What it owns |
 > | --- | --- |
-> | `openManagedPopup` | the single door: lifecycle, row-release on close, **the cascade** — concurrent popups offset ~28px so a pile never masquerades as one window (law 6) |
+> | `openManagedPopup` | the single door: lifecycle, row-release on close, **the cascade** — the staircase queue in event order (law 6): common anchor, 36px slots reused as they free, elders re-fronted so a newcomer joins the BACK of the pile |
 > | `openMomentPopup` | the popper discipline: canAnswerFor gate, `popupKey`, front-a-live-popup-on-recall, DialogV2 construction, notice auto-close. `gate: false` skips canAnswerFor (locality popups); a null subject with the gate on is refused |
 > | `shownMoments` + `popupKey` | ONE shown-latch registry — **the latch key IS the popup key** — with ONE delete-sweep in ui.js; machines un-latch through the same key when their queue advances |
 > | `momentBarHTML` | the bar as a pure function of `{deadline, window}` — no status contract to forget (finding (n) is what the hidden contract cost). `holdBarHTML` remains the status-gated wrapper for whole flags |
@@ -274,7 +274,32 @@ partystash).
 > 5. **The celebration (l):** every attack-damage popup celebrates the hit — "You hit! —
 >    roll damage"; crits louder on the one yellow badge; a riposte named as itself (p).
 >    The save-damage popup keeps its stakes-line identity (no attack roll to celebrate).
-> 6. **The stack is visible (q):** openManagedPopup cascades concurrent popups.
+> 6. **The stack is a queue in event order (q, recut by walk-4 (s)):** concurrent popups
+>    form the standard staircase — common top-left anchor, smallest free slot, one
+>    header-height step (36px) down-right, slots reused as popups close — and Z-ORDER IS
+>    CAUSAL ORDER: the FIRST moment's popup stays in front, later arrivals layer behind,
+>    so the player clicks through in the order things happened (user ruling verbatim:
+>    *"the ux has to be the player clicks through in the order of events"* — a bash
+>    exists because the hit landed; the hit answers first).
+>
+> **Amended 2026-08-20 (v1.19.0 walk 4):** four fixes, all suite-pinned:
+> - **(s) law 6 recut** — the cascade became the staircase queue above (maneuvers Q1–Q3
+>   pin anchor, step, slot reuse and z-order). Walk sightings (r) ("the dragon got some
+>   of Thomas's Shield Master") and (t) ("the bash never knocked the dummy prone") were
+>   both this pile misreading — the flags were clean both times; the fix is the queue,
+>   not the machines.
+> - **(u) the dead-skip spares Cleave** — resolveHitMastery skips corpses for every
+>   payout EXCEPT cleave's reminder: the kill is its signature moment and the corpse
+>   still anchors "within 5 feet of" (effects 15d2). Once-per-combat-turn still governs.
+> - **(v) module-driven `use` passes `subsequentActions: false` — all four sites** — a
+>   maneuver whose activity carries damage otherwise chains dnd5e's own follow-up roll
+>   and orphans a native config dialog over the table (maneuvers R2h). Consumption and
+>   the card are all those steps want; the module drives everything after.
+> - **(w) the damage offer graduated to a table moment** — map row 14: the `damageOffer`
+>   flag, the card running the public bar (the pairing rule reaches the last private
+>   wait), the window now `damageTimer` (world, default 15; 0 waits indefinitely).
+>   Expiry still ROLLS — the timer only ever decides who pressed the button
+>   (probe-player-damage 10/11).
 
 ---
 
