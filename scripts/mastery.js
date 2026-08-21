@@ -629,7 +629,7 @@ const NOTICE_TEXT = {
     // unfollowable and, with auto-damage on, the machine rolled `1dX+mod` before any human
     // could intervene. The card now offers the ARM instead: press it and the next damage
     // roll with this weapon drops the flat ability-modifier part itself.
-    lines: [`One extra attack with ${ctx.weapon.name} against a second creature within 5 feet of ${names} — once on your turn, and its damage takes no ability modifier. Press "Arm the Cleave" and the next ${ctx.weapon.name} damage roll drops the modifier for you; Dismiss to resolve it yourself.`]
+    lines: [`One extra attack with ${ctx.weapon.name} against a second creature within 5 feet of ${names} — once on your turn, and its damage takes no ability modifier. Press "Arm the Cleave" and the next ${ctx.weapon.name} damage roll drops the modifier for you; Dismiss to resolve it yourself — or if you've already Cleaved this turn.`]
   })
 };
 
@@ -722,7 +722,8 @@ async function showMasteryNotice(message, notice) {
 
 const CLEAVE_ARM_TTL_MS = 60_000;   // out-of-combat only; in combat the turn stamp governs
 
-const combatStamp = () => {
+/** Exported since the walk's (g): the bash offer's once-per-turn discipline reuses it. */
+export const combatStamp = () => {
   const c = game.combat;
   return c?.started ? `${c.id}:${c.round}:${c.turn}` : null;
 };
@@ -1087,14 +1088,13 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       // surface aims at the RIGHT actor: a popup on the decider's client (v1.6.0 — "the
       // cards are difficult to follow"), with the card's Roll button as its recall.
       if ( topple.dc && canAnswerFor(actor) ) {
-        // The GM's unsolicited popups are non-player-owned targets only (v1.12.0,
-        // finding ④ — the save machine's rule, and the topple demand is a save): a
-        // player-owned target whose owner is offline rides the saveTimer buzzer; the
-        // Roll button below recalls deliberately, and the GM prone button is the paper
-        // backstop either way.
-        const gmQuiet = game.user.isGM && !!actor?.hasPlayerOwner;
+        // v1.19.x finding (h): canAnswerFor alone routes — the extra `isGM &&
+        // hasPlayerOwner` quiet was mutually exclusive with its active-owner check, so a
+        // solo-GM room watched the buzzer eat every player-owned save ("failed (timer)",
+        // twice, in the walk's log). The v1.12.0 taste is intact: an ONLINE owner still
+        // excludes the GM inside canAnswerFor; only the nobody-home case now pops.
         const shownKey = `${message.id}|${t.uuid}`;
-        if ( !gmQuiet && !shownToppleAsks.has(shownKey) ) {
+        if ( !shownToppleAsks.has(shownKey) ) {
           shownToppleAsks.add(shownKey);
           void showTopplePopup(message, topple, t);
         }

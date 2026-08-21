@@ -7,7 +7,7 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core
 import { hitTargets, modeAllows } from "./shared.js";
 import { canAnswerFor, inRunningCombat } from "./hold.js";
 import { livePopups, popupKey, openManagedPopup, bfCard, holdBarHTML, scheduleBarSync } from "./ui.js";
-import { armAskTimer, disarmAskTimer } from "./mastery.js";
+import { armAskTimer, disarmAskTimer, combatStamp } from "./mastery.js";
 // Safe statically (the saves.js:12 argument): the entry evaluates auto-damage.js at :90 and
 // this file at :97, so nothing here can reorder auto-damage's registrations. Re-checked with
 // check-hook-order; do not move this file's entry position without re-running it.
@@ -338,16 +338,22 @@ const riposteInFlight = new Set();
 const riposteDie = new Map();
 const RIPOSTE_DIE_TTL_MS = 60_000;
 
-/** The reactor's melee options — equipped weapons with a melee attack activity (P3: the
- * discriminator is activity.attack.type.value). */
+/** The reactor's melee options — every melee weapon CARRIED, not just equipped (v1.19.x
+ * finding (i)): 2024's weapon-swap rides any attack, so equipped-state bookkeeping must
+ * not hide the greatsword or eat the offer. Equipped first, stowed ones say so, and the
+ * sheet is never mutated — the resolved card names what swung; the bookkeeping stays
+ * human. (P3: the discriminator is activity.attack.type.value.) */
 function meleeOptions(actor) {
   const out = [];
-  for ( const item of actor.items.filter(i => (i.type === "weapon") && i.system.equipped) ) {
+  for ( const item of actor.items.filter(i => i.type === "weapon") ) {
     for ( const a of (item.system.activities?.contents ?? []) ) {
       if ( (a.type === "attack") && (a.attack?.type?.value === "melee") )
-        out.push({ itemId: item.id, activityId: a.id, label: item.name });
+        out.push({ itemId: item.id, activityId: a.id, name: item.name,
+          equipped: !!item.system.equipped,
+          label: item.name + (item.system.equipped ? "" : " (stowed)") });
     }
   }
+  out.sort((a, b) => Number(b.equipped) - Number(a.equipped));
   return out;
 }
 
@@ -616,7 +622,13 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
       }
     }
     riposteDie.delete(actor.uuid);   // one-shot, consumed
-    config.rolls.push({
+    // The die folds INTO the base roll (v1.19.x finding (d) — the walk: it must ride the
+    // snap-back's own roll, one dice group, one total; a pushed entry rendered as its own
+    // window). A base part crit-doubles too — a riposte crit doubling the superiority die
+    // is the 2024 rule. The typed-entry push stays only as the never-observed fallback.
+    const base = (config.rolls ?? []).find(r => r.base === true);
+    if ( base ) base.parts = [...(base.parts ?? []), armed.formula];
+    else config.rolls.push({
       data: config.rolls[0]?.data ?? {},
       parts: [armed.formula],
       options: { type: armed.type, types: armed.type ? [armed.type] : [] }
@@ -651,7 +663,8 @@ async function showRipostePopup(message, flag, reactor) {
       ?? preferred?.itemId ?? null;
     return answerRiposte(message, reactor.uuid, kind, {
       weaponId: chosenId,
-      weaponName: options.find(o => o.itemId === chosenId)?.label ?? preferred?.label ?? null
+      // The clean name, never the display label — "(stowed)" is popup dressing, not card record.
+      weaponName: options.find(o => o.itemId === chosenId)?.name ?? preferred?.name ?? null
     });
   };
   dialog = new foundry.applications.api.DialogV2({
@@ -661,7 +674,7 @@ async function showRipostePopup(message, flag, reactor) {
       img: reactor.itemImg, eyebrow: `Maneuver — ${reactor.itemName}`, tone: "pending",
       title: `${flag.attackerName} missed you`,
       subtitle: "Spend your reaction and a superiority die: strike back, the die joins the damage.",
-      lines: (options.length === 1) ? [`Riposte with <strong>${preferred?.label ?? "your weapon"}</strong> — your one equipped melee weapon.`] : []
+      lines: (options.length === 1) ? [`Riposte with <strong>${preferred?.label ?? "your weapon"}</strong> — your one melee weapon.`] : []
     }) + selectHTML + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "riposte", label: preferred && (options.length === 1) ? `Riposte with ${preferred.label}` : "Riposte",
@@ -686,6 +699,11 @@ async function showRipostePopup(message, flag, reactor) {
  * ========================================================================================== */
 
 async function postHewReminder(attacker, featItem, weapon, why) {
+  // The card is the durable record; the POPUP is the moment (walk finding (c), the user's
+  // design law verbatim: "our design language is to give players popup notifications on
+  // easy things to forget" — the first walk's crit card posted and was scrolled past).
+  // The notice family's shape exactly: OK-only, drain bar, auto-close at the deadline.
+  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: attacker }),
     content: bfCard({
@@ -693,9 +711,58 @@ async function postHewReminder(attacker, featItem, weapon, why) {
       title: `Hew — ${attacker.name} can attack again`,
       subtitle: why,
       lines: [`One attack with <strong>${weapon?.name ?? "the same weapon"}</strong> as a Bonus Action. Swing it from the sheet; nothing is automated.`]
-    })
+    }),
+    flags: { [MODULE_ID]: { hewNotice: {
+      attackerUuid: attacker.uuid, itemName: featItem.name, itemImg: featItem.img,
+      weaponName: weapon?.name ?? null, why,
+      ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
+    } } }
   });
 }
+
+/** Popups this client has shown for Hew reminders — a re-render never stacks a second. */
+const shownHew = new Set();
+
+/** The Hew popup — the mastery notice's OK-only shape on the fold's own namespace. */
+async function showHewPopup(message, notice) {
+  const attacker = (() => { try { return fromUuidSync(notice.attackerUuid); } catch { return null; } })();
+  if ( !canAnswerFor(attacker) ) return;
+  const key = popupKey(message.id, "hew");
+  const open = livePopups.get(key);
+  if ( open ) { open.bringToFront?.(); return; }
+  const dialog = new foundry.applications.api.DialogV2({
+    window: { title: `Hew — ${attacker?.name ?? ""}`, icon: "fa-solid fa-axe-battle" },
+    position: { width: 420 },
+    content: bfCard({
+      img: notice.itemImg, eyebrow: `Feat — ${notice.itemName}`, tone: "good",
+      title: `Hew — ${attacker?.name ?? "you"} can attack again`,
+      subtitle: notice.why,
+      lines: [`One attack with <strong>${notice.weaponName ?? "the same weapon"}</strong> as a Bonus Action. Swing it from the sheet; nothing is automated.`]
+    }) + (notice.deadline ? holdBarHTML({ status: "pending", deadline: notice.deadline, window: notice.window }, "reminder") : ""),
+    buttons: [{ action: "ok", label: "OK", default: true }],
+    rejectClose: false
+  });
+  if ( notice.deadline ) setTimeout(() => {
+    if ( livePopups.get(key) === dialog ) void dialog.close();
+  }, Math.max(0, notice.deadline - Date.now()));
+  await openManagedPopup(key, message, dialog);
+}
+
+/** The reminder pops while the moment is live — the notice family's render discipline. */
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  const notice = message.getFlag(MODULE_ID, "hewNotice");
+  if ( !notice ) return;
+  if ( !notice.deadline || (notice.deadline <= Date.now()) ) return;
+  const row = document.createElement("div");
+  row.innerHTML = holdBarHTML({ status: "pending", deadline: notice.deadline, window: notice.window }, "reminder");
+  html.querySelector(".message-content")?.appendChild(row);
+  scheduleBarSync(row);
+  const attacker = (() => { try { return fromUuidSync(notice.attackerUuid); } catch { return null; } })();
+  if ( canAnswerFor(attacker) && !shownHew.has(message.id) ) {
+    shownHew.add(message.id);
+    void showHewPopup(message, notice);
+  }
+});
 
 /** The crit trigger — the roller's own client (the precision stamp's locality). */
 Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
@@ -753,6 +820,164 @@ async function maybeHewKillReminder(damageMessage) {
   } catch(err) {
     console.error(`${TITLE} | Hew kill reminder failed.`, err);
   }
+}
+
+/* =============================================================================================
+ * THE BASH OFFER (v1.19.x, walk finding (g)) — the HIT is the trigger. The first walk's
+ * item 8 drove Shield Bash from the sheet; the table hit with the sword and expected the
+ * offer ("shield bash never triggered a popup attacking combat dummy"). RAW agrees: "if
+ * you attack... and hit with a Melee weapon, you can immediately bash." A melee weapon hit
+ * by a listed `bash` carrier stamps a Use/Pass offer on the attacker's OWN attack message
+ * (their message, so the answer writes directly — the precision locality); accepting aims
+ * at the struck target and drives the feat's save activity, and everything downstream (the
+ * demand, the failure's Prone-or-push choice) is the machinery that already exists. Once
+ * per turn in combat (the feat's own clause, the Cleave stamp discipline); out of combat
+ * every hit offers — "we don't have timers and combat rounds yet".
+ * ========================================================================================== */
+
+const bashOfferTimers = new Map();
+const shownBashOffers = new Set();
+const bashOfferInFlight = new Set();
+
+Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
+  try {
+    if ( !subject || (subject.type !== "attack") ) return;
+    if ( subject.item?.type !== "weapon" ) return;               // feat and spell attacks never bash
+    if ( subject.attack?.type?.value !== "melee" ) return;
+    const attacker = subject.actor;
+    const message = rolls?.[0]?.parent;
+    if ( !attacker || !(message instanceof ChatMessage) ) return;
+    if ( message.getFlag(MODULE_ID, "bashOffer") ) return;       // never re-stamp
+    if ( message.getFlag(MODULE_ID, "riposteFor") ) return;      // a driven attack never chains the offer
+    if ( !modeAllows(attacker) ) return;
+    const found = foldEntryFor(attacker, "bash");
+    if ( !found ) return;
+    const activity = found.item.system.activities?.contents?.find(a => a.type === "save");
+    if ( !activity ) return;
+    const used = attacker.getFlag(MODULE_ID, "bashUsed");
+    if ( used?.stamp && (used.stamp === combatStamp()) ) return; // once on each of your turns
+    const hits = hitTargets(message);
+    if ( !hits.length ) return;
+    const living = [];
+    for ( const t of hits ) {
+      const a = await fromUuid(t.uuid).catch(() => null);
+      if ( !(a instanceof Actor) ) continue;
+      if ( a.statuses?.has?.("dead") ) continue;
+      if ( (a.type === "npc") && ((a.system.attributes?.hp?.value ?? 0) <= 0) ) continue;
+      living.push({ uuid: t.uuid, name: t.name });
+    }
+    if ( !living.length ) return;                                // a corpse cannot be bashed (the dead gate)
+    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    await message.setFlag(MODULE_ID, "bashOffer", {
+      status: "pending", answer: null,
+      itemId: found.item.id, activityId: activity.id,
+      itemName: found.item.name, itemImg: found.item.img,
+      attackerUuid: attacker.uuid, targets: living,
+      ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
+    });
+    armBashOfferTimer(message);
+  } catch(err) {
+    console.error(`${TITLE} | Bash offer stamp failed.`, err);
+  }
+});
+
+const armBashOfferTimer = message =>
+  armAskTimer(bashOfferTimers, message, "bashOffer", live => answerBashOffer(live, "pass", { timedOut: true }));
+
+/** Has the offer's driven usage already happened? The provenance flag is the receipt. */
+const bashDriven = messageId => game.messages.contents.some(m =>
+  m.getFlag(MODULE_ID, "bashFor") === messageId);
+
+async function answerBashOffer(message, answer, { targetUuid = null, timedOut = false } = {}) {
+  let claimed = false;
+  await queueFlagWrite(message, "bashOffer", current => {
+    if ( (current.status !== "pending") || current.answer ) return;
+    current.answer = answer;
+    current.answeredAt = Date.now();   // the crash-resume horizon
+    if ( targetUuid ) current.targetUuid = targetUuid;
+    if ( timedOut ) current.timedOut = true;
+    current.status = "resolved";
+    claimed = true;
+  });
+  if ( !claimed || (answer !== "use") ) return;
+  await resolveBashOffer(message);
+}
+
+/** The accept path: aim at the struck target, drive the feat's OWN save activity — the
+ * demand and the Prone-or-push choice are the existing machinery from here. */
+async function resolveBashOffer(message) {
+  if ( bashOfferInFlight.has(message.id) ) return;
+  bashOfferInFlight.add(message.id);
+  try {
+    const flag = message.getFlag(MODULE_ID, "bashOffer");
+    if ( !flag || (flag.answer !== "use") ) return;
+    if ( bashDriven(message.id) ) return;                        // idempotent — the usage exists
+    const attacker = await fromUuid(flag.attackerUuid).catch(() => null);
+    const item = attacker?.items?.get(flag.itemId);
+    const activity = item?.system.activities?.get?.(flag.activityId)
+      ?? item?.system.activities?.contents?.find(a => a.id === flag.activityId);
+    if ( !(attacker instanceof Actor) || !activity ) return;
+    const targetUuid = flag.targetUuid ?? flag.targets?.[0]?.uuid ?? null;
+    const token = canvas.tokens?.placeables?.find(t => t.actor?.uuid === targetUuid);
+    const priorTargets = [...game.user.targets].map(t => t.id);
+    if ( token ) {
+      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      token.setTarget(true, { releaseOthers: true });
+    }
+    try {
+      await activity.use({}, { configure: false }, {
+        data: { flags: { [MODULE_ID]: { bashFor: message.id } } }
+      });
+      if ( inRunningCombat(attacker) ) {
+        const stamp = combatStamp();
+        if ( stamp ) void attacker.setFlag(MODULE_ID, "bashUsed", { stamp });
+      }
+    } finally {
+      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      for ( const id of priorTargets ) canvas.tokens?.get(id)?.setTarget(true, { releaseOthers: false });
+    }
+  } catch(err) {
+    console.error(`${TITLE} | Bash offer resolution failed.`, err);
+  } finally {
+    bashOfferInFlight.delete(message.id);
+  }
+}
+
+/** The Use/Pass popup — a target select only when the swing struck more than one. */
+async function showBashOfferPopup(message, flag) {
+  const attacker = (() => { try { return fromUuidSync(flag.attackerUuid); } catch { return null; } })();
+  if ( !canAnswerFor(attacker) ) return;
+  const key = popupKey(message.id, "bashoffer");
+  const open = livePopups.get(key);
+  if ( open ) { open.bringToFront?.(); return; }
+  const options = flag.targets ?? [];
+  const selectHTML = (options.length > 1) ? `
+    <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
+      <label style="flex:1;font-size:var(--font-size-12,12px);">Bash</label>
+      <select name="bf-bash-target" style="flex:1;min-width:0;">${options
+        .map(o => `<option value="${o.uuid}">${o.name}</option>`).join("")}</select>
+    </div>` : "";
+  let dialog;
+  const answer = kind => answerBashOffer(message, kind, {
+    targetUuid: dialog?.element?.querySelector('select[name="bf-bash-target"]')?.value
+      ?? options[0]?.uuid ?? null
+  });
+  dialog = new foundry.applications.api.DialogV2({
+    window: { title: `${flag.itemName} — ${attacker?.name ?? ""}`, icon: "fa-solid fa-shield-halved" },
+    position: { width: 440 },
+    content: bfCard({
+      img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`, tone: "pending",
+      title: `${flag.itemName} — bash ${options.length === 1 ? options[0].name : "the target"}?`,
+      subtitle: "The hit lands — force the Strength save: Prone or the 5-foot push on a failure. Once on your turn.",
+      lines: []
+    }) + selectHTML + holdBarHTML(flag, "to answer"),
+    buttons: [
+      { action: "use", label: `Use ${flag.itemName}`, default: true, callback: () => answer("use") },
+      { action: "pass", label: "Pass", callback: () => answer("pass") }
+    ],
+    rejectClose: false
+  });
+  await openManagedPopup(key, message, dialog);
 }
 
 /* =============================================================================================
@@ -863,6 +1088,47 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     }
     html.querySelector(".message-content")?.appendChild(row);
   }
+
+  // --- Bash offer: one row on the attacker's own attack card (finding (g)) -----------------
+  const b = message.getFlag(MODULE_ID, "bashOffer");
+  if ( b ) {
+    const row = document.createElement("div");
+    row.className = "battleflow-maneuver";
+    const pending = b.status === "pending";
+    row.innerHTML = bfCard({
+      img: b.itemImg, eyebrow: `Maneuver — ${b.itemName}`,
+      tone: pending ? "pending" : (b.answer === "use" ? "good" : "neutral"),
+      title: pending ? `${b.itemName} — offered on the hit`
+        : (b.answer === "use" ? `${b.itemName} — used` : `${b.itemName} — passed${b.timedOut ? " (timer)" : ""}`),
+      subtitle: (b.targets ?? []).map(t => t.name).join(", ")
+    }) + (pending ? holdBarHTML(b, "to answer") : "");
+    html.querySelector(".message-content")?.appendChild(row);
+    if ( pending ) {
+      scheduleBarSync(row);
+      armBashOfferTimer(message);
+      const attacker = (() => { try { return fromUuidSync(b.attackerUuid); } catch { return null; } })();
+      if ( canAnswerFor(attacker) && !b.answer ) {
+        if ( !shownBashOffers.has(message.id) ) {
+          shownBashOffers.add(message.id);
+          void showBashOfferPopup(message, b);
+        }
+        const recall = document.createElement("button");
+        recall.type = "button";
+        recall.textContent = "Answer";
+        Object.assign(recall.style, { width: "auto", margin: "0.25rem 0 0", padding: "0 0.6rem" });
+        recall.addEventListener("click", () => {
+          void showBashOfferPopup(message, message.getFlag(MODULE_ID, "bashOffer"));
+        });
+        row.appendChild(recall);
+      }
+    }
+    // Crash-resume, elect-owned, the precision block's 20s horizon: an accepted offer whose
+    // driving client died is answer="use" with no driven usage in the log.
+    if ( (b.answer === "use") && isActiveGM() && b.answeredAt
+      && (Date.now() - b.answeredAt > 20_000) && !bashDriven(message.id) ) {
+      void resolveBashOffer(message);
+    }
+  }
 });
 
 // Every client closes answered popups; the timers disarm when nothing is pending.
@@ -885,11 +1151,20 @@ Hooks.on("updateChatMessage", message => {
     if ( !(r.reactors ?? []).some(x => !x.answer) ) disarmRiposteTimer(message.id);
     else armRiposteTimer(message);
   }
+  const b = message.getFlag(MODULE_ID, "bashOffer");
+  if ( b ) {
+    const dialog = livePopups.get(popupKey(message.id, "bashoffer"));
+    if ( dialog && ((b.status !== "pending") || b.answer) ) void dialog.close();
+    if ( b.status !== "pending" ) disarmAskTimer(bashOfferTimers, message.id);
+  }
 });
 
 Hooks.on("deleteChatMessage", message => {
   disarmAskTimer(precisionTimers, message.id);
+  disarmAskTimer(bashOfferTimers, message.id);
   disarmRiposteTimer(message.id);
   shownPrecision.delete(message.id);
+  shownBashOffers.delete(message.id);
+  shownHew.delete(message.id);
   for ( const key of shownRiposte ) if ( key.startsWith(`${message.id}|`) ) shownRiposte.delete(key);
 });

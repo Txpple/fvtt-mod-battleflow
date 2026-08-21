@@ -171,6 +171,13 @@ async function stampSaveDemand(activity, message, results) {
     const onSave = activity.damage?.onSave ?? "half";
     const saveModulated = !!activity.damage?.parts?.length && (onSave !== "full");
 
+    // v1.19.x finding (f): the Interpose gamble is DECLARED BEFORE THE ROLL (the user's
+    // order-of-operations ruling, and the feat's own tense) — eligibility is read NOW on
+    // the casting client and the choice stamps WITH the demand, so its popup precedes the
+    // save ask (the ask defers below while a choice pends).
+    const interposeChoices = (saveModulated && (onSave === "half") && abilities.includes("dex")
+      && setting(S.autoApply)) ? await interposeChoicesFor(targets) : {};
+
     const window = Math.max(0, Number(setting(S.saveTimer)) || 0);
     const awaiting = !targets.length; // template-shaped, area not placed yet (the gate above)
     await message.setFlag(MODULE_ID, "saves", {
@@ -194,7 +201,8 @@ async function stampSaveDemand(activity, message, results) {
       // Per-target state is an ARRAY with uuid fields — never a uuid-keyed map (the dotted
       // key expansion ground truth).
       targets: targets.map(t => ({ uuid: t.uuid, name: t.name,
-        done: false, outcome: null, total: null, rollMessageId: null }))
+        done: false, outcome: null, total: null, rollMessageId: null,
+        ...(interposeChoices[t.uuid] ? { choice: interposeChoices[t.uuid] } : {}) }))
     });
 
     // ⑯'s companion: with the card's Damage button hidden, the machine rolls the spell's
@@ -491,6 +499,13 @@ async function refreshDemandFromTemplates(card) {
       // area never joins the demand — same filter, same predicate, same user call.
       .filter(saveDemandable)
       .map(c => ({ ...c, done: false, outcome: null, total: null, rollMessageId: null }));
+    // The Interpose gamble reaches adoption too (finding (f)): an eligible shield-bearer
+    // the area delivers late gets the same pre-roll offer as a snapshot target.
+    if ( fresh.length && merged.hasDamage && (merged.damageOnSave === "half")
+      && (merged.abilities ?? []).includes("dex") && setting(S.autoApply) ) {
+      const choices = await interposeChoicesFor(fresh);
+      for ( const f of fresh ) if ( choices[f.uuid] ) f.choice = choices[f.uuid];
+    }
     const next = [...done, ...keep, ...fresh];
     if ( !next.length ) return; // a waiting demand keeps waiting; a populated one never strands
     const same = (merged.targets.length === flag.targets.length) && flag.templated
@@ -835,34 +850,41 @@ Hooks.on("createChatMessage", message => {
 const saveChoiceTimers = new Map();
 const shownSaveChoiceAsks = new Set();
 
-/** What choice, if any, this verdict opens — null for almost every save in the game. */
-async function saveChoiceSpec(card, flag, entry) {
+/** Interpose eligibility at DEMAND time (finding (f)): the listed feat on the saver, a
+ * shield in hand, the Reaction free — read where the demand stamps, popup before the roll. */
+async function interposeChoicesFor(targets) {
   const { foldEntryFor, equippedShield } = await import("./maneuvers.js");
-  if ( entry.outcome === "saved" ) {
-    if ( !setting(S.autoApply) ) return null;   // "no damage" is only honest when the module applies
-    if ( !flag.hasDamage || (flag.damageOnSave !== "half") ) return null;
-    if ( !(flag.abilities ?? []).includes("dex") ) return null;
-    const saver = await fromUuid(entry.uuid).catch(() => null);
-    if ( !(saver instanceof Actor) ) return null;
-    if ( saver.getFlag(MODULE_ID, "reactionSpent") ) return null;
-    const found = foldEntryFor(saver, "interpose");
-    if ( !found || !equippedShield(saver) ) return null;
-    return { kind: "interpose", itemName: found.item.name, itemImg: found.item.img, subjectUuid: entry.uuid };
+  const out = {};
+  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  for ( const t of targets ) {
+    const actor = await fromUuid(t.uuid).catch(() => null);
+    if ( !(actor instanceof Actor) ) continue;
+    if ( actor.getFlag(MODULE_ID, "reactionSpent") ) continue;
+    const found = foldEntryFor(actor, "interpose");
+    if ( !found || !equippedShield(actor) ) continue;
+    out[t.uuid] = { kind: "interpose", itemName: found.item.name, itemImg: found.item.img,
+      subjectUuid: t.uuid, answer: null,
+      ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}) };
   }
-  if ( entry.outcome === "failed" ) {
-    const attacker = card.getAssociatedActor?.();
-    if ( !attacker ) return null;
-    const found = foldEntryFor(attacker, "bash");
-    if ( !found ) return null;
-    if ( found.item.name.toLowerCase() !== String(flag.item?.name ?? "").toLowerCase() ) return null;
-    const activity = flag.activityUuid ? await fromUuid(flag.activityUuid).catch(() => null) : null;
-    const applicable = new Set((activity?.applicableEffects ?? []).map(e => e.id));
-    const presses = (activity?.effects ?? []).some(e => e.effect && applicable.has(e.effect.id) && !e.onSave);
-    if ( !presses ) return null;   // nothing to choose between — the push against no press is no choice
-    return { kind: "bash", itemName: found.item.name, itemImg: found.item.img,
-      subjectUuid: attacker.uuid, attackerName: attacker.name };
-  }
-  return null;
+  return out;
+}
+
+/** What choice, if any, this VERDICT opens — the bash's failure choice only, since the
+ * interpose choice stamps with the demand (finding (f)). Null for almost every save. */
+async function saveChoiceSpec(card, flag, entry) {
+  if ( entry.outcome !== "failed" ) return null;
+  const { foldEntryFor } = await import("./maneuvers.js");
+  const attacker = card.getAssociatedActor?.();
+  if ( !attacker ) return null;
+  const found = foldEntryFor(attacker, "bash");
+  if ( !found ) return null;
+  if ( found.item.name.toLowerCase() !== String(flag.item?.name ?? "").toLowerCase() ) return null;
+  const activity = flag.activityUuid ? await fromUuid(flag.activityUuid).catch(() => null) : null;
+  const applicable = new Set((activity?.applicableEffects ?? []).map(e => e.id));
+  const presses = (activity?.effects ?? []).some(e => e.effect && applicable.has(e.effect.id) && !e.onSave);
+  if ( !presses ) return null;   // nothing to choose between — the push against no press is no choice
+  return { kind: "bash", itemName: found.item.name, itemImg: found.item.img,
+    subjectUuid: attacker.uuid, attackerName: attacker.name };
 }
 
 /** True while a choice HOLDS this target's pass — stamps it on first sight. */
@@ -993,10 +1015,11 @@ async function showSaveChoicePopup(card, uuid) {
     position: { width: 440 },
     content: bfCard({
       img: c.itemImg, eyebrow: `Maneuver — ${c.itemName}`, tone: "pending",
-      title: interpose ? `${c.itemName} — take no damage?`
+      // The interpose ask is PRE-ROLL since finding (f): a gamble, in the feat's own tense.
+      title: interpose ? `${c.itemName} — spend your Reaction?`
                        : `${c.itemName} — ${entry.name} failed: choose`,
       subtitle: interpose
-        ? `${entry.name} saved against ${flag.item?.name ?? "the effect"} — spend the Reaction to take none of the damage instead of half.`
+        ? `${flag.item?.name ?? "The effect"} demands a Dexterity save. Take the Reaction now: a save that SUCCEEDS deals you no damage at all; a failed save takes the full damage either way.`
         : `Knock ${entry.name} Prone, or push them 5 feet (the token moves by hand).`,
       lines: []
     }) + (c.deadline ? holdBarHTML(c, "to answer") : ""),
@@ -1044,8 +1067,9 @@ async function announceBashOutcome(card, flag, entry) {
   });
 }
 
-/** Interpose settles: the Reaction is spent (in combat), the validation card posts — the
- * walk's ask: a zeroed number must never read as a dropped machine. */
+/** Interpose settles once the VERDICT is in: the Reaction is spent either way (the gamble
+ * was declared before the roll — finding (f)), and the outcome card posts — the walk's ask:
+ * a zeroed number must never read as a dropped machine, and a lost gamble is table record. */
 async function settleInterpose(card, flag, entry) {
   const c = entry.choice;
   if ( (c?.answer !== "use") || c.validated ) return;
@@ -1057,13 +1081,16 @@ async function settleInterpose(card, flag, entry) {
   if ( !claimed ) return;
   const saver = await fromUuid(entry.uuid).catch(() => null);
   if ( (saver instanceof Actor) && inRunningCombat(saver) ) void saver.setFlag(MODULE_ID, "reactionSpent", true);
+  const saved = entry.outcome === "saved";
   await ChatMessage.create({
     speaker: (saver instanceof Actor) ? ChatMessage.getSpeaker({ actor: saver }) : card.speaker,
     content: bfCard({
-      img: c.itemImg, eyebrow: `Maneuver — ${c.itemName}`, tone: "good",
-      title: `${c.itemName} — ${entry.name} takes no damage`,
-      subtitle: `${flag.item?.name ?? "The effect"}: the Reaction turns half into none.`,
-      lines: ["The saving throw held; the shield does the rest."]
+      img: c.itemImg, eyebrow: `Maneuver — ${c.itemName}`, tone: saved ? "good" : "neutral",
+      title: saved ? `${c.itemName} — ${entry.name} takes no damage`
+                   : `${c.itemName} — the save failed, the Reaction is spent`,
+      subtitle: saved ? `${flag.item?.name ?? "The effect"}: the Reaction turns half into none.`
+                      : `${flag.item?.name ?? "The effect"}: full damage stands — the gamble lost.`,
+      lines: saved ? ["The saving throw held; the shield does the rest."] : []
     })
   });
 }
@@ -1165,9 +1192,11 @@ function saveDamageMessages(card) {
 /** What a verdict does to the number: 1 on a failure; the activity's own word on a success;
  * nothing at all for any other outcome (a "gone" target has nobody to pay). */
 function saveMultiplier(entry, damageOnSave) {
-  // Interpose (v1.19.x finding ⑥): an accepted Reaction turns the successful save's half
-  // into NOTHING — no application, no receipt; the validation card is the record.
-  if ( (entry.choice?.kind === "interpose") && (entry.choice.answer === "use") ) return null;
+  // Interpose (findings ⑥ + (f)): an accepted Reaction turns a SUCCESSFUL save's half into
+  // NOTHING — no application, no receipt; the validation card is the record. A FAILED save
+  // with the Reaction spent takes the failure's full damage (the gamble lost — RAW).
+  if ( (entry.choice?.kind === "interpose") && (entry.choice.answer === "use")
+    && (entry.outcome === "saved") ) return null;
   if ( entry.outcome === "failed" ) return 1;
   if ( entry.outcome !== "saved" ) return null;
   if ( damageOnSave === "half" ) return 0.5;
@@ -1538,13 +1567,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       const actor = (() => { try { return fromUuidSync(t.uuid); } catch { return null; } })();
       const roller = (actor instanceof Actor) ? saveRollerUser(actor) : null;
       line.style.opacity = "0.75";
-      // A player-owned target whose owner is offline rides the buzzer, not the GM's popup
-      // stack (finding ④) — "waiting on Matt the DM" was a lie the moment nothing popped.
-      // With no window there is no buzzer, so the GM (whose Roll button is the real path)
-      // stays named.
-      const waitingOn = (roller?.isGM && actor?.hasPlayerOwner && flag.window)
-        ? "the timer (owner offline)" : (roller?.name ?? "the GM");
-      line.textContent = `${t.name} — ${abilityLabel} save DC ${flag.dc}, waiting on ${waitingOn}`;
+      // Since finding (h) the GM's popup really does pop for an offline owner's actor, so
+      // naming the roller is true again — the old "the timer (owner offline)" special case
+      // described the quiet this fix removed.
+      line.textContent = `${t.name} — ${abilityLabel} save DC ${flag.dc}, waiting on ${roller?.name ?? "the GM"}`;
     }
     row.appendChild(line);
     // EVERY pending row runs the demand's bar (v1.11.0, finding ④ — "two timers tick
@@ -1581,16 +1607,19 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       if ( t.done ) continue;
       const actor = (() => { try { return fromUuidSync(t.uuid); } catch { return null; } })();
       if ( !canAnswerFor(actor) ) continue;
-      // The GM's UNSOLICITED popups are non-player-owned targets only (v1.12.0, finding ④,
-      // user call: "as a GM i dont care to see other player saves"). canAnswerFor falls
-      // back to the GM when a player-owned actor's owner is offline — that target rides
-      // the buzzer instead (or the Roll button below: recall is a deliberate click, never
-      // spam). Player-owned with an owner PRESENT never reaches here (canAnswerFor is
-      // false on the GM client); NPCs and unowned characters keep their popups.
-      const gmQuiet = game.user.isGM && !!actor?.hasPlayerOwner;
+      // v1.19.x finding (h): canAnswerFor ALONE routes the popup. The old extra
+      // `isGM && hasPlayerOwner` quiet was mutually exclusive with canAnswerFor's own
+      // active-owner check, so a player-owned target with its owner OFFLINE popped for
+      // nobody and the buzzer ate the save — the walk's log shows Thomas failing two
+      // Fireballs "(timer)" while the solo GM watched the bar. The v1.12.0 ruling ("as a
+      // GM i dont care to see other player saves") is UNTOUCHED where it was made: an
+      // online owner still excludes the GM inside canAnswerFor.
+      // A pending fold CHOICE on this entry defers the save ask (the (f) order: the
+      // Interpose gamble is declared BEFORE the roll) — the Roll button stays live.
+      const choicePending = !!t.choice && !t.choice.answer;
       // ONE input surface, queued: auto-show only for the actor's OLDEST pending demand;
       // the button recalls this card's popup regardless.
-      if ( !gmQuiet && (pendingSaveCardsFor(t.uuid)[0]?.id === message.id) ) {
+      if ( !choicePending && (pendingSaveCardsFor(t.uuid)[0]?.id === message.id) ) {
         const shownKey = `${message.id}|${t.uuid}`;
         if ( !shownSaveAsks.has(shownKey) ) {
           shownSaveAsks.add(shownKey);

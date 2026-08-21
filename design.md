@@ -577,7 +577,62 @@ The user walked Pass A and it grew the phase. Every ruling below is theirs and b
   immediately (`trusted` — waiting for the fold round-trip would idle the player's dice);
   the elect's 20s crash-resume covers a client that died between relay and drive. ⚠ This
   gap was INVISIBLE in every GM-only walk room — the GM owns everything — and would have
-  bitten the first real player answer.
+  bitten the first real player answer. (The re-walk PROVED the relay at the table: both
+  riposte accepts arrived through it from a second window.)
+
+#### The re-walk amendment (2026-08-20, same session, second round — findings (a)–(i))
+
+The re-walk of the eight produced its own round. The chat log was the witness throughout
+("review the chat logs, evidence is all there" — the user's own instruction), and it
+closed one finding before any code: **(b) the Hew crit trigger WORKED** — the card posted
+three seconds after the Maul crit and was scrolled past under the Topple flow. Which is
+itself the round's headline ruling:
+
+- **(c) THE POPUP DESIGN LAW (binding, the user verbatim): "our design language is to
+  give players popup notifications on easy things to forget."** Hew is the first citizen:
+  the reminder now POPS (the mastery notice family's OK-only shape — drain bar, auto-close
+  at the deadline, `canAnswerFor` routing) with the card as the durable record. Every
+  future easy-to-forget moment inherits this law by default.
+- **(f) INTERPOSE IS A GAMBLE DECLARED BEFORE THE ROLL** (user's order-of-operations
+  ruling, and the feat's own tense — it also explains the re-walk's silence: the old
+  post-verdict offer fired only on "saved", and Thomas failed both Fireballs by timer).
+  Eligibility is read where the demand STAMPS (and at area adoption): the choice rides the
+  target entry from birth, its popup precedes the save ask (the ask defers while a choice
+  pends; the Roll button never locks), and the verdict settles it — save held ⇒ zero, no
+  application, no receipt, validation card; save failed ⇒ the failure's FULL damage and a
+  neutral "the Reaction is spent — the gamble lost" card. The Reaction spends on use
+  regardless of outcome (RAW). Expiry still passes — a Reaction is never spent by a timer.
+- **(g) THE HIT IS SHIELD BASH'S TRIGGER** ("shield bash never triggered a popup attacking
+  combat dummy" — the table hit with the sword; the module only knew the sheet path). A
+  melee WEAPON hit by a listed `bash` carrier stamps a Use/Pass offer on the attacker's
+  own attack message (their message — the precision locality, no relay needed), with a
+  target select only when the swing struck more than one living creature. Accepting aims
+  at the struck target and drives the feat's OWN save activity — the demand and the
+  Prone-or-push choice are the existing machinery from there. Once per turn in combat
+  (the feat's clause, the Cleave stamp discipline); out of combat every hit offers. The
+  sheet-direct path still works.
+- **(h) `canAnswerFor` ALONE ROUTES THE SAVE-FAMILY POPUPS** — the saves popper and the
+  topple ask carried the folds' exact ①-bug (`isGM && hasPlayerOwner`, mutually exclusive
+  with canAnswerFor's active-owner check), so a solo-GM room watched "failed (timer)" eat
+  every player-owned save. The v1.12.0 ruling is UNTOUCHED where it was made (an online
+  owner still excludes the GM); only the nobody-home case now pops. The "waiting on the
+  timer (owner offline)" row text described the removed quiet and went with it.
+  ⚠ CONCENTRATION IS DELIBERATELY NOT TOUCHED — its offline-owner behaviour was ruled
+  FINE 2026-08-19 ("this is fine remove from list") and that ruling stands.
+- **(d) THE SUPERIORITY DIE BAKES INTO THE SNAP-BACK'S BASE ROLL** — one dice group, one
+  total (the walk saw the pushed second entry as "a separate window"). A base part
+  crit-doubles, so a riposte crit doubles the die: the 2024 rule, free.
+- **(i) THE RIPOSTE LIST IS EVERY MELEE WEAPON CARRIED, NOT JUST EQUIPPED** (user: 2024
+  lets a swap ride any attack, "so it makes an assumption that isn't likely true").
+  Equipped-first ordering, stowed ones labelled "(stowed)" in the popup, the CLEAN name on
+  the card, the last-attacked default preserved, eligibility widened the same way, and
+  the sheet is never mutated — the card records the fiction, the bookkeeping stays human.
+- **(a)** The Cleave reminder's Dismiss line gains "— or if you've already Cleaved this
+  turn."
+- **⚖ (e) OPEN JUDGMENT, defaulted to KEEP:** Graze/Precision offering on a missed driven
+  riposte is RAW-legal and follows the per-roll ruling (driven attacks are real attacks).
+  The user asked about the rules, did not rule; the fence (one guard on `riposteFor`) is
+  recorded here as the lever if the cascade ever grates at the table.
 
 ### Phase 1.75 — curated damage riders (the Hunter's Mark tier)
 
