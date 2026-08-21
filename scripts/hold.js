@@ -859,7 +859,7 @@ async function driveHoldContinuation(attackMessage, hold) {
   // A roll still in an open offer window needs nothing here: rollDamageForAttack reads the
   // hold at ROLL time, finds it resolved, stamps no claim, and applies straight.
   for ( const dmg of game.messages.contents.filter(m =>
-    (m.getFlag(MODULE_ID, "attackHoldFor") === attackMessage.id)
+    (m.getFlag(MODULE_ID, "attackFor") === attackMessage.id)
     && (m.getFlag(MODULE_ID, "attackHoldPending") === true) ) ) {
     await dmg.setFlag(MODULE_ID, "attackHoldPending", false);
   }

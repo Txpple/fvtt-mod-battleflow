@@ -206,9 +206,10 @@ async function openVolleyPopup(message) {
     // One stepper per target: how many darts land there.
     ? v.targets.map((t, i) => {
       const def = defaultAssignment(v).find(a => a.uuid === t.uuid)?.count ?? 0;
+      // One row, the card grammar (user tweak 2026-08-21): [icon] **Name** is targeted [n]
       return `<div style="display:flex;align-items:center;gap:0.5rem;margin:0.15rem 0;">
         ${iconHTML(t)}
-        <label style="flex:1;">${esc(t.name)}</label>
+        <label style="flex:1;"><strong>${esc(t.name)}</strong> <span style="opacity:0.8;">is targeted</span></label>
         <input type="number" data-bf-volley-uuid="${esc(t.uuid)}" value="${def}"
           min="0" max="${v.n}" step="1" style="width:4rem;text-align:center;">
       </div>`;
@@ -223,9 +224,11 @@ async function openVolleyPopup(message) {
       const defTarget = v.targets.find(t => t.uuid === def);
       const options = v.targets.map(t =>
         `<option value="${esc(t.uuid)}" ${t.uuid === def ? "selected" : ""}>${esc(t.name)}</option>`).join("");
+      // The icon LEADS the row (the dart rows' and the cards' grammar — user tweak
+      // 2026-08-21); it still tracks the select via the listener below.
       return `<div style="display:flex;align-items:center;gap:0.5rem;margin:0.15rem 0;">
-        <label style="flex:1;">Ray ${i + 1}</label>
         ${rayIconHTML(i, defTarget)}
+        <label style="flex:1;">Ray ${i + 1}</label>
         <select data-bf-volley-ray="${i}" style="width:9.5rem;">${options}</select>
         <select data-bf-volley-mode="${i}" style="width:7.5rem;">
           <option value="normal" selected>Normal</option>

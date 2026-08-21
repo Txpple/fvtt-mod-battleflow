@@ -53,13 +53,30 @@ export function modeAllows(actor) {
 }
 
 /**
- * The attack roll a damage message descends from, walked through the system's registry:
- * damage → originating usage card → associated attack rolls (chronological) → the last one
- * rolled before this damage. When the origin itself IS an attack message (an attack rolled
- * without a usage card; our own programmatic stamp falls back to the attack's id), use it
- * directly. Null when the damage isn't part of an attack chain (save/AoE damage — Phase 2).
+ * The attack roll a damage message descends from.
+ *
+ * ⚠ THE DAMAGE'S OWN STAMP LEADS ((ii), the v1.20.0 walk, 2026-08-21): every roll
+ * rollDamageForAttack makes carries `attackFor` — the id of the exact attack it answers —
+ * because the registry walk below CANNOT be trusted under a volley: all three ray attacks
+ * share one originating usage card, and "the last attack rolled before this damage" is
+ * whichever ray landed last, not the ray this damage belongs to. At the table that
+ * misattributed every offered ray damage to ray 3 — ray 1's dice re-tested against ray 3's
+ * MISS never applied at all (the user's "the damage didnt auto apply"), and a hold's
+ * belt-and-braces read the wrong attack's absent hold. The walk stays as the fallback for
+ * rolls this module never drove (the native Damage button).
+ *
+ * Walk (fallback): damage → originating usage card → associated attack rolls
+ * (chronological) → the last one rolled before this damage. When the origin itself IS an
+ * attack message (an attack rolled without a usage card; our own programmatic stamp falls
+ * back to the attack's id), use it directly. Null when the damage isn't part of an attack
+ * chain (save/AoE damage — Phase 2).
  */
 export function resolveAttackMessage(damageMessage) {
+  const forId = damageMessage.getFlag(MODULE_ID, "attackFor");
+  if ( forId ) {
+    const stamped = game.messages.get(forId);
+    if ( stamped ) return stamped;
+  }
   const origin = damageMessage.getOriginatingMessage(); // falls back to the message itself
   if ( origin === damageMessage ) return null;
   if ( origin.getFlag("dnd5e", "roll.type") === "attack" ) return origin;

@@ -76,19 +76,21 @@ export async function rollDamageForAttack(activity, attackMessage) {
     }
     const isCritical = attackMessage.rolls[0]?.isCritical ?? false;
     const originId = attackMessage.getFlag("dnd5e", "originatingMessage") ?? attackMessage.id;
-    // (gg): a roll made while the attack's hold is still open is born claimed — the applier
-    // waits on the flag and the hold's resolution releases it (a Shield-flipped target just
-    // drops out of hitTargets, so its dice do nothing). Read at ROLL time, not offer time:
-    // a hold that resolved while the popup sat open needs no claim and applies straight.
+    // (ii): EVERY driven roll names the exact attack it answers — resolveAttackMessage
+    // reads this stamp first, because the registry walk misattributes under a volley
+    // (three rays share one usage card and "last attack before the damage" is ray 3 for
+    // all of them once the offers open). (gg): a roll made while that attack's hold is
+    // still open is additionally born claimed — the applier waits on the flag and the
+    // hold's resolution releases it (a Shield-flipped target just drops out of hitTargets,
+    // so its dice do nothing). The hold is read at ROLL time, not offer time: a hold that
+    // resolved while the popup sat open needs no claim and applies straight.
     const holdPending = attackMessage.getFlag(MODULE_ID, "hold")?.status === "pending";
     await activity.rollDamage(
       { ammunition, attackMode, isCritical },
       { configure: false },
       { data: { "flags.dnd5e.originatingMessage": originId,
-        ...(holdPending ? {
-          [`flags.${MODULE_ID}.attackHoldPending`]: true,
-          [`flags.${MODULE_ID}.attackHoldFor`]: attackMessage.id
-        } : {}) } }
+        [`flags.${MODULE_ID}.attackFor`]: attackMessage.id,
+        ...(holdPending ? { [`flags.${MODULE_ID}.attackHoldPending`]: true } : {}) } }
     );
   } catch(err) {
     console.error(`${TITLE} | Auto-roll damage failed.`, err);

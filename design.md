@@ -908,12 +908,25 @@ volley. `tools/smoke-volleys.mjs` 24/24 is its suite.
   snapshot (pure render, no lookups). Dart rolls carry `volleyTarget`, ray attacks
   `volleyRay`; a ray's follow-up damage chains off its attack card, which names the target
   right above it.
+- **THE DAMAGE KNOWS ITS ATTACK ((ii), the v1.20.0 retest, 2026-08-21):** every roll
+  `rollDamageForAttack` makes is stamped `attackFor` — the exact attack's id — and
+  `resolveAttackMessage` reads it FIRST. The registry walk ("last attack before this
+  damage under the same usage card") misattributes under a volley: all three rays share
+  one card, so once the offer popups open every ray's damage resolved to ray 3's attack —
+  ray 1's dice re-tested against ray 3's MISS never applied (the user's "the damage didnt
+  auto apply"), and (gg)'s belt-and-braces read a hold off the wrong attack. The walk
+  survives as the fallback for rolls the module never drove; riders and mastery now read
+  the RIGHT attack per ray as a side benefit. Pinned: smoke-volleys 3e2 (per-ray receipt
+  identity), smoke-hold §1 (the claim names its attack).
 - **THE AIM ON EVERY SURFACE ((hh), the v1.20.0 walk, 2026-08-21):** (ee)'s icon reaches
   the two surfaces that still named targets in text alone. The POPUP: every dart row leads
   with its target's token icon (user, on the screenshot: *"in thee row where it says thomas
   -- 3"*), and every ray row carries its PICK's icon, tracking the select via a change
   listener (*"match that pattern for rays too"*) — the stamp records `img` off the target
-  snapshot for exactly this. The ROLL POPUP: the damage offer's "Against …" line renders
+  snapshot for exactly this. **Row grammar (user tweak, same day): ONE line mirroring the
+  cards — the icon LEADS, then the name** (*"[icon] [name] is targeted … better mirrors the
+  layout of cards themselves"*): darts read `[icon] **Name** is targeted [n]`, ray rows
+  lead with the tracking icon before "Ray N" and its selects. The ROLL POPUP: the damage offer's "Against …" line renders
   icon + name per target (one `againstLine` helper serves the attack AND save flavours —
   the family's one-shell rule). Law-8 tooltips everywhere; an imageless target degrades to
   its name.
