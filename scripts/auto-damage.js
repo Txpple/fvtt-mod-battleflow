@@ -11,13 +11,16 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g,
 
 /** (hh): the "Against …" line names each target with its token icon (law 8 tooltip) —
  * the roll popup was the one volley surface still naming targets in text alone. Pure
- * render off the roll's own snapshot; a target without an image degrades to its name. */
+ * render off the roll's own snapshot; a target without an image degrades to its name.
+ * ⚠ `display:inline-block` is load-bearing (the T4/T5 close-out's one visual): the
+ * dialog stylesheet blocks imgs, which stacked "Against / icon / Gren." on three lines —
+ * an inline style is the only thing that outranks it without touching the sheet. */
 const againstLine = targets => {
   const list = (targets ?? []).filter(t => t?.name);
   if ( !list.length ) return null;
   return `Against ${list.map(t =>
     `${t.img ? `<img src="${esc(t.img)}" alt="${esc(t.name)}" data-tooltip="${esc(t.name)}"
-      style="width:18px;height:18px;border:none;border-radius:3px;object-fit:cover;vertical-align:-4px;margin-right:2px;">` : ""}<strong>${esc(t.name)}</strong>`).join(", ")}.`;
+      style="display:inline-block;width:18px;height:18px;border:none;border-radius:3px;object-fit:cover;vertical-align:-4px;margin:0 2px 0 0;">` : ""}<strong>${esc(t.name)}</strong>`).join(", ")}.`;
 };
 
 /* ---------------------------------------------------------------------------------------------
