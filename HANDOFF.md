@@ -1,16 +1,16 @@
 # HANDOFF.md — picking this up cold
 
-## State at a glance — 2026-08-21, FIFTEENTH session live (v1.20.0 WALK 1 OPEN — the census ran, FIVE findings (bb)–(ff) await the "go")
+## State at a glance — 2026-08-21, end of the FIFTEENTH session (v1.20.0 WALK 1 OPEN — the (bb)–(ff) FIX PASS IS BUILT battery-green; the walk resumes on the checklist below)
 
 | | |
 | --- | --- |
-| **Do first** | 🔍 **RESUME THE v1.20.0 WALK** (the table below carries live statuses). Walked so far: 1–3 ✅ and 5's Gren half ✅ (user blanket, verbatim: *"when i do all the volleys with gren, works fine"*), 7 🟡 (*"on the self use showing usage, great"* + one timing finding). **Open: 4, 6, 8, 9, 10** plus the Salyth MM re-test under (bb). **Five findings (bb)–(ff) are diagnosed and designed but NOT BUILT — no "go" yet; (ff) is the user's own structural call, RESTATED harder in the fifteenth session (*"long term scalable, no hacks, modular"*) and UPGRADED from a settings list to a CODE REGISTRY on the census results — see the (ff) row.** (cc), (dd) and (ff) are scope-CONFIRMED by directive (2026-08-21: *"put in the fix for second wind and that pattern into the next test phase"*; *"adv/disav on attack roll rays is RAW, so we have to work with it"*; the (ff) verbatims in its row). **(bb)'s diagnosis is CLOSED by the census** — only its table re-tests remain. On "go": the fix-pass list at the end of the walk-1 section below. |
-| Repo | `main` — v1.20.0 built (thirteenth session: `test:` / `feat:` / `docs:`); this FOURTEENTH session wrote NO code, only this recut. Tag comes AFTER the walk closes (the v1.19.0 precedent — module.json carries 1.20.0 from walk 1). |
-| Release | ⚠ **NOT RELEASED.** v1.19.0 remains the latest release and prod runs it. The v1.20.0 release steps (after the walk): tag → GitHub release (zip built by explicit ZipArchive entry names — **23 entries once (ff) lands**: volleys.js + resources.js + volley-registry.js joined) → prod deploy → ~~the prod SR graft~~ **STRUCK by (ff)** (the registry ships in code — no prod content writes; `fix-scorching-ray.mjs` is DELETED in the fix pass, the sandbox grafts reverted) → `BF_TARGET=prod verify-settings` (the two v1.20.0 keys ride module defaults — (ff)'s registry adds NO settings key; CLEAN expected) → bounce by down-by-user/wake-by-connect → `probe-registered-version` reads 1.20.0. |
-| Sandbox | Up ALL session — ⚠ it did **NOT** vanish this time (first clean open in ~nine sessions). v1.20.0 deployed + byte-verified (thirteenth session), `verify-settings` CLEAN. ⚠⚠ **NEW ANOMALY, unresolved:** the MCP bridge could not JOIN the world — 600s "never became joinable" on four parallel calls — while `/api/status` read `active:true, users:1` the whole time. First occurrence ever. This session's diagnosis ran off code + the build record instead; `disconnect-bridge` confirmed no lingering session afterward. If it repeats: check the local `.env` URLs and the join screen; note the tools/*.mjs suite path (target.mjs) was NOT exercised this session, so it is not yet implicated. **FIFTEENTH session: the box was DOWN at open (the vanish pattern again) — the documented recovery worked first try, and the JOIN ANOMALY DID NOT REPEAT: `verify-settings` launched the world, joined clean, read CLEAN.** |
+| **Do first** | 🔍 **RESUME THE v1.20.0 WALK** — open items **4, 6, 8, 9, 10** plus the re-walk rows **R1–R5** in the table below. **The whole (bb)–(ff) fix pass is BUILT, deployed to the sandbox, bounced and battery-green (fifteenth session, on the user's go: *"no lets make all the changes needed, then set up a new test sesion"*):** the REGISTRY replaced the graft (volley-registry.js — Salyth's bare SR volleys now), per-ray Adv/Normal/Dis sits in the volley popup, every volley roll names its target, and heal flashes wait for their dice. Nothing waits on a "go" — the next findings open the next pass. |
+| Repo | `main` — v1.20.0 built (thirteenth session) **+ the (bb)–(ff) fix pass (FIFTEENTH session:** the census `test:`, two docs amendments, then `test:` pins / `feat:` the pass / `docs:` this recut**)**. Tag comes AFTER the walk closes (the v1.19.0 precedent — module.json carries 1.20.0 from walk 1). |
+| Release | ⚠ **NOT RELEASED.** v1.19.0 remains the latest release and prod runs it. The v1.20.0 release steps (after the walk): tag → GitHub release (zip built by explicit ZipArchive entry names — **23 entries now**: volleys.js + resources.js + volley-registry.js joined) → prod deploy → ~~the prod SR graft~~ **STRUCK by (ff), and DONE dying** (the registry ships in code — no prod content writes ever; `fix-scorching-ray.mjs` is DELETED and the two sandbox grafts REVERTED, both fifteenth session) → `BF_TARGET=prod verify-settings` (the two v1.20.0 keys ride module defaults — the registry adds NO settings key; CLEAN expected) → bounce by down-by-user/wake-by-connect → `probe-registered-version` reads 1.20.0. |
+| Sandbox | Up ALL session — ⚠ it did **NOT** vanish this time (first clean open in ~nine sessions). v1.20.0 deployed + byte-verified (thirteenth session), `verify-settings` CLEAN. ⚠⚠ **NEW ANOMALY, unresolved:** the MCP bridge could not JOIN the world — 600s "never became joinable" on four parallel calls — while `/api/status` read `active:true, users:1` the whole time. First occurrence ever. This session's diagnosis ran off code + the build record instead; `disconnect-bridge` confirmed no lingering session afterward. If it repeats: check the local `.env` URLs and the join screen; note the tools/*.mjs suite path (target.mjs) was NOT exercised this session, so it is not yet implicated. **FIFTEENTH session: the box was DOWN at open (the vanish pattern again) — the documented recovery worked, and the JOIN ANOMALY DID NOT REPEAT: every suite joined clean all session. The fix pass is DEPLOYED (21 files byte-identical, volley-registry.js aboard) + the app BOUNCED (the script-cache discipline) + battery-green.** |
 | Prod | v1.19.0 LIVE, untouched. ⚠ Prod's content stays STOCK under (ff) — the registry ships in code; the graft release step is dead. |
-| Walked | v1.19.0 fully closed (six walks). **v1.20.0: walk 1 OPEN** — statuses live in the table below; five findings (bb)–(ff) logged 2026-08-21. |
-| Next work | The (bb)–(ff) fix pass on "go", then finish walk 1. After the v1.20.0 walk closes: **Heroic Inspiration + Bard** (the user's named next, 2026-08-21 — recorded in [FLOW.md](FLOW.md) under Pass C; scope with the user first). Then the standing deck: Phase 4 (table time) and AC5e (bench, still waiting on the user's go). |
+| Walked | v1.19.0 fully closed (six walks). **v1.20.0: walk 1 OPEN** — statuses live in the table below; five findings (bb)–(ff) logged AND BUILT 2026-08-21. |
+| Next work | Finish walk 1 (open items + R1–R5 below). After the v1.20.0 walk closes: the release (the Release row), then **Heroic Inspiration + Bard** (the user's named next, 2026-08-21 — recorded in [FLOW.md](FLOW.md) under Pass C; scope with the user first). Then the standing deck: Phase 4 (table time) and AC5e (bench, still waiting on the user's go). |
 | Testing setup | ⚠ **THE USER RUNS TWO WINDOWS**: GM (Matt the DM) + a player window owning Thomas/Morgash. Player-first routing sends THEIR popups to window two whenever it is connected — "nothing popped" reports must always ask WHICH window. ⚠ The volley popup is the CASTING client's window; the resource flash is EVERY window. |
 | Bridge | Disconnected on BOTH worlds (re-confirmed this session after the join failure). Suites join as `Tester Assistant`. |
 
@@ -30,12 +30,17 @@ and **Resource Use Notices**. Two new suites: smoke-volleys 24/24, smoke-resourc
 | 2 ✅ | **Upcast.** Same cast from a 3rd-level slot | ✅ under the same blanket — popup offers **5** darts |
 | 3 ✅ | **The X and the buzzer.** X one cast; leave another alone | ✅ under the same blanket (if the X/buzzer halves weren't individually exercised, a re-touch is cheap) — X fires AS AIMED, the untouched one fires the EVEN SPREAD at the buzzer |
 | 4 ⬜ | **One check per volley.** MM (2+ darts on one target) at someone CONCENTRATING | Exactly ONE concentration check against the aggregate — never one per dart (the Gren hand-lump rule, now automated) |
-| 5 🟡 | **SR volley.** Gren casts Scorching Ray (its count is GRAFTED on the sandbox) | ✅ as GREN (popup, 3 rays, real attacks in order). 🟡 **finding (bb): as SALYTH inconsistent, SR popup NEVER raised** — diagnosis in the walk-1 table below; Salyth re-test rides the fix pass |
+| 5 🟡 | **SR volley.** Gren casts Scorching Ray (⚠ his graft is REVERTED — the copy is stock-bare and volleys via the REGISTRY now) | ✅ as GREN pre-registry (popup, 3 rays, real attacks in order). 🟡 the Salyth half re-walks as **R1** below |
 | 6 ⬜ | **MM vs Shield (the compose).** MM at the player window's PC holding Shield (blockList `Magic Missile:Shield`) | The hold pops for the TARGET (window two); the volley's dice roll but application WAITS on that target; Shield cast → that target takes ZERO while the other target's darts land normally |
 | 7 🟡 | **Resource notices, the sweep.** Morgash: Second Wind. A Precision Attack fold. Thomas: Vow of Enmity. Gren: Innate Sorcery. An item cast (First Light's heroism / the Maul's drive) | ✅ content-wise, user verbatim: *"on the self use showing usage, great."* 🟡 **finding (cc): heals flash BEFORE the healing dice** — evaluated (modest lift), design below, builds on "go" |
 | 8 ⬜ | **The quiets.** An NPC ability (GM side); a potion/torch/ration; a plain slot cast | NO flash for any of them — NPC resources are secret, no-recovery expendables are noise, slots are excluded by design |
 | 9 ⬜ | **The settings sheet.** Open module settings | Two new rows under their own dividers ("Volleys", "Resource Notices"); Volley Spells greys out when the Attack Resolver is off |
 | 10 ⬜ | **F5 resume.** F5 Gren's window mid-volley-popup | On reload the popup re-raises with the bar still draining; if the deadline passed while away, the even spread fires on reload instead of stranding |
+| R1 ⬜ | **(bb) Salyth SR, registry-powered.** As Salyth: target TWO enemies FIRST, then cast Scorching Ray | The popup raises — her bare copy volleys via the registry now, no graft anywhere; 3 rays, a target pick AND a mode select per ray |
+| R2 ⬜ | **(bb) Salyth MM, targets first.** As Salyth: target FIRST, then cast Magic Missile | The popup raises. Her MM data was always healthy — the old "inconsistent" was the TARGETLESS QUIET, so a cast with no targets selected still (correctly) stays native |
+| R3 ⬜ | **(dd) per-ray adv/dis.** Any SR volley: ray 1 Advantage, ray 2 Disadvantage, ray 3 left Normal | Ray 1 rolls two d20 keep-high, ray 2 keep-low, ray 3 one d20; the resolved card row tags "(adv)"/"(dis)"; Normal never fights sheet-borne modifiers |
+| R4 ⬜ | **(ee) the aim on every roll.** Watch any volley's roll cards | Every dart damage roll and every ray attack leads with the target's token icon (hover = its name) + "→ Name" / "Ray N → Name" |
+| R5 ⬜ | **(cc) the flash waits for the dice.** Morgash: Second Wind, roll the healing (sheet or card). Then use it again and DON'T roll | The flash lands AFTER the healing dice, not at the use; the card's ledger line is immediate either way; the never-rolled use still flashes ~12s later (the fallback) |
 
 **Known and deliberate, on the record:** a targetless volley cast stays fully native
 (nothing to aim — ⚠ and with Salyth's MM data proven HEALTHY by the census, this quiet is
@@ -53,13 +58,13 @@ user disclaims it (*"i dont ever recall a 'rays roll straigtt' rule … not corr
 Per-ray adv/disadv is RAW and joins the volley popup in the fix pass;
 NPC spends never flash by design; refunds/regains never flash (spend-only).
 
-### 🟡 Walk 1, first pass — 2026-08-21, FOURTEENTH session: Gren's volleys pass, FIVE findings, fixes NOT built
+### ✅ Walk-1 findings (bb)–(ff) — ALL BUILT battery-green (FIFTEENTH session, 2026-08-21)
 
-The user walked the volley set as GREN clean and the resource sweep landed, then went AFK
-before any "go" — so every finding below is DIAGNOSED to code level and **NOTHING is
-built**. The Salyth live probe could not run that session (the bridge join anomaly); the
-FIFTEENTH session's census (`tools/scan-volley-spells.mjs`, committed) ran it and CLOSED
-(bb)'s diagnosis — see the row.
+The user walked the volley set as GREN clean and the resource sweep landed (fourteenth
+session); the FIFTEENTH session ran the census (`tools/scan-volley-spells.mjs`, committed),
+took the "go" (*"no lets make all the changes needed, then set up a new test sesion"*) and
+**BUILT ALL FIVE in one battery-green pass**. The table below is the diagnosis/design
+record; the R1–R5 rows above are the table tests.
 
 | # | Finding (user verbatim) | Diagnosis / design, ready to build |
 | --- | --- | --- |
@@ -69,22 +74,61 @@ FIFTEENTH session's census (`tools/scan-volley-spells.mjs`, committed) ran it an
 | (ee) | *"itd be nice to see which target the damage is being rolled for somehow. narrative is fine..but if you culd put the icon of the target in there that'd be really cool."* | **Easy, pure render.** Dart damage rolls already carry `flags.battleflow.volleyTarget` (uuid) and ray attacks `volleyRay` + their aimed snapshot — a `dnd5e.renderChatMessage` decoration puts the target's token image + name on each volley roll card (tooltip on the icon, law 8). Suite: DOM assert in smoke-volleys |
 | (ff) | *"we need to make a lookup list for those types? clearly we just cant rely on stamps on the world canvas"* — then RESTATED harder, fifteenth session: *"i dont like this scorching ray hack, there are only a few volley spells, so i think you need to create an edge case utility that tracks and handles volley spells, since the scope of this all is prem modules no homebrew, thats fine. each spell may also have indiviual handling cases - mm diff than scorching ray diff than eldtrich blast … you should scan the compendiums for more. remember, long term scalabale, no hacks. modular"* | **THE VOLLEY REGISTRY — upgraded from the first-cut `volleyList` settings design (2f499a6): per-spell HANDLING can't live in a settings string, and the user waived homebrew scope, so the registry lives in CODE.** The census (`tools/scan-volley-spells.mjs`) swept every Item pack + every world carrier. **The complete official volley set is FOUR:** Magic Missile (darts, `"2 + @item.level"`, ships correct), Scorching Ray (rays, 2024 pack ships NO count), Eldritch Blast (rays, ships `"1"`; beams band by CHARACTER level 5/11/17; no current carrier), **Steel Wind Strike** (`itemCount:"5"` attack — but RAW is ONE attack per creature, so it needs a `distinctTargets` knob). NOT volleys, on the record: Prismatic Spray / Chain Lightning / Acid Splash — save-shape, the saves pipeline owns them. ⚠ The census also caught a LIVE FALSE POSITIVE in structural detection: **Dimension Door** (`itemCount:"2"` + a damage activity — two selected targets would raise a volley popup on its teleport-mishap damage). Design: **`scripts/volley-registry.js`** — name-keyed entries `{kind: darts\|rays, count, distinctTargets?}`; **the registry IS volley membership** — volleys.js consults it instead of content counts, killing the false negatives AND Dimension Door; adding a spell = one entry (premium scope by directive). EB's count channel measured at build: `@scaling`-as-cantrip-band if the evaluator provides it, else `1 + floor((@details.level + 1) / 6)` with the NPC fallback measured too. `fix-scorching-ray.mjs` DELETED (the misleading-tool precedent), the three sandbox grafts REVERTED to stock, the prod graft step dead. Suite: registry sections — ungrafted SR volleys, the DD negative pin, SWS distinct-targets, EB count bands |
 
-**The fix-pass list, armed for "go" (one battery-green pass, the standing cycle):**
-1. Build (ff) FIRST — `scripts/volley-registry.js` (MM / SR / EB / Steel Wind Strike,
-   `{kind, count, distinctTargets}`), registry-as-membership in volleys.js; measure EB's
-   count channel (`@scaling` band vs `@details.level` formula, PC and NPC rollData);
-   REVERT the three sandbox grafts to stock; DELETE fix-scorching-ray.mjs. (The (bb)
-   probes are DONE — the census settled Salyth's MM and EB's bareness.)
-2. Build (cc) the deferred flash, (dd) per-ray adv/dis, (ee) the target decoration.
-3. Amend design.md Phase 1.7 + the resources subsection with all four (the §4.3 mandate:
-   the map stays with the machines) — the registry as detection authority ((ff) verbatim),
-   the straight-roll default's correction, the DDB provenance correction (Salyth only).
-4. Pins: smoke-volleys grows (ff) registry + (dd) + (ee) sections, smoke-resources grows
-   the (cc) deferral section; then the full battery, deploy → **bounce the app** (the
-   script-cache lesson) → green.
-5. Recut this file: walk 1 resumes at items 4, 6, 8, 9, 10 + re-walk touches for
-   (bb)–(ff) — Salyth SR (registry popup), Salyth MM (targets FIRST), the Dimension Door
-   negative spot-check riding item 8's quiets.
+**The fix-pass list — ✅ ALL DONE (fifteenth session, one battery-green pass; kept as the record):**
+1. ✅ (ff) `scripts/volley-registry.js` (MM / SR / EB / Steel Wind Strike, `{kind, count,
+   distinctTargets}`), registry-as-membership in volleys.js; EB's count channel MEASURED
+   (`@scaling` is NOT the cantrip band here — the entry is a function on `details.level`,
+   NPCs by `ceil(details.cr)`); the TWO sandbox grafts (Gren + BF Test Shielder) REVERTED
+   to pack-stock; fix-scorching-ray.mjs DELETED.
+2. ✅ (cc) the deferred flash, (dd) per-ray adv/dis, (ee) the target decoration.
+3. ✅ design.md amended (Phase 1.7 registry bullet + (dd)/(distinct)/(ee) bullets, the
+   resources (cc) bullet, map row 15, the settings table) + FLOW.md item 6 supersede note.
+4. ✅ Pins: smoke-volleys 24→36, smoke-resources 11→18; full battery green after
+   deploy → bounce (the record below).
+5. ✅ This recut.
+
+### 📦 The (bb)–(ff) fix-pass build record (2026-08-21, FIFTEENTH session)
+
+**Measured first** (the cycle's probe-to-bedrock, scratchpad probes): PC rollData carries
+`details.level` (Shielder 4, Salyth 8), NPC carries `details.cr` with `details.level` 0 —
+so EB's registry count is a FUNCTION on level-else-`ceil(cr)`, not a formula string. The
+(cc) linkage, BOTH paths: a card-button heal roll stamps `flags.dnd5e.originatingMessage`
+(measured with the native config dialog submitted — a bare `.click()` parks in that dialog
+and rolls nothing); a sheet-shape roll stamps NO originatingMessage but carries
+`flags.dnd5e.activity.uuid` — `releasePending` matches either. ⚠ hideCardButtons hides
+`rollHealing` too, so at the table heals come off the SHEET — the uuid channel is the one
+that fires live.
+
+**Built:** `scripts/volley-registry.js` (the census four; `{kind, count, distinctTargets?}`;
+count as formula or function; the `api.volleyRegistry` seam) · volleys.js registry
+membership + per-ray mode selects + the distinct clamp/dedupe + the `.bf-volley-aim`
+decoration (rides the EXISTING render registration) · resources.js `pendingFlash`
+defer/release + the 12s fallback · settings.js comment + design.md + FLOW.md amendments ·
+`fix-scorching-ray.mjs` DELETED · the two sandbox grafts REVERTED to pack-stock.
+
+**Battery, all green (this exact code deployed byte-identical, 21 files, then the app
+BOUNCED before running — the script-cache discipline):** battleflow ALL PASS ×2 · hold ALL
+PASS · maneuvers 54/54 · cast 17/17 · riders 8/8 · effects 54/54 · concentration 47/47 ·
+saves 61/61 · probe-player-damage 11/11 · probe-save-damage-popup 13/13 · **smoke-volleys
+36/36** (was 24 — §4d the Dimension Door negative, §7 registry membership + EB bands, §8
+distinct targets, §9 adv/dis, 1j/3f the aim DOM) · **smoke-resources 18/18** (was 11 — §5
+deferral + release + the linkage pin, §6 the fallback) · check-hook-order ALL PASS (**72
+registrations** — the registry's init seam is the +1; all 9 pairs hold) · verify-settings
+**CLEAN** (the registry adds NO settings key).
+
+⚠ **Fifteenth-session notes, paid once:**
+- The app relaunch needed the SECOND try again (Start-Process returned, no process) — the
+  documented retry worked, as always.
+- **First-suite-after-cold-boot flake is a real class:** battleflow's revert pair failed on
+  the first run after the bounce and went ALL PASS twice after; effects 15c did the
+  dice-variance dance (53/54 → 54/54 on the rerun). Re-run before diagnosing anything that
+  fails only on the first post-boot pass.
+- **dnd5e renders forced modes as `2d20adv` / `2d20dis`** — its own modifier alias, never
+  kh/kl in the formula string; assert with the alias.
+- **Fixture token names ≠ actor names** (BF Test Victim's prototype token is "Hobgoblin") —
+  DOM asserts must compare against the roll's SNAPSHOT name, never the actor's.
+- probe-player-damage's token trap fired again when other suites ran between it and
+  battleflow — run it IMMEDIATELY after a battleflow pass, not merely after one.
 
 ### 📦 The v1.20.0 build record (2026-08-21, THIRTEENTH session)
 
