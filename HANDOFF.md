@@ -1,22 +1,88 @@
 # HANDOFF.md — picking this up cold
 
-## State at a glance — 2026-08-21, end of the FIFTEENTH session (v1.20.0 WALK 1 OPEN — the (bb)–(ff) FIX PASS IS BUILT battery-green; the walk resumes on the checklist below)
+## State at a glance — 2026-08-21, end of the SIXTEENTH session (v1.20.0 walk 1 FULLY WALKED — findings (gg)+(hh) BUILT battery-green; the RETEST below is all that stands before the release)
 
 | | |
 | --- | --- |
-| **Do first** | 🔍 **RESUME THE v1.20.0 WALK** — open items **4, 6, 8, 9, 10** plus the re-walk rows **R1–R5** in the table below. **The whole (bb)–(ff) fix pass is BUILT, deployed to the sandbox, bounced and battery-green (fifteenth session, on the user's go: *"no lets make all the changes needed, then set up a new test sesion"*):** the REGISTRY replaced the graft (volley-registry.js — Salyth's bare SR volleys now), per-ray Adv/Normal/Dis sits in the volley popup, every volley roll names its target, and heal flashes wait for their dice. Nothing waits on a "go" — the next findings open the next pass. |
-| Repo | `main` — v1.20.0 built (thirteenth session) **+ the (bb)–(ff) fix pass (FIFTEENTH session:** the census `test:`, two docs amendments, then `test:` pins / `feat:` the pass / `docs:` this recut**)**. Tag comes AFTER the walk closes (the v1.19.0 precedent — module.json carries 1.20.0 from walk 1). |
-| Release | ⚠ **NOT RELEASED.** v1.19.0 remains the latest release and prod runs it. The v1.20.0 release steps (after the walk): tag → GitHub release (zip built by explicit ZipArchive entry names — **23 entries now**: volleys.js + resources.js + volley-registry.js joined) → prod deploy → ~~the prod SR graft~~ **STRUCK by (ff), and DONE dying** (the registry ships in code — no prod content writes ever; `fix-scorching-ray.mjs` is DELETED and the two sandbox grafts REVERTED, both fifteenth session) → `BF_TARGET=prod verify-settings` (the two v1.20.0 keys ride module defaults — the registry adds NO settings key; CLEAN expected) → bounce by down-by-user/wake-by-connect → `probe-registered-version` reads 1.20.0. |
-| Sandbox | Up ALL session — ⚠ it did **NOT** vanish this time (first clean open in ~nine sessions). v1.20.0 deployed + byte-verified (thirteenth session), `verify-settings` CLEAN. ⚠⚠ **NEW ANOMALY, unresolved:** the MCP bridge could not JOIN the world — 600s "never became joinable" on four parallel calls — while `/api/status` read `active:true, users:1` the whole time. First occurrence ever. This session's diagnosis ran off code + the build record instead; `disconnect-bridge` confirmed no lingering session afterward. If it repeats: check the local `.env` URLs and the join screen; note the tools/*.mjs suite path (target.mjs) was NOT exercised this session, so it is not yet implicated. **FIFTEENTH session: the box was DOWN at open (the vanish pattern again) — the documented recovery worked, and the JOIN ANOMALY DID NOT REPEAT: every suite joined clean all session. The fix pass is DEPLOYED (21 files byte-identical, volley-registry.js aboard) + the app BOUNCED (the script-cache discipline) + battery-green.** |
-| Prod | v1.19.0 LIVE, untouched. ⚠ Prod's content stays STOCK under (ff) — the registry ships in code; the graft release step is dead. |
-| Walked | v1.19.0 fully closed (six walks). **v1.20.0: walk 1 OPEN** — statuses live in the table below; five findings (bb)–(ff) logged AND BUILT 2026-08-21. |
-| Next work | Finish walk 1 (open items + R1–R5 below). After the v1.20.0 walk closes: the release (the Release row), then **Heroic Inspiration + Bard** (the user's named next, 2026-08-21 — recorded in [FLOW.md](FLOW.md) under Pass C; scope with the user first). Then the standing deck: Phase 4 (table time) and AC5e (bench, still waiting on the user's go). |
-| Testing setup | ⚠ **HARD-REFRESH (Ctrl+F5) BOTH WINDOWS before walking** — the fix pass deployed without a version bump, so a browser that saw the fourteenth-session walk still holds the OLD scripts (the script-cache lesson's user-browser half). ⚠ **THE USER RUNS TWO WINDOWS**: GM (Matt the DM) + a player window owning Thomas/Morgash. Player-first routing sends THEIR popups to window two whenever it is connected — "nothing popped" reports must always ask WHICH window. ⚠ The volley popup is the CASTING client's window; the resource flash is EVERY window. |
-| Bridge | Disconnected on BOTH worlds (re-confirmed this session after the join failure). Suites join as `Tester Assistant`. |
+| **Do first** | 🔍 **THE (gg)/(hh) RETEST** — the short checklist below (T1–T3). The walk's fifteen items are ALL walked; its last two findings are BUILT, deployed, bounced and battery-green (sixteenth session, on the user's go: *"please fix that, ill retest, then this s/b good!"* then *"ok go ahead and start i will afk until you are done"*): **(gg)** attack-holds pause the APPLICATION now, never the dice — a ray at a Shield-holder rolls its damage immediately and the verdict releases or discards it (the darts' pattern, the user's own diagnosis at the table); **(hh)** every aim surface carries the target's token icon — dart popup rows, ray rows (tracking the select), and the Roll Damage popup's "Against" line. Retest good → the walk CLOSES → the Release row runs. |
+| Repo | `main` — v1.20.0 + the (bb)–(ff) pass (fifteenth session) **+ the (gg)/(hh) pass (SIXTEENTH session:** `test:` 61c31d8 / `feat:` 7423ebc / `docs:` this recut**)**. Tag comes AFTER the walk closes (the v1.19.0 precedent — module.json carries 1.20.0 from walk 1). |
+| Release | ⚠ **NOT RELEASED.** v1.19.0 remains the latest release and prod runs it. The v1.20.0 release steps (after the retest closes the walk): tag → GitHub release (zip built by explicit ZipArchive entry names — **23 entries**: volleys.js + resources.js + volley-registry.js joined; the (gg)/(hh) pass added NO files) → prod deploy → `BF_TARGET=prod verify-settings` (no new settings keys in either pass; CLEAN expected) → bounce by down-by-user/wake-by-connect → `probe-registered-version` reads 1.20.0. ~~The prod SR graft~~ stays DEAD ((ff) — the registry ships in code). |
+| Sandbox | UP at open (users:0, no vanish, no join anomaly — every suite joined clean). The (gg)/(hh) pass is DEPLOYED (21 files byte-identical) + the app BOUNCED (the script-cache discipline — first-try relaunch this time) + the FULL battery green in ONE pass, zero flakes (the record below). `verify-settings` CLEAN. |
+| Prod | v1.19.0 LIVE, untouched. Prod's content stays STOCK ((ff) — registry in code; no graft step exists). |
+| Walked | v1.19.0 fully closed (six walks). **v1.20.0 walk 1: ALL FIFTEEN ITEMS WALKED** (1–10 + R1–R5 — statuses in the table below); findings (bb)–(ff) built fifteenth session, **(gg)+(hh) built SIXTEENTH session**. Only the T1–T3 retest is open. |
+| Next work | The T1–T3 retest → walk 1 CLOSES → the release (the Release row). Then **Heroic Inspiration + Bard** (the user's named next, 2026-08-21 — recorded in [FLOW.md](FLOW.md) under Pass C; scope with the user first). Then the standing deck: Phase 4 (table time) and AC5e (bench, still waiting on the user's go). |
+| Testing setup | ⚠ **HARD-REFRESH (Ctrl+F5) BOTH WINDOWS before the retest** — the (gg)/(hh) pass ALSO deployed without a version bump, so a browser that saw the sixteenth-session walk still holds the OLD scripts. ⚠ **THE USER RUNS TWO WINDOWS**: GM (Matt the DM) + a player window owning Thomas/Morgash. Player-first routing sends THEIR popups to window two whenever it is connected — "nothing popped" reports must always ask WHICH window. ⚠ The volley popup is the CASTING client's window; the Shield hold popup is the TARGET owner's window; the damage-offer popups are the ATTACKER's window; the resource flash is EVERY window. |
+| Bridge | Disconnected on BOTH worlds. Suites join as `Tester Assistant`. |
 
 ---
 
-## 🔍 THE v1.20.0 WALK — walk 1 OPEN (opened 2026-08-21, fourteenth session; statuses live)
+## 🔍 THE (gg)/(hh) RETEST — the last gate before the v1.20.0 release (cut 2026-08-21, sixteenth session)
+
+| # | Do this | Should happen |
+| --- | --- | --- |
+| T1 ⬜ | **(gg) the hold stops eating dice.** As Salyth: target Gren (Shield known, reaction UNSPENT) + one other enemy, cast Scorching Ray, land a hit on Gren inside Shield's flip window | **Every hitting ray's damage rolls immediately** (Roll Damage popups on the casting window — no more one-die-for-three-hits); Gren's Shield popup raises on HIS owner window at the same time; **cast Shield** → the settle card says the flipped ray misses and its rolled dice apply to NOBODY (no receipt row, no HP moved) while the other rays' damage lands normally; **pass** instead → that ray's damage applies. A plain weapon attack vs a Shield holder behaves identically (same machinery) |
+| T2 ⬜ | **(hh) icons everywhere a target is named.** Open any MM volley popup, any SR volley popup, and any Roll Damage popup | Dart rows lead with the target's token icon (the "Thomas — 3" row carries Thomas's face); each ray row carries its PICK's icon and the icon FOLLOWS the select when you change it; the Roll Damage popup's "Against …" line shows icon + name per target. Every icon tooltips its name (law 8) |
+| T3 ⬜ | **Sanity: the darts compose is untouched.** MM at the player window's PC holding Shield (walk item 6's cast) | Exactly as walked: hold pops for the target on window two, dice roll, application waits, Shield → zero for that target, the other target's darts land |
+
+**Known and deliberate, on the record (this pass):** the defender can now SEE the rolled
+damage before answering Shield — the metagame leak the original Phase 1.5 design avoided is
+ACCEPTED by the (gg) ruling (the darts always leaked it; `damage`-kind reactions genuinely
+improve — the defender finally reduces a number they can read). A GM pressing the tray while
+the hold is still pending still beats the verdict (the standing Phase 1.5 gap, unchanged).
+Ray damage cards still carry no aim line of their own — the ray's ATTACK card directly above
+names the target (deliberate, (ee)); the icons ask (hh) landed on the popup surfaces instead.
+
+### 📦 The (gg)/(hh) build record (2026-08-21, SIXTEENTH session)
+
+**The findings, user verbatim:** (gg) *"ah has to do with interactino with greens shield,
+waiting for popup i think. the shoudl just roll damage, and not wait for shield, if its a
+miss then it just doesnt do anything. i thnk this is kinda like MM too"* — confirmed at the
+table (*"yes confirmed its not rolling damage until sheild is resolved"*) and in code:
+`stampHoldIfInterrupted` returning true made the rollAttackV2 hook return before the offer,
+so a held ray's dice waited on the Shield answer (hold.js's post-answer roll site). Their
+second cast proved the mechanism: no hold interrupt (reaction spent) → all three rolled.
+(hh) *"i see the name indicator for rolling, can you also put their token in there?"* +
+the dart-popup screenshot (*"in thee row where it says thomas -- 3"*) + *"match that
+pattern for rays too"*.
+
+**Built:** [auto-damage.js](scripts/auto-damage.js) — the hook stamps the hold and rolls
+ANYWAY; `rollDamageForAttack` births the claim (`attackHoldPending` + `attackHoldFor`, read
+at ROLL time so a post-resolution roll applies straight); the `againstLine` helper puts
+icon+name on both offer flavours · [auto-apply.js](scripts/auto-apply.js) — the applier
+waits on the claim (three triggers: arrival / the release write / render-resume, the
+spellHoldPending idiom; belt-and-braces falls through when the hold already resolved) ·
+[hold.js](scripts/hold.js) — the continuation RELEASES pending rolls instead of rolling
+(the post-answer offer/roll site is dead code, deleted); ⚠ the auto-damage.js import went
+BARE, not away — it pins the evaluation order (74 registrations, all 9 pairs hold) ·
+[volleys.js](scripts/volleys.js) — the stamp records target `img`; dart rows + ray rows
+carry icons, the ray icon tracks its select via a change listener · design.md — Phase 1.5
+recut (the pause moved from dice to application, the leak acceptance recorded), map row 1,
+the (hh) bullet.
+
+**Battery, all green in ONE pass, zero flakes (this exact code deployed byte-identical,
+21 files, app bounced first-try before running):** battleflow ALL PASS ×2 ·
+**probe-player-damage 12/12** (was 11 — 4b the Against-line icon) · **hold ALL PASS** (the
+recut: §1 rolls-while-held born claimed + unapplied, §2 flip → released dice do NOTHING,
+§3 pass → release ends in the receipt; every flip-window section now asserts
+`dmg:{rolled:true, pending:false, applied:false}`) · maneuvers 54/54 · cast 17/17 ·
+riders 8/8 · effects 54/54 · concentration 47/47 · saves 61/61 · probe-save-damage-popup
+13/13 · **smoke-volleys 38/38** (was 36 — 1c2 dart-row icons, 3b2 the ray icon TRACKS its
+select via a dispatched change event) · resources 18/18 · check-hook-order ALL PASS (**74
+registrations** — auto-apply.js's release + resume triggers are the +2; all 9 pairs hold) ·
+verify-settings **CLEAN** (neither finding adds a settings key).
+
+⚠ **Sixteenth-session notes, paid once:**
+- The app relaunch worked FIRST try this time (the retry pattern stayed in its holster).
+- smoke-hold's flip sections now apply REAL damage on pass verdicts (§3 hits Gren), so
+  Gren rides to 0 HP mid-suite and the finally-block restore is load-bearing — if a run
+  dies mid-suite, check Gren's HP before the next walk.
+- The suite client's `playerRollDamage` is CLIENT-scoped default-false, which is why the
+  recut hold sections stay deterministic on the direct auto-roll path — the offer path's
+  claim is the same `rollDamageForAttack` chokepoint, pinned by probe-player-damage.
+
+---
+
+## ✅ THE v1.20.0 WALK — ALL FIFTEEN ITEMS WALKED (opened fourteenth session; finished SIXTEENTH, 2026-08-21 — only the T1–T3 retest above remains)
 
 **What's in the box:** Pass C — the volley folds (Magic Missile darts + Scorching Ray rays,
 FLOW item 6, design.md Phase 1.7, moment map row 15) — and the **resource use notices**
@@ -29,18 +95,18 @@ and **Resource Use Notices**. Two new suites: smoke-volleys 24/24, smoke-resourc
 | 1 ✅ | **MM volley, aimed by hand.** Gren targets TWO enemies, casts Magic Missile at 1st | ✅ walked clean under the user's blanket (*"all the volleys with gren, works fine"*). The spec, kept: volley popup on the casting window, "3 darts to place", stepper per target, drain bar; PUBLIC card row runs the same bar; Fire → ONE damage roll per target, receipts per target, card row "3 darts: A ×2, B ×1" |
 | 2 ✅ | **Upcast.** Same cast from a 3rd-level slot | ✅ under the same blanket — popup offers **5** darts |
 | 3 ✅ | **The X and the buzzer.** X one cast; leave another alone | ✅ under the same blanket (if the X/buzzer halves weren't individually exercised, a re-touch is cheap) — X fires AS AIMED, the untouched one fires the EVEN SPREAD at the buzzer |
-| 4 ⬜ | **One check per volley.** MM (2+ darts on one target) at someone CONCENTRATING | Exactly ONE concentration check against the aggregate — never one per dart (the Gren hand-lump rule, now automated) |
-| 5 🟡 | **SR volley.** Gren casts Scorching Ray (⚠ his graft is REVERTED — the copy is stock-bare and volleys via the REGISTRY now) | ✅ as GREN pre-registry (popup, 3 rays, real attacks in order). 🟡 the Salyth half re-walks as **R1** below |
-| 6 ⬜ | **MM vs Shield (the compose).** MM at the player window's PC holding Shield (blockList `Magic Missile:Shield`) | The hold pops for the TARGET (window two); the volley's dice roll but application WAITS on that target; Shield cast → that target takes ZERO while the other target's darts land normally |
-| 7 🟡 | **Resource notices, the sweep.** Morgash: Second Wind. A Precision Attack fold. Thomas: Vow of Enmity. Gren: Innate Sorcery. An item cast (First Light's heroism / the Maul's drive) | ✅ content-wise, user verbatim: *"on the self use showing usage, great."* 🟡 **finding (cc): heals flash BEFORE the healing dice** — evaluated (modest lift), design below, builds on "go" |
-| 8 ⬜ | **The quiets.** An NPC ability (GM side); a potion/torch/ration; a plain slot cast | NO flash for any of them — NPC resources are secret, no-recovery expendables are noise, slots are excluded by design |
-| 9 ⬜ | **The settings sheet.** Open module settings | Two new rows under their own dividers ("Volleys", "Resource Notices"); Volley Spells greys out when the Attack Resolver is off |
-| 10 ⬜ | **F5 resume.** F5 Gren's window mid-volley-popup | On reload the popup re-raises with the bar still draining; if the deadline passed while away, the even spread fires on reload instead of stranding |
-| R1 ⬜ | **(bb) Salyth SR, registry-powered.** As Salyth: target TWO enemies FIRST, then cast Scorching Ray | The popup raises — her bare copy volleys via the registry now, no graft anywhere; 3 rays, a target pick AND a mode select per ray |
-| R2 ⬜ | **(bb) Salyth MM, targets first.** As Salyth: target FIRST, then cast Magic Missile | The popup raises. Her MM data was always healthy — the old "inconsistent" was the TARGETLESS QUIET, so a cast with no targets selected still (correctly) stays native |
-| R3 ⬜ | **(dd) per-ray adv/dis.** Any SR volley: ray 1 Advantage, ray 2 Disadvantage, ray 3 left Normal | Ray 1 rolls two d20 keep-high, ray 2 keep-low, ray 3 one d20; the resolved card row tags "(adv)"/"(dis)"; Normal never fights sheet-borne modifiers |
-| R4 ⬜ | **(ee) the aim on every roll.** Watch any volley's roll cards | Every dart damage roll and every ray attack leads with the target's token icon (hover = its name) + "→ Name" / "Ray N → Name" |
-| R5 ⬜ | **(cc) the flash waits for the dice.** Morgash: Second Wind, roll the healing (sheet or card). Then use it again and DON'T roll | The flash lands AFTER the healing dice, not at the use; the card's ledger line is immediate either way; the never-rolled use still flashes ~12s later (the fallback) |
+| 4 ✅ | **One check per volley.** MM (2+ darts on one target) at someone CONCENTRATING | Exactly ONE concentration check against the aggregate — never one per dart (the Gren hand-lump rule, now automated) |
+| 5 ✅ | **SR volley.** Gren casts Scorching Ray (⚠ his graft is REVERTED — the copy is stock-bare and volleys via the REGISTRY now) | ✅ as GREN pre-registry (popup, 3 rays, real attacks in order). 🟡 the Salyth half re-walks as **R1** below |
+| 6 ✅ | **MM vs Shield (the compose).** MM at the player window's PC holding Shield (blockList `Magic Missile:Shield`) | The hold pops for the TARGET (window two); the volley's dice roll but application WAITS on that target; Shield cast → that target takes ZERO while the other target's darts land normally |
+| 7 ✅ | **Resource notices, the sweep.** Morgash: Second Wind. A Precision Attack fold. Thomas: Vow of Enmity. Gren: Innate Sorcery. An item cast (First Light's heroism / the Maul's drive) | ✅ content-wise, user verbatim: *"on the self use showing usage, great."* 🟡 **finding (cc): heals flash BEFORE the healing dice** — evaluated (modest lift), design below, builds on "go" |
+| 8 ✅ | **The quiets.** An NPC ability (GM side); a potion/torch/ration; a plain slot cast | NO flash for any of them — NPC resources are secret, no-recovery expendables are noise, slots are excluded by design |
+| 9 ✅ | **The settings sheet.** Open module settings | Two new rows under their own dividers ("Volleys", "Resource Notices"); Volley Spells greys out when the Attack Resolver is off |
+| 10 ✅ | **F5 resume.** F5 Gren's window mid-volley-popup | On reload the popup re-raises with the bar still draining; if the deadline passed while away, the even spread fires on reload instead of stranding |
+| R1 ✅ | **(bb) Salyth SR, registry-powered.** As Salyth: target TWO enemies FIRST, then cast Scorching Ray | The popup raises — her bare copy volleys via the registry now, no graft anywhere; 3 rays, a target pick AND a mode select per ray |
+| R2 ✅ | **(bb) Salyth MM, targets first.** As Salyth: target FIRST, then cast Magic Missile | The popup raises. Her MM data was always healthy — the old "inconsistent" was the TARGETLESS QUIET, so a cast with no targets selected still (correctly) stays native |
+| R3 ✅ | **(dd) per-ray adv/dis.** Any SR volley: ray 1 Advantage, ray 2 Disadvantage, ray 3 left Normal | Ray 1 rolls two d20 keep-high, ray 2 keep-low, ray 3 one d20; the resolved card row tags "(adv)"/"(dis)"; Normal never fights sheet-borne modifiers |
+| R4 ✅ | **(ee) the aim on every roll.** Watch any volley's roll cards | Every dart damage roll and every ray attack leads with the target's token icon (hover = its name) + "→ Name" / "Ray N → Name" |
+| R5 ✅ | **(cc) the flash waits for the dice.** Morgash: Second Wind, roll the healing (sheet or card). Then use it again and DON'T roll | The flash lands AFTER the healing dice, not at the use; the card's ledger line is immediate either way; the never-rolled use still flashes ~12s later (the fallback) |
 
 **Known and deliberate, on the record:** a targetless volley cast stays fully native
 (nothing to aim — ⚠ and with Salyth's MM data proven HEALTHY by the census, this quiet is
@@ -58,13 +124,16 @@ user disclaims it (*"i dont ever recall a 'rays roll straigtt' rule … not corr
 Per-ray adv/disadv is RAW and joins the volley popup in the fix pass;
 NPC spends never flash by design; refunds/regains never flash (spend-only).
 
-### ✅ Walk-1 findings (bb)–(ff) — ALL BUILT battery-green (FIFTEENTH session, 2026-08-21)
+### ✅ Walk-1 findings (bb)–(hh) — ALL BUILT battery-green ((bb)–(ff) fifteenth session, (gg)+(hh) SIXTEENTH, 2026-08-21)
 
 The user walked the volley set as GREN clean and the resource sweep landed (fourteenth
 session); the FIFTEENTH session ran the census (`tools/scan-volley-spells.mjs`, committed),
 took the "go" (*"no lets make all the changes needed, then set up a new test sesion"*) and
-**BUILT ALL FIVE in one battery-green pass**. The table below is the diagnosis/design
-record; the R1–R5 rows above are the table tests.
+**BUILT ALL FIVE in one battery-green pass**. The SIXTEENTH session finished the walk at
+the table (every remaining item + R1–R5 good), surfaced **(gg)** (the Shield hold eating a
+volley's damage dice) and **(hh)** (icons on the aim surfaces) — both diagnosed live,
+both BUILT the same session (the retest section above is their record and their test).
+The table below is the (bb)–(ff) diagnosis/design record.
 
 | # | Finding (user verbatim) | Diagnosis / design, ready to build |
 | --- | --- | --- |
