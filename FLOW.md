@@ -477,7 +477,24 @@ Prone. No verdict card even on the passes, so the demand visually never resolves
 already dead, and Topple prompted an already-prone target. ~~**Redundancy gates.**~~ → the
 dead-target gate, above.
 
-## 6. Multi-projectile fold — 🔵 STANDS
+## 6. Multi-projectile fold — ✅ BUILT + BATTERY-GREEN 2026-08-21 (v1.20.0, PASS C)
+
+> ✅ **SHIPPED as design.md Phase 1.7** — `scripts/volleys.js` composing the §4.3 spine
+> (moment map row 15), `tools/smoke-volleys.mjs` 24/24. Detection is STRUCTURAL exactly as
+> this item ordered ("a settings list of identifiers is the LAST resort" — it never
+> happened): `target.affects.count` ≥ 2 at cast level. The probe (`tools/
+> probe-volley-resources.mjs` + `probe-volley2/3`) measured the two loads this item
+> flagged: MM ships `"2 + @item.level"` at the item level, **SR ships no count at all** —
+> so `tools/fix-scorching-ray.mjs` grafts `"1 + @item.level"` (CONTENT route; sandbox done,
+> ⚠ prod at the release). The MM/SR carve-out below shipped exactly as written: darts
+> aggregate per target (ONE roll, ONE application, ONE concentration check), rays drive N
+> real attacks through the ordinary pipeline (per-ray holds and riders — the recorded
+> per-roll ruling, now exercised). The claim shape is `usageConfig.subsequentActions =
+> false` at preUse; Refund survives it (measured: deltas is Refund's real channel;
+> `createConsumedFlag` is hit-dice-only). The caster aims everything in one popup; the X
+> fires as aimed; expiry fires the even spread; the card runs the public bar.
+
+The original shape, kept as history:
 **BUILD MAGIC MISSILE FIRST.** It rides the already-instrumented `spellDamage` claim path
 (v1.6.0, standing item 2 — that machinery exists because Magic Missile IS the negate hold's
 seam), and it has no attack rolls. Scorching Ray then inherits the volley card, the row model
@@ -953,8 +970,16 @@ re-deriving the merge. The helper takes `(message, flagKey, mutate)` and nothing
 released and deployed.** The user's hold-and-bundle call held: attacks, save spells and areas
 shipped as one thing, with one walk and one tag. **Pass B is CLOSED.**
 
-## PASS C — THE VOLLEYS — ⚑ GATE LIFTED 2026-08-20 (Pass A shipped; the ruling is recorded)
+## PASS C — THE VOLLEYS — ✅ BUILT + BATTERY-GREEN 2026-08-21 (v1.20.0, awaiting the walk)
 *(was slots 5 + 7 — both halves of FLOW item 6)*
+
+✅ **BUILT IN ONE SESSION (the thirteenth), probe-to-bedrock first** — see item 6 above for
+what shipped and design.md Phase 1.7 for the binding record. 6a and 6b landed TOGETHER
+(the drive channel and the row model turned out to be one machine with two kinds), plus a
+scope-add the user ordered mid-session: **the resource use notices** (same design.md
+section). Battery green across the whole tree + the two NEW suites (volleys 24/24,
+resources 11/11). ⚠ NOT walked, NOT released — the v1.20.0 walk checklist is in
+HANDOFF.md.
 
 ✅ **The per-ray rider question is ANSWERED** (design.md Phase 1.6, the shipped Riposte as
 precedent): riders ride attack ROLLS; the all-targets-or-nothing intersection lives WITHIN
@@ -975,6 +1000,15 @@ opening C, so the fold idiom has table confirmation behind it.
 **Why they bundle:** those two slots were never two items. Both are FLOW **item 6**, the
 multi-projectile fold, split across the order only because Scorching Ray was gated on Magic
 Missile proving the path first. Rejoining them repairs a split the old order created.
+
+**Next after Pass C — the user's call, 2026-08-21 (verbatim: "i want to work on
+inspiration (heroic) and bard, as next after this"):**
+- **Heroic Inspiration + Bard** — unscoped as yet. Natural surface reading: Heroic
+  Inspiration grant/spend/track (2024 rules — advantage on a d20 Test, one at a time,
+  various grants), and the Bard kit (Bardic Inspiration die lifecycle — the notice
+  already announces its SPEND; the open half is granting, holding and CASHING the die on
+  a roll). Scope it with the user before building; the resource-notice rhythm gate and
+  the §4.3 spine are the obvious composition points.
 
 **Not in any pass — they need a decision first:**
 - **Item 11 (AC5e)** — needs the BENCH, not the deck. User's ruling 2026-08-19: *"ok thats fine

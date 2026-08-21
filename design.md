@@ -241,6 +241,7 @@ partystash).
 > | 12 | Riposte offer | `riposte` · enemy's attack msg | elect, on a melee miss | canAnswerFor per reactor | Riposte / Pass + weapon select | flag write · §4.1 `riposteAnswer` (trusted drive) | drive a real attack; hit celebrates, miss announces | decline (elect) |
 > | 13 | Bash offer | `bashOffer` · attacker's attack msg | attacker's, on a melee hit | canAnswerFor(attacker) | Use / Pass + target select | flag write | drive the feat's own save activity | pass (elect) |
 > | 14 | Damage offer (attack / save) | `damageOffer` · attack msg / usage card (w) | roller's / caster's client | the popup is local; THE CARD BAR IS PUBLIC — every client renders the wait | Roll | the one `fire` thunk (X and buzzer roll too; the roll folds the flag to done) | rollDamageForAttack / rollDamageForSave | roll (local `damageTimer`, default 15s; 0 waits) |
+> | 15 | Volley aim (darts / rays) | `volley` · usage card | caster's, at use (v1.20.0) | the popup is the author's own (damage-offer locality; render re-pops + re-arms it); THE CARD BAR IS PUBLIC | steppers / ray selects + Fire (X fires as aimed) | the one `fireVolley` claim (queueFlagWrite — button, X and buzzer race safely) | darts: per-target aggregated `rollDamage`, aimed by canvas (spellDamage claim applies); rays: per-ray real `rollAttack` through the ordinary pipeline | fire the even spread (author's `damageTimer` clock; 0 waits) |
 >
 > **THE SPINE (ui.js)** — the mechanisms every row above composes; each was extracted from
 > the machines that had drifted apart around it:
@@ -815,6 +816,96 @@ trios and button factories are gone.
 - **(j) reaches Hew:** the OK acknowledges through the spine's ACK — bar, recall and popup
   resolve; the mastery notices (Vex/Sap/Cleave) ride the same call in their own file, Arm
   keeping the "Cleave — armed" card.
+
+### Phase 1.7 — the volley folds (BUILT v1.20.0, 2026-08-21 — FLOW item 6 / Pass C, battery-green, awaiting the walk)
+
+One spell, N projectiles, and the system rolls exactly ONE subsequent action per use —
+session 4 re-cast Scorching Ray three times for one volley and hand-lumped Magic Missile's
+dice. The fold (`scripts/volleys.js`, its own file, composing the §4.3 spine — map row 15)
+suppresses the single native follow-up and gives the CASTER one popup to aim the whole
+volley. `tools/smoke-volleys.mjs` 24/24 is its suite.
+
+- **DETECTION IS STRUCTURAL** (FLOW item 6's own instruction — the settings list never
+  happened): item.type `spell`, activity type `attack`/`damage` with damage parts, and
+  `target.affects.count` evaluating to **2+** at the cast level. Measured 2026-08-21: MM
+  ships `"2 + @item.level"` at the ITEM level (the activity defers, `override: false`);
+  **Scorching Ray ships NO count anywhere** ("Total Rays: 3" is description prose), so
+  `tools/fix-scorching-ray.mjs` grafts the matching `"1 + @item.level"` onto the world's
+  copies — the content route, the house way. Content without a count is never a volley:
+  graceful degradation, no guess. ⚠ Run the graft on PROD at the release.
+- **THE CAST LEVEL comes off the usage message** (`system.spellLevel`), not the config —
+  measured: the system RE-RESOLVES a bare `use({scaling})` during consume and it reaches
+  postUse as 0; the slot pick is what real tables do and the message field is the value
+  the system stands behind (polish.js's castPayload reads the same field). The count
+  formula evaluates with `@item.level` = cast level and `@scaling` both provided.
+- **THE CLAIM SHAPE** (the Pass C unblock, discharged): `usageConfig.subsequentActions =
+  false`, set in `dnd5e.preUseActivity` through the hook's mutable config (the potion-aim
+  seam) — walk-4 (v)'s flag, arriving from the outside. ⚠ Measured while wiring it: the
+  system's `createConsumedFlag` records HIT DICE only and returns void otherwise — Refund
+  Resource's real channel is the usage message's own `system.deltas`, which consumption
+  stamps regardless. The stamp still replicates the system's two lines verbatim so even
+  the hd edge behaves natively.
+- **DARTS (damage kind — Magic Missile):** simultaneous by RAW ⇒ per-target ONE aggregated
+  roll: k darts = k copies of the base damage entry pushed at `dnd5e.preRollDamageV2`
+  (formula rewrites would re-roll shared dice; k visible groups read as k darts), aimed by
+  setting the canvas target around `rollDamage` (the maneuvers drive idiom) so the roll's
+  own snapshot names exactly that target. polish.js's existing `spellDamage` birth stamp +
+  hold.js's applier then do application; concentration checks ride it — ONE per target per
+  volley, which is the Gren-hand-lump correctness the fold exists to automate. The hold
+  blocklist composes free: driven rolls born `spellHoldPending` defer until the spell hold
+  resolves, negated targets take zero. ⚠ The volley releases its OWN unheld claims —
+  hold.js's `releaseUnheldSpellDamage` polls at USE time and the volley's rolls arrive a
+  popup later, so `driveDarts` folds `spellHoldPending` when the card carries no hold.
+- **RAYS (attack kind — Scorching Ray):** independent attacks by RAW ⇒ one REAL
+  `rollAttack` per ray at its chosen target, driven sequentially so cards land in ray
+  order — then the ORDINARY pipeline per ray: auto-damage or the player's own offer, a
+  hold pausing that ray's damage alone, riders folding per ray (the Phase 1.6 per-roll
+  ruling, now exercised). Sequential DRIVING, never sequential resolution.
+- **The popup** is the caster's own (damage-offer locality — no elect, no relay): steppers
+  per target (darts) or a target select per ray, one Fire button, the family bar. The X
+  fires as aimed ("get on with it", never a cancel); the buzzer fires the EVEN SPREAD
+  (`damageTimer`, expiry-fires like all of its family); the claim is a `queueFlagWrite`
+  race so button, X and buzzer resolve exactly once. Render re-pops and re-arms on the
+  author's client — an overdue reload fires the spread instead of stranding. ⚠ Accepted
+  family limit, recorded: the clock lives on the casting client; a caster who never
+  returns leaves the volley unfired and the GM's fallback is the sheet.
+- **Rides the resolver** (`modeAllows` + the `volleys` world boolean, default ON) — the
+  folds precedent: the whole payoff is driven rolls. Targetless casts stay native (nothing
+  to aim); count 1 stays native; the OFF switch restores today exactly.
+- ⚠ **Suite-scoping note:** smoke-hold pins `volleys` OFF (the masteryRiders precedent) —
+  Gren's real MM is now a volley and the extra popup breaks that suite's dialog searches.
+  The volley×hold claim compose is smoke-volleys §6's pin.
+
+#### The resource use notices (BUILT v1.20.0, same session — the user's ask verbatim)
+
+*"if an ability has x of y per day or short rest, give a notification like it does on
+combat plus on turn notice (a screen flash and fade of text). say something like used
+[ability], x of y remaining."* — `scripts/resources.js`, `tools/smoke-resources.mjs` 11/11.
+
+- **ZERO NEW STATE:** dnd5e stamps every consumption onto the usage message itself —
+  `message.system.deltas` (measured: `{actor: [{keyPath, delta}], item: {id: [{keyPath,
+  delta}]}}`, written before the message is created). Every client reads the spend off the
+  replicated message and flashes locally; the chat log is the bus, as everywhere.
+- **THE RHYTHM GATE (structural, no name list):** a spend announces only when its pool's
+  uses carry a RECOVERY period — the user's own definition. Covers every named candidate
+  (Innate Sorcery, Font of Magic's sorcery points, superiority dice, Channel Divinity +
+  Vow of Enmity, Second Wind, Action Surge, free-cast spells, First Light / the Maul /
+  the Graveheart daily casts — all measured in the world) and structurally excludes
+  torches, rations, potions, healer's kits (uses, NO recovery) and spell slots (actor
+  keyPaths the reader never looks at). Negative deltas (regains) stay quiet. Three pool
+  shapes recognized: item uses, cross-item pools, and `activityUses`
+  (`system.activities.<id>.uses.spent` — Hunter's Mark's free cast).
+- **WHO:** player-owned actors only, announced to EVERY client (the combatplus turn
+  banner's own publicity — this module's settings-sheet divider idiom already came from
+  there). NPC spends never flash: monster resources are the GM's secret.
+- **Surfaces:** the FLASH (combatplus's exact banner idiom — fixed, huge, fades over
+  ~4s, un-clickable — seated at 26% so a turn banner never collides, stacking downward)
+  is the attention; the CARD LINE (idempotent render decoration, law-8 tooltip on its
+  icon) is the durable record. History is inert: only messages younger than 10s flash,
+  once per client. World boolean `resourceNotices`, default ON.
+- **Free synergy, deliberate:** the maneuver folds spend superiority through real
+  `activity.use()` (the castReaction honesty rule), so Precision/Riposte/Bash announce
+  their die spend with zero coupling — the honesty rule paying out a second time.
 
 ### Phase 1.75 — curated damage riders (the Hunter's Mark tier)
 
@@ -1488,6 +1579,8 @@ World, per-feature, default OFF unless noted:
 | Hold timer | 15s default (v1.11.0 — every timer 15s; 0 waits) | 1.5 |
 | Popup shows the math | off / on (verdict included) | 1.5 |
 | Maneuver folds | curated `Name:kind` list (`precision` / `riposte`), default `Precision Attack:precision, Riposte:riposte` — **the list IS the switch** (empty disables); STRICT parse, unknown kinds dropped with a warning, never defaulted; the folds ride the hold family's clock/reveal/futile settings, no timer or boolean of their own — **shipped v1.19.0** | 1.6 |
+| Volley spells | off / on — **ships ON (built v1.20.0)**; structural detection (spell + attack/damage activity + `affects.count` ≥ 2 at cast level), rides the resolver mode + `damageTimer`; the caster aims every dart/ray in one popup, expiry fires the even spread | 1.7 |
+| Resource use notices | off / on — **ships ON (built v1.20.0)**; recovery-rhythm pools only, player-owned actors only, flash on every client + a durable card line; reads the usage message's own `system.deltas`, zero new state | 1.7 |
 | Hit riders | off / on | 1.75 |
 | Rider table | curated identifier list — **how much** is read from the content, never listed | 1.75 |
 | Rider upgrades | curated `feature:mark` pairs, damage likewise read from the feature | 1.75 |

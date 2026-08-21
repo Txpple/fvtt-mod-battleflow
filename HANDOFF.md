@@ -1,18 +1,101 @@
 # HANDOFF.md — picking this up cold
 
-## State at a glance — 2026-08-21, end of the TWELFTH session (v1.19.0 RELEASED)
+## State at a glance — 2026-08-21, end of the THIRTEENTH session (v1.20.0 BUILT, awaiting its walk)
 
 | | |
 | --- | --- |
-| **Do first** | ✅ **NOTHING IS OPEN — v1.19.0 IS CLOSED END TO END** (released, prod bounced 2026-08-21, registered version read back **1.19.0** with round-5 markers in the vended code — `tools/probe-registered-version.mjs` is the wake-half tool now — and `BF_TARGET=prod verify-settings` **CLEAN** after a one-drift --fix: dramaticBeat 3→0, the round-3 "all beats 0" call finally reaching prod). **There is NO open walk and NO open release step.** Next work is a fresh decision: [FLOW.md](FLOW.md)'s build order or Phase 4 — confirm appetite first. |
-| Repo | `main`, pushed, **tag `v1.19.0` on `825d4c0`**. |
-| Release | ✅ **v1.19.0 RELEASED 2026-08-21** — GitHub release `v1.19.0 - the maneuver folds` is public with both assets: `fvtt-mod-battleflow.zip` (171,068 bytes, **20 entries, forward slashes verified** — maneuvers.js joined the 19 of v1.18.0) and the bare `module.json` (1,445 bytes). The notes cover the WHOLE version: five fix rounds, six walks. The box tracks the GitHub manifest. |
-| Sandbox | Up, minimized, release code deployed + byte-verified, `verify-settings` **CLEAN**. ⚠ It VANISHED at battery start again (EIGHTH time — the clean-shutdown pattern); the documented relaunch worked first try, again. |
-| Prod | ✅ **v1.19.0 LIVE** — disk 18/18 md5-MATCH (deployed idle at 0 users), **bounced** (down-by-user from the Molten panel, wake-by-connect — the pattern's second clean run), registered version **1.19.0**, `verify-settings` **CLEAN**. The round-4 macro write on both worlds stands. |
-| Walked | v1.18.0 12/12. **v1.19.0 FULLY WALKED AND CLOSED**: walk 1 → 8 built; walk 2 → 9 built; walk 3 → 8 built; walk 4 → 6 passed + 4 built; walk 5 → 9 passed + 4 built ((x)(y)(z)(aa)); **walk 6 → 8 of 8 CLOSED CLEAN, ZERO findings** — every fix round table-verified, the four-times-deferred F5 survivor passed. **There is NO open walk.** |
-| Next work | After the bounce + prod verify: the deck is [FLOW.md](FLOW.md)'s build order (read it before building anything) and Phase 4 (needs TABLE time — ten rounds of Bless, rides a real session). Pass C (the volleys) composes the §4.3 spine or doesn't build. Confirm appetite before opening anything. |
-| Testing setup | ⚠ **THE USER RUNS TWO WINDOWS**: GM (Matt the DM) + a player window owning Thomas/Morgash. Player-first routing (①/(h)) sends THEIR popups to window two whenever it is connected — "nothing popped" reports must always ask WHICH window. |
-| Bridge | Disconnected on BOTH worlds (reconnected read-only this session for rule-text pulls + the prod deploy, disconnected after). Suites join as `Tester Assistant`. |
+| **Do first** | 🔍 **PRESENT THE v1.20.0 WALK CHECKLIST** (below — Pass C's volleys + the resource notices, built this session, battery-green, sandbox-deployed + byte-verified, **NOT walked, NOT released**). The standing cycle: the user walks, findings → probe → "go" → one battery-green fix pass → recut. Prod is UNTOUCHED on v1.19.0. |
+| Repo | `main` — v1.20.0 built; commits this session: `test:` (suites + probes + the SR graft tool), `feat:` (volleys.js + resources.js + settings + module.json 1.20.0), `docs:` (this recut). Tag comes AFTER the walk closes (the v1.19.0 precedent — module.json carries 1.20.0 from walk 1). |
+| Release | ⚠ **NOT RELEASED.** v1.19.0 remains the latest release and prod runs it. The v1.20.0 release steps (after the walk): tag → GitHub release (zip built by explicit ZipArchive entry names — **22 entries now**: volleys.js + resources.js joined) → prod deploy → **`BF_TARGET=prod node tools/fix-scorching-ray.mjs`** (the content graft prod does not have) → `BF_TARGET=prod verify-settings` (new keys ride module defaults — CLEAN expected) → bounce by down-by-user/wake-by-connect → `probe-registered-version` reads 1.20.0. |
+| Sandbox | Up, minimized, v1.20.0 deployed + byte-verified (`deploy-house-module.mjs fvtt-mod-battleflow --local`), `verify-settings` **CLEAN** (reference grew `volleys: true`, `resourceNotices: true`). ⚠ Vanished at session start again (NINTH — the clean-shutdown pattern) and twice the relaunch needed a SECOND try (first Start-Process died silently; verify the process before running a suite). |
+| Prod | v1.19.0 LIVE, untouched this session. ⚠ Prod's Scorching Ray does NOT carry the volley count yet — the graft is a release step. |
+| Walked | v1.19.0 fully closed (six walks). **v1.20.0: ZERO walks — the checklist below is fresh.** |
+| Next work | After the v1.20.0 walk closes: **Heroic Inspiration + Bard** (the user's named next, 2026-08-21 — recorded in [FLOW.md](FLOW.md) under Pass C; scope with the user first). Then the standing deck: Phase 4 (table time) and AC5e (bench, still waiting on the user's go). |
+| Testing setup | ⚠ **THE USER RUNS TWO WINDOWS**: GM (Matt the DM) + a player window owning Thomas/Morgash. Player-first routing sends THEIR popups to window two whenever it is connected — "nothing popped" reports must always ask WHICH window. ⚠ The volley popup is the CASTER's window; the resource flash is EVERY window. |
+| Bridge | Disconnected on BOTH worlds. Suites join as `Tester Assistant`. |
+
+---
+
+## 🔍 THE v1.20.0 WALK — the checklist (built 2026-08-21, thirteenth session; NOT yet walked)
+
+**What's in the box:** Pass C — the volley folds (Magic Missile darts + Scorching Ray rays,
+FLOW item 6, design.md Phase 1.7, moment map row 15) — and the **resource use notices**
+(the user's mid-session scope-add, verbatim: *"used [ability], x of y remaining"* as a
+combatplus-style screen flash). Two new world settings, both default ON: **Volley Spells**
+and **Resource Use Notices**. Two new suites: smoke-volleys 24/24, smoke-resources 11/11.
+
+| # | Walk item | What should happen |
+| --- | --- | --- |
+| 1 | **MM volley, aimed by hand.** Gren targets TWO enemies, casts Magic Missile at 1st | The volley popup on GREN's window: "3 darts to place", a stepper per target, drain bar; the PUBLIC card row runs the same bar. Aim 2/1, Fire → ONE damage roll per target (2 dice groups and 1 — each group a dart), receipts per target, card row reads "3 darts: A ×2, B ×1" |
+| 2 | **Upcast.** Same cast from a 3rd-level slot | The popup offers **5** darts (the count formula, `2 + @item.level`, off the card's own spellLevel) |
+| 3 | **The X and the buzzer.** X one cast; leave another alone | X fires the volley AS AIMED (never a cancel); the untouched one fires the EVEN SPREAD at the 15s buzzer (damageTimer; expiry fires, never cancels) |
+| 4 | **One check per volley.** MM (2+ darts on one target) at someone CONCENTRATING | Exactly ONE concentration check against the aggregate — never one per dart (the Gren hand-lump rule, now automated) |
+| 5 | **SR volley.** Gren casts Scorching Ray (its count is GRAFTED on the sandbox — verify the popup shows 3 rays) | One popup, a target select per ray; Fire → three REAL attacks in ray order, each ray its own attack/damage/receipt at its chosen target; a missing ray just misses |
+| 6 | **MM vs Shield (the compose).** MM at the player window's PC holding Shield (blockList `Magic Missile:Shield`) | The hold pops for the TARGET (window two); the volley's dice roll but application WAITS on that target; Shield cast → that target takes ZERO while the other target's darts land normally |
+| 7 | **Resource notices, the sweep.** Morgash: Second Wind. A Precision Attack fold. Thomas: Vow of Enmity. Gren: Innate Sorcery. An item cast (First Light's heroism / the Maul's drive) | EVERY window flashes the big fading text — "Morgash used Second Wind — 2 of 3 remaining"; the maneuver names the POOL ("Superiority Dice/Combat Superiority: x of 4"); Vow names "Channel Divinity: 1 of 2"; the item cast "0 of 1". The usage card keeps the same line durably (scrollback) |
+| 8 | **The quiets.** An NPC ability (GM side); a potion/torch/ration; a plain slot cast | NO flash for any of them — NPC resources are secret, no-recovery expendables are noise, slots are excluded by design |
+| 9 | **The settings sheet.** Open module settings | Two new rows under their own dividers ("Volleys", "Resource Notices"); Volley Spells greys out when the Attack Resolver is off |
+| 10 | **F5 resume.** F5 Gren's window mid-volley-popup | On reload the popup re-raises with the bar still draining; if the deadline passed while away, the even spread fires on reload instead of stranding |
+
+**Known and deliberate, on the record:** a targetless volley cast stays fully native
+(nothing to aim); content without a count formula is never a volley (Fireball, single-dart
+homebrew); the volley clock lives on the CASTING client (the damage-offer family limit —
+a caster who F5s and never returns leaves the card's bar drained and the GM rolls from
+the sheet); ray attacks roll STRAIGHT (no adv/dis dialog — the resolver's own style);
+NPC spends never flash by design; refunds/regains never flash (spend-only).
+
+### 📦 The v1.20.0 build record (2026-08-21, THIRTEENTH session)
+
+**Probed to bedrock first** (`tools/probe-volley-resources.mjs`, `probe-volley2.mjs`,
+`probe-volley3.mjs` — all committed), and the measured facts that shaped the build:
+
+- **MM carries `target.affects.count = "2 + @item.level"` at the ITEM level** (activity
+  defers, override false). **SR carries NO count anywhere** — "Total Rays: 3" is prose —
+  so `tools/fix-scorching-ray.mjs` grafts `"1 + @item.level"` (RAW: 3 at 2nd, +1/level).
+  ✅ Sandbox grafted (Gren + BF Test Shielder). ⚠ PROD NOT YET — release step.
+- **The usage message's `system.spellLevel` is the cast level the system stands behind** —
+  a bare `use({scaling: 2})` reaches postUse with scaling RESET to 0 (measured); the slot
+  pick is the real channel and the message records it.
+- **`usageConfig.subsequentActions = false` set inside `dnd5e.preUseActivity` suppresses
+  the native follow-up** (walk-4 (v)'s flag from the outside) — and skipping that block
+  skips only the HIT-DICE consumed flag: `createConsumedFlag` is hd-only (measured),
+  Refund Resource's real channel is `message.system.deltas`, which survives untouched.
+- **`message.system.deltas` is the whole resource-notice data source** — dnd5e stamps
+  `{actor: [{keyPath, delta}], item: {id: [{keyPath, delta}]}}` on every usage message
+  before creation. Three pool shapes in the party: item uses, cross-item pools (Vow →
+  Channel Divinity; maneuvers → Combat Superiority), and `activityUses`
+  (`system.activities.<id>.uses.spent` — Favored Enemy's free Hunter's Mark). The rhythm
+  gate (uses.recovery non-empty) covers every user-named candidate and excludes every
+  mundane expendable — measured across the whole party.
+- **Gren's DDB-imported SR silently no-ops `use()` on a fixture NPC** (canUse visibility
+  gates) — suite fixtures are scratch-built spells (`method: 'spell', prepared: 1`, the
+  smoke-cast §6 shape), never DDB copies.
+
+**Battery, all green (this exact code deployed + byte-verified):** battleflow ALL PASS ×2 ·
+hold ALL PASS · maneuvers **54/54** (one run reported 52/52 — two bounded-retry sections
+skipped on dice, the re-run hit 54; variance, not regression) · cast 17/17 · riders 8/8 ·
+effects 54/54 · concentration 47/47 · saves 61/61 · probe-player-damage 11/11 (after the
+documented smoke-battleflow token rebuild — the trap fired and the doc paid) ·
+probe-save-damage-popup 13/13 · **smoke-volleys 24/24 (NEW)** · **smoke-resources 11/11
+(NEW)** · check-hook-order ALL PASS (**71 registrations**, 9 asserted pairs — volleys.js
+sits after cast.js / before saves.js; resources.js last, the card-footer position) ·
+verify-settings **CLEAN** both new keys.
+
+⚠ **v1.20.0 notes, paid once:**
+- **THE SCRIPT-CACHE LESSON (new, operational):** the suite harness's Playwright profile
+  caches module scripts by the `?v=<registered version>` key — so a REDEPLOY WITHOUT A
+  VERSION BUMP serves the suite STALE code until the Foundry process bounces. Two suite
+  failures were chased into module code before the penny dropped. **The fix-round
+  discipline is now: deploy → bounce the app → run.** (The user's browser has the same
+  property — hard-refresh after a deploy.)
+- The sandbox vanished at session start (NINTH, clean-shutdown pattern) and **the
+  relaunch needed a second try twice** — Start-Process returned, no process existed.
+  Verify the process/status before running a suite; the retry launch works.
+- **smoke-hold now pins `volleys` OFF** (the masteryRiders precedent): Gren's real MM is
+  a volley now, and the extra popup broke the hold suite's dialog searches. The
+  volley×hold claim compose is smoke-volleys §6's pin.
+- The §2 upcast pin drives a REAL slot (`spell.slot: "spell3"` + a temp slot override on
+  the fixture NPC) because bare scaling is re-resolved away — see the measured fact above.
 
 ---
 
@@ -646,6 +729,8 @@ update this table, never fight it:
 | Resolve Saving Throws | **on** | user-walked ON 2026-08-16 during the live dogfood |
 | Save Timer | **15s** | user re-tuned 2026-08-17 evening ("all my timers to 15s" — 6s proved unwinnable on an unwatched window, finding ④); expiry ROLLS; inert until saves is on. Since v1.10.0 the TOPPLE demand rides this same clock |
 | Damage Roll Timer | **15s (the default)** | **new in v1.19.0 round 4 (walk-4 (w), user ask: "so the table can know if its waiting for someone to roll damage")** — the offered damage roll's clock; the card runs the PUBLIC draining bar on every client; expiry ROLLS, never cancels; 0 waits indefinitely. ⚠ Prod needs nothing at the release beyond verify-settings --fix (module default already 15) |
+| Volley Spells | **on (the default)** | **new in v1.20.0 (Pass C)** — multi-projectile spells resolve as volleys: the caster aims every dart/ray in one popup; darts aggregate per target (one roll, one application, one concentration check), rays drive real per-ray attacks. Structural detection (`affects.count` ≥ 2 at cast level — MM ships it; the world's SR is grafted by `tools/fix-scorching-ray.mjs`, ⚠ prod at the release). Rides the resolver mode + Damage Roll Timer; expiry fires the even spread |
+| Resource Use Notices | **on (the default)** | **new in v1.20.0 (user ask: "used [ability], x of y remaining")** — a player character spending a recovery-rhythm pool (per rest / per day) flashes the big fading text on every client + a durable card line. NPC spends, no-recovery expendables and spell slots stay silent by design |
 | Auto-Apply on Cast | **on** | new in v1.5.0 — no-gate casts (utility effects + healing) apply themselves; damage spells deliberately excluded |
 | Center Popups | on (per client, the default) | v1.9.5: THE ONLY client setting left — `holdView` and `saveAutoRoll` are deleted, code paths and all |
 
