@@ -942,19 +942,26 @@ const out = await f.evaluate(async () => {
       await set('saveTimer', 0);
     }
 
-    // ============================================== 11. the GM popup filter (v1.12.0, finding ④)
-    // A player-owned target whose owner is OFFLINE falls to the GM by canAnswerFor — and
-    // the GM's unsolicited popup stack is exactly where it must NOT land ("as a GM i dont
-    // care to see other player saves"). The NPC control's popup shows in the same breath
-    // (this section can never pass by nobody popping at all); the PC rides the buzzer,
-    // marked as the timer's press, and the card row says so.
+    // ============================================== 11. the GM popup routing (v1.12.0 finding ④ + v1.19.x finding (h))
+    // canAnswerFor ALONE routes the saves popups since (h): an ONLINE owner still keeps
+    // the GM quiet (the v1.12.0 taste, untouched where it was made), but a player-owned
+    // target whose owner is OFFLINE now pops for the GM instead of silently riding the
+    // buzzer — the walk's log showed "failed (timer)" eating every player save in a
+    // solo-GM room. The buzzer stays the resolver of last resort (11c). The section sets
+    // the ownership itself (object form — the dotted key raises validation noise), so the
+    // old ownership-precondition SKIP is gone.
     {
       await clearChips();
-      const ownedOk = !!pcActor?.hasPlayerOwner
-        && !game.users.some(u => !u.isGM && u.active && pcActor.testUserPermission(u, 'OWNER'));
-      if (!ownedOk) {
-        skips.push(`11: BF Test PC Attacker ownership precondition not met `
-          + `(actor=${!!pcActor} hasPlayerOwner=${pcActor?.hasPlayerOwner})`);
+      const playerUser11 = game.users.find(u => !u.isGM && !u.active);
+      let owned11 = false;
+      if (pcActor && playerUser11) {
+        await pcActor.update({ ownership: { [playerUser11.id]: CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER } });
+        owned11 = !!pcActor.hasPlayerOwner
+          && !game.users.some(u => !u.isGM && u.active && pcActor.testUserPermission(u, 'OWNER'));
+      }
+      if (!owned11) {
+        skips.push(`11: could not produce an offline player owner `
+          + `(actor=${!!pcActor} playerUser=${!!playerUser11} hasPlayerOwner=${pcActor?.hasPlayerOwner})`);
       } else {
         priorActor[pcActor.id] = {
           'system.abilities.con.bonuses.save': pcActor.system._source.abilities?.con?.bonuses?.save ?? '',
@@ -985,30 +992,35 @@ const out = await f.evaluate(async () => {
         const pcName11 = nameOf11(pcActor);
 
         const npcPopup = await until(() => savePopups().find(p => p.textContent.includes(npcName11)), 4000);
-        const pcPopup = savePopups().find(p => p.textContent.includes(pcName11));
-        ok('11a. the GM\'s unsolicited popups are non-player-owned targets only',
-          !!npcPopup && !pcPopup,
+        const pcPopup = await until(() => savePopups().find(p => p.textContent.includes(pcName11)), 4000);
+        ok('11a. an empty room pops for EVERYONE — the offline-owner PC included ((h))',
+          !!npcPopup && !!pcPopup,
           `npcPopup=${!!npcPopup} pcPopup=${!!pcPopup} open=${savePopups().length} `
             + `names=["${npcName11}","${pcName11}"]`);
 
         const rowText11 = await until(() => {
           const t = document.querySelector(`[data-message-id="${card11.id}"]`)
             ?.querySelector('.battleflow-saves')?.textContent ?? '';
-          return t.includes('the timer (owner offline)') ? t : null;
+          return t.includes('waiting on') ? t : null;
         }, 3000);
-        ok('11b. the card row names the timer, not the GM, for the offline-owner PC',
-          !!rowText11, `row="${(rowText11 ?? '').trim()}"`);
+        ok('11b. the card row names the ROLLER again — "owner offline" described the removed quiet',
+          !!rowText11 && !rowText11.includes('owner offline'),
+          `row="${(rowText11 ?? '').trim()}"`);
 
-        // Resolve the NPC through its popup; the buzzer rolls the quiet PC.
+        // Resolve the NPC through its popup; the PC's popup stays open on purpose — the
+        // buzzer must STILL be the resolver of last resort past an unanswered popup.
         [...(npcPopup?.querySelectorAll('footer button, .form-footer button') ?? [])]
           .find(b => b.textContent.trim() === 'Normal')?.click();
         await until(() => card11.getFlag(MOD, 'saves')?.targets?.every(t => t.done), 20000);
         const ePc = entryOf(card11, pcActor);
-        ok('11c. the buzzer resolves the quiet PC — timed out, judged, done',
+        ok('11c. the buzzer resolves the unanswered PC — timed out, judged, done',
           (ePc?.done === true) && (ePc?.timedOut === true) && (ePc?.outcome === 'failed'),
           `done=${ePc?.done} timedOut=${ePc?.timedOut} outcome=${ePc?.outcome}`);
         await until(() => card11.getFlag(MOD, 'saves')?.targets?.every(t => t.applied), 12000);
         await set('saveTimer', 0);
+      }
+      if (pcActor && playerUser11) {
+        await pcActor.update({ ownership: { [playerUser11.id]: CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE } });
       }
     }
 

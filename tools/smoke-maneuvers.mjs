@@ -389,11 +389,12 @@ const out = await f.evaluate(async () => {
         skips.push('R2d/e — the driven attack rolled a natural 1 (miss); die-in-damage not exercised this run');
       } else {
         const dmg = await waitDamage(driven?.getFlag('dnd5e', 'originatingMessage'), 12000);
-        const extraDie = dmg?.rolls?.some(r => (r.options?.type === 'slashing')
-          && r.terms?.some(t => t.faces === 8) && (r !== dmg.rolls[0]));
-        ok('R2d. the superiority die joins the driven attack\'s damage as its own part',
-          !!dmg && (dmg.rolls?.length >= 2) && !!extraDie,
-          `dmg=${!!dmg} rolls=${dmg?.rolls?.length} extraDie=${!!extraDie}`);
+        // v1.19.x finding (d): the die folds INTO the base roll — ONE dice group, one
+        // total. Weapon 1d8 + die 1d8 ⇒ exactly two 1d8 terms in a single roll.
+        const d8s = (dmg?.rolls?.[0]?.formula?.match(/1d8/g) ?? []).length;
+        ok('R2d. the superiority die is BAKED INTO the base damage roll — one group ((d))',
+          !!dmg && (dmg.rolls?.length === 1) && (d8s === 2),
+          `dmg=${!!dmg} rolls=${dmg?.rolls?.length} d8Terms=${d8s} formula=${dmg?.rolls?.[0]?.formula}`);
         const receipt = await until(() => dmg?.getFlag(MOD, 'receipt'), 8000);
         ok('R2e. the driven chain applies like any real attack (receipt on the enemy)',
           !!receipt?.targets?.some(t => t.uuid === enemy.uuid),
@@ -684,6 +685,45 @@ const out = await f.evaluate(async () => {
       await closeDialogs('BF Shield Master');
     }
 
+    /* B4 — finding (g): the HIT is the trigger — offer → drive → demand → choice → press. */
+    {
+      // Unkillable for the section: the swing's auto-applied damage must never turn the
+      // demand's target into a corpse mid-chain (the dead gate would eat it silently).
+      priorActor[victim.id]['system.attributes.hp.max'] = victim.system._source.attributes.hp.max;
+      await victim.update({ 'system.attributes.hp.max': 1000, 'system.attributes.hp.value': 1000 });
+      await acFlat(victim, 1);
+      let offer = null, atkMsg = null;
+      for (let i = 0; i < 6 && !offer; i++) {
+        const { msg } = await attack(pcAttackAct(), victimToken);
+        atkMsg = msg;
+        offer = await until(() => msg?.getFlag(MOD, 'bashOffer'), 4000);
+        if (!offer) log.push(`B4: attempt ${i + 1} produced no offer (miss/fumble) — retrying`);
+      }
+      ok('B4a. a melee weapon HIT by the listed carrier stamps the bash offer ((g))',
+        (offer?.status === 'pending') && ((offer?.targets ?? []).length === 1),
+        `offer=${!!offer} targets=${offer?.targets?.length}`);
+      const popup = await until(() => dialogsWith('— bash')[0], 6000);
+      ok('B4b. the offer popup carries Use/Pass',
+        !!popup && !!popup.querySelector('button[data-action="use"]')
+          && !!popup.querySelector('button[data-action="pass"]'),
+        `popup=${!!popup}`);
+      popup?.querySelector('button[data-action="use"]')?.click();
+      const usage = await until(() => game.messages.contents.find(m =>
+        m.getFlag(MOD, 'bashFor') === atkMsg?.id), 12000);
+      ok('B4c. accepting drives the feat\'s OWN save activity, provenance-stamped',
+        !!usage && !!(await until(() => usage?.getFlag(MOD, 'saves'), 8000)),
+        `usage=${!!usage} demand=${!!usage?.getFlag(MOD, 'saves')}`);
+      const choicePopup = await until(() => dialogsWith('Knock Prone')[0], 25000);
+      choicePopup?.querySelector('button[data-action="prone"]')?.click();
+      const applied = await until(() => usage?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 15000);
+      const eff = await until(() => victim.effects.find(e => e.name === 'BF Test Prone'), 6000);
+      ok('B4d. the driven demand fails and the chosen press lands — end to end',
+        !!applied && !!eff, `applied=${!!applied} effect=${!!eff}`);
+      await eff?.delete().catch(() => {});
+      await acFlat(victim, 25);
+      await closeDialogs('BF Shield Master');
+    }
+
     /* ============================================== I — finding ⑥: Interpose (save-success reaction) */
     // The saver's side: an equipped shield + the listed feat on the VICTIM, a DEX half-damage
     // demand from the PC (DC 1 + dex 16 so the victim ALWAYS saves).
@@ -712,27 +752,31 @@ const out = await f.evaluate(async () => {
       } } }]);
     const dexAct = () => pc.items.get(dexBlast.id)?.system.activities.get('bfdexblast000000');
 
-    /* I1 — use: the Reaction turns half into NONE, with the validation card. */
+    /* I1 — the gamble declared BEFORE the roll ((f)); a held save turns half into NONE. */
     {
+      await set('saveTimer', 5);   // room to SEE the pre-roll window before the buzzer rolls
       await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
       const hpBefore = victim.system.attributes.hp.value;
       const card = await castAt(dexAct(), victimToken);
-      const choice = await until(() => {
-        const t = card?.getFlag(MOD, 'saves')?.targets?.[0];
-        return (t?.choice && !t.choice.answer) ? t.choice : null;
-      }, 20000);
-      ok('I1a. a successful DEX half-damage save with a shield opens the Interpose offer (⑥)',
-        choice?.kind === 'interpose',
-        `choice=${choice ? choice.kind : JSON.stringify(card?.getFlag(MOD, 'saves')?.targets?.[0] ?? null)}`);
-      const popup = await until(() => dialogsWith('take no damage')[0], 6000);
+      const early = card?.getFlag(MOD, 'saves')?.targets?.[0];
+      ok('I1a. the Interpose choice stamps WITH the demand — before any verdict ((f))',
+        (early?.choice?.kind === 'interpose') && (early?.done === false),
+        `choice=${early?.choice?.kind} done=${early?.done}`);
+      const popup = await until(() => dialogsWith('spend your Reaction')[0], 6000);
+      ok('I1b. the pre-roll popup offers the gamble (Use / Pass)',
+        !!popup && !!popup.querySelector('button[data-action="use"]')
+          && !!popup.querySelector('button[data-action="pass"]'),
+        `popup=${!!popup}`);
       popup?.querySelector('button[data-action="use"]')?.click();
-      const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 15000);
+      const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 20000);
       const validation = game.messages.contents.find(m => (m.timestamp >= suiteStart)
         && /takes no damage/.test(m.content ?? ''));
-      ok('I1b. use — NOTHING applies, the validation card posts, out of combat no reaction flag',
+      ok('I1c. use + the save HOLDS — nothing applies, the validation card posts, no reaction flag out of combat',
         !!applied && (victim.system.attributes.hp.value === hpBefore) && !!validation
           && !victim.getFlag(MOD, 'reactionSpent'),
         `applied=${!!applied} hp ${hpBefore}→${victim.system.attributes.hp.value} card=${!!validation}`);
+      await set('saveTimer', 1);
+      await closeDialogs('BF Shield Master');
     }
 
     /* I2 — the buzzer PASSES (a Reaction is never spent by a timer): half applies. */
@@ -754,10 +798,45 @@ const out = await f.evaluate(async () => {
       await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
     }
 
-    /* ============================================== H — scope-add ②: the Hew reminder (kill path) */
+    /* I3 — the gamble LOST ((f)): use, then the save FAILS — full damage, the vain card. */
+    const [dexHard] = await pc.createEmbeddedDocuments('Item', [{
+      name: 'BF Test Dex Blast Hard', type: 'feat',
+      system: { type: { value: 'feat' }, activities: {
+        bfdexhard0000000: {
+          _id: 'bfdexhard0000000', type: 'save',
+          activation: { type: '', override: false },
+          damage: { parts: [{ custom: { enabled: true, formula: '10' }, types: ['fire'] }], onSave: 'half' },
+          save: { ability: ['dex'], dc: { calculation: '', formula: '30' } },
+          target: { affects: { type: 'creature' } }
+        }
+      } } }]);
     {
+      await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
+      const hpBefore = victim.system.attributes.hp.value;
+      const act = pc.items.get(dexHard.id)?.system.activities.get('bfdexhard0000000');
+      const card = await castAt(act, victimToken);
+      const popup = await until(() => dialogsWith('spend your Reaction')[0], 6000);
+      popup?.querySelector('button[data-action="use"]')?.click();
+      const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 25000);
+      const dropped = hpBefore - victim.system.attributes.hp.value;
+      const vain = game.messages.contents.find(m => (m.timestamp >= suiteStart)
+        && /the save failed, the Reaction is spent/.test(m.content ?? ''));
+      ok('I3. the gamble lost — FULL damage stands and the vain card says so ((f))',
+        !!applied && (dropped === 10) && !!vain,
+        `applied=${!!applied} dropped=${dropped} vain=${!!vain}`);
+      await closeDialogs('BF Shield Master');
+      await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
+    }
+
+    /* ============================================== H — ② + (c): the Hew reminder POPS now */
+    {
+      // The bash feat and the blasts leave first — their offers would stack popups onto
+      // H's swings and muddy the dialog asserts.
+      await pc.deleteEmbeddedDocuments('Item',
+        [bashFeat.id, dexBlast.id, dexHard.id].filter(id => pc.items.get(id))).catch(() => {});
       const [gwm] = await pc.createEmbeddedDocuments('Item', [{
         name: 'BF Great Weapon Master', type: 'feat', system: { type: { value: 'feat' } } }]);
+      await set('holdTimer', 15);   // the notice family pops only inside a live window
       await acFlat(victim, 1);
       let hew = null, dmg = null;
       for (let i = 0; i < 6 && !hew; i++) {
@@ -775,10 +854,19 @@ const out = await f.evaluate(async () => {
         && /Hew — /.test(m.content ?? '')).length;
       ok('H2. exactly ONE reminder for the swing (the crit-defers-to-kill dedupe)',
         hewCount === 1, `count=${hewCount}`);
+      // The design law ((c), the user verbatim): "give players popup notifications on easy
+      // things to forget" — the card alone was scrolled past at the walk.
+      const hewPopup = await until(() => dialogsWith('Hew —')
+        .find(d => d.querySelector('button[data-action="ok"]')), 6000);
+      ok('H3. the reminder POPS — the OK-only notice shape on the fold\'s own namespace ((c))',
+        !!hewPopup, `popup=${!!hewPopup}`);
+      hewPopup?.querySelector('button[data-action="ok"]')?.click();
+      await sleep(300);
       await pc.deleteEmbeddedDocuments('Item', [gwm.id]).catch(() => {});
       await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
       await acFlat(victim, 25);
-      skips.push('H — the CRIT trigger is not forced headlessly (nat-20 farming under disadvantage); the kill path pins the shared card/melee/entry machinery');
+      await set('holdTimer', 0);
+      skips.push('H — the CRIT trigger is not forced headlessly (nat-20 farming under disadvantage); the kill path pins the shared card/melee/entry/popup machinery');
     }
 
     return { log, results, skips, consoleErrors };
