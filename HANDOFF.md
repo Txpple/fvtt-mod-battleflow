@@ -4,11 +4,11 @@
 
 | | |
 | --- | --- |
-| **Do first** | ⚠ **THE PROD BOUNCE IS THE ONE OPEN STEP.** v1.19.0 files are on prod's disk (18/18 byte-verified, deployed at 0 users) but Foundry registers `module.json` at PROCESS BOOT — until the bounce, prod vends 1.18.0. **The user takes prod DOWN from the Molten panel; the wake can be Claude's half** (any MCP connect boots it — the down-by-user/wake-by-connect pattern; a cold Molten boot can blow a 120s watchdog, allow ~540s). **After the bounce:** read prod's registered version (expect 1.19.0), then `BF_TARGET=prod node tools/verify-settings.mjs --fix` (grown Maneuver Folds + damageTimer 15 are new to prod), then verify CLEAN. If the bounce already happened, just verify both. |
+| **Do first** | ✅ **NOTHING IS OPEN — v1.19.0 IS CLOSED END TO END** (released, prod bounced 2026-08-21, registered version read back **1.19.0** with round-5 markers in the vended code — `tools/probe-registered-version.mjs` is the wake-half tool now — and `BF_TARGET=prod verify-settings` **CLEAN** after a one-drift --fix: dramaticBeat 3→0, the round-3 "all beats 0" call finally reaching prod). **There is NO open walk and NO open release step.** Next work is a fresh decision: [FLOW.md](FLOW.md)'s build order or Phase 4 — confirm appetite first. |
 | Repo | `main`, pushed, **tag `v1.19.0` on `825d4c0`**. |
 | Release | ✅ **v1.19.0 RELEASED 2026-08-21** — GitHub release `v1.19.0 - the maneuver folds` is public with both assets: `fvtt-mod-battleflow.zip` (171,068 bytes, **20 entries, forward slashes verified** — maneuvers.js joined the 19 of v1.18.0) and the bare `module.json` (1,445 bytes). The notes cover the WHOLE version: five fix rounds, six walks. The box tracks the GitHub manifest. |
 | Sandbox | Up, minimized, release code deployed + byte-verified, `verify-settings` **CLEAN**. ⚠ It VANISHED at battery start again (EIGHTH time — the clean-shutdown pattern); the documented relaunch worked first try, again. |
-| Prod | **Disk carries v1.19.0 (18/18 md5-MATCH, deployed idle at 0 users); process still registers 1.18.0 until the bounce.** The round-4 macro write on both worlds stands. |
+| Prod | ✅ **v1.19.0 LIVE** — disk 18/18 md5-MATCH (deployed idle at 0 users), **bounced** (down-by-user from the Molten panel, wake-by-connect — the pattern's second clean run), registered version **1.19.0**, `verify-settings` **CLEAN**. The round-4 macro write on both worlds stands. |
 | Walked | v1.18.0 12/12. **v1.19.0 FULLY WALKED AND CLOSED**: walk 1 → 8 built; walk 2 → 9 built; walk 3 → 8 built; walk 4 → 6 passed + 4 built; walk 5 → 9 passed + 4 built ((x)(y)(z)(aa)); **walk 6 → 8 of 8 CLOSED CLEAN, ZERO findings** — every fix round table-verified, the four-times-deferred F5 survivor passed. **There is NO open walk.** |
 | Next work | After the bounce + prod verify: the deck is [FLOW.md](FLOW.md)'s build order (read it before building anything) and Phase 4 (needs TABLE time — ten rounds of Bless, rides a real session). Pass C (the volleys) composes the §4.3 spine or doesn't build. Confirm appetite before opening anything. |
 | Testing setup | ⚠ **THE USER RUNS TWO WINDOWS**: GM (Matt the DM) + a player window owning Thomas/Morgash. Player-first routing (①/(h)) sends THEIR popups to window two whenever it is connected — "nothing popped" reports must always ask WHICH window. |
@@ -43,7 +43,7 @@ settle card then narrates the shield's zero.
 | Session commits | `7c0e90d` test: walk-5 pins · `0ff7d47` feat: round 5 · `825d4c0` docs: HANDOFF recut ← tagged |
 | GitHub release | `v1.19.0 - the maneuver folds`, public. Assets: `fvtt-mod-battleflow.zip` (171,068 bytes, 20 entries, forward slashes verified — built by explicit ZipArchive entry names, NEVER Compress-Archive) + bare `module.json` (1,445 bytes). Notes cover all five rounds and six walks |
 | Prod deploy | `node <mcp>/scripts/deploy-house-module.mjs fvtt-mod-battleflow` — **18/18 files md5-MATCH**, run while prod was **ACTIVE at 0 users** (status checked first, as always) |
-| ⚠ Open | **THE BOUNCE** (see Do first) and the post-bounce `BF_TARGET=prod verify-settings --fix` + CLEAN re-verify |
+| Bounce | ✅ **DONE 2026-08-21** — down-by-user, wake-by-connect (`tools/probe-registered-version.mjs`, 570s cold-boot watchdog); registered **1.19.0**, vended saves.js carries the round-5 markers; `--fix` restored ONE drift (dramaticBeat 3→0) and the re-verify is **CLEAN** |
 
 ---
 
