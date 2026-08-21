@@ -169,14 +169,16 @@ const out = await f.evaluate(async () => {
       pass: (popups.length === 1) && !early,
       detail: `popups=${popups.length} damageAlready=${!!early}` });
 
-    /* 4 — a normal hit shows NO crit badge. -------------------------------------------- */
+    /* 4 — a normal hit: NO crit badge, and the CELEBRATION title ((l), round 3). -------- */
     const html = popups[0]?.innerHTML ?? '';
     const label = popups[0]?.querySelector('button[data-action="roll"]')?.textContent?.trim() ?? '';
+    const title4 = popups[0]?.querySelector('.window-title')?.textContent ?? '';
     const wasCrit = attackMsg?.rolls?.[0]?.isCritical ?? null;
-    results.push({ n: 4, name: 'non-crit — no badge, plain label',
+    results.push({ n: 4, name: 'non-crit — no badge, plain label, "You hit!" celebrates',
       // Only meaningful when the roll genuinely was not a crit; advantage crits ~10% of the time.
-      pass: wasCrit === false ? (!html.includes('Critical Hit') && /Roll Damage/i.test(label)) : true,
-      detail: `isCritical=${wasCrit} label="${label}" badge=${html.includes('Critical Hit')}`
+      pass: wasCrit === false ? (!html.includes('Critical Hit') && /Roll Damage/i.test(label)
+              && /You hit/i.test(title4)) : true,
+      detail: `isCritical=${wasCrit} label="${label}" title="${title4}" badge=${html.includes('Critical Hit')}`
             + (wasCrit ? ' (rolled a crit — assertion skipped, rerun)' : '') });
 
     /* 6 — pressing the button rolls it, stamped and crit-honest. ----------------------- */

@@ -390,11 +390,14 @@ const out = await f.evaluate(async () => {
       } else {
         const dmg = await waitDamage(driven?.getFlag('dnd5e', 'originatingMessage'), 12000);
         // v1.19.x finding (d): the die folds INTO the base roll — ONE dice group, one
-        // total. Weapon 1d8 + die 1d8 ⇒ exactly two 1d8 terms in a single roll.
-        const d8s = (dmg?.rolls?.[0]?.formula?.match(/1d8/g) ?? []).length;
+        // total. Weapon d8 + die d8 ⇒ exactly two d8 TERMS in a single roll — counted by
+        // GROUP, not by literal "1d8": a driven CRIT doubles both to 2d8 (the 2024 rule,
+        // recorded in design.md), and the literal count read a crit as "no die" (flaked
+        // round 3, formula "2d8 + 3 + 2d8").
+        const d8s = (dmg?.rolls?.[0]?.formula?.match(/\d+d8/g) ?? []).length;
         ok('R2d. the superiority die is BAKED INTO the base damage roll — one group ((d))',
           !!dmg && (dmg.rolls?.length === 1) && (d8s === 2),
-          `dmg=${!!dmg} rolls=${dmg?.rolls?.length} d8Terms=${d8s} formula=${dmg?.rolls?.[0]?.formula}`);
+          `dmg=${!!dmg} rolls=${dmg?.rolls?.length} d8Groups=${d8s} formula=${dmg?.rolls?.[0]?.formula}`);
         const receipt = await until(() => dmg?.getFlag(MOD, 'receipt'), 8000);
         ok('R2e. the driven chain applies like any real attack (receipt on the enemy)',
           !!receipt?.targets?.some(t => t.uuid === enemy.uuid),
@@ -507,6 +510,12 @@ const out = await f.evaluate(async () => {
         ok('R6. the driven attack misses an ELIGIBLE reactor and still never chains an offer',
           !!driven && !driven.getFlag(MOD, 'riposte'),
           `driven=${!!driven} chained=${!!driven?.getFlag(MOD, 'riposte')}`);
+        // (p) the announced miss: the strike back never ends in silence — the card posts
+        // BEFORE any Graze/Precision offer can arrive from nowhere ((e)-KEEP still fires).
+        const missCard = await until(() => game.messages.contents.find(m => (m.timestamp >= suiteStart)
+          && /the strike back misses/.test(m.content ?? '')), 6000);
+        ok('R6b. (p) the driven MISS announces itself — "the strike back misses" posts',
+          !!missCard, `card=${!!missCard}`);
       }
       await closeDialogs('Precision');   // the PC's own precision may have offered on that miss
       await closeDialogs('Riposte');
@@ -569,6 +578,43 @@ const out = await f.evaluate(async () => {
       }
       await pc.deleteEmbeddedDocuments('Item', [offhand.id]).catch(() => {});
       await closeDialogs('Riposte');
+    }
+
+    /* ============================================== RP — (l)+(p): the riposte HIT celebrates */
+    {
+      await pc.items.get(pool.id)?.update({ 'system.uses.spent': 0 });   // top the pool back up
+      await set('playerRollDamage', true);
+      await acFlat(enemy, 1);   // the strike back always hits
+      const { msg, flag } = await missUntilStamped(enemyAttackAct(), pcToken, 'riposte');
+      if (!flag) {
+        ok('RP1. (l)/(p) the damage offer celebrates the riposte BY NAME, die note aboard', false, 'no stamp in 8 tries');
+      } else {
+        const popup = await until(() => dialogsWith('Riposte with')[0], 6000);
+        popup?.querySelector('button[data-action="riposte"]')?.click();
+        const driven = await until(() => game.messages.contents.find(m =>
+          (m.getFlag(MOD, 'riposteFor') === msg.id) && (m.getFlag(MOD, 'riposteBy') === pc.uuid)), 15000);
+        if (!driven || driven.rolls?.[0]?.isFumble) {
+          skips.push('RP — the driven attack fumbled (nat 1 vs flat AC 1); the celebration popup not exercised this run');
+          await closeDialogs('Precision');
+        } else {
+          // The offer popup on the DRIVING client — the riposte named as its own moment with
+          // the die-riding note ((p)'s hit half; (l): the one chokepoint, consistent flavors).
+          const offer = await until(() => [...document.querySelectorAll('.application')]
+            .find(el => el.querySelector('button[data-action="roll"]') && /riposte/i.test(el.innerHTML ?? '')), 8000);
+          const title = offer?.querySelector('.window-title')?.textContent ?? '';
+          ok('RP1. (l)/(p) the damage offer celebrates the riposte BY NAME, die note aboard',
+            !!offer && /riposte/i.test(title) && /roll damage/i.test(title)
+              && /superiority die rides this roll/i.test(offer?.innerHTML ?? ''),
+            `offer=${!!offer} title="${title}"`);
+          offer?.querySelector('button[data-action="roll"]')?.click();
+          const dmg = await waitDamage(driven?.getFlag('dnd5e', 'originatingMessage'), 12000);
+          ok('RP2. the celebrated button rolls through the same chokepoint — the damage lands',
+            !!dmg, `dmg=${!!dmg}`);
+        }
+      }
+      await set('playerRollDamage', false);
+      await closeDialogs('Riposte');
+      await closeDialogs('Weapon Mastery');
     }
 
     /* ============================================== B — finding ⑤: the bash choice (Prone or push) */
@@ -667,11 +713,26 @@ const out = await f.evaluate(async () => {
       await eff?.delete().catch(() => {});
     }
 
-    /* B3 — the buzzer defaults to Prone and says so. */
+    /* B3 — the choice bar is VISIBLE ((n)), then the buzzer defaults to Prone and says so. */
     {
-      await set('holdTimer', 2);
+      await set('holdTimer', 4);
       await reviveVictim();
       const card = await castAt(bashAct(), victimToken);
+      // (n): the pending choice draws its bar — card row AND popup — through momentBarHTML.
+      // The DOM is the assertion, because every flag-level one passed for a whole round
+      // while nothing rendered (the sub-object has no `status`; the status-gated wrapper
+      // silently returned "" at both call sites).
+      const choiceStamped = await until(() => {
+        const x = card?.getFlag(MOD, 'saves')?.targets?.[0];
+        return (x?.choice && !x.choice.answer) ? x.choice : null;
+      }, 20000);
+      const choicePopup = await until(() => dialogsWith('Knock Prone')[0], 4000);
+      const cardBar = await until(() => document.querySelector(
+        `.message[data-message-id="${card?.id}"] [data-bf-deadline]`), 3000);
+      const popupBar = choicePopup?.querySelector('[data-bf-deadline]') ?? null;
+      ok('B3a. (n) the pending choice bar RENDERS — card row and popup both carry data-bf-deadline',
+        !!choiceStamped?.deadline && !!cardBar && !!popupBar,
+        `deadline=${!!choiceStamped?.deadline} cardBar=${!!cardBar} popupBar=${!!popupBar}`);
       const t = await until(() => {
         const x = card?.getFlag(MOD, 'saves')?.targets?.[0];
         return (x?.choice?.answer && x.applied) ? x : null;
@@ -861,12 +922,19 @@ const out = await f.evaluate(async () => {
       ok('H3. the reminder POPS — the OK-only notice shape on the fold\'s own namespace ((c))',
         !!hewPopup, `popup=${!!hewPopup}`);
       hewPopup?.querySelector('button[data-action="ok"]')?.click();
-      await sleep(300);
+      // (j) the ACK: OK resolves the reminder's pending presentation — the flag records it
+      // (this client authored the notice as the elect, the durable path) and the card
+      // renders no bar. The whole notice family rides the same acknowledgeMoment.
+      const hewAcked = await until(() => hew?.getFlag(MOD, 'hewNotice')?.acknowledged === true, 5000);
+      await sleep(400);
+      const hewBar = hew ? document.querySelector(`.message[data-message-id="${hew.id}"] [data-bf-deadline]`) : null;
+      ok('H4. (j) OK ACKNOWLEDGES the reminder — flag recorded, the card bar leaves',
+        (hewAcked === true) && !hewBar, `acked=${hewAcked} bar=${!!hewBar}`);
       await pc.deleteEmbeddedDocuments('Item', [gwm.id]).catch(() => {});
       await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
       await acFlat(victim, 25);
       await set('holdTimer', 0);
-      skips.push('H — the CRIT trigger is not forced headlessly (nat-20 farming under disadvantage); the kill path pins the shared card/melee/entry/popup machinery');
+      skips.push('H — the CRIT trigger is not forced headlessly (nat-20 farming under disadvantage); it now rides the SAME damage-side chain context the kill path pins ((k): dedupe unified on the damage message)');
     }
 
     return { log, results, skips, consoleErrors };

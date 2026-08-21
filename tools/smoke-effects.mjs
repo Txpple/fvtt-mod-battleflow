@@ -1126,6 +1126,18 @@ const out = await f.evaluate(async () => {
         ok('17b. Arm writes the one-shot actor flag keyed to THIS weapon',
           (arm?.itemId === blade.id) && (arm?.stamp === null),
           `arm=${JSON.stringify(arm)}`);
+        // (j) the ACK, round 3: ANY notice button resolves the card's pending presentation —
+        // Arm acknowledges durably (this client authored the notice as the elect) and the
+        // card's bar leaves; the "Cleave — armed" block is the ARM's and stays.
+        const notice17 = game.messages.contents.filter(m =>
+          m.getFlag(MOD, 'masteryNotice')?.key === 'cleave').pop();
+        const acked17 = await waitFor(() =>
+          notice17?.getFlag(MOD, 'masteryNotice')?.acknowledged === true, 5000);
+        await sleep(400);
+        const bar17 = notice17 ? document.querySelector(
+          `.message[data-message-id="${notice17.id}"] [data-bf-deadline]`) : null;
+        ok('17b2. (j) Arm ACKNOWLEDGES the reminder — flag recorded, the card bar leaves',
+          (acked17 === true) && !bar17, `acked=${acked17} bar=${!!bar17}`);
         await closeCleaveDialogs();
       }
 
