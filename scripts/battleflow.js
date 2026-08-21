@@ -100,8 +100,15 @@ import "./mastery.js";
 import "./maneuvers.js";
 import "./concentration.js";
 import "./cast.js";
+// ⚠ volleys.js after cast.js, before saves.js ON PURPOSE (v1.20.0): its volley row renders
+// on the usage card above the saves machinery's rows, and its preRollDamageV2 dart
+// multiplier must not disturb hit-riders' (attack-gated, disjoint) registration order.
+import "./volleys.js";
 // ⚠ saves.js before receipts.js ON PURPOSE: its verdict row must register (and so render)
 // above the receipt rows, and it reaches receipts.js only through a lazy import() so this
 // entry position is what actually decides the order. check-hook-order.mjs asserts it.
 import "./saves.js";
 import "./receipts.js";
+// resources.js last: its one-line spend record renders at the very bottom of the usage
+// card, below every workflow row — a footer, which is what a ledger line is.
+import "./resources.js";

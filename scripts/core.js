@@ -30,6 +30,8 @@ export const S = {
   masteryRiders: "masteryRiders",
   masteryAsk: "masteryAsk",
   maneuverFolds: "maneuverFolds",
+  volleys: "volleys",
+  resourceNotices: "resourceNotices",
   concMode: "concMode",
   concTimer: "concTimer",
   concBreak: "concBreak",

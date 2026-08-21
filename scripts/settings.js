@@ -211,6 +211,18 @@ Hooks.once("init", () => {
     default: "Precision Attack:precision, Riposte:riposte, Shield Master:interpose, Shield Master:bash, Great Weapon Master:hew"
   });
 
+  // Structural, not a name list (FLOW item 6's own instruction: "a settings list of
+  // identifiers is the LAST resort, not the plan"): a volley is any spell whose activity
+  // rolls attacks or bare damage and whose target data says it throws two or more
+  // projectiles (target.affects.count — Magic Missile ships "2 + @item.level"; the world's
+  // Scorching Ray is grafted the same shape by tools/fix-scorching-ray.mjs). Content that
+  // carries no count is simply never a volley — graceful degradation, never a guess.
+  game.settings.register(MODULE_ID, S.volleys, {
+    name: "Volley Spells",
+    hint: "Multi-projectile spells resolve as volleys: the caster gets one popup to aim every dart or ray, instead of the system rolling a single shot and forgetting the rest. Magic Missile's darts strike together — each target gets ONE aggregated damage roll (and so one concentration check). Scorching Ray's rays are separate attacks — each ray rolls its own attack at its own target through the ordinary pipeline, reactions and riders included. The window is the Damage Roll Timer; expiry fires the volley with an even spread, it never cancels. Rides the Attack Resolver's mode.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
   game.settings.register(MODULE_ID, S.concMode, {
     name: "Concentration Checks",
     hint: "When a concentrating creature takes damage, run the save instead of leaving the system's whisper card to be forgotten. \"Prompt\" pops the check up for whoever owns the concentrator — what hit them, for how much, the DC — with one button: Roll. \"Auto\" skips the popup and just rolls. Either way the dice land on the owning player's client when one is connected (their character, their dice), the GM's otherwise, and NPC concentrators get the identical treatment GM-side.",
@@ -255,6 +267,12 @@ Hooks.once("init", () => {
     hint: "A cast with no roll to gate on resolves itself: a no-save spell's effects land on every target it was aimed at (Bless on all three, Hunter's Mark's mark on the quarry), and healing rolls its dice and lands (Healing Word). Receipts with per-target revert, as everywhere. Attack spells ride the hit under Effect Riders; save spells wait for the saves phase; plain damage spells (Magic Missile) keep their manual tray — the reaction that negates them must stay answerable.",
     scope: "world", config: true, type: Boolean, default: false
   });
+
+  game.settings.register(MODULE_ID, S.resourceNotices, {
+    name: "Resource Use Notices",
+    hint: "When a player character spends a limited-use ability — Second Wind, a superiority die, Channel Divinity, sorcery points, a magic item's daily cast — a big text notice flashes on every screen and fades: who used what, and how many uses remain. The usage card keeps the same line durably. Structural: anything whose uses carry a recovery rhythm (per rest, per day) announces itself; expendables with no recovery (torches, potions, rations) and spell slots stay quiet. NPC abilities never announce — monster resources are the GM's secret.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
 });
 
 // Settings-sheet polish (the combatplus idiom, from day one): a divider heading the module's
@@ -284,7 +302,9 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   addDivider(input(S.riders), "Hit Riders");
   addDivider(input(S.concMode), "Concentration");
   addDivider(input(S.saves), "Saving Throws");
+  addDivider(input(S.volleys), "Volleys");
   addDivider(input(S.castApply), "Casts");
+  addDivider(input(S.resourceNotices), "Resource Notices");
   addDivider(input(S.hideCardButtons), "Table Polish");
 
   const hold = input(S.reactionHold);
@@ -312,6 +332,9 @@ Hooks.on("renderSettingsConfig", (app, element) => {
     for ( const key of [S.concTimer, S.concBreak, S.concVisibility] )
       setEnabled(input(key), conc?.value !== "off");
     setEnabled(input(S.saveTimer), !!saves?.checked);
+    // The volleys ride the resolver (the maneuver-folds precedent): their whole payoff is
+    // driven rolls, and with the resolver off there is no path for them.
+    setEnabled(input(S.volleys), autoDamage?.value !== "off");
   };
   syncAll();
   autoDamage?.addEventListener("change", syncAll);
