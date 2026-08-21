@@ -11,7 +11,7 @@
 | Prod | v1.19.0 LIVE, untouched. ⚠ Prod's content stays STOCK under (ff) — the registry ships in code; the graft release step is dead. |
 | Walked | v1.19.0 fully closed (six walks). **v1.20.0: walk 1 OPEN** — statuses live in the table below; five findings (bb)–(ff) logged AND BUILT 2026-08-21. |
 | Next work | Finish walk 1 (open items + R1–R5 below). After the v1.20.0 walk closes: the release (the Release row), then **Heroic Inspiration + Bard** (the user's named next, 2026-08-21 — recorded in [FLOW.md](FLOW.md) under Pass C; scope with the user first). Then the standing deck: Phase 4 (table time) and AC5e (bench, still waiting on the user's go). |
-| Testing setup | ⚠ **THE USER RUNS TWO WINDOWS**: GM (Matt the DM) + a player window owning Thomas/Morgash. Player-first routing sends THEIR popups to window two whenever it is connected — "nothing popped" reports must always ask WHICH window. ⚠ The volley popup is the CASTING client's window; the resource flash is EVERY window. |
+| Testing setup | ⚠ **HARD-REFRESH (Ctrl+F5) BOTH WINDOWS before walking** — the fix pass deployed without a version bump, so a browser that saw the fourteenth-session walk still holds the OLD scripts (the script-cache lesson's user-browser half). ⚠ **THE USER RUNS TWO WINDOWS**: GM (Matt the DM) + a player window owning Thomas/Morgash. Player-first routing sends THEIR popups to window two whenever it is connected — "nothing popped" reports must always ask WHICH window. ⚠ The volley popup is the CASTING client's window; the resource flash is EVERY window. |
 | Bridge | Disconnected on BOTH worlds (re-confirmed this session after the join failure). Suites join as `Tester Assistant`. |
 
 ---
