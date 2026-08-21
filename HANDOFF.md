@@ -1,103 +1,116 @@
 # HANDOFF.md — picking this up cold
 
-## State at a glance — 2026-08-21 (small hours), end of the NINTH session (three rounds deep)
+## State at a glance — 2026-08-20 (late evening), end of the TENTH session (round 3 BUILT)
 
 | | |
 | --- | --- |
-| **Do first** | **RUN THE ROUND-3 FIX PASS — findings (j)–(q) below, THE NORTH STAR first.** The user's explicit instruction closing the session: *"make a handoff of all these issues, make a north star of the several global reviews ive asked, and you will start working on them in a new context window."* No checklist to present — the build IS the do-first; the walk-4 checklist gets cut at the recut, per the standing cycle. |
-| Repo | `main`, pushed. **NOT tagged** — v1.19.0 waits on the walk closing. `module.json` reads 1.19.0 (three fix rounds will have folded into the one unreleased build). |
-| Release | ⚠ **v1.19.0 BUILT (walk 1's eight + re-walk's nine + round 3 pending), NOT RELEASED.** No tag, no GitHub release, **prod untouched on 1.18.0.** |
-| Sandbox | Up, minimized, round-2 code deployed + byte-verified. `verify-settings` **CLEAN** (beats now 0 — see the table). ⚠ The app's disappearances are **CLEAN SHUTDOWNS** (log: "Goodbye!") — somebody closes it; the ask, precisely: log out of the world tab, **leave the minimized app running**. |
+| **Do first** | **PRESENT THE WALK-4 CHECKLIST** (below — the round-3 verification walk + the three carried items). Round 3 is BUILT and battery-green: **the spine landed** (design.md §4.3 — the moment map, the mandate, the eight primitives) and all eight findings (j)–(q) landed ON it. ⚠ **Every client F5 once first** — scripts changed, same version, no bounce needed. |
+| Repo | `main`, pushed. **NOT tagged** — v1.19.0 waits on the walk closing. `module.json` reads 1.19.0 (three fix rounds folded into the one unreleased build). |
+| Release | ⚠ **v1.19.0 BUILT (walk 1's eight + re-walk's nine + round 3's spine and eight), NOT RELEASED.** No tag, no GitHub release, **prod untouched on 1.18.0.** |
+| Sandbox | Up, minimized, **round-3 code deployed + byte-verified**, `verify-settings` **CLEAN**. ⚠ It had VANISHED again before this session (SIXTH time — clean shutdown, the "Goodbye!" pattern); the documented relaunch (minimized, then any suite) worked first try, again. The ask stands: log out of the world tab, **leave the minimized app running**. |
 | Prod | **1.18.0**, registered and CLEAN for what is released. At the release: deploy, bounce, then `BF_TARGET=prod verify-settings --fix` (grown Maneuver Folds + dramaticBeat 0). |
-| Walked | v1.18.0 12/12. v1.19.0: walk 1 → 8 findings (built); walk 2 → 9 findings (built); **walk 3 → 8 findings (j)–(q), UNBUILT — the ledger below.** Verified in walk 3 (mostly via chat-log evidence): (h) routing ✅, (f) flow ✅, ⑦⑧ holds line ✅, (i) carried-weapons dropdown ✅, (a) wording ✅. Open walk items: ① GM-alone, (g) window-two question, item 10 (deferred three times). |
+| Walked | v1.18.0 12/12. v1.19.0: walk 1 → 8 findings (built); walk 2 → 9 findings (built); walk 3 → 8 findings (j)–(q) (**BUILT this session — the record below**). Open walk items carried into walk 4: ① GM-alone, (g) window-two question, item 10 (deferred three times). |
 | Testing setup | ⚠ **THE USER RUNS TWO WINDOWS**: GM (Matt the DM) + a player window owning Thomas/Morgash. Player-first routing (①/(h)) sends THEIR popups to window two whenever it is connected — "nothing popped" reports must always ask WHICH window. The §4.1 relay is proven live (riposte accepts, interpose answers all arrived through it). |
 | Bridge | Disconnected on BOTH worlds. Suites join as `Tester Assistant`. |
 
 ---
 
-## 🌟 THE NORTH STAR — the user's global reviews, in one charter
+## 📋 THE WALK-4 CHECKLIST — PRESENT THIS LIST (round 3's proofs + the three carried items)
 
-The user has asked, across three walks, for a set of GLOBAL properties — not point fixes.
-Round 3 exists to deliver them as a SYSTEM. The instructions that named it, verbatim and
-in escalating order:
+Sandbox, the two-window setup as usual, **every client F5 once** (scripts changed, version
+did not). Settings are already the reference table (`verify-settings` CLEAN); nothing to
+change. Items 1–11 verify round 3; 12–14 are the carried debts.
 
-> *"this needs some kind of significant check here because there are a lot of things
-> queueing and you are losing track and stuff is dropping. extra to do: review
-> architecture to make sure this isnt patchwork spotty code, and is truly modular."*
->
-> *"just, thematically, the architecture seems to be buckling here, as we start to add
-> more features they keep breaking"*
->
-> *"if this is truly to work long term, stuff needs to be built out highly modularly and
-> highly scalable as we build"*
+| # | Do | Expect |
+| --- | --- | --- |
+| 1 | **(l)** Plain melee hit (player dice on) | The popup CELEBRATES: **"You hit! — roll damage"** leads; the Roll Damage button unchanged |
+| 2 | **(l)** A crit | **"Critical hit! — roll damage"** + the yellow badge, louder than 1. A SAVE spell's popup (Fireball/VM) is UNTOUCHED — stakes line, no celebration (nothing crit) |
+| 3 | **(p)** Take a Riposte; the strike back HITS | The offer is the riposte's own moment: **"Your riposte hit! — roll damage"** ("Critical riposte!" on a crit) + "the superiority die rides this roll"; the damage still ONE dice group |
+| 4 | **(p)** A riposte whose strike back MISSES | **"Riposte — the strike back misses"** card posts; any Graze/Precision offer that follows arrives from that announced miss, not from nowhere |
+| 5 | **(q)** Any two popups at once (e.g. a damage offer while a Vex/Cleave reminder pops) | They CASCADE ~28px — both visible, neither buried; a pile never reads as one window |
+| 6 | **(j)** Press OK on a Vex/Sap/Hew notice **on the GM window** | Bar, recall button and popup ALL resolve, everywhere — the durable ack |
+| 7 | **(j)** Press a notice button **on the player window** | Their view clears at once; the GM's card bar drains out as the window — DELIBERATE (a player cannot write the elect's message; the ledger's recorded trade) |
+| 8 | **(j)** "Arm the Cleave" | The press acks (bar/recall go) AND the **"Cleave — armed"** card stays; the next swing still strips the modifier |
+| 9 | **(k)** GWM crit | Damage resolves FIRST (your popup roll included), THEN "Hew — attack again". A crit that KILLS: exactly ONE reminder |
+| 10 | **(n)** A Shield Master bash failure (or the interpose gamble) | The choice popup AND the card row both run the DRAINING BAR (15s) — the bars that never rendered in walk 3 |
+| 11 | **(m)** Answer the interpose from window two | The relay card says **"spends the Reaction"** / "the Reaction is kept" — never an outcome; the Pass button is bare **"Pass"**. The settle card after the verdict still states the result |
+| 12 | **①** (carried from walk 1) Player logged OUT, GM alone | Fold popups (Precision/Riposte) reach the GM window |
+| 13 | **(g)** (carried) Thomas melee-hits with Shield Master listed | WHICH window pops the bash offer? Expected: the PLAYER window (①-routing). Both windows silent = a real bug — reproduce before assuming |
+| 14 | **Item 10** (third deferral) Save spell at TWO targets; resolve the first, **F5 while the second bar runs** | After reload the second demand is alive (bar from its stored deadline), resolves, ONE verdict line per target, damage once each |
 
-**The diagnosis is correct and the handoff should say so plainly:** three sessions of
-speed-built moment machines COPIED the popup/bar/answer idiom instead of extracting it,
-and every copy drifted — (n) is a copied bar call missing the status contract, (m) is a
-copied label outliving its semantics, (j) is a whole family built without the ack concept
-the ask machines had. Each new feature multiplied the copies, so each new feature broke
-something. **This is not a one-time cleanup — it is a MANDATE going forward: no new moment
-machine may hand-roll stamp/route/pop/answer/resolve again. New features COMPOSE the
-spine; the spine is the product; the round's fixes are its proofs.** Pass C (the volleys)
-and everything after builds on it or doesn't build.
-
-**Build order — the audit FIRST, the point fixes land ON the consolidated spine:**
-
-1. **📐 (o) THE MOMENT-MACHINERY AUDIT + CONSOLIDATION.** Enumerate every "moment"
-   machine — hold (attack + spell/negate), save ask, topple ask, concentration ask,
-   mastery ask, mastery notices (Vex/Sap/Cleave), Hew notice, precision, riposte, bash
-   offer, save-choice (interpose/bash), the two damage-roll offers — and produce **the
-   moment map** in design.md: one table, every machine, its stamp → route → pop → answer
-   → resolve → expire. Then EXTRACT the shared spine into ui.js: one bar helper with the
-   wrapped `{status:"pending"}` contract (finding (n) is what copies cost), one popper
-   discipline (shown-latch + canAnswerFor + recall), one acknowledge/answer shape, the
-   cascade (q). The twelve machines ride one spine; drift becomes impossible instead of
-   caught.
-2. **The global LAWS the spine must encode** (each user-ruled, each currently spot-fixed):
-   - **The popup law (c):** easy-to-forget moments get popup notifications, not just cards.
-   - **Acknowledge resolves (j):** any popup button press resolves its card's pending
-     presentation — bar gone, recall gone. The notice family (Vex/Sap/Cleave/Hew) is the
-     entire violating class; every ask machine already complies.
-   - **Declaration never claims an outcome (m):** buttons and relay cards at decision time
-     state the SPEND/choice; only the verdict's settle card states results. (The interpose
-     relay said "takes no damage" before the roll; the Pass button said "take half".)
-   - **Source, then result (⑦):** every follow-up line leads with the ability.
-   - **The celebration (l):** every attack-damage popup celebrates — "You hit! — roll
-     damage"; crits louder, built on the existing yellow badge (the one crit source);
-     riposte named as itself (p). One design, consistent flavors.
-   - **The stack is visible (q):** openManagedPopup (the single door every popup already
-     uses) cascades concurrent popups ~28px so a pile never masquerades as one window.
-3. **Then the point fixes** that remain after the spine absorbs their class — see the ledger.
+⚠ Known and deliberate, walked past on purpose: Precision offers only on CLEAN misses; a
+natural 1 is never offered; Graze + Precision on one driven miss is (e)-KEEP (RAW); a
+hand-tray kill posts no Hew reminder (no receipt to witness it).
 
 ---
 
-## 🔴 THE ROUND-3 LEDGER — findings (j)–(q), specs as ruled
+## ✅ ROUND 3 IS BUILT — THE SPINE IS THE PRODUCT (2026-08-20, TENTH session)
 
-| # | Finding | The spec, as discussed and ruled |
+The user's charge (*"if this is truly to work long term, stuff needs to be built out
+highly modularly and highly scalable as we build"*) is now STRUCTURE, not intention:
+
+- **📐 (o) THE MOMENT MAP + THE SPINE are design.md §4.3** — one table, every machine
+  (fourteen rows: stamp → route → pop → answer → resolve → expire), maintained WITH the
+  machines, and **THE MANDATE is binding**: no new moment machine hand-rolls the idiom
+  again; new features COMPOSE the spine. Pass C (the volleys) builds on it or doesn't
+  build.
+- **The spine in ui.js** (each primitive extracted from machines that had drifted apart
+  around it): ONE shown-latch registry (`shownMoments` — **the latch key IS the popup
+  key**, one delete-sweep; eleven per-machine sets with four key shapes are gone), ONE
+  popper (`openMomentPopup` — gate, front-on-recall, auto-close), ONE bar primitive
+  (`momentBarHTML` — pure `{deadline, window}`, no status contract to forget), ONE button
+  factory (`momentButton` — eight copies collapsed), **the ACK** (`acknowledgeMoment` —
+  durable where the acknowledger can write, client-local otherwise), the ask clock moved
+  home from mastery.js (`armAskTimer`), and the raw deadline timer (`armDeadline`) under
+  every per-target clock (topple, riposte, save-choice, hold).
+- **The eight findings landed ON it, all suite-pinned:**
+
+| # | Finding | Disposition |
 | --- | --- | --- |
-| (j) | **Notice cards ignore the acknowledge** (Cleave reported, then Hew — full scan confirmed the class = the notice family only) | Any notice button (OK / Arm / Dismiss) resolves the card: bar, popup, recall all go. Durable ack via message flag where the acknowledger can write (GM/author — every solo case); client-local otherwise (spectators' bars drain out as the window). Arm keeps the "Cleave — armed" card |
-| (k) | **Hew fires before the damage** | Both triggers move to the damage side: the reminder posts only once the crit's damage roll EXISTS (kill already lives there — receipt-time). Damage first, then "attack again". Unifies dedupe on the damage message |
-| (l) | **Damage popups don't celebrate the hit** | "You hit! — roll damage" on the normal path; crit louder on the yellow badge; single chokepoint `offerDamageRoll` covers plain/riposte/precision re-drives. Save-damage popup keeps its stakes-line identity (no attack roll to celebrate) |
-| (m) | **Declaration-time labels claim outcomes** | The choice relay card says "spends the Reaction" (proven live: it said "takes no damage" BEFORE a save that then failed); the interpose Pass button drops "— take half" (a passed-then-failed save takes full; the verdict decides) |
-| (n) | **Choice bars never rendered** | `holdBarHTML` requires `status:"pending"`; the choice sub-object has none — wrap at both call sites (popup + card row), and the suite asserts the bar's DOM (`data-bf-deadline`) so invisibility can never pass again |
-| (o) | **The architecture audit** | The North Star item 1 — the map, then the spine |
-| (p) | **The riposte swings in silence** | Hit → the damage gate is the riposte's own moment ("Your riposte hit!", die-riding note). Miss → "Riposte — the strike back misses" card, THEN any Graze/Precision offers arrive from an announced miss, not from nowhere |
-| (q) | **Stacked popups hide each other** | The cascade in openManagedPopup — North Star law 6. (Sighting that raised it: Cleave legitimately reminding on a riposte swing — (e)-KEEP working — buried under the pile) |
+| (j) | Notice cards ignored the acknowledge | ✅ any notice button resolves bar/recall/popup — durable via flag (GM/author), client-local otherwise; Arm keeps the armed card. Pinned: maneuvers H4, effects 17b2 |
+| (k) | Hew fired before the damage | ✅ BOTH triggers ride the damage side; the crit posts when its damage roll EXISTS; dedupe is ONE flag on the damage message, a check queue serializes the two. Kill path pinned H1/H2 |
+| (l) | Damage popups didn't celebrate | ✅ "You hit!" / "Critical hit!" at the ONE chokepoint (plain/riposte/precision flavors); save popup untouched. Pinned: probe-player-damage 4, maneuvers RP1 |
+| (m) | Declaration-time labels claimed outcomes | ✅ relay says "spends the Reaction"/"the Reaction is kept"; the Pass button is bare "Pass"; settle cards still state results |
+| (n) | Choice bars never rendered | ✅ both call sites on `momentBarHTML`; the DOM (`data-bf-deadline`) is the assertion now — maneuvers B3a pins card AND popup |
+| (o) | The architecture audit | ✅ the map + the spine + the mandate — design.md §4.3 |
+| (p) | The riposte swung in silence | ✅ hit → "Your riposte hit!" with the die note (RP1/RP2); miss → "the strike back misses" card before any offer (R6b) |
+| (q) | Stacked popups hid each other | ✅ the cascade in openManagedPopup (~28px, the single door — the damage offers ride it too) |
 
-**⚖ Standing judgments:** (e) folds on driven attacks — KEPT (RAW; the fence is one
-`riposteFor` guard if it ever grates). Weapon-swap economy and unarmed-strike riposte —
+**⚖ Standing judgments, unchanged:** (e) folds on driven attacks — KEPT (RAW; the fence is
+one `riposteFor` guard if it ever grates). Weapon-swap economy and unarmed-strike riposte —
 recorded open corners, not built.
-
-**❓ The one unresolved sighting:** (g)'s bash offer "did not occur" on Thomas's hit — the
-Sap cards posted (machinery lives) and BOTH popups route to window two by the user's own
-①-ruling, so the likeliest answer is "popped unseen on the player window"; the user was
-asked to check there next swing. If window two was silent TOO, (g) has a real bug —
-reproduce before assuming. The suite's B4 passes headlessly (GM-alone room).
 
 **⚙ Done mid-walk-3, already live:** all beats 0 — the user's call ("set all the beats to
 0. make this the default config"): module default already 0, reference table updated
-(with the history note — 0 is now DELIBERATE, not suite residue), world value --fixed.
-`dramaticBeat` is the ONE beat knob (it also drives every dramaticVerdictPause).
+(0 is DELIBERATE, not suite residue), world value --fixed. `dramaticBeat` is the ONE beat
+knob (it also drives every dramaticVerdictPause).
+
+### 📦 Deploy + battery state — ROUND 3, the spine (2026-08-20, TENTH session)
+
+⚠ **STILL BUILT-NOT-RELEASED** — same unreleased v1.19.0, same world-reload deploy class,
+sandbox byte-verified. Three commits (`test:` 04b02e9, `feat:` 1516647, `docs:` this one);
+design.md's §4.3 spine amendment + Phase 1.6 round-3 amendment rode the feat.
+
+**Battery, all green:** battleflow ALL PASS ×2 · hold ALL PASS · **maneuvers 49/49** (was
+44: B3a the (n) bar DOM, H4 the (j) ack, R6b the (p) miss announce, RP1/RP2 the (l)/(p)
+celebration; R2d de-flaked — count d8 GROUPS, a driven CRIT doubles both dice and the
+literal "1d8" count read that as no die) · cast 17/17 · riders 8/8 · **effects 53/53**
+(17b2 the Arm-acks pin) · concentration 47/47 · saves 61/61 · probe-player-damage 9/9
+(assert 4 now demands the celebration title) · probe-save-damage-popup 13/13 ·
+check-hook-order 6/6 (65 registrations — all pins hold across the whole extraction) ·
+verify-settings **CLEAN**.
+
+⚠ **Round-3 notes, paid once:**
+- The sandbox had VANISHED again at session start (SIXTH time, the clean-shutdown
+  pattern). `/api/status` refused, no process; `Start-Process "C:\Program Files\Foundry
+  Virtual Tabletop\Foundry Virtual Tabletop.exe" -WindowStyle Minimized`, ~20s, then the
+  suite launched the world itself. The documented recovery, first try, again.
+- The spine moved `armAskTimer`/`disarmAskTimer` OUT of mastery.js — anything new should
+  import them (and every moment surface) from **ui.js**. `dramaticVerdictPause` stayed in
+  concentration.js ON PURPOSE: moving it re-orders the import graph for zero behaviour.
+- `openMomentPopup`'s gate refuses a NULL subject (a broken uuid must not pop); pass
+  `gate: false` only for locality popups. `offerRoll` (auto-damage) is the one documented
+  DIRECT customer of `openManagedPopup` — its close-fires-roll shell is its own.
 
 ---
 
@@ -2217,11 +2230,11 @@ purpose** (its verdict row must register first; see the import-order rule below)
 | `polish.js` | 145 | no-target gate, the cast-slice birth stamps, hidden card buttons (the keep-list), dialog centering — the suppression machinery died here at v1.10.0 |
 | `auto-damage.js` | 66 | Phase 1a — auto-roll damage on hit |
 | `hold.js` | 1050 | Phase 1.5 — the whole reaction-hold machine: eligibility, both triggers, answers, continuation, veto, spell-damage applier claim; the reaction effect's application + receipt (v1.8.0) |
-| `ui.js` | 582 | popup lifecycle (`openManagedPopup`), the house card (`bfCard`), the countdown bar + `scheduleBarSync`, the hold's views + timers, the global delete sweep |
+| `ui.js` | 727 | **THE SPINE** (design.md §4.3, round 3): `openManagedPopup` + the cascade, `openMomentPopup`, `shownMoments` (the one latch registry), `momentBarHTML`/`holdBarHTML`, `momentButton`, the ACK (`acknowledgeMoment`), the clocks (`armAskTimer`/`armDeadline`), the house card (`bfCard`), `scheduleBarSync`, the hold's views, the ONE delete-sweep |
 | `hit-riders.js` | 228 | Phase 1.75 — curated damage riders |
 | `auto-apply.js` | 139 | Phase 1b — the elect's applier, `applyDamagesWithReceipt`, the payout pipeline |
 | `effect-riders.js` | 166 | Phase 1.9A + the v1.8.0 convergence core: `applyEffectsTo` (THE application loop), `joinEffectReceipt` (THE receipt bookkeeping), `applyEffectsWithReceipt` |
-| `mastery.js` | 905 | Phase 1.9B/C — mastery riders, the ask (`armAskTimer` twins), the topple fold + popup + its v1.10.0 buzzer (`saveTimer` semantics), reminders (+ the card bar); its applier stays separate BY POLICY (authored data — see the comment at the site) |
+| `mastery.js` | 1062 | Phase 1.9B/C — mastery riders, the ask, the topple fold + popup + its v1.10.0 buzzer (`saveTimer` semantics), reminders (+ the ACK since round 3); its applier stays separate BY POLICY (authored data — see the comment at the site); `armAskTimer` moved OUT to ui.js at round 3 |
 | `concentration.js` | 658 | Phase 2.5 — cause capture → ask → roll → fold → break, `dramaticVerdictPause` |
 | `cast.js` | 93 | Phase 3 cast slice — the elect executes stamped payloads |
 | `saves.js` | 950 | Phase 2 + Phase 3 save slice — demand stamp (+ the stamp's damage auto-roll + the results.templates `.flat()`), per-target popups/rolls, fold vs stored DC, consequences through the shared appliers, LR overturn, template containment (stamp/adopt/refresh/spent-sweep) + the strand close-pass |
@@ -2244,10 +2257,10 @@ receipts.js). Entry-point hooks check their feature toggle; view/continuation ho
 flag presence (the cast slice's stamps are exactly this discipline); every feature ships
 **off**.
 
-The elect-owned single-answer clock is shared (`armAskTimer` — the mastery ask and the
-concentration ask are true twins there); the hold's clock stays its own machine on purpose
-(continuing-client owner, per-target answers — the extraction note that used to sit on the
-mastery timer says why).
+The elect-owned single-answer clock is shared (`armAskTimer` — **moved to ui.js at round
+3**; the mastery ask, the concentration ask, the save demand, precision and the bash offer
+are true twins there); the hold's clock stays its own GATE on the spine's raw
+`armDeadline` on purpose (continuing-client owner, per-target answers).
 
 The payout pipeline is one deterministic sequence per damage message on the elect
 (`resolveDamagePayouts`): **application → effect riders → mastery** — sequential because
