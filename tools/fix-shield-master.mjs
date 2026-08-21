@@ -1,6 +1,10 @@
 // Shield Master (FLOW item 5, v1.19.0) — verify the CONTENT, graft only if it is missing,
 // and sweep for siblings.
 //
+// ⚠ Since walk-5 (x) (2026-08-21) the module NEVER applies the item's own "Shield Bashed"
+// effect: the bash Prone press is forceStatus → the canonical Prone chip. This tool's
+// verify/graft is belt-and-braces content hygiene now, not load-bearing.
+//
 // The 2026-08-20 probes found the save machine already accepts a feat's save activity
 // end-to-end (saves.js gates only on activity.type === "save"), and Thomas A. Invictus's
 // Shield Master already carries the correct content: a "Shield Bashed" effect with

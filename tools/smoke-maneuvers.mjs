@@ -697,37 +697,45 @@ const out = await f.evaluate(async () => {
           && (verdict.speaker?.actor === victim.id),
         `sourceTitle=${(verdict?.content ?? '').includes('BF Shield Master — ')} speaker=${verdict?.speaker?.actor} want=${victim.id}`);
       const popup = await until(() => dialogsWith('Knock Prone')[0], 6000);
-      ok('B1c. the choice popup carries Knock Prone / Push 5 feet',
+      ok('B1c. the choice popup carries Knock Prone / Push 5 feet, quotes the feat verbatim ((z)) and tooltips its icon ((aa))',
         !!popup && !!popup.querySelector('button[data-action="prone"]')
-          && !!popup.querySelector('button[data-action="push"]'),
-        `popup=${!!popup}`);
+          && !!popup.querySelector('button[data-action="push"]')
+          && (popup.textContent ?? '').includes('cause it to have the Prone condition')
+          && !!popup.querySelector('img[data-tooltip]'),
+        `popup=${!!popup} verbatim=${(popup?.textContent ?? '').includes('cause it to have the Prone condition')} tooltip=${!!popup?.querySelector('img[data-tooltip]')}`);
       popup?.querySelector('button[data-action="push"]')?.click();
       const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 15000);
       const pressed = victim.effects.some(e => e.name === 'BF Test Prone');
       const pushMsg = game.messages.contents.find(m => (m.timestamp >= suiteStart)
         && /pushes .* 5 feet/.test(m.content ?? ''));
-      ok('B1d. push — NO press lands, the announce card does (the Push idiom)',
-        !!applied && !pressed && !!pushMsg,
-        `applied=${!!applied} pressed=${pressed} pushMsg=${!!pushMsg}`);
+      ok('B1d. push — NO press lands (custom or standard), the announce card does (the Push idiom)',
+        !!applied && !pressed && !victim.statuses.has('prone') && !!pushMsg,
+        `applied=${!!applied} pressed=${pressed} prone=${victim.statuses.has('prone')} pushMsg=${!!pushMsg}`);
     }
 
-    /* B2 — the prone answer presses through the ordinary chain. */
+    /* B2 — (x): the prone answer presses the STANDARD Prone chip (Topple's forceStatus
+     * idiom — canonical id, origin names the presser), never the item's own effect. */
     {
       await reviveVictim();
+      await victim.effects.find(e => e.statuses.has('prone'))?.delete().catch(() => {});
       const card = await castAt(bashAct(), victimToken);
       const popup = await until(() => dialogsWith('Knock Prone')[0], 20000);
       popup?.querySelector('button[data-action="prone"]')?.click();
       const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 15000);
-      const eff = await until(() => victim.effects.find(e => e.name === 'BF Test Prone'), 6000);
-      ok('B2. prone — the press lands through the ordinary effects chain',
-        !!applied && !!eff, `applied=${!!applied} effect=${!!eff}`);
-      await eff?.delete().catch(() => {});
+      const chip = await until(() => victim.effects.find(e => e.statuses.has('prone')), 6000);
+      ok('B2. (x) prone — the STANDARD Prone chip lands: canonical id, attacker origin, no custom effect',
+        !!applied && (chip?.id === 'dnd5eprone000000') && (chip?.origin === pc.uuid)
+          && !victim.effects.some(e => e.name === 'BF Test Prone'),
+        `applied=${!!applied} chip=${chip?.id ?? null} origin=${chip?.origin ?? null} want=${pc.uuid} `
+          + `custom=${victim.effects.some(e => e.name === 'BF Test Prone')}`);
+      await chip?.delete().catch(() => {});
     }
 
     /* B3 — the choice bar is VISIBLE ((n)), then the buzzer defaults to Prone and says so. */
     {
       await set('holdTimer', 4);
       await reviveVictim();
+      await victim.effects.find(e => e.statuses.has('prone'))?.delete().catch(() => {});
       const card = await castAt(bashAct(), victimToken);
       // (n): the pending choice draws its bar — card row AND popup — through momentBarHTML.
       // The DOM is the assertion, because every flag-level one passed for a whole round
@@ -748,11 +756,11 @@ const out = await f.evaluate(async () => {
         const x = card?.getFlag(MOD, 'saves')?.targets?.[0];
         return (x?.choice?.answer && x.applied) ? x : null;
       }, 25000);
-      const eff = victim.effects.find(e => e.name === 'BF Test Prone');
-      ok('B3. left alone — the buzzer defaults the bash to Prone (stated on the card)',
-        (t?.choice?.answer === 'prone') && !!t?.choice?.timedOut && !!eff,
-        `answer=${t?.choice?.answer} timedOut=${!!t?.choice?.timedOut} eff=${!!eff}`);
-      await eff?.delete().catch(() => {});
+      const chip = victim.effects.find(e => e.statuses.has('prone'));
+      ok('B3. left alone — the buzzer defaults the bash to Prone (the (x) standard chip, stated on the card)',
+        (t?.choice?.answer === 'prone') && !!t?.choice?.timedOut && (chip?.id === 'dnd5eprone000000'),
+        `answer=${t?.choice?.answer} timedOut=${!!t?.choice?.timedOut} chip=${chip?.id ?? null}`);
+      await chip?.delete().catch(() => {});
       await set('holdTimer', 0);
       await closeDialogs('BF Shield Master');
     }
@@ -764,6 +772,7 @@ const out = await f.evaluate(async () => {
       priorActor[victim.id]['system.attributes.hp.max'] = victim.system._source.attributes.hp.max;
       await victim.update({ 'system.attributes.hp.max': 1000, 'system.attributes.hp.value': 1000 });
       await acFlat(victim, 1);
+      await victim.effects.find(e => e.statuses.has('prone'))?.delete().catch(() => {});
       let offer = null, atkMsg = null;
       for (let i = 0; i < 6 && !offer; i++) {
         const { msg } = await attack(pcAttackAct(), victimToken);
@@ -788,10 +797,10 @@ const out = await f.evaluate(async () => {
       const choicePopup = await until(() => dialogsWith('Knock Prone')[0], 25000);
       choicePopup?.querySelector('button[data-action="prone"]')?.click();
       const applied = await until(() => usage?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 15000);
-      const eff = await until(() => victim.effects.find(e => e.name === 'BF Test Prone'), 6000);
-      ok('B4d. the driven demand fails and the chosen press lands — end to end',
-        !!applied && !!eff, `applied=${!!applied} effect=${!!eff}`);
-      await eff?.delete().catch(() => {});
+      const chip = await until(() => victim.effects.find(e => e.statuses.has('prone')), 6000);
+      ok('B4d. the driven demand fails and the chosen press lands the (x) standard chip — end to end',
+        !!applied && (chip?.id === 'dnd5eprone000000'), `applied=${!!applied} chip=${chip?.id ?? null}`);
+      await chip?.delete().catch(() => {});
       await acFlat(victim, 25);
       await closeDialogs('BF Shield Master');
     }
@@ -824,34 +833,47 @@ const out = await f.evaluate(async () => {
       } } }]);
     const dexAct = () => pc.items.get(dexBlast.id)?.system.activities.get('bfdexblast000000');
 
-    /* I1 — the gamble declared BEFORE the roll ((f)); a held save turns half into NONE. */
+    /* I1 — walk-5 (y): NOTHING stamps with the demand; the SAVED verdict opens the choice;
+     * use turns the half into NONE. The 2024 text conditions the Reaction on succeeding. */
     {
-      await set('saveTimer', 5);   // room to SEE the pre-roll window before the buzzer rolls
+      await set('saveTimer', 1);    // the verdict lands fast — the choice is what we watch
+      await set('holdTimer', 15);   // the post-verdict choice window — room to click
       await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
       const hpBefore = victim.system.attributes.hp.value;
       const card = await castAt(dexAct(), victimToken);
       const early = card?.getFlag(MOD, 'saves')?.targets?.[0];
-      ok('I1a. the Interpose choice stamps WITH the demand — before any verdict ((f))',
-        (early?.choice?.kind === 'interpose') && (early?.done === false),
-        `choice=${early?.choice?.kind} done=${early?.done}`);
-      const popup = await until(() => dialogsWith('spend your Reaction')[0], 6000);
-      ok('I1b. the pre-roll popup offers the gamble (Use / Pass)',
-        !!popup && !!popup.querySelector('button[data-action="use"]')
+      ok('I1a. (y) nothing stamps with the demand — the choice is the VERDICT\'s to open',
+        !early?.choice && (early?.done === false),
+        `choice=${JSON.stringify(early?.choice ?? null)} done=${early?.done}`);
+      const opened = await until(() => {
+        const t = card?.getFlag(MOD, 'saves')?.targets?.[0];
+        return (t?.done && (t.outcome === 'saved') && t.choice && !t.choice.answer) ? t : null;
+      }, 20000);
+      ok('I1b. (y) the SAVED verdict opens the interpose choice — post-verdict, success-only',
+        opened?.choice?.kind === 'interpose',
+        `outcome=${opened?.outcome} kind=${opened?.choice?.kind ?? null}`);
+      const popup = await until(() => dialogsWith('take no damage')[0], 6000);
+      ok('I1c. (z)+(aa) the popup quotes the feat verbatim, tooltips its icon, offers Use / Take half',
+        !!popup && (popup.textContent ?? '').includes('holding a Shield')
+          && !!popup.querySelector('img[data-tooltip]')
+          && !!popup.querySelector('button[data-action="use"]')
           && !!popup.querySelector('button[data-action="pass"]'),
-        `popup=${!!popup}`);
+        `popup=${!!popup} verbatim=${(popup?.textContent ?? '').includes('holding a Shield')} `
+          + `tooltip=${!!popup?.querySelector('img[data-tooltip]')}`);
       popup?.querySelector('button[data-action="use"]')?.click();
       const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 20000);
       const validation = game.messages.contents.find(m => (m.timestamp >= suiteStart)
         && /takes no damage/.test(m.content ?? ''));
-      ok('I1c. use + the save HOLDS — nothing applies, the validation card posts, no reaction flag out of combat',
+      ok('I1d. use — the half becomes NONE, the settle card posts, no reaction flag out of combat',
         !!applied && (victim.system.attributes.hp.value === hpBefore) && !!validation
           && !victim.getFlag(MOD, 'reactionSpent'),
         `applied=${!!applied} hp ${hpBefore}→${victim.system.attributes.hp.value} card=${!!validation}`);
-      await set('saveTimer', 1);
+      await set('holdTimer', 0);
       await closeDialogs('BF Shield Master');
     }
 
-    /* I2 — the buzzer PASSES (a Reaction is never spent by a timer): half applies. */
+    /* I2 — the buzzer PASSES (a Reaction is never spent by a timer): the saved half applies.
+     * Post-verdict since (y): verdict at ~1s (saveTimer), the choice buzzer 2s after. */
     {
       await set('holdTimer', 2);
       await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
@@ -870,7 +892,8 @@ const out = await f.evaluate(async () => {
       await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
     }
 
-    /* I3 — the gamble LOST ((f)): use, then the save FAILS — full damage, the vain card. */
+    /* I3 — the (y) NEGATIVE: a FAILED save never offers and never spends — full damage,
+     * no choice, no popup, no settle card. (The old pre-roll gamble is overturned.) */
     const [dexHard] = await pc.createEmbeddedDocuments('Item', [{
       name: 'BF Test Dex Blast Hard', type: 'feat',
       system: { type: { value: 'feat' }, activities: {
@@ -883,19 +906,23 @@ const out = await f.evaluate(async () => {
         }
       } } }]);
     {
+      const before = Date.now();
+      await set('holdTimer', 15);   // were a choice to open wrongly it would STAND, and be seen
       await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
       const hpBefore = victim.system.attributes.hp.value;
       const act = pc.items.get(dexHard.id)?.system.activities.get('bfdexhard0000000');
       const card = await castAt(act, victimToken);
-      const popup = await until(() => dialogsWith('spend your Reaction')[0], 6000);
-      popup?.querySelector('button[data-action="use"]')?.click();
       const applied = await until(() => card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied, 25000);
+      const t = card?.getFlag(MOD, 'saves')?.targets?.[0];
       const dropped = hpBefore - victim.system.attributes.hp.value;
-      const vain = game.messages.contents.find(m => (m.timestamp >= suiteStart)
-        && /the save failed, the Reaction is spent/.test(m.content ?? ''));
-      ok('I3. the gamble lost — FULL damage stands and the vain card says so ((f))',
-        !!applied && (dropped === 10) && !!vain,
-        `applied=${!!applied} dropped=${dropped} vain=${!!vain}`);
+      const offered = !!t?.choice || !!dialogsWith('take no damage')[0];
+      const settle = game.messages.contents.find(m => (m.timestamp >= before)
+        && /takes no damage|Reaction is spent/.test(m.content ?? ''));
+      ok('I3. (y) the failed save: NO interpose offer, NO spend — the full 10 applies',
+        !!applied && (dropped === 10) && !offered && !settle
+          && !victim.getFlag(MOD, 'reactionSpent'),
+        `applied=${!!applied} dropped=${dropped} offered=${offered} settle=${!!settle}`);
+      await set('holdTimer', 0);
       await closeDialogs('BF Shield Master');
       await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
     }
