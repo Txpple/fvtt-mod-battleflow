@@ -23,12 +23,14 @@
  *     1.6: "N driven rolls are N independent rider folds"). A hold on ray 2 pauses ray 2's
  *     damage and nothing else.
  *
- * DETECTION IS STRUCTURAL, never a name list: item.type "spell", activity type
- * attack/damage with damage parts, and `target.affects.count` evaluating to 2+ at the cast
- * level. Magic Missile ships `"2 + @item.level"` (measured 2026-08-21, dnd5e 5.3.3 PHB
- * content); the world's Scorching Ray carries no count at all and is grafted the matching
- * `"1 + @item.level"` by tools/fix-scorching-ray.mjs — the content route, the house way.
- * Content without a count is simply never a volley: graceful degradation, no guess.
+ * DETECTION IS THE REGISTRY (finding (ff), 2026-08-21 — volley-registry.js carries the
+ * user directive verbatim and the census that grounds it): a spell volleys iff its name is
+ * listed, with the listed per-spell handling (kind, count formula, distinct-targets), and
+ * an unlisted spell never volleys no matter what its copy's data says. The census measured
+ * content data wrong in BOTH directions — the 2024 pack ships Scorching Ray bare and
+ * Dimension Door count-2-with-a-damage-activity — so content counts decide nothing here.
+ * A registered name still volleys only when the USED activity matches the entry's kind and
+ * the count evaluates 2+ at this cast; everything else stays fully native.
  *
  * THE CLAIM SHAPE (the Pass C unblock recorded in design.md Phase 1.6): the volley's claim
  * is `usageConfig.subsequentActions = false`, set in dnd5e.preUseActivity on the casting
@@ -47,6 +49,7 @@
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite } from "./core.js";
 import { modeAllows } from "./shared.js";
+import { volleyEntryFor, resolveVolleyCount } from "./volley-registry.js";
 import { livePopups, popupKey, openManagedPopup, bfCard, momentBarHTML,
   armDeadline, disarmDeadline } from "./ui.js";
 
@@ -73,41 +76,26 @@ function castLevelOf(activity, usageConfig) {
 }
 
 /**
- * How many projectiles this use throws, read off the CONTENT at use time (FLOW item 6:
- * "never do the arithmetic"). The count formula lives on the item's own target block
- * (`"2 + @item.level"` — the activity's target defers to it unless overridden); it is
- * deterministic by schema, and the cast level rides in as both `@item.level` and
- * `@scaling` so either authoring convention evaluates.
- */
-function volleyCount(activity, castLevel) {
-  const raw = String(activity.item?.system?._source?.target?.affects?.count
-    ?? activity.item?.system?.target?.affects?.count
-    ?? activity.target?.affects?.count ?? "").trim();
-  if ( !raw ) return 0;
-  let rollData = {};
-  try { rollData = activity.getRollData({ deterministic: true }) ?? {}; } catch { rollData = {}; }
-  rollData.scaling = Math.max(0, castLevel - (activity.item?.system?.level ?? 0));
-  if ( rollData.item ) rollData.item = { ...rollData.item, level: castLevel };
-  try { return Math.floor(dnd5e.utils.simplifyBonus(raw, rollData)) || 0; }
-  catch { return 0; }
-}
-
-/**
  * Is this use a volley? Null when it is not — and every `null` here means the fully native
- * path, untouched. Targetless casts stay native on purpose: a volley with nothing to aim at
- * is just a damage roll, and the existing machinery already owns that case.
+ * path, untouched. Membership is the registry's (volley-registry.js), and the entry's kind
+ * must match the used activity so a listed spell's other activities stay native. Targetless
+ * casts stay native on purpose: a volley with nothing to aim at is just a damage roll, and
+ * the existing machinery already owns that case. A distinct-targets entry (Steel Wind
+ * Strike) throws at most one projectile per creature, so its n clamps to the target count.
  */
 function volleySpec(activity, usageConfig, targetCount, { castLevel } = {}) {
   if ( !setting(S.volleys) ) return null;
-  if ( activity?.item?.type !== "spell" ) return null;
-  if ( !["attack", "damage"].includes(activity.type) ) return null;
+  const entry = volleyEntryFor(activity?.item);
+  if ( !entry ) return null;
+  if ( activity.type !== entry.kind ) return null;
   if ( !activity.damage?.parts?.length ) return null;
   if ( !modeAllows(activity.actor) ) return null;   // the folds ride the resolver
   if ( !(targetCount > 0) ) return null;
   const level = castLevel ?? castLevelOf(activity, usageConfig);
-  const n = volleyCount(activity, level);
+  let n = resolveVolleyCount(entry, activity, level);
+  if ( entry.distinctTargets ) n = Math.min(n, targetCount);
   if ( n < 2 ) return null;
-  return { n, castLevel: level };
+  return { n, castLevel: level, distinct: !!entry.distinctTargets };
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -161,6 +149,7 @@ async function stampVolley(activity, message, targets, spec) {
       item: { name: activity.item?.name ?? "the spell", img: activity.item?.img ?? null },
       casterName: activity.actor?.name ?? null,
       targets,
+      ...(spec.distinct ? { distinct: true } : {}),
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
     });
     // Locality: this hook already runs on the casting client — the popup is theirs.
@@ -184,8 +173,9 @@ function defaultAssignment(v) {
     for ( let i = 0; i < v.n; i++ ) rows[i % rows.length].count++;
     return rows;
   }
+  // Distinct-targets entries clamped n to the target count at stamp — one each, no wrap.
   return Array.from({ length: v.n }, (_, i) => {
-    const t = v.targets[i % v.targets.length];
+    const t = v.distinct ? v.targets[i] : v.targets[i % v.targets.length];
     return { uuid: t.uuid, name: t.name };
   });
 }
@@ -211,21 +201,28 @@ async function openVolleyPopup(message) {
           min="0" max="${v.n}" step="1" style="width:4rem;text-align:center;">
       </div>`;
     }).join("")
-    // One target pick per ray.
+    // One target pick per ray — and the ray's mode ((dd), RAW; the concentration popup's
+    // Adv/Normal/Dis is the in-house precedent). "Normal" passes NO override so sheet-borne
+    // modifiers keep applying themselves; only an explicit pick forces the booleans.
     : Array.from({ length: v.n }, (_, i) => {
       const def = defaultAssignment(v)[i]?.uuid;
       const options = v.targets.map(t =>
         `<option value="${esc(t.uuid)}" ${t.uuid === def ? "selected" : ""}>${esc(t.name)}</option>`).join("");
       return `<div style="display:flex;align-items:center;gap:0.5rem;margin:0.15rem 0;">
         <label style="flex:1;">Ray ${i + 1}</label>
-        <select data-bf-volley-ray="${i}" style="width:11rem;">${options}</select>
+        <select data-bf-volley-ray="${i}" style="width:9.5rem;">${options}</select>
+        <select data-bf-volley-mode="${i}" style="width:7.5rem;">
+          <option value="normal" selected>Normal</option>
+          <option value="advantage">Advantage</option>
+          <option value="disadvantage">Disadvantage</option>
+        </select>
       </div>`;
     }).join("");
 
   const bar = (v.deadline && v.window) ? momentBarHTML({ deadline: v.deadline, window: v.window }, "to aim") : "";
   const dialog = new foundry.applications.api.DialogV2({
     window: { title: `${v.item?.name ?? "Volley"} — ${v.n} ${noun}s`, icon: "fa-solid fa-meteor" },
-    position: { width: 430 },
+    position: { width: (v.kind === "attack") ? 480 : 430 },
     content: bfCard({
       img: v.item?.img,
       eyebrow: "Volley — your aim",
@@ -236,6 +233,7 @@ async function openVolleyPopup(message) {
         (v.kind === "damage")
           ? `The ${noun}s strike <strong>together</strong> — each target takes one combined roll.`
           : `Each ${noun} is its <strong>own attack</strong>, resolved in order.`,
+        ...(v.distinct ? [`One ${noun} per target — this spell never doubles up.`] : []),
         `Closing fires the volley as aimed; the timer fires the even spread.`
       ]
     }) + `<div style="margin:0.35rem 0.25rem;">${rows}</div>` + bar,
@@ -284,9 +282,15 @@ function readAssignment(message, element) {
   const rays = [];
   for ( const sel of element.querySelectorAll("[data-bf-volley-ray]") ) {
     const t = v.targets.find(x => x.uuid === sel.value) ?? v.targets[0];
-    if ( t ) rays.push({ uuid: t.uuid, name: t.name });
+    if ( !t ) continue;
+    const mode = element.querySelector(`[data-bf-volley-mode="${sel.dataset.bfVolleyRay}"]`)?.value;
+    rays.push({ uuid: t.uuid, name: t.name,
+      ...((mode === "advantage" || mode === "disadvantage") ? { mode } : {}) });
   }
-  return (rays.length === v.n) ? rays : null;
+  if ( rays.length !== v.n ) return null;
+  // Distinct-targets: duplicate picks fall back to the one-each default — never refuse to fire.
+  if ( v.distinct && (new Set(rays.map(r => r.uuid)).size !== rays.length) ) return null;
+  return rays;
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -379,7 +383,17 @@ async function driveDarts(message, activity, v) {
  */
 async function driveRays(message, activity, v) {
   for ( const [i, ray] of (v.assignment ?? []).entries() ) {
-    await aimed(ray.uuid, () => activity.rollAttack({}, { configure: false }, { data: {
+    // The ray's mode rides the roll's own advantage/disadvantage booleans — the
+    // concentration answer's channel (applyKeybindings recomputes advantageMode from
+    // exactly this pair, and mergeConfigs lets the explicit boolean out-vote the
+    // data-driven one). No mode passes nothing, so sheet-borne modifiers keep applying
+    // themselves.
+    const cfg = (ray.mode === "advantage")
+      ? { rolls: [{ options: { advantage: true, disadvantage: false } }] }
+      : (ray.mode === "disadvantage")
+        ? { rolls: [{ options: { advantage: false, disadvantage: true } }] }
+        : {};
+    await aimed(ray.uuid, () => activity.rollAttack(cfg, { configure: false }, { data: {
       "flags.dnd5e.originatingMessage": message.id,
       [`flags.${MODULE_ID}.volleyFor`]: message.id,
       [`flags.${MODULE_ID}.volleyRay`]: i + 1
@@ -413,7 +427,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const v = message.getFlag(MODULE_ID, "volley");
-  if ( !v ) return;
+  if ( !v ) return void renderVolleyAim(message, html);
   renderVolleyRow(message, v, html);
   // Author-side resume: re-arm the buzzer and re-raise the popup after an F5. An already-
   // overdue deadline fires the default spread now — the volley never strands on a reload.
@@ -446,9 +460,33 @@ function renderVolleyRow(message, v, html) {
   } else {
     const summary = (v.kind === "damage")
       ? (v.assignment ?? []).filter(a => a.count > 0).map(a => `${esc(a.name)} ×${a.count}`).join(", ")
-      : (v.assignment ?? []).map((a, i) => `${i + 1}→${esc(a.name)}`).join(", ");
+      : (v.assignment ?? []).map((a, i) => `${i + 1}→${esc(a.name)}${a.mode === "advantage" ? " (adv)" : a.mode === "disadvantage" ? " (dis)" : ""}`).join(", ");
     div.innerHTML = `<i class="fa-solid fa-meteor" data-tooltip="Volley"></i>
       <strong>Volley</strong> — ${v.n} ${esc(noun)}s: ${summary || "unaimed"}`;
   }
   content.appendChild(div);
+}
+
+/**
+ * (ee): every driven volley roll names its target on the card — token icon (tooltip, law 8)
+ * + name, read off the roll's own dnd5e target snapshot (the aimed() canvas target at drive
+ * time), so the render is pure and needs no lookups. Dart damage rolls carry volleyTarget,
+ * ray attacks volleyRay; a ray's follow-up damage chains off its attack card, which names
+ * the target right above it.
+ */
+function renderVolleyAim(message, html) {
+  if ( !message.getFlag(MODULE_ID, "volleyFor") ) return;
+  const target = (message.getFlag("dnd5e", "targets") ?? [])[0];
+  if ( !target?.name ) return;
+  const content = html.querySelector?.(".message-content") ?? html;
+  if ( !content || content.querySelector(".bf-volley-aim") ) return;
+  const ray = Number(message.getFlag(MODULE_ID, "volleyRay")) || 0;
+  const div = document.createElement("div");
+  div.className = "bf-volley-aim";
+  div.style.cssText = "display:flex;align-items:center;gap:0.4rem;margin:0.2rem 0;font-size:var(--font-size-12,12px);";
+  div.innerHTML = `${target.img ? `<img src="${esc(target.img)}" alt="${esc(target.name)}"
+      data-tooltip="${esc(target.name)}"
+      style="width:22px;height:22px;border:none;border-radius:4px;object-fit:cover;">` : ""}
+    <span>${ray ? `Ray ${ray} → ` : "→ "}<strong>${esc(target.name)}</strong></span>`;
+  content.prepend(div);
 }

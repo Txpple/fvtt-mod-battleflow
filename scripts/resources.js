@@ -35,10 +35,22 @@
  * banner idiom — fixed, huge, fades, pointer-events none), the CARD LINE is the durable
  * record (idempotent render decoration; scrollback keeps what was spent). History is inert:
  * only a message younger than 10s flashes, and each flashes once per client.
+ *
+ * (cc), 2026-08-21 — the flash waits for the ability's own dice: an activity that carries
+ * dice still to roll (Second Wind's heal, a damage feat) holds its flash in a pending map
+ * and releases when the linked roll message arrives — `flags.dnd5e.originatingMessage` for
+ * card-button rolls, the activity uuid for sheet-driven rolls (BOTH measured 2026-08-21;
+ * a sheet roll has no enclosing card and never stamps the first key). A 12s fallback means
+ * a player who never rolls still flashes. Client-local like everything here: the roll
+ * replicates, each client self-resolves, `flashed` still dedupes. The card LINE stays
+ * immediate — it is the ledger, not the attention.
  */
 import { MODULE_ID, S, setting } from "./core.js";
 
 const flashed = new Set();
+// (cc): flashes held for an ability's own dice — usage message id → the armed flash.
+const pendingFlash = new Map();
+const FLASH_FALLBACK_MS = 12_000;
 
 const esc = s => String(s ?? "").replace(/[&<>"]/g,
   c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -109,8 +121,46 @@ function flashBanner(actorName, ability, rows) {
   setTimeout(() => banner.remove(), 4200);
 }
 
+/**
+ * (cc): does this use's activity carry dice of its own still to roll? Heal formulas and
+ * damage parts do (the card offers the roll, or a module fold drives it); utility, attack
+ * and save activities do not — attacks and saves run whole machines of their own.
+ */
+function awaitsOwnDice(message) {
+  try {
+    const flags = message.flags?.dnd5e ?? {};
+    const item = fromUuidSync(flags.item?.uuid ?? "");
+    const act = item?.system?.activities?.get?.(flags.activity?.id ?? "");
+    if ( !act ) return false;
+    if ( act.type === "heal" ) {
+      const h = act.healing ?? {};
+      return !!(h.number || h.denomination || String(h.bonus ?? "").trim()
+        || String(h.custom?.formula ?? "").trim());
+    }
+    if ( act.type === "damage" ) return !!act.damage?.parts?.length;
+    return false;
+  } catch { return false; }
+}
+
+/** (cc): a roll message releases the flash it was holding up — by the card link when the
+ * roll has one, by the activity uuid when it came from the sheet. */
+function releasePending(message) {
+  if ( !pendingFlash.size || !message.rolls?.length ) return;
+  const d = message.flags?.dnd5e ?? {};
+  for ( const [cardId, p] of pendingFlash ) {
+    if ( (d.originatingMessage === cardId)
+      || (p.activityUuid && (d.activity?.uuid === p.activityUuid)) ) {
+      clearTimeout(p.timer);
+      pendingFlash.delete(cardId);
+      flashBanner(p.actorName, p.ability, p.rows);
+      return;
+    }
+  }
+}
+
 Hooks.on("createChatMessage", message => {
   if ( !setting(S.resourceNotices) ) return;
+  releasePending(message);
   // History is inert: render-resume and scrollback must never flash last week's spends.
   if ( Math.abs(Date.now() - (message.timestamp ?? 0)) > 10_000 ) return;
   if ( flashed.has(message.id) ) return;
@@ -118,7 +168,18 @@ Hooks.on("createChatMessage", message => {
   if ( !rows.length ) return;
   flashed.add(message.id);
   const actor = message.getAssociatedActor?.();
-  flashBanner(actor?.name ?? "Someone", usedName(message) ?? "an ability", rows);
+  const actorName = actor?.name ?? "Someone";
+  const ability = usedName(message) ?? "an ability";
+  if ( awaitsOwnDice(message) ) {
+    const timer = setTimeout(() => {
+      if ( !pendingFlash.delete(message.id) ) return;
+      flashBanner(actorName, ability, rows);
+    }, FLASH_FALLBACK_MS);
+    pendingFlash.set(message.id, { timer, rows, actorName, ability,
+      activityUuid: message.flags?.dnd5e?.activity?.uuid ?? null });
+    return;
+  }
+  flashBanner(actorName, ability, rows);
 });
 
 /* ---------------------------------------------------------------------------------------------

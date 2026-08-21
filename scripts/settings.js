@@ -211,12 +211,12 @@ Hooks.once("init", () => {
     default: "Precision Attack:precision, Riposte:riposte, Shield Master:interpose, Shield Master:bash, Great Weapon Master:hew"
   });
 
-  // Structural, not a name list (FLOW item 6's own instruction: "a settings list of
-  // identifiers is the LAST resort, not the plan"): a volley is any spell whose activity
-  // rolls attacks or bare damage and whose target data says it throws two or more
-  // projectiles (target.affects.count — Magic Missile ships "2 + @item.level"; the world's
-  // Scorching Ray is grafted the same shape by tools/fix-scorching-ray.mjs). Content that
-  // carries no count is simply never a volley — graceful degradation, never a guess.
+  // Membership lives in the volley registry (volley-registry.js — finding (ff), which
+  // OVERTURNS FLOW item 6's structural-only instruction by user directive 2026-08-21):
+  // premium content ships its multi-projectile data too inconsistently to detect from (the
+  // census: Scorching Ray bare, Eldritch Blast count "1", Dimension Door a false positive),
+  // so the module tracks the few real volley spells by name, each with its own handling.
+  // An unlisted spell is simply never a volley — graceful degradation, never a guess.
   game.settings.register(MODULE_ID, S.volleys, {
     name: "Volley Spells",
     hint: "Multi-projectile spells resolve as volleys: the caster gets one popup to aim every dart or ray, instead of the system rolling a single shot and forgetting the rest. Magic Missile's darts strike together — each target gets ONE aggregated damage roll (and so one concentration check). Scorching Ray's rays are separate attacks — each ray rolls its own attack at its own target through the ordinary pipeline, reactions and riders included. The window is the Damage Roll Timer; expiry fires the volley with an even spread, it never cancels. Rides the Attack Resolver's mode.",

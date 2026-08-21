@@ -513,6 +513,13 @@ probe against both activities: where the count lives, how it scales, whether Sco
 rays are one activity or N. Structural detection is *"activity whose scaling multiplies
 PROJECTILES rather than dice"*; a settings list of identifiers is the **LAST resort, not the plan.**
 
+> ⚠ **THE STRUCTURAL-ONLY INSTRUCTION ABOVE IS OVERTURNED — finding (ff), user directive
+> 2026-08-21** (*"create an edge case utility that tracks and handles volley spells … long
+> term scalable, no hacks, modular"*). The fifteenth-session census measured premium content
+> wrong in both directions (SR ships bare, EB ships count "1", Dimension Door a structural
+> false positive), so membership now lives in `scripts/volley-registry.js` — name-keyed,
+> per-spell handling, premium scope. design.md Phase 1.7 is the binding record.
+
 **The two spells genuinely differ — pin this in a suite assert, it silently regresses:**
 - **MAGIC MISSILE** — darts strike **simultaneously** ⇒ aggregate damage per target ⇒ **ONE**
   application ⇒ **ONE** concentration check against the total.

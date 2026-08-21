@@ -241,7 +241,7 @@ partystash).
 > | 12 | Riposte offer | `riposte` · enemy's attack msg | elect, on a melee miss | canAnswerFor per reactor | Riposte / Pass + weapon select | flag write · §4.1 `riposteAnswer` (trusted drive) | drive a real attack; hit celebrates, miss announces | decline (elect) |
 > | 13 | Bash offer | `bashOffer` · attacker's attack msg | attacker's, on a melee hit | canAnswerFor(attacker) | Use / Pass + target select | flag write | drive the feat's own save activity | pass (elect) |
 > | 14 | Damage offer (attack / save) | `damageOffer` · attack msg / usage card (w) | roller's / caster's client | the popup is local; THE CARD BAR IS PUBLIC — every client renders the wait | Roll | the one `fire` thunk (X and buzzer roll too; the roll folds the flag to done) | rollDamageForAttack / rollDamageForSave | roll (local `damageTimer`, default 15s; 0 waits) |
-> | 15 | Volley aim (darts / rays) | `volley` · usage card | caster's, at use (v1.20.0) | the popup is the author's own (damage-offer locality; render re-pops + re-arms it); THE CARD BAR IS PUBLIC | steppers / ray selects + Fire (X fires as aimed) | the one `fireVolley` claim (queueFlagWrite — button, X and buzzer race safely) | darts: per-target aggregated `rollDamage`, aimed by canvas (spellDamage claim applies); rays: per-ray real `rollAttack` through the ordinary pipeline | fire the even spread (author's `damageTimer` clock; 0 waits) |
+> | 15 | Volley aim (darts / rays) | `volley` · usage card | caster's, at use (v1.20.0; membership = the registry, volley-registry.js (ff)) | the popup is the author's own (damage-offer locality; render re-pops + re-arms it); THE CARD BAR IS PUBLIC | steppers / ray selects + per-ray Adv/Normal/Dis (dd) + Fire (X fires as aimed; distinct entries never double up) | the one `fireVolley` claim (queueFlagWrite — button, X and buzzer race safely) | darts: per-target aggregated `rollDamage`, aimed by canvas (spellDamage claim applies); rays: per-ray real `rollAttack` through the ordinary pipeline; every roll names its target ((ee)) | fire the even spread (author's `damageTimer` clock; 0 waits) |
 >
 > **THE SPINE (ui.js)** — the mechanisms every row above composes; each was extracted from
 > the machines that had drifted apart around it:
@@ -825,14 +825,24 @@ dice. The fold (`scripts/volleys.js`, its own file, composing the §4.3 spine �
 suppresses the single native follow-up and gives the CASTER one popup to aim the whole
 volley. `tools/smoke-volleys.mjs` 24/24 is its suite.
 
-- **DETECTION IS STRUCTURAL** (FLOW item 6's own instruction — the settings list never
-  happened): item.type `spell`, activity type `attack`/`damage` with damage parts, and
-  `target.affects.count` evaluating to **2+** at the cast level. Measured 2026-08-21: MM
-  ships `"2 + @item.level"` at the ITEM level (the activity defers, `override: false`);
-  **Scorching Ray ships NO count anywhere** ("Total Rays: 3" is description prose), so
-  `tools/fix-scorching-ray.mjs` grafts the matching `"1 + @item.level"` onto the world's
-  copies — the content route, the house way. Content without a count is never a volley:
-  graceful degradation, no guess. ⚠ Run the graft on PROD at the release.
+- **DETECTION IS THE REGISTRY** (finding (ff), 2026-08-21 — the user's directive, kept
+  verbatim in `scripts/volley-registry.js`, OVERTURNS FLOW item 6's structural-only
+  instruction; the fifteenth-session census `tools/scan-volley-spells.mjs` is the ground):
+  premium content ships its multi-projectile data wrong in BOTH directions — the 2024
+  pack's Scorching Ray is BARE (every fresh copy arrives bare, so the per-copy graft could
+  never keep up; Salyth proved it within a day), Eldritch Blast ships count `"1"` (beams
+  live only in prose), and Dimension Door ships count `"2"` WITH a damage activity (a
+  structural false positive). Membership is name-keyed with per-spell handling `{kind,
+  count, distinctTargets?}`: **Magic Missile** (damage, `"2 + @item.level"`), **Scorching
+  Ray** (attack, `"1 + @item.level"`), **Eldritch Blast** (attack, beams band by CHARACTER
+  level 5/11/17 off `details.level`, NPCs by `ceil(details.cr)`; below 2 beams stays
+  native), **Steel Wind Strike** (attack, `"5"`, distinct targets). An UNLISTED spell is
+  never a volley regardless of its data; a listed one volleys only when the USED activity
+  matches the entry's kind and the count evaluates 2+. Save-shaped multi-target spells
+  (Prismatic Spray, Chain Lightning, Acid Splash) are excluded by design — the saves
+  pipeline owns them. The registry rides `game.modules.get(…).api.volleyRegistry` (the
+  suites' fixture seam). ⚠ `fix-scorching-ray.mjs` is DELETED, the sandbox grafts
+  reverted — prod content stays stock forever, nothing content-side rides the release.
 - **THE CAST LEVEL comes off the usage message** (`system.spellLevel`), not the config —
   measured: the system RE-RESOLVES a bare `use({scaling})` during consume and it reaches
   postUse as 0; the slot pick is what real tables do and the message field is the value
@@ -861,6 +871,23 @@ volley. `tools/smoke-volleys.mjs` 24/24 is its suite.
   order — then the ORDINARY pipeline per ray: auto-damage or the player's own offer, a
   hold pausing that ray's damage alone, riders folding per ray (the Phase 1.6 per-roll
   ruling, now exercised). Sequential DRIVING, never sequential resolution.
+- **PER-RAY ADV/DIS ((dd), 2026-08-21 — RAW; "rays roll straight" was never a rule, only a
+  thirteenth-session build default the fourteenth-session recut misfiled):** each ray row
+  in the popup carries a Normal / Advantage / Disadvantage select (the concentration
+  popup's own buttons are the in-house precedent). An explicit pick forces the roll's
+  `advantage`/`disadvantage` booleans — the channel applyKeybindings recomputes
+  advantageMode from, where mergeConfigs lets the explicit boolean out-vote the data-driven
+  one — and **Normal passes nothing**, so sheet-borne modifiers keep applying themselves.
+  One decision surface, still zero native dialogs (the walk-4 (v) orphan class stays dead).
+- **DISTINCT TARGETS ((ff) — Steel Wind Strike's "against each of up to five creatures"):**
+  a `distinctTargets` entry clamps n to the target count at stamp and throws one projectile
+  per creature — the popup says so, and duplicate picks fall back to the one-each default
+  rather than refuse to fire (expiry-class safety).
+- **THE AIM ON EVERY ROLL ((ee), 2026-08-21):** every driven volley roll names its target
+  on its card — token icon (tooltip, law 8) + name, read off the roll's own dnd5e target
+  snapshot (pure render, no lookups). Dart rolls carry `volleyTarget`, ray attacks
+  `volleyRay`; a ray's follow-up damage chains off its attack card, which names the target
+  right above it.
 - **The popup** is the caster's own (damage-offer locality — no elect, no relay): steppers
   per target (darts) or a target select per ray, one Fire button, the family bar. The X
   fires as aimed ("get on with it", never a cancel); the buzzer fires the EVEN SPREAD
@@ -903,6 +930,15 @@ combat plus on turn notice (a screen flash and fade of text). say something like
   is the attention; the CARD LINE (idempotent render decoration, law-8 tooltip on its
   icon) is the durable record. History is inert: only messages younger than 10s flash,
   once per client. World boolean `resourceNotices`, default ON.
+- **(cc), 2026-08-21 — the flash waits for the ability's own dice** (user: *"can it show
+  after healing?"*, scope-confirmed by directive): a use whose activity carries dice still
+  to roll (heal formulas, damage parts — Second Wind's class) holds its flash in a
+  client-local pending map and releases when the linked roll arrives —
+  `originatingMessage` for card-button rolls, the activity uuid for sheet-driven rolls
+  (BOTH measured 2026-08-21; a sheet roll has no enclosing card and never stamps the first
+  key) — with a 12s fallback so a player who never rolls still flashes. The card LINE
+  never waits: it is the ledger, not the attention. Utility, attack and save activities
+  stay immediate — attacks and saves run whole machines of their own.
 - **Free synergy, deliberate:** the maneuver folds spend superiority through real
   `activity.use()` (the castReaction honesty rule), so Precision/Riposte/Bash announce
   their die spend with zero coupling — the honesty rule paying out a second time.
@@ -1579,7 +1615,7 @@ World, per-feature, default OFF unless noted:
 | Hold timer | 15s default (v1.11.0 — every timer 15s; 0 waits) | 1.5 |
 | Popup shows the math | off / on (verdict included) | 1.5 |
 | Maneuver folds | curated `Name:kind` list (`precision` / `riposte`), default `Precision Attack:precision, Riposte:riposte` — **the list IS the switch** (empty disables); STRICT parse, unknown kinds dropped with a warning, never defaulted; the folds ride the hold family's clock/reveal/futile settings, no timer or boolean of their own — **shipped v1.19.0** | 1.6 |
-| Volley spells | off / on — **ships ON (built v1.20.0)**; structural detection (spell + attack/damage activity + `affects.count` ≥ 2 at cast level), rides the resolver mode + `damageTimer`; the caster aims every dart/ray in one popup, expiry fires the even spread | 1.7 |
+| Volley spells | off / on — **ships ON (built v1.20.0)**; membership is the volley REGISTRY (name-keyed per-spell handling, (ff) 2026-08-21 — volley-registry.js), rides the resolver mode + `damageTimer`; the caster aims every dart/ray (and picks per-ray adv/dis) in one popup, expiry fires the even spread | 1.7 |
 | Resource use notices | off / on — **ships ON (built v1.20.0)**; recovery-rhythm pools only, player-owned actors only, flash on every client + a durable card line; reads the usage message's own `system.deltas`, zero new state | 1.7 |
 | Hit riders | off / on | 1.75 |
 | Rider table | curated identifier list — **how much** is read from the content, never listed | 1.75 |
