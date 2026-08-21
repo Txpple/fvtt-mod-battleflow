@@ -220,6 +220,11 @@ const out = await f.evaluate(async () => {
       !!dlg1 && (dlg1.element.querySelectorAll('[data-bf-volley-uuid]').length === 2)
         && !!dlg1.element.querySelector('[data-bf-deadline]'),
       dlg1 ? 'dialog found' : 'NO dialog');
+    // (hh), v1.20.0 walk 1 (user, on the dart popup screenshot): "in thee row where it
+    // says thomas -- 3" — every dart row leads with its target's token icon, law-8 tooltip.
+    ok('1c2 (hh) each dart row leads with its target token icon (tooltip = the name)',
+      !!dlg1 && [...dlg1.element.querySelectorAll('[data-bf-volley-uuid]')].every(inp =>
+        !!inp.parentElement?.querySelector('img[data-tooltip]')));
     if (dlg1) {
       const steppers = dlg1.element.querySelectorAll('[data-bf-volley-uuid]');
       for (const s of steppers) s.value = (s.dataset.bfVolleyUuid === victim.uuid) ? '2' : '1';
@@ -332,6 +337,25 @@ const out = await f.evaluate(async () => {
     const dlg3 = findDialog('BF Volley Rays');
     ok('3b the popup offers one target pick per ray',
       !!dlg3 && (dlg3.element.querySelectorAll('[data-bf-volley-ray]').length === 3));
+    // (hh) "match that pattern for rays too": each ray row carries its PICK's token icon,
+    // and the icon tracks the select (the listener needs a real change event, so dispatch
+    // one — a bare .value write never fires it).
+    let rayIcon = null;
+    if (dlg3) {
+      const icon0 = dlg3.element.querySelector('[data-bf-volley-icon="0"]');
+      const sel0 = dlg3.element.querySelector('[data-bf-volley-ray="0"]');
+      const srcBefore = icon0?.getAttribute('src') ?? null;
+      sel0.value = shielder.uuid;
+      sel0.dispatchEvent(new Event('change'));
+      rayIcon = { present: !!icon0, srcBefore,
+        srcAfter: icon0?.getAttribute('src') ?? null,
+        tipAfter: icon0?.dataset?.tooltip ?? null,
+        wantTip: v3?.targets?.find(t => t.uuid === shielder.uuid)?.name ?? '@@' };
+    }
+    ok('3b2 (hh) the ray row carries its pick\'s token icon and it TRACKS the select',
+      rayIcon?.present === true && !!rayIcon?.srcBefore && !!rayIcon?.srcAfter
+        && (rayIcon.srcBefore !== rayIcon.srcAfter) && (rayIcon.tipAfter === rayIcon.wantTip),
+      JSON.stringify(rayIcon));
     if (dlg3) {
       const sels = [...dlg3.element.querySelectorAll('[data-bf-volley-ray]')];
       sels[0].value = victim.uuid; sels[1].value = shielder.uuid; sels[2].value = victim.uuid;

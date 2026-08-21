@@ -194,6 +194,17 @@ const out = await f.evaluate(async () => {
       detail: `isCritical=${wasCrit} label="${label}" title="${title4}" badge=${html.includes('Critical Hit')}`
             + (wasCrit ? ' (rolled a crit — assertion skipped, rerun)' : '') });
 
+    /* 4b — (hh), v1.20.0 walk 1: the "Against …" line names each target WITH its token
+     * icon (law-8 tooltip = the name), so the roll popup stopped being the one volley-family
+     * surface that named targets in text alone. The icon sits directly before its own
+     * <strong>name</strong>, which is how it is told apart from the bfCard portrait. */
+    const aimIcon = [...(popups[0]?.querySelectorAll('img[data-tooltip]') ?? [])].find(img =>
+      (img.nextElementSibling?.tagName === 'STRONG')
+      && (img.dataset.tooltip === img.nextElementSibling.textContent));
+    results.push({ n: '4b', name: '(hh) the Against line carries the target token icon, tooltip = name',
+      pass: !!aimIcon,
+      detail: aimIcon ? `icon for "${aimIcon.dataset.tooltip}"` : 'no icon+name pair in the popup' });
+
     /* 6 — pressing the button rolls it, stamped and crit-honest. ----------------------- */
     popups[0]?.querySelector('button[data-action="roll"]')?.click();
     const dmg = await waitDamage(usageId, 8000);

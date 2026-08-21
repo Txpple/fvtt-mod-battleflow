@@ -1,8 +1,12 @@
 // Battle Flow Phase 1.5 smoke test — drives the reaction hold end to end in the live world,
-// using GREN'S OWN SHIELD against a real attack. Asserts the whole shape:
-//   hit on a Shield-holder → damage does NOT roll, hold stamped pending
-//   → cast answers the hold → live AC re-test → miss → chain ends, no damage, no HP lost
-//   → pass answers the hold → damage rolls normally
+// using GREN'S OWN SHIELD against a real attack. Asserts the whole shape — (gg)
+// roll-now-apply-later since the v1.20.0 walk (the hold pauses the APPLICATION, never the
+// dice; the darts' pattern on the attack chain):
+//   hit on a Shield-holder → hold stamped pending AND damage rolls at once, born
+//     attackHoldPending, unapplied
+//   → cast answers the hold → live AC re-test → miss → the claim releases and the dice do
+//     NOTHING (no receipt, no HP lost)
+//   → pass answers the hold → the claim releases and the application lands (receipt)
 //   → crit skips the hold entirely (a natural 20 hits regardless of AC)
 //   → reaction-spent suppresses the next hold
 // Restores every setting it touched, deletes its own chat messages, and leaves Gren's HP,
@@ -238,6 +242,17 @@ const r = await f.evaluate(async () => {
       m.getFlag('dnd5e', 'roll.type') === 'damage'
       && m.getFlag('dnd5e', 'originatingMessage') === usageId);
 
+    // (gg) roll-now-apply-later: the shape of a held attack's damage in one read. `rolled`
+    // is the dice existing (they always do now), `pending` the attackHoldPending claim
+    // (true while the hold is open, false once released, undefined on a never-held roll),
+    // `applied` the receipt — the only proof damage actually LANDED.
+    const dmgStateFor = usageId => {
+      const m = damageFor(usageId);
+      return { rolled: !!m,
+        pending: m ? (m.getFlag(MOD, 'attackHoldPending') ?? null) : null,
+        applied: !!m?.getFlag(MOD, 'receipt') };
+    };
+
     // When a damage assertion fails, say WHY rather than just "false": a damage message that
     // exists but has scrolled out of damageFor's 14-message window is a harness artifact; one
     // that does not exist at all is the module. Gren's live AC and HP are here too, because a
@@ -460,20 +475,26 @@ const r = await f.evaluate(async () => {
             : m.content.includes('not enough') ? 'not-enough' : 'other';
     };
 
-    // ---- 1. the hold fires and damage does NOT roll ----------------------------------------
+    // ---- 1. the hold fires — and since (gg) the dice roll ANYWAY, born claimed -------------
+    // v1.20.0 walk-1 ruling: the hold pauses the APPLICATION, never the roll ("the shoudl
+    // just roll damage, and not wait for shield"). The roll must exist while the hold is
+    // still pending, carry the attackHoldPending claim, and NOT be applied yet.
     {
       const { usageId, msg, total } = await plainHitOnGren({ window: true });
       const held = await waitFor(() => {
         const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'pending' ? h : null;
       });
-      await sleep(1500); // give a (wrongly) unheld damage roll time to appear
+      const rolled = await waitFor(() => damageFor(usageId), 8000);
+      await sleep(1200); // give a (wrong) premature application time to stamp its receipt
       results.holdFired = {
         pending: !!held,
         reaction: held?.targets?.[0]?.reaction,
         kind: held?.targets?.[0]?.kind,
         total,
-        damageRolled: !!damageFor(usageId),
+        dmg: dmgStateFor(usageId),
+        rolledWhileHeld: !!rolled && (game.messages.get(msg.id)?.getFlag(MOD, 'hold')?.status === 'pending'),
+        claimNamesAttack: rolled?.getFlag(MOD, 'attackHoldFor') === msg.id,
       };
 
       // ---- 2. CAST answers it; live AC re-test turns the hit into a miss -------------------
@@ -501,20 +522,27 @@ const r = await f.evaluate(async () => {
         const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'resolved' ? h : null;
       }, 25000);
+      // (gg): resolution RELEASES the claim (pending → false); the miss verdict then drops
+      // Gren from hitTargets, so the released dice apply to nobody — no receipt, no HP.
+      const released = await waitFor(() =>
+        damageFor(usageId)?.getFlag(MOD, 'attackHoldPending') === false, 10000);
       await sleep(1200);
       results.castResolves = {
         resolved: !!resolved,
         verdict: resolved?.targets?.find(t => t.uuid === gren.uuid)?.verdict,
         liveAC: gren.system.attributes.ac.value,
         attackTotal: total,
-        damageRolled: !!damageFor(usageId),
+        released: !!released,
+        dmg: dmgStateFor(usageId),
         hpUnchanged: gren.system._source.attributes.hp.value === hpBefore,
       };
       for (const e of gren.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
       await gren.unsetFlag(MOD, 'reactionSpent');
     }
 
-    // ---- 3. PASS lets the attack through: damage rolls -------------------------------------
+    // ---- 3. PASS lets the attack through: the released dice APPLY --------------------------
+    // (gg): the roll already exists from attack time; the pass verdict keeps the hit, so the
+    // release must end in a real application — the receipt is the proof, not the dice.
     {
       const { usageId, msg } = await plainHitOnGren();
       const held = await waitFor(() => {
@@ -527,7 +555,10 @@ const r = await f.evaluate(async () => {
       merged.targets.find(t => t.uuid === gren.uuid).answer = 'pass';
       await doc.setFlag(MOD, 'hold', merged);
       const dmg = await waitFor(() => damageFor(usageId), 15000);
-      results.passProceeds = { held: !!held, damageRolled: !!dmg };
+      const applied = await waitFor(() =>
+        damageFor(usageId)?.getFlag(MOD, 'receipt') ?? null, 15000);
+      results.passProceeds = { held: !!held, damageRolled: !!dmg,
+        released: dmg?.getFlag(MOD, 'attackHoldPending') === false, applied: !!applied };
       await gren.unsetFlag(MOD, 'reactionSpent');
     }
 
@@ -626,7 +657,7 @@ const r = await f.evaluate(async () => {
         acAfter: victimActor.system.attributes.ac.value,
         effectApplied: !!victimActor.effects.find(e => e.name === 'Imperceptible Barrier' && !e.disabled),
         attackTotal: atk.total,
-        damageRolled: !!damageFor(atk.usageId),
+        dmg: dmgStateFor(atk.usageId),
         slotsBefore,
         slotsAfter: victimActor.system.spells.spell1.value,
         usedCardButton: !!castButton,
@@ -742,7 +773,7 @@ const r = await f.evaluate(async () => {
         acBefore: vAC,
         acAtVerdict: done?.targets?.[0]?.acAtVerdict,
         effectLanded: !!victimActor.effects.find(e => e.name === 'Imperceptible Barrier' && !e.disabled),
-        damageRolled: !!damageFor(atk.usageId),
+        dmg: dmgStateFor(atk.usageId),
       };
       for (const e of victimActor.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
       await victimActor.unsetFlag(MOD, 'reactionSpent');
@@ -923,7 +954,7 @@ const r = await f.evaluate(async () => {
         usesSpent: (spentAfter === null) ? null : spentAfter - spentBefore,
         usesLabel: `spent ${spentBefore} → ${spentAfter} of ${after?.max ?? '?'}`,
         slotsUnchanged: JSON.stringify(npc.system.spells ?? {}) === slotsBefore,
-        damageRolled: !!damageFor(atk.usageId),
+        dmg: dmgStateFor(atk.usageId),
         attackTotal: atk.total,
       };
       await clearBarriers(npc);
@@ -1035,7 +1066,7 @@ const r = await f.evaluate(async () => {
         acBefore: vAC,
         acAfter: npc.system.attributes.ac.value,
         effectApplied: !!npc.effects.find(e => e.name === 'Imperceptible Barrier' && !e.disabled),
-        damageRolled: !!damageFor(atk.usageId),
+        dmg: dmgStateFor(atk.usageId),
         attackTotal: atk.total,
       };
       await clearBarriers(npc);
@@ -1499,16 +1530,23 @@ const x = r.results;
 report('hit on a Shield holder stamps a pending hold',
   x.holdFired?.pending && x.holdFired?.reaction === 'Shield' && x.holdFired?.kind === 'ac',
   JSON.stringify(x.holdFired));
-report('held attack does NOT roll damage', x.holdFired?.damageRolled === false,
-  `damage rolled: ${x.holdFired?.damageRolled}`);
+report('(gg) held attack rolls its damage IMMEDIATELY, born claimed and unapplied',
+  x.holdFired?.rolledWhileHeld === true && x.holdFired?.dmg?.pending === true
+  && x.holdFired?.claimNamesAttack === true && x.holdFired?.dmg?.applied === false,
+  JSON.stringify({ dmg: x.holdFired?.dmg, whileHeld: x.holdFired?.rolledWhileHeld,
+    names: x.holdFired?.claimNamesAttack }));
 report('cast → live-AC re-test turns the hit into a miss',
   x.castResolves?.resolved && x.castResolves?.verdict === 'miss',
   JSON.stringify(x.castResolves));
-report('a missed attack never rolls damage and costs no HP',
-  x.castResolves?.damageRolled === false && x.castResolves?.hpUnchanged === true,
-  `damage: ${x.castResolves?.damageRolled}, hp unchanged: ${x.castResolves?.hpUnchanged}`);
-report('pass → the chain proceeds and damage rolls',
-  x.passProceeds?.held && x.passProceeds?.damageRolled, JSON.stringify(x.passProceeds));
+report('(gg) a Shield-flipped miss releases the claim and the dice do NOTHING — no receipt, no HP',
+  x.castResolves?.released === true && x.castResolves?.dmg?.pending === false
+  && x.castResolves?.dmg?.applied === false && x.castResolves?.hpUnchanged === true,
+  JSON.stringify({ released: x.castResolves?.released, dmg: x.castResolves?.dmg,
+    hpUnchanged: x.castResolves?.hpUnchanged }));
+report('(gg) pass → the release ends in a real application (receipt on the roll)',
+  x.passProceeds?.held && x.passProceeds?.damageRolled
+  && x.passProceeds?.released === true && x.passProceeds?.applied === true,
+  JSON.stringify(x.passProceeds));
 report('reaction already spent ⇒ no hold, damage flows',
   x.spentSuppresses?.held === false && x.spentSuppresses?.damageRolled === true,
   JSON.stringify(x.spentSuppresses));
@@ -1549,8 +1587,9 @@ report('STATBLOCK: the effect lands from the LINKED spell and AC moves +5',
   x.statblockCast?.effectApplied === true
   && x.statblockCast?.acAfter === x.statblockCast?.acBefore + 5,
   `AC ${x.statblockCast?.acBefore} → ${x.statblockCast?.acAfter}, effect: ${x.statblockCast?.effectApplied}`);
-report('STATBLOCK: the verdict flips the hit to a miss and no damage rolls',
-  x.statblockCast?.verdict === 'miss' && x.statblockCast?.damageRolled === false,
+report('STATBLOCK: the verdict flips the hit to a miss and the released dice apply to nobody',
+  x.statblockCast?.verdict === 'miss' && x.statblockCast?.dmg?.rolled === true
+  && x.statblockCast?.dmg?.pending === false && x.statblockCast?.dmg?.applied === false,
   JSON.stringify(x.statblockCast));
 report('STATBLOCK: the table is told the reaction WORKED, not that it never applied',
   x.statblockCast?.announced === 'worked',
@@ -1572,7 +1611,7 @@ report('STATBLOCK: an AT-WILL cast activity (no pool at all) still holds',
 report('PC → MONSTER: a PC attack holds on the monster\'s reaction and resolves to a miss',
   x.pcVsMonster?.attackerType === 'character' && x.pcVsMonster?.held === true
   && x.pcVsMonster?.answered === 'cast' && x.pcVsMonster?.verdict === 'miss'
-  && x.pcVsMonster?.damageRolled === false,
+  && x.pcVsMonster?.dmg?.rolled === true && x.pcVsMonster?.dmg?.applied === false,
   JSON.stringify(x.pcVsMonster));
 report('PC → MONSTER: with auto-damage on NPCs only, a PC attack never holds',
   x.pcVsMonster?.modeNpcHeld === false && x.pcVsMonster?.modeNpcDamage === false,
@@ -1602,12 +1641,13 @@ report('ONE casting answers MANY holds and lands exactly ONE effect',
 report('the second hold is answered by that same casting',
   x.oneCastOneEffect?.secondAnswered === 'cast',
   `second hold answer: ${x.oneCastOneEffect?.secondAnswered}`);
-report('REAL cast: the attack becomes a miss and no damage rolls',
-  x.realCast?.verdict === 'miss' && x.realCast?.damageRolled === false,
+report('REAL cast: the attack becomes a miss and the released dice apply to nobody',
+  x.realCast?.verdict === 'miss' && x.realCast?.dmg?.rolled === true
+  && x.realCast?.dmg?.pending === false && x.realCast?.dmg?.applied === false,
   JSON.stringify(x.realCast));
 report('SAFETY NET: a cast whose client applied nothing still reaches a miss',
   x.safetyNet?.verdict === 'miss' && x.safetyNet?.effectLanded === true
-    && x.safetyNet?.damageRolled === false,
+    && x.safetyNet?.dmg?.rolled === true && x.safetyNet?.dmg?.applied === false,
   JSON.stringify(x.safetyNet));
 report('MAGIC MISSILE: a spell usage stamps a negate hold on its own usage card',
   x.missileNegated?.pending === true && x.missileNegated?.trigger === 'spell'
