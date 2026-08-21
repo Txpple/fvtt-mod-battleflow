@@ -372,12 +372,16 @@ const out = await f.evaluate(async () => {
     await set('masteryAsk', 'ask');
     await setMastery('slow');
     {
-      const { attackMsg } = await attack(pcAttack());
-      await waitDamage(attackMsg.getFlag('dnd5e', 'originatingMessage'), { flag: 'receipt' });
-      const m = await waitFor(() => {
-        const flag = game.messages.get(attackMsg.id)?.getFlag(MOD, 'mastery');
-        return (flag?.status === 'pending') ? flag : null;
-      });
+      // Bounded retry — a nat-1 miss stamps no ask and flaked this section (2026-08-20).
+      let attackMsg = null, m = null;
+      for (let try5 = 0; (try5 < 4) && !m; try5++) {
+        ({ attackMsg } = await attack(pcAttack()));
+        await waitDamage(attackMsg.getFlag('dnd5e', 'originatingMessage'), { flag: 'receipt' });
+        m = await waitFor(() => {
+          const flag = game.messages.get(attackMsg.id)?.getFlag(MOD, 'mastery');
+          return (flag?.status === 'pending') ? flag : null;
+        });
+      }
       ok('5. ask mode stamps a pending mastery ask on the attack message',
         (m?.key === 'slow') && (m?.status === 'pending'),
         JSON.stringify({ key: m?.key, status: m?.status }));
@@ -847,11 +851,17 @@ const out = await f.evaluate(async () => {
       }
 
       await victim.update({ 'system.abilities.con.bonuses.save': '-30' });
-      await healFull();
-      before14 = snap14();
-      await attack(pcAttack());
-      await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')));
-      const topple3 = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
+      // Bounded retry — a miss (or a leftover Prone, which the stamp skips) flaked this
+      // section (2026-08-20); 14g below already carries the same loop for the same reason.
+      let topple3 = null;
+      for (let try14e = 0; (try14e < 4) && !topple3; try14e++) {
+        await victim.toggleStatusEffect('prone', { active: false });
+        await healFull();
+        before14 = snap14();
+        await attack(pcAttack());
+        await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')));
+        topple3 = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
+      }
       if (topple3) {
         // 14f first, while the card is still pending: the card must offer its own
         // correctly-aimed Roll control — the native enricher rolls for the SELECTION,
@@ -984,6 +994,29 @@ const out = await f.evaluate(async () => {
       !!cleaveNotice && !victim.effects.some(e => e.getFlag(MOD, 'mastery') === 'cleave')
         && !msgs15.some(m => m.getFlag(MOD, 'mastery')),
       `notice=${!!cleaveNotice}`);
+
+    // (u) walk-4: the dead-skip must NOT eat cleave — a kill is its signature moment (Morgash
+    // killed Jetten and the reminder died with him). Victim at 1 HP so the applied damage
+    // kills; the reminder must post anyway, the corpse still anchoring "within 5 feet of".
+    let killNotice15 = null;
+    for (let tryU = 0; (tryU < 4) && !killNotice15; tryU++) {
+      await victim.update({ 'system.attributes.hp.value': 1 });
+      before15 = snap14();
+      await attack(pcAttack());
+      await until14(() => fresh14(before15).some(m => m.getFlag(MOD, 'masteryNotice')?.key === 'cleave'), 10_000);
+      killNotice15 = fresh14(before15).find(m => m.getFlag(MOD, 'masteryNotice')?.key === 'cleave');
+    }
+    ok('15d2. (u) a KILLING swing still posts the cleave reminder',
+      !!killNotice15 && (victim.system.attributes.hp.value <= 0),
+      `notice=${!!killNotice15} hp=${victim.system.attributes.hp.value}`);
+    await healFull();
+    // No litter: 15d2's reminder popups must not be the [0] a later section's picker clicks
+    // (17a Arm-clicked a stale one here and the ack landed on the wrong notice).
+    for (const el of [...document.querySelectorAll('.application')]
+      .filter(el => (el.innerHTML ?? '').includes('Weapon Mastery'))) {
+      try { (el.querySelector('[data-action="close"]') ?? el.querySelector('.header-control'))?.click(); } catch {}
+    }
+    await sleep(300);
 
     // ---------------------------------- 16. the 2026-08-18 session's fixes (v1.15.0)
     // ④ the fold refuses other machines' rolls; ⓪/② twin asks and twin chips converge.

@@ -45,6 +45,7 @@ const REFERENCE = {
   concVisibility: true,
   saves: true,
   saveTimer: 15,          // user 2026-08-17: all timers 15s (was 6)
+  damageTimer: 15,        // new in v1.19.0 walk-4 (w) — the offered roll's clock, family default
   castApply: true
 };
 

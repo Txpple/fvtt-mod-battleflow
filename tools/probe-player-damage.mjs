@@ -4,7 +4,7 @@
 //
 // ⚠ Run `smoke-battleflow` FIRST — this rides its BF Test Attacker / BF Test Victim fixtures.
 //
-// Nine assertions:
+// Eleven assertions:
 //   1  setting OFF          -> damage auto-rolls as before, NO popup            (no regression)
 //   2  setting ON           -> popup opens and damage does NOT roll yet
 //   3  two targets hit      -> exactly ONE popup (per ATTACK, never per target)
@@ -12,7 +12,9 @@
 //   5  crit                 -> badge + "Roll Critical Damage" + critical window title
 //   6  button pressed       -> damage rolls, stamped originatingMessage, crit honoured
 //   7  dismissed (X/Esc)    -> damage rolls IMMEDIATELY, not at the buzzer
-//   8  left alone           -> the buzzer rolls it (the 15s window, waited out for real)
+//   8  left alone           -> the buzzer rolls it (the damageTimer window, waited out for real)
+//  10  pending offer        -> walk-4 (w): damageOffer flag stamped AND the card runs the bar
+//  11  after the roll       -> walk-4 (w): the offer flag folds to done (the card's bar drops)
 //
 // ⚠ THE CRIT LEVER IS A DECOY TRAP, measured 2026-08-19 and the reason assertion 5 exists in
 // this shape. `D20Roll#isCritical` is `this.d20.isCriticalSuccess`, and D20Die reads
@@ -69,9 +71,11 @@ const out = await f.evaluate(async () => {
     riders: game.settings.get(MOD, 'riders'),
     masteryRiders: game.settings.get(MOD, 'masteryRiders'),
     playerRollDamage: game.settings.get(MOD, 'playerRollDamage'),
+    damageTimer: game.settings.get(MOD, 'damageTimer'),
     victimAC: foundry.utils.deepClone(victim.system._source.attributes.ac)
   };
   await game.settings.set(MOD, 'autoDamage', 'all');
+  await game.settings.set(MOD, 'damageTimer', 15);   // section 8 waits this window out for real
   await game.settings.set(MOD, 'autoApply', false);   // the roll is what is under test, not the application
   await game.settings.set(MOD, 'dramaticBeat', 0);
   await game.settings.set(MOD, 'reactionHold', false);
@@ -169,6 +173,15 @@ const out = await f.evaluate(async () => {
       pass: (popups.length === 1) && !early,
       detail: `popups=${popups.length} damageAlready=${!!early}` });
 
+    /* 10 — (w): the wait is a TABLE moment — flag stamped, bar on the card too. --------- */
+    const offer = attackMsg?.getFlag(MOD, 'damageOffer');
+    const cardBar = attackMsg ? document.querySelector(
+      `[data-message-id="${attackMsg.id}"] .battleflow-damage-offer [data-bf-deadline]`) : null;
+    results.push({ n: 10, name: '(w) pending offer — flag stamped, draining bar on the card',
+      pass: (offer?.status === 'pending') && (offer?.window === 15)
+            && ((offer?.deadline ?? 0) > Date.now()) && !!cardBar,
+      detail: `flag=${JSON.stringify(offer ?? null)} cardBarDOM=${!!cardBar}` });
+
     /* 4 — a normal hit: NO crit badge, and the CELEBRATION title ((l), round 3). -------- */
     const html = popups[0]?.innerHTML ?? '';
     const label = popups[0]?.querySelector('button[data-action="roll"]')?.textContent?.trim() ?? '';
@@ -189,14 +202,27 @@ const out = await f.evaluate(async () => {
             && ((dmg.rolls?.[0]?.isCritical ?? false) === (wasCrit ?? false)),
       detail: `damage=${!!dmg} origin=${dmg?.getFlag('dnd5e', 'originatingMessage') === usageId}`
             + ` attackCrit=${wasCrit} damageCrit=${dmg?.rolls?.[0]?.isCritical ?? null}` });
+
+    /* 11 — (w): the roll folds the offer — the card's bar has nothing left to draw. ----- */
+    await sleep(400);   // the done-write is fire-and-forget behind the roll
+    const offerAfter = attackMsg?.getFlag(MOD, 'damageOffer');
+    results.push({ n: 11, name: '(w) rolled — the offer flag folds to done',
+      pass: offerAfter?.status === 'done',
+      detail: `status=${offerAfter?.status ?? null}` });
     await closeAllPopups();
   }
 
   /* 5 — CRIT: the decoy proven dead, then the real lever, then the badge. ------------- */
   {
-    const { attackMsg } = await attack(one);
-    await sleep(900);
-    await closeAllPopups();   // the popup this attack raised is not the one under test
+    // Bounded retry for a NON-crit start: the decoy pin is only meaningful when the roll
+    // begins isCritical=false, and advantage crits ~10% of the time (flaked 2026-08-20).
+    let attackMsg = null;
+    for (let try9 = 0; try9 < 4; try9++) {
+      ({ attackMsg } = await attack(one));
+      await sleep(900);
+      await closeAllPopups();   // the popup this attack raised is not the one under test
+      if ((attackMsg?.rolls?.[0]?.isCritical ?? null) === false) break;
+    }
 
     const roll = attackMsg?.rolls?.[0];
     const critBefore = roll?.isCritical ?? null;
@@ -219,8 +245,10 @@ const out = await f.evaluate(async () => {
     log.push(`  roll.d20.options=[${dieOpts}]`);
 
     results.push({ n: 9, name: 'the roll-level criticalSuccess is a DECOY (pins the trap)',
-      pass: critLever.decoyIsDead,
-      detail: `roll.options.criticalSuccess=1 left isCritical=${afterDecoy} (must be false)` });
+      // Only meaningful from a non-crit start; four natural crits in a row skips it (rerun).
+      pass: (critBefore === false) ? critLever.decoyIsDead : true,
+      detail: `roll.options.criticalSuccess=1 left isCritical=${afterDecoy} (must be false)`
+            + ((critBefore !== false) ? ' (started critical — assertion skipped, rerun)' : '') });
 
     if (critLever.realWorks) {
       const mod = await import('/modules/fvtt-mod-battleflow/scripts/auto-damage.js');

@@ -39,7 +39,10 @@ for ( const actor of actors ) {
   try {
     // Effects first, then the rest: clearing a max-HP or temp-HP effect before resting is what
     // makes the restored pool the real one rather than the buffed one.
-    const ids = actor.effects.filter(e => e.isTemporary).map(e => e.id);
+    // ⚠ statuses.size is NOT redundant: on Foundry 14.365 a bare condition (Prone, Dead — a
+    // status with no duration) reports isTemporary FALSY (measured 2026-08-20), so the filter
+    // alone left every pressed condition standing. A status IS temp state to a reset button.
+    const ids = actor.effects.filter(e => e.isTemporary || e.statuses.size).map(e => e.id);
     if ( ids.length ) {
       await actor.deleteEmbeddedDocuments("ActiveEffect", ids);
       cleared += ids.length;

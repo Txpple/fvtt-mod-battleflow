@@ -410,6 +410,17 @@ const out = await f.evaluate(async () => {
       ok('R2g. the chosen weapon is RECORDED on the fold — the card can name it (④)',
         rFlag?.reactors?.[0]?.weaponName === enemyWeapon.name,
         `weaponName=${rFlag?.reactors?.[0]?.weaponName} want=${enemyWeapon.name}`);
+
+      // (v) walk-4: the maneuver's own use must NOT chain dnd5e's follow-up damage roll —
+      // the walk found a native "Damage Roll — Riposte" config dialog orphaned over the
+      // table (the bare superiority d8; subsequentActions:false pins it shut now). The
+      // orphan opened ASYNC beside the drive, so this is a negative assert after a settle.
+      await sleep(1200);
+      const orphan = [...document.querySelectorAll('.application')].find(el =>
+        (el.querySelector('.window-title')?.textContent ?? '').includes('Damage Roll')
+        && (el.innerHTML ?? '').includes('Riposte'));
+      ok('R2h. (v) no native damage dialog orphans off the maneuver use',
+        !orphan, `orphanDialog=${!!orphan}`);
     }
 
     /* R3 — a spent reaction is never offered. */
@@ -935,6 +946,43 @@ const out = await f.evaluate(async () => {
       await acFlat(victim, 25);
       await set('holdTimer', 0);
       skips.push('H — the CRIT trigger is not forced headlessly (nat-20 farming under disadvantage); it now rides the SAME damage-side chain context the kill path pins ((k): dedupe unified on the damage message)');
+    }
+
+    /* ============================================== Q — (s): the cascade is a staircase queue */
+    // Walk-4 finding (s) + the event-order LAW (user ruling): common anchor, one header-height
+    // step per slot, slots reused as they free — and the FIRST moment's popup stays in FRONT,
+    // later arrivals layered behind, so the player clicks through in the order things happened.
+    {
+      const uiMod = await import('/modules/fvtt-mod-battleflow/scripts/ui.js');
+      const anyMsg = game.messages.contents.at(-1);
+      const mk = title => new foundry.applications.api.DialogV2({
+        window: { title }, position: { width: 300 },
+        content: '<p>cascade probe</p>',
+        buttons: [{ action: 'ok', label: 'OK', default: true, callback: () => {} }],
+        rejectClose: false
+      });
+      const zOf = d => Number(d.position?.zIndex ?? d.element?.style?.zIndex ?? 0);
+      const d1 = mk('BF Cascade First');
+      const d2 = mk('BF Cascade Second');
+      await uiMod.openManagedPopup('bf-cascade-1', anyMsg, d1);
+      await uiMod.openManagedPopup('bf-cascade-2', anyMsg, d2);
+      await sleep(300);
+      const p1 = { left: d1.position.left, top: d1.position.top };
+      const step = { left: d2.position.left - p1.left, top: d2.position.top - p1.top };
+      ok('Q1. (s) the second popup steps down-right one header from the first',
+        (step.left === 36) && (step.top === 36), `step=${JSON.stringify(step)}`);
+      ok('Q2. (s) event order IS z-order — the first moment stays in front',
+        zOf(d1) > zOf(d2), `z1=${zOf(d1)} z2=${zOf(d2)}`);
+      await d1.close();
+      await sleep(150);
+      const d3 = mk('BF Cascade Third');
+      await uiMod.openManagedPopup('bf-cascade-3', anyMsg, d3);
+      await sleep(300);
+      ok('Q3. (s) a freed slot is reused — the third lands on the anchor, never on the survivor',
+        (d3.position.left === p1.left) && (d3.position.top === p1.top),
+        `third=${JSON.stringify({ left: d3.position.left, top: d3.position.top })} anchor=${JSON.stringify(p1)}`);
+      await d2.close(); await d3.close();
+      await sleep(150);
     }
 
     return { log, results, skips, consoleErrors };
