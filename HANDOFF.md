@@ -1,44 +1,49 @@
 # HANDOFF.md — picking this up cold
 
-## State at a glance — 2026-08-21, end of the TWELFTH session (round 5 BUILT)
+## State at a glance — 2026-08-21, end of the TWELFTH session (v1.19.0 RELEASED)
 
 | | |
 | --- | --- |
-| **Do first** | **PRESENT THE WALK-6 CHECKLIST** (below — round 5's proofs + the carried F5 survivor). Round 5 is BUILT and battery-green: the standard prone chip (x), interpose post-verdict (y), verbatim rule lines (z), icon tooltips (aa). ⚠ **Every client F5 once first** — scripts changed, same version, no bounce needed. |
-| Repo | `main`, pushed. **NOT tagged** — v1.19.0 waits on the walk closing. `module.json` reads 1.19.0 (FIVE fix rounds folded into the one unreleased build). |
-| Release | ⚠ **v1.19.0 BUILT (walks 1–3's twenty-five + round 4's four + round 5's four), NOT RELEASED.** No tag, no GitHub release, **prod's module untouched on 1.18.0.** |
-| Sandbox | Up, minimized, **round-5 code deployed + byte-verified**, `verify-settings` **CLEAN**. ⚠ It VANISHED at battery start again (EIGHTH time — the clean-shutdown pattern, the same moment as round 4); the documented relaunch (minimized, then any suite) worked first try, again. The ask stands: log out of the world tab, **leave the minimized app running**. |
-| Prod | Module **1.18.0**, untouched this session. At the release: deploy, bounce, then `BF_TARGET=prod verify-settings --fix` (grown Maneuver Folds + dramaticBeat 0 + damageTimer 15). The round-4 macro write on both worlds stands. |
-| Walked | v1.18.0 12/12. v1.19.0: walk 1 → 8 built; walk 2 → 9 built; walk 3 → 8 built; walk 4 → 6 passed + 4 built; **walk 5 → 9 of 11 passed (1–8, 10 — round 4 proven 5-for-5 at the table), item 9 SUPERSEDED mid-walk by (y), item 11 CARRIED as walk 6's final test; 4 findings (x)(y)(z)(aa) BUILT this session (the record below)**. |
+| **Do first** | ⚠ **THE PROD BOUNCE IS THE ONE OPEN STEP.** v1.19.0 files are on prod's disk (18/18 byte-verified, deployed at 0 users) but Foundry registers `module.json` at PROCESS BOOT — until the bounce, prod vends 1.18.0. **The user takes prod DOWN from the Molten panel; the wake can be Claude's half** (any MCP connect boots it — the down-by-user/wake-by-connect pattern; a cold Molten boot can blow a 120s watchdog, allow ~540s). **After the bounce:** read prod's registered version (expect 1.19.0), then `BF_TARGET=prod node tools/verify-settings.mjs --fix` (grown Maneuver Folds + damageTimer 15 are new to prod), then verify CLEAN. If the bounce already happened, just verify both. |
+| Repo | `main`, pushed, **tag `v1.19.0` on `825d4c0`**. |
+| Release | ✅ **v1.19.0 RELEASED 2026-08-21** — GitHub release `v1.19.0 - the maneuver folds` is public with both assets: `fvtt-mod-battleflow.zip` (171,068 bytes, **20 entries, forward slashes verified** — maneuvers.js joined the 19 of v1.18.0) and the bare `module.json` (1,445 bytes). The notes cover the WHOLE version: five fix rounds, six walks. The box tracks the GitHub manifest. |
+| Sandbox | Up, minimized, release code deployed + byte-verified, `verify-settings` **CLEAN**. ⚠ It VANISHED at battery start again (EIGHTH time — the clean-shutdown pattern); the documented relaunch worked first try, again. |
+| Prod | **Disk carries v1.19.0 (18/18 md5-MATCH, deployed idle at 0 users); process still registers 1.18.0 until the bounce.** The round-4 macro write on both worlds stands. |
+| Walked | v1.18.0 12/12. **v1.19.0 FULLY WALKED AND CLOSED**: walk 1 → 8 built; walk 2 → 9 built; walk 3 → 8 built; walk 4 → 6 passed + 4 built; walk 5 → 9 passed + 4 built ((x)(y)(z)(aa)); **walk 6 → 8 of 8 CLOSED CLEAN, ZERO findings** — every fix round table-verified, the four-times-deferred F5 survivor passed. **There is NO open walk.** |
+| Next work | After the bounce + prod verify: the deck is [FLOW.md](FLOW.md)'s build order (read it before building anything) and Phase 4 (needs TABLE time — ten rounds of Bless, rides a real session). Pass C (the volleys) composes the §4.3 spine or doesn't build. Confirm appetite before opening anything. |
 | Testing setup | ⚠ **THE USER RUNS TWO WINDOWS**: GM (Matt the DM) + a player window owning Thomas/Morgash. Player-first routing (①/(h)) sends THEIR popups to window two whenever it is connected — "nothing popped" reports must always ask WHICH window. |
-| Bridge | Disconnected on BOTH worlds (reconnected read-only twice this session for the rule-text pulls, disconnected after). Suites join as `Tester Assistant`. |
+| Bridge | Disconnected on BOTH worlds (reconnected read-only this session for rule-text pulls + the prod deploy, disconnected after). Suites join as `Tester Assistant`. |
 
 ---
 
-## 📋 THE WALK-6 CHECKLIST — PRESENT THIS LIST (round 5's proofs + the carried survivor)
+## ✅ THE v1.19.0 WALK IS CLOSED — walk 6 went 8 of 8, ZERO findings (2026-08-21)
 
-Sandbox, the two-window setup as usual, **every client F5 once** (scripts changed, version
-did not). Settings are already the reference table (`verify-settings` CLEAN). Items 1–7
-verify round 5; item 8 is the carried F5 survivor and the walk's FINAL test.
+**Do not present the walk-6 list again.** The record, kept so nobody re-derives what it
+covered: (1) bash lands the STANDARD Prone chip, attacker-sourced, no "Shield Bashed"
+chip; (2) a FAILED DEX save never offers interpose; (3) a SAVED one offers post-verdict,
+quotes the feat, Use → zero + settle card; (4) expiry takes the half, Reaction kept;
+(5) the popups quote the actual 2024 rule text with hints as separate lines; (6) card
+icons tooltip on hover; (7) the interpose relay from window two: "spends the Reaction:
+no damage" / "Take half" decline / settle card; (8) **the F5 survivor** — two-target save,
+F5 mid-second-bar, the demand survived the reload, ONE verdict line per target, damage
+once each. All ✅ at the table, zero findings, zero code.
 
-| # | Do | Expect |
-| --- | --- | --- |
-| 1 | **(x)** Bash a dummy prone (accept the offer, choose Knock Prone — or let the choice buzzer default) | The chip on the token is the **STANDARD Prone** — the same icon and name Topple lands (canonical condition), sourced to the attacker. **No "Shield Bashed" chip, ever** |
-| 2 | **(y)** Thomas (shield equipped + Shield Master) **FAILS** a DEX half-damage save (Fireball works) | **NO interpose offer at all** — full damage applies, the Reaction untouched. The pre-roll gamble is gone |
-| 3 | **(y)** Thomas **SAVES** that same spell | THE OFFER POPS NOW — after the verdict: "take no damage?", quoting the feat ("…holding a Shield"). **Use** → zero damage + the "takes no damage" settle card. The half WAITS while the choice pends |
-| 4 | **(y)** Save again, let the offer **EXPIRE** | Takes the **half**; the Reaction is kept — a timer never spends it |
-| 5 | **(z)** Read the popups as they come (bash, riposte, precision, topple demand, interpose, Cleave/Hew/Vex/Sap notices) | Each quotes the **actual 2024 rule text** in quotation marks — exact wording — with the module's hints ("nothing is automated", the arm note, the margins) as separate lines |
-| 6 | **(aa)** Hover icons in cards: any card portrait, receipt-row icons, the hold popup portrait | A tooltip names what the icon is |
-| 7 | **(m recut)** Answer the interpose from window two (walk-4 item 11's re-cut) | Relay card: **"spends the Reaction: no damage"** / "passed, the Reaction is kept"; the decline button reads **"Take half"** (the outcome is known now — deliberate); the settle card still posts |
-| 8 | **FINAL — the F5 survivor** (fourth deferral) Save spell at TWO targets; resolve the first, **F5 while the second bar runs** | After reload the second demand is alive (bar from its stored deadline), resolves, ONE verdict line per target, damage once each |
+Known and deliberate, on the record: Precision offers only on CLEAN misses; a natural 1
+is never offered; Graze + Precision on one driven miss is (e)-KEEP (RAW); a hand-tray
+kill posts no Hew reminder; in a RUNNING combat Cleave reminds once per turn; an UNLISTED
+feat's save still presses its own bound effect (saves 17a is the pin); the "saved — half
+damage" verdict line before an interpose accept is the SAVE's own consequence — the
+settle card then narrates the shield's zero.
 
-⚠ Known and deliberate, walked past on purpose: Precision offers only on CLEAN misses; a
-natural 1 is never offered; Graze + Precision on one driven miss is (e)-KEEP (RAW); a
-hand-tray kill posts no Hew reminder; in a RUNNING combat Cleave reminds once per turn.
-⚠ New known-and-deliberate from round 5: an UNLISTED feat's save still presses its own
-bound effect (only the listed bash routes to the standard chip — saves 17a is the pin);
-and the "saved — half damage" verdict line before an interpose accept is the SAVE's own
-consequence — the settle card then narrates the shield turning it to zero.
+### 📦 The v1.19.0 release record (2026-08-21, TWELFTH session)
+
+| | |
+| --- | --- |
+| Tag | `v1.19.0` on `825d4c0` (the round-5 docs commit — module.json had carried 1.19.0 since walk 1, so the tagged commit has no bump of its own; the v1.18.0 precedent) |
+| Session commits | `7c0e90d` test: walk-5 pins · `0ff7d47` feat: round 5 · `825d4c0` docs: HANDOFF recut ← tagged |
+| GitHub release | `v1.19.0 - the maneuver folds`, public. Assets: `fvtt-mod-battleflow.zip` (171,068 bytes, 20 entries, forward slashes verified — built by explicit ZipArchive entry names, NEVER Compress-Archive) + bare `module.json` (1,445 bytes). Notes cover all five rounds and six walks |
+| Prod deploy | `node <mcp>/scripts/deploy-house-module.mjs fvtt-mod-battleflow` — **18/18 files md5-MATCH**, run while prod was **ACTIVE at 0 users** (status checked first, as always) |
+| ⚠ Open | **THE BOUNCE** (see Do first) and the post-bounce `BF_TARGET=prod verify-settings --fix` + CLEAN re-verify |
 
 ---
 
