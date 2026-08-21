@@ -1,46 +1,90 @@
 # HANDOFF.md — picking this up cold
 
-## State at a glance — 2026-08-20 (late evening), end of the TENTH session (round 3 BUILT)
+## State at a glance — 2026-08-20 (small hours), end of the ELEVENTH session (round 4 BUILT)
 
 | | |
 | --- | --- |
-| **Do first** | **PRESENT THE WALK-4 CHECKLIST** (below — the round-3 verification walk + the three carried items). Round 3 is BUILT and battery-green: **the spine landed** (design.md §4.3 — the moment map, the mandate, the eight primitives) and all eight findings (j)–(q) landed ON it. ⚠ **Every client F5 once first** — scripts changed, same version, no bounce needed. |
-| Repo | `main`, pushed. **NOT tagged** — v1.19.0 waits on the walk closing. `module.json` reads 1.19.0 (three fix rounds folded into the one unreleased build). |
-| Release | ⚠ **v1.19.0 BUILT (walk 1's eight + re-walk's nine + round 3's spine and eight), NOT RELEASED.** No tag, no GitHub release, **prod untouched on 1.18.0.** |
-| Sandbox | Up, minimized, **round-3 code deployed + byte-verified**, `verify-settings` **CLEAN**. ⚠ It had VANISHED again before this session (SIXTH time — clean shutdown, the "Goodbye!" pattern); the documented relaunch (minimized, then any suite) worked first try, again. The ask stands: log out of the world tab, **leave the minimized app running**. |
-| Prod | **1.18.0**, registered and CLEAN for what is released. At the release: deploy, bounce, then `BF_TARGET=prod verify-settings --fix` (grown Maneuver Folds + dramaticBeat 0). |
-| Walked | v1.18.0 12/12. v1.19.0: walk 1 → 8 findings (built); walk 2 → 9 findings (built); walk 3 → 8 findings (j)–(q) (**BUILT this session — the record below**). Open walk items carried into walk 4: ① GM-alone, (g) window-two question, item 10 (deferred three times). |
-| Testing setup | ⚠ **THE USER RUNS TWO WINDOWS**: GM (Matt the DM) + a player window owning Thomas/Morgash. Player-first routing (①/(h)) sends THEIR popups to window two whenever it is connected — "nothing popped" reports must always ask WHICH window. The §4.1 relay is proven live (riposte accepts, interpose answers all arrived through it). |
+| **Do first** | **PRESENT THE WALK-5 CHECKLIST** (below — round 4's proofs + walk 4's six unfinished items). Round 4 is BUILT and battery-green: the staircase queue (s), cleave surviving the kill (u), the quiet maneuver use (v), and the table-visible damage wait (w). ⚠ **Every client F5 once first** — scripts changed, same version, no bounce needed. |
+| Repo | `main`, pushed. **NOT tagged** — v1.19.0 waits on the walk closing. `module.json` reads 1.19.0 (FOUR fix rounds folded into the one unreleased build). |
+| Release | ⚠ **v1.19.0 BUILT (walks 1–3's twenty-five + round 4's four), NOT RELEASED.** No tag, no GitHub release, **prod's module untouched on 1.18.0.** |
+| Sandbox | Up, minimized, **round-4 code deployed + byte-verified**, `verify-settings` **CLEAN**. ⚠ It had VANISHED again mid-session (SEVENTH time — the clean-shutdown pattern); the documented relaunch (minimized, then any suite) worked first try, again. The ask stands: log out of the world tab, **leave the minimized app running**. |
+| Prod | Module **1.18.0**, untouched. ⚠ **ONE deliberate prod write this session (user instruction): the Clear Temp Effects + Full Rest macro now also strips bare conditions** — applied in place (id kept, Matt slot 2 pin verified) on BOTH worlds. At the release: deploy, bounce, then `BF_TARGET=prod verify-settings --fix` (grown Maneuver Folds + dramaticBeat 0 + **damageTimer 15, new**). |
+| Walked | v1.18.0 12/12. v1.19.0: walk 1 → 8 built; walk 2 → 9 built; walk 3 → 8 built; **walk 4 → 6 of 14 passed, 2 findings closed as misreads, 4 findings BUILT this session (the record below)**. Items 7, 9(kill), 10(card bar), 11, 13, 14 carry into walk 5. |
+| Testing setup | ⚠ **THE USER RUNS TWO WINDOWS**: GM (Matt the DM) + a player window owning Thomas/Morgash. Player-first routing (①/(h)) sends THEIR popups to window two whenever it is connected — "nothing popped" reports must always ask WHICH window. |
 | Bridge | Disconnected on BOTH worlds. Suites join as `Tester Assistant`. |
 
 ---
 
-## 📋 THE WALK-4 CHECKLIST — PRESENT THIS LIST (round 3's proofs + the three carried items)
+## 📋 THE WALK-5 CHECKLIST — PRESENT THIS LIST (round 4's proofs + walk 4's remainder)
 
 Sandbox, the two-window setup as usual, **every client F5 once** (scripts changed, version
-did not). Settings are already the reference table (`verify-settings` CLEAN); nothing to
-change. Items 1–11 verify round 3; 12–14 are the carried debts.
+did not). Settings are already the reference table (`verify-settings` CLEAN — `damageTimer`
+joined it at 15). Items 1–5 verify round 4; 6–11 are walk 4's unfinished business.
 
 | # | Do | Expect |
 | --- | --- | --- |
-| 1 | **(l)** Plain melee hit (player dice on) | The popup CELEBRATES: **"You hit! — roll damage"** leads; the Roll Damage button unchanged |
-| 2 | **(l)** A crit | **"Critical hit! — roll damage"** + the yellow badge, louder than 1. A SAVE spell's popup (Fireball/VM) is UNTOUCHED — stakes line, no celebration (nothing crit) |
-| 3 | **(p)** Take a Riposte; the strike back HITS | The offer is the riposte's own moment: **"Your riposte hit! — roll damage"** ("Critical riposte!" on a crit) + "the superiority die rides this roll"; the damage still ONE dice group |
-| 4 | **(p)** A riposte whose strike back MISSES | **"Riposte — the strike back misses"** card posts; any Graze/Precision offer that follows arrives from that announced miss, not from nowhere |
-| 5 | **(q)** Any two popups at once (e.g. a damage offer while a Vex/Cleave reminder pops) | They CASCADE ~28px — both visible, neither buried; a pile never reads as one window |
-| 6 | **(j)** Press OK on a Vex/Sap/Hew notice **on the GM window** | Bar, recall button and popup ALL resolve, everywhere — the durable ack |
-| 7 | **(j)** Press a notice button **on the player window** | Their view clears at once; the GM's card bar drains out as the window — DELIBERATE (a player cannot write the elect's message; the ledger's recorded trade) |
-| 8 | **(j)** "Arm the Cleave" | The press acks (bar/recall go) AND the **"Cleave — armed"** card stays; the next swing still strips the modifier |
-| 9 | **(k)** GWM crit | Damage resolves FIRST (your popup roll included), THEN "Hew — attack again". A crit that KILLS: exactly ONE reminder |
-| 10 | **(n)** A Shield Master bash failure (or the interpose gamble) | The choice popup AND the card row both run the DRAINING BAR (15s) — the bars that never rendered in walk 3 |
-| 11 | **(m)** Answer the interpose from window two | The relay card says **"spends the Reaction"** / "the Reaction is kept" — never an outcome; the Pass button is bare **"Pass"**. The settle card after the verdict still states the result |
-| 12 | **①** (carried from walk 1) Player logged OUT, GM alone | Fold popups (Precision/Riposte) reach the GM window |
-| 13 | **(g)** (carried) Thomas melee-hits with Shield Master listed | WHICH window pops the bash offer? Expected: the PLAYER window (①-routing). Both windows silent = a real bug — reproduce before assuming |
-| 14 | **Item 10** (third deferral) Save spell at TWO targets; resolve the first, **F5 while the second bar runs** | After reload the second demand is alive (bar from its stored deadline), resolves, ONE verdict line per target, damage once each |
+| 1 | **(s)** Stack two+ popups (e.g. hit → damage offer + bash offer, or pile three) | The standard STAIRCASE: each ~36px down-right, every title bar readable — and the FIRST event's popup in FRONT, later ones layered BEHIND: you click through in the order things happened. Closing one lets the next slot reuse cleanly |
+| 2 | **(u)** Morgash (Cleave weapon) KILLS a target | The **Cleave reminder still pops** — the kill is its moment. ⚠ In a RUNNING combat it reminds once per turn (advance the turn or end combat between swings — that quiet is RAW, not a bug) |
+| 3 | **(u)→(j)** "Arm the Cleave" off that reminder (walk-4 item 8, unblocked) | The press acks (bar/recall go) AND the **"Cleave — armed"** card stays; the next swing still strips the modifier |
+| 4 | **(v)** Take a Riposte (accept, strike back) | **NO native "Damage Roll — Riposte" d8 dialog appears, ever.** The flow is only: offer → strike → celebration popup → one dice group |
+| 5 | **(w)** Player dice on, hit something, DON'T roll yet — look at the OTHER window | The attack card shows **"Waiting on the dice"** with the draining bar on BOTH windows (15s). Let it expire once: the module rolls, never cancels. The popup's own bar matches |
+| 6 | **(j)** Press a notice button **on the player window** (walk-4 item 7) | Their view clears at once; the GM's card bar drains out as the window — DELIBERATE (a player cannot write the elect's message) |
+| 7 | **(k)** GWM crit that KILLS (walk-4 item 9's open half) | Damage first, then exactly ONE "Hew — attack again" reminder — never two |
+| 8 | **(n)** Bash failure or interpose gamble — look at the CHAT CARD (walk-4 item 10's open half) | The card ROW runs the same draining bar the popup runs (the popup half was confirmed in walk 4) |
+| 9 | **(m)** Answer the interpose from window two (walk-4 item 11) | Relay card says **"spends the Reaction"** / "the Reaction is kept" — never an outcome; Pass button is bare **"Pass"**; the settle card after the verdict still states the result |
+| 10 | **(g)** Thomas melee-hits with Shield Master listed (walk-4 item 13) | WHICH window pops the bash offer? Expected: the PLAYER window (①-routing). Offers popped in walk 4 but the window went unrecorded |
+| 11 | **Item 10** (fourth deferral) Save spell at TWO targets; resolve the first, **F5 while the second bar runs** | After reload the second demand is alive (bar from its stored deadline), resolves, ONE verdict line per target, damage once each |
 
 ⚠ Known and deliberate, walked past on purpose: Precision offers only on CLEAN misses; a
 natural 1 is never offered; Graze + Precision on one driven miss is (e)-KEEP (RAW); a
-hand-tray kill posts no Hew reminder (no receipt to witness it).
+hand-tray kill posts no Hew reminder (no receipt to witness it). ⚠ The upgraded clear
+macro now also sweeps decorative statuses (the "Full Larder" crate's Dead marker) — say so
+if Dead should be exempted.
+
+---
+
+## ✅ ROUND 4 IS BUILT — THE QUEUE, THE CORPSE, THE QUIET USE, THE PUBLIC WAIT (2026-08-20, ELEVENTH session)
+
+Walk 4 passed six of its 14 items clean (1–4, 6, 12 — and item 3 also proved the riposte
+crit doubles the superiority die at the table); items 5, 8, 9, 10, 13 walked into
+findings or partials, and 7, 11, 14 went unwalked. It raised six sightings; two dissolved
+under the probe and four were built, all suite-pinned:
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| (r) | "The dragon got some of Thomas's Shield Master" | ✅ **CLOSED, not a bug** — probe-read flags: no choice ever stamped on the dragon, verdicts and halves correct. It was the popup PILE misreading — folded into (s) |
+| (t) | "Shield bash didn't knock the dummy prone" | ✅ **CLOSED, not a bug** — the press landed (answer "prone", applied, fingerprinted "Shield Bashed" chip on the dummy); the dummy was ALREADY prone from earlier tests the old macro couldn't clear, so nothing visibly changed |
+| (s) | The pile must be the standard cascade + **the event-order LAW** (user verbatim: *"the ux has to be the player clicks through in the order of events"*) | ✅ law 6 recut — staircase (common anchor, 36px slots, slot reuse) + z-order IS causal order (first moment in front, newcomers behind). Pinned: maneuvers Q1–Q3 |
+| (u) | Morgash killed Jetten — no Cleave reminder | ✅ the dead-skip in resolveHitMastery now SPARES cleave (the kill is its signature moment; the corpse anchors "within 5 feet of"). Once-per-combat-turn stamp still governs. Pinned: effects 15d2 |
+| (v) | A native "Damage Roll — Riposte" d8 config dialog orphaned over the table | ✅ every module-driven `activity.use` passes `subsequentActions: false` (4 sites: riposte, precision, bash, the hold's reaction cast) — consumption + card only, the module drives the rest. Pinned: maneuvers R2h |
+| (w) | **Scope-add (user ask): a timer on damage rolls "so the table can know it's waiting"** | ✅ the damage offer graduated to a table moment: `damageOffer` flag on the card, the PUBLIC draining bar on every client, the window now the **`damageTimer` setting** (world, default 15; 0 waits). Expiry still ROLLS; X still rolls. Pinned: probe-player-damage 10/11 |
+| — | The user's clear-conditions macro missed Prone | ✅ **fixed and applied to BOTH worlds in place** (hotbar pin kept): measured ground truth — a bare status (Prone, Dead) reports `isTemporary` FALSY on 14.365, so the filter now takes `isTemporary \|\| statuses.size`. Source: tools/macro-clear-and-rest.js |
+
+**⚙ Also this session:** design.md §4.3 carries the walk-4 amendment (law 6 recut, map
+row 14, the four fixes); `verify-settings` reference grew `damageTimer: 15`.
+
+**Battery, all green (post-fix, this exact code deployed + byte-verified):** battleflow
+ALL PASS ×3 · hold ALL PASS · **maneuvers 53/53** (R2h the (v) negative assert; Q1–Q3 the
+cascade's anchor/step/z-order/slot-reuse at the DOM) · cast 17/17 · riders 8/8 ·
+**effects 54/54** (15d2 the killing-cleave pin) · concentration 47/47 · saves 61/61 ·
+**probe-player-damage 11/11** (10: pending flag + card bar DOM; 11: the roll folds the
+flag) · probe-save-damage-popup 13/13 · check-hook-order 6/6 (**65 registrations
+unchanged** — the (w) card row rides ui.js's EXISTING render registration on purpose) ·
+verify-settings **CLEAN**.
+
+⚠ **Round-4 notes, paid once:**
+- **Three dice-flakes surfaced and were DE-FLAKED for good** (bounded retry, the 15a/14g
+  idiom): effects §5 (a nat-1 stamps no ask), effects §14e (a miss/leftover-prone stamps
+  no topple), playerdmg §9 (the decoy pin needs a non-crit start; advantage crits ~10%).
+- **Suite litter is a real failure mode:** 15d2's leftover reminder popups made 17a
+  Arm-click a STALE dialog — the ack landed on the wrong notice and 17b2 failed. A
+  section that opens popups closes them before it leaves. (Round 3 survived only because
+  section 16's length let the 15-series windows expire first.)
+- The sandbox vanished mid-session again (SEVENTH, the clean-shutdown pattern), right as
+  the battery started. The documented recovery worked first try, again.
+- (u)'s second eater is DESIGN: in a running combat the cleave nag is once per attacker
+  per turn (RAW). The walk-5 checklist says so out loud so a stuck tracker doesn't read
+  as the bug again.
 
 ---
 
@@ -551,6 +595,7 @@ update this table, never fight it:
 | Concentration Checks Are Public | **on** | off = whispered to owners + GM; the break card is ALWAYS public |
 | Resolve Saving Throws | **on** | user-walked ON 2026-08-16 during the live dogfood |
 | Save Timer | **15s** | user re-tuned 2026-08-17 evening ("all my timers to 15s" — 6s proved unwinnable on an unwatched window, finding ④); expiry ROLLS; inert until saves is on. Since v1.10.0 the TOPPLE demand rides this same clock |
+| Damage Roll Timer | **15s (the default)** | **new in v1.19.0 round 4 (walk-4 (w), user ask: "so the table can know if its waiting for someone to roll damage")** — the offered damage roll's clock; the card runs the PUBLIC draining bar on every client; expiry ROLLS, never cancels; 0 waits indefinitely. ⚠ Prod needs nothing at the release beyond verify-settings --fix (module default already 15) |
 | Auto-Apply on Cast | **on** | new in v1.5.0 — no-gate casts (utility effects + healing) apply themselves; damage spells deliberately excluded |
 | Center Popups | on (per client, the default) | v1.9.5: THE ONLY client setting left — `holdView` and `saveAutoRoll` are deleted, code paths and all |
 
