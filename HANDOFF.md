@@ -1,30 +1,67 @@
 # HANDOFF.md — picking this up cold
 
-## State at a glance — 2026-08-21, end of the SIXTEENTH session (v1.20.0 walk 1 FULLY WALKED — findings (gg)+(hh) BUILT battery-green; the RETEST below is all that stands before the release)
+## State at a glance — 2026-08-21, end of the SIXTEENTH session (walk 1 walked + (gg)/(hh) RETESTED GOOD; retest finding (ii) BUILT battery-green ON THE NEW HEADLESS SANDBOX; the T4/T5 retest below is the release gate)
 
 | | |
 | --- | --- |
-| **Do first** | 🔍 **THE (gg)/(hh) RETEST** — the short checklist below (T1–T3). The walk's fifteen items are ALL walked; its last two findings are BUILT, deployed, bounced and battery-green (sixteenth session, on the user's go: *"please fix that, ill retest, then this s/b good!"* then *"ok go ahead and start i will afk until you are done"*): **(gg)** attack-holds pause the APPLICATION now, never the dice — a ray at a Shield-holder rolls its damage immediately and the verdict releases or discards it (the darts' pattern, the user's own diagnosis at the table); **(hh)** every aim surface carries the target's token icon — dart popup rows, ray rows (tracking the select), and the Roll Damage popup's "Against" line. Retest good → the walk CLOSES → the Release row runs. |
-| Repo | `main` — v1.20.0 + the (bb)–(ff) pass (fifteenth session) **+ the (gg)/(hh) pass (SIXTEENTH session:** `test:` 61c31d8 / `feat:` 7423ebc / `docs:` this recut**)**. Tag comes AFTER the walk closes (the v1.19.0 precedent — module.json carries 1.20.0 from walk 1). |
-| Release | ⚠ **NOT RELEASED.** v1.19.0 remains the latest release and prod runs it. The v1.20.0 release steps (after the retest closes the walk): tag → GitHub release (zip built by explicit ZipArchive entry names — **23 entries**: volleys.js + resources.js + volley-registry.js joined; the (gg)/(hh) pass added NO files) → prod deploy → `BF_TARGET=prod verify-settings` (no new settings keys in either pass; CLEAN expected) → bounce by down-by-user/wake-by-connect → `probe-registered-version` reads 1.20.0. ~~The prod SR graft~~ stays DEAD ((ff) — the registry ships in code). |
-| Sandbox | UP at open (users:0, no vanish, no join anomaly — every suite joined clean). The (gg)/(hh) pass is DEPLOYED (21 files byte-identical) + the app BOUNCED (the script-cache discipline — first-try relaunch this time) + the FULL battery green in ONE pass, zero flakes (the record below). `verify-settings` CLEAN. |
-| Prod | v1.19.0 LIVE, untouched. Prod's content stays STOCK ((ff) — registry in code; no graft step exists). |
-| Walked | v1.19.0 fully closed (six walks). **v1.20.0 walk 1: ALL FIFTEEN ITEMS WALKED** (1–10 + R1–R5 — statuses in the table below); findings (bb)–(ff) built fifteenth session, **(gg)+(hh) built SIXTEENTH session**. Only the T1–T3 retest is open. |
-| Next work | The T1–T3 retest → walk 1 CLOSES → the release (the Release row). Then **Heroic Inspiration + Bard** (the user's named next, 2026-08-21 — recorded in [FLOW.md](FLOW.md) under Pass C; scope with the user first). Then the standing deck: Phase 4 (table time) and AC5e (bench, still waiting on the user's go). |
-| Testing setup | ⚠ **HARD-REFRESH (Ctrl+F5) BOTH WINDOWS before the retest** — the (gg)/(hh) pass ALSO deployed without a version bump, so a browser that saw the sixteenth-session walk still holds the OLD scripts. ⚠ **THE USER RUNS TWO WINDOWS**: GM (Matt the DM) + a player window owning Thomas/Morgash. Player-first routing sends THEIR popups to window two whenever it is connected — "nothing popped" reports must always ask WHICH window. ⚠ The volley popup is the CASTING client's window; the Shield hold popup is the TARGET owner's window; the damage-offer popups are the ATTACKER's window; the resource flash is EVERY window. |
+| **Do first** | 🔍 **THE (ii) RETEST** — T4/T5 below (T1–T3 already retested ✅ this session). The sixteenth session ran LONG: walked the last five walk-1 items + R1–R5, built (gg)+(hh) on the go, retested them ✅ — then the user caught **(ii)**: *"the damage didnt auto apply."* Probe + code agree: the registry walk resolved every volley ray's damage to the LAST ray's attack (three rays share one usage card), so ray 1's dice re-tested against ray 3's MISS and never applied. **Built: every driven damage roll stamps `attackFor` (its exact attack's id); `resolveAttackMessage` reads it first.** Mid-session the PC HARD-CRASHED under the Electron battery load — the sandbox is now **HEADLESS** (see Sandbox row; zero data lost, world booted clean, module untouched). Retest good → walk 1 CLOSES → the Release row runs. |
+| Repo | `main` — v1.20.0 + (bb)–(ff) (fifteenth session) + (gg)/(hh) (`test:` 61c31d8 / `feat:` 7423ebc / `docs:` 979e911) **+ the (ii) pass + the popup row-grammar tweak (`test:` 06706f9 / `feat:` d1a84ea / `docs:` this recut) — all SIXTEENTH session**. Tag comes AFTER the walk closes (the v1.19.0 precedent). ⚠ Commits are LOCAL — offer the user a push if crash-anxiety warrants. |
+| Release | ⚠ **NOT RELEASED.** v1.19.0 remains the latest release and prod runs it. The v1.20.0 release steps (after T4/T5 close the walk): tag → GitHub release (zip built by explicit ZipArchive entry names — **23 entries**; neither sixteenth-session pass added files) → prod deploy → `BF_TARGET=prod verify-settings` (no new settings keys; CLEAN expected) → bounce by down-by-user/wake-by-connect → `probe-registered-version` reads 1.20.0. ~~The prod SR graft~~ stays DEAD ((ff)). |
+| Sandbox | ⚠⚠ **HEADLESS NOW — the launch procedure CHANGED (2026-08-21).** The Electron-app battery load contributed to a mid-session PC hard crash; the molten5e session converted the box (mcp repo commit 58ff0f3). **`node <mcp>/scripts/local-foundry.mjs <start\|stop\|status\|restart>`** — start boots the server headless (plain node, NO Electron) AND launches the world (idempotent; auto-waits out a stale dataPath lock ~12s); stop is graceful (LevelDB flush; refuses with users connected — disconnect-bridge first; `--force` overrides). The desktop app still works when the headless server is down; they can NEVER run together (dataPath lock). ⚠ The old "start the app minimized" recovery is RETIRED — every older mention below this line is history, not procedure. **Crash aftermath: NOTHING LOST** — no refresh ran, the world booted clean, the deployed module stayed byte-identical. The (ii) pass is DEPLOYED (deploy → headless start = a fresh process, the script-cache discipline satisfied) + the FULL battery green in ONE pass on the headless box, zero flakes (the record below). `verify-settings` CLEAN. Server left UP for the retest (world active, 0 users). |
+| Prod | v1.19.0 LIVE, untouched. Prod's content stays STOCK ((ff)). |
+| Walked | v1.19.0 fully closed (six walks). **v1.20.0 walk 1: ALL FIFTEEN ITEMS WALKED + the (gg)/(hh) retest T1–T3 ✅.** Findings (bb)–(ff) fifteenth session, (gg)+(hh)+(ii) SIXTEENTH. Only T4/T5 are open. |
+| Next work | The T4/T5 retest → walk 1 CLOSES → the release (the Release row). Then **Heroic Inspiration + Bard** (the user's named next — [FLOW.md](FLOW.md) Pass C; scope with the user first). Then the standing deck: Phase 4 (table time) and AC5e (bench). |
+| Testing setup | ⚠ **HARD-REFRESH (Ctrl+F5) BOTH WINDOWS before the retest** — the (ii) pass deployed without a version bump. ⚠ **THE USER RUNS TWO WINDOWS**: GM (Matt the DM) + a player window owning Thomas/Morgash. Player-first routing sends THEIR popups to window two whenever it is connected — "nothing popped" reports must always ask WHICH window. ⚠ The volley popup is the CASTING client's window; the Shield hold popup is the TARGET owner's window; the damage-offer popups are the ATTACKER's window; the resource flash is EVERY window. |
 | Bridge | Disconnected on BOTH worlds. Suites join as `Tester Assistant`. |
 
 ---
 
-## 🔍 THE (gg)/(hh) RETEST — the last gate before the v1.20.0 release (cut 2026-08-21, sixteenth session)
+## 🔍 THE (ii) RETEST — the last gate before the v1.20.0 release (cut 2026-08-21, sixteenth session, post-crash)
+
+**Retested ✅ already this session:** T1 (gg) roll-now-apply-later at the table · T2 (hh) icons on every aim surface · T3 the darts compose. The (ii) fix and the row-grammar tweak landed AFTER those, so two short checks remain:
 
 | # | Do this | Should happen |
 | --- | --- | --- |
-| T1 ⬜ | **(gg) the hold stops eating dice.** As Salyth: target Gren (Shield known, reaction UNSPENT) + one other enemy, cast Scorching Ray, land a hit on Gren inside Shield's flip window | **Every hitting ray's damage rolls immediately** (Roll Damage popups on the casting window — no more one-die-for-three-hits); Gren's Shield popup raises on HIS owner window at the same time; **cast Shield** → the settle card says the flipped ray misses and its rolled dice apply to NOBODY (no receipt row, no HP moved) while the other rays' damage lands normally; **pass** instead → that ray's damage applies. A plain weapon attack vs a Shield holder behaves identically (same machinery) |
-| T2 ⬜ | **(hh) icons everywhere a target is named.** Open any MM volley popup, any SR volley popup, and any Roll Damage popup | Dart rows lead with the target's token icon (the "Thomas — 3" row carries Thomas's face); each ray row carries its PICK's icon and the icon FOLLOWS the select when you change it; the Roll Damage popup's "Against …" line shows icon + name per target. Every icon tooltips its name (law 8) |
-| T3 ⬜ | **Sanity: the darts compose is untouched.** MM at the player window's PC holding Shield (walk item 6's cast) | Exactly as walked: hold pops for the target on window two, dice roll, application waits, Shield → zero for that target, the other target's darts land |
+| T4 ⬜ | **(ii) the damage lands where it was aimed.** As Salyth: SR at TWO different targets (mixed rays), press each Roll Damage popup in any order — then once more with a ray that MISSES | Every damage roll **auto-applies to its own ray's target** (receipt rows name the right names; no roll left unapplied); the missed ray's damage never exists; HP moves match the per-ray receipts. This is the "damage didnt auto apply" cast from before the crash, re-run |
+| T5 ⬜ | **The row grammar.** Open an MM popup and an SR popup | Dart rows read **[icon] Thomas is targeted [3]** — one line, the card layout; ray rows lead with their tracking icon before "Ray N" |
 
-**Known and deliberate, on the record (this pass):** the defender can now SEE the rolled
+**Known and deliberate, on the record (this pass):** the resolveAttackMessage registry walk
+survives only as the fallback for rolls the module never drove (the native Damage button);
+every driven roll carries `attackFor`. Riders and mastery now read the RIGHT attack per ray
+— strictly better, no behavior contract changed. The (gg) leak acceptance and the pending-GM
+tray gap stand unchanged from the pre-crash record below.
+
+### 📦 The (ii) + row-grammar build record (2026-08-21, SIXTEENTH session, post-crash — the FIRST battery on the headless box)
+
+**The finding, user verbatim:** *"i noticed a bug tho look at the session, the damage didnt
+auto apply."* The scratchpad probe read the log pre-crash: three SR casts, all rays at Gren,
+and a damage roll with `receipt:false` whose resolveAttackMessage walk landed on ray 3's
+attack (total 9 — a MISS vs Gren's 12) instead of its own hitting ray. Mechanism: all three
+ray attacks share ONE originating usage card, and the walk takes "the last attack rolled
+before this damage" — once the offer popups open, that is ray 3 for every ray's dice. A
+suite blindness too: smoke-volleys 3e asserted receipts EXIST, never per-ray identity.
+
+**Built:** every `rollDamageForAttack` roll stamps **`attackFor`** (the exact attack's id);
+[shared.js](scripts/shared.js) `resolveAttackMessage` reads it FIRST (the walk survives as
+the native-button fallback); the (gg) release sweep keys on `attackFor` (the interim
+`attackHoldFor` key died unshipped). Side benefit: riders and mastery read the RIGHT attack
+per ray. PLUS the user's popup row tweak (*"[icon] [name] is targeted … better mirrors the
+layout of cards"*): dart rows read `[icon] **Name** is targeted [n]` on one line; ray rows
+lead with their tracking icon. design.md carries both ((ii) bullet + the row-grammar note).
+
+**Battery, all green in ONE pass on the HEADLESS box, zero flakes (deploy landed while the
+server was down; the headless start IS the fresh process, so the script-cache discipline is
+satisfied by construction):** battleflow ALL PASS ×2 · playerdmg 12/12 · hold ALL PASS (the
+§1 claim pin now asserts `attackFor` names the attack) · maneuvers 54/54 · cast 17/17 ·
+riders 8/8 · effects 54/54 · concentration 47/47 · saves 61/61 · savedmg 13/13 ·
+**smoke-volleys 39/39** (3e2 the per-ray receipt identity — each damage names its own ray's
+attack and its receipt lands on THAT target; 1c2 recut to the "is targeted" grammar) ·
+resources 18/18 · check-hook-order ALL PASS (74 registrations, 9 pairs — attackFor rides
+existing edges) · verify-settings **CLEAN**.
+
+---
+
+**Known and deliberate, on the record (the (gg)/(hh) pass):** the defender can now SEE the rolled
 damage before answering Shield — the metagame leak the original Phase 1.5 design avoided is
 ACCEPTED by the (gg) ruling (the darts always leaked it; `damage`-kind reactions genuinely
 improve — the defender finally reduces a number they can read). A GM pressing the tray while
