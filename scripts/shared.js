@@ -3,6 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting } from "./core.js";
+import { hitsAmong, modeAdmits } from "./decide/verdict.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Shared: the hit test and the chain walk
@@ -19,23 +20,13 @@ import { MODULE_ID, TITLE, S, setting } from "./core.js";
 export function hitTargets(attackMessage) {
   const roll = attackMessage.rolls[0];
   if ( !(roll instanceof dnd5e.dice.D20Roll) ) return [];
-  const targets = attackMessage.getFlag("dnd5e", "targets") ?? [];
-  // A resolved reaction hold's verdict OVERRIDES the snapshot: after a Shield the stored
-  // descriptor's AC is stale, and auto-apply would otherwise damage a target the module
-  // already announced as missed (ARCHITECTURE.md §5, the stale-AC trap).
-  const held = attackMessage.getFlag(MODULE_ID, "hold")?.targets ?? [];
-  // The PRECISION fold's verdicts are the same channel with the arrow reversed (v1.19.0,
-  // FLOW item 1a): a declared maneuver patches a miss into a hit after the fact, and every
-  // consumer — auto-damage, auto-apply at damage-arrival, the riders — honours it through
-  // this one read. Hold verdicts take precedence; in practice the sets are disjoint (a hold
-  // stamps hits, precision stamps misses).
-  const precision = attackMessage.getFlag(MODULE_ID, "precision")?.targets ?? [];
-  return targets.filter(t => {
-    const verdict = held.find(h => h.uuid === t.uuid)?.verdict
-      ?? precision.find(p => p.uuid === t.uuid)?.verdict;
-    if ( verdict ) return verdict === "hit";
-    return (t.ac !== null) && (t.ac !== undefined)
-      && (roll.isCritical || (!roll.isFumble && (roll.total >= t.ac)));
+  // EDGE: read the message, hand plain data to the judgment (decide/verdict.js), which is
+  // where the stale-AC trap and the precision reversal are documented.
+  return hitsAmong({
+    targets: attackMessage.getFlag("dnd5e", "targets") ?? [],
+    held: attackMessage.getFlag(MODULE_ID, "hold")?.targets ?? [],
+    precision: attackMessage.getFlag(MODULE_ID, "precision")?.targets ?? [],
+    roll: { isCritical: roll.isCritical, isFumble: roll.isFumble, total: roll.total }
   });
 }
 
@@ -44,12 +35,7 @@ export function hitTargets(attackMessage) {
  * npc/pc/all gate — Phase 1a and Graze both read it, and a mode added here reaches both.
  */
 export function modeAllows(actor) {
-  const mode = setting(S.autoDamage);
-  if ( mode === "off" ) return false;
-  const isPC = actor?.type === "character";
-  if ( (mode === "npc") && isPC ) return false;
-  if ( (mode === "pc") && !isPC ) return false;
-  return true;
+  return modeAdmits(setting(S.autoDamage), actor?.type === "character");
 }
 
 /**

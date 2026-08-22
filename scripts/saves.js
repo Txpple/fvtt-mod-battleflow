@@ -4,6 +4,7 @@
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
 import { tokensInTemplates } from "./geometry.js";
+import { saveMultiplier, verdictText, saveOutcome } from "./decide/verdict.js";
 import { forceStatus } from "./shared.js";
 import { canAnswerFor, inRunningCombat } from "./hold.js";
 import { livePopups, popupKey, openMomentPopup, bfCard, holdBarHTML, momentBarHTML,
@@ -621,7 +622,7 @@ async function foldSaveAnswer(card, uuid, rollMessage) {
       const entry = current.targets?.find(t => !t.done && (t.uuid === uuid));
       if ( !entry ) return false;   // nothing to fold — never write
       entry.done = true;
-      entry.outcome = (forced || (total >= current.dc)) ? "saved" : "failed";
+      entry.outcome = saveOutcome(total, current.dc, forced);
       entry.total = total;
       entry.rollMessageId = rollMessage.id;
       if ( timedOut ) entry.timedOut = true;
@@ -1077,18 +1078,7 @@ function saveDamageMessages(card) {
 
 /** What a verdict does to the number: 1 on a failure; the activity's own word on a success;
  * nothing at all for any other outcome (a "gone" target has nobody to pay). */
-function saveMultiplier(entry, damageOnSave) {
-  // Interpose (finding ⑥, recut by walk-5 (y)): an accepted Reaction turns the successful
-  // save's half into NOTHING — no application, no receipt; the settle card is the record.
-  // Only a SAVED entry ever carries the choice, so there is no failed-with-spend case.
-  if ( (entry.choice?.kind === "interpose") && (entry.choice.answer === "use")
-    && (entry.outcome === "saved") ) return null;
-  if ( entry.outcome === "failed" ) return 1;
-  if ( entry.outcome !== "saved" ) return null;
-  if ( damageOnSave === "half" ) return 0.5;
-  if ( damageOnSave === "full" ) return 1;
-  return null; // "none": a successful save takes nothing at all — no application, no receipt
-}
+
 
 /** Land one chained damage roll on one target at its verdict's multiplier — the receipt says
  * why. Shared by the reconcile pass (behind its guards) and the legendary-resistance unwind
@@ -1408,18 +1398,7 @@ function pendingSaveCardsFor(actorUuid) {
 /** One verdict, in table English — derived here and NOWHERE else: the card row and the
  * v1.19.0 public verdict line (announceSaveVerdict) are its only two callers, which is what
  * makes it impossible for the card to disagree with the row. */
-function verdictText(flag, t) {
-  if ( !t.done ) return null;
-  if ( t.outcome === "gone" ) return "the target is gone — nothing to roll";
-  const half = flag.hasDamage
-    ? (flag.damageOnSave === "half") ? " — half damage"
-      : (flag.damageOnSave === "none") ? " — no damage" : " — full damage anyway"
-    : "";
-  const base = (t.outcome === "saved")
-    ? `saved${half}` : `failed`;
-  return `${t.total} vs DC ${flag.dc} — ${base}`
-    + `${t.forced ? " (legendary resistance)" : ""}${t.timedOut ? " (timer)" : ""}`;
-}
+
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const flag = message.getFlag(MODULE_ID, "saves");
