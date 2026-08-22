@@ -1,10 +1,15 @@
-// Two-client repro for finding ④ (2026-08-17 walk): a save demand cast from a PLAYER
-// client never shows its popup on the GM client that owns the decision. The walk's flag
-// forensics (probe-save-flags.mjs) showed EVERY demand target all session resolved
-// timedOut — no save popup ever opened on the non-casting client — while the morning's
-// strand evidence shows a popup on the CASTER's own window. This reproduces the topology
-// headlessly with a ledger on every link of the chain: update/render hook fires, flag
-// visibility, canAnswerFor, queue head, DialogV2.render calls/rejections, DOM dialogs.
+// STANDING CONTRACT CHECK — popup routing across two clients (ARCHITECTURE.md §5: the
+// popup goes to whoever owns the decision, and canAnswerFor is what decides).
+//
+// This is the ONLY two-client harness left in tools/, and the only thing that can prove
+// the N3 property that popups route player-first: a save demand cast from a PLAYER client
+// must show its popup on the client that owns the decision, not only on the caster's own
+// window. Single-client suites structurally cannot see this.
+//
+// It runs a ledger on every link of the chain: update/render hook fires, flag visibility,
+// canAnswerFor, queue head, DialogV2.render calls/rejections, DOM dialogs. Originally the
+// repro for the 2026-08-17 walk's popup-strand finding; kept and renamed because the
+// topology it exercises is a contract, not a closed bug.
 //
 // Fixture: a temporary innate save spell (no damage, no effects — zero side effects) on
 // BF Test PC Attacker (PC Assistant's actor), cast at BF Test Victim (GM-decided). The

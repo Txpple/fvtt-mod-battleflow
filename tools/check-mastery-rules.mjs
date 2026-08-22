@@ -1,8 +1,13 @@
-// (z) ground truth — the weapon mastery properties' RULE TEXT, read off the SYSTEM's own
-// references (CONFIG.DND5E.weaponMasteries[*].reference → rules journal page), plus the
-// canonical Prone status (name/img/_id) the (x) press lands. Read-only, no preflight — safe
-// beside a live session. The (z) constants in mastery.js/maneuvers.js must match this output
-// VERBATIM (punctuation included — the source mixes curly and straight apostrophes).
+// STANDING DRIFT CHECK — the verbatim rule line (ARCHITECTURE.md §5 law 8: a popup
+// describing a feature quotes that feature's own 2024 text, read from the world's own
+// compendium).
+//
+// Reads the weapon mastery RULE TEXT off the SYSTEM's own references
+// (CONFIG.DND5E.weaponMasteries[*].reference → rules journal page), plus the canonical
+// Prone status (name/img/_id) the bash/topple press lands. Read-only, no preflight — safe
+// beside a live session. The RULE_TEXT / MASTERY_RULES constants in mastery.js and
+// maneuvers.js must match this output VERBATIM (punctuation included — the source mixes
+// curly and straight apostrophes). Run it after any dnd5e system upgrade.
 //
 //   node tools/probe-mastery-rules.mjs
 import { readFileSync } from 'node:fs';
