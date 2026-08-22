@@ -4,7 +4,7 @@
  * the moment clocks, the house card (bfCard) — plus the hold's own row/popup views.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, deadlineIsLive } from "./core.js";
 import { reactionItem, isContinuingClient, canAnswerFor, answerHold, continueHold } from "./hold.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -344,6 +344,9 @@ export function scheduleBarSync(root) {
 
 export function armDeadline(timers, id, deadline, fire) {
   if ( !deadline || timers.has(id) ) return;
+  // The roof (core.js): a deadline past the staleness ceiling belongs to a table that has moved
+  // on. Arming it would fire on the next tick, and two of the five buzzers ROLL DICE.
+  if ( !deadlineIsLive(deadline) ) return;
   timers.set(id, setTimeout(() => {
     timers.delete(id);
     void fire(id);

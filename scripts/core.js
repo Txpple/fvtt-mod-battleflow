@@ -48,6 +48,35 @@ export const setting = key => game.settings.get(MODULE_ID, key);
 export const isActiveGM = () => game.users.activeGM?.isSelf ?? false;
 
 /* ---------------------------------------------------------------------------------------------
+ * THE DEADLINE CEILING — the moment clocks have a floor and need a roof.
+ *
+ * `armDeadline` (ui.js) arms with `Math.max(0, deadline - Date.now())`, so a deadline already in
+ * the past fires on the NEXT TICK. That is correct for a window the table just missed: a client
+ * that F5s mid-moment is MEANT to resume and let the buzzer land (the volley popup's reload
+ * behaviour is specified that way — the even spread fires on reload rather than stranding).
+ *
+ * It is wrong without a bound. A card left `status: "pending"` in the world is re-armed by the
+ * elect's next render however old it is, and two of the five buzzers ACT rather than pass:
+ * `fireSaveTimer` rolls saves for every unanswered target, `fireConcTimer` rolls the
+ * concentration save. A demand from a fight that ended months ago would roll dice the instant
+ * somebody opened the world — the module deciding where a human never did.
+ *
+ * ⚠ The bound CANNOT be a session epoch, though that is the tempting shape. Session start is
+ * per-CLIENT, so an F5'd player's own reload would read every still-live deadline as some other
+ * session's history and refuse it — killing precisely the resume the design asks for. An
+ * absolute staleness ceiling makes the only distinction that matters: seconds-to-minutes stale
+ * is a reload that ate the window (fire), and past that the table has moved on (never fire).
+ * Ten minutes clears the widest measured cold boot (a cold Molten start has needed ~540s of
+ * headroom) with room to spare.
+ * ------------------------------------------------------------------------------------------- */
+
+export const DEADLINE_CEILING_MS = 600_000;
+
+/** Is this deadline still this table's business, or is it history? No deadline ⇒ never arm. */
+export const deadlineIsLive = deadline =>
+  !!deadline && ((Date.now() - deadline) <= DEADLINE_CEILING_MS);
+
+/* ---------------------------------------------------------------------------------------------
  * SERIALIZED FLAG WRITES — read-modify-write on a message flag, with no other writer interleaving.
  *
  * ⚠ THIS EXISTS BECAUSE OF A MEASURED BUG (2026-08-20), not as a precaution. Both receipt flags
@@ -71,12 +100,17 @@ const flagWrites = new Map();
 /**
  * Apply `mutate` to `message`'s `key` flag under a per-(message, key) lock. `mutate` receives the
  * current value (deep-cloned, defaulting to `{ targets: [] }`) and mutates it in place.
+ *
+ * ⚠ Return `false` from `mutate` to SKIP the write entirely. Some writers are driven from the
+ * render hook, where an unconditional write is a write → render → write loop; their "nothing
+ * changed, write nothing" guard is loop protection, not tidiness, and it has to survive the
+ * move onto the serializer. Any other return value (including undefined) writes as normal.
  */
 export function queueFlagWrite(message, key, mutate) {
   const lock = `${message.id}|${key}`;
   const run = async () => {
     const current = foundry.utils.deepClone(message.getFlag(MODULE_ID, key) ?? { targets: [] });
-    mutate(current);
+    if ( mutate(current) === false ) return;
     await message.setFlag(MODULE_ID, key, current);
   };
   // `.then(run, run)` on purpose: one write failing must not strand every write queued behind it.

@@ -403,7 +403,13 @@ Hooks.on("createChatMessage", async message => {
       if ( !(actor instanceof Actor) ) continue;
       if ( (actor.system.attributes?.hp?.value ?? 0) <= 0 ) continue;  // the dead don't riposte
       if ( actor.uuid === attacker.uuid ) continue;
-      if ( actor.getFlag(MODULE_ID, "reactionSpent") ) continue;       // one reaction per round
+      // ⚠ NOT a budget test — this flag is the CLICK-VOLUME GUARD (hold.js), and the module
+      // does not track action economy at all: that is the table's job, by user ruling. Every
+      // read of it, here and in hold.js/saves.js, only declines to OFFER; nothing anywhere
+      // refuses a cast or blocks an action. Read as "don't nag this actor again this turn."
+      // The old wording here said "one reaction per round" and led a careful reviewer to
+      // diagnose a rules violation the module cannot commit.
+      if ( actor.getFlag(MODULE_ID, "reactionSpent") ) continue;
       if ( !modeAllows(actor) ) continue;                              // rides the resolver (Graze's argument)
       const found = usableManeuver(actor, entry.name);
       const dieFormula = found ? maneuverDieFormula(found.activity) : null;

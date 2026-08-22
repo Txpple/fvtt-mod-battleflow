@@ -488,31 +488,46 @@ async function refreshDemandFromTemplates(card) {
     }
     if ( !templates.length ) return;
     const contained = tokensInTemplates(templates) ?? [];
-    const merged = foundry.utils.deepClone(flag);
-    merged.templated = true;
-    const done = (merged.targets ?? []).filter(t => t.done);
-    const keep = (merged.targets ?? []).filter(t => !t.done && contained.some(c => c.uuid === t.uuid));
-    const fresh = contained.filter(c => !(merged.targets ?? []).some(t => t.uuid === c.uuid))
-      // The dead-target gate reaches adoption too (v1.19.0): a corpse standing in the placed
-      // area never joins the demand — same filter, same predicate, same user call.
-      .filter(saveDemandable)
-      .map(c => ({ ...c, done: false, outcome: null, total: null, rollMessageId: null }));
-    // No choice stamps at adoption either (walk-5 (y)): Interpose opens off the VERDICT, so
-    // a late-adopted shield-bearer meets it exactly like a snapshot target — when they save.
-    const next = [...done, ...keep, ...fresh];
-    if ( !next.length ) return; // a waiting demand keeps waiting; a populated one never strands
-    const same = (merged.targets.length === flag.targets.length) && flag.templated
-      && flag.targets.every((t, i) => next[i]?.uuid === t.uuid) && (next.length === flag.targets.length);
-    merged.targets = next;
-    if ( same ) return; // unchanged — write nothing, the log stays quiet
-    // The first arrivals start the clock a waiting stamp deliberately withheld: deadline
-    // from NOW (the elect's clock — the skew note in the file banner already covers it),
-    // so the table gets the full window from the moment there is somebody to roll.
-    if ( wasWaiting ) {
-      merged.awaitingTemplate = false;
-      if ( merged.window && !merged.deadline ) merged.deadline = Date.now() + (merged.window * 1000);
-    }
-    await card.setFlag(MODULE_ID, "saves", merged);
+    // ⚠ THROUGH THE SERIALIZER (core.js), and the derivation moved INSIDE it. Everything
+    // above is async — the template lookup and the bare-template claim both await — so the
+    // `flag` read at the top of this function is stale by the time the write lands. Building
+    // the new target list from that stale read is a lost update with teeth: a save answer
+    // folding in during the await window (rollSaveAnswer's own write) would be rebuilt away,
+    // and the target would be re-demanded after it had already rolled. The mutate is
+    // synchronous, so only the derivation moves; the awaits stay out here.
+    await queueFlagWrite(card, "saves", current => {
+      const prev = current.targets ?? [];
+      const done = prev.filter(t => t.done);
+      const keep = prev.filter(t => !t.done && contained.some(c => c.uuid === t.uuid));
+      const fresh = contained.filter(c => !prev.some(t => t.uuid === c.uuid))
+        // The dead-target gate reaches adoption too (v1.19.0): a corpse standing in the placed
+        // area never joins the demand — same filter, same predicate, same user call.
+        .filter(saveDemandable)
+        .map(c => ({ ...c, done: false, outcome: null, total: null, rollMessageId: null }));
+      // No choice stamps at adoption either (walk-5 (y)): Interpose opens off the VERDICT, so
+      // a late-adopted shield-bearer meets it exactly like a snapshot target — when they save.
+      const next = [...done, ...keep, ...fresh];
+      if ( !next.length ) return false; // waiting keeps waiting; a populated one never strands
+      // ⚠ `return false` is LOOP PROTECTION, not tidiness: this refresh is driven from the
+      // render hook as its reliability floor, so an unconditional write would be
+      // write → render → write without end. Same identity test as before the move —
+      // already templated, same uuids, same order, same length.
+      const same = current.templated && (next.length === prev.length)
+        && prev.every((t, i) => next[i]?.uuid === t.uuid);
+      if ( same ) return false;
+      // Re-read from `current`, not the outer `wasWaiting`: if targets arrived while the
+      // awaits above ran, this demand is no longer waiting and must not restart its clock.
+      const stillWaiting = !prev.length;
+      current.templated = true;
+      current.targets = next;
+      // The first arrivals start the clock a waiting stamp deliberately withheld: deadline
+      // from NOW (the elect's clock — the skew note in the file banner already covers it),
+      // so the table gets the full window from the moment there is somebody to roll.
+      if ( stillWaiting ) {
+        current.awaitingTemplate = false;
+        if ( current.window && !current.deadline ) current.deadline = Date.now() + (current.window * 1000);
+      }
+    });
   } catch(err) {
     console.error(`${TITLE} | Template containment refresh failed.`, err);
   } finally {
@@ -731,26 +746,35 @@ async function foldSaveAnswer(card, uuid, rollMessage) {
   if ( saveFolds.has(key) ) return;
   saveFolds.add(key);
   try {
-    const flag = foundry.utils.deepClone(card.getFlag(MODULE_ID, "saves") ?? {});
-    if ( flag.status !== "pending" ) return;
-    const entry = flag.targets?.find(t => !t.done && (t.uuid === uuid));
-    if ( !entry ) return;
     const total = rollMessage.rolls?.[0]?.total;
     if ( typeof total !== "number" ) return;
     // The stored DC is the authority (the ask's-DC rule) — plus forceSuccess, in case
     // legendary resistance beat the fold to the message (a resume after an elect reload).
     const forced = rollMessage.getFlag("dnd5e", "roll.forceSuccess") === true;
-    entry.done = true;
-    entry.outcome = (forced || (total >= flag.dc)) ? "saved" : "failed";
-    entry.total = total;
-    entry.rollMessageId = rollMessage.id;
-    if ( rollMessage.getFlag(MODULE_ID, "timedOut") ) entry.timedOut = true;
-    if ( forced ) entry.forced = true;
-    if ( flag.targets.every(t => t.done) ) {
-      flag.status = "done";
-      disarmAskTimer(saveTimers, card.id);
-    }
-    await card.setFlag(MODULE_ID, "saves", flag);
+    const timedOut = rollMessage.getFlag(MODULE_ID, "timedOut") === true;
+    // ⚠ THROUGH THE SERIALIZER (core.js): per-target independence means two targets can fold
+    // their answers against this one card at the same instant, and a clone-mutate-set drops
+    // whichever landed first. A lost fold re-demands a target that has already rolled.
+    let folded = false;
+    let allDone = false;
+    await queueFlagWrite(card, "saves", current => {
+      if ( current.status !== "pending" ) return false;
+      const entry = current.targets?.find(t => !t.done && (t.uuid === uuid));
+      if ( !entry ) return false;   // nothing to fold — never write
+      entry.done = true;
+      entry.outcome = (forced || (total >= current.dc)) ? "saved" : "failed";
+      entry.total = total;
+      entry.rollMessageId = rollMessage.id;
+      if ( timedOut ) entry.timedOut = true;
+      if ( forced ) entry.forced = true;
+      if ( current.targets.every(t => t.done) ) {
+        current.status = "done";
+        allDone = true;
+      }
+      folded = true;
+    });
+    if ( !folded ) return;          // the guards above declined — no consequences either
+    if ( allDone ) disarmAskTimer(saveTimers, card.id);
     await applySaveConsequences(card, uuid, rollMessage);
   } finally {
     saveFolds.delete(key);
@@ -1138,12 +1162,16 @@ async function applySaveConsequences(card, uuid, rollMessage = null) {
     if ( entry.choice?.kind === "interpose" ) await settleInterpose(card, flag, entry);
     await reconcileSaveDamage(card, uuid);
 
-    const merged = foundry.utils.deepClone(card.getFlag(MODULE_ID, "saves") ?? {});
-    const done = merged.targets?.find(t => t.uuid === uuid);
-    if ( done && !done.applied ) {
-      done.applied = true;
-      await card.setFlag(MODULE_ID, "saves", merged);
-    }
+    // ⚠ THROUGH THE SERIALIZER, not a bare read-modify-write (core.js). Per-target
+    // independence means two targets' consequence passes run at once against this one card,
+    // and a clone-merge-set here can land without the other pass's entry. Losing THIS field
+    // is the measured double-application itself: `reconcileSaveDamage` reads the receipt as
+    // its idempotence guard, so a dropped `applied` reads as "not applied yet" and the
+    // damage lands on that target a second time.
+    await queueFlagWrite(card, "saves", current => {
+      const done = current.targets?.find(t => t.uuid === uuid);
+      if ( done && !done.applied ) done.applied = true;
+    });
     await cleanupSpentTemplates(card);
   } catch(err) {
     console.error(`${TITLE} | Save consequences failed.`, err);
@@ -1287,18 +1315,30 @@ async function reconcileSaveDamage(card, onlyUuid = null) {
 async function flipForcedSave(rollMessage) {
   try {
     for ( const card of game.messages.contents ) {
-      const flag = foundry.utils.deepClone(card.getFlag(MODULE_ID, "saves") ?? null);
-      const entry = flag?.targets?.find(t => t.rollMessageId === rollMessage.id);
-      if ( !entry ) continue;
-      if ( entry.outcome !== "failed" ) return; // already saved, or already flipped
-      entry.outcome = "saved";
-      entry.forced = true;
-      // The fail line already posted (v1.19.0) — clear the claim so the CORRECTED verdict
-      // announces too. Two lines is honest history: the failure happened, then the
-      // resistance overturned it; the forced marker keeps the twin-supersede from eating
-      // the correction as a duplicate.
-      entry.announced = false;
-      await card.setFlag(MODULE_ID, "saves", flag);
+      const found = card.getFlag(MODULE_ID, "saves")?.targets?.find(
+        t => t.rollMessageId === rollMessage.id);
+      if ( !found ) continue;
+      if ( found.outcome !== "failed" ) return; // already saved, or already flipped
+      // ⚠ THROUGH THE SERIALIZER (core.js): the flip lands while this target's own
+      // consequence pass may be mid-flight against the same card, and a clone-mutate-set
+      // would overwrite whatever that pass had just recorded. The failed-check repeats
+      // INSIDE the lock, so two flips racing the same roll cannot both claim it.
+      let flipped = null;
+      await queueFlagWrite(card, "saves", current => {
+        const entry = current.targets?.find(t => t.rollMessageId === rollMessage.id);
+        if ( entry?.outcome !== "failed" ) return false;
+        entry.outcome = "saved";
+        entry.forced = true;
+        // The fail line already posted (v1.19.0) — clear the claim so the CORRECTED verdict
+        // announces too. Two lines is honest history: the failure happened, then the
+        // resistance overturned it; the forced marker keeps the twin-supersede from eating
+        // the correction as a duplicate.
+        entry.announced = false;
+        flipped = foundry.utils.deepClone(entry);
+      });
+      if ( !flipped ) return;   // another writer claimed the flip first
+      const flag = card.getFlag(MODULE_ID, "saves");   // post-flip, for the verdict line
+      const entry = flipped;
       // ALWAYS unwind, whatever `applied` says: the effects pass and the damage pass are
       // independently timed (damage can land through the arrival path before the effects
       // pass marks `applied`), and the receipts are the truth of what actually happened —
@@ -1361,17 +1401,21 @@ async function fireSaveTimer(card) {
     // pending forever with a buzzer that already fired (the concentration timer's rule).
     const actor = await fromUuid(entry.uuid).catch(() => null);
     if ( !(actor instanceof Actor) ) {
-      const merged = foundry.utils.deepClone(card.getFlag(MODULE_ID, "saves") ?? {});
-      const gone = merged.targets?.find(t => !t.done && (t.uuid === entry.uuid));
-      if ( gone ) {
+      // ⚠ THROUGH THE SERIALIZER (core.js): this runs inside a loop over every unanswered
+      // target, so the buzzer writes the same card once per vanished target — the writes
+      // overlap each other, never mind the consequence passes running alongside.
+      let goneName = null;
+      await queueFlagWrite(card, "saves", current => {
+        const gone = current.targets?.find(t => !t.done && (t.uuid === entry.uuid));
+        if ( !gone ) return false;
         gone.done = true;
         gone.outcome = "gone";
         gone.applied = true; // nothing to apply to
         gone.announced = true; // the merged card below is its line — never one per target
-        if ( merged.targets.every(t => t.done) ) merged.status = "done";
-        await card.setFlag(MODULE_ID, "saves", merged);
-        goneNames.push(gone.name);
-      }
+        if ( current.targets.every(t => t.done) ) current.status = "done";
+        goneName = gone.name;
+      });
+      if ( goneName ) goneNames.push(goneName);
       continue;
     }
     await rollSaveAnswer(card, entry.uuid, { timedOut: true });

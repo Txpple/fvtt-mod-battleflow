@@ -47,7 +47,7 @@
  * unfired — the card shows the drained bar, and the GM's fallback is the sheet, exactly as
  * for the damage offers. Render-resume re-pops and re-arms on the author's return.
  */
-import { MODULE_ID, TITLE, S, setting, queueFlagWrite } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, queueFlagWrite, deadlineIsLive } from "./core.js";
 import { modeAllows } from "./shared.js";
 import { volleyEntryFor, resolveVolleyCount } from "./volley-registry.js";
 import { livePopups, popupKey, openManagedPopup, bfCard, momentBarHTML,
@@ -463,13 +463,32 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   renderVolleyRow(message, v, html);
   // Author-side resume: re-arm the buzzer and re-raise the popup after an F5. An already-
   // overdue deadline fires the default spread now — the volley never strands on a reload.
+  //
+  // ⚠ THE CEILING REACHES HERE TOO (core.js), and this path needs it stated separately
+  // because it fires the spread DIRECTLY rather than through `armDeadline` — the guard in
+  // the primitive cannot see it. Without this, a volley left pending in the world rolls its
+  // darts the instant the author next opens it, however many months later. Past the ceiling
+  // the clock is history: raise the popup and let a human aim it, the same answer the
+  // caster-who-never-came-back already gets.
   if ( (v.status === "pending") && message.isAuthor ) {
-    if ( v.deadline && (Date.now() >= v.deadline) ) void fireVolley(message, null);
+    const stale = v.deadline && !deadlineIsLive(v.deadline);
+    if ( !stale && v.deadline && (Date.now() >= v.deadline) ) void fireVolley(message, null);
     else {
-      if ( v.deadline ) armDeadline(volleyTimers, message.id, v.deadline, () => fireVolley(message, null));
+      if ( v.deadline && !stale ) {
+        armDeadline(volleyTimers, message.id, v.deadline, () => fireVolley(message, null));
+      }
       void openVolleyPopup(message);
     }
   }
+});
+
+// The delete sweep. Every other timer-owning machine registers one (concentration, maneuvers,
+// mastery, saves) and this file was the exception: `volleyTimers` was disarmed only when a
+// volley FIRED, so deleting a pending volley card left its buzzer armed to call `fireVolley`
+// on a message that no longer exists. The shared sweep in ui.js closes the popup and clears
+// the latch, but it disarms the hold's clock only — each machine still owns its own.
+Hooks.on("deleteChatMessage", message => {
+  disarmDeadline(volleyTimers, message.id);
 });
 
 function renderVolleyRow(message, v, html) {
