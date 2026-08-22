@@ -71,6 +71,7 @@
       },
       "correctness": {
         "noUnusedImports": "error",
+        "noUndeclaredVariables": "error",
         "noUnusedVariables": "warn",
         "noUnusedFunctionParameters": "warn"
       },
