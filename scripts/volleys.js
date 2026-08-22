@@ -51,8 +51,8 @@ import { MODULE_ID, TITLE, S, setting, queueFlagWrite, deadlineIsLive } from "./
 import { modeAllows } from "./shared.js";
 import { volleyEntryFor, resolveVolleyCount } from "./volley-registry.js";
 import { castLevelOf, clampVolleyCount } from "./decide/eligible.js";
-import { livePopups, popupKey, openManagedPopup, bfCard, momentBarHTML,
-  armDeadline, disarmDeadline } from "./ui.js";
+import { popupKey, bfCard, momentBarHTML } from "./decide/present.js";
+import { livePopups, openManagedPopup, armDeadline, disarmDeadline } from "./ui.js";
 
 const volleyTimers = new Map();
 

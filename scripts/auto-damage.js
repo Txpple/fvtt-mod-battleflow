@@ -186,7 +186,8 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
   // ui import — which runs ui.js's body, and its renderChatMessage/deleteChatMessage
   // registrations, ahead of this file's. Measured with check-hook-order: the static form moves
   // them, the dynamic form leaves the whole evaluation order byte-identical. Keep this dynamic.
-  const { livePopups, popupKey, openManagedPopup, bfCard, momentBarHTML } = await import("./ui.js");
+  const { popupKey, bfCard, momentBarHTML } = await import("./decide/present.js");
+  const { livePopups, openManagedPopup } = await import("./ui.js");
 
   const key = popupKey(message.id, "damage");
   const open = livePopups.get(key);

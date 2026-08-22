@@ -6,9 +6,10 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
 import { joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { hitTargets, modeAllows } from "./shared.js";
 import { inRunningCombat, canAnswerFor } from "./hold.js";
-import { livePopups, popupKey, openMomentPopup, bfCard, holdBarHTML, momentBarHTML,
+import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
+import { livePopups, openMomentPopup,
   momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,
-  armAskTimer, disarmAskTimer, armDeadline, disarmDeadline, ruleLine } from "./ui.js";
+  armAskTimer, disarmAskTimer, armDeadline, disarmDeadline } from "./ui.js";
 import { forceStatus } from "./shared.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { messageActivity } from "./effect-riders.js";

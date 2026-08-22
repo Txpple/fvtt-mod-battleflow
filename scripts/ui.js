@@ -1,10 +1,16 @@
 /**
  * Battle Flow — THE SPINE (ARCHITECTURE.md §5, the moment map): the managed-popup lifecycle +
- * cascade, the popper discipline, the one shown-latch registry, the countdown bar, the ACK,
- * the moment clocks, the house card (bfCard) — plus the hold's own row/popup views.
+ * cascade, the popper discipline, the one shown-latch registry, the countdown bar's DOM half,
+ * the ACK, the moment clocks — plus the hold's own row/popup views.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ *
+ * The MARKUP the spine draws — the house card, the bar, the rule line, the staircase
+ * arithmetic — is one layer down in decide/present.js: strings in, strings out, no document
+ * and no DOM. What stays here is everything that touches a dialog, an element or a clock.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, deadlineIsLive } from "./core.js";
+import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, cascadePosition,
+  eldersDeepestFirst } from "./decide/present.js";
 import { reactionItem, isContinuingClient, canAnswerFor, answerHold, continueHold } from "./hold.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -30,18 +36,15 @@ export const shownMoments = new Set();
  * the card left the popup sitting open, still asking).
  */
 export const livePopups = new Map();
-export const popupKey = (messageId, uuid) => `${messageId}|${uuid}`;
 
 /**
- * THE CASCADE'S BOOKKEEPING (walk-4 finding (s)): the pile is the standard OS staircase —
- * a common top-left anchor (the first popup of an empty pile donates its own rendered
- * position), one title-bar step per slot so every header stays readable, and slots reused
- * as popups close so a newcomer never lands exactly on a survivor (the depth-count hole).
- * The anchor dies with the pile.
+ * THE CASCADE'S BOOKKEEPING (walk-4 finding (s)): the live half of the staircase — which key
+ * holds which slot, and the anchor the pile grows from. The layout arithmetic itself is
+ * decide/present.js; what is owned here is the LIFECYCLE, because only this file knows when a
+ * dialog opens and closes. The anchor dies with the pile.
  */
 const popupSlots = new Map();       // popup key → staircase slot
 let cascadeAnchor = null;           // {left, top} the staircase grows from
-const CASCADE_STEP = 36;            // ≈ one window header — the full title stays visible
 
 /**
  * Register, render and lifecycle-manage a decision popup — ONE home for the discipline that
@@ -60,15 +63,10 @@ export async function openManagedPopup(key, message, dialog) {
     return close(...args);
   };
   // THE CASCADE (ARCHITECTURE.md §5 law 7, recut by walk-4 finding (s)): the pile is a QUEUE IN
-  // EVENT ORDER. Layout is the standard staircase — common anchor, smallest free slot, one
-  // header-height step down-right so nothing masquerades as one window (the round-3 burial)
-  // — and Z-ORDER IS CAUSAL ORDER (user ruling): the FIRST moment's popup stays in FRONT,
-  // every later arrival layers BEHIND it, and the player clicks through in the order things
-  // happened. A bash exists because the hit landed; the hit answers first. Modulo keeps a
-  // pathological pile on screen.
-  const used = new Set(popupSlots.values());
-  let slot = 0;
-  while ( used.has(slot) ) slot += 1;
+  // EVENT ORDER, and Z-ORDER IS CAUSAL ORDER (user ruling). The layout arithmetic — smallest
+  // free slot, the step, the elders' fronting order — is decide/present.js; the dialogs are
+  // this file's.
+  const slot = nextCascadeSlot(popupSlots.values());
   popupSlots.set(key, slot);
   livePopups.set(key, dialog);
   try {
@@ -76,16 +74,13 @@ export async function openManagedPopup(key, message, dialog) {
     const { left, top } = dialog.position ?? {};
     if ( Number.isFinite(left) && Number.isFinite(top) ) {
       if ( !cascadeAnchor ) cascadeAnchor = { left, top };
-      const step = (slot % 8) * CASCADE_STEP;
-      const want = { left: cascadeAnchor.left + step, top: cascadeAnchor.top + step };
+      const want = cascadePosition(cascadeAnchor, slot);
       if ( (want.left !== left) || (want.top !== top) ) dialog.setPosition(want);
     }
     if ( slot ) {
       // Re-front the elders, deepest first, so slot 0 ends on top and this newcomer sits
       // at the BACK of the pile — its turn comes when the earlier moments are answered.
-      const elders = [...popupSlots.entries()].filter(([k]) => k !== key)
-        .sort(([, a], [, b]) => b - a);
-      for ( const [k] of elders ) {
+      for ( const k of eldersDeepestFirst(popupSlots, key) ) {
         const d = livePopups.get(k);
         if ( d?.rendered ) { try { d.bringToFront?.(); } catch(err) { /* fronting is best-effort */ } }
       }
@@ -172,115 +167,21 @@ export function momentButton(label, onClick, style = {}) {
   return button;
 }
 
-/* ---------------------------------------------------------------------------------------------
- * The house card. Everything this module says out loud wears it.
- *
- * The module's messages used to be bare italic text — "lets it land — no reaction." — sitting
- * in a log where every native card around them had a portrait, a title and a structure. They
- * read as debug output rather than as part of the game (reported live 2026-08-15, twice).
- *
- * ⚠ Inline styles on purpose. module.json carries no `styles` entry, and adding one needs a
- * Foundry PROCESS restart to take effect, while a script change is live on the next F5 — so a
- * stylesheet would make every future tweak cost a bounce. If this ever grows past a few
- * helpers, add the stylesheet and take the one bounce.
- * ------------------------------------------------------------------------------------------- */
-
-const TONE = {
-  pending: "rgba(214,158,46,0.95)",   // waiting on a human
-  good:    "rgba(70,150,95,0.95)",    // the reaction did its job
-  bad:     "rgba(180,70,60,0.95)",    // it landed anyway
-  neutral: "rgba(120,120,120,0.75)"
-};
-
-/**
- * One card: an accent spine, a portrait, an eyebrow/title/subtitle stack, and body lines.
- * `lines` are already-safe HTML fragments.
- */
-export function bfCard({ img, eyebrow, title, subtitle, lines = [], tone = "neutral" }) {
-  const accent = TONE[tone] ?? TONE.neutral;
-  // Walk-5 (aa): every card icon says what it is on hover — the eyebrow (or the title) is
-  // the name. Tags out, quotes escaped: these strings go into an attribute.
-  const tip = String(eyebrow || title || "").replace(/<[^>]*>/g, "").replace(/"/g, "&quot;");
-  const portrait = img
-    ? `<img src="${img}" alt="${tip}" data-tooltip="${tip}"
-         style="width:40px;height:40px;flex:0 0 auto;border-radius:4px;
-         border:1px solid var(--color-border-dark,#0006);object-fit:cover;">`
-    : "";
-  const body = lines.filter(Boolean).map(line =>
-    `<div style="margin-top:0.2rem;">${line}</div>`).join("");
-  return `
-  <div style="border-left:3px solid ${accent};border-radius:3px;padding:0.4rem 0.55rem;
-              background:rgba(0,0,0,0.04);">
-    <div style="display:flex;gap:0.5rem;align-items:center;">
-      ${portrait}
-      <div style="flex:1;min-width:0;">
-        ${eyebrow ? `<div style="font-size:var(--font-size-10,10px);letter-spacing:0.08em;
-             text-transform:uppercase;opacity:0.6;line-height:1.4;">${eyebrow}</div>` : ""}
-        <div style="font-family:var(--font-h1,inherit);font-size:var(--font-size-15,15px);
-             font-weight:bold;line-height:1.2;">${title}</div>
-        ${subtitle ? `<div style="font-size:var(--font-size-11,11px);opacity:0.7;
-             line-height:1.3;">${subtitle}</div>` : ""}
-      </div>
-    </div>
-    ${body ? `<div style="margin-top:0.35rem;font-size:var(--font-size-12,12px);
-         line-height:1.5;">${body}</div>` : ""}
-  </div>`;
-}
-
 /** The reaction's own artwork, for cards that talk about it. */
 export function reactionImg(actor, reactionName, ids) {
   return reactionItem(actor, reactionName, ids)?.img ?? null;
 }
 
-/** Walk-5 (z): the verbatim rule quote as a card line — one shape wherever a popup cites
- * the actual feature text. The words come from the caller (RULE_TEXT / MASTERY_RULES);
- * this is only the dress. */
-export const ruleLine = text => `<em>“${text}”</em>`;
-
 /* ---------------------------------------------------------------------------------------------
- * The countdown bar (ARCHITECTURE.md §5).
+ * The countdown bar, DOM half (ARCHITECTURE.md §5). The markup is decide/present.js; what is
+ * here is the one thing a pure function cannot do — put the animation on the real element.
  *
  * ⚠ ZERO JS TICKING. The bar is one CSS animation whose duration is the hold's own window, and
- * a reload resumes it mid-drain with a NEGATIVE animation-delay computed from the deadline
- * stored on the flag — so every client, and every re-render, agrees without anyone counting.
- * A per-second interval per open hold per client is exactly the kind of thing that is fine
- * with one hold on screen and miserable with six.
+ * a reload resumes it mid-drain from the deadline stored on the flag — so every client, and
+ * every re-render, agrees without anyone counting. A per-second interval per open hold per
+ * client is exactly the kind of thing that is fine with one hold on screen and miserable with
+ * six.
  * ------------------------------------------------------------------------------------------- */
-
-/**
- * THE BAR (the spine): a pure function of `{deadline, window}` — no status field, no hidden
- * contract. This is the primitive every moment surface draws; the wrapper below adds the
- * status gate for whole flags. Finding (n) is what the hidden contract cost: the save-choice
- * sub-object carries no `status`, both of its call sites passed it to the status-gated
- * wrapper, and the choice bars never rendered anywhere — invisible, and invisible to every
- * flag-level assertion too. The label names the default action the buzzer takes — "answer"
- * for the decisions, "roll" for the demanded saves, whose expiry rolls instead of passing.
- */
-export function momentBarHTML(spec, label = "to answer") {
-  if ( !spec?.deadline || !spec?.window ) return "";
-  if ( (spec.deadline - Date.now()) <= 0 ) return "";
-  return `
-  <div style="margin-top:0.45rem;display:flex;align-items:center;gap:0.4rem;">
-    <div style="flex:1;height:6px;border-radius:3px;background:rgba(0,0,0,0.18);overflow:hidden;">
-      <div data-bf-deadline="${spec.deadline}" data-bf-window="${spec.window}"
-           style="height:100%;width:100%;border-radius:3px;
-                  background:${TONE.good};"></div>
-    </div>
-    <span style="font-size:var(--font-size-10,10px);opacity:0.6;white-space:nowrap;">
-      ${spec.window}s ${label}</span>
-  </div>`;
-}
-
-/**
- * The status-gated wrapper for WHOLE flags (`hold`, `saves`, `mastery`, `precision`, …):
- * a resolved moment renders no bar even while its deadline is still in the future. Pass a
- * sub-object (a choice, a notice) to momentBarHTML directly, gated by its own answer state
- * at the call site — never through here, where the missing status silently eats the bar.
- */
-export function holdBarHTML(hold, label = "to answer") {
-  if ( hold?.status !== "pending" ) return "";
-  return momentBarHTML(hold, label);
-}
 
 /**
  * Snap every bar to the actual deadline.

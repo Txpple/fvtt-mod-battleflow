@@ -7,9 +7,10 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core
 import { parseManeuverFolds } from "./decide/registry.js";
 import { hitTargets, modeAllows } from "./shared.js";
 import { canAnswerFor, inRunningCombat } from "./hold.js";
-import { livePopups, popupKey, openMomentPopup, bfCard, holdBarHTML, momentBarHTML,
+import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
+import { livePopups, openMomentPopup,
   momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,
-  armAskTimer, disarmAskTimer, armDeadline, disarmDeadline, ruleLine } from "./ui.js";
+  armAskTimer, disarmAskTimer, armDeadline, disarmDeadline } from "./ui.js";
 import { combatStamp } from "./mastery.js";
 // Safe statically (the saves.js:12 argument): the entry evaluates auto-damage.js at :90 and
 // this file at :97, so nothing here can reorder auto-damage's registrations. Re-checked with

@@ -6,7 +6,7 @@ import { TITLE, S, setting } from "./core.js";
 import { parseIdentifierList, parseUpgradeList } from "./decide/registry.js";
 import { riderKey } from "./decide/eligible.js";
 import { hitTargets } from "./shared.js";
-import { bfCard } from "./ui.js";
+import { bfCard } from "./decide/present.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1.75 — hit riders (the attacker's client, folded into the attack's own damage roll)

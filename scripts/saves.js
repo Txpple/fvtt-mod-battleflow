@@ -8,9 +8,10 @@ import { saveMultiplier, verdictText, saveOutcome } from "./decide/verdict.js";
 import { isDeadForSaves } from "./decide/eligible.js";
 import { forceStatus } from "./shared.js";
 import { canAnswerFor, inRunningCombat } from "./hold.js";
-import { livePopups, popupKey, openMomentPopup, bfCard, holdBarHTML, momentBarHTML,
+import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
+import { livePopups, openMomentPopup,
   momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
-  armDeadline, disarmDeadline, ruleLine } from "./ui.js";
+  armDeadline, disarmDeadline } from "./ui.js";
 import { dramaticVerdictPause } from "./concentration.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt, revertEffect } from "./effect-riders.js";

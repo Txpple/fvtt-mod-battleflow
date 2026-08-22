@@ -4,7 +4,8 @@
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
 import { canAnswerFor } from "./hold.js";
-import { livePopups, popupKey, openMomentPopup, bfCard, holdBarHTML, momentButton,
+import { popupKey, bfCard, holdBarHTML } from "./decide/present.js";
+import { livePopups, openMomentPopup, momentButton,
   scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer } from "./ui.js";
 
 /* ---------------------------------------------------------------------------------------------

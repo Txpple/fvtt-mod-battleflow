@@ -10,7 +10,8 @@ import { joinEffectReceipt } from "./decide/receipt.js";
 // claim instead): the import itself still pins auto-damage.js's evaluation — and with it every
 // hook registration order check-hook-order asserts — exactly where the §9 entry graph has it.
 import "./auto-damage.js";
-import { bfCard, reactionImg, armHoldTimer, disarmHoldTimer, reactionACBonus, closeAnsweredPopups } from "./ui.js";
+import { bfCard } from "./decide/present.js";
+import { reactionImg, armHoldTimer, disarmHoldTimer, reactionACBonus, closeAnsweredPopups } from "./ui.js";
 // Safe as a STATIC edge (unlike auto-apply.js below): effect-riders.js registers no hooks,
 // so evaluating it early cannot reorder anything — check-hook-order.mjs proves it.
 import { applyEffectsTo } from "./effect-riders.js";
