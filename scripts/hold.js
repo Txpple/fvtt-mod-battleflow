@@ -5,6 +5,7 @@
 import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
 import { parseInterruptList, parseBlockList } from "./decide/registry.js";
 import { limitedUses, isReactionItem } from "./decide/eligible.js";
+import { joinEffectReceipt } from "./decide/receipt.js";
 // ⚠ Bare on purpose since (gg) retired the post-answer roll (the continuation releases the
 // claim instead): the import itself still pins auto-damage.js's evaluation — and with it every
 // hook registration order check-hook-order asserts — exactly where the §9 entry graph has it.
@@ -12,7 +13,7 @@ import "./auto-damage.js";
 import { bfCard, reactionImg, armHoldTimer, disarmHoldTimer, reactionACBonus, closeAnsweredPopups } from "./ui.js";
 // Safe as a STATIC edge (unlike auto-apply.js below): effect-riders.js registers no hooks,
 // so evaluating it early cannot reorder anything — check-hook-order.mjs proves it.
-import { applyEffectsTo, joinEffectReceipt } from "./effect-riders.js";
+import { applyEffectsTo } from "./effect-riders.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1.5 — the reaction hold (a pause, NOT a system)

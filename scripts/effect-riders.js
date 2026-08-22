@@ -3,6 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite } from "./core.js";
+import { joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1.9A — effect riders: a hit applies the effects riding it (PLAN.md section A).
@@ -121,21 +122,6 @@ export async function applyEffectsTo(targets, effects,
 }
 
 /**
- * Merge one applied-entry into an effectReceipt flag object — THE receipt bookkeeping,
- * shared by every writer (the appliers here, the mastery chips, the hold's answer paths)
- * so the merge discipline can never drift between them: entries keyed by uuid, effects
- * deduped by id, nothing ever overwritten.
- */
-export function joinEffectReceipt(flag, entry) {
-  let target = flag.targets.find(t => t.uuid === entry.uuid);
-  if ( !target ) flag.targets.push(target = { uuid: entry.uuid, name: entry.name, img: entry.img ?? null, effects: [] });
-  for ( const e of entry.effects ) {
-    if ( !target.effects.some(x => x.id === e.id) ) target.effects.push(e);
-  }
-  return target;
-}
-
-/**
  * Apply and stamp in one move — the shape the riders, the cast slice and the save slice
  * use, where the receipt message already exists. Entries merge into `receiptMessage`'s
  * effectReceipt flag under the caller's own done-`marker`, so the rider and cast stages
@@ -164,13 +150,13 @@ export async function applyEffectsWithReceipt(receiptMessage, effects, targets,
 /**
  * Remove one applied rider effect and mark its receipt entry. Tolerates the effect already
  * being gone — the concentration cascade, a manual right-click, or the target's death may
- * all beat the button. Idempotent and reload-proof like the damage revert.
+ * all beat the button. Reload-proof like the damage revert: the state is the flag, re-read at
+ * click time, and the idempotence guard is decide/receipt.js's.
  */
 export async function revertEffect(message, targetUuid, effectId) {
   const flag = foundry.utils.deepClone(message.getFlag(MODULE_ID, "effectReceipt") ?? {});
-  const target = flag.targets?.find(t => t.uuid === targetUuid);
-  const entry = target?.effects?.find(e => e.id === effectId);
-  if ( !entry || entry.reverted ) return;
+  const entry = revertableEffect(flag, targetUuid, effectId);
+  if ( !entry ) return;
   const actor = await fromUuid(targetUuid);
   if ( actor instanceof Actor ) await actor.effects.get(effectId)?.delete();
   entry.reverted = true;

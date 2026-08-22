@@ -3,6 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
+import { receiptEntry, joinDamageReceipt } from "./decide/receipt.js";
 import { hitTargets, resolveAttackMessage } from "./shared.js";
 import { applyEffectRiders } from "./effect-riders.js";
 import { resolveHitMastery } from "./mastery.js";
@@ -126,55 +127,25 @@ export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { n
       // pass fires the calculate-damage hooks one more read-only time; nothing in this
       // module or combatplus listens to them.)
       const calc = actor.calculateDamage(damages, { multiplier, originatingMessage: receiptMessage });
-      const traits = [];
-      for ( const d of (calc || []) ) {
-        const a = d.active ?? {};
-        const outcome = a.threshold ? "threshold"
-          : (a.multiplier === 0) ? "immune"
-          : (a.multiplier === 0.5) ? "resistant"
-          : (a.multiplier === 2) ? "vulnerable"
-          : (a.all?.modification || a.type?.modification) ? "modified"
-          : null; // resist+vuln cancel to ×1 and stay silent — the number didn't move
-        if ( outcome && !traits.some(t => (t.type === d.type) && (t.outcome === outcome)) ) {
-          traits.push({ type: d.type, outcome });
-        }
-      }
 
       await actor.applyDamage(damages, {
         multiplier, isDelta: true, originatingMessage: receiptMessage, origin: receiptMessage
       });
       const after = actor.system._source.attributes.hp;
-      receipts.push({
-        uuid: target.uuid,
-        name: target.name,
-        img: actor.img ?? null, // the portrait the row leads with (user call, 2026-08-15)
-        ...(note ? { note } : {}),
-        ...(multiplier !== 1 ? { multiplier } : {}),
-        prior,
-        delta: {
-          value: (after.value ?? 0) - (prior.value ?? 0),
-          temp: (after.temp ?? 0) - (prior.temp ?? 0)
-        },
-        // What the traits made of it: `taken` is the post-trait, pre-clamp total (a number
-        // an assertion can trust at 0 HP, where the delta clamps to nothing), `traits` is
-        // the reason list the row renders.
-        taken: calc ? calc.amount : null,
-        traits,
-        reverted: false
-      });
+      // The entry is arithmetic over the two snapshots and the system's own annotations —
+      // prior → delta → taken → reason, all of it in decide/receipt.js.
+      receipts.push(receiptEntry({
+        uuid: target.uuid, name: target.name, img: actor.img,
+        note, multiplier, prior, after, calc
+      }));
     }
     if ( receipts.length ) {
-      // MERGE, never overwrite (v1.6.0): a spell hold can split one roll's application in
-      // time — unheld targets land at once, a held target lands after its verdict — and
-      // the second write must not eat the first's entries. Through `queueFlagWrite` so two
-      // CONCURRENT writers cannot each merge into the same pre-read copy and drop one another's
-      // entries — a lost entry also defeats reconcileSaveDamage's idempotence guard and the
-      // damage lands twice. The measurement that found it is recorded in core.js.
+      // Through `queueFlagWrite` (core.js) because the merge is only correct when the writes
+      // are sequential: two CONCURRENT writers would each merge into the same pre-read copy
+      // and drop one another's entries. The merge discipline itself — and what one lost entry
+      // costs — is decide/receipt.js.
       await queueFlagWrite(receiptMessage, "receipt", existing => {
-        for ( const r of receipts ) {
-          const i = existing.targets.findIndex(t => t.uuid === r.uuid);
-          if ( i >= 0 ) existing.targets[i] = r; else existing.targets.push(r);
-        }
+        joinDamageReceipt(existing, receipts);
       });
     }
   } catch(err) {

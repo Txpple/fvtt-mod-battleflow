@@ -3,6 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE } from "./core.js";
+import { receiptAmounts, revertPlan, traitPhrase } from "./decide/receipt.js";
 import { revertEffect } from "./effect-riders.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -10,18 +11,11 @@ import { revertEffect } from "./effect-riders.js";
  * The flag is the state; this is a view.
  * ------------------------------------------------------------------------------------------- */
 
-/** One receipt reason in table English. Type labels come from the system's config. */
-function traitPhrase({ type, outcome }) {
-  const label = (CONFIG.DND5E.damageTypes[type]?.label ?? CONFIG.DND5E.healingTypes?.[type]?.label
-    ?? type ?? "damage").toLowerCase();
-  switch ( outcome ) {
-    case "immune": return `immune to ${label}`;
-    case "resistant": return `resists ${label}`;
-    case "vulnerable": return `vulnerable to ${label}`;
-    case "threshold": return "under its damage threshold";
-    case "modified": return `${label} modified by a trait`;
-    default: return "";
-  }
+/** EDGE: the system's own name for a damage or healing type. The phrase built from it is
+ * decide/receipt.js's, which may not read CONFIG — the fallback when this finds nothing
+ * lives there with the rest of the wording. */
+function typeLabel(type) {
+  return CONFIG.DND5E.damageTypes[type]?.label ?? CONFIG.DND5E.healingTypes?.[type]?.label;
 }
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
@@ -99,14 +93,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     // The second row carries the story (user's layout call, 2026-08-15): the reason and the
     // NUMBER, together, below the name — the top row is just who and the revert.
     //
-    // ⚠ The number is `taken` (post-trait, pre-clamp), not the HP delta. A target already at
-    // 0 HP clamps every delta to −0, so a vulnerable Ice Mephit read "−0 HP" while the
-    // native tray said −14 (reported live 2026-08-15) — the delta answers "what did the pool
-    // do", but the table is owed "what did the hit deal". Pools stay GM-only.
-    const taken = (typeof t.taken === "number")
-      ? t.taken : -((t.delta.value ?? 0) + (t.delta.temp ?? 0));
-    const from = (t.prior.value ?? 0) + (t.prior.temp ?? 0);
-    const lost = -((t.delta.value ?? 0) + (t.delta.temp ?? 0));
+    // ⚠ The number is `taken` (post-trait, pre-clamp), not the HP delta: the delta answers
+    // "what did the pool do", but the table is owed "what did the hit deal". Pools stay
+    // GM-only. Every number below, and the voice it speaks in, is decide/receipt.js.
+    const amounts = receiptAmounts(t);
     const sub = document.createElement("div");
     Object.assign(sub.style, { margin: "0 0 0 40px", lineHeight: "1.4" });
     if ( t.reverted ) {
@@ -115,44 +105,28 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     } else {
       // A note (Graze) and the trait story share the reason slot, in that order.
       const phrases = [...(t.note ? [t.note] : []),
-        ...(t.traits ?? []).map(traitPhrase).filter(Boolean)];
+        ...(t.traits ?? []).map(x => traitPhrase({ ...x, label: typeLabel(x.type) }))
+          .filter(Boolean)];
       if ( phrases.length ) {
         const why = document.createElement("span");
         why.textContent = `${phrases.join(", ")} · `;
         Object.assign(why.style, { fontStyle: "italic", opacity: "0.8" });
         sub.append(why);
       }
-      // Healing arrives as a NEGATIVE take (calculateDamage inverts healing types), and
-      // "−-25 HP" in damage red is what that looked like (user report 2026-08-16). A gain
-      // reads +N in a friendly blue; damage keeps the tray's own maroon voice.
-      //
-      // ⚠ TEMP HP IS A THIRD KIND, not a signed HP number (user report 2026-08-19, Morgash's
-      // Dash read "−0 HP" in damage maroon). dnd5e 5.3.3's calculateDamage routes a `temphp`
-      // entry into `damages.temp` and NEVER into `damages.amount` — and the healing-negation
-      // block right above it covers "healing" and "maximum" ONLY, so temp is not inverted
-      // either. A pure temp grant therefore lands here with `taken === 0`, which failed the
-      // `taken < 0` gain test and fell through to the damage voice. The pool genuinely did
-      // not move; `hp.temp` did, and only the delta knows it. (The value itself applies
-      // correctly — applyDamage sets hp.temp to the greater of old and new — so this was
-      // always a card that lied, never a grant that went missing.)
-      const tempGained = Math.max(0, t.delta?.temp ?? 0);
-      // `taken === 0` also catches −0, which is what a zeroed calc actually produces.
-      const tempOnly = (tempGained > 0) && (taken === 0);
-      const healed = taken < 0;
+      // A gain — healing, or a temp-HP grant — reads in a friendly blue; damage keeps the
+      // tray's own maroon voice. Which of the three it is, and what it says, is decided one
+      // layer down; the colours are the only part of it the stylesheet owns.
       const amount = document.createElement("span");
-      amount.textContent = tempOnly ? `+${tempGained} temp HP`
-        : healed ? `+${-taken} HP` : `−${taken} HP`;
+      amount.textContent = amounts.amountText;
       Object.assign(amount.style, {
         fontVariantNumeric: "tabular-nums", fontWeight: "bold",
-        color: (tempOnly || healed) ? "var(--dnd5e-color-blue, #3a7ca5)"
+        color: (amounts.tempOnly || amounts.healed) ? "var(--dnd5e-color-blue, #3a7ca5)"
           : "var(--dnd5e-color-maroon, #740b0b)"
       });
       sub.append(amount);
-      // A MIXED entry (damage or healing that also granted temp) keeps its own number and
-      // appends the temp rather than hiding one behind the other.
-      if ( (tempGained > 0) && !tempOnly ) {
+      if ( amounts.tempExtraText ) {
         const extra = document.createElement("span");
-        extra.textContent = ` · +${tempGained} temp`;
+        extra.textContent = amounts.tempExtraText;
         Object.assign(extra.style, {
           fontVariantNumeric: "tabular-nums", opacity: "0.85",
           color: "var(--dnd5e-color-blue, #3a7ca5)"
@@ -162,7 +136,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       if ( isGM ) {
         // The pool is the GM's book: it says the −14 landed on a creature already at 0.
         const pool = document.createElement("span");
-        pool.textContent = ` (${from} → ${from - lost})`;
+        pool.textContent = ` (${amounts.from} → ${amounts.after})`;
         Object.assign(pool.style, { fontVariantNumeric: "tabular-nums", opacity: "0.75" });
         sub.append(pool);
       }
@@ -262,16 +236,15 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 /**
- * Restore one receipt target to its pre-application HP snapshot. Idempotent and
- * reload-proof: state is re-read from the message flag at click time, never from the DOM,
- * and the reverted marker is written back to the flag (whose update re-renders the card on
- * every client). Deliberately NOT rewound: rolls, resources, ammo, concentration
- * (ARCHITECTURE.md §4) — re-applying to the right target is the native tray's job.
+ * Restore one receipt target to its pre-application HP snapshot. Reload-proof: state is
+ * re-read from the message flag at click time, never from the DOM, and the reverted marker is
+ * written back to the flag (whose update re-renders the card on every client). What the revert
+ * owes — and what it deliberately leaves alone — is decide/receipt.js's `revertPlan`.
  */
 export async function revertTarget(message, uuid) {
   const receipt = foundry.utils.deepClone(message.getFlag(MODULE_ID, "receipt") ?? {});
-  const entry = receipt.targets?.find(t => t.uuid === uuid);
-  if ( !entry || entry.reverted ) return;
+  const plan = revertPlan(receipt, uuid);
+  if ( !plan ) return;
 
   const actor = await fromUuid(uuid);
   if ( !(actor instanceof Actor) ) {
@@ -279,19 +252,13 @@ export async function revertTarget(message, uuid) {
     return;
   }
 
-  await actor.update({
-    "system.attributes.hp.value": entry.prior.value,
-    "system.attributes.hp.temp": entry.prior.temp,
-    "system.attributes.hp.tempmax": entry.prior.tempmax
-  });
+  await actor.update(plan.update);
 
-  // Interaction contract with combatplus (ARCHITECTURE.md §7): a revert that raises the target
-  // back above 0 also clears the defeated mark + dead overlay its auto-defeated set at 0.
-  // combatplus's own heal-up handler usually beats us to it; this covers the table where
-  // that feature is off at revert time, and no-ops when everything is already clean.
-  if ( (entry.prior.value ?? 0) > 0 ) await clearDefeated(actor);
+  // combatplus's own heal-up handler usually beats us to the defeated mark; this covers the
+  // table where that feature is off at revert time, and no-ops when everything is clean.
+  if ( plan.clearDefeated ) await clearDefeated(actor);
 
-  entry.reverted = true;
+  plan.entry.reverted = true;
   await message.setFlag(MODULE_ID, "receipt", receipt);
 }
 

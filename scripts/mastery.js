@@ -3,6 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
+import { joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { hitTargets, modeAllows } from "./shared.js";
 import { inRunningCombat, canAnswerFor } from "./hold.js";
 import { livePopups, popupKey, openMomentPopup, bfCard, holdBarHTML, momentBarHTML,
@@ -10,7 +11,7 @@ import { livePopups, popupKey, openMomentPopup, bfCard, holdBarHTML, momentBarHT
   armAskTimer, disarmAskTimer, armDeadline, disarmDeadline, ruleLine } from "./ui.js";
 import { forceStatus } from "./shared.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
-import { messageActivity, joinEffectReceipt } from "./effect-riders.js";
+import { messageActivity } from "./effect-riders.js";
 import { dramaticVerdictPause } from "./concentration.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -93,14 +94,14 @@ function masteryContext(attackMessage) {
 
 /**
  * What this target actually TOOK from the damage roll — the Vex/Slow gate ("hit AND dealt
- * damage"). The receipt's post-trait `taken` is the truth when auto-apply ran; without a
- * receipt the roll total is the best available approximation (a target-specific immunity is
- * invisible then, and that is accepted — the alternative is recomputing traits by hand).
+ * damage"). The receipt is the truth when auto-apply ran (decide/receipt.js reads the entry);
+ * WITHOUT a receipt the roll total is the best available approximation — a target-specific
+ * immunity is invisible then, and that is accepted, the alternative being recomputing traits
+ * by hand.
  */
 function dealtFor(damageMessage, uuid) {
   const entry = damageMessage?.getFlag(MODULE_ID, "receipt")?.targets?.find(t => t.uuid === uuid);
-  if ( entry ) return (typeof entry.taken === "number") ? entry.taken
-    : -((entry.delta?.value ?? 0) + (entry.delta?.temp ?? 0));
+  if ( entry ) return takenOf(entry);
   return damageMessage?.rolls?.reduce((n, r) => n + r.total, 0) ?? 0;
 }
 
