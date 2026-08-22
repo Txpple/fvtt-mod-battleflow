@@ -4,6 +4,7 @@
  */
 import { TITLE, S, setting } from "./core.js";
 import { parseIdentifierList, parseUpgradeList } from "./decide/registry.js";
+import { riderKey } from "./decide/eligible.js";
 import { hitTargets } from "./shared.js";
 import { bfCard } from "./ui.js";
 
@@ -144,8 +145,7 @@ function ridersAgainst(attacker, targetActor) {
     // A feature the ATTACKER owns can replace the mark's damage outright — Foe Slayer's d10 for
     // Hunter's Mark's d6. It replaces, never stacks: the source is swapped, not appended.
     const source = riderUpgrade(identifier, attacker) ?? src.item;
-    for ( const part of riderParts(source) )
-      found.set(`${identifier}:${part.formula}:${part.type}`, part);
+    for ( const part of riderParts(source) ) found.set(riderKey(identifier, part), part);
   }
   return found;
 }

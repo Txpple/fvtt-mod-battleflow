@@ -5,6 +5,7 @@
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
 import { tokensInTemplates } from "./geometry.js";
 import { saveMultiplier, verdictText, saveOutcome } from "./decide/verdict.js";
+import { isDeadForSaves } from "./decide/eligible.js";
 import { forceStatus } from "./shared.js";
 import { canAnswerFor, inRunningCombat } from "./hold.js";
 import { livePopups, popupKey, openMomentPopup, bfCard, holdBarHTML, momentBarHTML,
@@ -87,17 +88,13 @@ import { offerSaveDamageRoll, rollDamageForSave } from "./auto-damage.js";
  * damage is real and so are the death-save failures), while a downed PC's mastery chips are
  * still noise. Two predicates, two stakes; the divergence is the point, not drift.
  */
-function deadForSaves(actor) {
-  if ( actor.statuses?.has?.("dead") ) return true;
-  return (actor.type === "npc") && ((actor.system.attributes?.hp?.value ?? 0) <= 0);
-}
 
 /** Stamp-time filter: an unresolvable uuid stays IN (the buzzer voids gone targets — never
  * eat a demand on a lookup miss); a dead one stays out. */
 function saveDemandable(t) {
   const actor = (() => { try { return fromUuidSync(t.uuid); } catch { return null; } })();
   if ( !(actor instanceof Actor) ) return true;
-  return !deadForSaves(actor);
+  return !isDeadForSaves(actor);
 }
 
 Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {

@@ -4,6 +4,7 @@
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
 import { parseInterruptList, parseBlockList } from "./decide/registry.js";
+import { limitedUses, isReactionItem } from "./decide/eligible.js";
 // ⚠ Bare on purpose since (gg) retired the post-answer roll (the continuation releases the
 // claim instead): the import itself still pins auto-damage.js's evaluation — and with it every
 // hook registration order check-hook-order asserts — exactly where the §9 entry graph has it.
@@ -50,17 +51,6 @@ export function blockEntries() {
  * caster level most statblocks never set. Activity-level pools count too: an activity carries
  * its own uses independently of the item's.
  */
-function limitedUses(item) {
-  const pools = [item.system?.uses, ...(item.system?.activities?.contents ?? []).map(a => a.uses)];
-  let pooled = false;
-  for ( const pool of pools ) {
-    const max = Number(pool?.max);      // "" for an unlimited item — Number("") is 0, not NaN
-    if ( !Number.isFinite(max) || (max <= 0) ) continue;
-    pooled = true;
-    if ( Number(pool?.value) > 0 ) return "available";
-  }
-  return pooled ? "spent" : "none";
-}
 
 /** Is a slot of at least `level` available (including pact magic)? */
 function hasSpellSlot(actor, level) {
@@ -92,11 +82,6 @@ function hasSpellSlot(actor, level) {
  * activation only when `activation.override` is true, and spells keep their casting time at
  * item level — so an activities-only test finds ZERO reaction spells, Shield included.
  */
-function isReactionItem(item) {
-  if ( item?.system?.activation?.type === "reaction" ) return true;
-  return (item?.system?.activities?.contents ?? []).some(activity =>
-    activity.activation?.override && (activity.activation?.type === "reaction"));
-}
 
 /**
  * The item that actually IS this reaction on this actor — for every question asked ABOUT a

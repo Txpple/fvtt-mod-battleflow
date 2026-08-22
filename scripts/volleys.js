@@ -50,6 +50,7 @@
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, deadlineIsLive } from "./core.js";
 import { modeAllows } from "./shared.js";
 import { volleyEntryFor, resolveVolleyCount } from "./volley-registry.js";
+import { castLevelOf, clampVolleyCount } from "./decide/eligible.js";
 import { livePopups, popupKey, openManagedPopup, bfCard, momentBarHTML,
   armDeadline, disarmDeadline } from "./ui.js";
 
@@ -58,22 +59,6 @@ const volleyTimers = new Map();
 /* ---------------------------------------------------------------------------------------------
  * Detection
  * ------------------------------------------------------------------------------------------- */
-
-/**
- * The level this use was cast at, from the usage config. TWO channels, take the higher:
- * the chosen slot, and base + scaling — _prepareUsageConfig defaults `spell.slot` to the
- * BASE key even when scaling was passed bare, so neither channel alone answers both
- * shapes. ⚠ At POST-use, prefer the message's own `system.spellLevel` over this (the
- * stamp does): measured 2026-08-21, the system RE-RESOLVES scaling during consume and a
- * bare `use({scaling})` reaches postUse with scaling 0 — the message field is the one
- * value the system itself stands behind (polish.js's castPayload reads the same field).
- */
-function castLevelOf(activity, usageConfig) {
-  const base = activity.item?.system?.level ?? 0;
-  const scaling = Number(usageConfig?.scaling) || 0;
-  const m = /^spell(\d+)$/.exec(String(usageConfig?.spell?.slot ?? ""));
-  return Math.max(m ? Number(m[1]) : 0, base + scaling);
-}
 
 /**
  * Is this use a volley? Null when it is not — and every `null` here means the fully native
@@ -92,9 +77,9 @@ function volleySpec(activity, usageConfig, targetCount, { castLevel } = {}) {
   if ( !modeAllows(activity.actor) ) return null;   // the folds ride the resolver
   if ( !(targetCount > 0) ) return null;
   const level = castLevel ?? castLevelOf(activity, usageConfig);
-  let n = resolveVolleyCount(entry, activity, level);
-  if ( entry.distinctTargets ) n = Math.min(n, targetCount);
-  if ( n < 2 ) return null;
+  const n = clampVolleyCount(resolveVolleyCount(entry, activity, level), targetCount,
+    entry.distinctTargets);
+  if ( n === null ) return null;
   return { n, castLevel: level, distinct: !!entry.distinctTargets };
 }
 
