@@ -20,10 +20,10 @@ it a shape it already almost has, and to make the shape checkable.
 | Metric | Start | Now | Target |
 | --- | --- | --- | --- |
 | Docs | 5,990 lines / 6 files | **1,060 / 4** ✅ | done |
-| Source | 9,845 lines / 20 files | 10,328 / **26** | ~9,000 / ~26 files (thinner files, more of them) |
+| Source | 9,845 lines / 20 files | 10,398 / **27** | ~9,000 / ~26 files (thinner files, more of them) |
 | Tools | 14,409 lines / 63 files | **~9,600 / 25** ✅ | ~7,000 / ~25 files |
-| Static checks | 1 (hook order) | **5** ✅ (lint, dead-code, hook order, registry integrity, doc attachment) | + type check |
-| Unit tests | 0 | **148, ~270 ms** ✅ | ~150 assertions, < 2 seconds, no Foundry |
+| Static checks | 1 (hook order) | **6** ✅ (lint, dead-code, **import integrity**, hook order, registry integrity, doc attachment) | + type check |
+| Unit tests | 0 | **170, ~270 ms** ✅ | ~150 assertions, < 2 seconds, no Foundry |
 | Lint findings | (unmeasured) | 0 errors / 98 warnings | 0 / 0 |
 | Live suites | 11 suites, ~8,500 lines, minutes each, run one at a time | unchanged | ~4,000 lines, section-filterable, disposable world |
 
@@ -65,7 +65,8 @@ So: tooling that reads the source without changing what ships.
 ### 0.2 The verify gate
 
 ```
-npm run verify   =   biome check  →  knip  →  hook-order  →  registry-integrity  →  vitest
+npm run verify   =   biome check  →  knip  →  imports  →  hook-order  →  registry-integrity
+                     →  comments  →  vitest
 ```
 
 All of it offline, all of it in seconds. This is what runs before a commit and before a
@@ -75,6 +76,18 @@ release. The live suites are **not** in it (§5).
 - [x] **New: registry integrity check** (`tools/check-registry.mjs`, 9 assertions) — every key in `S` is registered; every registered
       setting is in `S`; every registry entry has a known `kind`; every list-setting default
       parses clean. Today a typo in a default list is discovered at the table.
+- [x] **New: import integrity check** (`tools/check-imports.mjs`) — every relative import
+      points at a file that exists, every named binding is something that file exports, and
+      **dynamic imports count**, since `const {x} = await import(...)` is this module's
+      lazy-import idiom. Added because the formatter extraction broke two files and the entire
+      gate passed: a name the target no longer exports is *declared* (it is right there in the
+      import statement), so no linter objects — it resolves to `undefined` at load and throws
+      "x is not a function" inside a hook handler. Biome's `noUndeclaredVariables` was turned on
+      at the same time for the sibling case (a call with no binding at all); it reports zero
+      findings, because biome.json already declares the Foundry globals.
+      ⚠ A type checker would catch both, but `checkJs` is deliberately off (a 10,000-line
+      untyped codebase adopting JSDoc file by file), so `npm run typecheck` passes trivially
+      and is not in the gate. This is the slice of that value available today.
 
 ### 0.3 Release hygiene
 
@@ -192,13 +205,29 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
       there is one now. ⚠ The `aggregateDamageRolls(...).map(...)` block is copied **verbatim
       in four files** (auto-apply, cast, hold, saves) — damage-part normalisation rather than
       receipt arithmetic, so it was left standing. It wants an EDGE helper, not a decide one.
-- [ ] **Presentation formatters** (`momentBarHTML`, `popupKey`, `bfCard`, rule-line dress,
-      the staircase slot allocator) → they are already nearly pure; make them fully so.
-- [ ] **The flag accessor layer** → `scripts/state/flags.js`. 220 raw reads and 51 raw writes
-      of string-literal flag names across 14 files, with the inventory living only as a
-      documentation table. One accessor per flag makes the inventory *executable*, gives every
-      per-target write the serializer for free (D3), and makes the uuid-key trap
-      structurally impossible.
+- [x] **Presentation formatters** (`momentBarHTML`, `popupKey`, `bfCard`, rule-line dress,
+      the staircase slot allocator) → `scripts/decide/present.js`. They were already pure; what
+      needed deciding was the LINE. ui.js keeps everything touching a dialog, an element or a
+      clock — `syncHoldBars` (the bar's DOM half), the popper discipline, the shown-latch
+      registry, `momentButton`, the clocks. The staircase split the same way: arithmetic down,
+      lifecycle up. ⚠ This stage caused two live regressions and the whole static gate missed
+      both; the gate grew two checks in response (see Phase 0.2).
+- [ ] **The flag accessor layer** → `scripts/state/flags.js`. ⚠ **RE-MEASURED 2026-08-22, and
+      the bullet understates it: 38 distinct flag keys, ~230 reads, ~66 writes across 14 files
+      — roughly 300 call sites.** That is an order of magnitude more churn than any stage so
+      far, and its two halves have very different value:
+      - the **reads** (~230) are pure tidiness — mechanical, wide, and now gate-checked, but
+        they buy nothing a test can assert;
+      - the **writes** are the correctness half and the D3 argument. The genuine defect is the
+        per-target read-modify-write: [hold.js:537](scripts/hold.js:537) (the answer fold,
+        clone → mutate one target → set, with a second handler able to clone the same stale
+        copy first), [hold.js:521](scripts/hold.js:521) (the effectReceipt merge), and the
+        `topple`/`mastery`/`concentration` equivalents. Those want `queueFlagWrite`, exactly as
+        saves.js got in the correctness pass — and that is a small, targeted change that does
+        not need the accessor layer at all.
+      **Scope this with the user before starting.** An inventory module that nothing imports is
+      dead code by knip's reckoning, so "write the inventory now, adopt later" is not available:
+      the layer has to arrive with its call sites or not at all.
 
 **Rule for the whole phase:** each extraction is *move, do not rewrite*. Same logic, new
 address, plus the tests that prove it did not change.

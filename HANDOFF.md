@@ -10,13 +10,13 @@
 
 | | |
 | --- | --- |
-| **Do first** | ⚠ **One commit is AHEAD OF ORIGIN and not pushed** — `04304b5`, Phase 2 stage 5, gate-green and battery-green. Push it (or say why not) before anything else. Then **start at the NEXT section below** — presentation formatters. The structural untangle was deliberately not started; the user drew the line there. |
-| Repo | `main` @ `04304b5`, clean tree, **ahead of origin by 1**. The 2026-08-22 session, in order: correctness pass (`a2557ea` fix+test, `853f1a6` docs, `e316468` battery record, `fef05c7` doc fixes) · Phase 2 stages 1–4 (`c30f2a8` geometry, `11bca56` parsers, `c53500a` verdicts, `063c905` eligibility) · `c0d23f3` docs · `cf61afb` the eight orphaned doc comments + `check-comments.mjs` · `7a185d4` handoff · **`04304b5` stage 5, the receipt arithmetic**. |
+| **Do first** | 📋 **Nothing is open; everything is pushed.** Phase 2 stages 1-6 are done, each battery-green. **The next item needs SCOPING WITH THE USER, not starting** — the flag accessor layer is ~300 call sites and its two halves have very different value (PLAN.md Phase 2 has the measurement). Items 4 and 5 below were also parked for discussion. |
+| Repo | `main` @ `1c0618b`, clean tree, **pushed**. The 2026-08-22 session, in order: correctness pass (`a2557ea` fix+test, `853f1a6` docs, `e316468` battery record, `fef05c7` doc fixes) · Phase 2 stages 1–4 (`c30f2a8` geometry, `11bca56` parsers, `c53500a` verdicts, `063c905` eligibility) · `c0d23f3` docs · `cf61afb` the eight orphaned doc comments + `check-comments.mjs` · `7a185d4` handoff · **`04304b5` stage 5 (receipt arithmetic), `b5f7015` docs, `8541a8e` stage 6 (presentation formatters), `1c0618b` the gate's two new import checks**. |
 | Release | ✅ **v1.20.0 released, tagged, public.** Prod registers it; `BF_TARGET=prod verify-settings` CLEAN. |
 | Walk | ✅ **v1.20.0 walk CLOSED** — fifteen items + T1–T5. Zero open findings from the table. |
 | Sandbox | ⚠ **HEADLESS, and LEFT RUNNING** at the end of 2026-08-22 (world active, 0 users, restarted mid-session for the stage-5 battery) — `status` first, `stop` if not testing. `node <mcp>/scripts/local-foundry.mjs start/stop/status/restart`. Never the Electron app for suites — the two cannot coexist (dataPath lock). **Verify status at session start; it may have been left up.** |
 | Bridge | Disconnect before any suite. Suites join as `Tester Assistant`. |
-| Verify gate | `npm run verify` — biome (98 warnings, 0 errors: **that is the baseline**), knip, hook order (**75 registrations**, 9 pairs), registry 9/9, comments (**280 blocks / 26 files**), vitest **148**. Green at handoff. |
+| Verify gate | `npm run verify` — **SIX static checks now**: biome (98 warnings, 0 errors: **that is the baseline**), knip, **imports (239 bindings)**, hook order (**75 registrations**, 9 pairs), registry 9/9, comments (**285 blocks / 27 files**), then vitest **170**. Green at handoff. |
 | Suite order | ⚠ **battleflow → hold**, and **battleflow → playerdmg**, back to back. Other suites in between strip the fixture tokens and hold refuses. `reset-fixture-state` before effects. |
 
 ---
@@ -28,14 +28,13 @@
 headless** (the script-cache discipline: a redeploy without a version bump serves the suites
 stale code) → run the affected suites → one commit per stage.
 
-Finish Phase 2 before touching Phase 4. The extraction pattern is proven (**five stages, five
-green batteries**) and the last item actively **de-risks** the structural work.
+Phase 2's cheap extractions are **done** (**six stages, six green batteries**). Everything left
+is a scoping decision rather than a next step — take none of it without the user.
 
 | # | Work | Why this position |
 | --- | --- | --- |
-| 1 | **Presentation formatters** | Already nearly pure. Cheap. ⚠ Stage 5 took the receipt row's *words* with its arithmetic (the three amount voices), so that part is done — what is left is `momentBarHTML`, `popupKey`, `bfCard`, the rule-line dress and the staircase slot allocator. |
-| 2 | **The flag accessor layer** → `state/flags.js` | 220 raw reads / 51 raw writes of string-literal flag names across 14 files. **Finishes D3 for free** — hold/mastery/concentration still bypass the serializer entirely (only saves.js was done) — and removes hundreds of literals that would otherwise have to move during the untangle. |
-| 3 | **The structural step** — D1, then D6's three real cycles, then the relay | D1 is the root: six files import shared services from a feature file. ⚠ Stage 5 already took **one** of those services out (`joinEffectReceipt`, which was pure and lived in effect-riders.js) — re-measure D1's real surface before scoping, the published list is now stale in your favour. Scope with the user first: this one changes shape, not address. |
+| 1 | **The flag accessor layer** → `state/flags.js` | ⚠ **Re-measured: 38 keys, ~230 reads, ~66 writes, ~300 call sites** — an order of magnitude more churn than any stage so far, and PLAN.md's bullet undersells it. Split it: the **writes** carry the whole D3 correctness argument and are a small targeted change ([hold.js:537](scripts/hold.js:537) the answer fold, [hold.js:521](scripts/hold.js:521) the receipt merge, and topple/mastery/concentration's equivalents — all wanting `queueFlagWrite`, exactly as saves.js got); the **reads** are wide, mechanical tidiness. ⚠ "Inventory now, adopt later" is NOT available — an unimported module in `scripts/` is dead code to knip. |
+| 2 | **The structural step** — D1, then D6's three real cycles, then the relay | D1 is the root: six files import shared services from a feature file. ⚠ **Measured 2026-08-22: the free moves are EXHAUSTED.** `joinEffectReceipt` was the last pure shared service in a feature file (stage 5 took it). Everything else D1 names — `canAnswerFor`, `inRunningCombat`, `reactionItem`, `interruptEntries`, `blockEntries` — reads `game`, reads a setting, awaits `fromUuid` or walks documents, so **none of it can drop into `decide/`**. D1 is genuinely structural, not a series of cheap extractions. |
 
 ⚠ **D2 stays LAST and behind its own walk**, and its clock must not be unified at all (see the
 §10 corrections below).
@@ -60,11 +59,21 @@ to test whether a seam is right, never as a reason to build one.
 
 ---
 
-## 📦 Phase 2, stages 1–5 — ✅ DONE 2026-08-22, all five battery-green
+## 📦 Phase 2, stages 1–6 — ✅ DONE 2026-08-22, all six battery-green
 
 `c30f2a8` geometry · `11bca56` parsers · `c53500a` verdicts · `063c905` eligibility ·
-`04304b5` receipt arithmetic. Every stage: move-don't-rewrite, unit tests added, static gate
-+ live battery, own commit. **Unit tests 13 → 148**, still under 300ms with no Foundry.
+`04304b5` receipt arithmetic · `8541a8e` presentation formatters. Every stage:
+move-don't-rewrite, unit tests added, static gate + live battery, own commit.
+**Unit tests 13 → 170**, still under 300ms with no Foundry.
+
+⚠ **STAGE 6 IS THE CAUTIONARY ONE — read it before the next move.** It broke two files and
+**the entire static gate passed both times**, costing a deploy + restart + suite run each:
+ui.js kept CALLING `bfCard`/`popupKey`/`holdBarHTML` after they moved out (smoke-hold: *"the
+hold popup rendered no Cast button"*), and auto-damage.js kept IMPORTING `popupKey` from ui.js
+through the lazy `const {…} = await import()` idiom after ui.js stopped exporting it
+(playerdmg: *"popupKey is not a function"*). The gate now covers both (`1c0618b`) — but the
+lesson generalises past the fix: **moving a name between files is exactly as dangerous as
+changing it, and this codebase's fire-and-forget hook handlers swallow the evidence.**
 
 **Stage 5's battery (2026-08-22, after deploy `--local` 27/27 byte-identical + headless
 restart), every suite at or above baseline:** battleflow ALL PASS ×5 · hold ALL PASS ×2 ·
@@ -77,7 +86,16 @@ battleflow → hold → battleflow repro, nor in four other runs. Shape matches 
 class NOTES §5 documents. If it recurs, capture the full output *first*; that is the whole
 lesson from this one.
 
-**`scripts/decide/` has ZERO imports** across all five modules — not core.js, not a machine,
+**Stage 6's battery (2026-08-22, after the fix, deploy + restart):** battleflow ALL PASS ×3 ·
+hold ALL PASS · saves 61/61 · volleys 39/39 · maneuvers 54/54 · cast 17/17 · riders 8/8 ·
+concentration 47/47 · effects 54/54 · resources 18/18 · playerdmg 12/12 · savedmg 13/13.
+⚠ `verify-settings` found **FOUR drifted** (autoApply, reactionHold, riders, masteryRiders all
+false) and `--fix` restored them. That is the laundering NOTES §5 documents, seen for real: the
+hold suite **crashed with its pins in place**, and a later green run snapshotted those pins as
+the "prior" it faithfully restored. Only the external reference table can catch it. **Run it
+after every battery, and especially after any crashed run.**
+
+**`scripts/decide/` has ZERO imports** across all six modules — not core.js, not a machine,
 not the spine. The layer is dependency-free by construction, which is what makes it testable
 in milliseconds and impossible to tangle. **Keep it that way**: the day something in there
 needs `game` or `canvas`, it is EDGE and belongs one layer up (§2 rule 1).
@@ -89,6 +107,7 @@ needs `game` or `canvas`, it is EDGE and belongs one layer up (§2 rule 1).
 | [decide/verdict.js](scripts/decide/verdict.js) | `hitsAmong`, `modeAdmits`, `saveOutcome`, `saveMultiplier`, `verdictText` |
 | [decide/eligible.js](scripts/decide/eligible.js) | `isDeadForSaves`, `limitedUses`, `isReactionItem`, `castLevelOf`, `clampVolleyCount`, `riderKey` |
 | [decide/receipt.js](scripts/decide/receipt.js) | `traitOutcome`, `traitReasons`, `hpDelta`, `receiptEntry`, `joinDamageReceipt`, `joinEffectReceipt`, `takenOf`, `receiptAmounts`, `traitPhrase`, `revertPlan`, `revertableEffect` |
+| [decide/present.js](scripts/decide/present.js) | `popupKey`, `TONE`, `bfCard`, `ruleLine`, `momentBarHTML`, `holdBarHTML`, `CASCADE_STEP`, `nextCascadeSlot`, `cascadePosition`, `eldersDeepestFirst` |
 | [geometry.js](scripts/geometry.js) | EDGE: `tokensInTemplates`, `templateShape` (needs canvas/CONFIG/PIXI) |
 
 **Two things learned that the next stage should carry:**
@@ -128,9 +147,21 @@ needs `game` or `canvas`, it is EDGE and belongs one layer up (§2 rule 1).
   Only the colours stayed at the EDGE. **The next stage should not "tidy" those strings back
   into the view.**
 
-**Not started, and the remaining Phase 2 list:** presentation formatters (minus the receipt
-row's own words, which stage 5 took), and the flag accessor layer (which would give the rest
-of D3 for free).
+## 🔁 The duplicate census — measured 2026-08-22, NOT acted on
+
+A cross-file scan for repeated code (3+ identical normalised lines) after stage 5. **Four
+clusters, 19 repeated windows, and none of them is a decide-layer extraction** — recorded so
+the next reader inherits the measurement rather than the hunch.
+
+| Copies | What | Where | Verdict |
+| --- | --- | --- | --- |
+| **×3** | The roll-override builder — mode → adv/dis options, bonus string → `parts`, `Roll.validate` + warn | [concentration.js:202](scripts/concentration.js:202), [mastery.js:383](scripts/mastery.js:383), [saves.js:514](scripts/saves.js:514) | ⚠ **Byte-identical, not yet drifted — the pre-drift state.** Nine lines, three machines, each about to be edited independently. EDGE (it touches `Roll` and `ui.notifications`), so it wants a **MOMENT/spine** helper, not a decide module. The best of these four. |
+| **×4** | `aggregateDamageRolls(rolls, {respectProperties:true}).map(...)` | [auto-apply.js:91](scripts/auto-apply.js:91), [cast.js:74](scripts/cast.js:74), [hold.js:938](scripts/hold.js:938), [saves.js:1078](scripts/saves.js:1078) | Damage-part normalisation. The aggregate call is EDGE, so this is a `shared.js` helper. Most-copied block in the tree. |
+| **×2** | The owner election — active non-GM owners, sorted by id, else `activeGM` | [concentration.js:166](scripts/concentration.js:166), [saves.js:1278](scripts/saves.js:1278) | Routing, reads `game.users`. EDGE. |
+| **×2** | The advantage/normal/disadvantage dialog button rows | [concentration.js:619](scripts/concentration.js:619), [saves.js:1588](scripts/saves.js:1588) | Presentation, but built around live callbacks — not a string formatter, so stage 6 did not take it. |
+
+**Not started, and the remaining Phase 2 list:** only the flag accessor layer — see the NEXT
+table, and scope it before starting.
 
 ---
 
