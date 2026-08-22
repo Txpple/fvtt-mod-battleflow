@@ -3,6 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { TITLE, S, setting } from "./core.js";
+import { parseIdentifierList, parseUpgradeList } from "./decide/registry.js";
 import { hitTargets } from "./shared.js";
 import { bfCard } from "./ui.js";
 
@@ -43,7 +44,7 @@ import { bfCard } from "./ui.js";
 
 /** Which marks pay, by system identifier. What they pay is read from the mark itself. */
 function riderIdentifiers() {
-  return String(setting(S.riderList) ?? "").split(",").map(s => s.trim()).filter(Boolean);
+  return parseIdentifierList(setting(S.riderList));
 }
 
 /**
@@ -53,9 +54,8 @@ function riderIdentifiers() {
  * feature exactly as the original is read from the spell. Nothing here knows about dice sizes.
  */
 function riderUpgrade(identifier, attacker) {
-  for ( const chunk of String(setting(S.riderUpgrades) ?? "").split(",") ) {
-    const [feature, rider] = chunk.split(":").map(s => s?.trim());
-    if ( !feature || (rider !== identifier) ) continue;
+  for ( const { feature, rider } of parseUpgradeList(setting(S.riderUpgrades)) ) {
+    if ( rider !== identifier ) continue;
     const owned = attacker.items.find(i => i.system?.identifier === feature);
     if ( owned ) return owned;
   }

@@ -19,6 +19,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { MANEUVER_KINDS, parseManeuverFolds } from "../scripts/decide/registry.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = p => readFileSync(join(ROOT, p), "utf8");
@@ -76,10 +77,10 @@ if (entries.length && !failures.some(f => f.startsWith("volley entry"))) {
 // The strict-parse contract (ARCHITECTURE.md §6): `Name:kind` pairs, comma separated, unknown
 // kinds DROPPED WITH A WARNING and never defaulted. A default that does not survive its own
 // parser ships a feature that silently does nothing.
-const MANEUVER_KINDS = new Set(
-  [...read("scripts/maneuvers.js").matchAll(/MANEUVER_KINDS\s*=\s*new Set\(\[([^\]]*)\]/g)]
-    .flatMap(m => [...m[1].matchAll(/"(\w+)"/g)].map(x => x[1]))
-);
+// ✅ The REAL parser, imported (PLAN.md Phase 2 stage 2). This block used to regex the kind
+// set out of maneuvers.js and re-implement the parse below with a lookalike — so the check
+// could agree with itself while disagreeing with the shipping code. decide/registry.js is
+// pure, so it imports with no Foundry at all and the lookalike is gone.
 
 // ⚠ Reading defaults out of source is a heuristic, and a fragile one — the register blocks
 // carry long hints and multi-line `"a" + "b"` concatenations. It is the price of a check that
@@ -109,17 +110,15 @@ const defaultOf = key => {
   return parts.length ? parts.join("") : null;
 };
 
-const kindedLists = [{ key: "maneuverFolds", kinds: MANEUVER_KINDS }];
-for (const { key, kinds } of kindedLists) {
-  const raw = defaultOf(key);
-  if (raw === null) { fail(`default for ${key}`, "not found in settings.js"); continue; }
-  if (!kinds.size) { fail(`kind set for ${key}`, "parsed empty — did the shape change?"); continue; }
-  const bad = raw.split(",").map(s => s.trim()).filter(Boolean)
-    .map(chunk => chunk.split(":").map(s => s?.trim()))
-    .filter(([name, kind]) => !name || !kinds.has(String(kind).toLowerCase()))
-    .map(p => p.join(":"));
-  if (bad.length) fail(`default for ${key}`, `entries its own parser drops: ${bad.join(" | ")}`);
-  else pass(`default for ${key} parses clean (${raw.split(",").length} entries)`);
+if (!MANEUVER_KINDS.size) fail("kind set for maneuverFolds", "parsed empty — did the shape change?");
+else {
+  const raw = defaultOf("maneuverFolds");
+  if (raw === null) fail("default for maneuverFolds", "not found in settings.js");
+  else {
+    const { entries, unknown } = parseManeuverFolds(raw);
+    if (unknown.length) fail("default for maneuverFolds", `entries its own parser drops: ${unknown.join(" | ")}`);
+    else pass(`default for maneuverFolds parses clean (${entries.length} entries)`);
+  }
 }
 
 // Plain `Name:value` lists have their own shapes; assert only that they are non-empty and

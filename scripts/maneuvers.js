@@ -4,6 +4,7 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
+import { parseManeuverFolds } from "./decide/registry.js";
 import { hitTargets, modeAllows } from "./shared.js";
 import { canAnswerFor, inRunningCombat } from "./hold.js";
 import { livePopups, popupKey, openMomentPopup, bfCard, holdBarHTML, momentBarHTML,
@@ -71,7 +72,7 @@ import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 
 /* --- the list: strict parse, the list is the switch ---------------------------------------- */
 
-const MANEUVER_KINDS = new Set(["precision", "riposte", "interpose", "bash", "hew"]);
+
 
 /** Walk-5 (z): the rule line every popup quotes — the 2024 text VERBATIM, read off this
  * world's own PHB compendium items 2026-08-21 (punctuation included; the source mixes curly
@@ -88,21 +89,16 @@ export const RULE_TEXT = {
 };
 const warnedKinds = new Set();
 
+/** EDGE wrapper: read the setting, parse (decide/registry.js), own the warn-once bookkeeping
+ * the parser deliberately does not do. */
 export function maneuverEntries() {
-  return String(setting(S.maneuverFolds) ?? "")
-    .split(",").map(s => s.trim()).filter(Boolean)
-    .map(chunk => {
-      const [name, kind] = chunk.split(":").map(s => s?.trim());
-      if ( !name || !MANEUVER_KINDS.has(kind?.toLowerCase()) ) {
-        if ( !warnedKinds.has(chunk) ) {
-          warnedKinds.add(chunk);
-          console.warn(`${TITLE} | Maneuver Folds: "${chunk}" has no recognised kind (precision/riposte/interpose/bash/hew) — ignored, never guessed.`);
-        }
-        return null;
-      }
-      return { name, kind: kind.toLowerCase() };
-    })
-    .filter(Boolean);
+  const { entries, unknown } = parseManeuverFolds(setting(S.maneuverFolds));
+  for ( const chunk of unknown ) {
+    if ( warnedKinds.has(chunk) ) continue;
+    warnedKinds.add(chunk);
+    console.warn(`${TITLE} | Maneuver Folds: "${chunk}" has no recognised kind (precision/riposte/interpose/bash/hew) — ignored, never guessed.`);
+  }
+  return entries;
 }
 
 /**

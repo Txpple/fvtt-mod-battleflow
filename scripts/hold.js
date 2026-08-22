@@ -3,6 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
+import { parseInterruptList, parseBlockList } from "./decide/registry.js";
 // ⚠ Bare on purpose since (gg) retired the post-answer roll (the continuation releases the
 // claim instead): the import itself still pins auto-damage.js's evaluation — and with it every
 // hook registration order check-hook-order asserts — exactly where the §9 entry graph has it.
@@ -26,13 +27,9 @@ import { applyEffectsTo, joinEffectReceipt } from "./effect-riders.js";
  * Pass message, the player's own cast, the GM's flag flip) need no coordination at all.
  * ------------------------------------------------------------------------------------------- */
 
-/** Parse the curated "Name:kind, Name:kind" world setting. Unknown kinds default to ac. */
+/** EDGE wrapper: read the world setting, hand the string to the parser (decide/registry.js). */
 export function interruptEntries() {
-  return String(setting(S.interruptList) ?? "").split(",").map(chunk => {
-    const [name, kind] = chunk.split(":").map(s => s?.trim());
-    if ( !name ) return null;
-    return { name, kind: (kind?.toLowerCase() === "damage") ? "damage" : "ac" };
-  }).filter(Boolean);
+  return parseInterruptList(setting(S.interruptList));
 }
 
 /**
@@ -41,11 +38,7 @@ export function interruptEntries() {
  * two lists having to agree about anything.
  */
 export function blockEntries() {
-  return String(setting(S.blockList) ?? "").split(",").map(chunk => {
-    const [spell, reaction] = chunk.split(":").map(s => s?.trim());
-    if ( !spell || !reaction ) return null;
-    return { spell, reaction };
-  }).filter(Boolean);
+  return parseBlockList(setting(S.blockList));
 }
 
 /**
