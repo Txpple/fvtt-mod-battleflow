@@ -1,13 +1,13 @@
 /**
  * Battle Flow — Phase 3 (cast slice): the elect executes a stamped cast payload - utility effects and healing, receipts throughout.
- * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
+ * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, isActiveGM } from "./core.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 
 /* ---------------------------------------------------------------------------------------------
- * Phase 3 (cast slice) — auto-apply on cast (design.md Phase 3, pulled ahead 2026-08-16).
+ * Phase 3 (cast slice) — auto-apply on cast (ARCHITECTURE.md §6, pulled ahead 2026-08-16).
  *
  * A used activity with no outcome gate resolves at cast, on the elect: a utility activity's
  * effects land on every snapshot target (Bless, Mark Creature / Move Mark, Heroism), and a

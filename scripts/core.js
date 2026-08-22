@@ -1,6 +1,6 @@
 /**
  * Battle Flow — The shared constants: module id, title, the setting-key map, the setting getter, and the single-writer elect test. A leaf — imports nothing.
- * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
+ * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 
 export const MODULE_ID = "fvtt-mod-battleflow";

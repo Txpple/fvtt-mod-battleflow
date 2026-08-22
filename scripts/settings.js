@@ -1,6 +1,6 @@
 /**
  * Battle Flow — Settings registration and the settings-sheet polish (dividers, dependent grey-out).
- * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
+ * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, S, setting } from "./core.js";
 
@@ -24,7 +24,7 @@ Hooks.once("init", () => {
   });
 
   // ⚠ A per-CLIENT setting, and a DELIBERATE reversal of "max options later, one switch
-  // now" — recorded as one in design.md's Per-client section. v1.9.5 DELETED `saveAutoRoll`,
+  // now" — recorded as one in DESIGN.md's Per-client section. v1.9.5 DELETED `saveAutoRoll`,
   // whose shape was "the POPUP is the default, the opt-out is silent auto-roll"; this is that
   // mirrored, and it exists because a player asked for their own dice back (FLOW item 3).
   // Default OFF for the reason centerRollDialogs records the other way round: a per-client
@@ -89,7 +89,7 @@ Hooks.once("init", () => {
 
   game.settings.register(MODULE_ID, S.interruptList, {
     name: "Interrupt Reactions",
-    hint: 'Which reactions pause the chain, as "Name:kind" separated by commas. kind is "ac" (raises AC — the hold re-tests the attack against the new AC, and crits skip the pause since a natural 20 hits regardless) or "damage" (reduces damage — the hold pauses and announces; the reduction itself stays a human call). Names must match the item on the actor. See REACTIONS.md for the full survey.',
+    hint: 'Which reactions pause the chain, as "Name:kind" separated by commas. kind is "ac" (raises AC — the hold re-tests the attack against the new AC, and crits skip the pause since a natural 20 hits regardless) or "damage" (reduces damage — the hold pauses and announces; the reduction itself stays a human call). Names must match the item on the actor. See ARCHITECTURE.md §6 for the full survey.',
     // ⚠ Riposte is deliberately ABSENT: it triggers on a MISS (the hold offers on hits) and it is
     // not an AC boost, so an entry here can only ever produce the every-hit nonsense hold that was
     // struck from the live worlds at v1.16.0. It lives in the Maneuver Folds list instead. This
@@ -118,7 +118,7 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.holdReveal, {
     name: "Hold Shows the Math",
     hint: "On (default): the attack total against their AC, and whether the reaction would actually turn it into a miss — so a player can tell whether spending the slot is worth it. Off (RAW): they are told only that they were hit, and react on faith. Both surfaces obey this one setting.",
-    // ⚠ Defaults ON, and design.md §5 carries the matching correction. It shipped OFF on the
+    // ⚠ Defaults ON, and ARCHITECTURE.md §6 carries the matching correction. It shipped OFF on the
     // RAW argument; the user overruled that from live play, because a reaction spends a real
     // resource and a table that cannot see whether the guess pays is not tense, just annoyed.
     scope: "world", config: true, type: Boolean, default: true

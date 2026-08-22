@@ -1,6 +1,6 @@
 /**
  * Battle Flow — Phase 1b: auto-apply damage on the active-GM elect, the shared receipt applier, and the payout pipeline (application, then effect riders, then mastery).
- * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
+ * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
 import { hitTargets, resolveAttackMessage } from "./shared.js";

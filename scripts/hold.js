@@ -1,6 +1,6 @@
 /**
  * Battle Flow — Phase 1.5: the reaction hold. Two entry points, one machine - eligibility, both triggers (attack and listed spell), answers, continuation, the veto, the no-attack damage applier's claim. Views live in ui.js.
- * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
+ * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
 import { hitTargets } from "./shared.js";
@@ -19,7 +19,7 @@ import { applyEffectsTo, joinEffectReceipt } from "./effect-riders.js";
  * Shield-class reactions trigger on "you are hit", BEFORE damage — and RAW the player knows
  * they were hit, not what the damage would be. Rolling damage instantly would make every
  * Shield decision perfectly informed and every fix a rewind. So the chain pauses here, and
- * a human answers. The module never plays the reaction; it only waits (design.md §8: reaction
+ * a human answers. The module never plays the reaction; it only waits (DESIGN.md §4: reaction
  * automation is a permanent non-goal).
  *
  * The hold lives in a flag on the attack message — the popup and the card row are both just
@@ -199,7 +199,7 @@ async function findInterrupt(actor, { isCritical }) {
     // ALREADY STANDING ⇒ DON'T ASK AGAIN (user call, the v1.15.0 walk's finding ⑥: "if they
     // have shield up, just dont prompt for shield"). Gren was re-prompted for Shield with his
     // +5 already active — a pause offering a choice that changes nothing, which is the false
-    // stop this gate exists to prevent (design.md §8: the GM/player click economy).
+    // stop this gate exists to prevent (DESIGN.md §4: the GM/player click economy).
     //
     // Narrow on purpose, twice over:
     //  - `ac` kind ONLY. An AC bonus does not stack, so a second cast is pure waste. A
@@ -208,7 +208,7 @@ async function findInterrupt(actor, { isCritical }) {
     //  - The attack trigger ONLY. This function is not on the spell/negate path, and that is
     //    deliberate: a standing Shield already grants "no damage from Magic Missile", so
     //    silently skipping the hold there would apply damage to someone immune to it. That
-    //    trigger keeps asking until it can auto-negate (not built; recorded in design.md).
+    //    trigger keeps asking until it can auto-negate (not built; recorded in DESIGN.md).
     if ( (entry.kind === "ac") && hasReactionEffect(actor, entry.name,
       { itemId: found.item.id, activityId: found.activity?.id }) ) continue;
     return { entry, ...found };
@@ -253,7 +253,7 @@ async function findCastActivity(actor, spellName) {
   return null;
 }
 
-/** Reaction-spent bookkeeping — the core click-volume guard (design.md §5). */
+/** Reaction-spent bookkeeping — the core click-volume guard (ARCHITECTURE.md §6). */
 const reactionSpent = actor => !!actor?.getFlag(MODULE_ID, "reactionSpent");
 
 // Any reaction an actor takes suppresses further holds for them until their next turn. The
@@ -372,7 +372,7 @@ function holdWouldMatter(actor, found, roll, snapshotAC) {
 }
 
 /* ---------------------------------------------------------------------------------------------
- * The SECOND trigger: a listed spell, not an attack (design.md §5 Phase 1.5).
+ * The SECOND trigger: a listed spell, not an attack (ARCHITECTURE.md §5).
  *
  * Shield's own text is "you have a +5 bonus to AC … and you take no damage from Magic Missile",
  * and the 2024 statblock condition says the same: "when you are hit by an attack roll or
@@ -516,7 +516,7 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
   target.answer = answer;
 
   // Players cannot update someone else's message, so a player's answer travels as their OWN
-  // message; the continuing client applies it to the hold (design.md §4.1 — clients
+  // message; the continuing client applies it to the hold (ARCHITECTURE.md §3 — clients
   // volunteer, they never command). "Gren passes" is good table record either way.
   const actor = await fromUuid(uuid);
   const ac = actor?.system?.attributes?.ac?.value ?? null;
@@ -914,7 +914,7 @@ async function continueSpellHold(message, hold) {
  * on whichever client is applying (applyDamage is local and ownership-gated), never GM-only —
  * the veto has to hold wherever the button was pressed.
  *
- * ⚠ Accepted gap (design.md §5): a GM who presses Apply while the hold is still PENDING beats
+ * ⚠ Accepted gap (ARCHITECTURE.md §6): a GM who presses Apply while the hold is still PENDING beats
  * the verdict and the damage lands, because there is no verdict yet to read. Vetoing pending
  * applications instead would be worse — a hold answered Pass would then need a second Apply
  * click that nobody would remember to make. The card reads "held — waiting on …" throughout.

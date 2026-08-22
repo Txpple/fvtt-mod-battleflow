@@ -1,6 +1,6 @@
 /**
  * Battle Flow — Shared helpers: the hit test and the chain walk.
- * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
+ * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting } from "./core.js";
 
@@ -14,7 +14,7 @@ import { MODULE_ID, TITLE, S, setting } from "./core.js";
  * A null AC (total cover, or a target with no AC data) is deliberately NOT auto-resolvable:
  * the system's targets tray classes those rows as hits (total < null is false), but the
  * outcome isn't determined by data we trust, so those targets are left to humans
- * (design.md §2.1) and the native tray.
+ * (DESIGN.md R1) and the native tray.
  */
 export function hitTargets(attackMessage) {
   const roll = attackMessage.rolls[0];
@@ -22,7 +22,7 @@ export function hitTargets(attackMessage) {
   const targets = attackMessage.getFlag("dnd5e", "targets") ?? [];
   // A resolved reaction hold's verdict OVERRIDES the snapshot: after a Shield the stored
   // descriptor's AC is stale, and auto-apply would otherwise damage a target the module
-  // already announced as missed (design.md §5 Phase 1.5, the stale-AC trap).
+  // already announced as missed (ARCHITECTURE.md §5, the stale-AC trap).
   const held = attackMessage.getFlag(MODULE_ID, "hold")?.targets ?? [];
   // The PRECISION fold's verdicts are the same channel with the arrow reversed (v1.19.0,
   // FLOW item 1a): a declared maneuver patches a miss into a hit after the fact, and every

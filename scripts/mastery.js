@@ -1,6 +1,6 @@
 /**
  * Battle Flow — Phase 1.9B/C: weapon mastery riders, the mastery ask, the topple fold and its popup, and the reminders.
- * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
+ * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
 import { hitTargets, modeAllows } from "./shared.js";
@@ -135,7 +135,7 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits) {
         await applyMasteryEffect(damageMessage ?? attackMessage, ctx, "sap", live);
         return postMasteryNotice(ctx, "sap", live);
       case "cleave": {
-        // A reminder, not a payout (design.md 1.9B amendment): the extra attack, its target
+        // A reminder, not a payout (ARCHITECTURE.md §6): the extra attack, its target
         // and its rolls stay native. Once per combat turn — the option is once per turn, so
         // is the nag; out of combat every hit reminds (the test range has no turns).
         if ( !struck.length ) return;
@@ -668,7 +668,7 @@ async function postMasteryNotice(ctx, key, targets) {
  * The reminder popup: an informational table moment — ONE control (OK) and a 15-second
  * auto-dismiss with the drain bar, because dismissal and expiry are the same non-event and
  * nothing downstream waits. Deliberately NOT a decision: the two-control rule governs
- * decisions, and a reminder has nothing to decide (design.md 1.9C amendment). Stale renders
+ * decisions, and a reminder has nothing to decide (ARCHITECTURE.md §6). Stale renders
  * never pop — the deadline gates the popup, while the card stays as the record.
  *
  * ⚠ CLEAVE IS THE RECORDED EXCEPTION since v1.19.0 (FLOW item 8): its popup IS a decision —
@@ -680,7 +680,7 @@ async function postMasteryNotice(ctx, key, targets) {
  */
 async function showMasteryNotice(message, notice) {
   const attacker = (() => { try { return fromUuidSync(notice.attackerUuid); } catch { return null; } })();
-  // THE ACK (design.md §4.3 law 2, finding (j)): ANY notice button resolves the card's
+  // THE ACK (ARCHITECTURE.md §5 law 3, finding (j)): ANY notice button resolves the card's
   // pending presentation — bar, recall, popup, all of it. Arm additionally arms (and the
   // "Cleave — armed" card the render block draws is gated on the arm, not the ack, so it
   // stays). Closing the popup with the X remains a non-event: the bar drains out.

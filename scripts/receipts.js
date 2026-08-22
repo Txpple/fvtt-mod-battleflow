@@ -1,6 +1,6 @@
 /**
  * Battle Flow — Receipts: the revert row on damage cards. Public facts, GM-only pools and controls.
- * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
+ * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE } from "./core.js";
 import { revertEffect } from "./effect-riders.js";
@@ -266,7 +266,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
  * reload-proof: state is re-read from the message flag at click time, never from the DOM,
  * and the reverted marker is written back to the flag (whose update re-renders the card on
  * every client). Deliberately NOT rewound: rolls, resources, ammo, concentration
- * (design.md §5 Phase 1) — re-applying to the right target is the native tray's job.
+ * (ARCHITECTURE.md §4) — re-applying to the right target is the native tray's job.
  */
 export async function revertTarget(message, uuid) {
   const receipt = foundry.utils.deepClone(message.getFlag(MODULE_ID, "receipt") ?? {});
@@ -285,7 +285,7 @@ export async function revertTarget(message, uuid) {
     "system.attributes.hp.tempmax": entry.prior.tempmax
   });
 
-  // Interaction contract with combatplus (design.md §9): a revert that raises the target
+  // Interaction contract with combatplus (ARCHITECTURE.md §7): a revert that raises the target
   // back above 0 also clears the defeated mark + dead overlay its auto-defeated set at 0.
   // combatplus's own heal-up handler usually beats us to it; this covers the table where
   // that feature is off at revert time, and no-ops when everything is already clean.

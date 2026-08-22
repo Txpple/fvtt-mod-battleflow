@@ -1,6 +1,7 @@
-// Verify the live world settings against the user's reference configuration (HANDOFF's
-// table — the standing rule: after ANY suite, probe or test session, verify and restore
-// drift; when the USER changes a setting, update the TABLE, never fight it). Reads every
+// Verify the live world settings against the user's reference configuration. THE REFERENCE
+// TABLE BELOW IS THE SINGLE SOURCE — it used to be mirrored in a doc, and a mirror is a thing
+// that drifts. Standing rule: after ANY suite, probe or test session, verify and restore
+// drift; when the USER changes a setting, update the TABLE HERE, never fight it. Reads every
 // world-scoped key, reports drift, and restores it with --fix. Timer values are the
 // 2026-08-17 user call: every timer 15s.
 import { readFileSync } from 'node:fs';
@@ -17,7 +18,8 @@ for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
 }
 setTimeout(() => { console.error('[verify] WATCHDOG 120s'); process.exit(3); }, 120_000);
 
-// THE REFERENCE TABLE — mirror of HANDOFF.md's. Update BOTH when the user changes taste.
+// THE REFERENCE TABLE — the single source (NOTES.md points here). Update it when the
+// user's taste changes; never edit the world to match a stale copy.
 const REFERENCE = {
   autoDamage: 'all',
   autoApply: true,

@@ -1,6 +1,6 @@
 /**
  * Battle Flow — Phase 2.5: the concentration assist - damage, ask, roll, verdict, break.
- * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
+ * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
 import { canAnswerFor } from "./hold.js";
@@ -13,7 +13,7 @@ import { livePopups, popupKey, openMomentPopup, bfCard, holdBarHTML, momentButto
  * The moment has NO decision in it. A concentration save is mandatory — RAW offers no decline —
  * so the popup carries exactly ONE control (Roll; the two-control rule governs decisions, and a
  * fake second choice is the Skip button again), and the timer's expiry action is the roll
- * itself, never a pass (design.md §2.4/§5). What the popup offers is dice agency: the save that
+ * itself, never a pass (DESIGN.md N3/§5). What the popup offers is dice agency: the save that
  * might drop the party's Bless belongs in its owner's hand.
  *
  * The chat log is the bus, as everywhere. The GM elect stamps an ASK message off
@@ -388,7 +388,7 @@ async function resumeConcOutcome(askMessage) {
   }
 }
 
-/** Quiet good news — one line, visibility-scoped (announce by stakes, design.md §5).
+/** Quiet good news — one line, visibility-scoped (announce by stakes, ARCHITECTURE.md §6).
  * `whisper` is decided by the caller AT VERDICT TIME, before the dramatic pause. */
 async function announceConcentrationHolds(actor, ask, whisper = null) {
   await ChatMessage.create({
@@ -409,7 +409,7 @@ async function announceConcentrationHolds(actor, ask, whisper = null) {
  * End concentration the way the system would — endConcentration → effect.delete → the native
  * dependentOn cascade strips every riding effect on every actor — and say so LOUDLY, always
  * in public: the cascade just removed icons across the whole table, and an icon vanishing
- * must never be a mystery (design.md §2.5). With Failure Breaks Concentration off, this
+ * must never be a mystery (DESIGN.md R5). With Failure Breaks Concentration off, this
  * announces and leaves the ending to the GM.
  */
 async function breakConcentration(actor, { names = [], effectIds = null, ask = null, reason = null } = {}) {

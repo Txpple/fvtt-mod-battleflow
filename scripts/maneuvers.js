@@ -1,7 +1,7 @@
 /**
  * Battle Flow — Phase 1.6 (v1.19.0): the maneuver folds. Precision Attack patches a declared
  * miss after the fact; Riposte answers an enemy's melee miss with a real attack. FLOW item 1.
- * Split shape (design.md §9); battleflow.js is the only esmodules entry.
+ * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
 import { hitTargets, modeAllows } from "./shared.js";

@@ -1,6 +1,6 @@
 /**
  * Battle Flow — Phase 1.75: curated hit riders - a mark on the target pays out with the attack that earned it.
- * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
+ * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { TITLE, S, setting } from "./core.js";
 import { hitTargets } from "./shared.js";
@@ -38,7 +38,7 @@ import { bfCard } from "./ui.js";
  * not whether the rule doubles the die.
  *
  * dnd5e 5.3.3 cannot express "only against the marked creature"; Conditional ActiveEffects is
- * on the system roadmap. DELETE THIS WHOLE SECTION the day it ships (design.md §2.7).
+ * on the system roadmap. DELETE THIS WHOLE SECTION the day it ships (DESIGN.md §3).
  * ------------------------------------------------------------------------------------------- */
 
 /** Which marks pay, by system identifier. What they pay is read from the mark itself. */

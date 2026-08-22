@@ -19,7 +19,7 @@
  *   - ATTACK kind (Scorching Ray): each ray is its OWN attack, resolved independently — the
  *     fold drives one real `rollAttack` per ray at that ray's chosen target through the
  *     ordinary pipeline. Auto-damage (or the player's own damage offer), reaction holds and
- *     hit riders all fire PER RAY, which is the recorded per-roll ruling (design.md Phase
+ *     hit riders all fire PER RAY, which is the recorded per-roll ruling (ARCHITECTURE.md
  *     1.6: "N driven rolls are N independent rider folds"). A hold on ray 2 pauses ray 2's
  *     damage and nothing else.
  *
@@ -32,7 +32,7 @@
  * A registered name still volleys only when the USED activity matches the entry's kind and
  * the count evaluates 2+ at this cast; everything else stays fully native.
  *
- * THE CLAIM SHAPE (the Pass C unblock recorded in design.md Phase 1.6): the volley's claim
+ * THE CLAIM SHAPE (the Pass C unblock recorded in ARCHITECTURE.md §6): the volley's claim
  * is `usageConfig.subsequentActions = false`, set in dnd5e.preUseActivity on the casting
  * client — the same flag walk-4 (v) passes on every module-driven `use`, arriving through
  * the hook's mutable config instead (the potion-aim seam). Suppressing it also skips the

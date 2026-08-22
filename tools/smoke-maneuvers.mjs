@@ -392,7 +392,7 @@ const out = await f.evaluate(async () => {
         // v1.19.x finding (d): the die folds INTO the base roll — ONE dice group, one
         // total. Weapon d8 + die d8 ⇒ exactly two d8 TERMS in a single roll — counted by
         // GROUP, not by literal "1d8": a driven CRIT doubles both to 2d8 (the 2024 rule,
-        // recorded in design.md), and the literal count read a crit as "no die" (flaked
+        // recorded in DESIGN.md), and the literal count read a crit as "no die" (flaked
         // round 3, formula "2d8 + 3 + 2d8").
         const d8s = (dmg?.rolls?.[0]?.formula?.match(/\d+d8/g) ?? []).length;
         ok('R2d. the superiority die is BAKED INTO the base damage roll — one group ((d))',

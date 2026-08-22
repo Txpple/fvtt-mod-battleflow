@@ -1,6 +1,6 @@
 /**
  * Battle Flow — Phase 1a: auto-roll damage on hit, on the attacker's own client.
- * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
+ * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting } from "./core.js";
 import { hitTargets, modeAllows } from "./shared.js";
@@ -268,7 +268,7 @@ export async function offerDamageRoll(activity, attackMessage) {
   const { cleaveArmedFor } = await import("./mastery.js");
   const cleaveArm = cleaveArmedFor(activity.item);
 
-  // THE CELEBRATION (design.md §4.3 law 5, finding (l)): every attack-damage popup leads
+  // THE CELEBRATION (ARCHITECTURE.md §5 law 10, finding (l)): every attack-damage popup leads
   // with the HIT — the moment the player earned — and the dice ask rides it. One design,
   // consistent flavors: crits get louder on the one badge; a riposte is named as itself
   // (finding (p) — its hit is the riposte's own moment, and the die-riding note explains

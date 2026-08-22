@@ -1,5 +1,5 @@
 // Survey every reaction-cost item in the world's compendia, so the curated interrupt list
-// in design.md §5 is built from what this table can actually encounter rather than memory.
+// in ARCHITECTURE.md §6 is built from what this table can actually encounter rather than memory.
 // Writes raw JSON to scratchpad; classification happens afterwards against the text.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';

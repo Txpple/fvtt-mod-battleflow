@@ -1,12 +1,12 @@
 /**
  * Battle Flow — Table polish: the no-target gate, the cast-slice birth stamps, hidden card buttons, dialog centering.
- * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
+ * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  *
  * ⚠ The card SUPPRESSION machinery (the 1.1 master + the 1.9D per-source buckets + the
  * replacement-bfCard plumbing) was REMOVED at v1.10.0 — user call, 2026-08-17: "we rip out
  * the card suppression machinery, and we just have machinery to hide non-refund-resource
  * buttons." Every use posts its first card; hideCardButtons below is the one card-shaping
- * switch left. design.md §5 Phase 1.1 carries the full policy.
+ * switch left. ARCHITECTURE.md §8 carries the full policy.
  */
 import { MODULE_ID, S, setting } from "./core.js";
 import { blockEntries, interruptEntries } from "./hold.js";
@@ -98,7 +98,7 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig, messageCo
 });
 
 /**
- * Phase 3's structural gate — no name list, a shape (design.md §2.6 done right): a used
+ * Phase 3's structural gate — no name list, a shape (DESIGN.md R4 done right): a used
  * activity with NO outcome gate. `utility` carrying effects applies them at cast (Bless,
  * Hunter's Mark's Mark Creature AND Move Mark, Heroism); `heal` applies its self-rolled
  * healing (the roll message is stamped separately — see the preCreate hook). Attack
@@ -125,7 +125,7 @@ function castApplyQualifies(doc) {
   // A SELF-tagged activity SELF-AIMS (v1.11.0, user call: "anything that is tagged SELF
   // should self aim") — the caster is the target, any UI snapshot is incidental (Second
   // Wind healed the targeted dummy, 2026-08-17), and no UI target is required at all.
-  // Supersedes the v1.5.1 "self-buffs stay tray clicks" stance; design.md §2.6 amended.
+  // Supersedes the v1.5.1 "self-buffs stay tray clicks" stance; DESIGN.md R4 amended.
   // ⚠ The one carve-out is v1.5.1's ORIGINAL catch, kept as a carve-out instead of a
   // blanket gate: a LISTED reaction with "Apply the Reaction's Own Effect" on is applied
   // by the hold machinery when cast through a hold (Shield's +5 — the +10-two-chips bug,

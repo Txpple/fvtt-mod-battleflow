@@ -1,8 +1,8 @@
 /**
- * Battle Flow — THE SPINE (design.md §4.3, the moment map): the managed-popup lifecycle +
+ * Battle Flow — THE SPINE (ARCHITECTURE.md §5, the moment map): the managed-popup lifecycle +
  * cascade, the popper discipline, the one shown-latch registry, the countdown bar, the ACK,
  * the moment clocks, the house card (bfCard) — plus the hold's own row/popup views.
- * Split from battleflow.js (design.md §9); battleflow.js is the only esmodules entry.
+ * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
 import { reactionItem, isContinuingClient, canAnswerFor, answerHold, continueHold } from "./hold.js";
@@ -59,7 +59,7 @@ export async function openManagedPopup(key, message, dialog) {
     try { ui.chat?.updateMessage?.(message); } catch(err) { /* row refreshes next render */ }
     return close(...args);
   };
-  // THE CASCADE (design.md §4.3 law 6, recut by walk-4 finding (s)): the pile is a QUEUE IN
+  // THE CASCADE (ARCHITECTURE.md §5 law 7, recut by walk-4 finding (s)): the pile is a QUEUE IN
   // EVENT ORDER. Layout is the standard staircase — common anchor, smallest free slot, one
   // header-height step down-right so nothing masquerades as one window (the round-3 burial)
   // — and Z-ORDER IS CAUSAL ORDER (user ruling): the FIRST moment's popup stays in FRONT,
@@ -132,7 +132,7 @@ export async function openMomentPopup(message, sub, subject, {
 }
 
 /* ---------------------------------------------------------------------------------------------
- * THE ACK (design.md §4.3 law 2 — finding (j)): any notice button press resolves its card's
+ * THE ACK (ARCHITECTURE.md §5 law 3 — finding (j)): any notice button press resolves its card's
  * pending presentation — bar gone, recall gone, popup gone. Durable via a flag write where
  * the acknowledger CAN write (the author or a GM — every solo case); client-local otherwise,
  * where the spectators' bars simply drain out as the window (the recorded trade: a player
@@ -238,7 +238,7 @@ export function reactionImg(actor, reactionName, ids) {
 export const ruleLine = text => `<em>“${text}”</em>`;
 
 /* ---------------------------------------------------------------------------------------------
- * The countdown bar (design.md §4.3).
+ * The countdown bar (ARCHITECTURE.md §5).
  *
  * ⚠ ZERO JS TICKING. The bar is one CSS animation whose duration is the hold's own window, and
  * a reload resumes it mid-drain with a NEGATIVE animation-delay computed from the deadline
@@ -606,7 +606,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
  * ⚠ It must never merely record "cast" as an answer. Doing that (the shape this shipped in
  * first) produced a hold that resolved against an unchanged AC — Shield "cast" with no slot
  * spent, no effect, and a cheerful "raises AC to 12" over a hit that should have missed
- * (caught by Tom in live play, 2026-08-15). design.md §5 is explicit: the cast IS the answer,
+ * (caught by Tom in live play, 2026-08-15). ARCHITECTURE.md §6 is explicit: the cast IS the answer,
  * and the button is convenience, not protocol. A cancelled cast answers nothing, correctly
  * leaving the hold open.
  */
@@ -633,7 +633,7 @@ async function castReaction(target) {
   // No usage dialog: the reaction window is already a table pause, and stacking a slot
   // picker inside it spends the moment this feature exists to protect. The system picks the
   // lowest available slot, which is what a Shield cast wants. A player who needs to upcast
-  // casts from their sheet instead — that is detected identically (design.md §5).
+  // casts from their sheet instead — that is detected identically (ARCHITECTURE.md §6).
   // subsequentActions:false — the (v) guard: a reaction whose activity carries a damage part
   // must not chain dnd5e's own follow-up roll; the module drives everything after the use.
   await activity.use({ subsequentActions: false }, { configure: false }, {});

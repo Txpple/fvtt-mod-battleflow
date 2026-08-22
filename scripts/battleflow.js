@@ -1,5 +1,5 @@
 /**
- * Battle Flow — combat resolution that flows (design.md is the north star).
+ * Battle Flow — combat resolution that flows (DESIGN.md is the north star).
  *
  * Phase 1: the attack resolver. Two independent halves plus receipts, each behind its own
  * world setting (Game Settings → Configure Settings → Battle Flow), all default OFF:
@@ -38,14 +38,14 @@
  *     out"), hidden card action buttons (every use posts its first card, the machine runs
  *     the workflows — only Refund Resource and Place Measured Template stay pressable), and
  *     a per-client setting that centers the system's roll dialogs instead of lower-right.
- *     The card SUPPRESSION machinery was removed at v1.10.0 (design.md §5 Phase 1.1).
+ *     The card SUPPRESSION machinery was removed at v1.10.0 (ARCHITECTURE.md §8).
  *   - Concentration assist (Phase 2.5): a concentrating creature that takes damage gets the
  *     save run instead of a whisper card nobody reads — popup (or silent auto-roll) on the
  *     owner's client, DC from the system, and on a failure the module presses the button the
  *     system never presses itself: endConcentration, whose native cascade strips everything
  *     riding the spell. At 0 HP there is no save; concentration just ends, announced.
  *
- * Architecture (design.md §4): the chat log is the state and the bus. No sockets, no
+ * Architecture (ARCHITECTURE.md §4): the chat log is the state and the bus. No sockets, no
  * in-memory workflow object, no patching. The attacker's client volunteers the damage roll
  * (its attack, its dice); the active-GM elect volunteers the application (ownership is a
  * permission fact; a single writer prevents double-apply); the chain is resolved through the
@@ -75,7 +75,7 @@
  */
 
 /* ---------------------------------------------------------------------------------------------
- * The entry (design.md §9): the only esmodules entry, importing every sibling in the original
+ * The entry (ARCHITECTURE.md §7): the only esmodules entry, importing every sibling in the original
  * section order. Plain ES imports — no build step, no manifest change. Evaluation order is
  * import-graph order, not this list; the one registration-order constraint that matters (the
  * hold's preApplyDamage veto before concentration's cause capture) is held by hold.js reaching

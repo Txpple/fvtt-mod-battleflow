@@ -1,6 +1,6 @@
 /**
  * Battle Flow — Phase 2: saving throws, joint with Phase 3's save slice - demand, roll, verdict, consequences.
- * Split shape (design.md §9); battleflow.js is the only esmodules entry.
+ * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
 import { forceStatus } from "./shared.js";
@@ -19,7 +19,7 @@ import { applyEffectsWithReceipt, revertEffect } from "./effect-riders.js";
 import { offerSaveDamageRoll, rollDamageForSave } from "./auto-damage.js";
 
 /* ---------------------------------------------------------------------------------------------
- * Phase 2 — saving throws (design.md Phase 2), shipping WITH Phase 3's save slice: a save's
+ * Phase 2 — saving throws (ARCHITECTURE.md §6), shipping WITH Phase 3's save slice: a save's
  * consequences ARE the feature, so failed-save effects and half-on-save damage ride the shared
  * appliers in this same file.
  *

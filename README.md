@@ -6,37 +6,42 @@ touches the moments that are theirs.
 A house combat-resolution module for Foundry VTT (v14) + dnd5e (5.3.x, 2024 rules). The system
 already owns all the math — hit determination, resistance-correct damage, real saves, effect
 application, concentration — but every link ends at a button. Battle Flow presses the buttons
-whose outcomes are already determined, pauses at the one moment a human gets a say (the
-reaction window), announces what matters, and leaves a receipt (with a revert) everywhere it
-acts. The native buttons are never removed — vanilla stays the substrate and the fallback.
+whose outcomes are already determined, pauses at the moments a human gets a say, announces what
+matters, and leaves a receipt (with a revert) everywhere it acts. The native buttons are never
+removed — vanilla stays the substrate and the fallback.
 
 **Zero dependencies. No sockets. No patching.** Clients coordinate by reading the same chat
 log, not by messaging each other; the only `relationships` entry is a version pin on dnd5e.
 
-## Status
+## Built so far
 
-**Phases 1 through 1.9 built and dogfooded** — the attack resolver (auto-roll on hit,
-auto-apply, receipts + revert), the reaction hold, damage riders, effect riders and weapon
-mastery payouts. Every feature is behind its own world setting and ships **off**; the
-dogfood ladder is walked one setting at a time. The binding design is [design.md](design.md) (mission,
-principles, architecture, the phase ladder, settings, verified dnd5e 5.3.3 hook seams, and
-permanent non-goals). The source-level research that justifies it — a dissection of midi-qol
-(50k lines; why not), DAE (why it isn't needed), dnd5e 5.3.3 native automation, and the
-2025–2026 ecosystem — is preserved in [RESEARCH.md](RESEARCH.md).
+Every feature is behind its own world setting and ships **off** — 30 world settings and 2 client
+settings at v1.20.0. The dogfood ladder is walked one setting at a time.
 
-Rollout (each phase behind its own setting, default off):
-
-| Phase | Feature |
+| | Feature |
 | --- | --- |
-| **1 ✓** | Attack resolver: auto-roll damage on hit, auto-apply to hit targets, revert receipts |
-| **1.5 ✓** | Reaction hold: Shield-window pause with popup + card row (a pause, not a system), on a hit **or** on a listed spell — Magic Missile really is stopped |
-| **1.75 ✓** | Curated damage riders (Hunter's Mark tier): a mark pays out with the attack that earned it |
-| **1.9 ✓** | Effect & mastery riders: a hit applies the effects riding it, and weapon masteries pay out with the attack — Vex/Sap automatic, Slow/Topple/Push/Graze as a Use/Pass ask. Per-source card suppression. Nothing modifies a d20 |
-| 2 | Saves: auto-roll for everyone, half-damage-on-save made real |
-| 2.5 | Concentration assist: un-buryable prompt + break-on-failure |
-| 3 | Effect application on hit / failed save |
-| 4 | Effect expiry (likely native on v14 core — verify first) |
-| 5 | Conditions layer (AC5e adoption candidate) |
+| **Attack resolver** | auto-roll damage on hit, auto-apply to the targets it hit, revert receipts on every application |
+| **Reaction hold** | a Shield-window pause with popup + card row — on a hit **or** on a listed spell, so Magic Missile really is stopped |
+| **Damage riders** | a mark pays out with the attack that earned it (Hunter's Mark tier) |
+| **Effect & mastery riders** | a hit applies the effects riding it; weapon masteries pay out with the attack — Vex/Sap automatic, Slow/Topple/Push/Graze as a Use/Pass ask |
+| **Maneuver folds** | Precision Attack patches a declared miss, Riposte drives a real attack, Interpose and the Shield Master bash resolve post-verdict |
+| **Saves** | auto-roll for everyone, per-target popups, half-damage-on-save made real, template containment |
+| **Concentration assist** | an un-buryable prompt, and a failed save actually ends the spell — which the system never does itself |
+| **Cast slice** | no-save effects and healing apply on cast |
+| **Volleys** | Magic Missile / Scorching Ray / Eldritch Blast / Steel Wind Strike aimed dart-by-dart in one popup |
+| **Resource notices** | a spend announces itself, on every client, with a durable card line |
+
+## Documentation
+
+Three documents, and only three.
+
+- **[DESIGN.md](DESIGN.md)** — the north star. What the module is for, the four goals it exists
+  to serve, what is permanently out of scope. Stable; read it before proposing anything.
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — how the code is required to be shaped so it stays
+  that way. Layers, the volunteer model, the state model, the moment spine, the registry model,
+  and the checklist for adding anything.
+- **[NOTES.md](NOTES.md)** — working knowledge. Every Foundry and dnd5e fact that cost a
+  debugging session, plus deploy/release/test protocol. Not binding, just expensive.
 
 ## Family
 
@@ -44,10 +49,9 @@ Sibling of [Combat Plus](https://github.com/Txpple/fvtt-mod-combatplus) — Comb
 *UX* (music, gates, cues); Battle Flow is combat *resolution* (dice consequences). Separate so
 dnd5e churn can never take down the initiative gate mid-campaign.
 
-A full **D&D 5e 2024** combat-resolution module, built by dogfooding. Curated content lists are
-swept from the official compendia, and nothing ships that has not been played — real table
-needs set the order of the work (design.md §1.1). What stays a permanent non-goal is a
-*platform*: no flags engine, no macro hooks, no extension points (design.md §8).
+Curated content lists are swept from the official compendia, and nothing ships that has not been
+played. What stays a permanent non-goal is a *platform*: no flags engine, no macro hooks, no
+extension points ([DESIGN.md §4](DESIGN.md)).
 
 ## License
 
