@@ -89,7 +89,7 @@ const registerBlockFor = key => {
   const at = settingsSrc.indexOf(`register(MODULE_ID, S.${key},`);
   if (at < 0) return null;
   // Brace-match from the options object so a long hint cannot truncate the search window.
-  let i = settingsSrc.indexOf("{", at);
+  const i = settingsSrc.indexOf("{", at);
   let depth = 0;
   for (let j = i; j < settingsSrc.length; j++) {
     if (settingsSrc[j] === "{") depth++;

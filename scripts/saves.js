@@ -3,6 +3,7 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
+import { tokensInTemplates } from "./geometry.js";
 import { forceStatus } from "./shared.js";
 import { canAnswerFor, inRunningCombat } from "./hold.js";
 import { livePopups, popupKey, openMomentPopup, bfCard, holdBarHTML, momentBarHTML,
@@ -232,150 +233,6 @@ async function stampSaveDemand(activity, message, results) {
   }
 }
 
-/**
- * The actors standing in the given templates, as demand-target entries — or null when no
- * template exists (the manual snapshot's case, which must stay distinguishable from "a
- * template with nobody in it", where the demand correctly stamps nothing). Center-point
- * containment on the template's own scene; secret tokens stay out of it.
- */
-function tokensInTemplates(templates) {
-  const docs = (templates ?? []).filter(t => t?.parent && templateShape(t));
-  if ( !docs.length ) return null;
-  const seen = new Set();
-  const entries = [];
-  for ( const doc of docs ) {
-    const shape = templateShape(doc);
-    for ( const tok of doc.parent.tokens ) {
-      if ( tok.isSecret || !tok.actor ) continue;
-      const pts = tokenSamplePoints(tok);
-      if ( !pts.some(p => shape.contains(p.x - doc.x, p.y - doc.y)) ) continue;
-      const uuid = tok.actor.uuid;
-      if ( seen.has(uuid) ) continue;
-      seen.add(uuid);
-      entries.push({ uuid, name: tok.name });
-    }
-  }
-  return entries;
-}
-
-/**
- * ⚠⚠ THE v14 REGION-SHIM GROUND TRUTH (the v1.13.0 walk's finding ①, probes 7–9,
- * 2026-08-17): Foundry 14 shims MeasuredTemplates onto Regions, and this build's CREATE
- * round-trip corrupts the stored units — `distance` comes back ×(gridSize/100) (×1.4 on a
- * 140px grid, ×0.7 on 70px, invisible on the 100px test range) and `width` comes back as
- * RAW PIXELS. The client pipeline is clean (probe 8: local clean/validate leaves values
- * untouched); the scaling happens server-side. The renderer draws from the same lying
- * field, so the PLACED area (shape, highlight, and any doc-math) is uniformly oversized —
- * only the dnd5e `dimensions` flag survives honest, because fromActivity stamps the
- * spell's own size and the shim never touches flags.
- *
- * So: SPELL-TRUTH FIRST. When the placement stamped honest dimensions, geometry is built
- * from them — the demand matches the 20 ft cube the caster cast and the honest preview
- * they aimed, not the corrupted stored field. This deliberately supersedes the
- * drawn-shape-first rule (standing item 17) while the shim lies: the drawn object IS the
- * corrupted doc. Self-healing — once upstream fixes the shim, doc.distance equals the
- * dimensions-derived value and every branch agrees again. adjustedSize placements
- * (emanations sized up by token) keep doc math: their final size lives only in distance.
- */
-function honestDims(doc) {
-  const dim = doc.flags?.dnd5e?.dimensions;
-  if ( !(dim?.size > 0) || dim.adjustedSize ) return null;
-  if ( (doc.t === "ray") && !(dim.width > 0) ) return null;
-  return {
-    // A dnd5e cube rides a rect drawn corner-to-corner: distance is the diagonal.
-    distance: (doc.t === "rect") ? Math.hypot(dim.size, dim.size) : dim.size,
-    width: (doc.t === "ray") ? dim.width : (doc.width ?? 0)
-  };
-}
-
-/** The template's shape — honest dnd5e dimensions when stamped (the shim note above),
- * else the drawn object's, else core's own shape builders (deprecated since v14, until
- * 16 — migrate to ShapeData when 16 lands; current-scene only), else Euclidean math.
- * The fallback ladder below the rescue is v1.13.0's, kept for toolbar-drawn and
- * foreign templates that carry no dimensions flag. */
-function templateShape(doc) {
-  const honest = honestDims(doc);
-  const distance = honest?.distance ?? doc.distance ?? 0;
-  const width = honest?.width ?? doc.width ?? 0;
-  if ( !honest && doc.object?.shape ) return doc.object.shape;
-  if ( (doc.parent === canvas?.scene) && canvas?.dimensions?.distancePixels ) {
-    try {
-      const cls = CONFIG.MeasuredTemplate?.objectClass;
-      switch ( doc.t ) {
-        case "circle": return cls.getCircleShape(distance);
-        case "rect": return cls.getRectShape(distance, doc.direction ?? 0);
-        case "cone": return cls.getConeShape(distance, doc.direction ?? 0,
-          doc.angle || CONFIG.MeasuredTemplate?.defaults?.angle || 53.13);
-        case "ray": return cls.getRayShape(distance, doc.direction ?? 0, width);
-      }
-    } catch(err) {
-      console.warn(`${TITLE} | Core template shape builder failed; using Euclidean fallback.`, err);
-    }
-  }
-  const grid = doc.parent?.grid;
-  if ( !grid?.size || !grid?.distance ) return null;
-  const d = distance * (grid.size / grid.distance);
-  const dir = Math.toRadians(doc.direction ?? 0);
-  switch ( doc.t ) {
-    case "circle": return new PIXI.Circle(0, 0, d);
-    case "rect": {
-      const dx = Math.cos(dir) * d, dy = Math.sin(dir) * d;
-      return new PIXI.Rectangle(Math.min(0, dx), Math.min(0, dy), Math.abs(dx), Math.abs(dy));
-    }
-    case "ray": {
-      const w = width * (grid.size / grid.distance);
-      const dx = Math.cos(dir), dy = Math.sin(dir);
-      const ox = -dy * (w / 2), oy = dx * (w / 2);
-      return new PIXI.Polygon([ox, oy, dx * d + ox, dy * d + oy, dx * d - ox, dy * d - oy, -ox, -oy]);
-    }
-    case "cone": {
-      const angle = Math.toRadians(doc.angle || 53.13);
-      const points = [0, 0];
-      const steps = 12;
-      for ( let i = 0; i <= steps; i++ ) {
-        const a = dir - (angle / 2) + (angle * i / steps);
-        points.push(Math.cos(a) * d, Math.sin(a) * d);
-      }
-      return new PIXI.Polygon(points);
-    }
-  }
-  return null;
-}
-
-/** A token's center from its document alone — object.center when drawn, geometry otherwise. */
-function tokenCenter(tok) {
-  if ( tok.object ) return tok.object.center;
-  const grid = tok.parent?.grid?.size;
-  if ( !grid ) return null;
-  return { x: tok.x + (tok.width * grid) / 2, y: tok.y + (tok.height * grid) / 2 };
-}
-
-/** Every occupied grid square's center for a token — the 5e "does the area touch you on
- * the grid" question, one sample per square (midi-qol's long-standing model). A large
- * token counts when ANY of its squares stands in the area — center-only testing missed a
- * 2×2 body half inside. Sub-square tokens keep the single center sample. */
-function tokenSamplePoints(tok) {
-  const grid = tok.parent?.grid?.size;
-  if ( !grid ) return [];
-  const w = Math.round(tok.width ?? 1), h = Math.round(tok.height ?? 1);
-  if ( (w < 1) || (h < 1) || ((w === 1) && (h === 1)) ) {
-    const c = tokenCenter(tok);
-    return c ? [c] : [];
-  }
-  const points = [];
-  for ( let i = 0; i < w; i++ ) {
-    for ( let j = 0; j < h; j++ ) points.push({ x: tok.x + ((i + 0.5) * grid), y: tok.y + ((j + 0.5) * grid) });
-  }
-  return points;
-}
-
-/**
- * A template moved (Moonbeam walks) or was re-placed while its demand is still pending:
- * containment is authoritative, so the pending target set follows the area. Done entries
- * keep their verdicts (history never re-rolls); pending entries outside drop; new arrivals
- * join fresh. The elect owns the write — single-writer, like every world-visible mutation.
- * The original placement's create event fires before the stamp exists and finds nothing.
- */
 /** Every template on any scene that this activity placed — the origin flag is the tie. */
 function templatesForOrigin(activityUuid) {
   const found = [];
@@ -440,7 +297,9 @@ const templateRefreshes = new Set();
  * write. Idempotent: no template ⇒ no-op; an unchanged set writes nothing.
  *
  * ⚠ Driven from the RENDER hook as the reliability floor, with the template CRUD hooks as
- * fast-paths — measured 2026-08-16: createMeasuredTemplate simply never dispatched on the
+ * fast-paths. The original placement's create event fires BEFORE the stamp exists and finds
+ * nothing, so the render floor is the only thing that catches it — measured 2026-08-16:
+ * createMeasuredTemplate simply never dispatched on the
  * headless elect for an embedded create (a listener registered around the create counted
  * zero fires), so anything that MUST happen cannot ride those hooks alone. And NO awaiting
  * canvas readiness anywhere in here — a shape-wait against template.object never came back
