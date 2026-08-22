@@ -49,9 +49,15 @@ needs `game` or `canvas`, it is EDGE and belongs one layer up (§2 rule 1).
 | [geometry.js](scripts/geometry.js) | EDGE: `tokensInTemplates`, `templateShape` (needs canvas/CONFIG/PIXI) |
 
 **Two things learned that the next stage should carry:**
-- ⚠ **Stale prose hides where code moves.** Both stage 1 and stage 4 uncovered an orphaned doc
-  comment sitting above a function it did not describe — one a stale near-duplicate of a
-  richer comment elsewhere. Check the comment above and below every block you move.
+- ✅ **Orphaned doc comments — found, fixed, and now MECHANICALLY PREVENTED.** A sweep found
+  **eight**: three predating the refactor (functions reordered, docs left behind) and **five
+  created by these very extractions** — moving a function out stranded its doc above whatever
+  came next. Two of those five had cost real knowledge: the hobgoblin-shield story behind
+  `isReactionItem` and the warning that the save-side dead gate is deliberately *not*
+  mastery's predicate. Both restored into the new modules. All eight fixed;
+  **`tools/check-comments.mjs` is in the verify gate** (`npm run comments`) and the rule is
+  ARCHITECTURE.md §11's "Moving code between files" checklist. Cut on function boundaries,
+  never comment boundaries.
 - ⚠ **PLAN.md's eligibility bullet promises more than exists.** `usableReaction`,
   `ridersAgainst` and mastery eligibility are all document-bound and CANNOT be extracted;
   only the arithmetic beneath them came out. Recorded in that module's header so nobody

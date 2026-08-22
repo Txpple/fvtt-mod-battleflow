@@ -267,13 +267,6 @@ function concAskAnsweredBy(message) {
 const concFolds = new Set();
 
 /**
- * The elect folds a roll into its ask and acts on the verdict. Success is the ask's DC against
- * the roll total — the ask is the authority, not the roll's own target: a sheet-rolled save
- * carries rollConcentration's default target of 10, and 12 vs a DC 14 ask must break. (The
- * system's test is total >= target with no nat-1/nat-20 override on saves at 5.3.3, so the
- * module-rolled card and this verdict are always the same fact.)
- */
-/**
  * Let the table SEE the roll before its verdict acts (user call 2026-08-16): wait out Dice
  * So Nice's animation when that module is present, then the same dramatic beat the attack →
  * damage reveal uses. The MECHANICS never wait — flags are written and timers disarmed
@@ -296,6 +289,13 @@ export async function dramaticVerdictPause(rollMessage) {
   if ( beat ) await new Promise(r => setTimeout(r, beat));
 }
 
+/**
+ * The elect folds a roll into its ask and acts on the verdict. Success is the ask's DC against
+ * the roll total — the ask is the authority, not the roll's own target: a sheet-rolled save
+ * carries rollConcentration's default target of 10, and 12 vs a DC 14 ask must break. (The
+ * system's test is total >= target with no nat-1/nat-20 override on saves at 5.3.3, so the
+ * module-rolled card and this verdict are always the same fact.)
+ */
 async function foldConcentrationRoll(askMessage, rollMessage) {
   if ( !askMessage || concFolds.has(askMessage.id) ) return;
   concFolds.add(askMessage.id);

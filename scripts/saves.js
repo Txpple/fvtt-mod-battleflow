@@ -81,14 +81,6 @@ import { offerSaveDamageRoll, rollDamageForSave } from "./auto-damage.js";
 
 /* --- the stamp: the casting client writes the demand on the usage card --------------------- */
 
-/**
- * Dead by THIS machine's definition (v1.19.0, the user's dead-target gate): the dead status,
- * or an NPC at 0 HP. Deliberately NARROWER than mastery's chip-noise skip (plain hp<=0) and
- * deliberately not shared with it — a dying PC at 0 HP must still be demanded (the area's
- * damage is real and so are the death-save failures), while a downed PC's mastery chips are
- * still noise. Two predicates, two stakes; the divergence is the point, not drift.
- */
-
 /** Stamp-time filter: an unresolvable uuid stays IN (the buzzer voids gone targets — never
  * eat a demand on a lookup miss); a dead one stays out. */
 function saveDemandable(t) {
@@ -1073,10 +1065,6 @@ function saveDamageMessages(card) {
     && (m.getFlag("dnd5e", "originatingMessage") === card.id));
 }
 
-/** What a verdict does to the number: 1 on a failure; the activity's own word on a success;
- * nothing at all for any other outcome (a "gone" target has nobody to pay). */
-
-
 /** Land one chained damage roll on one target at its verdict's multiplier — the receipt says
  * why. Shared by the reconcile pass (behind its guards) and the legendary-resistance unwind
  * (which reverts first and re-applies DIRECTLY, because the guard below deliberately treats
@@ -1391,11 +1379,6 @@ function pendingSaveCardsFor(actorUuid) {
     })
     .sort((a, b) => a.timestamp - b.timestamp);
 }
-
-/** One verdict, in table English — derived here and NOWHERE else: the card row and the
- * v1.19.0 public verdict line (announceSaveVerdict) are its only two callers, which is what
- * makes it impossible for the card to disagree with the row. */
-
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const flag = message.getFlag(MODULE_ID, "saves");

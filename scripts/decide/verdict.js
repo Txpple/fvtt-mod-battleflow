@@ -65,8 +65,10 @@ export function saveOutcome(total, dc, forced = false) {
 }
 
 /**
- * How much of a save's damage this entry actually takes — null means none at all, and means
- * no application and no receipt rather than a receipt for zero.
+ * What a verdict does to the number: 1 on a failure; the activity's own word on a success;
+ * nothing at all for any other outcome (a "gone" target has nobody to pay).
+ *
+ * ⚠ null means no application AND NO RECEIPT — never a receipt for zero.
  */
 export function saveMultiplier(entry, damageOnSave) {
   // Interpose (finding ⑥, recut by walk-5 (y)): an accepted Reaction turns the successful
@@ -82,8 +84,10 @@ export function saveMultiplier(entry, damageOnSave) {
 }
 
 /**
- * The public verdict line for one target — the single source both the card row and the
- * announcement card read, so the two can never disagree about what happened.
+ * One verdict, in table English — derived here and NOWHERE else: the card row and the
+ * v1.19.0 public verdict line (`announceSaveVerdict`) are its only two callers, which is what
+ * makes it impossible for the card to disagree with the row. Any third rendering of a verdict
+ * calls this rather than composing its own sentence.
  */
 export function verdictText(flag, t) {
   if ( !t.done ) return null;

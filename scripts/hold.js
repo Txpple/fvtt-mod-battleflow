@@ -42,16 +42,6 @@ export function blockEntries() {
   return parseBlockList(setting(S.blockList));
 }
 
-/**
- * The state of an item's OWN limited uses: "none" (it has no pool), "available" (a pool with
- * charges left) or "spent" (a pool, all used).
- *
- * There are two ways to pay for a spell — a slot, or the statblock's "Additional Spells" x/x
- * pool — and a monster usually has only the second, because NPC slot maxima derive from a
- * caster level most statblocks never set. Activity-level pools count too: an activity carries
- * its own uses independently of the item's.
- */
-
 /** Is a slot of at least `level` available (including pact magic)? */
 function hasSpellSlot(actor, level) {
   if ( !level ) return true; // cantrip / at-will
@@ -67,21 +57,6 @@ function hasSpellSlot(actor, level) {
   }
   return false;
 }
-
-/**
- * Can this item actually be USED as a reaction?
- *
- * ⚠ A NAME MATCH IS NOT A REACTION. A hobgoblin wears a mundane shield — an `equipment` item
- * literally named "Shield" — which matched the interrupt list on name alone and made every
- * shield-carrying monster in the world hold the chain for a spell it cannot cast (reported
- * live 2026-08-15: "Hobgoblin — Shield?" on a creature with no spells at all). Worn equipment
- * has no activation, so asking for one drops it cleanly, and this generalises to every other
- * collision a user-editable interrupt list can produce.
- *
- * ⚠ Test the ITEM's activation as well as its activities: an activity carries its own
- * activation only when `activation.override` is true, and spells keep their casting time at
- * item level — so an activities-only test finds ZERO reaction spells, Shield included.
- */
 
 /**
  * The item that actually IS this reaction on this actor — for every question asked ABOUT a
@@ -614,17 +589,6 @@ async function answerHoldsFor(activity, actor) {
 }
 
 /**
- * Put a cast reaction's own effect on its caster — the button the native effects tray is
- * waiting for someone to press. Scoped hard: only the reaction that answered a hold, only
- * onto the caster, only while that hold is open. This is a deliberate sliver of Phase 3,
- * and it exists because without it the whole feature reads a stale AC and lies: Shield's +5
- * lives in a non-transfer effect, so a cast alone moves nothing.
- *
- * Mirrors EffectApplicationElement._applyEffectToActor (5.3.3): re-enable and refresh the
- * duration of an existing same-origin effect, otherwise create it disabled:false /
- * transfer:false with origin set, so the system's own cleanup and expiry apply unchanged.
- */
-/**
  * Is the named reaction's effect already on this actor? Matched by NAME as well as origin:
  * the casting client applies from an item CLONE (Activity#use clones the item), so its
  * origin uuid differs from the one the continuing client would compute, and an origin-only
@@ -646,6 +610,17 @@ function hasReactionEffect(actor, reactionName, ids) {
 // in the module by POLICY, not accident: this shared loop for document copies, and
 // applyMasteryEffect for authored chips (see its comment for why that stays separate).
 // Returns receipt-shaped entries; [] when nothing landed or the application failed.
+/**
+ * Put a cast reaction's own effect on its caster — the button the native effects tray is
+ * waiting for someone to press. Scoped hard: only the reaction that answered a hold, only
+ * onto the caster, only while that hold is open. This is a deliberate sliver of Phase 3,
+ * and it exists because without it the whole feature reads a stale AC and lies: Shield's +5
+ * lives in a non-transfer effect, so a cast alone moves nothing.
+ *
+ * Mirrors EffectApplicationElement._applyEffectToActor (5.3.3): re-enable and refresh the
+ * duration of an existing same-origin effect, otherwise create it disabled:false /
+ * transfer:false with origin set, so the system's own cleanup and expiry apply unchanged.
+ */
 async function applyReactionEffect(activity, actor, reactionName, ids) {
   try {
     // ⚠ A cast activity has no effects of its own — they live on the spell it links to. Its
@@ -685,16 +660,6 @@ Hooks.on("updateChatMessage", message => {
 });
 
 /**
- * Re-resolve a fully-answered hold and continue the chain.
- *
- * ⚠ The re-test runs against the target's LIVE AC, never the stored descriptor — that
- * snapshot was taken before the Shield existed. And the AC does not move the instant a
- * reaction is cast: Shield's +5 arrives as a non-transfer active effect the native tray
- * applies (monster reactions ship theirs DISABLED for the GM to switch on), so a cast is
- * given a settle window to let the change land before the verdict is taken. Phase 3 closes
- * this properly by applying the effect itself.
- */
-/**
  * Continuations this client is already driving. The body below AWAITS for up to holdSettle
  * seconds with the flag still `pending`, and any OTHER update landing on the held message in
  * that window (a mastery ask stamped on the same attack, a receipt) re-fires the
@@ -708,6 +673,16 @@ Hooks.on("updateChatMessage", message => {
  */
 const continuationsInFlight = new Set();
 
+/**
+ * Re-resolve a fully-answered hold and continue the chain.
+ *
+ * ⚠ The re-test runs against the target's LIVE AC, never the stored descriptor — that
+ * snapshot was taken before the Shield existed. And the AC does not move the instant a
+ * reaction is cast: Shield's +5 arrives as a non-transfer active effect the native tray
+ * applies (monster reactions ship theirs DISABLED for the GM to switch on), so a cast is
+ * given a settle window to let the change land before the verdict is taken. Phase 3 closes
+ * this properly by applying the effect itself.
+ */
 export async function continueHold(attackMessage) {
   if ( continuationsInFlight.has(attackMessage.id) ) return;
   const hold = foundry.utils.deepClone(attackMessage.getFlag(MODULE_ID, "hold"));

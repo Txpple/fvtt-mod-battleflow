@@ -372,6 +372,19 @@ the definition of debt.
 3. Run the hook-order check.
 4. Register nothing at module-eval time except hook callbacks.
 
+**Moving code between files** (an extraction, a split, a reorder):
+1. **Cut on function boundaries, never comment boundaries.** `grep -n "^function "` is the
+   guide. A `/**` block does not reliably belong to the function beneath it — measured
+   2026-08-22, eight in this tree did not.
+2. **Check the comment either side of every block you move.** The doc above the first line
+   you take may belong to something else; the doc left behind may belong to what you took.
+3. **A doc that describes moved code moves with it, or folds into whatever replaced it.**
+   Two extractions lost real knowledge this way — the hobgoblin-shield story behind
+   `isReactionItem`, and the warning that the save-side dead gate is deliberately *not*
+   mastery's predicate. Both would have been re-derived at the table.
+4. `npm run comments` enforces the mechanical half (`tools/check-comments.mjs`, in the verify
+   gate). It catches a stranded block; it cannot tell you the prose is now wrong.
+
 **Any change:**
 1. Which north star does it serve? If none, it is not in scope.
 2. Does it add a required GM click? → redesign (N4).

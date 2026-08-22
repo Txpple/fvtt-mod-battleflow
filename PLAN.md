@@ -22,7 +22,7 @@ it a shape it already almost has, and to make the shape checkable.
 | Docs | 5,990 lines / 6 files | **1,060 / 4** ✅ | done |
 | Source | 9,845 lines / 20 files | 9,842 / 20 | ~9,000 / ~26 files (thinner files, more of them) |
 | Tools | 14,409 lines / 63 files | **~9,600 / 25** ✅ | ~7,000 / ~25 files |
-| Static checks | 1 (hook order) | **4** ✅ (lint, dead-code, hook order, registry integrity) | + type check |
+| Static checks | 1 (hook order) | **5** ✅ (lint, dead-code, hook order, registry integrity, doc attachment) | + type check |
 | Unit tests | 0 | **103, ~230 ms** ✅ | ~150 assertions, < 2 seconds, no Foundry |
 | Lint findings | (unmeasured) | 0 errors / 99 warnings | 0 / 0 |
 | Live suites | 11 suites, ~8,500 lines, minutes each, run one at a time | unchanged | ~4,000 lines, section-filterable, disposable world |
