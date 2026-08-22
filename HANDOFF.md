@@ -11,7 +11,7 @@
 | | |
 | --- | --- |
 | **Do first** | 📋 **Nothing is open.** The correctness pass is BUILT, COMMITTED and **battery-green on the live sandbox** — every suite at or above its recorded baseline, `verify-settings` CLEAN. Next work is the architecture list below, on the user's appetite. ⚠ **Not pushed** — two commits sit on local `main`. |
-| Repo | `main` @ `b82ab8e`, clean. The doc consolidation (`286b379`), the verify gate (`5e51bf1`) and the workbench clear (`b82ab8e`) all landed. |
+| Repo | `main` @ `e316468`, clean, **unpushed**. This session: `a2557ea` fix + test · `853f1a6` docs · `e316468` the battery record. Before it: the doc consolidation (`286b379`), the verify gate (`5e51bf1`), the workbench clear (`b82ab8e`). |
 | Release | ✅ **v1.20.0 released, tagged, public.** Prod registers it; `BF_TARGET=prod verify-settings` CLEAN. |
 | Walk | ✅ **v1.20.0 walk CLOSED** — fifteen items + T1–T5. Zero open findings from the table. |
 | Sandbox | ⚠ **HEADLESS.** `node <mcp>/scripts/local-foundry.mjs start/stop/status/restart`. Never the Electron app for suites — the two cannot coexist (dataPath lock). **Verify status at session start; it may have been left up.** |
@@ -112,8 +112,8 @@ dice-variance class the notes name. Re-run before diagnosing.
 **1. Resume horizon has a floor and no ceiling.** [ui.js:350](scripts/ui.js:350) arms with
 `Math.max(0, deadline - Date.now())`. A card left `status: "pending"` across a world reload
 fires its buzzer *immediately* on the elect's next render, however old the deadline is.
-Needs a session-start epoch and a ceiling: a deadline older than this session is *history*,
-not a late timer.
+✅ **Fixed** by the absolute staleness ceiling above — **not** by the session epoch this line
+originally prescribed, which is per-client and would have killed the F5 resume.
 
 **Exposure, measured — two of the five buzzers roll dice with no human in the loop:**
 
