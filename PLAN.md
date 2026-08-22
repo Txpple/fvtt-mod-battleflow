@@ -20,11 +20,11 @@ it a shape it already almost has, and to make the shape checkable.
 | Metric | Start | Now | Target |
 | --- | --- | --- | --- |
 | Docs | 5,990 lines / 6 files | **1,060 / 4** ✅ | done |
-| Source | 9,845 lines / 20 files | 9,842 / 20 | ~9,000 / ~26 files (thinner files, more of them) |
+| Source | 9,845 lines / 20 files | 10,328 / **26** | ~9,000 / ~26 files (thinner files, more of them) |
 | Tools | 14,409 lines / 63 files | **~9,600 / 25** ✅ | ~7,000 / ~25 files |
 | Static checks | 1 (hook order) | **5** ✅ (lint, dead-code, hook order, registry integrity, doc attachment) | + type check |
-| Unit tests | 0 | **103, ~230 ms** ✅ | ~150 assertions, < 2 seconds, no Foundry |
-| Lint findings | (unmeasured) | 0 errors / 99 warnings | 0 / 0 |
+| Unit tests | 0 | **148, ~270 ms** ✅ | ~150 assertions, < 2 seconds, no Foundry |
+| Lint findings | (unmeasured) | 0 errors / 98 warnings | 0 / 0 |
 | Live suites | 11 suites, ~8,500 lines, minutes each, run one at a time | unchanged | ~4,000 lines, section-filterable, disposable world |
 
 ---
@@ -185,8 +185,13 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
       the module.*
 - [x] **Eligibility predicates** (usable-reaction, mastery eligibility, rider intersection,
       volley membership, dead-target skip) → `scripts/decide/eligible.js`.
-- [ ] **Receipt arithmetic** (prior → delta → taken → trait reason; the revert inverse) →
-      `scripts/decide/receipt.js`. *Currently correct and untested; it moves HP.*
+- [x] **Receipt arithmetic** (prior → delta → taken → trait reason; the revert inverse) →
+      `scripts/decide/receipt.js`. *Was correct and untested; it moves HP.* Both merge
+      disciplines came too — and `joinEffectReceipt` left a feature file on the way, which is
+      a bite out of D1. The taken-vs-delta fallback had already drifted between its two copies;
+      there is one now. ⚠ The `aggregateDamageRolls(...).map(...)` block is copied **verbatim
+      in four files** (auto-apply, cast, hold, saves) — damage-part normalisation rather than
+      receipt arithmetic, so it was left standing. It wants an EDGE helper, not a decide one.
 - [ ] **Presentation formatters** (`momentBarHTML`, `popupKey`, `bfCard`, rule-line dress,
       the staircase slot allocator) → they are already nearly pure; make them fully so.
 - [ ] **The flag accessor layer** → `scripts/state/flags.js`. 220 raw reads and 51 raw writes
