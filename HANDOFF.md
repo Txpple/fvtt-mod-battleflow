@@ -10,7 +10,7 @@
 
 | | |
 | --- | --- |
-| **Do first** | ⚠ **RUN THE LIVE BATTERY.** All five correctness items are BUILT and the static gate is green (`npm run verify` exit 0, 75 registrations, all 9 hook pairs, 20/20 unit tests) — but **nothing below has been exercised against a live world.** smoke-saves is the one that matters most; see the build record. |
+| **Do first** | 📋 **Nothing is open.** The correctness pass is BUILT, COMMITTED and **battery-green on the live sandbox** — every suite at or above its recorded baseline, `verify-settings` CLEAN. Next work is the architecture list below, on the user's appetite. ⚠ **Not pushed** — two commits sit on local `main`. |
 | Repo | `main` @ `b82ab8e`, clean. The doc consolidation (`286b379`), the verify gate (`5e51bf1`) and the workbench clear (`b82ab8e`) all landed. |
 | Release | ✅ **v1.20.0 released, tagged, public.** Prod registers it; `BF_TARGET=prod verify-settings` CLEAN. |
 | Walk | ✅ **v1.20.0 walk CLOSED** — fifteen items + T1–T5. Zero open findings from the table. |
@@ -52,12 +52,30 @@ is already system state the module spends through `activity.use()`.
 
 ---
 
-## 📦 The correctness pass — BUILT 2026-08-22, static gate green, **live battery NOT yet run**
+## 📦 The correctness pass — ✅ BUILT, COMMITTED AND BATTERY-GREEN (2026-08-22)
 
-Uncommitted working tree: `core.js`, `ui.js`, `saves.js`, `volleys.js`, `maneuvers.js`,
-`ARCHITECTURE.md`, plus new `tests/deadline-ceiling.test.js`. `npm run verify` exit 0 —
-biome 99 warnings (the recorded baseline, no new ones), knip clean, **75 registrations**
-(+1: the volleys sweep), all 9 hook pairs PASS, registry 9/9, vitest **20/20** (13 + 7 new).
+Commits `a2557ea` (fix + the unit test) and `853f1a6` (docs), on local `main`, **not pushed**.
+
+**Static gate:** `npm run verify` exit 0 — biome 99 warnings (the recorded baseline, no new
+ones), knip clean, **75 registrations** (+1: the volleys sweep), all 9 hook pairs PASS,
+registry 9/9, vitest **20/20** (13 + 7 new).
+
+**Live battery on the headless sandbox, every suite at or above baseline, ONE documented
+flake (deploy 21/21 byte-identical → headless restart → run, the script-cache discipline):**
+battleflow ALL PASS ×3 · hold ALL PASS · **saves 61/61** · **volleys 39/39** · maneuvers
+54/54 · cast 17/17 · riders 8/8 · concentration 47/47 · **effects 54/54** · resources 18/18 ·
+playerdmg 12/12 · savedmg 13/13 · `verify-settings` **CLEAN**.
+
+⚠ **The two items that most needed live proof both got it.** saves §10d2/§10f (the
+containment refresh — two demands owning one area, the bug this rewrite could have
+reintroduced), 13a–13c (the sweep and the fossil wall) and 15d (the legendary-resistance
+flip) all pass; volleys §5 (expiry) covers the render-resume gate.
+
+⚠ **Traps that fired, both documented, both cost minutes rather than an hour:** smoke-hold
+refused with *"BF Test Victim has no token — run smoke-battleflow.mjs first"* after other
+suites ran in between (battleflow → hold, then battleflow → playerdmg, is the order that
+works); and smoke-effects went 44/45 on its first run and **54/54 on the re-run** — the
+dice-variance class the notes name. Re-run before diagnosing.
 
 **What landed, by item:**
 
@@ -86,14 +104,6 @@ biome 99 warnings (the recorded baseline, no new ones), knip clean, **75 registr
    round" budget language is gone, replaced by what the flag actually is.
 5. ✅ **ARCHITECTURE.md §10** — D2, D3 and D6 corrected in place (see below).
 
-⚠ **WHAT THE STATIC GATE CANNOT SEE — run these before trusting item 2:**
-- **smoke-saves** is the priority. The containment refresh rewrite is the delicate one: its
-  derivation moved inside the serializer and now rebuilds from the **fresh** flag rather than
-  the stale pre-await read. Its own comments name **§10d2/§10f** as the sections that caught
-  the last bug in this area (two demands owning one area, victim dead at 0/11 off one rect).
-- **smoke-volleys** for the render-resume gate and the new sweep.
-- Then the full battery, and `verify-settings` (no settings key was added, so it should be
-  clean — the ceiling is a constant, deliberately not a setting).
 
 ---
 
