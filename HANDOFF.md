@@ -10,12 +10,44 @@
 
 | | |
 | --- | --- |
-| **Do first** | 📋 **Nothing is open.** The correctness pass AND **Phase 2 stages 1–4** are built, committed and battery-green. **Stage 5 (the untangle — D1, the cycles, the relay) is the next work and was deliberately NOT started** — the user drew the line there. |
-| Repo | `main` @ `HEAD`, clean. This session: the correctness pass (`a2557ea`, `853f1a6`, `e316468`, `fef05c7`) then Phase 2 stages 1–4 (`c30f2a8`, `11bca56`, `c53500a`, `063c905`). |
+| **Do first** | 📋 **Nothing is open; everything is pushed.** The correctness pass and **Phase 2 stages 1–4** are built, committed, battery-green. **Start at the NEXT section below** — receipt arithmetic. Stage 5 (the untangle) was deliberately not started; the user drew the line there. |
+| Repo | `main` @ `cf61afb`, clean, **pushed**. The 2026-08-22 session, in order: correctness pass (`a2557ea` fix+test, `853f1a6` docs, `e316468` battery record, `fef05c7` doc fixes) · Phase 2 stages 1–4 (`c30f2a8` geometry, `11bca56` parsers, `c53500a` verdicts, `063c905` eligibility) · `c0d23f3` docs · `cf61afb` the eight orphaned doc comments + `check-comments.mjs`. |
 | Release | ✅ **v1.20.0 released, tagged, public.** Prod registers it; `BF_TARGET=prod verify-settings` CLEAN. |
 | Walk | ✅ **v1.20.0 walk CLOSED** — fifteen items + T1–T5. Zero open findings from the table. |
-| Sandbox | ⚠ **HEADLESS.** `node <mcp>/scripts/local-foundry.mjs start/stop/status/restart`. Never the Electron app for suites — the two cannot coexist (dataPath lock). **Verify status at session start; it may have been left up.** |
+| Sandbox | ⚠ **HEADLESS, and LEFT RUNNING** at the end of 2026-08-22 (world active, 0 users) — `status` first, `stop` if not testing. `node <mcp>/scripts/local-foundry.mjs start/stop/status/restart`. Never the Electron app for suites — the two cannot coexist (dataPath lock). **Verify status at session start; it may have been left up.** |
 | Bridge | Disconnect before any suite. Suites join as `Tester Assistant`. |
+| Verify gate | `npm run verify` — biome (98 warnings, 0 errors: **that is the baseline**), knip, hook order (**75 registrations**, 9 pairs), registry 9/9, **comments**, vitest **103**. Green at handoff. |
+| Suite order | ⚠ **battleflow → hold**, and **battleflow → playerdmg**, back to back. Other suites in between strip the fixture tokens and hold refuses. `reset-fixture-state` before effects. |
+
+---
+
+## ▶ NEXT — the recommended order, and why
+
+**The loop that worked four times running, use it again:** read the target code → move it
+(never rewrite) → write the unit tests → `npm run verify` → deploy `--local` → **restart
+headless** (the script-cache discipline: a redeploy without a version bump serves the suites
+stale code) → run the affected suites → one commit per stage.
+
+Finish Phase 2 before touching Phase 4. The extraction pattern is proven (four stages, four
+green batteries) and the last item actively **de-risks** the structural work.
+
+| # | Work | Why this position |
+| --- | --- | --- |
+| 1 | **Receipt arithmetic** → `decide/receipt.js` | PLAN.md's own note is the argument: *"currently correct and untested; it moves HP."* Same low-risk pure extraction, over the code that changes people's hit points. Best value-per-risk on the board. |
+| 2 | **Presentation formatters** | Already nearly pure. Cheap. |
+| 3 | **The flag accessor layer** → `state/flags.js` | 220 raw reads / 51 raw writes of string-literal flag names across 14 files. **Finishes D3 for free** — hold/mastery/concentration still bypass the serializer entirely (only saves.js was done) — and removes hundreds of literals that would otherwise have to move during the untangle. |
+| 4 | **Stage 5 / Phase 4** — D1, then D6's three real cycles, then the relay | The structural step. D1 is the root: six files import shared services from a feature file. Scope with the user first — this one changes shape, not address. |
+
+⚠ **D2 stays LAST and behind its own walk**, and its clock must not be unified at all (see the
+§10 corrections below).
+
+### ⚠ This work has an exit condition — decide it, don't drift past it
+
+The directive is architecture that can **carry** Heroic Inspiration, Bard, Tactical Mind and
+AC5e. After Phase 2 closes, the honest test is not "are more refactors available" — they
+always are — but **does the seam actually carry the thing it was built for?** At that point,
+scoping one of those features against the new layer tells you more than another extraction
+does. Raise it with the user rather than continuing on faith.
 
 ---
 
