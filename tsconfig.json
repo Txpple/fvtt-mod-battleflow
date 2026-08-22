@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+
+    // TYPE-CHECK THE SHIPPED SOURCE AS-IS. There is no build step and there must not be
+    // one (PLAN.md Phase 0.1): a WebDAV hot-deploy puts script changes live on the next F5,
+    // and this module is developed at the table. `checkJs` + JSDoc gives the type safety
+    // with none of the compile.
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["scripts/**/*.js", "tools/**/*.mjs", "tests/**/*.js"],
+  "exclude": ["node_modules", "dist"]
+}

@@ -1,0 +1,8 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": ["scripts/battleflow.js", "tests/**/*.test.js"],
+  "project": ["scripts/**/*.js", "tests/**/*.js"],
+  "ignore": ["dist/**", "tools/**"],
+  "ignoreExportsUsedInFile": true,
+  "ignoreDependencies": []
+}

@@ -3,7 +3,6 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
-import { hitTargets } from "./shared.js";
 // ⚠ Bare on purpose since (gg) retired the post-answer roll (the continuation releases the
 // claim instead): the import itself still pins auto-damage.js's evaluation — and with it every
 // hook registration order check-hook-order asserts — exactly where the §9 entry graph has it.

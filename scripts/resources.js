@@ -45,7 +45,7 @@
  * replicates, each client self-resolves, `flashed` still dedupes. The card LINE stays
  * immediate — it is the ledger, not the attention.
  */
-import { MODULE_ID, S, setting } from "./core.js";
+import { S, setting } from "./core.js";
 
 const flashed = new Set();
 // (cc): flashes held for an ability's own dice — usage message id → the armed flash.

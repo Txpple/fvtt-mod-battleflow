@@ -1,0 +1,12 @@
+# LF in the repo, always. NOTES.md records a session lost to an editor flipping a whole file
+# to CRLF against an LF HEAD and turning a 300-line diff into a 2,000-line one.
+* text=auto eol=lf
+
+# Binary — never touch these.
+*.zip   binary
+*.webp  binary
+*.png   binary
+*.ogg   binary
+
+# PowerShell wants CRLF.
+*.ps1   text eol=crlf

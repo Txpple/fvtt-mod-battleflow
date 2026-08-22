@@ -2,7 +2,7 @@
  * Battle Flow — Settings registration and the settings-sheet polish (dividers, dependent grey-out).
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, S, setting } from "./core.js";
+import { MODULE_ID, S } from "./core.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Settings registration
