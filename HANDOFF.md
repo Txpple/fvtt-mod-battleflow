@@ -87,7 +87,7 @@ is already system state the module spends through `activity.use()`.
 
 ## 📦 The correctness pass — ✅ BUILT, COMMITTED AND BATTERY-GREEN (2026-08-22)
 
-Commits `a2557ea` (fix + the unit test) and `853f1a6` (docs), on local `main`, **not pushed**.
+Commits `a2557ea` (fix + the unit test) and `853f1a6` (docs). Pushed.
 
 **Static gate:** `npm run verify` exit 0 — biome 99 warnings (the recorded baseline, no new
 ones), knip clean, **75 registrations** (+1: the volleys sweep), all 9 hook pairs PASS,
