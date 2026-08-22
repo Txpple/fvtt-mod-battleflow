@@ -10,8 +10,8 @@
 
 | | |
 | --- | --- |
-| **Do first** | 📋 **Nothing is open.** The correctness pass is BUILT, COMMITTED and **battery-green on the live sandbox** — every suite at or above its recorded baseline, `verify-settings` CLEAN. Next work is the architecture list below, on the user's appetite. ⚠ **Not pushed** — two commits sit on local `main`. |
-| Repo | `main` @ `e316468`, clean, **unpushed**. This session: `a2557ea` fix + test · `853f1a6` docs · `e316468` the battery record. Before it: the doc consolidation (`286b379`), the verify gate (`5e51bf1`), the workbench clear (`b82ab8e`). |
+| **Do first** | 📋 **Nothing is open.** The correctness pass AND **Phase 2 stages 1–4** are built, committed and battery-green. **Stage 5 (the untangle — D1, the cycles, the relay) is the next work and was deliberately NOT started** — the user drew the line there. |
+| Repo | `main` @ `HEAD`, clean. This session: the correctness pass (`a2557ea`, `853f1a6`, `e316468`, `fef05c7`) then Phase 2 stages 1–4 (`c30f2a8`, `11bca56`, `c53500a`, `063c905`). |
 | Release | ✅ **v1.20.0 released, tagged, public.** Prod registers it; `BF_TARGET=prod verify-settings` CLEAN. |
 | Walk | ✅ **v1.20.0 walk CLOSED** — fifteen items + T1–T5. Zero open findings from the table. |
 | Sandbox | ⚠ **HEADLESS.** `node <mcp>/scripts/local-foundry.mjs start/stop/status/restart`. Never the Electron app for suites — the two cannot coexist (dataPath lock). **Verify status at session start; it may have been left up.** |
@@ -26,6 +26,39 @@
 The architecture must be able to carry the surveyed features later — Heroic Inspiration,
 Bard, Tactical Mind, AC5e adoption. Those are **design pressure and nothing else**: use them
 to test whether a seam is right, never as a reason to build one.
+
+---
+
+## 📦 Phase 2, stages 1–4 — ✅ DONE 2026-08-22, all four battery-green
+
+`c30f2a8` geometry · `11bca56` parsers · `c53500a` verdicts · `063c905` eligibility.
+Every stage: move-don't-rewrite, unit tests added, static gate + live battery, own commit.
+**Unit tests 13 → 103**, still ~230ms with no Foundry.
+
+**`scripts/decide/` has ZERO imports** across all four modules — not core.js, not a machine,
+not the spine. The layer is dependency-free by construction, which is what makes it testable
+in milliseconds and impossible to tangle. **Keep it that way**: the day something in there
+needs `game` or `canvas`, it is EDGE and belongs one layer up (§2 rule 1).
+
+| Module | Holds |
+| --- | --- |
+| [decide/geometry.js](scripts/decide/geometry.js) | `honestDims`, `tokenCenter`, `tokenSamplePoints` — the v14 region-shim knowledge |
+| [decide/registry.js](scripts/decide/registry.js) | the five world-setting list parsers |
+| [decide/verdict.js](scripts/decide/verdict.js) | `hitsAmong`, `modeAdmits`, `saveOutcome`, `saveMultiplier`, `verdictText` |
+| [decide/eligible.js](scripts/decide/eligible.js) | `isDeadForSaves`, `limitedUses`, `isReactionItem`, `castLevelOf`, `clampVolleyCount`, `riderKey` |
+| [geometry.js](scripts/geometry.js) | EDGE: `tokensInTemplates`, `templateShape` (needs canvas/CONFIG/PIXI) |
+
+**Two things learned that the next stage should carry:**
+- ⚠ **Stale prose hides where code moves.** Both stage 1 and stage 4 uncovered an orphaned doc
+  comment sitting above a function it did not describe — one a stale near-duplicate of a
+  richer comment elsewhere. Check the comment above and below every block you move.
+- ⚠ **PLAN.md's eligibility bullet promises more than exists.** `usableReaction`,
+  `ridersAgainst` and mastery eligibility are all document-bound and CANNOT be extracted;
+  only the arithmetic beneath them came out. Recorded in that module's header so nobody
+  re-attempts it.
+
+**Not started, and the remaining Phase 2 list:** receipt arithmetic, presentation formatters,
+and the flag accessor layer (which would give the rest of D3 for free).
 
 ---
 

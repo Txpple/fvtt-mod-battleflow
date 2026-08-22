@@ -23,7 +23,7 @@ it a shape it already almost has, and to make the shape checkable.
 | Source | 9,845 lines / 20 files | 9,842 / 20 | ~9,000 / ~26 files (thinner files, more of them) |
 | Tools | 14,409 lines / 63 files | **~9,600 / 25** ✅ | ~7,000 / ~25 files |
 | Static checks | 1 (hook order) | **4** ✅ (lint, dead-code, hook order, registry integrity) | + type check |
-| Unit tests | 0 | **13, 216 ms** ✅ | ~150 assertions, < 2 seconds, no Foundry |
+| Unit tests | 0 | **103, ~230 ms** ✅ | ~150 assertions, < 2 seconds, no Foundry |
 | Lint findings | (unmeasured) | 0 errors / 99 warnings | 0 / 0 |
 | Live suites | 11 suites, ~8,500 lines, minutes each, run one at a time | unchanged | ~4,000 lines, section-filterable, disposable world |
 
@@ -176,14 +176,14 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
 
 ### The extraction list — highest value first
 
-- [ ] **List and registry parsing** (`interruptEntries`, `blockEntries`, `maneuverEntries`,
+- [x] **List and registry parsing** (`interruptEntries`, `blockEntries`, `maneuverEntries`,
       rider lists, volley counts) → `scripts/decide/registry.js`. *Pure strings in, entries
       out.* A typo in a world setting silently disables a feature today; this makes that a
       test.
-- [ ] **Hit / verdict math** (`hitTargets`, save folding vs DC, `damageOnSave` multiplier
+- [x] **Hit / verdict math** (`hitTargets`, save folding vs DC, `damageOnSave` multiplier
       selection, crit determination) → `scripts/decide/verdict.js`. *The most-copied logic in
       the module.*
-- [ ] **Eligibility predicates** (usable-reaction, mastery eligibility, rider intersection,
+- [x] **Eligibility predicates** (usable-reaction, mastery eligibility, rider intersection,
       volley membership, dead-target skip) → `scripts/decide/eligible.js`.
 - [ ] **Receipt arithmetic** (prior → delta → taken → trait reason; the revert inverse) →
       `scripts/decide/receipt.js`. *Currently correct and untested; it moves HP.*
