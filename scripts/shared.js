@@ -108,3 +108,50 @@ export async function forceStatus(actor, statusId, { origin = null } = {}) {
   return landed;
 }
 
+
+/* ---------------------------------------------------------------------------------------------
+ * Shared EDGE helpers — the blocks that were copied rather than shared (the duplicate census,
+ * 2026-08-22). Both are EDGE by §2 rule 1: one calls dnd5e's aggregator, the other validates a
+ * formula and warns a human. Their pure cores are a three-branch table and a map, too small to
+ * be worth an import into decide/ — what was worth fixing is that there were SEVEN copies.
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * A damage message's rolls as the damage descriptors the appliers take — the system's own
+ * aggregation, with properties respected so bypasses survive.
+ *
+ * Was byte-identical in FOUR files (auto-apply, cast, hold, saves), which made it the
+ * most-duplicated block in the tree.
+ */
+export function damagePartsOf(rolls) {
+  return dnd5e.dice.aggregateDamageRolls(rolls, { respectProperties: true })
+    .map(roll => ({
+      value: Math.max(0, roll.total),
+      type: roll.options.type,
+      properties: new Set(roll.options.properties ?? [])
+    }));
+}
+
+/**
+ * A human's answer turned into the roll configuration it implies — spread straight into a
+ * `rollSavingThrow`/`rollConcentration` config, and EMPTY when the answer asked for nothing.
+ *
+ * Was byte-identical in THREE machines (concentration, mastery's topple, saves), each with its
+ * own copy of the same nine lines and the same `Object.keys(...).length` spread — the
+ * pre-drift state, not yet drifted.
+ *
+ * ⚠ An unrollable bonus is dropped with a warning rather than thrown: a typo in the box must
+ * not stall the roll the table is waiting on.
+ */
+export function rollConfigFor(mode, bonus) {
+  const override = {};
+  if ( mode === "advantage" ) override.options = { advantage: true, disadvantage: false };
+  else if ( mode === "disadvantage" ) override.options = { advantage: false, disadvantage: true };
+  else if ( mode === "normal" ) override.options = { advantage: false, disadvantage: false };
+  const part = (bonus ?? "").trim().replace(/^\+\s*/, "");
+  if ( part ) {
+    if ( Roll.validate(part) ) override.parts = [part];
+    else ui.notifications.warn(`${TITLE}: "${part}" is not a rollable bonus — rolling without it.`);
+  }
+  return Object.keys(override).length ? { rolls: [override] } : {};
+}

@@ -11,6 +11,8 @@ import { joinEffectReceipt } from "./decide/receipt.js";
 // hook registration order check-hook-order asserts — exactly where the §9 entry graph has it.
 import "./auto-damage.js";
 import { bfCard } from "./decide/present.js";
+// Safe as a STATIC edge: shared.js registers no hooks and the entry graph evaluates it first.
+import { damagePartsOf } from "./shared.js";
 import { reactionImg, armHoldTimer, disarmHoldTimer, reactionACBonus, closeAnsweredPopups } from "./ui.js";
 // Safe as a STATIC edge (unlike auto-apply.js below): effect-riders.js registers no hooks,
 // so evaluating it early cannot reorder anything — check-hook-order.mjs proves it.
@@ -936,12 +938,7 @@ async function applySpellDamage(message) {
       .filter(t => hold?.targets?.find(h => h.uuid === t.uuid)?.verdict !== "negated")
       .map(t => ({ uuid: t.uuid, name: t.name }));
     if ( !targets.length ) return;
-    const damages = dnd5e.dice.aggregateDamageRolls(message.rolls, { respectProperties: true })
-      .map(roll => ({
-        value: Math.max(0, roll.total),
-        type: roll.options.type,
-        properties: new Set(roll.options.properties ?? [])
-      }));
+    const damages = damagePartsOf(message.rolls);
     if ( !damages.length ) return;
     // ⚠ Lazily bound, and deliberately so (split, v1.6.1): a static import would evaluate
     // auto-apply.js — and through it mastery.js and concentration.js — before this file's

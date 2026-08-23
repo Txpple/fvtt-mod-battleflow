@@ -4,7 +4,7 @@
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
 import { joinEffectReceipt, takenOf } from "./decide/receipt.js";
-import { hitTargets, modeAllows } from "./shared.js";
+import { hitTargets, modeAllows, rollConfigFor } from "./shared.js";
 import { inRunningCombat, canAnswerFor } from "./hold.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup,
@@ -381,18 +381,9 @@ async function rollToppleSave(message, target, { mode = null, bonus = null, time
   if ( !entry || entry.done ) return;
   const actor = await fromUuid(target.uuid);
   if ( !(actor instanceof Actor) ) return;
-  const rollOverride = {};
-  if ( mode === "advantage" ) rollOverride.options = { advantage: true, disadvantage: false };
-  else if ( mode === "disadvantage" ) rollOverride.options = { advantage: false, disadvantage: true };
-  else if ( mode === "normal" ) rollOverride.options = { advantage: false, disadvantage: false };
-  const part = (bonus ?? "").trim().replace(/^\+\s*/, "");
-  if ( part ) {
-    if ( Roll.validate(part) ) rollOverride.parts = [part];
-    else ui.notifications.warn(`${TITLE}: "${part}" is not a rollable bonus — rolling without it.`);
-  }
   await actor.rollSavingThrow(
     { ability: flag.ability || "con", target: flag.dc,
-      ...(Object.keys(rollOverride).length ? { rolls: [rollOverride] } : {}) },
+      ...rollConfigFor(mode, bonus) },
     { configure: false },
     { data: {
       "flags.dnd5e.originatingMessage": message.id,

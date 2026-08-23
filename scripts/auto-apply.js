@@ -4,7 +4,7 @@
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
 import { receiptEntry, joinDamageReceipt } from "./decide/receipt.js";
-import { hitTargets, resolveAttackMessage } from "./shared.js";
+import { hitTargets, resolveAttackMessage, damagePartsOf } from "./shared.js";
 import { applyEffectRiders } from "./effect-riders.js";
 import { resolveHitMastery } from "./mastery.js";
 
@@ -89,13 +89,7 @@ async function resolveDamagePayouts(damageMessage, attackMessage, hits) {
  * exact stored values.
  */
 async function applyToHitTargets(damageMessage, hits) {
-  const damages = dnd5e.dice.aggregateDamageRolls(damageMessage.rolls, { respectProperties: true })
-    .map(roll => ({
-      value: Math.max(0, roll.total),
-      type: roll.options.type,
-      properties: new Set(roll.options.properties ?? [])
-    }));
-  await applyDamagesWithReceipt(damageMessage, hits, damages);
+  await applyDamagesWithReceipt(damageMessage, hits, damagePartsOf(damageMessage.rolls));
 }
 
 /**

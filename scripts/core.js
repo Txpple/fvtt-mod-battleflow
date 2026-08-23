@@ -47,6 +47,20 @@ export const setting = key => game.settings.get(MODULE_ID, key);
 /** Exactly one client may perform world-visible applications: the active GM's. */
 export const isActiveGM = () => game.users.activeGM?.isSelf ?? false;
 
+/**
+ * Whose client rolls for this actor: the first active non-GM owner (their character, their
+ * dice), the active-GM elect otherwise. Deterministic on every client — same sorted user list,
+ * so every client elects the same roller without anyone coordinating.
+ *
+ * ⚠ Only the AUTOMATIC paths consult this — auto mode's volunteer, and nobody for the buzzer,
+ * which the elect owns. A human pressing Roll is answered by `canAnswerFor`, like every other
+ * surface. (Was copied verbatim in concentration.js and saves.js; saves.js's own comment
+ * called it "the concentration election", which is a duplicate announcing itself.)
+ */
+export const rollerUserFor = actor => game.users
+  .filter(u => u.active && !u.isGM && actor.testUserPermission(u, "OWNER"))
+  .sort((a, b) => a.id.localeCompare(b.id))[0] ?? game.users.activeGM;
+
 /* ---------------------------------------------------------------------------------------------
  * THE DEADLINE CEILING — the moment clocks have a floor and need a roof.
  *

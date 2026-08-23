@@ -2,7 +2,8 @@
  * Battle Flow — Phase 2.5: the concentration assist - damage, ask, roll, verdict, break.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, rollerUserFor } from "./core.js";
+import { rollConfigFor } from "./shared.js";
 import { canAnswerFor } from "./hold.js";
 import { popupKey, bfCard, holdBarHTML } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton,
@@ -157,19 +158,6 @@ function causeLine(cause, damage) {
   return `Took <strong>${damage}</strong> damage${from}.`;
 }
 
-/**
- * Whose client rolls: the first active non-GM owner (their character, their dice), the
- * active-GM elect otherwise. Deterministic on every client — same sorted user list. Only the
- * automatic paths consult this (auto mode's volunteer, and nobody for the buzzer — the elect
- * owns that); a human pressing Roll is answered by canAnswerFor, like every other surface.
- */
-function concRollerUser(actor) {
-  const owners = game.users
-    .filter(u => u.active && !u.isGM && actor.testUserPermission(u, "OWNER"))
-    .sort((a, b) => a.id.localeCompare(b.id));
-  return owners[0] ?? game.users.activeGM;
-}
-
 /** Same-client re-entry latch (render resume + create watcher can volunteer in one tick). */
 const concRollsInFlight = new Set();
 
@@ -200,20 +188,11 @@ async function rollConcentrationAnswer(askMessage, { timedOut = false, mode = nu
     // Closes the re-render double-roll: the flag flips to done only after the fold, and the
     // in-flight latch above cannot see across that gap.
     if ( game.messages.some(m => m.getFlag(MODULE_ID, "respondsTo") === askMessage.id) ) return;
-    const rollOverride = {};
-    if ( mode === "advantage" ) rollOverride.options = { advantage: true, disadvantage: false };
-    else if ( mode === "disadvantage" ) rollOverride.options = { advantage: false, disadvantage: true };
-    else if ( mode === "normal" ) rollOverride.options = { advantage: false, disadvantage: false };
-    const part = (bonus ?? "").trim().replace(/^\+\s*/, "");
-    if ( part ) {
-      if ( Roll.validate(part) ) rollOverride.parts = [part];
-      else ui.notifications.warn(`${TITLE}: "${part}" is not a rollable bonus — rolling without it.`);
-    }
     const actor = await fromUuid(ask.actorUuid);
     if ( !(actor instanceof Actor) || !actor.isOwner ) return;
     await actor.rollConcentration(
       { target: ask.dc,
-        ...(Object.keys(rollOverride).length ? { rolls: [rollOverride] } : {}) },
+        ...rollConfigFor(mode, bonus) },
       { configure: false },
       {
         data: { flags: { [MODULE_ID]: {
@@ -486,7 +465,7 @@ async function autoRollConcentration(askMessage) {
   const ask = askMessage.getFlag(MODULE_ID, "concentration");
   const actor = await fromUuid(ask?.actorUuid ?? "");
   if ( !(actor instanceof Actor) ) return;
-  if ( !(concRollerUser(actor)?.isSelf ?? false) ) return;
+  if ( !(rollerUserFor(actor)?.isSelf ?? false) ) return;
   await rollConcentrationAnswer(askMessage);
 }
 

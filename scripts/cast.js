@@ -3,6 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, isActiveGM } from "./core.js";
+import { damagePartsOf } from "./shared.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 
@@ -71,12 +72,7 @@ async function applyCastHealing(message) {
       ? [{ uuid: stamp.uuid, name: stamp.name }]
       : (message.getFlag("dnd5e", "targets") ?? []).map(t => ({ uuid: t.uuid, name: t.name }));
     if ( !targets.length ) return;
-    const damages = dnd5e.dice.aggregateDamageRolls(message.rolls, { respectProperties: true })
-      .map(roll => ({
-        value: Math.max(0, roll.total),
-        type: roll.options.type,
-        properties: new Set(roll.options.properties ?? [])
-      }));
+    const damages = damagePartsOf(message.rolls);
     if ( !damages.length ) return;
     await applyDamagesWithReceipt(message, targets, damages, { note: "Healing" });
   } catch(err) {

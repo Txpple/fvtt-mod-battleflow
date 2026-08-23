@@ -2,11 +2,11 @@
  * Battle Flow — Phase 2: saving throws, joint with Phase 3's save slice - demand, roll, verdict, consequences.
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, rollerUserFor } from "./core.js";
 import { tokensInTemplates } from "./geometry.js";
 import { saveMultiplier, verdictText, saveOutcome } from "./decide/verdict.js";
 import { isDeadForSaves } from "./decide/eligible.js";
-import { forceStatus } from "./shared.js";
+import { forceStatus, damagePartsOf, rollConfigFor } from "./shared.js";
 import { canAnswerFor, inRunningCombat } from "./hold.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup,
@@ -512,18 +512,9 @@ async function rollSaveAnswer(card, uuid, { mode = null, bonus = null, timedOut 
       && (m.getFlag(MODULE_ID, "saveFor") === uuid)) ) return;
     const actor = await fromUuid(uuid);
     if ( !(actor instanceof Actor) || !actor.isOwner ) return;
-    const rollOverride = {};
-    if ( mode === "advantage" ) rollOverride.options = { advantage: true, disadvantage: false };
-    else if ( mode === "disadvantage" ) rollOverride.options = { advantage: false, disadvantage: true };
-    else if ( mode === "normal" ) rollOverride.options = { advantage: false, disadvantage: false };
-    const part = (bonus ?? "").trim().replace(/^\+\s*/, "");
-    if ( part ) {
-      if ( Roll.validate(part) ) rollOverride.parts = [part];
-      else ui.notifications.warn(`${TITLE}: "${part}" is not a rollable bonus — rolling without it.`);
-    }
     await actor.rollSavingThrow(
       { ability: flag.abilities[0], target: flag.dc,
-        ...(Object.keys(rollOverride).length ? { rolls: [rollOverride] } : {}) },
+        ...rollConfigFor(mode, bonus) },
       { configure: false },
       { data: { flags: {
         // Chained to the demand card so the system's registry ties the whole moment
@@ -1076,12 +1067,7 @@ async function applyOneSaveDamage(damageMessage, flag, entry) {
     ?? flag.damageOnSave ?? "half";
   const multiplier = saveMultiplier(entry, damageOnSave);
   if ( multiplier == null ) return;
-  const damages = dnd5e.dice.aggregateDamageRolls(damageMessage.rolls, { respectProperties: true })
-    .map(roll => ({
-      value: Math.max(0, roll.total),
-      type: roll.options.type,
-      properties: new Set(roll.options.properties ?? [])
-    }));
+  const damages = damagePartsOf(damageMessage.rolls);
   if ( !damages.length ) return;
   await applyDamagesWithReceipt(damageMessage, [{ uuid: entry.uuid, name: entry.name }], damages, {
     multiplier,
@@ -1274,13 +1260,7 @@ async function fireSaveTimer(card) {
 
 /* --- who volunteers: the opt-out's silent roller --------------------------------------------- */
 
-/** Deterministic on every client — same sorted user list (the concentration election). */
-function saveRollerUser(actor) {
-  const owners = game.users
-    .filter(u => u.active && !u.isGM && actor.testUserPermission(u, "OWNER"))
-    .sort((a, b) => a.id.localeCompare(b.id));
-  return owners[0] ?? game.users.activeGM;
-}
+
 
 /* --- the answer channels and the resume discipline ------------------------------------------- */
 
@@ -1425,7 +1405,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         + `${verdictText(flag, t)}</span>`;
     } else {
       const actor = (() => { try { return fromUuidSync(t.uuid); } catch { return null; } })();
-      const roller = (actor instanceof Actor) ? saveRollerUser(actor) : null;
+      const roller = (actor instanceof Actor) ? rollerUserFor(actor) : null;
       line.style.opacity = "0.75";
       // Since finding (h) the GM's popup really does pop for an offline owner's actor, so
       // naming the roller is true again — the old "the timer (owner offline)" special case
