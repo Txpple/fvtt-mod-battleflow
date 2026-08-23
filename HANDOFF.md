@@ -10,13 +10,13 @@
 
 | | |
 | --- | --- |
-| **Do first** | 📋 **Nothing is open; everything is pushed.** Phase 2 stages 1-6 are done, each battery-green. **The next item needs SCOPING WITH THE USER, not starting** — the flag accessor layer is ~300 call sites and its two halves have very different value (PLAN.md Phase 2 has the measurement). Items 4 and 5 below were also parked for discussion. |
-| Repo | `main` @ `1c0618b`, clean tree, **pushed**. The 2026-08-22 session, in order: correctness pass (`a2557ea` fix+test, `853f1a6` docs, `e316468` battery record, `fef05c7` doc fixes) · Phase 2 stages 1–4 (`c30f2a8` geometry, `11bca56` parsers, `c53500a` verdicts, `063c905` eligibility) · `c0d23f3` docs · `cf61afb` the eight orphaned doc comments + `check-comments.mjs` · `7a185d4` handoff · **`04304b5` stage 5 (receipt arithmetic), `b5f7015` docs, `8541a8e` stage 6 (presentation formatters), `1c0618b` the gate's two new import checks**. |
+| **Do first** | 📋 **Nothing is open; everything is pushed and battery-green.** Phase 2 is CLOSED except the flag accessor layer, and Phase 4's D1 and D3 are done. **Start at the NEXT section** — it opens with the one item that is a decision rather than a step. |
+| Repo | `main` @ `c256f3b`, clean tree, **pushed**. The 2026-08-22 session in order: correctness pass (`a2557ea`…`fef05c7`) · Phase 2 stages 1–4 (`c30f2a8`, `11bca56`, `c53500a`, `063c905`) · `cf61afb` orphaned doc comments + `check-comments` · **`04304b5` stage 5 receipt arithmetic · `8541a8e` stage 6 presentation formatters · `1c0618b` the gate's import checks · `e953546` the duplicate census + ARCHITECTURE D5/D7 · `53495e4` D3 closed · `c256f3b` D1**. |
 | Release | ✅ **v1.20.0 released, tagged, public.** Prod registers it; `BF_TARGET=prod verify-settings` CLEAN. |
 | Walk | ✅ **v1.20.0 walk CLOSED** — fifteen items + T1–T5. Zero open findings from the table. |
-| Sandbox | ⚠ **HEADLESS, and LEFT RUNNING** at the end of 2026-08-22 (world active, 0 users, restarted mid-session for the stage-5 battery) — `status` first, `stop` if not testing. `node <mcp>/scripts/local-foundry.mjs start/stop/status/restart`. Never the Electron app for suites — the two cannot coexist (dataPath lock). **Verify status at session start; it may have been left up.** |
+| Sandbox | ⚠ **HEADLESS, and LEFT RUNNING** (world active, 0 users) — `status` first, `stop` if not testing. `node <mcp>/scripts/local-foundry.mjs start/stop/status/restart`. Never the Electron app for suites (dataPath lock). **Verify status at session start.** |
 | Bridge | Disconnect before any suite. Suites join as `Tester Assistant`. |
-| Verify gate | `npm run verify` — **SIX static checks now**: biome (98 warnings, 0 errors: **that is the baseline**), knip, **imports (239 bindings)**, hook order (**75 registrations**, 9 pairs), registry 9/9, comments (**285 blocks / 27 files**), then vitest **170**. Green at handoff. |
+| Verify gate | `npm run verify` — **SIX static checks**: biome (98 warnings, 0 errors: **that is the baseline**), knip, imports (**256 bindings**), hook order (**75 registrations**, 9 pairs), registry 9/9, comments (286 blocks / 27 files), then vitest **170** (~270 ms). Green at handoff. |
 | Suite order | ⚠ **battleflow → hold**, and **battleflow → playerdmg**, back to back. Other suites in between strip the fixture tokens and hold refuses. `reset-fixture-state` before effects. |
 
 ---
@@ -28,24 +28,67 @@
 headless** (the script-cache discipline: a redeploy without a version bump serves the suites
 stale code) → run the affected suites → one commit per stage.
 
-Phase 2's cheap extractions are **done** (**six stages, six green batteries**). Everything left
-is a scoping decision rather than a next step — take none of it without the user.
+Phase 2's extractions are **done** (six stages, six green batteries), and Phase 4's **D1 and
+D3 are closed**. Everything below is a scoping decision rather than a next step — the cheap,
+mechanical work is finished, and what remains changes shape.
 
-| # | Work | Why this position |
+| # | Work | Why this position, and what it really costs |
 | --- | --- | --- |
-| 1 | **The flag accessor layer** → `state/flags.js` | ⚠ **Re-measured: 38 keys, ~230 reads, ~66 writes, ~300 call sites** — an order of magnitude more churn than any stage so far, and PLAN.md's bullet undersells it. Split it: the **writes** carry the whole D3 correctness argument and are a small targeted change ([hold.js:537](scripts/hold.js:537) the answer fold, [hold.js:521](scripts/hold.js:521) the receipt merge, and topple/mastery/concentration's equivalents — all wanting `queueFlagWrite`, exactly as saves.js got); the **reads** are wide, mechanical tidiness. ⚠ "Inventory now, adopt later" is NOT available — an unimported module in `scripts/` is dead code to knip. |
-| 2 | **The structural step** — D1, then D6's three real cycles, then the relay | D1 is the root: six files import shared services from a feature file. ⚠ **Measured 2026-08-22: the free moves are EXHAUSTED.** `joinEffectReceipt` was the last pure shared service in a feature file (stage 5 took it). Everything else D1 names — `canAnswerFor`, `inRunningCombat`, `reactionItem`, `interruptEntries`, `blockEntries` — reads `game`, reads a setting, awaits `fromUuid` or walks documents, so **none of it can drop into `decide/`**. D1 is genuinely structural, not a series of cheap extractions. |
+| 1 | **D6 — break the `ui.js` ↔ `hold.js` cycle** | ⚠ **It does NOT fall out of D1, contrary to PLAN.md — measured 2026-08-22, with D1 done and the cycle still standing.** `ui.js` holds **~400 of its 697 lines** as the hold's OWN views: the card row, the popup, `reactionImg`, `reactionACBonus`, the hold clocks — plus a `renderChatMessage` and a `deleteChatMessage` registration. Breaking it means relocating those into hold.js, which **moves two hook registrations between files** and rewrites the pinned assertion `ui.js before mastery.js` in `tools/check-hook-order.mjs`. Entry order helps: hold.js is imported at [battleflow.js:91](scripts/battleflow.js:91), *before* ui.js at :92, so the hold row would register EARLIER and still land above mastery's. **Its own stage, its own battery, and the hold is the most-used feature at the table.** |
+| 2 | **The flag accessor layer** → `state/flags.js` | ⚠ **Re-measured: 38 keys, ~230 reads, ~66 writes, ~300 call sites.** ⚠ **Its correctness half is ALREADY DONE** — D3 (`53495e4`) converted the eight per-target read-modify-writes directly, without the layer, which is why what is left is the ~230 READS: wide mechanical tidiness that buys nothing a test can assert. ⚠ "Inventory now, adopt later" is not available: an unimported module in `scripts/` is dead code to knip. **Recommend deferring or dropping this** — the argument that justified it has been paid another way. |
+| 3 | **The §4.1 relay** — three folds, three envelope keys, one shape | Consolidating removes two `createChatMessage` registrations from the pinned hook order — the one extraction with an architectural payoff rather than a line-count one. ⚠ **hold's folder has a different OWNER** (the continuing client; the other two are the elect), exactly like its clock. Unify the envelope, keep ownership pluggable. |
+| 4 | **`auto-apply.js` ↔ `mastery.js`** | Breakable only by moving `applyDamagesWithReceipt` to a third module — the damage chokepoint every machine routes through, and the thing HANDOFF has always said to touch last. Low value, real risk. |
+| 5 | **`hold.js` ↔ `auto-damage.js`** | ⚠ **DO NOT "FIX".** The bare `import "./auto-damage.js"` is load-bearing: it pins evaluation order, its comment says so, and check-hook-order depends on it. |
+
+## 📦 Phase 4 — D1 and D3, ✅ DONE 2026-08-22, both battery-green
+
+`53495e4` **D3** · `c256f3b` **D1**. Neither needed the flag accessor layer, which is the
+finding that reshapes what is left.
+
+**D1 — the shared services left hold.js.** `canAnswerFor`, `isContinuingClient`,
+`inRunningCombat` → [core.js](scripts/core.js), beside `isActiveGM` and `rollerUserFor`: one
+§3 "who does what" family. `interruptEntries`/`blockEntries` → [settings.js](scripts/settings.js),
+because they are EDGE reads of a world setting whose parsers already live in `decide/registry.js`
+— and polish.js importing a *feature* to ask what the interrupt list said was the clearest
+illustration of the whole debt. **Importers of hold.js: 7 → 2**, and the two left are
+legitimate (auto-damage calls `stampHoldIfInterrupted`; ui.js draws the views). Zero new import
+edges for the core.js moves.
+
+**D3 — eight per-target writes reached the serializer.** hold's answer fold and its two
+effectReceipt merges; mastery's chip applier (whose read sat above an await loop, the same
+defect effect-riders.js already had) and its four topple sites. Every one repeats its guard
+INSIDE the lock, and returns `false` when there is nothing to record so a no-op never churns
+a render. ⚠ **The sharpest was hold's fold**: two answers landing in one tick both cloned the
+same stale flag and the second write dropped the first player's answer — and "one casting
+answers many holds" is a shipped, tested feature.
+
+⚠ **Two things the D3 conversion itself nearly broke, both caught by reading the diff, not by
+any check.** Converting clone-mutate-write into a callback silently changes what the local
+clone means:
+- `foldToppleSave` disarmed its clock with `flag.targets.every(t => t.done)` on the clone it
+  used to mutate. Once the mutation moved inside the serializer, that clone still read the
+  target as pending — the clock would never have been disarmed. It re-reads now.
+- the same fold announced its verdict unconditionally; with the claim made inside the lock, a
+  losing racer would still have announced. A `claimed` flag gates it.
+**If you convert another site, check every later use of the old local variable.**
+
+---
 
 ⚠ **D2 stays LAST and behind its own walk**, and its clock must not be unified at all (see the
 §10 corrections below).
 
-### ⚠ This work has an exit condition — decide it, don't drift past it
+### ⚠⚠ THE EXIT CONDITION — this is now the live question, not a future one
 
 The directive is architecture that can **carry** Heroic Inspiration, Bard, Tactical Mind and
-AC5e. After Phase 2 closes, the honest test is not "are more refactors available" — they
-always are — but **does the seam actually carry the thing it was built for?** At that point,
-scoping one of those features against the new layer tells you more than another extraction
-does. Raise it with the user rather than continuing on faith.
+AC5e. Phase 2 is closed and D1/D3 are repaid, so the honest test is no longer "are more
+refactors available" — they always are, and the table above is what is left of them. It is
+**does the seam actually carry the thing it was built for?**
+
+**Recommendation for the next session: scope ONE surveyed feature against the new layers
+before taking another structural stage.** That tells you more about whether this shape works
+than D6 does, and it is the thing the whole pass was for. Raise it with the user rather than
+continuing on faith — and note that "no feature work" still stands: *scoping* a feature against
+the architecture is a design exercise, not a build.
 
 ---
 
@@ -147,21 +190,27 @@ needs `game` or `canvas`, it is EDGE and belongs one layer up (§2 rule 1).
   Only the colours stayed at the EDGE. **The next stage should not "tidy" those strings back
   into the view.**
 
-## 🔁 The duplicate census — measured 2026-08-22, NOT acted on
+## 🔁 The duplicate census — ✅ COLLECTED 2026-08-22 (`e953546`)
 
-A cross-file scan for repeated code (3+ identical normalised lines) after stage 5. **Four
-clusters, 19 repeated windows, and none of them is a decide-layer extraction** — recorded so
-the next reader inherits the measurement rather than the hunch.
+A cross-file scan for repeated code (3+ identical normalised lines) after stage 5 found four
+clusters. Three were folded into shared helpers; **nine copies became three functions.**
 
-| Copies | What | Where | Verdict |
-| --- | --- | --- | --- |
-| **×3** | The roll-override builder — mode → adv/dis options, bonus string → `parts`, `Roll.validate` + warn | [concentration.js:202](scripts/concentration.js:202), [mastery.js:383](scripts/mastery.js:383), [saves.js:514](scripts/saves.js:514) | ⚠ **Byte-identical, not yet drifted — the pre-drift state.** Nine lines, three machines, each about to be edited independently. EDGE (it touches `Roll` and `ui.notifications`), so it wants a **MOMENT/spine** helper, not a decide module. The best of these four. |
-| **×4** | `aggregateDamageRolls(rolls, {respectProperties:true}).map(...)` | [auto-apply.js:91](scripts/auto-apply.js:91), [cast.js:74](scripts/cast.js:74), [hold.js:938](scripts/hold.js:938), [saves.js:1078](scripts/saves.js:1078) | Damage-part normalisation. The aggregate call is EDGE, so this is a `shared.js` helper. Most-copied block in the tree. |
-| **×2** | The owner election — active non-GM owners, sorted by id, else `activeGM` | [concentration.js:166](scripts/concentration.js:166), [saves.js:1278](scripts/saves.js:1278) | Routing, reads `game.users`. EDGE. |
-| **×2** | The advantage/normal/disadvantage dialog button rows | [concentration.js:619](scripts/concentration.js:619), [saves.js:1588](scripts/saves.js:1588) | Presentation, but built around live callbacks — not a string formatter, so stage 6 did not take it. |
+| Was | Now | Note |
+| --- | --- | --- |
+| ×4 `aggregateDamageRolls(...).map(...)` | `damagePartsOf(rolls)` in [shared.js](scripts/shared.js) | was the most-copied block in the tree |
+| ×3 the roll-override builder | `rollConfigFor(mode, bonus)` in [shared.js](scripts/shared.js) | ⚠ **still byte-identical when found — the pre-drift state.** Nine lines in three machines, each about to be edited independently. The receipt arithmetic (stage 5) was caught one step later, already spelled two ways. **This is the argument for running the census again.** |
+| ×2 the owner election | `rollerUserFor(actor)` in [core.js](scripts/core.js) | saves.js's copy carried the comment *"the concentration election"* — a duplicate announcing itself |
+| ×2 the adv/normal/disadv dialog rows | *left* | built around live callbacks, not a string formatter |
 
-**Not started, and the remaining Phase 2 list:** only the flag accessor layer — see the NEXT
-table, and scope it before starting.
+All three landed at EDGE, not in `decide/`: one calls dnd5e's aggregator, one validates a
+formula and warns a human, one reads `game.users`. Their pure cores are a three-branch table
+and a map — too small to be worth an import into `decide/`.
+
+**Re-run the scan after the next structural stage.** It is a ~20-line script over
+`scripts/**`, and it has now paid twice.
+
+**The remaining Phase 2 list:** only the flag accessor layer's ~230 READS — and D3 having been
+closed without it (`53495e4`) removes the argument that justified it. See the NEXT table.
 
 ---
 
@@ -306,8 +355,10 @@ because the next reader makes the same mistake otherwise.
 
 ## ARCHITECTURE.md §10 corrections — ✅ APPLIED 2026-08-22
 
-All three are now fixed in [ARCHITECTURE.md](ARCHITECTURE.md) §10. Kept here with their
-evidence, because the corrected rows are terse and this is why they say what they say.
+⚠ **Historical, and PARTLY SUPERSEDED.** §10 was rewritten again later the same day: **D1** is
+now half-repaid, **D3** closed, **D5** largely repaid, **D6** carries the measurement that it
+does *not* fall out of D1, and **D7** is closed. Read §10 itself for the current state; this
+section is kept for the D2 evidence, which still stands and is still the reason D2 is last.
 
 - **D2 is wrong as written.** It claims hold.js "uses **none** of the moment spine" with
   "zero uses" of five primitives. hold.js imports and uses **six** spine exports
@@ -348,9 +399,9 @@ evidence, because the corrected rows are terse and this is why they say what the
 > merging any two things that look alike, ask who runs each one. Two of the three D-register
 > items below are really this rule in disguise.
 
-- **D1** — hold.js is both a feature and the shared-services module (six files import
-  `canAnswerFor`, `inRunningCombat`, the reaction lookup, the list parsers from it).
-  ARCHITECTURE.md §10 names it; PLAN.md Phase 4 schedules it.
+- ~~**D1**~~ — ✅ **done 2026-08-22** (`c256f3b`): the shared services moved to core.js and
+  settings.js, hold.js's importers went 7 → 2. What is left is ui.js drawing the hold's views,
+  which is D6's knot — and D6 does **not** fall out of D1, measured with D1 finished.
 - **The `preRollD20TestV2` seam** — measured in the dnd5e 5.3.3 source this session: every
   d20 test (attack, check, save, skill, tool, initiative) carries `"d20Test"` in its
   `hookNames`, so one registration covers all of them. Post-roll, per-family hooks exist too

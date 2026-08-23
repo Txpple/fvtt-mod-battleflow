@@ -20,7 +20,7 @@ it a shape it already almost has, and to make the shape checkable.
 | Metric | Start | Now | Target |
 | --- | --- | --- | --- |
 | Docs | 5,990 lines / 6 files | **1,060 / 4** ✅ | done |
-| Source | 9,845 lines / 20 files | 10,398 / **27** | ~9,000 / ~26 files (thinner files, more of them) |
+| Source | 9,845 lines / 20 files | 10,449 / **27** | ~9,000 / ~26 files (thinner files, more of them) |
 | Tools | 14,409 lines / 63 files | **~9,600 / 25** ✅ | ~7,000 / ~25 files |
 | Static checks | 1 (hook order) | **6** ✅ (lint, dead-code, **import integrity**, hook order, registry integrity, doc attachment) | + type check |
 | Unit tests | 0 | **170, ~270 ms** ✅ | ~150 assertions, < 2 seconds, no Foundry |
@@ -265,19 +265,29 @@ them cheap; it does not do the adding.
 
 Ordered by risk, lowest first. Each is independently shippable and independently revertible.
 
-- [ ] **D1 — split `hold.js`'s shared services out.** Six files import `canAnswerFor`,
-      `inRunningCombat`, the reaction resolver and the list parsers from a *feature file*.
-      Move them to the MOMENT and DECISION layers. **Low risk, mechanical, unblocks
-      everything else** — do this first.
-- [ ] **D3 — route every per-target flag write through the serializer.** `hold.js`,
-      `mastery.js` and `concentration.js` still do bare read-modify-write on shared per-target
-      arrays; `saves.js`, `maneuvers.js` and `volleys.js` use `queueFlagWrite`. The mechanism
-      that made this a **measured double-application** on the save path (a lost merge entry
-      reads as "not applied yet") is present in the topple flag and the hold flag today.
-      *This is the one item on this list with a correctness argument, not just a cleanliness
-      one.* Falls out of the Phase 2 flag accessor almost for free.
-- [ ] **D6 — break the `ui.js` ↔ `hold.js` cycle.** Safe today only by the hoisted-function
-      convention; one non-hoisted export from breaking. Falls out of D1.
+- [x] **D1 — split `hold.js`'s shared services out.** ✅ 2026-08-22, battery-green.
+      `canAnswerFor`, `isContinuingClient`, `inRunningCombat` → `core.js` (the §3 "who does
+      what" family, beside `isActiveGM`/`rollerUserFor`); `interruptEntries`/`blockEntries` →
+      `settings.js` (§8). **Importers of hold.js: 7 → 2.** Zero new import edges for the
+      core.js moves; the two settings.js edges are order-neutral. ⚠ What remains is `ui.js`,
+      which draws the hold's views and so needs `reactionItem`/`answerHold`/`continueHold` —
+      that is D6's knot, not D1's.
+- [x] **D3 — route every per-target flag write through the serializer.** ✅ 2026-08-22,
+      battery-green — **and it did NOT need the flag accessor layer**, which is why it was done
+      directly. Eight sites converted, each repeating its guard inside the lock: hold's answer
+      fold (two answers in one tick dropped one player's answer) and its two effectReceipt
+      merges, mastery's chip applier (its read sat above an await loop) and its four topple
+      sites. ⚠ Deliberately NOT converted: concentration's ask and the `mastery` flag are
+      single-decision objects with one writer — the argument does not reach them.
+- [ ] **D6 — break the `ui.js` ↔ `hold.js` cycle.** ⚠ **It does NOT fall out of D1 — measured
+      2026-08-22.** D1 is done and the cycle stands, because `ui.js` holds ~400 of its 697
+      lines as the hold's OWN views (row, popup, reaction art, AC read) plus a
+      `renderChatMessage` and a `deleteChatMessage` registration. Breaking it means relocating
+      those into `hold.js`, which **moves two hook registrations between files** and rewrites a
+      pinned assertion (`ui.js before mastery.js`). A stage of its own, with its own battery.
+      The other two cycles are worse bargains: `hold.js` ↔ `auto-damage.js` is load-bearing on
+      purpose, and `auto-apply.js` ↔ `mastery.js` breaks only by moving
+      `applyDamagesWithReceipt` — the damage chokepoint — to a third module.
 - [ ] **D2 — bring `hold.js` onto the moment spine.** The hold is the *original* moment machine
       and the one the spine was extracted from, and it is the only machine that adopted **none**
       of it — its own clock, its own latch, its own views. **Highest risk item in this document**
