@@ -105,8 +105,17 @@ still fails*; the flag carries a LIST of spends and `foldedRoll` composes `repla
 so stacking is supported. What is not supported is ticking two at once — deliberate, so a player
 never burns a Bardic die on a roll the reroll already saved.
 
-⚠ **Tactical Mind's refund is still unmodelled and is unbuildable as an automatic rule** — the
-refund is conditional on the check FAILING, and no DC exists to know that.
+⚠ **TACTICAL MIND'S REFUND STAYS UNMODELLED — USER RULING 2026-08-23, do not re-propose it.**
+RAW is *"if the check still fails, this use of Second Wind isn't expended"*, so the rule is real
+and the module does not implement it. It **cannot** implement it automatically: the refund is
+conditional on the check FAILING, Tactical Mind fires only on ability checks, and no DC exists
+for one (ruling 2b). A manual *"Refund — the check still failed"* button on the settled card was
+offered and **declined**; the table adjusts Second Wind by hand when it comes up.
+
+✅ **The other two are correct as built, and asymmetrically so — worth knowing before someone
+"fixes" them.** Bardic Inspiration is *"expended when it's rolled"* and Heroic Inspiration is
+*"you must use the new roll"*: both are spent whether or not they help, so a refund would be a
+RULES BUG rather than a kindness. Only Tactical Mind has a refund clause at all.
 
 ### Fixtures (new, in the sandbox)
 
