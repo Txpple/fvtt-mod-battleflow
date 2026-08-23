@@ -18,7 +18,7 @@
 // ⚠ Narrowed by D6: `S`, `setting`, `isContinuingClient` and `holdBarHTML` left with the hold's
 // views. The spine reads no world setting and asks no ownership question of its own — every
 // remaining core import is either identity (MODULE_ID, TITLE) or a gate a CALLER hands it.
-import { MODULE_ID, TITLE, isActiveGM, deadlineIsLive, canAnswerFor } from "./core.js";
+import { MODULE_ID, TITLE, isActiveGM, deadlineIsLive, canAnswerFor, queueFlagWrite } from "./core.js";
 import { TONE, popupKey, bfCard, momentBarHTML, nextCascadeSlot, cascadePosition,
   eldersDeepestFirst } from "./decide/present.js";
 
@@ -327,6 +327,61 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
  * stacked on every client that could answer, asking about attacks that no longer exist
  * (reported live 2026-08-15: "close all the popup window spam").
  */
+/* ---------------------------------------------------------------------------------------------
+ * THE RELAY (the spine, ARCHITECTURE.md §4.1).
+ *
+ * A player cannot write someone else's message. So when the answerer is not the client that
+ * owns the flag, the answer travels as its OWN public message carrying an ENVELOPE, and the
+ * owning client folds it in. Three machines needed that and each hand-wrote it: the hold's
+ * answer (`respondsTo`), a save's choice (`saveChoiceAnswer`), a riposte's (`riposteAnswer`) —
+ * three registrations, three envelope shapes, one skeleton copied three times.
+ *
+ * ⚠ WHAT IS SHARED AND WHAT IS NOT. Shared: find the envelope, resolve the target message,
+ * check the target still carries its flag, ask whether THIS client owns the fold, and write
+ * through the serializer. Not shared, and deliberately callbacks: the FOLD (a per-target
+ * answer, a per-target choice, a per-reactor answer with a weapon and a status transition are
+ * genuinely different bodies) and the OWNER.
+ *
+ * ⚠⚠ THE OWNER IS WHY THIS IS A REGISTRY AND NOT A MERGE. The hold's fold is owned by the
+ * CONTINUING CLIENT; the other two by the elect. A three-into-one merge would silently move
+ * the hold's fold onto the elect — the same trap as its clock, on the most-used feature at the
+ * table. `owns` receives the target's live flag precisely so `isContinuingClient(flag)` can
+ * answer; the elect-owned relays ignore the argument.
+ *
+ * ⚠ The ENVELOPE SHAPES are deliberately NOT unified. The hold's is flat sibling flags
+ * (`respondsTo` + `uuid`/`answer`/`ac`), because that same message also carries an
+ * `effectReceipt` for receipts.js to render — flattening it into a nested object is a WIRE
+ * FORMAT change on messages players write and another client reads, and an in-flight answer
+ * across a deploy would simply stop folding. `targetOf` exists so a relay can name its own
+ * shape instead. Unify the mechanism; leave the bytes alone.
+ * ------------------------------------------------------------------------------------------- */
+
+/** envelope flag key → { flagKey, targetOf, owns, fold } */
+const relays = new Map();
+
+/**
+ * Declare a relay. `targetOf(envelope)` returns the message id the answer is FOR; `owns(flag)`
+ * decides whether this client does the folding; `fold(current, envelope, message)` mutates the
+ * flag inside the serializer and may return `false` to skip the write entirely.
+ */
+export function registerRelay(envelopeKey, { flagKey, targetOf, owns, fold }) {
+  relays.set(envelopeKey, { flagKey, targetOf, owns, fold });
+}
+
+// ONE registration for every relay (was three). ⚠ Every guard is repeated INSIDE the
+// serializer by the folds themselves — the D3 rule: the state a fold tests must be the state
+// it writes, because two answers can land in the same tick.
+Hooks.on("createChatMessage", message => {
+  for ( const [envelopeKey, relay] of relays ) {
+    const envelope = message.getFlag(MODULE_ID, envelopeKey);
+    if ( !envelope ) continue;
+    const target = game.messages.get(relay.targetOf(envelope));
+    const flag = target?.getFlag(MODULE_ID, relay.flagKey);
+    if ( !flag || !relay.owns(flag) ) continue;
+    void queueFlagWrite(target, relay.flagKey, current => relay.fold(current, envelope, message));
+  }
+});
+
 // THE ONE DELETE-SWEEP (the spine): a deleted message takes its popups, every machine's
 // shown-latches and any local acknowledgements with it — the uniform `${messageId}|` key
 // prefix is what makes one sweep cover them all (five per-machine cleanup loops collapsed

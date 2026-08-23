@@ -11,7 +11,7 @@ import { forceStatus, damagePartsOf, rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup,
   momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
-  armDeadline, disarmDeadline } from "./ui.js";
+  armDeadline, disarmDeadline, registerRelay } from "./ui.js";
 import { dramaticVerdictPause } from "./concentration.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt, revertEffect } from "./effect-riders.js";
@@ -800,19 +800,19 @@ async function answerSaveChoice(card, uuid, answer) {
   });
 }
 
-/** A relayed choice answer landing: the elect folds it in (idempotent, first answer wins). */
-Hooks.on("createChatMessage", message => {
-  const a = message.getFlag(MODULE_ID, "saveChoiceAnswer");
-  if ( !a?.cardId || !isActiveGM() ) return;
-  const card = game.messages.get(a.cardId);
-  if ( !card?.getFlag(MODULE_ID, "saves") ) return;
-  void queueFlagWrite(card, "saves", current => {
+/** A relayed choice answer landing: the ELECT folds it in (idempotent, first answer wins).
+ * ⚠ Through the spine's relay registry since the §4.1 consolidation. */
+registerRelay("saveChoiceAnswer", {
+  flagKey: "saves",
+  targetOf: a => a.cardId,
+  owns: () => isActiveGM(),
+  fold: (current, a) => {
     const t = current.targets?.find(x => x.uuid === a.uuid);
     const c = t?.choice;
     if ( !c || c.answer ) return;
     c.answer = a.answer;
     c.answeredAt = Date.now();
-  });
+  }
 });
 
 const disarmSaveChoiceTimer = cardId => disarmDeadline(saveChoiceTimers, cardId);

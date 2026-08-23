@@ -21,7 +21,7 @@ import { damagePartsOf } from "./shared.js";
 // damage-offer bar still registers above the hold row exactly as it did when they shared one
 // handler (asserted in check-hook-order.mjs).
 import { openMomentPopup, momentButton, scheduleBarSync, armDeadline, disarmDeadline,
-  shownMoments, livePopups } from "./ui.js";
+  shownMoments, livePopups, registerRelay } from "./ui.js";
 // Safe as a STATIC edge (unlike auto-apply.js below): effect-riders.js registers no hooks,
 // so evaluating it early cannot reorder anything — check-hook-order.mjs proves it.
 import { applyEffectsTo } from "./effect-riders.js";
@@ -497,25 +497,30 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
   await attackMessage.setFlag(MODULE_ID, "hold", hold);
 }
 
-// A player's answer message landing: the continuing client folds it into the hold flag.
-Hooks.on("createChatMessage", message => {
-  const response = message.getFlag(MODULE_ID, "respondsTo");
-  if ( !response ) return;
-  const attackMessage = game.messages.get(response);
-  const hold = attackMessage?.getFlag(MODULE_ID, "hold");
-  if ( !hold || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
-  // ⚠ THROUGH THE SERIALIZER (D3, 2026-08-22). This is a PER-TARGET write to a shared array,
-  // and the handler is synchronous up to the write: two answer messages landing in one tick
-  // both cloned the same stale flag, each recorded its own target, and the second write
-  // dropped the first answer. The guards repeat INSIDE the lock — saves.js's flip idiom — so
-  // the state they test is the state being written, and "nothing to record" skips the write
-  // entirely rather than churning a render.
-  void queueFlagWrite(attackMessage, "hold", flag => {
+// A player's answer message landing: the CONTINUING CLIENT folds it into the hold flag.
+// ⚠ Through the spine's relay registry since the §4.1 consolidation - ONE createChatMessage
+// registration now serves all three relays. The OWNER stays this machine's (`isContinuingClient`,
+// not the elect), which is exactly why the relay is a registry and not a merge.
+// ⚠ The envelope is FLAT - `respondsTo` plus sibling `uuid`/`answer` flags - because this same
+// message also carries an `effectReceipt` for receipts.js to render, so `targetOf` is the
+// identity function here. Do NOT tidy it into a nested object: that is a wire-format change on
+// messages players write and another client reads, and an answer in flight across a deploy
+// would simply stop folding.
+registerRelay("respondsTo", {
+  flagKey: "hold",
+  targetOf: response => response,
+  owns: hold => (hold.status === "pending") && isContinuingClient(hold),
+  // ⚠ THROUGH THE SERIALIZER (D3, 2026-08-22). This is a PER-TARGET write to a shared array:
+  // two answer messages landing in one tick both cloned the same stale flag, each recorded its
+  // own target, and the second write dropped the first answer. The guards repeat INSIDE the
+  // lock - saves.js's flip idiom - so the state they test is the state being written, and
+  // "nothing to record" skips the write entirely rather than churning a render.
+  fold: (flag, _response, message) => {
     if ( flag.status !== "pending" ) return false;
     const target = flag.targets?.find(t => t.uuid === message.getFlag(MODULE_ID, "uuid"));
     if ( !target || target.answer ) return false;
     target.answer = message.getFlag(MODULE_ID, "answer");
-  });
+  }
 });
 
 // The cast IS the answer: a listed reaction used by a held target answers its own hold, so a

@@ -87,7 +87,7 @@ no no-GM degraded mode (DESIGN §4).
 | --- | --- | --- |
 | **Attack / usage message** | the moment flag (`hold`, `mastery`, `saves`, `precision`, `volley`, …) | The moment belongs to the thing that caused it |
 | **Damage message** | `receipt`, `effectReceipt` | The application belongs to the roll that caused it |
-| **Response message** | `respondsTo` + the answer | A player can only write their *own* message — this is the answer channel that needs no permission |
+| **Response message** | `respondsTo` + the answer | A player can only write their *own* message — this is the answer channel that needs no permission. See **the relay** below |
 | **Actor** | `reactionSpent`, `cleaveArm` | Per-creature, per-turn state |
 | **Applied effect** | provenance markers | Which module path created it, so revert knows |
 
@@ -106,6 +106,34 @@ no no-GM degraded mode (DESIGN §4).
    reconstructable from the flag alone after a reload, on any client.
 4. **Every write that changes the world stamps a receipt** carrying prior values, so revert is
    arithmetic and not guesswork (R5).
+
+### The relay — the answer channel, one shape
+
+A player cannot write someone else's message, so when the answerer is not the client that owns
+the flag, the answer travels as **its own public message carrying an envelope**, and the owning
+client folds it in. Three machines need that: the hold's answer (`respondsTo`), a save's choice
+(`saveChoiceAnswer`), a riposte's (`riposteAnswer`).
+
+Each hand-wrote the same skeleton with its own `createChatMessage` registration until 2026-08-23.
+They now declare themselves to **one registry in the spine** — `registerRelay(envelopeKey,
+{ flagKey, targetOf, owns, fold })` in [ui.js](scripts/ui.js) — served by a single registration
+(module-wide `createChatMessage` count 15 → 13).
+
+⚠ **`owns` is why this is a registry and not a merge.** The hold's fold is owned by the
+**continuing client**; the other two by the **elect**. A three-into-one merge would silently move
+the hold's fold onto the elect — the same trap as its clock, on the most-used feature at the
+table. `owns` receives the target's live flag so `isContinuingClient(flag)` can answer; the
+elect-owned relays ignore the argument.
+
+⚠ **The envelope SHAPES are deliberately not unified.** The hold's is flat sibling flags
+because that same message also carries an `effectReceipt` for receipts.js to render. Flattening
+it into a nested object is a **wire-format change** on messages players write and another client
+reads — an answer in flight across a deploy would simply stop folding. `targetOf` exists so each
+relay names its own shape. **Unify the mechanism; leave the bytes alone.**
+
+⚠ `respondsTo` is **polymorphic** — concentration and saves stamp it too, for their own
+answer paths. The relay self-selects on the target's flag, which is why `flagKey` is part of the
+declaration rather than inferred.
 
 ### Idempotence and resume
 

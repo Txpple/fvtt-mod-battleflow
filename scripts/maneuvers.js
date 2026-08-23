@@ -10,7 +10,7 @@ import { hitTargets, modeAllows } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup,
   momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,
-  armAskTimer, disarmAskTimer, armDeadline, disarmDeadline } from "./ui.js";
+  armAskTimer, disarmAskTimer, armDeadline, disarmDeadline, registerRelay } from "./ui.js";
 import { combatStamp } from "./mastery.js";
 // Safe statically (the saves.js:12 argument): the entry evaluates auto-damage.js at :90 and
 // this file at :97, so nothing here can reorder auto-damage's registrations. Re-checked with
@@ -501,21 +501,22 @@ async function answerRiposte(message, uuid, answer, { weaponId = null, weaponNam
   await resolveRiposte(message, uuid, weaponId);
 }
 
-/** A relayed answer landing: the elect folds it into the riposte flag (idempotent — the
- * claim rules are the same as the direct path's, so a twin relay changes nothing). */
-Hooks.on("createChatMessage", message => {
-  const a = message.getFlag(MODULE_ID, "riposteAnswer");
-  if ( !a?.messageId || !isActiveGM() ) return;
-  const held = game.messages.get(a.messageId);
-  if ( !held?.getFlag(MODULE_ID, "riposte") ) return;
-  void queueFlagWrite(held, "riposte", current => {
+/** A relayed answer landing: the ELECT folds it into the riposte flag (idempotent - the claim
+ * rules are the same as the direct path's, so a twin relay changes nothing).
+ * ⚠ Through the spine's relay registry since the §4.1 consolidation. `owns` ignores the flag
+ * here because the elect is the owner; the hold's relay is the one that reads it. */
+registerRelay("riposteAnswer", {
+  flagKey: "riposte",
+  targetOf: a => a.messageId,
+  owns: () => isActiveGM(),
+  fold: (current, a) => {
     const r = (current.reactors ?? []).find(x => x.uuid === a.uuid);
     if ( !r || r.answer || (current.status !== "pending") ) return;
     r.answer = a.answer;
     r.answeredAt = Date.now();
     if ( a.weaponId ) { r.weaponId = a.weaponId; r.weaponName = a.weaponName; }
     if ( (current.reactors ?? []).every(x => x.answer) ) current.status = "resolved";
-  });
+  }
 });
 
 /** Has this reactor's driven attack already been made? The provenance flags ARE the receipt. */

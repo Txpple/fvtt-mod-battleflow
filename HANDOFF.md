@@ -10,19 +10,20 @@
 
 | | |
 | --- | --- |
-| **Do first** | 📋 **Nothing is open. Phase 3 is DONE and v1.21.0 is released.** The only phases left are **D2** (the last Phase 4 item) and the §4.1 relay; Phase 5's Tier-2 suite slimming is tools-only. ⚠ **Phase 3 shipped AFTER v1.21.0 was tagged, so it is UNRELEASED** — the same gap that stood before, now one phase deep instead of thirty commits. **User call 2026-08-23, stated twice: all remaining refactors before any new feature.** |
-| Repo | `main` @ `fd8f77f`, clean, **pushed**. Tag **`v1.21.0`** is released; `a30cfd5` **Phase 3 stage 1** and `fd8f77f` **Phase 3 stage 2** sit above it. Earlier this session: `666ec31` the release-zip fix · `5cb0318` the bump (tagged) · `8154c70` + `f3f77fb` the docs. |
+| **Do first** | 📋 **The refactor is FINISHED. Phases 0–4 are all closed, and the only NEXT row left is feature scoping.** ⚠ **Everything since the v1.21.0 tag is UNRELEASED** — Phase 3, D2 and the §4.1 relay all sit above it. ⚠ **Two paths this session touched are covered by NO automated suite** and are what a walk is for: the hold's popup-CLOSING (D2) and the RELAYED half of the relay — both need a second client, and `check-popup-routing.mjs`, the only two-client harness, **cannot currently run** (PC Assistant has NONE on BF Test PC Attacker). **User call 2026-08-23, stated twice: all remaining refactors before any new feature** — and they now are. |
+| Repo | `main` @ the relay commit, clean, **pushed**. Tag **`v1.21.0`** is released; above it sit `a30cfd5` **Phase 3 stage 1**, `fd8f77f` **Phase 3 stage 2**, `e99d555` **D2** and the §4.1 relay. |
 | Release | ✅ **v1.21.0 RELEASED 2026-08-23** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.21.0>, both assets, the published zip downloaded back and **proven self-contained** (30 entries, 99 relative imports, all resolving). ⚠ **Prod was NOT updated, by instruction** — the table still runs v1.20.0. ⚠ **Phase 3 is not in that tag.** Both manifest fields move together at the next bump (the v1.20.0 class). |
 | **Parity** | ✅ **PROVEN at `46b4580`, 2026-08-23** — the full battery, every suite at or above baseline, on the sandbox carrying HEAD's `scripts/` byte-identical. battleflow ALL PASS ×2 · hold ALL PASS · playerdmg 12/12 · saves 61/61 · volleys **38/39 first run → 39/39 ×2** (the documented variance class; the first-run output was captured before re-running, per the stage-5 lesson) · maneuvers 54/54 · cast 17/17 · riders 8/8 · concentration 47/47 · effects 54/54 (after `reset-fixture-state`) · resources 18/18 · savedmg 13/13 · `verify-settings` **CLEAN** before and after. **The refactor cost no features.** |
 | Walk | ✅ **v1.20.0 walk CLOSED** — fifteen items + T1–T5. Zero open findings from the table. |
 | Sandbox | ⚠ **HEADLESS, LEFT RUNNING** (world active, 0 users, pid 30096) — **stopped, redeployed and restarted 2026-08-23, twice — most recently for Phase 3 stage 2**, so it carries HEAD byte-identical **including `module.json` at 1.21.0**. `status` first, `stop` if not testing. `node <mcp>/scripts/local-foundry.mjs start/stop/status/restart`; deploy with `node <mcp>/scripts/deploy-house-module.mjs fvtt-mod-battleflow --local` (never without `--local`). Never the Electron app for suites (dataPath lock). `verify-settings` **CLEAN** after the restart. |
 | Bridge | Disconnect before any suite. Suites join as `Tester Assistant`. |
-| Verify gate | `npm run verify` — **SIX static checks**: biome (**98 warnings, 0 errors: that is the baseline**), knip, imports (**260 bindings**), hook order (**77 registrations, 10 pairs**), registry (**11 checks**, and it now PRINTS the R4 kinds table), comments (296 blocks / 27 files), then vitest **184**. Exit 0 at handoff. ⚠ **The R4 total is PINNED at 16 in `check-registry.mjs`** — adding a kind fails the gate until the pin moves deliberately. That is the point, not an obstacle. |
+| Verify gate | `npm run verify` — **SIX static checks**: biome (**98 warnings, 0 errors: that is the baseline**), knip, imports (**264 bindings**), hook order (**75 registrations, 10 pairs**), registry (**11 checks**, and it PRINTS the R4 kinds table), comments (298 blocks / 27 files), then vitest **184**. Exit 0 at handoff. ⚠ **The R4 total is PINNED at 16 in `check-registry.mjs`** — adding a kind fails the gate until the pin moves deliberately. That is the point, not an obstacle. ⚠ Registrations fell **77 → 75** at the relay: three `createChatMessage` handlers became one. |
 | Suite order | ⚠ **battleflow → hold**, and **battleflow → playerdmg**, back to back. Other suites in between strip the fixture tokens and hold refuses. `reset-fixture-state` before effects. |
+| Flakes | Two observed, both re-run clean and both captured before re-running: **volleys 38/39** (`3e` wants three HITTING rays and rays are real attack rolls — the documented class) and **maneuvers 53/54** (`R6b` the driven-MISS announcement card, first seen 2026-08-23, 54/54 on two immediate re-runs). ⚠ The undiagnosed `smoke-battleflow` "2 FAILURE(S)" class has NOT reappeared this session across eight runs. |
 
 ---
 
-## ▶ NEXT — Phase 3 is closed; D2 is the last risky thing left
+## ▶ NEXT — the refactor is FINISHED; only feature scoping remains
 
 **The loop, which has now worked seven times running:** read the target code → move it
 (never rewrite) → write the unit tests → `npm run verify` → **stop, deploy `--local`, start**
@@ -47,9 +48,7 @@ this ordering and not a mistake in it.
 
 | # | Work | Why this position |
 | --- | --- | --- |
-| 1 | **D2 — `hold.js` onto the moment spine** | The last Phase 4 item and the highest-risk thing in PLAN.md. ⚠ **D6 made it materially easier**: the hold's views and clocks now sit in hold.js beside its flag, so adopting the spine's primitives is a local change rather than a cross-file one. Still ships **alone, behind its own walk**. ⚠ Its clock must **not** be unified — the hold's is owned by the continuing client, every other by the elect. |
-| 2 | **The §4.1 relay** — three folds, three envelope keys, one shape | Removes two `createChatMessage` registrations from the pinned hook order. ⚠ **hold's folder has a different OWNER** (the continuing client; the other two are the elect), exactly like its clock. Unify the envelope, keep ownership pluggable. |
-| 3 | **Feature scoping — LAST, and D8 is the frame** | ⚠ **Moved here by user call 2026-08-23 — "all the refactors before new features" — and reaffirmed the same day. Do not promote it back without another call.** When it is reached: the three surveyed d20 features (Heroic Inspiration, Tactical Mind, Bardic Inspiration) are **one kind**, and the module already ships a member of it — Precision Attack. Scope them together, not one at a time (ARCHITECTURE §10 **D8**). ⚠ **The real new work is the SAVE side**: `hitsAmong` folds verdicts for attacks and has no equivalent for saves, so a rerolled or boosted save has nowhere to land. ⚠ And a reroll can turn a hit **into** a miss, which breaks `hitsAmong`'s documented "the sets are disjoint" precedence argument. Neither the offer nor the popup is the hard part. |
+| 1 | **Feature scoping — and it is now the ONLY thing left** | ⚠ **Moved here by user call 2026-08-23 — "all the refactors before new features" — and reaffirmed the same day. Do not promote it back without another call.** When it is reached: the three surveyed d20 features (Heroic Inspiration, Tactical Mind, Bardic Inspiration) are **one kind**, and the module already ships a member of it — Precision Attack. Scope them together, not one at a time (ARCHITECTURE §10 **D8**). ⚠ **The real new work is the SAVE side**: `hitsAmong` folds verdicts for attacks and has no equivalent for saves, so a rerolled or boosted save has nowhere to land. ⚠ And a reroll can turn a hit **into** a miss, which breaks `hitsAmong`'s documented "the sets are disjoint" precedence argument. Neither the offer nor the popup is the hard part. |
 | — | ~~**The flag accessor layer**~~ (D4) | **DEFERRED, and recommend dropping.** D3 repaid its correctness half without it; what is left is ~230 mechanical READS that buy nothing a test can assert. "Inventory now, adopt later" is not available — an unimported module in `scripts/` is dead code to knip. |
 | — | ~~`auto-apply.js` ↔ `mastery.js`~~ / ~~`hold.js` ↔ `auto-damage.js`~~ | Both **deliberate; leave alone.** The first breaks only by moving `applyDamagesWithReceipt` — the damage chokepoint — to a third module. The second's bare `import "./auto-damage.js"` is **load-bearing**: it pins evaluation order, its comment says so, and check-hook-order depends on it. |
 
@@ -581,8 +580,13 @@ section is kept for the D2 evidence, which still stands and is still the reason 
 - **AC5e as a vendor boundary** — the 1.9 fence (AC5e decorates d20s, Battleflow applies and
   never decorates) is the cleanest line in the design. Worth making enforceable rather than
   conventional.
-- **The §4.1 relay** — hand-written three times with three envelope keys, each adding its own
-  `createChatMessage` registration (15 exist in total):
+- ~~**The §4.1 relay**~~ — ✅ **DONE 2026-08-23.** Three hand-written copies now declare
+  themselves to one registry in the spine (`registerRelay` in ui.js), served by a single
+  registration: module-wide `createChatMessage` 15 → 13. ⚠ **The stated payoff was wrong** —
+  "removes two registrations from the pinned hook order" is loose, because **no pinned pair
+  touches `createChatMessage` at all**; the real payoff is one shape with pluggable ownership,
+  so a fourth relay is an entry rather than a fourth copy. ⚠ The hold's fold stays owned by the
+  **continuing client** and the envelope BYTES were deliberately left alone — see ARCHITECTURE §4.
 
   | Site | Envelope key | Folded by |
   | --- | --- | --- |
