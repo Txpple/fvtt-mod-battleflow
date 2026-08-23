@@ -10,19 +10,19 @@
 
 | | |
 | --- | --- |
-| **Do first** | 📋 **Nothing is open. v1.21.0 is RELEASED and the sandbox is on it.** The release is published with both assets, the published zip was downloaded and **proven self-contained** (30 entries, 99 relative imports, all resolving), and the sandbox was stopped, redeployed and restarted so it now reports **1.21.0** — the version-collision trap is fully closed. **Phase 4 is DONE except D2**, and the refactor cost **zero features** (see Parity). ⚠ **Six suites have not run since the polish.js fold** (maneuvers, volleys, riders, concentration, playerdmg, savedmg) — the tag does not carry a full battery. **User call 2026-08-23: all remaining refactors before any new feature**, so NEXT is Phase 3 → D2 → the §4.1 relay. |
-| Repo | `main` @ `8154c70`, clean, **pushed**, tag **`v1.21.0`** pushed. This session: `666ec31` the release-zip fix · **`5cb0318` the v1.21.0 bump (tagged)** · `8154c70` the docs recut. Before them 2026-08-23: `46b4580` the d20-fold corrections · `17ac81c` the parity battery · **`0e2380a` D6** · `e143496` the census re-run · `393c9cb` the recut. |
-| Release | ✅ **v1.21.0 RELEASED 2026-08-23** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.21.0>. Both assets attached (zip **208,444 bytes / 30 entries**, and a bare `module.json`); `releases/latest/download/module.json` verified serving **1.21.0** with a `download` pointing at its own v1.21.0 zip. **Both manifest fields moved in ONE commit** — the fix for the v1.20.0 class, where `version` moved and `download` was left on v1.19.0. ⚠ **Prod has NOT been updated** (user instruction): the table still runs v1.20.0 until someone installs this. ⚠ **The zip was broken and the release is what found it** — see the Operational block. |
+| **Do first** | 📋 **Nothing is open. Phase 3 is DONE and v1.21.0 is released.** The only phases left are **D2** (the last Phase 4 item) and the §4.1 relay; Phase 5's Tier-2 suite slimming is tools-only. ⚠ **Phase 3 shipped AFTER v1.21.0 was tagged, so it is UNRELEASED** — the same gap that stood before, now one phase deep instead of thirty commits. **User call 2026-08-23, stated twice: all remaining refactors before any new feature.** |
+| Repo | `main` @ `fd8f77f`, clean, **pushed**. Tag **`v1.21.0`** is released; `a30cfd5` **Phase 3 stage 1** and `fd8f77f` **Phase 3 stage 2** sit above it. Earlier this session: `666ec31` the release-zip fix · `5cb0318` the bump (tagged) · `8154c70` + `f3f77fb` the docs. |
+| Release | ✅ **v1.21.0 RELEASED 2026-08-23** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.21.0>, both assets, the published zip downloaded back and **proven self-contained** (30 entries, 99 relative imports, all resolving). ⚠ **Prod was NOT updated, by instruction** — the table still runs v1.20.0. ⚠ **Phase 3 is not in that tag.** Both manifest fields move together at the next bump (the v1.20.0 class). |
 | **Parity** | ✅ **PROVEN at `46b4580`, 2026-08-23** — the full battery, every suite at or above baseline, on the sandbox carrying HEAD's `scripts/` byte-identical. battleflow ALL PASS ×2 · hold ALL PASS · playerdmg 12/12 · saves 61/61 · volleys **38/39 first run → 39/39 ×2** (the documented variance class; the first-run output was captured before re-running, per the stage-5 lesson) · maneuvers 54/54 · cast 17/17 · riders 8/8 · concentration 47/47 · effects 54/54 (after `reset-fixture-state`) · resources 18/18 · savedmg 13/13 · `verify-settings` **CLEAN** before and after. **The refactor cost no features.** |
 | Walk | ✅ **v1.20.0 walk CLOSED** — fifteen items + T1–T5. Zero open findings from the table. |
-| Sandbox | ⚠ **HEADLESS, LEFT RUNNING** (world active, 0 users, pid 30096) — **stopped, redeployed and restarted 2026-08-23**, so it carries HEAD byte-identical **including `module.json` at 1.21.0**. `status` first, `stop` if not testing. `node <mcp>/scripts/local-foundry.mjs start/stop/status/restart`; deploy with `node <mcp>/scripts/deploy-house-module.mjs fvtt-mod-battleflow --local` (never without `--local`). Never the Electron app for suites (dataPath lock). `verify-settings` **CLEAN** after the restart. |
+| Sandbox | ⚠ **HEADLESS, LEFT RUNNING** (world active, 0 users, pid 30096) — **stopped, redeployed and restarted 2026-08-23, twice — most recently for Phase 3 stage 2**, so it carries HEAD byte-identical **including `module.json` at 1.21.0**. `status` first, `stop` if not testing. `node <mcp>/scripts/local-foundry.mjs start/stop/status/restart`; deploy with `node <mcp>/scripts/deploy-house-module.mjs fvtt-mod-battleflow --local` (never without `--local`). Never the Electron app for suites (dataPath lock). `verify-settings` **CLEAN** after the restart. |
 | Bridge | Disconnect before any suite. Suites join as `Tester Assistant`. |
-| Verify gate | `npm run verify` — **SIX static checks**: biome (**98 warnings, 0 errors: that is the baseline**), knip, imports (**253 bindings**), hook order (**77 registrations, 10 pairs**), registry 9/9, comments (287 blocks / 27 files), then vitest **170** (~270 ms). Exit 0 at handoff. ⚠ Bindings fell 256 → 253 and registrations rose 75 → 77 at D6 — both expected, both explained in `0e2380a`. |
+| Verify gate | `npm run verify` — **SIX static checks**: biome (**98 warnings, 0 errors: that is the baseline**), knip, imports (**260 bindings**), hook order (**77 registrations, 10 pairs**), registry (**11 checks**, and it now PRINTS the R4 kinds table), comments (296 blocks / 27 files), then vitest **184**. Exit 0 at handoff. ⚠ **The R4 total is PINNED at 16 in `check-registry.mjs`** — adding a kind fails the gate until the pin moves deliberately. That is the point, not an obstacle. |
 | Suite order | ⚠ **battleflow → hold**, and **battleflow → playerdmg**, back to back. Other suites in between strip the fixture tokens and hold refuses. `reset-fixture-state` before effects. |
 
 ---
 
-## ▶ NEXT — the refactor first; feature scoping is LAST, by user call
+## ▶ NEXT — Phase 3 is closed; D2 is the last risky thing left
 
 **The loop, which has now worked seven times running:** read the target code → move it
 (never rewrite) → write the unit tests → `npm run verify` → **stop, deploy `--local`, start**
@@ -30,10 +30,10 @@
 and deploying while the server is DOWN satisfies it by construction) → run the affected suites
 **redirected to a file** → one commit per stage.
 
-**The structural work is effectively finished, and v1.21.0 ships it.** Phases 0–2 are closed,
-Phase 4 is closed but for D2, the refactor is proven to have cost zero features, and the release
-gap that stood above `v1.20.0` for a month is closed. **Nothing is owed; everything below is
-chosen work.**
+**The structural work is effectively finished.** Phases 0–3 are closed, Phase 4 is closed but
+for D2, the refactor is proven to have cost zero features, and the release gap that stood above
+`v1.20.0` for a month is closed. **Nothing is owed; everything below is chosen work** — and only
+**D2** still carries real risk. ⚠ Phase 3 landed *after* the v1.21.0 tag, so it is unreleased.
 
 ⚠ **User call, 2026-08-23, stated twice — "all the refactors before new features."** Feature
 scoping moved from #2 to the BOTTOM, and the standing directive therefore runs unbroken
@@ -47,12 +47,54 @@ this ordering and not a mistake in it.
 
 | # | Work | Why this position |
 | --- | --- | --- |
-| 1 | **Phase 3 — registries unified** | **The only untouched phase**, and the last one that is a refactor rather than a decision. Its final bullet is now the live one: *"the rate of new kinds per phase is observable — that rate is the AC5e-adoption signal, and right now nobody could tell you what it is."* D8 says a new kind just arrived. One of its four bullets (registry integrity in the gate) is already done but unticked. |
-| 2 | **D2 — `hold.js` onto the moment spine** | The last Phase 4 item and the highest-risk thing in PLAN.md. ⚠ **D6 made it materially easier**: the hold's views and clocks now sit in hold.js beside its flag, so adopting the spine's primitives is a local change rather than a cross-file one. Still ships **alone, behind its own walk**. ⚠ Its clock must **not** be unified — the hold's is owned by the continuing client, every other by the elect. |
-| 3 | **The §4.1 relay** — three folds, three envelope keys, one shape | Removes two `createChatMessage` registrations from the pinned hook order. ⚠ **hold's folder has a different OWNER** (the continuing client; the other two are the elect), exactly like its clock. Unify the envelope, keep ownership pluggable. |
-| 4 | **Feature scoping — LAST, and D8 is the frame** | ⚠ **Moved here by user call 2026-08-23 — "all the refactors before new features" — and reaffirmed the same day. Do not promote it back without another call.** When it is reached: the three surveyed d20 features (Heroic Inspiration, Tactical Mind, Bardic Inspiration) are **one kind**, and the module already ships a member of it — Precision Attack. Scope them together, not one at a time (ARCHITECTURE §10 **D8**). ⚠ **The real new work is the SAVE side**: `hitsAmong` folds verdicts for attacks and has no equivalent for saves, so a rerolled or boosted save has nowhere to land. ⚠ And a reroll can turn a hit **into** a miss, which breaks `hitsAmong`'s documented "the sets are disjoint" precedence argument. Neither the offer nor the popup is the hard part. |
+| 1 | **D2 — `hold.js` onto the moment spine** | The last Phase 4 item and the highest-risk thing in PLAN.md. ⚠ **D6 made it materially easier**: the hold's views and clocks now sit in hold.js beside its flag, so adopting the spine's primitives is a local change rather than a cross-file one. Still ships **alone, behind its own walk**. ⚠ Its clock must **not** be unified — the hold's is owned by the continuing client, every other by the elect. |
+| 2 | **The §4.1 relay** — three folds, three envelope keys, one shape | Removes two `createChatMessage` registrations from the pinned hook order. ⚠ **hold's folder has a different OWNER** (the continuing client; the other two are the elect), exactly like its clock. Unify the envelope, keep ownership pluggable. |
+| 3 | **Feature scoping — LAST, and D8 is the frame** | ⚠ **Moved here by user call 2026-08-23 — "all the refactors before new features" — and reaffirmed the same day. Do not promote it back without another call.** When it is reached: the three surveyed d20 features (Heroic Inspiration, Tactical Mind, Bardic Inspiration) are **one kind**, and the module already ships a member of it — Precision Attack. Scope them together, not one at a time (ARCHITECTURE §10 **D8**). ⚠ **The real new work is the SAVE side**: `hitsAmong` folds verdicts for attacks and has no equivalent for saves, so a rerolled or boosted save has nowhere to land. ⚠ And a reroll can turn a hit **into** a miss, which breaks `hitsAmong`'s documented "the sets are disjoint" precedence argument. Neither the offer nor the popup is the hard part. |
 | — | ~~**The flag accessor layer**~~ (D4) | **DEFERRED, and recommend dropping.** D3 repaid its correctness half without it; what is left is ~230 mechanical READS that buy nothing a test can assert. "Inventory now, adopt later" is not available — an unimported module in `scripts/` is dead code to knip. |
 | — | ~~`auto-apply.js` ↔ `mastery.js`~~ / ~~`hold.js` ↔ `auto-damage.js`~~ | Both **deliberate; leave alone.** The first breaks only by moving `applyDamagesWithReceipt` — the damage chokepoint — to a third module. The second's bare `import "./auto-damage.js"` is **load-bearing**: it pins evaluation order, its comment says so, and check-hook-order depends on it. |
+
+## Phase 3 — registries unified, DONE 2026-08-23, battery-green
+
+`a30cfd5` stage 1 · `fd8f77f` stage 2. **The plan undercounted it:** six membership lists, not
+four — five parsers with **four** different failure behaviours (default-to-`ac`, silent drop,
+drop-and-report, no validation at all), and only one of the five declared its kind set in code.
+Which behaviour a list had was an accident of which session wrote it.
+
+Now every list is a **spec** in [decide/registry.js](scripts/decide/registry.js) and `parseList`
+is the one parser; `listEntries` in [settings.js](scripts/settings.js) is the one warn-once path
+(maneuvers.js had the only implementation, so **four of the five lists failed silently**);
+`api.registries` is the read-only exposure.
+
+⚠ **What was NOT forced into one shape:** `blockList` and `riderUpgrades` are *relations*
+(spell↔reaction, feature↔rider), not kind-tagged memberships. A `kind` column on them would be
+false unification. `riderList` entries became `{ name }` objects — the one caller-visible change.
+
+⚠ **Two defects found in the CHECKING apparatus, not the module:**
+- the gate re-declared `VOLLEY_KINDS` as a lookalike, so it could agree with itself while
+  disagreeing with the shipping registry — the exact defect Phase 2 removed for the maneuver
+  kinds, still standing in a file whose own comment takes credit for removing it;
+- the gate had been **checking two thirds of the interrupt list and calling it a pass.** It
+  scraped defaults from source with a regex it had itself flagged as fragile, and that regex
+  ended a double-quoted string at the apostrophe in `Stone's Endurance`. Invisible while the
+  check only asked "is it comma-shaped". **Defaults now live on the specs**, settings.js
+  registers from there, and the gate asserts nobody re-inlines one.
+
+**The R4 tripwire is now a number: 16 kinds across 4 sets, pinned.** Adding a kind fails the
+gate. Counting them found that `nick` — the system's eighth mastery — was handled by a bare
+`default: return`, which could not distinguish "deliberately native" from "never seen", so a
+**ninth mastery in a future dnd5e release would have been swallowed in silence**. It is
+declared now, and anything else in that branch warns.
+
+⚠ **The tripwire pointed at a remedy the design rules FORBID.** "Adopt a conditions library" is
+exactly the dependency R2 rules out. **User call: vendor and modify, never import** — which also
+reconciles the backlog's finding that AC5e *decorates* rolls while this module *applies*, so the
+two are complementary rather than alternatives. Corrected in DESIGN.md R4.
+
+**The honest limit, recorded rather than papered over:** "kinds checkable against the system's
+own enums" is true for **one of four** sets. Only masteries mirror a real dnd5e enum, and they
+are already checked against it live by `check-mastery-rules.mjs`. The other three are the
+module's own inventions — the system has no concept of an "interrupt kind" — so there is nothing
+to check them against.
 
 ## Phase 4 — D6, DONE 2026-08-23, battery-green
 
