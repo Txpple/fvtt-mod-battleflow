@@ -236,3 +236,45 @@ describe("one parser, one set of rules", () => {
     expect(msg).not.toContain("ignored");
   });
 });
+
+describe("the R4 tripwire — the kinds the code knows", () => {
+  it("gives every kind set a name, an owner and at least one kind", () => {
+    for (const set of reg.KIND_SETS) {
+      expect(set.name).toBeTruthy();
+      expect(set.owner, set.name).toMatch(/\.js$/);
+      expect(set.kinds.size, set.name).toBeGreaterThan(0);
+      expect(set.note, set.name).toBeTruthy();
+    }
+  });
+
+  it("declares a system-enum size only where one actually exists", () => {
+    // Masteries mirror a real dnd5e enum; the other three are the module's own inventions and
+    // there is nothing to check them against. A `system` count on one of those would be a
+    // fiction, and the docs lean on this distinction.
+    const withEnum = reg.KIND_SETS.filter(s => s.system !== null);
+    expect(withEnum.map(s => s.name)).toEqual(["mastery"]);
+    expect(withEnum[0].system).toBe(8);
+  });
+
+  it("keeps the module's mastery set inside the system's, one short, by declaration", () => {
+    expect(reg.MASTERY_KINDS.size + reg.MASTERY_NATIVE.size).toBe(8);
+    // A mastery is resolved or deliberately native — never both, never neither.
+    for (const k of reg.MASTERY_NATIVE) expect(reg.MASTERY_KINDS.has(k), k).toBe(false);
+  });
+
+  it("counts the kinds the gate pins", () => {
+    // The pin itself lives in tools/check-registry.mjs, where the failure has to happen. This
+    // asserts the number that pin is about, so a kind added here is visible in two places.
+    const total = reg.KIND_SETS.reduce((n, s) => n + s.kinds.size, 0);
+    expect(total).toBe(16);
+  });
+
+  it("puts every kind-bearing list spec's set in the table", () => {
+    // A spec with a closed set that the tripwire does not count is a kind the code knows and
+    // nobody is counting — exactly the blind spot the tripwire exists to remove.
+    const counted = new Set(reg.KIND_SETS.map(s => s.kinds));
+    for (const [key, spec] of Object.entries(reg.LIST_SPECS)) {
+      if (spec.kinds) expect(counted.has(spec.kinds), key).toBe(true);
+    }
+  });
+});

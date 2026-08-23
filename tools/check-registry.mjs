@@ -14,12 +14,17 @@
 //   4. Every list-setting DEFAULT parses clean under its own strict parser — a typo in a
 //      shipped default silently disables the feature for every fresh world, and today that is
 //      discovered by a player.
+//   5. THE R4 TRIPWIRE (DESIGN.md R4): the kinds the code knows are printed as a table and
+//      their total is PINNED. Adding a kind fails this check until someone changes the pin on
+//      purpose — which is the whole point. R4's abandonment condition is "new kinds arriving
+//      faster than one per phase"; it was unmeasurable until the count existed, so it could
+//      never fire. This is not a rule against new kinds. It is a rule against unnoticed ones.
 //
 //   node tools/check-registry.mjs
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { LIST_SPECS, VOLLEY_KINDS, parseList } from "../scripts/decide/registry.js";
+import { KIND_SETS, LIST_SPECS, MASTERY_KINDS, VOLLEY_KINDS, parseList } from "../scripts/decide/registry.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = p => readFileSync(join(ROOT, p), "utf8");
@@ -130,9 +135,49 @@ for (const [key, spec] of Object.entries(LIST_SPECS)) {
   }
 }
 
+/* --- 5: the R4 tripwire ---------------------------------------------------------------- */
+
+// ⚠ THE PIN. Bump it DELIBERATELY, in the commit that adds the kind, and say in that commit
+// why the kind was genuinely new (ARCHITECTURE.md §11 step 3). If you are bumping this more
+// than once a phase, that is the tripwire firing — stop adding kinds and re-read DESIGN.md R4.
+const EXPECTED_KINDS = 16;
+
+// The mastery set must match the rule text it is presented with: a mastery this module
+// resolves but cannot quote breaks presentation law 8 (ARCHITECTURE.md §5) at the popup.
+const masterySrc = read("scripts/mastery.js");
+const rulesBlock = /const MASTERY_RULES = \{([\s\S]*?)\n\};/.exec(masterySrc);
+const ruleKeys = new Set([...(rulesBlock?.[1] ?? "").matchAll(/^\s{2}(\w+):/gm)].map(m => m[1]));
+const unquoted = [...MASTERY_KINDS].filter(k => !ruleKeys.has(k));
+const unresolved = [...ruleKeys].filter(k => !MASTERY_KINDS.has(k));
+if (unquoted.length) fail("mastery kinds", `resolved but with no rule text to quote: ${unquoted.join(", ")}`);
+else if (unresolved.length) fail("mastery kinds", `rule text for a mastery nothing resolves: ${unresolved.join(", ")}`);
+else pass(`all ${MASTERY_KINDS.size} mastery kinds carry their own rule text`);
+
+let kindTotal = 0;
+const rows = KIND_SETS.map(set => {
+  kindTotal += set.kinds.size;
+  return [set.name, String(set.kinds.size), set.system ? `of ${set.system} (system)` : "module-owned",
+    [...set.kinds].join(" · ")];
+});
+
+if (kindTotal !== EXPECTED_KINDS) {
+  fail("R4 tripwire", `the code knows ${kindTotal} kinds, the pin says ${EXPECTED_KINDS} — `
+    + "if a kind was added on purpose, bump EXPECTED_KINDS in this file and say why in the commit");
+} else {
+  pass(`R4 tripwire: ${kindTotal} kinds across ${KIND_SETS.length} sets, matching the pin`);
+}
+
 /* --- report ---------------------------------------------------------------------------- */
 
 for (const p of passes) console.log(`PASS ${p}`);
+
+// The R4 table itself — printed every run, so the number is in front of whoever changed it.
+console.log("\nKINDS THE CODE KNOWS (DESIGN.md R4 — the tripwire)");
+const w = Math.max(...rows.map(r => r[0].length));
+for (const [name, n, origin, kinds] of rows) {
+  console.log(`  ${name.padEnd(w)}  ${n.padStart(2)}  ${origin.padEnd(14)}  ${kinds}`);
+}
+console.log(`  ${"".padEnd(w)}  ${String(kindTotal).padStart(2)}  total, pinned at ${EXPECTED_KINDS}`);
 if (failures.length) {
   console.error("");
   for (const f of failures) console.error(`FAIL ${f}`);

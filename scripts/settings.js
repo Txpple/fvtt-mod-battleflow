@@ -3,7 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting } from "./core.js";
-import { LIST_SPECS, parseList, rejectMessage } from "./decide/registry.js";
+import { KIND_SETS, LIST_SPECS, parseList, rejectMessage } from "./decide/registry.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Settings registration
@@ -270,6 +270,23 @@ Hooks.once("init", () => {
     hint: "When a player character spends a limited-use ability — Second Wind, a superiority die, Channel Divinity, sorcery points, a magic item's daily cast — a big text notice flashes on every screen and fades: who used what, and how many uses remain. The usage card keeps the same line durably. Structural: anything whose uses carry a recovery rhythm (per rest, per day) announces itself; expendables with no recovery (torches, potions, rations) and spell slots stay quiet. NPC abilities never announce — monster resources are the GM's secret.",
     scope: "world", config: true, type: Boolean, default: true
   });
+
+  // ARCHITECTURE §6 rule 5: registries are exposed READ-ONLY so tooling and the suites can
+  // inspect them. Inspection, not an extension point (DESIGN §4) — hence the freeze, and hence
+  // live reader FUNCTIONS rather than snapshots: a suite that flips a setting wants what the
+  // module would read next, not what it read at init. ⚠ `volleyRegistry` is deliberately NOT
+  // here and deliberately NOT frozen: it is a code registry the suites genuinely mutate to
+  // register scratch fixtures, and volley-registry.js exposes it itself.
+  const mod = game.modules.get(MODULE_ID);
+  if ( mod ) mod.api = Object.assign(mod.api ?? {}, { registries: Object.freeze({
+    specs: LIST_SPECS,
+    kindSets: KIND_SETS,
+    interrupt: interruptEntries,
+    block: blockEntries,
+    maneuverFolds: maneuverFoldEntries,
+    rider: riderEntries,
+    riderUpgrade: riderUpgradeEntries
+  }) });
 });
 
 // Settings-sheet polish (the combatplus idiom, from day one): a divider heading the module's

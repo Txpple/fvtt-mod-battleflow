@@ -208,6 +208,33 @@ Those are the KINDS the code is allowed to know about. Everything else — *whic
 much* — is data (R4). **A registry cannot become a platform, because the axes it keys on cannot
 grow without a system release.**
 
+### The kinds the code knows — the R4 tripwire, measured
+
+Declared once in [decide/registry.js](scripts/decide/registry.js) as `KIND_SETS`, printed by
+`npm run verify`, and **pinned**: adding a kind fails the gate until the pin moves deliberately.
+
+| Set | Kinds | Against | The kinds |
+| --- | --- | --- | --- |
+| interrupt | 2 | module-owned | ac · damage |
+| maneuverFold | 5 | module-owned | precision · riposte · interpose · bash · hew |
+| volley | 2 | module-owned | damage · attack |
+| mastery | 7 | **of the system's 8** | vex · sap · cleave · slow · topple · push · graze |
+| **total** | **16** | pinned in `check-registry.mjs` | |
+
+⚠ **"Checkable against the system's own enums" is true for exactly one of the four, and that is
+not a gap to be closed.** Masteries mirror a real system enum, and they *are* checked against it
+— live, by [check-mastery-rules.mjs](tools/check-mastery-rules.mjs), which reads
+`CONFIG.DND5E.weaponMasteries`. The other three are the module's own inventions: dnd5e has no
+concept of an "interrupt kind" or a "fold kind", so there is nothing to check them against.
+What the static gate proves instead is that each set is **closed, declared in one place, and
+that every registry entry names a kind from it**.
+
+⚠ `nick` is the system's eighth mastery and is **deliberately** native — pure action economy,
+which ruling 1 puts outside this module. That is why it is *declared* (`MASTERY_NATIVE`) rather
+than merely absent: in a `switch` statement a decision and an oversight look identical, and the
+bare `default: return` meant a ninth mastery arriving in a dnd5e release would have been
+swallowed in silence. It now warns once, naming the tripwire.
+
 The reaction number is the proof case: 93 items, hand-checkable in an afternoon, of which only
 a small fraction are *interrupts* (they change the outcome of an attack already rolled) and
 therefore need a pause at all. midi built a general reaction-detection engine for a list that
@@ -229,6 +256,13 @@ fits on one page.
 5. **Registries are exposed read-only on the module API** so tooling and suites can inspect
    them. That is inspection, not an extension point (DESIGN §4).
 6. **Unknown entries are dropped with a warning, never guessed.** Strict parsing, always.
+   ⚠ **Amended 2026-08-23 (Phase 3):** a spec may declare a **fallback** — a substitution the
+   parser applies instead of dropping — and it still warns. Exactly one exists: the interrupt
+   list reads an unrecognised kind as `ac`, because a mistyped interrupt is still a reaction
+   worth pausing for and `ac` is the conservative reading, where a fold with no recognised kind
+   has no machine to run at all. The amendment is about *visibility*, not laxity: the behaviour
+   predates it and was buried in a parser body, where a typo looked like a working entry. **A
+   DECLARED fallback is legal; an undeclared one is still a bug.**
 
 ### Registry vs. settings list
 

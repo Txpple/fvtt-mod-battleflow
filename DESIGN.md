@@ -177,8 +177,24 @@ A new ability must cost a **data entry, zero code**. Code grows only when a genu
 KIND of question appears.
 
 **The tripwire:** if new kinds start arriving faster than one per phase, that is a signal to
-adopt an existing conditions library (AC5e is the standing candidate) — not a licence to
+reach for an existing conditions library (AC5e is the standing candidate) — not a licence to
 special-case names.
+
+⚠ **The tripwire is now MEASURED, not asserted** (Phase 3). `npm run verify` prints the kinds
+table and **pins the total**, so a new kind fails the gate until someone changes the pin on
+purpose. Today: **16 kinds across 4 sets** — interrupt 2, maneuver fold 5, volley 2, mastery 7
+of the system's 8. The rule is not "no new kinds"; it is "no *unnoticed* new kinds". Until this
+existed nobody could state the rate, so the condition above could never actually fire — and
+[ARCHITECTURE §10 D8](ARCHITECTURE.md) asserts it already *is* firing on qualitative grounds.
+
+⚠ **"Adopt" means VENDOR AND MODIFY, never take a dependency** (user call, 2026-08-23). This
+matters twice over. It is the only reading compatible with **R2** — a library import is exactly
+what R2 forbids, so the tripwire as originally written pointed at a remedy the design rules
+prohibit. And it reconciles the second reading recorded in PLAN's backlog: **AC5e decorates
+rolls** (advantage, disadvantage, auto-crit) **and never applies; Battle Flow applies and never
+decorates.** The fence is clean and complementary, which means AC5e is not a *replacement* the
+module falls back to when registries fail — it is a body of solved condition math to draw from,
+on our own terms, inside our own layering. Vendoring is what makes both statements true at once.
 
 ### R5 — Receipts and announcements
 

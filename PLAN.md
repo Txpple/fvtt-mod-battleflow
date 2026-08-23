@@ -234,25 +234,42 @@ address, plus the tests that prove it did not change.
 
 ---
 
-## Phase 3 — Registries, unified
+## Phase 3 — Registries, unified — ✅ DONE 2026-08-23, battery-green
 
 The volley registry is the reference implementation and the user's own directive ("long term
 scalable, no hacks, modular"). Everything else that answers "which content participates" should
 look like it.
 
-- [ ] **One registry shape**, one strict parser, one warn-once-on-unknown-kind path, one
-      read-only API exposure. Today the volley registry is a code `Map`, the interrupt list is
-      a settings string, the rider table is a different settings string, and the maneuver folds
-      are a third — with three separate parsers and three different failure behaviours.
-- [ ] **Registries carry their `kind` against a closed set** — and that closed set is checkable
-      against the system's own enums (ARCHITECTURE §6 lists them: 12 activity types, 14
-      activation types, 8 masteries, 26 conditions, 13 damage types, 3 damage-on-save modes).
-      A registry entry naming a kind the system does not have should fail the gate, not the
-      table.
-- [ ] **Registry integrity in the verify gate** (Phase 0.2).
-- [ ] **The R4 tripwire becomes visible**: a short table of "kinds the code knows" so that the
-      rate of new kinds per phase is observable. That rate is the AC5e-adoption signal, and
-      right now nobody could tell you what it is.
+- [x] **One registry shape**, one strict parser, one warn-once-on-unknown-kind path, one
+      read-only API exposure. ✅ **2026-08-23, battery-green.** It was worse than this bullet
+      said: **six** lists, **five** parsers, **four** different failure behaviours, and only one
+      of them declared its kind set in code. Now every list is a SPEC in `decide/registry.js`
+      and `parseList` is the one parser; `listEntries` in settings.js is the one warn-once path
+      (maneuvers.js had the only implementation, so four of the five lists failed silently);
+      `api.registries` is the read-only exposure. ⚠ `blockList` and `riderUpgrades` were NOT
+      forced into a kind shape — they are relations, not kind-tagged memberships.
+- [x] **Registries carry their `kind` against a closed set.** ✅ **2026-08-23** — every entry is
+      tested against its spec's set, and an unknown kind fails at the gate or is refused at
+      runtime (`volleyEntryFor` now refuses one, which is the path a suite fixture takes).
+      ⚠ **The "checkable against the system's own enums" half is true for exactly ONE of the
+      four sets, and that is not a gap.** Masteries mirror a system enum and are already checked
+      against it, live, by `check-mastery-rules.mjs`. The other three are the module's own
+      inventions — dnd5e has no concept of an "interrupt kind" — so there is nothing to check
+      them against. Recorded in ARCHITECTURE §6 rather than papered over with a check that
+      would validate nothing.
+- [x] **Registry integrity in the verify gate** (Phase 0.2). ✅ Done earlier, expanded here:
+      **11 assertions** now, including that each list registers *from its spec* and that every
+      resolved mastery carries its own rule text.
+- [x] **The R4 tripwire becomes visible.** ✅ **2026-08-23.** `KIND_SETS` declares every closed
+      set once; `npm run verify` prints the table and **PINS the total**, so adding a kind fails
+      the gate until the pin moves deliberately. **Today: 16 kinds across 4 sets** (interrupt 2,
+      maneuverFold 5, volley 2, mastery 7-of-8). The rule is not "no new kinds" — it is "no
+      *unnoticed* new kinds", which is what the tripwire always needed to mean.
+      ⚠ **And the remedy it points at was wrong as written:** "adopt a conditions library" is
+      precisely what R2 forbids. The user's call (2026-08-23) is **vendor and modify, never
+      import** — which is also what reconciles it with the backlog's finding that AC5e and
+      Battle Flow are *complementary* (AC5e decorates rolls; this module applies). Corrected in
+      DESIGN.md R4.
 
 ### Not in scope for this phase
 

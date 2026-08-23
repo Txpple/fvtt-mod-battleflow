@@ -40,6 +40,50 @@ export const INTERRUPT_KINDS = new Set(["ac", "damage"]);
  */
 export const VOLLEY_KINDS = new Set(["damage", "attack"]);
 
+/**
+ * The weapon masteries this module RESOLVES. Seven of the system's eight — `nick` is
+ * deliberately native (it is pure action economy, and ruling 1 says action economy is not this
+ * module's job), which is why it is declared below rather than merely absent. An absence and a
+ * decision look identical in a switch statement; only one of them survives a code review.
+ */
+export const MASTERY_KINDS = new Set(["vex", "sap", "cleave", "slow", "topple", "push", "graze"]);
+
+/** Masteries the system has and this module deliberately leaves alone. See MASTERY_KINDS. */
+export const MASTERY_NATIVE = new Set(["nick"]);
+
+/**
+ * THE R4 TRIPWIRE, AS DATA (DESIGN.md R4, PLAN.md Phase 3).
+ *
+ * R4's bargain is that a new ABILITY costs a data entry and zero code, and that this is safe
+ * because every axis it keys on is a closed enumerated set. The bargain has a stated
+ * abandonment condition: *if new KINDS start arriving faster than one per phase, stop adding
+ * kinds and adopt a conditions library instead.* That condition was unmeasurable — nobody could
+ * state the rate, so the tripwire could never actually fire.
+ *
+ * This is the measurement. Every closed kind set the module owns, in one place, with the size
+ * of the system enum it mirrors where such an enum exists. `tools/check-registry.mjs` prints it
+ * and pins the total, so ADDING A KIND FAILS THE GATE until someone changes the pin on purpose.
+ * That is the whole mechanism: not a rule against new kinds, a rule against *unnoticed* ones.
+ *
+ * ⚠ `system` is the size of the dnd5e enum this set mirrors, or null where the kind is the
+ * MODULE'S OWN invention and no system enum exists to check it against. Only masteries mirror
+ * one. That distinction is the honest answer to "registries carry their kind against a closed
+ * set, checkable against the system's own enums": it is checkable for exactly one of the four,
+ * it is already checked there (tools/check-mastery-rules.mjs, live, against
+ * CONFIG.DND5E.weaponMasteries), and for the other three there is nothing to check against
+ * because the system has no concept of an "interrupt kind" or a "fold kind" at all.
+ */
+export const KIND_SETS = [
+  { name: "interrupt", owner: "hold.js", kinds: INTERRUPT_KINDS, system: null,
+    note: "what a held reaction changes about an attack already rolled" },
+  { name: "maneuverFold", owner: "maneuvers.js", kinds: MANEUVER_KINDS, system: null,
+    note: "how a listed feat folds into a resolved attack — D8 says this set is the one under pressure" },
+  { name: "volley", owner: "volleys.js", kinds: VOLLEY_KINDS, system: null,
+    note: "how a multi-projectile spell resolves: aggregated damage, or independent attacks" },
+  { name: "mastery", owner: "mastery.js", kinds: MASTERY_KINDS, system: 8,
+    note: "7 of the system's 8; nick is deliberately native (action economy, ruling 1)" }
+];
+
 /** Split a comma list into trimmed, non-empty chunks — the shape every list setting wears. */
 const chunks = raw => String(raw ?? "").split(",").map(s => s.trim()).filter(Boolean);
 

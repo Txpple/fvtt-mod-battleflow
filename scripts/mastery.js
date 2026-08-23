@@ -5,6 +5,7 @@
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
   canAnswerFor, inRunningCombat } from "./core.js";
 import { joinEffectReceipt, takenOf } from "./decide/receipt.js";
+import { MASTERY_KINDS, MASTERY_NATIVE } from "./decide/registry.js";
 import { hitTargets, modeAllows, rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup,
@@ -47,6 +48,9 @@ import { dramaticVerdictPause } from "./concentration.js";
  * not an interrupt — so there is no continuation, no settle, no re-test. The timer reuses
  * the hold's clock (holdTimer, 0 = wait forever), the elect owns the buzzer, expiry = Pass.
  * ------------------------------------------------------------------------------------------- */
+
+/** Masteries already warned about — once per session, not once per swing. */
+const warnedMasteries = new Set();
 
 /** The authored payout effects. Nothing ships these — the system's masteries are labels. */
 const MASTERY_EFFECTS = {
@@ -163,7 +167,16 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits) {
       case "push":
         return askOrTake(attackMessage, damageMessage, ctx, "push", live);
       default:
-        return; // nick: action economy, deliberately native
+        // nick is deliberately native — pure action economy, and ruling 1 says action economy
+        // is not this module's job. ⚠ Anything ELSE arriving here is a mastery the SYSTEM has
+        // and this module has never seen, and the old bare `return` made the two
+        // indistinguishable: a dnd5e release adding a ninth mastery would have been swallowed
+        // in silence forever. That is precisely the arrival the R4 tripwire exists to notice.
+        if ( !MASTERY_NATIVE.has(key) && !warnedMasteries.has(key) ) {
+          warnedMasteries.add(key);
+          console.warn(`${TITLE} | Weapon mastery "${key}" is not one this module resolves (${[...MASTERY_KINDS].join("/")}) — left native. If the system added it, that is a NEW KIND against the R4 tripwire (DESIGN.md R4).`);
+        }
+        return;
     }
   } catch(err) {
     console.error(`${TITLE} | Mastery rider failed.`, err);
