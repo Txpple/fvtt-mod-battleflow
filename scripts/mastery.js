@@ -2,7 +2,7 @@
  * Battle Flow — Phase 1.9B/C: weapon mastery riders, the mastery ask, the topple fold and its popup, and the reminders.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
 import { joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { hitTargets, modeAllows, rollConfigFor } from "./shared.js";
 import { inRunningCombat, canAnswerFor } from "./hold.js";
@@ -242,7 +242,11 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
   const def = MASTERY_EFFECTS[key];
   if ( !def ) return;
   const inCombat = inRunningCombat(ctx.attacker);
-  const flag = foundry.utils.deepClone(receiptMessage?.getFlag(MODULE_ID, "effectReceipt") ?? { targets: [] });
+  // ⚠ THE READ MOVED BELOW THE AWAITS (D3, 2026-08-22) — the same fix effect-riders.js got.
+  // This used to clone the flag HERE and merge into that copy after a per-target loop full of
+  // `await`s, a window wide enough for another chip applier to write and be overwritten.
+  // Entries accumulate locally; the merge happens inside the serializer, at the end.
+  const entries = [];
   for ( const t of targets ) {
     const actor = (t.actor instanceof Actor) ? t.actor : await fromUuid(t.uuid);
     if ( !(actor instanceof Actor) ) continue;
@@ -268,11 +272,15 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
       }, { parent: actor });
     }
     if ( !applied ) continue;
-    joinEffectReceipt(flag, { uuid: t.uuid, name: t.name, img: actor.img ?? null,
+    entries.push({ uuid: t.uuid, name: t.name, img: actor.img ?? null,
       effects: [{ id: applied.id, name: applied.name, img: applied.img,
         description: applied.description ?? "", reverted: false }] });
   }
-  if ( flag.targets.length && receiptMessage ) await receiptMessage.setFlag(MODULE_ID, "effectReceipt", flag);
+  if ( entries.length && receiptMessage ) {
+    await queueFlagWrite(receiptMessage, "effectReceipt", flag => {
+      for ( const entry of entries ) joinEffectReceipt(flag, entry);
+    });
+  }
 }
 
 /** Topple: the demand, the native save link, and a GM affordance for the failure. */
@@ -425,15 +433,16 @@ async function fireToppleTimer(messageId) {
       if ( landed ) { void foldToppleSave(landed); continue; }
       const actor = await fromUuid(t.uuid).catch(() => null);
       if ( !(actor instanceof Actor) ) {
-        const merged = foundry.utils.deepClone(card.getFlag(MODULE_ID, "topple"));
-        const gone = merged.targets?.find(x => !x.done && (x.uuid === t.uuid));
-        if ( gone ) {
+        // Through the serializer (D3): the read used to sit above this `await fromUuid`, and
+        // this loop walks every target, so it races itself.
+        await queueFlagWrite(card, "topple", live => {
+          const gone = live.targets?.find(x => !x.done && (x.uuid === t.uuid));
+          if ( !gone ) return false;
           gone.done = true;
           gone.outcome = "gone";
           gone.applied = true; // nothing to press
           gone.answeredAt = Date.now();
-          await card.setFlag(MODULE_ID, "topple", merged);
-        }
+        });
         continue;
       }
       await rollToppleSave(card, t, { timedOut: true });
@@ -488,8 +497,14 @@ async function applyToppleFailure(card, uuid) {
         + `${entry.timedOut ? " — rolled by the timer" : ""}`
     })
   });
-  entry.applied = true;
-  await card.setFlag(MODULE_ID, "topple", flag);
+  // ⚠ Through the serializer, and the claim re-checked INSIDE it (D3): two awaits stand
+  // between the guard above and this write, which is exactly long enough for the fold to
+  // record another target on the same flag and be overwritten.
+  await queueFlagWrite(card, "topple", live => {
+    const own = live.targets?.find(t => t.uuid === uuid);
+    if ( !own || own.applied ) return false;
+    own.applied = true;
+  });
 }
 
 async function foldToppleSave(saveMessage) {
@@ -535,16 +550,31 @@ async function foldToppleSave(saveMessage) {
       const entry = flag.targets?.find(t => !t.done && (t.uuid === actor.uuid));
       if ( !entry ) continue;
       const success = total >= flag.dc;
-      entry.done = true;
-      entry.outcome = success ? "saved" : "prone";
-      entry.total = total;
-      if ( saveMessage.getFlag(MODULE_ID, "timedOut") ) entry.timedOut = true;
-      // The crash-resume contract (the saves machine's `applied` discipline): answeredAt is
-      // the horizon's clock and the new-era marker; a success has no consequence to resume.
-      entry.answeredAt = Date.now();
-      if ( success ) entry.applied = true;
-      await card.setFlag(MODULE_ID, "topple", flag);
-      if ( flag.targets.every(t => t.done) ) disarmToppleTimer(card.id);
+      // ⚠ Through the serializer, claim repeated inside it (D3): per-target verdicts on one
+      // shared array, and two saves answering one card land in the same tick. Re-finding the
+      // entry under `!done` is also what stops two folds claiming the same roll.
+      let claimed = false;
+      await queueFlagWrite(card, "topple", live => {
+        const own = live.targets?.find(t => !t.done && (t.uuid === actor.uuid));
+        if ( !own ) return false;
+        claimed = true;
+        own.done = true;
+        own.outcome = success ? "saved" : "prone";
+        own.total = total;
+        if ( saveMessage.getFlag(MODULE_ID, "timedOut") ) own.timedOut = true;
+        // The crash-resume contract (the saves machine's `applied` discipline): answeredAt is
+        // the horizon's clock and the new-era marker; a success has no consequence to resume.
+        own.answeredAt = Date.now();
+        if ( success ) own.applied = true;
+      });
+      // Another fold got there first — it owns the announcement and the consequence.
+      if ( !claimed ) continue;
+      // ⚠ Re-read, do NOT consult `flag`: it is the pre-write clone now that the verdict is
+      // recorded inside the serializer, so it still shows this target as pending and the
+      // clock would never be disarmed.
+      if ( (card.getFlag(MODULE_ID, "topple")?.targets ?? []).every(t => t.done) ) {
+        disarmToppleTimer(card.id);
+      }
       if ( !success ) {
         await dramaticVerdictPause(saveMessage); // same instant-verdict class as the fold
         await applyToppleFailure(card, entry.uuid);
@@ -1061,10 +1091,16 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
           const live = await fromUuid(t.uuid);
           if ( live instanceof Actor ) await forceStatus(live, "prone",
             { origin: message.getFlag(MODULE_ID, "topple")?.attackerUuid ?? null });
-          const flag = foundry.utils.deepClone(message.getFlag(MODULE_ID, "topple"));
-          const entry = flag.targets.find(x => x.uuid === t.uuid);
-          if ( entry ) { entry.done = true; entry.outcome = "prone"; entry.applied = true; entry.answeredAt = Date.now(); }
-          await message.setFlag(MODULE_ID, "topple", flag);
+          // Through the serializer (D3): the GM's press lands after an await, on the same
+          // per-target array a fold may be writing.
+          await queueFlagWrite(message, "topple", live2 => {
+            const entry = live2.targets?.find(x => x.uuid === t.uuid);
+            if ( !entry ) return false;
+            entry.done = true;
+            entry.outcome = "prone";
+            entry.applied = true;
+            entry.answeredAt = Date.now();
+          });
         }));
       }
     }

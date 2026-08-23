@@ -2,7 +2,7 @@
  * Battle Flow — Phase 1.5: the reaction hold. Two entry points, one machine - eligibility, both triggers (attack and listed spell), answers, continuation, the veto, the no-attack damage applier's claim. Views live in ui.js.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
 import { parseInterruptList, parseBlockList } from "./decide/registry.js";
 import { limitedUses, isReactionItem } from "./decide/eligible.js";
 import { joinEffectReceipt } from "./decide/receipt.js";
@@ -517,10 +517,12 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
     return;
   }
   if ( appliedEffects.length ) {
-    const receipt = foundry.utils.deepClone(
-      attackMessage.getFlag(MODULE_ID, "effectReceipt") ?? { targets: [] });
-    for ( const entry of appliedEffects ) joinEffectReceipt(receipt, entry);
-    await attackMessage.setFlag(MODULE_ID, "effectReceipt", receipt);
+    // ⚠ Through the serializer (D3): "one casting answers many holds" means this path can run
+    // twice in a tick against the same card, and a clone-mutate-set would drop the first
+    // merge. Same defect the damage receipt had — core.js records the measurement.
+    await queueFlagWrite(attackMessage, "effectReceipt", flag => {
+      for ( const entry of appliedEffects ) joinEffectReceipt(flag, entry);
+    });
   }
   await attackMessage.setFlag(MODULE_ID, "hold", hold);
 }
@@ -532,11 +534,18 @@ Hooks.on("createChatMessage", message => {
   const attackMessage = game.messages.get(response);
   const hold = attackMessage?.getFlag(MODULE_ID, "hold");
   if ( !hold || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
-  const merged = foundry.utils.deepClone(hold);
-  const target = merged.targets?.find(t => t.uuid === message.getFlag(MODULE_ID, "uuid"));
-  if ( !target || target.answer ) return;
-  target.answer = message.getFlag(MODULE_ID, "answer");
-  void attackMessage.setFlag(MODULE_ID, "hold", merged);
+  // ⚠ THROUGH THE SERIALIZER (D3, 2026-08-22). This is a PER-TARGET write to a shared array,
+  // and the handler is synchronous up to the write: two answer messages landing in one tick
+  // both cloned the same stale flag, each recorded its own target, and the second write
+  // dropped the first answer. The guards repeat INSIDE the lock — saves.js's flip idiom — so
+  // the state they test is the state being written, and "nothing to record" skips the write
+  // entirely rather than churning a render.
+  void queueFlagWrite(attackMessage, "hold", flag => {
+    if ( flag.status !== "pending" ) return false;
+    const target = flag.targets?.find(t => t.uuid === message.getFlag(MODULE_ID, "uuid"));
+    if ( !target || target.answer ) return false;
+    target.answer = message.getFlag(MODULE_ID, "answer");
+  });
 });
 
 // The cast IS the answer: a listed reaction used by a held target answers its own hold, so a
@@ -725,11 +734,11 @@ async function driveHoldContinuation(attackMessage, hold) {
       const entries = await applyReactionEffect(activity, actor, target.reaction, target);
       if ( entries.length ) {
         // The continuing client owns the held message (its roll, or the GM fallback), so
-        // the safety net's receipt lands there — same shape, same rows, same revert.
-        const receipt = foundry.utils.deepClone(
-          attackMessage.getFlag(MODULE_ID, "effectReceipt") ?? { targets: [] });
-        for ( const entry of entries ) joinEffectReceipt(receipt, entry);
-        await attackMessage.setFlag(MODULE_ID, "effectReceipt", receipt);
+        // the safety net's receipt lands there — same shape, same rows, same revert. Through
+        // the serializer (D3): this loop runs per target, so it is its own concurrent writer.
+        await queueFlagWrite(attackMessage, "effectReceipt", flag => {
+          for ( const entry of entries ) joinEffectReceipt(flag, entry);
+        });
       }
     }
   }
