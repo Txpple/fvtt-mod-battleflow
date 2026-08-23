@@ -49,6 +49,18 @@ export function loadEnv() {
 }
 
 /**
+ * Section ids sort NUMERIC-AWARE: `10` follows `9` rather than `1`, and `4a2` sits between `4`
+ * and `4b`. Half the suites number their sections `4b`/`4d3`, so a plain string sort scatters
+ * them and a numeric one loses them entirely.
+ *
+ * ⚠ One function, two callers, because it had two copies for about an hour and the second
+ * carried the comment "same comparator as expandSections" — which is the shape every duplicate
+ * in this repo's census announced itself with before it drifted.
+ */
+const bySectionId = (a, b) =>
+  (Number.parseFloat(a) - Number.parseFloat(b)) || String(a).localeCompare(String(b));
+
+/**
  * Expand a requested section set through a suite's dependency map.
  *
  * ⚠ THE POINT OF THE MAP. Sections are not independent — smoke-saves §2 asserts on the card
@@ -66,8 +78,7 @@ export function expandSections(requested, depends = {}) {
     for (const need of depends[id] ?? []) visit(String(need));
   };
   for (const id of requested) visit(String(id));
-  // Numeric-aware sort so 10 follows 9 rather than 1 — these ids are printed at the table.
-  return [...out].sort((a, b) => (Number.parseFloat(a) - Number.parseFloat(b)) || a.localeCompare(b));
+  return [...out].sort(bySectionId);
 }
 
 /**
@@ -89,9 +100,8 @@ export function sectionPlan(table, depends = {}, argv = process.argv.slice(2)) {
     console.log("Sections:");
     // ⚠ Sorted, not declaration order: JS hoists integer-like keys to the front of an object,
     // so a table mixing `1` with `'4a2'` prints 1,3,4,5,6 and only then the lettered ones —
-    // which reads as a suite that lost half its sections. Same comparator as expandSections.
-    for (const [id, title] of Object.entries(table).sort(([a], [b]) =>
-      (Number.parseFloat(a) - Number.parseFloat(b)) || a.localeCompare(b))) {
+    // which reads as a suite that lost half its sections.
+    for (const [id, title] of Object.entries(table).sort(([a], [b]) => bySectionId(a, b))) {
       const needs = depends[id]?.length ? `  (needs ${depends[id].join(", ")})` : "";
       console.log(`  ${String(id).padEnd(5)} ${title}${needs}`);
     }

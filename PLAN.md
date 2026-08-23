@@ -485,6 +485,22 @@ its receipt."* **What was convertible has been converted; what is left is delibe
       - ⚠ **`smoke-battleflow` gates in NODE**, not in the page: its sections are top-level
         blocks each with their own `f.evaluate`, so the plan never crosses the serialization
         boundary at all.
+      ✅ **And the filtered path is proven and TIMED, not merely built** (2026-08-23), including
+      the case where it buys nothing:
+
+      | filtered run | vs the full suite | what it says |
+      | --- | --- | --- |
+      | `smoke-hold --section 5` | **25s** vs 129s | a 5× saving on the suite with sixteen sections |
+      | `smoke-saves --section 18` | **93s** vs 252s | and the folded probe runs standalone, 13/13 |
+      | `smoke-battleflow --section 5d` | **~90s** vs 89s | ⚠ **no saving at all** |
+
+      ⚠ **The third row is the honest one.** §5d waits out two real buzzer windows, so it IS
+      most of that suite's wall clock — filtering to the slow section saves nothing, and the
+      only thing that would is faking a deadline the feature exists to honour. **The filter
+      pays when the section you want is small relative to the suite, and says so when it is
+      not.** All three stamp `⚠ PARTIAL RUN` and list what they skipped; `--section 5` on
+      smoke-hold also exercises the two-sided gating, where the page half collects and the Node
+      half asserts and both must skip in step.
       ⚠ **The hazard this created, and the tool that finds it:** a binding declared inside one
       gate and read from another still passes a FULL run and explodes only under `--section`.
       Three were found and fixed by static scan before any suite ran — `clearChips` (smoke-effects
