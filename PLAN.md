@@ -1,8 +1,10 @@
 # PLAN.md — the stabilization pass
 
-> **Temporary, and its work is FINISHED (2026-08-23).** This document tracked one piece of work:
-> bringing a two-week high-velocity prototype up to a shape that can carry years of features.
-> Every phase and every foundation stage is closed; **v1.22.0 ships the result.**
+> **Temporary, and its work is FINISHED (2026-08-23)** — with one open addendum: **the
+> ENFORCEMENT PASS below is planned and awaiting a go**; everything after it is the closed
+> record. This document tracked one piece of work: bringing a two-week high-velocity prototype
+> up to a shape that can carry years of features. Every phase and every foundation stage is
+> closed; **v1.22.0 ships the result.**
 >
 > ⚠ **It is kept, for now, for two things a tracker is unusually good at and the permanent docs
 > are not:** the MEASUREMENTS (what a thing actually cost, against what it was estimated to
@@ -13,6 +15,136 @@
 > Every item traces to a rule in [ARCHITECTURE.md](ARCHITECTURE.md). Nothing here changes what
 > the module does at the table — **the UI/UX and the shipped behaviour are the asset being
 > protected, not the thing being changed.**
+
+---
+
+## ▶ THE ENFORCEMENT PASS — planned 2026-08-23, AWAITING GO
+
+**Origin:** the 2026-08-23 architecture review (post-v1.22.0, scored 8/10). The review verified
+the foundation pass's claims and found the gap is no longer in the code's shape — it is between
+the shape and what the gate can SEE. Three findings, three stages, plus one optional repayment:
+
+1. the four-layer model (§2) does not name the **application-services tier** that actually
+   exists — `auto-apply.js`, `effect-riders.js`, `auto-damage.js` are the chokepoints every
+   machine routes through, currently classified as machines, which is why the dependency rule
+   reads as violated more than it morally is;
+2. the dependency rule — the module's central discipline — is the only major rule **enforced by
+   prose alone**: `check-imports` proves bindings resolve, nothing proves direction. The house
+   already knows the remedy; it is the R4 tripwire's shape (declare once, print, PIN);
+3. ARCHITECTURE §10 says "every row closed or settled" while **service-in-a-feature residues
+   persist unrecorded** (`dramaticVerdictPause`, `combatStamp`, the lazy saves→maneuvers pair) —
+   the exact ledger-goes-stale failure D2 already demonstrated once.
+
+**No behaviour changes. Stages 0–3 touch `tools/` and docs only — nothing in the zip.** Stage 4
+moves shipped code and needs its own go. Score claim, honestly made: this is the 8 → 8.5–9 path.
+
+### STAGE 0 — measure, by tool, never by hand
+
+The docs hand-carried a commit count and a lazy-import count; both went stale (§7 says six lazy
+sites; there are seven). This pass does not write a single number into a doc that a tool did not
+print.
+
+- [ ] **0.1 Build the edge inventory as tool OUTPUT.** All three edge kinds — static named,
+      bare (order-pinning), and lazy `await import()` — reusing `check-imports.mjs`'s parsing,
+      which already handles the lazy idiom. Output: every scripts/-internal edge, classified.
+- [ ] **0.2 Draft the layer map and put it to the user** before anything depends on it. The
+      recommendation on the table:
+      | Layer | Files |
+      | --- | --- |
+      | entry | battleflow.js |
+      | core (leaf) | core.js |
+      | DECISION | decide/* (imports NOTHING — currently true, becomes asserted) |
+      | REGISTRY | volley-registry.js, decide/registry.js |
+      | spine | ui.js, shared.js, geometry.js, settings.js |
+      | **services** | **auto-apply.js, effect-riders.js, auto-damage.js** |
+      | machines | hold, saves, mastery, maneuvers, concentration, volleys, cast, hit-riders, receipts, polish, resources |
+      ⚠ The map is drafted against HEAD at planning time; **classify whatever exists at
+      execution time** — a sibling session has feature work in flight (`scripts/d20-folds.js`,
+      a machine) that may land first, which is exactly why Stage 0 measures rather than copies.
+      ⚠ **`receipts.js` is the one honest classification question**: it renders receipt rows
+      (machine-shaped) but owns `revertTarget`, which saves.js lazily imports (service-shaped).
+      Recommendation: machine, with the edge pinned and reasoned — reclassify only if a second
+      importer of `revertTarget` ever appears. **CHECK IN before Stage 1 builds on the answer.**
+
+### STAGE 1 — `tools/check-layers.mjs` joins the gate
+
+The R4 pattern, applied to the import graph: declared once, printed every run, pinned so drift
+is a decision.
+
+- [ ] **1.1 The rule set the tool asserts.** (a) `decide/*` imports nothing — §7's "⚠ keep it
+      that way" becomes a gate; (b) `core.js` imports nothing; (c) machines and services import
+      downward only (services → spine → decide/registry/core); (d) **every edge that violates
+      (c) must appear in a pinned ALLOWLIST carrying a one-line reason** — the two
+      settled-permanent up-edges (`auto-damage → hold` per D1/D6's order-pinning ruling,
+      `auto-apply → mastery` per the Tier 2 PERMANENT ruling) and the D9 residues below. An
+      unlisted cross-layer edge fails the gate; so does a listed edge that stops existing
+      (a stale pin is the D2 lesson wearing a new hat).
+- [ ] **1.2 One tool, one job** — a NEW check, not a `check-imports` extension: that file's
+      header promises "that is all this asserts" and the promise is load-bearing. Wire as
+      `npm run layers`, into `verify` beside `imports`. `tools/` is not in
+      `EXPECTED_SOURCE_FILES`, so **this pass never moves the source pin** (parallel feature
+      work may — that pin belongs to whoever adds a scripts/ file).
+- [ ] **1.3 The tool prints its table** (layer per file, allowlisted edges with reasons, totals)
+      the way `KIND_SETS` prints — the verify output IS the measurement Stage 2 quotes.
+
+### STAGE 2 — ARCHITECTURE.md tells the truth the tool prints
+
+- [ ] **2.1 §2/§7 name the services tier.** The four KINDS of code stand (services are EDGE by
+      §2's test — they touch Foundry); §7's file table and dependency rule gain the tier:
+      **machines → services → spine → decide**. The rule stops being "a machine may not import
+      another machine" (violated ~17 times as written) and becomes the rule the code can
+      actually keep — with the up-edges it cannot yet keep pinned and named.
+- [ ] **2.2 Stop hand-carrying counts.** The "six lazy sites" claim and kin either quote the
+      tool's printed table or say "see `npm run layers`". Same for `check-imports.mjs`'s own
+      header prose.
+- [ ] **2.3 §10's closing line is amended** — "every row closed or settled" was true of D1–D8
+      and false of the ledger; it now points at D9.
+
+### STAGE 3 — debt row D9: the service-in-a-feature residues
+
+Recorded with the same shape as D1–D8: rule violated (§7), evidence (the pinned allowlist —
+mechanical, cannot go stale silently), and a disposition PER EDGE:
+
+- [ ] **3.1** `dramaticVerdictPause` lives in concentration.js; saves.js and mastery.js import
+      it. A presentation-timing primitive — spine-shaped by D6's own generalisation ("the spine
+      owns HOW a moment is presented"). **Disposition: repay (Stage 4).**
+- [ ] **3.2** `combatStamp` lives in mastery.js; maneuvers.js imports it. **Disposition:
+      measure in Stage 0, then repay or rule.**
+- [ ] **3.3** saves.js → maneuvers.js, lazy, twice (`foldEntryFor`/`equippedShield` at
+      `saveChoiceSpec`, `RULE_TEXT` at the choice popup) — interpose is genuinely cross-feature.
+      **Disposition: OPEN, deliberately.** The principled fix is a save-choice registry beside
+      `SAVE_FOLDS`, and that is feature-shaped design work this pass's no-feature rule excludes.
+      The seam arrives when the third choice kind does; until then the edges are pinned.
+- [ ] **3.4** saves.js → receipts.js (`revertTarget`, lazy) and auto-damage.js → mastery.js
+      (`cleaveArmedFor`, lazy) — pinned with their reasons; the second is a service up-edge
+      already carrying its order-pinning comment in place.
+- [ ] **3.5** The two settled-permanent cycles are REFERENCED, not re-litigated — D9 cites the
+      Tier 2 box rather than reopening it.
+
+### STAGE 4 — repay the cheap residues — OPTIONAL, its own go, ships code
+
+- [ ] **4.1** Move `dramaticVerdictPause` → ui.js (spine). Kills two feature→feature edges. A
+      plain async function, no hook registration — expected order-neutral, but **run
+      `check-hook-order` and the concentration + saves + mastery live sections**, not the
+      reasoning.
+- [ ] **4.2** Move `combatStamp` if Stage 0's measurement says it is as cheap as it looks —
+      candidate homes core.js (if it is a "who/when" fact) or decide/ (if pure).
+- [ ] **4.3** These change shipped files → a patch release decision goes to the user; sandbox
+      first per standing rule. **If Stage 4 is skipped, D9 simply keeps its OPEN rows — the
+      pass is complete without it.**
+
+### What this pass deliberately does NOT do
+
+- **No feature work** (the save-choice registry waits for its third customer).
+- **No breaking the permanent cycles** — Tier 2's box stands; the allowlist is where they live
+  now, visibly.
+- **No file splits.** The four big machines (saves 1,589 · hold 1,424 · maneuvers 1,209 ·
+  mastery 1,122) are vertical feature slices with sane function granularity; splitting them
+  buys reviewability at real regression risk and waits for a feature that forces it.
+- **No new unit-test mandate** — the gate check IS the test; vitest count stays wherever it is.
+
+**Check-in points:** after 0.2 (the layer map is a ruling, not a guess), after Stage 1 (show the
+printed table before the docs quote it), after Stage 3 (docs recut). Stage 4 only on its own go.
 
 ---
 
