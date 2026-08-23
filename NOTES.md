@@ -342,7 +342,9 @@ builder enumerated `scripts/` with a **non-recursive** `Get-ChildItem`, and said
 that promised "a new phase file rides along without a tooling change". True of a new *file*;
 false of a new *directory*. Phase 2 added `scripts/decide/`, and its six modules — which eleven
 files import, 23 import statements — **fell out of every zip built after 2026-08-22**. A clean
-install would have died on the first import and loaded the module as an empty shell.
+install would have died on the first import and loaded the module as an empty shell. **No published
+release was ever affected** — v1.20.0 was tagged 2026-08-21, before the split — and it was caught
+at the next release by reading the builder's own file list.
 
 The generalization is worth more than either bug. **Both survived because nothing ever installs
 what we ship.** `check-imports.mjs` proves the *working tree* resolves; hot-deploy over WebDAV
