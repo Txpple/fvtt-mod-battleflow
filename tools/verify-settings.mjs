@@ -41,6 +41,12 @@ const REFERENCE = {
   masteryRiders: true,
   masteryAsk: 'ask',
   maneuverFolds: 'Precision Attack:precision, Riposte:riposte, Shield Master:interpose, Shield Master:bash, Great Weapon Master:hew',   // v1.19.0 — the list IS the switch; interpose/bash/hew joined at the walk's scope-adds
+  // ⚠ v1.23.0 — the d20 folds. These MUST be listed here: the loop below walks the REFERENCE,
+  // so a registered setting that this table does not name is simply never checked, and drifts
+  // in silence forever. (`missing` catches the opposite case — a reference key with no
+  // registration — but nothing catches a registration with no reference key.)
+  d20Folds: 'Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic',
+  d20FoldAsk: true,       // auto-offer where the module owns the number; checks are always player-pressed
   concMode: 'prompt',
   concTimer: 15,
   concBreak: true,

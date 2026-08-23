@@ -30,6 +30,8 @@ export const S = {
   masteryRiders: "masteryRiders",
   masteryAsk: "masteryAsk",
   maneuverFolds: "maneuverFolds",
+  d20Folds: "d20Folds",
+  d20FoldAsk: "d20FoldAsk",
   volleys: "volleys",
   resourceNotices: "resourceNotices",
   concMode: "concMode",

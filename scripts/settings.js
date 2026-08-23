@@ -208,6 +208,19 @@ Hooks.once("init", () => {
     default: LIST_SPECS.maneuverFolds.default
   });
 
+  game.settings.register(MODULE_ID, S.d20Folds, {
+    name: "D20 Folds",
+    hint: 'Post-roll d20 folds, as "Lookup:kind" separated by commas. kind is "heroic" (Heroic Inspiration — a REROLL of the d20, and the new roll stands, crit and fumble included), "tactical" (Tactical Mind — 1d10 added to an ability check, spending a use of Second Wind), or "bardic" (a Bardic Inspiration die the bard gave you, added to a d20 that failed). ⚠ The first half is a LOOKUP KEY, not a display name: for "tactical" it must match the ITEM on the actor, and for "bardic" it must match the EFFECT the bard applies, which the system calls "Inspired" — the cards and popups still say "Bardic Inspiration", because that is what the feature is called. For "heroic" the lookup is unused entirely: the marker is a bare true/false on the sheet with no document behind it. Dice and costs are read from the content, never typed here. An empty list turns every d20 fold off. Unknown kinds are ignored, never guessed.',
+    scope: "world", config: true, type: String,
+    default: LIST_SPECS.d20Folds.default
+  });
+
+  game.settings.register(MODULE_ID, S.d20FoldAsk, {
+    name: "D20 Folds: Offer Automatically",
+    hint: "Where the module OWNS the number a d20 was judged against — an attack's target AC, or the DC of a save this module demanded — it can offer a fold the moment the roll fails, the way Precision Attack already does. Turn this off to make every d20 fold a button the player presses instead. ⚠ Ability and skill checks are ALWAYS player-pressed regardless of this setting: dnd5e records no DC for a raw check, so there is no number to judge a failure against and the module refuses to guess one.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
   // Membership lives in the volley registry (volley-registry.js — finding (ff), which
   // OVERTURNS FLOW item 6's structural-only instruction by user directive 2026-08-21):
   // premium content ships its multi-projectile data too inconsistently to detect from (the
@@ -284,6 +297,7 @@ Hooks.once("init", () => {
     interrupt: interruptEntries,
     block: blockEntries,
     maneuverFolds: maneuverFoldEntries,
+    d20Folds: d20FoldEntries,
     rider: riderEntries,
     riderUpgrade: riderUpgradeEntries
   }) });
@@ -416,6 +430,17 @@ export function blockEntries() {
 /** Which listed feats fold into an attack after the roll, and how — `{ name, kind }`. */
 export function maneuverFoldEntries() {
   return listEntries(LIST_SPECS.maneuverFolds);
+}
+
+/**
+ * Which post-roll d20 folds are live, and what each one spends — `{ name, kind }`.
+ *
+ * ⚠ `name` is a lookup key for `tactical` (an item) and `bardic` (an effect) and a bare LABEL
+ * for `heroic`, which has no document behind it at all. The spec's own comment carries the
+ * measurement; this wrapper only reads the world.
+ */
+export function d20FoldEntries() {
+  return listEntries(LIST_SPECS.d20Folds);
 }
 
 /** Which marks pay, by system identifier — `{ name }`. What they pay is read from the mark. */

@@ -144,7 +144,13 @@ for (const [key, spec] of Object.entries(LIST_SPECS)) {
 // ⚠ THE PIN. Bump it DELIBERATELY, in the commit that adds the kind, and say in that commit
 // why the kind was genuinely new (ARCHITECTURE.md §11 step 3). If you are bumping this more
 // than once a phase, that is the tripwire firing — stop adding kinds and re-read DESIGN.md R4.
-const EXPECTED_KINDS = 16;
+// v1.23.0: 16 → 19, and the three are ONE feature pass, not three separate arrivals — the
+// d20Fold set (heroic · tactical · bardic). They earn kinds because they genuinely differ in
+// what they SPEND (a boolean write, an activity use(), an effect delete) and in where the die
+// comes from; the arithmetic they share was already built by D8 and needed no new kind at all.
+// ⚠ That is the tripwire behaving, not firing: one pass, one bump, and the reason is that the
+// mechanism was lifted out FIRST and the kinds only name the residue.
+const EXPECTED_KINDS = 19;
 
 // The mastery set must match the rule text it is presented with: a mastery this module
 // resolves but cannot quote breaks presentation law 8 (ARCHITECTURE.md §5) at the popup.
@@ -166,10 +172,14 @@ const rows = KIND_SETS.map(set => {
 
 /* --- the source-file count, pinned ------------------------------------------------------ */
 
-// ⚠ 27 is `scripts/*.js` + `scripts/decide/*.js`, and it is quoted by name in ARCHITECTURE.md,
+// ⚠ 28 is `scripts/*.js` + `scripts/decide/*.js`, and it is quoted by name in ARCHITECTURE.md,
 // HANDOFF.md and check-comments' own output. Bump it deliberately when a file is added, the
 // same way EXPECTED_KINDS moves — the refusal is the feature.
-const EXPECTED_SOURCE_FILES = 27;
+// v1.23.0: 27 → 28, for scripts/d20-folds.js. It is a MACHINE and it earns its own file rather
+// than joining maneuvers.js: these are not maneuvers, they draw on no superiority pool, and two
+// of the three have no activity at all. Filing them under "maneuver" would have made the folds
+// list mean two different things.
+const EXPECTED_SOURCE_FILES = 28;
 const sourceFiles = [
   ...readdirSync(join(ROOT, "scripts")).filter(f => f.endsWith(".js")),
   ...readdirSync(join(ROOT, "scripts/decide")).filter(f => f.endsWith(".js")).map(f => `decide/${f}`)

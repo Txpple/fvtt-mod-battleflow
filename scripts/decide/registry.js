@@ -34,6 +34,34 @@ export const MANEUVER_KINDS = new Set(["precision", "riposte", "interpose", "bas
 export const INTERRUPT_KINDS = new Set(["ac", "damage"]);
 
 /**
+ * The closed set of D20 FOLD kinds — the three surveyed features (v1.23.0), which are one
+ * mechanism wearing three different SPENDS. The arithmetic they share already shipped with D8
+ * (`foldedRoll`/`foldedVerdict`/`foldedSave` handle `add` and `replace` on both sides); what
+ * genuinely differs per feature — and therefore what earns a kind under R4 — is where the
+ * marker lives and how you take it away:
+ *
+ *   heroic    `system.attributes.inspiration`, a bare BooleanField. Spending it is a WRITE.
+ *   tactical  Second Wind's `itemUses`, reached through a real utility activity. `use()`.
+ *   bardic    an ActiveEffect ("Inspired") the bard applied. Spending it is a DELETE.
+ *
+ * ⚠ THREE SPENDS, THREE DIE SOURCES, AND ONLY ONE OF THEM HAS AN ACTIVITY. Measured in the
+ * dnd5e 5.3.3 source and this world's own PHB pack, 2026-08-23:
+ *   - `heroic` has NO activity anywhere in the system, and a boolean is not one of the five
+ *     consumption kinds (activityUses · itemUses · material · hitDice · spellSlots), so there
+ *     is no consumption route to hang it on. The module writes the field, which is exactly
+ *     what the system's own sheet toggle does.
+ *   - `bardic`'s die formula is `@scale.bard.inspiration` — a scale value on the GRANTING
+ *     BARD, not on the creature holding the die. It resolves cross-actor, through the
+ *     effect's `origin`.
+ *   - only `tactical` is Precision-shaped: an activity, consumed with `use()`.
+ *
+ * ⚠ These are NOT contribution shapes. `add`/`replace`/`ac`/`verdict` are mechanism vocabulary
+ * and deliberately uncounted (§6); a kind here names a SPEND, which is content, which is
+ * precisely what the R4 tripwire is counting.
+ */
+export const D20_FOLD_KINDS = new Set(["heroic", "tactical", "bardic"]);
+
+/**
  * The closed set of volley kinds. Lives here, in the pure layer, so that ONE definition serves
  * the shipping registry and the static gate alike. ⚠ It used to exist twice: volley-registry.js
  * knew them implicitly and `tools/check-registry.mjs` re-declared them as a lookalike — the
@@ -79,6 +107,9 @@ export const KIND_SETS = [
     note: "what a held reaction changes about an attack already rolled" },
   { name: "maneuverFold", owner: "maneuvers.js", kinds: MANEUVER_KINDS, system: null,
     note: "how a listed feat folds into a resolved attack — D8 says this set is the one under pressure" },
+  { name: "d20Fold", owner: "d20-folds.js", kinds: D20_FOLD_KINDS, system: null,
+    note: "where the marker lives and how it is spent — the three surveyed features (v1.23.0); "
+      + "the ARITHMETIC is shared and already shipped with D8, so only the spend earns a kind" },
   { name: "volley", owner: "volleys.js", kinds: VOLLEY_KINDS, system: null,
     note: "how a multi-projectile spell resolves: aggregated damage, or independent attacks" },
   { name: "mastery", owner: "mastery.js", kinds: MASTERY_KINDS, system: 8,
@@ -144,6 +175,26 @@ export const LIST_SPECS = {
     columns: ["name", "kind"], kindColumn: "kind", kinds: MANEUVER_KINDS, fallback: null,
     default: "Precision Attack:precision, Riposte:riposte, Shield Master:interpose, "
       + "Shield Master:bash, Great Weapon Master:hew"
+  },
+  d20Folds: {
+    label: "D20 Folds", setting: "d20Folds",
+    columns: ["name", "kind"], kindColumn: "kind", kinds: D20_FOLD_KINDS, fallback: null,
+    // ⚠ THE `name` COLUMN IS A LOOKUP KEY, NOT A DISPLAY NAME (recut 2026-08-23 after the
+    // first table pass). What the card and popup SAY comes from the kind — `KIND_LABEL` in
+    // d20-folds.js — and the two genuinely differ:
+    //   tactical  → an ITEM on the actor with this name ("Tactical Mind"). Key and label agree.
+    //   bardic    → an ACTIVE EFFECT with this name, which the system calls "Inspired" (the
+    //               effect the bard's Inspire activity applies, NOT the bard's own feat).
+    //               ⚠ Key and label DISAGREE, and must: nobody at the table calls the feature
+    //               "Inspired", so a card announcing "Inspired — spent" names a thing the rules
+    //               do not have. It is Bardic Inspiration on screen and "Inspired" in the find.
+    //   heroic    → NO LOOKUP AT ALL. The marker is `system.attributes.inspiration`, a boolean
+    //               with no document behind it, so this string is never matched against
+    //               anything. It is required only because every column is required.
+    // ⚠ v1 used this column for BOTH jobs and the table read "Inspired" on every bardic card.
+    // Splitting them is why renaming the effect here changes what is FOUND and never what is
+    // said — which is the right way round.
+    default: "Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic"
   },
   rider: {
     label: "Rider List", setting: "riderList",

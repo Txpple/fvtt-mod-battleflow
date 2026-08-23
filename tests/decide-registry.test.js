@@ -182,6 +182,58 @@ describe("maneuver folds — the closed kind set, and what it refuses", () => {
   });
 });
 
+describe("d20 folds — three spends, one mechanism", () => {
+  const spec = () => reg.LIST_SPECS.d20Folds;
+
+  it("ships all three surveyed features on by default", () => {
+    const { entries } = reg.parseList(spec(), spec().default);
+    expect(entries.map(e => e.kind).sort()).toEqual(["bardic", "heroic", "tactical"]);
+  });
+
+  // ⚠ The default names the EFFECT ("Inspired") the bard applies, not the bard's own feat
+  // ("Bardic Inspiration"). The recipient carries the effect; the feat never leaves the bard,
+  // so a list entry naming the feat would look right and find nothing on the creature that
+  // actually holds the die. Measured against phbbrdBardicInsp, 2026-08-23.
+  // ⚠ The default LOOKS wrong and is right: the key must be "Inspired", because that is the
+  // ActiveEffect the bard's Inspire activity applies to the recipient — the bard's own feat
+  // never leaves the bard, so an entry naming the feat would find nothing on the creature that
+  // actually holds the die. What the table READS is "Bardic Inspiration"; d20-folds.js's
+  // KIND_LABEL supplies that, and the two are deliberately allowed to differ.
+  it("keys bardic off the effect a bard APPLIES, never the feat the bard keeps", () => {
+    expect(spec().default).toMatch(/Inspired:bardic/);
+    expect(spec().default).not.toMatch(/Bardic Inspiration:bardic/);
+  });
+
+  it("drops an unknown kind rather than guessing — no fallback on this list", () => {
+    expect(spec().fallback).toBe(null);
+    const { entries, rejects } = reg.parseList(spec(), "Heroic Inspiration:reroll");
+    expect(entries).toEqual([]);
+    expect(rejects[0]).toMatchObject({ action: "dropped" });
+    expect(reg.rejectMessage(spec(), rejects[0])).toMatch(/heroic\/tactical\/bardic/);
+  });
+
+  it("requires the name column even for heroic, whose name is only a label", () => {
+    // `heroic` does no lookup at all — its marker is a boolean with no document. The name is
+    // still required because the popup has to print something, and "every column required" is
+    // one rule with no per-list exceptions.
+    const { entries, rejects } = reg.parseList(spec(), ":heroic");
+    expect(entries).toEqual([]);
+    expect(rejects[0]).toMatchObject({ action: "dropped", detail: "no name" });
+  });
+
+  it("lets the table rename any of them — the name is data, the kind is the switch", () => {
+    const { entries } = reg.parseList(spec(), "Lucky Break:heroic, Bard's Gift:bardic");
+    expect(entries).toEqual([
+      { name: "Lucky Break", kind: "heroic" },
+      { name: "Bard's Gift", kind: "bardic" }
+    ]);
+  });
+
+  it("an empty list turns every d20 fold off", () => {
+    expect(reg.parseList(spec(), "").entries).toEqual([]);
+  });
+});
+
 describe("rider list and rider upgrades", () => {
   it("reads a bare comma list of identifiers as one-column entries", () => {
     // ⚠ `{ name }` since Phase 3, not bare strings — one shape for every list setting.
@@ -266,7 +318,7 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     // The pin itself lives in tools/check-registry.mjs, where the failure has to happen. This
     // asserts the number that pin is about, so a kind added here is visible in two places.
     const total = reg.KIND_SETS.reduce((n, s) => n + s.kinds.size, 0);
-    expect(total).toBe(16);
+    expect(total).toBe(19);
   });
 
   it("puts every kind-bearing list spec's set in the table", () => {

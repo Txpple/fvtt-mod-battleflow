@@ -53,6 +53,29 @@
  * ------------------------------------------------------------------------------------------- */
 
 /**
+ * One spend's contribution — shared by the attack side and the save side, because "a reroll
+ * replaces the roll and a die adds to it" is the same sentence whichever number it is tested
+ * against. `uuid` is supplied on the attack side and omitted on the save side.
+ *
+ * ⚠ `heroic` is the module's first shipped `replace`, and it is a replace precisely because a
+ * REROLL carries its own crit and fumble: a rerolled natural 20 crits and a rerolled natural 1
+ * fumbles, neither of which an `add` can express.
+ */
+function contributionOf(spend, uuid) {
+  const at = uuid === undefined ? {} : { uuid };
+  if ( spend?.kind === "heroic" ) {
+    return Number.isFinite(spend.reroll?.total)
+      ? { ...at, replace: {
+          total: spend.reroll.total,
+          isCritical: spend.reroll.isCritical === true,
+          isFumble: spend.reroll.isFumble === true
+        } }
+      : null;
+  }
+  return Number.isFinite(spend?.die) ? { ...at, add: spend.die } : null;
+}
+
+/**
  * Where the folds come from, declared rather than hard-coded. Each spec names a MESSAGE FLAG and
  * turns one of that flag's per-target entries into a contribution (or null for "no opinion yet").
  *
@@ -80,6 +103,36 @@ export const ATTACK_FOLDS = [
       if ( Number.isFinite(t.acAtVerdict) ) return { uuid: t.uuid, ac: t.acAtVerdict };
       return { uuid: t.uuid, verdict: t.verdict };
     }
+  },
+  {
+    /**
+     * THE THREE SURVEYED FEATURES, AS ONE SPEC (v1.23.0).
+     *
+     * ⚠ One entry serves all three kinds, and that is the point of D8 rather than a shortcut:
+     * `heroic`/`tactical`/`bardic` differ in what they SPEND, which is d20-folds.js's problem,
+     * and agree completely on what they contribute — a number on the attacker's side. By the
+     * time a contribution reaches here the spend has already happened and the die is on the
+     * flag, so there is nothing left for the kind to change.
+     *
+     * ⚠ `heroic` is the module's first `replace`, and it is a replace precisely because a
+     * REROLL carries its own crit and fumble: a rerolled natural 20 crits and a rerolled
+     * natural 1 fumbles, neither of which an `add` can express. `foldedRoll` has handled this
+     * since D8 and is unit-tested for it; this is the first shipped caller.
+     */
+    flag: "d20fold",
+    /**
+     * ⚠ ONE ENTRY PER (TARGET × SPEND), because a roll can carry SEVERAL spends. v1 modelled a
+     * single fold per roll and the table found it immediately: heroic — first in the shipped
+     * list — masked Tactical Mind and Bardic entirely. The rules allow stacking (reroll with
+     * Heroic Inspiration, still fail, then add a Bardic die) and `foldedRoll` has composed
+     * `replace`-then-`add` correctly since D8, so admitting the list costs nothing here.
+     *
+     * ⚠ Read `spends`, never `offers`: an offer is what the player COULD burn, a spend is what
+     * they DID. Contributing from `offers` would fold dice nobody paid for.
+     */
+    entries: flag => (flag?.targets ?? []).flatMap(t =>
+      (flag.spends ?? []).map(spend => ({ t, spend }))),
+    contribute: (_flag, { t, spend }) => contributionOf(spend, t.uuid)
   },
   {
     flag: "precision",
@@ -198,13 +251,34 @@ export function saveOutcome(total, dc, forced = false) {
  * ask's-DC rule), so there is no defence-side channel here and a `{ dc }` contribution is
  * deliberately not a shape. Everything else — `add`, `replace`, a forced `outcome` — is shared.
  *
- * ⚠ THIS SHIPS WITH AN EMPTY REGISTRY, ON PURPOSE. `SAVE_FOLDS` is the seam, and the seam is
- * what D8 was about; declaring it empty means `saves.js` already routes its verdict through the
- * fold path, so the first feature to need one is an entry in a list rather than a change to the
- * resolver. With no specs the arithmetic is provably today's arithmetic — which is exactly the
- * property that lets it land in a foundation pass with no feature work in it.
+ * ⚠ THIS SHIPPED WITH AN EMPTY REGISTRY, ON PURPOSE — and v1.23.0 is the seam paying off.
+ * D8 declared `SAVE_FOLDS` empty so that `saves.js` already routed its verdict through the fold
+ * path while the arithmetic was provably unchanged; the first feature to need one is therefore
+ * an ENTRY IN A LIST rather than a change to the resolver. That is exactly what happened: the
+ * spec below is the whole of the save-side work for all three surveyed features, and
+ * `foldSaveVerdict` in saves.js was not touched to admit it.
  */
-export const SAVE_FOLDS = [];
+export const SAVE_FOLDS = [
+  {
+    /**
+     * The save side of the same three features, and deliberately the SAME FLAG the attack side
+     * reads (`d20fold`) — one stamp, both channels, because "reroll the d20" and "add a die to
+     * the d20" do not care which kind of test the d20 was.
+     *
+     * ⚠ NO `uuid`, AND NO PER-TARGET DIMENSION AT ALL. An attack is one roll judged against
+     * many targets, so its contributions are keyed by target. A save is the mirror image: many
+     * rollers, but each one rolls its OWN message, and the flag rides that roll (the locality
+     * `foldSaveVerdict` already uses). So there is exactly one contribution per flag, it names
+     * nobody, and `foldedSave` — which never filters by uuid — folds it straight in.
+     *
+     * ⚠ There is no `dc` shape here and there must not be: the ask OWNS the DC (the ask's-DC
+     * rule), so a save has no defence-side channel the way an attack has `ac`.
+     */
+    flag: "d20fold",
+    entries: flag => flag?.spends ?? [],
+    contribute: (_flag, spend) => contributionOf(spend)
+  }
+];
 
 /**
  * A save's verdict after every fold that names it. Returns the composed TOTAL as well as the

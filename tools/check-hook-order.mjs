@@ -62,6 +62,14 @@ const CHECKS = [
     "mastery rows render above the maneuver fold rows on a shared attack card (v1.19.0 entry order)"],
   ["dnd5e.renderChatMessage", "maneuvers.js", "saves.js",
     "maneuver rows render above the saves rows (the entry imports maneuvers.js before saves.js)"],
+  ["dnd5e.renderChatMessage", "maneuvers.js", "d20-folds.js",
+    "the d20 fold row sits directly below the maneuver rows — the same missed attack can carry a Precision offer AND a reroll/bardic offer, and a table reading the card top-to-bottom should meet them in that order (v1.23.0 entry order)"],
+  // ⚠ LOAD-BEARING, not cosmetic. Precision stamps its flag on rollAttackV2 first; d20-folds.js
+  // then reads the SAME message and composes its verdict across every fold already on it
+  // (foldsFrom/foldedVerdict). Reverse the two and the fold would compose against a precision
+  // flag that does not exist yet, and its announced arithmetic would disagree with hitTargets.
+  ["dnd5e.rollAttackV2", "maneuvers.js", "d20-folds.js",
+    "precision stamps before the d20 fold composes over it — the fold reads every flag already on the attack"],
   ["dnd5e.renderChatMessage", "volleys.js", "saves.js",
     "the volley row renders above the saves rows on a shared usage card (v1.20.0 entry order)"],
   ["dnd5e.renderChatMessage", "receipts.js", "resources.js",

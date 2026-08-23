@@ -261,6 +261,128 @@ describe("foldsFrom + ATTACK_FOLDS — the registry that replaced the named para
     expect(folds).toEqual([{ uuid: "a", verdict: "miss", from: "hold" }]);
   });
 
+  it("a USED add-kind d20 fold contributes its die to every target it names", () => {
+    const folds = v.foldsFrom(
+      read({
+        d20fold: {
+          spends: [{ kind: "tactical", die: 7 }],
+          targets: [{ uuid: "a" }, { uuid: "b" }]
+        }
+      })
+    );
+    expect(folds).toEqual([
+      { uuid: "a", add: 7, from: "d20fold" },
+      { uuid: "b", add: 7, from: "d20fold" }
+    ]);
+  });
+
+  // ⚠ The module's first shipped `replace`. A reroll cannot be modelled as an `add` because it
+  // carries its OWN crit and fumble — which is the whole reason the shape exists.
+  it("a USED heroic fold contributes a replace, crit and fumble included", () => {
+    const folds = v.foldsFrom(
+      read({
+        d20fold: {
+          spends: [{ kind: "heroic", reroll: { total: 20, isCritical: true, isFumble: false } }],
+          targets: [{ uuid: "a" }]
+        }
+      })
+    );
+    expect(folds).toEqual([
+      { uuid: "a", replace: { total: 20, isCritical: true, isFumble: false }, from: "d20fold" }
+    ]);
+    // A rerolled natural 20 crits — it hits an AC nothing else could have reached.
+    expect(v.foldedVerdict({ uuid: "a", ac: 99 }, { total: 3 }, folds)).toBe("hit");
+  });
+
+  it("a rerolled natural 1 fumbles, and misses an AC the total would have cleared", () => {
+    const folds = v.foldsFrom(
+      read({
+        d20fold: {
+          spends: [{ kind: "heroic", reroll: { total: 1, isCritical: false, isFumble: true } }],
+          targets: [{ uuid: "a" }]
+        }
+      })
+    );
+    expect(v.foldedVerdict({ uuid: "a", ac: 1 }, { total: 30 }, folds)).toBe("miss");
+  });
+
+  it("a heroic fold with no reroll recorded contributes nothing", () => {
+    expect(
+      v.foldsFrom(
+        read({
+          d20fold: { spends: [{ kind: "heroic" }], targets: [{ uuid: "a" }] }
+        })
+      )
+    ).toEqual([]);
+  });
+
+  // ⚠ An OFFER is what a player could burn; a SPEND is what they did. v1 keyed the contribution
+  // off `outcome === "used"`, which meant the gate lived in a status string; the list of spends
+  // IS the gate now, and an offer nobody accepted is simply an empty list.
+  it("a live OFFER contributes nothing — only spends do", () => {
+    expect(
+      v.foldsFrom(
+        read({
+          d20fold: {
+            status: "pending",
+            offers: [{ kind: "tactical", name: "Tactical Mind", dieFormula: "1d10" }],
+            spends: [],
+            targets: [{ uuid: "a" }]
+          }
+        })
+      )
+    ).toEqual([]);
+  });
+
+  it("a passed or expired fold contributes nothing", () => {
+    for (const outcome of ["passed", "passed (timer)", "gone"]) {
+      expect(
+        v.foldsFrom(
+          read({ d20fold: { status: "resolved", outcome, spends: [], targets: [{ uuid: "a" }] } })
+        )
+      ).toEqual([]);
+    }
+  });
+
+  // ⚠ THE MULTI-SELECT CASE, and the reason the flag carries a LIST. v1 modelled one fold per
+  // roll; the table found within minutes that heroic — first in the shipped list — masked the
+  // other two entirely. The rules allow the stack: reroll, still fail, then add a die.
+  it("STACKS a reroll and a die on one roll — replace first, then add on top", () => {
+    const folds = v.foldsFrom(
+      read({
+        d20fold: {
+          spends: [
+            { kind: "heroic", reroll: { total: 11, isCritical: false, isFumble: false } },
+            { kind: "bardic", die: 6 }
+          ],
+          targets: [{ uuid: "a" }]
+        }
+      })
+    );
+    expect(folds).toEqual([
+      { uuid: "a", replace: { total: 11, isCritical: false, isFumble: false }, from: "d20fold" },
+      { uuid: "a", add: 6, from: "d20fold" }
+    ]);
+    // The original 3 is replaced by 11, then +6 = 17 — enough for AC 15, not for AC 20.
+    expect(v.foldedVerdict({ uuid: "a", ac: 15 }, { total: 3 }, folds)).toBe("hit");
+    expect(v.foldedVerdict({ uuid: "a", ac: 20 }, { total: 3 }, folds)).toBe("miss");
+  });
+
+  // The 2026-08-23 composition ruling, now with a third fold in the room: the defender's Shield
+  // moves the AC, the attacker's die moves the total, and ONE verdict is computed at the end.
+  it("composes with a hold — the die is tested against the SHIELDED AC, not the snapshot", () => {
+    const folds = v.foldsFrom(
+      read({
+        hold: { targets: [{ uuid: "a", kind: "ac", verdict: "miss", acAtVerdict: 20 }] },
+        d20fold: { spends: [{ kind: "bardic", die: 8 }], targets: [{ uuid: "a" }] }
+      })
+    );
+    // 14 + 8 = 22 vs the shielded AC 20 — hits. Against the snapshot AC 15 it would also hit,
+    // so the assertion that matters is the one that FAILS against the shielded number:
+    expect(v.foldedVerdict({ uuid: "a", ac: 15 }, { total: 14 }, folds)).toBe("hit");
+    expect(v.foldedVerdict({ uuid: "a", ac: 15 }, { total: 10 }, folds)).toBe("miss"); // 18 < 20
+  });
+
   it("a USED precision contributes its die to every target it names", () => {
     const folds = v.foldsFrom(
       read({
@@ -306,9 +428,91 @@ describe("foldedSave — the save side of the fold (D8's real new work)", () => 
     expect(v.foldedSave({ total: 14, dc: 15 })).toMatchObject({ total: 14, outcome: "failed" });
   });
 
-  it("SAVE_FOLDS ships empty on purpose — the seam, not a feature", () => {
-    expect(v.SAVE_FOLDS).toEqual([]);
+  // ⚠ This test used to assert SAVE_FOLDS was EMPTY, which was the right assertion for as long
+  // as the seam was unused — D8 shipped it declared-but-empty so `foldSaveVerdict` already ran
+  // through the fold path while the arithmetic was provably unchanged. v1.23.0 is the seam
+  // paying off: the d20 folds land as ONE SPEC and the resolver in saves.js was not touched to
+  // admit them. What is worth pinning now is that property, not the emptiness.
+  it("the save seam carries the d20 folds and nothing else", () => {
+    expect(v.SAVE_FOLDS.map(s => s.flag)).toEqual(["d20fold"]);
+  });
+
+  it("a flag nothing recognises still contributes nothing", () => {
     expect(v.foldsFrom(() => ({ anything: true }), v.SAVE_FOLDS)).toEqual([]);
+  });
+
+  it("a save fold names nobody — one roller, one roll, no per-target dimension", () => {
+    const folds = v.foldsFrom(
+      key => (key === "d20fold" ? { spends: [{ kind: "bardic", die: 6 }] } : null),
+      v.SAVE_FOLDS
+    );
+    expect(folds).toEqual([{ add: 6, from: "d20fold" }]);
+    expect(folds[0]).not.toHaveProperty("uuid");
+  });
+
+  it("a live offer on a WITHHELD save contributes nothing until it is spent", () => {
+    // ⚠ The demanded-save path stamps this flag and saves.js withholds its verdict while the
+    // offer is live. Until a spend lands, the arithmetic must be exactly today's arithmetic —
+    // otherwise the withheld save would resolve differently from the one nobody was offered.
+    const offered = {
+      status: "pending",
+      dc: 15,
+      offers: [{ kind: "bardic", name: "Inspired", dieFormula: "d8" }],
+      spends: []
+    };
+    const folds = v.foldsFrom(key => (key === "d20fold" ? offered : null), v.SAVE_FOLDS);
+    expect(folds).toEqual([]);
+    expect(v.foldedSave({ total: 11, dc: 15, folds }).outcome).toBe("failed");
+  });
+
+  it("a passed offer on a withheld save leaves the failure standing", () => {
+    for (const outcome of ["passed", "passed (timer)", "gone"]) {
+      expect(
+        v.foldsFrom(
+          key => (key === "d20fold" ? { status: "resolved", outcome, spends: [] } : null),
+          v.SAVE_FOLDS
+        )
+      ).toEqual([]);
+    }
+  });
+
+  it("STACKS on a save too — Fireball rerolled, still short, then a bardic die saves it", () => {
+    const folds = v.foldsFrom(
+      key =>
+        key === "d20fold"
+          ? {
+              dc: 15,
+              spends: [
+                { kind: "heroic", reroll: { total: 10, isCritical: false, isFumble: false } },
+                { kind: "bardic", die: 6 }
+              ]
+            }
+          : null,
+      v.SAVE_FOLDS
+    );
+    // Rolled 4, rerolled to 10 — still under DC 15 — then +6 = 16, saved.
+    expect(v.foldedSave({ total: 4, dc: 15, folds })).toMatchObject({
+      total: 16,
+      outcome: "saved"
+    });
+  });
+
+  it("a heroic reroll folds into a save as a replace, carrying its own crit and fumble", () => {
+    const folds = v.foldsFrom(
+      key =>
+        key === "d20fold"
+          ? {
+              spends: [
+                { kind: "heroic", reroll: { total: 19, isCritical: false, isFumble: false } }
+              ]
+            }
+          : null,
+      v.SAVE_FOLDS
+    );
+    expect(folds).toEqual([
+      { replace: { total: 19, isCritical: false, isFumble: false }, from: "d20fold" }
+    ]);
+    expect(v.foldedSave({ total: 3, dc: 15, folds }).outcome).toBe("saved");
   });
 
   it("an added die can turn a failed save into a saved one", () => {

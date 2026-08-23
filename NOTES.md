@@ -211,6 +211,53 @@ A test fixture needs **both** fields.
 matching announcements by `/push/i` over message content finds the *system's* card first. Match
 module announcements by flag, or at minimum by their eyebrow text.
 
+### An unresolved `@scale` token rolls ZERO — silently (2026-08-23)
+
+⚠ **The most expensive single fact of the d20-fold pass, and it fails in the quiet direction.**
+Measured in the sandbox against a real Bard 5 and a real Fighter 2:
+
+```
+new Roll("@scale.bard.inspiration", bard.getRollData())       →  "1d8",  total 7   ✅
+new Roll("@scale.bard.inspiration", recipient.getRollData())  →  "0",    total 0   ⚠
+```
+
+The second **does not throw and does not warn.** A missing `@scale` path collapses to the literal
+string `"0"` and evaluates to zero. So handing a cross-actor scale formula to the wrong actor's
+roll data produces a real, public, spent-resource roll that adds **nothing**, and at the table it
+reads as bad luck rather than a bug.
+
+**Resolve a formula on the actor that OWNS it, down to a literal, before any Roll is built.**
+`ScaleValueTypeDice` carries `formula`/`die` (`"d8"`) as **getters** — `JSON.stringify` shows only
+`{number, faces, modifiers}`, so a serialized snapshot of one looks like it has no formula at all.
+Never stringify the object into a formula; read `formula`/`die` and refuse anything that is not a
+plain non-empty string.
+
+### There is no DC for an ability check. Anywhere. (2026-08-23)
+
+⚠ `Actor5e##rollD20Test` builds ability checks and saving throws through one private method, and
+it **never sets `options.target`**. A DC reaches a roll only when a caller supplies one (an
+activity's save DC does; the sheet's own check button does not). So *"when you fail an ability
+check"* — the literal trigger of Tactical Mind, and of a whole family of 2024 features — **is not
+computable from system data**. The GM holds that number in their head and nothing writes it down.
+
+This is not a gap to work around with inference. It is a boundary: see HANDOFF's ruling 2b.
+
+### `itemUses` consumption targets are UUIDs on disk and ids in memory (2026-08-23)
+
+A compendium feature that consumes another item's uses stores the target as a **compendium UUID**
+(`Compendium.dnd-players-handbook.classes.Item.phbftrSecondWind`). `Activity#_remapConsumptionTarget`
+rewrites it to the actor's own item id during `prepareData`, but **only via `actor.sourcedItems`**,
+which matches on recorded compendium source.
+
+⚠ **`item.toObject()` therefore shows the UUID while the live activity shows the id** — a forensic
+that reads stored data concludes the remap never happened. Read the prepared activity.
+
+⚠ **And when the remap fails, nothing says so.** An actor whose pool item came from a DDB import or
+a hand-made copy keeps the UUID, `actor.items.get(uuid)` returns undefined, and any feature gated
+on "does this actor have a use left" answers *no* forever. **Distinguish "pool not found" from
+"pool empty" and warn on the first** — they look identical from outside and only one is the
+table's fault.
+
 ---
 
 ## 3. The statblock caster

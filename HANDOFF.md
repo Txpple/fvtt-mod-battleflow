@@ -14,65 +14,154 @@
 
 | | |
 | --- | --- |
-| **Do first** | 📋 **Nothing is in flight, and nothing is half-done.** The refactor and the foundation pass are both closed, **v1.22.0 is released and on the sandbox**, and the tree is clean and pushed. ▶ **The next work is FEATURES** — see NEXT below, where the scoping is already done. |
-| Release | ✅ **v1.22.0 RELEASED AND ON THE SANDBOX, 2026-08-23** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.22.0>. Both assets attached; the **published** zip was downloaded back and proven self-contained (30 entries, 27 scripts including `decide/`, 101 relative imports all resolving, both manifest fields in step). |
-| Prod | ⚠ **PROD STILL RUNS v1.20.0, BY INSTRUCTION** — user call 2026-08-23: *"sandbox only, no prod yet"*. It has run pre-refactor code throughout, deliberately. **Do not update it without being asked.** |
-| Repo | `main`, clean, **pushed**. |
+| **Do first** | 📋 **v1.23.0 — the three d20 folds — IS COMMITTED, PUSHED AND ON PROD.** ▶ **Read *The d20 folds, as landed* below before touching them**: the first table pass found **six bugs, all in the offer half**, and the table found every one of them while the suite stayed green. ⚠ **The attack path's RESOLVE has still never been driven** (`smoke-d20-folds` §3 SKIPs). ⚠ A **sibling session** owns `PLAN.md` in this same tree; that edit is not ours and was not committed with this work. |
+| Release | ⚠ **v1.23.0 IS DEPLOYED BUT NOT RELEASED** — `module.json` says 1.23.0 and prod carries those bytes, but **no GitHub release or tag exists for it**, so its `download` URL 404s. Anyone installing from the manifest still gets v1.22.0. Cut the release with `build-release.ps1` when the folds have had a table pass. Previous: ✅ **v1.22.0 RELEASED, 2026-08-23** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.22.0>. Both assets attached; the **published** zip was downloaded back and proven self-contained (30 entries, 27 scripts including `decide/`, 101 relative imports all resolving, both manifest fields in step). ⚠ **The d20 folds are NOT in it** — they are post-1.22.0 working-tree work and the source comments forward-reference **v1.23.0**, which has not been cut. |
+| Prod | ✅ **PROD RUNS v1.23.0 AS OF 2026-08-23** — the d20 folds included, by user instruction. Earlier the same day: ✅ **v1.22.0** — user instruction this session, superseding the old *"sandbox only, no prod yet"* call. 28/28 files byte-identical over WebDAV. ⚠ **The box was asleep** (`status=NOT_RUNNING`) and had to be woken by the Magic URL first — see *The prod deploy* below, because the byte-check LIES when the box is down. Prod does **not** carry the d20 folds. |
+| Repo | `main`, **pushed**. ⚠ The sibling session's `PLAN.md` edit is still uncommitted in the working tree — deliberately left for them. |
 | **The debt register is closed** | ARCHITECTURE §10: **every row is repaid or settled by decision.** D1, D2, D3, D5, D6, D7, D8 repaid; **D4 dropped** and the two surviving import cycles **permanent** — both because doing that work would make the tree worse, and the argument is in their rows. ⚠ **That table is now a record, not a list of things to do.** |
-| Verify gate | `npm run verify` — **eight static checks then the unit tests, all offline, all in seconds.** biome (**95 warnings, 0 errors — the baseline**), knip, **typecheck**, imports (267 bindings), hook order (75 registrations, 10 pairs), registry (12 checks; it prints the R4 kinds table), manifest in-step, comments (306 blocks / 27 files), vitest **215**. ⚠ **Three numbers are PINNED and fail the gate deliberately** — the R4 kind total (**16**), the source-file count (**27**) and the two `module.json` version fields agreeing. That is the point, not an obstacle. |
+| Verify gate | `npm run verify` — **eight static checks then the unit tests, all offline, all in seconds.** biome (**96 warnings, 0 errors — the baseline**), knip, **typecheck**, imports, hook order (**85 registrations, 12 pairs**), registry (**13 checks**; it prints the R4 kinds table), manifest in-step, comments (**328 blocks / 28 files**), vitest **235**. ⚠ **Three numbers are PINNED and fail the gate deliberately** — the R4 kind total (**19**), the source-file count (**28**) and the two `module.json` version fields agreeing. That is the point, not an obstacle. |
 | **Testing** | ⚠ **`node tools/battery.mjs` is the front door.** Thirteen entries in the order that works, **every one captured to `dist/battery/<stamp>/` before anything is summarised**, `verify-settings` at the end. `--from <suite>` resumes; `--snapshot` rolls the world back; `--list` shows the order. Every suite also takes `--list` and `--section N`. |
-| Sandbox | ⚠ **HEADLESS, and it is THE test environment.** `node <mcp>/scripts/local-foundry.mjs start\|stop\|status\|restart`; deploy with `node <mcp>/scripts/deploy-house-module.mjs fvtt-mod-battleflow --local` — **never without `--local`**. Never the Electron app for suites (dataPath lock). ✅ **Carries v1.22.0 byte-identical** (stop → deploy → start, 2026-08-23), and **smoked green after the deploy**: battleflow ALL PASS → hold ALL PASS, `verify-settings` CLEAN. ⚠ **LEFT RUNNING** (world active, 0 users, pid 20604) — `status` first, `stop` if you are not testing. |
+| Sandbox | ⚠ **HEADLESS, and it is THE test environment.** `node <mcp>/scripts/local-foundry.mjs start\|stop\|status\|restart`; deploy with `node <mcp>/scripts/deploy-house-module.mjs fvtt-mod-battleflow --local` — **never without `--local`**. Never the Electron app for suites (dataPath lock). ✅ **Carries the WORKING-TREE d20 fold code** byte-identical (stop → deploy → start, 2026-08-23) — i.e. **ahead of both the v1.22.0 release and prod**, and `module.json` still says 1.22.0. `smoke-d20-folds` 12/12, `verify-settings` CLEAN. ⚠ **LEFT RUNNING** — `status` first, `stop` if you are not testing. ⚠ Its `list-actors` now includes **`BF Test Fighter`** and **`BF Test Bard`**. |
 | Bridge | Disconnect before any suite. Suites join as `Tester Assistant`; the two-client ones also join as `PC Assistant`. ⚠ One suite at a time is **enforced** now (a pid lock in `harness.mjs`), not remembered. |
 | **Parity** | ✅ **PROVEN 2026-08-23** — full battery on a sandbox carrying the released code byte-identical, **every suite green, settings CLEAN, 19m58s**: battleflow ALL PASS (33) · hold ALL PASS (44) · saves 74/74 · volleys 39/39 · maneuvers 54/54 · cast 17/17 · riders 8/8 · concentration 47/47 · twoclient 9/9 · popup-routing ALL PASS · effects 54/54 · resources 18/18. |
 | Flakes | ⚠ **`smoke-battleflow` "2 FAILURE(S)" is NOT DIAGNOSED** — twice seen (2026-08-22, 2026-08-23), never reproduced, and nothing claims to have fixed it. **What changed is that its evidence can no longer be lost:** both sightings had their assertions thrown away by a `\| tail`, and the battery captures the full body first. **If it recurs it will name itself — capture first, read second, re-run third.** ⚠ `smoke-effects` has a documented dice-variance class: re-run before diagnosing. |
 
 ---
 
-## ▶ NEXT — features, and the scoping is already done
+## ▶ The d20 folds, as landed — and the three things the scoping got wrong
 
-**The standing "no features" directive is satisfied and lifted** (see below). What comes next was
-surveyed during the refactor, and the survey is the reason D8 exists.
+**Built 2026-08-23, in the working tree, gate-green and smoked green.** `scripts/d20-folds.js`
+(the machine, exports nothing), a `d20Fold` kind set and a `d20Folds` list spec, two settings,
+the first `SAVE_FOLDS` entry, 16 new unit tests, and `tools/{fixture,probe,smoke}-d20-folds.mjs`.
 
-### The three surveyed d20 features are ONE KIND, and the module already ships a member of it
+⚠ **THE SURVEY BELOW SAID "SAME SHAPE, DIFFERENT DIE". IT WAS WRONG THREE TIMES**, and every
+correction cost a live measurement. They are recorded here so nobody re-derives them:
 
-**Precision Attack** ([maneuvers.js](scripts/maneuvers.js) `resolvePrecision`) is the working
-template for all three. **Scope them together — do not take them one at a time.**
-
-1. `activity.use()` — the system consumes the resource.
-2. the new die posts as **its own public message**, stamped `respondsTo` (the §4.1 relay).
-3. the module recomputes the verdict **on a module flag** — the original `Roll` is never touched
-   — and announces the arithmetic in the open (*"14 + 6 = 20 vs AC 18 — now hits"*).
-4. `hitTargets` re-reads the new verdict and re-drives the chain.
-
-| Feature | How it differs from Precision |
+| What the survey assumed | What is actually true |
 | --- | --- |
-| **Heroic Inspiration** | `replace` where precision has `add` — a REROLL. ⚠ It has **no activity at all**: dnd5e 5.3.3 models it as a bare `BooleanField` on `character` only, plus a sheet toggle. Spending it means writing the boolean, which is exactly what the system's own button does. |
-| **Tactical Mind** | a CHECK where precision has an attack, `add` of `1d10`. ⚠ Its only genuinely new mechanic is **un-spending a use** — Second Wind is refunded when the boosted check still fails. |
-| **Bardic Inspiration** | a different die and a different spender. Otherwise the same shape. |
+| Tactical Mind gates on *"when you fail an ability check"* | ⚠ **THAT GATE CANNOT EXIST.** `Actor5e##rollD20Test` never sets `options.target` for a plain check — **dnd5e records no DC for a raw ability check anywhere.** So failure is uncomputable, and no inference fixes it. **User ruling: the player presses a button.** The module auto-offers only where it owns the number (an attack's snapshot AC, a demanded save's DC); every ability and skill check is player-pressed, always, regardless of the `d20FoldAsk` setting. |
+| Bardic Inspiration is "a different die and a different spender" | ⚠ **The recipient has no item and no activity** — they carry an **ActiveEffect** (`Inspired`, 1 hour, `transfer:false`). Spending it is a DELETE. And `@scale.bard.inspiration` is a scale value **on the granting bard**, reached through `effect.origin`. Two of the three features have nothing to `use()`. |
+| Tactical Mind's spend is just `activity.use()` | True, but ⚠ **its consumption target is a COMPENDIUM UUID on disk** and only dnd5e's `Activity#_remapConsumptionTarget` (via `actor.sourcedItems`) makes it findable. **Measured working** for a cleanly-sourced actor — but an actor whose Second Wind came from a DDB import or a hand-made copy fails the remap, and the feature then offers **nothing, forever, with no error**. `smoke-d20-folds` §1 asserts the remap for exactly this reason. |
 
-⚠ **THE CONTENT LOOKUPS ARE DONE — do not repeat them.** Both cost real time and neither is
-findable by guessing:
+⚠ **THE MEASUREMENT THAT WOULD HAVE COST A TABLE SESSION.** `@scale.bard.inspiration` rolled
+against the **recipient's** roll data does not throw and does not warn — it resolves to the
+literal string `"0"` and rolls **total 0**. A Bardic die spent that way would be really gone, the
+roll would post in public, and it would add exactly nothing: a wrong number that reads as bad
+luck. The formula is therefore resolved **bard-side to a literal** (`"d8"`) before any roll is
+built, and `smoke-d20-folds` §1 asserts both directions.
 
-- **Heroic Inspiration's rules text**, which presentation law 8 requires you to quote verbatim:
-  `dnd5e.content24` → *Appendix D: Rule References* → page **`nkEPI89CiQnOaLYh`** — *"you can
-  expend it to reroll any die immediately after rolling it, and you must use the new roll… if
-  you already have it, it's lost unless you give it to a player character who lacks it."*
-  ⚠ Note **"any die" reaches damage too**, and the transfer clause is a second unmodelled half.
-- **Tactical Mind**, verified against the world's own compendium (**`phbftrTacticalMi`**): it
-  ships a real `utility` activity consuming `itemUses` against Second Wind with a `1d10` formula.
-  So the *spend* is `activity.use()`; only the **refund** is unmodelled.
+### What the FIRST TABLE PASS found — six bugs, all in the offer half
 
-⚠ **And one place the system will not help you.** Heroic Inspiration has **no consumption route**:
-dnd5e's consumption kinds are `activityUses · itemUses · material · hitDice · spellSlots ·
-attribute`, and a boolean is none of them. There is no reroll or transfer code anywhere in 5.3.3.
+⚠ **v1 of this feature shipped with FOUR OF SIX OFFER PATHS DEAD AND A GREEN SUITE.** Every one
+was found by the user testing at the table, none by the checks. The arithmetic was never
+implicated in any of them — which is the D8 split doing exactly what it was for, and also the
+reason the green suite meant so little.
 
-⚠ **START AT ARCHITECTURE §11 — "Adding a FOLD".** D8 made these cheap: each is an entry in
-`ATTACK_FOLDS`/`SAVE_FOLDS` plus whatever stamps its flag, **not** another parameter on
-`hitsAmong`. Rule 4 of that checklist is a debt: **the first fold that can turn a HIT into a MISS
-owes the auto-revert** (user ruling; see Design rulings below).
+| # | Bug | Fix |
+| --- | --- | --- |
+| 1 | ⚠ **`dnd5e.rollAbilityCheckV2` and `dnd5e.rollSavingThrowV2` DO NOT EXIST.** `Actor5e##rollD20Test` serves ability checks AND saving throws and fires only the non-V2 name; only `#rollSkillTool` fires a V2 pair, and its tool hook is `rollToolCheck`. **A hook name that is never dispatched registers cleanly and does nothing, forever, silently.** | the real names, plus **§4 asserts each one FIRES** |
+| 2 | Saving throws were not hooked at all | `dnd5e.rollSavingThrow`, player-pressed |
+| 3 | **Demanded saves never offered** — Fireball, Shatter, Hold Person. `saves.js` folds and applies the verdict the instant the roll lands, so an offer after it is too late | `saves.js` **WITHHOLDS** the verdict while an offer is live (`offerFoldOnSave`), then resumes — ⚠ **withhold, never undo**, which keeps it clear of §11 rule 4 |
+| 4 | Only the FIRST listed fold was offered, and `heroic` is first — so it **masked Tactical Mind and Bardic entirely** (three separate reports, one cause) | multi-select: a button per eligible fold |
+| 5 | No test-kind matching — Tactical Mind (checks-only by its own text) was offerable on an attack; the list ORDER was accidentally hiding it | each kind declares its legal `tests` |
+| 6 | The card was naked buttons, and answer controls existed on BOTH card and popup | the hold's `bfCard` shape, and **one input surface** — popup decides, card recalls |
 
-⚠ **The `preRollD20TestV2` seam, re-measured in the dnd5e 5.3.3 source** — this table is why
-"just hook the d20" is not a plan. It is in *Reference* below; read it before designing.
+⚠ **Two rulings came out of that pass and are binding:**
+
+1. **Every offer POPS, timed or not.** v1 popped only when there was a deadline, reading law 11
+   (clocks are for BLOCKING moments). Wrong law: **law 1** is *"easy-to-forget moments get a
+   popup"*, and a spendable die on a roll you already made is the definition of easy to forget.
+   Untimed offers therefore also carry the house clock, because a popup with nothing to resolve
+   it is the stale-popup state law 4 forbids. `holdTimer: 0` is still wait-forever.
+2. **The list's `name` column is a LOOKUP KEY, not a display name.** `bardic` must be keyed on
+   `Inspired` (the ActiveEffect the bard applies — the feat never leaves the bard) but must SAY
+   "Bardic Inspiration". `KIND_LABEL` in d20-folds.js supplies what the table reads. Renaming
+   the effect in settings changes what is FOUND, never what is said.
+
+⚠ **And one wire-format bug worth remembering:** offers stamped by the previous build had no
+`label`, and a deploy does not rewrite flags already in the chat log — a live, still-answerable
+card read **"undefined — reroll the d20"**. Every display string now re-derives its name
+(`labelOf`). §4.1's rule applies to flags, not just to relayed envelopes.
+
+### Verified live, and what is still not
+
+✅ **Measured in the sandbox 2026-08-23**, after the fixes:
+
+- every hook fires (`rollAbilityCheck`, `rollSkill`, `rollSavingThrow`) — none silent;
+- a check offers **all three**; a save offers **heroic + bardic** and correctly **excludes
+  tactical**;
+- the bardic die resolves to **d8** from the granting bard;
+- ⚠ **the demanded-save WITHHOLD holds and then RESUMES** — the target stays `done: false` while
+  the offer is live, and after a pass the verdict lands (`outcome: "failed"`, card `done`).
+  **That was the one path that could have swallowed a save verdict in a live game**, so it was
+  measured before prod saw it.
+
+⚠ **STILL NOT DRIVEN END TO END: the attack path's RESOLVE.** The stamp and the card were seen
+on a real missed attack, but nothing has driven spend → reroll → re-verdict → damage re-drive.
+`smoke-d20-folds` **§3 still SKIPs** and says so.
+
+⚠ **One fold per offer round, by construction.** Spending one re-offers the rest *if the roll
+still fails*; the flag carries a LIST of spends and `foldedRoll` composes `replace`-then-`add`,
+so stacking is supported. What is not supported is ticking two at once — deliberate, so a player
+never burns a Bardic die on a roll the reroll already saved.
+
+⚠ **Tactical Mind's refund is still unmodelled and is unbuildable as an automatic rule** — the
+refund is conditional on the check FAILING, and no DC exists to know that.
+
+### Fixtures (new, in the sandbox)
+
+`BF Test Fighter` (Fighter 2 — Second Wind + Tactical Mind, clean PHB provenance) and
+`BF Test Bard` (Bard 5, so its die is a **d8** and a wrong d6 default would be caught).
+⚠ **`node tools/fixture-d20-folds.mjs` is idempotent and must be re-run after `smoke-d20-folds`
+§2**, which really spends a Second Wind use to prove the consumption is real. The fixture refills
+it — without that the third run asserts `after === before - 1` against an empty pool and starts
+failing for a reason that has nothing to do with the code.
+
+---
+
+## The prod deploy — and why the byte-check lied
+
+⚠ **A SLEEPING MOLTEN BOX MAKES `deploy-house-module.mjs --check` REPORT NONSENSE THAT LOOKS LIKE
+DATA.** Seen 2026-08-23: the check reported all 28 files DIFFER with **the same `deployed` hash
+for every one of them**. That hash was the sha of Molten's **management-lobby HTML** — the box was
+`status=NOT_RUNNING` and its load balancer answers *every* path, including files that do not
+exist, with a 200 and the same 9,146-byte page.
+
+**The tell is the repeated hash**, and it is worth knowing because the failure is silent in the
+dangerous direction: a real deploy PUTs first and reads back second, so it would have uploaded
+into that same catch-all and reported "did not match" whether or not anything landed.
+
+- Wake it by GETting `MOLTEN_MAGIC_URL` (the bridge's own `wake()`), then **poll until
+  `PROPFIND /Data/` returns 207** — not until the host answers, which it does while asleep.
+- Boot took **~80 seconds**, through `STARTING` → `403` → `207`.
+- Only then is `--check` meaningful. It then read 28 distinct hashes and 7 honest 404s (the six
+  `scripts/decide/` files and `scripts/geometry.js`, all new since prod's v1.20.0).
+- ⚠ **The deploy never deletes.** Checked for orphans before pushing: only `LICENSE` and
+  `README.md`, which the deployer deliberately never uploads. **No stale JS.**
+- `esmodules` names only `scripts/battleflow.js`, so the new `decide/` files load through the
+  import graph on a world reload — **no process restart needed for the code**. Only the displayed
+  version string lags until the box next restarts.
+
+---
+
+## ▶ The rest of the survey — still unscheduled
+
+**The standing "no features" directive is satisfied and lifted.** The three surveyed d20
+features are BUILT — see *The d20 folds, as landed* above, which supersedes the scoping that
+used to sit here and corrects three of its claims.
+
+⚠ **Two content facts from that survey are still worth keeping, because they are not findable by
+guessing and both are still unmodelled:**
+
+- **Heroic Inspiration's rules text**, quoted verbatim in the popup (presentation law 8), is
+  `dnd5e.content24` → *Appendix D: Rule References* → page **`nkEPI89CiQnOaLYh`**. ⚠ The full
+  text is **wider than what shipped**: *"any die"* reaches **damage rolls**, and the transfer
+  clause — *"it's lost unless you give it to a player character who lacks it"* — is a **second
+  unmodelled half**. Widening to any-die/any-outcome is what triggers §11 rule 4's auto-revert.
+- **Tactical Mind's refund is still unmodelled** — *"if the check still fails, this use of Second
+  Wind isn't expended."* ⚠ And it is now known to be **unbuildable as an automatic rule**: the
+  refund is conditional on the check FAILING, and the module cannot know a check failed, because
+  no DC exists. It is a GM ruling or a player-pressed un-spend, not arithmetic.
 
 ### Also waiting, unscheduled
 
@@ -101,6 +190,13 @@ That is what the foundation was for. ⚠ **And one thing does not change: the UI
 behaviour are the asset being protected.** Every stage of the refactor was measured to cost zero
 features, and that measurement is the standard.
 
+✅ **The d20 folds are the first feature to walk it, and the foundation paid.** The whole of the
+arithmetic was already built and unit-tested (D8), `SAVE_FOLDS` accepted its first entry with **no
+change to the save resolver**, and the two pins refused the change until they were moved on
+purpose — which is exactly what they are for. **The new work was entirely offer/spend/present**,
+which is what the survey said it would be. What the survey got wrong was the *content*, not the
+architecture.
+
 ---
 
 ## Design rulings — binding
@@ -124,6 +220,19 @@ you rule it void"*), which was the option beside it and was **not** taken. ⚠ *
 can trigger it yet** — a hold WITHHOLDS application rather than undoing it, and precision only
 turns misses into hits — so it is a debt the first outcome-reversing fold must pay, on the
 `revertPlan`/`revertableEffect` machinery that already exists.
+
+**2b. THE MODULE OFFERS AUTOMATICALLY ONLY WHERE IT OWNS THE NUMBER (2026-08-23, user ruling).**
+
+> An attack has an AC on its own target snapshot. A save the module DEMANDED has a DC the ask
+> owns. **A raw ability or skill check has neither, and never will** — dnd5e records no DC for
+> one anywhere. Where the number exists, the module may offer on the failure. Where it does not,
+> **the offer is a button the human presses**, because they were told the DC and the module was
+> not.
+
+⚠ **This is the strict-parse rule applied to a GATE instead of a list** — refuse to guess — and it
+generalises past the d20 folds: any future feature triggered by *"when you fail X"* must first ask
+whether the module can know that X failed. ⚠ **The `d20FoldAsk` setting does not override it**:
+that setting turns auto-offering off, it cannot turn it on where no number exists.
 
 **3. Action economy is not the module's job.** Reactions, actions and bonus actions are tracked
 by the humans at the table. ⚠ **The code already agrees and the naming misleads:** every read of

@@ -582,7 +582,7 @@ function saveAnsweredBy(rollMessage) {
 /** Same-client fold latch — the create watcher, the buzzer and the render resume can race. */
 const saveFolds = new Set();
 
-async function foldSaveAnswer(card, uuid, rollMessage) {
+export async function foldSaveAnswer(card, uuid, rollMessage) {
   const key = `${card.id}|${uuid}`;
   if ( saveFolds.has(key) ) return;
   saveFolds.add(key);
@@ -593,6 +593,32 @@ async function foldSaveAnswer(card, uuid, rollMessage) {
     // legendary resistance beat the fold to the message (a resume after an elect reload).
     const forced = rollMessage.getFlag("dnd5e", "roll.forceSuccess") === true;
     const timedOut = rollMessage.getFlag(MODULE_ID, "timedOut") === true;
+
+    /* --- THE D20 FOLD OFFER: WITHHOLD, DO NOT UNDO (v1.23.0) ---------------------------------
+     *
+     * ⚠ THIS IS THE ONE PLACE A FAILED SAVE CAN STILL BE PATCHED, and v1 shipped without it.
+     * Three table reports in one session — Fireball, Shatter, Hold Person — all the same cause:
+     * this function folds AND APPLIES the verdict the instant the roll lands, so an offer made
+     * afterwards arrives after the damage is already on the sheet.
+     *
+     * ⚠ It is a WITHHOLD, exactly like a reaction hold pausing an attack chain, and never an
+     * undo. Nothing has been applied at this point, so §11 rule 4's auto-revert debt is not
+     * reached — which is the whole reason to pause HERE rather than let the verdict land and
+     * take it back.
+     *
+     * ⚠ The offer is gated on the FAILURE, and it can be, because this side owns the DC (the
+     * ask's-DC rule). That is the one thing a raw ability check can never do.
+     *
+     * ⚠ Legendary resistance and a timed-out roll are excluded: `forced` is a ruling rather than
+     * arithmetic, and a save the clock already answered has nobody left at the keyboard.
+     * ⚠ The import is LAZY and the call FAILS OPEN — a broken offer must never swallow a
+     * verdict. `saveFolds` releases on the early return, so the resume can re-enter here.
+     */
+    if ( !forced && !timedOut ) {
+      const dc = card.getFlag(MODULE_ID, "saves")?.dc;
+      const { offerFoldOnSave } = await import("./d20-folds.js");
+      if ( await offerFoldOnSave(rollMessage, card, uuid, total, dc) ) return;
+    }
     // ⚠ THROUGH THE SERIALIZER (core.js): per-target independence means two targets can fold
     // their answers against this one card at the same instant, and a clone-mutate-set drops
     // whichever landed first. A lost fold re-demands a target that has already rolled.

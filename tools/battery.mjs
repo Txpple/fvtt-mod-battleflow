@@ -50,6 +50,10 @@ const ORDER = [
   { name: "smoke-saves", note: "the save machine + the save-path damage offer (§18)" },
   { name: "smoke-volleys", note: "" },
   { name: "smoke-maneuvers", note: "the slowest — nine fold groups" },
+  // ⚠ Immediately after smoke-maneuvers because it is the same family (post-roll folds), and
+  // its section 2 SPENDS the fixtures it asserts on — it re-seeds nothing, so anything that
+  // wanted a Fighter with two Second Wind uses must run before it or re-run the fixture script.
+  { name: "smoke-d20-folds", note: "the three d20 folds — ⚠ needs tools/fixture-d20-folds.mjs" },
   { name: "smoke-cast", note: "" },
   { name: "smoke-riders", note: "" },
   { name: "smoke-concentration", note: "" },

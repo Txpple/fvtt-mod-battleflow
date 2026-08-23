@@ -98,6 +98,12 @@ import "./mastery.js";
 // rows must render below the mastery rows and above the saves verdict row / receipt rows —
 // renderChatMessage surface order IS registration order. check-hook-order.mjs asserts it.
 import "./maneuvers.js";
+// ⚠ d20-folds.js immediately after maneuvers.js ON PURPOSE (v1.23.0): it is the same family of
+// post-roll fold and its row belongs directly below the maneuver rows — Precision offers a
+// superiority die on the same missed attack that a Bardic die or a reroll would patch, and a
+// table reading the card top-to-bottom should meet them in that order. renderChatMessage
+// surface order IS registration order; check-hook-order.mjs asserts the pair.
+import "./d20-folds.js";
 import "./concentration.js";
 import "./cast.js";
 // ⚠ volleys.js after cast.js, before saves.js ON PURPOSE (v1.20.0): its volley row renders

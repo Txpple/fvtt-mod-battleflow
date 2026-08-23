@@ -256,9 +256,18 @@ Declared once in [decide/registry.js](scripts/decide/registry.js) as `KIND_SETS`
 | --- | --- | --- | --- |
 | interrupt | 2 | module-owned | ac · damage |
 | maneuverFold | 5 | module-owned | precision · riposte · interpose · bash · hew |
+| **d20Fold** | **3** | module-owned | heroic · tactical · bardic |
 | volley | 2 | module-owned | damage · attack |
 | mastery | 7 | **of the system's 8** | vex · sap · cleave · slow · topple · push · graze |
-| **total** | **16** | pinned in `check-registry.mjs` | |
+| **total** | **19** | pinned in `check-registry.mjs` | |
+
+⚠ **`d20Fold` is the tripwire behaving, and the shape of the bump is the point.** Three kinds
+arrived in ONE pass (v1.23.0, the three surveyed d20 features), and they name only what genuinely
+differs between them — **the spend**: a boolean write, an `activity.use()`, an effect delete. The
+*arithmetic* they share needed no kind at all, because D8 had already lifted it out into
+`ATTACK_FOLDS`/`SAVE_FOLDS`. That is the bargain R4 describes working as designed: lift the
+mechanism first, and the kinds left over are a short list of residue rather than three copies of
+one feature.
 
 ⚠ **"Checkable against the system's own enums" is true for exactly one of the four, and that is
 not a gap to be closed.** Masteries mirror a real system enum, and they *are* checked against it
