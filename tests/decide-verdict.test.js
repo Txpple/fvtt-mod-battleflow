@@ -437,6 +437,39 @@ describe("foldedSave — the save side of the fold (D8's real new work)", () => 
     expect(v.SAVE_FOLDS.map(s => s.flag)).toEqual(["d20fold"]);
   });
 
+  /**
+   * ⚠ THE REGRESSION THE TABLE FOUND: "Tactical Mind doesn't add +1d10".
+   *
+   * The two spec sets are NOT interchangeable, and reaching for the default is a silent bug.
+   * ATTACK_FOLDS walks `flag.targets` — an attack is one roll judged against many targets — so
+   * handed a CHECK or a SAVE flag, which have no `targets` at all, it yields NOTHING. The die
+   * was really spent and really rolled in public, and then contributed zero.
+   *
+   * It hid well because saves.js composes the save verdict itself through SAVE_FOLDS: the save
+   * card's number was right while the fold card's number was wrong. Pinned in both directions
+   * so neither resolver can quietly pick the other's list again.
+   */
+  it("ATTACK_FOLDS yields NOTHING for a targetless flag — the wrong list is silent, not loud", () => {
+    const spends = [{ kind: "tactical", die: 7 }];
+    expect(v.foldsFrom(key => (key === "d20fold" ? { spends } : null), v.ATTACK_FOLDS)).toEqual([]);
+    // …while the right list contributes the die it was handed.
+    expect(v.foldsFrom(key => (key === "d20fold" ? { spends } : null), v.SAVE_FOLDS)).toEqual([
+      { add: 7, from: "d20fold" }
+    ]);
+  });
+
+  it("a check's 1d10 reaches the composed total — 23 + 7 = 30, never 23", () => {
+    const folds = v.foldsFrom(
+      key => (key === "d20fold" ? { spends: [{ kind: "tactical", die: 7 }] } : null),
+      v.SAVE_FOLDS
+    );
+    expect(v.foldedRoll({ total: 23 }, folds)).toMatchObject({
+      total: 30,
+      added: 7,
+      replaced: false
+    });
+  });
+
   it("a flag nothing recognises still contributes nothing", () => {
     expect(v.foldsFrom(() => ({ anything: true }), v.SAVE_FOLDS)).toEqual([]);
   });

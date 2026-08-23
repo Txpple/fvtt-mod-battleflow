@@ -61,7 +61,7 @@ import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor } from "./co
 import { d20FoldEntries } from "./settings.js";
 import { hitTargets, modeAllows } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, ruleLine } from "./decide/present.js";
-import { foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
+import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
   armAskTimer, disarmAskTimer } from "./ui.js";
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
@@ -525,7 +525,22 @@ async function resolveFold(message, kind) {
       ...(kind === "heroic" ? { reroll: rolled.summary } : { die: rolled.summary.total })
     }];
     const pending = { ...flag, status: "resolved", outcome: "used", spends };
-    const folds = foldsFrom(key => (key === "d20fold" ? pending : message.getFlag(MODULE_ID, key)));
+    /**
+     * ⚠ PICK THE SPEC SET BY TEST KIND. This defaulted to `ATTACK_FOLDS` and that was a real
+     * bug the table caught: the attack spec walks `flag.targets` (an attack is one roll judged
+     * against many targets), so on a CHECK or a SAVE — which have no `targets` at all — it
+     * returned an EMPTY fold list and the die contributed nothing. Tactical Mind spent a use of
+     * Second Wind, rolled its 1d10 in public, and then announced the unchanged total.
+     *
+     * ⚠ The save VERDICT was never wrong, because saves.js composes it itself through
+     * `SAVE_FOLDS` — which is exactly what made this hard to see: the number on the save card
+     * was right while the number on the fold's own card was not. That divergence is the
+     * "card disagrees with its own arithmetic" class receipt arithmetic was unified to kill,
+     * and it reappeared here because this resolver reached for the default instead of choosing.
+     */
+    const specs = (flag.testKind === "attack") ? ATTACK_FOLDS : SAVE_FOLDS;
+    const folds = foldsFrom(key => (key === "d20fold" ? pending : message.getFlag(MODULE_ID, key)),
+      specs);
     const baseRoll = message.rolls?.[0] ?? { total: flag.baseTotal };
     const composed = foldedRoll(baseRoll, folds);
 
