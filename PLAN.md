@@ -19,13 +19,13 @@ it a shape it already almost has, and to make the shape checkable.
 
 | Metric | Start | Now | Target |
 | --- | --- | --- | --- |
-| Docs | 5,990 lines / 6 files | **1,060 / 4** ✅ | done |
-| Source | 9,845 lines / 20 files | 10,449 / **27** | ~9,000 / ~26 files (thinner files, more of them) |
-| Tools | 14,409 lines / 63 files | **~9,600 / 25** ✅ | ~7,000 / ~25 files |
-| Static checks | 1 (hook order) | **7** ✅ (lint, dead-code, **import integrity**, hook order, registry integrity, **manifest in-step**, doc attachment) | + type check |
-| Unit tests | 0 | **184, ~270 ms** ✅ | ~150 assertions, < 2 seconds, no Foundry |
+| Docs | 5,990 lines / 6 files | **2,051 / 4** (+ this tracker) | done — the growth is recorded findings, not restored inventory |
+| Source | 9,845 lines / 20 files | 10,980 / **27** (pinned) | ~9,000 / ~26 files (thinner files, more of them) |
+| Tools | 14,409 lines / 63 files | **12,426 / 31** | ⚠ **the line target was the wrong measure.** Files fell 63 → 31 and the count is what mattered; the lines went back up because two probes became suite SECTIONS (the same assertions, one fewer thing to remember) and because `harness.mjs`, `battery.mjs` and `smoke-twoclient.mjs` are new capability, not new copies. **The boilerplate this row was really about — the twenty lines in 26 files — is gone.** |
+| Static checks | 1 (hook order) | **8** ✅ (lint, dead-code, **type check**, import integrity, hook order, registry integrity, manifest in-step, doc attachment) | ✅ done — the type check landed 2026-08-23 |
+| Unit tests | 0 | **215, ~270 ms** ✅ | ~150 assertions, < 2 seconds, no Foundry |
 | Lint findings | (unmeasured) | 0 errors / **95** warnings (98 before the three probes retired) | 0 / 0 |
-| Live suites | 11 suites, ~8,500 lines, minutes each, run one at a time | **11 suites, every one section-filterable** ✅; one shared harness; `battery.mjs` runs them in order and captures each to a file | ~4,000 lines, section-filterable, disposable world |
+| Live suites | 11 suites, ~8,500 lines, minutes each, run one at a time | **12 suites (a two-client one joined), every one section-filterable** ✅; one shared harness with a suite lock; `battery.mjs` runs all thirteen entries in order, captures each to a file and verifies settings after | ~4,000 lines, section-filterable, disposable world |
 
 ---
 
@@ -65,8 +65,8 @@ So: tooling that reads the source without changing what ships.
 ### 0.2 The verify gate
 
 ```
-npm run verify   =   biome check  →  knip  →  imports  →  hook-order  →  registry-integrity
-                     →  manifest  →  comments  →  vitest
+npm run verify   =   biome check  →  knip  →  typecheck  →  imports  →  hook-order
+                     →  registry-integrity  →  manifest  →  comments  →  vitest
 ```
 
 All of it offline, all of it in seconds. This is what runs before a commit and before a
@@ -85,9 +85,22 @@ release. The live suites are **not** in it (§5).
       "x is not a function" inside a hook handler. Biome's `noUndeclaredVariables` was turned on
       at the same time for the sibling case (a call with no binding at all); it reports zero
       findings, because biome.json already declares the Foundry globals.
-      ⚠ A type checker would catch both, but `checkJs` is deliberately off (a 10,000-line
-      untyped codebase adopting JSDoc file by file), so `npm run typecheck` passes trivially
-      and is not in the gate. This is the slice of that value available today.
+      ⚠ A type checker would catch both, and until 2026-08-23 `npm run typecheck` passed
+      trivially and was not in the gate. **It is in the gate now, over `scripts/decide/`** —
+      the six pure modules, opted in with `// @ts-check`.
+- [x] **The type checker, over the layer where it pays (2026-08-23).** ⚠ **The measurement is
+      the whole finding.** With `checkJs` on, `scripts/decide/` produces **101 errors and 100 of
+      them are TS7006 "implicitly any"** — the files simply carry no JSDoc parameter types. With
+      implicit-any allowed there are **ZERO**: under `strict` + `strictNullChecks` +
+      `noUncheckedIndexedAccess` the layer is already clean. So "adopt JSDoc file by file" was
+      never the precondition it looked like; it was one compiler flag. `noImplicitAny: false` is
+      off in `tsconfig.json` with that measurement written beside it, `checkJs` stays false
+      globally and files opt IN, and the annotations become a later tightening rather than a
+      gate for the gate.
+      ⚠ **It broke `check-comments` on six files nobody had touched**, because a `// @ts-check`
+      pragma on line 1 pushed each module header off line 1 and out of its exemption. The
+      exemption is now "the first `/**` block with nothing but LINE comments above it", which is
+      what it always meant.
 
 ### 0.3 Release hygiene
 
@@ -218,7 +231,9 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
       registry, `momentButton`, the clocks. The staircase split the same way: arithmetic down,
       lifecycle up. ⚠ This stage caused two live regressions and the whole static gate missed
       both; the gate grew two checks in response (see Phase 0.2).
-- [ ] **The flag accessor layer** → `scripts/state/flags.js`. ⚠ **RE-MEASURED 2026-08-22, and
+- [~] **The flag accessor layer (D4) — ✅ DROPPED BY DECISION 2026-08-23, not left undone.**
+      See the FOUNDATION PASS box; this bullet is kept for its measurements, which are what the
+      decision rests on. ⚠ **RE-MEASURED 2026-08-22, and
       the bullet understates it: 38 distinct flag keys, ~230 reads, ~66 writes across 14 files
       — roughly 300 call sites.** That is an order of magnitude more churn than any stage so
       far, and its two halves have very different value:
@@ -587,31 +602,78 @@ up*, not about whether the module was right.
       to a file *before* anything is summarised, then prints the failing lines in full as well.
       **If it recurs it will name itself**, which is the whole of what was ever committed here.
 
-### STAGE 4 — D8, the only open architecture debt
+### STAGE 4 — D8, the only open architecture debt — ✅ DONE 2026-08-23
 
-- [ ] **4.1 ⚠ BLOCKING USER RULING — ask before building.** `hitsAmong` justifies its ordering
-      with *"the sets are disjoint, because a hold stamps hits and precision stamps misses."*
-      **A reroll can turn a hit INTO a miss** ("you must use the new roll"), so that argument
-      stops being true and precedence must be **decided**. That is a rules/table call, not a
-      code call.
-- [ ] **4.2 The attack side.** `hitsAmong({targets, held, precision, roll})` takes `precision` as
-      a hard-coded named parameter, so a second fold of the same kind adds a third and a fourth
-      adds a fourth — and the three surveyed features (Heroic Inspiration, Tactical Mind,
-      Bardic Inspiration) are all that one kind. Named parameters become a registered fold list.
-      **Move, do not rewrite:** every existing precision behaviour re-asserted against the new
-      shape.
-- [ ] **4.3 The SAVE side, which does not exist at all.** `hitsAmong` folds verdicts for attacks
-      only, so a rerolled *save* has nowhere to land. **This is the real new work** — not the
-      offer, not the popup.
-- [ ] **4.4 Unit tests, suites, battery, then a walk.** Verdict-folding is the most
-      consequence-heavy code in the module: a mistake here produces wrong outcomes that look
-      fine in review.
+- [x] **4.1 THE BLOCKING RULING — asked and answered (user, 2026-08-23).** `hitsAmong` justified
+      its ordering with *"the sets are disjoint, because a hold stamps hits and precision stamps
+      misses."* A reroll goes either way, so precedence had to be **decided**. Three options were
+      put; the ruling is **COMPOSE THE ARITHMETIC**.
+      > Folds do not carry verdicts to be ordered. They carry **contributions to the two
+      > numbers** — the attacker's move the TOTAL, the defender's move the AC — and the verdict
+      > is computed **once, at the end**. *"18 + 4 = 22 vs AC 20 (Shield) — hits."*
+      **Precedence stops existing**, which is why this is the only answer that cannot be wrong
+      about a case nobody thought of. ⚠ The two rejected options are recorded because both are
+      the obvious thing to re-propose: *"the defender always wins"* keeps today's behaviour but
+      **silently eats a spent resource** (a player burns Heroic Inspiration into a shielded
+      target and gets nothing), and *"last fold wins"* reads correctly in time but tests the new
+      total against the **stale snapshot AC** — announcing a hit against a number the defender
+      already changed.
+- [x] **4.1b A SECOND RULING, asked in the same breath because a reroll makes it live.** A fold
+      that turns a HIT into a MISS after damage applied: **the module auto-reverts its own
+      receipt.** ⚠ This is *not* the house Graze precedent ("⚠ Graze already paid on the miss —
+      revert its receipt if you rule it void"), which was on the table and was **not** taken.
+      ⚠ **Nothing ships that can trigger it yet** — a hold WITHHOLDS application rather than
+      undoing it, and precision only turns misses into hits — so building the detector now would
+      be machinery with no caller, which knip calls dead code. It is written into ARCHITECTURE
+      §11's **"Adding a FOLD"** checklist as a debt the first feature that can reverse an applied
+      verdict must pay, on the `revertPlan`/`revertableEffect` machinery that already exists.
+- [x] **4.2 The attack side.** `hitsAmong({targets, roll, folds})` takes a LIST. `ATTACK_FOLDS`
+      declares where folds come from — one entry per flag, each turning a per-target entry into a
+      contribution — and `foldsFrom(read)` walks it; the EDGE shell in `shared.js` supplies only
+      the reader, which is also what keeps the judgment pure. **Move, not rewrite:** every prior
+      behaviour is re-asserted against the new shape, including the two the old tests expressed
+      through the removed channels.
+      ⚠ **The one thing that made composition possible was already in the data.** A resolved hold
+      contributes the **AC it was judged against** (`acAtVerdict`, stamped since the hold was
+      written) rather than its baked verdict — a stored "miss" cannot be re-tested against
+      anything. A message from before that field existed falls back to the verdict, because a
+      stale answer is safer than a wrong AC (the stale-AC trap).
+      ⚠ **And one shipped oddity was checked rather than assumed.** The old precision channel's
+      verdict ignored crit and fumble, so on paper it could turn a natural 1 into a hit; under
+      composition an `add` cannot. That is not a behaviour change, because the stamp refuses a
+      fumble outright (*"a natural 1 stands"*, maneuvers.js) — verified in the source before the
+      shape was chosen, and now asserted so a future fold inherits the right answer.
+- [x] **4.3 The SAVE side, which did not exist at all — the real new work.** `foldedSave` +
+      `SAVE_FOLDS`, and `saves.js` writes its verdict **through** them. The three surveyed
+      features do not care which kind of d20 they change (Heroic Inspiration rerolls "any die",
+      Tactical Mind adds to a CHECK, a Bardic die goes on a save as readily as an attack), so a
+      mechanism that only knew about attacks would have had to be built twice.
+      ⚠ **`SAVE_FOLDS` ships EMPTY, on purpose, and that is the point rather than a shortcut.**
+      With no specs the arithmetic is *provably* today's arithmetic — `saveOutcome(total, dc,
+      forced)` with nothing added and nothing replaced — which is exactly the property that let
+      the seam land in a pass whose directive is "no feature work". It also keeps the resolver
+      out of the way of the first feature: a spec, not an edit.
+      ⚠ **There is deliberately no `{dc}` contribution shape.** The ask OWNS its DC (the ask's-DC
+      rule), so a defence-side channel here would contradict a standing rule to buy nothing.
+- [x] **4.4 Tests, suites, battery.** Unit assertions **184 → 215**: the composition both ways
+      (a die that reaches the shielded AC and one that does not), order-independence asserted as
+      an identity, `replace` carrying its own crit, an `add` failing to rescue a fumble, the
+      registry's every branch, and the save side including legendary resistance still winning
+      over any fold. Then the full live battery — this is the most consequence-heavy code in the
+      module, and a mistake here produces wrong outcomes that look fine in review.
+      ⚠ **The walk is the USER's, not the suite's.** 4.4 said "then a walk"; a walk is a human at
+      a table, and nothing here substitutes for it.
 
 ### STAGE 5 — one release
 
-- [ ] **5.1 Cut ONE release** carrying the whole foundation. As of 2026-08-23 the work above
-      `v1.21.0` is Phase 3, D2, the §4.1 relay and the flake fixes. Both `module.json` fields
-      move together (2.2 should have made that a script by then).
+- [ ] **5.1 Cut ONE release** carrying the whole foundation. Above `v1.21.0` sit: Phase 3, D2,
+      the §4.1 relay, the flake fixes, and this pass's four commits — the test infrastructure,
+      the tooling, the two-client coverage and **D8**. ⚠ **Only D8 changes what ships**; stages
+      1–3 are `tools/` and docs, which are not in the zip.
+      **Prepared and ready** (HANDOFF § THE RELEASE, READY TO GO): `bump-version.mjs minor`
+      moves both manifest fields, and `build-release.ps1` now runs the gate before it packs.
+      ⚠ **The publish is left to the USER, deliberately** — `gh release create` and `git push`
+      put artifacts on a public repo, and that is the user's call to make, not an autonomous one.
 - [ ] **5.2 Prod is the USER's call.** It has run pre-refactor code throughout, deliberately.
 
 ---
@@ -648,16 +710,27 @@ If those three hold when this document is deleted, the chit layer is a **view**,
 ## Sequencing
 
 ```
-Phase 0  tooling                    ── no behaviour change, no risk         ── do now
-Phase 1  clear tools/               ── no behaviour change, no risk         ── do now
-Phase 2  extract DECISION + tests   ── move-not-rewrite, tests prove it     ── the bulk
-Phase 3  unify registries           ── follows Phase 2's parser extraction
-Phase 4  D1 → D3 → D6 → D2          ── D2 alone, behind its own walk
-Phase 5  slim the suites            ── continuous through 2–4
+Phase 0  tooling                    ✅ done
+Phase 1  clear tools/               ✅ done
+Phase 2  extract DECISION + tests   ✅ done — six pure modules, the bulk of the value
+Phase 3  unify registries           ✅ done
+Phase 4  D1 → D3 → D6 → D2          ✅ done — D2 alone, behind its own walk
+Phase 5  slim the suites            ✅ the parts that mattered; see the FOUNDATION PASS
+FOUNDATION 1  test structure        ✅ 2026-08-23
+FOUNDATION 2  tooling debt          ✅ 2026-08-23
+FOUNDATION 3  two-client coverage   ✅ 2026-08-23
+FOUNDATION 4  D8                    ✅ 2026-08-23 — the last architecture debt
+FOUNDATION 5  one release           ── PREPARED; the publish is the user's
 ```
 
-Phases 0 and 1 are a session. Phase 2 is several, and is where the value is. Phase 4's D2 is
-the only item that should make anyone nervous, and it is deliberately last.
+**How it actually went, against how it was planned.** Phase 2 was correctly called as where the
+value is. **Phase 4's D2 was called the item that should make anyone nervous, and it was not** —
+it turned out far smaller than its own row claimed, because that row's evidence had gone stale.
+**The FOUNDATION PASS's stage 3 inherited the same billing ("the least certain work in this
+plan") and was likewise the cheapest.** ⚠ Twice now the thing labelled risky has been cheap and
+the surprises have come from somewhere else — from a stale measurement (D2's row), from a
+checking apparatus that agreed with itself (Phase 3's gate), and from an estimate nobody had
+taken (the sleep budget). **Distrust the risk labels; re-measure before scoping.**
 
 ---
 

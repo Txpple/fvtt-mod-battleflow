@@ -23,9 +23,14 @@
 // and check the comment either side of every block you move.**
 //
 // What counts as a violation: a `/**` block that is followed by a blank line, by another
-// `/**` block, or by end-of-file. A module header (a `/**` block starting on line 1) is
-// exempt — it documents the file, not a declaration. Banner comments use `/*` rather than
-// `/**` and are not examined.
+// `/**` block, or by end-of-file. The MODULE HEADER is exempt — it documents the file, not a
+// declaration. Banner comments use `/*` rather than `/**` and are not examined.
+//
+// ⚠ "The module header" is the first `/**` block with nothing but LINE COMMENTS above it, not
+// literally the block on line 1. That distinction arrived with `// @ts-check` (2026-08-23):
+// opting a file into the type checker puts a pragma on line 1 and pushed six module headers
+// out of the exemption at once, failing the gate on files nobody had touched. A pragma is not
+// a declaration, and a header above one is still a header.
 //
 //   node tools/check-comments.mjs
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -66,8 +71,12 @@ for (const file of jsFiles(SCRIPTS)) {
     const end = i;
     blocks += 1;
 
-    // The module header documents the file itself.
-    if (start === 0) {
+    // The module header documents the file itself. ⚠ Everything above it must be a LINE comment
+    // or blank — a `// @ts-check` pragma, a lint directive, a shebang — because those are not
+    // declarations either and a header sitting above one is still a header.
+    const onlyPragmasAbove = lines.slice(0, start)
+      .every(l => (l.trim() === "") || l.trim().startsWith("//"));
+    if (onlyPragmasAbove) {
       i += 1;
       continue;
     }

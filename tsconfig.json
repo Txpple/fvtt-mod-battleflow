@@ -9,11 +9,24 @@
     // one (PLAN.md Phase 0.1): a WebDAV hot-deploy puts script changes live on the next F5,
     // and this module is developed at the table. `checkJs` + JSDoc gives the type safety
     // with none of the compile.
+    //
+    // ⚠ `checkJs` stays FALSE globally and files opt IN with `// @ts-check` — the file-by-file
+    // adoption the docs have promised since Phase 0. **`scripts/decide/` is opted in as of
+    // 2026-08-23**: six pure modules, no Foundry, and the most consequential arithmetic in the
+    // module. That is where a type checker earns the most and costs the least.
     "allowJs": true,
     "checkJs": false,
     "noEmit": true,
 
     "strict": true,
+    // ⚠ THE ONE STRICTNESS DELIBERATELY OFF, and it is what makes "adopt file by file" real.
+    // Measured 2026-08-23: with `checkJs` on, `scripts/decide/` produces **101 errors and 100
+    // of them are TS7006 "implicitly any"** — the files simply carry no JSDoc parameter types.
+    // With implicit-any allowed there are **ZERO**: the layer is already type-clean under
+    // strictNullChecks and noUncheckedIndexedAccess. So this flag is the difference between a
+    // real check today and a documentation project first. Turn it back on per file, by adding
+    // the JSDoc, once a file is annotated.
+    "noImplicitAny": false,
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
     "types": ["node", "vitest/globals"]

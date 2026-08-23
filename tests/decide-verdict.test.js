@@ -54,40 +54,288 @@ describe("hitsAmong — the hit test", () => {
     expect(v.hitsAmong({ targets: cover, roll: roll(99, { isCritical: true }) })).toEqual([]);
   });
 
-  it("a hold verdict turns a HIT into a miss — the stale-AC trap", () => {
-    // After a Shield the snapshot AC is stale; auto-apply must not damage a target the
-    // module already announced as missed.
-    const held = [{ uuid: "a", verdict: "miss" }];
-    expect(v.hitsAmong({ targets, held, roll: roll(17) })).toEqual([]);
+  it("survives an empty or missing target list", () => {
+    expect(v.hitsAmong({ targets: [], roll: roll(10) })).toEqual([]);
+    expect(v.hitsAmong({ targets: undefined, roll: roll(10) })).toEqual([]);
   });
 
-  it("a precision verdict turns a MISS into a hit — the same channel, reversed", () => {
-    const precision = [{ uuid: "b", verdict: "hit" }];
-    expect(uuids(v.hitsAmong({ targets, precision, roll: roll(17) }))).toEqual(["a", "b"]);
+  /* --- the folds, re-asserted against the composed shape (D8) ------------------------------
+   *
+   * ⚠ Every behaviour below shipped before the fold registry existed and must still hold. The
+   * one that DELIBERATELY changed is the last pair: "the hold always wins" is the precedence
+   * the 2026-08-23 ruling replaced with composition.
+   */
+
+  it("a hold's live AC turns a HIT into a miss — the stale-AC trap, now as arithmetic", () => {
+    // After a Shield the snapshot AC is stale; auto-apply must not damage a target the module
+    // already announced as missed. The hold contributes the AC it judged against, so the test
+    // is re-run rather than overridden.
+    const folds = [{ uuid: "a", ac: 20 }];
+    expect(v.hitsAmong({ targets, folds, roll: roll(17) })).toEqual([]);
   });
 
-  it("a verdict beats a fumble and a null AC alike — it is the authority, not a modifier", () => {
-    const precision = [{ uuid: "e", verdict: "hit" }];
+  it("a hold from BEFORE acAtVerdict existed still overrides, by its baked verdict", () => {
+    const folds = [{ uuid: "a", verdict: "miss" }];
+    expect(v.hitsAmong({ targets, folds, roll: roll(17) })).toEqual([]);
+  });
+
+  it("an added die turns a MISS into a hit — precision, as a delta rather than a verdict", () => {
+    const folds = [{ uuid: "b", add: 4 }];
+    expect(uuids(v.hitsAmong({ targets, folds, roll: roll(17) }))).toEqual(["a", "b"]);
+  });
+
+  it("a die that is not enough leaves the miss standing", () => {
+    expect(uuids(v.hitsAmong({ targets, folds: [{ uuid: "b", add: 2 }], roll: roll(17) }))).toEqual(
+      ["a"]
+    );
+  });
+
+  it("a FORCED verdict beats a fumble and a null AC alike — it is a ruling, not a modifier", () => {
+    // The negate hold's shape: there is no AC story to tell, so the answer IS the verdict.
+    const folds = [{ uuid: "e", verdict: "hit" }];
     expect(
       uuids(
         v.hitsAmong({
           targets: [{ uuid: "e", ac: null }],
-          precision,
+          folds,
           roll: roll(1, { isFumble: true })
         })
       )
     ).toEqual(["e"]);
   });
 
-  it("HOLD wins when both channels name the same target", () => {
-    const held = [{ uuid: "a", verdict: "miss" }];
-    const precision = [{ uuid: "a", verdict: "hit" }];
-    expect(v.hitsAmong({ targets, held, precision, roll: roll(17) })).toEqual([]);
+  it("a negated target is not a hit, whatever the numbers say — and its neighbour is untouched", () => {
+    const folds = [{ uuid: "a", verdict: "negated" }];
+    expect(uuids(v.hitsAmong({ targets, folds, roll: roll(99) }))).toEqual(["b"]);
   });
 
-  it("survives an empty or missing target list", () => {
-    expect(v.hitsAmong({ targets: [], roll: roll(10) })).toEqual([]);
-    expect(v.hitsAmong({ targets: undefined, roll: roll(10) })).toEqual([]);
+  it("an ADDED die does NOT rescue a fumble — a natural 1 stands", () => {
+    // ⚠ Unreachable from precision, whose stamp refuses a natural 1 outright — asserted so a
+    // future fold that CAN fire on a fumble inherits the right answer instead of the old
+    // verdict channel's accidental one.
+    expect(
+      v.hitsAmong({ targets, folds: [{ uuid: "a", add: 40 }], roll: roll(1, { isFumble: true }) })
+    ).toEqual([]);
+  });
+
+  it("a REPLACE carries its own crit — a rerolled natural 20 crits", () => {
+    const folds = [{ uuid: "b", replace: { total: 3, isCritical: true, isFumble: false } }];
+    expect(uuids(v.hitsAmong({ targets, folds, roll: roll(19) }))).toEqual(["a", "b"]);
+  });
+
+  it("a REPLACE can take a hit AWAY — 'you must use the new roll'", () => {
+    const folds = [{ uuid: "a", replace: { total: 4, isCritical: false, isFumble: false } }];
+    expect(v.hitsAmong({ targets, folds, roll: roll(19) })).toEqual([]);
+  });
+
+  /* --- the ruling: compose, do not order ------------------------------------------------- */
+
+  it("the defender's AC and the attacker's die COMPOSE — the die is tested against the SHIELDED number", () => {
+    // 17 hit AC 15; Shield made it 20; a +4 die reaches 21. Under the old precedence the hold's
+    // baked "miss" won and the die was wasted. Under the ruling the arithmetic decides.
+    const folds = [
+      { uuid: "a", ac: 20 },
+      { uuid: "a", add: 4 }
+    ];
+    expect(uuids(v.hitsAmong({ targets, folds, roll: roll(17) }))).toEqual(["a"]);
+  });
+
+  it("…and a die that cannot reach the shielded number still misses", () => {
+    const folds = [
+      { uuid: "a", ac: 20 },
+      { uuid: "a", add: 2 }
+    ];
+    expect(v.hitsAmong({ targets, folds, roll: roll(17) })).toEqual([]);
+  });
+
+  it("order does not matter — that is the whole point of composing", () => {
+    const forward = [
+      { uuid: "a", ac: 20 },
+      { uuid: "a", add: 4 }
+    ];
+    const backward = [
+      { uuid: "a", add: 4 },
+      { uuid: "a", ac: 20 }
+    ];
+    expect(uuids(v.hitsAmong({ targets, folds: forward, roll: roll(17) }))).toEqual(
+      uuids(v.hitsAmong({ targets, folds: backward, roll: roll(17) }))
+    );
+  });
+
+  it("a fold naming another target leaves this one alone", () => {
+    const folds = [{ uuid: "b", ac: 5 }];
+    expect(uuids(v.hitsAmong({ targets, folds, roll: roll(17) }))).toEqual(["a", "b"]);
+  });
+});
+
+describe("foldedRoll — the composed number", () => {
+  it("adds every delta and keeps the base roll's crit and fumble", () => {
+    expect(v.foldedRoll(roll(10, { isCritical: true }), [{ add: 3 }, { add: 4 }])).toMatchObject({
+      total: 17,
+      isCritical: true,
+      isFumble: false,
+      added: 7,
+      replaced: false
+    });
+  });
+
+  it("a replace supersedes the base roll, crit and fumble included", () => {
+    expect(v.foldedRoll(roll(19), [{ replace: { total: 2, isFumble: true } }])).toMatchObject({
+      total: 2,
+      isFumble: true,
+      replaced: true
+    });
+  });
+
+  it("the LAST replace wins, and adds still apply on top of it", () => {
+    const out = v.foldedRoll(roll(19), [
+      { replace: { total: 5 } },
+      { replace: { total: 8 } },
+      { add: 2 }
+    ]);
+    expect(out).toMatchObject({ total: 10, replaced: true });
+  });
+
+  it("ignores a non-numeric add rather than turning the total into NaN", () => {
+    expect(v.foldedRoll(roll(10), [{ add: undefined }, { add: "3" }]).total).toBe(10);
+  });
+
+  it("survives no folds and no roll at all", () => {
+    expect(v.foldedRoll(roll(12)).total).toBe(12);
+    expect(v.foldedRoll(undefined, []).total).toBe(0);
+  });
+});
+
+describe("foldedVerdict — one target, every fold that names it", () => {
+  const t = { uuid: "a", ac: 15 };
+
+  it("reports unresolved for a null AC rather than guessing", () => {
+    expect(v.foldedVerdict({ uuid: "a", ac: null }, roll(99), [])).toBe("unresolved");
+    expect(v.foldedVerdict({ uuid: "a" }, roll(99), [])).toBe("unresolved");
+  });
+
+  it("a forced verdict short-circuits the arithmetic entirely", () => {
+    expect(v.foldedVerdict(t, roll(99), [{ uuid: "a", verdict: "miss" }])).toBe("miss");
+    expect(v.foldedVerdict(t, roll(1, { isFumble: true }), [{ uuid: "a", verdict: "hit" }])).toBe(
+      "hit"
+    );
+  });
+
+  it("the LAST ac fold is the one tested against", () => {
+    expect(
+      v.foldedVerdict(t, roll(17), [
+        { uuid: "a", ac: 20 },
+        { uuid: "a", ac: 12 }
+      ])
+    ).toBe("hit");
+  });
+});
+
+describe("foldsFrom + ATTACK_FOLDS — the registry that replaced the named parameters", () => {
+  const read = flags => key => flags[key] ?? null;
+
+  it("a resolved AC hold contributes the AC it judged against", () => {
+    const folds = v.foldsFrom(
+      read({
+        hold: { targets: [{ uuid: "a", kind: "ac", verdict: "miss", acAtVerdict: 20 }] }
+      })
+    );
+    expect(folds).toEqual([{ uuid: "a", ac: 20, from: "hold" }]);
+  });
+
+  it("an UNANSWERED hold target contributes nothing — no opinion yet", () => {
+    expect(v.foldsFrom(read({ hold: { targets: [{ uuid: "a", verdict: null }] } }))).toEqual([]);
+  });
+
+  it("a negate hold contributes its verdict, because it has no AC story", () => {
+    const folds = v.foldsFrom(
+      read({
+        hold: { targets: [{ uuid: "a", kind: "negate", verdict: "negated" }] }
+      })
+    );
+    expect(folds).toEqual([{ uuid: "a", verdict: "negated", from: "hold" }]);
+  });
+
+  it("a hold with no acAtVerdict falls back to its baked verdict", () => {
+    const folds = v.foldsFrom(read({ hold: { targets: [{ uuid: "a", verdict: "miss" }] } }));
+    expect(folds).toEqual([{ uuid: "a", verdict: "miss", from: "hold" }]);
+  });
+
+  it("a USED precision contributes its die to every target it names", () => {
+    const folds = v.foldsFrom(
+      read({
+        precision: { outcome: "used", die: 6, targets: [{ uuid: "a" }, { uuid: "b" }] }
+      })
+    );
+    expect(folds).toEqual([
+      { uuid: "a", add: 6, from: "precision" },
+      { uuid: "b", add: 6, from: "precision" }
+    ]);
+  });
+
+  it("a PASSED or pending precision contributes nothing", () => {
+    expect(
+      v.foldsFrom(read({ precision: { outcome: "passed", die: 6, targets: [{ uuid: "a" }] } }))
+    ).toEqual([]);
+    expect(
+      v.foldsFrom(read({ precision: { status: "pending", targets: [{ uuid: "a" }] } }))
+    ).toEqual([]);
+  });
+
+  it("collects both channels at once, which is the case the old signature could not compose", () => {
+    const folds = v.foldsFrom(
+      read({
+        hold: { targets: [{ uuid: "a", kind: "ac", verdict: "miss", acAtVerdict: 20 }] },
+        precision: { outcome: "used", die: 4, targets: [{ uuid: "a" }] }
+      })
+    );
+    expect(folds).toEqual([
+      { uuid: "a", ac: 20, from: "hold" },
+      { uuid: "a", add: 4, from: "precision" }
+    ]);
+  });
+
+  it("an absent flag is not an empty flag — neither produces a contribution", () => {
+    expect(v.foldsFrom(read({}))).toEqual([]);
+  });
+});
+
+describe("foldedSave — the save side of the fold (D8's real new work)", () => {
+  it("with no folds it is exactly saveOutcome, which is what lets it ship empty", () => {
+    expect(v.foldedSave({ total: 15, dc: 15 })).toMatchObject({ total: 15, outcome: "saved" });
+    expect(v.foldedSave({ total: 14, dc: 15 })).toMatchObject({ total: 14, outcome: "failed" });
+  });
+
+  it("SAVE_FOLDS ships empty on purpose — the seam, not a feature", () => {
+    expect(v.SAVE_FOLDS).toEqual([]);
+    expect(v.foldsFrom(() => ({ anything: true }), v.SAVE_FOLDS)).toEqual([]);
+  });
+
+  it("an added die can turn a failed save into a saved one", () => {
+    expect(v.foldedSave({ total: 11, dc: 15, folds: [{ add: 5 }] })).toMatchObject({
+      total: 16,
+      outcome: "saved",
+      added: 5
+    });
+  });
+
+  it("a reroll replaces the total and can go either way", () => {
+    expect(v.foldedSave({ total: 18, dc: 15, folds: [{ replace: { total: 4 } }] })).toMatchObject({
+      total: 4,
+      outcome: "failed",
+      replaced: true
+    });
+  });
+
+  it("legendary resistance still wins regardless — it is a ruling, not arithmetic", () => {
+    expect(v.foldedSave({ total: 1, dc: 30, forced: true }).outcome).toBe("saved");
+    expect(
+      v.foldedSave({ total: 1, dc: 30, forced: true, folds: [{ replace: { total: 0 } }] }).outcome
+    ).toBe("saved");
+  });
+
+  it("returns the number it judged, so the card cannot disagree with its own arithmetic", () => {
+    expect(v.foldedSave({ total: 9, dc: 15, folds: [{ add: 6 }] }).total).toBe(15);
   });
 });
 

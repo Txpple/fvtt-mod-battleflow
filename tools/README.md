@@ -29,8 +29,10 @@ it quietly runs the prerequisite and says so.
 | `check-imports.mjs` | every relative import resolves, and every named binding is really exported — including through the lazy `await import()` idiom. |
 | `check-comments.mjs` | every `/**` block sits on a declaration, so an extraction cannot strand a doc. |
 | `bump-version.mjs --check` | `module.json`'s `version` and its `download` URL name the same tag. |
+| `tsc --noEmit` | ⚠ **real, and only over `scripts/decide/`** — the six pure modules opt in with `// @ts-check`. `checkJs` stays false globally; files opt IN, one at a time. |
 
-All of them run inside `npm run verify`, along with biome, knip and the unit tests.
+All of them run inside `npm run verify`, along with biome, knip and the 215 unit tests — eight
+static checks and the suite, all offline, all in seconds.
 
 ## Live contract checks — read-only, safe beside a session
 
@@ -64,7 +66,7 @@ both suites join as the same user and it counts users, not sockets (NOTES §5).
 
 | Flag | Effect |
 | --- | --- |
-| *(none)* | all eleven, in the canonical order, each captured to `dist/battery/<stamp>/` |
+| *(none)* | all thirteen entries, in the canonical order, each captured to `dist/battery/<stamp>/` |
 | `--from smoke-saves` | resume after a failure, still in order |
 | `smoke-hold smoke-battleflow` | a subset — still run in the canonical order |
 | `--snapshot` | take a world snapshot first, roll it back after (the cure for the crash-launder hazard) |

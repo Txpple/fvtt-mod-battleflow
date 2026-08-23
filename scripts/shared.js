@@ -3,7 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting } from "./core.js";
-import { hitsAmong, modeAdmits } from "./decide/verdict.js";
+import { foldsFrom, hitsAmong, modeAdmits } from "./decide/verdict.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Shared: the hit test and the chain walk
@@ -20,12 +20,16 @@ import { hitsAmong, modeAdmits } from "./decide/verdict.js";
 export function hitTargets(attackMessage) {
   const roll = attackMessage.rolls[0];
   if ( !(roll instanceof dnd5e.dice.D20Roll) ) return [];
-  // EDGE: read the message, hand plain data to the judgment (decide/verdict.js), which is
-  // where the stale-AC trap and the precision reversal are documented.
+  // EDGE: read the message, hand plain data to the judgment (decide/verdict.js), which is where
+  // the stale-AC trap and the fold composition are documented.
+  //
+  // ⚠ THE FOLD CHANNELS ARE NO LONGER NAMED HERE (D8, 2026-08-23). This used to pass `held:`
+  // and `precision:` as two hand-written parameters, so a third fold meant editing this call,
+  // the signature and the body. `foldsFrom` walks the REGISTRY instead and the only thing this
+  // shell still supplies is the reader — which is also what keeps the judgment pure.
   return hitsAmong({
     targets: attackMessage.getFlag("dnd5e", "targets") ?? [],
-    held: attackMessage.getFlag(MODULE_ID, "hold")?.targets ?? [],
-    precision: attackMessage.getFlag(MODULE_ID, "precision")?.targets ?? [],
+    folds: foldsFrom(key => attackMessage.getFlag(MODULE_ID, key)),
     roll: { isCritical: roll.isCritical, isFumble: roll.isFumble, total: roll.total }
   });
 }

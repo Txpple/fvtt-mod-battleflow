@@ -4,62 +4,112 @@
 > verified work list. The permanent docs are [DESIGN.md](DESIGN.md) (north stars),
 > [ARCHITECTURE.md](ARCHITECTURE.md) (the shape) and [NOTES.md](NOTES.md) (what it cost);
 > [PLAN.md](PLAN.md) is the temporary stabilization tracker. **This file does not duplicate
-> them.** It was deliberately not restored to its old 2,700-line form.
+> them.**
 
-## State at a glance — 2026-08-23
+## State at a glance — 2026-08-23 (the foundation pass)
 
 | | |
 | --- | --- |
-| **Do first** | 📋 **Start at STAGE 1.1 of the FOUNDATION PASS** (PLAN.md). The refactor is finished; this is the agreed run-up to features: testing, tooling, two-client coverage, D8, one release. ⚠ **Nothing is broken and nothing is half-done** — the tree is clean, pushed and gate-green, so 1.1 starts from a standing start. ⚠ **Everything since the v1.21.0 tag is UNRELEASED** and that is deliberate: Stage 5 cuts one release carrying the lot. |
-| Repo | `main` @ `52ea261`, clean, **pushed**. Tag **`v1.21.0`** released; above it sit `a30cfd5` Phase 3 stage 1 · `fd8f77f` Phase 3 stage 2 · `e99d555` **D2** · `96e21ca` **the §4.1 relay** · `2383de8` the flake fixes · `52ea261` the plan. |
-| Release | ✅ **v1.21.0 RELEASED 2026-08-23** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.21.0>, both assets, the published zip downloaded back and **proven self-contained** (30 entries, 99 relative imports, all resolving). ⚠ **Prod was NOT updated, by instruction** — the table still runs v1.20.0. ⚠ **Phase 3 is not in that tag.** Both manifest fields move together at the next bump (the v1.20.0 class). |
-| **Parity** | ✅ **PROVEN at `46b4580`, 2026-08-23** — the full battery, every suite at or above baseline, on the sandbox carrying HEAD's `scripts/` byte-identical. battleflow ALL PASS ×2 · hold ALL PASS · playerdmg 12/12 · saves 61/61 · volleys **38/39 first run → 39/39 ×2** (the documented variance class; the first-run output was captured before re-running, per the stage-5 lesson) · maneuvers 54/54 · cast 17/17 · riders 8/8 · concentration 47/47 · effects 54/54 (after `reset-fixture-state`) · resources 18/18 · savedmg 13/13 · `verify-settings` **CLEAN** before and after. **The refactor cost no features.** |
-| Walk | ✅ **v1.20.0 walk CLOSED** — fifteen items + T1–T5. Zero open findings from the table. |
-| Sandbox | ⚠ **HEADLESS, LEFT RUNNING** (world active, 0 users, pid 30096) — **stopped, redeployed and restarted 2026-08-23, twice — most recently for Phase 3 stage 2**, so it carries HEAD byte-identical **including `module.json` at 1.21.0**. `status` first, `stop` if not testing. `node <mcp>/scripts/local-foundry.mjs start/stop/status/restart`; deploy with `node <mcp>/scripts/deploy-house-module.mjs fvtt-mod-battleflow --local` (never without `--local`). Never the Electron app for suites (dataPath lock). `verify-settings` **CLEAN** after the restart. |
-| Bridge | Disconnect before any suite. Suites join as `Tester Assistant`. |
-| Verify gate | `npm run verify` — **SIX static checks**: biome (**98 warnings, 0 errors: that is the baseline**), knip, imports (**264 bindings**), hook order (**75 registrations, 10 pairs**), registry (**11 checks**, and it PRINTS the R4 kinds table), comments (298 blocks / 27 files), then vitest **184**. Exit 0 at handoff. ⚠ **The R4 total is PINNED at 16 in `check-registry.mjs`** — adding a kind fails the gate until the pin moves deliberately. That is the point, not an obstacle. ⚠ Registrations fell **77 → 75** at the relay: three `createChatMessage` handlers became one. |
-| Suite order | ⚠ **battleflow → hold**, and **battleflow → playerdmg**, back to back. Other suites in between strip the fixture tokens and hold refuses. `reset-fixture-state` before effects. |
-| Flakes | ✅ **Two of three FIXED AT ROOT 2026-08-23** (`2383de8`), both the same shape — an assertion depending on a DICE OUTCOME while claiming to test behaviour. **volleys 3e**: this was the only combat suite missing the forced-AC idiom; it forces flat AC 1 now and COUNTS FUMBLES — proven by a verification run that came back `damage=2 want=2 rays=3 fumbles=1` and passed. **maneuvers R6b**: a natural 20 auto-hits through flat AC 40, so the miss card correctly never posts; it SKIPs now, like the two nat-1 skips already beside it. ⚠ **`smoke-battleflow` "2 FAILURE(S)" is NOT diagnosed** — twice seen, never reproduced, 11 clean runs on 2026-08-23. Its last hiding place is closed (section 1 was the only forced-dice site that did not report a defeated forcing) and the failure output carries the dice from here. |
+| **Do first** | 📋 **STAGE 5 — cut the release**, and it is the only thing left. Stages 1–4 of the FOUNDATION PASS are **done, committed and battery-green**. ⚠ **The zip is BUILT and proven self-contained; the publish is not done and is deliberately left to the user** — `gh release create` puts a public artifact on GitHub, and so does `git push`. Both commands are written out under **THE RELEASE, READY TO GO** below. |
+| **The foundation is FINISHED** | The refactor closed on 2026-08-23 and this pass closed the rest: **every architecture debt row is repaid or settled by decision** (ARCHITECTURE §10 — D4 dropped, both surviving cycles permanent, D8 closed here), every live suite is **section-filterable**, the battery is **one command**, and the two cross-client properties that no single-client suite could reach are **tested**. ⚠ **After the release, feature work resumes** — see the exit condition below. |
+| **Parity** | ✅ **PROVEN 2026-08-23 after D8** — the full battery on a sandbox carrying HEAD byte-identical (stop → deploy `--local` → start), **every suite green, `verify-settings` CLEAN, 19m58s** for all thirteen entries. battleflow ALL PASS (33) 89s · hold ALL PASS (44) 129s · saves **74/74** 252s · volleys 39/39 47s · maneuvers 54/54 150s · cast 17/17 · riders 8/8 · concentration 47/47 · **twoclient 9/9** · popup-routing ALL PASS · effects 54/54 (first run, no re-run needed) · resources 18/18. ⚠ **D8 is the only stage that changed shipping code**, and it changed the most consequential arithmetic in the module — this battery is what says it cost nothing. Captured in full to `dist/battery/<stamp>/`. |
+| Repo | `main`, clean, **NOT pushed** — five commits sit above `origin/main`. |
+| Release | ⚠ **v1.21.0 is the last PUBLISHED release.** Everything since is unreleased and that is deliberate: this release carries the lot. ⚠ **Prod still runs v1.20.0, by instruction.** |
+| Verify gate | `npm run verify` — **EIGHT static checks**: biome (**95 warnings, 0 errors — the new baseline; it was 98 before the three probes retired**), knip, **typecheck**, imports (**267 bindings**), hook order (75 registrations, 10 pairs), registry (**12 checks**, and it prints the R4 kinds table), **manifest in-step**, comments (306 blocks / 27 files), then vitest **215**. ⚠ **`typecheck` is REAL now, and only over `scripts/decide/`** — six pure modules opted in with `// @ts-check`. Measured before switching it on: with `checkJs` the layer produces **101 errors, 100 of them "implicitly any"**, and with implicit-any allowed it produces **ZERO**. So the checker was one flag away from being useful and a whole JSDoc project away from being strict; the flag is off, the annotations are the later job, and D7's last gap is closed where it pays most. ⚠ **Two numbers are PINNED and fail the gate deliberately**: the R4 kind total (16) and the **source-file count (27)** — the last hand-carried number in the tree, wrong twice in published docs before it was asserted. |
+| **Testing** | ⚠ **Read this before running anything.** `node tools/battery.mjs` is the front door: it runs all thirteen entries in the order that works, **captures every one to a file before summarising**, and finishes with `verify-settings`. Every suite takes `--list` and `--section N`; a filtered run stamps itself **`⚠ PARTIAL RUN`**. ⚠ **One suite at a time is now ENFORCED** by a pid lock in `tools/harness.mjs` — the sole-GM preflight structurally cannot see a second suite, because both join as the same user and it counts users, not sockets. |
+| Sandbox | ⚠ **HEADLESS.** `node <mcp>/scripts/local-foundry.mjs start|stop|status|restart`; deploy with `node <mcp>/scripts/deploy-house-module.mjs fvtt-mod-battleflow --local` (never without `--local`). Never the Electron app for suites (dataPath lock). **Stopped, deployed and restarted for the D8 battery**, so it carries HEAD byte-identical. |
+| Bridge | Disconnect before any suite. Suites join as `Tester Assistant`; the two-client ones also join as `PC Assistant`. |
+| Flakes | ⚠ **`smoke-battleflow` "2 FAILURE(S)" is STILL NOT DIAGNOSED** — twice seen, never reproduced. Nothing here claims to have fixed it. **What changed is that its evidence can no longer be lost:** both sightings had their assertions thrown away by a `| tail`, and the battery now captures the full body first and prints the failing lines besides. **If it recurs it will name itself.** |
 
 ---
 
-## ▶ NEXT — the FOUNDATION PASS, five stages, in order
+## ▶ NEXT — Stage 5, and then features
 
-**The loop, which has now worked nine times running:** read the target code → move it
-(never rewrite) → write the unit tests → `npm run verify` → **stop, deploy `--local`, start**
-(the script-cache discipline — a redeploy without a version bump serves the suites stale code,
-and deploying while the server is DOWN satisfies it by construction) → run the affected suites
-**redirected to a file** → one commit per stage.
+### THE RELEASE, READY TO GO
 
-**The refactor is FINISHED.** Phases 0–4 are all closed, D1/D2/D3/D6 are repaid, the §4.1 relay
-is consolidated, and the refactor is measured to have cost zero features. **The full plan with
-every checkbox is [PLAN.md](PLAN.md) § THE FOUNDATION PASS — read it, this table is only the
-map.**
+Everything below Stage 5 is done. The release is four commands, and the last two are the
+user's because they publish:
 
-⚠ **User directive, 2026-08-23, stated three times: an EXCELLENT FOUNDATION before features
-resume.** No feature work in any stage below. The one exception that looks like feature work and
-is not: **STAGE 4 (D8)** is architecture — it is the fold *mechanism*, not any of the features
-that will later use it.
+```bash
+node tools/bump-version.mjs minor      # both module.json fields, together
+```
+```bash
+powershell -ExecutionPolicy Bypass -File tools/build-release.ps1
+```
 
-| # | Stage | The shape of it |
+⚠ **`build-release.ps1` now runs `npm run verify` and `bump-version --check` before it packs
+anything, with no skip flag** — there is no longer a way to build a release from a tree that
+fails the gate. **Read the builder's file list at every release**: it is how the missing
+`scripts/decide/` directory was caught, and the zip is the one artifact nobody exercises.
+
+Then, the user's to run:
+
+```bash
+gh release create vX.Y.Z --title "vX.Y.Z - short phrase" --notes-file dist/RELEASE-NOTES.md dist/fvtt-mod-battleflow.zip module.json
+```
+
+⚠ **The notes file is HAND-WRITTEN, and it is NOT `NOTES.md`.** `build-release.ps1`'s usage
+comment named `NOTES.md` until 2026-08-23 — that is the internal working-knowledge document, and
+publishing it would put every hard-won Foundry finding and every process scar on a public page.
+Every release so far in fact carried hand-written notes (see v1.21.0), so the comment was wrong
+rather than the practice. **A draft for this release is in `dist/RELEASE-NOTES.md`** — read it,
+edit it, it is not published until you say so.
+
+⚠ **Prod is the USER's call and always has been.** It has run pre-refactor code throughout,
+deliberately.
+
+### THEN: features, and the scoping is already done
+
+**Heroic Inspiration, Tactical Mind and Bardic Inspiration are ONE KIND, and the module already
+ships a member of it** — Precision Attack. **Scope them together.** D8 is what makes them cheap:
+each is now a registry entry plus whatever stamps its flag, not another parameter on `hitsAmong`.
+⚠ **Read ARCHITECTURE §11's "Adding a FOLD" checklist first** — in particular its rule 4, the
+auto-revert debt the first outcome-reversing fold has to pay.
+
+---
+
+## 📦 THE FOUNDATION PASS — ✅ STAGES 1–4 DONE 2026-08-23, battery-green
+
+The user's directive, stated three times: **an excellent foundation before features resume.**
+Four stages, three commits, no feature work in any of them. **[PLAN.md](PLAN.md) § THE
+FOUNDATION PASS carries every checkbox and every finding** — this is the map, not the territory.
+
+| # | Stage | What it actually produced |
 | --- | --- | --- |
-| **1** | **Testing speed and structure** | `--section N` filtering, `sleep()` → conditional wait, shared harness + page helpers + the disposable world, and the Tier-1-over-Tier-2 rule. ⚠ **Start at 1.1.** ⚠ **The honest ceiling:** removing every sleep recovers ~4 minutes; the slowest suite is 2m27s with only 13s of sleeping and the rest is real serial Foundry work. **The win is not a fast battery, it is rarely needing one.** |
-| **2** | **The rest of the tooling debt** | Release build gains a `verify` precondition; the version bump becomes a script that moves **both** `module.json` fields; the three probes become suite sections (cheaper after 1.1); Tier 2 recorded as settled, **docs only**. |
-| **3** | **Two-client coverage** | ⚠ **The least certain work in the plan.** The gap D2 and the relay left: the hold's popup-CLOSING and the relay's RELAYED half are invisible to a single-client suite by construction. The only two-client harness is a ledger dump, and it was unrunnable until the 2026-08-23 ownership grant. ⚠ 3.4 (the `smoke-battleflow` flake) is **bounded, not promised** — do not claim to fix what does not reproduce. |
-| **4** | **D8 — the only open architecture debt** | ⚠ **4.1 is a BLOCKING USER RULING, not a code decision.** A reroll can turn a hit into a miss, which kills the "the sets are disjoint" argument the current fold ordering rests on. Then: named parameters → a fold list (attack side), and **the SAVE side, which does not exist at all** — that is the real new work. |
-| **5** | **One release** | Carrying the whole foundation. Prod remains the user's call; it has run pre-refactor code throughout, deliberately. |
+| **1** | Testing speed and structure | `tools/harness.mjs` (the twenty lines 26 files copied, plus the **suite lock**), every live suite **section-filterable**, the convertible sleeps converted, `tools/battery.mjs`, and the tier rule written into ARCHITECTURE §11 |
+| **2** | Tooling and process debt | `bump-version.mjs` (both manifest fields, and `--check` is now a gate step), the release build **gated**, the three probes gone — two folded into suites, one retired — and the source-file count pinned |
+| **3** | Two-client coverage | `smoke-twoclient.mjs`: the relay's **relayed** half and D2's **cross-client popup close**, 9/9 first run. `check-popup-routing` asserts instead of dumping |
+| **4** | **D8 — the last architecture debt** | The post-roll fold is a **mechanism**: `ATTACK_FOLDS` / `SAVE_FOLDS`, composed rather than ordered, and the save side that did not exist. Unit assertions 184 → **215** |
 
-⚠ **TIER 2 IS CLOSED BY DECISION — do NOT "fix" it.** D4 (the flag accessor layer) is
-**dropped**; `hold.js` ↔ `auto-damage.js` and `auto-apply.js` ↔ `mastery.js` are **permanent**.
-The first of those cycles is **load-bearing** — the bare `import "./auto-damage.js"` pins module
-evaluation order and `check-hook-order` depends on it. The user accepted this amendment to their
-own directive on the strength of that argument; the reasoning is in PLAN.md's box. Doing this
-work would make the tree worse.
+### The three things worth carrying out of it
 
-**Feature scoping comes after Stage 5, not before it.** The three surveyed d20 features
-(Heroic Inspiration, Tactical Mind, Bardic Inspiration) are **one kind**, and the module already
-ships a member of it — Precision Attack. Scope them together. Stage 4 is what makes them cheap;
-without it, each one adds another hard-coded parameter to `hitsAmong`.
+⚠ **1. THE SOLE-GM PREFLIGHT CANNOT SEE A SECOND SUITE, and that cost a real run.** Two suites
+against one box both join as `Tester Assistant`, and `preflightSoleGM` counts **users, not
+sockets** — one user, one GM, preflight green. A second suite started mid-run, re-pinned six
+settings underneath `smoke-maneuvers`, left an orphaned fixture actor, and nothing said a word.
+`harness.mjs` takes a **pid lock** now: the second starter refuses and names the first.
+
+⚠ **2. MOST OF THE REMAINING `sleep()` CALLS ARE LOAD-BEARING.** The plan expected to recover
+four minutes. It cannot be recovered: of 213s measured, **73s sits under an assertion that
+something did NOT happen**, and you cannot wait for a thing not to occur. Two of `smoke-hold`'s
+say so in their own comments. **What was convertible is converted; what is left is deliberate,
+and the docs now say which is which.**
+
+⚠ **3. THE CONVERSION TRAP FIRED TWICE, BOTH TIMES ON THE FIRST ATTEMPT.** PLAN.md warned:
+*convert the wait to the thing the NEXT ASSERTION READS*. Waiting for the BANNER is not waiting
+for the durable card LINE (three `smoke-resources` assertions went red on a working module), and
+waiting for `status === "resolved"` is not waiting for the two rolls that post after it
+(`smoke-volleys` 38/39). **A cast has three surfaces and they arrive at three different moments.**
+
+### And one hazard the section filter created
+
+⚠ **A BINDING DECLARED INSIDE ONE SECTION GATE AND READ FROM ANOTHER PASSES A FULL RUN.**
+Declaration order is unchanged, so it throws only under `--section`. Three were found by static
+scan before any suite ran; the sharpest was `smoke-maneuvers` §H deleting §B's and §I's fixtures
+**by binding** — it deletes by NAME now. **After gating a suite, scan for names declared in one
+gate and read outside it.**
+
+---
 
 ## Phase 3 — registries unified, DONE 2026-08-23, battery-green
 
@@ -207,13 +257,21 @@ if they arrive one at a time.
 
 ---
 
-## The standing directive (user, 2026-08-22)
+## The standing directive (user, 2026-08-22) — ✅ SATISFIED, and here is what replaces it
 
-**Correctness and architecture only. No new features, and no feature work considered.**
+**It was: correctness and architecture only. No new features, and no feature work considered.**
+The architecture had to be able to carry the surveyed features later — Heroic Inspiration, Bard,
+Tactical Mind, AC5e adoption — as **design pressure and nothing else**: used to test whether a
+seam was right, never as a reason to build one.
 
-The architecture must be able to carry the surveyed features later — Heroic Inspiration,
-Bard, Tactical Mind, AC5e adoption. Those are **design pressure and nothing else**: use them
-to test whether a seam is right, never as a reason to build one.
+⚠ **THAT DIRECTIVE HAS BEEN MET.** The refactor closed, the foundation pass closed behind it, and
+every architecture debt row is repaid or settled by decision. **The exit condition below was
+asked and answered, and D8 was the last thing it named.**
+
+**What replaces it, once Stage 5 ships:** features resume, and the three surveyed d20 features
+are **one kind with one seam**. ⚠ The directive that survives is narrower and permanent:
+**a new feature walks ARCHITECTURE §11's checklists** — including the two this pass added,
+*"Adding a TEST"* (the tier rule) and *"Adding a FOLD"*. That is what the foundation was for.
 
 ---
 
@@ -255,14 +313,16 @@ after every battery, and especially after any crashed run.**
 
 **`scripts/decide/` has ZERO imports** across all six modules — not core.js, not a machine,
 not the spine. The layer is dependency-free by construction, which is what makes it testable
-in milliseconds and impossible to tangle. **Keep it that way**: the day something in there
+in milliseconds and impossible to tangle. ✅ **Still true after D8** (re-checked 2026-08-23):
+the fold registry lives in `verdict.js` and reaches nothing — the EDGE shell hands it a READER,
+which is exactly the shape that kept it pure. **Keep it that way**: the day something in there
 needs `game` or `canvas`, it is EDGE and belongs one layer up (§2 rule 1).
 
 | Module | Holds |
 | --- | --- |
 | [decide/geometry.js](scripts/decide/geometry.js) | `honestDims`, `tokenCenter`, `tokenSamplePoints` — the v14 region-shim knowledge |
 | [decide/registry.js](scripts/decide/registry.js) | the five world-setting list parsers |
-| [decide/verdict.js](scripts/decide/verdict.js) | `hitsAmong`, `modeAdmits`, `saveOutcome`, `saveMultiplier`, `verdictText` |
+| [decide/verdict.js](scripts/decide/verdict.js) | `hitsAmong`, `modeAdmits`, `saveOutcome`, `saveMultiplier`, `verdictText` — **and, since D8, the fold layer**: `ATTACK_FOLDS`, `SAVE_FOLDS`, `foldsFrom`, `foldedRoll`, `foldedVerdict`, `foldedSave` |
 | [decide/eligible.js](scripts/decide/eligible.js) | `isDeadForSaves`, `limitedUses`, `isReactionItem`, `castLevelOf`, `clampVolleyCount`, `riderKey` |
 | [decide/receipt.js](scripts/decide/receipt.js) | `traitOutcome`, `traitReasons`, `hpDelta`, `receiptEntry`, `joinDamageReceipt`, `joinEffectReceipt`, `takenOf`, `receiptAmounts`, `traitPhrase`, `revertPlan`, `revertableEffect` |
 | [decide/present.js](scripts/decide/present.js) | `popupKey`, `TONE`, `bfCard`, `ruleLine`, `momentBarHTML`, `holdBarHTML`, `CASCADE_STEP`, `nextCascadeSlot`, `cascadePosition`, `eldersDeepestFirst` |
@@ -339,8 +399,18 @@ census collapsed nine copies into three helpers, this one found **one** worth ta
 is still cheap, but "run it after every structural stage" should probably become "run it when a
 stage moved code between files."
 
-**Re-run the scan after the next structural stage.** It is a ~20-line script over
-`scripts/**`, and it has now paid twice.
+### 🔁 Census re-run after D8 — 2026-08-23
+
+**27 files, 25 duplicated 3-line runs — the SAME count as after D6, and not one new cluster.**
+D8 moved the fold out of `hitsAmong`'s parameter list and into a registry, and it introduced no
+duplication doing it. Every cluster on the list is one already ruled on: the announcement
+envelope, the adv/normal/disadv dialog rows (left for the third time — live callbacks, not a
+string formatter), the D3 serializer idiom, and maneuvers' activity-from-flag resolution, which
+is **still ×2** and therefore still below the line the last census drew for it.
+
+⚠ **Three runs have now gone nine copies → one → none.** The prescription in this section
+("re-run after every structural stage") has produced its answer: the census is finished as a
+routine. **Run it when something feels copied, not on a schedule.**
 
 **The remaining Phase 2 list:** only the flag accessor layer's ~230 READS — and D3 having been
 closed without it (`53495e4`) removes the argument that justified it. See the NEXT table.
@@ -348,6 +418,30 @@ closed without it (`53495e4`) removes the argument that justified it. See the NE
 ---
 
 ## Design rulings — binding, made this session
+
+**0. THE FOLD COMPOSES; IT DOES NOT ORDER (user, 2026-08-23 — the D8 blocking ruling).**
+`hitsAmong` justified its precedence with *"the sets are disjoint, because a hold stamps hits
+and precision stamps misses."* A reroll goes either way, so precedence had to be decided.
+
+> Folds carry **contributions to the two numbers**, not verdicts to be ranked. The attacker's
+> folds move the TOTAL, the defender's move the AC, and the verdict is computed **once, at the
+> end**: *"18 + 4 = 22 vs AC 20 (Shield) — hits."*
+
+⚠ **Precedence stops existing**, which is why this is the only answer that cannot be wrong about
+a case nobody thought of. ⚠ **Both rejected options are recorded, because both are the obvious
+thing to re-propose.** *"The defender always wins"* keeps today's behaviour and **silently eats a
+spent resource** — a player burns Heroic Inspiration into a shielded target and gets nothing.
+*"Last fold wins"* reads correctly in time but tests the new total against the **stale snapshot
+AC**, announcing a hit against a number the defender has already changed.
+
+**0b. A FOLD THAT REVERSES AN APPLIED VERDICT AUTO-REVERTS ITS RECEIPT (user, 2026-08-23).**
+⚠ **This is NOT the house Graze precedent** (*"⚠ Graze already paid on the miss — revert its
+receipt if you rule it void"*), which was the option beside it and was **not** taken. The module
+undoes its own application rather than announcing and leaving the ruling to the GM.
+⚠ **Nothing ships that can trigger it yet** — a hold WITHHOLDS application rather than undoing
+it, and precision only turns misses into hits — so it is a **debt the first outcome-reversing
+fold must pay**, written into ARCHITECTURE §11's "Adding a FOLD" checklist as rule 4. Building
+the detector now would be machinery with no caller, which knip correctly calls dead code.
 
 **1. Action economy is not the module's job.** Reactions, actions and bonus actions are
 tracked by the humans at the table. Automating them is over-engineering, by the user's
@@ -625,10 +719,15 @@ is the sort a fresh reviewer reports as a bug. ✅ = re-verified here at `b82ab8
 
 | Claim | Why it's wrong |
 | --- | --- |
-| ↪ "saves.js at 1,734 lines is a god-file, split it" | Size is confirmed, the conclusion isn't. The house rule is one-file-per-phase with a **measured ~4,500-line** trigger; the v1.6.1 split fired at 4,504. The file is less than half that. |
+| ↪ "saves.js at 1,734 lines is a god-file, split it" | The conclusion isn't right, and the number has since fallen: **1,589 measured 2026-08-23**. The house rule is one-file-per-phase with a **measured ~4,500-line** trigger; the v1.6.1 split fired at 4,504. The file is a third of that and shrinking, because Phase 2 took its arithmetic out. |
 | ↪ "`rollSavingThrow(..., {configure:false})` loses aura/condition modifiers" | It doesn't. dnd5e computes ability mod, proficiency, save bonuses and condition-derived adv/dis **from actor data before any dialog exists** ([dnd5e.mjs:37467-37492](../../../Users/sippelmc/AppData/Local/FoundryVTT/Data/systems/dnd5e/dnd5e.mjs)); `configure:false` skips only the dialog. The suite proves it — smoke-saves.mjs forces outcomes by writing `abilities.con.bonuses.save` and asserts the `configure:false` roll lands on the forced side. **Reported once as a live table-facing bug; cost real work to kill.** |
 | ✅ "check-hook-order is too narrow at 9 assertions" | Its contract is deliberate: print the full order for review, assert only the load-bearing pairs. |
 | ↪ "The Sunlight Sensitivity incident implicates the save path" | It doesn't — that was an **attack** roll, which the module observes rather than rolls, and Sunlight Sensitivity isn't modelled as actor data in dnd5e 5.3.3, so the native dialog wouldn't have applied it either. An argument for condition automation, nothing more. |
+| ✅ "Removing the `sleep()` calls recovers about four minutes" | **PLAN.md said it and PLAN.md was wrong.** Measured 2026-08-23: of 213s of unconditional sleeping, **73s sits under an assertion that something did NOT happen** — no hold stamped, no ask raised, nothing applied. You cannot wait for a thing not to occur, so those sleeps ARE the assertion's window, and shortening one weakens the test above it. What was convertible is converted; the rest is deliberate and commented. |
+| ✅ "A shared page-helper bundle cuts every suite roughly in half" | An estimate nobody had measured. `smoke-hold` is 1,700 lines because of its **sixteen scenario blocks**, which are ~1,000 of them and which no bundle touches. The cheap half of the idea — travelling as DATA rather than source — is done and costs three lines per suite (the section plan). **Re-measure before attempting the rest.** |
+| ✅ "Two-client coverage is the least certain work in the plan" | It was the **cheapest of the three stages**. What was missing was a **player-owned fixture**, not a technique; once `BF Test Player Shielder` existed, all nine assertions passed first run. The uncertainty was about standing the scenario up, and it evaporated on contact. |
+| ✅ "`probe-volley-resources` can be promoted to a suite section" | It has **no assertions at all** — a bedrock forensic that prints JSON and exits 0, answering design questions the volley registry and the resource notice closed when they shipped. There was never a section to promote it to. The row was written without re-reading the file. **Retired; git keeps it.** |
+| ✅ "The fold precedence just needs a rule written down" | It needed the **question dissolved**, not answered. Any precedence ordering is wrong about some case: "the defender wins" eats a spent resource, "last fold wins" tests a new total against a stale AC. The 2026-08-23 ruling **composes** — the attacker's folds move the total, the defender's move the AC, one verdict at the end — and there is nothing left to order. Do not reintroduce an ordering. |
 
 **Sizing, so Phase 2 isn't mis-scoped:** ↪ the ask-scaffolding residue is **45–60 lines per
 site**, not the ~250 first published. Most of what looks copied is rules text. Maintenance
@@ -672,41 +771,53 @@ counts, but both are free to assert in `tools/check-registry.mjs` and none is as
 majority-pure; almost nothing is unit-testable"* and D7 read *"No lint, no formatter, no
 dead-code check, no package manifest, no CI"* — every clause of both was false by then, and
 both rows were rewritten. D4's *"~220 reads, ~51 writes across 14 files"* was likewise a stale
-hand count and now carries the re-measured figures. ⚠ **The remaining hand-carried number in
-this tree is the source-file count — 27 today** (`scripts/*.js` + `scripts/decide/*.js`), and
-it is still asserted nowhere. It has already been wrong twice (20, then 26). **Assert it in
-`check-registry.mjs` the next time that file is open**, and stop hand-carrying it.
+hand count and now carries the re-measured figures. ✅ **AND THE LAST HAND-CARRIED NUMBER IS GONE (2026-08-23).** The
+source-file count — 27 (`scripts/*.js` + `scripts/decide/*.js`), wrong twice in published docs
+(20, then 26) — is `EXPECTED_SOURCE_FILES` in `check-registry.mjs` now, pinned beside the R4
+kind total. Adding a file fails the gate until the pin moves, which is the point. **No number
+in this tree is asserted nowhere any more.**
 
 ---
 
 ## Operational
 
-- **Version bump touches TWO fields** in `module.json` — `version` *and* the manifest
-  `download` URL. The v1.20.0 walk-1 bump missed the download and it was caught at release.
-- Restore world settings to the reference table after any test run. Verify, don't assume.
-- First-suite-after-cold-boot flake is a real class — re-run before diagnosing.
-- ⚠⚠ **ALWAYS REDIRECT A SUITE TO A FILE: `node tools/smoke-x.mjs > out.txt 2>&1`, then read the
-  file.** This is not style. **`smoke-battleflow` has now reported exactly "2 FAILURE(S)" twice
-  — 2026-08-22 (stage 5) and 2026-08-23 (after the polish.js fold) — and BOTH TIMES the
-  assertions were lost to a `| tail`, and both times it then refused to reproduce.** The second
-  time it was chased with five clean re-runs including a deliberate stop→deploy→start→run
-  cold-boot repro; the first time with four re-runs and a battleflow→hold→battleflow repro.
-  A suite prints its failures in the body, not the summary, so `tail` throws away the only
-  evidence that matters and the class stays unnamed for another session. **Capture first, read
-  second, re-run third.** The same signature twice is no longer "a flake" — it is an
-  undiagnosed defect that has evaded two sessions purely through how its output was read.
+⚠ **Three of the rules that used to live here are now CODE, and are listed as rules only so the
+next reader knows why the tooling looks like it does.**
+
+- ✅ **"Always redirect a suite to a file" — now structural.** `node tools/battery.mjs` captures
+  every suite's full output to `dist/battery/<stamp>/` **before** anything is summarised, and
+  prints the failing lines besides. ⚠ **This mattered twice**: `smoke-battleflow` reported
+  exactly "2 FAILURE(S)" on 2026-08-22 and again on 2026-08-23, and BOTH TIMES the assertions
+  were lost to a `| tail` and the class stayed unnamed. A suite prints its failures in the BODY
+  and its count in the summary. **If you run a suite by hand, still redirect it.**
+- ✅ **"Run one at a time" — now enforced.** `harness.mjs` takes a pid lock per target. The
+  sole-GM preflight never could enforce it: two suites join as the same user, and it counts
+  users, not sockets.
+- ✅ **"The version bump touches TWO fields" — now a script.** `node tools/bump-version.mjs
+  minor` moves `version` *and* the manifest `download` URL together; `--check` asserts they are
+  in step and is part of `npm run verify`. The v1.20.0 walk-1 bump missed the download by hand.
+- ✅ **"No release from a tree that fails the gate" — now a precondition.** `build-release.ps1`
+  runs `npm run verify` and `bump-version --check` before it packs anything. **No skip flag.**
+
+Still yours to remember:
+
+- **Restore world settings to the reference table after any test run. Verify, don't assume** —
+  `battery.mjs` ends by running `verify-settings`, but a hand-run suite does not. ⚠ A crashed
+  run launders its pins into the next run's "prior", so eleven settings can drift while every
+  suite reports success; only the external table catches it. `battery.mjs --snapshot` removes
+  the hazard by construction for the run where it actually bites.
+- **First-suite-after-cold-boot flake is a real class** — re-run before diagnosing.
+- **`smoke-effects` has a documented dice-variance class** — re-run before diagnosing that too.
 - ⚠ **The zip is the one artifact nobody exercises, so it is the one that rots.** `check-imports`
   reads the working tree; hot-deploy copies the working tree; nothing installs the archive. Two
-  release bugs have now hidden there (backslash separators v1.1.0–v1.1.15, the missing
-  `scripts/decide/` directory after Phase 2). `build-release.ps1` now recurses and re-reads the
+  release bugs have hidden there (backslash separators v1.1.0–v1.1.15, and the missing
+  `scripts/decide/` directory after Phase 2). `build-release.ps1` recurses and re-reads the
   finished zip to prove every relative import resolves inside it. **Read the builder's file list
   at every release** — that is how the second one was found.
-- Two windows at the table (GM + a player owning Thomas/Morgash). "Nothing popped" must
-  always ask **which window**.
-- Deploy without a version bump serves cached scripts until the process bounces: deploy →
-  bounce → run. Hard-refresh both browser windows.
-
----
+- Two windows at the table (GM + a player owning Thomas/Morgash). "Nothing popped" must always
+  ask **which window**.
+- **Deploy without a version bump serves cached scripts until the process bounces**: stop →
+  deploy `--local` → start. Hard-refresh both browser windows.
 
 ## The parallel session
 

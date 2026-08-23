@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the presentation formatters.
  *

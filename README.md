@@ -43,6 +43,11 @@ Three documents, and only three.
 - **[NOTES.md](NOTES.md)** — working knowledge. Every Foundry and dnd5e fact that cost a
   debugging session, plus deploy/release/test protocol. Not binding, just expensive.
 
+Development tooling lives in [tools/](tools/README.md) and ships in nothing. The short version:
+`npm run verify` is the offline gate (seven static checks plus 215 unit tests, all in seconds),
+and `node tools/battery.mjs` is the live one — every suite, in the order that works, each
+captured to a file.
+
 ## Family
 
 Sibling of [Combat Plus](https://github.com/Txpple/fvtt-mod-combatplus) — Combat Plus is combat

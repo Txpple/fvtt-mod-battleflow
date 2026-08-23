@@ -14,8 +14,14 @@
 #   powershell -ExecutionPolicy Bypass -File tools/build-release.ps1
 #
 # Then attach BOTH assets — the zip and a bare copy of module.json:
-#   gh release create vX.Y.Z --title "vX.Y.Z - short phrase" --notes-file NOTES.md `
+#   gh release create vX.Y.Z --title "vX.Y.Z - short phrase" --notes-file dist/RELEASE-NOTES.md `
 #     dist/fvtt-mod-battleflow.zip module.json
+#
+# ⚠ THE NOTES FILE IS HAND-WRITTEN, AND IT IS NOT NOTES.md. This line used to name NOTES.md,
+# which is the internal working-knowledge document - publishing it would put every hard-won
+# Foundry/dnd5e finding and every process scar on a public release page. Every release so far
+# has in fact carried hand-written notes (check v1.21.0), so the comment was wrong rather than
+# the practice. Draft them in dist/ (gitignored) and point gh at that.
 
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression

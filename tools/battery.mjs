@@ -118,7 +118,12 @@ const run = (script, args = []) => {
   const r = spawnSync(node, [join(REPO, "tools", `${script}.mjs`), ...args], {
     cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024
   });
-  const body = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+  // ⚠ stdout and stderr are captured separately and CANNOT be interleaved without a pty, so the
+  // file says so rather than pretending the order is chronological. The connection banners live
+  // on stderr, which is why a naive concatenation looks like the suite reconnected at the end.
+  const err = (r.stderr ?? "").trim();
+  const SEP = "\n──────── stderr (not interleaved) ────────\n";
+  const body = err ? `${r.stdout ?? ""}${SEP}${err}\n` : (r.stdout ?? "");
   writeFileSync(join(runDir, `${script}.txt`), body);
   return { code: r.status ?? -1, body };
 };

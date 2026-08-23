@@ -5,7 +5,7 @@
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, rollerUserFor,
   canAnswerFor, inRunningCombat } from "./core.js";
 import { tokensInTemplates } from "./geometry.js";
-import { saveMultiplier, verdictText, saveOutcome } from "./decide/verdict.js";
+import { SAVE_FOLDS, foldedSave, foldsFrom, saveMultiplier, verdictText } from "./decide/verdict.js";
 import { isDeadForSaves } from "./decide/eligible.js";
 import { forceStatus, damagePartsOf, rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
@@ -603,8 +603,20 @@ async function foldSaveAnswer(card, uuid, rollMessage) {
       const entry = current.targets?.find(t => !t.done && (t.uuid === uuid));
       if ( !entry ) return false;   // nothing to fold — never write
       entry.done = true;
-      entry.outcome = saveOutcome(total, current.dc, forced);
-      entry.total = total;
+      // ⚠ THROUGH THE FOLD (D8, 2026-08-23). `SAVE_FOLDS` ships empty, so this is today's
+      // arithmetic exactly — `saveOutcome(total, dc, forced)` with nothing added and nothing
+      // replaced. What it buys is that the SEAM exists: a rerolled or boosted save lands by
+      // declaring a spec, not by editing this resolver. The attack side had that channel since
+      // v1.19.0 and the save side had none at all, which is the half of D8 that was real work.
+      // ⚠ The folds are read off the ROLL MESSAGE, not off this card. A save-side fold changes
+      // the number a particular roll produced, so it belongs on the roll — the same locality the
+      // attack side uses, where the folds ride the attack message rather than the usage card.
+      const judged = foldedSave({
+        total, dc: current.dc, forced,
+        folds: foldsFrom(key => rollMessage.getFlag(MODULE_ID, key), SAVE_FOLDS)
+      });
+      entry.outcome = judged.outcome;
+      entry.total = judged.total;
       entry.rollMessageId = rollMessage.id;
       if ( timedOut ) entry.timedOut = true;
       if ( forced ) entry.forced = true;
