@@ -268,6 +268,14 @@ concept of an "interrupt kind" or a "fold kind", so there is nothing to check th
 What the static gate proves instead is that each set is **closed, declared in one place, and
 that every registry entry names a kind from it**.
 
+⚠ **The FOLD CONTRIBUTION SHAPES (`ac` / `add` / `replace` / `verdict`, D8) are NOT an R4 kind
+set, and the distinction is worth keeping straight.** R4 counts kinds the code knows about
+**CONTENT** — which ability participates, in what way — and the tripwire exists because those
+grow one shipped feature at a time. A contribution shape is mechanism vocabulary: it says what
+arithmetic a fold performs, and adding a fifth would be a change to what "a fold" means, not a
+new ability admitted to a list. `ATTACK_FOLDS` and `SAVE_FOLDS` are registries in the ordinary
+sense — declared, closed, one place — and they are deliberately not on the count above.
+
 ⚠ `nick` is the system's eighth mastery and is **deliberately** native — pure action economy,
 which ruling 1 puts outside this module. That is why it is *declared* (`MASTERY_NATIVE`) rather
 than merely absent: in a `switch` statement a decision and an oversight look identical, and the

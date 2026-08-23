@@ -666,14 +666,20 @@ up*, not about whether the module was right.
 
 ### STAGE 5 — one release
 
-- [ ] **5.1 Cut ONE release** carrying the whole foundation. Above `v1.21.0` sit: Phase 3, D2,
-      the §4.1 relay, the flake fixes, and this pass's four commits — the test infrastructure,
-      the tooling, the two-client coverage and **D8**. ⚠ **Only D8 changes what ships**; stages
-      1–3 are `tools/` and docs, which are not in the zip.
-      **Prepared and ready** (HANDOFF § THE RELEASE, READY TO GO): `bump-version.mjs minor`
-      moves both manifest fields, and `build-release.ps1` now runs the gate before it packs.
-      ⚠ **The publish is left to the USER, deliberately** — `gh release create` and `git push`
-      put artifacts on a public repo, and that is the user's call to make, not an autonomous one.
+- [~] **5.1 BUILT AND VERIFIED — the publish is deliberately left to the user.**
+      `node tools/bump-version.mjs minor` moved **both** manifest fields to **v1.22.0** (the
+      mistake the v1.20.0 walk-1 bump made by hand, and the reason 2.2 built the script), and
+      `build-release.ps1` produced `dist/fvtt-mod-battleflow.zip`: **30 entries — 27 scripts
+      including `scripts/decide/`, plus module.json, LICENSE and README — forward slashes
+      verified, and every relative import inside the archive proved to resolve to another file
+      in it.** The gate ran as a precondition, which is 2.1 exercised for real.
+      **What this release carries above `v1.21.0`:** Phase 3 (registries), D2, the §4.1 relay,
+      the flake fixes, and this pass's four commits. ⚠ **Only D8 changes shipping code** —
+      stages 1–3 are `tools/` and docs, and neither is in the zip.
+      ⚠ **`gh release create` and `git push` are NOT run.** They put artifacts on a public repo,
+      and that is the user's call rather than an autonomous one. The commands, and a
+      release-notes draft (`dist/RELEASE-NOTES.md`, hand-written — **not** `NOTES.md`, see
+      build-release.ps1's corrected usage note), are in HANDOFF § THE RELEASE, READY TO GO.
 - [ ] **5.2 Prod is the USER's call.** It has run pre-refactor code throughout, deliberately.
 
 ---

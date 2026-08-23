@@ -10,10 +10,10 @@
 
 | | |
 | --- | --- |
-| **Do first** | 📋 **STAGE 5 — cut the release**, and it is the only thing left. Stages 1–4 of the FOUNDATION PASS are **done, committed and battery-green**. ⚠ **The zip is BUILT and proven self-contained; the publish is not done and is deliberately left to the user** — `gh release create` puts a public artifact on GitHub, and so does `git push`. Both commands are written out under **THE RELEASE, READY TO GO** below. |
+| **Do first** | 📋 **PUBLISH v1.22.0 — two commands, and they are the only thing left.** Stages 1–4 of the FOUNDATION PASS are **done, committed and battery-green**; the version is bumped and the **zip is built and proven self-contained**. ⚠ **What is NOT done is deliberate:** `gh release create` and `git push` put artifacts on a public repo, which is your call rather than an autonomous one. Both are written out verbatim under **THE RELEASE, READY TO GO** below, with a release-notes draft beside them. |
 | **The foundation is FINISHED** | The refactor closed on 2026-08-23 and this pass closed the rest: **every architecture debt row is repaid or settled by decision** (ARCHITECTURE §10 — D4 dropped, both surviving cycles permanent, D8 closed here), every live suite is **section-filterable**, the battery is **one command**, and the two cross-client properties that no single-client suite could reach are **tested**. ⚠ **After the release, feature work resumes** — see the exit condition below. |
 | **Parity** | ✅ **PROVEN 2026-08-23 after D8** — the full battery on a sandbox carrying HEAD byte-identical (stop → deploy `--local` → start), **every suite green, `verify-settings` CLEAN, 19m58s** for all thirteen entries. battleflow ALL PASS (33) 89s · hold ALL PASS (44) 129s · saves **74/74** 252s · volleys 39/39 47s · maneuvers 54/54 150s · cast 17/17 · riders 8/8 · concentration 47/47 · **twoclient 9/9** · popup-routing ALL PASS · effects 54/54 (first run, no re-run needed) · resources 18/18. ⚠ **D8 is the only stage that changed shipping code**, and it changed the most consequential arithmetic in the module — this battery is what says it cost nothing. Captured in full to `dist/battery/<stamp>/`. |
-| Repo | `main`, clean, **NOT pushed** — five commits sit above `origin/main`. |
+| Repo | `main`, clean, **NOT pushed** — **four commits** sit above `origin/main`: stages 1–2, stage 3, D8, and the version bump. |
 | Release | ⚠ **v1.21.0 is the last PUBLISHED release.** Everything since is unreleased and that is deliberate: this release carries the lot. ⚠ **Prod still runs v1.20.0, by instruction.** |
 | Verify gate | `npm run verify` — **EIGHT static checks**: biome (**95 warnings, 0 errors — the new baseline; it was 98 before the three probes retired**), knip, **typecheck**, imports (**267 bindings**), hook order (75 registrations, 10 pairs), registry (**12 checks**, and it prints the R4 kinds table), **manifest in-step**, comments (306 blocks / 27 files), then vitest **215**. ⚠ **`typecheck` is REAL now, and only over `scripts/decide/`** — six pure modules opted in with `// @ts-check`. Measured before switching it on: with `checkJs` the layer produces **101 errors, 100 of them "implicitly any"**, and with implicit-any allowed it produces **ZERO**. So the checker was one flag away from being useful and a whole JSDoc project away from being strict; the flag is off, the annotations are the later job, and D7's last gap is closed where it pays most. ⚠ **Two numbers are PINNED and fail the gate deliberately**: the R4 kind total (16) and the **source-file count (27)** — the last hand-carried number in the tree, wrong twice in published docs before it was asserted. |
 | **Testing** | ⚠ **Read this before running anything.** `node tools/battery.mjs` is the front door: it runs all thirteen entries in the order that works, **captures every one to a file before summarising**, and finishes with `verify-settings`. Every suite takes `--list` and `--section N`; a filtered run stamps itself **`⚠ PARTIAL RUN`**. ⚠ **One suite at a time is now ENFORCED** by a pid lock in `tools/harness.mjs` — the sole-GM preflight structurally cannot see a second suite, because both join as the same user and it counts users, not sockets. |
@@ -27,15 +27,18 @@
 
 ### THE RELEASE, READY TO GO
 
-Everything below Stage 5 is done. The release is four commands, and the last two are the
-user's because they publish:
+Everything before Stage 5 is done. The release is four commands; **the first two are run, and
+the last two are yours because they publish.**
 
-```bash
-node tools/bump-version.mjs minor      # both module.json fields, together
-```
-```bash
-powershell -ExecutionPolicy Bypass -File tools/build-release.ps1
-```
+✅ **The first two are ALREADY DONE**, and their output is on disk:
+
+- `node tools/bump-version.mjs minor` → **v1.22.0**, both fields, committed (`d6951f3`).
+- `powershell -ExecutionPolicy Bypass -File tools/build-release.ps1` →
+  `dist/fvtt-mod-battleflow.zip`, **30 entries, 219,469 bytes**, forward slashes verified, and
+  every relative import inside the archive proved to resolve to another file in it.
+
+Re-run them only if you change something. If you want a different version number, the bump is
+reversible: `node tools/bump-version.mjs 1.21.1`, then rebuild.
 
 ⚠ **`build-release.ps1` now runs `npm run verify` and `bump-version --check` before it packs
 anything, with no skip flag** — there is no longer a way to build a release from a tree that
@@ -45,7 +48,7 @@ fails the gate. **Read the builder's file list at every release**: it is how the
 Then, the user's to run:
 
 ```bash
-gh release create vX.Y.Z --title "vX.Y.Z - short phrase" --notes-file dist/RELEASE-NOTES.md dist/fvtt-mod-battleflow.zip module.json
+gh release create v1.22.0 --title "v1.22.0 - the foundation" --notes-file dist/RELEASE-NOTES.md dist/fvtt-mod-battleflow.zip module.json
 ```
 
 ⚠ **The notes file is HAND-WRITTEN, and it is NOT `NOTES.md`.** `build-release.ps1`'s usage
@@ -54,6 +57,12 @@ publishing it would put every hard-won Foundry finding and every process scar on
 Every release so far in fact carried hand-written notes (see v1.21.0), so the comment was wrong
 rather than the practice. **A draft for this release is in `dist/RELEASE-NOTES.md`** — read it,
 edit it, it is not published until you say so.
+
+And the four commits, which are not pushed either:
+
+```bash
+git push origin main
+```
 
 ⚠ **Prod is the USER's call and always has been.** It has run pre-refactor code throughout,
 deliberately.
