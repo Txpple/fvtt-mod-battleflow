@@ -143,7 +143,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       } else {
         ok("an NPC target is available to attack", true, foe.name);
         log.push(`section 3 target: ${foe.name} (AC ${foe.actor.system.attributes.ac.value})`);
-        skips.push("section 3: the driven-attack assertions are not written yet — see HANDOFF");
+        // ⚠ The attack path IS table-verified (user, 2026-08-23) — spend → reroll → re-verdict
+        // → damage re-drive all work. It is simply not COVERED: nothing here will catch a
+        // regression in it. That gap is named rather than left implicit, because "green suite,
+        // dead path" is precisely how this feature shipped four broken offer paths.
+        skips.push("section 3: attack resolve is table-verified but has NO automated assertion "
+          + "— a regression here would pass this suite silently");
       }
     }
 

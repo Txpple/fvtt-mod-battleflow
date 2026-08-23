@@ -14,7 +14,7 @@
 
 | | |
 | --- | --- |
-| **Do first** | 📋 **v1.23.0 IS RELEASED, PUSHED AND ON PROD; the tree is clean.** ▶ **Read *The d20 folds, as landed* below before touching them**: the first table pass found **six bugs, all in the offer half**, and the table found every one of them while the suite stayed green. ⚠ **The attack path's RESOLVE has still never been driven** (`smoke-d20-folds` §3 SKIPs). ⚠ A **sibling session** owns `PLAN.md` in this same tree; that edit is not ours and was not committed with this work. |
+| **Do first** | 📋 **v1.23.0 IS RELEASED, PUSHED AND ON PROD; the tree is clean.** ▶ **Read *The d20 folds, as landed* below before touching them**: the first table pass found **six bugs, all in the offer half**, and the table found every one of them while the suite stayed green. ✅ **All three folds are table-verified** across attacks, checks and demanded saves (user, 2026-08-23). ⚠ A **sibling session** owns `PLAN.md` in this same tree; that edit is not ours and was not committed with this work. |
 | Release | ✅ **v1.23.0 RELEASED, 2026-08-23** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.23.0>. Both assets attached. The **published** zip was downloaded back and proven self-contained: **31 entries, 28 scripts including the six in `decide/`, 109 relative imports all resolving, no backslash separators, both manifest fields naming v1.23.0**. ⚠ That read-back is not ceremony — it is the check that caught the backslash bug (v1.1.0–1.1.15) and the missing `scripts/decide/` (post-Phase-2). |
 | Prod | ✅ **PROD RUNS v1.23.0 AS OF 2026-08-23** — the d20 folds included, by user instruction. Earlier the same day: ✅ **v1.22.0** — user instruction this session, superseding the old *"sandbox only, no prod yet"* call. 28/28 files byte-identical over WebDAV. ⚠ **The box was asleep** (`status=NOT_RUNNING`) and had to be woken by the Magic URL first — see *The prod deploy* below, because the byte-check LIES when the box is down. Prod does **not** carry the d20 folds. |
 | Repo | `main`, **clean and pushed**. ⚠ The sibling session's ENFORCEMENT PASS plan is committed in `PLAN.md` and is **awaiting a go** — it is a plan only, and not this session's work. |
@@ -96,9 +96,14 @@ card read **"undefined — reroll the d20"**. Every display string now re-derive
   **That was the one path that could have swallowed a save verdict in a live game**, so it was
   measured before prod saw it.
 
-⚠ **STILL NOT DRIVEN END TO END: the attack path's RESOLVE.** The stamp and the card were seen
-on a real missed attack, but nothing has driven spend → reroll → re-verdict → damage re-drive.
-`smoke-d20-folds` **§3 still SKIPs** and says so.
+✅ **THE ATTACK PATH IS TABLE-VERIFIED** — user, 2026-08-23, after the six fixes: spend → reroll
+→ re-verdict → damage re-drive, exercised at the table along with checks and demanded saves.
+
+⚠ **It is verified, not COVERED, and the difference is the whole lesson of this feature.**
+`smoke-d20-folds` §3 still has no driven-attack assertion, so nothing will catch a regression in
+that path automatically — which is exactly the state the offer half was in when it shipped four
+dead paths past a green suite. Writing §3 is the cheapest insurance available here; it needs the
+sandbox to itself (the sole-GM preflight).
 
 ⚠ **One fold per offer round, by construction.** Spending one re-offers the rest *if the roll
 still fails*; the flag carries a LIST of spends and `foldedRoll` composes `replace`-then-`add`,
