@@ -21,7 +21,7 @@ import { damagePartsOf } from "./shared.js";
 // damage-offer bar still registers above the hold row exactly as it did when they shared one
 // handler (asserted in check-hook-order.mjs).
 import { openMomentPopup, momentButton, scheduleBarSync, armDeadline, disarmDeadline,
-  shownMoments, closeAnsweredPopups } from "./ui.js";
+  shownMoments, livePopups } from "./ui.js";
 // Safe as a STATIC edge (unlike auto-apply.js below): effect-riders.js registers no hooks,
 // so evaluating it early cannot reorder anything — check-hook-order.mjs proves it.
 import { applyEffectsTo } from "./effect-riders.js";
@@ -634,7 +634,7 @@ Hooks.on("updateChatMessage", message => {
   // Every client closes popups whose decision has already been made — this runs before the
   // continuing-client gate on purpose, because the popup to close is usually on a DIFFERENT
   // client from the one driving the continuation.
-  closeAnsweredPopups(message);
+  closeAnsweredHoldPopups(message);
 
   const hold = message.getFlag(MODULE_ID, "hold");
   if ( !hold || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
@@ -1019,8 +1019,11 @@ async function settleForACChange(hold) {
  *   · the delete-SWEEP — it clears every machine's popups, latches and acks, so it is spine.
  *     Only its one `disarmHoldTimer` line came here, as this file's own sweep, which is what
  *     every other timer-owning machine already does.
- *   · `closeAnsweredPopups` — it reads the hold flag by STRING, so it makes no import edge.
- *     It stays in ui.js with the popup registry it walks. Layering smell, not a cycle.
+ *   · ~~`closeAnsweredPopups`~~ — ✅ **CAME HERE AT D2 (2026-08-23)** as
+ *     `closeAnsweredHoldPopups`. D6 left it in ui.js on the argument that reading the hold flag
+ *     by STRING makes no import edge, which was true and was the wrong test: it meant the spine
+ *     still knew this feature existed, and knew it in the one way no check could see. It builds
+ *     on `livePopups` now, the same shape every other machine already used.
  * ============================================================================================= */
 
 /** The reaction's own artwork, for cards that talk about it. */
@@ -1060,6 +1063,27 @@ async function fireHoldTimer(messageId) {
   }
   if ( !expired ) return;
   await message.setFlag(MODULE_ID, "hold", merged);
+}
+
+/**
+ * PRESENTATION LAW 4 (§5): a popup asking something already answered is a lie on screen, so a
+ * decision made ANYWHERE closes the popup asking for it — the card, another client, or the
+ * buzzer.
+ *
+ * ⚠ D2 (2026-08-23) moved this out of ui.js, where it was the last thing in the spine that knew
+ * this feature existed. It read the hold flag by STRING, so it made no import edge and D6's
+ * cycle break went straight past it. Every other machine already closed its own popups exactly
+ * like this; the hold was the one whose popup-closing lived in the spine. Per-target, because
+ * one casting can answer many holds and only the answered target's popup should go.
+ */
+function closeAnsweredHoldPopups(message) {
+  const hold = message.getFlag(MODULE_ID, "hold");
+  if ( !hold?.targets?.length ) return;
+  for ( const target of hold.targets ) {
+    const dialog = livePopups.get(popupKey(message.id, target.uuid));
+    if ( !dialog ) continue;
+    if ( (hold.status !== "pending") || target.answer ) void dialog.close();
+  }
 }
 
 /**

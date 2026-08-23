@@ -347,14 +347,15 @@ Hooks.on("deleteChatMessage", message => {
   // the collapse it exists for. Do not re-add a feature's name to it.
 });
 
-/** A decision made anywhere closes the popup asking for it. */
-export function closeAnsweredPopups(message) {
-  const hold = message.getFlag(MODULE_ID, "hold");
-  if ( !hold?.targets?.length ) return;
-  for ( const target of hold.targets ) {
-    const dialog = livePopups.get(popupKey(message.id, target.uuid));
-    if ( !dialog ) continue;
-    if ( (hold.status !== "pending") || target.answer ) void dialog.close();
-  }
-}
+// ⚠ `closeAnsweredPopups` USED TO LIVE HERE, and it was the last place the spine knew a
+// FEATURE existed (D2, 2026-08-23). Its doc line read like a spine primitive — "a decision made
+// anywhere closes the popup asking for it" — but its body read `message.getFlag(MODULE_ID,
+// "hold")` and walked the hold's own per-target array. It had exactly one caller. Because it
+// reached the feature by STRING rather than by import, it survived D6's cycle break untouched
+// and made no edge for check-imports to see: the layering smell D6 recorded and deferred.
+//
+// It is hold.js's own `closeAnsweredHoldPopups` now, built on `livePopups` — the same shape
+// every other machine already used for presentation law 4 (mastery, maneuvers, saves and
+// concentration each close their own popups this way). ⚠ Do not re-add a feature's flag name to
+// this file. The spine holds the PRIMITIVES; knowing what "answered" means is the machine's.
 

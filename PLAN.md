@@ -278,7 +278,7 @@ them cheap; it does not do the adding.
 
 ---
 
-## Phase 4 — Repay the structural debt
+## Phase 4 — Repay the structural debt — ✅ DONE 2026-08-23
 
 Ordered by risk, lowest first. Each is independently shippable and independently revertible.
 
@@ -311,11 +311,22 @@ Ordered by risk, lowest first. Each is independently shippable and independently
       The other two cycles remain and are **deliberate**: `hold.js` ↔ `auto-damage.js` is
       load-bearing, and `auto-apply.js` ↔ `mastery.js` breaks only by moving
       `applyDamagesWithReceipt` — the damage chokepoint — to a third module.
-- [ ] **D2 — bring `hold.js` onto the moment spine.** The hold is the *original* moment machine
-      and the one the spine was extracted from, and it is the only machine that adopted **none**
-      of it — its own clock, its own latch, its own views. **Highest risk item in this document**
-      (it is the most-used feature at the table), so: after D1/D3/D6, behind its own walk, with
-      the hold suite green before and after, and shipped alone.
+- [x] **D2 — bring `hold.js` onto the moment spine.** ✅ **2026-08-23.** ⚠ **This bullet was
+      wrong at HEAD and had been for a while.** "The only machine that adopted none of it — its
+      own clock, its own latch, its own views" described the tree before round 3 and D6; by the
+      time D2 came up, hold.js already composed `openMomentPopup`, `momentButton`,
+      `scheduleBarSync`, `shownMoments` and the `armDeadline` primitive. A usage matrix across
+      all six moment machines was the only way to see that, and it found **one** primitive hold
+      bypassed: `livePopups`.
+      The cause was `closeAnsweredPopups` living in **ui.js** — spine-shaped doc line,
+      hold-shaped body (`getFlag(MODULE_ID, "hold")`), one caller. **The last place the spine
+      knew a feature existed**, invisible to check-imports because it reached the flag by string.
+      Moved to hold.js as `closeAnsweredHoldPopups` on `livePopups`, the shape every other
+      machine already used. hold suite ALL PASS before and after; shipped alone as required.
+      ⚠ The clock stays the hold own **by design** — continuing-client ownership and per-target
+      answers, exactly like maneuvers riposte and mastery topple. Never unify it.
+      ⚠ **The lesson is about the debt register, not the hold:** a debt row EVIDENCE goes stale
+      as silently as code does. Re-measure before believing one.
 
 ---
 
