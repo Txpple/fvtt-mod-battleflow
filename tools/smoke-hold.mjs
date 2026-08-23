@@ -11,27 +11,52 @@
 //   → reaction-spent suppresses the next hold
 // Restores every setting it touched, deletes its own chat messages, and leaves Gren's HP,
 // AC and spell slots exactly as it found them.
-import { readFileSync } from 'node:fs';
-import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
-import { foundryConfig, preflightSoleGM } from './target.mjs';
+//
+// Sections (PLAN 1.1): `--section 4d3`, `--section 1,3`, `--list`. Setup and the `finally`
+// teardown ALWAYS run; only the scenario blocks are skippable.
+//
+// ⚠ THIS SUITE GATES TWICE, and it has to. Its page half COLLECTS (`results.<key> = {...}`)
+// and its Node half ASSERTS on what was collected — so gating only the page half would turn
+// every skipped section into a row of FAILs against `undefined`. Each `report()` therefore
+// sits under the same `want()` as the block that fills it, and the two lists are kept in step
+// by the key each report reads.
+//
+// ⚠ §2 ("CAST answers it") is folded into §1 rather than given an id: it is written INSIDE
+// §1's block, reading the very hold §1 stamped. Splitting them would be a rewrite, and they
+// are one scenario — the hold fires, then the cast answers it.
+import { announcePlan, connectSuite, sectionPlan } from './harness.mjs';
 
-const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
-const env = {};
-for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
-  if (line.trimStart().startsWith('#')) continue;
-  const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-  if (m) env[m[1]] = m[2];
-}
+const SECTIONS = {
+  1: 'the hold fires (and §2: CAST answers it, the AC re-test turns the hit)',
+  3: 'PASS lets the attack through: the released dice APPLY',
+  4: 'reaction already spent ⇒ no hold at all',
+  '4a2': 'an AC reaction ALREADY STANDING ⇒ no hold (finding ⑥)',
+  '4b': 'the REAL cast path, on a GM-answerable stand-in',
+  '4b2': 'ONE casting answers MANY holds, and lands exactly ONE effect',
+  '4c': 'the SAFETY NET: a cast whose client never applied the effect',
+  '4d': 'a NAME MATCH is not a reaction',
+  '4d2': 'the MONSTER pattern: a spell paid for by x/x uses, no slots',
+  '4d3': 'the STATBLOCK cast-activity path, end to end',
+  '4d4': 'the AT-WILL variant: no pool at all still holds',
+  '4d5': 'a PC attacks a monster that holds a reaction',
+  '4d6': 'a FLAT AC cannot receive the reaction, and the card must say so',
+  '4e': 'the TIMER: an unanswered hold passes itself',
+  '4f': 'hopeless holds are skipped (only under full disclosure)',
+  5: 'a natural 20 skips an AC-type hold',
+  6: 'the SECOND TRIGGER: Magic Missile holds for Shield'
+};
+// Every scenario stamps its own hold on its own attack and restores what it changed, so none
+// of them names another. §4b and §4c both read `results.realCast` — that is one section's data
+// asserted in two places, not a dependency.
+const DEPENDS = {};
+
+const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
+const want = id => !plan || plan.includes(String(id));
 // Raised from 420s when the statblock cast-activity sections landed: each of the three hunts
 // for an attack inside a 5-wide AC window, and a suite that dies at the watchdog reports
 // nothing at all — the one failure mode with no diagnostic value.
-setTimeout(() => { console.error('[hold] WATCHDOG 600s'); process.exit(3); }, 600_000);
-
-const f = new Foundry(foundryConfig(env));
-console.log('[hold] connecting…');
-await f.connect();
-await preflightSoleGM(f);
-console.log('[hold] connected');
+const f = await connectSuite({ tag: 'hold', watchdogMs: 600_000 });
+announcePlan('hold', plan, pulled);
 
 let failures = 0;
 const report = (name, ok, detail = '') => {
@@ -40,8 +65,11 @@ const report = (name, ok, detail = '') => {
 };
 
 // The whole scenario runs in ONE page context so state stays coherent across steps.
-const r = await f.evaluate(async () => {
+const r = await f.evaluate(async ({ sections }) => {
   const MOD = 'fvtt-mod-battleflow';
+  // The section gate, page side — the closure is serialized into the page, so the plan
+  // arrives as DATA. The Node half above spells the same predicate for the reports.
+  const want = id => !sections || sections.includes(String(id));
   const log = [];
   const results = {};
   let restore = null;
@@ -479,7 +507,7 @@ const r = await f.evaluate(async () => {
     // v1.20.0 walk-1 ruling: the hold pauses the APPLICATION, never the roll ("the shoudl
     // just roll damage, and not wait for shield"). The roll must exist while the hold is
     // still pending, carry the attackHoldPending claim, and NOT be applied yet.
-    {
+    if (want('1')) {
       const { usageId, msg, total } = await plainHitOnGren({ window: true });
       const held = await waitFor(() => {
         const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
@@ -543,7 +571,7 @@ const r = await f.evaluate(async () => {
     // ---- 3. PASS lets the attack through: the released dice APPLY --------------------------
     // (gg): the roll already exists from attack time; the pass verdict keeps the hit, so the
     // release must end in a real application — the receipt is the proof, not the dice.
-    {
+    if (want('3')) {
       const { usageId, msg } = await plainHitOnGren();
       const held = await waitFor(() => {
         const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
@@ -563,7 +591,7 @@ const r = await f.evaluate(async () => {
     }
 
     // ---- 4. reaction already spent ⇒ no hold at all -----------------------------------------
-    {
+    if (want('4')) {
       await gren.setFlag(MOD, 'reactionSpent', true);
       const { usageId, msg, total } = await plainHitOnGren();
       await sleep(2500);
@@ -580,7 +608,7 @@ const r = await f.evaluate(async () => {
     // re-prompted with his +5 already active — a choice that changes nothing. Deliberately
     // independent of reactionSpent and of combat rounds: the walk reproduced it OUT of
     // combat, where reactionSpent is never set at all.
-    {
+    if (want('4a2')) {
       await gren.unsetFlag(MOD, 'reactionSpent');
       const shieldItem = gren.items.find(i => (i.name.toLowerCase() === 'shield')
         && i.effects.size);
@@ -612,7 +640,7 @@ const r = await f.evaluate(async () => {
     // production chain runs for real — cast → module applies the effect → AC moves → the
     // hold re-tests against it. This is the path that was silently broken until now, because
     // Shield's +5 lives in an effect nobody had pressed.
-    {
+    if (want('4b')) {
       const { actor: victimActor, token: victimTokenObj } = await ensureShielder();
       const vAC = victimActor.system.attributes.ac.value;
 
@@ -689,7 +717,7 @@ const r = await f.evaluate(async () => {
     // covers both. The cast used to spawn its work per hold, concurrently, so each application
     // read the actor's effects before any other had written one and each created its own —
     // +10 AC from a single casting. Deterministic here: stamp exactly two holds, cast once.
-    {
+    if (want('4b2')) {
       const { actor: victimActor, token: victimTokenObj } = await ensureShielder();
       const vAC = victimActor.system.attributes.ac.value;
       const slotsBefore = victimActor.system.spells.spell1.value;
@@ -739,7 +767,7 @@ const r = await f.evaluate(async () => {
     // his effect, and the module announced "Shield raises AC to 12" and dealt damage. Here
     // the answer is written WITHOUT any effect, so only the continuing client's safety net
     // can save it: it must land the effect itself and reach a miss.
-    {
+    if (want('4c')) {
       const { actor: victimActor, token: victimTokenObj } = await ensureShielder();
       const vAC = victimActor.system.attributes.ac.value;
 
@@ -784,7 +812,7 @@ const r = await f.evaluate(async () => {
     // interrupt list on name alone, so every shield-carrying monster in the world held the
     // chain for a spell it cannot cast — "Hobgoblin — Shield?" on a creature with no spells at
     // all (reported live 2026-08-15). Eleven such items existed in the world at the time.
-    {
+    if (want('4d')) {
       const victimBase = game.actors.getName('BF Test Victim');
       const vTokDoc = victimBase ? scene.tokens.find(t => t.actorId === victimBase.id) : null;
       if (!vTokDoc) throw new Error('BF Test Victim has no token — run smoke-battleflow.mjs first');
@@ -823,7 +851,7 @@ const r = await f.evaluate(async () => {
     // slot — NPC slot maxima derive from a caster level most statblocks never set, so they sit
     // at 0/0. Eligibility used to demand a slot AND `prepared`, and every levelled spell on a
     // 2024 NPC reads prepared: 0, so the entire monster side of this feature was dead.
-    {
+    if (want('4d2')) {
       const victimBase = game.actors.getName('BF Test Victim');
       const vTokDoc = scene.tokens.find(t => t.actorId === victimBase.id);
       const vActor = vTokDoc.actor;    // unlinked: build on the TOKEN actor or lose the pieces
@@ -884,7 +912,7 @@ const r = await f.evaluate(async () => {
     // work and was verified only by hand. Everything here is one chain: hold → the recorded
     // ids → the real Cast control → the activity's own use spent → the linked spell's effect →
     // the verdict.
-    {
+    if (want('4d3')) {
       const { actor: npc, token: npcToken, feature, castId } = await ensureCastStatblock();
       const vAC = npc.system.attributes.ac.value;
       const slotsBefore = JSON.stringify(npc.system.spells ?? {});
@@ -965,7 +993,7 @@ const r = await f.evaluate(async () => {
     // Inverted from the spell-item rule and easy to break: on a cast activity an empty `uses`
     // means the monster can do it all day, not that it is out of charges. The Green Hag carries
     // two spells exactly like this.
-    {
+    if (want('4d4')) {
       const { actor: npc, token: npcToken, feature, castId } = await ensureCastStatblock({ atWill: true });
       const vAC = npc.system.attributes.ac.value;
       const pool = npc.items.get(feature.id).system.activities.get(castId);
@@ -1009,7 +1037,7 @@ const r = await f.evaluate(async () => {
     // That seam (HANDOFF open item 6) stays untested until someone dogfoods it from a player's
     // browser. What IS covered here: the mode gate, the stamp, the answer and the verdict on an
     // attack whose attacker is a character.
-    {
+    if (want('4d5')) {
       const pcAttacker = game.actors.getName('BF Test PC Attacker');
       if (!pcAttacker) throw new Error('BF Test PC Attacker missing — run smoke-battleflow.mjs first');
       const pcWeapon = pcAttacker.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
@@ -1084,7 +1112,7 @@ const r = await f.evaluate(async () => {
     //
     // ⚠ This section exists because every other statblock section uses `natural` and therefore
     // could never have caught it: the suite was green while the table was broken.
-    {
+    if (want('4d6')) {
       const { actor: npc, token: npcToken } = await ensureCastStatblock({ flatAC: true });
       const vAC = npc.system.attributes.ac.value;
       const atk = await attackIntoFlipWindow(activity, npcToken, vAC);
@@ -1119,7 +1147,7 @@ const r = await f.evaluate(async () => {
     }
 
     // ---- 4e. THE TIMER: an unanswered hold passes itself ------------------------------------
-    {
+    if (want('4e')) {
       await game.settings.set(MOD, 'holdTimer', 4);
       const { usageId, msg } = await plainHitOnGren({ window: true });
       const pending = await waitFor(() => {
@@ -1147,7 +1175,7 @@ const r = await f.evaluate(async () => {
     // A reaction that cannot change the outcome is a false stop. Gated on reveal: with the
     // math hidden, a prompt that never appears would itself leak that the attack beat their
     // AC by more than the reaction could add.
-    {
+    if (want('4f')) {
       await game.settings.set(MOD, 'holdReveal', true);
       await game.settings.set(MOD, 'holdSkipFutile', true);
       // Shield adds +5, so anything at or past AC+5 is hopeless. Find one.
@@ -1193,7 +1221,7 @@ const r = await f.evaluate(async () => {
     }
 
     // ---- 5. a natural 20 skips an AC-type hold (no AC saves you from a crit) ----------------
-    {
+    if (want('5')) {
       let crit = null;
       for (let i = 0; i < 60 && !crit; i++) {
         const a = await attackGren({ advantage: true });
@@ -1223,7 +1251,7 @@ const r = await f.evaluate(async () => {
     // applied exactly as the native tray applies it, and the shielded target's HP must not
     // move. Everything before it only proves the module talked about a block; only applying
     // real damage proves there was one.
-    {
+    if (want('6')) {
       const MM_UUID = 'Compendium.dnd-players-handbook.spells.Item.phbsplMagicMissi';
 
       // ⚠ Cast with NO slot cost. An NPC's spell-slot maxima are DERIVED from a caster level
@@ -1520,183 +1548,217 @@ const r = await f.evaluate(async () => {
       console.error('cleanup failed', cleanupErr);
     }
   }
-}, null);
+}, { sections: plan });
 
 if (!r.ok) {
   console.error(`[hold] SETUP/RUN FAILED — ${r.why}`);
   process.exit(1);
 }
 const x = r.results;
-report('hit on a Shield holder stamps a pending hold',
-  x.holdFired?.pending && x.holdFired?.reaction === 'Shield' && x.holdFired?.kind === 'ac',
-  JSON.stringify(x.holdFired));
-report('(gg) held attack rolls its damage IMMEDIATELY, born claimed and unapplied',
-  x.holdFired?.rolledWhileHeld === true && x.holdFired?.dmg?.pending === true
-  && x.holdFired?.claimNamesAttack === true && x.holdFired?.dmg?.applied === false,
-  JSON.stringify({ dmg: x.holdFired?.dmg, whileHeld: x.holdFired?.rolledWhileHeld,
-    names: x.holdFired?.claimNamesAttack }));
-report('cast → live-AC re-test turns the hit into a miss',
-  x.castResolves?.resolved && x.castResolves?.verdict === 'miss',
-  JSON.stringify(x.castResolves));
-report('(gg) a Shield-flipped miss releases the claim and the dice do NOTHING — no receipt, no HP',
-  x.castResolves?.released === true && x.castResolves?.dmg?.pending === false
-  && x.castResolves?.dmg?.applied === false && x.castResolves?.hpUnchanged === true,
-  JSON.stringify({ released: x.castResolves?.released, dmg: x.castResolves?.dmg,
-    hpUnchanged: x.castResolves?.hpUnchanged }));
-report('(gg) pass → the release ends in a real application (receipt on the roll)',
-  x.passProceeds?.held && x.passProceeds?.damageRolled
-  && x.passProceeds?.released === true && x.passProceeds?.applied === true,
-  JSON.stringify(x.passProceeds));
-report('reaction already spent ⇒ no hold, damage flows',
-  x.spentSuppresses?.held === false && x.spentSuppresses?.damageRolled === true,
-  JSON.stringify(x.spentSuppresses));
-// v1.15.0 walk finding ⑥. The hadSource/effectUp fields are part of the assertion, not
-// decoration: without them a fixture that never got the effect up would "pass" by proving
-// nothing at all — the 0-HP trap this suite already learned once.
-report('an AC reaction ALREADY STANDING ⇒ no hold, damage flows (finding ⑥)',
-  x.standingSuppresses?.hadSource === true && x.standingSuppresses?.effectUp === true
-  && x.standingSuppresses?.held === false && x.standingSuppresses?.damageRolled === true,
-  JSON.stringify(x.standingSuppresses));
-report('REAL cast: the reaction answers its own hold', x.realCast?.pending && x.realCast?.answered === 'cast',
-  `pending=${x.realCast?.pending}, answer=${x.realCast?.answered}, via card button=${x.realCast?.usedCardButton}`);
-report('REAL cast: the Cast control actually spends the slot (it is a cast, not a vote)',
-  x.realCast?.slotsAfter === x.realCast?.slotsBefore - 1,
-  `slots ${x.realCast?.slotsBefore} → ${x.realCast?.slotsAfter}`);
-report("REAL cast: the module lands the reaction's effect and AC moves +5",
-  x.realCast?.effectApplied === true && x.realCast?.acAfter === x.realCast?.acBefore + 5,
-  `AC ${x.realCast?.acBefore} → ${x.realCast?.acAfter}, effect applied: ${x.realCast?.effectApplied}`);
-report("REAL cast: the reaction's effect leaves exactly ONE receipt, live and marked (v1.8.0)",
-  x.realCast?.effectReceipt?.present === true
-    && x.realCast?.effectReceipt?.messages === 1
-    && x.realCast?.effectReceipt?.name === 'Imperceptible Barrier'
-    && x.realCast?.effectReceipt?.live === true
-    && x.realCast?.effectReceipt?.marked === true,
-  JSON.stringify(x.realCast?.effectReceipt));
-report('STATBLOCK: a feature\'s cast activity holds the chain',
-  x.statblockCast?.pending === true && x.statblockCast?.reaction === 'Shield',
-  `pending=${x.statblockCast?.pending}, reaction=${x.statblockCast?.reaction}`);
-report('STATBLOCK: the hold records the feature id AND the cast activity id',
-  x.statblockCast?.itemIdOK === true && x.statblockCast?.activityIdOK === true,
-  `recorded ${x.statblockCast?.recorded}, expected ${x.statblockCast?.expected}`);
-report('STATBLOCK: the Cast control spends the ACTIVITY\'s use, never a spell slot',
-  x.statblockCast?.answered === 'cast' && x.statblockCast?.usesSpent === 1
-  && x.statblockCast?.slotsUnchanged === true,
-  `answer=${x.statblockCast?.answered}, uses ${x.statblockCast?.usesLabel}, `
-  + `slots unchanged: ${x.statblockCast?.slotsUnchanged}`);
-report('STATBLOCK: the effect lands from the LINKED spell and AC moves +5',
-  x.statblockCast?.effectApplied === true
-  && x.statblockCast?.acAfter === x.statblockCast?.acBefore + 5,
-  `AC ${x.statblockCast?.acBefore} → ${x.statblockCast?.acAfter}, effect: ${x.statblockCast?.effectApplied}`);
-report('STATBLOCK: the verdict flips the hit to a miss and the released dice apply to nobody',
-  x.statblockCast?.verdict === 'miss' && x.statblockCast?.dmg?.rolled === true
-  && x.statblockCast?.dmg?.pending === false && x.statblockCast?.dmg?.applied === false,
-  JSON.stringify(x.statblockCast));
-report('STATBLOCK: the table is told the reaction WORKED, not that it never applied',
-  x.statblockCast?.announced === 'worked',
-  `announced: ${x.statblockCast?.announced}`);
-report('the hold offers ONE decision and TWO controls, the same two a player gets',
-  x.statblockCast?.buttonShape === 'Cast/Pass',
-  `buttons: ${x.statblockCast?.buttonShape} (a GM-only third button is the regression)`);
-report('FLAT AC: the effect lands but the system ignores it, so the AC does not move',
-  x.flatAC?.held === true && x.flatAC?.effectLanded === true
-  && x.flatAC?.acAfter === x.flatAC?.acBefore && x.flatAC?.verdict === 'hit',
-  JSON.stringify(x.flatAC));
-report('FLAT AC: the card blames the fixed AC, not the reaction',
-  x.flatAC?.announced === 'flat-ac',
-  `announced: ${x.flatAC?.announced} (must not be the generic "not applied")`);
-report('STATBLOCK: an AT-WILL cast activity (no pool at all) still holds',
-  x.atWillCast?.held === true && x.atWillCast?.reaction === 'Shield'
-  && x.atWillCast?.usesMax === '' && x.atWillCast?.consumptionTargets === 0,
-  JSON.stringify(x.atWillCast));
-report('PC → MONSTER: a PC attack holds on the monster\'s reaction and resolves to a miss',
-  x.pcVsMonster?.attackerType === 'character' && x.pcVsMonster?.held === true
-  && x.pcVsMonster?.answered === 'cast' && x.pcVsMonster?.verdict === 'miss'
-  && x.pcVsMonster?.dmg?.rolled === true && x.pcVsMonster?.dmg?.applied === false,
-  JSON.stringify(x.pcVsMonster));
-report('PC → MONSTER: with auto-damage on NPCs only, a PC attack never holds',
-  x.pcVsMonster?.modeNpcHeld === false && x.pcVsMonster?.modeNpcDamage === false,
-  `held=${x.pcVsMonster?.modeNpcHeld}, damage=${x.pcVsMonster?.modeNpcDamage}`);
-report('an NPC holds a spell paid for by x/x uses, with no slots at all',
-  x.npcUsesSpell?.held === true && x.npcUsesSpell?.reaction === 'Shield',
-  JSON.stringify(x.npcUsesSpell));
-report('the timer passes an unanswered hold and the chain resolves',
-  x.timer?.hadDeadline === true && x.timer?.answer === 'pass'
-  && x.timer?.timedOut === true && x.timer?.damageRolled === true,
-  JSON.stringify(x.timer));
-report('a hopeless hold is skipped when the math is shown',
-  x.futile?.held === false && x.futile?.damageRolled === true,
-  JSON.stringify(x.futile));
-report('...but is still offered when the math is hidden (absence would leak it)',
-  x.futileHidden ? x.futileHidden.held === true : true,
-  x.futileHidden ? JSON.stringify(x.futileHidden) : 'no qualifying attack rolled — not exercised');
-report('a mundane shield (equipment, not a spell) never holds the chain',
-  x.mundaneShield?.held === false && x.mundaneShield?.damageRolled === true
-  && x.mundaneShield?.strayShieldSpell === false,
-  JSON.stringify(x.mundaneShield));
-report('ONE casting answers MANY holds and lands exactly ONE effect',
-  x.oneCastOneEffect?.effectCount === 1
-  && x.oneCastOneEffect?.acAfter === x.oneCastOneEffect?.acBefore + 5
-  && x.oneCastOneEffect?.slotsSpent === 1,
-  JSON.stringify(x.oneCastOneEffect));
-report('the second hold is answered by that same casting',
-  x.oneCastOneEffect?.secondAnswered === 'cast',
-  `second hold answer: ${x.oneCastOneEffect?.secondAnswered}`);
-report('REAL cast: the attack becomes a miss and the released dice apply to nobody',
-  x.realCast?.verdict === 'miss' && x.realCast?.dmg?.rolled === true
-  && x.realCast?.dmg?.pending === false && x.realCast?.dmg?.applied === false,
-  JSON.stringify(x.realCast));
-report('SAFETY NET: a cast whose client applied nothing still reaches a miss',
-  x.safetyNet?.verdict === 'miss' && x.safetyNet?.effectLanded === true
-    && x.safetyNet?.dmg?.rolled === true && x.safetyNet?.dmg?.applied === false,
-  JSON.stringify(x.safetyNet));
-report('MAGIC MISSILE: a spell usage stamps a negate hold on its own usage card',
-  x.missileNegated?.pending === true && x.missileNegated?.trigger === 'spell'
-  && x.missileNegated?.spell === 'Magic Missile' && x.missileNegated?.kind === 'negate'
-  && x.missileNegated?.reaction === 'Shield',
-  JSON.stringify(x.missileNegated));
-report('MAGIC MISSILE: the spell hold offers the same two controls an attack hold does',
-  x.missileNegated?.buttonShape === 'Cast/Pass',
-  `buttons: ${x.missileNegated?.buttonShape}`);
-report('MAGIC MISSILE: casting Shield answers the hold and the verdict is "negated"',
-  x.missileNegated?.answered === 'cast' && x.missileNegated?.verdict === 'negated',
-  `answer=${x.missileNegated?.answered}, verdict=${x.missileNegated?.verdict}`);
-report('MAGIC MISSILE: the reaction still lands its own +5 effect',
-  x.missileNegated?.effectApplied === true,
-  `effect applied: ${x.missileNegated?.effectApplied}`);
-// The one that matters: real damage, applied exactly as the tray applies it, must not land.
-// ⚠ hpBefore === hpMax is part of the assertion, not decoration. Without it a stand-in that
-// arrived at 0 HP satisfies "lost nothing" while proving nothing at all — which is exactly how
-// this passed on 2026-08-15 before ensureShielder learned to heal.
-report('MAGIC MISSILE: real damage is applied and the shielded target loses NOTHING',
-  x.missileNegated?.rolled > 0 && x.missileNegated?.hpBefore === x.missileNegated?.hpMax
-  && x.missileNegated?.hpAfter === x.missileNegated?.hpBefore,
-  `rolled ${x.missileNegated?.rolled}, HP ${x.missileNegated?.hpBefore} → `
-  + `${x.missileNegated?.hpAfter} (max ${x.missileNegated?.hpMax})`);
-report('MAGIC MISSILE: the table is told the spell did nothing',
-  x.missileNegated?.announced === true,
-  `announced: ${x.missileNegated?.announced}`);
-// hpBefore > rolled keeps the arithmetic honest: HP clamps at 0, so a target that cannot
-// absorb the whole roll would read as a partial hit and this would fail for the wrong reason.
-report('MAGIC MISSILE: passing lets the missiles land in full',
-  x.missilePassed?.pending === true && x.missilePassed?.verdict === 'hit'
-  && x.missilePassed?.rolled > 0 && x.missilePassed?.hpBefore > x.missilePassed?.rolled
-  && x.missilePassed?.hpAfter === x.missilePassed?.hpBefore - x.missilePassed?.rolled,
-  JSON.stringify(x.missilePassed));
-report('MAGIC MISSILE v1.10.0: the hold lives on the NATIVE card; the chained roll is claimed and defers while pending',
-  x.missileClaim?.held && x.missileClaim?.heldOnUsage
-  && x.missileClaim?.claimed && x.missileClaim?.pendingAtRoll
-  && x.missileClaim?.deferredHeld,
-  JSON.stringify(x.missileClaim));
-report('MAGIC MISSILE v1.10.0: the negated verdict releases the claim and the applier skips the shielded target',
-  (x.missileClaim?.pendingNow === false)
-  && x.missileClaim?.hpBefore === x.missileClaim?.hpMax
-  && x.missileClaim?.hpAfter === x.missileClaim?.hpBefore
-  && !x.missileClaim?.receipt,
-  JSON.stringify(x.missileClaim));
-report('MAGIC MISSILE: a target who merely WEARS a shield is never asked',
-  x.missileNoReaction?.skipped
-  || (x.missileNoReaction?.held === false && x.missileNoReaction?.knowsShieldSpell === false),
-  JSON.stringify(x.missileNoReaction));
+if (want('1')) {
+  report('hit on a Shield holder stamps a pending hold',
+    x.holdFired?.pending && x.holdFired?.reaction === 'Shield' && x.holdFired?.kind === 'ac',
+    JSON.stringify(x.holdFired));
+  report('(gg) held attack rolls its damage IMMEDIATELY, born claimed and unapplied',
+    x.holdFired?.rolledWhileHeld === true && x.holdFired?.dmg?.pending === true
+    && x.holdFired?.claimNamesAttack === true && x.holdFired?.dmg?.applied === false,
+    JSON.stringify({ dmg: x.holdFired?.dmg, whileHeld: x.holdFired?.rolledWhileHeld,
+      names: x.holdFired?.claimNamesAttack }));
+  report('cast → live-AC re-test turns the hit into a miss',
+    x.castResolves?.resolved && x.castResolves?.verdict === 'miss',
+    JSON.stringify(x.castResolves));
+  report('(gg) a Shield-flipped miss releases the claim and the dice do NOTHING — no receipt, no HP',
+    x.castResolves?.released === true && x.castResolves?.dmg?.pending === false
+    && x.castResolves?.dmg?.applied === false && x.castResolves?.hpUnchanged === true,
+    JSON.stringify({ released: x.castResolves?.released, dmg: x.castResolves?.dmg,
+      hpUnchanged: x.castResolves?.hpUnchanged }));
+}
+if (want('3')) {
+  report('(gg) pass → the release ends in a real application (receipt on the roll)',
+    x.passProceeds?.held && x.passProceeds?.damageRolled
+    && x.passProceeds?.released === true && x.passProceeds?.applied === true,
+    JSON.stringify(x.passProceeds));
+}
+if (want('4')) {
+  report('reaction already spent ⇒ no hold, damage flows',
+    x.spentSuppresses?.held === false && x.spentSuppresses?.damageRolled === true,
+    JSON.stringify(x.spentSuppresses));
+}
+if (want('4a2')) {
+  // v1.15.0 walk finding ⑥. The hadSource/effectUp fields are part of the assertion, not
+  // decoration: without them a fixture that never got the effect up would "pass" by proving
+  // nothing at all — the 0-HP trap this suite already learned once.
+  report('an AC reaction ALREADY STANDING ⇒ no hold, damage flows (finding ⑥)',
+    x.standingSuppresses?.hadSource === true && x.standingSuppresses?.effectUp === true
+    && x.standingSuppresses?.held === false && x.standingSuppresses?.damageRolled === true,
+    JSON.stringify(x.standingSuppresses));
+}
+if (want('4b')) {
+  report('REAL cast: the reaction answers its own hold', x.realCast?.pending && x.realCast?.answered === 'cast',
+    `pending=${x.realCast?.pending}, answer=${x.realCast?.answered}, via card button=${x.realCast?.usedCardButton}`);
+  report('REAL cast: the Cast control actually spends the slot (it is a cast, not a vote)',
+    x.realCast?.slotsAfter === x.realCast?.slotsBefore - 1,
+    `slots ${x.realCast?.slotsBefore} → ${x.realCast?.slotsAfter}`);
+  report("REAL cast: the module lands the reaction's effect and AC moves +5",
+    x.realCast?.effectApplied === true && x.realCast?.acAfter === x.realCast?.acBefore + 5,
+    `AC ${x.realCast?.acBefore} → ${x.realCast?.acAfter}, effect applied: ${x.realCast?.effectApplied}`);
+  report("REAL cast: the reaction's effect leaves exactly ONE receipt, live and marked (v1.8.0)",
+    x.realCast?.effectReceipt?.present === true
+      && x.realCast?.effectReceipt?.messages === 1
+      && x.realCast?.effectReceipt?.name === 'Imperceptible Barrier'
+      && x.realCast?.effectReceipt?.live === true
+      && x.realCast?.effectReceipt?.marked === true,
+    JSON.stringify(x.realCast?.effectReceipt));
+}
+if (want('4d3')) {
+  report('STATBLOCK: a feature\'s cast activity holds the chain',
+    x.statblockCast?.pending === true && x.statblockCast?.reaction === 'Shield',
+    `pending=${x.statblockCast?.pending}, reaction=${x.statblockCast?.reaction}`);
+  report('STATBLOCK: the hold records the feature id AND the cast activity id',
+    x.statblockCast?.itemIdOK === true && x.statblockCast?.activityIdOK === true,
+    `recorded ${x.statblockCast?.recorded}, expected ${x.statblockCast?.expected}`);
+  report('STATBLOCK: the Cast control spends the ACTIVITY\'s use, never a spell slot',
+    x.statblockCast?.answered === 'cast' && x.statblockCast?.usesSpent === 1
+    && x.statblockCast?.slotsUnchanged === true,
+    `answer=${x.statblockCast?.answered}, uses ${x.statblockCast?.usesLabel}, `
+    + `slots unchanged: ${x.statblockCast?.slotsUnchanged}`);
+  report('STATBLOCK: the effect lands from the LINKED spell and AC moves +5',
+    x.statblockCast?.effectApplied === true
+    && x.statblockCast?.acAfter === x.statblockCast?.acBefore + 5,
+    `AC ${x.statblockCast?.acBefore} → ${x.statblockCast?.acAfter}, effect: ${x.statblockCast?.effectApplied}`);
+  report('STATBLOCK: the verdict flips the hit to a miss and the released dice apply to nobody',
+    x.statblockCast?.verdict === 'miss' && x.statblockCast?.dmg?.rolled === true
+    && x.statblockCast?.dmg?.pending === false && x.statblockCast?.dmg?.applied === false,
+    JSON.stringify(x.statblockCast));
+  report('STATBLOCK: the table is told the reaction WORKED, not that it never applied',
+    x.statblockCast?.announced === 'worked',
+    `announced: ${x.statblockCast?.announced}`);
+  report('the hold offers ONE decision and TWO controls, the same two a player gets',
+    x.statblockCast?.buttonShape === 'Cast/Pass',
+    `buttons: ${x.statblockCast?.buttonShape} (a GM-only third button is the regression)`);
+}
+if (want('4d6')) {
+  report('FLAT AC: the effect lands but the system ignores it, so the AC does not move',
+    x.flatAC?.held === true && x.flatAC?.effectLanded === true
+    && x.flatAC?.acAfter === x.flatAC?.acBefore && x.flatAC?.verdict === 'hit',
+    JSON.stringify(x.flatAC));
+  report('FLAT AC: the card blames the fixed AC, not the reaction',
+    x.flatAC?.announced === 'flat-ac',
+    `announced: ${x.flatAC?.announced} (must not be the generic "not applied")`);
+}
+if (want('4d4')) {
+  report('STATBLOCK: an AT-WILL cast activity (no pool at all) still holds',
+    x.atWillCast?.held === true && x.atWillCast?.reaction === 'Shield'
+    && x.atWillCast?.usesMax === '' && x.atWillCast?.consumptionTargets === 0,
+    JSON.stringify(x.atWillCast));
+}
+if (want('4d5')) {
+  report('PC → MONSTER: a PC attack holds on the monster\'s reaction and resolves to a miss',
+    x.pcVsMonster?.attackerType === 'character' && x.pcVsMonster?.held === true
+    && x.pcVsMonster?.answered === 'cast' && x.pcVsMonster?.verdict === 'miss'
+    && x.pcVsMonster?.dmg?.rolled === true && x.pcVsMonster?.dmg?.applied === false,
+    JSON.stringify(x.pcVsMonster));
+  report('PC → MONSTER: with auto-damage on NPCs only, a PC attack never holds',
+    x.pcVsMonster?.modeNpcHeld === false && x.pcVsMonster?.modeNpcDamage === false,
+    `held=${x.pcVsMonster?.modeNpcHeld}, damage=${x.pcVsMonster?.modeNpcDamage}`);
+}
+if (want('4d2')) {
+  report('an NPC holds a spell paid for by x/x uses, with no slots at all',
+    x.npcUsesSpell?.held === true && x.npcUsesSpell?.reaction === 'Shield',
+    JSON.stringify(x.npcUsesSpell));
+}
+if (want('4e')) {
+  report('the timer passes an unanswered hold and the chain resolves',
+    x.timer?.hadDeadline === true && x.timer?.answer === 'pass'
+    && x.timer?.timedOut === true && x.timer?.damageRolled === true,
+    JSON.stringify(x.timer));
+}
+if (want('4f')) {
+  report('a hopeless hold is skipped when the math is shown',
+    x.futile?.held === false && x.futile?.damageRolled === true,
+    JSON.stringify(x.futile));
+  report('...but is still offered when the math is hidden (absence would leak it)',
+    x.futileHidden ? x.futileHidden.held === true : true,
+    x.futileHidden ? JSON.stringify(x.futileHidden) : 'no qualifying attack rolled — not exercised');
+}
+if (want('4d')) {
+  report('a mundane shield (equipment, not a spell) never holds the chain',
+    x.mundaneShield?.held === false && x.mundaneShield?.damageRolled === true
+    && x.mundaneShield?.strayShieldSpell === false,
+    JSON.stringify(x.mundaneShield));
+}
+if (want('4b2')) {
+  report('ONE casting answers MANY holds and lands exactly ONE effect',
+    x.oneCastOneEffect?.effectCount === 1
+    && x.oneCastOneEffect?.acAfter === x.oneCastOneEffect?.acBefore + 5
+    && x.oneCastOneEffect?.slotsSpent === 1,
+    JSON.stringify(x.oneCastOneEffect));
+  report('the second hold is answered by that same casting',
+    x.oneCastOneEffect?.secondAnswered === 'cast',
+    `second hold answer: ${x.oneCastOneEffect?.secondAnswered}`);
+}
+if (want('4b')) {
+  report('REAL cast: the attack becomes a miss and the released dice apply to nobody',
+    x.realCast?.verdict === 'miss' && x.realCast?.dmg?.rolled === true
+    && x.realCast?.dmg?.pending === false && x.realCast?.dmg?.applied === false,
+    JSON.stringify(x.realCast));
+}
+if (want('4c')) {
+  report('SAFETY NET: a cast whose client applied nothing still reaches a miss',
+    x.safetyNet?.verdict === 'miss' && x.safetyNet?.effectLanded === true
+      && x.safetyNet?.dmg?.rolled === true && x.safetyNet?.dmg?.applied === false,
+    JSON.stringify(x.safetyNet));
+}
+if (want('6')) {
+  report('MAGIC MISSILE: a spell usage stamps a negate hold on its own usage card',
+    x.missileNegated?.pending === true && x.missileNegated?.trigger === 'spell'
+    && x.missileNegated?.spell === 'Magic Missile' && x.missileNegated?.kind === 'negate'
+    && x.missileNegated?.reaction === 'Shield',
+    JSON.stringify(x.missileNegated));
+  report('MAGIC MISSILE: the spell hold offers the same two controls an attack hold does',
+    x.missileNegated?.buttonShape === 'Cast/Pass',
+    `buttons: ${x.missileNegated?.buttonShape}`);
+  report('MAGIC MISSILE: casting Shield answers the hold and the verdict is "negated"',
+    x.missileNegated?.answered === 'cast' && x.missileNegated?.verdict === 'negated',
+    `answer=${x.missileNegated?.answered}, verdict=${x.missileNegated?.verdict}`);
+  report('MAGIC MISSILE: the reaction still lands its own +5 effect',
+    x.missileNegated?.effectApplied === true,
+    `effect applied: ${x.missileNegated?.effectApplied}`);
+  // The one that matters: real damage, applied exactly as the tray applies it, must not land.
+  // ⚠ hpBefore === hpMax is part of the assertion, not decoration. Without it a stand-in that
+  // arrived at 0 HP satisfies "lost nothing" while proving nothing at all — which is exactly how
+  // this passed on 2026-08-15 before ensureShielder learned to heal.
+  report('MAGIC MISSILE: real damage is applied and the shielded target loses NOTHING',
+    x.missileNegated?.rolled > 0 && x.missileNegated?.hpBefore === x.missileNegated?.hpMax
+    && x.missileNegated?.hpAfter === x.missileNegated?.hpBefore,
+    `rolled ${x.missileNegated?.rolled}, HP ${x.missileNegated?.hpBefore} → `
+    + `${x.missileNegated?.hpAfter} (max ${x.missileNegated?.hpMax})`);
+  report('MAGIC MISSILE: the table is told the spell did nothing',
+    x.missileNegated?.announced === true,
+    `announced: ${x.missileNegated?.announced}`);
+  // hpBefore > rolled keeps the arithmetic honest: HP clamps at 0, so a target that cannot
+  // absorb the whole roll would read as a partial hit and this would fail for the wrong reason.
+  report('MAGIC MISSILE: passing lets the missiles land in full',
+    x.missilePassed?.pending === true && x.missilePassed?.verdict === 'hit'
+    && x.missilePassed?.rolled > 0 && x.missilePassed?.hpBefore > x.missilePassed?.rolled
+    && x.missilePassed?.hpAfter === x.missilePassed?.hpBefore - x.missilePassed?.rolled,
+    JSON.stringify(x.missilePassed));
+  report('MAGIC MISSILE v1.10.0: the hold lives on the NATIVE card; the chained roll is claimed and defers while pending',
+    x.missileClaim?.held && x.missileClaim?.heldOnUsage
+    && x.missileClaim?.claimed && x.missileClaim?.pendingAtRoll
+    && x.missileClaim?.deferredHeld,
+    JSON.stringify(x.missileClaim));
+  report('MAGIC MISSILE v1.10.0: the negated verdict releases the claim and the applier skips the shielded target',
+    (x.missileClaim?.pendingNow === false)
+    && x.missileClaim?.hpBefore === x.missileClaim?.hpMax
+    && x.missileClaim?.hpAfter === x.missileClaim?.hpBefore
+    && !x.missileClaim?.receipt,
+    JSON.stringify(x.missileClaim));
+  report('MAGIC MISSILE: a target who merely WEARS a shield is never asked',
+    x.missileNoReaction?.skipped
+    || (x.missileNoReaction?.held === false && x.missileNoReaction?.knowsShieldSpell === false),
+    JSON.stringify(x.missileNoReaction));
+}
 if (x.critSkipsHold?.rolled) {
   report('a natural 20 skips the AC-type hold',
     x.critSkipsHold.held === false && x.critSkipsHold.damageRolled === true,
@@ -1707,6 +1769,12 @@ if (x.critSkipsHold?.rolled) {
 if (r.log?.length) console.log(`\n[hold] discarded rolls: ${r.log.length}`);
 if (failures && x.diag) console.log(`\n[hold] diagnostics:\n${JSON.stringify(x.diag, null, 2)}`);
 
-console.log(failures ? `\n[hold] ${failures} FAILURE(S)` : '\n[hold] ALL PASS');
+// ⚠ The summary strings stay verbatim: "ALL PASS" and "N FAILURE(S)" are what the handoff,
+// the notes and two undiagnosed flake reports all quote. A partial run is stamped instead.
+const partial = plan ? `  ⚠ PARTIAL RUN — sections ${plan.join(', ')} only` : '';
+for (const id of Object.keys(SECTIONS)) {
+  if (plan && !plan.includes(String(id))) console.log(`  SKIP §${id} ${SECTIONS[id]}`);
+}
+console.log(failures ? `\n[hold] ${failures} FAILURE(S)${partial}` : `\n[hold] ALL PASS${partial}`);
 await f.disconnect?.();
 process.exit(failures ? 1 : 0);

@@ -14,14 +14,18 @@
 //   4. Every list-setting DEFAULT parses clean under its own strict parser — a typo in a
 //      shipped default silently disables the feature for every fresh world, and today that is
 //      discovered by a player.
-//   5. THE R4 TRIPWIRE (DESIGN.md R4): the kinds the code knows are printed as a table and
+//   5. THE SOURCE-FILE COUNT — the last hand-carried number in this tree. It has been wrong
+//      twice (published as 20, then 26, while the truth was neither), because every doc that
+//      quotes it copies the previous doc. Asserted here so the docs have something to be wrong
+//      ABOUT, and so adding a file is a deliberate one-line change rather than a slow drift.
+//   6. THE R4 TRIPWIRE (DESIGN.md R4): the kinds the code knows are printed as a table and
 //      their total is PINNED. Adding a kind fails this check until someone changes the pin on
 //      purpose — which is the whole point. R4's abandonment condition is "new kinds arriving
 //      faster than one per phase"; it was unmeasurable until the count existed, so it could
 //      never fire. This is not a rule against new kinds. It is a rule against unnoticed ones.
 //
 //   node tools/check-registry.mjs
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { KIND_SETS, LIST_SPECS, MASTERY_KINDS, VOLLEY_KINDS, parseList } from "../scripts/decide/registry.js";
@@ -159,6 +163,24 @@ const rows = KIND_SETS.map(set => {
   return [set.name, String(set.kinds.size), set.system ? `of ${set.system} (system)` : "module-owned",
     [...set.kinds].join(" · ")];
 });
+
+/* --- the source-file count, pinned ------------------------------------------------------ */
+
+// ⚠ 27 is `scripts/*.js` + `scripts/decide/*.js`, and it is quoted by name in ARCHITECTURE.md,
+// HANDOFF.md and check-comments' own output. Bump it deliberately when a file is added, the
+// same way EXPECTED_KINDS moves — the refusal is the feature.
+const EXPECTED_SOURCE_FILES = 27;
+const sourceFiles = [
+  ...readdirSync(join(ROOT, "scripts")).filter(f => f.endsWith(".js")),
+  ...readdirSync(join(ROOT, "scripts/decide")).filter(f => f.endsWith(".js")).map(f => `decide/${f}`)
+];
+if (sourceFiles.length !== EXPECTED_SOURCE_FILES) {
+  fail("source-file count", `scripts/ holds ${sourceFiles.length} modules, the pin says `
+    + `${EXPECTED_SOURCE_FILES} — if a file was added or removed on purpose, move `
+    + "EXPECTED_SOURCE_FILES in this file and fix every doc that quotes the old number");
+} else {
+  pass(`source-file count: ${sourceFiles.length} modules under scripts/, matching the pin`);
+}
 
 if (kindTotal !== EXPECTED_KINDS) {
   fail("R4 tripwire", `the code knows ${kindTotal} kinds, the pin says ${EXPECTED_KINDS} — `

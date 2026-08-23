@@ -22,10 +22,10 @@ it a shape it already almost has, and to make the shape checkable.
 | Docs | 5,990 lines / 6 files | **1,060 / 4** ✅ | done |
 | Source | 9,845 lines / 20 files | 10,449 / **27** | ~9,000 / ~26 files (thinner files, more of them) |
 | Tools | 14,409 lines / 63 files | **~9,600 / 25** ✅ | ~7,000 / ~25 files |
-| Static checks | 1 (hook order) | **6** ✅ (lint, dead-code, **import integrity**, hook order, registry integrity, doc attachment) | + type check |
-| Unit tests | 0 | **170, ~270 ms** ✅ | ~150 assertions, < 2 seconds, no Foundry |
-| Lint findings | (unmeasured) | 0 errors / 98 warnings | 0 / 0 |
-| Live suites | 11 suites, ~8,500 lines, minutes each, run one at a time | unchanged | ~4,000 lines, section-filterable, disposable world |
+| Static checks | 1 (hook order) | **7** ✅ (lint, dead-code, **import integrity**, hook order, registry integrity, **manifest in-step**, doc attachment) | + type check |
+| Unit tests | 0 | **184, ~270 ms** ✅ | ~150 assertions, < 2 seconds, no Foundry |
+| Lint findings | (unmeasured) | 0 errors / **95** warnings (98 before the three probes retired) | 0 / 0 |
+| Live suites | 11 suites, ~8,500 lines, minutes each, run one at a time | **11 suites, every one section-filterable** ✅; one shared harness; `battery.mjs` runs them in order and captures each to a file | ~4,000 lines, section-filterable, disposable world |
 
 ---
 
@@ -66,7 +66,7 @@ So: tooling that reads the source without changing what ships.
 
 ```
 npm run verify   =   biome check  →  knip  →  imports  →  hook-order  →  registry-integrity
-                     →  comments  →  vitest
+                     →  manifest  →  comments  →  vitest
 ```
 
 All of it offline, all of it in seconds. This is what runs before a commit and before a
@@ -91,10 +91,11 @@ release. The live suites are **not** in it (§5).
 
 ### 0.3 Release hygiene
 
-- [ ] `build-release.ps1` keeps its backslash assertion (NOTES §5 — it is the whole point) and
-      gains a **`verify` precondition**: no release from a tree that fails the gate.
-- [ ] Version bump becomes a script rather than a hand-edit of `module.json` — NOTES already
-      records two ways hand-editing that file has corrupted it.
+- [x] `build-release.ps1` keeps its backslash assertion (NOTES §5 — it is the whole point) and
+      gained a **`verify` precondition** 2026-08-23: it runs the gate and `bump-version --check`
+      before it packs anything, with **no skip flag** — see FOUNDATION 2.1.
+- [x] Version bump is a script: [tools/bump-version.mjs](tools/bump-version.mjs), which moves
+      **both** manifest fields and whose `--check` is the gate's seventh static check.
 
 ---
 
@@ -118,9 +119,14 @@ all** — the question is only what stays in the working tree.
       `probe-preroll-parts`, `probe-drive-attack`, `probe-maneuvers`, `probe-potion-aim`,
       `probe-potion-selfaim`, `probe-target-block`, `probe-temp-hp-card`, `probe-volley2`,
       `probe-volley3`, `probe-player-seam`.
-- [ ] **Promote to suite sections** — these assert live behaviour that nothing else covers:
-      `probe-player-damage` (12 assertions, the crit-flag decoy pin) → `smoke-battleflow`;
-      `probe-save-damage-popup` → `smoke-saves`; `probe-volley-resources` → `smoke-volleys`.
+- [x] **Promoted to suite sections, 2026-08-23 — two of the three.** `probe-player-damage`
+      (the crit-flag decoy pin) is **smoke-battleflow §5d**; `probe-save-damage-popup` is
+      **smoke-saves §18**. Both moved verbatim, each keeping its own page context because both
+      are self-contained. ⚠ **`probe-volley-resources` was RETIRED instead, and this row was
+      wrong about it:** it has no assertions at all — a bedrock forensic that prints JSON and
+      exits 0, answering V1–V4/R1–R2, every one of which the volley registry and the resource
+      notice closed when they shipped. There was no section to promote it to. It belongs in the
+      first bullet, and git keeps it.
 - [x] **Promoted to standing checks** — renamed and reframed, because these are contracts,
       not closed bugs: `probe-mastery-rules` → **`check-mastery-rules.mjs`** (the verbatim rule
       text still matches the system's own journal — ARCHITECTURE §5 law 8) and
@@ -360,17 +366,23 @@ stubbed `applyDamage` asserts the stub.
 Kept, because they are the only thing that can catch what actually breaks this module. Made
 cheaper:
 
-- [ ] **Extract the harness.** The same ~20 lines of env-loading and connection boilerplate is
-      copy-pasted into all 44 tool files. One `tools/harness.mjs`.
-- [ ] **Inject shared page helpers.** Every suite runs one giant `f.evaluate()` closure with no
-      imports available inside the page, so every suite re-implements fixture setup, teardown,
-      polling and assertion plumbing. That is *the* reason `smoke-hold.mjs` is 1,712 lines. A
-      small serialized helper bundle injected into the page cuts every suite roughly in half.
-- [ ] **Section filtering** — `node tools/smoke-saves.mjs --section 8`. Today a one-line change
-      to template containment costs a full 1,485-line suite run.
+- [x] **Extract the harness — DONE 2026-08-23.** [tools/harness.mjs](tools/harness.mjs): env,
+      watchdog, connect, preflight, the section plan, one reporter — and the **suite lock**, the
+      guard `preflightSoleGM` structurally cannot be (it counts users, not sockets, so two suites
+      on one account are invisible to it; that collision happened for real during this stage).
+- [ ] **Inject shared page helpers — DEFERRED, with a finding.** The `f.evaluate()` closure has
+      no imports, so a helper it needs must travel as source or as data. The section plan travels
+      as **data** and costs three lines per suite, which is the cheap half of this idea. ⚠ The
+      expensive half looks better than it is: what makes `smoke-hold.mjs` 1,700 lines is its
+      **scenarios**, not its helpers — the sixteen scenario blocks are 1,000 of those lines and
+      no bundle touches them. "Cuts every suite roughly in half" was an estimate nobody had
+      measured. Re-measure before attempting it.
+- [x] **Section filtering — DONE 2026-08-23**, every live suite. See FOUNDATION 1.1/1.2.
 - [ ] **Move the pure assertions down to Tier 1** and delete them from the suites. Each suite
       keeps only what needs a live world: hooks firing, dnd5e behaving, clients routing, DOM
-      rendering, flags replicating.
+      rendering, flags replicating. ⚠ **The rule is now written down** (ARCHITECTURE §11, "Adding
+      a TEST"), so this stops being a backlog item for NEW assertions; what is left is a sweep of
+      the existing ones, and it is not scheduled.
 
 ### Tier 2's real problem is the world, not the tests
 
@@ -388,9 +400,16 @@ configuration.**
       restore, and all 145 actors survived. The copy is **0.054 s** (24 MB of LevelDB; the
       world's other 444 MB is assets, which no suite writes). The ~75 s round trip is entirely
       the world bounce either side.
-- [ ] **Simplify the suites to exploit it** — this is the part still outstanding, and it is
-      where the payoff is. Teardown correctness, settings restore, the crash-launder hazard and
-      canonical-id-only fixtures can all come out once the world is disposable.
+- [x] **Wired in at BATTERY level, not per suite — 2026-08-23.** `node tools/battery.mjs
+      --snapshot` takes the snapshot before the first suite and rolls back after the last, so a
+      crash mid-teardown is undone by construction for the run where laundering actually bites.
+      ⚠ **Per-suite rollback was considered and rejected on measurement:** the round trip is
+      ~75s of world bounce, which is more than every `sleep()` in the tree put together.
+- [ ] **Simplify the suites to exploit it** — still outstanding, and now clearly SECOND to the
+      wiring above. ⚠ **And it is no longer obviously worth doing:** the teardowns are what let
+      a single suite (or a single `--section`) run alone without a 75-second bounce either side,
+      which is the workflow the whole of Stage 1 was built to make normal. Deleting them would
+      buy tidier suites and cost the fast path. **Decide before doing.**
 
 ---
 
@@ -420,51 +439,110 @@ The only action for Tier 2 is DOCS: mark them settled so they stop reading as op
 
 ---
 
-### STAGE 1 — testing speed and structure
+### STAGE 1 — testing speed and structure — ✅ DONE 2026-08-23
 
-⚠ **The honest ceiling, so nobody expects more.** Removing every `sleep()` recovers about **four
-minutes**. The slowest suite is **2m27s of which only 13s is sleeping** — the rest is real
-serial Foundry work (real dice, real messages, real DOM) and cannot go without making the test
-fake. **The win is not "a fast battery"; it is "you rarely need to run one."**
+⚠ **The honest ceiling was itself optimistic, and the measurement is now in.** The plan expected
+to recover ~4 minutes by removing `sleep()`. **It cannot be recovered, and the reason is worth
+more than the minutes were:** of the 213s of unconditional sleeping left across the suites,
+**73s sits under an assertion that something did NOT happen.** You cannot wait for a thing not
+to occur, so those sleeps are load-bearing — shortening one weakens the assertion above it, and
+`smoke-hold`'s two are explicitly commented *"give a (wrong) premature application time to stamp
+its receipt."* **What was convertible has been converted; what is left is deliberate.**
 
-- [ ] **1.1 One section convention + `--section N`.** ⚠ Measured: the marker shape is already
-      THREE things (`§N` in volleys/resources, `// ==== N. title` banners in saves/effects) and
-      **`smoke-hold` — 1,713 lines, 43 assertions — has no section structure at all.**
-      `smoke-maneuvers` is the cheap case: 23 bare `{ }` blocks already scope its groups, so the
-      gate is one line per section with no re-indentation. Rule: **setup and teardown ALWAYS
-      run; only assertion blocks are skippable.**
-- [ ] **1.2 Section filtering, suite by suite, slowest first** — maneuvers (2m27s), hold
-      (sections must be INVENTED), saves, effects, volleys, resources, then the rest. Verify per
-      suite: the full run stays green AND a single-section run emits only that section.
-- [ ] **1.3 `sleep()` → conditional wait.** **241 seconds** of unconditional sleeping across the
-      twelve live suites, measured 2026-08-23. Technique proven on smoke-volleys (82s → 72s,
-      eight sites). ⚠ **The trap found doing it:** waiting for a ray ATTACK is not waiting for
-      its DAMAGE — convert the wait to the thing the NEXT ASSERTION READS, or the snapshot
-      races the pipeline and the suite fails for a reason that is not the code.
-- [ ] **1.4 Shared harness + page helpers + the disposable world, in ONE pass per suite.**
-      `tools/harness.mjs` for the ~20 lines of env/connection boilerplate copy-pasted into 44
-      files; a serialized helper bundle for the `f.evaluate()` closure that has no imports
-      available inside the page (that closure is why smoke-hold is 1,713 lines); and
-      `world-snapshot.mjs` (BUILT AND PROVEN — 0.054 s copy) so teardown correctness, the
-      settings restore and the crash-launder hazard come OUT of the suites entirely.
-      ⚠ Merged deliberately: done separately these touch every suite twice.
-- [ ] **1.5 The standing rule.** *If an assertion does not need a live world, it does not belong
-      in a live suite.* Unit tests run in **270 ms**; the live battery takes 12–18 minutes.
-      Without this rule test time grows in lockstep with feature count forever. Write it into
-      ARCHITECTURE §11's "adding something new" checklist so every future feature meets it.
+**The real win landed anyway, and it is the one the plan named: you rarely need a battery.**
 
-### STAGE 2 — the rest of the tooling and process debt
+- [x] **1.1 One section convention + `--section N`.** Every live suite declares `SECTIONS` and
+      `DEPENDS` at its head and gates its assertion blocks on `want(id)`. `--list` prints the
+      table without connecting; `--section 3,5` runs a subset and **stamps the summary
+      `⚠ PARTIAL RUN`** so a filtered green can never be mistaken for a battery green.
+      ⚠ **`DEPENDS` is the part that makes it honest.** Sections are not independent — smoke-saves
+      §2 rolls the damage of the demand §1 cast — so a suite DECLARES the coupling and asking
+      for §2 quietly runs §1, saying so. A section with no row is a claim that it stands alone.
+- [x] **1.2 Section filtering, suite by suite.** All eleven converted and **every one re-run
+      full and green at or above baseline** (see the battery table in HANDOFF). Two shapes
+      needed more than a gate:
+      - ⚠ **`smoke-hold` gates TWICE, and had to.** Its page half COLLECTS (`results.<key> = …`)
+        and its Node half ASSERTS on what was collected, so gating only the page half would turn
+        every skipped section into a row of FAILs against `undefined`. Each `report()` now sits
+        under the same `want()` as the block that fills it. **17 sections, invented from the
+        scenario blocks that were already there** — the plan's "no section structure at all" was
+        about blocks, not about markers.
+      - ⚠ **`smoke-battleflow` gates in NODE**, not in the page: its sections are top-level
+        blocks each with their own `f.evaluate`, so the plan never crosses the serialization
+        boundary at all.
+      ⚠ **The hazard this created, and the tool that finds it:** a binding declared inside one
+      gate and read from another still passes a FULL run and explodes only under `--section`.
+      Three were found and fixed by static scan before any suite ran — `clearChips` (smoke-effects
+      §2, read by §§3-17), the message watermarks in volleys/cast/riders, and smoke-maneuvers'
+      §H deleting §B's and §I's fixtures **by binding**; that one now deletes by NAME.
+- [x] **1.3 `sleep()` → conditional wait.** 213s measured; **the convertible part is converted**
+      (smoke-volleys 33.7s → 0, smoke-resources 33.3s → 0.6s) and the rest is classified rather
+      than left unexamined. ⚠ **The plan's trap fired twice, both times exactly as written, and
+      both times on the first attempt:**
+      - **smoke-resources**: waiting for the BANNER is not waiting for the durable CARD LINE —
+        three assertions on a perfectly working module went red. The helper now waits for every
+        surface the caller is about to read, and callers asserting SILENCE say so.
+      - **smoke-volleys §5**: waiting for `status === 'resolved'` is not waiting for the two
+        spread ROLLS, which post after it. 38/39, and the missing one was mine.
+      **Convert the wait to the thing the NEXT ASSERTION READS. Twice is a pattern; write it in
+      the suite when you do it.**
+- [x] **1.4 Shared harness.** [tools/harness.mjs](tools/harness.mjs) holds the twenty lines that
+      were copy-pasted into 26 files — env, watchdog, connect, preflight, the section plan, one
+      reporter. ⚠ **And it holds a guard the preflight structurally cannot be: a SUITE LOCK.**
+      Two suites against one box both join as `Tester Assistant`, and `preflightSoleGM` counts
+      **users, not sockets** — one user, one GM, preflight green, and then the two runs fight
+      over settings and the elect. **That happened for real during this stage** (a second suite
+      started mid-run, re-pinned six settings underneath `smoke-maneuvers`, and nothing said a
+      word). A pid file now refuses the second starter and names the first.
+      ⚠ **The page-helper bundle was NOT built, and the reason is a finding:** the `f.evaluate`
+      closure cannot import, so a helper it needs must travel as source or as data. The section
+      plan travels as **data** and costs three lines per suite. Serializing whole helper bodies
+      buys much less than it looks: what makes smoke-hold 1,700 lines is its *scenarios*, not its
+      helpers. Deferred, deliberately, not forgotten.
+      ⚠ **The disposable world is a BATTERY-level cure, not a per-suite one.** `world-snapshot`
+      needs the world DOWN in both directions (~30s a bounce), so per-suite rollback would cost
+      more than every sleep in the tree. It is `battery.mjs --snapshot` instead: one snapshot
+      before the first suite, one rollback after the last, and the crash-launder hazard is gone
+      by construction for the run that matters. The suites keep their own teardowns, which is
+      what lets any one of them run alone.
+- [x] **1.5 The standing rule** is in ARCHITECTURE §11 as **"Adding a TEST — the tier rule"**,
+      beside the three checklists a new feature already walks: unit first, a section if it must
+      be live, never a `sleep()` for a thing you can wait for — and a note that a sleep which
+      exists to give a WRONG behaviour time to appear is load-bearing and must say so.
+- [x] **1.6 (added) `tools/battery.mjs` — the battery is one command.** Three rules that lived
+      in prose and were re-learned by two sessions are now the code: **every suite is captured to
+      a file before anything is summarised** (the `| tail` that lost the "2 FAILURE(S)" evidence
+      twice cannot happen), **the order is the array** (`smoke-battleflow` → `smoke-hold`
+      adjacent, `reset-fixture-state` before `smoke-effects`), and **`verify-settings` runs at
+      the end**. `--from` resumes after a failure; `--snapshot` rolls the world back.
 
-- [ ] **2.1 The release build gains a `verify` precondition** (Phase 0.3) — no release from a
-      tree that fails the gate. Today you can build one.
-- [ ] **2.2 The version bump becomes a script** (Phase 0.3) — it must move **BOTH**
-      `module.json` fields, `version` *and* the manifest `download` URL. NOTES records two ways
-      hand-editing that file has corrupted it, and the v1.20.0 bump missed the download.
-- [ ] **2.3 The three probes become suite sections** (Phase 1) — `probe-player-damage` (12
-      assertions, the crit-flag decoy pin) → smoke-battleflow, `probe-save-damage-popup` →
-      smoke-saves, `probe-volley-resources` → smoke-volleys. Cheaper AFTER 1.1, because they
-      arrive as sections rather than as prose.
-- [ ] **2.4 DOCS ONLY: record Tier 2 as settled** (see the box above). No code changes.
+### STAGE 2 — the rest of the tooling and process debt — ✅ DONE 2026-08-23
+
+- [x] **2.1 The release build gains a `verify` precondition.** `build-release.ps1` runs the gate
+      and `bump-version --check` before it packs anything, and there is deliberately **no skip
+      flag** — the gate takes seconds, and a release built from a tree that fails it is not a
+      release. Same reasoning as the R4 pin: the refusal is the feature.
+- [x] **2.2 The version bump is a script.** [tools/bump-version.mjs](tools/bump-version.mjs)
+      moves **both** `module.json` fields — `version` and the `download` URL that embeds the tag
+      — by targeted replacement rather than re-serialization, so the diff at release time is the
+      two lines that changed and nothing else. `--check` asserts the two are in step and is now
+      the gate's **seventh** static check (`npm run manifest`).
+- [x] **2.3 The probes are gone — two folded, one retired.** ⚠ **The plan's row was written
+      without re-reading the third file.** `probe-player-damage` → **smoke-battleflow §5d** and
+      `probe-save-damage-popup` → **smoke-saves §18**, both moved verbatim as their own page
+      contexts (they are self-contained; there was nothing to merge and nothing to collide).
+      **`probe-volley-resources` had no assertions at all** — it is a bedrock forensic that
+      prints JSON and exits 0, answering design questions (V1–V4, R1–R2) that the volley registry
+      and the resource notice closed when they shipped. There was never a section to promote it
+      to. **Retired**, on Phase 1.1's own first-bullet grounds; git keeps it.
+      **The battery is 11 runs, not 14, and the three orphans that had to be remembered are
+      sections that cannot be forgotten.**
+- [x] **2.4 Tier 2 recorded as settled.** D4 dropped, both remaining cycles permanent — see the
+      box at the head of this pass and ARCHITECTURE §10 D4/D6.
+- [x] **2.5 (added) The last hand-carried number is asserted.** The source-file count — wrong
+      twice in published docs (20, then 26) — is `EXPECTED_SOURCE_FILES` in `check-registry.mjs`
+      now, pinned at **27** beside the R4 kind pin, and ARCHITECTURE §11's "adding a file"
+      checklist says to move it.
 
 ### STAGE 3 — two-client coverage (the gap D2 and the §4.1 relay left)
 

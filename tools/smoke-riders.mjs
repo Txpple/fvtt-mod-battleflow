@@ -8,31 +8,42 @@
 // Fixtures are LINKED tokens created here and deleted on the way out — an unlinked token's
 // synthetic actor has a different uuid from its base actor, which is precisely the distinction
 // the ownership test turns on, so leaving that ambiguous would make a passing suite meaningless.
-import { readFileSync } from 'node:fs';
-import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
-import { foundryConfig, preflightSoleGM } from './target.mjs';
+//
+// Sections (PLAN 1.1): `--section 5`, `--section 1,8`, `--list`. Fixtures and teardown ALWAYS
+// run; only the numbered assertion blocks are skippable.
+import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
-const env = {};
-for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
-  if (line.trimStart().startsWith('#')) continue;
-  const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-  if (m) env[m[1]] = m[2];
-}
+const SECTIONS = {
+  1: 'the rider rides',
+  2: 'crit doubles it',
+  3: 'the list gates it',
+  4: 'the toggle gates it',
+  5: "SOMEONE ELSE'S mark",
+  6: 'no mark at all',
+  7: 'concentration origin',
+  8: 'Foe Slayer REPLACES'
+};
+// §§2-4 re-roll against the mark §1 placed and never place one of their own — the coupling is
+// real, so asking for any of them runs §1 first.
+const DEPENDS = { 2: ['1'], 3: ['1'], 4: ['1'] };
 
-setTimeout(() => { console.error('[riders] WATCHDOG: 300s — hard abort'); process.exit(3); }, 300_000);
+const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
+const f = await connectSuite({ tag: 'riders', watchdogMs: 300_000 });
+announcePlan('riders', plan, pulled);
 
-const f = new Foundry(foundryConfig(env));
-console.log('[riders] connecting…');
-await f.connect();
-await preflightSoleGM(f);
-console.log('[riders] connected');
-
-const out = await f.evaluate(async () => {
+const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-battleflow';
   const results = [];
   const log = [];
+  const skips = [];
   const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
+  // The section gate — see tools/harness.mjs. This closure is serialized into the page, so the
+  // plan and the titles arrive as DATA and the predicate is spelled out here.
+  const want = id => {
+    if (!sections || sections.includes(String(id))) return true;
+    skips.push(`§${id} ${titles?.[id] ?? ''}`);
+    return false;
+  };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   const mod = game.modules.get(MOD);
@@ -175,72 +186,91 @@ const out = await f.evaluate(async () => {
     // The origin shape observed on a REAL mark in this world: the source item's own effect.
     const itemOrigin = `${hmAttacker.uuid}.ActiveEffect.${markerTemplate.id}`;
 
+    // The roll readout, out here rather than in §1: every section below re-rolls into it.
+    let rolls;
+
     // ---------------------------------------------------------------- 1. the rider rides
-    await putMark(itemOrigin);
-    let rolls = await rollAt();
-    ok('1. marked target gets the rider', forceParts(rolls).length === 1
-      && forceParts(rolls)[0].formula === '1d6', JSON.stringify(rolls));
-
-    // ---------------------------------------------------------------- 2. crit doubles it
-    rolls = await rollAt(true);
-    ok('2. crit doubles the rider (no code does this)', forceParts(rolls)[0]?.formula === '2d6',
-      JSON.stringify(rolls));
-
-    // ---------------------------------------------------------------- 3. the list gates it
-    await game.settings.set(MOD, 'riderList', 'hex');
-    rolls = await rollAt();
-    ok('3. a mark the table does not list pays nothing', forceParts(rolls).length === 0,
-      JSON.stringify(rolls));
-    await game.settings.set(MOD, 'riderList', 'hunters-mark, hex, great-old-one-hex');
-
-    // ---------------------------------------------------------------- 4. the toggle gates it
-    await game.settings.set(MOD, 'riders', false);
-    rolls = await rollAt();
-    ok('4. feature off pays nothing', forceParts(rolls).length === 0, JSON.stringify(rolls));
-    await game.settings.set(MOD, 'riders', true);
-
-    // ---------------------------------------------------------------- 5. SOMEONE ELSE'S mark
-    // The property the whole feature turns on. Two rangers can mark one creature; each may add
-    // only their own die. A test that only ever checks "is there a mark" passes this by luck.
-    await clearMarks();
-    await putMark(`${hmBystander.uuid}.ActiveEffect.${markerTemplate.id}`);
-    rolls = await rollAt();
-    ok("5. another creature's mark pays this attacker nothing", forceParts(rolls).length === 0,
-      JSON.stringify(rolls));
-
-    // ---------------------------------------------------------------- 6. no mark at all
-    await clearMarks();
-    rolls = await rollAt();
-    ok('6. an unmarked target pays nothing', forceParts(rolls).length === 0, JSON.stringify(rolls));
-
-    // ---------------------------------------------------------------- 7. concentration origin
-    // The tray writes `origin = concentration ?? effect`, so the OTHER shape must work too —
-    // this is the branch a live mark did NOT take, which is exactly why it needs a test.
-    const [conc] = await attacker.createEmbeddedDocuments('ActiveEffect', [
-      dnd5e.documents.ActiveEffect5e.createConcentrationEffectData(
-        hmAttacker.system.activities.contents.find(a => a.type === 'utility') ?? activity())
-    ]);
-    created.effects.push({ actorId: attacker.id, id: conc.id });
-    await putMark(conc.uuid);
-    rolls = await rollAt();
-    ok('7. a concentration-shaped origin works too', forceParts(rolls)[0]?.formula === '1d6',
-      JSON.stringify(rolls));
-
-    // ---------------------------------------------------------------- 8. Foe Slayer REPLACES
-    await clearMarks();
-    await putMark(itemOrigin);
-    const foe = await grant(attacker, 'foe-slayer');
-    if (!foe) {
-      ok('8. foe-slayer upgrade', false, 'foe-slayer not found in any compendium');
-    } else {
+    if (want(1)) {
+      await putMark(itemOrigin);
       rolls = await rollAt();
-      const force = forceParts(rolls);
-      // Replaces, never stacks: exactly ONE force part, and it is the d10.
-      ok('8. Foe Slayer replaces the die (d10, and only one)',
-        (force.length === 1) && (force[0].formula === '1d10'), JSON.stringify(rolls));
+      ok('1. marked target gets the rider', forceParts(rolls).length === 1
+        && forceParts(rolls)[0].formula === '1d6', JSON.stringify(rolls));
     }
 
-    return { log, results };
+    // ---------------------------------------------------------------- 2. crit doubles it
+    if (want(2)) {
+      rolls = await rollAt(true);
+      ok('2. crit doubles the rider (no code does this)', forceParts(rolls)[0]?.formula === '2d6',
+        JSON.stringify(rolls));
+    }
+
+    // ---------------------------------------------------------------- 3. the list gates it
+    if (want(3)) {
+      await game.settings.set(MOD, 'riderList', 'hex');
+      rolls = await rollAt();
+      ok('3. a mark the table does not list pays nothing', forceParts(rolls).length === 0,
+        JSON.stringify(rolls));
+      await game.settings.set(MOD, 'riderList', 'hunters-mark, hex, great-old-one-hex');
+    }
+
+    // ---------------------------------------------------------------- 4. the toggle gates it
+    if (want(4)) {
+      await game.settings.set(MOD, 'riders', false);
+      rolls = await rollAt();
+      ok('4. feature off pays nothing', forceParts(rolls).length === 0, JSON.stringify(rolls));
+      await game.settings.set(MOD, 'riders', true);
+    }
+
+    // ---------------------------------------------------------------- 5. SOMEONE ELSE'S mark
+    if (want(5)) {
+      // The property the whole feature turns on. Two rangers can mark one creature; each may add
+      // only their own die. A test that only ever checks "is there a mark" passes this by luck.
+      await clearMarks();
+      await putMark(`${hmBystander.uuid}.ActiveEffect.${markerTemplate.id}`);
+      rolls = await rollAt();
+      ok("5. another creature's mark pays this attacker nothing", forceParts(rolls).length === 0,
+        JSON.stringify(rolls));
+    }
+
+    // ---------------------------------------------------------------- 6. no mark at all
+    if (want(6)) {
+      await clearMarks();
+      rolls = await rollAt();
+      ok('6. an unmarked target pays nothing', forceParts(rolls).length === 0, JSON.stringify(rolls));
+    }
+
+    // ---------------------------------------------------------------- 7. concentration origin
+    if (want(7)) {
+      // The tray writes `origin = concentration ?? effect`, so the OTHER shape must work too —
+      // this is the branch a live mark did NOT take, which is exactly why it needs a test.
+      const [conc] = await attacker.createEmbeddedDocuments('ActiveEffect', [
+        dnd5e.documents.ActiveEffect5e.createConcentrationEffectData(
+          hmAttacker.system.activities.contents.find(a => a.type === 'utility') ?? activity())
+      ]);
+      created.effects.push({ actorId: attacker.id, id: conc.id });
+      await putMark(conc.uuid);
+      rolls = await rollAt();
+      ok('7. a concentration-shaped origin works too', forceParts(rolls)[0]?.formula === '1d6',
+        JSON.stringify(rolls));
+    }
+
+    // ---------------------------------------------------------------- 8. Foe Slayer REPLACES
+    if (want(8)) {
+      await clearMarks();
+      await putMark(itemOrigin);
+      const foe = await grant(attacker, 'foe-slayer');
+      if (!foe) {
+        ok('8. foe-slayer upgrade', false, 'foe-slayer not found in any compendium');
+      } else {
+        rolls = await rollAt();
+        const force = forceParts(rolls);
+        // Replaces, never stacks: exactly ONE force part, and it is the d10.
+        ok('8. Foe Slayer replaces the die (d10, and only one)',
+          (force.length === 1) && (force[0].formula === '1d10'), JSON.stringify(rolls));
+      }
+    }
+
+    return { log, results, skips };
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}` };
   } finally {
@@ -248,15 +278,6 @@ const out = await f.evaluate(async () => {
     // Fixtures spend real resources; the suites put them back (HANDOFF).
     for (const a of [attacker, victim, bystander]) { try { await a.longRest?.({ dialog: false, chat: false }); } catch { /* fine */ } }
   }
-}, null);
+}, sectionArg(plan, SECTIONS));
 
-if (out.fatal) { console.error(`\n[riders] FATAL: ${out.fatal}`); process.exit(2); }
-for (const l of out.log) console.log(`  ${l}`);
-console.log('');
-let failures = 0;
-for (const r of out.results) {
-  if (!r.pass) failures++;
-  console.log(`  ${r.pass ? 'PASS' : 'FAIL'} ${r.name}${r.pass ? '' : ` — ${r.detail}`}`);
-}
-console.log(`\n[riders] ${out.results.length - failures}/${out.results.length} passed`);
-process.exit(failures ? 1 : 0);
+await finish({ tag: 'riders', out, plan, f });

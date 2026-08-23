@@ -22,6 +22,25 @@ Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $repo = Split-Path -Parent $PSScriptRoot
+
+# ⚠ THE GATE IS A PRECONDITION OF THE BUILD (PLAN.md Phase 0.3 / FOUNDATION 2.1). Until now
+# you could package a tree that fails `npm run verify` - a broken import, a stranded doc, a red
+# unit test - and nothing would say so until someone installed it. There is deliberately NO
+# skip flag: the gate takes seconds, and a release built from a tree that fails it is not a
+# release, it is an accident. The same reasoning as the R4 pin - the refusal IS the feature.
+Push-Location $repo
+try {
+  Write-Output "verify: running the static gate before packaging..."
+  & npm run verify
+  if ($LASTEXITCODE -ne 0) { throw "npm run verify failed - refusing to build a release from this tree" }
+  # And the manifest's two version fields must already agree; `bump-version.mjs` is what moves
+  # them together, and this is the assertion that they were moved together.
+  & node (Join-Path $repo "tools/bump-version.mjs") --check
+  if ($LASTEXITCODE -ne 0) { throw "module.json version and download URL disagree - run tools/bump-version.mjs" }
+} finally {
+  Pop-Location
+}
+
 $manifest = Get-Content (Join-Path $repo "module.json") -Raw | ConvertFrom-Json
 $version = $manifest.version
 

@@ -17,34 +17,56 @@
 //
 // ⚠ Disconnect the MCP bridge first (two pages on one GM user make both clients the elect —
 // the double-apply lesson of 2026-08-16, and here it would stamp every ask twice).
-import { readFileSync } from 'node:fs';
-import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
-import { foundryConfig, preflightSoleGM } from './target.mjs';
+//
+// Sections (PLAN 1.1): `--section 5`, `--section 12,13`, `--list`. Fixtures and teardown
+// ALWAYS run; only the numbered assertion blocks are skippable.
+import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
-const env = {};
-for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
-  if (line.trimStart().startsWith('#')) continue;
-  const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-  if (m) env[m[1]] = m[2];
-}
+const SECTIONS = {
+  1: 'auto mode: the floor DC, and quiet good news',
+  2: 'the DC is half the damage…',
+  3: '…and caps at 30 under modern rules',
+  4: 'failure breaks, and the cascade is native',
+  5: 'prompt mode: the popup, one control, the click',
+  6: 'the timer rolls — expiry is the dice, not a pass',
+  7: 'multiple instances queue — RAW, one popup at a time',
+  8: 'a sheet-rolled save is the answer',
+  9: 'the native whisper card: ours while on, native while off',
+  10: 'private visibility — and the break that never is',
+  11: 'break-on-failure off: announce, touch nothing',
+  12: 'the cause rides the real chain',
+  13: 'a sheet edit is damage too — then zero HP is not a save',
+  14: 'the crash-resume re-drives a dead fold'
+};
+// Concentration is a STATE, so a section that never calls `ensureConc` inherits one. §§1, 5,
+// 11, 13 and 14 stand up their own; every other section names the nearest one that does.
+// ⚠ Derived by reading, not by running each alone — a wrong row shows up as a section that
+// fails only under `--section`, which is exactly the signal to add the missing edge here.
+const DEPENDS = {
+  2: ['1'], 3: ['1'], 4: ['1'],
+  6: ['5'], 7: ['5'], 8: ['5'], 9: ['5'], 10: ['5'],
+  12: ['11']
+};
 
+const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
 // Three casts, a dozen damage/poll cycles, one real attack chain, one 3.5s timer wait.
-setTimeout(() => { console.error('[conc] WATCHDOG 480s'); process.exit(3); }, 480_000);
+const f = await connectSuite({ tag: 'conc', watchdogMs: 480_000 });
+announcePlan('conc', plan, pulled);
 
-const f = new Foundry(foundryConfig(env));
-console.log('[conc] connecting…');
-await f.connect();
-await preflightSoleGM(f);
-console.log('[conc] connected');
-
-const out = await f.evaluate(async () => {
+const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-battleflow';
   const results = [];
   const log = [];
   const skips = [];
   const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
   const skip = why => skips.push(why);
+  // The section gate — see tools/harness.mjs. This closure is serialized into the page, so the
+  // plan and the titles arrive as DATA and the predicate is spelled out here.
+  const want = id => {
+    if (!sections || sections.includes(String(id))) return true;
+    skips.push(`§${id} ${titles?.[id] ?? ''}`);
+    return false;
+  };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   const mod = game.modules.get(MOD);
@@ -236,7 +258,7 @@ const out = await f.evaluate(async () => {
 
     // ================================================== 1. auto mode: the floor DC, and quiet good news
     let hpBefore;
-    {
+    if (want(1)) {
       const eff = await ensureConc();
       if (!eff) return { fatal: 'the fixture could not begin concentrating (cast refused?)' };
       await saveBonus('+30');
@@ -266,7 +288,7 @@ const out = await f.evaluate(async () => {
     }
 
     // ================================================== 2. the DC is half the damage…
-    {
+    if (want(2)) {
       const t0 = marker();
       await smack(31);
       const ask = (await waitFor(() => doneAskNew(t0)))?.getFlag(MOD, 'concentration');
@@ -274,7 +296,7 @@ const out = await f.evaluate(async () => {
     }
 
     // ================================================== 3. …and caps at 30 under modern rules
-    {
+    if (want(3)) {
       const t0 = marker();
       await smack(70);
       const ask = (await waitFor(() => doneAskNew(t0)))?.getFlag(MOD, 'concentration');
@@ -287,7 +309,7 @@ const out = await f.evaluate(async () => {
     }
 
     // ================================================== 4. failure breaks, and the cascade is native
-    {
+    if (want(4)) {
       await saveBonus('');
       const [dep] = await victim.createEmbeddedDocuments('ActiveEffect', [{
         name: 'BF Conc Dependent', img: 'icons/svg/aura.svg' }]);
@@ -319,7 +341,7 @@ const out = await f.evaluate(async () => {
     }
 
     // ================================================== 5. prompt mode: the popup, one control, the click
-    {
+    if (want(5)) {
       await set('concMode', 'prompt');
       await saveBonus('+30');
       const eff = await ensureConc();
@@ -377,7 +399,7 @@ const out = await f.evaluate(async () => {
     }
 
     // ================================================== 6. the timer rolls — expiry is the dice, not a pass
-    {
+    if (want(6)) {
       await set('concTimer', 2);
       const t0 = marker();
       await smack(12);
@@ -402,7 +424,7 @@ const out = await f.evaluate(async () => {
     }
 
     // ================================================== 7. multiple instances queue — RAW, one popup at a time
-    {
+    if (want(7)) {
       const t0 = marker();
       await smack(10);
       await waitFor(() => asksNew(t0).length === 1);
@@ -434,7 +456,7 @@ const out = await f.evaluate(async () => {
     }
 
     // ================================================== 8. a sheet-rolled save is the answer
-    {
+    if (want(8)) {
       const t0 = marker();
       await smack(12);
       const askMsg = await waitFor(() => asksNew(t0)[0]);
@@ -452,7 +474,7 @@ const out = await f.evaluate(async () => {
     }
 
     // ================================================== 9. the native whisper card: ours while on, native while off
-    {
+    if (want(9)) {
       await set('concMode', 'auto'); // prompt would leave the ask pending and the popup open
       const t0 = marker();
       await smack(9);
@@ -477,7 +499,7 @@ const out = await f.evaluate(async () => {
     }
 
     // ================================================== 10. private visibility — and the break that never is
-    {
+    if (want(10)) {
       await set('concVisibility', false);
       await set('concMode', 'auto');
       // Let every EARLIER section's paused announcement land before this window opens —
@@ -514,7 +536,7 @@ const out = await f.evaluate(async () => {
     }
 
     // ================================================== 11. break-on-failure off: announce, touch nothing
-    {
+    if (want(11)) {
       await set('concBreak', false);
       const eff = await ensureConc();
       if (!eff) return { fatal: 'recast failed (slots?)' };
@@ -532,7 +554,7 @@ const out = await f.evaluate(async () => {
     }
 
     // ================================================== 12. the cause rides the real chain
-    {
+    if (want(12)) {
       await set('autoDamage', 'all');
       await set('autoApply', true);
       if (canvas.scene?.id !== scene.id) await scene.view();
@@ -587,7 +609,7 @@ const out = await f.evaluate(async () => {
     }
 
     // ================================================== 13. a sheet edit is damage too — then zero HP is not a save
-    {
+    if (want(13)) {
       await set('concMode', 'auto');
       const eff = concEffects()[0] ?? await ensureConc();
       if (!eff) return { fatal: 'recast failed (slots?)' };
@@ -618,7 +640,7 @@ const out = await f.evaluate(async () => {
     }
 
     // ================================================== 14. the crash-resume re-drives a dead fold
-    {
+    if (want(14)) {
       const eff = concEffects()[0] ?? await ensureConc();
       if (!eff) return { fatal: 'recast failed for section 14 (slots?)' };
       const t0 = marker();
@@ -655,20 +677,6 @@ const out = await f.evaluate(async () => {
   }
 
   return { results, log, skips };
-}, null);
+}, sectionArg(plan, SECTIONS));
 
-if (out.fatal) {
-  console.error(`\n[conc] FATAL: ${out.fatal}`);
-  for (const r of out.results ?? []) console.log(`  ${r.pass ? 'PASS' : 'FAIL'} ${r.name}`);
-  process.exit(2);
-}
-for (const l of out.log) console.log(`  ${l}`);
-console.log('');
-let failures = 0;
-for (const r of out.results) {
-  if (!r.pass) failures++;
-  console.log(`  ${r.pass ? 'PASS' : 'FAIL'} ${r.name}${r.pass ? '' : ` — ${r.detail}`}`);
-}
-for (const s of out.skips ?? []) console.log(`  SKIP ${s}`);
-console.log(`\n[conc] ${out.results.length - failures}/${out.results.length} passed`);
-process.exit(failures ? 1 : 0);
+await finish({ tag: 'conc', out, plan, f });

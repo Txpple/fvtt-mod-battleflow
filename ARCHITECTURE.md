@@ -447,6 +447,25 @@ the definition of debt.
 2. Depend downward only. If you need a service from a machine, the service is in the wrong file.
 3. Run the hook-order check.
 4. Register nothing at module-eval time except hook callbacks.
+5. Move `EXPECTED_SOURCE_FILES` in `tools/check-registry.mjs`, and fix the docs that quote it.
+   The count is pinned precisely so adding a file is a decision, not a drift.
+
+**Adding a TEST — the tier rule (the standing rule, PLAN.md FOUNDATION 1.5):**
+
+> **If an assertion does not need a live world, it does not belong in a live suite.**
+
+1. Can it be decided from plain objects? → a **unit test** under `tests/`. 184 of them run in
+   **270 ms** with no Foundry, no browser and no fixtures. That is the default, not the fallback.
+2. Does it need `game`, `canvas`, a document or the DOM? → a live suite, and then it must join
+   an existing **section** or declare a new one (`SECTIONS` + `DEPENDS` at the head of the file),
+   so it can be run alone by `--section`.
+3. **Never `sleep()` for a thing you can wait for.** Use the suite's `until()` and wait on
+   **what the next assertion reads** — the card arriving is not the banner arriving is not the
+   card's rendered line arriving. ⚠ A sleep that exists to give a WRONG behaviour time to appear
+   is load-bearing and must stay a sleep; say so in a comment beside it, because the next reader
+   will otherwise "optimise" the assertion away.
+4. The live battery is 12–18 minutes and the unit tests are a quarter of a second. Without rule
+   1, test time grows in lockstep with feature count forever.
 
 **Moving code between files** (an extraction, a split, a reorder):
 1. **Cut on function boundaries, never comment boundaries.** `grep -n "^function "` is the

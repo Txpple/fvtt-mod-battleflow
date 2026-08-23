@@ -2,23 +2,35 @@
 
 Everything here is **development tooling**. None of it ships in the module zip.
 
-Suites and probes drive a **live Foundry world** through the sibling MCP repo's headless
+Suites drive a **live Foundry world** through the sibling MCP repo's headless
 browser (`../fvtt-mcp-molten5e`, needs its `.env` and a built `dist/`). Read
 [NOTES.md §5](../NOTES.md) before running anything — the protocol there is not optional.
 
 ```bash
-node tools/smoke-saves.mjs                 # the local sandbox (default)
+node tools/battery.mjs                     # every suite, in order, each captured to a file
+node tools/smoke-saves.mjs                 # one suite, the local sandbox (default)
+node tools/smoke-saves.mjs --list          # its sections, without connecting
+node tools/smoke-saves.mjs --section 8     # just §8 (plus anything §8 depends on)
 BF_TARGET=prod node tools/smoke-saves.mjs  # the live world, deliberately
 ```
+
+**Every suite is section-filterable.** `--list` prints the table; `--section 3,5` runs a subset
+and stamps its summary **`⚠ PARTIAL RUN`**, so a filtered green can never be mistaken for a
+battery green. Setup, fixtures and teardown always run — only assertion blocks are skippable —
+and a section that needs another declares it (`DEPENDS` at the head of the file), so asking for
+it quietly runs the prerequisite and says so.
 
 ## Static — no Foundry, no world, seconds
 
 | Tool | What it asserts |
 | --- | --- |
 | `check-hook-order.mjs` | the load-bearing same-hook registration orders (ARCHITECTURE §7). Run it whenever a file, an import or a hook registration is added. |
-| `check-registry.mjs` | every `S` key is registered and every registration is named in `S`; every registry entry declares a known kind and no amount; every shipped list-setting default survives its own strict parser. |
+| `check-registry.mjs` | every `S` key is registered and every registration is named in `S`; every registry entry declares a known kind and no amount; every shipped list-setting default survives its own strict parser; the **R4 kind total** and the **source-file count** match their pins. |
+| `check-imports.mjs` | every relative import resolves, and every named binding is really exported — including through the lazy `await import()` idiom. |
+| `check-comments.mjs` | every `/**` block sits on a declaration, so an extraction cannot strand a doc. |
+| `bump-version.mjs --check` | `module.json`'s `version` and its `download` URL name the same tag. |
 
-Both run inside `npm run verify`, along with biome, knip and the unit tests.
+All of them run inside `npm run verify`, along with biome, knip and the unit tests.
 
 ## Live contract checks — read-only, safe beside a session
 
@@ -30,17 +42,29 @@ Both run inside `npm run verify`, along with biome, knip and the unit tests.
 ## Smoke suites — drive real chains, MUTATE the world
 
 One per feature area. Every suite restores the settings it touches and deletes its own chat
-messages. **Run one at a time**, disconnect the MCP bridge first, and verify settings after.
+messages. Disconnect the MCP bridge first, and verify settings after — **`battery.mjs` does the
+ordering, the capture and the settings check for you**, which is why it is the front door.
 
-`smoke-battleflow` (run first — it places the shared victim token) · `smoke-hold` ·
-`smoke-riders` · `smoke-effects` · `smoke-maneuvers` · `smoke-concentration` · `smoke-cast` ·
-`smoke-volleys` · `smoke-resources` · `smoke-saves` (run last)
+`smoke-battleflow` (first — it places the shared victim token) · `smoke-hold` (⚠ **immediately**
+after it) · `smoke-saves` · `smoke-volleys` · `smoke-maneuvers` · `smoke-cast` · `smoke-riders` ·
+`smoke-concentration` · `reset-fixture-state` · `smoke-effects` · `smoke-resources`
 
-## Probes pending promotion
+⚠ **One at a time is enforced now, not remembered.** Suites take a pid lockfile in `harness.mjs`:
+a second one refuses and names the first. The sole-GM preflight could never see this, because
+both suites join as the same user and it counts users, not sockets (NOTES §5).
 
-Verification harnesses that earned their keep but have not yet been folded into a suite
-(PLAN.md Phase 1.1): `probe-player-damage.mjs`, `probe-save-damage-popup.mjs`,
-`probe-volley-resources.mjs`.
+### The battery
+
+| Flag | Effect |
+| --- | --- |
+| *(none)* | all eleven, in the canonical order, each captured to `dist/battery/<stamp>/` |
+| `--from smoke-saves` | resume after a failure, still in order |
+| `smoke-hold smoke-battleflow` | a subset — still run in the canonical order |
+| `--snapshot` | take a world snapshot first, roll it back after (the cure for the crash-launder hazard) |
+| `--list` | the order and why, without running anything |
+
+Failures print in full to the console **as well as** landing in the file — the `| tail` that
+twice lost `smoke-battleflow`'s "2 FAILURE(S)" evidence cannot happen through this door.
 
 ## Censuses — how registries get built
 
@@ -60,6 +84,9 @@ ships, never from what the party owns (DESIGN N1). Re-run after adding content.
 | `maintain-party.mjs` | strip temporary actor-level effects, on demand. |
 | `build-release.ps1` | the release zip. **Never use `Compress-Archive`** — see NOTES §5. |
 | `world-snapshot.mjs` | `take` / `restore` / `status` / `drop` — roll the sandbox's databases back after a battery. The copy is 24 MB and takes 0.05s; the ~75s cost is the world bounce either side. **Local only.** |
+| `harness.mjs` | the twenty lines every suite used to copy — env, watchdog, connect, preflight, the section plan, one reporter, and the **suite lock**. Not a suite; nothing runs it directly. |
+| `battery.mjs` | the whole battery in one command, in the order that works, captured to files. |
+| `bump-version.mjs` | move **both** `module.json` version fields together; `--check` asserts they are in step and is part of the gate. |
 
 ### The disposable-world cycle
 
@@ -69,10 +96,14 @@ node tools/world-snapshot.mjs take     # before the battery
 node tools/world-snapshot.mjs restore  # after
 ```
 
-Rolling back makes most of the ceremony in NOTES §5 unnecessary — teardown correctness,
-settings restore, the crash-launder hazard and cross-run fixture poisoning all stop mattering
-when the world is thrown away. The suites have not yet been simplified to take advantage of
-it (PLAN.md Phase 5).
+`node tools/battery.mjs --snapshot` does both ends for you, which is where it belongs: the
+crash-launder hazard bites a BATTERY, and the round trip costs ~75s of world bounce — more than
+every `sleep()` in the tree put together, so it is not a per-suite move.
+
+⚠ **The suites keep their own teardowns and probably should.** Rolling back would make that
+ceremony unnecessary, but it is also what lets one suite — or one `--section` — run alone
+without a bounce either side, which is the workflow the section filter exists to make normal.
+Decide before simplifying (PLAN.md Phase 5).
 
 ## content/
 

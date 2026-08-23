@@ -7,32 +7,50 @@
 //
 // Harness discipline (HANDOFF): settings restored first in their own guard; fixture
 // ownership snapshotted and restored EXACTLY; messages deleted by id-set difference.
-import { readFileSync } from 'node:fs';
-import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
-import { foundryConfig, preflightSoleGM } from './target.mjs';
+//
+// Sections (PLAN 1.1): `--section 3`, `--section 5,6`, `--list`. Fixtures, the settings pins
+// and teardown ALWAYS run; only the numbered assertion blocks are skippable.
+import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
-const env = {};
-for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
-  if (line.trimStart().startsWith('#')) continue;
-  const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-  if (m) env[m[1]] = m[2];
-}
+const SECTIONS = {
+  1: 'self-uses spend',
+  2: 'cross-item pool',
+  3: 'activity-level uses',
+  4: 'the silences',
+  5: '(cc) the flash waits for the dice',
+  6: '(cc) the fallback timer'
+};
+// The one real coupling here: §6 asserts "1 of 3 remaining" on the heal feat §5 creates and
+// spends once, so asking for §6 alone runs §5 first and says so.
+const DEPENDS = { 6: ['5'] };
 
-setTimeout(() => { console.error('[resources] WATCHDOG 300s'); process.exit(3); }, 300_000);
+const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
+const f = await connectSuite({ tag: 'resources', watchdogMs: 300_000 });
+announcePlan('resources', plan, pulled);
 
-const f = new Foundry(foundryConfig(env));
-console.log('[resources] connecting…');
-await f.connect();
-await preflightSoleGM(f);
-console.log('[resources] connected');
-
-const out = await f.evaluate(async () => {
+const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-battleflow';
   const results = [];
   const log = [];
+  const skips = [];
   const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // WAIT FOR THE THING, NOT FOR THE CLOCK (PLAN 1.3). Returns the moment the predicate holds
+  // and only spends the full budget when it never does. Measured 2026-08-23: 33.3s of this
+  // suite's wall clock was unconditional sleeping, almost all of it waiting for a banner that
+  // fades on its own schedule. Same helper smoke-volleys and smoke-maneuvers already had.
+  const until = async (fn, ms = 8000) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(150); }
+    return fn();
+  };
+  // The section gate. It cannot be imported — this closure is serialized into the page — so
+  // the plan and the titles travel as DATA and the predicate is spelled out, once per suite.
+  const want = id => {
+    if (!sections || sections.includes(String(id))) return true;
+    skips.push(`§${id} ${titles?.[id] ?? ''}`);
+    return false;
+  };
   const suiteStart = Date.now();
 
   const mod = game.modules.get(MOD);
@@ -77,12 +95,25 @@ const out = await f.evaluate(async () => {
 
   const bannerNow = () => document.querySelector('.bf-resource-banner');
   const lineFor = id => document.querySelector(`[data-message-id="${id}"] .bf-resource-line`);
-  const useAndCard = async act => {
+  // ⚠ WAIT FOR EVERY THING THE NEXT ASSERTION READS — this suite has THREE surfaces and they
+  // arrive at three different moments: the usage card (a document), the transient BANNER (a
+  // hook, immediate) and the durable card LINE (a renderChatMessage decoration, later). The
+  // first conversion of this helper waited on the banner alone and three "the card keeps its
+  // line" assertions started failing on a module that was working perfectly — PLAN 1.3's
+  // stated trap, walked into on the first attempt. A caller asserting SILENCE cannot wait for
+  // either surface, so it keeps a short settle: long enough for a wrong one to show itself.
+  const useAndCard = async (act, { banner = true, line = banner } = {}) => {
     const before = new Set(game.messages.contents.map(m => m.id));
+    const isUsage = m => (m.type === 'usage') || (m.getFlag('dnd5e', 'messageType') === 'usage');
+    const fresh = () => game.messages.contents.find(m => !before.has(m.id) && isUsage(m)) ?? null;
     await act.use({}, { configure: false }, {});
-    await sleep(900);
-    return game.messages.contents.find(m => !before.has(m.id)
-      && ((m.type === 'usage') || (m.getFlag('dnd5e', 'messageType') === 'usage'))) ?? null;
+    const card = await until(fresh, 6000);
+    if (banner || line) {
+      await until(() => (!banner || bannerNow()) && (!line || !card || lineFor(card.id)), 6000);
+    } else {
+      await sleep(600);
+    }
+    return card;
   };
 
   try {
@@ -136,129 +167,141 @@ const out = await f.evaluate(async () => {
     }]);
     created.items.push(mundane.id);
     const acts = id => feat.system.activities.get(id);
+    // Declared out here, not in §5: §6 spends the same feat a second time and asserts the
+    // count fell again, so the two sections share it (DEPENDS says so) and a block-scoped
+    // `const` inside §5 would put it out of §6's reach.
+    let healFeat;
 
     // ============================================================ §1 self-uses spend
-    log.push('§1 self-uses');
-    const card1 = await useAndCard(acts('bfnoticeself0000'));
-    const b1 = bannerNow();
-    ok('1a the banner flashed: who, what, and x of y remaining',
-      !!b1 && b1.textContent.includes('BF Test Victim used BF Notice Feat')
-        && b1.textContent.includes('BF Notice Feat: 2 of 3 remaining'),
-      b1 ? b1.textContent.trim().slice(0, 120) : 'NO banner');
-    ok('1b the card keeps the durable line',
-      !!card1 && !!lineFor(card1.id) && lineFor(card1.id).textContent.includes('2 of 3'),
-      card1 ? (lineFor(card1.id)?.textContent ?? 'NO line') : 'NO card');
-    ok('1c the deltas rode the usage message itself (no module state anywhere)',
-      !!card1?.system?.deltas?.item, JSON.stringify(card1?.system?.deltas ?? null));
-    await sleep(4000);
-    ok('1d the banner faded and removed itself', !bannerNow());
+    if (want(1)) {
+      log.push('§1 self-uses');
+      const card1 = await useAndCard(acts('bfnoticeself0000'));
+      const b1 = bannerNow();
+      ok('1a the banner flashed: who, what, and x of y remaining',
+        !!b1 && b1.textContent.includes('BF Test Victim used BF Notice Feat')
+          && b1.textContent.includes('BF Notice Feat: 2 of 3 remaining'),
+        b1 ? b1.textContent.trim().slice(0, 120) : 'NO banner');
+      ok('1b the card keeps the durable line',
+        !!card1 && !!lineFor(card1.id) && lineFor(card1.id).textContent.includes('2 of 3'),
+        card1 ? (lineFor(card1.id)?.textContent ?? 'NO line') : 'NO card');
+      ok('1c the deltas rode the usage message itself (no module state anywhere)',
+        !!card1?.system?.deltas?.item, JSON.stringify(card1?.system?.deltas ?? null));
+      await until(() => !bannerNow(), 6000);
+      ok('1d the banner faded and removed itself', !bannerNow());
+    }
 
     // ============================================================ §2 cross-item pool
-    log.push('§2 cross-item pool');
-    const card2 = await useAndCard(acts('bfnoticepool0000'));
-    const b2 = bannerNow();
-    ok('2a the banner names the POOL that paid, not the ability\'s own uses',
-      !!b2 && b2.textContent.includes('used BF Notice Feat')
-        && b2.textContent.includes('BF Notice Pool: 3 of 4 remaining'),
-      b2 ? b2.textContent.trim().slice(0, 120) : 'NO banner');
-    ok('2b the card line names the pool too',
-      !!card2 && !!lineFor(card2.id) && lineFor(card2.id).textContent.includes('BF Notice Pool'));
-    await sleep(4000);
+    if (want(2)) {
+      log.push('§2 cross-item pool');
+      const card2 = await useAndCard(acts('bfnoticepool0000'));
+      const b2 = bannerNow();
+      ok('2a the banner names the POOL that paid, not the ability\'s own uses',
+        !!b2 && b2.textContent.includes('used BF Notice Feat')
+          && b2.textContent.includes('BF Notice Pool: 3 of 4 remaining'),
+        b2 ? b2.textContent.trim().slice(0, 120) : 'NO banner');
+      ok('2b the card line names the pool too',
+        !!card2 && !!lineFor(card2.id) && lineFor(card2.id).textContent.includes('BF Notice Pool'));
+      await until(() => !bannerNow(), 6000);   // let it fade before the next section
+    }
 
     // ============================================================ §3 activity-level uses
-    log.push('§3 activity uses');
-    const card3 = await useAndCard(acts('bfnoticeact00000'));
-    const b3 = bannerNow();
-    ok('3a an activityUses spend announces off the ACTIVITY\'s own pool',
-      !!b3 && b3.textContent.includes('Free Cast: 1 of 2 remaining'),
-      b3 ? b3.textContent.trim().slice(0, 120) : 'NO banner');
-    ok('3b and the card line agrees',
-      !!card3 && !!lineFor(card3.id)?.textContent.includes('Free Cast — 1 of 2'));
-    await sleep(4000);
+    if (want(3)) {
+      log.push('§3 activity uses');
+      const card3 = await useAndCard(acts('bfnoticeact00000'));
+      const b3 = bannerNow();
+      ok('3a an activityUses spend announces off the ACTIVITY\'s own pool',
+        !!b3 && b3.textContent.includes('Free Cast: 1 of 2 remaining'),
+        b3 ? b3.textContent.trim().slice(0, 120) : 'NO banner');
+      ok('3b and the card line agrees',
+        !!card3 && !!lineFor(card3.id)?.textContent.includes('Free Cast — 1 of 2'));
+      await until(() => !bannerNow(), 6000);   // let it fade before the next section
+    }
 
     // ============================================================ §4 the silences
-    log.push('§4 silences');
-    const card4 = await useAndCard(mundane.system.activities.contents[0]);
-    ok('4a a no-recovery expendable spends in silence (no banner, no line)',
-      !bannerNow() && !(card4 && lineFor(card4.id)),
-      card4 ? 'card exists, correctly undecorated' : 'no card');
-    // NPC silence: take the player ownership away and spend again.
-    await victim.update({ ownership: priorOwnership }, { diff: false, recursive: false });
-    const card4b = await useAndCard(acts('bfnoticeself0000'));
-    ok('4b the same spend from a non-player-owned actor says nothing',
-      !bannerNow() && !(card4b && lineFor(card4b.id)));
-    await victim.update({ ownership: { ...priorOwnership, [player.id]: 3 } });
-    // The switch.
-    await set('resourceNotices', false);
-    const card4c = await useAndCard(acts('bfnoticeself0000'));
-    ok('4c the switch off silences both surfaces',
-      !bannerNow() && !(card4c && lineFor(card4c.id)));
-    await set('resourceNotices', true);
+    if (want(4)) {
+      log.push('§4 silences');
+      const card4 = await useAndCard(mundane.system.activities.contents[0], { banner: false });
+      ok('4a a no-recovery expendable spends in silence (no banner, no line)',
+        !bannerNow() && !(card4 && lineFor(card4.id)),
+        card4 ? 'card exists, correctly undecorated' : 'no card');
+      // NPC silence: take the player ownership away and spend again.
+      await victim.update({ ownership: priorOwnership }, { diff: false, recursive: false });
+      const card4b = await useAndCard(acts('bfnoticeself0000'), { banner: false });
+      ok('4b the same spend from a non-player-owned actor says nothing',
+        !bannerNow() && !(card4b && lineFor(card4b.id)));
+      await victim.update({ ownership: { ...priorOwnership, [player.id]: 3 } });
+      // The switch.
+      await set('resourceNotices', false);
+      const card4c = await useAndCard(acts('bfnoticeself0000'), { banner: false });
+      ok('4c the switch off silences both surfaces',
+        !bannerNow() && !(card4c && lineFor(card4c.id)));
+      await set('resourceNotices', true);
+    }
 
     // ============================================================ §5 (cc) the flash waits for the dice
-    log.push('§5 deferred flash');
-    const [healFeat] = await victim.createEmbeddedDocuments('Item', [{
-      name: 'BF Notice Heal', type: 'feat',
-      system: {
-        uses: { spent: 0, max: '3', recovery: [{ period: 'sr', type: 'recoverAll' }] },
-        activities: { bfnoticeheal0000: { _id: 'bfnoticeheal0000', type: 'heal', name: 'Heal',
-          activation: { type: 'bonus' },
-          healing: { number: 1, denomination: 10, bonus: '1', types: ['healing'] },
-          consumption: { targets: [{ type: 'itemUses', target: '', value: '1' }] } } }
-      }
-    }]);
-    created.items.push(healFeat.id);
-    const card5 = await useAndCard(healFeat.system.activities.contents[0]);
-    ok('5a the use alone flashes NOTHING — the ability has dice of its own to roll',
-      !!card5 && !bannerNow(), bannerNow()?.textContent?.slice(0, 60) ?? 'quiet');
-    ok('5b the durable card line does NOT wait (the ledger is immediate)',
-      !!card5 && !!lineFor(card5.id) && lineFor(card5.id).textContent.includes('2 of 3'));
-    // The card button is the player's real path (hidden by hideCardButtons but never
-    // removed) — click it, submit the native config dialog, and the flash releases.
-    const healBtn = document.querySelector(`[data-message-id="${card5?.id}"] button[data-action="rollHealing"]`);
-    ok('5c the heal button exists on the card', !!healBtn);
-    const beforeRoll = new Set(game.messages.contents.map(m => m.id));
-    healBtn?.click();
-    await sleep(1200);
-    const cfgDlg = [...foundry.applications.instances.values()]
-      .find(a => a.constructor?.name?.includes('RollConfiguration') && a.rendered);
-    cfgDlg?.element.querySelector('button[type="submit"]')?.click();
-    await sleep(2000);
-    const healRoll = game.messages.contents.find(m => !beforeRoll.has(m.id) && m.rolls?.length);
-    ok('5d the roll links to the card (the (cc) linkage pin, card-button path)',
-      !!healRoll && (healRoll.getFlag('dnd5e', 'originatingMessage') === card5?.id),
-      JSON.stringify({ link: healRoll?.getFlag('dnd5e', 'originatingMessage') ?? null, card: card5?.id }));
-    const b5 = bannerNow();
-    ok('5e the flash released WITH the dice — after the roll, not the use',
-      !!b5 && b5.textContent.includes('used BF Notice Heal')
-        && b5.textContent.includes('2 of 3 remaining'),
-      b5 ? b5.textContent.trim().slice(0, 120) : 'NO banner');
-    await sleep(4200);
+    if (want(5)) {
+      log.push('§5 deferred flash');
+      [healFeat] = await victim.createEmbeddedDocuments('Item', [{
+        name: 'BF Notice Heal', type: 'feat',
+        system: {
+          uses: { spent: 0, max: '3', recovery: [{ period: 'sr', type: 'recoverAll' }] },
+          activities: { bfnoticeheal0000: { _id: 'bfnoticeheal0000', type: 'heal', name: 'Heal',
+            activation: { type: 'bonus' },
+            healing: { number: 1, denomination: 10, bonus: '1', types: ['healing'] },
+            consumption: { targets: [{ type: 'itemUses', target: '', value: '1' }] } } }
+        }
+      }]);
+      created.items.push(healFeat.id);
+      const card5 = await useAndCard(healFeat.system.activities.contents[0], { banner: false, line: true });
+      ok('5a the use alone flashes NOTHING — the ability has dice of its own to roll',
+        !!card5 && !bannerNow(), bannerNow()?.textContent?.slice(0, 60) ?? 'quiet');
+      ok('5b the durable card line does NOT wait (the ledger is immediate)',
+        !!card5 && !!lineFor(card5.id) && lineFor(card5.id).textContent.includes('2 of 3'));
+      // The card button is the player's real path (hidden by hideCardButtons but never
+      // removed) — click it, submit the native config dialog, and the flash releases.
+      const healBtn = document.querySelector(`[data-message-id="${card5?.id}"] button[data-action="rollHealing"]`);
+      ok('5c the heal button exists on the card', !!healBtn);
+      const beforeRoll = new Set(game.messages.contents.map(m => m.id));
+      healBtn?.click();
+      const cfgDlg = await until(() => [...foundry.applications.instances.values()]
+        .find(a => a.constructor?.name?.includes('RollConfiguration') && a.rendered), 5000);
+      cfgDlg?.element.querySelector('button[type="submit"]')?.click();
+      // Both halves, because 5d reads the ROLL and 5e reads the BANNER it releases — waiting
+      // for the roll alone would race the flash and fail 5e for a reason that is not the code.
+      const rollNow = () => game.messages.contents.find(m => !beforeRoll.has(m.id) && m.rolls?.length);
+      await until(() => rollNow() && bannerNow(), 8000);
+      const healRoll = rollNow();
+      ok('5d the roll links to the card (the (cc) linkage pin, card-button path)',
+        !!healRoll && (healRoll.getFlag('dnd5e', 'originatingMessage') === card5?.id),
+        JSON.stringify({ link: healRoll?.getFlag('dnd5e', 'originatingMessage') ?? null, card: card5?.id }));
+      const b5 = bannerNow();
+      ok('5e the flash released WITH the dice — after the roll, not the use',
+        !!b5 && b5.textContent.includes('used BF Notice Heal')
+          && b5.textContent.includes('2 of 3 remaining'),
+        b5 ? b5.textContent.trim().slice(0, 120) : 'NO banner');
+      await until(() => !bannerNow(), 6000);   // let it fade before §6 measures silence
+    }
 
     // ============================================================ §6 (cc) the fallback timer
-    log.push('§6 fallback');
-    const card6 = await useAndCard(healFeat.system.activities.contents[0]);
-    ok('6a still quiet right after the use', !!card6 && !bannerNow());
-    await sleep(13_000);   // FLASH_FALLBACK_MS is 12s — a player who never rolls still flashes
-    const b6 = bannerNow();
-    ok('6b the fallback flashed it: never rolled, still announced',
-      !!b6 && b6.textContent.includes('1 of 3 remaining'),
-      b6 ? b6.textContent.trim().slice(0, 120) : 'NO banner');
+    if (want(6)) {
+      log.push('§6 fallback');
+      const card6 = await useAndCard(healFeat.system.activities.contents[0], { banner: false, line: true });
+      ok('6a still quiet right after the use', !!card6 && !bannerNow());
+      // FLASH_FALLBACK_MS is 12s — a player who never rolls still flashes. Waited for, not
+      // slept through: the fallback is the only sleep here whose length is a real deadline.
+      await until(() => bannerNow(), 15_000);
+      const b6 = bannerNow();
+      ok('6b the fallback flashed it: never rolled, still announced',
+        !!b6 && b6.textContent.includes('1 of 3 remaining'),
+        b6 ? b6.textContent.trim().slice(0, 120) : 'NO banner');
+    }
 
     await teardown();
   } catch (err) {
     log.push(`SUITE ERROR: ${err?.stack ?? err}`);
     await teardown();
   }
-  return { results, log };
-});
+  return { results, log, skips };
+}, sectionArg(plan, SECTIONS));
 
-if (out.fatal) { console.error(`[resources] FATAL: ${out.fatal}`); process.exit(2); }
-let pass = 0, fail = 0;
-for (const r of out.results) {
-  console.log(`${r.pass ? 'PASS' : 'FAIL'} ${r.name}${r.detail ? `  [${r.detail}]` : ''}`);
-  r.pass ? pass++ : fail++;
-}
-for (const l of out.log) console.log(`  · ${l}`);
-console.log(`\n[resources] ${pass}/${pass + fail}`);
-process.exit(fail ? 1 : 0);
+await finish({ tag: 'resources', out, plan, f });

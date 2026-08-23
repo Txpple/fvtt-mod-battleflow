@@ -409,6 +409,38 @@ moment the card appears races the last flag write and flakes. Wait for the recei
 **Run the hook-order check before the battery** whenever a file, an import, or a same-hook
 registration was added. It needs no Foundry and fails loudly.
 
+**⚠ THE SOLE-GM PREFLIGHT CANNOT SEE A SECOND SUITE, and now something else does.** Two suites
+launched against one box both join as `Tester Assistant`, and `preflightSoleGM` counts
+**users, not sockets** — one user, one GM, preflight green. Seen for real 2026-08-23: a second
+suite started while `smoke-maneuvers` was mid-run, re-pinned six settings underneath it and left
+an orphaned fixture actor; nothing in the harness said a word, and the run's failures would have
+belonged to neither. `tools/harness.mjs` now takes a **pid lockfile** per target: the second
+starter refuses and names the first. A stale lock (the holder died) is taken over and reported,
+because a suite that cannot start is worse than one that says what it stepped over.
+
+**⚠ SOME `sleep()` CALLS ARE LOAD-BEARING, and converting them weakens the suite.** Of the 213
+seconds of unconditional sleeping measured across the suites on 2026-08-23, **73 seconds sits
+under an assertion that something did NOT happen** — no hold stamped, no ask raised, nothing
+applied. You cannot wait for a thing not to occur, so the sleep IS the assertion's window;
+`smoke-hold` has two commented exactly that way (*"give a (wrong) premature application time to
+stamp its receipt"*). Say so beside the number when you write one, because the next reader is
+looking for sleeps to remove.
+
+**⚠ WAIT FOR THE THING THE NEXT ASSERTION READS — three surfaces, three moments.** A cast
+produces a usage CARD (a document), a transient BANNER (a hook, immediate) and a durable card
+LINE (a `renderChatMessage` decoration, later). Waiting on one and asserting on another fails a
+module that is working perfectly. It happened twice in one afternoon while converting sleeps:
+`smoke-resources` waited for the banner and three "the card keeps its line" assertions went red,
+and `smoke-volleys` waited for `status === 'resolved'` when the two spread ROLLS post after it.
+Both were the conversion, not the code.
+
+**⚠ A BINDING DECLARED INSIDE A SECTION GATE IS INVISIBLE UNTIL SOMEONE FILTERS.** Once suites
+gained `--section`, any `const` declared in one section and read from another still passed a
+FULL run — declaration order is unchanged — and threw only under `--section`. Three were found
+by static scan before any suite ran, and one was subtle: `smoke-maneuvers` §H deleted §B's and
+§I's fixtures **by binding**, so `--section H` would have died in a cleanup line. It deletes by
+NAME now. **After gating a suite, scan for names declared in one gate and read outside it.**
+
 ---
 
 ## 6. Working with this table
