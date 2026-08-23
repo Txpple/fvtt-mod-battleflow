@@ -112,6 +112,25 @@ const KIND_LABEL = {
  */
 const labelOf = o => o?.label ?? KIND_LABEL[o?.kind] ?? o?.name ?? "a fold";
 
+/**
+ * WHAT SPENDING IT ACTUALLY COSTS — per kind, because the three do NOT agree.
+ *
+ * ⚠ v1 printed ONE blanket line, "the die is spent either way it lands", under all three. That
+ * is true of `bardic` ("expended when it's rolled") and of `heroic` ("you must use the new
+ * roll"), and FLATLY FALSE of `tactical`, whose own rule is *"if the check still fails, this
+ * use of Second Wind isn't expended."* The popup was therefore contradicting the verbatim rules
+ * quote printed inches above it — presentation law 8 says the quote is the rule, so a module
+ * hint that argues with it is the module telling the table something untrue.
+ *
+ * ⚠ The intuitive reading — "surely they all refund if they did not help" — is wrong for two of
+ * three, which is exactly why this is per-kind data rather than a condition someone can guess at.
+ */
+const SPEND_COST = {
+  heroic: "spent either way, and the new roll stands",
+  bardic: "expended when rolled, whether or not it helps",
+  tactical: "not expended if the check still fails"
+};
+
 /* =============================================================================================
  * THE SPEND RESOLVERS — one per kind (ARCHITECTURE.md §6 rule 3)
  *
@@ -584,6 +603,13 @@ async function resolveFold(message, kind) {
       }
     });
 
+    // ⚠ The unmodelled refund goes on the SETTLE CARD too, not just the row. This is the card
+    // the table actually reads at the moment the use is spent, and Tactical Mind is the one
+    // fold whose rule says the use may come back — see resolvedLines for the full argument.
+    if ( kind === "tactical" ) {
+      lines.push("⚠ If the check still fails, this use of Second Wind isn't expended — "
+        + "restore it by hand; the module cannot tell whether the check succeeded.");
+    }
     await announce(message, actor, labelOf(offer), flag.testKind, anyHit, lines, marker);
 
     if ( reoffer ) {
@@ -817,8 +843,11 @@ function testKindPhrase(flag) {
 
 /** The offer card's body: what can be spent, and — under holdReveal — what it has to beat. */
 function offerLines(flag, offers) {
+  // ⚠ The cost rides on the offer's OWN line, so it reaches the card and the popup alike and
+  // can never be read as applying to a different fold in the list.
   const lines = offers.map(o => `<strong>${labelOf(o)}</strong>`
-    + (o.kind === "heroic" ? " — reroll the d20" : ` — add ${o.dieFormula}`));
+    + (o.kind === "heroic" ? " — reroll the d20" : ` — add ${o.dieFormula}`)
+    + (SPEND_COST[o.kind] ? ` <em>(${SPEND_COST[o.kind]})</em>` : ""));
   if ( setting(S.holdReveal) ) {
     for ( const t of flag.targets ?? [] ) {
       lines.push(`Needs +${t.margin} to reach ${t.name} (AC ${t.ac} vs ${flag.baseTotal}).`);
@@ -856,6 +885,18 @@ function resolvedLines(flag) {
       ? `<strong>The save succeeds</strong> against DC ${flag.dc}.`
       : `Still fails DC ${flag.dc}.`);
   }
+  /**
+   * ⚠ THE UNMODELLED REFUND, SAID OUT LOUD (user ruling 2026-08-23: leave it unmodelled).
+   * Tactical Mind is the only one of the three with a refund clause, and the module cannot
+   * decide it — the refund turns on the check FAILING and no DC exists for a check. Leaving the
+   * rule unimplemented is a decision; leaving it unimplemented AND unmentioned would be the
+   * module quietly eating a use the rules say the player keeps. So the card names it and hands
+   * it to the humans, which is R1 rather than an apology.
+   */
+  if ( (flag.spends ?? []).some(s => s.kind === "tactical") ) {
+    lines.push("⚠ If the check still fails, this use of Second Wind isn't expended — "
+      + "restore it by hand; the module cannot tell whether the check succeeded.");
+  }
   return lines;
 }
 
@@ -868,11 +909,13 @@ async function showFoldPopup(message, flag) {
   // Every offered feature quotes its OWN rules text (law 8) — with several on screen the quotes
   // are LABELLED, because an unattributed stack of three reads as one rule.
   for ( const o of offers ) lines.push(`<strong>${labelOf(o)}:</strong> ${ruleLine(RULE_TEXT[o.kind])}`);
-  lines.push(offers.some(o => o.kind === "heroic")
-    // ⚠ The spend is unconditional and the new roll STANDS — including a worse one. Saying so at
-    // declaration time is the honest half of "you must use the new roll".
-    ? "A reroll replaces the d20 outright — the new roll stands, better or worse. A die is spent either way it lands."
-    : "The die is spent either way it lands.");
+  // ⚠ The per-kind cost is already on each offer's own line (offerLines). What remains here is
+  // the one thing a player can only learn too late: a reroll they asked for can come back WORSE
+  // and they are stuck with it. Saying so at declaration time is the honest half of "you must
+  // use the new roll" (law 5 — declaration states the spend, never the outcome).
+  if ( offers.some(o => o.kind === "heroic") ) {
+    lines.push("⚠ A reroll replaces the d20 outright — a worse roll still stands.");
+  }
 
   await openMomentPopup(message, "d20fold", actor, {
     title: `Patch this roll — ${actor?.name ?? ""}`,
