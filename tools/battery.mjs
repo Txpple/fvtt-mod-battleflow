@@ -17,7 +17,9 @@
  * 2. **The order is not arbitrary.** `smoke-hold` refuses unless `smoke-battleflow` ran
  *    immediately before it — anything in between strips the fixture tokens it rides — and
  *    `reset-fixture-state` must run before `smoke-effects`. Both facts lived in prose and were
- *    re-learned by two sessions. They are the array below now.
+ *    re-learned by two sessions. They are the array below now. ⚠ The two TWO-CLIENT entries need
+ *    the player test account to be free; they connect a second client themselves, which is not a
+ *    lock violation (one suite, two clients) but does mean no human should be logged in as it.
  * 3. **Settings are verified after, not assumed.** A crashed run launders its pins into the
  *    next run's "prior", so eleven settings can drift while every suite reports success. Only
  *    the external reference table catches it, so the battery ends by running it.
@@ -51,6 +53,8 @@ const ORDER = [
   { name: "smoke-cast", note: "" },
   { name: "smoke-riders", note: "" },
   { name: "smoke-concentration", note: "" },
+  { name: "smoke-twoclient", note: "⚠ TWO clients — the relay's relayed half and D2's popup close" },
+  { name: "check-popup-routing", note: "two clients, read-only — popups route to whoever decides" },
   { name: "reset-fixture-state", note: "not a suite — the sweep smoke-effects needs", reset: true },
   { name: "smoke-effects", note: "⚠ re-run before diagnosing: the documented dice-variance class" },
   { name: "smoke-resources", note: "" }
@@ -89,6 +93,9 @@ if (positionals.length) {
     console.error("smoke-hold rides smoke-battleflow's fixtures — ask for both, in that order.");
     process.exit(2);
   }
+  // ⚠ `--section` is per-SUITE vocabulary — smoke-hold's "4d3" means nothing to smoke-volleys —
+  // so it is only accepted alongside exactly one named suite. Passing it to a whole battery
+  // would silently skip almost everything and still print a green summary.
 } else if (values.from) {
   const at = ORDER.findIndex(s => s.name === values.from);
   if (at < 0) { console.error(`--from: no such suite "${values.from}". Try --list.`); process.exit(2); }
@@ -97,6 +104,11 @@ if (positionals.length) {
 
 // The run directory is named by the caller, not by a clock — a battery is something you come
 // back to, and "the newest one" is a worse handle than a name you chose.
+if (values.section && (positionals.length !== 1)) {
+  console.error("--section names sections of ONE suite; pass exactly one suite name with it.");
+  process.exit(2);
+}
+
 const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 const runDir = join(REPO, "dist", "battery", stamp);
 mkdirSync(runDir, { recursive: true });

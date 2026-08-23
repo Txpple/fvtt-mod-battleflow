@@ -37,7 +37,7 @@ All of them run inside `npm run verify`, along with biome, knip and the unit tes
 | Tool | What it asserts |
 | --- | --- |
 | `check-mastery-rules.mjs` | the verbatim rule text still matches the system's own rules journal (ARCHITECTURE §5 law 8). Run after any dnd5e upgrade. |
-| `check-popup-routing.mjs` | popups route to whoever owns the decision, across **two** clients. The only two-client harness here, and the only thing that can see this. |
+| `check-popup-routing.mjs` | popups route to whoever owns the decision, across **two** clients — asserted on BOTH sides ("the GM got it" only means something beside "and the player did not"), with the diagnostic ledger still printed in full. |
 
 ## Smoke suites — drive real chains, MUTATE the world
 
@@ -47,7 +47,14 @@ ordering, the capture and the settings check for you**, which is why it is the f
 
 `smoke-battleflow` (first — it places the shared victim token) · `smoke-hold` (⚠ **immediately**
 after it) · `smoke-saves` · `smoke-volleys` · `smoke-maneuvers` · `smoke-cast` · `smoke-riders` ·
-`smoke-concentration` · `reset-fixture-state` · `smoke-effects` · `smoke-resources`
+`smoke-concentration` · `smoke-twoclient` · `check-popup-routing` · `reset-fixture-state` ·
+`smoke-effects` · `smoke-resources`
+
+⚠ **`smoke-twoclient` is the one that needs a SECOND client**, and it is where the properties no
+solo suite can reach are asserted: the relay's **relayed** half (a player's answer travels as
+their own message and the *continuing client* folds it) and D2's **cross-client popup close**
+(the GM's buzzer resolves a hold and the player's popup vanishes without anyone touching its
+DOM). It connects the player itself; just do not be logged in as the player test account.
 
 ⚠ **One at a time is enforced now, not remembered.** Suites take a pid lockfile in `harness.mjs`:
 a second one refuses and names the first. The sole-GM preflight could never see this, because

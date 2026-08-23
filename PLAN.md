@@ -544,28 +544,48 @@ its receipt."* **What was convertible has been converted; what is left is delibe
       now, pinned at **27** beside the R4 kind pin, and ARCHITECTURE §11's "adding a file"
       checklist says to move it.
 
-### STAGE 3 — two-client coverage (the gap D2 and the §4.1 relay left)
+### STAGE 3 — two-client coverage — ✅ DONE 2026-08-23
 
-⚠ **The least certain work in this plan, and scoped so it cannot balloon.** There is exactly ONE
-two-client harness in the repo (`check-popup-routing.mjs`) and it is a **ledger dump for a human
-to read**, not an assertion suite. It was also unrunnable until 2026-08-23 — PC Assistant had
-NONE on BF Test PC Attacker; the ownership grant is done and it now passes in 37 s.
+⚠ **It was called the least certain work in this plan, and it turned out to be the cheapest
+stage of the three.** Both gaps were reachable with the harness that already existed; what was
+missing was a **player-owned fixture**, and once `BF Test Player Shielder` existed (a Gren clone
+whose ownership goes to the player test user, deleted on the way out) every assertion below
+passed on its first run. The uncertainty was real, and it was about *how to stand the scenario
+up*, not about whether the module was right.
 
-- [ ] **3.1 Give the two-client harness real assertions** — turn the ledger into PASS/FAIL
-      without losing the ledger, which is what makes a failure readable.
-- [ ] **3.2 The hold's popup-CLOSING across clients** (D2). A single-client suite structurally
-      cannot see this: when the GM is both answerer and elect there is no second client's popup
-      to close.
-- [ ] **3.3 The relay's RELAYED half** (§4.1). Same reason — when the answerer can write the
-      target message the envelope never travels, so the direct path is all a solo suite tests.
-      All three relays: hold (`respondsTo`), saves (`saveChoiceAnswer`), maneuvers
-      (`riposteAnswer`). ⚠ The hold's fold is owned by the CONTINUING CLIENT and the other two
-      by the elect — the test must exercise both owners or it proves nothing about the registry.
-- [ ] **3.4 The `smoke-battleflow` "2 FAILURE(S)" class — BOUNDED, not promised.** Twice seen,
-      never reproduced, and not reproduced in 11 runs on 2026-08-23. **Do not promise to fix
-      what cannot be reproduced.** What IS committed: its last hiding place is already closed
-      (section 1 was the only forced-dice site that did not report a defeated forcing), and the
-      failure output carries the dice from here. If it recurs it will name itself.
+- [x] **3.1 The two-client harness asserts.** `check-popup-routing.mjs` was a ledger dump for a
+      human to read — which meant it could only find a regression if somebody ran it AND read it
+      carefully, and it was unrunnable at all until the 2026-08-23 ownership grant, so nobody
+      had. **Seven assertions now, and the ledger still prints in full** because the ledger is
+      what makes a failure legible. ⚠ **The half that makes the routing claim mean anything is
+      the PLAYER's DOM**: "the GM got the popup" is only interesting beside "and the player did
+      not", and a one-sided read cannot see a popup landing on the wrong client — which is
+      exactly what the 2026-08-17 walk found. It reads both sides now.
+- [x] **3.2 + 3.3 `tools/smoke-twoclient.mjs`** — a mutating two-client suite, sections `relay`
+      and `close`, **9/9 first run**. ⚠ Deliberately a SEPARATE file from `check-popup-routing`:
+      that one is read-only and safe beside a live session, and this one fires real attacks.
+      - **§relay — the relayed half of the §4.1 registry.** A GM-rolled attack holds on a
+        player-owned target; the player answers; the assertions follow the envelope the whole
+        way. The answer is **the player's own message** (`respondsTo` + flat sibling
+        `uuid`/`answer`, authored by the player, not the GM), and the **CONTINUING CLIENT** —
+        not the elect — folds it into its own hold flag and runs the hold to a verdict. That
+        `owns` column had never been put to the question: when the answerer can write the target
+        message the envelope never travels, so a solo suite exercises the direct path every time.
+      - **§close — D2's gap, and the reason `closeAnsweredHoldPopups` is not gated.** The GM's
+        **buzzer** answers a hold the player is still looking at. Nobody touches the player's
+        DOM; the player's own client closes its popup on seeing the flag update. Asserted in
+        order: open before, resolved-by-timer in between (`timedOut: true`), gone after.
+      ⚠ **`holdSkipFutile` is turned OFF for this suite, and that is not a shortcut.** With it
+      on, a hold is only offered when the reaction could actually flip the outcome, so the
+      attack must land in a 5-wide band — roughly one headless roll in four. This suite is about
+      *where the answer travels* and *whose popup closes*; smoke-hold §4f owns the futility gate.
+      Leaving it on would have bought a flake with nothing to do with what is under test.
+- [x] **3.4 The `smoke-battleflow` "2 FAILURE(S)" class — bounded, and the promise kept.** It
+      still has not reproduced, and nothing here claims to have fixed it. ⚠ **What DID change is
+      the thing that actually cost two sessions: the evidence can no longer be thrown away.**
+      Both sightings lost their assertions to a `| tail`, and `battery.mjs` captures every suite
+      to a file *before* anything is summarised, then prints the failing lines in full as well.
+      **If it recurs it will name itself**, which is the whole of what was ever committed here.
 
 ### STAGE 4 — D8, the only open architecture debt
 

@@ -11,25 +11,29 @@
 // repro for the 2026-08-17 walk's popup-strand finding; kept and renamed because the
 // topology it exercises is a contract, not a closed bug.
 //
+// ⚠ IT ASSERTS NOW (PLAN FOUNDATION 3.1). It was a ledger dump for a human to read, which
+// meant it could only find a regression if somebody ran it AND read it carefully — and it was
+// unrunnable at all until the 2026-08-23 ownership grant, so nobody had. The ledger is still
+// printed in full, because it is what makes a failure legible; the assertions are what make an
+// unread run still worth something.
+//
 // Fixture: a temporary innate save spell (no damage, no effects — zero side effects) on
 // BF Test PC Attacker (PC Assistant's actor), cast at BF Test Victim (GM-decided). The
-// demand card is deleted before the buzzer, so nothing ever rolls.
-import { readFileSync } from 'node:fs';
+// demand card is deleted before the buzzer, so nothing ever rolls. **Read-only enough to run
+// beside a live session** — that property is why the mutating cross-client scenarios live in
+// `smoke-twoclient.mjs` instead of here.
+import { connectSuite, loadEnv } from './harness.mjs';
+import { playerConfig } from './target.mjs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
-import { foundryConfig, playerConfig } from './target.mjs';
 
-const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
-const env = {};
-for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
-  if (line.trimStart().startsWith('#')) continue;
-  const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-  if (m) env[m[1]] = m[2];
-}
-setTimeout(() => { console.error('[topo] WATCHDOG 240s'); process.exit(3); }, 240_000);
+const env = loadEnv();
+const gm = await connectSuite({ tag: 'topo', watchdogMs: 240_000 });
 
-const gm = new Foundry(foundryConfig(env));
-console.log('[topo] GM observer connecting…');
-await gm.connect();
+let failures = 0;
+const report = (name, ok, detail = '') => {
+  if (!ok) failures++;
+  console.log(`  ${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
+};
 
 // Instrument the GM client BEFORE anything happens.
 await gm.evaluate(async () => {
@@ -173,6 +177,21 @@ console.log(`[topo] player "${cast.user}" cast: message ${cast.messageId}, stamp
 // Let the GM client digest for 8 seconds (well inside the 15s window), then read the ledger.
 await new Promise(r => setTimeout(r, 8000));
 
+// ⚠ The PLAYER's DOM is read too, and that is the half that makes the routing claim mean
+// anything. "The GM got the popup" is only interesting beside "and the player did not" — the
+// walk's finding was a popup landing on the WRONG client, which a one-sided read cannot see.
+const playerSide = await player.evaluate(async ({ messageId }) => {
+  const dialogs = Array.from(document.querySelectorAll('.application.dialog, dialog.application'))
+    .map(d => d.querySelector('.window-title')?.textContent?.trim() ?? d.id);
+  const msg = game.messages.get(messageId);
+  return {
+    user: game.user.name,
+    domDialogs: dialogs,
+    sawFlag: !!msg?.getFlag('fvtt-mod-battleflow', 'saves'),
+    rowInDOM: !!document.querySelector(`[data-message-id="${messageId}"] .battleflow-saves`)
+  };
+}, { messageId: cast.messageId });
+
 const result = await gm.evaluate(async ({ messageId }) => {
   const dialogs = Array.from(document.querySelectorAll('.application.dialog, dialog.application'))
     .map(d => d.querySelector('.window-title')?.textContent?.trim() ?? d.id);
@@ -202,7 +221,38 @@ await player.evaluate(async ({ spellId }) => {
   return true;
 }, { spellId: cast.spellId });
 
-console.log(`[topo] GM DOM dialogs open: ${JSON.stringify(result.domDialogs)}`);
+/* --- the assertions ------------------------------------------------------------------------
+ *
+ * Every one of these is a property no single-client suite can reach. They read the ledger the
+ * GM client kept and the DOM both clients ended in — nothing is re-derived.
+ */
+const ledger = result.ledger ?? [];
+const seenOnGM = ledger.filter(e => (e.id === cast.messageId) && e.flag);
+const decisionRow = seenOnGM.flatMap(e => e.targets ?? []).filter(t => t.name);
+const gmCanAnswer = decisionRow.some(t => t.canAnswer === true);
+const saveDialogOn = list => list.some(t => /save|BF Topology/i.test(t ?? ''));
+
+console.log('\n[topo] assertions');
+report('the PLAYER client stamped the demand — the stamp runs where the cast happened',
+  cast.stamped === true, `stamped=${cast.stamped} status=${cast.status} by "${cast.user}"`);
+report('the flag REPLICATED to the GM client (a create or update carrying it)',
+  seenOnGM.length > 0, `${seenOnGM.length} ledger entries carry the flag`);
+report('canAnswerFor on the GM client claims the decision — the target has no active player owner',
+  gmCanAnswer, JSON.stringify(decisionRow.slice(0, 3)));
+report('the popup opened on the GM client — the one that owns the decision',
+  saveDialogOn(result.domDialogs) || ledger.some(e => e.kind === 'dialogRender'),
+  `dom=${JSON.stringify(result.domDialogs)} renders=${ledger.filter(e => e.kind === 'dialogRender').length}`);
+report('the popup did NOT open on the player client — it owns neither the target nor the call',
+  !saveDialogOn(playerSide.domDialogs),
+  `player "${playerSide.user}" dialogs=${JSON.stringify(playerSide.domDialogs)}`);
+report('the public row rendered on the GM client, with a draining bar',
+  result.rowInDOM && (result.barsInDOM > 0),
+  `row=${result.rowInDOM} bars=${result.barsInDOM}`);
+report('nothing in the popup machinery rejected or logged an error',
+  !ledger.some(e => (e.kind === 'dialogRenderREJECTED') || (e.kind === 'consoleError')),
+  JSON.stringify(ledger.filter(e => /REJECTED|consoleError/.test(e.kind)).slice(0, 3)));
+
+console.log(`\n[topo] GM DOM dialogs open: ${JSON.stringify(result.domDialogs)}`);
 console.log(`[topo] demand row in GM DOM: ${result.rowInDOM}, bars: ${result.barsInDOM}`);
 console.log(`[topo] flag at read: ${JSON.stringify(result.flagNow?.status)} targets=${
   JSON.stringify(result.flagNow?.targets?.map(t => ({ done: t.done, timedOut: t.timedOut ?? false })))}`);
@@ -213,4 +263,5 @@ for (const e of result.ledger) {
 }
 await player.disconnect?.();
 await gm.disconnect?.();
-process.exit(0);
+console.log(failures ? `\n[topo] ${failures} FAILURE(S)` : '\n[topo] ALL PASS');
+process.exit(failures ? 1 : 0);
