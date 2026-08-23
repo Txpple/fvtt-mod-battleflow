@@ -523,10 +523,23 @@ const out = await f.evaluate(async () => {
           `driven=${!!driven} chained=${!!driven?.getFlag(MOD, 'riposte')}`);
         // (p) the announced miss: the strike back never ends in silence — the card posts
         // BEFORE any Graze/Precision offer can arrive from nowhere ((e)-KEEP still fires).
-        const missCard = await until(() => game.messages.contents.find(m => (m.timestamp >= suiteStart)
-          && /the strike back misses/.test(m.content ?? '')), 6000);
-        ok('R6b. (p) the driven MISS announces itself — "the strike back misses" posts',
-          !!missCard, `card=${!!missCard}`);
+        //
+        // ⚠ A NATURAL 20 AUTO-HITS THROUGH FLAT AC 40, and then the miss card correctly never
+        // posts — the hit's moment is the damage offer instead. That is a 1-in-20 per run, and
+        // it is what produced the 53/54 seen 2026-08-23. R6 above cannot catch it: its
+        // predicate only checks that the driven attack EXISTS and never chained, so it passes
+        // on a hit too and R6b took the failure alone. Skipped rather than failed, the same
+        // way R2d/e and RP already skip on a natural 1 defeating THEIR forcing.
+        const drivenCrit = driven?.rolls?.[0]?.isCritical === true;
+        if (drivenCrit) {
+          skips.push('R6b — the driven attack rolled a natural 20 and auto-hit through flat AC 40; '
+            + 'the miss announcement cannot post, so (p) is not exercised this run');
+        } else {
+          const missCard = await until(() => game.messages.contents.find(m => (m.timestamp >= suiteStart)
+            && /the strike back misses/.test(m.content ?? '')), 6000);
+          ok('R6b. (p) the driven MISS announces itself — "the strike back misses" posts',
+            !!missCard, `card=${!!missCard}`);
+        }
       }
       await closeDialogs('Precision');   // the PC's own precision may have offered on that miss
       await closeDialogs('Riposte');

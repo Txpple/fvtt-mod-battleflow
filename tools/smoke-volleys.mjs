@@ -37,6 +37,15 @@ const out = await f.evaluate(async () => {
   const log = [];
   const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // WAIT FOR THE THING, NOT FOR THE CLOCK. Every `sleep(N)` below used to be an unconditional
+  // N-millisecond stall sized for the worst case; this returns the moment the thing exists and
+  // only spends the full budget when it never does. Measured 2026-08-23: 49.1s of the volley
+  // suite's ~82s wall clock was fixed sleeping. Same helper smoke-maneuvers already had.
+  const until = async (fn, ms = 8000) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(150); }
+    return fn();
+  };
   const suiteStart = Date.now();
 
   const mod = game.modules.get(MOD);
@@ -145,8 +154,13 @@ const out = await f.evaluate(async () => {
     const victimToken = await mkToken(victim, 1000);
     const shielderToken = await mkToken(shielder, 1200);
     if (!victimToken || !shielderToken) return { fatal: 'target tokens never reached the canvas' };
-    priorActor[victim.id] = { 'system.attributes.hp.value': victim.system._source.attributes.hp.value };
-    priorActor[shielder.id] = { 'system.attributes.hp.value': shielder.system._source.attributes.hp.value };
+    // AC rides along with hp because SS3 forces it (see there); teardown restores both.
+    priorActor[victim.id] = { 'system.attributes.hp.value': victim.system._source.attributes.hp.value,
+      'system.attributes.ac.calc': victim.system._source.attributes.ac.calc,
+      'system.attributes.ac.flat': victim.system._source.attributes.ac.flat };
+    priorActor[shielder.id] = { 'system.attributes.hp.value': shielder.system._source.attributes.hp.value,
+      'system.attributes.ac.calc': shielder.system._source.attributes.ac.calc,
+      'system.attributes.ac.flat': shielder.system._source.attributes.ac.flat };
 
     // The Magic Missile shape: damage activity, count "2 + @item.level", innate consumption
     // (self-uses so the consumed-flag replication has something to record; no slots needed),
@@ -205,9 +219,8 @@ const out = await f.evaluate(async () => {
     targetBoth();
     let before = snap();
     await mmAct.use({}, { configure: false }, {});
-    await sleep(1200);
+    const card1 = await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), 1200);
     let msgs = fresh(before);
-    const card1 = msgs.find(m => m.getFlag(MOD, 'volley'));
     const v1 = card1?.getFlag(MOD, 'volley');
     ok('1a volley stamps: kind damage, n 3, two targets, pending',
       (v1?.kind === 'damage') && (v1?.n === 3) && (v1?.targets?.length === 2) && (v1?.status === 'pending'),
@@ -231,7 +244,8 @@ const out = await f.evaluate(async () => {
       for (const s of steppers) s.value = (s.dataset.bfVolleyUuid === victim.uuid) ? '2' : '1';
       dlg1.element.querySelector('button[data-action="fire"]')?.click();
     }
-    await sleep(2500);
+    await until(() => fresh(before).filter(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
+      && m.getFlag(MOD, 'volleyFor')).length >= 3, 2500);
     msgs = fresh(before);
     const dartRolls = msgs.filter(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
       && m.getFlag(MOD, 'volleyFor'));
@@ -248,7 +262,7 @@ const out = await f.evaluate(async () => {
     ok('1f each dart roll snapshots exactly its own target',
       ((forVictim?.getFlag('dnd5e', 'targets') ?? []).map(t => t.uuid).join() === victim.uuid)
         && ((forShielder?.getFlag('dnd5e', 'targets') ?? []).map(t => t.uuid).join() === shielder.uuid));
-    await sleep(1500);
+    await until(() => forVictim?.getFlag(MOD, 'receipt') && forShielder?.getFlag(MOD, 'receipt'), 1500);
     ok('1g both rolls applied through the existing spellDamage machinery (receipts per target)',
       !!forVictim?.getFlag(MOD, 'receipt') && !!forShielder?.getFlag(MOD, 'receipt'));
     const v1r = card1?.getFlag(MOD, 'volley');
@@ -303,9 +317,8 @@ const out = await f.evaluate(async () => {
     before = snap();
     await upItem.system.activities.contents[0].use(
       { spell: { slot: 'spell3' } }, { configure: false }, {});
-    await sleep(1200);
+    const card2 = await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), 1200);
     msgs = fresh(before);
-    const card2 = msgs.find(m => m.getFlag(MOD, 'volley'));
     const v2 = card2?.getFlag(MOD, 'volley');
     ok('2a a 3rd-level slot reads 5 darts off the content formula (message spellLevel is the channel)',
       (v2?.n === 5) && (v2?.castLevel === 3) && (card2?.system?.spellLevel === 3),
@@ -313,7 +326,8 @@ const out = await f.evaluate(async () => {
     const dlg2 = findDialog('BF Volley Up');
     // The X is "get on with it": closing fires the volley with the default even spread (3/2).
     await dlg2?.close();
-    await sleep(2500);
+    await until(() => fresh(before).filter(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
+      && m.getFlag(MOD, 'volleyFor')).length >= 2, 2500);
     msgs = fresh(before);
     const upRolls = msgs.filter(m => (m.getFlag('dnd5e', 'roll.type') === 'damage') && m.getFlag(MOD, 'volleyFor'));
     const upV = upRolls.find(m => m.getFlag(MOD, 'volleyTarget') === victim.uuid);
@@ -324,12 +338,19 @@ const out = await f.evaluate(async () => {
 
     // ============================================================ §3 rays — real attacks
     log.push('§3 rays');
+    // FORCE THE HIT (the idiom smoke-battleflow/hold/effects/concentration all use, and the
+    // one this suite was missing): the rays are REAL attack rolls, so against live AC some of
+    // them simply miss and no damage rolls - which is the module working correctly and the
+    // assertion failing anyway. That is the whole of the documented "38/39 first run"
+    // variance. Flat AC 1 leaves the natural 1 as the ONLY way to miss, and 3e now counts
+    // fumbles rather than assuming three hits, so the dice cannot make this suite lie.
+    await victim.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+    await shielder.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
     targetBoth();
     before = snap();
     await srAct.use({}, { configure: false }, {});
-    await sleep(1200);
+    const card3 = await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), 1200);
     msgs = fresh(before);
-    const card3 = msgs.find(m => m.getFlag(MOD, 'volley'));
     const v3 = card3?.getFlag(MOD, 'volley');
     ok('3a volley stamps: kind attack, n 3 — and NO native first ray rolled',
       (v3?.kind === 'attack') && (v3?.n === 3)
@@ -362,7 +383,10 @@ const out = await f.evaluate(async () => {
       sels[0].value = victim.uuid; sels[1].value = shielder.uuid; sels[2].value = victim.uuid;
       dlg3.element.querySelector('button[data-action="fire"]')?.click();
     }
-    await sleep(4500);
+    // the three rays are sequential real attacks, each with its own damage — wait for the
+    // LAST one rather than for a clock sized to the slowest plausible run.
+    await until(() => fresh(before).filter(m => (m.getFlag('dnd5e', 'roll.type') === 'attack')
+      && m.getFlag(MOD, 'volleyRay')).length >= 3, 4500);
     msgs = fresh(before);
     const rays = msgs.filter(m => (m.getFlag('dnd5e', 'roll.type') === 'attack') && m.getFlag(MOD, 'volleyRay'))
       .sort((a, b) => a.getFlag(MOD, 'volleyRay') - b.getFlag(MOD, 'volleyRay'));
@@ -373,11 +397,23 @@ const out = await f.evaluate(async () => {
       ((rays[0]?.getFlag('dnd5e', 'targets') ?? []).map(t => t.uuid).join() === victim.uuid)
         && ((rays[1]?.getFlag('dnd5e', 'targets') ?? []).map(t => t.uuid).join() === shielder.uuid)
         && ((rays[2]?.getFlag('dnd5e', 'targets') ?? []).map(t => t.uuid).join() === victim.uuid));
-    const rayDamage = msgs.filter(m => (m.getFlag('dnd5e', 'roll.type') === 'damage') && !m.getFlag(MOD, 'volleyFor'));
-    ok('3e the ordinary pipeline resolved each hitting ray: three auto-rolled 2d6 damages, receipted',
-      (rayDamage.length === 3) && rayDamage.every(m => m.rolls?.[0]?.formula?.includes('2d6'))
+    // vs flat AC 1 only a natural 1 misses, so hits === rays - fumbles. Counting it makes the
+    // assertion say what its own title always said - "each HITTING ray" - instead of assuming
+    // all three hit and failing on a 1-in-20 that is the module behaving correctly.
+    const fumbles = rays.filter(m => m.rolls?.[0]?.isFumble === true).length;
+    const wantDamage = rays.length - fumbles;
+    // ⚠ The damages land AFTER their attacks, so the wait above (which watched for the ray
+    // ATTACKS) is not enough on its own - snapshotting here would race the pipeline. Now that
+    // the fumble count is known, wait for exactly the damages that should exist.
+    const rayDamageOf = () => fresh(before).filter(m =>
+      (m.getFlag('dnd5e', 'roll.type') === 'damage') && !m.getFlag(MOD, 'volleyFor'));
+    await until(() => rayDamageOf().length >= wantDamage
+      && rayDamageOf().every(m => !!m.getFlag(MOD, 'receipt')), 4500);
+    const rayDamage = rayDamageOf();
+    ok('3e the ordinary pipeline resolved each hitting ray: an auto-rolled 2d6 damage each, receipted',
+      (rayDamage.length === wantDamage) && rayDamage.every(m => m.rolls?.[0]?.formula?.includes('2d6'))
         && rayDamage.every(m => !!m.getFlag(MOD, 'receipt')),
-      `damage=${rayDamage.length}`);
+      `damage=${rayDamage.length} want=${wantDamage} rays=${rays.length} fumbles=${fumbles}`);
     // (ii): the walk's "the damage didnt auto apply" — the registry walk resolved every ray
     // damage to the LAST ray's attack (three rays share one usage card), so ray 1's dice
     // re-tested against ray 3's outcome. The attackFor stamp is the fix; this pins that each
@@ -462,8 +498,7 @@ const out = await f.evaluate(async () => {
     targetBoth();
     before = snap();
     await mmAct.use({}, { configure: false }, {});
-    await sleep(1000);
-    const card5 = fresh(before).find(m => m.getFlag(MOD, 'volley'));
+    const card5 = await until(() => fresh(before).find(m => m.getFlag(MOD, 'volley')), 1000);
     ok('5a pending with a 3s deadline and the public card bar',
       (card5?.getFlag(MOD, 'volley')?.status === 'pending')
         && !!document.querySelector(`[data-message-id="${card5?.id}"] .bf-volley-row [data-bf-deadline]`));

@@ -218,6 +218,13 @@ if (!fx.ok) { process.exit(1); }
         { data: { 'flags.dnd5e.originatingMessage': usageId } });
       if (!rolls?.length) return { ok: false, why: 'attack roll produced no rolls' };
       const attackTotal = rolls[0].total;
+      // ⚠ THE ONE FORCING HOLE LEFT UNGUARDED UNTIL 2026-08-23. Flat AC 1 + advantage makes a
+      // miss a 1-in-400 double fumble, not an impossibility, and this section is the only one
+      // of the four that did not say so: sections 2 and 4 return `fumble`, section 3 tolerates
+      // a nat-20 crit through AC 40 explicitly. Here a fumble produced "no receipted damage
+      // message" and a hard exit - a correct module reported as a broken gate, with nothing in
+      // the output naming the dice. It rides in the failure detail now.
+      const fumble = rolls[0].isFumble ?? false;
 
       // Wait for the chain: damage message with a Battle Flow receipt flag.
       let damageMsg = null;
@@ -234,7 +241,12 @@ if (!fx.ok) { process.exit(1); }
           origin: m.getFlag('dnd5e', 'originatingMessage'),
           bf: !!m.getFlag('fvtt-mod-battleflow', 'receipt'),
         }));
-        return { ok: false, why: `no receipted damage message; tail=${JSON.stringify(tail)}` };
+        return { ok: false, fumble, why: fumble
+          ? `THE FORCED HIT MISSED: natural 1 on both advantage dice vs flat AC 1 (a 1-in-400 `
+            + `run, not a defect - re-run before diagnosing). attackTotal=${attackTotal}; `
+            + `tail=${JSON.stringify(tail)}`
+          : `no receipted damage message; attackTotal=${attackTotal} fumble=false; `
+            + `tail=${JSON.stringify(tail)}` };
       }
 
       const receipt = damageMsg.getFlag('fvtt-mod-battleflow', 'receipt');
