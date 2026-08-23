@@ -330,6 +330,26 @@ against a closed set, warn once per bad entry, never default.
 `scripts/battleflow.js` is the only `esmodules` entry; it imports its siblings in a deliberate
 order. Plain ES modules, no build step.
 
+**`scripts/decide/` — the pure layer, and what each module holds.** ⚠ **It has ZERO imports**,
+across all six modules: not core.js, not a machine, not the spine. That is what makes it testable
+in milliseconds and impossible to tangle. **Keep it that way** — the day something in there needs
+`game` or `canvas`, it is EDGE and belongs one layer up (§2 rule 1).
+
+| Module | Holds |
+| --- | --- |
+| [decide/geometry.js](scripts/decide/geometry.js) | `honestDims`, `tokenCenter`, `tokenSamplePoints` — the v14 region-shim knowledge |
+| [decide/registry.js](scripts/decide/registry.js) | the world-setting list SPECS and the one `parseList` |
+| [decide/verdict.js](scripts/decide/verdict.js) | `hitsAmong`, `modeAdmits`, `saveOutcome`, `saveMultiplier`, `verdictText`, and the fold layer (`ATTACK_FOLDS`, `SAVE_FOLDS`, `foldsFrom`, `foldedRoll`, `foldedVerdict`, `foldedSave`) |
+| [decide/eligible.js](scripts/decide/eligible.js) | `isDeadForSaves`, `limitedUses`, `isReactionItem`, `castLevelOf`, `clampVolleyCount`, `riderKey` |
+| [decide/receipt.js](scripts/decide/receipt.js) | `traitOutcome`, `hpDelta`, `receiptEntry`, `joinDamageReceipt`, `joinEffectReceipt`, `takenOf`, `receiptAmounts`, `revertPlan`, `revertableEffect` |
+| [decide/present.js](scripts/decide/present.js) | `popupKey`, `TONE`, `bfCard`, `ruleLine`, `momentBarHTML`, `holdBarHTML`, `nextCascadeSlot`, `cascadePosition` |
+| [geometry.js](scripts/geometry.js) | EDGE, not in the layer: `tokensInTemplates`, `templateShape` — they need canvas/CONFIG/PIXI |
+
+⚠ **`receiptAmounts` returns the row's TEXT as well as its figures, deliberately.** The two bugs
+that reached the table there were both a right number in the wrong sentence (the double-negative
+heal, the temp grant in damage maroon). Only the colours stayed at the EDGE. **Do not "tidy"
+those strings back into the view.**
+
 ### The dependency rule
 
 > **Depend downward only: EDGE → MOMENT → DECISION → REGISTRY.**
@@ -458,6 +478,23 @@ the rule it violates, and the evidence.
 1. Is its KIND already in the code? → **one registry or list entry. Stop.**
 2. If not: is this genuinely a new kind, or a special case of an existing one?
 3. If genuinely new: add the kind, count it against the R4 tripwire, and record why.
+
+**Converting a write to the serializer** (`queueFlagWrite`, §4 law 2):
+1. **Repeat the guard INSIDE the lock.** The check that decided to write happened before the
+   lock; by the time the callback runs, another writer may have made it false. Return `false`
+   when there is nothing to record, so a no-op never churns a render.
+2. ⚠ **Check EVERY LATER USE of the old local variable.** This is the one that bites, and it bit
+   twice in the same conversion. A clone-mutate-write leaves you holding a clone that reflects
+   your change; moving the mutation inside the callback silently changes what that clone means,
+   and the code after it goes on reading a value that is now stale:
+   - `foldToppleSave` disarmed its clock with `flag.targets.every(t => t.done)` on the clone it
+     used to mutate. After conversion that clone still read the target as pending, so **the clock
+     would never have been disarmed.** It re-reads now.
+   - the same fold announced its verdict unconditionally; with the claim taken inside the lock,
+     **a losing racer would still have announced.** A `claimed` flag gates it.
+   Neither was caught by any check. Both were caught by reading the diff.
+3. Not every write needs it. A single-decision object with one writer (concentration's ask,
+   mastery's own flag) is not a per-target read-modify-write and the argument does not reach it.
 
 **Adding a FOLD** (anything that changes an already-rolled outcome after the fact — a reroll,
 an added die, a reaction that moves AC):

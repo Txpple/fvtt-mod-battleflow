@@ -1,8 +1,14 @@
 # PLAN.md — the stabilization pass
 
-> **Temporary.** This document tracks one piece of work: bringing a two-week high-velocity
-> prototype up to a shape that can carry years of features. **Delete it when the last box is
-> ticked.** It is not a fourth permanent document.
+> **Temporary, and its work is FINISHED (2026-08-23).** This document tracked one piece of work:
+> bringing a two-week high-velocity prototype up to a shape that can carry years of features.
+> Every phase and every foundation stage is closed; **v1.22.0 ships the result.**
+>
+> ⚠ **It is kept, for now, for two things a tracker is unusually good at and the permanent docs
+> are not:** the MEASUREMENTS (what a thing actually cost, against what it was estimated to
+> cost) and the record of **what was decided AGAINST and why** — D4, the two permanent cycles,
+> the page-helper bundle, per-suite world rollback. Delete it once nobody is reading it; the
+> binding conclusions are already in DESIGN/ARCHITECTURE/NOTES, which is where they belong.
 >
 > Every item traces to a rule in [ARCHITECTURE.md](ARCHITECTURE.md). Nothing here changes what
 > the module does at the table — **the UI/UX and the shipped behaviour are the asset being
@@ -680,23 +686,23 @@ up*, not about whether the module was right.
       ⚠ **The walk is the USER's, not the suite's.** 4.4 said "then a walk"; a walk is a human at
       a table, and nothing here substitutes for it.
 
-### STAGE 5 — one release
+### STAGE 5 — one release — ✅ DONE 2026-08-23
 
-- [~] **5.1 BUILT AND VERIFIED — the publish is deliberately left to the user.**
-      `node tools/bump-version.mjs minor` moved **both** manifest fields to **v1.22.0** (the
-      mistake the v1.20.0 walk-1 bump made by hand, and the reason 2.2 built the script), and
-      `build-release.ps1` produced `dist/fvtt-mod-battleflow.zip`: **30 entries — 27 scripts
-      including `scripts/decide/`, plus module.json, LICENSE and README — forward slashes
-      verified, and every relative import inside the archive proved to resolve to another file
-      in it.** The gate ran as a precondition, which is 2.1 exercised for real.
-      **What this release carries above `v1.21.0`:** Phase 3 (registries), D2, the §4.1 relay,
-      the flake fixes, and this pass's commits. ⚠ **Only D8 changes shipping code** —
-      stages 1–3 are `tools/` and docs, and neither is in the zip.
-      ⚠ **`gh release create` and `git push` are NOT run.** They put artifacts on a public repo,
-      and that is the user's call rather than an autonomous one. The commands, and a
-      release-notes draft (`dist/RELEASE-NOTES.md`, hand-written — **not** `NOTES.md`, see
-      build-release.ps1's corrected usage note), are in HANDOFF § THE RELEASE, READY TO GO.
-- [ ] **5.2 Prod is the USER's call.** It has run pre-refactor code throughout, deliberately.
+- [x] **5.1 RELEASED: [v1.22.0](https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.22.0).**
+      `bump-version.mjs minor` moved both manifest fields; `build-release.ps1` packed it with the
+      gate as a precondition; `gh release create` published both assets. ✅ **The PUBLISHED zip was
+      downloaded back and proven self-contained** — 30 entries, 27 scripts including `decide/`,
+      **101 relative imports all resolving inside the archive**, no backslash separators, both
+      manifest fields in step. That check exists because the zip is the one artifact nobody
+      exercises, and two release bugs have hidden in it.
+      **It carries above `v1.21.0`:** Phase 3 (registries), D2, the §4.1 relay, the flake fixes,
+      and the foundation pass. ⚠ **Only D8 changed shipping code** — stages 1–3 are `tools/` and
+      docs, neither of which is in the zip.
+- [x] **5.1a Deployed to the SANDBOX ONLY** (user: *"sandbox only, no prod yet"*), and smoked
+      green on the deployed build: battleflow ALL PASS → hold ALL PASS, `verify-settings` CLEAN.
+- [~] **5.2 Prod is the USER's call, and the call was NOT YET** (2026-08-23: *"sandbox only,
+      no prod yet"*). It has run pre-refactor code throughout, deliberately. **Do not update it
+      without being asked.**
 
 ---
 
