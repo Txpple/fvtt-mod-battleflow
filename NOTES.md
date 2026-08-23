@@ -337,6 +337,20 @@ archive back and fails on any backslash entry; that check is the whole point. **
 from v1.1.0 to v1.1.15 shipped that way** and never bit only because the live box is
 hot-deployed rather than installed from the zip.
 
+**⚠ And the same blind spot bit a second time, in a new shape — v1.21.0, 2026-08-23.** The
+builder enumerated `scripts/` with a **non-recursive** `Get-ChildItem`, and said so in a comment
+that promised "a new phase file rides along without a tooling change". True of a new *file*;
+false of a new *directory*. Phase 2 added `scripts/decide/`, and its six modules — which eleven
+files import, 23 import statements — **fell out of every zip built after 2026-08-22**. A clean
+install would have died on the first import and loaded the module as an empty shell.
+
+The generalization is worth more than either bug. **Both survived because nothing ever installs
+what we ship.** `check-imports.mjs` proves the *working tree* resolves; hot-deploy over WebDAV
+copies the *working tree*; the zip is the one artifact nobody exercises, so it is the one
+artifact that silently rots. The builder now recurses **and** re-reads the finished archive to
+prove every relative import resolves to something *inside it* — the archive checking itself,
+because that is the only place the defect was ever visible.
+
 ### Testing against the live sandbox
 
 The sandbox is a byte copy of prod — same world id, same users, same fixtures — which is
