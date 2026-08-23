@@ -5,7 +5,7 @@
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
   canAnswerFor, inRunningCombat } from "./core.js";
-import { parseManeuverFolds } from "./decide/registry.js";
+import { maneuverFoldEntries } from "./settings.js";
 import { hitTargets, modeAllows } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup,
@@ -88,19 +88,14 @@ export const RULE_TEXT = {
   interpose: "If you’re subjected to an effect that allows you to make a Dexterity saving throw to take only half damage, you can take a Reaction to take no damage if you succeed on the saving throw and are holding a Shield.",
   hew: "Immediately after you score a Critical Hit with a Melee weapon or reduce a creature to 0 Hit Points with one, you can make one attack with the same weapon as a Bonus Action."
 };
-const warnedKinds = new Set();
 
-/** EDGE wrapper: read the setting, parse (decide/registry.js), own the warn-once bookkeeping
- * the parser deliberately does not do. */
-export function maneuverEntries() {
-  const { entries, unknown } = parseManeuverFolds(setting(S.maneuverFolds));
-  for ( const chunk of unknown ) {
-    if ( warnedKinds.has(chunk) ) continue;
-    warnedKinds.add(chunk);
-    console.warn(`${TITLE} | Maneuver Folds: "${chunk}" has no recognised kind (precision/riposte/interpose/bash/hew) — ignored, never guessed.`);
-  }
-  return entries;
-}
+/**
+ * The listed folds, `{ name, kind }`. ⚠ This used to be the module's ONLY warn-once list read,
+ * hand-rolled here with its own seen-set; Phase 3 moved the read and the warning to the one
+ * path in settings.js, where the other four lists now join it. The re-export keeps this
+ * module's own vocabulary — a caller here asks maneuvers.js what the folds are.
+ */
+export const maneuverEntries = maneuverFoldEntries;
 
 /**
  * The folds entry of `kind` this actor actually carries — the listed item, by name. The

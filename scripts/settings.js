@@ -2,8 +2,8 @@
  * Battle Flow — Settings registration and the settings-sheet polish (dividers, dependent grey-out).
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, S, setting } from "./core.js";
-import { parseInterruptList, parseBlockList } from "./decide/registry.js";
+import { MODULE_ID, TITLE, S, setting } from "./core.js";
+import { LIST_SPECS, parseList, rejectMessage } from "./decide/registry.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Settings registration
@@ -91,15 +91,11 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.interruptList, {
     name: "Interrupt Reactions",
     hint: 'Which reactions pause the chain, as "Name:kind" separated by commas. kind is "ac" (raises AC — the hold re-tests the attack against the new AC, and crits skip the pause since a natural 20 hits regardless) or "damage" (reduces damage — the hold pauses and announces; the reduction itself stays a human call). Names must match the item on the actor. See ARCHITECTURE.md §6 for the full survey.',
-    // ⚠ Riposte is deliberately ABSENT: it triggers on a MISS (the hold offers on hits) and it is
-    // not an AC boost, so an entry here can only ever produce the every-hit nonsense hold that was
-    // struck from the live worlds at v1.16.0. It lives in the Maneuver Folds list instead. This
-    // default carried it until v1.19.0 — the strike missed the registered default, so a fresh
-    // world or Reset Defaults kept re-seeding the bug.
+    // ⚠ THE DEFAULT LIVES WITH ITS PARSER (decide/registry.js), and so does the note on why
+    // Riposte is deliberately absent from it. A default the gate can only reach by scraping
+    // source is a default the gate cannot really check — see the spec header.
     scope: "world", config: true, type: String,
-    default: "Shield:ac, Absorb Elements:damage, Uncanny Dodge:damage, Defensive Duelist:ac, "
-      + "Illusory Self:ac, Glorious Defense:ac, Parry:ac, Counterattack:ac, Defensive Stance:ac, "
-      + "Whirlwind of Sand:ac, Deflect Attacks:damage, Stone's Endurance:damage"
+    default: LIST_SPECS.interrupt.default
   });
 
   game.settings.register(MODULE_ID, S.blockList, {
@@ -113,7 +109,7 @@ Hooks.once("init", () => {
     // above untouched. Shield is genuinely both things — it raises AC against an attack roll AND
     // negates Magic Missile — and folding that into the `Name:kind` grammar would need two
     // entries and two colons to say one thing about one spell.
-    scope: "world", config: true, type: String, default: "Magic Missile:Shield"
+    scope: "world", config: true, type: String, default: LIST_SPECS.block.default
   });
 
   game.settings.register(MODULE_ID, S.holdReveal, {
@@ -172,13 +168,13 @@ Hooks.once("init", () => {
     // Strike's "Start of Turn Damage" sits on the target with the caster as its origin and
     // would otherwise pay out on every attack against a restrained creature.
     scope: "world", config: true, type: String,
-    default: "hunters-mark, hex, great-old-one-hex"
+    default: LIST_SPECS.rider.default
   });
 
   game.settings.register(MODULE_ID, S.riderUpgrades, {
     name: "Rider Upgrades",
     hint: 'Features that REPLACE a mark\'s damage, as "feature:mark" identifier pairs. The Ranger\'s level-20 Foe Slayer makes Hunter\'s Mark a d10 instead of a d6 — and like the mark itself, how much is read from the feature\'s own bonus-damage activity rather than typed here.',
-    scope: "world", config: true, type: String, default: "foe-slayer:hunters-mark"
+    scope: "world", config: true, type: String, default: LIST_SPECS.riderUpgrade.default
   });
 
   game.settings.register(MODULE_ID, S.effectRiders, {
@@ -209,7 +205,7 @@ Hooks.once("init", () => {
     // kinds as "ac", which is exactly the mis-wiring v1.16.0 struck (an every-hit nonsense
     // hold answered with a bare 1d8). This parser is strict where that one is forgiving.
     scope: "world", config: true, type: String,
-    default: "Precision Attack:precision, Riposte:riposte, Shield Master:interpose, Shield Master:bash, Great Weapon Master:hew"
+    default: LIST_SPECS.maneuverFolds.default
   });
 
   // Membership lives in the volley registry (volley-registry.js — finding (ff), which
@@ -347,22 +343,70 @@ Hooks.on("renderSettingsConfig", (app, element) => {
 });
 
 /* ---------------------------------------------------------------------------------------------
- * The list settings, read and parsed. EDGE wrappers over decide/registry.js's pure parsers —
- * they live with the settings surface (section 8) rather than inside the feature that happens to
- * consume them, which is what D1 was about: hold.js owned these, and polish.js had to import a
- * FEATURE to ask what the interrupt list said.
+ * The list settings, read and parsed. EDGE wrappers over decide/registry.js's one parser — they
+ * live with the settings surface (section 8) rather than inside the feature that happens to
+ * consume them, which is what D1 was about: hold.js owned two of these, and polish.js had to
+ * import a FEATURE to ask what the interrupt list said.
+ *
+ * ⚠ ALL FIVE LIVE HERE NOW (PLAN.md Phase 3), including the two that used to sit in their own
+ * machines. That is not tidiness: the warn-once bookkeeping below is the "one warn-once path"
+ * the phase asks for, and a path is only one path if every list walks it. maneuvers.js had the
+ * only implementation and only the folds got warned; the other four failed silently.
+ *
+ * ⚠ Order-neutral by construction: `settings.js` is the SECOND import in battleflow.js, ahead
+ * of every machine, so maneuvers.js and hit-riders.js importing it adds no evaluation-order
+ * edge — the same argument D1 made for hold.js and polish.js. Do not move this file down the
+ * entry list without re-reading check-hook-order.mjs.
  * ------------------------------------------------------------------------------------------- */
 
-/** EDGE wrapper: read the world setting, hand the string to the parser (decide/registry.js). */
+/**
+ * Warned chunks, by list. ⚠ A world setting is read on nearly every hook, so an unwarned parse
+ * would put one line per bad entry per attack in the console — which is how a warning gets
+ * ignored. Once per bad chunk per list per session, and the entry is keyed by ACTION too, so an
+ * entry that changes from dropped to defaulted still says so.
+ */
+const warnedChunks = new Set();
+
+/**
+ * THE ONE LIST READ. Read the setting, parse against the spec, warn once per bad chunk, return
+ * the entries. Every list-shaped setting in the module comes through here.
+ */
+function listEntries(spec) {
+  const { entries, rejects } = parseList(spec, setting(S[spec.setting]));
+  for ( const reject of rejects ) {
+    const seen = `${spec.setting}|${reject.action}|${reject.chunk}`;
+    if ( warnedChunks.has(seen) ) continue;
+    warnedChunks.add(seen);
+    console.warn(`${TITLE} | ${rejectMessage(spec, reject)}`);
+  }
+  return entries;
+}
+
+/** Which reactions interrupt an attack, and what each one changes — `{ name, kind }`. */
 export function interruptEntries() {
-  return parseInterruptList(setting(S.interruptList));
+  return listEntries(LIST_SPECS.interrupt);
 }
 
 /**
- * Parse the curated "Spell:Reaction" world setting — which spells a reaction stops outright.
- * Keyed by the SPELL, so one reaction can appear here and in the interrupt list without the
- * two lists having to agree about anything.
+ * Which spells a reaction stops outright — `{ spell, reaction }`. Keyed by the SPELL, so one
+ * reaction can appear here and in the interrupt list without the two lists having to agree
+ * about anything.
  */
 export function blockEntries() {
-  return parseBlockList(setting(S.blockList));
+  return listEntries(LIST_SPECS.block);
+}
+
+/** Which listed feats fold into an attack after the roll, and how — `{ name, kind }`. */
+export function maneuverFoldEntries() {
+  return listEntries(LIST_SPECS.maneuverFolds);
+}
+
+/** Which marks pay, by system identifier — `{ name }`. What they pay is read from the mark. */
+export function riderEntries() {
+  return listEntries(LIST_SPECS.rider);
+}
+
+/** Which of the attacker's own features replaces a mark's damage — `{ feature, rider }`. */
+export function riderUpgradeEntries() {
+  return listEntries(LIST_SPECS.riderUpgrade);
 }

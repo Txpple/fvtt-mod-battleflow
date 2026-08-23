@@ -1,12 +1,16 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
 /**
- * DECISION-layer list parsing (ARCHITECTURE.md §2, §6). No Foundry stub on purpose: if any
- * of these ever reaches for `setting()` the import fails, which is the signal we want.
+ * DECISION-layer list parsing (ARCHITECTURE.md §2, §6). No Foundry stub on purpose: if any of
+ * this ever reaches for `setting()` the import fails, which is the signal we want.
  *
- * ⚠ These parsers are the only thing between a stray character in a world setting and a
- * feature that silently does nothing forever. A dropped entry raises no error at runtime —
- * that is precisely why the drops are asserted here rather than trusted.
+ * ⚠ This parser is the only thing between a stray character in a world setting and a feature
+ * that silently does nothing forever. A dropped entry raises no error at runtime — that is
+ * precisely why the drops are asserted here rather than trusted.
+ *
+ * ⚠ Phase 3 replaced five parsers with one spec-driven parser. Every behavioural assertion the
+ * five had is preserved below, list by list, because "move, do not rewrite" is only a claim
+ * until the old behaviours are re-asserted against the new code.
  */
 /** @type {typeof import("../scripts/decide/registry.js")} */
 let reg;
@@ -14,82 +18,159 @@ beforeAll(async () => {
   reg = await import("../scripts/decide/registry.js");
 });
 
-describe("parseInterruptList — unknown kinds fall back to ac, never drop", () => {
+const entriesOf = (spec, raw) => reg.parseList(spec, raw).entries;
+
+describe("the specs themselves", () => {
+  it("gives every list a label, an S key, at least one column and a default", () => {
+    for (const [key, spec] of Object.entries(reg.LIST_SPECS)) {
+      expect(spec.label, key).toBeTruthy();
+      expect(spec.setting, key).toBeTruthy();
+      expect(spec.columns.length, key).toBeGreaterThan(0);
+      expect(typeof spec.default, key).toBe("string");
+    }
+  });
+
+  it("declares a kind set exactly when it declares a kind column", () => {
+    for (const [key, spec] of Object.entries(reg.LIST_SPECS)) {
+      expect(Boolean(spec.kinds), key).toBe(Boolean(spec.kindColumn));
+      if (spec.kindColumn) expect(spec.columns, key).toContain(spec.kindColumn);
+    }
+  });
+
+  it("declares a fallback ONLY where the kind column can carry one", () => {
+    // §6 rule 6 admits a DECLARED fallback; a fallback on a kindless list is meaningless, and
+    // one whose value is not itself a legal kind would put an illegal entry into the machine.
+    for (const [key, spec] of Object.entries(reg.LIST_SPECS)) {
+      if (!spec.fallback) continue;
+      expect(spec.kindColumn, key).toBeTruthy();
+      expect(spec.kinds.has(spec.fallback), key).toBe(true);
+    }
+  });
+
+  it("ships a default that its own parser accepts whole — no drops, no fallbacks", () => {
+    // The same assertion the static gate makes, kept here too: a shipped default that its own
+    // parser rejects disables the feature for every fresh world, and nobody would see it.
+    for (const [key, spec] of Object.entries(reg.LIST_SPECS)) {
+      const { entries, rejects } = reg.parseList(spec, spec.default);
+      expect(rejects, key).toEqual([]);
+      expect(entries.length, key).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps Riposte out of the interrupt default — it triggers on a MISS", () => {
+    // Struck from the live worlds at v1.16.0; the strike missed the registered default until
+    // v1.19.0, so a fresh world kept re-seeding the every-hit nonsense hold. Pinned here.
+    expect(reg.LIST_SPECS.interrupt.default).not.toMatch(/riposte/i);
+    expect(reg.LIST_SPECS.maneuverFolds.default).toMatch(/Riposte:riposte/);
+  });
+});
+
+describe("interrupt list — the one DECLARED fallback", () => {
+  const spec = () => reg.LIST_SPECS.interrupt;
+
   it("reads name and kind, and lowercases the kind", () => {
-    expect(reg.parseInterruptList("Shield:ac, Absorb Elements:DAMAGE")).toEqual([
+    expect(entriesOf(spec(), "Shield:ac, Absorb Elements:DAMAGE")).toEqual([
       { name: "Shield", kind: "ac" },
       { name: "Absorb Elements", kind: "damage" }
     ]);
   });
 
-  it("defaults a MISTYPED kind to ac rather than dropping the reaction", () => {
-    // Deliberately unlike the folds below: a mistyped interrupt is still worth pausing for.
-    expect(reg.parseInterruptList("Shield:acc")).toEqual([{ name: "Shield", kind: "ac" }]);
+  it("defaults a MISTYPED kind to ac rather than dropping the reaction — and SAYS SO", () => {
+    // Deliberately unlike the folds: a mistyped interrupt is still worth pausing for. What
+    // changed in Phase 3 is the reject — the correction is no longer silent.
+    const { entries, rejects } = reg.parseList(spec(), "Shield:acc");
+    expect(entries).toEqual([{ name: "Shield", kind: "ac" }]);
+    expect(rejects).toEqual([
+      { chunk: "Shield:acc", action: "defaulted", detail: '"acc" is not a kind' }
+    ]);
   });
 
-  it("defaults a kindless entry to ac", () => {
-    expect(reg.parseInterruptList("Shield")).toEqual([{ name: "Shield", kind: "ac" }]);
+  it("defaults a kindless entry to ac, and says that too", () => {
+    const { entries, rejects } = reg.parseList(spec(), "Shield");
+    expect(entries).toEqual([{ name: "Shield", kind: "ac" }]);
+    expect(rejects[0]).toMatchObject({ action: "defaulted", detail: "no kind given" });
   });
 
   it("survives the punctuation a human actually types", () => {
-    expect(reg.parseInterruptList("  Shield : ac ,, ,Silvery Barbs:ac,")).toEqual([
+    expect(entriesOf(spec(), "  Shield : ac ,, ,Silvery Barbs:ac,")).toEqual([
       { name: "Shield", kind: "ac" },
       { name: "Silvery Barbs", kind: "ac" }
     ]);
   });
 
   it("returns an empty list for empty, null and undefined — never throws", () => {
-    for (const raw of ["", "   ", null, undefined]) expect(reg.parseInterruptList(raw)).toEqual([]);
+    for (const raw of ["", "   ", null, undefined]) {
+      expect(reg.parseList(spec(), raw)).toEqual({ entries: [], rejects: [] });
+    }
   });
 });
 
-describe("parseBlockList — both halves required", () => {
+describe("block list — both halves required", () => {
+  const spec = () => reg.LIST_SPECS.block;
+
   it("reads Spell:Reaction", () => {
-    expect(reg.parseBlockList("Magic Missile:Shield")).toEqual([
+    expect(entriesOf(spec(), "Magic Missile:Shield")).toEqual([
       { spell: "Magic Missile", reaction: "Shield" }
     ]);
   });
 
   it("DROPS a half-written entry — a block with no reaction blocks nothing", () => {
-    expect(reg.parseBlockList("Magic Missile")).toEqual([]);
-    expect(reg.parseBlockList("Magic Missile:")).toEqual([]);
-    expect(reg.parseBlockList(":Shield")).toEqual([]);
+    for (const raw of ["Magic Missile", "Magic Missile:", ":Shield"]) {
+      expect(entriesOf(spec(), raw), raw).toEqual([]);
+    }
+  });
+
+  it("names which half was missing, so the warning is actionable", () => {
+    expect(reg.parseList(spec(), "Magic Missile").rejects[0]).toMatchObject({
+      action: "dropped",
+      detail: "no reaction"
+    });
+    expect(reg.parseList(spec(), ":Shield").rejects[0]).toMatchObject({ detail: "no spell" });
   });
 
   it("keeps the good entries either side of a bad one", () => {
-    expect(reg.parseBlockList("Magic Missile:Shield, Oops, Fireball:Absorb Elements")).toEqual([
+    expect(entriesOf(spec(), "Magic Missile:Shield, Oops, Fireball:Absorb Elements")).toEqual([
       { spell: "Magic Missile", reaction: "Shield" },
       { spell: "Fireball", reaction: "Absorb Elements" }
     ]);
   });
 });
 
-describe("parseManeuverFolds — the closed kind set, and what it refuses", () => {
+describe("maneuver folds — the closed kind set, and what it refuses", () => {
+  const spec = () => reg.LIST_SPECS.maneuverFolds;
+
   it("accepts every kind in the set, case-insensitively", () => {
     const raw = [...reg.MANEUVER_KINDS].map((k, i) => `Feat ${i}:${k.toUpperCase()}`).join(", ");
-    const { entries, unknown } = reg.parseManeuverFolds(raw);
-    expect(unknown).toEqual([]);
+    const { entries, rejects } = reg.parseList(spec(), raw);
+    expect(rejects).toEqual([]);
     expect(entries.map(e => e.kind)).toEqual([...reg.MANEUVER_KINDS]);
   });
 
-  it("reports an unrecognised kind instead of guessing at it", () => {
-    const { entries, unknown } = reg.parseManeuverFolds(
+  it("REPORTS an unrecognised kind instead of guessing at it", () => {
+    const { entries, rejects } = reg.parseList(
+      spec(),
       "Precision Attack:precision, Riposte:rispote"
     );
     expect(entries).toEqual([{ name: "Precision Attack", kind: "precision" }]);
-    expect(unknown).toEqual(["Riposte:rispote"]); // the typo is REPORTED, not silently ac'd
+    // The typo is DROPPED and reported — never quietly read as something else.
+    expect(rejects).toEqual([
+      { chunk: "Riposte:rispote", action: "dropped", detail: '"rispote" is not a kind' }
+    ]);
   });
 
   it("reports a kindless entry too", () => {
-    expect(reg.parseManeuverFolds("Riposte").unknown).toEqual(["Riposte"]);
+    const { entries, rejects } = reg.parseList(spec(), "Riposte");
+    expect(entries).toEqual([]);
+    expect(rejects[0]).toMatchObject({ chunk: "Riposte", action: "dropped" });
   });
 
   it("allows one feat to appear twice under different kinds", () => {
     // Shield Master is listed twice on purpose: two folds off one feat, orthogonal kinds.
-    const { entries, unknown } = reg.parseManeuverFolds(
+    const { entries, rejects } = reg.parseList(
+      spec(),
       "Shield Master:interpose, Shield Master:bash"
     );
-    expect(unknown).toEqual([]);
+    expect(rejects).toEqual([]);
     expect(entries).toEqual([
       { name: "Shield Master", kind: "interpose" },
       { name: "Shield Master", kind: "bash" }
@@ -97,26 +178,61 @@ describe("parseManeuverFolds — the closed kind set, and what it refuses", () =
   });
 
   it("returns empty and reports nothing for an empty setting", () => {
-    expect(reg.parseManeuverFolds("")).toEqual({ entries: [], unknown: [] });
+    expect(reg.parseList(spec(), "")).toEqual({ entries: [], rejects: [] });
   });
 });
 
-describe("parseIdentifierList / parseUpgradeList", () => {
-  it("reads a bare comma list of identifiers", () => {
-    expect(reg.parseIdentifierList("hunters-mark, hex,  divine-favor ")).toEqual([
-      "hunters-mark",
-      "hex",
-      "divine-favor"
+describe("rider list and rider upgrades", () => {
+  it("reads a bare comma list of identifiers as one-column entries", () => {
+    // ⚠ `{ name }` since Phase 3, not bare strings — one shape for every list setting.
+    expect(entriesOf(reg.LIST_SPECS.rider, "hunters-mark, hex,  divine-favor ")).toEqual([
+      { name: "hunters-mark" },
+      { name: "hex" },
+      { name: "divine-favor" }
     ]);
   });
 
   it("drops empty slots rather than emitting blanks", () => {
-    expect(reg.parseIdentifierList("hex,,, ,hunters-mark")).toEqual(["hex", "hunters-mark"]);
+    expect(entriesOf(reg.LIST_SPECS.rider, "hex,,, ,hunters-mark")).toEqual([
+      { name: "hex" },
+      { name: "hunters-mark" }
+    ]);
   });
 
   it("reads feature:rider upgrade pairs and drops half-written ones", () => {
-    expect(reg.parseUpgradeList("foe-slayer:hunters-mark, broken")).toEqual([
+    expect(entriesOf(reg.LIST_SPECS.riderUpgrade, "foe-slayer:hunters-mark, broken")).toEqual([
       { feature: "foe-slayer", rider: "hunters-mark" }
     ]);
+  });
+});
+
+describe("one parser, one set of rules", () => {
+  it("ignores a third colon-separated field on every two-column list", () => {
+    // Pre-Phase-3 behaviour, preserved: every parser destructured the first two halves and
+    // ignored the rest. Asserted so a future column cannot appear by accident.
+    expect(entriesOf(reg.LIST_SPECS.interrupt, "Shield:ac:extra")).toEqual([
+      { name: "Shield", kind: "ac" }
+    ]);
+    expect(entriesOf(reg.LIST_SPECS.block, "Magic Missile:Shield:extra")).toEqual([
+      { spell: "Magic Missile", reaction: "Shield" }
+    ]);
+  });
+
+  it("writes a message that names the list, the chunk and what would have worked", () => {
+    const spec = reg.LIST_SPECS.maneuverFolds;
+    const { rejects } = reg.parseList(spec, "Riposte:rispote");
+    const msg = reg.rejectMessage(spec, rejects[0]);
+    expect(msg).toContain("Maneuver Folds");
+    expect(msg).toContain("Riposte:rispote");
+    expect(msg).toContain("precision/riposte/interpose/bash/hew");
+    expect(msg).toContain("ignored, never guessed");
+  });
+
+  it("says 'read as' rather than 'ignored' when a fallback stood in", () => {
+    const spec = reg.LIST_SPECS.interrupt;
+    const { rejects } = reg.parseList(spec, "Shield:acc");
+    const msg = reg.rejectMessage(spec, rejects[0]);
+    expect(msg).toContain('read as "ac"');
+    expect(msg).not.toContain("ignored");
   });
 });

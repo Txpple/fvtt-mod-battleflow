@@ -36,7 +36,8 @@
  * suites can register scratch fixtures (and a GM macro could, in principle, add an entry at
  * runtime — though the shipped list IS the supported scope).
  */
-import { MODULE_ID } from "./core.js";
+import { MODULE_ID, TITLE } from "./core.js";
+import { VOLLEY_KINDS } from "./decide/registry.js";
 
 /**
  * Eldritch Blast's beams band by CHARACTER level (5/11/17 — cantrip scaling), not by the
@@ -55,10 +56,28 @@ export const VOLLEY_REGISTRY = new Map([
   ["Steel Wind Strike", { kind: "attack", count: "5", distinctTargets: true }]
 ]);
 
-/** The registry entry for this item, or null — membership is name-keyed, spells only. */
+/** Names already warned about an unknown kind — once per session, not once per attack. */
+const warnedEntries = new Set();
+
+/**
+ * The registry entry for this item, or null — membership is name-keyed, spells only.
+ *
+ * ⚠ An entry whose `kind` is not in the closed set is REFUSED, not guessed at (ARCHITECTURE §6
+ * rule 6), which is what makes the shipped list and a runtime-added one obey the same contract.
+ * The shipped four cannot fail this; the API is open so the smoke suites can register scratch
+ * fixtures, and that is the path where a bad kind can actually arrive.
+ */
 export function volleyEntryFor(item) {
   if ( item?.type !== "spell" ) return null;
-  return VOLLEY_REGISTRY.get(item.name) ?? null;
+  const entry = VOLLEY_REGISTRY.get(item.name) ?? null;
+  if ( entry && !VOLLEY_KINDS.has(entry.kind) ) {
+    if ( !warnedEntries.has(item.name) ) {
+      warnedEntries.add(item.name);
+      console.warn(`${TITLE} | Volley registry: "${item.name}" declares kind "${entry.kind}" (${[...VOLLEY_KINDS].join("/")}) — ignored, never guessed.`);
+    }
+    return null;
+  }
+  return entry;
 }
 
 /**

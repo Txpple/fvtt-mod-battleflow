@@ -3,7 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { TITLE, S, setting } from "./core.js";
-import { parseIdentifierList, parseUpgradeList } from "./decide/registry.js";
+import { riderEntries, riderUpgradeEntries } from "./settings.js";
 import { riderKey } from "./decide/eligible.js";
 import { hitTargets } from "./shared.js";
 import { bfCard } from "./decide/present.js";
@@ -43,10 +43,6 @@ import { bfCard } from "./decide/present.js";
  * on the system roadmap. DELETE THIS WHOLE SECTION the day it ships (DESIGN.md §3).
  * ------------------------------------------------------------------------------------------- */
 
-/** Which marks pay, by system identifier. What they pay is read from the mark itself. */
-function riderIdentifiers() {
-  return parseIdentifierList(setting(S.riderList));
-}
 
 /**
  * The attacker's own item that REPLACES a mark's damage, or null. Ranger level 20: "the damage
@@ -55,7 +51,7 @@ function riderIdentifiers() {
  * feature exactly as the original is read from the spell. Nothing here knows about dice sizes.
  */
 function riderUpgrade(identifier, attacker) {
-  for ( const { feature, rider } of parseUpgradeList(setting(S.riderUpgrades)) ) {
+  for ( const { feature, rider } of riderUpgradeEntries() ) {
     if ( rider !== identifier ) continue;
     const owned = attacker.items.find(i => i.system?.identifier === feature);
     if ( owned ) return owned;
@@ -135,13 +131,14 @@ function markSource(marker) {
  * rider that every target had earned.
  */
 function ridersAgainst(attacker, targetActor) {
-  const listed = riderIdentifiers();
+  // ⚠ `{ name }` entries since Phase 3, not bare strings — one shape for every list setting.
+  const listed = riderEntries();
   const found = new Map();
   for ( const marker of targetActor.effects ) {
     const src = markSource(marker);
     if ( src?.actor?.uuid !== attacker.uuid ) continue;
     const identifier = src.item.system?.identifier;
-    if ( !identifier || !listed.includes(identifier) ) continue;
+    if ( !identifier || !listed.some(e => e.name === identifier) ) continue;
     // A feature the ATTACKER owns can replace the mark's damage outright — Foe Slayer's d10 for
     // Hunter's Mark's d6. It replaces, never stacks: the source is swapped, not appended.
     const source = riderUpgrade(identifier, attacker) ?? src.item;

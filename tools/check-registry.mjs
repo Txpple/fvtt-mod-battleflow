@@ -19,7 +19,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { MANEUVER_KINDS, parseManeuverFolds } from "../scripts/decide/registry.js";
+import { LIST_SPECS, VOLLEY_KINDS, parseList } from "../scripts/decide/registry.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = p => readFileSync(join(ROOT, p), "utf8");
@@ -57,7 +57,9 @@ else pass("no setting is registered by string literal");
 /* --- 3: registry entries are well-formed ---------------------------------------------- */
 
 const volleySrc = read("scripts/volley-registry.js");
-const VOLLEY_KINDS = new Set(["damage", "attack"]);
+// ✅ VOLLEY_KINDS is IMPORTED (Phase 3), not re-declared. It used to be a lookalike defined
+// right here — so this check could agree with itself while disagreeing with the shipping
+// registry, the exact defect Phase 2 removed for the maneuver kinds and left standing here.
 
 const entries = [...volleySrc.matchAll(/\[\s*"([^"]+)"\s*,\s*\{([^}]*)\}\s*\]/g)];
 if (!entries.length) fail("volley registry", "no entries parsed — did the shape change?");
@@ -74,22 +76,21 @@ if (entries.length && !failures.some(f => f.startsWith("volley entry"))) {
 
 /* --- 4: shipped list-setting defaults parse clean -------------------------------------- */
 
-// The strict-parse contract (ARCHITECTURE.md §6): `Name:kind` pairs, comma separated, unknown
-// kinds DROPPED WITH A WARNING and never defaulted. A default that does not survive its own
-// parser ships a feature that silently does nothing.
-// ✅ The REAL parser, imported (PLAN.md Phase 2 stage 2). This block used to regex the kind
-// set out of maneuvers.js and re-implement the parse below with a lookalike — so the check
-// could agree with itself while disagreeing with the shipping code. decide/registry.js is
-// pure, so it imports with no Foundry at all and the lookalike is gone.
+// The strict-parse contract (ARCHITECTURE.md §6): unknown kinds are dropped with a warning
+// and never defaulted, EXCEPT where a spec declares a fallback. A default that does not
+// survive its own parser ships a feature that silently does nothing for every fresh world.
+//
+// ✅ The REAL parser and the REAL defaults, both imported (Phase 2 stage 2, then Phase 3).
+// This block used to regex the kind set out of maneuvers.js and re-implement the parse with a
+// lookalike; even after that it still scraped the DEFAULT strings out of settings.js source,
+// which it flagged in its own comment as "a heuristic, and a fragile one". It was — the regex
+// ended a double-quoted default at the apostrophe in "Stone's Endurance", so it silently
+// checked two thirds of the interrupt list and called it a pass. Nothing guesses here now.
 
-// ⚠ Reading defaults out of source is a heuristic, and a fragile one — the register blocks
-// carry long hints and multi-line `"a" + "b"` concatenations. It is the price of a check that
-// needs no Foundry. PLAN.md Phase 2 makes the defaults importable data, at which point this
-// stops guessing and starts reading.
+/** Brace-match one register block out of settings.js source, so a long hint cannot truncate it. */
 const registerBlockFor = key => {
   const at = settingsSrc.indexOf(`register(MODULE_ID, S.${key},`);
   if (at < 0) return null;
-  // Brace-match from the options object so a long hint cannot truncate the search window.
   const i = settingsSrc.indexOf("{", at);
   let depth = 0;
   for (let j = i; j < settingsSrc.length; j++) {
@@ -99,36 +100,34 @@ const registerBlockFor = key => {
   return null;
 };
 
-const defaultOf = key => {
-  const block = registerBlockFor(key);
-  if (!block) return null;
-  const at = block.search(/\bdefault:\s*["']/);
-  if (at < 0) return null;
-  // Join adjacent string literals: `default: "a, " + "b" + "c"`.
-  const tail = block.slice(at);
-  const parts = [...tail.matchAll(/(?:^\s*default:\s*|\+\s*)["']([^"']*)["']/gm)].map(m => m[1]);
-  return parts.length ? parts.join("") : null;
-};
-
-if (!MANEUVER_KINDS.size) fail("kind set for maneuverFolds", "parsed empty — did the shape change?");
-else {
-  const raw = defaultOf("maneuverFolds");
-  if (raw === null) fail("default for maneuverFolds", "not found in settings.js");
-  else {
-    const { entries, unknown } = parseManeuverFolds(raw);
-    if (unknown.length) fail("default for maneuverFolds", `entries its own parser drops: ${unknown.join(" | ")}`);
-    else pass(`default for maneuverFolds parses clean (${entries.length} entries)`);
+for (const [key, spec] of Object.entries(LIST_SPECS)) {
+  // 4a. The spec names an S key, and that key is real. A spec pointing at a setting nobody
+  //     registers reads `undefined` forever and the list is silently empty.
+  if (!sKeys.has(spec.setting)) {
+    fail(`spec ${key}`, `names setting "${spec.setting}", which is not a key in S`);
+    continue;
   }
-}
 
-// Plain `Name:value` lists have their own shapes; assert only that they are non-empty and
-// comma-parseable, which is what a shipped default has to be to do anything at all.
-for (const key of ["interruptList", "blockList", "riderList", "riderUpgrades"]) {
-  const raw = defaultOf(key);
-  if (raw === null) { fail(`default for ${key}`, "not found in settings.js"); continue; }
-  const parts = raw.split(",").map(s => s.trim()).filter(Boolean);
-  if (!parts.length) fail(`default for ${key}`, "empty — the feature ships inert");
-  else pass(`default for ${key} parses to ${parts.length} entries`);
+  // 4b. settings.js registers THAT default, not a re-inlined copy. Moving the defaults into
+  //     the specs created this drift class, so it is closed in the same commit: two strings
+  //     that must agree are one string, and this proves nobody quietly forked them again.
+  const block = registerBlockFor(spec.setting);
+  if (!block) fail(`registration for ${spec.setting}`, "not found in settings.js");
+  else if (!block.includes(`LIST_SPECS.${key}.default`)) {
+    fail(`registration for ${spec.setting}`,
+      `does not register LIST_SPECS.${key}.default — a re-inlined default drifts from the one the gate checks`);
+  }
+
+  // 4c. The shipped default survives its own parser, with nothing dropped or defaulted.
+  const { entries, rejects } = parseList(spec, spec.default);
+  if (rejects.length) {
+    fail(`default for ${spec.setting}`,
+      `entries its own parser rejects: ${rejects.map(r => `${r.chunk} (${r.action}: ${r.detail})`).join(" | ")}`);
+  } else if (!entries.length) {
+    fail(`default for ${spec.setting}`, "empty — the feature ships inert");
+  } else {
+    pass(`${spec.setting}: registered from its spec, default parses clean (${entries.length} entries)`);
+  }
 }
 
 /* --- report ---------------------------------------------------------------------------- */
