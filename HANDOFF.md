@@ -6,40 +6,68 @@
 > [PLAN.md](PLAN.md) is the temporary stabilization tracker. **This file does not duplicate
 > them.** It was deliberately not restored to its old 2,700-line form.
 
-## State at a glance — 2026-08-22
+## State at a glance — 2026-08-23
 
 | | |
 | --- | --- |
-| **Do first** | 📋 **Nothing is open; everything is pushed and battery-green.** Phase 2 is CLOSED except the flag accessor layer, and Phase 4's D1 and D3 are done. **Start at the NEXT section** — it opens with the one item that is a decision rather than a step. |
-| Repo | `main` @ `c256f3b`, clean tree, **pushed**. The 2026-08-22 session in order: correctness pass (`a2557ea`…`fef05c7`) · Phase 2 stages 1–4 (`c30f2a8`, `11bca56`, `c53500a`, `063c905`) · `cf61afb` orphaned doc comments + `check-comments` · **`04304b5` stage 5 receipt arithmetic · `8541a8e` stage 6 presentation formatters · `1c0618b` the gate's import checks · `e953546` the duplicate census + ARCHITECTURE D5/D7 · `53495e4` D3 closed · `c256f3b` D1**. |
+| **Do first** | 📋 **Nothing is open; everything is pushed, gate-green and battery-green.** **Phase 4 is DONE except D2** — D1, D3 and D6 are all closed. The refactor has cost **zero features**, and that is measured (see Parity). ⚠ **The whole refactor is UNRELEASED — read the Release row before you test anything.** The user's stated next step is **scoping new features**, so the NEXT section is written for that rather than for another structural stage. |
+| Repo | `main` @ `e143496`, clean tree, **pushed**. The **2026-08-23** session: `46b4580` the d20-fold doc corrections + ARCHITECTURE D8 · `17ac81c` the parity battery · **`0e2380a` D6** · `e143496` the census re-run + the polish.js fold. Before it, 2026-08-22: correctness pass (`a2557ea`…`fef05c7`) · Phase 2 stages 1–6 (`c30f2a8`, `11bca56`, `c53500a`, `063c905`, `04304b5`, `8541a8e`) · `1c0618b` the gate's import checks · `e953546` the first census · `53495e4` D3 · `c256f3b` D1. |
 | Release | ⚠ **v1.20.0 is the last TAG, and the entire refactor is UNRELEASED.** `module.json` still reads `1.20.0` while **25+ commits** sit on top of that tag — the correctness pass, all six Phase 2 stages, the duplicate census, D3 and D1. **Prod runs the pre-refactor code.** ⚠⚠ **Sandbox and prod therefore both report `1.20.0` with DIFFERENT code, and nothing in the UI distinguishes them** — and because the version string never changed, a browser serves cached `?v=1.20.0` scripts, so **hard-refresh or you are testing the old code while believing you are testing the new**. Cutting the release is a user decision and has not been taken. |
 | **Parity** | ✅ **PROVEN at `46b4580`, 2026-08-23** — the full battery, every suite at or above baseline, on the sandbox carrying HEAD's `scripts/` byte-identical. battleflow ALL PASS ×2 · hold ALL PASS · playerdmg 12/12 · saves 61/61 · volleys **38/39 first run → 39/39 ×2** (the documented variance class; the first-run output was captured before re-running, per the stage-5 lesson) · maneuvers 54/54 · cast 17/17 · riders 8/8 · concentration 47/47 · effects 54/54 (after `reset-fixture-state`) · resources 18/18 · savedmg 13/13 · `verify-settings` **CLEAN** before and after. **The refactor cost no features.** |
 | Walk | ✅ **v1.20.0 walk CLOSED** — fifteen items + T1–T5. Zero open findings from the table. |
-| Sandbox | ⚠ **HEADLESS, and LEFT RUNNING** (world active, 0 users) — `status` first, `stop` if not testing. `node <mcp>/scripts/local-foundry.mjs start/stop/status/restart`. Never the Electron app for suites (dataPath lock). **Verify status at session start.** |
+| Sandbox | ⚠ **HEADLESS, LEFT RUNNING** (world active, 0 users) and carrying **HEAD's code, deployed and bounced** — `status` first, `stop` if not testing. `node <mcp>/scripts/local-foundry.mjs start/stop/status/restart`. Never the Electron app for suites (dataPath lock). **Verify status at session start.** |
 | Bridge | Disconnect before any suite. Suites join as `Tester Assistant`. |
-| Verify gate | `npm run verify` — **SIX static checks**: biome (98 warnings, 0 errors: **that is the baseline**), knip, imports (**256 bindings**), hook order (**75 registrations**, 9 pairs), registry 9/9, comments (286 blocks / 27 files), then vitest **170** (~270 ms). Green at handoff. |
+| Verify gate | `npm run verify` — **SIX static checks**: biome (**98 warnings, 0 errors: that is the baseline**), knip, imports (**253 bindings**), hook order (**77 registrations, 10 pairs**), registry 9/9, comments (286 blocks / 27 files), then vitest **170** (~270 ms). Exit 0 at handoff. ⚠ Bindings fell 256 → 253 and registrations rose 75 → 77 at D6 — both expected, both explained in `0e2380a`. |
 | Suite order | ⚠ **battleflow → hold**, and **battleflow → playerdmg**, back to back. Other suites in between strip the fixture tokens and hold refuses. `reset-fixture-state` before effects. |
 
 ---
 
-## ▶ NEXT — the recommended order, and why
+## ▶ NEXT — written for feature scoping, because that is what comes next
 
-**The loop that worked four times running, use it again:** read the target code → move it
-(never rewrite) → write the unit tests → `npm run verify` → deploy `--local` → **restart
-headless** (the script-cache discipline: a redeploy without a version bump serves the suites
-stale code) → run the affected suites → one commit per stage.
+**The loop, which has now worked seven times running:** read the target code → move it
+(never rewrite) → write the unit tests → `npm run verify` → **stop, deploy `--local`, start**
+(the script-cache discipline — a redeploy without a version bump serves the suites stale code,
+and deploying while the server is DOWN satisfies it by construction) → run the affected suites
+**redirected to a file** → one commit per stage.
 
-Phase 2's extractions are **done** (six stages, six green batteries), and Phase 4's **D1 and
-D3 are closed**. Everything below is a scoping decision rather than a next step — the cheap,
-mechanical work is finished, and what remains changes shape.
+**The structural work is effectively finished.** Phases 0–2 are closed, Phase 4 is closed but
+for D2, and the refactor is proven to have cost zero features.
 
-| # | Work | Why this position, and what it really costs |
+| # | Work | Why this position |
 | --- | --- | --- |
-| 1 | **D6 — break the `ui.js` ↔ `hold.js` cycle** | ⚠ **It does NOT fall out of D1, contrary to PLAN.md — measured 2026-08-22, with D1 done and the cycle still standing.** `ui.js` holds **~400 of its 697 lines** as the hold's OWN views: the card row, the popup, `reactionImg`, `reactionACBonus`, the hold clocks — plus a `renderChatMessage` and a `deleteChatMessage` registration. Breaking it means relocating those into hold.js, which **moves two hook registrations between files** and rewrites the pinned assertion `ui.js before mastery.js` in `tools/check-hook-order.mjs`. Entry order helps: hold.js is imported at [battleflow.js:91](scripts/battleflow.js:91), *before* ui.js at :92, so the hold row would register EARLIER and still land above mastery's. **Its own stage, its own battery, and the hold is the most-used feature at the table.** |
-| 2 | **The flag accessor layer** → `state/flags.js` | ⚠ **Re-measured: 38 keys, ~230 reads, ~66 writes, ~300 call sites.** ⚠ **Its correctness half is ALREADY DONE** — D3 (`53495e4`) converted the eight per-target read-modify-writes directly, without the layer, which is why what is left is the ~230 READS: wide mechanical tidiness that buys nothing a test can assert. ⚠ "Inventory now, adopt later" is not available: an unimported module in `scripts/` is dead code to knip. **Recommend deferring or dropping this** — the argument that justified it has been paid another way. |
-| 3 | **The §4.1 relay** — three folds, three envelope keys, one shape | Consolidating removes two `createChatMessage` registrations from the pinned hook order — the one extraction with an architectural payoff rather than a line-count one. ⚠ **hold's folder has a different OWNER** (the continuing client; the other two are the elect), exactly like its clock. Unify the envelope, keep ownership pluggable. |
-| 4 | **`auto-apply.js` ↔ `mastery.js`** | Breakable only by moving `applyDamagesWithReceipt` to a third module — the damage chokepoint every machine routes through, and the thing HANDOFF has always said to touch last. Low value, real risk. |
-| 5 | **`hold.js` ↔ `auto-damage.js`** | ⚠ **DO NOT "FIX".** The bare `import "./auto-damage.js"` is load-bearing: it pins evaluation order, its comment says so, and check-hook-order depends on it. |
+| 1 | ⚠ **Cut the release, or deliberately decide not to** | **The only thing genuinely owed.** 25+ commits sit above `v1.20.0`, prod runs pre-refactor code, and sandbox and prod both claim `1.20.0` with different code behind them — a live trap that will mislead whoever tests next. Bumping touches **TWO** fields in `module.json`: `version` **and** the manifest `download` URL (the v1.20.0 walk-1 bump missed the download and it was caught at release). Everything below is optional; this is not. |
+| 2 | **Feature scoping — and D8 is the frame** | The three surveyed d20 features (Heroic Inspiration, Tactical Mind, Bardic Inspiration) are **one kind**, and the module already ships a member of it — Precision Attack. Scope them together, not one at a time (ARCHITECTURE §10 **D8**). ⚠ **The real new work is the SAVE side**: `hitsAmong` folds verdicts for attacks and has no equivalent for saves, so a rerolled or boosted save has nowhere to land. ⚠ And a reroll can turn a hit **into** a miss, which breaks `hitsAmong`'s documented "the sets are disjoint" precedence argument. Neither the offer nor the popup is the hard part. |
+| 3 | **Phase 3 — registries unified** | The only untouched phase, and its last bullet is now the live one: *"the rate of new kinds per phase is observable — that rate is the AC5e-adoption signal, and right now nobody could tell you what it is."* D8 says a new kind just arrived. One of its four bullets (registry integrity in the gate) is already done but unticked. |
+| 4 | **D2 — `hold.js` onto the moment spine** | The last Phase 4 item and the highest-risk thing in PLAN.md. ⚠ **D6 made it materially easier**: the hold's views and clocks now sit in hold.js beside its flag, so adopting the spine's primitives is a local change rather than a cross-file one. Still ships **alone, behind its own walk**. ⚠ Its clock must **not** be unified — the hold's is owned by the continuing client, every other by the elect. |
+| 5 | **The §4.1 relay** — three folds, three envelope keys, one shape | Removes two `createChatMessage` registrations from the pinned hook order. ⚠ **hold's folder has a different OWNER** (the continuing client; the other two are the elect), exactly like its clock. Unify the envelope, keep ownership pluggable. |
+| — | ~~**The flag accessor layer**~~ (D4) | **DEFERRED, and recommend dropping.** D3 repaid its correctness half without it; what is left is ~230 mechanical READS that buy nothing a test can assert. "Inventory now, adopt later" is not available — an unimported module in `scripts/` is dead code to knip. |
+| — | ~~`auto-apply.js` ↔ `mastery.js`~~ / ~~`hold.js` ↔ `auto-damage.js`~~ | Both **deliberate; leave alone.** The first breaks only by moving `applyDamagesWithReceipt` — the damage chokepoint — to a third module. The second's bare `import "./auto-damage.js"` is **load-bearing**: it pins evaluation order, its comment says so, and check-hook-order depends on it. |
+
+## Phase 4 — D6, DONE 2026-08-23, battery-green
+
+`0e2380a`. **The `ui.js` ↔ `hold.js` cycle is gone, and D1 closed with it.** 349 lines of the
+hold's own views left the spine for [hold.js](scripts/hold.js): `reactionImg`,
+`reactionACBonus`, the clocks, `revealDetail`/`revealLine`, the card row, `castReaction`,
+`holdPopupContent`, `showHoldPopup`. **ui.js 697 → 340 and imports no machine at all**;
+hold.js 999 → 1,395. `auto-damage.js` is now the *only* importer of hold.js, and that is
+hold's own feature API on the deliberate order-pinning edge.
+
+⚠ **Three things deliberately did NOT move, each commented where it sits:**
+- **the damage-offer bar** — not the hold's. It keeps its own registration in ui.js and still
+  renders above the hold row because hold.js imports ui.js, so ui.js's body evaluates first.
+  That used to be free (one shared handler); it is now the explicit assertion
+  `ui.js before hold.js` in check-hook-order. **If ui.js ever stops being imported by hold.js
+  the bar silently drops below the hold row, and only that assertion will say so.**
+- **the delete SWEEP** — it clears every machine's popups, latches and acks off one
+  `${messageId}|` prefix; splitting it would be the five-per-machine drift it exists to
+  collapse. Only its `disarmHoldTimer` line came out, as hold.js's own one-line sweep — the
+  shape every other timer-owning machine already uses.
+- **`closeAnsweredPopups`** — it reads the hold flag by **string**, so it makes no import edge.
+  A layering smell, recorded rather than fixed.
+
+**The rule worth carrying:** a VIEW belongs with the machine that owns the FLAG it renders.
+When a view lives in the spine, the spine must import the feature's vocabulary — and that is
+the cycle, every time.
 
 ## 📦 Phase 4 — D1 and D3, ✅ DONE 2026-08-22, both battery-green
 
