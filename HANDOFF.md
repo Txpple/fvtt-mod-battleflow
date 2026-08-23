@@ -10,8 +10,8 @@
 
 | | |
 | --- | --- |
-| **Do first** | 📋 **The refactor is FINISHED. Phases 0–4 are all closed, and the only NEXT row left is feature scoping.** ⚠ **Everything since the v1.21.0 tag is UNRELEASED** — Phase 3, D2 and the §4.1 relay all sit above it. ⚠ **Two paths this session touched are covered by NO automated suite** and are what a walk is for: the hold's popup-CLOSING (D2) and the RELAYED half of the relay — both need a second client, and `check-popup-routing.mjs`, the only two-client harness, **cannot currently run** (PC Assistant has NONE on BF Test PC Attacker). **User call 2026-08-23, stated twice: all remaining refactors before any new feature** — and they now are. |
-| Repo | `main` @ the relay commit, clean, **pushed**. Tag **`v1.21.0`** is released; above it sit `a30cfd5` **Phase 3 stage 1**, `fd8f77f` **Phase 3 stage 2**, `e99d555` **D2** and the §4.1 relay. |
+| **Do first** | 📋 **Start at STAGE 1.1 of the FOUNDATION PASS** (PLAN.md). The refactor is finished; this is the agreed run-up to features: testing, tooling, two-client coverage, D8, one release. ⚠ **Nothing is broken and nothing is half-done** — the tree is clean, pushed and gate-green, so 1.1 starts from a standing start. ⚠ **Everything since the v1.21.0 tag is UNRELEASED** and that is deliberate: Stage 5 cuts one release carrying the lot. |
+| Repo | `main` @ `52ea261`, clean, **pushed**. Tag **`v1.21.0`** released; above it sit `a30cfd5` Phase 3 stage 1 · `fd8f77f` Phase 3 stage 2 · `e99d555` **D2** · `96e21ca` **the §4.1 relay** · `2383de8` the flake fixes · `52ea261` the plan. |
 | Release | ✅ **v1.21.0 RELEASED 2026-08-23** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.21.0>, both assets, the published zip downloaded back and **proven self-contained** (30 entries, 99 relative imports, all resolving). ⚠ **Prod was NOT updated, by instruction** — the table still runs v1.20.0. ⚠ **Phase 3 is not in that tag.** Both manifest fields move together at the next bump (the v1.20.0 class). |
 | **Parity** | ✅ **PROVEN at `46b4580`, 2026-08-23** — the full battery, every suite at or above baseline, on the sandbox carrying HEAD's `scripts/` byte-identical. battleflow ALL PASS ×2 · hold ALL PASS · playerdmg 12/12 · saves 61/61 · volleys **38/39 first run → 39/39 ×2** (the documented variance class; the first-run output was captured before re-running, per the stage-5 lesson) · maneuvers 54/54 · cast 17/17 · riders 8/8 · concentration 47/47 · effects 54/54 (after `reset-fixture-state`) · resources 18/18 · savedmg 13/13 · `verify-settings` **CLEAN** before and after. **The refactor cost no features.** |
 | Walk | ✅ **v1.20.0 walk CLOSED** — fifteen items + T1–T5. Zero open findings from the table. |
@@ -19,38 +19,47 @@
 | Bridge | Disconnect before any suite. Suites join as `Tester Assistant`. |
 | Verify gate | `npm run verify` — **SIX static checks**: biome (**98 warnings, 0 errors: that is the baseline**), knip, imports (**264 bindings**), hook order (**75 registrations, 10 pairs**), registry (**11 checks**, and it PRINTS the R4 kinds table), comments (298 blocks / 27 files), then vitest **184**. Exit 0 at handoff. ⚠ **The R4 total is PINNED at 16 in `check-registry.mjs`** — adding a kind fails the gate until the pin moves deliberately. That is the point, not an obstacle. ⚠ Registrations fell **77 → 75** at the relay: three `createChatMessage` handlers became one. |
 | Suite order | ⚠ **battleflow → hold**, and **battleflow → playerdmg**, back to back. Other suites in between strip the fixture tokens and hold refuses. `reset-fixture-state` before effects. |
-| Flakes | Two observed, both re-run clean and both captured before re-running: **volleys 38/39** (`3e` wants three HITTING rays and rays are real attack rolls — the documented class) and **maneuvers 53/54** (`R6b` the driven-MISS announcement card, first seen 2026-08-23, 54/54 on two immediate re-runs). ⚠ The undiagnosed `smoke-battleflow` "2 FAILURE(S)" class has NOT reappeared this session across eight runs. |
+| Flakes | ✅ **Two of three FIXED AT ROOT 2026-08-23** (`2383de8`), both the same shape — an assertion depending on a DICE OUTCOME while claiming to test behaviour. **volleys 3e**: this was the only combat suite missing the forced-AC idiom; it forces flat AC 1 now and COUNTS FUMBLES — proven by a verification run that came back `damage=2 want=2 rays=3 fumbles=1` and passed. **maneuvers R6b**: a natural 20 auto-hits through flat AC 40, so the miss card correctly never posts; it SKIPs now, like the two nat-1 skips already beside it. ⚠ **`smoke-battleflow` "2 FAILURE(S)" is NOT diagnosed** — twice seen, never reproduced, 11 clean runs on 2026-08-23. Its last hiding place is closed (section 1 was the only forced-dice site that did not report a defeated forcing) and the failure output carries the dice from here. |
 
 ---
 
-## ▶ NEXT — the refactor is FINISHED; only feature scoping remains
+## ▶ NEXT — the FOUNDATION PASS, five stages, in order
 
-**The loop, which has now worked seven times running:** read the target code → move it
+**The loop, which has now worked nine times running:** read the target code → move it
 (never rewrite) → write the unit tests → `npm run verify` → **stop, deploy `--local`, start**
 (the script-cache discipline — a redeploy without a version bump serves the suites stale code,
 and deploying while the server is DOWN satisfies it by construction) → run the affected suites
 **redirected to a file** → one commit per stage.
 
-**The structural work is effectively finished.** Phases 0–3 are closed, Phase 4 is closed but
-for D2, the refactor is proven to have cost zero features, and the release gap that stood above
-`v1.20.0` for a month is closed. **Nothing is owed; everything below is chosen work** — and only
-**D2** still carries real risk. ⚠ Phase 3 landed *after* the v1.21.0 tag, so it is unreleased.
+**The refactor is FINISHED.** Phases 0–4 are all closed, D1/D2/D3/D6 are repaid, the §4.1 relay
+is consolidated, and the refactor is measured to have cost zero features. **The full plan with
+every checkbox is [PLAN.md](PLAN.md) § THE FOUNDATION PASS — read it, this table is only the
+map.**
 
-⚠ **User call, 2026-08-23, stated twice — "all the refactors before new features."** Feature
-scoping moved from #2 to the BOTTOM, and the standing directive therefore runs unbroken
-(correctness and architecture only, no feature work considered): finish the refactor, *then*
-scope. The surveyed features stay what they always were — design pressure on the seams, not
-scheduled work. ⚠ **The one thing this ordering costs, recorded so it is not rediscovered as a
-surprise:** D8 was found *by scoping a feature*, not by reading code, and it is the only debt
-row that arrived that way. Phase 3 will be designed without that kind of evidence, so if its
-registry shape has to be reopened when the d20 family is finally scoped, that is the price of
-this ordering and not a mistake in it.
+⚠ **User directive, 2026-08-23, stated three times: an EXCELLENT FOUNDATION before features
+resume.** No feature work in any stage below. The one exception that looks like feature work and
+is not: **STAGE 4 (D8)** is architecture — it is the fold *mechanism*, not any of the features
+that will later use it.
 
-| # | Work | Why this position |
+| # | Stage | The shape of it |
 | --- | --- | --- |
-| 1 | **Feature scoping — and it is now the ONLY thing left** | ⚠ **Moved here by user call 2026-08-23 — "all the refactors before new features" — and reaffirmed the same day. Do not promote it back without another call.** When it is reached: the three surveyed d20 features (Heroic Inspiration, Tactical Mind, Bardic Inspiration) are **one kind**, and the module already ships a member of it — Precision Attack. Scope them together, not one at a time (ARCHITECTURE §10 **D8**). ⚠ **The real new work is the SAVE side**: `hitsAmong` folds verdicts for attacks and has no equivalent for saves, so a rerolled or boosted save has nowhere to land. ⚠ And a reroll can turn a hit **into** a miss, which breaks `hitsAmong`'s documented "the sets are disjoint" precedence argument. Neither the offer nor the popup is the hard part. |
-| — | ~~**The flag accessor layer**~~ (D4) | **DEFERRED, and recommend dropping.** D3 repaid its correctness half without it; what is left is ~230 mechanical READS that buy nothing a test can assert. "Inventory now, adopt later" is not available — an unimported module in `scripts/` is dead code to knip. |
-| — | ~~`auto-apply.js` ↔ `mastery.js`~~ / ~~`hold.js` ↔ `auto-damage.js`~~ | Both **deliberate; leave alone.** The first breaks only by moving `applyDamagesWithReceipt` — the damage chokepoint — to a third module. The second's bare `import "./auto-damage.js"` is **load-bearing**: it pins evaluation order, its comment says so, and check-hook-order depends on it. |
+| **1** | **Testing speed and structure** | `--section N` filtering, `sleep()` → conditional wait, shared harness + page helpers + the disposable world, and the Tier-1-over-Tier-2 rule. ⚠ **Start at 1.1.** ⚠ **The honest ceiling:** removing every sleep recovers ~4 minutes; the slowest suite is 2m27s with only 13s of sleeping and the rest is real serial Foundry work. **The win is not a fast battery, it is rarely needing one.** |
+| **2** | **The rest of the tooling debt** | Release build gains a `verify` precondition; the version bump becomes a script that moves **both** `module.json` fields; the three probes become suite sections (cheaper after 1.1); Tier 2 recorded as settled, **docs only**. |
+| **3** | **Two-client coverage** | ⚠ **The least certain work in the plan.** The gap D2 and the relay left: the hold's popup-CLOSING and the relay's RELAYED half are invisible to a single-client suite by construction. The only two-client harness is a ledger dump, and it was unrunnable until the 2026-08-23 ownership grant. ⚠ 3.4 (the `smoke-battleflow` flake) is **bounded, not promised** — do not claim to fix what does not reproduce. |
+| **4** | **D8 — the only open architecture debt** | ⚠ **4.1 is a BLOCKING USER RULING, not a code decision.** A reroll can turn a hit into a miss, which kills the "the sets are disjoint" argument the current fold ordering rests on. Then: named parameters → a fold list (attack side), and **the SAVE side, which does not exist at all** — that is the real new work. |
+| **5** | **One release** | Carrying the whole foundation. Prod remains the user's call; it has run pre-refactor code throughout, deliberately. |
+
+⚠ **TIER 2 IS CLOSED BY DECISION — do NOT "fix" it.** D4 (the flag accessor layer) is
+**dropped**; `hold.js` ↔ `auto-damage.js` and `auto-apply.js` ↔ `mastery.js` are **permanent**.
+The first of those cycles is **load-bearing** — the bare `import "./auto-damage.js"` pins module
+evaluation order and `check-hook-order` depends on it. The user accepted this amendment to their
+own directive on the strength of that argument; the reasoning is in PLAN.md's box. Doing this
+work would make the tree worse.
+
+**Feature scoping comes after Stage 5, not before it.** The three surveyed d20 features
+(Heroic Inspiration, Tactical Mind, Bardic Inspiration) are **one kind**, and the module already
+ships a member of it — Precision Attack. Scope them together. Stage 4 is what makes them cheap;
+without it, each one adds another hard-coded parameter to `hitsAmong`.
 
 ## Phase 3 — registries unified, DONE 2026-08-23, battery-green
 

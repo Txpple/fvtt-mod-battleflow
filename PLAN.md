@@ -394,70 +394,127 @@ configuration.**
 
 ---
 
-## ▶ THE FOUNDATION PASS — agreed 2026-08-23, in this order
+## ▶ THE FOUNDATION PASS — agreed 2026-08-23, execute in this order
 
-The user's call, stated plainly: **an excellent foundation before features resume.** Testing
-first, then D8, then a full review. Nothing here is feature work.
+The user's directive, stated three times: **an excellent foundation before features resume.**
+Everything below is debt repayment or test infrastructure. **No feature work in any stage.**
 
-### Part A — testing (Phase 5's open items, resequenced)
+**Scope note.** This is the user's "do tiers 1–5" directive with two amendments they accepted:
+**Tier 2 is NOT done** (see the box), and **the release moved to the END** so one release
+carries the whole foundation instead of two carrying halves.
 
-**Why this order.** A4 (the shared harness) is deliberately LAST, not first. The suites are the
-safety net; rewriting all twelve onto shared infrastructure in one go means refactoring the net
-with nothing watching it. Doing A1–A3 first touches each suite incrementally with a green run
-after each, and by A4 the helper is designed from twelve real examples instead of a guess.
+⚠ **TIER 2 IS CLOSED BY DECISION, NOT BY WORK — do not "fix" these.** Doing them would make the
+tree worse, which is why the directive was amended:
 
-- [ ] **A0 — one section convention, one flag.** ''' + W + ''' Measured 2026-08-23 and it is worse than
-      "add a flag": the marker shape is already THREE different things (`§N` in volleys and
-      resources, `// ==== N. title` banners in saves and effects) and **`smoke-hold` — 1,713
-      lines, 43 assertions — has no section structure at all.** So: settle one marker shape,
-      add `--section N` parsing once, and state the rule that SETUP and TEARDOWN always run
-      while only assertion blocks are skippable.
-- [ ] **A1 — section filtering, suite by suite, slowest first.** maneuvers (2m27s), hold
-      (sections must be INVENTED), saves, effects, volleys, resources. Verification per suite:
-      the full run stays green AND a single-section run produces that section's assertions only.
-- [ ] **A2 — `sleep()` → conditional wait.** ''' + W + ''' **241 seconds of unconditional sleeping across
-      the twelve live suites**, measured. Technique proven on smoke-volleys (82s → 72s, eight
-      sites). ''' + W + ''' The one trap found doing it: waiting for a ray ATTACK is not waiting for its
-      DAMAGE — convert the wait to the thing the next assertion actually reads, or the snapshot
-      races the pipeline.
-- [ ] **A3 — shared harness + injected page helpers.** `tools/harness.mjs` for the ~20 lines of
-      env/connection boilerplate copy-pasted into 44 files, and a serialized helper bundle for
-      the `f.evaluate()` closure that has no imports available inside the page. That closure is
-      why `smoke-hold.mjs` is 1,713 lines.
-- [ ] **A4 — the standing rule (Tier 1 over Tier 2).** *If an assertion does not need a live
-      world, it does not belong in a live suite.* The unit tests run in **270 ms**; the live
-      battery takes 12–18 minutes. Without this rule test time grows in lockstep with feature
-      count forever. Write it into ARCHITECTURE §11's checklist so every feature meets it.
+- **D4 (the flag accessor layer) — DROPPED.** ~300 mechanical call sites; D3 already repaid the
+  correctness half; knip means it arrives all-at-once or not at all. It buys nothing a test can
+  assert.
+- **`hold.js` ↔ `auto-damage.js` — PERMANENT.** That bare `import "./auto-damage.js"` is
+  **load-bearing**: it pins module evaluation order and `check-hook-order` depends on it.
+  Breaking it drops the damage-offer bar below the hold row.
+- **`auto-apply.js` ↔ `mastery.js` — PERMANENT.** Breaking it means moving
+  `applyDamagesWithReceipt`, the single damage chokepoint every machine routes through, into a
+  third module.
 
-''' + W + ''' **The honest ceiling, so nobody expects more:** removing every sleep recovers about four
-minutes. The slowest suite is 2m27s of which only 13s is sleeping — the rest is real serial
-Foundry work (real dice, real messages, real DOM) and cannot be removed without making the test
-fake. **The win is not "the battery is fast"; it is "you rarely run the battery."**
+The only action for Tier 2 is DOCS: mark them settled so they stop reading as open debt.
 
-### Part B — D8, the only open architecture debt
+---
 
-Three problems in one row (ARCHITECTURE §10 D8), and the third is a correctness trap:
+### STAGE 1 — testing speed and structure
 
-- [ ] **B1 — design, and one ruling that is the USER's.** The fold channels become a list;
-      `hitsAmong({targets, held, precision, roll})` takes `precision` as a hard-coded named
-      parameter today, so a second fold adds a third and a fourth adds a fourth.
-      ''' + W + ''' **The precedence question is a rules call, not a code call:** the doc block justifies
-      its ordering with *"the sets are disjoint — a hold stamps hits and precision stamps
-      misses"*, and **a reroll can turn a hit into a miss**, so that argument stops being true.
-      Precedence has to be DECIDED. Ask before building.
-- [ ] **B2 — the attack side.** Named parameters become a registered fold list, with unit tests.
-      Move, do not rewrite: the existing precision behaviour is re-asserted against the new shape.
-- [ ] **B3 — the SAVE side, which does not exist at all.** `hitsAmong` folds verdicts for
-      attacks only, so a rerolled *save* has nowhere to land. **This is the real new work** —
-      not the offer, not the popup.
-- [ ] **B4 — suites and the battery**, then a walk.
+⚠ **The honest ceiling, so nobody expects more.** Removing every `sleep()` recovers about **four
+minutes**. The slowest suite is **2m27s of which only 13s is sleeping** — the rest is real
+serial Foundry work (real dice, real messages, real DOM) and cannot go without making the test
+fake. **The win is not "a fast battery"; it is "you rarely need to run one."**
 
-### Part C — the review
+- [ ] **1.1 One section convention + `--section N`.** ⚠ Measured: the marker shape is already
+      THREE things (`§N` in volleys/resources, `// ==== N. title` banners in saves/effects) and
+      **`smoke-hold` — 1,713 lines, 43 assertions — has no section structure at all.**
+      `smoke-maneuvers` is the cheap case: 23 bare `{ }` blocks already scope its groups, so the
+      gate is one line per section with no re-indentation. Rule: **setup and teardown ALWAYS
+      run; only assertion blocks are skippable.**
+- [ ] **1.2 Section filtering, suite by suite, slowest first** — maneuvers (2m27s), hold
+      (sections must be INVENTED), saves, effects, volleys, resources, then the rest. Verify per
+      suite: the full run stays green AND a single-section run emits only that section.
+- [ ] **1.3 `sleep()` → conditional wait.** **241 seconds** of unconditional sleeping across the
+      twelve live suites, measured 2026-08-23. Technique proven on smoke-volleys (82s → 72s,
+      eight sites). ⚠ **The trap found doing it:** waiting for a ray ATTACK is not waiting for
+      its DAMAGE — convert the wait to the thing the NEXT ASSERTION READS, or the snapshot
+      races the pipeline and the suite fails for a reason that is not the code.
+- [ ] **1.4 Shared harness + page helpers + the disposable world, in ONE pass per suite.**
+      `tools/harness.mjs` for the ~20 lines of env/connection boilerplate copy-pasted into 44
+      files; a serialized helper bundle for the `f.evaluate()` closure that has no imports
+      available inside the page (that closure is why smoke-hold is 1,713 lines); and
+      `world-snapshot.mjs` (BUILT AND PROVEN — 0.054 s copy) so teardown correctness, the
+      settings restore and the crash-launder hazard come OUT of the suites entirely.
+      ⚠ Merged deliberately: done separately these touch every suite twice.
+- [ ] **1.5 The standing rule.** *If an assertion does not need a live world, it does not belong
+      in a live suite.* Unit tests run in **270 ms**; the live battery takes 12–18 minutes.
+      Without this rule test time grows in lockstep with feature count forever. Write it into
+      ARCHITECTURE §11's "adding something new" checklist so every future feature meets it.
 
-- [ ] A full pass over every open row: Phase 0.3 (release `verify` precondition, version bump as
-      a script), the three probes still to fold into suites, the two-client coverage gap, the
-      undiagnosed `smoke-battleflow` "2 FAILURE(S)" class, D4's drop recommendation, and the
-      release gap above `v1.21.0`. **Then** features.
+### STAGE 2 — the rest of the tooling and process debt
+
+- [ ] **2.1 The release build gains a `verify` precondition** (Phase 0.3) — no release from a
+      tree that fails the gate. Today you can build one.
+- [ ] **2.2 The version bump becomes a script** (Phase 0.3) — it must move **BOTH**
+      `module.json` fields, `version` *and* the manifest `download` URL. NOTES records two ways
+      hand-editing that file has corrupted it, and the v1.20.0 bump missed the download.
+- [ ] **2.3 The three probes become suite sections** (Phase 1) — `probe-player-damage` (12
+      assertions, the crit-flag decoy pin) → smoke-battleflow, `probe-save-damage-popup` →
+      smoke-saves, `probe-volley-resources` → smoke-volleys. Cheaper AFTER 1.1, because they
+      arrive as sections rather than as prose.
+- [ ] **2.4 DOCS ONLY: record Tier 2 as settled** (see the box above). No code changes.
+
+### STAGE 3 — two-client coverage (the gap D2 and the §4.1 relay left)
+
+⚠ **The least certain work in this plan, and scoped so it cannot balloon.** There is exactly ONE
+two-client harness in the repo (`check-popup-routing.mjs`) and it is a **ledger dump for a human
+to read**, not an assertion suite. It was also unrunnable until 2026-08-23 — PC Assistant had
+NONE on BF Test PC Attacker; the ownership grant is done and it now passes in 37 s.
+
+- [ ] **3.1 Give the two-client harness real assertions** — turn the ledger into PASS/FAIL
+      without losing the ledger, which is what makes a failure readable.
+- [ ] **3.2 The hold's popup-CLOSING across clients** (D2). A single-client suite structurally
+      cannot see this: when the GM is both answerer and elect there is no second client's popup
+      to close.
+- [ ] **3.3 The relay's RELAYED half** (§4.1). Same reason — when the answerer can write the
+      target message the envelope never travels, so the direct path is all a solo suite tests.
+      All three relays: hold (`respondsTo`), saves (`saveChoiceAnswer`), maneuvers
+      (`riposteAnswer`). ⚠ The hold's fold is owned by the CONTINUING CLIENT and the other two
+      by the elect — the test must exercise both owners or it proves nothing about the registry.
+- [ ] **3.4 The `smoke-battleflow` "2 FAILURE(S)" class — BOUNDED, not promised.** Twice seen,
+      never reproduced, and not reproduced in 11 runs on 2026-08-23. **Do not promise to fix
+      what cannot be reproduced.** What IS committed: its last hiding place is already closed
+      (section 1 was the only forced-dice site that did not report a defeated forcing), and the
+      failure output carries the dice from here. If it recurs it will name itself.
+
+### STAGE 4 — D8, the only open architecture debt
+
+- [ ] **4.1 ⚠ BLOCKING USER RULING — ask before building.** `hitsAmong` justifies its ordering
+      with *"the sets are disjoint, because a hold stamps hits and precision stamps misses."*
+      **A reroll can turn a hit INTO a miss** ("you must use the new roll"), so that argument
+      stops being true and precedence must be **decided**. That is a rules/table call, not a
+      code call.
+- [ ] **4.2 The attack side.** `hitsAmong({targets, held, precision, roll})` takes `precision` as
+      a hard-coded named parameter, so a second fold of the same kind adds a third and a fourth
+      adds a fourth — and the three surveyed features (Heroic Inspiration, Tactical Mind,
+      Bardic Inspiration) are all that one kind. Named parameters become a registered fold list.
+      **Move, do not rewrite:** every existing precision behaviour re-asserted against the new
+      shape.
+- [ ] **4.3 The SAVE side, which does not exist at all.** `hitsAmong` folds verdicts for attacks
+      only, so a rerolled *save* has nowhere to land. **This is the real new work** — not the
+      offer, not the popup.
+- [ ] **4.4 Unit tests, suites, battery, then a walk.** Verdict-folding is the most
+      consequence-heavy code in the module: a mistake here produces wrong outcomes that look
+      fine in review.
+
+### STAGE 5 — one release
+
+- [ ] **5.1 Cut ONE release** carrying the whole foundation. As of 2026-08-23 the work above
+      `v1.21.0` is Phase 3, D2, the §4.1 relay and the flake fixes. Both `module.json` fields
+      move together (2.2 should have made that a script by then).
+- [ ] **5.2 Prod is the USER's call.** It has run pre-refactor code throughout, deliberately.
 
 ---
 
