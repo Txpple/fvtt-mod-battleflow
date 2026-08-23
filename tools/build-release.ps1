@@ -27,8 +27,15 @@ $version = $manifest.version
 
 # Exactly what ships. scripts/ is enumerated (the split, v1.6.1) so a new phase file rides
 # along without a tooling change; the read-back below still verifies every entry by name.
-$scriptFiles = Get-ChildItem (Join-Path $repo "scripts") -Filter "*.js" | Sort-Object Name |
-  ForEach-Object { "scripts/$($_.Name)" }
+#
+# The enumeration is RECURSIVE, and that word is load-bearing. It was not until v1.21.0, and
+# Phase 2's scripts/decide/ - six pure modules that eleven files import - silently fell out of
+# every zip built after 2026-08-22. Nothing caught it: the gate's import check reads the WORKING
+# TREE, and the live box is hot-deployed over WebDAV, so no build here has ever been installed
+# from its own archive. Exactly how the backslash bug survived fifteen releases.
+$scriptRoot = Join-Path $repo "scripts"
+$scriptFiles = Get-ChildItem $scriptRoot -Filter "*.js" -Recurse -File | Sort-Object FullName |
+  ForEach-Object { "scripts/" + ($_.FullName.Substring($scriptRoot.Length + 1) -replace "\\", "/") }
 if ($scriptFiles -notcontains "scripts/battleflow.js") { throw "scripts/battleflow.js (the esmodules entry) is missing" }
 $contents = @($scriptFiles) + @(
   "module.json",
@@ -64,6 +71,29 @@ try {
   if ($bad) { throw "backslash separators in: $($bad -join ', ') - do not ship this" }
   $missing = $contents | Where-Object { $names -notcontains $_ }
   if ($missing) { throw "missing from archive: $($missing -join ', ')" }
+
+  # And every relative import inside a packed script must resolve to something ALSO in the
+  # archive. The list above only proves the zip contains what we asked for; this proves what we
+  # asked for is enough to load. It is the check that would have caught the missing decide/
+  # directory on the first build after Phase 2 instead of at the next release.
+  $entrySet = @{}
+  foreach ($n in $names) { $entrySet[$n] = $true }
+  $dangling = @()
+  foreach ($n in ($names | Where-Object { $_ -like "*.js" })) {
+    $dir = $n.Substring(0, $n.LastIndexOf("/"))
+    $body = Get-Content (Join-Path $repo ($n -replace "/", "\")) -Raw
+    foreach ($m in [regex]::Matches($body, '(?:from|import)\s+"(\.[^"]+)"')) {
+      $stack = New-Object System.Collections.ArrayList
+      foreach ($part in (($dir + "/" + $m.Groups[1].Value) -split "/")) {
+        if ($part -eq "." -or $part -eq "") { continue }
+        elseif ($part -eq "..") { if ($stack.Count) { $stack.RemoveAt($stack.Count - 1) } }
+        else { [void]$stack.Add($part) }
+      }
+      $target = $stack -join "/"
+      if (-not $entrySet.ContainsKey($target)) { $dangling += "$n -> $target" }
+    }
+  }
+  if ($dangling) { throw "imports that resolve to nothing in the archive: $($dangling -join '; ')" }
   Write-Output "fvtt-mod-battleflow v$version -> $zip"
   $check.Entries | Select-Object FullName, Length | Format-Table -AutoSize | Out-String | Write-Output
   Write-Output ("{0:N0} bytes, {1} entries, forward slashes verified" -f (Get-Item $zip).Length, $names.Count)
