@@ -50,8 +50,10 @@ const before = (hook, a, b) => {
 const CHECKS = [
   ["dnd5e.preApplyDamage", "hold.js", "concentration.js",
     "the hold's veto before concentration's cause capture (Hooks.call stops at the first false)"],
-  ["dnd5e.renderChatMessage", "ui.js", "mastery.js",
-    "hold rows render above mastery rows on a shared attack card"],
+  ["dnd5e.renderChatMessage", "hold.js", "mastery.js",
+    "hold rows render above mastery rows on a shared attack card (D6 moved the hold's row out of ui.js into hold.js; this assertion moved with it)"],
+  ["dnd5e.renderChatMessage", "ui.js", "hold.js",
+    "the damage-offer bar renders above the hold row — they shared one registration in ui.js until D6, and the order is now held by hold.js importing ui.js (so ui.js's body, and its registration, evaluate first)"],
   ["dnd5e.renderChatMessage", "mastery.js", "receipts.js",
     "mastery rows render above receipt rows on a shared attack card"],
   ["dnd5e.renderChatMessage", "saves.js", "receipts.js",

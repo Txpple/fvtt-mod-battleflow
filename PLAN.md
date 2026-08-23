@@ -279,14 +279,20 @@ Ordered by risk, lowest first. Each is independently shippable and independently
       merges, mastery's chip applier (its read sat above an await loop) and its four topple
       sites. ⚠ Deliberately NOT converted: concentration's ask and the `mastery` flag are
       single-decision objects with one writer — the argument does not reach them.
-- [ ] **D6 — break the `ui.js` ↔ `hold.js` cycle.** ⚠ **It does NOT fall out of D1 — measured
-      2026-08-22.** D1 is done and the cycle stands, because `ui.js` holds ~400 of its 697
-      lines as the hold's OWN views (row, popup, reaction art, AC read) plus a
-      `renderChatMessage` and a `deleteChatMessage` registration. Breaking it means relocating
-      those into `hold.js`, which **moves two hook registrations between files** and rewrites a
-      pinned assertion (`ui.js before mastery.js`). A stage of its own, with its own battery.
-      The other two cycles are worse bargains: `hold.js` ↔ `auto-damage.js` is load-bearing on
-      purpose, and `auto-apply.js` ↔ `mastery.js` breaks only by moving
+- [x] **D6 — break the `ui.js` ↔ `hold.js` cycle.** ✅ **2026-08-23, battery-green.** It did
+      **not** fall out of D1 (measured 2026-08-22) and needed its own stage, as forecast:
+      **349 lines** of the hold's own views left the spine for `hold.js` — `reactionImg`,
+      `reactionACBonus`, the clocks, the reveal helpers, the row, `castReaction`,
+      `holdPopupContent`, `showHoldPopup`. **ui.js 697 → 340 and imports no machine at all.**
+      Registrations **75 → 77** (hold.js gained the row's `renderChatMessage` and its own
+      one-line `deleteChatMessage` clock sweep), and the pinned assertion moved with the row.
+      ⚠ **Three things stayed, deliberately** — the damage-offer bar (not the hold's; its own
+      registration in ui.js, and it still renders above the hold row because hold.js imports
+      ui.js, now asserted explicitly instead of implied by a shared handler), the delete-SWEEP
+      (spine — it clears every machine's state off one key prefix), and `closeAnsweredPopups`
+      (reads the hold flag by string, so no import edge).
+      The other two cycles remain and are **deliberate**: `hold.js` ↔ `auto-damage.js` is
+      load-bearing, and `auto-apply.js` ↔ `mastery.js` breaks only by moving
       `applyDamagesWithReceipt` — the damage chokepoint — to a third module.
 - [ ] **D2 — bring `hold.js` onto the moment spine.** The hold is the *original* moment machine
       and the one the spine was extracted from, and it is the only machine that adopted **none**

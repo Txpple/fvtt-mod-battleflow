@@ -1,18 +1,26 @@
 /**
  * Battle Flow — THE SPINE (ARCHITECTURE.md §5, the moment map): the managed-popup lifecycle +
  * cascade, the popper discipline, the one shown-latch registry, the countdown bar's DOM half,
- * the ACK, the moment clocks — plus the hold's own row/popup views.
+ * the ACK, the moment clocks.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ *
+ * ⚠ **This file imports NO machine, and must not start.** It used to end with "plus the hold's
+ * own row/popup views", and those views needed `reactionItem`/`answerHold`/`continueHold` from
+ * hold.js — the ui.js ↔ hold.js cycle (§10 D6), and the one place the spine depended on a
+ * FEATURE. D6 (2026-08-23) moved all 349 lines of them into hold.js, where the flag they are a
+ * view of already lives. The dependency now runs one way, hold.js → ui.js, and the §7 rule
+ * "depend downward only" holds here without an exception.
  *
  * The MARKUP the spine draws — the house card, the bar, the rule line, the staircase
  * arithmetic — is one layer down in decide/present.js: strings in, strings out, no document
  * and no DOM. What stays here is everything that touches a dialog, an element or a clock.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, deadlineIsLive,
-  canAnswerFor, isContinuingClient } from "./core.js";
-import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, cascadePosition,
+// ⚠ Narrowed by D6: `S`, `setting`, `isContinuingClient` and `holdBarHTML` left with the hold's
+// views. The spine reads no world setting and asks no ownership question of its own — every
+// remaining core import is either identity (MODULE_ID, TITLE) or a gate a CALLER hands it.
+import { MODULE_ID, TITLE, isActiveGM, deadlineIsLive, canAnswerFor } from "./core.js";
+import { TONE, popupKey, bfCard, momentBarHTML, nextCascadeSlot, cascadePosition,
   eldersDeepestFirst } from "./decide/present.js";
-import { reactionItem, answerHold, continueHold } from "./hold.js";
 
 /* ---------------------------------------------------------------------------------------------
  * The hold's views: a durable row on the attack card, plus a popup for whoever can answer.
@@ -168,11 +176,6 @@ export function momentButton(label, onClick, style = {}) {
   return button;
 }
 
-/** The reaction's own artwork, for cards that talk about it. */
-export function reactionImg(actor, reactionName, ids) {
-  return reactionItem(actor, reactionName, ids)?.img ?? null;
-}
-
 /* ---------------------------------------------------------------------------------------------
  * The countdown bar, DOM half (ARCHITECTURE.md §5). The markup is decide/present.js; what is
  * here is the one thing a pure function cannot do — put the animation on the real element.
@@ -284,92 +287,20 @@ export function disarmAskTimer(timers, messageId) {
   disarmDeadline(timers, messageId);
 }
 
-/**
- * The hold's buzzer. Armed by whichever client owns the continuation — one authoritative
- * clock, not a cross-client timeout — and re-checked at the buzzer, because an answer landing
- * in the last instant must beat the timer rather than race it.
- */
-const armedTimers = new Map();
-
-export function armHoldTimer(message) {
-  const hold = message?.getFlag(MODULE_ID, "hold");
-  if ( !hold?.deadline || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
-  armDeadline(armedTimers, message.id, hold.deadline, fireHoldTimer);
-}
-
-export function disarmHoldTimer(messageId) {
-  disarmDeadline(armedTimers, messageId);
-}
-
-/** At the buzzer, every unanswered target passes — the default outcome of an unmade decision. */
-async function fireHoldTimer(messageId) {
-  const message = game.messages.get(messageId);
-  const hold = message?.getFlag(MODULE_ID, "hold");
-  if ( !hold || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
-  const merged = foundry.utils.deepClone(hold);
-  let expired = false;
-  for ( const target of merged.targets ) {
-    if ( target.answer ) continue;      // answered in the last instant — it wins, not the clock
-    target.answer = "pass";
-    target.timedOut = true;
-    expired = true;
-  }
-  if ( !expired ) return;
-  await message.setFlag(MODULE_ID, "hold", merged);
-}
-
-/**
- * The AC a listed reaction actually grants, read from the reaction's OWN effect instead of
- * hardcoding Shield's +5 — the interrupt list is user-editable, so anything that assumes
- * Shield is wrong for the other twelve entries. Returns null for a non-numeric bonus (a
- * proficiency-scaled one like Defensive Duelist), which simply omits the "would it flip" line.
- */
-export function reactionACBonus(reactionName, actor, ids) {
-  const item = reactionItem(actor, reactionName, ids);
-  for ( const effect of item?.effects ?? [] ) {
-    for ( const change of effect.changes ?? [] ) {
-      if ( change.key !== "system.attributes.ac.bonus" ) continue;
-      const value = Number(change.value);
-      if ( Number.isFinite(value) ) return value;
-    }
-  }
-  return null;
-}
-
-/**
- * The math a hold is allowed to show, or null when the reveal is off (the RAW default: you know
- * you were hit, not by how much).
- *
- * ⚠ ONE gate for BOTH surfaces. The popup used to reveal the numbers while the card row said
- * only "Shield?", so the same hold told two different stories depending on where you read it.
- * Any new surface reads this too — do not re-derive the numbers locally.
- */
-function revealDetail(target, roll, actor) {
-  if ( !setting(S.holdReveal) ) return null;
-  const liveAC = actor?.system?.attributes?.ac?.value ?? target.ac;
-  const total = roll?.total ?? null;
-  const bonus = (target.kind === "ac") ? reactionACBonus(target.reaction, actor, target) : null;
-  return {
-    total, liveAC, bonus,
-    wouldAC: bonus == null ? null : liveAC + bonus,
-    wouldMiss: bonus == null ? null : (total < (liveAC + bonus))
-  };
-}
-
-/** The reveal as one compact line, for the card row. */
-function revealLine(reveal, target) {
-  let text = `<strong>${reveal.total}</strong> vs AC <strong>${reveal.liveAC}</strong>`;
-  if ( reveal.bonus != null ) text += ` · ${target.reaction} → AC ${reveal.wouldAC}, `
-    + `<em>${reveal.wouldMiss ? "enough to miss" : "still hits"}</em>`;
-  return text;
-}
-
-// ⚠ THREE dnd5e.renderChatMessage hooks append rows to a card, and their on-card ORDER is
-// their registration order, which is their order in this file: the hold row (here), then
-// the mastery row + Topple affordance, then the receipt rows. Moving a section moves every
-// card's layout — if the file ever splits by phase, this ordering must be made explicit.
-// The damage-offer bar rides THIS registration (above the hold rows) rather than its own —
-// a new registration would move the pinned hook order for one small row.
+// ⚠ dnd5e.renderChatMessage hooks append rows to a card, and their on-card ORDER is their
+// registration order — which is now ACROSS files, not down this one: this bar, then the hold
+// row (hold.js), then the mastery row + Topple affordance, then the receipt rows.
+//
+// ⚠ D6 (2026-08-23) made that ordering explicit rather than incidental. The bar used to share
+// the hold's registration in this file, which is why it rendered above the hold row for free.
+// It keeps that position for a structural reason now: hold.js imports THIS file, so this body
+// evaluates first and this registration lands first. Both halves of that are asserted in
+// check-hook-order.mjs (`ui.js` before `hold.js`). ⚠ If ui.js ever stops being imported by
+// hold.js, this bar moves BELOW the hold row and nothing but that assertion will say so.
+//
+// The bar is a view of `damageOffer`, which this file does not own — a layering smell left
+// deliberately unaddressed by D6, whose scope was the cycle. Its natural home is whichever
+// machine stamps the flag; moving it is a separate stage with its own hook-order change.
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   // THE TABLE'S VIEW OF AN OFFERED ROLL (walk-4 finding (w)): while a damage popup waits on
   // its roller, every client shows the same draining bar on the card. Gated on the deadline
@@ -388,279 +319,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     html.querySelector(".message-content")?.appendChild(row);
     scheduleBarSync(row);
   }
-
-  const hold = message.getFlag(MODULE_ID, "hold");
-  if ( !hold?.targets?.length ) return;
-
-  const row = document.createElement("div");
-  row.className = "battleflow-hold";
-  row.style.margin = "0.4rem 0 0";
-
-  for ( const target of hold.targets ) {
-    const block = document.createElement("div");
-    block.style.marginTop = "0.25rem";
-    row.append(block);
-
-    // The card is the PUBLIC record of this moment — everyone watching the log sees the same
-    // thing, whether or not they are the one being asked.
-    void fromUuid(target.uuid).then(actor => {
-      const roll = message.rolls[0];
-      // A spell hold has no d20 anywhere on its message, so there is no math to reveal — asking
-      // revealDetail anyway prints "null vs AC 15" and invents a verdict about an attack that
-      // was never rolled. The reveal SETTING is untouched by this: a negate hold discloses
-      // nothing a target could metagame on, because the answer never depends on a number.
-      const spell = hold.trigger === "spell";
-      const reveal = spell ? null : revealDetail(target, roll, actor);
-      const lines = [];
-      let tone = "neutral";
-      let eyebrow = "Reaction";
-      let subtitle = target.name;
-
-      if ( hold.status === "pending" ) {
-        tone = "pending";
-        eyebrow = "Reaction — held";
-        const owner = game.users.find(u => !u.isGM && actor?.testUserPermission(u, "OWNER"));
-        subtitle = `${target.name} · waiting on ${owner?.name ?? "the GM"}`;
-        if ( reveal ) lines.push(revealLine(reveal, target));
-        else if ( spell ) lines.push(`<strong>${hold.spell}</strong> · `
-          + `${target.reaction} stops it completely`);
-      } else {
-        const cast = target.answer === "cast";
-        const negated = target.verdict === "negated";
-        tone = (target.verdict === "miss") || negated ? "good" : cast ? "bad" : "neutral";
-        // "skip" is retired (v1.1.15) but still labelled, because holds answered that way are
-        // already sitting in the chat log and a re-render must not relabel history.
-        eyebrow = negated ? "Reaction — it worked"
-          : cast ? "Reaction — cast"
-          : target.answer === "skip" ? "Reaction — skipped"
-          : target.timedOut ? "Reaction — timed out" : "Reaction — passed";
-        // Resolved cards carry the numbers the verdict was reached with, so a surprising
-        // outcome can be read straight off the card instead of reconstructed. A spell hold has
-        // no acAtVerdict, so this skips itself.
-        if ( cast && (target.acAtVerdict != null) ) {
-          const moved = target.acAtVerdict !== target.ac;
-          lines.push(`AC <strong>${target.ac}</strong>${moved ? ` → <strong>${target.acAtVerdict}</strong>` : ""}`
-            + ` vs the attack's <strong>${roll?.total}</strong>`);
-        }
-        if ( negated ) lines.push(`<strong>${hold.spell}</strong> does nothing to them.`);
-        else if ( target.verdict ) lines.push(target.verdict === "miss"
-          ? `<strong>The attack misses.</strong>`
-          : spell ? `The <strong>${hold.spell}</strong> lands in full.`
-          : `The attack still hits.`);
-        else if ( target.answer === "pass" ) lines.push(target.timedOut
-          ? "The reaction window closed — no answer, so the attack lands."
-          : "Let it land — no reaction.");
-      }
-
-      block.innerHTML = bfCard({
-        img: reactionImg(actor, target.reaction, target),
-        eyebrow, title: target.reaction, subtitle, lines, tone
-      }) + holdBarHTML(hold);
-      scheduleBarSync(block);
-
-      if ( hold.status !== "pending" ) return;
-      // A reload lands here with the hold still open — re-arm the buzzer from the flag's
-      // deadline rather than restarting the window.
-      armHoldTimer(message);
-      // This target's decision is made; controls belong only to the still-undecided.
-      if ( target.answer || !canAnswerFor(actor) ) return;
-
-      // ⚠ ONE input surface. When this client gets popups, the popup decides and the card only
-      // watches — it offers a way to call the popup BACK (a dismissed popup must never strand
-      // the decision) but never a second set of answer controls. With popups off the card is
-      // the only surface there is, so it carries the real buttons.
-      // The popup decides, the card recalls it — the card-only mode (the old holdView
-      // opt-out) left with the settings collapse (2026-08-16): one input surface, always.
-      const controls = document.createElement("div");
-      Object.assign(controls.style, {
-        display: "flex", gap: "0.3rem", marginTop: "0.4rem", justifyContent: "flex-end"
-      });
-      controls.append(momentButton("Answer", () => {
-        shownMoments.delete(popupKey(message.id, "hold"));
-        // `manual` — a deliberate click, so it bypasses the GM's player-owned quiet above.
-        void showHoldPopup(message, message.getFlag(MODULE_ID, "hold"), { manual: true });
-      }, { flex: "0 0 auto", margin: "0", padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4" }));
-      block.append(controls);
-    });
-  }
-  html.querySelector(".message-content")?.appendChild(row);
-
-  // Resume a hold that is READY but has nobody driving it: every answer landed, then the
-  // continuing client reloaded before writing the verdict (the settle window makes that gap
-  // up to holdSettle seconds wide). The buzzer only passes UNANSWERED targets, so without
-  // this a fully-answered hold sat pending forever. Views are stateless and re-derive from
-  // the flag, so the view is exactly where readiness gets re-checked; the in-flight claim
-  // makes the drive idempotent across re-renders.
-  if ( (hold.status === "pending") && hold.targets.every(t => t.answer)
-    && isContinuingClient(hold) ) void continueHold(message);
-
-  // The popup: attention for the person whose decision it is. Ephemeral by design — closing
-  // it is not an answer, because the row above is the durable state.
-  const shownKey = popupKey(message.id, "hold");
-  if ( (hold.status === "pending") && !shownMoments.has(shownKey) ) {
-    shownMoments.add(shownKey);
-    void showHoldPopup(message, hold);
-  }
 });
-
-/**
- * The Cast button REALLY casts — it uses the reaction activity natively, exactly as clicking
- * the spell on the sheet would: the slot is spent, the card is posted, and the usage hook
- * fires, which is what answers the hold and applies the effect.
- *
- * ⚠ It must never merely record "cast" as an answer. Doing that (the shape this shipped in
- * first) produced a hold that resolved against an unchanged AC — Shield "cast" with no slot
- * spent, no effect, and a cheerful "raises AC to 12" over a hit that should have missed
- * (caught by Tom in live play, 2026-08-15). ARCHITECTURE.md §6 is explicit: the cast IS the answer,
- * and the button is convenience, not protocol. A cancelled cast answers nothing, correctly
- * leaving the hold open.
- */
-async function castReaction(target) {
-  const actor = await fromUuid(target.uuid);
-  // Prefer the activity the hold recorded. A statblock casts Shield from its Spellcasting
-  // feature's `cast` activity — the spell item of the same name is a linked target that
-  // reports spellSlot:true with no slots, so casting THAT is refused for want of a resource.
-  let activity = target.activityId
-    ? actor?.items.get(target.itemId)?.system.activities?.get(target.activityId)
-    : null;
-  if ( !activity ) {
-    // No recorded activity (an older hold, or a spell-item reaction): resolve the reaction's
-    // real item rather than the first thing sharing its name — a worn shield has no activities
-    // at all, so a bare name match here produces "could not find Shield to cast".
-    const item = reactionItem(actor, target.reaction);
-    activity = item?.system.activities?.contents?.find(a => a.activation?.type === "reaction")
-      ?? item?.system.activities?.contents?.[0];
-  }
-  if ( !activity ) {
-    ui.notifications.warn(`${TITLE}: could not find ${target.reaction} on ${target.name} to cast.`);
-    return;
-  }
-  // No usage dialog: the reaction window is already a table pause, and stacking a slot
-  // picker inside it spends the moment this feature exists to protect. The system picks the
-  // lowest available slot, which is what a Shield cast wants. A player who needs to upcast
-  // casts from their sheet instead — that is detected identically (ARCHITECTURE.md §6).
-  // subsequentActions:false — the (v) guard: a reaction whose activity carries a damage part
-  // must not chain dnd5e's own follow-up roll; the module drives everything after the use.
-  await activity.use({ subsequentActions: false }, { configure: false }, {});
-}
-
-/**
- * The reaction rendered as its own card: portrait, name, who is reacting, the ability's real
- * text, and — only if the reveal is on — the math. This is the moment the whole feature exists
- * to protect, so it should read like the ability rather than like a confirm box.
- */
-async function holdPopupContent(target, roll, actor, hold) {
-  // ⚠ The reaction's real item. Matched by bare name this showed a worn shield's artwork above
-  // a worn shield's description in the popup that is supposed to be the moment of the spell.
-  const item = reactionItem(actor, target.reaction, target);
-  const img = item?.img ?? "icons/svg/shield.svg";
-  const subtitle = [target.name, item?.system?.activation?.type === "reaction" ? "Reaction" : null]
-    .filter(Boolean).join(" · ");
-
-  // Enrich so the ability reads as it does on the sheet (inline rolls, references, links).
-  const editor = foundry.applications?.ux?.TextEditor?.implementation ?? globalThis.TextEditor;
-  let description = "";
-  try {
-    description = await editor.enrichHTML(item?.system?.description?.value ?? "",
-      { rollData: actor?.getRollData?.() ?? {}, secrets: false });
-  } catch(err) {
-    description = item?.system?.description?.value ?? "";
-  }
-
-  // No d20 on a spell hold, so no math to show and nothing conditional to weigh: the question
-  // is simply whether to spend the reaction, and the outcome of taking it is total.
-  const spell = hold?.trigger === "spell";
-  const reveal = spell ? null : revealDetail(target, roll, actor);
-  const situation = spell
-    ? `<div style="font-size:var(--font-size-14,14px);"><strong>${hold.spell}</strong> is about `
-      + `to strike <strong>${target.name}</strong>.</div>`
-      + `<div style="opacity:0.85;margin-top:0.15rem;">${target.reaction} stops it completely — `
-      + `<em>no damage at all</em>.</div>`
-    : reveal
-    ? `<div style="font-size:var(--font-size-14,14px);"><strong>${reveal.total}</strong> vs AC `
-      + `<strong>${reveal.liveAC}</strong> — a hit.</div>`
-      + (reveal.bonus == null ? "" : `<div style="opacity:0.85;margin-top:0.15rem;">`
-        + `${target.reaction} would make it AC <strong>${reveal.wouldAC}</strong> — `
-        + `<em>${reveal.wouldMiss ? "enough to miss" : "still not enough"}</em>.</div>`)
-    : `<div style="font-size:var(--font-size-14,14px);">Something hits `
-      + `<strong>${target.name}</strong>.</div>`;
-
-  return `
-  <div style="display:flex;gap:0.6rem;align-items:center;padding-bottom:0.5rem;
-              border-bottom:1px solid var(--color-border-light-2,#999a);">
-    <img src="${img}" alt="${String(target.reaction ?? "").replace(/"/g, "&quot;")}"
-         data-tooltip="${String(target.reaction ?? "").replace(/"/g, "&quot;")}"
-         style="width:48px;height:48px;flex:0 0 auto;border-radius:4px;
-         border:1px solid var(--color-border-dark,#0006);object-fit:cover;">
-    <div style="flex:1;min-width:0;">
-      <div style="font-family:var(--font-h1,inherit);font-size:var(--font-size-18,18px);
-                  font-weight:bold;line-height:1.2;">${target.reaction}</div>
-      <div style="opacity:0.7;font-size:var(--font-size-12,12px);">${subtitle}</div>
-    </div>
-  </div>
-  ${holdBarHTML(hold)}
-  <div style="padding:0.6rem 0.1rem;">${situation}</div>
-  ${description ? `<div style="max-height:11rem;overflow-y:auto;padding:0.5rem 0.6rem;
-       border-radius:4px;background:rgba(0,0,0,0.05);font-size:var(--font-size-13,13px);
-       line-height:1.5;">${description}</div>` : ""}`;
-}
-
-/**
- * Show the hold popup and keep it honest about its own lifetime.
- *
- * ⚠ A popup is a VIEW, and a view must not outlive its state. This used to be a blocking
- * DialogV2.wait() with no handle, so answering anywhere else — the card row, a cast straight
- * from the sheet, a GM Skip — left it on screen still asking a question that had been answered
- * (reported live 2026-08-15). Now the instance is held so the hold's own update can close it,
- * and closing for ANY reason releases the decision back to the card row.
- */
-async function showHoldPopup(attackMessage, hold, { manual = false } = {}) {
-  const roll = attackMessage.rolls[0];
-  for ( const target of hold.targets ) {
-    // An answered target's decision is made — reopening its popup (the card's Answer button
-    // recalls popups for the whole message) re-asked a question and produced a second
-    // "passes" card through the response channel.
-    if ( target.answer ) continue;
-    const actor = await fromUuid(target.uuid);
-    if ( !canAnswerFor(actor) ) continue;
-
-    // THE GM'S UNSOLICITED POPUPS ARE NON-PLAYER-OWNED TARGETS ONLY. This is the save
-    // machine's rule (v1.12.0 finding ④, user: "as a GM i dont care to see other player
-    // saves"), and `gmQuiet` has lived in saves.js and mastery.js since — the hold was the
-    // one machine that never got it. Restated against the hold 2026-08-19: "as a DM, I
-    // shouldn't see Gren's shield popup. DM doesn't want to be spammed with player popups.
-    // DM can just see the card timer tick."
-    //
-    // ⚠ The case this actually fixes is the OFFLINE owner. A player-owned target whose owner
-    // is PRESENT never reaches this line — canAnswerFor is already false on the GM client,
-    // which is why the requirement looked satisfied for as long as the players were logged
-    // in and looked broken the moment the DM tested alone. canAnswerFor deliberately falls
-    // back to the GM when the owner is away; that fallback is what was spamming the DM.
-    // Such a target now rides the hold timer instead, which is the right answer twice over:
-    // expiry is a PASS, and an absent player was never going to spend a reaction anyway.
-    // NPCs and unowned characters keep their popups — the monster side is the GM's to answer.
-    //
-    // `manual` is the deliberate-recall escape hatch: the card's Answer button passes it, so
-    // the DM can always summon the question on purpose. A click is never spam.
-    if ( !manual && game.user.isGM && actor?.hasPlayerOwner ) continue;
-
-    // ⚠ THE SAME TWO BUTTONS FOR EVERYONE. The question is binary — take the reaction or don't
-    // — and it is the same question whoever is answering it. A GM-only third button ("Skip")
-    // stood here until v1.1.15 and made the GM's popup a different shape from the player's for
-    // no behavioural difference at all: it ran the same code as Pass, and the whole chain only
-    // ever asks `answer === "cast"`. See the card controls for why it went.
-    await openMomentPopup(attackMessage, target.uuid, actor, {
-      title: target.reaction, icon: "fa-solid fa-shield-halved", width: 460,
-      content: await holdPopupContent(target, roll, actor, hold),
-      buttons: [
-        { action: "cast", label: `Cast ${target.reaction}`, default: true,
-          callback: () => castReaction(target) },
-        { action: "pass", label: "Pass",
-          callback: () => answerHold(attackMessage, target.uuid, "pass") }
-      ]
-    });
-  }
-}
 
 /**
  * A popup must not outlive the message it is a view of. Deleting the hold — which is what the
@@ -681,7 +340,11 @@ Hooks.on("deleteChatMessage", message => {
   const prefix = `${message.id}|`;
   for ( const key of [...shownMoments] ) if ( key.startsWith(prefix) ) shownMoments.delete(key);
   for ( const key of [...localAcks] ) if ( key.startsWith(prefix) ) localAcks.delete(key);
-  disarmHoldTimer(message.id);   // no message, no hold, nothing for the buzzer to pass
+  // ⚠ The hold's buzzer used to be disarmed HERE. D6 moved the clock into hold.js, which now
+  // registers its own one-line sweep — the same shape every other timer-owning machine already
+  // uses (concentration, maneuvers, mastery, saves, volleys). This sweep stays generic: it
+  // clears popups, latches and acks for EVERY machine off one `${messageId}|` prefix, which is
+  // the collapse it exists for. Do not re-add a feature's name to it.
 });
 
 /** A decision made anywhere closes the popup asking for it. */
