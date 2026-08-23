@@ -77,18 +77,43 @@ clone means:
 ⚠ **D2 stays LAST and behind its own walk**, and its clock must not be unified at all (see the
 §10 corrections below).
 
-### ⚠⚠ THE EXIT CONDITION — this is now the live question, not a future one
+### ✅ THE EXIT CONDITION — ASKED AND ANSWERED 2026-08-23
 
 The directive is architecture that can **carry** Heroic Inspiration, Bard, Tactical Mind and
-AC5e. Phase 2 is closed and D1/D3 are repaid, so the honest test is no longer "are more
-refactors available" — they always are, and the table above is what is left of them. It is
-**does the seam actually carry the thing it was built for?**
+AC5e. The honest test was never "are more refactors available" — they always are. It was
+**does the seam actually carry the thing it was built for?** Heroic Inspiration was scoped
+against the layers to find out.
 
-**Recommendation for the next session: scope ONE surveyed feature against the new layers
-before taking another structural stage.** That tells you more about whether this shape works
-than D6 does, and it is the thing the whole pass was for. Raise it with the user rather than
-continuing on faith — and note that "no feature work" still stands: *scoping* a feature against
-the architecture is a design exercise, not a build.
+**The answer is YES, and the module already ships a member of the family.** Precision Attack
+([maneuvers.js](scripts/maneuvers.js) `resolvePrecision`) is the working template for every
+one of the three surveyed d20 features:
+
+1. `activity.use()` — the system consumes the resource.
+2. the new die posts as **its own public message**, stamped `respondsTo` (the §4.1 relay).
+3. the module recomputes the verdict **on a module flag** — the original `Roll` is never
+   touched — and announces the arithmetic in the open (*"14 + 6 = 20 vs AC 18 — now hits"*).
+4. `hitTargets` re-reads the new verdict and re-drives the chain.
+
+Heroic Inspiration is that shape with `replace` where precision has `add`; Tactical Mind is
+that shape with a check where precision has an attack; Bardic Inspiration is that shape with a
+different die and a different spender. **One kind, three features, one already shipping.**
+
+⚠⚠ **A REFUTED READING, recorded so it is not re-derived.** This scoping first concluded that
+all three were **out of scope** under DESIGN §4's *"Modifying a d20 roll"* row. **That was
+wrong**, and the user caught it by pointing at Precision Attack. The row forbids reaching into
+an evaluated `Roll` and rewriting its number; it does **not** forbid changing an outcome — the
+operative word in its own text is *folds*. Precision turns misses into hits and has shipped
+since v1.19.0, and [decide/verdict.js](scripts/decide/verdict.js) documents the pattern by
+name. **DESIGN §4's row has been reworded** so the next reader does not repeat the mistake.
+Three further blockers claimed in the same pass also fell: the "no mechanic to trigger" one
+(writing `system.attributes.inspiration` is exactly what the system's own sheet button does),
+the "no compendium text to quote" one (it exists — see ruling 3), and the "no post-roll seam"
+one (the module never needed to pause before the table sees the roll; precision stamps the
+message that already exists).
+
+**What the exercise actually bought is D8** — the fold is a KIND coded as one feature's special
+case. See ARCHITECTURE §10. That, not another cycle break, is what the surveyed features cost
+if they arrive one at a time.
 
 ---
 
@@ -232,8 +257,25 @@ for one was raised and **rejected**. Do not reintroduce it.
 **3. The only genuinely new mechanic across everything surveyed is un-spending a use** —
 Tactical Mind refunds its Second Wind use when the boosted check still fails. That is
 `uses.spent` arithmetic against dnd5e's own resource machinery, not module-owned state.
-Every other surveyed resource (Bardic dice, slots, Heroic Inspiration, Second Wind itself)
-is already system state the module spends through `activity.use()`.
+✅ **Verified 2026-08-23 against the world's own compendium** (`phbftrTacticalMi`): it ships a
+real `utility` activity consuming `itemUses` against Second Wind with a `1d10` roll formula —
+so the *spend* is `activity.use()`, and only the **refund** is unmodelled. The ruling holds.
+
+⚠ **Its last sentence was wrong about ONE resource, corrected 2026-08-23.** Bardic dice,
+slots and Second Wind are indeed spent through `activity.use()`. **Heroic Inspiration is not
+— it has no activity at all.** dnd5e 5.3.3 models it as a bare `BooleanField`
+([character.mjs:80](../../../LOCAL/Repos/dnd5e-release-5.3.3/module/data/actor/character.mjs:80),
+`character` only, not NPCs) plus a sheet toggle
+([character-sheet.mjs:1072](../../../LOCAL/Repos/dnd5e-release-5.3.3/module/applications/actor/character-sheet.mjs:1072)).
+No activity, no uses, no consumption route (consumption is
+`activityUses·itemUses·material·hitDice·spellSlots·attribute`, and a boolean is not numeric),
+and no reroll or transfer code anywhere in the system. Spending it means writing the boolean —
+which is exactly what the system's own sheet button does, so it is **not** a reimplemented
+mechanic. Its rules text does exist and is quotable (presentation law 8 is satisfiable):
+`dnd5e.content24` → *Appendix D: Rule References* → page `nkEPI89CiQnOaLYh` —
+*"you can expend it to reroll any die immediately after rolling it, and you must use the new
+roll… if you already have it, it's lost unless you give it to a player character who lacks
+it."* ⚠ Note "any die" reaches damage too, and the transfer clause is a second unmodelled half.
 
 ---
 
@@ -402,13 +444,39 @@ section is kept for the D2 evidence, which still stands and is still the reason 
 - ~~**D1**~~ — ✅ **done 2026-08-22** (`c256f3b`): the shared services moved to core.js and
   settings.js, hold.js's importers went 7 → 2. What is left is ui.js drawing the hold's views,
   which is D6's knot — and D6 does **not** fall out of D1, measured with D1 finished.
-- **The `preRollD20TestV2` seam** — measured in the dnd5e 5.3.3 source this session: every
-  d20 test (attack, check, save, skill, tool, initiative) carries `"d20Test"` in its
-  `hookNames`, so one registration covers all of them. Post-roll, per-family hooks exist too
-  (`dnd5e.rollAbilityCheck`, `rollSkillV2`, `rollToolCheckV2`).
-  ⚠ **Outcome is only knowable when a DC rides the roll** — `D20Roll.isSuccess`/`isFailure`
-  compare against `options.target`, which is populated on activity-driven and requested rolls
-  but **not** on a bare sheet check, where `isFailure` returns `false` rather than unknown.
+- **The `preRollD20TestV2` seam** — ⚠ **RE-MEASURED 2026-08-23 in the dnd5e 5.3.3 source; the
+  earlier entry here was wrong in a way that would have cost a debugging session.**
+
+  | Roll | carries `"d20Test"` in `hookNames`? |
+  | --- | --- |
+  | attack ([attack.mjs:119](../../../LOCAL/Repos/dnd5e-release-5.3.3/module/documents/activity/attack.mjs:119)) | ✅ |
+  | ability check / saving throw (`#rollD20Test`, [actor.mjs:1503](../../../LOCAL/Repos/dnd5e-release-5.3.3/module/documents/actor/actor.mjs:1503)) | ✅ |
+  | skill / tool (`#rollSkillTool`, [actor.mjs:1293](../../../LOCAL/Repos/dnd5e-release-5.3.3/module/documents/actor/actor.mjs:1293)) | ✅ |
+  | initiative dialog ([actor.mjs:1861](../../../LOCAL/Repos/dnd5e-release-5.3.3/module/documents/actor/actor.mjs:1861)) | ✅ |
+  | **death save** ([actor.mjs:1593](../../../LOCAL/Repos/dnd5e-release-5.3.3/module/documents/actor/actor.mjs:1593)) | ❌ `["deathSave"]` only |
+  | **concentration** ([actor.mjs:1732](../../../LOCAL/Repos/dnd5e-release-5.3.3/module/documents/actor/actor.mjs:1732)) | ❌ `["concentration"]` only |
+
+  Death saves and concentration build their own configs instead of routing through
+  `#rollD20Test`, so **one `d20Test` registration does NOT cover all d20s** — and this module
+  already owns a concentration machine, so that gap is live, not theoretical.
+
+  ⚠ **Pre and post are asymmetric.** The pre hooks loop every entry in `hookNames`
+  ([basic-roll.mjs:101](../../../LOCAL/Repos/dnd5e-release-5.3.3/module/dice/basic-roll.mjs:101)),
+  so generic `d20Test` coverage exists *before* the dice land. The post hooks are a single
+  per-family `Hooks.callAll(\`dnd5e.roll${name}\`)` — **no generic `dnd5e.rollD20Test` exists**,
+  and `callAll` means they are **not cancelable** and fire **after the message already exists**.
+  Covering every d20 post-roll costs ~7 registrations (`rollAttack`, `rollAbilityCheck`,
+  `rollSavingThrow`, `rollSkill`, `rollToolCheck`, `rollDeathSave`, `rollConcentration`).
+  ⚠ There is **no hook at all between evaluation and message creation** — `buildEvaluate` fires
+  nothing. A moment cannot pause a d20 after it lands but before the table sees it. **This is
+  not a limitation in practice**: the post-roll fold pattern (below) stamps the message that
+  already exists, which is what Precision Attack does today.
+
+  ⚠ **Outcome is only knowable when a DC rides the roll** — ✅ re-verified at
+  [basic-roll.mjs:199](../../../LOCAL/Repos/dnd5e-release-5.3.3/module/dice/basic-roll.mjs:199):
+  `isSuccess`/`isFailure` return `undefined` when unevaluated, and **`false` when
+  `options.target` is not numeric** — so a bare sheet check reads as "not a failure" rather
+  than "unknown". Populated on activity-driven and requested rolls only.
   Establishing this seam is architecture; building on it is not, and is not authorized.
 - **AC5e as a vendor boundary** — the 1.9 fence (AC5e decorates d20s, Battleflow applies and
   never decorates) is the cleanest line in the design. Worth making enforceable rather than
@@ -483,19 +551,18 @@ import at [hold.js:996](scripts/hold.js:996) must survive **verbatim**; its comm
 that it protects `preApplyDamage`, not rows.
 
 **Watch item, not a finding:** ↪ the new docs largely avoid the pattern that rotted the old
-inventory — no hand-carried line counts. Two hand-carried *file* counts sit at
-ARCHITECTURE.md:346-347 ("14 files", "20 files"). File counts drift far slower than line
-counts, but both are free to assert in `tools/check-registry.mjs`.
+inventory — no hand-carried line counts. Hand-carried *file* counts drift far slower than line
+counts, but both are free to assert in `tools/check-registry.mjs` and none is asserted yet.
 
-⚠ **And they have now drifted — found while recording stage 5, NOT fixed, because rewriting
-the debt register is its own decision.** The tree is **26** source files, not 20.
-[ARCHITECTURE.md](ARCHITECTURE.md) §10 **D5** still reads *"4 of 20 files are majority-pure;
-almost nothing is unit-testable"* — there are 148 unit assertions and five wholly-pure decide
-modules, so its conclusion is now false. **D7** reads *"No lint, no formatter, no dead-code
-check, no package manifest, no CI... repo has no `package.json`"* — every clause of that was
-closed by Phase 0. Both rows will send a fresh reader to redo finished work. **Raise it with
-the user before editing**: D2/D3/D6 were corrected deliberately in the correctness pass and
-D5/D7 were left, which may or may not have been a choice.
+✅ **The D5/D7 drift this section used to warn about is CLOSED (`e953546`), and D4's was closed
+2026-08-23.** For the record, so nobody re-opens the argument: D5 read *"4 of 20 files are
+majority-pure; almost nothing is unit-testable"* and D7 read *"No lint, no formatter, no
+dead-code check, no package manifest, no CI"* — every clause of both was false by then, and
+both rows were rewritten. D4's *"~220 reads, ~51 writes across 14 files"* was likewise a stale
+hand count and now carries the re-measured figures. ⚠ **The remaining hand-carried number in
+this tree is the source-file count — 27 today** (`scripts/*.js` + `scripts/decide/*.js`), and
+it is still asserted nowhere. It has already been wrong twice (20, then 26). **Assert it in
+`check-registry.mjs` the next time that file is open**, and stop hand-carrying it.
 
 ---
 
