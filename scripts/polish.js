@@ -98,6 +98,19 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig, messageCo
 });
 
 /**
+ * The activity a card was produced by, or null.
+ *
+ * ⚠ The try/catch is not defensive noise. `fromUuidSync` THROWS on a uuid whose pack is not
+ * already cached, so every call site had to guard it — and three byte-identical copies of the
+ * guard stood in this file until the duplicate census collected them (2026-08-23). EDGE by §2
+ * rule 1 (it resolves a document), so it belongs here rather than in `decide/`.
+ */
+function activityOf(doc) {
+  try { return fromUuidSync(doc.getFlag("dnd5e", "activity")?.uuid ?? "") ?? null; }
+  catch { return null; }
+}
+
+/**
  * Phase 3's structural gate — no name list, a shape (DESIGN.md R4 done right): a used
  * activity with NO outcome gate. `utility` carrying effects applies them at cast (Bless,
  * Hunter's Mark's Mark Creature AND Move Mark, Heroism); `heal` applies its self-rolled
@@ -111,9 +124,7 @@ function castApplyQualifies(doc) {
   if ( !setting(S.castApply) ) return false;
   const activityType = doc.getFlag("dnd5e", "activity")?.type;
   if ( (activityType !== "utility") && (activityType !== "heal") ) return false;
-  let activity = null;
-  try { activity = fromUuidSync(doc.getFlag("dnd5e", "activity")?.uuid ?? ""); }
-  catch { activity = null; }
+  const activity = activityOf(doc);
   const affects = activity?.target?.affects?.type ?? null;
   // BLANK affects stays out — hand-authored shapes carry no aim data and the cast slice
   // must not guess (unchanged from v1.5.1).
@@ -139,9 +150,7 @@ function castApplyQualifies(doc) {
 
 /** Everything the elect needs to apply a cast, captured off the card at preCreate. */
 function castPayload(doc) {
-  let activity = null;
-  try { activity = fromUuidSync(doc.getFlag("dnd5e", "activity")?.uuid ?? ""); }
-  catch { activity = null; }
+  const activity = activityOf(doc);
   const self = (activity?.target?.affects?.type === "self") ? activity?.actor : null;
   return {
     activityUuid: doc.getFlag("dnd5e", "activity")?.uuid ?? null,
@@ -164,9 +173,7 @@ Hooks.on("preCreateChatMessage", doc => {
   // incidental snapshot; the self-aim gate existed on the castApply path since v1.5.1
   // and the heal-roll path had missed it).
   if ( setting(S.castApply) && (doc.getFlag("dnd5e", "roll.type") === "healing") ) {
-    let activity = null;
-    try { activity = fromUuidSync(doc.getFlag("dnd5e", "activity")?.uuid ?? ""); }
-    catch { activity = null; }
+    const activity = activityOf(doc);
     if ( (activity?.target?.affects?.type === "self") && activity?.actor ) {
       doc.updateSource({ flags: { [MODULE_ID]: { healPending: {
         selfAim: true, uuid: activity.actor.uuid, name: activity.actor.name } } } });

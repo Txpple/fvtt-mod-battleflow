@@ -232,6 +232,24 @@ All three landed at EDGE, not in `decide/`: one calls dnd5e's aggregator, one va
 formula and warns a human, one reads `game.users`. Their pure cores are a three-branch table
 and a map — too small to be worth an import into `decide/`.
 
+### 🔁 Census re-run after D6 — 2026-08-23
+
+Run again after the structural stage, as this section prescribes. **27 files, 25 duplicated
+3-line runs — and the yield has clearly fallen off**, which is itself the finding: the first
+census collapsed nine copies into three helpers, this one found **one** worth taking.
+
+| Cluster | Verdict |
+| --- | --- |
+| ×3 `polish.js` — `let activity = null; try { fromUuidSync(doc.getFlag("dnd5e","activity")?.uuid ?? "") } catch {}` | ✅ **TAKEN** — `activityOf(doc)` in [polish.js](scripts/polish.js). Byte-identical, one file, zero cross-file risk. The guard is not noise: `fromUuidSync` **throws** on an uncached pack uuid |
+| ×2 `concentration.js`/`saves.js` — the adv/normal/disadv dialog rows | *left, again* — same call as last census: live callbacks, not a string formatter |
+| ×3 `saves.js` — `let claimed = false; await queueFlagWrite(...)` | *left* — that is D3's serializer idiom with a different body each time; the shape repeating is the point |
+| ×3 `mastery.js`, ×2 `concentration.js`, ×2 `hold.js` — `ChatMessage.create({speaker, content: bfCard({…})})` | *left* — announcement boilerplate whose only shared part is the two-line envelope |
+| ×2 `maneuvers.js` — activity-from-flag resolution | *left, borderline* — two copies, and the `?.get?.() ?? contents.find()` shape is worth watching if a third appears |
+
+⚠ **The census is reaching diminishing returns.** Two runs took nine copies and then one. It
+is still cheap, but "run it after every structural stage" should probably become "run it when a
+stage moved code between files."
+
 **Re-run the scan after the next structural stage.** It is a ~20-line script over
 `scripts/**`, and it has now paid twice.
 
@@ -573,6 +591,16 @@ it is still asserted nowhere. It has already been wrong twice (20, then 26). **A
   `download` URL. The v1.20.0 walk-1 bump missed the download and it was caught at release.
 - Restore world settings to the reference table after any test run. Verify, don't assume.
 - First-suite-after-cold-boot flake is a real class — re-run before diagnosing.
+- ⚠⚠ **ALWAYS REDIRECT A SUITE TO A FILE: `node tools/smoke-x.mjs > out.txt 2>&1`, then read the
+  file.** This is not style. **`smoke-battleflow` has now reported exactly "2 FAILURE(S)" twice
+  — 2026-08-22 (stage 5) and 2026-08-23 (after the polish.js fold) — and BOTH TIMES the
+  assertions were lost to a `| tail`, and both times it then refused to reproduce.** The second
+  time it was chased with five clean re-runs including a deliberate stop→deploy→start→run
+  cold-boot repro; the first time with four re-runs and a battleflow→hold→battleflow repro.
+  A suite prints its failures in the body, not the summary, so `tail` throws away the only
+  evidence that matters and the class stays unnamed for another session. **Capture first, read
+  second, re-run third.** The same signature twice is no longer "a flake" — it is an
+  undiagnosed defect that has evaded two sessions purely through how its output was read.
 - Two windows at the table (GM + a player owning Thomas/Morgash). "Nothing popped" must
   always ask **which window**.
 - Deploy without a version bump serves cached scripts until the process bounces: deploy →
