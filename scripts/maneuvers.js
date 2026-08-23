@@ -3,10 +3,10 @@
  * miss after the fact; Riposte answers an enemy's melee miss with a real attack. FLOW item 1.
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
+  canAnswerFor, inRunningCombat } from "./core.js";
 import { parseManeuverFolds } from "./decide/registry.js";
 import { hitTargets, modeAllows } from "./shared.js";
-import { canAnswerFor, inRunningCombat } from "./hold.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup,
   momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,

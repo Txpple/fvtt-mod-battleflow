@@ -2,9 +2,8 @@
  * Battle Flow — Phase 2.5: the concentration assist - damage, ask, roll, verdict, break.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, rollerUserFor } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, rollerUserFor, canAnswerFor } from "./core.js";
 import { rollConfigFor } from "./shared.js";
-import { canAnswerFor } from "./hold.js";
 import { popupKey, bfCard, holdBarHTML } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton,
   scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer } from "./ui.js";

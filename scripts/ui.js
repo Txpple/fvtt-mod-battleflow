@@ -8,10 +8,11 @@
  * arithmetic — is one layer down in decide/present.js: strings in, strings out, no document
  * and no DOM. What stays here is everything that touches a dialog, an element or a clock.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, deadlineIsLive } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, deadlineIsLive,
+  canAnswerFor, isContinuingClient } from "./core.js";
 import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, cascadePosition,
   eldersDeepestFirst } from "./decide/present.js";
-import { reactionItem, isContinuingClient, canAnswerFor, answerHold, continueHold } from "./hold.js";
+import { reactionItem, answerHold, continueHold } from "./hold.js";
 
 /* ---------------------------------------------------------------------------------------------
  * The hold's views: a durable row on the attack card, plus a popup for whoever can answer.

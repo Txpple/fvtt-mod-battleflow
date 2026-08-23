@@ -2,7 +2,8 @@
  * Battle Flow — Settings registration and the settings-sheet polish (dividers, dependent grey-out).
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, S } from "./core.js";
+import { MODULE_ID, S, setting } from "./core.js";
+import { parseInterruptList, parseBlockList } from "./decide/registry.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Settings registration
@@ -345,3 +346,23 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   saves?.addEventListener("change", syncAll);
 });
 
+/* ---------------------------------------------------------------------------------------------
+ * The list settings, read and parsed. EDGE wrappers over decide/registry.js's pure parsers —
+ * they live with the settings surface (section 8) rather than inside the feature that happens to
+ * consume them, which is what D1 was about: hold.js owned these, and polish.js had to import a
+ * FEATURE to ask what the interrupt list said.
+ * ------------------------------------------------------------------------------------------- */
+
+/** EDGE wrapper: read the world setting, hand the string to the parser (decide/registry.js). */
+export function interruptEntries() {
+  return parseInterruptList(setting(S.interruptList));
+}
+
+/**
+ * Parse the curated "Spell:Reaction" world setting — which spells a reaction stops outright.
+ * Keyed by the SPELL, so one reaction can appear here and in the interrupt list without the
+ * two lists having to agree about anything.
+ */
+export function blockEntries() {
+  return parseBlockList(setting(S.blockList));
+}

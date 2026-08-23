@@ -61,6 +61,30 @@ export const rollerUserFor = actor => game.users
   .filter(u => u.active && !u.isGM && actor.testUserPermission(u, "OWNER"))
   .sort((a, b) => a.id.localeCompare(b.id))[0] ?? game.users.activeGM;
 
+/** Everyone who may answer for a held target: its owners, or the GM for unowned NPCs. */
+export function canAnswerFor(actor) {
+  if ( !actor ) return false;
+  if ( actor.isOwner && !game.user.isGM ) return true;
+  // GMs own everything, so they answer only for targets no player owns (the monster side).
+  if ( game.user.isGM ) return !game.users.some(u => !u.isGM && u.active && actor.testUserPermission(u, "OWNER"));
+  return false;
+}
+
+/**
+ * Should THIS client drive the continuation? The client that rolled the attack owns it (its
+ * attack, its dice); if that user has gone offline the active GM takes over so a hold can
+ * never strand the chain.
+ */
+export function isContinuingClient(hold) {
+  const owner = game.users.get(hold?.continuedBy);
+  return owner?.active ? owner.isSelf : isActiveGM();
+}
+
+/** Is this actor a combatant in a combat that has actually started? */
+export function inRunningCombat(actor) {
+  return game.combats.some(c => c.started && c.combatants.some(cb => cb.actor?.id === actor.id));
+}
+
 /* ---------------------------------------------------------------------------------------------
  * THE DEADLINE CEILING — the moment clocks have a floor and need a roof.
  *

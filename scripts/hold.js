@@ -2,9 +2,10 @@
  * Battle Flow — Phase 1.5: the reaction hold. Two entry points, one machine - eligibility, both triggers (attack and listed spell), answers, continuation, the veto, the no-attack damage applier's claim. Views live in ui.js.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
-import { parseInterruptList, parseBlockList } from "./decide/registry.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
+  canAnswerFor, isContinuingClient, inRunningCombat } from "./core.js";
 import { limitedUses, isReactionItem } from "./decide/eligible.js";
+import { interruptEntries, blockEntries } from "./settings.js";
 import { joinEffectReceipt } from "./decide/receipt.js";
 // ⚠ Bare on purpose since (gg) retired the post-answer roll (the continuation releases the
 // claim instead): the import itself still pins auto-damage.js's evaluation — and with it every
@@ -31,20 +32,6 @@ import { applyEffectsTo } from "./effect-riders.js";
  * views of it, so a reload rebuilds them and three different answer channels (the player's
  * Pass message, the player's own cast, the GM's flag flip) need no coordination at all.
  * ------------------------------------------------------------------------------------------- */
-
-/** EDGE wrapper: read the world setting, hand the string to the parser (decide/registry.js). */
-export function interruptEntries() {
-  return parseInterruptList(setting(S.interruptList));
-}
-
-/**
- * Parse the curated "Spell:Reaction" world setting — which spells a reaction stops outright.
- * Keyed by the SPELL, so one reaction can appear here and in the interrupt list without the
- * two lists having to agree about anything.
- */
-export function blockEntries() {
-  return parseBlockList(setting(S.blockList));
-}
 
 /** Is a slot of at least `level` available (including pact magic)? */
 function hasSpellSlot(actor, level) {
@@ -224,11 +211,6 @@ Hooks.on("dnd5e.postUseActivity", activity => {
   if ( !actor || !inRunningCombat(actor) ) return;
   void actor.setFlag(MODULE_ID, "reactionSpent", true);
 });
-
-/** Is this actor a combatant in a combat that has actually started? */
-export function inRunningCombat(actor) {
-  return game.combats.some(c => c.started && c.combatants.some(cb => cb.actor?.id === actor.id));
-}
 
 // Cleared when the actor's own turn comes round again.
 // ⚠ The CLEAR hooks are deliberately not gated on the feature toggle — only the SET is.
@@ -437,25 +419,6 @@ async function stampSpellHold(message, entries) {
     targets: held
   });
   armHoldTimer(message);
-}
-
-/**
- * Should THIS client drive the continuation? The client that rolled the attack owns it (its
- * attack, its dice); if that user has gone offline the active GM takes over so a hold can
- * never strand the chain.
- */
-export function isContinuingClient(hold) {
-  const owner = game.users.get(hold?.continuedBy);
-  return owner?.active ? owner.isSelf : isActiveGM();
-}
-
-/** Everyone who may answer for a held target: its owners, or the GM for unowned NPCs. */
-export function canAnswerFor(actor) {
-  if ( !actor ) return false;
-  if ( actor.isOwner && !game.user.isGM ) return true;
-  // GMs own everything, so they answer only for targets no player owns (the monster side).
-  if ( game.user.isGM ) return !game.users.some(u => !u.isGM && u.active && actor.testUserPermission(u, "OWNER"));
-  return false;
 }
 
 /** Record an answer for one held target and continue once every held target has answered.

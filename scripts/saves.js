@@ -2,12 +2,12 @@
  * Battle Flow — Phase 2: saving throws, joint with Phase 3's save slice - demand, roll, verdict, consequences.
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, rollerUserFor } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, rollerUserFor,
+  canAnswerFor, inRunningCombat } from "./core.js";
 import { tokensInTemplates } from "./geometry.js";
 import { saveMultiplier, verdictText, saveOutcome } from "./decide/verdict.js";
 import { isDeadForSaves } from "./decide/eligible.js";
 import { forceStatus, damagePartsOf, rollConfigFor } from "./shared.js";
-import { canAnswerFor, inRunningCombat } from "./hold.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup,
   momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,

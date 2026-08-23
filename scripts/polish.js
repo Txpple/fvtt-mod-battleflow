@@ -9,7 +9,7 @@
  * switch left. ARCHITECTURE.md §8 carries the full policy.
  */
 import { MODULE_ID, S, setting } from "./core.js";
-import { blockEntries, interruptEntries } from "./hold.js";
+import { blockEntries, interruptEntries } from "./settings.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Table polish — the no-target gate, the birth stamps, hidden buttons, dialog centering

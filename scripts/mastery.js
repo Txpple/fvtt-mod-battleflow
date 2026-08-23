@@ -2,10 +2,10 @@
  * Battle Flow — Phase 1.9B/C: weapon mastery riders, the mastery ask, the topple fold and its popup, and the reminders.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
+  canAnswerFor, inRunningCombat } from "./core.js";
 import { joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { hitTargets, modeAllows, rollConfigFor } from "./shared.js";
-import { inRunningCombat, canAnswerFor } from "./hold.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup,
   momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,
