@@ -690,7 +690,7 @@ up*, not about whether the module was right.
       verified, and every relative import inside the archive proved to resolve to another file
       in it.** The gate ran as a precondition, which is 2.1 exercised for real.
       **What this release carries above `v1.21.0`:** Phase 3 (registries), D2, the §4.1 relay,
-      the flake fixes, and this pass's six commits. ⚠ **Only D8 changes shipping code** —
+      the flake fixes, and this pass's commits. ⚠ **Only D8 changes shipping code** —
       stages 1–3 are `tools/` and docs, and neither is in the zip.
       ⚠ **`gh release create` and `git push` are NOT run.** They put artifacts on a public repo,
       and that is the user's call rather than an autonomous one. The commands, and a
