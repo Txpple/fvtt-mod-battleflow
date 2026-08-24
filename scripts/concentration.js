@@ -6,7 +6,8 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, rollerUserFor, canAnswerFor }
 import { rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton,
-  scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer } from "./ui.js";
+  scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
+  dramaticVerdictPause } from "./ui.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 2.5 — the concentration assist: damage → ask → roll → verdict → break.
@@ -244,29 +245,6 @@ function concAskAnsweredBy(message) {
 
 /** Same-client fold latch — the create watcher and the render resume can race in one tick. */
 const concFolds = new Set();
-
-/**
- * Let the table SEE the roll before its verdict acts (user call 2026-08-16): wait out Dice
- * So Nice's animation when that module is present, then the same dramatic beat the attack →
- * damage reveal uses. The MECHANICS never wait — flags are written and timers disarmed
- * before this runs, so the buzzer cannot double-fire into the pause; only the table-facing
- * consequences (the break, the prone, the announcement) hold for the dice.
- */
-export async function dramaticVerdictPause(rollMessage) {
-  // ⚠ CAPPED, not merely caught. A rejection lands in the catch, but a DSN promise that
-  // never RESOLVES (a cross-client animation that never played, a headless page) would hang
-  // this await forever — and everything behind the pause (the cascade, the prone, the break
-  // card) would silently never happen, which is exactly the live 2026-08-16 shape of
-  // "concentration read broken but Bless survived". Dice are cosmetic; six seconds is more
-  // drama than any roll needs.
-  try {
-    const dice = game.dice3d?.waitFor3DAnimationByMessageID?.(rollMessage.id);
-    if ( dice ) await Promise.race([dice, new Promise(r => setTimeout(r, 6000))]);
-  }
-  catch(err) { /* dice are cosmetic; never let them block a verdict */ }
-  const beat = (Math.max(0, Number(setting(S.dramaticBeat)) || 0)) * 1000;
-  if ( beat ) await new Promise(r => setTimeout(r, beat));
-}
 
 /**
  * The elect folds a roll into its ask and acts on the verdict. Success is the ask's DC against

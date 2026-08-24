@@ -4,14 +4,13 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
-  canAnswerFor, inRunningCombat } from "./core.js";
+  canAnswerFor, inRunningCombat, combatStamp } from "./core.js";
 import { maneuverFoldEntries } from "./settings.js";
 import { hitTargets, modeAllows } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup,
   momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,
   armAskTimer, disarmAskTimer, armDeadline, disarmDeadline, registerRelay } from "./ui.js";
-import { combatStamp } from "./mastery.js";
 // Safe statically (the saves.js:12 argument): the entry evaluates auto-damage.js at :90 and
 // this file at :97, so nothing here can reorder auto-damage's registrations. Re-checked with
 // check-hook-order; do not move this file's entry position without re-running it.

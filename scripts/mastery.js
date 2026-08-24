@@ -3,18 +3,18 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
-  canAnswerFor, inRunningCombat } from "./core.js";
+  canAnswerFor, inRunningCombat, combatStamp } from "./core.js";
 import { joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { MASTERY_KINDS, MASTERY_NATIVE } from "./decide/registry.js";
 import { hitTargets, modeAllows, rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup,
   momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,
-  armAskTimer, disarmAskTimer, armDeadline, disarmDeadline } from "./ui.js";
+  armAskTimer, disarmAskTimer, armDeadline, disarmDeadline,
+  dramaticVerdictPause } from "./ui.js";
 import { forceStatus } from "./shared.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { messageActivity } from "./effect-riders.js";
-import { dramaticVerdictPause } from "./concentration.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1.9B/C — weapon mastery riders (PLAN.md sections B and C).
@@ -756,12 +756,6 @@ async function showMasteryNotice(message, notice) {
  * ------------------------------------------------------------------------------------------- */
 
 const CLEAVE_ARM_TTL_MS = 60_000;   // out-of-combat only; in combat the turn stamp governs
-
-/** Exported since the walk's (g): the bash offer's once-per-turn discipline reuses it. */
-export const combatStamp = () => {
-  const c = game.combat;
-  return c?.started ? `${c.id}:${c.round}:${c.turn}` : null;
-};
 
 async function armCleave(notice) {
   const attacker = (() => { try { return fromUuidSync(notice.attackerUuid); } catch { return null; } })();

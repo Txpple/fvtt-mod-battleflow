@@ -18,7 +18,8 @@
 // ⚠ Narrowed by D6: `S`, `setting`, `isContinuingClient` and `holdBarHTML` left with the hold's
 // views. The spine reads no world setting and asks no ownership question of its own — every
 // remaining core import is either identity (MODULE_ID, TITLE) or a gate a CALLER hands it.
-import { MODULE_ID, TITLE, isActiveGM, deadlineIsLive, canAnswerFor, queueFlagWrite } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor,
+  queueFlagWrite } from "./core.js";
 import { TONE, popupKey, bfCard, momentBarHTML, nextCascadeSlot, cascadePosition,
   eldersDeepestFirst } from "./decide/present.js";
 
@@ -285,6 +286,35 @@ export function armAskTimer(timers, message, flagKey, expire) {
 
 export function disarmAskTimer(timers, messageId) {
   disarmDeadline(timers, messageId);
+}
+
+/**
+ * Let the table SEE the roll before its verdict acts (user call 2026-08-16): wait out Dice
+ * So Nice's animation when that module is present, then the same dramatic beat the attack →
+ * damage reveal uses. The MECHANICS never wait — flags are written and timers disarmed
+ * before this runs, so the buzzer cannot double-fire into the pause; only the table-facing
+ * consequences (the break, the prone, the announcement) hold for the dice.
+ *
+ * ⚠ It lived in `concentration.js` until 2026-08-23, and `saves.js` and `mastery.js` imported it
+ * from there — a presentation-timing primitive inside a feature, with two outside customers.
+ * That is the D1 pattern exactly, and it was pinned as §10 D9(a). It is here because **the spine
+ * owns HOW a moment is presented** (§7's generalisation of D6); concentration owns only what its
+ * own moment says.
+ */
+export async function dramaticVerdictPause(rollMessage) {
+  // ⚠ CAPPED, not merely caught. A rejection lands in the catch, but a DSN promise that
+  // never RESOLVES (a cross-client animation that never played, a headless page) would hang
+  // this await forever — and everything behind the pause (the cascade, the prone, the break
+  // card) would silently never happen, which is exactly the live 2026-08-16 shape of
+  // "concentration read broken but Bless survived". Dice are cosmetic; six seconds is more
+  // drama than any roll needs.
+  try {
+    const dice = game.dice3d?.waitFor3DAnimationByMessageID?.(rollMessage.id);
+    if ( dice ) await Promise.race([dice, new Promise(r => setTimeout(r, 6000))]);
+  }
+  catch(err) { /* dice are cosmetic; never let them block a verdict */ }
+  const beat = (Math.max(0, Number(setting(S.dramaticBeat)) || 0)) * 1000;
+  if ( beat ) await new Promise(r => setTimeout(r, beat));
 }
 
 // ⚠ dnd5e.renderChatMessage hooks append rows to a card, and their on-card ORDER is their

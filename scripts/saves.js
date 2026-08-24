@@ -11,8 +11,7 @@ import { forceStatus, damagePartsOf, rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup,
   momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
-  armDeadline, disarmDeadline, registerRelay } from "./ui.js";
-import { dramaticVerdictPause } from "./concentration.js";
+  armDeadline, disarmDeadline, registerRelay, dramaticVerdictPause } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt, revertEffect } from "./effect-riders.js";
 // ⚠ SAFE STATICALLY, unlike auto-damage.js's own ui.js import (v1.6.1's ESM order trap): the

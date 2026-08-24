@@ -87,6 +87,27 @@ export function inRunningCombat(actor) {
   return game.combats.some(c => c.started && c.combatants.some(cb => cb.actor?.id === actor.id));
 }
 
+/**
+ * WHEN we are, as a comparable string: `${combat.id}:${round}:${turn}`, or null out of combat.
+ *
+ * The once-per-turn idiom, and the reason it needs no hook and no elect: a stamp is written
+ * beside the thing it governs (a cleave arm, a bash offer) and **any mismatch at read time IS
+ * expiry** — no timer to fire, no sweep to miss, and it survives a reload because both halves
+ * are persisted facts. Out of combat there is no turn to end, so callers that still need a
+ * bound fall back to their own TTL (mastery's cleave arm is the reference).
+ *
+ * ⚠ It lived in `mastery.js` until 2026-08-23 and `maneuvers.js` imported it from there — a
+ * combat-identity fact inside a feature, which is the D1 pattern and was pinned as §10 D9(b).
+ * It is a "who/when" fact, so it belongs in this family beside `inRunningCombat`.
+ * ⚠ Its old doc line carried the provenance and it is kept here: it was exported for **the
+ * walk's (g)** — the bash offer's once-per-turn discipline reuses it — which is precisely the
+ * second customer that made it a service rather than a favour.
+ */
+export const combatStamp = () => {
+  const c = game.combat;
+  return c?.started ? `${c.id}:${c.round}:${c.turn}` : null;
+};
+
 /* ---------------------------------------------------------------------------------------------
  * THE DEADLINE CEILING — the moment clocks have a floor and need a roof.
  *
