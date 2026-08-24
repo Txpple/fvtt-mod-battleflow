@@ -21,6 +21,18 @@ leftover eating the press. Put statuses on actors through `forceStatus`: enable 
 carrier, build the effect directly (which also lets it carry an `origin` naming who pressed
 it), verify the status landed, and log loudly if it did not.
 
+⚠ **AND THE REMOVAL SIDE FAILS THE OPPOSITE WAY — IT THROWS (2026-08-24).**
+`toggleStatusEffect(id, { active: false })` resolves the canonical id and issues a delete
+**without re-checking that the effect is still there**, so anything removing the same status
+concurrently wins the race and leaves the call rejecting with
+`ActiveEffect "dnd5edead0000000" does not exist!` straight out of the server backend. ⚠ **That
+race is ordinary, not exotic:** restoring a pool above zero is exactly what makes dnd5e clear
+`dead`, so any code that raises HP and *then* tidies the mark is racing the system every time.
+Take statuses OFF through `clearStatus`, the twin: delete every carrier by its own id, re-read
+before each delete, treat a lost race as success, never throw. **Between them the pair is the
+rule: `toggleStatusEffect` is unreliable in both directions and the two failure modes are
+opposite — a silent no-op adding, a throw removing.**
+
 **Never key persisted data by uuid.** Foundry expands dotted keys on write and every uuid
 contains dots: `{ "Actor.abc": "cast" }` is stored as `{ Actor: { abc: "cast" } }`, so every
 lookup misses silently and forever. Per-target state is an **array of entries with a `uuid`
@@ -29,6 +41,14 @@ field**.
 **An async hook handler's throw is invisible.** `Hooks.on("x", doc => { void f(doc) })` turns
 any rejection into an unhandled rejection nobody logs. Anything fallible in a
 fire-and-forget handler needs its own try/catch with a `console.error`.
+⚠ **AND A CLICK LISTENER IS THE SAME HAZARD, which cost three battery runs to see.**
+`button.addEventListener("click", () => doThing(...))` discards the promise exactly the way
+`void` does. When `revertTarget` started rejecting on the status race above, the symptom was
+not an error — it was **two writes that quietly did not happen**: the actor was reverted and the
+card never recorded it. ⚠ **The only channel it was ever visible on was
+`window.addEventListener("unhandledrejection", …)`**, which is now how `smoke-battleflow` §4c
+asserts it. **A suite that drives a button should listen on that channel; it is the one place a
+no-catch listener can fail.**
 
 **A message renders into several DOM trees** — chat log, the notifications pane, popouts. Any
 "once per message" latch inside a render hook fires on a tree that gets replaced while the
