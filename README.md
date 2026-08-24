@@ -33,7 +33,7 @@ settings at v1.20.0. The dogfood ladder is walked one setting at a time.
 
 ## Documentation
 
-Three documents, and only three.
+Four documents, and only four.
 
 - **[DESIGN.md](DESIGN.md)** — the north star. What the module is for, the four goals it exists
   to serve, what is permanently out of scope. Stable; read it before proposing anything.
@@ -42,9 +42,13 @@ Three documents, and only three.
   and the checklist for adding anything.
 - **[NOTES.md](NOTES.md)** — working knowledge. Every Foundry and dnd5e fact that cost a
   debugging session, plus deploy/release/test protocol. Not binding, just expensive.
+- **[BACKLOG.md](BACKLOG.md)** — known and deliberately not scheduled, each with the reason and
+  the thing that would change it. ⚠ **Nothing in it is owed** — it exists so that "we looked at
+  this and decided not to" stops being read as a to-do list. Read it when you are picking work.
 
 Development tooling lives in [tools/](tools/README.md) and ships in nothing. The short version:
-`npm run verify` is the offline gate (seven static checks plus 215 unit tests, all in seconds),
+`npm run verify` is the offline gate (static checks plus the unit tests, all offline, all in
+seconds — it prints its own tallies, so do not carry them into prose),
 and `node tools/battery.mjs` is the live one — every suite, in the order that works, each
 captured to a file.
 

@@ -6,6 +6,11 @@
 > code must be shaped) and [NOTES.md](NOTES.md) (what it cost to learn). **This file does not
 > duplicate them** — when a fact belongs in one of those, it lives there and this file points.
 >
+> ⚠ **[BACKLOG.md](BACKLOG.md) holds what is KNOWN AND DELIBERATELY NOT SCHEDULED**, and it is
+> deliberately not repeated here. **This file is for what is owed and what is true right now**;
+> if something is in the backlog it is neither. That split was made 2026-08-24 because carrying
+> parked items in the handoff's voice made every session open with alarms that were not alarms.
+>
 > [PLAN.md](PLAN.md) is the temporary stabilization tracker. **Its work is finished**; it is
 > kept for its measurements and its record of what was decided against, and it should be
 > deleted once nobody is reading it.
@@ -56,7 +61,7 @@
 | Release (previous) | ✅ **v1.23.0 RELEASED, 2026-08-23** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.23.0>. Both assets attached. The **published** zip was downloaded back and proven self-contained: **31 entries, 28 scripts including the six in `decide/`, 109 relative imports all resolving, no backslash separators, both manifest fields naming v1.23.0**. ⚠ That read-back is not ceremony — it is the check that caught the backslash bug (v1.1.0–1.1.15) and the missing `scripts/decide/` (post-Phase-2). |
 | Prod | ✅ **PROD RUNS v1.23.1 AS OF 2026-08-23** — deployed and **verified byte-identical by a second, independent `--check` run**. ⚠ The `--check` was meaningful this time because the box was awake: it read **distinct** hashes and named exactly the seven files this release touches (six scripts + `module.json`) — *the repeated-hash tell was absent*. ⚠ **The version STRING lags until the Foundry process restarts**; the code is live on the next world reload. Earlier: ✅ **v1.23.0 AS OF 2026-08-23** — the d20 folds included, by user instruction. Earlier the same day: ✅ **v1.22.0** — user instruction this session, superseding the old *"sandbox only, no prod yet"* call. 28/28 files byte-identical over WebDAV. ⚠ **That morning the box was ASLEEP** (`status=NOT_RUNNING`) and had to be woken by the Magic URL first — see *The prod deploy* below, because **the byte-check LIES when the box is down** (it reported the same hash for all 28 files: the lobby HTML). *(That clause is history: prod carries the d20 folds now.)* |
 | Repo | `main`, **clean and pushed**, **AHEAD OF THE v1.23.1 TAG** (`git log v1.23.1..HEAD` counts them) — D10's dispatch check, D11's coverage ledger, `smoke-d20-folds` §3, the docs, the three coverage follow-ons, and this recut. ✅ **BATTERY GREEN over the first four** (19m59s, settings CLEAN, world rolled back). ⚠ **NOT over `cec478d`**, which changed every suite's teardown — see *What is NOT yet done*. Not released. |
-| **The debt register** | ⚠ **AS OF 2026-08-23 THE ROWS ARE D1–D11.** **D10 is CLOSED** — the "who owns a curated hook list" question was dissolved by measuring rather than answered: dnd5e declares its own hooks in its own bundle (88 literals ∪ 92 JSDoc `@memberof hookEvents` = 105), so the list is generated and nobody curates it. **D11 is MEASURED, not closed** — the instrument exists and its READING is the standing obligation. **D9 stays OPEN with four pinned edges, deliberately.** Below is the pre-2026-08-23 text, still true: ARCHITECTURE §10: **D1–D8 repaid or settled by decision** (D4 dropped, the two surviving import cycles permanent — the argument is in their rows). ⚠ **D9 IS OPEN, added 2026-08-23 by the ENFORCEMENT PASS**, and the register's "every row is closed" line has been **corrected**: it was false when written, because the service-in-a-feature residues had no row. **3 of D9's 7 edges are repaid; 4 stand, each pinned with a reason** in `tools/check-layers.mjs`. ⚠ **D9's evidence is MECHANICAL, unlike every row above it** — a repaid edge fails the gate as a stale pin, so this row cannot go stale in place the way D2's did. ⚠ **D10 IS ALSO OPEN, added 2026-08-23, and it is open for the opposite reason**: D9 is understood and deliberately unpaid, **D10 is a failure class with NO RULE AGAINST IT** — a hook name the system never dispatches registers cleanly and does nothing forever. It is what put four of six d20-fold offer paths past a 12/12 green suite. **Interim discipline: a live suite asserts a hook FIRED, never that it was registered.** |
+| **Debt & backlog** | ✅ **NOTHING IS OWED AS OF 2026-08-24.** [ARCHITECTURE.md](ARCHITECTURE.md) §10 is the owed-work register and every row in it is repaid, closed or measured: **D1–D8 repaid or settled**, **D10 CLOSED** (a hook name the system never dispatches fails the build), **D11 MEASURED** — the coverage report exists and **reading it is the one standing obligation**. ⚠ **D9 and D12 moved to [BACKLOG.md](BACKLOG.md) on 2026-08-24 and are NOT owed** — both are understood, deliberately unscheduled, and pinned by tooling that fails if the situation changes. **Read BACKLOG when you are picking work, not when you are starting a session.** |
 | Verify gate | `npm run verify` — **TEN static checks then the unit tests, all offline, all in seconds.** ⚠ **`npm run dispatch` is the tenth (NEW 2026-08-23, D10)**: every `dnd5e.*` hook this module registers must be one dnd5e actually dispatches, checked against a set **generated from the installed system's own bundle** and committed as `tools/dnd5e-hooks.json`. **It is pinned to the dnd5e version `module.json` verifies** — bumping the system pin without `--regen` fails the build, deliberately. **After any dnd5e upgrade: regen, then READ THE DIFF — a name that disappeared is a listener that has just gone silent.** biome (**98 warnings, 0 errors — the baseline, MEASURED 2026-08-23; the "96" carried here for days was never true**), knip, **typecheck**, imports, **layers**, hook order (**83 registrations, 12 pairs**), **dispatch (11 dnd5e names, 1 pinned hole)**, registry (**13 checks**; it prints the R4 kinds table), manifest in-step, comments (**344 blocks / 28 files**), vitest **237**. ⚠ **Four numbers are PINNED and fail the gate deliberately** — the R4 kind total (**19**), the source-file count (**28**), the two `module.json` version fields agreeing, and **the dnd5e version the hook artifact was extracted from**. That is the point, not an obstacle. ⚠ **`npm run layers` declares every file's LAYER and every cross-layer EDGE**, and fails on an unpinned edge *and* on a pin whose edge has gone. **Do not hand-count the import graph again — it prints the tally.** ⚠ **And do not hand-carry any of these numbers into prose: `96` was wrong for three days here and the tools print all of them.** |
 | **Testing** | ⚠ **`node tools/battery.mjs` is the front door.** **Fifteen entries** in the order that works (`fixture-d20-folds` seeds, `reset-fixture-state` sweeps — neither is a suite), **every one captured to `dist/battery/<stamp>/` before anything is summarised**, then **HOOK COVERAGE**, then `verify-settings`. ⚠ **THE COVERAGE REPORT IS NEW (2026-08-23, D11) AND IT IS THE ONLY OUTPUT IN THE APPARATUS THAT IS ABOUT BEHAVIOUR** — which of the 83 registrations actually FIRED. **Read its never-fired list; it is reported and never enforced**, because a rule that failed on a rare hook would be tuned out by the third one. One suite alone (`smoke-d20-folds`) covers **16/25 names, 71/81 registrations**. `--from <suite>` resumes; `--snapshot` rolls the world back; `--list` shows the order. Every suite also takes `--list` and `--section N`. |
 | Sandbox | ⚠ **HEADLESS, and it is THE test environment.** `node <mcp>/scripts/local-foundry.mjs start\|stop\|status\|restart`; deploy with `node <mcp>/scripts/deploy-house-module.mjs fvtt-mod-battleflow --local` — **never without `--local`**. Never the Electron app for suites (dataPath lock). ✅ **Carries v1.23.1 byte-identical, manifest included** (stop → deploy → start, 2026-08-23) — so it now matches prod and the release exactly. ⚠ **Its `module.json` lagged a version behind the scripts for part of the day** and nothing noticed, because a manifest change needs a PROCESS restart while scripts need only a world reload: `--check` names `module.json` alone when that happens. ⚠ **LEFT RUNNING** — `status` first, `stop` if you are not testing. ⚠ **`status` counting 1 user is usually the MCP BRIDGE, not a human**: run `disconnect-bridge` and re-check before concluding anything, because the sole-GM preflight refuses a suite while it is connected (seen 2026-08-23 — a read-only MCP call is enough to re-arm it). ⚠ **`BF Test Fighter` now carries an equipped PHB Longsword**, granted by the fixture so `smoke-d20-folds` §3 has an attack activity to drive. ⚠ `list-actors` includes **`BF Test Fighter`** (Fighter 2, Second Wind + Tactical Mind, clean PHB provenance) and **`BF Test Bard`** (Bard 5, so its die is a **d8** and a wrong d6 default is caught). |
@@ -80,7 +85,9 @@
    cycle one day before the tool printed it.**
 4. **§11's checklists.** A new feature walks them — *Adding a FOLD*, *Adding a moment*,
    *Adding a TEST* (the tier rule), *Adding a file*.
-5. **§10 D9, D10 and D11** — D9 open by decision, D10 closed, **D11 measured and owed a reading**.
+5. **§10 D10 and D11** — D10 closed, **D11 measured and owed a reading**. ⚠ Everything that is
+   *known but deliberately unscheduled* lives in [BACKLOG.md](BACKLOG.md) instead — read that
+   when you are choosing work, not when you are getting oriented.
 6. ⚠ **This file's *SETTLED — do not re-propose* table.** Each row is a decision with the
    condition that would reopen it. **Read it before suggesting structural work**; four of its rows
    are proposals that have already come back three sessions running.
@@ -414,37 +421,6 @@ into that same catch-all and reported "did not match" whether or not anything la
 - `esmodules` names only `scripts/battleflow.js`, so the new `decide/` files load through the
   import graph on a world reload — **no process restart needed for the code**. Only the displayed
   version string lags until the box next restarts.
-
----
-
-## ▶ The rest of the survey — still unscheduled
-
-**The standing "no features" directive is satisfied and lifted.** The three surveyed d20
-features are BUILT — see *The d20 folds, as landed* above, which supersedes the scoping that
-used to sit here and corrects three of its claims.
-
-⚠ **Two content facts from that survey are still worth keeping, because they are not findable by
-guessing and both are still unmodelled:**
-
-- **Heroic Inspiration's rules text**, quoted verbatim in the popup (presentation law 8), is
-  `dnd5e.content24` → *Appendix D: Rule References* → page **`nkEPI89CiQnOaLYh`**. ⚠ The full
-  text is **wider than what shipped**: *"any die"* reaches **damage rolls**, and the transfer
-  clause — *"it's lost unless you give it to a player character who lacks it"* — is a **second
-  unmodelled half**. Widening to any-die/any-outcome is what triggers §11 rule 4's auto-revert.
-- **Tactical Mind's refund is still unmodelled** — *"if the check still fails, this use of Second
-  Wind isn't expended."* ⚠ And it is now known to be **unbuildable as an automatic rule**: the
-  refund is conditional on the check FAILING, and the module cannot know a check failed, because
-  no DC exists. It is a GM ruling or a player-pressed un-spend, not arithmetic.
-
-### Also waiting, unscheduled
-
-| Item | Shape |
-| --- | --- |
-| **Guidance / choice-bearing effects** | An effect applied without asking the choice it carries — the d4 landed on every ability check. Same family as Careful Spell. Needs a "choice" moment kind. |
-| **Tactical Master — the mastery pick (fighter 9)** | User-named future need (2026-08-24): the 2024 fighter's **base level-9 feature** lets the attacker replace the weapon's mastery with **Push, Sap or Slow** for that attack — a choose-one-of-several moment the mastery machine has no shape for (its popups today are single-question asks and notices). Wants a multi-option window: icon-led rows, per-option verbatim rule text (law 8), one pick. ⚠ Feature name and verbatim text from the world's own pack when scoped (N1). A multi-option window anatomy was sketched in the dropped section preserved at `fc2ca7f`, if ever useful. |
-| **Light-family spells apply token light** | Cast on a shield, attached no light; the table hand-toggled a torch. |
-| **Short-duration effect expiry** | Mastery chips get a 1-round duration and nothing sweeps an expired one. ⚠ Do not build before deciding whether the module should own turn-time at all. |
-| **AC5e adoption** | ⚠ **Vendor and modify, never import** (user call — R2 rules out the dependency). And it is **complementary, not an alternative**: AC5e *decorates* rolls where this module *applies*. |
 
 ---
 
