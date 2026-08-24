@@ -60,76 +60,33 @@
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor } from "./core.js";
 import { d20FoldEntries } from "./settings.js";
 import { hitTargets, modeAllows } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML, ruleLine } from "./decide/present.js";
+import { popupKey, bfCard, holdBarHTML, ruleLine, RESCUE_KINDS, rescueLabel }
+  from "./decide/present.js";
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
   armAskTimer, disarmAskTimer } from "./ui.js";
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 
-/** The 2024 text every popup quotes, VERBATIM (presentation law 8), keyed by KIND. `heroic` is
- * read off `dnd5e.content24` → Appendix D, page `nkEPI89CiQnOaLYh`; the other two off this
- * world's own PHB items (`phbftrTacticalMi`, `phbbrdBardicInsp`), 2026-08-23. */
-const RULE_TEXT = {
-  heroic: "If you have Heroic Inspiration, you can expend it to reroll any die immediately after rolling it, and you must use the new roll.",
-  tactical: "When you fail an ability check, you can expend a use of your Second Wind to push yourself toward success. Rather than regaining Hit Points, you roll 1d10 and add the number rolled to the ability check, potentially turning it into a success.",
-  bardic: "Once within the next hour when the creature fails a D20 Test, the creature can roll the Bardic Inspiration die and add the number rolled to the d20, potentially turning the failure into a success. A Bardic Inspiration die is expended when it's rolled."
-};
-
-const KIND_ICON = {
-  heroic: "fa-solid fa-wand-sparkles",
-  tactical: "fa-solid fa-brain",
-  bardic: "fa-solid fa-music"
-};
-
 /**
- * WHAT THE TABLE SEES — the FEATURE's own name, which is not the same string as the lookup key.
+ * THE PER-KIND TABLES ARE VIEWS ONTO `RESCUE_KINDS` (decide/present.js), NOT COPIES.
  *
- * ⚠ THIS SPLIT IS THE WHOLE POINT (user 2026-08-23). The list's `name` column is a LOOKUP KEY:
- * for `bardic` it must be "Inspired", because that is what the ActiveEffect the bard applies is
- * actually called on the recipient. But nobody at the table calls the feature "Inspired" — it is
- * Bardic Inspiration, and a card announcing "Inspired — spent" names a thing the rules do not.
- * So the key finds it and the label announces it, and the two are allowed to differ.
+ * ⚠ ONE COPY OF EACH QUOTE. The rescue view draws the same labels, glyphs, cost sentences and
+ * verbatim rules text into its rows, and presentation law 8 says the quote IS the rule — so two
+ * copies that drift are the module telling the table something untrue. The strings, and the
+ * long arguments for why each of them is per-kind data (the lookup-key/label split, the cost
+ * sentences that get two of three wrong if you guess at them), live there now.
  *
- * ⚠ Renaming the effect in the settings list therefore changes WHAT IS FOUND, never what the
- * card says. That is the right way round: a table that renames the effect still gets the
- * feature's real name in public.
+ * ⚠ The local names stay because every call site in this file reads better with them, and
+ * because a per-kind lookup is exactly what this file wants. `RESCUE_KINDS` also carries
+ * `precision`, which is another machine's kind and simply never appears as a `d20fold` key.
  */
-const KIND_LABEL = {
-  heroic: "Heroic Inspiration",
-  tactical: "Tactical Mind",
-  bardic: "Bardic Inspiration"
-};
-
-/**
- * What to CALL an offer or a spend on screen, re-derived rather than trusted.
- *
- * ⚠ THIS FALLBACK IS NOT DEFENSIVE PADDING — it is the §4.1 wire-format rule applied to a flag.
- * A `d20fold` stamped by an earlier build has no `label` on its offers, and a deploy does not
- * rewrite flags already sitting in the chat log. Reading `offer.label` straight printed
- * "undefined — reroll the d20" on a real card in the sandbox, on an offer that was still
- * perfectly answerable. A moment in flight across a deploy must degrade to the right WORDS, not
- * to the string "undefined".
- */
-const labelOf = o => o?.label ?? KIND_LABEL[o?.kind] ?? o?.name ?? "a fold";
-
-/**
- * WHAT SPENDING IT ACTUALLY COSTS — per kind, because the three do NOT agree.
- *
- * ⚠ v1 printed ONE blanket line, "the die is spent either way it lands", under all three. That
- * is true of `bardic` ("expended when it's rolled") and of `heroic` ("you must use the new
- * roll"), and FLATLY FALSE of `tactical`, whose own rule is *"if the check still fails, this
- * use of Second Wind isn't expended."* The popup was therefore contradicting the verbatim rules
- * quote printed inches above it — presentation law 8 says the quote is the rule, so a module
- * hint that argues with it is the module telling the table something untrue.
- *
- * ⚠ The intuitive reading — "surely they all refund if they did not help" — is wrong for two of
- * three, which is exactly why this is per-kind data rather than a condition someone can guess at.
- */
-const SPEND_COST = {
-  heroic: "spent either way, and the new roll stands",
-  bardic: "expended when rolled, whether or not it helps",
-  tactical: "not expended if the check still fails"
-};
+const kindTable = pick => Object.fromEntries(
+  Object.entries(RESCUE_KINDS).map(([kind, spec]) => [kind, spec[pick]]));
+const RULE_TEXT = kindTable("rule");
+const KIND_ICON = kindTable("icon");
+const KIND_LABEL = kindTable("label");
+const SPEND_COST = kindTable("cost");
+const labelOf = rescueLabel;
 
 /* =============================================================================================
  * THE SPEND RESOLVERS — one per kind (ARCHITECTURE.md §6 rule 3)

@@ -7,7 +7,8 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
   canAnswerFor, inRunningCombat, combatStamp } from "./core.js";
 import { maneuverFoldEntries } from "./settings.js";
 import { hitTargets, modeAllows } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
+import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, RESCUE_KINDS }
+  from "./decide/present.js";
 // The same four names d20-folds.js takes, for the same reason and off the same registry: a
 // resolver that announces a verdict must compose it, and there is exactly one composition.
 import { ATTACK_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
@@ -83,7 +84,12 @@ import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
  * lines; these strings are the rules and must never be paraphrased. Keyed by KIND — the
  * folds list maps items onto kinds, and each kind's mechanics are these features'. */
 export const RULE_TEXT = {
-  precision: "When you miss with an attack roll, you can expend one Superiority Die, roll that die, and add it to the attack roll, potentially causing the attack to hit.",
+  // ⚠ PRECISION'S QUOTE LIVES IN `RESCUE_KINDS` (decide/present.js) AND IS READ FROM THERE.
+  // It is the one kind in this table that is also a RESCUE — the merged window draws it into
+  // its own quote pane — and law 8 says the quote IS the rule, so a second copy that drifts is
+  // the module telling the table something untrue. Every other kind here is this machine's
+  // alone and stays put.
+  precision: RESCUE_KINDS.precision.rule,
   riposte: "When a creature misses you with a melee attack roll, you can take a Reaction and expend one Superiority Die to make a melee attack roll with a weapon or an Unarmed Strike against the creature. If you hit, add the Superiority Die to the attack's damage.",
   bash: "If you attack a creature within 5 feet of you as part of the Attack action and hit with a Melee weapon, you can immediately bash the target with your Shield if it’s equipped, forcing the target to make a Strength saving throw (DC 8 plus your Strength modifier and Proficiency Bonus). On a failed save, you either push the target 5 feet from you or cause it to have the Prone condition (your choice). You can use this benefit only once on each of your turns.",
   bashChoice: "On a failed save, you either push the target 5 feet from you or cause it to have the Prone condition (your choice).",

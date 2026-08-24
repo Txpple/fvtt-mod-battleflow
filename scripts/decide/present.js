@@ -162,3 +162,268 @@ export function eldersDeepestFirst(slots, key) {
     .sort(([, a], [, b]) => b - a)
     .map(([k]) => k);
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * THE RESCUE VIEW — the row model (the merged window's DECISION half)
+ *
+ * ⚠ THE PROBLEM THIS ANSWERS. A Battle Master holding a Bardic die who cleanly misses is
+ * stamped TWICE on ONE attack — `precision` by maneuvers.js and `d20fold` by d20-folds.js — and
+ * gets two popups, two clocks and no cross-talk for what is one question: *this roll is short
+ * by N; what do you burn?* The ARITHMETIC half of that concurrence is already solved (the D8
+ * ruling: compose, never order — decide/verdict.js). The OFFERS were not, and the chosen shape
+ * is **merge the VIEW, keep the flags**: the popup is a view, the flag is the state.
+ *
+ * ⚠ WHAT LIVES HERE AND WHY IT IS PURE. This is the DECISION half — plain flag objects, the
+ * composed roll and the reveal setting in, a row model out. No `game`, no documents, no
+ * settings read, no DOM. The spine draws it (§5) and each machine feeds it its own flag (§4.1:
+ * machines register, the spine composes, no machine imports another).
+ *
+ * ⚠ `foldsFrom`-SHAPED ON PURPOSE, and for the reason D8 gave: a `read(flagKey)` reader and a
+ * DECLARED source list mean a third rescue is an entry in a list rather than a new parameter to
+ * a builder. The own-roll retro-fixer family is much bigger than the three shipped — Pact
+ * Talisman, Favored by the Gods, Dark One's Own Luck, Indomitable, Fanatical Focus and kin —
+ * and every one of them is meant to arrive as a ROW in this window, not a popup in the pile.
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * THE RESCUE KINDS — label, glyph, cost and the verbatim rule, in one place.
+ *
+ * ⚠ ONE COPY OF EACH QUOTE. These strings are the RULES, read off this world's own compendium
+ * items (2026-08-23 for the three d20 folds; `phbmnvPrecisionA` for precision), and law 8 says
+ * the quote IS the rule — so a second copy that drifts is the module telling the table
+ * something untrue. d20-folds.js and maneuvers.js read them from here rather than keeping
+ * their own.
+ *
+ * ⚠ `label` IS NOT THE LOOKUP KEY, and the split is deliberate (user 2026-08-23): the settings
+ * list finds `bardic` by the effect's name, "Inspired", because that is what the bard's own
+ * activity puts on the recipient — but nobody at the table calls the feature that. The key
+ * finds it; the label announces it; renaming the effect changes what is FOUND, never what is
+ * SAID.
+ *
+ * ⚠ `cost` is per-kind because the three do NOT agree, and the intuitive reading gets two of
+ * three wrong: bardic is expended when rolled, heroic is spent either way, and tactical's own
+ * rule hands the use back if the check still fails.
+ */
+export const RESCUE_KINDS = {
+  heroic: {
+    label: "Heroic Inspiration",
+    icon: "fa-solid fa-wand-sparkles",
+    cost: "spent either way, and the new roll stands",
+    rule: "If you have Heroic Inspiration, you can expend it to reroll any die immediately after rolling it, and you must use the new roll."
+  },
+  tactical: {
+    label: "Tactical Mind",
+    icon: "fa-solid fa-brain",
+    cost: "not expended if the check still fails",
+    rule: "When you fail an ability check, you can expend a use of your Second Wind to push yourself toward success. Rather than regaining Hit Points, you roll 1d10 and add the number rolled to the ability check, potentially turning it into a success."
+  },
+  bardic: {
+    label: "Bardic Inspiration",
+    icon: "fa-solid fa-music",
+    cost: "expended when rolled, whether or not it helps",
+    rule: "Once within the next hour when the creature fails a D20 Test, the creature can roll the Bardic Inspiration die and add the number rolled to the d20, potentially turning the failure into a success. A Bardic Inspiration die is expended when it's rolled."
+  },
+  precision: {
+    label: "Precision Attack",
+    icon: "fa-solid fa-crosshairs",
+    cost: "the superiority die is spent either way it lands",
+    rule: "When you miss with an attack roll, you can expend one Superiority Die, roll that die, and add it to the attack roll, potentially causing the attack to hit."
+  }
+};
+
+/**
+ * What to CALL an offer or a spend on screen, re-derived rather than trusted.
+ *
+ * ⚠ THIS FALLBACK IS NOT DEFENSIVE PADDING — it is the §4.1 wire-format rule applied to a flag.
+ * A `d20fold` stamped by an earlier build has no `label` on its offers, and a deploy does not
+ * rewrite flags already sitting in the chat log. Reading `offer.label` straight printed
+ * "undefined — reroll the d20" on a real card in the sandbox, on an offer that was still
+ * perfectly answerable. A moment in flight across a deploy must degrade to the right WORDS,
+ * not to the string "undefined".
+ */
+export const rescueLabel = named =>
+  named?.label ?? RESCUE_KINDS[named?.kind]?.label ?? named?.name ?? "a fold";
+
+/**
+ * WHERE THE ROWS COME FROM — declared, one entry per message flag.
+ *
+ * ⚠ Each source knows THREE things and nothing else: how to read its own premise (so both
+ * sources derive the SAME header through the same pure function), whether it is still asking,
+ * and how to turn its offers and its spends into rows. It never names the other source, and it
+ * never learns what a popup is.
+ *
+ * ⚠ `action` IS THE MACHINE'S OWN ANSWER TOKEN, carried on the row rather than reconstructed by
+ * whoever draws it: `d20fold` answers by KIND (`answerFold(message, "bardic")`) and `precision`
+ * answers with the word `use` (`answerPrecision(message, "use")`). The spine hands the token
+ * back to the machine that supplied it, which is what lets ONE window drive TWO machines
+ * without either of them knowing the other exists.
+ */
+export const RESCUE_SOURCES = [
+  {
+    flag: "d20fold",
+    premise: flag => ({
+      testKind: flag?.testKind,
+      baseTotal: flag?.baseTotal,
+      targets: flag?.targets ?? [],
+      dc: flag?.dc
+    }),
+    isPending: flag => (flag?.status === "pending"),
+    rows: flag => [
+      ...(flag?.offers ?? []).map(o => ({
+        kind: o.kind,
+        action: o.kind,
+        label: rescueLabel(o),
+        die: o.dieFormula ?? null,
+        spent: false
+      })),
+      // ⚠ Spends read off `spends`, NEVER `offers` — an offer is what they COULD burn, a spend
+      // is what they DID, and rendering an offer as spent would grey out a row that is still
+      // answerable. `heroic` is the one that REPLACES rather than adds, and it carries its
+      // number under `reroll` because a reroll brings its own crit and fumble with it.
+      ...(flag?.spends ?? []).map(s => ({
+        kind: s.kind,
+        action: s.kind,
+        label: rescueLabel(s),
+        die: null,
+        spent: true,
+        result: Number.isFinite(s.reroll?.total) ? s.reroll.total
+          : (Number.isFinite(s.die) ? s.die : null),
+        replaced: Number.isFinite(s.reroll?.total)
+      }))
+    ]
+  },
+  {
+    flag: "precision",
+    // ⚠ Precision only ever rides an ATTACK, and it stores the rolled number under its own
+    // name. Normalising here is what makes the two headers comparable at all.
+    premise: flag => ({
+      testKind: "attack",
+      baseTotal: flag?.attackTotal,
+      targets: flag?.targets ?? [],
+      dc: undefined
+    }),
+    isPending: flag => (flag?.status === "pending"),
+    // ⚠ ONE FLAG, ONE ROW, and the flag is its own spend record — precision has no `offers`
+    // list to walk because it only ever offers itself. A flag that was PASSED, expired or
+    // found gone contributes nothing at all: there is no die to grey out and nothing left to
+    // press, and a row for it would be a control that does nothing (law 11's inverse).
+    rows: flag => {
+      if ( !flag ) return [];
+      const spent = (flag.outcome === "used") && Number.isFinite(flag.die);
+      if ( !spent && (flag.status !== "pending") ) return [];
+      return [{
+        kind: "precision",
+        action: "use",
+        label: flag.itemName ?? RESCUE_KINDS.precision.label,
+        img: flag.itemImg ?? null,
+        die: spent ? null : (flag.dieFormula ?? null),
+        spent,
+        result: spent ? flag.die : null,
+        replaced: false
+      }];
+    }
+  }
+];
+
+/**
+ * THE HEADER — the one sentence both machines must agree on, derived from the composed roll.
+ *
+ * ⚠ ONE FUNCTION, TWO CALLERS, BY DESIGN. The merged window is fed by both flags and each
+ * machine derives the header from its OWN premise; if the two ever disagreed the window would
+ * print the same fact twice in two different sentences. Deriving both through here makes them
+ * string-identical, which is what lets the view dedupe them without comparing numbers.
+ *
+ * ⚠ THE MARGIN IS GATED, THE ARITHMETIC IS NOT. `holdReveal` off hides what the roll had to
+ * BEAT — the same gate `offerLines` has always applied — but the player is still told what
+ * their own roll now totals, because that number is theirs.
+ *
+ * ⚠ NO VERDICT WITHOUT A DC. A raw ability check has no number to test against anywhere in
+ * dnd5e, so this states the arithmetic and stops (presentation law 5, the DC finding). It is
+ * the same fact that makes a check's premise unkillable: nothing can decide it succeeded, so
+ * the offer stands until a human passes.
+ */
+export function rescueHeaderLines(premise, composed, { reveal = false } = {}) {
+  const base = Number(premise?.baseTotal) || 0;
+  const total = Number.isFinite(composed?.total) ? composed.total : base;
+  const added = Number(composed?.added) || 0;
+  const sum = composed?.replaced ? `${base} → ${total}`
+    : added ? `${base} + ${added} = ${total}` : `${total}`;
+  if ( !reveal ) return [sum];
+  const lines = [];
+  for ( const t of premise?.targets ?? [] ) {
+    if ( !Number.isFinite(t?.ac) ) continue;          // a null AC is left to humans (DESIGN R1)
+    const short = t.ac - total;
+    lines.push(`${sum} vs AC ${t.ac} — `
+      + ((short > 0) ? `misses ${t.name} by ${short}` : `hits ${t.name}`));
+  }
+  if ( Number.isFinite(premise?.dc) ) {
+    const short = premise.dc - total;
+    lines.push(`${sum} vs DC ${premise.dc} — `
+      + ((short > 0) ? `short by ${short}` : "makes it"));
+  }
+  return lines.length ? lines : [sum];
+}
+
+/**
+ * THE WHOLE VIEW — every rescue source on one message, as one window's worth of model.
+ *
+ * `read(flagKey)` is the same one-argument reader `foldsFrom` takes, for the same reason: the
+ * EDGE supplies the document and the model stays testable with plain objects.
+ *
+ * ⚠ `@public` IS A SELF-EXPIRING PIN, NOT A DECORATION. Nothing under `scripts/` calls this yet
+ * — the two machines still open their own popups, and swapping them onto this model is the NEXT
+ * stage of the rescue-view pass, deliberately kept out of this one so the row model could ship
+ * unit-tested and behaviour-neutral. knip is right that it has no production caller; the tag
+ * says "not yet" rather than "never". **Delete the tag the moment ui.js draws from this** — a
+ * `@public` left on a function that now has real callers hides the next dead export.
+ *
+ * @public
+ * @param {(key: string) => any} read
+ * @param {object} [ctx]
+ * @param {?{total?: number, added?: number, replaced?: boolean}} [ctx.composed] the composed roll
+ * @param {boolean} [ctx.reveal]  `holdReveal` — gates the margin, never the arithmetic
+ * @param {object[]} [ctx.sources]
+ * @returns {{headerLines: string[], rows: object[], quotes: object[], earliestDeadline: ?number}}
+ */
+export function rescueView(read, { composed = null, reveal = false,
+  sources = RESCUE_SOURCES } = {}) {
+  const headerLines = [];
+  const rows = [];
+  let earliestDeadline = null;
+  for ( const source of sources ) {
+    const flag = read(source.flag);
+    if ( !flag ) continue;
+    // ⚠ DEDUPED BY STRING, not by which source got there first. Both premises describe the
+    // same roll, so both produce the same sentences — printing them twice would be the window
+    // telling the table one fact in stereo.
+    for ( const line of rescueHeaderLines(source.premise(flag), composed, { reveal }) ) {
+      if ( !headerLines.includes(line) ) headerLines.push(line);
+    }
+    for ( const row of source.rows(flag) ) {
+      rows.push({
+        ...row,
+        flag: source.flag,
+        key: `${source.flag}:${row.kind}`,
+        icon: RESCUE_KINDS[row.kind]?.icon ?? "fa-solid fa-dice-d20",
+        img: row.img ?? null,
+        cost: RESCUE_KINDS[row.kind]?.cost ?? null,
+        result: row.result ?? null,
+        replaced: row.replaced === true
+      });
+    }
+    // ⚠ THE EARLIEST CLOCK WINS. Two flags, two deadlines, one bar — and the bar must promise
+    // the SOONEST thing that can be taken away, never the latest. A resolved source can still
+    // be carrying a deadline field, so the PENDING gate is what is checked, not the number.
+    if ( source.isPending(flag) && Number.isFinite(flag.deadline) ) {
+      earliestDeadline = (earliestDeadline === null)
+        ? flag.deadline : Math.min(earliestDeadline, flag.deadline);
+    }
+  }
+  // ⚠ THE PANE IS ONE QUOTE, NEVER A STACK (law 8). Four features on screen means four rules,
+  // and printing all of them turns the window into a rulebook page nobody reads — so the rows
+  // each carry their own and the pane shows the hovered one, defaulting to the first.
+  const quotes = rows
+    .map(r => ({ key: r.key, label: r.label, text: RESCUE_KINDS[r.kind]?.rule ?? null }))
+    .filter(q => q.text);
+  return { headerLines, rows, quotes, earliestDeadline };
+}

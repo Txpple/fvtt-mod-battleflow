@@ -175,3 +175,270 @@ describe("the staircase — finding (s)", () => {
     expect(p.eldersDeepestFirst(slots, "a")).toEqual(["b"]);
   });
 });
+
+/**
+ * THE RESCUE VIEW — the merged window's row model.
+ *
+ * ⚠ These are plain objects on purpose and that IS the design: the whole point of putting the
+ * row model in the DECISION layer is that every branch the merged window can be in — both
+ * sources pending, one already spent, a fumble that keeps precision out, the reveal gate, a
+ * check with no DC to fail — is decidable without a document, a dialog or a live Foundry. The
+ * live suite then only has to prove that the real flags reach it.
+ */
+describe("rescueView — two machines, one window", () => {
+  const read = flags => key => flags[key] ?? null;
+
+  /** The §6 band, as flags: an attack of 10 that missed AC 18, offering both rescues. */
+  const bothPending = {
+    d20fold: {
+      status: "pending",
+      testKind: "attack",
+      baseTotal: 10,
+      deadline: 5000,
+      window: 15,
+      offers: [
+        { kind: "bardic", name: "Inspired", label: "Bardic Inspiration", dieFormula: "1d8" }
+      ],
+      targets: [{ uuid: "a", name: "Practice Dummy", ac: 18, margin: 8 }]
+    },
+    precision: {
+      status: "pending",
+      attackTotal: 10,
+      deadline: 4000,
+      window: 15,
+      itemName: "Precision Attack",
+      itemImg: "icons/skills/targeting/target.webp",
+      dieFormula: "@scale.battle-master.superiority.die",
+      targets: [{ uuid: "a", name: "Practice Dummy", ac: 18, margin: 8 }]
+    }
+  };
+
+  it("both pending — one row per rescue, each carrying the machine's own answer token", () => {
+    const view = p.rescueView(read(bothPending), { reveal: true });
+    expect(view.rows.map(r => r.key)).toEqual(["d20fold:bardic", "precision:precision"]);
+    expect(view.rows.map(r => r.action)).toEqual(["bardic", "use"]);
+    expect(view.rows.every(r => r.spent === false)).toBe(true);
+    // The label announces the FEATURE, never the lookup key the settings list finds it by.
+    expect(view.rows[0].label).toBe("Bardic Inspiration");
+    expect(view.rows[0].label).not.toBe("Inspired");
+  });
+
+  it("every row carries a glyph, and a document's art when the flag knows one", () => {
+    const view = p.rescueView(read(bothPending), { reveal: true });
+    expect(view.rows.every(r => typeof r.icon === "string" && r.icon.length)).toBe(true);
+    // ⚠ heroic and bardic have no document ON THE FLAG — the art is an actor read, which is
+    // EDGE work — so the row exposes the slot and the glyph carries the row until it is filled.
+    expect(view.rows[0].img).toBe(null);
+    expect(view.rows[1].img).toBe("icons/skills/targeting/target.webp");
+  });
+
+  it("the cost rides each row, because the three kinds do NOT agree about it", () => {
+    const view = p.rescueView(read(bothPending), { reveal: true });
+    expect(view.rows[0].cost).toMatch(/expended when rolled/);
+    expect(view.rows[1].cost).toMatch(/spent either way/);
+    expect(p.RESCUE_KINDS.tactical.cost).toMatch(/not expended/);
+  });
+
+  it("⚠ BOTH SOURCES DERIVE THE SAME HEADER — string-identical, and printed once", () => {
+    const composed = { total: 10, added: 0, replaced: false };
+    const fromFold = p.rescueHeaderLines(
+      p.RESCUE_SOURCES[0].premise(bothPending.d20fold),
+      composed,
+      { reveal: true }
+    );
+    const fromPrecision = p.rescueHeaderLines(
+      p.RESCUE_SOURCES[1].premise(bothPending.precision),
+      composed,
+      { reveal: true }
+    );
+    expect(fromFold).toEqual(fromPrecision);
+    // …which is exactly what lets the view dedupe them without comparing numbers.
+    expect(p.rescueView(read(bothPending), { composed, reveal: true }).headerLines).toEqual(
+      fromFold
+    );
+  });
+
+  it("the header states the COMPOSED sum and the margin left to close", () => {
+    const view = p.rescueView(read(bothPending), {
+      composed: { total: 13, added: 3 },
+      reveal: true
+    });
+    expect(view.headerLines).toEqual(["10 + 3 = 13 vs AC 18 — misses Practice Dummy by 5"]);
+  });
+
+  it("a reroll reads with an arrow, because it REPLACED the d20 rather than adding to it", () => {
+    const view = p.rescueView(read(bothPending), {
+      composed: { total: 24, added: 0, replaced: true },
+      reveal: true
+    });
+    expect(view.headerLines).toEqual(["10 → 24 vs AC 18 — hits Practice Dummy"]);
+  });
+
+  it("reveal OFF hides what the roll must beat, never what the roll now totals", () => {
+    const view = p.rescueView(read(bothPending), {
+      composed: { total: 13, added: 3 },
+      reveal: false
+    });
+    expect(view.headerLines).toEqual(["10 + 3 = 13"]);
+    expect(view.headerLines.join(" ")).not.toMatch(/AC|misses/);
+    // The rows are untouched by the gate — the player may always see what is theirs to spend.
+    expect(view.rows).toHaveLength(2);
+  });
+
+  it("one spent — the spend greys in place, carrying the number it rolled", () => {
+    const view = p.rescueView(
+      read({
+        d20fold: {
+          ...bothPending.d20fold,
+          status: "resolved",
+          offers: [],
+          spends: [{ kind: "bardic", name: "Inspired", label: "Bardic Inspiration", die: 3 }]
+        },
+        precision: bothPending.precision
+      }),
+      { composed: { total: 13, added: 3 }, reveal: true }
+    );
+    expect(view.rows.map(r => [r.key, r.spent, r.result])).toEqual([
+      ["d20fold:bardic", true, 3],
+      ["precision:precision", false, null]
+    ]);
+    // The survivor is still pressable, which is the whole reason the spend stays on screen.
+    expect(view.rows[1].action).toBe("use");
+  });
+
+  it("a heroic spend records the total that REPLACED the roll, and says so", () => {
+    const view = p.rescueView(
+      read({
+        d20fold: {
+          ...bothPending.d20fold,
+          status: "resolved",
+          offers: [],
+          spends: [{ kind: "heroic", label: "Heroic Inspiration", reroll: { total: 24 } }]
+        }
+      }),
+      { reveal: true }
+    );
+    expect(view.rows[0]).toMatchObject({ spent: true, result: 24, replaced: true });
+  });
+
+  it("an OFFER is never rendered as a spend — the two lists mean different things", () => {
+    const view = p.rescueView(
+      read({
+        d20fold: { ...bothPending.d20fold, spends: [] }
+      }),
+      { reveal: true }
+    );
+    expect(view.rows).toHaveLength(1);
+    expect(view.rows[0].spent).toBe(false);
+    expect(view.rows[0].die).toBe("1d8");
+  });
+
+  it("⚠ the fumble case — precision never stamps on a natural 1, so only the fold has rows", () => {
+    // maneuvers.js bails outright on `roll.isFumble` ("a natural 1 stands"), so the message
+    // carries no precision flag at all. An absent source contributes nothing, silently.
+    const view = p.rescueView(read({ d20fold: bothPending.d20fold }), { reveal: true });
+    expect(view.rows.map(r => r.flag)).toEqual(["d20fold"]);
+    expect(view.headerLines).toHaveLength(1);
+  });
+
+  it("a PASSED or expired precision leaves no row — there is nothing left to press", () => {
+    for (const gone of [
+      { status: "resolved", outcome: "passed" },
+      { status: "resolved", outcome: "gone" },
+      { status: "resolved", outcome: "passed (timer)", timedOut: true }
+    ]) {
+      const view = p.rescueView(read({ precision: { ...bothPending.precision, ...gone } }), {
+        reveal: true
+      });
+      expect(view.rows).toEqual([]);
+    }
+  });
+
+  it("a USED precision greys in place with the die it rolled", () => {
+    const view = p.rescueView(
+      read({
+        precision: { ...bothPending.precision, status: "resolved", outcome: "used", die: 6 }
+      }),
+      { reveal: true }
+    );
+    expect(view.rows[0]).toMatchObject({ spent: true, result: 6, die: null });
+  });
+
+  it("⚠ the no-DC check — the arithmetic is stated and nothing is called a failure", () => {
+    // The DC finding: dnd5e records no DC for a raw ability check, so there is no number to
+    // test against and inventing one would be the module deciding a thing it cannot know.
+    const view = p.rescueView(
+      read({
+        d20fold: {
+          status: "pending",
+          testKind: "check",
+          baseTotal: 9,
+          targets: [],
+          offers: [{ kind: "tactical", label: "Tactical Mind", dieFormula: "1d10" }]
+        }
+      }),
+      { composed: { total: 14, added: 5 }, reveal: true }
+    );
+    expect(view.headerLines).toEqual(["9 + 5 = 14"]);
+    expect(view.headerLines.join(" ")).not.toMatch(/DC|fail|short/);
+    expect(view.rows[0].action).toBe("tactical");
+  });
+
+  it("a save DOES have a DC to name, because the ask owns it", () => {
+    const view = p.rescueView(
+      read({
+        d20fold: {
+          status: "pending",
+          testKind: "save",
+          baseTotal: 9,
+          dc: 15,
+          targets: [],
+          offers: [{ kind: "bardic", label: "Bardic Inspiration", dieFormula: "1d8" }]
+        }
+      }),
+      { composed: { total: 12, added: 3 }, reveal: true }
+    );
+    expect(view.headerLines).toEqual(["9 + 3 = 12 vs DC 15 — short by 3"]);
+  });
+
+  it("⚠ the EARLIEST clock wins — one bar may only promise the soonest loss", () => {
+    expect(p.rescueView(read(bothPending), {}).earliestDeadline).toBe(4000);
+    // A resolved source keeps its deadline field, and must not be allowed to set the bar.
+    expect(
+      p.rescueView(
+        read({
+          d20fold: bothPending.d20fold,
+          precision: { ...bothPending.precision, status: "resolved", outcome: "used", die: 6 }
+        }),
+        {}
+      ).earliestDeadline
+    ).toBe(5000);
+    expect(p.rescueView(read({}), {}).earliestDeadline).toBe(null);
+  });
+
+  it("one quote per row, the first is the default, and none of them is invented", () => {
+    const view = p.rescueView(read(bothPending), { reveal: true });
+    expect(view.quotes.map(q => q.key)).toEqual(["d20fold:bardic", "precision:precision"]);
+    expect(view.quotes[0].text).toBe(p.RESCUE_KINDS.bardic.rule);
+    expect(view.quotes[1].text).toBe(p.RESCUE_KINDS.precision.rule);
+    expect(view.quotes.every(q => q.label && q.text)).toBe(true);
+  });
+
+  it('an offer from an older build degrades to the right WORDS, not to "undefined"', () => {
+    // A deploy does not rewrite flags already in the chat log, and a v1.23.0 offer carries no
+    // `label`. This printed "undefined — reroll the d20" on a real card once.
+    expect(p.rescueLabel({ kind: "heroic" })).toBe("Heroic Inspiration");
+    expect(p.rescueLabel({ name: "Some Homebrew Thing" })).toBe("Some Homebrew Thing");
+    expect(p.rescueLabel(null)).toBe("a fold");
+    expect(p.rescueLabel({ kind: "heroic", label: "House Rule Name" })).toBe("House Rule Name");
+  });
+
+  it("no rescue flags at all is an empty view, not a crash", () => {
+    expect(p.rescueView(read({}), {})).toEqual({
+      headerLines: [],
+      rows: [],
+      quotes: [],
+      earliestDeadline: null
+    });
+  });
+});
