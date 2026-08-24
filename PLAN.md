@@ -857,9 +857,14 @@ up*, not about whether the module was right.
       docs, neither of which is in the zip.
 - [x] **5.1a Deployed to the SANDBOX ONLY** (user: *"sandbox only, no prod yet"*), and smoked
       green on the deployed build: battleflow ALL PASS → hold ALL PASS, `verify-settings` CLEAN.
-- [~] **5.2 Prod is the USER's call, and the call was NOT YET** (2026-08-23: *"sandbox only,
-      no prod yet"*). It has run pre-refactor code throughout, deliberately. **Do not update it
-      without being asked.**
+- [x] **5.2 Prod is the USER's call — and the call came.** (As of 2026-08-23 it was *"sandbox
+      only, no prod yet"*, with prod deliberately on pre-refactor code; that was superseded and
+      prod is kept current.) ⚠ **This row said "NOT YET" after it stopped being true, and a
+      cold session repeated it as fact (2026-08-24) — the ledger-goes-stale failure, in the
+      ledger about the ledger.** Prod parity is a measurement, not a doc claim:
+      `node scripts/deploy-house-module.mjs fvtt-mod-battleflow --check` in the mcp repo
+      byte-compares the live box, and on 2026-08-24 it read back every served file
+      **byte-identical to v1.24.0**.
 
 ---
 
