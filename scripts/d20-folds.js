@@ -57,7 +57,8 @@
  *
  * ⚠ `d20FoldAsk` can turn auto-offering OFF; it cannot turn it on where no number exists.
  * ------------------------------------------------------------------------------------------- */
-import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM }
+  from "./core.js";
 import { d20FoldEntries } from "./settings.js";
 import { hitTargets, modeAllows } from "./shared.js";
 import { bfCard, holdBarHTML, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
@@ -423,9 +424,28 @@ async function resumeWithheldSave(flag, rollMessage) {
 /** `answer` is a KIND to spend, or "pass". First writer wins, then the work is executed. */
 async function answerFold(message, answer, { timedOut = false } = {}) {
   let claimed = false;
+  let withdrawn = false;
   await queueFlagWrite(message, "d20fold", current => {
     if ( (current.status !== "pending") || current.answer ) return;
     if ( (answer !== "pass") && !(current.offers ?? []).some(o => o.kind === answer) ) return;
+    /**
+     * ⚠ THE SPEND-GUARD, AND IT LIVES INSIDE THE LOCK ON PURPOSE (§11 / D3: the state a guard
+     * tests must be the state it writes). Between the window rendering and this click, a
+     * SIBLING machine can have fixed the roll — and this resolver used to spend first and
+     * compose afterwards, so the die was already gone by the time anything noticed. That is
+     * the wasted-spend trap: a real Bardic die deleted for a roll that no longer needed one.
+     *
+     * ⚠ CHECKING IT OUTSIDE THE LOCK WOULD NOT BE ENOUGH. Two answers can land in the same
+     * tick; the serializer is what makes "still failing" and "answer claimed" one decision
+     * instead of two that can disagree.
+     */
+    if ( (answer !== "pass") && !foldPremiseAlive(message, current) ) {
+      current.status = "resolved";
+      current.outcome = "no longer needed";
+      current.offers = [];
+      withdrawn = true;
+      return;
+    }
     current.answer = answer;
     current.answeredAt = Date.now();          // the crash-resume horizon (the topple discipline)
     if ( timedOut ) current.timedOut = true;
@@ -435,6 +455,11 @@ async function answerFold(message, answer, { timedOut = false } = {}) {
     }
     claimed = true;
   });
+  if ( withdrawn ) {
+    // Nothing was burned, and the window is stale — the spine closes it on the update.
+    disarmAskTimer(foldTimers, message.id);
+    return;
+  }
   if ( !claimed ) return;
   const live = message.getFlag(MODULE_ID, "d20fold");
   if ( answer === "pass" ) {
@@ -467,6 +492,21 @@ async function resolveFold(message, kind) {
       await queueFlagWrite(message, "d20fold", current => {
         current.status = "resolved";
         current.outcome = current.spends?.length ? "used" : "gone";
+      });
+      await resumeWithheldSave(flag, message);
+      return;
+    }
+
+    // ⚠ AND AGAIN HERE, because `resolveFold` has a second caller: the elect's crash-resume
+    // picks up an accepted answer whose client died, up to twenty seconds later, and the roll
+    // can have been fixed in between. Re-finding the marker was already the rule at this line
+    // ("never trust the stamp"); re-checking the PREMISE is the same rule about the roll.
+    if ( !foldPremiseAlive(message, flag) ) {
+      await queueFlagWrite(message, "d20fold", current => {
+        if ( current.status !== "pending" ) return false;
+        current.status = "resolved";
+        current.outcome = "no longer needed";
+        current.offers = [];
       });
       await resumeWithheldSave(flag, message);
       return;
@@ -547,12 +587,24 @@ async function resolveFold(message, kind) {
       current.offers = reoffer ? remaining : [];
       current.status = reoffer ? "pending" : "resolved";
       if ( !reoffer ) current.outcome = "used";
-      // ⚠ A RE-OFFER NEEDS A FRESH DEADLINE. The original is spent by the time the first fold
-      // has rolled and announced, so re-arming against it would fire the timer immediately and
-      // pass the second offer before anyone could read it — an offer that expires before it is
-      // shown is worse than not offering at all.
-      if ( reoffer && current.window ) current.deadline = Date.now() + (current.window * 1000);
-      else if ( !reoffer ) delete current.deadline;
+      /**
+       * ⚠ THE RE-OFFER DOES NOT GET A FRESH DEADLINE, and this line used to do exactly that
+       * (user ruling, 2026-08-24: "no — the clock is for resolution of everything, so no
+       * resetting"). ONE clock covers resolving the whole moment.
+       *
+       * ⚠ THE ARGUMENT THAT PUT THE REFRESH HERE DID NOT SURVIVE THE MERGED WINDOW, which is
+       * why this is a deletion rather than a disagreement. It reasoned that "an offer that
+       * expires before it is shown is worse than not offering at all" — true of a popup that
+       * had not been SHOWN yet, back when each spend re-popped its own window. In the rescue
+       * view every surviving row has been on screen since the first stamp; a spend re-renders
+       * rows in place and introduces no stranger. The premise is gone, so the refresh goes.
+       *
+       * ⚠ AND THE CONSEQUENCE IS DELIBERATE: spend at the fourteenth second of a fifteen-second
+       * window and the survivor has one second, then passes. That is what "one clock for the
+       * whole decision" MEANS, and it is the reading that cannot drift — a clock that any spend
+       * could extend has no answer to how many times.
+       */
+      if ( !reoffer ) delete current.deadline;
       if ( current.testKind === "attack" ) {
         for ( const t of current.targets ?? [] ) {
           t.verdict = foldedVerdict(t, baseRoll, folds);
@@ -833,6 +885,9 @@ function offerLines(flag, offers) {
 /** The settled card's body — the numbers the verdict was reached with, as the hold does. */
 function resolvedLines(flag) {
   if ( flag.outcome === "gone" ) return ["The resource was no longer there to spend."];
+  if ( flag.outcome === "no longer needed" ) {
+    return ["No longer needed — the roll got there without it, and nothing was spent."];
+  }
   if ( flag.outcome !== "used" ) {
     return [flag.timedOut
       ? "The window closed with no answer — the roll stands."
@@ -923,6 +978,36 @@ registerRescue("d20fold", {
   answer: (message, action) => answerFold(message, action)
 });
 
+/**
+ * THE MOOT (user ruling, 2026-08-24): a sibling spend fixed the roll, so this offer withdraws.
+ *
+ * ⚠ It spends nothing, so nobody loses a decision — and law 4 makes the withdrawal compulsory:
+ * an offer still claiming the roll failed, after it has stopped failing, is a lie on screen,
+ * and answering it deletes a real Inspired effect for a roll that no longer needs one.
+ *
+ * ⚠ A CHECK NEVER MOOTS, and that is `isStillFailing`'s own rule rather than a special case
+ * here: with no DC anywhere in dnd5e for a raw ability check, nothing can decide the check
+ * succeeded, so the premise cannot die and a human ends it with Pass.
+ *
+ * ⚠ ELECT-OWNED, single writer (§3): every client sees the same update.
+ */
+async function mootFold(message) {
+  await queueFlagWrite(message, "d20fold", current => {
+    if ( (current.status !== "pending") || current.answer ) return false;
+    current.status = "resolved";
+    current.outcome = "no longer needed";
+    current.offers = [];
+  });
+  disarmAskTimer(foldTimers, message.id);
+}
+
+/** Is this offer's premise still alive, composed across everything already spent? */
+function foldPremiseAlive(message, flag) {
+  const folds = foldFolds(message, flag);
+  const baseRoll = foldBase(message, flag);
+  return isStillFailing(flag, foldedRoll(baseRoll, folds), baseRoll, folds);
+}
+
 /* =============================================================================================
  * EXPIRE + RESUME
  * ========================================================================================== */
@@ -930,6 +1015,13 @@ registerRescue("d20fold", {
 Hooks.on("updateChatMessage", (message) => {
   const flag = message.getFlag(MODULE_ID, "d20fold");
   if ( !flag ) return;
+  // ⚠ RE-DERIVED EVERY UPDATE, from the COMPOSED roll — a sibling machine's spend is what
+  // usually kills this premise, and it lands as an update to a flag this file does not own.
+  if ( (flag.status === "pending") && !flag.answer && isActiveGM()
+    && !foldPremiseAlive(message, flag) ) {
+    void mootFold(message);
+    return;
+  }
   if ( flag.status !== "pending" ) {
     disarmAskTimer(foldTimers, message.id);
     // ⚠ SYNC, DO NOT CLOSE. This machine no longer owns a window — it owns ROWS in one. If the

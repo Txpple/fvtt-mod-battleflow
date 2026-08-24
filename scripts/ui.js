@@ -464,9 +464,13 @@ function mergedRescueView(message) {
   let clockWindow = null;
   let pending = false;
   let subject = null;
+  let stillFailing = false;
+  let verdictKnown = false;
   for ( const rescue of rescues.values() ) {
     const slice = rescue.view(message);
     if ( !slice ) continue;
+    if ( slice.stillFailing ) stillFailing = true;
+    if ( slice.verdictKnown ) verdictKnown = true;
     if ( rescue.isPending(message) ) {
       pending = true;
       subject = subject ?? rescue.subject(message);
@@ -484,7 +488,21 @@ function mergedRescueView(message) {
       clockWindow = slice.clockWindow ?? null;
     }
   }
-  return { headerLines, rows, quotes, earliestDeadline, clockWindow, pending, subject };
+  // ⚠ SAY THAT IT DID NOT GET THERE. A spend that leaves the roll short used to re-render in
+  // silence — one button greyed, the rest still lit — and the player had to work out from the
+  // arithmetic why the window was still asking (user, 2026-08-24). The window names what was
+  // burned and that it was not enough. ⚠ THE SPENT SET IS A FACT ABOUT THE WHOLE WINDOW, not
+  // about any one flag, which is why it is composed HERE: a machine's own slice can only see
+  // its own spends, and two slices each announcing half of it would print the same news twice.
+  // ⚠ ONLY WHERE THERE IS A NUMBER TO FALL SHORT OF. On a raw ability check the module owns
+  // no DC, so "not enough yet" would be a verdict it invented — the header points at the DM
+  // there instead, and this line stays out of its way.
+  const spent = rows.filter(r => r.spent).map(r => r.label);
+  if ( spent.length && stillFailing && verdictKnown ) {
+    headerLines.push(`<strong>${spent.join(" + ")}</strong> — not enough yet.`);
+  }
+  return { headerLines, rows, quotes, earliestDeadline, clockWindow, pending, subject,
+    verdictKnown };
 }
 
 /** Route one row press back to the machine that supplied it. */
@@ -518,15 +536,17 @@ async function passEveryRescue(message) {
  */
 function wireRescueWindow(root, message) {
   if ( !root?.querySelectorAll ) return;
-  const label = root.querySelector("[data-bf-rescue-pane-label]");
-  const text = root.querySelector("[data-bf-rescue-pane-text]");
+  // ⚠ THE SWAP IS A VISIBILITY FLIP, NOT A TEXT ASSIGNMENT. Every quote is already in the DOM,
+  // stacked in one grid cell so the pane is sized once by the longest of them — writing text
+  // into a single element is what made the window grow and shrink under the pointer.
+  const quotes = [...root.querySelectorAll("[data-bf-rescue-quote]")];
   for ( const row of root.querySelectorAll("[data-bf-rescue-row]") ) {
     const key = row.dataset.bfRescueRow;
     const swap = () => {
-      const quote = root.querySelector(`[data-bf-rescue-quote="${CSS.escape(key)}"]`);
-      if ( !quote || !label || !text ) return;
-      label.textContent = quote.dataset.bfRescueLabel ?? "";
-      text.textContent = `“${quote.dataset.bfRescueText ?? ""}”`;
+      if ( !quotes.some(q => q.dataset.bfRescueQuote === key) ) return;   // no rule for this row
+      for ( const q of quotes ) {
+        q.style.visibility = (q.dataset.bfRescueQuote === key) ? "visible" : "hidden";
+      }
     };
     row.addEventListener("mouseenter", swap);
     row.addEventListener("focus", swap);
@@ -577,7 +597,9 @@ async function drawRescueWindow(message, { recall = false } = {}) {
   const content = bfCard({
     img: view.subject?.img ?? null,
     eyebrow: "Rescue the roll", tone: "pending",
-    title: "This roll is short — what do you burn?",
+    // ⚠ THE TITLE ASSERTS A VERDICT, so it only does so where the module has one. A check
+    // window used to open with "This roll is short" over a roll nothing could call short.
+    title: view.verdictKnown ? "This roll is short — what do you burn?" : "What do you burn?",
     subtitle: view.subject?.name ?? "",
     lines: view.headerLines
   })
@@ -612,12 +634,47 @@ async function drawRescueWindow(message, { recall = false } = {}) {
 }
 
 /**
+ * ⚠ DRAWS ARE SERIALISED PER MESSAGE, and this is not tidiness — it is the bug the table found
+ * twice on 2026-08-24 ("the window should have closed", "passed time didn't close either").
+ *
+ * A redraw is CLOSE-THEN-REOPEN, and both halves await. Between them the dialog handle is
+ * deliberately out of `livePopups` so the reopen does not collide with its own predecessor —
+ * which means a SECOND draw landing in that gap reads `livePopups.get(key)` as undefined,
+ * decides there is nothing to close, and returns having done nothing. The first draw then
+ * finishes by opening a fresh window that nobody is left to close. Every symptom followed:
+ * both offers expired and the window stayed; a bardic die made the attack hit, the survivor
+ * withdrew itself correctly, and the window stayed.
+ *
+ * ⚠ THE SHAPE IS `queueFlagWrite`'s, deliberately — the same problem (interleaved writers over
+ * one key) already had an answer in this tree, and `.then(run, run)` on purpose so one failed
+ * draw cannot strand every draw queued behind it.
+ */
+const rescueDrawChain = new Map();
+function queueRescueDraw(message, opts) {
+  const run = () => drawRescueWindow(message, opts);
+  const prior = rescueDrawChain.get(message.id) ?? Promise.resolve();
+  const next = prior.then(run, run);
+  // ⚠ AND THE REJECTION IS LOGGED RATHER THAN SWALLOWED. `void somePromise()` is how a broken
+  // draw becomes "the window just does nothing", with no line anywhere to find it by.
+  const tail = next.catch(err =>
+    console.error(`${TITLE} | The rescue window could not be drawn.`, err));
+  rescueDrawChain.set(message.id, tail);
+  void tail.then(() => {
+    if ( rescueDrawChain.get(message.id) === tail ) rescueDrawChain.delete(message.id);
+  });
+}
+
+/**
  * ⚠ THE SPAWN COALESCE, and it is the difference between one window and two. Both stamps land
  * milliseconds apart — maneuvers.js registers `dnd5e.rollAttackV2` before d20-folds.js, which
  * `check-hook-order` pins — so the first machine to finish would draw a window carrying only
  * its own row, and the second would close and reopen it a tick later. The table would see a
  * popup flicker for no reason. Deferring the draw to the next tick lets both stamps land
  * first, and the window renders complete the only time it renders.
+ *
+ * ⚠ The tick is the COALESCE; the chain above is the ORDERING. They answer different halves of
+ * the same problem and neither replaces the other: without the tick two stamps draw twice,
+ * without the chain two draws race over one dialog handle.
  */
 const rescueDraws = new Map();
 export function syncRescuePopup(message, { recall = false } = {}) {
@@ -632,7 +689,7 @@ export function syncRescuePopup(message, { recall = false } = {}) {
   setTimeout(() => {
     const asked = rescueDraws.get(message.id) === true;
     rescueDraws.delete(message.id);
-    void drawRescueWindow(message, { recall: asked });
+    queueRescueDraw(message, { recall: asked });
   }, 0);
 }
 

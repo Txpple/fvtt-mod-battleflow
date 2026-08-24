@@ -379,9 +379,34 @@ describe("rescueView — two machines, one window", () => {
       }),
       { composed: { total: 14, added: 5 }, reveal: true }
     );
-    expect(view.headerLines).toEqual(["9 + 5 = 14"]);
-    expect(view.headerLines.join(" ")).not.toMatch(/DC|fail|short/);
+    expect(view.headerLines).toEqual(["9 + 5 = 14 — ask your DM whether that lands."]);
+    expect(view.headerLines.join(" ")).not.toMatch(/DC \d|fail|short/);
     expect(view.rows[0].action).toBe("tactical");
+    // ⚠ And the window must not CALL it short either — nothing here knows that it is.
+    expect(view.verdictKnown).toBe(false);
+  });
+
+  it("the check's hand-off to the DM is NOT gated by reveal — there is no number to hide", () => {
+    const check = {
+      d20fold: {
+        status: "pending",
+        testKind: "check",
+        baseTotal: 9,
+        targets: [],
+        offers: [{ kind: "tactical", label: "Tactical Mind", dieFormula: "1d10" }]
+      }
+    };
+    for (const reveal of [true, false]) {
+      const view = p.rescueView(read(check), { composed: { total: 14, added: 5 }, reveal });
+      expect(view.headerLines).toEqual(["9 + 5 = 14 — ask your DM whether that lands."]);
+    }
+  });
+
+  it("an attack DOES know, so it keeps its verdict language", () => {
+    expect(
+      p.rescueView(read(bothPending), { composed: { total: 13, added: 3 }, reveal: true })
+        .verdictKnown
+    ).toBe(true);
   });
 
   it("a save DOES have a DC to name, because the ask owns it", () => {
@@ -439,7 +464,14 @@ describe("rescueView — two machines, one window", () => {
       rows: [],
       quotes: [],
       earliestDeadline: null,
-      clockWindow: null
+      clockWindow: null,
+      // ⚠ No sources means no PREMISE, so there is nothing left failing — which is the safe
+      // answer either way: the still-short line is gated on a spend, and a view with no
+      // sources has no spends to report.
+      stillFailing: false,
+      // ⚠ …and no PREMISE means no verdict to know either. Both flags answer "nothing to say"
+      // on an absence, which is what keeps the window silent rather than guessing.
+      verdictKnown: false
     });
   });
 });

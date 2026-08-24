@@ -269,7 +269,12 @@ export const RESCUE_SOURCES = [
     }),
     isPending: flag => (flag?.status === "pending"),
     rows: flag => [
-      ...(flag?.offers ?? []).map(o => ({
+      // ⚠ AN OFFER ONLY EXISTS WHILE THE FLAG IS ASKING. `answerFold`'s pass path resolves the
+      // flag and leaves `offers` populated — it has no reason to clear a list nothing reads —
+      // so rendering them unconditionally puts LIVE, PRESSABLE buttons on a moment that is
+      // already over. Seen at the table on 2026-08-24: the window timed out, both cards said
+      // so, and it went on offering a reroll of a d20 nobody could still spend on.
+      ...((flag?.status === "pending") ? (flag?.offers ?? []) : []).map(o => ({
         kind: o.kind,
         action: o.kind,
         label: rescueLabel(o),
@@ -366,6 +371,19 @@ export function rescueHeaderLines(premise, composed, { reveal = false } = {}) {
   const added = Number(composed?.added) || 0;
   const sum = composed?.replaced ? `${base} → ${total}`
     : added ? `${base} + ${added} = ${total}` : `${total}`;
+  /**
+   * ⚠ A RAW CHECK HAS NOTHING TO TEST AGAINST, so the window hands it to a human instead of
+   * implying a verdict it cannot have (user, 2026-08-24). dnd5e records no DC for an ability
+   * check anywhere — the GM holds it in their head — and Tactical Mind is offered on checks and
+   * nothing else. Saying "short by N" there would be inventing the DC; saying nothing at all
+   * left the player reading a window whose title claimed the roll had missed.
+   *
+   * ⚠ AND THIS IS OUTSIDE THE REVEAL GATE, deliberately. `holdReveal` hides a number the module
+   * KNOWS. Here there is no number to hide, so the sentence is the same either way.
+   */
+  const testable = (premise?.targets ?? []).some(t => Number.isFinite(t?.ac))
+    || Number.isFinite(premise?.dc);
+  if ( !testable ) return [`${sum} — ask your DM whether that lands.`];
   if ( !reveal ) return [sum];
   const lines = [];
   for ( const t of premise?.targets ?? [] ) {
@@ -402,21 +420,23 @@ export function rescueHeaderLines(premise, composed, { reveal = false } = {}) {
  * @param {boolean} [ctx.reveal]  `holdReveal` — gates the margin, never the arithmetic
  * @param {object[]} [ctx.sources]
  * @returns {{headerLines: string[], rows: object[], quotes: object[], earliestDeadline: ?number,
- *   clockWindow: ?number}}
+ *   clockWindow: ?number, stillFailing: boolean, verdictKnown: boolean}}
  */
 export function rescueView(read, { composed = null, reveal = false,
   sources = RESCUE_SOURCES } = {}) {
   const headerLines = [];
+  const premises = [];
   const rows = [];
   let earliestDeadline = null;
   let clockWindow = null;
   for ( const source of sources ) {
     const flag = read(source.flag);
     if ( !flag ) continue;
+    premises.push(source.premise(flag));
     // ⚠ DEDUPED BY STRING, not by which source got there first. Both premises describe the
     // same roll, so both produce the same sentences — printing them twice would be the window
     // telling the table one fact in stereo.
-    for ( const line of rescueHeaderLines(source.premise(flag), composed, { reveal }) ) {
+    for ( const line of rescueHeaderLines(premises.at(-1), composed, { reveal }) ) {
       if ( !headerLines.includes(line) ) headerLines.push(line);
     }
     for ( const row of source.rows(flag) ) {
@@ -455,10 +475,47 @@ export function rescueView(read, { composed = null, reveal = false,
   // ⚠ THE PANE IS ONE QUOTE, NEVER A STACK (law 8). Four features on screen means four rules,
   // and printing all of them turns the window into a rulebook page nobody reads — so the rows
   // each carry their own and the pane shows the hovered one, defaulting to the first.
+  // ⚠ THE DIE AND ITS COST LIVE IN THE PANE, NOT ON THE BUTTON (user, 2026-08-24). A button
+  // carries the feature's NAME and nothing else — that is what makes a stack of them scan as
+  // choices — and the pane has room to say what pressing it rolls and what it costs, right
+  // beside the rule those two qualify.
   const quotes = rows
-    .map(r => ({ key: r.key, label: r.label, text: RESCUE_KINDS[r.kind]?.rule ?? null }))
+    .map(r => ({
+      key: r.key,
+      label: r.label,
+      text: RESCUE_KINDS[r.kind]?.rule ?? null,
+      detail: (r.spent || r.withdrawn) ? ""
+        : `${(r.kind === "heroic") ? "Rerolls the d20" : `Adds ${r.die ?? "a die"}`}`
+          + (r.cost ? ` — ${r.cost}.` : ".")
+    }))
     .filter(q => q.text);
-  return { headerLines, rows, quotes, earliestDeadline, clockWindow };
+  /**
+   * ⚠ IS THE PREMISE STILL ALIVE? The window has to be able to say "that did not get there"
+   * after a spend, rather than silently re-rendering with one row greyed and leaving the player
+   * to work out why it is still asking (user, 2026-08-24).
+   *
+   * ⚠ A CHECK ALWAYS ANSWERS YES, and that is the DC finding again: dnd5e records no DC for a
+   * raw ability check, so nothing here can know the roll succeeded. The offer keeps standing
+   * and a human ends it with Pass.
+   */
+  const total = Number.isFinite(composed?.total) ? Number(composed?.total) : null;
+  const stillFailing = premises.some(p => {
+    if ( total === null ) return true;
+    const targets = (p?.targets ?? []).filter(t => Number.isFinite(t?.ac));
+    if ( targets.length ) return targets.every(t => total < t.ac);
+    if ( Number.isFinite(p?.dc) ) return total < p.dc;
+    return true;
+  });
+  /**
+   * ⚠ IS THERE A NUMBER TO BE SHORT OF AT ALL? Everything the window says about falling short —
+   * its title, and the "not enough yet" line after a spend — is only true where the module owns
+   * the number being tested against: an AC on the attack's own snapshot, or a DC the ask owns.
+   * On a raw ability check it owns neither, so it says nothing about the outcome and points at
+   * the DM instead.
+   */
+  const verdictKnown = premises.some(p =>
+    (p?.targets ?? []).some(t => Number.isFinite(t?.ac)) || Number.isFinite(p?.dc));
+  return { headerLines, rows, quotes, earliestDeadline, clockWindow, stillFailing, verdictKnown };
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -490,16 +547,29 @@ const attr = s => String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;")
  */
 export function rescuePaneHTML(quotes = []) {
   if ( !quotes.length ) return "";
-  const payload = quotes.map(q =>
-    `<span data-bf-rescue-quote="${attr(q.key)}" data-bf-rescue-label="${attr(q.label)}"
-       data-bf-rescue-text="${attr(q.text)}" style="display:none;"></span>`).join("");
+  /**
+   * ⚠ EVERY QUOTE IS IN THE DOM AT ONCE, STACKED IN ONE GRID CELL, and that is what stops the
+   * window resizing under the mouse (user, 2026-08-24). Swapping the pane's TEXT reflows it to
+   * whatever the hovered rule happens to be as long as, so the dialog grew and shrank as the
+   * pointer moved down a list — motion the reader did not ask for, on the one element that is
+   * supposed to sit still and be read. Putting all of them in `grid-area: 1 / 1` makes the box
+   * exactly as tall as the LONGEST quote, once, and hovering only flips which one is visible.
+   * Padding under the short ones is the deliberate price.
+   *
+   * ⚠ `visibility`, never `display`. A hidden-by-display element is out of flow and contributes
+   * no height, which would put the resizing straight back.
+   */
+  const panes = quotes.map((q, i) => `
+    <div data-bf-rescue-quote="${attr(q.key)}"
+         style="grid-area:1 / 1;${i ? "visibility:hidden;" : ""}">
+      <strong>${q.label}</strong> <em>“${q.text}”</em>
+      ${q.detail ? `<div style="margin-top:0.25rem;opacity:0.75;">${q.detail}</div>` : ""}
+    </div>`).join("");
   return `
-  <div data-bf-rescue-pane style="margin:0.45rem 0 0.15rem;padding:0.35rem 0.5rem;
+  <div data-bf-rescue-pane style="display:grid;margin:0.45rem 0 0.15rem;padding:0.35rem 0.5rem;
        border-left:2px solid ${TONE.neutral};background:rgba(0,0,0,0.05);border-radius:3px;
-       font-size:var(--font-size-12,12px);line-height:1.45;">
-    <strong data-bf-rescue-pane-label>${quotes[0].label}</strong>
-    <em data-bf-rescue-pane-text>“${quotes[0].text}”</em>
-  </div>${payload}`;
+       font-size:var(--font-size-12,12px);line-height:1.45;">${panes}
+  </div>`;
 }
 
 /**
@@ -517,29 +587,26 @@ export function rescuePaneHTML(quotes = []) {
 export function rescueRowsHTML(rows = []) {
   return rows.map(row => {
     const art = row.img
-      ? `<img src="${row.img}" alt="${attr(row.label)}" data-tooltip="${attr(row.label)}"
-           style="width:24px;height:24px;flex:0 0 auto;border-radius:3px;object-fit:cover;">`
-      : `<i class="${attr(row.icon)}" data-tooltip="${attr(row.label)}"
-           style="width:24px;flex:0 0 auto;text-align:center;opacity:0.85;"></i>`;
-    // What the row OFFERS, or what it turned out to be — never both.
-    const detail = row.spent
-      ? (row.replaced ? `rerolled — <strong>${row.result}</strong>`
-        : Number.isFinite(row.result) ? `rolled <strong>${row.result}</strong>` : "spent")
-      : row.withdrawn ? "no longer needed"
-        : (row.kind === "heroic") ? "reroll the d20" : `add ${row.die ?? "a die"}`;
+      ? `<img src="${row.img}" alt="" aria-hidden="true"
+           style="width:20px;height:20px;flex:0 0 auto;border-radius:3px;object-fit:cover;">`
+      : `<i class="${attr(row.icon)}" aria-hidden="true"
+           style="width:20px;flex:0 0 auto;text-align:center;opacity:0.85;"></i>`;
+    // ⚠ A DISABLED BUTTON CANNOT BE HOVERED, so a finished row has to carry its own outcome
+    // on its face — the pane will never get the chance to tell it. A LIVE row carries only the
+    // feature's name (user, 2026-08-24): the die and what it costs belong in the pane, where
+    // there is room for them beside the rule they qualify.
+    const outcome = row.withdrawn ? "no longer needed"
+      : row.replaced ? `rerolled — ${row.result}`
+        : Number.isFinite(row.result) ? `rolled ${row.result}` : "spent";
     const inert = row.spent || row.withdrawn;
-    const cost = (!inert && row.cost) ? `<span style="opacity:0.6;"> (${row.cost})</span>` : "";
     return `
-    <div data-bf-rescue-row="${attr(row.key)}"
-         ${inert ? "" : `data-bf-rescue-action="${attr(row.action)}"
-         data-bf-rescue-flag="${attr(row.flag)}" role="button" tabindex="0"`}
-         style="display:flex;gap:0.5rem;align-items:center;margin-top:0.25rem;
-                padding:0.2rem 0.35rem;border-radius:3px;
-                ${inert ? "opacity:0.45;" : "cursor:pointer;"}">
+    <button type="button" data-bf-rescue-row="${attr(row.key)}"
+      ${inert ? "disabled" : `data-bf-rescue-action="${attr(row.action)}"
+      data-bf-rescue-flag="${attr(row.flag)}"`}
+      style="display:flex;gap:0.5rem;align-items:center;justify-content:center;
+             width:100%;margin-top:0.35rem;">
       ${art}
-      <span style="flex:1;min-width:0;font-size:var(--font-size-12,12px);line-height:1.35;">
-        <strong>${row.label}</strong> — ${detail}${cost}
-      </span>
-    </div>`;
+      <span>${row.label}${inert ? ` — ${outcome}` : ""}</span>
+    </button>`;
   }).join("");
 }

@@ -178,8 +178,29 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
     const entry = maneuverEntries().find(e => e.kind === "precision");
     if ( !entry ) return;
     const found = usableManeuver(attacker, entry.name);
-    const dieFormula = found ? maneuverDieFormula(found.activity) : null;
-    if ( !found || !dieFormula ) return;
+    const raw = found ? maneuverDieFormula(found.activity) : null;
+    if ( !found || !raw ) return;
+    /**
+     * ⚠ RESOLVE THE DIE HERE, AGAINST THE ATTACKER — the bardic side's argument, in the second
+     * costume it wears in this tree. The PHB's Precision Attack stores its die as
+     * `@scale.battle-master.superiority.die`, a scale token off the subclass, and a token is
+     * not a thing to show a human: the offer window printed the raw string at the table
+     * (2026-08-24) where "1d8" belonged. Resolving it once, at OFFER time, means the die the
+     * window NAMES is the die the resolver ROLLS — there is no second reading to disagree with.
+     *
+     * ⚠ AND AN UNRESOLVED TOKEN COLLAPSES TO ZERO WITHOUT A WORD, which is the same silent
+     * failure the bardic die documents: `new Roll("@scale…", data)` yields "0" and total 0
+     * against roll data that does not carry the scale. Offering a die that adds nothing would
+     * spend a real superiority die for a guaranteed miss, so a formula with no dice left in it
+     * is refused rather than shown.
+     */
+    const resolved = await new Roll(raw, attacker.getRollData()).evaluate();
+    const dieFormula = resolved.formula;
+    if ( !resolved.dice.length ) {
+      console.warn(`${TITLE} | "${entry.name}" resolved to "${dieFormula}" for ${attacker.name} `
+        + "— no die left in it, so the offer stays off rather than spending one for nothing.");
+      return;
+    }
 
     // Clean misses only (the scope fence above): resolvable ACs, every one of them missed.
     const snapshot = attackMessage.getFlag("dnd5e", "targets") ?? [];
@@ -218,8 +239,22 @@ const armPrecisionTimer = message =>
 /** One answer, first writer wins — serialized through the flag lock, then executed. */
 async function answerPrecision(message, answer, { timedOut = false } = {}) {
   let claimed = false;
+  let withdrawn = false;
   await queueFlagWrite(message, "precision", current => {
     if ( (current.status !== "pending") || current.answer ) return;
+    /**
+     * ⚠ THE SPEND-GUARD, INSIDE THE LOCK (§11 / D3). Precision only ever offers on an attack
+     * that hit NOBODY, so any sibling fold turning it into a hit kills the premise — and this
+     * resolver used to `activity.use()` first and compose afterwards, which spends a real
+     * superiority die on a target that is already hit. `hitTargets` is the registry walk every
+     * other reader goes through, so the question is answered the same way here as everywhere.
+     */
+    if ( (answer === "use") && hitTargets(message).length ) {
+      current.status = "resolved";
+      current.outcome = "no longer needed";
+      withdrawn = true;
+      return;
+    }
     current.answer = answer;
     current.answeredAt = Date.now();   // the crash-resume horizon (the topple discipline)
     if ( timedOut ) current.timedOut = true;
@@ -229,6 +264,10 @@ async function answerPrecision(message, answer, { timedOut = false } = {}) {
     }
     claimed = true;
   });
+  if ( withdrawn ) {
+    disarmAskTimer(precisionTimers, message.id);
+    return;
+  }
   if ( !claimed || (answer !== "use") ) return;
   await resolvePrecision(message);
 }
@@ -245,6 +284,19 @@ async function resolvePrecision(message) {
     const activity = item?.system.activities?.get?.(flag.activityId)
       ?? item?.system.activities?.contents?.find(a => a.id === flag.activityId);
     if ( !(attacker instanceof Actor) || !activity ) return;
+
+    // ⚠ AND AGAIN HERE, for `resolvePrecision`'s second caller: the elect's crash-resume
+    // picks up an accepted answer whose client died, up to twenty seconds later, and the roll
+    // can have been fixed in between. Spending then would be the wasted-spend trap arriving by
+    // the back door.
+    if ( hitTargets(message).length ) {
+      await queueFlagWrite(message, "precision", current => {
+        if ( current.status !== "pending" ) return false;
+        current.status = "resolved";
+        current.outcome = "no longer needed";
+      });
+      return;
+    }
 
     // 1. REALLY use it — the system consumes the pool (P2: use() consumes, posts a card,
     //    rolls nothing). Recording "used" without using shipped a lie once (ui.js:407);
@@ -1061,6 +1113,30 @@ async function resolveBashOffer(message) {
   }
 }
 
+/**
+ * THE MOOT (user ruling, 2026-08-24): a sibling spend fixed the roll, so this offer withdraws.
+ *
+ * ⚠ IT SPENDS NOTHING, so it takes no decision away from anyone — and presentation law 4 makes
+ * the withdrawal compulsory rather than polite: a window still asking "the attack missed" after
+ * the attack has started hitting is a lie on screen, and a click on it burns a real superiority
+ * die for a target that is already hit. The table met exactly that on the 2026-08-24 walk: a
+ * heroic reroll turned 14 into 18 against AC 15, the header read "hits Practice Dummy", and the
+ * window went on offering Precision Attack underneath it.
+ *
+ * ⚠ ELECT-OWNED, single writer (§3). Every client sees the same update and would otherwise race
+ * to write the same withdrawal; the flag lock would serialise them, but the second write would
+ * still be a lie about who decided. `hitTargets` is the registry walk every other reader goes
+ * through, so "is the premise dead" is answered exactly once in this tree.
+ */
+async function mootPrecision(message) {
+  await queueFlagWrite(message, "precision", current => {
+    if ( (current.status !== "pending") || current.answer ) return false;   // someone answered
+    current.status = "resolved";
+    current.outcome = "no longer needed";
+  });
+  disarmAskTimer(precisionTimers, message.id);
+}
+
 /** The Use/Pass popup — a target select only when the swing struck more than one. */
 async function showBashOfferPopup(message, flag) {
   const attacker = (() => { try { return fromUuidSync(flag.attackerUuid); } catch { return null; } })();
@@ -1110,7 +1186,9 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       title: pending ? `${p.itemName} — offered: the attack missed`
         : (p.outcome === "used"
           ? `${p.itemName} — used${(p.targets ?? []).some(t => t.verdict === "hit") ? ", now hits" : ", still misses"}`
-          : `${p.itemName} — passed${p.timedOut ? " (timer)" : ""}`),
+          : (p.outcome === "no longer needed")
+            ? `${p.itemName} — no longer needed; nothing spent`
+            : `${p.itemName} — passed${p.timedOut ? " (timer)" : ""}`),
       subtitle: (p.targets ?? []).map(t => t.name).join(", ")
     }) + (pending ? holdBarHTML(p, "to answer") : "");
     html.querySelector(".message-content")?.appendChild(row);
@@ -1244,6 +1322,12 @@ Hooks.on("updateChatMessage", message => {
   }
   const p = message.getFlag(MODULE_ID, "precision");
   if ( p ) {
+    // ⚠ THE PREMISE IS RE-DERIVED FROM THE COMPOSED ROLL, every update. Precision stamps only
+    // when the attack hit NOBODY; the moment any sibling fold turns that into a hit, the
+    // premise this offer rests on is gone and the offer goes with it.
+    if ( (p.status === "pending") && !p.answer && isActiveGM() && hitTargets(message).length ) {
+      void mootPrecision(message);
+    }
     // ⚠ SYNC, DO NOT CLOSE. Precision no longer owns a window — it owns ROWS in one, shared
     // with whatever else is trying to rescue the same roll. Closing on this flag alone would
     // take a SIBLING's live offer off the screen because THIS one finished. The spine closes

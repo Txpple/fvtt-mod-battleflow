@@ -25,7 +25,9 @@ const SECTIONS = {
   4: "hooks — every hook the module registers for a d20 fold ACTUALLY FIRES",
   5: "offer — a real roll stamps a flag offering EVERY eligible fold, kind-matched",
   6: "TWO RESCUES, ONE WINDOW — the merged view, and the composition under it",
-  7: "TWO TARGETS, ONE DIE — the fold's card counts the die once, not once per target"
+  7: "TWO TARGETS, ONE DIE — the fold's card counts the die once, not once per target",
+  8: "THE WINDOW CLOSES — when the clock runs out, and when a spend makes it moot",
+  9: "THE WASTED-SPEND RACE — a click on a dead premise burns nothing"
 };
 const DEPENDS = { 2: [1], 3: [1], 5: [1] };
 
@@ -579,10 +581,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             (win?.querySelectorAll('button[data-action="pass"]').length === 1),
             `pass buttons=${win?.querySelectorAll('button[data-action="pass"]').length ?? 0}`);
           // Law 8: a rule is VISIBLE, not a hover away — and exactly one of them, never a stack.
+          // ⚠ ONE PANE, EVERY QUOTE IN IT, EXACTLY ONE VISIBLE. They are stacked in a single
+          // grid cell so the box is sized once by the longest — hovering flips visibility
+          // rather than rewriting text, which is what stopped the window resizing under the
+          // pointer. So the assertion counts what is SHOWN, not what is present.
+          const pane = win?.querySelector("[data-bf-rescue-pane]");
+          const shownQuotes = [...(pane?.querySelectorAll("[data-bf-rescue-quote]") ?? [])]
+            .filter(q => q.style.visibility !== "hidden");
           ok("the quote pane shows exactly one verbatim rule",
-            (win?.querySelectorAll("[data-bf-rescue-pane]").length === 1)
-              && /expend/i.test(win?.querySelector("[data-bf-rescue-pane-text]")?.textContent ?? ""),
-            (win?.querySelector("[data-bf-rescue-pane-text]")?.textContent ?? "no pane").slice(0, 90));
+            !!pane && (shownQuotes.length === 1) && /expend/i.test(shownQuotes[0]?.textContent ?? ""),
+            `panes=${win?.querySelectorAll("[data-bf-rescue-pane]").length ?? 0} `
+            + `quotes=${pane?.querySelectorAll("[data-bf-rescue-quote]").length ?? 0} `
+            + `shown=${shownQuotes.length}`);
 
           /* --- the fold spends first, and lands SHORT ---------------------------------- */
           face(3, 8);
@@ -610,6 +620,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             after ? `rows=${after.querySelectorAll("[data-bf-rescue-row]").length} `
               + `bardic pressable=${!!rowFor(after, "bardic")} precision pressable=${!!rowFor(after, "use")}`
               : "the window did not redraw");
+          // ⚠ SAY IT DID NOT GET THERE. A spend that leaves the roll short used to
+          // re-render in silence and leave the player to work out why the window was still
+          // asking (user, on the 2026-08-24 walk).
+          ok("…and the window SAYS the spend was not enough",
+            /not enough yet/i.test(after?.textContent ?? "")
+              && /Bardic Inspiration/.test(after?.textContent ?? ""),
+            (after?.textContent ?? "").replace(/s+/g, " ").slice(0, 160));
           ok("…and the greyed row reports the die it actually rolled",
             /rolled/i.test(after?.querySelector('[data-bf-rescue-row$=":bardic"]')?.textContent ?? "")
               && /\b3\b/.test(after?.querySelector('[data-bf-rescue-row$=":bardic"]')?.textContent ?? ""),
@@ -879,6 +896,298 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           if (scratchId) {
             await scene.deleteEmbeddedDocuments("Token", [scratchId]).catch(() => {});
           }
+        }
+      }
+    }
+    /* --- 8: THE WINDOW CLOSES --------------------------------------------------------- */
+    if (has(8)) {
+      // ⚠ BOTH HALVES OF THIS WERE REPORTED FROM THE TABLE ON 2026-08-24, an hour apart, and
+      // they are one failure wearing two hats: the merged window does not go away when there is
+      // nothing left to ask.
+      //
+      //   (a) THE CLOCK RAN OUT. Both cards said so — "passed (timer)", "timed out, nothing
+      //       spent" — and the window sat there still offering both features.
+      //   (b) A SPEND FIXED THE ROLL. A bardic die turned 13 into 17 against AC 15, the damage
+      //       offer opened behind it, and the window went on asking what to burn for an attack
+      //       that had started hitting. That is presentation law 4 with a resource attached: a
+      //       click on it spends a real superiority die on a target already hit.
+      //
+      // ⚠ NO SUITE WATCHED THE WINDOW'S DISAPPEARANCE, only its appearance — which is exactly
+      // how both of these reached a human. An assertion that something is GONE costs the same
+      // as one that it is there.
+      const scene = game.scenes.active;
+      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc"));
+      const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
+      const sword = fighter.items.find(i => i.name === "Longsword");
+      const act = sword?.system.activities?.find(a => a.type === "attack");
+      if (!placed || !act) {
+        skips.push("section 8: needs an NPC token and the fighter's Longsword "
+          + `(token=${!!placed} weapon=${!!act}) — run tools/fixture-d20-folds.mjs`);
+      } else {
+        const foe = foeToken.actor;
+        const realPRNG = CONFIG.Dice.randomUniform;
+        const face = (n, faces) => {
+          CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces);
+        };
+        const priorAC = {
+          calc: foe.system._source.attributes.ac.calc ?? "default",
+          flat: foe.system._source.attributes.ac.flat ?? null
+        };
+        const priorHP = foe.system.attributes.hp.value;
+        const priorInspiration = fighter.system.attributes.inspiration;
+        const priorTimer = game.settings.get(MODULE_ID, "holdTimer");
+        try {
+          // ⚠ A SHORT CLOCK, PINNED LOCALLY — this is the one section whose subject IS the
+          // buzzer, so it cannot use the wait-forever escape hatch the others pin.
+          await game.settings.set(MODULE_ID, "holdTimer", 2);
+          await fighter.update({ "system.attributes.inspiration": false });
+          if (!fighter.effects.find(e => (e.name === "Inspired") && !e.disabled)) {
+            const feat = bard.items.find(i => i.name === "Bardic Inspiration");
+            if (feat) await fighter.createEmbeddedDocuments("ActiveEffect", [{
+              name: "Inspired", img: "icons/magic/light/hand-sparks-smoke-green.webp",
+              origin: feat.uuid, duration: { seconds: 3600 }, transfer: false,
+              disabled: false, changes: []
+            }]);
+          }
+          const sweep = async () => {
+            const stale = game.messages.contents.filter(m =>
+              (m.getFlag(MODULE_ID, "precision")?.status === "pending")
+              || (m.getFlag(MODULE_ID, "d20fold")?.status === "pending"));
+            if (stale.length) {
+              await ChatMessage.deleteDocuments(stale.map(m => m.id));
+              await sleep(500);
+            }
+          };
+          const windows = prior => [...document.querySelectorAll(".application")]
+            .filter(el => (el.tagName === "DIALOG") && !prior.has(el.id)
+              && !!el.querySelector("[data-bf-rescue-row]"));
+          const swing = async (ac, d20) => {
+            await sweep();
+            await foe.update({
+              "system.attributes.ac.calc": "flat", "system.attributes.ac.flat": ac,
+              "system.attributes.hp.value": foe.system.attributes.hp.max
+            });
+            game.user.targets.forEach(x => { x.setTarget(false, { releaseOthers: true }); });
+            placed.setTarget(true, { releaseOthers: true });
+            await sleep(200);
+            const prior = new Set([...document.querySelectorAll(".application")]
+              .filter(el => el.tagName === "DIALOG").map(el => el.id));
+            face(d20, 20);
+            const use = await act.use({ subsequentActions: false }, { configure: false }, {});
+            const usageId = use?.message?.id ?? null;
+            const rolls = await act.rollAttack({ advantage: false, disadvantage: false },
+              { configure: false },
+              usageId ? { data: { "flags.dnd5e.originatingMessage": usageId } } : {});
+            const msg = rolls?.[0]?.parent ?? null;
+            await until(() => msg?.getFlag(MODULE_ID, "precision"), 8000);
+            await until(() => windows(prior).length === 1, 8000);
+            return { msg, prior };
+          };
+
+          /* --- (a) the clock runs out ------------------------------------------------- */
+          {
+            // AC 25, a forced 5 → 10: short by 15, which a d8 cannot reach — but the hopeless
+            // gate needs holdSkipFutile AND holdReveal, and it only skips when EVERY margin is
+            // out of range, so AC 18 keeps precision in. 8 → 13 misses by 5, a d8's business.
+            const { msg, prior } = await swing(18, 8);
+            ok("§8a the window opens with something to ask", windows(prior).length === 1,
+              `windows=${windows(prior).length}`);
+            const timedOut = await until(() => {
+              const p = msg?.getFlag(MODULE_ID, "precision");
+              const d = msg?.getFlag(MODULE_ID, "d20fold");
+              return ((p?.status === "resolved") && (d?.status === "resolved")) ? { p, d } : null;
+            }, 15_000);
+            ok("§8a both offers really expire on the house clock",
+              !!timedOut, JSON.stringify({ precision: timedOut?.p?.outcome,
+                d20fold: timedOut?.d?.outcome }));
+            // ⚠ THE ASSERTION THAT WAS MISSING. Everything above was already true at the table.
+            const gone = await until(() => (windows(prior).length === 0) ? "gone" : null, 10_000);
+            ok("⚠ §8a RECEIPT: …and the window CLOSES when the clock takes the last offer",
+              gone === "gone", `windows still open=${windows(prior).length}`);
+          }
+
+          /* --- (b) a spend makes the rest moot ---------------------------------------- */
+          {
+            await game.settings.set(MODULE_ID, "holdTimer", 0);   // the human's own pace
+            // 8 → 13 against AC 15: short by 2. A bardic 4 makes 17, which hits — so precision,
+            // still pending beside it, has no premise left to stand on.
+            const { msg, prior } = await swing(15, 8);
+            const row = () => windows(prior)[0]?.querySelector('[data-bf-rescue-action="bardic"]');
+            const pressable = await until(row, 8000);
+            ok("§8b the bardic row is there to press", !!pressable,
+              `rows=${windows(prior)[0]?.querySelectorAll("[data-bf-rescue-row]").length ?? 0}`);
+            face(4, 8);
+            pressable?.click();
+            const hit = await until(() => {
+              const d = msg?.getFlag(MODULE_ID, "d20fold");
+              return (d?.targets ?? []).some(x => x.verdict === "hit") ? d : null;
+            }, 20_000);
+            ok("§8b the bardic die turns the miss into a hit",
+              !!hit && (hit.foldedTotal === 17), `folded=${hit?.foldedTotal}`);
+            const moot = await until(() => {
+              const p = msg?.getFlag(MODULE_ID, "precision");
+              return (p?.status === "resolved") ? p : null;
+            }, 15_000);
+            ok("⚠ §8b RECEIPT: the survivor withdraws itself — nothing spent",
+              (moot?.outcome === "no longer needed") && !Number.isFinite(moot?.die),
+              JSON.stringify({ outcome: moot?.outcome, die: moot?.die ?? null }));
+            const gone = await until(() => (windows(prior).length === 0) ? "gone" : null, 10_000);
+            ok("⚠ §8b RECEIPT: …and the window gets out of the way of the damage",
+              gone === "gone", `windows still open=${windows(prior).length}`);
+          }
+        } finally {
+          CONFIG.Dice.randomUniform = realPRNG;
+          await game.settings.set(MODULE_ID, "holdTimer", priorTimer).catch(() => {});
+          await foe.update({
+            "system.attributes.ac.calc": priorAC.calc, "system.attributes.ac.flat": priorAC.flat,
+            "system.attributes.hp.value": priorHP
+          }).catch(() => {});
+          await fighter.update({ "system.attributes.inspiration": priorInspiration })
+            .catch(() => {});
+          const pool = fighter.items.find(i => i.name === "Combat Superiority");
+          if ((pool?.system.uses?.spent ?? 0) > 0) {
+            await pool.update({ "system.uses.spent": 0 }).catch(() => {});
+          }
+          if (!fighter.effects.find(e => (e.name === "Inspired") && !e.disabled)) {
+            const feat = bard.items.find(i => i.name === "Bardic Inspiration");
+            if (feat) await fighter.createEmbeddedDocuments("ActiveEffect", [{
+              name: "Inspired", img: "icons/magic/light/hand-sparks-smoke-green.webp",
+              origin: feat.uuid, duration: { seconds: 3600 }, transfer: false,
+              disabled: false, changes: []
+            }]).catch(() => {});
+          }
+          game.user.targets.forEach(x => { x.setTarget(false, { releaseOthers: true }); });
+        }
+      }
+    }
+    /* --- 9: THE WASTED-SPEND RACE ----------------------------------------------------- */
+    if (has(9)) {
+      // ⚠ THE TRAP THIS PASS WAS COMMISSIONED FOR, and the last of it. Both resolvers used to
+      // SPEND FIRST and compose afterwards, so a click that arrived after a sibling had already
+      // fixed the roll deleted a real Bardic die — or burned a superiority die — for an attack
+      // that was already hitting. The window closing is not a defence: a click can be in flight
+      // when it closes, the crash-resume path calls the resolver directly up to twenty seconds
+      // later, and a player can press a control that is still on their screen.
+      //
+      // ⚠ THIS ASSERTS THE OUTCOME, NOT WHICH GUARD CAUGHT IT. Two things now stand between the
+      // click and the resource — the moot resolving the flag, and the spend-guard inside the
+      // answer lock — and which one wins is a race by construction. What the table is owed is
+      // the same either way: the die is still there.
+      const scene = game.scenes.active;
+      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc"));
+      const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
+      const sword = fighter.items.find(i => i.name === "Longsword");
+      const act = sword?.system.activities?.find(a => a.type === "attack");
+      if (!placed || !act) {
+        skips.push("section 9: needs an NPC token and the fighter's Longsword "
+          + `(token=${!!placed} weapon=${!!act}) — run tools/fixture-d20-folds.mjs`);
+      } else {
+        const foe = foeToken.actor;
+        const realPRNG = CONFIG.Dice.randomUniform;
+        const face = (n, faces) => {
+          CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces);
+        };
+        const priorAC = {
+          calc: foe.system._source.attributes.ac.calc ?? "default",
+          flat: foe.system._source.attributes.ac.flat ?? null
+        };
+        const priorHP = foe.system.attributes.hp.value;
+        const priorInspiration = fighter.system.attributes.inspiration;
+        const priorTimer = game.settings.get(MODULE_ID, "holdTimer");
+        try {
+          await game.settings.set(MODULE_ID, "holdTimer", 0);      // no buzzer in this race
+          await fighter.update({ "system.attributes.inspiration": false });
+          if (!fighter.effects.find(e => (e.name === "Inspired") && !e.disabled)) {
+            const feat = bard.items.find(i => i.name === "Bardic Inspiration");
+            if (feat) await fighter.createEmbeddedDocuments("ActiveEffect", [{
+              name: "Inspired", img: "icons/magic/light/hand-sparks-smoke-green.webp",
+              origin: feat.uuid, duration: { seconds: 3600 }, transfer: false,
+              disabled: false, changes: []
+            }]);
+          }
+          const stale = game.messages.contents.filter(m =>
+            (m.getFlag(MODULE_ID, "precision")?.status === "pending")
+            || (m.getFlag(MODULE_ID, "d20fold")?.status === "pending"));
+          if (stale.length) {
+            await ChatMessage.deleteDocuments(stale.map(m => m.id));
+            await sleep(500);
+          }
+          await foe.update({
+            "system.attributes.ac.calc": "flat", "system.attributes.ac.flat": 15,
+            "system.attributes.hp.value": foe.system.attributes.hp.max
+          });
+          game.user.targets.forEach(x => { x.setTarget(false, { releaseOthers: true }); });
+          placed.setTarget(true, { releaseOthers: true });
+          await sleep(200);
+          const priorDialogs = new Set([...document.querySelectorAll(".application")]
+            .filter(el => el.tagName === "DIALOG").map(el => el.id));
+          const windows = () => [...document.querySelectorAll(".application")]
+            .filter(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
+              && !!el.querySelector("[data-bf-rescue-row]"));
+
+          // 8 → 13 against AC 15: short by 2, which either die can close.
+          face(8, 20);
+          const use = await act.use({ subsequentActions: false }, { configure: false }, {});
+          const usageId = use?.message?.id ?? null;
+          const rolls = await act.rollAttack({ advantage: false, disadvantage: false },
+            { configure: false },
+            usageId ? { data: { "flags.dnd5e.originatingMessage": usageId } } : {});
+          const attackMsg = rolls?.[0]?.parent ?? null;
+          const win = await until(() => {
+            const w = windows()[0];
+            return (w && w.querySelector('[data-bf-rescue-action="bardic"]')
+              && w.querySelector('[data-bf-rescue-action="use"]')) ? w : null;
+          }, 8000);
+          ok("§9 both rescues are on the window before anything is spent",
+            !!win, `rows=${win?.querySelectorAll("[data-bf-rescue-row]").length ?? 0}`);
+
+          // ⚠ THE STALE CONTROL, captured while it is still legitimate. A detached element
+          // keeps its listeners, which is exactly what a click already in flight looks like.
+          const staleBardic = win?.querySelector('[data-bf-rescue-action="bardic"]') ?? null;
+          const inspiredBefore = fighter.effects.find(e =>
+            (e.name === "Inspired") && !e.disabled)?.id ?? null;
+          ok("§9 the Bardic die is really there to lose", !!inspiredBefore,
+            `effect=${inspiredBefore}`);
+
+          face(4, 8);
+          win?.querySelector('[data-bf-rescue-action="use"]')?.click();
+          const hit = await until(() => {
+            const p = attackMsg?.getFlag(MODULE_ID, "precision");
+            return ((p?.outcome === "used") && (p.targets ?? []).some(x => x.verdict === "hit"))
+              ? p : null;
+          }, 20_000);
+          ok("§9 precision lands and the attack now hits",
+            !!hit && (hit.die === 4), JSON.stringify({ die: hit?.die,
+              verdict: hit?.targets?.[0]?.verdict }));
+
+          // ⚠ NOW PRESS THE DEAD CONTROL.
+          staleBardic?.click();
+          await sleep(2500);
+          const fold = attackMsg?.getFlag(MODULE_ID, "d20fold");
+          ok("⚠ §9 RECEIPT: the stale click spends NOTHING",
+            !(fold?.spends ?? []).length,
+            JSON.stringify({ status: fold?.status, outcome: fold?.outcome,
+              spends: (fold?.spends ?? []).length }));
+          ok("⚠ §9 RECEIPT: …and the Bardic die is still on the sheet",
+            !!fighter.effects.get(inspiredBefore ?? "")
+              && !fighter.effects.get(inspiredBefore ?? "")?.disabled,
+            `effect ${inspiredBefore} survives=${!!fighter.effects.get(inspiredBefore ?? "")}`);
+          log.push(`section 9: precision ${hit?.die} closed a 2-point gap; the bardic click after `
+            + `it left ${(fold?.spends ?? []).length} spend(s) and outcome "${fold?.outcome}"`);
+        } finally {
+          CONFIG.Dice.randomUniform = realPRNG;
+          await game.settings.set(MODULE_ID, "holdTimer", priorTimer).catch(() => {});
+          await foe.update({
+            "system.attributes.ac.calc": priorAC.calc, "system.attributes.ac.flat": priorAC.flat,
+            "system.attributes.hp.value": priorHP
+          }).catch(() => {});
+          await fighter.update({ "system.attributes.inspiration": priorInspiration })
+            .catch(() => {});
+          const pool = fighter.items.find(i => i.name === "Combat Superiority");
+          if ((pool?.system.uses?.spent ?? 0) > 0) {
+            await pool.update({ "system.uses.spent": 0 }).catch(() => {});
+          }
+          game.user.targets.forEach(x => { x.setTarget(false, { releaseOthers: true }); });
         }
       }
     }
