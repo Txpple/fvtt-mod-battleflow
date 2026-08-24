@@ -394,13 +394,39 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await healFull();
       await setMastery('sap');
       {
-        await attack(pcAttack()).then(r => waitDamage(r.attackMsg.getFlag('dnd5e', 'originatingMessage'), { flag: 'receipt' }));
-        await waitFor(() => victim.effects.find(e => e.getFlag(MOD, 'mastery') === 'sap'));
-        await attack(pcAttack()).then(r => waitDamage(r.attackMsg.getFlag('dnd5e', 'originatingMessage'), { flag: 'receipt' }));
-        await sleep(1000);
-        const saps = victim.effects.filter(e => (e.getFlag(MOD, 'mastery') === 'sap') && !e.disabled);
-        ok('4. a second hit re-clocks the chip instead of stacking a twin', saps.length === 1,
-          `count=${saps.length}`);
+        // ⚠ RETRY UNTIL IT LANDS, because this section needs TWO hits and `attack()` rolls
+        // ONCE. Sap has no damage gate — a hit is enough (§3b) — so a MISS leaves no chip at
+        // all, and `count=0` then fails an assertion whose whole subject is "one chip, not
+        // two". That is not the module stacking a twin; it is a d20. It happened on the
+        // battery of 2026-08-24 and cost a full re-run to disprove. Every other fold suite in
+        // this tree retries for exactly this reason; this one was the last that did not.
+        //
+        // ⚠ NO DAMAGE MESSAGE IS THE MISS TEST, and it is free: the resolver drives damage
+        // only on a hit, so `waitDamage` coming back empty IS the miss. Four tries with
+        // advantage is past the point where another one means anything but a broken fixture.
+        const hit = async () => {
+          for ( let i = 0; i < 4; i++ ) {
+            const r = await attack(pcAttack());
+            const dmg = await waitDamage(r.attackMsg?.getFlag('dnd5e', 'originatingMessage'),
+              { flag: 'receipt' });
+            if (dmg) return true;
+            log.push(`§4: the swing missed — rolling again (${i + 1}/4)`);
+          }
+          return false;
+        };
+        const landed = (await hit()) && (await waitFor(() =>
+          victim.effects.find(e => e.getFlag(MOD, 'mastery') === 'sap'))) && (await hit());
+        if (!landed) {
+          // ⚠ SKIP OUT LOUD RATHER THAN ASSERT ON A SWING THAT NEVER CONNECTED. Four misses in
+          // a row with advantage is a fixture problem — the wrong AC, the wrong weapon — and
+          // saying THAT is useful, where "count=0" sends the next reader into mastery.js.
+          skip('4: four swings with advantage never landed — that is the fixture, not the code');
+        } else {
+          await sleep(1000);
+          const saps = victim.effects.filter(e => (e.getFlag(MOD, 'mastery') === 'sap') && !e.disabled);
+          ok('4. a second hit re-clocks the chip instead of stacking a twin', saps.length === 1,
+            `count=${saps.length}`);
+        }
       }
     }
 

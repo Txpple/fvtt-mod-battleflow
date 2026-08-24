@@ -441,10 +441,26 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await until(() => rayDamageOf().length >= wantDamage
         && rayDamageOf().every(m => !!m.getFlag(MOD, 'receipt')), 4500);
       const rayDamage = rayDamageOf();
+      // ⚠ AND A NATURAL 20 IS THE SAME 1-IN-20 AT THE OTHER END OF THE DIE — the twin the
+      // fumble count above was missing. A crit DOUBLES the dice, so the formula stops reading
+      // "2d6" while the module is behaving exactly as it should, and this assertion went red on
+      // the battery of 2026-08-24 with `damage=3 want=3` — every clause it names satisfied,
+      // failing on a string it never meant to pin. Against flat AC 1 a crit is ~14% across
+      // three rays, which is often enough to cost a 22-minute re-run regularly.
+      //
+      // ⚠ COUNT THE DICE, DO NOT MATCH THE STRING, and do NOT assert dnd5e's crit arithmetic:
+      // how a critical doubles is the system's business and is settled elsewhere. What this
+      // suite is entitled to say is that the ordinary pipeline rolled THE WEAPON'S OWN dice —
+      // exactly two d6 on a clean hit, and no fewer than that when the die came up 20.
+      const d6of = roll => (roll?.dice ?? []).filter(d => d.faces === 6)
+        .reduce((n, d) => n + (d.number ?? 0), 0);
+      const critOf = m => game.messages.get(m.getFlag(MOD, 'attackFor'))?.rolls?.[0]?.isCritical === true;
+      const rolledItsOwnDice = m => (critOf(m) ? (d6of(m.rolls?.[0]) >= 2) : (d6of(m.rolls?.[0]) === 2));
       ok('3e the ordinary pipeline resolved each hitting ray: an auto-rolled 2d6 damage each, receipted',
-        (rayDamage.length === wantDamage) && rayDamage.every(m => m.rolls?.[0]?.formula?.includes('2d6'))
+        (rayDamage.length === wantDamage) && rayDamage.every(rolledItsOwnDice)
           && rayDamage.every(m => !!m.getFlag(MOD, 'receipt')),
-        `damage=${rayDamage.length} want=${wantDamage} rays=${rays.length} fumbles=${fumbles}`);
+        `damage=${rayDamage.length} want=${wantDamage} rays=${rays.length} fumbles=${fumbles} `
+        + `d6=[${rayDamage.map(m => `${d6of(m.rolls?.[0])}${critOf(m) ? "!" : ""}`).join(", ")}]`);
       // (ii): the walk's "the damage didnt auto apply" — the registry walk resolved every ray
       // damage to the LAST ray's attack (three rays share one usage card), so ray 1's dice
       // re-tested against ray 3's outcome. The attackFor stamp is the fix; this pins that each
