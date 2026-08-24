@@ -1,10 +1,9 @@
 # PLAN.md — the stabilization pass
 
-> **Temporary, and its work is FINISHED (2026-08-23)** — with one open addendum: **the
-> ENFORCEMENT PASS below is planned and awaiting a go**; everything after it is the closed
-> record. This document tracked one piece of work: bringing a two-week high-velocity prototype
-> up to a shape that can carry years of features. Every phase and every foundation stage is
-> closed; **v1.22.0 ships the result.**
+> **Temporary, and its work is FINISHED (2026-08-23)**, the ENFORCEMENT PASS below included.
+> This document tracked one piece of work: bringing a two-week high-velocity prototype up to a
+> shape that can carry years of features. Every phase and every foundation stage is closed;
+> **v1.23.0 ships the result.**
 >
 > ⚠ **It is kept, for now, for two things a tracker is unusually good at and the permanent docs
 > are not:** the MEASUREMENTS (what a thing actually cost, against what it was estimated to
@@ -18,7 +17,7 @@
 
 ---
 
-## ▶ THE ENFORCEMENT PASS — planned 2026-08-23, AWAITING GO
+## ▶ THE ENFORCEMENT PASS — EXECUTED 2026-08-23
 
 **Origin:** the 2026-08-23 architecture review (post-v1.22.0, scored 8/10). The review verified
 the foundation pass's claims and found the gap is no longer in the code's shape — it is between
@@ -38,16 +37,42 @@ the shape and what the gate can SEE. Three findings, three stages, plus one opti
 **No behaviour changes. Stages 0–3 touch `tools/` and docs only — nothing in the zip.** Stage 4
 moves shipped code and needs its own go. Score claim, honestly made: this is the 8 → 8.5–9 path.
 
+### ✅ HOW IT WENT — measured, not estimated (2026-08-23)
+
+| | Planned | Actual |
+| --- | --- | --- |
+| Gate | +1 static check | **9 static checks** (`npm run layers` joined; `verify` = 9 + vitest) |
+| Cross-layer edges | "~17 machine→machine" — a hand count | **11 pinned pairs / 12 sites** at the start, **8 pairs / 9 sites** after Stage 4. The hand count was wrong in BOTH directions: nine of the seventeen were machine→SERVICE (downward all along), and it had missed a cycle |
+| Lazy `import()` sites | docs said six, review said seven | **nine** — nobody had counted them with a tool |
+| D9 | "record 3, repay 2" | **7 recorded, 3 repaid, 4 standing with reasons** |
+| Behaviour | none | none — 237 unit assertions and 12 hook-order assertions unchanged and green |
+
+⚠ **THE PASS PAID FOR ITSELF ON THE TOOL'S FIRST RUN.** It found `saves.js` ↔ `d20-folds.js`, a
+**two-way machine cycle** shipped that same day in v1.23.0 — the withhold-and-resume protocol
+where saves.js holds a verdict and d20-folds hands it back. Both halves lazy, both individually
+reasonable, both commented. **A careful by-hand architecture review of the same tree, the same
+day, missed it**, which is the entire argument for mechanising this rule rather than restating it.
+
+⚠ **AND STAGE 4 FALSIFIED ITS OWN PLAN, WHICH IS WHY THE PLAN SAID TO MEASURE.** 4.1 was
+predicted "order-neutral"; it was **not**. Dropping `mastery.js → concentration.js` moved
+concentration.js LATER on five hooks, because that import had been pulling its evaluation ahead
+of the entry order — the §7 trap, fired in the direction nobody watches (removing a static edge
+reorders hooks exactly as adding one does). Every assertion still passed and the move is
+unobservable for a reason that had to be checked rather than assumed: concentration's row renders
+only on its OWN ask card, and every handler whose order changed reads a disjoint flag namespace.
+**`combatStamp` (4.2) WAS order-neutral, and that was proven by diffing the tool's printed
+evaluation order before and after — not by reasoning about it.**
+
 ### STAGE 0 — measure, by tool, never by hand
 
 The docs hand-carried a commit count and a lazy-import count; both went stale (§7 says six lazy
 sites; there are seven). This pass does not write a single number into a doc that a tool did not
 print.
 
-- [ ] **0.1 Build the edge inventory as tool OUTPUT.** All three edge kinds — static named,
+- [x] **0.1 Build the edge inventory as tool OUTPUT.** All three edge kinds — static named,
       bare (order-pinning), and lazy `await import()` — reusing `check-imports.mjs`'s parsing,
       which already handles the lazy idiom. Output: every scripts/-internal edge, classified.
-- [ ] **0.2 Draft the layer map and put it to the user** before anything depends on it. The
+- [x] **0.2 Draft the layer map and put it to the user** before anything depends on it. The
       recommendation on the table:
       | Layer | Files |
       | --- | --- |
@@ -71,7 +96,7 @@ print.
 The R4 pattern, applied to the import graph: declared once, printed every run, pinned so drift
 is a decision.
 
-- [ ] **1.1 The rule set the tool asserts.** (a) `decide/*` imports nothing — §7's "⚠ keep it
+- [x] **1.1 The rule set the tool asserts.** (a) `decide/*` imports nothing — §7's "⚠ keep it
       that way" becomes a gate; (b) `core.js` imports nothing; (c) machines and services import
       downward only (services → spine → decide/registry/core); (d) **every edge that violates
       (c) must appear in a pinned ALLOWLIST carrying a one-line reason** — the two
@@ -79,25 +104,25 @@ is a decision.
       `auto-apply → mastery` per the Tier 2 PERMANENT ruling) and the D9 residues below. An
       unlisted cross-layer edge fails the gate; so does a listed edge that stops existing
       (a stale pin is the D2 lesson wearing a new hat).
-- [ ] **1.2 One tool, one job** — a NEW check, not a `check-imports` extension: that file's
+- [x] **1.2 One tool, one job** — a NEW check, not a `check-imports` extension: that file's
       header promises "that is all this asserts" and the promise is load-bearing. Wire as
       `npm run layers`, into `verify` beside `imports`. `tools/` is not in
       `EXPECTED_SOURCE_FILES`, so **this pass never moves the source pin** (parallel feature
       work may — that pin belongs to whoever adds a scripts/ file).
-- [ ] **1.3 The tool prints its table** (layer per file, allowlisted edges with reasons, totals)
+- [x] **1.3 The tool prints its table** (layer per file, allowlisted edges with reasons, totals)
       the way `KIND_SETS` prints — the verify output IS the measurement Stage 2 quotes.
 
 ### STAGE 2 — ARCHITECTURE.md tells the truth the tool prints
 
-- [ ] **2.1 §2/§7 name the services tier.** The four KINDS of code stand (services are EDGE by
+- [x] **2.1 §2/§7 name the services tier.** The four KINDS of code stand (services are EDGE by
       §2's test — they touch Foundry); §7's file table and dependency rule gain the tier:
       **machines → services → spine → decide**. The rule stops being "a machine may not import
       another machine" (violated ~17 times as written) and becomes the rule the code can
       actually keep — with the up-edges it cannot yet keep pinned and named.
-- [ ] **2.2 Stop hand-carrying counts.** The "six lazy sites" claim and kin either quote the
+- [x] **2.2 Stop hand-carrying counts.** The "six lazy sites" claim and kin either quote the
       tool's printed table or say "see `npm run layers`". Same for `check-imports.mjs`'s own
       header prose.
-- [ ] **2.3 §10's closing line is amended** — "every row closed or settled" was true of D1–D8
+- [x] **2.3 §10's closing line is amended** — "every row closed or settled" was true of D1–D8
       and false of the ledger; it now points at D9.
 
 ### STAGE 3 — debt row D9: the service-in-a-feature residues
@@ -105,29 +130,29 @@ is a decision.
 Recorded with the same shape as D1–D8: rule violated (§7), evidence (the pinned allowlist —
 mechanical, cannot go stale silently), and a disposition PER EDGE:
 
-- [ ] **3.1** `dramaticVerdictPause` lives in concentration.js; saves.js and mastery.js import
+- [x] **3.1** `dramaticVerdictPause` lives in concentration.js; saves.js and mastery.js import
       it. A presentation-timing primitive — spine-shaped by D6's own generalisation ("the spine
       owns HOW a moment is presented"). **Disposition: repay (Stage 4).**
-- [ ] **3.2** `combatStamp` lives in mastery.js; maneuvers.js imports it. **Disposition:
+- [x] **3.2** `combatStamp` lives in mastery.js; maneuvers.js imports it. **Disposition:
       measure in Stage 0, then repay or rule.**
-- [ ] **3.3** saves.js → maneuvers.js, lazy, twice (`foldEntryFor`/`equippedShield` at
+- [x] **3.3** saves.js → maneuvers.js, lazy, twice (`foldEntryFor`/`equippedShield` at
       `saveChoiceSpec`, `RULE_TEXT` at the choice popup) — interpose is genuinely cross-feature.
       **Disposition: OPEN, deliberately.** The principled fix is a save-choice registry beside
       `SAVE_FOLDS`, and that is feature-shaped design work this pass's no-feature rule excludes.
       The seam arrives when the third choice kind does; until then the edges are pinned.
-- [ ] **3.4** saves.js → receipts.js (`revertTarget`, lazy) and auto-damage.js → mastery.js
+- [x] **3.4** saves.js → receipts.js (`revertTarget`, lazy) and auto-damage.js → mastery.js
       (`cleaveArmedFor`, lazy) — pinned with their reasons; the second is a service up-edge
       already carrying its order-pinning comment in place.
-- [ ] **3.5** The two settled-permanent cycles are REFERENCED, not re-litigated — D9 cites the
+- [x] **3.5** The two settled-permanent cycles are REFERENCED, not re-litigated — D9 cites the
       Tier 2 box rather than reopening it.
 
 ### STAGE 4 — repay the cheap residues — OPTIONAL, its own go, ships code
 
-- [ ] **4.1** Move `dramaticVerdictPause` → ui.js (spine). Kills two feature→feature edges. A
+- [x] **4.1** Move `dramaticVerdictPause` → ui.js (spine). Kills two feature→feature edges. A
       plain async function, no hook registration — expected order-neutral, but **run
       `check-hook-order` and the concentration + saves + mastery live sections**, not the
       reasoning.
-- [ ] **4.2** Move `combatStamp` if Stage 0's measurement says it is as cheap as it looks —
+- [x] **4.2** Move `combatStamp` if Stage 0's measurement says it is as cheap as it looks —
       candidate homes core.js (if it is a "who/when" fact) or decide/ (if pure).
 - [ ] **4.3** These change shipped files → a patch release decision goes to the user; sandbox
       first per standing rule. **If Stage 4 is skipped, D9 simply keeps its OPEN rows — the

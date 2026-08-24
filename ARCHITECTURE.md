@@ -54,6 +54,16 @@ is allowed to touch and how it is tested.
 > milliseconds with no Foundry at all; EDGE is what live suites are for. Code that mixes them
 > can only be tested the slow way, which is why it must not.
 
+⚠ **EDGE holds TWO POPULATIONS, and the dependency rule turns on the difference.** Both touch
+Foundry, so both are EDGE by rule 1 — but a **machine** owns a feature (a flag, its views, its
+resolver) and a **service** owns none: it is a chokepoint every machine routes a consequence
+through (`auto-apply.js` applies damage with a receipt, `effect-riders.js` applies effects with
+one, `auto-damage.js` offers and rolls the dice). A machine calling a service is **downward and
+always was**; a machine calling a machine is the thing §7's rule forbids. Naming only the KINDS
+of code and not these two populations is why the dependency rule read as violated roughly
+seventeen times when it morally was not — nine of those edges were a machine calling a service.
+**The four kinds are unchanged. The tier list that the dependency rule tests lives in §7.**
+
 ---
 
 ## 3. Who does what — the volunteer model (R2)
@@ -361,8 +371,30 @@ those strings back into the view.**
 
 ### The dependency rule
 
-> **Depend downward only: EDGE → MOMENT → DECISION → REGISTRY.**
-> A machine may not import another machine.
+> **Depend downward only: machines → services → spine → registry → decision → core.**
+> A machine may not import another machine, and a same-layer edge is treated exactly like an
+> upward one. **Every edge that is not downward is PINNED, with a reason, in
+> [tools/check-layers.mjs](tools/check-layers.mjs) — and the gate fails on an unpinned edge AND
+> on a pin whose edge has gone.**
+
+| Depth | Layer | Files |
+| --- | --- | --- |
+| 6 | entry | `battleflow.js` |
+| 5 | **machines** | hold · saves · mastery · maneuvers · concentration · volleys · cast · hit-riders · d20-folds · receipts · polish · resources |
+| 4 | **services** | `auto-apply.js` · `effect-riders.js` · `auto-damage.js` — the consequence chokepoints (§2) |
+| 3 | spine | `ui.js` · `shared.js` · `geometry.js` · `settings.js` |
+| 2 | registry | `volley-registry.js` |
+| 1 | decision | `decide/*` — **zero imports, asserted** |
+| 0 | core | `core.js` — a leaf, **asserted** |
+
+⚠ **THE RULE WAS PROSE-ONLY UNTIL 2026-08-23, AND THAT WAS THE LAST BIG GAP IN THE GATE.**
+`check-imports.mjs` proved every named binding resolves; nothing proved DIRECTION, so the one
+discipline the whole layering rests on was the one nobody could measure. It is now the R4
+tripwire's shape applied to the import graph — declared once, printed by `npm run verify`,
+pinned — for the R4 reason: the rule is not *"no cross-layer edges"*, it is **"no UNNOTICED
+cross-layer edges."** ⚠ **It earned itself on its first run**, finding a two-way machine cycle
+(`saves.js` ↔ `d20-folds.js`, the v1.23.0 withhold-and-resume protocol) that a careful by-hand
+review of the same tree the same day had missed. **Do not hand-count this graph again.**
 
 ⚠ **Mostly repaid, 2026-08-22 (§10 D1).** `hold.js` used to carry shared services that six
 other files imported, so every machine depended on a *feature*. `canAnswerFor`,
@@ -391,8 +423,26 @@ register before a capture; a card row's render order is its registration order).
 The load-bearing orderings are held by **lazy `import()` edges** and asserted by
 `tools/check-hook-order.mjs`, which runs with stubbed globals and needs no Foundry.
 
+⚠ **How many lazy edges there are is a question for `npm run layers`, not for this page.** The
+count was hand-carried here and in `check-imports.mjs` as "six sites", and it was **nine** by the
+time anyone re-measured — stale in exactly the way D2's evidence row was. The tool prints the
+tally (static / bare / lazy) on every run; quote it, never a number typed into prose.
+
 > **When adding a same-hook registration in a new file, run the hook-order check.** Making a
 > lazy edge static silently reorders hooks.
+
+⚠ **AND SO DOES REMOVING A STATIC EDGE — the direction nobody watches (measured 2026-08-23).**
+The warning above reads as if the hazard were *adding* coupling. It is not: an import is what
+drags a file's evaluation EARLIER than its entry position, so **deleting one lets that file fall
+back to where the entry puts it.** Repaying D9(a) removed `mastery.js → concentration.js` and
+moved `concentration.js` later on **five hooks** — nobody had noticed that mastery's import was
+the only thing holding concentration ahead of the entry order.
+
+> **The rule that follows: when an import is removed, DIFF the printed evaluation order.**
+> `check-hook-order.mjs` prints it, so the diff is a ten-second measurement and the reasoning
+> about it is worth nothing. That is how the two Stage-4 moves were separated — `combatStamp`
+> byte-identical (safe), `dramaticVerdictPause` five hooks changed (safe for a *reason*, not by
+> luck: no shared card, disjoint flag namespaces, and the one contended pair preserved).
 
 Cross-file symbols must be **hoisted `function` declarations called at hook time**, never at
 module-eval time — that is the only reason the existing import cycles are safe.
@@ -469,15 +519,24 @@ it is currently failing.
 | **D4** | ⚠ **RE-MEASURED 2026-08-22, and DEFERRED as a decision rather than a step.** **38 keys, ~230 raw reads, ~66 raw writes, ~300 call sites**; the flag inventory exists as a documentation table rather than as code. ⚠ **Its correctness half was repaid another way**: D3 routed the eight dangerous per-target writes through `queueFlagWrite` *without* the accessor layer, so what remains is the ~230 READS — wide mechanical tidiness that buys nothing a test can assert. "Inventory now, adopt later" is not available: an unimported module in `scripts/` is dead code to knip | §4 | no accessor layer — flag names are string literals at every call site. The superseded figures ("~220 reads, ~51 writes, 14 files") were a stale hand count |
 | **D5** | ⚠ **LARGELY REPAID (2026-08-22).** DECISION logic was inlined inside EDGE hook handlers almost everywhere. Six pure modules now stand under `scripts/decide/` and carry **170 unit assertions** that run in ~270 ms with no Foundry. What remains inlined is the judgment that genuinely cannot leave — anything awaiting `fromUuid`, walking documents or reading `game` is EDGE by §2 rule 1, not debt | §2 | `decide/` = geometry, registry, verdict, eligible, receipt, present — **zero imports between them and anything above**; the machines are thin shells over them |
 | **D6** | ⚠ **ONE OF THREE CLOSED (2026-08-23), and it was the only one worth closing.** `ui.js` ↔ `hold.js` is **gone**: 349 lines of the hold's own views left the spine for `hold.js`, and ui.js now imports no machine at all. **Two cycles remain, and BOTH are deliberate.** ⚠ `hold.js` ↔ `auto-damage.js` is **load-bearing on purpose**: the bare `import "./auto-damage.js"` pins evaluation order and must not be "fixed". ⚠ `auto-apply.js` ↔ `mastery.js` is breakable by moving `applyDamagesWithReceipt` to its own module, but that is the damage chokepoint every machine routes through — low value, real risk. ⚠ `mastery.js` ↔ `concentration.js` is **not** a cycle | §7 | ui.js 697 → 340 lines; `hold.js` 999 → 1,395. Moved: `reactionImg`, `reactionACBonus`, the hold clocks (`armHoldTimer`/`disarmHoldTimer`/`fireHoldTimer`), `revealDetail`/`revealLine`, the row, `castReaction`, `holdPopupContent`, `showHoldPopup`. **Registrations 75 → 77**: hold.js gained the row's `renderChatMessage` and its own one-line `deleteChatMessage` clock sweep. ⚠ **Three things deliberately did NOT move** — the damage-offer bar (not the hold's; it keeps its own registration in ui.js and still renders above the hold row because hold.js imports ui.js, now an explicit assertion rather than a shared handler), the delete-SWEEP (it clears every machine's popups/latches/acks off one key prefix — spine), and `closeAnsweredPopups` (it reads the hold flag by STRING, so it makes no import edge; a layering smell, not a cycle) |
-| **D7** | ✅ **CLOSED (2026-08-22).** `npm run verify` is **six static checks** then the unit tests, all offline, all in seconds: biome (lint + format, 0 errors — 98 warnings is the recorded baseline), knip (dead code), import integrity, hook order, registry integrity, doc attachment, vitest | — | `package.json` · `biome.json` · `knip.json` · `tsconfig.json` · `tools/check-{imports,hook-order,registry,comments}.mjs`. ✅ **AND THE LAST GAP CLOSED 2026-08-23: the type checker is in the gate**, over `scripts/decide/` — six pure modules opted in with `// @ts-check`. ⚠ The measurement that unlocked it: with `checkJs` the layer reports **101 errors, 100 of them "implicitly any"**; with implicit-any allowed, **zero**. The layer was already clean under `strict`/`strictNullChecks`/`noUncheckedIndexedAccess`, so "adopt JSDoc first" was a flag, not a project. `checkJs` stays false globally and files opt in; the JSDoc annotations are a later tightening |
+| **D7** | ✅ **CLOSED (2026-08-22).** `npm run verify` is **nine static checks** then the unit tests, all offline, all in seconds: the LAYER check joined 2026-08-23 (§7) — biome (lint + format, 0 errors — 98 warnings is the recorded baseline), knip (dead code), import integrity, hook order, registry integrity, doc attachment, vitest | — | `package.json` · `biome.json` · `knip.json` · `tsconfig.json` · `tools/check-{imports,hook-order,registry,comments}.mjs`. ✅ **AND THE LAST GAP CLOSED 2026-08-23: the type checker is in the gate**, over `scripts/decide/` — six pure modules opted in with `// @ts-check`. ⚠ The measurement that unlocked it: with `checkJs` the layer reports **101 errors, 100 of them "implicitly any"**; with implicit-any allowed, **zero**. The layer was already clean under `strict`/`strictNullChecks`/`noUncheckedIndexedAccess`, so "adopt JSDoc first" was a flag, not a project. `checkJs` stays false globally and files opt in; the JSDoc annotations are a later tightening |
 | **D8** | ✅ **CLOSED (2026-08-23).** The post-roll fold is a MECHANISM now, not one feature's special case. `hitsAmong({targets, roll, folds})` takes a LIST; `ATTACK_FOLDS` in [decide/verdict.js](scripts/decide/verdict.js) declares where folds come from, and `foldsFrom(read)` walks it — adding a fold is an entry in that list plus whatever stamps the flag, never a new parameter. ⚠ **The precedence question was a USER RULING, not a code decision, and the answer was COMPOSE THE ARITHMETIC:** folds carry contributions to the two numbers (`ac` / `add` / `replace` / a forced `verdict`) and the verdict is computed once at the end, so *precedence stops existing*. The two alternatives were put and rejected — "the defender always wins" silently eats a spent resource, and "last fold wins" tests the new total against the STALE snapshot AC. ⚠ **The SAVE side existed nowhere and is the half that was real work:** `foldedSave` + `SAVE_FOLDS`, wired live into saves.js's verdict write. **`SAVE_FOLDS` ships EMPTY on purpose** — with no specs the arithmetic is provably today's arithmetic, which is what let the seam land in a pass with no feature work in it | §6 R4 · §2 rule 4 | 31 new unit assertions (184 → 215), every prior behaviour re-asserted against the new shape; the composed case that the old code could not express is asserted both ways (a die that reaches the shielded AC, and one that does not) |
 
-**Every row above is now closed or settled by decision (2026-08-23).** D1, D2, D3, D5, D6, D7 and
+**D1–D8 are closed or settled by decision (2026-08-23).** D1, D2, D3, D5, D6, D7 and
 D8 are repaid; D4 is **dropped** and the two surviving import cycles are **permanent** — see their
-rows for why doing that work would make the tree worse. ⚠ **This table is not a list of things to
-do any more; it is a record of what was done and why.** The next entry belongs here only when
-something structural is genuinely failing a rule, and it should carry the same shape these do:
-the rule it violates, and the evidence.
+rows for why doing that work would make the tree worse. **D9 is PARTLY REPAID and PARTLY OPEN**, and it is the only row on
+this page still carrying open items.
+
+⚠ **This table said "every row above is now closed" for three days, and the sentence was false
+when it was written** — the service-in-a-feature residues below existed the whole time and simply
+had no row. That is D2's lesson wearing a different hat: **a ledger that declares itself empty is
+how the next drift gets in.** The next entry belongs here whenever something structural is
+genuinely failing a rule, carrying the same shape these do: the rule it violates, and the
+evidence.
+
+| # | Debt | Violates | Evidence |
+| --- | --- | --- | --- |
+| **D9** | ⚠ **PARTLY REPAID, PARTLY OPEN (2026-08-23).** **Seven pinned edges were a machine importing another machine** — the exact shape D1 repaid for `hold.js`, grown back one convenience at a time in files D1 never touched. ⚠ **This row exists because the ENFORCEMENT PASS made the graph countable**, and it was deliberately never a promise to repay all seven. **Three are repaid; four stand, each reasoned.** ✅ **(a) CLOSED — `dramaticVerdictPause` moved `concentration.js` → `ui.js`.** A presentation-timing primitive with two outside customers (`saves.js`, `mastery.js`), which is what made it a service rather than a favour; the spine owns HOW a moment is presented (D6's generalisation). ⚠ **It was NOT order-neutral and the reasoning that said it would be was wrong** — dropping `mastery.js → concentration.js` moved concentration.js LATER on five hooks (`renderChatMessage`, `create`/`update`/`deleteChatMessage`, `damageActor`), because mastery's import had been pulling concentration's evaluation ahead of the entry order. All twelve hook-order assertions still pass, and the move is unobservable for a specific reason worth keeping: **concentration's row renders only on its own ask card**, and every handler whose order changed reads a DISJOINT flag namespace (`d20fold` vs `concentration`). ⚠ The one genuinely contended pair — concentration before `saves.js` on `createChatMessage`, where a save roll could be folded by either — **is preserved in both orders.** ✅ **(b) CLOSED — `combatStamp` moved `mastery.js` → `core.js`**, beside `inRunningCombat` in the §3 "who/when" family. Empirically order-neutral: the printed evaluation order is byte-identical before and after, because the entry already evaluated mastery before maneuvers. **(c) `saves.js` → `maneuvers.js` (interpose: `foldEntryFor`/`equippedShield`/`RULE_TEXT`)** — genuinely cross-feature: a save's verdict opens a maneuver's choice. The principled fix is a **save-choice registry beside `SAVE_FOLDS`**, which is feature-shaped design work. **Disposition: OPEN until the third choice kind arrives** — the seam should be built by the feature that proves its shape, not before (the D8 lesson). **(d) `saves.js` ↔ `d20-folds.js`, a TWO-WAY cycle** — `offerFoldOnSave` out, `foldSaveAnswer` back: saves.js withholds a verdict while an offer is live and d20-folds hands it back. ⚠ **Nobody knew this cycle existed until the check printed it**, one day after a by-hand architecture review of the same tree missed it. Not a defect — the protocol is correct and fails open — but **withhold-and-resume is moment lifecycle, and the spine owns moment lifecycle (§5)**. The third machine pair to grow a two-way edge is the argument for a spine primitive. **Disposition: OPEN, and the next moment that needs to withhold is the one that should build it.** ⚠ **(e) `saves.js` → `receipts.js` (`revertTarget`, lazy)** is the classification question this row leaves standing: `receipts.js` is filed as a MACHINE because `revertTarget` has exactly one importer. **A second importer makes it a service — reclassify then, not now.** | §7 dependency rule | `npm run layers` — the allowlist in [check-layers.mjs](tools/check-layers.mjs) is the evidence, and it is **mechanical**: a repaid edge fails the gate as a stale pin, so unlike every row above it, **this one cannot go stale in place** |
 
 ---
 
@@ -534,8 +593,12 @@ an added die, a reaction that moves AC):
 4. Add its receipt and its expiry default. A moment with no default outcome is not finished.
 
 **Adding a file:**
-1. Declare its layer (§2) in its header comment.
-2. Depend downward only. If you need a service from a machine, the service is in the wrong file.
+1. Declare its layer (§2) in its header comment **and in `LAYER_OF` in
+   [tools/check-layers.mjs](tools/check-layers.mjs)** — the gate fails on an undeclared file, so
+   the layer is a decision made once, in writing, by whoever adds the file.
+2. Depend downward only (§7). If you need a service from a machine, the service is in the wrong
+   file. ⚠ If the edge genuinely must exist, it goes in that tool's `ALLOW` with a REASON and a
+   disposition — and if the disposition is `OPEN`, it belongs in §10 D9 as well.
 3. Run the hook-order check.
 4. Register nothing at module-eval time except hook callbacks.
 5. Move `EXPECTED_SOURCE_FILES` in `tools/check-registry.mjs`, and fix the docs that quote it.
