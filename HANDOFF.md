@@ -10,11 +10,52 @@
 > kept for its measurements and its record of what was decided against, and it should be
 > deleted once nobody is reading it.
 
+---
+
+## ▶ START HERE — the next session, in order
+
+**Six things. The rest of this file is detail behind them.**
+
+1. **`npm run verify`** — seconds, offline. Ten static checks and 237 unit tests. **If it is
+   green, the tree is in the state this file describes.** If it is red, stop and read the
+   failure; three of the checks are deliberate pins that fail on purpose.
+
+2. ⚠ **THEN RUN THE BATTERY, BEFORE ANY NEW WORK.**
+   ```
+   node tools/battery.mjs --snapshot
+   ```
+   **This is the one thing actually owed.** Commit `cec478d` changed **every suite's teardown**
+   and added a section that **creates and deletes a real Combat**. Every piece is green on its
+   own; **none of them has been proven together.** ~20 minutes, and `--snapshot` rolls the world
+   back afterwards. ⚠ **First: `node <mcp>/scripts/local-foundry.mjs status`, then
+   `disconnect-bridge`** — the preflight refuses while the bridge holds a session, and a single
+   read-only MCP call is enough to re-arm it.
+
+3. ⚠ **THE SANDBOX IS SINGLE-OCCUPANCY, AND A SECOND SESSION WAS ACTIVE IN THIS REPO ON
+   2026-08-23.** Two sessions driving suites collide: the pid lock refuses one, and a half-run
+   suite leaves the world dirty. **Establish who owns the box before running anything.**
+
+4. ⚠ **BEFORE PROPOSING ANY STRUCTURAL WORK — read *SETTLED — do not re-propose*.** Eight
+   decisions, each with the one condition that would reopen it. **Four of its rows are proposals
+   that came back three sessions running.**
+
+5. ⚠ **BEFORE WRITING A TEST — read *THE FIRST COVERAGE TRIAGE*.** Three lines are still open
+   there with reasons. **`node tools/hook-coverage.mjs` after a battery tells you what the run
+   actually exercised**, which is the only thing in this apparatus that speaks to behaviour.
+
+6. ⚠ **THE *RESCUE PASS* SECTION IS A PROPOSAL, NOT STATE.** It was written by a different
+   session, it says **AWAITING GO**, and it carries four blocking rulings addressed to the user.
+   **Its two bug claims are unverified by anyone but its author.** See *The parallel session*.
+
+**Then, if you want the ten-minute grounding:** *If you are COLD, read in this order*, below.
+
+---
+
 ## State at a glance — 2026-08-23
 
 | | |
 | --- | --- |
-| **Do first** | ⚠ **READ *SETTLED — DO NOT RE-PROPOSE* BEFORE SUGGESTING ANY STRUCTURAL WORK** (below). Eight things are decided, with the condition that would reopen each. 📋 **THREE THINGS LANDED 2026-08-23 AFTER v1.23.1 AND ARE NOT YET RELEASED** — the tree is ahead of the tag: **D10 is repaid** (`npm run dispatch`, the tenth gate check), **D11 is instrumented** (`hook-coverage.mjs` — the battery now prints which registrations actually FIRED), and **`smoke-d20-folds` §3 is written** (29/29, the attack path stops being verified-but-uncovered). ✅ **THE BATTERY IS GREEN OVER ALL THREE** (2026-08-23, 19m59s, settings CLEAN) and it produced **the first coverage triage — read *THE FIRST COVERAGE TRIAGE* below before writing a test.** ✅ **TWO OF ITS FIVE OPEN LINES WERE THEN CLOSED** (`smoke-hold` §7 creates a real Combat; the fixture grants a tool) and **the no-op hang-up was repaired**. ⚠ **THOSE THREE HAVE NOT HAD A BATTERY** — `cec478d` touches every suite's teardown, so that is the first thing owed. ⚠ **A release has NOT been cut.** 📋 **v1.23.1 IS RELEASED, PUSHED AND ON PROD.** ▶ **Read *The d20 folds, as landed* below before touching them**: the first table pass found **six bugs, all in the offer half**, and the table found every one of them while the suite stayed green. ✅ **All three folds are table-verified** across attacks, checks and demanded saves (user, 2026-08-23). ⚠ **THE ENFORCEMENT PASS IS EXECUTED (2026-08-23)** — the sibling session's plan, now done: `npm run layers` is in the gate, ARCHITECTURE §2/§7 name the **services tier**, and **§10 D9** is open. See *The enforcement pass, as landed* below. ⚠ **§10 now has TWO open rows — D9 and D10** — and neither is a task list; read them before adding a cross-layer edge or a hook. |
+| **Do first** | ▶ **SEE *START HERE* ABOVE — it is six numbered steps and it is the whole of the answer.** In one line: **the gate is green, the tree is pushed, and the battery over `cec478d` is the one thing owed.** ⚠ Two rows of this table are about a release that has NOT been cut for the six commits above the tag; ⚠ nothing in those commits changes shipped behaviour (`scripts/` is untouched since v1.23.1), so **a deploy buys nothing but a version string.** |
 | Release | ✅ **v1.23.1 RELEASED, 2026-08-23** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.23.1>. The enforcement pass: `npm run layers` in the gate, the services tier named, D9 opened with two repayments. **A PATCH — two functions changed files and nothing changed behaviour.** ✅ The **published** zip was downloaded back and proven self-contained: **31 entries, all six `decide/` files, 95 relative imports all resolving, no backslash separators, both manifest fields naming v1.23.1**. |
 | Release (previous) | ✅ **v1.23.0 RELEASED, 2026-08-23** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.23.0>. Both assets attached. The **published** zip was downloaded back and proven self-contained: **31 entries, 28 scripts including the six in `decide/`, 109 relative imports all resolving, no backslash separators, both manifest fields naming v1.23.0**. ⚠ That read-back is not ceremony — it is the check that caught the backslash bug (v1.1.0–1.1.15) and the missing `scripts/decide/` (post-Phase-2). |
 | Prod | ✅ **PROD RUNS v1.23.1 AS OF 2026-08-23** — deployed and **verified byte-identical by a second, independent `--check` run**. ⚠ The `--check` was meaningful this time because the box was awake: it read **distinct** hashes and named exactly the seven files this release touches (six scripts + `module.json`) — *the repeated-hash tell was absent*. ⚠ **The version STRING lags until the Foundry process restarts**; the code is live on the next world reload. Earlier: ✅ **v1.23.0 AS OF 2026-08-23** — the d20 folds included, by user instruction. Earlier the same day: ✅ **v1.22.0** — user instruction this session, superseding the old *"sandbox only, no prod yet"* call. 28/28 files byte-identical over WebDAV. ⚠ **That morning the box was ASLEEP** (`status=NOT_RUNNING`) and had to be woken by the Magic URL first — see *The prod deploy* below, because **the byte-check LIES when the box is down** (it reported the same hash for all 28 files: the lobby HTML). *(That clause is history: prod carries the d20 folds now.)* |
