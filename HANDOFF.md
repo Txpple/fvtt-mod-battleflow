@@ -14,15 +14,15 @@
 
 | | |
 | --- | --- |
-| **Do first** | 📋 **v1.23.1 IS RELEASED, PUSHED AND ON PROD; the tree is clean.** ▶ **Read *The d20 folds, as landed* below before touching them**: the first table pass found **six bugs, all in the offer half**, and the table found every one of them while the suite stayed green. ✅ **All three folds are table-verified** across attacks, checks and demanded saves (user, 2026-08-23). ⚠ **THE ENFORCEMENT PASS IS EXECUTED (2026-08-23)** — the sibling session's plan, now done: `npm run layers` is in the gate, ARCHITECTURE §2/§7 name the **services tier**, and **§10 D9** is open. See *The enforcement pass, as landed* below. ⚠ **§10 now has TWO open rows — D9 and D10** — and neither is a task list; read them before adding a cross-layer edge or a hook. |
+| **Do first** | ⚠ **READ *SETTLED — DO NOT RE-PROPOSE* BEFORE SUGGESTING ANY STRUCTURAL WORK** (below). Eight things are decided, with the condition that would reopen each. 📋 **THREE THINGS LANDED 2026-08-23 AFTER v1.23.1 AND ARE NOT YET RELEASED** — the tree is ahead of the tag: **D10 is repaid** (`npm run dispatch`, the tenth gate check), **D11 is instrumented** (`hook-coverage.mjs` — the battery now prints which registrations actually FIRED), and **`smoke-d20-folds` §3 is written** (29/29, the attack path stops being verified-but-uncovered). ⚠ **A release has NOT been cut for them** and the full battery has NOT been re-run since — see *What is not yet done* below. 📋 **v1.23.1 IS RELEASED, PUSHED AND ON PROD.** ▶ **Read *The d20 folds, as landed* below before touching them**: the first table pass found **six bugs, all in the offer half**, and the table found every one of them while the suite stayed green. ✅ **All three folds are table-verified** across attacks, checks and demanded saves (user, 2026-08-23). ⚠ **THE ENFORCEMENT PASS IS EXECUTED (2026-08-23)** — the sibling session's plan, now done: `npm run layers` is in the gate, ARCHITECTURE §2/§7 name the **services tier**, and **§10 D9** is open. See *The enforcement pass, as landed* below. ⚠ **§10 now has TWO open rows — D9 and D10** — and neither is a task list; read them before adding a cross-layer edge or a hook. |
 | Release | ✅ **v1.23.1 RELEASED, 2026-08-23** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.23.1>. The enforcement pass: `npm run layers` in the gate, the services tier named, D9 opened with two repayments. **A PATCH — two functions changed files and nothing changed behaviour.** ✅ The **published** zip was downloaded back and proven self-contained: **31 entries, all six `decide/` files, 95 relative imports all resolving, no backslash separators, both manifest fields naming v1.23.1**. |
 | Release (previous) | ✅ **v1.23.0 RELEASED, 2026-08-23** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.23.0>. Both assets attached. The **published** zip was downloaded back and proven self-contained: **31 entries, 28 scripts including the six in `decide/`, 109 relative imports all resolving, no backslash separators, both manifest fields naming v1.23.0**. ⚠ That read-back is not ceremony — it is the check that caught the backslash bug (v1.1.0–1.1.15) and the missing `scripts/decide/` (post-Phase-2). |
 | Prod | ✅ **PROD RUNS v1.23.1 AS OF 2026-08-23** — deployed and **verified byte-identical by a second, independent `--check` run**. ⚠ The `--check` was meaningful this time because the box was awake: it read **distinct** hashes and named exactly the seven files this release touches (six scripts + `module.json`) — *the repeated-hash tell was absent*. ⚠ **The version STRING lags until the Foundry process restarts**; the code is live on the next world reload. Earlier: ✅ **v1.23.0 AS OF 2026-08-23** — the d20 folds included, by user instruction. Earlier the same day: ✅ **v1.22.0** — user instruction this session, superseding the old *"sandbox only, no prod yet"* call. 28/28 files byte-identical over WebDAV. ⚠ **That morning the box was ASLEEP** (`status=NOT_RUNNING`) and had to be woken by the Magic URL first — see *The prod deploy* below, because **the byte-check LIES when the box is down** (it reported the same hash for all 28 files: the lobby HTML). *(That clause is history: prod carries the d20 folds now.)* |
-| Repo | `main`, **clean and pushed** — the enforcement pass is five commits (gate tool · D9 repayments · battery seed · docs · version). |
-| **The debt register** | ARCHITECTURE §10: **D1–D8 repaid or settled by decision** (D4 dropped, the two surviving import cycles permanent — the argument is in their rows). ⚠ **D9 IS OPEN, added 2026-08-23 by the ENFORCEMENT PASS**, and the register's "every row is closed" line has been **corrected**: it was false when written, because the service-in-a-feature residues had no row. **3 of D9's 7 edges are repaid; 4 stand, each pinned with a reason** in `tools/check-layers.mjs`. ⚠ **D9's evidence is MECHANICAL, unlike every row above it** — a repaid edge fails the gate as a stale pin, so this row cannot go stale in place the way D2's did. ⚠ **D10 IS ALSO OPEN, added 2026-08-23, and it is open for the opposite reason**: D9 is understood and deliberately unpaid, **D10 is a failure class with NO RULE AGAINST IT** — a hook name the system never dispatches registers cleanly and does nothing forever. It is what put four of six d20-fold offer paths past a 12/12 green suite. **Interim discipline: a live suite asserts a hook FIRED, never that it was registered.** |
-| Verify gate | `npm run verify` — **nine static checks then the unit tests, all offline, all in seconds.** biome (**96 warnings, 0 errors — the baseline**), knip, **typecheck**, imports, **layers (NEW 2026-08-23)**, hook order (**83 registrations, 12 pairs**), registry (**13 checks**; it prints the R4 kinds table), manifest in-step, comments (**344 blocks / 28 files**), vitest **237**. ⚠ **Three numbers are PINNED and fail the gate deliberately** — the R4 kind total (**19**), the source-file count (**28**) and the two `module.json` version fields agreeing. That is the point, not an obstacle. ⚠ **`npm run layers` is the fourth pin and the newest**: it declares every file's LAYER and every cross-layer EDGE, and fails on an unpinned edge *and* on a pin whose edge has gone. **Do not hand-count the import graph again — it prints the tally.** |
-| **Testing** | ⚠ **`node tools/battery.mjs` is the front door.** **Fifteen entries** in the order that works (`fixture-d20-folds` seeds, `reset-fixture-state` sweeps — neither is a suite), **every one captured to `dist/battery/<stamp>/` before anything is summarised**, `verify-settings` at the end. `--from <suite>` resumes; `--snapshot` rolls the world back; `--list` shows the order. Every suite also takes `--list` and `--section N`. |
-| Sandbox | ⚠ **HEADLESS, and it is THE test environment.** `node <mcp>/scripts/local-foundry.mjs start\|stop\|status\|restart`; deploy with `node <mcp>/scripts/deploy-house-module.mjs fvtt-mod-battleflow --local` — **never without `--local`**. Never the Electron app for suites (dataPath lock). ✅ **Carries v1.23.1 byte-identical, manifest included** (stop → deploy → start, 2026-08-23) — so it now matches prod and the release exactly. ⚠ **Its `module.json` lagged a version behind the scripts for part of the day** and nothing noticed, because a manifest change needs a PROCESS restart while scripts need only a world reload: `--check` names `module.json` alone when that happens. ⚠ **LEFT RUNNING** (0 users) — `status` first, `stop` if you are not testing. ⚠ `list-actors` includes **`BF Test Fighter`** (Fighter 2, Second Wind + Tactical Mind, clean PHB provenance) and **`BF Test Bard`** (Bard 5, so its die is a **d8** and a wrong d6 default is caught). |
+| Repo | `main`, **clean**, and **THREE COMMITS AHEAD OF THE v1.23.1 TAG** — D10's dispatch check, D11's coverage ledger, and `smoke-d20-folds` §3. **Not pushed, not released, and no battery has run over them.** |
+| **The debt register** | ⚠ **AS OF 2026-08-23 THE ROWS ARE D1–D11.** **D10 is CLOSED** — the "who owns a curated hook list" question was dissolved by measuring rather than answered: dnd5e declares its own hooks in its own bundle (88 literals ∪ 92 JSDoc `@memberof hookEvents` = 105), so the list is generated and nobody curates it. **D11 is MEASURED, not closed** — the instrument exists and its READING is the standing obligation. **D9 stays OPEN with four pinned edges, deliberately.** Below is the pre-2026-08-23 text, still true: ARCHITECTURE §10: **D1–D8 repaid or settled by decision** (D4 dropped, the two surviving import cycles permanent — the argument is in their rows). ⚠ **D9 IS OPEN, added 2026-08-23 by the ENFORCEMENT PASS**, and the register's "every row is closed" line has been **corrected**: it was false when written, because the service-in-a-feature residues had no row. **3 of D9's 7 edges are repaid; 4 stand, each pinned with a reason** in `tools/check-layers.mjs`. ⚠ **D9's evidence is MECHANICAL, unlike every row above it** — a repaid edge fails the gate as a stale pin, so this row cannot go stale in place the way D2's did. ⚠ **D10 IS ALSO OPEN, added 2026-08-23, and it is open for the opposite reason**: D9 is understood and deliberately unpaid, **D10 is a failure class with NO RULE AGAINST IT** — a hook name the system never dispatches registers cleanly and does nothing forever. It is what put four of six d20-fold offer paths past a 12/12 green suite. **Interim discipline: a live suite asserts a hook FIRED, never that it was registered.** |
+| Verify gate | `npm run verify` — **TEN static checks then the unit tests, all offline, all in seconds.** ⚠ **`npm run dispatch` is the tenth (NEW 2026-08-23, D10)**: every `dnd5e.*` hook this module registers must be one dnd5e actually dispatches, checked against a set **generated from the installed system's own bundle** and committed as `tools/dnd5e-hooks.json`. **It is pinned to the dnd5e version `module.json` verifies** — bumping the system pin without `--regen` fails the build, deliberately. **After any dnd5e upgrade: regen, then READ THE DIFF — a name that disappeared is a listener that has just gone silent.** biome (**98 warnings, 0 errors — the baseline, MEASURED 2026-08-23; the "96" carried here for days was never true**), knip, **typecheck**, imports, **layers**, hook order (**83 registrations, 12 pairs**), **dispatch (11 dnd5e names, 1 pinned hole)**, registry (**13 checks**; it prints the R4 kinds table), manifest in-step, comments (**344 blocks / 28 files**), vitest **237**. ⚠ **Four numbers are PINNED and fail the gate deliberately** — the R4 kind total (**19**), the source-file count (**28**), the two `module.json` version fields agreeing, and **the dnd5e version the hook artifact was extracted from**. That is the point, not an obstacle. ⚠ **`npm run layers` declares every file's LAYER and every cross-layer EDGE**, and fails on an unpinned edge *and* on a pin whose edge has gone. **Do not hand-count the import graph again — it prints the tally.** ⚠ **And do not hand-carry any of these numbers into prose: `96` was wrong for three days here and the tools print all of them.** |
+| **Testing** | ⚠ **`node tools/battery.mjs` is the front door.** **Fifteen entries** in the order that works (`fixture-d20-folds` seeds, `reset-fixture-state` sweeps — neither is a suite), **every one captured to `dist/battery/<stamp>/` before anything is summarised**, then **HOOK COVERAGE**, then `verify-settings`. ⚠ **THE COVERAGE REPORT IS NEW (2026-08-23, D11) AND IT IS THE ONLY OUTPUT IN THE APPARATUS THAT IS ABOUT BEHAVIOUR** — which of the 83 registrations actually FIRED. **Read its never-fired list; it is reported and never enforced**, because a rule that failed on a rare hook would be tuned out by the third one. One suite alone (`smoke-d20-folds`) covers **16/25 names, 71/81 registrations**. `--from <suite>` resumes; `--snapshot` rolls the world back; `--list` shows the order. Every suite also takes `--list` and `--section N`. |
+| Sandbox | ⚠ **HEADLESS, and it is THE test environment.** `node <mcp>/scripts/local-foundry.mjs start\|stop\|status\|restart`; deploy with `node <mcp>/scripts/deploy-house-module.mjs fvtt-mod-battleflow --local` — **never without `--local`**. Never the Electron app for suites (dataPath lock). ✅ **Carries v1.23.1 byte-identical, manifest included** (stop → deploy → start, 2026-08-23) — so it now matches prod and the release exactly. ⚠ **Its `module.json` lagged a version behind the scripts for part of the day** and nothing noticed, because a manifest change needs a PROCESS restart while scripts need only a world reload: `--check` names `module.json` alone when that happens. ⚠ **LEFT RUNNING** — `status` first, `stop` if you are not testing. ⚠ **`status` counting 1 user is usually the MCP BRIDGE, not a human**: run `disconnect-bridge` and re-check before concluding anything, because the sole-GM preflight refuses a suite while it is connected (seen 2026-08-23 — a read-only MCP call is enough to re-arm it). ⚠ **`BF Test Fighter` now carries an equipped PHB Longsword**, granted by the fixture so `smoke-d20-folds` §3 has an attack activity to drive. ⚠ `list-actors` includes **`BF Test Fighter`** (Fighter 2, Second Wind + Tactical Mind, clean PHB provenance) and **`BF Test Bard`** (Bard 5, so its die is a **d8** and a wrong d6 default is caught). |
 | Bridge | Disconnect before any suite. Suites join as `Tester Assistant`; the two-client ones also join as `PC Assistant`. ⚠ One suite at a time is **enforced** now (a pid lock in `harness.mjs`), not remembered. |
 | **Parity (enforcement pass)** | ✅ **BATTERY GREEN ON THE ENFORCEMENT-PASS CODE, 2026-08-23, 19m45s, settings CLEAN.** battleflow ALL PASS · hold ALL PASS · saves 74/74 · volleys 39/39 · maneuvers 54/54 · **d20-folds 20/21 → 21/21 re-run on a re-seeded fixture (NOT a regression — see below)** · cast 17/17 · riders 8/8 · **concentration 47/47** · twoclient 9/9 · popup-routing ALL PASS · effects 54/54 · resources 18/18. ⚠ **concentration and saves are the ones that mattered** — both importers of the moved `dramaticVerdictPause`, and concentration is the machine whose hook evaluation order shifted. |
 | **Parity (v1.23.0)** | ✅ **PROVEN 2026-08-23** — full battery on a sandbox carrying the released code byte-identical, **every suite green, settings CLEAN, 19m58s**: battleflow ALL PASS (33) · hold ALL PASS (44) · saves 74/74 · volleys 39/39 · maneuvers 54/54 · cast 17/17 · riders 8/8 · concentration 47/47 · twoclient 9/9 · popup-routing ALL PASS · effects 54/54 · resources 18/18. |
@@ -43,19 +43,73 @@
    cycle one day before the tool printed it.**
 4. **§11's checklists.** A new feature walks them — *Adding a FOLD*, *Adding a moment*,
    *Adding a TEST* (the tier rule), *Adding a file*.
-5. **§10 D9 and D10** — the two open rows, open for opposite reasons.
-6. **This file's *Do not re-derive* table**, near the bottom. Every entry is a claim that looks
+5. **§10 D9, D10 and D11** — D9 open by decision, D10 closed, **D11 measured and owed a reading**.
+6. ⚠ **This file's *SETTLED — do not re-propose* table.** Eight decisions with the condition that
+   would reopen each. **Read it before suggesting structural work**; four of its rows are
+   proposals that have already come back three sessions running.
+7. **This file's *Do not re-derive* table**, near the bottom. Every entry is a claim that looks
    right, is wrong, and cost real time to kill. A fresh reviewer reports several of them as bugs.
 
 **Then, before you touch anything:** `npm run verify` (seconds, offline, nine checks + 237 unit
 tests). If it is green, the tree is in the state this file describes.
 
 ⚠ **The single most useful thing to understand about this codebase**, learned twice in two days
-and expensively both times: **its checks are strong on SHAPE and weak on BEHAVIOUR.** The gate
+and expensively both times: **its checks were strong on SHAPE and weak on BEHAVIOUR.** The gate
 proves imports resolve, layers are respected, kinds are counted, docs are attached — and it
 proved all of that while four of six d20-fold offer paths could not fire, because two hook names
 did not exist and nothing asserted that a hook fires. **A green gate means the tree is well
-formed. It does not mean the feature works.** Only the live battery and the table say that.
+formed. It does not mean the feature works.**
+
+✅ **TWO THINGS CHANGED ON 2026-08-23, and between them they are the first real answer to that
+sentence.** `npm run dispatch` makes a hook name that the system never dispatches **fail the
+build** — the exact bug above, caught statically in milliseconds. And the battery now ends by
+printing **which of the 83 registrations actually fired**, which is the first number in this
+repo's history that is about the code RUNNING rather than the code being well formed.
+
+⚠ **Neither is a cure, and pretending otherwise would recreate the problem.** The dispatch check
+proves a listener is on a channel with a speaker, not that it does anything useful. Coverage is
+**reported, never enforced** — it tells you a path went unwalked, and only a person can say
+whether that is a gap, a dead handler or a rare hook. **The live battery and the table are still
+what say a feature works.**
+
+---
+
+## ▶ What is NOT yet done — the three landings are unreleased
+
+**2026-08-23. The tree carries three commits the tag does not.** None of this is blocking; all of
+it is owed before the next release.
+
+| Owed | Why it matters |
+| --- | --- |
+| ⚠ **A FULL BATTERY over the new code** | Only `smoke-d20-folds` has run (29/29, settings CLEAN). **The harness changed** — it now arms a ledger in every suite's page and hangs a dump on teardown — so *every* suite is touched by code that has been exercised on exactly one of them. **This is the check that matters most before a release.** |
+| **A release** | v1.23.1 is the tag; three commits sit above it. `node tools/bump-version.mjs minor` then `build-release.ps1` (which runs the gate itself, with no skip flag). |
+| **Prod and the sandbox** | Both carry v1.23.1. Neither has the new gate checks — but ⚠ **nothing in this batch changes shipped behaviour**: `scripts/` is untouched. It is all `tools/` and docs. A deploy is optional; a battery is not. |
+| **The first coverage triage** | `hook-coverage.mjs` has never been read over a FULL battery. Its never-fired list on a complete run is the first genuinely new information this tree has produced about itself in weeks — **and D11's standing rule is that no line sits there unexplained across two releases.** |
+
+---
+
+## ▶ SETTLED — do not re-propose
+
+**Decided by the user, 2026-08-23. Every row below is a live suggestion that has already been
+made, examined and closed.** They are not taboos and they are not oversights: each is a decision
+with a reason, and each names **the one thing that would reopen it**. Proposing one of these
+again without that thing having happened costs the session twice — once to re-derive the
+argument, once to re-decide it.
+
+⚠ **This section exists because the same four proposals came back three sessions running.** A
+debt row records what is *owed*; this records what is **not**, which is the half a fresh reader
+cannot infer from anything in the tree.
+
+| Settled | The ruling | What would reopen it |
+| --- | --- | --- |
+| **D9's four remaining machine→machine edges** | **NOT being repaid, and that is the finished answer, not a delay.** Each is pinned in `check-layers.mjs` with its reason and its trigger. `saves → maneuvers` waits for a **third choice kind** to prove the registry's shape (the D8 lesson: the seam is built by the feature that proves it). The `saves ↔ d20-folds` cycle waits for **a second machine that needs withhold-and-resume** before that becomes a spine primitive. `saves → receipts` reclassifies the moment `receipts.js` gains **a second importer**. ⚠ **The pins are SELF-EXPIRING** — repay an edge and the build fails until its row is deleted — so this row cannot rot the way D2's did. | the trigger named in the pin actually arriving |
+| **The two permanent import cycles** | `hold.js ↔ auto-damage.js` and `auto-apply.js ↔ mastery.js` are **PERMANENT BY DECISION** (ruling 6 below). ⚠ The first is **load-bearing**: the bare `import "./auto-damage.js"` pins module evaluation order and `check-hook-order` depends on it — break it and the damage-offer bar silently drops below the hold row. **Doing this work would make the tree worse.** | nothing. This one is closed. |
+| **Tactical Mind's refund** | **STAYS UNMODELLED.** RAW is real (*"if the check still fails, this use of Second Wind isn't expended"*) and the module cannot implement it: the refund is conditional on the check FAILING, and **no DC exists for an ability check anywhere in dnd5e** (ruling 2b). A manual *"Refund"* button on the settled card was offered and **declined**. The table adjusts by hand. | dnd5e recording a DC for raw checks |
+| **Widening Heroic Inspiration** to *"any die"* (damage rolls) or the transfer clause | **NOT SHIPPING.** Both halves are real rules text and both are deliberately unmodelled. ⚠ Widening to any-die/any-outcome is what **triggers §11 rule 4's auto-revert obligation** — a fold that can reverse an applied verdict owes the table a receipt revert, and nothing ships that can do it yet. | building the revert machinery first, deliberately |
+| **Chasing the `smoke-battleflow` "2 FAILURE(S)" flake** | **WAIT FOR IT TO RECUR. Do not investigate now** — it has appeared twice, never on demand, and both times its assertions were destroyed by a `\| tail`. **The fix that mattered is already in**: the battery captures the full body before summarising, so the next sighting names itself. Investigating before then is guessing. | the next sighting, with its captured output |
+| **Short-duration effect expiry** (mastery chips) | **BLOCKED ON A LARGER DECISION, not on effort.** ⚠ **Do not build it before deciding whether this module should own TURN-TIME at all.** Building the sweeper first commits the answer by accident. | that decision being made, either way |
+| **A reaction-budget abstraction** | **REJECTED** (ruling 4). Action economy is not this module's job (ruling 3); every read of `reactionSpent` is an *offer gate*, never enforcement. | nothing. Closed. |
+| **Hand-carrying any counted number into prose** | **DON'T.** The commit count went stale twice, the lazy-import count was wrong three ways, and the biome baseline read **96** here for three days while the tool said **98**. ⚠ **Quote the tool's output; never retype it.** | nothing. This is a standing rule. |
 
 ---
 
@@ -130,11 +184,30 @@ card read **"undefined — reroll the d20"**. Every display string now re-derive
 ✅ **THE ATTACK PATH IS TABLE-VERIFIED** — user, 2026-08-23, after the six fixes: spend → reroll
 → re-verdict → damage re-drive, exercised at the table along with checks and demanded saves.
 
-⚠ **It is verified, not COVERED, and the difference is the whole lesson of this feature.**
-`smoke-d20-folds` §3 still has no driven-attack assertion, so nothing will catch a regression in
-that path automatically — which is exactly the state the offer half was in when it shipped four
-dead paths past a green suite. Writing §3 is the cheapest insurance available here; it needs the
-sandbox to itself (the sole-GM preflight).
+✅ **AND IT IS COVERED NOW — §3 WAS WRITTEN 2026-08-23. The suite is 29/29** (was 21/21, with a
+SKIP where this used to be). It drives the whole chain: forced miss → offer stamps → popup →
+heroic reroll → REPLACE → verdict flips → damage re-drives.
+
+⚠ **It was unreachable rather than unwritten, and that is worth knowing before writing another
+one: the fixture fighter had no weapon.** The fixture grants an equipped PHB Longsword now.
+
+⚠⚠ **THE DICE ARE FORCED, AND THAT TECHNIQUE IS THE REUSABLE PART.** Every other fold suite here
+rolls until it happens to miss (`missUntilStamped`), which can test a STAMP but never an
+OUTCOME — and whether a reroll turns a miss into a hit *is the feature*. Foundry routes every die
+through `CONFIG.Dice.randomUniform`, and `Die#mapRandomFace(u) = ceil((1 - u) * faces)`, so a
+face is chosen by inverting it: `u = 1 - (n - 0.5)/faces`. §3 forces **5, then 19**.
+⚠ **Never 1 or 20** — a fumble and a crit take different paths through the verdict.
+⚠ **Restore it in a `finally`**: a suite that left the PRNG stubbed would make every later
+section deterministic without saying so.
+
+✅ **That exactness bought the assertion that matters most.** Both rolls carry the same modifier,
+so a **replace** lands on `base + 14` and equals the reroll's own total, while an **add** would
+land on `base + reroll`. Measured: `base=10 → folded=24`, and an add would have been 34. **A
+reroll modelled as an add would read as a lucky player and hit against a number nobody rolled.**
+
+✅ **And the coverage instrument priced the gap immediately**: with §3 written, this one suite
+went from **11/25 hook names and 58/81 registrations to 16/25 and 71/81**. The attack chain
+simply was not being walked.
 
 ⚠ **One fold per offer round, by construction.** Spending one re-offers the rest *if the roll
 still fails*; the flag carries a LIST of spends and `foldedRoll` composes `replace`-then-`add`,
@@ -482,6 +555,15 @@ Still yours to remember:
   the internal working-knowledge doc, and publishing it would put every hard-won finding on a
   public page. The builder's usage comment said otherwise until 2026-08-23; the comment was wrong,
   not the practice.
+- ⚠ **THE NO-OP HANG-UP — found 2026-08-23, recorded rather than repaired.** `f.disconnect` **does
+  not exist on `Foundry`; the method is `dispose()`.** Every suite in this tree ends with
+  `await f.disconnect?.()`, and the optional chain has been swallowing it since the harness was
+  written — the hang-up ceremony is decorative and the session is really torn down by process
+  exit. **This is D11's own failure class living inside the test tooling**: a call that reads
+  correctly, does nothing, and reports nothing. The harness now defines `f.disconnect` so it does
+  exactly one useful thing (dumping the hook ledger); ⚠ **it still does not dispose.** Making it
+  really dispose changes every suite's teardown — a `dispose()` that hangs would turn a green run
+  into a watchdog abort — so it wants its own pass and its own battery.
 - Two windows at the table (GM + a player owning Thomas/Morgash). **"Nothing popped" must always
   ask WHICH WINDOW.**
 - **First-suite-after-cold-boot is a real flake class** — re-run before diagnosing.

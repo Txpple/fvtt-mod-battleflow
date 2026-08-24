@@ -242,6 +242,50 @@ computable from system data**. The GM holds that number in their head and nothin
 
 This is not a gap to work around with inference. It is a boundary: see HANDOFF's ruling 2b.
 
+### dnd5e DECLARES ITS OWN HOOKS, machine-readably, in the shipped bundle (2026-08-23)
+
+⚠ **This killed a "policy question" that had blocked a check for a day.** The question was *who
+maintains a curated list of the hooks dnd5e dispatches, across releases* — and the answer is
+**nobody has to**, because the system's own `dnd5e.mjs` carries the list twice over:
+
+| Source | At 5.3.3 | Catches |
+| --- | --- | --- |
+| literal `Hooks.call` / `Hooks.callAll` names | **88** `dnd5e.*` | `rollAttackV2` and everything dispatched by a plain string |
+| JSDoc blocks tagged `@memberof hookEvents`, read for `@function` | **92** names | ⚠ the **TEMPLATED** dispatches — `rollAbilityCheck`, `rollSavingThrow`, `rollSkill`, `rollToolCheck` |
+| the union, `dnd5e.*` only | **105** | what `tools/dnd5e-hooks.json` holds |
+
+⚠ **NEITHER SOURCE IS SUFFICIENT ALONE, and the gap is exactly the family that caused the v1.23.0
+bug.** The roll hooks come out of ``Hooks.callAll(`dnd5e.roll${name}V2`, …)``, so no literal
+exists for them and only the JSDoc above the call site names them; conversely `rollAttackV2` is a
+literal with no JSDoc block. **Take both.** One hole survives even the union
+(`preRollDamageV2` — templated *and* documented only in its non-V2 form) and is pinned.
+
+⚠ **THE SAME TECHNIQUE DOES NOT WORK ON FOUNDRY, and that was measured, not assumed:** the same
+extraction over `resources/app/public/scripts/foundry.mjs` (7.9 MB, v14.365) recovers **0 of the
+15 core hook names this module registers** — computed names, minified, no JSDoc to fall back on.
+**A core-hook check built on it would pass everything and prove nothing.**
+
+### Forcing a die face: invert `mapRandomFace` (2026-08-23)
+
+⚠ **The technique that turns a live fold suite from a retry loop into an assertion.** Every die in
+Foundry goes through `CONFIG.Dice.randomUniform`, and `Die#mapRandomFace(u) = ceil((1 - u) * faces)`.
+So to force face `n`, take the midpoint of the band that maps to it:
+
+```js
+CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces);   // n on a d`faces`
+```
+
+- ⚠ **Never force 1 or 20 on a d20.** A fumble and a crit take different paths through any verdict,
+  and neither is usually the case under test. `smoke-d20-folds` §3 uses **5 then 19**.
+- ⚠ **Restore it in a `finally`.** A suite that leaves the PRNG stubbed makes every later section
+  deterministic *without saying so* — a silent instrument failure.
+- ⚠ It affects **every** die in the page, damage included. That is usually harmless and always
+  worth knowing before reading a damage total.
+- **Why it is worth the intrusion:** the existing `missUntilStamped` idiom can prove a STAMP but
+  never an OUTCOME. Whether a reroll converts a miss to a hit — the whole feature — is
+  unobservable while the reroll is random. Forcing the faces is what let §3 assert that a reroll
+  **replaces** (`base + 14`) rather than **adds** (`base + reroll`).
+
 ### `itemUses` consumption targets are UUIDs on disk and ids in memory (2026-08-23)
 
 A compendium feature that consumes another item's uses stores the target as a **compendium UUID**
@@ -345,6 +389,23 @@ are the answer.
 **Every copy of an idiom drifts.** Three walks of table findings traced back to new machines
 copying the stamp/route/pop/answer/resolve pattern instead of composing it. Compose, or expect
 the drift.
+
+**A blocker phrased as a POLICY question is often an unmeasured assumption wearing a suit.**
+D10 stayed open on *"who owns keeping a curated list of dnd5e's hooks true across a release"* —
+a real-sounding governance problem, and the wrong question. Nobody had checked whether the
+system could answer it, and it could, twice over (§2). ⚠ **The tell is a blocker that names no
+measurement.** D2's stale evidence row, the by-hand import graph and the sleep budget were all
+this same shape: an argument everyone accepted because nobody had taken the reading.
+
+**An instrument that can break what it measures is worth less than a coarser one that cannot.**
+The hook ledger wraps `Hooks.call`/`callAll` rather than replacing the module's own callbacks in
+`Hooks.events`, which would have given per-registration truth and put live function identities at
+risk during the very run being measured. Coarser and trustworthy beats precise and suspect.
+
+**Coverage is reported; rules are enforced. Do not confuse the two.** A rule that fails on a
+legitimately rare case gets tuned until it passes, and a tuned-out check still *reads* as
+coverage to the next person — which is worse than not having it. When the honest answer is "a
+human must look at this", print it and say so.
 
 ---
 
