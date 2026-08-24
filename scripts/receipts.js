@@ -3,6 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE } from "./core.js";
+import { clearStatus } from "./shared.js";
 import { receiptAmounts, revertPlan, traitPhrase } from "./decide/receipt.js";
 import { revertEffect } from "./effect-riders.js";
 
@@ -150,7 +151,13 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         flex: "0 0 auto", width: "auto", margin: "0",
         padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4"
       });
-      button.addEventListener("click", () => revertTarget(message, t.uuid));
+      // ⚠ THE CATCH IS LOAD-BEARING. An un-caught `await` inside a listener rejects into
+      // nothing — NOTES.md §1 records the class, and the revert lost a marker to it for three
+      // battery runs before anyone saw a stack. A revert that fails must SAY so.
+      button.addEventListener("click", () => revertTarget(message, t.uuid).catch(err => {
+        console.error(`${TITLE} | Revert failed.`, err);
+        ui.notifications.error(`${TITLE}: the revert did not complete — see the console.`);
+      }));
       line.append(button);
     }
 
@@ -224,7 +231,11 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
           flex: "0 0 auto", width: "auto", margin: "0",
           padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4"
         });
-        button.addEventListener("click", () => revertEffect(message, t.uuid, e.id));
+        // Same reason as the damage revert above — the twin had the same silence.
+        button.addEventListener("click", () => revertEffect(message, t.uuid, e.id).catch(err => {
+          console.error(`${TITLE} | Effect revert failed.`, err);
+          ui.notifications.error(`${TITLE}: the revert did not complete — see the console.`);
+        }));
         line.append(button);
       }
 
@@ -262,14 +273,30 @@ export async function revertTarget(message, uuid) {
   await message.setFlag(MODULE_ID, "receipt", receipt);
 }
 
-/** Mirror of combatplus's combatant matching (its updateActor handler), run in reverse. */
+/**
+ * Mirror of combatplus's combatant matching (its updateActor handler), run in reverse.
+ *
+ * ⚠ EVERY WRITE IN HERE IS BEST-EFFORT, AND THAT IS THE CONTRACT, NOT LAZINESS. By the time
+ * this runs the revert has already happened — the pool is restored — and this is the cosmetic
+ * tail: a defeated mark and a dead overlay that something else is very likely clearing at the
+ * same moment, because raising HP above zero is exactly what makes dnd5e clear them. **A lost
+ * race here must not cost the caller its marker write**, which is precisely what it used to do
+ * (`ActiveEffect "dnd5edead0000000" does not exist!`, thrown from the server backend into an
+ * un-caught listener). `clearStatus` carries that tolerance for the status; the combatant
+ * update gets the same treatment for the same reason.
+ */
 async function clearDefeated(actor) {
   for ( const combat of game.combats ) {
     for ( const c of combat.combatants ) {
       const match = actor.isToken ? c.tokenId === actor.token.id
         : (c.actorId === actor.id) && (c.token?.actorLink !== false);
-      if ( match && c.isDefeated ) await c.update({ defeated: false });
+      if ( !match || !c.isDefeated ) continue;
+      try {
+        await c.update({ defeated: false });
+      } catch(err) {
+        console.warn(`${TITLE} | Could not clear the defeated mark for ${actor.name}.`, err);
+      }
     }
   }
-  if ( actor.statuses.has("dead") ) await actor.toggleStatusEffect("dead", { active: false, overlay: true });
+  await clearStatus(actor, "dead");
 }

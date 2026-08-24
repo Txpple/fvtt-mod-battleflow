@@ -17,6 +17,7 @@ const SECTIONS = {
   3: 'the hit chain',
   4: 'revert via a real DOM click',
   '4b': 'the immunity receipt (rolled N, took 0, WHY)',
+  '4c': 'revert a KILL — the flake, made deterministic',
   5: 'the miss test',
   '5b': 'polish gates: the card always posts + no-target',
   '5c': 'the attacker-side mode gate (NPC / PC / all)',
@@ -426,6 +427,128 @@ if (want('4b')) {
       r.types.some(t => r.rowText.includes(`immune to ${t}`)),
       `row: "${r.rowText}"`);
   }
+}
+
+
+// -------------------------------------------------- 4c. revert a KILL — the flake, deterministic
+// ⚠ THIS SECTION IS THE FLAKE, AND IT EXISTS BECAUSE §4 COULD NOT SEE IT. §4 reverts whatever
+// the dice did, and the Longsword is 1d8+3 into an 11 HP hobgoblin: only a MAX face kills, so
+// the lethal branch was walked about one run in eight. It showed up as "[smoke] 2 FAILURE(S)"
+// three times over two days, never on demand, and the first two sightings had their assertions
+// destroyed by a `| tail` before anyone could read them.
+//
+// The captured third sighting (battery 2026-08-24T13-05-19) named it in one line: the green runs
+// rolled 5, 6 and 7 and the red one rolled 11 — hp 11 -> 0. **A dead target was the whole
+// difference**, so this section takes the dice out of it: the pool is set to 1, any damage is
+// lethal, and the branch runs every time.
+//
+// What it was: revertTarget restores the pool ABOVE zero and then clears the dead mark — and
+// dnd5e's own "HP is positive again" handler is removing that same effect at that same moment.
+// toggleStatusEffect(id, {active:false}) resolves the canonical id and deletes without
+// re-checking, so the loser of that race throws `ActiveEffect "dnd5edead0000000" does not
+// exist!` out of the server backend. The click listener had no catch, so the rejection was
+// invisible AND it skipped the two lines after it: **the revert happened to the actor and was
+// never recorded on the card.** The GM sees HP come back, the Revert button stay put, and the
+// row never say "reverted" — one more press and it sticks, which is exactly what "flaky" looks
+// like from a table. Fixed by `clearStatus` (shared.js) + a catch on both revert buttons.
+if (want('4c')) {
+  const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
+    const rejections = [];
+    const onRejection = ev => rejections.push(String(ev?.reason?.message ?? ev?.reason ?? ev));
+    window.addEventListener('unhandledrejection', onRejection);
+    let priorHp = null;
+    let victim = null;
+    try {
+      const base = game.actors.get(victimId);
+      victim = canvas.tokens.get(victimToken).actor;
+      const attacker = game.actors.get(attackerId);
+      await base.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+      priorHp = foundry.utils.deepClone(victim.system._source.attributes.hp);
+      // ⚠ THE FORCING, and it is the whole point of the section: a pool of 1 makes ANY damage
+      // lethal, so the dead-target branch is walked on every run instead of one in eight.
+      await victim.update({ 'system.attributes.hp.value': 1 });
+
+      canvas.tokens.get(victimToken).setTarget(true, { releaseOthers: true });
+      const activity = attacker.items.getName(itemName).system.activities
+        .find(a => a.type === 'attack');
+      const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
+      const usageId = results?.message?.id ?? null;
+      if (!usageId) return { ok: false, why: 'no usage message id' };
+      const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
+        { data: { 'flags.dnd5e.originatingMessage': usageId } });
+      if (rolls?.[0]?.isFumble) {
+        return { ok: false, fumble: true,
+          why: 'THE FORCED HIT MISSED: natural 1 on both advantage dice vs flat AC 1 '
+            + '(a 1-in-400 run, not a defect - re-run before diagnosing)' };
+      }
+
+      let damageMsg = null;
+      for (let i = 0; i < 40 && !damageMsg; i++) {
+        await new Promise(r => setTimeout(r, 250));
+        damageMsg = game.messages.contents.slice(-10).find(m =>
+          m.getFlag('dnd5e', 'roll.type') === 'damage'
+          && m.getFlag('dnd5e', 'originatingMessage') === usageId
+          && m.getFlag('fvtt-mod-battleflow', 'receipt'));
+      }
+      if (!damageMsg) return { ok: false, why: 'no receipted damage message' };
+
+      // Wait for the DEATH, not a flat sleep — the dead mark is what this section is about,
+      // and asserting on it before it lands would test nothing.
+      let died = false;
+      for (let i = 0; i < 40 && !died; i++) {
+        await new Promise(r => setTimeout(r, 250));
+        died = (victim.system.attributes.hp.value === 0) && victim.statuses.has('dead');
+      }
+
+      const button = document.querySelector(
+        `[data-message-id="${damageMsg.id}"] .battleflow-receipt button`);
+      if (!button) return { ok: false, died, why: 'receipt revert button not found in chat DOM' };
+      button.click();
+
+      let reverted = null;
+      for (let i = 0; i < 40 && !reverted; i++) {
+        await new Promise(r => setTimeout(r, 250));
+        const flag = game.messages.get(damageMsg.id)?.getFlag('fvtt-mod-battleflow', 'receipt');
+        if (flag?.targets?.every(t => t.reverted)) reverted = flag;
+      }
+      const buttonAfter = document.querySelector(
+        `[data-message-id="${damageMsg.id}"] .battleflow-receipt button`);
+      return {
+        ok: true, died, reverted: !!reverted,
+        hp: victim.system._source.attributes.hp.value,
+        statuses: [...victim.statuses],
+        buttonGone: !buttonAfter,
+        rejections,
+        cleanup: [damageMsg.id, usageId]
+      };
+    } catch (err) {
+      return { ok: false, why: `${err.message}\n${err.stack}`, rejections };
+    } finally {
+      window.removeEventListener('unhandledrejection', onRejection);
+      // ⚠ Put the pool back whatever happened — every later section attacks this same token,
+      // and one left on 1 HP would turn each of them into this section by accident.
+      try {
+        if (victim && priorHp) await victim.update({
+          'system.attributes.hp.value': priorHp.value,
+          'system.attributes.hp.temp': priorHp.temp,
+          'system.attributes.hp.tempmax': priorHp.tempmax
+        });
+        if (victim) for (const e of victim.effects.filter(x => x.statuses?.has?.('dead'))) await e.delete();
+      } catch { /* the assertions below read the real state either way */ }
+    }
+  }, fx);
+  report('a lethal hit really kills the target (the branch §4 walks 1 run in 8)',
+    r.ok && r.died === true, r.ok ? `died=${r.died}` : r.why);
+  report('reverting a KILL sets the reverted marker', r.ok && r.reverted === true,
+    r.ok ? `reverted=${r.reverted} hp=${r.hp} statuses=[${(r.statuses ?? []).join(', ')}]`
+      : r.why);
+  report('…and the card drops its Revert button on the re-render',
+    r.ok && r.buttonGone === true, r.ok ? `buttonGone=${r.buttonGone}` : r.why);
+  // ⚠ The rejection channel IS the assertion. The bug was never visible any other way: no
+  // failed await, no error toast, no log line — just two writes that quietly did not happen.
+  report('the revert rejects nothing into the void',
+    r.ok && (r.rejections ?? []).filter(m => /does not exist|ActiveEffect/.test(m)).length === 0,
+    JSON.stringify(r.rejections ?? []));
 }
 
 // -------------------------------------------------------------------------- 5. the miss test

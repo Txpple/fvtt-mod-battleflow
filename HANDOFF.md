@@ -441,6 +441,7 @@ guessing and both are still unmodelled:**
 | Item | Shape |
 | --- | --- |
 | **Guidance / choice-bearing effects** | An effect applied without asking the choice it carries — the d4 landed on every ability check. Same family as Careful Spell. Needs a "choice" moment kind. |
+| **Tactical Master — the mastery pick (fighter 9)** | User-named future need (2026-08-24): the 2024 fighter's **base level-9 feature** lets the attacker replace the weapon's mastery with **Push, Sap or Slow** for that attack — a choose-one-of-several moment the mastery machine has no shape for (its popups today are single-question asks and notices). Wants a multi-option window: icon-led rows, per-option verbatim rule text (law 8), one pick. ⚠ Feature name and verbatim text from the world's own pack when scoped (N1). A multi-option window anatomy was sketched in the dropped section preserved at `fc2ca7f`, if ever useful. |
 | **Light-family spells apply token light** | Cast on a shield, attached no light; the table hand-toggled a torch. |
 | **Short-duration effect expiry** | Mastery chips get a 1-round duration and nothing sweeps an expired one. ⚠ Do not build before deciding whether the module should own turn-time at all. |
 | **AC5e adoption** | ⚠ **Vendor and modify, never import** (user call — R2 rules out the dependency). And it is **complementary, not an alternative**: AC5e *decorates* rolls where this module *applies*. |

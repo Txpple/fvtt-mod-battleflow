@@ -72,6 +72,24 @@ token uuid that can never string-match a linked snapshot entry — three suite r
 The module's exact-uuid match is correct for every real-table shape; the fix is harness
 protocol (sweep stray tokens).
 
+**A MEASURED TEMPLATE IS A REGION NOW, AND THE `*MeasuredTemplate` CRUD HOOKS ARE NEVER
+DISPATCHED (v14.365, measured 2026-08-24).** Creating one embedded `MeasuredTemplate` moves
+`scene.templates` 0→1 **and `scene.regions` 0→1**, and the hooks that fire are
+`preCreateRegion` / `createRegion` / `drawRegion`. Updating it dispatched **nothing at all** —
+not one hook name moved. Deleting it fired the Region trio. `documentName` still reads
+`"MeasuredTemplate"` and the document still lands in `scene.templates`, so **everything about
+the document looks normal; only the dispatch has moved.** ⚠ A listener on
+`createMeasuredTemplate` therefore registers cleanly and does nothing forever — the D10
+failure class, on the CORE side, where the dispatch gate cannot reach: the same extraction that
+recovers 105 `dnd5e.*` names from that system's bundle recovers **0 of 15** core names from
+Foundry's minified client bundle. ⚠ **It stood for eight days as a correct measurement with an
+unexamined cause:** `smoke-saves` §8 had counted the zero since 2026-08-16 and a source
+comment recorded it faithfully — *"the CRUD hooks measurably never fire on this page"* — and
+**nobody asked why the count was zero.** A correct measurement with an unexamined cause reads
+exactly like a known limitation. The way to settle it is to wrap `Hooks.call`/`callAll` and
+print EVERY name that fires around the action (`tools/probe-surfaces.mjs`); the delta names the
+real hook instead of confirming a guess.
+
 **PowerShell's `-Encoding utf8` writes a BOM**, which breaks `JSON.parse` for Foundry and the
 deploy tooling alike. Edit `module.json` with editor tools, never shell rewrites — a
 `-replace` pass also mangled its em-dashes to mojibake. Editor writes can flip a whole file to

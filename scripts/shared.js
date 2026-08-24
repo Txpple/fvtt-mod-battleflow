@@ -113,6 +113,49 @@ export async function forceStatus(actor, statusId, { origin = null } = {}) {
 }
 
 
+/**
+ * Take a status condition OFF an actor and make sure it is actually GONE. The removal twin of
+ * `forceStatus` above, and it exists for the same reason: **`toggleStatusEffect` is unreliable
+ * in BOTH directions, and its failure modes are opposite.**
+ *
+ * ⚠ Adding, it no-ops silently when a carrier already exists. **Removing, it THROWS when the
+ * carrier has just gone** — `ActiveEffect "dnd5edead0000000" does not exist!` straight out of the
+ * server backend — because `{ active: false }` resolves the id from the CONFIG status and issues
+ * a delete without re-checking. Anything that removes the same status concurrently wins the race
+ * and leaves this call rejecting.
+ *
+ * ⚠ THAT RACE IS NOT HYPOTHETICAL AND IT COST THREE SIGHTINGS TO NAME. `clearDefeated` restores
+ * the pool above zero and then clears the dead mark — and dnd5e's own "HP is positive again"
+ * handler is removing that very effect at the same moment. Whoever loses throws. The caller was
+ * an un-caught `await` in a click listener, so the rejection was invisible AND it skipped the
+ * two writes after it: **the human's revert applied to the actor and was never recorded on the
+ * card.** See NOTES.md §1 and `smoke-battleflow` §4b.
+ *
+ * ⚠ It also fixes the second half of the `toggleStatusEffect` problem NOTES.md records: removing
+ * by status id only ever deletes the CANONICAL-id effect, so a custom-id carrier of the same
+ * status is immortal. This deletes **every** carrier, by its own id.
+ *
+ * Best-effort by contract: it never throws, because every one of its callers is doing cleanup
+ * AFTER the thing that mattered has already been written.
+ */
+export async function clearStatus(actor, statusId) {
+  if ( !(actor instanceof Actor) ) return false;
+  for ( const effect of actor.effects.filter(e => e.statuses?.has?.(statusId)) ) {
+    // ⚠ Re-read before deleting. The collection above is a snapshot, and this loop awaits.
+    if ( !actor.effects.get(effect.id) ) continue;
+    try {
+      await effect.delete();
+    } catch(err) {
+      // A concurrent delete is the EXPECTED loss here, not a defect — the status is gone,
+      // which is all this function promised. Anything else is worth a line.
+      if ( !actor.effects.get(effect.id) ) continue;
+      console.warn(`${TITLE} | Could not clear status "${statusId}" from ${actor.name}.`, err);
+    }
+  }
+  return !actor.statuses.has(statusId);
+}
+
+
 /* ---------------------------------------------------------------------------------------------
  * Shared EDGE helpers — the blocks that were copied rather than shared (the duplicate census,
  * 2026-08-22). Both are EDGE by §2 rule 1: one calls dnd5e's aggregator, the other validates a
