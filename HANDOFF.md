@@ -462,6 +462,17 @@ Still yours to remember:
   running it; a hand-run suite does not. `--snapshot` removes the hazard by construction.
 - **Deploy without a bounce serves cached scripts**: stop → `deploy --local` → start. Hard-refresh
   both browser windows.
+- ⚠ **AND A BOUNCE-LESS DEPLOY LEAVES `module.json` BEHIND — SILENTLY, AND ONLY THAT ONE FILE.**
+  Scripts, styles and templates are served off disk per request, so a world reload picks them up.
+  `game.modules` is built from a registry scan at **process boot**, so a manifest change — the
+  version string, a new `esmodules` or `styles` entry — does **not** take effect until the
+  Foundry PROCESS restarts. Deploy without stopping and you get every script updated, the
+  manifest stale, and **a world that runs perfectly on top of the gap**. ⚠ **Nothing surfaces
+  it**: it survived a full green battery in exactly this state on 2026-08-23, and the only
+  thing that named it was `deploy --local --check` reporting `module.json` and nothing else.
+  **A `--check` that names exactly one file, and that file is `module.json`, IS this.**
+  ⚠ It bites hardest right after a version bump, because the bump is a manifest-only change:
+  the tree, the release and prod can all agree on a version the sandbox is not serving.
 - ⚠ **The zip is the one artifact nobody exercises, so it is the one that rots.** Two release bugs
   have hidden there (backslash separators v1.1.0–v1.1.15; the missing `scripts/decide/` after
   Phase 2). The builder now re-reads the finished archive and proves every relative import
