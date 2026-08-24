@@ -21,7 +21,7 @@ const TAG = "smoke-d20-folds";
 const SECTIONS = {
   1: "content — the three markers resolve, and the bardic die comes from the BARD",
   2: "spend — each kind actually takes its resource away",
-  3: "attack — a clean miss stamps, folds, and re-drives to a hit",
+  3: "attack — a forced miss stamps, the reroll REPLACES, the verdict flips, damage drives",
   4: "hooks — every hook the module registers for a d20 fold ACTUALLY FIRES",
   5: "offer — a real roll stamps a flag offering EVERY eligible fold, kind-matched"
 };
@@ -48,6 +48,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
   const MODULE_ID = "fvtt-mod-battleflow";
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // ⚠ Wait for WHAT THE NEXT ASSERTION READS, never a flat sleep (§11, "Adding a TEST" rule 3).
+  const until = async (fn, ms = 10_000) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(200); }
+    return fn();
+  };
+  const dialogsWith = text => [...document.querySelectorAll(".application")]
+    .filter(el => (el.innerHTML ?? "").includes(text));
 
   try {
     const fighter = game.actors.getName("BF Test Fighter");
@@ -133,22 +141,156 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     /* --- 3: the attack path ------------------------------------------------------------ */
     if (has(3)) {
-      // ⚠ This section needs a rolled attack that MISSES a resolvable AC, which needs a target
-      // token on a scene. Rather than fake one, it reports honestly when the scene is not set
-      // up — a silently skipped assertion is worse than a named one (the harness prints skips).
+      // ⚠ THIS SECTION WAS A NAMED GAP FOR A DAY, and the reason is worth keeping: the attack
+      // path was table-verified by a human (user, 2026-08-23 — spend → reroll → re-verdict →
+      // damage re-drive) and UNREACHABLE from here, because the fixture fighter had no weapon.
+      // "Verified but not covered" is exactly the state the offer half was in when it shipped
+      // four dead paths past a green suite, so the fixture grants a PHB Longsword now and this
+      // section drives the whole chain.
       const scene = game.scenes.active;
-      const foe = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc"));
-      if (!foe) {
-        skips.push("section 3: no NPC token on the active scene to attack — set one up and re-run");
+      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc"));
+      const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
+      const sword = fighter.items.find(i => i.name === "Longsword");
+      const act = sword?.system.activities?.find(a => a.type === "attack");
+      if (!placed || !act) {
+        skips.push("section 3: needs an NPC token on the active scene and the fighter's "
+          + `Longsword (token=${!!placed} weapon=${!!act}) — run tools/fixture-d20-folds.mjs`);
       } else {
+        const foe = foeToken.actor;
         ok("an NPC target is available to attack", true, foe.name);
-        log.push(`section 3 target: ${foe.name} (AC ${foe.actor.system.attributes.ac.value})`);
-        // ⚠ The attack path IS table-verified (user, 2026-08-23) — spend → reroll → re-verdict
-        // → damage re-drive all work. It is simply not COVERED: nothing here will catch a
-        // regression in it. That gap is named rather than left implicit, because "green suite,
-        // dead path" is precisely how this feature shipped four broken offer paths.
-        skips.push("section 3: attack resolve is table-verified but has NO automated assertion "
-          + "— a regression here would pass this suite silently");
+
+        /* ⚠ THE DICE ARE FORCED, AND THAT IS WHAT MAKES THIS AN ASSERTION RATHER THAN A RETRY
+         * LOOP. Every other fold suite in this tree rolls until it happens to miss
+         * (`missUntilStamped`), which works for a STAMP but cannot test an OUTCOME: whether a
+         * reroll turns the miss into a hit is the whole feature, and it is not observable while
+         * the reroll is random. Foundry routes every die through `CONFIG.Dice.randomUniform`
+         * and `Die#mapRandomFace(u) = ceil((1 - u) * faces)`, so a face is chosen by inverting
+         * it — the midpoint of the band that maps to `n`.
+         *
+         * ⚠ 5 then 19, never 1 or 20. A natural 20 is a crit and a natural 1 a fumble; both take
+         * a different path through the verdict and neither is the case under test.
+         *
+         * ⚠ RESTORED IN `finally`. A suite that left the world's PRNG stubbed would make every
+         * later section deterministic without saying so — a silent instrument failure of exactly
+         * the kind §4 exists to catch. */
+        const realPRNG = CONFIG.Dice.randomUniform;
+        const face = (n, faces = 20) => {
+          CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces);
+        };
+        const priorAC = {
+          calc: foe.system._source.attributes.ac.calc ?? "default",
+          flat: foe.system._source.attributes.ac.flat ?? null
+        };
+        const priorHP = foe.system.attributes.hp.value;
+        const priorInspiration = fighter.system.attributes.inspiration;
+        let attackMsg = null;
+        try {
+          // AC 18: a forced 5 (+5 to hit) totals 10 and misses; a forced 19 totals 24 and hits.
+          // The band is stated here so the two numbers below are not magic.
+          await foe.update({
+            "system.attributes.ac.calc": "flat", "system.attributes.ac.flat": 18,
+            "system.attributes.hp.value": foe.system.attributes.hp.max
+          });
+          if (!fighter.system.attributes.inspiration) {
+            await fighter.update({ "system.attributes.inspiration": true });
+          }
+
+          game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+          placed.setTarget(true, { releaseOthers: true });
+          await sleep(200);
+
+          face(5);
+          const use = await act.use({ subsequentActions: false }, { configure: false }, {});
+          const usageId = use?.message?.id ?? null;
+          const rolls = await act.rollAttack({ advantage: false, disadvantage: false },
+            { configure: false },
+            usageId ? { data: { "flags.dnd5e.originatingMessage": usageId } } : {});
+          attackMsg = rolls?.[0]?.parent ?? null;
+          const flag = await until(() => attackMsg?.getFlag(MODULE_ID, "d20fold"), 8000);
+
+          ok("a clean miss stamps a pending attack fold, with the target it missed",
+            !!flag && (flag.status === "pending") && (flag.testKind === "attack")
+              && (flag.targets?.length === 1),
+            JSON.stringify({ status: flag?.status, testKind: flag?.testKind,
+              base: flag?.baseTotal, targets: flag?.targets?.length }));
+
+          const kinds = (flag?.offers ?? []).map(o => o.kind);
+          ok("the attack offers heroic and NEVER tactical — Tactical Mind is checks-only",
+            kinds.includes("heroic") && !kinds.includes("tactical"),
+            `offers=[${kinds.join(", ")}]`);
+
+          const popup = await until(() => dialogsWith("Patch this roll")[0], 8000);
+          ok("the offer pops, carrying the spend and the pass",
+            !!popup?.querySelector('button[data-action="heroic"]')
+              && !!popup?.querySelector('button[data-action="pass"]'),
+            `popup=${!!popup}`);
+
+          // The reroll: forced to 19, so 24 clears AC 18 and the verdict MUST flip.
+          face(19);
+          popup?.querySelector('button[data-action="heroic"]')?.click();
+          const done = await until(() => {
+            const cur = attackMsg?.getFlag(MODULE_ID, "d20fold");
+            return (cur?.status === "resolved") ? cur : null;
+          }, 20_000);
+
+          ok("the spend is recorded on the flag, with the reroll that replaced the d20",
+            !!done && (done.spends?.length === 1) && (done.spends[0].kind === "heroic")
+              && Number.isFinite(done.spends?.[0]?.reroll?.total),
+            JSON.stringify(done?.spends ?? null));
+
+          // ⚠ The resource is really gone — the "recorded a spend that did not happen" class.
+          ok("Heroic Inspiration is really spent, not just announced",
+            fighter.system.attributes.inspiration === false,
+            `inspiration=${fighter.system.attributes.inspiration}`);
+
+          // ⚠ REPLACE, NOT ADD — and forcing the faces is what lets this be exact rather than
+          // a plausibility check. Both rolls carry the same modifier, so a REPLACE lands on
+          // `base + 14` (19 − 5) and equals the reroll's own total; an ADD would land on
+          // `base + reroll` (~29 here). A reroll modelled as an `add` would read as a lucky
+          // player and hit against a number nobody rolled.
+          ok("the reroll REPLACES the d20 rather than adding to it",
+            !!done && (done.foldedTotal === done.spends[0].reroll.total)
+              && (done.foldedTotal === done.baseTotal + 14),
+            `base=${done?.baseTotal} folded=${done?.foldedTotal} `
+            + `reroll=${done?.spends?.[0]?.reroll?.total} (add would be `
+            + `${(done?.baseTotal ?? 0) + (done?.spends?.[0]?.reroll?.total ?? 0)})`);
+
+          ok("the composed total re-verdicts the target from MISS to HIT",
+            !!done && (done.targets?.[0]?.verdict === "hit") && (done.foldedTotal >= 18),
+            `folded=${done?.foldedTotal} vs AC ${done?.targets?.[0]?.ac} `
+            + `verdict=${done?.targets?.[0]?.verdict}`);
+
+          // ⚠ The last link, and the one the table cares about: a fold that turns a miss into a
+          // hit must DRIVE THE DAMAGE, not merely say so. Which of the two shapes is correct
+          // depends on a setting, so it is read rather than assumed.
+          const playerRolls = game.settings.get(MODULE_ID, "playerRollDamage");
+          if (playerRolls) {
+            const bar = await until(() => attackMsg?.getFlag(MODULE_ID, "damageOffer"), 12_000);
+            ok("…and the damage OFFER is raised (playerRollDamage is on)", !!bar,
+              bar ? "offered" : "no damage offer");
+          } else {
+            const dmg = await until(() => game.messages.contents.findLast(m =>
+              (m.getFlag("dnd5e", "roll.type") === "damage")
+              && (m.speaker?.actor === fighter.id)
+              && (m.timestamp >= (attackMsg?.timestamp ?? 0))), 15_000);
+            ok("…and the damage re-drives itself on the new verdict", !!dmg,
+              dmg ? `damage ${dmg.rolls?.[0]?.total}` : "NO DAMAGE ROLLED after the fold hit");
+          }
+          log.push(`section 3: ${foe.name} AC 18 · base ${done?.baseTotal} → `
+            + `folded ${done?.foldedTotal} · ${done?.targets?.[0]?.verdict}`);
+        } finally {
+          // ⚠ Restore in this order and unconditionally: the PRNG first (everything after it
+          // rolls dice), then the world. §5 needs Heroic Inspiration back — it asserts that a
+          // check offers more than one kind, and this section just spent one of them.
+          CONFIG.Dice.randomUniform = realPRNG;
+          await foe.update({
+            "system.attributes.ac.calc": priorAC.calc, "system.attributes.ac.flat": priorAC.flat,
+            "system.attributes.hp.value": priorHP
+          }).catch(() => {});
+          await fighter.update({ "system.attributes.inspiration": priorInspiration })
+            .catch(() => {});
+          game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+        }
       }
     }
 

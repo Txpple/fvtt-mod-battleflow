@@ -59,6 +59,25 @@ const out = await f.evaluate(async () => {
     log.push(`refilled Second Wind to ${secondWind.system.uses.max} uses`);
   }
 
+  // ⚠ §3 NEEDS A REAL ATTACK ACTIVITY, and the fighter shipped without a weapon — which is why
+  // that section had no assertion for a day: the attack path was table-verified by a human
+  // holding a longsword and unreachable from the suite. A PHB Longsword, equipped, imported from
+  // the premium pack rather than hand-built (DESIGN N1 — the module never learns an item's
+  // shape, so neither does its fixture). Idempotent like everything else here.
+  const SWORD = "Compendium.dnd-players-handbook.equipment.Item.phbwepLongsword0";
+  let sword = fighter.items.find(i => i.name === "Longsword");
+  if (!sword) {
+    const src = await fromUuid(SWORD);
+    if (!src) return { error: `the PHB Longsword is not installed (${SWORD})` };
+    [sword] = await fighter.createEmbeddedDocuments("Item", [src.toObject()]);
+    log.push(`granted ${sword.name} from ${SWORD}`);
+  }
+  if (!sword.system.equipped) {
+    await sword.update({ "system.equipped": true });
+    log.push("equipped the Longsword");
+  }
+  const attackActivity = sword.system.activities?.find(a => a.type === "attack");
+
   // Prove the cross-actor read the module will perform.
   const originItem = await fromUuid(effect.origin);
   const resolvedBard = originItem?.actor;
@@ -75,7 +94,9 @@ const out = await f.evaluate(async () => {
       inspirationScale: scale ?? null,
       dieFace: scale?.die ?? scale ?? null,
       inspiration: fighter.system.attributes.inspiration,
-      secondWindUses: fighter.items.find(i => i.name === "Second Wind")?.system.uses?.value ?? null
+      secondWindUses: fighter.items.find(i => i.name === "Second Wind")?.system.uses?.value ?? null,
+      weapon: sword?.name ?? null,
+      attackActivity: attackActivity?.id ?? null
     }
   };
 });
