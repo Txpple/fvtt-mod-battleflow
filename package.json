@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Development tooling for Battle Flow. NOTHING HERE SHIPS — the module is plain ES modules loaded straight from scripts/, with no build step (PLAN.md Phase 0.1).",
   "scripts": {
-    "verify": "npm run check && npm run knip && npm run typecheck && npm run imports && npm run hooks && npm run registry && npm run manifest && npm run comments && npm run test",
+    "verify": "npm run check && npm run knip && npm run typecheck && npm run imports && npm run layers && npm run hooks && npm run registry && npm run manifest && npm run comments && npm run test",
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "lint": "biome lint ./scripts",
@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "knip": "knip",
     "imports": "node tools/check-imports.mjs",
+    "layers": "node tools/check-layers.mjs",
     "hooks": "node tools/check-hook-order.mjs",
     "registry": "node tools/check-registry.mjs",
     "test": "vitest run",

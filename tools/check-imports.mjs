@@ -21,10 +21,14 @@
 // value which can be had for free, today.
 //
 // ⚠ DYNAMIC imports are checked too, and that is not an afterthought — it is where the bug
-// was. `const { popupKey } = await import("./ui.js")` is the module's lazy-import idiom (six
-// sites, each one load-bearing: they break import cycles and pin evaluation order), and a
-// destructure of a missing export is even quieter than the static form, because it only runs
-// when that code path runs.
+// was. `const { popupKey } = await import("./ui.js")` is the module's lazy-import idiom — each
+// site load-bearing: they break import cycles and pin evaluation order — and a destructure of a
+// missing export is even quieter than the static form, because it only runs when that code path
+// runs.
+//
+// ⚠ This comment used to say "six sites". It was NINE when somebody finally re-measured. The
+// count now lives where it cannot go stale: `npm run layers` prints the static/bare/lazy tally
+// on every run. Do not type a number back into this header.
 //
 // Star imports (`import * as x`) and bare side-effect imports are not examined: the first
 // resolves lazily by property, and the second imports no bindings. Both are rare here and
