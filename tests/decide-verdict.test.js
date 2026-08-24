@@ -422,6 +422,93 @@ describe("foldsFrom + ATTACK_FOLDS — the registry that replaced the named para
   });
 });
 
+/**
+ * TWO MACHINES ON ONE ROLL — the arithmetic behind `smoke-d20-folds` §6.
+ *
+ * ⚠ WHY THESE ARE HERE. A Battle Master holding a Bardic die is stamped by BOTH fold machines
+ * on ONE missed attack: `d20fold` (d20-folds.js) and `precision` (maneuvers.js). The registry
+ * has composed them since D8 and the unit cases above prove each spec ALONE — but nothing
+ * pinned the composition itself, and the resolver that shipped without it went unnoticed until
+ * v1.23.2, announcing `attackTotal + its own die` while `hitTargets` walked the whole registry.
+ * These are the shapes both resolvers must agree on.
+ */
+describe("two machines, one roll — the composition each resolver has to obey", () => {
+  const read = flags => key => flags[key] ?? null;
+
+  it("a bardic die and a superiority die ADD TOGETHER on the target they share", () => {
+    const folds = v.foldsFrom(
+      read({
+        d20fold: { targets: [{ uuid: "a" }], spends: [{ kind: "bardic", die: 3 }] },
+        precision: { outcome: "used", die: 6, targets: [{ uuid: "a" }] }
+      })
+    );
+    // The live band: 10 + 3 + 6 = 19 clears an AC of 18 that 10 + 6 = 16 does not.
+    expect(v.foldedRoll(roll(10), folds)).toMatchObject({ total: 19, added: 9 });
+    expect(v.foldedVerdict({ uuid: "a", ac: 18 }, roll(10), folds)).toBe("hit");
+    // …and the number either die reaches ALONE is still a miss, which is what makes the
+    // composition the whole feature rather than an accounting detail.
+    expect(v.foldedVerdict({ uuid: "a", ac: 18 }, roll(10), folds.slice(0, 1))).toBe("miss");
+    expect(v.foldedVerdict({ uuid: "a", ac: 18 }, roll(10), folds.slice(1))).toBe("miss");
+  });
+
+  it("a heroic REPLACE composes with later adds — the reroll leads, the dice follow", () => {
+    const folds = v.foldsFrom(
+      read({
+        d20fold: {
+          targets: [{ uuid: "a" }],
+          spends: [
+            { kind: "heroic", reroll: { total: 14 } },
+            { kind: "bardic", die: 3 }
+          ]
+        },
+        precision: { outcome: "used", die: 6, targets: [{ uuid: "a" }] }
+      })
+    );
+    // The d20 is thrown away, not added to: 14 + 3 + 6, never 10 + 14 + 3 + 6.
+    expect(v.foldedRoll(roll(10), folds)).toMatchObject({ total: 23, added: 9, replaced: true });
+  });
+
+  /**
+   * ⚠ THE MULTI-TARGET TRAP, and it decides how a resolver may print its own sentence. An
+   * attack is ONE roll judged against MANY targets, so the registry holds a contribution per
+   * (target × spend) — two targets and one die is TWO `add`s of that die. `foldedVerdict`
+   * filters by uuid and is right; `foldedRoll` sums whatever it is handed and is also right,
+   * because summing is all it promised. A caller that hands it the UNFILTERED list to print a
+   * per-target line announces a number nobody rolled — the "card disagrees with its own
+   * arithmetic" class, one level up from the resolvers.
+   */
+  it("contributions are PER TARGET — an unfiltered sum counts every die once per target", () => {
+    const folds = v.foldsFrom(
+      read({
+        d20fold: { targets: [{ uuid: "a" }, { uuid: "b" }], spends: [{ kind: "bardic", die: 3 }] },
+        precision: { outcome: "used", die: 6, targets: [{ uuid: "a" }, { uuid: "b" }] }
+      })
+    );
+    expect(folds).toHaveLength(4);
+    // What each target actually gets — the filtered composition, which is what a card must say.
+    for (const uuid of ["a", "b"]) {
+      const mine = folds.filter(f => f.uuid === uuid);
+      expect(v.foldedRoll(roll(10), mine)).toMatchObject({ total: 19, added: 9 });
+      expect(v.foldedVerdict({ uuid, ac: 18 }, roll(10), folds)).toBe("hit");
+    }
+    // And what the unfiltered list sums to, pinned so the difference is impossible to miss.
+    expect(v.foldedRoll(roll(10), folds)).toMatchObject({ total: 28, added: 18 });
+  });
+
+  it("a defender's fold moves the AC the composed total is tested against", () => {
+    const folds = v.foldsFrom(
+      read({
+        hold: { targets: [{ uuid: "a", kind: "ac", verdict: "miss", acAtVerdict: 23 }] },
+        d20fold: { targets: [{ uuid: "a" }], spends: [{ kind: "bardic", die: 3 }] },
+        precision: { outcome: "used", die: 6, targets: [{ uuid: "a" }] }
+      })
+    );
+    // 19 clears the snapshot AC 18 and still misses the Shielded 23 — precedence never enters
+    // it, because there are no verdicts left to order.
+    expect(v.foldedVerdict({ uuid: "a", ac: 18 }, roll(10), folds)).toBe("miss");
+  });
+});
+
 describe("foldedSave — the save side of the fold (D8's real new work)", () => {
   it("with no folds it is exactly saveOutcome, which is what lets it ship empty", () => {
     expect(v.foldedSave({ total: 15, dc: 15 })).toMatchObject({ total: 15, outcome: "saved" });

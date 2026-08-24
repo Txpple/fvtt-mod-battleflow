@@ -92,6 +92,79 @@ const out = await f.evaluate(async () => {
     log.push(`granted ${tool.name} from ${TOOLS}`);
   }
 
+  // ⚠ AND THE BATTLE MASTER — the RESCUE VIEW's receipt needs ONE message carrying BOTH rescue
+  // flags: a `precision` stamp from maneuvers.js and a `d20fold` stamp from d20-folds.js on the
+  // same missed attack. That is a Battle Master holding a Bardic die, and nothing in this world
+  // was one: the fighter was a plain level-2 Fighter with no maneuvers at all.
+  //
+  // ⚠ THIS IS THREE ITEMS AND A LEVEL, IN THIS ORDER, AND THE ORDER IS THE WHOLE MECHANISM.
+  // Precision Attack rolls `@scale.battle-master.superiority.die` and draws on a pool sized
+  // `@scale.battle-master.superiority.number` — BOTH numbers are ScaleValue advancement on the
+  // SUBCLASS, derived from the class's level. Miss any link and the chain fails SILENTLY, in
+  // the exact shape of the bardic cross-actor trap: the die formula collapses to "0", the pool
+  // resolves to no uses, `usableManeuver` returns null, nothing stamps, and a suite that never
+  // received its offer passes every assertion it never reached. Green by absence. So all four
+  // derived numbers are REPORTED below — a broken chain fails HERE, at the seed.
+  //
+  // ⚠ THE REGISTRY'S `level-up-pc` WAS TRIED FIRST AND DOES NOT PERSIST (measured 2026-08-24,
+  // twice): it reports success and the subclass, its granted features and the HP bump live only
+  // in the CALLING client's memory — the class `system.levels` write is the one part that
+  // reaches the database. Read the actor from a second session and the Battle Master is gone.
+  // So the grants are made here, from the premium pack, the same way the Longsword is. The
+  // CONTENT is authentic in every case; only the class level is a plain number, and a plain
+  // number is not content.
+  const LEVEL = 3;                                  // Battle Master's own prerequisite level
+  const klass = fighter.itemTypes.class.find(c => c.system.identifier === "fighter");
+  if (!klass) return { error: "BF Test Fighter has no Fighter class item" };
+  if (klass.system.levels < LEVEL) {
+    await klass.update({ "system.levels": LEVEL });
+    log.push(`set Fighter to level ${LEVEL} — the level the superiority scale reads`);
+  }
+  const GRANTS = [
+    ["Battle Master", "Compendium.dnd-players-handbook.classes.Item.phbftrBattleMast"],
+    ["Combat Superiority", "Compendium.dnd-players-handbook.classes.Item.phbftrCombatSupe"],
+    ["Precision Attack", "Compendium.dnd-players-handbook.classes.Item.phbmnvPrecisionA"]
+  ];
+  // ⚠ AND THE GRANT MUST CARRY `_stats.compendiumSource`, WHICH `toObject()` DOES NOT. This is
+  // the fifth silent link and it cost a run to find: Precision Attack's consumption target is
+  // stored as the COMPENDIUM UUID of Combat Superiority, and dnd5e's prepareData rewrites it to
+  // the actor's own copy by matching that UUID against each owned item's compendium source. An
+  // item created from a bare `toObject()` has none, so the match fails, the target stays a UUID
+  // `actor.items.get()` can never find, and `usableManeuver` reads a pool of zero. Measured
+  // side by side: Tactical Mind (granted by advancement) prepares its target to the actor's own
+  // Second Wind id; this one prepared to the raw UUID until the stamp was added.
+  for (const [name, uuid] of GRANTS) {
+    const have = fighter.items.find(i => i.name === name);
+    if (have) {
+      // Heal a copy granted before the stamp was understood — idempotent, like everything here.
+      if (have._stats?.compendiumSource !== uuid) {
+        await have.update({ "_stats.compendiumSource": uuid });
+        log.push(`stamped ${name} with its compendium source`);
+      }
+      continue;
+    }
+    const src = await fromUuid(uuid);
+    if (!src) return { error: `${name} is not installed (${uuid})` };
+    const data = src.toObject();
+    foundry.utils.setProperty(data, "_stats.compendiumSource", uuid);
+    const [granted] = await fighter.createEmbeddedDocuments("Item", [data]);
+    log.push(`granted ${granted.name} from ${uuid}`);
+  }
+  const precision = fighter.items.find(i => i.name === "Precision Attack");
+
+  // ⚠ REFILL THE SUPERIORITY POOL, for the Second Wind reason one degree worse. A precision
+  // spend really takes a die and nothing hands it back, so four runs empty the pool — and the
+  // fifth stamps NOTHING, because `usableManeuver` gates on exactly this number.
+  const pool = fighter.items.find(i => i.name === "Combat Superiority");
+  if (pool && ((pool.system.uses?.spent ?? 0) > 0)) {
+    await pool.update({ "system.uses.spent": 0 });
+    log.push(`refilled ${pool.name} to ${pool.system.uses.value} dice`);
+  }
+  const precisionActivity = precision?.system.activities?.contents?.[0];
+  const precisionDie = precisionActivity?.roll?.formula
+    ? (await new Roll(precisionActivity.roll.formula, fighter.getRollData()).evaluate()).formula
+    : null;
+
   // Prove the cross-actor read the module will perform.
   const originItem = await fromUuid(effect.origin);
   const resolvedBard = originItem?.actor;
@@ -111,6 +184,18 @@ const out = await f.evaluate(async () => {
       secondWindUses: fighter.items.find(i => i.name === "Second Wind")?.system.uses?.value ?? null,
       weapon: sword?.name ?? null,
       attackActivity: attackActivity?.id ?? null,
+      // ⚠ Reported, never assumed — the four links of the superiority chain, each of which
+      // fails silently on its own: `superiorityDie` reads "0" instead of "1d8" without the
+      // subclass, `superiorityDice` reads 0 instead of 4 without the level, and
+      // `precisionPoolIsOwn` is the Tactical Mind remap again — the stored consumption target
+      // is a COMPENDIUM UUID and only dnd5e's prepareData turns it into the actor's own
+      // Combat Superiority id. `usableManeuver` gates on the last two.
+      fighterLevel: klass.system.levels,
+      maneuver: precision?.name ?? null,
+      superiorityDie: precisionDie,
+      superiorityDice: pool ? (pool.system.uses?.value ?? null) : null,
+      precisionPoolIsOwn: !!fighter.items.get(
+        precisionActivity?.consumption?.targets?.[0]?.target ?? ""),
       tool: tool?.name ?? null,
       // ⚠ Reported, not assumed: `rollToolCheck` wants an identifier and which field carries it
       // is exactly the kind of thing this repo has been wrong about. Read it here, then use it.

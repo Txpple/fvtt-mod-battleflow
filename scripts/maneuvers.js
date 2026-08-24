@@ -8,6 +8,9 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
 import { maneuverFoldEntries } from "./settings.js";
 import { hitTargets, modeAllows } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
+// The same four names d20-folds.js takes, for the same reason and off the same registry: a
+// resolver that announces a verdict must compose it, and there is exactly one composition.
+import { ATTACK_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
 import { livePopups, openMomentPopup,
   momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,
   armAskTimer, disarmAskTimer, armDeadline, disarmDeadline, registerRelay } from "./ui.js";
@@ -254,7 +257,28 @@ async function resolvePrecision(message) {
     });
     const die = dieRoll.total;
 
-    // 3. Verdicts, through the shared channel; graze conflict named, never unwound.
+    // 3. Verdicts, COMPOSED across every fold on this message — not against this die alone.
+    //
+    // ⚠ THE 2026-08-23 RULING, THE OTHER HALF OF IT. d20-folds.js has obeyed "compose ONCE,
+    // through the path every other reader uses" since v1.23.0; this resolver did not, and went
+    // on adding its die to `flag.attackTotal` — the number the d20 showed before anything was
+    // spent. A Battle Master holding a Bardic die is stamped by BOTH machines on ONE missed
+    // attack, so the gap was reachable in one order (fold spends first, precision second) and
+    // invisible in the other. Measured, not argued: `smoke-d20-folds` §6 drove 10 → +3 bardic
+    // → +6 superiority against AC 18 and this block announced "10 + 6 = 16 — still misses"
+    // while `hitTargets`, walking the same registry, had the target at 19 and HIT. That is the
+    // "card disagrees with its own arithmetic" class for the third time, and the third time it
+    // was the same cause: a resolver reaching for its own numbers instead of the registry.
+    //
+    // ⚠ THE PENDING FLAG IS SUBSTITUTED INTO THE READ, exactly as `resolveFold` does. This die
+    // is not on the message yet — the write below is what puts it there — so a plain
+    // `getFlag` walk would compose everything EXCEPT the spend being resolved.
+    const pending = { ...flag, status: "resolved", outcome: "used", die };
+    const folds = foldsFrom(
+      key => ((key === "precision") ? pending : message.getFlag(MODULE_ID, key)), ATTACK_FOLDS);
+    const baseRoll = message.rolls?.[0] ?? { total: flag.attackTotal };
+
+    // Graze conflict named, never unwound.
     const lines = [];
     let anyHit = false;
     await queueFlagWrite(message, "precision", current => {
@@ -262,10 +286,21 @@ async function resolvePrecision(message) {
       current.outcome = "used";
       current.die = die;
       for ( const t of current.targets ?? [] ) {
-        const total = (current.attackTotal ?? 0) + die;
-        t.verdict = (total >= t.ac) ? "hit" : "miss";
+        // ⚠ PER TARGET, not once for the message. An attack is ONE roll judged against MANY
+        // targets, so the registry holds a contribution per (target × spend) — summing all of
+        // them would count every die once per target and announce a number nobody rolled.
+        // `foldedVerdict` filters by uuid for exactly this reason; the sentence must match it.
+        const mine = folds.filter(f => f.uuid === t.uuid);
+        const composed = foldedRoll(baseRoll, mine);
+        t.verdict = foldedVerdict(t, baseRoll, folds);
         if ( t.verdict === "hit" ) anyHit = true;
-        lines.push(`${current.attackTotal} + ${die} = ${total} vs AC ${t.ac} — `
+        // A defender's fold can have moved the number being tested against (a Shield), so the
+        // AC printed is the composed one — the stale-AC trap, in the prose this time.
+        const ac = mine.findLast(f => Number.isFinite(f.ac))?.ac ?? t.ac;
+        const sum = composed.replaced
+          ? `${current.attackTotal} → ${composed.total}`
+          : `${current.attackTotal} + ${composed.added} = ${composed.total}`;
+        lines.push(`${sum} vs AC ${ac} — `
           + (t.verdict === "hit" ? `<strong>now hits ${t.name}</strong>` : `still misses ${t.name}`));
       }
     });
