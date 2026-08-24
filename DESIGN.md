@@ -238,3 +238,32 @@ properties true.
   a new extension point never is.
 - **When a dnd5e release absorbs a feature**, delete ours and celebrate (§3).
 - **When this document and the code disagree**, surface it rather than silently choosing.
+
+---
+
+## 8. Settled — do not re-propose
+
+**Each row is a decision plus the one condition that would reopen it.** Proposing one again
+without that condition costs the session twice: once to re-derive the answer, and once to
+re-explain why it was already the answer.
+
+⚠ **THIS TABLE LIVES HERE BECAUSE IT OUTLIVED ITS PREVIOUS HOMES.** It began in a continuity
+handoff, moved into the rescue-view commission when that retired (`41583c2`), and moved again
+when THAT was delivered (v1.24.0) — each time because the document holding it was temporary and
+the rulings were not. §7 says to locate work here before building; these are the answers for
+work that should not be built at all, so this is where they belong.
+
+⚠ **A ROW LEAVES ONLY BY ITS OWN CONDITION.** "Closed" rows stay: the record of why something is
+not being done is worth more than the space it costs, and deleting one invites the proposal it
+was written to prevent.
+
+| Settled | The ruling | What would reopen it |
+| --- | --- | --- |
+| **D9's four remaining machine→machine edges** | **NOT being repaid, and that is the finished answer, not a delay.** Each is pinned in `check-layers.mjs` with its reason and its trigger — see [BACKLOG.md](BACKLOG.md). ⚠ **The pins are SELF-EXPIRING** — repay an edge and the build fails until its row is deleted. | the trigger named in the pin actually arriving |
+| **The two permanent import cycles** | `hold.js ↔ auto-damage.js` and `auto-apply.js ↔ mastery.js` are **PERMANENT BY DECISION**. ⚠ The first is **load-bearing**: the bare `import "./auto-damage.js"` pins module evaluation order and `check-hook-order` depends on it. **Doing this work would make the tree worse.** | nothing. Closed. |
+| **Tactical Mind's refund** | **STAYS UNMODELLED.** The refund is conditional on the check FAILING, and **no DC exists for an ability check anywhere in dnd5e**. A manual *"Refund"* button was offered and **declined**. | dnd5e recording a DC for raw checks |
+| **Widening Heroic Inspiration** to *"any die"* or the transfer clause | **NOT SHIPPING.** Widening to any-die/any-outcome triggers §11 rule 4's auto-revert obligation, and nothing ships that can do it yet. | building the revert machinery first, deliberately |
+| **The `smoke-battleflow` flake** | ✅ **CLOSED 2026-08-24 — a real revert bug** (reverting a KILL restored the pool off-card; the lethal branch ran ~one run in eight). Fixed, and `smoke-battleflow` §4c is deterministic about it. | nothing. Closed, reproduced, fixed and pinned |
+| **Short-duration effect expiry** (mastery chips) | **BLOCKED ON A LARGER DECISION**: whether this module should own TURN-TIME at all. Building the sweeper first commits that answer by accident. | that decision being made, either way |
+| **A reaction-budget abstraction** | **REJECTED.** Action economy is not this module's job; every read of `reactionSpent` is an *offer gate*, never enforcement. | nothing. Closed. |
+| **Hand-carrying any counted number into prose** | **DON'T.** ⚠ **Quote the tool's output; never retype it.** | nothing. This is a standing rule. |

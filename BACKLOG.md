@@ -5,9 +5,11 @@
 >
 > **What this file is NOT:** a to-do list. ⚠ **Nothing here blocks a release, a deploy or a
 > battery, and nothing here is a defect waiting on someone.** If an item ever becomes owed it
-> leaves this file and becomes a debt row in [ARCHITECTURE.md](ARCHITECTURE.md) §10 or part of
-> the commissioned work in [HANDOFF.md](HANDOFF.md) — those two are the "owed" surfaces and this
-> one is not.
+> leaves this file and becomes a debt row in [ARCHITECTURE.md](ARCHITECTURE.md) §10 or a
+> commission the user hands the next session — that register is the "owed" surface and this one
+> is not. ⚠ **There is no standing handoff file, deliberately** (user call): a commission is
+> written when there is one and retired when it is delivered, so nothing can quietly accumulate
+> in it between passes.
 
 **Why it exists.** These items used to live in the debt register and the handoff, which are read
 at the top of every session and are written to be LOUD — that is what makes a real debt hard to
@@ -19,7 +21,7 @@ with a list of alarms that were not alarms. **The noise was costing more than th
 | | |
 | --- | --- |
 | **This file** | *Not now, and here is why.* Awareness. Re-read when you are picking work. |
-| [HANDOFF.md](HANDOFF.md) *SETTLED* | *No, and here is what would change the answer.* **Closed** — a proposal that keeps coming back and should stop. |
+| [DESIGN.md](DESIGN.md) §8 *Settled* | *No, and here is what would change the answer.* **Closed** — a proposal that keeps coming back and should stop. ⚠ Moved there when the rescue-view commission was delivered (v1.24.0); it had outlived two temporary homes and the rulings are not temporary. |
 | [ARCHITECTURE.md](ARCHITECTURE.md) §10 | *Owed, or repaid, with evidence.* The permanent record — the full argument for everything below still lives there. |
 
 ⚠ **Two of these are enforced by tooling and cannot rot in place.** The layer pins and the

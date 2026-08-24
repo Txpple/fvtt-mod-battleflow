@@ -278,7 +278,9 @@ activity's save DC does; the sheet's own check button does not). So *"when you f
 check"* — the literal trigger of Tactical Mind, and of a whole family of 2024 features — **is not
 computable from system data**. The GM holds that number in their head and nothing writes it down.
 
-This is not a gap to work around with inference. It is a boundary: see HANDOFF's ruling 2b.
+This is not a gap to work around with inference. It is a boundary — and the ruling that draws
+it (where the module may offer BY ITSELF, and where a human must press) is written out in
+`scripts/d20-folds.js`'s own header, which is the only place it can go stale against the code.
 
 ### dnd5e DECLARES ITS OWN HOOKS, machine-readably, in the shipped bundle (2026-08-23)
 
