@@ -14,7 +14,7 @@
 
 ## ▶ START HERE — the next session, in order
 
-**Six things. The rest of this file is detail behind them.**
+**Five things. The rest of this file is detail behind them.**
 
 1. **`npm run verify`** — seconds, offline. Ten static checks and 237 unit tests. **If it is
    green, the tree is in the state this file describes.** If it is red, stop and read the
@@ -35,17 +35,13 @@
    2026-08-23.** Two sessions driving suites collide: the pid lock refuses one, and a half-run
    suite leaves the world dirty. **Establish who owns the box before running anything.**
 
-4. ⚠ **BEFORE PROPOSING ANY STRUCTURAL WORK — read *SETTLED — do not re-propose*.** Eight
-   decisions, each with the one condition that would reopen it. **Four of its rows are proposals
-   that came back three sessions running.**
+4. ⚠ **BEFORE PROPOSING ANY STRUCTURAL WORK — read *SETTLED — do not re-propose*.** Every row
+   is a decision with the one condition that would reopen it. **Four of them are proposals that
+   came back three sessions running, and the newest was dropped outright by the user.**
 
 5. ⚠ **BEFORE WRITING A TEST — read *THE FIRST COVERAGE TRIAGE*.** Three lines are still open
    there with reasons. **`node tools/hook-coverage.mjs` after a battery tells you what the run
    actually exercised**, which is the only thing in this apparatus that speaks to behaviour.
-
-6. ⚠ **THE *RESCUE PASS* SECTION IS A PROPOSAL, NOT STATE.** It was written by a different
-   session, it says **AWAITING GO**, and it carries four blocking rulings addressed to the user.
-   **Its two bug claims are unverified by anyone but its author.** See *The parallel session*.
 
 **Then, if you want the ten-minute grounding:** *If you are COLD, read in this order*, below.
 
@@ -55,11 +51,11 @@
 
 | | |
 | --- | --- |
-| **Do first** | ▶ **SEE *START HERE* ABOVE — it is six numbered steps and it is the whole of the answer.** In one line: **the gate is green, the tree is pushed, and the battery over `cec478d` is the one thing owed.** ⚠ Two rows of this table are about a release that has NOT been cut for the six commits above the tag; ⚠ nothing in those commits changes shipped behaviour (`scripts/` is untouched since v1.23.1), so **a deploy buys nothing but a version string.** |
+| **Do first** | ▶ **SEE *START HERE* ABOVE — it is six numbered steps and it is the whole of the answer.** In one line: **the gate is green, the tree is pushed, and the battery over `cec478d` is the one thing owed.** ⚠ Two rows of this table are about a release that has NOT been cut for the commits above the tag (`git log v1.23.1..HEAD` counts them — a hand-carried "six" sat here and was wrong); ⚠ nothing in those commits changes shipped behaviour (`scripts/` is untouched since v1.23.1), so **a deploy buys nothing but a version string.** |
 | Release | ✅ **v1.23.1 RELEASED, 2026-08-23** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.23.1>. The enforcement pass: `npm run layers` in the gate, the services tier named, D9 opened with two repayments. **A PATCH — two functions changed files and nothing changed behaviour.** ✅ The **published** zip was downloaded back and proven self-contained: **31 entries, all six `decide/` files, 95 relative imports all resolving, no backslash separators, both manifest fields naming v1.23.1**. |
 | Release (previous) | ✅ **v1.23.0 RELEASED, 2026-08-23** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.23.0>. Both assets attached. The **published** zip was downloaded back and proven self-contained: **31 entries, 28 scripts including the six in `decide/`, 109 relative imports all resolving, no backslash separators, both manifest fields naming v1.23.0**. ⚠ That read-back is not ceremony — it is the check that caught the backslash bug (v1.1.0–1.1.15) and the missing `scripts/decide/` (post-Phase-2). |
 | Prod | ✅ **PROD RUNS v1.23.1 AS OF 2026-08-23** — deployed and **verified byte-identical by a second, independent `--check` run**. ⚠ The `--check` was meaningful this time because the box was awake: it read **distinct** hashes and named exactly the seven files this release touches (six scripts + `module.json`) — *the repeated-hash tell was absent*. ⚠ **The version STRING lags until the Foundry process restarts**; the code is live on the next world reload. Earlier: ✅ **v1.23.0 AS OF 2026-08-23** — the d20 folds included, by user instruction. Earlier the same day: ✅ **v1.22.0** — user instruction this session, superseding the old *"sandbox only, no prod yet"* call. 28/28 files byte-identical over WebDAV. ⚠ **That morning the box was ASLEEP** (`status=NOT_RUNNING`) and had to be woken by the Magic URL first — see *The prod deploy* below, because **the byte-check LIES when the box is down** (it reported the same hash for all 28 files: the lobby HTML). *(That clause is history: prod carries the d20 folds now.)* |
-| Repo | `main`, **clean and pushed**, **SIX COMMITS AHEAD OF THE v1.23.1 TAG** — D10's dispatch check, D11's coverage ledger, `smoke-d20-folds` §3, the docs, the three coverage follow-ons, and this recut. ✅ **BATTERY GREEN over the first four** (19m59s, settings CLEAN, world rolled back). ⚠ **NOT over `cec478d`**, which changed every suite's teardown — see *What is NOT yet done*. Not released. |
+| Repo | `main`, **clean and pushed**, **AHEAD OF THE v1.23.1 TAG** (`git log v1.23.1..HEAD` counts them) — D10's dispatch check, D11's coverage ledger, `smoke-d20-folds` §3, the docs, the three coverage follow-ons, and this recut. ✅ **BATTERY GREEN over the first four** (19m59s, settings CLEAN, world rolled back). ⚠ **NOT over `cec478d`**, which changed every suite's teardown — see *What is NOT yet done*. Not released. |
 | **The debt register** | ⚠ **AS OF 2026-08-23 THE ROWS ARE D1–D11.** **D10 is CLOSED** — the "who owns a curated hook list" question was dissolved by measuring rather than answered: dnd5e declares its own hooks in its own bundle (88 literals ∪ 92 JSDoc `@memberof hookEvents` = 105), so the list is generated and nobody curates it. **D11 is MEASURED, not closed** — the instrument exists and its READING is the standing obligation. **D9 stays OPEN with four pinned edges, deliberately.** Below is the pre-2026-08-23 text, still true: ARCHITECTURE §10: **D1–D8 repaid or settled by decision** (D4 dropped, the two surviving import cycles permanent — the argument is in their rows). ⚠ **D9 IS OPEN, added 2026-08-23 by the ENFORCEMENT PASS**, and the register's "every row is closed" line has been **corrected**: it was false when written, because the service-in-a-feature residues had no row. **3 of D9's 7 edges are repaid; 4 stand, each pinned with a reason** in `tools/check-layers.mjs`. ⚠ **D9's evidence is MECHANICAL, unlike every row above it** — a repaid edge fails the gate as a stale pin, so this row cannot go stale in place the way D2's did. ⚠ **D10 IS ALSO OPEN, added 2026-08-23, and it is open for the opposite reason**: D9 is understood and deliberately unpaid, **D10 is a failure class with NO RULE AGAINST IT** — a hook name the system never dispatches registers cleanly and does nothing forever. It is what put four of six d20-fold offer paths past a 12/12 green suite. **Interim discipline: a live suite asserts a hook FIRED, never that it was registered.** |
 | Verify gate | `npm run verify` — **TEN static checks then the unit tests, all offline, all in seconds.** ⚠ **`npm run dispatch` is the tenth (NEW 2026-08-23, D10)**: every `dnd5e.*` hook this module registers must be one dnd5e actually dispatches, checked against a set **generated from the installed system's own bundle** and committed as `tools/dnd5e-hooks.json`. **It is pinned to the dnd5e version `module.json` verifies** — bumping the system pin without `--regen` fails the build, deliberately. **After any dnd5e upgrade: regen, then READ THE DIFF — a name that disappeared is a listener that has just gone silent.** biome (**98 warnings, 0 errors — the baseline, MEASURED 2026-08-23; the "96" carried here for days was never true**), knip, **typecheck**, imports, **layers**, hook order (**83 registrations, 12 pairs**), **dispatch (11 dnd5e names, 1 pinned hole)**, registry (**13 checks**; it prints the R4 kinds table), manifest in-step, comments (**344 blocks / 28 files**), vitest **237**. ⚠ **Four numbers are PINNED and fail the gate deliberately** — the R4 kind total (**19**), the source-file count (**28**), the two `module.json` version fields agreeing, and **the dnd5e version the hook artifact was extracted from**. That is the point, not an obstacle. ⚠ **`npm run layers` declares every file's LAYER and every cross-layer EDGE**, and fails on an unpinned edge *and* on a pin whose edge has gone. **Do not hand-count the import graph again — it prints the tally.** ⚠ **And do not hand-carry any of these numbers into prose: `96` was wrong for three days here and the tools print all of them.** |
 | **Testing** | ⚠ **`node tools/battery.mjs` is the front door.** **Fifteen entries** in the order that works (`fixture-d20-folds` seeds, `reset-fixture-state` sweeps — neither is a suite), **every one captured to `dist/battery/<stamp>/` before anything is summarised**, then **HOOK COVERAGE**, then `verify-settings`. ⚠ **THE COVERAGE REPORT IS NEW (2026-08-23, D11) AND IT IS THE ONLY OUTPUT IN THE APPARATUS THAT IS ABOUT BEHAVIOUR** — which of the 83 registrations actually FIRED. **Read its never-fired list; it is reported and never enforced**, because a rule that failed on a rare hook would be tuned out by the third one. One suite alone (`smoke-d20-folds`) covers **16/25 names, 71/81 registrations**. `--from <suite>` resumes; `--snapshot` rolls the world back; `--list` shows the order. Every suite also takes `--list` and `--section N`. |
@@ -85,9 +81,9 @@
 4. **§11's checklists.** A new feature walks them — *Adding a FOLD*, *Adding a moment*,
    *Adding a TEST* (the tier rule), *Adding a file*.
 5. **§10 D9, D10 and D11** — D9 open by decision, D10 closed, **D11 measured and owed a reading**.
-6. ⚠ **This file's *SETTLED — do not re-propose* table.** Eight decisions with the condition that
-   would reopen each. **Read it before suggesting structural work**; four of its rows are
-   proposals that have already come back three sessions running.
+6. ⚠ **This file's *SETTLED — do not re-propose* table.** Each row is a decision with the
+   condition that would reopen it. **Read it before suggesting structural work**; four of its rows
+   are proposals that have already come back three sessions running.
 7. **This file's *Do not re-derive* table**, near the bottom. Every entry is a claim that looks
    right, is wrong, and cost real time to kill. A fresh reviewer reports several of them as bugs.
 
@@ -148,183 +144,14 @@ is also the argument for the triage rule: **the report is only worth what somebo
 
 ## ▶ What is NOT yet done
 
-**2026-08-23. The tree carries six commits the tag does not.** Nothing here is blocking.
+**2026-08-23. The tree carries commits the tag does not — `git log v1.23.1..HEAD`.** Nothing here is blocking.
 
 | Owed | Why it matters |
 | --- | --- |
 | ⚠ **A BATTERY OVER THE LAST COMMIT** | **The most important row here.** `cec478d` changed **every suite's teardown** (`disposeSafely` at eleven call sites) and added a section that **creates and deletes a real Combat**. Each piece was proven on its own — `smoke-hold` §7 green, `smoke-d20-folds` §4 green, `verify-settings` green, settings CLEAN — but **no full battery has run over them together.** Do this before anything else. |
-| **A release** | v1.23.1 is the tag; six commits sit above it. `node tools/bump-version.mjs minor` then `build-release.ps1` (which runs the gate itself, with no skip flag). |
+| **A release** | v1.23.1 is the tag; `git log v1.23.1..HEAD` is what sits above it. `node tools/bump-version.mjs minor` then `build-release.ps1` (which runs the gate itself, with no skip flag). |
 | **Prod and the sandbox** | Both carry v1.23.1. ⚠ **Nothing in this batch changes shipped behaviour — `scripts/` is untouched since the tag.** It is all `tools/` and docs, so a deploy buys nothing but the version string. |
 | **Three coverage lines** | Templates, the usage dialog, the settings dialog — all OPEN with reasons in the triage table above. **None is urgent; none may sit unexplained across two releases.** |
-
----
-
-## ▶ THE RESCUE PASS — planned 2026-08-23, AWAITING GO
-
-**Origin: the concurrence brainstorm (2026-08-23).** A Battle Master holding Heroic Inspiration
-who cleanly misses is stamped TWICE on the same attack message — `precision` (maneuvers.js) and
-`d20fold` (d20-folds.js) — and gets **two popups, two clocks, and no cross-talk** for what is one
-decision: *"this roll is short by N; what do you burn?"* The ARITHMETIC side of concurrence is
-already solved (ruling 1: compose, never order; `foldsFrom` walks every flag). **The OFFERS are
-not composed, and that is this pass.** The chosen shape is the brainstorm's Option A: **merge the
-VIEW, keep the flags** — R2 verbatim ("the popup is a view; the flag is the state"), on the §4.1
-relay precedent (machines register, the spine composes, no machine imports another).
-
-### The three defects, named before the work
-
-1. ⚠ **One-sided composition — a real bug, shippable alone as Stage 1.** `resolveFold` composes
-   across every fold on the message ([d20-folds.js:534](scripts/d20-folds.js:534), the ruling
-   obeyed); `resolvePrecision` still computes `attackTotal + its own die`
-   ([maneuvers.js:265](scripts/maneuvers.js:265)). Spend bardic first (still misses), then
-   precision: precision's card announces against the un-composed sum, and its `!anyHit` gate
-   ([maneuvers.js:291](scripts/maneuvers.js:291)) can **skip the damage re-drive on a composed
-   hit** while `hitTargets` — which walks the registry — says hit. Ordering-dependent: fold-side
-   first is wrong, precision-side first is fine. The "card disagrees with its own arithmetic"
-   class, third appearance.
-2. ⚠ **The wasted-spend trap.** `resolveFold` REALLY spends at step 1
-   ([d20-folds.js:521](scripts/d20-folds.js:521)) and only composes at step 3; nothing moots the
-   sibling flag when one machine fixes the roll. Precision turns the miss into a hit → the
-   d20fold popup stays open, still claiming "the attack missed" (law 4: a lie on screen), and a
-   click there **deletes a real Inspired effect for nothing**. Symmetric in both directions.
-3. **Two windows, two clocks, one decision** — the discombobulation itself. The staircase keeps
-   it legible; it cannot make it one question.
-
-### Blocking rulings — put to the user before Stage 3
-
-1. **Law 8 with four features in one window**: keep the shipped labelled-quote lines (the
-   d20fold popup's shape) or move quotes to per-row tooltips? **Recommend labelled lines first**
-   (no law change), revisit at the walk.
-2. **The moot**: when a sibling spend fixes the roll, the surviving offer auto-resolves
-   ("no longer needed — nothing spent") and its popup view drops. It spends nothing, so it takes
-   no decision away from the player; law 4 demands the withdrawal. **Recommend yes; confirm the
-   card language.**
-3. **The clock on a spend**: any spend re-stamps a FRESH window on every surviving rescue flag on
-   that message — the re-offer's own rule ([d20-folds.js:580](scripts/d20-folds.js:580): "an
-   offer that expires before it is shown is worse than not offering"), extended across flags. A
-   re-render is a re-show. **Recommend yes** — it deliberately lengthens total decision time.
-4. **The un-fumbled miss**: precision never stamps on a natural 1
-   ([maneuvers.js:167](scripts/maneuvers.js:167)); a heroic reroll can turn the fumble into a
-   clean miss precision could now fix. **Recommend declared absence** (no late stamp; record it
-   the `MASTERY_NATIVE` way), revisit if the table asks.
-
-### The properties this pass holds itself to
-
-**Zero moved pins.** No new fold kind (precision stays a `maneuverFold`; the merge is
-presentation) — the R4 total stays 19. No new file — the source pin stays 28. No new setting
-(§8.1: no new feature; rows appear only where a machine's own gates already stamped a flag). No
-new hook registration expected — and per §7's both-directions trap, the evaluation-order diff is
-**measured, not assumed**, in every stage that touches imports.
-
-### Stage 0 — the owed battery (precondition, not this pass)
-
-- [x] ✅ **Satisfied before the pass started** (commit `1425893`, 2026-08-23): the full battery is
-      green over the unreleased commits and the coverage report has had its first read. The pass
-      starts on a battery-green tree, as required.
-
-### Stage 1 — the composition receipt (a bug fix that ships alone)
-
-- [ ] **1.1** A smoke section for the ordering: forced dice (the §3 PRNG technique), bardic
-      spend first (still short), then precision. Assert the composed verdict, the damage
-      re-drive, and the precision card's sentence. **Expected RED at the card + re-drive.**
-      ⚠ Needs the fixture fighter to carry Precision Attack + a superiority pool —
-      `fixture-d20-folds.mjs` grows it the house way (registry utilities, clean provenance —
-      the same discipline as the Longsword grant).
-- [ ] **1.2** `resolvePrecision` composes through `foldsFrom`/`ATTACK_FOLDS`/`foldedVerdict`
-      exactly as `resolveFold` does — the same "compose ONCE, through the path every other
-      reader uses" block. Its lines print the composed sum; `anyHit` comes from composed
-      verdicts. Move, do not rewrite: the flag still stamps its own die; the contribution spec
-      is untouched.
-- [ ] **1.3** Any missing unit case in decide-verdict (two adds composing on one target).
-      Battery-green. **Own commit — releasable as a patch without the rest.**
-- [ ] ⚠ **CHECK IN** — the receipt confirms the bug class before the view work builds on it.
-
-### Stage 2 — the pure rows (DECISION layer, no behaviour change)
-
-- [ ] **2.1** `decide/present.js` gains the rescue row model, `foldsFrom`-shaped: a declared
-      spec list per flag (`precision`, `d20fold`) turning plain flag objects + the composed
-      roll + the reveal setting into `{ headerLines, rows, earliestDeadline }`. Rows carry
-      label, action, cost, die; **spends render as greyed rows with their rolled results** (the
-      user's call from the brainstorm — the window narrates itself). Margin lines stay gated
-      behind `holdReveal`, exactly as `offerLines` does today.
-- [ ] **2.2** Unit tests for every branch: both pending, one spent, fumble-filtered (heroic
-      only), reveal on/off, and ⚠ the no-DC check case — a check's premise can never die (the
-      DC finding, [d20-folds.js:642](scripts/d20-folds.js:642)); it keeps offering until a
-      human passes.
-
-### Stage 3 — one window (spine registry + the two machines)
-
-- [ ] **3.1** ui.js gains `registerRescue(flagKey, { isPending, view(message), answer(message,
-      action) })` beside `registerRelay` — same architecture, same reason: the spine never
-      names a feature; machines hand it keys and callbacks. One popup per message on
-      `popupKey(message.id, "rescue")`, drawn through `openMomentPopup` (one staircase slot,
-      law 7 unchanged). ⚠ **Composition happens machine-side through decide** — ui.js imports
-      no same-layer module and no feature; each machine's `view` callback reads its own flag,
-      composes via shared.js, and calls Stage 2's row builders. Both sources derive the header
-      from the same pure function; unit-asserted equal, deduped by string.
-- [ ] **3.2** The two machines stop opening their own popups for these flags and call the
-      spine's `syncRescuePopup(message)` from their existing render/update handlers: show when
-      any registered flag is pending (latched), re-render on change (the shipped
-      close-and-reopen latch-delete, [d20-folds.js:619](scripts/d20-folds.js:619)), close when
-      none. **Cards stay** — each flag keeps its durable row and bar (pairing law 2); the
-      "Answer" recall buttons call the shared show. Answer paths untouched: `answerPrecision`,
-      `answerFold`, first-writer-wins, crash-resume horizons, the withheld-save protocol.
-      ⚠ **Pass answers every pending source** — one decision surface, one Pass; two flag
-      writes, both idempotent.
-- [ ] **3.3** The spawn coalesce: both stamps land ms apart (maneuvers registers
-      `rollAttackV2` before d20-folds — [d20-folds.js:536](scripts/d20-folds.js:536)); the show
-      defers one tick so the first window renders both rows instead of popping twice.
-- [ ] **3.4** Suite sections: merged window shows both rows; answering one re-renders with the
-      survivor + greyed spend; §11 rule — anything registered is asserted FIRED, and the
-      hook-order/dispatch diffs are read, not reasoned about.
-- [ ] ⚠ **CHECK IN + sandbox walk of the window before Stage 4 builds coordination on it.**
-
-### Stage 4 — coordination correctness (the guard, the moot, the clock)
-
-- [ ] **4.1** The spend-guard: both resolvers re-check the composed premise **before** the
-      spend (today: spend first, compose after). Premise already dead at resolve time → moot,
-      nothing burned. ⚠ Guard repeated inside the serializer lock (§11).
-- [ ] **4.2** The moot (per ruling 2): each machine's existing `updateChatMessage` handler
-      re-derives its pending premise from the composed roll; premise dead → **elect-owned**
-      auto-resolve "moot" (single-writer §3), timers disarmed, view syncs, card says nothing
-      was spent. ⚠ Checks never moot (no DC); attacks moot on composed any-hit, DC'd saves on
-      composed success.
-- [ ] **4.3** The clock (per ruling 3): any spend refreshes every surviving rescue deadline on
-      the message, elect-owned, riding the same update reaction as the moot. `deadlineIsLive`
-      roof respected.
-- [ ] **4.4** The withheld-save path is asserted untouched — saves never carry `precision`, so
-      the view degenerates to one source there; the withhold/resume sections re-run green.
-- [ ] Suite sections: the wasted-spend race (accept precision → composed hit → click bardic on
-      the stale window → moot, **the Inspired effect survives**); the moot close needs no
-      second client (both flags answer on the attacker's own client — the precision locality).
-- [ ] ⚠ **CHECK IN.**
-
-### Stage 5 — walk, docs, release
-
-- [ ] The USER's table walk (a walk is a human; nothing here substitutes). Rulings 1 and 4
-      revisited with the window in hand.
-- [ ] Docs recut: ARCHITECTURE §5 gains the merged-view note (several moments about ONE roll
-      present as one window; z-order law 7 unchanged for everything else); this section gets
-      its "how it went" measurements; HANDOFF state table updated.
-- [ ] `npm run verify`, full battery, `verify-settings`, `bump-version.mjs minor` → **v1.24.0**
-      (carries the three tool commits too), release with the zip read-back. Prod is the user's
-      call.
-
-### What this pass deliberately does NOT do
-
-- **No state merge** — two flags stay two flags; no wire-format change, no migration (§4.1's
-  own rule: unify the mechanism, leave the bytes alone).
-- **No new kinds, no widened features** — Tactical's refund stays unmodelled (settled), heroic
-  any-die stays out (settled; §11 rule 4's revert debt still gates it).
-- **No cross-client rescues** — Cutting Words / Silvery Barbs / Flash of Genius and kin are
-  someone ELSE's reaction on your roll: N4 territory ("humans play reactions"), hold-family if
-  they are ever anything.
-- ⚠ **Why one window and not N, recorded for the next survey:** the own-roll retro-fixer family
-  is much bigger than the three shipped — adds (Pact Talisman, Favored by the Gods, Dark One's
-  Own Luck, Guided Strike) and replaces (Indomitable, Fanatical Focus, Diamond Soul, Lucky-2014's
-  choose-better, Stroke of Luck's outcome-set — the last two are genuinely new contribution
-  shapes and wait for their own ruling). Every future arrival is **a row in this window**, not a
-  popup in the staircase; most reuse the existing spend shapes and arrive as list entries, which
-  is the R4 bargain holding.
 
 ---
 
@@ -342,6 +169,7 @@ cannot infer from anything in the tree.
 
 | Settled | The ruling | What would reopen it |
 | --- | --- | --- |
+| **The *rescue pass* — merging the precision and d20-fold popups into one window** | ⚠ **DROPPED BY THE USER, 2026-08-24. Do not raise it again.** A parallel session proposed it off a brainstorm, not off a table sighting: two popups on one missed attack, plus two unverified bug claims (one-sided composition in `resolvePrecision`, and a wasted spend on a stale window). **The user has never seen either at the table**, nobody but its author verified them, and the whole five-stage section has been deleted from this file. ⚠ **It is in git if it is ever wanted** — the section's last text is in commit `fc2ca7f`. | **the user reporting it from an actual session.** They said they will say so. Nothing else — not a re-read of the code, not a fresh session's reasoning about it |
 | **D9's four remaining machine→machine edges** | **NOT being repaid, and that is the finished answer, not a delay.** Each is pinned in `check-layers.mjs` with its reason and its trigger. `saves → maneuvers` waits for a **third choice kind** to prove the registry's shape (the D8 lesson: the seam is built by the feature that proves it). The `saves ↔ d20-folds` cycle waits for **a second machine that needs withhold-and-resume** before that becomes a spine primitive. `saves → receipts` reclassifies the moment `receipts.js` gains **a second importer**. ⚠ **The pins are SELF-EXPIRING** — repay an edge and the build fails until its row is deleted — so this row cannot rot the way D2's did. | the trigger named in the pin actually arriving |
 | **The two permanent import cycles** | `hold.js ↔ auto-damage.js` and `auto-apply.js ↔ mastery.js` are **PERMANENT BY DECISION** (ruling 6 below). ⚠ The first is **load-bearing**: the bare `import "./auto-damage.js"` pins module evaluation order and `check-hook-order` depends on it — break it and the damage-offer bar silently drops below the hold row. **Doing this work would make the tree worse.** | nothing. This one is closed. |
 | **Tactical Mind's refund** | **STAYS UNMODELLED.** RAW is real (*"if the check still fails, this use of Second Wind isn't expended"*) and the module cannot implement it: the refund is conditional on the check FAILING, and **no DC exists for an ability check anywhere in dnd5e** (ruling 2b). A manual *"Refund"* button on the settled card was offered and **declined**. The table adjusts by hand. | dnd5e recording a DC for raw checks |
@@ -817,12 +645,13 @@ Still yours to remember:
 ## The parallel session
 
 ⚠ **THERE WAS A SECOND LIVE SESSION IN THIS REPO ON 2026-08-23** (`fvtt-mod-battleflow-e0`), and
-**it wrote *THE RESCUE PASS* section above.** That section is recorded here as it was written and
-is **not** the work of the session that produced D10, D11, `smoke-d20-folds` §3 and §7, or the
-teardown repair — those are commits `d2bc2e1`…`cec478d`. ⚠ **Its two bug claims (one-sided
-composition in `resolvePrecision`, and the wasted-spend trap) have NOT been verified by anyone
-else**, and it says so itself: it is **AWAITING GO** and carries four blocking rulings addressed
-to the user. **Read it as a proposal, not as state.**
+it wrote a *RESCUE PASS* proposal into this file. ✅ **The user DROPPED it on 2026-08-24 and the
+section is deleted** — see *SETTLED*. It was never the work of the session that produced D10, D11,
+`smoke-d20-folds` §3 and §7, or the teardown repair — those are commits `d2bc2e1`…`cec478d`.
+⚠ **The lesson worth keeping: a proposal written by one session reads exactly like state to the
+next one.** It sat at the top of this file for a day carrying four rulings addressed to a user who
+had never seen the problem it described. **A plan nobody asked for belongs in a branch, not in the
+continuity doc.**
 
 ⚠ **And the operational point a cold reader needs: the sandbox is single-occupancy.** Two sessions
 driving suites collide — the pid lock refuses one of them, and a half-run suite leaves the world
