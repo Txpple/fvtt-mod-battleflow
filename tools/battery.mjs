@@ -53,7 +53,17 @@ const ORDER = [
   // ⚠ Immediately after smoke-maneuvers because it is the same family (post-roll folds), and
   // its section 2 SPENDS the fixtures it asserts on — it re-seeds nothing, so anything that
   // wanted a Fighter with two Second Wind uses must run before it or re-run the fixture script.
-  { name: "smoke-d20-folds", note: "the three d20 folds — ⚠ needs tools/fixture-d20-folds.mjs" },
+  //
+  // ⚠ WHICH IS WHY THE SEED IS A BATTERY STEP NOW (2026-08-23). It was prose in the note below
+  // and the battery did not act on it, so a battery run inherited whatever the LAST run left:
+  // `heroic` alone would be offered, section 5's "every eligible fold is offered" would go red,
+  // and the summary would report a FAILED suite for an empty resource pool. Measured this way
+  // once — 20/21, and 21/21 on the same code the moment the fixture was re-seeded, with the
+  // assertion flipping from `offers=[heroic]` to `offers=[heroic, tactical]` and Second Wind
+  // reading `2 → 1` instead of `1 → 0`. **A front door that reports a red for a missing seed
+  // is a broken gauge**, and the diagnosis cost a full battery to reach.
+  { name: "fixture-d20-folds", note: "not a suite — the seed smoke-d20-folds spends", reset: true },
+  { name: "smoke-d20-folds", note: "the three d20 folds — its own seed runs immediately above" },
   { name: "smoke-cast", note: "" },
   { name: "smoke-riders", note: "" },
   { name: "smoke-concentration", note: "" },
