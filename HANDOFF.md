@@ -97,49 +97,66 @@ bar's; the markup stays pure in present.js.
 └────────────────────────────────────────────────┘
 ```
 
-### Three rulings still OPEN — put to the user before Stage 3
+### The three rulings — ANSWERED (user, 2026-08-24)
 
-1. **The moot**: when a sibling spend fixes the roll, the surviving offer auto-resolves
-   ("no longer needed — nothing spent") and its rows drop. It spends nothing, so it takes no
-   decision away; law 4 demands the withdrawal. **Recommend yes; confirm the card language.**
-2. **The clock on a spend**: any spend re-stamps a FRESH window on every surviving rescue flag
-   on the message — the re-offer's own rule
-   ([d20-folds.js:580](scripts/d20-folds.js:580): "an offer that expires before it is shown is
-   worse than not offering"), extended across flags; a re-render is a re-show. **Recommend
-   yes** — it deliberately lengthens total decision time.
-3. **The un-fumbled miss**: precision never stamps on a natural 1
-   ([maneuvers.js:167](scripts/maneuvers.js:167)); a heroic reroll can turn the fumble into a
-   clean miss precision could now fix. **Recommend declared absence** (no late stamp; record it
-   the `MASTERY_NATIVE` way), revisit if the table asks.
+1. **The moot — YES, and it GREYS rather than disappears.** When a sibling spend fixes the roll,
+   the surviving offer auto-resolves and says **"no longer needed"** — the user's own words;
+   "moot" was considered and dropped as jargon. ⚠ **The row STAYS on the window, greyed, exactly
+   as a spent row does** (this is the correction to the original proposal, which dropped it):
+   the window keeps the record of what was available and what became of it, so a player who
+   looks up a second later can still see why their option went away. Nothing is spent, so no
+   decision is taken from anyone; law 4 is satisfied by the withdrawal, and the greyed row is
+   what makes the withdrawal legible instead of merely silent.
+2. **The clock — NO. There is ONE clock, it covers resolving the WHOLE moment, and nothing
+   resets it.** ⚠ This REVERSES the recommendation, and the merged window is precisely what
+   makes it safe. The refresh rule exists because "an offer that expires before it is shown is
+   worse than not offering" ([d20-folds.js:580](scripts/d20-folds.js:580)) — but that reasons
+   about a popup that had not been SHOWN yet. In the merged window every surviving row has been
+   on screen since the first stamp; a spend re-renders rows in place, it does not introduce a
+   stranger. So the premise of the refresh is gone, and with it the refresh. ⚠ **This retires
+   the existing intra-flag refresh too** — see Stage 4.3, which is now a deletion rather than a
+   feature.
+3. **The un-fumbled miss — declared absence, as recommended.** Precision never stamps on a
+   natural 1 ([maneuvers.js:167](scripts/maneuvers.js:167)) and there is NO late stamp after a
+   heroic reroll turns the fumble into a clean miss. Recorded the `MASTERY_NATIVE` way — a
+   deliberate hole with its name on it, not an oversight. Reopens if the table actually meets it.
 
-### Stage 1 — the composition receipt (a bug fix that ships alone)
+### Stage 1 — the composition receipt ✅ DONE (`23dab71`, `9dd49e9`)
 
-- [ ] **1.1** A smoke section for the ordering: forced dice (the smoke-d20-folds §3 PRNG
+- [x] **1.1** A smoke section for the ordering: forced dice (the smoke-d20-folds §3 PRNG
       technique — invert `Die#mapRandomFace`, never force 1 or 20, restore in a `finally`),
       bardic spend first (still short), then precision. Assert the composed verdict, the damage
       re-drive, and the precision card's sentence. **Expected RED at the card + re-drive — this
       is the receipt that answers the drop's objection.** ⚠ Needs the fixture fighter to carry
       Precision Attack + a superiority pool — `fixture-d20-folds.mjs` grows it the house way
       (clean provenance, the same discipline as the Longsword grant).
-- [ ] **1.2** `resolvePrecision` composes through `foldsFrom`/`ATTACK_FOLDS`/`foldedVerdict`
+- [x] **1.2** `resolvePrecision` composes through `foldsFrom`/`ATTACK_FOLDS`/`foldedVerdict`
       exactly as `resolveFold` does — the same "compose ONCE, through the path every other
       reader uses" block. Its lines print the composed sum; `anyHit` comes from composed
       verdicts. Move, do not rewrite: the flag still stamps its own die; the contribution spec
       is untouched.
-- [ ] **1.3** Any missing unit case in decide-verdict (two adds composing on one target).
+- [x] **1.3** Any missing unit case in decide-verdict (two adds composing on one target).
       Battery-green. **Own commit — releasable as a patch without the rest.**
-- [ ] ⚠ **CHECK IN.**
+- [x] ⚠ **CHECK IN.**
 
-### Stage 2 — the pure rows (DECISION layer, no behaviour change)
+### Stage 2 — the pure rows ✅ DONE (DECISION layer, no behaviour change)
 
-- [ ] **2.1** `decide/present.js` gains the rescue row model, `foldsFrom`-shaped: a declared
+- [x] **2.1** `decide/present.js` gains the rescue row model, `foldsFrom`-shaped: a declared
       spec list per flag (`precision`, `d20fold`) turning plain flag objects + the composed
       roll + the reveal setting into `{ headerLines, rows, quotes, earliestDeadline }`. Rows
       carry label, action, cost, die, **and their icon ref**; `quotes` is the pane content per
       row (label + verbatim text, first row the default). **Spends render as greyed rows with
       icon + rolled results.** Margin lines stay gated behind `holdReveal`, exactly as
       `offerLines` does today.
-- [ ] **2.2** Unit tests for every branch: both pending, one spent, fumble-filtered (heroic
+      ⚠ **A THIRD ROW STATE ARRIVES IN STAGE 4** (ruling 1): a MOOTED row greys like a spent one
+      but carries no result and no cost — "no longer needed". It is not modelled here because no
+      flag state produces it yet; building the rendering before the state would be guessing at
+      the shape. Stage 3 draws the greying, Stage 4 writes the state.
+      ⚠ **AND THE TABLES CAME WITH IT.** `RESCUE_KINDS` holds the label, glyph, cost sentence and
+      verbatim rule for all four rescue kinds in ONE place; d20-folds.js and maneuvers.js now
+      read from it rather than keeping their own copies. Law 8 says the quote IS the rule, so a
+      second copy that drifts is the module telling the table something untrue.
+- [x] **2.2** Unit tests for every branch: both pending, one spent, fumble-filtered (heroic
       only), reveal on/off, and ⚠ the no-DC check case — a check's premise can never die (the
       DC finding, [d20-folds.js:642](scripts/d20-folds.js:642)); it keeps offering until a
       human passes.
@@ -180,14 +197,19 @@ bar's; the markup stays pure in present.js.
 - [ ] **4.1** The spend-guard: both resolvers re-check the composed premise **before** the
       spend (today: spend first, compose after). Premise already dead at resolve time → moot,
       nothing burned. ⚠ Guard repeated inside the serializer lock (§11).
-- [ ] **4.2** The moot (per open ruling 1): each machine's existing `updateChatMessage` handler
+- [ ] **4.2** The moot (per ruling 1): each machine's existing `updateChatMessage` handler
       re-derives its pending premise from the composed roll; premise dead → **elect-owned**
-      auto-resolve "moot" (single-writer, §3), timers disarmed, view syncs, card says nothing
-      was spent. ⚠ Checks never moot (no DC); attacks moot on composed any-hit, DC'd saves on
-      composed success.
-- [ ] **4.3** The clock (per open ruling 2): any spend refreshes every surviving rescue
-      deadline on the message, elect-owned, riding the same update reaction as the moot.
-      `deadlineIsLive` roof respected.
+      auto-resolve `"no longer needed"` (single-writer, §3), timers disarmed, view syncs, card
+      says nothing was spent. ⚠ Checks never moot (no DC); attacks moot on composed any-hit,
+      DC'd saves on composed success. ⚠ **The row GREYS, it does not vanish** — the user's
+      correction: a withdrawal nobody can see reads as a window that ate an option.
+- [ ] **4.3** The clock (per ruling 2) — **A DELETION, NOT A FEATURE.** There is ONE clock and
+      it covers resolving the whole moment, so nothing refreshes it: remove the intra-flag
+      re-offer refresh at [d20-folds.js:580](scripts/d20-folds.js:580) and add none of its own.
+      ⚠ Its original argument does not survive the merge — it protects an offer that had not
+      been SHOWN, and in the merged window every surviving row has been on screen since the
+      first stamp. ⚠ The bar draws `earliestDeadline` (Stage 2), which is already the soonest
+      thing that can be taken away; assert it never moves once stamped.
 - [ ] **4.4** The withheld-save path is asserted untouched — saves never carry `precision`, so
       the view degenerates to one source there; the withhold/resume sections re-run green.
 - [ ] Suite sections: the wasted-spend race (accept precision → composed hit → click bardic on
