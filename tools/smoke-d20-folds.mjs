@@ -24,7 +24,7 @@ const SECTIONS = {
   3: "attack — a forced miss stamps, the reroll REPLACES, the verdict flips, damage drives",
   4: "hooks — every hook the module registers for a d20 fold ACTUALLY FIRES",
   5: "offer — a real roll stamps a flag offering EVERY eligible fold, kind-matched",
-  6: "TWO RESCUES, ONE ROLL — precision must compose with a fold already spent",
+  6: "TWO RESCUES, ONE WINDOW — the merged view, and the composition under it",
   7: "TWO TARGETS, ONE DIE — the fold's card counts the die once, not once per target"
 };
 const DEPENDS = { 2: [1], 3: [1], 5: [1] };
@@ -197,9 +197,25 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             await fighter.update({ "system.attributes.inspiration": true });
           }
 
+          // ⚠ SWEEP, THEN REMEMBER. A rescue offer is crash-resumable, so an earlier run that
+          // ended unanswered re-offers itself as soon as the log renders — a window identical to
+          // this one's in title, prose and rows. Clicking the wrong one resolves a message from
+          // twenty minutes ago and fails where nothing logs it. Both guards are §6's, learned
+          // the expensive way.
+          const stale = game.messages.contents.filter(m =>
+            (m.getFlag(MODULE_ID, "precision")?.status === "pending")
+            || (m.getFlag(MODULE_ID, "d20fold")?.status === "pending"));
+          if (stale.length) {
+            await ChatMessage.deleteDocuments(stale.map(m => m.id));
+            await sleep(500);
+          }
+
           game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
           placed.setTarget(true, { releaseOthers: true });
           await sleep(200);
+          const priorDialogs = new Set(
+            [...document.querySelectorAll(".application")]
+              .filter(el => el.tagName === "DIALOG").map(el => el.id));
 
           face(5);
           const use = await act.use({ subsequentActions: false }, { configure: false }, {});
@@ -221,15 +237,24 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             kinds.includes("heroic") && !kinds.includes("tactical"),
             `offers=[${kinds.join(", ")}]`);
 
-          const popup = await until(() => dialogsWith("Patch this roll")[0], 8000);
+          // ⚠ THE FOLD MACHINE NO LONGER OWNS A POPUP. Since the rescue view merged the two
+          // offer surfaces, every rescue is a ROW in one window drawn by the spine — so the
+          // control is `[data-bf-rescue-action]` on a div, and `Pass` is the only real button.
+          // ⚠ AND THE WINDOW MAY CARRY A PRECISION ROW TOO: the fixture fighter is a Battle
+          // Master now, and a d8 CAN reach an AC 18 that a 10 missed, so the hopeless gate lets
+          // it stamp. That is the merge working, not interference — this section presses the
+          // heroic row and leaves the rest alone.
+          const popup = await until(() => [...document.querySelectorAll(".application")]
+            .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
+              && !!el.querySelector('[data-bf-rescue-action="heroic"]')), 8000);
           ok("the offer pops, carrying the spend and the pass",
-            !!popup?.querySelector('button[data-action="heroic"]')
+            !!popup?.querySelector('[data-bf-rescue-action="heroic"]')
               && !!popup?.querySelector('button[data-action="pass"]'),
-            `popup=${!!popup}`);
+            `popup=${!!popup} rows=${popup?.querySelectorAll("[data-bf-rescue-row]").length ?? 0}`);
 
           // The reroll: forced to 19, so 24 clears AC 18 and the verdict MUST flip.
           face(19);
-          popup?.querySelector('button[data-action="heroic"]')?.click();
+          popup?.querySelector('[data-bf-rescue-action="heroic"]')?.click();
           const done = await until(() => {
             const cur = attackMsg?.getFlag(MODULE_ID, "d20fold");
             return (cur?.status === "resolved") ? cur : null;
@@ -520,28 +545,48 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             (fold?.baseTotal === 10) && (prec?.attackTotal === 10),
             `d20fold.baseTotal=${fold?.baseTotal} precision.attackTotal=${prec?.attackTotal}`);
 
-          // ⚠ FIND THE POPUP BY ITS BUTTON, NOT BY ITS PROSE. `dialogsWith` walks EVERY
-          // `.application`, and both of these sentences also appear in the durable card rows
+          // ⚠ FIND THE WINDOW BY WHAT IT CAN DO, NOT BY ITS PROSE. `dialogsWith` walks EVERY
+          // `.application`, and the window's sentences also appear in the durable card rows
           // inside the chat sidebar — which is an `.application` too, and whichever ancestor
           // matches first is what `[0]` hands back. A run against a cold world returned the
-          // same element for both queries and the section reported "two windows" while looking
-          // at one sidebar. The DialogV2 buttons carry `data-action`; `momentButton` (the card
-          // rows) deliberately does not — so the button IS the discriminator, and demanding it
-          // makes the finder and the assertion the same act.
-          const momentPopup = (text, action) => [...document.querySelectorAll(".application")]
+          // same element for two different queries and the section reported "two windows" while
+          // looking at one sidebar. And `!priorDialogs.has(id)` is the other half: deleting a
+          // message closes its popups ASYNCHRONOUSLY, so a leftover from an earlier run is
+          // indistinguishable by prose, title and buttons — and clicking one is a silent no-op
+          // that writes to a deleted message where nothing logs the failure.
+          const rescueWindow = () => [...document.querySelectorAll(".application")]
             .find(el => (el.tagName === "DIALOG")
               && !priorDialogs.has(el.id)
-              && (el.innerHTML ?? "").includes(text)
-              && !!el.querySelector(`button[data-action="${action}"]`));
-          const foldPopup = await until(() => momentPopup("Patch this roll", "bardic"), 8000);
-          const precPopup = await until(() => momentPopup("The attack missed", "use"), 8000);
-          ok("TWO windows open for ONE decision — the discombobulation this pass exists to fix",
-            !!foldPopup && !!precPopup && (foldPopup !== precPopup),
-            `fold=${foldPopup?.id ?? "none"} precision=${precPopup?.id ?? "none"}`);
+              && !!el.querySelector("[data-bf-rescue-row]"));
+          const rowFor = (win, action) =>
+            win?.querySelector(`[data-bf-rescue-action="${action}"]`) ?? null;
+          const win = await until(() => {
+            const w = rescueWindow();
+            return (w && rowFor(w, "bardic") && rowFor(w, "use")) ? w : null;
+          }, 8000);
+
+          // ⚠ THE POINT OF THE WHOLE PASS, and the assertion that inverts §6's original one:
+          // there used to be TWO windows here, one per machine, with two clocks and no
+          // cross-talk. There is now ONE, carrying a row from each — and the spawn coalesce is
+          // what makes it render complete rather than popping once per stamp.
+          const windows = [...document.querySelectorAll(".application")]
+            .filter(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
+              && !!el.querySelector("[data-bf-rescue-row]"));
+          ok("ONE window carries BOTH rescues — two machines, one decision",
+            (windows.length === 1) && !!rowFor(win, "bardic") && !!rowFor(win, "use"),
+            `windows=${windows.length} rows=${win ? win.querySelectorAll("[data-bf-rescue-row]").length : 0}`);
+          ok("…and it shows ONE Pass, not one per machine",
+            (win?.querySelectorAll('button[data-action="pass"]').length === 1),
+            `pass buttons=${win?.querySelectorAll('button[data-action="pass"]').length ?? 0}`);
+          // Law 8: a rule is VISIBLE, not a hover away — and exactly one of them, never a stack.
+          ok("the quote pane shows exactly one verbatim rule",
+            (win?.querySelectorAll("[data-bf-rescue-pane]").length === 1)
+              && /expend/i.test(win?.querySelector("[data-bf-rescue-pane-text]")?.textContent ?? ""),
+            (win?.querySelector("[data-bf-rescue-pane-text]")?.textContent ?? "no pane").slice(0, 90));
 
           /* --- the fold spends first, and lands SHORT ---------------------------------- */
           face(3, 8);
-          foldPopup?.querySelector('button[data-action="bardic"]')?.click();
+          rowFor(win, "bardic")?.click();
           const foldDone = await until(() => {
             const cur = attackMsg?.getFlag(MODULE_ID, "d20fold");
             return (cur?.status === "resolved") ? cur : null;
@@ -552,10 +597,28 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             `folded=${foldDone?.foldedTotal} verdict=${foldDone?.targets?.[0]?.verdict}`);
 
           /* --- then precision, whose die closes the gap the fold left ------------------- */
+          // ⚠ THE WINDOW SURVIVES THE SPEND AND REDRAWS. The spent row greys IN PLACE rather
+          // than vanishing (user ruling, 2026-08-24): a withdrawal nobody can see reads as a
+          // window that ate an option, and the same is true of a spend.
+          const after = await until(() => {
+            const w = rescueWindow();
+            return (w && !rowFor(w, "bardic") && rowFor(w, "use")) ? w : null;
+          }, 12_000);
+          ok("the spend greys IN PLACE and the survivor stays pressable",
+            !!after && (after.querySelectorAll("[data-bf-rescue-row]").length === 2)
+              && !rowFor(after, "bardic") && !!rowFor(after, "use"),
+            after ? `rows=${after.querySelectorAll("[data-bf-rescue-row]").length} `
+              + `bardic pressable=${!!rowFor(after, "bardic")} precision pressable=${!!rowFor(after, "use")}`
+              : "the window did not redraw");
+          ok("…and the greyed row reports the die it actually rolled",
+            /rolled/i.test(after?.querySelector('[data-bf-rescue-row$=":bardic"]')?.textContent ?? "")
+              && /\b3\b/.test(after?.querySelector('[data-bf-rescue-row$=":bardic"]')?.textContent ?? ""),
+            (after?.querySelector('[data-bf-rescue-row$=":bardic"]')?.textContent ?? "no row")
+              .replace(/\s+/g, " ").trim());
+
           const before = game.messages.size;
           face(6, 8);
-          const stillOpen = momentPopup("The attack missed", "use") ?? precPopup;
-          stillOpen?.querySelector('button[data-action="use"]')?.click();
+          rowFor(after ?? win, "use")?.click();
           // ⚠ A LONG BUDGET, AND THE ELAPSED TIME REPORTED. `resolvePrecision` really uses the
           // activity (a system consumption AND a card), rolls a public die, writes the flag,
           // posts its own card and then re-drives the damage — a chain of real documents, not
@@ -762,10 +825,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
             const popup = await until(() => [...document.querySelectorAll(".application")]
               .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
-                && !!el.querySelector('button[data-action="bardic"]')), 8000);
+                && !!el.querySelector('[data-bf-rescue-action="bardic"]')), 8000);
             const before = game.messages.size;
             face(3, 8);
-            popup?.querySelector('button[data-action="bardic"]')?.click();
+            popup?.querySelector('[data-bf-rescue-action="bardic"]')?.click();
             const done = await until(() => {
               const cur = attackMsg?.getFlag(MODULE_ID, "d20fold");
               return (cur?.status === "resolved") ? cur : null;

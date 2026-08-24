@@ -21,7 +21,7 @@
 import { MODULE_ID, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor,
   queueFlagWrite } from "./core.js";
 import { TONE, popupKey, bfCard, momentBarHTML, nextCascadeSlot, cascadePosition,
-  eldersDeepestFirst } from "./decide/present.js";
+  eldersDeepestFirst, rescuePaneHTML, rescueRowsHTML } from "./decide/present.js";
 
 /* ---------------------------------------------------------------------------------------------
  * The hold's views: a durable row on the attack card, plus a popup for whoever can answer.
@@ -412,6 +412,230 @@ Hooks.on("createChatMessage", message => {
   }
 });
 
+/* ---------------------------------------------------------------------------------------------
+ * THE RESCUE REGISTRY (the spine) — §4.1's shape, applied to a VIEW instead of a write.
+ *
+ * ⚠ THE PROBLEM. A Battle Master holding a Bardic die who cleanly misses is stamped TWICE on
+ * ONE attack — `precision` by maneuvers.js, `d20fold` by d20-folds.js — and used to get two
+ * popups, two clocks and no cross-talk for what is one question: *this roll is short by N; what
+ * do you burn?* The arithmetic side was solved by D8 (compose, never order). This is the OFFER
+ * side, and the shape is **merge the VIEW, keep the flags** — R2 verbatim: the popup is a view,
+ * the flag is the state. No state merge, no wire-format change, no migration.
+ *
+ * ⚠ WHY A REGISTRY AND NOT A MERGE, which is the same argument `registerRelay` makes one
+ * section up: the spine must never name a feature. Machines hand it a key and four callbacks;
+ * it draws one window and routes each press back to whoever supplied that row. The list of
+ * rescues is data, so the next one — Pact Talisman, Indomitable, Fanatical Focus, and the rest
+ * of the own-roll retro-fixer family — is a registration and a row, not a popup in the pile.
+ *
+ * ⚠ COMPOSITION HAPPENS MACHINE-SIDE, and that is deliberate rather than incidental. `view` is
+ * a callback because composing the roll needs `foldsFrom` over the real message and the reveal
+ * SETTING — and this file reads no world setting and imports no machine. Each machine composes
+ * its own slice through decide/, and the spine only concatenates.
+ * ------------------------------------------------------------------------------------------- */
+
+/** flag key → { isPending, subject, view, answer } */
+const rescues = new Map();
+
+/**
+ * Declare a rescue source. `isPending(message)` says whether it is still asking;
+ * `subject(message)` names the actor whose decision it is (the `canAnswerFor` gate);
+ * `view(message)` returns that flag's slice of the row model, already composed;
+ * `answer(message, action)` takes the token the row carried — the machine's own vocabulary,
+ * handed straight back to it.
+ */
+export function registerRescue(flagKey, { isPending, subject, view, answer }) {
+  rescues.set(flagKey, { isPending, subject, view, answer });
+}
+
+/**
+ * Every registered source's slice, as one window's model.
+ *
+ * ⚠ HEADERS DEDUPE BY STRING. Both sources describe the same roll and derive their header
+ * through the same pure function (`rescueHeaderLines`), so they arrive identical — printing
+ * both would be the window telling the table one fact in stereo. Comparing STRINGS rather than
+ * numbers is what keeps this file from knowing what a margin is.
+ */
+function mergedRescueView(message) {
+  const headerLines = [];
+  const rows = [];
+  const quotes = [];
+  let earliestDeadline = null;
+  let clockWindow = null;
+  let pending = false;
+  let subject = null;
+  for ( const rescue of rescues.values() ) {
+    const slice = rescue.view(message);
+    if ( !slice ) continue;
+    if ( rescue.isPending(message) ) {
+      pending = true;
+      subject = subject ?? rescue.subject(message);
+    }
+    for ( const line of slice.headerLines ?? [] ) {
+      if ( !headerLines.includes(line) ) headerLines.push(line);
+    }
+    rows.push(...(slice.rows ?? []));
+    quotes.push(...(slice.quotes ?? []));
+    // ⚠ The EARLIEST clock wins, and its own window travels with it — a bar is a pure function
+    // of both, so pairing one source's deadline with another's window draws a drain that lies.
+    if ( Number.isFinite(slice.earliestDeadline)
+      && ((earliestDeadline === null) || (slice.earliestDeadline < earliestDeadline)) ) {
+      earliestDeadline = slice.earliestDeadline;
+      clockWindow = slice.clockWindow ?? null;
+    }
+  }
+  return { headerLines, rows, quotes, earliestDeadline, clockWindow, pending, subject };
+}
+
+/** Route one row press back to the machine that supplied it. */
+async function answerRescue(message, flagKey, action) {
+  const rescue = rescues.get(flagKey);
+  if ( !rescue ) return;
+  try { await rescue.answer(message, action); }
+  catch(err) { console.error(`${TITLE} | The rescue "${flagKey}" could not be answered.`, err); }
+}
+
+/**
+ * ⚠ ONE PASS ANSWERS EVERY PENDING SOURCE. There is one decision on screen, so there is one
+ * Pass — and a Pass that only closed the window would leave the OTHER flag pending, its clock
+ * running, and its offer re-opening on the next render. Two flag writes, both idempotent,
+ * both through the machines' own first-writer-wins answer paths.
+ */
+async function passEveryRescue(message) {
+  for ( const [flagKey, rescue] of rescues ) {
+    if ( !rescue.isPending(message) ) continue;
+    await answerRescue(message, flagKey, "pass");
+  }
+}
+
+/**
+ * The DOM half of the window (the bar's split, one floor up): the pane swap and the row
+ * presses. The markup is decide/present.js and stays pure; what is here is the listeners.
+ *
+ * ⚠ THE PANE SWAPS TEXT, IT DOES NOT RE-RENDER. Every quote ships in the markup as a hidden
+ * `data-` payload, so hovering a row is a text assignment rather than a dialog rebuild — which
+ * matters because a rebuild would fight the staircase for position on every mouse move.
+ */
+function wireRescueWindow(root, message) {
+  if ( !root?.querySelectorAll ) return;
+  const label = root.querySelector("[data-bf-rescue-pane-label]");
+  const text = root.querySelector("[data-bf-rescue-pane-text]");
+  for ( const row of root.querySelectorAll("[data-bf-rescue-row]") ) {
+    const key = row.dataset.bfRescueRow;
+    const swap = () => {
+      const quote = root.querySelector(`[data-bf-rescue-quote="${CSS.escape(key)}"]`);
+      if ( !quote || !label || !text ) return;
+      label.textContent = quote.dataset.bfRescueLabel ?? "";
+      text.textContent = `“${quote.dataset.bfRescueText ?? ""}”`;
+    };
+    row.addEventListener("mouseenter", swap);
+    row.addEventListener("focus", swap);
+    // ⚠ A GREYED ROW CARRIES NO ACTION and therefore gets no listener — a spent or withdrawn
+    // row is a RECORD, not a control. Law 11's inverse: a control that does nothing is worse
+    // than no control, so there is no control.
+    const action = row.dataset.bfRescueAction;
+    const flagKey = row.dataset.bfRescueFlag;
+    if ( !action || !flagKey ) continue;
+    row.addEventListener("click", () => void answerRescue(message, flagKey, action));
+    row.addEventListener("keydown", ev => {
+      if ( (ev.key !== "Enter") && (ev.key !== " ") ) return;
+      ev.preventDefault();
+      void answerRescue(message, flagKey, action);
+    });
+  }
+}
+
+/**
+ * WHAT THE WINDOW LAST SAID — popup key → the exact content string drawn.
+ *
+ * ⚠ THIS IS WHAT KEEPS THE WINDOW STILL. Redrawing means CLOSE AND REOPEN (the shipped
+ * latch-delete idiom), and `syncRescuePopup` is called from the machines' render handlers —
+ * which fire on every chat re-render, for reasons that have nothing to do with this message.
+ * Without a signature the table would watch the window blink shut and back open whenever
+ * anything else happened in the log. Comparing the rendered STRING is exact and needs no
+ * opinion about which fields matter.
+ */
+const rescueContent = new Map();
+
+/** Draw, redraw or close the one rescue window this message owns. */
+async function drawRescueWindow(message, { recall = false } = {}) {
+  const key = popupKey(message.id, "rescue");
+  const view = mergedRescueView(message);
+  const open = livePopups.get(key);
+
+  // Nothing left asking: the window goes, and its signature with it.
+  if ( !view.pending || !view.rows.length ) {
+    rescueContent.delete(key);
+    if ( open ) {
+      livePopups.delete(key);
+      shownMoments.delete(key);
+      try { await open.close(); } catch(err) { /* a closed dialog is the state we wanted */ }
+    }
+    return;
+  }
+
+  const content = bfCard({
+    img: view.subject?.img ?? null,
+    eyebrow: "Rescue the roll", tone: "pending",
+    title: "This roll is short — what do you burn?",
+    subtitle: view.subject?.name ?? "",
+    lines: view.headerLines
+  })
+    + rescuePaneHTML(view.quotes)
+    + rescueRowsHTML(view.rows)
+    + momentBarHTML({ deadline: view.earliestDeadline, window: view.clockWindow }, "to answer");
+
+  if ( open && (rescueContent.get(key) === content) ) return;   // unchanged — leave it alone
+  // ⚠ A PLAIN RE-RENDER MUST NOT REOPEN A WINDOW THE PLAYER CLOSED, but a CHANGE must. That is
+  // the shipped fold behaviour, kept: the machine cleared its latch on a re-offer precisely so
+  // a second offer could not arrive as a card row nobody was looking at. Here the content
+  // signature answers the same question more exactly — closed plus unchanged is a no-op,
+  // closed plus changed reopens, and the card's own Answer button recalls past the latch.
+  if ( !open && !recall && shownMoments.has(key) && (rescueContent.get(key) === content) ) return;
+
+  if ( open ) {
+    livePopups.delete(key);
+    shownMoments.delete(key);
+    try { await open.close(); } catch(err) { /* a closed dialog is the state we wanted */ }
+  }
+  rescueContent.set(key, content);
+  shownMoments.add(key);
+  const dialog = await openMomentPopup(message, "rescue", view.subject, {
+    title: `Rescue the roll — ${view.subject?.name ?? ""}`,
+    icon: "fa-solid fa-life-ring",
+    content,
+    buttons: [
+      { action: "pass", label: "Pass", default: true, callback: () => passEveryRescue(message) }
+    ]
+  });
+  if ( dialog?.element ) wireRescueWindow(dialog.element, message);
+}
+
+/**
+ * ⚠ THE SPAWN COALESCE, and it is the difference between one window and two. Both stamps land
+ * milliseconds apart — maneuvers.js registers `dnd5e.rollAttackV2` before d20-folds.js, which
+ * `check-hook-order` pins — so the first machine to finish would draw a window carrying only
+ * its own row, and the second would close and reopen it a tick later. The table would see a
+ * popup flicker for no reason. Deferring the draw to the next tick lets both stamps land
+ * first, and the window renders complete the only time it renders.
+ */
+const rescueDraws = new Map();
+export function syncRescuePopup(message, { recall = false } = {}) {
+  if ( !(message instanceof ChatMessage) ) return;
+  // A recall in the same tick wins: the card's Answer button must never lose to a render that
+  // happened to arrive first, because "the button does nothing" is a report this tree has had.
+  if ( rescueDraws.has(message.id) ) {
+    if ( recall ) rescueDraws.set(message.id, true);
+    return;
+  }
+  rescueDraws.set(message.id, recall);
+  setTimeout(() => {
+    const asked = rescueDraws.get(message.id) === true;
+    rescueDraws.delete(message.id);
+    void drawRescueWindow(message, { recall: asked });
+  }, 0);
+}
+
 // THE ONE DELETE-SWEEP (the spine): a deleted message takes its popups, every machine's
 // shown-latches and any local acknowledgements with it — the uniform `${messageId}|` key
 // prefix is what makes one sweep cover them all (five per-machine cleanup loops collapsed
@@ -425,6 +649,11 @@ Hooks.on("deleteChatMessage", message => {
   const prefix = `${message.id}|`;
   for ( const key of [...shownMoments] ) if ( key.startsWith(prefix) ) shownMoments.delete(key);
   for ( const key of [...localAcks] ) if ( key.startsWith(prefix) ) localAcks.delete(key);
+  // The rescue window's content signature rides the same key shape, so it sweeps here too —
+  // a stale one would make the window refuse to redraw for a message id Foundry later reuses.
+  for ( const key of [...rescueContent.keys()] ) {
+    if ( key.startsWith(prefix) ) rescueContent.delete(key);
+  }
   // ⚠ The hold's buzzer used to be disarmed HERE. D6 moved the clock into hold.js, which now
   // registers its own one-line sweep — the same shape every other timer-owning machine already
   // uses (concentration, maneuvers, mastery, saves, volleys). This sweep stays generic: it

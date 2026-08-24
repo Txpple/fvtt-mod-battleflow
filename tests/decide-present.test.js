@@ -438,7 +438,8 @@ describe("rescueView — two machines, one window", () => {
       headerLines: [],
       rows: [],
       quotes: [],
-      earliestDeadline: null
+      earliestDeadline: null,
+      clockWindow: null
     });
   });
 });

@@ -326,6 +326,24 @@ export const RESCUE_SOURCES = [
 ];
 
 /**
+ * ONE flag's declared source — a machine composes its own slice and nobody else's (§4.1).
+ *
+ * ⚠ AN UNKNOWN KEY YIELDS AN EMPTY LIST, AND THEREFORE AN EMPTY VIEW — a window with no rows,
+ * which the spine reads as "nothing to ask" and simply does not open. That is the silent-death
+ * shape this tree has paid for repeatedly (a hook name never dispatched, a consumption target
+ * that never remaps, a scale value that collapses to zero), so a mistyped key says so out loud
+ * rather than removing a feature quietly.
+ */
+export function rescueSourceFor(flagKey) {
+  const sources = RESCUE_SOURCES.filter(s => s.flag === flagKey);
+  if ( !sources.length ) {
+    console.warn(`Battle Flow | No rescue source is declared for "${flagKey}" — its rows will `
+      + "never render. Add it to RESCUE_SOURCES or fix the key.");
+  }
+  return sources;
+}
+
+/**
  * THE HEADER — the one sentence both machines must agree on, derived from the composed roll.
  *
  * ⚠ ONE FUNCTION, TWO CALLERS, BY DESIGN. The merged window is fed by both flags and each
@@ -383,13 +401,15 @@ export function rescueHeaderLines(premise, composed, { reveal = false } = {}) {
  * @param {?{total?: number, added?: number, replaced?: boolean}} [ctx.composed] the composed roll
  * @param {boolean} [ctx.reveal]  `holdReveal` — gates the margin, never the arithmetic
  * @param {object[]} [ctx.sources]
- * @returns {{headerLines: string[], rows: object[], quotes: object[], earliestDeadline: ?number}}
+ * @returns {{headerLines: string[], rows: object[], quotes: object[], earliestDeadline: ?number,
+ *   clockWindow: ?number}}
  */
 export function rescueView(read, { composed = null, reveal = false,
   sources = RESCUE_SOURCES } = {}) {
   const headerLines = [];
   const rows = [];
   let earliestDeadline = null;
+  let clockWindow = null;
   for ( const source of sources ) {
     const flag = read(source.flag);
     if ( !flag ) continue;
@@ -408,15 +428,28 @@ export function rescueView(read, { composed = null, reveal = false,
         img: row.img ?? null,
         cost: RESCUE_KINDS[row.kind]?.cost ?? null,
         result: row.result ?? null,
-        replaced: row.replaced === true
+        replaced: row.replaced === true,
+        // ⚠ THE THIRD ROW STATE, DECLARED HERE AND WRITTEN IN STAGE 4 (user ruling,
+        // 2026-08-24). A WITHDRAWN row is one whose premise a sibling spend already killed —
+        // "no longer needed", nothing spent. It greys exactly as a spent row does rather than
+        // disappearing, because a withdrawal nobody can see reads as a window that ate an
+        // option. No source produces it yet; normalising it to a boolean now means the markup
+        // and the model agree the day the moot lands, instead of one of them guessing.
+        withdrawn: row.withdrawn === true
       });
     }
     // ⚠ THE EARLIEST CLOCK WINS. Two flags, two deadlines, one bar — and the bar must promise
     // the SOONEST thing that can be taken away, never the latest. A resolved source can still
     // be carrying a deadline field, so the PENDING gate is what is checked, not the number.
     if ( source.isPending(flag) && Number.isFinite(flag.deadline) ) {
-      earliestDeadline = (earliestDeadline === null)
-        ? flag.deadline : Math.min(earliestDeadline, flag.deadline);
+      if ( (earliestDeadline === null) || (flag.deadline < earliestDeadline) ) {
+        earliestDeadline = flag.deadline;
+        // ⚠ THE WINDOW TRAVELS WITH THE DEADLINE IT BELONGS TO. The bar is a pure function of
+        // BOTH (`momentBarHTML`), and pairing one source's deadline with another's window
+        // would draw a drain that lies about how much time is left — the hidden-contract trap
+        // finding (n) already paid for once, in a shape that renders instead of vanishing.
+        clockWindow = Number(flag.window) || null;
+      }
     }
   }
   // ⚠ THE PANE IS ONE QUOTE, NEVER A STACK (law 8). Four features on screen means four rules,
@@ -425,5 +458,88 @@ export function rescueView(read, { composed = null, reveal = false,
   const quotes = rows
     .map(r => ({ key: r.key, label: r.label, text: RESCUE_KINDS[r.kind]?.rule ?? null }))
     .filter(q => q.text);
-  return { headerLines, rows, quotes, earliestDeadline };
+  return { headerLines, rows, quotes, earliestDeadline, clockWindow };
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * THE WINDOW'S MARKUP — the pane and the rows.
+ *
+ * ⚠ THE SAME SPLIT THE COUNTDOWN BAR HAS, for the same reason: strings are pure and testable,
+ * and the one thing a pure function cannot do — put a listener on a real element — is the
+ * spine's half. Everything below hands ui.js `data-bf-rescue-*` hooks and knows nothing about
+ * events, dialogs or the DOM.
+ *
+ * ⚠ ROWS LIVE IN THE DIALOG *CONTENT*, NOT THE FOOTER, and that is the anatomy the user settled
+ * (2026-08-24): a DialogV2 footer is a row of equal buttons, which is exactly wrong for a list
+ * that has to carry art, a die, a cost and a spent state. **Pass is the one footer button** —
+ * the single thing that is not a choice between features.
+ * ------------------------------------------------------------------------------------------- */
+
+/** Attribute-safe: these strings land inside `data-…="…"` and a rules quote is full of both. */
+const attr = s => String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+  .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * THE PANE — one verbatim, labelled rule quote (law 8).
+ *
+ * ⚠ ONE QUOTE, NEVER A STACK. Four rescues on screen means four rules, and a window that
+ * printed all of them would be a rulebook page nobody reads — but law 8 still wants the rule
+ * VISIBLE rather than a hover away. So the pane always shows exactly one: the hovered row's,
+ * defaulting to the first. Every quote ships in the markup as a `data-` payload so the swap is
+ * a text assignment on the client rather than a re-render of the dialog.
+ */
+export function rescuePaneHTML(quotes = []) {
+  if ( !quotes.length ) return "";
+  const payload = quotes.map(q =>
+    `<span data-bf-rescue-quote="${attr(q.key)}" data-bf-rescue-label="${attr(q.label)}"
+       data-bf-rescue-text="${attr(q.text)}" style="display:none;"></span>`).join("");
+  return `
+  <div data-bf-rescue-pane style="margin:0.45rem 0 0.15rem;padding:0.35rem 0.5rem;
+       border-left:2px solid ${TONE.neutral};background:rgba(0,0,0,0.05);border-radius:3px;
+       font-size:var(--font-size-12,12px);line-height:1.45;">
+    <strong data-bf-rescue-pane-label>${quotes[0].label}</strong>
+    <em data-bf-rescue-pane-text>“${quotes[0].text}”</em>
+  </div>${payload}`;
+}
+
+/**
+ * THE ROWS — one per rescue, each led by its own art.
+ *
+ * ⚠ A SPENT OR WITHDRAWN ROW STAYS ON SCREEN, GREYED (user, 2026-08-24). It is not a control
+ * any more — no `data-bf-rescue-action`, so the spine has nothing to bind — but it keeps the
+ * record of what was available and what became of it. A row that simply VANISHED would read as
+ * a window that ate an option, which is the opposite of what withdrawing it is for.
+ *
+ * ⚠ `img` FIRST, GLYPH SECOND. Every rescue that has a document leads with that document's own
+ * art; `heroic` has no document anywhere in dnd5e — it is a boolean on the sheet — so the kind's
+ * glyph carries the row. Law 9: both wear a tooltip naming the feature.
+ */
+export function rescueRowsHTML(rows = []) {
+  return rows.map(row => {
+    const art = row.img
+      ? `<img src="${row.img}" alt="${attr(row.label)}" data-tooltip="${attr(row.label)}"
+           style="width:24px;height:24px;flex:0 0 auto;border-radius:3px;object-fit:cover;">`
+      : `<i class="${attr(row.icon)}" data-tooltip="${attr(row.label)}"
+           style="width:24px;flex:0 0 auto;text-align:center;opacity:0.85;"></i>`;
+    // What the row OFFERS, or what it turned out to be — never both.
+    const detail = row.spent
+      ? (row.replaced ? `rerolled — <strong>${row.result}</strong>`
+        : Number.isFinite(row.result) ? `rolled <strong>${row.result}</strong>` : "spent")
+      : row.withdrawn ? "no longer needed"
+        : (row.kind === "heroic") ? "reroll the d20" : `add ${row.die ?? "a die"}`;
+    const inert = row.spent || row.withdrawn;
+    const cost = (!inert && row.cost) ? `<span style="opacity:0.6;"> (${row.cost})</span>` : "";
+    return `
+    <div data-bf-rescue-row="${attr(row.key)}"
+         ${inert ? "" : `data-bf-rescue-action="${attr(row.action)}"
+         data-bf-rescue-flag="${attr(row.flag)}" role="button" tabindex="0"`}
+         style="display:flex;gap:0.5rem;align-items:center;margin-top:0.25rem;
+                padding:0.2rem 0.35rem;border-radius:3px;
+                ${inert ? "opacity:0.45;" : "cursor:pointer;"}">
+      ${art}
+      <span style="flex:1;min-width:0;font-size:var(--font-size-12,12px);line-height:1.35;">
+        <strong>${row.label}</strong> — ${detail}${cost}
+      </span>
+    </div>`;
+  }).join("");
 }

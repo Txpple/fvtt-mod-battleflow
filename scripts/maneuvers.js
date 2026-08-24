@@ -7,14 +7,15 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
   canAnswerFor, inRunningCombat, combatStamp } from "./core.js";
 import { maneuverFoldEntries } from "./settings.js";
 import { hitTargets, modeAllows } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, RESCUE_KINDS }
-  from "./decide/present.js";
+import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, RESCUE_KINDS,
+  rescueView, rescueSourceFor } from "./decide/present.js";
 // The same four names d20-folds.js takes, for the same reason and off the same registry: a
 // resolver that announces a verdict must compose it, and there is exactly one composition.
 import { ATTACK_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
 import { livePopups, openMomentPopup,
   momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,
-  armAskTimer, disarmAskTimer, armDeadline, disarmDeadline, registerRelay } from "./ui.js";
+  armAskTimer, disarmAskTimer, armDeadline, disarmDeadline, registerRelay,
+  registerRescue, syncRescuePopup } from "./ui.js";
 // Safe statically (the saves.js:12 argument): the entry evaluates auto-damage.js at :90 and
 // this file at :97, so nothing here can reorder auto-damage's registrations. Re-checked with
 // check-hook-order; do not move this file's entry position without re-running it.
@@ -280,9 +281,8 @@ async function resolvePrecision(message) {
     // is not on the message yet — the write below is what puts it there — so a plain
     // `getFlag` walk would compose everything EXCEPT the spend being resolved.
     const pending = { ...flag, status: "resolved", outcome: "used", die };
-    const folds = foldsFrom(
-      key => ((key === "precision") ? pending : message.getFlag(MODULE_ID, key)), ATTACK_FOLDS);
-    const baseRoll = message.rolls?.[0] ?? { total: flag.attackTotal };
+    const folds = precisionFolds(message, pending);
+    const baseRoll = precisionBase(message, flag);
 
     // Graze conflict named, never unwound.
     const lines = [];
@@ -341,31 +341,57 @@ async function resolvePrecision(message) {
   }
 }
 
-/** The Use/Pass popup — the hold family's two controls, the margin shown under holdReveal. */
-async function showPrecisionPopup(message, flag) {
-  const attacker = (() => { try { return fromUuidSync(flag.attackerUuid); } catch { return null; } })();
-  // (z): the rule line is the maneuver's own sentence, verbatim; the margins and the
-  // spent-either-way note stay as the module's hints.
-  const lines = [ruleLine(RULE_TEXT.precision)];
-  if ( setting(S.holdReveal) ) {
-    for ( const t of flag.targets ?? [] ) lines.push(`Needs +${t.margin} to reach ${t.name} (AC ${t.ac} vs ${flag.attackTotal}).`);
-  }
-  lines.push("The superiority die is spent either way it lands.");
-  await openMomentPopup(message, "precision", attacker, {
-    title: `Precision Attack — ${attacker?.name ?? ""}`, icon: "fa-solid fa-crosshairs",
-    content: bfCard({
-      img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`, tone: "pending",
-      title: "The attack missed — patch it?",
-      lines
-    }) + holdBarHTML(flag, "to answer"),
-    buttons: [
-      { action: "use", label: `Use ${flag.itemName}`, default: true,
-        callback: () => answerPrecision(message, "use") },
-      { action: "pass", label: "Pass",
-        callback: () => answerPrecision(message, "pass") }
-    ]
-  });
-}
+/**
+ * THE FOLD CONTRIBUTIONS THIS ATTACK CARRIES, from precision's point of view — one home, so the
+ * resolver and the window can never announce different numbers. `pending` substitutes the spend
+ * being resolved, which is not on the message yet.
+ *
+ * ⚠ ONE TARGET'S SLICE. An attack is ONE roll judged against MANY targets, so the registry holds
+ * a contribution per (target × spend); summing the lot counts every die once per target. See
+ * d20-folds.js's own copy of this argument — both resolvers learned it the same week.
+ */
+const precisionFolds = (message, flag) => foldsFrom(
+  key => ((key === "precision") ? flag : message.getFlag(MODULE_ID, key)), ATTACK_FOLDS)
+  .filter(f => f.uuid === flag?.targets?.[0]?.uuid);
+
+/** The roll the folds compose over — the real d20 where there is one, the stamp's copy otherwise. */
+const precisionBase = (message, flag) => message.rolls?.[0] ?? { total: flag?.attackTotal };
+
+/**
+ * PRECISION AS A RESCUE ROW (the merged window, ARCHITECTURE §5).
+ *
+ * ⚠ THIS MACHINE NO LONGER OPENS A POPUP OF ITS OWN. A Battle Master holding a Bardic die is
+ * stamped by BOTH fold machines on one missed attack, and two windows for one decision is the
+ * discombobulation this pass exists to end. The spine draws ONE window from every registered
+ * source; this file hands it a key and four callbacks and never learns that d20-folds.js exists.
+ *
+ * ⚠ THE CARD IS UNCHANGED — pairing law 2. The durable row, its bar and its Answer button all
+ * stay exactly where they were; what moved is only which window the Answer button opens.
+ */
+registerRescue("precision", {
+  isPending: message => message.getFlag(MODULE_ID, "precision")?.status === "pending",
+  subject: message => {
+    const uuid = message.getFlag(MODULE_ID, "precision")?.attackerUuid;
+    try { return uuid ? fromUuidSync(uuid) : null; } catch { return null; }
+  },
+  /**
+   * ⚠ COMPOSED HERE, NOT IN THE SPINE, and that is the §4.1 line: composing needs `foldsFrom`
+   * over a real message and the reveal SETTING, and ui.js reads no world setting and imports no
+   * machine. Each machine hands over a finished slice; the spine only concatenates.
+   */
+  view: message => {
+    const flag = message.getFlag(MODULE_ID, "precision");
+    if ( !flag ) return null;
+    return rescueView(key => ((key === "precision") ? flag : null), {
+      composed: foldedRoll(precisionBase(message, flag), precisionFolds(message, flag)),
+      reveal: setting(S.holdReveal),
+      sources: rescueSourceFor("precision")
+    });
+  },
+  // The answer path is untouched: first-writer-wins, the crash-resume horizon, the in-flight
+  // latch. `use` is the row; `pass` is the footer, and the spine sends it to every source.
+  answer: (message, action) => answerPrecision(message, (action === "use") ? "use" : "pass")
+});
 
 /* =============================================================================================
  * RIPOSTE
@@ -1093,13 +1119,12 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       armPrecisionTimer(message);
       const attacker = (() => { try { return fromUuidSync(p.attackerUuid); } catch { return null; } })();
       if ( canAnswerFor(attacker) && !p.answer ) {
-        const shownKey = popupKey(message.id, "precision");
-        if ( !shownMoments.has(shownKey) ) {
-          shownMoments.add(shownKey);
-          void showPrecisionPopup(message, p);
-        }
+        // ⚠ ONE CALL FOR BOTH JOBS. The spine owns the latch now (the content signature), so
+        // the auto-show and the redraw are the same request; the recall flag is what tells it
+        // a HUMAN asked, which is allowed past a window they closed themselves.
+        syncRescuePopup(message);
         row.appendChild(momentButton("Answer", () => {
-          void showPrecisionPopup(message, message.getFlag(MODULE_ID, "precision"));
+          syncRescuePopup(message, { recall: true });
         }, { margin: "0.25rem 0 0" }));
       }
       // Crash-resume, elect-owned with the topple's 20s horizon: an ACCEPTED answer whose
@@ -1219,8 +1244,11 @@ Hooks.on("updateChatMessage", message => {
   }
   const p = message.getFlag(MODULE_ID, "precision");
   if ( p ) {
-    const dialog = livePopups.get(popupKey(message.id, "precision"));
-    if ( dialog && ((p.status !== "pending") || p.answer) ) void dialog.close();
+    // ⚠ SYNC, DO NOT CLOSE. Precision no longer owns a window — it owns ROWS in one, shared
+    // with whatever else is trying to rescue the same roll. Closing on this flag alone would
+    // take a SIBLING's live offer off the screen because THIS one finished. The spine closes
+    // the window when nothing is left asking, and redraws it with this row greyed otherwise.
+    if ( (p.status !== "pending") || p.answer ) syncRescuePopup(message);
     if ( p.status !== "pending" ) disarmAskTimer(precisionTimers, message.id);
   }
   const r = message.getFlag(MODULE_ID, "riposte");

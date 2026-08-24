@@ -60,11 +60,11 @@
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor } from "./core.js";
 import { d20FoldEntries } from "./settings.js";
 import { hitTargets, modeAllows } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML, ruleLine, RESCUE_KINDS, rescueLabel }
+import { bfCard, holdBarHTML, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
   from "./decide/present.js";
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
-import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
-  armAskTimer, disarmAskTimer } from "./ui.js";
+import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer,
+  registerRescue, syncRescuePopup } from "./ui.js";
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 
 /**
@@ -82,8 +82,6 @@ import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
  */
 const kindTable = pick => Object.fromEntries(
   Object.entries(RESCUE_KINDS).map(([kind, spec]) => [kind, spec[pick]]));
-const RULE_TEXT = kindTable("rule");
-const KIND_ICON = kindTable("icon");
 const KIND_LABEL = kindTable("label");
 const SPEND_COST = kindTable("cost");
 const labelOf = rescueLabel;
@@ -514,10 +512,8 @@ async function resolveFold(message, kind) {
      * "card disagrees with its own arithmetic" class receipt arithmetic was unified to kill,
      * and it reappeared here because this resolver reached for the default instead of choosing.
      */
-    const specs = (flag.testKind === "attack") ? ATTACK_FOLDS : SAVE_FOLDS;
-    const folds = foldsFrom(key => (key === "d20fold" ? pending : message.getFlag(MODULE_ID, key)),
-      specs);
-    const baseRoll = message.rolls?.[0] ?? { total: flag.baseTotal };
+    const folds = foldFolds(message, pending);
+    const baseRoll = foldBase(message, flag);
     /**
      * ⚠ ONE TARGET'S SLICE, NOT THE WHOLE LIST — the multi-target trap, and the twin of the
      * bug this resolver's precision counterpart shipped. An attack is ONE roll judged against
@@ -588,9 +584,12 @@ async function resolveFold(message, kind) {
 
     if ( reoffer ) {
       // Still failing and something left to spend: ask again rather than deciding for them.
-      // ⚠ The latch is cleared so the popup can re-open — a second offer that renders only a
-      // card row would be invisible to whoever is looking at the popup stack.
-      shownMoments.delete(popupKey(message.id, "d20fold"));
+      // ⚠ The window is REDRAWN rather than re-popped. A second offer that rendered only as a
+      // card row would be invisible to whoever is looking at the window — the reason the latch
+      // used to be cleared here — but the surviving rows have been on screen since the first
+      // stamp, so what is needed is a redraw, not a new popup. The spine's content signature
+      // decides: changed, so it reopens.
+      syncRescuePopup(message);
       if ( message.getFlag(MODULE_ID, "d20fold")?.deadline ) armFoldTimer(message);
       return;
     }
@@ -739,8 +738,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         display: "flex", gap: "0.3rem", marginTop: "0.4rem", justifyContent: "flex-end"
       });
       controls.append(momentButton("Answer", () => {
-        shownMoments.delete(popupKey(message.id, "d20fold"));
-        void showFoldPopup(message, message.getFlag(MODULE_ID, "d20fold"));
+        syncRescuePopup(message, { recall: true });
       }, { flex: "0 0 auto", margin: "0", padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4" }));
       block.append(controls);
 
@@ -759,11 +757,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
        * no bar — `holdBarHTML` already returns "" without a window, so nothing special is done
        * for it here.
        */
-      const key = popupKey(message.id, "d20fold");
-      if ( !shownMoments.has(key) ) {
-        shownMoments.add(key);
-        void showFoldPopup(message, flag);
-      }
+      syncRescuePopup(message);
       return;
     }
 
@@ -874,43 +868,60 @@ function resolvedLines(flag) {
   return lines;
 }
 
-/** The popup — one button per eligible fold, plus Pass. */
-async function showFoldPopup(message, flag) {
-  if ( !flag ) return;
-  const actor = (() => { try { return fromUuidSync(flag.actorUuid); } catch { return null; } })();
-  const offers = flag.offers ?? [];
-  const lines = offerLines(flag, offers);
-  // Every offered feature quotes its OWN rules text (law 8) — with several on screen the quotes
-  // are LABELLED, because an unattributed stack of three reads as one rule.
-  for ( const o of offers ) lines.push(`<strong>${labelOf(o)}:</strong> ${ruleLine(RULE_TEXT[o.kind])}`);
-  // ⚠ The per-kind cost is already on each offer's own line (offerLines). What remains here is
-  // the one thing a player can only learn too late: a reroll they asked for can come back WORSE
-  // and they are stuck with it. Saying so at declaration time is the honest half of "you must
-  // use the new roll" (law 5 — declaration states the spend, never the outcome).
-  if ( offers.some(o => o.kind === "heroic") ) {
-    lines.push("⚠ A reroll replaces the d20 outright — a worse roll still stands.");
-  }
-
-  await openMomentPopup(message, "d20fold", actor, {
-    title: `Patch this roll — ${actor?.name ?? ""}`,
-    icon: KIND_ICON[offers[0]?.kind] ?? "fa-solid fa-dice-d20",
-    content: bfCard({
-      img: foldImg(actor, offers),
-      eyebrow: "D20 Fold — offered", tone: "pending",
-      subtitle: `${actor?.name ?? ""} · ${testKindPhrase(flag)}`,
-      title: (flag.testKind === "attack") ? "The attack missed — patch it?"
-        : (flag.testKind === "save") ? "The save failed — patch it?" : "Patch this roll?",
-      lines
-    }) + holdBarHTML(flag, "to answer"),
-    buttons: [
-      ...offers.map((o, i) => ({
-        action: o.kind, label: `Use ${labelOf(o)}`, default: i === 0,
-        callback: () => answerFold(message, o.kind)
-      })),
-      { action: "pass", label: "Pass", callback: () => answerFold(message, "pass") }
-    ]
-  });
+/**
+ * THE FOLD CONTRIBUTIONS THIS ROLL CARRIES — one home, so the resolver and the window can never
+ * announce different numbers. `pending` substitutes the spend being resolved, which is not on
+ * the message yet.
+ *
+ * ⚠ PICK THE SPEC SET BY TEST KIND, and ⚠ ONE TARGET'S SLICE on the attack side. Both arguments
+ * are written out at `resolveFold`, which is this helper's other caller; the point of the
+ * helper is that there is no second place for either of them to be got wrong.
+ */
+function foldFolds(message, flag) {
+  const specs = (flag?.testKind === "attack") ? ATTACK_FOLDS : SAVE_FOLDS;
+  const folds = foldsFrom(
+    key => ((key === "d20fold") ? flag : message.getFlag(MODULE_ID, key)), specs);
+  return (flag?.testKind === "attack")
+    ? folds.filter(f => f.uuid === flag.targets?.[0]?.uuid) : folds;
 }
+
+/** The roll the folds compose over — the real d20 where there is one, the stamp's copy otherwise. */
+const foldBase = (message, flag) => message.rolls?.[0] ?? { total: flag?.baseTotal };
+
+/**
+ * THE D20 FOLDS AS RESCUE ROWS (the merged window, ARCHITECTURE §5).
+ *
+ * ⚠ THIS MACHINE NO LONGER OPENS A POPUP OF ITS OWN, and neither does maneuvers.js. A Battle
+ * Master holding a Bardic die is stamped by BOTH on one missed attack, and two windows, two
+ * clocks and no cross-talk for ONE question is the discombobulation this pass exists to end.
+ * The spine draws one window from every registered source; this file hands it a key and four
+ * callbacks and never learns that maneuvers.js exists.
+ *
+ * ⚠ THE CARD IS UNCHANGED — pairing law 2. The durable block, its bar, its offer lines and its
+ * Answer button all stay; what moved is only which window the Answer button opens.
+ *
+ * ⚠ AND THE ANSWER PATH IS UNCHANGED. `answerFold` still serialises through the flag lock,
+ * first writer wins, the withheld-save protocol resumes exactly as it did. The rows carry the
+ * KIND as their action token because that is this machine's own vocabulary — the spine hands
+ * back whatever it was given.
+ */
+registerRescue("d20fold", {
+  isPending: message => message.getFlag(MODULE_ID, "d20fold")?.status === "pending",
+  subject: message => {
+    const uuid = message.getFlag(MODULE_ID, "d20fold")?.actorUuid;
+    try { return uuid ? fromUuidSync(uuid) : null; } catch { return null; }
+  },
+  view: message => {
+    const flag = message.getFlag(MODULE_ID, "d20fold");
+    if ( !flag ) return null;
+    return rescueView(key => ((key === "d20fold") ? flag : null), {
+      composed: foldedRoll(foldBase(message, flag), foldFolds(message, flag)),
+      reveal: setting(S.holdReveal),
+      sources: rescueSourceFor("d20fold")
+    });
+  },
+  answer: (message, action) => answerFold(message, action)
+});
 
 /* =============================================================================================
  * EXPIRE + RESUME
@@ -921,7 +932,11 @@ Hooks.on("updateChatMessage", (message) => {
   if ( !flag ) return;
   if ( flag.status !== "pending" ) {
     disarmAskTimer(foldTimers, message.id);
-    void livePopups.get(popupKey(message.id, "d20fold"))?.close();
+    // ⚠ SYNC, DO NOT CLOSE. This machine no longer owns a window — it owns ROWS in one. If the
+    // sibling rescue is still pending the window must STAY, with this fold's rows greyed in
+    // place; closing it here would take a live offer off the screen because a different one
+    // finished. The spine closes it when nothing is left asking, and only then.
+    syncRescuePopup(message);
     return;
   }
   // Crash-resume, the precision block's 20s horizon: an accepted offer whose resolver never ran
@@ -935,5 +950,7 @@ Hooks.on("updateChatMessage", (message) => {
 
 Hooks.on("deleteChatMessage", message => {
   disarmAskTimer(foldTimers, message.id);
-  shownMoments.delete(popupKey(message.id, "d20fold"));
+  // ⚠ No latch to clear here any more. The spine's ONE delete-sweep already drops every
+  // `${messageId}|` key, and the merged window's is `|rescue` — a key this file does not own
+  // and must not name. Re-adding a feature's name to that sweep is exactly what it forbids.
 });

@@ -233,6 +233,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       && (x.getFlag('dnd5e', 'originatingMessage') === originId)), ms);
     const dialogsWith = text => [...document.querySelectorAll('.application')]
       .filter(el => (el.innerHTML ?? '').includes(text));
+    /**
+     * THE MERGED RESCUE WINDOW — precision no longer opens a popup of its own.
+     *
+     * ⚠ Since the rescue view merged the offer surfaces, a Battle Master holding a Bardic die
+     * gets ONE window with a row per rescue rather than one popup per machine. So the control
+     * is `[data-bf-rescue-action]` on a div and the old `Use <item name>` BUTTON is gone —
+     * which is why matching on that label found nothing and reported "the popup did not open".
+     * `Pass` is still a real footer button: it is the one thing that is not a choice between
+     * features, and the spine sends it to every pending source.
+     */
+    const rescueWindow = (action = 'use') => [...document.querySelectorAll('.application')]
+      .find(el => (el.tagName === 'DIALOG')
+        && !!el.querySelector(`[data-bf-rescue-action="${action}"]`));
+    const rescueRow = (win, action = 'use') =>
+      win?.querySelector(`[data-bf-rescue-action="${action}"]`) ?? null;
     const closeDialogs = async text => {
       for (const el of dialogsWith(text)) {
         try { (el.querySelector('[data-action="close"]') ?? el.querySelector('.header-control'))?.click(); } catch {}
@@ -286,11 +301,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           !!flag && (flag.status === 'pending') && (flag.itemName === 'Precision Attack')
             && (flag.targets?.length === 1),
           JSON.stringify({ status: flag?.status, targets: flag?.targets?.length }));
-        const popup = await until(() => dialogsWith('Use Precision Attack')[0], 6000);
-        ok('P2. the offer popup carries the two controls (Use / Pass)',
-          !!popup && !!popup.querySelector('button[data-action="use"]')
-            && !!popup.querySelector('button[data-action="pass"]'),
-          `popup=${!!popup}`);
+        const popup = await until(() => rescueWindow('use'), 6000);
+        ok('P2. the offer window carries a pressable row and ONE Pass',
+          !!popup && !!rescueRow(popup, 'use')
+            && (popup.querySelectorAll('button[data-action="pass"]').length === 1),
+          `popup=${!!popup} rows=${popup?.querySelectorAll('[data-bf-rescue-row]').length ?? 0}`);
 
         /* P3 — PASS: nothing rolls, the pool is untouched. */
         const usesBefore = poolUses();
@@ -326,8 +341,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (!flag) {
           ok('P5. accept — the die spends, the verdict flips, damage lands', false, 'no stamp in 8 tries');
         } else {
-          const popup = await until(() => dialogsWith('Use Precision Attack')[0], 6000);
-          popup?.querySelector('button[data-action="use"]')?.click();
+          const popup = await until(() => rescueWindow('use'), 6000);
+          rescueRow(popup, 'use')?.click();
           const resolved = await until(() => {
             const p = msg.getFlag(MOD, 'precision');
             return ((p?.status === 'resolved') && (p.outcome === 'used')) ? p : null;
@@ -607,7 +622,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           if (!flag) {
             ok('P8b. player-owned attacker, owner offline — the GM STILL gets the popup (①)', false, 'no stamp in 8 tries');
           } else {
-            const popup = await until(() => dialogsWith('Use Precision Attack')[0], 6000);
+            const popup = await until(() => rescueWindow('use'), 6000);
             ok('P8b. player-owned attacker, owner offline — the GM STILL gets the popup (①)',
               !!popup, `popup=${!!popup}`);
             popup?.querySelector('button[data-action="pass"]')?.click();
