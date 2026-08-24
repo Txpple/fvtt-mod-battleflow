@@ -71,7 +71,13 @@ const ORDER = [
   { name: "check-popup-routing", note: "two clients, read-only — popups route to whoever decides" },
   { name: "reset-fixture-state", note: "not a suite — the sweep smoke-effects needs", reset: true },
   { name: "smoke-effects", note: "⚠ re-run before diagnosing: the documented dice-variance class" },
-  { name: "smoke-resources", note: "" }
+  { name: "smoke-resources", note: "" },
+  // ⚠ LAST, and it is the only entry whose position is about what it CREATES rather than what
+  // it needs. It places a real MeasuredTemplate on the active scene, and a template standing
+  // while smoke-saves is mid-run would join its containment arithmetic (§8 re-derives target
+  // sets from whatever areas exist). It deletes its own in a `finally`; running it last means
+  // a crash between the two cannot reach a suite that would care.
+  { name: "smoke-surfaces", note: "the three surfaces nothing else opens — settings, usage dialog, templates" }
 ];
 
 const { values, positionals } = parseArgs({

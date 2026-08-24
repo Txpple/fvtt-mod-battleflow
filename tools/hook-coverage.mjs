@@ -16,7 +16,11 @@
 //   1. the battery does not exercise that path — a coverage gap, and the useful kind to see;
 //   2. the handler is dead and nobody knows (this is the v1.23.0 failure, and it printed four
 //      lines here while every suite reported green);
-//   3. the hook is rare by nature (a system upgrade path, a document type nothing creates).
+//   3. the hook is rare by nature (a system upgrade path, a document type nothing creates);
+//   4. THE PLATFORM NEVER DISPATCHES IT AT ALL — measured 2026-08-24 for the two MeasuredTemplate
+//      CRUD hooks, which Foundry 14 replaced with Region dispatches. That one is not a coverage
+//      result and does not belong in the same list as the others, so it has its own pinned
+//      category below and its own printed reason.
 // **Only a person can tell these apart**, which is exactly why this prints rather than fails.
 //
 //   node tools/hook-coverage.mjs          # after a battery
@@ -46,6 +50,31 @@ const BEFORE_THE_INSTRUMENT = new Map([
   ["init", "fires once during world boot, before any suite connects. settings.js registers the "
     + "settings surface here and volley-registry.js its kinds — both are proven every run by "
     + "`check-registry` statically and by every suite that reads a setting"]
+]);
+
+// ⚠ HOOKS THE PLATFORM DOES NOT DISPATCH AT ALL — measured, not assumed, and pinned with the
+// Foundry version the measurement was taken on. This is the CORE-side twin of D10: the dispatch
+// gate reads dnd5e's own bundle and can prove a `dnd5e.*` name is real, and there is no
+// equivalent for core hooks, so a core name that has gone away registers cleanly and does
+// nothing forever. The difference from the boot pin above is what it admits: a boot hook is
+// unobservable by this INSTRUMENT, while these are unobservable in the PLATFORM — the battery
+// cannot walk a path the world never opens.
+//
+// ⚠ EVERY ROW MUST NAME ITS MEASUREMENT, and `tools/probe-surfaces.mjs` is how one is taken.
+// Excluded from the denominator for the same reason the boot rows are — a score that cannot be
+// reached is a score nobody chases — and checked BOTH WAYS below, so the day a platform upgrade
+// starts dispatching one the report says the pin is stale instead of quietly reading green.
+const NOT_DISPATCHED_HERE = new Map([
+  ["createMeasuredTemplate", "MEASURED ZERO on Foundry 14.365 (tools/probe-surfaces.mjs, "
+    + "2026-08-24): creating a MeasuredTemplate moves scene.templates 0→1 AND scene.regions "
+    + "0→1, and the hooks that fire are preCreateRegion/createRegion/drawRegion — v14 backs a "
+    + "template with a Region document and dispatches nothing under the MeasuredTemplate name. "
+    + "saves.js calls these a fast-path over a render-hook RELIABILITY FLOOR, and the floor is "
+    + "what has carried template adoption all along (smoke-saves §8, table-proven). See "
+    + "ARCHITECTURE §10 D12 for the open question this leaves"],
+  ["updateMeasuredTemplate", "MEASURED ZERO on Foundry 14.365 (same probe, same run): updating "
+    + "the template dispatched NOTHING AT ALL — not one hook name moved. Same cause and same "
+    + "floor as its create twin above"]
 ]);
 
 let files = [];
@@ -88,7 +117,9 @@ const names = [...byHook.keys()];
 
 const fired = names.filter(h => total.has(h));
 const boot = names.filter(h => !total.has(h) && BEFORE_THE_INSTRUMENT.has(h));
-const silent = names.filter(h => !total.has(h) && !BEFORE_THE_INSTRUMENT.has(h));
+const undispatched = names.filter(h => !total.has(h) && NOT_DISPATCHED_HERE.has(h));
+const silent = names.filter(h => !total.has(h) && !BEFORE_THE_INSTRUMENT.has(h)
+  && !NOT_DISPATCHED_HERE.has(h));
 const liveRegistrations = fired.reduce((n, h) => n + byHook.get(h).length, 0);
 const deadRegistrations = silent.reduce((n, h) => n + byHook.get(h).length, 0);
 
@@ -102,10 +133,12 @@ const w = Math.max(...names.map(h => h.length));
 // ⚠ The denominator EXCLUDES the boot hooks. Counting a hook that cannot be observed against
 // coverage would make the best achievable score less than 100%, and a score that can never be
 // reached is a score nobody chases.
-const observable = names.length - boot.length;
+const observable = names.length - boot.length - undispatched.length;
 const bootRegistrations = boot.reduce((n, h) => n + byHook.get(h).length, 0);
+const pinnedRegistrations = bootRegistrations
+  + undispatched.reduce((n, h) => n + byHook.get(h).length, 0);
 console.log(`  FIRED — ${fired.length}/${observable} observable names, `
-  + `${liveRegistrations}/${reg.length - bootRegistrations} observable registrations`);
+  + `${liveRegistrations}/${reg.length - pinnedRegistrations} observable registrations`);
 for (const h of fired.sort((a, b) => total.get(b) - total.get(a))) {
   const note = SHORT_CIRCUITING.has(h) ? "  ⚠ Hooks.call — first-false stops the chain" : "";
   console.log(`    ${h.padEnd(w)}  ${String(total.get(h)).padStart(6)}×  `
@@ -133,6 +166,28 @@ for (const [h, why] of BEFORE_THE_INSTRUMENT) {
   }
 }
 
+if (undispatched.length) {
+  const dead = undispatched.reduce((n, h) => n + byHook.get(h).length, 0);
+  console.log(`\n  NOT DISPATCHED BY THIS FOUNDRY — ${undispatched.length} name(s), `
+    + `${dead} registration(s). Registered, measured, and never delivered:`);
+  for (const h of undispatched) {
+    console.log(`    ${h.padEnd(w)}  ${[...new Set(byHook.get(h))].join(", ")}`);
+    console.log(`      ${NOT_DISPATCHED_HERE.get(h)}`);
+  }
+}
+// ⚠ Both ways, like every other allowlist in this tree. A pin that has come back to life is the
+// INTERESTING event — it means the platform restored the name and a fast-path can be un-pinned.
+for (const [h, why] of NOT_DISPATCHED_HERE) {
+  if (total.has(h)) {
+    console.log(`\n  ⚠ STALE PIN: "${h}" is pinned as never dispatched (${why.slice(0, 60)}…) `
+      + "and the ledger recorded it FIRING. The platform gives it back — delete the row and "
+      + "re-read ARCHITECTURE §10 D12.");
+  } else if (!names.includes(h)) {
+    console.log(`\n  ⚠ STALE PIN: "${h}" is pinned as never dispatched and this module no `
+      + "longer registers it. Delete the row.");
+  }
+}
+
 if (!silent.length) {
   console.log("\n  NEVER FIRED — none. Every observable registration this module makes was "
     + "exercised.");
@@ -151,7 +206,8 @@ if (!silent.length) {
 // ⚠ Coverage is never the exit code. See the header: a rule that failed on a rare hook would be
 // tuned out, and a tuned-out check still reads as coverage to the next person.
 console.log(`\nREPORT ${fired.length}/${observable} observable hook names exercised `
-  + `(${liveRegistrations}/${reg.length - bootRegistrations} registrations) across `
+  + `(${liveRegistrations}/${reg.length - pinnedRegistrations} registrations) across `
   + `${suites.length} suite(s)`
   + (boot.length ? `, ${boot.length} unobservable by construction` : "")
+  + (undispatched.length ? `, ${undispatched.length} not dispatched by this Foundry` : "")
   + ". Coverage is reported, never enforced.");
