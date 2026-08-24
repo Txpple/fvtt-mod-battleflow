@@ -8,36 +8,12 @@
 //
 //   node tools/check-hook-order.mjs
 //
-import { pathToFileURL, fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+// ⚠ The LOADING of the registrations lives in `hook-registrations.mjs`, shared with
+// `check-hook-dispatch.mjs` — same list, two different questions asked of it.
+import { loadRegistrations, groupByHook } from "./hook-registrations.mjs";
 
-const here = dirname(fileURLToPath(import.meta.url));
-const entry = pathToFileURL(join(here, "..", "scripts", "battleflow.js")).href;
-
-const reg = []; // { hook, file } in registration order
-const fileFromStack = () => {
-  const frame = (new Error().stack ?? "").split("\n").find(l => l.includes("/scripts/"));
-  return frame?.match(/scripts\/([\w.-]+\.js)/)?.[1] ?? "?";
-};
-globalThis.Hooks = {
-  on: hook => { reg.push({ hook, file: fileFromStack() }); },
-  once: hook => { reg.push({ hook, file: fileFromStack() }); }
-};
-// Eval-time surface only: module bodies register hooks and declare functions. Anything
-// that needs more than these stubs at import time is itself a bug (work belongs in hooks).
-globalThis.game = {};
-globalThis.foundry = {};
-globalThis.dnd5e = {};
-globalThis.CONFIG = {};
-globalThis.ui = {};
-
-await import(entry);
-
-const byHook = new Map();
-for (const { hook, file } of reg) {
-  if (!byHook.has(hook)) byHook.set(hook, []);
-  byHook.get(hook).push(file);
-}
+const reg = await loadRegistrations();
+const byHook = groupByHook(reg);
 console.log(`${reg.length} registrations across ${byHook.size} hooks (evaluation order):\n`);
 for (const [hook, files] of byHook) console.log(`  ${hook}: ${files.join(" -> ")}`);
 console.log("");

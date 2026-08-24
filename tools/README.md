@@ -25,14 +25,17 @@ it quietly runs the prerequisite and says so.
 | Tool | What it asserts |
 | --- | --- |
 | `check-hook-order.mjs` | the load-bearing same-hook registration orders (ARCHITECTURE §7). Run it whenever a file, an import or a hook registration is added. |
+| `check-hook-dispatch.mjs` | ⚠ every `dnd5e.*` hook this module registers is one dnd5e **actually dispatches** (ARCHITECTURE §10 D10). The set is **generated** from the installed system's own bundle — literal `Hooks.call*` names ∪ its `@memberof hookEvents` JSDoc — committed as `dnd5e-hooks.json` and **pinned to the version `module.json` verifies**. `--regen` re-extracts and prints the diff. ⚠ **Run it after any dnd5e upgrade, and read the diff:** a name that disappeared is a listener that has gone silent. Core (non-dnd5e) hooks are **not** covered and cannot be — measured, see the file header. |
 | `check-registry.mjs` | every `S` key is registered and every registration is named in `S`; every registry entry declares a known kind and no amount; every shipped list-setting default survives its own strict parser; the **R4 kind total** and the **source-file count** match their pins. |
 | `check-imports.mjs` | every relative import resolves, and every named binding is really exported — including through the lazy `await import()` idiom. |
 | `check-comments.mjs` | every `/**` block sits on a declaration, so an extraction cannot strand a doc. |
 | `bump-version.mjs --check` | `module.json`'s `version` and its `download` URL name the same tag. |
 | `tsc --noEmit` | ⚠ **real, and only over `scripts/decide/`** — the six pure modules opt in with `// @ts-check`. `checkJs` stays false globally; files opt IN, one at a time. |
 
-All of them run inside `npm run verify`, along with biome, knip and the 215 unit tests — eight
-static checks and the suite, all offline, all in seconds.
+All of them run inside `npm run verify`, along with biome, knip and the unit tests — **ten static
+checks and the suite**, all offline, all in seconds. ⚠ **Do not hand-carry the counts out of
+here.** The tools print their own (`237` tests, `98` biome warnings and `28` source files as of
+2026-08-23); every number this repo has typed into prose twice has gone stale at least once.
 
 ## Live contract checks — read-only, safe beside a session
 
