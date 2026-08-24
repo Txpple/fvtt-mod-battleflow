@@ -5,8 +5,8 @@
 >
 > **What this file is NOT:** a to-do list. ⚠ **Nothing here blocks a release, a deploy or a
 > battery, and nothing here is a defect waiting on someone.** If an item ever becomes owed it
-> leaves this file and becomes a debt row in [ARCHITECTURE.md](ARCHITECTURE.md) §10 or a line in
-> [HANDOFF.md](HANDOFF.md)'s *What is NOT yet done* — those two are the "owed" surfaces and this
+> leaves this file and becomes a debt row in [ARCHITECTURE.md](ARCHITECTURE.md) §10 or part of
+> the commissioned work in [HANDOFF.md](HANDOFF.md) — those two are the "owed" surfaces and this
 > one is not.
 
 **Why it exists.** These items used to live in the debt register and the handoff, which are read
@@ -93,6 +93,7 @@ untested path.
 | Item | Shape |
 | --- | --- |
 | **Guidance / choice-bearing effects** | An effect applied without asking the choice it carries — the d4 landed on every ability check. Same family as Careful Spell. **Needs a "choice" moment kind.** |
+| **Tactical Master — the mastery pick (fighter 9)** | User-named (2026-08-24): the 2024 fighter's **base level-9 feature** replaces the attacking weapon's mastery with **Push, Sap or Slow** for that attack — a choose-one-of-several moment the mastery machine has no shape for (its popups today are single-question asks and notices). Reuses the rescue view's row/pane window anatomy ([HANDOFF.md](HANDOFF.md)) once that ships — a mastery pick is a choice at the attack, not a post-roll fix, so it shares the presentation, not the machinery. ⚠ Feature name and verbatim text from the world's own pack when scoped (N1). |
 | **Light-family spells apply token light** | Cast on a shield, attached no light; the table hand-toggled a torch. |
 | **Short-duration effect expiry** | Mastery chips get a 1-round duration and nothing sweeps an expired one. ⚠ **Do not build it before deciding whether this module should own TURN-TIME at all** — building the sweeper first commits that answer by accident. |
 | **AC5e adoption** | ⚠ **Vendor and modify, never import** (user call — R2 rules out the dependency). And it is **complementary, not an alternative**: AC5e *decorates* rolls where this module *applies*. |
