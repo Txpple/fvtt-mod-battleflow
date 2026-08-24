@@ -24,7 +24,8 @@ const SECTIONS = {
   3: "attack — a forced miss stamps, the reroll REPLACES, the verdict flips, damage drives",
   4: "hooks — every hook the module registers for a d20 fold ACTUALLY FIRES",
   5: "offer — a real roll stamps a flag offering EVERY eligible fold, kind-matched",
-  6: "TWO RESCUES, ONE ROLL — precision must compose with a fold already spent"
+  6: "TWO RESCUES, ONE ROLL — precision must compose with a fold already spent",
+  7: "TWO TARGETS, ONE DIE — the fold's card counts the die once, not once per target"
 };
 const DEPENDS = { 2: [1], 3: [1], 5: [1] };
 
@@ -640,6 +641,181 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             }]).catch(() => {});
           }
           game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+        }
+      }
+    }
+    /* --- 7: TWO TARGETS, ONE DIE ------------------------------------------------------- */
+    if (has(7)) {
+      // ⚠ THE TWIN OF §6, ONE LEVEL UP. `ATTACK_FOLDS` holds a contribution per (target ×
+      // spend) — an attack is ONE roll judged against MANY targets — so two missed targets and
+      // ONE bardic die produce TWO `add`s of that die. `foldedVerdict` filters by uuid and was
+      // always right; `resolveFold` handed the WHOLE list to `foldedRoll` to build its sentence
+      // and to store `foldedTotal`, so the card announced a number nobody rolled while its own
+      // verdicts stayed correct. Every suite in this tree swings at ONE target, which is
+      // exactly why it survived a green battery.
+      //
+      // ⚠ THE BAND: attack +5, forced d20 5 → 10, one bardic die forced to 3, AC 30.
+      //     right:  10 + 3 = 13    the die, counted once
+      //     wrong:  10 + 6 = 16    the die, counted once per target
+      //   Both still miss, and that is deliberate — the VERDICT was never the broken half, so a
+      //   band that flipped it would be testing something this bug never touched.
+      //
+      // ⚠ AC 30 ALSO KEEPS PRECISION OUT. Its hopeless gate (holdSkipFutile + holdReveal, both
+      // on in the reference table) refuses to stamp when even a maximised die cannot reach the
+      // nearest AC: margin 20 against a d8. One machine, one card, one arithmetic under test.
+      const scene = game.scenes.active;
+      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc"));
+      const sword = fighter.items.find(i => i.name === "Longsword");
+      const act = sword?.system.activities?.find(a => a.type === "attack");
+      if (!foeToken || !act) {
+        skips.push("section 7: needs an NPC token on the active scene and the fighter's "
+          + `Longsword (token=${!!foeToken} weapon=${!!act}) — run tools/fixture-d20-folds.mjs`);
+      } else {
+        const realPRNG = CONFIG.Dice.randomUniform;
+        const face = (n, faces) => {
+          CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces);
+        };
+        const priorInspiration = fighter.system.attributes.inspiration;
+        const priorTimer = game.settings.get(MODULE_ID, "holdTimer");
+        let scratchId = null;
+        const priorAC = new Map();
+        try {
+          await game.settings.set(MODULE_ID, "holdTimer", 0);
+          await fighter.update({ "system.attributes.inspiration": false });
+          if (!fighter.effects.find(e => (e.name === "Inspired") && !e.disabled)) {
+            const feat = bard.items.find(i => i.name === "Bardic Inspiration");
+            if (feat) await fighter.createEmbeddedDocuments("ActiveEffect", [{
+              name: "Inspired", img: "icons/magic/light/hand-sparks-smoke-green.webp",
+              origin: feat.uuid, duration: { seconds: 3600 }, transfer: false,
+              disabled: false, changes: []
+            }]);
+          }
+          const stale = game.messages.contents.filter(m =>
+            (m.getFlag(MODULE_ID, "precision")?.status === "pending")
+            || (m.getFlag(MODULE_ID, "d20fold")?.status === "pending"));
+          if (stale.length) {
+            await ChatMessage.deleteDocuments(stale.map(m => m.id));
+            await sleep(500);
+          }
+
+          // ⚠ A SECOND TARGET IS BUILT, NOT BORROWED. Whether this scene happens to carry two
+          // NPCs is not a property this receipt may depend on, and a second token of the SAME
+          // unlinked actor gives two distinct target uuids off one actor — so there is exactly
+          // one AC to set and one to put back. It is deleted in `finally` either way.
+          const [scratch] = await scene.createEmbeddedDocuments("Token", [
+            foundry.utils.mergeObject(foeToken.toObject(),
+              { x: foeToken.x + (scene.grid?.size ?? 100), y: foeToken.y },
+              { inplace: false, performDeletions: true })
+          ]);
+          scratchId = scratch?.id ?? null;
+          for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(scratchId)); i++) {
+            await sleep(250);
+          }
+          const placedA = canvas.tokens.get(foeToken.id);
+          const placedB = canvas.tokens.get(scratchId);
+          if (!placedA || !placedB) {
+            skips.push("section 7: the second token never reached the canvas");
+          } else {
+            // ⚠ AC IS SET ON EACH TOKEN'S OWN ACTOR. These are UNLINKED tokens, so the number
+            // lives in the token's delta — writing it on the base actor would never reach
+            // either of them, and the suite would swing at whatever AC they shipped with.
+            for (const t of [placedA, placedB]) {
+              const a = t.actor;
+              priorAC.set(a.uuid, {
+                calc: a.system._source.attributes.ac.calc ?? "default",
+                flat: a.system._source.attributes.ac.flat ?? null,
+                hp: a.system.attributes.hp.value
+              });
+              await a.update({
+                "system.attributes.ac.calc": "flat", "system.attributes.ac.flat": 30,
+                "system.attributes.hp.value": a.system.attributes.hp.max
+              });
+            }
+
+            game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+            placedA.setTarget(true, { releaseOthers: true });
+            placedB.setTarget(true, { releaseOthers: false });
+            await sleep(300);
+            const priorDialogs = new Set(
+              [...document.querySelectorAll(".application")]
+                .filter(el => el.tagName === "DIALOG").map(el => el.id));
+
+            face(5, 20);
+            const use = await act.use({ subsequentActions: false }, { configure: false }, {});
+            const usageId = use?.message?.id ?? null;
+            const rolls = await act.rollAttack({ advantage: false, disadvantage: false },
+              { configure: false },
+              usageId ? { data: { "flags.dnd5e.originatingMessage": usageId } } : {});
+            const attackMsg = rolls?.[0]?.parent ?? null;
+            const flag = await until(() => {
+              const cur = attackMsg?.getFlag(MODULE_ID, "d20fold");
+              return (cur?.targets?.length === 2) ? cur : null;
+            }, 8000);
+
+            ok("one attack roll is judged against TWO missed targets",
+              !!flag && (flag.status === "pending") && (flag.targets?.length === 2),
+              JSON.stringify({ status: flag?.status, base: flag?.baseTotal,
+                targets: flag?.targets?.length }));
+            ok("precision stays out of it — a d8 cannot reach AC 30, so it never stamps",
+              !attackMsg?.getFlag(MODULE_ID, "precision"),
+              attackMsg?.getFlag(MODULE_ID, "precision") ? "STAMPED" : "no precision flag");
+
+            const popup = await until(() => [...document.querySelectorAll(".application")]
+              .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
+                && !!el.querySelector('button[data-action="bardic"]')), 8000);
+            const before = game.messages.size;
+            face(3, 8);
+            popup?.querySelector('button[data-action="bardic"]')?.click();
+            const done = await until(() => {
+              const cur = attackMsg?.getFlag(MODULE_ID, "d20fold");
+              return (cur?.status === "resolved") ? cur : null;
+            }, 25_000);
+
+            ok("⚠ RECEIPT: the composed total counts the die ONCE, not once per target",
+              done?.foldedTotal === 13,
+              `foldedTotal=${done?.foldedTotal} (13 is the die counted once; `
+              + `16 is it counted per target)`);
+            ok("both verdicts stand — the verdict half was never the broken one",
+              (done?.targets ?? []).length === 2
+                && (done?.targets ?? []).every(t => t.verdict === "miss"),
+              JSON.stringify((done?.targets ?? []).map(t => t.verdict)));
+
+            const card = await until(() => game.messages.contents.slice(before).findLast(m =>
+              (m.content ?? "").includes("vs AC 30")), 15_000);
+            const text = (card?.content ?? "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+            const sums = [...text.matchAll(/10 \+ (\d+) = (\d+) vs AC 30/g)].map(m => m[2]);
+            ok("⚠ RECEIPT: the CARD says the same number on every row, and says it once",
+              (sums.length === 2) && sums.every(s => s === "13"),
+              sums.length ? `rows announced [${sums.join(", ")}]` : (text || "no fold card"));
+            log.push(`section 7: two targets AC 30 · base ${flag?.baseTotal} → `
+              + `folded ${done?.foldedTotal} · rows [${sums.join(", ")}]`);
+          }
+        } finally {
+          // PRNG first, then the setting, then the world — and the scratch token LAST, because
+          // restoring its AC needs it to still exist.
+          CONFIG.Dice.randomUniform = realPRNG;
+          await game.settings.set(MODULE_ID, "holdTimer", priorTimer).catch(() => {});
+          for (const [uuid, prior] of priorAC) {
+            const a = await fromUuid(uuid).catch(() => null);
+            if (a) await a.update({
+              "system.attributes.ac.calc": prior.calc, "system.attributes.ac.flat": prior.flat,
+              "system.attributes.hp.value": prior.hp
+            }).catch(() => {});
+          }
+          await fighter.update({ "system.attributes.inspiration": priorInspiration })
+            .catch(() => {});
+          if (!fighter.effects.find(e => (e.name === "Inspired") && !e.disabled)) {
+            const feat = bard.items.find(i => i.name === "Bardic Inspiration");
+            if (feat) await fighter.createEmbeddedDocuments("ActiveEffect", [{
+              name: "Inspired", img: "icons/magic/light/hand-sparks-smoke-green.webp",
+              origin: feat.uuid, duration: { seconds: 3600 }, transfer: false,
+              disabled: false, changes: []
+            }]).catch(() => {});
+          }
+          game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+          if (scratchId) {
+            await scene.deleteEmbeddedDocuments("Token", [scratchId]).catch(() => {});
+          }
         }
       }
     }

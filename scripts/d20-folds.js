@@ -561,7 +561,24 @@ async function resolveFold(message, kind) {
     const folds = foldsFrom(key => (key === "d20fold" ? pending : message.getFlag(MODULE_ID, key)),
       specs);
     const baseRoll = message.rolls?.[0] ?? { total: flag.baseTotal };
-    const composed = foldedRoll(baseRoll, folds);
+    /**
+     * ⚠ ONE TARGET'S SLICE, NOT THE WHOLE LIST — the multi-target trap, and the twin of the
+     * bug this resolver's precision counterpart shipped. An attack is ONE roll judged against
+     * MANY targets, so `ATTACK_FOLDS` holds a contribution per (target × spend): two missed
+     * targets and one bardic die is TWO `add`s of that die, and summing them announces a
+     * number nobody rolled and stores it as `foldedTotal`. `foldedVerdict` has always filtered
+     * by uuid, so the VERDICTS were right the whole time and only the sentence lied — the
+     * "card disagrees with its own arithmetic" class again, one level up from the verdict.
+     *
+     * ⚠ Why one target's slice is the whole roll's number: every ATTACKER-side contribution is
+     * the same for every target (the spend list does not vary by who was swung at), and the
+     * only per-target contribution is the defence-side `ac`, which `foldedRoll` does not read.
+     * A save or a check has no target dimension at all — `SAVE_FOLDS` yields one contribution
+     * per spend — so that side composes flat, exactly as it always has.
+     */
+    const composed = (flag.testKind === "attack")
+      ? foldedRoll(baseRoll, folds.filter(f => f.uuid === flag.targets?.[0]?.uuid))
+      : foldedRoll(baseRoll, folds);
 
     // What is still available AFTER this spend — the re-offer (finding 6).
     const remaining = availableFolds(actor, flag.testKind, spends.map(s => s.kind));
