@@ -19,55 +19,52 @@
 
 ## ▶ START HERE — the next session, in order
 
-**Five things. The rest of this file is detail behind them.**
+**Nothing is owed. Four things, and the first is the only one that is always true.**
 
-1. **`npm run verify`** — seconds, offline. Ten static checks and 237 unit tests. **If it is
-   green, the tree is in the state this file describes.** If it is red, stop and read the
-   failure; three of the checks are deliberate pins that fail on purpose.
+1. **`npm run verify`** — seconds, offline. Static checks and the unit tests. **If it is green, the
+   tree is in the state this file describes.** If it is red, stop and read the failure; several
+   of the checks are deliberate pins that fail on purpose.
 
-2. ⚠ **THEN RUN THE BATTERY, BEFORE ANY NEW WORK.**
+2. ⚠ **THE SANDBOX IS SINGLE-OCCUPANCY.** Two sessions driving suites collide: the pid lock
+   refuses one, and a half-run suite leaves the world dirty. **Establish who owns the box before
+   running anything.** `node <mcp>/scripts/local-foundry.mjs status` first — and ⚠ **`users: 1` is
+   usually the MCP BRIDGE, not a human**: `disconnect-bridge` and re-check, because the sole-GM
+   preflight refuses a suite while it is connected.
+
+3. **CHANGING SHIPPED CODE? RUN THE BATTERY.**
    ```
    node tools/battery.mjs --snapshot
    ```
-   **This is the one thing actually owed.** Commit `cec478d` changed **every suite's teardown**
-   and added a section that **creates and deletes a real Combat**. Every piece is green on its
-   own; **none of them has been proven together.** ~20 minutes, and `--snapshot` rolls the world
-   back afterwards. ⚠ **First: `node <mcp>/scripts/local-foundry.mjs status`, then
-   `disconnect-bridge`** — the preflight refuses while the bridge holds a session, and a single
-   read-only MCP call is enough to re-arm it.
+   ~20 minutes, sixteen entries, and `--snapshot` rolls the world back afterwards. ⚠ **Docs and
+   `tools/` changes do not need it**; `scripts/` changes do. **It ends by printing which
+   registrations actually fired — read that**, it is the only output here that speaks to
+   behaviour.
 
-3. ⚠ **THE SANDBOX IS SINGLE-OCCUPANCY, AND A SECOND SESSION WAS ACTIVE IN THIS REPO ON
-   2026-08-23.** Two sessions driving suites collide: the pid lock refuses one, and a half-run
-   suite leaves the world dirty. **Establish who owns the box before running anything.**
-
-4. ⚠ **BEFORE PROPOSING ANY STRUCTURAL WORK — read *SETTLED — do not re-propose*.** Every row
-   is a decision with the one condition that would reopen it. **Four of them are proposals that
-   came back three sessions running, and the newest was dropped outright by the user.**
-
-5. ⚠ **BEFORE WRITING A TEST — read *THE FIRST COVERAGE TRIAGE*.** Three lines are still open
-   there with reasons. **`node tools/hook-coverage.mjs` after a battery tells you what the run
-   actually exercised**, which is the only thing in this apparatus that speaks to behaviour.
+4. ⚠ **BEFORE PROPOSING STRUCTURAL WORK — read *SETTLED — do not re-propose*.** Every row is a
+   decision with the one condition that would reopen it. **Several are proposals that came back
+   three sessions running, and the newest was dropped outright by the user.**
+   ⚠ **And [BACKLOG.md](BACKLOG.md) is where "known, deliberately not scheduled" lives — read it
+   when you are PICKING work, never as a to-do list.** Nothing in it is owed.
 
 **Then, if you want the ten-minute grounding:** *If you are COLD, read in this order*, below.
 
 ---
 
-## State at a glance — 2026-08-23
+## State at a glance — 2026-08-24
 
 | | |
 | --- | --- |
-| **Do first** | ▶ **SEE *START HERE* ABOVE — it is six numbered steps and it is the whole of the answer.** In one line: **the gate is green, the tree is pushed, and the battery over `cec478d` is the one thing owed.** ⚠ Two rows of this table are about a release that has NOT been cut for the commits above the tag (`git log v1.23.1..HEAD` counts them — a hand-carried "six" sat here and was wrong); ⚠ nothing in those commits changes shipped behaviour (`scripts/` is untouched since v1.23.1), so **a deploy buys nothing but a version string.** |
-| Release | ✅ **v1.23.1 RELEASED, 2026-08-23** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.23.1>. The enforcement pass: `npm run layers` in the gate, the services tier named, D9 opened with two repayments. **A PATCH — two functions changed files and nothing changed behaviour.** ✅ The **published** zip was downloaded back and proven self-contained: **31 entries, all six `decide/` files, 95 relative imports all resolving, no backslash separators, both manifest fields naming v1.23.1**. |
-| Release (previous) | ✅ **v1.23.0 RELEASED, 2026-08-23** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.23.0>. Both assets attached. The **published** zip was downloaded back and proven self-contained: **31 entries, 28 scripts including the six in `decide/`, 109 relative imports all resolving, no backslash separators, both manifest fields naming v1.23.0**. ⚠ That read-back is not ceremony — it is the check that caught the backslash bug (v1.1.0–1.1.15) and the missing `scripts/decide/` (post-Phase-2). |
-| Prod | ✅ **PROD RUNS v1.23.1 AS OF 2026-08-23** — deployed and **verified byte-identical by a second, independent `--check` run**. ⚠ The `--check` was meaningful this time because the box was awake: it read **distinct** hashes and named exactly the seven files this release touches (six scripts + `module.json`) — *the repeated-hash tell was absent*. ⚠ **The version STRING lags until the Foundry process restarts**; the code is live on the next world reload. Earlier: ✅ **v1.23.0 AS OF 2026-08-23** — the d20 folds included, by user instruction. Earlier the same day: ✅ **v1.22.0** — user instruction this session, superseding the old *"sandbox only, no prod yet"* call. 28/28 files byte-identical over WebDAV. ⚠ **That morning the box was ASLEEP** (`status=NOT_RUNNING`) and had to be woken by the Magic URL first — see *The prod deploy* below, because **the byte-check LIES when the box is down** (it reported the same hash for all 28 files: the lobby HTML). *(That clause is history: prod carries the d20 folds now.)* |
-| Repo | `main`, **clean and pushed**, **AHEAD OF THE v1.23.1 TAG** (`git log v1.23.1..HEAD` counts them) — D10's dispatch check, D11's coverage ledger, `smoke-d20-folds` §3, the docs, the three coverage follow-ons, and this recut. ✅ **BATTERY GREEN over the first four** (19m59s, settings CLEAN, world rolled back). ⚠ **NOT over `cec478d`**, which changed every suite's teardown — see *What is NOT yet done*. Not released. |
+| **Do first** | ▶ **SEE *START HERE* ABOVE.** In one line: **the gate is green, the full battery is green, v1.23.2 is released, prod and the sandbox both carry it byte-identical, and NOTHING IS OWED.** ⚠ The one standing obligation is a habit, not a task: **read the hook-coverage report after any battery** and triage anything that appears on its never-fired list. |
+| Release | ✅ **v1.23.2 RELEASED, 2026-08-24** — <https://github.com/Txpple/fvtt-mod-battleflow/releases/tag/v1.23.2>. **A PATCH, and the shipped change is one table-facing bug fix:** reverting a killing blow restored the pool and never recorded itself on the card, because clearing the dead mark raced dnd5e's own removal and threw into a click listener with no catch. ✅ The **published** zip was downloaded back and proven self-contained: **31 entries, 28 scripts including the six in `decide/`, 107 relative imports all resolving, no backslash separators, both manifest fields naming v1.23.2**. |
+| Release (previous) | ✅ **v1.23.1, 2026-08-23** — the enforcement pass (`npm run layers` in the gate, the services tier named). ⚠ The published-zip read-back is not ceremony — it is the check that caught the backslash bug (v1.1.0–1.1.15) and the missing `scripts/decide/` (post-Phase-2). **Do it every release.** |
+| Prod | ✅ **PROD RUNS v1.23.2 AS OF 2026-08-24** — deployed over WebDAV and **verified byte-identical by a second, independent `--check` run**. ⚠ **The box was ASLEEP and had to be woken first** — see *The prod deploy* below, because **the byte-check LIES when the box is down**: it reported all 29 files DIFFER with **the same `deployed` hash for every one**, which is the lobby HTML. **The repeated hash IS the tell.** Woken by GETting `MOLTEN_MAGIC_URL` then polling `PROPFIND /Data/` to 207 — ~84s, through 200 → 502 → 403 → 207 — and ⚠ **file GETs still 502'd for a moment after PROPFIND went green**, so poll a real file before trusting a check. ⚠ **The version STRING lags until the Foundry process restarts**; the code is live on the next world reload. |
+| Repo | `main`, **clean, pushed, and AT the v1.23.2 tag.** ✅ **BATTERY GREEN over exactly this code** (19m 29s, every suite, settings CLEAN, world rolled back). |
 | **Debt & backlog** | ✅ **NOTHING IS OWED AS OF 2026-08-24.** [ARCHITECTURE.md](ARCHITECTURE.md) §10 is the owed-work register and every row in it is repaid, closed or measured: **D1–D8 repaid or settled**, **D10 CLOSED** (a hook name the system never dispatches fails the build), **D11 MEASURED** — the coverage report exists and **reading it is the one standing obligation**. ⚠ **D9 and D12 moved to [BACKLOG.md](BACKLOG.md) on 2026-08-24 and are NOT owed** — both are understood, deliberately unscheduled, and pinned by tooling that fails if the situation changes. **Read BACKLOG when you are picking work, not when you are starting a session.** |
-| Verify gate | `npm run verify` — **TEN static checks then the unit tests, all offline, all in seconds.** ⚠ **`npm run dispatch` is the tenth (NEW 2026-08-23, D10)**: every `dnd5e.*` hook this module registers must be one dnd5e actually dispatches, checked against a set **generated from the installed system's own bundle** and committed as `tools/dnd5e-hooks.json`. **It is pinned to the dnd5e version `module.json` verifies** — bumping the system pin without `--regen` fails the build, deliberately. **After any dnd5e upgrade: regen, then READ THE DIFF — a name that disappeared is a listener that has just gone silent.** biome (**98 warnings, 0 errors — the baseline, MEASURED 2026-08-23; the "96" carried here for days was never true**), knip, **typecheck**, imports, **layers**, hook order (**83 registrations, 12 pairs**), **dispatch (11 dnd5e names, 1 pinned hole)**, registry (**13 checks**; it prints the R4 kinds table), manifest in-step, comments (**344 blocks / 28 files**), vitest **237**. ⚠ **Four numbers are PINNED and fail the gate deliberately** — the R4 kind total (**19**), the source-file count (**28**), the two `module.json` version fields agreeing, and **the dnd5e version the hook artifact was extracted from**. That is the point, not an obstacle. ⚠ **`npm run layers` declares every file's LAYER and every cross-layer EDGE**, and fails on an unpinned edge *and* on a pin whose edge has gone. **Do not hand-count the import graph again — it prints the tally.** ⚠ **And do not hand-carry any of these numbers into prose: `96` was wrong for three days here and the tools print all of them.** |
-| **Testing** | ⚠ **`node tools/battery.mjs` is the front door.** **Fifteen entries** in the order that works (`fixture-d20-folds` seeds, `reset-fixture-state` sweeps — neither is a suite), **every one captured to `dist/battery/<stamp>/` before anything is summarised**, then **HOOK COVERAGE**, then `verify-settings`. ⚠ **THE COVERAGE REPORT IS NEW (2026-08-23, D11) AND IT IS THE ONLY OUTPUT IN THE APPARATUS THAT IS ABOUT BEHAVIOUR** — which of the 83 registrations actually FIRED. **Read its never-fired list; it is reported and never enforced**, because a rule that failed on a rare hook would be tuned out by the third one. One suite alone (`smoke-d20-folds`) covers **16/25 names, 71/81 registrations**. `--from <suite>` resumes; `--snapshot` rolls the world back; `--list` shows the order. Every suite also takes `--list` and `--section N`. |
-| Sandbox | ⚠ **HEADLESS, and it is THE test environment.** `node <mcp>/scripts/local-foundry.mjs start\|stop\|status\|restart`; deploy with `node <mcp>/scripts/deploy-house-module.mjs fvtt-mod-battleflow --local` — **never without `--local`**. Never the Electron app for suites (dataPath lock). ✅ **Carries v1.23.1 byte-identical, manifest included** (stop → deploy → start, 2026-08-23) — so it now matches prod and the release exactly. ⚠ **Its `module.json` lagged a version behind the scripts for part of the day** and nothing noticed, because a manifest change needs a PROCESS restart while scripts need only a world reload: `--check` names `module.json` alone when that happens. ⚠ **LEFT RUNNING** — `status` first, `stop` if you are not testing. ⚠ **`status` counting 1 user is usually the MCP BRIDGE, not a human**: run `disconnect-bridge` and re-check before concluding anything, because the sole-GM preflight refuses a suite while it is connected (seen 2026-08-23 — a read-only MCP call is enough to re-arm it). ⚠ **`BF Test Fighter` now carries an equipped PHB Longsword**, granted by the fixture so `smoke-d20-folds` §3 has an attack activity to drive. ⚠ `list-actors` includes **`BF Test Fighter`** (Fighter 2, Second Wind + Tactical Mind, clean PHB provenance) and **`BF Test Bard`** (Bard 5, so its die is a **d8** and a wrong d6 default is caught). |
+| Verify gate | `npm run verify` — **the static checks then the unit tests, all offline, all in seconds. It prints its own tallies; do not carry them into prose.** ⚠ **`npm run dispatch` is the tenth (NEW 2026-08-23, D10)**: every `dnd5e.*` hook this module registers must be one dnd5e actually dispatches, checked against a set **generated from the installed system's own bundle** and committed as `tools/dnd5e-hooks.json`. **It is pinned to the dnd5e version `module.json` verifies** — bumping the system pin without `--regen` fails the build, deliberately. **After any dnd5e upgrade: regen, then READ THE DIFF — a name that disappeared is a listener that has just gone silent.** biome (**98 warnings, 0 errors — the baseline, MEASURED 2026-08-23; the "96" carried here for days was never true**), knip, **typecheck**, imports, **layers**, hook order (**83 registrations, 12 pairs**), **dispatch (11 dnd5e names, 1 pinned hole)**, registry (**13 checks**; it prints the R4 kinds table), manifest in-step, comments (**344 blocks / 28 files**), vitest **237**. ⚠ **Four numbers are PINNED and fail the gate deliberately** — the R4 kind total (**19**), the source-file count (**28**), the two `module.json` version fields agreeing, and **the dnd5e version the hook artifact was extracted from**. That is the point, not an obstacle. ⚠ **`npm run layers` declares every file's LAYER and every cross-layer EDGE**, and fails on an unpinned edge *and* on a pin whose edge has gone. **Do not hand-count the import graph again — it prints the tally.** ⚠ **And do not hand-carry any of these numbers into prose: `96` was wrong for three days here and the tools print all of them.** |
+| **Testing** | ⚠ **`node tools/battery.mjs` is the front door** — `--list` prints the entries in the order that works (`fixture-d20-folds` seeds, `reset-fixture-state` sweeps — neither is a suite), **every one captured to `dist/battery/<stamp>/` before anything is summarised**, then HOOK COVERAGE, then `verify-settings`. ⚠ **THE COVERAGE REPORT IS THE ONLY OUTPUT IN THIS APPARATUS THAT IS ABOUT BEHAVIOUR** — which registrations actually FIRED. ✅ **2026-08-24: 23/23 observable names, 79/79 registrations — NEVER FIRED: none.** First time in this repo's history. **It is reported and never enforced**, because a rule that failed on a rare hook would be tuned out by the third one. `--from <suite>` resumes; `--snapshot` rolls the world back. Every suite also takes `--list` and `--section N`. |
+| Sandbox | ⚠ **HEADLESS, and it is THE test environment.** `node <mcp>/scripts/local-foundry.mjs start\|stop\|status\|restart`; deploy with `node <mcp>/scripts/deploy-house-module.mjs fvtt-mod-battleflow --local` — **never without `--local`, which targets PROD.** Never the Electron app for suites (dataPath lock). ✅ **Carries v1.23.2 byte-identical, manifest included** (stop → deploy → start, 2026-08-24) — so tree, release, prod and sandbox all agree. ⚠ **A bounce-less deploy leaves `module.json` behind, silently, and only that one file** — `game.modules` is built at PROCESS boot. **A `--check` that names exactly one file, and that file is `module.json`, IS this.** ⚠ **LEFT RUNNING** — `status` first, `stop` if you are not testing. ⚠ Fixtures: `BF Test Fighter` (Fighter 2, equipped PHB Longsword, Smith's Tools), `BF Test Bard` (Bard 5, so its die is a **d8**), `BF Test Shielder` (carries Cure Wounds — the only fixture that can open an activity usage dialog). |
 | Bridge | Disconnect before any suite. Suites join as `Tester Assistant`; the two-client ones also join as `PC Assistant`. ⚠ One suite at a time is **enforced** now (a pid lock in `harness.mjs`), not remembered. |
-| **Parity (enforcement pass)** | ✅ **BATTERY GREEN ON THE ENFORCEMENT-PASS CODE, 2026-08-23, 19m45s, settings CLEAN.** battleflow ALL PASS · hold ALL PASS · saves 74/74 · volleys 39/39 · maneuvers 54/54 · **d20-folds 20/21 → 21/21 re-run on a re-seeded fixture (NOT a regression — see below)** · cast 17/17 · riders 8/8 · **concentration 47/47** · twoclient 9/9 · popup-routing ALL PASS · effects 54/54 · resources 18/18. ⚠ **concentration and saves are the ones that mattered** — both importers of the moved `dramaticVerdictPause`, and concentration is the machine whose hook evaluation order shifted. |
-| **Parity (v1.23.0)** | ✅ **PROVEN 2026-08-23** — full battery on a sandbox carrying the released code byte-identical, **every suite green, settings CLEAN, 19m58s**: battleflow ALL PASS (33) · hold ALL PASS (44) · saves 74/74 · volleys 39/39 · maneuvers 54/54 · cast 17/17 · riders 8/8 · concentration 47/47 · twoclient 9/9 · popup-routing ALL PASS · effects 54/54 · resources 18/18. |
+| **Parity (v1.23.2)** | ✅ **PROVEN 2026-08-24** — full battery on a sandbox carrying the released code, **every suite green, settings CLEAN, 19m 29s**: battleflow ALL PASS · hold ALL PASS · saves 74/74 · volleys 39/39 · maneuvers 54/54 · d20-folds 30/30 · cast 17/17 · riders 8/8 · concentration 47/47 · twoclient 9/9 · popup-routing ALL PASS · effects 54/54 · resources 18/18 · **surfaces 20/20**. |
 | Flakes | ✅ **THE `smoke-battleflow` FLAKE IS FIXED (2026-08-24) — it was a real revert bug, not a test defect.** It recurred on the battery over `cec478d`, the capture survived this time, and the diagnosis fell straight out of comparing four runs' damage rolls. See *SETTLED*. ⚠ **The thing that actually solved it was the capture-before-summarise change**, which is worth remembering the next time a suite is run by hand: **redirect it.** ⚠ `smoke-effects` still has a documented dice-variance class: re-run before diagnosing. |
 
 ---
@@ -94,8 +91,8 @@
 7. **This file's *Do not re-derive* table**, near the bottom. Every entry is a claim that looks
    right, is wrong, and cost real time to kill. A fresh reviewer reports several of them as bugs.
 
-**Then, before you touch anything:** `npm run verify` (seconds, offline, nine checks + 237 unit
-tests). If it is green, the tree is in the state this file describes.
+**Then, before you touch anything:** `npm run verify` (seconds, offline). If it is green, the
+tree is in the state this file describes.
 
 ⚠ **The single most useful thing to understand about this codebase**, learned twice in two days
 and expensively both times: **its checks were strong on SHAPE and weak on BEHAVIOUR.** The gate
@@ -153,14 +150,24 @@ is also the argument for the triage rule: **the report is only worth what somebo
 
 ## ▶ What is NOT yet done
 
-**2026-08-23. The tree carries commits the tag does not — `git log v1.23.1..HEAD`.** Nothing here is blocking.
+✅ **NOTHING. 2026-08-24.**
 
-| Owed | Why it matters |
-| --- | --- |
-| ⚠ **A BATTERY OVER THE LAST COMMIT** | **The most important row here.** `cec478d` changed **every suite's teardown** (`disposeSafely` at eleven call sites) and added a section that **creates and deletes a real Combat**. Each piece was proven on its own — `smoke-hold` §7 green, `smoke-d20-folds` §4 green, `verify-settings` green, settings CLEAN — but **no full battery has run over them together.** Do this before anything else. |
-| **A release** | v1.23.1 is the tag; `git log v1.23.1..HEAD` is what sits above it. `node tools/bump-version.mjs minor` then `build-release.ps1` (which runs the gate itself, with no skip flag). |
-| **Prod and the sandbox** | Both carry v1.23.1. ⚠ **Nothing in this batch changes shipped behaviour — `scripts/` is untouched since the tag.** It is all `tools/` and docs, so a deploy buys nothing but the version string. |
-| **Three coverage lines** | Templates, the usage dialog, the settings dialog — all OPEN with reasons in the triage table above. **None is urgent; none may sit unexplained across two releases.** |
+**The gate is green, the full battery is green over exactly this code, v1.23.2 is released, and
+prod and the sandbox both carry it byte-identical.** There is no owed work, no half-landed
+change, and no unread measurement.
+
+⚠ **This section has never been empty before, so it is worth saying what "empty" does and does
+not mean.**
+
+- **It does not mean there is nothing to do** — [BACKLOG.md](BACKLOG.md) has a list. It means
+  **nothing there is owed**, and nothing is waiting on a previous session.
+- **It does not retire the one standing habit:** after any battery, **read the hook-coverage
+  report** and triage anything on its never-fired list. A line may be a coverage gap, a dead
+  handler, or a genuinely rare hook, and only a person can say which. **Do not let one sit
+  unexplained across two releases.** It currently reads **23/23, 79/79, never-fired: none.**
+- ⚠ **If you add something to this section, it is because it is OWED.** The reason this file was
+  noisy for a week is that parked work and owed work were written in the same voice. **Parked
+  goes in BACKLOG; closed goes in SETTLED; owed goes here.**
 
 ---
 
