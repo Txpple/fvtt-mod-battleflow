@@ -21,6 +21,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
 import { foundryConfig } from './target.mjs';
+import { disposeSafely } from './harness.mjs';
 
 const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
 const env = {};
@@ -140,5 +141,5 @@ for (const r of result.rows) {
   console.log(`      effects: ${marks.length ? marks.join(', ') : '(none non-transfer)'}`);
 }
 console.log(`\nwritten: ${out}`);
-await f.disconnect?.();
+await disposeSafely(f, 'scan-riders');
 process.exit(0);

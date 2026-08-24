@@ -30,7 +30,8 @@
 // so smoke-hold can answer for it, which is the exact opposite of what this suite needs.
 //
 // Sections: `--section relay`, `--section close`, `--list`.
-import { announcePlan, connectSuite, loadEnv, report, sectionPlan } from './harness.mjs';
+import { announcePlan, connectSuite, disposeSafely, loadEnv, report, sectionPlan }
+  from './harness.mjs';
 import { playerConfig } from './target.mjs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
 
@@ -139,7 +140,7 @@ const setup = await gm.evaluate(async ({ playerId }) => {
 
 if (setup.fatal) {
   console.error(`\n[2client] FATAL: ${setup.fatal}`);
-  await player.disconnect?.();
+  await disposeSafely(player, '2client');
   await gm.disconnect?.();
   process.exit(2);
 }
@@ -372,7 +373,7 @@ const torn = await gm.evaluate(async () => {
 for (const e of torn.errs ?? []) note(`TEARDOWN ERROR: ${e}`);
 note(`teardown removed ${torn.deleted} messages, the token and the fixture actor`);
 
-await player.disconnect?.();
+await disposeSafely(player, '2client');
 const failures = report({ tag: '2client', out, plan });
 await gm.disconnect?.();
 process.exit(failures ? 1 : 0);

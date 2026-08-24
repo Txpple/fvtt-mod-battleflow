@@ -43,7 +43,11 @@ const SECTIONS = {
   '4e': 'the TIMER: an unanswered hold passes itself',
   '4f': 'hopeless holds are skipped (only under full disclosure)',
   5: 'a natural 20 skips an AC-type hold',
-  6: 'the SECOND TRIGGER: Magic Missile holds for Shield'
+  6: 'the SECOND TRIGGER: Magic Missile holds for Shield',
+  // ⚠ Added 2026-08-23 because the D11 coverage report found that NO SUITE IN THE BATTERY EVER
+  // CREATED A COMBAT — so `updateCombat`/`deleteCombat`, the whole reactionSpent lifecycle, had
+  // never run under test. It creates a real Combat and deletes it in a `finally`.
+  7: 'the PER-TURN CLEARS: reactionSpent set only in combat, cleared on turn and on delete'
 };
 // Every scenario stamps its own hold on its own attack and restores what it changed, so none
 // of them names another. §4b and §4c both read `results.realCast` — that is one section's data
@@ -1480,6 +1484,97 @@ const r = await f.evaluate(async ({ sections }) => {
       if (leftover.length) await attacker.deleteEmbeddedDocuments('Item', leftover);
     }
 
+    /* ---- 7: the per-turn clears — the two hooks nothing had ever exercised --------------- */
+    if (want('7')) {
+      // ⚠ WHY THIS SECTION EXISTS, and it is worth reading before trusting any other coverage
+      // here: the FIRST full reading of the D11 hook-coverage report (2026-08-23) found that
+      // **no suite in the entire battery had ever created a COMBAT**. So hold.js's
+      // `updateCombat` and `deleteCombat` handlers — the whole lifecycle of `reactionSpent` —
+      // had never once run under test, while every other part of the hold was covered heavily.
+      // Nothing static could have found that; the ledger printed it in a line.
+      //
+      // ⚠ BOTH RULES ASSERTED HERE ARE SCAR TISSUE. The SET refuses out of combat because there
+      // would be no turn to refresh the flag, and the actor would be stranded with reactions
+      // permanently "spent". The CLEARS are deliberately NOT gated on the feature toggle,
+      // because killing the hold mid-combat used to strand every flag already set. Both are
+      // documented at the handlers; neither had a test.
+      let combat = null;
+      const spent = () => !!game.actors.get(gren.id).getFlag(MOD, 'reactionSpent');
+      const shieldActivity = () => gren.items.get(shield.id)?.system.activities?.contents?.[0];
+      const castShield = async () => {
+        await shieldActivity()?.use({ subsequentActions: false }, { configure: false },
+          { create: false });
+        await sleep(500);
+      };
+      try {
+        await gren.unsetFlag(MOD, 'reactionSpent');
+        if (game.combat) await game.combat.delete();
+        await sleep(300);
+
+        // (a) OUT of combat, the set is REFUSED.
+        await castShield();
+        const outOfCombat = spent();
+
+        // (b) IN a running combat, the same reaction DOES set it.
+        // ⚠ TWO combatants, not one. With a single combatant Gren is current the instant the
+        // combat starts, so there is no turn to advance TO and (c) could never be observed.
+        const foeToken = scene.tokens.find(t => t.actorId === attacker.id)
+          ?? scene.tokens.find(t => t.actorId !== gren.id);
+        combat = await Combat.create({ scene: scene.id });
+        await combat.createEmbeddedDocuments('Combatant', [
+          { actorId: gren.id, tokenId: grenToken.id, sceneId: scene.id },
+          ...(foeToken ? [{ actorId: foeToken.actorId, tokenId: foeToken.id, sceneId: scene.id }] : [])
+        ]);
+        await combat.rollAll();
+        await combat.startCombat();
+        await sleep(400);
+        // ⚠ Step OFF Gren first if the initiative put us on him: `updateCombat` clears the flag
+        // for whoever's turn it now is, so setting it while Gren is current would be cleared by
+        // the very next tick and (c) would pass for the wrong reason.
+        for (let i = 0; (i < 4) && (combat.combatant?.actor?.id === gren.id); i++) {
+          await combat.nextTurn();
+          await sleep(250);
+        }
+        const startedOnGren = combat.combatant?.actor?.id === gren.id;
+        await gren.unsetFlag(MOD, 'reactionSpent');
+        await castShield();
+        const inCombat = spent();
+
+        // (c) `updateCombat`: Gren's own turn comes round and the flag clears.
+        let reached = false;
+        for (let i = 0; i < 6; i++) {
+          await combat.nextTurn();
+          await sleep(300);
+          if (combat.combatant?.actor?.id === gren.id) { reached = true; break; }
+        }
+        const clearedOnTurn = reached && !spent();
+
+        // (d) `deleteCombat`: the fight ends and the flag clears FOR EVERY COMBATANT — ⚠ with
+        // the feature toggle OFF, which is the whole point of the clears not being gated on it.
+        await gren.setFlag(MOD, 'reactionSpent', true);
+        await sleep(200);
+        const setBeforeDelete = spent();
+        await game.settings.set(MOD, 'reactionHold', false);
+        await combat.delete();
+        combat = null;
+        await sleep(600);
+        const clearedOnDelete = !spent();
+
+        results.turnClears = {
+          outOfCombatSet: outOfCombat, startedOnGren, inCombatSet: inCombat,
+          turnReached: reached, clearedOnTurn, setBeforeDelete, clearedOnDelete
+        };
+      } finally {
+        // ⚠ A LEFTOVER COMBAT WOULD POISON EVERY LATER SUITE — `inRunningCombat` is read by the
+        // hold's own set path and by mastery's stamps. It goes, whatever happened above.
+        await game.settings.set(MOD, 'reactionHold', true);
+        try { if (combat) await combat.delete(); } catch { /* already gone */ }
+        try { if (game.combat) await game.combat.delete(); } catch { /* ditto */ }
+        await gren.unsetFlag(MOD, 'reactionSpent');
+        await clearBarriers(gren);
+      }
+    }
+
     return { ok: true, results, log };
   } catch (err) {
     return { ok: false, why: `${err.message}\n${err.stack}`, results, log };
@@ -1765,6 +1860,26 @@ if (x.critSkipsHold?.rolled) {
     JSON.stringify(x.critSkipsHold));
 } else {
   console.log('  SKIP no natural 20 in 60 attempts — crit path not exercised this run');
+}
+if (want('7')) {
+  const t = x.turnClears;
+  // ⚠ The SET's combat gate. Out of combat there is no turn to refresh the flag, so setting it
+  // would strand the actor with reactions permanently "spent" and silently suppress every later
+  // hold — including the next one somebody sits down to test.
+  report('OUT of combat, a reaction does NOT set reactionSpent (the stranding guard)',
+    t?.outOfCombatSet === false, `set=${t?.outOfCombatSet}`);
+  report('IN a running combat, the same reaction DOES set it',
+    t?.inCombatSet === true, `set=${t?.inCombatSet} (startedOnGren=${t?.startedOnGren})`);
+  // updateCombat — the first of the two hooks the battery had never dispatched.
+  report("updateCombat: the actor's own turn comes round and the flag clears",
+    t?.turnReached === true && t?.clearedOnTurn === true,
+    `reached=${t?.turnReached} cleared=${t?.clearedOnTurn}`);
+  // deleteCombat — the second, and asserted with the feature toggle OFF on purpose: the clears
+  // are deliberately not gated on it, because killing the hold mid-combat used to strand every
+  // flag already set, and re-enabling it later silently suppressed those actors' first holds.
+  report('deleteCombat: the fight ends and the flag clears EVEN WITH reactionHold OFF',
+    t?.setBeforeDelete === true && t?.clearedOnDelete === true,
+    `setBefore=${t?.setBeforeDelete} clearedAfter=${t?.clearedOnDelete}`);
 }
 if (r.log?.length) console.log(`\n[hold] discarded rolls: ${r.log.length}`);
 if (failures && x.diag) console.log(`\n[hold] diagnostics:\n${JSON.stringify(x.diag, null, 2)}`);

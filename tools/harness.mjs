@@ -243,6 +243,41 @@ export async function dumpHookLedger(tag, f) {
   }
 }
 
+/** How long a teardown may take before it is abandoned to process exit. */
+const DISPOSE_CEILING_MS = 10_000;
+
+/**
+ * HANG UP FOR REAL — `Foundry#dispose()`, raced against a ceiling.
+ *
+ * ⚠ THIS EXISTS BECAUSE THE OLD CEREMONY WAS A LIE. Every suite in this tree ended with
+ * `await f.disconnect?.()` and **`disconnect` is not a method on `Foundry` — `dispose` is**, so
+ * the optional chain swallowed it silently from the day the harness was written. Nothing closed,
+ * nothing complained, and the session was really torn down by process exit. **That is D11's own
+ * failure class living inside the test tooling**: a call that reads correctly, does nothing, and
+ * reports nothing. Found 2026-08-23 by the hook ledger, which needed a teardown seam and
+ * discovered there wasn't one.
+ *
+ * ⚠ RACED, NEVER AWAITED BARE, and this is the whole reason the fix waited for its own pass. The
+ * suites arm a watchdog that hard-aborts the process (exit 3). A `dispose()` that hangs — on an
+ * in-flight connect that never settles, or a browser that will not close — would turn a GREEN
+ * run into a watchdog abort, which is strictly worse than the no-op it replaces. So it gets ten
+ * seconds and is then abandoned to process exit, exactly where it has been living all along.
+ */
+export async function disposeSafely(f, tag) {
+  const dispose = f?.dispose?.bind(f);
+  if (!dispose) return;
+  let settled = false;
+  await Promise.race([
+    dispose().then(() => { settled = true; })
+      .catch(err => { settled = true; console.warn(`[${tag}] dispose() failed — ${err.message}`); }),
+    new Promise(r => { setTimeout(r, DISPOSE_CEILING_MS); })
+  ]);
+  if (!settled) {
+    console.warn(`[${tag}] dispose() did not finish in ${DISPOSE_CEILING_MS / 1000}s — `
+      + "abandoning it to process exit (which is what used to happen every time)");
+  }
+}
+
 /**
  * Connect, preflight, arm the watchdog. Returns the live `Foundry`.
  *
@@ -272,25 +307,18 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, env =
   const install = await f.evaluate(installLedger, null).catch(e => `failed: ${e.message}`);
   if (install !== "installed") console.warn(`[${tag}] hook ledger not armed (${install})`);
 
-  // ⚠⚠ `f.disconnect` DOES NOT EXIST ON `Foundry` — THE METHOD IS `dispose()`. Every suite in
-  // this tree ends with `await f.disconnect?.()`, and the optional chain has been swallowing it
-  // silently since the harness was written: the hang-up ceremony is decorative and the session
-  // is really torn down by process exit. **This is D11's own failure class living inside the
-  // test tooling** — a call that reads correctly, does nothing, and reports nothing. It is
-  // recorded rather than repaired here because making `disconnect` really dispose is a change to
-  // every suite's teardown and belongs in its own pass (HANDOFF, "the no-op hang-up").
-  //
-  // So the dump is hung on BOTH names, once-only: `disconnect` (which the suites call, and which
-  // therefore starts doing exactly one useful thing) and the real `dispose`.
-  let dumped = false;
-  const dumpOnce = async () => {
-    if (dumped) return;
-    dumped = true;
+  // ⚠ ONE TEARDOWN, UNDER BOTH NAMES. `disconnect` is what all sixteen suites call and did not
+  // exist (see `disposeSafely` above); `dispose` is the real one. Both now dump the ledger and
+  // hang up, once, whichever a suite reaches for.
+  let hungUp = false;
+  const teardown = async () => {
+    if (hungUp) return;
+    hungUp = true;
     await dumpHookLedger(tag, f);
+    await disposeSafely(f, tag);
   };
-  const reallyDispose = f.dispose?.bind(f);
-  f.disconnect = dumpOnce;
-  if (reallyDispose) f.dispose = async (...args) => { await dumpOnce(); return reallyDispose(...args); };
+  f.disconnect = teardown;
+  f.dispose = teardown;
 
   console.log(`[${tag}] connected`);
   return f;

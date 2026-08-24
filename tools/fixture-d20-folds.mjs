@@ -8,7 +8,7 @@
 //
 // Run:  node tools/fixture-d20-folds.mjs
 // ⚠ Disconnect the MCP bridge first (HANDOFF.md operational rules).
-import { connectSuite, loadEnv } from "./harness.mjs";
+import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 
 const TAG = "fixture-d20-folds";
 const f = await connectSuite({ tag: TAG, watchdogMs: 180_000, requireElect: false, env: loadEnv() });
@@ -78,6 +78,20 @@ const out = await f.evaluate(async () => {
   }
   const attackActivity = sword.system.activities?.find(a => a.type === "attack");
 
+  // ⚠ AND A TOOL, for the same reason the Longsword is here: `smoke-d20-folds` §4 asserts that
+  // `dnd5e.rollToolCheck` FIRES, and it skipped for want of anything to roll — which showed up
+  // as a never-fired line in the D11 coverage report. The tool hook is the one whose NAME the
+  // module got wrong in v1.23.0 (`rollToolV2` does not exist), so leaving it unexercised is
+  // leaving exactly the wrong hook untested.
+  const TOOLS = "Compendium.dnd-players-handbook.equipment.Item.phbtulSmithsTool";
+  let tool = fighter.items.find(i => i.type === "tool");
+  if (!tool) {
+    const src = await fromUuid(TOOLS);
+    if (!src) return { error: `the PHB Smith's Tools are not installed (${TOOLS})` };
+    [tool] = await fighter.createEmbeddedDocuments("Item", [src.toObject()]);
+    log.push(`granted ${tool.name} from ${TOOLS}`);
+  }
+
   // Prove the cross-actor read the module will perform.
   const originItem = await fromUuid(effect.origin);
   const resolvedBard = originItem?.actor;
@@ -96,11 +110,17 @@ const out = await f.evaluate(async () => {
       inspiration: fighter.system.attributes.inspiration,
       secondWindUses: fighter.items.find(i => i.name === "Second Wind")?.system.uses?.value ?? null,
       weapon: sword?.name ?? null,
-      attackActivity: attackActivity?.id ?? null
+      attackActivity: attackActivity?.id ?? null,
+      tool: tool?.name ?? null,
+      // ⚠ Reported, not assumed: `rollToolCheck` wants an identifier and which field carries it
+      // is exactly the kind of thing this repo has been wrong about. Read it here, then use it.
+      toolBaseItem: tool?.system?.type?.baseItem ?? null,
+      toolTypeValue: tool?.system?.type?.value ?? null,
+      toolIdentifier: tool?.identifier ?? null
     }
   };
 });
 
 console.log(JSON.stringify(out, null, 2));
-await f.close?.();
+await disposeSafely(f, TAG);
 process.exit(0);

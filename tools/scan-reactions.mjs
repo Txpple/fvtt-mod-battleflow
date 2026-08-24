@@ -4,6 +4,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
 import { foundryConfig } from './target.mjs';
+import { disposeSafely } from './harness.mjs';
 
 const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
 const env = {};
@@ -82,5 +83,5 @@ if (result.errors.length) {
 }
 console.log(`\n# total reaction-cost items: ${result.rows.length}`);
 console.log(`written: ${out}`);
-await f.disconnect?.();
+await disposeSafely(f, 'scan-reactions');
 process.exit(0);

@@ -19,6 +19,7 @@
 import { readFileSync } from 'node:fs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
 import { foundryConfig } from './target.mjs';
+import { disposeSafely } from './harness.mjs';
 
 const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
 const env = {};
@@ -74,5 +75,5 @@ if (!r.ok) {
   console.log(`[reload] observed refreshing: ${r.refreshed.join(', ') || '(none)'}${missed.length ? ` — no dip seen from: ${missed.join(', ')} (may have reconnected between polls; verify by eye)` : ''}`);
 }
 
-await f.disconnect?.();
+await disposeSafely(f, 'reload');
 process.exit(r.ok ? 0 : 1);

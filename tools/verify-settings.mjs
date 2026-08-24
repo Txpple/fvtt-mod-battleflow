@@ -7,6 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
 import { foundryConfig } from './target.mjs';
+import { disposeSafely } from './harness.mjs';
 
 const FIX = process.argv.includes('--fix');
 const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
@@ -86,5 +87,5 @@ else {
     `  DRIFT ${d.key}: have ${JSON.stringify(d.have)} want ${JSON.stringify(d.want)}${FIX ? ' — FIXED' : ''}`);
   console.log(`[verify] ${out.drift.length} drifted${FIX ? ', restored' : ' — rerun with --fix to restore'}.`);
 }
-await f.disconnect?.();
+await disposeSafely(f, 'verify');
 process.exit(out.missing.length ? 2 : 0);

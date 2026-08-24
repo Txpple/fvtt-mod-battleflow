@@ -22,7 +22,7 @@
 // demand card is deleted before the buzzer, so nothing ever rolls. **Read-only enough to run
 // beside a live session** — that property is why the mutating cross-client scenarios live in
 // `smoke-twoclient.mjs` instead of here.
-import { connectSuite, loadEnv } from './harness.mjs';
+import { connectSuite, disposeSafely, loadEnv } from './harness.mjs';
 import { playerConfig } from './target.mjs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
 
@@ -261,7 +261,7 @@ for (const e of result.ledger) {
   const { t, kind, ...rest } = e;
   console.log(`  ${new Date(t).toISOString().slice(11, 23)} ${kind.padEnd(20)} ${JSON.stringify(rest)}`);
 }
-await player.disconnect?.();
+await disposeSafely(player, 'topo');
 await gm.disconnect?.();
 console.log(failures ? `\n[topo] ${failures} FAILURE(S)` : '\n[topo] ALL PASS');
 process.exit(failures ? 1 : 0);

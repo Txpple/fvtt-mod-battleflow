@@ -14,7 +14,7 @@
 //
 // Run:  node tools/probe-d20-folds.mjs
 // ⚠ Read HANDOFF.md's operational rules first: disconnect the bridge, one suite at a time.
-import { connectSuite, loadEnv } from "./harness.mjs";
+import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 
 const TAG = "probe-d20-folds";
 
@@ -82,5 +82,5 @@ const out = await f.evaluate(async () => {
 });
 
 console.log(JSON.stringify(out, null, 2));
-await f.close?.();
+await disposeSafely(f, TAG);
 process.exit(0);
