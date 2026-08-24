@@ -207,6 +207,15 @@ Each was a user ruling, and each has a table finding behind it.
 7. **The stack is a queue in event order.** Concurrent popups form a staircase from a common
    anchor, and **z-order is causal order** — the first moment stays in front, so the player
    clicks through in the order things happened.
+   - ⚠ **THE ONE EXCEPTION, AND IT IS NARROW (v1.24.0, the rescue view): several moments about
+     ONE ROLL present as ONE WINDOW.** A Battle Master holding a Bardic die who misses is
+     stamped by two machines on the same attack, and a staircase of two popups is still two
+     clocks and two questions for what is one decision — *this roll is short by N; what do you
+     burn?* The spine's `registerRescue` merges the VIEW while the flags stay separate (R2: the
+     popup is a view, the flag is the state), so the merge costs no wire format and no
+     migration. **Law 7 is unchanged for everything else**: moments about DIFFERENT rolls, or
+     different questions about one roll, still staircase. The test is whether one answer could
+     serve them — a rescue window has one Pass, and it answers every source.
 8. **The rule line is verbatim.** A popup describing a feature quotes that feature's own 2024
    text, read from the world's own compendium (N1). The module's operational hints ride as
    separate lines, never blended into the quote.

@@ -32,7 +32,30 @@ clean. Quote the tools, never retype their numbers: `npm run verify` · `node to
 
 ---
 
-## ▶ THE RESCUE VIEW — the pass
+## ✅ DELIVERED — v1.24.0 (2026-08-24)
+
+**The commission is complete.** Every stage below landed, the user walked the window in the
+sandbox and signed it off, and the release is built: `npm run verify` green (13 checks, 262
+tests, zero moved pins, 83 hook registrations unchanged), full battery green over exactly this
+code — 16/16 suites, `smoke-d20-folds` 60/60, settings CLEAN, hook coverage reporting nothing
+never-fired. Quote the tools, never retype their numbers.
+
+⚠ **THE WALK IS WHY THIS SHIPPED WORKING.** Six defects reached the release only because a human
+opened the window and looked: a raw scale token where "1d8" belonged, a pane that resized the
+dialog under the pointer, a timed-out offer still presenting live buttons, Tactical Mind calling
+a DC-less check a miss, and — twice, an hour apart — a window that would not close. Not one of
+them was visible to a green suite. **§8 and §9 exist because of that**: no suite had ever
+asserted the window DISAPPEARS, only that it appeared.
+
+⚠ **WHAT IS LEFT OF THIS FILE IS THE SETTLED TABLE.** The pass it briefs is done, and the user's
+standing call is that there should be no handoff — what is parked lives in [BACKLOG.md](BACKLOG.md),
+what is permanent in [DESIGN.md](DESIGN.md) / [ARCHITECTURE.md](ARCHITECTURE.md) / [NOTES.md](NOTES.md).
+Retiring this file means finding a permanent home for SETTLED first; that is a decision, not
+tidying, so it is left for the user rather than taken.
+
+---
+
+## ▶ THE RESCUE VIEW — the pass, as delivered
 
 **The problem.** A Battle Master holding Heroic Inspiration who cleanly misses is stamped TWICE
 on the same attack message — `precision` (maneuvers.js) and `d20fold` (d20-folds.js) — and gets
@@ -161,9 +184,9 @@ bar's; the markup stays pure in present.js.
       DC finding, [d20-folds.js:642](scripts/d20-folds.js:642)); it keeps offering until a
       human passes.
 
-### Stage 3 — one window (spine registry + the two machines)
+### Stage 3 — one window ✅ DONE (`f6e88f4`)
 
-- [ ] **3.1** ui.js gains `registerRescue(flagKey, { isPending, view(message), answer(message,
+- [x] **3.1** ui.js gains `registerRescue(flagKey, { isPending, view(message), answer(message,
       action) })` beside `registerRelay` — same architecture, same reason: the spine never
       names a feature; machines hand it keys and callbacks. One popup per message on
       `popupKey(message.id, "rescue")`, drawn through `openMomentPopup` (one staircase slot,
@@ -174,7 +197,7 @@ bar's; the markup stays pure in present.js.
       `view` callback reads its own flag, composes via shared.js, and calls Stage 2's row
       builders. Both sources derive the header from the same pure function; unit-asserted
       equal, deduped by string.
-- [ ] **3.2** The two machines stop opening their own popups for these flags and call the
+- [x] **3.2** The two machines stop opening their own popups for these flags and call the
       spine's `syncRescuePopup(message)` from their existing render/update handlers: show when
       any registered flag is pending (latched), re-render on change (the shipped
       close-and-reopen latch-delete, [d20-folds.js:619](scripts/d20-folds.js:619)), close when
@@ -183,49 +206,53 @@ bar's; the markup stays pure in present.js.
       `answerFold`, first-writer-wins, crash-resume horizons, the withheld-save protocol.
       ⚠ **Pass answers every pending source** — one decision surface, one Pass; two flag
       writes, both idempotent.
-- [ ] **3.3** The spawn coalesce: both stamps land ms apart (maneuvers registers
+- [x] **3.3** The spawn coalesce: both stamps land ms apart (maneuvers registers
       `rollAttackV2` before d20-folds — [d20-folds.js:536](scripts/d20-folds.js:536)); the
       show defers one tick so the first window renders both rows instead of popping twice.
-- [ ] **3.4** Suite sections: merged window shows both rows; answering one re-renders with the
+- [x] **3.4** Suite sections: merged window shows both rows; answering one re-renders with the
       survivor + greyed spend. §11's rule — anything newly registered is asserted FIRED, and
       the hook-order/dispatch diffs are read, not reasoned about (no new registration is
       expected; the diff proves it, both directions of the §7 trap).
-- [ ] ⚠ **CHECK IN + sandbox walk of the window before Stage 4 builds coordination on it.**
+- [x] ⚠ **CHECK IN + sandbox walk of the window before Stage 4 builds coordination on it.**
 
-### Stage 4 — coordination correctness (the guard, the moot, the clock)
+### Stage 4 — coordination correctness ✅ DONE (`2966e24`)
 
-- [ ] **4.1** The spend-guard: both resolvers re-check the composed premise **before** the
+- [x] **4.1** The spend-guard: both resolvers re-check the composed premise **before** the
       spend (today: spend first, compose after). Premise already dead at resolve time → moot,
       nothing burned. ⚠ Guard repeated inside the serializer lock (§11).
-- [ ] **4.2** The moot (per ruling 1): each machine's existing `updateChatMessage` handler
+- [x] **4.2** The moot (per ruling 1): each machine's existing `updateChatMessage` handler
       re-derives its pending premise from the composed roll; premise dead → **elect-owned**
       auto-resolve `"no longer needed"` (single-writer, §3), timers disarmed, view syncs, card
       says nothing was spent. ⚠ Checks never moot (no DC); attacks moot on composed any-hit,
       DC'd saves on composed success. ⚠ **The row GREYS, it does not vanish** — the user's
       correction: a withdrawal nobody can see reads as a window that ate an option.
-- [ ] **4.3** The clock (per ruling 2) — **A DELETION, NOT A FEATURE.** There is ONE clock and
+- [x] **4.3** The clock (per ruling 2) — **A DELETION, NOT A FEATURE.** There is ONE clock and
       it covers resolving the whole moment, so nothing refreshes it: remove the intra-flag
       re-offer refresh at [d20-folds.js:580](scripts/d20-folds.js:580) and add none of its own.
       ⚠ Its original argument does not survive the merge — it protects an offer that had not
       been SHOWN, and in the merged window every surviving row has been on screen since the
       first stamp. ⚠ The bar draws `earliestDeadline` (Stage 2), which is already the soonest
       thing that can be taken away; assert it never moves once stamped.
-- [ ] **4.4** The withheld-save path is asserted untouched — saves never carry `precision`, so
+- [x] **4.4** ⚠ **Asserted by the BATTERY rather than by a new section** — `smoke-saves` ran
+      74/74 over exactly this code, and its withhold/resume sections are that assertion. A save
+      never carries `precision`, so the merged view degenerates to one source there and there
+      was no new behaviour to pin.
+- [x] **4.4 (as written)** The withheld-save path is asserted untouched — saves never carry `precision`, so
       the view degenerates to one source there; the withhold/resume sections re-run green.
-- [ ] Suite sections: the wasted-spend race (accept precision → composed hit → click bardic on
+- [x] Suite sections: the wasted-spend race (accept precision → composed hit → click bardic on
       the stale window → moot, **the Inspired effect survives**); the moot close needs no
       second client (both flags answer on the attacker's own client — the precision locality).
-- [ ] ⚠ **CHECK IN.**
+- [x] ⚠ **CHECK IN.**
 
-### Stage 5 — walk, docs, release
+### Stage 5 — walk, docs, release ✅ DONE
 
-- [ ] The USER's table walk (a walk is a human; nothing here substitutes). Open ruling 3 and
+- [x] The USER's table walk (a walk is a human; nothing here substitutes). Open ruling 3 and
       the pane behaviour revisited with the window in hand.
-- [ ] Docs recut: ARCHITECTURE §5 gains the merged-view note (several moments about ONE roll
+- [x] Docs recut: ARCHITECTURE §5 gains the merged-view note (several moments about ONE roll
       present as one window; law 7 unchanged for everything else); BACKLOG's Tactical Master
       row updated if the anatomy shifted; this file replaced by whatever the next commission
       is.
-- [ ] `npm run verify`, full battery, `verify-settings`, `bump-version.mjs minor` → the
+- [x] `npm run verify`, full battery, `verify-settings`, `bump-version.mjs minor` → the
       release with the zip read-back. Prod is the user's call.
 
 ### The properties this pass holds itself to
