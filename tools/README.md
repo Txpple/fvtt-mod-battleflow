@@ -78,6 +78,11 @@ both suites join as the same user and it counts users, not sockets (NOTES §5).
 Failures print in full to the console **as well as** landing in the file — the `| tail` that
 twice lost `smoke-battleflow`'s "2 FAILURE(S)" evidence cannot happen through this door.
 
+⚠ **The battery also ends with HOOK COVERAGE** (`hook-coverage.mjs`, above), and it clears
+`dist/hook-ledger/` first so a previous run's ledger can never be counted as this one's. **Read
+the never-fired list.** It is the only line in the whole apparatus that says anything about
+whether the module's code RAN, as opposed to whether it is well formed.
+
 ## Censuses — how registries get built
 
 `scan-reactions.mjs` · `scan-riders.mjs` · `scan-volley-spells.mjs`
@@ -96,7 +101,8 @@ ships, never from what the party owns (DESIGN N1). Re-run after adding content.
 | `maintain-party.mjs` | strip temporary actor-level effects, on demand. |
 | `build-release.ps1` | the release zip. **Never use `Compress-Archive`** — see NOTES §5. |
 | `world-snapshot.mjs` | `take` / `restore` / `status` / `drop` — roll the sandbox's databases back after a battery. The copy is 24 MB and takes 0.05s; the ~75s cost is the world bounce either side. **Local only.** |
-| `harness.mjs` | the twenty lines every suite used to copy — env, watchdog, connect, preflight, the section plan, one reporter, and the **suite lock**. Not a suite; nothing runs it directly. |
+| `harness.mjs` | the twenty lines every suite used to copy — env, watchdog, connect, preflight, the section plan, one reporter, the **suite lock**, and the **hook ledger** it arms at connect and writes at teardown. Not a suite; nothing runs it directly. |
+| `hook-coverage.mjs` | ⚠ **the only measurement in the tree that is about BEHAVIOUR** (ARCHITECTURE §10 D11): which of the 83 hook registrations actually FIRED during the run, unioned from the per-suite ledgers in `dist/hook-ledger/`. **It reports; it never fails.** A never-fired line is a coverage gap, a dead handler or a rare hook — only a person can tell which, and v1.23.0 would have printed four dead ones beside a green battery. |
 | `battery.mjs` | the whole battery in one command, in the order that works, captured to files. |
 | `bump-version.mjs` | move **both** `module.json` version fields together; `--check` asserts they are in step and is part of the gate. |
 

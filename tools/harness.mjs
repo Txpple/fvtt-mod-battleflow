@@ -28,14 +28,19 @@
  * names the sections. A partial green mistaken for a battery green is the one way this
  * feature could make the tree worse, so the output makes the difference impossible to miss.
  */
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { Foundry } from "file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js";
 import { foundryConfig, preflightSoleGM } from "./target.mjs";
 
 const MCP = "D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e";
+const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
+
+/** Where a suite leaves its hook ledger for `hook-coverage.mjs` to union. */
+export const LEDGER_DIR = join(REPO, "dist", "hook-ledger");
 
 /** The MCP's `.env`, parsed the way all 26 callers parsed it — comments out, `K=V` in. */
 export function loadEnv() {
@@ -171,6 +176,73 @@ function takeSuiteLock(tag) {
   }
 }
 
+/* ─── THE HOOK LEDGER (ARCHITECTURE §10 D11) ──────────────────────────────────────────────────
+ *
+ * WHICH OF THIS MODULE'S 83 HOOK REGISTRATIONS ACTUALLY FIRE WHEN THE BATTERY RUNS.
+ *
+ * ⚠ WHY THIS EXISTS, and it is the only measurement in the tree that answers the question:
+ * every other check is a statement about the SHAPE of the code. v1.23.0 shipped four of six
+ * d20-fold offer paths DEAD behind a green gate and a 12/12 green suite, and what found it was a
+ * person at a table. `npm run dispatch` closed the sub-case where the hook NAME was wrong. This
+ * closes nothing — **it MEASURES**, and the thing it measures is the silence: a handler that is
+ * correctly named, correctly layered, correctly documented and never once invoked.
+ *
+ * ⚠ IT WRAPS DISPATCH, NOT REGISTRATION, AND THAT IS A DELIBERATE LIMIT. Wrapping the module's
+ * own callbacks in place would give per-registration truth, and would also mean replacing live
+ * function identities inside `Hooks.events` while the suite drives the very code being measured.
+ * **An instrument that can break the thing it measures is worth less than a coarser one that
+ * cannot.** So the ledger counts hook NAMES dispatched in the page, and coverage is reported at
+ * name granularity, with the per-file rollup derived from the static registration list.
+ *
+ * ⚠ ONE HONEST CAVEAT, and `hook-coverage.mjs` prints it: `Hooks.call` (as opposed to `callAll`)
+ * STOPS AT THE FIRST HANDLER THAT RETURNS FALSE. `dnd5e.preApplyDamage` is one — hold.js's veto
+ * can legitimately stop it before concentration.js's handler. So "the name fired" implies every
+ * listener ran for `callAll`, and only "at least the first" for `call`.
+ * ─────────────────────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Page side. Serialised into the browser by `evaluate`, so it closes over NOTHING — no imports,
+ * no module-scope references (the rule at the head of this file).
+ */
+const installLedger = () => {
+  if (globalThis.__bfHookLedger) return "already";
+  const ledger = Object.create(null);
+  for (const name of ["call", "callAll"]) {
+    const orig = Hooks[name];
+    if (typeof orig !== "function") return `no Hooks.${name}`;
+    // Transparent by construction: same `this`, same arguments, same return value. The counter
+    // is the only thing added, and it runs before the dispatch so a handler that throws still
+    // leaves the fact that the hook FIRED on the record.
+    Hooks[name] = function (hook, ...args) {
+      ledger[hook] = (ledger[hook] ?? 0) + 1;
+      return orig.call(this, hook, ...args);
+    };
+  }
+  globalThis.__bfHookLedger = ledger;
+  return "installed";
+};
+
+/**
+ * Read the page's ledger and leave it beside the others for `hook-coverage.mjs`.
+ *
+ * ⚠ A FAILURE HERE IS LOUD AND WRITES NOTHING. A ledger file that exists but under-reports would
+ * name live handlers as dead — the exact false alarm that trains a reader to ignore the report,
+ * which is how this instrument would die. Absent is honest; wrong is not.
+ */
+export async function dumpHookLedger(tag, f) {
+  try {
+    const ledger = await f.evaluate(() => ({ ...(globalThis.__bfHookLedger ?? {}) }), null);
+    const fired = Object.keys(ledger).length;
+    if (!fired) { console.warn(`[${tag}] hook ledger EMPTY — not written`); return; }
+    mkdirSync(LEDGER_DIR, { recursive: true });
+    writeFileSync(join(LEDGER_DIR, `${tag}.json`),
+      JSON.stringify({ tag, at: new Date().toISOString(), ledger }, null, 2));
+    console.log(`[${tag}] hook ledger: ${fired} distinct hooks fired`);
+  } catch (err) {
+    console.warn(`[${tag}] hook ledger NOT captured — ${err.message}`);
+  }
+}
+
 /**
  * Connect, preflight, arm the watchdog. Returns the live `Foundry`.
  *
@@ -191,6 +263,35 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, env =
   console.log(`[${tag}] connecting…`);
   await f.connect();
   await preflightSoleGM(f, { requireElect });
+
+  // ⚠ THE LEDGER IS ARMED HERE AND DUMPED ON THE WAY OUT, and the dump rides the teardown call
+  // rather than `finish()` because SIX of the sixteen callers never call `finish` —
+  // smoke-battleflow, smoke-hold, smoke-twoclient and check-popup-routing among them. Every one
+  // of them ends with `await f.disconnect?.()`, so hanging the dump on the instance is the one
+  // seam that catches all of them without editing a single suite.
+  const install = await f.evaluate(installLedger, null).catch(e => `failed: ${e.message}`);
+  if (install !== "installed") console.warn(`[${tag}] hook ledger not armed (${install})`);
+
+  // ⚠⚠ `f.disconnect` DOES NOT EXIST ON `Foundry` — THE METHOD IS `dispose()`. Every suite in
+  // this tree ends with `await f.disconnect?.()`, and the optional chain has been swallowing it
+  // silently since the harness was written: the hang-up ceremony is decorative and the session
+  // is really torn down by process exit. **This is D11's own failure class living inside the
+  // test tooling** — a call that reads correctly, does nothing, and reports nothing. It is
+  // recorded rather than repaired here because making `disconnect` really dispose is a change to
+  // every suite's teardown and belongs in its own pass (HANDOFF, "the no-op hang-up").
+  //
+  // So the dump is hung on BOTH names, once-only: `disconnect` (which the suites call, and which
+  // therefore starts doing exactly one useful thing) and the real `dispose`.
+  let dumped = false;
+  const dumpOnce = async () => {
+    if (dumped) return;
+    dumped = true;
+    await dumpHookLedger(tag, f);
+  };
+  const reallyDispose = f.dispose?.bind(f);
+  f.disconnect = dumpOnce;
+  if (reallyDispose) f.dispose = async (...args) => { await dumpOnce(); return reallyDispose(...args); };
+
   console.log(`[${tag}] connected`);
   return f;
 }

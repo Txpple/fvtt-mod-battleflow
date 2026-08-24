@@ -31,7 +31,7 @@
  * back also discards anything you did at the table while it ran.
  */
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -128,6 +128,12 @@ const runDir = join(REPO, "dist", "battery", stamp);
 mkdirSync(runDir, { recursive: true });
 console.log(`[battery] output -> ${runDir}\n`);
 
+// ⚠ THE HOOK LEDGERS ARE CLEARED FIRST, and that is not tidiness. Each suite drops one on
+// disconnect and `hook-coverage.mjs` unions whatever it finds, so a leftover ledger from a
+// PREVIOUS battery would report a hook as exercised by a run that never touched it — a coverage
+// report that lies in the reassuring direction, which is the only direction that matters.
+rmSync(join(REPO, "dist", "hook-ledger"), { recursive: true, force: true });
+
 const run = (script, args = []) => {
   const r = spawnSync(node, [join(REPO, "tools", `${script}.mjs`), ...args], {
     cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024
@@ -178,6 +184,21 @@ for (const suite of plan) {
     for (const l of body.split("\n")) if (/FAIL|FATAL|ERROR/.test(l)) console.log(l);
     console.log(`──────── full output: ${join(runDir, `${suite.name}.txt`)}\n`);
   }
+}
+
+// ⚠ COVERAGE IS PRINTED, NEVER ENFORCED (ARCHITECTURE §10 D11). It runs BEFORE the settings
+// check so that a drifted-settings exit still leaves the coverage on screen — the one number
+// here that says anything about BEHAVIOUR should not be the one a failure scrolls away.
+console.log("\n[battery] hook coverage — which registrations actually fired…");
+const coverage = run("hook-coverage");
+if (coverage.code !== 0) {
+  console.log("  ⚠ NOT MEASURED — the ledgers are missing or unreadable. That is an instrument "
+    + "failure, not a clean result; do not read it as 'everything fired'.");
+} else {
+  const lines = coverage.body.split("\n");
+  const from = lines.findIndex(l => l.includes("NEVER FIRED"));
+  if (from >= 0) for (const l of lines.slice(from)) console.log(l.trimEnd());
+  else console.log(`  ${lines.find(l => l.startsWith("REPORT")) ?? ""}`);
 }
 
 console.log("\n[battery] the settings reference table…");
