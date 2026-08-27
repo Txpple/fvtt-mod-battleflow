@@ -11,7 +11,7 @@
 // harness, and a filtered run that skipped them would leave the world dirty for the next one.
 // This suite gates in NODE rather than in the page: its sections are top-level blocks, each
 // with its own `f.evaluate`, so the plan never has to cross the serialization boundary.
-import { announcePlan, connectSuite, sectionPlan } from './harness.mjs';
+import { announcePlan, connectSuite, loadEnv, sectionPlan } from './harness.mjs';
 
 const SECTIONS = {
   3: 'the hit chain',
@@ -195,6 +195,8 @@ const fx = await f.evaluate(async () => {
 }, null);
 report('fixtures (scene, actors, tokens, canvas)', fx.ok, fx.ok ? `${fx.itemName}; ${fx.log.join('; ') || 'reused'}` : fx.why);
 if (!fx.ok) { process.exit(1); }
+// The player TEST account's name rides into §5c so BF Test PC Attacker can be granted to it.
+fx.playerName = loadEnv().MOLTEN_TEST_USER ?? null;
 
 // ------------------------------------------------------------------------- 3. the hit chain
 if (want('3')) {
@@ -649,7 +651,7 @@ if (want('5b')) {
 // is under test is the ACTOR-TYPE gate, not the player-client path (which needs a real player
 // login and is dogfooded at the table).
 if (want('5c')) {
-  const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
+  const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName, playerName }) => {
     const MOD = 'fvtt-mod-battleflow';
     const priorMode = game.settings.get(MOD, 'autoDamage');
     const priorApply = game.settings.get(MOD, 'autoApply');
@@ -672,6 +674,17 @@ if (want('5c')) {
         });
       }
       if (pcAttacker.type !== 'character') return { ok: false, why: `PC fixture is type ${pcAttacker.type}` };
+      // ⚠ OWNED BY THE PLAYER TEST USER, default NONE — granted on EVERY run, not only at
+      // creation (the smoke-twoclient idiom). The 2026-08-23 grant lived only in the WORLD,
+      // and a prod mirror deleted it with the actor: this fixture then recreated the PC
+      // ownerless, smoke-saves' (h) sections stopped seeing a player-OWNED pc, and
+      // check-popup-routing's player could no longer cast from it (both found 2026-08-27).
+      // The world is disposable; anything a suite needs must live in a fixture step.
+      const playerUser = playerName ? game.users.getName(playerName) : null;
+      if (playerUser) {
+        await pcAttacker.update({ ownership: { default: 0, [playerUser.id]: 3 } },
+          { diff: false, recursive: false });
+      }
 
       const attackOnce = async actor => {
         canvas.tokens.get(victimToken).setTarget(true, { releaseOthers: true });
