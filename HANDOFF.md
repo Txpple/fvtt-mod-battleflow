@@ -107,6 +107,50 @@ current stamps do not carry, and should not gate v1.
 3. ⚠ Chat is not forever — messages get deleted and worlds get pruned. The scan must be
    runnable per-session (an export or incremental cursor), not assume infinite scrollback.
 
+#### How the MCP reads, and where its tools go — for the session that ingests this
+
+*(Written to be self-contained: the reader is expected to be a session working in
+`fvtt-mcp-molten5e` that has not seen this repo.)*
+
+**The read primitive.** The MCP repo's `dist/foundry.js` exports a `Foundry` class — a headless
+client that joins the live world and runs code in page context. Battle Flow's own
+[tools/verify-settings.mjs](tools/verify-settings.mjs) is the worked example of an external
+script using it: build a config from the repo's `.env` (`MOLTEN_*` keys for prod, `LOCAL_*` for
+the sandbox), `await f.connect()`, then `f.evaluate(fn, args)` — inside, the full Foundry API is
+live. The whole scan is one evaluate:
+
+```js
+const ledger = await f.evaluate(() => {
+  const MOD = "fvtt-mod-battleflow";
+  return game.messages.contents
+    .filter(m => m.flags?.[MOD]?.receipt || m.flags?.[MOD]?.d20fold /* … the table above */)
+    .map(m => ({ id: m.id, ts: m.timestamp, flags: m.flags[MOD],
+                 dnd5e: { targets: m.getFlag("dnd5e", "targets"),
+                          origin: m.getFlag("dnd5e", "originatingMessage") } }));
+});
+```
+
+Everything else — folding into per-combat buckets, subtracting `reverted`, crediting flips —
+is plain Node on the returned JSON. **The flag inventory table above IS the read contract**;
+key buckets by the `combat` stamp (`"combatId:round:turn"`, null = out of combat).
+
+**Two integration shapes, both legitimate — start with the first:**
+1. **A script** (`scripts/party-stats.mjs` beside `pull-prod-to-local.mjs` and kin): connect,
+   scan, print or write a report. Cheapest loop, no server rebuild, runnable by hand or from
+   another session. Target local or prod exactly as the deploy tooling does.
+2. **An MCP tool**, so any Claude session can ask for stats conversationally (the way
+   `list-chat-messages` and `export-chat-log` already exist as tools). That means following the
+   MCP repo's OWN conventions — TypeScript in `src/`, its build, its tool registration; read
+   that repo's README/design.md rather than trusting this file for its internals. The tool body
+   is the same evaluate + fold as the script — build the script first, promote it when it has
+   proven the shapes.
+
+**Read discipline.** The scan is READ-ONLY — no writes, no settings, no fixtures — which makes
+it safe beside a live session (the same standing distinction Battle Flow's own
+`check-popup-routing` enjoys vs the mutating suites). The bridge identity (role-3 assistant)
+never steals the elect from the human GM, so scanning DURING play is allowed; the existing
+`export-chat-log` tool is the archival fallback when a session's chat is about to be pruned.
+
 **Check-in points:** after Stage 0 (the rulings ARE the design), after Stage 1's suite section
 is green, before anything in Stage 2 is presented as a deliverable of THIS repo.
 
