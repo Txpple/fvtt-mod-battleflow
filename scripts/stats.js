@@ -106,7 +106,9 @@ async function stampRoster(combat) {
         eyebrow: "Combat",
         title: scene?.name ?? "The field",
         subtitle: `${combatants.length} combatants`,
-        lines: order,
+        // The scene named on the begin line as well as the title (user ask, 2026-08-27) —
+        // the close adds its twin, so the card reads as a bracket around the fight.
+        lines: [`⚔ Begins on ${scene?.name ?? "the field"}`, ...order],
         tone: "neutral"
       }),
       flags: { [MODULE_ID]: { combatRoster: {
@@ -152,7 +154,22 @@ async function closeRoster(combat) {
     if ( !flag || (flag.endedRound != null) ) return;
     flag.endedRound = combat.round;
     flag.endedAt = Date.now();
-    await message.setFlag(MODULE_ID, "combatRoster", flag);
+    // The card gains its closing bracket — the scene named at the end as at the beginning
+    // (user ask, 2026-08-27). Content and flag land in ONE update: the flag is the state,
+    // the card its view, and two writes would re-render every client twice for one fact.
+    const scene = flag.sceneName ?? "the field";
+    const order = (flag.combatants ?? []).map(c =>
+      `${(c.initiative ?? "—")} · ${c.name}${c.isPC ? "" : " (foe)"}`);
+    await message.update({
+      content: bfCard({
+        eyebrow: "Combat",
+        title: flag.sceneName ?? "The field",
+        subtitle: `${(flag.combatants ?? []).length} combatants`,
+        lines: [`⚔ Begins on ${scene}`, ...order, `🕊 Ends on ${scene} — round ${flag.endedRound}`],
+        tone: "neutral"
+      }),
+      [`flags.${MODULE_ID}.combatRoster`]: flag
+    });
   } catch(err) {
     console.error(`${TITLE} | Combat roster close failed.`, err);
   }

@@ -387,13 +387,15 @@ if (want('3b')) {
     const roster = await f.evaluate(async ({ combatId }) => {
       try {
         let flag = null;
+        let content = '';
         for (let i = 0; i < 24 && !flag; i++) {
           await new Promise(r => setTimeout(r, 250));
-          flag = game.messages.contents.findLast(m =>
-            m.getFlag('fvtt-mod-battleflow', 'combatRoster')?.combatId === combatId)
-            ?.getFlag('fvtt-mod-battleflow', 'combatRoster') ?? null;
+          const m = game.messages.contents.findLast(x =>
+            x.getFlag('fvtt-mod-battleflow', 'combatRoster')?.combatId === combatId);
+          flag = m?.getFlag('fvtt-mod-battleflow', 'combatRoster') ?? null;
+          content = m?.content ?? '';
         }
-        return { ok: !!flag, flag };
+        return { ok: !!flag, flag, content };
       } catch (err) { return { ok: false, why: err.message }; }
     }, { combatId: started.combatId });
     report('3b roster marker stamped at combatStart (2 combatants, initiative order, no end yet)',
@@ -401,6 +403,10 @@ if (want('3b')) {
         && roster.flag.combatants.every(c => 'actorUuid' in c && 'initiative' in c && 'isPC' in c)
         && (roster.flag.endedRound == null),
       JSON.stringify(roster.flag ?? roster.why ?? null));
+    report('3b the card NAMES the scene on its begin line, and no end line yet (user ask)',
+      roster.ok && roster.content.includes('Begins on Battle Flow Test Range')
+        && !roster.content.includes('Ends on'),
+      roster.ok ? 'begin line present, end absent' : (roster.why ?? 'no roster'));
 
     const inC = await driveOnce('in-combat chain');
     if (inC.ok) {
@@ -422,19 +428,25 @@ if (want('3b')) {
         await game.combats.get(combatId)?.delete();
         let closed = null;
         let markerId = null;
+        let content = '';
         for (let i = 0; i < 24 && (closed == null); i++) {
           await new Promise(r => setTimeout(r, 250));
           const m = game.messages.contents.findLast(x =>
             x.getFlag('fvtt-mod-battleflow', 'combatRoster')?.combatId === combatId);
           markerId = m?.id ?? null;
           closed = m?.getFlag('fvtt-mod-battleflow', 'combatRoster')?.endedRound ?? null;
+          content = m?.content ?? '';
         }
         if (markerId) await game.messages.get(markerId)?.delete();
-        return { ok: !game.combats.get(combatId), closed };
+        return { ok: !game.combats.get(combatId), closed, content };
       } catch (err) { return { ok: false, why: err.message }; }
     }, { combatId: started.combatId });
     report('3b combat fixture deleted + roster closed with the final round',
       gone.ok && (gone.closed != null), `endedRound=${gone.closed ?? 'never set'}`);
+    report('3b the closed card NAMES the scene on its end line too (user ask)',
+      gone.ok && gone.content.includes('Ends on Battle Flow Test Range')
+        && gone.content.includes(`round ${gone.closed}`),
+      gone.ok ? 'end line present with round count' : (gone.why ?? ''));
   }
 }
 
