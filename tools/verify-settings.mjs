@@ -3,7 +3,7 @@
 // that drifts. Standing rule: after ANY suite, probe or test session, verify and restore
 // drift; when the USER changes a setting, update the TABLE HERE, never fight it. Reads every
 // world-scoped key, reports drift, and restores it with --fix. Timer values are the
-// 2026-08-17 user call: every timer 15s.
+// 2026-08-27 user call: every timer 24s (superseded 2026-08-17's 15s).
 import { readFileSync } from 'node:fs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
 import { foundryConfig } from './target.mjs';
@@ -30,7 +30,7 @@ const REFERENCE = {
   blockList: 'Magic Missile:Shield',
   interruptList: 'Shield:ac, Absorb Elements:damage, Uncanny Dodge:damage, Defensive Duelist:ac, Illusory Self:ac, Glorious Defense:ac, Parry:ac, Counterattack:ac, Defensive Stance:ac, Whirlwind of Sand:ac, Deflect Attacks:damage, Stone\'s Endurance:damage',
   holdReveal: true,
-  holdTimer: 15,          // user 2026-08-17: all timers 15s (was 12)
+  holdTimer: 24,          // user 2026-08-27: all timers 24s (30 briefly the same day; 15 per 2026-08-17, 12 before)
   holdSkipFutile: true,
   holdApplyEffect: true,
   holdSettle: 8,
@@ -49,12 +49,12 @@ const REFERENCE = {
   d20Folds: 'Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic',
   d20FoldAsk: true,       // auto-offer where the module owns the number; checks are always player-pressed
   concMode: 'prompt',
-  concTimer: 15,
+  concTimer: 24,          // user 2026-08-27: all timers 24s
   concBreak: true,
   concVisibility: true,
   saves: true,
-  saveTimer: 15,          // user 2026-08-17: all timers 15s (was 6)
-  damageTimer: 15,        // new in v1.19.0 walk-4 (w) — the offered roll's clock, family default
+  saveTimer: 24,          // user 2026-08-27: all timers 24s (15 per 2026-08-17, 6 before)
+  damageTimer: 24,        // new in v1.19.0 walk-4 (w) — the offered roll's clock, family default
   castApply: true,
   volleys: true,          // new in v1.20.0 (Pass C) — structural multi-projectile fold; rides the resolver mode + damageTimer
   resourceNotices: true   // new in v1.20.0 (user ask) — the spend flash + card line; recovery-rhythm pools only

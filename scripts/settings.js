@@ -28,16 +28,19 @@ Hooks.once("init", () => {
   // now" — recorded as one in DESIGN.md's Per-client section. v1.9.5 DELETED `saveAutoRoll`,
   // whose shape was "the POPUP is the default, the opt-out is silent auto-roll"; this is that
   // mirrored, and it exists because a player asked for their own dice back (FLOW item 3).
-  // Default OFF for the reason centerRollDialogs records the other way round: a per-client
-  // setting nobody knows to look for means every new login starts wrong — so the safe default
-  // is the one that changes nothing until you go find it, and the patch notes carry the pointer.
+  // ⚠ Default ON since 2026-08-27 (user call, from live play: a new login was silently losing
+  // its own dice). That REVERSES the original "changes nothing until you go find it" default,
+  // and the original's own reasoning is what flips it: a per-client setting nobody knows to
+  // look for means every new login starts wrong — and the table's normal is players pressing
+  // their own damage, so the wrong start was the silent auto-roll. The buzzer keeps a missed
+  // popup from ever stalling the table, which is what makes ON a safe default.
   // ⚠ ONE SWITCH ACROSS ALL THREE DAMAGE PATHS — attacks, save spells and areas. The first cut
   // covered attacks alone and the walk found the hole immediately; a second switch for "and my
   // spells too" would be asking the table to opt into the same answer twice.
   game.settings.register(MODULE_ID, S.playerRollDamage, {
     name: "Roll Your Own Damage",
-    hint: "Ask before rolling YOUR damage, instead of the automation rolling it for you: a popup with one button and a timer, on your client alone. It covers every roll the machine would have taken — an attack that hits, a save spell like Vicious Mockery or Fireball, and areas like Web. Press it and the dice roll exactly as the automation would have rolled them — same damage, same crit, same everything downstream — and the buzzer rolls for you if you miss the window, so a missed popup can never stall the table. An attack popup also says when the hit was a CRITICAL; a spell popup says what a successful save does to the number. Per player: this affects your own client only, and it is OFF unless you turn it on.",
-    scope: "client", config: true, type: Boolean, default: false
+    hint: "Ask before rolling YOUR damage, instead of the automation rolling it for you: a popup with one button and a timer, on your client alone. It covers every roll the machine would have taken — an attack that hits, a save spell like Vicious Mockery or Fireball, and areas like Web. Press it and the dice roll exactly as the automation would have rolled them — same damage, same crit, same everything downstream — and the buzzer rolls for you if you miss the window, so a missed popup can never stall the table. An attack popup also says when the hit was a CRITICAL; a spell popup says what a successful save does to the number. Per player: this affects your own client only, and it is ON unless you turn it off.",
+    scope: "client", config: true, type: Boolean, default: true
   });
 
   // The window HAD no setting ("one switch, not two") while the popup was invisible to
@@ -46,7 +49,7 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.damageTimer, {
     name: "Damage Roll Timer Seconds",
     hint: "How long an offered damage roll waits before the module rolls it. 0 waits indefinitely. Expiry ROLLS, never cancels — closing the popup does the same — so the timer only ever decides who pressed the button. The draining bar shows on the roller's popup AND on the card, so the whole table can see the dice everyone is waiting on.",
-    scope: "world", config: true, type: Number, default: 15,
+    scope: "world", config: true, type: Number, default: 24,
     range: { min: 0, max: 60, step: 1 }
   });
 
@@ -124,9 +127,10 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.holdTimer, {
     name: "Hold Timer Seconds",
     hint: "How long a held player has to answer before the hold passes itself and the attack resolves. 0 waits indefinitely — human-paced, and correct for a thoughtful table. A draining bar shows the time left on both the popup and the card.",
-    // Default 15 since v1.11.0 (user call 2026-08-17: every timer defaults to 15s) — a
-    // popup that can pass itself needs a window a human at a watched window can win.
-    scope: "world", config: true, type: Number, default: 15,
+    // Default 24 (user call 2026-08-27: every timer defaults to 24s — set 30 and trimmed to 24
+    // the same day; superseded 2026-08-17's 15s, which live play kept losing to) — a popup
+    // that can pass itself needs a window a human at a watched window can win.
+    scope: "world", config: true, type: Number, default: 24,
     range: { min: 0, max: 60, step: 1 }
   });
 
@@ -243,7 +247,7 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.concTimer, {
     name: "Concentration Timer Seconds",
     hint: "How long the prompt waits before rolling the save itself. 0 waits indefinitely. Unlike the reaction hold's timer, expiry ROLLS rather than passes — a concentration save is mandatory, so the timer only ever decides who pressed the button.",
-    scope: "world", config: true, type: Number, default: 15,
+    scope: "world", config: true, type: Number, default: 24,
     range: { min: 0, max: 60, step: 1 }
   });
 
@@ -268,7 +272,7 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.saveTimer, {
     name: "Save Timer Seconds",
     hint: "How long a prompted save waits before rolling itself. 0 waits indefinitely. Like the concentration timer — and unlike the reaction hold's — expiry ROLLS rather than passes: a demanded save is mandatory, so the timer only ever decides who pressed the button.",
-    scope: "world", config: true, type: Number, default: 15,
+    scope: "world", config: true, type: Number, default: 24,
     range: { min: 0, max: 60, step: 1 }
   });
 

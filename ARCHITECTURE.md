@@ -475,7 +475,11 @@ module-eval time — that is the only reason the existing import cycles are safe
    identical either way. Only the second shape may be a client setting.
 4. **A per-client setting nobody knows to look for must not start wrong.** Which default that
    implies depends on which state is the surprise — centered dialogs ship ON because that is
-   what people expect; being *asked* to roll ships OFF because being asked is the surprise.
+   what people expect. ⚠ The rule cuts by the TABLE's normal, not by novelty: Roll Your Own
+   Damage shipped OFF ("being asked is the surprise") and live play proved the opposite — this
+   table's normal is players pressing their own damage, so the silent auto-roll was the wrong
+   start every new login got. ON since 2026-08-27 (user call); the buzzer is what makes ON
+   safe, since a missed popup can never stall the table.
 5. **Every setting joins a divider group and the dependent grey-out sync.** A setting spanning
    two groups must state which condition enables it — a control that reads as inert and still
    fires is a bug.
