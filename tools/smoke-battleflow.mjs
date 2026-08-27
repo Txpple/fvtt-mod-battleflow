@@ -685,6 +685,16 @@ if (want('5c')) {
         await pcAttacker.update({ ownership: { default: 0, [playerUser.id]: 3 } },
           { diff: false, recursive: false });
       }
+      // ⚠ AND A REAL HP POOL. A bare character create has hp.max 0, and the old world's copy
+      // owed its pool to history the mirror deleted — smoke-saves §11/§16 then demanded saves
+      // of a 0/0 sheet, a degenerate fixture no assertion was written for (found 2026-08-27,
+      // probe: hp "0/0"). Seeded on every run, like the ownership above: the world is
+      // disposable, so everything a suite needs must live in a fixture step.
+      if (!(pcAttacker.system.attributes?.hp?.max > 0)) {
+        await pcAttacker.update({
+          'system.attributes.hp.max': 20, 'system.attributes.hp.value': 20
+        });
+      }
 
       const attackOnce = async actor => {
         canvas.tokens.get(victimToken).setTarget(true, { releaseOthers: true });

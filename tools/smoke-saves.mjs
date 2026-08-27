@@ -186,8 +186,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       victim.system._source.resources?.legres?.spent ?? 0;
 
     const saveBonus = (a, v) => a.update({ 'system.abilities.con.bonuses.save': v });
+    // ⚠ Healing must also RAISE THE DEAD. `isDeadForSaves` filters on the dead STATUS as well
+    // as NPC hp, and a status is an ActiveEffect — it survives an hp restore and it survives
+    // across runs (the poisoned-prone-chip class, NOTES §5). A prior run that killed the PC
+    // left "dead" standing; §11 then healed hp to full and STILL cast at a corpse, so the
+    // demand filtered the PC out and three assertions failed on residue (found 2026-08-27).
     const healFull = async a => {
       await a.update({ 'system.attributes.hp.value': a.system.attributes.hp.max });
+      // Delete-by-id, never toggleStatusEffect: the toggle threw "does not exist" on a
+      // status the set reported (a fixed-id effect raced its own removal, 2026-08-27).
+      const down = a.effects.filter(e =>
+        ['dead', 'unconscious'].some(s => e.statuses?.has?.(s)));
+      if ( down.length ) {
+        await a.deleteEmbeddedDocuments('ActiveEffect', down.map(e => e.id)).catch(() => {});
+      }
       return a.system.attributes.hp.max;
     };
 
@@ -1377,6 +1389,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         };
         const pcToken16 = await mkToken(pcActor, 1600);
         await pcActor.update({ 'system.attributes.hp.value': 0 });
+        // ⚠ CONSTRUCT "dying", do not assume it. dnd5e core (5.3.3) applies no status at 0 HP,
+        // but this world's stack marks the drop DEAD (found 2026-08-27) — and the gate under
+        // test honors the dead status wherever it comes from, so leaving the marker would test
+        // the neighbor module, not the boundary. Strip it and the section means what it says:
+        // a 0-HP character WITHOUT the dead status is still demanded. (The old fixture dodged
+        // this by accident: a 0/0-max sheet never DROPS, so nothing ever marked it.)
+        await sleep(400);
+        const marked16 = pcActor.effects.filter(e => e.statuses?.has?.('dead'));
+        if (marked16.length) {
+          await pcActor.deleteEmbeddedDocuments('ActiveEffect', marked16.map(e => e.id))
+            .catch(() => {});
+        }
         target(pcToken16);
         await sleep(120);
         const before16c = snap();
@@ -1547,12 +1571,17 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
     if (!canvas.scene) return { fatal: 'no active scene' };
 
     /* --- prior state, restored in full at the end ------------------------------------------ */
-    const KEYS = ['saves', 'saveTimer', 'autoApply', 'autoDamage', 'reactionHold', 'riders',
-      'masteryRiders', 'concMode', 'playerRollDamage', 'hideCardButtons'];
+    const KEYS = ['saves', 'saveTimer', 'damageTimer', 'autoApply', 'autoDamage', 'reactionHold',
+      'riders', 'masteryRiders', 'concMode', 'playerRollDamage', 'hideCardButtons'];
     const prior = Object.fromEntries(KEYS.map(k => [k, game.settings.get(MOD, k)]));
     const set = (k, v) => game.settings.set(MOD, k, v);
     await set('saves', true);
     await set('saveTimer', 4);          // verdicts land fast so 11 is constructible
+    // ⚠ The offer window is PINNED, not inherited: §8 literally waits the buzzer out with a
+    // 22s ceiling, so the world's damageTimer must be smaller — the 2026-08-27 move to 24s
+    // world-wide turned §8 into "waited 22s for a 24s buzzer" and it failed on time alone.
+    // Every timing a section depends on, the section pins.
+    await set('damageTimer', 15);
     await set('autoApply', false);      // the ROLL is under test until 11 turns this on
     await set('reactionHold', false);
     await set('riders', false);
@@ -1801,7 +1830,7 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
       await sleep(1400);
       const opened = popupEls().length;
       const early = !!damageFor(card);
-      const dmg = await waitDamage(card, 22000);   // the window is 15s
+      const dmg = await waitDamage(card, 22000);   // the window is 15s — PINNED above, not the world's
       ok(8, 'left alone — the buzzer rolls it',
         (opened === 1) && !early && !!dmg,
         `popup=${opened} rolledEarly=${early} rolledByBuzzer=${!!dmg}`);
