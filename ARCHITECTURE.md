@@ -205,8 +205,12 @@ that difference — do not tidy the nulls away.
 **Second-pass fields (2026-08-27, the stats commission's follow-up):**
 
 - **`receipt` entries carry `parts: [{type, amount}]`** — per-part POST-trait amounts, straight
-  from `calculateDamage`'s own rewritten values (measured: fire 9 under resistance comes back
-  4). The message's rolls remain the pre-mitigation side; the difference is the
+  from `calculateDamage`'s own rewritten values, recorded VERBATIM. ⚠ That means a part can be
+  FRACTIONAL (a roll of 9 under resistance can arrive as 4.5 — measured live by the stats
+  reader, 2026-08-27): the system's flooring/clamping story lives in `taken` and `delta`, not
+  in the parts. `parts` are authoritative for by-type arithmetic; the entry's `multiplier`
+  annotates the SAME halving for the card's sentence — presentational, never double-applied.
+  The message's rolls remain the pre-mitigation side; the difference is the
   damage-lost-to-traits meter. Healing-typed parts arrive negated, same sign as `taken`.
 - **`answeredAt` on every moment answer** (fold, precision, mastery, riposte, bashOffer, save
   choice, hold per-target, concentration outcome — buzzer answers included): with the flag's
