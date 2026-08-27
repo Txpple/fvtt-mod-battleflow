@@ -370,7 +370,10 @@ if (want('3b')) {
   // IN combat: the stamp is the running combat's id:round:turn.
   const started = await f.evaluate(async ({ sceneId, attackerToken, victimToken }) => {
     try {
-      const combat = await Combat.create({ scene: sceneId });
+      // ⚠ Deliberately NO scene binding — the tracker's own shape (encounters are
+      // scene-agnostic since v11), which is exactly what made the live card read "The
+      // field": the roster must resolve the scene from the COMBATANTS.
+      const combat = await Combat.create({});
       await combat.createEmbeddedDocuments('Combatant', [
         { tokenId: attackerToken, sceneId }, { tokenId: victimToken, sceneId }]);
       await combat.rollAll({ messageOptions: { rollMode: 'selfroll' } }).catch(() => {});

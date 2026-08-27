@@ -84,7 +84,12 @@ Hooks.on("combatStart", combat => {
 async function stampRoster(combat) {
   try {
     if ( rosterMessageFor(combat.id) ) return;   // resume/re-fire: one roster per combat
-    const scene = combat.scene ?? null;
+    // ⚠ A tracker-made encounter is SCENE-AGNOSTIC (combat.scene null — bit live 2026-08-27,
+    // the card read "The field" on Temple Ruins): the combatants know where they stand, so
+    // the first combatant's scene resolves it, with the active scene as the last honest guess.
+    const scene = combat.scene
+      ?? game.scenes.get(combat.combatants.contents.find(c => c.sceneId)?.sceneId ?? "")
+      ?? game.scenes.active ?? null;
     const combatants = combat.combatants.contents
       .slice()
       .sort((a, b) => (b.initiative ?? -Infinity) - (a.initiative ?? -Infinity))
