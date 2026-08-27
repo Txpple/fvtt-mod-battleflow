@@ -118,3 +118,7 @@ import "./receipts.js";
 // resources.js last: its one-line spend record renders at the very bottom of the usage
 // card, below every workflow row — a footer, which is what a ledger line is.
 import "./resources.js";
+// stats.js after everything: the data plane's own edge (rollCtx + the combat roster). It
+// renders no card rows, so its position constrains nothing — it sits at the end so the
+// machines' registrations keep their pinned order unchanged.
+import "./stats.js";

@@ -111,6 +111,12 @@ export function receiptEntry({ uuid, name, img = null, note, multiplier = 1, pri
     prior,
     delta: hpDelta(prior, after),
     taken: calc ? calc.amount : null,
+    // Per-part POST-trait amounts (the stats plane's second pass, 2026-08-27): measured —
+    // calculateDamage rewrites each part's `value` through the multiplier story (fire 9
+    // under resistance comes back 4), so this is what each type actually DEALT; the message's
+    // own rolls stay the pre-mitigation side, and the difference IS the damage-lost-to-traits
+    // meter. Healing-typed parts arrive negated, same sign convention as `taken`.
+    parts: (calc || []).map(d => ({ type: d.type ?? null, amount: d.value ?? 0 })),
     traits: traitReasons(calc),
     reverted: false,
     ...statFields(context)

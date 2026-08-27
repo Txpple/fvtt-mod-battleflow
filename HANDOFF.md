@@ -105,6 +105,25 @@ same-size dice overlap — never silently wrong.
 
 ---
 
+### STAGE 1.1 — the second pass (2026-08-27, the MCP session's round-2 asks, user-ruled) — DELIVERED
+
+The stats reader's first live pass surfaced what the wire format could not serve; all shipped,
+and **ARCHITECTURE §4's table carries them** (the read contract, as always):
+
+- **`rollCtx`** on every d20 TEST message — attack, save, ability check, skill, tool, death
+  save, concentration — `{combat, sourceUuid}` at roll time on the rolling client. Plain rolls
+  finally carry round context; by-round meters stop inferring from timestamps.
+- **`parts: [{type, amount}]`** on receipt entries — per-part POST-trait (measured semantics);
+  with the message's pre-mitigation rolls this closes the damage-lost-to-traits meter.
+- **`combatRoster`** — the turn→actor map that survives encounter deletion: a GM-whispered
+  marker card at combatStart (static snapshot: actorUuid/tokenId/name/initiative/isPC), closed
+  with `endedRound` at deleteCombat. User-ruled: static roster ≠ clock ownership; the fence
+  stands — nothing may grow turn tracking here.
+- **`answeredAt` on every moment answer** (most already carried it as the crash-resume
+  horizon; mastery and the hold's three answer paths joined) — decision latency vs deadline is
+  now arithmetic.
+- **`holdSkipped`** — the futile-skip record, the stat only the module witnesses.
+
 ### STAGE 2 — the MCP half (in `../fvtt-mcp-molten5e`, its own conventions) — REMAINS
 
 1. A scan that walks `game.messages` by flag presence (never HTML), folds entries into a

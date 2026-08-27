@@ -849,6 +849,7 @@ async function answerMastery(message, answer, { timedOut = false } = {}) {
   const m = foundry.utils.deepClone(message.getFlag(MODULE_ID, "mastery") ?? {});
   if ( (m.status !== "pending") || m.answer ) return;
   m.answer = answer;
+  m.answeredAt = Date.now();   // the crash-resume horizon (the topple discipline)
   if ( timedOut ) m.timedOut = true;
   await message.setFlag(MODULE_ID, "mastery", m);
 }

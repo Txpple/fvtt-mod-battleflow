@@ -249,10 +249,18 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
   if ( attackMessage.getFlag(MODULE_ID, "hold") ) return true; // already held; never re-stamp
 
   const held = [];
+  const skipped = [];
   for ( const target of hits ) {
     const actor = await fromUuid(target.uuid);
     const found = await findInterrupt(actor, { isCritical: roll.isCritical });
-    if ( found && !holdWouldMatter(actor, found, roll, target.ac) ) continue;
+    if ( found && !holdWouldMatter(actor, found, roll, target.ac) ) {
+      // The stat only this line witnesses (data-plane second pass, 2026-08-27): a hopeless
+      // hold skipped in silence left NO record anywhere, so "how often did Shield actually
+      // matter" was unanswerable. Recorded, never presented — the skip stays invisible at
+      // the table, exactly as before.
+      skipped.push({ uuid: target.uuid, name: target.name, reaction: found.entry.name });
+      continue;
+    }
     if ( found ) held.push({
       uuid: target.uuid, name: target.name, ac: target.ac,
       reaction: found.entry.name, kind: found.entry.kind,
@@ -270,6 +278,11 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
         { itemId: found.item.id, activityId: found.activity?.id }),
       answer: null, verdict: null
     });
+  }
+  if ( skipped.length ) {
+    void attackMessage.setFlag(MODULE_ID, "holdSkipped", {
+      targets: skipped, ...statContext(statSourceOf(attackMessage))
+    }).catch(err => console.error(`${TITLE} | holdSkipped stamp failed.`, err));
   }
   if ( !held.length ) return false;
 
@@ -442,6 +455,7 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
   const target = hold.targets?.find(t => t.uuid === uuid);
   if ( !target || target.answer ) return;                // idempotent: first answer wins
   target.answer = answer;
+  target.answeredAt = Date.now();   // the crash-resume horizon (the topple discipline)
 
   // Players cannot update someone else's message, so a player's answer travels as their OWN
   // message; the continuing client applies it to the hold (ARCHITECTURE.md §3 — clients
@@ -522,6 +536,7 @@ registerRelay("respondsTo", {
     const target = flag.targets?.find(t => t.uuid === message.getFlag(MODULE_ID, "uuid"));
     if ( !target || target.answer ) return false;
     target.answer = message.getFlag(MODULE_ID, "answer");
+    target.answeredAt = Date.now();   // the crash-resume horizon (the topple discipline)
   }
 });
 
@@ -1066,6 +1081,7 @@ async function fireHoldTimer(messageId) {
   for ( const target of merged.targets ) {
     if ( target.answer ) continue;      // answered in the last instant — it wins, not the clock
     target.answer = "pass";
+    target.answeredAt = Date.now();     // the buzzer's moment is an answer time too
     target.timedOut = true;
     expired = true;
   }

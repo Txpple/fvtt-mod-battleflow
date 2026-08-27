@@ -330,6 +330,12 @@ if (want('3b')) {
           ok: true,
           entry: { combat: entry?.combat, sourceUuid: entry?.sourceUuid },
           hasFields: !!entry && ('combat' in entry) && ('sourceUuid' in entry),
+          // Per-part post-trait amounts (the second pass): plain hit, so parts sum to taken.
+          parts: entry?.parts ?? null,
+          taken: entry?.taken ?? null,
+          // rollCtx rides the ATTACK message, stamped at roll time on the rolling client.
+          // Read after the damage poll above, so its async setFlag has long since landed.
+          rollCtx: rolls[0]?.parent?.getFlag('fvtt-mod-battleflow', 'rollCtx') ?? null,
           // The speaker of an unlinked-token attack is the TOKEN's synthetic actor — the more
           // precise identity (THAT goblin, not the archetype) — so the expectation is the
           // attacker token's actor uuid, never a name (both fixture tokens share one).
@@ -352,6 +358,13 @@ if (want('3b')) {
     report('3b out of combat: sourceUuid is the attacker (token actor)',
       !!out.expectedSource && out.entry.sourceUuid === out.expectedSource,
       `source=${out.entry.sourceUuid} expected=${out.expectedSource}`);
+    report('3b out of combat: rollCtx rides the attack message, combat null, source = attacker',
+      !!out.rollCtx && out.rollCtx.combat === null && out.rollCtx.sourceUuid === out.expectedSource,
+      JSON.stringify(out.rollCtx));
+    const partSum = (out.parts ?? []).reduce((n, p) => n + (p.amount ?? 0), 0);
+    report('3b receipt entry carries per-part amounts summing to taken (plain hit)',
+      Array.isArray(out.parts) && out.parts.length >= 1 && partSum === out.taken,
+      `parts=${JSON.stringify(out.parts)} taken=${out.taken}`);
   }
 
   // IN combat: the stamp is the running combat's id:round:turn.
@@ -369,6 +382,26 @@ if (want('3b')) {
   }, fx);
   report('3b combat fixture started', started.ok, started.ok ? started.combatId : started.why);
   if (started.ok) {
+    // The roster marker: combatStart fires on the elect (this client) and stamps a
+    // GM-whispered card carrying the static roster.
+    const roster = await f.evaluate(async ({ combatId }) => {
+      try {
+        let flag = null;
+        for (let i = 0; i < 24 && !flag; i++) {
+          await new Promise(r => setTimeout(r, 250));
+          flag = game.messages.contents.findLast(m =>
+            m.getFlag('fvtt-mod-battleflow', 'combatRoster')?.combatId === combatId)
+            ?.getFlag('fvtt-mod-battleflow', 'combatRoster') ?? null;
+        }
+        return { ok: !!flag, flag };
+      } catch (err) { return { ok: false, why: err.message }; }
+    }, { combatId: started.combatId });
+    report('3b roster marker stamped at combatStart (2 combatants, initiative order, no end yet)',
+      roster.ok && roster.flag.combatants?.length === 2
+        && roster.flag.combatants.every(c => 'actorUuid' in c && 'initiative' in c && 'isPC' in c)
+        && (roster.flag.endedRound == null),
+      JSON.stringify(roster.flag ?? roster.why ?? null));
+
     const inC = await driveOnce('in-combat chain');
     if (inC.ok) {
       report('3b in combat: the entry carries the running combat\'s id:round:turn',
@@ -377,13 +410,31 @@ if (want('3b')) {
       report('3b in combat: sourceUuid still the attacker (token actor)',
         !!inC.expectedSource && inC.entry.sourceUuid === inC.expectedSource,
         `source=${inC.entry.sourceUuid} expected=${inC.expectedSource}`);
+      report('3b in combat: rollCtx carries the same stamp as the receipt',
+        !!inC.rollCtx && inC.rollCtx.combat === inC.expectedStamp,
+        JSON.stringify(inC.rollCtx));
     }
     // Cleanup: the combat is this section's own fixture — never leave it running for §4+.
+    // Deletion also CLOSES the roster (endedRound), which is asserted before the marker is
+    // swept with the rest of the section's residue.
     const gone = await f.evaluate(async ({ combatId }) => {
-      try { await game.combats.get(combatId)?.delete(); return { ok: !game.combats.get(combatId) }; }
-      catch (err) { return { ok: false, why: err.message }; }
+      try {
+        await game.combats.get(combatId)?.delete();
+        let closed = null;
+        let markerId = null;
+        for (let i = 0; i < 24 && (closed == null); i++) {
+          await new Promise(r => setTimeout(r, 250));
+          const m = game.messages.contents.findLast(x =>
+            x.getFlag('fvtt-mod-battleflow', 'combatRoster')?.combatId === combatId);
+          markerId = m?.id ?? null;
+          closed = m?.getFlag('fvtt-mod-battleflow', 'combatRoster')?.endedRound ?? null;
+        }
+        if (markerId) await game.messages.get(markerId)?.delete();
+        return { ok: !game.combats.get(combatId), closed };
+      } catch (err) { return { ok: false, why: err.message }; }
     }, { combatId: started.combatId });
-    report('3b combat fixture deleted', gone.ok, gone.why ?? '');
+    report('3b combat fixture deleted + roster closed with the final round',
+      gone.ok && (gone.closed != null), `endedRound=${gone.closed ?? 'never set'}`);
   }
 }
 

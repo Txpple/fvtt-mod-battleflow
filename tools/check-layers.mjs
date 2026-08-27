@@ -66,6 +66,7 @@ const LAYER_OF = {
   "receipts.js": "machines",
   "polish.js": "machines",
   "resources.js": "machines",
+  "stats.js": "machines",
 
   // SERVICES — the consequence chokepoints every machine routes through
   "auto-apply.js": "services",

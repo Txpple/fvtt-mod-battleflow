@@ -179,7 +179,10 @@ const rows = KIND_SETS.map(set => {
 // than joining maneuvers.js: these are not maneuvers, they draw on no superiority pool, and two
 // of the three have no activity at all. Filing them under "maneuver" would have made the folds
 // list mean two different things.
-const EXPECTED_SOURCE_FILES = 28;
+// 2026-08-27: 28 → 29, for scripts/stats.js — the data plane's own edge (rollCtx + the combat
+// roster). It earns its own file rather than joining a machine: the stamps are UNGATED context
+// no feature owns, and filing them inside a setting-gated machine would invite gating them.
+const EXPECTED_SOURCE_FILES = 29;
 const sourceFiles = [
   ...readdirSync(join(ROOT, "scripts")).filter(f => f.endsWith(".js")),
   ...readdirSync(join(ROOT, "scripts/decide")).filter(f => f.endsWith(".js")).map(f => `decide/${f}`)

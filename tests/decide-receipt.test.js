@@ -102,7 +102,10 @@ describe("receiptEntry — one entry, from the snapshots either side", () => {
   const base = { uuid: "Actor.a", name: "Ice Mephit", img: "icons/m.webp", prior, after };
 
   it("records prior, delta, taken, the reasons — and the data-plane stamp, null without context", () => {
-    const entry = r.receiptEntry({ ...base, calc: summary(14, [{ type: "cold", active: {} }]) });
+    const entry = r.receiptEntry({
+      ...base,
+      calc: summary(14, [{ type: "cold", active: {}, value: 14 }])
+    });
     expect(entry).toEqual({
       uuid: "Actor.a",
       name: "Ice Mephit",
@@ -110,11 +113,35 @@ describe("receiptEntry — one entry, from the snapshots either side", () => {
       prior,
       delta: { value: -14, temp: 0 },
       taken: 14,
+      parts: [{ type: "cold", amount: 14 }],
       traits: [],
       reverted: false,
       combat: null,
       sourceUuid: null
     });
+  });
+
+  it("keeps per-part POST-trait amounts — calc's values arrive already multiplied (measured)", () => {
+    // Probed live 2026-08-27: calculateDamage rewrites each part's `value` through the trait
+    // story (fire 9 under resistance comes back 4, cold 10 under immunity comes back 0), so
+    // the parts ARE what each type dealt — the message's rolls stay the pre-mitigation side.
+    const entry = r.receiptEntry({
+      ...base,
+      calc: summary(11, [
+        { type: "cold", value: 0, active: { multiplier: 0 } },
+        { type: "fire", value: 4, active: { type: { resistance: true }, multiplier: 0.5 } },
+        { type: "slashing", value: 7, active: { multiplier: 1 } }
+      ])
+    });
+    expect(entry.parts).toEqual([
+      { type: "cold", amount: 0 },
+      { type: "fire", amount: 4 },
+      { type: "slashing", amount: 7 }
+    ]);
+  });
+
+  it("parts stay an empty list when the calculation was cancelled", () => {
+    expect(r.receiptEntry({ ...base, calc: false }).parts).toEqual([]);
   });
 
   it("carries the data-plane context PER ENTRY — a held target's late landing keeps its own turn", () => {

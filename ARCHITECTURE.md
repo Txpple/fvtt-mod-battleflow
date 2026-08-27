@@ -195,9 +195,30 @@ that difference — do not tidy the nulls away.
 | `receipt` entries | per entry | attacker / caster / healer (the receipt message's own actor) |
 | `effectReceipt` effect records | per effect record | who applied it (rider = attacker, cast/save = caster, reaction = the reactor's own self-cast) |
 | `spend` (usage messages) | per flag, at creation | the spender |
+| `rollCtx` (every d20 TEST message: attack, save, check, skill, tool, death save, concentration) | per flag, at roll time on the rolling client | the roller |
 | `d20fold`, `precision`, `mastery`, `topple`, `riposte`, `bashOffer` | per flag, at creation | the acting actor (duplicates the flag's own actor field at the same write — they cannot drift) |
 | `saves`, `hold`, `volley` | per flag, at creation | the caster / attacker who forced the moment |
 | `concentration` | per flag, at creation | the concentrator (whose check it is — the damage's dealer is `cause`, by name) |
+| `holdSkipped` (attack messages) | per flag, at the skip | the attacker whose swing outran the reaction |
+| `combatRoster` (a GM-whispered marker card per combat) | once at combatStart; closed (`endedRound`/`endedAt`) at deleteCombat | null — the roster is nobody's action |
+
+**Second-pass fields (2026-08-27, the stats commission's follow-up):**
+
+- **`receipt` entries carry `parts: [{type, amount}]`** — per-part POST-trait amounts, straight
+  from `calculateDamage`'s own rewritten values (measured: fire 9 under resistance comes back
+  4). The message's rolls remain the pre-mitigation side; the difference is the
+  damage-lost-to-traits meter. Healing-typed parts arrive negated, same sign as `taken`.
+- **`answeredAt` on every moment answer** (fold, precision, mastery, riposte, bashOffer, save
+  choice, hold per-target, concentration outcome — buzzer answers included): with the flag's
+  `deadline`/`window`, decision latency under the clock is arithmetic.
+- **`holdSkipped`** records the holds the module DECLINED to offer (the futile-skip gate) —
+  `targets: [{uuid, name, reaction}]` — the only record of "Shield could not have mattered".
+- **`combatRoster`** is the turn→actor map that outlives encounter deletion: static combatant
+  snapshot (actorUuid = the token-synthetic identity, tokenId, name, initiative, isPC) taken
+  at combatStart on a GM-whispered marker card, closed with `endedRound` when the encounter is
+  deleted. ⚠ STATIC BY RULING — a snapshot is not clock ownership; nothing here may grow turn
+  tracking, timers, or expiry sweeps (the BACKLOG fence). Late joiners are absent by design;
+  their `rollCtx` stamps are how a scan sees them.
 
 ⚠ **A post-hoc stamper was considered and rejected.** A central createChatMessage/update hook
 that stamps whatever flags appear would re-derive context after the consequence — exactly the
