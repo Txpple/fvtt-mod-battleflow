@@ -165,6 +165,25 @@ const out = await f.evaluate(async () => {
     ? (await new Roll(precisionActivity.roll.formula, fighter.getRollData()).evaluate()).formula
     : null;
 
+  // ⚠ RESTORE THE TARGET, for the Second Wind reason with teeth: the suite's sections drive
+  // REAL damage into the scene's first NPC token (its own teardowns restore only what each
+  // section wrote, never §3/§5's applied damage), so every run ends with the foe at 0 HP —
+  // and a table walk after a suite then meets Graze's dead-target skip and reads it as "the
+  // mastery didn't fire" (reported live 2026-08-27). Heal it and clear any flat-AC residue;
+  // sections pin the flat AC they need themselves, so `default` is the right baseline.
+  const foeToken = game.scenes.active?.tokens.find(t => t.actor && (t.actor.type === "npc"));
+  if (foeToken) {
+    const foe = foeToken.actor;
+    const src = foe.system._source.attributes.ac;
+    if ((src.calc === "flat") || (foe.system.attributes.hp.value < foe.system.attributes.hp.max)) {
+      await foe.update({
+        "system.attributes.ac.calc": "default", "system.attributes.ac.flat": null,
+        "system.attributes.hp.value": foe.system.attributes.hp.max
+      });
+      log.push(`restored ${foeToken.name}: full HP, default AC`);
+    }
+  }
+
   // Prove the cross-actor read the module will perform.
   const originItem = await fromUuid(effect.origin);
   const resolvedBard = originItem?.actor;

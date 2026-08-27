@@ -799,9 +799,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             // ⚠ AC IS SET ON EACH TOKEN'S OWN ACTOR. These are UNLINKED tokens, so the number
             // lives in the token's delta — writing it on the base actor would never reach
             // either of them, and the suite would swing at whatever AC they shipped with.
+            // ⚠ CAPTURE ONCE PER UUID. A LINKED foe collapses both placed tokens onto ONE
+            // actor, and the second pass through this loop then "captured" the flat 30 the
+            // first pass had just written — so the finally faithfully restored the residue.
+            // That is how the campaign's Selma was left flat-30 (found 2026-08-27, wearing a
+            // "Graze didn't fire" hat: her 4-HP statblock also died to §3's real damage, and
+            // Graze rightly declines a corpse).
             for (const t of [placedA, placedB]) {
               const a = t.actor;
-              priorAC.set(a.uuid, {
+              if ( !priorAC.has(a.uuid) ) priorAC.set(a.uuid, {
                 calc: a.system._source.attributes.ac.calc ?? "default",
                 flat: a.system._source.attributes.ac.flat ?? null,
                 hp: a.system.attributes.hp.value
