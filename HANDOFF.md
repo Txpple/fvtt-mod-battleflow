@@ -55,9 +55,29 @@ ledger tells the truth the table settled on) or does the module flip a stat entr
 **R-C. v1 scope — which meters are owed first?** Recommended v1 kinds, smallest set that makes
 the reports the user named: **damage dealt / taken** (receipts), **healing + overheal**
 (receipts — `prior`/`after` vs max makes overheal exact), **verdict flips** (`d20fold` +
-`precision` flags, already complete), **resource spends** (see the resources note below).
+`precision` flags, already complete), **resource spends** (see the resources note below), and
+**buff contribution** (below — a player asked for it by name, 2026-08-27).
 Buff *uptime* (effect duration windows) is a fine v2; it needs effect create/delete times the
 current stamps do not carry, and should not gate v1.
+
+**The Bless meter — buff CONTRIBUTION, asked for by a player (2026-08-27).** "How did Bless
+help the party?" is a *margin* question, and the data to answer it exactly is already on the
+messages — no new stamps needed:
+- A Bless-style bonus rides the roll as its OWN DIE TERM: the d20 roll's message carries
+  `rolls[0]` with parseable terms, so the scan can see *this save carried a 1d4 that rolled 3*.
+- The save demand's flag records per-target totals and the DC; attacks record totals and ACs
+  (`flags.dnd5e.targets`). So the flip test is arithmetic: **succeeded, and
+  `total − bonusDie < threshold` → the buff flipped it.** That yields the report the player
+  actually wants: *"Bless flipped 4 saves and 2 attacks this session — without it, the
+  fireball kills Thomas."* Failures stay honest too: a blessed roll that failed anyway counts
+  toward "bonus wasted", same family as damage-into-immunity.
+- Attribution of WHICH effect granted the die: the effect is on the actor at roll time and its
+  application is in `effectReceipt`; where two same-size bonuses overlap the scan reports the
+  margin against the DIE, not a guessed source, and says so. Exact where parseable, labeled
+  heuristic where not — never silently wrong.
+- This meter is MCP-side entirely (roll-term parsing + margins); the module's only obligation
+  is the same one as everywhere else in Stage 1: `combat` + source on the flags it already
+  writes. It does not reopen the v2 uptime question.
 
 ---
 
