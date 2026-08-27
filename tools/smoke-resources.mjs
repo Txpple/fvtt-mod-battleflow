@@ -18,7 +18,8 @@ const SECTIONS = {
   3: 'activity-level uses',
   4: 'the silences',
   5: '(cc) the flash waits for the dice',
-  6: '(cc) the fallback timer'
+  6: '(cc) the fallback timer',
+  7: 'the data-plane spend stamp (the party-stats commission)'
 };
 // The one real coupling here: §6 asserts "1 of 3 remaining" on the heal feat §5 creates and
 // spends once, so asking for §6 alone runs §5 first and says so.
@@ -294,6 +295,94 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('6b the fallback flashed it: never rolled, still announced',
         !!b6 && b6.textContent.includes('1 of 3 remaining'),
         b6 ? b6.textContent.trim().slice(0, 120) : 'NO banner');
+    }
+
+    // ============================================================ §7 the data-plane spend stamp
+    // The party-stats commission: the ELECT stamps `spend` = {combat, sourceUuid, rows/slots}
+    // beside dnd5e's own deltas at creation — one derivation (trap 3), combat context resolved
+    // at spend time, UNGATED by the notices setting (a toggle that punched holes in the ledger
+    // would be a footgun). The rhythm gate and the player-owned line hold for the ledger
+    // exactly as they do for the flash.
+    if (want(7)) {
+      log.push('§7 spend stamp');
+      // ⚠ §7 OWNS ITS POOLS. The shared 'BF Notice Feat' has max 3 and §§1/4b/4c spend all
+      // three, so in a FULL battery a §7 reuse arrives at an EXHAUSTED pool — dnd5e refuses
+      // the consumption, no card posts at all, and four assertions fail for a reason that is
+      // not the code (bit the first battery, 2026-08-27). Solo runs skip §§1–6 and masked it.
+      const [feat7] = await victim.createEmbeddedDocuments('Item', [{
+        name: 'BF Stamp Feat', type: 'feat',
+        system: {
+          uses: { spent: 0, max: '9', recovery: [{ period: 'sr', type: 'recoverAll' }] },
+          activities: { bfstampself00000: { _id: 'bfstampself00000', type: 'utility',
+            name: 'Stamp Spend', activation: { type: 'action' },
+            consumption: { targets: [{ type: 'itemUses', target: '', value: '1' }] } } }
+        }
+      }]);
+      created.items.push(feat7.id);
+      const [mundane7] = await victim.createEmbeddedDocuments('Item', [{
+        name: 'BF Stamp Torchlike', type: 'consumable',
+        system: {
+          type: { value: 'trinket' },
+          uses: { spent: 0, max: '2', recovery: [] },   // uses but NO recovery
+          activities: { bfstampmund00000: { _id: 'bfstampmund00000', type: 'utility', name: 'Use',
+            activation: { type: 'action' },
+            consumption: { targets: [{ type: 'itemUses', target: '', value: '1' }] } } }
+        }
+      }]);
+      created.items.push(mundane7.id);
+      const spendAct = () => feat7.system.activities.get('bfstampself00000');
+
+      const card7 = await useAndCard(spendAct());
+      const stamp7 = await until(() => card7?.getFlag(MOD, 'spend'), 6000);
+      ok('7a a qualifying spend stamps rows + EXPLICIT null combat + the spender as source',
+        !!stamp7 && stamp7.combat === null && stamp7.sourceUuid === victim.uuid
+          && stamp7.rows?.length === 1 && stamp7.rows[0].pool === 'BF Stamp Feat'
+          && (typeof stamp7.rows[0].left === 'number') && (typeof stamp7.rows[0].max === 'number')
+          && !stamp7.slots,
+        JSON.stringify(stamp7 ?? null));
+      await until(() => !bannerNow(), 6000);
+
+      const card7b = await useAndCard(mundane7.system.activities.contents[0], { banner: false });
+      ok('7b a no-recovery expendable stays out of the ledger — the rhythm gate holds here too',
+        !!card7b && !card7b.getFlag(MOD, 'spend'),
+        card7b ? 'card exists, unstamped' : 'no card');
+
+      // NPC spends stay off the ledger (the party's meters are the commission; monster
+      // pools are the GM's secret) — same ownership flip as §4b.
+      await victim.update({ ownership: priorOwnership }, { diff: false, recursive: false });
+      const card7c = await useAndCard(spendAct(), { banner: false });
+      ok('7c the same spend from a non-player-owned actor is not stamped',
+        !!card7c && !card7c.getFlag(MOD, 'spend'));
+      await victim.update({ ownership: { ...priorOwnership, [player.id]: 3 } });
+
+      await set('resourceNotices', false);
+      const card7d = await useAndCard(spendAct(), { banner: false });
+      const stamp7d = await until(() => card7d?.getFlag(MOD, 'spend'), 6000);
+      ok('7d the stamp is UNGATED — notices off, the ledger still gets fed',
+        !!stamp7d && stamp7d.rows?.length === 1, JSON.stringify(stamp7d ?? null));
+      await set('resourceNotices', true);
+
+      // Slot spends: no recovery-pool row, but the ledger wants them (three of the party's
+      // four burn slots). A negative delta on the slot's .value stamps a slots row with the
+      // post-spend pool truth.
+      const [slotcaster] = await victim.createEmbeddedDocuments('Item', [{
+        name: 'BF Notice Slotcast', type: 'feat',
+        system: { activities: { bfnoticeslot0000: { _id: 'bfnoticeslot0000', type: 'utility',
+          name: 'Slot Cast', activation: { type: 'action' },
+          consumption: { targets: [{ type: 'spellSlots', target: '1', value: '1' }] } } } }
+      }]);
+      created.items.push(slotcaster.id);
+      // `max` is DERIVED on an NPC — `override` is the writable knob (probed 2026-08-27:
+      // writing max leaves it 0 and the use aborts with no card at all).
+      await victim.update({ 'system.spells.spell1.override': 2, 'system.spells.spell1.value': 2 });
+      const card7e = await useAndCard(slotcaster.system.activities.contents[0], { banner: false });
+      const stamp7e = await until(() => card7e?.getFlag(MOD, 'spend'), 6000);
+      ok('7e a slot spend stamps a slots row with the post-spend pool truth',
+        !!stamp7e && !stamp7e.rows && stamp7e.slots?.length === 1
+          && stamp7e.slots[0].slot === 'spell1' && stamp7e.slots[0].spent === 1
+          && stamp7e.slots[0].left === 1 && stamp7e.slots[0].max === 2,
+        JSON.stringify(stamp7e ?? null));
+      await victim.update({ 'system.spells.spell1.override': null, 'system.spells.spell1.value': 0 });
     }
 
     await teardown();

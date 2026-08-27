@@ -3,7 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, isActiveGM } from "./core.js";
-import { damagePartsOf } from "./shared.js";
+import { damagePartsOf, statSourceOf } from "./shared.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 
@@ -50,7 +50,8 @@ async function executeCastApply(message) {
     await applyEffectsWithReceipt(message, effects, payload.targets, {
       concentration, scaling: payload.scaling ?? 0,
       spellLevel: payload.spellLevel ?? undefined,
-      marker: "castDone"
+      marker: "castDone",
+      source: statSourceOf(message) // the data-plane stamp — the caster's own usage card
     });
   } catch(err) {
     console.error(`${TITLE} | Cast auto-apply failed.`, err);

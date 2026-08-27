@@ -15,6 +15,7 @@ import { announcePlan, connectSuite, loadEnv, sectionPlan } from './harness.mjs'
 
 const SECTIONS = {
   3: 'the hit chain',
+  '3b': 'the data-plane stamp — combat + source on the receipt, in and out of combat',
   4: 'revert via a real DOM click',
   '4b': 'the immunity receipt (rolled N, took 0, WHY)',
   '4c': 'revert a KILL — the flake, made deterministic',
@@ -286,6 +287,104 @@ if (want('3')) {
     JSON.stringify(r.entry));
   fx.damageMsgId = r.damageMsgId;
   fx.expectedHp = r.hp0;
+}
+
+// ------------------------- 3b. the data-plane stamp — combat + source, in and out of combat
+// The party-stats commission's Stage 1 live assertion (HANDOFF.md): a damage application
+// carries `combat` + `sourceUuid` resolved at write time — `combat: null` out of combat (the
+// combatStamp contract; reports group that bucket, never drop it), and `"id:round:turn"`
+// inside a started combat. Self-contained like §3: drives its own two attacks, cleans up its
+// own combat document.
+if (want('3b')) {
+  const driveOnce = async label => {
+    const r = await f.evaluate(async ({ victimId, victimToken, attackerId, attackerToken, itemName }) => {
+      try {
+        const base = game.actors.get(victimId);
+        await base.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+        canvas.tokens.get(victimToken).setTarget(true, { releaseOthers: true });
+        const attacker = game.actors.get(attackerId);
+        const activity = attacker.items.getName(itemName).system.activities
+          .find(a => a.type === 'attack');
+        const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
+        const usageId = results?.message?.id ?? null;
+        if (!usageId) return { ok: false, why: 'no usage message id' };
+        const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
+          { data: { 'flags.dnd5e.originatingMessage': usageId } });
+        if (!rolls?.length) return { ok: false, why: 'attack roll produced no rolls' };
+        let damageMsg = null;
+        for (let i = 0; i < 40 && !damageMsg; i++) {
+          await new Promise(r => setTimeout(r, 250));
+          damageMsg = game.messages.contents.slice(-10).find(m =>
+            m.getFlag('dnd5e', 'roll.type') === 'damage'
+            && m.getFlag('dnd5e', 'originatingMessage') === usageId
+            && m.getFlag('fvtt-mod-battleflow', 'receipt'));
+        }
+        if (!damageMsg) {
+          return { ok: false, why: `no receipted damage message (fumble=${rolls[0].isFumble ?? false}`
+            + ` — a 1-in-400 double fumble is a re-run, not a defect)` };
+        }
+        const entry = damageMsg.getFlag('fvtt-mod-battleflow', 'receipt')
+          .targets.find(t => t.uuid === canvas.tokens.get(victimToken).actor.uuid);
+        const c = game.combat;
+        return {
+          ok: true,
+          entry: { combat: entry?.combat, sourceUuid: entry?.sourceUuid },
+          hasFields: !!entry && ('combat' in entry) && ('sourceUuid' in entry),
+          // The speaker of an unlinked-token attack is the TOKEN's synthetic actor — the more
+          // precise identity (THAT goblin, not the archetype) — so the expectation is the
+          // attacker token's actor uuid, never a name (both fixture tokens share one).
+          expectedSource: canvas.tokens.get(attackerToken)?.actor?.uuid ?? null,
+          expectedStamp: c?.started ? `${c.id}:${c.round}:${c.turn}` : null,
+        };
+      } catch (err) {
+        return { ok: false, why: `${err.message}\n${err.stack}` };
+      }
+    }, fx);
+    if (!r.ok) report(`3b ${label}`, false, r.why);
+    return r;
+  };
+
+  // OUT of combat: explicit null, and the source resolved to the attacker at write time.
+  const out = await driveOnce('out-of-combat chain');
+  if (out.ok) {
+    report('3b out of combat: combat is EXPLICIT null (stamped, empty — not absent)',
+      out.hasFields && out.entry.combat === null, JSON.stringify(out.entry));
+    report('3b out of combat: sourceUuid is the attacker (token actor)',
+      !!out.expectedSource && out.entry.sourceUuid === out.expectedSource,
+      `source=${out.entry.sourceUuid} expected=${out.expectedSource}`);
+  }
+
+  // IN combat: the stamp is the running combat's id:round:turn.
+  const started = await f.evaluate(async ({ sceneId, attackerToken, victimToken }) => {
+    try {
+      const combat = await Combat.create({ scene: sceneId });
+      await combat.createEmbeddedDocuments('Combatant', [
+        { tokenId: attackerToken, sceneId }, { tokenId: victimToken, sceneId }]);
+      await combat.rollAll({ messageOptions: { rollMode: 'selfroll' } }).catch(() => {});
+      // `combatStamp` reads game.combat = the ACTIVE combat — activation is part of "running".
+      await combat.activate();
+      await combat.startCombat();
+      return { ok: combat.started && (game.combat?.id === combat.id), combatId: combat.id };
+    } catch (err) { return { ok: false, why: `${err.message}\n${err.stack}` }; }
+  }, fx);
+  report('3b combat fixture started', started.ok, started.ok ? started.combatId : started.why);
+  if (started.ok) {
+    const inC = await driveOnce('in-combat chain');
+    if (inC.ok) {
+      report('3b in combat: the entry carries the running combat\'s id:round:turn',
+        !!inC.expectedStamp && inC.entry.combat === inC.expectedStamp,
+        `entry=${inC.entry.combat} expected=${inC.expectedStamp}`);
+      report('3b in combat: sourceUuid still the attacker (token actor)',
+        !!inC.expectedSource && inC.entry.sourceUuid === inC.expectedSource,
+        `source=${inC.entry.sourceUuid} expected=${inC.expectedSource}`);
+    }
+    // Cleanup: the combat is this section's own fixture — never leave it running for §4+.
+    const gone = await f.evaluate(async ({ combatId }) => {
+      try { await game.combats.get(combatId)?.delete(); return { ok: !game.combats.get(combatId) }; }
+      catch (err) { return { ok: false, why: err.message }; }
+    }, { combatId: started.combatId });
+    report('3b combat fixture deleted', gone.ok, gone.why ?? '');
+  }
 }
 
 // ------------------------------------------------------------- 4. revert via a real DOM click

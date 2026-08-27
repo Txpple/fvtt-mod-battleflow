@@ -3,11 +3,11 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, rollerUserFor,
-  canAnswerFor, inRunningCombat } from "./core.js";
+  canAnswerFor, inRunningCombat, statContext } from "./core.js";
 import { tokensInTemplates } from "./geometry.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom, saveMultiplier, verdictText } from "./decide/verdict.js";
 import { isDeadForSaves } from "./decide/eligible.js";
-import { forceStatus, damagePartsOf, rollConfigFor } from "./shared.js";
+import { forceStatus, damagePartsOf, rollConfigFor, statSourceOf } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup,
   momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
@@ -172,6 +172,7 @@ async function stampSaveDemand(activity, message, results) {
     const awaiting = !targets.length; // template-shaped, area not placed yet (the gate above)
     await message.setFlag(MODULE_ID, "saves", {
       status: "pending",
+      ...statContext(activity.actor?.uuid ?? null), // the data-plane stamp — the caster forced this
       abilities, dc,
       damageOnSave: onSave,
       hasDamage: saveModulated,
@@ -1082,7 +1083,8 @@ async function applySaveEffects(card, flag, entry) {
   await applyEffectsWithReceipt(card, toApply, [{ uuid: entry.uuid, name: entry.name }], {
     concentration,
     scaling: card.system?.scaling ?? 0,
-    spellLevel: card.system?.spellLevel ?? undefined
+    spellLevel: card.system?.spellLevel ?? undefined,
+    source: statSourceOf(card) // the data-plane stamp — the caster whose demand this is
   });
 }
 

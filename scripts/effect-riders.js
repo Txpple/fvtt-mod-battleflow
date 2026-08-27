@@ -2,8 +2,9 @@
  * Battle Flow — Phase 1.9A: effect riders and the shared effect applier (applyEffectsWithReceipt - the Phase 3 convergence point).
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite } from "./core.js";
-import { joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
+import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, statContext } from "./core.js";
+import { effectRecord, joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
+import { statSourceOf } from "./shared.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1.9A — effect riders: a hit applies the effects riding it (PLAN.md section A).
@@ -49,7 +50,8 @@ export async function applyEffectRiders(damageMessage, attackMessage, hits) {
       concentration,
       scaling: usageCard?.system?.scaling ?? 0,
       spellLevel: usageCard?.system?.spellLevel ?? undefined,
-      marker: "ridersDone"
+      marker: "ridersDone",
+      source: statSourceOf(attackMessage)
     });
   } catch(err) {
     console.error(`${TITLE} | Effect riders failed.`, err);
@@ -73,9 +75,15 @@ export async function applyEffectRiders(damageMessage, attackMessage, hits) {
  *    Shield twice.
  *  - `extraFlags`: merged into the created/updated effect — how the reaction path keeps
  *    its `reactionEffect` marker (the flag inventory's "which module path created it").
+ *
+ * `source` is the CALLER's fact, not this loop's to derive: the actor uuid whose action is
+ * applying these effects (the riders' attacker, the cast/save slices' caster, the reaction
+ * sliver's own reactor — whose self-cast is exactly why no message walk from here could get
+ * it right). It rides every record via the data-plane stamp, resolved once per application.
  */
 export async function applyEffectsTo(targets, effects,
-  { concentration = null, scaling = 0, spellLevel, matchNames = false, extraFlags = null } = {}) {
+  { concentration = null, scaling = 0, spellLevel, matchNames = false, extraFlags = null, source = null } = {}) {
+  const context = statContext(source);
   const out = [];
   for ( const target of targets ) {
     const actor = await fromUuid(target.uuid); // the targets snapshot carries ACTOR uuids
@@ -112,8 +120,9 @@ export async function applyEffectsTo(targets, effects,
         }, effectFlags), { parent: actor });
       }
       if ( applied && !entry.effects.some(e => e.id === applied.id) ) {
-        entry.effects.push({ id: applied.id, name: applied.name, img: applied.img,
-          description: applied.description ?? "", reverted: false });
+        // Plain fields only across the layer line (§2 rule 1) — the document stays here.
+        entry.effects.push(effectRecord({ id: applied.id, name: applied.name,
+          img: applied.img, description: applied.description }, context));
       }
     }
     if ( entry.effects.length ) out.push(entry);
@@ -128,8 +137,8 @@ export async function applyEffectsTo(targets, effects,
  * can never mistake each other's work for their own.
  */
 export async function applyEffectsWithReceipt(receiptMessage, effects, targets,
-  { concentration = null, scaling = 0, spellLevel, marker } = {}) {
-  const entries = await applyEffectsTo(targets, effects, { concentration, scaling, spellLevel });
+  { concentration = null, scaling = 0, spellLevel, marker, source = null } = {}) {
+  const entries = await applyEffectsTo(targets, effects, { concentration, scaling, spellLevel, source });
   if ( !entries.length && !marker ) return;
   // ⚠ THE READ MOVED BELOW THE AWAIT, and the write is queued (core.js `queueFlagWrite`). This
   // used to clone the flag FIRST and merge into that copy after `applyEffectsTo` — a window

@@ -76,6 +76,27 @@ export function resolveAttackMessage(damageMessage) {
 }
 
 /**
+ * The acting actor behind a message, as a uuid — the data plane's source resolution
+ * (core.js `statContext`), one implementation beside the chain walk it belongs with.
+ *
+ * The message's OWN actor leads, and that is a finding, not a shortcut: the handoff drafted
+ * a respondsTo-first order, but the respondsTo hop points at the message being ANSWERED — for
+ * a reaction response (the defender's own Shield, receipt embedded at creation) that hop
+ * names the ATTACKER as the source of the defender's self-cast. Every receipt-bearing message
+ * is spoken by the actor whose action caused it (the attacker's damage roll, the caster's
+ * usage card, the healer's healing roll, the reactor's response), so the speaker IS the
+ * source. The originating-message hop stays as the fallback for a roll whose own speaker
+ * resolution comes up empty.
+ */
+export function statSourceOf(message) {
+  const actor = message?.getAssociatedActor?.();
+  if ( actor ) return actor.uuid;
+  const origin = message?.getOriginatingMessage?.();
+  if ( origin && (origin !== message) ) return origin.getAssociatedActor?.()?.uuid ?? null;
+  return null;
+}
+
+/**
  * Put a status condition on an actor and make sure it actually LANDED.
  *
  * ⚠ `toggleStatusEffect(id, { active: true })` resolves without doing anything when ANY

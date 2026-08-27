@@ -101,7 +101,7 @@ describe("receiptEntry — one entry, from the snapshots either side", () => {
   const after = { value: 6, temp: 0, tempmax: 0 };
   const base = { uuid: "Actor.a", name: "Ice Mephit", img: "icons/m.webp", prior, after };
 
-  it("records prior, delta, taken and the reasons", () => {
+  it("records prior, delta, taken, the reasons — and the data-plane stamp, null without context", () => {
     const entry = r.receiptEntry({ ...base, calc: summary(14, [{ type: "cold", active: {} }]) });
     expect(entry).toEqual({
       uuid: "Actor.a",
@@ -111,8 +111,17 @@ describe("receiptEntry — one entry, from the snapshots either side", () => {
       delta: { value: -14, temp: 0 },
       taken: 14,
       traits: [],
-      reverted: false
+      reverted: false,
+      combat: null,
+      sourceUuid: null
     });
+  });
+
+  it("carries the data-plane context PER ENTRY — a held target's late landing keeps its own turn", () => {
+    const context = { combat: "combatA:2:1", sourceUuid: "Actor.morgash" };
+    const entry = r.receiptEntry({ ...base, calc: summary(14), context });
+    expect(entry.combat).toBe("combatA:2:1");
+    expect(entry.sourceUuid).toBe("Actor.morgash");
   });
 
   it("leaves note and multiplier OFF unless they say something", () => {
@@ -140,6 +149,50 @@ describe("receiptEntry — one entry, from the snapshots either side", () => {
 
   it("defaults the portrait to null so an old row still renders its glyph", () => {
     expect(r.receiptEntry({ uuid: "a", name: "n", prior, after, calc: summary(1) }).img).toBe(null);
+  });
+});
+
+describe("statFields — the data-plane stamp's two facts, always present", () => {
+  it("normalizes a full context through unchanged", () => {
+    expect(r.statFields({ combat: "c:1:0", sourceUuid: "Actor.x" })).toEqual({
+      combat: "c:1:0",
+      sourceUuid: "Actor.x"
+    });
+  });
+
+  it("writes EXPLICIT nulls for an empty context — null means 'resolved, and the answer was nothing'", () => {
+    // An ABSENT field marks a record from before the data plane existed; an explicit null is
+    // an out-of-combat / unattributable event resolved at write time. The scan tells legacy
+    // history from an out-of-combat event by exactly this difference.
+    expect(r.statFields(undefined)).toEqual({ combat: null, sourceUuid: null });
+    expect(r.statFields(null)).toEqual({ combat: null, sourceUuid: null });
+    expect(r.statFields({})).toEqual({ combat: null, sourceUuid: null });
+  });
+});
+
+describe("effectRecord — THE constructor for every applied-effect record", () => {
+  it("shapes the record with the stamp riding it", () => {
+    const record = r.effectRecord(
+      { id: "e1", name: "Slowed", img: "icons/s.webp", description: "−10 ft." },
+      { combat: "c:3:2", sourceUuid: "Actor.morgash" }
+    );
+    expect(record).toEqual({
+      id: "e1",
+      name: "Slowed",
+      img: "icons/s.webp",
+      description: "−10 ft.",
+      reverted: false,
+      combat: "c:3:2",
+      sourceUuid: "Actor.morgash"
+    });
+  });
+
+  it("defaults the optional fields the way the push sites used to by hand", () => {
+    const record = r.effectRecord({ id: "e1", name: "Slowed" }, undefined);
+    expect(record.img).toBe(null);
+    expect(record.description).toBe("");
+    expect(record.combat).toBe(null);
+    expect(record.sourceUuid).toBe(null);
   });
 });
 

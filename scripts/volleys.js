@@ -47,7 +47,7 @@
  * unfired — the card shows the drained bar, and the GM's fallback is the sheet, exactly as
  * for the damage offers. Render-resume re-pops and re-arms on the author's return.
  */
-import { MODULE_ID, TITLE, S, setting, queueFlagWrite, deadlineIsLive } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, queueFlagWrite, deadlineIsLive, statContext } from "./core.js";
 import { modeAllows } from "./shared.js";
 import { volleyEntryFor, resolveVolleyCount } from "./volley-registry.js";
 import { castLevelOf, clampVolleyCount } from "./decide/eligible.js";
@@ -127,6 +127,7 @@ async function stampVolley(activity, message, targets, spec) {
     const window = Math.max(0, Number(setting(S.damageTimer)) || 0);
     await message.setFlag(MODULE_ID, "volley", {
       status: "pending",
+      ...statContext(activity.actor?.uuid ?? null), // the data-plane stamp — the caster's volley
       kind: activity.type,                       // "damage" (darts) | "attack" (rays)
       n: spec.n,
       castLevel: spec.castLevel,

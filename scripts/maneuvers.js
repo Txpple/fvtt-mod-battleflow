@@ -4,7 +4,7 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
-  canAnswerFor, inRunningCombat, combatStamp } from "./core.js";
+  canAnswerFor, inRunningCombat, combatStamp, statContext } from "./core.js";
 import { maneuverFoldEntries } from "./settings.js";
 import { hitTargets, modeAllows } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, RESCUE_KINDS,
@@ -224,6 +224,7 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
       itemName: found.item.name, itemImg: found.item.img,
       attackerUuid: attacker.uuid, attackTotal: roll.total, dieFormula,
       answer: null,
+      ...statContext(attacker.uuid), // the data-plane stamp
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
       targets: margins.map(m => ({ ...m, verdict: null }))
     });
@@ -538,6 +539,7 @@ Hooks.on("createChatMessage", async message => {
     await message.setFlag(MODULE_ID, "riposte", {
       status: "pending",
       attackerUuid: attacker.uuid, attackerName: attacker.name,
+      ...statContext(attacker.uuid), // the data-plane stamp — the swing that invited the counter
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
       reactors
     });
@@ -1043,6 +1045,7 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
       itemId: found.item.id, activityId: activity.id,
       itemName: found.item.name, itemImg: found.item.img,
       attackerUuid: attacker.uuid, targets: living,
+      ...statContext(attacker.uuid), // the data-plane stamp
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
     });
     armBashOfferTimer(message);

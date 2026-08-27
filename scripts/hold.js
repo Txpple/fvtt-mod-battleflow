@@ -3,7 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
-  canAnswerFor, isContinuingClient, inRunningCombat } from "./core.js";
+  canAnswerFor, isContinuingClient, inRunningCombat, statContext } from "./core.js";
 import { limitedUses, isReactionItem } from "./decide/eligible.js";
 import { interruptEntries, blockEntries } from "./settings.js";
 import { joinEffectReceipt } from "./decide/receipt.js";
@@ -13,7 +13,7 @@ import { joinEffectReceipt } from "./decide/receipt.js";
 import "./auto-damage.js";
 import { bfCard, popupKey, holdBarHTML } from "./decide/present.js";
 // Safe as a STATIC edge: shared.js registers no hooks and the entry graph evaluates it first.
-import { damagePartsOf } from "./shared.js";
+import { damagePartsOf, statSourceOf } from "./shared.js";
 // ⚠ ONE-WAY since D6 (2026-08-23). ui.js is the spine and no longer knows this feature exists;
 // what comes back are spine primitives only. Do NOT let a hold-shaped name travel the other
 // way — reinstating an `import … from "./hold.js"` in ui.js re-forms the cycle D6 broke.
@@ -282,6 +282,7 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
   // for the same reason — they are an array too).
   await attackMessage.setFlag(MODULE_ID, "hold", {
     status: "pending",
+    ...statContext(statSourceOf(attackMessage)), // the data-plane stamp — the attacker's swing
     continuedBy: game.user.id,
     // The deadline is absolute and lives on the flag, so the bar is a pure function of state:
     // every client and every re-render derives the same remaining time without its own clock.
@@ -421,6 +422,7 @@ async function stampSpellHold(message, entries) {
     status: "pending",
     trigger: "spell",
     spell: entries[0].spell,
+    ...statContext(statSourceOf(message)), // the data-plane stamp — the caster's spell
     continuedBy: game.user.id,
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
     targets: held
@@ -623,7 +625,8 @@ async function applyReactionEffect(activity, actor, reactionName, ids) {
     if ( !effects.length ) return [];
     return await applyEffectsTo([{ uuid: actor.uuid, name: actor.name }], effects, {
       matchNames: true,
-      extraFlags: { [MODULE_ID]: { reactionEffect: true } }
+      extraFlags: { [MODULE_ID]: { reactionEffect: true } },
+      source: actor.uuid // the data-plane stamp's source — the reactor's own self-cast
     });
   } catch(err) {
     console.error(`${TITLE} | Could not apply the reaction's effect — apply it from the card.`, err);

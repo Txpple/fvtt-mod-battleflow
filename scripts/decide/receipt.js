@@ -24,6 +24,24 @@
 /* --- writing an entry ----------------------------------------------------------------------- */
 
 /**
+ * The data-plane fields every stamped record carries (the party-stats commission): `combat`
+ * (core.js `combatStamp`'s `"id:round:turn"`, null out of combat) and `sourceUuid` (the actor
+ * whose action caused the record, null when none can honestly be named). The CONTEXT is built
+ * at the EDGE (`statContext`, core.js — it reads game.combat); this normalizer only shapes it
+ * into an entry, which is why it may live here.
+ *
+ * ⚠ Both fields are ALWAYS written, null included: explicit null means "resolved at write
+ * time, and the answer was nothing", absent means the record predates the data plane. A
+ * reader tells legacy from out-of-combat by exactly that difference — do not "tidy" the nulls
+ * away.
+ *
+ * @param {{combat?: string|null, sourceUuid?: string|null}|null|undefined} context
+ */
+export function statFields(context) {
+  return { combat: context?.combat ?? null, sourceUuid: context?.sourceUuid ?? null };
+}
+
+/**
  * What a target's traits made of one damage part, in one word — or null when the number did
  * not move (resist and vulnerable cancel to ×1 and stay silent).
  *
@@ -78,8 +96,12 @@ export function hpDelta(prior, after) {
  *
  * `note` and `multiplier` ride only when they say something — a Graze line names itself, and a
  * non-1 multiplier is how the row explains a halved number.
+ *
+ * `context` is the data-plane stamp (statFields above), PER ENTRY on purpose: a spell hold
+ * splits one roll's application in time, and the held target's entry belongs to the turn its
+ * verdict landed on, not the turn the rest of the volley did.
  */
-export function receiptEntry({ uuid, name, img = null, note, multiplier = 1, prior, after, calc }) {
+export function receiptEntry({ uuid, name, img = null, note, multiplier = 1, prior, after, calc, context }) {
   return {
     uuid,
     name,
@@ -90,8 +112,24 @@ export function receiptEntry({ uuid, name, img = null, note, multiplier = 1, pri
     delta: hpDelta(prior, after),
     taken: calc ? calc.amount : null,
     traits: traitReasons(calc),
-    reverted: false
+    reverted: false,
+    ...statFields(context)
   };
+}
+
+/**
+ * One applied-effect record, THE constructor for every effectReceipt entry's `effects[]`
+ * element — the rider loop, the mastery chips and the reaction sliver all build through here,
+ * so the record shape (and the data-plane stamp riding it) can never drift between writers.
+ * Stamped per RECORD for the same reason receipt entries are: effects accumulate on one flag
+ * across moments (a rider now, a mastery chip a turn later), and each record belongs to the
+ * moment that applied it.
+ *
+ * @param {{id: string, name: string, img?: string|null, description?: string}} applied
+ * @param {{combat?: string|null, sourceUuid?: string|null}|null|undefined} context
+ */
+export function effectRecord({ id, name, img = null, description }, context) {
+  return { id, name, img, description: description ?? "", reverted: false, ...statFields(context) };
 }
 
 /* --- the merge discipline, shared by every writer of either flag ---------------------------- */

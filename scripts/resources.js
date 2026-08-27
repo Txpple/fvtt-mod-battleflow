@@ -4,11 +4,17 @@
  * notice (a screen flash and fade of text). say something like used [ability], x of y
  * remaining").
  *
- * ZERO NEW STATE, ZERO WIRE: dnd5e stamps every consumption onto the usage message itself —
+ * THE NOTICES ARE STATELESS, THE STAMP IS NOT (amended 2026-08-27, the party-stats
+ * commission — the original header claimed ZERO NEW STATE, and for the notices that stays
+ * true): dnd5e stamps every consumption onto the usage message itself —
  * `message.system.deltas` = { actor: [{keyPath, delta}], item: { itemId: [{keyPath, delta}] } }
  * (measured 2026-08-21, 5.3.3: Activity#consume sets messageConfig.data.system.deltas before
  * the message is created). The message replicates to every client, so every client can read
- * the spend and flash locally — the chat log is the bus, as everywhere in this module.
+ * the spend and flash locally — the chat log is the bus, as everywhere in this module. The
+ * data plane adds ONE write on top: the elect stamps a `spend` flag beside the deltas (the
+ * section at the bottom), because the ledger needs combat context and pool truths resolved AT
+ * SPEND TIME, and the handoff's trap 3 forbids the reader re-deriving what this file already
+ * derives — one derivation, used by the flash, the card line and the stamp alike.
  *
  * THE RHYTHM GATE (structural, no name list): a spend announces only when its pool's uses
  * carry a RECOVERY period — "x per short rest / long rest / day" is exactly the user's own
@@ -45,7 +51,7 @@
  * replicates, each client self-resolves, `flashed` still dedupes. The card LINE stays
  * immediate — it is the ledger, not the attention.
  */
-import { S, setting } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, statContext } from "./core.js";
 
 const flashed = new Set();
 // (cc): flashes held for an ability's own dice — usage message id → the armed flash.
@@ -95,6 +101,30 @@ function spendRows(message) {
 function usedName(message) {
   try { return fromUuidSync(message.getFlag("dnd5e", "item")?.uuid ?? "")?.name ?? null; }
   catch { return null; }
+}
+
+/**
+ * Spell-slot spends on a usage message: [{slot, level, spent, left, max}] — the ledger's rows,
+ * not the flash's. The rhythm gate above deliberately excludes slots from the NOTICES (the
+ * flash would fire on every leveled cast); the data plane wants them precisely because three
+ * of the party's four burn slots, and "spend economy" without slots is not an economy.
+ * `left`/`max` are read live off the post-consumption actor, same contract as spendRows.
+ * A slot spend arrives as a NEGATIVE delta on the slot's `.value` (a positive one is a
+ * regain — Font of Magic conversion — and stays out of a "you spent it" row).
+ */
+function slotRows(message) {
+  if ( !isUsage(message) ) return [];
+  const actor = message.getAssociatedActor?.();
+  if ( !actor?.hasPlayerOwner ) return [];
+  const rows = [];
+  for ( const { keyPath, delta } of (message.system?.deltas?.actor ?? []) ) {
+    const m = /^system\.spells\.(spell(\d+)|pact)\.value$/.exec(keyPath);
+    if ( !m || !(delta < 0) ) continue;
+    const pool = actor.system.spells?.[m[1]];
+    rows.push({ slot: m[1], level: m[2] ? Number(m[2]) : (pool?.level ?? null),
+      spent: -delta, left: pool?.value ?? 0, max: pool?.max ?? 0 });
+  }
+  return rows;
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -180,6 +210,33 @@ Hooks.on("createChatMessage", message => {
     return;
   }
   flashBanner(actorName, ability, rows);
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * The data-plane stamp — the ledger's spend record, written once at spend time (2026-08-27)
+ *
+ * The ELECT writes it (single-writer discipline — every world write in this module), at
+ * CREATION only: the pool truths (`left`/`max`) and the combat context are only honest in the
+ * moment of the spend, so there is deliberately no render-resume — a stamp recovered later
+ * would carry NOW's turn on last week's spend, which is worse than the reader falling back to
+ * the message's own `system.deltas` (always there, just contextless). Unconditional by ruling:
+ * no setting gates it — a toggle that silently punches holes in the ledger is a footgun, and
+ * the freight is invisible at the table. Player-owned actors only, the same line the notices
+ * draw: the party's meters are the commission; NPC pools are the GM's secret either way.
+ * ------------------------------------------------------------------------------------------- */
+
+Hooks.on("createChatMessage", message => {
+  if ( !isActiveGM() ) return;
+  if ( message.getFlag(MODULE_ID, "spend") ) return;   // never re-stamp
+  const rows = spendRows(message);
+  const slots = slotRows(message);
+  if ( !rows.length && !slots.length ) return;
+  const actor = message.getAssociatedActor?.();
+  void message.setFlag(MODULE_ID, "spend", {
+    ...statContext(actor?.uuid ?? null),
+    ...(rows.length ? { rows } : {}),
+    ...(slots.length ? { slots } : {})
+  }).catch(err => console.error(`${TITLE} | Spend stamp failed.`, err));
 });
 
 /* ---------------------------------------------------------------------------------------------

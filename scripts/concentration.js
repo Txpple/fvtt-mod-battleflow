@@ -2,7 +2,8 @@
  * Battle Flow — Phase 2.5: the concentration assist - damage, ask, roll, verdict, break.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, rollerUserFor, canAnswerFor } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, rollerUserFor, canAnswerFor,
+  statContext } from "./core.js";
 import { rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton,
@@ -135,6 +136,9 @@ async function stampConcentrationAsk(actor, changes) {
       status: "pending",
       actorUuid: actor.uuid,
       actorName: actor.name,
+      // The data-plane stamp. Source = the CONCENTRATOR (whose check this is; the flag's own
+      // actor, the d20fold semantics) — the damage's dealer is `cause`, recorded by name only.
+      ...statContext(actor.uuid),
       ability: concAbility(actor),
       dc, damage, names,
       // Which effects were at stake, snapshotted now: the break ends exactly these, and

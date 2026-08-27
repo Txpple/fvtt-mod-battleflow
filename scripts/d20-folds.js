@@ -57,7 +57,7 @@
  *
  * ⚠ `d20FoldAsk` can turn auto-offering OFF; it cannot turn it on where no number exists.
  * ------------------------------------------------------------------------------------------- */
-import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM }
+import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext }
   from "./core.js";
 import { d20FoldEntries } from "./settings.js";
 import { hitTargets, modeAllows } from "./shared.js";
@@ -263,6 +263,7 @@ function baseFlag(actor, offers, testKind, total, window) {
     offers,                                   // ⚠ every eligible fold, not the first one
     spends: [],                               // what has actually been burned, in order
     answer: null,
+    ...statContext(actor.uuid),               // the data-plane stamp — one site serves all three paths
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
   };
 }

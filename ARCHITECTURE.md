@@ -162,6 +162,58 @@ Every consequence carries an `applied` marker and an `answeredAt` timestamp. A r
 unapplied entry past the horizon re-drives; an applied entry never re-drives. This is what makes
 a mid-chain reload or a crashed client safe.
 
+### The data plane — stat stamps (the party-stats commission, 2026-08-27)
+
+Every consequence this module assigns — damage, healing, an applied effect, a spend, a table
+moment — carries two machine-readable fields so an external reader (the stats MCP,
+`../fvtt-mcp-molten5e`) can fold the chat log into a per-combat ledger **without parsing HTML
+and without re-deriving context after the fact**:
+
+- **`combat`** — `combatStamp()`'s `"combatId:round:turn"`, **null out of combat by contract**
+  (reports group the null bucket as "out of combat"; they never drop it — short rests, traps
+  and RP damage are real).
+- **`sourceUuid`** — the actor whose action caused the record. For an unlinked token this is
+  the token's **synthetic** actor uuid (THAT goblin, not the archetype) — deliberate; the scan
+  normalizes to base identity when it wants archetypes. Null when no actor can honestly be
+  named.
+
+**The baseline is `statContext(sourceUuid)`** (core.js, beside `combatStamp` — the who/when
+family) **spread into the write, never hand-rolled**; the source resolves through
+`statSourceOf(message)` (shared.js, beside the chain walk) or the closer fact the writer
+already holds. Receipt families thread it through the DECISION constructors — `receiptEntry`
+and `effectRecord` in [decide/receipt.js](scripts/decide/receipt.js) — **per entry**, because
+applications split in time (a held target lands on a later turn than its volley); moment flags
+spread it at creation, per flag. Both fields are ALWAYS written, null included: **explicit null
+means "resolved at write time, and the answer was nothing"; an absent field marks a record from
+before the plane existed.** A scan tells legacy history from an out-of-combat event by exactly
+that difference — do not tidy the nulls away.
+
+**The stamped families — this table is the MCP's read contract:**
+
+| Flag | Stamp granularity | `sourceUuid` means |
+| --- | --- | --- |
+| `receipt` entries | per entry | attacker / caster / healer (the receipt message's own actor) |
+| `effectReceipt` effect records | per effect record | who applied it (rider = attacker, cast/save = caster, reaction = the reactor's own self-cast) |
+| `spend` (usage messages) | per flag, at creation | the spender |
+| `d20fold`, `precision`, `mastery`, `topple`, `riposte`, `bashOffer` | per flag, at creation | the acting actor (duplicates the flag's own actor field at the same write — they cannot drift) |
+| `saves`, `hold`, `volley` | per flag, at creation | the caster / attacker who forced the moment |
+| `concentration` | per flag, at creation | the concentrator (whose check it is — the damage's dealer is `cause`, by name) |
+
+⚠ **A post-hoc stamper was considered and rejected.** A central createChatMessage/update hook
+that stamps whatever flags appear would re-derive context after the consequence — exactly the
+drift this plane exists to prevent — and could not stamp per-entry where applications split
+across turns. The chat log stays the bus; the baseline is a function writers call in-band, not
+a listener. **The rule for new code: any new consequence writer spreads `statContext` at its
+write site, and its flag joins the table above.**
+
+The `spend` stamp is the one write the plane added (resources.js): the ELECT stamps qualifying
+usage messages at creation — recovery-rhythm pools (`rows`) and spell slots (`slots`), player-
+owned actors only, **ungated by any setting** (a toggle that silently punches holes in the
+ledger is a footgun; the freight is invisible at the table). No render-resume on purpose: a
+stamp recovered later would carry NOW's turn on last week's spend, which is worse than the
+reader falling back to the message's own `system.deltas`. Everything else in the plane rides
+writes that already existed.
+
 ---
 
 ## 5. The moment spine (N3)

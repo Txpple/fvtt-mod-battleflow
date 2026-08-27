@@ -2,9 +2,9 @@
  * Battle Flow — Phase 1b: auto-apply damage on the active-GM elect, the shared receipt applier, and the payout pipeline (application, then effect riders, then mastery).
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, statContext } from "./core.js";
 import { receiptEntry, joinDamageReceipt } from "./decide/receipt.js";
-import { hitTargets, resolveAttackMessage, damagePartsOf } from "./shared.js";
+import { hitTargets, resolveAttackMessage, damagePartsOf, statSourceOf } from "./shared.js";
 import { applyEffectRiders } from "./effect-riders.js";
 import { resolveHitMastery } from "./mastery.js";
 
@@ -104,6 +104,10 @@ async function applyToHitTargets(damageMessage, hits) {
  */
 export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { note, multiplier = 1 } = {}) {
   try {
+    // The data-plane stamp, resolved ONCE per application while both facts are live: the
+    // receipt message's own actor is the source (attacker, caster, healer — statSourceOf's
+    // finding), and a held target landing on a LATER call gets that call's own context.
+    const context = statContext(statSourceOf(receiptMessage));
     const receipts = [];
     for ( const target of hits ) {
       const actor = await fromUuid(target.uuid); // the targets snapshot carries ACTOR uuids
@@ -130,7 +134,7 @@ export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { n
       // prior → delta → taken → reason, all of it in decide/receipt.js.
       receipts.push(receiptEntry({
         uuid: target.uuid, name: target.name, img: actor.img,
-        note, multiplier, prior, after, calc
+        note, multiplier, prior, after, calc, context
       }));
     }
     if ( receipts.length ) {

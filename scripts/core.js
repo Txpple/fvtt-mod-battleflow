@@ -108,6 +108,31 @@ export const combatStamp = () => {
   return c?.started ? `${c.id}:${c.round}:${c.turn}` : null;
 };
 
+/**
+ * THE DATA-PLANE STAMP (the party-stats commission, 2026-08-27): every consequence this module
+ * assigns — damage, healing, an applied effect, a spend, a table moment — carries WHEN it
+ * happened (`combat`, the stamp above; null out of combat BY CONTRACT, and reports group that
+ * bucket as "out of combat" rather than dropping it) and WHO caused it (`sourceUuid`, an actor
+ * uuid; null when no actor can honestly be named). An external reader (the stats MCP) folds
+ * cards into a ledger off these two fields without parsing HTML and without re-deriving
+ * context after the fact — both facts are resolved HERE, at write time, where they are still
+ * live. A reader reconstructing either later is the drift the commission's R-A ruling forbids.
+ *
+ * ⚠ ONE SHAPE, SPREAD — never hand-rolled at a write site. Writers spread `...statContext(src)`
+ * into the flag or entry they already write; the receipt families thread it through
+ * decide/receipt.js's constructors. Both fields are ALWAYS present on a stamped record: an
+ * explicit null means "resolved at write time, and the answer was nothing", while an ABSENT
+ * field marks a record from before this plane existed — the distinction a scan uses to tell
+ * legacy history from an out-of-combat event.
+ *
+ * ⚠ Deliberately NOT a post-hoc hook. A central createChatMessage/update stamper was considered
+ * and rejected: it would re-derive context after the consequence (exactly what this exists to
+ * prevent), and a receipt whose entries land across turns — a held target's verdict arriving
+ * next round — needs PER-ENTRY stamps only the write site can supply. The chat log stays the
+ * bus; the baseline is this function, not a listener.
+ */
+export const statContext = (sourceUuid = null) => ({ combat: combatStamp(), sourceUuid });
+
 /* ---------------------------------------------------------------------------------------------
  * THE DEADLINE CEILING — the moment clocks have a floor and need a roof.
  *

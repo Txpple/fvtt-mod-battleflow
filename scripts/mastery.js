@@ -3,8 +3,8 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
-  canAnswerFor, inRunningCombat, combatStamp } from "./core.js";
-import { joinEffectReceipt, takenOf } from "./decide/receipt.js";
+  canAnswerFor, inRunningCombat, combatStamp, statContext } from "./core.js";
+import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { MASTERY_KINDS, MASTERY_NATIVE } from "./decide/registry.js";
 import { hitTargets, modeAllows, rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
@@ -259,6 +259,7 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
   // This used to clone the flag HERE and merge into that copy after a per-target loop full of
   // `await`s, a window wide enough for another chip applier to write and be overwritten.
   // Entries accumulate locally; the merge happens inside the serializer, at the end.
+  const context = statContext(ctx.attacker.uuid); // the data-plane stamp, once per payout
   const entries = [];
   for ( const t of targets ) {
     const actor = (t.actor instanceof Actor) ? t.actor : await fromUuid(t.uuid);
@@ -286,8 +287,8 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
     }
     if ( !applied ) continue;
     entries.push({ uuid: t.uuid, name: t.name, img: actor.img ?? null,
-      effects: [{ id: applied.id, name: applied.name, img: applied.img,
-        description: applied.description ?? "", reverted: false }] });
+      effects: [effectRecord({ id: applied.id, name: applied.name,
+        img: applied.img, description: applied.description }, context)] });
   }
   if ( entries.length && receiptMessage ) {
     await queueFlagWrite(receiptMessage, "effectReceipt", flag => {
@@ -318,6 +319,7 @@ async function toppleCard(ctx, targets, sourceMessage = null) {
     flags: { [MODULE_ID]: { topple: {
       dc, ability: "con",
       attackerUuid: ctx.attacker.uuid,
+      ...statContext(ctx.attacker.uuid), // the data-plane stamp
       // Provenance for the twin-ask supersede below: WHICH damage message earned this
       // demand. One swing asks once, whichever clients think they are the elect.
       sourceMessageId: sourceMessage?.id ?? null,
@@ -835,6 +837,7 @@ async function stampMasteryAsk(attackMessage, damageMessage, ctx, key, targets) 
     weapon: { name: ctx.weapon.name, img: ctx.weapon.img },
     attackerUuid: ctx.attacker.uuid,
     damageMessageId: damageMessage?.id ?? null,
+    ...statContext(ctx.attacker.uuid), // the data-plane stamp — every moment flag carries it
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
     targets
   });
