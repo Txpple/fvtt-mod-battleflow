@@ -299,6 +299,22 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, env =
   await f.connect();
   await preflightSoleGM(f, { requireElect });
 
+  /**
+   * ⚠ THE CLIENT-SCOPED BASELINE. The reference table (verify-settings.mjs) pins WORLD keys
+   * only; a client-scoped setting rides each login's own storage, and the tester context is a
+   * fresh profile every run — so a client-scoped DEFAULT change lands on every suite at once,
+   * invisibly. When `playerRollDamage` flipped to ON (2026-08-27, the table's call) six suites
+   * failed in one battery: every attack chain written against silent auto-roll met a 24-second
+   * offer window instead. The suites' ambient is silent auto-roll; the sections that TEST the
+   * offer (smoke-battleflow §5d, smoke-saves §18, smoke-d20-folds' receipts) set it true
+   * themselves and restore it, so this baseline never argues with them. ⚠ A suite that builds
+   * a SECOND client by hand (check-popup-routing's player) does not pass through here — today
+   * that client only casts a no-damage spell, so nothing waits on it; a future second client
+   * that ROLLS DAMAGE must pin its own baseline.
+   */
+  await f.evaluate(async () =>
+    game.settings.set("fvtt-mod-battleflow", "playerRollDamage", false), null);
+
   // ⚠ THE LEDGER IS ARMED HERE AND DUMPED ON THE WAY OUT, and the dump rides the teardown call
   // rather than `finish()` because SIX of the sixteen callers never call `finish` —
   // smoke-battleflow, smoke-hold, smoke-twoclient and check-popup-routing among them. Every one
