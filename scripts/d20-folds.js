@@ -784,6 +784,18 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       scheduleBarSync(block);
       root.append(block);
 
+      /**
+       * ⚠ THE ELECT ARMS HERE, NOT ONLY AT THE STAMP. A player's check stamps this flag on the
+       * player's own client, where `armFoldTimer` is a no-op — `armAskTimer` is elect-gated —
+       * so this render is the first time the clock's OWNER sees the moment. Every stamp-site
+       * arm survives only because the solo suites run as the elect; at a real table the bar
+       * drained cosmetically and the flag never resolved (table report 2026-08-26, Tactical
+       * Mind on a player's check). Same shape as the precision and mastery asks, and it is
+       * also what re-arms after an elect reload: `armDeadline` fires an expired-but-live
+       * deadline immediately and refuses one past the roof.
+       */
+      armFoldTimer(message);
+
       if ( !canAnswerFor(actor) ) return;      // spectators get the card, not the controls
       const controls = document.createElement("div");
       Object.assign(controls.style, {
