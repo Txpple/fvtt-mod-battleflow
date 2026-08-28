@@ -507,6 +507,27 @@ The sandbox is a byte copy of prod — same world id, same users, same fixtures 
 exactly why a suite pointed at the wrong instance is easy to miss and expensive. Every harness
 resolves its target in one place and prints the target it chose.
 
+**⚠ THE SANDBOX CAN BE STOPPED BY WINDOWS, WITH NOTHING HERE CHANGED (2026-08-28).** The
+headless server died at launch on `An Application Control policy has blocked this file` —
+Foundry's own unsigned `classic-level` native module. **Smart App Control**, which vets
+unsigned binaries by asking Microsoft's *cloud* reputation service and caching the answer on
+the file. Nothing local had changed: the binary, node.exe and the SAC policy version were all
+weeks old. The cached verdict simply expired and the re-query came back "unknown". **This is
+why it presents as "it worked yesterday and no one touched it" — because no one did.** The
+tells: the CodeIntegrity log (`Microsoft-Windows-CodeIntegrity/Operational`, event 3077 names
+the file and the policy), and a *cluster* of unrelated unsigned binaries refused in the same
+days — this repo's own `rollup.win32-x64-msvc.node` (vitest's chain) among them, so the battery
+is collateral, not just the sandbox. **SAC has no exclusion list by design** — the user turned
+it off on 2026-08-28 and everything loaded immediately. ⚠ That switch is one-way (re-enabling
+needs a Windows reset), so it is the user's call and never a session's.
+
+**⚠ `/api/status` "users" is not a socket count, and it blocks the prod→local refresh.** The
+refresh refuses to image the world while users are connected — correctly, since a mid-write
+LevelDB snapshot tears. But the count it reads sat at **1 with every client disconnected**
+(measured across 90s, 2026-08-28) while `game.users` in-world showed nobody but the bridge.
+**Check the in-world truth before believing the guard**, then `--force`. Same family as the
+sole-GM preflight's blind spot: these endpoints count sessions, not connections.
+
 **⚠ Disconnect the MCP bridge before any suite run**, and let the sole-GM preflight fail the
 run loudly if anything else is connected. Measured: one cast created two identical effect
 chips, one attack posted two Push cards, and damage applied twice.
