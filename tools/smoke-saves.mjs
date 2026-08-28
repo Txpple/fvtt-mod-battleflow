@@ -774,6 +774,46 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const chained8d = game.messages.contents.filter(m =>
         m.getFlag('dnd5e', 'originatingMessage') === msg8d.id);
       await ChatMessage.deleteDocuments([msg8d.id, ...chained8d.map(m => m.id)]);
+
+      // 8e (user ruling 2026-08-28 — the swamp Fireballs): an INSTANTANEOUS area placed on
+      // NOBODY is spent at the stamp. Before this, the empty cast stamped a clockless
+      // WAITING demand (pending forever) and every sweep floor is status-gated — the
+      // template stood until doomsday. The demand now stamps DONE, rolls no damage at
+      // nobody, and the elect's convergent floor sweeps the area like any resolved one.
+      // The TEMPLATE-SHAPED activity on purpose: a targetless cast of a non-template
+      // activity stays native by the gate above §8a, and never reaches the stamp.
+      const before8e = snap();
+      const [tpl8e] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
+        t: 'circle', x: 200, y: 200, distance: 2.5,   // far from every fixture token
+        flags: { dnd5e: { origin: tmplActivity().uuid } }
+      }]);
+      created.templates.push(tpl8e.id);
+      const msg8e = await ChatMessage.create({
+        speaker: ChatMessage.getSpeaker({ actor: npc }),
+        content: '<p>BF 8e empty-instant fixture</p>',
+        flags: { dnd5e: {
+          targets: [],
+          activity: { id: tmplActivity().id, uuid: tmplActivity().uuid, type: 'save' }
+        } }
+      });
+      Hooks.callAll('dnd5e.postUseActivity', tmplActivity(), {},
+        { message: msg8e, templates: [[tpl8e]] });
+      const stamped8e = await until(() => msg8e.getFlag(MOD, 'saves'), 6000);
+      ok('8e. an instant area placed on nobody stamps DONE — no wait, no clock, no damage roll',
+        !!stamped8e && (stamped8e.status === 'done') && (stamped8e.templated === true)
+          && !stamped8e.awaitingTemplate && !(stamped8e.targets ?? []).length
+          && !stamped8e.deadline,
+        `status=${stamped8e?.status} templated=${stamped8e?.templated} `
+          + `awaiting=${stamped8e?.awaitingTemplate} targets=${(stamped8e?.targets ?? []).length}`);
+      const swept8e = await until(() => !scene.templates.get(tpl8e.id), 8000);
+      ok('8e. …and the convergent floor sweeps the empty area',
+        !!swept8e, `still=${!!scene.templates.get(tpl8e.id)}`);
+      const rolled8e = fresh(before8e).some(m =>
+        m.getFlag('dnd5e', 'originatingMessage') === msg8e.id);
+      ok('8e. nothing rolled damage at nobody', !rolled8e, `chained=${rolled8e}`);
+      const chained8e = game.messages.contents.filter(m =>
+        m.getFlag('dnd5e', 'originatingMessage') === msg8e.id);
+      await ChatMessage.deleteDocuments([msg8e.id, ...chained8e.map(m => m.id)]);
     }
 
     // ============================================== 9. rider damage (onSave "full") + per-row bars

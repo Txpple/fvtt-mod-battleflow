@@ -170,8 +170,17 @@ async function stampSaveDemand(activity, message, results) {
     // verdict lands. Finding (f)'s pre-roll gamble is overturned by the walk-5 ruling.
     const window = Math.max(0, Number(setting(S.saveTimer)) || 0);
     const awaiting = !targets.length; // template-shaped, area not placed yet (the gate above)
+    // ⚠ THE EMPTY INSTANT (user ruling 2026-08-28): an instantaneous area that is PLACED and
+    // contains nobody is already spent — the spell went off, nobody owes a save, and no more
+    // area is ever coming. The demand stamps DONE so the elect's convergent floor sweeps the
+    // template exactly as it sweeps a resolved one (no new deletion path, no permission edge:
+    // this client may be a player). A clockless wait belongs only to an area that does not
+    // exist yet (the bare Web cast — `contained` null, not empty). Duration areas are
+    // untouched: placed-and-empty Web keeps its wait, its area persists by design.
+    const durationUnits = activity.item?.system?.duration?.units ?? null;
+    const emptyInstant = awaiting && !!contained && (durationUnits === "inst");
     await message.setFlag(MODULE_ID, "saves", {
-      status: "pending",
+      status: emptyInstant ? "done" : "pending",
       ...statContext(activity.actor?.uuid ?? null), // the data-plane stamp — the caster forced this
       abilities, dc,
       damageOnSave: onSave,
@@ -182,13 +191,13 @@ async function stampSaveDemand(activity, message, results) {
       // template, which carries no origin flag to match by (the v1.12.0 walk's finding ①).
       templateType: activity.target?.template?.type ?? null,
       templated: !!contained,
-      ...(awaiting ? { awaitingTemplate: true } : {}),
-      durationUnits: activity.item?.system?.duration?.units ?? null,
+      ...(awaiting && !emptyInstant ? { awaitingTemplate: true } : {}),
+      durationUnits,
       item: { name: activity.item?.name ?? "the effect", img: activity.item?.img ?? null },
       casterName: activity.actor?.name ?? null,
       // A waiting demand carries its window but NO deadline — the clock starts when the
       // area delivers its first targets (the adoption write), not while nobody can roll.
-      ...(window ? (awaiting ? { window } : { window, deadline: Date.now() + (window * 1000) }) : {}),
+      ...((window && !emptyInstant) ? (awaiting ? { window } : { window, deadline: Date.now() + (window * 1000) }) : {}),
       // Per-target state is an ARRAY with uuid fields — never a uuid-keyed map (the dotted
       // key expansion ground truth).
       targets: targets.map(t => ({ uuid: t.uuid, name: t.name,
@@ -199,8 +208,9 @@ async function stampSaveDemand(activity, message, results) {
     // damage itself the moment the demand stamps — the attack path's symmetry (1a rolls on
     // hit). Chained to the card so upcast scaling and damageOnSave ride the native plumbing;
     // per-target independence already handles a roll arriving before any verdict.
-    // Save-modulated damage only — rider damage (onSave "full") never rolls here.
-    if ( saveModulated ) {
+    // Save-modulated damage only — rider damage (onSave "full") never rolls here. An empty
+    // instant rolls nothing: there is no one to apply to and the card is already done.
+    if ( saveModulated && !emptyInstant ) {
       // The caster asked for their own dice back, exactly as the attacker did (FLOW item 3;
       // the v1.18.0 walk's only finding was that the popup never reached this path). It costs
       // nothing extra to offer here for one reason: THIS HOOK ALREADY RUNS ON THE CASTING
@@ -405,6 +415,9 @@ function refreshTemplatedDemands(templateDoc) {
 Hooks.on("createMeasuredTemplate", doc => { refreshTemplatedDemands(doc); });
 Hooks.on("updateMeasuredTemplate", doc => { refreshTemplatedDemands(doc); });
 
+/** The sweep's same-client re-entry latch (the banner note inside cleanupSpentTemplates). */
+const templateSweepsInFlight = new Set();
+
 /**
  * An INSTANTANEOUS spell's template is spent once every verdict's consequences landed —
  * Shatter's circle has nothing left to say, so it leaves the canvas (user call 2026-08-16).
@@ -458,13 +471,26 @@ async function cleanupSpentTemplates(card, { endedConcentrationId = null } = {})
     return m.getFlag(MODULE_ID, "saves")?.activityUuid === flag.activityUuid;
   });
   if ( superseded ) return;
-  for ( const scene of game.scenes ) {
-    const spent = scene.templates.filter(t => t.getFlag("dnd5e", "origin") === flag.activityUuid);
-    // Tolerate the race against the native cascade deleting the same documents — whichever
-    // cleanup wins, the other's miss must not throw the floor off its next offer.
-    try {
-      if ( spent.length ) await scene.deleteEmbeddedDocuments("MeasuredTemplate", spent.map(t => t.id));
-    } catch(err) { /* already gone — the cascade or the other elect twin got there */ }
+  // ⚠ ONE SWEEP IN FLIGHT PER CARD (2026-08-28, the live Fireball's three red banners). The
+  // floor is convergent on purpose — consequence pass, update and render all offer it in the
+  // same beat — and the try/catch below does tolerate the losers' misses. But v14 shims every
+  // template onto a backing Region, and a concurrent second delete surfaces "Region does not
+  // exist" as a UI NOTIFICATION the catch never sees — one banner per extra floor. The latch
+  // makes the overlap not happen; a floor arriving after the winner finishes still runs and
+  // correctly finds nothing.
+  if ( templateSweepsInFlight.has(card.id) ) return;
+  templateSweepsInFlight.add(card.id);
+  try {
+    for ( const scene of game.scenes ) {
+      const spent = scene.templates.filter(t => t.getFlag("dnd5e", "origin") === flag.activityUuid);
+      // Tolerate the race against the native cascade deleting the same documents — whichever
+      // cleanup wins, the other's miss must not throw the floor off its next offer.
+      try {
+        if ( spent.length ) await scene.deleteEmbeddedDocuments("MeasuredTemplate", spent.map(t => t.id));
+      } catch(err) { /* already gone — the cascade or the other elect twin got there */ }
+    }
+  } finally {
+    templateSweepsInFlight.delete(card.id);
   }
 }
 

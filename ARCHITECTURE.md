@@ -223,6 +223,15 @@ that difference — do not tidy the nulls away.
   deleted. ⚠ STATIC BY RULING — a snapshot is not clock ownership; nothing here may grow turn
   tracking, timers, or expiry sweeps (the BACKLOG fence). Late joiners are absent by design;
   their `rollCtx` stamps are how a scan sees them.
+- **A `saves` flag may be BORN `status: "done"` with zero targets (2026-08-28, user ruling):**
+  an instantaneous area placed on NOBODY is spent at the stamp — nobody owes a save, no clock
+  arms, no damage rolls, and the elect's convergent floor sweeps the template immediately.
+  A scan reading such a card sees a cast that consumed its moment with no consequences — not
+  a resolved fight. (Before this, the empty cast stamped a clockless WAITING demand that could
+  never resolve, and the status-gated sweep left the template standing forever — the swamp
+  Fireballs.) Duration areas are untouched: placed-and-empty Web keeps its clockless wait, and
+  a bare cast — template not yet placed, `contained` null rather than empty — still waits for
+  adoption as designed.
 
 ⚠ **A post-hoc stamper was considered and rejected.** A central createChatMessage/update hook
 that stamps whatever flags appear would re-derive context after the consequence — exactly the
