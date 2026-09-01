@@ -182,8 +182,11 @@ special-case names.
 
 ⚠ **The tripwire is now MEASURED, not asserted** (Phase 3). `npm run verify` prints the kinds
 table and **pins the total**, so a new kind fails the gate until someone changes the pin on
-purpose. Today: **16 kinds across 4 sets** — interrupt 2, maneuver fold 5, volley 2, mastery 7
-of the system's 8. The rule is not "no new kinds"; it is "no *unnoticed* new kinds". Until this
+purpose. Today: **23 kinds across 6 sets** — interrupt 2, maneuver fold 5, d20 fold 3, volley 2,
+mastery 7 of the system's 8, reminder 4 (vex, sap, prone, condition — the four ways the gate can
+READ a source of Advantage or Disadvantage; the thirteen conditions under the fourth are
+membership, declared as such, and deliberately uncounted). The rule is not "no new kinds"; it
+is "no *unnoticed* new kinds". Until this
 existed nobody could state the rate, so the condition above could never actually fire — and
 [ARCHITECTURE §10 D8](ARCHITECTURE.md) asserts it already *is* firing on qualitative grounds.
 
@@ -265,6 +268,34 @@ receipt on the attack card, written before the chip goes), and the chit that mak
 the only tick is world time, which moves only when the GM advances it — so an out-of-combat chip
 lives until the spend closes it, and that is the rule, not a gap.
 
+### The gate before the roll (user rulings, 2026-09-01)
+
+**A reminder is proactive, never a rescue** — *"I don't want a rescue, I want proactivity."* When
+something this module can READ bends an attack roll, the system's roll dialog does not open;
+Battle Flow's popup stands in for it (the concentration precedent, 2026-08-16: *"the popup is
+the configuration surface"*), listing **every source** it can see, each with its rule quoted
+verbatim, **the net**, and the Rules Glossary's own sentence on why — then Advantage / Normal /
+Disadvantage for the human to press. **Nothing is ever pre-selected and nothing is ever applied
+for the roller** (R1, and the fence in mastery.js). The press re-issues the roll; the card says
+what was shown and what was pressed, and the stats plane reads honour off it.
+
+**The net is the 5e rule, restated by the user as the ruling:** *if multiple sources contend,
+it always nets to a regular attack, even if you have more of one than the other* — adv/adv is
+Advantage, adv/disadv is normal, adv/disadv/disadv is normal. A source the module cannot judge
+(a prone target with no token to measure from, an Incapacitated attacker who should not be
+rolling at all) is **listed and not counted**.
+
+**What the gate reads is membership** (R4): the Reminder Sources list names the KINDS — the
+attacker's own Vexed chip on a target, a Sapped chip on the attacker, Prone on either side with
+the 5-foot geometry, and the condition table — and the Condition Sources list names WHICH of
+the thirteen 2024 conditions count. Both lists are switches; an empty Reminder Sources list is
+the gate turned off. **AC5e's knowledge, as data, never its code** (R-B, sharpened): the
+thirteen rows carry each condition's *Attacks Affected* clause verbatim from the world's own
+glossary, and a fourteenth costs a row and a list entry, zero code paths.
+
+**What the gate never touches:** a roll whose caller suppressed the dialog — the resolver's
+own rolls, a volley's rays, a riposte inside a fold, a macro, the suites. No dialog, no gate.
+
 **⚠ PRONE IS THE NAMED EXCEPTION, AND IT STAYS PASSIVE (user call, 2026-09-01).** It is pressed
 as a status with no duration, so it sits in Passive — and that is correct rather than tolerated.
 5e gives Prone no window: it lasts until the creature spends half its movement to stand. Making
@@ -318,3 +349,6 @@ was written to prevent.
 | **Short-duration effect expiry** (mastery chips) | ✅ **CLOSED 2026-09-01 BY ITS OWN CONDITION — the decision was made, and the answer is that the question dissolves.** It was *blocked on whether this module should own TURN-TIME at all*; measured against Foundry 14.365's own client, **the platform already owns it**: every ActiveEffect carries `start.combatant` and a `duration.expiry` event, the registry refreshes on every turn and round boundary (GM-side) and judges the event against the ORIGINATING combatant. So the module never keeps a clock — it writes each chip's RAW window once (`decide/chips.js`), and owns only EVENTS: the attack roll that SPENDS Vex or Sap, the once-per-turn Cleave chit, and tidying what Foundry marked expired. See §5 *"the platform keeps the clock"* and HANDOFF Stage 1. | nothing. Closed — and a future pass that builds a module-side sweeper or turn counter is a REGRESSION, not a feature |
 | **A reaction-budget abstraction** | **REJECTED.** Action economy is not this module's job; every read of `reactionSpent` is an *offer gate*, never enforcement. | nothing. Closed. |
 | **Hand-carrying any counted number into prose** | **DON'T.** ⚠ **Quote the tool's output; never retype it.** | nothing. This is a standing rule. |
+| **A post-roll "second die" rescue for a forgotten Advantage** | **NOT SHIPPING** (user, 2026-09-01: *"I don't want a rescue, I want proactivity"*). The reminder is the GATE before the roll (§5); a rescue that rolls a second d20 after a flat roll is the shape that was put and declined. | the user asking for it, by name |
+| **Netting multiple sources of Advantage/Disadvantage by count** | **NEVER.** Any Advantage against any Disadvantage is a normal roll, however many of each (user ruling 2026-09-01; the Rules Glossary's own sentence). A "majority wins" reading is wrong and stays wrong. | nothing. It is the rule. |
+| **Vendoring AC5e's code** | **CLOSED 2026-09-01 — its TABLE shipped as data instead** (DESIGN §5 *the gate*; `decide/reminders.js` `CONDITION_BENDS`). Its behaviour — silently setting the roll mode — is the thing the user said no to; its geometry features (range bands, nearby foes, flanking, armour, encumbrance) were never wanted. | a table asking for the geometry features, by name |

@@ -186,6 +186,30 @@ warns once, gone at v16) — read `units`/`value`/`expired` instead. Measured li
 
 **Hit/miss is computed at render time and never persisted.** Recompute downstream.
 
+**The pre-roll hooks fire BEFORE the fast-forward keys are read (2026-09-01).** `buildConfigure`
+dispatches `dnd5e.preRoll<Name>` / `preRoll<Name>V2` for every hook name, *then* calls
+`applyKeybindings`, which is what turns a shift/alt/ctrl click into `dialog.configure = false`
+and the mode booleans. So at hook time `dialog.configure` is whatever the CALLER passed —
+undefined for every human-initiated roll, fast-forwarded or not; `false` only when code
+suppressed the dialog (the resolver, the rays, a macro, the suites). **That is the whole basis
+of the reminder gate's "no dialog, no gate" rule**, and the reason a shift-click is still gated.
+Returning `false` from the hook cancels the roll cleanly: `rollAttack` resolves null, the usage
+card keeps its Attack button, nothing is consumed twice — a re-issue is the same call the button
+makes. The attack hook is TEMPLATED (`dnd5e.preRoll${hookName.capitalize()}V2` with
+`hookNames: ["attack", "d20Test"]`), so both `preRollAttackV2` and `preRollD20TestV2` fire and
+neither is visible to the dispatch gate — pinned, like `preRollDamageV2`.
+
+**`getTargetDescriptors()` at the top of `rollAttack` reads `game.user.targets`** — the roller's
+own targets on the roller's client — and the message's `flags.dnd5e.targets` is built from the
+same set. A pre-roll reader that wants the targets reads `game.user.targets` directly.
+
+**A plain `x`/`y` update on a TokenDocument is a MOVE under v13+'s movement pipeline, and it can
+be refused with no error** — measured 2026-09-01 on the test range (no walls): the update
+resolved and the document stayed put, `{teleport: true, animate: false}` included. The reminder
+suite stopped moving tokens and places a second one where it needs a distance measured.
+`canvas.grid.measurePath([a, b]).distance` is grid units (feet here): 100px apart = 5, six
+squares = 30, on a square grid.
+
 **`D20Roll#isCritical` reads the D20 *die term's* `options.criticalSuccess`.** The roll's own
 `options.criticalSuccess` is a **decoy** — present, numeric, plausible, and read by nothing.
 

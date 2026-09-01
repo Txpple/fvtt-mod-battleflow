@@ -3,11 +3,146 @@
 > **Provenance.** Commissioned 2026-09-01 in the cold session that retired the party-stats
 > handoff (`8a0e2cc`) and pruned the backlog (`ac12e5c`). Per the standing convention this file
 > exists only while a commission does, and retires when this delivers. **Status 2026-09-01
-> (evening): STAGE 0 MEASURED AND STAGE 1 DELIVERED** — the chips run on Foundry's clock, the
-> spend and the Cleave chit ship, `smoke-expiry` (35 assertions) sits in the battery, and the
-> docs are recut. **What remains is STAGE 2, gated on the vetting walk** (R-E is still open);
-> Stage 3 is recorded so it is not re-derived, and is not scheduled.
-> ⚠ **Wait for the user's "go" — a handoff is not one.**
+> (night): STAGES 0–3 ARE BUILT AND INDIVIDUALLY GREEN; a CODE REVIEW IS MID-FLIGHT; the
+> BATTERY has NOT yet run on the Stage 2/3 code.** The session ran out of context mid-review
+> and handed off here — read **CONTINUATION** first; the plan below it is history.
+> ⚠ **The user's standing instruction for this commission (2026-09-01): "do autonomously until
+> you pass to me for testing"** — finish the review fixes, run the battery, then hand over.
+> The user is NOT expecting a "go" prompt for that sequence; they ARE expecting to be handed the
+> result for table testing when it is green.
+
+---
+
+## CONTINUATION — for the session that picks this up
+
+### Where things stand (commits on `main`, all after v1.27.2 = `8d04379`)
+
+`ab6789c` test(expiry) · `a146fb0` feat(expiry) · `6916dd7` docs(expiry) — **Stage 0/1**:
+chips on Foundry's clock, the spend, the tidy, the Cleave chit, `tools/smoke-expiry.mjs`
+(35/35). `9c1880c` test(reminders) · `631066a` feat(reminders) · `825f707` refactor — **Stage
+2 + 3**: the gate before the roll (`scripts/reminders.js`, `scripts/decide/reminders.js`), the
+thirteen-condition table as data, the two list settings, `tools/smoke-reminders.mjs` (26/26).
+The docs for Stage 2/3 (DESIGN §5 *the gate*, §8 rows, ARCHITECTURE §4, NOTES, README,
+BACKLOG) are committed with this handoff. `npm run verify` is green (15 checks, 322 unit tests,
+32 source files pinned, 23 kinds pinned). `module.json` is still **1.27.2** — no release was
+cut; that is the user's call.
+
+**Evidence so far:** the LAST FULL BATTERY was on the Stage 1 code (19 suites green, settings
+clean, `dist/battery/2026-09-01T21-17-06`). Since then only single suites ran on the Stage 2/3
+build: `smoke-reminders` 26/26, `smoke-concentration` 47/47 (its popup was refactored),
+`smoke-expiry` 35/35 (before the refactor). **The battery on the delivered code is the one
+thing that has not happened.**
+
+### The environment, as left
+
+- **Sandbox:** up, headless (`node scripts/local-foundry.mjs status|restart` in
+  `../fvtt-mcp-molten5e`), Foundry 14.365 / dnd5e 5.3.3. The deployed module is byte-identical
+  to `825f707`. **Fix-round discipline: `node scripts/deploy-house-module.mjs
+  fvtt-mod-battleflow --local` → `node scripts/local-foundry.mjs restart` → suites** (a
+  redeploy without a version change serves suites STALE code until the process bounces).
+- ⚠ **The user has a combat of their own in the sandbox world** — "Practice Dummy" + "Thomas",
+  started, round 3, scene-agnostic — created 2026-09-01 ~18:05 local while I was working. Every
+  suite deletes `game.combat` on the way in. **Tell the user before the battery; do not delete
+  it silently.**
+- Settings: verify with `node tools/verify-settings.mjs` first (`--fix` restores) — the suites
+  restore their own, but the standing rule is verify, never assume.
+- A stray `x/` LevelDB directory sits untracked at the repo root (junk from some tool; the user
+  has not yet said to delete it). Leave it.
+- The MCP repo's stats scan (`get-combat-stats`) lists flag families by name — **`chipSpend`
+  and `reminder` are two new families it does not yet read** (ARCHITECTURE §4's table names
+  them). That is the other repo's change; mention it at hand-over.
+
+### The code review, mid-flight — findings gathered, none applied yet
+
+Eight finder angles ran over `scripts/reminders.js`, `scripts/decide/reminders.js`,
+`scripts/decide/chips.js`, `scripts/mastery.js`, `scripts/decide/present.js`. **Angles D
+(reuse), E (simplification), F (efficiency), G (altitude) and H (conventions — empty) reported;
+A (line-by-line), B (removed behaviour) and C (cross-file) had not reported when the session
+ended — re-run those three** (`git diff 8d04379..HEAD -- scripts`) before verifying. Nothing
+below has been verified by a second pass; nothing has been fixed. Ranked, with the fix decided:
+
+1. **Honour against the net ignores the chip's kind** (`decide/chips.js` `chipHonoured`, G).
+   With `vex` off the Reminder Sources list, a Sapped attacker with a Vex on the target sees a
+   Sap-only gate (net Disadvantage), presses it, and the Vex spend is stamped `honoured: true`.
+   **Fix:** honour against the net only when the chip's kind is among the reminder record's
+   `sources`; otherwise the chip's own bend. `spendChips` passes the record, not a bare `net`.
+2. **The card-keyed popup path never ran** (`reminders.js` `showGate`, F). At pre-roll time
+   dnd5e carries the originating id as a FLAT key — `message.data["flags.dnd5e.originatingMessage"]`
+   — expanded only in `buildPost`, so `message.data.flags?.dnd5e?.originatingMessage` is
+   undefined and every gate opened through the untracked bare-`DialogV2` fallback (the suite
+   found dialogs via `foundry.applications.instances`, which is why it passed). **Fix:** read
+   the flat key (`?? the nested one`), go through `openMomentPopup`, and DROP the fallback — an
+   attack with no usage card is an API roll; no card, no gate. Record the flat-key fact in
+   NOTES §2. Consider a `redraw: false` option on `openMomentPopup` so a rowless popup does
+   not re-render the usage card twice.
+3. **The Cleave chit is pinned to the attacker's combatant** (`mastery.js` `cleaveChitStands`,
+   G). "Once per turn" is the turn IN PROGRESS: a chit written by an opportunity attack on
+   somebody else's turn must die when THAT turn ends, not at the attacker's next turnEnd — as
+   written, it survives through the attacker's own next turn and the on-turn Cleave is never
+   reminded. **Fix:** `placeOf(attacker, { current: true })` pins the chit's `start.combatant`
+   to `combat.combatant`; Vex/Sap/Slow keep the attacker's. Keep the chit itself — the user
+   asked for it by name.
+4. **The combatant lookup misses an unlinked token that shares a base actor** (`mastery.js`
+   `placeOf`, D). `activeCombatFor` matches by `cb.actor?.id` while `getCombatantsByActor`
+   matches a synthetic actor by token id: two goblin tokens off one actor, only A in the
+   tracker, B swings → `start.combatant` null. **Fix:** one `combatantOf(combat, actor)` in
+   core.js (token id for a synthetic actor, actor id for a linked one; `receipts.js`
+   `clearDefeated` already carries the careful matcher) used by both.
+5. **Prone compares feet against scene units** (`decide/reminders.js` `proneSources`,
+   `reminders.js` `nearestFeet`, G). `measurePath().distance` is in the scene's units; on a
+   metric grid two squares (3 m) counts as "within 5 feet". **Fix:** compare against the
+   scene's own `grid.distance` (one square = reach) and label with the scene's units; move the
+   pair-minimum into `decide/geometry.js` with an injected measure; replace the O(n²) pair loop
+   with a nearest-square clamp and ONE `measurePath` (F); give geometry.js a
+   document-authoritative squares helper so `documentSquares` stops forking `tokenSamplePoints`.
+6. **`reissuing` is dead state** (`reminders.js`, E). The re-issue passes `configure: false`,
+   which the "no dialog, no gate" guard already lets through. Remove the Set and the
+   try/finally.
+7. **`CHIP_FLAG` is used by the gate alone** (G, E, D). mastery.js still writes/reads the
+   literal `"mastery"` at the applier, the chit, the spend, the tidy and the sweep, and
+   `effect-riders.js` line ~192's twin-chip dedupe reads it too; `spendChips` re-implements
+   `chipOwnedBy` inline. **Fix:** `CHIP_FLAG` at every chip site; `chipOwnedBy` in the spend;
+   `chipSpentBy(key, role)` with one `"attacker"|"target"` argument instead of two booleans.
+   (The ASK flag on attack messages is also named `mastery` — different document, same string;
+   leave the ask alone.)
+8. **Membership hand-copied in three places** (`decide/registry.js` `CONDITION_STATUSES`, G).
+   **Fix:** move `CONDITION_BENDS`/`CONDITION_KEYS` into registry.js (it is membership data),
+   derive `CONDITION_STATUSES` and the shipped default from it, have `conditionSources` take the
+   table as a parameter (decide files import nothing), and take the number out of the settings
+   hint. Keep the `size === 13` unit pin as the deliberate tripwire.
+9. **Batch the expiry tidy per parent** (`mastery.js` `updateActiveEffect` handler, F): the
+   platform stamps expiry as one batched update per parent, so two chips expiring together on
+   an unlinked-token monster become two one-at-a-time deletes — the NOTES §2 shape that throws
+   on the second, swallowed by the `.catch`. Collect `{parent → ids}` and flush on a microtask
+   with one `deleteEmbeddedDocuments` per parent. Also: dedupe the `deleteCombat` sweep by
+   actor and `Promise.all` it; `fromUuidSync` and the cheap elect check first in `spendChips`.
+10. **Two more popups still carry the copied controls** (D, E): the Topple popup
+    (`mastery.js` ~468–478) and the save ask (`saves.js` ~1647–1659) — move them onto
+    `situationalBonusHTML` / `modeButtons`.
+11. **Smaller:** the Sapped-by name resolve duplicates `d20-folds.js` `grantingActor` (hoist to
+    shared.js); `resolutionLine`'s `net` parameter is unused except in one branch and
+    `modeLabel` has one caller (drop both); `conditionSources`' `enabled` default hides the
+    "list is the switch" contract (make it required); the spend line's mode wording ("flat")
+    is a third vocabulary beside `modeTitle` — one vocabulary on the card.
+
+### The remaining sequence (the user's instruction, verbatim: review → refactor → battery → hand over)
+
+1. Re-run finder angles A, B, C; verify every candidate (one verifier each, PLAUSIBLE by
+   default); fold confirmed ones into the list above. Call `ReportFindings` once with the
+   verified list, then again with outcomes after the fixes land.
+2. Apply the fixes. Unit-test the pure ones (`chipHonoured` with sources, the geometry
+   helper, the derived membership). `npm run verify`.
+3. Deploy → bounce → `smoke-expiry`, `smoke-reminders`, `smoke-effects`, `smoke-concentration`.
+4. Warn the user about their combat, then `node tools/battery.mjs` (≈25 min). Settings clean
+   at the end (the battery runs `verify-settings` itself).
+5. Commit in the house shape (`test:` / `feat:`|`fix:` / `docs:`); recut NOTES for the
+   flat-key fact and anything the fixes teach; **retire this file** (the commission is
+   delivered; the durable rulings already live in DESIGN §5 and §8).
+6. Hand over for table testing with the open questions: (a) the double reminder — the Vexing
+   hit's notice popup AND the gate at the next swing are both live; (b) `hiding` as a
+   fourteenth condition (one row); (c) a release (`node tools/bump-version.mjs minor` →
+   1.28.0, `tools/build-release.ps1`, prod deploy) — the user's call; (d) the MCP scan's
+   `KEYS` gaining `chipSpend` and `reminder`.
 
 ---
 

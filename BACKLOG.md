@@ -125,9 +125,15 @@ untested path.
 > measurement: Foundry v14 keeps effect clocks itself, per effect, against the originating
 > combatant, so the module never has to.
 
+> **AC5e adoption left this list 2026-09-01 — its TABLE shipped as data** (DESIGN §5 *the gate
+> before the roll*; the thirteen conditions in `decide/reminders.js`), and vendoring its code is
+> SETTLED against (DESIGN §8). The geometry features it also carries — range bands, nearby foes,
+> flanking, armour, encumbrance — were never wanted and are not here.
+
 | Item | Shape |
 | --- | --- |
-| **AC5e adoption** | ⚠ **Vendor and modify, never import** (user call — R2 rules out the dependency). And it is **complementary, not an alternative**: AC5e *decorates* rolls where this module *applies*. ⚠ **Sharpened 2026-09-01** ([HANDOFF.md](HANDOFF.md) R-B): its behaviour is silent decoration, which the user has ruled out; **what it knows — the thirteen condition rows — is data the module could carry itself** as reminders (HANDOFF Stage 3, recorded and not scheduled). Its geometry features are not wanted. |
+| **The reminder gate on other d20 tests** | The gate reads ATTACK rolls. Saving throws and ability checks have their own bends (Restrained on Dexterity saves, Poisoned on checks, Paralyzed's automatic failures) and the same pre-roll hook family (`dnd5e.preRollSavingThrowV2`, `preRollAbilityCheckV2` — templated like the attack one). Same mechanism, a second table. **Not asked for; surveyed only.** |
+| **Hiding as a reminder source** | 2024's Hiding condition gives Advantage on the attack that ends it; the system ships a `hiding` status. One condition-table row and one list entry — but it is not among the thirteen the user named, so it waits for a word. |
 
 ### Two content facts worth keeping
 

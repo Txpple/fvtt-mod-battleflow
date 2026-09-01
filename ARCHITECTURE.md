@@ -95,7 +95,7 @@ no no-GM degraded mode (DESIGN §4).
 
 | Where | Shape | Why there |
 | --- | --- | --- |
-| **Attack / usage message** | the moment flag (`hold`, `mastery`, `saves`, `precision`, `volley`, …); `chipSpend` — the chips this attack roll used up | The moment belongs to the thing that caused it; a spent chip is explained on the roll that spent it (R5) |
+| **Attack / usage message** | the moment flag (`hold`, `mastery`, `saves`, `precision`, `volley`, …); `chipSpend` — the chips this attack roll used up; `reminder` — what the gate showed before this roll, the net, the press | The moment belongs to the thing that caused it; a spent chip is explained on the roll that spent it (R5); a roll that went out with Advantage says why |
 | **Damage message** | `receipt`, `effectReceipt` | The application belongs to the roll that caused it |
 | **Response message** | `respondsTo` + the answer | A player can only write their *own* message — this is the answer channel that needs no permission. See **the relay** below |
 | **Actor** | `reactionSpent`, `cleaveArm`; the mastery chips (`Vexed`, `Sapped`, `Slowed`, `Cleave — this turn`) as ActiveEffects carrying `start` + `duration.expiry` | Per-creature, per-turn state. ⚠ A chip's clock is the PLATFORM's (v14 `duration.expiry`, judged against `start.combatant` — DESIGN §5); the module writes the window once and never counts turns |
@@ -253,6 +253,8 @@ that difference — do not tidy the nulls away.
 | `concentration` | per flag, at creation | the concentrator (whose check it is — the damage's dealer is `cause`, by name) |
 | `holdSkipped` (attack messages) | per flag, at the skip | the attacker whose swing outran the reaction |
 | `combatRoster` (a GM-whispered marker card per combat) | once at combatStart; closed (`endedRound`/`endedAt`) at deleteCombat | null — the roster is nobody's action |
+| `chipSpend` (attack messages, 2026-09-01) — `spent: [{id, name, key, uuid, bearer, mode, honoured}]`, the chips this attack roll used up | per flag, at the spend (the elect, on the attack card) | the attacker (whose swing spent them). `honoured` is against the gate's NET when a gate ran, else the chip's own bend |
+| `reminder` (attack messages the gate re-issued, 2026-09-01) — `sources: [{kind, bend, label}]`, `net`, `mode`, `honoured`, `answeredAt` | per flag, at the press, on the roller's client | the attacker. ⚠ Two new families for the MCP's scan `KEYS` — the accuracy meter can now split "rolled with Advantage because the table was reminded" from "rolled flat against the net" |
 
 **Second-pass fields (2026-08-27, the stats commission's follow-up):**
 
