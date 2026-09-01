@@ -89,6 +89,7 @@ const LAYER_OF = {
   "decide/eligible.js": "decision",
   "decide/receipt.js": "decision",
   "decide/present.js": "decision",
+  "decide/chips.js": "decision",
 
   // CORE — the leaf: ids, settings accessor, the elect, the flag serializer
   "core.js": "core"

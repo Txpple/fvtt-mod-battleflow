@@ -182,7 +182,11 @@ const rows = KIND_SETS.map(set => {
 // 2026-08-27: 28 → 29, for scripts/stats.js — the data plane's own edge (rollCtx + the combat
 // roster). It earns its own file rather than joining a machine: the stamps are UNGATED context
 // no feature owns, and filing them inside a setting-gated machine would invite gating them.
-const EXPECTED_SOURCE_FILES = 29;
+// 2026-09-01: 29 → 30, for scripts/decide/chips.js — the DECISION half of chip expiry: the RAW
+// windows as v14 duration data, and which attack roll spends which chip. Pure, unit-pinned, and
+// deliberately its own file: receipt.js is about what a card RECORDS, this is about what a chip
+// IS, and the two would otherwise grow into each other.
+const EXPECTED_SOURCE_FILES = 30;
 const sourceFiles = [
   ...readdirSync(join(ROOT, "scripts")).filter(f => f.endsWith(".js")),
   ...readdirSync(join(ROOT, "scripts/decide")).filter(f => f.endsWith(".js")).map(f => `decide/${f}`)

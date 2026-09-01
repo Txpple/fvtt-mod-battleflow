@@ -7,6 +7,7 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, isFlowElectFor, drivesMomentF
   statContext } from "./core.js";
 import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { MASTERY_KINDS, MASTERY_NATIVE } from "./decide/registry.js";
+import { TURN_CHIPS, chipClock, chipIsDead, chipSpentBy, rollModeOf, spendRecord } from "./decide/chips.js";
 import { hitTargets, modeAllows, rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup,
@@ -37,10 +38,14 @@ import { messageActivity } from "./effect-riders.js";
  *                   the receipt stamped on the ATTACK card (no damage message exists).
  *   Cleave, Nick    out of scope — action economy stays native.
  *
- * THE FENCE (user call): nothing here ever modifies a d20. Vex/Sap enforcement-and-expiry
- * is the deferred AC5e-sized lift; the chip is the reminder and the roll dialog is the
- * enforcement surface. Durations are the RAW windows approximated to a round — in combat
- * `rounds: 1`, else seconds — refresh, never stack.
+ * THE FENCE (user call, restated 2026-09-01 — HANDOFF R-A): nothing here modifies a d20
+ * without a human pressing it. The chip is the reminder and the roll dialog is where it is
+ * honoured. THE PLATFORM KEEPS THE CLOCK (R-C): every chip carries its RAW window as v14
+ * `duration.expiry` data pinned to the attacker's own combatant (decide/chips.js), Foundry
+ * marks it expired on the exact turn boundary, and this file only tidies what Foundry marked.
+ * What this file DOES own is the EVENT half: the attack roll that SPENDS Vex or Sap (the rules
+ * spend them claimed or not — `spendChips`, with a receipt on the attack card), the
+ * once-per-turn Cleave chit, and the sweep when a combat is deleted. Refresh, never stack.
  *
  * The ask (1.9C) is a hold miniaturized: the elect stamps a `mastery` flag on the attack
  * message; every client renders a row; the DECIDER's client volunteers a Use/Pass popup
@@ -143,15 +148,14 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits) {
         return postMasteryNotice(ctx, "sap", live);
       case "cleave": {
         // A reminder, not a payout (ARCHITECTURE.md §6): the extra attack, its target
-        // and its rolls stay native. Once per combat turn — the option is once per turn, so
-        // is the nag; out of combat every hit reminds (the test range has no turns).
+        // and its rolls stay native. Once per turn — the option is once per turn, so is the
+        // nag — and the ONCE is a CHIT on the attacker (user, 2026-09-01): no chit standing →
+        // the popup, and a chit written to die with this turn on the platform's clock
+        // (decide/chips.js); a chit standing → nothing. It replaced an in-memory Map that a
+        // reload forgot and that, out of combat, silently reminded once per SESSION. Out of
+        // combat there is no turn to be once-per: no chit, and every hit reminds.
         if ( !struck.length ) return;
-        const c = game.combat;
-        if ( c?.started ) {
-          const stamp = `${c.id}:${c.round}:${c.turn}`;
-          if ( cleaveNoticed.get(ctx.attacker.uuid) === stamp ) return;
-          cleaveNoticed.set(ctx.attacker.uuid, stamp);
-        }
+        if ( await cleaveChitStands(ctx) ) return;
         // `struck`, not `live` — the corpse still anchors "within 5 feet of" (finding (u)).
         return postMasteryNotice(ctx, "cleave", struck);
       }
@@ -276,20 +280,17 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
     return whisperNoGM(`the ${masteryLabel(key)} chip on ${blocked.map(t => t.name).join(", ")}`,
       "The reminder card still stands, and the rule is honoured in the roll dialog either way.");
   }
-  // ⚠ THE CLOCK IS STAMPED FROM THE ACTIVE COMBAT, EXPLICITLY (v1.27.1, reported from the
-  // table). This read `inRunningCombat(ctx.attacker)` — is the attacker in ANY started combat,
-  // anywhere — and handed `{ rounds: 1 }` to an effect whose remaining time Foundry can only
-  // measure against `game.combat`. When those were not the same combat the clock never
-  // resolved, dnd5e filed the chip under **Unavailable Effects**, and it was born expired:
-  // invisible on the token, present only as a sheet line with a bare clock icon and no
-  // duration. Sapped landed that way while Vex and Slow — applied while the same combat
-  // happened to be active — looked fine, which is what made it read as "Sap is broken".
-  // The starts are written here rather than left to Foundry's implicit stamp, so the chip's
-  // clock cannot depend on which combat the applying client is looking at.
-  const combat = activeCombatFor(ctx.attacker);
-  const duration = combat
-    ? { rounds: 1, startRound: combat.round, startTurn: combat.turn, startTime: game.time.worldTime }
-    : { seconds: 6, startTime: game.time.worldTime };
+  // ⚠ THE CLOCK IS THE RULES TEXT AS v14 EXPIRY DATA, pinned to the ATTACKER's own combatant
+  // (decide/chips.js — HANDOFF R-C, 2026-09-01). Two lessons live in that one line. The
+  // v1.27.1 one: a round-based window is measured against `game.combat` and nothing else, so
+  // `activeCombatFor` (never `inRunningCombat`) decides whether there is a clock at all — a
+  // chip clocked against a combat the world was not running was born under Unavailable
+  // Effects, invisible on the token. The new one: the platform judges `expiry` against
+  // `start.combatant`, and its own stamp is whoever's turn it IS — right for a swing on the
+  // attacker's turn, wrong for an opportunity attack on somebody else's — so the start is
+  // written here explicitly, from the attacker's place in the order, never left implicit.
+  const clock = chipClock(key, placeOf(ctx.attacker));
+  if ( !clock ) return;
   // ⚠ THE READ MOVED BELOW THE AWAITS (D3, 2026-08-22) — the same fix effect-riders.js got.
   // This used to clone the flag HERE and merge into that copy after a per-target loop full of
   // `await`s, a window wide enough for another chip applier to write and be overwritten.
@@ -313,30 +314,25 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
     // NO clock are left alone — a durationless chip is somebody else's contract, not ours.
     // ⚠ ONE batched delete: a synthetic (unlinked-token) actor rebuilds its collections from
     // the delta on every write, so deleting one at a time throws on the second (NOTES §2).
-    const dead = actor.effects.filter(e => {
-      if ( !e.getFlag(MODULE_ID, "mastery") ) return false;
-      const d = e.duration ?? {};
-      if ( !d.type || (d.type === "none") ) return false;
-      return !(d.remaining > 0);
-    });
+    const dead = actor.effects.filter(e => e.getFlag(MODULE_ID, "mastery") && chipIsDead(e.duration ?? {}));
     if ( dead.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", dead.map(e => e.id));
 
     const existing = actor.effects.find(e =>
       (e.getFlag(MODULE_ID, "mastery") === key) && (e.origin === ctx.weapon.uuid));
     let applied;
     if ( existing ) {
-      const starts = ActiveEffect.implementation.getInitialDuration?.()?.duration ?? {};
       // ⚠ `?? existing`: Document#update returns UNDEFINED when the diff is empty — a
       // re-clock that changes nothing (same worldTime out of combat) — and the receipt
       // entry silently vanished with it (caught by probe 2026-08-15). The refresh is still
-      // the payout; the receipt must say so either way.
-      applied = (await existing.update({ duration: { ...starts, ...duration }, disabled: false })) ?? existing;
+      // the payout; the receipt must say so either way. The re-clock rewrites `start` as
+      // well: a refreshed window is measured from THIS swing, and `expired` clears with it.
+      applied = (await existing.update({ ...chipData(clock), disabled: false })) ?? existing;
     } else {
       applied = await ActiveEffect.implementation.create({
         name: def.name, img: def.img,
         description: def.description(ctx.attacker),
         origin: ctx.weapon.uuid, disabled: false, transfer: false,
-        duration,
+        ...chipData(clock),
         changes: def.changes?.() ?? [],
         flags: { [MODULE_ID]: { mastery: key } }
       }, { parent: actor });
@@ -351,6 +347,51 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
       for ( const entry of entries ) joinEffectReceipt(flag, entry);
     });
   }
+}
+
+/** The attacker's place in the RUNNING combat, for decide/chips.js — or null out of combat. */
+function placeOf(attacker) {
+  const combat = activeCombatFor(attacker);
+  if ( !combat ) return null;
+  const combatant = combat.getCombatantsByActor(attacker)[0] ?? null;
+  return { combat: combat.id, combatant: combatant?.id ?? null, initiative: combatant?.initiative ?? null,
+    round: combat.round, turn: combat.turn, time: game.time.worldTime };
+}
+
+/**
+ * What a clock becomes on the document: the window, un-expired, and its start. In combat the
+ * start is the attacker's place (decide/chips.js); out of combat only the time is ours to say
+ * and the platform's own `_preCreate` fills the rest — a refresh re-times an existing chip.
+ */
+function chipData(clock) {
+  return { duration: { ...clock.duration, expired: false },
+    start: clock.start ?? { time: game.time.worldTime } };
+}
+
+/**
+ * THE ONCE-PER-TURN CHIT (user, 2026-09-01): does a Cleave chit already stand on the attacker
+ * this turn? If not, write one — it dies with this turn on the platform's clock — and answer
+ * "no, remind". Out of combat there is no turn to be once-per: no chit, always remind. Not a
+ * receipt entry on purpose: the chit is the reminder's own marker and the notice card is its
+ * line; a chit nobody could write (no owner on this client) just means the reminder repeats.
+ */
+async function cleaveChitStands(ctx) {
+  const attacker = ctx.attacker;
+  const clock = chipClock("cleave", placeOf(attacker));
+  if ( !clock ) return false;
+  const chits = attacker.effects.filter(e => e.getFlag(MODULE_ID, "mastery") === "cleave");
+  if ( chits.some(e => !chipIsDead(e.duration ?? {})) ) return true;
+  if ( !canApplyTo(attacker) ) return false;
+  // Dead chits from earlier turns go first — one chit, this turn's, is all that ever stands.
+  if ( chits.length ) await attacker.deleteEmbeddedDocuments("ActiveEffect", chits.map(e => e.id));
+  await ActiveEffect.implementation.create({
+    name: "Cleave — this turn", img: ctx.weapon.img ?? "icons/svg/sword.svg",
+    description: `Cleave has been offered this turn (${ctx.weapon.name}). The extra attack is once per turn; this chit ends with the turn.`,
+    origin: ctx.weapon.uuid, disabled: false, transfer: false,
+    ...chipData(clock),
+    flags: { [MODULE_ID]: { mastery: "cleave" } }
+  }, { parent: attacker });
+  return false;
 }
 
 /** Topple: the demand, the native save link, and a GM affordance for the failure. */
@@ -749,9 +790,6 @@ const NOTICE_TEXT = {
   })
 };
 
-/** Cleave reminds once per combat turn per attacker. */
-const cleaveNoticed = new Map();
-
 /**
  * The elect posts the reminder card — the durable record, and the bus the popup rides: the
  * card replicates everywhere, and whichever client owns the moment (canAnswerFor — the
@@ -1003,6 +1041,111 @@ Hooks.on("deleteChatMessage", message => {
   disarmToppleTimer(message.id);
 });
 
+/* --- the spend: the attack roll that uses a chip up (HANDOFF Stage 1, 2026-09-01) -----------
+ * The rules spend Vex and Sap on the NEXT attack roll whether or not the roll honoured them —
+ * "your next attack roll" is the next one made. This is the EVENT half of expiry: the platform
+ * closes windows on turn boundaries, this closes them on the swing, in or out of combat. The
+ * record lands on the attack message FIRST (R5: an icon that vanishes is explained where
+ * everyone looks — and the reminder's rescue, when it comes, reads the record rather than a
+ * chip that is gone), the chips go second. Elect-driven like every consequence: the Vex chip
+ * is a write to the MONSTER.
+ * ------------------------------------------------------------------------------------------- */
+Hooks.on("createChatMessage", message => {
+  if ( message.getFlag("dnd5e", "roll.type") !== "attack" ) return;
+  const ctx = masteryContext(message);
+  if ( !ctx || !drivesMomentFor(ctx.attacker.uuid) ) return;
+  void spendChips(message, ctx);
+});
+
+async function spendChips(message, ctx) {
+  try {
+    const attacker = ctx.attacker;
+    const chipKey = e => e.getFlag(MODULE_ID, "mastery");
+    // A chip's origin is the WEAPON that applied it; the attacker owns it when that weapon is theirs.
+    const owned = e => !!e.origin && e.origin.startsWith(`${attacker.uuid}.Item.`);
+    const spent = [];
+    // The bearer attacking: its own Sap, from anyone.
+    for ( const e of attacker.effects ) {
+      const key = chipKey(e);
+      if ( key && chipSpentBy(key, { bearerIsTarget: false, bearerIsAttacker: true, attackerOwnsChip: owned(e) }) ) {
+        spent.push({ actor: attacker, effect: e, key });
+      }
+    }
+    // The bearer attacked: this attacker's own Vex on it.
+    for ( const t of (message.getFlag("dnd5e", "targets") ?? []) ) {
+      const actor = await fromUuid(t.uuid);
+      if ( !(actor instanceof Actor) || (actor.uuid === attacker.uuid) ) continue;
+      for ( const e of actor.effects ) {
+        const key = chipKey(e);
+        if ( key && chipSpentBy(key, { bearerIsTarget: true, bearerIsAttacker: false, attackerOwnsChip: owned(e) }) ) {
+          spent.push({ actor, effect: e, key });
+        }
+      }
+    }
+    if ( !spent.length ) return;
+
+    const mode = rollModeOf(message.rolls?.[0]?.options?.advantageMode);
+    const records = spent.map(s => spendRecord({ id: s.effect.id, name: s.effect.name, img: s.effect.img,
+      key: s.key, bearerUuid: s.actor.uuid, bearerName: s.actor.name, mode }));
+    // The record first, deduped by chip id so a twin elect converges rather than doubling.
+    await queueFlagWrite(message, "chipSpend", flag => {
+      flag.spent ??= [];
+      for ( const r of records ) if ( !flag.spent.some(x => x.id === r.id) ) flag.spent.push(r);
+      Object.assign(flag, statContext(attacker.uuid)); // the data-plane stamp, once per flag
+    });
+    // Then the chips — ONE batched delete per actor (NOTES §2: a synthetic actor rebuilds its
+    // collections on every write, so one-at-a-time throws on the second).
+    const byActor = new Map();
+    for ( const s of spent ) {
+      if ( !byActor.has(s.actor) ) byActor.set(s.actor, []);
+      byActor.get(s.actor).push(s.effect.id);
+    }
+    for ( const [actor, ids] of byActor ) {
+      if ( !canApplyTo(actor) ) {
+        await whisperNoGM(`the spent ${ids.length === 1 ? "chip" : "chips"} on ${actor.name}`,
+          "The attack card records the spend; the chip stays until a GM is connected or its window closes.");
+        continue;
+      }
+      const live = ids.filter(id => actor.effects.get(id));
+      if ( live.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", live);
+    }
+  } catch(err) {
+    console.error(`${TITLE} | Chip spend failed.`, err);
+  }
+}
+
+/* --- the tidy: what the platform marked expired, and what a deleted combat leaves ----------
+ * Foundry stamps `duration.expired` on the exact boundary (on the GM client — the same client
+ * that deletes here, so no election is needed); dnd5e files the chip under Unavailable Effects
+ * and the token icon is already gone. The document is all that lingers, and it lingered on
+ * every sheet until 2026-09-01. A deleted combat ends every window at once: no turn will ever
+ * come round, so the chips it clocked go with it — hold.js clears `reactionSpent` the same way.
+ * ------------------------------------------------------------------------------------------- */
+Hooks.on("updateActiveEffect", (effect, changes) => {
+  if ( changes?.duration?.expired !== true ) return;
+  if ( !effect.getFlag(MODULE_ID, "mastery") || !(effect.parent instanceof Actor) ) return;
+  if ( !isActiveGM() ) return;
+  effect.delete().catch(() => { /* already gone — a twin elect or a hand */ });
+});
+
+Hooks.on("deleteCombat", combat => {
+  if ( !isActiveGM() ) return;
+  void sweepCombatChips(combat);
+});
+
+async function sweepCombatChips(combat) {
+  try {
+    for ( const combatant of combat.combatants ) {
+      const actor = combatant.actor;
+      if ( !actor ) continue;
+      const ids = actor.effects.filter(e => TURN_CHIPS.includes(e.getFlag(MODULE_ID, "mastery"))).map(e => e.id);
+      if ( ids.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", ids);
+    }
+  } catch(err) {
+    console.error(`${TITLE} | Combat chip sweep failed.`, err);
+  }
+}
+
 // armAskTimer/disarmAskTimer moved to ui.js at round 3 — the elect-owned single-answer clock
 // is the spine's, not this machine's. The imports above carry them back in.
 
@@ -1135,6 +1278,23 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       eyebrow: "Weapon Mastery — Cleave", tone: "neutral",
       title: "Cleave — ability modifier dropped",
       subtitle: `${stripped.itemName || "The weapon"}'s Cleave — this roll takes no ability modifier.`
+    });
+    html.querySelector(".message-content")?.appendChild(line);
+  }
+
+  // The spend's receipt (2026-09-01): the attack card SAYS which chip this roll used up, and
+  // whether the roll honoured it — so a Vexed icon vanishing off the goblin is explained where
+  // everyone looks (R5). Stateless, from the flag spendChips stamped.
+  const spend = message.getFlag(MODULE_ID, "chipSpend");
+  for ( const r of (spend?.spent ?? []) ) {
+    const line = document.createElement("div");
+    const went = r.mode === "advantage" ? "with Advantage" : r.mode === "disadvantage" ? "with Disadvantage" : "flat";
+    line.innerHTML = bfCard({
+      img: r.img, eyebrow: `Weapon Mastery — ${masteryLabel(r.key)}`,
+      tone: r.honoured ? "good" : "neutral",
+      title: `${r.name} — spent`,
+      subtitle: `${r.bearer}: ${r.key === "sap" ? "its" : "the attacker's"} next attack roll was this one, `
+        + `rolled ${went}${r.honoured === false ? " — the chip went unclaimed" : ""}.`
     });
     html.querySelector(".message-content")?.appendChild(line);
   }
