@@ -115,6 +115,69 @@ deploy tooling alike. Edit `module.json` with editor tools, never shell rewrites
 `-replace` pass also mangled its em-dashes to mojibake. Editor writes can flip a whole file to
 CRLF against an LF `HEAD`; check `git diff --numstat` before committing.
 
+### v14 owns effect expiry — per effect, against the ORIGINATING combatant (2026-09-01)
+
+**An ActiveEffect's clock is not `{rounds, startRound, startTurn}` any more.** v14's schema is
+`start: {combat, combatant, initiative, round, turn, time}` plus
+`duration: {value, units, expiry, expired}`, where `expiry` is a combat EVENT — `turnStart`,
+`turnEnd`, `roundStart`, `roundEnd`, `combatStart`, `combatEnd` — and it **defaults to
+`"turnStart"` the moment a numeric `value` is given.** The old keys still write (core shims
+`rounds` → `value/units` and migrates `startRound` → `start.round`), which is why chips written
+in the v12 shape kept working: they were expiring on the default event by accident.
+
+**Core refreshes on every boundary and judges the event against `start.combatant`.**
+`ActiveEffect.registry.refresh(event)` runs on `combatStart`/`combatEnd`, `roundStart`/`roundEnd`,
+`turnStart`/`turnEnd`, `combatRewind` and `updateWorldTime`; `turnStart` matches when the current
+combatant IS the effect's `start.combatant`, `turnEnd` when that combatant's turn just ended.
+**Its own stamp is whoever's turn it is when the effect is created** (`_preCreate` →
+`getEffectStart()`), and it prefers user-defined `start` keys over its own — so an effect applied
+by an opportunity attack on somebody else's turn is judged against the WRONG creature unless the
+writer names the attacker's combatant explicitly. `decide/chips.js` does.
+
+**⚠ `turnEnd` and `roundEnd` refreshes do NOT recompute remaining time** ("these events never
+entail a change in remaining duration"). A window meant to close at the end of the turn it was
+written in must therefore ALREADY read zero — `{value: 0, units: "turns", expiry: "turnEnd"}`
+is *"until the end of this turn"*; `{value: 1, units: "turns", expiry: "turnEnd"}` reads 1 at
+that turn's end and lives a whole round longer than it says.
+
+**Expiry is MARK, not delete, and it is GM-side.** `CONFIG.ActiveEffect.expiryAction` is
+`"update"` (dnd5e 5.3.3 does not override it): the registry stamps `duration.expired: true` —
+dnd5e's *Unavailable Effects* bucket — and only when `game.users.activeGM?.isSelf`. `"delete"`
+exists and is a WORLD policy for every effect; a module tidies its own on the `updateActiveEffect`
+that carries `duration.expired`. **Suppression keys off the flag, not the arithmetic:** an effect
+with `remaining <= 0` keeps applying until the flag is written. `isTemporary` is
+`!!expiry || Number.isFinite(value)`, so `value: 0` is still Temporary.
+
+**⚠ Out of combat there is NO clock.** The only non-combat tick is `updateWorldTime`, which
+fires when the GM presses the calendar HUD or takes a rest with *Advance time* ticked (off unless
+chosen). A `rounds`/`turns` effect with no combatant is reframed as seconds (`CONFIG.time.roundTime`
+× value) and measured against world time; a 6-second chip sits at "6 seconds remaining" forever,
+alive, and any sweep that reads `remaining` reads it as alive. A `turns` effect out of combat
+reads `remaining: null`, label *"None"* (the premium PHB's Guiding Bolt ships exactly so).
+**Rules windows that are turn-shaped therefore have no end outside combat — the EVENT that spends
+them (the next attack) is the only close, and that is the rule, not a gap.**
+
+**⚠ `game.combat` IS THE COMBAT OF THE SCENE *THIS CLIENT* VIEWS — and three things read it.**
+The platform's implicit `start` stamp (`getEffectStart(game.combat)`), `Actor#inCombat`
+(`!!game.combat?.getCombatantsByActor(this).length`), and this module's own `activeCombatFor`.
+A client looking at another map sees no combat at all: an effect it creates lands time-based with
+no combatant, and — because world time advances **six seconds at every round boundary** — the
+round's `updateWorldTime` refresh then expires every chip whose clock has run out on the TICK
+rather than on its event (`isExpiryEvent` treats time advancement as satisfying any combat event
+for an actor whose `inCombat` reads false). The first run of `tools/probe-expiry.mjs` measured
+exactly this by accident, from a client that had not viewed the range. **Suites view the range
+before creating a combat; a GM viewing another scene mid-fight would see the same drift, and
+nothing in the module can prevent it** — the explicit `start.combat` the chips now carry keeps
+their remaining-time arithmetic honest on any client, but not the world-time path.
+
+**Out of combat the PREPARED duration is reframed**: a chip written `{value: 1, units: "rounds"}`
+reads back as `{value: 6, units: "seconds"}` on `effect.duration` while `_source.duration` keeps
+what was written. Assert on `_source` for the window, on `duration` for the platform's reading.
+
+`duration.type` survives as a deprecated getter (`typeof value === "number" ? units : "none"`,
+warns once, gone at v16) — read `units`/`value`/`expired` instead. Measured live by
+`tools/probe-expiry.mjs`; pinned by `tools/smoke-expiry.mjs`.
+
 ---
 
 ## 2. dnd5e 5.3.x

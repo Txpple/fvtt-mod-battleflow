@@ -23,7 +23,7 @@ settings at v1.20.0. The dogfood ladder is walked one setting at a time.
 | **Attack resolver** | auto-roll damage on hit, auto-apply to the targets it hit, revert receipts on every application |
 | **Reaction hold** | a Shield-window pause with popup + card row — on a hit **or** on a listed spell, so Magic Missile really is stopped |
 | **Damage riders** | a mark pays out with the attack that earned it (Hunter's Mark tier) |
-| **Effect & mastery riders** | a hit applies the effects riding it; weapon masteries pay out with the attack — Vex/Sap automatic, Slow/Topple/Push/Graze as a Use/Pass ask |
+| **Effect & mastery riders** | a hit applies the effects riding it; weapon masteries pay out with the attack — Vex/Sap automatic, Slow/Topple/Push/Graze as a Use/Pass ask. The chips expire on Foundry's own clock at the turn the rules name, Vex and Sap are spent by the next attack roll (recorded on the attack card), and Cleave's once-per-turn is a chit, not a memory |
 | **Maneuver folds** | Precision Attack patches a declared miss, Riposte drives a real attack, Interpose and the Shield Master bash resolve post-verdict |
 | **Saves** | auto-roll for everyone, per-target popups, half-damage-on-save made real, template containment |
 | **Concentration assist** | an un-buryable prompt, and a failed save actually ends the spell — which the system never does itself |

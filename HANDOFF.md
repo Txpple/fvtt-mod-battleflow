@@ -2,9 +2,11 @@
 
 > **Provenance.** Commissioned 2026-09-01 in the cold session that retired the party-stats
 > handoff (`8a0e2cc`) and pruned the backlog (`ac12e5c`). Per the standing convention this file
-> exists only while a commission does, and retires when this delivers. **Status 2026-09-01:
-> PLANNED, nothing built.** Stage 0 and Stage 1 are well-defined; Stage 2 is gated on a vetting
-> walk with the user; Stage 3 is recorded so it is not re-derived, and is not scheduled.
+> exists only while a commission does, and retires when this delivers. **Status 2026-09-01
+> (evening): STAGE 0 MEASURED AND STAGE 1 DELIVERED** — the chips run on Foundry's clock, the
+> spend and the Cleave chit ship, `smoke-expiry` (35 assertions) sits in the battery, and the
+> docs are recut. **What remains is STAGE 2, gated on the vetting walk** (R-E is still open);
+> Stage 3 is recorded so it is not re-derived, and is not scheduled.
 > ⚠ **Wait for the user's "go" — a handoff is not one.**
 
 ---
@@ -81,9 +83,25 @@ Battle Flow own the combat clock by accident — does not arise: nothing here se
 
 ---
 
-### STAGE 0 — probes (read-only, half a session)
+### STAGE 0 — probes ✅ MEASURED 2026-09-01 (`tools/probe-expiry.mjs`, Foundry 14.365 / dnd5e 5.3.3)
 
-Every one is a measurement the plan already leans on; none writes anything a suite would not.
+**The readings, in one place.** Three combatants (attacker first), chips applied on the
+attacker's turn (r1t0): **sap-shape `{1, rounds, turnStart}` expired at r2t0** — the attacker's
+next turn START; **vex-shape `{1, rounds, turnEnd}` at r2t1** — its END; **the 0-turn chit
+`{0, turns, turnEnd}` at r1t1** — the end of the attacker's OWN turn; the 1-turn chit at r2t1,
+the round longer the bundle promised. **Every expiry write arrived as `updateActiveEffect`
+carrying `duration.expired: true`, made by the active GM's client.** An effect created without
+an explicit `start` is stamped with whoever's turn it IS (an off-turn apply got the victim's
+combatant — R-D's trap, confirmed). World time advances six seconds at every round boundary.
+Out of combat a `rounds` chip reads back reframed as seconds and never expires without a
+world-time tick (the plan's claim, confirmed) — and a first run from a client that had NOT
+viewed the range measured a new trap by accident: `game.combat` is per-client, so an effect
+created from another scene lands time-based and expires on the round's tick, not its event
+(NOTES §1). **The hook surfaces for Stage 2 all fire on this page:** `dnd5e.preRollAttackV2`
+(templated, with `preRollD20TestV2` beside it), `renderAttackRollConfigurationDialog` (and the
+generic `renderApplicationV2`), `dnd5e.postAttackRollConfiguration` / `postRollConfiguration`.
+
+Every one below was a measurement the plan leaned on; none writes anything a suite would not.
 
 1. **v14 expiry semantics, live.** In a real Combat, on the attacker's turn, apply a chip
    `{value: 1, units: "rounds", expiry: "turnStart"}`; step with `combat.nextTurn()`; assert
@@ -112,7 +130,22 @@ Every one is a measurement the plan already leans on; none writes anything a sui
    Stage 1's assertions land there unless combat-stepping makes it unwieldy, in which case a
    `smoke-expiry` suite joins the battery front door.
 
-### STAGE 1 — expiry (well-defined; build first)
+### STAGE 1 — expiry ✅ DELIVERED 2026-09-01
+
+**What shipped, and where.** The DECISION half is [decide/chips.js](scripts/decide/chips.js) —
+`CHIP_WINDOWS` (the RAW windows as v14 data, frozen), `chipClock` (the window plus the
+attacker's place in the order), `chipIsDead`, `chipSpentBy`, `rollModeOf`, `spendRecord` —
+pinned by 21 unit assertions ([tests/decide-chips.test.js](tests/decide-chips.test.js)). The
+EDGE half is in [mastery.js](scripts/mastery.js): `placeOf`/`chipData` feed the chip applier (the
+v12 `{rounds, startRound}` write is gone), `spendChips` on `createChatMessage` records the
+spend on the attack card FIRST (the `chipSpend` flag, rendered as a "— spent" line with the
+mode the roll went out at) and deletes second, `cleaveChitStands` replaced the in-memory
+`cleaveNoticed` Map, the `updateActiveEffect` tidy deletes what Foundry marked, and
+`deleteCombat` sweeps. [tools/smoke-expiry.mjs](tools/smoke-expiry.mjs) — nine sections, 35
+assertions, a real Combat stepped through five rounds — joined the battery directly after
+`smoke-effects`. Docs: DESIGN §8's row closed by its own condition, DESIGN §5 *"the platform
+keeps the clock"*, ARCHITECTURE §4's state table, NOTES §1's v14 clock entry, the mastery.js
+fence restated per R-A. The plan below is kept as written, for the record.
 
 1. **Chip writes in the v14 shape, with the RAW event.** Sap and Slow
    `{value: 1, units: "rounds", expiry: "turnStart"}`; Vex `expiry: "turnEnd"`. `start` is
@@ -153,7 +186,8 @@ Every one is a measurement the plan already leans on; none writes anything a sui
    ARCHITECTURE §4's state table lists chips as `start` + `duration.expiry`; the mastery.js
    fence is restated per R-A. **Prone is untouched** (user, 2026-09-01: no duration, ever).
 
-**Check-in:** after Stage 0's readings, before Stage 1 code; after Stage 1, battery green.
+**Check-in:** Stage 0 and Stage 1 were run autonomously at the user's instruction (2026-09-01,
+*"complete stage 0 and 1 autonomously"*); the battery on the delivered code is the evidence.
 
 ### STAGE 2 — the reminder (⚠ GATED on the vetting walk — nothing built before it)
 

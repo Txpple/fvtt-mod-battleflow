@@ -249,6 +249,22 @@ Two consequences worth stating, because both have already bitten:
   target and piled up on the sheet, hiding whichever one was live. The sweep runs at apply
   time, on the actor being chipped.
 
+**⚠ THE PLATFORM KEEPS THE CLOCK; THE MODULE KEEPS ITS WORD (2026-09-01, HANDOFF R-C).** A
+combat chip's duration is not a number this module counts down — it is the RULES TEXT written
+once as Foundry v14 expiry data: `{value: 1, units: "rounds", expiry: "turnStart"}` for *"until
+the start of your next turn"* (Sap, Slow), `expiry: "turnEnd"` for *"before the end of your next
+turn"* (Vex), and `{value: 0, units: "turns", expiry: "turnEnd"}` for the once-per-turn Cleave
+chit — each with `start` pinned to the **attacker's own combatant**, because the platform judges
+the event against whoever `start` names and its own stamp is merely whoever's turn it is. Foundry
+marks the chip expired on the exact boundary, on the GM client; the module deletes what Foundry
+marked, and sweeps its chips when a combat is deleted. **Nothing in this module counts turns, and
+nothing may start to.** Two things are the module's, because they are events rather than time:
+the attack roll that SPENDS Vex or Sap (the rules spend them claimed or not; the spend is a
+receipt on the attack card, written before the chip goes), and the chit that makes Cleave's
+*"once per turn"* a document rather than a memory. ⚠ **Out of combat there is no clock at all** —
+the only tick is world time, which moves only when the GM advances it — so an out-of-combat chip
+lives until the spend closes it, and that is the rule, not a gap.
+
 **⚠ PRONE IS THE NAMED EXCEPTION, AND IT STAYS PASSIVE (user call, 2026-09-01).** It is pressed
 as a status with no duration, so it sits in Passive — and that is correct rather than tolerated.
 5e gives Prone no window: it lasts until the creature spends half its movement to stand. Making
@@ -299,6 +315,6 @@ was written to prevent.
 | **Tactical Mind's refund** | **STAYS UNMODELLED.** The refund is conditional on the check FAILING, and **no DC exists for an ability check anywhere in dnd5e**. A manual *"Refund"* button was offered and **declined**. | dnd5e recording a DC for raw checks |
 | **Widening Heroic Inspiration** to *"any die"* or the transfer clause | **NOT SHIPPING.** Widening to any-die/any-outcome triggers §11 rule 4's auto-revert obligation, and nothing ships that can do it yet. | building the revert machinery first, deliberately |
 | **The `smoke-battleflow` flake** | ✅ **CLOSED 2026-08-24 — a real revert bug** (reverting a KILL restored the pool off-card; the lethal branch ran ~one run in eight). Fixed, and `smoke-battleflow` §4c is deterministic about it. | nothing. Closed, reproduced, fixed and pinned |
-| **Short-duration effect expiry** (mastery chips) | **BLOCKED ON A LARGER DECISION**: whether this module should own TURN-TIME at all. Building the sweeper first commits that answer by accident. | that decision being made, either way |
+| **Short-duration effect expiry** (mastery chips) | ✅ **CLOSED 2026-09-01 BY ITS OWN CONDITION — the decision was made, and the answer is that the question dissolves.** It was *blocked on whether this module should own TURN-TIME at all*; measured against Foundry 14.365's own client, **the platform already owns it**: every ActiveEffect carries `start.combatant` and a `duration.expiry` event, the registry refreshes on every turn and round boundary (GM-side) and judges the event against the ORIGINATING combatant. So the module never keeps a clock — it writes each chip's RAW window once (`decide/chips.js`), and owns only EVENTS: the attack roll that SPENDS Vex or Sap, the once-per-turn Cleave chit, and tidying what Foundry marked expired. See §5 *"the platform keeps the clock"* and HANDOFF Stage 1. | nothing. Closed — and a future pass that builds a module-side sweeper or turn counter is a REGRESSION, not a feature |
 | **A reaction-budget abstraction** | **REJECTED.** Action economy is not this module's job; every read of `reactionSpent` is an *offer gate*, never enforcement. | nothing. Closed. |
 | **Hand-carrying any counted number into prose** | **DON'T.** ⚠ **Quote the tool's output; never retype it.** | nothing. This is a standing rule. |

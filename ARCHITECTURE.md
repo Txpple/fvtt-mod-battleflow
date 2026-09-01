@@ -95,10 +95,10 @@ no no-GM degraded mode (DESIGN §4).
 
 | Where | Shape | Why there |
 | --- | --- | --- |
-| **Attack / usage message** | the moment flag (`hold`, `mastery`, `saves`, `precision`, `volley`, …) | The moment belongs to the thing that caused it |
+| **Attack / usage message** | the moment flag (`hold`, `mastery`, `saves`, `precision`, `volley`, …); `chipSpend` — the chips this attack roll used up | The moment belongs to the thing that caused it; a spent chip is explained on the roll that spent it (R5) |
 | **Damage message** | `receipt`, `effectReceipt` | The application belongs to the roll that caused it |
 | **Response message** | `respondsTo` + the answer | A player can only write their *own* message — this is the answer channel that needs no permission. See **the relay** below |
-| **Actor** | `reactionSpent`, `cleaveArm` | Per-creature, per-turn state |
+| **Actor** | `reactionSpent`, `cleaveArm`; the mastery chips (`Vexed`, `Sapped`, `Slowed`, `Cleave — this turn`) as ActiveEffects carrying `start` + `duration.expiry` | Per-creature, per-turn state. ⚠ A chip's clock is the PLATFORM's (v14 `duration.expiry`, judged against `start.combatant` — DESIGN §5); the module writes the window once and never counts turns |
 | **Applied effect** | provenance markers | Which module path created it, so revert knows |
 
 ### The four state laws
