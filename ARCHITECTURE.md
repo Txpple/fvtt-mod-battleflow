@@ -217,6 +217,10 @@ moment — carries two machine-readable fields so an external reader (the stats 
 `../fvtt-mcp-molten5e`) can fold the chat log into a per-combat ledger **without parsing HTML
 and without re-deriving context after the fact**:
 
+> ⚠ **The reader is SHIPPED (2026-09-01): `get-combat-stats` and `scripts/party-stats.mjs` in
+> the MCP repo consume this section as a wire format.** A change to any stamped shape below is
+> a breaking change to a live external consumer, not a refactor — coordinate, don't drift.
+
 - **`combat`** — `combatStamp()`'s `"combatId:round:turn"`, **null out of combat by contract**
   (reports group the null bucket as "out of combat"; they never drop it — short rests, traps
   and RP damage are real).
