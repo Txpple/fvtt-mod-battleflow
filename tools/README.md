@@ -61,6 +61,15 @@ their own message and the *continuing client* folds it) and D2's **cross-client 
 (the GM's buzzer resolves a hold and the player's popup vanishes without anyone touching its
 DOM). It connects the player itself; just do not be logged in as the player test account.
 
+⚠ **`smoke-nogm` is the one that connects NO GM AT ALL** (v1.27.0), and it is the only suite that
+can see the flow elect. Before v1.27.0 `isActiveGM()` was the sole gate on the payout chain, so a
+GM disconnect stopped Battle Flow dead with no chip, no card, no popup and **no error** — a failure
+the whole suite tree was structurally blind to, because the tree always had a GM. It drives a real
+Sap hit from the PLAYER's client and asserts the split: the reminder still posts, the monster is
+never written to, the driver is whispered what did not land, and a GM rejoining mid-flight re-pays
+nothing. Run it with the bridge disconnected and no GM window; it refuses if it finds an active GM,
+since a stray one silently turns it into a weaker copy of `smoke-effects`.
+
 ⚠ **One at a time is enforced now, not remembered.** Suites take a pid lockfile in `harness.mjs`:
 a second one refuses and names the first. The sole-GM preflight could never see this, because
 both suites join as the same user and it counts users, not sockets (NOTES §5).
@@ -96,6 +105,7 @@ ships, never from what the party owns (DESIGN N1). Re-run after adding content.
 | --- | --- |
 | `target.mjs` | **which instance a suite talks to** — one decision, one place. Every harness resolves through it and prints the target it chose. |
 | `verify-settings.mjs` | diffs the live world against the reference table it carries — **the single source for the user's configuration**. `--fix` restores drift. Run after every battery. |
+| `fixture-suite.mjs` | **builds the shared fixtures — run it first after every prod refresh.** The scene, the two goblins, the shielder and the player-owned PC attacker, all filed under a `Test Suite` folder. The fixtures are deleted from prod on purpose (they clutter the campaign), and `pull-prod-to-local.mjs` mirrors prod — so a refresh reproduces that deletion and every suite dies at its preflight. Idempotent; adopts strays into the folder. The d20-fold PCs are CLONES of Morgash (Fighter 5 Battle Master) and Salyth (Bard 8 — the level that makes the inspiration die the 1d8 the suite pins), with the fighter calibrated to the +5 attack bonus `smoke-d20-folds` states in its own band comment. Pair with `fixture-d20-folds.mjs`, which runs second. |
 | `reset-fixture-state.mjs` | shared fixtures back to a known state (conditions off, pools full). |
 | `reload-clients.mjs` | refresh every other connected client after a hot-deploy. |
 | `maintain-party.mjs` | strip temporary actor-level effects, on demand. |

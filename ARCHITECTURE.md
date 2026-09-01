@@ -117,6 +117,39 @@ no no-GM degraded mode (DESIGN §4).
 4. **Every write that changes the world stamps a receipt** carrying prior values, so revert is
    arithmetic and not guesswork (R5).
 
+### The flow elect — presentation runs without a GM, consequence does not (v1.27.0)
+
+`isActiveGM()` used to be the only gate on the payout chain, which made a GM disconnect stop
+Battle Flow **silently**: no chip, no card, no popup, and no error. The table read that as the
+module being flaky, because nothing ever said otherwise. **User ruling (2026-09-01): the popups
+all run without a GM; the effects that need GM permission simply do not apply; and whoever is
+driving is told which consequence was skipped.**
+
+The code splits along one line, and it is the line to keep:
+
+| | Without a GM | Why |
+| --- | --- | --- |
+| Cards, asks, popups, flag writes on the attacker's own message | **run** | a player may create messages and update their own |
+| Chips, conditions, HP, anything on the monster | **skipped + whispered** | a player has no write permission there |
+
+`flowElectFor(actor)` is the active GM, and with no GM the actor's own player — **actor-local
+on purpose**, because the chain's writes land on the attack message, which only its author may
+update; a room-wide "lowest active user" elect would hand the flow to someone with no permission
+to record it. `canApplyTo(actor)` guards each world-write, and `whisperNoGM()` names what did not
+land **and what still stands** (both in core.js).
+
+⚠ **One elect, never two.** With a GM connected `flowElectFor` returns exactly what
+`isActiveGM()` did, and the fallback only engages when `game.users.activeGM` is empty — it is the
+same question with the GM removed from the answer, not a second election running beside the
+first. This module's scars are all from two clients believing they own one moment (the twin-ask
+supersede in mastery.js), and `smoke-nogm` §rejoin exists to keep it that way: a GM reconnecting
+mid-flight must re-pay nothing.
+
+**Scope today: the mastery chain and the damage/effect-rider stages that share its gate.** The
+other machines (saves, concentration, hold) still gate on `isActiveGM()` — around 55 call sites
+across 13 files. Converting them is mechanical once a machine's writes are separated from its
+views, but it has not been done and should not be assumed.
+
 ### The relay — the answer channel, one shape
 
 A player cannot write someone else's message, so when the answerer is not the client that owns

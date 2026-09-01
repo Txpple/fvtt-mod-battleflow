@@ -29,6 +29,7 @@ export const S = {
   effectRiders: "effectRiders",
   masteryRiders: "masteryRiders",
   masteryAsk: "masteryAsk",
+  noticeTimer: "noticeTimer",
   maneuverFolds: "maneuverFolds",
   d20Folds: "d20Folds",
   d20FoldAsk: "d20FoldAsk",
@@ -62,6 +63,65 @@ export const isActiveGM = () => game.users.activeGM?.isSelf ?? false;
 export const rollerUserFor = actor => game.users
   .filter(u => u.active && !u.isGM && actor.testUserPermission(u, "OWNER"))
   .sort((a, b) => a.id.localeCompare(b.id))[0] ?? game.users.activeGM;
+
+/* --- THE FLOW ELECT: the machines keep running when the GM drops (v1.27.0, user call) --------
+ * `isActiveGM()` was the ONLY gate on the payout chain, so a GM disconnect stopped Battle Flow
+ * dead — no chip, no card, no popup, and **no error**. The table read that as the module being
+ * flaky; nobody was ever told the reason. The user's ruling: the popups all run WITHOUT a GM,
+ * the effects that need GM permission simply do not apply, and whoever is running the flow is
+ * TOLD which consequence was skipped.
+ *
+ * The split the code actually falls along is presentation vs consequence. A player client may
+ * create chat messages, write flags on their OWN attack message, and write flags on their own
+ * actor — so every card, ask and popup is reachable. It may NOT create an ActiveEffect on an
+ * unowned monster, toggle its Prone, or change its HP — so every consequence is not.
+ *
+ * ⚠ ONE elect, never two. This module has been bitten more than once by two clients both
+ * believing they own a moment (the twin-ask supersede in mastery.js is the scar), so the
+ * fallback is not a second election running beside the first: it is the SAME question with the
+ * GM removed from the answer. With a GM active this returns exactly what `isActiveGM()` did.
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * The client that drives world-visible flow FOR THIS ACTOR: the active GM, and with no GM
+ * connected the actor's own player (their swing, their client). Actor-local rather than a
+ * room-wide fallback on purpose — the chain's writes land on the ATTACK MESSAGE, which only
+ * its author may update, and its author is the attacker's player. A room-wide "lowest active
+ * user" elect would hand the flow to someone with no permission to record it.
+ *
+ * Returns undefined when nobody can drive (no GM, no active owner) — the correct no-op.
+ */
+export const flowElectFor = actor =>
+  game.users.activeGM ?? (actor ? rollerUserFor(actor) : undefined);
+
+/** Is THIS client the flow elect for that actor? Identical to `isActiveGM()` whenever a GM is on. */
+export const isFlowElectFor = actor => flowElectFor(actor)?.isSelf ?? false;
+
+/**
+ * May this client actually WRITE to that actor — apply an effect, press a condition, move HP?
+ * GMs own everything; a player owns their own sheet and nothing on the monster side. This is
+ * the guard that turns a silent permission failure into a spoken one.
+ */
+export const canApplyTo = actor => !!actor?.isOwner;
+
+/**
+ * Tell the flow's driver what did NOT happen, and what still stands. Whispered, because it is
+ * an operational notice about the room rather than a table moment — and self-addressed, so it
+ * never lands in front of players as an error. Best-effort: a notice that cannot be posted is
+ * never worth throwing over.
+ */
+export async function whisperNoGM(what, stands = null) {
+  try {
+    await ChatMessage.create({
+      whisper: [game.user.id],
+      speaker: { alias: TITLE },
+      content: `<p><strong>No GM is connected</strong>, so ${what} was not applied.`
+        + `${stands ? ` ${stands}` : ""}</p>`
+    });
+  } catch(err) {
+    console.warn(`${TITLE} | Could not post the no-GM notice.`, err);
+  }
+}
 
 /** Everyone who may answer for a held target: its owners, or the GM for unowned NPCs. */
 export function canAnswerFor(actor) {

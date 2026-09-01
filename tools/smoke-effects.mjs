@@ -61,7 +61,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
-  for (const key of ['effectRiders', 'masteryRiders', 'masteryAsk', 'castApply']) {
+  for (const key of ['effectRiders', 'masteryRiders', 'masteryAsk', 'noticeTimer', 'castApply']) {
     if (!game.settings.settings.has(`${MOD}.${key}`)) {
       return { fatal: `setting ${key} not registered — this client is running OLD code (F5)` };
     }
@@ -1017,7 +1017,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ---------------------------------------------------- 15. the reminders (vex / sap / cleave)
     // v1.5.0 user call: "the design is for people to know weapon masteries". The card is the
-    // durable record (flag masteryNotice, 15s window); the popup is a per-client view of it
+    // durable record (flag masteryNotice, windowed by S.noticeTimer); the popup is a per-client view of it
     // and is not asserted here — popup discipline is the managed-popup machinery's, already
     // proven by the ask and the concentration suite.
     if (want(15)) {
@@ -1033,19 +1033,32 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       let msgs15 = fresh14(before15);
       const vexNotice = msgs15.find(m => m.getFlag(MOD, 'masteryNotice')?.key === 'vex');
       const vexChip = victim.effects.find(e => e.getFlag(MOD, 'mastery') === 'vex');
-      ok('15a. vex pays AND reminds: the chip and a notice card with the 15s window',
-        !!vexChip && !!vexNotice && (vexNotice.getFlag(MOD, 'masteryNotice').window === 15)
-          && vexNotice.content.includes('Weapon Mastery'),
-        `chip=${!!vexChip} notice=${!!vexNotice}`);
-      // The pairing rule (v1.10.0): the popup's 15s drain runs on the CARD too — asserted at
+      // ⚠ THIS ASSERTION PINNED THE BUG IT WAS MEANT TO GUARD (fixed 2026-09-01). It hard-coded
+      // 15, so the reminder's stale constant was not merely unnoticed — the suite went green
+      // BECAUSE of it, every run, while live play lost the window to it. Read the SETTING: the
+      // contract is "the card's window is the configured one", not "the window is 15".
+      const noticeWindow = game.settings.get(MOD, 'noticeTimer');
+      // 0 is the STICKY setting — no window is stamped at all, so the reminder never expires
+      // and the card draws no bar. Asserting `window === 0` there would demand a field the
+      // contract deliberately omits, so the two cases are checked as the two shapes they are.
+      const gotWindow = vexNotice?.getFlag(MOD, 'masteryNotice')?.window;
+      const windowOk = noticeWindow ? (gotWindow === noticeWindow) : (gotWindow === undefined);
+      ok(`15a. vex pays AND reminds: the chip and a notice card on the configured ${noticeWindow || 'sticky'} window`,
+        !!vexChip && !!vexNotice && windowOk && vexNotice.content.includes('Weapon Mastery'),
+        `chip=${!!vexChip} notice=${!!vexNotice} window=${gotWindow} want=${noticeWindow || 'none (sticky)'}`);
+      // The pairing rule (v1.10.0): the popup's drain runs on the CARD too — asserted at
       // the DOM by the bar node the drain animates on, while the window is still open.
       let noticeBar = null;
       await until14(() => {
         noticeBar = document.querySelector(`.message[data-message-id="${vexNotice?.id}"] [data-bf-deadline]`);
         return !!noticeBar;
       }, 4000);
-      ok('15a2. the reminder card runs the 15s bar (the pairing rule at the DOM)',
-        !!noticeBar, 'no [data-bf-deadline] node in the rendered notice card');
+      // A sticky reminder has no clock, so there is correctly no bar to find — the pairing
+      // rule binds the bar to the WINDOW, not to the card.
+      ok(`15a2. the reminder card ${noticeWindow ? 'runs the drain bar' : 'draws no bar when sticky'} (the pairing rule at the DOM)`,
+        noticeWindow ? !!noticeBar : !noticeBar,
+        noticeWindow ? 'no [data-bf-deadline] node in the rendered notice card'
+          : 'a [data-bf-deadline] node appeared on a windowless notice');
       const dmg15 = msgs15.find(m => m.getFlag(MOD, 'effectReceipt')?.targets?.length);
       ok('15b. the mastery receipt entry carries the effect description (the tooltip)',
         !!dmg15?.getFlag(MOD, 'effectReceipt')?.targets?.[0]?.effects?.[0]?.description,

@@ -200,6 +200,20 @@ Hooks.once("init", () => {
     choices: { ask: "Ask the attacker", auto: "Take them automatically" }
   });
 
+  // ⚠ THE CLOCK THE 2026-08-27 SWEEP COULD NOT REACH. The Vex/Sap/Cleave reminder ran on a
+  // 15-second constant hardcoded in mastery.js — the last survivor of the superseded
+  // 2026-08-17 era. "Every timer is 24s" was a pass over THIS FILE, and a window that was
+  // never a setting was never in the pass's reach; it outlived the decision by six weeks and
+  // was found from live play (Thomas's average decision time is 17.7s, Gren's 19.4s — the
+  // window sat under both, so the reminder was unwinnable by design for the whole table).
+  // A visible clock earns the family's own knob (the damageTimer precedent).
+  game.settings.register(MODULE_ID, S.noticeTimer, {
+    name: "Reminder Timer Seconds",
+    hint: "How long a weapon-mastery reminder (Vex, Sap, Cleave) stays up before it dismisses itself. 0 stays until dismissed. Expiry is a NON-EVENT for Vex and Sap — the chip is already applied and the card keeps the record either way — but Cleave's reminder carries a real choice (Arm the Cleave), so the window has to be one a human can win.",
+    scope: "world", config: true, type: Number, default: 24,
+    range: { min: 0, max: 60, step: 1 }
+  });
+
   game.settings.register(MODULE_ID, S.maneuverFolds, {
     name: "Maneuver Folds",
     hint: 'Post-roll maneuver folds, as "Name:kind" separated by commas. kind is "precision" (your own attack misses — the maneuver\'s die is offered, patches the total, and a hit that emerges is resolved like any other), "riposte" (an enemy\'s melee attack misses you — the reaction is offered, a real attack rolls inside the fold, and the maneuver\'s die joins its damage), "interpose" (you SAVE against a Dexterity half-damage effect holding a shield — the Reaction is offered and turns half into none), "bash" (your own listed save demand FAILS — choose the Prone press or the announced 5-foot push), or "hew" (a crit or a kill with a melee weapon — a reminder card only, nothing automated). Names must match the item on the actor; dice and costs are read from the item, never typed here. An empty list turns every fold off. Unknown kinds are ignored, never guessed.',
@@ -360,7 +374,8 @@ Hooks.on("renderSettingsConfig", (app, element) => {
       setEnabled(input(key), !!hold?.checked);
     for ( const key of [S.riderList, S.riderUpgrades] )
       setEnabled(input(key), !!riders?.checked);
-    setEnabled(input(S.masteryAsk), !!mastery?.checked);
+    for ( const key of [S.masteryAsk, S.noticeTimer] )
+      setEnabled(input(key), !!mastery?.checked);
     for ( const key of [S.concTimer, S.concBreak, S.concVisibility] )
       setEnabled(input(key), conc?.value !== "off");
     setEnabled(input(S.saveTimer), !!saves?.checked);

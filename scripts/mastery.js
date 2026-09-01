@@ -2,8 +2,8 @@
  * Battle Flow — Phase 1.9B/C: weapon mastery riders, the mastery ask, the topple fold and its popup, and the reminders.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
-  canAnswerFor, inRunningCombat, combatStamp, statContext } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, isFlowElectFor, canApplyTo, whisperNoGM,
+  queueFlagWrite, canAnswerFor, inRunningCombat, combatStamp, statContext } from "./core.js";
 import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { MASTERY_KINDS, MASTERY_NATIVE } from "./decide/registry.js";
 import { hitTargets, modeAllows, rollConfigFor } from "./shared.js";
@@ -187,10 +187,24 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits) {
 // it hangs on the attack message itself. It deliberately reads only the attack AS ROLLED —
 // a Shield later flipping someone's hit to a miss does not re-open Graze for them (corner
 // acknowledged in PLAN.md; nobody has asked for it).
+/** Does this client drive a mastery moment belonging to `attacker`? GM as always; the
+ * attacker's own player when no GM is connected (v1.27.0 — core.js "THE FLOW ELECT"). */
+const drivesMastery = attacker => isActiveGM()
+  || (!game.users.activeGM && isFlowElectFor(attacker));
+
+/** The same question from a message whose mastery flag names its attacker. */
+const drivesMasteryFlag = flag => {
+  if ( isActiveGM() ) return true;
+  if ( game.users.activeGM ) return false;
+  const attacker = (() => { try { return fromUuidSync(flag?.attackerUuid); } catch { return null; } })();
+  return !!attacker && isFlowElectFor(attacker);
+};
+
 Hooks.on("createChatMessage", message => {
-  if ( !setting(S.masteryRiders) || !isActiveGM() ) return;
+  if ( !setting(S.masteryRiders) ) return;
   if ( message.getFlag("dnd5e", "roll.type") !== "attack" ) return;
   if ( message.getFlag("dnd5e", "roll.mastery") !== "graze" ) return;
+  if ( !drivesMastery(masteryContext(message)?.attacker) ) return;
   void resolveMissMastery(message);
 });
 
@@ -254,6 +268,17 @@ async function executeMasteryPayout(key, attackMessage, damageMessage, ctx, targ
 async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
   const def = MASTERY_EFFECTS[key];
   if ( !def ) return;
+  // ⚠ THE CHIP IS A WRITE TO THE MONSTER, and with no GM connected this client cannot make it
+  // (v1.27.0). The REMINDER still posts — for Vex and Sap that is very nearly the whole
+  // feature, since the module never modifies a d20 (THE FENCE) and the chip is itself only a
+  // reminder — so the payout degrades to its card rather than vanishing.
+  const blocked = targets.filter(t => {
+    try { return !canApplyTo(t.actor ?? fromUuidSync(t.uuid)); } catch { return true; }
+  });
+  if ( blocked.length === targets.length ) {
+    return whisperNoGM(`the ${masteryLabel(key)} chip on ${blocked.map(t => t.name).join(", ")}`,
+      "The reminder card still stands, and the rule is honoured in the roll dialog either way.");
+  }
   const inCombat = inRunningCombat(ctx.attacker);
   // ⚠ THE READ MOVED BELOW THE AWAITS (D3, 2026-08-22) — the same fix effect-riders.js got.
   // This used to clone the flag HERE and merge into that copy after a per-target loop full of
@@ -340,9 +365,9 @@ async function toppleCard(ctx, targets, sourceMessage = null) {
  * Deterministic on every client (timestamp, then id), idempotent (a twin already deleted is
  * a caught no-op). The elder keeps the popups, the timer and the verdict. */
 Hooks.on("createChatMessage", message => {
-  if ( !isActiveGM() ) return;
   const flag = message.getFlag(MODULE_ID, "topple");
   if ( !flag?.sourceMessageId ) return;
+  if ( !drivesMasteryFlag(flag) ) return;
   const elder = game.messages.contents.some(m => {
     if ( m.id === message.id ) return false;
     if ( m.getFlag(MODULE_ID, "topple")?.sourceMessageId !== flag.sourceMessageId ) return false;
@@ -426,7 +451,7 @@ const toppleTimers = new Map();
 
 function armToppleTimer(message) {
   const flag = message?.getFlag(MODULE_ID, "topple");
-  if ( !flag?.deadline || !isActiveGM() ) return;
+  if ( !flag?.deadline || !drivesMasteryFlag(flag) ) return;
   if ( !(flag.targets ?? []).some(t => !t.done) ) return;
   armDeadline(toppleTimers, message.id, flag.deadline, fireToppleTimer);
 }
@@ -482,8 +507,10 @@ async function fireToppleTimer(messageId) {
  * flag and are skipped — their GM buttons still work.
  */
 Hooks.on("createChatMessage", message => {
-  if ( !isActiveGM() ) return;
   if ( message.getFlag("dnd5e", "roll.type") !== "save" ) return;
+  // The FOLD is a judgement plus a flag write on the card — reachable without a GM. Its
+  // consequence (the Prone press) guards itself in applyToppleFailure.
+  if ( !isActiveGM() && game.users.activeGM ) return;
   void foldToppleSave(message);
 });
 
@@ -500,6 +527,15 @@ async function applyToppleFailure(card, uuid) {
   const entry = flag?.targets?.find(t => t.uuid === uuid);
   if ( !entry || (entry.outcome !== "prone") || entry.applied ) return;
   const actor = (() => { try { return fromUuidSync(uuid); } catch { return null; } })();
+  // ⚠ THE PRONE PRESS IS THE GM-ONLY HALF (v1.27.0). With no GM connected the save still
+  // rolled and the card still judged it — the verdict is real and public — but nothing here
+  // can touch the monster's conditions. This is the exact case the user named: tell the
+  // driver what did not land, and leave the verdict standing.
+  if ( (actor instanceof Actor) && !canApplyTo(actor) ) {
+    await whisperNoGM(`Topple's Prone on ${entry.name}`,
+      `The save failed (${entry.total ?? "?"} vs DC ${flag.dc}) and the card says so — set Prone by hand.`);
+    return;
+  }
   // The chip names its source (v1.11.0, finding ⑤) — pre-v1.11.0 cards carry no
   // attackerUuid and press sourceless, exactly as before.
   if ( actor instanceof Actor ) await forceStatus(actor, "prone", { origin: flag.attackerUuid ?? null });
@@ -638,6 +674,16 @@ async function pushCard(ctx, targets) {
 async function grazePayout(attackMessage, ctx, targets) {
   const mod = ctx.attacker.system.abilities?.[ctx.ability]?.mod ?? 0;
   if ( mod <= 0 ) return;
+  // Graze's payout IS damage on the target, so with no GM there is nothing left to degrade to —
+  // unlike Vex/Sap, whose card carries the value. Say so rather than paying nothing in silence.
+  const writable = targets.filter(t => {
+    try { return canApplyTo(fromUuidSync(t.uuid)); } catch { return false; }
+  });
+  if ( !writable.length ) {
+    return whisperNoGM(`Graze's ${mod} damage to ${targets.map(t => t.name).join(", ")}`,
+      "Apply it by hand — the miss still pays under the rule.");
+  }
+  targets = writable;
   const type = [...(ctx.weapon.system.damage?.base?.types ?? [])][0] ?? "";
   await applyDamagesWithReceipt(attackMessage, targets, [{
     value: mod, type, properties: new Set(ctx.weapon.system.properties ?? [])
@@ -685,6 +731,9 @@ async function postMasteryNotice(ctx, key, targets) {
   const names = targets.map(t => t.name).join(", ");
   const { title, lines } = NOTICE_TEXT[key](ctx, names);
   const subtitle = `${ctx.attacker.name} — ${ctx.weapon.name}`;
+  // The reminder's own knob, on the ask's spread idiom: 0 stamps no window at all, and both
+  // the bar and the auto-close read a missing window as "stays until dismissed".
+  const window = Math.max(0, Number(setting(S.noticeTimer)) || 0);
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: ctx.attacker }),
     content: bfCard({
@@ -697,14 +746,15 @@ async function postMasteryNotice(ctx, key, targets) {
       // name is not an identity (two daggers). Older cards without it arm nothing, harmlessly.
       weapon: { id: ctx.weapon.id, name: ctx.weapon.name, img: ctx.weapon.img },
       title, subtitle, lines,
-      deadline: Date.now() + 15000, window: 15
+      ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
     } } }
   });
 }
 
 /**
- * The reminder popup: an informational table moment — ONE control (OK) and a 15-second
- * auto-dismiss with the drain bar, because dismissal and expiry are the same non-event and
+ * The reminder popup: an informational table moment — ONE control (OK) and an auto-dismiss
+ * on the reminder's own clock (S.noticeTimer, 0 = stays until dismissed) with the drain bar,
+ * because dismissal and expiry are the same non-event and
  * nothing downstream waits. Deliberately NOT a decision: the two-control rule governs
  * decisions, and a reminder has nothing to decide (ARCHITECTURE.md §6). Stale renders
  * never pop — the deadline gates the popup, while the card stays as the record.
@@ -894,7 +944,7 @@ Hooks.on("updateChatMessage", message => {
   if ( m ) {
     const dialog = livePopups.get(popupKey(message.id, "mastery"));
     if ( dialog && ((m.status !== "pending") || m.answer) ) void dialog.close();
-    if ( isActiveGM() && (m.status === "pending") && m.answer ) void executeMasteryAnswer(message);
+    if ( drivesMasteryFlag(m) && (m.status === "pending") && m.answer ) void executeMasteryAnswer(message);
   }
 
   // A durably-acknowledged notice closes its popup wherever it lives (the ACK, law 2) —
@@ -978,7 +1028,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       // Resume an ask that answered while nobody could execute: the elect reloaded (or came
       // up later) between the answer flag landing and the payout. Same stateless-view
       // discipline as the hold's resume check; executeMasteryAnswer is claim-first.
-      if ( m.answer && isActiveGM() ) void executeMasteryAnswer(message);
+      if ( m.answer && drivesMasteryFlag(m) ) void executeMasteryAnswer(message);
       const attacker = (() => { try { return fromUuidSync(m.attackerUuid); } catch { return null; } })();
       if ( canAnswerFor(attacker) && !m.answer ) {
         // ONE input surface: the popup decides, the card recalls a dismissed popup.
@@ -1004,7 +1054,11 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     // and recall all gate here. The pairing rule (v1.10.0) is otherwise unchanged: while
     // the popup's drain runs for its owner, the SAME bar runs on the card for the table,
     // and momentBarHTML returns "" once the moment has passed — stateless, every client.
-    const live = (notice.deadline > Date.now()) && !momentAcknowledged(message, "masteryNotice");
+    // ⚠ A WINDOWLESS notice (noticeTimer 0) is live until it is acknowledged — it never
+    // expires, so there is no deadline to be past. Testing the deadline alone read `undefined
+    // > now` as false and would have made "0 = stays until dismissed" mean "never appears".
+    const live = (!notice.deadline || (notice.deadline > Date.now()))
+      && !momentAcknowledged(message, "masteryNotice");
     if ( live ) {
       const bar = document.createElement("div");
       bar.innerHTML = momentBarHTML(notice, "reminder");
@@ -1071,7 +1125,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     for ( const t of topple.targets ) {
       // Crash-resume: a folded failure whose press and announcement died with their client —
       // done+prone, unapplied, stale past any live pause. Elect-driven, new-era stamps only.
-      if ( (t.outcome === "prone") && t.answeredAt && !t.applied && isActiveGM()
+      if ( (t.outcome === "prone") && t.answeredAt && !t.applied && drivesMasteryFlag(topple)
         && (Date.now() - t.answeredAt > 20_000) ) void applyToppleFailure(message, t.uuid);
       if ( t.done ) continue;
       const actor = (() => { try { return fromUuidSync(t.uuid); } catch { return null; } })();

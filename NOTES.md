@@ -503,9 +503,20 @@ because that is the only place the defect was ever visible.
 
 ### Testing against the live sandbox
 
-The sandbox is a byte copy of prod — same world id, same users, same fixtures — which is
+The sandbox is a byte copy of prod — same world id, same users — which is
 exactly why a suite pointed at the wrong instance is easy to miss and expensive. Every harness
 resolves its target in one place and prints the target it chose.
+
+**⚠ NOT the same FIXTURES, and this line used to claim otherwise (corrected 2026-09-01).** The
+`BF Test` actors and their scene are deleted from PROD on purpose — they clutter the campaign's
+actor list — so they exist in the sandbox alone. `pull-prod-to-local.mjs` MIRRORS prod, and a
+mirror faithfully reproduces a deletion: **every refresh wipes the fixtures**, and every suite
+then dies at its preflight with "missing fixture: scene or BF Test actors". Run
+`tools/fixture-suite.mjs` first after any refresh — it rebuilds them all, filed under a
+`Test Suite` folder so they stay cheap to keep. The same trap in a subtler form is recorded at
+`smoke-battleflow.mjs:842`: a mirror once deleted BF Test PC Attacker's player OWNERSHIP along
+with the actor, and two suites failed for a reason that looked nothing like the cause. **The
+world is disposable, so everything a suite needs must live in a fixture step.**
 
 **⚠ THE SANDBOX CAN BE STOPPED BY WINDOWS, WITH NOTHING HERE CHANGED (2026-08-28).** The
 headless server died at launch on `An Application Control policy has blocked this file` —

@@ -1,0 +1,295 @@
+// NO-GM SMOKE — the flow keeps running when nobody is behind the screen (v1.27.0, user call).
+//
+// ⚠ THE ONLY SUITE IN THE TREE THAT CONNECTS **NO GM AT ALL**. Every other harness opens a
+// GM session and asserts through it, which structurally cannot see the behaviour under test
+// here: before v1.27.0 `isActiveGM()` was the sole gate on the payout chain, so a GM
+// disconnect stopped Battle Flow dead — no chip, no card, no popup, and no error. The table
+// read that as the module being flaky, because nothing ever said otherwise. That failure was
+// invisible to the whole suite tree by construction: the tree always had a GM.
+//
+// The contract this asserts, in the user's words: "the popups all can run without a GM, and
+// should, so the battleflow is always running. If there is no GM, then they simply do not
+// apply effects like prone on the monster" — and whoever is driving is TOLD.
+//
+//   §runs    the reminder card and its flag still post with nobody behind the screen
+//   §chip    …and the monster is NOT written to — no Sapped chip appears
+//   §told    …and the driver gets a whisper naming what did not land
+//   §rejoin  a GM reconnecting does not re-pay a payout the player already drove
+//
+// ⚠ RUN IT WITH THE BRIDGE DISCONNECTED AND NO GM WINDOW OPEN. The suite refuses to run if it
+// finds an active GM — the whole point is their absence, and a stray GM silently converts this
+// into a re-run of smoke-effects that passes for the wrong reason.
+//
+// Run:  node tools/smoke-nogm.mjs [--section runs,chip,told,rejoin] [--list]
+import { announcePlan, disposeSafely, loadEnv, report, sectionPlan } from './harness.mjs';
+import { playerConfig, foundryConfig } from './target.mjs';
+import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+
+const MOD = 'fvtt-mod-battleflow';
+const SECTIONS = {
+  runs: 'the mastery reminder still posts with no GM connected',
+  chip: 'the monster is never written to — no chip lands',
+  told: 'the driver is told what did not apply',
+  rejoin: 'a GM rejoining does not re-pay what the player already drove'
+};
+const { plan, pulled } = sectionPlan(SECTIONS, {});
+const want = id => !plan || plan.includes(String(id));
+const env = loadEnv();
+
+const out = { results: [], log: [], skips: [] };
+const ok = (name, pass, detail = '') => out.results.push({ name, pass, detail });
+
+console.log('[nogm] player connecting (no GM session is opened by this suite)…');
+const player = new Foundry(playerConfig(env));
+await player.connect();
+announcePlan('nogm', plan, pulled);
+
+let gm = null;
+try {
+  // ---------------------------------------------------------------- preflight: truly no GM
+  const pre = await player.evaluate(async modId => {
+    const mod = game.modules.get(modId);
+    return {
+      ready: game.ready,
+      me: game.user.name,
+      isGM: game.user.isGM,
+      activeGM: game.users.activeGM?.name ?? null,
+      moduleActive: !!mod?.active,
+      hasFlowSetting: game.settings.settings.has(`${modId}.noticeTimer`),
+      masteryRiders: game.settings.get(modId, 'masteryRiders'),
+      pc: game.actors.getName('BF Test PC Attacker')?.id ?? null,
+      victim: game.actors.getName('BF Test Victim')?.id ?? null
+    };
+  }, MOD);
+  console.log(`[nogm] connected as "${pre.me}" (isGM=${pre.isGM}); activeGM=${pre.activeGM ?? 'none'}`);
+  if (pre.activeGM) {
+    console.error(`[nogm] FATAL: a GM ("${pre.activeGM}") is connected — disconnect the bridge and`
+      + ' close any GM window. This suite exists to test their ABSENCE.');
+    process.exit(1);
+  }
+  if (pre.isGM) { console.error('[nogm] FATAL: the test user is GM-capable.'); process.exit(1); }
+  if (!pre.moduleActive) { console.error('[nogm] FATAL: the module is not active.'); process.exit(1); }
+  if (!pre.hasFlowSetting) {
+    console.error('[nogm] FATAL: this client is running OLD code (noticeTimer unregistered) — F5.');
+    process.exit(1);
+  }
+  if (!pre.pc || !pre.victim) {
+    console.error('[nogm] FATAL: missing fixture — run tools/fixture-suite.mjs first.');
+    process.exit(1);
+  }
+  if (!pre.masteryRiders) { console.error('[nogm] FATAL: masteryRiders is off.'); process.exit(1); }
+
+  // ------------------------------------------------------------------------ drive one hit
+  // ⚠ EVERYTHING HERE RUNS ON THE PLAYER'S CLIENT, including the fixture prep — which is the
+  // point. A player may grant an item to the actor they OWN and may roll their own attack;
+  // they may not touch the monster. If any of this needed the GM the suite would be lying.
+  const hit = await player.evaluate(async modId => {
+    const log = [];
+    const pc = game.actors.getName('BF Test PC Attacker');
+    const victim = game.actors.getName('BF Test Victim');
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const until = async (fn, ms = 12_000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(200); }
+      return fn();
+    };
+
+    // A weapon with a mastery, on the actor the player owns. Found by SHAPE from the packs —
+    // the smoke-effects idiom, because names and pack ids shift and the shape is the need.
+    let weapon = pc.items.find(i => (i.type === 'weapon') && i.system.mastery
+      && i.system.type?.baseItem && i.system.activities?.some?.(a => a.type === 'attack'));
+    let madeWeapon = null;
+    if (!weapon) {
+      for (const pack of game.packs) {
+        if (pack.documentName !== 'Item') continue;
+        if (pack.metadata.id.startsWith('JB2A')) continue;
+        let index;
+        try { index = await pack.getIndex({ fields: ['type', 'system.mastery', 'system.type.baseItem'] }); }
+        catch { continue; }
+        for (const entry of index) {
+          if ((entry.type !== 'weapon') || !entry.system?.mastery || !entry.system?.type?.baseItem) continue;
+          const doc = await pack.getDocument(entry._id);
+          if (!doc.system.activities?.some?.(a => a.type === 'attack')) continue;
+          [weapon] = await pc.createEmbeddedDocuments('Item', [doc.toObject()]);
+          madeWeapon = weapon.id;
+          log.push(`granted ${weapon.name} to the PC (player-side create)`);
+          break;
+        }
+        if (weapon) break;
+      }
+    }
+    if (!weapon) return { error: 'no mastery weapon available in any pack' };
+    // Sap: the purest case — it pays on the HIT alone with no damage gate, and its whole
+    // enforcement is the reminder, so the no-GM degradation should cost almost nothing.
+    if (weapon.system.mastery !== 'sap') await weapon.update({ 'system.mastery': 'sap' });
+    if (!pc.system.traits?.weaponProf?.mastery?.value?.has?.(weapon.system.type.baseItem)) {
+      await pc.update({ [`system.traits.weaponProf.mastery.value`]:
+        [...(pc.system.traits?.weaponProf?.mastery?.value ?? []), weapon.system.type.baseItem] });
+      log.push(`granted the ${weapon.system.type.baseItem} mastery trait`);
+    }
+
+    // The victim's token, targeted, with its AC pinned low so the swing lands. ⚠ The AC write
+    // is on the MONSTER and the player cannot make it — so instead of pinning AC the attack
+    // rolls with advantage and retries, exactly as a real player would have to.
+    const scene = game.scenes.getName('Battle Flow Test Range');
+    if (canvas.scene?.id !== scene.id) await scene.view();
+    await until(() => canvas.ready, 20_000);
+    const tokenDoc = scene.tokens.find(t => t.actorId === victim.id);
+    const token = canvas.tokens.get(tokenDoc.id);
+    token.setTarget(true, { releaseOthers: true });
+
+    const activity = weapon.system.activities.find(a => a.type === 'attack');
+    const before = new Set(game.messages.contents.map(m => m.id));
+    const chipsBefore = (canvas.tokens.get(tokenDoc.id).actor.effects ?? [])
+      .filter(e => e.getFlag(modId, 'mastery') === 'sap').length;
+
+    let attackMsg = null;
+    let hitLanded = false;
+    for (let tryN = 0; tryN < 8 && !hitLanded; tryN++) {
+      const use = await activity.use({ subsequentActions: false }, { configure: false }, {});
+      const usageId = use?.message?.id ?? null;
+      const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
+        { data: { 'flags.dnd5e.originatingMessage': usageId } });
+      attackMsg = rolls?.[0]?.parent ?? null;
+      // hitTargets is the module's own reading; from here just ask the card.
+      const targets = attackMsg?.getFlag('dnd5e', 'targets') ?? [];
+      const total = rolls?.[0]?.total ?? 0;
+      hitLanded = targets.some(t => total >= (t.ac ?? 99));
+      if (!hitLanded) await sleep(250);
+    }
+    if (!hitLanded) return { error: 'could not land a hit in 8 attempts', madeWeapon };
+
+    // Damage, so the payout chain runs its full length.
+    const dmg = activity.damage ? await activity.rollDamage({}, { configure: false },
+      { data: { 'flags.dnd5e.originatingMessage': attackMsg.id } }).catch(() => null) : null;
+
+    // Wait for what the assertions read: the notice card.
+    const notice = await until(() => game.messages.contents
+      .filter(m => !before.has(m.id))
+      .find(m => m.getFlag(modId, 'masteryNotice')?.key === 'sap') ?? null, 15_000);
+
+    // ⚠ EVERY no-GM whisper, not the first one. This swing produces more than one — the damage
+    // stage speaks for the target it could not touch, and the mastery stage speaks for the chip
+    // — and an assertion that grabbed whichever landed first tested nothing about Sap.
+    await until(() => game.messages.contents.filter(m => !before.has(m.id))
+      .some(m => (m.whisper ?? []).includes(game.user.id)
+        && /no gm is connected/i.test(m.content ?? '')), 8_000);
+    const whispers = game.messages.contents
+      .filter(m => !before.has(m.id) && (m.whisper ?? []).includes(game.user.id)
+        && /no gm is connected/i.test(m.content ?? ''))
+      .map(m => (m.content ?? '').replace(/<[^>]+>/g, '').trim());
+
+    const liveVictim = canvas.tokens.get(tokenDoc.id).actor;
+    const chipsAfter = (liveVictim.effects ?? [])
+      .filter(e => e.getFlag(modId, 'mastery') === 'sap').length;
+
+    // ⚠ Scoped to THIS RUN. Counting sap notices across the whole log folds in every earlier
+    // suite's leftovers, and the retry loop above can land more than one hit before it stops —
+    // so the rejoin assertion compares this number against itself after the GM arrives rather
+    // than against 1. The property is "the rejoin ADDS none", not "there is exactly one".
+    const sapNotices = game.messages.contents
+      .filter(m => !before.has(m.id) && (m.getFlag(modId, 'masteryNotice')?.key === 'sap')).length;
+
+    return {
+      log, madeWeapon, sapNotices,
+      beforeIds: [...before],
+      attackId: attackMsg?.id ?? null,
+      damageId: dmg?.[0]?.parent?.id ?? null,
+      noticeId: notice?.id ?? null,
+      noticeKey: notice?.getFlag(modId, 'masteryNotice')?.key ?? null,
+      noticeWindow: notice?.getFlag(modId, 'masteryNotice')?.window ?? null,
+      whispers, chipsBefore, chipsAfter
+    };
+  }, MOD);
+
+  if (hit.error) { console.error(`[nogm] FATAL: ${hit.error}`); process.exit(1); }
+  out.log.push(...(hit.log ?? []));
+
+  if (want('runs')) {
+    ok('§runs the Sap reminder card posts with nobody behind the screen',
+      !!hit.noticeId && (hit.noticeKey === 'sap'),
+      `notice=${hit.noticeId} key=${hit.noticeKey}`);
+    ok('§runs …carrying its window, so the card runs the same clock it always did',
+      hit.noticeWindow === 24, `window=${hit.noticeWindow}`);
+  }
+
+  if (want('chip')) {
+    // ⚠ THE HALF THAT MUST **NOT** HAPPEN. A player client has no permission to write the
+    // monster, and the fix must skip that write rather than attempt it and throw.
+    ok('§chip the monster is never written to — no Sapped chip appears',
+      hit.chipsAfter === hit.chipsBefore,
+      `chips before=${hit.chipsBefore} after=${hit.chipsAfter}`);
+  }
+
+  if (want('told')) {
+    const sapWhisper = (hit.whispers ?? []).find(w => /sap/i.test(w));
+    ok('§told the driver is whispered that the Sap chip did not apply',
+      !!sapWhisper, (hit.whispers ?? []).join(' | ') || 'no no-GM whisper at all');
+    ok('§told …and the whisper says what still STANDS, not just what failed',
+      !!sapWhisper && /still stands|roll dialog|by hand|card/i.test(sapWhisper),
+      sapWhisper ?? 'no Sap whisper');
+    ok('§told the blocked damage is spoken for too — one notice per consequence',
+      (hit.whispers ?? []).some(w => /damage/i.test(w)),
+      (hit.whispers ?? []).join(' | ') || 'none');
+  }
+
+  // ------------------------------------------------------- §rejoin: the GM comes back
+  if (want('rejoin')) {
+    console.log('[nogm] GM joining to test the rejoin case…');
+    gm = new Foundry(foundryConfig(env));
+    await gm.connect();
+    // Give the GM's client time to render the log and run every resume path it owns.
+    await new Promise(r => setTimeout(r, 6000));
+    const after = await gm.evaluate(async ({ modId, noticeId, beforeIds }) => {
+      const before = new Set(beforeIds);
+      const notice = game.messages.get(noticeId);
+      const notices = game.messages.contents
+        .filter(m => !before.has(m.id) && (m.getFlag(modId, 'masteryNotice')?.key === 'sap')).length;
+      // The chip is the other half of the double-payout question: a GM whose resume paths
+      // re-ran the payout would land the Sapped chip late, after the moment had passed.
+      const victim = game.actors.getName('BF Test Victim');
+      const scene = game.scenes.getName('Battle Flow Test Range');
+      const tok = scene?.tokens.find(t => t.actorId === victim?.id);
+      const chips = (tok?.actor?.effects ?? [])
+        .filter(e => e.getFlag(modId, 'mastery') === 'sap').length;
+      return {
+        activeGM: game.users.activeGM?.name ?? null,
+        noticeStillThere: !!notice, sapNotices: notices, chips
+      };
+    }, { modId: MOD, noticeId: hit.noticeId, beforeIds: hit.beforeIds });
+
+    ok('§rejoin a GM really did reconnect', !!after.activeGM, `activeGM=${after.activeGM}`);
+    // ⚠ THE DOUBLE-PAYOUT GUARD. The player already drove this swing; the GM's render-resume
+    // paths must recognise finished work rather than re-running it. A second Sap notice for
+    // one swing is the failure this section exists to catch.
+    ok('§rejoin the rejoining GM adds no new reminder — the run\'s count is unchanged',
+      after.sapNotices === hit.sapNotices,
+      `sap notices during the run: before rejoin=${hit.sapNotices} after=${after.sapNotices}`);
+    ok('§rejoin …and no chip lands late — the resume never re-pays the payout',
+      after.chips === 0, `sapped chips on the victim=${after.chips}`);
+    ok('§rejoin the original card survives the rejoin', after.noticeStillThere,
+      `notice present=${after.noticeStillThere}`);
+  }
+
+  // ----------------------------------------------------------------------------- teardown
+  // ⚠ Player-side only — the suite created nothing on the monster side BY DESIGN, which is
+  // the whole result. The granted weapon is the one thing to take back.
+  await player.evaluate(async ({ modId, madeWeapon, ids }) => {
+    const pc = game.actors.getName('BF Test PC Attacker');
+    if (madeWeapon && pc?.items.get(madeWeapon)) {
+      await pc.deleteEmbeddedDocuments('Item', [madeWeapon]);
+    }
+    const mine = game.messages.filter(m => ids.includes(m.id)
+      || Object.keys(m.flags?.[modId] ?? {}).length
+      || (m.whisper ?? []).includes(game.user.id));
+    const deletable = mine.filter(m => m.isAuthor || m.canUserModify(game.user, 'delete'));
+    if (deletable.length) await ChatMessage.deleteDocuments(deletable.map(m => m.id));
+  }, { modId: MOD, madeWeapon: hit.madeWeapon,
+    ids: [hit.attackId, hit.damageId, hit.noticeId].filter(Boolean) });
+} finally {
+  await disposeSafely(player, 'nogm-player');
+  if (gm) await disposeSafely(gm, 'nogm-gm');
+}
+
+const failures = report({ tag: 'nogm', out, plan });
+process.exit(failures ? 1 : 0);

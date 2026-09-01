@@ -2,7 +2,8 @@
  * Battle Flow — Phase 1b: auto-apply damage on the active-GM elect, the shared receipt applier, and the payout pipeline (application, then effect riders, then mastery).
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, statContext } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, isFlowElectFor, canApplyTo, whisperNoGM,
+  queueFlagWrite, statContext } from "./core.js";
 import { receiptEntry, joinDamageReceipt } from "./decide/receipt.js";
 import { hitTargets, resolveAttackMessage, damagePartsOf, statSourceOf } from "./shared.js";
 import { applyEffectRiders } from "./effect-riders.js";
@@ -12,8 +13,25 @@ import { resolveHitMastery } from "./mastery.js";
  * Phase 1b — auto-apply damage to hit targets (the active-GM elect; single writer)
  * ------------------------------------------------------------------------------------------- */
 
+/**
+ * Does THIS client drive the payout chain for this damage roll? The active GM as always, and
+ * with no GM connected the attacker's own player — so a GM disconnect degrades Battle Flow
+ * instead of silently stopping it (v1.27.0, user call; see core.js "THE FLOW ELECT").
+ *
+ * ⚠ Resolved from the ATTACKER, not the room: the chain's writes land on the attack message,
+ * which only its author may update. Unresolvable attacker ⇒ the old GM-only answer.
+ */
+function drivesPayouts(message) {
+  if ( isActiveGM() ) return true;
+  if ( game.users.activeGM ) return false;      // a GM is on and it is not us — never two drivers
+  try {
+    const attacker = resolveAttackMessage(message)?.getAssociatedActor?.() ?? null;
+    return attacker ? isFlowElectFor(attacker) : false;
+  } catch { return false; }
+}
+
 Hooks.on("createChatMessage", message => {
-  if ( !isActiveGM() ) return;
+  if ( !drivesPayouts(message) ) return;
   if ( !setting(S.autoApply) && !setting(S.effectRiders) && !setting(S.masteryRiders) ) return;
   void resolveAttackDamage(message);
 });
@@ -24,7 +42,7 @@ Hooks.on("createChatMessage", message => {
 // pattern, on the attack chain. The release write (pending → false, hold.js) is the bus
 // event; render is the reload resume, exactly the spell applier's three triggers.
 Hooks.on("updateChatMessage", message => {
-  if ( !isActiveGM() ) return;
+  if ( !drivesPayouts(message) ) return;
   if ( !setting(S.autoApply) && !setting(S.effectRiders) && !setting(S.masteryRiders) ) return;
   if ( message.getFlag(MODULE_ID, "attackHoldPending") !== false ) return;
   if ( message.getFlag(MODULE_ID, "receipt") ) return;
@@ -32,7 +50,7 @@ Hooks.on("updateChatMessage", message => {
 });
 
 Hooks.on("dnd5e.renderChatMessage", message => {
-  if ( !isActiveGM() ) return;
+  if ( !drivesPayouts(message) ) return;
   if ( !setting(S.autoApply) && !setting(S.effectRiders) && !setting(S.masteryRiders) ) return;
   if ( message.getFlag(MODULE_ID, "attackHoldPending") !== false ) return; // only ex-claimed rolls resume here
   if ( message.getFlag(MODULE_ID, "receipt") ) return;
@@ -74,10 +92,26 @@ async function resolveAttackDamage(message) {
  * Each stage is independently gated by its own setting.
  */
 async function resolveDamagePayouts(damageMessage, attackMessage, hits) {
-  if ( setting(S.autoApply) ) await applyToHitTargets(damageMessage, hits);
+  // ⚠ WITH NO GM, THE CONSEQUENCE STAGES ARE SKIPPED AND SAID OUT LOUD (v1.27.0). Damage
+  // application and the effect riders both write to the TARGET, which a player client has no
+  // permission to touch — so they are gated on the write instead of attempted and thrown.
+  // The mastery chain below is NOT gated here: its cards, asks and popups are all
+  // player-reachable, and it guards its own writes one payout at a time.
+  const writable = hits.filter(t => {
+    try { return canApplyTo(fromUuidSync(t.uuid)); } catch { return false; }
+  });
+  const blocked = hits.length - writable.length;
+
+  if ( setting(S.autoApply) ) {
+    if ( writable.length ) await applyToHitTargets(damageMessage, writable);
+    if ( blocked ) await whisperNoGM(`damage to ${blocked} target${blocked === 1 ? "" : "s"}`,
+      "The roll stands — apply it from the card's damage tray.");
+  }
   // Per-target application: the damage riders' split-target intersection refusal
   // deliberately does NOT apply to effects.
-  if ( setting(S.effectRiders) ) await applyEffectRiders(damageMessage, attackMessage, hits);
+  if ( setting(S.effectRiders) && writable.length ) {
+    await applyEffectRiders(damageMessage, attackMessage, writable);
+  }
   if ( setting(S.masteryRiders) ) await resolveHitMastery(damageMessage, attackMessage, hits);
 }
 
