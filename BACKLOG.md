@@ -116,11 +116,13 @@ untested path.
 
 ## Features — surveyed, not scheduled
 
+> Three surveyed rows left this list 2026-09-01 by user call — Tactical Master's mastery pick,
+> Guidance/choice-bearing effects, light-family spells applying token light. Not settled, just
+> off the list for now; git history holds the full survey text if one comes back.
+
 | Item | Shape |
 | --- | --- |
-| **Guidance / choice-bearing effects** | An effect applied without asking the choice it carries — the d4 landed on every ability check. Same family as Careful Spell. **Needs a "choice" moment kind.** |
-| **Tactical Master — the mastery pick (fighter 9)** | User-named (2026-08-24): the 2024 fighter's **base level-9 feature** replaces the attacking weapon's mastery with **Push, Sap or Slow** for that attack — a choose-one-of-several moment the mastery machine has no shape for (its popups today are single-question asks and notices). ⚠ **The anatomy it reuses now SHIPS** (v1.24.0): the rescue view's row model and quote pane are `RESCUE_KINDS` / `RESCUE_SOURCES` / `rescueView` in `decide/present.js`, drawn by the spine's `registerRescue`. A mastery pick is a choice AT the attack, not a post-roll fix, so it borrows the PRESENTATION — buttons in the content, one quote pane, one Pass — and none of the rescue registry's semantics (no premise to die, so no moot). ⚠ Feature name and verbatim text from the world's own pack when scoped (N1). |
-| **Light-family spells apply token light** | Cast on a shield, attached no light; the table hand-toggled a torch. || **Short-duration effect expiry** | Mastery chips get a 1-round duration and nothing sweeps an expired one. ⚠ **Do not build it before deciding whether this module should own TURN-TIME at all** — building the sweeper first commits that answer by accident. |
+| **Short-duration effect expiry** | Mastery chips get a 1-round duration and nothing sweeps an expired one. ⚠ **Do not build it before deciding whether this module should own TURN-TIME at all** — building the sweeper first commits that answer by accident. |
 | **AC5e adoption** | ⚠ **Vendor and modify, never import** (user call — R2 rules out the dependency). And it is **complementary, not an alternative**: AC5e *decorates* rolls where this module *applies*. |
 
 ### Two content facts worth keeping
