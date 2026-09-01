@@ -76,7 +76,7 @@ Battle Flow own the combat clock by accident — does not arise: nothing here se
 | **R-A** | **Nobody but a human bends a d20.** The fence in mastery.js (*"nothing here ever modifies a d20; the chip is the reminder and the roll dialog is the enforcement surface"*) is restated as **"nothing modifies a d20 without a human pressing it"** — a rescue is a press. | TAKEN (user, standing; restated here) |
 | **R-B** | **AC5e is vendor-and-modify, never a dependency** (user 2026-08-23, DESIGN R4). Sharpened by this commission: **we do not want its code at all; we may borrow its TABLE.** Its whole behaviour is silent roll decoration — the README says it "only modifies rolls" — which is exactly what the user said no to. What it knows (thirteen condition rows) is data; what it does that is hard (range bands, nearby foes, flanking, armour, encumbrance) is geometry this module does not want. | TAKEN, reading sharpened |
 | **R-C** | **The platform owns the clock; the module owns events.** See the finding. | PROPOSED |
-| **R-D** | **Sources come in tiers.** Tier 1: what the module itself applied — Vex, Sap, Prone-from-Topple, the once-per-turn chits. Tier 2: content effects that grant advantage (Guiding Bolt, Faerie Fire) as registry entries — membership in data. Tier 3: the general condition table as data. **Only tier 1 (and tier 2 if Stage 0 proves the shape) is in this commission.** | PROPOSED |
+| **R-D** | **The module reminds about what it applied.** Vex, Sap, Prone-from-Topple, the once-per-turn chits — the chips whose windows it knows with certainty. ⚠ **Guiding Bolt was an EXAMPLE of a class, not a request** (user, 2026-09-01): no spell-specific system is built for it or its kin. If the reminder mechanism ends up data-driven, a content buff is one list line later; if it does not, nothing is built. The general condition table (Stage 3) is recorded, not scheduled. | PROPOSED |
 | **R-E** | **How the user is prompted.** | ⚠ **OPEN — the Stage 2 vetting walk** |
 
 ---
@@ -102,22 +102,12 @@ Every one is a measurement the plan already leans on; none writes anything a sui
    core render hook — assert it dispatches on the suite page. `dnd5e.postRollConfiguration`
    fires after the dialog. A rolled mode reads off `roll.options.advantageMode`
    (`CONFIG.Dice.D20Roll.ADV_MODE`).
-3. ✅ **Guiding Bolt as shipped — MEASURED 2026-09-01** (read-only probe against the sandbox,
-   Foundry v14.365 / dnd5e 5.3.3). **All three packs put an effect named "Guiding Bolt" on the
-   TARGET**, applied by the spell's attack activity, `transfer: false`, no `changes`:
-   - `dnd5e.spells` (SRD 2014): `{value: 6, units: "seconds", expiry: "turnStart"}`, no status.
-   - `dnd5e.spells24` (SRD 2024): the same clock, **status `marked`**.
-   - `dnd-players-handbook.spells` (the premium PHB — the world's own content, N1):
-     `{value: 1, units: "turns", expiry: "turnStart"}`, status `marked`. ⚠ Out of combat that
-     clock reads `remaining: null` / label *"None"* — the same unresolvable-clock shape as the
-     v1.27.1 Sap report, on the SYSTEM's effect. Somebody else's contract; read it, never fix it.
-   So tier 2 is *"an effect exists — read it"*: detection is the effect name (and the `marked`
-   status on 2024 content) on the target, with `origin` leading back to the spell. Note the
-   content's own approximation: `expiry: "turnStart"` ends it at the START of the caster's next
-   turn, where the rules text says the END — the caster's own follow-up attack on that turn
-   would not see it. Not ours to correct. ⚠ **Whether the module SPENDS the system's effect on
-   the next attack** (delete it — an outcome the rules determine, R1 — with a receipt and a
-   revert) or only reminds and leaves it to expire is a **walk question** (Stage 2).
+3. **Guiding Bolt — measured, then set aside.** A read-only probe (2026-09-01) found all three
+   packs ship it as a content-authored effect on the target (the premium PHB: status `marked`,
+   `{value: 1, units: "turns", expiry: "turnStart"}`, which reads `remaining: null` out of
+   combat — the system's own unresolvable-clock shape, not ours to fix). Kept only as evidence
+   that content buffs are effects the module could one day recognise from data; **nothing in
+   this commission is built for it** (R-D).
 4. **Where mastery chips are tested today.** `smoke-effects` (§3b Sap; Vex/Slow beside it).
    Stage 1's assertions land there unless combat-stepping makes it unwieldy, in which case a
    `smoke-expiry` suite joins the battery front door.
@@ -167,14 +157,13 @@ Every one is a measurement the plan already leans on; none writes anything a sui
 
 ### STAGE 2 — the reminder (⚠ GATED on the vetting walk — nothing built before it)
 
-**What must be vetted with the user: how the user is prompted.** Four sources, and each has a
+**What must be vetted with the user: how the user is prompted.** Three sources, and each has a
 different SUBJECT — that is why one shape will not fit all of them:
 
 | Source | Where the chip sits | Who is reminded | The moment |
 | --- | --- | --- | --- |
 | **Vex** | on the TARGET | the ATTACKER who applied it | their next attack on that target |
 | **Sap** | on the SAPPED creature | whoever ROLLS for it — usually the GM | its next attack roll, at disadvantage |
-| **Guiding Bolt** (tier 2) | on the TARGET, content-authored — measured, Stage 0 item 3: effect "Guiding Bolt", status `marked` on 2024 content, `expiry: "turnStart"` of the caster | ANY attacker, not just the caster | the next attack against the target — spent by it (rules); the content only lets it expire; whether the module spends it is a walk question |
 | **Prone** (from Topple) | a status, no expiry | both roles — attackers (advantage within 5 ft, disadvantage beyond; `decide/geometry.js` already measures) and the prone creature's own attacks (disadvantage) | every attack while it stands |
 
 **Prompt shapes on the table** — pick per source, possibly more than one:
@@ -198,19 +187,18 @@ different SUBJECT — that is why one shape will not fit all of them:
   skipped dialogs; the house rhythm (Bardic, Heroic, Precision all work this way). **It is
   rolled-then-fixed**, which the walk must be comfortable with.
 
-**Recommendation to bring to the walk, not a ruling:** A + D for tier 1; B if the table wants
+**Recommendation to bring to the walk, not a ruling:** A + D; B if the table wants
 the reminder earlier than the dialog; C only if the walk rejects rolled-then-fixed outright.
 Every reminder is a NOTICE or a RESCUE — never a decoration — so R-A holds whichever is picked.
 
 **Shape once picked (§11 "Adding a moment"):** compose the spine; the roller's client owns it
-(`canAnswerFor` the attacker for Vex and Guiding Bolt; the sapped creature's owner or the GM for
-Sap); name the answer channels, the expiry default (a reminder's default is *dismissed*, a
-rescue's is *pass*), the receipt. One new kind — `reminder`, or a rescue kind `advantage` —
-bumps `EXPECTED_KINDS` (19 today) with the reason in the commit. Tier 2 is a LIST_SPEC —
-`name:grant:window:spend`, e.g. `Guiding Bolt:advantageAgainst:turnEnd:onUse`,
-`Faerie Fire:advantageAgainst:duration:never` — membership in data, the grant/spend vocabulary
-the closed kind set. Every reminder spreads `statContext` like every moment; the MCP's flip
-credit already reads folds.
+(`canAnswerFor` the attacker for Vex; the sapped creature's owner or the GM for Sap); name the
+answer channels, the expiry default (a reminder's default is *dismissed*, a rescue's is
+*pass*), the receipt. One new kind — `reminder`, or a rescue kind `advantage` — bumps
+`EXPECTED_KINDS` (19 today) with the reason in the commit. If the mechanism reads its sources
+from a list (R4), that list is the one door left open for content buffs later — one line, no
+code — and it is not built here. Every reminder spreads `statContext` like every moment; the
+MCP's flip credit already reads folds.
 
 ⚠ **The disadvantage mirror owes a revert.** A second-die-lower rescue can turn an applied HIT
 into a MISS — §11 fold rule 4: *"if it can turn a hit into a miss, it owes the table a
@@ -238,9 +226,9 @@ borrowing the table, not the code (R-B). It becomes a commission only if the tab
 4. **Out of combat there is no clock.** Events only. Never invent a timer to fill the gap.
 5. **Never flip `CONFIG.ActiveEffect.expiryAction` to `"delete"`.** It is world policy for
    EVERY effect in the world; the module tidies only its own.
-6. **Somebody else's effect is somebody else's contract.** A Guiding Bolt effect is the
-   system's — read it, never rewrite its duration. A durationless chip stays untouched (the
-   apply-time sweep's rule).
+6. **Somebody else's effect is somebody else's contract.** A content-authored effect is the
+   system's — never rewrite its duration. A durationless chip stays untouched (the apply-time
+   sweep's rule).
 7. **Templated hook names** — pin them and assert they FIRED (D10, D11). `preRollAttackV2` is
    invisible to both of the dispatch check's sources.
 8. **The dialog banner is presentation on a system dialog.** A public render hook adds a block;
@@ -250,6 +238,8 @@ borrowing the table, not the code (R-B). It becomes a commission only if the tab
 ### What this commission deliberately does NOT do
 
 - **No automatic advantage or disadvantage. Ever.** (User.)
+- **No spell-specific systems.** Guiding Bolt was an example of a class, not a request
+  (user, 2026-09-01). The mechanism is vetted on the module's own chips.
 - **No AC5e code**, vendored or imported. Its table, maybe, in Stage 3.
 - **No turn-time ownership** — no module timer, sweeper, or clock.
 - **No buff-uptime stats machinery** (the stats plane's v2, its own ruling).
