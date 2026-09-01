@@ -378,8 +378,17 @@ if (want('ack')) {
   // unavailable — this is precisely the path that used to stop at a local latch.
   const relayed = await player.evaluate(async cardId => {
     const MODULE = 'fvtt-mod-battleflow';
-    const msg = game.messages.get(cardId);
-    if (!msg) return { error: 'the player cannot see the card' };
+    // ⚠ WAIT FOR THE CARD TO REPLICATE. It was read straight off `game.messages` and that
+    // passed alone and failed inside the battery — the GM had just created it and this
+    // client had not received the document yet. Standalone latency hid the race; a loaded
+    // box exposed it ("the player cannot see the card"). The suite's own rule, applied to
+    // the suite: wait for the thing the next assertion reads.
+    let msg = null;
+    for (let i = 0; i < 50 && !msg; i++) {
+      msg = game.messages.get(cardId) ?? null;
+      if (!msg) await new Promise(r => setTimeout(r, 200));
+    }
+    if (!msg) return { error: 'the card never reached the player client' };
     const isOwner = msg.isOwner;
     await game.modules.get(MODULE)?.api?.acknowledgeMoment?.(msg, 'masteryNotice');
     return { isOwner, called: !!game.modules.get(MODULE)?.api?.acknowledgeMoment };
@@ -393,9 +402,15 @@ if (want('ack')) {
     for (let i = 0; i < 50; i++) {
       const m = game.messages.get(cardId);
       if (m?.getFlag(MODULE, 'masteryNotice')?.acknowledged === true) {
-        // …and the wire signal must not survive as a line in the log.
-        const envelopes = game.messages.contents
-          .filter(x => x.getFlag(MODULE, 'momentAck')).length;
+        // ⚠ …and the wire signal must not survive as a line in the log — but the delete is
+        // chained AFTER the flag write, so it lands a tick or two later. Reading the count in
+        // the same breath as `acknowledged` measures the delete before it has happened; wait
+        // for it as its own event, exactly as the fold was waited for.
+        let envelopes = 1;
+        for (let j = 0; j < 25 && envelopes > 0; j++) {
+          envelopes = game.messages.contents.filter(x => x.getFlag(MODULE, 'momentAck')).length;
+          if (envelopes > 0) await new Promise(r => setTimeout(r, 200));
+        }
         return { acked: true, at: i * 200, envelopes };
       }
       await new Promise(r => setTimeout(r, 200));
@@ -405,8 +420,11 @@ if (want('ack')) {
   }, card.id);
   ok('ack/3. THE PLAYER\'S OK REACHED THE GM\'S CARD — the bar stops, no timeout',
     landed.acked === true, JSON.stringify(landed));
+  // ⚠ Conjoined with `acked` on purpose: counting zero envelopes is also what a run where
+  // nothing was ever POSTED looks like, so on its own this passes hardest exactly when the
+  // relay is most broken. It did, in the battery run that found the race above.
   ok('ack/4. the relay envelope deleted itself — a wire signal, not a line in the log',
-    landed.envelopes === 0, JSON.stringify(landed));
+    (landed.acked === true) && (landed.envelopes === 0), JSON.stringify(landed));
 } else {
   out.skips.push(`§ack ${SECTIONS.ack}`);
 }

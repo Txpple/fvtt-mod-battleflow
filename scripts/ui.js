@@ -193,7 +193,12 @@ export async function acknowledgeMoment(message, flagKey) {
 // — the branch that used to stop at a local latch — and the alternative was driving a live
 // popup's DOM through a mastery hit routed to a player, which tests the popup rather than the
 // ack. Exposed as a function, not an extension point: nothing here reads it back.
-Hooks.once("ready", () => {
+// ⚠ `init`, not `ready` — the convention settings.js and volley-registry.js already publish
+// under. The first cut used `ready` and the D11 coverage report immediately printed it as a
+// hook that never fired: it runs once at world load, long before a suite's ledger arms, so it
+// is unobservable by construction rather than dead. Matching the existing convention removes
+// the line honestly instead of leaving a permanent one for a future session to re-investigate.
+Hooks.once("init", () => {
   const mod = game.modules.get(MODULE_ID);
   if ( mod ) mod.api = Object.assign(mod.api ?? {}, { acknowledgeMoment });
 });
