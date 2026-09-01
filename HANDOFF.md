@@ -125,6 +125,43 @@ below has been verified by a second pass; nothing has been fixed. Ranked, with t
     "list is the switch" contract (make it required); the spend line's mode wording ("flat")
     is a third vocabulary beside `modeTitle` — one vocabulary on the card.
 
+**Angle C (cross-file) reported after the commit above — four more, and the first is the
+most serious finding of the review:**
+
+12. ⚠ **The re-issued attack is ORPHANED from its usage card on the real card-button flow**
+    (`reminders.js` `reissue`). dnd5e derives `originatingMessage` in `buildPost` from
+    `config.event.target.closest("[data-message-id]")` — AFTER the pre-roll hook — and the
+    re-issue forwards no `event`, so at the table the re-issued attack message has no card link:
+    the card's Damage button finds no attack (a gated CRIT's damage rolls un-doubled), and this
+    module's own chain walk (`resolveAttackMessage`, hit-riders, maneuvers) misses it — no
+    auto-apply, no rider, no precision fold on a hand-pressed damage. **The suite and the demo
+    pass the flat key explicitly, which is exactly why they are green.** **Fix:** forward
+    `event: config.event` on the re-issue (dnd5e's own `_triggerSubsequentActions` passes
+    `{ event }`), AND derive the card id for the popup key from the event's
+    `[data-message-id]` when the flat key is absent. Then make `smoke-reminders` drive a swing
+    the way the button does — `rollAttack({ event })` with a synthetic event whose target sits
+    inside the usage card's element — so the orphan class can never pass green again.
+13. ⚠ **A chip the elect could not delete is re-offered** (`reminders.js` `sourcesFor`): with
+    no GM connected the spend RECORDS the chip on the card and `continue`s (the player cannot
+    write the monster), and the next swing lists the same Vex as live Advantage, spends it
+    again, and so on until a GM connects. **Fix:** `sourcesFor` skips a chip whose id appears
+    in any `chipSpend.spent[]` in the log (walk newest-first, bounded), so a recorded spend
+    counts as spent whatever the document says.
+14. **The re-issue pins the dialog-owned choices to their hook-time defaults** — attack mode
+    (versatile one- vs two-handed), ammunition, and the mastery pick where a weapon has more
+    than one — because `configure: false` skips the dialog that would have offered them.
+    `dialog.options.attackModeOptions` / `ammunitionOptions` / `masteryOptions` are on the
+    hook's `dialog` argument. **Fix:** when any has more than one entry, render a select for
+    it in the gate's popup and pass the choice to the re-issue. Until then the remembered
+    `last.<activity>` choice is used, silently — say so in the popup at minimum.
+15. **`tools/verify-settings.mjs`'s REFERENCE table lacks `reminderList` and `conditionList`**,
+    so a crashed `smoke-reminders` §6 (which sets them to `''` and `'blinded'`) leaves the gate
+    off in the world with the settings check reading CLEAN. **Fix:** add both to the table
+    with the shipped defaults (`vex, sap, prone, condition` and the thirteen) — the standing
+    rule is that every registered key the user tunes is named there.
+
+**Angles A (line-by-line) and B (removed behaviour) never reported — re-run them.**
+
 ### The remaining sequence (the user's instruction, verbatim: review → refactor → battery → hand over)
 
 1. Re-run finder angles A, B, C; verify every candidate (one verifier each, PLAUSIBLE by
