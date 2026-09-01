@@ -475,3 +475,26 @@ describe("rescueView — two machines, one window", () => {
     });
   });
 });
+
+describe("situationalBonusHTML / modeButtons — one shape for a popup that stands in for a roll dialog", () => {
+  it("the bonus row carries the name the caller reads back", async () => {
+    const m = await import("../scripts/decide/present.js");
+    const html = m.situationalBonusHTML("bf-x-bonus");
+    expect(html).toContain('name="bf-x-bonus"');
+    expect(html).toContain("Situational Bonus");
+  });
+  it("the three mode buttons press the caller's answer, and only the default is marked", async () => {
+    const m = await import("../scripts/decide/present.js");
+    const pressed = [];
+    const buttons = m.modeButtons(mode => pressed.push(mode), "normal");
+    expect(buttons.map(b => b.action)).toEqual(["advantage", "normal", "disadvantage"]);
+    expect(buttons.map(b => b.default)).toEqual([false, true, false]);
+    buttons[0].callback();
+    buttons[2].callback();
+    expect(pressed).toEqual(["advantage", "disadvantage"]);
+  });
+  it("no default at all when none is asked for — the gate's shape", async () => {
+    const m = await import("../scripts/decide/present.js");
+    expect(m.modeButtons(() => {}).every(b => b.default === false)).toBe(true);
+  });
+});

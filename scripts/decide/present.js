@@ -76,6 +76,41 @@ export function bfCard({ img, eyebrow, title, subtitle, lines = [], tone = "neut
  * this is only the dress. */
 export const ruleLine = text => `<em>“${text}”</em>`;
 
+/**
+ * The situational-bonus row every popup that STANDS IN FOR A ROLL DIALOG carries — the
+ * concentration ask and the reminder gate today — the native dialog's own control, in the
+ * module's popup. `name` is the input's name, so the caller reads it back off the dialog.
+ * (One shape, 2026-09-01: it was copied between the two popups before it was shared.)
+ */
+export function situationalBonusHTML(name) {
+  return `
+    <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
+      <label style="flex:1;font-size:var(--font-size-12,12px);">Situational Bonus</label>
+      <input type="text" name="${name}" placeholder="e.g. 1d4" autocomplete="off"
+             style="flex:1;min-width:0;text-align:center;">
+    </div>`;
+}
+
+/**
+ * The three roll-mode buttons — Advantage / Normal / Disadvantage — as DialogV2 button
+ * descriptors: one shape for every popup that stands in for a roll dialog. `press(mode)` is
+ * the caller's answer; `defaultMode` marks the button Enter triggers (the concentration ask
+ * hints it from actor data the way the native dialog does; the gate marks none — DESIGN R-A,
+ * nothing pre-selected).
+ * @param {(mode: "advantage"|"normal"|"disadvantage") => void} press
+ * @param {"advantage"|"normal"|"disadvantage"|null} [defaultMode]
+ */
+export function modeButtons(press, defaultMode = null) {
+  return [
+    { action: "advantage", label: "Advantage", default: defaultMode === "advantage",
+      callback: () => press("advantage") },
+    { action: "normal", label: "Normal", default: defaultMode === "normal",
+      callback: () => press("normal") },
+    { action: "disadvantage", label: "Disadvantage", default: defaultMode === "disadvantage",
+      callback: () => press("disadvantage") }
+  ];
+}
+
 /* ---------------------------------------------------------------------------------------------
  * The countdown bar (ARCHITECTURE.md §5).
  *

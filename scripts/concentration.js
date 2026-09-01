@@ -5,7 +5,7 @@
 import { MODULE_ID, TITLE, S, setting, rollerUserFor, canAnswerFor,
   drivesMomentFor, canApplyTo, whisperNoGM, statContext } from "./core.js";
 import { rollConfigFor } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML } from "./decide/present.js";
+import { popupKey, bfCard, holdBarHTML, situationalBonusHTML, modeButtons } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton,
   scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
   dramaticVerdictPause } from "./ui.js";
@@ -588,20 +588,9 @@ async function showConcPopup(message, ask) {
           + `${setting(S.concBreak) ? "" : " (breaking is off — the GM ends it by hand)"}.`
       ],
       tone: "pending"
-    }) + `
-    <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
-      <label style="flex:1;font-size:var(--font-size-12,12px);">Situational Bonus</label>
-      <input type="text" name="bf-conc-bonus" placeholder="e.g. 1d4" autocomplete="off"
-             style="flex:1;min-width:0;text-align:center;">
-    </div>` + holdBarHTML(ask, "to roll"),
-    buttons: [
-      { action: "advantage", label: "Advantage", default: def === "advantage",
-        callback: () => roll("advantage") },
-      { action: "normal", label: "Normal", default: def === "normal",
-        callback: () => roll("normal") },
-      { action: "disadvantage", label: "Disadvantage", default: def === "disadvantage",
-        callback: () => roll("disadvantage") }
-    ]
+    }) + situationalBonusHTML("bf-conc-bonus") + holdBarHTML(ask, "to roll"),
+    // The same three controls the reminder gate carries (decide/present.js) — one shape.
+    buttons: modeButtons(roll, def)
   });
 }
 

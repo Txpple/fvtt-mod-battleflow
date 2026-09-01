@@ -194,3 +194,11 @@ describe("reminderRecord — what the card remembers", () => {
     expect(rec.sources[1].bend).toBeNull();
   });
 });
+
+describe("modeTitle — the mode as a title reads it", () => {
+  it("titles", () => {
+    expect(r.modeTitle("advantage")).toBe("Advantage");
+    expect(r.modeTitle("disadvantage")).toBe("Disadvantage");
+    expect(r.modeTitle("normal")).toBe("Normal roll");
+  });
+});

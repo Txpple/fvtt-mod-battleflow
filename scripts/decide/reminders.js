@@ -91,13 +91,15 @@ const conditionName = key => key.charAt(0).toUpperCase() + key.slice(1);
 export function conditionSources({ attackerStatuses = [], targetStatuses = [], enabled = CONDITION_KEYS,
   attackerName = "You", targetName = "the target" } = {}) {
   const on = new Set(enabled);
+  const mine = new Set(attackerStatuses);
+  const theirs = new Set(targetStatuses);
   const out = [];
   for ( const key of CONDITION_KEYS ) {
     if ( !on.has(key) ) continue;
     const row = CONDITION_BENDS[key];
     if ( !row ) continue;
     const name = conditionName(key);
-    if ( new Set(attackerStatuses).has(key) ) {
+    if ( mine.has(key) ) {
       if ( row.attacker ) {
         out.push(reminderSource("condition", row.attacker,
           `${attackerName} — ${name}${row.caveat ? ` (${row.caveat})` : ""}`, row.rule));
@@ -105,7 +107,7 @@ export function conditionSources({ attackerStatuses = [], targetStatuses = [], e
         out.push(reminderSource("condition", null, `${attackerName} — ${name}: ${row.note}`, row.rule));
       }
     }
-    if ( new Set(targetStatuses).has(key) && row.target ) {
+    if ( theirs.has(key) && row.target ) {
       out.push(reminderSource("condition", row.target,
         `${targetName} is ${name}${row.caveat ? ` (${row.caveat})` : ""}`, row.rule));
     }
@@ -139,9 +141,13 @@ export function netMode(sources) {
   return "normal";
 }
 
-/** The mode, as the table says it. */
+/** The mode, as the table says it — in a sentence. */
 export const modeLabel = mode => (mode === "advantage") ? "Advantage"
   : (mode === "disadvantage") ? "Disadvantage" : "a normal roll";
+
+/** The mode, as a title or a button reads it. */
+export const modeTitle = mode => (mode === "advantage") ? "Advantage"
+  : (mode === "disadvantage") ? "Disadvantage" : "Normal roll";
 
 /**
  * The resolution sentence — why the net is what it is, in one line.

@@ -151,7 +151,7 @@ export const KIND_SETS = [
     note: "how a multi-projectile spell resolves: aggregated damage, or independent attacks" },
   { name: "mastery", owner: "mastery.js", kinds: MASTERY_KINDS, system: 8,
     note: "7 of the system's 8; nick is deliberately native (action economy, ruling 1)" },
-  { name: "reminder", owner: "mastery.js", kinds: REMINDER_KINDS, system: null,
+  { name: "reminder", owner: "reminders.js", kinds: REMINDER_KINDS, system: null,
     note: "what the gate can READ as a source of Advantage/Disadvantage before an attack roll — "
       + "a chip on the target, a chip on the attacker, a status with geometry (Stage 2, 2026-09-01)" }
 ];

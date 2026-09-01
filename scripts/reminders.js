@@ -5,12 +5,12 @@
 import { MODULE_ID, TITLE, statContext } from "./core.js";
 import { conditionEntries, reminderEntries } from "./settings.js";
 import { rollConfigFor } from "./shared.js";
-import { bfCard, ruleLine } from "./decide/present.js";
+import { bfCard, modeButtons, ruleLine, situationalBonusHTML } from "./decide/present.js";
 import { openMomentPopup } from "./ui.js";
 import { CHIP_FLAG, chipIsDead, chipOwnedBy } from "./decide/chips.js";
 import { MASTERY_RULES } from "./decide/registry.js";
 import { tokenSamplePoints } from "./decide/geometry.js";
-import { REMINDER_FLAG, conditionSources, netMode, proneSources, reminderRecord,
+import { REMINDER_FLAG, conditionSources, modeTitle, netMode, proneSources, reminderRecord,
   reminderSource, resolutionLine } from "./decide/reminders.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -162,7 +162,6 @@ function sourcesFor(attacker, enabled) {
 
 /* --- the popup, and the re-issue ------------------------------------------------------------ */
 
-const TITLE_OF = { advantage: "Advantage", disadvantage: "Disadvantage", normal: "Normal roll" };
 const TONE_OF = { advantage: "good", disadvantage: "pending", normal: "neutral" };
 
 async function showGate({ activity, attacker, sources, config, message }) {
@@ -170,11 +169,11 @@ async function showGate({ activity, attacker, sources, config, message }) {
   const item = activity.item;
   const lines = [];
   for ( const s of sources ) {
-    const bend = s.bend ? ` — <strong>${TITLE_OF[s.bend]}</strong>` : "";
+    const bend = s.bend ? ` — <strong>${modeTitle(s.bend)}</strong>` : "";
     lines.push(`${s.label}${bend}`);
     if ( s.detail ) lines.push(ruleLine(s.detail));
   }
-  lines.push(`<strong>Net: ${TITLE_OF[net]}.</strong> ${resolutionLine(sources, net)}`);
+  lines.push(`<strong>Net: ${modeTitle(net)}.</strong> ${resolutionLine(sources, net)}`);
   if ( sources.length > 1 ) lines.push(ruleLine(NET_RULE));
 
   const reissue = async (mode, bonus) => {
@@ -201,22 +200,14 @@ async function showGate({ activity, attacker, sources, config, message }) {
     content: bfCard({
       img: item?.img ?? null, eyebrow: "Before you roll",
       tone: TONE_OF[net],
-      title: `${TITLE_OF[net]} on this attack`,
+      title: `${modeTitle(net)} on this attack`,
       subtitle: `${attacker.name} — ${item?.name ?? "attack"}${names.length ? ` · against ${names.join(", ")}` : ""}`,
       lines
-    }) + `
-    <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
-      <label style="flex:1;font-size:var(--font-size-12,12px);">Situational Bonus</label>
-      <input type="text" name="bf-reminder-bonus" placeholder="e.g. 1d4" autocomplete="off"
-             style="flex:1;min-width:0;text-align:center;">
-    </div>`,
-    // No default: nothing is pre-selected; the press is the decision (R-A). Closing the window
-    // rolls nothing — the card's Attack button is still there.
-    buttons: [
-      { action: "advantage", label: "Advantage", callback: () => press("advantage") },
-      { action: "normal", label: "Normal", callback: () => press("normal") },
-      { action: "disadvantage", label: "Disadvantage", callback: () => press("disadvantage") }
-    ]
+    }) + situationalBonusHTML("bf-reminder-bonus"),
+    // The same three controls the concentration ask carries (decide/present.js). No default:
+    // nothing is pre-selected; the press is the decision (R-A). Closing the window rolls
+    // nothing — the card's Attack button is still there.
+    buttons: modeButtons(press)
   };
   // The usage card keys the popup (the popper discipline); an attack rolled without one gets a
   // bare dialog of the same shape.
@@ -238,10 +229,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const r = message.getFlag(MODULE_ID, REMINDER_FLAG);
   if ( !r?.sources?.length ) return;
   const line = document.createElement("div");
-  const what = r.sources.map(s => s.label + (s.bend ? ` (${TITLE_OF[s.bend]})` : "")).join(" · ");
+  const what = r.sources.map(s => s.label + (s.bend ? ` (${modeTitle(s.bend)})` : "")).join(" · ");
   line.innerHTML = bfCard({
     eyebrow: "Before the roll", tone: r.honoured ? "good" : "neutral",
-    title: `Reminded — net ${TITLE_OF[r.net]}, rolled ${TITLE_OF[r.mode]}${r.honoured ? "" : " (against the net)"}`,
+    title: `Reminded — net ${modeTitle(r.net)}, rolled ${modeTitle(r.mode)}${r.honoured ? "" : " (against the net)"}`,
     subtitle: what
   });
   html.querySelector(".message-content")?.appendChild(line);
