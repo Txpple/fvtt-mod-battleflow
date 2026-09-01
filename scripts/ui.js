@@ -161,9 +161,42 @@ export async function acknowledgeMoment(message, flagKey) {
     await message.setFlag(MODULE_ID, flagKey, flag);   // the update re-renders every client
     return;
   }
+  // ⚠ THE ACK NOW TRAVELS (v1.27.1, reported from the table). It used to stop here: a local
+  // latch and nothing on the wire, because "a player cannot write the elect's message, and
+  // relaying an acknowledgement would spend a §4.1 relay". That trade was wrong in the one
+  // shape that matters. The reminder CARD is posted by the elect, so at a real table the
+  // acknowledger is a PLAYER and the card belongs to the GM — Thomas pressed OK, his own
+  // popup closed, and the GM's card kept draining for the full window and timed out. The
+  // player's press was invisible to the only client that could record it. So the relay is
+  // spent: the ack travels as its own message and the card's owner folds it, exactly as every
+  // other cross-client answer in this module already does.
   localAcks.add(`${message.id}|${flagKey}`);
   try { ui.chat?.updateMessage?.(message); } catch(err) { /* row refreshes next render */ }
+  try {
+    await ChatMessage.create({
+      whisper: [game.user.id],           // the fold deletes it; this only limits a brief flash
+      content: "",
+      flags: { [MODULE_ID]: { momentAck: { cardId: message.id, flagKey } } }
+    });
+  } catch(err) {
+    // The local latch above already closed this client's own popup, so a failed relay costs
+    // the OTHER clients' bars, not this one's — degrade quietly rather than throw at a press.
+    console.warn(`${TITLE} | Could not relay the acknowledgement.`, err);
+  }
 }
+
+// The relay that carries it is registered with the others, below — `relays` is a `const` and
+// registering from up here would run inside its temporal dead zone.
+
+// ⚠ THE HARNESS SEAM (the volley-registry precedent, whose own comment says it exists "so the
+// smoke [suite]" can reach it). smoke-twoclient §ack has to press this from the PLAYER's client
+// — the branch that used to stop at a local latch — and the alternative was driving a live
+// popup's DOM through a mastery hit routed to a player, which tests the popup rather than the
+// ack. Exposed as a function, not an extension point: nothing here reads it back.
+Hooks.once("ready", () => {
+  const mod = game.modules.get(MODULE_ID);
+  if ( mod ) mod.api = Object.assign(mod.api ?? {}, { acknowledgeMoment });
+});
 
 /** The one recall/answer button factory — eight hand-rolled copies collapsed here. */
 export function momentButton(label, onClick, style = {}) {
@@ -394,8 +427,8 @@ const relays = new Map();
  * decides whether this client does the folding; `fold(current, envelope, message)` mutates the
  * flag inside the serializer and may return `false` to skip the write entirely.
  */
-export function registerRelay(envelopeKey, { flagKey, targetOf, owns, fold }) {
-  relays.set(envelopeKey, { flagKey, targetOf, owns, fold });
+export function registerRelay(envelopeKey, { flagKey, targetOf, owns, fold, cleanup = false }) {
+  relays.set(envelopeKey, { flagKey, targetOf, owns, fold, cleanup });
 }
 
 // ONE registration for every relay (was three). ⚠ Every guard is repeated INSIDE the
@@ -406,9 +439,41 @@ Hooks.on("createChatMessage", message => {
     const envelope = message.getFlag(MODULE_ID, envelopeKey);
     if ( !envelope ) continue;
     const target = game.messages.get(relay.targetOf(envelope));
-    const flag = target?.getFlag(MODULE_ID, relay.flagKey);
-    if ( !flag || !relay.owns(flag) ) continue;
-    void queueFlagWrite(target, relay.flagKey, current => relay.fold(current, envelope, message));
+    // ⚠ `flagKey` MAY BE A FUNCTION OF THE ENVELOPE (v1.27.1). Every relay before the ack
+    // answered exactly one machine, so a constant key was enough; the moment-ack relay carries
+    // the key it is acknowledging, because the spine must never name a feature (the same
+    // argument this registry exists to make). Constants still work unchanged.
+    const flagKey = (typeof relay.flagKey === "function") ? relay.flagKey(envelope) : relay.flagKey;
+    const flag = target?.getFlag(MODULE_ID, flagKey);
+    // `owns` gains the TARGET as a second argument — an ack is owned by whoever can write the
+    // card, which is a question about the message, not about the flag. Existing relays take one
+    // argument and ignore it.
+    if ( !flag || !relay.owns(flag, target) ) continue;
+    const written = queueFlagWrite(target, flagKey, current => relay.fold(current, envelope, message));
+    // A pure WIRE SIGNAL deletes itself once it has landed — an envelope that carries no table
+    // meaning must not survive as a line in the log (the ack posts one per OK press, and GMs
+    // see whispers, so "harmlessly whispered" would still have been noise on the one screen
+    // this fix exists to quieten).
+    if ( relay.cleanup ) {
+      void Promise.resolve(written)
+        .then(() => message.delete())
+        .catch(() => { /* another client's fold got there first */ });
+    }
+  }
+});
+
+/* THE ACK RELAY (v1.27.1) — see `acknowledgeMoment` for why it exists. Owned by whoever can
+ * WRITE the card (the elect that posted it), and idempotent: a fold that finds the flag already
+ * acknowledged skips the write entirely, so two clients answering in one tick cost one write
+ * and no thrash. `cleanup` deletes the envelope once it lands — a wire signal, not a moment. */
+registerRelay("momentAck", {
+  flagKey: envelope => envelope.flagKey,
+  targetOf: envelope => envelope.cardId,
+  owns: (flag, target) => !!target?.isOwner,
+  cleanup: true,
+  fold: current => {
+    if ( current.acknowledged ) return false;
+    current.acknowledged = true;
   }
 });
 

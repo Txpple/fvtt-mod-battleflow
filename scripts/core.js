@@ -148,6 +148,26 @@ export function inRunningCombat(actor) {
 }
 
 /**
+ * The started combat this actor is in **and that the world is actually running** — i.e. it is
+ * `game.combat` — or null.
+ *
+ * ⚠ WHY THIS IS NOT `inRunningCombat` (v1.27.1, reported from the table). A round-based
+ * ActiveEffect duration is meaningless except against `game.combat`: Foundry measures
+ * `rounds` from `startRound` against the ACTIVE combat, and nothing else. `inRunningCombat`
+ * answers a broader question — is this actor in ANY started combat, anywhere in the world —
+ * and using that answer to choose `{ rounds: 1 }` produced chips whose clock could never
+ * resolve. dnd5e files those under **Unavailable Effects**: born expired, invisible on the
+ * token, present only as a line on the sheet with a bare clock and no duration. Sapped landed
+ * exactly that way while Vex and Slow — applied when the same combat happened to be active —
+ * looked fine, which is what made it read as "Sap is broken" rather than "the clock is".
+ */
+export function activeCombatFor(actor) {
+  const combat = game.combat;
+  if ( !combat?.started ) return null;
+  return combat.combatants.some(cb => cb.actor?.id === actor?.id) ? combat : null;
+}
+
+/**
  * WHEN we are, as a comparable string: `${combat.id}:${round}:${turn}`, or null out of combat.
  *
  * The once-per-turn idiom, and the reason it needs no hook and no elect: a stamp is written

@@ -228,6 +228,41 @@ What today's work must preserve for that to be reachable:
 No chit work is scheduled. The obligation on current work is only to keep those three
 properties true.
 
+### Where a chip belongs on the sheet (user rule, 2026-09-01)
+
+**Combat chips are TEMPORARY effects. Passive is for long-term spells and worn abilities.**
+
+The dnd5e sheet sorts effects into Temporary (has a duration), Passive (has none) and
+Unavailable (expired or suppressed), and the section a chip lands in is a statement about what
+kind of thing it is. Anything this module applies out of a swing, a save or a reaction — Vexed,
+Sapped, Slowed, and the conditions pressed off a failed demand — is a **combat** chip and
+carries a real, resolvable duration. Passive is reserved for what a character *wears*: a
+long-duration spell, an item's standing benefit, a class feature that is simply true.
+
+Two consequences worth stating, because both have already bitten:
+
+- **A chip with a duration Foundry cannot measure is worse than no chip.** It is filed under
+  Unavailable, never renders on the token, and reads to the table as the feature silently doing
+  nothing. That was the v1.27.1 Sap report; the cause was a round-based clock stamped against a
+  combat that was not `game.combat` (see `activeCombatFor` in core.js).
+- **A chip nothing expires accumulates.** Expired mastery chips were never removed from a
+  target and piled up on the sheet, hiding whichever one was live. The sweep runs at apply
+  time, on the actor being chipped.
+
+**⚠ PRONE IS THE NAMED EXCEPTION, AND IT STAYS PASSIVE (user call, 2026-09-01).** It is pressed
+as a status with no duration, so it sits in Passive — and that is correct rather than tolerated.
+5e gives Prone no window: it lasts until the creature spends half its movement to stand. Making
+it Temporary would mean inventing an expiry the rules do not grant, and the consequence is not
+cosmetic — **it would stand creatures up on a clock nobody rolled for**, including the prone
+creature that is choosing to stay down. The section it renders in is a lie worth telling; a
+condition that removes itself is not.
+
+The rule above therefore reads: *combat chips carry a duration because their rules give them
+one.* Prone has no duration because the rules give it none. Same principle, opposite outcome —
+so a future pass that "fixes" Prone into the Temporary section is a REGRESSION, not tidying.
+The same holds for any other condition pressed off a failed demand: take the duration from the
+rules, and where the rules give none, give none.
+
 ---
 
 ## 7. How to use this document

@@ -37,7 +37,8 @@ import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/
 
 const SECTIONS = {
   relay: "the hold's RELAYED answer — the player writes its own message, the elect folds it",
-  close: "the hold's popup CLOSES on the other client when the buzzer answers it"
+  close: "the hold's popup CLOSES on the other client when the buzzer answers it",
+  ack: "a PLAYER's OK on a GM-authored notice reaches the GM's card (the relayed ack)"
 };
 // Each section stands its own attack up on the shared fixture and cleans up after itself.
 const DEPENDS = {};
@@ -343,6 +344,71 @@ if (want('close')) {
   }
 } else {
   out.skips.push(`§close ${SECTIONS.close}`);
+}
+
+/* --- §ack: the player's OK reaches the GM's card (v1.27.1, reported from the table) ---------
+ * ⚠ THE BUG THIS PINS. `acknowledgeMoment` wrote the flag only when `message.isOwner`, and the
+ * reminder CARD is posted by the elect — so at a real table the acknowledger is a PLAYER and
+ * the card belongs to the GM. Thomas pressed OK, his own popup closed, and the GM's card kept
+ * draining for the full window and timed out: the press was invisible to the only client that
+ * could record it. No solo suite could see this, because there the presser and the card's owner
+ * are the same client and the direct write always ran.
+ * ------------------------------------------------------------------------------------------- */
+if (want('ack')) {
+  // A notice card authored by the GM, exactly as postMasteryNotice writes one, naming the
+  // PLAYER'S actor so the player's client is the one that owns the moment.
+  const card = await gm.evaluate(async () => {
+    const MODULE = 'fvtt-mod-battleflow';
+    const st = globalThis.__bf2c;
+    const msg = await ChatMessage.create({
+      content: '<p>ack relay fixture</p>',
+      flags: { [MODULE]: { masteryNotice: {
+        key: 'sap', attackerUuid: game.actors.get(st.shielderId)?.uuid ?? null,
+        weapon: { id: null, name: 'Fixture Blade', img: null },
+        title: 'Sap', subtitle: 'ack relay fixture', lines: [],
+        window: 24, deadline: Date.now() + 24_000
+      } } }
+    });
+    return { id: msg.id, ackedAtBirth: msg.getFlag(MODULE, 'masteryNotice')?.acknowledged ?? false };
+  }, null);
+  ok('ack/1. the GM-authored notice card starts unacknowledged',
+    card.ackedAtBirth === false, JSON.stringify(card));
+
+  // The PLAYER acknowledges it. They are not the author and not a GM, so the direct write is
+  // unavailable — this is precisely the path that used to stop at a local latch.
+  const relayed = await player.evaluate(async cardId => {
+    const MODULE = 'fvtt-mod-battleflow';
+    const msg = game.messages.get(cardId);
+    if (!msg) return { error: 'the player cannot see the card' };
+    const isOwner = msg.isOwner;
+    await game.modules.get(MODULE)?.api?.acknowledgeMoment?.(msg, 'masteryNotice');
+    return { isOwner, called: !!game.modules.get(MODULE)?.api?.acknowledgeMoment };
+  }, card.id);
+  ok('ack/2. the player genuinely cannot write the card (the condition under test)',
+    relayed.isOwner === false, JSON.stringify(relayed));
+
+  // The GM's copy must now read acknowledged — that is the whole fix.
+  const landed = await gm.evaluate(async cardId => {
+    const MODULE = 'fvtt-mod-battleflow';
+    for (let i = 0; i < 50; i++) {
+      const m = game.messages.get(cardId);
+      if (m?.getFlag(MODULE, 'masteryNotice')?.acknowledged === true) {
+        // …and the wire signal must not survive as a line in the log.
+        const envelopes = game.messages.contents
+          .filter(x => x.getFlag(MODULE, 'momentAck')).length;
+        return { acked: true, at: i * 200, envelopes };
+      }
+      await new Promise(r => setTimeout(r, 200));
+    }
+    return { acked: false, envelopes: game.messages.contents
+      .filter(x => x.getFlag(MODULE, 'momentAck')).length };
+  }, card.id);
+  ok('ack/3. THE PLAYER\'S OK REACHED THE GM\'S CARD — the bar stops, no timeout',
+    landed.acked === true, JSON.stringify(landed));
+  ok('ack/4. the relay envelope deleted itself — a wire signal, not a line in the log',
+    landed.envelopes === 0, JSON.stringify(landed));
+} else {
+  out.skips.push(`§ack ${SECTIONS.ack}`);
 }
 
 /* --- teardown: always ---------------------------------------------------------------------- */

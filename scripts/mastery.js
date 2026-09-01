@@ -3,7 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, isFlowElectFor, canApplyTo, whisperNoGM,
-  queueFlagWrite, canAnswerFor, inRunningCombat, combatStamp, statContext } from "./core.js";
+  queueFlagWrite, canAnswerFor, activeCombatFor, combatStamp, statContext } from "./core.js";
 import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { MASTERY_KINDS, MASTERY_NATIVE } from "./decide/registry.js";
 import { hitTargets, modeAllows, rollConfigFor } from "./shared.js";
@@ -279,7 +279,20 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
     return whisperNoGM(`the ${masteryLabel(key)} chip on ${blocked.map(t => t.name).join(", ")}`,
       "The reminder card still stands, and the rule is honoured in the roll dialog either way.");
   }
-  const inCombat = inRunningCombat(ctx.attacker);
+  // ⚠ THE CLOCK IS STAMPED FROM THE ACTIVE COMBAT, EXPLICITLY (v1.27.1, reported from the
+  // table). This read `inRunningCombat(ctx.attacker)` — is the attacker in ANY started combat,
+  // anywhere — and handed `{ rounds: 1 }` to an effect whose remaining time Foundry can only
+  // measure against `game.combat`. When those were not the same combat the clock never
+  // resolved, dnd5e filed the chip under **Unavailable Effects**, and it was born expired:
+  // invisible on the token, present only as a sheet line with a bare clock icon and no
+  // duration. Sapped landed that way while Vex and Slow — applied while the same combat
+  // happened to be active — looked fine, which is what made it read as "Sap is broken".
+  // The starts are written here rather than left to Foundry's implicit stamp, so the chip's
+  // clock cannot depend on which combat the applying client is looking at.
+  const combat = activeCombatFor(ctx.attacker);
+  const duration = combat
+    ? { rounds: 1, startRound: combat.round, startTurn: combat.turn, startTime: game.time.worldTime }
+    : { seconds: 6, startTime: game.time.worldTime };
   // ⚠ THE READ MOVED BELOW THE AWAITS (D3, 2026-08-22) — the same fix effect-riders.js got.
   // This used to clone the flag HERE and merge into that copy after a per-target loop full of
   // `await`s, a window wide enough for another chip applier to write and be overwritten.
@@ -289,7 +302,28 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
   for ( const t of targets ) {
     const actor = (t.actor instanceof Actor) ? t.actor : await fromUuid(t.uuid);
     if ( !(actor instanceof Actor) ) continue;
-    const duration = inCombat ? { rounds: 1 } : { seconds: 6 };
+
+    // ⚠ SWEEP THE DEAD CHIPS BEFORE ADDING ONE (user ask 2026-09-01: "we need better clean up
+    // when applying chits"). NOTHING removed an expired mastery chip — Foundry stops applying
+    // it and dnd5e moves it to Unavailable Effects, but the document lives on the sheet
+    // forever. The live report was a Practice Dummy still listing a Slowed from a Longbow and
+    // a Vexed from a Shortsword long after both windows closed, which is noise on its own and
+    // actively hides the one chip that IS live. Swept at apply time, on the actor being
+    // chipped only — the narrow, predictable moment, not a global reaper.
+    //
+    // A clock that never resolved counts as dead too (`remaining` null/NaN): that is the very
+    // shape the duration fix above stops creating, and old ones must not linger. Effects with
+    // NO clock are left alone — a durationless chip is somebody else's contract, not ours.
+    // ⚠ ONE batched delete: a synthetic (unlinked-token) actor rebuilds its collections from
+    // the delta on every write, so deleting one at a time throws on the second (NOTES §2).
+    const dead = actor.effects.filter(e => {
+      if ( !e.getFlag(MODULE_ID, "mastery") ) return false;
+      const d = e.duration ?? {};
+      if ( !d.type || (d.type === "none") ) return false;
+      return !(d.remaining > 0);
+    });
+    if ( dead.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", dead.map(e => e.id));
+
     const existing = actor.effects.find(e =>
       (e.getFlag(MODULE_ID, "mastery") === key) && (e.origin === ctx.weapon.uuid));
     let applied;
