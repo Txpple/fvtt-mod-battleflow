@@ -120,10 +120,14 @@ untested path.
 > Guidance/choice-bearing effects, light-family spells applying token light. Not settled, just
 > off the list for now; git history holds the full survey text if one comes back.
 
+> **Short-duration effect expiry left this list 2026-09-01 — it is COMMISSIONED** (see
+> [HANDOFF.md](HANDOFF.md), Stage 1). The turn-time question it was blocked on dissolved on
+> measurement: Foundry v14 keeps effect clocks itself, per effect, against the originating
+> combatant, so the module never has to.
+
 | Item | Shape |
 | --- | --- |
-| **Short-duration effect expiry** | Mastery chips get a 1-round duration and nothing sweeps an expired one. ⚠ **Do not build it before deciding whether this module should own TURN-TIME at all** — building the sweeper first commits that answer by accident. |
-| **AC5e adoption** | ⚠ **Vendor and modify, never import** (user call — R2 rules out the dependency). And it is **complementary, not an alternative**: AC5e *decorates* rolls where this module *applies*. |
+| **AC5e adoption** | ⚠ **Vendor and modify, never import** (user call — R2 rules out the dependency). And it is **complementary, not an alternative**: AC5e *decorates* rolls where this module *applies*. ⚠ **Sharpened 2026-09-01** ([HANDOFF.md](HANDOFF.md) R-B): its behaviour is silent decoration, which the user has ruled out; **what it knows — the thirteen condition rows — is data the module could carry itself** as reminders (HANDOFF Stage 3, recorded and not scheduled). Its geometry features are not wanted. |
 
 ### Two content facts worth keeping
 
