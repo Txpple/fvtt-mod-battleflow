@@ -2,8 +2,9 @@
  * Battle Flow — Phase 1.9B/C: weapon mastery riders, the mastery ask, the topple fold and its popup, and the reminders.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, isFlowElectFor, canApplyTo, whisperNoGM,
-  queueFlagWrite, canAnswerFor, activeCombatFor, combatStamp, statContext } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, isFlowElectFor, drivesMomentFor,
+  canApplyTo, whisperNoGM, queueFlagWrite, canAnswerFor, activeCombatFor, combatStamp,
+  statContext } from "./core.js";
 import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { MASTERY_KINDS, MASTERY_NATIVE } from "./decide/registry.js";
 import { hitTargets, modeAllows, rollConfigFor } from "./shared.js";
@@ -192,13 +193,9 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits) {
 const drivesMastery = attacker => isActiveGM()
   || (!game.users.activeGM && isFlowElectFor(attacker));
 
-/** The same question from a message whose mastery flag names its attacker. */
-const drivesMasteryFlag = flag => {
-  if ( isActiveGM() ) return true;
-  if ( game.users.activeGM ) return false;
-  const attacker = (() => { try { return fromUuidSync(flag?.attackerUuid); } catch { return null; } })();
-  return !!attacker && isFlowElectFor(attacker);
-};
+/** The same question from a message whose mastery flag names its attacker. Hoisted to core as
+ * `drivesMomentFor` in v1.27.2 — three other machines needed the identical body. */
+const drivesMasteryFlag = flag => drivesMomentFor(flag?.attackerUuid);
 
 Hooks.on("createChatMessage", message => {
   if ( !setting(S.masteryRiders) ) return;

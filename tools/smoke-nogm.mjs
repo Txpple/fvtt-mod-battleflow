@@ -30,7 +30,8 @@ const SECTIONS = {
   runs: 'the mastery reminder still posts with no GM connected',
   chip: 'the monster is never written to — no chip lands',
   told: 'the driver is told what did not apply',
-  rejoin: 'a GM rejoining does not re-pay what the player already drove'
+  rejoin: 'a GM rejoining does not re-pay what the player already drove',
+  conc: 'CONCENTRATION runs end to end with no GM — the machine that loses least'
 };
 const { plan, pulled } = sectionPlan(SECTIONS, {});
 const want = id => !plan || plan.includes(String(id));
@@ -240,6 +241,87 @@ try {
     ok('§told the blocked damage is spoken for too — one notice per consequence',
       (hit.whispers ?? []).some(w => /damage/i.test(w)),
       (hit.whispers ?? []).join(' | ') || 'none');
+  }
+
+  /* --- §conc: concentration, end to end, with nobody behind the screen -------------------
+   * ⚠ THE MACHINE THAT LOSES LEAST, and the reason the no-GM work was worth extending past
+   * mastery. A concentrator is almost always a PC, so the subject of every step is a sheet
+   * the player already owns: they take the damage, their client stamps the ask, they roll the
+   * save, and ENDING concentration is a write to their own actor. Nothing here needs a GM at
+   * all — before v1.27.2 the whole thing simply did not happen, silently.
+   * ------------------------------------------------------------------------------------- */
+  if (want('conc')) {
+    const conc = await player.evaluate(async modId => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const until = async (fn, ms = 15_000) => {
+        const t0 = Date.now();
+        while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(200); }
+        return fn();
+      };
+      const pc = game.actors.getName('BF Test PC Attacker');
+      if (!pc) return { error: 'no PC fixture' };
+      const priorMode = game.settings.get(modId, 'concMode');
+      const priorBreak = game.settings.get(modId, 'concBreak');
+      let effectId = null;
+      try {
+        // ⚠ Settings are WORLD-scoped: a player cannot write them. If the world is not already
+        // in a state this section can use, say so rather than reporting a false red.
+        if (priorMode === 'off') {
+          return { skipped: 'concMode is off and a player cannot change a world setting' };
+        }
+        // A real concentration effect on the PC's own sheet — the player owns this write,
+        // which is itself half the point of the section.
+        const spell = pc.items.find(i => i.type === 'spell') ?? null;
+        await pc.createEmbeddedDocuments('ActiveEffect', [{
+          name: 'BF NoGM Concentration', img: 'icons/svg/daze.svg',
+          origin: spell?.uuid ?? pc.uuid,
+          duration: { seconds: 600 },
+          statuses: ['concentrating'],
+          flags: { dnd5e: { item: { name: 'BF NoGM Focus' } } }
+        }]);
+        await sleep(400);
+        const eff = pc.effects.find(e => e.name === 'BF NoGM Concentration');
+        effectId = eff?.id ?? null;
+        if (!eff) return { error: 'could not seed a concentration effect' };
+        const concentrating = (pc.concentration?.effects?.size ?? 0) > 0;
+
+        // Damage the PC — their OWN sheet, so the player may apply it, and dnd5e.damageActor
+        // fires on this client. That hook is where the ask is stamped.
+        const before = new Set(game.messages.contents.map(m => m.id));
+        const hp = pc.system.attributes.hp;
+        await pc.update({ 'system.attributes.hp.value': Math.max(1, hp.value - 5) });
+        const ask = await until(() => game.messages.contents.filter(m => !before.has(m.id))
+          .find(m => m.getFlag(modId, 'concentration')?.actorUuid === pc.uuid) ?? null, 12_000);
+
+        return {
+          concentrating,
+          askPosted: !!ask,
+          askAuthorIsMe: ask ? (ask.author?.id === game.user.id) : null,
+          askStatus: ask?.getFlag(modId, 'concentration')?.status ?? null,
+          priorMode, priorBreak
+        };
+      } finally {
+        // Player-side cleanup only, and never leave a concentration marker behind.
+        const strays = pc.effects.filter(e => e.name === 'BF NoGM Concentration');
+        if (strays.length) await pc.deleteEmbeddedDocuments('ActiveEffect', strays.map(e => e.id));
+        await pc.update({ 'system.attributes.hp.value': pc.system.attributes.hp.max });
+      }
+    }, MOD);
+
+    if (conc.skipped) {
+      out.skips.push(`§conc ${conc.skipped}`);
+    } else if (conc.error) {
+      ok('§conc the section could set itself up', false, conc.error);
+    } else {
+      ok('§conc the PC really is concentrating (the precondition)',
+        conc.concentrating === true, JSON.stringify(conc));
+      ok('§conc THE ASK IS STAMPED WITH NO GM — the machine runs at all',
+        conc.askPosted === true, JSON.stringify(conc));
+      ok('§conc …and the PLAYER\'S OWN client authored it, not a GM',
+        conc.askAuthorIsMe === true, `author is me=${conc.askAuthorIsMe}`);
+      ok('§conc …and it is pending, so the save can still be rolled',
+        conc.askStatus === 'pending', `status=${conc.askStatus}`);
+    }
   }
 
   // ------------------------------------------------------- §rejoin: the GM comes back

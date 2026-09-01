@@ -2,8 +2,9 @@
  * Battle Flow — Phase 2: saving throws, joint with Phase 3's save slice - demand, roll, verdict, consequences.
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, rollerUserFor,
-  canAnswerFor, inRunningCombat, statContext } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, queueFlagWrite, rollerUserFor,
+  drivesMomentFor, canApplyTo, whisperNoGM, canAnswerFor, inRunningCombat,
+  statContext } from "./core.js";
 import { tokensInTemplates } from "./geometry.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom, saveMultiplier, verdictText } from "./decide/verdict.js";
 import { isDeadForSaves } from "./decide/eligible.js";
@@ -307,7 +308,8 @@ const templateRefreshes = new Set();
  * on that same elect; templateShape's document-geometry fallback carries containment.
  */
 async function refreshDemandFromTemplates(card) {
-  if ( !isActiveGM() || !setting(S.saves) ) return;
+  if ( !setting(S.saves) ) return;
+  if ( !drivesMomentFor(card.getFlag(MODULE_ID, "saves")?.sourceUuid ?? null) ) return;
   if ( templateRefreshes.has(card.id) ) return;
   templateRefreshes.add(card.id);
   try {
@@ -399,7 +401,9 @@ async function refreshDemandFromTemplates(card) {
  * An origin-LESS template (the toolbar draw, finding ①) is offered to the newest WAITING
  * demand expecting its shape — the refresh's claim does the actual tying. */
 function refreshTemplatedDemands(templateDoc) {
-  if ( !isActiveGM() || !setting(S.saves) ) return;
+  if ( !setting(S.saves) ) return;
+  // Per-demand rather than per-room: the loop below already filters to live demands, and each
+  // one is driven by whoever drives its caster (v1.27.2).
   const origin = templateDoc.getFlag("dnd5e", "origin");
   const live = game.messages.contents.filter(m => {
     const f = m.getFlag(MODULE_ID, "saves");
@@ -500,10 +504,10 @@ async function cleanupSpentTemplates(card, { endedConcentrationId = null } = {})
  * the convergent backstop (a lost trigger lands on the next render, whoever the elect is
  * by then); this hook just makes the common case immediate. */
 Hooks.on("deleteActiveEffect", effect => {
-  if ( !isActiveGM() ) return;
   if ( !(effect.parent instanceof Actor) ) return;
   for ( const m of game.messages.contents ) {
     if ( m.system?.concentration !== effect.id ) continue;
+    if ( !drivesMomentFor(m.getFlag(MODULE_ID, "saves")?.sourceUuid ?? null) ) continue;
     if ( m.getFlag(MODULE_ID, "saves")?.templated ) {
       void cleanupSpentTemplates(m, { endedConcentrationId: effect.id });
     }
@@ -737,9 +741,10 @@ async function announceSaveVerdict(card, flag, entry) {
  * elect-posted card: isActiveGM() is per-USER, so two sessions on one account can both
  * announce. Keyed (sourceMessageId, uuid); the elder stays, the newcomer deletes itself. */
 Hooks.on("createChatMessage", message => {
-  if ( !isActiveGM() ) return;
   const v = message.getFlag(MODULE_ID, "verdictLine");
   if ( !v?.sourceMessageId ) return;
+  if ( !drivesMomentFor(game.messages.get(v.sourceMessageId)
+    ?.getFlag(MODULE_ID, "saves")?.sourceUuid ?? null) ) return;
   const elder = game.messages.contents.some(m => {
     if ( m.id === message.id ) return false;
     const o = m.getFlag(MODULE_ID, "verdictLine");
@@ -869,7 +874,7 @@ async function answerSaveChoice(card, uuid, answer) {
 registerRelay("saveChoiceAnswer", {
   flagKey: "saves",
   targetOf: a => a.cardId,
-  owns: () => isActiveGM(),
+  owns: flag => drivesMomentFor(flag?.sourceUuid ?? null),
   fold: (current, a) => {
     const t = current.targets?.find(x => x.uuid === a.uuid);
     const c = t?.choice;
@@ -882,8 +887,8 @@ registerRelay("saveChoiceAnswer", {
 const disarmSaveChoiceTimer = cardId => disarmDeadline(saveChoiceTimers, cardId);
 
 function armSaveChoiceTimer(card) {
-  if ( !isActiveGM() ) return;
   const flag = card.getFlag(MODULE_ID, "saves");
+  if ( !drivesMomentFor(flag?.sourceUuid ?? null) ) return;
   const pending = (flag?.targets ?? []).filter(t => t.choice && !t.choice.answer && t.choice.deadline);
   if ( !pending.length ) { disarmSaveChoiceTimer(card.id); return; }
   armDeadline(saveChoiceTimers, card.id, Math.min(...pending.map(t => t.choice.deadline)),
@@ -1047,6 +1052,19 @@ async function applySaveConsequences(card, uuid, rollMessage = null) {
     flag = card.getFlag(MODULE_ID, "saves"); // the pause is wide — re-read before acting
     entry = flag?.targets?.find(t => t.uuid === uuid);
     if ( !entry?.done || entry.applied ) return;
+
+    // ⚠ THE CONSEQUENCE IS A WRITE TO THE SAVER (v1.27.2). With no GM connected this splits by
+    // WHO SAVED: a party-wide demand — fireball, a dragon's breath — lands on PCs their own
+    // players own, so the damage and the chips apply exactly as always. A demand aimed at
+    // monsters cannot land, and the announcement below is the point at which to say so: the
+    // verdict is already public and true, only the press is missing.
+    const saver = (() => { try { return fromUuidSync(uuid); } catch { return null; } })();
+    if ( (saver instanceof Actor) && !canApplyTo(saver) ) {
+      await announceSaveVerdict(card, flag, entry);
+      await whisperNoGM(`${entry.name ?? saver.name}'s save consequences`,
+        "The verdict stands on the card — apply the damage and any condition by hand.");
+      return;
+    }
 
     // The verdict ANNOUNCES before its consequences land (v1.19.0, FLOW item 7 — the line
     // sits above the receipt rows, per "cards say one thing, once"), and AFTER the pause +
@@ -1330,11 +1348,12 @@ async function fireSaveTimer(card) {
 /* --- the answer channels and the resume discipline ------------------------------------------- */
 
 Hooks.on("createChatMessage", message => {
-  if ( !isActiveGM() ) return;
-  // A save roll landing: fold it into whatever demand it answers.
+  // A save roll landing: fold it into whatever demand it answers. The demand names its own
+  // driver, so the gate moves inside — this hook cannot know the card before it looks (v1.27.2).
   if ( message.getFlag("dnd5e", "roll.type") === "save" ) {
     const found = saveAnsweredBy(message);
-    if ( found ) void foldSaveAnswer(found.card, found.uuid, message);
+    if ( found && drivesMomentFor(found.card.getFlag(MODULE_ID, "saves")?.sourceUuid ?? null) )
+      void foldSaveAnswer(found.card, found.uuid, message);
   }
   // The card's damage roll landing: verdicts that already exist apply now; the rest apply
   // as they fold, per target.
@@ -1348,7 +1367,7 @@ Hooks.on("createChatMessage", message => {
 
 Hooks.on("updateChatMessage", message => {
   // Legendary resistance: a save flipped to success after the fact.
-  if ( isActiveGM() && (message.getFlag("dnd5e", "roll.type") === "save")
+  if ( (message.getFlag("dnd5e", "roll.type") === "save")
     && (message.getFlag("dnd5e", "roll.forceSuccess") === true) ) {
     void flipForcedSave(message);
   }
@@ -1389,7 +1408,7 @@ Hooks.on("updateChatMessage", message => {
     // beat later), so arrival work rides here as well as on render.
     armSaveTimer(message);
   }
-  if ( isActiveGM() ) {
+  if ( drivesMomentFor(flag.sourceUuid ?? null) ) {
     for ( const t of flag.targets ?? [] ) {
       if ( t.done && !t.applied ) void applySaveConsequences(message, t.uuid);
     }
@@ -1436,7 +1455,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   // truth), so a render is what reliably notices the placed area.
   if ( !flag.targets?.length ) {
     if ( flag.status !== "pending" ) return;
-    if ( isActiveGM() ) void refreshDemandFromTemplates(message);
+    void refreshDemandFromTemplates(message);   // gated on the demand's own driver inside
     const abilityLabel = CONFIG.DND5E.abilities[flag.abilities?.[0]]?.label ?? flag.abilities?.[0] ?? "";
     const row = document.createElement("div");
     row.className = "battleflow-saves";
@@ -1496,7 +1515,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
     // Resume, stateless (the split discipline): an answer landed while nobody could fold;
     // a verdict landed while nobody could apply; damage landed while nobody could reconcile.
-    if ( isActiveGM() ) {
+    if ( drivesMomentFor(flag.sourceUuid ?? null) ) {
       // The containment floor: a pending demand follows its area on every render — the
       // template CRUD hooks are only fast-paths (measured unreliable on the headless elect).
       void refreshDemandFromTemplates(message);
@@ -1566,7 +1585,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   if ( choiceBars && !pending ) scheduleBarSync(row);
   armSaveChoiceTimer(message);
 
-  if ( isActiveGM() ) {
+  if ( drivesMomentFor(flag.sourceUuid ?? null) ) {
     for ( const t of flag.targets ) {
       if ( t.done && !t.applied ) void applySaveConsequences(message, t.uuid);
     }

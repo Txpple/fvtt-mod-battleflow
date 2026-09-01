@@ -2,8 +2,9 @@
  * Battle Flow — Phase 1.5: the reaction hold. Two entry points, one machine - eligibility, both triggers (attack and listed spell), answers, continuation, the veto, the no-attack damage applier's claim. Views live in ui.js.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
-  canAnswerFor, isContinuingClient, inRunningCombat, statContext } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, queueFlagWrite, drivesMomentFor,
+  canApplyTo, whisperNoGM, canAnswerFor, isContinuingClient, inRunningCombat,
+  statContext } from "./core.js";
 import { limitedUses, isReactionItem } from "./decide/eligible.js";
 import { interruptEntries, blockEntries } from "./settings.js";
 import { joinEffectReceipt } from "./decide/receipt.js";
@@ -209,7 +210,11 @@ const reactionSpent = actor => !!actor?.getFlag(MODULE_ID, "reactionSpent");
 // Any reaction an actor takes suppresses further holds for them until their next turn. The
 // active GM is the single writer; the flag replicates to everyone who needs to read it.
 Hooks.on("dnd5e.postUseActivity", activity => {
-  if ( !setting(S.reactionHold) || !isActiveGM() ) return;
+  // ⚠ The reactor's OWN client may set this when no GM is on (v1.27.2): the flag lives on the
+  // reacting actor, and a reaction is nearly always a PC's. Nothing to whisper — a player who
+  // cannot write it is not the one who reacted.
+  if ( !setting(S.reactionHold) ) return;
+  if ( !drivesMomentFor(activity?.actor?.uuid ?? null) ) return;
   if ( activity?.activation?.type !== "reaction" ) return;
   const actor = activity.actor;
   // Only inside a running combat. Out of combat there are no turns to refresh the flag, so
@@ -225,17 +230,20 @@ Hooks.on("dnd5e.postUseActivity", activity => {
 // reactionSpent flag: the combat ended with the clears disabled, and re-enabling the
 // feature later silently suppressed those actors' first holds. Clearing is always harmless.
 Hooks.on("updateCombat", combat => {
-  if ( !isActiveGM() ) return;
   const actor = combat.combatant?.actor;
+  if ( !drivesMomentFor(actor?.uuid ?? null) ) return;
   if ( actor?.getFlag(MODULE_ID, "reactionSpent") ) void actor.unsetFlag(MODULE_ID, "reactionSpent");
 });
 
 // …and when the fight ends, so nobody carries a spent reaction into the next one.
 Hooks.on("deleteCombat", combat => {
-  if ( !isActiveGM() ) return;
+  // Per-combatant rather than per-room: with no GM each player clears their own, and the
+  // clear is harmless besides — it only ever removes a suppression.
   for ( const combatant of combat.combatants ) {
-    if ( combatant.actor?.getFlag(MODULE_ID, "reactionSpent") )
-      void combatant.actor.unsetFlag(MODULE_ID, "reactionSpent");
+    const actor = combatant.actor;
+    if ( !actor?.getFlag(MODULE_ID, "reactionSpent") ) continue;
+    if ( !drivesMomentFor(actor.uuid) ) continue;
+    void actor.unsetFlag(MODULE_ID, "reactionSpent");
   }
 });
 
@@ -942,13 +950,26 @@ async function applySpellDamage(message) {
     if ( !targets.length ) return;
     const damages = damagePartsOf(message.rolls);
     if ( !damages.length ) return;
+    // ⚠ WITH NO GM, ONLY THE TARGETS THIS CLIENT MAY WRITE ARE APPLIED (v1.27.2), and the rest
+    // are spoken for. A spell's targets are usually monsters, so this is normally the whole
+    // set — the roll stands, the card stands, and the damage tray is still there to press by
+    // hand. Silence here would read as the resolver having applied nothing for no reason.
+    const writable = targets.filter(t => {
+      try { return canApplyTo(fromUuidSync(t.uuid)); } catch { return false; }
+    });
+    const blocked = targets.length - writable.length;
+    if ( blocked ) {
+      await whisperNoGM(`this spell's damage to ${blocked} target${blocked === 1 ? "" : "s"}`,
+        "The roll stands — apply it from the card's damage tray.");
+    }
+    if ( !writable.length ) return;
     // ⚠ Lazily bound, and deliberately so (split, v1.6.1): a static import would evaluate
     // auto-apply.js — and through it mastery.js and concentration.js — before this file's
     // body, registering concentration's preApplyDamage cause capture AHEAD of the veto
     // above. Foundry stops calling preApplyDamage at the first false, so the veto must stay
     // first in line or a vetoed application strands a captured cause. Keep this dynamic.
     const { applyDamagesWithReceipt } = await import("./auto-apply.js");
-    await applyDamagesWithReceipt(message, targets, damages);
+    await applyDamagesWithReceipt(message, writable, damages);
   } catch(err) {
     console.error(`${TITLE} | Spell damage auto-apply failed.`, err);
   } finally {
@@ -956,14 +977,19 @@ async function applySpellDamage(message) {
   }
 }
 
+/** Who drives a spell-damage roll's application: the GM, or with none the CASTER's own client
+ * (v1.27.2 — the roll is theirs, and the message is theirs to stamp a receipt on). */
+const drivesSpellDamage = message =>
+  drivesMomentFor(message?.getAssociatedActor?.()?.uuid ?? null);
+
 // Three triggers, all flag-driven: arrival, the claim settling, and render (reload resume).
 Hooks.on("createChatMessage", message => {
-  if ( !setting(S.autoApply) || !isActiveGM() ) return;
+  if ( !setting(S.autoApply) || !drivesSpellDamage(message) ) return;
   if ( message.getFlag(MODULE_ID, "spellDamage") ) void applySpellDamage(message);
 });
 
 Hooks.on("updateChatMessage", message => {
-  if ( !setting(S.autoApply) || !isActiveGM() ) return;
+  if ( !setting(S.autoApply) || !drivesSpellDamage(message) ) return;
   // The pending claim settled (cleared by the caster, or released by the resolution below).
   if ( message.getFlag(MODULE_ID, "spellDamage")
     && (message.getFlag(MODULE_ID, "spellHoldPending") === false)
@@ -981,7 +1007,7 @@ Hooks.on("updateChatMessage", message => {
 });
 
 Hooks.on("dnd5e.renderChatMessage", message => {
-  if ( !setting(S.autoApply) || !isActiveGM() ) return;
+  if ( !setting(S.autoApply) || !drivesSpellDamage(message) ) return;
   if ( message.getFlag(MODULE_ID, "spellDamage")
     && (message.getFlag(MODULE_ID, "spellHoldPending") !== true)
     && !message.getFlag(MODULE_ID, "receipt") ) void applySpellDamage(message);

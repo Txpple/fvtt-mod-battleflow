@@ -98,6 +98,22 @@ export const flowElectFor = actor =>
 export const isFlowElectFor = actor => flowElectFor(actor)?.isSelf ?? false;
 
 /**
+ * Does THIS client drive a moment whose subject is `subjectUuid`? The one question every
+ * machine asks, in one place (v1.27.2 — mastery.js grew the first copy, and three more were
+ * about to follow it).
+ *
+ * With a GM connected the answer is exactly `isActiveGM()`, so nothing changes for a normal
+ * table. With none, the subject's own player drives — and a subject that cannot be resolved
+ * drives nothing, which is the correct no-op rather than a guess.
+ */
+export function drivesMomentFor(subjectUuid) {
+  if ( isActiveGM() ) return true;
+  if ( game.users.activeGM ) return false;   // a GM is on and it is not us — never two drivers
+  const actor = (() => { try { return fromUuidSync(subjectUuid); } catch { return null; } })();
+  return !!actor && isFlowElectFor(actor);
+}
+
+/**
  * May this client actually WRITE to that actor — apply an effect, press a condition, move HP?
  * GMs own everything; a player owns their own sheet and nothing on the monster side. This is
  * the guard that turns a silent permission failure into a spoken one.

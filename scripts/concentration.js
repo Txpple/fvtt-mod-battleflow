@@ -2,8 +2,8 @@
  * Battle Flow — Phase 2.5: the concentration assist - damage, ask, roll, verdict, break.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, rollerUserFor, canAnswerFor,
-  statContext } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, rollerUserFor, canAnswerFor,
+  drivesMomentFor, canApplyTo, whisperNoGM, statContext } from "./core.js";
 import { rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton,
@@ -87,7 +87,12 @@ function concentratingOn(actor) {
  */
 Hooks.on("dnd5e.damageActor", (actor, changes) => {
   if ( setting(S.concMode) === "off" ) return;
-  if ( !isActiveGM() ) return;                              // single writer stamps the ask
+  // ⚠ WITH NO GM, THE CONCENTRATOR'S OWN CLIENT STAMPS IT (v1.27.2). This is the machine that
+  // loses least when the GM drops: the subject is almost always a PC, so the ask card, the
+  // save, and even the consequence (ending concentration is a write to their OWN sheet) are
+  // all things that player may do. Gated on the SUBJECT rather than the room, so two players
+  // taking damage in the same tick each drive only their own ask.
+  if ( !drivesMomentFor(actor?.uuid) ) return;              // single writer stamps the ask
   if ( !(actor instanceof Actor) ) return;
   if ( !actor.concentration?.effects?.size ) return;
   const hp = actor.system.attributes?.hp;
@@ -375,12 +380,21 @@ async function announceConcentrationHolds(actor, ask, whisper = null) {
  */
 async function breakConcentration(actor, { names = [], effectIds = null, ask = null, reason = null } = {}) {
   const breaks = setting(S.concBreak);
-  if ( breaks && (actor instanceof Actor) ) {
+  // ⚠ ENDING CONCENTRATION IS A WRITE TO THE CONCENTRATOR (v1.27.2). For a PC that is their
+  // OWN sheet, so with no GM the player breaks their own concentration and nothing is lost —
+  // this machine degrades further than any other. An NPC concentrator is the exception: the
+  // card still announces the break publicly, and the driver is told the effect is still on.
+  const blocked = breaks && (actor instanceof Actor) && !canApplyTo(actor);
+  if ( breaks && (actor instanceof Actor) && !blocked ) {
     const targets = effectIds ?? [...(actor.concentration?.effects ?? [])].map(e => e.id);
     for ( const id of targets ) {
       try { await actor.endConcentration(id); }
       catch(err) { console.error(`${TITLE} | Could not end concentration.`, err); }
     }
+  }
+  if ( blocked ) {
+    await whisperNoGM(`the end of ${actor.name}'s concentration`,
+      "The save and its verdict stand — end the effect from their sheet.");
   }
   const what = names.length ? names.join(", ") : "concentration";
   await ChatMessage.create({
@@ -429,9 +443,13 @@ async function fireConcTimer(askMessage) {
 // The answer channel: the elect folds any roll that answers an ask — the module's own stamped
 // rolls and bare sheet-rolls alike. Everyone else's client just watches the flags change.
 Hooks.on("createChatMessage", message => {
-  if ( isActiveGM() ) {
+  {
+    // The fold is driven by whoever drives THAT ask's subject (v1.27.2), resolved from the ask
+    // itself — this hook sees only the answering roll, so the subject has to be looked up.
     const askId = concAskAnsweredBy(message);
-    if ( askId ) void foldConcentrationRoll(game.messages.get(askId), message);
+    const askMsg = askId ? game.messages.get(askId) : null;
+    const subject = askMsg?.getFlag(MODULE_ID, "concentration")?.actorUuid ?? null;
+    if ( askMsg && drivesMomentFor(subject) ) void foldConcentrationRoll(askMsg, message);
   }
   // A fresh ask: arm the clock (elect-gated inside), and in auto mode the elected roller
   // volunteers — their character, their dice, no popup.
@@ -486,7 +504,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   // The crash-resume: done-but-unapplied, stale past any live pause, new-era stamps only
   // (answeredAt is the marker — pre-contract history stays history).
   if ( (ask.status === "done") && ask.outcome?.answeredAt && !ask.outcome.applied
-    && isActiveGM() && (Date.now() - ask.outcome.answeredAt > 20_000) ) void resumeConcOutcome(message);
+    && drivesMomentFor(ask.actorUuid) && (Date.now() - ask.outcome.answeredAt > 20_000) ) void resumeConcOutcome(message);
 
   const row = document.createElement("div");
   row.className = "battleflow-concentration";
@@ -498,7 +516,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
     // Resume: an answer landed while nobody could fold it (the elect reloaded between the
     // roll message and the fold). Whole-log by flag — never a tail window.
-    if ( isActiveGM() ) {
+    if ( drivesMomentFor(ask.actorUuid) ) {
       const landed = game.messages.find(m => m.getFlag(MODULE_ID, "respondsTo") === message.id);
       if ( landed ) void foldConcentrationRoll(message, landed);
     }

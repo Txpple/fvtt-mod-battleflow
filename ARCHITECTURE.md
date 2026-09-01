@@ -145,10 +145,25 @@ first. This module's scars are all from two clients believing they own one momen
 supersede in mastery.js), and `smoke-nogm` §rejoin exists to keep it that way: a GM reconnecting
 mid-flight must re-pay nothing.
 
-**Scope today: the mastery chain and the damage/effect-rider stages that share its gate.** The
-other machines (saves, concentration, hold) still gate on `isActiveGM()` — around 55 call sites
-across 13 files. Converting them is mechanical once a machine's writes are separated from its
-views, but it has not been done and should not be assumed.
+**Scope: every machine that has a subject** — mastery, damage/effect riders, **concentration,
+saves and the hold** (v1.27.2 completed the sweep). One helper answers it everywhere,
+`drivesMomentFor(subjectUuid)`; each machine supplies the subject its flag already carries:
+
+| Machine | Subject | What survives without a GM |
+| --- | --- | --- |
+| Mastery | the attacker | cards, asks, popups; Cleave's arm fully (own actor) |
+| Concentration | the concentrator | **almost everything** — a PC owns their own sheet, so the ask, the save and the break all land |
+| Saves | the demand's caster (`sourceUuid`) | cards, verdicts, folds; consequences land on **PC** savers and not on monsters |
+| Hold | the caster / the reactor | the offer, the answer, `reactionSpent`; spell damage lands only on writable targets |
+
+⚠ **Concentration is the one that loses nothing**, and it is the argument for the whole design:
+the subject is a PC, so every step — including ending concentration — is a write that player
+already owns. Before this, a GM disconnect silently stopped it entirely.
+
+⚠ **Gate on the SUBJECT, never on the room.** Two players taking damage in the same tick each
+drive only their own ask; a room-wide fallback would hand one player's moment to the other, who
+cannot write it. Where a hook cannot know the subject before it looks — a save roll answering an
+unknown demand — the gate moves INSIDE, after the lookup.
 
 ### The relay — the answer channel, one shape
 
