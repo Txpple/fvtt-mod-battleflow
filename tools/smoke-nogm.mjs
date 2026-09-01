@@ -132,10 +132,19 @@ try {
     // is on the MONSTER and the player cannot make it — so instead of pinning AC the attack
     // rolls with advantage and retries, exactly as a real player would have to.
     const scene = game.scenes.getName('Battle Flow Test Range');
+    // ⚠ NAME THE MISSING FIXTURE, never crash on it. Both of these came back as
+    // "Cannot read properties of undefined (reading 'id')" from inside a page.evaluate — a
+    // stack trace with no fixture in it, which is the least readable failure this tree
+    // produces. The scene is invisible to a player without OBSERVER, and the victim TOKEN is
+    // swept off the range by other suites (smoke-effects says so in its own log), so both
+    // are ordinary battery conditions rather than exotic ones.
+    if (!scene) return { error: 'the test scene is not visible to this player — run tools/fixture-suite.mjs (it grants OBSERVER)' };
     if (canvas.scene?.id !== scene.id) await scene.view();
     await until(() => canvas.ready, 20_000);
     const tokenDoc = scene.tokens.find(t => t.actorId === victim.id);
-    const token = canvas.tokens.get(tokenDoc.id);
+    if (!tokenDoc) return { error: 'no BF Test Victim token on the range — a previous suite swept it; run tools/fixture-suite.mjs (a player cannot place one)' };
+    const token = await until(() => canvas.tokens.get(tokenDoc.id), 10_000);
+    if (!token) return { error: 'the victim token never reached the canvas' };
     token.setTarget(true, { releaseOthers: true });
 
     const activity = weapon.system.activities.find(a => a.type === 'attack');

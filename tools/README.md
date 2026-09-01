@@ -53,7 +53,8 @@ ordering, the capture and the settings check for you**, which is why it is the f
 `smoke-battleflow` (first — it places the shared victim token) · `smoke-hold` (⚠ **immediately**
 after it) · `smoke-saves` · `smoke-volleys` · `smoke-maneuvers` · `smoke-cast` · `smoke-riders` ·
 `smoke-concentration` · `smoke-twoclient` · `check-popup-routing` · `reset-fixture-state` ·
-`smoke-effects` · `smoke-resources`
+`smoke-effects` · `smoke-resources` · `smoke-surfaces` · `fixture-suite` · `smoke-nogm` (last —
+it must find no active GM, and the seed above it re-places the token it needs)
 
 ⚠ **`smoke-twoclient` is the one that needs a SECOND client**, and it is where the properties no
 solo suite can reach are asserted: the relay's **relayed** half (a player's answer travels as

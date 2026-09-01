@@ -77,7 +77,23 @@ const ORDER = [
   // while smoke-saves is mid-run would join its containment arithmetic (§8 re-derives target
   // sets from whatever areas exist). It deletes its own in a `finally`; running it last means
   // a crash between the two cannot reach a suite that would care.
-  { name: "smoke-surfaces", note: "the three surfaces nothing else opens — settings, usage dialog, templates" }
+  { name: "smoke-surfaces", note: "the three surfaces nothing else opens — settings, usage dialog, templates" },
+  // ⚠ LAST, AFTER smoke-surfaces, and for a reason no other entry has: it is the one suite that
+  // must find NO ACTIVE GM. It opens no GM session of its own until its rejoin section, and it
+  // REFUSES to run if it sees one — a stray GM silently turns it into a weaker copy of
+  // smoke-effects that passes for the wrong reason. Running it at the end means every other
+  // suite has already hung up. ⚠ If it fails its preflight here, the cause is almost always a
+  // previous suite's session lingering rather than anything about the module; re-run it alone.
+  //
+  // It is in the battery at all because an unrun suite rots — the 15-second reminder survived
+  // six weeks behind an assertion that nobody re-read, and a no-GM suite that only ever ran on
+  // the day it was written would be the same bet.
+  // ⚠ THE SEED IS A BATTERY STEP, the smoke-d20-folds lesson applied again: smoke-nogm needs
+  // the victim TOKEN on the range, earlier suites sweep it off (smoke-effects says so in its
+  // own log), and a player client cannot place one — it only observes the scene. Without this
+  // the battery reported a red for a missing fixture, which is a broken gauge.
+  { name: "fixture-suite", note: "not a suite — re-places the tokens smoke-nogm needs", reset: true },
+  { name: "smoke-nogm", note: "⚠ NO GM — the flow elect; must run with every other client hung up" }
 ];
 
 const { values, positionals } = parseArgs({
