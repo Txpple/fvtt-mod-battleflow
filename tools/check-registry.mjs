@@ -150,12 +150,16 @@ for (const [key, spec] of Object.entries(LIST_SPECS)) {
 // comes from; the arithmetic they share was already built by D8 and needed no new kind at all.
 // ⚠ That is the tripwire behaving, not firing: one pass, one bump, and the reason is that the
 // mechanism was lifted out FIRST and the kinds only name the residue.
-const EXPECTED_KINDS = 19;
+// 2026-09-01: 19 → 23, the `reminder` set — vex, sap, prone, condition: four distinct ways the
+// gate can READ a source of Advantage/Disadvantage before an attack roll (HANDOFF Stage 2 + 3).
+// One new MECHANISM (the gate), four kinds naming what it reads; WHICH conditions count under
+// the fourth is the Condition Sources list — thirteen rows of data, not thirteen kinds.
+const EXPECTED_KINDS = 23;
 
 // The mastery set must match the rule text it is presented with: a mastery this module
 // resolves but cannot quote breaks presentation law 8 (ARCHITECTURE.md §5) at the popup.
-const masterySrc = read("scripts/mastery.js");
-const rulesBlock = /const MASTERY_RULES = \{([\s\S]*?)\n\};/.exec(masterySrc);
+const rulesSrc = read("scripts/decide/registry.js");
+const rulesBlock = /export const MASTERY_RULES = Object\.freeze\(\{([\s\S]*?)\n\}\);/.exec(rulesSrc);
 const ruleKeys = new Set([...(rulesBlock?.[1] ?? "").matchAll(/^\s{2}(\w+):/gm)].map(m => m[1]));
 const unquoted = [...MASTERY_KINDS].filter(k => !ruleKeys.has(k));
 const unresolved = [...ruleKeys].filter(k => !MASTERY_KINDS.has(k));
@@ -186,7 +190,15 @@ const rows = KIND_SETS.map(set => {
 // windows as v14 duration data, and which attack roll spends which chip. Pure, unit-pinned, and
 // deliberately its own file: receipt.js is about what a card RECORDS, this is about what a chip
 // IS, and the two would otherwise grow into each other.
-const EXPECTED_SOURCE_FILES = 30;
+// 2026-09-01 (later the same day): 30 → 31, for scripts/decide/reminders.js — the gate's
+// arithmetic: what bends an attack roll and what it nets to (the user's ruling: any Advantage
+// against any Disadvantage is a normal roll, however many of each). Its own file because the
+// net rule is about ROLLS, not chips, and Prone reads a status, not a chip.
+// 2026-09-01 (Stage 2): 31 → 32, for scripts/reminders.js — the gate is its own MACHINE. It
+// reads mastery's chips (through decide/chips.js's fingerprint, never a sideways import) and
+// the system's statuses, and it intercepts a system roll — none of which is the mastery
+// machine's job. MASTERY_RULES moved down to decide/registry.js the same day so both can quote it.
+const EXPECTED_SOURCE_FILES = 32;
 const sourceFiles = [
   ...readdirSync(join(ROOT, "scripts")).filter(f => f.endsWith(".js")),
   ...readdirSync(join(ROOT, "scripts/decide")).filter(f => f.endsWith(".js")).map(f => `decide/${f}`)

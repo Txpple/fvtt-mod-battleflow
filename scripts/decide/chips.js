@@ -19,6 +19,20 @@
  * next turn" is one round with the attacker's own combatant in `start`.
  */
 
+/** The flag key every Battle Flow chip carries (`flags.<module>.mastery = <key>`) — the fingerprint
+ * the applier, the spend, the tidy and the reminder gate all read. One name, here. */
+export const CHIP_FLAG = "mastery";
+
+/**
+ * Does a chip belong to this attacker? A chip's `origin` is the WEAPON that applied it, so the
+ * attacker owns it when that weapon is theirs — the origin uuid starts with the attacker's.
+ * @param {string|null|undefined} origin
+ * @param {string} attackerUuid
+ */
+export function chipOwnedBy(origin, attackerUuid) {
+  return !!origin && !!attackerUuid && origin.startsWith(`${attackerUuid}.Item.`);
+}
+
 /**
  * The RAW window of each chip this module authors, as v14 duration data.
  *
@@ -116,15 +130,20 @@ export function rollModeOf(advantageMode) {
 }
 
 /**
- * Was the chip's rule HONOURED by the roll that spent it? Vex wants advantage, Sap wants
- * disadvantage. A chip nothing spends has nothing to honour.
+ * Was the chip's rule HONOURED by the roll that spent it? On its own, Vex wants advantage and
+ * Sap wants disadvantage. ⚠ When the gate showed the roller the NET of every source (a sapped
+ * attacker swinging at a target they Vexed nets to a normal roll — the user's ruling), honour
+ * is the press matching the NET, not the chip's own bend: pressing Normal there honoured both.
+ * A chip nothing spends has nothing to honour.
  * @param {string} key
  * @param {"advantage"|"disadvantage"|"normal"} mode
+ * @param {"advantage"|"disadvantage"|"normal"|null} [net]  the gate's net, when a gate ran
  */
-export function chipHonoured(key, mode) {
+export function chipHonoured(key, mode, net = null) {
+  if ( !["vex", "sap"].includes(key) ) return null;
+  if ( net ) return mode === net;
   if ( key === "vex" ) return mode === "advantage";
-  if ( key === "sap" ) return mode === "disadvantage";
-  return null;
+  return mode === "disadvantage";
 }
 
 /**
@@ -134,9 +153,10 @@ export function chipHonoured(key, mode) {
  * by the EDGE that writes it.
  *
  * @param {{id: string, name: string, img?: string|null, key: string, bearerUuid: string,
- *          bearerName: string, mode: "advantage"|"disadvantage"|"normal"}} spent
+ *          bearerName: string, mode: "advantage"|"disadvantage"|"normal",
+ *          net?: "advantage"|"disadvantage"|"normal"|null}} spent
  */
-export function spendRecord({ id, name, img = null, key, bearerUuid, bearerName, mode }) {
+export function spendRecord({ id, name, img = null, key, bearerUuid, bearerName, mode, net = null }) {
   return { id, name, img, key, uuid: bearerUuid, bearer: bearerName, mode,
-    honoured: chipHonoured(key, mode) };
+    honoured: chipHonoured(key, mode, net) };
 }

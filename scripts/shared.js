@@ -34,6 +34,10 @@ export function hitTargets(attackMessage) {
   });
 }
 
+/** EDGE: the system's own label for a weapon mastery key — shared by the mastery machine and the
+ * reminder gate (moved out of mastery.js 2026-09-01). */
+export const masteryLabel = key => CONFIG.DND5E.weaponMasteries[key]?.label ?? key;
+
 /**
  * Does the attacker-side mode admit this actor's side of the table? One home for the
  * npc/pc/all gate — Phase 1a and Graze both read it, and a mode added here reaches both.

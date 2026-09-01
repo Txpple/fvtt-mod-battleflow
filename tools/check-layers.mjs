@@ -64,6 +64,7 @@ const LAYER_OF = {
   "hit-riders.js": "machines",
   "d20-folds.js": "machines",
   "receipts.js": "machines",
+  "reminders.js": "machines",
   "polish.js": "machines",
   "resources.js": "machines",
   "stats.js": "machines",
@@ -90,6 +91,7 @@ const LAYER_OF = {
   "decide/receipt.js": "decision",
   "decide/present.js": "decision",
   "decide/chips.js": "decision",
+  "decide/reminders.js": "decision",
 
   // CORE — the leaf: ids, settings accessor, the elect, the flag serializer
   "core.js": "core"

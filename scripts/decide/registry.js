@@ -80,6 +80,43 @@ export const MASTERY_KINDS = new Set(["vex", "sap", "cleave", "slow", "topple", 
 /** Masteries the system has and this module deliberately leaves alone. See MASTERY_KINDS. */
 export const MASTERY_NATIVE = new Set(["nick"]);
 
+/** Walk-5 (z): what each mastery popup quotes (DATA, moved here from mastery.js 2026-09-01 so the
+ * reminder gate can quote it without a sideways import) — the 2024 property text VERBATIM, matched
+ * against the system's own rules journal by tools/probe-mastery-rules.mjs (2026-08-21,
+ * dnd5e 5.3.3; punctuation included). Never paraphrase these; the module's operational
+ * hints ride as separate lines wherever they are needed. */
+export const MASTERY_RULES = Object.freeze({
+  slow: "If you hit a creature with this weapon and deal damage to it, you can reduce its Speed by 10 feet until the start of your next turn. If the creature is hit more than once by weapons that have this property, the Speed reduction doesn’t exceed 10 feet.",
+  topple: "If you hit a creature with this weapon, you can force the creature to make a Constitution saving throw (DC 8 plus the ability modifier used to make the attack roll and your Proficiency Bonus). On a failed save, the creature has the Prone condition.",
+  push: "If you hit a creature with this weapon, you can push the creature up to 10 feet straight away from yourself if it is Large or smaller.",
+  graze: "If your attack roll with this weapon misses a creature, you can deal damage to that creature equal to the ability modifier you used to make the attack roll. This damage is the same type dealt by the weapon, and the damage can be increased only by increasing the ability modifier.",
+  vex: "If you hit a creature with this weapon and deal damage to the creature, you have Advantage on your next attack roll against that creature before the end of your next turn.",
+  sap: "If you hit a creature with this weapon, that creature has Disadvantage on its next attack roll before the start of your next turn.",
+  cleave: "If you hit a creature with a melee attack roll using this weapon, you can make a melee attack roll with the weapon against a second creature within 5 feet of the first that is also within your reach. On a hit, the second creature takes the weapon’s damage, but don’t add your ability modifier to that damage unless that modifier is negative. You can make this extra attack only once per turn."
+});
+
+/**
+ * The REMINDER kinds — the sources of Advantage or Disadvantage the gate can read off the table
+ * before an attack roll (HANDOFF Stage 2, 2026-09-01). Each is a distinct way of KNOWING:
+ *   vex    the attacker's own Vexed chip on a target      → Advantage
+ *   sap    a Sapped chip on the attacker                   → Disadvantage
+ *   prone  the Prone status, both roles: the attacker prone → Disadvantage; the target prone →
+ *          Advantage within 5 feet of it, Disadvantage beyond (decide/reminders.js)
+ * The gate never SETS a mode (DESIGN R-A): it lists every source and the net, and a human presses.
+ * Membership — which of these a table wants nagged about — is the Reminder Sources list.
+ */
+export const REMINDER_KINDS = new Set(["vex", "sap", "prone", "condition"]);
+
+/**
+ * The CONDITION SOURCES the `condition` reminder kind can read — the thirteen (Stage 3,
+ * 2026-09-01, the AC5e table carried as data, DESIGN R-B): the 2024 conditions whose glossary
+ * clause bends an attack roll on one side or the other, plus the two whose clause says the
+ * attack should not be happening at all. Prone is NOT here — it is its own kind, with geometry.
+ * What each does is `CONDITION_BENDS` in decide/reminders.js; the unit tests pin the two sets equal.
+ */
+export const CONDITION_STATUSES = new Set(["blinded", "invisible", "paralyzed", "petrified", "poisoned",
+  "restrained", "stunned", "unconscious", "frightened", "grappled", "incapacitated", "dodging", "charmed"]);
+
 /**
  * THE R4 TRIPWIRE, AS DATA (DESIGN.md R4, PLAN.md Phase 3).
  *
@@ -113,7 +150,10 @@ export const KIND_SETS = [
   { name: "volley", owner: "volleys.js", kinds: VOLLEY_KINDS, system: null,
     note: "how a multi-projectile spell resolves: aggregated damage, or independent attacks" },
   { name: "mastery", owner: "mastery.js", kinds: MASTERY_KINDS, system: 8,
-    note: "7 of the system's 8; nick is deliberately native (action economy, ruling 1)" }
+    note: "7 of the system's 8; nick is deliberately native (action economy, ruling 1)" },
+  { name: "reminder", owner: "mastery.js", kinds: REMINDER_KINDS, system: null,
+    note: "what the gate can READ as a source of Advantage/Disadvantage before an attack roll — "
+      + "a chip on the target, a chip on the attacker, a status with geometry (Stage 2, 2026-09-01)" }
 ];
 
 /** Split a comma list into trimmed, non-empty chunks — the shape every list setting wears. */
@@ -205,6 +245,26 @@ export const LIST_SPECS = {
     label: "Rider Upgrades", setting: "riderUpgrades",
     columns: ["feature", "rider"], kindColumn: null, kinds: null, fallback: null,
     default: "foe-slayer:hunters-mark"
+  },
+  reminders: {
+    label: "Reminder Sources", setting: "reminderList",
+    // ⚠ The list IS the switch (the v1.19.0 idiom): every entry is a kind the gate knows how to
+    // read, and an empty list turns the gate off. Unknown kinds are dropped with a warning.
+    columns: ["kind"], kindColumn: "kind", kinds: REMINDER_KINDS, fallback: null,
+    default: "vex, sap, prone, condition"
+  },
+  conditions: {
+    label: "Condition Sources", setting: "conditionList",
+    // Which of the thirteen the gate reads. An entry is a status id the system uses; the list
+    // is the switch for the `condition` kind, one condition at a time.
+    // ⚠ `membership: true` — this closed set validates the list but is NOT a kind set, and the
+    // R4 tripwire deliberately does not count it: the thirteen are ROWS of one table read by ONE
+    // mechanism (decide/reminders.js `conditionSources`), and a fourteenth costs a data row and
+    // a list entry, zero code paths — R4's definition of membership. The kind it belongs to is
+    // `condition` in REMINDER_KINDS, which IS counted. The registry unit test pins this reading.
+    columns: ["kind"], kindColumn: "kind", kinds: CONDITION_STATUSES, fallback: null, membership: true,
+    default: "blinded, invisible, paralyzed, petrified, poisoned, restrained, stunned, unconscious, "
+      + "frightened, grappled, incapacitated, dodging, charmed"
   }
 };
 

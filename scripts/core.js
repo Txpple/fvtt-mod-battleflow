@@ -42,7 +42,9 @@ export const S = {
   saves: "saves",
   saveTimer: "saveTimer",
   castApply: "castApply",
-  hideCardButtons: "hideCardButtons"
+  hideCardButtons: "hideCardButtons",
+  reminderList: "reminderList",
+  conditionList: "conditionList"
 };
 
 export const setting = key => game.settings.get(MODULE_ID, key);

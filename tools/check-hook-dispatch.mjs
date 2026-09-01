@@ -83,6 +83,14 @@ const ALLOW = [
       + "it (hit-riders, mastery, maneuvers, volleys) and rider injection, mastery riders and "
       + "the volley multiplier are all table-proven and battery-covered — a dead registration "
       + "here would have taken the whole damage-rider surface with it"
+  },
+  {
+    hook: "dnd5e.preRollAttackV2",
+    why: "TEMPLATED, the same hole as its damage twin above: dispatched from the preRoll<HookName>V2 "
+      + "form with hookNames [attack, d20Test] (dnd5e.mjs, AttackActivity#rollAttack), and named "
+      + "by no JSDoc. ⚠ MEASURED LIVE 2026-09-01 (tools/probe-expiry.mjs, hookSurfaces): it fires "
+      + "once per attack roll, before the roll dialog, with preRollD20TestV2 beside it. reminders.js "
+      + "registers it for the gate (HANDOFF Stage 2), and smoke-reminders asserts it FIRED"
   }
 ];
 

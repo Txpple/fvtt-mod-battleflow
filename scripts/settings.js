@@ -181,6 +181,21 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.riderUpgrade.default
   });
 
+  // THE REMINDER GATE (Stage 2 + 3, 2026-09-01). Two lists: what KINDS of source the gate reads,
+  // and which of the thirteen conditions count under the `condition` kind. Both are switches —
+  // an empty Reminder Sources list turns the gate off entirely.
+  game.settings.register(MODULE_ID, S.reminderList, {
+    name: "Reminder Sources",
+    hint: 'What the gate reads before an attack roll, separated by commas: "vex" (your own Vexed chip on the target — Advantage), "sap" (a Sapped chip on the attacker — Disadvantage), "prone" (either side prone — the attacker at Disadvantage; the target gives Advantage within 5 feet and Disadvantage beyond), "condition" (the thirteen conditions in the Condition Sources list). When any listed source applies, Battle Flow\'s popup stands in for the roll dialog: every source, the net, and Advantage / Normal / Disadvantage for YOU to press — nothing is ever applied for you. An empty list turns the gate off.',
+    scope: "world", config: true, type: String, default: LIST_SPECS.reminders.default
+  });
+
+  game.settings.register(MODULE_ID, S.conditionList, {
+    name: "Condition Sources",
+    hint: "Which conditions the gate reads, by the system's own status ids, separated by commas. Each one's effect on attack rolls comes from the 2024 Rules Glossary and is quoted in the popup. Remove a condition here to stop being reminded of it.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.conditions.default
+  });
+
   game.settings.register(MODULE_ID, S.effectRiders, {
     name: "Effect Riders",
     hint: "A hit applies the effects riding it: the attack's own effects land on the targets it hit, through the system's application path — Ray of Frost's slow arrives with its damage instead of waiting for a click in the card's tray. Every application leaves a receipt on the damage card with a per-effect revert.",
@@ -470,4 +485,14 @@ export function riderEntries() {
 /** Which of the attacker's own features replaces a mark's damage — `{ feature, rider }`. */
 export function riderUpgradeEntries() {
   return listEntries(LIST_SPECS.riderUpgrade);
+}
+
+/** What kinds of source the reminder gate reads before an attack roll — `{ kind }`. */
+export function reminderEntries() {
+  return listEntries(LIST_SPECS.reminders);
+}
+
+/** Which of the thirteen conditions the gate reads, by status id — `{ kind }`. */
+export function conditionEntries() {
+  return listEntries(LIST_SPECS.conditions);
 }

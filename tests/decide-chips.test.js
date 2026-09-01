@@ -153,6 +153,19 @@ describe("chipSpentBy — which swing spends which chip", () => {
   });
 });
 
+describe("CHIP_FLAG / chipOwnedBy — the fingerprint, and whose chip it is", () => {
+  it("names the flag every chip carries", () => {
+    expect(c.CHIP_FLAG).toBe("mastery");
+  });
+  it("owns a chip whose origin is one of the attacker's items, and nothing else", () => {
+    expect(c.chipOwnedBy("Actor.abc.Item.def", "Actor.abc")).toBe(true);
+    expect(c.chipOwnedBy("Actor.xyz.Item.def", "Actor.abc")).toBe(false);
+    expect(c.chipOwnedBy("Actor.abcd.Item.def", "Actor.abc")).toBe(false);
+    expect(c.chipOwnedBy(null, "Actor.abc")).toBe(false);
+    expect(c.chipOwnedBy("Actor.abc.Item.def", "")).toBe(false);
+  });
+});
+
 describe("rollModeOf / chipHonoured / spendRecord — the receipt's vocabulary", () => {
   it("reads the sign of the system's advantage mode", () => {
     expect(c.rollModeOf(1)).toBe("advantage");
@@ -167,6 +180,24 @@ describe("rollModeOf / chipHonoured / spendRecord — the receipt's vocabulary",
     expect(c.chipHonoured("sap", "disadvantage")).toBe(true);
     expect(c.chipHonoured("sap", "advantage")).toBe(false);
     expect(c.chipHonoured("slow", "normal")).toBeNull();
+  });
+  it("when the gate showed a NET, honour is the press matching the net — a cancelled Vex is honoured by Normal", () => {
+    expect(c.chipHonoured("vex", "normal", "normal")).toBe(true);
+    expect(c.chipHonoured("vex", "advantage", "normal")).toBe(false);
+    expect(c.chipHonoured("sap", "normal", "normal")).toBe(true);
+    expect(c.chipHonoured("sap", "disadvantage", "disadvantage")).toBe(true);
+    expect(c.chipHonoured("slow", "normal", "normal")).toBeNull();
+    expect(
+      c.spendRecord({
+        id: "e",
+        name: "Vexed",
+        key: "vex",
+        bearerUuid: "A",
+        bearerName: "G",
+        mode: "normal",
+        net: "normal"
+      }).honoured
+    ).toBe(true);
   });
   it("spendRecord carries the chip, the bearer, the mode and the honour verdict", () => {
     expect(

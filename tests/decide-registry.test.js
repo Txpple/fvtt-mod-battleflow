@@ -318,15 +318,32 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     // The pin itself lives in tools/check-registry.mjs, where the failure has to happen. This
     // asserts the number that pin is about, so a kind added here is visible in two places.
     const total = reg.KIND_SETS.reduce((n, s) => n + s.kinds.size, 0);
-    expect(total).toBe(19);
+    // 2026-09-01: 19 → 23 — the `reminder` set (vex, sap, prone, condition), the gate's four ways
+    // of reading a source of Advantage/Disadvantage before an attack roll.
+    expect(total).toBe(23);
   });
 
-  it("puts every kind-bearing list spec's set in the table", () => {
+  it("puts every kind-bearing list spec's set in the table — unless the spec says it is MEMBERSHIP", () => {
     // A spec with a closed set that the tripwire does not count is a kind the code knows and
-    // nobody is counting — exactly the blind spot the tripwire exists to remove.
+    // nobody is counting — exactly the blind spot the tripwire exists to remove. The one
+    // exception is declared, never inferred: a `membership: true` spec's set validates the list
+    // but names DATA ROWS of one mechanism (the thirteen conditions of the `condition` kind),
+    // and counting rows as kinds would make the tripwire fire on content.
     const counted = new Set(reg.KIND_SETS.map(s => s.kinds));
     for (const [key, spec] of Object.entries(reg.LIST_SPECS)) {
-      if (spec.kinds) expect(counted.has(spec.kinds), key).toBe(true);
+      if (!spec.kinds) continue;
+      if (spec.membership) {
+        expect(counted.has(spec.kinds), `${key} is membership, must not be counted`).toBe(false);
+        continue;
+      }
+      expect(counted.has(spec.kinds), key).toBe(true);
     }
+  });
+
+  it("the condition membership is the `condition` kind's rows, and prone is not among them", () => {
+    expect(reg.LIST_SPECS.conditions.membership).toBe(true);
+    expect(reg.REMINDER_KINDS.has("condition")).toBe(true);
+    expect(reg.CONDITION_STATUSES.has("prone")).toBe(false);
+    expect(reg.CONDITION_STATUSES.size).toBe(13);
   });
 });

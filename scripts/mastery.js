@@ -6,9 +6,10 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, isFlowElectFor, drivesMomentF
   canApplyTo, whisperNoGM, queueFlagWrite, canAnswerFor, activeCombatFor, combatStamp,
   statContext } from "./core.js";
 import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
-import { MASTERY_KINDS, MASTERY_NATIVE } from "./decide/registry.js";
+import { MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.js";
 import { TURN_CHIPS, chipClock, chipIsDead, chipSpentBy, rollModeOf, spendRecord } from "./decide/chips.js";
-import { hitTargets, modeAllows, rollConfigFor } from "./shared.js";
+import { REMINDER_FLAG } from "./decide/reminders.js";
+import { hitTargets, masteryLabel, modeAllows, rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup,
   momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,
@@ -78,21 +79,6 @@ const MASTERY_EFFECTS = {
   }
 };
 
-/** Walk-5 (z): what each mastery popup quotes — the 2024 property text VERBATIM, matched
- * against the system's own rules journal by tools/probe-mastery-rules.mjs (2026-08-21,
- * dnd5e 5.3.3; punctuation included). Never paraphrase these; the module's operational
- * hints ride as separate lines wherever they are needed. */
-const MASTERY_RULES = {
-  slow: "If you hit a creature with this weapon and deal damage to it, you can reduce its Speed by 10 feet until the start of your next turn. If the creature is hit more than once by weapons that have this property, the Speed reduction doesn’t exceed 10 feet.",
-  topple: "If you hit a creature with this weapon, you can force the creature to make a Constitution saving throw (DC 8 plus the ability modifier used to make the attack roll and your Proficiency Bonus). On a failed save, the creature has the Prone condition.",
-  push: "If you hit a creature with this weapon, you can push the creature up to 10 feet straight away from yourself if it is Large or smaller.",
-  graze: "If your attack roll with this weapon misses a creature, you can deal damage to that creature equal to the ability modifier you used to make the attack roll. This damage is the same type dealt by the weapon, and the damage can be increased only by increasing the ability modifier.",
-  vex: "If you hit a creature with this weapon and deal damage to the creature, you have Advantage on your next attack roll against that creature before the end of your next turn.",
-  sap: "If you hit a creature with this weapon, that creature has Disadvantage on its next attack roll before the start of your next turn.",
-  cleave: "If you hit a creature with a melee attack roll using this weapon, you can make a melee attack roll with the weapon against a second creature within 5 feet of the first that is also within your reach. On a hit, the second creature takes the weapon’s damage, but don’t add your ability modifier to that damage unless that modifier is negative. You can make this extra attack only once per turn."
-};
-
-const masteryLabel = key => CONFIG.DND5E.weaponMasteries[key]?.label ?? key;
 
 /** Attacker, weapon and attack ability behind an attack message — or null. */
 function masteryContext(attackMessage) {
@@ -1085,8 +1071,11 @@ async function spendChips(message, ctx) {
     if ( !spent.length ) return;
 
     const mode = rollModeOf(message.rolls?.[0]?.options?.advantageMode);
+    // When the gate stood in for the dialog, honour is the press matching the NET it showed —
+    // a sapped attacker swinging at a target they Vexed nets to normal, and Normal honours both.
+    const net = message.getFlag(MODULE_ID, REMINDER_FLAG)?.net ?? null;
     const records = spent.map(s => spendRecord({ id: s.effect.id, name: s.effect.name, img: s.effect.img,
-      key: s.key, bearerUuid: s.actor.uuid, bearerName: s.actor.name, mode }));
+      key: s.key, bearerUuid: s.actor.uuid, bearerName: s.actor.name, mode, net }));
     // The record first, deduped by chip id so a twin elect converges rather than doubling.
     await queueFlagWrite(message, "chipSpend", flag => {
       flag.spent ??= [];
