@@ -45,6 +45,7 @@
       "Token",
       "TokenDocument",
       "Scene",
+      "Folder",
       "MeasuredTemplate",
       "Roll",
       "Dialog",
