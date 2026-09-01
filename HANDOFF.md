@@ -189,7 +189,28 @@ most serious finding of the review:**
     `game.combat.started` alone). **Fix:** the chit's stamp reads `game.combat` when it is
     started, whether or not the attacker is a combatant.
 
-**Angle A (line-by-line) never reported — re-run it.**
+**Angle A (line-by-line) reported last of all — it independently re-found 16, 12, 2 and 3,
+and added two:**
+
+19. ⚠ **Enter rolls Advantage whatever the net.** v14's `DialogV2` makes the FIRST button the
+    default when none is flagged (`isDefault = default || (i === 0 && !buttons.some(b =>
+    b.default))`), gives it autofocus, and every button is `type=submit` — so Enter, including
+    Enter typed into the situational-bonus field, presses Advantage on a gate whose net is
+    Disadvantage. `modeButtons(press)` with no default does not do what R-A meant. **This is a
+    ruling for the user, not a silent fix:** a default is unavoidable on this platform; the
+    honest options are (a) default = the NET (Enter presses the resolution the popup already
+    names — still a press, and the highlighted button IS the resolution), or (b) a non-rolling
+    first control so Enter rolls nothing. Recommend (a); ask.
+20. **An attacker in a running combat but NOT in the tracker gets a chip judged against a
+    stranger** (`mastery.js` `chipData`): `placeOf` is null, `chipData` writes `start: {time}`
+    only, and `_preCreate` fills the rest from `getEffectStart()` — the combat and combatant of
+    whoever's turn it IS — so a summon's Sap on a tracked goblin during the goblin's turn expires
+    at the goblin's own next turnStart, before its next attack. **Fix:** when `game.combat` is
+    started but the attacker has no combatant, write an explicit `start` with `combat: null,
+    combatant: null` (time-based; the platform then judges it against the BEARER's combatant,
+    which for Sap is the right creature).
+
+**All eight angles have now reported. Verify, then fix, in the order above: 16 first.**
 
 ### The remaining sequence (the user's instruction, verbatim: review → refactor → battery → hand over)
 
