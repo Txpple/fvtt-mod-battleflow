@@ -160,7 +160,36 @@ most serious finding of the review:**
     with the shipped defaults (`vex, sap, prone, condition` and the thirteen) — the standing
     rule is that every registered key the user tunes is named there.
 
-**Angles A (line-by-line) and B (removed behaviour) never reported — re-run them.**
+**Angle B (removed behaviour) reported last, and its first finding OUTRANKS EVERYTHING ABOVE:**
+
+16. ⚠⚠ **`chipIsDead` kills a chip a whole turn early** (`decide/chips.js`, read by the gate's
+    liveness filter AND the applier's sweep). A `{1 round}` chip's `remaining` reaches 0 at the
+    START of the round its expiry falls in (the probe showed it: Vex `remaining: 0` at r2t0,
+    `expired` only at r2t1), and `chipIsDead` reads `remaining <= 0` as dead. So on the
+    attacker's next turn — the one attack Vex exists for — `sourcesFor` drops the source, the
+    native dialog rolls flat, and the spend line then says "went unclaimed"; Sap on a bearer
+    whose initiative precedes the attacker's fails the same way; and a chip applied in round
+    R+1 sweeps a still-valid Slow off the sheet. **Neither suite advances a turn between
+    applying a chip and gating a roll, which is why both are green.** **Fix:** dead = `expired`
+    (the platform's mark), or a clock that never resolved (`remaining` null/NaN); `remaining
+    <= 0` alone is ALIVE until the platform says otherwise — exactly what NOTES §1 records
+    ("suppression keys off the flag, not the arithmetic"). Unit-test it, and add a section to
+    `smoke-expiry` (it has the combat machinery) that applies Vex on the attacker's turn, steps
+    to the attacker's next turn, and asserts the gate lists it.
+17. ⚠ **Without a GM the Cleave chit is immortal** — Foundry's expiry mark is GM-side and both
+    tidies are `isActiveGM`-gated, so on the v1.27 no-GM table the first Cleave chit stands
+    forever and Cleave never reminds again. The old in-memory stamp re-reminded every turn.
+    **Fix (also closes 3 and 18):** the chit's liveness is a STAMP COMPARISON — it lives only
+    while `start.combat/round/turn` equal the running combat's current round and turn — the
+    house once-per-turn idiom (`combatStamp`), with the platform's expiry as mere tidy. Pin the
+    chit's `start` to the CURRENT turn (no combatant needed), which also makes an
+    opportunity-attack chit die with the turn it was written in.
+18. **An attacker in a running combat but not in the tracker gets a Cleave popup on every hit**
+    (`activeCombatFor` returns null → no chit → every hit reminds; the old stamp keyed on
+    `game.combat.started` alone). **Fix:** the chit's stamp reads `game.combat` when it is
+    started, whether or not the attacker is a combatant.
+
+**Angle A (line-by-line) never reported — re-run it.**
 
 ### The remaining sequence (the user's instruction, verbatim: review → refactor → battery → hand over)
 
