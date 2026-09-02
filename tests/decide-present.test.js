@@ -544,7 +544,9 @@ describe("reminderSectionHTML / reminderFieldsetHTML — the header line and the
     expect(html.match(/<fieldset/g)).toHaveLength(1);
     expect(html).toContain("<details data-bf-reminder-details >");
     expect(html).toContain("<summary");
-    expect(p.reminderFieldsetHTML(view, { open: true })).toContain("<details data-bf-reminder-details open>");
+    expect(p.reminderFieldsetHTML(view, { open: true })).toContain(
+      "<details data-bf-reminder-details open>"
+    );
   });
   it("opens with the header line — the count and the net as a tag, the arithmetic as its tooltip — and NO net block", () => {
     const html = p.reminderSectionHTML(view);
