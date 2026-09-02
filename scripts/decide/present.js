@@ -93,21 +93,39 @@ export function situationalBonusHTML(name) {
 }
 
 /**
- * One labelled select, the row shape beside the situational bonus — the native attack dialog's
- * own choices (attack mode, ammunition, mastery, roll mode) carried by the popup that stands in
- * for it (decide/reminders.js `rollChoices`). `name` is the select's name, so the caller reads
- * the pick back off the dialog.
- * @param {{label: string, options: {value: string, label: string}[], value: string}} choice
- * @param {string} name
+ * THE GATE'S SECTION INSIDE THE SYSTEM'S OWN ROLL DIALOG (user ruling 2026-09-02: the gate
+ * lives in the native Attack Roll dialog, and each source is a BOX, not a paragraph). One
+ * `<fieldset>` shaped exactly like dnd5e's CONFIGURATION fieldset beside it, so the dialog's
+ * own styling dresses it: a box per source — the fact on the left, the bend as a badge on the
+ * right, the rule quoted underneath (law 8) — then the net as one bold line, and the glossary's
+ * own sentence only when sources contend. A row with no bend (listed, not counted) wears a grey
+ * badge. Strings in, a string out; the EDGE inserts it after the CONFIGURATION fieldset.
+ *
+ * @param {{boxes: {label: string, bend: "advantage"|"disadvantage"|null, badge: string, rule?: string}[],
+ *          net: {title: string, why: string, glossary?: string|null}, legend?: string}} view
  */
-export function choiceRowHTML({ label, options, value }, name) {
-  const opts = options.map(o =>
-    `<option value="${attr(o.value)}"${o.value === value ? " selected" : ""}>${attr(o.label)}</option>`).join("");
+export function reminderFieldsetHTML({ boxes, net, legend = "Before you roll" }) {
+  const accent = bend => (bend === "advantage") ? TONE.good : (bend === "disadvantage") ? TONE.pending : TONE.neutral;
+  const rows = boxes.map(b => `
+      <div style="display:grid;grid-template-columns:1fr auto;gap:0.2rem 0.6rem;align-items:center;
+                  margin:0.4rem 0;padding:0.45rem 0.6rem;border-radius:4px;
+                  background:rgba(0,0,0,0.25);border:1px solid var(--color-border-dark,rgba(0,0,0,0.4));
+                  border-left:3px solid ${accent(b.bend)};">
+        <div style="font-weight:bold;">${b.label}</div>
+        <div style="font-size:var(--font-size-10,10px);letter-spacing:0.08em;text-transform:uppercase;
+                    font-weight:bold;padding:0.15rem 0.5rem;border-radius:3px;white-space:nowrap;
+                    background:${accent(b.bend)};color:#111;">${attr(b.badge)}</div>
+        ${b.rule ? `<div style="grid-column:1 / -1;font-size:var(--font-size-12,12px);line-height:1.45;opacity:0.85;">${ruleLine(b.rule)}</div>` : ""}
+      </div>`).join("");
   return `
-    <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
-      <label style="flex:1;font-size:var(--font-size-12,12px);">${attr(label)}</label>
-      <select name="${attr(name)}" style="flex:1;min-width:0;">${opts}</select>
-    </div>`;
+  <fieldset data-bf-reminder>
+    <legend>${attr(legend)}</legend>${rows}
+    <div style="margin-top:0.5rem;padding:0.45rem 0.6rem;border-radius:4px;background:rgba(0,0,0,0.18);">
+      <strong>${net.title}</strong>
+      <div style="font-size:var(--font-size-12,12px);opacity:0.85;margin-top:0.15rem;">${net.why}</div>
+      ${net.glossary ? `<div style="font-size:var(--font-size-11,11px);opacity:0.75;margin-top:0.25rem;">${ruleLine(net.glossary)}</div>` : ""}
+    </div>
+  </fieldset>`;
 }
 
 /**
@@ -118,7 +136,8 @@ export function choiceRowHTML({ label, options, value }, name) {
  * DialogV2 makes the FIRST button the default, so "no default" meant "Advantage on Enter"
  * (review finding 19, 2026-09-01). The user's ruling: the highlighted button is the outcome
  * the solver worked out — the concentration ask hints it from actor data the way the native
- * dialog does, and the gate passes its NET. Enter is still a press (DESIGN R-A).
+ * dialog does. (The reminder gate lives inside the native dialog since 2026-09-02 and sets
+ * that dialog's own default instead.) Enter is still a press (DESIGN R-A).
  * @param {(mode: "advantage"|"normal"|"disadvantage") => void} press
  * @param {"advantage"|"normal"|"disadvantage"|null} [defaultMode]
  */

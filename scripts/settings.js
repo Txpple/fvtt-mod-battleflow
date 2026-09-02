@@ -186,7 +186,7 @@ Hooks.once("init", () => {
   // an empty Reminder Sources list turns the gate off entirely.
   game.settings.register(MODULE_ID, S.reminderList, {
     name: "Reminder Sources",
-    hint: 'What the gate reads before an attack roll, separated by commas: "vex" (your own Vexed chip on the target — Advantage), "sap" (a Sapped chip on the attacker — Disadvantage), "prone" (either side prone — the attacker at Disadvantage; the target gives Advantage within 5 feet and Disadvantage beyond), "condition" (the conditions in the Condition Sources list). When any listed source applies, Battle Flow\'s popup stands in for the roll dialog: every source, the net, the dialog\'s own choices, and Advantage / Normal / Disadvantage for YOU to press — the net is highlighted, nothing is ever applied for you. An empty list turns the gate off.',
+    hint: 'What the gate reads before an attack roll, separated by commas: "vex" (your own Vexed chip on the target — Advantage), "sap" (a Sapped chip on the attacker — Disadvantage), "prone" (either side prone — the attacker at Disadvantage; the target gives Advantage within 5 feet and Disadvantage beyond), "condition" (the conditions in the Condition Sources list), "range" (a ranged attack beyond normal range or with an enemy within 5 feet — Disadvantage; beyond long range — cannot be made). When any listed source applies, the system\'s own Attack Roll dialog opens — even on a fast-forward key — with a Battle Flow section: a box per source with its rule, and the net, which is the highlighted button. YOU press; nothing is ever applied for you. An empty list turns the gate off.',
     scope: "world", config: true, type: String, default: LIST_SPECS.reminders.default
   });
 

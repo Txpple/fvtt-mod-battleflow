@@ -102,10 +102,25 @@ export const MASTERY_RULES = Object.freeze({
  *   sap    a Sapped chip on the attacker                   → Disadvantage
  *   prone  the Prone status, both roles: the attacker prone → Disadvantage; the target prone →
  *          Advantage within 5 feet of it, Disadvantage beyond (decide/reminders.js)
+ *   condition  a row of the condition table (CONDITION_BENDS) on either side
+ *   range  a RANGED attack roll's geometry (user, 2026-09-02): the target beyond normal range →
+ *          Disadvantage, beyond long range → cannot be made (listed, not counted); an enemy
+ *          within 5 feet of the attacker → Disadvantage (RANGE_RULES, decide/reminders.js)
  * The gate never SETS a mode (DESIGN R-A): it lists every source and the net, and a human presses.
  * Membership — which of these a table wants nagged about — is the Reminder Sources list.
  */
-export const REMINDER_KINDS = new Set(["vex", "sap", "prone", "condition"]);
+export const REMINDER_KINDS = new Set(["vex", "sap", "prone", "condition", "range"]);
+
+/**
+ * The 2024 Rules Glossary on range, verbatim (dnd5e.content24 / the premium PHB, appendix D —
+ * "Range" and "Ranged Attacks in Close Combat"; presentation law 8). The `&Reference[...]`
+ * enrichers in the source render as the bare condition names.
+ */
+export const RANGE_RULES = Object.freeze({
+  long: "Your attack roll has Disadvantage when your target is beyond normal range, and you can’t attack a target beyond long range.",
+  single: "If a ranged attack, such as one made with a spell, has a single range, you can’t attack a target beyond this range.",
+  close: "When you make a ranged attack roll with a weapon, a spell, or some other means, you have Disadvantage on the roll if you are within 5 feet of an enemy who can see you and doesn’t have the Incapacitated condition."
+});
 
 /**
  * THE CONDITION TABLE (Stage 3, 2026-09-01) — what the 2024 conditions do to an ATTACK ROLL,
@@ -212,7 +227,8 @@ export const KIND_SETS = [
     note: "7 of the system's 8; nick is deliberately native (action economy, ruling 1)" },
   { name: "reminder", owner: "reminders.js", kinds: REMINDER_KINDS, system: null,
     note: "what the gate can READ as a source of Advantage/Disadvantage before an attack roll — "
-      + "a chip on the target, a chip on the attacker, a status with geometry (Stage 2, 2026-09-01)" }
+      + "a chip on the target, a chip on the attacker, a status with geometry (Stage 2, 2026-09-01), "
+      + "the condition table, and a ranged attack's own range (2026-09-02)" }
 ];
 
 /** Split a comma list into trimmed, non-empty chunks — the shape every list setting wears. */
@@ -310,7 +326,7 @@ export const LIST_SPECS = {
     // ⚠ The list IS the switch (the v1.19.0 idiom): every entry is a kind the gate knows how to
     // read, and an empty list turns the gate off. Unknown kinds are dropped with a warning.
     columns: ["kind"], kindColumn: "kind", kinds: REMINDER_KINDS, fallback: null,
-    default: "vex, sap, prone, condition"
+    default: "vex, sap, prone, condition, range"
   },
   conditions: {
     label: "Condition Sources", setting: "conditionList",

@@ -160,43 +160,67 @@ export function proneSources({ attackerProne = false, targetProne = false, dista
   return out;
 }
 
-/** What the gate calls each of the native dialog's own selects. */
-export const CHOICE_LABELS = Object.freeze({ attackMode: "Attack mode", ammunition: "Ammunition", mastery: "Mastery" });
-
 /**
- * THE DIALOG'S OWN CHOICES the gate must carry (user ruling 2026-09-01 — "need a gate for the
- * little solvers"; review finding 14). dnd5e's attack dialog offers a select for attack mode
- * (one- or two-handed, thrown), ammunition and — when a weapon has more than one — the mastery,
- * and a re-issue with `configure: false` would otherwise pin each to its remembered default in
- * silence. The mastery pick is not cosmetic: it is stamped on the attack message and this
- * module's own riders key on it.
+ * RANGE, from plain facts (user, 2026-09-02 — "bake in the disadvantage at long range"; the
+ * class, not the example: any RANGED attack roll — a bow, a thrown dagger, a ranged spell).
+ * Two glossary rules, both read off the same distance Prone measures:
  *
- * From the hook's `dialog.options` lists (plain `{value, label}` entries; dnd5e's `{rule: true}`
- * separators are dropped) and the hook-time `config` values: one choice per list that has more
- * than one real entry, pre-set to the config's value when the list carries it, else the first.
- * Ammunition's blank entry (dnd5e's own "none") is kept and named.
+ *   beyond normal range, within long   → Disadvantage
+ *   beyond long range (or beyond a single range)  → the attack cannot be made: LISTED, not counted
+ *   an enemy within 5 feet of the attacker        → Disadvantage, with the caveat the module
+ *                                                    cannot judge (can it see you? is it Incapacitated?)
  *
- * @param {{attackModeOptions?: {value?: string, label?: string, rule?: boolean}[],
- *          ammunitionOptions?: {value?: string, label?: string, rule?: boolean}[],
- *          masteryOptions?: {value?: string, label?: string, rule?: boolean}[]}} [dialogOptions]
- * @param {{attackMode?: string, ammunition?: string, mastery?: string}} [config]
- * @returns {{key: "attackMode"|"ammunition"|"mastery", label: string,
- *            options: {value: string, label: string}[], value: string}[]}
+ * A melee attack yields nothing. An unmeasurable distance yields nothing on the range side (a
+ * ranged attack at an unknown distance is not worth a box); the close-combat side needs no
+ * target distance at all. Distances and ranges are FEET — the EDGE converts.
+ *
+ * @param {{ranged?: boolean, distanceFeet?: number|null, normalFeet?: number|null, longFeet?: number|null,
+ *          closeEnemies?: string[], attackerName?: string, targetName?: string,
+ *          rules: {long: string, single: string, close: string}}} facts
+ *        `rules` = `RANGE_RULES` (decide/registry.js) — handed in because this layer imports nothing
  */
-export function rollChoices({ attackModeOptions = [], ammunitionOptions = [], masteryOptions = [] } = {}, config = {}) {
-  /** @type {["attackMode"|"ammunition"|"mastery", {value?: string, label?: string, rule?: boolean}[]][]} */
-  const lists = [["attackMode", attackModeOptions], ["ammunition", ammunitionOptions], ["mastery", masteryOptions]];
+export function rangeSources({ ranged = false, distanceFeet = null, normalFeet = null, longFeet = null,
+  closeEnemies = [], attackerName = "You", targetName = "the target", rules }) {
   const out = [];
-  for ( const [key, raw] of lists ) {
-    const options = (raw ?? []).filter(o => o && !o.rule && (o.value !== undefined) && (o.value !== null))
-      .map(o => ({ value: String(o.value), label: String(o.label || (o.value === "" ? "None" : o.value)) }));
-    const first = options[0];
-    if ( (options.length < 2) || !first ) continue;
-    const current = (config?.[key] === undefined || config?.[key] === null) ? null : String(config[key]);
-    const value = options.some(o => o.value === current) ? /** @type {string} */ (current) : first.value;
-    out.push({ key, label: CHOICE_LABELS[key], options, value });
+  if ( !ranged || !rules ) return out;
+  if ( closeEnemies.length ) {
+    out.push(reminderSource("range", "disadvantage",
+      `${attackerName} — a ranged attack within 5 feet of ${closeEnemies.join(", ")} (counted — press Normal if none of them can see you)`,
+      rules.close));
+  }
+  const d = Number(distanceFeet), normal = Number(normalFeet), long = Number(longFeet);
+  if ( !Number.isFinite(d) || !(normal > 0) ) return out;
+  if ( long > normal ) {
+    if ( d > long ) {
+      out.push(reminderSource("range", null,
+        `${targetName} is beyond long range — ${d} feet, long range ${long}: this attack cannot be made`, rules.long));
+    } else if ( d > normal ) {
+      out.push(reminderSource("range", "disadvantage",
+        `${targetName} is beyond normal range — ${d} feet (${normal}/${long})`, rules.long));
+    }
+  } else if ( d > normal ) {
+    out.push(reminderSource("range", null,
+      `${targetName} is beyond range — ${d} feet, range ${normal}: this attack cannot be made`, rules.single));
   }
   return out;
+}
+
+/**
+ * THE GATE'S VIEW of one roll's sources, as the boxes the native dialog's section draws
+ * (decide/present.js `reminderFieldsetHTML`): the fact, the bend as a badge — "Listed" for a
+ * row the module cannot judge — and the rule; then the net line and, only when sources
+ * contend, the glossary's own sentence.
+ * @param {{kind: string, bend: "advantage"|"disadvantage"|null, label: string, detail?: string}[]} sources
+ * @param {"advantage"|"disadvantage"|"normal"} net
+ * @param {string} glossary  the Rules Glossary's Advantage sentence, verbatim (the EDGE holds it)
+ */
+export function reminderView(sources, net, glossary) {
+  return {
+    boxes: sources.map(s => ({ label: s.label, bend: s.bend ?? null,
+      badge: s.bend ? modeTitle(s.bend) : "Listed", rule: s.detail ?? "" })),
+    net: { title: `Net: ${modeTitle(net)}`, why: resolutionLine(sources),
+      glossary: (sources.length > 1) ? glossary : null }
+  };
 }
 
 /**
