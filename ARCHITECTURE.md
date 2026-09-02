@@ -513,7 +513,7 @@ in milliseconds and impossible to tangle. **Keep it that way** — the day somet
 | [decide/eligible.js](scripts/decide/eligible.js) | `isDeadForSaves`, `limitedUses`, `isReactionItem`, `castLevelOf`, `clampVolleyCount`, `riderKey` |
 | [decide/receipt.js](scripts/decide/receipt.js) | `traitOutcome`, `hpDelta`, `receiptEntry`, `joinDamageReceipt`, `joinEffectReceipt`, `takenOf`, `receiptAmounts`, `revertPlan`, `revertableEffect` |
 | [decide/present.js](scripts/decide/present.js) | `popupKey`, `TONE`, `bfCard`, `ruleLine`, `momentBarHTML`, `holdBarHTML`, `nextCascadeSlot`, `cascadePosition`; `situationalBonusHTML`, `modeButtons` — the controls every popup that stands in for a roll dialog carries; `modeTone`, `modeTagHTML` — the one mode tag, one meaning per hue; `reminderSectionHTML` / `reminderFieldsetHTML` / `reminderDetailsHTML` — the gate's section bare, inside the system's own roll dialog, and folded to its header line for a volley's ray rows; the rescue view's row model and markup |
-| [geometry.js](scripts/geometry.js) | EDGE, not in the layer: `tokensInTemplates`, `templateShape` — they need canvas/CONFIG/PIXI |
+| [geometry.js](scripts/geometry.js) | EDGE, not in the layer: `tokensInTemplates`, `templateShape` — they need canvas/CONFIG/PIXI; `tokenOfActor`, `tokenForUuid`, `feetOf`, `nearestFeet` — token distance in FEET, the readers the reminder gate grew and the damage service shares (the 5-foot automatic crit, 2026-09-02) |
 
 ⚠ **`receiptAmounts` returns the row's TEXT as well as its figures, deliberately.** The two bugs
 that reached the table there were both a right number in the wrong sentence (the double-negative
@@ -637,7 +637,7 @@ The module rides **public hooks and document writes only** (R3). The seams it de
 | --- | --- |
 | `dnd5e.rollAttackV2` | the attack trigger — fires on the rolling client, after the message exists |
 | `dnd5e.postUseActivity` | the use trigger — spell holds, save demands, volleys, cast payloads |
-| `dnd5e.preRollDamageV2` | injecting rider damage parts (crit doubling comes free — see NOTES) |
+| `dnd5e.preRollDamageV2` | injecting rider damage parts (crit doubling comes free — see NOTES); the automatic Critical Hit — `config.isCritical = true` on a hit within 5 feet of a Paralyzed or Unconscious target (auto-damage.js `critFor`, the ONE crit source the offer's badge and both roll paths read) |
 | `dnd5e.rollDamageV2` / `createChatMessage` | the application trigger on the elect |
 | `dnd5e.preApplyDamage` | the veto seam and the receipt's last word — **cancelable, and healing takes the same path** |
 | `dnd5e.damageActor` / `healActor` | announcements; fires on all clients |

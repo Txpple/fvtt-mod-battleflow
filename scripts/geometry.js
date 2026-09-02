@@ -15,7 +15,76 @@
  * ⚠ No hooks, no flags, no writes. Nothing here may be given any.
  */
 import { TITLE } from "./core.js";
-import { honestDims, tokenSamplePoints } from "./decide/geometry.js";
+import { honestDims, lengthUnitKey, tokenSamplePoints } from "./decide/geometry.js";
+
+/* ---------------------------------------------------------------------------------------------
+ * Token distance, in FEET — the readers the reminder gate grew (2026-09-01/02) and the damage
+ * service now shares (the 5-foot automatic crit, 2026-09-02). Moved here verbatim from
+ * reminders.js the day a second, LOWER layer needed them: a service may not import a machine.
+ * ------------------------------------------------------------------------------------------- */
+
+/** The roller's own token for this actor: a controlled one first, else the first on the canvas. */
+export function tokenOfActor(actor) {
+  if ( !actor ) return null;
+  const controlled = canvas.tokens?.controlled?.find(t => t.actor?.uuid === actor.uuid);
+  if ( controlled ) return controlled;
+  try { return actor.getActiveTokens?.(true, false)?.[0] ?? null; } catch { return null; }
+}
+
+/** The canvas token whose actor carries this uuid — a linked actor's or a token's own synthetic one. */
+export function tokenForUuid(uuid) {
+  return canvas.tokens?.placeables?.find(t => t.actor?.uuid === uuid) ?? null;
+}
+
+/**
+ * Every occupied square's center for a token, from its DOCUMENT — the authoritative position.
+ * `tokenSamplePoints` reads the drawn object's center for a 1×1 body, and a drawn token lags
+ * its document while it animates a move; a rule is judged where the token IS, not where it is
+ * still walking from.
+ */
+function documentSquares(doc) {
+  const grid = doc.parent?.grid?.size;
+  if ( !grid ) return [];
+  const w = Math.max(1, Math.round(doc.width ?? 1)), h = Math.max(1, Math.round(doc.height ?? 1));
+  if ( (w === 1) && (h === 1) ) return [{ x: doc.x + grid / 2, y: doc.y + grid / 2 }];
+  return tokenSamplePoints(doc);
+}
+
+/** A length in the scene's or an item's units, as FEET through the system's own table — or null. */
+export function feetOf(n, units) {
+  const unit = lengthUnitKey(units);
+  const value = Number(n);
+  if ( !unit || !Number.isFinite(value) ) return null;
+  const feet = (unit === "ft") ? value : dnd5e.utils.convertLength(value, unit, "ft", { strict: false });
+  return Number.isFinite(feet) ? feet : null;
+}
+
+/**
+ * The shortest grid distance between two tokens, IN FEET — sample every occupied square of
+ * each so a Large body counts from its nearest edge, let the scene's own grid do the measuring,
+ * then convert the scene's units to feet through the system's own table. ⚠ `measurePath` answers
+ * in the SCENE's units (review finding 5): on a 1.5 m grid two squares read "3", and the rule
+ * is 5 FEET. Null when either side cannot be measured, or the scene's units cannot be read —
+ * which the decision lists as "distance unknown" rather than guessing.
+ */
+export function nearestFeet(a, b) {
+  try {
+    const pa = documentSquares(a.document), pb = documentSquares(b.document);
+    if ( !pa.length || !pb.length ) return null;
+    let best = Infinity;
+    for ( const p of pa ) {
+      for ( const q of pb ) {
+        const d = canvas.grid.measurePath([p, q]).distance;
+        if ( Number.isFinite(d) && (d < best) ) best = d;
+      }
+    }
+    if ( !Number.isFinite(best) ) return null;
+    const feet = feetOf(best, canvas.scene?.grid?.units ?? canvas.grid?.units);
+    return (feet === null) ? null : Math.round(feet * 10) / 10;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * The actors standing in the given templates, as demand-target entries — or null when no

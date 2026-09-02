@@ -71,6 +71,34 @@ export function conditionSources({ attackerStatuses = [], targetStatuses = [], e
 }
 
 /**
+ * THE AUTOMATIC CRITICAL HIT, from plain facts (user, 2026-09-02): a hit on a creature whose
+ * condition carries `critWithinFeet` (Paralyzed, Unconscious — the glossary's *"Any attack
+ * roll that hits you is a Critical Hit if the attacker is within 5 feet of you"*) from within
+ * that distance is a Critical Hit. An outcome, not a reminder — the caller makes the damage
+ * roll critical. An unmeasurable distance (null) yields nothing: a crit is never guessed.
+ * Membership is NOT consulted: the Condition Sources list switches what the gate NAGS about;
+ * a rule that changes the dice applies whether or not the table wanted reminding.
+ *
+ * @param {{targetStatuses?: Iterable<string>, distanceFeet?: number|null, targetName?: string,
+ *          table: Readonly<Record<string, Readonly<{rule: string, critWithinFeet?: number}>>>}} facts
+ * @returns {{status: string, label: string, rule: string}[]}
+ */
+export function autoCritSources({ targetStatuses = [], distanceFeet = null, targetName = "the target", table }) {
+  // null is "could not measure" (geometry.js nearestFeet), and Number(null) is 0 — never a crit.
+  if ( (distanceFeet === null) || (distanceFeet === undefined) ) return [];
+  const d = Number(distanceFeet);
+  if ( !Number.isFinite(d) ) return [];
+  const theirs = new Set(targetStatuses);
+  const out = [];
+  for ( const [key, row] of Object.entries(table ?? {}) ) {
+    const feet = Number(row?.critWithinFeet);
+    if ( !(feet > 0) || !theirs.has(key) || (d > feet) ) continue;
+    out.push({ status: key, label: `${targetName} is ${conditionName(key)} — within ${feet} feet, a hit is a Critical Hit`, rule: row.rule });
+  }
+  return out;
+}
+
+/**
  * One source of Advantage or Disadvantage on a roll.
  * @param {string} kind          a REMINDER_KINDS key (decide/registry.js)
  * @param {"advantage"|"disadvantage"|null} bend   what it does to the roll; null = listed, not counted

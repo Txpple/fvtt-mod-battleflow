@@ -310,6 +310,67 @@ describe("reminderView — the header line and the boxes the section draws", () 
   });
 });
 
+describe("autoCritSources — the 5-foot Critical Hit on Paralyzed and Unconscious (user, 2026-09-02)", () => {
+  it("a hit within 5 feet of a Paralyzed target is a Critical Hit, with the glossary clause", () => {
+    const out = r.autoCritSources({
+      targetStatuses: ["paralyzed"],
+      distanceFeet: 5,
+      targetName: "Hobgoblin",
+      table: reg.CONDITION_BENDS
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0].status).toBe("paralyzed");
+    expect(out[0].label).toBe("Hobgoblin is Paralyzed — within 5 feet, a hit is a Critical Hit");
+    expect(out[0].rule).toContain("Critical Hit if the attacker is within 5 feet");
+  });
+  it("Unconscious too, both when both; nothing from 10 feet, nothing at an unknown distance, nothing for Stunned", () => {
+    expect(
+      r.autoCritSources({
+        targetStatuses: ["unconscious"],
+        distanceFeet: 4.9,
+        table: reg.CONDITION_BENDS
+      })
+    ).toHaveLength(1);
+    expect(
+      r.autoCritSources({
+        targetStatuses: ["paralyzed", "unconscious"],
+        distanceFeet: 0,
+        table: reg.CONDITION_BENDS
+      })
+    ).toHaveLength(2);
+    expect(
+      r.autoCritSources({
+        targetStatuses: ["paralyzed"],
+        distanceFeet: 10,
+        table: reg.CONDITION_BENDS
+      })
+    ).toEqual([]);
+    expect(
+      r.autoCritSources({
+        targetStatuses: ["paralyzed"],
+        distanceFeet: null,
+        table: reg.CONDITION_BENDS
+      })
+    ).toEqual([]);
+    expect(
+      r.autoCritSources({
+        targetStatuses: ["stunned", "prone"],
+        distanceFeet: 5,
+        table: reg.CONDITION_BENDS
+      })
+    ).toEqual([]);
+  });
+  it("is data on the table: exactly Paralyzed and Unconscious carry critWithinFeet, and it is 5", () => {
+    const rows = Object.entries(reg.CONDITION_BENDS)
+      .filter(([, row]) => row.critWithinFeet)
+      .map(([k, row]) => [k, row.critWithinFeet]);
+    expect(rows).toEqual([
+      ["paralyzed", 5],
+      ["unconscious", 5]
+    ]);
+  });
+});
+
 describe("reminderRecord — what the card remembers", () => {
   it("keeps the sources' facts, the net, the press, and whether they agreed", () => {
     const rec = r.reminderRecord({

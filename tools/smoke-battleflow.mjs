@@ -22,7 +22,8 @@ const SECTIONS = {
   5: 'the miss test',
   '5b': 'polish gates: the card always posts + no-target',
   '5c': 'the attacker-side mode gate (NPC / PC / all)',
-  '5d': 'the player-rolled damage offer + the crit-flag decoy pin (was probe-player-damage)'
+  '5d': 'the player-rolled damage offer + the crit-flag decoy pin (was probe-player-damage)',
+  '5e': 'the automatic Critical Hit: a hit within 5 feet of a Paralyzed target doubles the dice; from 10 feet it does not'
 };
 // Each section drives its own attack from the shared fixtures and asserts on its own message
 // ids, so none of them names another. §4 reverts what §3 applied — but through the CARD it
@@ -1244,6 +1245,84 @@ if (want('5d')) {
       report(`5d/${a.n}. ${a.name}`, a.pass, a.detail);
     }
     console.log(`  · 5d settings restored: ${JSON.stringify(pd.restored)}`);
+  }
+}
+
+// ------------------------- 5e. the automatic Critical Hit (user, 2026-09-02)
+// The glossary's clause on Paralyzed and Unconscious, honoured as an OUTCOME: the attacker
+// steps next to a Paralyzed victim, hits (flat AC 1), and the damage roll is critical whatever
+// the d20 said; the same swing from 10 feet is not. Both attacks force the hit; a nat 20 on the
+// far swing is a 1-in-20 flake and is reported as one.
+if (want('5e')) {
+  const r = await f.evaluate(async ({ victimId, victimToken, attackerToken, attackerId, itemName }) => {
+    const MOD = 'fvtt-mod-battleflow';
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const out = { log: [] };
+    const base = game.actors.get(victimId);
+    const vTok = canvas.tokens.get(victimToken), aTok = canvas.tokens.get(attackerToken);
+    const victim = vTok?.actor;
+    const attacker = game.actors.get(attackerId);
+    if (!vTok || !aTok || !victim) return { ok: false, why: 'fixture tokens missing from the canvas' };
+    const priorPos = { x: aTok.document.x, y: aTok.document.y };
+    const priorHp = foundry.utils.deepClone(victim.system._source.attributes.hp);
+    let paralyzed = null;
+    const swing = async () => {
+      vTok.setTarget(true, { releaseOthers: true });
+      const activity = attacker.items.getName(itemName).system.activities.find(a => a.type === 'attack');
+      const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
+      const usageId = results?.message?.id ?? null;
+      const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
+        { data: { 'flags.dnd5e.originatingMessage': usageId } });
+      let damageMsg = null;
+      for (let i = 0; i < 40 && !damageMsg; i++) {
+        await sleep(250);
+        damageMsg = game.messages.contents.slice(-10).find(m =>
+          m.getFlag('dnd5e', 'roll.type') === 'damage' && m.getFlag('dnd5e', 'originatingMessage') === usageId);
+      }
+      return { d20Crit: rolls?.[0]?.isCritical ?? false, fumble: rolls?.[0]?.isFumble ?? false,
+        damageCrit: damageMsg?.rolls?.[0]?.isCritical ?? null, autoCrit: damageMsg?.getFlag(MOD, 'autoCrit') ?? null,
+        formula: damageMsg?.rolls?.[0]?.formula ?? null, damageId: damageMsg?.id ?? null };
+    };
+    try {
+      await base.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+      await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
+      // Paralyzed on the TOKEN's actor (unlinked: that is who is attacked), adjacent.
+      const eff = await ActiveEffect.implementation.fromStatusEffect('paralyzed');
+      paralyzed = await ActiveEffect.implementation.create(eff.toObject(), { parent: victim, keepId: true });
+      const grid = canvas.scene.grid.size;
+      await aTok.document.update({ x: vTok.document.x - grid, y: vTok.document.y });
+      await sleep(400);
+      out.near = await swing();
+      // Heal so the far swing is not a kill, and step back two squares — 10 feet.
+      await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
+      await aTok.document.update({ x: vTok.document.x - 2 * grid, y: vTok.document.y });
+      await sleep(400);
+      out.far = await swing();
+      // The card says why (R5).
+      const li = document.querySelector(`[data-message-id="${out.near.damageId}"]`);
+      out.cardSays = /Critical Hit/.test(li?.textContent ?? '') && /Paralyzed/.test(li?.textContent ?? '');
+      out.ok = true;
+    } catch (err) {
+      out.ok = false; out.why = `${err.message}\n${err.stack}`;
+    } finally {
+      try {
+        if (paralyzed) await paralyzed.delete();
+        await aTok.document.update(priorPos);
+        await victim.update({ 'system.attributes.hp.value': priorHp.value, 'system.attributes.hp.temp': priorHp.temp });
+        for (const e of victim.effects.filter(x => x.statuses?.has?.('dead'))) await e.delete();
+      } catch { /* best effort */ }
+    }
+    return out;
+  }, fx);
+  if (!r.ok) report('5e setup', false, r.why);
+  else {
+    report('a hit within 5 feet of a Paralyzed target rolls CRITICAL damage — whatever the d20 said',
+      r.near.damageCrit === true && !!r.near.autoCrit,
+      `d20 crit=${r.near.d20Crit} damage crit=${r.near.damageCrit} formula=${r.near.formula} flag=${JSON.stringify(r.near.autoCrit?.sources?.map(s => s.status) ?? null)}`);
+    report('…and the damage card says why', r.cardSays === true, `cardSays=${r.cardSays}`);
+    report('the same hit from 10 feet is NOT made critical (a nat 20 is the dice, and a flake)',
+      r.far.d20Crit ? true : (r.far.damageCrit === false && !r.far.autoCrit),
+      `d20 crit=${r.far.d20Crit}${r.far.d20Crit ? ' (CRIT — flake, the dice are right)' : ''} damage crit=${r.far.damageCrit} formula=${r.far.formula} fumble=${r.far.fumble}`);
   }
 }
 

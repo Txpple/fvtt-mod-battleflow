@@ -358,6 +358,17 @@ dialog's gate stamps, so the card line and the stats plane read a ray exactly as
 sword. Darts are damage, not attack rolls: nothing to judge, nothing drawn. (Spending Sap on the
 volley as a whole is a house rule — §8.)
 
+**An outcome the table carries is APPLIED, not reminded** (user, 2026-09-02: *"an attack within 5
+feet of paralyzed auto crits"*). The Paralyzed and Unconscious rows quote *"Any attack roll that
+hits you is a Critical Hit if the attacker is within 5 feet of you"*, and R1 says automate
+outcomes: the damage service reads the same table (`critWithinFeet`, data) over the same
+distance the gate measures, and makes the damage roll critical at every path that rolls it — the
+module's own drive, and the card's Damage button through the pre-roll-damage hook. One source
+for the crit (`critFor`): the d20's own verdict or the condition's clause, so the offer's badge
+and the dice cannot disagree. One roll serves every target it hit, so it applies only when true
+of all of them (the riders' intersection rule) and says so on the offer when it is not. An
+unmeasurable distance is never a crit. The damage card says why it doubled (R5).
+
 **What the gate never touches:** a roll whose caller suppressed the dialog and has no aim of its
 own — the resolver's own rolls, a riposte inside a fold, a macro, the suites. No dialog, no
 gate.

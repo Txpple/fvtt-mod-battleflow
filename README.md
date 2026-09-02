@@ -29,6 +29,7 @@ settings at v1.20.0. The dogfood ladder is walked one setting at a time.
 | **Saves** | auto-roll for everyone, per-target popups, half-damage-on-save made real, template containment |
 | **Concentration assist** | an un-buryable prompt, and a failed save actually ends the spell — which the system never does itself |
 | **Cast slice** | no-save effects and healing apply on cast |
+| **The automatic Critical Hit** | a hit within 5 feet of a Paralyzed or Unconscious creature rolls critical damage whatever the d20 said — the glossary's own clause, applied at every path that rolls the damage, and the card says why |
 | **Volleys** | Magic Missile / Scorching Ray / Eldritch Blast / Steel Wind Strike aimed dart-by-dart in one popup — and for rays, the gate judges each ray at the aim (folded to its header line; the mode defaults to the net; a Sap or Vex is spent by the first ray that uses it and shown on that row alone) |
 | **Resource notices** | a spend announces itself, on every client, with a durable card line |
 

@@ -5,6 +5,9 @@
 import { MODULE_ID, TITLE, S, setting } from "./core.js";
 import { hitTargets, modeAllows } from "./shared.js";
 import { TONE } from "./decide/present.js";
+import { CONDITION_BENDS } from "./decide/registry.js";
+import { autoCritSources } from "./decide/reminders.js";
+import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { stampHoldIfInterrupted } from "./hold.js";
 
 const esc = s => String(s ?? "").replace(/[&<>"]/g,
@@ -60,6 +63,103 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
   setTimeout(() => rollDamageForAttack(subject, attackMessage), beat);
 });
 
+/* ---------------------------------------------------------------------------------------------
+ * THE CRIT, ONE SOURCE (user, 2026-09-02 — "an attack within 5 feet of paralyzed auto crits").
+ * A hit is critical when the d20 said so (the roll's own `isCritical`) OR when the target's
+ * condition says so from where the attacker stands: the glossary's *Automatic Critical Hits*
+ * clause on Paralyzed and Unconscious, carried as `critWithinFeet` on the condition table and
+ * judged by decide/reminders.js `autoCritSources` over the distance the reminder gate measures.
+ * An OUTCOME (R1 automates outcomes), so the damage roll is MADE critical — at every path that
+ * rolls it: the module's own drive passes it, and the pre-roll-damage hook below catches the
+ * card's Damage button too — and the offer's badge reads this same function, so the badge and
+ * the dice cannot disagree. ⚠ One damage roll serves every target it hit, so the crit is applied
+ * only when it is true of ALL of them (hit-riders' intersection rule; over-applying damage is
+ * the worst failure this module has); the dropped case is said on the offer, never swallowed.
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * @param {ChatMessage} attackMessage
+ * @returns {{isCritical: boolean, rolled: boolean, auto: boolean,
+ *            sources: {status: string, label: string, rule: string}[], dropped: string[]}}
+ */
+export function critFor(attackMessage) {
+  const rolled = attackMessage?.rolls?.[0]?.isCritical ?? false;
+  const out = { isCritical: rolled, rolled, auto: false, sources: [], dropped: [] };
+  try {
+    const hits = hitTargets(attackMessage);
+    if ( !hits.length ) return out;
+    const attackerToken = tokenOfActor(attackMessage.getAssociatedActor());
+    const per = hits.map(t => {
+      const token = tokenForUuid(t.uuid);
+      const actor = token?.actor ?? (() => { try { return fromUuidSync(t.uuid); } catch { return null; } })();
+      const distanceFeet = (attackerToken && token) ? nearestFeet(attackerToken, token) : null;
+      return { name: t.name ?? actor?.name ?? "the target",
+        sources: autoCritSources({ targetStatuses: actor?.statuses ?? [], distanceFeet,
+          targetName: token?.document?.name ?? actor?.name ?? "the target", table: CONDITION_BENDS }) };
+    });
+    const qualifying = per.filter(p => p.sources.length);
+    if ( !qualifying.length ) return out;
+    if ( qualifying.length === per.length ) {
+      out.auto = true;
+      out.isCritical = true;
+      out.sources = per.flatMap(p => p.sources);
+    } else {
+      out.dropped = qualifying.map(p => p.name);
+    }
+  } catch(err) {
+    console.error(`${TITLE} | Automatic crit judgement failed — the d20's own verdict stands.`, err);
+  }
+  return out;
+}
+
+/**
+ * The attack an about-to-roll damage answers, from the roll's message DATA (no document yet):
+ * the module's own drives stamp `attackFor`; the card's Damage button carries the click, whose
+ * enclosing card is the usage card and whose last attack roll is the one (dnd5e's own
+ * #rollDamage reads it the same way); the flat originatingMessage key is the sheet shape.
+ */
+function attackMessageForDamage(config, message) {
+  const data = message?.data ?? {};
+  const forId = data[`flags.${MODULE_ID}.attackFor`] ?? foundry.utils.getProperty(data, `flags.${MODULE_ID}.attackFor`);
+  if ( forId ) return game.messages.get(forId) ?? null;
+  const cardId = config?.event?.target?.closest?.("[data-message-id]")?.dataset?.messageId
+    ?? data["flags.dnd5e.originatingMessage"] ?? foundry.utils.getProperty(data, "flags.dnd5e.originatingMessage");
+  const card = cardId ? game.messages.get(cardId) : null;
+  if ( !card ) return null;
+  if ( card.getFlag("dnd5e", "roll.type") === "attack" ) return card;
+  return card.getAssociatedRolls?.("attack")?.pop() ?? null;
+}
+
+// The hook is what makes the card's own Damage button honour it: dnd5e reads the d20's crit
+// off the attack message and passes `isCritical` into this config; `applyKeybindings` runs
+// AFTER this hook and stamps `config.isCritical` onto every roll (hit-riders.js's note on the
+// order). Setting it here is exactly what a nat 20 sets. The fact rides the damage message
+// as a flag, so the card can say why the dice doubled (R5).
+Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+  try {
+    if ( config?.subject?.type !== "attack" ) return;
+    const attackMessage = attackMessageForDamage(config, message);
+    if ( !attackMessage ) return;
+    const crit = critFor(attackMessage);
+    if ( !crit.auto ) return;
+    config.isCritical = true;
+    foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.autoCrit`,
+      { sources: crit.sources.map(s => ({ status: s.status, label: s.label })), attackId: attackMessage.id });
+  } catch(err) {
+    console.error(`${TITLE} | Automatic crit failed to apply — the d20's own verdict stands.`, err);
+  }
+});
+
+// The damage card SAYS why it doubled (R5): the badge and the fact, under the roll.
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  const auto = message.getFlag(MODULE_ID, "autoCrit");
+  if ( !auto?.sources?.length ) return;
+  const line = document.createElement("div");
+  line.style.cssText = "margin:0.3rem 0;font-size:var(--font-size-12,12px);line-height:1.5;";
+  line.innerHTML = `${CRIT_BADGE} <span style="opacity:0.85;">${auto.sources.map(s => s.label).join(" · ")}</span>`;
+  html.querySelector(".message-content")?.appendChild(line);
+});
+
 /**
  * Press the Damage button the way AttackActivity.#rollDamage does at 5.3.3: recover attack
  * mode and ammunition from the attack message's flags — including the stored copy of
@@ -78,7 +178,7 @@ export async function rollDamageForAttack(activity, attackMessage) {
         ? new Item.implementation(storedData, { parent: actor })
         : actor.items.get(attackMessage.getFlag("dnd5e", "roll.ammunition"));
     }
-    const isCritical = attackMessage.rolls[0]?.isCritical ?? false;
+    const isCritical = critFor(attackMessage).isCritical;
     const originId = attackMessage.getFlag("dnd5e", "originatingMessage") ?? attackMessage.id;
     // (ii): EVERY driven roll names the exact attack it answers — resolveAttackMessage
     // reads this stamp first, because the registry walk misattributes under a volley
@@ -258,11 +358,13 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
  * Ask the ATTACKER to roll their own damage, with a `damageTimer` buzzer that rolls it for them.
  */
 export async function offerDamageRoll(activity, attackMessage) {
-  // ⚠ ONE SOURCE FOR THE CRIT, and it is the roll's own. `rollDamageForAttack` reads this exact
-  // expression to decide what it rolls, so the badge cannot disagree with the dice. Deriving it
-  // instead from the d20 face and a crit threshold would be a second opinion about a settled
-  // fact — and a second opinion on a card people trust is worse than no badge at all.
-  const isCritical = attackMessage.rolls[0]?.isCritical ?? false;
+  // ⚠ ONE SOURCE FOR THE CRIT — `critFor`: the roll's own verdict, or the condition's 5-foot
+  // clause. `rollDamageForAttack` and the pre-roll-damage hook read the same function to decide
+  // what they roll, so the badge cannot disagree with the dice. Deriving it instead from the
+  // d20 face and a crit threshold would be a second opinion about a settled fact — and a second
+  // opinion on a card people trust is worse than no badge at all.
+  const crit = critFor(attackMessage);
+  const isCritical = crit.isCritical;
   const against = againstLine(hitTargets(attackMessage));
   // The armed Cleave announces itself BEFORE the dice (v1.19.x finding ③ — the walk: "the
   // roll damage popup should make a note that it's a cleave"). Lazy import on purpose: a
@@ -297,7 +399,10 @@ export async function offerDamageRoll(activity, attackMessage) {
       riposte ? `<strong>Riposte</strong> — the superiority die rides this roll${isCritical ? " and crit-doubles with it" : ""}.` : null,
       precisionUsed ? `<strong>Precision Attack</strong> turned the miss — this hit is yours to roll.` : null,
       cleaveArm ? `<strong>Cleave</strong> — this is the armed Cleave swing: the ability modifier is dropped from this roll.` : null,
-      isCritical ? `${CRIT_BADGE} <span style="opacity:0.85;">Already set on the roll — nothing extra to do.</span>` : null,
+      isCritical ? `${CRIT_BADGE} <span style="opacity:0.85;">${crit.auto && !crit.rolled
+        ? `${crit.sources.map(s => s.label).join(" · ")} — set on the roll, nothing extra to do.`
+        : "Already set on the roll — nothing extra to do."}</span>` : null,
+      crit.dropped.length ? `<span style="opacity:0.85;">${crit.dropped.join(", ")} would take a Critical Hit (Paralyzed or Unconscious, within 5 feet), but this one roll also serves a target that would not — roll that damage by hand.</span>` : null,
       against
     ]
   });

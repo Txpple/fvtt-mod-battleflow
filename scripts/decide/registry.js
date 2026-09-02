@@ -145,7 +145,11 @@ export const RANGE_RULES = Object.freeze({
  * null), `rule` the glossary clause verbatim, `caveat` a condition the module cannot judge (counted,
  * and said), `note` a fact listed for the table and never counted.
  *
- * @type {Readonly<Record<string, Readonly<{attacker: "advantage"|"disadvantage"|null, target: "advantage"|"disadvantage"|null, rule: string, caveat?: string, note?: string}>>>}
+ * `critWithinFeet` is the glossary's *Automatic Critical Hits* clause as a number (user,
+ * 2026-09-02): a hit on the bearer from within that many feet is a Critical Hit — an OUTCOME,
+ * which the damage service applies (auto-damage.js `critFor`), not a reminder.
+ *
+ * @type {Readonly<Record<string, Readonly<{attacker: "advantage"|"disadvantage"|null, target: "advantage"|"disadvantage"|null, rule: string, caveat?: string, note?: string, critWithinFeet?: number}>>>}
  */
 export const CONDITION_BENDS = Object.freeze({
   blinded: Object.freeze({ attacker: "disadvantage", target: "advantage",
@@ -160,7 +164,8 @@ export const CONDITION_BENDS = Object.freeze({
     rule: "When a creature can’t see you, you have Advantage on attack rolls against it. When you make an attack roll against a target you can’t see, you have Disadvantage on the roll.",
     caveat: "counted — press Normal if the other side can see you" }),
   paralyzed: Object.freeze({ attacker: null, target: "advantage",
-    rule: "Attack rolls against you have Advantage. Any attack roll that hits you is a Critical Hit if the attacker is within 5 feet of you." }),
+    rule: "Attack rolls against you have Advantage. Any attack roll that hits you is a Critical Hit if the attacker is within 5 feet of you.",
+    critWithinFeet: 5 }),
   petrified: Object.freeze({ attacker: null, target: "advantage",
     rule: "Attack rolls against you have Advantage." }),
   poisoned: Object.freeze({ attacker: "disadvantage", target: null,
@@ -170,7 +175,8 @@ export const CONDITION_BENDS = Object.freeze({
   stunned: Object.freeze({ attacker: null, target: "advantage",
     rule: "Attack rolls against you have Advantage." }),
   unconscious: Object.freeze({ attacker: null, target: "advantage",
-    rule: "Attack rolls against you have Advantage. Any attack roll that hits you is a Critical Hit if the attacker is within 5 feet of you." }),
+    rule: "Attack rolls against you have Advantage. Any attack roll that hits you is a Critical Hit if the attacker is within 5 feet of you.",
+    critWithinFeet: 5 }),
   frightened: Object.freeze({ attacker: "disadvantage", target: null,
     rule: "You have Disadvantage on ability checks and attack rolls while the source of fear is within line of sight.",
     caveat: "counted — press Normal if the source of the fear is out of sight" }),

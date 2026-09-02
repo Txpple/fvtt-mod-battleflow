@@ -54,6 +54,7 @@ import { castLevelOf, clampVolleyCount } from "./decide/eligible.js";
 import { popupKey, bfCard, momentBarHTML, reminderDetailsHTML } from "./decide/present.js";
 import { REMINDER_FLAG, reminderRecord } from "./decide/reminders.js";
 import { livePopups, openManagedPopup, armDeadline, disarmDeadline } from "./ui.js";
+import { tokenForUuid } from "./geometry.js";
 import { judgeRoll } from "./reminders.js";
 
 const volleyTimers = new Map();
@@ -187,9 +188,6 @@ const unitNoun = v => (v.kind === "damage") ? "dart" : "ray";
  * Darts are damage, not attack rolls: nothing to judge, nothing drawn.
  * ------------------------------------------------------------------------------------------- */
 
-/** The canvas token for an actor uuid — the aim idiom's own lookup. */
-const tokenFor = uuid => canvas.tokens?.placeables?.find(t => t.actor?.uuid === uuid) ?? null;
-
 /**
  * One judgement per ray, in ray order, the spends carried forward. `picks` are the rays'
  * target uuids as aimed. Null entries where there is no caster or the list is off.
@@ -198,7 +196,7 @@ function judgeRays(caster, activity, picks) {
   if ( !(caster instanceof Actor) ) return picks.map(() => null);
   const spent = new Set();
   return picks.map(uuid => {
-    const token = tokenFor(uuid);
+    const token = tokenForUuid(uuid);
     const j = judgeRoll(caster, { activity, targets: token ? [token] : [], spent, spendNote: " — spent by this ray" });
     for ( const id of (j?.spends ?? []) ) spent.add(id);
     return j;
@@ -478,7 +476,7 @@ async function driveRays(message, activity, v) {
   for ( const [i, ray] of (v.assignment ?? []).entries() ) {
     let record = null;
     try {
-      const token = tokenFor(ray.uuid);
+      const token = tokenForUuid(ray.uuid);
       const j = (caster instanceof Actor)
         ? judgeRoll(caster, { activity, targets: token ? [token] : [], spent }) : null;
       for ( const id of (j?.spends ?? []) ) spent.add(id);
