@@ -215,11 +215,13 @@ export function rangeSources({ ranged = false, distanceFeet = null, normalFeet =
  * @param {string} glossary  the Rules Glossary's Advantage sentence, verbatim (the EDGE holds it)
  */
 export function reminderView(sources, net, glossary) {
-  // One counted source speaks for itself (user, 2026-09-02): its badge IS the net, and the
-  // net line under it was vertical space saying the same thing. The line stays when sources
-  // contend — that is where the arithmetic lives — and for a lone LISTED source, whose badge
-  // says nothing about what the roll does.
-  const lone = (sources.length === 1) && !!sources[0]?.bend;
+  // Sources that all bend the same way speak for themselves (user, 2026-09-02): their badges
+  // ARE the net, and the line under them was vertical space saying the same thing — two
+  // Disadvantages are still Disadvantage, and nobody needs telling. The line stays when
+  // sources CONTEND — that is where the arithmetic lives — and when any source is LISTED,
+  // whose badge says nothing about what the roll does.
+  const bends = new Set(sources.map(s => s.bend ?? null));
+  const lone = (bends.size === 1) && !bends.has(null);
   return {
     boxes: sources.map(s => ({ label: s.label, bend: s.bend ?? null,
       badge: s.bend ? modeTitle(s.bend) : "Listed", rule: s.detail ?? "" })),

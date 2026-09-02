@@ -287,9 +287,9 @@ more like the native UI?"*). The dialog opens as it always does — forced open 
 fast-forward key, because a reminder that a shift-click skips is no reminder — and Battle Flow
 adds ONE section to it, shaped like the dialog's own CONFIGURATION: **a box per source** (user:
 *"boxes holding each condition"*) with the fact, the bend as a badge, and the rule quoted
-verbatim; then **the net, only when sources contend** — a lone counted source's badge IS the net
-and the line under it was vertical space saying the same thing (user, 2026-09-02) — with the
-Rules Glossary's own sentence on why.
+verbatim; then **the net, only when sources contend or one is Listed** — sources that all bend
+the same way ARE the net by their badges, and the line under them was vertical space saying the
+same thing (user, 2026-09-02) — with the Rules Glossary's own sentence on why.
 The human presses one of the dialog's own three buttons and the roll goes out natively —
 the card link, the crit, the attack mode, the ammunition, the mastery, the roll mode, the
 situational bonus and the spell's consume choice are all the system's, untouched. **Nothing is
