@@ -13,7 +13,7 @@ import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, reminderFieldse
 import { livePopups, openMomentPopup, adoptManagedPopup, DialogCarried,
   momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
   armDeadline, disarmDeadline, registerRelay, dramaticVerdictPause } from "./ui.js";
-import { SAVE_BENDS, SAVE_PRESSES } from "./decide/registry.js";
+import { EVASION, SAVE_BENDS, SAVE_PRESSES } from "./decide/registry.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { REMINDER_FLAG, reminderRecord, saveGate, saveSources } from "./decide/reminders.js";
 import { rollModeOf } from "./decide/chips.js";
@@ -968,6 +968,7 @@ export async function foldSaveAnswer(card, uuid, rollMessage) {
       entry.outcome = judged.outcome;
       entry.total = judged.total;
       entry.rollMessageId = rollMessage.id;
+      if ( evasionApplies(rollMessage.getAssociatedActor?.(), current) ) entry.evasion = true;
       if ( timedOut ) entry.timedOut = true;
       if ( forced ) entry.forced = true;
       if ( current.targets.every(t => t.done) ) {
@@ -1434,6 +1435,18 @@ async function applySaveEffects(card, flag, entry) {
   });
 }
 
+/**
+ * EVASION applies to this demand for this saver (decide/registry.js EVASION): the feature on
+ * the sheet by name, a Dexterity save, an effect that deals half on a success, the saver not
+ * Incapacitated. Read at the fold and stamped on the entry; the multiplier and the row read it.
+ */
+function evasionApplies(actor, flag) {
+  if ( !(actor instanceof Actor) || !flag?.hasDamage || (flag.damageOnSave !== "half") ) return false;
+  if ( !flag.abilities?.includes?.(EVASION.ability) ) return false;
+  if ( actor.statuses?.has?.("incapacitated") ) return false;
+  return actor.items.some(i => (i.type === "feat") && (i.name.toLowerCase() === EVASION.feature.toLowerCase()));
+}
+
 /** The SAVE_PRESSES press: the canonical status on the failer, receipted as an applied effect
  * (the effect the status became — so the card's revert removes exactly it). */
 async function pressSaveStatus(card, flag, entry, press) {
@@ -1473,9 +1486,11 @@ async function applyOneSaveDamage(damageMessage, flag, entry) {
   if ( !damages.length ) return;
   await applyDamagesWithReceipt(damageMessage, [{ uuid: entry.uuid, name: entry.name }], damages, {
     multiplier,
-    note: (entry.outcome === "saved")
-      ? ((multiplier === 0.5) ? "saved — half damage" : "saved — full damage anyway")
-      : undefined
+    note: entry.evasion
+      ? ((entry.outcome === "saved") ? "saved — Evasion, no damage" : "failed — Evasion, half damage")
+      : (entry.outcome === "saved")
+        ? ((multiplier === 0.5) ? "saved — half damage" : "saved — full damage anyway")
+        : undefined
   });
 }
 

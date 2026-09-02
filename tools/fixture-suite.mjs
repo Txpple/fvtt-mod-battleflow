@@ -251,7 +251,7 @@ const out = await f.evaluate(async ({ playerName }) => {
     const PHB_GEAR = ["dnd-players-handbook.equipment", "dnd5e.equipment24"];
     const BUILT = [
       { name: "BF Test Rogue", classes: [["Rogue", 14], ["Thief", null]],
-        feats: ["Sneak Attack", "Cunning Strike", "Devious Strikes", "Improved Cunning Strike", "Supreme Sneak", "Assassinate", "Steady Aim"],
+        feats: ["Sneak Attack", "Cunning Strike", "Devious Strikes", "Improved Cunning Strike", "Supreme Sneak", "Assassinate", "Steady Aim", "Evasion"],
         gear: ["Rapier", "Longsword", "Shortbow"], abilities: { dex: 18, str: 12, con: 14 }, hp: 90, x: 700 },
       { name: "BF Test Ranger", classes: [["Ranger", 5], ["Gloom Stalker", null]],
         feats: ["Dread Ambusher"], gear: ["Longsword", "Longbow"], abilities: { dex: 16, str: 14, wis: 16, con: 14 }, hp: 44, x: 500 }

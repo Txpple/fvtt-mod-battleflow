@@ -101,6 +101,29 @@ Hooks.on("dnd5e.damageActor", (actor, changes) => {
   void stampConcentrationAsk(actor, changes);
 });
 
+/* --- Incapacitated breaks concentration (user, 2026-09-02) ----------------------------------
+ * The glossary: "No Concentration. Your Concentration is broken." Paralyzed, Stunned,
+ * Unconscious and Petrified all carry Incapacitated, and dnd5e 5.3 does NOT end concentration
+ * when the status lands (measured at the table: Hypnotized on a ranger left Hunter's Mark up).
+ * An OUTCOME with no save in it (R1) — the same break the 0-HP path takes, off the effect that
+ * brought the condition, on the client that drives the concentrator's moments.
+ * ------------------------------------------------------------------------------------------- */
+
+function breakOnIncapacitated(effect) {
+  try {
+    if ( setting(S.concMode) === "off" ) return;
+    if ( effect?.disabled || !effect?.statuses?.has?.("incapacitated") ) return;
+    const actor = effect.parent;
+    if ( !(actor instanceof Actor) || !actor.concentration?.effects?.size ) return;
+    if ( !drivesMomentFor(actor.uuid) ) return;
+    void breakConcentration(actor, { names: concentratingOn(actor), reason: "incapacitated" });
+  } catch(err) {
+    console.error(`${TITLE} | Incapacitated concentration break failed.`, err);
+  }
+}
+Hooks.on("createActiveEffect", effect => breakOnIncapacitated(effect));
+Hooks.on("updateActiveEffect", (effect, changes) => { if ( changes?.disabled === false ) breakOnIncapacitated(effect); });
+
 /** The concentration ability exactly as rollConcentration will resolve it (actor.mjs:1728). */
 function concAbility(actor) {
   const conc = actor.system.attributes?.concentration;
@@ -404,6 +427,8 @@ async function breakConcentration(actor, { names = [], effectIds = null, ask = n
       title: `${what} ends`,
       subtitle: reason === "down"
         ? `${actor?.name ?? "The concentrator"} is down — no save at 0 HP`
+        : reason === "incapacitated"
+        ? `${actor?.name ?? "The concentrator"} is Incapacitated — Concentration is broken, no save`
         : ask ? `${ask.outcome.total} vs DC ${ask.dc} — ${actor?.name ?? "the concentrator"} loses concentration`
         : `${actor?.name ?? "The concentrator"} loses concentration`,
       lines: breaks ? [] : [`<em>Breaking is off — end it from ${actor?.name ?? "the actor"}'s effects yourself.</em>`],

@@ -307,6 +307,10 @@ export function saveMultiplier(entry, damageOnSave) {
   // Only a SAVED entry ever carries the choice, so there is no failed-with-spend case.
   if ( (entry.choice?.kind === "interpose") && (entry.choice.answer === "use")
     && (entry.outcome === "saved") ) return null;
+  // EVASION (2026-09-02): the entry carries it when the saver has the feature, the save is
+  // Dexterity, the effect deals half on a success, and the saver is not Incapacitated — read at
+  // the fold. A success takes NONE (0 — applied and receipted, never silent), a failure HALF.
+  if ( entry.evasion ) return (entry.outcome === "saved") ? 0 : (entry.outcome === "failed") ? 0.5 : null;
   if ( entry.outcome === "failed" ) return 1;
   if ( entry.outcome !== "saved" ) return null;
   if ( damageOnSave === "half" ) return 0.5;
@@ -324,11 +328,12 @@ export function verdictText(flag, t) {
   if ( !t.done ) return null;
   if ( t.outcome === "gone" ) return "the target is gone — nothing to roll";
   const half = flag.hasDamage
-    ? (flag.damageOnSave === "half") ? " — half damage"
+    ? t.evasion ? " — no damage (Evasion)"
+      : (flag.damageOnSave === "half") ? " — half damage"
       : (flag.damageOnSave === "none") ? " — no damage" : " — full damage anyway"
     : "";
   const base = (t.outcome === "saved")
-    ? `saved${half}` : `failed`;
+    ? `saved${half}` : `failed${(t.evasion && flag.hasDamage) ? " — half damage (Evasion)" : ""}`;
   // The save gate's automatic failure (option E, 2026-09-02): no die was rolled, so there is
   // no total to print — the condition that failed it is the number's replacement.
   const roll = t.autoFailed ? `cannot succeed${t.autoFailedBy ? ` (${t.autoFailedBy})` : ""}` : `${t.total}`;

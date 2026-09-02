@@ -269,6 +269,18 @@ export const SAVE_PRESSES = Object.freeze({
     rule: "Each creature that starts its turn in the webs or that enters them during its turn must succeed on a Dexterity saving throw or have the Restrained condition while in the webs or until it breaks free." })
 });
 
+/**
+ * EVASION (user, 2026-09-02 — "ah evasion yes"): the Rogue's (and Monk's) save-side feature, an
+ * OUTCOME with no choice in it (R1): a Dexterity save against an effect that deals half on a
+ * success takes NONE on a success and HALF on a failure. Not while Incapacitated. Read off the
+ * sheet by the feature's name at the fold; the verdict's multiplier does the rest, and the
+ * receipt says why. The 2024 PHB text, verbatim.
+ */
+export const EVASION = Object.freeze({
+  feature: "Evasion", ability: "dex",
+  rule: "When you’re subjected to an effect that allows you to make a Dexterity saving throw to take only half damage, you instead take no damage if you succeed on the save and only half damage if you fail. You can’t use this feature if you have the Incapacitated condition."
+});
+
 /** The clock riders' feature names, lower-cased — the closed set the Clock Riders list is validated against. */
 export const CLOCK_RIDER_NAMES = new Set(Object.values(CLOCK_RIDERS).map(r => r.feature.toLowerCase()));
 

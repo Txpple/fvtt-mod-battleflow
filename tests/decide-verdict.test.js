@@ -799,3 +799,21 @@ describe("verdictText — a save that could not succeed prints the condition whe
     ).toBe("cannot succeed vs DC 15 — failed (timer)");
   });
 });
+
+describe("Evasion — none on a success, half on a failure (user, 2026-09-02)", () => {
+  it("the multiplier reads the entry: 0 saved, 0.5 failed, nothing for a gone target", () => {
+    expect(v.saveMultiplier({ outcome: "saved", evasion: true }, "half")).toBe(0);
+    expect(v.saveMultiplier({ outcome: "failed", evasion: true }, "half")).toBe(0.5);
+    expect(v.saveMultiplier({ outcome: "gone", evasion: true }, "half")).toBeNull();
+    expect(v.saveMultiplier({ outcome: "saved" }, "half")).toBe(0.5);
+  });
+  it("the row says Evasion", () => {
+    const flag = { dc: 15, hasDamage: true, damageOnSave: "half" };
+    expect(v.verdictText(flag, { done: true, outcome: "saved", total: 20, evasion: true })).toBe(
+      "20 vs DC 15 — saved — no damage (Evasion)"
+    );
+    expect(v.verdictText(flag, { done: true, outcome: "failed", total: 3, evasion: true })).toBe(
+      "3 vs DC 15 — failed — half damage (Evasion)"
+    );
+  });
+});

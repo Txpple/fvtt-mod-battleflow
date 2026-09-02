@@ -43,7 +43,8 @@ const SECTIONS = {
   17: 'the BASH shape (v1.19.0, FLOW item 5)',
   18: 'the player-rolled damage offer on the SAVE path (was probe-save-damage-popup)',
   19: 'the save gate (option E, 2026-09-02): the system dialog, the section, the default, Fails',
-  20: 'a save press (SAVE_PRESSES): Web ships no effect — a failure presses Restrained, receipted, with a revert'
+  20: 'a save press (SAVE_PRESSES): Web ships no effect — a failure presses Restrained, receipted, with a revert',
+  21: 'Evasion: a Dexterity save for half — none on a success, half on a failure, said on the row and the receipt'
 };
 // §2 rolls the damage of the demand §1 cast (`card1`); §13 rides §12's completed lifecycle —
 // its card, its template id and its 140px scene. Both couplings are declared in the code
@@ -97,7 +98,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   let shimScene = null; // §12's own 140px scene — deleted whole in teardown
   let restored = false;
   const clearChips = async () => {
-    for (const a of [victim, shielder]) {
+    for (const a of [victim, shielder, game.actors.getName('BF Test Rogue')].filter(Boolean)) {
       const strays = a.effects.filter(e => CHIP_NAMES.includes(e.name));
       if (strays.length) await a.deleteEmbeddedDocuments('ActiveEffect', strays.map(e => e.id));
     }
@@ -1763,6 +1764,53 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (restrained) await victim.deleteEmbeddedDocuments('ActiveEffect', [restrained.id]).catch(() => {});
       await saveBonus(victim, '');
       await victim.update({ 'system.abilities.dex.bonuses.save': '' });
+    }
+
+    // ============================================== 21. Evasion
+    if (want(21)) {
+      const rogue = game.actors.getName('BF Test Rogue');
+      if (!rogue || !rogue.items.some(i => i.name === 'Evasion')) { skips.push('§21: BF Test Rogue with Evasion missing — run fixture-suite'); }
+      else {
+        const rogueToken = await mkToken(rogue, 800);
+        priorActor[rogue.id] = { 'system.attributes.hp.value': rogue.system._source.attributes.hp.value,
+          'system.abilities.dex.bonuses.save': rogue.system._source.abilities?.dex?.bonuses?.save ?? '' };
+        const rMax = rogue.system.attributes.hp.max;
+        const damageFor = card => game.messages.contents.find(m => (m.getFlag('dnd5e', 'roll.type') === 'damage') && (m.getFlag('dnd5e', 'originatingMessage') === card?.id));
+        const heal = () => rogue.update({ 'system.attributes.hp.value': rMax });
+        const runOne = async bonus => {
+          await rogue.update({ 'system.abilities.dex.bonuses.save': bonus });
+          await heal();
+          target(rogueToken);
+          await sleep(120);
+          const use = await dexActivity().use({}, { configure: false }, {});
+          const card = use?.message instanceof ChatMessage ? use.message : null;
+          if (card) await until(() => card.getFlag(MOD, 'saves'));
+          const dlg = await until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? 'BF Test Rogue')), 6000);
+          dlg?.querySelector('button[data-action="normal"]')?.click();
+          await until(() => entryOf(card, rogue)?.applied, 15000);
+          const dmg = await until(() => damageFor(card)?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === rogue.uuid) ? damageFor(card) : null, 10000);
+          return { card, entry: entryOf(card, rogue), receipt: dmg?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === rogue.uuid) };
+        };
+        const a = await runOne('+30');
+        ok('21a. a SUCCESS with Evasion takes NO damage — applied at ×0, receipted and said, the row says Evasion',
+          (a.entry?.outcome === 'saved') && (a.entry?.evasion === true) && (a.receipt?.taken === 0) && (a.receipt?.multiplier === 0)
+            && /Evasion/.test(a.receipt?.note ?? '') && (rogue.system.attributes.hp.value === rMax),
+          `outcome=${a.entry?.outcome} evasion=${a.entry?.evasion} taken=${a.receipt?.taken} mult=${a.receipt?.multiplier} note="${a.receipt?.note}" hp=${rogue.system.attributes.hp.value}/${rMax}`);
+        const b = await runOne('-30');
+        ok('21b. a FAILURE with Evasion takes HALF — 5 of the flat 10',
+          (b.entry?.outcome === 'failed') && (b.entry?.evasion === true) && (b.receipt?.taken === 5) && (b.receipt?.multiplier === 0.5)
+            && /Evasion/.test(b.receipt?.note ?? ''),
+          `outcome=${b.entry?.outcome} taken=${b.receipt?.taken} mult=${b.receipt?.multiplier} note="${b.receipt?.note}"`);
+        // Incapacitated: no Evasion — a failure takes the full 10.
+        const eff = await ActiveEffect.implementation.fromStatusEffect('incapacitated');
+        const [inc] = await ActiveEffect.implementation.create(eff.toObject(), { parent: rogue, keepId: true }).then(e => [e]);
+        const c = await runOne('-30');
+        ok('21c. not while Incapacitated — the failure takes the full 10',
+          (c.entry?.outcome === 'failed') && !c.entry?.evasion && (c.receipt?.taken === 10),
+          `evasion=${c.entry?.evasion} taken=${c.receipt?.taken}`);
+        await rogue.deleteEmbeddedDocuments('ActiveEffect', [inc.id]).catch(() => {});
+        await heal();
+      }
     }
 
     return { log, results, skips };

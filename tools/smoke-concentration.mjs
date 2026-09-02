@@ -36,7 +36,8 @@ const SECTIONS = {
   11: 'break-on-failure off: announce, touch nothing',
   12: 'the cause rides the real chain',
   13: 'a sheet edit is damage too — then zero HP is not a save',
-  14: 'the crash-resume re-drives a dead fold'
+  14: 'the crash-resume re-drives a dead fold',
+  15: 'Incapacitated breaks concentration — no save, the cascade, the card (user, 2026-09-02)'
 };
 // Concentration is a STATE, so a section that never calls `ensureConc` inherits one. §§1, 5,
 // 11, 13 and 14 stand up their own; every other section names the nearest one that does.
@@ -666,6 +667,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!gone && !!card14 && (askAfter?.getFlag(MOD, 'concentration')?.outcome?.applied === true),
         `effects=${concEffects().length} card=${!!card14} `
           + `applied=${askAfter?.getFlag(MOD, 'concentration')?.outcome?.applied}`);
+    }
+    // ================================================== 15. Incapacitated breaks concentration
+    // The glossary's "No Concentration. Your Concentration is broken." — dnd5e 5.3 does not end
+    // it when the status lands (Hypnotized on a ranger left Hunter's Mark up at the table).
+    if (want(15)) {
+      const eff = concEffects()[0] ?? await ensureConc();
+      if (!eff) return { fatal: 'recast failed for section 15 (slots?)' };
+      const t0 = marker();
+      const status = await ActiveEffect.implementation.fromStatusEffect('incapacitated');
+      const [pressed] = await ActiveEffect.implementation.create(status.toObject(), { parent: shielder, keepId: true }).then(e => [e]);
+      const gone = await waitFor(() => concEffects().length === 0, 10_000);
+      const card15 = await waitFor(() => contentNew(t0, 'ends'));
+      ok('15. the Incapacitated condition landing on a concentrator ends concentration — no save, the cascade, the card says why',
+        !!gone && !!card15 && /Incapacitated/.test(card15?.content ?? ''),
+        `effects=${concEffects().length} card=${!!card15} says=${/Incapacitated/.test(card15?.content ?? '')}`);
+      if (pressed) await shielder.deleteEmbeddedDocuments('ActiveEffect', [pressed.id]).catch(() => {});
+      await sleep(300);
     }
   } catch (err) {
     ok('SUITE', false, `unhandled: ${err?.message}\n${err?.stack}`);
