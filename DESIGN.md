@@ -281,29 +281,40 @@ first chit would otherwise stand forever. The platform's expiry is its tidy, not
 ### The gate before the roll (user rulings, 2026-09-01)
 
 **A reminder is proactive, never a rescue** — *"I don't want a rescue, I want proactivity."* When
-something this module can READ bends an attack roll, the system's roll dialog does not open;
-Battle Flow's popup stands in for it (the concentration precedent, 2026-08-16: *"the popup is
-the configuration surface"*), listing **every source** it can see, each with its rule quoted
-verbatim, **the net**, and the Rules Glossary's own sentence on why — then Advantage / Normal /
-Disadvantage for the human to press. **Nothing is ever applied for the roller** (R1, and the
-fence in mastery.js). The press re-issues the roll; the card says what was shown and what was
-pressed, and the stats plane reads honour off it.
+something this module can READ bends an attack roll, the gate meets the roller BEFORE the dice:
+**inside the system's own Attack Roll dialog** (user ruling 2026-09-02 — *"can't the gate look
+more like the native UI?"*). The dialog opens as it always does — forced open even under a
+fast-forward key, because a reminder that a shift-click skips is no reminder — and Battle Flow
+adds ONE section to it, shaped like the dialog's own CONFIGURATION: **a box per source** (user:
+*"boxes holding each condition"*) with the fact, the bend as a badge, and the rule quoted
+verbatim; then **the net**, and the Rules Glossary's own sentence on why when sources contend.
+The human presses one of the dialog's own three buttons and the roll goes out natively —
+the card link, the crit, the attack mode, the ammunition, the mastery, the roll mode, the
+situational bonus and the spell's consume choice are all the system's, untouched. **Nothing is
+ever applied for the roller** (R1, and the fence in mastery.js). The card says what was shown
+and what was pressed, and the stats plane reads honour off it. (The 2026-09-01 shape — a house
+popup standing in for the dialog and re-issuing the roll — lasted one day; three of the
+review's twenty findings were that re-issue.)
 
 **The highlighted button is the outcome the solver worked out** (user ruling 2026-09-01). The
-platform always has a default — DialogV2 makes the first button the default when none is
+platform always has a default — a dialog makes its first button the default when none is
 flagged, so "nothing pre-selected" meant *Advantage on Enter* whatever the net — and the honest
-default is the NET the popup already names. Enter is still a press. **The popup carries the
-dialog's own choices too** — attack mode, ammunition, mastery where a weapon has more than one,
-and the roll mode — because a re-issue that skipped the dialog would otherwise pin each to its
-remembered default in silence, and the mastery pick feeds this module's own riders. The consume
-choice for a spell attack is the usage dialog's, before any roll, and stays native.
+default is the NET the section names. Enter is still a press. **The section follows the
+dialog** (user, 2026-09-02): the dialog re-renders on each of its own dropdowns and the sources
+are re-judged from the form as it stands — a dagger switched to Thrown grows its range box and
+the default moves with the net — and a re-target on the canvas re-judges too.
 
-**No card, no gate.** The usage card keys the popup and links the re-issued attack back into
-the system's own chain (its Damage button, its crit, this module's auto-apply and riders all
-read that link); an attack with no card behind it — an API roll, an enricher link in a journal —
-rolls natively. **A recorded spend counts as spent** whatever the sheet says: with no GM the
-chip a player cannot delete lingers on the monster, and the receipt on the attack card is what
-keeps it from being offered and spent again.
+**A recorded spend counts as spent** whatever the sheet says: with no GM the chip a player
+cannot delete lingers on the monster, and the receipt on the attack card is what keeps it from
+being offered and spent again.
+
+**Range is a source like any other** (user, 2026-09-02 — *"bake in the disadvantage at long
+range"*; the class, not the example: any RANGED attack roll — a bow, a thrown dagger, a ranged
+spell). Both glossary rules, read off the same distance Prone measures and the activity's own
+range: beyond normal range is Disadvantage; beyond long range — or beyond a single range —
+cannot be made, so it is listed and not counted; an enemy within 5 feet of the attacker is
+Disadvantage with the caveat the module cannot judge (*can it see you? is it Incapacitated?*),
+the Frightened shape. No range number is the module's.
 
 **The net is the 5e rule, restated by the user as the ruling:** *if multiple sources contend,
 it always nets to a regular attack, even if you have more of one than the other* — adv/adv is
@@ -313,11 +324,11 @@ rolling at all) is **listed and not counted**.
 
 **What the gate reads is membership** (R4): the Reminder Sources list names the KINDS — the
 attacker's own Vexed chip on a target, a Sapped chip on the attacker, Prone on either side with
-the 5-foot geometry, and the condition table — and the Condition Sources list names WHICH of
-the thirteen 2024 conditions count. Both lists are switches; an empty Reminder Sources list is
-the gate turned off. **AC5e's knowledge, as data, never its code** (R-B, sharpened): the
-thirteen rows carry each condition's *Attacks Affected* clause verbatim from the world's own
-glossary, and a fourteenth costs a row and a list entry, zero code paths.
+the 5-foot geometry, the condition table, and a ranged attack's own range — and the Condition
+Sources list names WHICH of the thirteen 2024 conditions count. Both lists are switches; an
+empty Reminder Sources list is the gate turned off. **AC5e's knowledge, as data, never its
+code** (R-B, sharpened): the thirteen rows carry each condition's *Attacks Affected* clause
+verbatim from the world's own glossary, and a fourteenth costs a row and nothing else.
 
 **What the gate never touches:** a roll whose caller suppressed the dialog — the resolver's
 own rolls, a volley's rays, a riposte inside a fold, a macro, the suites. No dialog, no gate.

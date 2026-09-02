@@ -250,8 +250,31 @@ neither is visible to the dispatch gate — pinned, like `preRollDamageV2`.
 own targets on the roller's client — and the message's `flags.dnd5e.targets` is built from the
 same set. A pre-roll reader that wants the targets reads `game.user.targets` directly.
 
+**⚠ THE GATE LIVES INSIDE THE SYSTEM'S OWN ROLL DIALOG, and these are the seams it rides
+(2026-09-02).** (1) `dialog.configure = true` written in a pre-roll hook SURVIVES the fast-forward
+keys: `applyKeybindings` sets `dialog.configure ??=`, so a hook can force the dialog open under a
+shift-click. (2) `dialog.options` are handed straight to the dialog's constructor
+(`RollConfigurationDialog.configure`: `new this(config, message, dialog.options)`), so any key put
+there — dnd5e's own `defaultButton`, or a payload of ours — is `app.options.<key>` at render.
+`defaultButton` is read first in `_prepareButtonsContext`; "normal" is a valid value. (3) The
+dialog's buttons are `type=submit` with `data-action` and the default carries `autofocus`; the
+press reaches `#handleFormSubmission` through the form's submit event, so a `.click()` on one is a
+real press. (4) A change to any of the dialog's own selects re-renders ONLY its `formulas` part
+(`_onChangeForm` → `render({ parts: ["formulas"] })`) — a sibling inserted after the
+`[data-application-part="configuration"]` fieldset stands through it — and every render, partial
+or not, fires `renderRollConfigurationDialog` (the hook polish.js already rides), so a section
+rebuilt from the form there follows the dropdown. `new FormDataExtended(app.form)` reads the
+form's current values. (5) `dnd5e.postRollConfiguration` (the generic, in the dispatch set) fires
+after the dialog closes with the FINALIZED rolls — `rolls[0].options.advantageMode` is what was
+pressed — and before `buildEvaluate`/`buildPost`, so a write to `message.data` there lands on the
+created message. A closed dialog hands back no rolls. (6) The ranged/melee question is
+`activity.attack.type.value`, and a thrown weapon is the dialog's attack mode `thrown`/`thrown-offhand`;
+a weapon's normal/long range is `item.system.range.{value, long, units}` unless
+`activity.range.override`, a spell's is the activity's single `range.value`.
+
 **⚠ AT PRE-ROLL TIME `originatingMessage` COMES IN THREE SHAPES, AND ON THE BUTTON FLOW IT IS NOT
-THERE AT ALL (review findings 2 and 12, 2026-09-01).** The usage card's Attack button calls
+THERE AT ALL (review findings 2 and 12, 2026-09-01; the re-issue those findings were about is
+gone since 2026-09-02, the facts stand).** The usage card's Attack button calls
 `rollAttack({ event })` and nothing else; `buildPost` derives the id from
 `event.target.closest("[data-message-id]")` AFTER the pre-roll hooks and `expandObject`s the
 message data there. The sheet/`use()` auto-roll passes it as a FLAT key,

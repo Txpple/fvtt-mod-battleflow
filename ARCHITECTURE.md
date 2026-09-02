@@ -506,13 +506,13 @@ in milliseconds and impossible to tangle. **Keep it that way** — the day somet
 | Module | Holds |
 | --- | --- |
 | [decide/geometry.js](scripts/decide/geometry.js) | `honestDims`, `tokenCenter`, `tokenSamplePoints` — the v14 region-shim knowledge; `lengthUnitKey` — a scene's units folded to the system's keys |
-| [decide/registry.js](scripts/decide/registry.js) | the world-setting list SPECS and the one `parseList`; the closed kind sets and the R4 tripwire; `MASTERY_RULES` and `CONDITION_BENDS` — the rules text and the condition table, as data |
+| [decide/registry.js](scripts/decide/registry.js) | the world-setting list SPECS and the one `parseList`; the closed kind sets and the R4 tripwire; `MASTERY_RULES`, `CONDITION_BENDS` and `RANGE_RULES` — the rules text, the condition table and the range sentences, as data |
 | [decide/chips.js](scripts/decide/chips.js) | `CHIP_WINDOWS`, `chipClock`, `chipIsDead`, `chitStamp`, `chipSpentBy`, `chipHonoured`, `netShownFor`, `spendRecord` — a chip's clock, and what spends it |
-| [decide/reminders.js](scripts/decide/reminders.js) | `netMode`, `resolutionLine`, `proneSources`, `conditionSources` (over the registry's table), `rollChoices`, `reminderRecord` — what bends a roll and what it nets to |
+| [decide/reminders.js](scripts/decide/reminders.js) | `netMode`, `resolutionLine`, `proneSources`, `conditionSources` (over the registry's table), `rangeSources`, `reminderView`, `reminderRecord` — what bends a roll, what it nets to, and the boxes the dialog's section draws |
 | [decide/verdict.js](scripts/decide/verdict.js) | `hitsAmong`, `modeAdmits`, `saveOutcome`, `saveMultiplier`, `verdictText`, and the fold layer (`ATTACK_FOLDS`, `SAVE_FOLDS`, `foldsFrom`, `foldedRoll`, `foldedVerdict`, `foldedSave`) |
 | [decide/eligible.js](scripts/decide/eligible.js) | `isDeadForSaves`, `limitedUses`, `isReactionItem`, `castLevelOf`, `clampVolleyCount`, `riderKey` |
 | [decide/receipt.js](scripts/decide/receipt.js) | `traitOutcome`, `hpDelta`, `receiptEntry`, `joinDamageReceipt`, `joinEffectReceipt`, `takenOf`, `receiptAmounts`, `revertPlan`, `revertableEffect` |
-| [decide/present.js](scripts/decide/present.js) | `popupKey`, `TONE`, `bfCard`, `ruleLine`, `momentBarHTML`, `holdBarHTML`, `nextCascadeSlot`, `cascadePosition`; `situationalBonusHTML`, `choiceRowHTML`, `modeButtons` — the controls every popup that stands in for a roll dialog carries; the rescue view's row model and markup |
+| [decide/present.js](scripts/decide/present.js) | `popupKey`, `TONE`, `bfCard`, `ruleLine`, `momentBarHTML`, `holdBarHTML`, `nextCascadeSlot`, `cascadePosition`; `situationalBonusHTML`, `modeButtons` — the controls every popup that stands in for a roll dialog carries; `reminderFieldsetHTML` — the gate's section inside the system's own roll dialog; the rescue view's row model and markup |
 | [geometry.js](scripts/geometry.js) | EDGE, not in the layer: `tokensInTemplates`, `templateShape` — they need canvas/CONFIG/PIXI |
 
 ⚠ **`receiptAmounts` returns the row's TEXT as well as its figures, deliberately.** The two bugs
@@ -646,6 +646,7 @@ The module rides **public hooks and document writes only** (R3). The seams it de
 | `Actor5e#rollSavingThrow` / `rollConcentration` | real saves (N1) |
 | the message registry (`originatingMessage`, `getAssociatedRolls`) | chain resolution — **we ride the system's registry, never a parallel one** |
 | turn events (`dnd5e.preCombatRecovery`, combat hooks) | per-turn clears |
+| `dnd5e.preRollAttackV2` (templated, pinned) · `renderRollConfigurationDialog` · `dnd5e.postRollConfiguration` | the reminder gate: judge the sources and force the dialog; draw the section into the dialog on each render; record what was pressed — **the dialog is the system's own, we add one fieldset and set its default** (DESIGN §5) |
 
 ### Version pinning
 
