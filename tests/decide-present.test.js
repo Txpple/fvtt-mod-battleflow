@@ -548,11 +548,12 @@ describe("reminderSectionHTML / reminderFieldsetHTML — the header line and the
       "<details data-bf-reminder-details open>"
     );
   });
-  it("opens with the header line — the count and the net as a tag, the arithmetic as its tooltip — and NO net block", () => {
+  it("opens with the header line — the count and the net as a tag, NO tooltip (it covered the boxes) — and NO net block", () => {
     const html = p.reminderSectionHTML(view);
     expect(html).toContain("<span>3 Modifiers — Net</span>");
     expect(html).toContain("data-bf-reminder-head");
-    expect(html).toContain('data-tooltip="they cancel"');
+    expect(html).not.toContain("data-tooltip");
+    expect(html).not.toContain("they cancel");
     expect(html).toContain(p.modeTagHTML("normal"));
     expect(html).not.toContain("Net:");
     expect(html.indexOf("3 Modifiers")).toBeLessThan(html.indexOf("Gruk — Sapped"));
@@ -576,7 +577,34 @@ describe("reminderSectionHTML / reminderFieldsetHTML — the header line and the
     });
     expect(html).toContain("1 &lt;Modifier&gt; — Net");
     expect(html).toContain("A &amp; B");
-    expect(html).toContain('data-tooltip="a &quot;why&quot;"');
+    expect(html).not.toContain("data-tooltip");
+  });
+});
+
+describe("sneakBoxHTML — the choice beside the roll (user rulings 2026-09-02)", () => {
+  const view = {
+    dice: "7d6",
+    rule: "Once per turn, you can deal an extra 1d6 damage",
+    read: ["the rapier is Finesse ✓"]
+  };
+  it("carries the tick, the read-for-you line, and the rule FOLDED closed by default", () => {
+    const html = p.sneakBoxHTML({ ...view, checked: true });
+    expect(html).toContain('name="bf-sneak"');
+    expect(html).toContain("checked");
+    expect(html).toContain("Read for you: the rapier is Finesse ✓");
+    expect(html).toContain("<details data-bf-rule");
+    expect(html).not.toContain("<details data-bf-rule open");
+    expect(html).toContain(p.ruleLine(view.rule));
+  });
+  it("used this turn: no tick, the reason on its own full-width line", () => {
+    const html = p.sneakBoxHTML({
+      ...view,
+      used: "used this turn — the chit clears at the end of the turn"
+    });
+    expect(html).not.toContain('name="bf-sneak"');
+    expect(html).toContain(
+      'grid-column:1 / -1;font-size:var(--font-size-11,11px);line-height:1.45;opacity:0.85;">used this turn'
+    );
   });
 });
 

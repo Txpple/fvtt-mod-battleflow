@@ -151,8 +151,7 @@ export function reminderSectionHTML({ head, boxes }) {
         ${b.rule ? `<div style="grid-column:1 / -1;font-size:var(--font-size-12,12px);line-height:1.45;opacity:0.85;">${ruleLine(b.rule)}</div>` : ""}
       </div>`).join("");
   return `
-    <div data-bf-reminder-head style="display:flex;align-items:center;gap:0.45rem;margin:0.2rem 0 0.1rem;"
-         ${head.why ? `data-tooltip="${attr(head.why)}"` : ""}>
+    <div data-bf-reminder-head style="display:flex;align-items:center;gap:0.45rem;margin:0.2rem 0 0.1rem;">
       <span>${attr(head.title)}</span> ${modeTagHTML(head.net)}
     </div>${rows}`;
 }
@@ -200,9 +199,9 @@ export function reminderFieldsetHTML({ head, boxes, legend = "Before you roll" }
  * @param {{dice: string, rule: string, read: string[], checked?: boolean, used?: string|null}} view
  */
 export function sneakBoxHTML({ dice, rule, read, checked = false, used = null }) {
-  const control = used
-    ? `<span style="font-size:var(--font-size-11,11px);opacity:0.75;">${attr(used)}</span>`
-    : `<label style="display:flex;align-items:center;gap:0.4rem;white-space:nowrap;cursor:pointer;">
+  // Used this turn: no tick, and the reason on its own full-width line under the title (user,
+  // 2026-09-02 — beside the title it squeezed the title into a one-word column).
+  const control = used ? "" : `<label style="display:flex;align-items:center;gap:0.4rem;white-space:nowrap;cursor:pointer;">
         <input type="checkbox" name="bf-sneak" ${checked ? "checked" : ""} style="margin:0;"> <span>Sneak Attack</span></label>`;
   return `
       <div data-bf-sneak style="display:grid;grid-template-columns:1fr auto;gap:0.2rem 0.6rem;align-items:center;
@@ -211,9 +210,23 @@ export function sneakBoxHTML({ dice, rule, read, checked = false, used = null })
                   border-left:3px solid ${used ? TONE.neutral : TONE.pending};">
         <div style="font-weight:bold;">Sneak Attack — ${attr(dice)} on a hit, once per turn</div>
         ${control}
-        <div style="grid-column:1 / -1;font-size:var(--font-size-12,12px);line-height:1.45;opacity:0.85;">${ruleLine(rule)}</div>
+        ${used ? `<div style="grid-column:1 / -1;font-size:var(--font-size-11,11px);line-height:1.45;opacity:0.85;">${attr(used)}</div>` : ""}
+        ${foldedRuleHTML(rule)}
         <div style="grid-column:1 / -1;font-size:var(--font-size-11,11px);line-height:1.45;opacity:0.8;">Read for you: ${read.map(attr).join(" · ")}</div>
       </div>`;
+}
+
+/**
+ * A rule quoted under a fold (user, 2026-09-02: "the desc should be collapsed here, to save
+ * vertical space") — a native `<details>` closed by default, its summary the one word "the
+ * rule". Used by the boxes that carry a long feature text: the Sneak Attack box, a clock rider's
+ * row on the offer.
+ * @param {string} rule
+ */
+export function foldedRuleHTML(rule) {
+  if ( !rule ) return "";
+  return `<details data-bf-rule style="grid-column:1 / -1;font-size:var(--font-size-12,12px);line-height:1.45;opacity:0.85;">
+          <summary style="cursor:pointer;list-style:none;opacity:0.75;font-size:var(--font-size-11,11px);">the rule ▸</summary>${ruleLine(rule)}</details>`;
 }
 
 /**
@@ -240,6 +253,35 @@ export function cunningMenuHTML({ rows, max, dc, dice, chosen = [] }) {
     <div data-bf-cunning style="margin-top:0.5rem;">
       <div style="font-weight:bold;font-size:var(--font-size-12,12px);">Cunning Strike</div>
       <div style="font-size:var(--font-size-11,11px);opacity:0.8;line-height:1.45;">Forgo Sneak Attack dice (${attr(dice)}) for an effect${max > 1 ? ` — up to ${max} (Improved Cunning Strike)` : ""}.${dc ? ` Save DC ${dc}.` : ""} The effect lands right after the damage.</div>
+      ${items}
+    </div>`;
+}
+
+/**
+ * THE CLOCK RIDERS on the damage offer (user ruling 2026-09-02, revised the same evening:
+ * "dreadful strike should have a check box, optional to use, so make like sneak attack"): a
+ * checkbox per rider the clock says is due, TICKED by default — the rules make it available and
+ * the player may decline (a limited use is theirs to keep). The line names the dice, the type,
+ * why it is due and the uses left after; the rule folds under it.
+ * @param {{key: string, label: string, formula: string|null, type: string|null, why: string, rule: string,
+ *          usesLeft?: number|null, caveat?: string}[]} riders
+ */
+export function riderMenuHTML(riders) {
+  const rows = (riders ?? []).filter(r => r.formula);
+  if ( !rows.length ) return "";
+  const items = rows.map(r => `
+      <label data-bf-rider-row="${attr(r.key)}" style="display:grid;grid-template-columns:auto 1fr auto;gap:0.2rem 0.5rem;align-items:center;
+             margin:0.3rem 0;padding:0.35rem 0.5rem;border-radius:4px;background:rgba(0,0,0,0.06);
+             border:1px solid var(--color-border-light,rgba(0,0,0,0.2));cursor:pointer;">
+        <input type="checkbox" name="bf-rider" value="${attr(r.key)}" checked style="margin:0;">
+        <span style="font-weight:bold;">${attr(r.label)} — ${attr(r.formula)}${r.type ? ` ${attr(r.type)}` : ""}</span>
+        <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;">${(r.usesLeft === null) || (r.usesLeft === undefined) ? attr(r.why) : `${Math.max(0, r.usesLeft - 1)} use${(r.usesLeft - 1) === 1 ? "" : "s"} left after`}</span>
+        <span style="grid-column:2 / -1;font-size:var(--font-size-11,11px);opacity:0.8;">${attr(r.why)}${r.caveat ? ` — ${attr(r.caveat)}` : ""}</span>
+        ${foldedRuleHTML(r.rule).replace("grid-column:1 / -1", "grid-column:2 / -1")}
+      </label>`).join("");
+  return `
+    <div data-bf-riders style="margin-top:0.5rem;">
+      <div style="font-weight:bold;font-size:var(--font-size-12,12px);">Riding this hit</div>
       ${items}
     </div>`;
 }

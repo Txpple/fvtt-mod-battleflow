@@ -5,7 +5,7 @@
 import { MODULE_ID, TITLE, activeCombatFor, statContext } from "./core.js";
 import { clockRiderEntries } from "./settings.js";
 import { turnChitStands, writeTurnChit } from "./shared.js";
-import { bfCard, ruleLine } from "./decide/present.js";
+import { bfCard, riderMenuHTML, ruleLine } from "./decide/present.js";
 import { CLOCK_RIDERS } from "./decide/registry.js";
 import { riderDue, riderPartFormula } from "./decide/clock.js";
 import { attackMessageForDamage } from "./auto-damage.js";
@@ -84,11 +84,42 @@ export function clockRidersFor(attackMessage, activity) {
   return out;
 }
 
-/** The offer's lines (auto-damage.js, lazy): what is due and will ride, in one sentence each. */
-export function clockRiderLines(attackMessage, activity) {
-  return clockRidersFor(attackMessage, activity).filter(r => r.due).map(r => r.formula
-    ? `<strong>${r.label}</strong> — ${r.formula}${r.type ? ` ${r.type}` : ""}, ${r.why}: added to this roll${r.usesLeft !== null ? ` (${r.usesLeft - 1} use${(r.usesLeft - 1) === 1 ? "" : "s"} left after)` : ""}.`
-    : `<strong>${r.label}</strong> is due, but its dice could not be read off the sheet — add them by hand.`);
+/** Is any listed clock rider due on this hit? The offer opens for it whatever the auto-damage setting. */
+export function clockRidersDue(attackMessage, activity) {
+  return clockRidersFor(attackMessage, activity).some(r => r.due);
+}
+
+/**
+ * What the damage offer shows for the riders the clock says are due (auto-damage.js, lazy),
+ * and what it does at fire time — the Sneak Attack menu's shape (user ruling, the same evening:
+ * "make like sneak attack"). Each due rider is a checkbox, ticked; the pick lives in memory
+ * from the change events and is written on the attack message BEFORE the roll, where the
+ * rider hook reads it. A rider whose dice could not be read is a line, not a row.
+ * @param {ChatMessage} attackMessage
+ * @param {object} activity
+ */
+export function clockRiderOfferParts(attackMessage, activity) {
+  const due = clockRidersFor(attackMessage, activity).filter(r => r.due);
+  if ( !due.length ) return null;
+  const chosen = new Set(due.filter(r => r.formula).map(r => r.key));
+  return {
+    riders: due,
+    lines: due.filter(r => !r.formula).map(r => `<strong>${r.label}</strong> is due, but its dice could not be read off the sheet — add them by hand.`),
+    html: riderMenuHTML(due.map(r => ({ key: r.key, label: r.label, formula: r.formula, type: r.type, why: r.why, rule: r.row.rule, usesLeft: r.usesLeft, caveat: r.row.caveat }))),
+    wire(element) {
+      for ( const box of (element?.querySelectorAll('input[name="bf-rider"]') ?? []) ) {
+        box.addEventListener("change", () => { if ( box.checked ) chosen.add(box.value); else chosen.delete(box.value); });
+      }
+    },
+    /** The pick, on the attack message: WHICH due riders ride. An absent pick (no offer opened) rides all. */
+    async commit() {
+      try {
+        await attackMessage.setFlag(MODULE_ID, "clockPick", [...chosen]);
+      } catch(err) {
+        console.error(`${TITLE} | Could not record the rider pick — every due rider rides.`, err);
+      }
+    }
+  };
 }
 
 /* --- the rider: the clock's extra damage rides the weapon's roll ---------------------------- */
@@ -99,7 +130,12 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
     if ( activity?.type !== "attack" ) return;
     const attackMessage = attackMessageForDamage(config, message);
     if ( !attackMessage ) return;
-    const riders = clockRidersFor(attackMessage, activity).filter(r => r.due);
+    // The offer's pick, when one was made: only the ticked riders ride, and a declined one spends
+    // nothing — no chit, no use (user ruling 2026-09-02). No pick recorded means no offer opened
+    // (a driven roll), and every due rider rides.
+    const pick = attackMessage.getFlag(MODULE_ID, "clockPick");
+    const picked = Array.isArray(pick) ? new Set(pick) : null;
+    const riders = clockRidersFor(attackMessage, activity).filter(r => r.due && (!picked || picked.has(r.key)));
     if ( !riders.length ) return;
     const attacker = activity.actor;
     const record = [];

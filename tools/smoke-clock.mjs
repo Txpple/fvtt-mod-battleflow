@@ -14,7 +14,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 
 const SECTIONS = {
   1: 'out of combat: Dreadful Strike rides every hit — 2d6 psychic as its own part, a use spent, the card says why',
-  2: 'the offer tells the player: the rider is due and will be added (player-rolled damage)',
+  2: 'the offer: a ticked checkbox per due rider, optional — unticked, nothing rides and nothing is spent',
   3: 'in combat: once per turn — the chit, the second hit bare, the next turn rides again',
   4: 'the uses are the switch the rules give: none left, nothing rides',
   5: 'Assassinate: round one — Advantage against a creature that has not acted, and the Rogue level on the sneak hit; round two, neither',
@@ -222,7 +222,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1a. Dreadful Strike rides the longsword\'s damage as its own part — 2d6 psychic, read off the feature\'s own activity (the Gloom Stalker\'s scale)',
         !!part && (part.options?.type === 'psychic') && (cr?.riders?.[0]?.key === 'dread-ambusher') && (cr?.riders?.[0]?.formula === '2d6'),
         `formulas=[${(dmg?.rolls ?? []).map(r => r.formula + ':' + r.options?.type).join(' | ')}] flag=${JSON.stringify(cr?.riders)}`);
-      ok('1b. out of combat every hit rides (no turn to be once-per), and no chit is written',
+      ok('1b. out of combat every hit rides (no turn to be once-per), and no chit is written — the offer opened under auto damage because a rider was due',
         /out of combat/.test(cr?.riders?.[0]?.why ?? '') && !ranger.effects.some(e => e.getFlag(MOD, 'mastery') === 'rider'),
         `why="${cr?.riders?.[0]?.why}" chit=${ranger.effects.some(e => e.getFlag(MOD, 'mastery') === 'rider')}`);
       const spentAfter = await waitFor(() => { const s = dreadAct().uses.spent ?? 0; return (s > spentBefore) ? s : null; }, 5000);
@@ -253,12 +253,35 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
       const offer = await waitFor(offerEl, 6000);
       const text = textOf(offer);
-      ok('2a. the damage offer tells the player: Dreadful Strike is due and will be added — never asked',
-        !!offer && /Dreadful Strike — 2d6 psychic/.test(text) && /added to this roll/.test(text) && !offer.querySelector('input[name="bf-cunning"]'),
-        text.slice(0, 220));
+      const box = offer?.querySelector('input[name="bf-rider"][value="dread-ambusher"]');
+      ok('2a. the damage offer carries Dreadful Strike as a TICKED checkbox — the dice, the type, the uses left after, the rule folded (user: "make like sneak attack")',
+        !!box && box.checked && /Dreadful Strike — 2d6 psychic/.test(text) && /use[s]? left after/.test(text)
+          && !!offer.querySelector('[data-bf-rider-row="dread-ambusher"] details[data-bf-rule]') && !offer.querySelector('input[name="bf-cunning"]'),
+        `box=${!!box} checked=${box?.checked} text="${text.slice(0, 200)}"`);
       offer?.querySelector('button[data-action="roll"]')?.click();
       const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
-      ok('2b. …and it rode', !!riderPart(dmg, /^2d6$/), `formulas=[${(dmg?.rolls ?? []).map(r => r.formula).join(' | ')}]`);
+      ok('2b. …ticked, it rides', !!riderPart(dmg, /^2d6$/) && (attackMsg?.getFlag(MOD, 'clockPick')?.join() === 'dread-ambusher'),
+        `formulas=[${(dmg?.rolls ?? []).map(r => r.formula).join(' | ')}] pick=${JSON.stringify(attackMsg?.getFlag(MOD, 'clockPick'))}`);
+      // 2c — UNTICKED: nothing rides, and nothing is spent (the use stays, no chit).
+      await refill();
+      await healFull();
+      const spent2 = dreadAct().uses.spent ?? 0;
+      const results2 = await act.use({ subsequentActions: false }, { configure: false }, {});
+      face(19);
+      const rolls2 = await act.rollAttack({}, { configure: false }, results2?.message?.id ? { data: { 'flags.dnd5e.originatingMessage': results2.message.id } } : {});
+      const attackMsg2 = rolls2?.[0]?.parent ?? null;
+      const originId2 = attackMsg2?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg2?.id;
+      const offer2 = await waitFor(offerEl, 6000);
+      const box2 = offer2?.querySelector('input[name="bf-rider"][value="dread-ambusher"]');
+      box2?.click();
+      await sleep(50);
+      offer2?.querySelector('button[data-action="roll"]')?.click();
+      const dmg2 = await waitFor(() => { const d = damageFor(originId2); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+      await sleep(400);
+      ok('2c. unticked: the rider is declined — nothing rides, no use spent, no line on the card',
+        !!dmg2 && !riderPart(dmg2, /^2d6$/) && !dmg2.getFlag(MOD, 'clockRiders') && ((dreadAct().uses.spent ?? 0) === spent2)
+          && (attackMsg2?.getFlag(MOD, 'clockPick')?.length === 0),
+        `formulas=[${(dmg2?.rolls ?? []).map(r => r.formula).join(' | ')}] spent=${spent2}→${dreadAct().uses.spent} pick=${JSON.stringify(attackMsg2?.getFlag(MOD, 'clockPick'))}`);
       await set('playerRollDamage', false);
     }
 

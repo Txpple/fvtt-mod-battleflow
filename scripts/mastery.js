@@ -3,7 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, isFlowElectFor, drivesMomentFor,
-  canApplyTo, whisperNoGM, queueFlagWrite, canAnswerFor, combatStamp,
+  canApplyTo, whisperNoGM, queueFlagWrite, canAnswerFor, combatStamp, activeCombatFor,
   statContext } from "./core.js";
 import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { EFFECT_BENDS, MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.js";
@@ -357,6 +357,11 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
 async function cleaveChitStands(ctx) {
   const attacker = ctx.attacker;
   const chits = attacker.effects.filter(e => e.getFlag(MODULE_ID, CHIP_FLAG) === "cleave");
+  // ⚠ NARROWED 2026-09-02 (user ruling, the same day's "turn counting should only be in
+  // combat"): the chit counts only for an attacker who is a COMBATANT in the running combat.
+  // Review finding 18's summon-on-its-summoner's-turn case is the one this gives up — a summon
+  // not in the tracker is reminded on every hit again, the cheaper failure.
+  if ( !activeCombatFor(attacker) ) return false;
   const stamp = combatStamp();
   if ( stamp && chits.some(e => chitStampOf(e) === stamp) ) return true;
   if ( !canApplyTo(attacker) ) return false;

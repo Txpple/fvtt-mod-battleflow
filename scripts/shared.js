@@ -331,7 +331,10 @@ export function chitStampOf(effect) {
  * @param {string|null} [riderKey]   for "rider" chits, WHICH rider (the flag's `riderKey`)
  */
 export function turnChitStands(actor, key, riderKey = null) {
-  const stamp = combatStamp();
+  // ⚠ The ATTACKER's combat, not whatever the tracker is on (user ruling 2026-09-02: "the turn
+  // counting should only be in combat" — a rogue outside the fight met "used this turn" from a
+  // chit stamped with somebody else's turn). No combatant, no turn, no chit.
+  const stamp = activeCombatFor(actor) ? combatStamp() : null;
   if ( !stamp || !actor ) return false;
   return actor.effects.some(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === key)
     && (!riderKey || (e.getFlag(MODULE_ID, "riderKey") === riderKey)) && (chitStampOf(e) === stamp));
@@ -349,6 +352,7 @@ export function turnChitStands(actor, key, riderKey = null) {
  */
 export async function writeTurnChit(actor, key, { name, img = null, description = "", origin = null, riderKey = null }) {
   if ( !actor || !canApplyTo(actor) ) return null;
+  if ( !activeCombatFor(actor) ) return null;   // the attacker's own combat, or no turn to be once-per
   const stale = actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === key)
     && (!riderKey || (e.getFlag(MODULE_ID, "riderKey") === riderKey)));
   if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id));

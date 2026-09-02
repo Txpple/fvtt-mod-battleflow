@@ -374,7 +374,11 @@ export function judgeRoll(attacker, { activity = null, attackMode = null, target
   const sources = sourcesFor(attacker, enabled, { activity, attackMode, targets, spent, spendNote });
   const net = netMode(sources);
   const sneak = enabled.has("sneak") ? sneakFactsFor(attacker, activity, attackMode, net) : null;
-  return { sources, net, view: reminderView(sources, net), spends: sources.map(s => s.effectId).filter(Boolean), sneak };
+  // ⚠ Only what the rules SPEND carries forward through a volley's rays (user report, 2026-09-02:
+  // Innate Sorcery — a standing effect — showed on ray 1 alone): Vex, Sap, and an effect row
+  // marked `spend`. Every other source with an effect id stands for every ray.
+  const spendable = s => s.effectId && (s.spend || (s.kind === "vex") || (s.kind === "sap"));
+  return { sources, net, view: reminderView(sources, net), spends: sources.filter(spendable).map(s => s.effectId), sneak };
 }
 
 /**

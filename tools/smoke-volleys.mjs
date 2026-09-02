@@ -28,7 +28,8 @@ const SECTIONS = {
   7: 'the registry IS membership ((ff))',
   8: 'distinct targets (Steel Wind Strike)',
   9: 'per-ray adv/dis ((dd))',
-  10: 'the gate meets the rays — judged per ray at the aim, spends carried in ray order'
+  10: 'the gate meets the rays — judged per ray at the aim, spends carried in ray order',
+  11: 'a STANDING effect source (Innate Sorcery) shows on every ray — only what the rules spend is carried forward'
 };
 const DEPENDS = {};
 
@@ -835,6 +836,37 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (carriers.length) await a.deleteEmbeddedDocuments('ActiveEffect', carriers.map(e => e.id));
       }
       for (const [i, t] of trio.entries()) await t.document.update({ disposition: priorDispo[i] }).catch(() => {});
+    }
+
+    // ================================================== 11. a standing effect on every ray
+    // (user report 2026-09-02: Innate Sorcery showed on ray 1 alone — the aim carried every
+    // source with an effect id forward as "spent", not only Vex, Sap and the spend rows.)
+    if (want(11)) {
+      log.push('§11 a standing effect on every ray');
+      const priorLists = { reminderList: game.settings.get(MOD, 'reminderList'), effectList: game.settings.get(MOD, 'effectList') };
+      await set('reminderList', 'vex, sap, prone, condition, range, effect');
+      await set('effectList', game.settings.settings.get(`${MOD}.effectList`)?.default ?? priorLists.effectList);
+      const [sorcery] = await ActiveEffect.implementation.create({
+        name: 'Innate Sorcery', img: 'icons/svg/aura.svg', transfer: false, disabled: false
+      }, { parent: npc }).then(e => [e]);
+      await sleep(250);
+      targetBoth();
+      before = snap();
+      await srAct.use({}, { configure: false }, {});
+      await until(() => findDialog('BF Volley Rays'), 5000);
+      const dlg11 = findDialog('BF Volley Rays');
+      const judges11 = () => [...(dlg11?.element.querySelectorAll('[data-bf-volley-judge]') ?? [])];
+      const jtext11 = i => (judges11()[i]?.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const modeOf11 = i => dlg11?.element.querySelector(`[data-bf-volley-mode="${i}"]`)?.value ?? null;
+      ok('11a every ray lists Innate Sorcery as Advantage — a standing effect is not spent by ray 1',
+        (judges11().length === 3) && [0, 1, 2].every(i => /Innate Sorcery/.test(jtext11(i)) && !/spent by this ray/.test(jtext11(i)) && (modeOf11(i) === 'advantage')),
+        [0, 1, 2].map(i => `ray${i + 1}="${jtext11(i).slice(0, 80)}" mode=${modeOf11(i)}`).join(' | '));
+      try { await dlg11?.close(); } catch { /* closing fires the volley as aimed */ }
+      await until(() => fresh(before).filter(m => m.getFlag('dnd5e', 'roll.type') === 'attack').length >= 3, 15000);
+      await sleep(800);
+      await npc.deleteEmbeddedDocuments('ActiveEffect', [sorcery.id]).catch(() => {});
+      await set('reminderList', priorLists.reminderList);
+      await set('effectList', priorLists.effectList);
     }
 
     await teardown();

@@ -59,7 +59,11 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
   // 3s wait (FLOW item 3, decision 2) — a beat is a held breath, and you cannot hold one twice.
   // An ARMED SNEAK ATTACK opens the offer whatever the setting (user, 2026-09-02: "even with
   // auto damage on, because there is a decision to make" — which Cunning Strike, if any).
-  if ( setting(S.playerRollDamage) || attackMessage.getFlag(MODULE_ID, "sneak")?.armed ) {
+  // …and so does a CLOCK RIDER the rules make available (user ruling, the same evening: a
+  // checkbox, optional — so the offer is where the choice lives).
+  const { clockRidersDue } = (await lazyMachines())[2] ?? {};
+  if ( setting(S.playerRollDamage) || attackMessage.getFlag(MODULE_ID, "sneak")?.armed
+    || clockRidersDue?.(attackMessage, subject) ) {
     return void offerDamageRoll(subject, attackMessage);
   }
 
@@ -372,8 +376,10 @@ function lazyMachines() {
   lazyMachinesPromise ??= (async () => {
     const { cleaveArmedFor } = await import("./mastery.js");
     const { sneakOfferParts } = await import("./sneak.js");
-    const { clockRiderLines } = await import("./clock-riders.js");
-    return { cleaveArmedFor, sneakOfferParts, clockRiderLines };
+    const { clockRiderOfferParts, clockRidersDue } = await import("./clock-riders.js");
+    // Indexed as well as named: the attack hook reads [2] for the clock question before offering.
+    const machines = { cleaveArmedFor, sneakOfferParts, clockRiderOfferParts, clockRidersDue };
+    return Object.assign([{ cleaveArmedFor }, { sneakOfferParts }, { clockRiderOfferParts, clockRidersDue }], machines);
   })();
   return lazyMachinesPromise;
 }
@@ -399,14 +405,14 @@ export async function offerDamageRoll(activity, attackMessage) {
   // this page ~0.5–1.2 s each, and three of them put the popup 2.3 s behind the hit — past the
   // 1.2 s smoke-battleflow §5d allows and past what a table should wait. The memo pays each
   // once, and `ready` primes them so the first offer of a session is as quick as the rest.
-  const { cleaveArmedFor, sneakOfferParts, clockRiderLines } = await lazyMachines();
+  const { cleaveArmedFor, sneakOfferParts, clockRiderOfferParts } = await lazyMachines();
   const cleaveArm = cleaveArmedFor(activity.item);
   // An armed Sneak Attack brings its Cunning Strike menu (sneak.js — lazy for the same reason;
   // the pick is committed onto the attack message inside the one roll thunk, before the dice).
   const sneak = sneakOfferParts(attackMessage, activity);
   // The clock riders due on this hit say so here (clock-riders.js — lazy, the same reason): the
   // player is told what will ride before the dice, never asked (user ruling 2026-09-02).
-  const clockLines = clockRiderLines(attackMessage, activity);
+  const clock = clockRiderOfferParts(attackMessage, activity);
 
   // THE CELEBRATION (ARCHITECTURE.md §5 law 10, finding (l)): every attack-damage popup leads
   // with the HIT — the moment the player earned — and the dice ask rides it. One design,
@@ -422,13 +428,13 @@ export async function offerDamageRoll(activity, attackMessage) {
     : (riposte ? "Your riposte hit! — roll damage" : "You hit! — roll damage");
 
   return offerRoll(attackMessage, {
-    roll: async () => { await sneak?.commit(); return rollDamageForAttack(activity, attackMessage); },
+    roll: async () => { await sneak?.commit(); await clock?.commit(); return rollDamageForAttack(activity, attackMessage); },
     windowTitle: headline,
     windowIcon: isCritical ? "fa-solid fa-burst" : "fa-solid fa-dice-d6",
     buttonLabel: isCritical ? "Roll Critical Damage" : "Roll Damage",
     buttonIcon: isCritical ? "fa-solid fa-burst" : "fa-solid fa-dice-d6",
-    extraHTML: sneak?.html ?? "",
-    wire: sneak ? element => sneak.wire(element) : null,
+    extraHTML: (sneak?.html ?? "") + (clock?.html ?? ""),
+    wire: (sneak || clock) ? element => { sneak?.wire(element); clock?.wire(element); } : null,
     img: activity.item?.img,
     eyebrow: "Damage — your roll",
     title: headline,
@@ -438,7 +444,7 @@ export async function offerDamageRoll(activity, attackMessage) {
       precisionUsed ? `<strong>Precision Attack</strong> turned the miss — this hit is yours to roll.` : null,
       cleaveArm ? `<strong>Cleave</strong> — this is the armed Cleave swing: the ability modifier is dropped from this roll.` : null,
       sneak ? `${sneak.line}${isCritical ? " A critical hit doubles what is left of the sneak dice too." : ""}` : null,
-      ...clockLines,
+      ...(clock?.lines ?? []),
       isCritical ? `${CRIT_BADGE} <span style="opacity:0.85;">${crit.auto && !crit.rolled
         ? `${crit.sources.map(s => s.label).join(" · ")} — set on the roll, nothing extra to do.`
         : "Already set on the roll — nothing extra to do."}</span>` : null,
