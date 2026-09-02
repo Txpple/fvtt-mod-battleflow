@@ -537,11 +537,14 @@ describe("reminderSectionHTML / reminderFieldsetHTML — the header line and the
       { label: "Prone — distance unknown", bend: null, rule: "" }
     ]
   };
-  it("is ONE fieldset the dialog can find, with the same legend shape as the dialog's own", () => {
+  it("is ONE fieldset the dialog can find, with the same legend shape as the dialog's own, folded to its header line", () => {
     const html = p.reminderFieldsetHTML(view);
     expect(html.trim().startsWith("<fieldset data-bf-reminder>")).toBe(true);
     expect(html).toContain("<legend>Before you roll</legend>");
     expect(html.match(/<fieldset/g)).toHaveLength(1);
+    expect(html).toContain("<details data-bf-reminder-details >");
+    expect(html).toContain("<summary");
+    expect(p.reminderFieldsetHTML(view, { open: true })).toContain("<details data-bf-reminder-details open>");
   });
   it("opens with the header line — the count and the net as a tag, the arithmetic as its tooltip — and NO net block", () => {
     const html = p.reminderSectionHTML(view);

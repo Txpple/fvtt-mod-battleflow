@@ -108,10 +108,12 @@ function drawGate(app, { force = false } = {}) {
   if ( unchanged && !force ) return;
   const next = gate.judge(attackMode);
   Object.assign(gate, next);
+  // A section the human unfolded stays unfolded through the dialog's own re-renders.
+  const open = !!existing?.querySelector("details[data-bf-reminder-details]")?.open;
   existing?.remove();
   if ( next.sources.length ) {
     const host = document.createElement("div");
-    host.innerHTML = reminderFieldsetHTML(next.view);
+    host.innerHTML = reminderFieldsetHTML(next.view, { open });
     const fieldset = host.firstElementChild;
     const configuration = element.querySelector('[data-application-part="configuration"]');
     const buttons = element.querySelector('[data-application-part="buttons"]');

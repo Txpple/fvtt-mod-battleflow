@@ -347,7 +347,8 @@ them — and the aim popup already holds every fact the gate needs: the caster, 
 ray, one mode per ray, and the order the rays fire in. So the gate's own judge runs there, once
 per ray, in ray order: each ray row carries the section **folded to its header line** (user:
 *"for the rays, start in collapsed mode"* — a native `<details>`; the tag says what the ray
-rolls without opening it), the ray's mode select **defaults to its net** (the highlighted-button
+rolls without opening it; the dialog's own section folds the same way since the same day —
+*"attacks should have the nice collapse like volleys"*), the ray's mode select **defaults to its net** (the highlighted-button
 ruling, again), re-aiming a ray re-judges every ray after it, and one press fires the volley.
 **Spends are carried forward in ray order, and that is canon (N1):** Sap bends *"its next attack
 roll"* and Vex *"your next attack roll against that creature"* — ONE ray each — so the chip shows

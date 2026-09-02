@@ -179,10 +179,12 @@ export function reminderDetailsHTML({ head, boxes }, { open = false } = {}) {
  * @param {{head: {title: string, net: "advantage"|"disadvantage"|"normal", why?: string},
  *          boxes: {label: string, bend: "advantage"|"disadvantage"|null, rule?: string}[], legend?: string}} view
  */
-export function reminderFieldsetHTML({ head, boxes, legend = "Before you roll" }) {
+export function reminderFieldsetHTML({ head, boxes, legend = "Before you roll" }, { open = false } = {}) {
+  // Folded to its header line like a volley's ray rows (user, 2026-09-02: "attacks should have
+  // the nice collapse like volleys") — the tag says what the roll does; the boxes are a click.
   return `
   <fieldset data-bf-reminder>
-    <legend>${attr(legend)}</legend>${reminderSectionHTML({ head, boxes })}
+    <legend>${attr(legend)}</legend>${reminderDetailsHTML({ head, boxes }, { open })}
   </fieldset>`;
 }
 
