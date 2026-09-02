@@ -51,8 +51,10 @@ import { MODULE_ID, TITLE, S, setting, queueFlagWrite, deadlineIsLive, statConte
 import { modeAllows } from "./shared.js";
 import { volleyEntryFor, resolveVolleyCount } from "./volley-registry.js";
 import { castLevelOf, clampVolleyCount } from "./decide/eligible.js";
-import { popupKey, bfCard, momentBarHTML } from "./decide/present.js";
+import { popupKey, bfCard, momentBarHTML, reminderDetailsHTML } from "./decide/present.js";
+import { REMINDER_FLAG, reminderRecord } from "./decide/reminders.js";
 import { livePopups, openManagedPopup, armDeadline, disarmDeadline } from "./ui.js";
+import { judgeRoll } from "./reminders.js";
 
 const volleyTimers = new Map();
 
@@ -169,12 +171,70 @@ function defaultAssignment(v) {
 /** The projectile noun for copy — darts strike, rays are attacks. Content-agnostic wording. */
 const unitNoun = v => (v.kind === "damage") ? "dart" : "ray";
 
+/* ---------------------------------------------------------------------------------------------
+ * THE GATE MEETS THE RAYS AT THE AIM (user, 2026-09-02 — BACKLOG "Volley spells and the gate").
+ * The rays roll with the dialog suppressed, so the reminder gate (reminders.js) never sees
+ * them — and the aim popup already holds every fact the gate needs: the caster, one target per
+ * ray, one mode per ray, and the order the rays fire in. So the gate's own judge runs here,
+ * once per ray, in ray order: each ray row carries the section folded to its header line
+ * ("2 Modifiers — Net [tag]"; open it for the boxes), the ray's mode select DEFAULTS to its net
+ * (the dialog's highlighted-button rule, the same ruling), and re-aiming a ray re-judges every
+ * ray after it. Spends are carried forward in ray order — the rules spend Sap on "its next
+ * attack roll" and Vex on "your next attack roll against that creature", which is ONE ray each
+ * (canon, N1) — so the chip shows on the first ray that uses it and on none after. The drive
+ * runs the same judge again per ray as it fires and stamps the record on the ray's own attack
+ * message, so the card line and the stats plane read a ray exactly as they read a sword.
+ * Darts are damage, not attack rolls: nothing to judge, nothing drawn.
+ * ------------------------------------------------------------------------------------------- */
+
+/** The canvas token for an actor uuid — the aim idiom's own lookup. */
+const tokenFor = uuid => canvas.tokens?.placeables?.find(t => t.actor?.uuid === uuid) ?? null;
+
+/**
+ * One judgement per ray, in ray order, the spends carried forward. `picks` are the rays'
+ * target uuids as aimed. Null entries where there is no caster or the list is off.
+ */
+function judgeRays(caster, activity, picks) {
+  if ( !(caster instanceof Actor) ) return picks.map(() => null);
+  const spent = new Set();
+  return picks.map(uuid => {
+    const token = tokenFor(uuid);
+    const j = judgeRoll(caster, { activity, targets: token ? [token] : [], spent, spendNote: " — spent by this ray" });
+    for ( const id of (j?.spends ?? []) ) spent.add(id);
+    return j;
+  });
+}
+
+/** Draw — or redraw — every ray row's judgement from the selects as they stand. */
+function drawRayJudgements(element, caster, activity) {
+  const selects = [...(element?.querySelectorAll?.("[data-bf-volley-ray]") ?? [])];
+  if ( !selects.length ) return;
+  const judged = judgeRays(caster, activity, selects.map(s => s.value));
+  for ( const [i, j] of judged.entries() ) {
+    const host = element.querySelector(`[data-bf-volley-judge="${i}"]`);
+    if ( !host ) continue;
+    if ( j?.sources?.length ) {
+      host.innerHTML = reminderDetailsHTML(j.view);
+      host.style.display = "";
+      const mode = element.querySelector(`[data-bf-volley-mode="${i}"]`);
+      if ( mode ) mode.value = j.net;   // the default follows the net — Enter is still a press
+    } else {
+      host.innerHTML = "";
+      host.style.display = "none";
+    }
+  }
+}
+
 async function openVolleyPopup(message) {
   const v = message.getFlag(MODULE_ID, "volley");
   if ( v?.status !== "pending" ) return;
   const key = popupKey(message.id, "volley");
   const open = livePopups.get(key);
   if ( open ) { open.bringToFront?.(); return; }
+  // The rays' judge needs the caster and the activity (the range kind reads the spell's own
+  // range); a volley whose activity no longer resolves aims without a judgement.
+  const activity = (v.kind === "attack") ? await fromUuid(v.activityUuid).catch(() => null) : null;
+  const caster = activity?.item?.actor ?? null;
 
   const noun = unitNoun(v);
   // (hh): every popup row shows WHO — the target's token icon beside its name (law 8
@@ -221,7 +281,8 @@ async function openVolleyPopup(message) {
           <option value="advantage">Advantage</option>
           <option value="disadvantage">Disadvantage</option>
         </select>
-      </div>`;
+      </div>
+      <div data-bf-volley-judge="${i}" style="display:none;margin:0 0 0.35rem 1.9rem;font-size:var(--font-size-12,12px);"></div>`;
     }).join("");
 
   const bar = (v.deadline && v.window) ? momentBarHTML({ deadline: v.deadline, window: v.window }, "to aim") : "";
@@ -261,17 +322,25 @@ async function openVolleyPopup(message) {
   // Render failed → no surface to press, and the native buttons are hidden: fire now.
   if ( livePopups.get(key) !== dialog ) return void fireVolley(message, null);
   // (hh): each ray row's icon tracks its own select, so the row always shows WHO the ray
-  // is on. Bound after render because DialogV2 owns the DOM until now.
+  // is on. Bound after render because DialogV2 owns the DOM until now. The same change
+  // re-judges every ray — a re-aim moves the spends with it.
   for ( const sel of dialog.element?.querySelectorAll?.("[data-bf-volley-ray]") ?? [] ) {
     sel.addEventListener("change", () => {
       const icon = dialog.element?.querySelector?.(`[data-bf-volley-icon="${sel.dataset.bfVolleyRay}"]`);
-      if ( !icon ) return;
       const t = v.targets.find(x => x.uuid === sel.value);
-      if ( t?.img ) {
-        icon.src = t.img; icon.alt = t.name; icon.dataset.tooltip = t.name;
-        icon.style.display = "";
-      } else icon.style.display = "none";
+      if ( icon ) {
+        if ( t?.img ) {
+          icon.src = t.img; icon.alt = t.name; icon.dataset.tooltip = t.name;
+          icon.style.display = "";
+        } else icon.style.display = "none";
+      }
+      try { drawRayJudgements(dialog.element, caster, activity); }
+      catch(err) { console.error(`${TITLE} | Ray judgement failed to redraw.`, err); }
     });
+  }
+  if ( v.kind === "attack" ) {
+    try { drawRayJudgements(dialog.element, caster, activity); }
+    catch(err) { console.error(`${TITLE} | Ray judgement failed to draw.`, err); }
   }
 }
 
@@ -400,7 +469,26 @@ async function driveDarts(message, activity, v) {
  * DRIVING, not sequential resolution — a hold on ray 1 never makes ray 2 wait.
  */
 async function driveRays(message, activity, v) {
+  // The judge runs again as each ray fires — the same computation the popup showed, the spends
+  // carried forward — and the record lands on the ray's own attack message (the gate's flag,
+  // the gate's shape), so the spend hook honours against the net it showed and the card says
+  // what was on the table. `mode` is the ray's pick; no pick is a normal roll.
+  const caster = activity.item?.actor ?? null;
+  const spent = new Set();
   for ( const [i, ray] of (v.assignment ?? []).entries() ) {
+    let record = null;
+    try {
+      const token = tokenFor(ray.uuid);
+      const j = (caster instanceof Actor)
+        ? judgeRoll(caster, { activity, targets: token ? [token] : [], spent }) : null;
+      for ( const id of (j?.spends ?? []) ) spent.add(id);
+      if ( j?.sources?.length ) {
+        record = { ...reminderRecord({ sources: j.sources, net: j.net, mode: ray.mode ?? "normal", answeredAt: Date.now() }),
+          ...statContext(caster.uuid) };
+      }
+    } catch(err) {
+      console.error(`${TITLE} | Ray ${i + 1} judgement failed — rolling without a record.`, err);
+    }
     // The ray's mode rides the roll's own advantage/disadvantage booleans — the
     // concentration answer's channel (applyKeybindings recomputes advantageMode from
     // exactly this pair, and mergeConfigs lets the explicit boolean out-vote the
@@ -414,7 +502,8 @@ async function driveRays(message, activity, v) {
     await aimed(ray.uuid, () => activity.rollAttack(cfg, { configure: false }, { data: {
       "flags.dnd5e.originatingMessage": message.id,
       [`flags.${MODULE_ID}.volleyFor`]: message.id,
-      [`flags.${MODULE_ID}.volleyRay`]: i + 1
+      [`flags.${MODULE_ID}.volleyRay`]: i + 1,
+      ...(record ? { [`flags.${MODULE_ID}.${REMINDER_FLAG}`]: record } : {})
     } }));
   }
 }

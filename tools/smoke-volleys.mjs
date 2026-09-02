@@ -27,7 +27,8 @@ const SECTIONS = {
   6: 'the blocklist claim rides',
   7: 'the registry IS membership ((ff))',
   8: 'distinct targets (Steel Wind Strike)',
-  9: 'per-ray adv/dis ((dd))'
+  9: 'per-ray adv/dis ((dd))',
+  10: 'the gate meets the rays — judged per ray at the aim, spends carried in ray order'
 };
 const DEPENDS = {};
 
@@ -70,7 +71,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const SETTING_KEYS = ['volleys', 'autoDamage', 'autoApply', 'playerRollDamage', 'dramaticBeat',
     'damageTimer', 'requireTarget', 'reactionHold', 'blockList', 'riders', 'effectRiders',
-    'masteryRiders', 'concMode', 'saves', 'castApply', 'resourceNotices'];
+    'masteryRiders', 'concMode', 'saves', 'castApply', 'resourceNotices', 'reminderList', 'conditionList'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -94,6 +95,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     try { for (const n of TEST_ENTRIES) registry.delete(n); }
     catch (err) { log.push(`TEARDOWN registry ERROR: ${err?.message}`); }
     try {
+      // §10 plants statuses and a chip; a crashed §10 must not leave them (they would bend
+      // the next suite's rolls).
+      for (const a of [victim, shielder, npc]) {
+        const carriers = a.effects.filter(e => e.getFlag(MOD, 'mastery')
+          || ['prone', 'blinded'].some(s => e.statuses?.has?.(s)));
+        if (carriers.length) await a.deleteEmbeddedDocuments('ActiveEffect', carriers.map(e => e.id));
+      }
       for (const [actorId, ids] of Object.entries(created.items.reduce((m, i) => {
         (m[i.actorId] ??= []).push(i.id); return m;
       }, {}))) {
@@ -731,6 +739,102 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (v9?.assignment?.[0]?.mode === 'advantage') && (v9?.assignment?.[1]?.mode === 'disadvantage')
           && (v9?.assignment?.[2]?.mode === undefined),
         JSON.stringify(v9?.assignment ?? null));
+    }
+
+    // ============================================================ §10 the gate meets the rays
+    // (user, 2026-09-02 — BACKLOG "Volley spells and the gate"): the rays roll with the dialog
+    // suppressed, so the gate judges them AT THE AIM, ray by ray, the spends carried forward.
+    // The table: the caster's token adjacent to the victim (Prone → Advantage within 5 feet),
+    // the shielder Blinded (Advantage), a Vex chip on the victim owned by the caster's own
+    // spell. Rays 1 and 2 at the victim: ray 1 spends the Vex, ray 2 must not be offered it.
+    if (want(10)) {
+      log.push('§10 the gate at the aim');
+      await set('reminderList', 'vex, sap, prone, condition, range');
+      await set('conditionList', 'blinded');
+      const casterToken = await mkToken(npc, 900);
+      const trio = [casterToken, victimToken, shielderToken];
+      const priorDispo = trio.map(t => t.document.disposition);
+      // One disposition for all three: no "enemy within 5 feet" box muddies the count.
+      for (const t of trio) await t.document.update({ disposition: 0 });
+      const press = async (actor, id) => {
+        const eff = await ActiveEffect.implementation.fromStatusEffect(id);
+        await ActiveEffect.implementation.create(eff.toObject(), { parent: actor, keepId: true });
+      };
+      await press(victim, 'prone');
+      await press(shielder, 'blinded');
+      const vex = await ActiveEffect.implementation.create({
+        name: 'Vexed', img: 'icons/svg/target.svg', origin: `${npc.uuid}.Item.${srItem.id}`,
+        duration: { value: 1, units: 'rounds', expiry: 'turnEnd' }, transfer: false,
+        flags: { [MOD]: { mastery: 'vex' } }
+      }, { parent: victim });
+      await sleep(250);
+      targetBoth();
+      before = snap();
+      await srAct.use({}, { configure: false }, {});
+      await until(() => findDialog('BF Volley Rays'), 5000);
+      const dlg10 = findDialog('BF Volley Rays');
+      const aim = async (i, uuid) => {
+        const sel = dlg10?.element.querySelector(`[data-bf-volley-ray="${i}"]`);
+        if (!sel) return;
+        sel.value = uuid;
+        sel.dispatchEvent(new Event('change'));
+        await sleep(120);
+      };
+      await aim(0, victim.uuid); await aim(1, victim.uuid); await aim(2, shielder.uuid);
+      const judges = () => [...(dlg10?.element.querySelectorAll('[data-bf-volley-judge]') ?? [])];
+      const jtext = i => (judges()[i]?.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const modeOf = i => dlg10?.element.querySelector(`[data-bf-volley-mode="${i}"]`)?.value ?? null;
+      ok('10a every ray row carries a judgement, folded to its header line (collapsed by default)',
+        (judges().length === 3) && judges().every(h => h.querySelector('details[data-bf-reminder-details]')
+          && !h.querySelector('details').open),
+        `judges=${judges().length}`);
+      ok('10b ray 1 at the Vexed, Prone-adjacent victim: 2 Modifiers — Net Advantage, the Vex spent by this ray',
+        /2 Modifiers — Net Advantage/.test(jtext(0)) && /Vexed/.test(jtext(0))
+          && /spent by this ray/.test(jtext(0)) && /Prone — within 5 feet/.test(jtext(0)),
+        jtext(0).slice(0, 240));
+      ok('10c ray 2 at the same victim: the Vex is ray 1\'s — 1 Modifier (Prone), Net Advantage',
+        /1 Modifier — Net Advantage/.test(jtext(1)) && !/Vexed/.test(jtext(1)) && /Prone/.test(jtext(1)),
+        jtext(1).slice(0, 240));
+      ok('10d ray 3 at the Blinded shielder: 1 Modifier — Net Advantage',
+        /1 Modifier — Net Advantage/.test(jtext(2)) && /Blinded/.test(jtext(2)), jtext(2).slice(0, 240));
+      ok('10e every ray\'s mode select defaults to its net — Advantage',
+        [0, 1, 2].every(i => modeOf(i) === 'advantage'), [0, 1, 2].map(modeOf).join());
+      // Re-aim ray 1 at the shielder: the Vex moves to the first ray still at the victim.
+      await aim(0, shielder.uuid);
+      ok('10f re-aiming ray 1 moves the Vex to ray 2 — the spends follow the aim',
+        !/Vexed/.test(jtext(0)) && /Vexed/.test(jtext(1)) && /2 Modifiers — Net Advantage/.test(jtext(1)),
+        `${jtext(0).slice(0, 120)} | ${jtext(1).slice(0, 120)}`);
+      await aim(0, victim.uuid);
+      dlg10?.element.querySelector('button[data-action="fire"]')?.click();
+      const rays10Now = () => fresh(before).filter(m =>
+        (m.getFlag('dnd5e', 'roll.type') === 'attack') && m.getFlag(MOD, 'volleyRay'))
+        .sort((a, b) => a.getFlag(MOD, 'volleyRay') - b.getFlag(MOD, 'volleyRay'));
+      await until(() => rays10Now().length === 3, 8000);
+      const rays10 = rays10Now();
+      const rec = i => rays10[i]?.getFlag(MOD, 'reminder') ?? null;
+      ok('10g every ray\'s card carries the gate\'s record — net Advantage, rolled Advantage, honoured',
+        (rays10.length === 3) && [0, 1, 2].every(i => (rec(i)?.net === 'advantage')
+          && (rec(i)?.mode === 'advantage') && (rec(i)?.honoured === true)),
+        JSON.stringify([0, 1, 2].map(i => rec(i) && { net: rec(i).net, mode: rec(i).mode, honoured: rec(i).honoured })));
+      ok('10h ray 1\'s record lists two sources and ray 2\'s one — the spend order is remembered',
+        (rec(0)?.sources?.length === 2) && rec(0)?.sources?.some(s => s.kind === 'vex')
+          && (rec(1)?.sources?.length === 1) && !rec(1)?.sources?.some(s => s.kind === 'vex'),
+        JSON.stringify([rec(0)?.sources?.map(s => s.kind), rec(1)?.sources?.map(s => s.kind)]));
+      ok('10i the dice went out with Advantage on every ray',
+        rays10.every(m => /2d20(adv|kh)/.test(m.rolls?.[0]?.formula ?? '')),
+        JSON.stringify(rays10.map(m => m.rolls?.[0]?.formula ?? null)));
+      await until(() => !victim.effects.get(vex.id), 6000);
+      const spentOn = i => (rays10[i]?.getFlag(MOD, 'chipSpend')?.spent ?? []).map(s => s.key);
+      ok('10j the Vex is SPENT by ray 1 alone — the receipt on its card, none on ray 2, the chip gone',
+        !victim.effects.get(vex.id) && spentOn(0).includes('vex') && !spentOn(1).includes('vex'),
+        JSON.stringify({ gone: !victim.effects.get(vex.id), ray1: spentOn(0), ray2: spentOn(1) }));
+      // Put the table back: statuses, the chip if it survived, dispositions.
+      for (const a of [victim, shielder]) {
+        const carriers = a.effects.filter(e => e.getFlag(MOD, 'mastery')
+          || ['prone', 'blinded'].some(s => e.statuses?.has?.(s)));
+        if (carriers.length) await a.deleteEmbeddedDocuments('ActiveEffect', carriers.map(e => e.id));
+      }
+      for (const [i, t] of trio.entries()) await t.document.update({ disposition: priorDispo[i] }).catch(() => {});
     }
 
     await teardown();

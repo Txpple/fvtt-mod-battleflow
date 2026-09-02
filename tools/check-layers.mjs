@@ -137,6 +137,13 @@ const ALLOW = [
   // mastery` (combatStamp → core.js) all stopped existing, and the stale-pin rule failed the build
   // until these rows came out. A pin that only ever permits would have sat here forever.
   {
+    from: "volleys.js", to: "reminders.js", disposition: "BY DESIGN",
+    why: "judgeRoll (2026-09-02): the volley's aim popup is the gate's SECOND SURFACE — the rays "
+      + "roll with the dialog suppressed, so the gate meets them at the aim, ray by ray, with "
+      + "the gate's own judge. The judge reads the world (chips, tokens, the lists), so it "
+      + "cannot live in decide/; a third surface reading it is the argument for a spine home"
+  },
+  {
     from: "saves.js", to: "maneuvers.js", disposition: "OPEN (D9)",
     why: "interpose: foldEntryFor/equippedShield at the choice spec, RULE_TEXT at its popup. "
       + "Genuinely cross-feature — a save's verdict opens a maneuver's choice. The principled fix "

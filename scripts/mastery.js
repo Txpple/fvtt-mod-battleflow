@@ -10,7 +10,7 @@ import { MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.
 import { TURN_CHIPS, CHIP_FLAG, chipClock, chipIsDead, chipOwnedBy, chipSpentBy, chitStamp,
   netShownFor, rollModeOf, spendRecord } from "./decide/chips.js";
 import { REMINDER_FLAG, rolledWith } from "./decide/reminders.js";
-import { hitTargets, masteryLabel, modeAllows, rollConfigFor } from "./shared.js";
+import { chipSpentOnRecord, hitTargets, masteryLabel, modeAllows, rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, situationalBonusHTML,
   modeButtons } from "./decide/present.js";
 import { livePopups, openMomentPopup,
@@ -1077,17 +1077,29 @@ Hooks.on("createChatMessage", message => {
   void spendChips(message, ctx);
 });
 
+/**
+ * Chips whose spend is IN FLIGHT on this client — recorded, not yet deleted. A volley's rays
+ * land seconds apart and the delete is a round trip behind the record, so ray 2's message met
+ * the chip ray 1 had already spent and wrote it up again (measured 2026-09-02, smoke-volleys
+ * §10j: the receipt on both rays). The record on the log covers the case across time
+ * (`chipSpentOnRecord`); this covers the gap between the record and the delete.
+ */
+const spendingNow = new Set();
+
 async function spendChips(message, ctx) {
+  const claimed = [];
   try {
     const attacker = ctx.attacker;
     const chipKey = e => e.getFlag(MODULE_ID, CHIP_FLAG);
     // A chip's origin is the WEAPON that applied it; the attacker owns it when that weapon is theirs.
     const owned = e => chipOwnedBy(e.origin, attacker.uuid);
+    // Already spent — on the log, or by the roll a moment before this one — is not spent again.
+    const unspent = e => !spendingNow.has(e.id) && !chipSpentOnRecord(e);
     const spent = [];
     // The bearer attacking: its own Sap, from anyone.
     for ( const e of attacker.effects ) {
       const key = chipKey(e);
-      if ( key && chipSpentBy(key, { bearer: "attacker", attackerOwnsChip: owned(e) }) ) {
+      if ( key && unspent(e) && chipSpentBy(key, { bearer: "attacker", attackerOwnsChip: owned(e) }) ) {
         spent.push({ actor: attacker, effect: e, key });
       }
     }
@@ -1097,12 +1109,13 @@ async function spendChips(message, ctx) {
       if ( !(actor instanceof Actor) || (actor.uuid === attacker.uuid) ) continue;
       for ( const e of actor.effects ) {
         const key = chipKey(e);
-        if ( key && chipSpentBy(key, { bearer: "target", attackerOwnsChip: owned(e) }) ) {
+        if ( key && unspent(e) && chipSpentBy(key, { bearer: "target", attackerOwnsChip: owned(e) }) ) {
           spent.push({ actor, effect: e, key });
         }
       }
     }
     if ( !spent.length ) return;
+    for ( const s of spent ) { spendingNow.add(s.effect.id); claimed.push(s.effect.id); }
 
     const mode = rollModeOf(message.rolls?.[0]?.options?.advantageMode);
     // When the gate stood in for the dialog, honour is the press matching the NET it showed —
@@ -1136,6 +1149,8 @@ async function spendChips(message, ctx) {
     }
   } catch(err) {
     console.error(`${TITLE} | Chip spend failed.`, err);
+  } finally {
+    for ( const id of claimed ) spendingNow.delete(id);
   }
 }
 
