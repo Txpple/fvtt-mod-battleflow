@@ -201,6 +201,44 @@ export const CONDITION_BENDS = Object.freeze({
 export const CONDITION_KEYS = Object.freeze(Object.keys(CONDITION_BENDS));
 
 /**
+ * THE SAVE TABLE (user ruling 2026-09-02, option E of *The Save Gate*) — what the 2024
+ * conditions do to a SAVING THROW, each row's own "Saving Throws Affected" clause quoted
+ * VERBATIM from the world's Rules Glossary (read live off `CONFIG.DND5E.conditionTypes[*].reference`,
+ * tools/probe-clock-riders.mjs; presentation law 8). Less than the attack table: two true
+ * bends and four automatic failures, all on Strength or Dexterity saves. Membership is the
+ * same Condition Sources list the attack gate reads — a condition switched off there is not
+ * read here either; `saveSources` in decide/reminders.js takes this table as a parameter.
+ *
+ *   abilities  which saves the row touches (ability ids)
+ *   bend       "advantage" | "disadvantage" — counted, the gate's arithmetic as for attacks
+ *   autoFail   true — the save CANNOT SUCCEED: not a bend, a fourth button (Fails: no dice,
+ *              the failure recorded) — the human still presses (R1; option C, the module
+ *              deciding with no press, is ruled out)
+ *   caveat     a condition the module cannot judge, said on the box (Dodge's two)
+ *
+ * Not read on purpose: Exhaustion's flat penalty — dnd5e applies it itself (`addRollExhaustion`);
+ * Poisoned and Frightened touch checks and attacks only. Dodging is the system's own status
+ * (`dodging`), and its clause is the Dodge action's, not a condition's.
+ *
+ * @type {Readonly<Record<string, Readonly<{abilities: readonly string[], bend?: "advantage"|"disadvantage", autoFail?: boolean, rule: string, caveat?: string}>>>}
+ */
+export const SAVE_BENDS = Object.freeze({
+  restrained: Object.freeze({ abilities: Object.freeze(["dex"]), bend: "disadvantage",
+    rule: "You have Disadvantage on Dexterity saving throws." }),
+  dodging: Object.freeze({ abilities: Object.freeze(["dex"]), bend: "advantage",
+    rule: "Until the start of your next turn, any attack roll made against you has Disadvantage if you can see the attacker, and you make Dexterity saving throws with Advantage. You lose these benefits if you have the Incapacitated condition or if your Speed is 0.",
+    caveat: "counted — press Normal if it is Incapacitated or its Speed is 0" }),
+  paralyzed: Object.freeze({ abilities: Object.freeze(["str", "dex"]), autoFail: true,
+    rule: "You automatically fail Strength and Dexterity saving throws." }),
+  stunned: Object.freeze({ abilities: Object.freeze(["str", "dex"]), autoFail: true,
+    rule: "You automatically fail Strength and Dexterity saving throws." }),
+  unconscious: Object.freeze({ abilities: Object.freeze(["str", "dex"]), autoFail: true,
+    rule: "You automatically fail Strength and Dexterity saving throws." }),
+  petrified: Object.freeze({ abilities: Object.freeze(["str", "dex"]), autoFail: true,
+    rule: "You automatically fail Strength and Dexterity saving throws." })
+});
+
+/**
  * THE EFFECT TABLE — the sixth reminder kind (user, 2026-09-02: "I like effect sources").
  * Abilities that bend an attack roll and land on a sheet as an ACTIVE EFFECT (Innate Sorcery,
  * Reckless, Blur…) or sit there as a FEATURE with no effect at all (Pack Tactics, Bloodied

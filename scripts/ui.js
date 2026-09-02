@@ -108,6 +108,56 @@ export async function openManagedPopup(key, message, dialog) {
 }
 
 /**
+ * A BAG THAT SURVIVES THE PLATFORM'S COPIES. A plain object handed to a roll's `dialog.options`
+ * is copied twice on its way to the rendered dialog — `deepClone` in the actor's roll method,
+ * then `mergeObject` in ApplicationV2's option initialisation — so a machine that stamps state
+ * on it in a pre-roll hook and reads it back off `app.options` reads a different object. Both
+ * copiers pass a CLASS INSTANCE through by reference (`deepClone` returns anything whose
+ * constructor is not `Object` untouched; `mergeObject` assigns it). So a gate that must be one
+ * object for the config, the dialog and the record wears this class. Measured against Foundry
+ * 14.365's `deepClone` and `mergeObject` sources, 2026-09-02.
+ */
+export class DialogCarried {
+  constructor(data = {}) { Object.assign(this, data); }
+}
+
+/**
+ * ADOPT a popup the PLATFORM is already rendering — the system's own roll dialog standing in
+ * for a house popup (the save demand, option E, 2026-09-02: the demand opens dnd5e's Saving
+ * Throw dialog, so there is nothing to construct, only a dialog to enrol). Same discipline as
+ * `openManagedPopup` — one key, one live view, the card released wherever it closes — minus the
+ * render, which the platform owns. The staircase applies (user, 2026-09-02: cascading saves,
+ * no queue): the first adoptee of an empty pile donates its position as the anchor, later
+ * ones step down it. Idempotent: a dialog already enrolled under its key is left alone.
+ * @param {string} key
+ * @param {ChatMessage} message
+ * @param {foundry.applications.api.ApplicationV2} dialog
+ */
+export function adoptManagedPopup(key, message, dialog) {
+  if ( livePopups.get(key) === dialog ) return;
+  const close = dialog.close.bind(dialog);
+  dialog.close = async (...args) => {
+    if ( livePopups.get(key) === dialog ) livePopups.delete(key);
+    popupSlots.delete(key);
+    if ( !popupSlots.size ) cascadeAnchor = null;
+    try { ui.chat?.updateMessage?.(message); } catch(err) { /* row refreshes next render */ }
+    return close(...args);
+  };
+  const slot = nextCascadeSlot(popupSlots.values());
+  popupSlots.set(key, slot);
+  livePopups.set(key, dialog);
+  try {
+    const { left, top } = dialog.position ?? {};
+    if ( Number.isFinite(left) && Number.isFinite(top) ) {
+      if ( !cascadeAnchor ) cascadeAnchor = { left, top };
+      const want = cascadePosition(cascadeAnchor, slot);
+      if ( (want.left !== left) || (want.top !== top) ) dialog.setPosition(want);
+    }
+  } catch(err) { /* the platform's own position stands */ }
+  try { ui.chat?.updateMessage?.(message); } catch(err) { /* row refreshes next render */ }
+}
+
+/**
  * THE POPPER DISCIPLINE (the spine): every machine popup opens through this — the
  * canAnswerFor gate, the shared key, front-a-live-popup-on-recall (a recall must never be a
  * silent no-op — "the Roll button does nothing" was a live report), DialogV2 construction,

@@ -48,22 +48,25 @@ export const TONE = {
 };
 
 /** The tone a roll mode wears: Advantage good, Disadvantage bad, Normal and Listed neutral. */
-export const modeTone = mode => (mode === "advantage") ? TONE.good : (mode === "disadvantage") ? TONE.bad : TONE.neutral;
+export const modeTone = mode => (mode === "advantage") ? TONE.good
+  : ((mode === "disadvantage") || (mode === "fails")) ? TONE.bad : TONE.neutral;
 
 /**
  * THE MODE TAG — Advantage / Disadvantage / Normal / Listed as one small coloured label, the
  * same wherever a mode is shown (the gate's header line, its boxes, a volley's ray rows).
  * Listed is the outline of the Normal tag: both are "no bend counted", told apart by fill,
- * never by hue — colour is spent on bends alone.
- * @param {"advantage"|"disadvantage"|"normal"|"listed"} mode
+ * never by hue — colour is spent on bends alone. `fails` is the save gate's fourth answer (a
+ * save the rules fail before the dice): red, because it is bad for the roller.
+ * @param {"advantage"|"disadvantage"|"normal"|"listed"|"fails"} mode
  */
 export function modeTagHTML(mode) {
   const listed = (mode === "listed");
   const tone = listed ? TONE.neutral : modeTone(mode);
-  const text = listed ? "Listed" : (mode === "advantage") ? "Advantage" : (mode === "disadvantage") ? "Disadvantage" : "Normal";
+  const text = listed ? "Listed" : (mode === "advantage") ? "Advantage" : (mode === "disadvantage") ? "Disadvantage"
+    : (mode === "fails") ? "Fails" : "Normal";
   const fill = listed
     ? `background:transparent;border:1px solid ${tone};color:inherit;opacity:0.85;`
-    : `background:${tone};border:1px solid transparent;color:${(mode === "disadvantage") ? "#fff" : "#111"};`;
+    : `background:${tone};border:1px solid transparent;color:${((mode === "disadvantage") || (mode === "fails")) ? "#fff" : "#111"};`;
   return `<span data-bf-mode="${mode}" style="display:inline-block;font-size:var(--font-size-10,10px);letter-spacing:0.08em;
     text-transform:uppercase;font-weight:bold;padding:0.15rem 0.5rem;border-radius:3px;white-space:nowrap;
     line-height:1.3;vertical-align:middle;${fill}">${text}</span>`;

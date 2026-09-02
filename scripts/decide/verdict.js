@@ -329,6 +329,9 @@ export function verdictText(flag, t) {
     : "";
   const base = (t.outcome === "saved")
     ? `saved${half}` : `failed`;
-  return `${t.total} vs DC ${flag.dc} — ${base}`
+  // The save gate's automatic failure (option E, 2026-09-02): no die was rolled, so there is
+  // no total to print — the condition that failed it is the number's replacement.
+  const roll = t.autoFailed ? `cannot succeed${t.autoFailedBy ? ` (${t.autoFailedBy})` : ""}` : `${t.total}`;
+  return `${roll} vs DC ${flag.dc} — ${base}`
     + `${t.forced ? " (legendary resistance)" : ""}${t.timedOut ? " (timer)" : ""}`;
 }

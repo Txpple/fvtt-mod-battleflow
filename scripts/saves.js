@@ -9,11 +9,14 @@ import { tokensInTemplates } from "./geometry.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom, saveMultiplier, verdictText } from "./decide/verdict.js";
 import { isDeadForSaves } from "./decide/eligible.js";
 import { forceStatus, damagePartsOf, rollConfigFor, statSourceOf } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, situationalBonusHTML,
-  modeButtons } from "./decide/present.js";
-import { livePopups, openMomentPopup,
+import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, reminderFieldsetHTML, TONE } from "./decide/present.js";
+import { livePopups, openMomentPopup, adoptManagedPopup, DialogCarried,
   momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
   armDeadline, disarmDeadline, registerRelay, dramaticVerdictPause } from "./ui.js";
+import { SAVE_BENDS } from "./decide/registry.js";
+import { REMINDER_FLAG, reminderRecord, saveGate, saveSources } from "./decide/reminders.js";
+import { rollModeOf } from "./decide/chips.js";
+import { conditionEntries, reminderEntries } from "./settings.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt, revertEffect } from "./effect-riders.js";
 // ⚠ SAFE STATICALLY, unlike auto-damage.js's own ui.js import (v1.6.1's ESM order trap): the
@@ -520,49 +523,338 @@ Hooks.on("deleteActiveEffect", effect => {
 /** Same-client re-entry latch (render resume + the buzzer can volunteer in one tick). */
 const saveRollsInFlight = new Set();
 
+/** The message data every answer to a demand carries — chained to the card, and the exact channel. */
+function saveAnswerData(card, uuid, timedOut) {
+  return { data: { flags: {
+    // Chained to the demand card so the system's registry ties the whole moment together — a
+    // programmatic roll must pass this explicitly (no DOM click to inherit it from).
+    dnd5e: { originatingMessage: card.id },
+    // The exact answer channel: WHICH card, WHICH target. Immune to the getSpeaker
+    // oldest-token trap by construction — the fold never has to resolve this roll's actor.
+    [MODULE_ID]: { respondsTo: card.id, saveFor: uuid, ...(timedOut ? { timedOut: true } : {}) }
+  } } };
+}
+
+/** Is this target still owed an answer — pending, unanswered, and no roll already on the log? */
+function saveStillOwed(card, uuid) {
+  const flag = card.getFlag(MODULE_ID, "saves");
+  const entry = flag?.targets?.find(t => t.uuid === uuid);
+  if ( !entry || entry.done || (flag.status !== "pending") ) return null;
+  // An answer that already landed wins even though the entry still reads pending — the fold
+  // is the elect's job and may not have caught up. Whole-log by flag, never a tail.
+  if ( game.messages.some(m => (m.getFlag(MODULE_ID, "respondsTo") === card.id)
+    && (m.getFlag(MODULE_ID, "saveFor") === uuid)) ) return null;
+  return { flag, entry };
+}
+
 /**
- * Roll one target's save, answering the demand. The stored DC rides as `target` so the
- * system's own success test marks the card and can never disagree with the fold; the dialog
- * is always skipped because the POPUP is the configuration surface — `mode` and `bonus`
- * arrive from its controls, forced through the roll's advantage/disadvantage booleans
- * exactly as the concentration answer does (applyKeybindings recomputes advantageMode, so
- * only the booleans stick). The buzzer and the opt-out pass neither: straight, data-driven,
- * sheet-borne modifiers still applying themselves.
+ * Roll one target's save STRAIGHT, answering the demand: the buzzer's press, data-driven, no
+ * dialog, sheet-borne modifiers still applying themselves. The stored DC rides as `target` so
+ * the system's own success test marks the card and can never disagree with the fold. (The
+ * human's press goes through `openSaveDialog` below — the system's own dialog, since option E.)
  */
 async function rollSaveAnswer(card, uuid, { mode = null, bonus = null, timedOut = false } = {}) {
   const key = `${card.id}|${uuid}`;
   if ( saveRollsInFlight.has(key) ) return;
   saveRollsInFlight.add(key);
   try {
-    const flag = card.getFlag(MODULE_ID, "saves");
-    const entry = flag?.targets?.find(t => t.uuid === uuid);
-    if ( !entry || entry.done || (flag.status !== "pending") ) return;
-    // An answer that already landed wins even though the entry still reads pending — the
-    // fold is the elect's job and may not have caught up. Whole-log by flag, never a tail.
-    if ( game.messages.some(m => (m.getFlag(MODULE_ID, "respondsTo") === card.id)
-      && (m.getFlag(MODULE_ID, "saveFor") === uuid)) ) return;
+    const owed = saveStillOwed(card, uuid);
+    if ( !owed ) return;
     const actor = await fromUuid(uuid);
     if ( !(actor instanceof Actor) || !actor.isOwner ) return;
     await actor.rollSavingThrow(
-      { ability: flag.abilities[0], target: flag.dc,
-        ...rollConfigFor(mode, bonus) },
+      { ability: owed.flag.abilities[0], target: owed.flag.dc, ...rollConfigFor(mode, bonus) },
       { configure: false },
-      { data: { flags: {
-        // Chained to the demand card so the system's registry ties the whole moment
-        // together — a programmatic roll must pass this explicitly (no DOM click to
-        // inherit it from).
-        dnd5e: { originatingMessage: card.id },
-        // The exact answer channel: WHICH card, WHICH target. Immune to the getSpeaker
-        // oldest-token trap by construction — the fold never has to resolve this roll's
-        // actor at all.
-        [MODULE_ID]: { respondsTo: card.id, saveFor: uuid,
-          ...(timedOut ? { timedOut: true } : {}) }
-      } } }
+      saveAnswerData(card, uuid, timedOut)
     );
   } catch(err) {
     console.error(`${TITLE} | Save roll failed — roll it from the sheet.`, err);
   } finally {
     saveRollsInFlight.delete(key);
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * THE DEMAND OPENS THE SYSTEM'S OWN SAVING THROW DIALOG (user ruling 2026-09-02 — option E of
+ * *The Save Gate*: "the attack pattern"; the house save popup retires). One surface for every
+ * save, forced or from the sheet: dnd5e's dialog, its own situational bonus and roll mode, its
+ * own three buttons — and Battle Flow adds two fieldsets. THE DEMAND (who is rolling, the DC,
+ * what a success buys, the timer bar) sits above the dialog's CONFIGURATION; the gate's section
+ * — BEFORE YOU ROLL, the save table's bends under one header line, folded to the header like the
+ * attack gate's — sits below it, and the highlighted default is the net. A save the rules FAIL
+ * before any die (Paralyzed, Stunned, Unconscious, Petrified on Strength or Dexterity) grows a
+ * fourth button, **Fails**, as the default: no dice, the failure recorded on the card with the
+ * condition as the number's replacement. The human still presses (R1) — option C, the module
+ * resolving with no press, was ruled out.
+ *
+ * Cascading, no queue (user, 2026-09-02): every pending demand for an actor opens its dialog,
+ * stepped down the staircase; the GM's old "queue of saves" habit is gone with the popup.
+ *
+ * The dialog is enrolled in `livePopups` under the popup key the card row already uses, so the
+ * update hook that closes an answered popup closes this one exactly as it did the house popup,
+ * and the card's Roll button fronts it. The roll it produces is the same answer the popup
+ * produced — the demand's chain and channel ride the message data — so the fold, the verdict,
+ * the consequences and the receipts cannot tell the two apart. Dismissing (the X) is not an
+ * answer: the dialog resolves to no roll, the row's button recalls it, the buzzer rolls.
+ * ------------------------------------------------------------------------------------------- */
+
+/** Dialogs on their way up — between the call and the render that enrols them in `livePopups`. */
+const saveDialogsOpening = new Set();
+
+/**
+ * Open the system's Saving Throw dialog for one demanded target — the human's press (the
+ * buzzer's straight roll is `rollSaveAnswer`). Recall fronts a live one. The demand rides
+ * `dialog.options` as a DialogCarried so the render hook below meets the same object the
+ * Fails button writes to; the roll's own flags ride the message data as every answer does.
+ */
+async function openSaveDialog(card, uuid) {
+  const key = popupKey(card.id, `save:${uuid}`);
+  const open = livePopups.get(key);
+  if ( open ) { open.bringToFront?.(); return; }
+  if ( saveDialogsOpening.has(key) ) return;
+  saveDialogsOpening.add(key);
+  try {
+    const owed = saveStillOwed(card, uuid);
+    if ( !owed ) return;
+    const actor = await fromUuid(uuid);
+    if ( !(actor instanceof Actor) || !actor.isOwner ) return;
+    const demand = new DialogCarried({ cardId: card.id, uuid, failed: null });
+    const rolls = await actor.rollSavingThrow(
+      { ability: owed.flag.abilities[0], target: owed.flag.dc },
+      { configure: true, options: { bfSaveDemand: demand } },
+      saveAnswerData(card, uuid, false)
+    );
+    // Fails pressed: the dialog closed with no roll and the demand carries the sources that
+    // failed it. The fold is the same fold — the number is the condition.
+    if ( !rolls?.length && demand.failed ) await foldSaveAutoFail(card, uuid, { sources: demand.failed });
+  } catch(err) {
+    console.error(`${TITLE} | Save dialog failed — roll it from the sheet.`, err);
+  } finally {
+    saveDialogsOpening.delete(key);
+  }
+}
+
+/**
+ * THE SAVE GATE'S JUDGE: the roller's statuses against the save table for this ability, netted
+ * as the attack gate nets, or `fails` when a source says the save cannot succeed. Null when the
+ * Reminder Sources list does not carry `condition` — the list is the switch, for saves as for
+ * attacks; WHICH conditions is the Condition Sources list. A DialogCarried, so the pre-roll
+ * hook, the rendered dialog and the record all hold one object.
+ * @param {Actor} actor
+ * @param {string} ability
+ */
+function judgeSave(actor, ability) {
+  if ( !reminderEntries().some(e => e.kind === "condition") ) return null;
+  const sources = saveSources({ statuses: actor.statuses ?? [], ability,
+    enabled: conditionEntries().map(e => e.kind), table: SAVE_BENDS, name: actor.name });
+  return new DialogCarried({ ...saveGate(sources), actorUuid: actor.uuid, ability, failed: false });
+}
+
+// THE GATE, on every saving throw that opens a dialog — forced by a demand or rolled from the
+// sheet (option E folds the old option D in: one surface for every save). Templated like the
+// attack hook (dnd5e.preRoll<Name>V2 — pinned in check-hook-dispatch). A judgement with a
+// source forces the dialog open — a shift-clicked save still meets it — and sets the default.
+Hooks.on("dnd5e.preRollSavingThrowV2", (config, dialog, message) => {
+  try {
+    if ( dialog?.configure === false ) return;       // no dialog, no gate
+    const actor = config?.subject;
+    if ( !(actor instanceof Actor) ) return;
+    const gate = judgeSave(actor, config.ability);
+    if ( !gate ) return;
+    dialog.options ??= {};
+    dialog.options.bfSaveGate = gate;
+    config.bfSaveGate = gate;
+    if ( !gate.sources.length ) return;
+    dialog.configure = true;
+    // Fails takes the focus itself below; the dialog's own default stays Normal behind it.
+    dialog.options.defaultButton = gate.autoFail ? "normal" : gate.net;
+  } catch(err) {
+    console.error(`${TITLE} | Save gate failed — rolling natively.`, err);
+  }
+});
+
+/** The demand's fieldset — who, the DC, the stakes, the bar — above the dialog's CONFIGURATION. */
+function drawSaveDemand(app, element, demand) {
+  const card = game.messages.get(demand.cardId);
+  if ( !card ) return;
+  const flag = card.getFlag(MODULE_ID, "saves");
+  const entry = flag?.targets?.find(t => t.uuid === demand.uuid);
+  // A question withdrawn between the ask and this render — the entry dropped by a template's
+  // adoption (the Shatter strand), or answered elsewhere — closes here rather than standing:
+  // the update sweep that closes answered popups runs on the WRITE, and this dialog was not
+  // yet enrolled when that write landed (smoke-saves §8a2, 2026-09-02).
+  if ( !entry || entry.done || (flag.status !== "pending") ) { void app.close(); return; }
+  adoptManagedPopup(popupKey(card.id, `save:${demand.uuid}`), card, app);
+  if ( element.querySelector("[data-bf-save-demand]") ) return;
+  const actor = (() => { try { return fromUuidSync(demand.uuid); } catch { return null; } })();
+  const ability = flag.abilities[0];
+  const abilityLabel = CONFIG.DND5E.abilities[ability]?.label ?? ability;
+  const stakes = [];
+  if ( flag.hasDamage ) stakes.push(
+    (flag.damageOnSave === "half") ? "A successful save <strong>halves</strong> the damage."
+      : (flag.damageOnSave === "none") ? "A successful save avoids the damage <strong>entirely</strong>."
+      : "The damage lands either way.");
+  if ( flag.effectNames?.fail?.length ) stakes.push(
+    `A failure also applies: <strong>${flag.effectNames.fail.join(", ")}</strong>.`);
+  if ( flag.effectNames?.always?.length ) stakes.push(
+    `Applies either way: <strong>${flag.effectNames.always.join(", ")}</strong>.`);
+  const host = document.createElement("div");
+  host.innerHTML = `<fieldset data-bf-save-demand><legend>The demand</legend>${bfCard({
+    // WHO is rolling leads, portrait included — the creature is the load-bearing fact (user
+    // call 2026-08-16); the spell is subtitle work.
+    img: actor?.img ?? flag.item?.img ?? null,
+    eyebrow: "Saving throw",
+    title: `${entry.name}: ${abilityLabel} save, DC ${flag.dc}`,
+    subtitle: `${flag.item?.name ?? "An effect"}${flag.casterName ? `, from ${flag.casterName}` : ""}`,
+    lines: stakes, tone: "pending"
+  })}${holdBarHTML(flag, "to roll")}</fieldset>`;
+  const fieldset = host.firstElementChild;
+  const configuration = element.querySelector('[data-application-part="configuration"]');
+  const formulas = element.querySelector('[data-application-part="formulas"]');
+  if ( configuration ) configuration.insertAdjacentElement("beforebegin", fieldset);
+  else if ( formulas ) formulas.insertAdjacentElement("afterend", fieldset);
+  else element.querySelector("form")?.prepend(fieldset);
+  scheduleBarSync(element);
+}
+
+/**
+ * The gate's section in the dialog — the attack gate's fieldset, on the save hook — and the
+ * fourth button when the save cannot succeed. Idempotent across the dialog's own re-renders
+ * (only its formulas part is replaced; the section and the button are siblings that persist).
+ */
+function drawSaveGate(app, element, gate, demand) {
+  if ( !gate?.sources?.length ) return;
+  if ( !element.querySelector("[data-bf-reminder]") ) {
+    const host = document.createElement("div");
+    host.innerHTML = reminderFieldsetHTML(gate.view, { open: false });
+    const fieldset = host.firstElementChild;
+    const configuration = element.querySelector('[data-application-part="configuration"]');
+    const buttons = element.querySelector('[data-application-part="buttons"]');
+    if ( configuration ) configuration.insertAdjacentElement("afterend", fieldset);
+    else if ( buttons ) buttons.insertAdjacentElement("beforebegin", fieldset);
+    else element.querySelector("form")?.appendChild(fieldset);
+  }
+  const modeButtonsEl = [...element.querySelectorAll('[data-application-part="buttons"] button[data-action]')];
+  if ( gate.autoFail && !element.querySelector("[data-bf-fails]") ) {
+    const sibling = modeButtonsEl.find(b => b.dataset.action !== "bf-fails");
+    if ( sibling ) {
+      const fails = document.createElement("button");
+      fails.type = "button";
+      fails.className = sibling.className;
+      fails.dataset.action = "bf-fails";
+      fails.setAttribute("data-bf-fails", "");
+      fails.innerHTML = `<i class="fa-solid fa-xmark" inert></i> Fails`;
+      fails.style.cssText = `border-color:${TONE.bad};`;
+      fails.addEventListener("click", () => {
+        try {
+          gate.failed = true;
+          if ( demand ) demand.failed = gate.sources;
+          else postSheetAutoFail(gate);
+        } finally {
+          void app.close();
+        }
+      });
+      sibling.insertAdjacentElement("beforebegin", fails);
+    }
+  }
+  // The highlighted default follows the net — Fails when the save cannot succeed.
+  const want = gate.autoFail ? "bf-fails" : gate.net;
+  for ( const button of element.querySelectorAll('[data-application-part="buttons"] button[data-action]') ) {
+    const isDefault = button.dataset.action === want;
+    button.toggleAttribute("autofocus", isDefault);
+    if ( isDefault ) { try { button.focus(); } catch { /* not focusable yet */ } }
+  }
+}
+
+/** A sheet save that cannot succeed, pressed Fails with no demand to record it on: the card
+ * is the record (R5) — nothing else in the world knows this save was owed. */
+function postSheetAutoFail(gate) {
+  const actor = (() => { try { return fromUuidSync(gate.actorUuid); } catch { return null; } })();
+  if ( !(actor instanceof Actor) ) return;
+  const abilityLabel = CONFIG.DND5E.abilities[gate.ability]?.label ?? gate.ability;
+  const failing = gate.sources.filter(s => s.autoFail);
+  void ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor }),
+    content: bfCard({
+      img: actor.img ?? null, eyebrow: "Saving throw — automatic failure", tone: "bad",
+      title: `${actor.name}: ${abilityLabel} save fails`,
+      subtitle: failing.map(s => s.statusName).join(", "),
+      lines: [...new Set(failing.map(s => s.detail))].map(ruleLine)
+    }),
+    flags: { [MODULE_ID]: { saveAutoFail: { ...statContext(actor.uuid), ability: gate.ability,
+      sources: failing.map(s => ({ status: s.status, label: s.label })) } } }
+  }).catch(err => console.error(`${TITLE} | Automatic-failure card failed.`, err));
+}
+
+// The section, and the demand, on every render of a save dialog carrying either (the first,
+// and each re-render the dialog's own dropdowns cause). polish.js rides the same hook for the
+// target block; the entry order keeps its paint ahead of these inserts.
+Hooks.on("renderRollConfigurationDialog", (app, element) => {
+  try {
+    const demand = app.options?.bfSaveDemand ?? null;
+    const gate = app.options?.bfSaveGate ?? null;
+    if ( demand ) drawSaveDemand(app, element, demand);
+    if ( gate ) drawSaveGate(app, element, gate, demand);
+  } catch(err) {
+    console.error(`${TITLE} | Save dialog section failed to draw.`, err);
+  }
+});
+
+// The record: what the gate showed, what it netted to, what was pressed — on the save message,
+// the attack gate's flag and the attack gate's card line (reminders.js reads it for any roll).
+Hooks.on("dnd5e.postRollConfiguration", (rolls, config, dialog, message) => {
+  try {
+    const gate = config?.bfSaveGate;
+    if ( !gate?.sources?.length || !rolls?.length ) return;
+    if ( foundry.utils.getProperty(message, "data.flags.dnd5e.roll.type") !== "save" ) return;
+    const mode = rollModeOf(rolls[0]?.options?.advantageMode);
+    foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${REMINDER_FLAG}`, {
+      ...reminderRecord({ sources: gate.sources, net: gate.net, mode, answeredAt: Date.now() }),
+      ...statContext(gate.actorUuid)
+    });
+  } catch(err) {
+    console.error(`${TITLE} | Save gate record failed.`, err);
+  }
+});
+
+/**
+ * THE FOLD WITHOUT A DIE: a save the rules fail before it is rolled, recorded as the failure
+ * it is. The same write `foldSaveAnswer` makes — `done`, the outcome, the card closing when
+ * every target is in — with no roll message and the condition standing where the total would.
+ * The consequences follow exactly as for a rolled failure. The buzzer takes this path too for
+ * a target that cannot succeed (`timedOut`): rolling dice the rules have already failed would
+ * be the module contradicting the table.
+ */
+async function foldSaveAutoFail(card, uuid, { sources = [], timedOut = false } = {}) {
+  const key = `${card.id}|${uuid}`;
+  if ( saveFolds.has(key) ) return;
+  saveFolds.add(key);
+  try {
+    const failing = sources.filter(s => s.autoFail);
+    let folded = false;
+    let allDone = false;
+    await queueFlagWrite(card, "saves", current => {
+      if ( current.status !== "pending" ) return false;
+      const entry = current.targets?.find(t => !t.done && (t.uuid === uuid));
+      if ( !entry ) return false;
+      entry.done = true;
+      entry.outcome = "failed";
+      entry.total = null;
+      entry.rollMessageId = null;
+      entry.autoFailed = true;
+      entry.autoFailedBy = failing.map(s => s.statusName).join(", ");
+      if ( timedOut ) entry.timedOut = true;
+      if ( current.targets.every(t => t.done) ) {
+        current.status = "done";
+        allDone = true;
+      }
+      folded = true;
+    });
+    if ( !folded ) return;
+    if ( allDone ) disarmAskTimer(saveTimers, card.id);
+    await applySaveConsequences(card, uuid, null);
+  } finally {
+    saveFolds.delete(key);
   }
 }
 
@@ -1323,6 +1615,14 @@ async function fireSaveTimer(card) {
       if ( goneName ) goneNames.push(goneName);
       continue;
     }
+    // A dialog still standing on THIS client is the human's unanswered press: close it first
+    // (it resolves to no roll) so the straight roll below is the only answer. Another
+    // client's dialog closes off the fold's update, as the house popup always did.
+    const open = livePopups.get(popupKey(card.id, `save:${entry.uuid}`));
+    if ( open ) { try { await open.close(); } catch { /* already gone */ } }
+    // A save the rules fail before the dice is recorded as that failure, not rolled.
+    const gate = judgeSave(actor, flag.abilities[0]);
+    if ( gate?.autoFail ) { await foldSaveAutoFail(card, entry.uuid, { sources: gate.sources, timedOut: true }); continue; }
     await rollSaveAnswer(card, entry.uuid, { timedOut: true });
   }
   // A "gone" verdict never reaches applySaveConsequences (stamped applied above), so its
@@ -1417,15 +1717,6 @@ Hooks.on("updateChatMessage", message => {
     // cleanup here, so a one-shot lost to an elect flip lands on the next update.
     if ( flag.status !== "pending" ) void cleanupSpentTemplates(message);
   }
-  // The queue advances: a resolved target may free the next demand card for its actor.
-  for ( const t of flag.targets ?? [] ) {
-    if ( !t.done ) continue;
-    const next = pendingSaveCardsFor(t.uuid)[0];
-    if ( next && (next.id !== message.id) ) {
-      shownMoments.delete(popupKey(next.id, `save:${t.uuid}`));
-      try { ui.chat?.updateMessage?.(next); } catch(err) { /* row refreshes next render */ }
-    }
-  }
 });
 
 // The shown-latches ride ui.js's one delete-sweep; only this machine's clocks disarm here.
@@ -1434,17 +1725,7 @@ Hooks.on("deleteChatMessage", message => {
   disarmSaveChoiceTimer(message.id);
 });
 
-/* --- the views: the card row and the popup --------------------------------------------------- */
-
-/** Every still-pending demand naming this actor, oldest first — the popup queue. */
-function pendingSaveCardsFor(actorUuid) {
-  return game.messages.contents
-    .filter(m => {
-      const f = m.getFlag(MODULE_ID, "saves");
-      return f && (f.status === "pending") && f.targets.some(t => !t.done && (t.uuid === actorUuid));
-    })
-    .sort((a, b) => a.timestamp - b.timestamp);
-}
+/* --- the views: the card row and the dialog -------------------------------------------------- */
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const flag = message.getFlag(MODULE_ID, "saves");
@@ -1541,18 +1822,16 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       // online owner still excludes the GM inside canAnswerFor.
       // (No pre-roll choice can pend here since walk-5 (y): choices open off the VERDICT,
       // on entries this !t.done loop already skips — the save ask never defers.)
-      // ONE input surface, queued: auto-show only for the actor's OLDEST pending demand;
-      // the button recalls this card's popup regardless.
+      // CASCADING, NO QUEUE (user, 2026-09-02): every pending demand opens its dialog once,
+      // stepped down the staircase; the button recalls this card's dialog regardless.
       const shownKey = popupKey(message.id, `save:${t.uuid}`);
-      if ( pendingSaveCardsFor(t.uuid)[0]?.id === message.id ) {
-        if ( !shownMoments.has(shownKey) ) {
-          shownMoments.add(shownKey);
-          void showSavePopup(message, t.uuid);
-        }
+      if ( !shownMoments.has(shownKey) ) {
+        shownMoments.add(shownKey);
+        void openSaveDialog(message, t.uuid);
       }
       row.appendChild(momentButton(`Roll — ${t.name}`, () => {
         shownMoments.delete(shownKey);
-        void showSavePopup(message, t.uuid);
+        void openSaveDialog(message, t.uuid);
       }));
     }
   }
@@ -1598,55 +1877,3 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   html.querySelector(".message-content")?.appendChild(row);
 });
 
-/**
- * The popup — the demand's story over the native roll dialog's own controls, exactly the
- * concentration ask's surface: a situational bonus field and Advantage/Normal/Disadvantage,
- * default hinted from the actor's own save-roll mode. Every button is the same answer —
- * roll — so the two-control rule (which governs decisions) is not in play; dismissing is not
- * an answer, the card's Roll button recalls it, and the buzzer rolls regardless.
- */
-async function showSavePopup(card, uuid) {
-  const flag = card.getFlag(MODULE_ID, "saves");
-  const entry = flag?.targets?.find(t => t.uuid === uuid);
-  if ( !entry || entry.done || (flag.status !== "pending") ) return;
-  const actor = (() => { try { return fromUuidSync(uuid); } catch { return null; } })();
-
-  const ability = flag.abilities[0];
-  const abilityLabel = CONFIG.DND5E.abilities[ability]?.label ?? ability;
-  const ADV = CONFIG.Dice.D20Roll.ADV_MODE;
-  const dataMode = actor?.system?.abilities?.[ability]?.save?.roll?.mode ?? ADV.NORMAL;
-  const def = (dataMode === ADV.ADVANTAGE) ? "advantage"
-    : (dataMode === ADV.DISADVANTAGE) ? "disadvantage" : "normal";
-
-  const stakes = [];
-  if ( flag.hasDamage ) stakes.push(
-    (flag.damageOnSave === "half") ? "A successful save <strong>halves</strong> the damage."
-      : (flag.damageOnSave === "none") ? "A successful save avoids the damage <strong>entirely</strong>."
-      : "The damage lands either way.");
-  if ( flag.effectNames?.fail?.length ) stakes.push(
-    `A failure also applies: <strong>${flag.effectNames.fail.join(", ")}</strong>.`);
-  if ( flag.effectNames?.always?.length ) stakes.push(
-    `Applies either way: <strong>${flag.effectNames.always.join(", ")}</strong>.`);
-
-  let dialog;
-  const roll = mode => rollSaveAnswer(card, uuid, {
-    mode, bonus: dialog?.element?.querySelector('input[name="bf-save-bonus"]')?.value ?? ""
-  });
-  dialog = await openMomentPopup(card, `save:${uuid}`, actor, {
-    title: `${entry.name} — ${abilityLabel} Save`, icon: "fa-solid fa-shield-heart",
-    content: bfCard({
-      // WHO is rolling leads, portrait included — the GM processes queues of these and the
-      // creature is the load-bearing fact (user call 2026-08-16); the spell is subtitle work.
-      img: actor?.img ?? flag.item?.img ?? null,
-      eyebrow: "Saving throw",
-      title: `${entry.name}: ${abilityLabel} save, DC ${flag.dc}`,
-      subtitle: `${flag.item?.name ?? "An effect"}`
-        + `${flag.casterName ? `, from ${flag.casterName}` : ""}`,
-      lines: stakes,
-      tone: "pending"
-    }) + situationalBonusHTML("bf-save-bonus") + holdBarHTML(flag, "to roll"),
-    // The same three controls every popup that stands in for a roll dialog carries
-    // (decide/present.js); the default is the actor's own hint, as the native dialog reads it.
-    buttons: modeButtons(roll, def)
-  });
-}

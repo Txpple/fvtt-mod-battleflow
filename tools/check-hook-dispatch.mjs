@@ -91,6 +91,14 @@ const ALLOW = [
       + "by no JSDoc. ⚠ MEASURED LIVE 2026-09-01 (tools/probe-expiry.mjs, hookSurfaces): it fires "
       + "once per attack roll, before the roll dialog, with preRollD20TestV2 beside it. reminders.js "
       + "registers it for the gate (HANDOFF Stage 2), and smoke-reminders asserts it FIRED"
+  },
+  {
+    hook: "dnd5e.preRollSavingThrowV2",
+    why: "TEMPLATED, the third of the family: Actor5e##rollD20Test sets hookNames [SavingThrow, "
+      + "d20Test] and buildConfigure dispatches preRoll<HookName>V2 for each (dnd5e.mjs, read "
+      + "2026-09-02) — the JSDoc at that site names only the non-V2 dnd5e.preRollSavingThrow. "
+      + "saves.js registers it for the save gate (option E: the demand opens the system's own "
+      + "dialog, and the gate meets every save there), and smoke-saves asserts it FIRED"
   }
 ];
 

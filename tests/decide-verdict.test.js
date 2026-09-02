@@ -775,3 +775,27 @@ describe("verdictText — the one line the row and the card both read", () => {
     );
   });
 });
+
+describe("verdictText — a save that could not succeed prints the condition where the total would be", () => {
+  it("names the condition, never a null total", () => {
+    const flag = { dc: 15, hasDamage: true, damageOnSave: "half" };
+    const line = v.verdictText(flag, {
+      done: true,
+      outcome: "failed",
+      total: null,
+      autoFailed: true,
+      autoFailedBy: "Paralyzed"
+    });
+    expect(line).toBe("cannot succeed (Paralyzed) vs DC 15 — failed");
+    expect(line).not.toContain("null");
+    expect(
+      v.verdictText(flag, {
+        done: true,
+        outcome: "failed",
+        total: null,
+        autoFailed: true,
+        timedOut: true
+      })
+    ).toBe("cannot succeed vs DC 15 — failed (timer)");
+  });
+});

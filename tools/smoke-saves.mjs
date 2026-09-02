@@ -41,7 +41,8 @@ const SECTIONS = {
   15: 'the verdict LINES (v1.19.0, FLOW item 7)',
   16: 'the DEAD-TARGET gate (v1.19.0, user call)',
   17: 'the BASH shape (v1.19.0, FLOW item 5)',
-  18: 'the player-rolled damage offer on the SAVE path (was probe-save-damage-popup)'
+  18: 'the player-rolled damage offer on the SAVE path (was probe-save-damage-popup)',
+  19: 'the save gate (option E, 2026-09-02): the system dialog, the section, the default, Fails'
 };
 // §2 rolls the damage of the demand §1 cast (`card1`); §13 rides §12's completed lifecycle —
 // its card, its template id and its 140px scene. Both couplings are declared in the code
@@ -111,6 +112,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
     try {
       await clearChips();
+      // §19 presses statuses on the victim; a run that died mid-section must not leave it
+      // Paralyzed for the next suite (the poisoned-prone-chip class, NOTES §5).
+      const pressed = victim.effects.filter(e => ['restrained', 'paralyzed'].some(s => e.statuses?.has?.(s)));
+      if (pressed.length) await victim.deleteEmbeddedDocuments('ActiveEffect', pressed.map(e => e.id));
       for (const [actorId, ids] of Object.entries(created.items.reduce((m, i) => {
         (m[i.actorId] ??= []).push(i.id); return m;
       }, {}))) {
@@ -227,6 +232,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             save: { ability: ['con'], dc: { calculation: '', formula: '15' } },
             target: { override: false, prompt: true }
           },
+          // §19's shape — the same demand on a DEXTERITY save, the ability the save table
+          // bends (Restrained) and fails outright (Paralyzed); the con fixture above meets no row.
+          bfsavedex0000000: {
+            _id: 'bfsavedex0000000', type: 'save',
+            activation: { type: 'action', override: false },
+            consumption: { targets: [], spellSlot: false },
+            damage: { onSave: 'half', parts: [{ custom: { enabled: true, formula: '10' }, types: ['poison'] }] },
+            effects: [{ _id: EFF_FAIL, onSave: false }, { _id: EFF_ALWAYS, onSave: true }],
+            save: { ability: ['dex'], dc: { calculation: '', formula: '15' } },
+            target: { override: false, prompt: true }
+          },
           bfsaveself000000: {
             _id: 'bfsaveself000000', type: 'save',
             activation: { type: 'action', override: false },
@@ -281,6 +297,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     const saveActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsaveact0000000');
     const selfActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsaveself000000');
+    const dexActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsavedex0000000');
     const fullActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsavefull000000');
     const tmplActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsavetmpl000000');
     const target = (...tokens) => {
@@ -297,8 +314,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const usageCards = msgs => msgs.filter(m =>
       (m.type === 'usage') || (m.getFlag('dnd5e', 'messageType') === 'usage'));
     const chipOn = (a, name) => a.effects.find(e => e.name === name);
-    const savePopups = () => [...document.querySelectorAll('.application.dialog')]
-      .filter(el => el.textContent.includes('Saving throw'));
+    // Since option E the ask IS the system's Saving Throw dialog — found by the application
+    // registry and our demand fieldset, never by a class the dialog may not wear.
+    const savePopups = () => [...foundry.applications.instances.values()]
+      .filter(app => app.rendered && app.element?.querySelector?.('[data-bf-save-demand]'))
+      .map(app => app.element);
+    // WHO a dialog asks, read off OUR fieldset alone — the dialog's own target block names the
+    // user's current targets, which is not the same creature (8a2's false positive, 2026-09-02).
+    const demandText = el => el?.querySelector?.('[data-bf-save-demand]')?.textContent ?? '';
     const entryOf = (card, a) => card.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === a.uuid);
     const rollDamageChained = card => saveActivity().rollDamage({}, { configure: false },
       { data: { 'flags.dnd5e.originatingMessage': card.id } });
@@ -347,7 +370,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (let i = 0; i < 2; i++) {
         const popup = await until(() => savePopups()[0], 8000);
         if (!popup) break;
-        [...popup.querySelectorAll('footer button, .form-footer button')]
+        [...popup.querySelectorAll('footer button, .form-footer button, nav.dialog-buttons button')]
           .find(b => b.textContent.trim() === 'Normal')?.click();
         await until(() => !document.contains(popup), 8000);
       }
@@ -437,21 +460,27 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `receipt=${!!dmg?.getFlag(MOD, 'receipt')} hp=${victim.system.attributes.hp.value}/${vMax}`);
 
       const popup = await until(() => savePopups()[0], 6000);
-      const buttons = popup ? [...popup.querySelectorAll('footer button, .form-footer button')] : [];
+      const buttons = popup ? [...popup.querySelectorAll('footer button, .form-footer button, nav.dialog-buttons button')] : [];
       const labels = buttons.map(b => b.textContent.trim());
-      ok('3b. the popup carries the native dialog\'s controls: Adv/Normal/Dis + situational bonus',
+      // Since option E (2026-09-02) the "popup" IS the system's own Saving Throw dialog: its
+      // three buttons, its situational bonus, its roll mode — and Battle Flow's demand fieldset.
+      ok('3b. the demand opens the SYSTEM dialog: its own Adv/Normal/Dis, its situational bonus, its roll mode — and our demand fieldset',
         (labels.join('/') === 'Advantage/Normal/Disadvantage')
-          && !!popup?.querySelector('input[name="bf-save-bonus"]'),
-        `buttons=[${labels.join('|')}] input=${!!popup?.querySelector('input[name="bf-save-bonus"]')}`);
+          && !!popup?.querySelector('input[name="roll.0.situational"]')
+          && !!popup?.querySelector('select[name="rollMode"]')
+          && !!popup?.querySelector('[data-bf-save-demand]'),
+        `buttons=[${labels.join('|')}] input=${!!popup?.querySelector('input[name="roll.0.situational"]')} demand=${!!popup?.querySelector('[data-bf-save-demand]')}`);
       // The demand stores the TOKEN's name (the snapshot's field) — compare against that,
       // not the actor name (the fixture's prototype token is "Hobgoblin").
       const rollerName = card.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? 'BF Test Victim';
-      ok('3b2. the popup leads with WHO is rolling — the creature owns the title',
-        ((popup?.querySelector('.window-title')?.textContent ?? '').includes(rollerName)),
-        `title="${popup?.querySelector('.window-title')?.textContent?.trim()}" expected="${rollerName}"`);
+      ok('3b2. the demand fieldset leads with WHO is rolling — the creature owns the title',
+        ((popup?.querySelector('[data-bf-save-demand]')?.textContent ?? '').includes(rollerName)),
+        `demand="${popup?.querySelector('[data-bf-save-demand]')?.textContent?.replace(/\s+/g, ' ').trim().slice(0, 120)}" expected="${rollerName}"`);
 
-      const input = popup?.querySelector('input[name="bf-save-bonus"]');
-      if (input) input.value = '+30';
+      // The dialog reads its form on CHANGE (it rebuilds the rolls there, not on submit), so a
+      // programmatic value must announce itself the way a keystroke does.
+      const input = popup?.querySelector('input[name="roll.0.situational"]');
+      if (input) { input.value = '+30'; input.dispatchEvent(new Event('change', { bubbles: true })); await sleep(150); }
       buttons.find(b => b.textContent.trim() === 'Advantage')?.click();
       await until(() => entryOf(card, victim)?.done);
       const entry = entryOf(card, victim);
@@ -689,7 +718,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // must sweep it wherever it lives — a popup asking a withdrawn question with a dead
       // bar was the live Shatter/Gren report (2026-08-17).
       const strandGone = await until(() => !savePopups().some(p =>
-        p.textContent?.includes(shielder.name)), 6000);
+        demandText(p).includes(shielder.name)), 6000);
       ok('8a2. the dropped entry\'s popup closes — no stranded question on screen',
         !!strandGone,
         `open save popups: ${savePopups().length}`);
@@ -859,7 +888,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (let i = 0; i < 2; i++) {
         const popup = await until(() => savePopups()[0], 6000);
         if (!popup) break;
-        [...popup.querySelectorAll('footer button, .form-footer button')]
+        [...popup.querySelectorAll('footer button, .form-footer button, nav.dialog-buttons button')]
           .find(b => b.textContent.trim() === 'Normal')?.click();
         await until(() => !document.contains(popup), 6000);
       }
@@ -1002,10 +1031,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // first run of this section looked for "BF Test Victim" and missed a popup that was
       // correctly open.
       const entryName10 = adopted10.targets[0]?.name ?? victim.name;
-      const popup10 = await until(() => savePopups().find(p => p.textContent.includes(entryName10)), 6000);
+      const popup10 = await until(() => savePopups().find(p => demandText(p).includes(entryName10)), 6000);
       ok('10e. the arrival gets its ask', !!popup10,
         `popups=${savePopups().length} lookingFor="${entryName10}"`);
-      [...(popup10?.querySelectorAll('footer button, .form-footer button') ?? [])]
+      [...(popup10?.querySelectorAll('footer button, .form-footer button, nav.dialog-buttons button') ?? [])]
         .find(b => b.textContent.trim() === 'Normal')?.click();
       await until(() => card10.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), 20000);
       const e10 = entryOf(card10, victim);
@@ -1067,8 +1096,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const npcName11 = nameOf11(victim);
         const pcName11 = nameOf11(pcActor);
 
-        const npcPopup = await until(() => savePopups().find(p => p.textContent.includes(npcName11)), 4000);
-        const pcPopup = await until(() => savePopups().find(p => p.textContent.includes(pcName11)), 4000);
+        const npcPopup = await until(() => savePopups().find(p => demandText(p).includes(npcName11)), 4000);
+        const pcPopup = await until(() => savePopups().find(p => demandText(p).includes(pcName11)), 4000);
         ok('11a. an empty room pops for EVERYONE — the offline-owner PC included ((h))',
           !!npcPopup && !!pcPopup,
           `npcPopup=${!!npcPopup} pcPopup=${!!pcPopup} open=${savePopups().length} `
@@ -1085,7 +1114,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
         // Resolve the NPC through its popup; the PC's popup stays open on purpose — the
         // buzzer must STILL be the resolver of last resort past an unanswered popup.
-        [...(npcPopup?.querySelectorAll('footer button, .form-footer button') ?? [])]
+        [...(npcPopup?.querySelectorAll('footer button, .form-footer button, nav.dialog-buttons button') ?? [])]
           .find(b => b.textContent.trim() === 'Normal')?.click();
         await until(() => card11.getFlag(MOD, 'saves')?.targets?.every(t => t.done), 20000);
         const ePc = entryOf(card11, pcActor);
@@ -1167,8 +1196,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
       // Run it to done for §13: the popup asks for the NPC arrival, -30 fails, applied lands.
       const name12 = adopted12?.targets?.[0]?.name ?? victim.name;
-      const popup12 = await until(() => savePopups().find(p => p.textContent.includes(name12)), 6000);
-      [...(popup12?.querySelectorAll('footer button, .form-footer button') ?? [])]
+      const popup12 = await until(() => savePopups().find(p => demandText(p).includes(name12)), 6000);
+      [...(popup12?.querySelectorAll('footer button, .form-footer button, nav.dialog-buttons button') ?? [])]
         .find(b => b.textContent.trim() === 'Normal')?.click();
       const done12 = await until(() => {
         const f = card12.getFlag(MOD, 'saves');
@@ -1286,8 +1315,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         return (f?.templated && (f.targets ?? []).length) ? f : null;
       });
       const name14 = adopted14?.targets?.[0]?.name ?? victim.name;
-      const popup14 = await until(() => savePopups().find(p => p.textContent.includes(name14)), 6000);
-      [...(popup14?.querySelectorAll('footer button, .form-footer button') ?? [])]
+      const popup14 = await until(() => savePopups().find(p => demandText(p).includes(name14)), 6000);
+      [...(popup14?.querySelectorAll('footer button, .form-footer button, nav.dialog-buttons button') ?? [])]
         .find(b => b.textContent.trim() === 'Normal')?.click();
       const done14 = await until(() => {
         const f = card14.getFlag(MOD, 'saves');
@@ -1544,6 +1573,154 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await saveBonus(shielder, '');
     }
 
+    // ============================================== 19. the save gate — option E (2026-09-02)
+    // The demand opens dnd5e's own Saving Throw dialog; the gate meets the roller there — the
+    // save table's bends as the section, the net as the default, and a save the rules fail
+    // before the dice as a fourth button. A sheet save meets the same gate (D folded into E).
+    if (want(19)) {
+      const ledger = globalThis.__bfHookLedger ?? null;
+      const count = name => ledger?.[name] ?? 0;
+      const setStatus = async (actor, id, on) => {
+        const carriers = actor.effects.filter(e => e.statuses?.has?.(id));
+        if (on && !carriers.length) {
+          const eff = await ActiveEffect.implementation.fromStatusEffect(id);
+          await ActiveEffect.implementation.create(eff.toObject(), { parent: actor, keepId: true });
+        } else if (!on && carriers.length) {
+          await actor.deleteEmbeddedDocuments('ActiveEffect', carriers.map(e => e.id));
+        }
+        await sleep(150);
+      };
+      const entryName = card => card.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? 'BF Test Victim';
+      const dialogFor = name => until(() => savePopups().find(p => demandText(p).includes(name)), 6000);
+      const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const defaultOf = dlg => dlg?.querySelector('button[autofocus]')?.dataset?.action ?? null;
+      const saveRollsIn = before => fresh(before).filter(m => m.getFlag('dnd5e', 'roll.type') === 'save');
+      const castDex = async () => {
+        target(victimToken);
+        await sleep(120);
+        const use = await dexActivity().use({}, { configure: false }, {});
+        const card = use?.message instanceof ChatMessage ? use.message : null;
+        if (card) await until(() => card.getFlag(MOD, 'saves'));
+        return card;
+      };
+
+      // 19a–d: Restrained bends a Dexterity save — the section, the default, the record.
+      await clearChips();
+      await saveBonus(victim, '');
+      await healFull(victim);
+      await setStatus(victim, 'restrained', true);
+      const firedBefore = count('dnd5e.preRollSavingThrowV2');
+      const cardA = await castDex();
+      if (!cardA) return { fatal: 'section 19 dex cast produced no card' };
+      const dlgA = await dialogFor(entryName(cardA));
+      const textA = sectionText(dlgA);
+      ok('19a. a Restrained roller meets the gate INSIDE the system dialog: the demand fieldset above, the section below, "1 Modifier — Net Disadvantage"',
+        !!dlgA && !!dlgA.querySelector('[data-bf-save-demand]') && /Restrained/.test(textA)
+          && /1 Modifier — Net Disadvantage/.test(textA)
+          && !!dlgA.querySelector('input[name="roll.0.situational"]'),
+        `dialog=${!!dlgA} demand=${!!dlgA?.querySelector('[data-bf-save-demand]')} section="${textA.slice(0, 160)}"`);
+      ok('19b. the highlighted default is the net — Disadvantage (the user\'s ruling, on the save hook)',
+        defaultOf(dlgA) === 'disadvantage', `default=${defaultOf(dlgA)}`);
+      ok('19c. the registration FIRED (§11): dnd5e.preRollSavingThrowV2 moved',
+        count('dnd5e.preRollSavingThrowV2') > firedBefore,
+        `before=${firedBefore} after=${count('dnd5e.preRollSavingThrowV2')}`);
+      dlgA?.querySelector('button[data-action="normal"]')?.click();   // against the net, on purpose
+      await until(() => entryOf(cardA, victim)?.done);
+      const entryA = entryOf(cardA, victim);
+      const rollA = entryA?.rollMessageId ? game.messages.get(entryA.rollMessageId) : null;
+      const remA = rollA?.getFlag(MOD, 'reminder');
+      ok('19d. the save message carries the gate\'s record — net Disadvantage, rolled flat, NOT honoured — and answers the demand exactly as any roll does',
+        !!remA && (remA.net === 'disadvantage') && (remA.mode === 'normal') && (remA.honoured === false)
+          && (remA.sources?.[0]?.kind === 'condition') && (rollA?.getFlag(MOD, 'respondsTo') === cardA.id)
+          && (rollA?.rolls?.[0]?.options?.target === 15),
+        `record=${JSON.stringify(remA)} respondsTo=${rollA?.getFlag(MOD, 'respondsTo')}`);
+      await until(() => entryOf(cardA, victim)?.applied, 12000);
+      await setStatus(victim, 'restrained', false);
+
+      // 19e–h: Paralyzed cannot succeed on Dexterity — Fails, no dice, recorded, consequences.
+      await clearChips();
+      await saveBonus(victim, '+30');        // a ROLLED save would succeed: only the button can fail it
+      await healFull(victim);
+      await setStatus(victim, 'paralyzed', true);
+      const beforeE = snap();
+      const cardE = await castDex();
+      if (!cardE) return { fatal: 'section 19 paralyzed cast produced no card' };
+      const dlgE = await dialogFor(entryName(cardE));
+      const failsE = dlgE?.querySelector('[data-bf-fails]');
+      const textE = sectionText(dlgE);
+      ok('19e. a Paralyzed roller\'s Dexterity save cannot succeed: the section says so, Fails is a fourth button and the default',
+        !!failsE && failsE.hasAttribute('autofocus') && /cannot succeed/.test(textE) && /Net Fails/.test(textE)
+          && (dlgE.querySelectorAll('nav.dialog-buttons button').length === 4),
+        `fails=${!!failsE} default=${defaultOf(dlgE)} buttons=${dlgE?.querySelectorAll('nav.dialog-buttons button').length} section="${textE.slice(0, 160)}"`);
+      failsE?.click();
+      const entryE = await until(() => { const e = entryOf(cardE, victim); return e?.done ? e : null; }, 8000);
+      ok('19f. Fails records the failure with NO dice: failed, automatically, by Paralyzed, no roll message anywhere',
+        (entryE?.outcome === 'failed') && (entryE?.autoFailed === true) && /Paralyzed/.test(entryE?.autoFailedBy ?? '')
+          && !entryE?.rollMessageId && (saveRollsIn(beforeE).length === 0),
+        `entry=${JSON.stringify(entryE)} saveRolls=${saveRollsIn(beforeE).length}`);
+      await until(() => entryOf(cardE, victim)?.applied, 12000);
+      ok('19g. the consequences follow the automatic failure exactly as a rolled one: both chips, full damage owed',
+        !!chipOn(victim, 'BF Poisoned') && !!chipOn(victim, 'BF Splashed') && (entryOf(cardE, victim)?.applied === true),
+        `chips=[${CHIP_NAMES.map(n => !!chipOn(victim, n)).join()}]`);
+      const lineE = await until(() => game.messages.contents.find(m => {
+        const v = m.getFlag(MOD, 'verdictLine');
+        return v && (v.sourceMessageId === cardE.id) && (v.uuid === victim.uuid);
+      }), 6000);
+      ok('19h. the verdict line prints the condition where the total would be',
+        /cannot succeed/.test(lineE?.content ?? '') && /Paralyzed/.test(lineE?.content ?? '') && !/null/.test(lineE?.content ?? ''),
+        (lineE?.content ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 160));
+
+      // 19i: the buzzer on a save that cannot succeed records the failure rather than rolling.
+      await clearChips();
+      await healFull(victim);
+      await set('saveTimer', 2);
+      const beforeI = snap();
+      const cardI = await castDex();
+      if (!cardI) return { fatal: 'section 19 buzzer cast produced no card' };
+      const dlgI = await dialogFor(entryName(cardI));
+      const entryI = await until(() => { const e = entryOf(cardI, victim); return e?.done ? e : null; }, 15000);
+      const closedI = await until(() => !document.contains(dlgI), 5000);   // the close rides the fold's update — a beat behind the flag
+      ok('19i. the buzzer takes the same path — timed out, automatically failed, no die rolled — and the open dialog closed',
+        (entryI?.autoFailed === true) && (entryI?.timedOut === true) && (entryI?.outcome === 'failed')
+          && (saveRollsIn(beforeI).length === 0) && !!dlgI && closedI,
+        `entry=${JSON.stringify(entryI)} saveRolls=${saveRollsIn(beforeI).length} dialogWasOpen=${!!dlgI} stillOpen=${!!dlgI && document.contains(dlgI)}`);
+      await until(() => entryOf(cardI, victim)?.applied, 12000);
+      await set('saveTimer', 0);
+
+      // 19j: a SHEET save meets the same gate (option D folded into E) — Fails with no demand
+      // posts the record as a card, and rolls nothing.
+      const beforeJ = snap();
+      void victim.rollSavingThrow({ ability: 'dex' }, {}, {});
+      const dlgJ = await until(() => [...foundry.applications.instances.values()].map(app => app.element)
+        .find(el => el?.querySelector?.('[data-bf-fails]') && !el.querySelector('[data-bf-save-demand]')), 6000);
+      dlgJ?.querySelector('[data-bf-fails]')?.click();
+      const cardJ = await until(() => fresh(beforeJ).find(m => m.getFlag(MOD, 'saveAutoFail')), 6000);
+      ok('19j. a sheet save meets the same gate, and Fails with no demand posts the record as a card — no roll',
+        !!dlgJ && !!cardJ && (cardJ.getFlag(MOD, 'saveAutoFail')?.ability === 'dex')
+          && /Paralyzed/.test(cardJ.content ?? '') && (saveRollsIn(beforeJ).length === 0),
+        `dialog=${!!dlgJ} card=${!!cardJ} flag=${JSON.stringify(cardJ?.getFlag(MOD, 'saveAutoFail'))}`);
+
+      // 19k: a Constitution save under Paralyzed meets no row — no section, the dialog as it always was.
+      await clearChips();
+      await saveBonus(victim, '');
+      await healFull(victim);
+      target(victimToken);
+      await sleep(120);
+      const useK = await saveActivity().use({}, { configure: false }, {});
+      const cardK = useK?.message instanceof ChatMessage ? useK.message : null;
+      if (cardK) await until(() => cardK.getFlag(MOD, 'saves'));
+      const dlgK = await dialogFor(entryName(cardK));
+      ok('19k. a Constitution save shows nothing — the table is Strength and Dexterity only; the demand stands, no section, three buttons',
+        !!dlgK && !dlgK.querySelector('[data-bf-reminder]') && !dlgK.querySelector('[data-bf-fails]')
+          && !!dlgK.querySelector('[data-bf-save-demand]')
+          && (dlgK.querySelectorAll('nav.dialog-buttons button').length === 3),
+        `dialog=${!!dlgK} section=${!!dlgK?.querySelector('[data-bf-reminder]')} buttons=${dlgK?.querySelectorAll('nav.dialog-buttons button').length}`);
+      dlgK?.querySelector('button[data-action="normal"]')?.click();
+      await until(() => entryOf(cardK, victim)?.applied, 12000);
+      await setStatus(victim, 'paralyzed', false);
+      await clearChips();
+    }
+
     return { log, results, skips };
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
@@ -1731,8 +1908,9 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
       .filter(el => (el.innerHTML ?? '').includes('Damage &mdash; your roll')
                  || (el.innerHTML ?? '').includes('Damage — your roll'));
     /** The targets' SAVE asks — closed between sections so they never pile up on screen. */
-    const savePopupEls = () => [...document.querySelectorAll('.application.dialog')]
-      .filter(el => /Saving throw|Save$/i.test(el.textContent ?? ''));
+    const savePopupEls = () => [...foundry.applications.instances.values()]
+      .filter(app => app.rendered && app.element?.querySelector?.('[data-bf-save-demand]'))
+      .map(app => app.element);
     const closeEls = async (els) => {
       for (const el of els) {
         const btn = el.querySelector('[data-action="close"]') ?? el.querySelector('.header-control');

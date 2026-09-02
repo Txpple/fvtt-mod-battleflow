@@ -579,3 +579,13 @@ describe("reminderSectionHTML / reminderFieldsetHTML — the header line and the
     expect(html).toContain('data-tooltip="a &quot;why&quot;"');
   });
 });
+
+describe("modeTagHTML — the save gate's fourth answer", () => {
+  it("Fails is red with white text, like Disadvantage — bad for the roller", () => {
+    const html = p.modeTagHTML("fails");
+    expect(html).toContain(`background:${p.TONE.bad}`);
+    expect(html).toContain("#fff");
+    expect(html).toContain(">Fails<");
+    expect(p.modeTone("fails")).toBe(p.TONE.bad);
+  });
+});

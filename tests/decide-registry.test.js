@@ -404,3 +404,40 @@ describe("CONDITION_BENDS — the table, and the set and the default DERIVED fro
     }
   });
 });
+
+describe("SAVE_BENDS — the save table (option E, 2026-09-02)", () => {
+  it("six rows: two bends, four automatic failures, all on Strength or Dexterity, each quoting its clause", () => {
+    expect(Object.keys(reg.SAVE_BENDS)).toEqual([
+      "restrained",
+      "dodging",
+      "paralyzed",
+      "stunned",
+      "unconscious",
+      "petrified"
+    ]);
+    expect(Object.isFrozen(reg.SAVE_BENDS)).toBe(true);
+    for (const key of Object.keys(reg.SAVE_BENDS)) {
+      const row = reg.SAVE_BENDS[key];
+      expect(Object.isFrozen(row)).toBe(true);
+      expect(row.rule.length).toBeGreaterThan(20);
+      expect(
+        row.abilities.every(a => ["str", "dex"].includes(a)),
+        key
+      ).toBe(true);
+      expect(
+        !!row.bend !== !!row.autoFail,
+        `${key} is a bend or an automatic failure, never both or neither`
+      ).toBe(true);
+    }
+    expect(Object.keys(reg.SAVE_BENDS).filter(k => reg.SAVE_BENDS[k].autoFail)).toEqual([
+      "paralyzed",
+      "stunned",
+      "unconscious",
+      "petrified"
+    ]);
+  });
+  it("every save row is also a row of the condition table — one membership list switches both gates", () => {
+    for (const key of Object.keys(reg.SAVE_BENDS))
+      expect(reg.CONDITION_STATUSES.has(key), key).toBe(true);
+  });
+});

@@ -71,6 +71,56 @@ export function conditionSources({ attackerStatuses = [], targetStatuses = [], e
 }
 
 /**
+ * THE SAVE GATE'S SOURCES, from plain facts (user ruling 2026-09-02 — option E: the demand
+ * opens the system's own Saving Throw dialog and the gate meets the roller there, exactly as
+ * it meets an attack). The roller's own statuses against the save table for THIS ability: a
+ * row with a bend counts; a row with `autoFail` is LISTED (bend null — nothing to net) and
+ * marks the judgement "cannot succeed", which the dialog draws as a fourth button. Nothing
+ * here decides: the human presses Fails, or presses a mode against the net (R1).
+ *
+ * @param {{statuses?: Iterable<string>, ability: string, enabled: Iterable<string>,
+ *          table: Readonly<Record<string, Readonly<{abilities: readonly string[], bend?: "advantage"|"disadvantage", autoFail?: boolean, rule: string, caveat?: string}>>>,
+ *          name?: string}} facts
+ *        `enabled` = the Condition Sources list (the same switch the attack gate reads);
+ *        `table` = `SAVE_BENDS` (decide/registry.js)
+ * @returns {{kind: string, bend: "advantage"|"disadvantage"|null, label: string, detail: string, autoFail?: boolean}[]}
+ */
+export function saveSources({ statuses = [], ability, enabled, table, name = "You" }) {
+  const on = new Set(enabled ?? []);
+  const mine = new Set(statuses);
+  const out = [];
+  for ( const key of Object.keys(table ?? {}) ) {
+    if ( !on.has(key) || !mine.has(key) ) continue;
+    const row = table[key];
+    if ( !row?.abilities?.includes(ability) ) continue;
+    const label = `${name} — ${conditionName(key)}${row.caveat ? ` (${row.caveat})` : ""}`;
+    if ( row.autoFail ) {
+      out.push(Object.assign(reminderSource("condition", null, `${label}: this save cannot succeed`, row.rule),
+        { autoFail: true, status: key, statusName: conditionName(key) }));
+    } else if ( row.bend ) {
+      out.push(Object.assign(reminderSource("condition", row.bend, label, row.rule), { status: key }));
+    }
+  }
+  return out;
+}
+
+/**
+ * The save gate's judgement over its sources: the net is the attack arithmetic, unless a source
+ * says the save cannot succeed — then the net is `fails`, drawn as the red tag, and the
+ * header's tooltip says why instead of counting. One object for the dialog, the default button
+ * and the record.
+ * @param {{kind: string, bend: "advantage"|"disadvantage"|null, label: string, detail?: string, autoFail?: boolean}[]} sources
+ * @returns {{sources: object[], net: "advantage"|"disadvantage"|"normal"|"fails", autoFail: boolean, view: object}}
+ */
+export function saveGate(sources) {
+  const autoFail = sources.some(s => s.autoFail);
+  const net = autoFail ? "fails" : netMode(sources);
+  const view = reminderView(sources, net);
+  if ( autoFail ) view.head.why = "This save cannot succeed — the rules fail it before any die is rolled. Fails records the failure without dice; a mode button still rolls.";
+  return { sources, net, autoFail, view };
+}
+
+/**
  * EFFECT SOURCES, from plain facts (user, 2026-09-02 — the sixth kind): the abilities on either
  * sheet that bend this roll, read against the effect table (decide/registry.js EFFECT_BENDS).
  * An attacker-side row fires when the ATTACKER carries the effect (or the feature) and the
@@ -198,7 +248,7 @@ export function netMode(sources) {
 
 /** The mode, as a title or a button reads it. */
 export const modeTitle = mode => (mode === "advantage") ? "Advantage"
-  : (mode === "disadvantage") ? "Disadvantage" : "Normal roll";
+  : (mode === "disadvantage") ? "Disadvantage" : (mode === "fails") ? "Fails" : "Normal roll";
 
 /**
  * How a roll WENT OUT, in a sentence — "rolled with Advantage", "rolled flat". ONE vocabulary
@@ -313,7 +363,7 @@ export function rangeSources({ ranged = false, distanceFeet = null, normalFeet =
  * The arithmetic (`resolutionLine`) rides the header as its tooltip, for the reader who wants
  * it, and costs no vertical space.
  * @param {{kind: string, bend: "advantage"|"disadvantage"|null, label: string, detail?: string}[]} sources
- * @param {"advantage"|"disadvantage"|"normal"} net
+ * @param {"advantage"|"disadvantage"|"normal"|"fails"} net   "fails" is the save gate's fourth answer
  */
 export function reminderView(sources, net) {
   const n = sources.length;

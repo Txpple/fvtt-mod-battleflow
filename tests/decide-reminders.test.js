@@ -580,3 +580,90 @@ describe("reminderRecord — what the card remembers", () => {
     expect(rec.sources[1].bend).toBeNull();
   });
 });
+
+describe("saveSources + saveGate — the save gate's table (option E, 2026-09-02)", () => {
+  const all = () => Object.keys(reg.SAVE_BENDS);
+  it("Restrained is Disadvantage on Dexterity saves, and nothing on the others", () => {
+    const dex = r.saveSources({
+      statuses: ["restrained"],
+      ability: "dex",
+      enabled: all(),
+      table: reg.SAVE_BENDS,
+      name: "Gob"
+    });
+    expect(dex).toHaveLength(1);
+    expect(dex[0].bend).toBe("disadvantage");
+    expect(dex[0].status).toBe("restrained");
+    expect(dex[0].label).toBe("Gob — Restrained");
+    expect(
+      r.saveSources({
+        statuses: ["restrained"],
+        ability: "con",
+        enabled: all(),
+        table: reg.SAVE_BENDS
+      })
+    ).toHaveLength(0);
+  });
+  it("Dodging is Advantage on Dexterity saves, counted, with the caveat said", () => {
+    const [s] = r.saveSources({
+      statuses: ["dodging"],
+      ability: "dex",
+      enabled: all(),
+      table: reg.SAVE_BENDS
+    });
+    expect(s.bend).toBe("advantage");
+    expect(s.label).toMatch(/press Normal/);
+  });
+  it("Paralyzed, Stunned, Unconscious and Petrified cannot succeed on Strength or Dexterity — listed, not counted, marked", () => {
+    for (const status of ["paralyzed", "stunned", "unconscious", "petrified"]) {
+      for (const ability of ["str", "dex"]) {
+        const [s] = r.saveSources({
+          statuses: [status],
+          ability,
+          enabled: all(),
+          table: reg.SAVE_BENDS
+        });
+        expect(s.bend, `${status}/${ability}`).toBeNull();
+        expect(s.autoFail).toBe(true);
+        expect(s.label).toMatch(/cannot succeed/);
+      }
+      expect(
+        r.saveSources({ statuses: [status], ability: "con", enabled: all(), table: reg.SAVE_BENDS })
+      ).toHaveLength(0);
+    }
+  });
+  it("the Condition Sources list is the switch — a row off the list is not read", () => {
+    expect(
+      r.saveSources({
+        statuses: ["paralyzed"],
+        ability: "dex",
+        enabled: ["restrained"],
+        table: reg.SAVE_BENDS
+      })
+    ).toHaveLength(0);
+  });
+  it("the gate nets as the attack gate nets, and 'fails' outranks every bend", () => {
+    const dodge = r.saveSources({
+      statuses: ["dodging", "restrained"],
+      ability: "dex",
+      enabled: all(),
+      table: reg.SAVE_BENDS
+    });
+    expect(r.saveGate(dodge).net).toBe("normal");
+    const para = r.saveSources({
+      statuses: ["paralyzed", "dodging"],
+      ability: "dex",
+      enabled: all(),
+      table: reg.SAVE_BENDS
+    });
+    const gate = r.saveGate(para);
+    expect(gate.autoFail).toBe(true);
+    expect(gate.net).toBe("fails");
+    expect(gate.view.head.net).toBe("fails");
+    expect(gate.view.head.why).toMatch(/cannot succeed/);
+    expect(r.saveGate([]).net).toBe("normal");
+  });
+  it("modeTitle names the fourth answer", () => {
+    expect(r.modeTitle("fails")).toBe("Fails");
+  });
+});
