@@ -20,7 +20,8 @@ const SECTIONS = {
   5: 'the condition table: poisoned, blinded, incapacitated, frightened',
   6: 'the lists are the switch: an empty Reminder Sources list turns the gate off',
   7: 'closing the popup rolls nothing',
-  8: 'the registration FIRED (§11): dnd5e.preRollAttackV2 moved'
+  8: 'the registration FIRED (§11): dnd5e.preRollAttackV2 moved',
+  9: 'a metric grid: the 5-foot rule is judged in FEET, never in scene units'
 };
 const DEPENDS = { 8: ['1'] };
 
@@ -255,19 +256,41 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (!r.chip) r = await swing('vex');
       return r.chip;
     };
-    /** The HUMAN-style roll: the dialog is allowed, so the gate stands in. Returns the popup. */
-    const gatedSwing = async () => {
+    /**
+     * The click the card's Attack BUTTON makes: an event whose target sits inside the usage
+     * card's element, and NOTHING else — no originatingMessage in any shape, because dnd5e
+     * derives it from that element in buildPost, AFTER the pre-roll hook. ⚠ This is the shape
+     * the table actually uses, and the one the suite never drove before 2026-09-01: with the
+     * flat key passed explicitly, the re-issued attack was linked and the suite was green while
+     * every gated attack at the table was an ORPHAN of its card (the review's finding 12).
+     */
+    const buttonEvent = async usageId => {
+      const li = await waitFor(() => document.querySelector(`.message[data-message-id="${usageId}"]`), 4000);
+      if (!li) throw new Error(`usage card ${usageId} never reached the chat DOM`);
+      return { target: li.querySelector('button[data-action="rollAttack"]') ?? li, clientY: 200,
+        altKey: false, ctrlKey: false, metaKey: false, shiftKey: false };
+    };
+    const findGate = () => waitFor(() => [...foundry.applications.instances.values()]
+      .find(app => (app instanceof foundry.applications.api.DialogV2) && /Before you roll/.test(app.title ?? '') && app.rendered), 6000);
+    /** The HUMAN-style roll: the dialog is allowed, so the gate stands in. Returns the popup.
+     * `flat: true` drives the sheet/use() shape instead — the flat originatingMessage key. */
+    const gatedSwing = async ({ activity = null, token = null, flat = false } = {}) => {
       await healFull();
-      target(victimToken);
+      target(token ?? victimToken);
       await sleep(80);
-      const results = await pcAttack().use({ subsequentActions: false }, { configure: false }, {});
+      const act = activity ?? pcAttack();
+      const results = await act.use({ subsequentActions: false }, { configure: false }, {});
       const usageId = results?.message?.id ?? null;
       const before = game.messages.size;
-      void pcAttack().rollAttack({}, {}, usageId ? { data: { 'flags.dnd5e.originatingMessage': usageId } } : {});
-      const dlg = await waitFor(() => [...foundry.applications.instances.values()]
-        .find(app => (app instanceof foundry.applications.api.DialogV2) && /Before you roll/.test(app.title ?? '') && app.rendered), 6000);
+      if (flat) void act.rollAttack({}, {}, usageId ? { data: { 'flags.dnd5e.originatingMessage': usageId } } : {});
+      else void act.rollAttack({ event: await buttonEvent(usageId) }, {}, {});
+      const dlg = await findGate();
       return { dialog: dlg ?? null, usageId, messagesBefore: before };
     };
+    const defaultButton = dlg => dlg?.element?.querySelector('button[autofocus]')?.dataset?.action ?? null;
+    /** Is the re-issued attack LINKED to its usage card — by flag, and in the system's own registry? */
+    const linked = (msg, usageId) => (msg?.getFlag('dnd5e', 'originatingMessage') === usageId)
+      && (game.messages.get(usageId)?.getAssociatedRolls?.('attack') ?? []).some(m => m.id === msg?.id);
     const popupText = dlg => (dlg?.element?.querySelector('.window-content')?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const press = async (dlg, mode) => {
       const btn = dlg?.element?.querySelector(`button[data-action="${mode}"]`);
@@ -304,19 +327,26 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const vexed = await ensureVexed();
       ok('1. (setup) the victim is Vexed by the PC', !!vexed, `vexed=${!!vexed}`);
       const before = lastAttack()?.id ?? null;
-      const { dialog } = await gatedSwing();
-      ok('1a. a human-style roll opens the gate instead of the system dialog',
+      const { dialog, usageId } = await gatedSwing();
+      ok('1a. the card\'s Attack BUTTON (a click, no originatingMessage anywhere) opens the gate instead of the system dialog',
         !!dialog, `dialog=${!!dialog} title=${dialog?.title ?? '-'}`);
       const text = popupText(dialog);
       ok('1b. the popup names the source, the bend and the net',
         /Vexed/.test(text) && /Advantage/.test(text) && /Net: Advantage/.test(text) && /Situational Bonus/.test(text),
         text.slice(0, 300));
+      ok('1b2. the NET is the highlighted default — Enter presses the outcome the solver worked out (user ruling)',
+        defaultButton(dialog) === 'advantage', `default=${defaultButton(dialog)}`);
+      ok('1b3. the dialog\'s own choices ride along — the roll-mode select at least',
+        !!dialog?.element?.querySelector('select[name="bf-reminder-rollMode"]'),
+        [...(dialog?.element?.querySelectorAll('select') ?? [])].map(s => s.name).join(','));
       const pressed = await press(dialog, 'advantage');
       const msg = await waitAttackAfter(before);
       const roll = msg?.rolls?.[0];
       ok('1c. pressing Advantage re-issues the roll WITH advantage — the dice went out that way',
         pressed && !!roll && (roll.options?.advantageMode === 1) && /2d20kh|2d20adv/i.test(roll.formula ?? ''),
         `pressed=${pressed} mode=${roll?.options?.advantageMode} formula=${roll?.formula}`);
+      ok('1c2. the re-issued attack is LINKED to its usage card — the flag, and the system\'s own registry (the orphan finding)',
+        linked(msg, usageId), `originating=${msg?.getFlag('dnd5e', 'originatingMessage')} usage=${usageId}`);
       const rem = msg?.getFlag(MOD, 'reminder');
       ok('1d. the attack message carries the reminder record: the source, net advantage, mode advantage, honoured, stamped',
         !!rem && (rem.sources?.[0]?.kind === 'vex') && (rem.net === 'advantage') && (rem.mode === 'advantage')
@@ -328,9 +358,22 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!spend?.spent?.some(s => (s.id === vexed?.id) && (s.honoured === true)) && vexGone,
         `${JSON.stringify(spend?.spent)} gone=${vexGone}`);
       await waitFor(() => /Reminded/.test(cardText(msg?.id)), 4000);
-      ok('1f. the card SAYS it was reminded (R5): net Advantage, rolled Advantage',
-        /Reminded — net Advantage, rolled Advantage/.test(cardText(msg?.id)), cardText(msg?.id).slice(0, 240));
+      ok('1f. the card SAYS it was reminded (R5): net Advantage, rolled with Advantage',
+        /Reminded — net Advantage, rolled with Advantage/.test(cardText(msg?.id)), cardText(msg?.id).slice(0, 240));
       await settle(msg);
+      // The other shape the hook meets: the sheet / use() auto-roll carries the id as a FLAT key.
+      {
+        await clearChips();
+        const vexed2 = await ensureVexed();
+        const before2 = lastAttack()?.id ?? null;
+        const { dialog: d2, usageId: u2 } = await gatedSwing({ flat: true });
+        ok('1g. the flat-key shape (a sheet roll) opens the gate too', !!d2 && !!vexed2, `dialog=${!!d2}`);
+        await press(d2, 'advantage');
+        const m2 = await waitAttackAfter(before2);
+        ok('1h. …and its re-issue is linked to the card as well', linked(m2, u2),
+          `originating=${m2?.getFlag('dnd5e', 'originatingMessage')} usage=${u2}`);
+        await settle(m2);
+      }
     }
 
     // ================================================== 2. programmatic rolls never gate
@@ -367,6 +410,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('3a. …and nets to a NORMAL roll, quoting the glossary',
         /Net: Normal roll/.test(text) && /cancel/.test(text) && /can’t be affected by more than one Advantage/.test(text),
         text.slice(0, 400));
+      ok('3a2. the highlighted default is the net — Normal', defaultButton(dialog) === 'normal', `default=${defaultButton(dialog)}`);
+      // One of the dialog's own choices, changed before the press: a GM-only roll (v14 keys the
+      // modes `public`/`gm`/`blind`/`self`, v13 `publicroll`/`gmroll`/…; the option is found by either).
+      const rollModeSelect = dialog?.element?.querySelector('select[name="bf-reminder-rollMode"]');
+      const gmOption = [...(rollModeSelect?.options ?? [])].find(o => /^(gm|gmroll)$/.test(o.value));
+      if (rollModeSelect && gmOption) rollModeSelect.value = gmOption.value;
       await press(dialog, 'normal');
       const msg = await waitAttackAfter(before);
       const rem = msg?.getFlag(MOD, 'reminder');
@@ -374,6 +423,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (msg?.rolls?.[0]?.options?.advantageMode === 0) && (rem?.net === 'normal') && (rem?.mode === 'normal') && (rem?.honoured === true)
           && (rem?.sources?.length === 2),
         JSON.stringify({ mode: msg?.rolls?.[0]?.options?.advantageMode, rem }));
+      ok('3b2. the roll-mode pick travelled with the re-issue — a GM roll is whispered',
+        !!rollModeSelect && (msg?.whisper?.length ?? 0) > 0, `select=${!!rollModeSelect} whisper=${JSON.stringify(msg?.whisper)}`);
       const spend = await waitFor(() => game.messages.get(msg?.id ?? '')?.getFlag(MOD, 'chipSpend'));
       const sapRec = spend?.spent?.find(s => s.id === sapped.id);
       const vexRec = spend?.spent?.find(s => s.id === vexed?.id);
@@ -403,17 +454,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // platform's. Targeting the far token is the same question asked honestly.
       const { doc: farDoc, token: farToken } = await placeToken(victim, 1500 - (squarePx * 6), 1400);
       {
-        await healFull();
-        target(farToken);
-        await sleep(80);
-        const results = await pcAttack().use({ subsequentActions: false }, { configure: false }, {});
-        const usageId = results?.message?.id ?? null;
-        void pcAttack().rollAttack({}, {}, usageId ? { data: { 'flags.dnd5e.originatingMessage': usageId } } : {});
-        const dialog = await waitFor(() => [...foundry.applications.instances.values()]
-          .find(app => (app instanceof foundry.applications.api.DialogV2) && /Before you roll/.test(app.title ?? '') && app.rendered), 6000);
+        const { dialog } = await gatedSwing({ token: farToken });
         const text = popupText(dialog);
         ok(`4a. the same prone target from ${gridFeet * 6} feet: Disadvantage`,
           new RegExp(`is Prone — ${gridFeet * 6} feet away`).test(text) && /Net: Disadvantage/.test(text), text.slice(0, 300));
+        ok('4a2. …and Disadvantage is the highlighted default', defaultButton(dialog) === 'disadvantage', `default=${defaultButton(dialog)}`);
         await closeGates();
       }
       await scene.deleteEmbeddedDocuments('Token', [farDoc.id]);
@@ -527,6 +572,50 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(8)) {
       ok('8. dnd5e.preRollAttackV2 fired during this suite (the gate\'s only system hook)',
         count('dnd5e.preRollAttackV2') > 0, `count=${count('dnd5e.preRollAttackV2')}`);
+    }
+
+    // ================================================== 9. a metric grid
+    if (want(9)) {
+      // ⚠ `measurePath` answers in the SCENE's units, and the gate used to compare that number
+      // against a 5-foot literal: on a 1.5 m grid two squares (3 m, 9.8 ft) read "within 5 feet"
+      // (the review's finding 5, 2026-09-01). The grid is the scene document's — `canvas.grid`
+      // is rebuilt from it on update, no redraw needed — and it is restored whatever happens.
+      await sleep(1000);
+      await clearChips();
+      await clearStatuses();
+      const priorGrid = { distance: scene.grid.distance, units: scene.grid.units };
+      let farDoc = null;
+      try {
+        await scene.update({ 'grid.distance': 1.5, 'grid.units': 'm' });
+        const metric = await waitFor(() => (canvas.grid?.distance === 1.5) && (canvas.grid?.units === 'm'), 6000);
+        log.push(`metric grid: ${canvas.grid?.distance} ${canvas.grid?.units} per square (${metric ? 'live' : 'NOT live'})`);
+        await setStatus(victim, 'prone', true);
+        ({ doc: farDoc } = await placeToken(victim, 1500 - (squarePx * 2), 1400));
+        const farToken = canvas.tokens.get(farDoc.id);
+        {
+          const { dialog } = await gatedSwing({ token: farToken });
+          const text = popupText(dialog);
+          // 3 m is 10 feet under the SYSTEM's own table (D&D's simplified 5 ft = 1.5 m,
+          // CONFIG.DND5E.movementUnits.m.conversion = 10/3) — the reading the ruler gives, not 9.84.
+          ok('9. two squares on a 1.5 m grid is 3 m = 10 feet by the system\'s own conversion — Disadvantage, judged in FEET',
+            /is Prone — 10 feet away/.test(text) && /Net: Disadvantage/.test(text), text.slice(0, 300));
+          await closeGates();
+        }
+        {
+          const { dialog } = await gatedSwing();
+          const text = popupText(dialog);
+          ok('9a. one square — 1.5 m, 4.9 feet — is within 5 feet: Advantage',
+            /is Prone — within 5 feet/.test(text) && /Net: Advantage/.test(text), text.slice(0, 300));
+          await closeGates();
+        }
+      } finally {
+        if (farDoc) {
+          await scene.deleteEmbeddedDocuments('Token', [farDoc.id]).catch(() => {});
+          created.tokens.splice(created.tokens.indexOf(farDoc.id), 1);
+        }
+        await scene.update({ 'grid.distance': priorGrid.distance, 'grid.units': priorGrid.units });
+        await clearStatuses();
+      }
     }
 
     return { log, results, skips };

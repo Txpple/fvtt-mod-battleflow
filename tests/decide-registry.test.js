@@ -347,3 +347,46 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     expect(reg.CONDITION_STATUSES.size).toBe(13);
   });
 });
+
+describe("CONDITION_BENDS — the table, and the set and the default DERIVED from it", () => {
+  it("is the thirteen, frozen, in the order the table reads them, each with its glossary clause", () => {
+    expect(reg.CONDITION_KEYS).toEqual([
+      "blinded",
+      "invisible",
+      "paralyzed",
+      "petrified",
+      "poisoned",
+      "restrained",
+      "stunned",
+      "unconscious",
+      "frightened",
+      "grappled",
+      "incapacitated",
+      "dodging",
+      "charmed"
+    ]);
+    expect(Object.isFrozen(reg.CONDITION_BENDS)).toBe(true);
+    expect(Object.isFrozen(reg.CONDITION_KEYS)).toBe(true);
+    for (const key of reg.CONDITION_KEYS) {
+      expect(Object.isFrozen(reg.CONDITION_BENDS[key])).toBe(true);
+      expect(reg.CONDITION_BENDS[key].rule.length).toBeGreaterThan(20);
+    }
+  });
+  it("the closed set the list is validated against IS the table's keys — one declaration", () => {
+    expect(reg.CONDITION_STATUSES).toEqual(new Set(reg.CONDITION_KEYS));
+  });
+  it("the shipped default parses to every row of the table, in order", () => {
+    const { entries, rejects } = reg.parseList(
+      reg.LIST_SPECS.conditions,
+      reg.LIST_SPECS.conditions.default
+    );
+    expect(rejects).toEqual([]);
+    expect(entries.map(e => e.kind)).toEqual([...reg.CONDITION_KEYS]);
+  });
+  it("every row bends at least one side or carries a note — a row that does neither is dead data", () => {
+    for (const key of reg.CONDITION_KEYS) {
+      const row = reg.CONDITION_BENDS[key];
+      expect(!!(row.attacker || row.target || row.note), key).toBe(true);
+    }
+  });
+});

@@ -78,78 +78,70 @@ describe("chipClock — the duration plus the attacker's place in the order", ()
   });
 });
 
-describe("chipIsDead — the platform's reading, and the one case it leaves alone", () => {
+describe("chipIsDead — the platform's mark decides; zero on the clock is ALIVE", () => {
   it("expired is dead", () => {
     expect(c.chipIsDead({ expired: true, remaining: 1, value: 1 })).toBe(true);
+    expect(c.chipIsDead({ expired: true, remaining: 0, value: 0 })).toBe(true);
   });
-  it("a clock that ran out is dead; one that never resolved is dead too (the v1.27.1 shape)", () => {
-    expect(c.chipIsDead({ expired: false, remaining: 0, value: 1 })).toBe(true);
+  it("⚠ zero remaining is alive — a one-round chip reads 0 for the whole of its boundary round", () => {
+    // Review finding 16 (2026-09-01): Vex applied r1t0 reads remaining 0 from r2t0 and is
+    // marked expired only at r2t1; the gate must still list it on the attacker's turn.
+    expect(c.chipIsDead({ expired: false, remaining: 0, value: 1 })).toBe(false);
+    expect(c.chipIsDead({ expired: false, remaining: 0, value: 0 })).toBe(false);
+  });
+  it("a negative clock is dead — the no-GM fallback, and only after the boundary", () => {
+    expect(c.chipIsDead({ expired: false, remaining: -1, value: 1 })).toBe(true);
     expect(c.chipIsDead({ expired: false, remaining: -2, value: 1 })).toBe(true);
+  });
+  it("a clock that never resolved is dead", () => {
     expect(c.chipIsDead({ expired: false, remaining: null, value: 1 })).toBe(true);
     expect(c.chipIsDead({ expired: false, remaining: Number.NaN, value: 1 })).toBe(true);
   });
   it("time on the clock is alive", () => {
     expect(c.chipIsDead({ expired: false, remaining: 1, value: 1 })).toBe(false);
     expect(c.chipIsDead({ expired: false, remaining: 6, value: 6 })).toBe(false);
+    expect(c.chipIsDead({ expired: false, remaining: Infinity, value: 1 })).toBe(false);
   });
   it("NO clock is somebody else's contract — never dead, whatever the rest says", () => {
     expect(c.chipIsDead({ expired: false, remaining: null, value: null })).toBe(false);
     expect(c.chipIsDead({ expired: true, remaining: null })).toBe(false);
     expect(c.chipIsDead()).toBe(false);
   });
-  it("a ZERO-length window (the once-per-turn chit) lives until the platform says expired", () => {
-    expect(c.chipIsDead({ expired: false, remaining: 0, value: 0 })).toBe(false);
-    expect(c.chipIsDead({ expired: true, remaining: 0, value: 0 })).toBe(true);
+});
+
+describe("chitStamp — the once-per-turn chit lives while its turn is the running one", () => {
+  it("is the house stamp of the turn the chit was written in", () => {
+    expect(c.chitStamp({ combat: "cmb1", round: 3, turn: 2 })).toBe("cmb1:3:2");
+    expect(c.chitStamp({ combat: "cmb1", round: 0, turn: 0 })).toBe("cmb1:0:0");
+  });
+  it("a chit with no turn behind it has no stamp — never live", () => {
+    expect(c.chitStamp({ combat: null, round: 3, turn: 2 })).toBeNull();
+    expect(c.chitStamp({ combat: "cmb1", round: null, turn: 2 })).toBeNull();
+    expect(c.chitStamp({ combat: "cmb1", round: 3 })).toBeNull();
+    expect(c.chitStamp(null)).toBeNull();
+    expect(c.chitStamp(undefined)).toBeNull();
   });
 });
 
 describe("chipSpentBy — which swing spends which chip", () => {
   it("Vex: the chip's own attacker's next attack roll against the bearer", () => {
-    expect(
-      c.chipSpentBy("vex", {
-        bearerIsTarget: true,
-        bearerIsAttacker: false,
-        attackerOwnsChip: true
-      })
-    ).toBe(true);
+    expect(c.chipSpentBy("vex", { bearer: "target", attackerOwnsChip: true })).toBe(true);
   });
   it("Vex is NOT spent by somebody else attacking the bearer, nor by the bearer attacking", () => {
-    expect(
-      c.chipSpentBy("vex", {
-        bearerIsTarget: true,
-        bearerIsAttacker: false,
-        attackerOwnsChip: false
-      })
-    ).toBe(false);
-    expect(
-      c.chipSpentBy("vex", {
-        bearerIsTarget: false,
-        bearerIsAttacker: true,
-        attackerOwnsChip: true
-      })
-    ).toBe(false);
+    expect(c.chipSpentBy("vex", { bearer: "target", attackerOwnsChip: false })).toBe(false);
+    expect(c.chipSpentBy("vex", { bearer: "attacker", attackerOwnsChip: true })).toBe(false);
   });
   it("Sap: the bearer's next attack roll, at anyone", () => {
-    expect(
-      c.chipSpentBy("sap", {
-        bearerIsTarget: false,
-        bearerIsAttacker: true,
-        attackerOwnsChip: false
-      })
-    ).toBe(true);
-    expect(
-      c.chipSpentBy("sap", {
-        bearerIsTarget: true,
-        bearerIsAttacker: false,
-        attackerOwnsChip: true
-      })
-    ).toBe(false);
+    expect(c.chipSpentBy("sap", { bearer: "attacker" })).toBe(true);
+    expect(c.chipSpentBy("sap", { bearer: "attacker", attackerOwnsChip: false })).toBe(true);
+    expect(c.chipSpentBy("sap", { bearer: "target", attackerOwnsChip: true })).toBe(false);
   });
   it("Slow and the cleave chit are spent by nothing — their windows close them", () => {
-    const every = { bearerIsTarget: true, bearerIsAttacker: true, attackerOwnsChip: true };
-    expect(c.chipSpentBy("slow", every)).toBe(false);
-    expect(c.chipSpentBy("cleave", every)).toBe(false);
-    expect(c.chipSpentBy("topple", every)).toBe(false);
+    for (const bearer of ["attacker", "target"]) {
+      expect(c.chipSpentBy("slow", { bearer, attackerOwnsChip: true })).toBe(false);
+      expect(c.chipSpentBy("cleave", { bearer, attackerOwnsChip: true })).toBe(false);
+      expect(c.chipSpentBy("topple", { bearer, attackerOwnsChip: true })).toBe(false);
+    }
   });
 });
 
@@ -166,7 +158,7 @@ describe("CHIP_FLAG / chipOwnedBy — the fingerprint, and whose chip it is", ()
   });
 });
 
-describe("rollModeOf / chipHonoured / spendRecord — the receipt's vocabulary", () => {
+describe("rollModeOf / chipHonoured / netShownFor / spendRecord — the receipt's vocabulary", () => {
   it("reads the sign of the system's advantage mode", () => {
     expect(c.rollModeOf(1)).toBe("advantage");
     expect(c.rollModeOf(-1)).toBe("disadvantage");
@@ -198,6 +190,23 @@ describe("rollModeOf / chipHonoured / spendRecord — the receipt's vocabulary",
         net: "normal"
       }).honoured
     ).toBe(true);
+  });
+  it("netShownFor: the net counts only for a kind the gate actually listed", () => {
+    // Review finding 1 (2026-09-01): a Sap-only gate (vex off the list) must not stamp the
+    // spent Vex as honoured by the Disadvantage press.
+    const sapOnly = { sources: [{ kind: "sap", bend: "disadvantage" }], net: "disadvantage" };
+    expect(c.netShownFor(sapOnly, "sap")).toBe("disadvantage");
+    expect(c.netShownFor(sapOnly, "vex")).toBeNull();
+    expect(c.chipHonoured("vex", "disadvantage", c.netShownFor(sapOnly, "vex"))).toBe(false);
+    const both = { sources: [{ kind: "sap" }, { kind: "vex" }], net: "normal" };
+    expect(c.netShownFor(both, "vex")).toBe("normal");
+    expect(c.netShownFor(both, "sap")).toBe("normal");
+  });
+  it("netShownFor: no gate, no net", () => {
+    expect(c.netShownFor(null, "vex")).toBeNull();
+    expect(c.netShownFor(undefined, "vex")).toBeNull();
+    expect(c.netShownFor({ sources: [], net: "advantage" }, "vex")).toBeNull();
+    expect(c.netShownFor({ sources: [{ kind: "vex" }] }, "vex")).toBeNull();
   });
   it("spendRecord carries the chip, the bearer, the mode and the honour verdict", () => {
     expect(

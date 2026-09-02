@@ -61,7 +61,13 @@ const REFERENCE = {
   damageTimer: 24,        // new in v1.19.0 walk-4 (w) — the offered roll's clock, family default
   castApply: true,
   volleys: true,          // new in v1.20.0 (Pass C) — structural multi-projectile fold; rides the resolver mode + damageTimer
-  resourceNotices: true   // new in v1.20.0 (user ask) — the spend flash + card line; recovery-rhythm pools only
+  resourceNotices: true,  // new in v1.20.0 (user ask) — the spend flash + card line; recovery-rhythm pools only
+  // ⚠ The reminder gate's two lists (2026-09-01). Both are SWITCHES — an empty Reminder Sources
+  // list is the gate turned off — and smoke-reminders §6 pins them to '' and 'blinded' to prove
+  // it, so a run that dies inside §6 leaves the gate off in the world. Named here for exactly
+  // the reason the d20Folds comment above gives: an unlisted key is never checked.
+  reminderList: 'vex, sap, prone, condition',
+  conditionList: 'blinded, invisible, paralyzed, petrified, poisoned, restrained, stunned, unconscious, frightened, grappled, incapacitated, dodging, charmed'
 };
 
 const f = new Foundry(foundryConfig(env));

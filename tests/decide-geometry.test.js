@@ -117,3 +117,20 @@ describe("tokenSamplePoints — one sample per occupied square", () => {
     ]);
   });
 });
+
+describe("lengthUnitKey — a scene's grid units, folded to the system's own keys", () => {
+  it("feet, however a table spells them", () => {
+    for (const u of ["ft", "FT", " ft ", "feet", "Feet", "foot", "ft.", "'"])
+      expect(geo.lengthUnitKey(u), u).toBe("ft");
+  });
+  it("metres, both spellings; miles; kilometres", () => {
+    for (const u of ["m", "meter", "meters", "metre", "metres", "M"])
+      expect(geo.lengthUnitKey(u), u).toBe("m");
+    for (const u of ["mi", "mile", "miles"]) expect(geo.lengthUnitKey(u), u).toBe("mi");
+    for (const u of ["km", "kilometer", "kilometres"]) expect(geo.lengthUnitKey(u), u).toBe("km");
+  });
+  it("anything else — a blank included — is null: unknown, never assumed to be feet", () => {
+    for (const u of ["", null, undefined, "squares", "sq", "hex", "yards"])
+      expect(geo.lengthUnitKey(u), String(u)).toBeNull();
+  });
+});

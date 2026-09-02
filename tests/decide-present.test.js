@@ -493,8 +493,41 @@ describe("situationalBonusHTML / modeButtons — one shape for a popup that stan
     buttons[2].callback();
     expect(pressed).toEqual(["advantage", "disadvantage"]);
   });
-  it("no default at all when none is asked for — the gate's shape", async () => {
+  it("no default flagged when none is asked for — and the gate passes its NET, because DialogV2 defaults the first button otherwise", async () => {
     const m = await import("../scripts/decide/present.js");
     expect(m.modeButtons(() => {}).every(b => b.default === false)).toBe(true);
+    expect(m.modeButtons(() => {}, "disadvantage").map(b => b.default)).toEqual([
+      false,
+      false,
+      true
+    ]);
+  });
+  it("a choice row is a labelled select carrying the name the caller reads back, the current pick selected", async () => {
+    const m = await import("../scripts/decide/present.js");
+    const html = m.choiceRowHTML(
+      {
+        label: "Attack mode",
+        options: [
+          { value: "oneHanded", label: "One-Handed" },
+          { value: "twoHanded", label: "Two-Handed" }
+        ],
+        value: "twoHanded"
+      },
+      "bf-reminder-attackMode"
+    );
+    expect(html).toContain('<select name="bf-reminder-attackMode"');
+    expect(html).toContain("Attack mode");
+    expect(html).toContain('<option value="oneHanded">One-Handed</option>');
+    expect(html).toContain('<option value="twoHanded" selected>Two-Handed</option>');
+  });
+  it("a choice row escapes what lands in markup", async () => {
+    const m = await import("../scripts/decide/present.js");
+    const html = m.choiceRowHTML(
+      { label: "A & B", options: [{ value: 'x"y', label: "<b>" }], value: "" },
+      "n"
+    );
+    expect(html).toContain("A &amp; B");
+    expect(html).toContain('value="x&quot;y"');
+    expect(html).toContain("&lt;b&gt;");
   });
 });

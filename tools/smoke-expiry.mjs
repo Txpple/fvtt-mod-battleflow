@@ -25,7 +25,8 @@ const SECTIONS = {
   6: 'the Cleave chit: once per turn, dies with the turn',
   7: 'deleteCombat sweeps every chip it clocked',
   8: 'out of combat: no clock, no expiry — the spend still closes it',
-  9: 'the registrations FIRED (§11): updateActiveEffect carried the expiry, deleteCombat swept'
+  9: 'the registrations FIRED (§11): updateActiveEffect carried the expiry, deleteCombat swept',
+  10: 'the gate after a boundary: zero on the clock is ALIVE; the chit belongs to the turn in progress'
 };
 const DEPENDS = { 9: ['4', '7'] };
 
@@ -60,7 +61,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'holdTimer',
-    'saveTimer', 'castApply', 'noticeTimer'];
+    'saveTimer', 'castApply', 'noticeTimer', 'reminderList', 'conditionList'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -132,6 +133,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('saveTimer', 0);
     await set('castApply', false);
     await set('noticeTimer', 2); // the reminder popups this suite provokes drain fast
+    await set('reminderList', 'vex, sap, prone, condition'); // §10 gates a swing; every other swing is configure:false
 
     // -------------------------------------------------- fixtures (the smoke-effects idiom)
     const findWeapon = async () => {
@@ -243,17 +245,34 @@ const out = await f.evaluate(async ({ sections, titles }) => {
      * leaves no chip by the rules; the roll rides back so an assertion can say which it was.
      */
     const swing = async (key, { advantage = false } = {}) => {
-      await healFull();
-      await setMastery(key);
-      const before = new Set([victim, pc].flatMap(a => a.effects.map(e => e.id)));
-      const { attackMsg, roll } = await attack(pcAttack(), victimToken, { advantage });
-      const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
-      await waitDamage(originId);
-      const bearer = (key === 'cleave') ? pc : victim;
-      const fresh = () => bearer.effects.find(e => (e.getFlag(MOD, 'mastery') === key) && !before.has(e.id));
-      const chip = roll?.isFumble ? null : await waitFor(fresh, 12_000);
-      await sleep(300);
-      return { attackMsg, roll, chip: chip ?? null, fumble: !!roll?.isFumble };
+      // ⚠ RETRY A FUMBLE OR A KILL, bounded. The swing rolls one d20 (no advantage), so a nat 1 is
+      // a 5% event per swing and a run has a dozen of them; and the victim's 11 max HP is
+      // within one crit of the dagger, and the dead are skipped everywhere (no chip, no ask).
+      // Neither is the module: the battery of 2026-09-02 lost §4 and §5's setup chips to
+      // exactly this after a clean standalone run, and the sections did not say why.
+      let last = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await healFull();
+        await setMastery(key);
+        const before = new Set([victim, pc].flatMap(a => a.effects.map(e => e.id)));
+        const { attackMsg, roll } = await attack(pcAttack(), victimToken, { advantage });
+        const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+        await waitDamage(originId);
+        const bearer = (key === 'cleave') ? pc : victim;
+        const fresh = () => bearer.effects.find(e => (e.getFlag(MOD, 'mastery') === key) && !before.has(e.id));
+        const fumble = !!roll?.isFumble;
+        const chip = fumble ? null : await waitFor(fresh, 12_000);
+        await sleep(300);
+        last = { attackMsg, roll, chip: chip ?? null, fumble };
+        // A second Cleave hit in one turn writes no NEW chit by design, so for cleave only a
+        // fumble (no hit, no notice) is worth another swing.
+        if (key === 'cleave') { if (!fumble) return last; }
+        else if (chip) return last;
+        const killed = (victim.system.attributes?.hp?.value ?? 1) <= 0;
+        if (!fumble && !killed) return last;
+        log.push(`swing(${key}) attempt ${attempt + 1}: ${fumble ? 'fumbled' : 'killed the victim'} — swinging again`);
+      }
+      return last;
     };
     const ensureCombat = async () => {
       if (combat && game.combats.get(combat.id)) return combat;
@@ -280,6 +299,47 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const noticeCount = key => game.messages.contents.filter(m =>
       (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'masteryNotice')?.key === key)).length;
     const cardText = id => document.querySelector(`.message[data-message-id="${id}"]`)?.textContent ?? '';
+
+    // -------------------------------------------------- the gate (§10) — the smoke-reminders idiom
+    /** The click the card's Attack BUTTON makes: an event whose target sits inside the usage
+     * card's element and nothing else — the shape the table uses (smoke-reminders says why). */
+    const buttonEvent = async usageId => {
+      const li = await waitFor(() => document.querySelector(`.message[data-message-id="${usageId}"]`), 4000);
+      if (!li) throw new Error(`usage card ${usageId} never reached the chat DOM`);
+      return { target: li.querySelector('button[data-action="rollAttack"]') ?? li, clientY: 200,
+        altKey: false, ctrlKey: false, metaKey: false, shiftKey: false };
+    };
+    const findGate = () => waitFor(() => [...foundry.applications.instances.values()]
+      .find(app => (app instanceof foundry.applications.api.DialogV2) && /Before you roll/.test(app.title ?? '') && app.rendered), 6000);
+    /** A HUMAN-style swing — the dialog allowed, so the gate stands in when it has something to say. */
+    const gatedSwing = async (activity, token) => {
+      await healFull();
+      token.setTarget(true, { releaseOthers: true });
+      await sleep(80);
+      const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
+      const usageId = results?.message?.id ?? null;
+      void activity.rollAttack({ event: await buttonEvent(usageId) }, {}, {});
+      const dialog = await findGate();
+      return { dialog: dialog ?? null, usageId };
+    };
+    const popupText = dlg => (dlg?.element?.querySelector('.window-content')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const press = async (dlg, mode) => { const btn = dlg?.element?.querySelector(`button[data-action="${mode}"]`); btn?.click(); return !!btn; };
+    const closeGates = async () => {
+      for (const app of foundry.applications.instances.values()) {
+        const gate = (app instanceof foundry.applications.api.DialogV2) && /Before you roll/.test(app.title ?? '');
+        const system = /RollConfigurationDialog/.test(app.constructor?.name ?? '');
+        if (gate || system) { try { await app.close(); } catch { /* gone */ } }
+      }
+    };
+    const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag('dnd5e', 'roll.type') === 'attack')).pop() ?? null;
+    const waitAttackAfter = async id => waitFor(() => { const m = lastAttack(); return (m && (m.id !== id)) ? m : null; }, 8000);
+    /** Let a re-issued roll's whole chain land — damage, receipt and the payout after it. */
+    const settle = async msg => {
+      const originId = msg?.getFlag('dnd5e', 'originatingMessage') ?? msg?.id;
+      const dmg = await waitDamage(originId, { flag: 'receipt', timeout: 8000 });
+      if (dmg) await waitFor(() => game.messages.get(dmg.id)?.getFlag(MOD, 'effectReceipt'), 5000);
+      await sleep(600);
+    };
 
     const fired = {}; // §9 reads these
 
@@ -515,6 +575,97 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `deleteCombat moved by ${fired.deleteCombat ?? 'n/a'}`);
       ok('9c. createChatMessage fired around §2\'s spend', (fired.createChatMessage ?? 0) > 0,
         `createChatMessage moved by ${fired.createChatMessage ?? 'n/a'}`);
+    }
+
+    // ================================================== 10. the gate after a boundary
+    // ⚠ THE REVIEW'S FIRST FINDING (2026-09-01): a one-round chip reads `remaining: 0` from the
+    // START of the round its boundary falls in, and `expired` only at the event — so on the
+    // attacker's next turn, the one attack Vex exists for, the gate dropped it and the dice
+    // went out flat. Neither suite stepped a turn between the chip and a gated swing; this one
+    // does. And the once-per-turn chit belongs to the turn IN PROGRESS: written on somebody
+    // else's turn (an opportunity attack), it dies with THAT turn.
+    if (want(10)) {
+      await ensureCombat();
+      await stepTo(pc.id);
+      await clearChips();
+      // (a) Vex on the attacker's turn; three steps later it is the attacker's turn again.
+      let first = await swing('vex');
+      if (first.fumble) { log.push('§10: the first swing fumbled — swinging again'); first = await swing('vex'); }
+      const vexId = first.chip?.id ?? null;
+      ok('10. (setup) Vexed on the attacker\'s turn', !!vexId, `vexed=${!!vexId} fumble=${first.fumble}`);
+      await step(); await step(); await step();
+      const chip = victim.effects.get(vexId);
+      ok(`10a. ${where()}: the attacker's NEXT turn — the chip reads remaining 0, is NOT expired, and stands`,
+        (current() === pc.id) && !!chip && (chip.duration.remaining === 0) && !chip.duration.expired,
+        `onPc=${current() === pc.id} ${JSON.stringify(clockOf(chip))}`);
+      const before = lastAttack()?.id ?? null;
+      const { dialog, usageId } = await gatedSwing(pcAttack(), victimToken);
+      const text = popupText(dialog);
+      ok('10b. …and the gate LISTS it — Vexed, net Advantage (zero on the clock is alive)',
+        !!dialog && /Vexed/.test(text) && /Net: Advantage/.test(text), text.slice(0, 300));
+      await press(dialog, 'advantage');
+      const msg = await waitAttackAfter(before);
+      const spend = await waitFor(() => game.messages.get(msg?.id ?? '')?.getFlag(MOD, 'chipSpend'));
+      const vexGone = await waitFor(() => !victim.effects.get(vexId));
+      ok('10c. pressed Advantage: the spend is honoured and the chip is gone; the re-issue is linked to its card',
+        !!spend?.spent?.some(s => (s.id === vexId) && (s.honoured === true)) && vexGone
+          && (msg?.getFlag('dnd5e', 'originatingMessage') === usageId),
+        `${JSON.stringify(spend?.spent)} gone=${vexGone} linked=${msg?.getFlag('dnd5e', 'originatingMessage') === usageId}`);
+      await settle(msg);
+
+      // (b) Sap on a bearer whose turn comes BEFORE the attacker's next: the victim to the top.
+      const act = victimAttack();
+      const vc = combat.combatants.find(c => c.actorId === victim.id);
+      if (!act || !vc) {
+        skips.push('§10d–f the victim has no attack activity or combatant');
+      } else {
+        await clearChips();
+        await vc.update({ initiative: 40 }); // order: victim, pc, npc
+        await sleep(300);
+        await stepTo(pc.id);
+        let sap = await swing('sap');
+        if (sap.fumble) sap = await swing('sap');
+        const sapId = sap.chip?.id ?? null;
+        await stepTo(victim.id); // the victim's next turn — before the attacker's turnStart
+        const chip2 = victim.effects.get(sapId);
+        ok(`10d. ${where()}: the Sapped bearer acts BEFORE the attacker's next turn — remaining 0, not expired, stands`,
+          !!chip2 && (current() === victim.id) && (chip2.duration.remaining === 0) && !chip2.duration.expired,
+          `onVictim=${current() === victim.id} ${JSON.stringify(clockOf(chip2))}`);
+        const before2 = lastAttack()?.id ?? null;
+        const { dialog: d2 } = await gatedSwing(act, pcToken);
+        const t2 = popupText(d2);
+        ok('10e. …and the gate lists Sapped — net Disadvantage', !!d2 && /Sapped/.test(t2) && /Net: Disadvantage/.test(t2), t2.slice(0, 300));
+        await press(d2, 'disadvantage');
+        const m2 = await waitAttackAfter(before2);
+        const spend2 = await waitFor(() => game.messages.get(m2?.id ?? '')?.getFlag(MOD, 'chipSpend'));
+        ok('10f. pressed Disadvantage: the Sap spend is honoured against the net',
+          !!spend2?.spent?.some(s => (s.id === sapId) && (s.honoured === true)), JSON.stringify(spend2?.spent));
+        const originId2 = m2?.getFlag('dnd5e', 'originatingMessage') ?? m2?.id;
+        await waitDamage(originId2, { flag: null, timeout: 6000 });
+        await vc.update({ initiative: 20 }); // the fixture order back
+        await sleep(300);
+        await healFull();
+      }
+
+      // (c) An opportunity attack's chit dies with the turn it was written in.
+      await clearChips();
+      await stepTo(victim.id);
+      const n0 = noticeCount('cleave');
+      const { chip: chit } = await swing('cleave');
+      const cc = clockOf(chit);
+      ok(`10g. ${where()}: a Cleave on the VICTIM's turn writes the chit against the CURRENT turn — its combatant, its round and turn`,
+        !!cc && (cc.combatant === combat.combatant?.id) && (cc.round === combat.round) && (cc.turn === combat.turn),
+        `${JSON.stringify(cc)} want=${combat.combatant?.id}/r${combat.round}t${combat.turn}`);
+      ok('10g2. …and the reminder posted', (await waitFor(() => (noticeCount('cleave') > n0) ? noticeCount('cleave') : 0)) === n0 + 1, '');
+      await step(); // the victim's turn ends — not the attacker's
+      const chitGone = await waitFor(() => !chipOn(pc, 'cleave'));
+      ok(`10h. ${where()}: the victim's turn ended — the chit expired and was tidied`, chitGone, `gone=${chitGone}`);
+      await stepTo(pc.id);
+      const n1 = noticeCount('cleave');
+      await swing('cleave');
+      const n2 = await waitFor(() => (noticeCount('cleave') > n1) ? noticeCount('cleave') : 0);
+      ok('10i. …and on the attacker\'s own turn Cleave is reminded again', n2 === n1 + 1, `notices ${n1} → ${n2}`);
+      await closeGates();
     }
 
     return { log, results, skips };

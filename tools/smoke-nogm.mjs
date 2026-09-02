@@ -31,7 +31,8 @@ const SECTIONS = {
   chip: 'the monster is never written to — no chip lands',
   told: 'the driver is told what did not apply',
   rejoin: 'a GM rejoining does not re-pay what the player already drove',
-  conc: 'CONCENTRATION runs end to end with no GM — the machine that loses least'
+  conc: 'CONCENTRATION runs end to end with no GM — the machine that loses least',
+  spent: 'a chip the player cannot delete is spent ONCE — the record on the card, not the sheet, says so'
 };
 const { plan, pulled } = sectionPlan(SECTIONS, {});
 const want = id => !plan || plan.includes(String(id));
@@ -202,6 +203,7 @@ try {
 
     return {
       log, madeWeapon, sapNotices,
+      weaponUuid: weapon.uuid,
       beforeIds: [...before],
       attackId: attackMsg?.id ?? null,
       damageId: dmg?.[0]?.parent?.id ?? null,
@@ -321,6 +323,132 @@ try {
         conc.askAuthorIsMe === true, `author is me=${conc.askAuthorIsMe}`);
       ok('§conc …and it is pending, so the save can still be rolled',
         conc.askStatus === 'pending', `status=${conc.askStatus}`);
+    }
+  }
+
+  /* --- §spent: a chip nobody here can delete is still spent — once ---------------------------
+   * ⚠ THE REVIEW'S FINDING 13 (2026-09-01). The spend writes its receipt on the attack card
+   * FIRST and deletes the chip SECOND, and with no GM the delete cannot happen (the player
+   * cannot write the monster) — so the Vexed chip lingered on the sheet, and the gate, reading
+   * documents alone, listed it as live Advantage on EVERY swing and spent it again each time
+   * until a GM connected. A recorded spend now counts as spent whatever the sheet says. A GM
+   * plants the chip (as the earlier hit would have), leaves, and the player swings twice.
+   * ------------------------------------------------------------------------------------- */
+  if (want('spent')) {
+    console.log('[nogm] §spent: a GM plants a Vexed chip, then leaves…');
+    const planter = new Foundry(foundryConfig(env));
+    await planter.connect();
+    const planted = await planter.evaluate(async ({ modId, weaponUuid }) => {
+      const victim = game.actors.getName('BF Test Victim');
+      const scene = game.scenes.getName('Battle Flow Test Range');
+      const tok = scene?.tokens.find(t => t.actorId === victim?.id);
+      const actor = tok?.actor;
+      if (!actor) return { error: 'no victim token on the range' };
+      const stale = actor.effects.filter(e => e.getFlag(modId, 'mastery') === 'vex').map(e => e.id);
+      if (stale.length) await actor.deleteEmbeddedDocuments('ActiveEffect', stale);
+      const chip = await ActiveEffect.implementation.create({
+        name: 'Vexed', img: 'icons/svg/target.svg', origin: weaponUuid, transfer: false, disabled: false,
+        duration: { value: 1, units: 'rounds', expiry: 'turnEnd', expired: false },
+        flags: { [modId]: { mastery: 'vex' } }
+      }, { parent: actor });
+      const priorList = game.settings.get(modId, 'reminderList');
+      if (!/\bvex\b/.test(priorList)) await game.settings.set(modId, 'reminderList', 'vex, sap, prone, condition');
+      return { chipId: chip.id, actorUuid: actor.uuid, tokenId: tok.id, priorList };
+    }, { modId: MOD, weaponUuid: hit.weaponUuid });
+    await disposeSafely(planter, 'nogm-planter');
+    if (planted.error) {
+      ok('§spent the section could set itself up', false, planted.error);
+    } else {
+      const spent = await player.evaluate(async ({ modId, chipId, tokenId, weaponUuid }) => {
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        const until = async (fn, ms = 15_000) => {
+          const t0 = Date.now();
+          while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(200); }
+          return fn();
+        };
+        const log = [];
+        // The planter must be GONE — the whole point — and the chip must have replicated here.
+        const noGM = await until(() => !game.users.activeGM, 20_000);
+        const token = canvas.tokens.get(tokenId);
+        const chip = await until(() => token?.actor?.effects?.get(chipId), 10_000);
+        if (!noGM) return { error: `a GM is still active: ${game.users.activeGM?.name}` };
+        if (!chip) return { error: 'the planted chip never reached the player' };
+        token.setTarget(true, { releaseOthers: true });
+        await sleep(100);
+        const weapon = await fromUuid(weaponUuid);
+        const activity = weapon?.system?.activities?.find(a => a.type === 'attack');
+        if (!activity) return { error: 'the weapon has no attack activity' };
+        const gateOpen = () => [...foundry.applications.instances.values()]
+          .find(app => (app instanceof foundry.applications.api.DialogV2) && /Before you roll/.test(app.title ?? '') && app.rendered) ?? null;
+        const systemOpen = () => [...foundry.applications.instances.values()]
+          .some(app => /AttackRollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered);
+        const closeAll = async () => {
+          for (const app of foundry.applications.instances.values()) {
+            if (((app instanceof foundry.applications.api.DialogV2) && /Before you roll/.test(app.title ?? ''))
+              || /RollConfigurationDialog/.test(app.constructor?.name ?? '')) { try { await app.close(); } catch { /* gone */ } }
+          }
+        };
+        const buttonSwing = async () => {
+          const use = await activity.use({ subsequentActions: false }, { configure: false }, {});
+          const usageId = use?.message?.id ?? null;
+          const li = await until(() => document.querySelector(`.message[data-message-id="${usageId}"]`), 5000);
+          if (!li) throw new Error('the usage card never reached the DOM');
+          const event = { target: li.querySelector('button[data-action="rollAttack"]') ?? li, clientY: 200,
+            altKey: false, ctrlKey: false, metaKey: false, shiftKey: false };
+          const attacksBefore = game.messages.contents.filter(m => m.getFlag('dnd5e', 'roll.type') === 'attack').length;
+          void activity.rollAttack({ event }, {}, {});
+          return { usageId, attacksBefore };
+        };
+        const lastAttack = () => game.messages.contents.filter(m => m.getFlag('dnd5e', 'roll.type') === 'attack').pop() ?? null;
+
+        // Swing 1: the gate lists the Vex; press Advantage; the spend is RECORDED and the chip stays.
+        const first = await buttonSwing();
+        const gate1 = await until(gateOpen, 8000);
+        const text1 = (gate1?.element?.querySelector('.window-content')?.textContent ?? '').replace(/\s+/g, ' ');
+        gate1?.element?.querySelector('button[data-action="advantage"]')?.click();
+        const msg1 = await until(() => { const m = lastAttack(); return (m && (m.getFlag('dnd5e', 'originatingMessage') === first.usageId)) ? m : null; }, 8000);
+        const record = await until(() => game.messages.get(msg1?.id ?? '')?.getFlag(modId, 'chipSpend')?.spent?.find(s => s.id === chipId) ?? null, 8000);
+        await sleep(1500);
+        const chipStillThere = !!token.actor.effects.get(chipId);
+        log.push(`swing 1: gate=${!!gate1} record=${JSON.stringify(record)} chipStillThere=${chipStillThere}`);
+        await closeAll();
+
+        // Swing 2: the same chip must NOT be offered again — nothing else bends, so the SYSTEM's own dialog opens.
+        const second = await buttonSwing();
+        const gate2 = await until(gateOpen, 3000);
+        const system2 = await until(systemOpen, 4000);
+        const text2 = (gate2?.element?.querySelector('.window-content')?.textContent ?? '').replace(/\s+/g, ' ');
+        await closeAll();
+        await sleep(300);
+        return { log, gate1: !!gate1, text1: text1.slice(0, 200), record, chipStillThere,
+          gate2: !!gate2, text2: text2.slice(0, 200), system2, whisperedStays: game.messages.contents.some(m =>
+            (m.whisper ?? []).includes(game.user.id) && /records the spend/i.test(m.content ?? '')) };
+      }, { modId: MOD, chipId: planted.chipId, tokenId: planted.tokenId, weaponUuid: hit.weaponUuid });
+
+      // The planted chip is the GM's to remove — reconnect just long enough to take it back.
+      const sweeper = new Foundry(foundryConfig(env));
+      await sweeper.connect();
+      await sweeper.evaluate(async ({ modId, actorUuid, priorList }) => {
+        const actor = await fromUuid(actorUuid);
+        const ids = (actor?.effects ?? []).filter(e => e.getFlag(modId, 'mastery') === 'vex').map(e => e.id);
+        if (ids.length) await actor.deleteEmbeddedDocuments('ActiveEffect', ids);
+        if (game.settings.get(modId, 'reminderList') !== priorList) await game.settings.set(modId, 'reminderList', priorList);
+      }, { modId: MOD, actorUuid: planted.actorUuid, priorList: planted.priorList });
+      await disposeSafely(sweeper, 'nogm-sweeper');
+
+      if (spent.error) {
+        ok('§spent the section could run', false, spent.error);
+      } else {
+        out.log.push(...(spent.log ?? []));
+        ok('§spent the gate lists the planted Vex on the first swing, with no GM', spent.gate1 && /Vexed/.test(spent.text1), spent.text1);
+        ok('§spent …the spend is RECORDED on the attack card, honoured by the press', !!spent.record && (spent.record.honoured === true),
+          JSON.stringify(spent.record));
+        ok('§spent …and the chip STAYS on the monster — the player cannot delete it', spent.chipStillThere === true,
+          `chip still there=${spent.chipStillThere}`);
+        ok('§spent …and the driver is told the chip stays until a GM connects', spent.whisperedStays === true, `whispered=${spent.whisperedStays}`);
+        ok('§spent THE SECOND SWING DOES NOT OFFER IT AGAIN — the record counts as spent; the system dialog opens instead',
+          !spent.gate2 && spent.system2, `gate=${spent.gate2} system=${spent.system2} text=${spent.text2}`);
+      }
     }
   }
 
