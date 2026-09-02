@@ -66,11 +66,11 @@ const warnedMasteries = new Set();
 const MASTERY_EFFECTS = {
   vex: {
     name: "Vexed", img: "icons/svg/target.svg",
-    description: attacker => `${attacker.name} has Advantage on their next attack roll against this creature (Vex, before the end of ${attacker.name}'s next turn). Claim it in the roll dialog — nothing applies it for you.`
+    description: attacker => `${attacker.name} has Advantage on their next attack roll against this creature (Vex, before the end of ${attacker.name}'s next turn).`
   },
   sap: {
     name: "Sapped", img: "icons/svg/downgrade.svg",
-    description: attacker => `Disadvantage on its next attack roll (Sap, before the start of ${attacker.name}'s next turn). The reminder is this chip; the roll dialog is where it is honoured.`
+    description: attacker => `Disadvantage on its next attack roll (Sap, before the start of ${attacker.name}'s next turn).`
   },
   slow: {
     name: "Slowed", img: "icons/svg/net.svg",
@@ -267,7 +267,7 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
   });
   if ( blocked.length === targets.length ) {
     return whisperNoGM(`the ${masteryLabel(key)} chip on ${blocked.map(t => t.name).join(", ")}`,
-      "The reminder card still stands, and the rule is honoured in the roll dialog either way.");
+      "The reminder card still stands, and the gate still meets the next roll.");
   }
   // ⚠ THE CLOCK IS THE RULES TEXT AS v14 EXPIRY DATA, pinned to the ATTACKER's own combatant
   // (decide/chips.js — HANDOFF R-C, 2026-09-01). Two lessons live in that one line. The
@@ -784,19 +784,23 @@ async function grazePayout(attackMessage, ctx, targets) {
 
 /* --- the reminder: an informational table moment (1.9C amendment, 2026-08-16) -------------- */
 
-/** What each reminder says — the fact, in the mastery's own words. */
+/** What each reminder says — the fact, in the mastery's own words. ⚠ No "claim it in the roll
+ * dialog" line any more (user, 2026-09-02): the gate meets the next roll inside that dialog
+ * and says so itself, so the pointer was the double reminder BACKLOG recorded — and "nothing
+ * applies it for you" stopped being the whole truth the day the gate began highlighting the
+ * net. The card states the fact; the dialog does the reminding. */
 const NOTICE_TEXT = {
   // (z): the rule line is the property's own text, verbatim; the claim/chip/arm notes stay
   // as the module's hints.
   vex: (ctx, names) => ({
     title: "Vex — Advantage on your next attack",
     lines: [ruleLine(MASTERY_RULES.vex),
-      `Against ${names}. Claim it in the roll dialog — nothing applies it for you.`]
+      `Against ${names}.`]
   }),
   sap: (ctx, names) => ({
     title: `Sap — ${names} at Disadvantage`,
     lines: [ruleLine(MASTERY_RULES.sap),
-      `The chip on ${names} carries the rule; the roll dialog is where it is honoured.`]
+      `The chip on ${names} carries the rule.`]
   }),
   cleave: (ctx, names) => ({
     title: "Cleave — one extra attack available",
