@@ -74,7 +74,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     for (const a of [victim, rogue]) {
       const chips = a.effects.filter(e => e.getFlag(MOD, 'mastery') || /^(Cunning Strike|Devious Strikes|Sneak Attack|Vexed|Sapped)/.test(e.name)
         || STATUSES.some(s => e.statuses?.has?.(s)));
-      if (chips.length) await a.deleteEmbeddedDocuments('ActiveEffect', chips.map(e => e.id));
+      // Re-filtered and tolerant: a deleted combat tidies the chits it clocked at the same moment
+      // (mastery.js's sweep), and a delete naming a gone id throws.
+      const live = chips.map(e => e.id).filter(id => a.effects.get(id));
+      if (live.length) await a.deleteEmbeddedDocuments('ActiveEffect', live).catch(() => {});
     }
   };
   const closeDialogs = async () => {

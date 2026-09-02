@@ -214,7 +214,10 @@ const rows = KIND_SETS.map(set => {
 // 2026-09-02: 32 → 34, for scripts/sneak.js (a MACHINE: Sneak Attack's rider, effects and
 // chit — its own feature, not a mastery and not a mark) and scripts/decide/sneak.js (its
 // pure half: the dice, the menu read off the sheet, the costs before the roll).
-const EXPECTED_SOURCE_FILES = 34;
+// 2026-09-02 (later): 34 → 36, for scripts/clock-riders.js (a MACHINE: the clock's extra damage
+// on a hit — its own feature beside the marks) and scripts/decide/clock.js (its pure half:
+// is the rider due, and the part's formula as the pack wrote it).
+const EXPECTED_SOURCE_FILES = 36;
 const sourceFiles = [
   ...readdirSync(join(ROOT, "scripts")).filter(f => f.endsWith(".js")),
   ...readdirSync(join(ROOT, "scripts/decide")).filter(f => f.endsWith(".js")).map(f => `decide/${f}`)

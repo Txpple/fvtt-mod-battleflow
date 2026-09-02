@@ -202,6 +202,12 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.effects.default
   });
 
+  game.settings.register(MODULE_ID, S.clockRiderList, {
+    name: "Clock Riders",
+    hint: "Extra damage whose condition is the combat clock — the Gloom Stalker's Dreadful Strike, the Assassin's first-round strike, Divine Strike, Primal Strike, Divine Fury, Dreadful Strikes — by the feature's own name, separated by commas. When the clock says a listed feature on the attacker's sheet applies, its damage is READ off that feature and added to the hit's damage roll (a critical hit doubles it), the attacker is told on the damage offer and the card says what rode; once per turn is kept as a chip, a limited use is spent. Remove a name to keep that feature by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.clockRiders.default
+  });
+
   game.settings.register(MODULE_ID, S.effectRiders, {
     name: "Effect Riders",
     hint: "A hit applies the effects riding it: the attack's own effects land on the targets it hit, through the system's application path — Ray of Frost's slow arrives with its damage instead of waiting for a click in the card's tray. Every application leaves a receipt on the damage card with a per-effect revert.",
@@ -506,4 +512,9 @@ export function conditionEntries() {
 /** Which rows of the effect table the gate reads, by the effect's or feature's name — `{ kind }`. */
 export function effectEntries() {
   return listEntries(LIST_SPECS.effects);
+}
+
+/** Which rows of the clock-rider table fold into a hit's damage, by the feature's name — `{ kind }`. */
+export function clockRiderEntries() {
+  return listEntries(LIST_SPECS.clockRiders);
 }

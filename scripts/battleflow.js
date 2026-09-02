@@ -98,6 +98,8 @@ import "./reminders.js";
 // sneak.js after reminders.js: the gate stamps the arm on the attack message, the sneak machine
 // reads it at the damage roll; its card lines sit under the gate's (2026-09-02).
 import "./sneak.js";
+// clock-riders.js beside sneak.js: the same seam (preRollDamageV2), the same shape of card line.
+import "./clock-riders.js";
 // ⚠ maneuvers.js after mastery.js, before concentration.js ON PURPOSE (v1.19.0): its card
 // rows must render below the mastery rows and above the saves verdict row / receipt rows —
 // renderChatMessage surface order IS registration order. check-hook-order.mjs asserts it.

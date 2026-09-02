@@ -70,6 +70,7 @@ const REFERENCE = {
   reminderList: 'vex, sap, prone, condition, range, effect, sneak',   // range and effect joined 2026-09-02 (user asks); sneak the same day (the prototype)
   conditionList: 'blinded, invisible, hiding, paralyzed, petrified, poisoned, restrained, stunned, unconscious, frightened, grappled, incapacitated, dodging, charmed',   // hiding joined 2026-09-02 (user ask)
   effectList: LIST_SPECS.effects.default,   // the whole effect table, as shipped (2026-09-02) — the table is the reference, never a copy of it
+  clockRiderList: LIST_SPECS.clockRiders.default,   // the whole clock-rider table, as shipped (2026-09-02, user ask)
 };
 
 const f = new Foundry(foundryConfig(env));

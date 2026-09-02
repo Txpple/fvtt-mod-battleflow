@@ -130,7 +130,7 @@ export function saveGate(sources) {
  * carries the effect's id so the spend hook can use it up.
  *
  * @param {{attacker?: {effects?: {id: string, name: string}[], features?: string[], bloodied?: boolean},
- *          target?: {effects?: {id: string, name: string}[], features?: string[], bloodied?: boolean, damaged?: boolean, grappled?: boolean},
+ *          target?: {effects?: {id: string, name: string}[], features?: string[], bloodied?: boolean, damaged?: boolean, grappled?: boolean, notActed?: boolean},
  *          enabled: Iterable<string>, table: Readonly<Record<string, any>>,
  *          scope?: {classification?: string|null, type?: string|null},
  *          attackerName?: string, targetName?: string, pass?: "both"|"attacker"|"target"}} facts
@@ -142,7 +142,7 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
   // The EDGE reads the attacker once and each target in turn: an attacker-side row that hinges
   // on the TARGET (Bloodied, Grappled…) belongs to the target pass, the rest to the attacker's.
-  const targetJudges = new Set(["targetBloodied", "targetDamaged", "targetGrappled"]);
+  const targetJudges = new Set(["targetBloodied", "targetDamaged", "targetGrappled", "targetNotActed"]);
   const attackerRowHere = row => (pass === "both") || ((pass === "target") === targetJudges.has(row.judge));
   const targetRowHere = pass !== "attacker";
   const inScope = row => {
@@ -157,6 +157,9 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
       case "targetBloodied": return !!target.bloodied;
       case "targetDamaged": return !!target.damaged;
       case "targetGrappled": return !!target.grappled;
+      // The combat clock (Assassinate): round one, and the target has not taken a turn — the
+      // EDGE reads both off the running combat; out of combat the fact is simply false.
+      case "targetNotActed": return !!target.notActed;
       default: return true;
     }
   };

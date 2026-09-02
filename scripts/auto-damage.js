@@ -381,6 +381,10 @@ export async function offerDamageRoll(activity, attackMessage) {
   // the pick is committed onto the attack message inside the one roll thunk, before the dice).
   const { sneakOfferParts } = await import("./sneak.js");
   const sneak = sneakOfferParts(attackMessage, activity);
+  // The clock riders due on this hit say so here (clock-riders.js — lazy, the same reason): the
+  // player is told what will ride before the dice, never asked (user ruling 2026-09-02).
+  const { clockRiderLines } = await import("./clock-riders.js");
+  const clockLines = clockRiderLines(attackMessage, activity);
 
   // THE CELEBRATION (ARCHITECTURE.md §5 law 10, finding (l)): every attack-damage popup leads
   // with the HIT — the moment the player earned — and the dice ask rides it. One design,
@@ -412,6 +416,7 @@ export async function offerDamageRoll(activity, attackMessage) {
       precisionUsed ? `<strong>Precision Attack</strong> turned the miss — this hit is yours to roll.` : null,
       cleaveArm ? `<strong>Cleave</strong> — this is the armed Cleave swing: the ability modifier is dropped from this roll.` : null,
       sneak ? `${sneak.line}${isCritical ? " A critical hit doubles what is left of the sneak dice too." : ""}` : null,
+      ...clockLines,
       isCritical ? `${CRIT_BADGE} <span style="opacity:0.85;">${crit.auto && !crit.rolled
         ? `${crit.sources.map(s => s.label).join(" · ")} — set on the roll, nothing extra to do.`
         : "Already set on the roll — nothing extra to do."}</span>` : null,

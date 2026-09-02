@@ -2,7 +2,7 @@
  * Battle Flow — The reminder gate: what bends this attack roll, and what it nets to — BEFORE the dice.
  * Split from mastery.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, statContext } from "./core.js";
+import { MODULE_ID, TITLE, activeCombatFor, statContext } from "./core.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./settings.js";
 import { chipSpentOnRecord, grantingActor, turnChitStands } from "./shared.js";
 import { DialogCarried } from "./ui.js";
@@ -275,7 +275,8 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     effects: actor.effects.filter(live).map(e => ({ id: e.id, name: e.name })),
     features: actor.items.filter(i => i.type === "feat").map(i => i.name),
     bloodied: hpFraction(actor) <= 0.5, damaged: hpFraction(actor) < 1,
-    grappled: !!actor.statuses?.has?.("grappled")
+    grappled: !!actor.statuses?.has?.("grappled"),
+    notActed: targetNotActed(attacker, actor)
   });
   const attackerSheet = effectsOn.length ? sheetOf(attacker) : null;
 
@@ -332,6 +333,20 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     }
   }
   return out;
+}
+
+/**
+ * Has this target NOT yet taken a turn in the first round of the running combat (Assassinate's
+ * clock)? Read off the combat the ATTACKER is in: round one, and the target's combatant sits
+ * after the current turn in the order — the creature acting now has begun its turn, and one
+ * not in the tracker at all has none to take (false, never guessed). Out of combat: false.
+ */
+function targetNotActed(attacker, target) {
+  const combat = activeCombatFor(attacker);
+  if ( !combat || (combat.round !== 1) ) return false;
+  const turns = combat.turns ?? [];
+  const at = turns.findIndex(c => combat.getCombatantsByActor(target).includes(c));
+  return (at >= 0) && (at > (combat.turn ?? 0));
 }
 
 /** HP as a fraction of max — 1 when unreadable, so nothing judged on it fires by accident. */

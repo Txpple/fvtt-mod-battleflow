@@ -66,6 +66,7 @@ const LAYER_OF = {
   "receipts.js": "machines",
   "reminders.js": "machines",
   "sneak.js": "machines",
+  "clock-riders.js": "machines",
   "polish.js": "machines",
   "resources.js": "machines",
   "stats.js": "machines",
@@ -94,6 +95,7 @@ const LAYER_OF = {
   "decide/chips.js": "decision",
   "decide/reminders.js": "decision",
   "decide/sneak.js": "decision",
+  "decide/clock.js": "decision",
 
   // CORE — the leaf: ids, settings accessor, the elect, the flag serializer
   "core.js": "core"
@@ -144,6 +146,12 @@ const ALLOW = [
       + "brings and commits the pick inside its one roll thunk — the same shape as its lazy "
       + "edge to mastery.js for the armed Cleave line. Lazy import; the machine owns the "
       + "content, the service owns the popup (2026-09-02)"
+  },
+  {
+    from: "auto-damage.js", to: "clock-riders.js", disposition: "PERMANENT",
+    why: "the damage OFFER tells the player which clock riders are due and will ride (user ruling "
+      + "2026-09-02: notified, never asked) — the same lazy edge as the Cleave line and the "
+      + "Cunning Strike menu; the machine owns the judgement, the service owns the popup"
   },
   {
     from: "volleys.js", to: "reminders.js", disposition: "BY DESIGN",

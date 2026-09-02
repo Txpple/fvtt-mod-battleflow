@@ -667,3 +667,26 @@ describe("saveSources + saveGate — the save gate's table (option E, 2026-09-02
     expect(r.modeTitle("fails")).toBe("Fails");
   });
 });
+
+describe("effectSources — the combat clock as a judge (Assassinate, 2026-09-02)", () => {
+  it("fires on the target pass when the target has not acted in round one, and never otherwise", () => {
+    const facts = {
+      enabled: ["Assassinate"],
+      table: reg.EFFECT_BENDS,
+      attacker: { features: ["Assassinate"] },
+      attackerName: "Vessa",
+      targetName: "the captain"
+    };
+    const fired = r.effectSources({ ...facts, target: { notActed: true }, pass: "target" });
+    expect(fired).toHaveLength(1);
+    expect(fired[0].bend).toBe("advantage");
+    expect(fired[0].label).toMatch(/Assassinate/);
+    expect(r.effectSources({ ...facts, target: { notActed: false }, pass: "target" })).toHaveLength(
+      0
+    );
+    // The row hinges on the TARGET, so the attacker pass leaves it alone — no double count.
+    expect(
+      r.effectSources({ ...facts, target: { notActed: true }, pass: "attacker" })
+    ).toHaveLength(0);
+  });
+});

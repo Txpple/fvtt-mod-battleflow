@@ -76,6 +76,7 @@ const ORDER = [
   { name: "smoke-expiry", note: "the platform's clock on the chips, the spend, the cleave chit" },
   { name: "smoke-reminders", note: "the gate before the roll — every source, the net, the press" },
   { name: "smoke-sneak", note: "Sneak Attack as drawn — the tick, the menu, the dice, the crit, the chit, the effects" },
+  { name: "smoke-clock", note: "the clock riders — Dreadful Strike once per turn with its uses, Assassinate on round one, the list as the switch" },
   { name: "smoke-resources", note: "" },
   // ⚠ LAST, and it is the only entry whose position is about what it CREATES rather than what
   // it needs. It places a real MeasuredTemplate on the active scene, and a template standing

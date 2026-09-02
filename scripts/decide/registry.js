@@ -190,6 +190,59 @@ export const DEATH_STRIKE = Object.freeze({
 });
 
 /**
+ * DAMAGE RIDERS ON THE COMBAT CLOCK (user, 2026-09-02 — "the assassin, gloomstalker" class:
+ * "should just notify the player that they are available and will be added to the damage";
+ * a crit doubles them, which the crit stamp does for free). A second class of rider beside the
+ * marks (hit-riders.js): the condition is the ROUND or the TURN, not a chip on the target —
+ * facts the platform holds and the module already reads for expiry. Each row names the FEATURE
+ * that grants it (matched by name on the attacker's sheet — what a GM can type), the damage
+ * activity the pack ships on it (the dice are READ off the sheet, scaled — the Gloom Stalker's
+ * scale value), and its clock:
+ *
+ *   when      "oncePerTurn" — the once-per-turn chit (the Cleave shape); out of combat there is
+ *             no turn, so it rides every hit · "firstRound" — combat.round === 1, never out of combat
+ *   uses      true — the activity carries limited uses: one is consumed, none left means not offered
+ *   requires  "sneak" — only on an armed Sneak Attack (Assassinate's second clause)
+ *   judge     "raging" — the bearer must be raging (an effect named Rage, or the status)
+ *   type      "weapon" — the extra damage takes the WEAPON's own type; otherwise the part's first
+ *   weapon    true — a weapon attack only (every 2024 row says "with a weapon")
+ *   caveat    what the module cannot judge, said on the line
+ *
+ * Found by a 30-pack survey of every feature whose text conditions extra damage on the clock
+ * (tools/probe-clock-riders.mjs, 2026-09-02). Left out on purpose: Hunter's Prey (Colossus
+ * Slayer or Horde Breaker is a choice the sheet does not record), Brutal Strike (a forgone
+ * Advantage — a choice), Hand of Harm / Eldritch Smite / Lifedrinker's heal (a resource spend —
+ * a choice), Foe Slayer (a favored enemy the module cannot judge). Death Strike is the Sneak
+ * Attack's own (DEATH_STRIKE). Membership is the Clock Riders list.
+ */
+export const CLOCK_RIDERS = Object.freeze({
+  "dread-ambusher": Object.freeze({ feature: "Dread Ambusher", activity: "Dreadful Strike", when: "oncePerTurn", uses: true, weapon: true,
+    rule: "Dreadful Strike. When you attack a creature and hit it with a weapon, you can deal an extra 2d6 Psychic damage. You can use this benefit only once per turn, you can use it a number of times equal to your Wisdom modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.",
+    from: "Ranger — Gloom Stalker 3" }),
+  "assassinate": Object.freeze({ feature: "Assassinate", activity: "Damage", when: "firstRound", requires: "sneak", type: "weapon", weapon: true,
+    rule: "If your Sneak Attack hits any target during that round, the target takes extra damage of the weapon’s type equal to your Rogue level.",
+    from: "Rogue — Assassin 3 (Surprising Strikes)" }),
+  "dreadful-strikes": Object.freeze({ feature: "Dreadful Strikes", activity: "Damage", when: "oncePerTurn", weapon: true,
+    rule: "When you hit a creature with a weapon, you can deal an extra 1d4 Psychic damage to the target, which can take this extra damage only once per turn. The extra damage increases to 1d6 when you reach Ranger level 11.",
+    from: "Ranger — Fey Wanderer 3" }),
+  "blessed-strikes-divine-strike": Object.freeze({ feature: "Blessed Strikes: Divine Strike", activity: "Divine Strike", when: "oncePerTurn", weapon: true,
+    caveat: "the type is the activity's first — ask for the other by hand",
+    rule: "Once on each of your turns when you hit a creature with an attack roll using a weapon, you can cause the target to take an extra 1d8 Necrotic or Radiant damage (your choice).",
+    from: "Cleric 7" }),
+  "elemental-fury-primal-strike": Object.freeze({ feature: "Elemental Fury: Primal Strike", activity: "Primal Strike", when: "oncePerTurn", weapon: true,
+    caveat: "the type is the activity's first — ask for another by hand",
+    rule: "Once on each of your turns when you hit a creature with an attack roll using a weapon or a Beast form's attack in Wild Shape, you can cause the target to take an extra 1d8 Cold, Fire, Lightning, or Thunder damage (choose when you hit).",
+    from: "Druid 7" }),
+  "divine-fury": Object.freeze({ feature: "Divine Fury", activity: "Divine Fury", when: "oncePerTurn", judge: "raging", weapon: true,
+    caveat: "the type is the activity's first — ask for the other by hand",
+    rule: "On each of your turns while your Rage is active, the first creature you hit with a weapon or an Unarmed Strike takes extra damage equal to 1d6 plus half your Barbarian level (round down). The extra damage is Necrotic or Radiant; you choose the type each time you deal the damage.",
+    from: "Barbarian — Zealot 3" })
+});
+
+/** The clock riders' feature names, lower-cased — the closed set the Clock Riders list is validated against. */
+export const CLOCK_RIDER_NAMES = new Set(Object.values(CLOCK_RIDERS).map(r => r.feature.toLowerCase()));
+
+/**
  * The 2024 Rules Glossary on range, verbatim (dnd5e.content24 / the premium PHB, appendix D —
  * "Range" and "Ranged Attacks in Close Combat"; presentation law 8). The `&Reference[...]`
  * enrichers in the source render as the bare condition names.
@@ -334,7 +387,8 @@ export const SAVE_BENDS = Object.freeze({
  *             RULE — Demon Armor bends only against demons — are shown so nobody forgets the
  *             item, and stay out of the net); default true
  *   judge     "bloodied" (the bearer at or below half HP), "targetBloodied", "targetDamaged"
- *             (the target at or below half / short of full), "targetGrappled" — a fact the
+ *             (the target at or below half / short of full), "targetGrappled", "targetNotActed"
+ *             (round one, and the target has not taken a turn — the combat clock) — a fact the
  *             module holds; the row fires only when it is true
  *   spend     "attack" — the rules end the effect on the next attack roll ("your next attack
  *             roll"): the spend hook uses it up with a receipt, exactly as Vex and Sap
@@ -347,7 +401,7 @@ export const SAVE_BENDS = Object.freeze({
  *
  * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature", attacker: "advantage"|"disadvantage"|null,
  *   target: "advantage"|"disadvantage"|null, scope: "any"|"spell"|"weapon"|"melee"|"ranged", caveat?: string,
- *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled", spend?: "attack",
+ *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed", spend?: "attack",
  *   rule: string, from: string}>>>}
  */
 export const EFFECT_BENDS = Object.freeze({
@@ -543,7 +597,15 @@ export const EFFECT_BENDS = Object.freeze({
     rule: "When both you and your illusion are within 5 feet of a creature that can see the illusion, you have Advantage on attack rolls against that creature." }),
   "Ambusher": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", counted: false, from: "monsters",
     caveat: "listed — Advantage only in the first round, against a creature it surprised",
-    rule: "In the first round of a combat, it has advantage on attack rolls against any creature it has surprised." })
+    rule: "In the first round of a combat, it has advantage on attack rolls against any creature it has surprised." }),
+  // --- E. the combat CLOCK as the judge (user, 2026-09-02 — the Assassin) ----------------------
+  // The first row whose fact is the ROUND and whether the target has ACTED: the platform's own
+  // facts (combat.round, the target's place in the order against the current turn), read by the
+  // EDGE like Bloodied is. Out of combat it never fires — there is no first round to be in.
+  "Assassinate": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any",
+    judge: "targetNotActed",
+    rule: "During the first round of each combat, you have Advantage on attack rolls against any creature that hasn’t taken a turn.",
+    from: "Rogue — Assassin (Surprising Strikes)" })
 });
 
 /** The table's rows, in the order the table reads them. */
@@ -711,6 +773,14 @@ export const LIST_SPECS = {
     columns: ["kind"], kindColumn: "kind", kinds: CONDITION_STATUSES, fallback: null, membership: true,
     // Every row of the table ships ON — the default is the table, not a copy of it.
     default: CONDITION_KEYS.join(", ")
+  },
+  clockRiders: {
+    label: "Clock Riders", setting: "clockRiderList",
+    // Which rows of the clock-rider table fold in — the FEATURE names, whole-chunk (colons in
+    // "Blessed Strikes: Divine Strike"), case-insensitive. Membership over CLOCK_RIDERS; the
+    // mechanism is clock-riders.js.
+    columns: ["kind"], kindColumn: "kind", kinds: CLOCK_RIDER_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.values(CLOCK_RIDERS).map(row => row.feature).join(", ")
   },
   effects: {
     label: "Effect Sources", setting: "effectList",
