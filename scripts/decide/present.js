@@ -117,14 +117,15 @@ export function reminderFieldsetHTML({ boxes, net, legend = "Before you roll" })
                     background:${accent(b.bend)};color:#111;">${attr(b.badge)}</div>
         ${b.rule ? `<div style="grid-column:1 / -1;font-size:var(--font-size-12,12px);line-height:1.45;opacity:0.85;">${ruleLine(b.rule)}</div>` : ""}
       </div>`).join("");
-  return `
-  <fieldset data-bf-reminder>
-    <legend>${attr(legend)}</legend>${rows}
+  const netHTML = net ? `
     <div style="margin-top:0.5rem;padding:0.45rem 0.6rem;border-radius:4px;background:rgba(0,0,0,0.18);">
       <strong>${net.title}</strong>
       <div style="font-size:var(--font-size-12,12px);opacity:0.85;margin-top:0.15rem;">${net.why}</div>
       ${net.glossary ? `<div style="font-size:var(--font-size-11,11px);opacity:0.75;margin-top:0.25rem;">${ruleLine(net.glossary)}</div>` : ""}
-    </div>
+    </div>` : "";
+  return `
+  <fieldset data-bf-reminder>
+    <legend>${attr(legend)}</legend>${rows}${netHTML}
   </fieldset>`;
 }
 

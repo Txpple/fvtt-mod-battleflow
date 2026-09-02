@@ -540,6 +540,12 @@ describe("reminderFieldsetHTML — the gate's section inside the system's own ro
     expect(one).not.toContain("the glossary sentence");
     expect(one).toContain("they cancel");
   });
+  it("draws NO net block when the view carries none — a lone counted source's badge is the net", () => {
+    const html = p.reminderFieldsetHTML({ boxes: view.boxes.slice(0, 1), net: null });
+    expect(html).not.toContain("Net:");
+    expect(html).toContain(">Disadvantage</div>");
+    expect(html.match(/<fieldset/g)).toHaveLength(1);
+  });
   it("escapes the badge and the legend — they land in markup from the table's own words", () => {
     const html = p.reminderFieldsetHTML({
       boxes: [{ label: "x", bend: null, badge: "<b>", rule: "" }],

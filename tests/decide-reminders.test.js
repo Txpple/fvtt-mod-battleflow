@@ -311,7 +311,9 @@ describe("reminderView — the boxes the native dialog's section draws", () => {
       why: "Nothing counted. One source could not be judged from here — see below.",
       glossary: null
     });
-    expect(r.reminderView([dis()], "disadvantage", GLOSS).net.title).toBe("Net: Disadvantage");
+    // A lone COUNTED source carries no net line at all — its badge is the net (user, 2026-09-02).
+    expect(r.reminderView([dis()], "disadvantage", GLOSS).net).toBeNull();
+    expect(r.reminderView([adv()], "advantage", GLOSS).net).toBeNull();
   });
 });
 

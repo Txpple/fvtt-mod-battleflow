@@ -607,7 +607,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const { dialog, usageId } = await gatedSwing(pcAttack(), victimToken);
       const text = popupText(dialog);
       ok('10b. …and the gate LISTS it — Vexed, net Advantage (zero on the clock is alive)',
-        !!dialog && /Vexed/.test(text) && /Net: Advantage/.test(text), text.slice(0, 300));
+        !!dialog && /Vexed/.test(text) && /Advantage/.test(text) && !/Net:/.test(text), text.slice(0, 300));
       await press(dialog, 'advantage');
       const msg = await waitAttackAfter(before);
       const spend = await waitFor(() => game.messages.get(msg?.id ?? '')?.getFlag(MOD, 'chipSpend'));
@@ -639,7 +639,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const before2 = lastAttack()?.id ?? null;
         const { dialog: d2 } = await gatedSwing(act, pcToken);
         const t2 = popupText(d2);
-        ok('10e. …and the gate lists Sapped — net Disadvantage', !!d2 && /Sapped/.test(t2) && /Net: Disadvantage/.test(t2), t2.slice(0, 300));
+        ok('10e. …and the gate lists Sapped — net Disadvantage', !!d2 && /Sapped/.test(t2) && /Disadvantage/.test(t2) && !/Net:/.test(t2), t2.slice(0, 300));
         await press(d2, 'disadvantage');
         const m2 = await waitAttackAfter(before2);
         const spend2 = await waitFor(() => game.messages.get(m2?.id ?? '')?.getFlag(MOD, 'chipSpend'));
