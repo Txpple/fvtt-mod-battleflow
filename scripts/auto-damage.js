@@ -4,6 +4,7 @@
  */
 import { MODULE_ID, TITLE, S, setting } from "./core.js";
 import { hitTargets, modeAllows } from "./shared.js";
+import { TONE } from "./decide/present.js";
 import { stampHoldIfInterrupted } from "./hold.js";
 
 const esc = s => String(s ?? "").replace(/[&<>"]/g,
@@ -164,7 +165,7 @@ const playerRollWindow = () => Math.max(0, Number(setting(S.damageTimer)) || 0);
  * The crit badge. Loud on purpose and NEVER shown on a guess — see the single source below.
  */
 const CRIT_BADGE = `<span style="display:inline-block;padding:0.05rem 0.45rem;border-radius:3px;
-  background:rgba(190,140,40,0.95);color:#fff;font-weight:bold;letter-spacing:0.07em;
+  background:${TONE.crit};color:#111;font-weight:bold;letter-spacing:0.07em;
   font-size:var(--font-size-11,11px);text-transform:uppercase;">&#10022; Critical Hit</span>`;
 
 /**

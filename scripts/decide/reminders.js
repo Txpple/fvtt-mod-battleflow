@@ -206,27 +206,20 @@ export function rangeSources({ ranged = false, distanceFeet = null, normalFeet =
 }
 
 /**
- * THE GATE'S VIEW of one roll's sources, as the boxes the native dialog's section draws
- * (decide/present.js `reminderFieldsetHTML`): the fact, the bend as a badge — "Listed" for a
- * row the module cannot judge — and the rule; then the net line and, only when sources
- * contend, the glossary's own sentence.
+ * THE GATE'S VIEW of one roll's sources (decide/present.js `reminderSectionHTML`): ONE header
+ * line — the count of modifiers and the net, which the section draws as a tag — and a box per
+ * source with the fact, its bend and its rule. No net block (user ruling 2026-09-02: "just not
+ * having the net" — the tag on the header line IS the net, and the boxes under it are why).
+ * The arithmetic (`resolutionLine`) rides the header as its tooltip, for the reader who wants
+ * it, and costs no vertical space.
  * @param {{kind: string, bend: "advantage"|"disadvantage"|null, label: string, detail?: string}[]} sources
  * @param {"advantage"|"disadvantage"|"normal"} net
- * @param {string} glossary  the Rules Glossary's Advantage sentence, verbatim (the EDGE holds it)
  */
-export function reminderView(sources, net, glossary) {
-  // Sources that all bend the same way speak for themselves (user, 2026-09-02): their badges
-  // ARE the net, and the line under them was vertical space saying the same thing — two
-  // Disadvantages are still Disadvantage, and nobody needs telling. The line stays when
-  // sources CONTEND — that is where the arithmetic lives — and when any source is LISTED,
-  // whose badge says nothing about what the roll does.
-  const bends = new Set(sources.map(s => s.bend ?? null));
-  const lone = (bends.size === 1) && !bends.has(null);
+export function reminderView(sources, net) {
+  const n = sources.length;
   return {
-    boxes: sources.map(s => ({ label: s.label, bend: s.bend ?? null,
-      badge: s.bend ? modeTitle(s.bend) : "Listed", rule: s.detail ?? "" })),
-    net: lone ? null : { title: `Net: ${modeTitle(net)}`, why: resolutionLine(sources),
-      glossary: (sources.length > 1) ? glossary : null }
+    head: { title: `${n} ${(n === 1) ? "Modifier" : "Modifiers"} — Net`, net, why: resolutionLine(sources) },
+    boxes: sources.map(s => ({ label: s.label, bend: s.bend ?? null, rule: s.detail ?? "" }))
   };
 }
 

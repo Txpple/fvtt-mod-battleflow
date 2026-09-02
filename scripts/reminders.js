@@ -22,8 +22,9 @@ import { REMINDER_FLAG, conditionSources, modeTitle, netMode, proneSources, rang
  * a target, a Sapped chip on the attacker, Prone on either side (with the 5-foot geometry), a
  * row of the condition table, or a ranged attack's own range — dnd5e's Attack Roll dialog opens
  * as it always does, and Battle Flow adds ONE fieldset to it, beside the dialog's own
- * CONFIGURATION: a box per source with its bend as a badge and its rule quoted verbatim, then
- * the net and the glossary's own sentence on why. The dialog's DEFAULT BUTTON is the net — the
+ * CONFIGURATION: one header line — the count of modifiers and the net as a coloured tag — then a
+ * box per source with its bend as the same tag and its rule quoted verbatim (no net block;
+ * user, 2026-09-02). The dialog's DEFAULT BUTTON is the net — the
  * highlighted button is the outcome the solver worked out — and the human presses one of the
  * dialog's own three. The roll goes out natively: the card link, the crit, the attack mode, the
  * ammunition, the mastery, the roll mode and the situational bonus are all the system's,
@@ -57,9 +58,6 @@ import { REMINDER_FLAG, conditionSources, modeTitle, netMode, proneSources, rang
  * hook polish.js already rides for the same dialog.
  * ------------------------------------------------------------------------------------------- */
 
-/** The Rules Glossary, "Advantage" (dnd5e.content24 / the premium PHB) — verbatim, law 8. */
-const NET_RULE = "A roll can’t be affected by more than one Advantage, and Advantage and Disadvantage on the same roll cancel each other.";
-
 /** The dialogs standing with a gate in them — re-judged on a re-target (the polish.js idiom: the APP, not the element). */
 const openGates = new Set();
 
@@ -70,14 +68,9 @@ Hooks.on("dnd5e.preRollAttackV2", (config, dialog, message) => {
     if ( dialog?.configure === false ) return;       // no dialog, no gate
     const attacker = activity.item?.actor;
     if ( !(attacker instanceof Actor) ) return;
-    const enabled = new Set(reminderEntries().map(e => e.kind));
-    if ( !enabled.size ) return;                      // the list is the switch
+    if ( !reminderEntries().length ) return;          // the list is the switch
     // ONE judgement, re-runnable from the dialog's own form: the sources, the net, the view.
-    const judge = attackMode => {
-      const sources = sourcesFor(attacker, enabled, { activity, attackMode });
-      const net = netMode(sources);
-      return { sources, net, view: reminderView(sources, net, NET_RULE), attackMode: attackMode ?? null };
-    };
+    const judge = attackMode => ({ ...judgeRoll(attacker, { activity, attackMode }), attackMode: attackMode ?? null });
     const first = judge(config.attackMode);
     // The dialog carries the judgement whether or not it found anything — one object shared
     // with the config, so the record reads what was LAST shown after any re-judgement, and a
@@ -279,13 +272,17 @@ function closeEnemiesOf(attackerToken) {
  * them: the attacker's own state first, then each target's. Names are the TOKEN's where a token
  * is what was targeted — that is what the table calls it. A chip is live when the platform has
  * not marked it (decide/chips.js) AND no spend is already on record for it (shared.js) — a chip
- * a no-GM table could not delete is still spent. `activity` and `attackMode` are the roll's,
- * as the dialog stands — the range kind reads them.
+ * a no-GM table could not delete is still spent — AND an earlier roll of the same volley has
+ * not already spent it (`spent`, the ids a volley's earlier rays used up; the chip is still on
+ * the sheet while the caster aims). `activity` and `attackMode` are the roll's, as the dialog
+ * stands — the range kind reads them. `targets` are the tokens this roll is at; the user's own
+ * targets when not given. Each chip source carries its `effectId`, so a volley can carry the
+ * spend forward ray by ray; `spendNote` is appended to a chip's label ("— spent by this ray").
  */
-function sourcesFor(attacker, enabled, { activity = null, attackMode = null } = {}) {
+function sourcesFor(attacker, enabled, { activity = null, attackMode = null, targets = null, spent = null, spendNote = "" } = {}) {
   const out = [];
   const attackerName = attacker.name;
-  const live = e => !chipIsDead(e.duration ?? {}) && !chipSpentOnRecord(e);
+  const live = e => !chipIsDead(e.duration ?? {}) && !chipSpentOnRecord(e) && !spent?.has(e.id);
   const conditions = enabled.has("condition") ? conditionEntries().map(e => e.kind) : [];
   const conditionFacts = { enabled: conditions, table: CONDITION_BENDS };
   const attackerToken = attackerTokenOf(attacker);
@@ -296,8 +293,8 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null } = 
     for ( const e of attacker.effects ) {
       if ( (e.getFlag(MODULE_ID, CHIP_FLAG) !== "sap") || !live(e) ) continue;
       const by = grantingActor(e)?.name ?? null;
-      out.push(reminderSource("sap", "disadvantage",
-        `${attackerName} — ${e.name}${by ? ` by ${by}` : ""}`, MASTERY_RULES.sap));
+      out.push(Object.assign(reminderSource("sap", "disadvantage",
+        `${attackerName} — ${e.name}${by ? ` by ${by}` : ""}${spendNote}`, MASTERY_RULES.sap), { effectId: e.id }));
     }
   }
   if ( enabled.has("prone") ) {
@@ -311,7 +308,7 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null } = 
   }
 
   // Each target.
-  for ( const token of game.user.targets ) {
+  for ( const token of (targets ?? game.user.targets) ) {
     const target = token.actor;
     if ( !target || (target.uuid === attacker.uuid) ) continue;
     const targetName = token.document?.name ?? target.name;
@@ -319,7 +316,8 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null } = 
     if ( enabled.has("vex") ) {
       for ( const e of target.effects ) {
         if ( (e.getFlag(MODULE_ID, CHIP_FLAG) !== "vex") || !chipOwnedBy(e.origin, attacker.uuid) || !live(e) ) continue;
-        out.push(reminderSource("vex", "advantage", `${attackerName} Vexed ${targetName}`, MASTERY_RULES.vex));
+        out.push(Object.assign(reminderSource("vex", "advantage", `${attackerName} Vexed ${targetName}${spendNote}`,
+          MASTERY_RULES.vex), { effectId: e.id }));
       }
     }
     if ( enabled.has("prone") && target.statuses?.has?.("prone") ) {
@@ -334,6 +332,25 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null } = 
     }
   }
   return out;
+}
+
+/**
+ * THE JUDGE, for any surface that meets a roll before its dice: the sources this attacker's
+ * roll bends by, the net, and the view the section draws. The dialog's gate calls it on every
+ * render; a volley's aim popup calls it once per ray, in ray order, handing forward the chips
+ * earlier rays spend (`spent`) — the Sap that ray 1 uses up is not offered to ray 2. Null when
+ * the Reminder Sources list is empty: the list is the switch.
+ * @param {Actor} attacker
+ * @param {{activity?: object|null, attackMode?: string|null, targets?: Token[]|null,
+ *          spent?: Set<string>|null, spendNote?: string}} [facts]
+ * @returns {{sources: object[], net: "advantage"|"disadvantage"|"normal", view: object, spends: string[]}|null}
+ */
+export function judgeRoll(attacker, { activity = null, attackMode = null, targets = null, spent = null, spendNote = "" } = {}) {
+  const enabled = new Set(reminderEntries().map(e => e.kind));
+  if ( !enabled.size ) return null;
+  const sources = sourcesFor(attacker, enabled, { activity, attackMode, targets, spent, spendNote });
+  const net = netMode(sources);
+  return { sources, net, view: reminderView(sources, net), spends: sources.map(s => s.effectId).filter(Boolean) };
 }
 
 /* --- the card line -------------------------------------------------------------------------- */

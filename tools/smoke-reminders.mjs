@@ -353,7 +353,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!dialog, `dialog=${!!dialog} class=${rollDialog()?.constructor?.name ?? '-'}`);
       const text = popupText(dialog);
       ok('1b. the section names the source, the bend as a badge, and the net — and the dialog keeps its own situational bonus',
-        /Vexed/.test(text) && /Advantage/.test(text) && /Advantage/.test(text) && !/Net:/.test(text)
+        /Vexed/.test(text) && /Advantage/.test(text) && /1 Modifier — Net Advantage/.test(text)
           && !!dialog?.element?.querySelector('input[name="roll.0.situational"]'),
         text.slice(0, 300));
       ok('1b2. the NET is the highlighted default — Enter presses the outcome the solver worked out (user ruling)',
@@ -437,8 +437,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const text = popupText(dialog);
       ok('3. Sapped attacker vs Vexed target: the popup lists BOTH sources',
         /Sapped/.test(text) && /Vexed/.test(text), text.slice(0, 400));
-      ok('3a. …and nets to a NORMAL roll, quoting the glossary',
-        /Net: Normal roll/.test(text) && /cancel/.test(text) && /can’t be affected by more than one Advantage/.test(text),
+      ok('3a. …and nets to a NORMAL roll — the header line, no net block',
+        /2 Modifiers — Net Normal/.test(text) && !/Net:/.test(text),
         text.slice(0, 400));
       ok('3a2. the highlighted default is the net — Normal', defaultButton(dialog) === 'normal', `default=${defaultButton(dialog)}`);
       // One of the dialog's own choices, changed before the press: a GM-only roll (v14 keys the
@@ -479,7 +479,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const { dialog } = await gatedSwing();
         const text = popupText(dialog);
         ok('4. a prone target within 5 feet: Advantage, and the popup says the distance',
-          /is Prone — within 5 feet/.test(text) && /Advantage/.test(text) && !/Net:/.test(text), text.slice(0, 300));
+          /is Prone — within 5 feet/.test(text) && /1 Modifier — Net Advantage/.test(text), text.slice(0, 300));
         await closeGates();
       }
       // ⚠ A second, FAR token of the same (prone) victim, six squares from the attacker — moving
@@ -491,7 +491,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const { dialog } = await gatedSwing({ token: farToken });
         const text = popupText(dialog);
         ok(`4a. the same prone target from ${gridFeet * 6} feet: Disadvantage`,
-          new RegExp(`is Prone — ${gridFeet * 6} feet away`).test(text) && /Disadvantage/.test(text) && !/Net:/.test(text), text.slice(0, 300));
+          new RegExp(`is Prone — ${gridFeet * 6} feet away`).test(text) && /1 Modifier — Net Disadvantage/.test(text), text.slice(0, 300));
         ok('4a2. …and Disadvantage is the highlighted default', defaultButton(dialog) === 'disadvantage', `default=${defaultButton(dialog)}`);
         await closeGates();
       }
@@ -503,7 +503,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       {
         const { dialog } = await gatedSwing();
         const text = popupText(dialog);
-        ok('4b. a prone ATTACKER: Disadvantage', /BF Test PC Attacker — Prone/.test(text) && /Disadvantage/.test(text) && !/Net:/.test(text), text.slice(0, 300));
+        ok('4b. a prone ATTACKER: Disadvantage', /BF Test PC Attacker — Prone/.test(text) && /1 Modifier — Net Disadvantage/.test(text), text.slice(0, 300));
         await closeGates();
       }
       await setStatus(victim, 'prone', true);
@@ -511,7 +511,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const { dialog } = await gatedSwing();
         const text = popupText(dialog);
         ok('4c. both prone, adjacent: Advantage and Disadvantage cancel — NORMAL',
-          /Net: Normal roll/.test(text) && /cancel/.test(text), text.slice(0, 300));
+          /2 Modifiers — Net Normal/.test(text) && !/Net:/.test(text), text.slice(0, 300));
         await closeGates();
       }
       await clearStatuses();
@@ -527,7 +527,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const { dialog } = await gatedSwing();
         const text = popupText(dialog);
         ok('5. a poisoned attacker: Disadvantage, with the glossary clause',
-          /Poisoned/.test(text) && /Disadvantage/.test(text) && !/Net:/.test(text) && /Disadvantage on attack rolls and ability checks/.test(text),
+          /Poisoned/.test(text) && /1 Modifier — Net Disadvantage/.test(text) && /Disadvantage on attack rolls and ability checks/.test(text),
           text.slice(0, 300));
         await closeGates();
       }
@@ -536,7 +536,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       {
         const { dialog } = await gatedSwing();
         const text = popupText(dialog);
-        ok('5a. a blinded target: Advantage', /is Blinded/.test(text) && /Advantage/.test(text) && !/Net:/.test(text), text.slice(0, 300));
+        ok('5a. a blinded target: Advantage', /is Blinded/.test(text) && /1 Modifier — Net Advantage/.test(text), text.slice(0, 300));
         await closeGates();
       }
       await setStatus(victim, 'blinded', false);
@@ -545,7 +545,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const { dialog } = await gatedSwing();
         const text = popupText(dialog);
         ok('5b. an incapacitated attacker is LISTED, not counted: the roll should not be happening, net normal',
-          /Incapacitated/.test(text) && /should not be happening/.test(text) && /Nothing counted/.test(text), text.slice(0, 300));
+          /Incapacitated/.test(text) && /should not be happening/.test(text) && /1 Modifier — Net Normal/.test(text), text.slice(0, 300));
         await closeGates();
       }
       await setStatus(pc, 'incapacitated', false);
@@ -554,7 +554,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const { dialog } = await gatedSwing();
         const text = popupText(dialog);
         ok('5c. a frightened attacker: Disadvantage, counted, with the caveat spelled out',
-          /Frightened/.test(text) && /press Normal if the source of the fear is out of sight/.test(text) && /Disadvantage/.test(text) && !/Net:/.test(text),
+          /Frightened/.test(text) && /press Normal if the source of the fear is out of sight/.test(text) && /1 Modifier — Net Disadvantage/.test(text),
           text.slice(0, 300));
         await closeGates();
       }
@@ -634,14 +634,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // 3 m is 10 feet under the SYSTEM's own table (D&D's simplified 5 ft = 1.5 m,
           // CONFIG.DND5E.movementUnits.m.conversion = 10/3) — the reading the ruler gives, not 9.84.
           ok('9. two squares on a 1.5 m grid is 3 m = 10 feet by the system\'s own conversion — Disadvantage, judged in FEET',
-            /is Prone — 10 feet away/.test(text) && /Disadvantage/.test(text) && !/Net:/.test(text), text.slice(0, 300));
+            /is Prone — 10 feet away/.test(text) && /1 Modifier — Net Disadvantage/.test(text), text.slice(0, 300));
           await closeGates();
         }
         {
           const { dialog } = await gatedSwing();
           const text = popupText(dialog);
           ok('9a. one square — 1.5 m, 4.9 feet — is within 5 feet: Advantage',
-            /is Prone — within 5 feet/.test(text) && /Advantage/.test(text) && !/Net:/.test(text), text.slice(0, 300));
+            /is Prone — within 5 feet/.test(text) && /1 Modifier — Net Advantage/.test(text), text.slice(0, 300));
           await closeGates();
         }
       } finally {
@@ -706,7 +706,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const text = popupText(dialog);
             ok('10. a dart at an adjacent enemy: within 5 feet of an enemy — Disadvantage, with the caveat, and no range box (5 feet is within normal range)',
               !!dialog && /within 5 feet of Hobgoblin/.test(text) && /press Normal if none of them can see you/.test(text)
-                && /Disadvantage/.test(text) && !/Net:/.test(text) && !/beyond/.test(text),
+                && /1 Modifier — Net Disadvantage/.test(text) && !/beyond/.test(text),
               text.slice(0, 320));
             ok('10a. …and Disadvantage is the highlighted default', defaultButton(dialog) === 'disadvantage', `default=${defaultButton(dialog)}`);
             await closeGates();
@@ -726,7 +726,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const text = popupText(dialog);
             ok(`10b. a dart at ${gridFeet * 6} feet — beyond normal range (${normal}/${long}): Disadvantage, and nothing about close combat`,
               !!dialog && new RegExp(`beyond normal range — ${gridFeet * 6} feet \\(${normal}/${long}\\)`).test(text)
-                && /Disadvantage/.test(text) && !/Net:/.test(text) && !/within 5 feet of/.test(text),
+                && /1 Modifier — Net Disadvantage/.test(text) && !/within 5 feet of/.test(text),
               text.slice(0, 320));
             await closeGates();
           }
@@ -736,7 +736,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const text = popupText(dialog);
             ok(`10c. a dart at ${gridFeet * 13} feet — beyond long range: LISTED, not counted — the attack cannot be made, net normal`,
               !!dialog && new RegExp(`beyond long range — ${gridFeet * 13} feet, long range ${long}: this attack cannot be made`).test(text)
-                && /Nothing counted/.test(text) && (defaultButton(dialog) === 'normal'),
+                && /1 Modifier — Net Normal/.test(text) && (defaultButton(dialog) === 'normal'),
               `${text.slice(0, 320)} default=${defaultButton(dialog)}`);
             await closeGates();
           }
@@ -765,7 +765,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               const grown = await waitFor(() => app.element?.querySelector('[data-bf-reminder]'), 4000);
               const text = (grown?.textContent ?? '').replace(/\s+/g, ' ');
               ok('10f. switched to Thrown: the section GROWS a range box — beyond normal range, Disadvantage — and the default moves to it',
-                !!grown && /beyond normal range/.test(text) && /Disadvantage/.test(text) && !/Net:/.test(text) && (defaultButton(app) === 'disadvantage'),
+                !!grown && /beyond normal range/.test(text) && /1 Modifier — Net Disadvantage/.test(text) && (defaultButton(app) === 'disadvantage'),
                 `${text.slice(0, 240)} default=${defaultButton(app)}`);
               const back = [...select.options].find(o => !/^thrown/.test(o.value));
               select.value = back.value;

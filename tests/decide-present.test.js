@@ -504,14 +504,38 @@ describe("situationalBonusHTML / modeButtons — one shape for a popup that stan
   });
 });
 
-describe("reminderFieldsetHTML — the gate's section inside the system's own roll dialog", () => {
+describe("modeTagHTML and the palette — one meaning per hue (user ruling 2026-09-02)", () => {
+  it("Advantage is green, Disadvantage red with white text, Normal grey, Listed the grey outline", () => {
+    expect(p.modeTagHTML("advantage")).toContain(`background:${p.TONE.good}`);
+    expect(p.modeTagHTML("disadvantage")).toContain(`background:${p.TONE.bad}`);
+    expect(p.modeTagHTML("disadvantage")).toContain("color:#fff");
+    expect(p.modeTagHTML("normal")).toContain(`background:${p.TONE.neutral}`);
+    expect(p.modeTagHTML("listed")).toContain("background:transparent");
+    expect(p.modeTagHTML("listed")).toContain(`border:1px solid ${p.TONE.neutral}`);
+    for (const m of ["advantage", "disadvantage", "normal", "listed"]) {
+      expect(p.modeTagHTML(m)).toContain(`data-bf-mode="${m}"`);
+    }
+    expect(p.modeTagHTML("listed")).toContain(">Listed</span>");
+  });
+  it("the tones are five and distinct — pending is orange, crit is yellow, and they no longer match", () => {
+    expect(Object.keys(p.TONE).sort()).toEqual(["bad", "crit", "good", "neutral", "pending"]);
+    expect(new Set(Object.values(p.TONE)).size).toBe(5);
+    expect(p.TONE.pending).not.toBe(p.TONE.crit);
+    expect(p.modeTone("advantage")).toBe(p.TONE.good);
+    expect(p.modeTone("disadvantage")).toBe(p.TONE.bad);
+    expect(p.modeTone("normal")).toBe(p.TONE.neutral);
+    expect(p.modeTone(null)).toBe(p.TONE.neutral);
+  });
+});
+
+describe("reminderSectionHTML / reminderFieldsetHTML — the header line and the boxes", () => {
   const view = {
+    head: { title: "3 Modifiers — Net", net: "normal", why: "they cancel" },
     boxes: [
-      { label: "Gruk — Sapped", bend: "disadvantage", badge: "Disadvantage", rule: "sap rule" },
-      { label: "Gruk Vexed Thomas", bend: "advantage", badge: "Advantage", rule: "vex rule" },
-      { label: "Prone — distance unknown", bend: null, badge: "Listed", rule: "" }
-    ],
-    net: { title: "Net: Normal roll", why: "they cancel", glossary: "the glossary sentence" }
+      { label: "Gruk — Sapped", bend: "disadvantage", rule: "sap rule" },
+      { label: "Gruk Vexed Thomas", bend: "advantage", rule: "vex rule" },
+      { label: "Prone — distance unknown", bend: null, rule: "" }
+    ]
   };
   it("is ONE fieldset the dialog can find, with the same legend shape as the dialog's own", () => {
     const html = p.reminderFieldsetHTML(view);
@@ -519,40 +543,34 @@ describe("reminderFieldsetHTML — the gate's section inside the system's own ro
     expect(html).toContain("<legend>Before you roll</legend>");
     expect(html.match(/<fieldset/g)).toHaveLength(1);
   });
-  it("draws a box per source, wearing the bend's tone and its badge, and the rule as the verbatim quote", () => {
-    const html = p.reminderFieldsetHTML(view);
-    expect(html).toContain("Gruk — Sapped");
-    expect(html).toContain(`border-left:3px solid ${p.TONE.pending}`);
+  it("opens with the header line — the count and the net as a tag, the arithmetic as its tooltip — and NO net block", () => {
+    const html = p.reminderSectionHTML(view);
+    expect(html).toContain("<span>3 Modifiers — Net</span>");
+    expect(html).toContain("data-bf-reminder-head");
+    expect(html).toContain('data-tooltip="they cancel"');
+    expect(html).toContain(p.modeTagHTML("normal"));
+    expect(html).not.toContain("Net:");
+    expect(html.indexOf("3 Modifiers")).toBeLessThan(html.indexOf("Gruk — Sapped"));
+  });
+  it("draws a box per source, wearing the bend's tone and its tag, and the rule as the verbatim quote", () => {
+    const html = p.reminderSectionHTML(view);
+    expect(html).toContain(`border-left:3px solid ${p.TONE.bad}`);
     expect(html).toContain(`border-left:3px solid ${p.TONE.good}`);
     expect(html).toContain(`border-left:3px solid ${p.TONE.neutral}`);
-    expect(html).toContain(">Disadvantage</div>");
-    expect(html).toContain(">Listed</div>");
+    expect(html).toContain(p.modeTagHTML("disadvantage"));
+    expect(html).toContain(p.modeTagHTML("advantage"));
+    expect(html).toContain(p.modeTagHTML("listed"));
     expect(html).toContain(p.ruleLine("sap rule"));
     expect(html).not.toContain(p.ruleLine(""));
   });
-  it("closes with the net line, and the glossary only when it is given", () => {
-    expect(p.reminderFieldsetHTML(view)).toContain("<strong>Net: Normal roll</strong>");
-    expect(p.reminderFieldsetHTML(view)).toContain(p.ruleLine("the glossary sentence"));
-    const one = p.reminderFieldsetHTML({
-      boxes: view.boxes.slice(0, 1),
-      net: { ...view.net, glossary: null }
-    });
-    expect(one).not.toContain("the glossary sentence");
-    expect(one).toContain("they cancel");
-  });
-  it("draws NO net block when the view carries none — a lone counted source's badge is the net", () => {
-    const html = p.reminderFieldsetHTML({ boxes: view.boxes.slice(0, 1), net: null });
-    expect(html).not.toContain("Net:");
-    expect(html).toContain(">Disadvantage</div>");
-    expect(html.match(/<fieldset/g)).toHaveLength(1);
-  });
-  it("escapes the badge and the legend — they land in markup from the table's own words", () => {
+  it("escapes the header and the legend — they land in markup from the table's own words", () => {
     const html = p.reminderFieldsetHTML({
-      boxes: [{ label: "x", bend: null, badge: "<b>", rule: "" }],
-      net: { title: "t", why: "w" },
+      head: { title: "1 <Modifier> — Net", net: "normal", why: 'a "why"' },
+      boxes: [{ label: "x", bend: null, rule: "" }],
       legend: "A & B"
     });
-    expect(html).toContain("&lt;b&gt;");
+    expect(html).toContain("1 &lt;Modifier&gt; — Net");
     expect(html).toContain("A &amp; B");
+    expect(html).toContain('data-tooltip="a &quot;why&quot;"');
   });
 });

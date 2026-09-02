@@ -277,46 +277,36 @@ describe("rangeSources — a ranged attack's own geometry, both glossary rules",
   });
 });
 
-describe("reminderView — the boxes the native dialog's section draws", () => {
+describe("reminderView — the header line and the boxes the section draws", () => {
   const GLOSS = "A roll can’t be affected by more than one Advantage.";
   it("one box per source: the fact, the bend as a badge, the rule; the net line; the glossary only when sources contend", () => {
     const sources = [
       r.reminderSource("sap", "disadvantage", "Gruk — Sapped by Thomas", "sap rule"),
       r.reminderSource("vex", "advantage", "Gruk Vexed Thomas", "vex rule")
     ];
-    expect(r.reminderView(sources, "normal", GLOSS)).toEqual({
+    expect(r.reminderView(sources, "normal")).toEqual({
+      head: {
+        title: "2 Modifiers — Net",
+        net: "normal",
+        why: "Advantage (1) and Disadvantage (1) cancel — a normal roll, however many of each."
+      },
       boxes: [
-        {
-          label: "Gruk — Sapped by Thomas",
-          bend: "disadvantage",
-          badge: "Disadvantage",
-          rule: "sap rule"
-        },
-        { label: "Gruk Vexed Thomas", bend: "advantage", badge: "Advantage", rule: "vex rule" }
-      ],
-      net: {
-        title: "Net: Normal roll",
-        why: "Advantage (1) and Disadvantage (1) cancel — a normal roll, however many of each.",
-        glossary: GLOSS
-      }
+        { label: "Gruk — Sapped by Thomas", bend: "disadvantage", rule: "sap rule" },
+        { label: "Gruk Vexed Thomas", bend: "advantage", rule: "vex rule" }
+      ]
     });
   });
-  it("a single source carries no glossary sentence, and a row the module cannot judge is badged Listed", () => {
-    const view = r.reminderView([unk()], "normal", GLOSS);
-    expect(view.boxes).toEqual([
-      { label: "prone, distance unknown", bend: null, badge: "Listed", rule: "" }
-    ]);
-    expect(view.net).toEqual({
-      title: "Net: Normal roll",
-      why: "Nothing counted. One source could not be judged from here — see below.",
-      glossary: null
+  it("one source is one Modifier, a row the module cannot judge keeps a null bend, and there is NO net block (user, 2026-09-02)", () => {
+    const view = r.reminderView([unk()], "normal");
+    expect(view.head).toEqual({
+      title: "1 Modifier — Net",
+      net: "normal",
+      why: "Nothing counted. One source could not be judged from here — see below."
     });
-    // Sources that all bend the same way carry no net line at all — their badges are the net
-    // (user, 2026-09-02): one, or two of the same. A listed row beside a counted one keeps it.
-    expect(r.reminderView([dis()], "disadvantage", GLOSS).net).toBeNull();
-    expect(r.reminderView([adv()], "advantage", GLOSS).net).toBeNull();
-    expect(r.reminderView([dis(), dis()], "disadvantage", GLOSS).net).toBeNull();
-    expect(r.reminderView([dis(), unk()], "disadvantage", GLOSS).net.title).toBe("Net: Disadvantage");
+    expect(view.boxes).toEqual([{ label: "prone, distance unknown", bend: null, rule: "" }]);
+    expect(view).not.toHaveProperty("net");
+    expect(r.reminderView([dis()], "disadvantage").head.net).toBe("disadvantage");
+    expect(r.reminderView([adv(), adv()], "advantage").head.title).toBe("2 Modifiers — Net");
   });
 });
 

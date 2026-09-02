@@ -29,12 +29,45 @@ export const popupKey = (messageId, uuid) => `${messageId}|${uuid}`;
  * read as debug output rather than as part of the game (reported live 2026-08-15, twice).
  * ------------------------------------------------------------------------------------------- */
 
+/**
+ * THE PALETTE — one meaning per hue, everywhere the module paints (user ruling 2026-09-02,
+ * "normalize the palette"): green is good for you, red is bad for you, orange is waiting on
+ * you, yellow is a critical hit, grey is nothing bending. Advantage wears green and
+ * Disadvantage red wherever a bend is shown; Normal is grey because colour means the roll
+ * bends and Normal is the absence of one. Blue stays out — dnd5e already means healing by it.
+ * Foundry's disposition colours and dnd5e's damage maroon are the platform's, untouched.
+ * `pending` moved from amber to orange the same day so it no longer matches the crit badge it
+ * shares a card with.
+ */
 export const TONE = {
-  pending: "rgba(214,158,46,0.95)",   // waiting on a human
-  good:    "rgba(70,150,95,0.95)",    // the reaction did its job
-  bad:     "rgba(180,70,60,0.95)",    // it landed anyway
-  neutral: "rgba(120,120,120,0.75)"
+  pending: "rgba(222,120,40,0.95)",   // waiting on a human — ORANGE
+  good:    "rgba(70,150,95,0.95)",    // good for you: it did its job, Advantage, saved, honoured
+  bad:     "rgba(180,70,60,0.95)",    // bad for you: it landed anyway, Disadvantage, failed
+  neutral: "rgba(120,120,120,0.75)",  // nothing bends
+  crit:    "rgba(232,190,50,0.95)"    // a critical hit — YELLOW, dark text
 };
+
+/** The tone a roll mode wears: Advantage good, Disadvantage bad, Normal and Listed neutral. */
+export const modeTone = mode => (mode === "advantage") ? TONE.good : (mode === "disadvantage") ? TONE.bad : TONE.neutral;
+
+/**
+ * THE MODE TAG — Advantage / Disadvantage / Normal / Listed as one small coloured label, the
+ * same wherever a mode is shown (the gate's header line, its boxes, a volley's ray rows).
+ * Listed is the outline of the Normal tag: both are "no bend counted", told apart by fill,
+ * never by hue — colour is spent on bends alone.
+ * @param {"advantage"|"disadvantage"|"normal"|"listed"} mode
+ */
+export function modeTagHTML(mode) {
+  const listed = (mode === "listed");
+  const tone = listed ? TONE.neutral : modeTone(mode);
+  const text = listed ? "Listed" : (mode === "advantage") ? "Advantage" : (mode === "disadvantage") ? "Disadvantage" : "Normal";
+  const fill = listed
+    ? `background:transparent;border:1px solid ${tone};color:inherit;opacity:0.85;`
+    : `background:${tone};border:1px solid transparent;color:${(mode === "disadvantage") ? "#fff" : "#111"};`;
+  return `<span data-bf-mode="${mode}" style="display:inline-block;font-size:var(--font-size-10,10px);letter-spacing:0.08em;
+    text-transform:uppercase;font-weight:bold;padding:0.15rem 0.5rem;border-radius:3px;white-space:nowrap;
+    line-height:1.3;vertical-align:middle;${fill}">${text}</span>`;
+}
 
 /**
  * One card: an accent spine, a portrait, an eyebrow/title/subtitle stack, and body lines.
@@ -93,39 +126,63 @@ export function situationalBonusHTML(name) {
 }
 
 /**
- * THE GATE'S SECTION INSIDE THE SYSTEM'S OWN ROLL DIALOG (user ruling 2026-09-02: the gate
- * lives in the native Attack Roll dialog, and each source is a BOX, not a paragraph). One
- * `<fieldset>` shaped exactly like dnd5e's CONFIGURATION fieldset beside it, so the dialog's
- * own styling dresses it: a box per source — the fact on the left, the bend as a badge on the
- * right, the rule quoted underneath (law 8) — then the net as one bold line, and the glossary's
- * own sentence only when sources contend. A row with no bend (listed, not counted) wears a grey
- * badge. Strings in, a string out; the EDGE inserts it after the CONFIGURATION fieldset.
+ * THE GATE'S SECTION — the header line, then the boxes (user rulings 2026-09-02: the gate lives
+ * in the native Attack Roll dialog; each source is a BOX; "no net block" — one line on top,
+ * "2 Modifiers — Net [tag]", says everything the net block said, and the arithmetic sits on
+ * that line as its tooltip). A box per source: the fact on the left, its bend as the mode tag
+ * on the right, the rule quoted underneath (law 8). A row with no bend (listed, not counted)
+ * wears the Listed outline. Strings in, a string out. The dialog wraps this in
+ * `reminderFieldsetHTML`; a volley's aim popup draws it bare under each ray.
  *
- * @param {{boxes: {label: string, bend: "advantage"|"disadvantage"|null, badge: string, rule?: string}[],
- *          net: {title: string, why: string, glossary?: string|null}, legend?: string}} view
+ * @param {{head: {title: string, net: "advantage"|"disadvantage"|"normal", why?: string},
+ *          boxes: {label: string, bend: "advantage"|"disadvantage"|null, rule?: string}[]}} view
  */
-export function reminderFieldsetHTML({ boxes, net, legend = "Before you roll" }) {
-  const accent = bend => (bend === "advantage") ? TONE.good : (bend === "disadvantage") ? TONE.pending : TONE.neutral;
+export function reminderSectionHTML({ head, boxes }) {
   const rows = boxes.map(b => `
       <div style="display:grid;grid-template-columns:1fr auto;gap:0.2rem 0.6rem;align-items:center;
                   margin:0.4rem 0;padding:0.45rem 0.6rem;border-radius:4px;
                   background:rgba(0,0,0,0.25);border:1px solid var(--color-border-dark,rgba(0,0,0,0.4));
-                  border-left:3px solid ${accent(b.bend)};">
+                  border-left:3px solid ${modeTone(b.bend ?? "listed")};">
         <div style="font-weight:bold;">${b.label}</div>
-        <div style="font-size:var(--font-size-10,10px);letter-spacing:0.08em;text-transform:uppercase;
-                    font-weight:bold;padding:0.15rem 0.5rem;border-radius:3px;white-space:nowrap;
-                    background:${accent(b.bend)};color:#111;">${attr(b.badge)}</div>
+        ${modeTagHTML(b.bend ?? "listed")}
         ${b.rule ? `<div style="grid-column:1 / -1;font-size:var(--font-size-12,12px);line-height:1.45;opacity:0.85;">${ruleLine(b.rule)}</div>` : ""}
       </div>`).join("");
-  const netHTML = net ? `
-    <div style="margin-top:0.5rem;padding:0.45rem 0.6rem;border-radius:4px;background:rgba(0,0,0,0.18);">
-      <strong>${net.title}</strong>
-      <div style="font-size:var(--font-size-12,12px);opacity:0.85;margin-top:0.15rem;">${net.why}</div>
-      ${net.glossary ? `<div style="font-size:var(--font-size-11,11px);opacity:0.75;margin-top:0.25rem;">${ruleLine(net.glossary)}</div>` : ""}
-    </div>` : "";
+  return `
+    <div data-bf-reminder-head style="display:flex;align-items:center;gap:0.45rem;margin:0.2rem 0 0.1rem;"
+         ${head.why ? `data-tooltip="${attr(head.why)}"` : ""}>
+      <span>${attr(head.title)}</span> ${modeTagHTML(head.net)}
+    </div>${rows}`;
+}
+
+/**
+ * The section folded to its header line — a volley's ray rows (user, 2026-09-02: "for the rays,
+ * start in collapsed mode"). A native `<details>`: the header line is its summary, the boxes
+ * open under it on a click, and the tag on the summary says what the ray rolls without opening.
+ * @param {{head: {title: string, net: "advantage"|"disadvantage"|"normal", why?: string},
+ *          boxes: {label: string, bend: "advantage"|"disadvantage"|null, rule?: string}[]}} view
+ * @param {{open?: boolean}} [opts]
+ */
+export function reminderDetailsHTML({ head, boxes }, { open = false } = {}) {
+  const section = reminderSectionHTML({ head, boxes });
+  // The head is the summary: lift it out of the section and wrap what remains.
+  const headEnd = section.indexOf("</div>") + "</div>".length;
+  const headHTML = section.slice(0, headEnd).replace("data-bf-reminder-head", "data-bf-reminder-head data-bf-summary");
+  return `<details data-bf-reminder-details ${open ? "open" : ""}>
+    <summary style="cursor:pointer;list-style:none;">${headHTML}</summary>${section.slice(headEnd)}
+  </details>`;
+}
+
+/**
+ * The section inside the system's own roll dialog: one `<fieldset>` shaped exactly like dnd5e's
+ * CONFIGURATION fieldset beside it, so the dialog's own styling dresses it. The EDGE inserts it
+ * after the CONFIGURATION fieldset.
+ * @param {{head: {title: string, net: "advantage"|"disadvantage"|"normal", why?: string},
+ *          boxes: {label: string, bend: "advantage"|"disadvantage"|null, rule?: string}[], legend?: string}} view
+ */
+export function reminderFieldsetHTML({ head, boxes, legend = "Before you roll" }) {
   return `
   <fieldset data-bf-reminder>
-    <legend>${attr(legend)}</legend>${rows}${netHTML}
+    <legend>${attr(legend)}</legend>${reminderSectionHTML({ head, boxes })}
   </fieldset>`;
 }
 
