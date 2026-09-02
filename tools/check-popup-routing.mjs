@@ -230,7 +230,9 @@ const ledger = result.ledger ?? [];
 const seenOnGM = ledger.filter(e => (e.id === cast.messageId) && e.flag);
 const decisionRow = seenOnGM.flatMap(e => e.targets ?? []).filter(t => t.name);
 const gmCanAnswer = decisionRow.some(t => t.canAnswer === true);
-const saveDialogOn = list => list.some(t => /save|BF Topology/i.test(t ?? ''));
+// Since option E (2026-09-02) the ask IS the system's own dialog, titled 'Constitution Saving
+// Throw' — no 'save' in it — so the match is the stem.
+const saveDialogOn = list => list.some(t => /sav|BF Topology/i.test(t ?? ''));
 
 console.log('\n[topo] assertions');
 report('the PLAYER client stamped the demand — the stamp runs where the cast happened',

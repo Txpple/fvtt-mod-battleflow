@@ -499,20 +499,22 @@ against a closed set, warn once per bad entry, never default.
 order. Plain ES modules, no build step.
 
 **`scripts/decide/` — the pure layer, and what each module holds.** ⚠ **It has ZERO imports**,
-across all six modules: not core.js, not a machine, not the spine. That is what makes it testable
+across all ten modules: not core.js, not a machine, not the spine. That is what makes it testable
 in milliseconds and impossible to tangle. **Keep it that way** — the day something in there needs
 `game` or `canvas`, it is EDGE and belongs one layer up (§2 rule 1).
 
 | Module | Holds |
 | --- | --- |
 | [decide/geometry.js](scripts/decide/geometry.js) | `honestDims`, `tokenCenter`, `tokenSamplePoints` — the v14 region-shim knowledge; `lengthUnitKey` — a scene's units folded to the system's keys |
-| [decide/registry.js](scripts/decide/registry.js) | the world-setting list SPECS and the one `parseList`; the closed kind sets and the R4 tripwire; `MASTERY_RULES`, `CONDITION_BENDS`, `RANGE_RULES` and `EFFECT_BENDS` — the rules text, the condition table, the range sentences and the effect table (seventy-odd abilities by name, from a compendium scan), as data |
-| [decide/chips.js](scripts/decide/chips.js) | `CHIP_WINDOWS`, `chipClock`, `chipIsDead`, `chitStamp`, `chipSpentBy`, `chipHonoured`, `netShownFor`, `spendRecord` — a chip's clock, and what spends it |
-| [decide/reminders.js](scripts/decide/reminders.js) | `netMode`, `resolutionLine`, `proneSources`, `conditionSources` (over the registry's table), `rangeSources`, `effectSources` (over the effect table: scope, caveat, listed or counted, judged, spent), `autoCritSources`, `reminderView` (the header line and the boxes — no net block), `reminderRecord` — what bends a roll, what it nets to, and what the section draws |
+| [decide/registry.js](scripts/decide/registry.js) | the world-setting list SPECS and the one `parseList`; the closed kind sets and the R4 tripwire; `MASTERY_RULES`, `CONDITION_BENDS`, `SAVE_BENDS`, `RANGE_RULES` and `EFFECT_BENDS` — the rules text, the condition table (attacks) and the save table (saves), the range sentences and the effect table (seventy-odd abilities by name, from a compendium scan), as data; `SNEAK_ATTACK`, `CUNNING_OPTIONS`, `DEATH_STRIKE` — the Sneak Attack flow's data, each option naming the feature that grants it; `CLOCK_RIDERS` — the features whose extra damage rides the combat clock |
+| [decide/chips.js](scripts/decide/chips.js) | `CHIP_WINDOWS`, `TURN_CHITS`, `chipClock`, `chipIsDead`, `chitStamp`, `chipSpentBy`, `chipHonoured`, `netShownFor`, `spendRecord` — a chip's clock, and what spends it; the once-per-turn chits (Cleave, Sneak Attack, a clock rider) share one shape |
+| [decide/reminders.js](scripts/decide/reminders.js) | `netMode`, `resolutionLine`, `proneSources`, `conditionSources` (over the registry's table), `saveSources` / `saveGate` (over the save table: a bend, or a save that cannot succeed — the net `fails`), `rangeSources`, `effectSources` (over the effect table: scope, caveat, listed or counted, judged — the combat clock included, spent), `autoCritSources`, `reminderView` (the header line and the boxes — no net block), `reminderRecord` — what bends a roll, what it nets to, and what the section draws |
+| [decide/sneak.js](scripts/decide/sneak.js) | `parseDice`, `sneakWeaponQualifies`, `sneakReadLines`, `cunningMenu` (the options read off the sheet, up to two with Improved Cunning Strike), `cunningPick`, `sneakFormula` — the Sneak Attack dice, and what Cunning Strike does to them before the roll |
+| [decide/clock.js](scripts/decide/clock.js) | `riderDue` (is a clock rider due on this hit, and why not), `riderPartFormula` (a pack's damage part as a formula, a bonus-only part included) |
 | [decide/verdict.js](scripts/decide/verdict.js) | `hitsAmong`, `modeAdmits`, `saveOutcome`, `saveMultiplier`, `verdictText`, and the fold layer (`ATTACK_FOLDS`, `SAVE_FOLDS`, `foldsFrom`, `foldedRoll`, `foldedVerdict`, `foldedSave`) |
 | [decide/eligible.js](scripts/decide/eligible.js) | `isDeadForSaves`, `limitedUses`, `isReactionItem`, `castLevelOf`, `clampVolleyCount`, `riderKey` |
 | [decide/receipt.js](scripts/decide/receipt.js) | `traitOutcome`, `hpDelta`, `receiptEntry`, `joinDamageReceipt`, `joinEffectReceipt`, `takenOf`, `receiptAmounts`, `revertPlan`, `revertableEffect` |
-| [decide/present.js](scripts/decide/present.js) | `popupKey`, `TONE`, `bfCard`, `ruleLine`, `momentBarHTML`, `holdBarHTML`, `nextCascadeSlot`, `cascadePosition`; `situationalBonusHTML`, `modeButtons` — the controls every popup that stands in for a roll dialog carries; `modeTone`, `modeTagHTML` — the one mode tag, one meaning per hue; `reminderSectionHTML` / `reminderFieldsetHTML` / `reminderDetailsHTML` — the gate's section bare, inside the system's own roll dialog, and folded to its header line for a volley's ray rows; the rescue view's row model and markup |
+| [decide/present.js](scripts/decide/present.js) | `popupKey`, `TONE`, `bfCard`, `ruleLine`, `momentBarHTML`, `holdBarHTML`, `nextCascadeSlot`, `cascadePosition`; `situationalBonusHTML`, `modeButtons` — the controls every popup that stands in for a roll dialog carries; `modeTone`, `modeTagHTML` — the one mode tag, one meaning per hue (`fails` is the save gate's fourth answer, red); `reminderSectionHTML` / `reminderFieldsetHTML` / `reminderDetailsHTML` — the gate's section bare, inside the system's own roll dialog, and folded to its header line for a volley's ray rows; `sneakBoxHTML` (the Sneak Attack choice under the sources) and `cunningMenuHTML` (the Cunning Strike menu on the damage offer); the rescue view's row model and markup |
 | [geometry.js](scripts/geometry.js) | EDGE, not in the layer: `tokensInTemplates`, `templateShape` — they need canvas/CONFIG/PIXI; `tokenOfActor`, `tokenForUuid`, `feetOf`, `nearestFeet` — token distance in FEET, the readers the reminder gate grew and the damage service shares (the 5-foot automatic crit, 2026-09-02) |
 
 ⚠ **`receiptAmounts` returns the row's TEXT as well as its figures, deliberately.** The two bugs
@@ -531,7 +533,7 @@ those strings back into the view.**
 | Depth | Layer | Files |
 | --- | --- | --- |
 | 6 | entry | `battleflow.js` |
-| 5 | **machines** | hold · saves · mastery · maneuvers · concentration · volleys · cast · hit-riders · d20-folds · receipts · polish · resources |
+| 5 | **machines** | hold · saves · mastery · maneuvers · concentration · volleys · cast · hit-riders · d20-folds · receipts · polish · resources · reminders · stats · sneak · clock-riders |
 | 4 | **services** | `auto-apply.js` · `effect-riders.js` · `auto-damage.js` — the consequence chokepoints (§2) |
 | 3 | spine | `ui.js` · `shared.js` · `geometry.js` · `settings.js` |
 | 2 | registry | `volley-registry.js` |
@@ -602,7 +604,7 @@ module-eval time — that is the only reason the existing import cycles are safe
 
 ## 8. The settings surface
 
-**32 settings: 30 world, 2 client.** Every feature is a world setting, default **OFF**.
+**33 settings: 31 world, 2 client** (the Clock Riders list joined 2026-09-02). Every feature is a world setting, default **OFF**.
 
 ### Rules
 
@@ -637,7 +639,10 @@ The module rides **public hooks and document writes only** (R3). The seams it de
 | --- | --- |
 | `dnd5e.rollAttackV2` | the attack trigger — fires on the rolling client, after the message exists |
 | `dnd5e.postUseActivity` | the use trigger — spell holds, save demands, volleys, cast payloads |
-| `dnd5e.preRollDamageV2` | injecting rider damage parts (crit doubling comes free — see NOTES); the automatic Critical Hit — `config.isCritical = true` on a hit within 5 feet of a Paralyzed or Unconscious target (auto-damage.js `critFor`, the ONE crit source the offer's badge and both roll paths read) |
+| `dnd5e.preRollDamageV2` | injecting rider damage parts (crit doubling comes free — see NOTES): the marks (hit-riders.js), the Sneak Attack dice after their Cunning Strike costs (sneak.js) and the clock riders (clock-riders.js); the automatic Critical Hit — `config.isCritical = true` on a hit within 5 feet of a Paralyzed or Unconscious target (auto-damage.js `critFor`, the ONE crit source the offer's badge and both roll paths read) |
+| `dnd5e.preRollAttackV2` · `dnd5e.preRollSavingThrowV2` | the gates: judged before the dice, the system's own dialog forced open and given Battle Flow's fieldsets; both TEMPLATED names, pinned in `check-hook-dispatch` and asserted FIRED by their suites |
+| `renderRollConfigurationDialog` (core) | the section drawn into the system's roll dialogs — the attack gate's, the save gate's and the save demand's fieldsets, the Fails button; polish.js's target block rides the same hook |
+| `dnd5e.postRollConfiguration` | the record of what the gate showed and what was pressed, stamped on the roll's message data after the dialog closes with rolls in hand |
 | `dnd5e.rollDamageV2` / `createChatMessage` | the application trigger on the elect |
 | `dnd5e.preApplyDamage` | the veto seam and the receipt's last word — **cancelable, and healing takes the same path** |
 | `dnd5e.damageActor` / `healActor` | announcements; fires on all clients |

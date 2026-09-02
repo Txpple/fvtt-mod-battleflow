@@ -361,6 +361,25 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
 }
 
 /**
+ * The machines the offer reads, imported lazily (the §9 entry order — a static edge from this
+ * service to a machine drags the machine's imports ahead of hold.js) but exactly ONCE per page.
+ * Primed at `ready` so no offer ever pays the import's latency at the table.
+ */
+let lazyMachinesPromise = null;
+function lazyMachines() {
+  // Destructured per import ON PURPOSE: this is the shape check-imports and knip read a lazy
+  // edge in — a bare import() inside Promise.all reads as an unused export to knip.
+  lazyMachinesPromise ??= (async () => {
+    const { cleaveArmedFor } = await import("./mastery.js");
+    const { sneakOfferParts } = await import("./sneak.js");
+    const { clockRiderLines } = await import("./clock-riders.js");
+    return { cleaveArmedFor, sneakOfferParts, clockRiderLines };
+  })();
+  return lazyMachinesPromise;
+}
+Hooks.once("ready", () => { void lazyMachines().catch(err => console.error(`${TITLE} | Priming the offer's machines failed.`, err)); });
+
+/**
  * Ask the ATTACKER to roll their own damage, with a `damageTimer` buzzer that rolls it for them.
  */
 export async function offerDamageRoll(activity, attackMessage) {
@@ -375,15 +394,18 @@ export async function offerDamageRoll(activity, attackMessage) {
   // The armed Cleave announces itself BEFORE the dice (v1.19.x finding ③ — the walk: "the
   // roll damage popup should make a note that it's a cleave"). Lazy import on purpose: a
   // static edge here drags mastery.js's imports ahead of hold.js in the §9 entry order.
-  const { cleaveArmedFor } = await import("./mastery.js");
+  // ⚠ THROUGH THE MEMO, never a bare `import()` per offer (measured 2026-09-02,
+  // tools/probe-offer-timing.mjs): a dynamic import of an ALREADY-EVALUATED module still costs
+  // this page ~0.5–1.2 s each, and three of them put the popup 2.3 s behind the hit — past the
+  // 1.2 s smoke-battleflow §5d allows and past what a table should wait. The memo pays each
+  // once, and `ready` primes them so the first offer of a session is as quick as the rest.
+  const { cleaveArmedFor, sneakOfferParts, clockRiderLines } = await lazyMachines();
   const cleaveArm = cleaveArmedFor(activity.item);
   // An armed Sneak Attack brings its Cunning Strike menu (sneak.js — lazy for the same reason;
   // the pick is committed onto the attack message inside the one roll thunk, before the dice).
-  const { sneakOfferParts } = await import("./sneak.js");
   const sneak = sneakOfferParts(attackMessage, activity);
   // The clock riders due on this hit say so here (clock-riders.js — lazy, the same reason): the
   // player is told what will ride before the dice, never asked (user ruling 2026-09-02).
-  const { clockRiderLines } = await import("./clock-riders.js");
   const clockLines = clockRiderLines(attackMessage, activity);
 
   // THE CELEBRATION (ARCHITECTURE.md §5 law 10, finding (l)): every attack-damage popup leads

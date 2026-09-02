@@ -53,8 +53,19 @@ ordering, the capture and the settings check for you**, which is why it is the f
 `smoke-battleflow` (first — it places the shared victim token) · `smoke-hold` (⚠ **immediately**
 after it) · `smoke-saves` · `smoke-volleys` · `smoke-maneuvers` · `smoke-cast` · `smoke-riders` ·
 `smoke-concentration` · `smoke-twoclient` · `check-popup-routing` · `reset-fixture-state` ·
-`smoke-effects` · `smoke-resources` · `smoke-surfaces` · `fixture-suite` · `smoke-nogm` (last —
-it must find no active GM, and the seed above it re-places the token it needs)
+`smoke-effects` · `smoke-resources` · `smoke-surfaces` · `smoke-reminders` · `smoke-sneak` ·
+`smoke-clock` · `fixture-suite` · `smoke-nogm` (last — it must find no active GM, and the seed
+above it re-places the token it needs). `battery.mjs` holds the order; quote it, never this line.
+
+⚠ **`smoke-sneak` and `smoke-clock` drive the BUILT fixtures** — `BF Test Rogue` (Rogue 14 /
+Thief, the whole Cunning Strike option set, Assassinate) and `BF Test Ranger` (Ranger 5 / Gloom
+Stalker) — created from the 2024 PHB pack by `fixture-suite.mjs`, with class items at a level so
+the scale values resolve (measured: `tools/probe-rogue-fixture.mjs`). They give the victim a
+400-HP pool for the run: 7d6 kills the fixture goblin outright, and the saves machine rightly
+refuses a demand on a dead target, so every Cunning Strike effect would vanish for the truest of
+reasons. `smoke-saves` §19 is the save gate; its driver finds the system's dialog through the app
+registry and Battle Flow's own fieldset, never by a class or by text — the dialog's target block
+names the user's targets, which is not the creature that is asking.
 
 ⚠ **`smoke-twoclient` is the one that needs a SECOND client**, and it is where the properties no
 solo suite can reach are asserted: the relay's **relayed** half (a player's answer travels as

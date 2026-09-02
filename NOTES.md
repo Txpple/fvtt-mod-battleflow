@@ -534,6 +534,51 @@ table's fault.
 
 ---
 
+### A roll's `dialog.options` reach the app as a COPY — carry state in a class instance (2026-09-02)
+
+`Actor5e##rollD20Test` deep-clones the dialog config before the pre-roll hooks, and
+`ApplicationV2._initializeApplicationOptions` merges the options into a fresh object: **a plain
+object handed to `dialog.options` arrives at `app.options` copied twice**, so a machine that
+stamps state on it in a pre-roll hook and reads it back on the rendered app is reading a different
+object. Measured: the attack gate's re-judgement and the Sneak Attack tick were written on the
+copy while `postRollConfiguration` read the original — the tick recorded as unarmed. Both
+copiers pass a **class instance** through by reference (`deepClone` returns anything whose
+constructor is not `Object`; `mergeObject` assigns it), so the gates carry `ui.js`'s
+`DialogCarried`. `Object.freeze(options)` is shallow — the nested bag stays writable.
+
+### `dnd5e.rollDamageV2` hands over the rolls and the activity, not the message (2026-09-02)
+
+`rollAttackV2`'s `rolls[0].parent` is the attack message; the damage twin's is not reliably the
+damage message. A machine that needs the damage MESSAGE the moment it lands listens to core's
+`createChatMessage` and gates on `message.isAuthor` — the same locality (the roller's client)
+without the guess. `sneak.js`'s effects run that way.
+
+### The save machine REFUSES a dead target, and a fixture must survive the feature (2026-09-02)
+
+A 7d6 Sneak Attack kills the 11-HP fixture goblin outright, and `stampSaveDemand` then skips the
+corpse (the v1.19.0 dead-target gate) — so every Cunning Strike effect vanished with no error
+anywhere: the demand was never stamped, for the truest of reasons. The suites give the victim a
+400-HP pool for the run. When a chain "does nothing" after a big hit, read the target's HP before
+the code.
+
+### A built character resolves its scale values without the advancement manager (2026-09-02)
+
+`Actor.create` with a class item whose `system.levels` is set, plus the subclass item, yields
+`getRollData().scale.rogue["sneak-attack"]` (a `ScaleValueTypeDice` — `.number`, `.faces`,
+`.formula`) and `@scale.gloom.dreadful-strike` beside it, and a Cunning Strike activity's
+`save.dc.value` computes off the sheet (`tools/probe-rogue-fixture.mjs`). `level-up-pc` does not
+persist advancement (NOTES §5 on the clones), but a class item at a level is enough for the
+scale — which is what the built fixtures rest on. `Roll.replaceFormulaData(formula, rollData)`
+turns `@scale.rogue.sneak-attack` into `7d6`; `parseDice` refuses anything that is not plain
+dice, because an unresolved token rolls ZERO (above).
+
+### The 2024 PHB pack's Envenom Weapons says 2d6 and ships 2d8 (2026-09-02)
+
+The feature text reads *"the target also takes 2d6 Poison damage"*; the pack's Poison activity
+carries `2d8`. The module reads the activity (N1 — the content is the content), so the table gets
+2d8 until the pack is corrected; the registry row says so. The same pack misspells the feature's
+own transfer effect *Assasinate*.
+
 ## 3. The statblock caster
 
 Where most of the monster-side bugs lived.
@@ -633,6 +678,18 @@ ray 2 was created in that gap and wrote the same Vex up again (smoke-volleys §1
 The log-walk guard (`chipSpentOnRecord`) covers the case across time; an in-flight set on the
 client covers the gap. Any consequence that is "record, then mutate" has this gap, and a second
 event inside it is not hypothetical when events are driven back to back.
+
+**A key with a dot in it is a PATH on a flag, never a name.** `setFlag` expands dotted keys
+into nested paths, so a map keyed by actor uuid (`applied["Actor.x"] = true`) never reads back —
+and a claim that never reads back is a loop: the Death Strike follow-up re-applied the attack's
+damage on every card update until the victim was at zero (2026-09-02). The saves machine had
+already written the rule down ("per-target state is an ARRAY with uuid fields — never a
+uuid-keyed map"); the lesson is that every per-target record on a flag is that shape, including
+the ones a new machine writes in a hurry.
+
+**A suite that reads a dialog after pressing it reads nothing.** The app's element is gone once
+the dialog closes; every assertion about what a dialog SHOWED is read before the press and
+carried out. Two hours of "the box is missing" on a box that was there (smoke-sneak, 2026-09-02).
 
 **An instrument that can break what it measures is worth less than a coarser one that cannot.**
 The hook ledger wraps `Hooks.call`/`callAll` rather than replacing the module's own callbacks in

@@ -388,6 +388,61 @@ unmeasurable distance is never a crit. The damage card says why it doubled (R5).
 own — the resolver's own rolls, a riposte inside a fold, a macro, the suites. No dialog, no
 gate.
 
+**The save gate is the attack pattern on the save hook** (user ruling 2026-09-02, option E of
+*The Save Gate*; *"no need to queue, allow cascading saves"*). A forced save — a demand from a
+Fireball, a Topple-shaped press — opens **dnd5e's own Saving Throw dialog** with two Battle Flow
+fieldsets: THE DEMAND above the dialog's own configuration (who is rolling, the DC, what a
+success buys, the timer bar) and BEFORE YOU ROLL below it — the save table's bends (Restrained on
+Dexterity saves, the Dodge action's Advantage with its caveats) under the same header line, folded
+to it, the highlighted default the net. The house save popup retired that day; a save rolled
+from the sheet meets the same gate, so one surface serves every save (option D folded into E).
+**A save the rules fail before the dice** — Paralyzed, Stunned, Unconscious, Petrified on a
+Strength or Dexterity save — grows a fourth button, **Fails**, as the default: no dice, the
+failure recorded on the card with the condition where the total would be, the consequences
+following exactly as a rolled failure's. The human still presses it (R1) — **option C, the module
+resolving a d20 test with no press, was ruled out** and stays out. The buzzer takes the Fails
+path too: rolling dice the rules have already failed would be the module contradicting the
+table. Every pending demand for an actor opens its dialog, stepped down the staircase — the GM's
+old queue-of-saves habit went with the popup. The Condition Sources list switches both gates.
+
+**Sneak Attack is a CHOICE beside the roll, and the flow is the prototype's** (user, 2026-09-02:
+*"go with the prototype and iterate"* — *Sneak Attack, Cunningly*). When the Sneak Attack
+feature is on the attacker's sheet and the weapon is Finesse or ranged, the gate's section grows
+one more box, OUTSIDE the fold: the dice read off the feature's own damage activity and resolved
+on the sheet (`@scale.rogue.sneak-attack` → *7d6*), the rule verbatim, a *read for you* line —
+the weapon judged, the roll's net judged, the ally within 5 feet **left to the player** (*"the
+player can determine if they have the conditions"*) — and a checkbox, ticked when the roll nets
+Advantage. The press records the arm on the attack card. On the hit the DAMAGE OFFER opens even
+under auto damage, because a decision is pending: the Cunning Strike menu, **read off the sheet,
+subclass included** — Cunning Strike's Poison, Trip and Withdraw; Devious Strikes' Daze, Knock Out
+and Obscure; the Thief's Stealth Attack; Envenom Weapons upgrading Poison; Rend Mind on Psychic
+Blades — each row the feature that grants it, its die cost and its rule, up to two with Improved
+Cunning Strike, the button naming the formula the pick leaves. **The costs come off before the
+roll** (the rule's own sentence), the sneak dice ride the weapon's roll as their own part in the
+weapon's type, **a critical hit doubles what is left** (free — the crit stamp lands on every
+part), one roll and one receipt. The effects run through the saves machine on the activities the
+pack ships, at the hit target, with the pack's own conditions attached; Envenom's failure also
+presses Poisoned; Death Strike on round one demands its Con save or the attack's damage lands
+again; a line option (Withdraw, Stealth Attack) is a line on the card. Once per turn is a turn
+chit on the attacker, the Cleave chit's shape — the second swing that turn shows the box greyed
+with the reason, and the next turn offers the tick again.
+
+**Damage riders on the combat clock are NOTIFIED, never asked** (user, 2026-09-02: *"should just
+notify the player that they are available and will be added to the damage. i believe crit should
+double those"*). A second class of rider beside the marks: a feature on the attacker's sheet
+whose extra damage is conditioned on the ROUND or the TURN — the Gloom Stalker's Dreadful Strike
+(once per turn, limited uses), the Assassin's Rogue-level strike on a first-round Sneak Attack,
+Divine Strike, Primal Strike, Divine Fury, the Fey Wanderer's Dreadful Strikes — found by a
+30-pack survey and carried as one row each (`CLOCK_RIDERS`): the feature by name, the pack's
+damage activity (the dice read off the sheet, scaled), the clock. When the clock says a listed
+feature applies, its part rides the hit's damage roll, the once-per-turn chit is written, a
+limited use is spent, the damage offer says what will ride, and the card says what rode and why
+(R5). A crit doubles it with everything else. The Assassin's Advantage against a creature that
+has not acted is an effect-table row with the clock as its judge. Left out on purpose, and said
+in the table: the rows that are a CHOICE (Colossus Slayer or Horde Breaker, Brutal Strike's
+forgone Advantage, a resource spend) or an unjudgeable fact (a favored enemy). The Clock Riders
+list is membership, like the effect table.
+
 **⚠ PRONE IS THE NAMED EXCEPTION, AND IT STAYS PASSIVE (user call, 2026-09-01).** It is pressed
 as a status with no duration, so it sits in Passive — and that is correct rather than tolerated.
 5e gives Prone no window: it lasts until the creature spends half its movement to stand. Making
@@ -445,3 +500,6 @@ was written to prevent.
 | **Netting multiple sources of Advantage/Disadvantage by count** | **NEVER.** Any Advantage against any Disadvantage is a normal roll, however many of each (user ruling 2026-09-01; the Rules Glossary's own sentence). A "majority wins" reading is wrong and stays wrong. | nothing. It is the rule. |
 | **Vendoring AC5e's code** | **CLOSED 2026-09-01 — its TABLE shipped as data instead** (DESIGN §5 *the gate*; `decide/reminders.js` `CONDITION_BENDS`). Its behaviour — silently setting the roll mode — is the thing the user said no to; its geometry features (range bands, nearby foes, flanking, armour, encumbrance) were never wanted. | a table asking for the geometry features, by name |
 | **Spending Sap or Vex on a volley as a whole** | **NOT SHIPPING (2026-09-02).** The rules spend Sap on *"its next attack roll"* and Vex on *"your next attack roll against that creature"* — one attack roll, and each ray of a volley is one. So ray 1 spends the chip and the rays after it roll unbent, and the aim popup SAYS so on ray 1's row. Three rays at Disadvantage for one Sap hit is generous to the Sapper and is not the text (N1). Reopens only on a rules revision that says "attack action" where it says "attack roll". |
+| **The module resolving a save with no press** (option C of *The Save Gate*) | **NEVER** (user ruling 2026-09-02: E was chosen, *"never C"*). A save the rules fail before the dice gets a **Fails** button as the default — no dice, but still a press. The buzzer's Fails is the timer's answer, as the buzzer's straight roll always was; it is not the module deciding for a human at the keyboard. | nothing. It is the line R1 draws. |
+| **The module judging Sneak Attack's conditions** (the ally within 5 feet, whether the target sees the rogue) | **NO** (user, 2026-09-02: *"the player can determine if they have the conditions"*). The gate reads what it can — the weapon, the roll's net — and says the rest is the player's; the tick is theirs. Geometry over allies is exactly the AC5e feature set that was never wanted. | the user asking for the ally clause to be judged, by name |
+| **Asking before a clock rider rides** (a popup for Dreadful Strike's use, Divine Strike's type) | **NOT SHIPPING** (user, 2026-09-02: *"should just notify the player that they are available and will be added"*). A rider with a genuine CHOICE in it (which of two options, a resource spend) is left out of the table and said so, rather than asked. The one residue — a damage TYPE the rules leave to the player — takes the activity's first type and says which. | the user asking for a type picker, by name |
