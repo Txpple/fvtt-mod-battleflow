@@ -217,7 +217,9 @@ const rows = KIND_SETS.map(set => {
 // 2026-09-02 (later): 34 → 36, for scripts/clock-riders.js (a MACHINE: the clock's extra damage
 // on a hit — its own feature beside the marks) and scripts/decide/clock.js (its pure half:
 // is the rider due, and the part's formula as the pack wrote it).
-const EXPECTED_SOURCE_FILES = 36;
+// 2026-09-02 (the walk): 36 → 37, for scripts/use-chips.js — a feature the pack ships as text
+// alone becomes a chip on use, so the gate can read it and the roll can spend it (Steady Aim).
+const EXPECTED_SOURCE_FILES = 37;
 const sourceFiles = [
   ...readdirSync(join(ROOT, "scripts")).filter(f => f.endsWith(".js")),
   ...readdirSync(join(ROOT, "scripts/decide")).filter(f => f.endsWith(".js")).map(f => `decide/${f}`)

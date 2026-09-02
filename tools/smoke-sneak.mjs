@@ -20,7 +20,8 @@ const SECTIONS = {
   6: 'once per turn: the chit, the greyed box, and the next turn',
   7: 'Envenom Weapons: the upgraded Poison — its damage, and Poisoned on top',
   8: 'Death Strike: round one, the Con save, the damage again',
-  9: 'the registration FIRED (§11): preRollDamageV2 moved'
+  9: 'the registration FIRED (§11): preRollDamageV2 moved',
+  10: 'Steady Aim (a use chip): the use writes the chip, the gate reads it as Advantage, the roll spends it'
 };
 const DEPENDS = { 4: ['3'], 9: ['4'] };
 
@@ -72,7 +73,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const STATUSES = ['prone', 'poisoned', 'unconscious', 'blinded'];
   const clearChips = async () => {
     for (const a of [victim, rogue]) {
-      const chips = a.effects.filter(e => e.getFlag(MOD, 'mastery') || /^(Cunning Strike|Devious Strikes|Sneak Attack|Vexed|Sapped)/.test(e.name)
+      const chips = a.effects.filter(e => e.getFlag(MOD, 'mastery') || /^(Cunning Strike|Devious Strikes|Sneak Attack|Vexed|Sapped|Steady Aim)/.test(e.name)
         || STATUSES.some(s => e.statuses?.has?.(s)));
       // Re-filtered and tolerant: a deleted combat tidies the chits it clocked at the same moment
       // (mastery.js's sweep), and a delete naming a gone id throws.
@@ -537,6 +538,36 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `first=${taken} again=${again?.taken} note="${again?.note}" hp=${hpBefore}→${victim.system.attributes.hp.value}`);
         await combat.delete(); combat = null;
         await rogue.deleteEmbeddedDocuments('Item', [ds.id]);
+        await clearChips();
+      }
+    }
+
+    // ================================================== 10. Steady Aim, a use chip
+    if (want(10)) {
+      await clearChips();
+      const steady = rogue.items.find(i => i.name === 'Steady Aim');
+      const steadyAct = steady ? [...steady.system.activities][0] : null;
+      if (!steady || !steadyAct) { skips.push('§10: the rogue lacks Steady Aim — re-run fixture-suite'); }
+      else {
+        await set('effectList', game.settings.settings.get(`${MOD}.effectList`)?.default ?? prior.effectList);
+        rogueToken.control({ releaseOthers: true });
+        const walkBefore = rogue.system.attributes.movement.walk;
+        const useResults = await steadyAct.use({}, { configure: false }, {});
+        const chip = await waitFor(() => rogue.effects.find(e => (e.name === 'Steady Aim') && (e.getFlag(MOD, 'mastery') === 'use')), 6000);
+        ok('10a. using Steady Aim (text-only in the pack) writes the chip on the rogue: named as the feature, Speed 0, the card says so',
+          !!chip && (rogue.system.attributes.movement.walk === 0) && !!useResults?.message?.getFlag(MOD, 'useChip'),
+          `chip=${!!chip} walk=${walkBefore}→${rogue.system.attributes.movement.walk} card=${!!useResults?.message?.getFlag(MOD, 'useChip')}`);
+        const { msg, seen } = await armedSwing(rapier, { mode: 'advantage' });
+        ok('10b. the gate reads the chip: Steady Aim as Advantage, net Advantage, the Sneak Attack tick armed by it',
+          /Steady Aim/.test(seen.sectionText) && /Net Advantage/.test(seen.sectionText) && seen.ticked,
+          `section="${seen.sectionText.slice(0, 160)}" ticked=${seen.ticked}`);
+        const spend = await waitFor(() => game.messages.get(msg?.id ?? '')?.getFlag(MOD, 'chipSpend'), 8000);
+        const gone = await waitFor(() => !rogue.effects.get(chip?.id), 6000);
+        ok('10c. the roll SPENDS it — the receipt on the attack card, the chip gone, the Speed back',
+          !!spend?.spent?.some(s => (s.id === chip?.id) && (s.key === 'effect')) && gone && (rogue.system.attributes.movement.walk === walkBefore),
+          `spend=${JSON.stringify(spend?.spent?.map(x => x.name))} gone=${gone} walk=${rogue.system.attributes.movement.walk}`);
+        (await waitFor(offerEl, 6000))?.querySelector('button[data-action="roll"]')?.click();
+        await waitFor(() => damageFor(msg?.getFlag('dnd5e', 'originatingMessage') ?? msg?.id)?.getFlag(MOD, 'receipt'), 12000);
         await clearChips();
       }
     }

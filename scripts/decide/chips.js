@@ -56,11 +56,15 @@ export const CHIP_WINDOWS = Object.freeze({
   // Strike…): the Cleave chit's shape exactly — written when the damage is dealt, dead with the
   // turn it was written in.
   sneak: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" }),
-  rider: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" })
+  rider: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" }),
+  // Steady Aim's "on the current turn" (a use chip, 2026-09-02): the attacker's own turn ends
+  // it; the next attack roll spends it first. Out of combat there is no turn — it stands until
+  // spent (a clockless chip is alive, decide/chips.js chipIsDead).
+  steadyAim: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" })
 });
 
 /** The once-per-turn chits — no turn, no chit (`chipClock` yields null for them out of combat). */
-export const TURN_CHITS = Object.freeze(["cleave", "sneak", "rider"]);
+export const TURN_CHITS = Object.freeze(["cleave", "sneak", "rider", "steadyAim"]);
 
 /** The chips a turn boundary can end, keyed by who the window belongs to. */
 export const TURN_CHIPS = Object.freeze(Object.keys(CHIP_WINDOWS));

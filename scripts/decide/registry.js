@@ -239,6 +239,36 @@ export const CLOCK_RIDERS = Object.freeze({
     from: "Barbarian — Zealot 3" })
 });
 
+/**
+ * USE CHIPS (user report 2026-09-02): features the 2024 pack ships as TEXT ONLY — a utility
+ * activity, instantaneous, self, no effect — whose whole consequence is a bend on the actor's
+ * next roll. use-chips.js writes a chip named as the feature is when it is used; the effect
+ * table above carries the row that reads it (same name), and the roll spends it. `window` is a
+ * CHIP_WINDOWS key (the rules' own duration); `changes` what the text changes on the sheet.
+ * Membership is the Effect Sources list (the row's name).
+ */
+export const USE_CHIPS = Object.freeze({
+  "Steady Aim": Object.freeze({ key: "steadyAim", bend: "advantage", window: "steadyAim",
+    rule: "As a Bonus Action, you give yourself Advantage on your next attack roll on the current turn. You can use this feature only if you haven’t moved during this turn, and after you use it, your Speed is 0 until the end of the current turn.",
+    note: "Speed 0 until the end of the turn; the next attack roll spends it",
+    changes: Object.freeze([Object.freeze({ key: "system.attributes.movement.walk", mode: 5, value: "0" })]) })
+});
+
+/**
+ * SAVE PRESSES (user report 2026-09-02: "web never applied the restrained"): a save activity
+ * whose FAILURE lands a condition the pack does not carry as an effect — the 2024 PHB's Web
+ * ships with no effect at all (measured, tools/probe-web.mjs), so the saves machine had nothing
+ * to apply and applied nothing. A row here names the ITEM and the standard status its text
+ * presses on a failed save, through `forceStatus` — the canonical condition, the caster as its
+ * origin, receipted on the demand card with a revert — the way Topple presses Prone. Data, not a
+ * graft on the content (the house rule on premium packs); the saves machine reads it only when
+ * the activity itself brought no effect to apply.
+ */
+export const SAVE_PRESSES = Object.freeze({
+  "Web": Object.freeze({ status: "restrained", onFail: true,
+    rule: "Each creature that starts its turn in the webs or that enters them during its turn must succeed on a Dexterity saving throw or have the Restrained condition while in the webs or until it breaks free." })
+});
+
 /** The clock riders' feature names, lower-cased — the closed set the Clock Riders list is validated against. */
 export const CLOCK_RIDER_NAMES = new Set(Object.values(CLOCK_RIDERS).map(r => r.feature.toLowerCase()));
 
@@ -602,6 +632,13 @@ export const EFFECT_BENDS = Object.freeze({
   // The first row whose fact is the ROUND and whether the target has ACTED: the platform's own
   // facts (combat.round, the target's place in the order against the current turn), read by the
   // EDGE like Bloodied is. Out of combat it never fires — there is no first round to be in.
+  // --- F. USE CHIPS — a feature the pack ships as text alone, written as a chip on use (use-chips.js) ---
+  // The chip is NAMED as the feature is, so this row reads it as any effect: Advantage on the
+  // attacker's next attack roll, spent by that roll (user report 2026-09-02: Steady Aim
+  // "isnt appling" — the 2024 PHB ships it with no effect at all).
+  "Steady Aim": Object.freeze({ attacker: "advantage", target: null, scope: "any", spend: "attack",
+    rule: "As a Bonus Action, you give yourself Advantage on your next attack roll on the current turn. You can use this feature only if you haven’t moved during this turn, and after you use it, your Speed is 0 until the end of the current turn.",
+    from: "Rogue 3 (a use chip)" }),
   "Assassinate": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any",
     judge: "targetNotActed",
     rule: "During the first round of each combat, you have Advantage on attack rolls against any creature that hasn’t taken a turn.",

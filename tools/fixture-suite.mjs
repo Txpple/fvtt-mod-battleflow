@@ -251,7 +251,7 @@ const out = await f.evaluate(async ({ playerName }) => {
     const PHB_GEAR = ["dnd-players-handbook.equipment", "dnd5e.equipment24"];
     const BUILT = [
       { name: "BF Test Rogue", classes: [["Rogue", 14], ["Thief", null]],
-        feats: ["Sneak Attack", "Cunning Strike", "Devious Strikes", "Improved Cunning Strike", "Supreme Sneak", "Assassinate"],
+        feats: ["Sneak Attack", "Cunning Strike", "Devious Strikes", "Improved Cunning Strike", "Supreme Sneak", "Assassinate", "Steady Aim"],
         gear: ["Rapier", "Longsword", "Shortbow"], abilities: { dex: 18, str: 12, con: 14 }, hp: 90, x: 700 },
       { name: "BF Test Ranger", classes: [["Ranger", 5], ["Gloom Stalker", null]],
         feats: ["Dread Ambusher"], gear: ["Longsword", "Longbow"], abilities: { dex: 16, str: 14, wis: 16, con: 14 }, hp: 44, x: 500 }
@@ -285,6 +285,15 @@ const out = await f.evaluate(async ({ playerName }) => {
         made.push(spec.name);
         log.push(`created ${spec.name} from the PHB pack (${spec.classes.map(([c, l]) => l ? `${c} ${l}` : c).join(" / ")})`);
       }
+      // A feature added to the spec after the actor was built joins it on the next run.
+      const lacking = spec.feats.filter(n => !actor.items.some(i => (i.type === "feat") && (i.name === n)));
+      if (lacking.length) {
+        const add = [];
+        for (const n of lacking) { const data = await findPackItem(PHB_CLASSES, n); if (data) add.push(data); else log.push(`⚠ ${n} not found — ${spec.name} lacks it`); }
+        if (add.length) { await actor.createEmbeddedDocuments("Item", add); log.push(`gave ${spec.name} ${add.map(i => i.name).join(", ")}`); }
+      }
+      // A bare character walks at 0 — give it a speed, so a feature that zeroes it can be seen to.
+      if (!(actor.system._source.attributes?.movement?.walk > 0)) { await actor.update({ 'system.attributes.movement.walk': 30 }); log.push(`gave ${spec.name} a walking speed of 30`); }
       if ((actor.system.attributes?.hp?.max ?? 0) !== spec.hp) {
         await actor.update({ "system.attributes.hp.max": spec.hp, "system.attributes.hp.value": spec.hp });
         log.push(`seeded ${spec.name}'s HP pool (${spec.hp}/${spec.hp})`);

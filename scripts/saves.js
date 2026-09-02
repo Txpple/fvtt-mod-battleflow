@@ -13,7 +13,8 @@ import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, reminderFieldse
 import { livePopups, openMomentPopup, adoptManagedPopup, DialogCarried,
   momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
   armDeadline, disarmDeadline, registerRelay, dramaticVerdictPause } from "./ui.js";
-import { SAVE_BENDS } from "./decide/registry.js";
+import { SAVE_BENDS, SAVE_PRESSES } from "./decide/registry.js";
+import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { REMINDER_FLAG, reminderRecord, saveGate, saveSources } from "./decide/reminders.js";
 import { rollModeOf } from "./decide/chips.js";
 import { conditionEntries, reminderEntries } from "./settings.js";
@@ -1415,6 +1416,14 @@ async function applySaveEffects(card, flag, entry) {
     .filter(e => e.effect && applicable.has(e.effect.id))
     .filter(e => (entry.outcome === "failed") || e.onSave)
     .map(e => e.effect);
+  // A pack that brought NO effect for a failure the text names (Web's Restrained — SAVE_PRESSES,
+  // 2026-09-02): press the standard status, the caster as its origin, and receipt it on the card
+  // so the revert is there — the Topple idiom, as data.
+  if ( !toApply.length && (entry.outcome === "failed") ) {
+    const press = SAVE_PRESSES[activity.item?.name] ?? null;
+    if ( press?.onFail ) await pressSaveStatus(card, flag, entry, press);
+    return;
+  }
   if ( !toApply.length ) return;
   const concentration = card.getAssociatedActor?.()?.effects.get(card.system?.concentration) ?? null;
   await applyEffectsWithReceipt(card, toApply, [{ uuid: entry.uuid, name: entry.name }], {
@@ -1422,6 +1431,23 @@ async function applySaveEffects(card, flag, entry) {
     scaling: card.system?.scaling ?? 0,
     spellLevel: card.system?.spellLevel ?? undefined,
     source: statSourceOf(card) // the data-plane stamp — the caster whose demand this is
+  });
+}
+
+/** The SAVE_PRESSES press: the canonical status on the failer, receipted as an applied effect
+ * (the effect the status became — so the card's revert removes exactly it). */
+async function pressSaveStatus(card, flag, entry, press) {
+  const subject = await fromUuid(entry.uuid).catch(() => null);
+  const saver = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
+  if ( !(saver instanceof Actor) || !canApplyTo(saver) ) return;
+  if ( saver.statuses?.has?.(press.status) ) return;   // already wearing it — nothing to press, nothing to receipt
+  const landed = await forceStatus(saver, press.status, { origin: flag.sourceUuid ?? null });
+  if ( !landed ) return;
+  const effect = saver.effects.find(e => e.statuses?.has?.(press.status));
+  if ( !effect ) return;
+  await queueFlagWrite(card, "effectReceipt", current => {
+    joinEffectReceipt(current, { uuid: entry.uuid, name: entry.name, img: saver.img ?? null,
+      effects: [effectRecord({ id: effect.id, name: effect.name, img: effect.img, description: press.rule }, statContext(flag.sourceUuid ?? null))] });
   });
 }
 

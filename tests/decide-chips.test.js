@@ -36,8 +36,8 @@ describe("CHIP_WINDOWS — the rules text as v14 duration data", () => {
   it("is frozen — a window is a rule, not a variable", () => {
     expect(Object.isFrozen(c.CHIP_WINDOWS)).toBe(true);
     expect(Object.isFrozen(c.CHIP_WINDOWS.vex)).toBe(true);
-    expect(c.TURN_CHIPS).toEqual(["vex", "sap", "slow", "cleave", "sneak", "rider"]);
-    expect(c.TURN_CHITS).toEqual(["cleave", "sneak", "rider"]);
+    expect(c.TURN_CHIPS).toEqual(["vex", "sap", "slow", "cleave", "sneak", "rider", "steadyAim"]);
+    expect(c.TURN_CHITS).toEqual(["cleave", "sneak", "rider", "steadyAim"]);
     expect(c.CHIP_WINDOWS.sneak).toEqual(c.CHIP_WINDOWS.cleave);
     expect(c.CHIP_WINDOWS.rider).toEqual(c.CHIP_WINDOWS.cleave);
     expect(c.chipClock("sneak", null)).toBeNull();

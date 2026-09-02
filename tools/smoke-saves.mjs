@@ -42,7 +42,8 @@ const SECTIONS = {
   16: 'the DEAD-TARGET gate (v1.19.0, user call)',
   17: 'the BASH shape (v1.19.0, FLOW item 5)',
   18: 'the player-rolled damage offer on the SAVE path (was probe-save-damage-popup)',
-  19: 'the save gate (option E, 2026-09-02): the system dialog, the section, the default, Fails'
+  19: 'the save gate (option E, 2026-09-02): the system dialog, the section, the default, Fails',
+  20: 'a save press (SAVE_PRESSES): Web ships no effect — a failure presses Restrained, receipted, with a revert'
 };
 // §2 rolls the damage of the demand §1 cast (`card1`); §13 rides §12's completed lifecycle —
 // its card, its template id and its 140px scene. Both couplings are declared in the code
@@ -1719,6 +1720,49 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await until(() => entryOf(cardK, victim)?.applied, 12000);
       await setStatus(victim, 'paralyzed', false);
       await clearChips();
+    }
+
+    // ============================================== 20. a save press — Web
+    // The 2024 PHB's Web carries NO effect (measured 2026-09-02, tools/probe-web.mjs), so the
+    // saves machine applied nothing on a failure. SAVE_PRESSES names the status the text presses.
+    if (want(20)) {
+      await clearChips();
+      await saveBonus(victim, '-30');
+      await victim.update({ 'system.abilities.dex.bonuses.save': '-30' });   // Web is a DEXTERITY save
+      await healFull(victim);
+      const strayR = victim.effects.filter(e => e.statuses?.has?.('restrained'));
+      if (strayR.length) await victim.deleteEmbeddedDocuments('ActiveEffect', strayR.map(e => e.id));
+      // A bare Web: the pack's shape — a save activity, Dex, no effects, no damage.
+      const [webItem] = await npc.createEmbeddedDocuments('Item', [{
+        name: 'Web', type: 'spell',
+        system: { level: 2, school: 'con', properties: ['vocal'], duration: { units: 'hour', value: 1 },
+          target: { affects: { type: 'creature', count: '2', choice: false } }, range: { value: '60', units: 'ft' },
+          method: 'spell', prepared: 1, identifier: 'web',
+          activities: { bfwebact00000000: { _id: 'bfwebact00000000', type: 'save', activation: { type: 'action', override: false },
+            consumption: { targets: [], spellSlot: false }, damage: { onSave: 'full', parts: [] }, effects: [],
+            save: { ability: ['dex'], dc: { calculation: '', formula: '15' } }, target: { override: false, prompt: true } } } }
+      }]);
+      created.items.push({ actorId: npc.id, id: webItem.id });
+      target(victimToken);
+      await sleep(120);
+      const useW = await npc.items.get(webItem.id).system.activities.get('bfwebact00000000').use({}, { configure: false }, {});
+      const cardW = useW?.message instanceof ChatMessage ? useW.message : null;
+      if (!cardW) return { fatal: 'section 20 Web cast produced no card' };
+      await until(() => cardW.getFlag(MOD, 'saves'));
+      const dlgW = await until(() => savePopups().find(p => demandText(p).includes(cardW.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? 'Hobgoblin')), 6000);
+      dlgW?.querySelector('button[data-action="normal"]')?.click();
+      await until(() => entryOf(cardW, victim)?.applied, 15000);
+      const restrained = victim.effects.find(e => e.statuses?.has?.('restrained'));
+      const rr = cardW.getFlag(MOD, 'effectReceipt')?.targets?.find(t => t.uuid === victim.uuid);
+      ok('20a. Web fails the victim, and the module presses Restrained — the standard status, the caster as origin, receipted on the demand card',
+        (entryOf(cardW, victim)?.outcome === 'failed') && !!restrained && (restrained.origin === npc.uuid)
+          && !!rr?.effects?.some(e => e.id === restrained.id),
+        `outcome=${entryOf(cardW, victim)?.outcome} restrained=${!!restrained} origin=${restrained?.origin} receipt=${JSON.stringify(rr?.effects?.map(e => e.name))}`);
+      const cardEl = await until(() => [...(document.querySelector(`[data-message-id="${cardW.id}"]`)?.querySelectorAll('button') ?? [])].find(b => /Revert/.test(b.textContent ?? '')), 4000);
+      ok('20b. the card carries the revert for it', !!cardEl, `revert=${!!cardEl}`);
+      if (restrained) await victim.deleteEmbeddedDocuments('ActiveEffect', [restrained.id]).catch(() => {});
+      await saveBonus(victim, '');
+      await victim.update({ 'system.abilities.dex.bonuses.save': '' });
     }
 
     return { log, results, skips };

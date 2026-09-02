@@ -67,6 +67,7 @@ const LAYER_OF = {
   "reminders.js": "machines",
   "sneak.js": "machines",
   "clock-riders.js": "machines",
+  "use-chips.js": "machines",
   "polish.js": "machines",
   "resources.js": "machines",
   "stats.js": "machines",
