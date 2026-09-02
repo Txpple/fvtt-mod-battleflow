@@ -136,8 +136,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('saveTimer', 0);
     await set('castApply', false);
     await set('noticeTimer', 2);
-    await set('reminderList', 'vex, sap, prone, condition, range');
-    await set('conditionList', 'blinded, invisible, paralyzed, petrified, poisoned, restrained, stunned, unconscious, frightened, grappled, incapacitated, dodging, charmed');
+    // The suite's OWN lists — what §6 turns off and puts back. Not the world's prior: a world
+    // still carrying the pre-range list (verify-settings reads it as drift) would otherwise
+    // hand §10 a gate with no range in it (seen on the first live run, 2026-09-02).
+    const SUITE_LISTS = {
+      reminderList: 'vex, sap, prone, condition, range',
+      conditionList: 'blinded, invisible, paralyzed, petrified, poisoned, restrained, stunned, unconscious, frightened, grappled, incapacitated, dodging, charmed'
+    };
+    await set('reminderList', SUITE_LISTS.reminderList);
+    await set('conditionList', SUITE_LISTS.conditionList);
 
     // -------------------------------------------------- fixtures (the smoke-expiry idiom)
     const findWeapon = async () => {
@@ -574,8 +581,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           !dialog && system, `section=${!!dialog} systemDialog=${system}`);
         await closeGates();
       }
-      await set('conditionList', prior.conditionList);
-      await set('reminderList', prior.reminderList);
+      await set('conditionList', SUITE_LISTS.conditionList);
+      await set('reminderList', SUITE_LISTS.reminderList);
       await clearStatuses();
     }
 
