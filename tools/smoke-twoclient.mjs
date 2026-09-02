@@ -262,7 +262,9 @@ if (want('relay')) {
       const MODULE = 'fvtt-mod-battleflow';
       for (let i = 0; i < 60; i++) {
         const h = game.messages.get(id)?.getFlag(MODULE, 'hold');
-        if (h?.targets?.[0]?.answer) {
+        // The answer lands a write BEFORE the verdict (the fold, then the continuation): wait for
+        // the resolution, and fall back to the answered-but-pending shape at the deadline.
+        if (h?.targets?.[0]?.answer && ((h.status === 'resolved') || (i === 59))) {
           return { answer: h.targets[0].answer, status: h.status,
             verdict: h.targets[0].verdict ?? null };
         }

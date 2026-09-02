@@ -533,7 +533,7 @@ those strings back into the view.**
 | Depth | Layer | Files |
 | --- | --- | --- |
 | 6 | entry | `battleflow.js` |
-| 5 | **machines** | hold · saves · mastery · maneuvers · concentration · volleys · cast · hit-riders · d20-folds · receipts · polish · resources · reminders · stats · sneak · clock-riders |
+| 5 | **machines** | hold · saves · mastery · maneuvers · concentration · volleys · cast · hit-riders · d20-folds · receipts · polish · resources · reminders · stats · sneak · clock-riders · use-chips |
 | 4 | **services** | `auto-apply.js` · `effect-riders.js` · `auto-damage.js` — the consequence chokepoints (§2) |
 | 3 | spine | `ui.js` · `shared.js` · `geometry.js` · `settings.js` |
 | 2 | registry | `volley-registry.js` |

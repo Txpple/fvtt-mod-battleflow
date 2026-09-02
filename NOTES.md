@@ -687,6 +687,19 @@ already written the rule down ("per-target state is an ARRAY with uuid fields â€
 uuid-keyed map"); the lesson is that every per-target record on a flag is that shape, including
 the ones a new machine writes in a hurry.
 
+**A registry row handed to a document must be COPIED.** `Object.freeze` on the table is right;
+Foundry's document migration writes into an effect's `changes` on create, and a frozen array
+refuses the whole create with *"Cannot add property type, object is not extensible"* â€” one
+`.map(c => ({ ...c }))` at the seam (use-chips.js, 2026-09-02).
+
+**"Until the start of your next turn" is NOT a one-round window when the thing is spent on
+somebody else's turn.** A Reaction taken before the reactor's turn in the round comes back at
+that turn, less than a round later; the `rounds: 1, turnStart` clock (right for Sap, which is
+spent on the sapper's own turn) returned it a round late. The reaction chip is `0 turns,
+turnStart` for the platform's mark, and its liveness is stamp arithmetic (`reactionStands`):
+the reactor's next turn after the chip's start. When a window's start and its owner's turn can
+differ, write the arithmetic; the duration data alone cannot say it.
+
 **A suite that reads a dialog after pressing it reads nothing.** The app's element is gone once
 the dialog closes; every assertion about what a dialog SHOWED is read before the press and
 carried out. Two hours of "the box is missing" on a box that was there (smoke-sneak, 2026-09-02).

@@ -441,7 +441,23 @@ limited use is spent, the damage offer says what will ride, and the card says wh
 has not acted is an effect-table row with the clock as its judge. Left out on purpose, and said
 in the table: the rows that are a CHOICE (Colossus Slayer or Horde Breaker, Brutal Strike's
 forgone Advantage, a resource spend) or an unjudgeable fact (a favored enemy). The Clock Riders
-list is membership, like the effect table.
+list is membership, like the effect table. *(Revised the same evening: the riders are a ticked
+checkbox on the offer, not a line — DESIGN §8.)*
+
+**The first walk of the table, 2026-09-02 evening — what it changed.** A standing effect source
+(Innate Sorcery) shows on every ray of a volley: only what the rules SPEND — Vex, Sap, a `spend`
+row — is carried forward ray to ray. The Sneak Attack box folds its rule under "the rule ▸" and
+keeps the tick and the read-for-you line visible; a used-this-turn box says so under its title.
+**A text-only feature becomes a chip on use** (Steady Aim: the 2024 PHB ships it with no effect
+at all) — `USE_CHIPS` writes the chip named as the feature, the effect table reads it, the roll
+spends it; Speed 0 rides the chip. **A save whose failure the pack does not carry as an effect
+presses the standard status from a row** (`SAVE_PRESSES`: Web → Restrained — the PHB's Web
+ships no effect), receipted with a revert; never a graft on the content. **Evasion is an
+outcome**: a Dexterity save for half takes none on a success and half on a failure, not while
+Incapacitated; applied at ×0 and receipted, never silent. **Incapacitated breaks
+concentration** — the glossary's clause, off the effect that brings the condition, no save.
+**The Reaction is a chip** (§8). **Uncanny Dodge stays an attack-roll interrupt** — the 2024 text
+names an attack roll; it has no bearing on a save.
 
 **⚠ PRONE IS THE NAMED EXCEPTION, AND IT STAYS PASSIVE (user call, 2026-09-01).** It is pressed
 as a status with no duration, so it sits in Passive — and that is correct rather than tolerated.
@@ -502,4 +518,7 @@ was written to prevent.
 | **Spending Sap or Vex on a volley as a whole** | **NOT SHIPPING (2026-09-02).** The rules spend Sap on *"its next attack roll"* and Vex on *"your next attack roll against that creature"* — one attack roll, and each ray of a volley is one. So ray 1 spends the chip and the rays after it roll unbent, and the aim popup SAYS so on ray 1's row. Three rays at Disadvantage for one Sap hit is generous to the Sapper and is not the text (N1). Reopens only on a rules revision that says "attack action" where it says "attack roll". |
 | **The module resolving a save with no press** (option C of *The Save Gate*) | **NEVER** (user ruling 2026-09-02: E was chosen, *"never C"*). A save the rules fail before the dice gets a **Fails** button as the default — no dice, but still a press. The buzzer's Fails is the timer's answer, as the buzzer's straight roll always was; it is not the module deciding for a human at the keyboard. | nothing. It is the line R1 draws. |
 | **The module judging Sneak Attack's conditions** (the ally within 5 feet, whether the target sees the rogue) | **NO** (user, 2026-09-02: *"the player can determine if they have the conditions"*). The gate reads what it can — the weapon, the roll's net — and says the rest is the player's; the tick is theirs. Geometry over allies is exactly the AC5e feature set that was never wanted. | the user asking for the ally clause to be judged, by name |
-| **Asking before a clock rider rides** (a popup for Dreadful Strike's use, Divine Strike's type) | **NOT SHIPPING** (user, 2026-09-02: *"should just notify the player that they are available and will be added"*). A rider with a genuine CHOICE in it (which of two options, a resource spend) is left out of the table and said so, rather than asked. The one residue — a damage TYPE the rules leave to the player — takes the activity's first type and says which. | the user asking for a type picker, by name |
+| **Asking before a clock rider rides** | **REVERSED THE SAME EVENING** (user, 2026-09-02, from the table: *"dreadful strike should have a check box, optional to use, so make like sneak attack"*). Each due rider is a TICKED checkbox on the damage offer — the rules make it available, the player may decline, and a declined rider spends nothing. The offer opens for a due rider even under auto damage, as it does for an armed Sneak Attack. What stays settled: a rider with a genuine choice *inside* it (which of two options, a resource spend) is not in the table; a damage TYPE the rules leave open takes the activity's first and says which. | a type picker, by name |
+| **Judging once-per-turn for a creature outside the running combat** | **NO** (user, 2026-09-02: *"the turn counting should only be in combat"*). The chits — Sneak Attack, Cleave, a clock rider — count only for a COMBATANT in the running combat; a creature acting outside it has no turn, so every hit offers. The summon-on-its-summoner's-turn case (review finding 18) was given up on purpose. | nothing. It is the rule. |
+| **A tooltip on the gate's header line** | **NO** (user, 2026-09-02: *"it just makes stuff unreadable"*). The arithmetic sentence stays in the view for the record and is not drawn. | nothing. |
+| **The Reaction as a flag the module clears by hand** | **RETIRED 2026-09-02** (user: *"shield should probably be refactored similarly (reaction, one per turn)"*). The Reaction is a CHIP on the reactor, spent by any interrupt, back at the start of the reactor's next turn by stamp arithmetic (`reactionStands`) — the same clock every other window keeps. | nothing. |
