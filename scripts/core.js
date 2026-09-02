@@ -160,9 +160,13 @@ export function isContinuingClient(hold) {
   return owner?.active ? owner.isSelf : isActiveGM();
 }
 
-/** Is this actor a combatant in a combat that has actually started? */
+/** Is this actor a combatant in a combat that has actually started? Matched the way the platform
+ * matches (see `activeCombatFor` below): a synthetic actor carries its BASE actor's id, so an id
+ * compare read a tracked SIBLING token as "in combat" (user call 2026-09-02, the review's
+ * finding 4 applied here too). */
 export function inRunningCombat(actor) {
-  return game.combats.some(c => c.started && c.combatants.some(cb => cb.actor?.id === actor.id));
+  if ( !actor ) return false;
+  return game.combats.some(c => c.started && c.getCombatantsByActor(actor).length);
 }
 
 /**
