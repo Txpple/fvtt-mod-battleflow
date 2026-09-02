@@ -268,6 +268,16 @@ receipt on the attack card, written before the chip goes), and the chit that mak
 the only tick is world time, which moves only when the GM advances it — so an out-of-combat chip
 lives until the spend closes it, and that is the rule, not a gap.
 
+**⚠ Dead is the platform's MARK, never the arithmetic** (review, 2026-09-01). A one-round chip's
+`remaining` reads zero for the whole of the round its boundary falls in and the mark arrives only
+at the event, so a reader that treated zero as dead dropped Vex on the one turn it exists for.
+Zero on the clock is alive; a negative clock — which comes a round after the boundary — is the
+one arithmetic fallback, for a table with no GM to write the mark. **The Cleave chit is the
+exception that proves it:** its life is a STAMP COMPARISON against the running turn (the
+`combatStamp` idiom), pinned to the turn IN PROGRESS rather than to the attacker — an opportunity
+attack's chit dies with the victim's turn — because the mark is GM-written and a no-GM table's
+first chit would otherwise stand forever. The platform's expiry is its tidy, not its judge.
+
 ### The gate before the roll (user rulings, 2026-09-01)
 
 **A reminder is proactive, never a rescue** — *"I don't want a rescue, I want proactivity."* When
@@ -275,9 +285,25 @@ something this module can READ bends an attack roll, the system's roll dialog do
 Battle Flow's popup stands in for it (the concentration precedent, 2026-08-16: *"the popup is
 the configuration surface"*), listing **every source** it can see, each with its rule quoted
 verbatim, **the net**, and the Rules Glossary's own sentence on why — then Advantage / Normal /
-Disadvantage for the human to press. **Nothing is ever pre-selected and nothing is ever applied
-for the roller** (R1, and the fence in mastery.js). The press re-issues the roll; the card says
-what was shown and what was pressed, and the stats plane reads honour off it.
+Disadvantage for the human to press. **Nothing is ever applied for the roller** (R1, and the
+fence in mastery.js). The press re-issues the roll; the card says what was shown and what was
+pressed, and the stats plane reads honour off it.
+
+**The highlighted button is the outcome the solver worked out** (user ruling 2026-09-01). The
+platform always has a default — DialogV2 makes the first button the default when none is
+flagged, so "nothing pre-selected" meant *Advantage on Enter* whatever the net — and the honest
+default is the NET the popup already names. Enter is still a press. **The popup carries the
+dialog's own choices too** — attack mode, ammunition, mastery where a weapon has more than one,
+and the roll mode — because a re-issue that skipped the dialog would otherwise pin each to its
+remembered default in silence, and the mastery pick feeds this module's own riders. The consume
+choice for a spell attack is the usage dialog's, before any roll, and stays native.
+
+**No card, no gate.** The usage card keys the popup and links the re-issued attack back into
+the system's own chain (its Damage button, its crit, this module's auto-apply and riders all
+read that link); an attack with no card behind it — an API roll, an enricher link in a journal —
+rolls natively. **A recorded spend counts as spent** whatever the sheet says: with no GM the
+chip a player cannot delete lingers on the monster, and the receipt on the attack card is what
+keeps it from being offered and spent again.
 
 **The net is the 5e rule, restated by the user as the ruling:** *if multiple sources contend,
 it always nets to a regular attack, even if you have more of one than the other* — adv/adv is

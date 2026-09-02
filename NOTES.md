@@ -148,12 +148,59 @@ that carries `duration.expired`. **Suppression keys off the flag, not the arithm
 with `remaining <= 0` keeps applying until the flag is written. `isTemporary` is
 `!!expiry || Number.isFinite(value)`, so `value: 0` is still Temporary.
 
+**⚠ `remaining` REACHES ZERO A WHOLE ROUND BEFORE THE MARK (the review's first finding,
+2026-09-01 — the chip died a turn early).** A `rounds` window is measured from `start.round`
+against the CURRENT round, recomputed at `roundStart` (and on every actor data prep), so a
+one-round chip reads `remaining: 0` from the START of the round its boundary falls in — the
+whole round in which Vex's `turnEnd` and Sap's `turnStart` both sit — and `expired` is written
+only at the event. Reading zero as dead dropped Vex from the gate on the one turn it exists for.
+**Zero on the clock is ALIVE; dead is the platform's mark, or a NEGATIVE clock** (which arrives
+only in the round after the boundary — the arithmetic fallback for a no-GM table where the mark
+is never written). `decide/chips.js` `chipIsDead`; `smoke-expiry` §10 steps a turn between the
+chip and a gated swing, which no suite had done. And **the expiry mark arrives as ONE batched
+update per parent, dispatched as one `updateActiveEffect` per effect, synchronously, in the same
+tick** — so a tidy that deletes per hook call makes the one-at-a-time delete the synthetic-actor
+note above forbids; collect per parent and flush on a microtask.
+
+**⚠ A `turns` effect out of combat reads `remaining: Infinity`, not null** (the label says
+*"None"*). Every `_prepareDuration` path in v14 assigns a number or Infinity; a null/NaN
+`remaining` is unreachable, so a reader that treats those as dead is inert rather than wrong.
+
+**⚠ `ActiveEffect#start.combat` is a ForeignDocumentField** — on the document it resolves to the
+Combat, or null once that combat is deleted; read `.id` for a stamp. `getCombatantsByActor`
+matches a synthetic (unlinked-token) actor by TOKEN id and a linked one by actor id — and a
+synthetic actor's `id` IS its base actor's id, so `cb.actor?.id === actor.id` says "in the combat"
+for a goblin whose SIBLING token is tracked. A chip then gets `start.combat` with a null
+`combatant`, the one shape `isExpiryEvent` never matches: immortal, never swept. Match the way
+the platform matches (core.js `activeCombatFor`, review finding 4).
+
+**⚠ `_preCreate` fills only the `start` keys that are `undefined`** — an explicit `null` survives.
+But `combat: null` does NOT make a chip time-based while the BEARER is tracked: the duration
+prep and `isExpiryEvent` both fall back to `getCombatantsByActor(this.actor)[0]`, the bearer's
+own combatant, and judge from `roundJoined`. So for an attacker who is in a running combat but
+not in the tracker there is no better `start` to write than the platform's own (review finding
+20, measured and refused).
+
+**⚠ `DialogV2` ALWAYS has a default button.** With none flagged, the FIRST button is the default
+(`isDefault = default || (i === 0 && !buttons.some(b => b.default))`), autofocused, and every
+button is `type=submit` — so Enter, including Enter typed into a text input inside the dialog,
+presses the first button. "No default" on a three-mode popup meant "Advantage on Enter"; the
+gate marks its NET (user ruling 2026-09-01, `decide/present.js` `modeButtons`).
+
+**⚠ `canvas.grid.measurePath().distance` is in the SCENE's units** (`scene.grid.distance` per
+space, labelled by `scene.grid.units`, a free string dnd5e never maps). On a 1.5 m grid two
+squares read "3"; the Prone rule is 5 FEET. Convert through `dnd5e.utils.convertLength` after
+folding the units string (`decide/geometry.js` `lengthUnitKey`); an unreadable unit is
+"distance unknown", never feet. The line in §2 below that called it "grid units (feet here)"
+was true of the fixture and false of the world.
+
 **⚠ Out of combat there is NO clock.** The only non-combat tick is `updateWorldTime`, which
 fires when the GM presses the calendar HUD or takes a rest with *Advance time* ticked (off unless
 chosen). A `rounds`/`turns` effect with no combatant is reframed as seconds (`CONFIG.time.roundTime`
 × value) and measured against world time; a 6-second chip sits at "6 seconds remaining" forever,
 alive, and any sweep that reads `remaining` reads it as alive. A `turns` effect out of combat
-reads `remaining: null`, label *"None"* (the premium PHB's Guiding Bolt ships exactly so).
+reads `remaining: Infinity`, label *"None"* (the premium PHB's Guiding Bolt ships exactly so;
+this line said `null` until 2026-09-01 — it is not).
 **Rules windows that are turn-shaped therefore have no end outside combat — the EVENT that spends
 them (the next attack) is the only close, and that is the rule, not a gap.**
 
@@ -203,12 +250,38 @@ neither is visible to the dispatch gate — pinned, like `preRollDamageV2`.
 own targets on the roller's client — and the message's `flags.dnd5e.targets` is built from the
 same set. A pre-roll reader that wants the targets reads `game.user.targets` directly.
 
+**⚠ AT PRE-ROLL TIME `originatingMessage` COMES IN THREE SHAPES, AND ON THE BUTTON FLOW IT IS NOT
+THERE AT ALL (review findings 2 and 12, 2026-09-01).** The usage card's Attack button calls
+`rollAttack({ event })` and nothing else; `buildPost` derives the id from
+`event.target.closest("[data-message-id]")` AFTER the pre-roll hooks and `expandObject`s the
+message data there. The sheet/`use()` auto-roll passes it as a FLAT key,
+`message.data["flags.dnd5e.originatingMessage"]` — `mergeObject` expands dotted keys only at the
+top level, so the nested path reads undefined at hook time. A hook that keys on the card reads
+the event's enclosing card first, then the flat key, then the nested one (`reminders.js`
+`usageCardFor`). And a RE-ISSUE that forwards no event has no link: `buildPost` finds nothing,
+the message never enters `dnd5e.registry.messages`, `getAssociatedRolls("attack")` on the card
+is empty, the Damage button rolls with no crit and no attack mode, and this module's own chain
+walk misses it. **Write the flat key yourself on a re-issue.** ⚠ Do NOT forward the raw event
+to fix it: `D20Roll.applyKeybindings` re-reads `altKey/ctrlKey/shiftKey` off `config.event` on
+the re-issue, so an Alt-clicked Attack whose human then pressed Disadvantage would roll NORMAL.
+The suites used to pass the flat key explicitly, which is exactly why they were green.
+
+**With `configure: false` the attack mode, ammunition and mastery are exactly what the dialog
+would have PRE-FILLED** — `config` → `last.<activityId>.*` → the first option — and the
+human's chance to change them is what goes missing. `dialog.options.attackModeOptions` (may
+carry `{rule: true}` separators), `ammunitionOptions` (a leading blank = none) and
+`masteryOptions` (only when more than one and no `config.mastery`) are on the hook's `dialog`
+argument; the roll-mode select is `CONFIG.ChatMessage.modes` (v14) minus `ic`. The mastery pick
+is stamped on the attack message (`flags.dnd5e.roll.mastery`) and this module's riders key on it.
+The spell-slot / resource CONSUME choice is the USAGE dialog's, before any attack roll, and a
+pre-roll gate never touches it.
+
 **A plain `x`/`y` update on a TokenDocument is a MOVE under v13+'s movement pipeline, and it can
 be refused with no error** — measured 2026-09-01 on the test range (no walls): the update
 resolved and the document stayed put, `{teleport: true, animate: false}` included. The reminder
 suite stopped moving tokens and places a second one where it needs a distance measured.
-`canvas.grid.measurePath([a, b]).distance` is grid units (feet here): 100px apart = 5, six
-squares = 30, on a square grid.
+`canvas.grid.measurePath([a, b]).distance` is SCENE units (see §1): 100px apart = 5 on the
+fixture's 5-ft grid, and 1.5 on a 1.5 m grid.
 
 **`D20Roll#isCritical` reads the D20 *die term's* `options.criticalSuccess`.** The roll's own
 `options.criticalSuccess` is a **decoy** — present, numeric, plausible, and read by nothing.

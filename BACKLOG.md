@@ -120,20 +120,22 @@ untested path.
 > Guidance/choice-bearing effects, light-family spells applying token light. Not settled, just
 > off the list for now; git history holds the full survey text if one comes back.
 
-> **Short-duration effect expiry left this list 2026-09-01 — it is COMMISSIONED** (see
-> [HANDOFF.md](HANDOFF.md), Stage 1). The turn-time question it was blocked on dissolved on
-> measurement: Foundry v14 keeps effect clocks itself, per effect, against the originating
+> **Short-duration effect expiry left this list 2026-09-01 — DELIVERED** (DESIGN §5 *the platform
+> keeps the clock*, DESIGN §8's settled row). The turn-time question it was blocked on dissolved
+> on measurement: Foundry v14 keeps effect clocks itself, per effect, against the originating
 > combatant, so the module never has to.
 
 > **AC5e adoption left this list 2026-09-01 — its TABLE shipped as data** (DESIGN §5 *the gate
-> before the roll*; the thirteen conditions in `decide/reminders.js`), and vendoring its code is
+> before the roll*; `CONDITION_BENDS` in `decide/registry.js`), and vendoring its code is
 > SETTLED against (DESIGN §8). The geometry features it also carries — range bands, nearby foes,
 > flanking, armour, encumbrance — were never wanted and are not here.
 
 | Item | Shape |
 | --- | --- |
 | **The reminder gate on other d20 tests** | The gate reads ATTACK rolls. Saving throws and ability checks have their own bends (Restrained on Dexterity saves, Poisoned on checks, Paralyzed's automatic failures) and the same pre-roll hook family (`dnd5e.preRollSavingThrowV2`, `preRollAbilityCheckV2` — templated like the attack one). Same mechanism, a second table. **Not asked for; surveyed only.** |
-| **Hiding as a reminder source** | 2024's Hiding condition gives Advantage on the attack that ends it; the system ships a `hiding` status. One condition-table row and one list entry — but it is not among the thirteen the user named, so it waits for a word. |
+| **Hiding as a reminder source** | 2024's Hiding condition gives Advantage on the attack that ends it; the system ships a `hiding` status. One row in `CONDITION_BENDS` and nothing else (the set and the shipped default derive from the table since 2026-09-01) — but it is not among the thirteen the user named, so it waits for a word. |
+| **`inRunningCombat` matches unlinked tokens by base actor id** | The same compare the 2026-09-01 review fixed in `activeCombatFor` (a synthetic actor's `id` is its base actor's, so a tracked SIBLING token reads as "in combat") still stands in `core.js` `inRunningCombat`, read by hold.js, maneuvers.js and saves.js for their per-turn clears and offer gates. Outside the commission's diff and untouched on purpose; the one-line fix is `combat.getCombatantsByActor(actor).length`. **Waits for the user's word — it changes three machines' behaviour on unlinked tokens.** |
+| **The double reminder on a Vexing hit** | The Vexing hit's notice popup ("Advantage on your next attack") AND the gate at the next swing are both live — the second says what the first already said. Whether the notice should quieten when the gate is on is a table call. |
 
 ### Two content facts worth keeping
 

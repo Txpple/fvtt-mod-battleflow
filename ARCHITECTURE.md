@@ -98,7 +98,7 @@ no no-GM degraded mode (DESIGN §4).
 | **Attack / usage message** | the moment flag (`hold`, `mastery`, `saves`, `precision`, `volley`, …); `chipSpend` — the chips this attack roll used up; `reminder` — what the gate showed before this roll, the net, the press | The moment belongs to the thing that caused it; a spent chip is explained on the roll that spent it (R5); a roll that went out with Advantage says why |
 | **Damage message** | `receipt`, `effectReceipt` | The application belongs to the roll that caused it |
 | **Response message** | `respondsTo` + the answer | A player can only write their *own* message — this is the answer channel that needs no permission. See **the relay** below |
-| **Actor** | `reactionSpent`, `cleaveArm`; the mastery chips (`Vexed`, `Sapped`, `Slowed`, `Cleave — this turn`) as ActiveEffects carrying `start` + `duration.expiry` | Per-creature, per-turn state. ⚠ A chip's clock is the PLATFORM's (v14 `duration.expiry`, judged against `start.combatant` — DESIGN §5); the module writes the window once and never counts turns |
+| **Actor** | `reactionSpent`, `cleaveArm`; the mastery chips (`Vexed`, `Sapped`, `Slowed`, `Cleave — this turn`) as ActiveEffects carrying `start` + `duration.expiry` | Per-creature, per-turn state. ⚠ A chip's clock is the PLATFORM's (v14 `duration.expiry`, judged against `start.combatant` — DESIGN §5); the module writes the window once and never counts turns. The Cleave chit's `start` is the turn IN PROGRESS and its liveness is a stamp comparison (`chitStamp` vs `combatStamp`) — the platform's expiry is its tidy |
 | **Applied effect** | provenance markers | Which module path created it, so revert knows |
 
 ### The four state laws
@@ -253,7 +253,7 @@ that difference — do not tidy the nulls away.
 | `concentration` | per flag, at creation | the concentrator (whose check it is — the damage's dealer is `cause`, by name) |
 | `holdSkipped` (attack messages) | per flag, at the skip | the attacker whose swing outran the reaction |
 | `combatRoster` (a GM-whispered marker card per combat) | once at combatStart; closed (`endedRound`/`endedAt`) at deleteCombat | null — the roster is nobody's action |
-| `chipSpend` (attack messages, 2026-09-01) — `spent: [{id, name, key, uuid, bearer, mode, honoured}]`, the chips this attack roll used up | per flag, at the spend (the elect, on the attack card) | the attacker (whose swing spent them). `honoured` is against the gate's NET when a gate ran, else the chip's own bend |
+| `chipSpend` (attack messages, 2026-09-01) — `spent: [{id, name, key, uuid, bearer, mode, honoured}]`, the chips this attack roll used up | per flag, at the spend (the elect, on the attack card) | the attacker (whose swing spent them). `honoured` is against the gate's NET when the gate ran AND listed that chip's kind (`netShownFor`), else the chip's own bend. ⚠ This record is also the gate's memory: a chip whose spend is on record is never offered again, whatever the sheet says (a no-GM table cannot delete the monster's chip) |
 | `reminder` (attack messages the gate re-issued, 2026-09-01) — `sources: [{kind, bend, label}]`, `net`, `mode`, `honoured`, `answeredAt` | per flag, at the press, on the roller's client | the attacker. ⚠ Two new families for the MCP's scan `KEYS` — the accuracy meter can now split "rolled with Advantage because the table was reminded" from "rolled flat against the net" |
 
 **Second-pass fields (2026-08-27, the stats commission's follow-up):**
@@ -505,12 +505,14 @@ in milliseconds and impossible to tangle. **Keep it that way** — the day somet
 
 | Module | Holds |
 | --- | --- |
-| [decide/geometry.js](scripts/decide/geometry.js) | `honestDims`, `tokenCenter`, `tokenSamplePoints` — the v14 region-shim knowledge |
-| [decide/registry.js](scripts/decide/registry.js) | the world-setting list SPECS and the one `parseList` |
+| [decide/geometry.js](scripts/decide/geometry.js) | `honestDims`, `tokenCenter`, `tokenSamplePoints` — the v14 region-shim knowledge; `lengthUnitKey` — a scene's units folded to the system's keys |
+| [decide/registry.js](scripts/decide/registry.js) | the world-setting list SPECS and the one `parseList`; the closed kind sets and the R4 tripwire; `MASTERY_RULES` and `CONDITION_BENDS` — the rules text and the condition table, as data |
+| [decide/chips.js](scripts/decide/chips.js) | `CHIP_WINDOWS`, `chipClock`, `chipIsDead`, `chitStamp`, `chipSpentBy`, `chipHonoured`, `netShownFor`, `spendRecord` — a chip's clock, and what spends it |
+| [decide/reminders.js](scripts/decide/reminders.js) | `netMode`, `resolutionLine`, `proneSources`, `conditionSources` (over the registry's table), `rollChoices`, `reminderRecord` — what bends a roll and what it nets to |
 | [decide/verdict.js](scripts/decide/verdict.js) | `hitsAmong`, `modeAdmits`, `saveOutcome`, `saveMultiplier`, `verdictText`, and the fold layer (`ATTACK_FOLDS`, `SAVE_FOLDS`, `foldsFrom`, `foldedRoll`, `foldedVerdict`, `foldedSave`) |
 | [decide/eligible.js](scripts/decide/eligible.js) | `isDeadForSaves`, `limitedUses`, `isReactionItem`, `castLevelOf`, `clampVolleyCount`, `riderKey` |
 | [decide/receipt.js](scripts/decide/receipt.js) | `traitOutcome`, `hpDelta`, `receiptEntry`, `joinDamageReceipt`, `joinEffectReceipt`, `takenOf`, `receiptAmounts`, `revertPlan`, `revertableEffect` |
-| [decide/present.js](scripts/decide/present.js) | `popupKey`, `TONE`, `bfCard`, `ruleLine`, `momentBarHTML`, `holdBarHTML`, `nextCascadeSlot`, `cascadePosition` |
+| [decide/present.js](scripts/decide/present.js) | `popupKey`, `TONE`, `bfCard`, `ruleLine`, `momentBarHTML`, `holdBarHTML`, `nextCascadeSlot`, `cascadePosition`; `situationalBonusHTML`, `choiceRowHTML`, `modeButtons` — the controls every popup that stands in for a roll dialog carries; the rescue view's row model and markup |
 | [geometry.js](scripts/geometry.js) | EDGE, not in the layer: `tokensInTemplates`, `templateShape` — they need canvas/CONFIG/PIXI |
 
 ⚠ **`receiptAmounts` returns the row's TEXT as well as its figures, deliberately.** The two bugs
