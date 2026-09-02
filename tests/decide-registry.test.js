@@ -320,7 +320,8 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     const total = reg.KIND_SETS.reduce((n, s) => n + s.kinds.size, 0);
     // 2026-09-01: 19 → 23 — the `reminder` set (vex, sap, prone, condition), the gate's four ways
     // of reading a source of Advantage/Disadvantage before an attack roll.
-    expect(total).toBe(23);
+    // 2026-09-02: 23 → 24 — `range` joins the set (a ranged attack's own geometry, user ask).
+    expect(total).toBe(24);
   });
 
   it("puts every kind-bearing list spec's set in the table — unless the spec says it is MEMBERSHIP", () => {

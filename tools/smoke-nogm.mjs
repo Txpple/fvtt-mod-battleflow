@@ -378,14 +378,15 @@ try {
         const weapon = await fromUuid(weaponUuid);
         const activity = weapon?.system?.activities?.find(a => a.type === 'attack');
         if (!activity) return { error: 'the weapon has no attack activity' };
-        const gateOpen = () => [...foundry.applications.instances.values()]
-          .find(app => (app instanceof foundry.applications.api.DialogV2) && /Before you roll/.test(app.title ?? '') && app.rendered) ?? null;
-        const systemOpen = () => [...foundry.applications.instances.values()]
-          .some(app => /AttackRollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered);
+        // The gate lives INSIDE the system's own roll dialog (2026-09-02): a rendered roll dialog
+        // carrying Battle Flow's section is the gate; one without it is the bare system dialog.
+        const rollDialog = () => [...foundry.applications.instances.values()]
+          .find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element) ?? null;
+        const gateOpen = () => { const app = rollDialog(); return app?.element?.querySelector('[data-bf-reminder]') ? app : null; };
+        const systemOpen = () => !!rollDialog();
         const closeAll = async () => {
           for (const app of foundry.applications.instances.values()) {
-            if (((app instanceof foundry.applications.api.DialogV2) && /Before you roll/.test(app.title ?? ''))
-              || /RollConfigurationDialog/.test(app.constructor?.name ?? '')) { try { await app.close(); } catch { /* gone */ } }
+            if (/RollConfigurationDialog/.test(app.constructor?.name ?? '')) { try { await app.close(); } catch { /* gone */ } }
           }
         };
         const buttonSwing = async () => {
@@ -404,7 +405,7 @@ try {
         // Swing 1: the gate lists the Vex; press Advantage; the spend is RECORDED and the chip stays.
         const first = await buttonSwing();
         const gate1 = await until(gateOpen, 8000);
-        const text1 = (gate1?.element?.querySelector('.window-content')?.textContent ?? '').replace(/\s+/g, ' ');
+        const text1 = (gate1?.element?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ');
         gate1?.element?.querySelector('button[data-action="advantage"]')?.click();
         const msg1 = await until(() => { const m = lastAttack(); return (m && (m.getFlag('dnd5e', 'originatingMessage') === first.usageId)) ? m : null; }, 8000);
         const record = await until(() => game.messages.get(msg1?.id ?? '')?.getFlag(modId, 'chipSpend')?.spent?.find(s => s.id === chipId) ?? null, 8000);
@@ -415,9 +416,10 @@ try {
 
         // Swing 2: the same chip must NOT be offered again — nothing else bends, so the SYSTEM's own dialog opens.
         const second = await buttonSwing();
-        const gate2 = await until(gateOpen, 3000);
-        const system2 = await until(systemOpen, 4000);
-        const text2 = (gate2?.element?.querySelector('.window-content')?.textContent ?? '').replace(/\s+/g, ' ');
+        const system2 = await until(systemOpen, 6000);
+        await sleep(300);
+        const gate2 = gateOpen();
+        const text2 = (gate2?.element?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ');
         await closeAll();
         await sleep(300);
         return { log, gate1: !!gate1, text1: text1.slice(0, 200), record, chipStillThere,

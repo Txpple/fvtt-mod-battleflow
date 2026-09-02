@@ -21,7 +21,8 @@ const SECTIONS = {
   6: 'the lists are the switch: an empty Reminder Sources list turns the gate off',
   7: 'closing the popup rolls nothing',
   8: 'the registration FIRED (§11): dnd5e.preRollAttackV2 moved',
-  9: 'a metric grid: the 5-foot rule is judged in FEET, never in scene units'
+  9: 'a metric grid: the 5-foot rule is judged in FEET, never in scene units',
+  10: 'range: point-blank, beyond normal, beyond long — and the section follows the attack-mode dropdown'
 };
 const DEPENDS = { 8: ['1'] };
 
@@ -135,7 +136,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('saveTimer', 0);
     await set('castApply', false);
     await set('noticeTimer', 2);
-    await set('reminderList', 'vex, sap, prone, condition');
+    await set('reminderList', 'vex, sap, prone, condition, range');
     await set('conditionList', 'blinded, invisible, paralyzed, petrified, poisoned, restrained, stunned, unconscious, frightened, grappled, incapacitated, dodging, charmed');
 
     // -------------------------------------------------- fixtures (the smoke-expiry idiom)
@@ -270,9 +271,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return { target: li.querySelector('button[data-action="rollAttack"]') ?? li, clientY: 200,
         altKey: false, ctrlKey: false, metaKey: false, shiftKey: false };
     };
-    const findGate = () => waitFor(() => [...foundry.applications.instances.values()]
-      .find(app => (app instanceof foundry.applications.api.DialogV2) && /Before you roll/.test(app.title ?? '') && app.rendered), 6000);
-    /** The HUMAN-style roll: the dialog is allowed, so the gate stands in. Returns the popup.
+    /** The SYSTEM's own roll dialog, rendered — since 2026-09-02 the gate lives inside it. */
+    const rollDialog = () => [...foundry.applications.instances.values()]
+      .find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element) ?? null;
+    /** …and the gate is that dialog carrying Battle Flow's section. */
+    const gateOf = app => (app?.element?.querySelector('[data-bf-reminder]') ? app : null);
+    const findGate = async () => {
+      const app = await waitFor(rollDialog, 6000);
+      if (!app) return { dialog: null, system: false };
+      await sleep(150); // the section rides the render hook — same tick, but let the DOM settle
+      return { dialog: gateOf(app), system: true };
+    };
+    /** The HUMAN-style roll: the dialog is allowed, so the gate stands in. Returns the dialog
+     * when it carries the gate's section, and whether the system dialog opened at all.
      * `flat: true` drives the sheet/use() shape instead — the flat originatingMessage key. */
     const gatedSwing = async ({ activity = null, token = null, flat = false } = {}) => {
       await healFull();
@@ -284,14 +295,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const before = game.messages.size;
       if (flat) void act.rollAttack({}, {}, usageId ? { data: { 'flags.dnd5e.originatingMessage': usageId } } : {});
       else void act.rollAttack({ event: await buttonEvent(usageId) }, {}, {});
-      const dlg = await findGate();
-      return { dialog: dlg ?? null, usageId, messagesBefore: before };
+      const { dialog, system } = await findGate();
+      return { dialog, system, usageId, messagesBefore: before };
     };
     const defaultButton = dlg => dlg?.element?.querySelector('button[autofocus]')?.dataset?.action ?? null;
     /** Is the re-issued attack LINKED to its usage card — by flag, and in the system's own registry? */
     const linked = (msg, usageId) => (msg?.getFlag('dnd5e', 'originatingMessage') === usageId)
       && (game.messages.get(usageId)?.getAssociatedRolls?.('attack') ?? []).some(m => m.id === msg?.id);
-    const popupText = dlg => (dlg?.element?.querySelector('.window-content')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    /** The gate's section, as the table reads it (the dialog's whole text where the section is absent). */
+    const popupText = dlg => ((dlg?.element?.querySelector('[data-bf-reminder]') ?? dlg?.element?.querySelector('.window-content'))?.textContent ?? '')
+      .replace(/\s+/g, ' ').trim();
+    /** Press one of the SYSTEM dialog's own three buttons — a submit, exactly as a click. */
     const press = async (dlg, mode) => {
       const btn = dlg?.element?.querySelector(`button[data-action="${mode}"]`);
       btn?.click();
@@ -328,17 +342,26 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1. (setup) the victim is Vexed by the PC', !!vexed, `vexed=${!!vexed}`);
       const before = lastAttack()?.id ?? null;
       const { dialog, usageId } = await gatedSwing();
-      ok('1a. the card\'s Attack BUTTON (a click, no originatingMessage anywhere) opens the gate instead of the system dialog',
-        !!dialog, `dialog=${!!dialog} title=${dialog?.title ?? '-'}`);
+      ok('1a. the card\'s Attack BUTTON (a click, no originatingMessage anywhere) opens the SYSTEM dialog carrying the gate\'s section',
+        !!dialog, `dialog=${!!dialog} class=${rollDialog()?.constructor?.name ?? '-'}`);
       const text = popupText(dialog);
-      ok('1b. the popup names the source, the bend and the net',
-        /Vexed/.test(text) && /Advantage/.test(text) && /Net: Advantage/.test(text) && /Situational Bonus/.test(text),
+      ok('1b. the section names the source, the bend as a badge, and the net — and the dialog keeps its own situational bonus',
+        /Vexed/.test(text) && /Advantage/.test(text) && /Net: Advantage/.test(text)
+          && !!dialog?.element?.querySelector('input[name="roll.0.situational"]'),
         text.slice(0, 300));
       ok('1b2. the NET is the highlighted default — Enter presses the outcome the solver worked out (user ruling)',
         defaultButton(dialog) === 'advantage', `default=${defaultButton(dialog)}`);
-      ok('1b3. the dialog\'s own choices ride along — the roll-mode select at least',
-        !!dialog?.element?.querySelector('select[name="bf-reminder-rollMode"]'),
+      ok('1b3. the dialog\'s own choices are the dialog\'s own — the roll-mode select at least, untouched',
+        !!dialog?.element?.querySelector('select[name="rollMode"]'),
         [...(dialog?.element?.querySelectorAll('select') ?? [])].map(s => s.name).join(','));
+      ok('1b4. the section sits AFTER the dialog\'s CONFIGURATION fieldset and before its buttons',
+        (() => {
+          const s = dialog?.element?.querySelector('[data-bf-reminder]');
+          const c = dialog?.element?.querySelector('[data-application-part="configuration"]');
+          const b = dialog?.element?.querySelector('[data-application-part="buttons"]');
+          return !!s && !!c && !!b && (c.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+            && (s.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+        })(), '');
       const pressed = await press(dialog, 'advantage');
       const msg = await waitAttackAfter(before);
       const roll = msg?.rolls?.[0];
@@ -413,9 +436,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('3a2. the highlighted default is the net — Normal', defaultButton(dialog) === 'normal', `default=${defaultButton(dialog)}`);
       // One of the dialog's own choices, changed before the press: a GM-only roll (v14 keys the
       // modes `public`/`gm`/`blind`/`self`, v13 `publicroll`/`gmroll`/…; the option is found by either).
-      const rollModeSelect = dialog?.element?.querySelector('select[name="bf-reminder-rollMode"]');
+      const rollModeSelect = dialog?.element?.querySelector('select[name="rollMode"]');
       const gmOption = [...(rollModeSelect?.options ?? [])].find(o => /^(gm|gmroll)$/.test(o.value));
-      if (rollModeSelect && gmOption) rollModeSelect.value = gmOption.value;
+      if (rollModeSelect && gmOption) {
+        rollModeSelect.value = gmOption.value;
+        rollModeSelect.dispatchEvent(new Event('change', { bubbles: true })); // the dialog reads its form on change
+        await sleep(300);
+      }
       await press(dialog, 'normal');
       const msg = await waitAttackAfter(before);
       const rem = msg?.getFlag(MOD, 'reminder');
@@ -534,19 +561,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await setStatus(pc, 'poisoned', true);
       await set('reminderList', '');
       {
-        const { dialog } = await gatedSwing();
-        const system = await waitFor(systemDialogOpen, 4000);
-        ok('6. an empty Reminder Sources list: no gate — the SYSTEM\'s own roll dialog opens, as it always did',
-          !dialog && !!system, `gate=${!!dialog} systemDialog=${!!system}`);
+        const { dialog, system } = await gatedSwing();
+        ok('6. an empty Reminder Sources list: no gate — the SYSTEM\'s own roll dialog opens bare, as it always did',
+          !dialog && system, `section=${!!dialog} systemDialog=${system}`);
         await closeGates();
       }
       await set('reminderList', 'vex, sap, prone, condition');
       await set('conditionList', 'blinded');
       {
-        const { dialog } = await gatedSwing();
-        const system = await waitFor(systemDialogOpen, 4000);
-        ok('6a. poisoned dropped from the Condition Sources list: nothing to read, no gate — the system dialog opens',
-          !dialog && !!system, `gate=${!!dialog} systemDialog=${!!system}`);
+        const { dialog, system } = await gatedSwing();
+        ok('6a. poisoned dropped from the Condition Sources list: nothing to read, no section — the bare system dialog',
+          !dialog && system, `section=${!!dialog} systemDialog=${system}`);
         await closeGates();
       }
       await set('conditionList', prior.conditionList);
@@ -570,8 +595,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 8. the registration FIRED
     if (want(8)) {
-      ok('8. dnd5e.preRollAttackV2 fired during this suite (the gate\'s only system hook)',
+      ok('8. dnd5e.preRollAttackV2 fired during this suite (the gate\'s pre-roll hook)',
         count('dnd5e.preRollAttackV2') > 0, `count=${count('dnd5e.preRollAttackV2')}`);
+      ok('8a. dnd5e.postRollConfiguration fired (the record\'s hook, after the dialog closed with rolls)',
+        count('dnd5e.postRollConfiguration') > 0, `count=${count('dnd5e.postRollConfiguration')}`);
+      ok('8b. renderRollConfigurationDialog fired (the section\'s hook)',
+        count('renderRollConfigurationDialog') > 0, `count=${count('renderRollConfigurationDialog')}`);
     }
 
     // ================================================== 9. a metric grid
@@ -615,6 +644,139 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
         await scene.update({ 'grid.distance': priorGrid.distance, 'grid.units': priorGrid.units });
         await clearStatuses();
+      }
+    }
+
+    // ================================================== 10. range, and the dropdown
+    // The class, not the example (user, 2026-09-02): any RANGED attack roll — a dart here, the
+    // cheapest weapon with two ranges (20/60) the range's squares can hold. Both glossary rules:
+    // an enemy within 5 feet, beyond normal range, beyond long range. Then the dagger, which is
+    // melee OR thrown by the dialog's own dropdown: the section must follow the dropdown.
+    if (want(10)) {
+      await sleep(1000);
+      await clearChips();
+      await clearStatuses();
+      const findRanged = async () => {
+        const owned = pc.items.find(i => (i.type === 'weapon') && (i.system.range?.long > 0)
+          && i.system.activities?.some?.(a => (a.type === 'attack') && (a.attack?.type?.value === 'ranged')));
+        if (owned) return owned;
+        const want = [];
+        for (const pack of game.packs) {
+          if (pack.documentName !== 'Item') continue;
+          if (pack.metadata.id.startsWith('JB2A')) continue;
+          let index;
+          try { index = await pack.getIndex({ fields: ['type', 'name', 'system.range', 'system.properties'] }); } catch { continue; }
+          for (const entry of index) {
+            if ((entry.type !== 'weapon') || !(entry.system?.range?.long > 0) || (entry.system.range.long > 60)) continue;
+            want.push({ pack, entry, dart: /^dart$/i.test(entry.name) });
+          }
+        }
+        want.sort((a, b) => Number(b.dart) - Number(a.dart));
+        for (const { pack, entry } of want) {
+          const doc = await pack.getDocument(entry._id);
+          if (!doc.system.activities?.some?.(a => (a.type === 'attack') && (a.attack?.type?.value === 'ranged'))) continue;
+          const [made] = await pc.createEmbeddedDocuments('Item', [doc.toObject()]);
+          created.items.push({ actorId: pc.id, id: made.id });
+          return made;
+        }
+        return null;
+      };
+      const dart = await findRanged();
+      if (!dart) {
+        skips.push('§10 no ranged weapon with a long range ≤ 60 in any pack');
+      } else {
+        const normal = dart.system.range.value, long = dart.system.range.long;
+        log.push(`ranged: ${dart.name} (${normal}/${long} ${dart.system.range.units})`);
+        const dartAttack = () => pc.items.get(dart.id).system.activities.find(a => a.type === 'attack');
+        const priorDisposition = { victim: victimTokenDoc.disposition, pc: pcTokenDoc.disposition };
+        const far = [];
+        try {
+          await pcTokenDoc.update({ disposition: 1 });
+          await victimTokenDoc.update({ disposition: -1 });   // an ENEMY, adjacent
+          await sleep(200);
+          {
+            const { dialog } = await gatedSwing({ activity: dartAttack() });
+            const text = popupText(dialog);
+            ok('10. a dart at an adjacent enemy: within 5 feet of an enemy — Disadvantage, with the caveat, and no range box (5 feet is within normal range)',
+              !!dialog && /within 5 feet of Hobgoblin/.test(text) && /press Normal if none of them can see you/.test(text)
+                && /Net: Disadvantage/.test(text) && !/beyond/.test(text),
+              text.slice(0, 320));
+            ok('10a. …and Disadvantage is the highlighted default', defaultButton(dialog) === 'disadvantage', `default=${defaultButton(dialog)}`);
+            await closeGates();
+          }
+          // The adjacent one stops being an enemy, so the close-combat box goes; far tokens judge the range.
+          await victimTokenDoc.update({ disposition: 0 });
+          const placeFar = async squares => {
+            const { doc, token } = await placeToken(victim, 1500 - (squarePx * squares), 1400);
+            await doc.update({ disposition: -1 });
+            far.push(doc.id);
+            await sleep(200);
+            return token;
+          };
+          {
+            const token = await placeFar(6);   // 30 feet: beyond normal 20, within long 60
+            const { dialog } = await gatedSwing({ activity: dartAttack(), token });
+            const text = popupText(dialog);
+            ok(`10b. a dart at ${gridFeet * 6} feet — beyond normal range (${normal}/${long}): Disadvantage, and nothing about close combat`,
+              !!dialog && new RegExp(`beyond normal range — ${gridFeet * 6} feet \\(${normal}/${long}\\)`).test(text)
+                && /Net: Disadvantage/.test(text) && !/within 5 feet of/.test(text),
+              text.slice(0, 320));
+            await closeGates();
+          }
+          {
+            const token = await placeFar(13);  // 65 feet: beyond long range 60
+            const { dialog } = await gatedSwing({ activity: dartAttack(), token });
+            const text = popupText(dialog);
+            ok(`10c. a dart at ${gridFeet * 13} feet — beyond long range: LISTED, not counted — the attack cannot be made, net normal`,
+              !!dialog && new RegExp(`beyond long range — ${gridFeet * 13} feet, long range ${long}: this attack cannot be made`).test(text)
+                && /Nothing counted/.test(text) && (defaultButton(dialog) === 'normal'),
+              `${text.slice(0, 320)} default=${defaultButton(dialog)}`);
+            await closeGates();
+          }
+          {
+            const token = await placeFar(3);   // 15 feet: within normal range — nothing to say, the dialog opens bare
+            const { dialog, system } = await gatedSwing({ activity: dartAttack(), token });
+            ok('10d. a dart within normal range at a lone enemy: no section at all — the bare system dialog', !dialog && system,
+              `section=${!!dialog} system=${system}`);
+            await closeGates();
+          }
+          // THE DROPDOWN (user, 2026-09-02): the dagger is melee at open — no section — and
+          // Thrown by the dialog's own attack-mode select. The section must follow it.
+          {
+            const token = canvas.tokens.get(far[0]); // the one at 30 feet
+            const { dialog, system } = await gatedSwing({ token });
+            const app = rollDialog();
+            const select = app?.element?.querySelector('select[name="attackMode"]');
+            const thrown = [...(select?.options ?? [])].find(o => /^thrown$/.test(o.value));
+            ok('10e. the melee dagger at 30 feet opens the bare dialog — no section, no default moved',
+              !dialog && system && !app?.element?.querySelector('[data-bf-reminder]'), `section=${!!dialog} system=${system}`);
+            if (!select || !thrown) {
+              skips.push(`§10f–g ${blade.name} offers no Thrown attack mode (modes: ${[...(select?.options ?? [])].map(o => o.value).join(',') || 'none'})`);
+            } else {
+              select.value = thrown.value;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              const grown = await waitFor(() => app.element?.querySelector('[data-bf-reminder]'), 4000);
+              const text = (grown?.textContent ?? '').replace(/\s+/g, ' ');
+              ok('10f. switched to Thrown: the section GROWS a range box — beyond normal range, Disadvantage — and the default moves to it',
+                !!grown && /beyond normal range/.test(text) && /Net: Disadvantage/.test(text) && (defaultButton(app) === 'disadvantage'),
+                `${text.slice(0, 240)} default=${defaultButton(app)}`);
+              const back = [...select.options].find(o => !/^thrown/.test(o.value));
+              select.value = back.value;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              const gone = await waitFor(() => !app.element?.querySelector('[data-bf-reminder]'), 4000);
+              ok('10g. …and switched back to melee the section goes, the default back to Normal',
+                gone && (defaultButton(app) === 'normal'), `gone=${gone} default=${defaultButton(app)}`);
+            }
+            await closeGates();
+          }
+        } finally {
+          const liveFar = far.filter(id => scene.tokens.get(id));
+          if (liveFar.length) await scene.deleteEmbeddedDocuments('Token', liveFar).catch(() => {});
+          for (const id of far) { const i = created.tokens.indexOf(id); if (i >= 0) created.tokens.splice(i, 1); }
+          await victimTokenDoc.update({ disposition: priorDisposition.victim }).catch(() => {});
+          await pcTokenDoc.update({ disposition: priorDisposition.pc }).catch(() => {});
+          await clearStatuses();
+        }
       }
     }
 

@@ -502,32 +502,51 @@ describe("situationalBonusHTML / modeButtons — one shape for a popup that stan
       true
     ]);
   });
-  it("a choice row is a labelled select carrying the name the caller reads back, the current pick selected", async () => {
-    const m = await import("../scripts/decide/present.js");
-    const html = m.choiceRowHTML(
-      {
-        label: "Attack mode",
-        options: [
-          { value: "oneHanded", label: "One-Handed" },
-          { value: "twoHanded", label: "Two-Handed" }
-        ],
-        value: "twoHanded"
-      },
-      "bf-reminder-attackMode"
-    );
-    expect(html).toContain('<select name="bf-reminder-attackMode"');
-    expect(html).toContain("Attack mode");
-    expect(html).toContain('<option value="oneHanded">One-Handed</option>');
-    expect(html).toContain('<option value="twoHanded" selected>Two-Handed</option>');
+});
+
+describe("reminderFieldsetHTML — the gate's section inside the system's own roll dialog", () => {
+  const view = {
+    boxes: [
+      { label: "Gruk — Sapped", bend: "disadvantage", badge: "Disadvantage", rule: "sap rule" },
+      { label: "Gruk Vexed Thomas", bend: "advantage", badge: "Advantage", rule: "vex rule" },
+      { label: "Prone — distance unknown", bend: null, badge: "Listed", rule: "" }
+    ],
+    net: { title: "Net: Normal roll", why: "they cancel", glossary: "the glossary sentence" }
+  };
+  it("is ONE fieldset the dialog can find, with the same legend shape as the dialog's own", () => {
+    const html = p.reminderFieldsetHTML(view);
+    expect(html.trim().startsWith("<fieldset data-bf-reminder>")).toBe(true);
+    expect(html).toContain("<legend>Before you roll</legend>");
+    expect(html.match(/<fieldset/g)).toHaveLength(1);
   });
-  it("a choice row escapes what lands in markup", async () => {
-    const m = await import("../scripts/decide/present.js");
-    const html = m.choiceRowHTML(
-      { label: "A & B", options: [{ value: 'x"y', label: "<b>" }], value: "" },
-      "n"
-    );
-    expect(html).toContain("A &amp; B");
-    expect(html).toContain('value="x&quot;y"');
+  it("draws a box per source, wearing the bend's tone and its badge, and the rule as the verbatim quote", () => {
+    const html = p.reminderFieldsetHTML(view);
+    expect(html).toContain("Gruk — Sapped");
+    expect(html).toContain(`border-left:3px solid ${p.TONE.pending}`);
+    expect(html).toContain(`border-left:3px solid ${p.TONE.good}`);
+    expect(html).toContain(`border-left:3px solid ${p.TONE.neutral}`);
+    expect(html).toContain(">Disadvantage</div>");
+    expect(html).toContain(">Listed</div>");
+    expect(html).toContain(p.ruleLine("sap rule"));
+    expect(html).not.toContain(p.ruleLine(""));
+  });
+  it("closes with the net line, and the glossary only when it is given", () => {
+    expect(p.reminderFieldsetHTML(view)).toContain("<strong>Net: Normal roll</strong>");
+    expect(p.reminderFieldsetHTML(view)).toContain(p.ruleLine("the glossary sentence"));
+    const one = p.reminderFieldsetHTML({
+      boxes: view.boxes.slice(0, 1),
+      net: { ...view.net, glossary: null }
+    });
+    expect(one).not.toContain("the glossary sentence");
+    expect(one).toContain("they cancel");
+  });
+  it("escapes the badge and the legend — they land in markup from the table's own words", () => {
+    const html = p.reminderFieldsetHTML({
+      boxes: [{ label: "x", bend: null, badge: "<b>", rule: "" }],
+      net: { title: "t", why: "w" },
+      legend: "A & B"
+    });
     expect(html).toContain("&lt;b&gt;");
+    expect(html).toContain("A &amp; B");
   });
 });

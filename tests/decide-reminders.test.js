@@ -193,77 +193,125 @@ describe("conditionSources — the registry's table, read one row at a time", ()
   });
 });
 
-describe("rollChoices — the native dialog's own selects, carried by the gate", () => {
-  const dialogOptions = {
-    attackModeOptions: [
-      { value: "oneHanded", label: "One-Handed" },
-      { rule: true },
-      { value: "twoHanded", label: "Two-Handed" },
-      { value: "thrown", label: "Thrown" }
-    ],
-    ammunitionOptions: [
-      { value: "", label: "" },
-      { value: "arrow1", label: "Arrows (20)" }
-    ],
-    masteryOptions: [{ value: "vex", label: "Vex" }]
-  };
-  it("one choice per list with more than one real entry; separators dropped; the blank ammo named", () => {
-    const choices = r.rollChoices(dialogOptions, { attackMode: "twoHanded", ammunition: "arrow1" });
-    expect(choices.map(c => c.key)).toEqual(["attackMode", "ammunition"]);
-    expect(choices[0]).toEqual({
-      key: "attackMode",
-      label: "Attack mode",
-      value: "twoHanded",
-      options: [
-        { value: "oneHanded", label: "One-Handed" },
-        { value: "twoHanded", label: "Two-Handed" },
-        { value: "thrown", label: "Thrown" }
-      ]
+describe("rangeSources — a ranged attack's own geometry, both glossary rules", () => {
+  const rules = () => reg.RANGE_RULES;
+  const at = (d, extra = {}) =>
+    r.rangeSources({
+      ranged: true,
+      distanceFeet: d,
+      normalFeet: 20,
+      longFeet: 60,
+      targetName: "Hobgoblin",
+      rules: rules(),
+      ...extra
     });
-    expect(choices[1]).toEqual({
-      key: "ammunition",
-      label: "Ammunition",
-      value: "arrow1",
-      options: [
-        { value: "", label: "None" },
-        { value: "arrow1", label: "Arrows (20)" }
-      ]
-    });
-  });
-  it("a config value the list does not carry falls to the first entry, as dnd5e does", () => {
-    const [mode] = r.rollChoices(dialogOptions, { attackMode: "offhand" });
-    expect(mode.value).toBe("oneHanded");
-    const [, ammo] = r.rollChoices(dialogOptions, {});
-    expect(ammo.value).toBe("");
-  });
-  it("a mastery list with more than one entry is a choice too", () => {
-    const choices = r.rollChoices(
+  it("within normal range is nothing; beyond normal is Disadvantage with the glossary sentence", () => {
+    expect(at(20)).toEqual([]);
+    expect(at(25)).toMatchObject([
       {
-        masteryOptions: [
-          { value: "vex", label: "Vex" },
-          { value: "sap", label: "Sap" }
-        ]
-      },
-      { mastery: "sap" }
-    );
-    expect(choices).toEqual([
-      {
-        key: "mastery",
-        label: "Mastery",
-        value: "sap",
-        options: [
-          { value: "vex", label: "Vex" },
-          { value: "sap", label: "Sap" }
-        ]
+        kind: "range",
+        bend: "disadvantage",
+        label: "Hobgoblin is beyond normal range — 25 feet (20/60)",
+        detail: reg.RANGE_RULES.long
       }
     ]);
+    expect(at(60)[0].bend).toBe("disadvantage");
   });
-  it("nothing to choose is nothing", () => {
-    expect(r.rollChoices({}, {})).toEqual([]);
-    expect(r.rollChoices()).toEqual([]);
+  it("beyond long range cannot be made — listed, not counted", () => {
+    const [s] = at(65);
+    expect(s.bend).toBeNull();
+    expect(s.label).toBe(
+      "Hobgoblin is beyond long range — 65 feet, long range 60: this attack cannot be made"
+    );
+    expect(r.netMode([s])).toBe("normal");
+  });
+  it("a single range (a spell) has no Disadvantage band — beyond it cannot be made", () => {
+    expect(at(25, { normalFeet: 30, longFeet: null })).toEqual([]);
+    const [s] = at(35, { normalFeet: 30, longFeet: null });
+    expect(s.bend).toBeNull();
+    expect(s.label).toBe(
+      "Hobgoblin is beyond range — 35 feet, range 30: this attack cannot be made"
+    );
+    expect(s.detail).toBe(reg.RANGE_RULES.single);
+  });
+  it("an enemy within 5 feet is Disadvantage, carrying the caveat the module cannot judge", () => {
+    const [s] = r.rangeSources({
+      ranged: true,
+      closeEnemies: ["Goblin", "Wolf"],
+      attackerName: "Gruk",
+      rules: rules()
+    });
+    expect(s).toMatchObject({ kind: "range", bend: "disadvantage", detail: reg.RANGE_RULES.close });
+    expect(s.label).toBe(
+      "Gruk — a ranged attack within 5 feet of Goblin, Wolf (counted — press Normal if none of them can see you)"
+    );
+  });
+  it("a melee attack yields nothing, whatever the distance; an unmeasured ranged attack yields nothing on the range side", () => {
     expect(
-      r.rollChoices({ attackModeOptions: [{ value: "oneHanded", label: "One-Handed" }] })
+      r.rangeSources({
+        ranged: false,
+        distanceFeet: 100,
+        normalFeet: 20,
+        longFeet: 60,
+        closeEnemies: ["Goblin"],
+        rules: rules()
+      })
     ).toEqual([]);
+    expect(at(null)).toEqual([]);
+    expect(at(Number.NaN)).toEqual([]);
+    expect(r.rangeSources({ ranged: true, distanceFeet: 30, rules: rules() })).toEqual([]);
+  });
+  it("close combat and long range together are two sources of Disadvantage — still one", () => {
+    const sources = at(30, { closeEnemies: ["Goblin"], attackerName: "Gruk" });
+    expect(sources.map(s => s.bend)).toEqual(["disadvantage", "disadvantage"]);
+    expect(r.netMode(sources)).toBe("disadvantage");
+  });
+  it("the glossary sentences are the registry's, verbatim, and no rules means no boxes", () => {
+    expect(reg.RANGE_RULES.long).toMatch(
+      /^Your attack roll has Disadvantage when your target is beyond normal range/
+    );
+    expect(reg.RANGE_RULES.close).toMatch(/within 5 feet of an enemy who can see you/);
+    expect(
+      r.rangeSources({ ranged: true, distanceFeet: 99, normalFeet: 20, longFeet: 60 })
+    ).toEqual([]);
+  });
+});
+
+describe("reminderView — the boxes the native dialog's section draws", () => {
+  const GLOSS = "A roll can’t be affected by more than one Advantage.";
+  it("one box per source: the fact, the bend as a badge, the rule; the net line; the glossary only when sources contend", () => {
+    const sources = [
+      r.reminderSource("sap", "disadvantage", "Gruk — Sapped by Thomas", "sap rule"),
+      r.reminderSource("vex", "advantage", "Gruk Vexed Thomas", "vex rule")
+    ];
+    expect(r.reminderView(sources, "normal", GLOSS)).toEqual({
+      boxes: [
+        {
+          label: "Gruk — Sapped by Thomas",
+          bend: "disadvantage",
+          badge: "Disadvantage",
+          rule: "sap rule"
+        },
+        { label: "Gruk Vexed Thomas", bend: "advantage", badge: "Advantage", rule: "vex rule" }
+      ],
+      net: {
+        title: "Net: Normal roll",
+        why: "Advantage (1) and Disadvantage (1) cancel — a normal roll, however many of each.",
+        glossary: GLOSS
+      }
+    });
+  });
+  it("a single source carries no glossary sentence, and a row the module cannot judge is badged Listed", () => {
+    const view = r.reminderView([unk()], "normal", GLOSS);
+    expect(view.boxes).toEqual([
+      { label: "prone, distance unknown", bend: null, badge: "Listed", rule: "" }
+    ]);
+    expect(view.net).toEqual({
+      title: "Net: Normal roll",
+      why: "Nothing counted. One source could not be judged from here — see below.",
+      glossary: null
+    });
+    expect(r.reminderView([dis()], "disadvantage", GLOSS).net.title).toBe("Net: Disadvantage");
   });
 });
 

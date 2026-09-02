@@ -154,7 +154,11 @@ for (const [key, spec] of Object.entries(LIST_SPECS)) {
 // gate can READ a source of Advantage/Disadvantage before an attack roll (HANDOFF Stage 2 + 3).
 // One new MECHANISM (the gate), four kinds naming what it reads; WHICH conditions count under
 // the fourth is the Condition Sources list — thirteen rows of data, not thirteen kinds.
-const EXPECTED_KINDS = 23;
+// 2026-09-02: 23 → 24, `range` joins the reminder set (user ask): a RANGED attack roll's own
+// geometry — beyond normal range, beyond long range, an enemy within 5 feet — is a fifth way of
+// KNOWING, read off the activity's range and the same distance Prone already measures. Same
+// mechanism, one more kind; the two glossary sentences are data (RANGE_RULES).
+const EXPECTED_KINDS = 24;
 
 // The mastery set must match the rule text it is presented with: a mastery this module
 // resolves but cannot quote breaks presentation law 8 (ARCHITECTURE.md §5) at the popup.

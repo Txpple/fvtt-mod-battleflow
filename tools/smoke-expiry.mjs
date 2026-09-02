@@ -133,7 +133,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('saveTimer', 0);
     await set('castApply', false);
     await set('noticeTimer', 2); // the reminder popups this suite provokes drain fast
-    await set('reminderList', 'vex, sap, prone, condition'); // §10 gates a swing; every other swing is configure:false
+    await set('reminderList', 'vex, sap, prone, condition, range'); // §10 gates a swing; every other swing is configure:false
 
     // -------------------------------------------------- fixtures (the smoke-effects idiom)
     const findWeapon = async () => {
@@ -309,8 +309,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return { target: li.querySelector('button[data-action="rollAttack"]') ?? li, clientY: 200,
         altKey: false, ctrlKey: false, metaKey: false, shiftKey: false };
     };
-    const findGate = () => waitFor(() => [...foundry.applications.instances.values()]
-      .find(app => (app instanceof foundry.applications.api.DialogV2) && /Before you roll/.test(app.title ?? '') && app.rendered), 6000);
+    /** The SYSTEM's own roll dialog carrying Battle Flow's section — the gate lives inside it (2026-09-02). */
+    const findGate = async () => {
+      const app = await waitFor(() => [...foundry.applications.instances.values()]
+        .find(a => /RollConfigurationDialog/.test(a.constructor?.name ?? '') && a.rendered && a.element) ?? null, 6000);
+      await sleep(150);
+      return app?.element?.querySelector('[data-bf-reminder]') ? app : null;
+    };
     /** A HUMAN-style swing — the dialog allowed, so the gate stands in when it has something to say. */
     const gatedSwing = async (activity, token) => {
       await healFull();
@@ -322,7 +327,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const dialog = await findGate();
       return { dialog: dialog ?? null, usageId };
     };
-    const popupText = dlg => (dlg?.element?.querySelector('.window-content')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const popupText = dlg => (dlg?.element?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const press = async (dlg, mode) => { const btn = dlg?.element?.querySelector(`button[data-action="${mode}"]`); btn?.click(); return !!btn; };
     const closeGates = async () => {
       for (const app of foundry.applications.instances.values()) {

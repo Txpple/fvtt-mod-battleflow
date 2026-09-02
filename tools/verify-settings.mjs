@@ -66,7 +66,7 @@ const REFERENCE = {
   // list is the gate turned off — and smoke-reminders §6 pins them to '' and 'blinded' to prove
   // it, so a run that dies inside §6 leaves the gate off in the world. Named here for exactly
   // the reason the d20Folds comment above gives: an unlisted key is never checked.
-  reminderList: 'vex, sap, prone, condition',
+  reminderList: 'vex, sap, prone, condition, range',   // range joined 2026-09-02 (user ask)
   conditionList: 'blinded, invisible, paralyzed, petrified, poisoned, restrained, stunned, unconscious, frightened, grappled, incapacitated, dodging, charmed'
 };
 
