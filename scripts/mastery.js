@@ -7,10 +7,12 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, isFlowElectFor, drivesMomentF
   statContext } from "./core.js";
 import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.js";
-import { TURN_CHIPS, chipClock, chipIsDead, chipSpentBy, rollModeOf, spendRecord } from "./decide/chips.js";
-import { REMINDER_FLAG } from "./decide/reminders.js";
+import { TURN_CHIPS, CHIP_FLAG, chipClock, chipIsDead, chipOwnedBy, chipSpentBy, chitStamp,
+  netShownFor, rollModeOf, spendRecord } from "./decide/chips.js";
+import { REMINDER_FLAG, rolledWith } from "./decide/reminders.js";
 import { hitTargets, masteryLabel, modeAllows, rollConfigFor } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
+import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, situationalBonusHTML,
+  modeButtons } from "./decide/present.js";
 import { livePopups, openMomentPopup,
   momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,
   armAskTimer, disarmAskTimer, armDeadline, disarmDeadline,
@@ -42,8 +44,9 @@ import { messageActivity } from "./effect-riders.js";
  * THE FENCE (user call, restated 2026-09-01 — HANDOFF R-A): nothing here modifies a d20
  * without a human pressing it. The chip is the reminder and the roll dialog is where it is
  * honoured. THE PLATFORM KEEPS THE CLOCK (R-C): every chip carries its RAW window as v14
- * `duration.expiry` data pinned to the attacker's own combatant (decide/chips.js), Foundry
- * marks it expired on the exact turn boundary, and this file only tidies what Foundry marked.
+ * `duration.expiry` data pinned to the attacker's own combatant (decide/chips.js) — the
+ * once-per-turn chit to the turn IN PROGRESS — Foundry marks it expired on the exact turn
+ * boundary, and this file only tidies what Foundry marked.
  * What this file DOES own is the EVENT half: the attack roll that SPENDS Vex or Sap (the rules
  * spend them claimed or not — `spendChips`, with a receipt on the attack card), the
  * once-per-turn Cleave chit, and the sweep when a combat is deleted. Refresh, never stack.
@@ -295,16 +298,16 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
     // actively hides the one chip that IS live. Swept at apply time, on the actor being
     // chipped only — the narrow, predictable moment, not a global reaper.
     //
-    // A clock that never resolved counts as dead too (`remaining` null/NaN): that is the very
-    // shape the duration fix above stops creating, and old ones must not linger. Effects with
-    // NO clock are left alone — a durationless chip is somebody else's contract, not ours.
+    // Dead is the PLATFORM's mark, or a clock gone negative (decide/chips.js `chipIsDead` —
+    // zero on the clock is still alive, the whole of its boundary round). Effects with NO
+    // clock are left alone — a durationless chip is somebody else's contract, not ours.
     // ⚠ ONE batched delete: a synthetic (unlinked-token) actor rebuilds its collections from
-    // the delta on every write, so deleting one at a time throws on the second (NOTES §2).
-    const dead = actor.effects.filter(e => e.getFlag(MODULE_ID, "mastery") && chipIsDead(e.duration ?? {}));
+    // the delta on every write, so deleting one at a time throws on the second (NOTES §1).
+    const dead = actor.effects.filter(e => e.getFlag(MODULE_ID, CHIP_FLAG) && chipIsDead(e.duration ?? {}));
     if ( dead.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", dead.map(e => e.id));
 
     const existing = actor.effects.find(e =>
-      (e.getFlag(MODULE_ID, "mastery") === key) && (e.origin === ctx.weapon.uuid));
+      (e.getFlag(MODULE_ID, CHIP_FLAG) === key) && (e.origin === ctx.weapon.uuid));
     let applied;
     if ( existing ) {
       // ⚠ `?? existing`: Document#update returns UNDEFINED when the diff is empty — a
@@ -320,7 +323,7 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
         origin: ctx.weapon.uuid, disabled: false, transfer: false,
         ...chipData(clock),
         changes: def.changes?.() ?? [],
-        flags: { [MODULE_ID]: { mastery: key } }
+        flags: { [MODULE_ID]: { [CHIP_FLAG]: key } }
       }, { parent: actor });
     }
     if ( !applied ) continue;
@@ -345,37 +348,75 @@ function placeOf(attacker) {
 }
 
 /**
+ * The CURRENT turn's place in the running combat — whoever's turn it is — for the once-per-turn
+ * chit, which belongs to the turn IN PROGRESS and not to the attacker: an opportunity attack's
+ * chit dies with the victim's turn, not at the attacker's own next turnEnd (review finding 3,
+ * 2026-09-01). Read off `game.combat` alone, so an attacker who is not in the tracker (a
+ * summon) still gets a chit and is not reminded on every hit (finding 18). Null out of combat.
+ */
+function turnPlace() {
+  const combat = game.combat;
+  if ( !combat?.started ) return null;
+  const combatant = combat.combatant ?? null;
+  return { combat: combat.id, combatant: combatant?.id ?? null, initiative: combatant?.initiative ?? null,
+    round: combat.round, turn: combat.turn, time: game.time.worldTime };
+}
+
+/**
  * What a clock becomes on the document: the window, un-expired, and its start. In combat the
  * start is the attacker's place (decide/chips.js); out of combat only the time is ours to say
  * and the platform's own `_preCreate` fills the rest — a refresh re-times an existing chip.
+ *
+ * ⚠ AN ATTACKER IN A RUNNING COMBAT BUT NOT IN THE TRACKER (a summon, a hazard) takes that same
+ * path ON PURPOSE (review finding 20, 2026-09-01, the proposed fix measured and refused). The
+ * platform stamps whoever's turn it IS, which for a creature acting on its summoner's turn reads
+ * "your next turn" correctly; writing `combat: null` instead does NOT make the chip time-based
+ * while the BEARER is tracked — Foundry falls back to the bearer's own combatant and expires the
+ * chip at exactly the same moment — so there is no better stamp to write, and none is.
  */
 function chipData(clock) {
   return { duration: { ...clock.duration, expired: false },
     start: clock.start ?? { time: game.time.worldTime } };
 }
 
+/** The turn a chit was written in, as the house stamp (decide/chips.js `chitStamp`). `start.combat`
+ * is a ForeignDocumentField — a Combat document, or null once that combat is gone. */
+function chitStampOf(effect) {
+  const combat = effect.start?.combat;
+  return chitStamp({ combat: (typeof combat === "string") ? combat : (combat?.id ?? null),
+    round: effect.start?.round, turn: effect.start?.turn });
+}
+
 /**
  * THE ONCE-PER-TURN CHIT (user, 2026-09-01): does a Cleave chit already stand on the attacker
- * this turn? If not, write one — it dies with this turn on the platform's clock — and answer
- * "no, remind". Out of combat there is no turn to be once-per: no chit, always remind. Not a
- * receipt entry on purpose: the chit is the reminder's own marker and the notice card is its
- * line; a chit nobody could write (no owner on this client) just means the reminder repeats.
+ * this turn? If not, write one and answer "no, remind". Out of combat there is no turn to be
+ * once-per: no chit, always remind. Not a receipt entry on purpose: the chit is the reminder's
+ * own marker and the notice card is its line; a chit nobody could write (no owner on this
+ * client) just means the reminder repeats.
+ *
+ * ⚠ THE CHIT LIVES BY STAMP COMPARISON, not by the platform's mark (review finding 17,
+ * 2026-09-01): it stands while the turn it names IS the running turn (`combatStamp`, the
+ * `cleaveArm` idiom), and any mismatch is expiry. Foundry's `expired` is written only on the
+ * GM's client and both tidies are GM-gated, so a mark-based chit on a no-GM table stood forever
+ * and Cleave never reminded again. The platform's `turnEnd` expiry stays as the TIDY that removes
+ * the document; stale chits a no-GM table could not tidy go the next time a chit is written.
  */
 async function cleaveChitStands(ctx) {
   const attacker = ctx.attacker;
-  const clock = chipClock("cleave", placeOf(attacker));
-  if ( !clock ) return false;
-  const chits = attacker.effects.filter(e => e.getFlag(MODULE_ID, "mastery") === "cleave");
-  if ( chits.some(e => !chipIsDead(e.duration ?? {})) ) return true;
+  const chits = attacker.effects.filter(e => e.getFlag(MODULE_ID, CHIP_FLAG) === "cleave");
+  const stamp = combatStamp();
+  if ( stamp && chits.some(e => chitStampOf(e) === stamp) ) return true;
   if ( !canApplyTo(attacker) ) return false;
-  // Dead chits from earlier turns go first — one chit, this turn's, is all that ever stands.
+  // Stale chits go first — earlier turns', or a combat that ended with nobody to tidy them.
   if ( chits.length ) await attacker.deleteEmbeddedDocuments("ActiveEffect", chits.map(e => e.id));
+  const clock = chipClock("cleave", turnPlace());
+  if ( !clock ) return false;
   await ActiveEffect.implementation.create({
     name: "Cleave — this turn", img: ctx.weapon.img ?? "icons/svg/sword.svg",
     description: `Cleave has been offered this turn (${ctx.weapon.name}). The extra attack is once per turn; this chit ends with the turn.`,
     origin: ctx.weapon.uuid, disabled: false, transfer: false,
     ...chipData(clock),
-    flags: { [MODULE_ID]: { mastery: "cleave" } }
+    flags: { [MODULE_ID]: { [CHIP_FLAG]: "cleave" } }
   }, { parent: attacker });
   return false;
 }
@@ -465,17 +506,10 @@ async function showTopplePopup(message, topple, target) {
       // the Topple rule (the demand speaks to the TARGET; the trigger half is the attacker's).
       lines: [ruleLine("On a failed save, the creature has the Prone condition.")],
       tone: "pending"
-    }) + `
-    <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
-      <label style="flex:1;font-size:var(--font-size-12,12px);">Situational Bonus</label>
-      <input type="text" name="bf-topple-bonus" placeholder="e.g. 1d4" autocomplete="off"
-             style="flex:1;min-width:0;text-align:center;">
-    </div>` + momentBarHTML(topple, "to roll"),
-    buttons: [
-      { action: "advantage", label: "Advantage", callback: () => roll("advantage") },
-      { action: "normal", label: "Normal", default: true, callback: () => roll("normal") },
-      { action: "disadvantage", label: "Disadvantage", callback: () => roll("disadvantage") }
-    ]
+    }) + situationalBonusHTML("bf-topple-bonus") + momentBarHTML(topple, "to roll"),
+    // The same three controls every popup that stands in for a roll dialog carries
+    // (decide/present.js); a demanded save defaults to Normal.
+    buttons: modeButtons(roll, "normal")
   });
 }
 
@@ -1046,14 +1080,14 @@ Hooks.on("createChatMessage", message => {
 async function spendChips(message, ctx) {
   try {
     const attacker = ctx.attacker;
-    const chipKey = e => e.getFlag(MODULE_ID, "mastery");
+    const chipKey = e => e.getFlag(MODULE_ID, CHIP_FLAG);
     // A chip's origin is the WEAPON that applied it; the attacker owns it when that weapon is theirs.
-    const owned = e => !!e.origin && e.origin.startsWith(`${attacker.uuid}.Item.`);
+    const owned = e => chipOwnedBy(e.origin, attacker.uuid);
     const spent = [];
     // The bearer attacking: its own Sap, from anyone.
     for ( const e of attacker.effects ) {
       const key = chipKey(e);
-      if ( key && chipSpentBy(key, { bearerIsTarget: false, bearerIsAttacker: true, attackerOwnsChip: owned(e) }) ) {
+      if ( key && chipSpentBy(key, { bearer: "attacker", attackerOwnsChip: owned(e) }) ) {
         spent.push({ actor: attacker, effect: e, key });
       }
     }
@@ -1063,7 +1097,7 @@ async function spendChips(message, ctx) {
       if ( !(actor instanceof Actor) || (actor.uuid === attacker.uuid) ) continue;
       for ( const e of actor.effects ) {
         const key = chipKey(e);
-        if ( key && chipSpentBy(key, { bearerIsTarget: true, bearerIsAttacker: false, attackerOwnsChip: owned(e) }) ) {
+        if ( key && chipSpentBy(key, { bearer: "target", attackerOwnsChip: owned(e) }) ) {
           spent.push({ actor, effect: e, key });
         }
       }
@@ -1073,16 +1107,18 @@ async function spendChips(message, ctx) {
     const mode = rollModeOf(message.rolls?.[0]?.options?.advantageMode);
     // When the gate stood in for the dialog, honour is the press matching the NET it showed —
     // a sapped attacker swinging at a target they Vexed nets to normal, and Normal honours both.
-    const net = message.getFlag(MODULE_ID, REMINDER_FLAG)?.net ?? null;
+    // Only for the kinds the gate LISTED (decide/chips.js `netShownFor`): a chip whose kind is
+    // off the Reminder Sources list never joined that net and keeps its own bend.
+    const reminder = message.getFlag(MODULE_ID, REMINDER_FLAG) ?? null;
     const records = spent.map(s => spendRecord({ id: s.effect.id, name: s.effect.name, img: s.effect.img,
-      key: s.key, bearerUuid: s.actor.uuid, bearerName: s.actor.name, mode, net }));
+      key: s.key, bearerUuid: s.actor.uuid, bearerName: s.actor.name, mode, net: netShownFor(reminder, s.key) }));
     // The record first, deduped by chip id so a twin elect converges rather than doubling.
     await queueFlagWrite(message, "chipSpend", flag => {
       flag.spent ??= [];
       for ( const r of records ) if ( !flag.spent.some(x => x.id === r.id) ) flag.spent.push(r);
       Object.assign(flag, statContext(attacker.uuid)); // the data-plane stamp, once per flag
     });
-    // Then the chips — ONE batched delete per actor (NOTES §2: a synthetic actor rebuilds its
+    // Then the chips — ONE batched delete per actor (NOTES §1: a synthetic actor rebuilds its
     // collections on every write, so one-at-a-time throws on the second).
     const byActor = new Map();
     for ( const s of spent ) {
@@ -1110,12 +1146,38 @@ async function spendChips(message, ctx) {
  * every sheet until 2026-09-01. A deleted combat ends every window at once: no turn will ever
  * come round, so the chips it clocked go with it — hold.js clears `reactionSpent` the same way.
  * ------------------------------------------------------------------------------------------- */
+/** Expired chips awaiting the tidy, per parent — flushed on a microtask (see below). */
+const expiryTidy = new Map();
+
 Hooks.on("updateActiveEffect", (effect, changes) => {
   if ( changes?.duration?.expired !== true ) return;
-  if ( !effect.getFlag(MODULE_ID, "mastery") || !(effect.parent instanceof Actor) ) return;
+  if ( !effect.getFlag(MODULE_ID, CHIP_FLAG) || !(effect.parent instanceof Actor) ) return;
   if ( !isActiveGM() ) return;
-  effect.delete().catch(() => { /* already gone — a twin elect or a hand */ });
+  // ⚠ COLLECTED, THEN ONE DELETE PER PARENT (review finding 9, 2026-09-01). The platform stamps
+  // expiry as ONE batched update per parent and dispatches this hook once per effect,
+  // synchronously, in the same tick — so two chips expiring together on an unlinked-token
+  // monster arrived here as two one-at-a-time deletes, the NOTES §1 shape that throws on the
+  // second (swallowed by the catch, so the second chip lingered). A microtask sits after the
+  // whole dispatch loop and before anything else runs.
+  const parent = effect.parent;
+  if ( !expiryTidy.has(parent) ) {
+    expiryTidy.set(parent, new Set());
+    queueMicrotask(() => void tidyExpiredChips(parent));
+  }
+  expiryTidy.get(parent).add(effect.id);
 });
+
+async function tidyExpiredChips(parent) {
+  const ids = [...(expiryTidy.get(parent) ?? [])].filter(id => parent.effects.get(id));
+  expiryTidy.delete(parent);
+  if ( !ids.length ) return;
+  try {
+    await parent.deleteEmbeddedDocuments("ActiveEffect", ids);
+  } catch(err) {
+    // Already gone — a twin elect, a hand, or the spend that beat the clock.
+    if ( ids.some(id => parent.effects.get(id)) ) console.warn(`${TITLE} | Expired chip tidy failed on ${parent.name}.`, err);
+  }
+}
 
 Hooks.on("deleteCombat", combat => {
   if ( !isActiveGM() ) return;
@@ -1124,12 +1186,13 @@ Hooks.on("deleteCombat", combat => {
 
 async function sweepCombatChips(combat) {
   try {
-    for ( const combatant of combat.combatants ) {
-      const actor = combatant.actor;
-      if ( !actor ) continue;
-      const ids = actor.effects.filter(e => TURN_CHIPS.includes(e.getFlag(MODULE_ID, "mastery"))).map(e => e.id);
+    // One pass per ACTOR (a linked actor with two combatants is one sheet), in parallel across
+    // actors — never within one, where a synthetic actor's writes must stay batched (NOTES §1).
+    const actors = new Set(combat.combatants.map(c => c.actor).filter(a => a instanceof Actor));
+    await Promise.all([...actors].map(async actor => {
+      const ids = actor.effects.filter(e => TURN_CHIPS.includes(e.getFlag(MODULE_ID, CHIP_FLAG))).map(e => e.id);
       if ( ids.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", ids);
-    }
+    }));
   } catch(err) {
     console.error(`${TITLE} | Combat chip sweep failed.`, err);
   }
@@ -1277,13 +1340,14 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const spend = message.getFlag(MODULE_ID, "chipSpend");
   for ( const r of (spend?.spent ?? []) ) {
     const line = document.createElement("div");
-    const went = r.mode === "advantage" ? "with Advantage" : r.mode === "disadvantage" ? "with Disadvantage" : "flat";
     line.innerHTML = bfCard({
       img: r.img, eyebrow: `Weapon Mastery — ${masteryLabel(r.key)}`,
       tone: r.honoured ? "good" : "neutral",
       title: `${r.name} — spent`,
+      // One vocabulary for how a roll went out, shared with the reminder line above it
+      // (decide/reminders.js `rolledWith`).
       subtitle: `${r.bearer}: ${r.key === "sap" ? "its" : "the attacker's"} next attack roll was this one, `
-        + `rolled ${went}${r.honoured === false ? " — the chip went unclaimed" : ""}.`
+        + `rolled ${rolledWith(r.mode)}${r.honoured === false ? " — the chip went unclaimed" : ""}.`
     });
     html.querySelector(".message-content")?.appendChild(line);
   }

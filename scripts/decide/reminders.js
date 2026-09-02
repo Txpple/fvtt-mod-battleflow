@@ -15,66 +15,14 @@
  *
  * A source whose bend is UNKNOWN (a prone target at an unmeasurable distance) is listed for the
  * table to judge and does not vote.
+ *
+ * The CONDITION TABLE itself — the thirteen rows and their glossary clauses — is membership
+ * data and lives in decide/registry.js (`CONDITION_BENDS`), one declaration beside the list
+ * spec that admits it; `conditionSources` below takes it as a parameter.
  */
 
 /** The flag the gate stamps on the attack message it re-issued (`flags.<module>.reminder`). */
 export const REMINDER_FLAG = "reminder";
-
-/**
- * THE CONDITION TABLE (Stage 3, 2026-09-01) — what the 2024 conditions do to an ATTACK ROLL,
- * both roles, with each condition's own "Attacks Affected" clause quoted VERBATIM from the
- * world's Rules Glossary (dnd5e.content24 / the premium PHB — presentation law 8). This is the
- * knowledge AC5e carries, as DATA the gate reads; nothing here decides anything.
- *
- *   attacker   what the condition does to the bearer's OWN attack rolls
- *   target     what it does to attack rolls AGAINST the bearer
- *   null       no bend on that side; a NOTE means "listed for the table, never counted"
- *
- * Prone is the one row with geometry, and it lives in `proneSources` rather than here.
- * Membership — which of these a table wants nagged about — is the Condition Sources list.
- *
- * Each row: `attacker` and `target` are the bend on that side ("advantage" | "disadvantage" |
- * null), `rule` the glossary clause verbatim, `caveat` a condition the module cannot judge (counted,
- * and said), `note` a fact listed for the table and never counted.
- *
- * @type {Readonly<Record<string, Readonly<{attacker: "advantage"|"disadvantage"|null, target: "advantage"|"disadvantage"|null, rule: string, caveat?: string, note?: string}>>>}
- */
-export const CONDITION_BENDS = Object.freeze({
-  blinded: Object.freeze({ attacker: "disadvantage", target: "advantage",
-    rule: "Attack rolls against you have Advantage, and your attack rolls have Disadvantage." }),
-  invisible: Object.freeze({ attacker: "advantage", target: "disadvantage",
-    rule: "Attack rolls against you have Disadvantage, and your attack rolls have Advantage. If a creature can somehow see you, you don’t gain this benefit against that creature." }),
-  paralyzed: Object.freeze({ attacker: null, target: "advantage",
-    rule: "Attack rolls against you have Advantage. Any attack roll that hits you is a Critical Hit if the attacker is within 5 feet of you." }),
-  petrified: Object.freeze({ attacker: null, target: "advantage",
-    rule: "Attack rolls against you have Advantage." }),
-  poisoned: Object.freeze({ attacker: "disadvantage", target: null,
-    rule: "You have Disadvantage on attack rolls and ability checks." }),
-  restrained: Object.freeze({ attacker: "disadvantage", target: "advantage",
-    rule: "Attack rolls against you have Advantage, and your attack rolls have Disadvantage." }),
-  stunned: Object.freeze({ attacker: null, target: "advantage",
-    rule: "Attack rolls against you have Advantage." }),
-  unconscious: Object.freeze({ attacker: null, target: "advantage",
-    rule: "Attack rolls against you have Advantage. Any attack roll that hits you is a Critical Hit if the attacker is within 5 feet of you." }),
-  frightened: Object.freeze({ attacker: "disadvantage", target: null,
-    rule: "You have Disadvantage on ability checks and attack rolls while the source of fear is within line of sight.",
-    caveat: "counted — press Normal if the source of the fear is out of sight" }),
-  grappled: Object.freeze({ attacker: "disadvantage", target: null,
-    rule: "You have Disadvantage on attack rolls against any target other than the grappler.",
-    caveat: "counted — press Normal if this attack is against the grappler" }),
-  incapacitated: Object.freeze({ attacker: null, target: null,
-    rule: "You can’t take any action, Bonus Action, or Reaction.",
-    note: "an Incapacitated creature cannot attack at all — this roll should not be happening" }),
-  dodging: Object.freeze({ attacker: null, target: "disadvantage",
-    rule: "Until the start of your next turn, any attack roll made against you has Disadvantage if you can see the attacker. You lose these benefits if you have the Incapacitated condition or if your Speed is 0.",
-    caveat: "counted — press Normal if it cannot see the attacker, is Incapacitated, or has Speed 0" }),
-  charmed: Object.freeze({ attacker: null, target: null,
-    rule: "You can’t attack the charmer or target the charmer with damaging abilities or magical effects.",
-    note: "a Charmed creature cannot attack its charmer — if this is the charmer, this roll should not be happening" })
-});
-
-/** The thirteen, in the order the table reads them. */
-export const CONDITION_KEYS = Object.freeze(Object.keys(CONDITION_BENDS));
 
 /** The condition's name as the table says it. */
 const conditionName = key => key.charAt(0).toUpperCase() + key.slice(1);
@@ -84,19 +32,26 @@ const conditionName = key => key.charAt(0).toUpperCase() + key.slice(1);
  * conditions the attacker has, which the target has. A row with a bend on that side counts; a
  * row with only a note is listed for the table and never counted (bend null).
  *
+ * ⚠ `enabled` and `table` are REQUIRED, and neither defaults (review finding 11c): the list IS
+ * the switch — a caller that forgets it is a caller that reads nothing, never one that reads
+ * everything — and the table is the registry's, handed in because this layer imports nothing.
+ *
  * @param {{attackerStatuses?: Iterable<string>, targetStatuses?: Iterable<string>,
- *          enabled?: Iterable<string>, attackerName?: string, targetName?: string}} facts
- *        `enabled` = the Condition Sources list; a condition not in it is not read at all
+ *          enabled: Iterable<string>,
+ *          table: Readonly<Record<string, Readonly<{attacker: "advantage"|"disadvantage"|null, target: "advantage"|"disadvantage"|null, rule: string, caveat?: string, note?: string}>>>,
+ *          attackerName?: string, targetName?: string}} facts
+ *        `enabled` = the Condition Sources list; a condition not in it is not read at all.
+ *        `table` = `CONDITION_BENDS` (decide/registry.js), in the order the table reads it.
  */
-export function conditionSources({ attackerStatuses = [], targetStatuses = [], enabled = CONDITION_KEYS,
-  attackerName = "You", targetName = "the target" } = {}) {
-  const on = new Set(enabled);
+export function conditionSources({ attackerStatuses = [], targetStatuses = [], enabled, table,
+  attackerName = "You", targetName = "the target" }) {
+  const on = new Set(enabled ?? []);
   const mine = new Set(attackerStatuses);
   const theirs = new Set(targetStatuses);
   const out = [];
-  for ( const key of CONDITION_KEYS ) {
+  for ( const key of Object.keys(table ?? {}) ) {
     if ( !on.has(key) ) continue;
-    const row = CONDITION_BENDS[key];
+    const row = table[key];
     if ( !row ) continue;
     const name = conditionName(key);
     if ( mine.has(key) ) {
@@ -141,20 +96,24 @@ export function netMode(sources) {
   return "normal";
 }
 
-/** The mode, as the table says it — in a sentence. */
-export const modeLabel = mode => (mode === "advantage") ? "Advantage"
-  : (mode === "disadvantage") ? "Disadvantage" : "a normal roll";
-
 /** The mode, as a title or a button reads it. */
 export const modeTitle = mode => (mode === "advantage") ? "Advantage"
   : (mode === "disadvantage") ? "Disadvantage" : "Normal roll";
 
 /**
+ * How a roll WENT OUT, in a sentence — "rolled with Advantage", "rolled flat". ONE vocabulary
+ * for the reminder line and the spend line that sit on the same attack card (review finding
+ * 11d: the card used to say "rolled Normal roll" on one line and "flat" on the next).
+ * @param {"advantage"|"disadvantage"|"normal"|null|undefined} mode
+ */
+export const rolledWith = mode => (mode === "advantage") ? "with Advantage"
+  : (mode === "disadvantage") ? "with Disadvantage" : "flat";
+
+/**
  * The resolution sentence — why the net is what it is, in one line.
  * @param {{bend?: string|null}[]} sources
- * @param {"advantage"|"disadvantage"|"normal"} net
  */
-export function resolutionLine(sources, net) {
+export function resolutionLine(sources) {
   const adv = sources.filter(s => s.bend === "advantage").length;
   const dis = sources.filter(s => s.bend === "disadvantage").length;
   const unknown = sources.filter(s => !s.bend).length;
@@ -164,14 +123,17 @@ export function resolutionLine(sources, net) {
   }
   if ( adv ) return `${adv > 1 ? `${adv} sources of Advantage — still one Advantage.` : "One source of Advantage."}${tail}`;
   if ( dis ) return `${dis > 1 ? `${dis} sources of Disadvantage — still one Disadvantage.` : "One source of Disadvantage."}${tail}`;
-  return unknown ? `Nothing counted.${tail}` : `Nothing bends this roll — ${modeLabel(net)}.`;
+  return unknown ? `Nothing counted.${tail}` : "Nothing bends this roll.";
 }
 
 /**
  * Prone, both roles, from plain facts: the attacker prone is Disadvantage on the roll; the
  * target prone is Advantage from within 5 feet and Disadvantage from beyond. A null distance
- * (no token to measure from) lists the target's Prone without counting it — the table can see
- * the map and the module cannot.
+ * (no token to measure from, or a scene whose units cannot be read) lists the target's Prone
+ * without counting it — the table can see the map and the module cannot.
+ *
+ * `distanceFeet` is FEET — the EDGE converts the scene's own units before it gets here
+ * (review finding 5: a metric grid's 3 m used to read as "within 5 feet").
  *
  * @param {{attackerProne?: boolean, targetProne?: boolean, distanceFeet?: number|null,
  *          attackerName?: string, targetName?: string}} facts
@@ -194,6 +156,45 @@ export function proneSources({ attackerProne = false, targetProne = false, dista
       out.push(reminderSource("prone", "disadvantage", `${targetName} is Prone — ${distanceFeet} feet away`,
         "Attacks against a prone creature have Disadvantage from more than 5 feet away."));
     }
+  }
+  return out;
+}
+
+/** What the gate calls each of the native dialog's own selects. */
+export const CHOICE_LABELS = Object.freeze({ attackMode: "Attack mode", ammunition: "Ammunition", mastery: "Mastery" });
+
+/**
+ * THE DIALOG'S OWN CHOICES the gate must carry (user ruling 2026-09-01 — "need a gate for the
+ * little solvers"; review finding 14). dnd5e's attack dialog offers a select for attack mode
+ * (one- or two-handed, thrown), ammunition and — when a weapon has more than one — the mastery,
+ * and a re-issue with `configure: false` would otherwise pin each to its remembered default in
+ * silence. The mastery pick is not cosmetic: it is stamped on the attack message and this
+ * module's own riders key on it.
+ *
+ * From the hook's `dialog.options` lists (plain `{value, label}` entries; dnd5e's `{rule: true}`
+ * separators are dropped) and the hook-time `config` values: one choice per list that has more
+ * than one real entry, pre-set to the config's value when the list carries it, else the first.
+ * Ammunition's blank entry (dnd5e's own "none") is kept and named.
+ *
+ * @param {{attackModeOptions?: {value?: string, label?: string, rule?: boolean}[],
+ *          ammunitionOptions?: {value?: string, label?: string, rule?: boolean}[],
+ *          masteryOptions?: {value?: string, label?: string, rule?: boolean}[]}} [dialogOptions]
+ * @param {{attackMode?: string, ammunition?: string, mastery?: string}} [config]
+ * @returns {{key: "attackMode"|"ammunition"|"mastery", label: string,
+ *            options: {value: string, label: string}[], value: string}[]}
+ */
+export function rollChoices({ attackModeOptions = [], ammunitionOptions = [], masteryOptions = [] } = {}, config = {}) {
+  /** @type {["attackMode"|"ammunition"|"mastery", {value?: string, label?: string, rule?: boolean}[]][]} */
+  const lists = [["attackMode", attackModeOptions], ["ammunition", ammunitionOptions], ["mastery", masteryOptions]];
+  const out = [];
+  for ( const [key, raw] of lists ) {
+    const options = (raw ?? []).filter(o => o && !o.rule && (o.value !== undefined) && (o.value !== null))
+      .map(o => ({ value: String(o.value), label: String(o.label || (o.value === "" ? "None" : o.value)) }));
+    const first = options[0];
+    if ( (options.length < 2) || !first ) continue;
+    const current = (config?.[key] === undefined || config?.[key] === null) ? null : String(config[key]);
+    const value = options.some(o => o.value === current) ? /** @type {string} */ (current) : first.value;
+    out.push({ key, label: CHOICE_LABELS[key], options, value });
   }
   return out;
 }

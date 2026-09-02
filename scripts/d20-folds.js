@@ -60,7 +60,7 @@
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext }
   from "./core.js";
 import { d20FoldEntries } from "./settings.js";
-import { hitTargets, modeAllows } from "./shared.js";
+import { grantingActor, hitTargets, modeAllows } from "./shared.js";
 import { bfCard, holdBarHTML, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
   from "./decide/present.js";
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
@@ -203,13 +203,9 @@ const BARDIC = {
 
 const KINDS = { heroic: HEROIC, tactical: TACTICAL, bardic: BARDIC };
 
-/** The bard behind an Inspired effect: `origin` is their ITEM, and the actor is its parent. */
-function grantingActor(effect) {
-  try {
-    const origin = effect?.origin ? fromUuidSync(effect.origin) : null;
-    return (origin?.actor instanceof Actor) ? origin.actor : null;
-  } catch { return null; }
-}
+// The bard behind an Inspired effect — `origin` is their ITEM, and the actor is its parent — is
+// `grantingActor` in shared.js since 2026-09-01: the reminder gate's Sapped-by line is the same
+// question, and a second copy is the drift ARCHITECTURE §5 warns about.
 
 /** Warn once per distinct cause — the list parsers' discipline, applied to content problems. */
 const warned = new Set();

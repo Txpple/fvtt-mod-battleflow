@@ -41,8 +41,11 @@ export function chipOwnedBy(origin, attackerUuid) {
  *   slow    "until the start of your next turn"       → the same window as sap
  *   cleave  "only once per turn" — the once-per-turn chit on the ATTACKER (user, 2026-09-01):
  *           the popup is offered when no chit stands, the chit is written, and it dies with the
- *           turn it was written in. Out of combat there is no turn to be once-per, so no chit
- *           is written and every hit reminds — `chipClock` returns null for it there.
+ *           turn it was written in — the turn IN PROGRESS, whoever's it is (an opportunity
+ *           attack's chit dies with the victim's turn, not the attacker's next), so its `start`
+ *           is the CURRENT turn's place, and its life is `chitStamp` against `combatStamp`.
+ *           Out of combat there is no turn to be once-per, so no chit is written and every hit
+ *           reminds — `chipClock` returns null for it there.
  */
 export const CHIP_WINDOWS = Object.freeze({
   vex: Object.freeze({ value: 1, units: "rounds", expiry: "turnEnd" }),
@@ -62,7 +65,8 @@ export const TURN_CHIPS = Object.freeze(Object.keys(CHIP_WINDOWS));
  * @param {string} key                      a CHIP_WINDOWS key
  * @param {{combat: string, combatant: string|null, initiative: number|null,
  *          round: number, turn: number, time: number}|null} place
- *        the attacker's place in the RUNNING combat, or null out of combat
+ *        the attacker's place in the RUNNING combat (Vex, Sap, Slow), or the CURRENT turn's
+ *        place (the Cleave chit — `mastery.js` `turnPlace`), or null out of combat
  * @returns {{duration: {value: number, units: string, expiry: string},
  *            start?: {combat: string, combatant: string|null, initiative: number|null,
  *                     round: number, turn: number, time: number}}|null}
@@ -80,19 +84,47 @@ export function chipClock(key, place) {
 }
 
 /**
- * Is a chip dead by the platform's own reading? Expired is dead; a clock that ran out or never
- * resolved (`remaining` null or NaN — the v1.27.1 shape) is dead too. Two chips are left alone:
- * one with NO clock, because a durationless effect is somebody else's contract; and a
- * ZERO-length window (the once-per-turn chit), whose `remaining` reads 0 from the moment it is
- * written — its whole life is the event, so only `expired` can end it.
+ * Is a chip dead by the platform's own reading? Expired is dead. A clock that never resolved
+ * (`remaining` null or NaN) is dead too. A chip with NO clock is left alone — a durationless
+ * effect is somebody else's contract.
+ *
+ * ⚠ ZERO ON THE CLOCK IS ALIVE (review finding, 2026-09-01 — the chip died a turn early). Foundry
+ * measures a `rounds` window from `start.round`, so a one-round chip reads `remaining: 0` from
+ * the START of the round its boundary falls in — the whole round in which Vex's turnEnd and
+ * Sap's turnStart both sit — and writes `expired` only at the event. Reading zero as dead
+ * dropped Vex from the gate on the one turn it exists for. The platform's mark is the truth
+ * (NOTES §1: "suppression keys off the flag, not the arithmetic"); a NEGATIVE clock is the one
+ * arithmetic fallback kept, for a table with no GM connected where the mark is never written —
+ * it goes negative only in the round AFTER the boundary, so it can never kill early.
  *
  * @param {{expired?: boolean, remaining?: number|null, value?: number|null}} duration
  */
 export function chipIsDead({ expired = false, remaining = null, value = null } = {}) {
   if ( value === null || value === undefined ) return false;
   if ( expired ) return true;
-  if ( value === 0 ) return false;
-  return !(Number(remaining) > 0);
+  if ( (remaining === null) || (remaining === undefined) ) return true;
+  const left = Number(remaining);
+  if ( Number.isNaN(left) ) return true;
+  return left < 0;
+}
+
+/**
+ * The once-per-turn chit's identity: WHICH turn it was written in, as the house stamp
+ * (`combat:round:turn` — core.js `combatStamp`), or null for a chit with no turn behind it.
+ * A chit LIVES while its stamp equals the running combat's, and any mismatch IS expiry — the
+ * `cleaveArm` idiom, and the reason the chit needs no GM: the platform's `expired` mark is
+ * GM-written and both tidies are GM-gated, so on a no-GM table a mark-based chit stood forever
+ * and Cleave never reminded again (review finding 17, 2026-09-01). The platform's expiry is
+ * kept as the tidy that removes the document; this is what decides.
+ *
+ * @param {{combat?: string|null, round?: number|null, turn?: number|null}|null|undefined} start
+ *        the effect's `start`, with `combat` already reduced to an id (a ForeignDocumentField
+ *        on the document — the EDGE reads `.id`)
+ */
+export function chitStamp(start) {
+  if ( !start?.combat || (start.round === null) || (start.round === undefined)
+    || (start.turn === null) || (start.turn === undefined) ) return null;
+  return `${start.combat}:${start.round}:${start.turn}`;
 }
 
 /**
@@ -106,12 +138,14 @@ export function chipIsDead({ expired = false, remaining = null, value = null } =
  *   closes it.
  *
  * @param {string} key
- * @param {{bearerIsTarget: boolean, bearerIsAttacker: boolean, attackerOwnsChip: boolean}} roll
+ * @param {{bearer: "attacker"|"target", attackerOwnsChip?: boolean}} roll
+ *        who is wearing the chip on this roll — the attacker (its own Sap) or a target (the
+ *        attacker's Vex on it) — and whether the attacker's weapon applied it
  */
-export function chipSpentBy(key, { bearerIsTarget, bearerIsAttacker, attackerOwnsChip }) {
+export function chipSpentBy(key, { bearer, attackerOwnsChip = false }) {
   switch ( key ) {
-    case "vex": return !!bearerIsTarget && !!attackerOwnsChip;
-    case "sap": return !!bearerIsAttacker;
+    case "vex": return (bearer === "target") && !!attackerOwnsChip;
+    case "sap": return bearer === "attacker";
     default: return false;
   }
 }
@@ -137,13 +171,32 @@ export function rollModeOf(advantageMode) {
  * A chip nothing spends has nothing to honour.
  * @param {string} key
  * @param {"advantage"|"disadvantage"|"normal"} mode
- * @param {"advantage"|"disadvantage"|"normal"|null} [net]  the gate's net, when a gate ran
+ * @param {"advantage"|"disadvantage"|"normal"|null} [net]  the gate's net, when the gate SHOWED
+ *        this chip's kind — `netShownFor` decides that; a bare net for a kind the gate never
+ *        listed is the review finding 1 shape (an unlisted Vex stamped honoured by a Sap-only gate)
  */
 export function chipHonoured(key, mode, net = null) {
   if ( !["vex", "sap"].includes(key) ) return null;
   if ( net ) return mode === net;
   if ( key === "vex" ) return mode === "advantage";
   return mode === "disadvantage";
+}
+
+/**
+ * The net a spent chip is judged against: the gate's net when the gate READ this chip's kind
+ * (its record lists a source of that kind), else null — the chip's own bend. A chip whose kind
+ * is off the Reminder Sources list was never part of the resolution the roller saw, and honour
+ * against a net it did not contribute to is a false receipt (review finding 1, 2026-09-01).
+ *
+ * @param {{sources?: {kind?: string}[], net?: string|null}|null|undefined} reminder
+ *        the `reminder` flag on the attack message, when the gate re-issued it
+ * @param {string} key   the spent chip's kind
+ * @returns {"advantage"|"disadvantage"|"normal"|null}
+ */
+export function netShownFor(reminder, key) {
+  if ( !reminder?.net ) return null;
+  return (reminder.sources ?? []).some(s => s?.kind === key)
+    ? /** @type {"advantage"|"disadvantage"|"normal"} */ (reminder.net) : null;
 }
 
 /**

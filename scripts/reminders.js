@@ -4,14 +4,14 @@
  */
 import { MODULE_ID, TITLE, statContext } from "./core.js";
 import { conditionEntries, reminderEntries } from "./settings.js";
-import { rollConfigFor } from "./shared.js";
-import { bfCard, modeButtons, ruleLine, situationalBonusHTML } from "./decide/present.js";
+import { chipSpentOnRecord, grantingActor, rollConfigFor } from "./shared.js";
+import { bfCard, choiceRowHTML, modeButtons, ruleLine, situationalBonusHTML } from "./decide/present.js";
 import { openMomentPopup } from "./ui.js";
 import { CHIP_FLAG, chipIsDead, chipOwnedBy } from "./decide/chips.js";
-import { MASTERY_RULES } from "./decide/registry.js";
-import { tokenSamplePoints } from "./decide/geometry.js";
+import { CONDITION_BENDS, MASTERY_RULES } from "./decide/registry.js";
+import { lengthUnitKey, tokenSamplePoints } from "./decide/geometry.js";
 import { REMINDER_FLAG, conditionSources, modeTitle, netMode, proneSources, reminderRecord,
-  reminderSource, resolutionLine } from "./decide/reminders.js";
+  reminderSource, resolutionLine, rollChoices, rolledWith } from "./decide/reminders.js";
 
 /* ---------------------------------------------------------------------------------------------
  * THE GATE (HANDOFF Stage 2 + 3, user rulings 2026-09-01: "I don't want a rescue, I want
@@ -20,11 +20,12 @@ import { REMINDER_FLAG, conditionSources, modeTitle, netMode, proneSources, remi
  *
  * When something this module can READ bends an attack roll — the attacker's own Vexed chip on
  * a target, a Sapped chip on the attacker, Prone on either side (with the 5-foot geometry), or
- * one of the thirteen conditions in the table — the system's roll dialog does not open. Battle
- * Flow's popup does, carrying the dialog's own controls (the concentration precedent: "the
- * POPUP is the configuration surface", user call 2026-08-16): every source, the net, the
- * glossary's own sentence on why, a situational bonus, and Advantage / Normal / Disadvantage.
- * The human presses; the roll is re-issued with the press. Nothing here sets a mode (R-A).
+ * a row of the condition table — the system's roll dialog does not open. Battle Flow's popup
+ * does, carrying the dialog's own controls (the concentration precedent: "the POPUP is the
+ * configuration surface", user call 2026-08-16): every source, the net, the glossary's own
+ * sentence on why, the dialog's own choices (attack mode, ammunition, mastery, roll mode), a
+ * situational bonus, and Advantage / Normal / Disadvantage with the NET highlighted. The human
+ * presses; the roll is re-issued with the press. Nothing here sets a mode (R-A).
  *
  * WHERE IT RUNS: on the roller's client — the pre-roll hook fires where the dice are rolled —
  * so it needs no elect and works with no GM connected. A GM rolling a Sapped goblin meets it
@@ -32,9 +33,12 @@ import { REMINDER_FLAG, conditionSources, modeTitle, netMode, proneSources, remi
  *
  * WHAT IT NEVER TOUCHES: a roll whose caller suppressed the dialog (`configure: false`) — the
  * resolver's own rolls, the volley's rays, the riposte inside a fold, a macro, the suites, and
- * this file's own re-issue. No dialog, no gate. ⚠ dnd5e evaluates fast-forward keys AFTER this
- * hook (buildConfigure: preRoll hooks, then applyKeybindings), so a shift-clicked roll still
- * reads `configure` undefined here and IS gated — which is the whole point of a gate.
+ * this file's own re-issue. No dialog, no gate. And a roll with NO USAGE CARD behind it — an API
+ * roll, an enricher link in a journal — is not gated either: the card keys the popup (the popper
+ * discipline) and links the re-issued attack back into the system's own chain. No card, no gate.
+ * ⚠ dnd5e evaluates fast-forward keys AFTER this hook (buildConfigure: preRoll hooks, then
+ * applyKeybindings), so a shift-clicked roll still reads `configure` undefined here and IS
+ * gated — which is the whole point of a gate.
  *
  * The hook is TEMPLATED (dnd5e.preRoll<Name>V2) — pinned in check-hook-dispatch beside its
  * damage twin, and measured live (tools/probe-expiry.mjs, hookSurfaces).
@@ -43,27 +47,43 @@ import { REMINDER_FLAG, conditionSources, modeTitle, netMode, proneSources, remi
 /** The Rules Glossary, "Advantage" (dnd5e.content24 / the premium PHB) — verbatim, law 8. */
 const NET_RULE = "A roll can’t be affected by more than one Advantage, and Advantage and Disadvantage on the same roll cancel each other.";
 
-/** The activity uuids this file is re-issuing right now — the hook lets those through. */
-const reissuing = new Set();
-
 Hooks.on("dnd5e.preRollAttackV2", (config, dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
-    if ( reissuing.delete(activity.uuid) ) return;   // our own re-issue — let it roll
-    if ( dialog?.configure === false ) return;       // no dialog, no gate
+    if ( dialog?.configure === false ) return;       // no dialog, no gate — the re-issue included
     const attacker = activity.item?.actor;
     if ( !(attacker instanceof Actor) ) return;
     const enabled = new Set(reminderEntries().map(e => e.kind));
     if ( !enabled.size ) return;                      // the list is the switch
+    const card = usageCardFor(config, message);
+    if ( !card ) return;                              // no card, no gate — an API roll
     const sources = sourcesFor(attacker, enabled);
     if ( !sources.length ) return;
-    void showGate({ activity, attacker, sources, config, message });
+    void showGate({ activity, attacker, sources, config, dialog, message, card });
     return false;                                     // the veto: the popup is the dialog
   } catch(err) {
     console.error(`${TITLE} | Reminder gate failed — rolling natively.`, err);
   }
 });
+
+/**
+ * The usage card this attack roll hangs off, read the three ways dnd5e carries it at pre-roll
+ * time (review findings 2 and 12, 2026-09-01 — the gate never once found it before):
+ *   - the card's Attack BUTTON passes only the click `event`; the id is derived in `buildPost`,
+ *     AFTER this hook, from the button's enclosing `[data-message-id]` — so it is read here the
+ *     same way;
+ *   - the sheet/`use()` auto-roll passes it as a FLAT key, `"flags.dnd5e.originatingMessage"`,
+ *     expanded only in `buildPost`;
+ *   - a caller that expanded it already (the suites' older shape) has it nested.
+ * Null when none of the three names a live message.
+ */
+function usageCardFor(config, message) {
+  let id = null;
+  try { id = config?.event?.target?.closest?.("[data-message-id]")?.dataset?.messageId ?? null; } catch { id = null; }
+  id ??= message?.data?.["flags.dnd5e.originatingMessage"] ?? message?.data?.flags?.dnd5e?.originatingMessage ?? null;
+  return id ? (game.messages.get(id) ?? null) : null;
+}
 
 /* --- reading the table ---------------------------------------------------------------------- */
 
@@ -89,9 +109,12 @@ function documentSquares(doc) {
 }
 
 /**
- * The shortest grid distance between two tokens, in scene units — sample every occupied
- * square of each so a Large body counts from its nearest edge, and let the scene's own grid do
- * the measuring. Null when either side cannot be measured.
+ * The shortest grid distance between two tokens, IN FEET — sample every occupied square of
+ * each so a Large body counts from its nearest edge, let the scene's own grid do the measuring,
+ * then convert the scene's units to feet through the system's own table. ⚠ `measurePath` answers
+ * in the SCENE's units (review finding 5): on a 1.5 m grid two squares read "3", and the rule
+ * is 5 FEET. Null when either side cannot be measured, or the scene's units cannot be read —
+ * which the decision lists as "distance unknown" rather than guessing.
  */
 function nearestFeet(a, b) {
   try {
@@ -104,7 +127,11 @@ function nearestFeet(a, b) {
         if ( Number.isFinite(d) && (d < best) ) best = d;
       }
     }
-    return Number.isFinite(best) ? Math.round(best * 10) / 10 : null;
+    if ( !Number.isFinite(best) ) return null;
+    const unit = lengthUnitKey(canvas.scene?.grid?.units ?? canvas.grid?.units);
+    if ( !unit ) return null;
+    const feet = (unit === "ft") ? best : dnd5e.utils.convertLength(best, unit, "ft", { strict: false });
+    return Number.isFinite(feet) ? Math.round(feet * 10) / 10 : null;
   } catch {
     return null;
   }
@@ -113,19 +140,22 @@ function nearestFeet(a, b) {
 /**
  * Every source this gate can read for the roll about to happen, in the order the table reads
  * them: the attacker's own state first, then each target's. Names are the TOKEN's where a token
- * is what was targeted — that is what the table calls it.
+ * is what was targeted — that is what the table calls it. A chip is live when the platform has
+ * not marked it (decide/chips.js) AND no spend is already on record for it (shared.js) — a chip
+ * a no-GM table could not delete is still spent.
  */
 function sourcesFor(attacker, enabled) {
   const out = [];
   const attackerName = attacker.name;
-  const live = e => !chipIsDead(e.duration ?? {});
+  const live = e => !chipIsDead(e.duration ?? {}) && !chipSpentOnRecord(e);
   const conditions = enabled.has("condition") ? conditionEntries().map(e => e.kind) : [];
+  const conditionFacts = { enabled: conditions, table: CONDITION_BENDS };
 
   // The attacker's own state.
   if ( enabled.has("sap") ) {
     for ( const e of attacker.effects ) {
       if ( (e.getFlag(MODULE_ID, CHIP_FLAG) !== "sap") || !live(e) ) continue;
-      const by = (() => { try { return fromUuidSync(e.origin)?.actor?.name ?? null; } catch { return null; } })();
+      const by = grantingActor(e)?.name ?? null;
       out.push(reminderSource("sap", "disadvantage",
         `${attackerName} — ${e.name}${by ? ` by ${by}` : ""}`, MASTERY_RULES.sap));
     }
@@ -134,7 +164,7 @@ function sourcesFor(attacker, enabled) {
     out.push(...proneSources({ attackerProne: attacker.statuses?.has?.("prone"), attackerName }));
   }
   if ( conditions.length ) {
-    out.push(...conditionSources({ attackerStatuses: attacker.statuses ?? [], enabled: conditions, attackerName }));
+    out.push(...conditionSources({ ...conditionFacts, attackerStatuses: attacker.statuses ?? [], attackerName }));
   }
 
   // Each target.
@@ -154,7 +184,7 @@ function sourcesFor(attacker, enabled) {
       out.push(...proneSources({ targetProne: true, distanceFeet, targetName }));
     }
     if ( conditions.length ) {
-      out.push(...conditionSources({ targetStatuses: target.statuses ?? [], enabled: conditions, targetName }));
+      out.push(...conditionSources({ ...conditionFacts, targetStatuses: target.statuses ?? [], targetName }));
     }
   }
   return out;
@@ -164,7 +194,26 @@ function sourcesFor(attacker, enabled) {
 
 const TONE_OF = { advantage: "good", disadvantage: "pending", normal: "neutral" };
 
-async function showGate({ activity, attacker, sources, config, message }) {
+/**
+ * The native dialog's roll-mode select (public / private / blind / self), as one more choice
+ * row — its options are the platform's, so this one is built at the EDGE. Null when the
+ * platform offers fewer than two.
+ */
+function rollModeChoice(message) {
+  try {
+    const modes = (game.release.generation < 14) ? CONFIG.Dice.rollModes : CONFIG.ChatMessage.modes;
+    const options = Object.entries(modes ?? {}).filter(([k]) => k !== "ic")
+      .map(([value, l]) => ({ value, label: game.i18n.localize(l?.label ?? String(l)) }));
+    if ( options.length < 2 ) return null;
+    const current = message?.rollMode ?? game.settings.get("core", "rollMode");
+    return { key: "rollMode", label: "Roll mode", options,
+      value: options.some(o => o.value === current) ? current : options[0].value };
+  } catch {
+    return null;
+  }
+}
+
+async function showGate({ activity, attacker, sources, config, dialog, message, card }) {
   const net = netMode(sources);
   const item = activity.item;
   const lines = [];
@@ -173,29 +222,54 @@ async function showGate({ activity, attacker, sources, config, message }) {
     lines.push(`${s.label}${bend}`);
     if ( s.detail ) lines.push(ruleLine(s.detail));
   }
-  lines.push(`<strong>Net: ${modeTitle(net)}.</strong> ${resolutionLine(sources, net)}`);
+  lines.push(`<strong>Net: ${modeTitle(net)}.</strong> ${resolutionLine(sources)}`);
   if ( sources.length > 1 ) lines.push(ruleLine(NET_RULE));
 
-  const reissue = async (mode, bonus) => {
-    reissuing.add(activity.uuid);
-    try {
-      await activity.rollAttack({
-        ammunition: config.ammunition, attackMode: config.attackMode, mastery: config.mastery,
-        ...rollConfigFor(mode, bonus)
-      }, { configure: false }, { data: foundry.utils.mergeObject(message?.data ?? {}, { flags: { [MODULE_ID]: {
-        [REMINDER_FLAG]: { ...reminderRecord({ sources, net, mode, answeredAt: Date.now() }), ...statContext(attacker.uuid) }
-      } } }, { inplace: false }) });
-    } finally {
-      reissuing.delete(activity.uuid);
-    }
+  // THE DIALOG'S OWN CHOICES (user ruling 2026-09-01, review finding 14): what the native
+  // dialog would have offered — attack mode, ammunition, mastery (decide/reminders.js) and the
+  // roll mode — carried here, pre-set to what the roll would otherwise use in silence.
+  const choices = rollChoices(dialog?.options ?? {}, config);
+  const rollMode = rollModeChoice(message);
+  if ( rollMode ) choices.push(rollMode);
+  const selectName = key => `bf-reminder-${key}`;
+
+  const reissue = async (mode, bonus, picks) => {
+    // ⚠ THE CARD LINK IS WRITTEN HERE, EXPLICITLY (review finding 12). dnd5e derives
+    // `originatingMessage` from the click event's enclosing card in `buildPost`, and the
+    // re-issue has no click to derive it from — so at the table the re-issued attack was an
+    // ORPHAN: the card's Damage button found no attack (a gated crit rolled un-doubled) and this
+    // module's own chain walk missed it (no auto-apply, no rider). The raw event is deliberately
+    // NOT forwarded: dnd5e re-reads its modifier keys off `config.event`, and an Alt-clicked
+    // Attack whose human pressed Disadvantage would have rolled NORMAL.
+    const data = foundry.utils.expandObject(foundry.utils.deepClone(message?.data ?? {}));
+    foundry.utils.setProperty(data, "flags.dnd5e.originatingMessage", card.id);
+    foundry.utils.setProperty(data, `flags.${MODULE_ID}.${REMINDER_FLAG}`,
+      { ...reminderRecord({ sources, net, mode, answeredAt: Date.now() }), ...statContext(attacker.uuid) });
+    const { rollMode: pickedRollMode, ...picked } = picks;
+    await activity.rollAttack({
+      ammunition: picked.ammunition ?? config.ammunition,
+      attackMode: picked.attackMode ?? config.attackMode,
+      mastery: picked.mastery ?? config.mastery,
+      ...rollConfigFor(mode, bonus)
+    }, { configure: false }, { data, ...(pickedRollMode ? { rollMode: pickedRollMode } : {}) });
   };
-  let dialog = null;
+  let popup = null;
   const press = mode => {
-    const bonus = dialog?.element?.querySelector('input[name="bf-reminder-bonus"]')?.value ?? "";
-    void reissue(mode, bonus).catch(err => console.error(`${TITLE} | Reminded roll failed.`, err));
+    const el = popup?.element;
+    const bonus = el?.querySelector('input[name="bf-reminder-bonus"]')?.value ?? "";
+    const picks = {};
+    for ( const c of choices ) {
+      const v = el?.querySelector(`select[name="${selectName(c.key)}"]`)?.value;
+      if ( v !== undefined ) picks[c.key] = v;
+    }
+    void reissue(mode, bonus, picks).catch(err => console.error(`${TITLE} | Reminded roll failed.`, err));
   };
   const names = [...new Set([...game.user.targets].map(t => t.document?.name ?? t.actor?.name).filter(Boolean))];
-  const options = {
+  // The usage card keys the popup (the popper discipline): one gate per card, fronted on a
+  // second press of the same button. Closing the window rolls nothing — the card's Attack
+  // button is still there. The NET is the default: the highlighted button is the outcome the
+  // solver worked out, and Enter presses it — still a press (R-A; user ruling 2026-09-01).
+  popup = await openMomentPopup(card, "reminder", attacker, {
     title: `Before you roll — ${item?.name ?? "attack"}`, icon: "fa-solid fa-scale-balanced", width: 460,
     content: bfCard({
       img: item?.img ?? null, eyebrow: "Before you roll",
@@ -203,21 +277,10 @@ async function showGate({ activity, attacker, sources, config, message }) {
       title: `${modeTitle(net)} on this attack`,
       subtitle: `${attacker.name} — ${item?.name ?? "attack"}${names.length ? ` · against ${names.join(", ")}` : ""}`,
       lines
-    }) + situationalBonusHTML("bf-reminder-bonus"),
-    // The same three controls the concentration ask carries (decide/present.js). No default:
-    // nothing is pre-selected; the press is the decision (R-A). Closing the window rolls
-    // nothing — the card's Attack button is still there.
-    buttons: modeButtons(press)
-  };
-  // The usage card keys the popup (the popper discipline); an attack rolled without one gets a
-  // bare dialog of the same shape.
-  const card = game.messages.get(message?.data?.flags?.dnd5e?.originatingMessage ?? "") ?? null;
-  dialog = card
-    ? await openMomentPopup(card, "reminder", attacker, { ...options, gate: false })
-    : await new foundry.applications.api.DialogV2({
-      window: { title: options.title, icon: options.icon }, position: { width: options.width },
-      content: options.content, buttons: options.buttons, rejectClose: false
-    }).render({ force: true });
+    }) + choices.map(c => choiceRowHTML(c, selectName(c.key))).join("") + situationalBonusHTML("bf-reminder-bonus"),
+    buttons: modeButtons(press, net),
+    gate: false
+  });
 }
 
 /* --- the card line -------------------------------------------------------------------------- */
@@ -232,7 +295,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const what = r.sources.map(s => s.label + (s.bend ? ` (${modeTitle(s.bend)})` : "")).join(" · ");
   line.innerHTML = bfCard({
     eyebrow: "Before the roll", tone: r.honoured ? "good" : "neutral",
-    title: `Reminded — net ${modeTitle(r.net)}, rolled ${modeTitle(r.mode)}${r.honoured ? "" : " (against the net)"}`,
+    title: `Reminded — net ${modeTitle(r.net)}, rolled ${rolledWith(r.mode)}${r.honoured ? "" : " (against the net)"}`,
     subtitle: what
   });
   html.querySelector(".message-content")?.appendChild(line);

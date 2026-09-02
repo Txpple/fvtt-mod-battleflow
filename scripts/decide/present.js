@@ -78,9 +78,10 @@ export const ruleLine = text => `<em>“${text}”</em>`;
 
 /**
  * The situational-bonus row every popup that STANDS IN FOR A ROLL DIALOG carries — the
- * concentration ask and the reminder gate today — the native dialog's own control, in the
- * module's popup. `name` is the input's name, so the caller reads it back off the dialog.
- * (One shape, 2026-09-01: it was copied between the two popups before it was shared.)
+ * concentration ask, the save ask, the Topple demand and the reminder gate — the native
+ * dialog's own control, in the module's popup. `name` is the input's name, so the caller reads
+ * it back off the dialog. (One shape, 2026-09-01: it was copied between popups before it was
+ * shared; the last two copies left in the review pass, finding 10.)
  */
 export function situationalBonusHTML(name) {
   return `
@@ -92,11 +93,32 @@ export function situationalBonusHTML(name) {
 }
 
 /**
+ * One labelled select, the row shape beside the situational bonus — the native attack dialog's
+ * own choices (attack mode, ammunition, mastery, roll mode) carried by the popup that stands in
+ * for it (decide/reminders.js `rollChoices`). `name` is the select's name, so the caller reads
+ * the pick back off the dialog.
+ * @param {{label: string, options: {value: string, label: string}[], value: string}} choice
+ * @param {string} name
+ */
+export function choiceRowHTML({ label, options, value }, name) {
+  const opts = options.map(o =>
+    `<option value="${attr(o.value)}"${o.value === value ? " selected" : ""}>${attr(o.label)}</option>`).join("");
+  return `
+    <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
+      <label style="flex:1;font-size:var(--font-size-12,12px);">${attr(label)}</label>
+      <select name="${attr(name)}" style="flex:1;min-width:0;">${opts}</select>
+    </div>`;
+}
+
+/**
  * The three roll-mode buttons — Advantage / Normal / Disadvantage — as DialogV2 button
  * descriptors: one shape for every popup that stands in for a roll dialog. `press(mode)` is
- * the caller's answer; `defaultMode` marks the button Enter triggers (the concentration ask
- * hints it from actor data the way the native dialog does; the gate marks none — DESIGN R-A,
- * nothing pre-selected).
+ * the caller's answer; `defaultMode` marks the button Enter triggers — the one DialogV2
+ * highlights and focuses. ⚠ There is ALWAYS a default on this platform: with none flagged,
+ * DialogV2 makes the FIRST button the default, so "no default" meant "Advantage on Enter"
+ * (review finding 19, 2026-09-01). The user's ruling: the highlighted button is the outcome
+ * the solver worked out — the concentration ask hints it from actor data the way the native
+ * dialog does, and the gate passes its NET. Enter is still a press (DESIGN R-A).
  * @param {(mode: "advantage"|"normal"|"disadvantage") => void} press
  * @param {"advantage"|"normal"|"disadvantage"|null} [defaultMode]
  */

@@ -182,11 +182,11 @@ Hooks.once("init", () => {
   });
 
   // THE REMINDER GATE (Stage 2 + 3, 2026-09-01). Two lists: what KINDS of source the gate reads,
-  // and which of the thirteen conditions count under the `condition` kind. Both are switches —
+  // and which rows of the condition table count under the `condition` kind. Both are switches —
   // an empty Reminder Sources list turns the gate off entirely.
   game.settings.register(MODULE_ID, S.reminderList, {
     name: "Reminder Sources",
-    hint: 'What the gate reads before an attack roll, separated by commas: "vex" (your own Vexed chip on the target — Advantage), "sap" (a Sapped chip on the attacker — Disadvantage), "prone" (either side prone — the attacker at Disadvantage; the target gives Advantage within 5 feet and Disadvantage beyond), "condition" (the thirteen conditions in the Condition Sources list). When any listed source applies, Battle Flow\'s popup stands in for the roll dialog: every source, the net, and Advantage / Normal / Disadvantage for YOU to press — nothing is ever applied for you. An empty list turns the gate off.',
+    hint: 'What the gate reads before an attack roll, separated by commas: "vex" (your own Vexed chip on the target — Advantage), "sap" (a Sapped chip on the attacker — Disadvantage), "prone" (either side prone — the attacker at Disadvantage; the target gives Advantage within 5 feet and Disadvantage beyond), "condition" (the conditions in the Condition Sources list). When any listed source applies, Battle Flow\'s popup stands in for the roll dialog: every source, the net, the dialog\'s own choices, and Advantage / Normal / Disadvantage for YOU to press — the net is highlighted, nothing is ever applied for you. An empty list turns the gate off.',
     scope: "world", config: true, type: String, default: LIST_SPECS.reminders.default
   });
 
@@ -492,7 +492,7 @@ export function reminderEntries() {
   return listEntries(LIST_SPECS.reminders);
 }
 
-/** Which of the thirteen conditions the gate reads, by status id — `{ kind }`. */
+/** Which rows of the condition table the gate reads, by status id — `{ kind }`. */
 export function conditionEntries() {
   return listEntries(LIST_SPECS.conditions);
 }

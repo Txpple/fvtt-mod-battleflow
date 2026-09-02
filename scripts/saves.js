@@ -9,7 +9,8 @@ import { tokensInTemplates } from "./geometry.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom, saveMultiplier, verdictText } from "./decide/verdict.js";
 import { isDeadForSaves } from "./decide/eligible.js";
 import { forceStatus, damagePartsOf, rollConfigFor, statSourceOf } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
+import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, situationalBonusHTML,
+  modeButtons } from "./decide/present.js";
 import { livePopups, openMomentPopup,
   momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
   armDeadline, disarmDeadline, registerRelay, dramaticVerdictPause } from "./ui.js";
@@ -1643,19 +1644,9 @@ async function showSavePopup(card, uuid) {
         + `${flag.casterName ? `, from ${flag.casterName}` : ""}`,
       lines: stakes,
       tone: "pending"
-    }) + `
-    <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
-      <label style="flex:1;font-size:var(--font-size-12,12px);">Situational Bonus</label>
-      <input type="text" name="bf-save-bonus" placeholder="e.g. 1d4" autocomplete="off"
-             style="flex:1;min-width:0;text-align:center;">
-    </div>` + holdBarHTML(flag, "to roll"),
-    buttons: [
-      { action: "advantage", label: "Advantage", default: def === "advantage",
-        callback: () => roll("advantage") },
-      { action: "normal", label: "Normal", default: def === "normal",
-        callback: () => roll("normal") },
-      { action: "disadvantage", label: "Disadvantage", default: def === "disadvantage",
-        callback: () => roll("disadvantage") }
-    ]
+    }) + situationalBonusHTML("bf-save-bonus") + holdBarHTML(flag, "to roll"),
+    // The same three controls every popup that stands in for a roll dialog carries
+    // (decide/present.js); the default is the actor's own hint, as the native dialog reads it.
+    buttons: modeButtons(roll, def)
   });
 }

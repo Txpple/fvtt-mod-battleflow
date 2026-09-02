@@ -108,14 +108,73 @@ export const MASTERY_RULES = Object.freeze({
 export const REMINDER_KINDS = new Set(["vex", "sap", "prone", "condition"]);
 
 /**
- * The CONDITION SOURCES the `condition` reminder kind can read — the thirteen (Stage 3,
- * 2026-09-01, the AC5e table carried as data, DESIGN R-B): the 2024 conditions whose glossary
- * clause bends an attack roll on one side or the other, plus the two whose clause says the
- * attack should not be happening at all. Prone is NOT here — it is its own kind, with geometry.
- * What each does is `CONDITION_BENDS` in decide/reminders.js; the unit tests pin the two sets equal.
+ * THE CONDITION TABLE (Stage 3, 2026-09-01) — what the 2024 conditions do to an ATTACK ROLL,
+ * both roles, with each condition's own "Attacks Affected" clause quoted VERBATIM from the
+ * world's Rules Glossary (dnd5e.content24 / the premium PHB — presentation law 8). This is the
+ * knowledge AC5e carries (DESIGN R-B), as DATA the gate reads; nothing here decides anything —
+ * `conditionSources` in decide/reminders.js takes this table as a parameter.
+ *
+ * ⚠ ONE DECLARATION (review finding 8). The rows, the closed set the Condition Sources list is
+ * validated against (`CONDITION_STATUSES`) and that list's shipped default were three hand-kept
+ * copies; the set and the default are DERIVED from these keys now, so a fourteenth condition is
+ * a row here and nothing else — R4's bargain, literally.
+ *
+ *   attacker   what the condition does to the bearer's OWN attack rolls
+ *   target     what it does to attack rolls AGAINST the bearer
+ *   null       no bend on that side; a NOTE means "listed for the table, never counted"
+ *
+ * Prone is the one row with geometry, and it lives in `proneSources` rather than here.
+ * Membership — which of these a table wants nagged about — is the Condition Sources list.
+ *
+ * Each row: `attacker` and `target` are the bend on that side ("advantage" | "disadvantage" |
+ * null), `rule` the glossary clause verbatim, `caveat` a condition the module cannot judge (counted,
+ * and said), `note` a fact listed for the table and never counted.
+ *
+ * @type {Readonly<Record<string, Readonly<{attacker: "advantage"|"disadvantage"|null, target: "advantage"|"disadvantage"|null, rule: string, caveat?: string, note?: string}>>>}
  */
-export const CONDITION_STATUSES = new Set(["blinded", "invisible", "paralyzed", "petrified", "poisoned",
-  "restrained", "stunned", "unconscious", "frightened", "grappled", "incapacitated", "dodging", "charmed"]);
+export const CONDITION_BENDS = Object.freeze({
+  blinded: Object.freeze({ attacker: "disadvantage", target: "advantage",
+    rule: "Attack rolls against you have Advantage, and your attack rolls have Disadvantage." }),
+  invisible: Object.freeze({ attacker: "advantage", target: "disadvantage",
+    rule: "Attack rolls against you have Disadvantage, and your attack rolls have Advantage. If a creature can somehow see you, you don’t gain this benefit against that creature." }),
+  paralyzed: Object.freeze({ attacker: null, target: "advantage",
+    rule: "Attack rolls against you have Advantage. Any attack roll that hits you is a Critical Hit if the attacker is within 5 feet of you." }),
+  petrified: Object.freeze({ attacker: null, target: "advantage",
+    rule: "Attack rolls against you have Advantage." }),
+  poisoned: Object.freeze({ attacker: "disadvantage", target: null,
+    rule: "You have Disadvantage on attack rolls and ability checks." }),
+  restrained: Object.freeze({ attacker: "disadvantage", target: "advantage",
+    rule: "Attack rolls against you have Advantage, and your attack rolls have Disadvantage." }),
+  stunned: Object.freeze({ attacker: null, target: "advantage",
+    rule: "Attack rolls against you have Advantage." }),
+  unconscious: Object.freeze({ attacker: null, target: "advantage",
+    rule: "Attack rolls against you have Advantage. Any attack roll that hits you is a Critical Hit if the attacker is within 5 feet of you." }),
+  frightened: Object.freeze({ attacker: "disadvantage", target: null,
+    rule: "You have Disadvantage on ability checks and attack rolls while the source of fear is within line of sight.",
+    caveat: "counted — press Normal if the source of the fear is out of sight" }),
+  grappled: Object.freeze({ attacker: "disadvantage", target: null,
+    rule: "You have Disadvantage on attack rolls against any target other than the grappler.",
+    caveat: "counted — press Normal if this attack is against the grappler" }),
+  incapacitated: Object.freeze({ attacker: null, target: null,
+    rule: "You can’t take any action, Bonus Action, or Reaction.",
+    note: "an Incapacitated creature cannot attack at all — this roll should not be happening" }),
+  dodging: Object.freeze({ attacker: null, target: "disadvantage",
+    rule: "Until the start of your next turn, any attack roll made against you has Disadvantage if you can see the attacker. You lose these benefits if you have the Incapacitated condition or if your Speed is 0.",
+    caveat: "counted — press Normal if it cannot see the attacker, is Incapacitated, or has Speed 0" }),
+  charmed: Object.freeze({ attacker: null, target: null,
+    rule: "You can’t attack the charmer or target the charmer with damaging abilities or magical effects.",
+    note: "a Charmed creature cannot attack its charmer — if this is the charmer, this roll should not be happening" })
+});
+
+/** The table's rows, in the order the table reads them. */
+export const CONDITION_KEYS = Object.freeze(Object.keys(CONDITION_BENDS));
+
+/**
+ * The CONDITION SOURCES the `condition` reminder kind can read — the closed set the Condition
+ * Sources list is validated against, DERIVED from the table above. Prone is NOT here — it is
+ * its own kind, with geometry. The unit tests pin the size as the deliberate tripwire.
+ */
+export const CONDITION_STATUSES = new Set(CONDITION_KEYS);
 
 /**
  * THE R4 TRIPWIRE, AS DATA (DESIGN.md R4, PLAN.md Phase 3).
@@ -255,16 +314,16 @@ export const LIST_SPECS = {
   },
   conditions: {
     label: "Condition Sources", setting: "conditionList",
-    // Which of the thirteen the gate reads. An entry is a status id the system uses; the list
+    // Which rows of the table the gate reads. An entry is a status id the system uses; the list
     // is the switch for the `condition` kind, one condition at a time.
     // ⚠ `membership: true` — this closed set validates the list but is NOT a kind set, and the
-    // R4 tripwire deliberately does not count it: the thirteen are ROWS of one table read by ONE
-    // mechanism (decide/reminders.js `conditionSources`), and a fourteenth costs a data row and
-    // a list entry, zero code paths — R4's definition of membership. The kind it belongs to is
-    // `condition` in REMINDER_KINDS, which IS counted. The registry unit test pins this reading.
+    // R4 tripwire deliberately does not count it: the entries are ROWS of one table read by ONE
+    // mechanism (decide/reminders.js `conditionSources`), and another row costs a data row and
+    // nothing else — R4's definition of membership. The kind it belongs to is `condition` in
+    // REMINDER_KINDS, which IS counted. The registry unit test pins this reading.
     columns: ["kind"], kindColumn: "kind", kinds: CONDITION_STATUSES, fallback: null, membership: true,
-    default: "blinded, invisible, paralyzed, petrified, poisoned, restrained, stunned, unconscious, "
-      + "frightened, grappled, incapacitated, dodging, charmed"
+    // Every row of the table ships ON — the default is the table, not a copy of it.
+    default: CONDITION_KEYS.join(", ")
   }
 };
 

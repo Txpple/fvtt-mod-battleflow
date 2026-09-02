@@ -4,6 +4,7 @@
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, statContext } from "./core.js";
 import { effectRecord, joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
+import { CHIP_FLAG } from "./decide/chips.js";
 import { statSourceOf } from "./shared.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -189,7 +190,7 @@ Hooks.on("createActiveEffect", effect => {
   if ( !isActiveGM() ) return;
   const actor = effect.parent;
   if ( !(actor instanceof Actor) ) return;
-  const fingerprinted = e => !!(e.getFlag(MODULE_ID, "applied") || e.getFlag(MODULE_ID, "mastery"));
+  const fingerprinted = e => !!(e.getFlag(MODULE_ID, "applied") || e.getFlag(MODULE_ID, CHIP_FLAG));
   if ( !fingerprinted(effect) ) return;
   const born = e => e._stats?.createdTime ?? 0;
   const elder = actor.effects.some(e => {

@@ -101,6 +101,43 @@ export function statSourceOf(message) {
 }
 
 /**
+ * The actor behind an effect's `origin` — the ITEM that applied it, and that item's parent: the
+ * bard behind an Inspired die, the attacker behind a Sapped chip. Lived in d20-folds.js until
+ * the reminder gate needed the same line (review finding 11a, 2026-09-01). Null when the origin
+ * is missing, unresolvable, or not an actor's item.
+ */
+export function grantingActor(effect) {
+  try {
+    const origin = effect?.origin ? fromUuidSync(effect.origin) : null;
+    return (origin?.actor instanceof Actor) ? origin.actor : null;
+  } catch { return null; }
+}
+
+/**
+ * Has this chip already been SPENT on record? The spend writes its receipt on the attack card
+ * FIRST and deletes the chip SECOND, and with no GM connected the delete cannot happen (a
+ * player cannot write the monster) — so the document lingers and the gate, reading documents
+ * alone, listed the same Vex as live on every swing and spent it again each time (review
+ * finding 13, 2026-09-01). A recorded spend counts as spent whatever the sheet says: the log
+ * is walked newest-first, bounded, for a `chipSpend` entry naming this chip on this bearer,
+ * written AFTER the chip's own last write — a chip refreshed by a later hit keeps its id, and
+ * an older receipt is about its earlier life.
+ */
+export function chipSpentOnRecord(effect, { limit = 100 } = {}) {
+  const bearerUuid = effect?.parent?.uuid;
+  if ( !effect?.id || !bearerUuid ) return false;
+  const since = effect._stats?.modifiedTime ?? 0;
+  const log = game.messages.contents;
+  for ( let i = log.length - 1, n = 0; (i >= 0) && (n < limit); i--, n++ ) {
+    const m = log[i];
+    if ( m.timestamp < since ) continue;
+    const spent = m.getFlag(MODULE_ID, "chipSpend")?.spent;
+    if ( spent?.some(s => (s.id === effect.id) && (s.uuid === bearerUuid)) ) return true;
+  }
+  return false;
+}
+
+/**
  * Put a status condition on an actor and make sure it actually LANDED.
  *
  * ⚠ `toggleStatusEffect(id, { active: true })` resolves without doing anything when ANY

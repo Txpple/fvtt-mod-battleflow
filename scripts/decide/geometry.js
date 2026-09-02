@@ -42,6 +42,26 @@ export function honestDims(doc) {
   };
 }
 
+/**
+ * The system's length-unit KEY for a scene's grid units, or null when the string is not one
+ * this module can read (blank included — a blank is a scene nobody labelled, not feet).
+ * Foundry's `scene.grid.units` is a free string dnd5e never maps (its ruler only prints it), so
+ * the spellings a table might type are folded here before any conversion; the conversion
+ * itself is the system's own table (`dnd5e.utils.convertLength`, CONFIG.DND5E.movementUnits),
+ * and belongs to the EDGE. Review finding 5 (2026-09-01): the gate compared a scene-unit
+ * distance against a 5-foot literal, so a metric grid's 3 m read as "within 5 feet".
+ * @param {string|null|undefined} units
+ * @returns {"ft"|"m"|"mi"|"km"|null}
+ */
+export function lengthUnitKey(units) {
+  const u = String(units ?? "").trim().toLowerCase().replace(/\.$/, "");
+  if ( ["ft", "feet", "foot", "'"].includes(u) ) return "ft";
+  if ( ["m", "meter", "meters", "metre", "metres"].includes(u) ) return "m";
+  if ( ["mi", "mile", "miles"].includes(u) ) return "mi";
+  if ( ["km", "kilometer", "kilometers", "kilometre", "kilometres"].includes(u) ) return "km";
+  return null;
+}
+
 /** A token's center from its document alone — object.center when drawn, geometry otherwise. */
 export function tokenCenter(tok) {
   if ( tok.object ) return tok.object.center;

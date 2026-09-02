@@ -178,11 +178,18 @@ export function inRunningCombat(actor) {
  * token, present only as a line on the sheet with a bare clock and no duration. Sapped landed
  * exactly that way while Vex and Slow — applied when the same combat happened to be active —
  * looked fine, which is what made it read as "Sap is broken" rather than "the clock is".
+ *
+ * ⚠ MATCHED THE WAY THE PLATFORM MATCHES (review finding 4, 2026-09-01). A synthetic
+ * (unlinked-token) actor carries its BASE actor's id, so `cb.actor?.id === actor.id` said "in
+ * the combat" for a goblin token whose SIBLING was tracked — and the chip then got
+ * `start.combat` with a null combatant, the one shape Foundry's expiry never matches (an
+ * immortal Cleave chit, never swept). `Combat#getCombatantsByActor` matches a synthetic actor
+ * by TOKEN id and a linked one by actor id — the same question `placeOf` asks a line later.
  */
 export function activeCombatFor(actor) {
   const combat = game.combat;
-  if ( !combat?.started ) return null;
-  return combat.combatants.some(cb => cb.actor?.id === actor?.id) ? combat : null;
+  if ( !combat?.started || !actor ) return null;
+  return combat.getCombatantsByActor(actor).length ? combat : null;
 }
 
 /**
