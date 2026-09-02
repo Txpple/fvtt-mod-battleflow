@@ -51,8 +51,16 @@ export const CHIP_WINDOWS = Object.freeze({
   vex: Object.freeze({ value: 1, units: "rounds", expiry: "turnEnd" }),
   sap: Object.freeze({ value: 1, units: "rounds", expiry: "turnStart" }),
   slow: Object.freeze({ value: 1, units: "rounds", expiry: "turnStart" }),
-  cleave: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" })
+  cleave: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" }),
+  // Sneak Attack's "once per turn" (user, 2026-09-02) and a clock rider's (Dreadful Strike, Divine
+  // Strike…): the Cleave chit's shape exactly — written when the damage is dealt, dead with the
+  // turn it was written in.
+  sneak: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" }),
+  rider: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" })
 });
+
+/** The once-per-turn chits — no turn, no chit (`chipClock` yields null for them out of combat). */
+export const TURN_CHITS = Object.freeze(["cleave", "sneak", "rider"]);
 
 /** The chips a turn boundary can end, keyed by who the window belongs to. */
 export const TURN_CHIPS = Object.freeze(Object.keys(CHIP_WINDOWS));
@@ -75,7 +83,7 @@ export const TURN_CHIPS = Object.freeze(Object.keys(CHIP_WINDOWS));
 export function chipClock(key, place) {
   const window = CHIP_WINDOWS[/** @type {keyof typeof CHIP_WINDOWS} */ (key)];
   if ( !window ) return null;
-  if ( !place ) return (key === "cleave") ? null : { duration: { ...window } };
+  if ( !place ) return TURN_CHITS.includes(key) ? null : { duration: { ...window } };
   return {
     duration: { ...window },
     start: { combat: place.combat, combatant: place.combatant, initiative: place.initiative,

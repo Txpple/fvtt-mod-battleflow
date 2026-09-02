@@ -3,14 +3,15 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, isFlowElectFor, drivesMomentFor,
-  canApplyTo, whisperNoGM, queueFlagWrite, canAnswerFor, activeCombatFor, combatStamp,
+  canApplyTo, whisperNoGM, queueFlagWrite, canAnswerFor, combatStamp,
   statContext } from "./core.js";
 import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { EFFECT_BENDS, MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.js";
-import { TURN_CHIPS, CHIP_FLAG, chipClock, chipIsDead, chipOwnedBy, chipSpentBy, chitStamp,
+import { TURN_CHIPS, CHIP_FLAG, chipClock, chipIsDead, chipOwnedBy, chipSpentBy,
   netShownFor, rollModeOf, spendRecord } from "./decide/chips.js";
 import { REMINDER_FLAG, rolledWith } from "./decide/reminders.js";
-import { chipSpentOnRecord, hitTargets, masteryLabel, modeAllows, rollConfigFor } from "./shared.js";
+import { chipData, chipSpentOnRecord, chitStampOf, hitTargets, masteryLabel, modeAllows, placeOf, rollConfigFor,
+  turnPlace } from "./shared.js";
 import { effectEntries } from "./settings.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, situationalBonusHTML,
   modeButtons } from "./decide/present.js";
@@ -337,55 +338,6 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
       for ( const entry of entries ) joinEffectReceipt(flag, entry);
     });
   }
-}
-
-/** The attacker's place in the RUNNING combat, for decide/chips.js — or null out of combat. */
-function placeOf(attacker) {
-  const combat = activeCombatFor(attacker);
-  if ( !combat ) return null;
-  const combatant = combat.getCombatantsByActor(attacker)[0] ?? null;
-  return { combat: combat.id, combatant: combatant?.id ?? null, initiative: combatant?.initiative ?? null,
-    round: combat.round, turn: combat.turn, time: game.time.worldTime };
-}
-
-/**
- * The CURRENT turn's place in the running combat — whoever's turn it is — for the once-per-turn
- * chit, which belongs to the turn IN PROGRESS and not to the attacker: an opportunity attack's
- * chit dies with the victim's turn, not at the attacker's own next turnEnd (review finding 3,
- * 2026-09-01). Read off `game.combat` alone, so an attacker who is not in the tracker (a
- * summon) still gets a chit and is not reminded on every hit (finding 18). Null out of combat.
- */
-function turnPlace() {
-  const combat = game.combat;
-  if ( !combat?.started ) return null;
-  const combatant = combat.combatant ?? null;
-  return { combat: combat.id, combatant: combatant?.id ?? null, initiative: combatant?.initiative ?? null,
-    round: combat.round, turn: combat.turn, time: game.time.worldTime };
-}
-
-/**
- * What a clock becomes on the document: the window, un-expired, and its start. In combat the
- * start is the attacker's place (decide/chips.js); out of combat only the time is ours to say
- * and the platform's own `_preCreate` fills the rest — a refresh re-times an existing chip.
- *
- * ⚠ AN ATTACKER IN A RUNNING COMBAT BUT NOT IN THE TRACKER (a summon, a hazard) takes that same
- * path ON PURPOSE (review finding 20, 2026-09-01, the proposed fix measured and refused). The
- * platform stamps whoever's turn it IS, which for a creature acting on its summoner's turn reads
- * "your next turn" correctly; writing `combat: null` instead does NOT make the chip time-based
- * while the BEARER is tracked — Foundry falls back to the bearer's own combatant and expires the
- * chip at exactly the same moment — so there is no better stamp to write, and none is.
- */
-function chipData(clock) {
-  return { duration: { ...clock.duration, expired: false },
-    start: clock.start ?? { time: game.time.worldTime } };
-}
-
-/** The turn a chit was written in, as the house stamp (decide/chips.js `chitStamp`). `start.combat`
- * is a ForeignDocumentField — a Combat document, or null once that combat is gone. */
-function chitStampOf(effect) {
-  const combat = effect.start?.combat;
-  return chitStamp({ combat: (typeof combat === "string") ? combat : (combat?.id ?? null),
-    round: effect.start?.round, turn: effect.start?.turn });
 }
 
 /**

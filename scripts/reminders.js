@@ -4,10 +4,12 @@
  */
 import { MODULE_ID, TITLE, statContext } from "./core.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./settings.js";
-import { chipSpentOnRecord, grantingActor } from "./shared.js";
-import { bfCard, reminderFieldsetHTML } from "./decide/present.js";
+import { chipSpentOnRecord, grantingActor, turnChitStands } from "./shared.js";
+import { DialogCarried } from "./ui.js";
+import { bfCard, reminderFieldsetHTML, sneakBoxHTML } from "./decide/present.js";
 import { CHIP_FLAG, chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.js";
-import { CONDITION_BENDS, EFFECT_BENDS, MASTERY_RULES, RANGE_RULES } from "./decide/registry.js";
+import { CONDITION_BENDS, EFFECT_BENDS, MASTERY_RULES, RANGE_RULES, SNEAK_ATTACK } from "./decide/registry.js";
+import { parseDice, sneakReadLines, sneakWeaponQualifies } from "./decide/sneak.js";
 import { feetOf, nearestFeet, tokenOfActor } from "./geometry.js";
 import { REMINDER_FLAG, conditionSources, effectSources, modeTitle, netMode, proneSources, rangeSources,
   reminderRecord, reminderSource, reminderView, rolledWith } from "./decide/reminders.js";
@@ -76,11 +78,18 @@ Hooks.on("dnd5e.preRollAttackV2", (config, dialog, message) => {
     // with the config, so the record reads what was LAST shown after any re-judgement, and a
     // dialog that opened bare can still grow a box when its dropdown turns a dagger into a
     // thrown one. Only a judgement WITH sources forces the dialog open and sets its default.
-    const gate = { ...first, attackerUuid: attacker.uuid, judge };
+    // ⚠ A DialogCarried, not a plain object (ui.js): the platform deep-clones and merges the
+    // dialog options on their way to the rendered app, and a plain object arrives as a COPY —
+    // the section's re-judgement and the Sneak Attack tick were written on the copy while the
+    // record read the original (measured 2026-09-02: the tick recorded as unarmed). A class
+    // instance passes through both by reference, so the config, the dialog and the record hold ONE object.
+    const gate = new DialogCarried({ ...first, attackerUuid: attacker.uuid, judge });
     dialog.options ??= {};
     dialog.options.bfReminder = gate;
     config.bfReminder = gate;
-    if ( !first.sources.length ) return;
+    // A Sneak Attack to offer forces the dialog open too: the tick is a choice the roller
+    // must see (user, 2026-09-02), whatever the roll's own sources.
+    if ( !first.sources.length && !first.sneak ) return;
     dialog.configure = true;
     dialog.options.defaultButton = first.net;
   } catch(err) {
@@ -104,17 +113,31 @@ function drawGate(app, { force = false } = {}) {
     if ( data?.has("attackMode") ) attackMode = data.get("attackMode");
   } catch { /* the form is the dialog's; a missing read keeps the last judgement */ }
   const existing = element.querySelector("[data-bf-reminder]");
-  const unchanged = (attackMode === gate.attackMode) && (!!existing === (gate.sources?.length > 0));
+  const wants = g => (g.sources?.length > 0) || !!g.sneak;
+  const unchanged = (attackMode === gate.attackMode) && (!!existing === wants(gate));
   if ( unchanged && !force ) return;
   const next = gate.judge(attackMode);
   Object.assign(gate, next);
   // A section the human unfolded stays unfolded through the dialog's own re-renders.
   const open = !!existing?.querySelector("details[data-bf-reminder-details]")?.open;
   existing?.remove();
-  if ( next.sources.length ) {
+  if ( wants(next) ) {
     const host = document.createElement("div");
     host.innerHTML = reminderFieldsetHTML(next.view, { open });
     const fieldset = host.firstElementChild;
+    if ( next.sneak ) {
+      // THE SNEAK ATTACK BOX (user, 2026-09-02): under the sources, OUTSIDE the fold — a choice
+      // the roller must see without a click. The tick is the human's and survives the dialog's
+      // own re-renders; its first state is what the module read (Advantage ⇒ ticked). Used
+      // this turn: greyed, no tick, the reason said.
+      if ( typeof gate.sneakArmed !== "boolean" ) gate.sneakArmed = next.sneak.armed;
+      if ( next.sneak.used ) gate.sneakArmed = false;
+      const box = document.createElement("div");
+      box.innerHTML = sneakBoxHTML({ dice: next.sneak.dice, rule: next.sneak.rule, read: next.sneak.read,
+        checked: gate.sneakArmed, used: next.sneak.used });
+      fieldset.appendChild(box.firstElementChild);
+      fieldset.querySelector('input[name="bf-sneak"]')?.addEventListener("change", ev => { gate.sneakArmed = !!ev.target.checked; });
+    }
     const configuration = element.querySelector('[data-application-part="configuration"]');
     const buttons = element.querySelector('[data-application-part="buttons"]');
     if ( configuration ) configuration.insertAdjacentElement("afterend", fieldset);
@@ -158,12 +181,23 @@ Hooks.on("targetToken", () => {
 Hooks.on("dnd5e.postRollConfiguration", (rolls, config, dialog, message) => {
   try {
     const gate = config?.bfReminder;
-    if ( !gate?.sources?.length || !rolls?.length || (config.subject?.type !== "attack") ) return;
+    if ( !gate || !rolls?.length || (config.subject?.type !== "attack") ) return;
     const mode = rollModeOf(rolls[0]?.options?.advantageMode);
-    foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${REMINDER_FLAG}`, {
-      ...reminderRecord({ sources: gate.sources, net: gate.net, mode, answeredAt: Date.now() }),
-      ...statContext(gate.attackerUuid)
-    });
+    if ( gate.sources?.length ) {
+      foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${REMINDER_FLAG}`, {
+        ...reminderRecord({ sources: gate.sources, net: gate.net, mode, answeredAt: Date.now() }),
+        ...statContext(gate.attackerUuid)
+      });
+    }
+    // The Sneak Attack choice rides the attack message too — armed or not, with the dice the
+    // sheet resolved and the weapon's type, so the damage offer and the rider read one record.
+    if ( gate.sneak ) {
+      const { dice, number, faces, type, weaponName } = gate.sneak;
+      foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.sneak`, {
+        armed: !!gate.sneakArmed, dice, number, faces, type, weaponName, feature: SNEAK_ATTACK.feature,
+        mode, ...statContext(gate.attackerUuid)
+      });
+    }
   } catch(err) {
     console.error(`${TITLE} | Reminder record failed.`, err);
   }
@@ -324,7 +358,44 @@ export function judgeRoll(attacker, { activity = null, attackMode = null, target
   if ( !enabled.size ) return null;
   const sources = sourcesFor(attacker, enabled, { activity, attackMode, targets, spent, spendNote });
   const net = netMode(sources);
-  return { sources, net, view: reminderView(sources, net), spends: sources.map(s => s.effectId).filter(Boolean) };
+  const sneak = enabled.has("sneak") ? sneakFactsFor(attacker, activity, attackMode, net) : null;
+  return { sources, net, view: reminderView(sources, net), spends: sources.map(s => s.effectId).filter(Boolean), sneak };
+}
+
+/**
+ * THE SNEAK ATTACK FACTS for this roll (user, 2026-09-02 — the seventh kind): the feature by
+ * name on the attacker's sheet, its dice read off the feature's own damage activity and
+ * resolved on the sheet (`@scale.rogue.sneak-attack` → "7d6"; anything that does not resolve
+ * to plain dice is never armed — an unresolved token rolls zero in silence), and the weapon
+ * as the dialog stands: Finesse, or ranged (the attack's type, or a thrown mode). What the
+ * module cannot read — the ally within 5 feet — is said, never judged. Null when there is
+ * nothing to offer: no feature, no dice, a weapon that does not qualify, a non-weapon attack.
+ */
+function sneakFactsFor(attacker, activity, attackMode, net) {
+  const item = activity?.item;
+  if ( !item || (item.type !== "weapon") || (activity?.type !== "attack") ) return null;
+  const feature = attacker.items.find(i => (i.type === "feat") && (i.name.toLowerCase() === SNEAK_ATTACK.feature.toLowerCase()));
+  if ( !feature ) return null;
+  const damage = [...(feature.system?.activities ?? [])].find(a => (a.type === "damage") && a.damage?.parts?.length);
+  const part = damage?.damage?.parts?.[0];
+  if ( !part ) return null;
+  const raw = part.custom?.enabled ? part.custom.formula : `${part.number ?? 1}d${part.denomination}`;
+  let resolved = null;
+  try { resolved = Roll.replaceFormulaData(String(raw), attacker.getRollData()); } catch { resolved = null; }
+  const dice = parseDice(resolved);
+  if ( !dice ) return null;
+  const finesse = !!item.system?.properties?.has?.("fin");
+  const ranged = String(attackMode ?? "").startsWith("thrown") || (activity?.attack?.type?.value === "ranged");
+  if ( !sneakWeaponQualifies({ finesse, ranged }) ) return null;
+  const type = [...(item.system?.damage?.base?.types ?? [])][0] ?? null;   // "the same as the weapon's type"
+  const used = turnChitStands(attacker, "sneak");
+  return {
+    dice: `${dice.number}d${dice.faces}`, number: dice.number, faces: dice.faces, type, weaponName: item.name,
+    finesse, ranged, rule: SNEAK_ATTACK.rule,
+    read: sneakReadLines({ weaponName: item.name, finesse, ranged, net }),
+    used: used ? "used this turn — the chit on you clears at the end of the turn" : null,
+    armed: !used && (net === "advantage")
+  };
 }
 
 /* --- the card line -------------------------------------------------------------------------- */
@@ -332,6 +403,20 @@ export function judgeRoll(attacker, { activity = null, attackMode = null, target
 // The attack card SAYS it was reminded: what was on the table, what it netted to, what was
 // pressed — so a roll that went out with Advantage is explained where everyone looks (R5), and
 // the stats plane can read honour off the flag. Stateless, like every render hook here.
+// The attack card says a Sneak Attack was ARMED (the prototype's screen 2): one line, the dice
+// and the once-per-turn — the damage card says what rode. An unticked box says nothing.
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  const s = message.getFlag(MODULE_ID, "sneak");
+  if ( !s?.armed ) return;
+  const line = document.createElement("div");
+  line.innerHTML = bfCard({
+    eyebrow: "Sneak Attack", tone: s.rolled ? "good" : "pending",
+    title: s.rolled ? `Sneak Attack — ${s.dice} rode the damage` : `Sneak Attack armed — ${s.dice} on the hit, once per turn`,
+    subtitle: `${s.weaponName ?? "the weapon"}${s.type ? `, ${s.type}` : ""}`
+  });
+  html.querySelector(".message-content")?.appendChild(line);
+});
+
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const r = message.getFlag(MODULE_ID, REMINDER_FLAG);
   if ( !r?.sources?.length ) return;

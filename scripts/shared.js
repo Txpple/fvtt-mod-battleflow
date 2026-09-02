@@ -2,7 +2,8 @@
  * Battle Flow — Shared helpers: the hit test and the chain walk.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, activeCombatFor, canApplyTo, combatStamp } from "./core.js";
+import { CHIP_FLAG, chipClock, chitStamp } from "./decide/chips.js";
 import { foldsFrom, hitsAmong, modeAdmits } from "./decide/verdict.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -263,4 +264,99 @@ export function rollConfigFor(mode, bonus) {
     else ui.notifications.warn(`${TITLE}: "${part}" is not a rollable bonus — rolling without it.`);
   }
   return Object.keys(override).length ? { rolls: [override] } : {};
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * THE TURN CHITS' EDGE (moved out of mastery.js 2026-09-02 — the D8 lesson, a seam built by its
+ * second customer): where an attacker stands in the running combat, what a chip's clock becomes
+ * on the document, and the once-per-turn chit — written when a thing is dealt, dead with the
+ * turn it was written in — which Cleave, Sneak Attack and the clock riders all keep the same way.
+ * ------------------------------------------------------------------------------------------- */
+
+/** The attacker's place in the RUNNING combat, for decide/chips.js — or null out of combat. */
+export function placeOf(attacker) {
+  const combat = activeCombatFor(attacker);
+  if ( !combat ) return null;
+  const combatant = combat.getCombatantsByActor(attacker)[0] ?? null;
+  return { combat: combat.id, combatant: combatant?.id ?? null, initiative: combatant?.initiative ?? null,
+    round: combat.round, turn: combat.turn, time: game.time.worldTime };
+}
+
+/**
+ * The CURRENT turn's place in the running combat — whoever's turn it is — for the once-per-turn
+ * chit, which belongs to the turn IN PROGRESS and not to the attacker: an opportunity attack's
+ * chit dies with the victim's turn, not at the attacker's own next turnEnd (review finding 3,
+ * 2026-09-01). Read off `game.combat` alone, so an attacker who is not in the tracker (a
+ * summon) still gets a chit and is not reminded on every hit (finding 18). Null out of combat.
+ */
+export function turnPlace() {
+  const combat = game.combat;
+  if ( !combat?.started ) return null;
+  const combatant = combat.combatant ?? null;
+  return { combat: combat.id, combatant: combatant?.id ?? null, initiative: combatant?.initiative ?? null,
+    round: combat.round, turn: combat.turn, time: game.time.worldTime };
+}
+
+/**
+ * What a clock becomes on the document: the window, un-expired, and its start. In combat the
+ * start is the attacker's place (decide/chips.js); out of combat only the time is ours to say
+ * and the platform's own `_preCreate` fills the rest — a refresh re-times an existing chip.
+ *
+ * ⚠ AN ATTACKER IN A RUNNING COMBAT BUT NOT IN THE TRACKER (a summon, a hazard) takes that same
+ * path ON PURPOSE (review finding 20, 2026-09-01, the proposed fix measured and refused). The
+ * platform stamps whoever's turn it IS, which for a creature acting on its summoner's turn reads
+ * "your next turn" correctly; writing `combat: null` instead does NOT make the chip time-based
+ * while the BEARER is tracked — Foundry falls back to the bearer's own combatant and expires the
+ * chip at exactly the same moment — so there is no better stamp to write, and none is.
+ */
+export function chipData(clock) {
+  return { duration: { ...clock.duration, expired: false },
+    start: clock.start ?? { time: game.time.worldTime } };
+}
+
+/** The turn a chit was written in, as the house stamp (decide/chips.js `chitStamp`). `start.combat`
+ * is a ForeignDocumentField — a Combat document, or null once that combat is gone. */
+export function chitStampOf(effect) {
+  const combat = effect.start?.combat;
+  return chitStamp({ combat: (typeof combat === "string") ? combat : (combat?.id ?? null),
+    round: effect.start?.round, turn: effect.start?.turn });
+}
+
+/**
+ * Does a once-per-turn chit of this kind stand on the actor for the RUNNING turn? By stamp
+ * comparison, never by the platform's mark (review finding 17, 2026-09-01 — the mark is
+ * GM-written and a no-GM table never sees it). Out of combat nothing stands.
+ * @param {Actor} actor
+ * @param {string} key   a CHIP_WINDOWS turn-chit key ("cleave" | "sneak" | "rider")
+ * @param {string|null} [riderKey]   for "rider" chits, WHICH rider (the flag's `riderKey`)
+ */
+export function turnChitStands(actor, key, riderKey = null) {
+  const stamp = combatStamp();
+  if ( !stamp || !actor ) return false;
+  return actor.effects.some(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === key)
+    && (!riderKey || (e.getFlag(MODULE_ID, "riderKey") === riderKey)) && (chitStampOf(e) === stamp));
+}
+
+/**
+ * Write a once-per-turn chit on the actor: stale chits of the kind go first (earlier turns', or
+ * a combat that ended with nobody to tidy them), then one for the turn IN PROGRESS. Out of
+ * combat there is no turn to be once-per, so nothing is written (`chipClock` yields null).
+ * A chit nobody may write (no owner on this client) is simply not written — the feature
+ * repeats, which is the cheaper failure. Returns the effect, or null.
+ * @param {Actor} actor
+ * @param {string} key
+ * @param {{name: string, img?: string|null, description?: string, origin?: string|null, riderKey?: string|null}} chit
+ */
+export async function writeTurnChit(actor, key, { name, img = null, description = "", origin = null, riderKey = null }) {
+  if ( !actor || !canApplyTo(actor) ) return null;
+  const stale = actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === key)
+    && (!riderKey || (e.getFlag(MODULE_ID, "riderKey") === riderKey)));
+  if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id));
+  const clock = chipClock(key, turnPlace());
+  if ( !clock ) return null;
+  return ActiveEffect.implementation.create({
+    name, img: img ?? "icons/svg/clockwork.svg", description, origin, disabled: false, transfer: false,
+    ...chipData(clock),
+    flags: { [MODULE_ID]: { [CHIP_FLAG]: key, ...(riderKey ? { riderKey } : {}) } }
+  }, { parent: actor });
 }

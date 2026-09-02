@@ -65,6 +65,7 @@ const LAYER_OF = {
   "d20-folds.js": "machines",
   "receipts.js": "machines",
   "reminders.js": "machines",
+  "sneak.js": "machines",
   "polish.js": "machines",
   "resources.js": "machines",
   "stats.js": "machines",
@@ -92,6 +93,7 @@ const LAYER_OF = {
   "decide/present.js": "decision",
   "decide/chips.js": "decision",
   "decide/reminders.js": "decision",
+  "decide/sneak.js": "decision",
 
   // CORE — the leaf: ids, settings accessor, the elect, the flag serializer
   "core.js": "core"
@@ -136,6 +138,13 @@ const ALLOW = [
   // and `saves -> concentration` (dramaticVerdictPause → ui.js, the spine) and `maneuvers ->
   // mastery` (combatStamp → core.js) all stopped existing, and the stale-pin rule failed the build
   // until these rows came out. A pin that only ever permits would have sat here forever.
+  {
+    from: "auto-damage.js", to: "sneak.js", disposition: "PERMANENT",
+    why: "the damage OFFER (a service) shows the Cunning Strike menu an armed Sneak Attack "
+      + "brings and commits the pick inside its one roll thunk — the same shape as its lazy "
+      + "edge to mastery.js for the armed Cleave line. Lazy import; the machine owns the "
+      + "content, the service owns the popup (2026-09-02)"
+  },
   {
     from: "volleys.js", to: "reminders.js", disposition: "BY DESIGN",
     why: "judgeRoll (2026-09-02): the volley's aim popup is the gate's SECOND SURFACE — the rays "

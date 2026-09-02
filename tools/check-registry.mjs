@@ -162,7 +162,12 @@ for (const [key, spec] of Object.entries(LIST_SPECS)) {
 // an ability on either SHEET — an active effect or a feature, by name — is a sixth way of
 // knowing. WHICH abilities is the Effect Sources list over EFFECT_BENDS, membership like the
 // condition table: seventy-odd rows of data found by a compendium scan, not seventy kinds.
-const EXPECTED_KINDS = 25;
+// 2026-09-02 (later still): 25 → 26, `sneak` joins the reminder set (user: the prototype "Sneak
+// Attack, Cunningly", built as drawn): the gate offers a CHOICE beside the roll when the Sneak
+// Attack feature is on the sheet and the weapon qualifies — a seventh way of knowing, and the
+// first that asks rather than tells. WHAT it offers after the hit is CUNNING_OPTIONS, rows of data
+// read off the sheet, not kinds.
+const EXPECTED_KINDS = 26;
 
 // The mastery set must match the rule text it is presented with: a mastery this module
 // resolves but cannot quote breaks presentation law 8 (ARCHITECTURE.md §5) at the popup.
@@ -206,7 +211,10 @@ const rows = KIND_SETS.map(set => {
 // reads mastery's chips (through decide/chips.js's fingerprint, never a sideways import) and
 // the system's statuses, and it intercepts a system roll — none of which is the mastery
 // machine's job. MASTERY_RULES moved down to decide/registry.js the same day so both can quote it.
-const EXPECTED_SOURCE_FILES = 32;
+// 2026-09-02: 32 → 34, for scripts/sneak.js (a MACHINE: Sneak Attack's rider, effects and
+// chit — its own feature, not a mastery and not a mark) and scripts/decide/sneak.js (its
+// pure half: the dice, the menu read off the sheet, the costs before the roll).
+const EXPECTED_SOURCE_FILES = 34;
 const sourceFiles = [
   ...readdirSync(join(ROOT, "scripts")).filter(f => f.endsWith(".js")),
   ...readdirSync(join(ROOT, "scripts/decide")).filter(f => f.endsWith(".js")).map(f => `decide/${f}`)

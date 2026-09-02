@@ -57,7 +57,11 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
   // The player asked for their own dice back: offer the roll instead of taking it. The popup
   // IS the pause, so it ABSORBS the dramatic beat rather than stacking a 15s window behind a
   // 3s wait (FLOW item 3, decision 2) — a beat is a held breath, and you cannot hold one twice.
-  if ( setting(S.playerRollDamage) ) return void offerDamageRoll(subject, attackMessage);
+  // An ARMED SNEAK ATTACK opens the offer whatever the setting (user, 2026-09-02: "even with
+  // auto damage on, because there is a decision to make" — which Cunning Strike, if any).
+  if ( setting(S.playerRollDamage) || attackMessage.getFlag(MODULE_ID, "sneak")?.armed ) {
+    return void offerDamageRoll(subject, attackMessage);
+  }
 
   const beat = (Math.max(0, Number(setting(S.dramaticBeat)) || 0)) * 1000;
   setTimeout(() => rollDamageForAttack(subject, attackMessage), beat);
@@ -118,7 +122,7 @@ export function critFor(attackMessage) {
  * enclosing card is the usage card and whose last attack roll is the one (dnd5e's own
  * #rollDamage reads it the same way); the flat originatingMessage key is the sheet shape.
  */
-function attackMessageForDamage(config, message) {
+export function attackMessageForDamage(config, message) {
   const data = message?.data ?? {};
   const forId = data[`flags.${MODULE_ID}.attackFor`] ?? foundry.utils.getProperty(data, `flags.${MODULE_ID}.attackFor`);
   if ( forId ) return game.messages.get(forId) ?? null;
@@ -280,7 +284,7 @@ const CRIT_BADGE = `<span style="display:inline-block;padding:0.05rem 0.45rem;bo
  * make that structural — a second call while one is open raises the open one instead of stacking
  * a twin. The key is keyed to the CARD's id, so an attack chain and a save chain cannot collide.
  */
-async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, buttonIcon, ...card }) {
+async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, buttonIcon, extraHTML = "", wire = null, ...card }) {
   // ⚠ Lazily bound, the same discipline hold.js and saves.js keep (v1.6.1's ESM order trap).
   // A STATIC import of ui.js here evaluates it during THIS file's own import — the entry reaches
   // auto-damage.js through polish.js -> hold.js, at which point hold has not yet reached its own
@@ -323,7 +327,7 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
   const dialog = new foundry.applications.api.DialogV2({
     window: { title: windowTitle, icon: windowIcon },
     position: { width: 420 },
-    content: bfCard({ tone: "pending", ...card })
+    content: bfCard({ tone: "pending", ...card }) + extraHTML
       + (deadline ? momentBarHTML({ deadline, window }, "to roll") : ""),
     buttons: [{
       action: "roll",
@@ -351,7 +355,9 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
   // A render that failed leaves NO surface to press: Hide Redundant Buttons is world-default ON,
   // so the native Damage button is not there to fall back to. Roll now rather than make the
   // table wait 15 seconds for a popup that does not exist.
-  if ( livePopups.get(key) !== dialog ) fire();
+  if ( livePopups.get(key) !== dialog ) return fire();
+  // A flavour with live controls (the Cunning Strike menu) wires them once the DOM stands.
+  if ( wire ) { try { wire(dialog.element); } catch(err) { console.error(`${TITLE} | Offer controls failed to wire.`, err); } }
 }
 
 /**
@@ -371,6 +377,10 @@ export async function offerDamageRoll(activity, attackMessage) {
   // static edge here drags mastery.js's imports ahead of hold.js in the §9 entry order.
   const { cleaveArmedFor } = await import("./mastery.js");
   const cleaveArm = cleaveArmedFor(activity.item);
+  // An armed Sneak Attack brings its Cunning Strike menu (sneak.js — lazy for the same reason;
+  // the pick is committed onto the attack message inside the one roll thunk, before the dice).
+  const { sneakOfferParts } = await import("./sneak.js");
+  const sneak = sneakOfferParts(attackMessage, activity);
 
   // THE CELEBRATION (ARCHITECTURE.md §5 law 10, finding (l)): every attack-damage popup leads
   // with the HIT — the moment the player earned — and the dice ask rides it. One design,
@@ -386,11 +396,13 @@ export async function offerDamageRoll(activity, attackMessage) {
     : (riposte ? "Your riposte hit! — roll damage" : "You hit! — roll damage");
 
   return offerRoll(attackMessage, {
-    roll: () => rollDamageForAttack(activity, attackMessage),
+    roll: async () => { await sneak?.commit(); return rollDamageForAttack(activity, attackMessage); },
     windowTitle: headline,
     windowIcon: isCritical ? "fa-solid fa-burst" : "fa-solid fa-dice-d6",
     buttonLabel: isCritical ? "Roll Critical Damage" : "Roll Damage",
     buttonIcon: isCritical ? "fa-solid fa-burst" : "fa-solid fa-dice-d6",
+    extraHTML: sneak?.html ?? "",
+    wire: sneak ? element => sneak.wire(element) : null,
     img: activity.item?.img,
     eyebrow: "Damage — your roll",
     title: headline,
@@ -399,6 +411,7 @@ export async function offerDamageRoll(activity, attackMessage) {
       riposte ? `<strong>Riposte</strong> — the superiority die rides this roll${isCritical ? " and crit-doubles with it" : ""}.` : null,
       precisionUsed ? `<strong>Precision Attack</strong> turned the miss — this hit is yours to roll.` : null,
       cleaveArm ? `<strong>Cleave</strong> — this is the armed Cleave swing: the ability modifier is dropped from this roll.` : null,
+      sneak ? `${sneak.line}${isCritical ? " A critical hit doubles what is left of the sneak dice too." : ""}` : null,
       isCritical ? `${CRIT_BADGE} <span style="opacity:0.85;">${crit.auto && !crit.rolled
         ? `${crit.sources.map(s => s.label).join(" · ")} — set on the roll, nothing extra to do.`
         : "Already set on the roll — nothing extra to do."}</span>` : null,

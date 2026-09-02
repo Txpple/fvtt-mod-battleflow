@@ -323,7 +323,9 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     // 2026-09-02: 23 → 24 — `range` joins the set (a ranged attack's own geometry, user ask).
     // 2026-09-02 (later): 24 → 25 — `effect` joins: an ability on either sheet, by name, over the
     // effect table (membership, like the condition table).
-    expect(total).toBe(25);
+    // 2026-09-02 (later still): 25 → 26 — `sneak` joins: the Sneak Attack CHOICE beside the roll,
+    // the first kind that asks rather than tells (the prototype, built as drawn).
+    expect(total).toBe(26);
   });
 
   it("puts every kind-bearing list spec's set in the table — unless the spec says it is MEMBERSHIP", () => {

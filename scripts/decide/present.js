@@ -192,6 +192,59 @@ export function reminderFieldsetHTML({ head, boxes, legend = "Before you roll" }
 }
 
 /**
+ * THE SNEAK ATTACK BOX (user, 2026-09-02 — the prototype's screen 1): one more box under the
+ * gate's sources, with a CHECKBOX where the other boxes carry a tag — the roll still needs its
+ * mode press, so the choice rides beside it, never as a fourth button. The rule verbatim, and
+ * the "read for you" line: what the module judged, what it leaves to the player. Used this
+ * turn: the box stays, greyed, with the reason and no checkbox (screen 6).
+ * @param {{dice: string, rule: string, read: string[], checked?: boolean, used?: string|null}} view
+ */
+export function sneakBoxHTML({ dice, rule, read, checked = false, used = null }) {
+  const control = used
+    ? `<span style="font-size:var(--font-size-11,11px);opacity:0.75;">${attr(used)}</span>`
+    : `<label style="display:flex;align-items:center;gap:0.4rem;white-space:nowrap;cursor:pointer;">
+        <input type="checkbox" name="bf-sneak" ${checked ? "checked" : ""} style="margin:0;"> <span>Sneak Attack</span></label>`;
+  return `
+      <div data-bf-sneak style="display:grid;grid-template-columns:1fr auto;gap:0.2rem 0.6rem;align-items:center;
+                  margin:0.4rem 0;padding:0.45rem 0.6rem;border-radius:4px;${used ? "opacity:0.6;" : ""}
+                  background:rgba(0,0,0,0.25);border:1px solid var(--color-border-dark,rgba(0,0,0,0.4));
+                  border-left:3px solid ${used ? TONE.neutral : TONE.pending};">
+        <div style="font-weight:bold;">Sneak Attack — ${attr(dice)} on a hit, once per turn</div>
+        ${control}
+        <div style="grid-column:1 / -1;font-size:var(--font-size-12,12px);line-height:1.45;opacity:0.85;">${ruleLine(rule)}</div>
+        <div style="grid-column:1 / -1;font-size:var(--font-size-11,11px);line-height:1.45;opacity:0.8;">Read for you: ${read.map(attr).join(" · ")}</div>
+      </div>`;
+}
+
+/**
+ * THE CUNNING STRIKE MENU on the damage offer (the prototype's screen 3): a checkbox per option
+ * the sheet grants, its cost as the tag, its rule underneath; unaffordable rows are shown and
+ * disabled — the dice say why. The header says the DC and how many may be picked. The button
+ * under it names the formula the pick leaves (the EDGE re-labels it on change).
+ * @param {{rows: {key: string, label: string, cost: number, rule: string, caveat?: string, line: boolean, affordable: boolean}[],
+ *          max: number, dc: number|null, dice: string, chosen?: Iterable<string>}} view
+ */
+export function cunningMenuHTML({ rows, max, dc, dice, chosen = [] }) {
+  if ( !rows.length ) return "";
+  const picked = new Set(chosen);
+  const items = rows.map(r => `
+      <label data-bf-cunning-row="${attr(r.key)}" style="display:grid;grid-template-columns:auto 1fr auto;gap:0.2rem 0.5rem;align-items:center;
+             margin:0.3rem 0;padding:0.35rem 0.5rem;border-radius:4px;background:rgba(0,0,0,0.06);
+             border:1px solid var(--color-border-light,rgba(0,0,0,0.2));${r.affordable ? "cursor:pointer;" : "opacity:0.5;"}">
+        <input type="checkbox" name="bf-cunning" value="${attr(r.key)}" ${picked.has(r.key) ? "checked" : ""} ${r.affordable ? "" : "disabled"} style="margin:0;">
+        <span style="font-weight:bold;">${attr(r.label)}${r.line ? " <span style=\"opacity:0.6;font-weight:normal;\">— a line on the card</span>" : ""}</span>
+        <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;">${r.cost ? `${r.cost}d forgone` : "no cost"}</span>
+        <span style="grid-column:2 / -1;font-size:var(--font-size-11,11px);line-height:1.4;opacity:0.8;">${ruleLine(r.rule)}${r.caveat ? ` <em style="opacity:0.8;">(${attr(r.caveat)})</em>` : ""}</span>
+      </label>`).join("");
+  return `
+    <div data-bf-cunning style="margin-top:0.5rem;">
+      <div style="font-weight:bold;font-size:var(--font-size-12,12px);">Cunning Strike</div>
+      <div style="font-size:var(--font-size-11,11px);opacity:0.8;line-height:1.45;">Forgo Sneak Attack dice (${attr(dice)}) for an effect${max > 1 ? ` — up to ${max} (Improved Cunning Strike)` : ""}.${dc ? ` Save DC ${dc}.` : ""} The effect lands right after the damage.</div>
+      ${items}
+    </div>`;
+}
+
+/**
  * The three roll-mode buttons — Advantage / Normal / Disadvantage — as DialogV2 button
  * descriptors: one shape for every popup that stands in for a roll dialog. `press(mode)` is
  * the caller's answer; `defaultMode` marks the button Enter triggers — the one DialogV2

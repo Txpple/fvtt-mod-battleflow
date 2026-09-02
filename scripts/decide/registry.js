@@ -106,13 +106,88 @@ export const MASTERY_RULES = Object.freeze({
  *   range  a RANGED attack roll's geometry (user, 2026-09-02): the target beyond normal range →
  *          Disadvantage, beyond long range → cannot be made (listed, not counted); an enemy
  *          within 5 feet of the attacker → Disadvantage (RANGE_RULES, decide/reminders.js)
+ *   sneak  the Sneak Attack CHOICE beside the roll (user, 2026-09-02): the feature on the
+ *          attacker's sheet and a Finesse or ranged weapon offer a tick — the player judges the
+ *          conditions, the module carries the dice (SNEAK_ATTACK, CUNNING_OPTIONS)
  *   effect an ability on either sheet that bends the roll — an active effect or a feature by
  *          name, a row of EFFECT_BENDS (user, 2026-09-02); WHICH rows count is the Effect
  *          Sources list, membership like the condition table
  * The gate never SETS a mode (DESIGN R-A): it lists every source and the net, and a human presses.
  * Membership — which of these a table wants nagged about — is the Reminder Sources list.
  */
-export const REMINDER_KINDS = new Set(["vex", "sap", "prone", "condition", "range", "effect"]);
+export const REMINDER_KINDS = new Set(["vex", "sap", "prone", "condition", "range", "effect", "sneak"]);
+
+/**
+ * SNEAK ATTACK (user, 2026-09-02 — the prototype *Sneak Attack, Cunningly*, built as drawn): the
+ * feature by NAME on the attacker's sheet, its dice read off the feature's own damage activity
+ * (`@scale.rogue.sneak-attack`, resolved on the sheet — never a table of dice by level), and its
+ * rule quoted verbatim from the 2024 PHB pack. The gate's seventh kind: a CHOICE beside the
+ * roll — a checkbox in the section, because the roll still needs its Advantage / Normal press.
+ * The PLAYER decides whether the conditions hold (user: "the player can determine if they have
+ * the conditions"); the module reads what it can (the weapon is Finesse or ranged, the roll's
+ * net) and says what it cannot (an ally within 5 feet). The DAMAGE is automated: the dice ride
+ * the damage roll (the hit-riders seam), crit-doubled for free, once per turn as a turn chip.
+ */
+export const SNEAK_ATTACK = Object.freeze({
+  feature: "Sneak Attack",
+  improved: "Improved Cunning Strike",     // up to TWO Cunning Strike effects
+  rule: "Once per turn, you can deal an extra 1d6 damage to one creature you hit with an attack roll if you have Advantage on the roll and the attack uses a Finesse or a Ranged weapon. The extra damage’s type is the same as the weapon’s type. You don’t need Advantage on the attack roll if at least one of your allies is within 5 feet of the target, the ally doesn’t have the Incapacitated condition, and you don’t have Disadvantage on the attack roll.",
+  cunning: "When you deal Sneak Attack damage, you can add one of the following Cunning Strike effects. Each effect has a die cost, which is the number of Sneak Attack damage dice you must forgo to add the effect. You remove the die before rolling, and the effect occurs immediately after the attack’s damage is dealt.",
+  dc: "If a Cunning Strike effect requires a saving throw, the DC equals 8 plus your Dexterity modifier and Proficiency Bonus."
+});
+
+/**
+ * THE CUNNING STRIKE OPTIONS, read off the sheet (user ruling 2026-09-02: "the option list is
+ * READ OFF THE SHEET, subclass included") — each row names the FEATURE that grants it, the SAVE
+ * ACTIVITY dnd5e ships on that feature (the effect lands through the saves machine, with the
+ * condition the pack attaches), and its die cost. A row with no activity is a LINE on the card
+ * (Withdraw, Stealth Attack) — movement and stealth are the table's. The 2024 PHB pack as
+ * measured 2026-09-02 (tools/probe-clock-riders.mjs):
+ *
+ *   Cunning Strike     Poison (1d6, Con, Poisoned 1 min) · Trip (1d6, Dex, Prone) · Withdraw (1d6)
+ *   Devious Strikes    Daze (2d6, Con) · Knock Out (6d6, Con, Unconscious) · Obscure (3d6, Dex, Blinded)
+ *   Supreme Sneak      Stealth Attack (1d6) — the Thief
+ *   Envenom Weapons    UPGRADES Poison — the Assassin: the pack's activity carries the damage
+ *                      (2d8 poison on a failed save, as shipped; its text says 2d6 — the data
+ *                      wins, N1) and no condition, so the failure ALSO presses Poisoned
+ *   Rend Mind          the Soulknife, Psychic Blades only, no die cost: a free use, or three
+ *                      Psionic Energy Dice — the pack's two activities
+ *
+ * `upgrade.onFail` names what the module applies on top of the upgraded activity's own
+ * consequences; `weapon` restricts the row to attacks with that item name.
+ */
+export const CUNNING_OPTIONS = Object.freeze({
+  poison: Object.freeze({ feature: "Cunning Strike", activity: "Poison", cost: 1,
+    caveat: "you must have a Poisoner’s Kit on your person",
+    rule: "Poison (Cost: 1d6). You add a toxin to your strike, forcing the target to make a Constitution saving throw. On a failed save, the target has the Poisoned condition for 1 minute. At the end of each of its turns, the Poisoned target repeats the save, ending the effect on itself on a success. To use this effect, you must have a Poisoner’s Kit on your person.",
+    upgrade: Object.freeze({ feature: "Envenom Weapons", activity: "Poison", onFail: "poisoned", effectFrom: "Cunning Strike",
+      rule: "When you use the Poison option of your Cunning Strike, the target also takes 2d6 Poison damage whenever it fails the saving throw. This damage ignores Resistance to Poison damage." }) }),
+  trip: Object.freeze({ feature: "Cunning Strike", activity: "Trip", cost: 1,
+    caveat: "the target must be Large or smaller",
+    rule: "Trip (Cost: 1d6). If the target is Large or smaller, it must succeed on a Dexterity saving throw or have the Prone condition." }),
+  withdraw: Object.freeze({ feature: "Cunning Strike", activity: null, cost: 1,
+    rule: "Withdraw (Cost: 1d6). Immediately after the attack, you move up to half your Speed without provoking Opportunity Attacks." }),
+  daze: Object.freeze({ feature: "Devious Strikes", activity: "Daze", cost: 2,
+    rule: "Daze (Cost: 2d6). The target must succeed on a Constitution saving throw, or on its next turn, it can do only one of the following: move or take an action or a Bonus Action." }),
+  knockOut: Object.freeze({ feature: "Devious Strikes", activity: "Knock Out", cost: 6,
+    rule: "Knock Out (Cost: 6d6). The target must succeed on a Constitution saving throw, or it has the Unconscious condition for 1 minute or until it takes any damage. The Unconscious target repeats the save at the end of each of its turns, ending the effect on itself on a success." }),
+  obscure: Object.freeze({ feature: "Devious Strikes", activity: "Obscure", cost: 3,
+    rule: "Obscure (Cost: 3d6). The target must succeed on a Dexterity saving throw, or it has the Blinded condition until the end of its next turn." }),
+  stealthAttack: Object.freeze({ feature: "Supreme Sneak", activity: null, cost: 1,
+    rule: "Stealth Attack (Cost: 1d6). If you have the Hide action’s Invisible condition, this attack doesn’t end that condition on you if you end the turn behind Three-Quarters Cover or Total Cover." }),
+  rendMind: Object.freeze({ feature: "Rend Mind", activity: Object.freeze(["Rend Mind (Free)", "Rend Mind"]), cost: 0, weapon: "Psychic Blade",
+    rule: "When you use your Psychic Blades to deal Sneak Attack damage to a creature, you can force that target to make a Wisdom saving throw (DC 8 plus your Dexterity modifier and Proficiency Bonus). If the save fails, the target has the Stunned condition for 1 minute. The Stunned target repeats the save at the end of each of its turns, ending the effect on itself on a success. Once you use this feature, you can’t do so again until you finish a Long Rest unless you expend three Psionic Energy Dice (no action required) to restore your use of it." })
+});
+
+/**
+ * DEATH STRIKE (the Assassin, level 17): not an option — a clock rider on the Sneak Attack
+ * itself. The pack's activity is the save; on a failure the attack's damage lands a second
+ * time (the receipt's own amounts, doubled through the applier), said on the card.
+ */
+export const DEATH_STRIKE = Object.freeze({
+  feature: "Death Strike", activity: "Death Strike", when: "firstRound",
+  rule: "When you hit with your Sneak Attack on the first round of a combat, the target must succeed on a Constitution saving throw (DC 8 plus your Dexterity modifier and Proficiency Bonus), or the attack’s damage is doubled against the target."
+});
 
 /**
  * The 2024 Rules Glossary on range, verbatim (dnd5e.content24 / the premium PHB, appendix D —
@@ -622,7 +697,7 @@ export const LIST_SPECS = {
     // ⚠ The list IS the switch (the v1.19.0 idiom): every entry is a kind the gate knows how to
     // read, and an empty list turns the gate off. Unknown kinds are dropped with a warning.
     columns: ["kind"], kindColumn: "kind", kinds: REMINDER_KINDS, fallback: null,
-    default: "vex, sap, prone, condition, range"
+    default: "vex, sap, prone, condition, range, sneak"
   },
   conditions: {
     label: "Condition Sources", setting: "conditionList",

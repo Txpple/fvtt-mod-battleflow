@@ -75,6 +75,7 @@ const ORDER = [
   // steps a real Combat through rounds to watch Foundry's own clock expire them (2026-09-01).
   { name: "smoke-expiry", note: "the platform's clock on the chips, the spend, the cleave chit" },
   { name: "smoke-reminders", note: "the gate before the roll — every source, the net, the press" },
+  { name: "smoke-sneak", note: "Sneak Attack as drawn — the tick, the menu, the dice, the crit, the chit, the effects" },
   { name: "smoke-resources", note: "" },
   // ⚠ LAST, and it is the only entry whose position is about what it CREATES rather than what
   // it needs. It places a real MeasuredTemplate on the active scene, and a template standing

@@ -50,6 +50,8 @@ const CHECKS = [
     "the volley row renders above the saves rows on a shared usage card (v1.20.0 entry order)"],
   ["dnd5e.renderChatMessage", "receipts.js", "resources.js",
     "the spend line is the usage card's footer — below every workflow row (v1.20.0 entry order)"],
+  ["dnd5e.preRollDamageV2", "sneak.js", "volleys.js",
+    "the sneak dice are pushed as their own part BEFORE the dart multiplier copies the base entry — attack-gated like the riders, so the sets are disjoint; the order keeps that structural (2026-09-02)"],
   ["dnd5e.preRollDamageV2", "hit-riders.js", "volleys.js",
     "the dart multiplier copies the base entry AFTER the riders decided — a rider must never be duplicated per dart (riders are attack-gated and darts are damage-activity rolls, so the sets are disjoint; the order keeps that structural)"]
 ];

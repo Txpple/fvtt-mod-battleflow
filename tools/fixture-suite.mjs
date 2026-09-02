@@ -223,6 +223,75 @@ const out = await f.evaluate(async ({ playerName }) => {
       await calibrate(clone, name);
     }
 
+    // --- the BUILT PCs: a rogue and a ranger from the 2024 PHB pack ----------------------------
+    // ⚠ BUILT, NOT CLONED, and that is measured to be safe (tools/probe-rogue-fixture.mjs,
+    // 2026-09-02): a class item created with `system.levels` set resolves its scale values
+    // without the advancement manager — `@scale.rogue.sneak-attack` reads 7d6 at Rogue 14, the
+    // Gloom Stalker's `@scale.gloom.dreadful-strike` resolves beside it — and Cunning Strike's
+    // save DC computes off the sheet. There is no rogue on this table to clone, and the sneak
+    // suite needs one with every option on the sheet: Sneak Attack, Cunning Strike, Devious
+    // Strikes (14), Improved Cunning Strike (11), the Thief's Supreme Sneak, Assassinate for the
+    // clock rider (a feature by NAME is what the module reads — the subclass is not consulted).
+    // Death Strike and Envenom Weapons are NOT here: they fire on every round-1 / Poison and
+    // would colour every other section; the suite adds them for their own sections and removes
+    // them. GM-owned like the clones, for the same reason. Re-seeded for HP and abilities on
+    // every run (the ownership lesson at smoke-battleflow.mjs:842).
+    const findPackItem = async (packIds, name) => {
+      for (const id of packIds) {
+        const pack = game.packs.get(id);
+        if (!pack) continue;
+        let index;
+        try { index = await pack.getIndex(); } catch { continue; }
+        const hit = index.find(e => e.name === name);
+        if (hit) { const doc = await pack.getDocument(hit._id); const data = doc.toObject(); delete data._id; return data; }
+      }
+      return null;
+    };
+    const PHB_CLASSES = ["dnd-players-handbook.classes"];
+    const PHB_GEAR = ["dnd-players-handbook.equipment", "dnd5e.equipment24"];
+    const BUILT = [
+      { name: "BF Test Rogue", classes: [["Rogue", 14], ["Thief", null]],
+        feats: ["Sneak Attack", "Cunning Strike", "Devious Strikes", "Improved Cunning Strike", "Supreme Sneak", "Assassinate"],
+        gear: ["Rapier", "Longsword", "Shortbow"], abilities: { dex: 18, str: 12, con: 14 }, hp: 90, x: 700 },
+      { name: "BF Test Ranger", classes: [["Ranger", 5], ["Gloom Stalker", null]],
+        feats: ["Dread Ambusher"], gear: ["Longsword", "Longbow"], abilities: { dex: 16, str: 14, wis: 16, con: 14 }, hp: 44, x: 500 }
+    ];
+    const built = [];
+    for (const spec of BUILT) {
+      let actor = game.actors.getName(spec.name);
+      if (!actor) {
+        const items = [];
+        for (const [className, levels] of spec.classes) {
+          const data = await findPackItem(PHB_CLASSES, className);
+          if (!data) { log.push(`⚠ ${className} not found in the PHB pack — ${spec.name} not built`); items.length = 0; break; }
+          if (levels) data.system.levels = levels;
+          items.push(data);
+        }
+        if (!items.length) continue;
+        for (const n of [...spec.feats]) {
+          const data = await findPackItem(PHB_CLASSES, n);
+          if (data) items.push(data); else log.push(`⚠ ${n} not found — ${spec.name} lacks it`);
+        }
+        for (const n of spec.gear) {
+          const data = await findPackItem(PHB_GEAR, n);
+          if (data) { data.system.equipped = true; items.push(data); } else log.push(`⚠ ${n} not found — ${spec.name} lacks it`);
+        }
+        actor = await Actor.create({
+          name: spec.name, type: "character", folder: actorFolder.id, items,
+          ownership: { default: 0 },
+          prototypeToken: { name: spec.name, actorLink: true, disposition: 1 },
+          system: { abilities: Object.fromEntries(Object.entries(spec.abilities).map(([k, v]) => [k, { value: v }])) }
+        });
+        made.push(spec.name);
+        log.push(`created ${spec.name} from the PHB pack (${spec.classes.map(([c, l]) => l ? `${c} ${l}` : c).join(" / ")})`);
+      }
+      if ((actor.system.attributes?.hp?.max ?? 0) !== spec.hp) {
+        await actor.update({ "system.attributes.hp.max": spec.hp, "system.attributes.hp.value": spec.hp });
+        log.push(`seeded ${spec.name}'s HP pool (${spec.hp}/${spec.hp})`);
+      }
+      built.push({ actor, x: spec.x });
+    }
+
     // --- adopt strays ------------------------------------------------------------------------
     // An older suite that built its own fixture put it at the root. Sweep every BF Test actor
     // into the folder so nothing is left loose to annoy anyone back into deleting it.
@@ -244,6 +313,7 @@ const out = await f.evaluate(async ({ playerName }) => {
     const attackerToken = await ensureToken(attacker, 900, false);
     const victimToken = await ensureToken(victim, 1100, false);
     await ensureToken(shielder, 1500, true);
+    for (const { actor, x } of built) await ensureToken(actor, x, true);
 
     // Full HP on the token actors: a run that died mid-flight leaves the victim at 0, where
     // "applied 0 damage" and "the pool was already empty" are the same observation.
