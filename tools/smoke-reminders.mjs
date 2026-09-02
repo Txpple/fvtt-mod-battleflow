@@ -22,7 +22,8 @@ const SECTIONS = {
   7: 'closing the popup rolls nothing',
   8: 'the registration FIRED (§11): dnd5e.preRollAttackV2 moved',
   9: 'a metric grid: the 5-foot rule is judged in FEET, never in scene units',
-  10: 'range: point-blank, beyond normal, beyond long — and the section follows the attack-mode dropdown'
+  10: 'range: point-blank, beyond normal, beyond long — and the section follows the attack-mode dropdown',
+  11: 'effect sources: an effect or a feature by name, in scope, listed or counted, judged, and spent by the roll'
 };
 const DEPENDS = { 8: ['1'] };
 
@@ -56,7 +57,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget', 'reactionHold',
     'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'holdTimer', 'saveTimer', 'castApply',
-    'noticeTimer', 'reminderList', 'conditionList'];
+    'noticeTimer', 'reminderList', 'conditionList', 'effectList'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -140,11 +141,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // still carrying the pre-range list (verify-settings reads it as drift) would otherwise
     // hand §10 a gate with no range in it (seen on the first live run, 2026-09-02).
     const SUITE_LISTS = {
-      reminderList: 'vex, sap, prone, condition, range',
+      reminderList: 'vex, sap, prone, condition, range, effect',
       conditionList: 'blinded, invisible, hiding, paralyzed, petrified, poisoned, restrained, stunned, unconscious, frightened, grappled, incapacitated, dodging, charmed'
     };
     await set('reminderList', SUITE_LISTS.reminderList);
     await set('conditionList', SUITE_LISTS.conditionList);
+    await set('effectList', game.settings.settings.get(`${MOD}.effectList`).default);
 
     // -------------------------------------------------- fixtures (the smoke-expiry idiom)
     const findWeapon = async () => {
@@ -292,8 +294,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     /** The HUMAN-style roll: the dialog is allowed, so the gate stands in. Returns the dialog
      * when it carries the gate's section, and whether the system dialog opened at all.
      * `flat: true` drives the sheet/use() shape instead — the flat originatingMessage key. */
-    const gatedSwing = async ({ activity = null, token = null, flat = false } = {}) => {
-      await healFull();
+    const gatedSwing = async ({ activity = null, token = null, flat = false, heal = true } = {}) => {
+      if (heal) await healFull();
       target(token ?? victimToken);
       await sleep(80);
       const act = activity ?? pcAttack();
@@ -805,6 +807,149 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await victimTokenDoc.update({ disposition: priorDisposition.victim }).catch(() => {});
           await pcTokenDoc.update({ disposition: priorDisposition.pc }).catch(() => {});
           await clearStatuses();
+        }
+      }
+    }
+
+    // ================================================== 11. effect sources
+    // The sixth kind (user, 2026-09-02): an ability on either sheet by NAME — an active effect
+    // (Innate Sorcery, Reckless, Demon Armor, Guiding Bolt) or a feature (Pack Tactics,
+    // Bloodied Fury) — read against the effect table: in scope or not, counted or listed,
+    // judged on a fact, and spent by the roll where the rules spend it.
+    if (want(11)) {
+      await sleep(600);
+      await clearChips();
+      await clearStatuses();
+      const plant = async (actor, name) => ActiveEffect.implementation.create({
+        name, img: 'icons/svg/aura.svg', duration: { rounds: 10 }, transfer: false
+      }, { parent: actor });
+      const unplant = async () => {
+        for (const a of [pc, victim]) {
+          const mine = a.effects.filter(e => ['Innate Sorcery', 'Reckless', 'Demon Armor', 'Guiding Bolt'].includes(e.name));
+          if (mine.length) await a.deleteEmbeddedDocuments('ActiveEffect', mine.map(e => e.id));
+        }
+      };
+      const priorPcHp = pc.system._source.attributes.hp.value;
+      let cantrip = null, packTactics = null, fury = null;
+      try {
+        // A ranged SPELL attack of the PC's own, for the scope test — the volleys suite's shape.
+        [cantrip] = await pc.createEmbeddedDocuments('Item', [{
+          name: 'BF Test Cantrip', type: 'spell',
+          system: { level: 0, school: 'evo', properties: ['vocal'], range: { value: '120', units: 'ft' }, method: 'spell', prepared: 1,
+            activities: { bftestcantrip000: { _id: 'bftestcantrip000', type: 'attack', name: 'Bolt', activation: { type: 'action' },
+              attack: { type: { value: 'ranged', classification: 'spell' }, bonus: '0', flat: false },
+              damage: { includeBase: true, parts: [{ number: 1, denomination: 10, bonus: '', types: ['fire'] }] } } } }
+        }]);
+        created.items.push({ actorId: pc.id, id: cantrip.id });
+        const cantripAttack = () => pc.items.get(cantrip.id).system.activities.find(a => a.type === 'attack');
+        // 11a/b: Innate Sorcery — a spell-scope row: nothing on the dagger, a box on the cantrip.
+        await plant(pc, 'Innate Sorcery');
+        {
+          const { dialog, system } = await gatedSwing();
+          ok('11a. Innate Sorcery on the attacker: the DAGGER opens bare — the row is spell attacks only',
+            !dialog && system, `section=${!!dialog} system=${system}`);
+          await closeGates();
+        }
+        {
+          const { dialog } = await gatedSwing({ activity: cantripAttack() });
+          const text = popupText(dialog);
+          // The cantrip is a RANGED spell at an adjacent enemy, so the range kind's point-blank box
+          // stands beside it and the two contend — the assertion is the Innate Sorcery box itself.
+          ok('11b. …and the CANTRIP meets it: an Innate Sorcery box, Advantage, its own rule (beside the range kind’s point-blank box)',
+            /BF Test PC Attacker — Innate Sorcery/.test(text) && /Sorcerer spells/.test(text)
+              && !!dialog?.element?.querySelector('[data-bf-mode="advantage"]'), text.slice(0, 300));
+          await closeGates();
+        }
+        await unplant();
+        // 11c: Reckless — both sides: the attacker's own, and against a Reckless target.
+        await plant(pc, 'Reckless');
+        {
+          const { dialog } = await gatedSwing();
+          const text = popupText(dialog);
+          ok('11c. Reckless on the attacker: Advantage on the weapon swing',
+            /BF Test PC Attacker — Reckless/.test(text) && /1 Modifier — Net Advantage/.test(text), text.slice(0, 300));
+          await closeGates();
+        }
+        await unplant();
+        await plant(victim, 'Reckless');
+        {
+          const { dialog } = await gatedSwing();
+          const text = popupText(dialog);
+          ok('11c2. …and Reckless on the TARGET: Advantage against it',
+            /Hobgoblin is — Reckless/.test(text) && /1 Modifier — Net Advantage/.test(text), text.slice(0, 300));
+          await closeGates();
+        }
+        await unplant();
+        // 11d: Demon Armor — listed, not counted (user ruling): shown, out of the net.
+        await plant(pc, 'Demon Armor');
+        {
+          const { dialog } = await gatedSwing();
+          const text = popupText(dialog);
+          ok('11d. Demon Armor is LISTED: shown with its caveat, the net Normal, the tag Listed',
+            /Demon Armor \(listed — Disadvantage only against demons\)/.test(text) && /1 Modifier — Net Normal/.test(text)
+              && !!dialog?.element?.querySelector('[data-bf-mode="listed"]'),
+            text.slice(0, 300));
+          ok('11d2. …and Normal is the highlighted default', defaultButton(dialog) === 'normal', `default=${defaultButton(dialog)}`);
+          await closeGates();
+        }
+        await unplant();
+        // 11e: Pack Tactics — a FEATURE by name, counted with its caveat.
+        [packTactics] = await pc.createEmbeddedDocuments('Item', [{ name: 'Pack Tactics', type: 'feat', system: { description: { value: '' } } }]);
+        created.items.push({ actorId: pc.id, id: packTactics.id });
+        {
+          const { dialog } = await gatedSwing();
+          const text = popupText(dialog);
+          ok('11e. Pack Tactics as a feature: counted, Advantage, with the 5-foot-ally caveat',
+            /Pack Tactics \(counted — press Normal if no ally of the attacker is within 5 feet of the target\)/.test(text)
+              && /1 Modifier — Net Advantage/.test(text), text.slice(0, 300));
+          await closeGates();
+        }
+        await pc.deleteEmbeddedDocuments('Item', [packTactics.id]);
+        created.items.splice(created.items.findIndex(i => i.id === packTactics.id), 1);
+        packTactics = null;
+        // 11f: Bloodied Fury — a feature JUDGED on HP: nothing at full, a box at half.
+        [fury] = await pc.createEmbeddedDocuments('Item', [{ name: 'Bloodied Fury', type: 'feat', system: { description: { value: '' } } }]);
+        created.items.push({ actorId: pc.id, id: fury.id });
+        {
+          const { dialog, system } = await gatedSwing();
+          ok('11f. Bloodied Fury at full HP: nothing — the row is judged on HP', !dialog && system, `section=${!!dialog} system=${system}`);
+          await closeGates();
+        }
+        await pc.update({ 'system.attributes.hp.value': Math.floor(pc.system.attributes.hp.max / 2) });
+        {
+          const { dialog } = await gatedSwing({ heal: false });
+          const text = popupText(dialog);
+          ok('11f2. …and Bloodied: 1 Modifier — Net Advantage, Bloodied Fury',
+            /Bloodied Fury/.test(text) && /1 Modifier — Net Advantage/.test(text), text.slice(0, 300));
+          await closeGates();
+        }
+        await pc.update({ 'system.attributes.hp.value': priorPcHp });
+        await pc.deleteEmbeddedDocuments('Item', [fury.id]);
+        created.items.splice(created.items.findIndex(i => i.id === fury.id), 1);
+        fury = null;
+        // 11g: Guiding Bolt on the target — Advantage against it, and SPENT by the roll.
+        const gb = await plant(victim, 'Guiding Bolt');
+        {
+          const before = lastAttack()?.id ?? null;
+          const { dialog } = await gatedSwing();
+          const text = popupText(dialog);
+          ok('11g. Guiding Bolt on the target: Advantage against it',
+            /Hobgoblin is — Guiding Bolt/.test(text) && /1 Modifier — Net Advantage/.test(text), text.slice(0, 300));
+          await press(dialog, 'advantage');
+          const msg = await waitAttackAfter(before);
+          await gone(victim, gb.id);
+          const spent = msg?.getFlag(MOD, 'chipSpend')?.spent ?? [];
+          ok('11g2. …and the roll SPENDS it: the effect is gone, the receipt on the attack card names it, honoured against the net',
+            !victim.effects.get(gb.id) && spent.some(s => (s.id === gb.id) && (s.key === 'effect') && (s.honoured === true)),
+            JSON.stringify({ gone: !victim.effects.get(gb.id), spent }));
+          await settle(msg);
+        }
+      } finally {
+        await unplant();
+        await pc.update({ 'system.attributes.hp.value': priorPcHp }).catch(() => {});
+        for (const it of [cantrip, packTactics, fury].filter(Boolean)) {
+          if (pc.items.get(it.id)) await pc.deleteEmbeddedDocuments('Item', [it.id]).catch(() => {});
+          const i = created.items.findIndex(x => x.id === it.id); if (i >= 0) created.items.splice(i, 1);
         }
       }
     }

@@ -764,6 +764,13 @@ faithfully restored. Eleven settings drifted with every suite reporting success.
 restore cannot catch this — **only an external reference can.** Verify world settings against
 the reference table after every battery.
 
+**Effect and feature NAMES from the packs carry colons, ampersands and the odd misspelling
+("Adv: Attacks & Saves", "Assasinate").** A list spec that splits on ":" eats them; the Effect
+Sources spec is parsed whole-chunk (`whole: true`) and matched lower-cased on both sides. The
+scan that found them (2026-09-02) read the packs' LevelDB off disk through `classic-level`
+from a COPY without the LOCK file — Foundry holds the real one — and embedded effects live under
+their own `!items.effects!<itemId>.<effectId>` keys, not inside the item record.
+
 **⚠ A MID-RUN RESTORE GOES BACK TO THE SUITE'S OWN BASELINE, NEVER THE WORLD'S PRIOR
 (2026-09-02).** `smoke-reminders` §6 turns the Reminder Sources list off to prove the list is
 the switch, then put it back to `prior.reminderList` — the world's value from before the suite

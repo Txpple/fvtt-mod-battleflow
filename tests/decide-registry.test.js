@@ -321,7 +321,9 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     // 2026-09-01: 19 → 23 — the `reminder` set (vex, sap, prone, condition), the gate's four ways
     // of reading a source of Advantage/Disadvantage before an attack roll.
     // 2026-09-02: 23 → 24 — `range` joins the set (a ranged attack's own geometry, user ask).
-    expect(total).toBe(24);
+    // 2026-09-02 (later): 24 → 25 — `effect` joins: an ability on either sheet, by name, over the
+    // effect table (membership, like the condition table).
+    expect(total).toBe(25);
   });
 
   it("puts every kind-bearing list spec's set in the table — unless the spec says it is MEMBERSHIP", () => {
@@ -341,6 +343,16 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     }
   });
 
+  it("the effect list is parsed WHOLE-CHUNK — a name with a colon survives — and matched lower-cased", () => {
+    const { entries, rejects } = reg.parseList(
+      reg.LIST_SPECS.effects,
+      "Adv: Attacks & Saves, INNATE sorcery, Not A Row"
+    );
+    expect(entries.map(e => e.kind)).toEqual(["adv: attacks & saves", "innate sorcery"]);
+    expect(rejects).toHaveLength(1);
+    expect(reg.LIST_SPECS.effects.membership).toBe(true);
+    expect(reg.LIST_SPECS.effects.default).toBe(reg.EFFECT_KEYS.join(", "));
+  });
   it("the condition membership is the `condition` kind's rows, and prone is not among them", () => {
     expect(reg.LIST_SPECS.conditions.membership).toBe(true);
     expect(reg.REMINDER_KINDS.has("condition")).toBe(true);

@@ -196,6 +196,12 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.conditions.default
   });
 
+  game.settings.register(MODULE_ID, S.effectList, {
+    name: "Effect Sources",
+    hint: "Which abilities the gate reads off the sheets, by the effect's or the feature's own name, separated by commas — Innate Sorcery, Reckless, Blur, Pack Tactics, Vow of Enmity and the rest of the shipped table. Each one's bend, which attacks it touches, and what the module cannot judge come from the table and are said in the section; a row the module cannot vouch for is listed without counting. Remove a name here to stop being reminded of it.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.effects.default
+  });
+
   game.settings.register(MODULE_ID, S.effectRiders, {
     name: "Effect Riders",
     hint: "A hit applies the effects riding it: the attack's own effects land on the targets it hit, through the system's application path — Ray of Frost's slow arrives with its damage instead of waiting for a click in the card's tray. Every application leaves a receipt on the damage card with a per-effect revert.",
@@ -495,4 +501,9 @@ export function reminderEntries() {
 /** Which rows of the condition table the gate reads, by status id — `{ kind }`. */
 export function conditionEntries() {
   return listEntries(LIST_SPECS.conditions);
+}
+
+/** Which rows of the effect table the gate reads, by the effect's or feature's name — `{ kind }`. */
+export function effectEntries() {
+  return listEntries(LIST_SPECS.effects);
 }

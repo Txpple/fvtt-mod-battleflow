@@ -158,7 +158,11 @@ for (const [key, spec] of Object.entries(LIST_SPECS)) {
 // geometry — beyond normal range, beyond long range, an enemy within 5 feet — is a fifth way of
 // KNOWING, read off the activity's range and the same distance Prone already measures. Same
 // mechanism, one more kind; the two glossary sentences are data (RANGE_RULES).
-const EXPECTED_KINDS = 24;
+// 2026-09-02 (later): 24 → 25, `effect` joins the reminder set (user: "I like effect sources"):
+// an ability on either SHEET — an active effect or a feature, by name — is a sixth way of
+// knowing. WHICH abilities is the Effect Sources list over EFFECT_BENDS, membership like the
+// condition table: seventy-odd rows of data found by a compendium scan, not seventy kinds.
+const EXPECTED_KINDS = 25;
 
 // The mastery set must match the rule text it is presented with: a mastery this module
 // resolves but cannot quote breaks presentation law 8 (ARCHITECTURE.md §5) at the popup.

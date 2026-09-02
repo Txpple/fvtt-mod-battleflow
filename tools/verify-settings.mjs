@@ -7,6 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
 import { foundryConfig } from './target.mjs';
+import { LIST_SPECS } from '../scripts/decide/registry.js';
 import { disposeSafely } from './harness.mjs';
 
 const FIX = process.argv.includes('--fix');
@@ -66,8 +67,9 @@ const REFERENCE = {
   // list is the gate turned off — and smoke-reminders §6 pins them to '' and 'blinded' to prove
   // it, so a run that dies inside §6 leaves the gate off in the world. Named here for exactly
   // the reason the d20Folds comment above gives: an unlisted key is never checked.
-  reminderList: 'vex, sap, prone, condition, range',   // range joined 2026-09-02 (user ask)
-  conditionList: 'blinded, invisible, hiding, paralyzed, petrified, poisoned, restrained, stunned, unconscious, frightened, grappled, incapacitated, dodging, charmed'   // hiding joined 2026-09-02 (user ask)
+  reminderList: 'vex, sap, prone, condition, range, effect',   // range and effect joined 2026-09-02 (user asks)
+  conditionList: 'blinded, invisible, hiding, paralyzed, petrified, poisoned, restrained, stunned, unconscious, frightened, grappled, incapacitated, dodging, charmed',   // hiding joined 2026-09-02 (user ask)
+  effectList: LIST_SPECS.effects.default,   // the whole effect table, as shipped (2026-09-02) — the table is the reference, never a copy of it
 };
 
 const f = new Foundry(foundryConfig(env));

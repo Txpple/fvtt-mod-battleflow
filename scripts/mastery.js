@@ -6,11 +6,12 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, isFlowElectFor, drivesMomentF
   canApplyTo, whisperNoGM, queueFlagWrite, canAnswerFor, activeCombatFor, combatStamp,
   statContext } from "./core.js";
 import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
-import { MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.js";
+import { EFFECT_BENDS, MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.js";
 import { TURN_CHIPS, CHIP_FLAG, chipClock, chipIsDead, chipOwnedBy, chipSpentBy, chitStamp,
   netShownFor, rollModeOf, spendRecord } from "./decide/chips.js";
 import { REMINDER_FLAG, rolledWith } from "./decide/reminders.js";
 import { chipSpentOnRecord, hitTargets, masteryLabel, modeAllows, rollConfigFor } from "./shared.js";
+import { effectEntries } from "./settings.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, situationalBonusHTML,
   modeButtons } from "./decide/present.js";
 import { livePopups, openMomentPopup,
@@ -1115,6 +1116,30 @@ async function spendChips(message, ctx) {
         const key = chipKey(e);
         if ( key && unspent(e) && chipSpentBy(key, { bearer: "target", attackerOwnsChip: owned(e) }) ) {
           spent.push({ actor, effect: e, key });
+        }
+      }
+    }
+    // EFFECT SOURCES the rules spend on this roll (decide/registry.js EFFECT_BENDS, `spend:
+    // "attack"` — "its next attack roll", Vex and Sap's shape, 2026-09-02): the attacker's own
+    // rows, and the target's rows against it. Only rows on the Effect Sources list spend — the
+    // list is membership for the spend as it is for the gate — and one that the gate LISTED
+    // is honoured against its net (`netShownFor` reads the kind `effect`).
+    const spendRows = new Map(Object.entries(EFFECT_BENDS).filter(([, r]) => r.spend === "attack")
+      .map(([k, r]) => [k.toLowerCase(), r]));
+    if ( spendRows.size ) {
+      const listed = new Set(effectEntries().map(e => String(e.kind).toLowerCase()));
+      const rowFor = (e, side) => {
+        const r = spendRows.get(String(e.name ?? "").toLowerCase());
+        return (r && r[side] && listed.has(String(e.name).toLowerCase())) ? r : null;
+      };
+      for ( const e of attacker.effects ) {
+        if ( rowFor(e, "attacker") && unspent(e) ) spent.push({ actor: attacker, effect: e, key: "effect" });
+      }
+      for ( const t of (message.getFlag("dnd5e", "targets") ?? []) ) {
+        const actor = await fromUuid(t.uuid);
+        if ( !(actor instanceof Actor) || (actor.uuid === attacker.uuid) ) continue;
+        for ( const e of actor.effects ) {
+          if ( rowFor(e, "target") && unspent(e) ) spent.push({ actor, effect: e, key: "effect" });
         }
       }
     }

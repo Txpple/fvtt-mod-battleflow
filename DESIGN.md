@@ -317,6 +317,21 @@ the default moves with the net — and a re-target on the canvas re-judges too.
 cannot delete lingers on the monster, and the receipt on the attack card is what keeps it from
 being offered and spent again.
 
+**An ability on the sheet is a source too — effect sources** (user, 2026-09-02: *"I like
+effect sources reminder"*). Innate Sorcery, Reckless, Blur, Vow of Enmity, Pack Tactics: the
+abilities that bend an attack roll and sit on a sheet as an ACTIVE EFFECT or as a FEATURE. A
+compendium scan of every pack on the sandbox (thirty, system and premium) found seventy-odd; the
+effect table (`decide/registry.js` `EFFECT_BENDS`) carries each as one row of data — matched by
+the effect's or the feature's own NAME (user ruling: it is what a GM can type; an unmatched name
+never fires), on the attacker's side or the target's, with a SCOPE from day one (Innate Sorcery
+is spell attacks only; a row without one would silently have been "any"), a caveat where the
+module cannot judge, and `counted: false` where the caveat is the rule rather than the exception
+(user, 2026-09-02, on Demon Armor: *"very edge case"* — shown so nobody forgets the item, out of
+the net). A row the module CAN judge — *while Bloodied*, the target Grappled — fires only when
+the fact is true. A row the rules spend on the next attack roll (Guiding Bolt, Vicious Mockery)
+is spent by the roll with a receipt, Vex and Sap's shape. WHICH rows count is the Effect Sources
+list, membership like the condition table; the list is parsed whole, names' colons and all.
+
 **Range is a source like any other** (user, 2026-09-02 — *"bake in the disadvantage at long
 range"*; the class, not the example: any RANGED attack roll — a bow, a thrown dagger, a ranged
 spell). Both glossary rules, read off the same distance Prone measures and the activity's own
@@ -333,7 +348,7 @@ rolling at all) is **listed and not counted**.
 
 **What the gate reads is membership** (R4): the Reminder Sources list names the KINDS — the
 attacker's own Vexed chip on a target, a Sapped chip on the attacker, Prone on either side with
-the 5-foot geometry, the condition table, and a ranged attack's own range — and the Condition
+the 5-foot geometry, the condition table, a ranged attack's own range, and the effect table — and the Condition
 Sources list names WHICH of the thirteen 2024 conditions — and Hiding, the system's own status,
 which grants Invisible while hidden (user, 2026-09-02) — count. Both lists are switches; an
 empty Reminder Sources list is the gate turned off. **AC5e's knowledge, as data, never its

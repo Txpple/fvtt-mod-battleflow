@@ -176,6 +176,9 @@ export function rollModeOf(advantageMode) {
  *        listed is the review finding 1 shape (an unlisted Vex stamped honoured by a Sap-only gate)
  */
 export function chipHonoured(key, mode, net = null) {
+  // An effect the rules spend on the roll (EFFECT_BENDS `spend: "attack"`) is honoured exactly
+  // as a chip is: against the net the gate showed; with no net shown, nothing to honour.
+  if ( key === "effect" ) return net ? (mode === net) : null;
   if ( !["vex", "sap"].includes(key) ) return null;
   if ( net ) return mode === net;
   if ( key === "vex" ) return mode === "advantage";

@@ -3,13 +3,13 @@
  * Split from mastery.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, statContext } from "./core.js";
-import { conditionEntries, reminderEntries } from "./settings.js";
+import { conditionEntries, effectEntries, reminderEntries } from "./settings.js";
 import { chipSpentOnRecord, grantingActor } from "./shared.js";
 import { bfCard, reminderFieldsetHTML } from "./decide/present.js";
 import { CHIP_FLAG, chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.js";
-import { CONDITION_BENDS, MASTERY_RULES, RANGE_RULES } from "./decide/registry.js";
+import { CONDITION_BENDS, EFFECT_BENDS, MASTERY_RULES, RANGE_RULES } from "./decide/registry.js";
 import { feetOf, nearestFeet, tokenOfActor } from "./geometry.js";
-import { REMINDER_FLAG, conditionSources, modeTitle, netMode, proneSources, rangeSources,
+import { REMINDER_FLAG, conditionSources, effectSources, modeTitle, netMode, proneSources, rangeSources,
   reminderRecord, reminderSource, reminderView, rolledWith } from "./decide/reminders.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -233,6 +233,17 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
   const conditionFacts = { enabled: conditions, table: CONDITION_BENDS };
   const attackerToken = tokenOfActor(attacker);
   const range = enabled.has("range") ? rangeFactsFor(activity, attackMode) : { ranged: false };
+  // The effect kind: which abilities to look for, the roll's own scope, and each sheet's facts.
+  const effectsOn = enabled.has("effect") ? effectEntries().map(e => e.kind) : [];
+  const scope = { classification: activity?.attack?.type?.classification ?? null,
+    type: String(attackMode ?? "").startsWith("thrown") ? "ranged" : (activity?.attack?.type?.value ?? null) };
+  const sheetOf = actor => ({
+    effects: actor.effects.filter(live).map(e => ({ id: e.id, name: e.name })),
+    features: actor.items.filter(i => i.type === "feat").map(i => i.name),
+    bloodied: hpFraction(actor) <= 0.5, damaged: hpFraction(actor) < 1,
+    grappled: !!actor.statuses?.has?.("grappled")
+  });
+  const attackerSheet = effectsOn.length ? sheetOf(attacker) : null;
 
   // The attacker's own state.
   if ( enabled.has("sap") ) {
@@ -251,6 +262,9 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
   }
   if ( range.ranged ) {
     out.push(...rangeSources({ ranged: true, closeEnemies: closeEnemiesOf(attackerToken), attackerName, rules: RANGE_RULES }));
+  }
+  if ( attackerSheet ) {
+    out.push(...effectSources({ attacker: attackerSheet, enabled: effectsOn, table: EFFECT_BENDS, scope, attackerName, pass: "attacker" }));
   }
 
   // Each target.
@@ -276,8 +290,22 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
       out.push(...rangeSources({ ranged: true, distanceFeet, normalFeet: range.normalFeet, longFeet: range.longFeet,
         targetName, rules: RANGE_RULES }));
     }
+    if ( attackerSheet ) {
+      // Target-side rows, and the attacker-side rows that hinge on THIS target (Bloodied,
+      // Grappled…) — the attacker's plain rows went out once above.
+      out.push(...effectSources({ attacker: attackerSheet, target: sheetOf(target), enabled: effectsOn,
+        table: EFFECT_BENDS, scope, attackerName, targetName, pass: "target" }));
+    }
   }
   return out;
+}
+
+/** HP as a fraction of max — 1 when unreadable, so nothing judged on it fires by accident. */
+function hpFraction(actor) {
+  const hp = actor?.system?.attributes?.hp;
+  const max = Number(hp?.max) || 0;
+  if ( !(max > 0) ) return 1;
+  return Math.max(0, Number(hp?.value) || 0) / max;
 }
 
 /**

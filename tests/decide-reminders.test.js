@@ -310,6 +310,185 @@ describe("reminderView — the header line and the boxes the section draws", () 
   });
 });
 
+describe("effectSources — the sixth kind: an ability on either sheet, by name (user, 2026-09-02)", () => {
+  const T = () => reg.EFFECT_BENDS;
+  const all = () => reg.EFFECT_KEYS;
+  it("Innate Sorcery is spell attacks only — fires on a spell, not on a dagger; case-insensitive on both sides", () => {
+    const me = { effects: [{ id: "e1", name: "innate sorcery" }] };
+    const spell = r.effectSources({
+      attacker: me,
+      enabled: ["INNATE SORCERY"],
+      table: T(),
+      scope: { classification: "spell", type: "ranged" },
+      attackerName: "Ilyra"
+    });
+    expect(spell).toHaveLength(1);
+    expect(spell[0]).toMatchObject({
+      kind: "effect",
+      bend: "advantage",
+      label: "Ilyra — Innate Sorcery",
+      effectId: "e1"
+    });
+    expect(spell[0].detail).toContain("Sorcerer spells");
+    expect(
+      r.effectSources({
+        attacker: me,
+        enabled: all(),
+        table: T(),
+        scope: { classification: "weapon", type: "melee" }
+      })
+    ).toEqual([]);
+    expect(
+      r.effectSources({ attacker: me, enabled: [], table: T(), scope: { classification: "spell" } })
+    ).toEqual([]);
+  });
+  it("Reckless bends both sides: the bearer's own weapon attacks, and attacks against the bearer", () => {
+    const reckless = { effects: [{ id: "e2", name: "Reckless" }] };
+    const mine = r.effectSources({
+      attacker: reckless,
+      enabled: all(),
+      table: T(),
+      scope: { classification: "weapon", type: "melee" },
+      attackerName: "Brann"
+    });
+    expect(mine.map(s => [s.bend, s.label])).toEqual([["advantage", "Brann — Reckless"]]);
+    const theirs = r.effectSources({
+      target: reckless,
+      enabled: all(),
+      table: T(),
+      scope: { classification: "weapon", type: "melee" },
+      targetName: "Brann"
+    });
+    expect(theirs.map(s => [s.bend, s.label])).toEqual([["advantage", "Brann is — Reckless"]]);
+  });
+  it("a row with counted:false is LISTED — bend null, the caveat on the label", () => {
+    const out = r.effectSources({
+      attacker: { effects: [{ id: "e3", name: "Demon Armor" }] },
+      enabled: all(),
+      table: T(),
+      scope: {},
+      attackerName: "Gren"
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0].bend).toBeNull();
+    expect(out[0].label).toBe("Gren — Demon Armor (listed — Disadvantage only against demons)");
+  });
+  it("a feature row matches an Item's name, never an effect; a caveat rides the label, counted", () => {
+    const out = r.effectSources({
+      attacker: { features: ["Pack Tactics"] },
+      enabled: all(),
+      table: T(),
+      scope: {},
+      attackerName: "Wolf"
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({
+      bend: "advantage",
+      label:
+        "Wolf — Pack Tactics (counted — press Normal if no ally of the attacker is within 5 feet of the target)"
+    });
+    expect(out[0]).not.toHaveProperty("effectId");
+    expect(
+      r.effectSources({
+        attacker: { effects: [{ id: "x", name: "Pack Tactics" }] },
+        enabled: all(),
+        table: T(),
+        scope: {}
+      })
+    ).toEqual([]);
+  });
+  it("a judged row fires only when the fact is true — Bloodied Fury on the bearer's HP, Blood Frenzy on the target's", () => {
+    const fury = { features: ["Bloodied Fury"] };
+    expect(
+      r.effectSources({
+        attacker: { ...fury, bloodied: false },
+        enabled: all(),
+        table: T(),
+        scope: {}
+      })
+    ).toEqual([]);
+    expect(
+      r.effectSources({
+        attacker: { ...fury, bloodied: true },
+        enabled: all(),
+        table: T(),
+        scope: {}
+      })
+    ).toHaveLength(1);
+    const frenzy = { features: ["Blood Frenzy"] };
+    expect(
+      r.effectSources({
+        attacker: frenzy,
+        target: { damaged: false },
+        enabled: all(),
+        table: T(),
+        scope: {}
+      })
+    ).toEqual([]);
+    expect(
+      r.effectSources({
+        attacker: frenzy,
+        target: { damaged: true },
+        enabled: all(),
+        table: T(),
+        scope: {}
+      })
+    ).toHaveLength(1);
+  });
+  it("the passes: attacker-side rows judged on the TARGET belong to the target pass, the rest to the attacker's; target rows never in the attacker pass", () => {
+    const me = { effects: [{ id: "a", name: "Innate Sorcery" }], features: ["Blood Frenzy"] };
+    const them = { effects: [{ id: "b", name: "Blurred" }], damaged: true };
+    const scope = { classification: "spell", type: "ranged" };
+    expect(
+      r
+        .effectSources({
+          attacker: me,
+          target: them,
+          enabled: all(),
+          table: T(),
+          scope,
+          pass: "attacker"
+        })
+        .map(s => s.label)
+    ).toEqual(["You — Innate Sorcery"]);
+    expect(
+      r
+        .effectSources({
+          attacker: me,
+          target: them,
+          enabled: all(),
+          table: T(),
+          scope,
+          pass: "target"
+        })
+        .map(s => s.label)
+        .sort()
+    ).toEqual(["You — Blood Frenzy", "the target is — Blurred"]);
+  });
+  it("a spend row carries the effect's id and the spend, so the roll can use it up", () => {
+    const out = r.effectSources({
+      target: { effects: [{ id: "gb", name: "Guiding Bolt" }] },
+      enabled: all(),
+      table: T(),
+      scope: {},
+      targetName: "Hobgoblin"
+    });
+    expect(out[0]).toMatchObject({ bend: "advantage", spend: "attack", effectId: "gb" });
+  });
+  it("the table is data with one shape: every row names a side, a scope, a rule and where it is from; feature rows never share a name with an effect", () => {
+    for (const [key, row] of Object.entries(T())) {
+      expect(row.attacker || row.target, key).toBeTruthy();
+      expect(["any", "spell", "weapon", "melee", "ranged"], key).toContain(row.scope);
+      expect(row.rule.length, key).toBeGreaterThan(20);
+      expect(row.from, key).toBeTruthy();
+      if (row.counted === false) expect(row.caveat, key).toMatch(/^listed — /);
+      if (row.caveat && row.counted !== false) expect(row.caveat, key).toMatch(/^counted — /);
+    }
+    expect(reg.EFFECT_NAMES.size).toBe(reg.EFFECT_KEYS.length);
+    expect(reg.EFFECT_NAMES.has("innate sorcery")).toBe(true);
+  });
+});
+
 describe("autoCritSources — the 5-foot Critical Hit on Paralyzed and Unconscious (user, 2026-09-02)", () => {
   it("a hit within 5 feet of a Paralyzed target is a Critical Hit, with the glossary clause", () => {
     const out = r.autoCritSources({

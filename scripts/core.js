@@ -44,7 +44,8 @@ export const S = {
   castApply: "castApply",
   hideCardButtons: "hideCardButtons",
   reminderList: "reminderList",
-  conditionList: "conditionList"
+  conditionList: "conditionList",
+  effectList: "effectList"
 };
 
 export const setting = key => game.settings.get(MODULE_ID, key);

@@ -106,10 +106,13 @@ export const MASTERY_RULES = Object.freeze({
  *   range  a RANGED attack roll's geometry (user, 2026-09-02): the target beyond normal range →
  *          Disadvantage, beyond long range → cannot be made (listed, not counted); an enemy
  *          within 5 feet of the attacker → Disadvantage (RANGE_RULES, decide/reminders.js)
+ *   effect an ability on either sheet that bends the roll — an active effect or a feature by
+ *          name, a row of EFFECT_BENDS (user, 2026-09-02); WHICH rows count is the Effect
+ *          Sources list, membership like the condition table
  * The gate never SETS a mode (DESIGN R-A): it lists every source and the net, and a human presses.
  * Membership — which of these a table wants nagged about — is the Reminder Sources list.
  */
-export const REMINDER_KINDS = new Set(["vex", "sap", "prone", "condition", "range"]);
+export const REMINDER_KINDS = new Set(["vex", "sap", "prone", "condition", "range", "effect"]);
 
 /**
  * The 2024 Rules Glossary on range, verbatim (dnd5e.content24 / the premium PHB, appendix D —
@@ -198,6 +201,246 @@ export const CONDITION_BENDS = Object.freeze({
 export const CONDITION_KEYS = Object.freeze(Object.keys(CONDITION_BENDS));
 
 /**
+ * THE EFFECT TABLE — the sixth reminder kind (user, 2026-09-02: "I like effect sources").
+ * Abilities that bend an attack roll and land on a sheet as an ACTIVE EFFECT (Innate Sorcery,
+ * Reckless, Blur…) or sit there as a FEATURE with no effect at all (Pack Tactics, Bloodied
+ * Fury). One row per ability, all data, found by a 30-pack scan of the sandbox's system and
+ * premium compendia (the survey artifact "Effect Sources", 2026-09-02).
+ *
+ *   match     "effect" (default) — the row names an ActiveEffect on the actor;
+ *             "feature" — the row names an Item of type feat on the actor (never an effect:
+ *             Innate Sorcery the FEATURE is always on the sheet, Innate Sorcery the EFFECT only
+ *             while it runs — so a feature row must never name something that also lands as
+ *             an effect)
+ *   attacker  the bend on the bearer's OWN attack rolls, or null
+ *   target    the bend on attack rolls AGAINST the bearer, or null
+ *   scope     "any" | "spell" | "weapon" | "melee" | "ranged" — which attacks the row touches
+ *             (Innate Sorcery is spell attacks only; the activity's own classification decides)
+ *   caveat    a condition the module cannot judge, said on the box (the Frightened shape)
+ *   counted   false = LISTED, not counted (user ruling 2026-09-02: rows whose caveat is the
+ *             RULE — Demon Armor bends only against demons — are shown so nobody forgets the
+ *             item, and stay out of the net); default true
+ *   judge     "bloodied" (the bearer at or below half HP), "targetBloodied", "targetDamaged"
+ *             (the target at or below half / short of full), "targetGrappled" — a fact the
+ *             module holds; the row fires only when it is true
+ *   spend     "attack" — the rules end the effect on the next attack roll ("your next attack
+ *             roll"): the spend hook uses it up with a receipt, exactly as Vex and Sap
+ *   rule      the ability's own sentence, from the pack (enrichers rendered as plain words)
+ *   from      where it comes from, for the reader
+ *
+ * ⚠ Names are the packs' own, colons and all ("Adv: Attacks & Saves") — the Effect Sources
+ * list is parsed WHOLE-CHUNK for that reason (LIST_SPECS.effects.whole). Matching is
+ * case-insensitive on both sides.
+ *
+ * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature", attacker: "advantage"|"disadvantage"|null,
+ *   target: "advantage"|"disadvantage"|null, scope: "any"|"spell"|"weapon"|"melee"|"ranged", caveat?: string,
+ *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled", spend?: "attack",
+ *   rule: string, from: string}>>>}
+ */
+export const EFFECT_BENDS = Object.freeze({
+  // --- A. standing, no caveat: the row is the whole truth ---------------------------------
+  "Innate Sorcery": Object.freeze({ attacker: "advantage", target: null, scope: "spell", from: "Sorcerer",
+    rule: "You have Advantage on the attack rolls of Sorcerer spells you cast." }),
+  "Reckless": Object.freeze({ attacker: "advantage", target: "advantage", scope: "weapon", from: "Barbarian, Reckless Attack",
+    rule: "Doing so gives you Advantage on attack rolls using Strength until the start of your next turn, but attack rolls against you have Advantage during that time." }),
+  "Foresight": Object.freeze({ attacker: "advantage", target: "disadvantage", scope: "any", from: "Foresight",
+    rule: "For the duration, the target has Advantage on D20 Tests, and other creatures have Disadvantage on attack rolls against it." }),
+  "Blurred": Object.freeze({ attacker: null, target: "disadvantage", scope: "any", from: "Blur",
+    rule: "For the duration, any creature has Disadvantage on attack rolls against you." }),
+  "Holy Protection": Object.freeze({ attacker: null, target: "disadvantage", scope: "any", from: "Holy Aura",
+    rule: "While in the aura, creatures of your choice have Advantage on all saving throws, and other creatures have Disadvantage on attack rolls against them." }),
+  "Shining": Object.freeze({ attacker: null, target: "advantage", scope: "any", from: "Shining Smite",
+    rule: "Until the spell ends, the target sheds Bright Light in a 5-foot radius, attack rolls against it have Advantage, and it can’t benefit from the Invisible condition." }),
+  "Crushed": Object.freeze({ attacker: null, target: "advantage", scope: "any", from: "Crusher",
+    rule: "When you score a Critical Hit that deals Bludgeoning damage to a creature, attack rolls against that creature have Advantage until the start of your next turn." }),
+  "Slashed": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Slasher",
+    rule: "When you score a Critical Hit that deals Slashing damage to a creature, it has Disadvantage on attack rolls until the start of your next turn." }),
+  "Zealous Presence": Object.freeze({ attacker: "advantage", target: null, scope: "any", from: "Zealot Barbarian",
+    rule: "Up to ten other creatures of your choice within 60 feet of you gain Advantage on attack rolls and saving throws until the start of your next turn." }),
+  "Rallied": Object.freeze({ attacker: "advantage", target: null, scope: "any", from: "Rally (monsters)",
+    rule: "Until the start of its next turn, the targets have Advantage on attack rolls and saving throws." }),
+  "Attack: Advantage": Object.freeze({ attacker: "advantage", target: null, scope: "any", from: "War Cry (monsters)",
+    rule: "Each ally of its choice that can see or hear it gains Temporary Hit Points and has Advantage on attack rolls until the start of its next turn." }),
+  "Adv: Attacks & Saves": Object.freeze({ attacker: "advantage", target: null, scope: "any", from: "Marshal Undead (monsters)",
+    rule: "Undead within the Emanation have Advantage on attack rolls and saving throws." }),
+  "Manacled": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Manacles",
+    rule: "While bound, a creature has Disadvantage on attack rolls, and the creature is Restrained if the Manacles are attached to a chain or hook that is fixed in place." }),
+  "Heated Metal": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Heat Metal",
+    rule: "If it doesn’t drop the object, it has Disadvantage on attack rolls and ability checks until the start of your next turn." }),
+  "Averse": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Aversion to Fire (monsters)",
+    rule: "If it takes Fire damage, it has Disadvantage on attack rolls and ability checks until the end of its next turn." }),
+  "Target: Disadvantage": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Sap, Pesky Swarm (monsters)",
+    rule: "The target has Disadvantage on attack rolls until the end of its next turn." }),
+  "Attacks: Disadvantage": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Flash of Light (monsters)",
+    rule: "The target has Disadvantage on attack rolls until the end of its next turn." }),
+  "Attack and Save Disadvantage": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Howl (Ravenloft)",
+    rule: "Each creature of your choice within 15 feet of you must succeed on a Wisdom saving throw or have Disadvantage on attack rolls and saving throws until the start of your next turn." }),
+  "Cursed (Path to the Grave)": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Path to the Grave (Ravenloft)",
+    rule: "While cursed, the creature has Disadvantage on attack rolls and saving throws." }),
+  "Disadv. Attacks & Saves": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Sunlight (monsters)",
+    rule: "While in sunlight, it has Disadvantage on attack rolls and ability checks." }),
+  "Disadv. Attacks & Checks": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Vampire Weakness (monsters)",
+    rule: "While in sunlight, it has Disadvantage on attack rolls and ability checks." }),
+  "Disadv.: Attacks & Checks": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Fear of Fire (monsters)",
+    rule: "If it takes Fire damage, it has Disadvantage on attack rolls and ability checks until the end of its next turn." }),
+  // --- B. counted, with a caveat the module cannot judge ------------------------------------
+  "Vow of Enmity": Object.freeze({ attacker: "advantage", target: null, scope: "any", from: "Paladin",
+    caveat: "counted — press Normal if this attack is not at the sworn creature",
+    rule: "You have Advantage on attack rolls against the creature for 1 minute or until you use this feature again." }),
+  "Prey: Attack Advantage": Object.freeze({ attacker: "advantage", target: null, scope: "any", from: "Marked as Prey (monsters)",
+    caveat: "counted — press Normal if this attack is not at the marked creature",
+    rule: "It has Advantage on attack rolls against the target until the start of its next turn." }),
+  "Clairvoyant Combatant": Object.freeze({ attacker: "advantage", target: "disadvantage", scope: "any", from: "Clairvoyant Combatant",
+    caveat: "counted — press Normal if the other creature is not the bonded one",
+    rule: "On a failed save, the creature has Disadvantage on attack rolls against you, and you have Advantage on attack rolls against that creature for the duration of the bond." }),
+  "Strike Fear: Terrify": Object.freeze({ attacker: "advantage", target: null, scope: "any", from: "Strike Fear (Heroes of Faerûn)",
+    caveat: "counted — press Normal if the target is no longer Frightened by you",
+    rule: "While the target is Frightened in this way, you have Advantage on attack rolls against the target." }),
+  "Compelled": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Compelled Duel",
+    caveat: "counted — press Normal if this attack is at the one who compelled it",
+    rule: "On a failed save, the target has Disadvantage on attack rolls against creatures other than you." }),
+  "Goaded": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Battle Master, Goading Attack",
+    caveat: "counted — press Normal if this attack is at the one who goaded it",
+    rule: "The target must succeed on a Wisdom saving throw or have Disadvantage on attack rolls against targets other than you until the end of your next turn." }),
+  "Taunted": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Steps of the Fey",
+    caveat: "counted — press Normal if this attack is at the one who taunted it",
+    rule: "Creatures within 5 feet of the space you left must succeed on a Wisdom saving throw or have Disadvantage on attack rolls against creatures other than you until the start of your next turn." }),
+  "Cursed Attacks": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Bestow Curse",
+    caveat: "counted — press Normal if this attack is not at the caster",
+    rule: "While cursed, the target has Disadvantage on attack rolls against you." }),
+  "Protected": Object.freeze({ attacker: null, target: "disadvantage", scope: "any", from: "Protection from Evil and Good",
+    caveat: "counted — press Normal if the attacker is not an Aberration, Celestial, Elemental, Fey, Fiend or Undead",
+    rule: "Creatures of those types have Disadvantage on attack rolls against the target." }),
+  "Protection from Evil and Good": Object.freeze({ attacker: null, target: "disadvantage", scope: "any", from: "Protection from Evil and Good (2014)",
+    caveat: "counted — press Normal if the attacker is not an Aberration, Celestial, Elemental, Fey, Fiend or Undead",
+    rule: "Creatures of those types have Disadvantage on attack rolls against the target." }),
+  "Dispelling Evil and Good": Object.freeze({ attacker: null, target: "disadvantage", scope: "any", from: "Dispel Evil and Good",
+    caveat: "counted — press Normal if the attacker is not a Celestial, Elemental, Fey, Fiend or Undead",
+    rule: "For the duration, Celestials, Elementals, Fey, Fiends, and Undead have Disadvantage on attack rolls against you." }),
+  "Assasinate": Object.freeze({ attacker: "advantage", target: null, scope: "any", from: "Assassin Rogue (the pack's own spelling)",
+    caveat: "counted — press Normal if this is not the first round, or the target has taken a turn",
+    rule: "During the first round of each combat, you have Advantage on attack rolls against any creature that hasn’t taken a turn." }),
+  // --- listed, not counted: the caveat is the rule ------------------------------------------
+  "Chill Touch": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", counted: false, from: "Chill Touch (2014)",
+    caveat: "listed — Disadvantage only for an Undead attacker, and only against the caster",
+    rule: "If you hit an undead target, it also has disadvantage on attack rolls against you until the end of your next turn." }),
+  "Shocking Grasp": Object.freeze({ attacker: "advantage", target: null, scope: "spell", counted: false, from: "Shocking Grasp (2014)",
+    caveat: "listed — Advantage only if the target wears metal armor",
+    rule: "You have advantage on the attack roll if the target is wearing armor made of metal." }),
+  "Boots of Speed Active": Object.freeze({ attacker: null, target: "disadvantage", scope: "any", counted: false, from: "Boots of Speed",
+    caveat: "listed — Disadvantage only on an Opportunity Attack",
+    rule: "If you do, the boots double your Speed, and any creature that makes an Opportunity Attack against you has Disadvantage on the attack roll." }),
+  "Demon Armor": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", counted: false, from: "Demon Armor",
+    caveat: "listed — Disadvantage only against demons",
+    rule: "While wearing the armor, you have Disadvantage on attack rolls against demons and on saving throws against their spells and special abilities." }),
+  "Air Focus": Object.freeze({ attacker: "advantage", target: "disadvantage", scope: "any", counted: false, from: "Ring of Elemental Command",
+    caveat: "listed — only against, or from, Elementals",
+    rule: "While wearing the ring, you have Advantage on attack rolls against Elementals and they have Disadvantage on attack rolls against you." }),
+  "Earth Focus": Object.freeze({ attacker: "advantage", target: "disadvantage", scope: "any", counted: false, from: "Ring of Elemental Command",
+    caveat: "listed — only against, or from, Elementals",
+    rule: "While wearing the ring, you have Advantage on attack rolls against Elementals and they have Disadvantage on attack rolls against you." }),
+  "Fire Focus": Object.freeze({ attacker: "advantage", target: "disadvantage", scope: "any", counted: false, from: "Ring of Elemental Command",
+    caveat: "listed — only against, or from, Elementals",
+    rule: "While wearing the ring, you have Advantage on attack rolls against Elementals and they have Disadvantage on attack rolls against you." }),
+  "Water Focus": Object.freeze({ attacker: "advantage", target: "disadvantage", scope: "any", counted: false, from: "Ring of Elemental Command",
+    caveat: "listed — only against, or from, Elementals",
+    rule: "While wearing the ring, you have Advantage on attack rolls against Elementals and they have Disadvantage on attack rolls against you." }),
+  "Ring Focus": Object.freeze({ attacker: "advantage", target: "disadvantage", scope: "any", counted: false, from: "Ring of Water Elemental Command (2014)",
+    caveat: "listed — only against, or from, Water Elementals",
+    rule: "While wearing this ring, you have advantage on attack rolls against Water Elementals, and they have disadvantage on attack rolls against you." }),
+  "Berserker Axe": Object.freeze({ attacker: "disadvantage", target: null, scope: "weapon", counted: false, from: "Berserker Axe",
+    caveat: "listed — Disadvantage only with a weapon other than the axe",
+    rule: "You also have Disadvantage on attack rolls with weapons other than this one." }),
+  "Oathbow": Object.freeze({ attacker: "disadvantage", target: null, scope: "weapon", counted: false, from: "Oathbow",
+    caveat: "listed — Disadvantage only with a weapon other than the bow, while the sworn enemy lives",
+    rule: "While your sworn enemy lives, you have Disadvantage on attack rolls with all other weapons." }),
+  "Sword of Vengeance": Object.freeze({ attacker: "disadvantage", target: null, scope: "weapon", counted: false, from: "Sword of Vengeance",
+    caveat: "listed — Disadvantage only with a weapon other than the sword",
+    rule: "While attuned to this weapon, you have Disadvantage on attack rolls made with weapons other than this one." }),
+  // --- C. spent by the next attack roll — Vex and Sap's shape ---------------------------------
+  "Guiding Bolt": Object.freeze({ attacker: null, target: "advantage", scope: "any", spend: "attack", from: "Guiding Bolt",
+    rule: "On a hit, it takes 4d6 Radiant damage, and the next attack roll made against it before the end of your next turn has Advantage." }),
+  "Mocked": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", spend: "attack", from: "Vicious Mockery",
+    rule: "The target must succeed on a Wisdom saving throw or take 1d6 Psychic damage and have Disadvantage on the next attack roll it makes before the end of its next turn." }),
+  "Vicious Mockery": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", spend: "attack", from: "Vicious Mockery (2014)",
+    rule: "It must succeed on a Wisdom saving throw or take 1d4 psychic damage and have disadvantage on the next attack roll it makes before the end of its next turn." }),
+  "Enervated": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", spend: "attack", from: "Ray of Enfeeblement",
+    rule: "On a successful save, the target has Disadvantage on the next attack roll it makes until the start of your next turn." }),
+  "Brief Enfeeblement": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", spend: "attack", from: "Ray of Enfeeblement",
+    rule: "On a successful save, the target has Disadvantage on the next attack roll it makes until the start of your next turn." }),
+  "Feinting Attack": Object.freeze({ attacker: "advantage", target: null, scope: "any", spend: "attack", from: "Battle Master",
+    caveat: "counted — press Normal if this attack is not at the feinted target",
+    rule: "You have Advantage on your next attack roll against that target this turn." }),
+  "Distracted": Object.freeze({ attacker: null, target: "advantage", scope: "any", spend: "attack", from: "Battle Master, Distracting Strike",
+    caveat: "counted — press Normal if you are the one who distracted it",
+    rule: "The next attack roll against the target by an attacker other than you has Advantage if the attack is made before the start of your next turn." }),
+  "Aiming: Attack Advantage": Object.freeze({ attacker: "advantage", target: null, scope: "any", spend: "attack", from: "Aim, Deadly Aim (monsters)",
+    rule: "It has Advantage on the next attack roll it makes during the current turn." }),
+  "Killer's Fortune (Attack Advantage)": Object.freeze({ attacker: "advantage", target: null, scope: "any", spend: "attack", from: "Boon of Bloodshed (Heroes of Faerûn)",
+    rule: "When an enemy you can see is reduced to 0 Hit Points, you gain Advantage on the next attack roll you make before the end of your next turn." }),
+  "Adv. Next Attack": Object.freeze({ attacker: "advantage", target: null, scope: "any", spend: "attack", from: "Lords' Alliance Agent (Heroes of Faerûn)",
+    caveat: "counted — press Normal if this attack is not at the enemy that hurt your ally",
+    rule: "When an enemy you can see deals damage to an ally of yours that is within 5 feet of you, you have Advantage on your next attack roll against that enemy before the end of your next turn." }),
+  "Moonlight Step": Object.freeze({ attacker: "advantage", target: null, scope: "any", spend: "attack", from: "Moon Druid",
+    rule: "As a Bonus Action, you teleport up to 30 feet to an unoccupied space you can see, and you have Advantage on the next attack roll you make before the end of this turn." }),
+  "Disadvantaged": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", spend: "attack", from: "Rival Coin",
+    rule: "On a failed save, the target takes 2d4 Psychic damage and has Disadvantage on the next attack roll it makes before the end of its next turn." }),
+  "Vigilant": Object.freeze({ attacker: null, target: "disadvantage", scope: "any", spend: "attack", from: "Tyro of the Gauntlet (Heroes of Faerûn)",
+    rule: "When you take the Ready action, the next attack roll made against you has Disadvantage before the start of your next turn." }),
+  // --- D. a feature, never an effect: matched by the feature's name --------------------------
+  "Pack Tactics": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", from: "monsters",
+    caveat: "counted — press Normal if no ally of the attacker is within 5 feet of the target",
+    rule: "It has Advantage on an attack roll against a creature if at least one of its allies is within 5 feet of the creature and the ally doesn’t have the Incapacitated condition." }),
+  "Bloodied Fury": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", judge: "bloodied", from: "monsters",
+    rule: "While Bloodied, it has Advantage on attack rolls." }),
+  "Bloodied Frenzy": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", judge: "bloodied", from: "monsters",
+    rule: "While Bloodied, it has Advantage on attack rolls and saving throws." }),
+  "Purple Dragon Commandant": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", judge: "bloodied", from: "Heroes of Faerûn",
+    rule: "You have Advantage on attack rolls while Bloodied." }),
+  "Warrior's Wrath": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "melee", judge: "targetBloodied", from: "DMG",
+    rule: "It has Advantage on melee attack rolls against any Bloodied creature." }),
+  "Blood Frenzy": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", judge: "targetDamaged", from: "monsters",
+    rule: "It has Advantage on attack rolls against any creature that doesn’t have all its Hit Points." }),
+  "Grappler": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", judge: "targetGrappled", from: "the Grappler feat",
+    caveat: "counted — press Normal if the target is not Grappled by you",
+    rule: "You have Advantage on attack rolls against a creature Grappled by you." }),
+  "Street Justice": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", judge: "targetGrappled", from: "Heroes of Faerûn",
+    caveat: "counted — press Normal if the target is not Grappled by your ally",
+    rule: "Your allies have Advantage on attack rolls against a creature Grappled by you." }),
+  "Precise Hunter": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", from: "Ranger",
+    caveat: "counted — press Normal if the target is not your Hunter's Mark",
+    rule: "You have Advantage on attack rolls against the creature currently marked by your Hunter’s Mark." }),
+  "Light Sensitivity": Object.freeze({ match: "feature", attacker: "disadvantage", target: null, scope: "any", counted: false, from: "monsters",
+    caveat: "listed — Disadvantage only in Bright Light",
+    rule: "While in Bright Light, it has Disadvantage on attack rolls." }),
+  "Sunlight Sensitivity": Object.freeze({ match: "feature", attacker: "disadvantage", target: null, scope: "any", counted: false, from: "monsters",
+    caveat: "listed — Disadvantage only in sunlight",
+    rule: "While in sunlight, it has disadvantage on attack rolls, as well as on Wisdom (Perception) checks that rely on sight." }),
+  "Sunlight Weakness": Object.freeze({ match: "feature", attacker: "disadvantage", target: null, scope: "any", counted: false, from: "monsters",
+    caveat: "listed — Disadvantage only in sunlight",
+    rule: "While in sunlight, it has disadvantage on attack rolls, ability checks, and saving throws." }),
+  "Sunlight Hypersensitivity": Object.freeze({ match: "feature", attacker: "disadvantage", target: null, scope: "any", counted: false, from: "monsters",
+    caveat: "listed — Disadvantage only in sunlight",
+    rule: "While in sunlight, it has Disadvantage on attack rolls and ability checks." }),
+  "Mounted Combatant": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", counted: false, from: "the Mounted Combatant feat",
+    caveat: "listed — Advantage only while mounted, against a smaller unmounted creature within 5 feet of the mount",
+    rule: "While mounted, you have Advantage on attack rolls against any unmounted creature within 5 feet of your mount that is at least one size smaller than the mount." }),
+  "Invoke Duplicity": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", counted: false, from: "Trickery Cleric",
+    caveat: "listed — Advantage only with the illusion and you both within 5 feet of the target",
+    rule: "When both you and your illusion are within 5 feet of a creature that can see the illusion, you have Advantage on attack rolls against that creature." }),
+  "Ambusher": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", counted: false, from: "monsters",
+    caveat: "listed — Advantage only in the first round, against a creature it surprised",
+    rule: "In the first round of a combat, it has advantage on attack rolls against any creature it has surprised." })
+});
+
+/** The table's rows, in the order the table reads them. */
+export const EFFECT_KEYS = Object.freeze(Object.keys(EFFECT_BENDS));
+
+/** The closed set the Effect Sources list is validated against — the table's names, lower-cased. */
+export const EFFECT_NAMES = new Set(EFFECT_KEYS.map(k => k.toLowerCase()));
+
+
+/**
  * The CONDITION SOURCES the `condition` reminder kind can read — the closed set the Condition
  * Sources list is validated against, DERIVED from the table above. Prone is NOT here — it is
  * its own kind, with geometry. The unit tests pin the size as the deliberate tripwire.
@@ -249,6 +492,8 @@ const chunks = raw => String(raw ?? "").split(",").map(s => s.trim()).filter(Boo
 
 /** Split one `A:B` chunk into its trimmed halves. */
 const pair = chunk => chunk.split(":").map(s => s?.trim());
+/** A whole chunk as its one column — for lists whose names carry colons (the effect table's). */
+const whole = chunk => [chunk.trim()];
 
 /**
  * THE LIST SPECS — one per membership list, keyed by the name the EDGE wrapper uses.
@@ -353,6 +598,14 @@ export const LIST_SPECS = {
     columns: ["kind"], kindColumn: "kind", kinds: CONDITION_STATUSES, fallback: null, membership: true,
     // Every row of the table ships ON — the default is the table, not a copy of it.
     default: CONDITION_KEYS.join(", ")
+  },
+  effects: {
+    label: "Effect Sources", setting: "effectList",
+    // Which rows of the effect table the gate reads — an active effect or a feature by NAME,
+    // the packs' own names, colons and all, so the list is parsed whole-chunk and matched
+    // case-insensitively. Membership, like the condition table: the kind is `effect`.
+    columns: ["kind"], kindColumn: "kind", kinds: EFFECT_NAMES, fallback: null, membership: true, whole: true,
+    default: EFFECT_KEYS.join(", ")
   }
 };
 
@@ -369,7 +622,7 @@ export function parseList(spec, raw) {
   const entries = [];
   const rejects = [];
   for ( const chunk of chunks(raw) ) {
-    const halves = pair(chunk);
+    const halves = spec.whole ? whole(chunk) : pair(chunk);
     const entry = {};
     spec.columns.forEach((col, i) => { entry[col] = halves[i]; });
 

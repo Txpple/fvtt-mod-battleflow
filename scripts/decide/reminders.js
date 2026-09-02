@@ -71,6 +71,78 @@ export function conditionSources({ attackerStatuses = [], targetStatuses = [], e
 }
 
 /**
+ * EFFECT SOURCES, from plain facts (user, 2026-09-02 — the sixth kind): the abilities on either
+ * sheet that bend this roll, read against the effect table (decide/registry.js EFFECT_BENDS).
+ * An attacker-side row fires when the ATTACKER carries the effect (or the feature) and the
+ * roll is in the row's scope; a target-side row when the TARGET does. A row with a `judge`
+ * fires only when the fact it names is true; a row with `counted: false` is LISTED (bend null,
+ * the caveat on the label); a row with a caveat is counted and says so. A row with `spend`
+ * carries the effect's id so the spend hook can use it up.
+ *
+ * @param {{attacker?: {effects?: {id: string, name: string}[], features?: string[], bloodied?: boolean},
+ *          target?: {effects?: {id: string, name: string}[], features?: string[], bloodied?: boolean, damaged?: boolean, grappled?: boolean},
+ *          enabled: Iterable<string>, table: Readonly<Record<string, any>>,
+ *          scope?: {classification?: string|null, type?: string|null},
+ *          attackerName?: string, targetName?: string, pass?: "both"|"attacker"|"target"}} facts
+ *        `enabled` = the Effect Sources list (names, any case); `scope` = the attack's own
+ *        classification ("weapon" | "spell" | "unarmed") and type ("melee" | "ranged").
+ */
+export function effectSources({ attacker = {}, target = {}, enabled, table, scope = {},
+  attackerName = "You", targetName = "the target", pass = "both" }) {
+  const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
+  // The EDGE reads the attacker once and each target in turn: an attacker-side row that hinges
+  // on the TARGET (Bloodied, Grappled…) belongs to the target pass, the rest to the attacker's.
+  const targetJudges = new Set(["targetBloodied", "targetDamaged", "targetGrappled"]);
+  const attackerRowHere = row => (pass === "both") || ((pass === "target") === targetJudges.has(row.judge));
+  const targetRowHere = pass !== "attacker";
+  const inScope = row => {
+    const s = row.scope ?? "any";
+    if ( s === "any" ) return true;
+    if ( (s === "spell") || (s === "weapon") ) return (scope.classification ?? null) === s;
+    return (scope.type ?? null) === s;
+  };
+  const judged = row => {
+    switch ( row.judge ) {
+      case "bloodied": return !!attacker.bloodied;
+      case "targetBloodied": return !!target.bloodied;
+      case "targetDamaged": return !!target.damaged;
+      case "targetGrappled": return !!target.grappled;
+      default: return true;
+    }
+  };
+  const carriers = (who, row) => {
+    const name = row.__name.toLowerCase();
+    if ( row.match === "feature" ) {
+      return (who.features ?? []).some(f => String(f).toLowerCase() === name) ? [{ id: null }] : [];
+    }
+    return (who.effects ?? []).filter(e => String(e?.name ?? "").toLowerCase() === name);
+  };
+  const out = [];
+  for ( const [key, base] of Object.entries(table ?? {}) ) {
+    if ( !on.has(key.toLowerCase()) ) continue;
+    const row = { ...base, __name: key };
+    if ( !inScope(row) ) continue;
+    const counted = row.counted !== false;
+    const say = (who, bend) => {
+      const label = `${who} — ${key}${row.caveat ? ` (${row.caveat})` : ""}`;
+      return Object.assign(reminderSource("effect", counted ? bend : null, label, row.rule),
+        row.spend ? { spend: row.spend } : {});
+    };
+    if ( row.attacker && attackerRowHere(row) && judged(row) ) {
+      for ( const e of carriers(attacker, row) ) {
+        out.push(Object.assign(say(attackerName, row.attacker), e.id ? { effectId: e.id } : {}));
+      }
+    }
+    if ( row.target && targetRowHere && judged(row) ) {
+      for ( const e of carriers(target, row) ) {
+        out.push(Object.assign(say(`${targetName} is`, row.target), e.id ? { effectId: e.id } : {}));
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * THE AUTOMATIC CRITICAL HIT, from plain facts (user, 2026-09-02): a hit on a creature whose
  * condition carries `critWithinFeet` (Paralyzed, Unconscious — the glossary's *"Any attack
  * roll that hits you is a Critical Hit if the attacker is within 5 feet of you"*) from within
