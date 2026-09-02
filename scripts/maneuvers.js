@@ -6,7 +6,7 @@
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
   canAnswerFor, inRunningCombat, combatStamp, statContext } from "./core.js";
 import { maneuverFoldEntries } from "./settings.js";
-import { hitTargets, modeAllows } from "./shared.js";
+import { hitTargets, modeAllows, reactionSpent, spendReaction } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, RESCUE_KINDS,
   rescueView, rescueSourceFor } from "./decide/present.js";
 // The same four names d20-folds.js takes, for the same reason and off the same registry: a
@@ -520,7 +520,7 @@ Hooks.on("createChatMessage", async message => {
       // refuses a cast or blocks an action. Read as "don't nag this actor again this turn."
       // The old wording here said "one reaction per round" and led a careful reviewer to
       // diagnose a rules violation the module cannot commit.
-      if ( actor.getFlag(MODULE_ID, "reactionSpent") ) continue;
+      if ( reactionSpent(actor) ) continue;
       if ( !modeAllows(actor) ) continue;                              // rides the resolver (Graze's argument)
       const found = usableManeuver(actor, entry.name);
       const dieFormula = found ? maneuverDieFormula(found.activity) : null;
@@ -680,7 +680,7 @@ async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {})
       await activity.use({ subsequentActions: false }, { configure: false }, {
         data: { flags: { [MODULE_ID]: { riposteUse: message.id } } }
       });
-      if ( inRunningCombat(actor) ) void actor.setFlag(MODULE_ID, "reactionSpent", true);
+      void spendReaction(actor, { origin: activity.item?.uuid ?? null, what: activity.item?.name ?? "the riposte" });
 
       // 2. Arm the one-shot die for the injection hook, THEN drive the real attack — the
       //    P3-measured shape: use() for the usage card, rollAttack chained to it, module

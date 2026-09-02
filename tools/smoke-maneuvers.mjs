@@ -42,6 +42,10 @@ announcePlan('maneuvers', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-battleflow';
+  // The Reaction is a CHIP (2026-09-02): these stand in for the old flag's set, unset and read.
+  const clearReaction = async a => { const ids = (a?.effects ?? []).filter(e => e.getFlag(MOD, 'mastery') === 'reaction').map(e => e.id); if (ids.length) await a.deleteEmbeddedDocuments('ActiveEffect', ids).catch(() => {}); };
+  const spendReactionOf = async a => { await a.createEmbeddedDocuments('ActiveEffect', [{ name: 'Reaction — used', img: 'icons/svg/clockwork.svg', transfer: false, flags: { [MOD]: { mastery: 'reaction' } } }]); };
+  const reactionChip = a => !!a?.effects?.some(e => e.getFlag(MOD, 'mastery') === 'reaction');
   const results = [];
   const log = [];
   const skips = [];
@@ -103,7 +107,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) {
         await game.actors.get(actorId)?.update(data);
       }
-      await enemy.unsetFlag(MOD, 'reactionSpent').catch(() => {});
+      await clearReaction(enemy);
       if (pc) await pc.delete().catch(() => {});
       game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
@@ -459,9 +463,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             !!receipt?.targets?.some(t => t.uuid === enemy.uuid),
             `receipt=${!!receipt}`);
         }
-        ok('R2f. out of combat the reaction flag stays unset (the hold\'s own carve-out)',
-          !pc.getFlag(MOD, 'reactionSpent'),
-          `flag=${!!pc.getFlag(MOD, 'reactionSpent')}`);
+        ok('R2f. out of combat no Reaction chip is written (no turn to bring it back)',
+          !reactionChip(pc),
+          `chip=${reactionChip(pc)}`);
         const rFlag = msg?.getFlag(MOD, 'riposte');
         ok('R2g. the chosen weapon is RECORDED on the fold — the card can name it (④)',
           rFlag?.reactors?.[0]?.weaponName === enemyWeapon.name,
@@ -481,13 +485,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
       /* R3 — a spent reaction is never offered. */
       {
-        await pc.setFlag(MOD, 'reactionSpent', true);
+        await spendReactionOf(pc);
         const { msg } = await attack(enemyAttackAct(), pcToken);
         await sleep(1500);
-        ok('R3. reactionSpent suppresses the offer entirely',
+        ok('R3. a standing Reaction chip suppresses the offer entirely',
           !!msg && !msg.getFlag(MOD, 'riposte'),
-          `flag=${!!msg?.getFlag(MOD, 'riposte')}`);
-        await pc.unsetFlag(MOD, 'reactionSpent');
+          `offered=${!!msg?.getFlag(MOD, 'riposte')}`);
+        await clearReaction(pc);
       }
 
       /* R4 — a RANGED miss never offers. */
@@ -921,7 +925,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && /takes no damage/.test(m.content ?? ''));
         ok('I1d. use — the half becomes NONE, the settle card posts, no reaction flag out of combat',
           !!applied && (victim.system.attributes.hp.value === hpBefore) && !!validation
-            && !victim.getFlag(MOD, 'reactionSpent'),
+            && !reactionChip(victim),
           `applied=${!!applied} hp ${hpBefore}→${victim.system.attributes.hp.value} card=${!!validation}`);
         await set('holdTimer', 0);
         await closeDialogs('BF Shield Master');
@@ -975,7 +979,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && /takes no damage|Reaction is spent/.test(m.content ?? ''));
         ok('I3. (y) the failed save: NO interpose offer, NO spend — the full 10 applies',
           !!applied && (dropped === 10) && !offered && !settle
-            && !victim.getFlag(MOD, 'reactionSpent'),
+            && !reactionChip(victim),
           `applied=${!!applied} dropped=${dropped} offered=${offered} settle=${!!settle}`);
         await set('holdTimer', 0);
         await closeDialogs('BF Shield Master');

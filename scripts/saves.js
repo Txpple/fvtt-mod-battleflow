@@ -3,12 +3,12 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, rollerUserFor,
-  drivesMomentFor, canApplyTo, whisperNoGM, canAnswerFor, inRunningCombat,
+  drivesMomentFor, canApplyTo, whisperNoGM, canAnswerFor,
   statContext } from "./core.js";
 import { tokensInTemplates } from "./geometry.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom, saveMultiplier, verdictText } from "./decide/verdict.js";
 import { isDeadForSaves } from "./decide/eligible.js";
-import { forceStatus, damagePartsOf, rollConfigFor, statSourceOf } from "./shared.js";
+import { forceStatus, damagePartsOf, reactionSpent, rollConfigFor, spendReaction, statSourceOf } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, reminderFieldsetHTML, TONE } from "./decide/present.js";
 import { livePopups, openMomentPopup, adoptManagedPopup, DialogCarried,
   momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
@@ -1088,7 +1088,7 @@ async function saveChoiceSpec(card, flag, entry) {
     const subject = await fromUuid(entry.uuid).catch(() => null);
     const saver = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
     if ( !(saver instanceof Actor) ) return null;
-    if ( saver.getFlag(MODULE_ID, "reactionSpent") ) return null;
+    if ( reactionSpent(saver) ) return null;
     const found = foldEntryFor(saver, "interpose");
     if ( !found || !equippedShield(saver) ) return null;
     return { kind: "interpose", itemName: found.item.name, itemImg: found.item.img,
@@ -1310,7 +1310,7 @@ async function settleInterpose(card, flag, entry) {
   if ( !claimed ) return;
   const subject = await fromUuid(entry.uuid).catch(() => null);
   const saver = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
-  if ( (saver instanceof Actor) && inRunningCombat(saver) ) void saver.setFlag(MODULE_ID, "reactionSpent", true);
+  if ( saver instanceof Actor ) void spendReaction(saver, { origin: null, what: `Interpose (${c.itemName})` });
   await ChatMessage.create({
     speaker: (saver instanceof Actor) ? ChatMessage.getSpeaker({ actor: saver }) : card.speaker,
     content: bfCard({

@@ -71,6 +71,11 @@ const report = (name, ok, detail = '') => {
 // The whole scenario runs in ONE page context so state stays coherent across steps.
 const r = await f.evaluate(async ({ sections }) => {
   const MOD = 'fvtt-mod-battleflow';
+  // The Reaction is a CHIP (2026-09-02): these stand in for the old flag's set and unset.
+  const clearReaction = async a => { const ids = (a?.effects ?? []).filter(e => e.getFlag(MOD, 'mastery') === 'reaction').map(e => e.id); if (ids.length) await a.deleteEmbeddedDocuments('ActiveEffect', ids).catch(() => {}); };
+  // A deliberate mark with NO clock — it stands until deleted (out of combat the module writes none).
+  const spendReactionOf = async a => { await a.createEmbeddedDocuments('ActiveEffect', [{ name: 'Reaction — used', img: 'icons/svg/clockwork.svg', transfer: false, flags: { [MOD]: { mastery: 'reaction' } } }]); };
+  const reactionSpentOf = async a => { const { reactionSpent } = await import('/modules/fvtt-mod-battleflow/scripts/shared.js'); return reactionSpent(a); };
   // The section gate, page side — the closure is serialized into the page, so the plan
   // arrives as DATA. The Node half above spells the same predicate for the reports.
   const want = id => !sections || sections.includes(String(id));
@@ -344,7 +349,7 @@ const r = await f.evaluate(async ({ sections }) => {
         'system.attributes.hp.value': actor.system.attributes.hp.max,
         'system.attributes.hp.temp': 0,
       });
-      await actor.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(actor);
       for (const e of actor.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
       // ⚠ A clean slate includes the CHAT. The windowed search loops above leave stray
       // PENDING holds on this stand-in (only the in-window attempt gets answered), and one
@@ -441,7 +446,7 @@ const r = await f.evaluate(async ({ sections }) => {
       await base.update(flatAC
         ? { 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 13 }
         : { 'system.attributes.ac.calc': 'natural', 'system.attributes.ac.flat': 13 });
-      await actor.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(actor);
       await clearBarriers(actor);
 
       if (cast.activation?.type !== 'reaction') throw new Error(
@@ -569,7 +574,7 @@ const r = await f.evaluate(async ({ sections }) => {
         hpUnchanged: gren.system._source.attributes.hp.value === hpBefore,
       };
       for (const e of gren.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
-      await gren.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(gren);
     }
 
     // ---- 3. PASS lets the attack through: the released dice APPLY --------------------------
@@ -591,12 +596,12 @@ const r = await f.evaluate(async ({ sections }) => {
         damageFor(usageId)?.getFlag(MOD, 'receipt') ?? null, 15000);
       results.passProceeds = { held: !!held, damageRolled: !!dmg,
         released: dmg?.getFlag(MOD, 'attackHoldPending') === false, applied: !!applied };
-      await gren.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(gren);
     }
 
     // ---- 4. reaction already spent ⇒ no hold at all -----------------------------------------
     if (want('4')) {
-      await gren.setFlag(MOD, 'reactionSpent', true);
+      await spendReactionOf(gren);
       const { usageId, msg, total } = await plainHitOnGren();
       await sleep(2500);
       results.spentSuppresses = {
@@ -604,7 +609,7 @@ const r = await f.evaluate(async ({ sections }) => {
         damageRolled: !!damageFor(usageId),
         why: diagnose(usageId, total),
       };
-      await gren.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(gren);
     }
 
     // ---- 4a2. an AC reaction ALREADY STANDING ⇒ no hold (v1.15.0 walk finding ⑥) ------------
@@ -613,7 +618,7 @@ const r = await f.evaluate(async ({ sections }) => {
     // independent of reactionSpent and of combat rounds: the walk reproduced it OUT of
     // combat, where reactionSpent is never set at all.
     if (want('4a2')) {
-      await gren.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(gren);
       const shieldItem = gren.items.find(i => (i.name.toLowerCase() === 'shield')
         && i.effects.size);
       const src = shieldItem?.effects.contents[0];
@@ -636,7 +641,7 @@ const r = await f.evaluate(async ({ sections }) => {
         why: diagnose(usageId, total),
       };
       if (standing) await gren.effects.get(standing.id)?.delete();
-      await gren.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(gren);
     }
 
     // ---- 4b. THE REAL CAST PATH, on a GM-answerable stand-in --------------------------------
@@ -713,7 +718,7 @@ const r = await f.evaluate(async ({ sections }) => {
         })(),
       };
       for (const e of victimActor.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
-      await victimActor.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(victimActor);
     }
 
     // ---- 4b2. ONE casting answers MANY holds, and lands exactly ONE effect -------------------
@@ -763,7 +768,7 @@ const r = await f.evaluate(async ({ sections }) => {
         secondAnswered: game.messages.get(held[1])?.getFlag(MOD, 'hold')?.targets?.[0]?.answer ?? null,
       };
       for (const e of victimActor.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
-      await victimActor.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(victimActor);
     }
 
     // ---- 4c. THE SAFETY NET: a cast whose client never applied the effect --------------------
@@ -808,7 +813,7 @@ const r = await f.evaluate(async ({ sections }) => {
         dmg: dmgStateFor(atk.usageId),
       };
       for (const e of victimActor.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
-      await victimActor.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(victimActor);
     }
 
     // ---- 4d. A NAME MATCH IS NOT A REACTION --------------------------------------------------
@@ -869,7 +874,7 @@ const r = await f.evaluate(async ({ sections }) => {
       const [npcShield] = await vActor.createEmbeddedDocuments('Item', [data]);
       await victimBase.update({
         'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 10 });
-      await vActor.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(vActor);
 
       const slots = Object.entries(vActor.system.spells ?? {})
         .filter(([k]) => /^spell[1-9]$/.test(k))
@@ -906,7 +911,7 @@ const r = await f.evaluate(async ({ sections }) => {
         await sleep(800);
       }
       await npcShield.delete();
-      await vActor.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(vActor);
     }
 
     // ---- 4d3. THE STATBLOCK CAST-ACTIVITY PATH, END TO END -----------------------------------
@@ -990,7 +995,7 @@ const r = await f.evaluate(async ({ sections }) => {
         attackTotal: atk.total,
       };
       await clearBarriers(npc);
-      await npc.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(npc);
     }
 
     // ---- 4d4. THE AT-WILL VARIANT: no pool at all still holds ---------------------------------
@@ -1026,7 +1031,7 @@ const r = await f.evaluate(async ({ sections }) => {
         await doc.setFlag(MOD, 'hold', m);
         await sleep(800);
       }
-      await npc.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(npc);
     }
 
     // ---- 4d5. A PC ATTACKS A MONSTER THAT HOLDS A REACTION ------------------------------------
@@ -1071,7 +1076,7 @@ const r = await f.evaluate(async ({ sections }) => {
 
       // (b) With everyone auto-resolving, the same attack holds and answers for real.
       await game.settings.set(MOD, 'autoDamage', 'all');
-      await npc.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(npc);
       const atk = await attackIntoFlipWindow(pcActivity, npcToken, vAC);
       if (!atk) throw new Error(`no PC attack landed in [${vAC}, ${vAC + 4}] against the statblock caster`);
       const pending = await waitFor(() => {
@@ -1102,7 +1107,7 @@ const r = await f.evaluate(async ({ sections }) => {
         attackTotal: atk.total,
       };
       await clearBarriers(npc);
-      await npc.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(npc);
       await sweepCastFixture(npc);
     }
 
@@ -1146,7 +1151,7 @@ const r = await f.evaluate(async ({ sections }) => {
         attackTotal: atk.total,
       };
       await clearBarriers(npc);
-      await npc.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(npc);
       await sweepCastFixture(npc);
     }
 
@@ -1172,7 +1177,7 @@ const r = await f.evaluate(async ({ sections }) => {
         damageRolled: !!dmg,
       };
       await game.settings.set(MOD, 'holdTimer', 0);
-      await gren.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(gren);
     }
 
     // ---- 4f. HOPELESS HOLDS ARE SKIPPED (only under full disclosure) -------------------------
@@ -1199,7 +1204,7 @@ const r = await f.evaluate(async ({ sections }) => {
 
       // ...but with the math hidden it must STILL hold, or its absence is the leak.
       await game.settings.set(MOD, 'holdReveal', false);
-      await gren.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(gren);
       let hidden = null;
       for (let i = 0; i < 40 && !hidden; i++) {
         const a = await attackGren({ advantage: true });
@@ -1221,7 +1226,7 @@ const r = await f.evaluate(async ({ sections }) => {
         }
       }
       await game.settings.set(MOD, 'holdReveal', true);
-      await gren.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(gren);
     }
 
     // ---- 5. a natural 20 skips an AC-type hold (no AC saves you from a crit) ----------------
@@ -1242,7 +1247,7 @@ const r = await f.evaluate(async ({ sections }) => {
       } else {
         results.critSkipsHold = { rolled: false }; // no crit in 60 tries; reported, not failed
       }
-      await gren.unsetFlag(MOD, 'reactionSpent');
+      await clearReaction(gren);
     }
 
     // ---- 6. THE SECOND TRIGGER: Magic Missile holds for Shield, and Shield really stops it ----
@@ -1372,7 +1377,7 @@ const r = await f.evaluate(async ({ sections }) => {
             m.speaker?.alias === 'Battle Flow' && /does nothing to/i.test(m.content ?? '')),
         };
         for (const e of shielder.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
-        await shielder.unsetFlag(MOD, 'reactionSpent');
+        await clearReaction(shielder);
       }
 
       // -- 6d: pass → the missiles land in full ----------------------------------------------
@@ -1401,7 +1406,7 @@ const r = await f.evaluate(async ({ sections }) => {
           verdict: done?.targets?.[0]?.verdict ?? null,
           ...applied,
         };
-        await shielder.unsetFlag(MOD, 'reactionSpent');
+        await clearReaction(shielder);
       }
 
       // -- 6f: the claim → defer → release chain on the NATIVE card (v1.10.0: the ---------
@@ -1450,7 +1455,7 @@ const r = await f.evaluate(async ({ sections }) => {
           receipt: !!game.messages.get(damageMsg?.id)?.getFlag(MOD, 'receipt'),
         };
         for (const e of shielder.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
-        await shielder.unsetFlag(MOD, 'reactionSpent');
+        await clearReaction(shielder);
       }
 
       // -- 6e: a target who cannot cast Shield is never asked ---------------------------------
@@ -1499,7 +1504,8 @@ const r = await f.evaluate(async ({ sections }) => {
       // because killing the hold mid-combat used to strand every flag already set. Both are
       // documented at the handlers; neither had a test.
       let combat = null;
-      const spent = () => !!game.actors.get(gren.id).getFlag(MOD, 'reactionSpent');
+      // The Reaction is a CHIP now (2026-09-02): standing and not yet marked expired by the platform.
+      const spent = () => reactionSpentOf(game.actors.get(gren.id));
       const shieldActivity = () => gren.items.get(shield.id)?.system.activities?.contents?.[0];
       const castShield = async () => {
         await shieldActivity()?.use({ subsequentActions: false }, { configure: false },
@@ -1507,13 +1513,13 @@ const r = await f.evaluate(async ({ sections }) => {
         await sleep(500);
       };
       try {
-        await gren.unsetFlag(MOD, 'reactionSpent');
+        await clearReaction(gren);
         if (game.combat) await game.combat.delete();
         await sleep(300);
 
         // (a) OUT of combat, the set is REFUSED.
         await castShield();
-        const outOfCombat = spent();
+        const outOfCombat = await spent();
 
         // (b) IN a running combat, the same reaction DOES set it.
         // ⚠ TWO combatants, not one. With a single combatant Gren is current the instant the
@@ -1536,9 +1542,9 @@ const r = await f.evaluate(async ({ sections }) => {
           await sleep(250);
         }
         const startedOnGren = combat.combatant?.actor?.id === gren.id;
-        await gren.unsetFlag(MOD, 'reactionSpent');
+        await clearReaction(gren);
         await castShield();
-        const inCombat = spent();
+        const inCombat = await spent();
 
         // (c) `updateCombat`: Gren's own turn comes round and the flag clears.
         let reached = false;
@@ -1547,18 +1553,18 @@ const r = await f.evaluate(async ({ sections }) => {
           await sleep(300);
           if (combat.combatant?.actor?.id === gren.id) { reached = true; break; }
         }
-        const clearedOnTurn = reached && !spent();
+        const clearedOnTurn = reached && !(await spent());
 
         // (d) `deleteCombat`: the fight ends and the flag clears FOR EVERY COMBATANT — ⚠ with
         // the feature toggle OFF, which is the whole point of the clears not being gated on it.
-        await gren.setFlag(MOD, 'reactionSpent', true);
+        await spendReactionOf(gren);
         await sleep(200);
-        const setBeforeDelete = spent();
+        const setBeforeDelete = await spent();
         await game.settings.set(MOD, 'reactionHold', false);
         await combat.delete();
         combat = null;
         await sleep(600);
-        const clearedOnDelete = !spent();
+        const clearedOnDelete = !(await spent());
 
         results.turnClears = {
           outOfCombatSet: outOfCombat, startedOnGren, inCombatSet: inCombat,
@@ -1570,7 +1576,7 @@ const r = await f.evaluate(async ({ sections }) => {
         await game.settings.set(MOD, 'reactionHold', true);
         try { if (combat) await combat.delete(); } catch { /* already gone */ }
         try { if (game.combat) await game.combat.delete(); } catch { /* ditto */ }
-        await gren.unsetFlag(MOD, 'reactionSpent');
+        await clearReaction(gren);
         await clearBarriers(gren);
       }
     }
@@ -1589,7 +1595,7 @@ const r = await f.evaluate(async ({ sections }) => {
           'system.attributes.hp.temp': restore.grenHP.temp,
           'system.spells': restore.grenSlots,
         });
-        await gren?.unsetFlag(MOD, 'reactionSpent');
+        await clearReaction(gren);
         for (const e of gren?.effects?.filter(e => e.name === 'Imperceptible Barrier') ?? []) await e.delete();
       }
       // Long rest every fixture: these suites spend real spell slots and beat real HP off the
@@ -1614,7 +1620,7 @@ const r = await f.evaluate(async ({ sections }) => {
             'system.attributes.hp.temp': 0,
           });
         }
-        await fixture.unsetFlag(MOD, 'reactionSpent');
+        await clearReaction(fixture);
         for (const e of fixture.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
       }
       // ⚠ The statblock fixture must never outlive the run. Section 4d proves that a mundane

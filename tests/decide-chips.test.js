@@ -36,8 +36,18 @@ describe("CHIP_WINDOWS — the rules text as v14 duration data", () => {
   it("is frozen — a window is a rule, not a variable", () => {
     expect(Object.isFrozen(c.CHIP_WINDOWS)).toBe(true);
     expect(Object.isFrozen(c.CHIP_WINDOWS.vex)).toBe(true);
-    expect(c.TURN_CHIPS).toEqual(["vex", "sap", "slow", "cleave", "sneak", "rider", "steadyAim"]);
-    expect(c.TURN_CHITS).toEqual(["cleave", "sneak", "rider", "steadyAim"]);
+    expect(c.TURN_CHIPS).toEqual([
+      "vex",
+      "sap",
+      "slow",
+      "cleave",
+      "sneak",
+      "rider",
+      "steadyAim",
+      "reaction"
+    ]);
+    expect(c.CHIP_WINDOWS.reaction).toEqual({ value: 0, units: "turns", expiry: "turnStart" });
+    expect(c.TURN_CHITS).toEqual(["cleave", "sneak", "rider", "steadyAim", "reaction"]);
     expect(c.CHIP_WINDOWS.sneak).toEqual(c.CHIP_WINDOWS.cleave);
     expect(c.CHIP_WINDOWS.rider).toEqual(c.CHIP_WINDOWS.cleave);
     expect(c.chipClock("sneak", null)).toBeNull();
@@ -244,5 +254,36 @@ describe("rollModeOf / chipHonoured / netShownFor / spendRecord — the receipt'
         mode: "disadvantage"
       }).img
     ).toBeNull();
+  });
+});
+
+describe("reactionStands — back at the start of the reactor's next turn (2026-09-02)", () => {
+  it("spent on a foe's turn BEFORE the reactor's, it is back at the reactor's turn the same round", () => {
+    const start = { round: 1, turn: 0 };
+    expect(c.reactionStands({ start, now: { round: 1, turn: 1 }, actorTurn: 2 })).toBe(true);
+    expect(c.reactionStands({ start, now: { round: 1, turn: 2 }, actorTurn: 2 })).toBe(false);
+  });
+  it("spent AFTER the reactor's turn in the round, it is back at their turn next round", () => {
+    const start = { round: 1, turn: 2 };
+    expect(c.reactionStands({ start, now: { round: 1, turn: 3 }, actorTurn: 1 })).toBe(true);
+    expect(c.reactionStands({ start, now: { round: 2, turn: 0 }, actorTurn: 1 })).toBe(true);
+    expect(c.reactionStands({ start, now: { round: 2, turn: 1 }, actorTurn: 1 })).toBe(false);
+    expect(c.reactionStands({ start, now: { round: 3, turn: 0 }, actorTurn: 1 })).toBe(false);
+  });
+  it("spent on the reactor's own turn, it is back next round", () => {
+    const start = { round: 1, turn: 1 };
+    expect(c.reactionStands({ start, now: { round: 1, turn: 3 }, actorTurn: 1 })).toBe(true);
+    expect(c.reactionStands({ start, now: { round: 2, turn: 1 }, actorTurn: 1 })).toBe(false);
+  });
+  it("no clock: a deliberate mark stands; no combat, or a reactor not in the order: dead", () => {
+    expect(c.reactionStands({ start: null, now: null, actorTurn: null })).toBe(true);
+    expect(c.reactionStands({ start: { round: 1, turn: 0 }, now: null, actorTurn: 0 })).toBe(false);
+    expect(
+      c.reactionStands({
+        start: { round: 1, turn: 0 },
+        now: { round: 1, turn: 1 },
+        actorTurn: null
+      })
+    ).toBe(false);
   });
 });

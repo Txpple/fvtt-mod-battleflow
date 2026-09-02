@@ -60,11 +60,40 @@ export const CHIP_WINDOWS = Object.freeze({
   // Steady Aim's "on the current turn" (a use chip, 2026-09-02): the attacker's own turn ends
   // it; the next attack roll spends it first. Out of combat there is no turn — it stands until
   // spent (a clockless chip is alive, decide/chips.js chipIsDead).
-  steadyAim: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" })
+  steadyAim: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" }),
+  // THE REACTION (user, 2026-09-02: "shield should probably be refactored similarly (reaction,
+  // one per turn)"): a Reaction comes back at the start of the creature's own turn — Sap's
+  // window exactly. One chip on the reactor, written by whichever interrupt spent it (Shield,
+  // Uncanny Dodge, a riposte, Interpose), read by every hold's offer gate. It replaces the
+  // `reactionSpent` flag and its two clear hooks: the platform keeps this clock too.
+  // ⚠ ZERO TURNS, judged at the reactor's turnStart — NOT a one-round window: a Reaction spent
+  // on somebody else's turn comes back at the reactor's NEXT turn, which can be less than a
+  // round away (smoke-hold §7 measured the rounds shape returning it a round late).
+  reaction: Object.freeze({ value: 0, units: "turns", expiry: "turnStart" })
 });
 
 /** The once-per-turn chits — no turn, no chit (`chipClock` yields null for them out of combat). */
-export const TURN_CHITS = Object.freeze(["cleave", "sneak", "rider", "steadyAim"]);
+export const TURN_CHITS = Object.freeze(["cleave", "sneak", "rider", "steadyAim", "reaction"]);
+
+/**
+ * Does a Reaction chip still STAND — the reactor has not yet begun a turn since it was written?
+ * Stamp arithmetic, never the platform's mark alone (the mark is GM-written; a no-GM table
+ * would sit with its Reaction spent forever): the chip's start is where the order stood when the
+ * Reaction was taken; the reactor's next turn after that is the first (round, turn) at or past
+ * which the Reaction is back. A chip with no clock is a deliberate mark and stands; a chip whose
+ * combat is gone (now null) is dead.
+ * @param {{start?: {round?: number|null, turn?: number|null}|null, now: {round: number, turn: number}|null,
+ *          actorTurn: number|null}} facts   `actorTurn` = the reactor's index in the turn order (null: not in it)
+ */
+export function reactionStands({ start = null, now, actorTurn }) {
+  if ( !start || (start.round === null) || (start.round === undefined) || (start.turn === null) || (start.turn === undefined) ) return true;
+  if ( !now ) return false;
+  if ( (actorTurn === null) || (actorTurn === undefined) || (actorTurn < 0) ) return false;
+  const back = (actorTurn > start.turn) ? { round: start.round, turn: actorTurn } : { round: start.round + 1, turn: actorTurn };
+  if ( now.round > back.round ) return false;
+  if ( now.round < back.round ) return true;
+  return now.turn < back.turn;
+}
 
 /** The chips a turn boundary can end, keyed by who the window belongs to. */
 export const TURN_CHIPS = Object.freeze(Object.keys(CHIP_WINDOWS));

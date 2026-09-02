@@ -3,7 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, drivesMomentFor,
-  canApplyTo, whisperNoGM, canAnswerFor, isContinuingClient, inRunningCombat,
+  canApplyTo, whisperNoGM, canAnswerFor, isContinuingClient,
   statContext } from "./core.js";
 import { limitedUses, isReactionItem } from "./decide/eligible.js";
 import { interruptEntries, blockEntries } from "./settings.js";
@@ -14,7 +14,7 @@ import { joinEffectReceipt } from "./decide/receipt.js";
 import "./auto-damage.js";
 import { bfCard, popupKey, holdBarHTML } from "./decide/present.js";
 // Safe as a STATIC edge: shared.js registers no hooks and the entry graph evaluates it first.
-import { damagePartsOf, statSourceOf } from "./shared.js";
+import { damagePartsOf, reactionSpent, spendReaction, statSourceOf } from "./shared.js";
 // ⚠ ONE-WAY since D6 (2026-08-23). ui.js is the spine and no longer knows this feature exists;
 // what comes back are spine primitives only. Do NOT let a hold-shaped name travel the other
 // way — reinstating an `import … from "./hold.js"` in ui.js re-forms the cycle D6 broke.
@@ -204,47 +204,19 @@ async function findCastActivity(actor, spellName) {
   return null;
 }
 
-/** Reaction-spent bookkeeping — the core click-volume guard (ARCHITECTURE.md §6). */
-const reactionSpent = actor => !!actor?.getFlag(MODULE_ID, "reactionSpent");
-
-// Any reaction an actor takes suppresses further holds for them until their next turn. The
-// active GM is the single writer; the flag replicates to everyone who needs to read it.
+// Reaction-spent bookkeeping — the core click-volume guard (ARCHITECTURE.md §6) — is a CHIP on
+// the combat clock since 2026-09-02 (shared.js `reactionSpent` / `spendReaction`): any reaction
+// an actor takes writes it, clocked to their own next turn, and the platform brings it back —
+// the two clear hooks that used to live here counted turns by hand. Out of combat nothing is
+// written (the old stranding guard, now the clock's own shape); a deleted combat sweeps the chip
+// with every other window it clocked (mastery.js's tidy).
 Hooks.on("dnd5e.postUseActivity", activity => {
-  // ⚠ The reactor's OWN client may set this when no GM is on (v1.27.2): the flag lives on the
-  // reacting actor, and a reaction is nearly always a PC's. Nothing to whisper — a player who
-  // cannot write it is not the one who reacted.
+  // ⚠ The reactor's OWN client may write this when no GM is on (v1.27.2): the chip lives on the
+  // reacting actor, and a reaction is nearly always a PC's.
   if ( !setting(S.reactionHold) ) return;
   if ( !drivesMomentFor(activity?.actor?.uuid ?? null) ) return;
   if ( activity?.activation?.type !== "reaction" ) return;
-  const actor = activity.actor;
-  // Only inside a running combat. Out of combat there are no turns to refresh the flag, so
-  // setting it would strand the actor with reactions permanently "spent" and silently
-  // suppress every later hold — including the next time you sit down to test one.
-  if ( !actor || !inRunningCombat(actor) ) return;
-  void actor.setFlag(MODULE_ID, "reactionSpent", true);
-});
-
-// Cleared when the actor's own turn comes round again.
-// ⚠ The CLEAR hooks are deliberately not gated on the feature toggle — only the SET is.
-// Killing the hold mid-combat (the §2.9 kill switch) used to strand every already-set
-// reactionSpent flag: the combat ended with the clears disabled, and re-enabling the
-// feature later silently suppressed those actors' first holds. Clearing is always harmless.
-Hooks.on("updateCombat", combat => {
-  const actor = combat.combatant?.actor;
-  if ( !drivesMomentFor(actor?.uuid ?? null) ) return;
-  if ( actor?.getFlag(MODULE_ID, "reactionSpent") ) void actor.unsetFlag(MODULE_ID, "reactionSpent");
-});
-
-// …and when the fight ends, so nobody carries a spent reaction into the next one.
-Hooks.on("deleteCombat", combat => {
-  // Per-combatant rather than per-room: with no GM each player clears their own, and the
-  // clear is harmless besides — it only ever removes a suppression.
-  for ( const combatant of combat.combatants ) {
-    const actor = combatant.actor;
-    if ( !actor?.getFlag(MODULE_ID, "reactionSpent") ) continue;
-    if ( !drivesMomentFor(actor.uuid) ) continue;
-    void actor.unsetFlag(MODULE_ID, "reactionSpent");
-  }
+  void spendReaction(activity.actor, { origin: activity.item?.uuid ?? null, what: activity.item?.name ?? "a Reaction" });
 });
 
 /**

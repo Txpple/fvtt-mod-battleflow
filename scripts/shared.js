@@ -3,7 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, activeCombatFor, canApplyTo, combatStamp } from "./core.js";
-import { CHIP_FLAG, chipClock, chitStamp } from "./decide/chips.js";
+import { CHIP_FLAG, chipClock, chitStamp, reactionStands } from "./decide/chips.js";
 import { foldsFrom, hitsAmong, modeAdmits } from "./decide/verdict.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -362,5 +362,53 @@ export async function writeTurnChit(actor, key, { name, img = null, description 
     name, img: img ?? "icons/svg/clockwork.svg", description, origin, disabled: false, transfer: false,
     ...chipData(clock),
     flags: { [MODULE_ID]: { [CHIP_FLAG]: key, ...(riderKey ? { riderKey } : {}) } }
+  }, { parent: actor });
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * THE REACTION CHIP (user, 2026-09-02). One Reaction per round, back at the start of the
+ * creature's own turn — a chip on the combat clock like every other window this module keeps,
+ * replacing the `reactionSpent` actor flag (whose two clear hooks were the module counting
+ * turns by hand). Every interrupt that spends the Reaction writes it; every hold's offer gate
+ * reads it. Out of combat there is no turn to bring it back, so nothing is written — the old
+ * flag's stranding guard, now the clock's own shape.
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * Is this creature's Reaction spent — a Reaction chip standing? By the platform's mark AND the
+ * stamp arithmetic (decide/chips.js `reactionStands`): the chip is dead once the reactor has
+ * begun a turn since it was written, whether or not a GM was there to write the mark.
+ */
+export function reactionSpent(actor) {
+  if ( !actor ) return false;
+  const chips = actor.effects?.filter(e => e.getFlag(MODULE_ID, CHIP_FLAG) === "reaction") ?? [];
+  if ( !chips.length ) return false;
+  const combat = activeCombatFor(actor);
+  const now = combat ? { round: combat.round, turn: combat.turn } : null;
+  const actorTurn = combat ? (combat.turns ?? []).findIndex(t => combat.getCombatantsByActor(actor).includes(t)) : null;
+  return chips.some(e => !e.duration?.expired && reactionStands({
+    start: e.start?.combat ? { round: e.start.round, turn: e.start.turn } : null, now, actorTurn }));
+}
+
+/**
+ * Spend the Reaction: the chip on the reactor, clocked to their own next turn. Only in the
+ * running combat they are part of; only where this client may write to them. A live chip is
+ * left standing (one Reaction is one Reaction).
+ * @param {Actor} actor
+ * @param {{origin?: string|null, what?: string}} [by]   what spent it, for the chip's description
+ */
+export async function spendReaction(actor, { origin = null, what = "a Reaction" } = {}) {
+  if ( !(actor instanceof Actor) || !canApplyTo(actor) ) return null;
+  const clock = chipClock("reaction", placeOf(actor));
+  if ( !clock?.start ) return null;                       // not in the running combat — no turn to bring it back
+  if ( reactionSpent(actor) ) return null;
+  const stale = actor.effects.filter(e => e.getFlag(MODULE_ID, CHIP_FLAG) === "reaction");
+  if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id));
+  return ActiveEffect.implementation.create({
+    name: "Reaction — used", img: "icons/svg/clockwork.svg",
+    description: `${actor.name} took ${what}. The Reaction comes back at the start of ${actor.name}'s next turn; until then no hold is offered.`,
+    origin, disabled: false, transfer: false,
+    ...chipData(clock),
+    flags: { [MODULE_ID]: { [CHIP_FLAG]: "reaction" } }
   }, { parent: actor });
 }
