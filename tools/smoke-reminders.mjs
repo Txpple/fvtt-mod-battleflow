@@ -70,7 +70,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   let priorBlade = null;
   let restored = false;
   const CHIP_NAMES = ['Vexed', 'Sapped', 'Slowed', 'Reduced Movement', 'Cleave — this turn'];
-  const STATUSES = ['prone', 'poisoned', 'blinded', 'incapacitated', 'frightened', 'restrained'];
+  const STATUSES = ['prone', 'poisoned', 'blinded', 'incapacitated', 'frightened', 'restrained', 'hiding'];
   const clearChips = async () => {
     for (const a of [victim, pc]) {
       const chips = a.effects.filter(e => e.getFlag(MOD, 'mastery') || CHIP_NAMES.includes(e.name));
@@ -141,7 +141,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // hand §10 a gate with no range in it (seen on the first live run, 2026-09-02).
     const SUITE_LISTS = {
       reminderList: 'vex, sap, prone, condition, range',
-      conditionList: 'blinded, invisible, paralyzed, petrified, poisoned, restrained, stunned, unconscious, frightened, grappled, incapacitated, dodging, charmed'
+      conditionList: 'blinded, invisible, hiding, paralyzed, petrified, poisoned, restrained, stunned, unconscious, frightened, grappled, incapacitated, dodging, charmed'
     };
     await set('reminderList', SUITE_LISTS.reminderList);
     await set('conditionList', SUITE_LISTS.conditionList);
@@ -556,6 +556,28 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('5c. a frightened attacker: Disadvantage, counted, with the caveat spelled out',
           /Frightened/.test(text) && /press Normal if the source of the fear is out of sight/.test(text) && /1 Modifier — Net Disadvantage/.test(text),
           text.slice(0, 300));
+        await closeGates();
+      }
+      await clearStatuses();
+      // Hiding (user, 2026-09-02): the system's own status, the glossary's Unseen Attackers
+      // clause — Advantage for a hidden attacker, Disadvantage against a hidden target, both
+      // with the can-it-see-you caveat.
+      await setStatus(pc, 'hiding', true);
+      {
+        const { dialog } = await gatedSwing();
+        const text = popupText(dialog);
+        ok('5d. a HIDING attacker: Advantage, counted, with the can-it-see-you caveat',
+          /Hiding/.test(text) && /press Normal if the other side can see you/.test(text) && /1 Modifier — Net Advantage/.test(text),
+          text.slice(0, 300));
+        await closeGates();
+      }
+      await clearStatuses();
+      await setStatus(victim, 'hiding', true);
+      {
+        const { dialog } = await gatedSwing();
+        const text = popupText(dialog);
+        ok('5e. a HIDING target: Disadvantage',
+          /is Hiding/.test(text) && /1 Modifier — Net Disadvantage/.test(text), text.slice(0, 300));
         await closeGates();
       }
       await clearStatuses();

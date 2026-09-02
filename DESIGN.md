@@ -334,10 +334,12 @@ rolling at all) is **listed and not counted**.
 **What the gate reads is membership** (R4): the Reminder Sources list names the KINDS — the
 attacker's own Vexed chip on a target, a Sapped chip on the attacker, Prone on either side with
 the 5-foot geometry, the condition table, and a ranged attack's own range — and the Condition
-Sources list names WHICH of the thirteen 2024 conditions count. Both lists are switches; an
+Sources list names WHICH of the thirteen 2024 conditions — and Hiding, the system's own status,
+which grants Invisible while hidden (user, 2026-09-02) — count. Both lists are switches; an
 empty Reminder Sources list is the gate turned off. **AC5e's knowledge, as data, never its
-code** (R-B, sharpened): the thirteen rows carry each condition's *Attacks Affected* clause
-verbatim from the world's own glossary, and a fourteenth costs a row and nothing else.
+code** (R-B, sharpened): the rows carry each condition's *Attacks Affected* clause verbatim
+from the world's own glossary (Hiding's is the glossary's *Unseen Attackers and Targets*), and
+the fourteenth cost a row and nothing else — Hiding proved it the day it was asked for.
 
 **A volley meets the gate at its aim** (user, 2026-09-02: *"go make the changes, including
 volley"*). Scorching Ray's rays roll with the dialog suppressed, so the dialog's gate never sees

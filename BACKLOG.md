@@ -134,7 +134,6 @@ untested path.
 | Item | Shape |
 | --- | --- |
 | **The reminder gate on other d20 tests** | The gate reads ATTACK rolls. Saving throws and ability checks have their own bends (Restrained on Dexterity saves, Poisoned on checks, Paralyzed's automatic failures) and the same pre-roll hook family (`dnd5e.preRollSavingThrowV2`, `preRollAbilityCheckV2` — templated like the attack one). Same mechanism, a second table. **Not asked for; surveyed only.** |
-| **Hiding as a reminder source** | 2024's Hiding condition gives Advantage on the attack that ends it; the system ships a `hiding` status. One row in `CONDITION_BENDS` and nothing else (the set and the shipped default derive from the table since 2026-09-01) — but it is not among the thirteen the user named, so it waits for a word. |
 | **The double reminder on a Vexing hit** | The Vexing hit's notice popup ("Advantage on your next attack") AND the gate at the next swing are both live — the second says what the first already said. Whether the notice should quieten when the gate is on is a table call. |
 
 ### Two content facts worth keeping

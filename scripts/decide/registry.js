@@ -132,7 +132,7 @@ export const RANGE_RULES = Object.freeze({
  * ⚠ ONE DECLARATION (review finding 8). The rows, the closed set the Condition Sources list is
  * validated against (`CONDITION_STATUSES`) and that list's shipped default were three hand-kept
  * copies; the set and the default are DERIVED from these keys now, so a fourteenth condition is
- * a row here and nothing else — R4's bargain, literally.
+ * a row here and nothing else — R4's bargain, literally (and Hiding was exactly that, 2026-09-02).
  *
  *   attacker   what the condition does to the bearer's OWN attack rolls
  *   target     what it does to attack rolls AGAINST the bearer
@@ -152,6 +152,13 @@ export const CONDITION_BENDS = Object.freeze({
     rule: "Attack rolls against you have Advantage, and your attack rolls have Disadvantage." }),
   invisible: Object.freeze({ attacker: "advantage", target: "disadvantage",
     rule: "Attack rolls against you have Disadvantage, and your attack rolls have Advantage. If a creature can somehow see you, you don’t gain this benefit against that creature." }),
+  // Hiding is the system's own status (dnd5e ships `hiding`, an icon with no condition
+  // behind it), not a 2024 condition: the Hide action grants Invisible "while hidden", and the
+  // attack clause is the glossary's Unseen Attackers and Targets (user, 2026-09-02 — the
+  // fourteenth row, and it cost this row and nothing else).
+  hiding: Object.freeze({ attacker: "advantage", target: "disadvantage",
+    rule: "When a creature can’t see you, you have Advantage on attack rolls against it. When you make an attack roll against a target you can’t see, you have Disadvantage on the roll.",
+    caveat: "counted — press Normal if the other side can see you" }),
   paralyzed: Object.freeze({ attacker: null, target: "advantage",
     rule: "Attack rolls against you have Advantage. Any attack roll that hits you is a Critical Hit if the attacker is within 5 feet of you." }),
   petrified: Object.freeze({ attacker: null, target: "advantage",

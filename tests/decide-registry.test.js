@@ -345,15 +345,16 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     expect(reg.LIST_SPECS.conditions.membership).toBe(true);
     expect(reg.REMINDER_KINDS.has("condition")).toBe(true);
     expect(reg.CONDITION_STATUSES.has("prone")).toBe(false);
-    expect(reg.CONDITION_STATUSES.size).toBe(13);
+    expect(reg.CONDITION_STATUSES.size).toBe(14);
   });
 });
 
 describe("CONDITION_BENDS — the table, and the set and the default DERIVED from it", () => {
-  it("is the thirteen, frozen, in the order the table reads them, each with its glossary clause", () => {
+  it("is the thirteen conditions and Hiding, frozen, in the order the table reads them, each with its glossary clause", () => {
     expect(reg.CONDITION_KEYS).toEqual([
       "blinded",
       "invisible",
+      "hiding",
       "paralyzed",
       "petrified",
       "poisoned",
