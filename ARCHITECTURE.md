@@ -254,7 +254,7 @@ that difference — do not tidy the nulls away.
 | `holdSkipped` (attack messages) | per flag, at the skip | the attacker whose swing outran the reaction |
 | `combatRoster` (a GM-whispered marker card per combat) | once at combatStart; closed (`endedRound`/`endedAt`) at deleteCombat | null — the roster is nobody's action |
 | `chipSpend` (attack messages, 2026-09-01) — `spent: [{id, name, key, uuid, bearer, mode, honoured}]`, the chips this attack roll used up | per flag, at the spend (the elect, on the attack card) | the attacker (whose swing spent them). `honoured` is against the gate's NET when the gate ran AND listed that chip's kind (`netShownFor`), else the chip's own bend. ⚠ This record is also the gate's memory: a chip whose spend is on record is never offered again, whatever the sheet says (a no-GM table cannot delete the monster's chip) |
-| `reminder` (attack messages the gate re-issued, 2026-09-01) — `sources: [{kind, bend, label}]`, `net`, `mode`, `honoured`, `answeredAt` | per flag, at the press, on the roller's client | the attacker. ⚠ Two new families for the MCP's scan `KEYS` — the accuracy meter can now split "rolled with Advantage because the table was reminded" from "rolled flat against the net" |
+| `reminder` (attack messages the gate met, 2026-09-01 — in the dialog, or a volley's ray judged at the aim since 2026-09-02) — `sources: [{kind, bend, label}]`, `net`, `mode`, `honoured`, `answeredAt` | per flag, at the press (a ray: as it fires), on the roller's client | the attacker. ⚠ Two new families for the MCP's scan `KEYS` — the accuracy meter can now split "rolled with Advantage because the table was reminded" from "rolled flat against the net" |
 
 **Second-pass fields (2026-08-27, the stats commission's follow-up):**
 
@@ -508,11 +508,11 @@ in milliseconds and impossible to tangle. **Keep it that way** — the day somet
 | [decide/geometry.js](scripts/decide/geometry.js) | `honestDims`, `tokenCenter`, `tokenSamplePoints` — the v14 region-shim knowledge; `lengthUnitKey` — a scene's units folded to the system's keys |
 | [decide/registry.js](scripts/decide/registry.js) | the world-setting list SPECS and the one `parseList`; the closed kind sets and the R4 tripwire; `MASTERY_RULES`, `CONDITION_BENDS` and `RANGE_RULES` — the rules text, the condition table and the range sentences, as data |
 | [decide/chips.js](scripts/decide/chips.js) | `CHIP_WINDOWS`, `chipClock`, `chipIsDead`, `chitStamp`, `chipSpentBy`, `chipHonoured`, `netShownFor`, `spendRecord` — a chip's clock, and what spends it |
-| [decide/reminders.js](scripts/decide/reminders.js) | `netMode`, `resolutionLine`, `proneSources`, `conditionSources` (over the registry's table), `rangeSources`, `reminderView`, `reminderRecord` — what bends a roll, what it nets to, and the boxes the dialog's section draws |
+| [decide/reminders.js](scripts/decide/reminders.js) | `netMode`, `resolutionLine`, `proneSources`, `conditionSources` (over the registry's table), `rangeSources`, `reminderView` (the header line and the boxes — no net block), `reminderRecord` — what bends a roll, what it nets to, and what the section draws |
 | [decide/verdict.js](scripts/decide/verdict.js) | `hitsAmong`, `modeAdmits`, `saveOutcome`, `saveMultiplier`, `verdictText`, and the fold layer (`ATTACK_FOLDS`, `SAVE_FOLDS`, `foldsFrom`, `foldedRoll`, `foldedVerdict`, `foldedSave`) |
 | [decide/eligible.js](scripts/decide/eligible.js) | `isDeadForSaves`, `limitedUses`, `isReactionItem`, `castLevelOf`, `clampVolleyCount`, `riderKey` |
 | [decide/receipt.js](scripts/decide/receipt.js) | `traitOutcome`, `hpDelta`, `receiptEntry`, `joinDamageReceipt`, `joinEffectReceipt`, `takenOf`, `receiptAmounts`, `revertPlan`, `revertableEffect` |
-| [decide/present.js](scripts/decide/present.js) | `popupKey`, `TONE`, `bfCard`, `ruleLine`, `momentBarHTML`, `holdBarHTML`, `nextCascadeSlot`, `cascadePosition`; `situationalBonusHTML`, `modeButtons` — the controls every popup that stands in for a roll dialog carries; `reminderFieldsetHTML` — the gate's section inside the system's own roll dialog; the rescue view's row model and markup |
+| [decide/present.js](scripts/decide/present.js) | `popupKey`, `TONE`, `bfCard`, `ruleLine`, `momentBarHTML`, `holdBarHTML`, `nextCascadeSlot`, `cascadePosition`; `situationalBonusHTML`, `modeButtons` — the controls every popup that stands in for a roll dialog carries; `modeTone`, `modeTagHTML` — the one mode tag, one meaning per hue; `reminderSectionHTML` / `reminderFieldsetHTML` / `reminderDetailsHTML` — the gate's section bare, inside the system's own roll dialog, and folded to its header line for a volley's ray rows; the rescue view's row model and markup |
 | [geometry.js](scripts/geometry.js) | EDGE, not in the layer: `tokensInTemplates`, `templateShape` — they need canvas/CONFIG/PIXI |
 
 ⚠ **`receiptAmounts` returns the row's TEXT as well as its figures, deliberately.** The two bugs
@@ -646,7 +646,7 @@ The module rides **public hooks and document writes only** (R3). The seams it de
 | `Actor5e#rollSavingThrow` / `rollConcentration` | real saves (N1) |
 | the message registry (`originatingMessage`, `getAssociatedRolls`) | chain resolution — **we ride the system's registry, never a parallel one** |
 | turn events (`dnd5e.preCombatRecovery`, combat hooks) | per-turn clears |
-| `dnd5e.preRollAttackV2` (templated, pinned) · `renderRollConfigurationDialog` · `dnd5e.postRollConfiguration` | the reminder gate: judge the sources and force the dialog; draw the section into the dialog on each render; record what was pressed — **the dialog is the system's own, we add one fieldset and set its default** (DESIGN §5) |
+| `dnd5e.preRollAttackV2` (templated, pinned) · `renderRollConfigurationDialog` · `dnd5e.postRollConfiguration` | the reminder gate: judge the sources and force the dialog; draw the section into the dialog on each render; record what was pressed — **the dialog is the system's own, we add one fieldset and set its default** (DESIGN §5). The same judge (`reminders.js` `judgeRoll`) runs in the volley aim popup per ray, and the ray's record rides the roll's own message data (DESIGN §6) |
 
 ### Version pinning
 

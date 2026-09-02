@@ -271,6 +271,13 @@ created message. A closed dialog hands back no rolls. (6) The ranged/melee quest
 `activity.attack.type.value`, and a thrown weapon is the dialog's attack mode `thrown`/`thrown-offhand`;
 a weapon's normal/long range is `item.system.range.{value, long, units}` unless
 `activity.range.override`, a spell's is the activity's single `range.value`.
+(7) A volley's rays never reach these seams — they roll `configure: false` — so the gate's judge
+(`reminders.js` `judgeRoll`, a target and a spent-set handed in) runs in the volley's own aim
+popup per ray, and the record goes out on the ray's roll as message DATA
+(`flags.<module>.reminder` on `rollAttack`'s message config), which is exactly where
+`postRollConfiguration` would have put it. A `<details>` element folds a section to its summary
+natively — no toggle code, and `textContent` still reads the folded boxes, so a suite can assert
+them closed.
 
 **⚠ AT PRE-ROLL TIME `originatingMessage` COMES IN THREE SHAPES, AND ON THE BUTTON FLOW IT IS NOT
 THERE AT ALL (review findings 2 and 12, 2026-09-01; the re-issue those findings were about is
@@ -620,6 +627,13 @@ system could answer it, and it could, twice over (§2). ⚠ **The tell is a bloc
 measurement.** D2's stale evidence row, the by-hand import graph and the sleep budget were all
 this same shape: an argument everyone accepted because nobody had taken the reading.
 
+**A record lands a round trip before its delete, and anything created in between meets the
+thing twice.** The chip spend writes its receipt first (R5), then deletes the chip; a volley's
+ray 2 was created in that gap and wrote the same Vex up again (smoke-volleys §10j, 2026-09-02).
+The log-walk guard (`chipSpentOnRecord`) covers the case across time; an in-flight set on the
+client covers the gap. Any consequence that is "record, then mutate" has this gap, and a second
+event inside it is not hypothetical when events are driven back to back.
+
 **An instrument that can break what it measures is worth less than a coarser one that cannot.**
 The hook ledger wraps `Hooks.call`/`callAll` rather than replacing the module's own callbacks in
 `Hooks.events`, which would have given per-registration truth and put live function identities at
@@ -749,6 +763,16 @@ settings pinned; the immediately-following green rerun snapshotted those pins as
 faithfully restored. Eleven settings drifted with every suite reporting success. Settings-first
 restore cannot catch this — **only an external reference can.** Verify world settings against
 the reference table after every battery.
+
+**⚠ A MID-RUN RESTORE GOES BACK TO THE SUITE'S OWN BASELINE, NEVER THE WORLD'S PRIOR
+(2026-09-02).** `smoke-reminders` §6 turns the Reminder Sources list off to prove the list is
+the switch, then put it back to `prior.reminderList` — the world's value from before the suite
+pinned its own. The day `range` joined the kinds, the world still carried the pre-range list
+(verify-settings read it as drift, correctly), so every section after §6 judged with range
+DISABLED: §10's four range checks failed in a full run and passed under `--section 10`, and a
+live probe showed the feature working — the failure was the suite's alone. `prior` is for the
+TEARDOWN; inside the run, restore to the constant the suite itself pinned. The tell is the
+same as the launder above: a section-only run that is greener than the full run.
 
 **Every teardown restores SETTINGS FIRST, in its own guard.** The teardowns used to run one
 try/catch around the whole cleanup with the restore in the middle, so any earlier cleanup error

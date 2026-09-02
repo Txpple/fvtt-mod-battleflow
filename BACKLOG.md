@@ -74,6 +74,7 @@ are guessing, and a wrong shared part is worse than an honest sideways one.
 | `saves → maneuvers` | a **third** choice kind, to prove the registry's shape |
 | `saves ↔ d20-folds` | a **second** machine that needs withhold-and-resume, before it becomes a spine primitive |
 | `saves → receipts` | `receipts.js` gaining a **second** importer |
+| `volleys → reminders` (BY DESIGN, 2026-09-02) | a **third** surface for the gate's judge (`judgeRoll` — the dialog's gate and the volley's aim are two), to prove a spine home |
 
 ⚠ **Self-expiring:** the pins live in [tools/check-layers.mjs](tools/check-layers.mjs) and
 `npm run layers` fails on a pin whose edge has GONE, as well as on an edge with no pin. **Repay
@@ -135,7 +136,6 @@ untested path.
 | **The reminder gate on other d20 tests** | The gate reads ATTACK rolls. Saving throws and ability checks have their own bends (Restrained on Dexterity saves, Poisoned on checks, Paralyzed's automatic failures) and the same pre-roll hook family (`dnd5e.preRollSavingThrowV2`, `preRollAbilityCheckV2` — templated like the attack one). Same mechanism, a second table. **Not asked for; surveyed only.** |
 | **Hiding as a reminder source** | 2024's Hiding condition gives Advantage on the attack that ends it; the system ships a `hiding` status. One row in `CONDITION_BENDS` and nothing else (the set and the shipped default derive from the table since 2026-09-01) — but it is not among the thirteen the user named, so it waits for a word. |
 | **The double reminder on a Vexing hit** | The Vexing hit's notice popup ("Advantage on your next attack") AND the gate at the next swing are both live — the second says what the first already said. Whether the notice should quieten when the gate is on is a table call. |
-| **Volley spells and the gate** (user, 2026-09-02 — **NEXT SESSION**) | A volley's rays roll with `configure: false`, so the gate never meets them: no reminder on a Scorching Ray at a Vexed target, no range judgement on a Magic Missile at long range. And a Sapped attacker's Sap is SPENT by the FIRST ray (the spend fires on the first attack message) while the rules say "its next attack roll" — one ray, and the rest of the volley rolls unreminded and unspent-for. The shape to decide: the gate meets the volley's aim popup once (one section, one press for the whole volley?) or each ray; and whether Sap should be spent by the volley as a whole. Recorded here so the next session opens on it. |
 
 ### Two content facts worth keeping
 

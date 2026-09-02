@@ -287,9 +287,16 @@ more like the native UI?"*). The dialog opens as it always does — forced open 
 fast-forward key, because a reminder that a shift-click skips is no reminder — and Battle Flow
 adds ONE section to it, shaped like the dialog's own CONFIGURATION: **a box per source** (user:
 *"boxes holding each condition"*) with the fact, the bend as a badge, and the rule quoted
-verbatim; then **the net, only when sources contend or one is Listed** — sources that all bend
-the same way ARE the net by their badges, and the line under them was vertical space saying the
-same thing (user, 2026-09-02) — with the Rules Glossary's own sentence on why.
+verbatim — under **one header line, the count and the net as a coloured tag** ("2 Modifiers —
+Net [Advantage]"). **There is no net block** (user, 2026-09-02: *"just not having the net"* —
+the tag on the header IS the net, the boxes under it are why, and the arithmetic rides the
+header as its tooltip). **One palette, one meaning per hue, everywhere the module paints**
+(user, the same day: *"normalize the palette"*): green is good for you (Advantage, saved,
+honoured, paid), red is bad for you (Disadvantage, failed, it landed anyway), orange is waiting
+on you (every popup spine, the timer bar), yellow is a critical hit, grey is nothing bending —
+Normal is grey because colour means the roll bends and Normal is the absence of one, and Listed
+is the grey OUTLINE, told from Normal by fill, never by hue. Blue stays out; dnd5e means healing
+by it. Foundry's disposition colours and dnd5e's damage maroon are the platform's.
 The human presses one of the dialog's own three buttons and the roll goes out natively —
 the card link, the crit, the attack mode, the ammunition, the mastery, the roll mode, the
 situational bonus and the spell's consume choice are all the system's, untouched. **Nothing is
@@ -332,8 +339,25 @@ empty Reminder Sources list is the gate turned off. **AC5e's knowledge, as data,
 code** (R-B, sharpened): the thirteen rows carry each condition's *Attacks Affected* clause
 verbatim from the world's own glossary, and a fourteenth costs a row and nothing else.
 
-**What the gate never touches:** a roll whose caller suppressed the dialog — the resolver's
-own rolls, a volley's rays, a riposte inside a fold, a macro, the suites. No dialog, no gate.
+**A volley meets the gate at its aim** (user, 2026-09-02: *"go make the changes, including
+volley"*). Scorching Ray's rays roll with the dialog suppressed, so the dialog's gate never sees
+them — and the aim popup already holds every fact the gate needs: the caster, one target per
+ray, one mode per ray, and the order the rays fire in. So the gate's own judge runs there, once
+per ray, in ray order: each ray row carries the section **folded to its header line** (user:
+*"for the rays, start in collapsed mode"* — a native `<details>`; the tag says what the ray
+rolls without opening it), the ray's mode select **defaults to its net** (the highlighted-button
+ruling, again), re-aiming a ray re-judges every ray after it, and one press fires the volley.
+**Spends are carried forward in ray order, and that is canon (N1):** Sap bends *"its next attack
+roll"* and Vex *"your next attack roll against that creature"* — ONE ray each — so the chip shows
+on the first ray that uses it, marked *spent by this ray*, and on no ray after; the spend hook
+was already right, the silence was the bug. Each ray's attack card carries the same record the
+dialog's gate stamps, so the card line and the stats plane read a ray exactly as they read a
+sword. Darts are damage, not attack rolls: nothing to judge, nothing drawn. (Spending Sap on the
+volley as a whole is a house rule — §8.)
+
+**What the gate never touches:** a roll whose caller suppressed the dialog and has no aim of its
+own — the resolver's own rolls, a riposte inside a fold, a macro, the suites. No dialog, no
+gate.
 
 **⚠ PRONE IS THE NAMED EXCEPTION, AND IT STAYS PASSIVE (user call, 2026-09-01).** It is pressed
 as a status with no duration, so it sits in Passive — and that is correct rather than tolerated.
@@ -391,3 +415,4 @@ was written to prevent.
 | **A post-roll "second die" rescue for a forgotten Advantage** | **NOT SHIPPING** (user, 2026-09-01: *"I don't want a rescue, I want proactivity"*). The reminder is the GATE before the roll (§5); a rescue that rolls a second d20 after a flat roll is the shape that was put and declined. | the user asking for it, by name |
 | **Netting multiple sources of Advantage/Disadvantage by count** | **NEVER.** Any Advantage against any Disadvantage is a normal roll, however many of each (user ruling 2026-09-01; the Rules Glossary's own sentence). A "majority wins" reading is wrong and stays wrong. | nothing. It is the rule. |
 | **Vendoring AC5e's code** | **CLOSED 2026-09-01 — its TABLE shipped as data instead** (DESIGN §5 *the gate*; `decide/reminders.js` `CONDITION_BENDS`). Its behaviour — silently setting the roll mode — is the thing the user said no to; its geometry features (range bands, nearby foes, flanking, armour, encumbrance) were never wanted. | a table asking for the geometry features, by name |
+| **Spending Sap or Vex on a volley as a whole** | **NOT SHIPPING (2026-09-02).** The rules spend Sap on *"its next attack roll"* and Vex on *"your next attack roll against that creature"* — one attack roll, and each ray of a volley is one. So ray 1 spends the chip and the rays after it roll unbent, and the aim popup SAYS so on ray 1's row. Three rays at Disadvantage for one Sap hit is generous to the Sapper and is not the text (N1). Reopens only on a rules revision that says "attack action" where it says "attack roll". |
