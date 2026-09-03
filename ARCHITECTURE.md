@@ -604,12 +604,12 @@ module-eval time — that is the only reason the existing import cycles are safe
 
 ## 8. The settings surface
 
-**33 settings: 31 world, 2 client** (the Clock Riders list joined 2026-09-02). Every feature is a world setting, default **OFF**.
+**33 settings: 31 world, 2 client** (the Clock Riders list joined 2026-09-02). Every feature is a world setting, default **ON** since 2026-09-03 (user call: *"have it ship all on"*) — the shipped defaults and the reference table in `tools/verify-settings.mjs` are meant to agree, and a fresh world comes up as this table plays. ⚠ A Foundry default applies only where a setting has never been written, so existing worlds were untouched by the flip.
 
 ### Rules
 
-1. **One switch per feature**, and it ships off. Asking the table to opt into the same answer
-   twice is the failure this rule exists to prevent.
+1. **One switch per feature**, and it ships on (off until 2026-09-03). Asking the table to opt
+   into — or out of — the same answer twice is the failure this rule exists to prevent.
 2. **Entry-point hooks check their toggle; view and continuation hooks check for their flag.**
    An already-stamped moment must still render and resolve after a mid-session kill, or the
    switch strands live state.

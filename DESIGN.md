@@ -92,8 +92,12 @@ Combat should move. Every design choice is weighed against whether it makes the 
   fits a shipped feature belongs on the list whether or not anyone has cast it.
 - **Dogfooding is the development method, and the table sets priority.** Nothing ships that
   has not been played. What the table needs decides *order of work* — never *bounds of scope*.
-- **Every feature is individually toggleable and ships OFF**, so the ladder is walked one
-  setting at a time and any feature can be killed mid-session without touching the others.
+- **Every feature is individually toggleable, and ships ON** (user call 2026-09-03: *"have it
+  ship all on"* — a fresh table gets the configuration this table plays, every machine live).
+  One switch per feature still, so any feature can be killed mid-session without touching the
+  others. *(Until 2026-09-03 every feature shipped OFF so the ladder could be walked one setting
+  at a time; the ladder has been walked, and the shipped defaults now match the reference table
+  in `tools/verify-settings.mjs`.)*
 - **Every feature must be individually deletable** the day the system ships it natively.
   Being made redundant is the success condition, not a risk.
 

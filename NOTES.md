@@ -839,7 +839,11 @@ moment no role-4 client is around — which is why leaked processes matter.
 
 **The world-settings reference table lives in `tools/verify-settings.mjs`, and only there.** It
 was previously mirrored in a doc; a mirror is a thing that drifts. When the user changes a
-setting, update that table — never fight the world to match a stale copy.
+setting, update that table — never fight the world to match a stale copy. **Since 2026-09-03 the
+shipped defaults in `scripts/settings.js` are meant to agree with it** (user call: everything
+ships on), so a table change is two edits, the reference and the default. ⚠ The tool exits 1
+on unfixed drift since the same day — a battery once printed "settings clean" over six drifted
+settings because drift alone exited 0.
 
 **⚠ Run suites one at a time, not chained in a single shell command.** A back-to-back battery
 produced exactly one polluted assertion — a message-count delta of −20 — green in isolation,

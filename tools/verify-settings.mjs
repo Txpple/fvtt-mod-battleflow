@@ -101,4 +101,7 @@ else {
   console.log(`[verify] ${out.drift.length} drifted${FIX ? ', restored' : ' — rerun with --fix to restore'}.`);
 }
 await disposeSafely(f, 'verify');
-process.exit(out.missing.length ? 2 : 0);
+// ⚠ Drift left in place is a non-zero exit (2026-09-03): the battery reads this code for its
+// CLEAN/DRIFTED line, and one run printed CLEAN over six drifted settings because drift alone
+// exited 0. --fix restores and exits 0; unregistered keys stay 2.
+process.exit(out.missing.length ? 2 : (out.drift.length && !FIX) ? 1 : 0);

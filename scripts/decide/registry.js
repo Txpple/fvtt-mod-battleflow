@@ -821,7 +821,7 @@ export const LIST_SPECS = {
     // ⚠ The list IS the switch (the v1.19.0 idiom): every entry is a kind the gate knows how to
     // read, and an empty list turns the gate off. Unknown kinds are dropped with a warning.
     columns: ["kind"], kindColumn: "kind", kinds: REMINDER_KINDS, fallback: null,
-    default: "vex, sap, prone, condition, range, sneak"
+    default: "vex, sap, prone, condition, range, effect, sneak"
   },
   conditions: {
     label: "Condition Sources", setting: "conditionList",

@@ -13,7 +13,7 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.autoDamage, {
     name: "Auto-Roll Damage on Hit",
     hint: "When an attack hits at least one of its selected targets, the damage rolls itself on the attacker's own client — no dialog, crit pre-applied. A miss rolls nothing. Attacks must be made with targets selected. The mode gates on who is ATTACKING: \"NPC\" resolves the monster side only (the GM's own client does the work), \"PC\" the player side only, \"Everyone\" both.",
-    scope: "world", config: true, type: String, default: "off",
+    scope: "world", config: true, type: String, default: "all",
     choices: { off: "Off", npc: "NPC Attacks Only", pc: "PC Attacks Only", all: "Everyone" }
   });
 
@@ -56,13 +56,13 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.autoApply, {
     name: "Auto-Apply Damage",
     hint: "The active GM's client applies a rolled attack's damage to the targets that attack hit, through the system's own resistance and immunity math. Every application leaves a receipt on the damage card with a per-target revert. The native damage tray stays available for manual calls, and collapses on applied cards as if Apply had been pressed.",
-    scope: "world", config: true, type: Boolean, default: false
+    scope: "world", config: true, type: Boolean, default: true
   });
 
   game.settings.register(MODULE_ID, S.requireTarget, {
     name: "Require a Target to Attack",
     hint: "Using an attack with no target selected shows a warning and cancels the attack before anything is rolled or consumed. The whole resolver keys off targets — this makes the table discipline structural.",
-    scope: "world", config: true, type: Boolean, default: false
+    scope: "world", config: true, type: Boolean, default: true
   });
 
   // The suppression machinery (the 1.1 master + the 1.9D buckets) was REMOVED at v1.10.0
@@ -88,7 +88,7 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.reactionHold, {
     name: "Reaction Hold",
     hint: "When an attack hits someone holding an interrupt reaction (Shield and friends), pause before the damage instead of resolving instantly — the target's player chooses to cast or pass, and the GM can always override. A pause, never automation: the module waits for a human, it never plays the reaction.",
-    scope: "world", config: true, type: Boolean, default: false
+    scope: "world", config: true, type: Boolean, default: true
   });
 
   game.settings.register(MODULE_ID, S.interruptList, {
@@ -156,7 +156,7 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.riders, {
     name: "Hit Riders",
     hint: "Fold a marked target's extra damage into the attack's own damage roll — Hunter's Mark's 1d6 force arrives with the sword instead of waiting for a second button. Only ever adds damage the caster has already earned: the mark must be on the target, and it must be THIS attacker's mark.",
-    scope: "world", config: true, type: Boolean, default: false
+    scope: "world", config: true, type: Boolean, default: true
   });
 
   game.settings.register(MODULE_ID, S.riderList, {
@@ -211,13 +211,13 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.effectRiders, {
     name: "Effect Riders",
     hint: "A hit applies the effects riding it: the attack's own effects land on the targets it hit, through the system's application path — Ray of Frost's slow arrives with its damage instead of waiting for a click in the card's tray. Every application leaves a receipt on the damage card with a per-effect revert.",
-    scope: "world", config: true, type: Boolean, default: false
+    scope: "world", config: true, type: Boolean, default: true
   });
 
   game.settings.register(MODULE_ID, S.masteryRiders, {
     name: "Weapon Mastery Riders",
     hint: "A weapon mastery pays out with the attack that earned it. Vex and Sap apply themselves (the rules give no choice); Slow, Topple, Push and Graze are the wielder's option — see Ask First. Effects are visible chips with the rule in their description; nothing ever modifies a d20, and Cleave/Nick (extra attacks) stay native. On-hit payouts ride the damage roll wherever it came from — the resolver's auto-roll or the native Damage button. Graze alone needs the attack resolver on: a miss has no damage button to press.",
-    scope: "world", config: true, type: Boolean, default: false
+    scope: "world", config: true, type: Boolean, default: true
   });
 
   game.settings.register(MODULE_ID, S.masteryAsk, {
@@ -281,7 +281,7 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.concMode, {
     name: "Concentration Checks",
     hint: "When a concentrating creature takes damage, run the save instead of leaving the system's whisper card to be forgotten. \"Prompt\" pops the check up for whoever owns the concentrator — what hit them, for how much, the DC — with one button: Roll. \"Auto\" skips the popup and just rolls. Either way the dice land on the owning player's client when one is connected (their character, their dice), the GM's otherwise, and NPC concentrators get the identical treatment GM-side.",
-    scope: "world", config: true, type: String, default: "off",
+    scope: "world", config: true, type: String, default: "prompt",
     choices: { off: "Off", prompt: "Prompt to roll", auto: "Roll automatically" }
   });
 
@@ -307,7 +307,7 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.saves, {
     name: "Resolve Saving Throws",
     hint: "A save spell or ability runs its own saves: each targeted creature's save pops up on the client that owns it — the native dialog's controls (situational bonus, Advantage/Normal/Disadvantage) — and the verdict applies the consequences: the card's damage in full on a failure or per the spell's own word on a success (half, none), a failure applies the card's effects. NPCs and offline owners resolve on the GM's client; the card's native buttons keep working. Per target and independent — nobody waits on anyone else's dice. Damage application honors Auto-Apply Damage; legendary resistance overturns a folded failure, receipts and all.",
-    scope: "world", config: true, type: Boolean, default: false
+    scope: "world", config: true, type: Boolean, default: true
   });
 
   game.settings.register(MODULE_ID, S.saveTimer, {
@@ -320,7 +320,7 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.castApply, {
     name: "Auto-Apply on Cast",
     hint: "A cast with no roll to gate on resolves itself: a no-save spell's effects land on every target it was aimed at (Bless on all three, Hunter's Mark's mark on the quarry), and healing rolls its dice and lands (Healing Word). Receipts with per-target revert, as everywhere. Attack spells ride the hit under Effect Riders; save spells wait for the saves phase; plain damage spells (Magic Missile) keep their manual tray — the reaction that negates them must stay answerable.",
-    scope: "world", config: true, type: Boolean, default: false
+    scope: "world", config: true, type: Boolean, default: true
   });
 
   game.settings.register(MODULE_ID, S.resourceNotices, {

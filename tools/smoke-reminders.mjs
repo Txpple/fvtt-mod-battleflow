@@ -555,21 +555,22 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       {
         const { dialog } = await gatedSwing();
         const text = popupText(dialog);
-        ok('5c. a frightened attacker: Disadvantage, counted, with the caveat spelled out',
-          /Frightened/.test(text) && /press Normal if the source of the fear is out of sight/.test(text) && /1 Modifier — Net Disadvantage/.test(text),
+        // The label is the fact alone (user, 2026-09-02); the quoted rule carries the condition.
+        ok('5c. a frightened attacker: Disadvantage, counted, the rule quoted',
+          /— Frightened/.test(text) && /while the source of fear is within line of sight/.test(text) && /1 Modifier — Net Disadvantage/.test(text),
           text.slice(0, 300));
         await closeGates();
       }
       await clearStatuses();
       // Hiding (user, 2026-09-02): the system's own status, the glossary's Unseen Attackers
-      // clause — Advantage for a hidden attacker, Disadvantage against a hidden target, both
-      // with the can-it-see-you caveat.
+      // clause — Advantage for a hidden attacker, Disadvantage against a hidden target; the
+      // quoted clause says who must be unable to see whom.
       await setStatus(pc, 'hiding', true);
       {
         const { dialog } = await gatedSwing();
         const text = popupText(dialog);
-        ok('5d. a HIDING attacker: Advantage, counted, with the can-it-see-you caveat',
-          /Hiding/.test(text) && /press Normal if the other side can see you/.test(text) && /1 Modifier — Net Advantage/.test(text),
+        ok('5d. a HIDING attacker: Advantage, counted, the Unseen Attackers clause quoted',
+          /— Hiding/.test(text) && /When a creature can’t see you, you have Advantage/.test(text) && /1 Modifier — Net Advantage/.test(text),
           text.slice(0, 300));
         await closeGates();
       }
@@ -728,8 +729,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           {
             const { dialog } = await gatedSwing({ activity: dartAttack() });
             const text = popupText(dialog);
-            ok('10. a dart at an adjacent enemy: within 5 feet of an enemy — Disadvantage, with the caveat, and no range box (5 feet is within normal range)',
-              !!dialog && /within 5 feet of Hobgoblin/.test(text) && /press Normal if none of them can see you/.test(text)
+            ok('10. a dart at an adjacent enemy: within 5 feet of an enemy — Disadvantage, the rule quoted, and no range box (5 feet is within normal range)',
+              !!dialog && /Ranged attack within 5 feet of Hobgoblin/.test(text) && /within 5 feet of an enemy who can see you/.test(text)
                 && /1 Modifier — Net Disadvantage/.test(text) && !/beyond/.test(text),
               text.slice(0, 320));
             ok('10a. …and Disadvantage is the highlighted default', defaultButton(dialog) === 'disadvantage', `default=${defaultButton(dialog)}`);
@@ -893,14 +894,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await closeGates();
         }
         await unplant();
-        // 11e: Pack Tactics — a FEATURE by name, counted with its caveat.
+        // 11e: Pack Tactics — a FEATURE by name, counted; the quoted rule names the ally within
+        // 5 feet (the label is the fact alone, user 2026-09-02).
         [packTactics] = await pc.createEmbeddedDocuments('Item', [{ name: 'Pack Tactics', type: 'feat', system: { description: { value: '' } } }]);
         created.items.push({ actorId: pc.id, id: packTactics.id });
         {
           const { dialog } = await gatedSwing();
           const text = popupText(dialog);
-          ok('11e. Pack Tactics as a feature: counted, Advantage, with the 5-foot-ally caveat',
-            /Pack Tactics \(counted — press Normal if no ally of the attacker is within 5 feet of the target\)/.test(text)
+          ok('11e. Pack Tactics as a feature: counted, Advantage, the rule quoted',
+            /— Pack Tactics/.test(text) && /at least one of its allies is within 5 feet of the creature/.test(text)
               && /1 Modifier — Net Advantage/.test(text), text.slice(0, 300));
           await closeGates();
         }

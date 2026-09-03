@@ -2,7 +2,7 @@
  * Battle Flow — combat resolution that flows (DESIGN.md is the north star).
  *
  * Phase 1: the attack resolver. Two independent halves plus receipts, each behind its own
- * world setting (Game Settings → Configure Settings → Battle Flow), all default OFF:
+ * world setting (Game Settings → Configure Settings → Battle Flow), all default ON since 2026-09-03 (they shipped OFF before; the defaults match tools/verify-settings.mjs):
  *
  *   - Auto-Roll Damage on Hit: when an attack roll resolves on the attacker's own client,
  *     re-run the system's hit test against the targets snapshotted on the attack message and,
