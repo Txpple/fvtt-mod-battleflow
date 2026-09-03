@@ -5,6 +5,8 @@
 import { MODULE_ID, TITLE, S, setting, isActiveGM, isFlowElectFor, canApplyTo, whisperNoGM,
   queueFlagWrite, statContext } from "./core.js";
 import { receiptEntry, joinDamageReceipt } from "./decide/receipt.js";
+import { interruptMultiplier } from "./decide/verdict.js";
+import { INTERRUPT_MULTIPLIERS } from "./decide/registry.js";
 import { hitTargets, resolveAttackMessage, damagePartsOf, statSourceOf } from "./shared.js";
 import { applyEffectRiders } from "./effect-riders.js";
 import { resolveHitMastery } from "./mastery.js";
@@ -103,7 +105,7 @@ async function resolveDamagePayouts(damageMessage, attackMessage, hits) {
   const blocked = hits.length - writable.length;
 
   if ( setting(S.autoApply) ) {
-    if ( writable.length ) await applyToHitTargets(damageMessage, writable);
+    if ( writable.length ) await applyToHitTargets(damageMessage, attackMessage, writable);
     if ( blocked ) await whisperNoGM(`damage to ${blocked} target${blocked === 1 ? "" : "s"}`,
       "The roll stands — apply it from the card's damage tray.");
   }
@@ -122,8 +124,24 @@ async function resolveDamagePayouts(damageMessage, attackMessage, hits) {
  * authoritative. The receipt records the pre-application SOURCE hp so a revert restores the
  * exact stored values.
  */
-async function applyToHitTargets(damageMessage, hits) {
-  await applyDamagesWithReceipt(damageMessage, hits, damagePartsOf(damageMessage.rolls));
+async function applyToHitTargets(damageMessage, attackMessage, hits) {
+  const damages = damagePartsOf(damageMessage.rolls);
+  // A HELD attack lands per reactor (user, 2026-09-02): a target whose damage-kind reaction
+  // was cast and is in the multiplier table (Uncanny Dodge) takes its share at that
+  // multiplier, with the receipt row saying why; everyone else takes it whole. The split is
+  // by multiplier, so a two-rogue volley still makes one application per group.
+  const hold = attackMessage?.getFlag(MODULE_ID, "hold");
+  const groups = new Map();
+  for ( const target of hits ) {
+    const found = (hold?.status === "resolved")
+      ? interruptMultiplier(hold.targets?.find(t => t.uuid === target.uuid), INTERRUPT_MULTIPLIERS) : null;
+    const key = found ? `${found.multiplier}|${found.note}` : "1|";
+    if ( !groups.has(key) ) groups.set(key, { multiplier: found?.multiplier ?? 1, note: found?.note, hits: [] });
+    groups.get(key).hits.push(target);
+  }
+  for ( const { multiplier, note, hits: group } of groups.values() ) {
+    await applyDamagesWithReceipt(damageMessage, group, damages, { multiplier, ...(note ? { note } : {}) });
+  }
 }
 
 /**

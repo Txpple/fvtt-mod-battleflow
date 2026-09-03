@@ -34,6 +34,19 @@ export const MANEUVER_KINDS = new Set(["precision", "riposte", "interpose", "bas
 export const INTERRUPT_KINDS = new Set(["ac", "damage"]);
 
 /**
+ * DAMAGE INTERRUPTS THE MODULE CAN SETTLE ITSELF (user, 2026-09-02: "uncanny dodge … doesn't
+ * half the damage"): a `damage`-kind reaction whose whole effect is a MULTIPLIER on the
+ * triggering attack's damage. The applier lands the reactor's share at that multiplier and the
+ * receipt row says why; a damage interrupt not listed here (Absorb Elements — resistance to one
+ * type; Deflect Attacks — reduce by a roll) stays "reduce by hand", because its arithmetic is
+ * not a number the module can read. Keyed by the Interrupt list's own names.
+ */
+export const INTERRUPT_MULTIPLIERS = Object.freeze({
+  "Uncanny Dodge": Object.freeze({ multiplier: 0.5,
+    rule: "When an attacker that you can see hits you with an attack roll, you can take a Reaction to halve the attack’s damage against you (round down)." })
+});
+
+/**
  * The closed set of D20 FOLD kinds — the three surveyed features (v1.23.0), which are one
  * mechanism wearing three different SPENDS. The arithmetic they share already shipped with D8
  * (`foldedRoll`/`foldedVerdict`/`foldedSave` handle `add` and `replace` on both sides); what

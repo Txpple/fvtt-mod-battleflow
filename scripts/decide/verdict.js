@@ -301,6 +301,25 @@ export function foldedSave({ total, dc, forced = false, folds = [] }) {
  *
  * ⚠ null means no application AND NO RECEIPT — never a receipt for zero.
  */
+/**
+ * A HELD ATTACK's damage against one reactor, from the hold's own record (user, 2026-09-02:
+ * "uncanny dodge … doesn't half the damage"): a `damage`-kind reaction answered CAST, named
+ * in the multiplier table, lands at the table's multiplier — Uncanny Dodge halves. Anything
+ * else is null: full damage, no note, the "reduce by hand" card stands for the rest.
+ * @param {{answer?: string|null, kind?: string, reaction?: string}|null|undefined} target  the hold's target entry
+ * @param {Readonly<Record<string, {multiplier: number, rule?: string}>>} table
+ * @returns {{multiplier: number, reaction: string, note: string}|null}
+ */
+export function interruptMultiplier(target, table) {
+  if ( !target || (target.answer !== "cast") || (target.kind !== "damage") ) return null;
+  const key = Object.keys(table ?? {}).find(k => k.toLowerCase() === String(target.reaction ?? "").toLowerCase());
+  if ( !key ) return null;
+  const multiplier = Number(table?.[key]?.multiplier);
+  if ( !Number.isFinite(multiplier) || (multiplier === 1) ) return null;
+  const how = (multiplier === 0.5) ? "halved" : `×${multiplier}`;
+  return { multiplier, reaction: key, note: `${key} — ${how}` };
+}
+
 export function saveMultiplier(entry, damageOnSave) {
   // Interpose (finding ⑥, recut by walk-5 (y)): an accepted Reaction turns the successful
   // save's half into NOTHING — no application, no receipt; the settle card is the record.

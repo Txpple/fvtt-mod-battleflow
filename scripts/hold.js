@@ -6,6 +6,8 @@ import { MODULE_ID, TITLE, S, setting, queueFlagWrite, drivesMomentFor,
   canApplyTo, whisperNoGM, canAnswerFor, isContinuingClient,
   statContext } from "./core.js";
 import { limitedUses, isReactionItem, isTextOnlyFeature } from "./decide/eligible.js";
+import { interruptMultiplier } from "./decide/verdict.js";
+import { INTERRUPT_MULTIPLIERS } from "./decide/registry.js";
 import { interruptEntries, blockEntries } from "./settings.js";
 import { joinEffectReceipt } from "./decide/receipt.js";
 // ⚠ Bare on purpose since (gg) retired the post-answer roll (the continuation releases the
@@ -776,10 +778,16 @@ async function driveHoldContinuation(attackMessage, hold) {
         }));
       }
     } else {
+      // A damage-kind reaction the module can settle (Uncanny Dodge halves) is applied at its
+      // multiplier by the applier and receipted; the rest are reduced by hand, as before.
+      const settled = interruptMultiplier(target, INTERRUPT_MULTIPLIERS);
+      const how = settled ? ((settled.multiplier === 0.5) ? "halved" : `×${settled.multiplier}`) : null;
       announcements.push(bfCard({
-        img, eyebrow: "Reaction — cast", title: target.reaction, subtitle: target.name,
-        tone: "neutral",
-        lines: [`Reduce the damage by hand — the roll stands.`]
+        img, eyebrow: settled ? "Reaction — it worked" : "Reaction — cast", title: target.reaction, subtitle: target.name,
+        tone: settled ? "good" : "neutral",
+        lines: [settled
+          ? `The attack still hits, and its damage against <strong>${target.name}</strong> is <strong>${how}</strong> — the receipt says so.`
+          : `Reduce the damage by hand — the roll stands.`]
       }));
     }
   }

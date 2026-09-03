@@ -693,6 +693,27 @@ describe("saveOutcome", () => {
   });
 });
 
+describe("interruptMultiplier — a held attack's damage against one reactor (user, 2026-09-02)", () => {
+  const table = { "Uncanny Dodge": { multiplier: 0.5 } };
+  it("Uncanny Dodge cast halves; the note names it", () => {
+    expect(
+      v.interruptMultiplier({ answer: "cast", kind: "damage", reaction: "uncanny dodge" }, table)
+    ).toEqual({ multiplier: 0.5, reaction: "Uncanny Dodge", note: "Uncanny Dodge — halved" });
+  });
+  it("null for a pass, an AC kind, an unlisted reaction, or no target at all", () => {
+    expect(
+      v.interruptMultiplier({ answer: "pass", kind: "damage", reaction: "Uncanny Dodge" }, table)
+    ).toBeNull();
+    expect(
+      v.interruptMultiplier({ answer: "cast", kind: "ac", reaction: "Shield" }, table)
+    ).toBeNull();
+    expect(
+      v.interruptMultiplier({ answer: "cast", kind: "damage", reaction: "Absorb Elements" }, table)
+    ).toBeNull();
+    expect(v.interruptMultiplier(undefined, table)).toBeNull();
+  });
+});
+
 describe("saveMultiplier — null means no application AND no receipt", () => {
   const entry = (outcome, choice) => ({ outcome, choice });
 

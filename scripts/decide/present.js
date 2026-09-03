@@ -245,9 +245,8 @@ export function cunningMenuHTML({ rows, max, dc, dice, chosen = [] }) {
              margin:0.3rem 0;padding:0.35rem 0.5rem;border-radius:4px;background:rgba(0,0,0,0.06);
              border:1px solid var(--color-border-light,rgba(0,0,0,0.2));${r.affordable ? "cursor:pointer;" : "opacity:0.5;"}">
         <input type="checkbox" name="bf-cunning" value="${attr(r.key)}" ${picked.has(r.key) ? "checked" : ""} ${r.affordable ? "" : "disabled"} style="margin:0;">
-        <span style="font-weight:bold;">${attr(r.label)}${r.line ? " <span style=\"opacity:0.6;font-weight:normal;\">— a line on the card</span>" : ""}</span>
+        <span style="font-weight:bold;">${attr(r.label)}</span>
         <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;">${r.cost ? `${r.cost}d forgone` : "no cost"}</span>
-        ${r.caveat ? `<span style="grid-column:2 / -1;font-size:var(--font-size-11,11px);line-height:1.4;opacity:0.8;"><em>${attr(r.caveat)}</em></span>` : ""}
         ${foldedRuleHTML(r.rule).replace("grid-column:1 / -1", "grid-column:2 / -1")}
       </label>`).join("");
   return `

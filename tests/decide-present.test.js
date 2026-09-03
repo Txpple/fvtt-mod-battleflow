@@ -609,7 +609,7 @@ describe("sneakBoxHTML — the choice beside the roll (user rulings 2026-09-02)"
 });
 
 describe("cunningMenuHTML — the rules fold like every other box (user walk 2026-09-02)", () => {
-  it("each row's rule is a closed <details>; the caveat stays in plain view", () => {
+  it("each row is the name, the cost and a closed <details> — nothing else", () => {
     const html = p.cunningMenuHTML({
       dice: "7d6",
       max: 2,
@@ -635,8 +635,10 @@ describe("cunningMenuHTML — the rules fold like every other box (user walk 202
     });
     expect(html.match(/<details data-bf-rule/g)).toHaveLength(2);
     expect(html).not.toContain("<details data-bf-rule open");
-    expect(html).toContain("<em>the target must be Large or smaller</em>");
-    expect(html).toContain("a line on the card");
+    // Name, cost, the folded rule — nothing else (user walk 2026-09-02: the caveat line and
+    // "a line on the card" read as noise beside the fold).
+    expect(html).not.toContain("the target must be Large or smaller");
+    expect(html).not.toContain("a line on the card");
   });
 });
 

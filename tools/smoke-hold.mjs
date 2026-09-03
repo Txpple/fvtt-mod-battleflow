@@ -1522,7 +1522,9 @@ const r = await f.evaluate(async ({ sections }) => {
           }, 20000);
         }
         const applied = held ? await waitFor(() => damageFor(usageId)?.getFlag(MOD, 'receipt') ?? null, 15000) : null;
+        const entry = applied?.targets?.find?.(e => e.uuid === gren.uuid) ?? null;
         results.textOnlyHold = {
+          multiplier: entry?.multiplier ?? null, note: entry?.note ?? null,
           activities: dodge?.system?.activities?.size ?? null,
           pending: !!held, reaction: held?.targets?.[0]?.reaction, kind: held?.targets?.[0]?.kind,
           itemIsDodge: held?.targets?.[0]?.itemId === dodge?.id, activityId: held?.targets?.[0]?.activityId ?? null,
@@ -1917,8 +1919,9 @@ if (want('8')) {
     x.textOnlyHold?.activities === 0 && x.textOnlyHold?.pending && x.textOnlyHold?.reaction === 'Uncanny Dodge'
     && x.textOnlyHold?.kind === 'damage' && x.textOnlyHold?.itemIsDodge && x.textOnlyHold?.activityId === null,
     JSON.stringify(x.textOnlyHold));
-  report('§8 the cast answer resolves it; the hit stands and the (halved-by-hand) damage applies',
-    x.textOnlyHold?.resolved && x.textOnlyHold?.verdict === 'hit' && x.textOnlyHold?.applied,
+  report('§8 the cast answer resolves it; the hit stands and the damage lands HALVED, the receipt row saying why',
+    x.textOnlyHold?.resolved && x.textOnlyHold?.verdict === 'hit' && x.textOnlyHold?.applied
+    && x.textOnlyHold?.multiplier === 0.5 && /Uncanny Dodge/.test(x.textOnlyHold?.note ?? ''),
     JSON.stringify(x.textOnlyHold));
 }
 if (want('7')) {
