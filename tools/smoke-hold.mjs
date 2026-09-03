@@ -47,7 +47,8 @@ const SECTIONS = {
   // ⚠ Added 2026-08-23 because the D11 coverage report found that NO SUITE IN THE BATTERY EVER
   // CREATED A COMBAT — so `updateCombat`/`deleteCombat`, the whole reactionSpent lifecycle, had
   // never run under test. It creates a real Combat and deletes it in a `finally`.
-  7: 'the PER-TURN CLEARS: reactionSpent set only in combat, cleared on turn and on delete'
+  7: 'the PER-TURN CLEARS: reactionSpent set only in combat, cleared on turn and on delete',
+  8: 'a TEXT-ONLY feature in the Interrupt list (the 2024 Uncanny Dodge) is found BY NAME and holds as a damage kind'
 };
 // Every scenario stamps its own hold on its own attack and restores what it changed, so none
 // of them names another. §4b and §4c both read `results.realCast` — that is one section's data
@@ -142,6 +143,7 @@ const r = await f.evaluate(async ({ sections }) => {
         holdSettle: game.settings.get(MOD, 'holdSettle'),
         holdReveal: game.settings.get(MOD, 'holdReveal'),
         holdTimer: game.settings.get(MOD, 'holdTimer'),
+        interruptList: game.settings.get(MOD, 'interruptList'),
         holdSkipFutile: game.settings.get(MOD, 'holdSkipFutile'),
         holdApplyEffect: game.settings.get(MOD, 'holdApplyEffect'),
         requireTarget: game.settings.get(MOD, 'requireTarget'),
@@ -1490,6 +1492,49 @@ const r = await f.evaluate(async ({ sections }) => {
     }
 
     /* ---- 7: the per-turn clears — the two hooks nothing had ever exercised --------------- */
+    // ---- 8. a text-only feature (Uncanny Dodge as the 2024 PHB ships it: no activities) --
+    // (user, 2026-09-02: "you can't just look for the effect, you have to look for the
+    // reaction/ability … searching like it does for a fighter superiority die like riposte")
+    if (want('8')) {
+      const priorList = game.settings.get(MOD, 'interruptList');
+      let dodge = null;
+      try {
+        await game.settings.set(MOD, 'interruptList', 'Uncanny Dodge:damage');
+        [dodge] = await gren.createEmbeddedDocuments('Item', [{
+          name: 'Uncanny Dodge', type: 'feat',
+          system: { type: { value: 'class' }, description: { value: '<p>When an attacker that you can see hits you with an attack roll, you can take a Reaction to halve the attack’s damage against you (round down).</p>' } }
+        }]);
+        await clearReaction(gren);
+        const { usageId, msg } = await plainHitOnGren();
+        const held = await waitFor(() => {
+          const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
+          return h?.status === 'pending' ? h : null;
+        }, 8000);
+        let resolved = null;
+        if (held) {
+          const doc = game.messages.get(msg.id);
+          const merged = foundry.utils.deepClone(doc.getFlag(MOD, 'hold'));
+          merged.targets.find(t => t.uuid === gren.uuid).answer = 'cast';
+          await doc.setFlag(MOD, 'hold', merged);
+          resolved = await waitFor(() => {
+            const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
+            return h?.status === 'resolved' ? h : null;
+          }, 20000);
+        }
+        const applied = held ? await waitFor(() => damageFor(usageId)?.getFlag(MOD, 'receipt') ?? null, 15000) : null;
+        results.textOnlyHold = {
+          activities: dodge?.system?.activities?.size ?? null,
+          pending: !!held, reaction: held?.targets?.[0]?.reaction, kind: held?.targets?.[0]?.kind,
+          itemIsDodge: held?.targets?.[0]?.itemId === dodge?.id, activityId: held?.targets?.[0]?.activityId ?? null,
+          resolved: !!resolved, verdict: resolved?.targets?.[0]?.verdict, applied: !!applied,
+        };
+      } finally {
+        await game.settings.set(MOD, 'interruptList', priorList);
+        if (dodge) await dodge.delete().catch(() => {});
+        await clearReaction(gren);
+      }
+    }
+
     if (want('7')) {
       // ⚠ WHY THIS SECTION EXISTS, and it is worth reading before trusting any other coverage
       // here: the FIRST full reading of the D11 hook-coverage report (2026-08-23) found that
@@ -1866,6 +1911,15 @@ if (x.critSkipsHold?.rolled) {
     JSON.stringify(x.critSkipsHold));
 } else {
   console.log('  SKIP no natural 20 in 60 attempts — crit path not exercised this run');
+}
+if (want('8')) {
+  report('§8 a text-only feature in the Interrupt list is found BY NAME: the hold stamps it as a damage kind with no activity',
+    x.textOnlyHold?.activities === 0 && x.textOnlyHold?.pending && x.textOnlyHold?.reaction === 'Uncanny Dodge'
+    && x.textOnlyHold?.kind === 'damage' && x.textOnlyHold?.itemIsDodge && x.textOnlyHold?.activityId === null,
+    JSON.stringify(x.textOnlyHold));
+  report('§8 the cast answer resolves it; the hit stands and the (halved-by-hand) damage applies',
+    x.textOnlyHold?.resolved && x.textOnlyHold?.verdict === 'hit' && x.textOnlyHold?.applied,
+    JSON.stringify(x.textOnlyHold));
 }
 if (want('7')) {
   const t = x.turnClears;

@@ -5,7 +5,7 @@
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, drivesMomentFor,
   canApplyTo, whisperNoGM, canAnswerFor, isContinuingClient,
   statContext } from "./core.js";
-import { limitedUses, isReactionItem } from "./decide/eligible.js";
+import { limitedUses, isReactionItem, isTextOnlyFeature } from "./decide/eligible.js";
 import { interruptEntries, blockEntries } from "./settings.js";
 import { joinEffectReceipt } from "./decide/receipt.js";
 // ⚠ Bare on purpose since (gg) retired the post-answer roll (the continuation releases the
@@ -117,7 +117,10 @@ async function usableReaction(actor, name) {
   // picking the mundane one disqualified the entry and the spell was never even considered.
   // That is most armoured statblock casters.
   for ( const item of actor.items.filter(i => i.name.toLowerCase() === name.toLowerCase()) ) {
-    if ( !isReactionItem(item) ) continue;
+    // The ABILITY by name, not its effect (user, 2026-09-02): a listed feature the pack ships
+    // as text only — the 2024 Uncanny Dodge — is found the way the maneuver folds find
+    // Riposte. It has no activity to use; the answer spends the Reaction chip itself.
+    if ( !isReactionItem(item) && !isTextOnlyFeature(item) ) continue;
 
     const uses = limitedUses(item);
     if ( uses === "spent" ) continue;                 // limited-use feature, none left
@@ -1285,8 +1288,15 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
  * and the button is convenience, not protocol. A cancelled cast answers nothing, correctly
  * leaving the hold open.
  */
-async function castReaction(target) {
+async function castReaction(attackMessage, target) {
   const actor = await fromUuid(target.uuid);
+  // A TEXT-ONLY feature (the 2024 Uncanny Dodge): nothing to use, so the answer is written
+  // here and the Reaction chip spent here — the two things a use would have done.
+  const own = actor?.items.get(target.itemId);
+  if ( own && !target.activityId && isTextOnlyFeature(own) ) {
+    await spendReaction(actor, { origin: own.uuid, what: own.name });
+    return answerHold(attackMessage, target.uuid, "cast");
+  }
   // Prefer the activity the hold recorded. A statblock casts Shield from its Spellcasting
   // feature's `cast` activity — the spell item of the same name is a linked target that
   // reports spellSlot:true with no slots, so casting THAT is refused for want of a resource.
@@ -1424,7 +1434,7 @@ async function showHoldPopup(attackMessage, hold, { manual = false } = {}) {
       content: await holdPopupContent(target, roll, actor, hold),
       buttons: [
         { action: "cast", label: `Cast ${target.reaction}`, default: true,
-          callback: () => castReaction(target) },
+          callback: () => castReaction(attackMessage, target) },
         { action: "pass", label: "Pass",
           callback: () => answerHold(attackMessage, target.uuid, "pass") }
       ]

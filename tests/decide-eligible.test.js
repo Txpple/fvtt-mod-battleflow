@@ -80,17 +80,47 @@ describe("isReactionItem", () => {
     ).toBe(true);
   });
 
-  it("refuses an activity that is a reaction WITHOUT overriding — it inherits, it does not declare", () => {
+  it("a SPELL's activity must override to count — it inherits the casting time, it does not declare", () => {
     expect(
       e.isReactionItem({
+        type: "spell",
         system: { activities: { contents: [{ activation: { type: "reaction" } }] } }
       })
     ).toBe(false);
   });
 
+  it("a FEATURE's activity declares its own activation — no override flag on the 2024 packs (user walk 2026-09-02)", () => {
+    expect(
+      e.isReactionItem({
+        type: "feat",
+        system: { activities: { contents: [{ activation: { type: "reaction" } }] } }
+      })
+    ).toBe(true);
+  });
+
   it("refuses an ordinary action, and survives an empty item", () => {
     expect(e.isReactionItem({ system: { activation: { type: "action" } } })).toBe(false);
     expect(e.isReactionItem(undefined)).toBe(false);
+  });
+});
+
+describe("isTextOnlyFeature — the pack's paragraph-only feature, found by name", () => {
+  it("a feat with no activation and no activities is text-only; one with either is not", () => {
+    expect(e.isTextOnlyFeature({ type: "feat", system: {} })).toBe(true);
+    expect(
+      e.isTextOnlyFeature({ type: "feat", system: { activities: { size: 0, contents: [] } } })
+    ).toBe(true);
+    expect(
+      e.isTextOnlyFeature({ type: "feat", system: { activities: { size: 1, contents: [{}] } } })
+    ).toBe(false);
+    expect(
+      e.isTextOnlyFeature({ type: "feat", system: { activation: { type: "reaction" } } })
+    ).toBe(false);
+  });
+  it("never equipment or a spell — the worn-Shield guard stands", () => {
+    expect(e.isTextOnlyFeature({ type: "equipment", system: {} })).toBe(false);
+    expect(e.isTextOnlyFeature({ type: "spell", system: {} })).toBe(false);
+    expect(e.isTextOnlyFeature(undefined)).toBe(false);
   });
 });
 

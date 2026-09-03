@@ -68,8 +68,28 @@ export function limitedUses(item) {
  */
 export function isReactionItem(item) {
   if ( item?.system?.activation?.type === "reaction" ) return true;
+  // ⚠ SPELLS inherit; FEATURES declare (measured on the 2024 packs, 2026-09-02 — the corpus
+  // scan): a feature's activity carries its own activation with no override flag at all, so
+  // the override test that keeps a worn "Shield" out refused every 2024 reaction FEATURE —
+  // Deflect Attacks, Warding Flare, the Uncanny Dodge of a sheet that carries an activity.
+  const spell = item?.type === "spell";
   return (item?.system?.activities?.contents ?? []).some(activity =>
-    activity.activation?.override && (activity.activation?.type === "reaction"));
+    (activity.activation?.type === "reaction") && (!spell || activity.activation?.override));
+}
+
+/**
+ * A feature the pack ships as TEXT ONLY — no activation, no activities — which is how the 2024
+ * Player's Handbook ships Uncanny Dodge (user, 2026-09-02: "you can't just look for the effect,
+ * you have to look for the ability"). A curated list naming such a feature means the feature
+ * by name, the way the maneuver folds find Riposte; there is nothing on the item to read.
+ * Features only: equipment and spells must still declare an activation (the worn-Shield guard).
+ */
+export function isTextOnlyFeature(item) {
+  if ( item?.type !== "feat" ) return false;
+  if ( item?.system?.activation?.type ) return false;
+  const activities = item?.system?.activities;
+  const n = activities?.size ?? activities?.contents?.length ?? 0;
+  return n === 0;
 }
 
 /**
