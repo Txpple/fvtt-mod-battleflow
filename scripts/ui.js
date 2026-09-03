@@ -199,6 +199,12 @@ export function markDefaultButton(element, action) {
 // machine's own and is drawn by its hook.
 Hooks.on("renderRollConfigurationDialog", (app, element) => {
   try {
+    // EVERY system roll dialog gets its default marked the same way (user, 2026-09-03: "saving
+    // throws don't have the improved visual"): the platform's own choice — the button it gave
+    // `autofocus`, from actor data or the caller — wears the mark first; a gate with something
+    // to say re-marks its net after (this hook is registered before the machines').
+    const own = element.querySelector('[data-application-part="buttons"] button[autofocus]')?.dataset?.action;
+    if ( own ) markDefaultButton(element, own);
     const demand = app.options?.bfSaveDemand ?? null;
     if ( demand?.present ) drawDemandFieldset(app, element, demand);
   } catch(err) {
