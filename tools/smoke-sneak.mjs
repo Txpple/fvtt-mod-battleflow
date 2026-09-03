@@ -270,9 +270,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1. (setup) the victim is Vexed by the rogue', !!vexed, `vexed=${!!vexed}`);
       const { msg, seen } = await armedSwing(rapier, { mode: 'advantage' });
       const text = seen.boxText;
-      ok('1a. the gate carries the Sneak Attack box under the sources: the dice, the rule, the read-for-you line',
-        !!text && /Sneak Attack — 7d6 on a hit, once per turn/.test(text) && /Once per turn, you can deal an extra/.test(text)
-          && /Rapier is Finesse ✓/.test(text) && /nets Advantage ✓/.test(text) && /chosen after the hit/.test(text),
+      ok('1a. the gate carries the Sneak Attack box under the sources: the name and the dice, the rule under its fold — no read-for-you line (user, 2026-09-02)',
+        !!text && /Sneak Attack — 7d6/.test(text) && /Once per turn, you can deal an extra/.test(text)
+          && !/Read for you/.test(text) && !/on a hit, once per turn/.test(text),
         text.slice(0, 260));
       ok("1b. the box is OUTSIDE the fold — visible without a click, and ticked by the roll's Advantage", !!text && !seen.boxInDetails && seen.ticked,
         `inDetails=${seen.boxInDetails} ticked=${seen.ticked} section="${seen.sectionText.slice(0, 120)}"`);

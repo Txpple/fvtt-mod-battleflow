@@ -193,12 +193,13 @@ export function reminderFieldsetHTML({ head, boxes, legend = "Before you roll" }
 /**
  * THE SNEAK ATTACK BOX (user, 2026-09-02 — the prototype's screen 1): one more box under the
  * gate's sources, with a CHECKBOX where the other boxes carry a tag — the roll still needs its
- * mode press, so the choice rides beside it, never as a fourth button. The rule verbatim, and
- * the "read for you" line: what the module judged, what it leaves to the player. Used this
- * turn: the box stays, greyed, with the reason and no checkbox (screen 6).
- * @param {{dice: string, rule: string, read: string[], checked?: boolean, used?: string|null}} view
+ * mode press, so the choice rides beside it, never as a fourth button. "Sneak Attack — 5d6",
+ * the tick, the rule under its fold, nothing else (user, later that day: "this is wordy … get
+ * rid of the read-for-you stuff and just let the player read the rule"). Used this turn: the
+ * box stays, greyed, with the reason and no checkbox (screen 6).
+ * @param {{dice: string, rule: string, checked?: boolean, used?: string|null}} view
  */
-export function sneakBoxHTML({ dice, rule, read, checked = false, used = null }) {
+export function sneakBoxHTML({ dice, rule, checked = false, used = null }) {
   // Used this turn: no tick, and the reason on its own full-width line under the title (user,
   // 2026-09-02 — beside the title it squeezed the title into a one-word column).
   const control = used ? "" : `<label style="display:flex;align-items:center;gap:0.4rem;white-space:nowrap;cursor:pointer;">
@@ -208,11 +209,10 @@ export function sneakBoxHTML({ dice, rule, read, checked = false, used = null })
                   margin:0.4rem 0;padding:0.45rem 0.6rem;border-radius:4px;${used ? "opacity:0.6;" : ""}
                   background:rgba(0,0,0,0.25);border:1px solid var(--color-border-dark,rgba(0,0,0,0.4));
                   border-left:3px solid ${used ? TONE.neutral : TONE.pending};">
-        <div style="font-weight:bold;">Sneak Attack — ${attr(dice)} on a hit, once per turn</div>
+        <div style="font-weight:bold;">Sneak Attack — ${attr(dice)}</div>
         ${control}
         ${used ? `<div style="grid-column:1 / -1;font-size:var(--font-size-11,11px);line-height:1.45;opacity:0.85;">${attr(used)}</div>` : ""}
         ${foldedRuleHTML(rule)}
-        <div style="grid-column:1 / -1;font-size:var(--font-size-11,11px);line-height:1.45;opacity:0.8;">Read for you: ${read.map(attr).join(" · ")}</div>
       </div>`;
 }
 

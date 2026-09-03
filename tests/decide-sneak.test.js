@@ -25,40 +25,11 @@ describe("parseDice — the sheet's resolved formula, or nothing", () => {
   });
 });
 
-describe("the weapon and the read-for-you line", () => {
+describe("the weapon", () => {
   it("a Finesse or a ranged weapon qualifies; nothing else does", () => {
     expect(s.sneakWeaponQualifies({ finesse: true })).toBe(true);
     expect(s.sneakWeaponQualifies({ ranged: true })).toBe(true);
     expect(s.sneakWeaponQualifies({})).toBe(false);
-  });
-  it("says what it judged and leaves the ally clause to the player", () => {
-    const lines = s.sneakReadLines({ weaponName: "the rapier", finesse: true, net: "advantage" });
-    expect(lines[0]).toBe("the rapier is Finesse ✓");
-    expect(lines[1]).toMatch(/nets Advantage ✓/);
-    expect(lines.at(-1)).toMatch(/after the hit/);
-    expect(s.sneakReadLines({ weaponName: "the bow", ranged: true, net: "normal" })[1]).toMatch(
-      /yours to judge/
-    );
-    expect(s.sneakReadLines({ weaponName: "the mace", net: "disadvantage" })[0]).toMatch(/✗/);
-  });
-  it("names what gave the Advantage — the boxes are folded, so the line must say it (user walk 2026-09-02)", () => {
-    const lines = s.sneakReadLines({
-      weaponName: "the bow",
-      ranged: true,
-      net: "advantage",
-      sources: [
-        { bend: "advantage", label: "You — Steady Aim" },
-        { bend: null, label: "unjudged" }
-      ]
-    });
-    expect(lines[1]).toBe("this roll nets Advantage ✓ — You — Steady Aim");
-    expect(
-      s.sneakReadLines({
-        weaponName: "the bow",
-        net: "disadvantage",
-        sources: [{ bend: "disadvantage", label: "You — Sapped" }]
-      })[1]
-    ).toMatch(/Disadvantage ✗ — You — Sapped — no Sneak Attack/);
   });
 });
 

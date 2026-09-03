@@ -584,14 +584,15 @@ describe("reminderSectionHTML / reminderFieldsetHTML — the header line and the
 describe("sneakBoxHTML — the choice beside the roll (user rulings 2026-09-02)", () => {
   const view = {
     dice: "7d6",
-    rule: "Once per turn, you can deal an extra 1d6 damage",
-    read: ["the rapier is Finesse ✓"]
+    rule: "Once per turn, you can deal an extra 1d6 damage"
   };
-  it("carries the tick, the read-for-you line, and the rule FOLDED closed by default", () => {
+  it("is the name and the dice, the tick, and the rule FOLDED closed by default — nothing else", () => {
     const html = p.sneakBoxHTML({ ...view, checked: true });
     expect(html).toContain('name="bf-sneak"');
     expect(html).toContain("checked");
-    expect(html).toContain("Read for you: the rapier is Finesse ✓");
+    expect(html).toContain("Sneak Attack — 7d6</div>");
+    expect(html).not.toContain("Read for you");
+    expect(html).not.toContain("once per turn</div>");
     expect(html).toContain("<details data-bf-rule");
     expect(html).not.toContain("<details data-bf-rule open");
     expect(html).toContain(p.ruleLine(view.rule));

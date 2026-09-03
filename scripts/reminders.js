@@ -9,7 +9,7 @@ import { DialogCarried } from "./ui.js";
 import { bfCard, reminderFieldsetHTML, sneakBoxHTML } from "./decide/present.js";
 import { CHIP_FLAG, chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.js";
 import { CONDITION_BENDS, EFFECT_BENDS, MASTERY_RULES, RANGE_RULES, SNEAK_ATTACK } from "./decide/registry.js";
-import { parseDice, sneakReadLines, sneakWeaponQualifies } from "./decide/sneak.js";
+import { parseDice, sneakWeaponQualifies } from "./decide/sneak.js";
 import { feetOf, nearestFeet, tokenOfActor } from "./geometry.js";
 import { REMINDER_FLAG, conditionSources, effectSources, modeTitle, netMode, proneSources, rangeSources,
   reminderRecord, reminderSource, reminderView, rolledWith } from "./decide/reminders.js";
@@ -133,7 +133,7 @@ function drawGate(app, { force = false } = {}) {
       if ( typeof gate.sneakArmed !== "boolean" ) gate.sneakArmed = next.sneak.armed;
       if ( next.sneak.used ) gate.sneakArmed = false;
       const box = document.createElement("div");
-      box.innerHTML = sneakBoxHTML({ dice: next.sneak.dice, rule: next.sneak.rule, read: next.sneak.read,
+      box.innerHTML = sneakBoxHTML({ dice: next.sneak.dice, rule: next.sneak.rule,
         checked: gate.sneakArmed, used: next.sneak.used });
       fieldset.appendChild(box.firstElementChild);
       fieldset.querySelector('input[name="bf-sneak"]')?.addEventListener("change", ev => { gate.sneakArmed = !!ev.target.checked; });
@@ -373,7 +373,7 @@ export function judgeRoll(attacker, { activity = null, attackMode = null, target
   if ( !enabled.size ) return null;
   const sources = sourcesFor(attacker, enabled, { activity, attackMode, targets, spent, spendNote });
   const net = netMode(sources);
-  const sneak = enabled.has("sneak") ? sneakFactsFor(attacker, activity, attackMode, net, sources) : null;
+  const sneak = enabled.has("sneak") ? sneakFactsFor(attacker, activity, attackMode, net) : null;
   // ⚠ Only what the rules SPEND carries forward through a volley's rays (user report, 2026-09-02:
   // Innate Sorcery — a standing effect — showed on ray 1 alone): Vex, Sap, and an effect row
   // marked `spend`. Every other source with an effect id stands for every ray.
@@ -390,7 +390,7 @@ export function judgeRoll(attacker, { activity = null, attackMode = null, target
  * module cannot read — the ally within 5 feet — is said, never judged. Null when there is
  * nothing to offer: no feature, no dice, a weapon that does not qualify, a non-weapon attack.
  */
-function sneakFactsFor(attacker, activity, attackMode, net, sources = []) {
+function sneakFactsFor(attacker, activity, attackMode, net) {
   const item = activity?.item;
   if ( !item || (item.type !== "weapon") || (activity?.type !== "attack") ) return null;
   const feature = attacker.items.find(i => (i.type === "feat") && (i.name.toLowerCase() === SNEAK_ATTACK.feature.toLowerCase()));
@@ -411,7 +411,6 @@ function sneakFactsFor(attacker, activity, attackMode, net, sources = []) {
   return {
     dice: `${dice.number}d${dice.faces}`, number: dice.number, faces: dice.faces, type, weaponName: item.name,
     finesse, ranged, rule: SNEAK_ATTACK.rule,
-    read: sneakReadLines({ weaponName: item.name, finesse, ranged, net, sources }),
     used: used ? "used this turn — the chit on you clears at the end of the turn" : null,
     armed: !used && (net === "advantage")
   };
