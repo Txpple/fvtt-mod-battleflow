@@ -317,7 +317,11 @@ review's twenty findings were that re-issue.)
 **The highlighted button is the outcome the solver worked out** (user ruling 2026-09-01). The
 platform always has a default — a dialog makes its first button the default when none is
 flagged, so "nothing pre-selected" meant *Advantage on Enter* whatever the net — and the honest
-default is the NET the section names. Enter is still a press. **The section follows the
+default is the NET the section names. Enter is still a press. **And the mark stays put**
+(user, 2026-09-03: *"sometimes the default doesn't highlight"*): the platform's own mark is
+keyboard focus, which any click elsewhere takes away, so the gates mark the default with a
+persistent border in the palette's hue for the outcome, focus beside it — one spine helper
+for all three gates. **The section follows the
 dialog** (user, 2026-09-02): the dialog re-renders on each of its own dropdowns and the sources
 are re-judged from the form as it stands — a dagger switched to Thrown grows its range box and
 the default moves with the net — and a re-target on the canvas re-judges too.

@@ -160,6 +160,40 @@ export function drawDemandFieldset(app, element, demand) {
   scheduleBarSync(element);
 }
 
+/**
+ * THE HIGHLIGHTED DEFAULT on a system roll dialog — the button the solver worked out (user
+ * ruling 2026-09-01), marked so it STAYS marked. ⚠ The platform's own mark is `autofocus`
+ * alone, which is keyboard focus and nothing more: a click on the attack-mode dropdown, on the
+ * canvas to re-target, on the section's fold, moves focus and the "highlight" vanishes — the
+ * default looked intermittent at the table (user, 2026-09-03: "sometimes it does, sometimes it
+ * doesn't"). So the mark is a persistent style in the palette's hue for the outcome (green
+ * Advantage, red Disadvantage and Fails, grey Normal) plus the focus, so Enter still presses
+ * it. One helper for the three gates; the dialog's buttons part is never re-rendered by its
+ * own dropdowns, so the mark survives them, and a re-judgement re-marks.
+ * @param {HTMLElement} element   the dialog's element
+ * @param {string} action         the button's data-action: advantage | normal | disadvantage | bf-fails
+ */
+export function markDefaultButton(element, action) {
+  const hue = { advantage: TONE.good, disadvantage: TONE.bad, "bf-fails": TONE.bad }[action] ?? TONE.neutral;
+  // THE LOOK, in one place (user, 2026-09-03: "can the highlight be made more visible? … maybe
+  // on the insert we can define how the highlight looks"): the button FILLED with the hue, a
+  // solid ring, bold — unmistakable beside its two plain siblings. Change it here, nowhere else.
+  const MARK = {
+    background: `color-mix(in srgb, ${hue} 38%, transparent)`,
+    borderColor: hue,
+    boxShadow: `0 0 0 2px ${hue}, inset 0 0 0 1px ${hue}`,
+    fontWeight: "bold",
+    textShadow: "0 1px 2px rgba(0,0,0,0.6)"
+  };
+  for ( const button of element.querySelectorAll('[data-application-part="buttons"] button[data-action]') ) {
+    const isDefault = button.dataset.action === action;
+    button.toggleAttribute("autofocus", isDefault);
+    button.toggleAttribute("data-bf-default", isDefault);
+    for ( const [prop, value] of Object.entries(MARK) ) button.style[prop] = isDefault ? value : "";
+    if ( isDefault ) { try { button.focus(); } catch { /* not focusable yet */ } }
+  }
+}
+
 // The spine paints a closure-carrying demand on every render of the dialog (the first, and
 // each re-render the dialog's own dropdowns cause). A demand without `present` is the saves
 // machine's own and is drawn by its hook.

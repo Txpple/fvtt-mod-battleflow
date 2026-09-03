@@ -10,7 +10,7 @@ import { SAVE_FOLDS, foldedSave, foldsFrom, saveMultiplier, verdictText } from "
 import { isDeadForSaves } from "./decide/eligible.js";
 import { forceStatus, damagePartsOf, reactionSpent, rollConfigFor, spendReaction, statSourceOf } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, reminderFieldsetHTML, TONE } from "./decide/present.js";
-import { livePopups, openMomentPopup, adoptManagedPopup, DialogCarried,
+import { livePopups, openMomentPopup, adoptManagedPopup, DialogCarried, markDefaultButton,
   momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
   armDeadline, disarmDeadline, registerRelay, dramaticVerdictPause } from "./ui.js";
 import { EVASION, SAVE_BENDS, SAVE_PRESSES } from "./decide/registry.js";
@@ -758,13 +758,9 @@ function drawSaveGate(app, element, gate, demand) {
       sibling.insertAdjacentElement("beforebegin", fails);
     }
   }
-  // The highlighted default follows the net — Fails when the save cannot succeed.
-  const want = gate.autoFail ? "bf-fails" : gate.net;
-  for ( const button of element.querySelectorAll('[data-application-part="buttons"] button[data-action]') ) {
-    const isDefault = button.dataset.action === want;
-    button.toggleAttribute("autofocus", isDefault);
-    if ( isDefault ) { try { button.focus(); } catch { /* not focusable yet */ } }
-  }
+  // The highlighted default follows the net — Fails when the save cannot succeed — marked to
+  // stay marked (ui.js markDefaultButton).
+  markDefaultButton(element, gate.autoFail ? "bf-fails" : gate.net);
 }
 
 /** A sheet save that cannot succeed, pressed Fails with no demand to record it on: the card

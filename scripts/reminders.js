@@ -5,7 +5,7 @@
 import { MODULE_ID, TITLE, activeCombatFor, statContext } from "./core.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./settings.js";
 import { chipSpentOnRecord, grantingActor, turnChitStands } from "./shared.js";
-import { DialogCarried } from "./ui.js";
+import { DialogCarried, markDefaultButton } from "./ui.js";
 import { bfCard, reminderFieldsetHTML, sneakBoxHTML } from "./decide/present.js";
 import { CHIP_FLAG, chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.js";
 import { CHECK_BENDS, CONDITION_BENDS, EFFECT_BENDS, MASTERY_RULES, RANGE_RULES, SNEAK_ATTACK } from "./decide/registry.js";
@@ -144,12 +144,8 @@ function drawGate(app, { force = false } = {}) {
     else if ( buttons ) buttons.insertAdjacentElement("beforebegin", fieldset);
     else element.querySelector("form")?.appendChild(fieldset);
   }
-  // The highlighted default follows the net — the button the dialog itself marks and focuses.
-  for ( const button of element.querySelectorAll('[data-application-part="buttons"] button[data-action]') ) {
-    const isDefault = button.dataset.action === next.net;
-    button.toggleAttribute("autofocus", isDefault);
-    if ( isDefault ) { try { button.focus(); } catch { /* not focusable yet */ } }
-  }
+  // The highlighted default follows the net — marked to stay marked (ui.js markDefaultButton).
+  markDefaultButton(element, next.net);
 }
 
 // The section: on every render of a dialog carrying the gate — the first, and each re-render
@@ -224,11 +220,7 @@ function drawCheckGate(element, gate) {
     else if ( buttons ) buttons.insertAdjacentElement("beforebegin", fieldset);
     else element.querySelector("form")?.appendChild(fieldset);
   }
-  for ( const button of element.querySelectorAll('[data-application-part="buttons"] button[data-action]') ) {
-    const isDefault = button.dataset.action === gate.net;
-    button.toggleAttribute("autofocus", isDefault);
-    if ( isDefault ) { try { button.focus(); } catch { /* not focusable yet */ } }
-  }
+  markDefaultButton(element, gate.net);
 }
 
 // The check's record — the same flag the attack and the save stamp, on the check's message.
