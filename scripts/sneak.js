@@ -96,7 +96,10 @@ export function sneakOfferParts(attackMessage, activity) {
   const formulaLabel = () => {
     const pick = cunningPick({ rows, chosen, dice: sneak.number, max });
     const left = sneakFormula({ number: sneak.number, faces: sneak.faces, cost: pick.cost });
-    return left ? `Sneak Attack ${left}` : "every Sneak Attack die forgone";
+    // THE WEAPON IS ON THE BUTTON TOO (user walk 2026-09-02: "that roll button makes it look
+    // like it's only sneak attack") — the roll is the weapon's dice plus the sneak dice.
+    const weapon = activity?.item?.name ?? "Weapon";
+    return left ? `${weapon} + Sneak Attack ${left}` : `${weapon} alone — every Sneak Attack die forgone`;
   };
   return {
     sneak, rows, max, dc,

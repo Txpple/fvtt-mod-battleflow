@@ -46,17 +46,23 @@ export function sneakWeaponQualifies({ finesse = false, ranged = false } = {}) {
  * roll's net) and what it leaves to the player (the ally within 5 feet). One sentence per fact,
  * joined by the section's own separator.
  * @param {{weaponName?: string, finesse?: boolean, ranged?: boolean,
- *          net: "advantage"|"disadvantage"|"normal"}} facts
+ *          net: "advantage"|"disadvantage"|"normal",
+ *          sources?: {bend?: string|null, label?: string}[]}} facts
  * @returns {string[]}
  */
-export function sneakReadLines({ weaponName = "the weapon", finesse = false, ranged = false, net }) {
+export function sneakReadLines({ weaponName = "the weapon", finesse = false, ranged = false, net, sources = [] }) {
   const out = [];
   if ( finesse && ranged ) out.push(`${weaponName} is Finesse and ranged ✓`);
   else if ( finesse ) out.push(`${weaponName} is Finesse ✓`);
   else if ( ranged ) out.push(`${weaponName} is a ranged weapon ✓`);
   else out.push(`${weaponName} is neither Finesse nor ranged ✗`);
-  if ( net === "advantage" ) out.push("this roll nets Advantage ✓");
-  else if ( net === "disadvantage" ) out.push("this roll nets Disadvantage ✗ — no Sneak Attack unless you press against it");
+  // NAME THE SOURCE (user walk 2026-09-02: "this sneak attack doesn't indicate it is gained by
+  // Steady Aim") — the gate's boxes sit under a fold, so the line that says the roll nets
+  // Advantage must say what gave it, or the tick reads as a gift from nowhere.
+  const by = bend => sources.filter(s => s.bend === bend).map(s => s.label).filter(Boolean);
+  const adv = by("advantage");
+  if ( net === "advantage" ) out.push(`this roll nets Advantage ✓${adv.length ? ` — ${adv.join(", ")}` : ""}`);
+  else if ( net === "disadvantage" ) out.push(`this roll nets Disadvantage ✗${by("disadvantage").length ? ` — ${by("disadvantage").join(", ")}` : ""} — no Sneak Attack unless you press against it`);
   else out.push("this roll nets Normal — an ally within 5 feet of the target, not Incapacitated: yours to judge");
   out.push("Cunning Strike is chosen after the hit");
   return out;

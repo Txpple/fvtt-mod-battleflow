@@ -41,6 +41,25 @@ describe("the weapon and the read-for-you line", () => {
     );
     expect(s.sneakReadLines({ weaponName: "the mace", net: "disadvantage" })[0]).toMatch(/✗/);
   });
+  it("names what gave the Advantage — the boxes are folded, so the line must say it (user walk 2026-09-02)", () => {
+    const lines = s.sneakReadLines({
+      weaponName: "the bow",
+      ranged: true,
+      net: "advantage",
+      sources: [
+        { bend: "advantage", label: "You — Steady Aim" },
+        { bend: null, label: "unjudged" }
+      ]
+    });
+    expect(lines[1]).toBe("this roll nets Advantage ✓ — You — Steady Aim");
+    expect(
+      s.sneakReadLines({
+        weaponName: "the bow",
+        net: "disadvantage",
+        sources: [{ bend: "disadvantage", label: "You — Sapped" }]
+      })[1]
+    ).toMatch(/Disadvantage ✗ — You — Sapped — no Sneak Attack/);
+  });
 });
 
 describe("cunningMenu — the options, read off the sheet", () => {

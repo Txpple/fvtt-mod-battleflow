@@ -373,7 +373,7 @@ export function judgeRoll(attacker, { activity = null, attackMode = null, target
   if ( !enabled.size ) return null;
   const sources = sourcesFor(attacker, enabled, { activity, attackMode, targets, spent, spendNote });
   const net = netMode(sources);
-  const sneak = enabled.has("sneak") ? sneakFactsFor(attacker, activity, attackMode, net) : null;
+  const sneak = enabled.has("sneak") ? sneakFactsFor(attacker, activity, attackMode, net, sources) : null;
   // ⚠ Only what the rules SPEND carries forward through a volley's rays (user report, 2026-09-02:
   // Innate Sorcery — a standing effect — showed on ray 1 alone): Vex, Sap, and an effect row
   // marked `spend`. Every other source with an effect id stands for every ray.
@@ -390,7 +390,7 @@ export function judgeRoll(attacker, { activity = null, attackMode = null, target
  * module cannot read — the ally within 5 feet — is said, never judged. Null when there is
  * nothing to offer: no feature, no dice, a weapon that does not qualify, a non-weapon attack.
  */
-function sneakFactsFor(attacker, activity, attackMode, net) {
+function sneakFactsFor(attacker, activity, attackMode, net, sources = []) {
   const item = activity?.item;
   if ( !item || (item.type !== "weapon") || (activity?.type !== "attack") ) return null;
   const feature = attacker.items.find(i => (i.type === "feat") && (i.name.toLowerCase() === SNEAK_ATTACK.feature.toLowerCase()));
@@ -411,7 +411,7 @@ function sneakFactsFor(attacker, activity, attackMode, net) {
   return {
     dice: `${dice.number}d${dice.faces}`, number: dice.number, faces: dice.faces, type, weaponName: item.name,
     finesse, ranged, rule: SNEAK_ATTACK.rule,
-    read: sneakReadLines({ weaponName: item.name, finesse, ranged, net }),
+    read: sneakReadLines({ weaponName: item.name, finesse, ranged, net, sources }),
     used: used ? "used this turn — the chit on you clears at the end of the turn" : null,
     armed: !used && (net === "advantage")
   };
