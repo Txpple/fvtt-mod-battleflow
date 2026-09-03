@@ -86,6 +86,34 @@ register did.
 bare import pins module evaluation order and the hook-order check depends on it. **Breaking them
 would make the tree worse.** See *SETTLED*.
 
+### The damage offer's three lazy edges — one shape, three times (found 2026-09-03)
+
+**What:** `npm run layers` prints **11 pinned pairs**; D9 was written at 8. The three that
+joined during the 2026-09-02 walk are `auto-damage.js → sneak.js`, `auto-damage.js →
+clock-riders.js` (both PERMANENT, lazy) and `volleys.js → reminders.js` (BY DESIGN). Read the
+first two beside the older `auto-damage.js → mastery.js` and they are **one shape, three times**:
+the damage OFFER — a service — reaching into a machine to paint that machine's content on the
+popup (the armed Cleave line, the Cunning Strike menu, the due clock riders). The pin says so in
+its own words: *"the same shape as its lazy edge to mastery.js."*
+
+**Why it is here and not in the register:** nothing is broken and the pins are honest. But the
+house rule (D8; D9's dispositions) is that **the third instance of a shape is what proves a
+seam** — here an offer-contributions list the machines declare into and the service walks,
+`ATTACK_FOLDS`-style — and every future thing that lands on the damage offer adds a fourth pin
+until it exists.
+
+**What would un-park it:** the next content that lands on the damage offer. The abilities
+sweep's one-popup hit menu ([SWEEP.md](SWEEP.md) §0 item 2) is the likely candidate, and the
+seam makes that menu cheaper — **build the seam WITH that feature, not before it** (a seam built
+on today's three callers alone is still a guess about the fourth).
+
+**Two clock residues to pick up on the same pass, notes not rows:** "first round" is judged in
+three EDGE places — [clock-riders.js](scripts/clock-riders.js) through `riderDue`,
+[sneak.js](scripts/sneak.js) for Death Strike, [reminders.js](scripts/reminders.js) for
+Assassinate — and [maneuvers.js](scripts/maneuvers.js) still judges a maneuver's once-per-turn
+off a flag stamp rather than a turn chit (`decide/chips.js` `TURN_CHITS`). Neither is wrong;
+both are the walk landing faster than the shape.
+
 ### The template fast-path Foundry 14 took away (was debt row D12)
 
 **What:** `saves.js` listens for `createMeasuredTemplate` / `updateMeasuredTemplate` so it can

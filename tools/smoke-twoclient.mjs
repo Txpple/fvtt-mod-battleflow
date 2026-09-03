@@ -118,7 +118,8 @@ const setup = await gm.evaluate(async ({ playerId }) => {
     'system.attributes.hp.value': shielder.system.attributes.hp.max,
     'system.attributes.hp.temp': 0
   });
-  await shielder.unsetFlag(MODULE, 'reactionSpent');
+  // A fresh Reaction: the chip replaced the `reactionSpent` flag on 2026-09-02 (shared.js spendReaction).
+  for (const e of shielder.effects.filter(e => e.getFlag(MODULE, 'mastery') === 'reaction')) await e.delete();
   for (const e of shielder.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
 
   let tok = scene.tokens.find(t => t.actorId === shielder.id);

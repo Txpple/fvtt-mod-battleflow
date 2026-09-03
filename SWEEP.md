@@ -30,7 +30,7 @@ Everything a future session needs to start the sweep without re-deriving it:
 5. **The eight shapes are tables in `scripts/decide/registry.js`** (§1 names each). A row
    there, a unit test in `tests/decide-registry.test.js`, a section in the matching
    `tools/smoke-*.mjs` suite is the whole cost of a band-1 item.
-6. **Nothing here blocks anything.** Prod is frozen at v1.27.2; the sandbox is the test area.
+6. **Nothing here blocks anything.** Prod is at v1.28.0 (the freeze lifted 2026-09-03); the sandbox is the test area, and a release goes out only on the user's word.
 
 ## 1. What the walk taught — the families of change
 
