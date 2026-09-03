@@ -155,11 +155,20 @@ export function chipSpentOnRecord(effect, { limit = 100 } = {}) {
  */
 export async function forceStatus(actor, statusId, { origin = null } = {}) {
   if ( !(actor instanceof Actor) ) return false;
-  const existing = actor.effects.find(e => e.statuses.has(statusId));
-  if ( existing ) {
-    // Enabling our press on a disabled leftover stamps the source; an already-ACTIVE
-    // effect keeps its own history — origin is only written by whoever lands it.
-    if ( existing.disabled ) await existing.update({ disabled: false, ...(origin ? { origin } : {}) });
+  // ⚠ ONLY THE CANONICAL CONDITION IS EVER RE-ENABLED (user report 2026-09-03: "when Morgash
+  // applied Topple, it applied Cunning Strike: Tripped instead"). A disabled leftover that
+  // merely CARRIES the status — a pack's own effect from an earlier Trip, expired or reverted —
+  // is not this press: re-enabling it revives that effect's name, duration and changes under
+  // Topple's origin, and the gate then names the wrong source. Told by the status's own
+  // localized name, which is what fromStatusEffect builds.
+  const canonicalName = game.i18n.localize(CONFIG.statusEffects.find(s => s.id === statusId)?.name ?? "");
+  const active = actor.effects.find(e => e.statuses.has(statusId) && !e.disabled);
+  const dormant = actor.effects.find(e => e.statuses.has(statusId) && e.disabled && (e.name === canonicalName));
+  if ( active ) {
+    // An already-ACTIVE effect keeps its own history — origin is only written by whoever lands it.
+  } else if ( dormant ) {
+    // Enabling our press on a disabled CANONICAL leftover stamps the source.
+    await dormant.update({ disabled: false, ...(origin ? { origin } : {}) });
   } else {
     try {
       const effect = await ActiveEffect.implementation.fromStatusEffect(statusId);

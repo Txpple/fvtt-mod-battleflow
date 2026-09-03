@@ -1048,6 +1048,30 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('14k. the dialog\'s own button rolls the save chained to the card, the fold judges it, the dialog closes',
           !!e14j?.done && (typeof e14j.total === 'number') && (toppleDialogs().length === 0),
           `done=${e14j?.done} total=${e14j?.total} outcome=${e14j?.outcome} dialogs=${toppleDialogs().length}`);
+        // 14m. THE PRESS LANDS THE CANONICAL PRONE, never a dormant look-alike (user report
+        // 2026-09-03: "when Morgash applied Topple, it applied Cunning Strike: Tripped instead"):
+        // a DISABLED effect that merely carries the prone status — a pack's own from an earlier
+        // Trip — sits on the victim; the Topple failure must create the plain Prone beside it and
+        // leave the leftover disabled.
+        await victim.toggleStatusEffect('prone', { active: false });
+        await healFull();
+        const [leftover] = await victim.createEmbeddedDocuments('ActiveEffect', [{
+          name: 'Cunning Strike: Tripped', statuses: ['prone'], disabled: true, img: 'icons/svg/falling.svg', origin: null }]);
+        before14 = snap14();
+        await attack(pcAttack());
+        await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')), 12_000);
+        const topple7 = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
+        let dlg7 = null;
+        await until14(() => { dlg7 = toppleDialogs()[0] ?? null; return !!dlg7; }, 8000);
+        dialogButtons(dlg7).find(b => b.textContent.trim() === 'Normal')?.click();
+        await until14(() => topple7?.getFlag(MOD, 'topple').targets[0].done, 12_000);
+        await until14(() => victim.effects.some(e => e.statuses?.has?.('prone') && !e.disabled), 10_000);
+        const landed = victim.effects.find(e => e.statuses?.has?.('prone') && !e.disabled);
+        const stillDormant = victim.effects.get(leftover.id);
+        ok('14m. a Topple failure presses the CANONICAL Prone beside a dormant look-alike — the leftover stays disabled, the landed one is "Prone"',
+          !!landed && (landed.name === 'Prone') && (landed.id !== leftover.id) && !!stillDormant && (stillDormant.disabled === true),
+          `landed=${landed?.name ?? 'none'} sameAsLeftover=${landed?.id === leftover.id} leftover=${stillDormant ? (stillDormant.disabled ? 'disabled' : 'ENABLED') : 'gone'}`);
+        if (victim.effects.get(leftover.id)) await victim.deleteEmbeddedDocuments('ActiveEffect', [leftover.id]).catch(() => {});
         // ⚠ NOT ASSERTED, AND WHY: the gate's Fails button (a save the rules fail before the
         // dice) never stands on a Topple dialog today — Topple is a CONSTITUTION save and every
         // automatic-failure row in SAVE_BENDS (Paralyzed, Stunned, Unconscious, Petrified) names
