@@ -258,6 +258,20 @@ warns once, gone at v16) — read `units`/`value`/`expired` instead. Measured li
   options object per update, because Foundry defines a per-token property on it and a reused
   object throws "Cannot redefine property". A destination off the scene is refused without a
   word (only `preUpdateToken` fires) — a "moved out" reading against an off-scene square is a lie.
+- **A template's region shares the template's id**, and the template's `flags.dnd5e` are copied
+  onto it — which is how a cast emanation is recognised (`origin`, `item`, `spellLevel`).
+- **dnd5e 5.3 does not delete a placed template when concentration ends** (smoke-emanations §8
+  measured the template standing after `endConcentration`), and `ActiveEffect5e#addDependent` is
+  deprecated for the `dependentOn` flag — which only `Activity`, `SystemDocument` and
+  `ActiveEffect5e` carry (`DependentDocumentMixin`), **not** `MeasuredTemplateDocument`. A module
+  that wants an area to end with concentration deletes it itself on `deleteActiveEffect` of the
+  concentrating effect, keyed by `effect.flags.dnd5e.activity.uuid` against the template's
+  `flags.dnd5e.origin`.
+- **A usage's placement prompt is `usageConfig.create.measuredTemplate`**, switchable in
+  `dnd5e.preUseActivity`; `results.templates` is then `[]` at `postUseActivity`. dnd5e's own
+  template for a `radius` type carries `flags.dnd5e.dimensions.adjustedSize: true` and adjusts
+  the drawn radius by the token at draw time; a module-placed circle carries the adjusted
+  distance itself (size + half the token in feet) and no `dimensions` block.
 - **The floor must be serialized.** One token move fires the region's enter event, `updateToken`
   and `updateRegion` within a tick; three reads of "no effect yet" before any create landed wrote
   the effect three times (Half Speed stacked to ×0.0625). One reconcile in flight per region, and

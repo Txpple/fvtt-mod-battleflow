@@ -13,11 +13,12 @@ import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, reminderFieldse
 import { livePopups, openMomentPopup, adoptManagedPopup, DialogCarried, markDefaultButton,
   momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
   armDeadline, disarmDeadline, registerRelay, dramaticVerdictPause } from "./ui.js";
-import { EVASION, SAVE_BENDS, SAVE_PRESSES } from "./decide/registry.js";
+import { EMANATIONS, EVASION, SAVE_BENDS, SAVE_PRESSES } from "./decide/registry.js";
+import { reachAdmits } from "./decide/emanations.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { REMINDER_FLAG, reminderRecord, saveGate, saveSources } from "./decide/reminders.js";
 import { rollModeOf } from "./decide/chips.js";
-import { conditionEntries, reminderEntries } from "./settings.js";
+import { conditionEntries, emanationEntries, reminderEntries } from "./settings.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt, revertEffect } from "./effect-riders.js";
 // ⚠ SAFE STATICALLY, unlike auto-damage.js's own ui.js import (v1.6.1's ESM order trap): the
@@ -121,7 +122,7 @@ async function stampSaveDemand(activity, message, results) {
     // geometry otherwise (templateShape) — never await canvas readiness here: an await
     // against template.object has been observed to never come back on the headless elect,
     // and the fallback makes it unnecessary.
-    const contained = tokensInTemplates((results?.templates ?? []).flat().filter(t => t?.parent));
+    const contained = emanationReach(activity, tokensInTemplates((results?.templates ?? []).flat().filter(t => t?.parent)));
     const raw = contained ?? (message.getFlag("dnd5e", "targets") ?? []);
     // THE DEAD-TARGET GATE (v1.19.0 — the user call recorded in the corner list above). The
     // filter runs on the RESOLVED set only; raw emptiness keeps its meaning (a bare template
@@ -251,6 +252,26 @@ function templatesForOrigin(activityUuid) {
   return found;
 }
 
+/**
+ * AN EMANATION'S REACH AT THE CAST (user, 2026-09-03: "when I cast it as a cleric, it affects all
+ * neutral/allies, should just be enemies"). A placed area asks everyone standing in it — right
+ * for a Fireball, wrong for a spell whose text says "you can designate creatures to be
+ * unaffected": the default designation is the row's reach (DESIGN §5 *Emanations* — harmful
+ * reaches enemies, by disposition), and the caster's own token never owes its own spell a save.
+ * Only a LISTED emanation row filters; every other area keeps the old answer. Null in, null out.
+ */
+function emanationReach(activity, contained) {
+  if ( !Array.isArray(contained) || !activity?.item || !setting(S.emanations) ) return contained;
+  const key = Object.keys(EMANATIONS).find(k => k.toLowerCase() === String(activity.item.name ?? "").toLowerCase());
+  const row = key ? EMANATIONS[key] : null;
+  if ( !row?.reach || !emanationEntries().some(e => e.kind === key.toLowerCase()) ) return contained;
+  const caster = activity.actor ?? null;
+  const casterTok = caster?.token ?? caster?.getActiveTokens?.(true, true)?.[0] ?? null;
+  const casterDisposition = casterTok?.disposition ?? CONST.TOKEN_DISPOSITIONS.FRIENDLY;
+  return contained.filter(c => (c.tokenId !== casterTok?.id) && (c.uuid !== caster?.uuid)
+    && reachAdmits(row.reach, casterDisposition, c.disposition ?? CONST.TOKEN_DISPOSITIONS.NEUTRAL));
+}
+
 /** The foundry template type a demand's area will wear (cube → rect &c.) — the system's
  * own map, so the module never hardcodes the correspondence. Null when the demand predates
  * templateType (pre-v1.13.0 stamps) or the type is unmapped: no toolbar adoption, only the
@@ -358,7 +379,8 @@ async function refreshDemandFromTemplates(card) {
       if ( claimed ) templates = [claimed];
     }
     if ( !templates.length ) return;
-    const contained = tokensInTemplates(templates) ?? [];
+    const activity = flag.activityUuid ? (() => { try { return fromUuidSync(flag.activityUuid); } catch { return null; } })() : null;
+    const contained = emanationReach(activity, tokensInTemplates(templates)) ?? [];
     // ⚠ THROUGH THE SERIALIZER (core.js), and the derivation moved INSIDE it. Everything
     // above is async — the template lookup and the bare-template claim both await — so the
     // `flag` read at the top of this function is stale by the time the write lands. Building
@@ -374,7 +396,7 @@ async function refreshDemandFromTemplates(card) {
         // The dead-target gate reaches adoption too (v1.19.0): a corpse standing in the placed
         // area never joins the demand — same filter, same predicate, same user call.
         .filter(saveDemandable)
-        .map(c => ({ ...c, done: false, outcome: null, total: null, rollMessageId: null }));
+        .map(c => ({ uuid: c.uuid, name: c.name, done: false, outcome: null, total: null, rollMessageId: null }));
       // No choice stamps at adoption either (walk-5 (y)): Interpose opens off the VERDICT, so
       // a late-adopted shield-bearer meets it exactly like a snapshot target — when they save.
       const next = [...done, ...keep, ...fresh];

@@ -82,6 +82,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   let combat = null;
   let template = null;
   let restored = false;
+  const sgItemUuid = () => cleric.items.find(i => i.name === 'Spirit Guardians')?.uuid ?? null;
   const clearMembers = async () => {
     for (const a of [paladin, cleric, ranger, victim, vicTok.actor].filter(Boolean)) {
       const fx = a.effects.filter(e => e.getFlag(MOD, 'emanation') || (e.getFlag(MOD, 'mastery') === 'rider' && /^Spirit Guardians/.test(e.name)) || ['incapacitated'].some(s => e.statuses?.has?.(s)));
@@ -103,6 +104,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await closeDialogs();
       try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
       try { if (template && scene.templates.get(template.id)) await template.delete(); } catch { /* gone */ }
+      // The cast began concentration; end it so the next cast is not asked about the last one.
+      try { if (cleric.concentration?.effects?.size) await cleric.endConcentration(); } catch { /* none */ }
       for (const r of scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'spell')) await r.delete().catch(() => {});
       for (const [id, pos] of Object.entries(home)) { const t = scene.tokens.get(id); if (t && ((t.x !== pos.x) || (t.y !== pos.y))) await t.update(pos, mv()); }
       await sleep(600);
@@ -120,6 +123,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('emanationList', 'Aura of Protection, Aura of Courage, Aura of Warding, Spirit Guardians');
     await set('saves', true); await set('saveTimer', 24); await set('playerRollDamage', false); await set('autoApply', true); await set('requireTarget', false);
     await clearMembers();
+    try { if (cleric.concentration?.effects?.size) await cleric.endConcentration(); } catch { /* none */ }
+    for (const t of scene.templates.filter(t => t.getFlag('dnd5e', 'item') === sgItemUuid())) await t.delete().catch(() => {});
     // Everyone home and apart: the Paladin and Cleric on the bottom row, the line at y=1000.
     for (const [id, pos] of Object.entries(home)) { const t = scene.tokens.get(id); if ((t.x !== pos.x) || (t.y !== pos.y)) await t.update(pos, mv()); }
     await sleep(800);
@@ -219,13 +224,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await rgrTok.update({ x: 1300, y: 300 }, mv());   // 15 ft above: inside too, but an ALLY
       await sleep(500);
       const b6 = game.messages.size;
+      // A REAL cast, no placement config: the module switches the prompt off and places the area
+      // itself (user, 2026-09-03: "it should just put it where the caster's token is").
       try {
-        await Promise.race([sgAct.use({ consume: { spellSlot: false, resources: false }, create: { measuredTemplate: false } }, { configure: false }, { create: true }),
-          new Promise((_, rej) => setTimeout(() => rej(new Error('use() did not settle')), 8000))]);
+        await Promise.race([sgAct.use({ consume: { spellSlot: false, resources: false } }, { configure: false }, { create: true }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('use() did not settle — the placement prompt was not switched off')), 8000))]);
       } catch (err) { log.push(`use(): ${err.message}`); }
-      await sleep(500);
-      [template] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{ t: 'circle', x: clrTok.x + grid / 2, y: clrTok.y + grid / 2, distance: 15,
-        flags: { dnd5e: { origin: sgAct.uuid, item: sgItem.uuid, spellLevel: 3 } } }]);
+      template = await waitFor(() => scene.templates.find(t => t.getFlag('dnd5e', 'origin') === sgAct.uuid) ?? null, 8000);
+      ok('6-. the area placed itself on the Cleric — no click: centred on the token, 15 ft plus half the token', !!template && (template.x === clrTok.x + grid / 2) && (template.y === clrTok.y + grid / 2) && (template.distance === 17.5), `template=${template?.id} at=(${template?.x},${template?.y}) distance=${template?.distance} spellLevel=${template?.getFlag('dnd5e', 'spellLevel')}`);
+      const conc = [...(cleric.concentration?.effects ?? [])].at(-1);
+      ok('6+. …and the Cleric is concentrating on it (the effect the area will end with)', !!conc && (conc.flags?.dnd5e?.activity?.uuid === sgAct.uuid), `conc=${conc?.name} activity=${conc?.flags?.dnd5e?.activity?.uuid}`);
       sgRegion = await waitFor(() => spellRegion('Spirit Guardians'), 8000);
       ok('6a. the template\'s Region is adopted: flagged, attached to the Cleric\'s token', !!sgRegion && (sgRegion.attachment?.token?.id === clrTok.id), `region=${sgRegion?.id} attached=${sgRegion?.attachment?.token?.id} cardsSinceUse=${game.messages.size - b6}`);
       const beh = await waitFor(() => scene.regions.get(sgRegion?.id)?.behaviors?.find(b => b.type === TYPE) ?? null, 4000);
@@ -236,6 +244,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('6d. the allied Ranger inside is untouched (designated unaffected by default)', memberFx(ranger, sgRegion?.id).length === 0, memberFx(ranger).map(e => e.name).join(','));
       const sgCard = await waitFor(() => game.messages.find(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationCard')?.key === 'Spirit Guardians') ?? null, 6000);
       ok('6e. a card announced the emanation as cast', !!sgCard, '');
+      // The CAST's own save demand (the saves machine's area adoption) reaches enemies only: the
+      // Victim owes a save; the Ranger and the Cleric inside the area do not (user, 2026-09-03).
+      const castCard = await waitFor(() => { const m = game.messages.contents.filter(x => (x.timestamp >= suiteStart) && x.getFlag(MOD, 'saves') && !x.getFlag(MOD, 'saves').pinnedTargets && x.getFlag(MOD, 'saves').activityUuid === sgAct.uuid).at(-1); return m?.getFlag(MOD, 'saves')?.targets?.length ? m : null; }, 8000);
+      const castTargets = castCard?.getFlag(MOD, 'saves')?.targets?.map(t => t.name) ?? [];
+      ok('6f. the cast\'s demand asks the hostile Victim and NOT the allied Ranger or the Cleric standing inside', castTargets.includes(vicTok.name) && !castTargets.includes('BF Test Ranger') && !castTargets.includes('BF Test Cleric'), `targets=[${castTargets.join(', ')}]`);
     }
 
     // ================================================== 7. the triggers
@@ -278,10 +291,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(8) && sgRegion) {
       const vicActor = vicTok.actor;
       const rid = sgRegion.id;
-      if (template && scene.templates.get(template.id)) await template.delete();
-      template = null;
-      const gone = await waitFor(() => (!scene.regions.get(rid) && memberFx(vicActor, rid).length === 0) ? true : null, 8000);
-      ok('8a. deleting the template deletes the region and lifts Half Speed from the Victim', !!gone, `region=${!!scene.regions.get(rid)} fx=${memberFx(vicActor, rid).map(e => e.name).join(',')} walk=${vicActor.system.attributes.movement.walk}`);
+      const tid = template?.id ?? null;
+      // The REAL end: concentration drops, and the system's own dependent cascade takes the
+      // template, the template takes its region, the region's going lifts the effect.
+      await cleric.endConcentration();
+      const gone = await waitFor(() => (!(tid && scene.templates.get(tid)) && !scene.regions.get(rid) && memberFx(vicActor, rid).length === 0) ? true : null, 10000);
+      if (!scene.templates.get(tid)) template = null;
+      ok('8a. ending concentration deletes the template (its dependent), the region with it, and lifts Half Speed from the Victim', !!gone, `template=${!!(tid && scene.templates.get(tid))} region=${!!scene.regions.get(rid)} fx=${memberFx(vicActor, rid).map(e => e.name).join(',')} walk=${vicActor.system.attributes.movement.walk}`);
     }
 
     // ================================================== 9. the switch

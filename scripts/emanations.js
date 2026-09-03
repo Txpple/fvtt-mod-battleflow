@@ -389,6 +389,92 @@ async function adoptSpellRegion(region) {
   }
 }
 
+/* --- the cast: a spell's emanation places itself on the caster ---------------------------------- */
+
+/** A listed spell row whose activity is an emanation from the caster (a `radius` template, range self). */
+function castEmanationRow(activity) {
+  if ( !live() || (activity?.item?.type !== "spell") ) return null;
+  const row = rowNamed(activity.item.name);
+  if ( !row || (row.kind !== "spell") || !listed().has(lower(row.key)) ) return null;
+  const tpl = activity.target?.template;
+  if ( (tpl?.type !== "radius") || !(Number(tpl?.size) > 0) ) return null;
+  if ( (activity.range?.units ?? "self") !== "self" ) return null;
+  return row;
+}
+
+// The caster is not asked to click the area down (user, 2026-09-03: "I shouldn't need to place
+// the template, it should just put it where the caster's token is"): the system's own placement
+// prompt is switched off for a listed emanation spell, and the template is placed here on the
+// casting client — centred on the caster's token, the spell's size plus half the token (an
+// emanation measures from the edge), carrying the flags the system would have written (origin,
+// item, spell level), and made the concentration effect's dependent so it ends with the spell.
+// From there nothing is new: the region appears, the GM adopts it, the saves machine's floor
+// adopts the template into the cast's demand.
+Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
+  try {
+    if ( !castEmanationRow(activity) ) return;
+    usageConfig.create ??= {};
+    usageConfig.create.measuredTemplate = false;
+  } catch(err) { console.warn(`${TITLE} | Could not switch off the template prompt.`, err); }
+});
+
+Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
+  try {
+    const row = castEmanationRow(activity);
+    if ( !row ) return;
+    if ( (results?.templates ?? []).flat().length ) return;   // the system placed one after all
+    const actor = activity.actor;
+    if ( !actor?.isOwner ) return;
+    void placeCastEmanation(activity, row, results?.message instanceof ChatMessage ? results.message : null);
+  } catch(err) { console.error(`${TITLE} | Could not place the emanation — place the template by hand.`, err); }
+});
+
+async function placeCastEmanation(activity, row, message) {
+  const actor = activity.actor;
+  const tok = actor.token ?? actor.getActiveTokens?.(true, true)?.[0] ?? null;
+  const scene = tok?.parent;
+  if ( !tok || !scene ) return;
+  const size = Number(activity.target.template.size);
+  const half = (tok.width * scene.grid.distance) / 2;
+  const spellLevel = Number(message?.system?.spellLevel ?? activity.item.system?.level ?? 0) || activity.item.system?.level;
+  // The concentration effect for this cast owns the area: dnd5e 5.2+ tracks a dependent by the
+  // `dependentOn` flag ON THE DEPENDENT, registered when it is created — so the flag goes into
+  // the create data (the deprecated `addDependent` after the fact never reached the registry).
+  // The system deletes dependents when concentration ends; the region goes with the template.
+  const conc = [...(actor.concentration?.effects ?? [])].find(e => (e.getFlag?.("dnd5e", "item")?.id === activity.item.id) || (e.flags?.dnd5e?.item?.id === activity.item.id))
+    ?? [...(actor.concentration?.effects ?? [])].at(-1) ?? null;
+  await scene.createEmbeddedDocuments("MeasuredTemplate", [{
+    t: "circle", x: tok.x + (tok.width * scene.grid.size) / 2, y: tok.y + (tok.height * scene.grid.size) / 2,
+    distance: size + half,
+    flags: { dnd5e: { origin: activity.uuid, item: activity.item.uuid, spellLevel, ...(conc ? { dependentOn: conc.uuid } : {}) } }
+  }]);
+}
+
+// The spell ends when concentration does. dnd5e 5.3 does NOT delete a placed template on
+// endConcentration (measured, smoke-emanations §8: the template stood after the effect went),
+// and the saves machine's own duration sweep waits for every verdict to land. So the area this
+// module adopted goes here, on the GM, the moment the concentration effect for its activity is
+// deleted: the template (its region follows, v14 shares the id) or the bare region.
+Hooks.on("deleteActiveEffect", effect => {
+  if ( !isActiveGM() || !effect?.statuses?.has?.("concentrating") ) return;
+  void endCastEmanations(effect);
+});
+async function endCastEmanations(effect) {
+  try {
+    const activityUuid = effect.flags?.dnd5e?.activity?.uuid ?? null;
+    if ( !activityUuid ) return;
+    for ( const scene of game.scenes ) {
+      for ( const region of scene.regions.filter(r => (flagOf(r)?.kind === "spell") && (r.getFlag("dnd5e", "origin") === activityUuid)) ) {
+        const template = scene.templates.get(region.id);
+        if ( template ) await template.delete().catch(() => {});
+        if ( scene.regions.get(region.id) ) await region.delete().catch(() => {});
+      }
+    }
+  } catch(err) {
+    console.error(`${TITLE} | Could not end an emanation with its concentration — delete the area by hand.`, err);
+  }
+}
+
 /* --- the card (R5 / N3): an emanation says what it is when it appears ------------------------- */
 
 const KEY_LABELS = {

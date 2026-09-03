@@ -106,7 +106,9 @@ export function tokensInTemplates(templates) {
       const uuid = tok.actor.uuid;
       if ( seen.has(uuid) ) continue;
       seen.add(uuid);
-      entries.push({ uuid, name: tok.name });
+      // The token's id and disposition ride along for the readers that filter by them (an
+      // emanation's reach, 2026-09-03); the demand's own entries keep only uuid and name.
+      entries.push({ uuid, name: tok.name, tokenId: tok.id, disposition: tok.disposition });
     }
   }
   return entries;

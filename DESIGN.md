@@ -532,8 +532,18 @@ automated — that sentence is the whole job, and the module does exactly that m
   scene and its range resolves, and is gone when the token or the feature goes. **Off while the
   source is Incapacitated** (the text). A GM deleting the region by hand gets it back on the next
   sweep — the switch is the setting or the list, not the region.
-- **A spell's aura is the template the system placed** (Spirit Guardians): adopted when its
-  Region appears, attached to the caster, dead with the template — concentration's own cascade.
+- **A spell's aura places itself on the caster** (user, 2026-09-03: *"I shouldn't need to place
+  the template, it should just put it where the caster's token is"*): the system's placement
+  prompt is switched off for a listed emanation spell and the template lands centred on the
+  caster's token — the spell's size plus half the token, an emanation measuring from the edge —
+  carrying the flags the system would have written. Adopted when its Region appears, attached to
+  the caster, and **ended by the module when the concentration effect for that cast is deleted**
+  (dnd5e 5.3 leaves a placed template standing after `endConcentration` — measured).
+- **The cast's own save asks only who the aura reaches** (user, 2026-09-03: *"when I cast it as
+  a cleric, it affects all neutral/allies, should just be enemies"*): the saves machine's area
+  adoption asks everyone standing in a placed area — right for a Fireball — and for a listed
+  emanation row it filters by the row's reach and never asks the caster. Spirit Guardians cast
+  among allies demands nothing of them.
 - **Range is the content's** (N1, and the row says where, never what): the activity's own size
   when the pack gives one (Spirit Guardians: 15), else the class's own scale value the pack's
   aura activities already reference (`@scale.paladin.aura` — 10 at 6th, 30 at 18th; *Aura
