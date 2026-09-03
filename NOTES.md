@@ -738,6 +738,13 @@ turnStart` for the platform's mark, and its liveness is stamp arithmetic (`react
 the reactor's next turn after the chip's start. When a window's start and its owner's turn can
 differ, write the arithmetic; the duration data alone cannot say it.
 
+**A combat left standing in the sandbox reds the battery for the wrong reason.** Two suites
+assert "out of combat" facts — `smoke-battleflow` §3b (the roll context's combat is null) and
+`smoke-effects` §17b (the Cleave arm's stamp is null) — and both go red under any running
+Combat, whatever created it (2026-09-03: the user's own encounter from a morning walk, Practice
+Dummy / Morgash / Jetten, round 2). The battery does not end combats and must not (they may be
+the user's); look at `game.combats` before diagnosing either red, and ask before deleting one.
+
 **"The" roll dialog is a list, never a first match.** Since 2026-09-03 three machines open the
 system's RollConfigurationDialog (the save demand, the Topple save, the concentration ask) and
 any of them can be standing while an attack dialog opens — a pending concentration ask on the
