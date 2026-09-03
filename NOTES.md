@@ -233,6 +233,23 @@ warns once, gone at v16) — read `units`/`value`/`expired` instead. Measured li
 
 **Hit/miss is computed at render time and never persisted.** Recompute downstream.
 
+**Spells INHERIT activation; features DECLARE it (2026-09-02, the corpus scan over the 2024
+packs).** A spell keeps its casting time on the item and an activity carries its own
+`activation` only with `override: true`; a feature has no item-level activation at all — every
+activity declares its own type with no override flag ever set. A test that demands the override
+(the worn-"Shield" guard) refuses every 2024 reaction feature — Deflect Attacks, Warding Flare —
+in silence. `decide/eligible.js isReactionItem` now tests the override for spells only.
+
+**Some features are a paragraph and nothing else.** The 2024 PHB ships Uncanny Dodge, Steady
+Aim, Evasion and a hundred-odd more with no activities, no activation, no effects. Nothing on
+the item can be read; a curated list naming one means the feature BY NAME
+(`isTextOnlyFeature`), and whatever a use would have done (spend the Reaction, write a chip)
+the module does itself.
+
+**DialogV2 sizes to its content and never scrolls it.** Eight menu rows under a card pushed
+the footer — and the only button — off the bottom of the viewport. Anything that can grow
+goes in its own `max-height: calc(100vh - Nrem); overflow-y: auto` box inside the content.
+
 **The pre-roll hooks fire BEFORE the fast-forward keys are read (2026-09-01).** `buildConfigure`
 dispatches `dnd5e.preRoll<Name>` / `preRoll<Name>V2` for every hook name, *then* calls
 `applyKeybindings`, which is what turns a shift/alt/ctrl click into `dialog.configure = false`

@@ -457,7 +457,22 @@ outcome**: a Dexterity save for half takes none on a success and half on a failu
 Incapacitated; applied at ×0 and receipted, never silent. **Incapacitated breaks
 concentration** — the glossary's clause, off the effect that brings the condition, no save.
 **The Reaction is a chip** (§8). **Uncanny Dodge stays an attack-roll interrupt** — the 2024 text
-names an attack roll; it has no bearing on a save.
+names an attack roll; it has no bearing on a save. **An interrupt is the ABILITY by name, never
+its effect** (user, 2026-09-02): a 2024 reaction feature declares its activation on the activity
+with no override flag, and a feature the pack ships as text only (the PHB's Uncanny Dodge) is
+found by name the way the maneuver folds find Riposte — the cast answer spends the Reaction chip
+itself. **A damage interrupt the module can settle is settled** (`INTERRUPT_MULTIPLIERS`):
+Uncanny Dodge lands the held attack's damage against the reactor at ×0.5, the receipt row and
+the card say so; Absorb Elements and Deflect Attacks stay "reduce by hand", their arithmetic
+being a resistance or a roll the module cannot read. **The gate's labels are the fact alone**
+(user, later the same day, four times over): "Rogue — Hiding", "Ranged attack within 5 feet of
+X", "Morgash is Prone (Cunning Strike: Tripped) — 30 feet away"; the "(counted — press Normal
+if …)" tails are gone because the quoted rule already says the condition, and the "listed — …"
+caveats stay because they are the whole reason a row bends nothing. **The Sneak Attack box is
+"Sneak Attack — 5d6", the tick and the folded rule** — the read-for-you line went the same way;
+**the Cunning Strike rows are the name, the cost and the folded rule**; **the damage offer's
+menus scroll in a viewport-bounded box** so the Roll button never leaves the screen, and **that
+button names the weapon** ("Shortbow + Sneak Attack 5d6").
 
 **⚠ PRONE IS THE NAMED EXCEPTION, AND IT STAYS PASSIVE (user call, 2026-09-01).** It is pressed
 as a status with no duration, so it sits in Passive — and that is correct rather than tolerated.

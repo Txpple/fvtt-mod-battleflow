@@ -106,7 +106,11 @@ whether the module's code RAN, as opposed to whether it is well formed.
 
 ## Censuses — how registries get built
 
-`scan-reactions.mjs` · `scan-riders.mjs` · `scan-volley-spells.mjs`
+`scan-reactions.mjs` · `scan-riders.mjs` · `scan-volley-spells.mjs` · `scan-corpus.mjs` (the whole
+ability corpus — race traits, class and subclass features, feats, spells — to a JSON file, ~10 min,
+read-only) · `classify-corpus.mjs` (offline: that JSON sorted into mechanism families, `--list
+<family>` / `--kind <kind>`; the survey behind SWEEP.md). `probe-steady-aim-live.mjs` reads a
+live table's Steady Aim chip and attack records without touching anything.
 
 Read-only sweeps of the official compendia. Curated lists are built from what 5e 2024 actually
 ships, never from what the party owns (DESIGN N1). Re-run after adding content.

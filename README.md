@@ -32,7 +32,7 @@ settings at v1.20.0. The dogfood ladder is walked one setting at a time.
 | **Save presses** | a save whose failure the pack does not carry as an effect — Web's Restrained — presses the standard condition from a row, the caster as its origin, receipted with a revert |
 | **Evasion** | a Dexterity save for half: no damage on a success, half on a failure, not while Incapacitated — applied and receipted, the row says why |
 | **Incapacitated breaks concentration** | the moment the condition lands on a concentrator (Hypnotic Pattern, Paralyzed, Stunned…), concentration ends — no save, the card says why |
-| **The Reaction** | one chip on the reactor, spent by Shield, Uncanny Dodge, a riposte or Interpose, back at the start of their next turn; no hold is offered while it stands |
+| **The Reaction** | one chip on the reactor, spent by Shield, Uncanny Dodge, a riposte or Interpose, back at the start of their next turn; no hold is offered while it stands. An interrupt is found by the ability's NAME — a text-only feature counts — and Uncanny Dodge halves the held attack's damage against the reactor, receipted |
 | **Maneuver folds** | Precision Attack patches a declared miss, Riposte drives a real attack, Interpose and the Shield Master bash resolve post-verdict |
 | **Saves** | auto-roll for everyone, per-target popups, half-damage-on-save made real, template containment |
 | **Concentration assist** | an un-buryable prompt, and a failed save actually ends the spell — which the system never does itself |
@@ -43,7 +43,9 @@ settings at v1.20.0. The dogfood ladder is walked one setting at a time.
 
 ## Documentation
 
-Four documents, and only four.
+Four documents, and only four — plus **[SWEEP.md](SWEEP.md)** for the length of the abilities
+sweep it surveys (2026-09-02): the 2024 corpus sorted into the module's mechanism families, kind
+by kind. It folds into BACKLOG/DESIGN when the sweep is scoped, and then it goes.
 
 - **[DESIGN.md](DESIGN.md)** — the north star. What the module is for, the four goals it exists
   to serve, what is permanently out of scope. Stable; read it before proposing anything.
