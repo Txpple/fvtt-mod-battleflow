@@ -296,12 +296,6 @@ export function foldedSave({ total, dc, forced = false, folds = [] }) {
 }
 
 /**
- * What a verdict does to the number: 1 on a failure; the activity's own word on a success;
- * nothing at all for any other outcome (a "gone" target has nobody to pay).
- *
- * ⚠ null means no application AND NO RECEIPT — never a receipt for zero.
- */
-/**
  * A HELD ATTACK's damage against one reactor, from the hold's own record (user, 2026-09-02:
  * "uncanny dodge … doesn't half the damage"): a `damage`-kind reaction answered CAST, named
  * in the multiplier table, lands at the table's multiplier — Uncanny Dodge halves. Anything
@@ -320,6 +314,12 @@ export function interruptMultiplier(target, table) {
   return { multiplier, reaction: key, note: `${key} — ${how}` };
 }
 
+/**
+ * What a verdict does to the number: 1 on a failure; the activity's own word on a success;
+ * nothing at all for any other outcome (a "gone" target has nobody to pay).
+ *
+ * ⚠ null means no application AND NO RECEIPT — never a receipt for zero.
+ */
 export function saveMultiplier(entry, damageOnSave) {
   // Interpose (finding ⑥, recut by walk-5 (y)): an accepted Reaction turns the successful
   // save's half into NOTHING — no application, no receipt; the settle card is the record.

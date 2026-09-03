@@ -338,7 +338,7 @@ export function rangeSources({ ranged = false, distanceFeet = null, normalFeet =
   if ( !ranged || !rules ) return out;
   if ( closeEnemies.length ) {
     out.push(reminderSource("range", "disadvantage",
-      `${attackerName} — a ranged attack within 5 feet of ${closeEnemies.join(", ")} (counted — press Normal if none of them can see you)`,
+      `Ranged attack within 5 feet of ${closeEnemies.join(", ")}`,
       rules.close));
   }
   const d = Number(distanceFeet), normal = Number(normalFeet), long = Number(longFeet);

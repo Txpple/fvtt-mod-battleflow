@@ -242,9 +242,7 @@ describe("rangeSources — a ranged attack's own geometry, both glossary rules",
       rules: rules()
     });
     expect(s).toMatchObject({ kind: "range", bend: "disadvantage", detail: reg.RANGE_RULES.close });
-    expect(s.label).toBe(
-      "Gruk — a ranged attack within 5 feet of Goblin, Wolf (counted — press Normal if none of them can see you)"
-    );
+    expect(s.label).toBe("Ranged attack within 5 feet of Goblin, Wolf");
   });
   it("a melee attack yields nothing, whatever the distance; an unmeasured ranged attack yields nothing on the range side", () => {
     expect(
