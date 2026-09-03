@@ -738,6 +738,14 @@ turnStart` for the platform's mark, and its liveness is stamp arithmetic (`react
 the reactor's next turn after the chip's start. When a window's start and its owner's turn can
 differ, write the arithmetic; the duration data alone cannot say it.
 
+**"The" roll dialog is a list, never a first match.** Since 2026-09-03 three machines open the
+system's RollConfigurationDialog (the save demand, the Topple save, the concentration ask) and
+any of them can be standing while an attack dialog opens — a pending concentration ask on the
+player's own client is the live case. `smoke-nogm` read the first rendered one, found the
+concentration dialog, and reported "no gate" against an attack gate that was open (15/19, twice,
+2026-09-03). Filter all rendered dialogs and tell them apart by what THEY carry — the attack's
+class, our `[data-bf-reminder]` section, our `[data-bf-save-demand]` fieldset — never by position.
+
 **A suite that reads a dialog after pressing it reads nothing.** The app's element is gone once
 the dialog closes; every assertion about what a dialog SHOWED is read before the press and
 carried out. Two hours of "the box is missing" on a box that was there (smoke-sneak, 2026-09-02).

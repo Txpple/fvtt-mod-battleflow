@@ -359,6 +359,12 @@ try {
     if (planted.error) {
       ok('§spent the section could set itself up', false, planted.error);
     } else {
+      // The player page's own errors, so a swing that finds no dialog says WHY (2026-09-03).
+      const pageErrors = [];
+      try {
+        player.page.on('pageerror', e => pageErrors.push(`pageerror: ${e?.message ?? e}`));
+        player.page.on('console', m => { if (m.type() === 'error') pageErrors.push(`console: ${m.text().slice(0, 300)}`); });
+      } catch { /* no page handle — nothing to listen to */ }
       const spent = await player.evaluate(async ({ modId, chipId, tokenId, weaponUuid }) => {
         const sleep = ms => new Promise(r => setTimeout(r, ms));
         const until = async (fn, ms = 15_000) => {
@@ -380,10 +386,15 @@ try {
         if (!activity) return { error: 'the weapon has no attack activity' };
         // The gate lives INSIDE the system's own roll dialog (2026-09-02): a rendered roll dialog
         // carrying Battle Flow's section is the gate; one without it is the bare system dialog.
-        const rollDialog = () => [...foundry.applications.instances.values()]
-          .find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element) ?? null;
-        const gateOpen = () => { const app = rollDialog(); return app?.element?.querySelector('[data-bf-reminder]') ? app : null; };
-        const systemOpen = () => !!rollDialog();
+        // ⚠ ALL of them, not the first (2026-09-03): since the concentration ask became the
+        // system's own Saving Throw dialog, §conc leaves one standing on this client, and a
+        // first-match read found IT and never looked at the attack dialog beside it — swing 1
+        // read "no gate" against a gate that was open (15/19, twice). The attack's dialog is
+        // told by its class; the gate by our section.
+        const rollDialogs = () => [...foundry.applications.instances.values()]
+          .filter(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element);
+        const gateOpen = () => rollDialogs().find(app => app.element.querySelector('[data-bf-reminder]')) ?? null;
+        const systemOpen = () => rollDialogs().some(app => /AttackRollConfigurationDialog/.test(app.constructor?.name ?? ''));
         const closeAll = async () => {
           for (const app of foundry.applications.instances.values()) {
             if (/RollConfigurationDialog/.test(app.constructor?.name ?? '')) { try { await app.close(); } catch { /* gone */ } }
@@ -411,7 +422,9 @@ try {
         const record = await until(() => game.messages.get(msg1?.id ?? '')?.getFlag(modId, 'chipSpend')?.spent?.find(s => s.id === chipId) ?? null, 8000);
         await sleep(1500);
         const chipStillThere = !!token.actor.effects.get(chipId);
-        log.push(`swing 1: gate=${!!gate1} record=${JSON.stringify(record)} chipStillThere=${chipStillThere}`);
+        const system1 = systemOpen();
+        log.push(`swing 1: gate=${!!gate1} system=${system1} record=${JSON.stringify(record)} chipStillThere=${chipStillThere}`
+          + ` attackMsg=${!!msg1} dialogs=${[...foundry.applications.instances.values()].filter(a => /Dialog/.test(a.constructor?.name ?? '')).map(a => a.constructor.name).join('|')}`);
         await closeAll();
 
         // Swing 2: the same chip must NOT be offered again — nothing else bends, so the SYSTEM's own dialog opens.
@@ -438,6 +451,7 @@ try {
       }, { modId: MOD, actorUuid: planted.actorUuid, priorList: planted.priorList });
       await disposeSafely(sweeper, 'nogm-sweeper');
 
+      if (pageErrors.length) out.log.push(...pageErrors.slice(0, 12).map(e => `  · player page: ${e}`));
       if (spent.error) {
         ok('§spent the section could run', false, spent.error);
       } else {

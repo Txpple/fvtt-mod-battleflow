@@ -235,6 +235,11 @@ What today's work must preserve for that to be reachable:
 No chit work is scheduled. The obligation on current work is only to keep those three
 properties true.
 
+**The likely first slice is a buff bar** (user, 2026-09-03): a strip of the character's live
+chips — Steady Aim, Vexed, Cleave armed, the mastery marks — read off the sheet, so the buffs
+the gate already reads are visible without a token icon per chip crowding the canvas. A view
+over what already exists, no new state; the spendable chits join the same strip later.
+
 ### Where a chip belongs on the sheet (user rule, 2026-09-01)
 
 **Combat chips are TEMPORARY effects. Passive is for long-term spells and worn abilities.**
