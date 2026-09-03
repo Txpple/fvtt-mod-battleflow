@@ -1,14 +1,36 @@
 # The abilities sweep — survey
 
-**Status: survey only (2026-09-02). Nothing here is scheduled or owed.** A fifth document by
-design, for the length of the sweep: it holds the survey behind a planned pass over every
-racial trait, class feature, subclass feature, feat and spell that would qualify for Battle
-Flow, in that order. When the sweep is scoped, what it settles moves into DESIGN §8 / BACKLOG
-and this file goes.
+**Status: SHELVED (2026-09-03, user call: "a longer term project"). Surveyed, its three
+questions ruled, nothing scheduled or owed.** A fifth document by design, for the length of the
+sweep: it holds the survey behind a planned pass over every racial trait, class feature,
+subclass feature, feat and spell that would qualify for Battle Flow, in that order. When the
+sweep is scoped, what it settles moves into DESIGN §8 / BACKLOG and this file goes.
 
-Regenerate the numbers with `node tools/scan-corpus.mjs <out.json>` (live, read-only, ~10 min,
-the user out of the world — the harness refuses two GMs) and
-`node tools/classify-corpus.mjs <out.json> [--list <family>] [--kind <kind>]`.
+## 0. Picking it up later — read this first
+
+Everything a future session needs to start the sweep without re-deriving it:
+
+1. **The rulings are made (§5, 2026-09-03).** Ignore the 2014 packs. The hit menu is ONE popup
+   per hit, rows grouped by the feature or class that grants them. Save-side bends read ONE
+   shared Effect Sources list with the attack gate, never a second list. Do not re-ask.
+2. **Smites are OUT of the hit menu** (user, 2026-09-03): in 2024 Divine Smite and the smite
+   spells are a separate Bonus Action cast after the hit, not a rider on it — the module does
+   not cover them. Item 2 below is Barbarian, Monk and Battle Master.
+3. **The order is §4.** Start with item 1 (save-side bends): one table, thirty rows, every
+   kind touched on day one, so the kind-by-kind walk has something to read against. Item 2 gets
+   a clickable prototype before code ([[ui-prototype-first]]): draw the one-popup offer with a
+   mixed case (a character holding two of the features) and let the user rule off it.
+4. **The corpus is current.** Rescanned 2026-09-03 with the fixed activation column; the
+   numbers in §2 held (587 rows matched a family, one more than the survey's 586; the rest
+   identical). The JSON lives in the session scratchpad, not the repo — regenerate it:
+   `node tools/scan-corpus.mjs <out.json>` (live, read-only, ~10 min, the user out of the
+   world — the harness refuses two GMs; the process hits its own 900 s watchdog after the file
+   is written, which is harmless) then
+   `node tools/classify-corpus.mjs <out.json> [--list <family>] [--kind <kind>]`.
+5. **The eight shapes are tables in `scripts/decide/registry.js`** (§1 names each). A row
+   there, a unit test in `tests/decide-registry.test.js`, a section in the matching
+   `tools/smoke-*.mjs` suite is the whole cost of a band-1 item.
+6. **Nothing here blocks anything.** Prod is frozen at v1.27.2; the sandbox is the test area.
 
 ## 1. What the walk taught — the families of change
 
@@ -102,9 +124,16 @@ mechanism; what it needs is the existing ones opened up:
    and Forceful Blow / Hamstring / Staggering / Sundering), Stunning Strike (once per turn, a
    Con save or Stunned), Open Hand Technique, Elemental Smite, Psionic Strike, the Battle
    Master's on-hit maneuvers (Trip, Pushing, Disarming, Menacing, Goading, Distracting —
-   Precision and Riposte are folds already), and **Divine Smite with the eight smite spells**
-   (a Bonus Action spell cast after a hit — Searing, Thunderous, Wrathful, Blinding, Banishing,
-   Staggering, Shining ✓ as a bend). Twenty-odd rows behind one menu machine. *Cost 2.*
+   Precision and Riposte are folds already). A dozen-odd rows behind one menu machine. *Cost 2.*
+   ⚠ **Not the smites** (user, 2026-09-03): Divine Smite and the eight smite spells are a
+   separate Bonus Action cast AFTER the hit in 2024, not a rider on it — out of scope for the
+   menu; Shining Smite stays a bend row. **Ruled 2026-09-03: one popup per hit, the rows grouped
+   by the feature or class that grants them** — never a menu per feature. What generalises is
+   the COST KIND (sneak dice today; a Focus Point, a Superiority Die, a use), so the table is one
+   hit-options registry keyed by feature, each row its cost kind and amount, its pick limit
+   within the feature, and the pack activity it runs. Brutal Strike's trade (forgo Reckless
+   Advantage) is decided BEFORE the roll and is a gate box; only its rider and the Forceful
+   Blow choice are menu rows.
 3. **Interrupts that bend the attack roll instead of AC or damage.** The Interrupt list knows
    `ac` and `damage`; the corpus has a third kind — the reaction that imposes Disadvantage or
    subtracts from the roll: Warding Flare, Cutting Words, Shadowy Dodge, Bend Luck, Cosmic
@@ -133,14 +162,15 @@ mechanism; what it needs is the existing ones opened up:
 **Kinds, by yield.** (a) Races are thin: seven breath weapons the packs already carry, Stone's
 Endurance ✓, three save bends (Brave, Fey Ancestry, Dwarven Resilience — item 1), Luck (item 5),
 the Goliath's Giant Ancestry options. (b) Classes: every core feature that mattered is in;
-what remains is Brutal Strike, Stunning Strike, Divine Smite, Indomitable, Danger Sense,
+what remains is Brutal Strike, Stunning Strike, Indomitable, Danger Sense,
 Studied Attacks, Relentless Rage, Second Wind / Tactical Shift — items 1, 2, 5, 8. (c)
 Subclasses are the volume — 156 rows, 44 text-only — and almost all of them land in items 2,
 3 and 4; the press-condition subclass rows (28) are pack-carried and need nothing. (d) Feats
 are a third done (12 known); the rest are items 5 and 6 plus Sentinel and Polearm Master (a
 reaction attack — Riposte's shape) and Great Weapon Master's flat rider. (e) Spells: the
 mechanics are the packs' own; the sweep adds bend rows (35 known, the detector finds few
-more), the smites (item 2), the save-side bends (item 1) and the bare-press audit (item 7).
+more), the save-side bends (item 1) and the bare-press audit (item 7); the smites are a
+Bonus Action cast, not a hit rider, and stay out (2026-09-03).
 
 **What not to sweep.** Resistances and immunities (the system's damage pipeline), speeds and
 movement (out of scope, DESIGN §4), passive AC formulas (the sheet), temp HP and healing on
@@ -150,7 +180,7 @@ already carries.
 ## 4. Suggested order, when scoped
 
 1. Item 1 (save-side bends) — one table, thirty rows, all five kinds touched at once.
-2. Item 2 (the hit menu) — off a prototype; unlocks Barbarian, Monk, Paladin, Battle Master.
+2. Item 2 (the hit menu) — off a prototype; unlocks Barbarian, Monk, Battle Master.
 3. Item 3 (the d20 interrupt kind) — the Reaction chip is already there to spend.
 4. Items 4, 6, 8 — rows.
 5. Items 5 and 7 — the reroll kinds and the press audit.
@@ -158,10 +188,16 @@ already carries.
 Then the kind-by-kind walk the user asked for, (a) to (e), reading each row against the
 tables rather than inventing a mechanism per feature ([[examples-are-classes]]).
 
-## 5. Open questions for the user
+## 5. The three questions — all RULED 2026-09-03
 
-- Do the 2014 legacy packs stay ignored? (Assumed yes — the table plays 2024.)
-- The hit menu: one popup per hit with every eligible rider (Sneak, Brutal, Smite…) as rows,
-  or a menu per feature as Cunning Strike is today?
-- Save-side bends read by name need the same three lists the attack gate has (kinds,
-  conditions, effects) or one shared Effect Sources list for both gates?
+- ~~Do the 2014 legacy packs stay ignored?~~ **Yes, ignore 2014** (user: "ignore 2014"). The
+  table plays 2024; the tables match by name, so a shared name already works.
+- ~~The hit menu: one popup per hit with every eligible rider as rows, or a menu per feature as
+  Cunning Strike is today?~~ **One popup per hit, grouped by feature/class** (user: "one popup
+  seems good, grouped by feature/class"). Smites are not on it — they are a separate Bonus
+  Action in 2024 (user, same ruling). Detail in §3 item 2.
+- ~~Save-side bends read by name need the same three lists the attack gate has, or one shared
+  Effect Sources list for both gates?~~ **One list** (user: "one list, for saves"). The row says
+  which gate it bends — the attacker/target facets it has today plus a saves facet (abilities +
+  bend, the `SAVE_BENDS` shape). The Condition Sources list already switches both gates; this
+  follows it. The Reminder Sources list stays the kinds switch for both.
