@@ -320,6 +320,9 @@ async function refreshDemandFromTemplates(card) {
   try {
     const flag = card.getFlag(MODULE_ID, "saves");
     if ( flag?.status !== "pending" ) return;
+    // An emanation's TRIGGERED demand (emanations.js, 2026-09-03) names ONE creature and shares
+    // the cast's activity — the area is not its authority and never re-derives it.
+    if ( flag.pinnedTargets ) return;
     // A WAITING demand (zero targets — the v1.12.0 targetless template stamp) is a
     // customer too: it exists precisely so the area can deliver its targets later.
     const wasWaiting = !(flag.targets ?? []).length;
@@ -341,7 +344,8 @@ async function refreshDemandFromTemplates(card) {
       // wall, stated the same way: the NEWEST cast owns the area, period.
       const newer = game.messages.contents.some(m => {
         if ( (m.id === card.id) || (m.timestamp <= card.timestamp) ) return false;
-        return m.getFlag(MODULE_ID, "saves")?.activityUuid === flag.activityUuid;
+        const f = m.getFlag(MODULE_ID, "saves");
+        return (f?.activityUuid === flag.activityUuid) && !f.pinnedTargets;   // a triggered demand is not a cast
       });
       if ( newer ) return;
     }
@@ -412,7 +416,7 @@ function refreshTemplatedDemands(templateDoc) {
   const origin = templateDoc.getFlag("dnd5e", "origin");
   const live = game.messages.contents.filter(m => {
     const f = m.getFlag(MODULE_ID, "saves");
-    if ( f?.status !== "pending" ) return false;
+    if ( (f?.status !== "pending") || f.pinnedTargets ) return false;
     if ( origin ) return (f.activityUuid === origin)
       // Undone targets, or a WAITING demand (zero targets) whose area just arrived.
       && (!(f.targets ?? []).length || (f.targets ?? []).some(t => !t.done));
@@ -477,7 +481,8 @@ async function cleanupSpentTemplates(card, { endedConcentrationId = null } = {})
   }
   const superseded = game.messages.contents.some(m => {
     if ( (m.id === card.id) || (m.timestamp <= card.timestamp) ) return false;
-    return m.getFlag(MODULE_ID, "saves")?.activityUuid === flag.activityUuid;
+    const f = m.getFlag(MODULE_ID, "saves");
+    return (f?.activityUuid === flag.activityUuid) && !f.pinnedTargets;   // a triggered demand is not a re-cast
   });
   if ( superseded ) return;
   // ⚠ ONE SWEEP IN FLIGHT PER CARD (2026-08-28, the live Fireball's three red banners). The
@@ -1410,6 +1415,10 @@ async function applySaveEffects(card, flag, entry) {
   // the Push idiom (a card, a hand-moved token), and the Prone press is the STANDARD chip
   // via forceStatus — never the item's own custom effect. announceBashOutcome owns both.
   if ( (entry.choice?.kind === "bash") && entry.choice.answer ) return;
+  // An emanation's TRIGGERED demand (emanations.js, 2026-09-03): the activity's effect (Spirit
+  // Guardians' Half Speed) is the area's STANDING effect, kept by the region while the creature
+  // stands inside — applying it again here would double it. The demand says so; damage still lands.
+  if ( flag.effectsHandled ) return;
   const activity = flag.activityUuid ? await fromUuid(flag.activityUuid) : null;
   if ( !activity ) return; // the item is gone (a consumed scroll) — accepted corner above
   const applicable = new Set((activity.applicableEffects ?? []).map(e => e.id));

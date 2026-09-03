@@ -227,6 +227,42 @@ warns once, gone at v16) — read `units`/`value`/`expired` instead. Measured li
 
 ---
 
+### v14 models an emanation end to end — MEASURED (2026-09-03, tools/probe-emanations.mjs)
+
+- **`RegionDocument.createTokenEmanation(token, range, regionData, {excludeToken, gridBased})`**
+  makes a Region whose one shape is `{type: "emanation", base: {type: "token", …}, radius}` — the
+  token's base plus the radius in pixels, an elevation band either side — **attached to the
+  token** (`attachment.token`). Moving the token moved the shape; membership (`region.tokens`)
+  was recomputed as it went. **The token is not a member of its own emanation.**
+- **Any region can be attached** the same way: `region.update({attachment: {token: id}})` on a
+  template's region moved the template document too.
+- **The native `applyActiveEffect` behaviour** (`{effects: [uuid]}`, events `tokenEnter` /
+  `tokenExit`) applied the effect on entry, lifted it on exit, lifted it when disabled and
+  re-applied when re-enabled, and fired when the AREA moved onto a standing token. ⚠ Its
+  handlers run on **`event.user.isSelf` — the client that moved the token** — so a player
+  walking the Paladin onto a monster would try to write the monster. The module's own type runs
+  its handlers on the active GM instead (the flow-elect law), with the membership floor as truth.
+- **`tokenTurnStart` / `tokenTurnEnd` are dispatched by the Combat to the one designated GM**
+  (`#onEndTurn` → `#triggerRegionEvents(TOKEN_TURN_END, context, [combatant])`).
+- **A module-defined behaviour subtype must be declared in `module.json`** —
+  `"documentTypes": {"RegionBehavior": {"emanation": {}}}` — or the server refuses any document
+  carrying it **silently**: `Region.create` returned `undefined`, `createEmbeddedDocuments`
+  returned `[]`, no error anywhere. Cost a run. The type id is `<module-id>.<name>`; the class
+  goes into `CONFIG.RegionBehavior.dataModels` at `init` (dnd5e does the same for
+  `dnd5e.difficultTerrain`), and a manifest change needs the process restarted.
+- **A behaviour type's `static events` map** subscribes it; handlers are called with `this` as
+  the type instance (`this.region`, `this.behavior`). Define the class INSIDE `init` — the
+  static gate loads the module with `foundry = {}`.
+- **A headless page has no token animation context**: a plain `token.update({x, y})` threw
+  inside `#createAnimationMovementPath`; pass `{teleport: true, animate: false}` — and a FRESH
+  options object per update, because Foundry defines a per-token property on it and a reused
+  object throws "Cannot redefine property". A destination off the scene is refused without a
+  word (only `preUpdateToken` fires) — a "moved out" reading against an off-scene square is a lie.
+- **The floor must be serialized.** One token move fires the region's enter event, `updateToken`
+  and `updateRegion` within a tick; three reads of "no effect yet" before any create landed wrote
+  the effect three times (Half Speed stacked to ×0.0625). One reconcile in flight per region, and
+  one sweep per scene — the same lesson as `queueFlagWrite`, on documents instead of flags.
+
 ## 2. dnd5e 5.3.x
 
 ### Rolls and damage
@@ -465,6 +501,29 @@ the status set directly in data preparation:
 gate may REMIND (the Poisoned ability-check box is a reminder of a bend the dice already carry),
 never apply. **Unconscious ending does NOT lift Prone** (rules-correct — you are still on the
 floor), so a fixture that toggles Unconscious must toggle Prone off itself.
+
+### The 2024 auras: the effect ships, who-is-inside does not (2026-09-03)
+
+Read off the premium PHB packs (tools/probe-emanations.mjs):
+
+| Item | What ships | Its own Foundry Note |
+| --- | --- | --- |
+| Aura of Protection | a TRANSFER effect *Protected* (`system.bonuses.abilities.save add @abilities.cha.mod`) on the Paladin; **no activity, no size in data** — the "10-foot" is prose | *"should not be used for other impacted characters because it will add their Charisma modifier and not the Paladin's"* |
+| Aura of Courage | a utility activity whose template size is the formula **`@scale.paladin.aura`**, and a non-transfer effect *Courageous* with **no changes** | *"an Active Effect for tracking who is within your aura but it is not automatically added/removed nor does it remove the Frightened condition"* |
+| Aura of Warding | a transfer effect with the three resistances; a utility activity with range 10 ft and no template | *"not automatically granted when a character enters/exits your aura"* |
+| Aura Expansion (18) | text only | *"The range of your auras update automatically as you level up"* — because the size is the class's scale value |
+| Spirit Guardians | a save activity, 15-ft `radius` (labelled Emanation), Wis, 3d8 necrotic/radiant, *Half Speed* (`movement.speed multiply 0.5`) with `onSave: true` | — |
+| Aura of Vitality | a 30-ft emanation heal activity plus a second *Start of Turn Heal* activity aimed at one creature | — |
+
+**The Paladin class carries a `ScaleValue` advancement `aura` (type distance): 10 at 6, 30 at 18** —
+`actor.getRollData().scale.paladin.aura` is `{value: 10}` on a built Paladin 10 and `null` on a
+Paladin 5. That object's `toString` is "10 ft", so read `.value`; `Roll.replaceFormulaData` over
+it would put "10 ft" into a formula. **A formula on an effect resolves against the actor wearing
+the effect**, which is what the pack's note on Protection warns about and what
+`decide/emanations.js` `resolveChanges` reads in from the source before the platform hands it out.
+⚠ A built Cleric 5 fixture with Wis 16 computes Spirit Guardians' DC as 11, not 14 — the class
+item built without the advancement manager carries no spellcasting ability, so the DC is 8 +
+proficiency; the content's number, not the module's.
 
 ### Weapon masteries
 

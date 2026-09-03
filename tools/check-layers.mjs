@@ -68,6 +68,7 @@ const LAYER_OF = {
   "sneak.js": "machines",
   "clock-riders.js": "machines",
   "use-chips.js": "machines",
+  "emanations.js": "machines",
   "polish.js": "machines",
   "resources.js": "machines",
   "stats.js": "machines",
@@ -97,6 +98,7 @@ const LAYER_OF = {
   "decide/reminders.js": "decision",
   "decide/sneak.js": "decision",
   "decide/clock.js": "decision",
+  "decide/emanations.js": "decision",
 
   // CORE — the leaf: ids, settings accessor, the elect, the flag serializer
   "core.js": "core"

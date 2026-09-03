@@ -128,10 +128,10 @@ feature; changing one is a change to this document.
 | Refused | Why |
 | --- | --- |
 | **Reaction automation** — auto-casting, cross-client prompts, timeout protocols | Humans play reactions. The hold is a pause, not a system (N4). |
-| **Opportunity-attack detection**, movement-triggered anything | Judgment, not outcome (N4). |
+| **Opportunity-attack detection**, movement-triggered anything | Judgment, not outcome (N4). ⚠ **AMENDED 2026-09-03 (user ruling) — EMANATIONS ARE THE EXCEPTION, and the platform is why.** An aura applying to whoever stands inside it is an OUTCOME the rules determine, "no different than auto-applying Slow with mastery", and Foundry 14 models the area itself: a Region attached to the token moves with it, tracks who is inside, and raises the enter/exit/turn events. What stays refused is the MODULE doing range math on movement — the trigger is the platform's membership, never a distance this module measures (§5 *Emanations*). |
 | **Cover / line-of-sight / range math** | The system does not model it reliably; guessing is worse than asking (N2). |
 | **Workflow undo** | The per-application revert receipt is the full extent. |
-| **A flags / aura platform** | Curated tables only (§5). |
+| **A flags / aura platform** | Curated tables only (§5). ⚠ **Still refused after the 2026-09-03 amendment above, and the line is the same one:** emanations are curated ROWS over the platform's own emanation shape and Region behaviour — no aura engine, no distance polling, no flag vocabulary of our own. The Active-Auras family solved this on v11–13 with a polling platform; on 14 the platform has the shape, and a module that re-implemented it would be the platform's obsolete twin. |
 | **Template / AoE target management** | Targeting stays human (N4). |
 | **A macro platform** — no OnUse macros, no effect macros | It is someone else's data model. |
 | **An extension platform for homebrew** | The answer to "my custom thing needs this" is a list entry, never a new extension point. Breadth of *official content* is in scope; a platform never is. |
@@ -514,6 +514,57 @@ the tag (uses left, the cost), the rule folded under — no explanatory line und
 sentence under a menu's title. The clock's reason ("once this turn", "out of combat — every
 hit") belongs to the card's receipt (R5), not the offer; the Cunning Strike header carries its
 facts alone (the dice, the DC, up to how many).
+
+### Emanations (user rulings, 2026-09-03)
+
+**An aura applies itself to the creatures inside it, and the platform keeps the geometry and the
+clock.** The user's ruling opened §4 to them — *"emanations are a core part of combat and you
+want to automate the application of damage, effects, bonuses etc. — no different than auto
+applying Slow with mastery"* — and the measurement that made it fit (tools/probe-emanations.mjs,
+Foundry 14.365) is that **nothing here measures a distance or counts a turn**:
+`RegionDocument.createTokenEmanation` builds the rules-correct shape (the token's base plus the
+radius — from the edge, as the 2024 rule reads), attached to the token; the Region tracks who
+stands inside and raises enter / exit / turn-end; a template's Region can be attached the same
+way. The 2024 pack ships every aura's EFFECT and says in its own text that who-is-inside is not
+automated — that sentence is the whole job, and the module does exactly that much:
+
+- **A feature's aura is always on** (the Paladin's): it stands whenever the token is on the
+  scene and its range resolves, and is gone when the token or the feature goes. **Off while the
+  source is Incapacitated** (the text). A GM deleting the region by hand gets it back on the next
+  sweep — the switch is the setting or the list, not the region.
+- **A spell's aura is the template the system placed** (Spirit Guardians): adopted when its
+  Region appears, attached to the caster, dead with the template — concentration's own cascade.
+- **Range is the content's** (N1, and the row says where, never what): the activity's own size
+  when the pack gives one (Spirit Guardians: 15), else the class's own scale value the pack's
+  aura activities already reference (`@scale.paladin.aura` — 10 at 6th, 30 at 18th; *Aura
+  Expansion* is a scale step, not a feature the module looks for). **A Paladin below 6th has no
+  aura, and the scale value says so.** ⚠ The "type 10 into a row" answer was put and withdrawn on
+  measurement: the number was in the data all along.
+- **The effect is the pack's, with the SOURCE's numbers read in.** The platform resolves a
+  formula against the creature wearing the effect — the pack's own note on Aura of Protection:
+  *"it will add their Charisma modifier and not the Paladin's."* So a member receives
+  *"Protected — Ysolde"* carrying `+3`, read off the Paladin at write time, re-read when the
+  Paladin changes. Named for its source; its origin is the source's item.
+- **Reach by disposition (user defaults):** helpful auras reach allies and neutrals, harmful ones
+  enemies — the caster's *"designate creatures to be unaffected"* IS that default. The source's
+  own token is never a member of its own emanation (measured; the transfer effect covers it).
+- **A triggered save is a demand over the bus** (R2): Spirit Guardians' *enter* and *ends its
+  turn there* raise a `saves` card for that ONE creature — Wisdom, the spell's DC, its dice at the
+  cast's level, half on a success — and the saves machine drives it as it drives any demand. Once
+  per turn as the text says, counted only for a combatant (§8). The standing effect (Half Speed)
+  is the region's, never applied again by the verdict.
+- **Drawn as a ring for everyone** in the palette's hue — good green for a helpful aura, bad red
+  for a harmful one (user: *"let's try a faint ring, I need to judge — if it looks bad,
+  invisible"*; the judgement is the walk's).
+- **The floor is the truth**: the active GM keeps the standing effects true to the platform's
+  membership on every event and every token move — apply to a member that lacks it, lift from a
+  non-member that carries it, one write per creature per region. The Region's events are the
+  fast path. With no GM the flow-elect law holds: nothing lands, the mover is told.
+- **Aura of Courage's pack effect carries no change.** The Frightened immunity is a CONTENT fix
+  at the world (user: *"agree"*); the module applies what the pack ships.
+- **The first slice** is the Paladin's three auras and Spirit Guardians — one of each shape. Aura
+  of Vitality (a heal the player AIMS — a choice) and Antilife Shell (a barrier with no effect)
+  are deliberately absent; the corpus scan for every other Emanation follows.
 
 **⚠ PRONE IS THE NAMED EXCEPTION, AND IT STAYS PASSIVE (user call, 2026-09-01).** It is pressed
 as a status with no duration, so it sits in Passive — and that is correct rather than tolerated.

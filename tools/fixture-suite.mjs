@@ -249,7 +249,19 @@ const out = await f.evaluate(async ({ playerName }) => {
     };
     const PHB_CLASSES = ["dnd-players-handbook.classes"];
     const PHB_GEAR = ["dnd-players-handbook.equipment", "dnd5e.equipment24"];
+    const PHB_SPELLS = ["dnd-players-handbook.spells", "dnd5e.spells24"];
     const BUILT = [
+      // The emanations suite (2026-09-03): a Paladin whose three auras stand (Protection at 6,
+      // Courage at 10, the Ancients' Warding at 7 — the class's `@scale.paladin.aura` reads 10 at
+      // this level), and a Cleric who can cast Spirit Guardians (a 3rd-level slot at Cleric 5).
+      // ⚠ Both stand on the range's BOTTOM ROW, far from the fixture line at y=1000: the Paladin's
+      // aura is ALWAYS ON and would otherwise put "Protected" on every fixture a suite walks past.
+      { name: "BF Test Paladin", classes: [["Paladin", 10], ["Oath of the Ancients", null]],
+        feats: ["Aura of Protection", "Aura of Courage", "Aura of Warding"], gear: ["Longsword"],
+        abilities: { cha: 16, str: 16, con: 14, wis: 12 }, hp: 84, x: 300, y: 1800 },
+      { name: "BF Test Cleric", classes: [["Cleric", 5], ["Life Domain", null]],
+        feats: [], spells: ["Spirit Guardians"], gear: ["Mace"],
+        abilities: { wis: 16, con: 14, str: 12 }, hp: 38, x: 100, y: 1800 },
       { name: "BF Test Rogue", classes: [["Rogue", 14], ["Thief", null]],
         feats: ["Sneak Attack", "Cunning Strike", "Devious Strikes", "Improved Cunning Strike", "Supreme Sneak", "Assassinate", "Steady Aim", "Evasion"],
         gear: ["Rapier", "Longsword", "Shortbow"], abilities: { dex: 18, str: 12, con: 14 }, hp: 90, x: 700 },
@@ -276,6 +288,10 @@ const out = await f.evaluate(async ({ playerName }) => {
           const data = await findPackItem(PHB_GEAR, n);
           if (data) { data.system.equipped = true; items.push(data); } else log.push(`⚠ ${n} not found — ${spec.name} lacks it`);
         }
+        for (const n of spec.spells ?? []) {
+          const data = await findPackItem(PHB_SPELLS, n);
+          if (data) { data.system.preparation = { mode: "prepared", prepared: true }; items.push(data); } else log.push(`⚠ ${n} not found — ${spec.name} lacks it`);
+        }
         actor = await Actor.create({
           name: spec.name, type: "character", folder: actorFolder.id, items,
           ownership: { default: 0 },
@@ -287,9 +303,11 @@ const out = await f.evaluate(async ({ playerName }) => {
       }
       // A feature added to the spec after the actor was built joins it on the next run.
       const lacking = spec.feats.filter(n => !actor.items.some(i => (i.type === "feat") && (i.name === n)));
-      if (lacking.length) {
+      const lackingSpells = (spec.spells ?? []).filter(n => !actor.items.some(i => (i.type === "spell") && (i.name === n)));
+      if (lacking.length || lackingSpells.length) {
         const add = [];
         for (const n of lacking) { const data = await findPackItem(PHB_CLASSES, n); if (data) add.push(data); else log.push(`⚠ ${n} not found — ${spec.name} lacks it`); }
+        for (const n of lackingSpells) { const data = await findPackItem(PHB_SPELLS, n); if (data) { data.system.preparation = { mode: "prepared", prepared: true }; add.push(data); } else log.push(`⚠ ${n} not found — ${spec.name} lacks it`); }
         if (add.length) { await actor.createEmbeddedDocuments("Item", add); log.push(`gave ${spec.name} ${add.map(i => i.name).join(", ")}`); }
       }
       // A bare character walks at 0 — give it a speed, so a feature that zeroes it can be seen to.
@@ -298,7 +316,7 @@ const out = await f.evaluate(async ({ playerName }) => {
         await actor.update({ "system.attributes.hp.max": spec.hp, "system.attributes.hp.value": spec.hp });
         log.push(`seeded ${spec.name}'s HP pool (${spec.hp}/${spec.hp})`);
       }
-      built.push({ actor, x: spec.x });
+      built.push({ actor, x: spec.x, y: spec.y ?? 1000 });
     }
 
     // --- adopt strays ------------------------------------------------------------------------
@@ -309,20 +327,25 @@ const out = await f.evaluate(async ({ playerName }) => {
     if (strays.length) log.push(`adopted ${strays.length} stray BF Test actor(s) into the folder`);
 
     // --- tokens on the scene -----------------------------------------------------------------
-    const ensureToken = async (actor, x, linked) => {
+    const ensureToken = async (actor, x, linked, y = 1000) => {
       let doc = scene.tokens.find(t => t.actorId === actor.id);
       if (!doc) {
         [doc] = await scene.createEmbeddedDocuments("Token", [foundry.utils.mergeObject(
           actor.prototypeToken.toObject(),
-          { x, y: 1000, actorId: actor.id, actorLink: linked }, { inplace: false })]);
+          { x, y, actorId: actor.id, actorLink: linked }, { inplace: false })]);
         log.push(`placed a token for ${actor.name}`);
+      } else if ((y !== 1000) && ((doc.x !== x) || (doc.y !== y))) {
+        // A built fixture with a HOME off the fixture line goes back to it every run (the Paladin's
+        // always-on aura must not stand over the line between suites).
+        await doc.update({ x, y }, { teleport: true, animate: false });
+        log.push(`sent ${actor.name} home to (${x}, ${y})`);
       }
       return doc.id;
     };
     const attackerToken = await ensureToken(attacker, 900, false);
     const victimToken = await ensureToken(victim, 1100, false);
     await ensureToken(shielder, 1500, true);
-    for (const { actor, x } of built) await ensureToken(actor, x, true);
+    for (const { actor, x, y } of built) await ensureToken(actor, x, true, y);
 
     // Full HP on the token actors: a run that died mid-flight leaves the victim at 0, where
     // "applied 0 damage" and "the pool was already empty" are the same observation.

@@ -167,7 +167,7 @@ for (const [key, spec] of Object.entries(LIST_SPECS)) {
 // Attack feature is on the sheet and the weapon qualifies — a seventh way of knowing, and the
 // first that asks rather than tells. WHAT it offers after the hit is CUNNING_OPTIONS, rows of data
 // read off the sheet, not kinds.
-const EXPECTED_KINDS = 26;
+const EXPECTED_KINDS = 28;   // emanation: feature · spell joined 2026-09-03
 
 // The mastery set must match the rule text it is presented with: a mastery this module
 // resolves but cannot quote breaks presentation law 8 (ARCHITECTURE.md §5) at the popup.
@@ -219,7 +219,7 @@ const rows = KIND_SETS.map(set => {
 // is the rider due, and the part's formula as the pack wrote it).
 // 2026-09-02 (the walk): 36 → 37, for scripts/use-chips.js — a feature the pack ships as text
 // alone becomes a chip on use, so the gate can read it and the roll can spend it (Steady Aim).
-const EXPECTED_SOURCE_FILES = 37;
+const EXPECTED_SOURCE_FILES = 39;   // emanations.js + decide/emanations.js joined 2026-09-03
 const sourceFiles = [
   ...readdirSync(join(ROOT, "scripts")).filter(f => f.endsWith(".js")),
   ...readdirSync(join(ROOT, "scripts/decide")).filter(f => f.endsWith(".js")).map(f => `decide/${f}`)

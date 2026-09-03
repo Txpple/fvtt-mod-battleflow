@@ -49,10 +49,12 @@ const SHORT_CIRCUITING = new Set(["dnd5e.preApplyDamage"]);
 const BEFORE_THE_INSTRUMENT = new Map([
   ["init", "fires once during world boot, before any suite connects. settings.js registers the "
     + "settings surface here and volley-registry.js its kinds — both are proven every run by "
-    + "`check-registry` statically and by every suite that reads a setting"],
+    + "`check-registry` statically and by every suite that reads a setting; emanations.js registers "
+    + "its Region behaviour type here (2026-09-03) — proven by smoke-emanations, which reads it off CONFIG"],
   ["ready", "fires once when the world finishes booting, before any suite connects. auto-damage.js "
     + "primes its lazy machine imports here — proven by smoke-battleflow §5d, whose offer timing "
-    + "only holds when the priming ran"]
+    + "only holds when the priming ran; emanations.js sweeps the active scene here (2026-09-03) — "
+    + "the same sweep runs on canvasReady, which smoke-emanations exercises"]
 ]);
 
 // ⚠ HOOKS THE PLATFORM DOES NOT DISPATCH AT ALL — measured, not assumed, and pinned with the

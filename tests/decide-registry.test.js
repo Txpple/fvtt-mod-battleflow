@@ -325,7 +325,9 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     // effect table (membership, like the condition table).
     // 2026-09-02 (later still): 25 → 26 — `sneak` joins: the Sneak Attack CHOICE beside the roll,
     // the first kind that asks rather than tells (the prototype, built as drawn).
-    expect(total).toBe(26);
+    // 2026-09-03: 26 → 28 — `emanation` joins with two kinds, feature and spell: how an aura
+    // lives (always on with its token, or cast and adopted from the system's template).
+    expect(total).toBe(28);
   });
 
   it("puts every kind-bearing list spec's set in the table — unless the spec says it is MEMBERSHIP", () => {

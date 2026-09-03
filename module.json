@@ -11,6 +11,11 @@
   "esmodules": [
     "scripts/battleflow.js"
   ],
+  "documentTypes": {
+    "RegionBehavior": {
+      "emanation": {}
+    }
+  },
   "compatibility": {
     "minimum": "14",
     "verified": "14"

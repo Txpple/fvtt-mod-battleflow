@@ -311,6 +311,63 @@ export const EVASION = Object.freeze({
 export const CLOCK_RIDER_NAMES = new Set(Object.values(CLOCK_RIDERS).map(r => r.feature.toLowerCase()));
 
 /**
+ * EMANATIONS (user ruling 2026-09-03 — DESIGN §4 amended: "emanations are a core part of combat …
+ * no different than auto-applying Slow with mastery"). A persistent area attached to a token whose
+ * effect applies to the creatures inside it. THE PLATFORM MODELS IT (measured, tools/probe-
+ * emanations.mjs, Foundry 14.365): a Region attached to the token moves with it, tracks the tokens
+ * inside, and raises enter / exit / turn-end events; `RegionDocument.createTokenEmanation` builds
+ * the rules-correct shape (the token's base plus the radius). The 2024 pack ships every aura's
+ * EFFECT and says in its own text that who-is-inside is not automated. A row here names the item,
+ * the effect the pack ships for it, who it reaches, how far, and what triggers inside it.
+ *
+ *   kind       "feature" — always on: stands whenever the source's token is on the scene and the
+ *              range resolves (a Paladin below 6th has no aura, and the scale value says so).
+ *              "spell" — cast: the emanation template the system places is adopted, attached to
+ *              the caster, and ends with the template (concentration).
+ *   reach      "helpful" reaches allies and neutrals; "harmful" reaches enemies (user defaults,
+ *              2026-09-03; the caster's "designate creatures to be unaffected" is the default).
+ *   range      null: the activity's own size. A formula: the content's own token — the Paladin's
+ *              aura activities carry `@scale.paladin.aura` (10 at 6th, 30 at 18th — Aura Expansion
+ *              is a scale step, not a feature to look for), read off the SOURCE's roll data.
+ *              ⚠ Never a number here for a feature the class scales; the row says where the
+ *              number lives, not what it is (N1).
+ *   effect     the pack's effect by name; its changes are RESOLVED against the source before the
+ *              platform hands them out (the pack's own Aura of Protection note: "it will add their
+ *              Charisma modifier and not the Paladin's").
+ *   incapacitated  the aura is inactive while the source is Incapacitated (Protection's text; Courage
+ *              and Warding are "while in your Aura of Protection").
+ *   trigger    a save demanded of a creature — `on`: "enter" (it enters, or the area enters its
+ *              space) and/or "turnEnd" (it ends its turn inside); `oncePerTurn` as the text says.
+ *              The save, DC, damage and scaling are the activity's own; the saves machine judges.
+ *
+ * ⚠ Aura of Courage's pack effect ("Courageous") carries NO change — the Frightened immunity is a
+ * CONTENT fix at the world (user, 2026-09-03: "agree"), and the module applies what the pack ships.
+ * Membership is the Emanations list. Aura of Vitality (a heal the player aims — a choice) and
+ * Antilife Shell (a barrier, no effect) are deliberately absent from the first slice.
+ */
+export const EMANATIONS = Object.freeze({
+  "Aura of Protection": Object.freeze({ kind: "feature", reach: "helpful", range: "@scale.paladin.aura", effect: "Protected", incapacitated: true,
+    rule: "You radiate a protective, unseeable aura in a 10-foot Emanation that originates from you. The aura is inactive while you have the Incapacitated condition. You and your allies in the aura gain a bonus to saving throws equal to your Charisma modifier (minimum bonus of +1). If another Paladin is present, a creature can benefit from only one Aura of Protection at a time; the creature chooses which aura while in them.",
+    from: "Paladin 6" }),
+  "Aura of Courage": Object.freeze({ kind: "feature", reach: "helpful", range: "@scale.paladin.aura", effect: "Courageous", incapacitated: true,
+    caveat: "the pack's effect carries no change — add Immunity to Frightened to it at the world",
+    rule: "You and your allies have Immunity to the Frightened condition while in your Aura of Protection. If a Frightened ally enters the aura, that condition has no effect on that ally while there.",
+    from: "Paladin 10" }),
+  "Aura of Warding": Object.freeze({ kind: "feature", reach: "helpful", range: "@scale.paladin.aura", effect: "Aura of Warding", incapacitated: true,
+    rule: "Ancient magic lies so heavily upon you that it forms an eldritch ward, blunting energy from beyond the Material Plane; you and your allies have Resistance to Necrotic, Psychic, and Radiant damage while in your Aura of Protection.",
+    from: "Paladin — Oath of the Ancients 7" }),
+  "Spirit Guardians": Object.freeze({ kind: "spell", reach: "harmful", range: null, effect: "Half Speed", incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
+    rule: "Protective spirits flit around you in a 15-foot Emanation for the duration. When you cast this spell, you can designate creatures to be unaffected by it. Any other creature’s Speed is halved in the Emanation, and whenever the Emanation enters a creature’s space and whenever a creature enters the Emanation or ends its turn there, the creature must make a Wisdom saving throw. On a failed save, the creature takes 3d8 Radiant damage (if you are good or neutral) or 3d8 Necrotic damage (if you are evil). On a successful save, the creature takes half as much damage. A creature makes this save only once per turn.",
+    from: "Cleric spell, level 3 (Concentration, 10 minutes)" })
+});
+
+/** The two lifecycles an emanation can have — the closed set the R4 tripwire counts. */
+export const EMANATION_KINDS = new Set(["feature", "spell"]);
+/** The emanations' item names, lower-cased — the closed set the Emanations list is validated against. */
+export const EMANATION_NAMES = new Set(Object.keys(EMANATIONS).map(n => n.toLowerCase()));
+
+/**
  * The 2024 Rules Glossary on range, verbatim (dnd5e.content24 / the premium PHB, appendix D —
  * "Range" and "Ranged Attacks in Close Combat"; presentation law 8). The `&Reference[...]`
  * enrichers in the source render as the bare condition names.
@@ -758,7 +815,10 @@ export const KIND_SETS = [
   { name: "reminder", owner: "reminders.js", kinds: REMINDER_KINDS, system: null,
     note: "what the gate can READ as a source of Advantage/Disadvantage before an attack roll — "
       + "a chip on the target, a chip on the attacker, a status with geometry (Stage 2, 2026-09-01), "
-      + "the condition table, and a ranged attack's own range (2026-09-02)" }
+      + "the condition table, and a ranged attack's own range (2026-09-02)" },
+  { name: "emanation", owner: "emanations.js", kinds: EMANATION_KINDS, system: null,
+    note: "how an emanation lives: always on with a feature's source token, or cast and adopted from "
+      + "the template the system placed (2026-09-03) — the platform's Region keeps geometry and clock" }
 ];
 
 /** Split a comma list into trimmed, non-empty chunks — the shape every list setting wears. */
@@ -888,6 +948,13 @@ export const LIST_SPECS = {
     // case-insensitively. Membership, like the condition table: the kind is `effect`.
     columns: ["kind"], kindColumn: "kind", kinds: EFFECT_NAMES, fallback: null, membership: true, whole: true,
     default: EFFECT_KEYS.join(", ")
+  },
+  emanations: {
+    label: "Emanations", setting: "emanationList",
+    // Which rows of the emanation table stand — the ITEM names, whole-chunk, case-insensitive.
+    // Membership over EMANATIONS; the mechanism is emanations.js.
+    columns: ["kind"], kindColumn: "kind", kinds: EMANATION_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(EMANATIONS).join(", ")
   }
 };
 

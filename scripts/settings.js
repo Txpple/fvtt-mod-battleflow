@@ -208,6 +208,23 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.clockRiders.default
   });
 
+  // EMANATIONS (user ruling 2026-09-03): the platform's Region keeps the geometry and the clock;
+  // the module puts the pack's effect on it, with the source's numbers read in. A switch and a list.
+  game.settings.register(MODULE_ID, S.emanations, {
+    name: "Emanations",
+    hint: "An aura applies itself to the creatures inside it. A listed feature's emanation (the Paladin's auras) stands around its token wherever it goes, off while the Paladin is Incapacitated; a listed spell's emanation (Spirit Guardians) is the area the spell placed, attached to the caster, and ends with the spell. Creatures walking in receive the feature's own effect — with the SOURCE's numbers, the Paladin's Charisma and not theirs — and lose it walking out; a spell that demands a save on entering or on ending a turn inside asks for it through the save gate. Helpful auras reach allies and neutrals, harmful ones enemies. Drawn as a faint ring on the map.",
+    scope: "world", config: true, type: Boolean, default: true,
+    // The machine sweeps on this (emanations.js): off lifts what stands, on raises it again.
+    onChange: () => Hooks.callAll(`${MODULE_ID}.emanationsChanged`)
+  });
+
+  game.settings.register(MODULE_ID, S.emanationList, {
+    name: "Emanations List",
+    hint: "Which emanations the module keeps, by the feature's or spell's own name, separated by commas — Aura of Protection, Aura of Courage, Aura of Warding, Spirit Guardians. Range, reach and the effect come from the content: the Paladin's auras read the class's own aura distance (10 feet at 6th, 30 at 18th), Spirit Guardians its own 15-foot area. Remove a name to keep that aura by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.emanations.default,
+    onChange: () => Hooks.callAll(`${MODULE_ID}.emanationsChanged`)
+  });
+
   game.settings.register(MODULE_ID, S.effectRiders, {
     name: "Effect Riders",
     hint: "A hit applies the effects riding it: the attack's own effects land on the targets it hit, through the system's application path — Ray of Frost's slow arrives with its damage instead of waiting for a click in the card's tray. Every application leaves a receipt on the damage card with a per-effect revert.",
@@ -517,4 +534,9 @@ export function effectEntries() {
 /** Which rows of the clock-rider table fold into a hit's damage, by the feature's name — `{ kind }`. */
 export function clockRiderEntries() {
   return listEntries(LIST_SPECS.clockRiders);
+}
+
+/** Which rows of the emanation table stand, by the feature's or spell's name — `{ kind }`. */
+export function emanationEntries() {
+  return listEntries(LIST_SPECS.emanations);
 }

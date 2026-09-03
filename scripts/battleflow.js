@@ -122,6 +122,9 @@ import "./volleys.js";
 // above the receipt rows, and it reaches receipts.js only through a lazy import() so this
 // entry position is what actually decides the order. check-hook-order.mjs asserts it.
 import "./saves.js";
+// emanations.js after saves.js: its trigger card carries a `saves` demand the saves machine drives
+// (the chat log is the bus — no import between them); it renders no row on any shared card (2026-09-03).
+import "./emanations.js";
 import "./receipts.js";
 // resources.js last: its one-line spend record renders at the very bottom of the usage
 // card, below every workflow row — a footer, which is what a ledger line is.

@@ -100,6 +100,7 @@ no no-GM degraded mode (DESIGN §4).
 | **Response message** | `respondsTo` + the answer | A player can only write their *own* message — this is the answer channel that needs no permission. See **the relay** below |
 | **Actor** | `cleaveArm`; the chips — the mastery marks (`Vexed`, `Sapped`, `Slowed`), the once-per-turn chits (`Cleave`, Sneak Attack, a clock rider, Steady Aim) and **the Reaction** (`Reaction — used`, since 2026-09-02; it replaced the `reactionSpent` actor flag and its two clear hooks) — as ActiveEffects carrying `start` + `duration.expiry`, each fingerprinted by `flags.<module>.mastery = <key>` | Per-creature, per-turn state. ⚠ A chip's clock is the PLATFORM's (v14 `duration.expiry`, judged against `start.combatant` — DESIGN §5); the module writes the window once and never counts turns. The Cleave chit's `start` is the turn IN PROGRESS and its liveness is a stamp comparison (`chitStamp` vs `combatStamp`) — the platform's expiry is its tidy |
 | **Applied effect** | provenance markers | Which module path created it, so revert knows |
+| **Region** (on a scene, 2026-09-03) | `emanation` — `{kind: "feature"\|"spell", key, tokenId, itemUuid}`; its one Battle Flow behaviour (`fvtt-mod-battleflow.emanation`, a document subtype declared in `module.json`) carries the row's key, the source token and item, the reach, the upcast level and the pack's effect with the source's numbers resolved | The AREA is the platform's document: attached to its token, membership computed by Foundry, events raised by Foundry. The module's state on it is which row it is and what it hands out. A member's copy is an ActiveEffect carrying `emanation: {regionId, key}` — the fingerprint the floor keys on, one per creature per region |
 
 ### The four state laws
 
@@ -511,6 +512,7 @@ in milliseconds and impossible to tangle. **Keep it that way** — the day somet
 | [decide/reminders.js](scripts/decide/reminders.js) | `netMode`, `resolutionLine`, `proneSources`, `conditionSources` (over the registry's table), `saveSources` / `saveGate` (over the save table: a bend, or a save that cannot succeed — the net `fails`), `rangeSources`, `effectSources` (over the effect table: scope, caveat, listed or counted, judged — the combat clock included, spent), `autoCritSources`, `reminderView` (the header line and the boxes — no net block), `reminderRecord` — what bends a roll, what it nets to, and what the section draws |
 | [decide/sneak.js](scripts/decide/sneak.js) | `parseDice`, `sneakWeaponQualifies`, `sneakReadLines`, `cunningMenu` (the options read off the sheet, up to two with Improved Cunning Strike), `cunningPick`, `sneakFormula` — the Sneak Attack dice, and what Cunning Strike does to them before the roll |
 | [decide/clock.js](scripts/decide/clock.js) | `riderDue` (is a clock rider due on this hit, and why not), `riderPartFormula` (a pack's damage part as a formula, a bonus-only part included) |
+| [decide/emanations.js](scripts/decide/emanations.js) | `reachAdmits` (who an aura reaches, by disposition — helpful: allies and neutrals; harmful: enemies), `emanationRange` (the activity's size, else the row's content formula over the source's roll data — `@scale.paladin.aura`), `resolveChanges` / `resolveFormula` / `foldArithmetic` (the pack's effect with the SOURCE's numbers read in), `triggerDue` (once per turn in combat), `memberEffectData` (the effect a member receives, fingerprinted for the floor) |
 | [decide/verdict.js](scripts/decide/verdict.js) | `hitsAmong`, `modeAdmits`, `saveOutcome`, `saveMultiplier`, `verdictText`, and the fold layer (`ATTACK_FOLDS`, `SAVE_FOLDS`, `foldsFrom`, `foldedRoll`, `foldedVerdict`, `foldedSave`) |
 | [decide/eligible.js](scripts/decide/eligible.js) | `isDeadForSaves`, `limitedUses`, `isReactionItem`, `castLevelOf`, `clampVolleyCount`, `riderKey` |
 | [decide/receipt.js](scripts/decide/receipt.js) | `traitOutcome`, `hpDelta`, `receiptEntry`, `joinDamageReceipt`, `joinEffectReceipt`, `takenOf`, `receiptAmounts`, `revertPlan`, `revertableEffect` |
@@ -533,7 +535,7 @@ those strings back into the view.**
 | Depth | Layer | Files |
 | --- | --- | --- |
 | 6 | entry | `battleflow.js` |
-| 5 | **machines** | hold · saves · mastery · maneuvers · concentration · volleys · cast · hit-riders · d20-folds · receipts · polish · resources · reminders · stats · sneak · clock-riders · use-chips |
+| 5 | **machines** | hold · saves · mastery · maneuvers · concentration · volleys · cast · hit-riders · d20-folds · receipts · polish · resources · reminders · stats · sneak · clock-riders · use-chips · emanations |
 | 4 | **services** | `auto-apply.js` · `effect-riders.js` · `auto-damage.js` — the consequence chokepoints (§2) |
 | 3 | spine | `ui.js` · `shared.js` · `geometry.js` · `settings.js` |
 | 2 | registry | `volley-registry.js` |
@@ -604,7 +606,7 @@ module-eval time — that is the only reason the existing import cycles are safe
 
 ## 8. The settings surface
 
-**33 settings: 31 world, 2 client** (the Clock Riders list joined 2026-09-02). Every feature is a world setting, default **ON** since 2026-09-03 (user call: *"have it ship all on"*) — the shipped defaults and the reference table in `tools/verify-settings.mjs` are meant to agree, and a fresh world comes up as this table plays. ⚠ A Foundry default applies only where a setting has never been written, so existing worlds were untouched by the flip.
+**35 settings: 33 world, 2 client** (the Clock Riders list joined 2026-09-02; Emanations and its list 2026-09-03 — both with an `onChange` that sweeps, so off lifts what stands and on raises it again). Every feature is a world setting, default **ON** since 2026-09-03 (user call: *"have it ship all on"*) — the shipped defaults and the reference table in `tools/verify-settings.mjs` are meant to agree, and a fresh world comes up as this table plays. ⚠ A Foundry default applies only where a setting has never been written, so existing worlds were untouched by the flip.
 
 ### Rules
 
@@ -652,6 +654,7 @@ The module rides **public hooks and document writes only** (R3). The seams it de
 | the message registry (`originatingMessage`, `getAssociatedRolls`) | chain resolution — **we ride the system's registry, never a parallel one** |
 | turn events (`dnd5e.preCombatRecovery`, combat hooks) | per-turn clears |
 | `dnd5e.preRollAttackV2` (templated, pinned) · `renderRollConfigurationDialog` · `dnd5e.postRollConfiguration` | the reminder gate: judge the sources and force the dialog; draw the section into the dialog on each render; record what was pressed — **the dialog is the system's own, we add one fieldset and set its default** (DESIGN §5). The same judge (`reminders.js` `judgeRoll`) runs in the volley aim popup per ray, and the ray's record rides the roll's own message data (DESIGN §6) |
+| **Regions (core, 2026-09-03)** — `RegionDocument.createTokenEmanation`, `Region.attachment.token`, `region.tokens`; the events `tokenEnter` / `tokenExit` / `tokenTurnEnd` / `behaviorActivated` / `behaviorDeactivated` delivered to a behaviour type registered through `CONFIG.RegionBehavior.dataModels` (the way dnd5e registers difficult terrain; the subtype declared in `module.json` `documentTypes`); the hooks `createRegion` / `deleteRegion` / `updateRegion` / `updateToken` | emanations.js: the aura's area is the platform's — shape, attachment, membership and events — and the module only decides what it hands out. ⚠ The `*MeasuredTemplate` hooks are still not dispatched (D12); a template's REGION is what appears, with the template's `flags.dnd5e` copied onto it, which is how a cast emanation is recognised and adopted |
 
 ### Version pinning
 

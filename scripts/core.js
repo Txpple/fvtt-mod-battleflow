@@ -46,7 +46,9 @@ export const S = {
   reminderList: "reminderList",
   conditionList: "conditionList",
   effectList: "effectList",
-  clockRiderList: "clockRiderList"
+  clockRiderList: "clockRiderList",
+  emanations: "emanations",
+  emanationList: "emanationList"
 };
 
 export const setting = key => game.settings.get(MODULE_ID, key);
