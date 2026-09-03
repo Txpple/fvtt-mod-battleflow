@@ -276,10 +276,23 @@ export const USE_CHIPS = Object.freeze({
  * origin, receipted on the demand card with a revert — the way Topple presses Prone. Data, not a
  * graft on the content (the house rule on premium packs); the saves machine reads it only when
  * the activity itself brought no effect to apply.
+ *
+ * ⚠ THE TABLE IS THE AUDIT'S OUTPUT (2026-09-03, tools/audit-presses.mjs over the corpus scan):
+ * every 2024 save activity whose text presses a condition, against the statuses its effects
+ * carry. Forty-three press one; thirty-five carry it (Hold Person, Entangle, Fear…) and need no
+ * row; eight are bare and THREE are this shape — one save, one status, on the failure. The other
+ * five are deliberately absent: Command presses Prone only on the word Grovel (a choice), Sleep's
+ * Unconscious is a SECOND save a turn later (its first-save Incapacitated IS carried), Flesh to
+ * Stone's Petrified takes three failures (its Restrained is carried), and Elemental Attunement
+ * and Mind Spike only mention a condition in passing. Re-run the audit after a content update.
  */
 export const SAVE_PRESSES = Object.freeze({
   "Web": Object.freeze({ status: "restrained", onFail: true,
-    rule: "Each creature that starts its turn in the webs or that enters them during its turn must succeed on a Dexterity saving throw or have the Restrained condition while in the webs or until it breaks free." })
+    rule: "Each creature that starts its turn in the webs or that enters them during its turn must succeed on a Dexterity saving throw or have the Restrained condition while in the webs or until it breaks free." }),
+  "Grease": Object.freeze({ status: "prone", onFail: true,
+    rule: "When the grease appears, each creature standing in its area must succeed on a Dexterity saving throw or have the Prone condition. A creature that enters the area or ends its turn there must also succeed on that save or fall Prone." }),
+  "Sleet Storm": Object.freeze({ status: "prone", onFail: true,
+    rule: "When a creature enters the Cylinder for the first time on a turn or starts its turn there, it must succeed on a Dexterity saving throw or have the Prone condition and lose Concentration." })
 });
 
 /**

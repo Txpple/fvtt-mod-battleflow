@@ -445,6 +445,27 @@ SHAPE you need, not by the identifier.**
 **A usage card's `system.effects` is relative-uuid suffixes**, written immediately before the
 card is created — so it is readable at `preCreateChatMessage`.
 
+### What the platform applies for a 2024 condition — MEASURED, nothing to build (2026-09-03)
+
+`tools/probe-conditions.mjs` pressed every one of the fourteen statuses (and Exhaustion 1 and 3)
+on a fixture and read the derived data, the system's own `calculateDamage` (the receipt's
+source) and a `configure: false` ability check. dnd5e 5.3.3 does all of it itself, through
+`CONFIG.DND5E.conditionTypes` — the status effects carry NO `changes` at all; the system reads
+the status set directly in data preparation:
+
+| Clause | Who does it | Reading |
+| --- | --- | --- |
+| Petrified: Resistance to all damage, Immunity to Poison, immune to Poisoned/Diseased | the system | `dr.value ["ALL"]`, `di ["poison"]`, `ci ["poisoned","diseased"]`; a 10/10/10 slashing/poison/fire hit calculates 5/0/5 — the receipt honours it with no row |
+| Speed 0 — Grappled, Restrained, Paralyzed, Petrified, Unconscious | the system | every movement key 0 |
+| Paralyzed / Stunned / Petrified imply Incapacitated; Unconscious implies Incapacitated AND Prone | the system | `conditionTypes[x].statuses` / `riders`; the implied status lands on the actor |
+| Exhaustion: −2 × level on every D20 Test, −5 ft × level Speed | the system | `1d20 + 1 - 2` at level 1, `- 6` at level 3; walk 25 / 15; `reduction: {rolls: 2, speed: 5}` |
+| Poisoned: Disadvantage on ability checks | the system | `2d20dis + 1` on a `configure: false` check — the ROLL is bent, not just a dialog default |
+
+⚠ Two consequences for the module. **A row that re-applied any of these would double it** — the
+gate may REMIND (the Poisoned ability-check box is a reminder of a bend the dice already carry),
+never apply. **Unconscious ending does NOT lift Prone** (rules-correct — you are still on the
+floor), so a fixture that toggles Unconscious must toggle Prone off itself.
+
 ### Weapon masteries
 
 **Eligibility is trait + weapon**: the wielder's mastery trait must contain the weapon's base

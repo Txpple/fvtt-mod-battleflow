@@ -1726,42 +1726,52 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ============================================== 20. a save press — Web
     // The 2024 PHB's Web carries NO effect (measured 2026-09-02, tools/probe-web.mjs), so the
     // saves machine applied nothing on a failure. SAVE_PRESSES names the status the text presses.
+    // ⚠ Driven by the TABLE, not by Web alone (2026-09-03): every SAVE_PRESSES row is cast bare
+    // — the pack's shape, a Dex save activity with no effects and no damage, under the row's own
+    // item name — and its status must land. A row added without this section going green is a
+    // row the machine never read.
     if (want(20)) {
+      const PRESSES = [['Web', 'restrained', 'a'], ['Grease', 'prone', 'c'], ['Sleet Storm', 'prone', 'd']];
       await clearChips();
       await saveBonus(victim, '-30');
-      await victim.update({ 'system.abilities.dex.bonuses.save': '-30' });   // Web is a DEXTERITY save
+      await victim.update({ 'system.abilities.dex.bonuses.save': '-30' });   // all three are DEXTERITY saves
       await healFull(victim);
-      const strayR = victim.effects.filter(e => e.statuses?.has?.('restrained'));
-      if (strayR.length) await victim.deleteEmbeddedDocuments('ActiveEffect', strayR.map(e => e.id));
-      // A bare Web: the pack's shape — a save activity, Dex, no effects, no damage.
-      const [webItem] = await npc.createEmbeddedDocuments('Item', [{
-        name: 'Web', type: 'spell',
-        system: { level: 2, school: 'con', properties: ['vocal'], duration: { units: 'hour', value: 1 },
-          target: { affects: { type: 'creature', count: '2', choice: false } }, range: { value: '60', units: 'ft' },
-          method: 'spell', prepared: 1, identifier: 'web',
-          activities: { bfwebact00000000: { _id: 'bfwebact00000000', type: 'save', activation: { type: 'action', override: false },
-            consumption: { targets: [], spellSlot: false }, damage: { onSave: 'full', parts: [] }, effects: [],
-            save: { ability: ['dex'], dc: { calculation: '', formula: '15' } }, target: { override: false, prompt: true } } } }
-      }]);
-      created.items.push({ actorId: npc.id, id: webItem.id });
-      target(victimToken);
-      await sleep(120);
-      const useW = await npc.items.get(webItem.id).system.activities.get('bfwebact00000000').use({}, { configure: false }, {});
-      const cardW = useW?.message instanceof ChatMessage ? useW.message : null;
-      if (!cardW) return { fatal: 'section 20 Web cast produced no card' };
-      await until(() => cardW.getFlag(MOD, 'saves'));
-      const dlgW = await until(() => savePopups().find(p => demandText(p).includes(cardW.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? 'Hobgoblin')), 6000);
-      dlgW?.querySelector('button[data-action="normal"]')?.click();
-      await until(() => entryOf(cardW, victim)?.applied, 15000);
-      const restrained = victim.effects.find(e => e.statuses?.has?.('restrained'));
-      const rr = cardW.getFlag(MOD, 'effectReceipt')?.targets?.find(t => t.uuid === victim.uuid);
-      ok('20a. Web fails the victim, and the module presses Restrained — the standard status, the caster as origin, receipted on the demand card',
-        (entryOf(cardW, victim)?.outcome === 'failed') && !!restrained && (restrained.origin === npc.uuid)
-          && !!rr?.effects?.some(e => e.id === restrained.id),
-        `outcome=${entryOf(cardW, victim)?.outcome} restrained=${!!restrained} origin=${restrained?.origin} receipt=${JSON.stringify(rr?.effects?.map(e => e.name))}`);
-      const cardEl = await until(() => [...(document.querySelector(`[data-message-id="${cardW.id}"]`)?.querySelectorAll('button') ?? [])].find(b => /Revert/.test(b.textContent ?? '')), 4000);
-      ok('20b. the card carries the revert for it', !!cardEl, `revert=${!!cardEl}`);
-      if (restrained) await victim.deleteEmbeddedDocuments('ActiveEffect', [restrained.id]).catch(() => {});
+      for (const [itemName, status, letter] of PRESSES) {
+        const stray = victim.effects.filter(e => e.statuses?.has?.(status));
+        if (stray.length) await victim.deleteEmbeddedDocuments('ActiveEffect', stray.map(e => e.id));
+        const actId = `bfpress${letter}000000000`.slice(0, 16);
+        const [pressItem] = await npc.createEmbeddedDocuments('Item', [{
+          name: itemName, type: 'spell',
+          system: { level: 2, school: 'con', properties: ['vocal'], duration: { units: 'hour', value: 1 },
+            target: { affects: { type: 'creature', count: '2', choice: false } }, range: { value: '60', units: 'ft' },
+            method: 'spell', prepared: 1, identifier: itemName.toLowerCase().replace(/\s+/g, '-'),
+            activities: { [actId]: { _id: actId, type: 'save', activation: { type: 'action', override: false },
+              consumption: { targets: [], spellSlot: false }, damage: { onSave: 'full', parts: [] }, effects: [],
+              save: { ability: ['dex'], dc: { calculation: '', formula: '15' } }, target: { override: false, prompt: true } } } }
+        }]);
+        created.items.push({ actorId: npc.id, id: pressItem.id });
+        target(victimToken);
+        await sleep(120);
+        const useW = await npc.items.get(pressItem.id).system.activities.get(actId).use({}, { configure: false }, {});
+        const cardW = useW?.message instanceof ChatMessage ? useW.message : null;
+        if (!cardW) return { fatal: `section 20 ${itemName} cast produced no card` };
+        await until(() => cardW.getFlag(MOD, 'saves'));
+        const dlgW = await until(() => savePopups().find(p => demandText(p).includes(cardW.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? 'Hobgoblin')), 6000);
+        dlgW?.querySelector('button[data-action="normal"]')?.click();
+        await until(() => entryOf(cardW, victim)?.applied, 15000);
+        const pressed = victim.effects.find(e => e.statuses?.has?.(status));
+        const rr = cardW.getFlag(MOD, 'effectReceipt')?.targets?.find(t => t.uuid === victim.uuid);
+        ok(`20${letter}. ${itemName} fails the victim, and the module presses ${status} — the standard status, the caster as origin, receipted on the demand card`,
+          (entryOf(cardW, victim)?.outcome === 'failed') && !!pressed && (pressed.origin === npc.uuid)
+            && !!rr?.effects?.some(e => e.id === pressed.id),
+          `outcome=${entryOf(cardW, victim)?.outcome} ${status}=${!!pressed} origin=${pressed?.origin} receipt=${JSON.stringify(rr?.effects?.map(e => e.name))}`);
+        if (itemName === 'Web') {
+          const cardEl = await until(() => [...(document.querySelector(`[data-message-id="${cardW.id}"]`)?.querySelectorAll('button') ?? [])].find(b => /Revert/.test(b.textContent ?? '')), 4000);
+          ok('20b. the card carries the revert for it', !!cardEl, `revert=${!!cardEl}`);
+        }
+        if (pressed) await victim.deleteEmbeddedDocuments('ActiveEffect', [pressed.id]).catch(() => {});
+        await npc.deleteEmbeddedDocuments('Item', [pressItem.id]).catch(() => {});
+      }
       await saveBonus(victim, '');
       await victim.update({ 'system.abilities.dex.bonuses.save': '' });
     }

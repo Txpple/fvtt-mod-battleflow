@@ -109,8 +109,12 @@ whether the module's code RAN, as opposed to whether it is well formed.
 `scan-reactions.mjs` · `scan-riders.mjs` · `scan-volley-spells.mjs` · `scan-corpus.mjs` (the whole
 ability corpus — race traits, class and subclass features, feats, spells — to a JSON file, ~10 min,
 read-only) · `classify-corpus.mjs` (offline: that JSON sorted into mechanism families, `--list
-<family>` / `--kind <kind>`; the survey behind SWEEP.md). `probe-steady-aim-live.mjs` reads a
-live table's Steady Aim chip and attack records without touching anything.
+<family>` / `--kind <kind>`; the survey behind SWEEP.md) · `audit-presses.mjs` (offline over the
+same JSON: every 2024 save activity whose text presses a condition, against the statuses its
+effects actually carry — the `SAVE_PRESSES` candidates). `probe-steady-aim-live.mjs` reads a
+live table's Steady Aim chip and attack records without touching anything;
+`probe-conditions.mjs` presses each 2024 status on a fixture and reads what the platform applies
+(NOTES §2 *What the platform applies for a condition*), restoring the fixture in `finally`.
 
 Read-only sweeps of the official compendia. Curated lists are built from what 5e 2024 actually
 ships, never from what the party owns (DESIGN N1). Re-run after adding content.

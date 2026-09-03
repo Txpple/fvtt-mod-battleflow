@@ -443,3 +443,38 @@ describe("SAVE_BENDS — the save table (option E, 2026-09-02)", () => {
       expect(reg.CONDITION_STATUSES.has(key), key).toBe(true);
   });
 });
+
+describe("SAVE_PRESSES — the bare save presses (the audit's output, 2026-09-03)", () => {
+  it("is the three rows the audit found bare and single-save: Web, Grease, Sleet Storm", () => {
+    expect(Object.keys(reg.SAVE_PRESSES).sort()).toEqual(["Grease", "Sleet Storm", "Web"]);
+  });
+  it("every row presses a standard 2024 status on the failure and quotes its clause", () => {
+    const STANDARD = new Set([
+      "blinded",
+      "charmed",
+      "deafened",
+      "frightened",
+      "grappled",
+      "incapacitated",
+      "invisible",
+      "paralyzed",
+      "petrified",
+      "poisoned",
+      "prone",
+      "restrained",
+      "stunned",
+      "unconscious"
+    ]);
+    for (const [name, row] of Object.entries(reg.SAVE_PRESSES)) {
+      expect(STANDARD.has(row.status), name).toBe(true);
+      expect(row.onFail, name).toBe(true);
+      expect(row.rule, name).toMatch(/saving throw/);
+      expect(Object.isFrozen(row), name).toBe(true);
+    }
+  });
+  it("Web presses Restrained; Grease and Sleet Storm press Prone", () => {
+    expect(reg.SAVE_PRESSES.Web.status).toBe("restrained");
+    expect(reg.SAVE_PRESSES.Grease.status).toBe("prone");
+    expect(reg.SAVE_PRESSES["Sleet Storm"].status).toBe("prone");
+  });
+});
