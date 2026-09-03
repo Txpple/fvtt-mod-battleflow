@@ -251,8 +251,10 @@ export function cunningMenuHTML({ rows, max, dc, dice, chosen = [] }) {
       </label>`).join("");
   return `
     <div data-bf-cunning style="margin-top:0.5rem;">
-      <div style="font-weight:bold;font-size:var(--font-size-12,12px);">Cunning Strike</div>
-      <div style="font-size:var(--font-size-11,11px);opacity:0.8;line-height:1.45;">Forgo Sneak Attack dice (${attr(dice)}) for an effect${max > 1 ? ` — up to ${max} (Improved Cunning Strike)` : ""}.${dc ? ` Save DC ${dc}.` : ""} The effect lands right after the damage.</div>
+      <div style="display:flex;align-items:baseline;gap:0.6rem;">
+        <span style="font-weight:bold;font-size:var(--font-size-12,12px);">Cunning Strike</span>
+        <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;opacity:0.85;">${[attr(dice), dc ? `DC ${dc}` : null, (max > 1) ? `up to ${max}` : null].filter(Boolean).join(" · ")}</span>
+      </div>
       ${items}
     </div>`;
 }
@@ -261,8 +263,11 @@ export function cunningMenuHTML({ rows, max, dc, dice, chosen = [] }) {
  * THE CLOCK RIDERS on the damage offer (user ruling 2026-09-02, revised the same evening:
  * "dreadful strike should have a check box, optional to use, so make like sneak attack"): a
  * checkbox per rider the clock says is due, TICKED by default — the rules make it available and
- * the player may decline (a limited use is theirs to keep). The line names the dice, the type,
- * why it is due and the uses left after; the rule folds under it.
+ * the player may decline (a limited use is theirs to keep). The row is the name, the dice and
+ * the type, the uses left after as the tag, and the rule folded under it — NOTHING ELSE (user,
+ * 2026-09-03: "I don't want that little blurb … it just should be the tick to open and inspect
+ * the rule, plain and simple"). The clock's reason (`why`) stays on the CARD, where R5 wants it,
+ * and off the offer; a row's caveat, where one exists, is the one line allowed.
  * @param {{key: string, label: string, formula: string|null, type: string|null, why: string, rule: string,
  *          usesLeft?: number|null, caveat?: string}[]} riders
  */
@@ -275,8 +280,8 @@ export function riderMenuHTML(riders) {
              border:1px solid var(--color-border-light,rgba(0,0,0,0.2));cursor:pointer;">
         <input type="checkbox" name="bf-rider" value="${attr(r.key)}" checked style="margin:0;">
         <span style="font-weight:bold;">${attr(r.label)} — ${attr(r.formula)}${r.type ? ` ${attr(r.type)}` : ""}</span>
-        <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;">${(r.usesLeft === null) || (r.usesLeft === undefined) ? attr(r.why) : `${Math.max(0, r.usesLeft - 1)} use${(r.usesLeft - 1) === 1 ? "" : "s"} left after`}</span>
-        <span style="grid-column:2 / -1;font-size:var(--font-size-11,11px);opacity:0.8;">${attr(r.why)}${r.caveat ? ` — ${attr(r.caveat)}` : ""}</span>
+        <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;">${(r.usesLeft === null) || (r.usesLeft === undefined) ? "" : `${Math.max(0, r.usesLeft - 1)} use${(r.usesLeft - 1) === 1 ? "" : "s"} left after`}</span>
+        ${r.caveat ? `<span style="grid-column:2 / -1;font-size:var(--font-size-11,11px);opacity:0.8;">${attr(r.caveat)}</span>` : ""}
         ${foldedRuleHTML(r.rule).replace("grid-column:1 / -1", "grid-column:2 / -1")}
       </label>`).join("");
   return `

@@ -501,7 +501,13 @@ caveats stay because they are the whole reason a row bends nothing. **The Sneak 
 "Sneak Attack — 5d6", the tick and the folded rule** — the read-for-you line went the same way;
 **the Cunning Strike rows are the name, the cost and the folded rule**; **the damage offer's
 menus scroll in a viewport-bounded box** so the Roll button never leaves the screen, and **that
-button names the weapon** ("Shortbow + Sneak Attack 5d6").
+button names the weapon** ("Shortbow + Sneak Attack 5d6"). **Every row on the offer is the
+same shape** (user, 2026-09-03: *"I don't want that little blurb of text … it just should be the
+tick to open and inspect the rule, plain and simple"*): a tick, the name and the dice, a fact as
+the tag (uses left, the cost), the rule folded under — no explanatory line under a row and no
+sentence under a menu's title. The clock's reason ("once this turn", "out of combat — every
+hit") belongs to the card's receipt (R5), not the offer; the Cunning Strike header carries its
+facts alone (the dice, the DC, up to how many).
 
 **⚠ PRONE IS THE NAMED EXCEPTION, AND IT STAYS PASSIVE (user call, 2026-09-01).** It is pressed
 as a status with no duration, so it sits in Passive — and that is correct rather than tolerated.
