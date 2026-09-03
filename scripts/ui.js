@@ -174,7 +174,10 @@ export function drawDemandFieldset(app, element, demand) {
  * @param {string} action         the button's data-action: advantage | normal | disadvantage | bf-fails
  */
 export function markDefaultButton(element, action) {
-  const hue = { advantage: TONE.good, disadvantage: TONE.bad, "bf-fails": TONE.bad }[action] ?? TONE.neutral;
+  // Normal stays GREY (the palette: colour means the roll bends) but a BRIGHT grey — the
+  // palette's neutral is a mid grey that vanishes on the dialog's dark buttons, which is exactly
+  // "still intermittently doesn't show" (user, 2026-09-03: a Topple save, default Normal).
+  const hue = { advantage: TONE.good, disadvantage: TONE.bad, "bf-fails": TONE.bad }[action] ?? "rgba(225,225,225,0.95)";
   // THE LOOK, in one place (user, 2026-09-03: "can the highlight be made more visible? … maybe
   // on the insert we can define how the highlight looks"): the button FILLED with the hue, a
   // solid ring, bold — unmistakable beside its two plain siblings. Change it here, nowhere else.
@@ -203,8 +206,14 @@ Hooks.on("renderRollConfigurationDialog", (app, element) => {
     // throws don't have the improved visual"): the platform's own choice — the button it gave
     // `autofocus`, from actor data or the caller — wears the mark first; a gate with something
     // to say re-marks its net after (this hook is registered before the machines').
-    const own = element.querySelector('[data-application-part="buttons"] button[autofocus]')?.dataset?.action;
-    if ( own ) markDefaultButton(element, own);
+    const markOwn = () => {
+      if ( element.querySelector("[data-bf-default]") ) return;   // a gate got there first
+      const own = element.querySelector('[data-application-part="buttons"] button[autofocus]')?.dataset?.action;
+      if ( own ) markDefaultButton(element, own);
+    };
+    markOwn();
+    // The buttons part can land a frame after the hook on some renders — mark again once painted.
+    requestAnimationFrame(markOwn);
     const demand = app.options?.bfSaveDemand ?? null;
     if ( demand?.present ) drawDemandFieldset(app, element, demand);
   } catch(err) {
