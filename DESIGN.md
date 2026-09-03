@@ -400,6 +400,26 @@ success buys, the timer bar) and BEFORE YOU ROLL below it — the save table's b
 Dexterity saves, the Dodge action's Advantage with its caveats) under the same header line, folded
 to it, the highlighted default the net. The house save popup retired that day; a save rolled
 from the sheet meets the same gate, so one surface serves every save (option D folded into E).
+**The Topple save and the concentration check joined it 2026-09-03** — the last two house
+popups standing in for the same dialog: each opens the system's Saving Throw dialog with its
+own demand fieldset above the configuration (who rolls, the DC, the stakes, the bar), adopted
+under the key its recall and its buzzer already used; the dialog's buttons, situational bonus
+and roll mode are the system's, and the gate's section draws on them as on any save. Both
+machines honour the gate's Fails button (a save the rules fail before the dice, recorded as
+the failure it is) — though today no row reaches it there: both are Constitution saves, and
+the table's automatic failures name Strength and Dexterity only.
+
+**The check gate is the same pattern on the ability-check hook** (user go 2026-09-03 — *"I
+suppose the ability check gate"*). A raw check, a skill or a tool rolled with the dialog meets
+the roller's statuses against a third table (`CHECK_BENDS`: Poisoned and Frightened, the
+glossary's *Ability Checks Affected* clauses verbatim), the Condition Sources list the switch as
+for the other two, the section drawn into the system's own dialog, the default moved to the
+net, the press recorded on the check's message. ⚠ **Nothing is applied** — Poisoned's
+Disadvantage the platform already rolls (measured: dnd5e bends the dice itself), so that box
+explains a default the dialog already shows; Frightened the platform leaves alone, so that
+row is the gate's own, the line-of-sight caveat in the quoted rule. Initiative is an ability
+check and is skipped on purpose (§4: not a d20 this module meets); Exhaustion's subtraction
+and Blinded's sight failures are the platform's and out of scope.
 **A save the rules fail before the dice** — Paralyzed, Stunned, Unconscious, Petrified on a
 Strength or Dexterity save — grows a fourth button, **Fails**, as the default: no dice, the
 failure recorded on the card with the condition where the total would be, the consequences

@@ -5,8 +5,8 @@
 import { MODULE_ID, TITLE, S, setting, rollerUserFor, canAnswerFor,
   drivesMomentFor, canApplyTo, whisperNoGM, statContext } from "./core.js";
 import { rollConfigFor } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML, situationalBonusHTML, modeButtons } from "./decide/present.js";
-import { livePopups, openMomentPopup, momentButton,
+import { popupKey, bfCard, holdBarHTML } from "./decide/present.js";
+import { livePopups, momentButton, DialogCarried,
   scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
   dramaticVerdictPause } from "./ui.js";
 
@@ -565,6 +565,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const o = ask.outcome ?? {};
     const line = document.createElement("div");
     line.textContent = o.voided ? "The concentrator is gone — nothing to roll."
+      : o.autoFailed ? `fails automatically — ${o.autoFailedBy ?? "the condition"} — broken`
       : `${o.total} vs DC ${ask.dc} — ${o.success ? "holds" : "broken"}${o.timedOut ? " (timer)" : ""}`;
     Object.assign(line.style, {
       marginTop: "0.3rem", fontSize: "var(--font-size-11, 11px)",
@@ -574,6 +575,9 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   }
   html.querySelector(".message-content")?.appendChild(row);
 });
+
+// Dialogs on their way up — between the call and the render that adopts them (saves.js's shape).
+const concDialogsOpening = new Set();
 
 /**
  * The popup — the ask's story over the native roll dialog's own controls: a situational
@@ -585,38 +589,91 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
  * Advantage). Dismissing is not an answer: the card keeps the bar and the Roll control, and
  * the buzzer rolls regardless — without any of these inputs.
  */
+// ⚠ SINCE 2026-09-03 THIS IS THE SYSTEM'S OWN SAVING THROW DIALOG, not a house popup — the
+// save demand's option E, applied here (DESIGN §5 *the save gate*): `rollConcentration` with
+// `configure: true` (the system builds the concentration save — its ability, its bonus, War
+// Caster's Advantage as the dialog's default — and opens its dialog), the ask riding
+// `dialog.options` as a DialogCarried the spine paints (ui.js drawDemandFieldset) and adopts
+// under the popup key the recall, the queue's close and the delete-sweep already use. The
+// answer channel is unchanged: the roll's message carries `respondsTo`, the fold reads it.
+// The save gate's section draws on it too. ⚠ Its Fails button is honoured below
+// (foldConcentrationAutoFail) but cannot stand here today: the check is a Constitution save,
+// the table's automatic failures name Strength and Dexterity only, and every status that
+// carries one implies Incapacitated — which breakOnIncapacitated has already acted on.
 async function showConcPopup(message, ask) {
   if ( !ask || (ask.status !== "pending") ) return;
-  const actor = (() => { try { return fromUuidSync(ask.actorUuid); } catch(err) { return null; } })();
+  const key = popupKey(message.id, "concentration");
+  const open = livePopups.get(key);
+  if ( open ) { open.bringToFront?.(); return; }
+  if ( concDialogsOpening.has(key) || concRollsInFlight.has(message.id) ) return;
+  concDialogsOpening.add(key);
+  try {
+    if ( game.messages.some(m => m.getFlag(MODULE_ID, "respondsTo") === message.id) ) return;
+    const actor = await fromUuid(ask.actorUuid);
+    if ( !(actor instanceof Actor) || !canAnswerFor(actor) ) return;
+    const abilityLabel = CONFIG.DND5E.abilities[ask.ability]?.label ?? "Constitution";
+    const demand = new DialogCarried({
+      cardId: message.id, key, failed: null,
+      owed: card => card.getFlag(MODULE_ID, "concentration")?.status === "pending",
+      present: () => ({
+        img: actor.img ?? null,
+        eyebrow: "Concentration check",
+        title: `${abilityLabel} save, DC ${ask.dc}`,
+        subtitle: `${ask.actorName} — concentrating on ${ask.names?.join(", ") || "a spell"}`,
+        lines: [
+          causeLine(ask.cause, ask.damage),
+          `A failed save ends <strong>${ask.names?.join(", ") || "the spell"}</strong>`
+            + `${setting(S.concBreak) ? "" : " (breaking is off — the GM ends it by hand)"}.`
+        ],
+        tone: "pending"
+      }),
+      bar: card => card.getFlag(MODULE_ID, "concentration")
+    });
+    const rolls = await actor.rollConcentration(
+      { target: ask.dc },
+      { configure: true, options: { bfSaveDemand: demand } },
+      {
+        data: { flags: { [MODULE_ID]: { respondsTo: message.id } } },
+        ...(setting(S.concVisibility) ? {} : { rollMode: CONST.DICE_ROLL_MODES.PRIVATE })
+      }
+    );
+    if ( !rolls?.length && demand.failed ) await foldConcentrationAutoFail(message, demand.failed);
+  } catch(err) {
+    console.error(`${TITLE} | Concentration dialog failed — roll it from the sheet.`, err);
+  } finally {
+    concDialogsOpening.delete(key);
+  }
+}
 
-  const abilityLabel = CONFIG.DND5E.abilities[ask.ability]?.label ?? "Constitution";
-  const ADV = CONFIG.Dice.D20Roll.ADV_MODE;
-  const dataMode = actor?.system?.attributes?.concentration?.roll?.mode ?? ADV.NORMAL;
-  const def = (dataMode === ADV.ADVANTAGE) ? "advantage"
-    : (dataMode === ADV.DISADVANTAGE) ? "disadvantage" : "normal";
-
-  let dialog;
-  const roll = mode => rollConcentrationAnswer(message, {
-    mode, bonus: dialog?.element?.querySelector('input[name="bf-conc-bonus"]')?.value ?? ""
-  });
-  dialog = await openMomentPopup(message, "concentration", actor, {
-    title: `Concentration — ${ask.names?.join(", ") || ask.actorName}`,
-    icon: "fa-solid fa-brain",
-    content: bfCard({
-      img: actor?.img ?? null,
-      eyebrow: "Concentration check",
-      title: `${abilityLabel} save, DC ${ask.dc}`,
-      subtitle: `${ask.actorName} — concentrating on ${ask.names?.join(", ") || "a spell"}`,
-      lines: [
-        causeLine(ask.cause, ask.damage),
-        `A failed save ends <strong>${ask.names?.join(", ") || "the spell"}</strong>`
-          + `${setting(S.concBreak) ? "" : " (breaking is off — the GM ends it by hand)"}.`
-      ],
-      tone: "pending"
-    }) + situationalBonusHTML("bf-conc-bonus") + holdBarHTML(ask, "to roll"),
-    // The same three controls the reminder gate carries (decide/present.js) — one shape.
-    buttons: modeButtons(roll, def)
-  });
+/**
+ * The fold without a die: a concentration check the rules fail before it is rolled (the
+ * concentrator Paralyzed, Stunned, Unconscious, Petrified — the save table's automatic
+ * failures; Incapacitated alone already broke it, breakOnIncapacitated). Recorded as the
+ * failure it is — `total` null, the condition where the number would be — and the break
+ * follows exactly as for a rolled failure. Same claim discipline as foldConcentrationRoll.
+ */
+async function foldConcentrationAutoFail(askMessage, sources = []) {
+  if ( !askMessage || concFolds.has(askMessage.id) ) return;
+  concFolds.add(askMessage.id);
+  try {
+    const ask = foundry.utils.deepClone(askMessage.getFlag(MODULE_ID, "concentration") ?? {});
+    if ( ask.status !== "pending" ) return;
+    const actor = await fromUuid(ask.actorUuid);
+    const whisper = setting(S.concVisibility) ? null : concRecipients(actor);
+    ask.status = "done";
+    ask.outcome = {
+      total: null, success: false, autoFailed: true,
+      autoFailedBy: sources.filter(s => s.autoFail).map(s => s.statusName).join(", ") || null,
+      answeredAt: Date.now(),
+      ...(whisper ? { whisperIds: whisper } : {})
+    };
+    disarmAskTimer(concTimers, askMessage.id);
+    await askMessage.setFlag(MODULE_ID, "concentration", ask);
+    await breakConcentration(actor, { names: ask.names, effectIds: ask.effectIds, ask });
+    await markConcApplied(askMessage);
+  } finally {
+    concFolds.delete(askMessage.id);
+  }
 }
 
 /**

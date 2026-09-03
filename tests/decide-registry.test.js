@@ -478,3 +478,22 @@ describe("SAVE_PRESSES — the bare save presses (the audit's output, 2026-09-03
     expect(reg.SAVE_PRESSES["Sleet Storm"].status).toBe("prone");
   });
 });
+
+describe("CHECK_BENDS — the check table (user go 2026-09-03)", () => {
+  it("is Poisoned and Frightened, both Disadvantage, each quoting its glossary clause", () => {
+    expect(Object.keys(reg.CHECK_BENDS)).toEqual(["poisoned", "frightened"]);
+    for (const [key, row] of Object.entries(reg.CHECK_BENDS)) {
+      expect(row.bend, key).toBe("disadvantage");
+      expect(row.rule, key).toMatch(/ability checks/);
+      expect(Object.isFrozen(row), key).toBe(true);
+    }
+  });
+  it("every check row is also a row of the condition table — one membership list switches all three gates", () => {
+    for (const key of Object.keys(reg.CHECK_BENDS))
+      expect(reg.CONDITION_STATUSES.has(key), key).toBe(true);
+  });
+  it("marks Poisoned as the platform's own bend — the gate reminds, it never applies twice", () => {
+    expect(reg.CHECK_BENDS.poisoned.platform).toBe(true);
+    expect(reg.CHECK_BENDS.frightened.platform).toBeUndefined();
+  });
+});

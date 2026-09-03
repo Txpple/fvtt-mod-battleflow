@@ -130,6 +130,34 @@ export function saveGate(sources) {
 }
 
 /**
+ * CHECK SOURCES, from plain facts (user go 2026-09-03 — the third gate): the roller's statuses
+ * against the check table (decide/registry.js CHECK_BENDS), the Condition Sources list as the
+ * switch. Every row is a plain bend — no automatic failure on a check exists in the 2024 rules —
+ * and the label is the fact alone, the quoted rule carrying the condition (the 2026-09-02
+ * ruling on labels).
+ * @param {{statuses?: Iterable<string>, enabled: Iterable<string>, table: Readonly<Record<string, any>>, name?: string}} facts
+ */
+export function checkSources({ statuses = [], enabled, table, name = "You" }) {
+  const on = new Set(enabled ?? []);
+  const mine = new Set(statuses);
+  const out = [];
+  for ( const key of Object.keys(table ?? {}) ) {
+    if ( !on.has(key) || !mine.has(key) ) continue;
+    const row = table[key];
+    if ( !row?.bend ) continue;
+    out.push(Object.assign(reminderSource("condition", row.bend, `${name} — ${conditionName(key)}`, row.rule), { status: key }));
+  }
+  return out;
+}
+
+/** The check gate's judgement: the attack arithmetic over its sources, one object for the
+ * dialog, the default button and the record (no `fails` — no check rule fails before the dice). */
+export function checkGate(sources) {
+  const net = netMode(sources);
+  return { sources, net, view: reminderView(sources, net) };
+}
+
+/**
  * EFFECT SOURCES, from plain facts (user, 2026-09-02 — the sixth kind): the abilities on either
  * sheet that bend this roll, read against the effect table (decide/registry.js EFFECT_BENDS).
  * An attacker-side row fires when the ATTACKER carries the effect (or the feature) and the

@@ -254,8 +254,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       .find(m => m.getFlag(MOD, 'concentration')?.status === 'done');
     const contentNew = (mark, needle) => newSince(mark)
       .find(m => m.content?.includes?.(needle));
-    const concPopups = () => [...document.querySelectorAll('.application.dialog')]
-      .filter(el => el.textContent.includes('Concentration check'));
+    // Since 2026-09-03 the ask IS the system's Saving Throw dialog (option E, the save demand's
+    // shape) — found by the application registry and our demand fieldset, never by a class the
+    // dialog may not wear; told from a save demand by the fieldset's own eyebrow.
+    const concPopups = () => [...foundry.applications.instances.values()]
+      .filter(app => app.rendered && (app.element?.querySelector?.('[data-bf-save-demand]')?.textContent ?? '').includes('Concentration check'))
+      .map(app => app.element);
+    const dialogButtons = popup => popup ? [...popup.querySelectorAll('[data-application-part="buttons"] button[data-action], footer button, .form-footer button, nav.dialog-buttons button')] : [];
+    // The dialog reads its form on CHANGE (it rebuilds the rolls there, not on submit), so a
+    // programmatic value must announce itself the way a keystroke does.
+    const setSituational = async (popup, value) => {
+      const input = popup?.querySelector('input[name="roll.0.situational"]');
+      if (input) { input.value = value; input.dispatchEvent(new Event('change', { bubbles: true })); await sleep(150); }
+      return !!input;
+    };
 
     // ================================================== 1. auto mode: the floor DC, and quiet good news
     let hpBefore;
@@ -358,12 +370,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const popup = await waitFor(() => concPopups()[0], 4000);
       ok('5b. the popup is on screen for whoever owns the decision', !!popup,
         popup ? '' : 'no popup found in DOM');
-      const buttons = popup ? [...popup.querySelectorAll('footer button, .form-footer button')] : [];
+      const buttons = dialogButtons(popup);
       const labels = buttons.map(b => b.textContent.trim());
-      ok('5c. the controls are the native dialog\'s: Adv/Normal/Dis + a situational bonus field',
+      ok('5c. the ask IS the system\'s Saving Throw dialog: its Adv/Normal/Dis, its situational bonus, its roll mode — and our demand fieldset',
         (labels.join('/') === 'Advantage/Normal/Disadvantage')
-          && !!popup?.querySelector('input[name="bf-conc-bonus"]'),
-        `buttons=[${labels.join('|')}] input=${!!popup?.querySelector('input[name="bf-conc-bonus"]')}`);
+          && !!popup?.querySelector('input[name="roll.0.situational"]')
+          && !!popup?.querySelector('select[name="rollMode"]'),
+        `buttons=[${labels.join('|')}] input=${!!popup?.querySelector('input[name="roll.0.situational"]')} rollMode=${!!popup?.querySelector('select[name="rollMode"]')}`);
       buttons.find(b => b.textContent.trim() === 'Normal')?.click();
       const doneMsg = await waitFor(() => doneAskNew(t0));
       const done = doneMsg?.getFlag(MOD, 'concentration');
@@ -385,10 +398,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await smack(12);
       await waitFor(() => asksNew(t1)[0]);
       const popup2 = await waitFor(() => concPopups()[0], 4000);
-      const input2 = popup2?.querySelector('input[name="bf-conc-bonus"]');
-      if (input2) input2.value = '+30';
-      [...(popup2?.querySelectorAll('footer button, .form-footer button') ?? [])]
-        .find(b => b.textContent.trim() === 'Advantage')?.click();
+      await setSituational(popup2, '+30');
+      dialogButtons(popup2).find(b => b.textContent.trim() === 'Advantage')?.click();
       const done2 = await waitFor(() => doneAskNew(t1));
       const o2 = done2?.getFlag(MOD, 'concentration')?.outcome;
       const roll2 = (o2?.rollMessageId ? game.messages.get(o2.rollMessageId) : null)?.rolls?.[0];
@@ -438,15 +449,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await sleep(1000);
         ok('7b. only the oldest ask has a popup (the queue)', concPopups().length === 1,
           `popups=${concPopups().length}`);
-        [...(concPopups()[0]?.querySelectorAll('footer button, .form-footer button') ?? [])]
-          .find(b => b.textContent.trim() === 'Normal')?.click();
+        dialogButtons(concPopups()[0]).find(b => b.textContent.trim() === 'Normal')?.click();
         await waitFor(() => first.getFlag(MOD, 'concentration')?.status === 'done');
         const secondPopup = await waitFor(() => (concPopups().length === 1)
           && (second.getFlag(MOD, 'concentration')?.status === 'pending'), 5000);
         ok('7c. resolving the first advances the queue to the second', !!secondPopup,
           `popups=${concPopups().length} second=${second.getFlag(MOD, 'concentration')?.status}`);
-        [...(concPopups()[0]?.querySelectorAll('footer button, .form-footer button') ?? [])]
-          .find(b => b.textContent.trim() === 'Normal')?.click();
+        dialogButtons(concPopups()[0]).find(b => b.textContent.trim() === 'Normal')?.click();
         await waitFor(() => second.getFlag(MOD, 'concentration')?.status === 'done');
         ok('7d. both asks resolved, concentration held through both',
           (second.getFlag(MOD, 'concentration')?.outcome?.success === true) && (concEffects().length === 1),

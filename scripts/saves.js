@@ -794,7 +794,11 @@ Hooks.on("renderRollConfigurationDialog", (app, element) => {
   try {
     const demand = app.options?.bfSaveDemand ?? null;
     const gate = app.options?.bfSaveGate ?? null;
-    if ( demand ) drawSaveDemand(app, element, demand);
+    // A demand carrying `present` is another machine's (Topple, concentration — ui.js
+    // drawDemandFieldset paints those); this one builds from the saves flag and would close a
+    // dialog whose card has no saves entry (bit 2026-09-03: the first concentration dialog
+    // closed on render, adopted by nobody).
+    if ( demand && !demand.present ) drawSaveDemand(app, element, demand);
     if ( gate ) drawSaveGate(app, element, gate, demand);
   } catch(err) {
     console.error(`${TITLE} | Save dialog section failed to draw.`, err);

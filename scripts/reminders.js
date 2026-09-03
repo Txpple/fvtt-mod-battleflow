@@ -8,10 +8,10 @@ import { chipSpentOnRecord, grantingActor, turnChitStands } from "./shared.js";
 import { DialogCarried } from "./ui.js";
 import { bfCard, reminderFieldsetHTML, sneakBoxHTML } from "./decide/present.js";
 import { CHIP_FLAG, chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.js";
-import { CONDITION_BENDS, EFFECT_BENDS, MASTERY_RULES, RANGE_RULES, SNEAK_ATTACK } from "./decide/registry.js";
+import { CHECK_BENDS, CONDITION_BENDS, EFFECT_BENDS, MASTERY_RULES, RANGE_RULES, SNEAK_ATTACK } from "./decide/registry.js";
 import { parseDice, sneakWeaponQualifies } from "./decide/sneak.js";
 import { feetOf, nearestFeet, tokenOfActor } from "./geometry.js";
-import { REMINDER_FLAG, conditionSources, effectSources, modeTitle, netMode, proneSources, rangeSources,
+import { REMINDER_FLAG, checkGate, checkSources, conditionSources, effectSources, modeTitle, netMode, proneSources, rangeSources,
   reminderRecord, reminderSource, reminderView, rolledWith } from "./decide/reminders.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -158,6 +158,8 @@ function drawGate(app, { force = false } = {}) {
 // dresses it).
 Hooks.on("renderRollConfigurationDialog", (app, element) => {
   try {
+    const check = app.options?.bfCheckGate;
+    if ( check ) drawCheckGate(element, check);
     if ( !app.options?.bfReminder ) return;
     openGates.add(app);
     drawGate(app);
@@ -171,6 +173,76 @@ Hooks.on("targetToken", () => {
   for ( const app of openGates ) {
     if ( app.rendered && app.element ) { try { drawGate(app, { force: true }); } catch(err) { console.error(`${TITLE} | Reminder section failed to redraw.`, err); } }
     else openGates.delete(app);
+  }
+});
+
+/* --- THE CHECK GATE (user go 2026-09-03) — the third table on the one machine -----------------
+ * An ability check — a raw check, a skill, a tool — meets the same gate the attack and the save
+ * meet: the roller's statuses against the check table (CHECK_BENDS), the Condition Sources list
+ * as the switch, the section drawn into the system's own dialog, the default moved to the net,
+ * the press recorded on the check's message. TEMPLATED like its two siblings
+ * (dnd5e.preRoll<HookName>V2 — rollAbilityCheck, rollSkill and rollToolCheck all carry
+ * `abilityCheck` in their hookNames), pinned in check-hook-dispatch. ⚠ Initiative is an ability
+ * check too and is OUT by design (BACKLOG: Invisible's Advantage, Incapacitated's Disadvantage
+ * on initiative are not d20s this module meets) — its dialog's hookNames carry
+ * `initiativeDialog`, and that is the skip. Nothing is applied: Poisoned's Disadvantage the
+ * platform already rolls (CHECK_BENDS says so); the gate reminds and records.
+ * ------------------------------------------------------------------------------------------- */
+Hooks.on("dnd5e.preRollAbilityCheckV2", (config, dialog, message) => {
+  try {
+    if ( dialog?.configure === false ) return;       // no dialog, no gate
+    if ( config?.hookNames?.includes?.("initiativeDialog") ) return;
+    const actor = config?.subject;
+    if ( !(actor instanceof Actor) ) return;
+    if ( !reminderEntries().some(e => e.kind === "condition") ) return;   // the list is the switch
+    const sources = checkSources({ statuses: actor.statuses ?? [], enabled: conditionEntries().map(e => e.kind),
+      table: CHECK_BENDS, name: actor.name });
+    if ( !sources.length ) return;
+    const gate = new DialogCarried({ ...checkGate(sources), actorUuid: actor.uuid,
+      ability: config.ability ?? null, skill: config.skill ?? null, tool: config.tool ?? null });
+    dialog.options ??= {};
+    dialog.options.bfCheckGate = gate;
+    config.bfCheckGate = gate;
+    dialog.configure = true;
+    dialog.options.defaultButton = gate.net;
+  } catch(err) {
+    console.error(`${TITLE} | Check gate failed — rolling natively.`, err);
+  }
+});
+
+/** The check gate's section in the dialog — the attack gate's fieldset, folded, after the
+ * configuration part; the default button moved to the net. Idempotent across re-renders. */
+function drawCheckGate(element, gate) {
+  if ( !gate?.sources?.length || !element ) return;
+  if ( !element.querySelector("[data-bf-reminder]") ) {
+    const host = document.createElement("div");
+    host.innerHTML = reminderFieldsetHTML(gate.view, { open: false });
+    const fieldset = host.firstElementChild;
+    const configuration = element.querySelector('[data-application-part="configuration"]');
+    const buttons = element.querySelector('[data-application-part="buttons"]');
+    if ( configuration ) configuration.insertAdjacentElement("afterend", fieldset);
+    else if ( buttons ) buttons.insertAdjacentElement("beforebegin", fieldset);
+    else element.querySelector("form")?.appendChild(fieldset);
+  }
+  for ( const button of element.querySelectorAll('[data-application-part="buttons"] button[data-action]') ) {
+    const isDefault = button.dataset.action === gate.net;
+    button.toggleAttribute("autofocus", isDefault);
+    if ( isDefault ) { try { button.focus(); } catch { /* not focusable yet */ } }
+  }
+}
+
+// The check's record — the same flag the attack and the save stamp, on the check's message.
+Hooks.on("dnd5e.postRollConfiguration", (rolls, config, dialog, message) => {
+  try {
+    const gate = config?.bfCheckGate;
+    if ( !gate?.sources?.length || !rolls?.length ) return;
+    const mode = rollModeOf(rolls[0]?.options?.advantageMode);
+    foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${REMINDER_FLAG}`, {
+      ...reminderRecord({ sources: gate.sources, net: gate.net, mode, answeredAt: Date.now() }),
+      ...statContext(gate.actorUuid)
+    });
+  } catch(err) {
+    console.error(`${TITLE} | Check gate record failed.`, err);
   }
 });
 

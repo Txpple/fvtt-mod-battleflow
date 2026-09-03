@@ -23,7 +23,8 @@ const SECTIONS = {
   8: 'the registration FIRED (§11): dnd5e.preRollAttackV2 moved',
   9: 'a metric grid: the 5-foot rule is judged in FEET, never in scene units',
   10: 'range: point-blank, beyond normal, beyond long — and the section follows the attack-mode dropdown',
-  11: 'effect sources: an effect or a feature by name, in scope, listed or counted, judged, and spent by the roll'
+  11: 'effect sources: an effect or a feature by name, in scope, listed or counted, judged, and spent by the roll',
+  12: 'the check gate: Poisoned and Frightened on a raw check and a skill, the record, never on a programmatic roll (2026-09-03)'
 };
 const DEPENDS = { 8: ['1'] };
 
@@ -954,6 +955,59 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const i = created.items.findIndex(x => x.id === it.id); if (i >= 0) created.items.splice(i, 1);
         }
       }
+    }
+
+    // ================================================== 12. the check gate (2026-09-03)
+    // The third table on the one machine: a raw check or a skill rolled WITH the dialog meets the
+    // roller's statuses against CHECK_BENDS inside the system's own check dialog. Poisoned is a
+    // bend the platform already rolls (the box explains the default); Frightened is the gate's
+    // own. A programmatic roll is never gated; a clean roller draws no section. 12a green is
+    // also the proof that dnd5e.preRollAbilityCheckV2 FIRED (the dispatch pin's claim).
+    if (want(12)) {
+      await clearStatuses();
+      await closeGates();
+      const pressCheck = app => app?.element?.querySelector('[data-application-part="buttons"] button[autofocus]')
+        ?? app?.element?.querySelector('[data-application-part="buttons"] button[data-action="normal"]');
+      /** Roll a check WITH the dialog: wait for the system's dialog, read our section off it (or
+       * note its absence), press the named button, and hand back the roll's message and record. */
+      const gatedCheck = async ({ skill = null, action = 'normal' } = {}) => {
+        const p = skill ? pc.rollSkill({ skill }, { configure: true }, {}) : pc.rollAbilityCheck({ ability: 'str' }, { configure: true }, {});
+        const sys = await waitFor(rollDialog, 6000);
+        await sleep(150);
+        const app = gateOf(sys);
+        const text = app ? popupText(app) : '';
+        const def = sys ? defaultButton(sys) : null;
+        if (sys) (sys.element?.querySelector(`[data-application-part="buttons"] button[data-action="${action}"]`) ?? pressCheck(sys))?.click();
+        const rolls = await p;
+        const msg = rolls?.[0]?.parent ?? null;
+        return { sys, app, text, def, rolls, msg, record: msg?.getFlag(MOD, 'reminder') ?? null };
+      };
+      await setStatus(pc, 'poisoned', true);
+      const a = await gatedCheck();
+      ok('12a. a Poisoned check meets the gate inside the system\'s check dialog: "— Poisoned", the glossary clause, 1 Modifier — Net Disadvantage, Disadvantage highlighted',
+        !!a.app && /— Poisoned/.test(a.text) && /ability checks/.test(a.text) && /1 Modifier — Net Disadvantage/.test(a.text) && (a.def === 'disadvantage'),
+        `dialog=${!!a.sys} gate=${!!a.app} default=${a.def} text="${a.text.replace(/\s+/g, ' ').slice(0, 160)}"`);
+      ok('12b. the press is recorded on the check message: net Disadvantage, Normal pressed, not honoured, the source named',
+        !!a.record && (a.record.net === 'disadvantage') && (a.record.mode === 'normal') && (a.record.honoured === false)
+          && a.record.sources?.some(s => /Poisoned/.test(s.label)),
+        JSON.stringify(a.record));
+      await setStatus(pc, 'poisoned', false);
+      await setStatus(pc, 'frightened', true);
+      const b = await gatedCheck({ skill: 'ath', action: 'disadvantage' });
+      ok('12c. a Frightened SKILL check meets the same gate — the label the fact alone, the line-of-sight caveat the quoted rule\'s — and Disadvantage pressed is honoured',
+        !!b.app && /— Frightened/.test(b.text) && /line of sight/.test(b.text) && !/press Normal/.test(b.text)
+          && (b.record?.net === 'disadvantage') && (b.record?.mode === 'disadvantage') && (b.record?.honoured === true),
+        `dialog=${!!b.sys} gate=${!!b.app} record=${JSON.stringify(b.record)}`);
+      const c = await pc.rollAbilityCheck({ ability: 'str' }, { configure: false }, {});
+      ok('12d. a programmatic check (configure: false) is never gated — no dialog, no record',
+        !!c?.[0] && !c[0].parent?.getFlag(MOD, 'reminder') && !rollDialog(),
+        `rolled=${!!c?.[0]} record=${!!c?.[0]?.parent?.getFlag(MOD, 'reminder')} dialog=${!!rollDialog()}`);
+      await setStatus(pc, 'frightened', false);
+      const d = await gatedCheck();
+      ok('12e. a clean roller gets the system\'s dialog with NO section and leaves no record',
+        !!d.sys && !d.app && !d.record, `dialog=${!!d.sys} gate=${!!d.app} record=${!!d.record}`);
+      await clearStatuses();
+      await closeGates();
     }
 
     return { log, results, skips };

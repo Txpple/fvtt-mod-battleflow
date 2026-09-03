@@ -13,9 +13,8 @@ import { REMINDER_FLAG, rolledWith } from "./decide/reminders.js";
 import { chipData, chipSpentOnRecord, chitStampOf, hitTargets, masteryLabel, modeAllows, placeOf, rollConfigFor,
   turnPlace } from "./shared.js";
 import { effectEntries } from "./settings.js";
-import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, situationalBonusHTML,
-  modeButtons } from "./decide/present.js";
-import { livePopups, openMomentPopup,
+import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
+import { livePopups, openMomentPopup, DialogCarried,
   momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,
   armAskTimer, disarmAskTimer, armDeadline, disarmDeadline,
   dramaticVerdictPause } from "./ui.js";
@@ -437,6 +436,9 @@ Hooks.on("createChatMessage", message => {
   }
 });
 
+// Dialogs on their way up — between the call and the render that adopts them (saves.js's shape).
+const toppleDialogsOpening = new Set();
+
 /**
  * The topple save's table moment (v1.6.0, user call: "the GM didn't get a popup — the
  * cards are difficult to follow"). The same surface as the concentration ask — the story
@@ -447,28 +449,80 @@ Hooks.on("createChatMessage", message => {
  * save machine's timer (the flag's deadline), so the popup runs the same bar the card runs
  * — the pairing rule — and the buzzer below rolls whoever the clock catches.
  */
+// ⚠ SINCE 2026-09-03 THIS IS THE SYSTEM'S OWN SAVING THROW DIALOG, not a house popup — the
+// save demand's option E, applied here (DESIGN §5 *the save gate*): `rollSavingThrow` with
+// `configure: true`, the demand riding `dialog.options` as a DialogCarried the spine paints
+// (ui.js drawDemandFieldset) and adopts under the popup key the recall, the buzzer and the
+// delete-sweep already use. The dialog's three buttons, its situational bonus and its roll
+// mode are the system's; the save gate's section draws on it exactly as on a demanded save.
+// ⚠ Its Fails button (a save the rules fail before the dice) is honoured below but never
+// stands here today: Topple is a CONSTITUTION save and every automatic-failure row in
+// SAVE_BENDS names Strength and Dexterity only (measured 2026-09-03).
 async function showTopplePopup(message, topple, target) {
-  const actor = (() => { try { return fromUuidSync(target.uuid); } catch { return null; } })();
-  let dialog;
-  const roll = mode => rollToppleSave(message, target, {
-    mode, bonus: dialog?.element?.querySelector('input[name="bf-topple-bonus"]')?.value ?? ""
+  const key = popupKey(message.id, `topple:${target.uuid}`);
+  const open = livePopups.get(key);
+  if ( open ) { open.bringToFront?.(); return; }
+  if ( toppleDialogsOpening.has(key) ) return;
+  toppleDialogsOpening.add(key);
+  try {
+    const flag = message.getFlag(MODULE_ID, "topple");
+    const entry = flag?.targets?.find(t => t.uuid === target.uuid);
+    if ( !entry || entry.done ) return;
+    const actor = await fromUuid(target.uuid);
+    if ( !(actor instanceof Actor) || !canAnswerFor(actor) ) return;
+    const demand = new DialogCarried({
+      cardId: message.id, key, failed: null,
+      owed: card => { const e = card.getFlag(MODULE_ID, "topple")?.targets?.find(t => t.uuid === target.uuid); return !!e && !e.done; },
+      present: card => ({
+        img: card.getFlag(MODULE_ID, "topple")?.weapon?.img ?? null,
+        eyebrow: "Weapon Mastery — Topple",
+        title: `${target.name}: Constitution save, DC ${flag.dc}`,
+        subtitle: `${flag.weapon?.name ?? "The weapon"} demands it.`,
+        // (z): the consequence in the property's own words — the verbatim final sentence of
+        // the Topple rule (the demand speaks to the TARGET; the trigger half is the attacker's).
+        lines: [ruleLine("On a failed save, the creature has the Prone condition.")],
+        tone: "pending"
+      }),
+      // The topple flag has no `status`; holdBarHTML gates on one, so hand it a pending view.
+      bar: card => ({ status: "pending", ...card.getFlag(MODULE_ID, "topple") })
+    });
+    const rolls = await actor.rollSavingThrow(
+      { ability: flag.ability || "con", target: flag.dc },
+      { configure: true, options: { bfSaveDemand: demand } },
+      { data: { "flags.dnd5e.originatingMessage": message.id } }
+    );
+    // Fails pressed: no roll, and the demand names what failed it — recorded as the failure
+    // it is, the same write the fold makes, Prone pressed by the same consequence.
+    if ( !rolls?.length && demand.failed ) await markToppleAutoFailed(message, target.uuid, demand.failed);
+  } catch(err) {
+    console.error(`${TITLE} | Topple save dialog failed — roll it from the sheet.`, err);
+  } finally {
+    toppleDialogsOpening.delete(key);
+  }
+}
+
+/**
+ * The fold without a die: a Topple save the rules fail before it is rolled (Paralyzed,
+ * Stunned, Unconscious, Petrified — the save table's automatic failures), recorded exactly as
+ * a rolled failure is and pressed through the same consequence; `total` stays null and the
+ * card says why. The GM's "failed — Prone" button rides the same write.
+ */
+async function markToppleAutoFailed(message, uuid, sources = []) {
+  let claimed = false;
+  await queueFlagWrite(message, "topple", live => {
+    const own = live.targets?.find(t => !t.done && (t.uuid === uuid));
+    if ( !own ) return false;
+    claimed = true;
+    own.done = true;
+    own.outcome = "prone";
+    own.total = null;
+    own.autoFailed = true;
+    own.autoFailedBy = sources.filter(s => s.autoFail).map(s => s.statusName).join(", ") || null;
+    own.answeredAt = Date.now();
   });
-  dialog = await openMomentPopup(message, `topple:${target.uuid}`, actor, {
-    title: `Topple — ${target.name}`, icon: "fa-solid fa-person-falling",
-    content: bfCard({
-      img: topple.weapon?.img ?? null,
-      eyebrow: "Weapon Mastery — Topple",
-      title: `${target.name}: Constitution save, DC ${topple.dc}`,
-      subtitle: `${topple.weapon?.name ?? "The weapon"} demands it.`,
-      // (z): the consequence in the property's own words — the verbatim final sentence of
-      // the Topple rule (the demand speaks to the TARGET; the trigger half is the attacker's).
-      lines: [ruleLine("On a failed save, the creature has the Prone condition.")],
-      tone: "pending"
-    }) + situationalBonusHTML("bf-topple-bonus") + momentBarHTML(topple, "to roll"),
-    // The same three controls every popup that stands in for a roll dialog carries
-    // (decide/present.js); a demanded save defaults to Normal.
-    buttons: modeButtons(roll, "normal")
-  });
+  if ( !claimed ) return;
+  if ( (message.getFlag(MODULE_ID, "topple")?.targets ?? []).every(t => t.done) ) disarmToppleTimer(message.id);
+  await applyToppleFailure(message, uuid);
 }
 
 /** Roll one pending topple target's save, chained to the card — the fold does the rest.
@@ -594,8 +648,10 @@ async function applyToppleFailure(card, uuid) {
     content: bfCard({
       img: flag.weapon?.img, eyebrow: "Weapon Mastery — Topple", tone: "good",
       title: `${entry.name} falls Prone`,
-      subtitle: `Constitution save ${entry.total ?? "?"} vs DC ${flag.dc}`
-        + `${entry.timedOut ? " — rolled by the timer" : ""}`
+      subtitle: entry.autoFailed
+        ? `Constitution save fails automatically — ${entry.autoFailedBy ?? "the condition"}`
+        : `Constitution save ${entry.total ?? "?"} vs DC ${flag.dc}`
+          + `${entry.timedOut ? " — rolled by the timer" : ""}`
     })
   });
   // ⚠ Through the serializer, and the claim re-checked INSIDE it (D3): two awaits stand

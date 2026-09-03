@@ -435,6 +435,30 @@ export const SAVE_BENDS = Object.freeze({
 });
 
 /**
+ * THE CHECK TABLE (user go 2026-09-03 — the third table on the one gate machine): what the 2024
+ * conditions do to an ABILITY CHECK (a raw check, a skill, a tool — never initiative, which is
+ * out of scope by design), each row's clause quoted VERBATIM from the Rules Glossary. Two rows,
+ * both Disadvantage; membership is the same Condition Sources list the other two gates read.
+ *
+ * ⚠ Poisoned is a bend the PLATFORM already applies — dnd5e 5.3.3 rolls a Poisoned creature's
+ * check with Disadvantage on its own (measured 2026-09-03, tools/probe-conditions.mjs:
+ * `2d20dis + 1` with `configure: false`). The row is therefore a REMINDER of a default the dialog
+ * already shows, never a second application: the gate's box says WHY the button is
+ * highlighted, and the record says what was pressed. Frightened the platform leaves alone (its
+ * clause hinges on line of sight), so that row is the gate's own — counted, the caveat in the
+ * quoted rule. Exhaustion's −2 × level is a subtraction the system applies, not a bend, so it has
+ * no row; Blinded's and Deafened's sight/hearing failures are out of scope (BACKLOG).
+ *
+ * @type {Readonly<Record<string, Readonly<{bend: "advantage"|"disadvantage", rule: string, platform?: boolean}>>>}
+ */
+export const CHECK_BENDS = Object.freeze({
+  poisoned: Object.freeze({ bend: "disadvantage", platform: true,
+    rule: "You have Disadvantage on attack rolls and ability checks." }),
+  frightened: Object.freeze({ bend: "disadvantage",
+    rule: "You have Disadvantage on ability checks and attack rolls while the source of fear is within line of sight." })
+});
+
+/**
  * THE EFFECT TABLE — the sixth reminder kind (user, 2026-09-02: "I like effect sources").
  * Abilities that bend an attack roll and land on a sheet as an ACTIVE EFFECT (Innate Sorcery,
  * Reckless, Blur…) or sit there as a FEATURE with no effect at all (Pack Tactics, Bloodied

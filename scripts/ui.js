@@ -20,7 +20,7 @@
 // remaining core import is either identity (MODULE_ID, TITLE) or a gate a CALLER hands it.
 import { MODULE_ID, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor,
   queueFlagWrite } from "./core.js";
-import { TONE, popupKey, bfCard, momentBarHTML, nextCascadeSlot, cascadePosition,
+import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, cascadePosition,
   eldersDeepestFirst, rescuePaneHTML, rescueRowsHTML } from "./decide/present.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -120,6 +120,57 @@ export async function openManagedPopup(key, message, dialog) {
 export class DialogCarried {
   constructor(data = {}) { Object.assign(this, data); }
 }
+
+/**
+ * THE DEMAND FIELDSET, for any machine that opens the SYSTEM's Saving Throw dialog in place
+ * of a house popup (2026-09-03: the Topple save and the concentration check joined the save
+ * demand — one surface for every save someone must roll NOW). The machine passes a
+ * DialogCarried on `dialog.options.bfSaveDemand` carrying:
+ *
+ *   cardId    the message the demand rides (its row, its bar, its answer channel)
+ *   key       the livePopups key the dialog is adopted under — the machine's recall, its
+ *             updateChatMessage close and the delete-sweep all address it by this key
+ *   owed      (card) => boolean — false closes the dialog on render: a question withdrawn
+ *             between the ask and the paint (answered elsewhere, the entry dropped)
+ *   present   (card) => the bfCard args — WHO is rolling leads, portrait included (user
+ *             call 2026-08-16); read on every render so a re-render reads fresh
+ *   bar       (card) => the flag holdBarHTML reads (status, deadline, window)
+ *   failed    written by the gate's Fails button (saves.js drawSaveGate); the caller reads
+ *             it when the dialog resolves to no roll
+ *
+ * The saves machine's own demand predates this and builds from its flag in place
+ * (saves.js drawSaveDemand); the two paint the same fieldset — `[data-bf-save-demand]`,
+ * before the dialog's configuration part — so the suites find either the same way.
+ */
+export function drawDemandFieldset(app, element, demand) {
+  const card = game.messages.get(demand.cardId);
+  if ( !card ) return;
+  if ( demand.owed && !demand.owed(card) ) { void app.close(); return; }
+  adoptManagedPopup(demand.key, card, app);
+  if ( element.querySelector("[data-bf-save-demand]") ) return;
+  const host = document.createElement("div");
+  host.innerHTML = `<fieldset data-bf-save-demand><legend>${demand.legend ?? "The demand"}</legend>`
+    + `${bfCard(demand.present(card))}${holdBarHTML(demand.bar?.(card) ?? null, "to roll")}</fieldset>`;
+  const fieldset = host.firstElementChild;
+  const configuration = element.querySelector('[data-application-part="configuration"]');
+  const formulas = element.querySelector('[data-application-part="formulas"]');
+  if ( configuration ) configuration.insertAdjacentElement("beforebegin", fieldset);
+  else if ( formulas ) formulas.insertAdjacentElement("afterend", fieldset);
+  else element.querySelector("form")?.prepend(fieldset);
+  scheduleBarSync(element);
+}
+
+// The spine paints a closure-carrying demand on every render of the dialog (the first, and
+// each re-render the dialog's own dropdowns cause). A demand without `present` is the saves
+// machine's own and is drawn by its hook.
+Hooks.on("renderRollConfigurationDialog", (app, element) => {
+  try {
+    const demand = app.options?.bfSaveDemand ?? null;
+    if ( demand?.present ) drawDemandFieldset(app, element, demand);
+  } catch(err) {
+    console.error(`${TITLE} | Demand fieldset failed to draw.`, err);
+  }
+});
 
 /**
  * ADOPT a popup the PLATFORM is already rendering — the system's own roll dialog standing in

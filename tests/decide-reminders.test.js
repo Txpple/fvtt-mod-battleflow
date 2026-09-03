@@ -703,3 +703,57 @@ describe("effectSources — the combat clock as a judge (Assassinate, 2026-09-02
     ).toHaveLength(0);
   });
 });
+
+describe("checkSources + checkGate — the check gate's table (user go 2026-09-03)", () => {
+  const all = () => Object.keys(reg.CHECK_BENDS);
+  it("Poisoned is Disadvantage on a check, the label the fact alone, the rule quoted", () => {
+    const out = r.checkSources({
+      statuses: ["poisoned"],
+      enabled: all(),
+      table: reg.CHECK_BENDS,
+      name: "Gob"
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0].bend).toBe("disadvantage");
+    expect(out[0].status).toBe("poisoned");
+    expect(out[0].label).toBe("Gob — Poisoned");
+    expect(out[0].detail).toMatch(/ability checks/);
+    expect(out[0].label).not.toMatch(/press Normal/);
+  });
+  it("Frightened is Disadvantage too; the line-of-sight caveat lives in the quoted rule, not the label", () => {
+    const [s] = r.checkSources({
+      statuses: ["frightened"],
+      enabled: all(),
+      table: reg.CHECK_BENDS
+    });
+    expect(s.bend).toBe("disadvantage");
+    expect(s.label).toBe("You — Frightened");
+    expect(s.detail).toMatch(/line of sight/);
+  });
+  it("a status with no check clause is not a source — Restrained and Prone bend no check", () => {
+    expect(
+      r.checkSources({
+        statuses: ["restrained", "prone", "blinded"],
+        enabled: all(),
+        table: reg.CHECK_BENDS
+      })
+    ).toHaveLength(0);
+  });
+  it("the Condition Sources list is the switch — a row off the list is not read", () => {
+    expect(
+      r.checkSources({ statuses: ["poisoned"], enabled: ["frightened"], table: reg.CHECK_BENDS })
+    ).toHaveLength(0);
+  });
+  it("the gate nets as the attack gate nets, and never 'fails'", () => {
+    const both = r.checkSources({
+      statuses: ["poisoned", "frightened"],
+      enabled: all(),
+      table: reg.CHECK_BENDS
+    });
+    const gate = r.checkGate(both);
+    expect(gate.net).toBe("disadvantage");
+    expect(gate.autoFail).toBeUndefined();
+    expect(gate.view.head.title).toBe("2 Modifiers — Net");
+    expect(r.checkGate([]).net).toBe("normal");
+  });
+});

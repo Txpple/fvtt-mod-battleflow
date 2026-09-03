@@ -99,6 +99,15 @@ const ALLOW = [
       + "2026-09-02) — the JSDoc at that site names only the non-V2 dnd5e.preRollSavingThrow. "
       + "saves.js registers it for the save gate (option E: the demand opens the system's own "
       + "dialog, and the gate meets every save there), and smoke-saves asserts it FIRED"
+  },
+  {
+    hook: "dnd5e.preRollAbilityCheckV2",
+    why: "TEMPLATED, the fourth of the family (2026-09-03): Actor5e#rollAbilityCheck, #rollSkill "
+      + "and #rollToolCheck all set hookNames [<type>, abilityCheck, d20Test] (dnd5e.mjs, the "
+      + "rollAbilityCheck template) and buildConfigure dispatches preRoll<HookName>V2 for each — "
+      + "the JSDoc names only the non-V2 dnd5e.preRollAbilityCheck. reminders.js registers it for "
+      + "the check gate (the third table on the one machine; initiative skipped by its "
+      + "initiativeDialog hookName), and smoke-reminders §12 asserts it FIRED"
   }
 ];
 

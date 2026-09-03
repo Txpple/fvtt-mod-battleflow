@@ -1009,6 +1009,44 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             'no fourth topple card (did the attack hit?)');
         }
         await set('saveTimer', 0);
+
+        // 14j–14l. THE DIALOG IS THE SYSTEM'S (2026-09-03): the Topple ask opens dnd5e's own
+        // Saving Throw dialog with Battle Flow's demand fieldset above its configuration — the
+        // save demand's option E, applied to the last house popup on a save. Found by the
+        // application registry and our fieldset, never by a class the dialog may not wear.
+        const toppleDialogs = () => [...foundry.applications.instances.values()]
+          .filter(app => app.rendered && (app.element?.querySelector?.('[data-bf-save-demand]')?.textContent ?? '').includes('Weapon Mastery — Topple'))
+          .map(app => app.element);
+        const dialogButtons = el => el ? [...el.querySelectorAll('[data-application-part="buttons"] button[data-action]')] : [];
+        await victim.toggleStatusEffect('prone', { active: false });
+        await healFull();
+        before14 = snap14();
+        await attack(pcAttack());
+        await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')), 12_000);
+        const topple5 = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
+        let dlg5 = null;
+        await until14(() => { dlg5 = toppleDialogs()[0] ?? null; return !!dlg5; }, 8000);
+        const labels5 = dialogButtons(dlg5).map(b => b.textContent.trim());
+        ok('14j. the Topple ask IS the system\'s Saving Throw dialog: its Adv/Normal/Dis, its situational bonus, its roll mode — and our demand fieldset naming the target and the DC',
+          !!topple5 && !!dlg5 && (labels5.join('/') === 'Advantage/Normal/Disadvantage')
+            && !!dlg5.querySelector('input[name="roll.0.situational"]') && !!dlg5.querySelector('select[name="rollMode"]')
+            && (dlg5.querySelector('[data-bf-save-demand]')?.textContent ?? '').includes(`DC ${topple5?.getFlag(MOD, 'topple')?.dc}`),
+          `card=${!!topple5} dialog=${!!dlg5} buttons=[${labels5.join('|')}] demand="${(dlg5?.querySelector('[data-bf-save-demand]')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 100)}"`);
+        // Pressing the dialog's own Normal rolls the save chained to the card; the fold judges
+        // it exactly as a sheet roll, and the answered dialog leaves.
+        dialogButtons(dlg5).find(b => b.textContent.trim() === 'Normal')?.click();
+        await until14(() => topple5?.getFlag(MOD, 'topple').targets[0].done, 12_000);
+        await until14(() => toppleDialogs().length === 0, 4000);
+        const e14j = topple5?.getFlag(MOD, 'topple').targets[0];
+        ok('14k. the dialog\'s own button rolls the save chained to the card, the fold judges it, the dialog closes',
+          !!e14j?.done && (typeof e14j.total === 'number') && (toppleDialogs().length === 0),
+          `done=${e14j?.done} total=${e14j?.total} outcome=${e14j?.outcome} dialogs=${toppleDialogs().length}`);
+        // ⚠ NOT ASSERTED, AND WHY: the gate's Fails button (a save the rules fail before the
+        // dice) never stands on a Topple dialog today — Topple is a CONSTITUTION save and every
+        // automatic-failure row in SAVE_BENDS (Paralyzed, Stunned, Unconscious, Petrified) names
+        // Strength and Dexterity only. mastery.js's markToppleAutoFailed is the demand contract's
+        // no-roll half, reachable the day a Con-save auto-fail row exists; measured 2026-09-03
+        // (a Paralyzed target's dialog correctly grew no Fails button).
         await victim.toggleStatusEffect('prone', { active: false });
         await victim.update({ 'system.abilities.con.bonuses.save':
           priorActor[victim.id]['system.abilities.con.bonuses.save'] });
