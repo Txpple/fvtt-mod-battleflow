@@ -316,7 +316,8 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
       }
     }
     if ( enabled.has("prone") && target.statuses?.has?.("prone") ) {
-      out.push(...proneSources({ targetProne: true, distanceFeet, targetName }));
+      const proneBy = target.effects.find(e => !e.disabled && e.statuses?.has?.("prone"))?.name ?? null;
+      out.push(...proneSources({ targetProne: true, distanceFeet, targetName, targetProneBy: proneBy }));
     }
     if ( conditions.length ) {
       out.push(...conditionSources({ ...conditionFacts, targetStatuses: target.statuses ?? [], targetName }));

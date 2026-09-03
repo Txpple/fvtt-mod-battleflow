@@ -28,6 +28,15 @@ export const REMINDER_FLAG = "reminder";
 const conditionName = key => key.charAt(0).toUpperCase() + key.slice(1);
 
 /**
+ * The caveat that rides a LABEL (user, 2026-09-02: "just say rogue — hiding"): a row's
+ * "listed — …" caveat is the whole reason the row bends nothing, so it stays; a "counted — …"
+ * caveat only restates the quoted rule's own condition, so it is dropped from the label —
+ * the player reads the rule.
+ * @param {{caveat?: string}|undefined} row
+ */
+const labelCaveat = row => (row?.caveat && !/^counted — /.test(row.caveat)) ? ` (${row.caveat})` : "";
+
+/**
  * The sources the CONDITION TABLE yields for one roll, from plain facts: which listed
  * conditions the attacker has, which the target has. A row with a bend on that side counts; a
  * row with only a note is listed for the table and never counted (bend null).
@@ -57,14 +66,14 @@ export function conditionSources({ attackerStatuses = [], targetStatuses = [], e
     if ( mine.has(key) ) {
       if ( row.attacker ) {
         out.push(reminderSource("condition", row.attacker,
-          `${attackerName} — ${name}${row.caveat ? ` (${row.caveat})` : ""}`, row.rule));
+          `${attackerName} — ${name}${labelCaveat(row)}`, row.rule));
       } else if ( row.note ) {
         out.push(reminderSource("condition", null, `${attackerName} — ${name}: ${row.note}`, row.rule));
       }
     }
     if ( theirs.has(key) && row.target ) {
       out.push(reminderSource("condition", row.target,
-        `${targetName} is ${name}${row.caveat ? ` (${row.caveat})` : ""}`, row.rule));
+        `${targetName} is ${name}${labelCaveat(row)}`, row.rule));
     }
   }
   return out;
@@ -93,7 +102,7 @@ export function saveSources({ statuses = [], ability, enabled, table, name = "Yo
     if ( !on.has(key) || !mine.has(key) ) continue;
     const row = table[key];
     if ( !row?.abilities?.includes(ability) ) continue;
-    const label = `${name} — ${conditionName(key)}${row.caveat ? ` (${row.caveat})` : ""}`;
+    const label = `${name} — ${conditionName(key)}${labelCaveat(row)}`;
     if ( row.autoFail ) {
       out.push(Object.assign(reminderSource("condition", null, `${label}: this save cannot succeed`, row.rule),
         { autoFail: true, status: key, statusName: conditionName(key) }));
@@ -177,7 +186,7 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
     if ( !inScope(row) ) continue;
     const counted = row.counted !== false;
     const say = (who, bend) => {
-      const label = `${who} — ${key}${row.caveat ? ` (${row.caveat})` : ""}`;
+      const label = `${who} — ${key}${labelCaveat(row)}`;
       return Object.assign(reminderSource("effect", counted ? bend : null, label, row.rule),
         row.spend ? { spend: row.spend } : {});
     };
@@ -289,24 +298,28 @@ export function resolutionLine(sources) {
  * (review finding 5: a metric grid's 3 m used to read as "within 5 feet").
  *
  * @param {{attackerProne?: boolean, targetProne?: boolean, distanceFeet?: number|null,
- *          attackerName?: string, targetName?: string}} facts
+ *          attackerName?: string, targetName?: string, targetProneBy?: string|null}} facts
  */
 export function proneSources({ attackerProne = false, targetProne = false, distanceFeet = null,
-  attackerName = "You", targetName = "the target" } = {}) {
+  attackerName = "You", targetName = "the target", targetProneBy = null } = {}) {
   const out = [];
+  // Which effect put the target Prone, when it is not the plain status (user, 2026-09-02:
+  // "why disadvantage for Morgash prone? he doesn't show prone" — a Cunning Strike Trip's own
+  // effect, with no icon on the token). Said on the label, so the reader can find it.
+  const by = (targetProneBy && (String(targetProneBy).toLowerCase() !== "prone")) ? ` (${targetProneBy})` : "";
   if ( attackerProne ) {
     out.push(reminderSource("prone", "disadvantage", `${attackerName} — Prone`,
       "A prone creature has Disadvantage on attack rolls."));
   }
   if ( targetProne ) {
     if ( (distanceFeet === null) || (distanceFeet === undefined) || !Number.isFinite(distanceFeet) ) {
-      out.push(reminderSource("prone", null, `${targetName} is Prone — distance unknown`,
+      out.push(reminderSource("prone", null, `${targetName} is Prone${by} — distance unknown`,
         "Attacks against a prone creature have Advantage from within 5 feet and Disadvantage from beyond — judge the distance from the map."));
     } else if ( distanceFeet <= 5 ) {
-      out.push(reminderSource("prone", "advantage", `${targetName} is Prone — within 5 feet`,
+      out.push(reminderSource("prone", "advantage", `${targetName} is Prone${by} — within 5 feet`,
         "Attacks against a prone creature have Advantage from within 5 feet of it."));
     } else {
-      out.push(reminderSource("prone", "disadvantage", `${targetName} is Prone — ${distanceFeet} feet away`,
+      out.push(reminderSource("prone", "disadvantage", `${targetName} is Prone${by} — ${distanceFeet} feet away`,
         "Attacks against a prone creature have Disadvantage from more than 5 feet away."));
     }
   }

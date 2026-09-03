@@ -105,6 +105,22 @@ describe("proneSources — both roles, from plain facts", () => {
     expect(r.netMode(sources)).toBe("normal");
   });
   it("nothing prone is nothing", () => {
+    expect(
+      r.proneSources({
+        targetProne: true,
+        distanceFeet: 30,
+        targetName: "Morgash",
+        targetProneBy: "Cunning Strike: Tripped"
+      })[0].label
+    ).toBe("Morgash is Prone (Cunning Strike: Tripped) — 30 feet away");
+    expect(
+      r.proneSources({
+        targetProne: true,
+        distanceFeet: 5,
+        targetName: "Morgash",
+        targetProneBy: "Prone"
+      })[0].label
+    ).toBe("Morgash is Prone — within 5 feet");
     expect(r.proneSources({})).toEqual([]);
     expect(r.proneSources()).toEqual([]);
   });
@@ -147,7 +163,7 @@ describe("conditionSources — the registry's table, read one row at a time", ()
       attackerName: "Gruk"
     });
     expect(s.bend).toBe("disadvantage");
-    expect(s.label).toContain("press Normal if the source of the fear is out of sight");
+    expect(s.label).toBe("Gruk — Frightened"); // the counted caveat stays off the label (user, 2026-09-02)
   });
   it("the enabled list is the switch, and unknown statuses are ignored", () => {
     expect(
@@ -371,7 +387,7 @@ describe("effectSources — the sixth kind: an ability on either sheet, by name 
     expect(out[0].bend).toBeNull();
     expect(out[0].label).toBe("Gren — Demon Armor (listed — Disadvantage only against demons)");
   });
-  it("a feature row matches an Item's name, never an effect; a caveat rides the label, counted", () => {
+  it("a feature row matches an Item's name, never an effect; a counted caveat stays OFF the label", () => {
     const out = r.effectSources({
       attacker: { features: ["Pack Tactics"] },
       enabled: all(),
@@ -382,8 +398,7 @@ describe("effectSources — the sixth kind: an ability on either sheet, by name 
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({
       bend: "advantage",
-      label:
-        "Wolf — Pack Tactics (counted — press Normal if no ally of the attacker is within 5 feet of the target)"
+      label: "Wolf — Pack Tactics"
     });
     expect(out[0]).not.toHaveProperty("effectId");
     expect(
@@ -602,7 +617,7 @@ describe("saveSources + saveGate — the save gate's table (option E, 2026-09-02
       })
     ).toHaveLength(0);
   });
-  it("Dodging is Advantage on Dexterity saves, counted, with the caveat said", () => {
+  it("Dodging is Advantage on Dexterity saves, counted, the caveat left to the rule", () => {
     const [s] = r.saveSources({
       statuses: ["dodging"],
       ability: "dex",
@@ -610,7 +625,7 @@ describe("saveSources + saveGate — the save gate's table (option E, 2026-09-02
       table: reg.SAVE_BENDS
     });
     expect(s.bend).toBe("advantage");
-    expect(s.label).toMatch(/press Normal/);
+    expect(s.label).not.toMatch(/press Normal/);
   });
   it("Paralyzed, Stunned, Unconscious and Petrified cannot succeed on Strength or Dexterity — listed, not counted, marked", () => {
     for (const status of ["paralyzed", "stunned", "unconscious", "petrified"]) {
