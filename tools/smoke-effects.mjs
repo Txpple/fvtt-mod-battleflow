@@ -1027,6 +1027,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         let dlg5 = null;
         await until14(() => { dlg5 = toppleDialogs()[0] ?? null; return !!dlg5; }, 8000);
         const labels5 = dialogButtons(dlg5).map(b => b.textContent.trim());
+        // The default MARK, read at three moments (2026-09-03: "intermittently doesn't show" on
+        // this dialog): which button carries autofocus, which the module's mark, and where focus is.
+        const marks = () => dialogButtons(dlg5).map(b => `${b.dataset.action}:${b.hasAttribute('autofocus') ? 'A' : '-'}${b.hasAttribute('data-bf-default') ? 'M' : '-'}${document.activeElement === b ? 'F' : '-'}`).join(' ');
+        const markLog = [`t0 ${marks()}`];
+        await sleep(300); markLog.push(`t300 ${marks()}`);
+        await sleep(1200); markLog.push(`t1500 ${marks()} active=${document.activeElement?.tagName}`);
+        log.push(`14j marks: ${markLog.join(' | ')}`);
         ok('14j. the Topple ask IS the system\'s Saving Throw dialog: its Adv/Normal/Dis, its situational bonus, its roll mode — and our demand fieldset naming the target and the DC',
           !!topple5 && !!dlg5 && (labels5.join('/') === 'Advantage/Normal/Disadvantage')
             && !!dlg5.querySelector('input[name="roll.0.situational"]') && !!dlg5.querySelector('select[name="rollMode"]')

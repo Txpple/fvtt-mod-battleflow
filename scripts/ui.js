@@ -181,10 +181,18 @@ export function markDefaultButton(element, action) {
   // THE LOOK, in one place (user, 2026-09-03: "can the highlight be made more visible? … maybe
   // on the insert we can define how the highlight looks"): the button FILLED with the hue, a
   // solid ring, bold — unmistakable beside its two plain siblings. Change it here, nowhere else.
+  // ⚠ The OUTLINE is the browser's focus ring, drawn by hand: measured 2026-09-03
+  // (smoke-effects §14j's mark log) the mark lands on the Topple dialog at 0/300/1500 ms with
+  // focus beside it — but a dialog that opens on the GM's screen as a side effect of someone
+  // else's hit loses focus to the GM's next click, and the ring the eye was reading on the
+  // attack dialog (where the roller had just clicked) was the focus ring, not the mark. Now
+  // the mark carries its own ring, so it reads the same whether or not focus stayed.
   const MARK = {
     background: `color-mix(in srgb, ${hue} 38%, transparent)`,
     borderColor: hue,
     boxShadow: `0 0 0 2px ${hue}, inset 0 0 0 1px ${hue}`,
+    outline: `2px solid ${hue}`,
+    outlineOffset: "2px",
     fontWeight: "bold",
     textShadow: "0 1px 2px rgba(0,0,0,0.6)"
   };
