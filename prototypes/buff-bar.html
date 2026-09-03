@@ -1,0 +1,304 @@
+<title>Battle Flow Buff Bar</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
+<style>
+  :root{
+    --ground:#15171b; --canvas:#1e2126; --panel:#24272d; --panel-2:#2b2f36; --line:#3a3f48;
+    --ink:#e8e3d6; --ink-2:#b5b0a4; --ink-3:#7d7a72;
+    --good:rgb(70,150,95); --bad:rgb(180,70,60); --pending:rgb(222,120,40); --crit:rgb(232,190,50); --neutral:rgb(120,120,120);
+    --good-soft:rgba(70,150,95,.18); --bad-soft:rgba(180,70,60,.18); --pending-soft:rgba(222,120,40,.18); --neutral-soft:rgba(120,120,120,.16);
+    --font:"Signika",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45;color-scheme:dark}
+  a{color:inherit}
+  .wrap{max-width:1380px;margin:0 auto;padding:22px 20px 40px}
+  header.top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+  header.top h1{margin:0;font-size:22px;font-weight:600;letter-spacing:.01em}
+  header.top p{margin:0;color:var(--ink-2);max-width:62ch}
+  .eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+
+  .studio{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
+  @media (max-width:980px){.studio{grid-template-columns:1fr}}
+
+  /* ---- the mock Foundry screen ---- */
+  .screen{position:relative;height:640px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--canvas)}
+  .map{position:absolute;inset:0;
+    background-image:
+      radial-gradient(ellipse at 30% 40%,rgba(90,110,80,.22),transparent 55%),
+      radial-gradient(ellipse at 70% 70%,rgba(120,90,60,.18),transparent 50%),
+      linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+    background-size:auto,auto,50px 50px,50px 50px}
+  .controls{position:absolute;left:10px;top:12px;display:flex;flex-direction:column;gap:6px}
+  .controls i{display:block;width:32px;height:32px;border-radius:4px;background:rgba(0,0,0,.45);border:1px solid var(--line)}
+  .sidebar{position:absolute;right:0;top:0;bottom:0;width:300px;background:#1a1c20;border-left:1px solid var(--line);display:flex;flex-direction:column}
+  .sidebar .tabs{display:flex;gap:2px;padding:6px;border-bottom:1px solid var(--line)}
+  .sidebar .tabs i{flex:1;height:22px;border-radius:3px;background:rgba(255,255,255,.06)}
+  .sidebar .tabs i:first-child{background:rgba(255,255,255,.14)}
+  .chat{flex:1;padding:8px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:8px 10px;font-size:12px;color:var(--ink-2)}
+  .card b{color:var(--ink);font-weight:600}
+  .card .row{display:flex;justify-content:space-between;gap:8px}
+  .hotbar{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);display:flex;gap:3px;padding:4px;background:rgba(0,0,0,.55);border:1px solid var(--line);border-radius:5px}
+  .hotbar i{display:block;width:44px;height:44px;border-radius:3px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
+  .tracker{position:absolute;left:52px;top:12px;background:rgba(0,0,0,.55);border:1px solid var(--line);border-radius:4px;padding:6px 10px;font-size:12px;color:var(--ink-2)}
+  .tracker b{color:var(--ink);font-weight:600}
+  .token{position:absolute;width:50px;height:50px;border-radius:50%;border:3px solid;display:grid;place-items:center;font-weight:700;font-size:15px;color:#111;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+  .token.pc{background:#c9b98a;border-color:#6aa3ff}
+  .token.foe{background:#9a5a4a;border-color:#e0553f;color:#f4efe6}
+  .token .nm{position:absolute;top:100%;margin-top:4px;font-size:11px;font-weight:600;color:var(--ink);text-shadow:0 1px 2px #000;white-space:nowrap}
+  .token.ctrl{outline:2px solid #ff9e3d;outline-offset:3px}
+
+  /* ---- THE BUFF BAR ---- */
+  .bar{position:absolute;display:flex;align-items:center;gap:6px;padding:5px 7px;background:rgba(20,22,26,.92);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.45);backdrop-filter:blur(3px);max-width:calc(100% - 340px);z-index:5}
+  .bar .who{display:flex;flex-direction:column;padding:0 8px 0 4px;border-right:1px solid var(--line);margin-right:2px}
+  .bar .who b{font-weight:600;font-size:13px;white-space:nowrap}
+  .bar .who span{font-size:10.5px;color:var(--ink-3);white-space:nowrap;letter-spacing:.04em}
+  .bar .group{display:flex;align-items:center;gap:6px}
+  .bar .sep{width:1px;height:34px;background:var(--line);margin:0 3px}
+  .bar .glabel{writing-mode:vertical-rl;transform:rotate(180deg);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-weight:600;line-height:1}
+  .bar .empty{font-size:12px;color:var(--ink-3);padding:6px 10px;font-style:italic}
+
+  .chip{position:relative;display:flex;align-items:center;gap:8px;padding:5px 10px 5px 6px;border-radius:5px;border:1px solid var(--tone);background:var(--tone-soft);cursor:default;transition:transform .08s ease;outline:none}
+  .chip:hover,.chip:focus-visible{transform:translateY(-1px);box-shadow:0 0 0 2px rgba(255,255,255,.08)}
+  .chip .ico{width:30px;height:30px;border-radius:4px;background:rgba(0,0,0,.45);border:1px solid var(--tone);display:grid;place-items:center;font-size:15px;flex:none}
+  .chip .txt{display:flex;flex-direction:column;line-height:1.15}
+  .chip .nm{font-weight:600;font-size:12.5px;white-space:nowrap}
+  .chip .clk{font-size:10.5px;color:var(--ink-2);white-space:nowrap}
+  .chip .clk::before{content:"◔ ";opacity:.7}
+  .chip.spent{--tone:var(--neutral);--tone-soft:var(--neutral-soft)}
+  .chip.spent .nm{color:var(--ink-2);text-decoration:line-through;text-decoration-color:rgba(255,255,255,.35);text-decoration-thickness:1px}
+  .chip.good{--tone:var(--good);--tone-soft:var(--good-soft)}
+  .chip.bad{--tone:var(--bad);--tone-soft:var(--bad-soft)}
+  .chip.pending{--tone:var(--pending);--tone-soft:var(--pending-soft)}
+  .chip .on{position:absolute;right:-5px;top:-6px;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:var(--panel-2);border:1px solid var(--line);border-radius:3px;padding:1px 4px;color:var(--ink-2)}
+  .chip.ghost{border-style:dashed;opacity:.55}
+  .chip .qty{font-variant-numeric:tabular-nums;font-size:11px;color:var(--ink-2)}
+
+  /* collapsed: icons only, expands on hover */
+  .bar.collapsed .txt,.bar.collapsed .who span{display:none}
+  .bar.collapsed .chip{padding:4px}
+  .bar.collapsed:hover .txt,.bar.collapsed:hover .who span{display:flex}
+  .bar.collapsed:hover .chip{padding:5px 10px 5px 6px}
+
+  /* placements */
+  .bar[data-place="hotbar"]{left:50%;bottom:66px;transform:translateX(-50%)}
+  .bar[data-place="token"]{left:230px;top:290px;transform:translate(-50%,-100%);max-width:520px}
+  .bar[data-place="token"]::after{content:"";position:absolute;left:50%;bottom:-7px;width:12px;height:12px;background:rgba(20,22,26,.92);border-right:1px solid var(--line);border-bottom:1px solid var(--line);transform:translateX(-50%) rotate(45deg)}
+  .bar[data-place="sidebar"]{position:absolute;right:6px;top:40px;left:auto;width:288px;max-width:none;flex-wrap:wrap;transform:none}
+  .bar[data-place="sidebar"] .who{border-right:0;border-bottom:1px solid var(--line);width:100%;padding:2px 4px 6px;flex-direction:row;gap:8px;align-items:baseline;margin:0 0 4px}
+  .bar[data-place="sidebar"] .sep{display:none}
+  .bar[data-place="sidebar"] .group{width:100%;flex-wrap:wrap}
+  .bar[data-place="sidebar"] .glabel{writing-mode:horizontal-tb;transform:none;width:100%;margin-top:4px}
+  .bar[data-place="window"]{left:420px;top:60px;transform:none;flex-wrap:wrap;width:440px;padding-top:0}
+  .bar[data-place="window"] .title{width:100%;display:flex;justify-content:space-between;align-items:center;padding:5px 4px 6px;border-bottom:1px solid var(--line);margin-bottom:4px;font-size:12px;color:var(--ink-2);cursor:move}
+  .bar .title{display:none}
+  .bar[data-place="window"] .title{display:flex}
+  .bar[data-place="window"] .who{display:none}
+  .bar[data-place="window"] .sep{display:none}
+  .bar[data-place="window"] .group{width:100%;flex-wrap:wrap}
+  .bar[data-place="window"] .glabel{writing-mode:horizontal-tb;transform:none;width:100%;margin-top:4px}
+
+  /* tooltip */
+  .tip{position:absolute;z-index:20;width:290px;background:#111317;border:1px solid var(--line);border-left:3px solid var(--tone,var(--neutral));border-radius:5px;padding:9px 11px;box-shadow:0 8px 24px rgba(0,0,0,.6);font-size:12px;color:var(--ink-2);pointer-events:none;display:none}
+  .tip.show{display:block}
+  .tip .eyebrow{margin-bottom:2px}
+  .tip h4{margin:0 0 5px;font-size:13.5px;color:var(--ink);font-weight:600}
+  .tip q{display:block;font-style:italic;color:var(--ink);margin:4px 0 6px;quotes:"“" "”"}
+  .tip .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
+  .tip .kv span:nth-child(odd){color:var(--ink-3);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding-top:2px}
+
+  /* ---- the controls panel ---- */
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px 14px 10px;display:flex;flex-direction:column;gap:14px;position:sticky;top:12px}
+  .panel h3{margin:0 0 6px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+  .seg{display:flex;flex-wrap:wrap;gap:4px}
+  .seg button{font:inherit;font-size:12.5px;padding:5px 9px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-2);cursor:pointer}
+  .seg button[aria-pressed="true"]{background:var(--ink);color:#15171b;border-color:var(--ink);font-weight:600}
+  .seg button:focus-visible{outline:2px solid var(--pending);outline-offset:1px}
+  .sw{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;padding:5px 0;border-top:1px solid var(--line)}
+  .sw:first-of-type{border-top:0}
+  .sw input{width:16px;height:16px;accent-color:var(--good)}
+  .note{font-size:12px;color:var(--ink-2);margin:0;line-height:1.4}
+  .note b{color:var(--ink);font-weight:600}
+  .legend{display:grid;grid-template-columns:auto 1fr;gap:5px 9px;font-size:12px;color:var(--ink-2);align-items:center}
+  .legend i{display:block;width:14px;height:14px;border-radius:3px;border:1px solid var(--c);background:color-mix(in srgb,var(--c) 22%,transparent)}
+
+  /* ---- questions to rule ---- */
+  .rule{margin-top:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+  .q{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+  .q h4{margin:0 0 4px;font-size:13.5px;font-weight:600}
+  .q p{margin:0;font-size:12.5px;color:var(--ink-2)}
+  .q .default{margin-top:6px;font-size:11.5px;color:var(--ink-3)}
+  .q .default b{color:var(--ink-2);font-weight:600}
+  @media (prefers-reduced-motion:reduce){.chip{transition:none}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Battle Flow · DESIGN §6, the chit layer's first slice</div>
+      <h1>The buff bar</h1>
+    </div>
+    <p>A strip of the character's live chips, read off the sheet — the same effects the gate already reads, made visible without a token icon per chip. A <b>view</b> over what exists; no new state. Hover a chip for its rule and clock. Every switch on the right is a question for you to rule on.</p>
+  </header>
+
+  <div class="studio">
+    <div class="screen" id="screen">
+      <div class="map"></div>
+      <div class="controls"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="tracker" id="tracker"><b>Round 3</b> · Ysolde's turn</div>
+
+      <div class="token pc ctrl" style="left:205px;top:300px">Y<span class="nm">Ysolde</span></div>
+      <div class="token pc" style="left:120px;top:380px">G<span class="nm">Gren</span></div>
+      <div class="token foe" style="left:330px;top:250px">B<span class="nm">Goblin Boss</span></div>
+      <div class="token foe" style="left:420px;top:380px">O<span class="nm">Ogre</span></div>
+
+      <div class="sidebar">
+        <div class="tabs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="chat">
+          <div class="card"><div class="row"><b>Ysolde — Shortsword</b><span>Attack</span></div>Advantage · Steady Aim · <b>hits</b> Goblin Boss (19 vs AC 17)</div>
+          <div class="card"><div class="row"><b>Sneak Attack — 3d6</b><span>Damage</span></div>Cunning Strike: Trip (DC 14) — the Goblin Boss is <b>Prone</b>. 7 + 11 = <b>18</b></div>
+          <div class="card"><div class="row"><b>Reaction — used</b><span>Uncanny Dodge</span></div>Halves the Ogre's 13 → <b>6</b>. Back at the start of Ysolde's next turn.</div>
+          <div class="card"><div class="row"><b>Vex</b><span>Weapon Mastery</span></div>Advantage on Ysolde's next attack roll against the Goblin Boss before the end of her next turn.</div>
+        </div>
+      </div>
+
+      <div class="hotbar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+
+      <div class="bar" id="bar" data-place="hotbar" role="toolbar" aria-label="Buff bar">
+        <div class="title"><span>Battle Flow — <b id="wtitle">Ysolde</b></span><span>✕</span></div>
+        <div class="who"><b id="who">Ysolde</b><span id="whosub">Rogue 5 · Round 3, your turn</span></div>
+        <div class="group" id="gYou"></div>
+        <div class="sep" id="sep1"></div>
+        <div class="group" id="gMarks"></div>
+        <div class="sep" id="sep2" hidden></div>
+        <div class="group" id="gLater" hidden></div>
+      </div>
+
+      <div class="tip" id="tip"></div>
+    </div>
+
+    <aside class="panel">
+      <div>
+        <h3>Where it lives</h3>
+        <div class="seg" id="segPlace">
+          <button data-v="hotbar" aria-pressed="true">Above the hotbar</button>
+          <button data-v="token" aria-pressed="false">Over the token</button>
+          <button data-v="sidebar" aria-pressed="false">Sidebar header</button>
+          <button data-v="window" aria-pressed="false">Its own window</button>
+        </div>
+      </div>
+      <div>
+        <h3>Scenario</h3>
+        <div class="seg" id="segScene">
+          <button data-v="rogue" aria-pressed="true">Ysolde, her turn</button>
+          <button data-v="fighter" aria-pressed="false">Gren, after a Cleave hit</button>
+          <button data-v="ooc" aria-pressed="false">Out of combat</button>
+        </div>
+      </div>
+      <div>
+        <h3>What it shows</h3>
+        <label class="sw"><span>Your marks on others (Vexed, Sapped, Slowed)</span><input type="checkbox" id="swMarks" checked></label>
+        <label class="sw"><span>Spent chits stay, struck through</span><input type="checkbox" id="swSpent" checked></label>
+        <label class="sw"><span>Platform conditions too (Prone, Restrained)</span><input type="checkbox" id="swCond"></label>
+        <label class="sw"><span>Collapsed to icons; expands on hover</span><input type="checkbox" id="swCollapse"></label>
+        <label class="sw"><span><b>Later:</b> the spendable lane (ghosted)</span><input type="checkbox" id="swLater"></label>
+      </div>
+      <div>
+        <h3>The palette, unchanged</h3>
+        <div class="legend">
+          <i style="--c:var(--good)"></i><span>good for you — a buff you hold, a mark on a foe</span>
+          <i style="--c:var(--bad)"></i><span>bad for you — a debuff on you</span>
+          <i style="--c:var(--pending)"></i><span>waiting on you — Cleave armed, a hold open</span>
+          <i style="--c:var(--neutral)"></i><span>spent — the once-per-turn chit, the used Reaction</span>
+        </div>
+      </div>
+      <p class="note">Nothing here is new state. Each chip is an ActiveEffect already on a sheet (<code>flags.battleflow.mastery</code>), its clock the platform's, its text the rule the gate already quotes.</p>
+    </aside>
+  </div>
+
+  <section class="rule">
+    <div class="q"><h4>1 · Placement</h4><p>Above the hotbar reads as "mine, right now" and never covers the map. Over the token says whose it is but crowds a busy fight. The sidebar and a window survive a map scroll.</p><div class="default">Suggested: <b>above the hotbar</b>, following the controlled token.</div></div>
+    <div class="q"><h4>2 · Marks on others</h4><p>Vexed/Sapped/Slowed live on the <em>target's</em> sheet but are the attacker's to spend. A second group keeps "on you" and "yours on them" from reading as one list.</p><div class="default">Suggested: <b>show, as their own group</b>, named for the foe.</div></div>
+    <div class="q"><h4>3 · Spent chits</h4><p>"Sneak Attack — used this turn" is a record, not a buff. Struck through, it explains why the gate won't offer again; hidden, the bar is quieter.</p><div class="default">Suggested: <b>keep, struck through</b>; they die with the turn anyway.</div></div>
+    <div class="q"><h4>4 · Platform conditions</h4><p>Prone and Restrained already have token icons. Repeating them here doubles the signal; leaving them out means the bar is only Battle Flow's chips.</p><div class="default">Suggested: <b>out</b> — the token already says it.</div></div>
+    <div class="q"><h4>5 · Whose bar</h4><p>The controlled token's, or the player's own character regardless of selection? The GM would see whichever token is selected.</p><div class="default">Suggested: <b>the controlled token</b>; a player's default control is their character.</div></div>
+    <div class="q"><h4>6 · Click</h4><p>First slice is a view. A click could open the effect on the sheet, or do nothing. Spending comes later, in the ghosted lane.</p><div class="default">Suggested: <b>click opens the effect</b>; nothing spends from here yet.</div></div>
+  </section>
+</div>
+
+<script>
+(function(){
+  const $=s=>document.querySelector(s);
+  const RULES={
+    steadyAim:{name:"Steady Aim",ico:"◎",tone:"good",clock:"until the end of this turn",rule:"As a Bonus Action, you give yourself Advantage on your next attack roll on the current turn. You can use this Bonus Action only if you haven't moved during this turn, and after you use it, your Speed is 0 until the end of the current turn.",src:"Rogue 3 · PHB 2024",spent:"the next attack roll — the gate reads it, the roll spends it"},
+    sneakSpent:{name:"Sneak Attack",ico:"🗡",tone:"spent",clock:"used this turn — back next turn",rule:"Once per turn, you can deal extra damage to one creature you hit with an attack roll if you have Advantage on the roll…",src:"Rogue 1 · once per turn",spent:"the damage roll that carried the dice (3d6, Cunning Strike: Trip)"},
+    reactionUsed:{name:"Reaction",ico:"⤺",tone:"spent",clock:"back at the start of your next turn",rule:"Uncanny Dodge: when an attacker you can see hits you with an attack roll, you can take a Reaction to halve the attack's damage against you.",src:"one Reaction per round",spent:"Uncanny Dodge against the Ogre's hit (13 → 6). No hold is offered until it returns."},
+    sappedYou:{name:"Sapped",ico:"▽",tone:"bad",clock:"until the start of the Ogre's next turn",rule:"If you hit a creature with this weapon, that creature has Disadvantage on its next attack roll before the start of your next turn.",src:"Weapon Mastery — Sap · the Ogre's greatclub",spent:"your next attack roll — the gate will show Disadvantage"},
+    vexedBoss:{name:"Vexed",ico:"◎",tone:"good",on:"Goblin Boss",clock:"until the end of your next turn",rule:"If you hit a creature with this weapon and deal damage to the creature, you have Advantage on your next attack roll against that creature before the end of your next turn.",src:"Weapon Mastery — Vex · your shortsword",spent:"your next attack roll against the Goblin Boss"},
+    cleaveArmed:{name:"Cleave — armed",ico:"⚔",tone:"pending",clock:"a second creature within 5 ft, this turn",rule:"If you hit a creature with a melee attack roll using this weapon, you can make a melee attack roll with the weapon against a second creature within 5 feet of the first that is also within your reach. On a hit, the second creature takes the weapon's damage, but don't add your ability modifier. You can make this extra attack only once per turn.",src:"Weapon Mastery — Cleave · greataxe",spent:"the second swing — offered on the card, waiting on you"},
+    secondWind:{name:"Second Wind",ico:"✚",tone:"good",clock:"Bonus Action · 1d10 + 5",rule:"You have a limited well of physical and mental stamina that you can draw on. As a Bonus Action, you can use it to regain Hit Points equal to 1d10 plus your Fighter level.",src:"Fighter 1 · 2 uses",spent:"—"},
+    slowedOgre:{name:"Slowed",ico:"≋",tone:"good",on:"Ogre",clock:"until the start of your next turn",rule:"If you hit a creature with this weapon and deal damage to it, you can reduce its Speed by 10 feet until the start of your next turn.",src:"Weapon Mastery — Slow · your longbow",spent:"nothing — the Ogre's Speed is already 30"},
+    sappedBoss:{name:"Sapped",ico:"▽",tone:"good",on:"Goblin Boss",clock:"until the start of your next turn",rule:"If you hit a creature with this weapon, that creature has Disadvantage on its next attack roll before the start of your next turn.",src:"Weapon Mastery — Sap · your mace",spent:"the Goblin Boss's next attack roll"},
+    prone:{name:"Prone",ico:"⬇",tone:"bad",on:"Goblin Boss",clock:"until it stands (half its Speed)",rule:"Attack rolls against a Prone creature have Advantage if the attacker is within 5 feet of it; otherwise Disadvantage.",src:"Condition · the platform's own",spent:"—"},
+    dreadful:{name:"Dreadful Strike",ico:"☾",tone:"spent",clock:"used this turn",rule:"When you hit a creature with a weapon, you can deal an extra 1d4 Psychic damage to the target, which can take this extra damage only once per turn.",src:"Fey Wanderer 3 · a clock rider",spent:"the hit that carried the 1d4"},
+    later1:{name:"Shield",ico:"🛡",tone:"good",qty:"Reaction · 1st-level slot",clock:"ready",rule:"+5 to AC until the start of your next turn.",src:"later: a spendable chit",spent:"—",ghost:true},
+    later2:{name:"Superiority Dice",ico:"⬢",tone:"good",qty:"4 / 4",clock:"ready",rule:"Riposte, Precision Attack, Trip Attack…",src:"later: a spendable chit",spent:"—",ghost:true},
+    later3:{name:"Heroic Inspiration",ico:"★",tone:"good",qty:"1",clock:"ready",rule:"Reroll a d20 test.",src:"later: a spendable chit",spent:"—",ghost:true}
+  };
+  const SCENES={
+    rogue:{who:"Ysolde",sub:"Rogue 5 · Round 3, your turn",tracker:"<b>Round 3</b> · Ysolde's turn",you:["steadyAim","sneakSpent","reactionUsed","sappedYou"],marks:["vexedBoss"],cond:["prone"],later:["later1","later3"]},
+    fighter:{who:"Gren",sub:"Fighter 5 · Round 3, your turn",tracker:"<b>Round 3</b> · Gren's turn",you:["cleaveArmed","dreadful"],marks:["slowedOgre","sappedBoss"],cond:[],later:["later2","later3"]},
+    ooc:{who:"Ysolde",sub:"Rogue 5 · no combat running",tracker:"<b>No combat</b> · chits are not counted",you:["steadyAim"],marks:[],cond:[],later:["later1"]}
+  };
+  const state={place:"hotbar",scene:"rogue",marks:true,spent:true,cond:false,collapse:false,later:false};
+
+  function chipHTML(k){
+    const r=RULES[k];
+    if(r.tone==="spent"&&!state.spent) return "";
+    return `<button class="chip ${r.tone}${r.ghost?" ghost":""}" data-k="${k}" style="--tone:var(--${r.tone==="spent"?"neutral":r.tone});--tone-soft:var(--${r.tone==="spent"?"neutral":r.tone}-soft)">
+      <span class="ico" aria-hidden="true">${r.ico}</span>
+      <span class="txt"><span class="nm">${r.name}</span>${r.qty?`<span class="qty">${r.qty}</span>`:`<span class="clk">${r.clock}</span>`}</span>
+      ${r.on?`<span class="on">${r.on}</span>`:""}
+    </button>`;
+  }
+  function render(){
+    const s=SCENES[state.scene];
+    $("#who").textContent=s.who; $("#wtitle").textContent=s.who; $("#whosub").textContent=s.sub; $("#tracker").innerHTML=s.tracker;
+    const bar=$("#bar"); bar.dataset.place=state.place; bar.classList.toggle("collapsed",state.collapse);
+    let you=s.you.map(chipHTML).join("");
+    if(state.cond&&!state.marks) you+=s.cond.map(chipHTML).join("");
+    $("#gYou").innerHTML=you||`<span class="empty">nothing standing on ${s.who}</span>`;
+    const marks=(state.marks?s.marks:[]).concat(state.cond&&state.marks?s.cond:[]);
+    const mk=marks.map(chipHTML).join("");
+    $("#gMarks").innerHTML=mk?`<span class="glabel">your marks</span>${mk}`:"";
+    $("#sep1").hidden=!mk;
+    const lt=state.later?s.later.map(chipHTML).join(""):"";
+    $("#gLater").innerHTML=lt?`<span class="glabel">spendable</span>${lt}`:"";
+    $("#gLater").hidden=!lt; $("#sep2").hidden=!lt;
+    // tokens: controlled ring follows the scene
+    document.querySelectorAll(".token.pc").forEach(t=>t.classList.toggle("ctrl",t.textContent.startsWith(s.who[0])));
+  }
+  function seg(id,key){ $(id).addEventListener("click",e=>{const b=e.target.closest("button"); if(!b) return; state[key]=b.dataset.v; $(id).querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b)); render();}); }
+  seg("#segPlace","place"); seg("#segScene","scene");
+  [["swMarks","marks"],["swSpent","spent"],["swCond","cond"],["swCollapse","collapse"],["swLater","later"]].forEach(([id,k])=>$("#"+id).addEventListener("change",e=>{state[k]=e.target.checked; render();}));
+
+  // tooltip
+  const tip=$("#tip"), screen=$("#screen");
+  function showTip(chip){
+    const r=RULES[chip.dataset.k]; const tone=r.tone==="spent"?"neutral":r.tone;
+    tip.style.setProperty("--tone",`var(--${tone})`);
+    tip.innerHTML=`<div class="eyebrow">${r.src}</div><h4>${r.name}${r.on?` <span style="color:var(--ink-3);font-weight:400">on ${r.on}</span>`:""}</h4><q>${r.rule}</q>
+      <div class="kv"><span>clock</span><span>${r.clock}</span><span>spent by</span><span>${r.spent}</span><span>where</span><span>an ActiveEffect on ${r.on||"your"} sheet — the platform expires it</span></div>`;
+    const cr=chip.getBoundingClientRect(), sr=screen.getBoundingClientRect();
+    let x=cr.left-sr.left+cr.width/2-145, y=cr.top-sr.top-8;
+    x=Math.max(8,Math.min(x,sr.width-300)); tip.classList.add("show");
+    const h=tip.offsetHeight; y=(y-h<8)?cr.bottom-sr.top+10:y-h; tip.style.left=x+"px"; tip.style.top=y+"px";
+  }
+  screen.addEventListener("mouseover",e=>{const c=e.target.closest(".chip"); if(c) showTip(c);});
+  screen.addEventListener("mouseout",e=>{if(e.target.closest(".chip")&&!e.relatedTarget?.closest?.(".chip")) tip.classList.remove("show");});
+  screen.addEventListener("focusin",e=>{const c=e.target.closest(".chip"); if(c) showTip(c);});
+  screen.addEventListener("focusout",()=>tip.classList.remove("show"));
+  render();
+})();
+</script>
