@@ -174,10 +174,10 @@ export function drawDemandFieldset(app, element, demand) {
  * @param {string} action         the button's data-action: advantage | normal | disadvantage | bf-fails
  */
 export function markDefaultButton(element, action) {
-  // Normal stays GREY (the palette: colour means the roll bends) but a BRIGHT grey — the
-  // palette's neutral is a mid grey that vanishes on the dialog's dark buttons, which is exactly
-  // "still intermittently doesn't show" (user, 2026-09-03: a Topple save, default Normal).
-  const hue = { advantage: TONE.good, disadvantage: TONE.bad, "bf-fails": TONE.bad }[action] ?? "rgba(225,225,225,0.95)";
+  // Normal is the palette's neutral grey (colour means the roll bends). ⚠ A brighter grey was
+  // tried and reverted the same day (user: "horrible … it was good") — the look is settled;
+  // a dialog where the mark does not show is a MARKING problem, not a colour one.
+  const hue = { advantage: TONE.good, disadvantage: TONE.bad, "bf-fails": TONE.bad }[action] ?? TONE.neutral;
   // THE LOOK, in one place (user, 2026-09-03: "can the highlight be made more visible? … maybe
   // on the insert we can define how the highlight looks"): the button FILLED with the hue, a
   // solid ring, bold — unmistakable beside its two plain siblings. Change it here, nowhere else.
