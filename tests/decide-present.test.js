@@ -608,6 +608,38 @@ describe("sneakBoxHTML — the choice beside the roll (user rulings 2026-09-02)"
   });
 });
 
+describe("cunningMenuHTML — the rules fold like every other box (user walk 2026-09-02)", () => {
+  it("each row's rule is a closed <details>; the caveat stays in plain view", () => {
+    const html = p.cunningMenuHTML({
+      dice: "7d6",
+      max: 2,
+      dc: 17,
+      rows: [
+        {
+          key: "trip",
+          label: "Trip",
+          cost: 1,
+          affordable: true,
+          rule: "Trip (Cost: 1d6). If the target is Large or smaller…",
+          caveat: "the target must be Large or smaller"
+        },
+        {
+          key: "withdraw",
+          label: "Withdraw",
+          cost: 1,
+          affordable: true,
+          line: true,
+          rule: "Withdraw (Cost: 1d6). Immediately after the attack…"
+        }
+      ]
+    });
+    expect(html.match(/<details data-bf-rule/g)).toHaveLength(2);
+    expect(html).not.toContain("<details data-bf-rule open");
+    expect(html).toContain("<em>the target must be Large or smaller</em>");
+    expect(html).toContain("a line on the card");
+  });
+});
+
 describe("modeTagHTML — the save gate's fourth answer", () => {
   it("Fails is red with white text, like Disadvantage — bad for the roller", () => {
     const html = p.modeTagHTML("fails");

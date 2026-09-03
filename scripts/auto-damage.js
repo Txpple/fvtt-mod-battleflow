@@ -331,7 +331,13 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
   const dialog = new foundry.applications.api.DialogV2({
     window: { title: windowTitle, icon: windowIcon },
     position: { width: 420 },
-    content: bfCard({ tone: "pending", ...card }) + extraHTML
+    // ⚠ THE BUTTON MUST STAY ON SCREEN (user walk 2026-09-02): a rogue with Improved Cunning
+    // Strike and the Thief's Stealth Attack draws eight menu rows under the card, and DialogV2
+    // sizes to its content — the footer walked off the bottom of the viewport and the roller
+    // had no Roll to press. The menus scroll inside a viewport-bounded box; the card and the
+    // footer stay put.
+    content: bfCard({ tone: "pending", ...card })
+      + (extraHTML ? `<div data-bf-offer-menus style="max-height:calc(100vh - 20rem);overflow-y:auto;overflow-x:hidden;">${extraHTML}</div>` : "")
       + (deadline ? momentBarHTML({ deadline, window }, "to roll") : ""),
     buttons: [{
       action: "roll",
