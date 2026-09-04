@@ -276,6 +276,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const emCard = game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationCard')?.activityUuid === sgAct.uuid).at(-1);
       const emFlag = emCard?.getFlag(MOD, 'emanationCard');
       ok('7c2. the emanation card offers the two types with radiant as the alignment\'s default', !!emFlag && (emFlag.types?.join(',') === 'necrotic,radiant') && (emFlag.damageType === 'radiant') && !emFlag.chosen, `types=${emFlag?.types} default=${emFlag?.damageType} why="${emFlag?.damageWhy}" alignment="${cleric.system.details?.alignment}"`);
+      const cardEl = await waitFor(() => document.querySelector(`[data-message-id="${emCard?.id}"]`) ?? null, 4000);
+      ok('7c2b. …and the card RENDERS the two buttons in the log', (cardEl?.querySelectorAll('[data-bf-emanation-type]').length ?? 0) === 2, `buttons=${cardEl?.querySelectorAll('[data-bf-emanation-type]').length ?? 'no element'}`);
+      // The CASTING WINDOW carries the choice: open the usage dialog (not awaited — nothing answers
+      // it), read the fieldset, close it (the probe-surfaces idiom).
+      const pendingUse = sgAct.use({}, { configure: true }, { create: false });
+      pendingUse?.catch?.(() => { /* closed below */ });
+      const usageApp = await waitFor(() => [...foundry.applications.instances.values()].find(a => /ActivityUsageDialog|UsageDialog/.test(a.constructor?.name ?? '') && a.element?.querySelector?.('[data-bf-emanation-type-field]')) ?? null, 6000);
+      const radios = usageApp?.element?.querySelectorAll('input[name="bf-emanation-type"]') ?? [];
+      ok('7c2c. the CASTING WINDOW carries the choice — a Battle Flow fieldset with a radio per type, radiant checked', (radios.length === 2) && [...radios].some(r => r.value === 'radiant' && r.checked), `dialog=${usageApp?.constructor?.name} radios=${[...radios].map(r => `${r.value}${r.checked ? '✓' : ''}`).join(',')}`);
+      try { await usageApp?.close(); } catch { /* gone */ }
       ok('7c3. the trigger\'s roll wears radiant', (dmg?.rolls?.[0]?.options?.type === 'radiant') && (dmg?.getFlag(MOD, 'emanationType')?.type === 'radiant'), `type=${dmg?.rolls?.[0]?.options?.type} flag=${JSON.stringify(dmg?.getFlag(MOD, 'emanationType'))}`);
       // The caster picks necrotic — as a player would, over the relay envelope — and the next roll wears it.
       if (emCard) {

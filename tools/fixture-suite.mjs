@@ -261,7 +261,9 @@ const out = await f.evaluate(async ({ playerName }) => {
         abilities: { cha: 16, str: 16, con: 14, wis: 12 }, hp: 84, x: 300, y: 1800 },
       { name: "BF Test Cleric", classes: [["Cleric", 5], ["Life Domain", null]],
         feats: [], spells: ["Spirit Guardians"], gear: ["Mace"],
-        abilities: { wis: 16, con: 14, str: 12 }, hp: 38, x: 100, y: 1800 },
+        // ⚠ FAR from the Paladin (300, 1800): a home inside the Paladin's aura put "Protected" on
+        // the Cleric every time the fixtures re-placed the tokens under a live walk (2026-09-03).
+        abilities: { wis: 16, con: 14, str: 12 }, hp: 38, x: 1700, y: 1800 },
       { name: "BF Test Rogue", classes: [["Rogue", 14], ["Thief", null]],
         feats: ["Sneak Attack", "Cunning Strike", "Devious Strikes", "Improved Cunning Strike", "Supreme Sneak", "Assassinate", "Steady Aim", "Evasion"],
         gear: ["Rapier", "Longsword", "Shortbow"], abilities: { dex: 18, str: 12, con: 14 }, hp: 90, x: 700 },

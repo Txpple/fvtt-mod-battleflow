@@ -497,6 +497,54 @@ async function placeCastEmanation(activity, row, message) {
     distance: size + half,
     flags: { dnd5e: { origin: activity.uuid, item: activity.item.uuid, spellLevel, ...(conc ? { dependentOn: conc.uuid } : {}) } }
   }]);
+  // The type picked in the CASTING WINDOW (below) is written onto the emanation card the GM posts
+  // as the area is adopted — the card's own buttons can still change it later. No dialog shown
+  // (a fast-forward cast): the alignment's default stands, no extra click (N4).
+  void carryDamageTypeChoice(activity);
+}
+
+/* --- the casting window: a damage type the part leaves open is picked THERE ------------------- */
+
+// The same idiom as the gate's fieldset in the roll dialogs (DESIGN §5): the system's own
+// usage dialog, one fieldset added on its public render hook (user, 2026-09-03: "I would have
+// preferred it be inserted in the casting initial window"). Radios per type the part offers,
+// the alignment's answer checked; the pick rides in memory on the casting client until the cast
+// lands, then goes onto the card.
+const pendingTypes = new Map();   // activity uuid → type picked in the dialog
+Hooks.on("renderActivityUsageDialog", (app, element) => {
+  try {
+    const activity = app?.activity ?? app?.options?.activity ?? null;
+    if ( !castEmanationRow(activity) ) return;
+    const types = partTypesOf(activity);
+    if ( (types.length < 2) || element.querySelector("[data-bf-emanation-type-field]") ) return;
+    const alignment = activity.actor?.system?.details?.alignment ?? null;
+    const current = pendingTypes.get(activity.uuid) ?? damageTypeFor(types, alignment).type;
+    const why = damageTypeFor(types, alignment).why;
+    const cap = s => `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
+    const fs = document.createElement("fieldset");
+    fs.dataset.bfEmanationTypeField = "";
+    fs.innerHTML = `<legend>Battle Flow — damage type</legend>
+      <div class="form-group"><label>${activity.item.name} deals</label>
+        <div class="form-fields" style="gap:0.75rem;">${types.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;"><input type="radio" name="bf-emanation-type" value="${t}" ${t === current ? "checked" : ""}> ${cap(t)}</label>`).join("")}</div>
+        <p class="hint">${cap(current)} is the default — ${why}. The pick applies to every roll of this cast; the spell's card can change it later.</p></div>`;
+    for ( const r of fs.querySelectorAll('input[name="bf-emanation-type"]') ) r.addEventListener("change", () => { if ( r.checked ) pendingTypes.set(activity.uuid, r.value); });
+    const footer = element.querySelector("footer, .form-footer");
+    if ( footer ) footer.before(fs); else (element.querySelector("form") ?? element).appendChild(fs);
+  } catch(err) { console.warn(`${TITLE} | Could not add the damage-type fieldset.`, err); }
+});
+
+async function carryDamageTypeChoice(activity) {
+  try {
+    const type = pendingTypes.get(activity.uuid) ?? null;
+    pendingTypes.delete(activity.uuid);
+    if ( !type ) return;
+    let card = null;
+    for ( let i = 0; (i < 40) && !card; i++ ) { await new Promise(r => setTimeout(r, 250)); card = emanationCardFor(activity.uuid); }
+    if ( !card ) return;   // no GM adopted the area — no card to carry it
+    if ( card.getFlag(MODULE_ID, "emanationCard")?.damageType !== type ) await chooseDamageType(card, type);
+  } catch(err) {
+    console.warn(`${TITLE} | The damage-type pick could not be carried to the card — its buttons still can.`, err);
+  }
 }
 
 // The spell ends when concentration does. dnd5e 5.3 does NOT delete a placed template on
