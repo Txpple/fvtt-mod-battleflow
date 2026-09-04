@@ -46,6 +46,12 @@ Cunning Strike menu, Divine Strike, Dreadful Strike, the Assassin's first-round 
 listed features ride the damage roll when the round and the turn say they should. Each one is a
 ticked checkbox on the damage offer. Untick it to keep the use. The card says what rode and why.
 
+**Maneuvers are a choice on the hit.** A Battle Master who hits sees their maneuvers on the
+damage offer, one pick per attack: Trip, Goading, Menacing, Pushing, Disarming, Distracting,
+Maneuvering and Sweeping. The Superiority Die is read off the sheet and rides the roll, the pool
+is spent, and the maneuver's own save goes to the target through the save gate. A Sweeping
+Attack lists the creatures within five feet and rolls its die at the one you pick.
+
 **Saves happen at once.** A spell that forces a save rolls it for every target, opens the
 system's own Saving Throw dialog for each player with the demand and the stakes above it, and
 resolves half damage on a success. Anyone who does not press in time is rolled by the buzzer.
@@ -90,7 +96,7 @@ content is wrong, the content is fixed, not the module.
 Only public hooks are used. The only relationship in the manifest is a version pin on dnd5e, so
 a system update can never take the module down with it silently.
 
-**Every feature has its own switch.** There are 39 world settings and 2 client settings. All of
+**Every feature has its own switch.** There are 40 world settings and 2 client settings. All of
 them ship on, and any one can be turned off mid-session without touching the others.
 
 ## Documentation

@@ -291,6 +291,46 @@ export function riderMenuHTML(riders) {
     </div>`;
 }
 
+
+/**
+ * THE HIT MENU on the damage offer (user ruling 2026-09-04, the prototype *Battle Flow Hit Menu*):
+ * a group per paying feature, a checkbox per option the sheet grants, the row the NAME and its
+ * COST and nothing else ("just give the cost for the sup die, just like Cunning Strike") — the
+ * rule folded under it, a caveat where the rules leave something to the player. One pick per
+ * group (the EDGE unticks the sibling). A group with no die left keeps its rows, greyed, and its
+ * tag says why. The summary line under the groups names what will ride.
+ * @param {{groups: {key: string, label: string, tag: string, off: boolean,
+ *          rows: {key: string, label: string, cost: string, caveat?: string|null, rule: string, affordable: boolean}[]}[]}} view
+ */
+export function hitMenuHTML({ groups }) {
+  if ( !groups?.length ) return "";
+  const blocks = groups.map(g => {
+    const items = g.rows.map(r => `
+      <label data-bf-hit-row="${attr(r.key)}" style="display:grid;grid-template-columns:auto 1fr auto;gap:0.2rem 0.5rem;align-items:center;
+             margin:0.3rem 0;padding:0.35rem 0.5rem;border-radius:4px;background:rgba(0,0,0,0.06);
+             border:1px solid var(--color-border-light,rgba(0,0,0,0.2));${r.affordable ? "cursor:pointer;" : "opacity:0.5;"}">
+        <input type="checkbox" name="bf-hit" value="${attr(r.key)}" data-bf-hit-group="${attr(g.key)}" ${r.affordable ? "" : "disabled"} style="margin:0;">
+        <span style="font-weight:bold;">${attr(r.label)}</span>
+        <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;">${attr(r.cost)}</span>
+        ${r.caveat ? `<span style="grid-column:2 / -1;font-size:var(--font-size-11,11px);opacity:0.8;">${attr(r.caveat)}</span>` : ""}
+        ${foldedRuleHTML(r.rule).replace("grid-column:1 / -1", "grid-column:2 / -1")}
+      </label>`).join("");
+    return `
+    <div data-bf-hit-group="${attr(g.key)}" style="margin-top:0.5rem;">
+      <div style="display:flex;align-items:baseline;gap:0.6rem;">
+        <span style="font-weight:bold;font-size:var(--font-size-12,12px);">${attr(g.label)}</span>
+        <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;opacity:0.85;${g.off ? "color:var(--color-level-error,#b44);" : ""}">${attr(g.tag)}</span>
+      </div>
+      ${items}
+    </div>`;
+  }).join("");
+  return `
+    <div data-bf-hit>
+      ${blocks}
+      <div data-bf-hit-summary style="font-size:var(--font-size-11,11px);opacity:0.8;margin-top:0.35rem;"></div>
+    </div>`;
+}
+
 /**
  * The three roll-mode buttons — Advantage / Normal / Disadvantage — as DialogV2 button
  * descriptors: one shape for every popup that stands in for a roll dialog. `press(mode)` is

@@ -100,6 +100,8 @@ import "./reminders.js";
 import "./sneak.js";
 // clock-riders.js beside sneak.js: the same seam (preRollDamageV2), the same shape of card line.
 import "./clock-riders.js";
+// hit-menu.js beside them: the same seam, the general form of the Cunning Strike menu (2026-09-04).
+import "./hit-menu.js";
 // use-chips.js beside them: a text-only feature's use becomes a chip the gate reads (2026-09-02).
 import "./use-chips.js";
 // ⚠ maneuvers.js after mastery.js, before concentration.js ON PURPOSE (v1.19.0): its card

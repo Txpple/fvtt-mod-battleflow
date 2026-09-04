@@ -1,0 +1,229 @@
+<title>Battle Flow Hit Menu</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
+<style>
+  :root{
+    --ground:#15171b; --canvas:#1e2126; --panel:#24272d; --panel-2:#2b2f36; --line:#3a3f48;
+    --ink:#e8e3d6; --ink-2:#b5b0a4; --ink-3:#7d7a72;
+    --good:rgb(70,150,95); --bad:rgb(180,70,60); --pending:rgb(222,120,40); --crit:rgb(232,190,50); --neutral:rgb(120,120,120);
+    --good-soft:rgba(70,150,95,.18); --bad-soft:rgba(180,70,60,.18); --pending-soft:rgba(222,120,40,.18); --neutral-soft:rgba(120,120,120,.16);
+    --font:"Signika",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45;color-scheme:dark}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 40px}
+  header.top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+  header.top h1{margin:0;font-size:22px;font-weight:600;letter-spacing:.01em;text-wrap:balance}
+  header.top p{margin:0;color:var(--ink-2);max-width:66ch}
+  .eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+
+  .studio{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+  @media (max-width:980px){.studio{grid-template-columns:1fr}}
+
+  /* scenario switch */
+  .scenes{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .scenes button{font:inherit;font-size:12.5px;padding:6px 12px;border-radius:4px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);cursor:pointer}
+  .scenes button[aria-pressed="true"]{background:var(--panel-2);color:var(--ink);border-color:var(--ink-3)}
+  .scenes button:focus-visible{outline:2px solid var(--pending);outline-offset:2px}
+
+  /* the mock screen */
+  .screen{position:relative;min-height:600px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--canvas);padding:26px 20px}
+  .map{position:absolute;inset:0;
+    background-image:
+      radial-gradient(ellipse at 30% 40%,rgba(90,110,80,.22),transparent 55%),
+      radial-gradient(ellipse at 70% 70%,rgba(120,90,60,.18),transparent 50%),
+      linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+    background-size:auto,auto,50px 50px,50px 50px}
+
+  /* THE OFFER — the module's damage popup, as it renders today, plus the menu */
+  .offer{position:relative;width:min(520px,100%);margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.55)}
+  .offer .title{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-weight:600;font-size:13px}
+  .offer .title i{width:14px;height:14px;border-radius:3px;background:var(--crit);opacity:.9}
+  .offer .body{padding:12px 14px 14px}
+  .offer .head{display:grid;grid-template-columns:48px 1fr;gap:10px;align-items:center;margin-bottom:8px}
+  .offer .img{width:48px;height:48px;border-radius:4px;background:#5a4a3a;border:1px solid var(--line)}
+  .offer h2{margin:0;font-size:17px;font-weight:600;line-height:1.2}
+  .offer .sub{color:var(--ink-2);font-size:12.5px}
+  .offer .lines{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--ink-2);margin:8px 0 6px}
+  .offer .lines b{color:var(--ink);font-weight:600}
+
+  .group{margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}
+  .group .gh{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .group .gh b{font-size:12.5px;font-weight:600}
+  .group .gh .tag{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+  .group .gh .tag.off{color:var(--bad)}
+  .row{display:grid;grid-template-columns:auto 1fr auto;gap:2px 8px;align-items:center;margin:5px 0;padding:6px 8px;border-radius:4px;background:rgba(0,0,0,.18);border:1px solid var(--line);cursor:pointer}
+  .row.off{opacity:.5;cursor:not-allowed}
+  .row input{margin:0;accent-color:var(--pending)}
+  .row .nm{font-weight:600;font-size:13px}
+  .row .cost{font-size:10px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;color:var(--ink-2)}
+  .row .cav{grid-column:2 / -1;font-size:11.5px;color:var(--pending)}
+  .row details{grid-column:2 / -1;font-size:11.5px;color:var(--ink-2)}
+  .row details summary{cursor:pointer;color:var(--ink-3);font-size:11px;letter-spacing:.04em;list-style:none}
+  .row details summary::before{content:"▸ "}
+  .row details[open] summary::before{content:"▾ "}
+  .row details p{margin:3px 0 0;font-style:italic;border-left:2px solid var(--line);padding-left:8px}
+
+  .btnrow{display:flex;gap:8px;margin-top:12px}
+  .btn{flex:1;font:inherit;font-weight:600;font-size:13px;padding:9px 12px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);cursor:pointer;text-align:left;line-height:1.3}
+  .btn.primary{background:var(--pending-soft);border-color:var(--pending)}
+  .btn .fml{display:block;font-weight:400;font-size:12px;color:var(--ink-2);margin-top:2px}
+  .btn:focus-visible{outline:2px solid var(--pending);outline-offset:2px}
+  .clock{font-size:11px;color:var(--ink-3);text-align:right;margin-top:6px}
+
+  /* side panel */
+  .side{display:flex;flex-direction:column;gap:12px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+  .panel h3{margin:0 0 6px;font-size:13px;font-weight:600}
+  .panel p,.panel li{font-size:12.5px;color:var(--ink-2);margin:0}
+  .panel ol{padding-left:18px;margin:0;display:flex;flex-direction:column;gap:6px}
+  .panel li b{color:var(--ink);font-weight:600}
+  .panel .after{font-size:12.5px;color:var(--ink-2);display:flex;flex-direction:column;gap:5px}
+  .panel .after .card{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:6px 8px}
+  .panel .after .card b{color:var(--ink);font-weight:600}
+  .panel .after .card .ey{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+  @media (prefers-reduced-motion:no-preference){.row{transition:background .12s}}
+  .row:hover:not(.off){background:rgba(0,0,0,.3)}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Battle Flow · prototype · 2026-09-04</div>
+      <h1>The hit menu: one popup, the rows grouped by the feature that grants them</h1>
+    </div>
+    <p>The damage offer as it opens today, with the maneuvers joining the Cunning Strike menu as a second group. Tick a row, watch the button. The rules quoted are the 2024 PHB pack's own text.</p>
+  </header>
+
+  <div class="scenes" role="tablist" aria-label="Scenarios">
+    <button aria-pressed="true" data-scene="bm">Thomas, Battle Master 5 — three maneuvers, 4 dice left</button>
+    <button aria-pressed="false" data-scene="mix">Kestrel, Fighter 3 / Rogue 5 — maneuvers and Cunning Strike</button>
+    <button aria-pressed="false" data-scene="empty">Thomas, no Superiority Dice left</button>
+  </div>
+
+  <div class="studio">
+    <div class="screen"><div class="map"></div>
+      <div class="offer" id="offer"></div>
+    </div>
+
+    <aside class="side">
+      <div class="panel">
+        <h3>What the ruling already fixed</h3>
+        <ol>
+          <li><b>One popup per hit.</b> Never a menu per feature. The maneuvers are a group beside Cunning Strike, not a second window.</li>
+          <li><b>Grouped by the feature that grants them.</b> Combat Superiority is the group; each maneuver on the sheet is a row.</li>
+          <li><b>Smites are out.</b> A Bonus Action after the hit, not a rider on it.</li>
+        </ol>
+      </div>
+      <div class="panel">
+        <h3>What is read, and what is not</h3>
+        <ol>
+          <li><b>The die</b> comes off the pack's Superiority Die activity, scaled on the sheet (d8 at 3rd, d10 at 10th, d12 at 18th). Never typed.</li>
+          <li><b>The pool</b> is Combat Superiority's uses. The activity consumes one; the module never mimes it.</li>
+          <li><b>The save</b> is the pack's own activity on the maneuver, used at the hit target after the damage lands. DC 8 + proficiency + Str or Dex is the activity's own.</li>
+          <li><b>The condition</b> is whatever the activity carries: Prone, Frightened, Goaded. Pushing and Disarming carry none, so the card says it and the table does it.</li>
+          <li><b>"Large or smaller"</b> is a caveat line, the player's to judge, like Cunning Strike's Trip.</li>
+        </ol>
+      </div>
+      <div class="panel">
+        <h3>Rule off the prototype — RULED 2026-09-04 (user: "looks good"; the five below stand as drawn)</h3>
+        <ol>
+          <li><b>One maneuver per attack</b> is the 2024 text. Ticking a second maneuver drops the first. Is a maneuver <i>and</i> a Cunning Strike on the same hit fine? (Different features, so drawn as yes.)</li>
+          <li><b>The die rides the damage</b> for seven of the eight. Sweeping Attack's die goes to a <i>second</i> creature instead. Drawn as a row that asks for the target on the card afterwards. Slice one, or park it?</li>
+          <li><b>Maneuvering Attack</b> moves an ally. Drawn as a line row like Withdraw: the die rides, the card says the ally may move.</li>
+          <li><b>The row is the name and the cost</b> (user, 2026-09-04: "just give the cost for the sup die, just like Cunning Strike"). The save and the condition live in the rule under it and on the card after. RULED.</li>
+          <li><b>Riposte's die</b> already rides a riposte's damage. Should a riposte hit offer this menu as well? (Drawn as yes: a hit is a hit.)</li>
+          <li><b>Distracting Strike</b> gives the next ally Advantage. The pack ships it as an effect on the target; the gate can read it as an effect bend. In the slice, or later?</li>
+        </ol>
+      </div>
+      <div class="panel">
+        <h3>After the roll</h3>
+        <div class="after" id="after"></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function(){
+  const RULES = {
+    trip: "When you hit a creature with an attack roll using a weapon or an Unarmed Strike, you can expend one Superiority Die and add the die to the attack's damage roll. If the target is Large or smaller, it must succeed on a Strength saving throw or have the Prone condition.",
+    goading: "When you hit a creature with an attack roll, you can expend one Superiority Die to attempt to goad the target into attacking you. Add the Superiority Die to the attack's damage roll. The target must succeed on a Wisdom saving throw or have Disadvantage on attack rolls against targets other than you until the end of your next turn.",
+    menacing: "When you hit a creature with an attack roll, you can expend one Superiority Die to attempt to frighten the target. Add the Superiority Die to the attack's damage roll. The target must succeed on a Wisdom saving throw or have the Frightened condition until the end of your next turn.",
+    pushing: "When you hit a creature with an attack roll using a weapon or an Unarmed Strike, you can expend one Superiority Die to attempt to drive the target back. Add the Superiority Die to the attack's damage roll. If the target is Large or smaller, it must succeed on a Strength saving throw or be pushed up to 15 feet directly away from you.",
+    sweeping: "When you hit a creature with a melee attack roll using a weapon or an Unarmed Strike, you can expend one Superiority Die to attempt to damage another creature. Choose another creature within 5 feet of the original target and within your reach. If the original attack roll would hit the second creature, it takes damage equal to the number you roll on your Superiority Die.",
+    maneuvering: "When you hit a creature with an attack roll, you can expend one Superiority Die to maneuver one of your comrades into another position. Add the Superiority Die roll to the attack's damage roll, and choose a friendly creature who can see or hear you. That creature can use its Reaction to move up to half its Speed without provoking Opportunity Attacks.",
+    poison: "Poison (Cost: 1d6). You add a toxin to your strike, forcing the target to make a Constitution saving throw. On a failed save, the target has the Poisoned condition for 1 minute.",
+    ctrip: "Trip (Cost: 1d6). If the target is Large or smaller, it must succeed on a Dexterity saving throw or have the Prone condition.",
+    withdraw: "Withdraw (Cost: 1d6). Immediately after the attack, you move up to half your Speed without provoking Opportunity Attacks."
+  };
+  const MANEUVERS = {
+    trip:{nm:"Trip Attack",save:"Str save → Prone",cav:"the target must be Large or smaller"},
+    goading:{nm:"Goading Attack",save:"Wis save → Goaded until the end of your next turn"},
+    menacing:{nm:"Menacing Attack",save:"Wis save → Frightened until the end of your next turn"},
+    pushing:{nm:"Pushing Attack",save:"Str save → pushed 15 ft (the table moves it)",cav:"the target must be Large or smaller"},
+    sweeping:{nm:"Sweeping Attack",save:"the die goes to a second creature instead",cav:"melee only; the second creature is picked on the card"},
+    maneuvering:{nm:"Maneuvering Attack",save:"an ally may spend its Reaction to move"}
+  };
+  const SCENES = {
+    bm:{ who:"Thomas", weapon:"Longsword", wf:"1d8 + 4", target:"Goblin Warrior (Small)", die:"d8", dice:4, dc:15, man:["trip","goading","menacing"], sneak:null },
+    mix:{ who:"Kestrel", weapon:"Rapier", wf:"1d8 + 4", target:"Bugbear (Medium)", die:"d8", dice:2, dc:14, man:["trip","pushing","sweeping","maneuvering"], sneak:{dice:3,dc:14,max:1,rows:[["poison","Poison",1,"you must have a Poisoner’s Kit on your person"],["ctrip","Trip",1,"the target must be Large or smaller"],["withdraw","Withdraw",1,null]]} },
+    empty:{ who:"Thomas", weapon:"Longsword", wf:"1d8 + 4", target:"Goblin Warrior (Small)", die:"d8", dice:0, dc:15, man:["trip","goading","menacing"], sneak:null }
+  };
+  let scene = "bm", pickM = null, pickC = new Set();
+  const offer = document.getElementById("offer"), after = document.getElementById("after");
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+
+  function render(){
+    const s = SCENES[scene];
+    const empty = s.dice <= 0;
+    const rowsM = s.man.map(k => { const m = MANEUVERS[k]; const off = empty;
+      return `<label class="row ${off?"off":""}">
+        <input type="radio" name="man" value="${k}" ${pickM===k?"checked":""} ${off?"disabled":""}>
+        <span class="nm">${esc(m.nm)}</span><span class="cost">1${s.die} Superiority Die</span>
+        ${m.cav?`<span class="cav">${esc(m.cav)}</span>`:""}
+        <details><summary>the rule</summary><p>${esc(RULES[k])}</p></details>
+      </label>`; }).join("");
+    const sneakHTML = s.sneak ? `<div class="group"><div class="gh"><b>Cunning Strike</b><span class="tag">${s.sneak.dice}d6 · DC ${s.sneak.dc} · up to ${s.sneak.max}</span></div>
+      ${s.sneak.rows.map(([k,nm,cost,cav]) => `<label class="row"><input type="checkbox" name="cun" value="${k}" ${pickC.has(k)?"checked":""}><span class="nm">${nm}</span><span class="cost">${cost}d forgone</span>${cav?`<span class="cav">${esc(cav)}</span>`:""}<details><summary>the rule</summary><p>${esc(RULES[k])}</p></details></label>`).join("")}</div>` : "";
+    const m = pickM ? MANEUVERS[pickM] : null;
+    const cLeft = s.sneak ? s.sneak.dice - pickC.size : 0;
+    const fml = [ `${s.weapon} ${s.wf}`,
+      s.sneak ? (cLeft>0 ? `Sneak Attack ${cLeft}d6` : "every Sneak Attack die forgone") : null,
+      (m && pickM!=="sweeping") ? `Superiority Die 1${s.die} (${m.nm})` : null ].filter(Boolean).join(" + ");
+    offer.innerHTML = `
+      <div class="title"><i></i> You hit! — roll damage</div>
+      <div class="body">
+        <div class="head"><div class="img"></div><div><div class="eyebrow">Damage — your roll</div><h2>You hit! — roll damage</h2><div class="sub">${s.weapon} — ${s.who}</div></div></div>
+        <div class="lines">
+          ${s.sneak?`<div><b>Sneak Attack</b> — ${s.sneak.dice}d6 rides this roll, once per turn; pick a Cunning Strike below, or roll them all.</div>`:""}
+          <div><b>Maneuvers</b> — ${empty ? "no Superiority Dice left; the rows stay for the record." : `pick one to ride this hit, or none. One maneuver per attack.`}</div>
+          <div>Against <b>${esc(s.target)}</b>.</div>
+        </div>
+        ${sneakHTML}
+        <div class="group"><div class="gh"><b>Combat Superiority</b><span class="tag ${empty?"off":""}">${empty?"0 dice left":`${s.dice} × ${s.die} left · DC ${s.dc}`}</span></div>${rowsM}</div>
+        <div class="btnrow"><button class="btn primary" id="roll">Roll Damage<span class="fml">${esc(fml)}</span></button></div>
+        <div class="clock">rolls itself in 18 s</div>
+      </div>`;
+    offer.querySelectorAll('input[name="man"]').forEach(r => r.addEventListener("click", e => { pickM = (pickM===e.target.value) ? null : e.target.value; render(); }));
+    offer.querySelectorAll('input[name="cun"]').forEach(c => c.addEventListener("change", e => {
+      if ( e.target.checked ) { pickC.add(e.target.value); while ( pickC.size > s.sneak.max ) pickC.delete([...pickC][0]); } else pickC.delete(e.target.value);
+      render(); }));
+    renderAfter(s, m, cLeft);
+  }
+  function renderAfter(s, m, cLeft){
+    const cards = [];
+    cards.push(`<div class="card"><div class="ey">Damage card</div><b>${s.weapon} ${s.wf}${m&&pickM!=="sweeping"?` + 1${s.die}`:""}${s.sneak&&cLeft>0?` + ${cLeft}d6`:""}</b> — applied to ${esc(s.target)}, receipt and revert as today.</div>`);
+    if ( m ) cards.push(`<div class="card"><div class="ey">Maneuver</div><b>${m.nm}</b> — one Superiority Die spent, ${s.dice-1} left. ${pickM==="sweeping" ? "Pick the second creature: <i>[Bugbear] [Goblin Archer]</i>. If the attack roll would hit it, the die's roll is applied to it." : pickM==="maneuvering" ? "Choose the ally; it may use its Reaction to move up to half its Speed." : `The pack's save activity is used at ${esc(s.target)}: <i>${esc(m.save)}</i>, through the save gate with its timer.`}</div>`);
+    if ( pickC.size ) cards.push(`<div class="card"><div class="ey">Cunning Strike</div><b>${[...pickC].map(k => s.sneak.rows.find(r=>r[0]===k)[1]).join(" and ")}</b> — ${pickC.size}d forgone, the save through the saves machine, as today.</div>`);
+    if ( !m && !pickC.size ) cards.push(`<div class="card">Nothing picked: the weapon${s.sneak?" and the full Sneak Attack":""} roll, nothing is spent.</div>`);
+    after.innerHTML = cards.join("");
+  }
+  document.querySelectorAll(".scenes button").forEach(b => b.addEventListener("click", () => {
+    scene = b.dataset.scene; pickM = null; pickC = new Set();
+    document.querySelectorAll(".scenes button").forEach(x => x.setAttribute("aria-pressed", x===b ? "true" : "false"));
+    render();
+  }));
+  render();
+})();
+</script>

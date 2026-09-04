@@ -47,6 +47,7 @@ export const S = {
   conditionList: "conditionList",
   effectList: "effectList",
   clockRiderList: "clockRiderList",
+  hitMenuList: "hitMenuList",
   emanations: "emanations",
   emanationList: "emanationList"
 };

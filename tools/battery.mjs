@@ -77,6 +77,8 @@ const ORDER = [
   { name: "smoke-reminders", note: "the gate before the roll — every source, the net, the press" },
   { name: "smoke-sneak", note: "Sneak Attack as drawn — the tick, the menu, the dice, the crit, the chit, the effects" },
   { name: "smoke-clock", note: "the clock riders — Dreadful Strike once per turn with its uses, Assassinate on round one, the list as the switch" },
+  // Beside smoke-sneak and smoke-clock: the same seam (the offer's contributions, preRollDamageV2) on the CLONED fighter fixture (2026-09-04).
+  { name: "smoke-hitmenu", note: "the hit menu — the Battle Master's maneuvers on the damage offer: one pick, the die rides, the pool spent, the save through the machine, the sweep at a second creature" },
   // ⚠ Before smoke-surfaces for the same reason smoke-surfaces is last: it places a real template
   // (Spirit Guardians) and creates Regions on the range, all deleted in its `finally` (2026-09-03).
   // The same lesson as smoke-nogm's seed below: the Victim token smoke-emanations needs is swept

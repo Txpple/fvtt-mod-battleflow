@@ -721,6 +721,36 @@ carries `2d8`. The module reads the activity (N1 — the content is the content)
 2d8 until the pack is corrected; the registry row says so. The same pack misspells the feature's
 own transfer effect *Assasinate*.
 
+### The 2024 pack ships the Battle Master's maneuvers three ways at once (2026-09-04)
+
+Measured item by item in `dnd-players-handbook.classes` for the hit menu. Three shapes, and a
+reader has to take all three:
+
+- **Two activities, the consumption target a bare IDENTIFIER.** Trip, Goading, Menacing,
+  Pushing, Disarming, Maneuvering: a damage activity named *Superiority Die* (activation
+  `special`, `@scale.battle-master.superiority.die`, all thirteen types) whose `itemUses`
+  target is the string `combat-superiority`, plus a save activity (*Strength Save* / *Wisdom
+  Save*). Advancement remaps the identifier to the item's ID on a built character; a clone or
+  a hand-added item keeps the identifier.
+- **One unnamed damage activity, the target a COMPENDIUM UUID.** Distracting Strike and
+  Sweeping Attack: `Compendium.dnd-players-handbook.classes.Item.phbftrCombatSupe`. The reader
+  matches it against the actor's item by `_stats.compendiumSource` (and by the UUID's last
+  segment, for a source that was re-keyed).
+- **Where the condition lives differs by row.** Menacing's Frightened and Goading's *Goaded*
+  are effects LINKED to the save activity (`activity.effects[]`, `onSave: false`) — the saves
+  machine applies them on the failure. **Trip's Prone sits on the ITEM with `activity.effects`
+  EMPTY** — nothing applies it unless a follow-up presses it (`onFail: "prone"` in
+  `HIT_OPTIONS`, the Envenom Weapons shape). Distracting's *Distracted* is linked to its damage
+  activity, so it lands on the hit with no save at all. Pushing and Disarming carry no effect.
+
+`hit-menu.js` `poolOf` / `dieFormulaOf` are the readers. `Roll.replaceFormulaData` resolves
+`@scale.battle-master.superiority.die` to `d8` — a bare die with no count — which Foundry's
+parser reads as one die but which the card should not print; the reader prefixes the `1`.
+
+**Combat Superiority's own text has the pick limit** — *"You can use only one maneuver per
+attack"* — and the DC rule (8 + Strength OR Dexterity + proficiency, the player's choice). The
+save activities carry their own DC; the demand card reads it off them, never computes it.
+
 ## 3. The statblock caster
 
 Where most of the monster-side bugs lived.

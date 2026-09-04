@@ -17,9 +17,13 @@ Everything a future session needs to start the sweep without re-deriving it:
    spells are a separate Bonus Action cast after the hit, not a rider on it — the module does
    not cover them. Item 2 below is Barbarian, Monk and Battle Master.
 3. **The order is §4.** Start with item 1 (save-side bends): one table, thirty rows, every
-   kind touched on day one, so the kind-by-kind walk has something to read against. Item 2 gets
-   a clickable prototype before code ([[ui-prototype-first]]): draw the one-popup offer with a
-   mixed case (a character holding two of the features) and let the user rule off it.
+   kind touched on day one, so the kind-by-kind walk has something to read against. **Item 2's
+   MACHINE EXISTS (2026-09-04):** the hit menu shipped off its prototype with the Battle Master's
+   eight on-hit maneuvers as its first group (`hit-menu.js`, `HIT_GROUPS` / `HIT_OPTIONS`, DESIGN
+   §5 *The hit menu*). What item 2 still holds is the OTHER groups — Brutal Strike, Stunning
+   Strike, Open Hand Technique, Psionic Strike — each a group row (its pool and pick limit) and
+   option rows on the same table; a new COST KIND (a Focus Point, a use) is a `poolOf` reader
+   in the machine, not a new moment.
 4. **The corpus is current.** Rescanned 2026-09-03 with the fixed activation column; the
    numbers in §2 held (587 rows matched a family, one more than the survey's 586; the rest
    identical). The JSON lives in the session scratchpad, not the repo — regenerate it:

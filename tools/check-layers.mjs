@@ -69,6 +69,7 @@ const LAYER_OF = {
   "clock-riders.js": "machines",
   "use-chips.js": "machines",
   "emanations.js": "machines",
+  "hit-menu.js": "machines",
   "polish.js": "machines",
   "resources.js": "machines",
   "stats.js": "machines",
@@ -99,6 +100,7 @@ const LAYER_OF = {
   "decide/sneak.js": "decision",
   "decide/clock.js": "decision",
   "decide/emanations.js": "decision",
+  "decide/hit-menu.js": "decision",
 
   // CORE — the leaf: ids, settings accessor, the elect, the flag serializer
   "core.js": "core"
@@ -129,33 +131,21 @@ const ALLOW = [
       + "third module (PLAN.md Tier 2: low value, real risk)"
   },
   {
-    from: "auto-damage.js", to: "mastery.js", disposition: "PERMANENT",
-    why: "cleaveArmedFor, read lazily so the static edge does not drag mastery.js's imports "
-      + "ahead of hold.js in the §7 entry order. Same knot as the row above, same ruling"
-  },
-  {
     from: "auto-apply.js", to: "effect-riders.js", disposition: "BY DESIGN",
     why: "service → service: applying damage and applying effects are one consequence pass, and "
       + "the receipt merge disciplines are shared. The services tier is where this belongs"
   },
+  // ⚠ THREE MORE ROWS WENT ON 2026-09-04: `auto-damage -> mastery / sneak / clock-riders`, the
+  // damage OFFER's lazy edges to the machines whose content it painted (the Cleave line, the
+  // Cunning Strike menu, the clock riders). The third instance proved the seam BACKLOG named:
+  // `registerOfferPart` in auto-damage.js — each machine declares its contribution INTO the
+  // service at module evaluation (the relay's idiom), so the edge points downward and the
+  // hit menu joined without a fourth pin.
   // ⚠ THREE ROWS WERE DELETED FROM HERE ON 2026-08-23, and the deletion is the point: this list
   // shrinks when debt is repaid, and the GATE is what forced the shrink. `mastery -> concentration`
   // and `saves -> concentration` (dramaticVerdictPause → ui.js, the spine) and `maneuvers ->
   // mastery` (combatStamp → core.js) all stopped existing, and the stale-pin rule failed the build
   // until these rows came out. A pin that only ever permits would have sat here forever.
-  {
-    from: "auto-damage.js", to: "sneak.js", disposition: "PERMANENT",
-    why: "the damage OFFER (a service) shows the Cunning Strike menu an armed Sneak Attack "
-      + "brings and commits the pick inside its one roll thunk — the same shape as its lazy "
-      + "edge to mastery.js for the armed Cleave line. Lazy import; the machine owns the "
-      + "content, the service owns the popup (2026-09-02)"
-  },
-  {
-    from: "auto-damage.js", to: "clock-riders.js", disposition: "PERMANENT",
-    why: "the damage OFFER tells the player which clock riders are due and will ride (user ruling "
-      + "2026-09-02: notified, never asked) — the same lazy edge as the Cleave line and the "
-      + "Cunning Strike menu; the machine owns the judgement, the service owns the popup"
-  },
   {
     from: "volleys.js", to: "reminders.js", disposition: "BY DESIGN",
     why: "judgeRoll (2026-09-02): the volley's aim popup is the gate's SECOND SURFACE — the rays "

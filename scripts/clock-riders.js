@@ -8,7 +8,7 @@ import { turnChitStands, writeTurnChit } from "./shared.js";
 import { bfCard, riderMenuHTML, ruleLine } from "./decide/present.js";
 import { CLOCK_RIDERS } from "./decide/registry.js";
 import { riderDue, riderPartFormula } from "./decide/clock.js";
-import { attackMessageForDamage } from "./auto-damage.js";
+import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 
 /* ---------------------------------------------------------------------------------------------
  * CLOCK RIDERS (user, 2026-09-02 — "the damage riders on clock (assassin, gloomstalker) should
@@ -85,7 +85,7 @@ export function clockRidersFor(attackMessage, activity) {
 }
 
 /** Is any listed clock rider due on this hit? The offer opens for it whatever the auto-damage setting. */
-export function clockRidersDue(attackMessage, activity) {
+function clockRidersDue(attackMessage, activity) {
   return clockRidersFor(attackMessage, activity).some(r => r.due);
 }
 
@@ -98,7 +98,7 @@ export function clockRidersDue(attackMessage, activity) {
  * @param {ChatMessage} attackMessage
  * @param {object} activity
  */
-export function clockRiderOfferParts(attackMessage, activity) {
+function clockRiderOfferParts(attackMessage, activity) {
   const due = clockRidersFor(attackMessage, activity).filter(r => r.due);
   if ( !due.length ) return null;
   const chosen = new Set(due.filter(r => r.formula).map(r => r.key));
@@ -121,6 +121,18 @@ export function clockRiderOfferParts(attackMessage, activity) {
     }
   };
 }
+
+// Declared into the damage offer (auto-damage.js `registerOfferPart`, 2026-09-04): a due rider
+// opens the offer whatever the auto-damage setting (a checkbox, optional — the offer is where
+// the choice lives) and paints its rows on it.
+registerOfferPart({
+  key: "clock",
+  due: clockRidersDue,
+  parts: (attackMessage, activity) => {
+    const clock = clockRiderOfferParts(attackMessage, activity);
+    return clock ? { html: clock.html, lines: clock.lines, wire: clock.wire, commit: clock.commit } : null;
+  }
+});
 
 /* --- the rider: the clock's extra damage rides the weapon's roll ---------------------------- */
 

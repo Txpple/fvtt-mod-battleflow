@@ -61,9 +61,9 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
   // auto damage on, because there is a decision to make" — which Cunning Strike, if any).
   // …and so does a CLOCK RIDER the rules make available (user ruling, the same evening: a
   // checkbox, optional — so the offer is where the choice lives).
-  const { clockRidersDue } = (await lazyMachines())[2] ?? {};
-  if ( setting(S.playerRollDamage) || attackMessage.getFlag(MODULE_ID, "sneak")?.armed
-    || clockRidersDue?.(attackMessage, subject) ) {
+  // …and so does any contribution with a decision pending (`registerOfferPart` — the sneak
+  // machine, the clock riders, the hit menu declare their own `due`).
+  if ( setting(S.playerRollDamage) || offerPartsDue(attackMessage, subject) ) {
     return void offerDamageRoll(subject, attackMessage);
   }
 
@@ -375,25 +375,57 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
 }
 
 /**
- * The machines the offer reads, imported lazily (the §9 entry order — a static edge from this
- * service to a machine drags the machine's imports ahead of hold.js) but exactly ONCE per page.
- * Primed at `ready` so no offer ever pays the import's latency at the table.
+ * THE OFFER'S CONTRIBUTIONS (2026-09-04 — the seam the third instance proved, BACKLOG's "the
+ * damage offer's three lazy edges"). The damage offer is a SERVICE: it owns the popup, the clock
+ * and the one roll thunk, and it knows nothing about any feature. What a feature paints on the
+ * offer — the armed Cleave line, the Cunning Strike menu, the due clock riders, the hit menu —
+ * is declared INTO it by the machine that owns the content, at module evaluation, the relay's
+ * and the rescue's idiom (ui.js `registerRelay` / `registerRescue`). Before this the offer
+ * imported each machine lazily and named its functions, one PERMANENT layer pin per machine and
+ * a fourth waiting on the hit menu; now the edge points downward (machine → service) and the
+ * offer walks a list.
+ *
+ * A part declares:
+ *   due(attackMessage, activity)          → true when the offer must OPEN even under auto damage
+ *                                           — there is a decision pending (an armed Sneak Attack,
+ *                                           a due clock rider, an affordable maneuver)
+ *   parts(attackMessage, activity, ctx)   → null, or `{ html, lines, wire(element), commit() }`:
+ *                                           the menu markup, the notice lines, the live controls,
+ *                                           and what to write on the attack message BEFORE the
+ *                                           dice. `ctx.isCritical` is the crit as the offer knows
+ *                                           it (critFor — one source).
+ *
+ * The order on the offer is the order of registration, which is the entry's import order —
+ * the Cleave line, the Cunning Strike menu, the clock riders, the hit menu.
  */
-let lazyMachinesPromise = null;
-function lazyMachines() {
-  // Destructured per import ON PURPOSE: this is the shape check-imports and knip read a lazy
-  // edge in — a bare import() inside Promise.all reads as an unused export to knip.
-  lazyMachinesPromise ??= (async () => {
-    const { cleaveArmedFor } = await import("./mastery.js");
-    const { sneakOfferParts } = await import("./sneak.js");
-    const { clockRiderOfferParts, clockRidersDue } = await import("./clock-riders.js");
-    // Indexed as well as named: the attack hook reads [2] for the clock question before offering.
-    const machines = { cleaveArmedFor, sneakOfferParts, clockRiderOfferParts, clockRidersDue };
-    return Object.assign([{ cleaveArmedFor }, { sneakOfferParts }, { clockRiderOfferParts, clockRidersDue }], machines);
-  })();
-  return lazyMachinesPromise;
+const offerParts = [];
+
+/** Declare a contribution to the damage offer. Called at module evaluation by a machine. */
+export function registerOfferPart(part) {
+  offerParts.push(part);
 }
-Hooks.once("ready", () => { void lazyMachines().catch(err => console.error(`${TITLE} | Priming the offer's machines failed.`, err)); });
+
+/** Is any contribution waiting on a decision for this hit? The offer opens for it whatever the auto-damage setting. */
+function offerPartsDue(attackMessage, activity) {
+  return offerParts.some(p => {
+    try { return !!p.due?.(attackMessage, activity); }
+    catch(err) { console.error(`${TITLE} | An offer contribution (${p.key}) failed its due check.`, err); return false; }
+  });
+}
+
+/** Every contribution's parts for this hit, in registration order, the failed ones dropped with a note. */
+function offerPartsFor(attackMessage, activity, ctx) {
+  const out = [];
+  for ( const p of offerParts ) {
+    try {
+      const parts = p.parts?.(attackMessage, activity, ctx);
+      if ( parts ) out.push(parts);
+    } catch(err) {
+      console.error(`${TITLE} | An offer contribution (${p.key}) failed to render — the offer opens without it.`, err);
+    }
+  }
+  return out;
+}
 
 /**
  * Ask the ATTACKER to roll their own damage, with a `damageTimer` buzzer that rolls it for them.
@@ -407,22 +439,11 @@ export async function offerDamageRoll(activity, attackMessage) {
   const crit = critFor(attackMessage);
   const isCritical = crit.isCritical;
   const against = againstLine(hitTargets(attackMessage));
-  // The armed Cleave announces itself BEFORE the dice (v1.19.x finding ③ — the walk: "the
-  // roll damage popup should make a note that it's a cleave"). Lazy import on purpose: a
-  // static edge here drags mastery.js's imports ahead of hold.js in the §9 entry order.
-  // ⚠ THROUGH THE MEMO, never a bare `import()` per offer (measured 2026-09-02,
-  // tools/probe-offer-timing.mjs): a dynamic import of an ALREADY-EVALUATED module still costs
-  // this page ~0.5–1.2 s each, and three of them put the popup 2.3 s behind the hit — past the
-  // 1.2 s smoke-battleflow §5d allows and past what a table should wait. The memo pays each
-  // once, and `ready` primes them so the first offer of a session is as quick as the rest.
-  const { cleaveArmedFor, sneakOfferParts, clockRiderOfferParts } = await lazyMachines();
-  const cleaveArm = cleaveArmedFor(activity.item);
-  // An armed Sneak Attack brings its Cunning Strike menu (sneak.js — lazy for the same reason;
-  // the pick is committed onto the attack message inside the one roll thunk, before the dice).
-  const sneak = sneakOfferParts(attackMessage, activity);
-  // The clock riders due on this hit say so here (clock-riders.js — lazy, the same reason): the
-  // player is told what will ride before the dice, never asked (user ruling 2026-09-02).
-  const clock = clockRiderOfferParts(attackMessage, activity);
+  // What the machines paint on this offer (the seam above): the armed Cleave line, the Cunning
+  // Strike menu, the due clock riders, the hit menu — each machine owns its content, this
+  // service owns the popup. Every pick is committed onto the attack message inside the one roll
+  // thunk, BEFORE the dice, where the machines' rider hooks read it.
+  const parts = offerPartsFor(attackMessage, activity, { isCritical });
 
   // THE CELEBRATION (ARCHITECTURE.md §5 law 10, finding (l)): every attack-damage popup leads
   // with the HIT — the moment the player earned — and the dice ask rides it. One design,
@@ -438,13 +459,13 @@ export async function offerDamageRoll(activity, attackMessage) {
     : (riposte ? "Your riposte hit! — roll damage" : "You hit! — roll damage");
 
   return offerRoll(attackMessage, {
-    roll: async () => { await sneak?.commit(); await clock?.commit(); return rollDamageForAttack(activity, attackMessage); },
+    roll: async () => { for ( const p of parts ) await p.commit?.(); return rollDamageForAttack(activity, attackMessage); },
     windowTitle: headline,
     windowIcon: isCritical ? "fa-solid fa-burst" : "fa-solid fa-dice-d6",
     buttonLabel: isCritical ? "Roll Critical Damage" : "Roll Damage",
     buttonIcon: isCritical ? "fa-solid fa-burst" : "fa-solid fa-dice-d6",
-    extraHTML: (sneak?.html ?? "") + (clock?.html ?? ""),
-    wire: (sneak || clock) ? element => { sneak?.wire(element); clock?.wire(element); } : null,
+    extraHTML: parts.map(p => p.html ?? "").join(""),
+    wire: parts.some(p => p.wire) ? element => { for ( const p of parts ) p.wire?.(element); } : null,
     img: activity.item?.img,
     eyebrow: "Damage — your roll",
     title: headline,
@@ -452,9 +473,7 @@ export async function offerDamageRoll(activity, attackMessage) {
     lines: [
       riposte ? `<strong>Riposte</strong> — the superiority die rides this roll${isCritical ? " and crit-doubles with it" : ""}.` : null,
       precisionUsed ? `<strong>Precision Attack</strong> turned the miss — this hit is yours to roll.` : null,
-      cleaveArm ? `<strong>Cleave</strong> — this is the armed Cleave swing: the ability modifier is dropped from this roll.` : null,
-      sneak ? `${sneak.line}${isCritical ? " A critical hit doubles what is left of the sneak dice too." : ""}` : null,
-      ...(clock?.lines ?? []),
+      ...parts.flatMap(p => p.lines ?? []),
       isCritical ? `${CRIT_BADGE} <span style="opacity:0.85;">${crit.auto && !crit.rolled
         ? `${crit.sources.map(s => s.label).join(" · ")} — set on the roll, nothing extra to do.`
         : "Already set on the roll — nothing extra to do."}</span>` : null,

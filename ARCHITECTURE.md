@@ -507,12 +507,13 @@ in milliseconds and impossible to tangle. **Keep it that way** — the day somet
 | Module | Holds |
 | --- | --- |
 | [decide/geometry.js](scripts/decide/geometry.js) | `honestDims`, `tokenCenter`, `tokenSamplePoints` — the v14 region-shim knowledge; `lengthUnitKey` — a scene's units folded to the system's keys |
-| [decide/registry.js](scripts/decide/registry.js) | the world-setting list SPECS and the one `parseList`; the closed kind sets and the R4 tripwire; `MASTERY_RULES`, `CONDITION_BENDS`, `SAVE_BENDS`, `RANGE_RULES` and `EFFECT_BENDS` — the rules text, the condition table (attacks) and the save table (saves), the range sentences and the effect table (seventy-odd abilities by name, from a compendium scan), as data; `SNEAK_ATTACK`, `CUNNING_OPTIONS`, `DEATH_STRIKE` — the Sneak Attack flow's data, each option naming the feature that grants it; `CLOCK_RIDERS` — the features whose extra damage rides the combat clock; `USE_CHIPS`, `SAVE_PRESSES`, `EVASION` — the text-only feature that becomes a chip on use, the save whose failure presses a status, the verdict outcome; `INTERRUPT_MULTIPLIERS` — the damage interrupts the module settles itself (Uncanny Dodge ×0.5) |
+| [decide/registry.js](scripts/decide/registry.js) | the world-setting list SPECS and the one `parseList`; the closed kind sets and the R4 tripwire; `MASTERY_RULES`, `CONDITION_BENDS`, `SAVE_BENDS`, `RANGE_RULES` and `EFFECT_BENDS` — the rules text, the condition table (attacks) and the save table (saves), the range sentences and the effect table (seventy-odd abilities by name, from a compendium scan), as data; `SNEAK_ATTACK`, `CUNNING_OPTIONS`, `DEATH_STRIKE` — the Sneak Attack flow's data, each option naming the feature that grants it; `HIT_GROUPS`, `HIT_OPTIONS` — the hit menu's groups (the feature that pays) and rows (the Battle Master's on-hit maneuvers, 2026-09-04); `CLOCK_RIDERS` — the features whose extra damage rides the combat clock; `USE_CHIPS`, `SAVE_PRESSES`, `EVASION` — the text-only feature that becomes a chip on use, the save whose failure presses a status, the verdict outcome; `INTERRUPT_MULTIPLIERS` — the damage interrupts the module settles itself (Uncanny Dodge ×0.5) |
 | [decide/chips.js](scripts/decide/chips.js) | `CHIP_WINDOWS`, `TURN_CHITS`, `chipClock`, `chipIsDead`, `chitStamp`, `chipSpentBy`, `chipHonoured`, `netShownFor`, `spendRecord` — a chip's clock, and what spends it; the once-per-turn chits (Cleave, Sneak Attack, a clock rider) share one shape |
 | [decide/reminders.js](scripts/decide/reminders.js) | `netMode`, `resolutionLine`, `proneSources`, `conditionSources` (over the registry's table), `saveSources` / `saveGate` (over the save table: a bend, or a save that cannot succeed — the net `fails`), `rangeSources`, `effectSources` (over the effect table: scope, caveat, listed or counted, judged — the combat clock included, spent), `autoCritSources`, `reminderView` (the header line and the boxes — no net block), `reminderRecord` — what bends a roll, what it nets to, and what the section draws |
 | [decide/sneak.js](scripts/decide/sneak.js) | `parseDice`, `sneakWeaponQualifies`, `sneakReadLines`, `cunningMenu` (the options read off the sheet, up to two with Improved Cunning Strike), `cunningPick`, `sneakFormula` — the Sneak Attack dice, and what Cunning Strike does to them before the roll |
 | [decide/clock.js](scripts/decide/clock.js) | `riderDue` (is a clock rider due on this hit, and why not), `riderPartFormula` (a pack's damage part as a formula, a bonus-only part included) |
 | [decide/emanations.js](scripts/decide/emanations.js) | `reachAdmits` (who an aura reaches, by disposition — helpful: allies and neutrals; harmful: enemies), `emanationRange` (the activity's size, else the row's content formula over the source's roll data — `@scale.paladin.aura`), `resolveChanges` / `resolveFormula` / `foldArithmetic` (the pack's effect with the SOURCE's numbers read in), `triggerDue` (once per turn in combat), `appliesOnScene` (the active scene only — the cross-scene bleed, 2026-09-04), `memberEffectData` (the effect a member receives, fingerprinted for the floor) |
+| [decide/hit-menu.js](scripts/decide/hit-menu.js) | `hitMenu` (the groups and rows a hit offers, read off the sheet and the list), `hitPick` (one per group, affordable), `sweepVerdict` (would the original attack roll hit a second creature) — the hit menu's arithmetic, 2026-09-04 |
 | [decide/verdict.js](scripts/decide/verdict.js) | `hitsAmong`, `modeAdmits`, `saveOutcome`, `saveMultiplier`, `verdictText`, and the fold layer (`ATTACK_FOLDS`, `SAVE_FOLDS`, `foldsFrom`, `foldedRoll`, `foldedVerdict`, `foldedSave`) |
 | [decide/eligible.js](scripts/decide/eligible.js) | `isDeadForSaves`, `limitedUses`, `isReactionItem`, `castLevelOf`, `clampVolleyCount`, `riderKey` |
 | [decide/receipt.js](scripts/decide/receipt.js) | `traitOutcome`, `hpDelta`, `receiptEntry`, `joinDamageReceipt`, `joinEffectReceipt`, `takenOf`, `receiptAmounts`, `revertPlan`, `revertableEffect` |
@@ -535,7 +536,7 @@ those strings back into the view.**
 | Depth | Layer | Files |
 | --- | --- | --- |
 | 6 | entry | `battleflow.js` |
-| 5 | **machines** | hold · saves · mastery · maneuvers · concentration · volleys · cast · hit-riders · d20-folds · receipts · polish · resources · reminders · stats · sneak · clock-riders · use-chips · emanations |
+| 5 | **machines** | hold · saves · mastery · maneuvers · concentration · volleys · cast · hit-riders · d20-folds · receipts · polish · resources · reminders · stats · sneak · clock-riders · use-chips · emanations · hit-menu |
 | 4 | **services** | `auto-apply.js` · `effect-riders.js` · `auto-damage.js` — the consequence chokepoints (§2) |
 | 3 | spine | `ui.js` · `shared.js` · `geometry.js` · `settings.js` |
 | 2 | registry | `volley-registry.js` |
@@ -568,6 +569,27 @@ the deliberate order-pinning edge — correct by this rule, not an exception to 
 > renders. When a view lives in the spine, the spine has to import the feature's vocabulary,
 > and that is the cycle every time. The spine owns *how* a moment is presented — popups,
 > clocks, bars, latches; a machine owns *what* its own moment says.
+
+### The offer's contributions — a service that knows no feature (2026-09-04)
+
+`auto-damage.js` is a service: it owns the damage offer's popup, clock and one roll thunk, and
+it knows nothing about any feature. What a feature PAINTS on the offer — the armed Cleave line,
+the Cunning Strike menu, the due clock riders, the hit menu — is declared into it by the machine
+that owns the content, at module evaluation, through `registerOfferPart({ key, due, parts })`:
+`due` says the offer must open even under auto damage (a decision is pending), `parts` returns
+the menu markup, the notice lines, the live controls and the commit that writes the pick on the
+attack message before the dice. The relay's and the rescue's idiom (`registerRelay`,
+`registerRescue` in ui.js), applied to the offer.
+
+⚠ **Before this the offer imported each machine LAZILY and named its functions** — three
+PERMANENT pins (`auto-damage → mastery / sneak / clock-riders`), one shape three times, and the
+hit menu would have been the fourth. BACKLOG's *"build the seam WITH that feature"* is what
+happened: the third instance proved the shape, the fourth landed on it, and the three pins came
+out (the stale-pin rule forced them out). The order on the offer is registration order, which is
+the entry's import order. ⚠ Removing the lazy imports moved NO evaluation order (measured: the
+hook-order print before and after differs only by hit-menu.js's own rows and the `ready` priming
+that no longer exists) — a lazy edge never held an order, which is why this seam was safe to
+build in one pass.
 
 ### ⚠ Registration order is import-graph order
 

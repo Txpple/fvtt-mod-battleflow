@@ -3,12 +3,12 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, activeCombatFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
-import { damagePartsOf, hitTargets, statSourceOf, writeTurnChit } from "./shared.js";
+import { damagePartsOf, hitTargets, statSourceOf, withTargets, writeTurnChit } from "./shared.js";
 import { bfCard, cunningMenuHTML, ruleLine } from "./decide/present.js";
 import { CUNNING_OPTIONS, DEATH_STRIKE } from "./decide/registry.js";
 import { cunningMenu, cunningPick, sneakFormula } from "./decide/sneak.js";
 import { tokenForUuid } from "./geometry.js";
-import { attackMessageForDamage } from "./auto-damage.js";
+import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 
@@ -83,7 +83,7 @@ export function sneakArmedOn(attackMessage) {
  * @param {ChatMessage} attackMessage
  * @param {object} activity   the attack activity (for the weapon's own formula on the button)
  */
-export function sneakOfferParts(attackMessage, activity) {
+function sneakOfferParts(attackMessage, activity) {
   const sneak = sneakArmedOn(attackMessage);
   if ( !sneak ) return null;
   const attacker = attackMessage.getAssociatedActor();
@@ -148,6 +148,23 @@ export function sneakOfferParts(attackMessage, activity) {
   };
 }
 
+// Declared into the damage offer (auto-damage.js `registerOfferPart`, 2026-09-04): an armed Sneak
+// Attack opens the offer whatever the auto-damage setting (user, 2026-09-02: "even with auto
+// damage on, because there is a decision to make"), and paints the Cunning Strike menu on it.
+registerOfferPart({
+  key: "sneak",
+  due: attackMessage => !!sneakArmedOn(attackMessage),
+  parts: (attackMessage, activity, { isCritical }) => {
+    const sneak = sneakOfferParts(attackMessage, activity);
+    if ( !sneak ) return null;
+    return {
+      html: sneak.html,
+      lines: [`${sneak.line}${isCritical ? " A critical hit doubles what is left of the sneak dice too." : ""}`],
+      wire: sneak.wire, commit: sneak.commit
+    };
+  }
+});
+
 /* --- the rider: the sneak dice ride the weapon's damage roll --------------------------------- */
 
 Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
@@ -191,19 +208,6 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
 });
 
 /* --- the effects: the pack's own save activities, at the hit target, after the damage -------- */
-
-/** Aim the user's targets at these tokens for the duration of `fn`, then put them back. */
-async function withTargets(tokens, fn) {
-  const before = [...game.user.targets];
-  try {
-    game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
-    tokens.forEach((t, i) => t.setTarget(true, { releaseOthers: i === 0 }));
-    return await fn();
-  } finally {
-    game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
-    before.forEach((t, i) => t.setTarget(true, { releaseOthers: i === 0 }));
-  }
-}
 
 /** Same-client latch: the effects run once per damage message. */
 const effectsRun = new Set();

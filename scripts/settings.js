@@ -208,6 +208,12 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.clockRiders.default
   });
 
+  game.settings.register(MODULE_ID, S.hitMenuList, {
+    name: "Hit Menu",
+    hint: "A choice the hit offers before the damage rolls, by the feature's own name, separated by commas — the Battle Master's on-hit maneuvers (Trip Attack, Goading Attack, Menacing Attack, Pushing Attack, Disarming Attack, Distracting Strike, Maneuvering Attack, Sweeping Attack). When a listed feature stands on the attacker's sheet with a Superiority Die left, the damage offer opens with a Combat Superiority group: pick one maneuver or none. The die is READ off the feature and rides the damage roll (a critical hit doubles it; a Sweeping Attack's die is rolled at a second creature the card asks for), the pool is spent, the maneuver's own save is put to the target through the save gate, and the card says what rode. Remove a name to keep that maneuver by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.hitMenu.default
+  });
+
   // EMANATIONS (user ruling 2026-09-03): the platform's Region keeps the geometry and the clock;
   // the module puts the pack's effect on it, with the source's numbers read in. A switch and a list.
   game.settings.register(MODULE_ID, S.emanations, {
@@ -534,6 +540,11 @@ export function effectEntries() {
 /** Which rows of the clock-rider table fold into a hit's damage, by the feature's name — `{ kind }`. */
 export function clockRiderEntries() {
   return listEntries(LIST_SPECS.clockRiders);
+}
+
+/** Which rows of the hit-option table the damage offer shows, by the feature's name — `{ kind }`. */
+export function hitMenuEntries() {
+  return listEntries(LIST_SPECS.hitMenu);
 }
 
 /** Which rows of the emanation table stand, by the feature's or spell's name — `{ kind }`. */

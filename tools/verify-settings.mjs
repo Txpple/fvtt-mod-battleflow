@@ -70,7 +70,8 @@ const REFERENCE = {
   reminderList: 'vex, sap, prone, condition, range, effect, sneak',   // range and effect joined 2026-09-02 (user asks); sneak the same day (the prototype)
   conditionList: 'blinded, invisible, hiding, paralyzed, petrified, poisoned, restrained, stunned, unconscious, frightened, grappled, incapacitated, dodging, charmed',   // hiding joined 2026-09-02 (user ask)
   effectList: LIST_SPECS.effects.default,   // the whole effect table, as shipped (2026-09-02) — the table is the reference, never a copy of it
-  clockRiderList: LIST_SPECS.clockRiders.default,   // the whole clock-rider table, as shipped (2026-09-02, user ask)
+  clockRiderList: LIST_SPECS.clockRiders.default,
+  hitMenuList: LIST_SPECS.hitMenu.default,   // the whole hit-option table, as shipped (2026-09-04)   // the whole clock-rider table, as shipped (2026-09-02, user ask)
   emanations: true,                                 // 2026-09-03 (user ruling) — the platform's Region keeps the aura
   emanationList: LIST_SPECS.emanations.default,     // the whole emanation table, as shipped
 };

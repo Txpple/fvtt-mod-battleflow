@@ -20,6 +20,7 @@ import { livePopups, openMomentPopup, DialogCarried,
   dramaticVerdictPause } from "./ui.js";
 import { forceStatus } from "./shared.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
+import { registerOfferPart } from "./auto-damage.js";
 import { messageActivity } from "./effect-riders.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -947,11 +948,21 @@ function liveCleaveArm(actor) {
  * the strip below stays the only consumer. Reached from auto-damage.js by LAZY import — the
  * entry evaluates that file before this one, and a static edge would drag concentration.js
  * ahead of hold.js (the §9 order the entry warns about). */
-export function cleaveArmedFor(item) {
+function cleaveArmedFor(item) {
   if ( item?.type !== "weapon" ) return null;
   const arm = liveCleaveArm(item.actor);
   return (arm && (arm.itemId === item.id)) ? arm : null;
 }
+
+// The armed Cleave announces itself on the damage offer BEFORE the dice (v1.19.x finding ③ —
+// the walk: "the roll damage popup should make a note that it's a cleave"). Declared into the
+// offer (auto-damage.js `registerOfferPart`, 2026-09-04): a line, no menu, nothing to commit.
+registerOfferPart({
+  key: "cleave",
+  parts: (attackMessage, activity) => cleaveArmedFor(activity.item)
+    ? { lines: ["<strong>Cleave</strong> — this is the armed Cleave swing: the ability modifier is dropped from this roll."] }
+    : null
+});
 
 // THE STRIP. Runs on whichever client rolls the damage (the resolver's auto-roll, the v1.18.0
 // popup's button, or a native press — all three converge here), synchronously, before the

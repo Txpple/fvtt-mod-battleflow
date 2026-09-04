@@ -311,6 +311,80 @@ export const EVASION = Object.freeze({
 export const CLOCK_RIDER_NAMES = new Set(Object.values(CLOCK_RIDERS).map(r => r.feature.toLowerCase()));
 
 /**
+ * THE HIT MENU (user, 2026-09-04 — "the actor should be given a choice if they have maneuvers, to
+ * pick when they hit"; the prototype *Battle Flow Hit Menu*, built as drawn; the sweep's ruling of
+ * 2026-09-03: ONE popup per hit, the rows grouped by the feature that grants them, smites out).
+ * Cunning Strike was the first instance of "on a hit, pick what rides before the dice"; this is
+ * the general table. A GROUP is the feature that pays (Combat Superiority — its pool, its die,
+ * its pick limit, its DC rule); an OPTION is a feature on the sheet that spends from it.
+ *
+ * What is read off the content, never typed (N1): the die (`@scale.battle-master.superiority.die`
+ * on the option's own damage activity, resolved on the sheet — d8, d10 at 10th, d12 at 18th), the
+ * pool (the activity's consumption target — the Combat Superiority item, by id, identifier or
+ * compendium source, the three shapes the 2024 pack ships), the save (the option's save activity,
+ * DC and all), the condition (the effect the save activity carries).
+ *
+ * The 2024 PHB pack as measured 2026-09-04 (the compendium, item by item):
+ *   Trip Attack        Superiority Die + Strength Save; the Prone effect sits on the ITEM, unlinked
+ *                      to the activity — `onFail: "prone"` presses it (the Envenom shape)
+ *   Goading Attack     Superiority Die + Wisdom Save carrying "Goaded" (1 round)
+ *   Menacing Attack    Superiority Die + Wisdom Save carrying Frightened (1 round)
+ *   Pushing Attack     Superiority Die + Strength Save, no effect — the push is the table's
+ *   Disarming Attack   Superiority Die + Strength Save, no effect — the drop is the table's
+ *   Distracting Strike ONE damage activity carrying "Distracted" (1 round) — applied on the hit,
+ *                      no save; the gate already reads it (EFFECT_BENDS "Distracted", from the scan)
+ *   Maneuvering Attack Superiority Die only — the ally's move is a LINE on the card
+ *   Sweeping Attack    ONE damage activity, `mode: "sweep"` — the die does NOT ride: it is rolled at
+ *                      a SECOND creature within 5 feet of the target, if the attack roll would hit it
+ *
+ *   mode      "ride" (default) — the die joins the damage roll, crit-doubled by the same stamp ·
+ *             "sweep" — the die is rolled apart, at a second creature the card asks for
+ *   save      true — the option's save activity is used at the hit target after the damage
+ *   onFail    a status the item's own (unlinked) effect presses on a failed save
+ *   effects   true — the damage activity's own effects land on the hit target (no save)
+ *   line      what the card says beyond the rule, for a consequence the table plays
+ *   melee     true — a melee attack only
+ *   caveat    what the module cannot judge, said on the row
+ *
+ * Membership is the Hit Menu list (the option names). Precision Attack and Riposte are FOLDS
+ * (maneuvers.js) and the nine remaining maneuvers are other moments (BACKLOG).
+ */
+export const HIT_GROUPS = Object.freeze({
+  "combat-superiority": Object.freeze({ feature: "Combat Superiority", label: "Combat Superiority", max: 1,
+    dieLabel: "Superiority Die", from: "Fighter — Battle Master 3",
+    rule: "Many maneuvers enhance an attack in some way. You can use only one maneuver per attack.",
+    dc: "If a maneuver requires a saving throw, the DC equals 8 plus your Strength or Dexterity modifier (your choice) and Proficiency Bonus." })
+});
+
+export const HIT_OPTIONS = Object.freeze({
+  "trip-attack": Object.freeze({ feature: "Trip Attack", group: "combat-superiority", save: true, onFail: "prone",
+    caveat: "the target must be Large or smaller",
+    rule: "When you hit a creature with an attack roll using a weapon or an Unarmed Strike, you can expend one Superiority Die and add the die to the attack's damage roll. If the target is Large or smaller, it must succeed on a Strength saving throw or have the Prone condition." }),
+  "goading-attack": Object.freeze({ feature: "Goading Attack", group: "combat-superiority", save: true,
+    rule: "When you hit a creature with an attack roll, you can expend one Superiority Die to attempt to goad the target into attacking you. Add the Superiority Die to the attack's damage roll. The target must succeed on a Wisdom saving throw or have Disadvantage on attack rolls against targets other than you until the end of your next turn." }),
+  "menacing-attack": Object.freeze({ feature: "Menacing Attack", group: "combat-superiority", save: true,
+    rule: "When you hit a creature with an attack roll, you can expend one Superiority Die to attempt to frighten the target. Add the Superiority Die to the attack's damage roll. The target must succeed on a Wisdom saving throw or have the Frightened condition until the end of your next turn." }),
+  "pushing-attack": Object.freeze({ feature: "Pushing Attack", group: "combat-superiority", save: true,
+    caveat: "the target must be Large or smaller",
+    line: "On a failed save the target is pushed up to 15 feet directly away — the table moves it.",
+    rule: "When you hit a creature with an attack roll using a weapon or an Unarmed Strike, you can expend one Superiority Die to attempt to drive the target back. Add the Superiority Die to the attack's damage roll. If the target is Large or smaller, it must succeed on a Strength saving throw or be pushed up to 15 feet directly away from you." }),
+  "disarming-attack": Object.freeze({ feature: "Disarming Attack", group: "combat-superiority", save: true,
+    line: "On a failed save the target drops one object of your choice — the table plays it.",
+    rule: "When you hit a creature with an attack roll, you can expend one Superiority Die to attempt to disarm the target. Add the Superiority Die roll to the attack's damage roll. The target must succeed on a Strength saving throw or drop one object of your choice that it's holding, with the object landing in its space." }),
+  "distracting-strike": Object.freeze({ feature: "Distracting Strike", group: "combat-superiority", effects: true,
+    rule: "When you hit a creature with an attack roll, you can expend one Superiority Die to distract the target. Add the Superiority Die roll to the attack's damage roll. The next attack roll against the target by an attacker other than you has Advantage if the attack is made before the start of your next turn." }),
+  "maneuvering-attack": Object.freeze({ feature: "Maneuvering Attack", group: "combat-superiority",
+    line: "Choose a willing creature who can see or hear you: it can use its Reaction to move up to half its Speed without provoking an Opportunity Attack from the target.",
+    rule: "When you hit a creature with an attack roll, you can expend one Superiority Die to maneuver one of your comrades into another position. Add the Superiority Die roll to the attack's damage roll, and choose a willing creature who can see or hear you. That creature can use its Reaction to move up to half its Speed without provoking an Opportunity Attack from the target of your attack." }),
+  "sweeping-attack": Object.freeze({ feature: "Sweeping Attack", group: "combat-superiority", mode: "sweep", melee: true,
+    caveat: "the second creature must be within your reach — the card lists those within 5 feet of the target",
+    rule: "When you hit a creature with a melee attack roll using a weapon or an Unarmed Strike, you can expend one Superiority Die to attempt to damage another creature. Choose another creature within 5 feet of the original target and within your reach. If the original attack roll would hit the second creature, it takes damage equal to the number you roll on your Superiority Die. The damage is of the same type dealt by the original attack." })
+});
+
+/** The hit options' feature names, lower-cased — the closed set the Hit Menu list is validated against. */
+export const HIT_OPTION_NAMES = new Set(Object.values(HIT_OPTIONS).map(r => r.feature.toLowerCase()));
+
+/**
  * EMANATIONS (user ruling 2026-09-03 — DESIGN §4 amended: "emanations are a core part of combat …
  * no different than auto-applying Slow with mastery"). A persistent area attached to a token whose
  * effect applies to the creatures inside it. THE PLATFORM MODELS IT (measured, tools/probe-
@@ -948,6 +1022,13 @@ export const LIST_SPECS = {
     // case-insensitively. Membership, like the condition table: the kind is `effect`.
     columns: ["kind"], kindColumn: "kind", kinds: EFFECT_NAMES, fallback: null, membership: true, whole: true,
     default: EFFECT_KEYS.join(", ")
+  },
+  hitMenu: {
+    label: "Hit Menu", setting: "hitMenuList",
+    // Which rows of the hit-option table the damage offer shows — the FEATURE names, whole-chunk,
+    // case-insensitive. Membership over HIT_OPTIONS; the mechanism is hit-menu.js.
+    columns: ["kind"], kindColumn: "kind", kinds: HIT_OPTION_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.values(HIT_OPTIONS).map(row => row.feature).join(", ")
   },
   emanations: {
     label: "Emanations", setting: "emanationList",

@@ -625,6 +625,61 @@ rules, and where the rules give none, give none.
 
 ---
 
+### The hit menu (user rulings, 2026-09-04)
+
+**The commission:** *"add support for trip attack and goading attack, maneuvers … the actor
+should be given a choice if they have maneuvers, to pick when they hit."* Trip and Goading are
+the examples; the class is the Battle Master's ON-HIT maneuvers, and the machine is the general
+form of the Cunning Strike menu — the sweep's item 2, ruled 2026-09-03 (one popup per hit,
+grouped by the feature that grants the rows, smites out) and built off the prototype
+[prototypes/hit-menu.html](prototypes/hit-menu.html) (*"looks good"*).
+
+**The shape, as ruled off the prototype:**
+
+- **One popup per hit, a group per paying feature.** The damage offer carries a *Combat
+  Superiority* group beside the *Cunning Strike* menu; a Fighter/Rogue sees both. A group is the
+  feature that pays (`HIT_GROUPS`: its pool, its die, its pick limit, its DC rule); a row is a
+  feature on the sheet that spends from it (`HIT_OPTIONS`). Membership is the Hit Menu list.
+- **The row is the name and the cost, nothing else** (*"just give the cost for the sup die,
+  just like Cunning Strike says 1d6 of sneak attack. don't give all the details like wis
+  save/etc. that's in the rule"*). `1d8 Superiority Die` is the tag; the save and the condition
+  live in the rule folded under the row and on the card after. A caveat the rules leave to the
+  player (*Large or smaller*) is the one extra line.
+- **One pick per group** — the 2024 text: *"You can use only one maneuver per attack."* Ticking
+  a second row unticks the first. A maneuver AND a Cunning Strike on one hit is allowed — two
+  features, two groups.
+- **An affordable row opens the offer even under auto damage** — a decision is pending, the
+  Sneak Attack ruling of 2026-09-02 applied. No dice left: the offer does not open for the menu;
+  asked for (Player Rolls Damage), the group shows *no dice left* and its rows greyed.
+- **The die rides the damage roll** as its own part in the weapon's type, crit-doubled by the
+  same stamp; the pool is spent on the sheet. **Sweeping Attack's die does not ride**: a card
+  lists the creatures within 5 feet of the original target, the attacker picks one, the elect
+  rolls the die in the open, judges the ORIGINAL attack roll against that creature's AC and
+  applies it through the receipt chokepoint when it would hit.
+- **The save is the pack's own activity**, used at the hit target after the damage lands, so
+  the demand, the timer and the failed-save press are the saves machine's, and the condition
+  the activity carries (Goaded, Frightened) lands through it. A condition the pack left on the
+  ITEM unlinked (Trip's Prone — measured 2026-09-04) is pressed on the failure by a follow-up,
+  the Envenom Weapons shape. Distracting Strike's *Distracted* has no save: applied on the hit,
+  receipted; the gate already reads it (the effect table's row from the scan).
+- **A LINE option says what the table plays** — Maneuvering Attack's ally move, Pushing's 15
+  feet, Disarming's dropped object — on the card, never automated (R1).
+- **A riposte's hit offers the menu too.** A hit is a hit.
+
+**What is read, never typed (N1):** the die (`@scale.battle-master.superiority.die` on the
+option's own damage activity, resolved on the sheet), the pool (the activity's consumption
+target — an id, the identifier `combat-superiority`, or Combat Superiority's compendium UUID:
+the three shapes the pack ships), the save and its DC, the condition.
+
+**Not in this slice, by ruling or by scope:** Precision Attack and Riposte stay folds
+(maneuvers.js); the nine maneuvers that are neither on-hit nor folds are BACKLOG rows, each
+mapped to the machine it would land on; Barbarian (Brutal Strike) and Monk (Stunning Strike)
+rows are the next groups the same table takes — the SWEEP's item 2, unchanged.
+
+**The seam it proved:** the offer's contributions (`registerOfferPart`, auto-damage.js) — the
+BACKLOG item *the damage offer's three lazy edges* was built WITH this feature, as it said to
+be, and three PERMANENT layer pins went with it (ARCHITECTURE §7).
+
 ## 7. How to use this document
 
 - **Before building**, locate the work here. If it is not here, decide whether it is in scope —

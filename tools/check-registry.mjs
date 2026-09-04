@@ -219,7 +219,7 @@ const rows = KIND_SETS.map(set => {
 // is the rider due, and the part's formula as the pack wrote it).
 // 2026-09-02 (the walk): 36 → 37, for scripts/use-chips.js — a feature the pack ships as text
 // alone becomes a chip on use, so the gate can read it and the roll can spend it (Steady Aim).
-const EXPECTED_SOURCE_FILES = 39;   // emanations.js + decide/emanations.js joined 2026-09-03
+const EXPECTED_SOURCE_FILES = 41;   // hit-menu.js + decide/hit-menu.js joined 2026-09-04
 const sourceFiles = [
   ...readdirSync(join(ROOT, "scripts")).filter(f => f.endsWith(".js")),
   ...readdirSync(join(ROOT, "scripts/decide")).filter(f => f.endsWith(".js")).map(f => `decide/${f}`)

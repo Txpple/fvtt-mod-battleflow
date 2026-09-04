@@ -421,3 +421,16 @@ export async function spendReaction(actor, { origin = null, what = "a Reaction" 
     flags: { [MODULE_ID]: { [CHIP_FLAG]: "reaction" } }
   }, { parent: actor });
 }
+
+/** Aim the user's targets at these tokens for the duration of `fn`, then put them back. */
+export async function withTargets(tokens, fn) {
+  const before = [...game.user.targets];
+  try {
+    game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+    tokens.forEach((t, i) => t.setTarget(true, { releaseOthers: i === 0 }));
+    return await fn();
+  } finally {
+    game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+    before.forEach((t, i) => t.setTarget(true, { releaseOthers: i === 0 }));
+  }
+}
