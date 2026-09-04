@@ -23,10 +23,11 @@ const SECTIONS = {
   6: 'Sweeping Attack: nothing rides; the POPUP lists the creature within 5 feet; the pick rolls the die and applies it when the attack would hit',
   7: 'no dice left: the offer does not open for the menu; asked for, the rows stay greyed',
   8: 'the Hit Menu list is the switch: an empty list offers nothing',
-  9: 'a critical hit doubles the die',
+  9: 'a critical hit doubles the die; Goaded lands on the target and NEVER on the fighter (the pack ships it transfer:true)',
+  11: 'a copy that has lost its effect: Goaded still lands, pressed from the compendium',
   10: 'the registration FIRED (§11): preRollDamageV2 moved with a maneuver on it'
 };
-const DEPENDS = { 10: ['3'] };
+const DEPENDS = { 10: ['3'], 11: ['9'] };
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
 const f = await connectSuite({ tag: 'hitmenu', watchdogMs: 720_000 });
@@ -279,9 +280,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         rows.join());
       const trip = menu?.querySelector('[data-bf-hit-row="trip-attack"]');
       const tripText = textOf(trip);
-      ok('1d. the row is the name and the cost — "1d8 Superiority Die" — the save left to the rule under it (user, 2026-09-04)',
-        /Trip Attack/.test(tripText) && /1d8 Superiority Die/i.test(tripText) && !/Strength/.test(tripText.replace(/the rule.*$/, ''))
-          && /Large or smaller/.test(tripText),
+      ok('1d. the row is the name and the cost — "1d8 Superiority Die" — no caveat line, the save left to the rule under it (user, 2026-09-04)',
+        /Trip Attack/.test(tripText) && /1d8 Superiority Die/i.test(tripText) && !/Strength|Large or smaller/.test(tripText.replace(/the rule.*$/, '')),
         tripText.slice(0, 200));
       ok('1e. the offer\'s line says what the menu is for',
         /Maneuvers/.test(textOf(offer)) && /one maneuver per attack/.test(textOf(offer)), textOf(offer).slice(0, 200));
@@ -478,10 +478,39 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // "applying goading attack didnt do anything") — it must still land on the failure.
       const goaded = await waitFor(() => victim.effects.find(e => e.name === 'Goaded'), 8000);
       const gr = game.messages.get(card?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => t.uuid === victim.uuid);
-      ok('9b. the failure lands Goaded — the activity\'s own effect, shipped transfer:true — receipted on the demand card',
+      ok('9b. the failure lands Goaded on the TARGET, receipted on the demand card',
         !!goaded && !!gr?.effects?.some(e => /Goaded/.test(e.name)),
         `goaded=${!!goaded} outcome=${card?.getFlag(MOD, 'saves')?.targets?.[0]?.outcome} applied=${card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied} receipt=${JSON.stringify(gr?.effects?.map(e => e.name))} effects=${JSON.stringify(victim.effects.map(e => e.name))}`);
+      // The pack flags Goaded transfer:true — a passive on the WIELDER (user, 2026-09-04: "the fighter
+      // should never have the effect on as a precondition"). The machine corrects the wielder's copy.
+      const goadingItem = fighter.items.find(i => i.name === 'Goading Attack');
+      const itemEffect = goadingItem?.effects.find(e => e.name === 'Goaded');
+      const onFighter = [...fighter.allApplicableEffects()].some(e => e.name === 'Goaded');
+      ok('9c. the fighter never carries Goaded: the item\'s copy is corrected to transfer:false, and no Goaded stands on him',
+        !!itemEffect && (itemEffect.transfer === false) && !onFighter,
+        `itemEffect=${!!itemEffect} transfer=${itemEffect?.transfer} onFighter=${onFighter}`);
       face(19);
+      await settle();
+    }
+
+    // ================================================== 11. the lost effect, pressed from the compendium
+    if (want(11)) {
+      await clearChips();
+      await refill();
+      const goadingItem = fighter.items.find(i => i.name === 'Goading Attack');
+      const eff = goadingItem?.effects.find(e => e.name === 'Goaded');
+      if (eff) await eff.delete();   // the table's shape: the item on the sheet has lost its Goaded
+      ok('11. (setup) the fighter\'s Goading Attack has no Goaded effect of its own', !!goadingItem && !goadingItem.effects.size, `effects=${goadingItem?.effects.size}`);
+      const { hm } = await swingWith('goading-attack');
+      const card = await waitFor(() => cardsWith('hitManeuverCard').filter(m => m.getFlag(MOD, 'hitManeuverCard')?.key === 'goading-attack' && m.getFlag(MOD, 'saves')).pop(), 10000);
+      const hc = card?.getFlag(MOD, 'hitManeuverCard');
+      ok('11a. the demand carries the compendium copy to press', !!hm && !!hc?.pressUuids?.length && /Compendium\./.test(hc.pressUuids[0]), JSON.stringify(hc?.pressUuids));
+      await answerSave();
+      const goaded = await waitFor(() => victim.effects.find(e => e.name === 'Goaded'), 10000);
+      const gr = await waitFor(() => game.messages.get(card?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => (t.uuid === victim.uuid) && t.effects?.length), 10000);
+      ok('11b. the failure still lands Goaded on the target — from the compendium\'s own effect, receipted',
+        !!goaded && !!gr?.effects?.some(e => /Goaded/.test(e.name)) && (goaded?.transfer === false),
+        `goaded=${!!goaded} transfer=${goaded?.transfer} receipt=${JSON.stringify(gr?.effects?.map(e => e.name))}`);
       await settle();
     }
 

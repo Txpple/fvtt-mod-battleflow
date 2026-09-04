@@ -176,7 +176,6 @@ export const CUNNING_OPTIONS = Object.freeze({
     upgrade: Object.freeze({ feature: "Envenom Weapons", activity: "Poison", onFail: "poisoned", effectFrom: "Cunning Strike",
       rule: "When you use the Poison option of your Cunning Strike, the target also takes 2d6 Poison damage whenever it fails the saving throw. This damage ignores Resistance to Poison damage." }) }),
   trip: Object.freeze({ feature: "Cunning Strike", activity: "Trip", cost: 1,
-    caveat: "the target must be Large or smaller",
     rule: "Trip (Cost: 1d6). If the target is Large or smaller, it must succeed on a Dexterity saving throw or have the Prone condition." }),
   withdraw: Object.freeze({ feature: "Cunning Strike", activity: null, cost: 1,
     rule: "Withdraw (Cost: 1d6). Immediately after the attack, you move up to half your Speed without provoking Opportunity Attacks." }),
@@ -342,9 +341,10 @@ export const CLOCK_RIDER_NAMES = new Set(Object.values(CLOCK_RIDERS).map(r => r.
  *   save      true — the option's save activity is used at the hit target after the damage
  *   onFail    a status the item's own (unlinked) effect presses on a failed save
  *   effects   true — the damage activity's own effects land on the hit target (no save)
- *   line      what the card says beyond the rule, for a consequence the table plays
+ *   line      what the card says beyond the rule, for a consequence the table plays — uniform
+ *             "Played at the table: …" (user, 2026-09-04)
  *   melee     true — a melee attack only
- *   caveat    what the module cannot judge, said on the row
+ *   (no caveat lines — user, 2026-09-04: "just the rule tick is needed"; what the rules leave to the player is in the rule)
  *
  * Membership is the Hit Menu list (the option names). Precision Attack and Riposte are FOLDS
  * (maneuvers.js) and the nine remaining maneuvers are other moments (BACKLOG).
@@ -358,26 +358,23 @@ export const HIT_GROUPS = Object.freeze({
 
 export const HIT_OPTIONS = Object.freeze({
   "trip-attack": Object.freeze({ feature: "Trip Attack", group: "combat-superiority", save: true, onFail: "prone",
-    caveat: "the target must be Large or smaller",
     rule: "When you hit a creature with an attack roll using a weapon or an Unarmed Strike, you can expend one Superiority Die and add the die to the attack's damage roll. If the target is Large or smaller, it must succeed on a Strength saving throw or have the Prone condition." }),
   "goading-attack": Object.freeze({ feature: "Goading Attack", group: "combat-superiority", save: true,
     rule: "When you hit a creature with an attack roll, you can expend one Superiority Die to attempt to goad the target into attacking you. Add the Superiority Die to the attack's damage roll. The target must succeed on a Wisdom saving throw or have Disadvantage on attack rolls against targets other than you until the end of your next turn." }),
   "menacing-attack": Object.freeze({ feature: "Menacing Attack", group: "combat-superiority", save: true,
     rule: "When you hit a creature with an attack roll, you can expend one Superiority Die to attempt to frighten the target. Add the Superiority Die to the attack's damage roll. The target must succeed on a Wisdom saving throw or have the Frightened condition until the end of your next turn." }),
   "pushing-attack": Object.freeze({ feature: "Pushing Attack", group: "combat-superiority", save: true,
-    caveat: "the target must be Large or smaller",
-    line: "On a failed save the target is pushed up to 15 feet directly away — the table moves it.",
+    line: "Played at the table: on a failed save, the target is pushed up to 15 feet directly away from you.",
     rule: "When you hit a creature with an attack roll using a weapon or an Unarmed Strike, you can expend one Superiority Die to attempt to drive the target back. Add the Superiority Die to the attack's damage roll. If the target is Large or smaller, it must succeed on a Strength saving throw or be pushed up to 15 feet directly away from you." }),
   "disarming-attack": Object.freeze({ feature: "Disarming Attack", group: "combat-superiority", save: true,
-    line: "On a failed save the target drops one object of your choice — the table plays it.",
+    line: "Played at the table: on a failed save, the target drops one object of your choice, which lands in its space.",
     rule: "When you hit a creature with an attack roll, you can expend one Superiority Die to attempt to disarm the target. Add the Superiority Die roll to the attack's damage roll. The target must succeed on a Strength saving throw or drop one object of your choice that it's holding, with the object landing in its space." }),
   "distracting-strike": Object.freeze({ feature: "Distracting Strike", group: "combat-superiority", effects: true,
     rule: "When you hit a creature with an attack roll, you can expend one Superiority Die to distract the target. Add the Superiority Die roll to the attack's damage roll. The next attack roll against the target by an attacker other than you has Advantage if the attack is made before the start of your next turn." }),
   "maneuvering-attack": Object.freeze({ feature: "Maneuvering Attack", group: "combat-superiority",
-    line: "Choose a willing creature who can see or hear you: it can use its Reaction to move up to half its Speed without provoking an Opportunity Attack from the target.",
+    line: "Played at the table: choose a willing creature who can see or hear you; it can use its Reaction to move up to half its Speed without provoking an Opportunity Attack from the target.",
     rule: "When you hit a creature with an attack roll, you can expend one Superiority Die to maneuver one of your comrades into another position. Add the Superiority Die roll to the attack's damage roll, and choose a willing creature who can see or hear you. That creature can use its Reaction to move up to half its Speed without provoking an Opportunity Attack from the target of your attack." }),
   "sweeping-attack": Object.freeze({ feature: "Sweeping Attack", group: "combat-superiority", mode: "sweep", melee: true,
-    caveat: "the second creature must be within your reach — the card lists those within 5 feet of the target",
     rule: "When you hit a creature with a melee attack roll using a weapon or an Unarmed Strike, you can expend one Superiority Die to attempt to damage another creature. Choose another creature within 5 feet of the original target and within your reach. If the original attack roll would hit the second creature, it takes damage equal to the number you roll on your Superiority Die. The damage is of the same type dealt by the original attack." })
 });
 

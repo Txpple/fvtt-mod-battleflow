@@ -5,9 +5,18 @@
 //   node tools/probe-hitmenu-table.mjs [messageId ...]     default: every card with a hitManeuverCard flag
 // ⚠ Disconnect the MCP bridge first (the sole-GM preflight).
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
+import { Foundry } from "file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js";
+import { foundryConfig } from "./target.mjs";
 
-const ids = process.argv.slice(2);
-const f = await connectSuite({ tag: "probe-hitmenu", watchdogMs: 120_000, requireElect: false, env: loadEnv() });
+// `--observe`: connect WITHOUT the sole-GM preflight — a read while the table's GM is logged in.
+// A second GM-capable client for a few seconds; the probe writes nothing and hangs up at once.
+const argv = process.argv.slice(2);
+const observe = argv.includes("--observe");
+const ids = argv.filter(a => a !== "--observe");
+let f;
+if (observe) { f = new Foundry(foundryConfig(loadEnv())); await f.connect(); }
+else f = await connectSuite({ tag: "probe-hitmenu", watchdogMs: 120_000, requireElect: false, env: loadEnv() });
+setTimeout(() => process.exit(3), 120_000);
 const out = await f.evaluate(async ({ ids }) => {
   const MOD = "fvtt-mod-battleflow";
   const cards = ids.length ? ids.map(id => game.messages.get(id)).filter(Boolean)
@@ -39,4 +48,4 @@ const out = await f.evaluate(async ({ ids }) => {
     gm: game.users.filter(u => u.isGM).map(u => `${u.name}${u.active ? " (active)" : ""}`) };
 }, { ids });
 console.log(JSON.stringify(out, null, 2));
-await disposeSafely(f, "probe-hitmenu");
+if (observe) { await (f.dispose?.() ?? f.disconnect?.()); process.exit(0); } else await disposeSafely(f, "probe-hitmenu");

@@ -663,7 +663,10 @@ grouped by the feature that grants the rows, smites out) and built off the proto
   the demand, the timer and the failed-save press are the saves machine's, and the condition
   the activity carries (Goaded, Frightened) lands through it. A condition the pack left on the
   ITEM unlinked (Trip's Prone — measured 2026-09-04) is pressed on the failure by a follow-up,
-  the Envenom Weapons shape. Distracting Strike's *Distracted* has no save: applied on the hit,
+  the Envenom Weapons shape. **The fighter never carries a target's effect** (user, the walk:
+  *"the fighter should never have the effect on as a precondition"*): the pack ships Goaded as a
+  transfer effect — a passive on the wielder — and the module corrects the wielder's own copy of
+  the item to `transfer: false`, and presses a lost effect from the compendium's copy (NOTES §2). Distracting Strike's *Distracted* has no save: applied on the hit,
   receipted; the gate already reads it (the effect table's row from the scan).
 - **A LINE option says what the table plays** — Maneuvering Attack's ally move, Pushing's 15
   feet, Disarming's dropped object — on the card, never automated (R1).

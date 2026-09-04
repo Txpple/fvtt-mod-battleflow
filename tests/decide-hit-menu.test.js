@@ -73,7 +73,7 @@ describe("hitMenu — the rows, read off the sheet", () => {
       label: "Trip Attack",
       cost: "1d8 Superiority Die",
       affordable: true,
-      caveat: "the target must be Large or smaller"
+      caveat: null
     });
   });
 

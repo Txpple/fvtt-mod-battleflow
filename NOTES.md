@@ -751,23 +751,44 @@ parser reads as one die but which the card should not print; the reader prefixes
 attack"* — and the DC rule (8 + Strength OR Dexterity + proficiency, the player's choice). The
 save activities carry their own DC; the demand card reads it off them, never computes it.
 
-### An item imported by the MCP's add-feature can arrive without its transfer effect (2026-09-04)
+### The pack ships Goaded as a TRANSFER effect, and that is why Goading Attack "did nothing" (2026-09-04)
 
-The table's first Goading Attack (Morgash, added through `foundry-local5e` `add-feature`)
-demanded its Wisdom save, Jetten failed, and nothing landed. `tools/probe-hitmenu-table.mjs`
-read the card: the save activity's effect entry did not RESOLVE — the item on the actor carried
-no "Goaded" effect at all, while the pack's copy carries one with `transfer: true`. The other
-seven maneuvers arrived whole (their effects are `transfer: false`), and the importer had
-helpfully remapped every pool target to the actor's Combat Superiority id. So a `transfer`
-effect is what that importer drops, and a maneuver whose whole consequence is such an effect
-becomes a save that presses nothing — the saves machine did everything right over an empty list.
+The walk's report — Goading Attack demanded its save, Jetten failed, nothing landed — took four
+measurements to pin, and the first conclusion (the MCP importer dropping the effect) was WRONG in
+the part that mattered. The facts, in the order they were found:
+
+1. The item on Morgash had no "Goaded" effect while the pack's copy has one linked to the save
+   activity (`activity.effects[]` naming an id the item no longer carried — `resolves: false`,
+   `applicableEffects: []`). The saves machine did everything right over an empty list.
+2. A copy rebuilt from the pack carried Goaded, survived twelve seconds under my client, and
+   survived a server restart on both Morgash and the test fighter — persistence was never the
+   problem. It was gone again after the table's next session.
+3. **Goaded is `transfer: true` in the pack.** With `legacyTransferral` off, a transfer effect on
+   an item is a PASSIVE on the wielder: Morgash's own sheet listed Goaded (user: *"morgash says
+   goaded … but he should never have the effect … it should be who he hits"*). A passive with a
+   one-turn clock is exactly what a turn expiry or a hand tidy of the wielder's Effects tab
+   deletes — and deleting it from the actor's sheet deletes the ITEM's only copy, which is what
+   the save activity pointed at. The other seven maneuvers' effects are `transfer: false` and
+   never moved.
+
+**What the module does now (hit-menu.js):** a row's target-facing effects (the save activity's,
+the damage activity's, the `onFail` status effect) with `transfer: true` are corrected to
+`false` on the WIELDER's own copy of the item — world data, never the compendium — by the client
+that owns the actor, at `ready` and when the item lands (`repairTransferEffects`). A copy that
+has already lost the effect is not stranded: the follow-up presses it from the compendium's own
+copy, found by the item's recorded source or by NAME in the premium packs (a copy made from pack
+data records no source — the fixture's, the importer's, a hand-built one), the same effect id
+the activity names (`compendiumCopyOf`). `smoke-hitmenu` §9c and §11 pin both.
+
+**The rule that generalises:** when a save "applies nothing", read whether the activity's effect
+entries RESOLVE before reading anything else. And a tester's second GM-capable client is a real
+hazard while the table plays: two elects apply twice and the twin-dedupe floor removes both —
+the harness's sole-GM preflight is the guard, and `--observe` on a probe bypasses it on purpose;
+use it only with the world otherwise empty.
 
 `tools/fixture-morgash-maneuvers.mjs` compares an actor's maneuvers against the pack effect by
-effect (read-only) and replaces a mismatched item with the pack's copy under `--fix`. The
-suite's fighter adds its maneuvers from `pack.getDocument().toObject()`, which is why the same
-row passed there. ⚠ The importer is the MCP repo's; until it keeps transfer effects, add a
-maneuver that carries one from the compendium by hand (drag from the pack) or through the
-fixture tool.
+effect and rebuilds a mismatch under `--fix`; `tools/probe-hitmenu-table.mjs` reads a hit-menu
+demand card's flags.
 
 ## 3. The statblock caster
 
