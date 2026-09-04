@@ -2,13 +2,14 @@
  * Battle Flow — Emanations: an aura applies itself to the creatures inside it, and the platform keeps the geometry and the clock.
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, activeCombatFor, statContext, whisperNoGM } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor } from "./core.js";
 import { emanationEntries } from "./settings.js";
 import { turnChitStands, writeTurnChit } from "./shared.js";
 import { tokensInTemplates } from "./geometry.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { EMANATIONS } from "./decide/registry.js";
-import { reachAdmits, resolveChanges, emanationRange, triggerDue, memberEffectData } from "./decide/emanations.js";
+import { reachAdmits, resolveChanges, emanationRange, triggerDue, memberEffectData, damageTypeFor } from "./decide/emanations.js";
+import { registerRelay } from "./ui.js";
 import { rollDamageForSave } from "./auto-damage.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -248,7 +249,7 @@ async function maybeTrigger(behType, token, cause) {
           ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
           targets: [{ uuid: actor.uuid, name: token.name, done: false, outcome: null, total: null, rollMessageId: null }]
         },
-        emanationTrigger: { key: row.key, cause, regionId: region.id, targetUuid: actor.uuid }
+        emanationTrigger: { key: row.key, cause, regionId: region.id, targetUuid: actor.uuid, inCombat: !!combat, why: due.why }
       } }
     });
     if ( hasDamage && card ) await rollDamageForSave(activity, card);
@@ -429,7 +430,8 @@ async function adoptSpellRegion(region) {
     await adoptRegion(region, { kind: "spell", key: row.key, tok, itemUuid, reach: row.reach, scaling,
       effect: (effect && !resolved.unresolved.length) ? { name: effect.name, img: effect.img ?? item.img ?? null, description: row.rule, changes: resolved.changes } : null });
     const size = activitySizeOf(item, rollData);
-    await announce(row, actor, item, size ?? region.shapes[0]?.radiusX ?? null, effect ? { name: effect.name, changes: resolved.changes } : null, "is cast");
+    await announce(row, actor, item, size ?? region.shapes[0]?.radiusX ?? null, effect ? { name: effect.name, changes: resolved.changes } : null, "is cast",
+      { activity: [...(item.system?.activities ?? [])].find(a => a.type === "save") ?? null, regionId: region.id });
     await reconcileMembers(region);
   } catch(err) {
     console.error(`${TITLE} | Could not adopt a spell's emanation — its effects apply by hand.`, err);
@@ -536,10 +538,18 @@ function describeChanges(changes) {
   return parts.length ? parts.join(", ") : "the effect as the pack ships it";
 }
 
-async function announce(row, actor, item, range, effect, verb) {
+/** The types a save activity's first damage part offers, in the pack's order. */
+const partTypesOf = activity => [...(activity?.damage?.parts?.[0]?.types ?? [])].map(t => String(t).toLowerCase());
+
+async function announce(row, actor, item, range, effect, verb, { activity = null, regionId = null } = {}) {
   try {
     const reach = row.reach === "helpful" ? "allies and neutrals inside" : "enemies inside";
     const rangeText = range ? `${range}-foot Emanation` : "Emanation";
+    // A damage part with several types (Spirit Guardians: necrotic OR radiant) is a choice the
+    // card carries: the alignment's answer as the default, the caster's pick when made.
+    const types = partTypesOf(activity);
+    const alignment = actor?.system?.details?.alignment ?? null;
+    const choice = (types.length > 1) ? { types, activityUuid: activity.uuid, alignment, ...damageTypeFor(types, alignment) } : null;
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor }),
       content: bfCard({
@@ -548,12 +558,92 @@ async function announce(row, actor, item, range, effect, verb) {
         subtitle: effect ? `${reach}: ${effect.name} — ${describeChanges(effect.changes)}${row.trigger ? " · a save on entering and on ending a turn inside" : ""}` : (row.trigger ? "a save on entering and on ending a turn inside" : reach),
         lines: [ruleLine(row.rule), row.caveat ? `<span style="opacity:0.8;">${row.caveat}</span>` : null]
       }),
-      flags: { [MODULE_ID]: { emanationCard: { ...statContext(actor?.uuid ?? null), key: row.key, verb, range: range ?? null } } }
+      flags: { [MODULE_ID]: { emanationCard: { ...statContext(actor?.uuid ?? null), key: row.key, verb, range: range ?? null, regionId,
+        ...(choice ? { types: choice.types, activityUuid: choice.activityUuid, damageType: choice.type, damageWhy: choice.why, chosen: false } : {}) } } }
     });
   } catch(err) {
     console.warn(`${TITLE} | Could not post the emanation card.`, err);
   }
 }
+
+/* --- the damage type: the alignment's by default, the caster's by choice ----------------------- */
+
+/** The cast's emanation card for this activity — the newest one, where the pick lives. */
+function emanationCardFor(activityUuid) {
+  return game.messages.contents.filter(m => m.getFlag(MODULE_ID, "emanationCard")?.activityUuid === activityUuid).at(-1) ?? null;
+}
+
+// The pick is a fold onto the card (R2): the GM writes it straight, a player's click travels as
+// an envelope the driving client folds — the relay idiom every answer in this module rides.
+registerRelay("emanationTypeAnswer", {
+  flagKey: "emanationCard",
+  targetOf: a => a.cardId,
+  owns: flag => drivesMomentFor(flag?.sourceUuid ?? null),
+  fold: (current, a) => {
+    if ( !current.types?.includes(a.type) ) return false;
+    current.damageType = a.type; current.damageWhy = "chosen"; current.chosen = true;
+  },
+  cleanup: true
+});
+
+async function chooseDamageType(card, type) {
+  const flag = card.getFlag(MODULE_ID, "emanationCard");
+  if ( !flag?.types?.includes(type) ) return;
+  if ( card.canUserModify?.(game.user, "update") ) {
+    await card.setFlag(MODULE_ID, "emanationCard", { ...flag, damageType: type, damageWhy: "chosen", chosen: true });
+    return;
+  }
+  await ChatMessage.create({ whisper: [game.user.id], speaker: { alias: TITLE }, content: `<p>${type}</p>`,
+    flags: { [MODULE_ID]: { emanationTypeAnswer: { cardId: card.id, type } } } });
+}
+
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  const f = message.getFlag(MODULE_ID, "emanationCard");
+  if ( !f?.types?.length ) return;
+  const row = document.createElement("div");
+  row.style.cssText = "display:flex;gap:0.35rem;align-items:center;margin-top:0.35rem;flex-wrap:wrap;";
+  const label = document.createElement("span");
+  label.style.cssText = "font-size:var(--font-size-11,11px);opacity:0.75;";
+  label.textContent = f.chosen ? "Damage type — chosen:" : `Damage type — ${f.damageWhy}:`;
+  row.appendChild(label);
+  for ( const type of f.types ) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.dataset.bfEmanationType = type;
+    const on = type === f.damageType;
+    b.style.cssText = `font-size:var(--font-size-11,11px);padding:0.15rem 0.6rem;border-radius:3px;line-height:1.4;`
+      + (on ? "font-weight:bold;border:2px solid rgba(70,150,95,0.95);" : "opacity:0.75;");
+    b.textContent = `${type.charAt(0).toUpperCase()}${type.slice(1)}${on ? " ✓" : ""}`;
+    b.addEventListener("click", ev => { ev.preventDefault(); void chooseDamageType(message, type); });
+    row.appendChild(b);
+  }
+  html.querySelector(".message-content")?.appendChild(row);
+});
+
+// Every roll of the cast wears the type: the save activity's own damage roll — the cast's, the
+// triggers' — carries the card's pick, or the alignment's default when no card stands yet (the
+// cast's first roll can land before the card does).
+Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+  try {
+    const activity = config.subject;
+    if ( (activity?.type !== "save") || !live() ) return;
+    const row = rowNamed(activity.item?.name);
+    if ( !row || (row.kind !== "spell") || !listed().has(lower(row.key)) ) return;
+    const types = partTypesOf(activity);
+    if ( types.length < 2 ) return;
+    const card = emanationCardFor(activity.uuid);
+    const chosen = card?.getFlag(MODULE_ID, "emanationCard")?.damageType ?? null;
+    const { type } = damageTypeFor(types, activity.actor?.system?.details?.alignment ?? null, chosen);
+    if ( !type ) return;
+    for ( const roll of config.rolls ?? [] ) {
+      const offered = [...(roll.options?.types ?? [])].map(t => String(t).toLowerCase());
+      if ( offered.includes(type) ) { roll.options ??= {}; roll.options.type = type; }
+    }
+    foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.emanationType`, { type, chosen: !!chosen });
+  } catch(err) {
+    console.warn(`${TITLE} | Could not set the emanation's damage type — the roll wears the pack's first.`, err);
+  }
+});
 
 /* --- the hooks: when to look ---------------------------------------------------------------- */
 

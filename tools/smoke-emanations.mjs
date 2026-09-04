@@ -82,6 +82,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   let combat = null;
   let template = null;
   let restored = false;
+  const priorActiveCombats = [];
   const sgItemUuid = () => cleric.items.find(i => i.name === 'Spirit Guardians')?.uuid ?? null;
   const clearMembers = async () => {
     for (const a of [paladin, cleric, ranger, victim, vicTok.actor].filter(Boolean)) {
@@ -103,6 +104,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     try {
       await closeDialogs();
       try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
+      for (const id of priorActiveCombats) { try { await game.combats.get(id)?.update({ active: true }); } catch { /* gone */ } }
       try { if (template && scene.templates.get(template.id)) await template.delete(); } catch { /* gone */ }
       // The cast began concentration; end it so the next cast is not asked about the last one.
       try { if (cleric.concentration?.effects?.size) await cleric.endConcentration(); } catch { /* none */ }
@@ -269,26 +271,63 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('7b. entering raises a save demand card for the Victim alone — Wisdom, the spell\'s DC, half on a success', !!card && (flag?.abilities?.[0] === 'wis') && (flag?.dc === sgAct.save.dc.value) && (flag?.targets?.length === 1) && (flag.targets[0].uuid === vicActor.uuid) && (flag?.damageOnSave === 'half'), `flag=${JSON.stringify(flag && { abilities: flag.abilities, dc: flag.dc, targets: flag.targets.map(t => t.name), effectsHandled: flag.effectsHandled, scaling: flag.scaling })}`);
       const dmg = await waitFor(() => game.messages.find(m => (m.timestamp >= suiteStart) && (m.getFlag('dnd5e', 'originatingMessage') === card?.id) && (m.getFlag('dnd5e', 'roll.type') === 'damage')) ?? null, 8000);
       ok('7c. the spell\'s damage rolled against the demand (3d8 at 3rd level — the card\'s own chain)', !!dmg && /3d8/.test(dmg.rolls?.[0]?.formula ?? ''), `formula=${dmg?.rolls?.[0]?.formula}`);
+      // The TYPE: the pack's part offers necrotic OR radiant; the alignment decides the default
+      // (the built Cleric has none → radiant), and the card carries the choice.
+      const emCard = game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationCard')?.activityUuid === sgAct.uuid).at(-1);
+      const emFlag = emCard?.getFlag(MOD, 'emanationCard');
+      ok('7c2. the emanation card offers the two types with radiant as the alignment\'s default', !!emFlag && (emFlag.types?.join(',') === 'necrotic,radiant') && (emFlag.damageType === 'radiant') && !emFlag.chosen, `types=${emFlag?.types} default=${emFlag?.damageType} why="${emFlag?.damageWhy}" alignment="${cleric.system.details?.alignment}"`);
+      ok('7c3. the trigger\'s roll wears radiant', (dmg?.rolls?.[0]?.options?.type === 'radiant') && (dmg?.getFlag(MOD, 'emanationType')?.type === 'radiant'), `type=${dmg?.rolls?.[0]?.options?.type} flag=${JSON.stringify(dmg?.getFlag(MOD, 'emanationType'))}`);
+      // The caster picks necrotic — as a player would, over the relay envelope — and the next roll wears it.
+      if (emCard) {
+        await ChatMessage.create({ whisper: [game.user.id], speaker: { alias: 'Battle Flow' }, content: '<p>necrotic</p>', flags: { [MOD]: { emanationTypeAnswer: { cardId: emCard.id, type: 'necrotic' } } } });
+        const picked = await waitFor(() => emCard.getFlag(MOD, 'emanationCard')?.chosen ? emCard.getFlag(MOD, 'emanationCard') : null, 6000);
+        ok('7c4. the pick folds onto the card over the relay: necrotic, chosen', picked?.damageType === 'necrotic', `flag=${JSON.stringify(picked && { damageType: picked.damageType, chosen: picked.chosen })}`);
+      }
       ok('7d. out of combat, the demand is not once-per-turn — no chit is written', !vicActor.effects.some(e => e.getFlag(MOD, 'riderKey') === `emanation:${sgRegion.id}`), '');
       // Now in combat: a turn ended inside, and the once-per-turn.
       await closeDialogs();
+      // ⚠ OURS must be `game.combat`: a standing GLOBAL combat (the user's walk, round 4) kept
+      // reading as the running one — Foundry prefers it, `activate()` did not displace it — so the
+      // Victim was "out of combat" and no chit was written (NOTES: look at game.combats before
+      // diagnosing; ask before deleting). Set every other active combat INACTIVE for the run and
+      // reactivate it in teardown — reversible, nothing deleted.
+      for (const c of game.combats.filter(c => c.active)) { priorActiveCombats.push(c.id); await c.update({ active: false }); }
+      // SCENE-BOUND: the Combat dispatches its turn events to the regions of ITS scene — a global
+      // (scene-less) combat raised no tokenTurnEnd for the range's emanation (measured).
       combat = await Combat.create({ scene: scene.id, active: true });
       await combat.createEmbeddedDocuments('Combatant', [{ tokenId: clrTok.id, actorId: cleric.id, initiative: 20 }, { tokenId: vicTok.id, actorId: victim.id, initiative: 10 }]);
       await combat.startCombat();
-      await sleep(600);
-      // The Cleric's turn (initiative 20) ends first — not the Victim's; then the Victim's turn ends INSIDE.
+      // `game.combat` IS `ui.combat.viewed` while the tracker is rendered (measured, Foundry
+      // 14.365) — the encounter the GM is LOOKING AT, which stayed on the stale one. Point the
+      // tracker at ours, as a GM's click would.
+      if (game.combat?.id !== combat.id) { try { ui.combat.viewed = combat; } catch (err) { log.push(`tracker: ${err.message}`); } }
+      const viewedOk = await waitFor(() => game.combat?.id === combat.id ? true : null, 4000);
+      if (!viewedOk) log.push(`⚠ game.combat is still ${game.combat?.id}, not ours (${combat.id})`);
+      await sleep(400);
+      log.push(`combat ${combat.id} active=${game.combat?.id === combat.id}; others on the range: ${game.combats.filter(c => c.id !== combat.id && c.scene?.id === scene.id).map(c => `${c.id} r${c.round}`).join(', ') || 'none'}`);
+      // ONCE PER TURN, within one turn (the Cleric's, initiative 20, round 1): the Victim walks
+      // in (a save, a chit stamped with this turn), then out and in again (no second save).
       const n1 = triggerCards().length;
-      await combat.nextTurn();     // → the Victim's turn
-      await sleep(800);
-      await combat.nextTurn();     // the Victim's turn ENDS inside → tokenTurnEnd → a demand
-      const endCard = await waitFor(() => triggerCards().find(m => m.getFlag(MOD, 'emanationTrigger')?.cause === 'turnEnd') ?? null, 8000);
-      ok('7e. ending its turn inside raises a save demand (tokenTurnEnd on the GM)', !!endCard, `cards=${triggerCards().length} (was ${n1})`);
-      ok('7f. the once-per-turn chit was written on the Victim for this emanation', vicActor.effects.some(e => e.getFlag(MOD, 'riderKey') === `emanation:${sgRegion.id}`), vicActor.effects.filter(e => e.getFlag(MOD, 'mastery')).map(e => e.name).join(','));
+      await vicTok.update(vicOut, mv()); await sleep(600);
+      await vicTok.update(vicIn, mv());
+      const inCard = await waitFor(() => triggerCards().length > n1 ? triggerCards().at(-1) : null, 8000);
+      const facts = { combat: game.combat?.id, started: game.combat?.started, round: game.combat?.round, turn: game.combat?.turn, vicCombatants: game.combat?.getCombatantsByActor?.(vicActor)?.length, isToken: vicActor.isToken, trigger: inCard?.getFlag(MOD, 'emanationTrigger') };
+      ok('7f. in combat, entering raises the save and writes the once-per-turn chit on the Victim', !!inCard && vicActor.effects.some(e => e.getFlag(MOD, 'riderKey') === `emanation:${sgRegion.id}`), `cards=${triggerCards().length} chits=${vicActor.effects.filter(e => e.getFlag(MOD, 'mastery')).map(e => e.name).join(',')} facts=${JSON.stringify(facts)}`);
       const n2 = triggerCards().length;
       await closeDialogs();
       await vicTok.update(vicOut, mv()); await sleep(600);
       await vicTok.update(vicIn, mv()); await sleep(1500);
       ok('7g. a second entry in the SAME turn asks for no second save', triggerCards().length === n2, `cards=${triggerCards().length} (was ${n2}, before combat ${n0})`);
+      await closeDialogs();
+      // Then the turns move: the Victim's turn begins and ENDS inside → tokenTurnEnd → a demand
+      // (a new turn, so the chit from the Cleric's turn does not block it).
+      await combat.nextTurn();     // → the Victim's turn
+      await sleep(800);
+      await combat.nextTurn();     // the Victim's turn ENDS inside
+      const endCard = await waitFor(() => triggerCards().find(m => m.getFlag(MOD, 'emanationTrigger')?.cause === 'turnEnd') ?? null, 8000);
+      ok('7e. ending its turn inside raises a save demand (tokenTurnEnd on the GM)', !!endCard, `cards=${triggerCards().length} (was ${n2})`);
+      const endDmg = await waitFor(() => game.messages.find(m => (m.timestamp >= suiteStart) && (m.getFlag('dnd5e', 'originatingMessage') === endCard?.id) && (m.getFlag('dnd5e', 'roll.type') === 'damage')) ?? null, 8000);
+      ok('7e2. …and its damage wears the chosen type, necrotic', endDmg?.rolls?.[0]?.options?.type === 'necrotic', `type=${endDmg?.rolls?.[0]?.options?.type} chosen=${endDmg?.getFlag(MOD, 'emanationType')?.chosen}`);
       await closeDialogs();
     }
 

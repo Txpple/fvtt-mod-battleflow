@@ -144,6 +144,29 @@ export function triggerDue({ inCombat, chitStands }) {
 }
 
 /**
+ * The damage type an emanation's roll wears when the pack's part carries several (Spirit
+ * Guardians: necrotic and radiant). The 2024 text decides it by the caster's alignment —
+ * "Radiant if you are good or neutral, Necrotic if you are evil" — so the DEFAULT is read off the
+ * sheet: an alignment naming evil → necrotic when the part offers it; otherwise radiant when the
+ * part offers it; otherwise the part's first type. A caster may still choose (user, 2026-09-03:
+ * "should have a choice between necrotic and radiant") — the pick, when made, replaces this.
+ * @param {string[]} types      the part's types, in the pack's order
+ * @param {string|null} alignment   the caster's alignment text
+ * @param {string|null} chosen  a pick already made, if it is one of the types
+ * @returns {{ type: string|null, why: string }}
+ */
+export function damageTypeFor(types, alignment = null, chosen = null) {
+  const list = (types ?? []).map(t => String(t).toLowerCase()).filter(Boolean);
+  if ( !list.length ) return { type: null, why: "no damage type on the part" };
+  if ( chosen && list.includes(String(chosen).toLowerCase()) ) return { type: String(chosen).toLowerCase(), why: "chosen" };
+  if ( list.length === 1 ) return { type: list[0] ?? null, why: "the part's one type" };
+  const evil = /evil/i.test(String(alignment ?? ""));
+  if ( evil && list.includes("necrotic") ) return { type: "necrotic", why: `the alignment reads "${alignment}"` };
+  if ( list.includes("radiant") ) return { type: "radiant", why: alignment ? `the alignment reads "${alignment}"` : "no alignment on the sheet — good or neutral" };
+  return { type: list[0] ?? null, why: "the part's first type" };
+}
+
+/**
  * The ActiveEffect a member receives — the pack's effect, named for its source, carrying the
  * resolved changes and the fingerprint the floor reads to know it is this emanation's.
  * @param {{ name: string, rule?: string }} row

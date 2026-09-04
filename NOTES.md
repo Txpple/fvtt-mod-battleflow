@@ -283,6 +283,18 @@ warns once, gone at v16) — read `units`/`value`/`expired` instead. Measured li
   template for a `radius` type carries `flags.dnd5e.dimensions.adjustedSize: true` and adjusts
   the drawn radius by the token at draw time; a module-placed circle carries the adjusted
   distance itself (size + half the token in feet) and no `dimensions` block.
+- **`game.combat` is `ui.combat.viewed` whenever the tracker is rendered** — the encounter the
+  GM is LOOKING AT, not the active one (`Game#combat`, read 2026-09-03: only with no tracker does
+  it fall back to `combats.find(c => c.isActive)`). A stale GLOBAL encounter (scene null, a walk's
+  leftover at round 4) stayed viewed while a suite's freshly created, started, activated combat
+  was not — so `activeCombatFor` read every combatant of the new fight as "out of combat", and
+  `Combat#activate` alone does not change what is viewed. A suite that needs its own encounter
+  to be THE combat cannot reliably take the view from a standing GLOBAL encounter — deactivating
+  it, assigning `ui.combat.viewed`, making its own combat global: the tracker re-picked the stale
+  one within a beat every time. The stale encounter was deleted (user's call) and the suite runs
+  clean; a table with two encounters standing should expect the module to follow the tracker.
+  ⚠ And a GLOBAL (scene-less) combat raised NO `tokenTurnEnd` for the range's regions — the
+  Combat dispatches its turn events to the regions of ITS scene. A suite's combat is scene-bound.
 - **The floor must be serialized.** One token move fires the region's enter event, `updateToken`
   and `updateRegion` within a tick; three reads of "no effect yet" before any create landed wrote
   the effect three times (Half Speed stacked to ×0.0625). One reconcile in flight per region, and

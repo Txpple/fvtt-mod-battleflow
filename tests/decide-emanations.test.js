@@ -204,3 +204,27 @@ describe("the EMANATIONS table (decide/registry.js)", () => {
     expect([...set.kinds].sort()).toEqual(["feature", "spell"]);
   });
 });
+
+describe("damageTypeFor — Spirit Guardians' type is the alignment's by default, and the caster's when chosen", () => {
+  const both = ["necrotic", "radiant"];
+  it("a good or neutral (or unaligned) caster deals radiant", () => {
+    expect(em.damageTypeFor(both, "Neutral Good").type).toBe("radiant");
+    expect(em.damageTypeFor(both, "").type).toBe("radiant");
+    expect(em.damageTypeFor(both, null).type).toBe("radiant");
+  });
+  it("an evil caster deals necrotic", () => {
+    expect(em.damageTypeFor(both, "Chaotic Evil").type).toBe("necrotic");
+    expect(em.damageTypeFor(both, "lawful evil").type).toBe("necrotic");
+  });
+  it("a pick that the part offers wins over the alignment", () => {
+    expect(em.damageTypeFor(both, "Neutral Good", "necrotic")).toEqual({
+      type: "necrotic",
+      why: "chosen"
+    });
+    expect(em.damageTypeFor(both, "Chaotic Evil", "fire").type).toBe("necrotic");
+  });
+  it("a single-type part is that type; no part is no type", () => {
+    expect(em.damageTypeFor(["fire"], "Chaotic Evil").type).toBe("fire");
+    expect(em.damageTypeFor([], "Good").type).toBe(null);
+  });
+});

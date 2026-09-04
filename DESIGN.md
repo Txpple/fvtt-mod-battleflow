@@ -574,6 +574,15 @@ automated — that sentence is the whole job, and the module does exactly that m
   gone with the effect on the way out. **One copy, one lifecycle:** the cast's own demand never
   applies the spell's standing effect (the two Half Speeds with two clocks were the walk's
   "inconsistent chit").
+- **A damage type the part leaves open is the alignment's by default and the caster's by
+  choice** (user walk, 2026-09-03: *"spirit guardians should have a choice between necrotic and
+  radiant"*). The 2024 text decides it by alignment — Radiant for good or neutral, Necrotic for
+  evil — so the default is read off the sheet and said on the card ("Damage type — the alignment
+  reads Chaotic Evil"); the card carries a button per type the pack's part offers, the caster's
+  pick folds onto the card over the relay, and every roll of that cast — the cast's own and the
+  triggers' — wears it. ⚠ This is the emanation's answer, not the clock riders' (§8: those take
+  the activity's first type and say so); the difference is that here the rules NAME the deciding
+  fact, so a default exists that is not a guess.
 - **Asked once at the cast** (user walk: *"if I cast it and the dummy is in range, it triggers
   two saves"*): whoever stands inside when the area appears is asked by the cast's demand; the
   area attaching around them is not an entry. Leave and come back, and the trigger asks again.
