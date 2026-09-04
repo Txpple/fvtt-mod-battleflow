@@ -25,9 +25,10 @@ const SECTIONS = {
   7: 'Spirit Guardians triggers: a save demand card when the hostile enters, another when it ends its turn inside, none for a second entry in the same turn',
   8: 'the template goes (concentration\'s end) — the region goes and Half Speed lifts',
   9: 'the switch: Emanations off removes the standing aura; on again raises it',
-  10: 'the registrations FIRED (§11): createRegion, updateToken and the region events moved'
+  10: 'the registrations FIRED (§11): createRegion, updateToken and the region events moved',
+  11: 'THE ACTIVE SCENE ONLY (user, 2026-09-04: the bleed): another scene made active brings the range\'s rings down and lifts the ally\'s effects; the range active again raises them once, no stack; a ring left on an inactive scene is brought down by the ready sweep'
 };
-const DEPENDS = { 2: [1], 3: [1], 4: [1], 5: [1], 7: [6], 8: [6], 9: [1] };
+const DEPENDS = { 2: [1], 3: [1], 4: [1], 5: [1], 7: [6], 8: [6], 9: [1], 11: [1] };
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
 const f = await connectSuite({ tag: 'emanations', watchdogMs: 600_000 });
@@ -66,10 +67,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const ranger = game.actors.getName('BF Test Ranger');
   const victim = game.actors.getName('BF Test Victim');
   if (!scene || !paladin || !cleric || !ranger || !victim) return { fatal: 'missing fixture: scene, BF Test Paladin, BF Test Cleric, BF Test Ranger or BF Test Victim — run tools/fixture-suite.mjs' };
-  if (canvas.scene?.id !== scene.id) { await scene.view(); await sleep(1500); }
   const tok = actor => scene.tokens.find(t => t.actorId === actor.id) ?? null;
   const palTok = tok(paladin), clrTok = tok(cleric), rgrTok = tok(ranger), vicTok = tok(victim);
   if (!palTok || !clrTok || !rgrTok || !vicTok) return { fatal: 'a fixture token is missing from the range — run tools/fixture-suite.mjs' };
+  // The range must be ACTIVE, not merely viewed: a ring stands on the active scene only. Done
+  // after every fatal check (a fatal return runs no teardown — the battery's copy once left the
+  // range active), and the user's active scene is handed back in teardown.
+  const priorActiveScene = game.scenes.active?.id ?? null;
+  if (game.scenes.active?.id !== scene.id) { await scene.activate(); await sleep(1500); }
+  if (canvas.scene?.id !== scene.id) { await scene.view(); await sleep(1500); }
   const home = Object.fromEntries([palTok, clrTok, rgrTok, vicTok].map(t => [t.id, { x: t.x, y: t.y }]));
   const grid = scene.grid.size;
   const px = scene.dimensions?.distancePixels ?? (grid / scene.grid.distance);
@@ -81,6 +87,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   let combat = null;
   let template = null;
+  let elsewhere = null;   // §11's other scene
   let restored = false;
   const priorActiveCombats = [];
   const sgItemUuid = () => cleric.items.find(i => i.name === 'Spirit Guardians')?.uuid ?? null;
@@ -115,6 +122,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow' || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
+      // The range's rings come down with the scene going inactive (that is §11's rule); the
+      // user's active scene is handed back, and §11's scene is gone.
+      if (elsewhere && game.scenes.get(elsewhere.id)) await elsewhere.delete().catch(() => {});
+      const back = priorActiveScene ? game.scenes.get(priorActiveScene) : null;
+      if (back && (game.scenes.active?.id !== back.id)) { await back.activate().catch(() => {}); await sleep(1500); }
+      await clearMembers();
     } catch (err) {
       log.push(`TEARDOWN ERROR: ${err?.message}`);
     }
@@ -363,6 +376,43 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('emanations', true);
       const back = await waitFor(() => featureRegion(palTok, 'Aura of Protection'), 8000);
       ok('9b. on again: the aura is raised again', !!back, '');
+    }
+
+    // ================================================== 11. the active scene only
+    if (want(11)) {
+      const ringsUp = () => ['Aura of Protection', 'Aura of Courage', 'Aura of Warding'].every(k => featureRegion(palTok, k));
+      const ringsDown = () => !scene.regions.some(r => r.getFlag(MOD, 'emanation')?.kind === 'feature') && !scene.templates.some(t => t.getFlag(MOD, 'emanation')?.kind === 'feature');
+      await rgrTok.update(inside, mv());
+      const three = await waitFor(() => memberFx(ranger).length === 3 ? true : null, 8000);
+      ok('11a. the Ranger inside the ring wears the three auras on the ACTIVE range', !!three, memberFx(ranger).map(e => e.name).join(' | '));
+      elsewhere = await Scene.create({ name: 'BF Test Elsewhere', width: 2000, height: 2000, grid: { size: 100, distance: 5 } });
+      // The Ranger stands on that scene too — a linked actor, as every PC is — right where a
+      // ring would reach nobody. The point: no ring is raised THERE for the Paladin (no Paladin
+      // token), and the range's ring must not reach the Ranger through the actor.
+      await elsewhere.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(ranger.prototypeToken.toObject(), { x: 500, y: 500, actorId: ranger.id }, { inplace: false })]);
+      await elsewhere.activate();
+      const lifted = await waitFor(() => (memberFx(ranger).length === 0) ? true : null, 10000);
+      ok('11b. another scene made active: the Ranger\'s three effects are LIFTED, though its range token still stands inside the ring', !!lifted, `left=${memberFx(ranger).map(e => e.name).join(',')} active=${game.scenes.active?.name}`);
+      const down = await waitFor(() => ringsDown() ? true : null, 10000);
+      ok('11c. the range\'s rings — regions and templates — come down: a ring stands on the active scene only', !!down, scene.regions.filter(r => r.getFlag(MOD, 'emanation')).map(r => r.name).join(' | '));
+      ok('11d. no ring was raised on the other scene (no Paladin there)', !elsewhere.regions.some(r => r.getFlag(MOD, 'emanation')), '');
+      // A ring left standing on an INACTIVE scene (the old code's, or a GM's reload mid-sweep):
+      // the ready sweep brings it down. Raised by hand here as the old code would have, with the
+      // Ranger's range token inside; the sweep of that scene must lift and delete it.
+      const stale = await scene.createEmbeddedDocuments('MeasuredTemplate', [{ t: 'circle', x: palTok.x + grid / 2, y: palTok.y + grid / 2, distance: 12.5, flags: { [MOD]: { emanation: { kind: 'feature', key: 'Aura of Protection', tokenId: palTok.id, itemUuid: paladin.items.find(i => i.name === 'Aura of Protection')?.uuid } } } }]);
+      await sleep(800);
+      await ranger.createEmbeddedDocuments('ActiveEffect', [{ name: 'Protected — BF Test Paladin (stale)', flags: { [MOD]: { emanation: { regionId: stale[0].id } } } }]);
+      Hooks.call(`${MOD}.emanationsChanged`);   // the same everywhere-sweep ready runs
+      const swept = await waitFor(() => (!scene.templates.get(stale[0].id) && memberFx(ranger, stale[0].id).length === 0) ? true : null, 10000);
+      ok('11e. a stale ring on an inactive scene is brought down by the everywhere-sweep, and the effect it wrote is lifted from the actor', !!swept, `template=${!!scene.templates.get(stale[0].id)} fx=${memberFx(ranger, stale[0].id).length}`);
+      await scene.activate();
+      const back = await waitFor(() => (ringsUp() && memberFx(ranger).length === 3) ? true : null, 15000);
+      await sleep(1500);   // a second sweep, if queued, settles before counting
+      ok('11f. the range active again: the rings stand and the Ranger wears the three auras — exactly three, no stack', !!back && (memberFx(ranger).length === 3) && (scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature').length === 3), `fx=${memberFx(ranger).length} rings=${scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature').length}`);
+      await rgrTok.update(home[rgrTok.id], mv());
+      await waitFor(() => memberFx(ranger).length === 0 ? true : null, 6000);
+      if (game.scenes.get(elsewhere.id)) await elsewhere.delete().catch(() => {});
+      elsewhere = null;
     }
 
     // ================================================== 10. FIRED

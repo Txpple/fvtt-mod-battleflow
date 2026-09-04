@@ -328,7 +328,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('3a. an armed Sneak Attack opens the damage offer under AUTO damage, and the offer carries the Cunning Strike menu',
         !!offer && !!menu, `offer=${!!offer} menu=${!!menu}`);
       ok('3b. the menu is READ OFF THE SHEET: Cunning Strike, Devious Strikes, and the Thief\'s Stealth Attack; up to two; DC 17',
-        (rows.join() === 'poison,trip,withdraw,daze,knockOut,obscure,stealthAttack') && /up to 2/.test(textOf(menu)) && /Save DC 17/.test(textOf(menu)),
+        (rows.join() === 'poison,trip,withdraw,daze,knockOut,obscure,stealthAttack') && /up to 2/.test(textOf(menu)) && /DC 17/.test(textOf(menu)),   // "dice · DC · up to N" since b497346 (user, 2026-09-03)
         `rows=[${rows.join()}] text="${textOf(menu).slice(0, 160)}"`);
       const box = key => offer?.querySelector(`input[name="bf-cunning"][value="${key}"]`);
       const button = () => offer?.querySelector('button[data-action="roll"]');

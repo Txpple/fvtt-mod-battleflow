@@ -167,6 +167,27 @@ const out = await f.evaluate(async ({ playerName }) => {
       await pc.update({ "system.attributes.hp.max": 20, "system.attributes.hp.value": 20 });
       log.push("seeded BF Test PC Attacker's HP pool (20/20)");
     }
+    // ⚠ THE CLONED BLADE, KEPT BARE. The PC's attack item is the NPC's own (smoke-battleflow
+    // presses the same item name on both sides) and it ships NO mastery — every mastery suite
+    // finds its blade by shape, FIRST match, and a mastery on this d8 blade puts it ahead of
+    // the Dagger of Venom: a d8 drops the 11-HP Victim to 0 mid-section and every payout on a
+    // downed target is skipped (three reds in one day, 2026-09-04, a walk having set one).
+    // Re-cloned when missing (a session deleted it as a stray), stripped when it wears one.
+    {
+      const npc = game.actors.getName("BF Test Attacker");
+      const npcWeapon = npc?.items.find(i => (i.type === "weapon") && i.system.activities?.some?.(a => a.type === "attack"));
+      if (npcWeapon) {
+        let clone = pc.items.find(i => (i.type === "weapon") && (i.name === npcWeapon.name));
+        if (!clone) {
+          const data = npcWeapon.toObject(); delete data._id; data.system.mastery = "";
+          [clone] = await pc.createEmbeddedDocuments("Item", [data]);
+          log.push(`re-cloned the NPC's ${npcWeapon.name} onto BF Test PC Attacker (no mastery)`);
+        } else if (clone.system._source.mastery) {
+          await clone.update({ "system.mastery": "" });
+          log.push(`stripped the mastery a walk left on BF Test PC Attacker's ${clone.name}`);
+        }
+      }
+    }
 
     // --- the d20-fold PCs: clones of two real party members ----------------------------------
     // ⚠ CLONES, NOT BUILDS (user call 2026-09-01). A hand-built PC has to reproduce class

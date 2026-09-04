@@ -299,6 +299,14 @@ warns once, gone at v16) — read `units`/`value`/`expired` instead. Measured li
   and `updateRegion` within a tick; three reads of "no effect yet" before any create landed wrote
   the effect three times (Half Speed stacked to ×0.0625). One reconcile in flight per region, and
   one sweep per scene — the same lesson as `queueFlagWrite`, on documents instead of flags.
+- **An ActiveEffect on a linked actor shows on every scene the actor has a token on** — and a
+  campaign's party has a token left standing on every scene it has visited (Thomas: 22, read
+  2026-09-04). A Region's `tokens` set and its events are per scene, so an aura applied through
+  the token on scene A stands on the token on scene B where nothing will ever lift it, and B's
+  own ring writes a second copy under a different region id. Two consequences the module now
+  lives by: an emanation stands on the ACTIVE scene only (DESIGN §5), and a lift must read the
+  world's actors, not just the scene's tokens — the token that wore the effect may be on another
+  scene, or deleted.
 
 ## 2. dnd5e 5.3.x
 

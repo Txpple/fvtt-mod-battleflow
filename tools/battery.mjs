@@ -79,6 +79,9 @@ const ORDER = [
   { name: "smoke-clock", note: "the clock riders — Dreadful Strike once per turn with its uses, Assassinate on round one, the list as the switch" },
   // ⚠ Before smoke-surfaces for the same reason smoke-surfaces is last: it places a real template
   // (Spirit Guardians) and creates Regions on the range, all deleted in its `finally` (2026-09-03).
+  // The same lesson as smoke-nogm's seed below: the Victim token smoke-emanations needs is swept
+  // off by smoke-effects, and the suite reports a red for a missing fixture (2026-09-04).
+  { name: "fixture-suite", note: "not a suite — re-places the tokens smoke-emanations needs", reset: true },
   { name: "smoke-emanations", note: "the emanations — the Paladin's aura stands with its token, applies to allies inside, lifts on exit; Spirit Guardians adopted, its saves on enter and turn end" },
   { name: "smoke-resources", note: "" },
   // ⚠ LAST, and it is the only entry whose position is about what it CREATES rather than what

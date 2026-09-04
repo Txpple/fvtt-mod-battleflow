@@ -144,6 +144,26 @@ export function triggerDue({ inCombat, chitStands }) {
 }
 
 /**
+ * Does an emanation on this scene apply anything right now? ONLY ON THE ACTIVE SCENE. An effect
+ * lives on the actor, and a linked actor is one document across every scene — so an aura on the
+ * camp scene put Protected on the Cleric's token on the battle map, and a party that leaves a
+ * token of itself on every scene it visits got the ally beside the Paladin the effect once PER
+ * SCENE (user, 2026-09-04: "an aura from one scene bleeding into another"; Morgash wore
+ * seventeen). Play happens on the active scene, the platform's own idea of where the party is:
+ * a feature's ring stands there and nowhere else, a spell's area applies and demands only there,
+ * and anything an emanation elsewhere wrote is lifted.
+ * @param {string|null} regionSceneId   the scene the emanation's region is on
+ * @param {string|null} activeSceneId   game.scenes.active's id
+ * @returns {{ applies: boolean, why: string }}
+ */
+export function appliesOnScene(regionSceneId, activeSceneId) {
+  if ( !regionSceneId ) return { applies: false, why: "no scene" };
+  if ( !activeSceneId ) return { applies: false, why: "no active scene" };
+  if ( regionSceneId !== activeSceneId ) return { applies: false, why: "not the active scene" };
+  return { applies: true, why: "the active scene" };
+}
+
+/**
  * The damage type an emanation's roll wears when the pack's part carries several (Spirit
  * Guardians: necrotic and radiant). The 2024 text decides it by the caster's alignment —
  * "Radiant if you are good or neutral, Necrotic if you are evil" — so the DEFAULT is read off the

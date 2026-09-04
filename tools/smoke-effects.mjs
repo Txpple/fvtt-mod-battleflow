@@ -337,6 +337,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(2)) {
       await healFull();
       await clearChips();
+      // Its own mastery, not §1's leftover: run alone, or after smoke-nogm left the blade on
+      // Sap, §2 swung Sap and asked for Vex (2026-09-04).
+      await setMastery('vex');
       {
         const { attackMsg, roll } = await attack(pcAttack());
         const vexed = await waitFor(() => victim.effects.find(e => (e.getFlag(MOD, 'mastery') === 'vex') && !e.disabled), 12_000);

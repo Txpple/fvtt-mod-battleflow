@@ -593,6 +593,16 @@ automated — that sentence is the whole job, and the module does exactly that m
   membership on every event and every token move — apply to a member that lacks it, lift from a
   non-member that carries it, one write per creature per region. The Region's events are the
   fast path. With no GM the flow-elect law holds: nothing lands, the mover is told.
+- **An emanation exists on the ACTIVE scene only** (user, 2026-09-04: *"isn't that an issue if
+  there is an aura from one scene bleeding into another?"* — it was). A member effect lives on
+  the actor, and a linked actor is one document on every scene it has a token on; a party leaves
+  a token of itself on every scene it visits. So the Paladin's ring on the camp scene put
+  Protected on the Cleric's token on the battle map, and Thomas gaining Aura of Protection raised
+  a ring on all 22 scenes he stood on and gave Morgash the effect seventeen times, none of which
+  anything could lift. The rule: a feature's ring stands on the active scene and nowhere else; a
+  spell's area applies and demands only there; a scene going inactive brings its areas down and
+  lifts what they wrote from EVERY actor holding it, not only the tokens on that scene. The
+  platform's own idea of where the party is, and one scene at a time means nothing can stack.
 - **Aura of Courage's pack effect carries no change.** The Frightened immunity is a CONTENT fix
   at the world (user: *"agree"*); the module applies what the pack ships.
 - **The first slice** is the Paladin's three auras and Spirit Guardians — one of each shape. Aura

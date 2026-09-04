@@ -228,3 +228,16 @@ describe("damageTypeFor — Spirit Guardians' type is the alignment's by default
     expect(em.damageTypeFor([], "Good").type).toBe(null);
   });
 });
+
+describe("appliesOnScene — only the ACTIVE scene's emanations apply (user, 2026-09-04: an aura bled from the camp scene onto the battle map)", () => {
+  it("a ring on the active scene applies", () => {
+    expect(em.appliesOnScene("camp", "camp")).toEqual({ applies: true, why: "the active scene" });
+  });
+  it("a ring on any other scene applies nothing — a linked actor's effect would show on every scene it stands on", () => {
+    expect(em.appliesOnScene("camp", "battle").applies).toBe(false);
+  });
+  it("no active scene, or no scene at all: nothing applies", () => {
+    expect(em.appliesOnScene("camp", null).applies).toBe(false);
+    expect(em.appliesOnScene(null, "camp").applies).toBe(false);
+  });
+});

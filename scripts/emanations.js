@@ -8,7 +8,7 @@ import { turnChitStands, writeTurnChit } from "./shared.js";
 import { tokensInTemplates } from "./geometry.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { EMANATIONS } from "./decide/registry.js";
-import { reachAdmits, resolveChanges, emanationRange, triggerDue, memberEffectData, damageTypeFor } from "./decide/emanations.js";
+import { reachAdmits, resolveChanges, emanationRange, triggerDue, memberEffectData, damageTypeFor, appliesOnScene } from "./decide/emanations.js";
 import { registerRelay } from "./ui.js";
 import { rollDamageForSave } from "./auto-damage.js";
 
@@ -118,6 +118,22 @@ function gmHandles(event) {
 /** Every member effect of this region on this actor. */
 const memberEffects = (actor, regionId) => actor?.effects?.filter(e => e.getFlag(MODULE_ID, FLAG)?.regionId === regionId) ?? [];
 
+/** Only the ACTIVE scene's emanations apply (decide/emanations.js appliesOnScene — the bleed). */
+const appliesHere = region => appliesOnScene(region?.parent?.id ?? null, game.scenes.active?.id ?? null).applies;
+
+/**
+ * Everyone who could be wearing this region's effect: the actors of the tokens on its scene AND
+ * every world actor. A member effect lives on the ACTOR, so a linked actor carries it to every
+ * scene it has a token on — and if its token on this scene is deleted, only the world list still
+ * reaches it. The lift reads both so nothing is orphaned.
+ */
+function holdersOf(region) {
+  const out = new Set();
+  for ( const tok of region?.parent?.tokens ?? [] ) if ( tok.actor ) out.add(tok.actor);
+  for ( const actor of game.actors ) out.add(actor);
+  return out;
+}
+
 /**
  * Apply the standing effect to every member the reach admits, lift it from everyone else on the
  * scene. Idempotent, GM-only, cheap: membership is the platform's (`region.tokens`), the effect is
@@ -144,7 +160,7 @@ async function reconcileMembersNow(region) {
     const sys = beh?.system;
     const row = sys ? rowNamed(sys.key) : null;
     const source = sys?.source ? fromUuidSync(sys.source) : null;
-    const active = !!beh && !beh.disabled && !!row && !!sys.effect && live() && listed().has(lower(row.key));
+    const active = !!beh && !beh.disabled && !!row && !!sys.effect && live() && listed().has(lower(row.key)) && appliesHere(region);
     const members = new Set();
     if ( active ) {
       for ( const tok of region.tokens ?? [] ) {
@@ -162,22 +178,23 @@ async function reconcileMembersNow(region) {
       await tok.actor.createEmbeddedDocuments("ActiveEffect", [memberEffectData(row, sys.effect,
         { sourceName: source?.name ?? "the source", itemUuid: sys.item, regionId: region.id, moduleId: MODULE_ID, flagKey: FLAG, status: STATUS })]);
     }
-    for ( const tok of region.parent.tokens ) {
-      if ( members.has(tok) || !tok.actor ) continue;
-      const stale = memberEffects(tok.actor, region.id);
-      if ( stale.length ) await tok.actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id));
+    const keep = new Set([...members].map(tok => tok.actor));
+    for ( const actor of holdersOf(region) ) {
+      if ( keep.has(actor) ) continue;
+      const stale = memberEffects(actor, region.id);
+      if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id));
     }
   } catch(err) {
     console.error(`${TITLE} | Emanation floor failed — check the aura's effects by hand.`, err);
   }
 }
 
-/** The region is going: lift its effects from everyone on its scene. */
+/** The region is going: lift its effects from everyone who holds one (its scene's tokens and the world's actors). */
 async function liftAll(region) {
   if ( !isActiveGM() || !region?.parent ) return;
-  for ( const tok of region.parent.tokens ) {
-    const stale = memberEffects(tok.actor, region.id);
-    if ( stale.length ) await tok.actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
+  for ( const actor of holdersOf(region) ) {
+    const stale = memberEffects(actor, region.id);
+    if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
   }
 }
 
@@ -191,6 +208,7 @@ async function maybeTrigger(behType, token, cause) {
     const row = rowNamed(sys.key);
     if ( !row?.trigger || !row.trigger.on.includes(cause) || beh.disabled || !live() || !listed().has(lower(row.key)) ) return;
     const region = behType.region;
+    if ( !appliesHere(region) ) return;   // a ring on a scene nobody is playing on demands nothing
     const source = sys.source ? fromUuidSync(sys.source) : null;
     if ( source && (token.id === source.id) ) return;
     if ( !reachAdmits(sys.reach, source?.disposition ?? 1, token.disposition) ) return;
@@ -353,7 +371,11 @@ async function reconcileScene(scene) {
   if ( !isActiveGM() || !scene ) return;
   const names = listed();
   const wanted = new Map();
-  if ( live() ) {
+  // ONLY THE ACTIVE SCENE raises a ring. A party leaves a token of itself on every scene it
+  // has visited (Thomas stood on 22 of them, 2026-09-04), and a ring on each put the aura's
+  // effect on the ally beside him seventeen times over. On any other scene the areas come down
+  // and their effects are lifted.
+  if ( live() && (scene.id === game.scenes.active?.id) ) {
     for ( const tok of scene.tokens ) {
       if ( !tok.actor ) continue;
       for ( const [key, row] of Object.entries(EMANATIONS) ) {
@@ -408,6 +430,9 @@ async function reconcileScene(scene) {
       console.error(`${TITLE} | Could not raise ${w.row.key} around ${w.actor.name}.`, err);
     }
   }
+  // The spells' floors too: a scene going active or inactive changes what every emanation on it
+  // applies, and a spell's region is otherwise floored only by its own events.
+  for ( const region of scene.regions.filter(r => flagOf(r)?.kind === "spell") ) await reconcileMembers(region);
 }
 
 /* --- the lifecycle: a spell's emanation is the template the system placed ------------------- */
@@ -695,12 +720,17 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
 
 /* --- the hooks: when to look ---------------------------------------------------------------- */
 
-Hooks.once("ready", () => { if ( game.scenes.active ) scheduleScene(game.scenes.active); });
 // The switch or the list moved (settings.js says so on change): every scene that carries an
 // emanation, and the active one, is swept — off removes what stands, on raises it again.
-Hooks.on(`${MODULE_ID}.emanationsChanged`, () => {
-  for ( const s of game.scenes ) if ( (s === game.scenes.active) || (s === game.scenes.viewed) || s.regions.some(r => flagOf(r)) ) scheduleScene(s);
-});
+/** The active scene, and every scene that carries an emanation: raised on the one, brought down on the others. */
+const sweepEverywhere = () => {
+  for ( const s of game.scenes ) if ( (s === game.scenes.active) || s.regions.some(r => flagOf(r)) ) scheduleScene(s);
+};
+Hooks.once("ready", sweepEverywhere);   // every scene that carries one, not just the active: the others come down
+Hooks.on(`${MODULE_ID}.emanationsChanged`, sweepEverywhere);
+// The active scene moved: the scene that was active lifts everything its emanations wrote, the
+// one now active applies its own. Both updates carry `active` (the old scene's goes false).
+Hooks.on("updateScene", (_scene, changes) => { if ( ("active" in changes) && isActiveGM() ) sweepEverywhere(); });
 Hooks.on("canvasReady", canvasObj => scheduleScene(canvasObj?.scene ?? game.scenes.viewed));
 Hooks.on("createToken", tok => scheduleScene(tok.parent));
 Hooks.on("deleteToken", tok => scheduleScene(tok.parent));
