@@ -17,11 +17,9 @@ rulings and measurements are in the permanent docs — read those, not this file
   measured) and §2 *The 2024 auras*.
 - [BACKLOG.md](BACKLOG.md) *Emanations — what the first slice leaves*.
 
-**Last green:** `smoke-emanations` 47/48 on the build before this handoff's last change (the one
-red was the old cast-time popup assertion, since replaced); `smoke-saves` 95/95; gate 18 checks,
-442 unit tests; settings CLEAN. The last change (the type choice moved into the casting window)
-is deployed to the sandbox and gate-green but **its live section has not run yet** — run
-`node tools/smoke-emanations.mjs` first thing (user off the box) and expect 48/48.
+**Last green (2026-09-03, the build deployed on the sandbox = commit cd95dfd):**
+`smoke-emanations` 48/48 (the casting-window fieldset included); `smoke-saves` 95/95; gate 18
+checks, 442 unit tests; settings CLEAN. The user's GM window must be **reloaded (F5)** to run it.
 
 ## What the user is testing in the new window
 
@@ -76,9 +74,7 @@ next sweep, which needs a GM client with current code). Worth one question to th
 
 ## Not done, in order
 
-1. `smoke-emanations` on the last build (48/48 expected), then commit (this handoff's change is
-   uncommitted only if that run was not reached — check `git status`).
-2. The user's walk in the new window; fix what it finds.
+1. The user's walk in the new window; fix what it finds.
 3. **The full battery** (`node tools/battery.mjs`, ~45 min, user off the box) before any release.
 4. Release and deploy to prod — on the user's word only.
 5. Retire this file into the docs.
