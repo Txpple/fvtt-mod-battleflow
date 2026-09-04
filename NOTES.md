@@ -751,6 +751,24 @@ parser reads as one die but which the card should not print; the reader prefixes
 attack"* — and the DC rule (8 + Strength OR Dexterity + proficiency, the player's choice). The
 save activities carry their own DC; the demand card reads it off them, never computes it.
 
+### An item imported by the MCP's add-feature can arrive without its transfer effect (2026-09-04)
+
+The table's first Goading Attack (Morgash, added through `foundry-local5e` `add-feature`)
+demanded its Wisdom save, Jetten failed, and nothing landed. `tools/probe-hitmenu-table.mjs`
+read the card: the save activity's effect entry did not RESOLVE — the item on the actor carried
+no "Goaded" effect at all, while the pack's copy carries one with `transfer: true`. The other
+seven maneuvers arrived whole (their effects are `transfer: false`), and the importer had
+helpfully remapped every pool target to the actor's Combat Superiority id. So a `transfer`
+effect is what that importer drops, and a maneuver whose whole consequence is such an effect
+becomes a save that presses nothing — the saves machine did everything right over an empty list.
+
+`tools/fixture-morgash-maneuvers.mjs` compares an actor's maneuvers against the pack effect by
+effect (read-only) and replaces a mismatched item with the pack's copy under `--fix`. The
+suite's fighter adds its maneuvers from `pack.getDocument().toObject()`, which is why the same
+row passed there. ⚠ The importer is the MCP repo's; until it keeps transfer effects, add a
+maneuver that carries one from the compendium by hand (drag from the pack) or through the
+fixture tool.
+
 ## 3. The statblock caster
 
 Where most of the monster-side bugs lived.

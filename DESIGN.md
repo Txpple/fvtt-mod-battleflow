@@ -652,10 +652,13 @@ grouped by the feature that grants the rows, smites out) and built off the proto
   Sneak Attack ruling of 2026-09-02 applied. No dice left: the offer does not open for the menu;
   asked for (Player Rolls Damage), the group shows *no dice left* and its rows greyed.
 - **The die rides the damage roll** as its own part in the weapon's type, crit-doubled by the
-  same stamp; the pool is spent on the sheet. **Sweeping Attack's die does not ride**: a card
-  lists the creatures within 5 feet of the original target, the attacker picks one, the elect
-  rolls the die in the open, judges the ORIGINAL attack roll against that creature's AC and
-  applies it through the receipt chokepoint when it would hit.
+  same stamp; the pool is spent on the sheet. **Sweeping Attack's die does not ride**: a POPUP
+  asks the attacker to pick a creature within 5 feet of the original target (user, the walk of
+  2026-09-04: *"sweeping attack should be a popup choice, its just on the card"* — the moment
+  spine: a button per creature, Nobody, the hold family's clock; when it runs out the only
+  creature is taken, else nobody, and the die is spent either way), the elect rolls the die in
+  the open, judges the ORIGINAL attack roll against that creature's AC and applies it through
+  the receipt chokepoint when it would hit.
 - **The save is the pack's own activity**, used at the hit target after the damage lands, so
   the demand, the timer and the failed-save press are the saves machine's, and the condition
   the activity carries (Goaded, Frightened) lands through it. A condition the pack left on the

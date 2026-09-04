@@ -20,7 +20,7 @@ const SECTIONS = {
   3: 'Trip Attack: the die rides as its own part, the pool is spent, the Strength save through the saves machine, Prone pressed on the failure',
   4: 'Menacing Attack: the activity\'s own Frightened lands through the saves machine',
   5: 'Distracting Strike: no save — Distracted applied on the hit, receipted',
-  6: 'Sweeping Attack: nothing rides; the card lists the creature within 5 feet; the pick rolls the die and applies it when the attack would hit',
+  6: 'Sweeping Attack: nothing rides; the POPUP lists the creature within 5 feet; the pick rolls the die and applies it when the attack would hit',
   7: 'no dice left: the offer does not open for the menu; asked for, the rows stay greyed',
   8: 'the Hit Menu list is the switch: an empty list offers nothing',
   9: 'a critical hit doubles the die',
@@ -59,7 +59,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'saves', 'saveTimer', 'castApply',
-    'concMode', 'reminderList', 'maneuverFolds', 'hitMenuList', 'clockRiderList'];
+    'concMode', 'reminderList', 'maneuverFolds', 'hitMenuList', 'clockRiderList', 'holdTimer'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -145,6 +145,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('saveTimer', 0);
     await set('castApply', false);
     await set('concMode', 'off');
+    await set('holdTimer', 0);              // the sweep popup waits for a press (the hold family's clock)
     await set('reminderList', '');          // no gate: the swing rolls straight
     await set('maneuverFolds', '');         // no Precision offer on a miss that should not happen
     await set('clockRiderList', '');
@@ -399,10 +400,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('6b. the sweep card lists the creature within 5 feet of the target — the second goblin, not the fighter, not the victim',
         !!sc && (sc.candidates?.length === 1) && (sc.candidates[0].uuid === second.uuid) && !sc.chosen,
         `candidates=${JSON.stringify(sc?.candidates?.map(c => c.name))}`);
-      const cardEl = await waitFor(() => document.querySelector(`.message[data-message-id="${card?.id}"] [data-bf-sweep-pick]`), 5000);
-      ok('6c. the card offers the pick as a button', !!cardEl && (cardEl.dataset.bfSweepPick === second.uuid), textOf(cardEl?.closest('.message')).slice(0, 160));
+      // The pick is a POPUP (user, 2026-09-04: "sweeping attack should be a popup choice, its just on
+      // the card"): a button per creature and Nobody, the bar, the card's own reopen button.
+      // The DIALOG, not the chat log (whose element also carries the card's words).
+      const popup = await waitFor(() => [...foundry.applications.instances.values()]
+        .find(app => (app instanceof foundry.applications.api.DialogV2) && app.rendered && /pick the second creature/.test(app.element?.innerHTML ?? '')), 6000);
+      const pickButton = popup?.element?.querySelector('button[data-action="pick-0"]');
+      const nobody = popup?.element?.querySelector('button[data-action="none"]');
+      const cardText6 = textOf(document.querySelector(`.message[data-message-id="${card?.id}"]`));
+      // holdTimer is 0 here, so no bar drains — the popup waits for a human (a 0 window arms nothing).
+      ok('6c. the pick is a popup: one button per creature within 5 feet, and Nobody; the card carries a reopen button; no bar at a 0 window',
+        !!popup && !!pickButton && (textOf(pickButton) === 'Hobgoblin') && !!nobody && /Pick — Sweeping Attack/.test(cardText6)
+          && !popup.element.querySelector('[data-bf-deadline]'),
+        `popup=${!!popup} pick="${textOf(pickButton)}" nobody=${!!nobody} bar=${!!popup?.element?.querySelector('[data-bf-deadline]')} card="${cardText6.slice(-160)}"`);
       const hpBefore = second.system.attributes.hp.value;
-      cardEl?.click();
+      pickButton?.click();
       const resolved = await waitFor(() => game.messages.get(card?.id)?.getFlag(MOD, 'sweepCard')?.resolved, 12000);
       const rollMsg = game.messages.contents.find(m => (m.timestamp >= suiteStart) && /Sweeping Attack — the die/.test(m.flavor ?? ''));
       const receipt = game.messages.get(card?.id)?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === second.uuid);
@@ -461,7 +473,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('9. a forced 20: the die is crit-doubled by the same stamp — the maneuver part rolls 2d8',
         !!hm && dmg?.rolls?.[0]?.isCritical && (eights === 2), `crit=${dmg?.rolls?.[0]?.isCritical} eights=${eights} formulas=[${(dmg?.rolls ?? []).map(r => r.formula).join(' | ')}]`);
       const card = await waitFor(() => cardsWith('hitManeuverCard').find(m => m.getFlag(MOD, 'hitManeuverCard')?.key === 'goading-attack' && m.getFlag(MOD, 'saves')), 10000);
-      if (card) { await answerSave(); await waitFor(() => card.getFlag(MOD, 'saves')?.targets?.every(t => t.done), 15000); }
+      if (card) { await answerSave(); await waitFor(() => card.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), 15000); }
+      // Goaded is the one maneuver effect the pack ships with transfer:true (the table, 2026-09-04:
+      // "applying goading attack didnt do anything") — it must still land on the failure.
+      const goaded = await waitFor(() => victim.effects.find(e => e.name === 'Goaded'), 8000);
+      const gr = game.messages.get(card?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => t.uuid === victim.uuid);
+      ok('9b. the failure lands Goaded — the activity\'s own effect, shipped transfer:true — receipted on the demand card',
+        !!goaded && !!gr?.effects?.some(e => /Goaded/.test(e.name)),
+        `goaded=${!!goaded} outcome=${card?.getFlag(MOD, 'saves')?.targets?.[0]?.outcome} applied=${card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied} receipt=${JSON.stringify(gr?.effects?.map(e => e.name))} effects=${JSON.stringify(victim.effects.map(e => e.name))}`);
       face(19);
       await settle();
     }
