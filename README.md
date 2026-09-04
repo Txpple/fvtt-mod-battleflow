@@ -1,79 +1,155 @@
 # Battle Flow
 
-**Battles, flowing.** Attack → hit → damage → save → effect resolves itself, and the table only
-touches the moments that are theirs.
+**Battles, flowing.** A combat-resolution module for Foundry VTT (v14) and the dnd5e system
+(5.3.x, 2024 rules). When an attack hits, the damage rolls, applies, and the effects that ride
+it land. When a spell demands a save, everyone rolls. When an aura moves, the creatures inside
+it feel it. The table only touches the moments that are genuinely theirs.
 
-A house combat-resolution module for Foundry VTT (v14) + dnd5e (5.3.x, 2024 rules). The system
-already owns all the math — hit determination, resistance-correct damage, real saves, effect
-application, concentration — but every link ends at a button. Battle Flow presses the buttons
-whose outcomes are already determined, pauses at the moments a human gets a say, announces what
-matters, and leaves a receipt (with a revert) everywhere it acts. The native buttons are never
-removed — vanilla stays the substrate and the fallback.
+## The idea
 
-**Zero dependencies. No sockets. No patching.** Clients coordinate by reading the same chat
-log, not by messaging each other; the only `relationships` entry is a version pin on dnd5e.
+The dnd5e system already knows how to do everything hard about a fight. It works out whether
+an attack hits, applies damage through the right resistances, rolls real saving throws,
+applies effects, and tracks concentration. The trouble is that every one of those steps ends at
+a button, and somebody has to find that button in the chat log and press it. Combat slows to
+the pace of the person hunting for the right card.
 
-## Built so far
+Battle Flow presses the buttons whose outcomes are already decided. Where a human genuinely
+gets a say, it pauses and asks. Where something worth knowing happens, it says so. Everywhere
+it acts, it leaves a receipt with a one-click revert. And it never removes the native buttons,
+so vanilla dnd5e is always underneath and always the fallback.
 
-Every feature is behind its own world setting and ships **off** — 30 world settings and 2 client
-settings at v1.20.0. The dogfood ladder is walked one setting at a time.
+**Automate outcomes, never decisions.** That is the whole rule. If the rules already determine
+the result, the module does it. If judgement is involved, a person is asked.
 
-| | Feature |
-| --- | --- |
-| **Attack resolver** | auto-roll damage on hit, auto-apply to the targets it hit, revert receipts on every application |
-| **Reaction hold** | a Shield-window pause with popup + card row — on a hit **or** on a listed spell, so Magic Missile really is stopped |
-| **Damage riders** | a mark pays out with the attack that earned it (Hunter's Mark tier) |
-| **Effect & mastery riders** | a hit applies the effects riding it; weapon masteries pay out with the attack — Vex/Sap automatic, Slow/Topple/Push/Graze as a Use/Pass ask. The chips expire on Foundry's own clock at the turn the rules name, Vex and Sap are spent by the next attack roll (recorded on the attack card), and Cleave's once-per-turn is a chit, not a memory |
-| **The gate before the roll** | when something the module can read bends an attack roll — your own Vex on the target, a Sap on you, Prone on either side (the 5-foot rule, judged in feet whatever the scene's units), any of the thirteen 2024 conditions or Hiding, a ranged attack's own range (beyond normal, beyond long, an enemy within 5 feet), or an ability on either sheet by name (Innate Sorcery, Reckless, Blur, Vow of Enmity, Pack Tactics and seventy more from a scan of every pack; the ones the rules spend on the next attack, like Guiding Bolt, are spent by the roll) — the system's own Attack Roll dialog opens, even on a shift-click, with a Battle Flow section in it: one header line ("2 Modifiers — Net" and the net as a coloured tag: green Advantage, red Disadvantage, grey Normal), then a box per source with its rule quoted. The net is the highlighted button; Advantage and Disadvantage cancel, however many of each. The section follows the dialog's own dropdowns. You press; nothing is applied for you. Three lists switch it: Reminder Sources (the kinds), Condition Sources (which conditions) and Effect Sources (which abilities) |
-| **The save gate** | a forced save opens the system's own Saving Throw dialog — the demand (who, the DC, the stakes, the timer) above its controls, Before You Roll below them: Restrained on a Dexterity save, the Dodge action's Advantage, and for Paralyzed, Stunned, Unconscious or Petrified on Strength or Dexterity a fourth button, **Fails** — no dice, the failure recorded. Every pending save for a creature opens its dialog, cascading; the buzzer still rolls (or fails) the ones nobody pressed. A save from the sheet meets the same gate |
-| **Sneak Attack** | when the feature is on the sheet and the weapon is Finesse or ranged, the gate offers a *Sneak Attack* tick (the dice read off the feature and resolved on the sheet; what the module could read is said, the ally within 5 feet is yours to judge). On the hit the damage offer opens with the Cunning Strike menu read off the sheet — Poison, Trip, Withdraw, Daze, Knock Out, Obscure, the Thief's Stealth Attack, Envenom Weapons, Rend Mind — costs off the sneak dice before the roll, a crit doubling what is left, the effects landing through the saves machine on the pack's own activities, Death Strike on round one; once per turn as a chip on the rogue |
-| **Clock riders** | a listed feature's extra damage rides the hit when the round or the turn says it applies — Dreadful Strike once per turn with its uses, the Assassin's Rogue level on a first-round Sneak Attack (and its Advantage against a creature that has not acted), Divine Strike, Primal Strike, Divine Fury, Dreadful Strikes. Each due rider is a ticked checkbox on the damage offer — untick it to keep the use; the card says what rode and why. The Clock Riders list switches it |
-| **Use chips** | a feature the pack ships as text only — Steady Aim — becomes a chip on use: Advantage on the next attack roll (the gate reads it, the roll spends it), Speed 0 until the end of the turn |
-| **Emanations** | an aura applies itself to the creatures inside it, and the platform keeps the geometry and the clock: the Paladin's auras stand around the token wherever it goes (the class's own 10 feet, 30 at 18th; off while Incapacitated), allies walking in receive the effect with the PALADIN's Charisma and lose it walking out; Spirit Guardians is the area the spell placed, attached to the caster, halving enemies' Speed inside and asking a Wisdom save through the save gate when one enters or ends its turn there. Helpful auras reach allies and neutrals, harmful ones enemies; drawn as a ring. The Emanations list switches it |
-| **Save presses** | a save whose failure the pack does not carry as an effect — Web's Restrained — presses the standard condition from a row, the caster as its origin, receipted with a revert |
-| **Evasion** | a Dexterity save for half: no damage on a success, half on a failure, not while Incapacitated — applied and receipted, the row says why |
-| **Incapacitated breaks concentration** | the moment the condition lands on a concentrator (Hypnotic Pattern, Paralyzed, Stunned…), concentration ends — no save, the card says why |
-| **The Reaction** | one chip on the reactor, spent by Shield, Uncanny Dodge, a riposte or Interpose, back at the start of their next turn; no hold is offered while it stands. An interrupt is found by the ability's NAME — a text-only feature counts — and Uncanny Dodge halves the held attack's damage against the reactor, receipted |
-| **Maneuver folds** | Precision Attack patches a declared miss, Riposte drives a real attack, Interpose and the Shield Master bash resolve post-verdict |
-| **Saves** | auto-roll for everyone, per-target popups, half-damage-on-save made real, template containment |
-| **Concentration assist** | an un-buryable prompt, and a failed save actually ends the spell — which the system never does itself |
-| **Cast slice** | no-save effects and healing apply on cast |
-| **The automatic Critical Hit** | a hit within 5 feet of a Paralyzed or Unconscious creature rolls critical damage whatever the d20 said — the glossary's own clause, applied at every path that rolls the damage, and the card says why |
-| **Volleys** | Magic Missile / Scorching Ray / Eldritch Blast / Steel Wind Strike aimed dart-by-dart in one popup — and for rays, the gate judges each ray at the aim (folded to its header line; the mode defaults to the net; a Sap or Vex is spent by the first ray that uses it and shown on that row alone) |
-| **Resource notices** | a spend announces itself, on every client, with a durable card line |
+## What it does for your table
+
+**Attacks resolve themselves.** A hit rolls its damage and applies it to the targets it hit,
+through the system's own resistance math. A miss rolls nothing. Every application is stamped on
+the damage card with a per-target receipt and a revert button, so nothing is ever lost to a
+misclick.
+
+**Reactions get their window.** When a target holds Shield, Uncanny Dodge, a riposte or another
+listed reaction, the chain pauses instead of applying. The reactor gets a popup with a clock.
+If they do nothing, the default happens and the fight moves on. The Reaction is a chip on the
+character, spent when used and back at the start of their next turn, so the window is only
+offered when it is real.
+
+**Your abilities are already accounted for.** Before an attack roll, if anything the module can
+read bends it, the system's own roll dialog opens with a Battle Flow section listing every
+source with its rule quoted: a condition on either side, the target being within five feet of a
+prone creature, the range of a ranged attack, or a feature on either sheet by name. Innate
+Sorcery, Reckless Attack, Vow of Enmity, Pack Tactics, Blur and seventy more were swept from
+every official pack. The net result is the highlighted button. You still press it.
+
+**Riders pay out with the hit.** Hunter's Mark, weapon masteries, Sneak Attack with the full
+Cunning Strike menu, Divine Strike, Dreadful Strike, the Assassin's first-round dice, and other
+listed features ride the damage roll when the round and the turn say they should. Each one is a
+ticked checkbox on the damage offer. Untick it to keep the use. The card says what rode and why.
+
+**Saves happen at once.** A spell that forces a save rolls it for every target, opens the
+system's own Saving Throw dialog for each player with the demand and the stakes above it, and
+resolves half damage on a success. Anyone who does not press in time is rolled by the buzzer.
+Restrained, the Dodge action, Evasion and the conditions that fail a save outright are all read
+and offered.
+
+**Auras apply themselves.** A Paladin's Aura of Protection stands around the token wherever it
+goes, and allies walking in receive the bonus with the Paladin's Charisma and lose it walking
+out. Spirit Guardians halves enemy speed inside its area and demands the save when a creature
+enters or ends its turn there. Foundry keeps the geometry and the clock.
+
+**Concentration gets kept honest.** A concentration prompt cannot be buried, a failed check
+actually ends the spell, and the moment a concentrator is Incapacitated the spell drops. The
+system does none of these on its own.
+
+**Everything announces itself.** A spent slot, a used reaction, an effect landing or expiring,
+an automatic critical hit against a Paralyzed creature. Each one is a durable line on a card,
+on every client, so an icon appearing or vanishing is never a mystery.
+
+**And the small things.** Magic Missile, Scorching Ray and Eldritch Blast are aimed dart by dart
+in one popup. No-save effects and healing apply on cast. Web's Restrained presses the standard
+condition even though the pack does not carry it as an effect. Steady Aim becomes a real chip on
+use.
+
+## Why it is built this way
+
+**New players first.** Someone who has never played 5e can take their turn. The thing they must
+answer comes to them, centred, with the rule quoted from the feature's own text. They never
+need to know which chat card to hunt for.
+
+**The GM does almost nothing.** In steady state the GM answers no prompts. Every feature that
+would add a recurring mandatory GM click is treated as a design mistake.
+
+**Nothing blocks the table.** Every pause has a default outcome and a timer. A player who
+stepped away does not stop the fight unless the table chooses that.
+
+**Canon only.** The module reads amounts, dice and DCs from the content the compendia already
+ship. It never stores a number of its own, never transcribes a rule, and never homebrews. When
+content is wrong, the content is fixed, not the module.
+
+**Zero dependencies, no sockets, no patching.** Clients coordinate by reading the same chat log.
+Only public hooks are used. The only relationship in the manifest is a version pin on dnd5e, so
+a system update can never take the module down with it silently.
+
+**Every feature has its own switch.** There are 39 world settings and 2 client settings. All of
+them ship on, and any one can be turned off mid-session without touching the others.
 
 ## Documentation
 
-Four documents, and only four — plus **[SWEEP.md](SWEEP.md)** for the length of the abilities
-sweep it surveys (2026-09-02): the 2024 corpus sorted into the module's mechanism families, kind
-by kind. It folds into BACKLOG/DESIGN when the sweep is scoped, and then it goes.
+Four documents, plus **[SWEEP.md](SWEEP.md)** for the length of the abilities sweep it surveys:
+the 2024 corpus sorted into the module's mechanism families, kind by kind.
 
-- **[DESIGN.md](DESIGN.md)** — the north star. What the module is for, the four goals it exists
-  to serve, what is permanently out of scope. Stable; read it before proposing anything.
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** — how the code is required to be shaped so it stays
+- **[DESIGN.md](DESIGN.md)** is the north star. What the module is for, the four goals it exists
+  to serve, what is permanently out of scope. Read it before proposing anything.
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** is how the code is required to be shaped so it stays
   that way. Layers, the volunteer model, the state model, the moment spine, the registry model,
   and the checklist for adding anything.
-- **[NOTES.md](NOTES.md)** — working knowledge. Every Foundry and dnd5e fact that cost a
-  debugging session, plus deploy/release/test protocol. Not binding, just expensive.
-- **[BACKLOG.md](BACKLOG.md)** — known and deliberately not scheduled, each with the reason and
-  the thing that would change it. ⚠ **Nothing in it is owed** — it exists so that "we looked at
-  this and decided not to" stops being read as a to-do list. Read it when you are picking work.
+- **[NOTES.md](NOTES.md)** is working knowledge. Every Foundry and dnd5e fact that cost a
+  debugging session, plus deploy, release and test protocol.
+- **[BACKLOG.md](BACKLOG.md)** is what is known and deliberately not scheduled, each with the
+  reason and the thing that would change it. Nothing in it is owed.
 
-Development tooling lives in [tools/](tools/README.md) and ships in nothing. The short version:
-`npm run verify` is the offline gate (static checks plus the unit tests, all offline, all in
-seconds — it prints its own tallies, so do not carry them into prose),
-and `node tools/battery.mjs` is the live one — every suite, in the order that works, each
-captured to a file.
+Development tooling lives in [tools/](tools/README.md) and ships in nothing. `npm run verify`
+is the offline gate: static checks plus the unit tests, in seconds. `node tools/battery.mjs` is
+the live one, every suite in the order that works, each captured to a file.
 
 ## Family
 
-Sibling of [Combat Plus](https://github.com/Txpple/fvtt-mod-combatplus) — Combat Plus is combat
-*UX* (music, gates, cues); Battle Flow is combat *resolution* (dice consequences). Separate so
-dnd5e churn can never take down the initiative gate mid-campaign.
+Sibling of [Combat Plus](https://github.com/Txpple/fvtt-mod-combatplus). Combat Plus is combat
+*UX* (music, gates, cues). Battle Flow is combat *resolution* (dice consequences). They are
+separate so that dnd5e churn can never take down the initiative gate mid-campaign.
 
-Curated content lists are swept from the official compendia, and nothing ships that has not been
-played. What stays a permanent non-goal is a *platform*: no flags engine, no macro hooks, no
-extension points ([DESIGN.md §4](DESIGN.md)).
+Curated content lists are swept from the official compendia, and nothing ships that has not
+been played. What stays a permanent non-goal is a *platform*: no flags engine, no macro hooks,
+no extension points ([DESIGN.md §4](DESIGN.md)).
+
+## Why it is not midi-qol
+
+If you have used Foundry for dnd5e, you know midi-qol. It is the module that automates combat,
+and it is very good at it. Battle Flow exists because we wanted the same flowing fight without
+the shape midi has to take to deliver it.
+
+midi is a workflow engine. Around fifty thousand lines, its own flags platform, three hard
+dependencies, and wholesale replacement of the system's document classes, pinned to each dnd5e
+minor version. Its workflow runs in memory and blocks on prompts to other clients with timeouts,
+which is where its race conditions come from and why it needs a large undo system. When the
+system updates, midi has to move with it, and until it does the table waits.
+
+Battle Flow takes a different bet. The system has become good enough that a small module can
+orchestrate its public hooks directly, without patching anything. There is no in-memory
+workflow to fall out of sync, because the chat log is the state and every client reads the same
+one. There is no undo system, because each application carries its own revert receipt. There is
+no flags platform or macro hook, because every ability the module knows about is a row in a
+curated list swept from the official packs. A few thousand lines cover the chain that consumes
+table time, and the rest is left to the humans at the table.
+
+That means there are things midi does that Battle Flow will never do, on purpose. It does not
+auto-cast reactions, detect opportunity attacks, measure cover or line of sight, manage
+template targets, run macros, or offer an extension point for homebrew. Those are judgement
+calls or platforms, and the module's answer to both is the same: ask a person, or add a row to
+a list. The full list of what is refused and why is in [DESIGN.md §4](DESIGN.md).
+
+The trade is fewer features for a module that is small enough to read, cannot be taken down by
+a system update it did not see coming, and never plays a decision for you.
 
 ## License
 
