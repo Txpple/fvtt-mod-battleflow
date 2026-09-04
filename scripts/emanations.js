@@ -5,6 +5,7 @@
 import { MODULE_ID, TITLE, S, setting, isActiveGM, activeCombatFor, statContext, whisperNoGM } from "./core.js";
 import { emanationEntries } from "./settings.js";
 import { turnChitStands, writeTurnChit } from "./shared.js";
+import { tokensInTemplates } from "./geometry.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { EMANATIONS } from "./decide/registry.js";
 import { reachAdmits, resolveChanges, emanationRange, triggerDue, memberEffectData } from "./decide/emanations.js";
@@ -55,6 +56,7 @@ import { rollDamageForSave } from "./auto-damage.js";
 
 const FLAG = "emanation";                       // on the region, and on every member effect
 const TYPE = `${MODULE_ID}.emanation`;          // the behaviour type this module registers
+const STATUS = "bfEmanation";                   // the status a member effect wears, so the token shows it
 const lower = s => String(s ?? "").toLowerCase();
 const listed = () => new Set(emanationEntries().map(e => lower(e.kind)));
 const rowNamed = name => { const k = Object.keys(EMANATIONS).find(x => lower(x) === lower(name)); return k ? { key: k, ...EMANATIONS[k] } : null; };
@@ -87,7 +89,7 @@ Hooks.once("init", () => {
     }
     /** GM-side: the region's membership changed under this token. */
     static async #onEnter(event) { if ( !gmHandles(event) ) return; await reconcileMembers(this.region); await maybeTrigger(this, event.data?.token ?? null, "enter"); }
-    static async #onExit(event) { if ( !gmHandles(event) ) return; await reconcileMembers(this.region); }
+    static async #onExit(event) { if ( !gmHandles(event) ) return; await forgetInitial(this.region, event.data?.token ?? null); await reconcileMembers(this.region); }
     static async #onTurnEnd(event) { if ( !gmHandles(event) ) return; await maybeTrigger(this, event.data?.token ?? event.data?.combatant?.token ?? null, "turnEnd"); }
     static async #onToggle(event) { if ( !gmHandles(event) ) return; await reconcileMembers(this.region); }
     static events = {
@@ -157,7 +159,7 @@ async function reconcileMembersNow(region) {
       if ( have.length > 1 ) await tok.actor.deleteEmbeddedDocuments("ActiveEffect", have.slice(1).map(e => e.id));
       if ( have.length ) continue;
       await tok.actor.createEmbeddedDocuments("ActiveEffect", [memberEffectData(row, sys.effect,
-        { sourceName: source?.name ?? "the source", itemUuid: sys.item, regionId: region.id, moduleId: MODULE_ID, flagKey: FLAG })]);
+        { sourceName: source?.name ?? "the source", itemUuid: sys.item, regionId: region.id, moduleId: MODULE_ID, flagKey: FLAG, status: STATUS })]);
     }
     for ( const tok of region.parent.tokens ) {
       if ( members.has(tok) || !tok.actor ) continue;
@@ -191,6 +193,14 @@ async function maybeTrigger(behType, token, cause) {
     const source = sys.source ? fromUuidSync(sys.source) : null;
     if ( source && (token.id === source.id) ) return;
     if ( !reachAdmits(sys.reach, source?.disposition ?? 1, token.disposition) ) return;
+    // A creature standing inside when the area was cast was asked by the CAST's own demand
+    // (user walk, 2026-09-03: "if I cast it and the dummy is in range, it triggers two saves").
+    // Its first "enter" — the area attaching around it — is not an entry; the record is
+    // forgotten once used, and on a real exit, so a later re-entry asks as it should.
+    if ( cause === "enter" ) {
+      const f = flagOf(region);
+      if ( f?.initial?.includes(token.id) ) { await forgetInitial(region, token); return; }
+    }
     if ( !(region.tokens?.has?.(token) ?? true) && (cause === "turnEnd") ) return;   // ended its turn OUTSIDE
     const item = sys.item ? fromUuidSync(sys.item) : null;
     const activity = [...(item?.system?.activities ?? [])].find(a => a.type === "save") ?? null;
@@ -245,6 +255,41 @@ async function maybeTrigger(behType, token, cause) {
   } catch(err) {
     console.error(`${TITLE} | Emanation trigger failed — ask for the save by hand.`, err);
   }
+}
+
+/** Drop a token from the region's "asked at the cast" record. */
+async function forgetInitial(region, token) {
+  const f = flagOf(region);
+  if ( !token || !f?.initial?.includes(token.id) ) return;
+  await region.setFlag(MODULE_ID, FLAG, { ...f, initial: f.initial.filter(id => id !== token.id) }).catch(() => {});
+}
+
+/**
+ * Make a template's Region this module's emanation: the behaviour first (the flag every reader
+ * keys on is written last, so a flagged region always carries its behaviour), attached to the
+ * source token, INVISIBLE as a region — the template it backs draws the ring (user, 2026-09-03:
+ * "the black circle, not the green area") — and flagged with what it is, plus who stood inside
+ * when it appeared (the cast's demand already asked those).
+ */
+async function adoptRegion(region, { kind, key, tok, itemUuid, reach, scaling = 0, effect = null, disabled = false }) {
+  // ⚠ ORDER. The "asked at the cast" record goes down FIRST: creating the behaviour subscribes
+  // it to events, and attaching the region recomputes membership and raises tokenEnter for
+  // everyone inside — a trigger that read the record before it was written asked the dummy a
+  // second time (smoke-emanations, fifth live run). The flag is also what every reader keys
+  // on, and a flagged region without its behaviour is tolerated for the milliseconds between.
+  // ⚠ GEOMETRY, not membership: a region just created has not computed `tokens` yet (empty for
+  // the first beat — the record came out empty and the dummy was asked twice again). The
+  // template it backs is on the scene now, and the spine's containment reads it directly.
+  const template = region.parent?.templates?.get(region.id) ?? null;
+  const inside = template ? (tokensInTemplates([template]) ?? []).map(e => e.tokenId) : [...(region.tokens ?? [])].map(t => t.id);
+  const initial = inside.filter(id => id && (id !== tok?.id));
+  await region.update({
+    color: colorFor(reach), visibility: CONST.REGION_VISIBILITY.LAYER,
+    flags: { [MODULE_ID]: { [FLAG]: { kind, key, tokenId: tok?.id ?? null, itemUuid, initial } } }
+  });
+  await region.createEmbeddedDocuments("RegionBehavior", [{ type: TYPE, name: key, disabled,
+    system: { key, source: tok?.uuid ?? null, item: itemUuid, reach, scaling, effect } }]);
+  if ( tok ) await region.update({ attachment: { token: tok.id } });
 }
 
 /* --- the lifecycle: a feature's emanation stands with its token ------------------------------- */
@@ -317,21 +362,21 @@ async function reconcileScene(scene) {
       }
     }
   }
-  const px = scene.dimensions?.distancePixels ?? (scene.grid.size / scene.grid.distance);
   const seen = new Set();
+  const removeArea = async region => { await liftAll(region); const t = scene.templates.get(region.id); if ( t ) await t.delete().catch(() => {}); if ( scene.regions.get(region.id) ) await region.delete().catch(() => {}); };
   for ( const region of scene.regions.filter(r => flagOf(r)?.kind === "feature") ) {
     const f = flagOf(region);
     const id = `${f.tokenId}|${f.key}`;
     const w = wanted.get(id);
-    // Not wanted, or a second region for the same aura (a race before the sweep was serialized):
-    // lifted and deleted. One aura, one region.
-    if ( !w || seen.has(id) ) { await liftAll(region); await region.delete().catch(() => {}); continue; }
+    // Not wanted, or a second area for the same aura (a race before the sweep was serialized):
+    // lifted and deleted. One aura, one area.
+    if ( !w || seen.has(id) ) { await removeArea(region); continue; }
     seen.add(id);
     wanted.delete(id);
     const beh = behaviorOf(region);
-    const shape = region.shapes[0];
-    const radius = w.range * px;
-    if ( shape && (shape.radius !== radius) ) await region.update({ shapes: [{ ...shape.toObject(), radius }] });
+    const template = scene.templates.get(region.id);
+    const distance = w.range + (w.tok.width * scene.grid.distance) / 2;
+    if ( template && (template.distance !== distance) ) await template.update({ distance });
     if ( beh ) {
       const upd = {};
       if ( beh.disabled !== w.disabled ) upd.disabled = w.disabled;
@@ -341,15 +386,26 @@ async function reconcileScene(scene) {
     await reconcileMembers(region);
   }
   for ( const w of wanted.values() ) {
-    const region = await CONFIG.Region.documentClass.createTokenEmanation(w.tok, w.range, {
-      name: `${w.row.key} — ${w.actor.name}`, color: colorFor(w.row.reach), visibility: CONST.REGION_VISIBILITY.ALWAYS,
-      behaviors: [{ type: TYPE, name: w.row.key, disabled: w.disabled,
-        system: { key: w.row.key, source: w.tok.uuid, item: w.item.uuid, reach: w.row.reach, scaling: 0, effect: w.effect } }],
-      flags: { [MODULE_ID]: { [FLAG]: { kind: "feature", key: w.row.key, tokenId: w.tok.id, itemUuid: w.item.uuid } } }
-    }).catch(err => { console.error(`${TITLE} | Could not raise ${w.row.key} around ${w.actor.name}.`, err); return null; });
-    if ( !region ) continue;
-    await announce(w.row, w.actor, w.item, w.range, w.effect, "stands");
-    await reconcileMembers(scene.regions.get(region.id) ?? region);
+    try {
+      // A TEMPLATE, like a spell's: it draws the ring the table sees (user: "the black circle,
+      // not the green area"), and its Region — same id, attached to the token — is the machine.
+      // Centred on the token, the class's range plus half the token (an emanation measures from
+      // the edge). No dnd5e flags: a feature's aura demands no save, so the saves machine's
+      // template adoption must never see it as an area of anything.
+      const [template] = await scene.createEmbeddedDocuments("MeasuredTemplate", [{
+        t: "circle", x: w.tok.x + (w.tok.width * scene.grid.size) / 2, y: w.tok.y + (w.tok.height * scene.grid.size) / 2,
+        distance: w.range + (w.tok.width * scene.grid.distance) / 2,
+        fillColor: colorFor(w.row.reach),
+        flags: { [MODULE_ID]: { [FLAG]: { kind: "feature", key: w.row.key, tokenId: w.tok.id, itemUuid: w.item.uuid } } }
+      }]);
+      const region = template ? (scene.regions.get(template.id) ?? await new Promise(r => setTimeout(() => r(scene.regions.get(template.id)), 400))) : null;
+      if ( !region ) { console.error(`${TITLE} | ${w.row.key} around ${w.actor.name}: the template's region never appeared.`); continue; }
+      await adoptRegion(region, { kind: "feature", key: w.row.key, tok: w.tok, itemUuid: w.item.uuid, reach: w.row.reach, effect: w.effect, disabled: w.disabled });
+      await announce(w.row, w.actor, w.item, w.range, w.effect, "stands");
+      await reconcileMembers(scene.regions.get(region.id) ?? region);
+    } catch(err) {
+      console.error(`${TITLE} | Could not raise ${w.row.key} around ${w.actor.name}.`, err);
+    }
   }
 }
 
@@ -370,17 +426,8 @@ async function adoptSpellRegion(region) {
     const resolved = effect ? resolveChanges(effect.changes.map(c => ({ key: c.key, mode: c.mode, value: c.value, priority: c.priority })), rollData) : { changes: [], unresolved: [] };
     const spellLevel = Number(region.getFlag("dnd5e", "spellLevel") ?? item.system?.level ?? 0);
     const scaling = Math.max(0, spellLevel - Number(item.system?.level ?? 0));
-    // The behaviour FIRST, the flag second: the flag is what every reader keys on, so a region
-    // that carries it always carries its behaviour too (a suite read the flag before the
-    // behaviour landed and saw an emanation with nothing on it).
-    await region.createEmbeddedDocuments("RegionBehavior", [{ type: TYPE, name: row.key,
-      system: { key: row.key, source: tok?.uuid ?? null, item: itemUuid, reach: row.reach, scaling,
-        effect: (effect && !resolved.unresolved.length) ? { name: effect.name, img: effect.img ?? item.img ?? null, description: row.rule, changes: resolved.changes } : null } }]);
-    await region.update({
-      ...(tok ? { attachment: { token: tok.id } } : {}),
-      color: colorFor(row.reach), visibility: CONST.REGION_VISIBILITY.ALWAYS,
-      flags: { [MODULE_ID]: { [FLAG]: { kind: "spell", key: row.key, tokenId: tok?.id ?? null, itemUuid } } }
-    });
+    await adoptRegion(region, { kind: "spell", key: row.key, tok, itemUuid, reach: row.reach, scaling,
+      effect: (effect && !resolved.unresolved.length) ? { name: effect.name, img: effect.img ?? item.img ?? null, description: row.rule, changes: resolved.changes } : null });
     const size = activitySizeOf(item, rollData);
     await announce(row, actor, item, size ?? region.shapes[0]?.radiusX ?? null, effect ? { name: effect.name, changes: resolved.changes } : null, "is cast");
     await reconcileMembers(region);

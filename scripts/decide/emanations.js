@@ -148,15 +148,19 @@ export function triggerDue({ inCombat, chitStands }) {
  * resolved changes and the fingerprint the floor reads to know it is this emanation's.
  * @param {{ name: string, rule?: string }} row
  * @param {{ name: string, img?: string|null, description?: string|null, changes: any[] }} effect   the pack's effect, changes already resolved
- * @param {{ sourceName: string, itemUuid: string|null, regionId: string, moduleId: string, flagKey: string }} ids
+ * @param {{ sourceName: string, itemUuid: string|null, regionId: string, moduleId: string, flagKey: string, status?: string|null }} ids
+ *        `status`: a status id the effect wears so the token SHOWS it — Foundry draws only
+ *        temporary effects on a token, and a standing aura has no clock to be temporary by
+ *        (user, 2026-09-03: "it should show a chit when in, and be removed when out").
  */
-export function memberEffectData(row, effect, { sourceName, itemUuid, regionId, moduleId, flagKey }) {
+export function memberEffectData(row, effect, { sourceName, itemUuid, regionId, moduleId, flagKey, status = null }) {
   return {
     name: `${effect.name} — ${sourceName}`,
     img: effect.img ?? "icons/svg/aura.svg",
     description: `<p><em>“${row.rule ?? ""}”</em></p><p>${row.name}: ${sourceName}'s emanation. Battle Flow keeps this while the creature stands inside it.</p>`,
     origin: itemUuid ?? null,
     disabled: false, transfer: false,
+    ...(status ? { statuses: [status] } : {}),
     changes: effect.changes.map(c => ({ ...c })),
     flags: { [moduleId]: { [flagKey]: { regionId, key: row.name } } }
   };

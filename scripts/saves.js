@@ -155,7 +155,11 @@ async function stampSaveDemand(activity, message, results) {
     // stakes line and the LR unwind both read these without needing the live document.
     const applicable = new Set((activity.applicableEffects ?? []).map(e => e.id));
     const entries = (activity.effects ?? []).filter(e => e.effect && applicable.has(e.effect.id));
-    const effectNames = {
+    // An EMANATION spell's effect (Spirit Guardians' Half Speed) is the area's STANDING effect,
+    // kept by the region while a creature stands inside — the verdict never applies it, and the
+    // dialog never promises it (user walk, 2026-09-03: two Half Speeds, two lifecycles).
+    const emanation = !!emanationRowFor(activity);
+    const effectNames = emanation ? { fail: [], always: [] } : {
       fail: entries.filter(e => !e.onSave).map(e => e.effect.name),
       always: entries.filter(e => e.onSave).map(e => e.effect.name)
     };
@@ -193,6 +197,7 @@ async function stampSaveDemand(activity, message, results) {
       damageOnSave: onSave,
       hasDamage: saveModulated,
       effectNames,
+      ...(emanation ? { effectsHandled: "emanation" } : {}),
       activityUuid: activity.uuid,
       // The dnd5e area type (cube, sphere, …) — adoption's shape gate for a TOOLBAR-drawn
       // template, which carries no origin flag to match by (the v1.12.0 walk's finding ①).
@@ -260,11 +265,16 @@ function templatesForOrigin(activityUuid) {
  * reaches enemies, by disposition), and the caster's own token never owes its own spell a save.
  * Only a LISTED emanation row filters; every other area keeps the old answer. Null in, null out.
  */
-function emanationReach(activity, contained) {
-  if ( !Array.isArray(contained) || !activity?.item || !setting(S.emanations) ) return contained;
+function emanationRowFor(activity) {
+  if ( !activity?.item || !setting(S.emanations) ) return null;
   const key = Object.keys(EMANATIONS).find(k => k.toLowerCase() === String(activity.item.name ?? "").toLowerCase());
   const row = key ? EMANATIONS[key] : null;
-  if ( !row?.reach || !emanationEntries().some(e => e.kind === key.toLowerCase()) ) return contained;
+  if ( !row?.reach || !emanationEntries().some(e => e.kind === key.toLowerCase()) ) return null;
+  return row;
+}
+function emanationReach(activity, contained) {
+  const row = emanationRowFor(activity);
+  if ( !row || !Array.isArray(contained) ) return contained;
   const caster = activity.actor ?? null;
   const casterTok = caster?.token ?? caster?.getActiveTokens?.(true, true)?.[0] ?? null;
   const casterDisposition = casterTok?.disposition ?? CONST.TOKEN_DISPOSITIONS.FRIENDLY;

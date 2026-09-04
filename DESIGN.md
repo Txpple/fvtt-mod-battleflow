@@ -563,9 +563,20 @@ automated — that sentence is the whole job, and the module does exactly that m
   cast's level, half on a success — and the saves machine drives it as it drives any demand. Once
   per turn as the text says, counted only for a combatant (§8). The standing effect (Half Speed)
   is the region's, never applied again by the verdict.
-- **Drawn as a ring for everyone** in the palette's hue — good green for a helpful aura, bad red
-  for a harmful one (user: *"let's try a faint ring, I need to judge — if it looks bad,
-  invisible"*; the judgement is the walk's).
+- **Drawn as the template's ring, and only that** (user walk, 2026-09-03: *"the ring is nice
+  … can the paladin aura have the black circle too? and not the green area"*). A feature's aura
+  is a TEMPLATE too — the same ring a spell's placement draws, centred on the token and moving
+  with it — and the Region behind every emanation is invisible; the fill wears the palette's hue
+  faintly, the border stays the platform's black.
+- **A member effect shows on the token** (user walk: *"it should show a chit when in, and be
+  removed when out"*): Foundry draws only temporary effects on a token and a standing aura has
+  no clock, so the member's copy wears a module status (`bfEmanation`) — visible while inside,
+  gone with the effect on the way out. **One copy, one lifecycle:** the cast's own demand never
+  applies the spell's standing effect (the two Half Speeds with two clocks were the walk's
+  "inconsistent chit").
+- **Asked once at the cast** (user walk: *"if I cast it and the dummy is in range, it triggers
+  two saves"*): whoever stands inside when the area appears is asked by the cast's demand; the
+  area attaching around them is not an entry. Leave and come back, and the trigger asks again.
 - **The floor is the truth**: the active GM keeps the standing effects true to the platform's
   membership on every event and every token move — apply to a member that lacks it, lift from a
   non-member that carries it, one write per creature per region. The Region's events are the

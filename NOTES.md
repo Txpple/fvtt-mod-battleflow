@@ -260,6 +260,17 @@ warns once, gone at v16) — read `units`/`value`/`expired` instead. Measured li
   word (only `preUpdateToken` fires) — a "moved out" reading against an off-scene square is a lie.
 - **A template's region shares the template's id**, and the template's `flags.dnd5e` are copied
   onto it — which is how a cast emanation is recognised (`origin`, `item`, `spellLevel`).
+- **A freshly created region's `tokens` is EMPTY for the first beat** — membership is computed
+  after the create settles. A record of "who stood inside when the area appeared" taken from
+  `region.tokens` at creation came out empty (smoke-emanations, sixth live run); read the
+  template's geometry instead (`tokensInTemplates`). And **write such a record BEFORE creating
+  a behaviour on the region**: the behaviour subscribes at once, and attaching the region raises
+  `tokenEnter` for everyone inside — a handler that read the record before it landed asked
+  twice.
+- **`borderColor` on a MeasuredTemplate create came back `#000000`** on this box — the border
+  stays black whatever is passed; `fillColor` takes. Foundry draws only TEMPORARY effects on a
+  token (a duration, or a status) — a standing effect with neither has no token icon; a module
+  status id on the effect is enough (`statuses: ["bfEmanation"]`, no CONFIG registration needed).
 - **dnd5e 5.3 does not delete a placed template when concentration ends** (smoke-emanations §8
   measured the template standing after `endConcentration`), and `ActiveEffect5e#addDependent` is
   deprecated for the `dependentOn` flag — which only `Activity`, `SystemDocument` and
