@@ -107,6 +107,7 @@ const LAYER_OF = {
   "decide/hit-menu.js": "decision",
   "decide/shields.js": "decision",
   "decide/choices.js": "decision",
+  "decide/demand.js": "decision",
 
   // CORE — the leaf: ids, settings accessor, the elect, the flag serializer
   "core.js": "core"

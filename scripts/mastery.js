@@ -15,10 +15,7 @@ import { chipData, chipSpentOnRecord, chitStampOf, hitTargets, masteryLabel, mod
   turnPlace } from "./shared.js";
 import { effectEntries, listedNames } from "./settings.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
-import { livePopups, openMomentPopup, DialogCarried,
-  momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,
-  armAskTimer, disarmAskTimer, armDeadline, disarmDeadline,
-  dramaticVerdictPause } from "./ui.js";
+import { livePopups, openMomentPopup, DialogCarried, momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged, armAskTimer, disarmAskTimer, armDeadline, disarmDeadline, dramaticVerdictPause, registerDemand, demandAnsweredBy } from "./ui.js";
 import { forceStatus } from "./shared.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { registerOfferPart } from "./auto-damage.js";
@@ -665,43 +662,32 @@ async function applyToppleFailure(card, uuid) {
   });
 }
 
+// Declared to the spine's demand registry (Stage 2, 2026-09-05), priority 2 — last, the ship
+// order kept as ruling 1. A chained roll answers the card it chains to; a BARE roll defers to
+// the older machines exactly as before: when a pending concentration ask or save demand names
+// this actor with a matching ability, the bare roll is theirs — the topple's own popup and
+// buzzer still stand, so nothing goes unresolved. ⚠ ANOTHER MACHINE'S STAMPED ANSWER IS NEVER A
+// TOPPLE ANSWER (the 2026-08-18 session's finding ④, probe-proven): Edda's concentration answer
+// — respondsTo on the roll, no originatingMessage — fell through to the whole-log branch and was
+// claimed as her Topple save too; one roll, two verdicts, and her still-open Topple popup
+// vanished resolved-by-theft. `answering: null` is that guard. Pre-v1.5.0 cards carry no dc and
+// are skipped — their GM buttons still work.
+registerDemand("topple", {
+  priority: 2, chained: true, answering: null,
+  pendingEntry: (flag, f) => (!(flag?.dc > 0) || (flag.ability && (f.ability !== flag.ability)))
+    ? null : (flag.targets ?? []).find(t => !t.done && (t.uuid === f.actorUuid)) ?? null,
+  pendingFor: (flag, uuid) => (flag?.dc > 0) ? (flag.targets ?? []).find(t => !t.done && (t.uuid === uuid)) ?? null : null
+});
+
 async function foldToppleSave(saveMessage) {
   try {
     const actor = saveMessage.getAssociatedActor?.();
     const total = saveMessage.rolls?.[0]?.total;
     if ( !actor || (typeof total !== "number") ) return;
-    const originId = saveMessage.getFlag("dnd5e", "originatingMessage");
-    let cards;
-    if ( originId ) {
-      const origin = game.messages.get(originId);
-      if ( !origin?.getFlag(MODULE_ID, "topple") ) return; // another chain's save
-      cards = [origin];
-    } else {
-      // ANOTHER MACHINE'S STAMPED ANSWER IS NEVER A TOPPLE ANSWER (the 2026-08-18 session's
-      // finding ④, probe-proven): Edda's concentration answer — respondsTo on the roll, no
-      // originatingMessage — fell through to this whole-log branch and was claimed as her
-      // Topple save too; one roll, two verdicts, and her still-open Topple popup vanished
-      // resolved-by-theft. saves.js has refused respondsTo rolls since v1.7.0; this fold
-      // was the only recognizer missing the guard.
-      if ( saveMessage.getFlag(MODULE_ID, "respondsTo") ) return;
-      // And a BARE roll defers to the older machines, exactly saves.js's rule (priority
-      // conc → saves → topple, the ship order): when a pending concentration ask or save
-      // demand names this actor with a matching ability, the bare roll is theirs — the
-      // topple's own popup and buzzer still stand, so nothing goes unresolved.
-      const ability = saveMessage.getFlag("dnd5e", "roll.ability") ?? null;
-      const spokenFor = game.messages.some(m => {
-        const c = m.getFlag(MODULE_ID, "concentration");
-        if ( c && (c.status === "pending") && (c.actorUuid === actor.uuid)
-          && (c.ability === ability) ) return true;
-        const s = m.getFlag(MODULE_ID, "saves");
-        return !!s && (s.status === "pending") && s.abilities?.includes(ability)
-          && s.targets?.some(t => !t.done && (t.uuid === actor.uuid));
-      });
-      if ( spokenFor ) return;
-      // Whole-log by design (the tail-window lesson); the oldest pending card answers first.
-      cards = game.messages.contents.filter(m => m.getFlag(MODULE_ID, "topple"));
-    }
-    for ( const card of cards ) {
+    const found = demandAnsweredBy(saveMessage);
+    if ( found?.flagKey !== "topple" ) return;   // another chain's, another machine's, or nobody's
+    // Whole-log by design (the tail-window lesson); the oldest pending card answers first.
+    for ( const { card } of found.matches ) {
       const flag = foundry.utils.deepClone(card.getFlag(MODULE_ID, "topple"));
       if ( !(flag?.dc > 0) ) continue;
       if ( flag.ability && (saveMessage.getFlag("dnd5e", "roll.ability") !== flag.ability) ) continue;

@@ -3,6 +3,7 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor } from "./core.js";
+import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { lower, itemNamed, activityNamed, activityOfType, resolveUuid } from "./lookup.js";
 import { emanationEntries, listedNames } from "./settings.js";
 import { turnChitStands, writeTurnChit } from "./shared.js";
@@ -262,8 +263,10 @@ async function maybeTrigger(behType, token, cause) {
         lines: [ruleLine(row.rule)]
       }),
       flags: { [MODULE_ID]: {
-        saves: {
-          status: "pending", ...statContext(casterActor?.uuid ?? null),
+        // The saves flag through its one constructor (decide/demand.js, Stage 2) — this card
+        // used to write the whole shape by hand.
+        saves: saveDemandData({
+          stat: statContext(casterActor?.uuid ?? null),
           abilities, dc, damageOnSave: onSave, hasDamage,
           effectNames: { fail: [], always: [] }, effectsHandled: "emanation",
           // The target is THIS creature and nothing re-derives it: the saves machine's area
@@ -275,9 +278,9 @@ async function maybeTrigger(behType, token, cause) {
           durationUnits: item.system?.duration?.units ?? null,
           item: { name: item.name, img: item.img ?? null }, casterName: casterActor?.name ?? null,
           scaling: Number(sys.scaling ?? 0),
-          ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
-          targets: [{ uuid: actor.uuid, name: token.name, done: false, outcome: null, total: null, rollMessageId: null }]
-        },
+          window, deadline: window ? Date.now() + (window * 1000) : null,
+          targets: [saveTargetEntry(actor.uuid, token.name)]
+        }),
         emanationTrigger: { key: row.key, cause, regionId: region.id, targetUuid: actor.uuid, inCombat: !!combat, why: due.why }
       } }
     });

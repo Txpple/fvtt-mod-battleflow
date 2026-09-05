@@ -199,9 +199,33 @@ it into a nested object is a **wire-format change** on messages players write an
 reads — an answer in flight across a deploy would simply stop folding. `targetOf` exists so each
 relay names its own shape. **Unify the mechanism; leave the bytes alone.**
 
-⚠ `respondsTo` is **polymorphic** — concentration and saves stamp it too, for their own
-answer paths. The relay self-selects on the target's flag, which is why `flagKey` is part of the
-declaration rather than inferred.
+⚠ `respondsTo` is **polymorphic** — it carries FIVE meanings, **and the bytes of none of them
+change** (the machine-tier pass, Stage 2, 2026-09-05 — the table the docs never had):
+
+| The message that carries it | Points at | Read by |
+| --- | --- | --- |
+| a hold's answer (with `uuid`/`answer`/`ac` beside it) | the attack message | the hold's relay (`registerRelay("respondsTo")`), which self-selects on the target's `hold` flag — why `flagKey` is part of a relay's declaration rather than inferred |
+| a save roll the module rolled (with `saveFor`) | the demand card | **the demand registry** |
+| a concentration roll the module rolled | the ask card | **the demand registry** |
+| Precision Attack's die | the attack message | maneuvers.js, on its own `precision` flag |
+| a d20 fold's die | the roll message | d20-folds.js, on its own `d20fold` flag |
+
+**One reader for the demands** — `demandAnsweredBy(rollMessage)` in [ui.js](scripts/ui.js), over
+the pure `resolveDemand` in [decide/demand.js](scripts/decide/demand.js) (unit-tested).
+Concentration, the save demand and the Topple fold each used to recognize their answer with their
+own walk of the log, and each checked the OTHER machines' flags by string in a fixed order the
+comments called ship order. Each declares itself now — `registerDemand(flagKey, { priority,
+chained, answering, pendingEntry, pendingFor })` — and the order is **`priority`, ruled kept
+(ruling 1, 2026-09-05: concentration, then saves, then Topple; byte-identical)**. A stamped roll
+answers the card it names on whichever declared flag accepts it (a hold answer or a fold's die
+answers nothing here; the Topple fold accepts no stamped roll at all — the 2026-08-18 theft); a
+chained roll (`originatingMessage`) answers the card it chains to or nothing; a bare sheet roll
+answers the highest-priority machine with a pending entry for that actor and ability, every such
+card oldest first. `pendingDemandsFor(actorUuid, { flagKey })` is the roll-less question ("is this
+creature mid-answer") the d20 folds and the save gate ask. The `saves` flag has one constructor
+(`saveDemandData`, `saveTargetEntry`) — emanations.js used to write the whole shape by hand for its
+trigger card — and one verdict reader (`verdictsOn`) the hit menu and Cunning Strike read outcomes
+through. The flag is read or written outside saves.js only through those.
 
 ✅ **THE RELAYED HALF IS TESTED AS OF 2026-08-23, and it never had been.** When the answerer can
 write the target message the envelope never travels at all — so every single-client suite in the
@@ -529,6 +553,7 @@ in milliseconds and impossible to tangle. **Keep it that way** — the day somet
 | [decide/emanations.js](scripts/decide/emanations.js) | `reachAdmits` (who an aura reaches, by disposition — helpful: allies and neutrals; harmful: enemies), `emanationRange` (the activity's size, else the row's content formula over the source's roll data — `@scale.paladin.aura`), `resolveChanges` / `resolveFormula` / `foldArithmetic` (the pack's effect with the SOURCE's numbers read in), `triggerDue` (once per turn in combat), `appliesOnScene` (the active scene only — the cross-scene bleed, 2026-09-04), `memberEffectData` (the effect a member receives, fingerprinted for the floor) |
 | [decide/hit-menu.js](scripts/decide/hit-menu.js) | `hitMenu` (the groups and rows a hit offers, read off the sheet and the list), `hitPick` (one per group, affordable), `sweepVerdict` (would the original attack roll hit a second creature) — the hit menu's arithmetic, 2026-09-04 |
 | [decide/choices.js](scripts/decide/choices.js) | `effectChoiceFor` (which of a cast's effects are the alternatives a listed row names — fewer than two present asks nothing), `effectsAfterChoice` (what lands once the pick is made: the non-alternatives plus the pick; pending is null and the caller waits; a pick outside the options is pending too) — the cast-time effect choice, 2026-09-05 |
+| [decide/demand.js](scripts/decide/demand.js) | `resolveDemand` (which pending demand a roll answers — the stamped, the chained and the bare channel, the ship order as `priority`; §4's table), `pendingDemands` (mid-answer, with no roll in hand); `saveDemandData`, `saveTargetEntry`, `verdictsOn` — the saves flag's two constructors and its verdict reader (the machine-tier pass, Stage 2, 2026-09-05) |
 | [decide/shields.js](scripts/decide/shields.js) | `shieldDue` (is a damage shield due on this hit — melee, within the activity's reach, once per turn, while the temp HP stand), `shieldReach`, `shieldType` (the type the standing effect decides), `shieldEffectNames`, `durationSeconds` — the damage shields' arithmetic, 2026-09-05. `reduceDamages` (Parry's subtraction) sits in decide/verdict.js beside the multiplier; `healTriggerDue` (Aura of Life's 0-HP ally) in decide/emanations.js; `effectCheckSources` (an effect that bends checks by its text) in decide/reminders.js |
 | [decide/verdict.js](scripts/decide/verdict.js) | `hitsAmong`, `modeAdmits`, `saveOutcome`, `saveMultiplier`, `verdictText`, and the fold layer (`ATTACK_FOLDS`, `SAVE_FOLDS`, `foldsFrom`, `foldedRoll`, `foldedVerdict`, `foldedSave`) |
 | [decide/eligible.js](scripts/decide/eligible.js) | `isDeadForSaves`, `limitedUses`, `isReactionItem`, `castLevelOf`, `clampVolleyCount`, `riderKey` |

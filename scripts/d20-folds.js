@@ -67,8 +67,7 @@ import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RE
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
 import { SUPERIORITY_FOLDS } from "./decide/registry.js";
 import { CHIP_FLAG } from "./decide/chips.js";
-import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments,
-  acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup } from "./ui.js";
+import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor } from "./ui.js";
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 
 /**
@@ -438,14 +437,10 @@ Hooks.on("createChatMessage", async message => {
   }
 });
 
-/** Is this actor mid-answer on a save this module demanded? Read off the demand cards, so the
- * native-roll path can stand aside without importing the save machine. */
+/** Is this actor mid-answer on a save this module demanded? Asked of the spine's demand registry,
+ * so the native-roll path stands aside without importing the save machine or reading its flag. */
 function pendingSaveDemandFor(actor) {
-  return game.messages.contents.some(m => {
-    const flag = m.getFlag(MODULE_ID, "saves");
-    return flag && (flag.status === "pending")
-      && (flag.targets ?? []).some(t => !t.done && (t.uuid === actor.uuid));
-  });
+  return pendingDemandsFor(actor.uuid, { flagKey: "saves" }).length > 0;
 }
 
 const armFoldTimer = message =>

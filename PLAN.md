@@ -198,6 +198,14 @@ roll, concentration roll, precision die, d20-fold die) and the one reader. **The
 change** — an answer in flight across a deploy must keep folding.
 **Proves:** unit tests for the recognizer; suites: saves, concentration, effects (Topple),
 d20-folds, emanations, hitmenu, sneak, nogm.
+✅ **Done 2026-09-05** — `decide/demand.js` (18 unit tests: the three channels, the precedence,
+the constructors, the reader); `registerDemand` / `demandAnsweredBy` / `pendingDemandsFor` in
+ui.js; concentration, saves and the Topple fold declare (`answering: null` on Topple is the
+2026-08-18 theft guard); d20-folds asks the registry; emanations builds its trigger flag through
+the constructor; hit-menu and sneak read verdicts through the reader. One measured normalisation:
+the reader sorts the log by timestamp (concentration already did; saves and Topple relied on
+`contents` order, which the comments called oldest-first). Hook order byte-identical — the spine's
+reader registers no hook. Cost: one session, most of it the two batteries of Stage 1.
 
 ### STAGE 3 — the resumable primitive (finding 3; 1½ sessions)
 

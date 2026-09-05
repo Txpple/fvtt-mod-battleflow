@@ -3,6 +3,7 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
+import { verdictsOn } from "./decide/demand.js";
 import { lower, featureNamed, activityOfType, resolveUuid, resolveDie } from "./lookup.js";
 import { hitMenuEntries } from "./settings.js";
 import { hitTargets, poolOf, spendSuperiorityDie, statSourceOf, withTargets } from "./shared.js";
@@ -364,10 +365,11 @@ async function settleHitFollowups(card) {
   const hc = card.getFlag(MODULE_ID, "hitManeuverCard");
   const saves = card.getFlag(MODULE_ID, "saves");
   const uuids = [...(hc?.effectUuid && hc.onFail ? [hc.effectUuid] : []), ...(hc?.pressUuids ?? [])];
-  if ( !uuids.length || !saves?.targets?.length ) return;
+  const verdicts = verdictsOn(saves);   // the answered targets, through the one reader (Stage 2)
+  if ( !uuids.length || !verdicts.length ) return;
   if ( !drivesMomentFor(saves.sourceUuid ?? hc.sourceUuid ?? null) ) return;
-  for ( const t of saves.targets ) {
-    if ( !t.done || (t.outcome !== "failed") || hc.applied?.includes?.(t.uuid) ) continue;
+  for ( const t of verdicts ) {
+    if ( (t.outcome !== "failed") || hc.applied?.includes?.(t.uuid) ) continue;
     const key = `${card.id}|${t.uuid}`;
     if ( followups.has(key) ) continue;
     followups.add(key);

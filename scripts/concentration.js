@@ -7,9 +7,7 @@ import { MODULE_ID, TITLE, S, setting, rollerUserFor, canAnswerFor,
 import { resolveUuid } from "./lookup.js";
 import { rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML } from "./decide/present.js";
-import { livePopups, momentButton, DialogCarried,
-  scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
-  dramaticVerdictPause } from "./ui.js";
+import { livePopups, momentButton, DialogCarried, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer, dramaticVerdictPause, registerDemand, demandAnsweredBy } from "./ui.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 2.5 — the concentration assist: damage → ask → roll → verdict → break.
@@ -258,22 +256,20 @@ function pendingConcAsks(actorUuid) {
  * Which pending ask a message answers, if any: the module's own respondsTo stamp, or a bare
  * sheet-rolled save matching a pending ask's actor and ability — no originatingMessage,
  * because a save belonging to an activity chain (a spell's save, Phase 2's territory) must
- * never be mistaken for a concentration answer.
+ * never be mistaken for a concentration answer. Declared to the spine's demand registry
+ * (Stage 2, 2026-09-05): priority 0 — a bare roll is concentration's before it is anyone's,
+ * the ship order kept as ruling 1. The bare match takes the OLDEST pending ask, as before.
  */
+registerDemand("concentration", {
+  priority: 0, chained: false,
+  answering: flag => flag ? {} : null,
+  pendingEntry: (flag, f) => ((f.rollType === "save") && (flag.status === "pending") && (flag.actorUuid === f.actorUuid)
+    && (flag.ability === f.ability)) ? {} : null,
+  pendingFor: (flag, uuid) => ((flag.status === "pending") && (flag.actorUuid === uuid)) ? {} : null
+});
 function concAskAnsweredBy(message) {
-  const respondsTo = message.getFlag(MODULE_ID, "respondsTo");
-  if ( respondsTo ) {
-    return game.messages.get(respondsTo)?.getFlag(MODULE_ID, "concentration") ? respondsTo : null;
-  }
-  const roll = message.getFlag("dnd5e", "roll");
-  if ( roll?.type !== "save" ) return null;
-  if ( message.getFlag("dnd5e", "originatingMessage") ) return null;
-  const actor = message.getAssociatedActor?.();
-  if ( !actor ) return null;
-  const oldest = pendingConcAsks(actor.uuid)[0];
-  if ( !oldest ) return null;
-  if ( (roll.ability ?? null) !== oldest.getFlag(MODULE_ID, "concentration").ability ) return null;
-  return oldest.id;
+  const found = demandAnsweredBy(message);
+  return (found?.flagKey === "concentration") ? found.matches[0]?.card.id ?? null : null;
 }
 
 /** Same-client fold latch — the create watcher and the render resume can race in one tick. */

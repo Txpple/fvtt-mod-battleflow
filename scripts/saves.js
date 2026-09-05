@@ -6,14 +6,13 @@ import { MODULE_ID, TITLE, S, setting, queueFlagWrite, rollerUserFor,
   drivesMomentFor, canApplyTo, whisperNoGM, canAnswerFor,
   statContext, sheetModeEffects, rollLabelFor } from "./core.js";
 import { resolveUuid } from "./lookup.js";
+import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { tokensInTemplates } from "./geometry.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom, saveMultiplier, verdictText } from "./decide/verdict.js";
 import { isDeadForSaves } from "./decide/eligible.js";
 import { forceStatus, damagePartsOf, reactionSpent, rollConfigFor, spendReaction, statSourceOf } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, reminderFieldsetHTML, TONE } from "./decide/present.js";
-import { livePopups, openMomentPopup, adoptManagedPopup, DialogCarried, markDefaultButton,
-  momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
-  armDeadline, disarmDeadline, registerRelay, dramaticVerdictPause } from "./ui.js";
+import { livePopups, openMomentPopup, adoptManagedPopup, DialogCarried, markDefaultButton, momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer, armDeadline, disarmDeadline, registerRelay, dramaticVerdictPause, registerDemand, demandAnsweredBy, pendingDemandsFor } from "./ui.js";
 import { EFFECT_BENDS, EMANATIONS, EVASION, SAVE_BENDS, SAVE_PRESSES, tableIndex } from "./decide/registry.js";
 import { reachAdmits } from "./decide/emanations.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
@@ -191,9 +190,11 @@ async function stampSaveDemand(activity, message, results) {
     // untouched: placed-and-empty Web keeps its wait, its area persists by design.
     const durationUnits = activity.item?.system?.duration?.units ?? null;
     const emptyInstant = awaiting && !!contained && (durationUnits === "inst");
-    await message.setFlag(MODULE_ID, "saves", {
+    // The flag through its one constructor (decide/demand.js, Stage 2 — emanations.js stamps the
+    // same shape for its trigger card); the field order is the stamp's own.
+    await message.setFlag(MODULE_ID, "saves", saveDemandData({
       status: emptyInstant ? "done" : "pending",
-      ...statContext(activity.actor?.uuid ?? null), // the data-plane stamp — the caster forced this
+      stat: statContext(activity.actor?.uuid ?? null), // the data-plane stamp — the caster forced this
       abilities, dc,
       damageOnSave: onSave,
       hasDamage: saveModulated,
@@ -203,24 +204,24 @@ async function stampSaveDemand(activity, message, results) {
       // these off the pending demand when the roller's dialog opens.
       demand: { spell: (activity.item?.type === "spell") || (activity.item?.system?.properties?.has?.("mgc") ?? false),
         statuses: [...new Set(entries.filter(e => !e.onSave).flatMap(e => [...(e.effect?.statuses ?? [])]))] },
-      ...(emanation ? { effectsHandled: "emanation" } : {}),
+      effectsHandled: emanation ? "emanation" : null,
       activityUuid: activity.uuid,
       // The dnd5e area type (cube, sphere, …) — adoption's shape gate for a TOOLBAR-drawn
       // template, which carries no origin flag to match by (the v1.12.0 walk's finding ①).
       templateType: activity.target?.template?.type ?? null,
       templated: !!contained,
-      ...(awaiting && !emptyInstant ? { awaitingTemplate: true } : {}),
+      awaitingTemplate: awaiting && !emptyInstant,
       durationUnits,
       item: { name: activity.item?.name ?? "the effect", img: activity.item?.img ?? null },
       casterName: activity.actor?.name ?? null,
       // A waiting demand carries its window but NO deadline — the clock starts when the
       // area delivers its first targets (the adoption write), not while nobody can roll.
-      ...((window && !emptyInstant) ? (awaiting ? { window } : { window, deadline: Date.now() + (window * 1000) }) : {}),
+      window: (window && !emptyInstant) ? window : 0,
+      deadline: (window && !emptyInstant && !awaiting) ? Date.now() + (window * 1000) : null,
       // Per-target state is an ARRAY with uuid fields — never a uuid-keyed map (the dotted
       // key expansion ground truth).
-      targets: targets.map(t => ({ uuid: t.uuid, name: t.name,
-        done: false, outcome: null, total: null, rollMessageId: null }))
-    });
+      targets: targets.map(t => saveTargetEntry(t.uuid, t.name))
+    }));
 
     // ⑯'s companion: with the card's Damage button hidden, the machine rolls the spell's
     // damage itself the moment the demand stamps — the attack path's symmetry (1a rolls on
@@ -413,7 +414,7 @@ async function refreshDemandFromTemplates(card) {
         // The dead-target gate reaches adoption too (v1.19.0): a corpse standing in the placed
         // area never joins the demand — same filter, same predicate, same user call.
         .filter(saveDemandable)
-        .map(c => ({ uuid: c.uuid, name: c.name, done: false, outcome: null, total: null, rollMessageId: null }));
+        .map(c => saveTargetEntry(c.uuid, c.name));
       // No choice stamps at adoption either (walk-5 (y)): Interpose opens off the VERDICT, so
       // a late-adopted shield-bearer meets it exactly like a snapshot target — when they save.
       const next = [...done, ...keep, ...fresh];
@@ -713,11 +714,7 @@ function judgeSave(actor, ability) {
 
 /** The demand this actor is mid-answer on, if any — the newest pending card naming it undone. */
 function pendingDemandFor(actor) {
-  const cards = game.messages.contents.filter(m => {
-    const f = m.getFlag(MODULE_ID, "saves");
-    return f && (f.status === "pending") && (f.targets ?? []).some(t => !t.done && (t.uuid === actor.uuid));
-  });
-  return cards.at(-1)?.getFlag(MODULE_ID, "saves") ?? null;
+  return pendingDemandsFor(actor.uuid, { flagKey: "saves" }).at(-1)?.card.getFlag(MODULE_ID, "saves") ?? null;
 }
 
 // THE GATE, on every saving throw that opens a dialog — forced by a demand or rolled from the
@@ -931,45 +928,27 @@ async function foldSaveAutoFail(card, uuid, { sources = [], timedOut = false } =
 /* --- the fold: the elect judges the roll against the stored DC ------------------------------ */
 
 /** Which pending demand target a save roll answers, or null. */
+// Declared to the spine's demand registry (Stage 2, 2026-09-05), the three channels as before:
+//   1) The module's own roll — `respondsTo` + `saveFor`: exact by construction; a stamp without
+//      the target is another machine's channel.
+//   2) Chained to a demand card — the native card's own save button arrives this way (buildPost
+//      stamps originatingMessage from the click's enclosing card). A save chained to any OTHER
+//      message belongs to that chain and is never read as an answer here.
+//   3) A bare sheet roll answers the oldest pending demand naming this actor with a matching
+//      ability — DEFERRING to a pending concentration ask (priority 0 to this 1; the two cannot
+//      be told apart; simultaneous pendings are a corner the topple fold already accepts).
+registerDemand("saves", {
+  priority: 1, chained: true,
+  answering: (flag, f) => (flag && f.saveFor) ? { uuid: f.saveFor } : null,
+  pendingEntry: (flag, f) => ((flag.status === "pending") && flag.abilities?.includes(f.ability))
+    ? (flag.targets ?? []).find(t => !t.done && (t.uuid === f.actorUuid)) ?? null : null,
+  pendingFor: (flag, uuid) => (flag.status === "pending") ? (flag.targets ?? []).find(t => !t.done && (t.uuid === uuid)) ?? null : null
+});
 function saveAnsweredBy(rollMessage) {
-  // 1) The module's own roll: exact by construction.
-  const respondsTo = rollMessage.getFlag(MODULE_ID, "respondsTo");
-  if ( respondsTo ) {
-    const card = game.messages.get(respondsTo);
-    const uuid = rollMessage.getFlag(MODULE_ID, "saveFor");
-    if ( !card?.getFlag(MODULE_ID, "saves") || !uuid ) return null; // another machine's channel
-    return { card, uuid };
-  }
-  const ability = rollMessage.getFlag("dnd5e", "roll.ability") ?? null;
-  const actor = rollMessage.getAssociatedActor?.();
-  if ( !actor ) return null;
-  const matchPending = flag => (flag.status === "pending") && flag.abilities?.includes(ability)
-    ? flag.targets.find(t => !t.done && (t.uuid === actor.uuid)) : null;
-  // 2) Chained to a demand card — the native card's own save button arrives this way
-  //    (buildPost stamps originatingMessage from the click's enclosing card). A save chained
-  //    to any OTHER message belongs to that chain and is never read as an answer here.
-  const originId = rollMessage.getFlag("dnd5e", "originatingMessage");
-  if ( originId ) {
-    const card = game.messages.get(originId);
-    const flag = card?.getFlag(MODULE_ID, "saves");
-    const entry = flag ? matchPending(flag) : null;
-    return entry ? { card, uuid: entry.uuid } : null;
-  }
-  // 3) A bare sheet roll answers the oldest pending demand naming this actor with a matching
-  //    ability — DEFERRING to a pending concentration ask, which recognizes bare rolls the
-  //    same way and shipped first (the two cannot be told apart; simultaneous pendings are a
-  //    corner the topple fold already accepts).
-  const concPending = game.messages.some(m => {
-    const c = m.getFlag(MODULE_ID, "concentration");
-    return c && (c.status === "pending") && (c.actorUuid === actor.uuid) && (c.ability === ability);
-  });
-  if ( concPending ) return null;
-  for ( const card of game.messages.contents ) { // whole log, oldest first — the tail lesson
-    const flag = card.getFlag(MODULE_ID, "saves");
-    const entry = flag ? matchPending(flag) : null;
-    if ( entry ) return { card, uuid: entry.uuid };
-  }
-  return null;
+  const found = demandAnsweredBy(rollMessage);
+  if ( found?.flagKey !== "saves" ) return null;
+  const first = found.matches[0];
+  return first ? { card: first.card, uuid: first.entry.uuid } : null;
 }
 
 /** Same-client fold latch — the create watcher, the buzzer and the render resume can race. */

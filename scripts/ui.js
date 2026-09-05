@@ -22,6 +22,7 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor,
   queueFlagWrite } from "./core.js";
 import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, cascadePosition,
   eldersDeepestFirst, rescuePaneHTML, rescueRowsHTML } from "./decide/present.js";
+import { pendingDemands, resolveDemand } from "./decide/demand.js";
 
 /* ---------------------------------------------------------------------------------------------
  * The hold's views: a durable row on the attack card, plus a popup for whoever can answer.
@@ -958,3 +959,75 @@ Hooks.on("deleteChatMessage", message => {
 // concentration each close their own popups this way). ⚠ Do not re-add a feature's flag name to
 // this file. The spine holds the PRIMITIVES; knowing what "answered" means is the machine's.
 
+
+/* ---------------------------------------------------------------------------------------------
+ * THE DEMAND REGISTRY (the machine-tier pass, Stage 2, 2026-09-05) — which pending demand a roll
+ * answers, asked ONCE, of one reader.
+ *
+ * Three machines demand a saving throw of a creature — concentration's ask, the save demand, the
+ * Topple fold — and each recognized its answer with its own walk of the log, checking the OTHER
+ * machines' flags by string in a fixed order (concentration, then saves, then Topple) that the
+ * comments called ship order. The order is now `priority` on each declaration (ruling 1: kept,
+ * byte-identical), the walk is one, and the arithmetic is pure (decide/demand.js, unit-tested).
+ * The relay's and the rescue's idiom: a machine declares its shape here at module evaluation;
+ * the spine names no feature.
+ *
+ * ⚠ THE BYTES DO NOT CHANGE. `respondsTo` keeps every meaning it has (ARCHITECTURE §4's table);
+ * only the READER is one. An answer in flight across a deploy keeps folding.
+ * ------------------------------------------------------------------------------------------- */
+
+/** flag key → { flagKey, priority, chained, answering, pendingEntry, pendingFor } */
+const demands = new Map();
+
+/**
+ * Declare a demand. `priority` orders a BARE roll's claim (lower first); `chained` says a roll
+ * chained to the card (`originatingMessage`) answers it; `answering(flag, facts)` is the entry a
+ * stamped roll (`respondsTo`) answers, or null on the declaration for a machine that never takes
+ * one; `pendingEntry(flag, facts)` the undone entry THIS roll would answer; `pendingFor(flag,
+ * actorUuid)` the undone entry naming an actor with no roll in hand.
+ */
+export function registerDemand(flagKey, { priority, chained = true, answering = null, pendingEntry, pendingFor }) {
+  demands.set(flagKey, { flagKey, priority, chained, answering, pendingEntry, pendingFor });
+}
+
+/** The whole log, once, as plain cards carrying only the registered flags — oldest first (the tail lesson). */
+function demandCards() {
+  const keys = [...demands.keys()];
+  const out = [];
+  for ( const m of game.messages.contents ) {
+    let flags = null;
+    for ( const k of keys ) {
+      const f = m.getFlag(MODULE_ID, k);
+      if ( !f ) continue;
+      flags ??= {};
+      flags[k] = f;
+    }
+    if ( flags ) out.push({ id: m.id, timestamp: m.timestamp ?? 0, flags });
+  }
+  return out.sort((a, b) => a.timestamp - b.timestamp);
+}
+
+const withCards = matches => matches.map(x => ({ ...x, card: game.messages.get(x.cardId) })).filter(x => x.card);
+
+/**
+ * Which demand this roll answers — `{ flagKey, matches: [{ card, entry }] }` or null. One
+ * card for a stamped or chained roll; for a bare roll every pending card of the winning machine,
+ * oldest first (a fold claims the first and walks on only when another fold beat it there).
+ */
+export function demandAnsweredBy(rollMessage) {
+  const facts = {
+    respondsTo: rollMessage.getFlag(MODULE_ID, "respondsTo") ?? null,
+    saveFor: rollMessage.getFlag(MODULE_ID, "saveFor") ?? null,
+    originatingMessage: rollMessage.getFlag("dnd5e", "originatingMessage") ?? null,
+    actorUuid: rollMessage.getAssociatedActor?.()?.uuid ?? null,
+    ability: rollMessage.getFlag("dnd5e", "roll.ability") ?? null,
+    rollType: rollMessage.getFlag("dnd5e", "roll.type") ?? null
+  };
+  const found = resolveDemand(facts, demandCards(), [...demands.values()]);
+  return found ? { flagKey: found.flagKey, matches: withCards(found.matches) } : null;
+}
+
+/** Every pending demand naming this actor, oldest first — `[{ flagKey, card, entry }]`; `flagKey` narrows to one machine. */
+export function pendingDemandsFor(actorUuid, { flagKey = null } = {}) {
+  return withCards(pendingDemands(actorUuid, demandCards(), [...demands.values()], { flagKey }));
+}

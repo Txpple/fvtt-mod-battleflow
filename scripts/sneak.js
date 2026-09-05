@@ -3,6 +3,7 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, activeCombatFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
+import { verdictsOn } from "./decide/demand.js";
 import { lower, featureNamed } from "./lookup.js";
 import { damagePartsOf, hitTargets, statSourceOf, withTargets, writeTurnChit } from "./shared.js";
 import { bfCard, cunningMenuHTML, ruleLine } from "./decide/present.js";
@@ -278,10 +279,11 @@ const followups = new Set();
 async function settleCunningFollowups(card) {
   const cunning = card.getFlag(MODULE_ID, "cunning");
   const saves = card.getFlag(MODULE_ID, "saves");
-  if ( !cunning?.onFail || !saves?.targets?.length ) return;
+  const verdicts = verdictsOn(saves);   // the answered targets, through the one reader (Stage 2)
+  if ( !cunning?.onFail || !verdicts.length ) return;
   if ( !drivesMomentFor(saves.sourceUuid ?? null) ) return;
-  for ( const t of saves.targets ) {
-    if ( !t.done || (t.outcome !== "failed") || cunning.applied?.includes?.(t.uuid) ) continue;
+  for ( const t of verdicts ) {
+    if ( (t.outcome !== "failed") || cunning.applied?.includes?.(t.uuid) ) continue;
     const key = `${card.id}|${t.uuid}`;
     if ( followups.has(key) ) continue;
     followups.add(key);
