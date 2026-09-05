@@ -44,7 +44,8 @@ const SECTIONS = {
   18: 'the player-rolled damage offer on the SAVE path (was probe-save-damage-popup)',
   19: 'the save gate (option E, 2026-09-02): the system dialog, the section, the default, Fails',
   20: 'a save press (SAVE_PRESSES): Web ships no effect — a failure presses Restrained, receipted, with a revert',
-  21: 'Evasion: a Dexterity save for half — none on a success, half on a failure, said on the row and the receipt'
+  21: 'Evasion: a Dexterity save for half — none on a success, half on a failure, said on the row and the receipt',
+  22: 'the save gate says WHY when the PLATFORM bends the save (2026-09-04): an item effect on the sheet is a box'
 };
 // §2 rolls the damage of the demand §1 cast (`card1`); §13 rides §12's completed lifecycle —
 // its card, its template id and its 140px scene. Both couplings are declared in the code
@@ -1820,6 +1821,68 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `evasion=${c.entry?.evasion} taken=${c.receipt?.taken}`);
         await rogue.deleteEmbeddedDocuments('ActiveEffect', [inc.id]).catch(() => {});
         await heal();
+      }
+    }
+
+    // ============================================== 22. the platform's own mode, explained (2026-09-04)
+    // Harrow Vane's Wisdom save opened at `1d20adv` with no section: The Duskheart's item effect
+    // sets `system.abilities.wis.save.roll.mode` +1, the system sums it into the mode, and the
+    // gate read only statuses. Now the sheet's applied effects are read for the key that names
+    // this roll, and each is a box naming the ITEM. A sheet save on the victim wearing a test
+    // trinket is the measurement; the dialog's own default (the platform's) is left alone.
+    if (want(22)) {
+      const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const defaultOf = dlg => dlg?.querySelector('button[autofocus]')?.dataset?.action ?? null;
+      const sheetDialog = () => [...foundry.applications.instances.values()].map(app => app.element)
+        .find(el => el?.querySelector?.('[data-application-part="buttons"]') && !el.querySelector('[data-bf-save-demand]')
+          && /Saving Throw/i.test(el.querySelector('h1, .window-title')?.textContent ?? ''));
+      const formulaOf = dlg => (dlg?.querySelector('.formula, [data-application-part="formulas"]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const closeVia = async (dlg, action) => { dlg?.querySelector(`button[data-action="${action}"]`)?.click(); await sleep(400); };
+      // Diagnostic only: the Reminder Sources list as the world holds it (its `effect` kind is the switch).
+      const kindsOn = (() => { try { return String(game.settings.get(MOD, 'reminderList') ?? ''); } catch { return '(unreadable)'; } })();
+      const [trinket] = await victim.createEmbeddedDocuments('Item', [{
+        name: 'BF Test Duskheart', type: 'equipment',
+        system: { equipped: true, type: { value: 'trinket' } },
+        effects: [{ name: 'BF Test Duskheart', transfer: true, disabled: false,
+          changes: [{ key: 'system.abilities.dex.save.roll.mode', mode: 2, value: '1' }] }]
+      }]);
+      try {
+        await sleep(200);
+        // 22a: a Dexterity save — the platform opens at Advantage, and the section says who.
+        void victim.rollSavingThrow({ ability: 'dex' }, {}, {});
+        const dlgA = await until(() => { const d = sheetDialog(); return d?.querySelector('[data-bf-reminder]') ? d : null; }, 6000);
+        const textA = sectionText(dlgA);
+        ok('22a. a Dexterity save opens at the platform\'s Advantage AND the section names the trinket as the one Advantage box, the default on Advantage',
+          !!dlgA && /BF Test Duskheart/.test(textA) && /1 Modifier/.test(textA) && /Advantage/.test(textA)
+            && /Dexterity saving throws to roll with Advantage/.test(textA) && (defaultOf(dlgA) === 'advantage'),
+          `dialog=${!!dlgA} reminderList="${kindsOn}" default=${defaultOf(dlgA)} formula="${formulaOf(dlgA)}" text="${textA.slice(0, 220)}"`);
+        await closeVia(dlgA, 'normal');
+
+        // 22b: a Wisdom save — the key names the ability; no section, the dialog as it always was.
+        void victim.rollSavingThrow({ ability: 'wis' }, {}, {});
+        const dlgB = await until(() => sheetDialog(), 6000);
+        await sleep(300);
+        ok('22b. a Wisdom save shows nothing — the effect names Dexterity, and a mode change on another ability is not this roll\'s',
+          !!dlgB && !dlgB.querySelector('[data-bf-reminder]'),
+          `dialog=${!!dlgB} section=${!!dlgB?.querySelector('[data-bf-reminder]')}`);
+        await closeVia(dlgB, 'normal');
+
+        // 22c: Restrained beside it — the status row's Disadvantage against the trinket's
+        // Advantage nets Normal, both boxes under one header, the default on Normal.
+        const eff = await ActiveEffect.implementation.fromStatusEffect('restrained');
+        await ActiveEffect.implementation.create(eff.toObject(), { parent: victim, keepId: true });
+        await sleep(200);
+        void victim.rollSavingThrow({ ability: 'dex' }, {}, {});
+        const dlgC = await until(() => { const d = sheetDialog(); return d?.querySelector('[data-bf-reminder]') ? d : null; }, 6000);
+        const textC = sectionText(dlgC);
+        ok('22c. Restrained beside the trinket: two boxes, one Advantage and one Disadvantage, netting Normal — the default on Normal',
+          !!dlgC && /2 Modifiers/.test(textC) && /Restrained/.test(textC) && /BF Test Duskheart/.test(textC) && (defaultOf(dlgC) === 'normal'),
+          `default=${defaultOf(dlgC)} text="${textC.slice(0, 260)}"`);
+        await closeVia(dlgC, 'normal');
+      } finally {
+        const carriers = victim.effects.filter(e => e.statuses?.has?.('restrained'));
+        if (carriers.length) await victim.deleteEmbeddedDocuments('ActiveEffect', carriers.map(e => e.id)).catch(() => {});
+        if (trinket && victim.items.get(trinket.id)) await victim.deleteEmbeddedDocuments('Item', [trinket.id]).catch(() => {});
       }
     }
 

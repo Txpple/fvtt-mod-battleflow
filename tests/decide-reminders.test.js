@@ -825,3 +825,101 @@ describe('effectSources — `except: "source"`: the bend stands against everyone
     ).toHaveLength(1);
   });
 });
+
+describe('modeSources — the platform\'s own roll mode, read off the effect CHANGES (user, 2026-09-04: "see the calculus for why there is advantage")', () => {
+  const duskheart = {
+    id: "e1",
+    name: "The Duskheart",
+    item: "The Duskheart",
+    changes: [{ key: "system.abilities.wis.save.roll.mode", value: "1" }]
+  };
+  const robe = {
+    id: "e2",
+    name: "Bonus AC/Saves: +1",
+    item: "Robe of Protection",
+    changes: [
+      { key: "system.attributes.ac.bonus", value: "1" },
+      { key: "system.bonuses.abilities.save", value: "1" }
+    ]
+  };
+  it("Harrow Vane's Wisdom save: The Duskheart is one Advantage box, the Robe (a bonus, not a mode) none", () => {
+    const out = r.modeSources({
+      effects: [duskheart, robe],
+      roll: { kind: "save", ability: "wis" },
+      rollLabel: "Wisdom saving throws",
+      name: "Harrow Vane"
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0].kind).toBe("effect");
+    expect(out[0].bend).toBe("advantage");
+    expect(out[0].label).toBe("Harrow Vane — The Duskheart");
+    expect(out[0].detail).toBe(
+      "An effect on the sheet sets Wisdom saving throws to roll with Advantage."
+    );
+    expect(out[0].effectId).toBe("e1");
+  });
+  it("the same effect says nothing on a Dexterity save — the key names the ability", () => {
+    expect(
+      r.modeSources({ effects: [duskheart], roll: { kind: "save", ability: "dex" } })
+    ).toHaveLength(0);
+  });
+  it("−1 is Disadvantage; an effect whose name differs from its item names both", () => {
+    const [s] = r.modeSources({
+      effects: [
+        {
+          name: "Cursed",
+          item: "Ring of Woe",
+          changes: [{ key: "system.abilities.con.save.roll.mode", value: -1 }]
+        }
+      ],
+      roll: { kind: "save", ability: "con" },
+      rollLabel: "Constitution saving throws"
+    });
+    expect(s.bend).toBe("disadvantage");
+    expect(s.label).toBe("You — Ring of Woe (Cursed)");
+    expect(s.detail).toMatch(/Disadvantage\.$/);
+  });
+  it("an effect with no item (a bare actor effect) is named by itself; a zero or non-numeric value is nothing", () => {
+    const out = r.modeSources({
+      effects: [
+        {
+          name: "Blessed Focus",
+          changes: [{ key: "system.abilities.wis.save.roll.mode", value: "1" }]
+        },
+        { name: "Nothing", changes: [{ key: "system.abilities.wis.save.roll.mode", value: "0" }] },
+        { name: "Garbage", changes: [{ key: "system.abilities.wis.save.roll.mode", value: "adv" }] }
+      ],
+      roll: { kind: "save", ability: "wis" }
+    });
+    expect(out.map(s => s.label)).toEqual(["You — Blessed Focus"]);
+  });
+  it("nets with the status sources as the attack gate nets: The Duskheart against a Disadvantage row is Normal", () => {
+    const status = r.reminderSource("condition", "disadvantage", "Harrow Vane — Restrained");
+    const [mode] = r.modeSources({ effects: [duskheart], roll: { kind: "save", ability: "wis" } });
+    expect(r.saveGate([status, mode]).net).toBe("normal");
+    expect(r.saveGate([mode]).net).toBe("advantage");
+    expect(r.saveGate([mode]).view.head.title).toBe("1 Modifier — Net");
+  });
+  it("the check keys: the ability's check, the skill, the tool — and a save key is not a check key", () => {
+    expect(r.modeKeys({ kind: "check", ability: "dex", skill: "ste" })).toEqual([
+      "system.abilities.dex.check.roll.mode",
+      "system.skills.ste.roll.mode"
+    ]);
+    expect(r.modeKeys({ kind: "check", tool: "thief" })).toEqual(["system.tools.thief.roll.mode"]);
+    expect(r.modeKeys({ kind: "save" })).toEqual([]);
+    expect(r.modeKeys({ kind: "initiative", ability: "dex" })).toEqual([]);
+    const [s] = r.modeSources({
+      effects: [
+        {
+          name: "Heavy Armor",
+          item: "Plate Armor",
+          changes: [{ key: "system.skills.ste.roll.mode", value: "-1" }]
+        }
+      ],
+      roll: { kind: "check", ability: "dex", skill: "ste" },
+      rollLabel: "Stealth checks"
+    });
+    expect(s.bend).toBe("disadvantage");
+    expect(s.label).toBe("You — Plate Armor (Heavy Armor)");
+  });
+});

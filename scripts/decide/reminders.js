@@ -158,6 +158,71 @@ export function checkGate(sources) {
 }
 
 /**
+ * MODE SOURCES, from plain facts (user, 2026-09-04 — "when saves are made, I would like to see
+ * the calculus for why there is advantage/dis, just like attacks"): the effects on the roller's
+ * OWN sheet whose changes set the platform's roll mode for this roll. ⚠ dnd5e 5.x carries no
+ * advantage flags any more — an item like The Duskheart ("advantage on Wisdom saving throws")
+ * ships an effect changing `system.abilities.wis.save.roll.mode` by +1, the system's
+ * AdvantageModeField sums every such change into one mode, and the dialog opens with `1d20adv`
+ * and no word about who. The counts on the sheet cannot say who either; the effect CHANGES can,
+ * so this reads them — the key that names this roll, the sign of the value (+1 Advantage, −1
+ * Disadvantage, anything else nothing, whatever the change mode). Each hit is one box: the fact
+ * names the item (and the effect, when its name differs), the rule line says what the change
+ * does in words, because a mode change carries no rules text of its own. The gate nets these
+ * with the status sources exactly as the attack gate nets; the dialog's own default is the
+ * platform's and is never re-set (R-A).
+ *
+ * The keys, as the system writes them (dnd5e.mjs, AdvantageModeField.setMode call sites):
+ *   save  → `system.abilities.<ability>.save.roll.mode`
+ *   check → `system.abilities.<ability>.check.roll.mode`, `system.skills.<skill>.roll.mode`,
+ *           `system.tools.<tool>.roll.mode`
+ *
+ * @param {{effects?: {id?: string, name: string, item?: string|null, changes?: {key: string, value: string|number}[]}[],
+ *          roll: {kind: "save"|"check", ability?: string|null, skill?: string|null, tool?: string|null},
+ *          rollLabel?: string, name?: string}} facts
+ *        `rollLabel` = the roll in the table's words ("Wisdom saving throws", "Stealth checks")
+ * @returns {{kind: string, bend: "advantage"|"disadvantage"|null, label: string, detail: string, effectId?: string, effectName: string, item: string|null}[]}
+ */
+export function modeSources({ effects = [], roll, rollLabel = "this roll", name = "You" }) {
+  const keys = modeKeys(roll);
+  if ( !keys.length ) return [];
+  const out = [];
+  for ( const e of effects ) {
+    let sign = 0;
+    for ( const c of (e.changes ?? []) ) {
+      if ( !keys.includes(c.key) ) continue;
+      const v = Math.sign(Number(c.value));
+      if ( v ) sign += v;
+    }
+    if ( !sign ) continue;
+    const bend = (sign > 0) ? "advantage" : "disadvantage";
+    const item = e.item ?? null;
+    const what = item ? (item === e.name ? item : `${item} (${e.name})`) : e.name;
+    const source = reminderSource("effect", bend, `${name} — ${what}`,
+      `An effect on the sheet sets ${rollLabel} to roll with ${(bend === "advantage") ? "Advantage" : "Disadvantage"}.`);
+    out.push(Object.assign(source, { effectName: e.name, item, ...(e.id ? { effectId: e.id } : {}) }));
+  }
+  return out;
+}
+
+/**
+ * The sheet paths whose change sets the mode of this roll — see `modeSources`.
+ * @param {{kind?: string|null, ability?: string|null, skill?: string|null, tool?: string|null}} [roll]
+ * @returns {string[]}
+ */
+export function modeKeys({ kind = null, ability = null, skill = null, tool = null } = {}) {
+  const keys = [];
+  if ( kind === "save" ) {
+    if ( ability ) keys.push(`system.abilities.${ability}.save.roll.mode`);
+  } else if ( kind === "check" ) {
+    if ( ability ) keys.push(`system.abilities.${ability}.check.roll.mode`);
+    if ( skill ) keys.push(`system.skills.${skill}.roll.mode`);
+    if ( tool ) keys.push(`system.tools.${tool}.roll.mode`);
+  }
+  return keys;
+}
+
+/**
  * EFFECT SOURCES, from plain facts (user, 2026-09-02 — the sixth kind): the abilities on either
  * sheet that bend this roll, read against the effect table (decide/registry.js EFFECT_BENDS).
  * An attacker-side row fires when the ATTACKER carries the effect (or the feature) and the

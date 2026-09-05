@@ -790,6 +790,19 @@ use it only with the world otherwise empty.
 effect and rebuilds a mismatch under `--fix`; `tools/probe-hitmenu-table.mjs` reads a hit-menu
 demand card's flags.
 
+**dnd5e 5.x has NO advantage flags — `flags.dnd5e.advantage.*` is gone (measured 2026-09-04,
+5.3.3: zero hits in the system bundle).** The mode of a roll is a FIELD on the sheet:
+`system.abilities.<abl>.save.roll.mode`, `.check.roll.mode`, `system.skills.<skl>.roll.mode`,
+`system.tools.<tool>.roll.mode`, `system.attributes.{init,death,concentration}.roll.mode`. An
+effect bends a roll by changing that key by ±1 (mode ADD; OVERRIDE forces), and the system's
+`AdvantageModeField` counts the sources and resolves them by the rules (any advantage against any
+disadvantage is normal) — `roll.modeCounts` on the prepared data holds the COUNTS, not the sources,
+so nothing on the actor can say WHO bent the roll; only the effect changes can. The system also
+sets some modes itself, from a rule and not an effect (heavy armour → `skills.ste.roll.mode` −1;
+`hasConditionEffect("abilitySaveDisadvantage")` → every save −1), and those have no change to
+read. The gates' `modeSources` reads the changes; the rest is the platform's own default and
+stays unexplained by design (DESIGN §5).
+
 ## 3. The statblock caster
 
 Where most of the monster-side bugs lived.

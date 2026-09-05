@@ -247,6 +247,42 @@ export const combatStamp = () => {
  */
 export const statContext = (sourceUuid = null) => ({ combat: combatStamp(), sourceUuid });
 
+/**
+ * The effects the sheet is APPLYING, as plain facts for decide/reminders.js `modeSources` — the
+ * gates' read of the platform's own roll mode (user, 2026-09-04). `appliedEffects` is the
+ * system's own answer to "which effects shape this sheet right now": enabled, not suppressed,
+ * a transferred item effect only while its item is equipped and attuned as the item demands.
+ * Each carries the item it rides on, because the box names the ITEM (The Duskheart), not the
+ * effect's often-generic name ("Bonus AC/Saves: +1").
+ * @param {Actor} actor
+ * @returns {{id: string, name: string, item: string|null, changes: {key: string, value: string}[]}[]}
+ */
+export function sheetModeEffects(actor) {
+  return (actor?.appliedEffects ?? []).map(e => ({
+    id: e.id, name: e.name,
+    item: (e.parent instanceof Item) ? e.parent.name : null,
+    changes: (e.changes ?? []).map(({ key, value }) => ({ key, value }))
+  }));
+}
+
+/**
+ * The roll in the table's words, for the mode box's rule line — "Wisdom saving throws",
+ * "Stealth checks", "Thieves' Tools checks". The system's labels where it has them; the id
+ * where it does not, which is honest rather than wrong.
+ * @param {{kind: "save"|"check", ability?: string|null, skill?: string|null, tool?: string|null}} roll
+ */
+export function rollLabelFor({ kind, ability = null, skill = null, tool = null }) {
+  const abl = ability ? (CONFIG.DND5E?.abilities?.[ability]?.label ?? ability) : null;
+  if ( kind === "save" ) return `${abl ?? "these"} saving throws`;
+  if ( skill ) return `${CONFIG.DND5E?.skills?.[skill]?.label ?? skill} checks`;
+  if ( tool ) {
+    let label = tool;
+    try { label = dnd5e.documents.Trait.keyLabel(tool, { trait: "tool" }) || tool; } catch { /* the id */ }
+    return `${label} checks`;
+  }
+  return `${abl ?? "these"} checks`;
+}
+
 /* ---------------------------------------------------------------------------------------------
  * THE DEADLINE CEILING — the moment clocks have a floor and need a roof.
  *

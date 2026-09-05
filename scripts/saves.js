@@ -4,7 +4,7 @@
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, rollerUserFor,
   drivesMomentFor, canApplyTo, whisperNoGM, canAnswerFor,
-  statContext } from "./core.js";
+  statContext, sheetModeEffects, rollLabelFor } from "./core.js";
 import { tokensInTemplates } from "./geometry.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom, saveMultiplier, verdictText } from "./decide/verdict.js";
 import { isDeadForSaves } from "./decide/eligible.js";
@@ -16,7 +16,7 @@ import { livePopups, openMomentPopup, adoptManagedPopup, DialogCarried, markDefa
 import { EMANATIONS, EVASION, SAVE_BENDS, SAVE_PRESSES } from "./decide/registry.js";
 import { reachAdmits } from "./decide/emanations.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
-import { REMINDER_FLAG, reminderRecord, saveGate, saveSources } from "./decide/reminders.js";
+import { REMINDER_FLAG, modeSources, reminderRecord, saveGate, saveSources } from "./decide/reminders.js";
 import { rollModeOf } from "./decide/chips.js";
 import { conditionEntries, emanationEntries, reminderEntries } from "./settings.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
@@ -673,18 +673,30 @@ async function openSaveDialog(card, uuid) {
 }
 
 /**
- * THE SAVE GATE'S JUDGE: the roller's statuses against the save table for this ability, netted
- * as the attack gate nets, or `fails` when a source says the save cannot succeed. Null when the
- * Reminder Sources list does not carry `condition` — the list is the switch, for saves as for
- * attacks; WHICH conditions is the Condition Sources list. A DialogCarried, so the pre-roll
+ * THE SAVE GATE'S JUDGE: the roller's statuses against the save table for this ability, and
+ * the effects on the roller's own sheet that set the platform's mode for it (user, 2026-09-04:
+ * "see the calculus for why there is advantage/dis, just like attacks" — The Duskheart's
+ * `+1` on Wisdom saves opened the dialog at `1d20adv` with no word about who), netted as the
+ * attack gate nets, or `fails` when a source says the save cannot succeed. Null when the
+ * Reminder Sources list carries neither `condition` nor `effect` — the list is the switch, for
+ * saves as for attacks; WHICH conditions is the Condition Sources list, and the mode reader
+ * rides the `effect` kind because that is what it reads. A DialogCarried, so the pre-roll
  * hook, the rendered dialog and the record all hold one object.
  * @param {Actor} actor
  * @param {string} ability
  */
 function judgeSave(actor, ability) {
-  if ( !reminderEntries().some(e => e.kind === "condition") ) return null;
-  const sources = saveSources({ statuses: actor.statuses ?? [], ability,
-    enabled: conditionEntries().map(e => e.kind), table: SAVE_BENDS, name: actor.name });
+  const on = new Set(reminderEntries().map(e => e.kind));
+  if ( !on.has("condition") && !on.has("effect") ) return null;
+  const sources = [];
+  if ( on.has("condition") ) {
+    sources.push(...saveSources({ statuses: actor.statuses ?? [], ability,
+      enabled: conditionEntries().map(e => e.kind), table: SAVE_BENDS, name: actor.name }));
+  }
+  if ( on.has("effect") ) {
+    const roll = { kind: "save", ability };
+    sources.push(...modeSources({ effects: sheetModeEffects(actor), roll, rollLabel: rollLabelFor(roll), name: actor.name }));
+  }
   return new DialogCarried({ ...saveGate(sources), actorUuid: actor.uuid, ability, failed: false });
 }
 

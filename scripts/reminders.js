@@ -2,7 +2,7 @@
  * Battle Flow — The reminder gate: what bends this attack roll, and what it nets to — BEFORE the dice.
  * Split from mastery.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, activeCombatFor, statContext } from "./core.js";
+import { MODULE_ID, TITLE, activeCombatFor, statContext, sheetModeEffects, rollLabelFor } from "./core.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./settings.js";
 import { chipSpentOnRecord, grantingActor, turnChitStands } from "./shared.js";
 import { DialogCarried, markDefaultButton } from "./ui.js";
@@ -11,7 +11,7 @@ import { CHIP_FLAG, chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.j
 import { CHECK_BENDS, CONDITION_BENDS, EFFECT_BENDS, MASTERY_RULES, RANGE_RULES, SNEAK_ATTACK } from "./decide/registry.js";
 import { parseDice, sneakWeaponQualifies } from "./decide/sneak.js";
 import { feetOf, nearestFeet, tokenOfActor } from "./geometry.js";
-import { REMINDER_FLAG, checkGate, checkSources, conditionSources, effectSources, modeTitle, netMode, proneSources, rangeSources,
+import { REMINDER_FLAG, checkGate, checkSources, conditionSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
   reminderRecord, reminderSource, reminderView, rolledWith } from "./decide/reminders.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -190,9 +190,20 @@ Hooks.on("dnd5e.preRollAbilityCheckV2", (config, dialog, message) => {
     if ( config?.hookNames?.includes?.("initiativeDialog") ) return;
     const actor = config?.subject;
     if ( !(actor instanceof Actor) ) return;
-    if ( !reminderEntries().some(e => e.kind === "condition") ) return;   // the list is the switch
-    const sources = checkSources({ statuses: actor.statuses ?? [], enabled: conditionEntries().map(e => e.kind),
-      table: CHECK_BENDS, name: actor.name });
+    const on = new Set(reminderEntries().map(e => e.kind));           // the list is the switch
+    if ( !on.has("condition") && !on.has("effect") ) return;
+    const sources = [];
+    if ( on.has("condition") ) {
+      sources.push(...checkSources({ statuses: actor.statuses ?? [], enabled: conditionEntries().map(e => e.kind),
+        table: CHECK_BENDS, name: actor.name }));
+    }
+    if ( on.has("effect") ) {
+      // The platform's own mode for this check, read off the sheet's effect changes — the same
+      // reader the save gate uses (user, 2026-09-04); heavy armour's Stealth Disadvantage is
+      // the system's own doing and not an effect, so it stays the dialog's unexplained default.
+      const roll = { kind: "check", ability: config.ability ?? null, skill: config.skill ?? null, tool: config.tool ?? null };
+      sources.push(...modeSources({ effects: sheetModeEffects(actor), roll, rollLabel: rollLabelFor(roll), name: actor.name }));
+    }
     if ( !sources.length ) return;
     const gate = new DialogCarried({ ...checkGate(sources), actorUuid: actor.uuid,
       ability: config.ability ?? null, skill: config.skill ?? null, tool: config.tool ?? null });

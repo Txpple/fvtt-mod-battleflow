@@ -420,6 +420,23 @@ machines honour the gate's Fails button (a save the rules fail before the dice, 
 the failure it is) — though today no row reaches it there: both are Constitution saves, and
 the table's automatic failures name Strength and Dexterity only.
 
+**The save and check gates say WHY when the PLATFORM bends the roll** (user, 2026-09-04: *"when
+saves are made, I would like to see the calculus for why there is advantage/dis, just like
+attacks, by clicking the net modifier and seeing what is under it"*). Harrow Vane's Wisdom save
+opened at `1d20adv` with Advantage highlighted and no section under it: The Duskheart (*"you
+have advantage on Wisdom saving throws"*) ships an item effect that changes
+`system.abilities.wis.save.roll.mode` by +1, dnd5e 5.x sums every such change into one mode
+(there are no advantage flags any more), and the gate read only statuses. Now the roller's
+APPLIED effects are read for the key that names this roll — the ability's save or check, the
+skill, the tool — and each is a box in the same folded section: the fact names the ITEM
+("Harrow Vane — The Duskheart"), the rule line says in words what the change does, because a
+mode change carries no rules text of its own. They net with the status rows as the attack gate
+nets; the dialog's own default is the platform's and is never re-set. Read off the effect
+CHANGES, never the sheet's computed mode — the computed mode says *advantage* and cannot say
+who. ⚠ What this does not explain: a mode the SYSTEM sets from a rule of its own (heavy
+armour's Stealth Disadvantage, a 2014-rules condition's blanket save penalty) — not an effect,
+so no box; the dialog's default stands unexplained there, as it did everywhere before.
+
 **The check gate is the same pattern on the ability-check hook** (user go 2026-09-03 — *"I
 suppose the ability check gate"*). A raw check, a skill or a tool rolled with the dialog meets
 the roller's statuses against a third table (`CHECK_BENDS`: Poisoned and Frightened, the
