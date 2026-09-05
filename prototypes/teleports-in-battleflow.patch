@@ -1,0 +1,473 @@
+diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
+index d8090df..23448c0 100644
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -513,6 +513,7 @@ in milliseconds and impossible to tangle. **Keep it that way** — the day somet
+ | [decide/sneak.js](scripts/decide/sneak.js) | `parseDice`, `sneakWeaponQualifies`, `sneakReadLines`, `cunningMenu` (the options read off the sheet, up to two with Improved Cunning Strike), `cunningPick`, `sneakFormula` — the Sneak Attack dice, and what Cunning Strike does to them before the roll |
+ | [decide/clock.js](scripts/decide/clock.js) | `riderDue` (is a clock rider due on this hit, and why not), `riderPartFormula` (a pack's damage part as a formula, a bonus-only part included) |
+ | [decide/emanations.js](scripts/decide/emanations.js) | `reachAdmits` (who an aura reaches, by disposition — helpful: allies and neutrals; harmful: enemies), `emanationRange` (the activity's size, else the row's content formula over the source's roll data — `@scale.paladin.aura`), `resolveChanges` / `resolveFormula` / `foldArithmetic` (the pack's effect with the SOURCE's numbers read in), `triggerDue` (once per turn in combat), `appliesOnScene` (the active scene only — the cross-scene bleed, 2026-09-04), `memberEffectData` (the effect a member receives, fingerprinted for the floor) |
++| [decide/teleports.js](scripts/decide/teleports.js) | `teleportRowFor` (the row by the item's name), `teleportVerdict` (allowed, or refused in the rule's words — sight before occupancy), `footprintsOverlap` (a creature on the destination square) |
+ | [decide/hit-menu.js](scripts/decide/hit-menu.js) | `hitMenu` (the groups and rows a hit offers, read off the sheet and the list), `hitPick` (one per group, affordable), `sweepVerdict` (would the original attack roll hit a second creature) — the hit menu's arithmetic, 2026-09-04 |
+ | [decide/verdict.js](scripts/decide/verdict.js) | `hitsAmong`, `modeAdmits`, `saveOutcome`, `saveMultiplier`, `verdictText`, and the fold layer (`ATTACK_FOLDS`, `SAVE_FOLDS`, `foldsFrom`, `foldedRoll`, `foldedVerdict`, `foldedSave`) |
+ | [decide/eligible.js](scripts/decide/eligible.js) | `isDeadForSaves`, `limitedUses`, `isReactionItem`, `castLevelOf`, `clampVolleyCount`, `riderKey` |
+diff --git a/scripts/battleflow.js b/scripts/battleflow.js
+index 54eb36d..7a5adde 100644
+--- a/scripts/battleflow.js
++++ b/scripts/battleflow.js
+@@ -127,6 +127,10 @@ import "./saves.js";
+ // emanations.js after saves.js: its trigger card carries a `saves` demand the saves machine drives
+ // (the chat log is the bus — no import between them); it renders no row on any shared card (2026-09-03).
+ import "./emanations.js";
++// Teleports (2026-09-04): the caster's token crosses walls and creatures on the one move after a
++// listed use; the destination judged by the row's text. Its own hooks (postUseActivity, the
++// core move hooks); it shares no card row with anything.
++import "./teleports.js";
+ import "./receipts.js";
+ // resources.js last: its one-line spend record renders at the very bottom of the usage
+ // card, below every workflow row — a footer, which is what a ledger line is.
+diff --git a/scripts/core.js b/scripts/core.js
+index 0d0248a..1dcb65a 100644
+--- a/scripts/core.js
++++ b/scripts/core.js
+@@ -49,7 +49,9 @@ export const S = {
+   clockRiderList: "clockRiderList",
+   hitMenuList: "hitMenuList",
+   emanations: "emanations",
+-  emanationList: "emanationList"
++  emanationList: "emanationList",
++  teleports: "teleports",
++  teleportList: "teleportList"
+ };
+ 
+ export const setting = key => game.settings.get(MODULE_ID, key);
+diff --git a/scripts/decide/registry.js b/scripts/decide/registry.js
+index 9f26281..dbc328b 100644
+--- a/scripts/decide/registry.js
++++ b/scripts/decide/registry.js
+@@ -438,6 +438,41 @@ export const EMANATION_KINDS = new Set(["feature", "spell"]);
+ /** The emanations' item names, lower-cased — the closed set the Emanations list is validated against. */
+ export const EMANATION_NAMES = new Set(Object.keys(EMANATIONS).map(n => n.toLowerCase()));
+ 
++/**
++ * TELEPORTS (user, 2026-09-04: "when I click it a circle comes up, and I can choose where to
++ * teleport. however it gets blocked if there is a wall or other token in the way. can it be
++ * fixed"): the spells and features whose use is a teleport, by the item's own name. Measured
++ * (NOTES §1): the animation module moves the token with a bare move, Foundry 14 walks a bare
++ * move — walls stop it, and dnd5e's full movement automation stops it at a creature — and the
++ * `blink` action is wall-checked too; only `displace` (Foundry's own teleport action) crosses
++ * both. The machine (teleports.js) gives the caster's token that action for the one move that
++ * follows a listed use, and judges the destination by the row's own text instead: `sight` —
++ * "a space you can see" (a sight wall between refuses); `unoccupied` — "an unoccupied space"
++ * (a creature standing there refuses). Range is the animation's circle and the table's.
++ * Membership is the Teleports list. ⚠ Only what the packs ship: Far Step, Thunder Step and
++ * Vortex Warp are not in the 2024 packs on this world and are not rows.
++ */
++export const TELEPORTS = Object.freeze({
++  "Misty Step": Object.freeze({ kind: "spell", sight: true, unoccupied: true,
++    rule: "Briefly surrounded by silvery mist, you teleport up to 30 feet to an unoccupied space you can see.",
++    from: "Spell, level 2 (Bonus Action)" }),
++  "Dimension Door": Object.freeze({ kind: "spell", sight: false, unoccupied: true,
++    rule: "You teleport to a location within range. You arrive at exactly the spot desired. It can be a place you can see, one you can visualize, or one you can describe by stating distance and direction.",
++    caveat: "the willing creature you may bring is the table's to move",
++    from: "Spell, level 4" }),
++  "Moonlight Step": Object.freeze({ kind: "feature", sight: true, unoccupied: true,
++    rule: "As a Bonus Action, you teleport up to 30 feet to an unoccupied space you can see, and you have Advantage on the next attack roll you make before the end of this turn.",
++    from: "Druid — Circle of the Moon 10" }),
++  "Shadow Step": Object.freeze({ kind: "feature", sight: true, unoccupied: true,
++    rule: "While entirely within Dim Light or Darkness, you can use a Bonus Action to teleport up to 60 feet to an unoccupied space you can see that is also in Dim Light or Darkness.",
++    caveat: "the light at either end is the table's — the module judges sight and occupancy only",
++    from: "Monk — Warrior of Shadow 6" }),
++  "Arcane Charge": Object.freeze({ kind: "feature", sight: true, unoccupied: true,
++    rule: "When you use your Action Surge, you can teleport up to 30 feet to an unoccupied space you can see. You can teleport before or after the additional action.",
++    from: "Fighter — Eldritch Knight 7" })
++});
++export const TELEPORT_NAMES = new Set(Object.keys(TELEPORTS).map(n => n.toLowerCase()));
++
+ /**
+  * The 2024 Rules Glossary on range, verbatim (dnd5e.content24 / the premium PHB, appendix D —
+  * "Range" and "Ranged Attacks in Close Combat"; presentation law 8). The `&Reference[...]`
+@@ -1036,6 +1071,13 @@ export const LIST_SPECS = {
+     // Membership over EMANATIONS; the mechanism is emanations.js.
+     columns: ["kind"], kindColumn: "kind", kinds: EMANATION_NAMES, fallback: null, membership: true, whole: true,
+     default: Object.keys(EMANATIONS).join(", ")
++  },
++  teleports: {
++    label: "Teleports", setting: "teleportList",
++    // Which rows of the teleport table stand — the ITEM names, whole-chunk, case-insensitive.
++    // Membership over TELEPORTS; the mechanism is teleports.js.
++    columns: ["kind"], kindColumn: "kind", kinds: TELEPORT_NAMES, fallback: null, membership: true, whole: true,
++    default: Object.keys(TELEPORTS).join(", ")
+   }
+ };
+ 
+diff --git a/scripts/decide/teleports.js b/scripts/decide/teleports.js
+new file mode 100644
+index 0000000..32fc304
+--- /dev/null
++++ b/scripts/decide/teleports.js
+@@ -0,0 +1,46 @@
++// @ts-check
++/**
++ * Battle Flow — DECISION layer: teleports (ARCHITECTURE.md §2). Pure. No Foundry, no globals.
++ *
++ * A listed teleport's move is judged from plain facts the EDGE measured — whether a sight wall
++ * stands between the caster and the destination, whether a creature stands on it — against the
++ * row's own text (TELEPORTS, decide/registry.js): "an unoccupied space you can see" is two
++ * facts, and a row may want only one of them (Dimension Door needs no line of sight).
++ */
++
++/**
++ * The teleport row for an item, by name, case-insensitive — `{ key, row }` or null.
++ * @param {string} name
++ * @param {Readonly<Record<string, Readonly<{sight: boolean, unoccupied: boolean, rule: string}>>>} table
++ */
++export function teleportRowFor(name, table) {
++  const wanted = String(name ?? "").trim().toLowerCase();
++  if ( !wanted ) return null;
++  const key = Object.keys(table ?? {}).find(k => k.toLowerCase() === wanted);
++  return key ? { key, row: table[key] } : null;
++}
++
++/**
++ * THE VERDICT on a destination: allowed, or refused with the rule's own words. Refusal names
++ * the first fact that fails, sight before occupancy — the order the text reads in.
++ * @param {{row: Readonly<{sight: boolean, unoccupied: boolean}>, sightBlocked?: boolean, occupied?: boolean}} facts
++ * @returns {{allowed: boolean, reason: string|null}}
++ */
++export function teleportVerdict({ row, sightBlocked = false, occupied = false }) {
++  if ( row?.sight && sightBlocked ) return { allowed: false, reason: "the destination must be a space you can see — a wall stands between you and it" };
++  if ( row?.unoccupied && occupied ) return { allowed: false, reason: "the destination must be an unoccupied space — a creature stands there" };
++  return { allowed: true, reason: null };
++}
++
++/**
++ * Does a token standing at `other` overlap the destination footprint? Axis-aligned, in pixels,
++ * with a one-pixel tolerance so touching edges do not count — the same reading the rule wants
++ * ("a space" is the square, not its border).
++ * @param {{x: number, y: number, w: number, h: number}} dest
++ * @param {{x: number, y: number, w: number, h: number}} other
++ */
++export function footprintsOverlap(dest, other) {
++  const eps = 1;
++  return (other.x < dest.x + dest.w - eps) && (other.x + other.w > dest.x + eps)
++    && (other.y < dest.y + dest.h - eps) && (other.y + other.h > dest.y + eps);
++}
+diff --git a/scripts/settings.js b/scripts/settings.js
+index 9593b70..34da31e 100644
+--- a/scripts/settings.js
++++ b/scripts/settings.js
+@@ -231,6 +231,20 @@ Hooks.once("init", () => {
+     onChange: () => Hooks.callAll(`${MODULE_ID}.emanationsChanged`)
+   });
+ 
++  // TELEPORTS (user, 2026-09-04): a listed teleport's move crosses walls and creatures, and the
++  // destination is judged by the spell's own text. A switch and a list.
++  game.settings.register(MODULE_ID, S.teleports, {
++    name: "Teleports",
++    hint: "A listed teleport (Misty Step, Dimension Door, Moonlight Step, Shadow Step, Arcane Charge) lets the caster's token cross walls and other creatures on the one move that follows the cast — the animation module's circle, or a drag by hand — instead of being stopped by them. The destination is judged by the spell's own words: a space you can see (a sight-blocking wall between refuses it; Dimension Door needs no line of sight) and an unoccupied space (a creature standing there refuses it). Range stays the table's and the animation's.",
++    scope: "world", config: true, type: Boolean, default: true
++  });
++
++  game.settings.register(MODULE_ID, S.teleportList, {
++    name: "Teleports List",
++    hint: "Which teleports the module handles, by the spell's or feature's own name, separated by commas — Misty Step, Dimension Door, Moonlight Step, Shadow Step, Arcane Charge. Remove a name to leave that teleport to the table.",
++    scope: "world", config: true, type: String, default: LIST_SPECS.teleports.default
++  });
++
+   game.settings.register(MODULE_ID, S.effectRiders, {
+     name: "Effect Riders",
+     hint: "A hit applies the effects riding it: the attack's own effects land on the targets it hit, through the system's application path — Ray of Frost's slow arrives with its damage instead of waiting for a click in the card's tray. Every application leaves a receipt on the damage card with a per-effect revert.",
+@@ -551,3 +565,8 @@ export function hitMenuEntries() {
+ export function emanationEntries() {
+   return listEntries(LIST_SPECS.emanations);
+ }
++
++/** Which rows of the teleport table stand, by the item's name — `{ kind }`. */
++export function teleportEntries() {
++  return listEntries(LIST_SPECS.teleports);
++}
+diff --git a/scripts/teleports.js b/scripts/teleports.js
+new file mode 100644
+index 0000000..5a920d1
+--- /dev/null
++++ b/scripts/teleports.js
+@@ -0,0 +1,175 @@
++/**
++ * Battle Flow — Teleports: a listed teleport's move crosses walls and creatures, and the
++ * destination is judged by the spell's own words (user, 2026-09-04: "when I click it a circle
++ * comes up, and I can choose where to teleport. however it gets blocked if there is a wall or
++ * other token in the way. can it be fixed"). Split by feature (ARCHITECTURE.md §7);
++ * battleflow.js is the only esmodules entry.
++ *
++ * WHAT WAS MEASURED (NOTES §1, the test range, 2026-09-04): the animation module's teleport
++ * (Automated Animations' circle-and-click) moves the token with a bare `document.move()` — no
++ * action, no constrain options. Foundry 14 walks a bare move: a wall stops it, and dnd5e's full
++ * movement automation stops it at a hostile creature. The `blink` action is wall-checked too
++ * (walls: "move"). Only `displace` — Foundry's own teleport action (teleport: true, walls: null)
++ * — crosses both, and a token's DEFAULT movement action may be set to it. So the machine, on the
++ * caster's own client at a listed use, gives the token that action for the one move that follows
++ * — the animation's, or a drag by hand — and takes it back the moment the move lands, or when
++ * the window closes with no move. Nothing else about the platform's pipeline is touched.
++ *
++ * WHAT IS JUDGED (decide/teleports.js): the move that arrives while the token is armed meets
++ * `preMoveToken` — Foundry's veto seat, after the platform constrained the path and before it
++ * commits — and the destination is measured against the row: a sight-blocking wall between the
++ * caster's centre and the destination's refuses a `sight` row ("a space you can see"); a
++ * creature standing on the destination refuses an `unoccupied` row. A refusal is a notice and
++ * no move; the token stays armed, so the player may pick again or drag. Range is not judged —
++ * the animation's circle and the table hold it. ⚠ The animation module's OWN "check collision"
++ * option is a move-collision ray it tests before any move exists, and it is that preset's
++ * setting, not this module's: with it on, a wall still refuses at the circle, before the machine
++ * sees anything. Switch it off on the teleport presets (Automated Animations → Autorec →
++ * Preset → Misty Step) to let the rule here be the only judge.
++ *
++ * WHERE IT RUNS: the using client, which owns the token (dnd5e.postUseActivity fires where the
++ * item was used, and the animation moves the token from the same client). No elect, no GM
++ * needed — the arm and the disarm are the owner's own token updates.
++ *
++ * WHAT IT NEVER TOUCHES: an unlisted item; a move with no arm on the token; the token's other
++ * data. The prior movement action is kept on the arm flag and restored exactly, including "not
++ * set" (null — the platform infers walk/fly from the sheet).
++ */
++import { MODULE_ID, S, TITLE, setting } from "./core.js";
++import { TELEPORTS } from "./decide/registry.js";
++import { footprintsOverlap, teleportRowFor, teleportVerdict } from "./decide/teleports.js";
++import { teleportEntries } from "./settings.js";
++
++/** The arm on the TOKEN: `{ name, previousAction, armedAt }`. */
++const ARM_FLAG = "teleport";
++/** How long an arm stands with no move — the circle's pick is seconds; a minute covers a drag by hand. */
++export const TELEPORT_WINDOW_MS = 120_000;
++/** The disarm clocks, by token uuid — this client's own. */
++const clocks = new Map();
++
++/** The listed row for an activity's item, or null — the switch and the list, then the table. */
++function rowFor(activity) {
++  if ( !setting(S.teleports) ) return null;
++  const found = teleportRowFor(activity?.item?.name ?? "", TELEPORTS);
++  if ( !found ) return null;
++  if ( !teleportEntries().some(e => e.kind === found.key.toLowerCase()) ) return null;
++  return found;
++}
++
++/** The caster's token on a scene — a synthetic actor's own, else the first active one. */
++function tokenOf(actor) {
++  const tok = actor?.token ?? actor?.getActiveTokens?.(true, true)?.[0] ?? null;
++  return tok?.parent ? tok : null;
++}
++
++const armOf = tok => tok?.getFlag?.(MODULE_ID, ARM_FLAG) ?? null;
++
++/**
++ * ARM: the token's next move is the teleport. The prior action is what the SOURCE holds (null
++ * when the sheet infers it), never the inferred value, so the restore puts back exactly what
++ * was there. A re-arm while armed keeps the original prior — two casts must not leave
++ * "displace" behind as the remembered default.
++ */
++async function arm(tok, key) {
++  const prior = armOf(tok);
++  const previousAction = prior ? prior.previousAction : (tok._source?.movementAction ?? null);
++  await tok.update({ movementAction: "displace", [`flags.${MODULE_ID}.${ARM_FLAG}`]: { name: key, previousAction, armedAt: Date.now() } },
++    { bfTeleportArm: true });
++  scheduleDisarm(tok);
++}
++
++/** DISARM: the action restored exactly, the flag gone. The owner's write; a lost race is fine. */
++async function disarm(tok) {
++  clearClock(tok);
++  const flag = armOf(tok);
++  if ( !flag || !tok.isOwner ) return;
++  try {
++    await tok.update({ movementAction: flag.previousAction ?? null, [`flags.${MODULE_ID}.-=${ARM_FLAG}`]: null },
++      { bfTeleportDisarm: true });
++  } catch(err) {
++    console.warn(`${TITLE} | Could not restore the token's movement action after a teleport.`, err);
++  }
++}
++
++function scheduleDisarm(tok) {
++  clearClock(tok);
++  clocks.set(tok.uuid, setTimeout(() => { clocks.delete(tok.uuid); void disarm(tok); }, TELEPORT_WINDOW_MS));
++}
++function clearClock(tok) {
++  const id = clocks.get(tok?.uuid);
++  if ( id ) clearTimeout(id);
++  clocks.delete(tok?.uuid);
++}
++
++/** The destination's footprint in pixels, and whether a creature stands on it. */
++function occupiedAt(tok, dest) {
++  const grid = tok.parent.grid;
++  const footprint = { x: dest.x, y: dest.y, w: (dest.width ?? tok.width) * grid.sizeX, h: (dest.height ?? tok.height) * grid.sizeY };
++  return tok.parent.tokens.some(t => (t.id !== tok.id) && (t.actor?.system?.isCreature !== false)
++    && footprintsOverlap(footprint, { x: t.x, y: t.y, w: t.width * grid.sizeX, h: t.height * grid.sizeY }));
++}
++
++/** A sight-blocking wall between the token's centre and the destination's? */
++function sightBlockedTo(tok, dest) {
++  const centre = pos => (typeof tok.getCenterPoint === "function") ? tok.getCenterPoint(pos)
++    : { x: pos.x + (tok.width * tok.parent.grid.sizeX) / 2, y: pos.y + (tok.height * tok.parent.grid.sizeY) / 2 };
++  const from = tok.object?.center ?? centre({ x: tok.x, y: tok.y });
++  const to = centre({ x: dest.x, y: dest.y });
++  return !!CONFIG.Canvas.polygonBackends.sight.testCollision(from, to, { type: "sight", mode: "any" });
++}
++
++// THE ARM — a listed item used, on the using client.
++Hooks.on("dnd5e.postUseActivity", (activity) => {
++  try {
++    const found = rowFor(activity);
++    if ( !found ) return;
++    const actor = activity.actor;
++    if ( !actor?.isOwner ) return;
++    const tok = tokenOf(actor);
++    if ( !tok?.isOwner ) return;
++    void arm(tok, found.key);
++  } catch(err) {
++    console.error(`${TITLE} | Teleport arm failed — the move is the platform's.`, err);
++  }
++});
++
++// THE JUDGEMENT — the move that arrives while armed. Foundry's veto seat: `false` refuses.
++Hooks.on("preMoveToken", (tok, move) => {
++  try {
++    const flag = armOf(tok);
++    if ( !flag ) return;
++    const row = TELEPORTS[flag.name];
++    if ( !row ) return;
++    const dest = move.destination;
++    const verdict = teleportVerdict({ row, sightBlocked: row.sight ? sightBlockedTo(tok, dest) : false,
++      occupied: row.unoccupied ? occupiedAt(tok, dest) : false });
++    if ( verdict.allowed ) return;
++    ui.notifications?.warn(`${flag.name}: ${verdict.reason}.`);
++    return false;
++  } catch(err) {
++    console.error(`${TITLE} | Teleport judgement failed — the move is the platform's.`, err);
++  }
++});
++
++// THE LANDING — the armed move committed: the action goes back.
++Hooks.on("moveToken", (tok) => {
++  try {
++    if ( armOf(tok) ) void disarm(tok);
++  } catch(err) {
++    console.error(`${TITLE} | Teleport disarm failed.`, err);
++  }
++});
++
++Hooks.on("deleteToken", (tok) => { clearClock(tok); });
++
++// A stale arm — a client that closed mid-window — is taken back by its owner at the next canvas.
++Hooks.on("canvasReady", (cnv) => {
++  try {
++    for ( const tok of (cnv?.scene?.tokens ?? []) ) {
++      const flag = armOf(tok);
++      if ( flag && tok.isOwner && ((Date.now() - (flag.armedAt ?? 0)) > TELEPORT_WINDOW_MS) ) void disarm(tok);
++    }
++  } catch(err) {
++    console.warn(`${TITLE} | Stale teleport sweep failed.`, err);
++  }
++});
+diff --git a/tests/decide-teleports.test.js b/tests/decide-teleports.test.js
+new file mode 100644
+index 0000000..5d13213
+--- /dev/null
++++ b/tests/decide-teleports.test.js
+@@ -0,0 +1,72 @@
++import { beforeAll, describe, expect, it } from "vitest";
++
++/** DECISION-layer teleport verdicts (ARCHITECTURE.md §2). No Foundry stub on purpose. */
++/** @type {typeof import("../scripts/decide/teleports.js")} */
++let t;
++/** @type {typeof import("../scripts/decide/registry.js")} */
++let reg;
++beforeAll(async () => {
++  t = await import("../scripts/decide/teleports.js");
++  reg = await import("../scripts/decide/registry.js");
++});
++
++describe("TELEPORTS — the rows the packs ship (user, 2026-09-04: Misty Step blocked by walls and tokens)", () => {
++  it("every row says whether it needs sight and an unoccupied space, and quotes its rule", () => {
++    for (const [name, row] of Object.entries(reg.TELEPORTS)) {
++      expect(typeof row.sight, name).toBe("boolean");
++      expect(typeof row.unoccupied, name).toBe("boolean");
++      expect(row.rule, name).toMatch(/teleport/i);
++    }
++  });
++  it("Misty Step needs both; Dimension Door needs no line of sight", () => {
++    expect(reg.TELEPORTS["Misty Step"]).toMatchObject({ sight: true, unoccupied: true });
++    expect(reg.TELEPORTS["Dimension Door"]).toMatchObject({ sight: false, unoccupied: true });
++  });
++  it("the list's kinds are the row names, lower-cased, and the default lists them all", () => {
++    expect([...reg.TELEPORT_NAMES]).toEqual(Object.keys(reg.TELEPORTS).map(n => n.toLowerCase()));
++    expect(reg.LIST_SPECS.teleports.default).toBe(Object.keys(reg.TELEPORTS).join(", "));
++  });
++});
++
++describe("teleportRowFor — by name, case-insensitive", () => {
++  it("finds Misty Step however it is cased, and nothing for a stranger", () => {
++    expect(t.teleportRowFor("misty step", reg.TELEPORTS)?.key).toBe("Misty Step");
++    expect(t.teleportRowFor("MISTY STEP ", reg.TELEPORTS)?.key).toBe("Misty Step");
++    expect(t.teleportRowFor("Fireball", reg.TELEPORTS)).toBeNull();
++    expect(t.teleportRowFor("", reg.TELEPORTS)).toBeNull();
++    expect(t.teleportRowFor(undefined, reg.TELEPORTS)).toBeNull();
++  });
++});
++
++describe("teleportVerdict — the rule's two facts", () => {
++  const misty = reg.TELEPORTS["Misty Step"];
++  const door = reg.TELEPORTS["Dimension Door"];
++  it("a clear, empty destination is allowed", () => {
++    expect(t.teleportVerdict({ row: misty })).toEqual({ allowed: true, reason: null });
++  });
++  it("a sight wall refuses Misty Step, and says so in the rule's words", () => {
++    const v = t.teleportVerdict({ row: misty, sightBlocked: true });
++    expect(v.allowed).toBe(false);
++    expect(v.reason).toMatch(/space you can see/);
++  });
++  it("an occupied destination refuses, sight first when both fail", () => {
++    expect(t.teleportVerdict({ row: misty, occupied: true }).reason).toMatch(/unoccupied space/);
++    expect(t.teleportVerdict({ row: misty, sightBlocked: true, occupied: true }).reason).toMatch(/space you can see/);
++  });
++  it("Dimension Door crosses a sight wall but still wants an empty space", () => {
++    expect(t.teleportVerdict({ row: door, sightBlocked: true }).allowed).toBe(true);
++    expect(t.teleportVerdict({ row: door, occupied: true }).allowed).toBe(false);
++  });
++});
++
++describe("footprintsOverlap — a square is its interior, not its border", () => {
++  const dest = { x: 100, y: 100, w: 100, h: 100 };
++  it("the same square overlaps; a neighbour touching an edge does not", () => {
++    expect(t.footprintsOverlap(dest, { x: 100, y: 100, w: 100, h: 100 })).toBe(true);
++    expect(t.footprintsOverlap(dest, { x: 200, y: 100, w: 100, h: 100 })).toBe(false);
++    expect(t.footprintsOverlap(dest, { x: 100, y: 0, w: 100, h: 100 })).toBe(false);
++  });
++  it("a Large creature covering the square overlaps", () => {
++    expect(t.footprintsOverlap(dest, { x: 50, y: 50, w: 200, h: 200 })).toBe(true);
++  });
++});
+diff --git a/tools/battery.mjs b/tools/battery.mjs
+index 21b4567..d993b60 100644
+--- a/tools/battery.mjs
++++ b/tools/battery.mjs
+@@ -85,6 +85,8 @@ const ORDER = [
+   // off by smoke-effects, and the suite reports a red for a missing fixture (2026-09-04).
+   { name: "fixture-suite", note: "not a suite — re-places the tokens smoke-emanations needs", reset: true },
+   { name: "smoke-emanations", note: "the emanations — the Paladin's aura stands with its token, applies to allies inside, lifts on exit; Spirit Guardians adopted, its saves on enter and turn end" },
++  // Places its own walls and tokens on the range and deletes them in its `finally` (2026-09-04).
++  { name: "smoke-teleports", note: "the teleports — a listed use arms the token, the move crosses a wall and a creature, a sight wall or an occupied square refuses, the action restored" },
+   { name: "smoke-resources", note: "" },
+   // ⚠ LAST, and it is the only entry whose position is about what it CREATES rather than what
+   // it needs. It places a real MeasuredTemplate on the active scene, and a template standing
+diff --git a/tools/verify-settings.mjs b/tools/verify-settings.mjs
+index 257a9bd..fe8ce1e 100644
+--- a/tools/verify-settings.mjs
++++ b/tools/verify-settings.mjs
+@@ -74,6 +74,8 @@ const REFERENCE = {
+   hitMenuList: LIST_SPECS.hitMenu.default,   // the whole hit-option table, as shipped (2026-09-04)   // the whole clock-rider table, as shipped (2026-09-02, user ask)
+   emanations: true,                                 // 2026-09-03 (user ruling) — the platform's Region keeps the aura
+   emanationList: LIST_SPECS.emanations.default,     // the whole emanation table, as shipped
++  teleports: true,                                  // 2026-09-04 (user ask) — a listed teleport crosses walls and creatures
++  teleportList: LIST_SPECS.teleports.default,       // the whole teleport table, as shipped
+ };
+ 
+ const f = new Foundry(foundryConfig(env));

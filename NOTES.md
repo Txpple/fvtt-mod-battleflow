@@ -308,6 +308,27 @@ warns once, gone at v16) — read `units`/`value`/`expired` instead. Measured li
   world's actors, not just the scene's tokens — the token that wore the effect may be on another
   scene, or deleted.
 
+**A bare token move is WALKED, and a teleport needs the `displace` action (measured 2026-09-04,
+the test range, Foundry 14.365 / dnd5e 5.3.3).** `document.move([{x, y}])` with no action takes
+the token's default action (walk): a wall stops it (`constrainMovementPath`, walls: "move") and
+dnd5e's *full* movement automation stops it in front of a hostile creature. **`blink` is a
+teleport that is STILL wall-checked** (its config carries walls: "move") — it stopped at the same
+wall. **`displace`** (teleport: true, walls: null, canSelect: false — the action Foundry uses for
+its own undo) crossed the wall and the creature, both as a waypoint action and as the token's
+`movementAction` document field, which the schema accepts for any key of
+`CONFIG.Token.movement.actions`. `constrainOptions: { ignoreWalls, ignoreTokens }` on the move's
+options also crosses both — but those are the CALLER's to pass, and the animation module's
+teleport passes none. The hooks: `preMoveToken(doc, move, options)` fires AFTER the path is
+constrained and can only veto (`false`); `moveToken` fires after the commit. `move.destination`
+is the final waypoint. A sight ray is `CONFIG.Canvas.polygonBackends.sight.testCollision(from, to,
+{ type: "sight", mode: "any" })`. ⚠ A fix on this was built and PULLED BACK the same evening
+(user: *"this particular fix isn't really a Battle Flow scoped item"*) — it is a movement-pipeline
+concern, not a rule of the game this module resolves; the working patch is
+[prototypes/teleports-in-battleflow.patch](prototypes/teleports-in-battleflow.patch) and the
+measurements above are what any home for it needs. Also measured: the animation module's own
+"check collision" preset option is a MOVE-collision ray tested at the circle, before any move —
+a wall refuses there whatever the pipeline would do; that is the preset's setting to turn off.
+
 ## 2. dnd5e 5.3.x
 
 ### Rolls and damage
