@@ -23,9 +23,7 @@ dnd5e.postUseActivity	hold.js
 dnd5e.postUseActivity	hold.js
 updateChatMessage	hold.js
 dnd5e.preApplyDamage	hold.js
-createChatMessage	hold.js
 updateChatMessage	hold.js
-dnd5e.renderChatMessage	hold.js
 dnd5e.renderChatMessage	hold.js
 deleteChatMessage	hold.js
 dnd5e.rollAttackV2	auto-damage.js

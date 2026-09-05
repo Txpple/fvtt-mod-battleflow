@@ -24,7 +24,7 @@ import { damagePartsOf, reactionSpent, spendReaction, statSourceOf, poolOf, spen
 // damage-offer bar still registers above the hold row exactly as it did when they shared one
 // handler (asserted in check-hook-order.mjs).
 import { openMomentPopup, momentButton, scheduleBarSync, armDeadline, disarmDeadline,
-  shownMoments, livePopups, registerRelay } from "./ui.js";
+  shownMoments, livePopups, registerRelay, registerResumable } from "./ui.js";
 // Safe as a STATIC edge (unlike auto-apply.js below): effect-riders.js registers no hooks,
 // so evaluating it early cannot reorder anything — check-hook-order.mjs proves it.
 import { applyEffectsTo } from "./effect-riders.js";
@@ -952,11 +952,7 @@ Hooks.on("dnd5e.preApplyDamage", (actor, amount, updates, options) => {
  * history is inert and render-resume is safe.
  * ------------------------------------------------------------------------------------------- */
 
-const spellDamageApplications = new Set();
-
 async function applySpellDamage(message) {
-  if ( spellDamageApplications.has(message.id) ) return;
-  spellDamageApplications.add(message.id);
   try {
     if ( message.getFlag(MODULE_ID, "spellDamage") !== true ) return;
     if ( message.getFlag(MODULE_ID, "receipt") ) return;                   // applied already (resume)
@@ -996,8 +992,6 @@ async function applySpellDamage(message) {
     await applyDamagesWithReceipt(message, writable, damages);
   } catch(err) {
     console.error(`${TITLE} | Spell damage auto-apply failed.`, err);
-  } finally {
-    spellDamageApplications.delete(message.id);
   }
 }
 
@@ -1006,18 +1000,20 @@ async function applySpellDamage(message) {
 const drivesSpellDamage = message =>
   drivesMomentFor(message?.getAssociatedActor?.()?.uuid ?? null);
 
-// Three triggers, all flag-driven: arrival, the claim settling, and render (reload resume).
-Hooks.on("createChatMessage", message => {
-  if ( !setting(S.autoApply) || !drivesSpellDamage(message) ) return;
-  if ( message.getFlag(MODULE_ID, "spellDamage") ) void applySpellDamage(message);
+// Three triggers, all flag-driven: arrival, the claim settling (the pending claim cleared by the
+// caster, or released by the resolution below), and render (reload resume) — declared to the
+// spine's resumable registry on the `spellDamage` stamp (Stage 3, 2026-09-05); the in-flight
+// latch (spellDamageApplications) is the spine's `spellDamage|<id>` now.
+registerResumable("spellDamage", {
+  pending: (_flag, message, cause) => (cause === "create")
+    || ((cause === "update") && (message.getFlag(MODULE_ID, "spellHoldPending") === false) && !message.getFlag(MODULE_ID, "receipt"))
+    || ((cause === "render") && (message.getFlag(MODULE_ID, "spellHoldPending") !== true) && !message.getFlag(MODULE_ID, "receipt")),
+  drives: (_flag, message) => setting(S.autoApply) && drivesSpellDamage(message),
+  drive: applySpellDamage
 });
 
 Hooks.on("updateChatMessage", message => {
   if ( !setting(S.autoApply) || !drivesSpellDamage(message) ) return;
-  // The pending claim settled (cleared by the caster, or released by the resolution below).
-  if ( message.getFlag(MODULE_ID, "spellDamage")
-    && (message.getFlag(MODULE_ID, "spellHoldPending") === false)
-    && !message.getFlag(MODULE_ID, "receipt") ) void applySpellDamage(message);
   // A spell hold resolved — release every damage roll waiting on it. The elect owns this
   // write; the release itself (spellHoldPending → false) is the bus event that applies.
   const hold = message.getFlag(MODULE_ID, "hold");
@@ -1028,13 +1024,6 @@ Hooks.on("updateChatMessage", message => {
       void dmg.setFlag(MODULE_ID, "spellHoldPending", false);
     }
   }
-});
-
-Hooks.on("dnd5e.renderChatMessage", message => {
-  if ( !setting(S.autoApply) || !drivesSpellDamage(message) ) return;
-  if ( message.getFlag(MODULE_ID, "spellDamage")
-    && (message.getFlag(MODULE_ID, "spellHoldPending") !== true)
-    && !message.getFlag(MODULE_ID, "receipt") ) void applySpellDamage(message);
 });
 
 /**
