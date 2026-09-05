@@ -70,6 +70,9 @@ const LAYER_OF = {
   "use-chips.js": "machines",
   "emanations.js": "machines",
   "hit-menu.js": "machines",
+  "damage-shields.js": "machines",
+  "damage-casts.js": "machines",
+  "superiority-uses.js": "machines",
   "polish.js": "machines",
   "resources.js": "machines",
   "stats.js": "machines",
@@ -101,6 +104,7 @@ const LAYER_OF = {
   "decide/clock.js": "decision",
   "decide/emanations.js": "decision",
   "decide/hit-menu.js": "decision",
+  "decide/shields.js": "decision",
 
   // CORE — the leaf: ids, settings accessor, the elect, the flag serializer
   "core.js": "core"

@@ -133,6 +133,24 @@ export function emanationRange(row, rollData, activitySize = null) {
 }
 
 /**
+ * Is an area's HEAL due for this member at this moment (the second slice, 2026-09-05)? Aura of
+ * Life: "if an ally with 0 Hit Points starts its turn in the aura, that ally regains 1 Hit Point"
+ * — the row names the moment and the condition; the facts are the platform's.
+ * @param {{heal?: {on: string, when?: string}|null}} row
+ * ⚠ No "dead" guard: dnd5e stamps the dead status on a creature at 0 HP by itself, and the
+ * 0-HP creature is exactly the one the text names. The Hit Points are the condition.
+ * @param {{cause: string, hp?: number|null}} facts
+ * @returns {{due: boolean, why: string}}
+ */
+export function healTriggerDue(row, { cause, hp = null }) {
+  const h = row?.heal ?? null;
+  if ( !h ) return { due: false, why: "no heal on the row" };
+  if ( h.on !== cause ) return { due: false, why: `not at ${h.on}` };
+  if ( (h.when === "zeroHP") && (Number(hp) !== 0) ) return { due: false, why: `${hp} Hit Points — not at 0` };
+  return { due: true, why: (h.when === "zeroHP") ? "at 0 Hit Points at the start of its turn" : `at ${cause}` };
+}
+
+/**
  * Is a triggered save due for this creature now? Once per turn in combat (Spirit Guardians'
  * own sentence), every time out of it — the settled ruling that turns are counted only for a
  * combatant in the running combat (DESIGN §8).

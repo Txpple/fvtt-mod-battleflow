@@ -364,7 +364,10 @@ export async function writeTurnChit(actor, key, { name, img = null, description 
   if ( !activeCombatFor(actor) ) return null;   // the attacker's own combat, or no turn to be once-per
   const stale = actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === key)
     && (!riderKey || (e.getFlag(MODULE_ID, "riderKey") === riderKey)));
-  if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id));
+  // Best-effort: the platform's own tidy deletes an expired chit on the turn boundary, and a
+  // writer racing it met "ActiveEffect does not exist" (the shields suite, 2026-09-05). A chit
+  // that is already gone is the outcome wanted.
+  if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id).filter(id => actor.effects.get(id))).catch(() => {});
   const clock = chipClock(key, turnPlace());
   if ( !clock ) return null;
   return ActiveEffect.implementation.create({
@@ -420,6 +423,78 @@ export async function spendReaction(actor, { origin = null, what = "a Reaction" 
     ...chipData(clock),
     flags: { [MODULE_ID]: { [CHIP_FLAG]: "reaction" } }
   }, { parent: actor });
+}
+
+/**
+ * Who put an effect on, and what it came from: walk its origin uuid up to the nearest Actor,
+ * keeping the Item passed on the way. Both answers fall out of one walk. Lived in hit-riders.js
+ * as `markSource` until the damage shields needed the same walk (2026-09-04) — a ward on the
+ * defender is a mark in reverse, and the D8 lesson is that a seam is built by its second customer.
+ *
+ * ⚠ Verified against a live mark, and it does NOT match a straight reading of the effect tray.
+ * The tray sets `origin = concentration ?? effect` (effect-application.mjs:184), but that first
+ * branch only fires when `chatMessage.system.concentration` is set; a real Hunter's Mark on
+ * this table arrived pointing at the SOURCE ITEM'S OWN EFFECT,
+ * `Actor.<caster>.Item.<hunters-mark>.ActiveEffect.<marker>`. Do not code to either shape — the
+ * walk ends at the same Actor and Item whichever branch ran, and also survives a mark dragged
+ * on by hand.
+ *
+ * ⚠ Origins go stale. Prone effects on this table point at a token that no longer exists and
+ * resolve to null, so every hop must tolerate a miss.
+ */
+export function effectSourceOf(marker) {
+  const uuid = marker.origin || marker.getFlag("dnd5e", "dependentOn");
+  let doc = null;
+  try { doc = uuid ? fromUuidSync(uuid) : null; } catch { return null; }
+  const root = doc;
+  let item = null;
+  while ( doc && !(doc instanceof Actor) ) {
+    if ( doc instanceof Item ) item = doc;
+    doc = doc.parent;
+  }
+  if ( !(doc instanceof Actor) ) return null;
+
+  // The other shape: an effect sitting directly ON the caster, which NAMES its item rather than
+  // living underneath one — what the tray writes when the spell began concentration. The walk
+  // above finds the actor but never passes an Item, so the name has to be read off the flag.
+  // ⚠ This is uuid resolution, not a concentration test: nothing here asks whether anyone is
+  // still concentrating, and nothing should.
+  if ( !item ) {
+    const carried = root?.getFlag?.("dnd5e", "item");
+    try { item = carried?.uuid ? fromUuidSync(carried.uuid) : null; } catch { item = null; }
+    // ⚠ `flags.dnd5e.item.data` is populated ONLY when the item is not on the actor
+    // (active-effect.mjs:714) — the cached-spell shape innate and statblock casting use. Without
+    // this fallback a monster's mark resolves to no item and silently stops paying.
+    if ( !item && carried?.data ) item = new Item.implementation(carried.data, { parent: doc });
+  }
+  return item ? { actor: doc, item } : null;
+}
+
+/**
+ * The pool an activity consumes — the item its first `itemUses` target names. Lived in hit-menu.js
+ * until the hold's Parry needed the same read (2026-09-05): a seam built by its second customer. The 2024 pack
+ * ships the target three ways (measured 2026-09-04): an item ID once advancement has remapped
+ * it, the bare identifier `combat-superiority` (Trip, Goading, Menacing, Pushing, Disarming,
+ * Maneuvering), and the compendium UUID of Combat Superiority (Distracting, Sweeping).
+ */
+export function poolOf(actor, activity) {
+  for ( const c of (activity?.consumption?.targets ?? []) ) {
+    if ( c.type !== "itemUses" ) continue;
+    const target = String(c.target ?? "");
+    if ( !target ) return activity.item ?? null;
+    const item = actor.items.get(target)
+      ?? actor.items.find(i => (i.system?.identifier === target) || (i.identifier === target))
+      ?? actor.items.find(i => (i._stats?.compendiumSource === target) || (i.flags?.core?.sourceId === target))
+      ?? actor.items.find(i => target.endsWith(`.${i._stats?.compendiumSource?.split(".").pop() ?? "\u0000"}`));
+    if ( item ) return item;
+  }
+  return null;
+}
+
+/** Spend one use of a pool item on the sheet — the clock riders' idiom for a limited use. */
+export async function spendPoolUse(pool) {
+  if ( !pool ) return null;
+  return pool.update({ "system.uses.spent": Number(pool.system?.uses?.spent ?? 0) + 1 });
 }
 
 /** Aim the user's targets at these tokens for the duration of `fn`, then put them back. */

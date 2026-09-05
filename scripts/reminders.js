@@ -11,7 +11,7 @@ import { CHIP_FLAG, chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.j
 import { CHECK_BENDS, CONDITION_BENDS, EFFECT_BENDS, MASTERY_RULES, RANGE_RULES, SNEAK_ATTACK } from "./decide/registry.js";
 import { parseDice, sneakWeaponQualifies } from "./decide/sneak.js";
 import { feetOf, nearestFeet, tokenOfActor } from "./geometry.js";
-import { REMINDER_FLAG, checkGate, checkSources, conditionSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
+import { REMINDER_FLAG, checkGate, checkSources, conditionSources, effectCheckSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
   reminderRecord, reminderSource, reminderView, rolledWith } from "./decide/reminders.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -203,6 +203,12 @@ Hooks.on("dnd5e.preRollAbilityCheckV2", (config, dialog, message) => {
       // the system's own doing and not an effect, so it stays the dialog's unexplained default.
       const roll = { kind: "check", ability: config.ability ?? null, skill: config.skill ?? null, tool: config.tool ?? null };
       sources.push(...modeSources({ effects: sheetModeEffects(actor), roll, rollLabel: rollLabelFor(roll), name: actor.name }));
+      // …and the effect table's rows that bend ability checks by their text (Heated Metal), by
+      // name off the sheet — the attack gate's effect kind, on the check (2026-09-04).
+      sources.push(...effectCheckSources({
+        effects: actor.effects.filter(e => !e.disabled && !e.isSuppressed).map(e => ({ id: e.id, name: e.name })),
+        features: actor.items.filter(i => i.type === "feat").map(i => i.name),
+        enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, name: actor.name }));
     }
     if ( !sources.length ) return;
     const gate = new DialogCarried({ ...checkGate(sources), actorUuid: actor.uuid,

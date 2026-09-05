@@ -5,7 +5,7 @@
 import { MODULE_ID, TITLE, S, setting, isActiveGM, isFlowElectFor, canApplyTo, whisperNoGM,
   queueFlagWrite, statContext } from "./core.js";
 import { receiptEntry, joinDamageReceipt } from "./decide/receipt.js";
-import { interruptMultiplier } from "./decide/verdict.js";
+import { interruptMultiplier, reduceDamages } from "./decide/verdict.js";
 import { INTERRUPT_MULTIPLIERS } from "./decide/registry.js";
 import { hitTargets, resolveAttackMessage, damagePartsOf, statSourceOf } from "./shared.js";
 import { applyEffectRiders } from "./effect-riders.js";
@@ -133,14 +133,17 @@ async function applyToHitTargets(damageMessage, attackMessage, hits) {
   const hold = attackMessage?.getFlag(MODULE_ID, "hold");
   const groups = new Map();
   for ( const target of hits ) {
-    const found = (hold?.status === "resolved")
-      ? interruptMultiplier(hold.targets?.find(t => t.uuid === target.uuid), INTERRUPT_MULTIPLIERS) : null;
-    const key = found ? `${found.multiplier}|${found.note}` : "1|";
-    if ( !groups.has(key) ) groups.set(key, { multiplier: found?.multiplier ?? 1, note: found?.note, hits: [] });
+    const entry = (hold?.status === "resolved") ? hold.targets?.find(t => t.uuid === target.uuid) : null;
+    const found = entry ? interruptMultiplier(entry, INTERRUPT_MULTIPLIERS) : null;
+    // A reaction that REDUCES by a roll (Parry, 2026-09-05): the number the answer carried.
+    const reduce = (entry?.answer === "cast") && (Number(entry.reduceBy) > 0) ? Number(entry.reduceBy) : 0;
+    const note = found?.note ?? (reduce ? `${entry.reaction} — reduced by ${reduce}` : undefined);
+    const key = `${found?.multiplier ?? 1}|${note ?? ""}|${reduce}`;
+    if ( !groups.has(key) ) groups.set(key, { multiplier: found?.multiplier ?? 1, note, reduce, hits: [] });
     groups.get(key).hits.push(target);
   }
-  for ( const { multiplier, note, hits: group } of groups.values() ) {
-    await applyDamagesWithReceipt(damageMessage, group, damages, { multiplier, ...(note ? { note } : {}) });
+  for ( const { multiplier, note, reduce, hits: group } of groups.values() ) {
+    await applyDamagesWithReceipt(damageMessage, group, reduce ? reduceDamages(damages, reduce) : damages, { multiplier, ...(note ? { note } : {}) });
   }
 }
 

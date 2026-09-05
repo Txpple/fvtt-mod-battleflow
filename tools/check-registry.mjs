@@ -167,7 +167,10 @@ for (const [key, spec] of Object.entries(LIST_SPECS)) {
 // Attack feature is on the sheet and the weapon qualifies — a seventh way of knowing, and the
 // first that asks rather than tells. WHAT it offers after the hit is CUNNING_OPTIONS, rows of data
 // read off the sheet, not kinds.
-const EXPECTED_KINDS = 28;   // emanation: feature · spell joined 2026-09-03
+// 2026-09-05: 28 → 29, `command` joins the maneuver folds — Commander's Strike, Riposte's driven
+// attack with the ATTACKER changed to an ally: a genuinely different spend (the fighter's die, the
+// ally's Reaction and weapon), on the set D8 already named as the one under pressure.
+const EXPECTED_KINDS = 29;
 
 // The mastery set must match the rule text it is presented with: a mastery this module
 // resolves but cannot quote breaks presentation law 8 (ARCHITECTURE.md §5) at the popup.
@@ -219,7 +222,13 @@ const rows = KIND_SETS.map(set => {
 // is the rider due, and the part's formula as the pack wrote it).
 // 2026-09-02 (the walk): 36 → 37, for scripts/use-chips.js — a feature the pack ships as text
 // alone becomes a chip on use, so the gate can read it and the roll can spend it (Steady Aim).
-const EXPECTED_SOURCE_FILES = 41;   // hit-menu.js + decide/hit-menu.js joined 2026-09-04
+// 2026-09-04 (overnight): 41 → 43, for scripts/damage-shields.js (a MACHINE: the hit rider mirrored —
+// a ward on the defender pays out against the attacker) and scripts/decide/shields.js (its pure half).
+// 2026-09-04 (overnight): 43 → 44, for scripts/damage-casts.js (a MACHINE: a bare damage activity rolls
+// its dice at the use, and a listed row demands the save its text ties to the damage — Heat Metal).
+// 2026-09-05: 44 → 45, for scripts/superiority-uses.js (a MACHINE: the Battle Master's Bonus Action
+// maneuvers — Evasive Footwork, Bait and Switch, Lunging Attack, Feinting Attack).
+const EXPECTED_SOURCE_FILES = 45;
 const sourceFiles = [
   ...readdirSync(join(ROOT, "scripts")).filter(f => f.endsWith(".js")),
   ...readdirSync(join(ROOT, "scripts/decide")).filter(f => f.endsWith(".js")).map(f => `decide/${f}`)

@@ -169,8 +169,52 @@ describe("the EMANATIONS table (decide/registry.js)", () => {
       expect(reg.EMANATION_KINDS.has(row.kind), name).toBe(true);
       expect(["helpful", "harmful"], name).toContain(row.reach);
       expect(typeof row.rule, name).toBe("string");
-      expect(typeof row.effect, name).toBe("string");
+      // The second slice (2026-09-05) admits rows that apply NOTHING — a barrier, a notice.
+      expect(["string", "object"], name).toContain(typeof row.effect);
     }
+  });
+  it("the second slice: five PHB auras with the pack's own effect, a notice, a ring — and no dice anywhere", () => {
+    const names = Object.keys(reg.EMANATIONS);
+    for (const n of [
+      "Aura of Life",
+      "Aura of Purity",
+      "Circle of Power",
+      "Crusader's Mantle",
+      "Holy Aura"
+    ]) {
+      expect(names).toContain(n);
+      expect(typeof reg.EMANATIONS[n].effect, n).toBe("string");
+      expect(reg.EMANATIONS[n].kind, n).toBe("spell");
+      expect(reg.EMANATIONS[n].reach, n).toBe("helpful");
+      expect(reg.EMANATIONS[n].range, n).toBe(null);
+    }
+    expect(reg.EMANATIONS["Aura of Life"].heal).toEqual({
+      on: "turnStart",
+      when: "zeroHP",
+      activity: "Create Aura"
+    });
+    expect(reg.EMANATIONS["Aura of Vitality"]).toMatchObject({
+      effect: null,
+      remind: { on: "sourceTurnStart", activity: "Start of Turn Heal" }
+    });
+    expect(reg.EMANATIONS["Antilife Shell"]).toMatchObject({ effect: null, reach: "harmful" });
+    for (const [name, row] of Object.entries(reg.EMANATIONS)) {
+      const { rule, ...rest } = row;
+      expect(JSON.stringify(rest), name).not.toMatch(/\d+d\d+/);
+    }
+  });
+  it("healTriggerDue: Aura of Life pays an ally at 0 HP at its turn start, and nobody else", () => {
+    const row = reg.EMANATIONS["Aura of Life"];
+    expect(em.healTriggerDue(row, { cause: "turnStart", hp: 0 })).toEqual({
+      due: true,
+      why: "at 0 Hit Points at the start of its turn"
+    });
+    expect(em.healTriggerDue(row, { cause: "turnStart", hp: 12 }).due).toBe(false);
+    expect(em.healTriggerDue(row, { cause: "turnEnd", hp: 0 }).due).toBe(false);
+    // dnd5e marks a 0-HP creature dead on its own — the Hit Points alone decide (measured 2026-09-05).
+    expect(
+      em.healTriggerDue(reg.EMANATIONS["Aura of Purity"], { cause: "turnStart", hp: 0 }).due
+    ).toBe(false);
   });
   it("the Paladin's three auras read their range off the class's own scale value, never a number here", () => {
     for (const n of ["Aura of Protection", "Aura of Courage", "Aura of Warding"]) {

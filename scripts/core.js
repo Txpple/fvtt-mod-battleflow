@@ -49,7 +49,10 @@ export const S = {
   clockRiderList: "clockRiderList",
   hitMenuList: "hitMenuList",
   emanations: "emanations",
-  emanationList: "emanationList"
+  emanationList: "emanationList",
+  damageShieldList: "damageShieldList",
+  damageSaveList: "damageSaveList",
+  superiorityUseList: "superiorityUseList"
 };
 
 export const setting = key => game.settings.get(MODULE_ID, key);

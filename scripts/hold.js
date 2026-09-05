@@ -7,7 +7,7 @@ import { MODULE_ID, TITLE, S, setting, queueFlagWrite, drivesMomentFor,
   statContext } from "./core.js";
 import { limitedUses, isReactionItem, isTextOnlyFeature } from "./decide/eligible.js";
 import { interruptMultiplier } from "./decide/verdict.js";
-import { INTERRUPT_MULTIPLIERS } from "./decide/registry.js";
+import { INTERRUPT_MULTIPLIERS, INTERRUPT_REDUCTIONS } from "./decide/registry.js";
 import { interruptEntries, blockEntries } from "./settings.js";
 import { joinEffectReceipt } from "./decide/receipt.js";
 // ⚠ Bare on purpose since (gg) retired the post-answer roll (the continuation releases the
@@ -16,7 +16,7 @@ import { joinEffectReceipt } from "./decide/receipt.js";
 import "./auto-damage.js";
 import { bfCard, popupKey, holdBarHTML } from "./decide/present.js";
 // Safe as a STATIC edge: shared.js registers no hooks and the entry graph evaluates it first.
-import { damagePartsOf, reactionSpent, spendReaction, statSourceOf } from "./shared.js";
+import { damagePartsOf, reactionSpent, spendReaction, statSourceOf, poolOf, spendPoolUse } from "./shared.js";
 // ⚠ ONE-WAY since D6 (2026-08-23). ui.js is the spine and no longer knows this feature exists;
 // what comes back are spine primitives only. Do NOT let a hold-shaped name travel the other
 // way — reinstating an `import … from "./hold.js"` in ui.js re-forms the cycle D6 broke.
@@ -143,15 +143,42 @@ async function usableReaction(actor, name) {
 }
 
 /**
+ * A listed reaction whose effect is a REDUCTION the module can roll (decide/registry.js
+ * INTERRUPT_REDUCTIONS — the Battle Master's Parry): the found item carries the row's activity,
+ * whose healing formula is the number. Null for anything else — the Monster Manual's Parry is an
+ * AC reaction of the same name and carries no such activity, so it stays `ac`.
+ */
+function reductionFor(item, reactionName) {
+  const key = Object.keys(INTERRUPT_REDUCTIONS).find(k => k.toLowerCase() === String(reactionName ?? "").toLowerCase());
+  const row = key ? INTERRUPT_REDUCTIONS[key] : null;
+  if ( !row ) return null;
+  const activity = [...(item?.system?.activities ?? [])].find(a => a.name?.toLowerCase() === row.activity.toLowerCase()) ?? null;
+  const h = activity?.healing;
+  const formula = h ? (h.custom?.enabled ? h.custom.formula : ((Number(h.number) > 0 && Number(h.denomination) > 0) ? `${h.number}d${h.denomination}${h.bonus ? ` + ${h.bonus}` : ""}` : (h.bonus || null))) : null;
+  if ( !activity || !formula ) return null;
+  return { row, activity, formula };
+}
+
+/**
  * The first curated interrupt this actor can actually use right now, or null.
  */
 async function findInterrupt(actor, { isCritical }) {
   if ( !actor || reactionSpent(actor) ) return null;
   for ( const entry of interruptEntries() ) {
-    // A natural 20 hits regardless of AC, so an AC-type reaction cannot save it — no pause.
-    if ( isCritical && (entry.kind === "ac") ) continue;
     const found = await usableReaction(actor, entry.name);
     if ( !found ) continue;
+    // A reduction row makes the reaction a `damage` interrupt whatever the list's kind says —
+    // the Battle Master's Parry beside the Monster Manual's (2026-09-05).
+    const reduce = reductionFor(found.item, entry.name);
+    const kind = reduce ? "damage" : entry.kind;
+    // A natural 20 hits regardless of AC, so an AC-type reaction cannot save it — no pause.
+    if ( isCritical && (kind === "ac") ) continue;
+    if ( reduce ) {
+      // The pool the die comes from: none left, nothing to offer.
+      const pool = reduce.row.pool ? poolOf(actor, reduce.activity) : null;
+      if ( pool && !(Number(pool.system?.uses?.value ?? 0) > 0) ) continue;
+      return { entry: { ...entry, kind }, ...found, reduce: { formula: reduce.formula, activityId: reduce.activity.id } };
+    }
     // ALREADY STANDING ⇒ DON'T ASK AGAIN (user call, the v1.15.0 walk's finding ⑥: "if they
     // have shield up, just dont prompt for shield"). Gren was re-prompted for Shield with his
     // +5 already active — a pause offering a choice that changes nothing, which is the false
@@ -249,6 +276,8 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
     if ( found ) held.push({
       uuid: target.uuid, name: target.name, ac: target.ac,
       reaction: found.entry.name, kind: found.entry.kind,
+      // A reduction reaction (Parry): the formula the answer rolls, off the pack (N1).
+      ...(found.reduce ? { reduce: found.reduce } : {}),
       // The exact activity that answers this hold. A statblock casts Shield from a feature's
       // cast activity, not from the spell item, so a name lookup at Cast time finds the wrong
       // document (or an unusable one) — record the ids instead of rediscovering them.
@@ -434,13 +463,14 @@ async function stampSpellHold(message, entries) {
  * a client that OWNS its message, which is exactly what splits the two branches below:
  * the response message is the answering player's own (receipt embedded at creation), and
  * the direct branch runs only where this client owns the held message itself. */
-export async function answerHold(attackMessage, uuid, answer, { appliedEffects = [] } = {}) {
+export async function answerHold(attackMessage, uuid, answer, { appliedEffects = [], reduceBy = null } = {}) {
   const hold = foundry.utils.deepClone(attackMessage.getFlag(MODULE_ID, "hold") ?? {});
   if ( hold.status !== "pending" ) return;
   const target = hold.targets?.find(t => t.uuid === uuid);
   if ( !target || target.answer ) return;                // idempotent: first answer wins
   target.answer = answer;
   target.answeredAt = Date.now();   // the crash-resume horizon (the topple discipline)
+  if ( Number(reduceBy) > 0 ) target.reduceBy = Number(reduceBy);   // Parry's roll, at the answer
 
   // Players cannot update someone else's message, so a player's answer travels as their OWN
   // message; the continuing client applies it to the hold (ARCHITECTURE.md §3 — clients
@@ -483,6 +513,7 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
       // player's OWN message, because they cannot flag someone else's: the standard
       // effectReceipt shape, so receipts.js renders the row + the GM's revert for free.
       flags: { [MODULE_ID]: { respondsTo: attackMessage.id, uuid, answer, ac, effectLanded,
+        ...(Number(reduceBy) > 0 ? { reduceBy: Number(reduceBy) } : {}),
         ...(appliedEffects.length ? { effectReceipt: { targets: appliedEffects } } : {}) } }
     });
     return;
@@ -522,6 +553,8 @@ registerRelay("respondsTo", {
     if ( !target || target.answer ) return false;
     target.answer = message.getFlag(MODULE_ID, "answer");
     target.answeredAt = Date.now();   // the crash-resume horizon (the topple discipline)
+    const reduceBy = Number(message.getFlag(MODULE_ID, "reduceBy"));
+    if ( reduceBy > 0 ) target.reduceBy = reduceBy;
   }
 });
 
@@ -778,15 +811,16 @@ async function driveHoldContinuation(attackMessage, hold) {
         }));
       }
     } else {
-      // A damage-kind reaction the module can settle (Uncanny Dodge halves) is applied at its
-      // multiplier by the applier and receipted; the rest are reduced by hand, as before.
+      // A damage-kind reaction the module can settle (Uncanny Dodge halves; Parry's roll reduces)
+      // is applied by the applier and receipted; the rest are reduced by hand, as before.
       const settled = interruptMultiplier(target, INTERRUPT_MULTIPLIERS);
-      const how = settled ? ((settled.multiplier === 0.5) ? "halved" : `×${settled.multiplier}`) : null;
+      const reduced = (Number(target.reduceBy) > 0) ? Number(target.reduceBy) : null;
+      const how = settled ? ((settled.multiplier === 0.5) ? "halved" : `×${settled.multiplier}`) : reduced ? `reduced by <strong>${reduced}</strong>` : null;
       announcements.push(bfCard({
-        img, eyebrow: settled ? "Reaction — it worked" : "Reaction — cast", title: target.reaction, subtitle: target.name,
-        tone: settled ? "good" : "neutral",
-        lines: [settled
-          ? `The attack still hits, and its damage against <strong>${target.name}</strong> is <strong>${how}</strong> — the receipt says so.`
+        img, eyebrow: (settled || reduced) ? "Reaction — it worked" : "Reaction — cast", title: target.reaction, subtitle: target.name,
+        tone: (settled || reduced) ? "good" : "neutral",
+        lines: [(settled || reduced)
+          ? `The attack still hits, and its damage against <strong>${target.name}</strong> is ${how} — the receipt says so.`
           : `Reduce the damage by hand — the roll stands.`]
       }));
     }
@@ -1298,6 +1332,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
  */
 async function castReaction(attackMessage, target) {
   const actor = await fromUuid(target.uuid);
+  // A REDUCTION reaction (Parry, 2026-09-05): nothing to use — the pack's activity is a heal
+  // that would post a card of its own. The die is spent from the pool, the Reaction spent, the
+  // formula rolled in the open, and the number rides the answer for the applier to subtract.
+  if ( target.reduce?.formula ) return parryReaction(attackMessage, target, actor);
   // A TEXT-ONLY feature (the 2024 Uncanny Dodge): nothing to use, so the answer is written
   // here and the Reaction chip spent here — the two things a use would have done.
   const own = actor?.items.get(target.itemId);
@@ -1330,6 +1368,29 @@ async function castReaction(attackMessage, target) {
   // subsequentActions:false — the (v) guard: a reaction whose activity carries a damage part
   // must not chain dnd5e's own follow-up roll; the module drives everything after the use.
   await activity.use({ subsequentActions: false }, { configure: false }, {});
+}
+
+/** Parry's answer: the pool spent, the Reaction spent, the reduction rolled in the open, the number on the answer. */
+async function parryReaction(attackMessage, target, actor) {
+  const item = actor?.items.get(target.itemId) ?? reactionItem(actor, target.reaction);
+  const activity = item?.system?.activities?.get(target.reduce.activityId) ?? null;
+  const pool = activity ? poolOf(actor, activity) : null;
+  if ( pool && !(Number(pool.system?.uses?.value ?? 0) > 0) ) {
+    ui.notifications.warn(`${TITLE}: ${actor.name} has no Superiority Die left for ${target.reaction}.`);
+    return answerHold(attackMessage, target.uuid, "pass");
+  }
+  let total = 0;
+  try {
+    const formula = Roll.replaceFormulaData(String(target.reduce.formula), actor.getRollData());
+    const roll = await new Roll(formula).evaluate();
+    await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${target.reaction} — the die, plus the modifier` });
+    total = Math.max(0, Number(roll.total) || 0);
+  } catch(err) {
+    console.error(`${TITLE} | ${target.reaction}'s reduction could not be rolled — reduce by hand.`, err);
+  }
+  if ( pool ) await spendPoolUse(pool).catch(err => console.warn(`${TITLE} | Could not spend a Superiority Die for ${target.reaction}.`, err));
+  await spendReaction(actor, { origin: item?.uuid ?? null, what: target.reaction });
+  return answerHold(attackMessage, target.uuid, "cast", { reduceBy: total });
 }
 
 /**

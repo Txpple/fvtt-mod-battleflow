@@ -28,7 +28,9 @@
  */
 
 /** The closed set of maneuver fold kinds. Unknown kinds are DROPPED, never guessed. */
-export const MANEUVER_KINDS = new Set(["precision", "riposte", "interpose", "bash", "hew"]);
+// `command` (2026-09-05): Commander's Strike — a Bonus Action that gives an ALLY a Reaction attack
+// with the fighter's die on its damage: Riposte's driven attack with the attacker changed.
+export const MANEUVER_KINDS = new Set(["precision", "riposte", "interpose", "bash", "hew", "command"]);
 
 /** The closed set of interrupt kinds — what a held reaction changes about an attack. */
 export const INTERRUPT_KINDS = new Set(["ac", "damage"]);
@@ -44,6 +46,24 @@ export const INTERRUPT_KINDS = new Set(["ac", "damage"]);
 export const INTERRUPT_MULTIPLIERS = Object.freeze({
   "Uncanny Dodge": Object.freeze({ multiplier: 0.5,
     rule: "When an attacker that you can see hits you with an attack roll, you can take a Reaction to halve the attack’s damage against you (round down)." })
+});
+
+/**
+ * DAMAGE INTERRUPTS THAT REDUCE BY A ROLL (2026-09-05, the Battle Master's Parry — "reduce the
+ * damage by the number you roll on your Superiority Die plus your Strength or Dexterity
+ * modifier"): a `damage`-kind reaction whose effect is a SUBTRACTION the module can roll. The
+ * pack ships Parry as a "Heal" Reaction activity whose healing formula IS the reduction
+ * (`@scale.battle-master.superiority.die + max(@abilities.str.mod, @abilities.dex.mod)` — the
+ * pack's max() stands in for the player's choice); the hold reads that formula, rolls it in the
+ * open at the answer, and the applier lands the attack's damage against the reactor short by
+ * that number, the receipt row saying why. ⚠ Keyed by the Interrupt list's own names — and the
+ * Monster Manual ships a different "Parry" (a +2 AC Reaction, `ac`); the row applies only where
+ * the found item carries the named activity, so the monster's stays an AC hold.
+ */
+export const INTERRUPT_REDUCTIONS = Object.freeze({
+  "Parry": Object.freeze({ activity: "Heal", pool: true,
+    rule: "When another creature damages you with a melee attack roll, you can take a Reaction and expend one Superiority Die to reduce the damage by the number you roll on your Superiority Die plus your Strength or Dexterity modifier (your choice).",
+    from: "Fighter — Battle Master 3" })
 });
 
 /**
@@ -382,6 +402,81 @@ export const HIT_OPTIONS = Object.freeze({
 export const HIT_OPTION_NAMES = new Set(Object.values(HIT_OPTIONS).map(r => r.feature.toLowerCase()));
 
 /**
+ * SUPERIORITY USES (2026-09-05, "the rest of maneuvers"): the Battle Master's BONUS ACTION
+ * maneuvers — a use whose consequence lands on a sheet, and for two of them a die that rides the
+ * hit after. Measured on the 2024 PHB pack 2026-09-04 (tools/probe-pack-shapes.mjs):
+ *
+ *   Evasive Footwork   "Evade" rolls the die ("AC Bonus"); the pack's "Evasive AC" effect carries
+ *                      NO change — `bonus`: the module writes a chip with the number rolled on the
+ *                      AC until the start of the next turn (Sap's window)
+ *   Bait and Switch    "Switch Places" rolls the die ("Armor Class Bonus") and ships TWELVE effects
+ *                      "Baited AC +1" … "+12" — `choice`: the matching pack effect goes on whoever
+ *                      the fighter picks, a popup with the hold family's clock, the fighter by default
+ *   Lunging Attack     "Damage" (no target): Dash, and the die on the next melee hit this turn if the
+ *                      fighter moved 5 feet in a straight line — `chip` until the end of the turn,
+ *                      `rider` as a TICKED checkbox on the offer (the player's fact)
+ *   Feinting Attack    "Damage" at one creature and the pack's "Feinting Attack" effect ("for
+ *                      tracking the target") — `marker`: on the target with the fighter as source;
+ *                      the effect table's row reads it as Advantage for the fighter alone (`only:
+ *                      "source"`), the next attack roll spends it, and the die rides the hit
+ *
+ *   use       the activity the fighter presses, by name (the pool is the system's — `use()` consumes)
+ *   bonus     { key, window, what } — a rolled number written as a change on the fighter's own chip
+ *   choice    { effectPrefix, what } — the pack's "+N" effect, applied to the fighter's pick
+ *   chip      { window } — a chip on the fighter; `rider` says the die rides the next hit
+ *   marker    { effect } — the pack's effect on the TARGET, the fighter as its source
+ *   rider     { melee?, caveat? } — the die rides the hit's damage roll (crit-doubled by the stamp)
+ *
+ * The die is READ off the sheet (the activity's roll formula or damage part, resolved). Membership
+ * is the Superiority Uses list. Rally needs no row: its temp HP are a heal activity the cast slice
+ * already lands. Precision Attack and Riposte are folds; the on-hit eight are the hit menu;
+ * Commander's Strike is a fold kind (`command`); Ambush and Tactical Assessment are d20 folds
+ * (SUPERIORITY_FOLDS); Parry is an interrupt (INTERRUPT_REDUCTIONS).
+ */
+export const SUPERIORITY_USES = Object.freeze({
+  "Evasive Footwork": Object.freeze({ use: "Evade", bonus: Object.freeze({ key: "system.attributes.ac.bonus", window: "sap", what: "AC" }),
+    rule: "As a Bonus Action, you can expend one Superiority Die and take the Disengage action. You also roll the die and add the number rolled to your AC until the start of your next turn.",
+    from: "Fighter — Battle Master" }),
+  "Bait and Switch": Object.freeze({ use: "Switch Places", choice: Object.freeze({ effectPrefix: "Baited AC +", what: "AC" }),
+    rule: "When you're within 5 feet of a creature on your turn, you can expend one Superiority Die and switch places with that creature, provided you spend at least 5 feet of movement and the creature is willing and doesn't have the Incapacitated condition. This movement doesn't provoke Opportunity Attacks. Roll the Superiority Die. Until the start of your next turn, you or the other creature (your choice) gains a bonus to AC equal to the number rolled.",
+    from: "Fighter — Battle Master" }),
+  "Lunging Attack": Object.freeze({ use: "Damage", chip: Object.freeze({ window: "steadyAim" }), rider: Object.freeze({ melee: true, caveat: "if you moved at least 5 feet in a straight line just before the hit" }),
+    rule: "As a Bonus Action, you can expend one Superiority Die and take the Dash action. If you move at least 5 feet in a straight line immediately before hitting with a melee attack as part of the Attack action on this turn, you can add the Superiority Die to the attack's damage roll.",
+    from: "Fighter — Battle Master" }),
+  "Feinting Attack": Object.freeze({ use: "Damage", marker: Object.freeze({ effect: "Feinting Attack" }), rider: Object.freeze({}),
+    rule: "As a Bonus Action, you can expend one Superiority Die to feint, choosing one creature within 5 feet of yourself as your target. You have Advantage on your next attack roll against that target this turn. If that attack hits, add the Superiority Die to the attack's damage roll.",
+    from: "Fighter — Battle Master" })
+});
+
+/** The superiority uses' feature names, lower-cased — the closed set the Superiority Uses list is validated against. */
+export const SUPERIORITY_USE_NAMES = new Set(Object.keys(SUPERIORITY_USES).map(n => n.toLowerCase()));
+
+/**
+ * SUPERIORITY FOLDS (2026-09-05): the Battle Master's maneuvers that ADD THE DIE TO A D20 TEST —
+ * Ambush (a Dexterity (Stealth) check, or an Initiative roll) and Tactical Assessment (an
+ * Intelligence (History or Investigation) check, or a Wisdom (Insight) check). Each is the d20
+ * folds' `tactical` SPEND — a utility activity used, its roll formula the die — with a SCOPE the
+ * feature's own text gives: which skills, and whether Initiative. Listed in the D20 Folds list as
+ * `Ambush:tactical` / `Tactical Assessment:tactical`; the scope here is what tells them from
+ * Tactical Mind (any check, a refund). No refund: the die is spent either way it lands.
+ */
+export const SUPERIORITY_FOLDS = Object.freeze({
+  "Ambush": Object.freeze({ skills: Object.freeze(["ste"]), initiative: true,
+    rule: "When you make a Dexterity (Stealth) check or an Initiative roll, you can expend one Superiority Die and add the die to the roll, unless you have the Incapacitated condition." }),
+  "Tactical Assessment": Object.freeze({ skills: Object.freeze(["his", "inv", "ins"]), initiative: false,
+    rule: "When you make an Intelligence (History or Investigation) check or a Wisdom (Insight) check, you can expend one Superiority Die and add that die to the ability check." })
+});
+
+/**
+ * Every Battle Master maneuver by name (lower-cased) — the features whose damage activities are
+ * the DIE and never a spell's damage: damage-casts.js leaves them alone.
+ */
+export const MANEUVER_FEATURE_NAMES = new Set([
+  ...Object.values(HIT_OPTIONS).map(r => r.feature), ...Object.keys(SUPERIORITY_USES), ...Object.keys(SUPERIORITY_FOLDS),
+  "Commander's Strike", "Precision Attack", "Riposte", "Parry", "Rally"
+].map(n => n.toLowerCase()));
+
+/**
  * EMANATIONS (user ruling 2026-09-03 — DESIGN §4 amended: "emanations are a core part of combat …
  * no different than auto-applying Slow with mastery"). A persistent area attached to a token whose
  * effect applies to the creatures inside it. THE PLATFORM MODELS IT (measured, tools/probe-
@@ -411,10 +506,29 @@ export const HIT_OPTION_NAMES = new Set(Object.values(HIT_OPTIONS).map(r => r.fe
  *              space) and/or "turnEnd" (it ends its turn inside); `oncePerTurn` as the text says.
  *              The save, DC, damage and scaling are the activity's own; the saves machine judges.
  *
+ *   heal       (the second slice, 2026-09-05) a heal the area pays a member at a moment — `on`:
+ *              "turnStart", `when`: "zeroHP" (Aura of Life's ally at 0 HP regains the activity's
+ *              own healing), `activity` the heal activity whose part is read
+ *   remind     (the second slice) a NOTICE at the SOURCE's turn start naming the activity the
+ *              caster may use — Aura of Vitality's heal is AIMED, a choice, so it is offered and
+ *              never played (R1); `activity` names the heal to use from the card
+ *   effect null   a ring and a card and nothing applied — a barrier (Antilife Shell), a notice
+ *
  * ⚠ Aura of Courage's pack effect ("Courageous") carries NO change — the Frightened immunity is a
  * CONTENT fix at the world (user, 2026-09-03: "agree"), and the module applies what the pack ships.
- * Membership is the Emanations list. Aura of Vitality (a heal the player aims — a choice) and
- * Antilife Shell (a barrier, no effect) are deliberately absent from the first slice.
+ * Membership is the Emanations list.
+ *
+ * THE SECOND SLICE (2026-09-05, the corpus scan the first slice left): every 2024 PHB spell whose
+ * activity is a `radius` template from the caster with a standing effect the pack ships — Aura of
+ * Life, Aura of Purity, Circle of Power, Crusader's Mantle, Holy Aura — plus the two the backlog
+ * named, Aura of Vitality (a notice) and Antilife Shell (a ring). Each applies exactly what the
+ * pack's effect carries and says on its card what the pack leaves to the table (`caveat`).
+ * Measured on the packs 2026-09-04 (tools/probe-pack-shapes.mjs). Left out on purpose: Antimagic
+ * Field, Globe of Invulnerability, Darkness, Daylight (no effect — a ring alone would be a guess
+ * about what the table wants drawn); Intimidating Presence, Wrath of the Sea, Oceanic Gift (an
+ * emanation SAVE at a Bonus Action — the cast's own demand handles the moment, the area needs no
+ * standing); Holy Aura's Fiend/Undead save on a melee hit (the damage shields' shape with a save
+ * in place of dice — a row for that family when a table asks).
  */
 export const EMANATIONS = Object.freeze({
   "Aura of Protection": Object.freeze({ kind: "feature", reach: "helpful", range: "@scale.paladin.aura", effect: "Protected", incapacitated: true,
@@ -430,8 +544,113 @@ export const EMANATIONS = Object.freeze({
   "Spirit Guardians": Object.freeze({ kind: "spell", reach: "harmful", range: null, effect: "Half Speed", incapacitated: false,
     trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
     rule: "Protective spirits flit around you in a 15-foot Emanation for the duration. When you cast this spell, you can designate creatures to be unaffected by it. Any other creature’s Speed is halved in the Emanation, and whenever the Emanation enters a creature’s space and whenever a creature enters the Emanation or ends its turn there, the creature must make a Wisdom saving throw. On a failed save, the creature takes 3d8 Radiant damage (if you are good or neutral) or 3d8 Necrotic damage (if you are evil). On a successful save, the creature takes half as much damage. A creature makes this save only once per turn.",
-    from: "Cleric spell, level 3 (Concentration, 10 minutes)" })
+    from: "Cleric spell, level 3 (Concentration, 10 minutes)" }),
+  // --- the second slice (2026-09-05) -----------------------------------------------------------
+  "Aura of Life": Object.freeze({ kind: "spell", reach: "helpful", range: null, effect: "Aura of Life", incapacitated: false,
+    heal: Object.freeze({ on: "turnStart", when: "zeroHP", activity: "Create Aura" }),
+    caveat: "the pack's effect carries the Necrotic Resistance; \"Hit Point maximums can't be reduced\" is the table's",
+    rule: "An aura radiates from you in a 30-foot Emanation for the duration. While in the aura, you and your allies have Resistance to Necrotic damage, and your Hit Point maximums can’t be reduced. If an ally with 0 Hit Points starts its turn in the aura, that ally regains 1 Hit Point.",
+    from: "Paladin spell, level 4 (Concentration, 10 minutes)" }),
+  "Aura of Purity": Object.freeze({ kind: "spell", reach: "helpful", range: null, effect: "Aura of Purity", incapacitated: false,
+    caveat: "the pack's effect carries the Poison Resistance; the Advantage on saves against those conditions is the table's",
+    rule: "An aura radiates from you in a 30-foot Emanation for the duration. While in the aura, you and your allies have Resistance to Poison damage and Advantage on saving throws to avoid or end effects that include the Blinded, Charmed, Deafened, Frightened, Paralyzed, Poisoned, or Stunned condition.",
+    from: "Paladin spell, level 4 (Concentration, 10 minutes)" }),
+  "Aura of Vitality": Object.freeze({ kind: "spell", reach: "helpful", range: null, effect: null, incapacitated: false,
+    remind: Object.freeze({ on: "sourceTurnStart", activity: "Start of Turn Heal" }),
+    caveat: "the heal is AIMED — a choice: the card at the start of your turn offers it, and never plays it",
+    rule: "An aura radiates from you in a 30-foot Emanation for the duration. When you create the aura and at the start of each of your turns while it persists, you can restore 2d6 Hit Points to one creature in it.",
+    from: "Cleric / Druid / Paladin spell, level 3 (Concentration, 1 minute)" }),
+  "Antilife Shell": Object.freeze({ kind: "spell", reach: "harmful", range: null, effect: null, incapacitated: false,
+    caveat: "a barrier, not an effect — the ring is drawn for the table to honour",
+    rule: "An aura extends from you in a 10-foot Emanation for the duration. The aura prevents creatures other than Constructs and Undead from passing or reaching through it. An affected creature can cast spells or make attacks with Ranged or Reach weapons through the barrier. If you move so that an affected creature is forced to pass through the barrier, the spell ends.",
+    from: "Druid spell, level 5 (Concentration, 1 hour)" }),
+  "Circle of Power": Object.freeze({ kind: "spell", reach: "helpful", range: null, effect: "Circle's Power", incapacitated: false,
+    caveat: "the pack's effect carries no change — the Advantage on saves against spells, and none instead of half, are the table's",
+    rule: "An aura radiates from you in a 30-foot Emanation for the duration. While in the aura, you and your allies have Advantage on saving throws against spells and other magical effects. When an affected creature makes a saving throw against a spell or magical effect that allows a save to take only half damage, it takes no damage if it succeeds on the save.",
+    from: "Cleric / Paladin spell, level 5 (Concentration, 10 minutes)" }),
+  "Crusader's Mantle": Object.freeze({ kind: "spell", reach: "helpful", range: null, effect: "Crusader’s Mantle", incapacitated: false,
+    rule: "You radiate a magical aura in a 30-foot Emanation. While in the aura, you and your allies each deal an extra 1d4 Radiant damage when hitting with a weapon or an Unarmed Strike.",
+    from: "Paladin spell, level 3 (Concentration, 1 minute)" }),
+  "Holy Aura": Object.freeze({ kind: "spell", reach: "helpful", range: null, effect: "Holy Protection", incapacitated: false,
+    caveat: "the pack's effect carries the Advantage on saves (the save gate says so); attackers' Disadvantage and the Fiend/Undead save on a melee hit are the table's",
+    rule: "For the duration, you emit an aura in a 30-foot Emanation. While in the aura, creatures of your choice have Advantage on all saving throws, and other creatures have Disadvantage on attack rolls against them. In addition, when a Fiend or an Undead hits an affected creature with a melee attack roll, the attacker must succeed on a Constitution saving throw or have the Blinded condition until the end of its next turn.",
+    from: "Cleric spell, level 8 (Concentration, 1 minute)" })
 });
+
+/**
+ * DAMAGE SHIELDS (user, 2026-09-04: "death armor needs its damage shield effect automated") — the
+ * NINTH shape beside SWEEP §1's eight: the hit rider MIRRORED. A standing effect on the DEFENDER
+ * pays out against the ATTACKER when a melee attack roll hits it, with no choice in it (R1). The
+ * dice are the pack's own damage activity on the SOURCE's item — found by walking the standing
+ * effect's origin (a Death Armor cast on an ally is the caster's spell paying out on the ally's
+ * sheet), rolled in the open by the elect and applied through the receipt chokepoint at the
+ * attacker. Measured on the packs 2026-09-04 (tools/probe-pack-shapes.mjs):
+ *
+ *   Death Armor        (Heroes of Faerûn, L2, touch, 1 hour) ships the "Death Armor" effect on the
+ *                      WARDED creature and a Retaliate damage activity — 5 ft, "once per turn, when
+ *                      hit by a target in range". The once-per-turn is a turn chit on the defender.
+ *   Fire Shield        (PHB, L4, self, 10 minutes) ships Warm Shield / Chill Shield on the caster
+ *                      and one Flame Eruption activity typed [cold, fire] — the TYPE follows the
+ *                      effect that stands (warm burns, chill freezes); every melee hit within 5 ft.
+ *   Armor of Agathys   (PHB, L1, self, 1 hour) ships NO effect: the cast is a temp-HP heal and
+ *                      Frost Damage is the payout, every melee hit "while you have these Hit
+ *                      Points". `mark: true` — the module writes its own chip at the cast (the
+ *                      use-chip idiom), carrying the cast's level; the chip goes when the pool is
+ *                      gone, and the shield strikes only while the temp HP stand.
+ *
+ *   effect    the pack's effect by NAME on the defender — one name, or a map of name → damage type
+ *             where the standing effect decides the type
+ *   activity  the pack's damage activity on the source's item, by name — its dice, its reach
+ *   melee     a melee attack roll only (every 2024 row says "melee attack roll")
+ *   when      "oncePerTurn" — the defender's turn chit; out of combat every hit (the settled rule)
+ *   while     "tempHP" — strikes only while the defender has Temporary Hit Points
+ *   mark      true — no pack effect: the module marks the cast; `cast` names the casting activity
+ *
+ * ⚠ Hellish Rebuke is NOT this family — a Reaction, a human's choice, the hold's business.
+ * Membership is the Damage Shields list (the item names). The reach, the dice and the type are
+ * read off the content, never typed (N1).
+ */
+export const DAMAGE_SHIELDS = Object.freeze({
+  "Death Armor": Object.freeze({ effect: "Death Armor", activity: "Retaliate", melee: true, when: "oncePerTurn",
+    rule: "For the duration, an inky aura surrounds one creature you touch. The target has Advantage on Death Saving Throws, and once per turn, when a creature within 5 feet of the target hits it with a melee attack roll, the attacker takes 2d4 Necrotic damage.",
+    from: "Heroes of Faerûn — Character Options, level 2 (1 hour)" }),
+  "Fire Shield": Object.freeze({ effect: Object.freeze({ "Warm Shield": "fire", "Chill Shield": "cold" }), activity: "Flame Eruption", melee: true,
+    rule: "Wispy flames wreathe your body for the duration, shedding Bright Light in a 10-foot radius and Dim Light for an additional 10 feet. The flames provide you with a warm shield or a chill shield, as you choose. The warm shield grants you Resistance to Cold damage, and the chill shield grants you Resistance to Fire damage. In addition, whenever a creature within 5 feet of you hits you with a melee attack roll, the shield erupts with flame. The attacker takes 2d8 Fire damage from a warm shield or 2d8 Cold damage from a chill shield.",
+    from: "PHB, level 4 (10 minutes)" }),
+  "Armor of Agathys": Object.freeze({ mark: true, cast: "Cast", activity: "Frost Damage", melee: true, while: "tempHP",
+    rule: "Protective magical frost surrounds you. You gain 5 Temporary Hit Points. If a creature hits you with a melee attack roll before the spell ends, the creature takes 5 Cold damage. The spell ends early if you have no Temporary Hit Points. Using a Higher-Level Spell Slot. The Temporary Hit Points and the Cold damage both increase by 5 for each spell slot level above 1.",
+    from: "PHB, level 1 (1 hour)" })
+});
+
+/** The shields' item names, lower-cased — the closed set the Damage Shields list is validated against. */
+export const DAMAGE_SHIELD_NAMES = new Set(Object.keys(DAMAGE_SHIELDS).map(n => n.toLowerCase()));
+
+/**
+ * DAMAGE SAVES (user, 2026-09-04: "make heat metal spell work"). A bare damage activity whose
+ * text ties a SAVE to taking the damage — the 2024 PHB's Heat Metal: "Cast and Heat" (2d8 Fire
+ * at the object's holder) and "Reheat" (the same as a Bonus Action on later turns) are damage
+ * activities that nothing chains, and "On Damage Save" (Con; the Heated Metal effect on a
+ * failure — Disadvantage on attack rolls and ability checks until the start of the caster's next
+ * turn) is a save activity nobody used. A row names the damage activities and the save; the
+ * machine (damage-casts.js) rolls the dice at the use and puts the save to the same targets
+ * right after, through the saves machine. The drop is a judgment the card says out loud (R1):
+ * the failed save's effect lands, and the table removes it if the object was dropped.
+ *
+ *   damage   the damage activities, by name — each use of one rolls and then demands
+ *   save     the save activity, by name — used at the damage's targets, no slot
+ *   line     what the card says beyond the rule, for the consequence the table plays
+ *
+ * Membership is the Damage Saves list. The dice, the DC and the effect are the pack's (N1).
+ */
+export const DAMAGE_SAVES = Object.freeze({
+  "Heat Metal": Object.freeze({ damage: Object.freeze(["Cast and Heat", "Reheat"]), save: "On Damage Save",
+    line: "Played at the table: on a failed save the creature drops the object if it can — remove Heated Metal if it did; a creature that keeps hold of it has Disadvantage on attack rolls and ability checks until the start of the caster's next turn.",
+    rule: "Choose a manufactured metal object, such as a metal weapon or a suit of Heavy or Medium metal armor, that you can see within range. You cause the object to glow red-hot. Any creature in physical contact with the object takes 2d8 Fire damage when you cast the spell. Until the spell ends, you can take a Bonus Action on each of your later turns to deal this damage again if the object is within range. If a creature is holding or wearing the object and takes the damage from it, the creature must succeed on a Constitution saving throw or drop the object if it can. If it doesn’t drop the object, it has Disadvantage on attack rolls and ability checks until the start of your next turn.",
+    from: "PHB, level 2 (Concentration, 1 minute)" })
+});
+
+/** The damage-save items' names, lower-cased — the closed set the Damage Saves list is validated against. */
+export const DAMAGE_SAVE_NAMES = new Set(Object.keys(DAMAGE_SAVES).map(n => n.toLowerCase()));
 
 /** The two lifecycles an emanation can have — the closed set the R4 tripwire counts. */
 export const EMANATION_KINDS = new Set(["feature", "spell"]);
@@ -657,9 +876,10 @@ export const EFFECT_BENDS = Object.freeze({
     rule: "Undead within the Emanation have Advantage on attack rolls and saving throws." }),
   "Manacled": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Manacles",
     rule: "While bound, a creature has Disadvantage on attack rolls, and the creature is Restrained if the Manacles are attached to a chain or hook that is fixed in place." }),
-  "Heated Metal": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Heat Metal",
+  // `checks` — the row bends ABILITY CHECKS too (the check gate reads it; 2026-09-04, Heat Metal).
+  "Heated Metal": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", checks: "disadvantage", from: "Heat Metal",
     rule: "If it doesn’t drop the object, it has Disadvantage on attack rolls and ability checks until the start of your next turn." }),
-  "Averse": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Aversion to Fire (monsters)",
+  "Averse": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", checks: "disadvantage", from: "Aversion to Fire (monsters)",
     rule: "If it takes Fire damage, it has Disadvantage on attack rolls and ability checks until the end of its next turn." }),
   "Target: Disadvantage": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Sap, Pesky Swarm (monsters)",
     rule: "The target has Disadvantage on attack rolls until the end of its next turn." }),
@@ -759,7 +979,10 @@ export const EFFECT_BENDS = Object.freeze({
     rule: "On a successful save, the target has Disadvantage on the next attack roll it makes until the start of your next turn." }),
   "Brief Enfeeblement": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", spend: "attack", from: "Ray of Enfeeblement",
     rule: "On a successful save, the target has Disadvantage on the next attack roll it makes until the start of your next turn." }),
-  "Feinting Attack": Object.freeze({ attacker: "advantage", target: null, scope: "any", spend: "attack", from: "Battle Master",
+  // ⚠ Recut 2026-09-05: the pack's effect sits on the TARGET ("for tracking the target"), placed by
+  // superiority-uses.js with the fighter as its source; `only: "source"` — the Advantage is the
+  // fighter's alone, and only the fighter's next attack roll at that target spends it.
+  "Feinting Attack": Object.freeze({ attacker: null, target: "advantage", scope: "any", only: "source", spend: "attack", from: "Battle Master",
     caveat: "counted — press Normal if this attack is not at the feinted target",
     rule: "You have Advantage on your next attack roll against that target this turn." }),
   "Distracted": Object.freeze({ attacker: null, target: "advantage", scope: "any", spend: "attack", except: "source", from: "Battle Master, Distracting Strike",
@@ -878,7 +1101,8 @@ export const KIND_SETS = [
   { name: "interrupt", owner: "hold.js", kinds: INTERRUPT_KINDS, system: null,
     note: "what a held reaction changes about an attack already rolled" },
   { name: "maneuverFold", owner: "maneuvers.js", kinds: MANEUVER_KINDS, system: null,
-    note: "how a listed feat folds into a resolved attack — D8 says this set is the one under pressure" },
+    note: "how a listed feat folds into a resolved attack — D8 says this set is the one under pressure; "
+      + "`command` (2026-09-05) is Riposte's driven attack with the attacker changed to an ally" },
   { name: "d20Fold", owner: "d20-folds.js", kinds: D20_FOLD_KINDS, system: null,
     note: "where the marker lives and how it is spent — the three surveyed features (v1.23.0); "
       + "the ARITHMETIC is shared and already shipped with D8, so only the spend earns a kind" },
@@ -955,7 +1179,7 @@ export const LIST_SPECS = {
     label: "Maneuver Folds", setting: "maneuverFolds",
     columns: ["name", "kind"], kindColumn: "kind", kinds: MANEUVER_KINDS, fallback: null,
     default: "Precision Attack:precision, Riposte:riposte, Shield Master:interpose, "
-      + "Shield Master:bash, Great Weapon Master:hew"
+      + "Shield Master:bash, Great Weapon Master:hew, Commander's Strike:command"
   },
   d20Folds: {
     label: "D20 Folds", setting: "d20Folds",
@@ -975,7 +1199,9 @@ export const LIST_SPECS = {
     // ⚠ v1 used this column for BOTH jobs and the table read "Inspired" on every bardic card.
     // Splitting them is why renaming the effect here changes what is FOUND and never what is
     // said — which is the right way round.
-    default: "Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic"
+    // Ambush and Tactical Assessment (2026-09-05) are the `tactical` SPEND with a scope of their
+    // own (SUPERIORITY_FOLDS) — the name is the lookup key and the label both.
+    default: "Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic, Ambush:tactical, Tactical Assessment:tactical"
   },
   rider: {
     label: "Rider List", setting: "riderList",
@@ -1029,6 +1255,27 @@ export const LIST_SPECS = {
     // case-insensitive. Membership over HIT_OPTIONS; the mechanism is hit-menu.js.
     columns: ["kind"], kindColumn: "kind", kinds: HIT_OPTION_NAMES, fallback: null, membership: true, whole: true,
     default: Object.values(HIT_OPTIONS).map(row => row.feature).join(", ")
+  },
+  damageShields: {
+    label: "Damage Shields", setting: "damageShieldList",
+    // Which rows of the damage-shield table strike — the ITEM names, whole-chunk, case-insensitive.
+    // Membership over DAMAGE_SHIELDS; the mechanism is damage-shields.js.
+    columns: ["kind"], kindColumn: "kind", kinds: DAMAGE_SHIELD_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(DAMAGE_SHIELDS).join(", ")
+  },
+  superiorityUses: {
+    label: "Superiority Uses", setting: "superiorityUseList",
+    // Which rows of the superiority-use table the module plays — the FEATURE names, whole-chunk,
+    // case-insensitive. Membership over SUPERIORITY_USES; the mechanism is superiority-uses.js.
+    columns: ["kind"], kindColumn: "kind", kinds: SUPERIORITY_USE_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(SUPERIORITY_USES).join(", ")
+  },
+  damageSaves: {
+    label: "Damage Saves", setting: "damageSaveList",
+    // Which rows of the damage-save table demand their save after the damage — the ITEM names,
+    // whole-chunk, case-insensitive. Membership over DAMAGE_SAVES; the mechanism is damage-casts.js.
+    columns: ["kind"], kindColumn: "kind", kinds: DAMAGE_SAVE_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(DAMAGE_SAVES).join(", ")
   },
   emanations: {
     label: "Emanations", setting: "emanationList",

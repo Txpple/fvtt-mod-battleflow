@@ -54,8 +54,10 @@ ordering, the capture and the settings check for you**, which is why it is the f
 after it) · `smoke-saves` · `smoke-volleys` · `smoke-maneuvers` · `smoke-cast` · `smoke-riders` ·
 `smoke-concentration` · `smoke-twoclient` · `check-popup-routing` · `reset-fixture-state` ·
 `smoke-effects` · `smoke-resources` · `smoke-surfaces` · `smoke-reminders` · `smoke-sneak` ·
-`smoke-clock` · `smoke-hitmenu` · `fixture-suite` · `smoke-nogm` (last — it must find no active GM, and the seed
+`smoke-clock` · `smoke-hitmenu` · `smoke-shields` · `smoke-heatmetal` · `smoke-superiority` · `fixture-suite` · `smoke-emanations` · `smoke-resources` · `smoke-surfaces` · `fixture-suite` · `smoke-nogm` (last — it must find no active GM, and the seed
 above it re-places the token it needs). `battery.mjs` holds the order; quote it, never this line.
+
+⚠ **The three suites of 2026-09-05** — `smoke-shields` (the damage shields: the Cleric warded with Fire Shield / Armor of Agathys, the Ranger with the Cleric's Death Armor, the goblin striking them), `smoke-heatmetal` (the damage casts: Heat Metal on the Cleric at the goblin), `smoke-superiority` (the rest of the Battle Master's maneuvers on the CLONED fighter, the Ranger as the willing ally) — each gives its spells or maneuvers to the fixture for the run and removes them after; none needs a fixture step of its own beyond `fixture-suite`.
 
 ⚠ **`smoke-hitmenu` drives the CLONED fighter fixture** — `BF Test Fighter` (Morgash, Fighter 5 Battle Master: Combat Superiority and its Longsword), with the eight on-hit maneuvers added from the 2024 PHB pack for the run and removed after; the second goblin (`BF Test Attacker`) stands one square from the victim as the sweep's second creature.
 

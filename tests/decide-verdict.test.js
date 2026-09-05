@@ -1,5 +1,26 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
+describe("reduceDamages — a reaction that reduces by a roll (Parry, 2026-09-05)", () => {
+  /** @type {typeof import("../scripts/decide/verdict.js")} */
+  let v;
+  beforeAll(async () => {
+    v = await import("../scripts/decide/verdict.js");
+  });
+  it("takes the number off the parts in order, never below zero, and leaves the rest whole", () => {
+    const parts = [
+      { value: 7, type: "slashing" },
+      { value: 4, type: "fire" }
+    ];
+    expect(v.reduceDamages(parts, 5).map(d => d.value)).toEqual([2, 4]);
+    expect(v.reduceDamages(parts, 9).map(d => d.value)).toEqual([0, 2]);
+    expect(v.reduceDamages(parts, 30).map(d => d.value)).toEqual([0, 0]);
+    expect(v.reduceDamages(parts, 0)).toBe(parts);
+    expect(v.reduceDamages(parts, -3)).toBe(parts);
+    // The types and properties ride along untouched.
+    expect(v.reduceDamages(parts, 5)[1]).toMatchObject({ type: "fire" });
+  });
+});
+
 /**
  * DECISION-layer verdicts (ARCHITECTURE.md §2). No Foundry stub on purpose.
  *

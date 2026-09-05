@@ -64,6 +64,7 @@ import { grantingActor, hitTargets, modeAllows } from "./shared.js";
 import { bfCard, holdBarHTML, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
   from "./decide/present.js";
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
+import { SUPERIORITY_FOLDS } from "./decide/registry.js";
 import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer,
   registerRescue, syncRescuePopup } from "./ui.js";
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
@@ -215,6 +216,10 @@ function warnOnce(key, message) {
   console.warn(message);
 }
 
+/** A `tactical` entry with a SCOPE of its own — the Battle Master's Ambush / Tactical Assessment (decide/registry.js SUPERIORITY_FOLDS). */
+const scopeOf = entry => (entry.kind === "tactical")
+  ? (Object.entries(SUPERIORITY_FOLDS).find(([k]) => k.toLowerCase() === String(entry.name ?? "").toLowerCase())?.[1] ?? null) : null;
+
 /**
  * EVERY listed fold this actor can spend on THIS KIND of test, in list order.
  *
@@ -224,21 +229,37 @@ function warnOnce(key, message) {
  *
  * `spent` excludes kinds already used on this roll, so the re-offer after a fold resolves does
  * not offer the same die twice.
+ *
+ * @param {Actor} actor
+ * @param {"attack"|"save"|"check"|"initiative"} testKind
+ * @param {string[]} [spent]
+ * @param {{skill?: string|null}} [ctx]   the check's skill, for a scoped entry (Ambush: Stealth only)
  */
-function availableFolds(actor, testKind, spent = []) {
+function availableFolds(actor, testKind, spent = [], ctx = {}) {
   const out = [];
   for ( const entry of d20FoldEntries() ) {
     const spec = KINDS[entry.kind];
-    if ( !spec || !spec.tests.includes(testKind) ) continue;
+    if ( !spec ) continue;
+    // A SCOPED entry (2026-09-05): the feature's own text says which checks — and whether
+    // Initiative — it adds the die to; Tactical Mind's "any check" is the unscoped default.
+    const scope = scopeOf(entry);
+    const tests = scope ? [...((scope.skills?.length) ? ["check"] : []), ...(scope.initiative ? ["initiative"] : [])] : spec.tests;
+    if ( !tests.includes(testKind) ) continue;
+    if ( scope && (testKind === "check") && !(ctx.skill && scope.skills.includes(ctx.skill)) ) continue;
     if ( spent.includes(entry.kind) ) continue;
     const marker = spec.find(actor, entry);
     if ( !marker ) continue;
-    const dieFormula = spec.die(marker);
+    let dieFormula = spec.die(marker);
+    if ( scope && dieFormula ) {
+      // The Superiority Die is a scale value — resolved on the fighter, "d8" read as "1d8".
+      try { const r = String(Roll.replaceFormulaData(dieFormula, actor.getRollData())).trim().replace(/^d(\d+)/i, "1d$1"); dieFormula = (Roll.validate(r) && !/@/.test(r)) ? r : null; } catch { dieFormula = null; }
+    }
     if ( (entry.kind !== "heroic") && !dieFormula ) continue;   // a die-kind with no die is off
     // ⚠ `name` is the LOOKUP KEY (the item or effect to find); `label` is what the table reads.
     // For `bardic` those genuinely differ — "Inspired" vs "Bardic Inspiration". See KIND_LABEL.
-    out.push({ kind: entry.kind, name: entry.name, label: KIND_LABEL[entry.kind] ?? entry.name,
-      dieFormula });
+    // A scoped entry is called by its own name (Ambush is not Tactical Mind on a card).
+    out.push({ kind: entry.kind, name: entry.name, label: scope ? entry.name : (KIND_LABEL[entry.kind] ?? entry.name),
+      dieFormula, ...(scope ? { cost: "the superiority die is spent either way it lands", rule: scope.rule } : {}) });
   }
   return out;
 }
@@ -327,8 +348,9 @@ const PLAIN_HOOKS = [
   ["dnd5e.rollSavingThrow", "save"]
 ];
 for ( const [hook, testKind] of PLAIN_HOOKS ) {
-  Hooks.on(hook, async (rolls, { subject }) => {
+  Hooks.on(hook, async (rolls, data) => {
     try {
+      const subject = data?.subject;
       if ( !(subject instanceof Actor) || !modeAllows(subject) ) return;
       const message = rolls?.[0]?.parent;
       if ( !(message instanceof ChatMessage) ) return;
@@ -337,17 +359,43 @@ for ( const [hook, testKind] of PLAIN_HOOKS ) {
       // and can therefore gate on the failure. Stamping here as well would put an ungated
       // button on the same message and race the withheld verdict.
       if ( (testKind === "save") && pendingSaveDemandFor(subject) ) return;
-      const offers = availableFolds(subject, testKind);
+      const skill = data?.skill ?? null;   // the skill hook's own data (dnd5e 5.3.3: `{ ability, skill|tool, subject }`)
+      const offers = availableFolds(subject, testKind, [], { skill });
       if ( !offers.length ) return;
       const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
       await message.setFlag(MODULE_ID, "d20fold",
-        baseFlag(subject, offers, testKind, rolls[0].total, window));
+        { ...baseFlag(subject, offers, testKind, rolls[0].total, window), ...(skill ? { skill } : {}) });
       armFoldTimer(message);
     } catch(err) {
       console.error(`${TITLE} | D20 fold stamp (${hook}) failed.`, err);
     }
   });
 }
+
+/**
+ * INITIATIVE (2026-09-05, Ambush): the one d20 the module otherwise never meets. dnd5e fires
+ * `dnd5e.rollInitiative(actor, combatants)` after the combatant's number is set; the roll's own
+ * message is the last initiative message this actor authored. A scoped fold (Ambush) is offered
+ * there; accepting it re-sets the combatant's initiative to the composed total — a fold, the
+ * original roll standing as history (DESIGN §4).
+ */
+Hooks.on("dnd5e.rollInitiative", async (actor, combatants) => {
+  try {
+    if ( !(actor instanceof Actor) || !modeAllows(actor) ) return;
+    const offers = availableFolds(actor, "initiative");
+    if ( !offers.length ) return;
+    const message = game.messages.contents.slice(-30).reverse().find(m => m.getFlag("core", "initiativeRoll")
+      && ((m.speaker?.actor === actor.id) || (m.getAssociatedActor?.()?.uuid === actor.uuid)));
+    if ( !message || message.getFlag(MODULE_ID, "d20fold") || !message.isAuthor ) return;
+    const total = Number(message.rolls?.[0]?.total ?? combatants?.[0]?.initiative ?? 0);
+    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    await message.setFlag(MODULE_ID, "d20fold", { ...baseFlag(actor, offers, "initiative", total, window),
+      combatId: game.combat?.id ?? null, combatantIds: (combatants ?? []).map(c => c.id) });
+    armFoldTimer(message);
+  } catch(err) {
+    console.error(`${TITLE} | D20 fold stamp (initiative) failed.`, err);
+  }
+});
 
 /** Is this actor mid-answer on a save this module demanded? Read off the demand cards, so the
  * native-roll path can stand aside without importing the save machine. */
@@ -571,7 +619,7 @@ async function resolveFold(message, kind) {
       : foldedRoll(baseRoll, folds);
 
     // What is still available AFTER this spend — the re-offer (finding 6).
-    const remaining = availableFolds(actor, flag.testKind, spends.map(s => s.kind));
+    const remaining = availableFolds(actor, flag.testKind, spends.map(s => s.kind), { skill: flag.skill ?? null });
     const stillFailing = isStillFailing(flag, composed, baseRoll, folds);
     const reoffer = remaining.length && stillFailing;
 
@@ -625,9 +673,18 @@ async function resolveFold(message, kind) {
     // ⚠ The unmodelled refund goes on the SETTLE CARD too, not just the row. This is the card
     // the table actually reads at the moment the use is spent, and Tactical Mind is the one
     // fold whose rule says the use may come back — see resolvedLines for the full argument.
-    if ( kind === "tactical" ) {
+    if ( (kind === "tactical") && !scopeOf({ kind, name: offer.name }) ) {
       lines.push("⚠ If the check still fails, this use of Second Wind isn't expended — "
         + "restore it by hand; the module cannot tell whether the check succeeded.");
+    }
+    // Initiative (Ambush): the fold's whole point is the order — the combatant's number moves.
+    if ( flag.testKind === "initiative" ) {
+      const combat = flag.combatId ? game.combats.get(flag.combatId) : game.combat;
+      for ( const id of (flag.combatantIds ?? []) ) {
+        const c = combat?.combatants?.get(id);
+        if ( c ) await c.update({ initiative: composed.total }).catch(err => console.warn(`${TITLE} | Could not move the initiative.`, err));
+      }
+      lines.push(`Initiative <strong>${flag.baseTotal} → ${composed.total}</strong> — the order is updated.`);
     }
     await announce(message, actor, labelOf(offer), flag.testKind, anyHit, lines, marker);
 
@@ -863,6 +920,7 @@ function foldImg(actor, named = []) {
 /** What kind of roll is being patched, in table English — the card's subtitle half. */
 function testKindPhrase(flag) {
   if ( flag.testKind === "attack" ) return "the attack missed";
+  if ( flag.testKind === "initiative" ) return `initiative · rolled ${flag.baseTotal}`;
   if ( flag.testKind === "save" ) {
     return Number.isFinite(flag.dc) ? `the save failed (${flag.baseTotal} vs DC ${flag.dc})`
       : `saving throw · rolled ${flag.baseTotal}`;

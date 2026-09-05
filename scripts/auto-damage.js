@@ -226,7 +226,9 @@ export async function rollDamageForSave(activity, card) {
     // A demand raised off a usage card carries the cast's own scaling in the system's message
     // data. An emanation's TRIGGERED demand (emanations.js, 2026-09-03) is a plain card, so it
     // carries the upcast level on the demand itself — passed through, never re-derived.
-    const scaling = Number(card.getFlag(MODULE_ID, "saves")?.scaling ?? 0);
+    // A bare damage cast (damage-casts.js, 2026-09-04) chains to its own usage card, whose system
+    // data carries the upcast the system stamped at the cast — the fallback when no demand does.
+    const scaling = Number(card.getFlag(MODULE_ID, "saves")?.scaling ?? card.system?.scaling ?? 0);
     await activity.rollDamage(scaling > 0 ? { scaling } : {}, { configure: false },
       { data: { "flags.dnd5e.originatingMessage": card.id } });
   } catch(err) {

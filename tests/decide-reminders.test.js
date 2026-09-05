@@ -681,6 +681,102 @@ describe("saveSources + saveGate — the save gate's table (option E, 2026-09-02
   });
 });
 
+describe('effectSources — `only: "source"` (Feinting Attack, 2026-09-05): the bend is the source\'s alone', () => {
+  const facts = () => ({
+    enabled: ["Feinting Attack"],
+    table: reg.EFFECT_BENDS,
+    attackerName: "Morgash",
+    targetName: "the goblin"
+  });
+  it("the feinting fighter attacking the marked target gets Advantage; anyone else attacking it gets nothing", () => {
+    const marked = {
+      uuid: "Actor.gob",
+      effects: [{ id: "f1", name: "Feinting Attack", sourceUuid: "Actor.morgash" }]
+    };
+    const mine = r.effectSources({
+      ...facts(),
+      attacker: { uuid: "Actor.morgash" },
+      target: marked,
+      pass: "target"
+    });
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({ bend: "advantage", effectId: "f1", spend: "attack" });
+    expect(mine[0].label).toMatch(/the goblin is — Feinting Attack/);
+    const theirs = r.effectSources({
+      ...facts(),
+      attacker: { uuid: "Actor.ranger" },
+      target: marked,
+      pass: "target"
+    });
+    expect(theirs).toHaveLength(0);
+    // A marker with no recorded source is nobody's — never a guessed Advantage.
+    const unsourced = { uuid: "Actor.gob", effects: [{ id: "f2", name: "Feinting Attack" }] };
+    expect(
+      r.effectSources({
+        ...facts(),
+        attacker: { uuid: "Actor.morgash" },
+        target: unsourced,
+        pass: "target"
+      })
+    ).toHaveLength(0);
+  });
+  it("a row that admits only its source hinges on the target: the attacker pass leaves it alone", () => {
+    const marked = {
+      uuid: "Actor.gob",
+      effects: [{ id: "f1", name: "Feinting Attack", sourceUuid: "Actor.morgash" }]
+    };
+    expect(
+      r.effectSources({
+        ...facts(),
+        attacker: { uuid: "Actor.morgash" },
+        target: marked,
+        pass: "attacker"
+      })
+    ).toHaveLength(0);
+  });
+});
+
+describe("effectCheckSources — an effect that bends ability checks by its text (Heat Metal, 2026-09-04)", () => {
+  it("Heated Metal on the roller's sheet is Disadvantage on a check; off the list, or absent, nothing", () => {
+    const facts = { table: reg.EFFECT_BENDS, name: "Jetten" };
+    const on = r.effectCheckSources({
+      ...facts,
+      effects: [{ id: "h1", name: "heated metal" }],
+      enabled: ["Heated Metal"]
+    });
+    expect(on).toHaveLength(1);
+    expect(on[0]).toMatchObject({
+      kind: "effect",
+      bend: "disadvantage",
+      label: "Jetten — Heated Metal",
+      effectId: "h1"
+    });
+    expect(on[0].detail).toMatch(/ability checks/);
+    expect(
+      r.effectCheckSources({ ...facts, effects: [{ id: "h1", name: "Heated Metal" }], enabled: [] })
+    ).toHaveLength(0);
+    expect(
+      r.effectCheckSources({
+        ...facts,
+        effects: [{ id: "g1", name: "Goaded" }],
+        enabled: reg.EFFECT_KEYS
+      })
+    ).toHaveLength(0);
+  });
+  it("only rows with a `checks` facet bend a check — an attack-only row (Innate Sorcery) does not", () => {
+    const out = r.effectCheckSources({
+      table: reg.EFFECT_BENDS,
+      effects: [{ id: "e", name: "Innate Sorcery" }],
+      enabled: reg.EFFECT_KEYS
+    });
+    expect(out).toHaveLength(0);
+    const facets = Object.entries(reg.EFFECT_BENDS)
+      .filter(([, row]) => row.checks)
+      .map(([k]) => k);
+    expect(facets).toEqual(["Heated Metal", "Averse"]);
+  });
+});
+
 describe("effectSources — the combat clock as a judge (Assassinate, 2026-09-02)", () => {
   it("fires on the target pass when the target has not acted in round one, and never otherwise", () => {
     const facts = {

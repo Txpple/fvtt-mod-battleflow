@@ -557,7 +557,11 @@ export const RESCUE_SOURCES = [
         action: o.kind,
         label: rescueLabel(o),
         die: o.dieFormula ?? null,
-        spent: false
+        spent: false,
+        // A scoped `tactical` offer (Ambush, Tactical Assessment — 2026-09-05) carries its own
+        // cost sentence and rule; the kind's are Tactical Mind's.
+        ...(o.cost ? { cost: o.cost } : {}),
+        ...(o.rule ? { rule: o.rule } : {})
       })),
       // ⚠ Spends read off `spends`, NEVER `offers` — an offer is what they COULD burn, a spend
       // is what they DID, and rendering an offer as spent would grey out a row that is still
@@ -724,7 +728,8 @@ export function rescueView(read, { composed = null, reveal = false,
         key: `${source.flag}:${row.kind}`,
         icon: RESCUE_KINDS[row.kind]?.icon ?? "fa-solid fa-dice-d20",
         img: row.img ?? null,
-        cost: RESCUE_KINDS[row.kind]?.cost ?? null,
+        cost: row.cost ?? RESCUE_KINDS[row.kind]?.cost ?? null,
+        rule: row.rule ?? RESCUE_KINDS[row.kind]?.rule ?? null,
         result: row.result ?? null,
         replaced: row.replaced === true,
         // ⚠ THE THIRD ROW STATE, DECLARED HERE AND WRITTEN IN STAGE 4 (user ruling,
@@ -761,7 +766,7 @@ export function rescueView(read, { composed = null, reveal = false,
     .map(r => ({
       key: r.key,
       label: r.label,
-      text: RESCUE_KINDS[r.kind]?.rule ?? null,
+      text: r.rule ?? RESCUE_KINDS[r.kind]?.rule ?? null,
       detail: (r.spent || r.withdrawn) ? ""
         : `${(r.kind === "heroic") ? "Rerolls the d20" : `Adds ${r.die ?? "a die"}`}`
           + (r.cost ? ` — ${r.cost}.` : ".")

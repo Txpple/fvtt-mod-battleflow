@@ -100,8 +100,17 @@ import "./reminders.js";
 import "./sneak.js";
 // clock-riders.js beside sneak.js: the same seam (preRollDamageV2), the same shape of card line.
 import "./clock-riders.js";
+// The damage shields (2026-09-04): a ward on the DEFENDER pays out against the attacker when the
+// attack's damage lands — the hit rider mirrored; it renders on its own roll card only.
+import "./damage-shields.js";
+// The damage casts (2026-09-04): a bare damage activity rolls its dice at the use; a listed row
+// (Heat Metal) demands its save after — the save is the saves machine's from there.
+import "./damage-casts.js";
 // hit-menu.js beside them: the same seam, the general form of the Cunning Strike menu (2026-09-04).
 import "./hit-menu.js";
+// The superiority uses (2026-09-05): the Battle Master's Bonus Action maneuvers — a chip, a marker
+// or a rolled bonus at the use, the die on the hit after; declares into the offer like the hit menu.
+import "./superiority-uses.js";
 // use-chips.js beside them: a text-only feature's use becomes a chip the gate reads (2026-09-02).
 import "./use-chips.js";
 // ⚠ maneuvers.js after mastery.js, before concentration.js ON PURPOSE (v1.19.0): its card

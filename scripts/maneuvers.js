@@ -95,7 +95,8 @@ export const RULE_TEXT = {
   bash: "If you attack a creature within 5 feet of you as part of the Attack action and hit with a Melee weapon, you can immediately bash the target with your Shield if it’s equipped, forcing the target to make a Strength saving throw (DC 8 plus your Strength modifier and Proficiency Bonus). On a failed save, you either push the target 5 feet from you or cause it to have the Prone condition (your choice). You can use this benefit only once on each of your turns.",
   bashChoice: "On a failed save, you either push the target 5 feet from you or cause it to have the Prone condition (your choice).",
   interpose: "If you’re subjected to an effect that allows you to make a Dexterity saving throw to take only half damage, you can take a Reaction to take no damage if you succeed on the saving throw and are holding a Shield.",
-  hew: "Immediately after you score a Critical Hit with a Melee weapon or reduce a creature to 0 Hit Points with one, you can make one attack with the same weapon as a Bonus Action."
+  hew: "Immediately after you score a Critical Hit with a Melee weapon or reduce a creature to 0 Hit Points with one, you can make one attack with the same weapon as a Bonus Action.",
+  command: "When you take the Attack action on your turn, you can replace one of your attacks to direct one of your companions to strike. When you do so, choose a willing creature who can see or hear you and expend one Superiority Die. That creature can immediately use its Reaction to make one attack with a weapon or an Unarmed Strike, adding the Superiority Die to the attack's damage roll on a hit."
 };
 
 /**
@@ -1361,4 +1362,238 @@ Hooks.on("deleteChatMessage", message => {
   disarmAskTimer(precisionTimers, message.id);
   disarmAskTimer(bashOfferTimers, message.id);
   disarmRiposteTimer(message.id);
+  disarmDeadline(commandTimers, message.id);
+});
+
+/* =============================================================================================
+ * COMMANDER'S STRIKE (2026-09-05, "the rest of maneuvers") — the `command` fold kind: Riposte's
+ * driven attack with the ATTACKER changed. The fighter uses "Directed Attack" (a damage activity
+ * whose target is the willing ALLY; `use()` spends the Superiority Die), and the ally may use its
+ * Reaction to make one attack with a weapon, the fighter's die on the damage if it hits. The 2024
+ * pack ships the activity as damage typed by choice ("select the type in the roll dialog") — the
+ * die rides the ALLY's weapon in the weapon's type, exactly as a riposte's die does.
+ *
+ *   THE STAMP — the fighter's client, on the usage card: the ally, the fighter's die (resolved on
+ *   the FIGHTER's sheet — it is their scale value), the hold family's clock. The native follow-up
+ *   (a damage dialog for a die that belongs to the ally's hit) is switched off at the use.
+ *   THE ASK — the ally's owner gets the riposte popup's shape: a weapon dropdown (every attack
+ *   activity, melee first) and Attack / Decline. The ally must have a target on the canvas — the
+ *   module never picks whom the ally strikes (R1).
+ *   THE ANSWER — a fold on the fighter's card: the owner writes straight, a player's click travels
+ *   as an envelope the elect folds (the riposte relay's shape). The answering client drives the
+ *   attack itself: the ally's Reaction spent, the weapon used, the attack rolled with the fighter's
+ *   card as its provenance (`riposteFor`/`riposteBy` — the riposte die's injection, idempotence
+ *   and the resolver's "driven attacks never chain re-offers" all read those two flags).
+ *   THE CLOCK — the timer declines; the die is already spent (the use spent it).
+ * ========================================================================================== */
+
+/** Every attack activity the ally carries, melee first, equipped first (the riposte's options widened to ranged). */
+function attackOptions(actor) {
+  const out = [];
+  for ( const item of actor.items.filter(i => i.type === "weapon") ) {
+    for ( const a of (item.system.activities?.contents ?? []) ) {
+      if ( a.type !== "attack" ) continue;
+      out.push({ itemId: item.id, activityId: a.id, name: item.name, equipped: !!item.system.equipped,
+        melee: a.attack?.type?.value === "melee", label: item.name + (item.system.equipped ? "" : " (stowed)") });
+    }
+  }
+  out.sort((a, b) => (Number(b.melee) - Number(a.melee)) || (Number(b.equipped) - Number(a.equipped)));
+  return out;
+}
+
+Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
+  try {
+    if ( (activity?.type !== "damage") || !activity.actor ) return;
+    if ( !foldEntryFor(activity.actor, "command") ) return;
+    const found = foldEntryFor(activity.actor, "command");
+    if ( found.item.id !== activity.item?.id ) return;
+    usageConfig.subsequentActions = false;   // the die is the ally's hit's, not the Bonus Action's
+  } catch(err) { console.warn(`${TITLE} | Could not claim Commander's Strike's use.`, err); }
+});
+
+Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
+  try {
+    if ( (activity?.type !== "damage") || !activity.actor?.isOwner ) return;
+    const found = foldEntryFor(activity.actor, "command");
+    if ( !found || (found.item.id !== activity.item?.id) ) return;
+    const message = (results?.message instanceof ChatMessage) ? results.message : null;
+    if ( !message || message.getFlag(MODULE_ID, "command") ) return;
+    void stampCommand(activity, activity.actor, message, found);
+  } catch(err) {
+    console.error(`${TITLE} | Commander's Strike stamp failed.`, err);
+  }
+});
+
+async function stampCommand(activity, fighter, message, found) {
+  const targets = (message.getFlag("dnd5e", "targets") ?? []).filter(t => t.uuid !== fighter.uuid);
+  const ally = targets[0] ?? null;
+  // The die is the FIGHTER's scale value — resolved here, on the fighter, because it rides the
+  // ALLY's roll (measured: the raw `@scale.battle-master.superiority.die` read 0 on the Ranger).
+  let dieFormula = maneuverDieFormula(activity);
+  try {
+    const r = dieFormula ? String(Roll.replaceFormulaData(dieFormula, fighter.getRollData())).trim().replace(/^d(\d+)/i, "1d$1") : null;
+    dieFormula = (r && Roll.validate(r) && !/@/.test(r)) ? r : null;
+  } catch { dieFormula = null; }
+  const allyActor = ally ? await fromUuid(ally.uuid).catch(() => null) : null;
+  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const options = (allyActor instanceof Actor) ? attackOptions(allyActor) : [];
+  const status = !ally ? "no ally" : !options.length ? "no weapon" : "pending";
+  await message.setFlag(MODULE_ID, "command", {
+    status, ...statContext(fighter.uuid),
+    attackerUuid: fighter.uuid, attackerName: fighter.name, itemName: found.item.name, itemImg: found.item.img ?? null,
+    ally: ally ? { uuid: ally.uuid, name: ally.name } : null, dieFormula,
+    answer: null, weaponId: null, weaponName: null,
+    ...((window && (status === "pending")) ? { window, deadline: Date.now() + (window * 1000) } : {})
+  });
+  if ( status === "pending" ) armCommandTimer(message);
+}
+
+const commandTimers = new Map();
+function armCommandTimer(message) {
+  const flag = message?.getFlag(MODULE_ID, "command");
+  if ( !flag?.deadline || (flag.status !== "pending") || !isActiveGM() ) { disarmDeadline(commandTimers, message?.id); return; }
+  armDeadline(commandTimers, message.id, flag.deadline, async id => {
+    try {
+      const m = game.messages.get(id);
+      if ( !m ) return;
+      await queueFlagWrite(m, "command", current => {
+        if ( current.status !== "pending" ) return false;
+        current.answer = "declined"; current.timedOut = true; current.status = "resolved"; current.answeredAt = Date.now();
+      });
+    } catch(err) { console.error(`${TITLE} | Commander's Strike buzzer failed.`, err); }
+  });
+}
+
+/** The ally's answer — the owner of the card writes straight; anyone else sends the envelope. "attack" drives on this client. */
+async function answerCommand(message, answer, { weaponId = null, weaponName = null } = {}) {
+  const flag = message.getFlag(MODULE_ID, "command");
+  if ( !flag || (flag.status !== "pending") ) return;
+  if ( message.canUserModify?.(game.user, "update") ) {
+    let claimed = false;
+    await queueFlagWrite(message, "command", current => {
+      if ( current.status !== "pending" ) return false;
+      current.answer = answer; current.answeredAt = Date.now(); current.status = "resolved";
+      if ( weaponId ) { current.weaponId = weaponId; current.weaponName = weaponName; }
+      claimed = true;
+    });
+    if ( claimed && (answer === "attack") ) await resolveCommand(message, weaponId);
+    return;
+  }
+  const ally = flag.ally?.uuid ? fromUuidSync(flag.ally.uuid) : null;
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: ally }),
+    content: bfCard({ img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`, tone: (answer === "attack") ? "good" : "neutral",
+      title: (answer === "attack") ? `${flag.ally?.name ?? "The ally"} strikes${weaponName ? ` with ${weaponName}` : ""}` : `${flag.ally?.name ?? "The ally"} declines`,
+      subtitle: `${flag.attackerName}'s ${flag.itemName}` }),
+    flags: { [MODULE_ID]: { commandAnswer: { messageId: message.id, answer, weaponId, weaponName } } }
+  });
+  if ( answer === "attack" ) await resolveCommand(message, weaponId, { trusted: true });
+}
+
+registerRelay("commandAnswer", {
+  flagKey: "command",
+  targetOf: a => a.messageId,
+  owns: () => isActiveGM(),
+  fold: (current, a) => {
+    if ( current.status !== "pending" ) return false;
+    current.answer = a.answer; current.answeredAt = Date.now(); current.status = "resolved";
+    if ( a.weaponId ) { current.weaponId = a.weaponId; current.weaponName = a.weaponName; }
+  },
+  cleanup: true
+});
+
+const commandInFlight = new Set();
+/** The accept path: the ally's Reaction spent, the die armed, the ally's own attack driven at ITS target (the riposte's drive). */
+async function resolveCommand(message, weaponId, { trusted = false } = {}) {
+  if ( commandInFlight.has(message.id) ) return;
+  commandInFlight.add(message.id);
+  try {
+    const flag = message.getFlag(MODULE_ID, "command");
+    if ( !flag?.ally?.uuid ) return;
+    if ( !trusted && (flag.answer !== "attack") ) return;
+    if ( riposteDriven(message.id, flag.ally.uuid) ) return;   // idempotent — the attack already exists
+    const ally = await fromUuid(flag.ally.uuid);
+    if ( !(ally instanceof Actor) || !ally.isOwner ) return;
+    const options = attackOptions(ally);
+    const chosen = options.find(o => o.itemId === (weaponId ?? flag.weaponId)) ?? options[0];
+    if ( !chosen ) return;
+    if ( !game.user.targets.size ) {
+      ui.notifications.warn(`${TITLE}: target the creature ${ally.name} strikes, then press Attack again.`);
+      // Re-open the question: the answer stands recorded, the attack is still to be driven.
+      return;
+    }
+    const weapon = ally.items.get(chosen.itemId);
+    const weaponAct = weapon?.system.activities?.contents?.find(a => a.id === chosen.activityId);
+    if ( !weaponAct ) return;
+    void spendReaction(ally, { origin: weapon.uuid, what: `${flag.itemName} (Commander's Strike)` });
+    riposteDie.set(ally.uuid, { formula: flag.dieFormula, type: [...(weapon.system.damage?.base?.types ?? [])][0] ?? "", armedAt: Date.now() });
+    const use = await weaponAct.use({ subsequentActions: false }, { configure: false }, {});
+    const usageId = use?.message?.id ?? null;
+    await weaponAct.rollAttack({}, { configure: false }, {
+      data: {
+        "flags.dnd5e.originatingMessage": usageId ?? message.id,
+        [`flags.${MODULE_ID}.riposteFor`]: message.id,
+        [`flags.${MODULE_ID}.riposteBy`]: ally.uuid,
+        [`flags.${MODULE_ID}.commandFor`]: message.id
+      }
+    });
+  } catch(err) {
+    console.error(`${TITLE} | Commander's Strike failed to drive the ally's attack.`, err);
+  } finally {
+    commandInFlight.delete(message.id);
+  }
+}
+
+async function showCommandPopup(message) {
+  const flag = message.getFlag(MODULE_ID, "command");
+  if ( !flag || (flag.status !== "pending") ) return;
+  const ally = flag.ally?.uuid ? fromUuidSync(flag.ally.uuid) : null;
+  if ( !canAnswerFor(ally) ) return;
+  const options = ally ? attackOptions(ally) : [];
+  const preferred = options[0] ?? null;
+  const selectHTML = (options.length > 1) ? `
+    <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
+      <label style="flex:1;font-size:var(--font-size-12,12px);">Attack with</label>
+      <select name="bf-command-weapon" style="flex:1;min-width:0;">${options.map(o => `<option value="${o.itemId}"${o.itemId === preferred?.itemId ? " selected" : ""}>${o.label}</option>`).join("")}</select>
+    </div>` : "";
+  let dialog;
+  const answer = kind => {
+    const id = dialog?.element?.querySelector('select[name="bf-command-weapon"]')?.value ?? preferred?.itemId ?? null;
+    return answerCommand(message, kind, { weaponId: id, weaponName: options.find(o => o.itemId === id)?.name ?? preferred?.name ?? null });
+  };
+  dialog = await openMomentPopup(message, "command", ally, {
+    title: `${flag.itemName} — ${flag.ally?.name ?? ""}`, icon: "fa-solid fa-bullhorn",
+    content: bfCard({ img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`, tone: "pending",
+      title: `${flag.attackerName} directs you to strike`,
+      subtitle: `Use your Reaction to make one attack; ${flag.attackerName}'s ${flag.dieFormula ?? "Superiority Die"} rides the damage if it hits. Target the creature first.`,
+      lines: [ruleLine(RULE_TEXT.command)] }) + selectHTML + holdBarHTML(flag, "to answer"),
+    buttons: [
+      { action: "attack", label: preferred && (options.length === 1) ? `Attack with ${preferred.label}` : "Attack", default: true, callback: () => answer("attack") },
+      { action: "pass", label: "Decline", callback: () => answer("declined") }
+    ]
+  });
+}
+
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  const flag = message.getFlag(MODULE_ID, "command");
+  if ( !flag ) return;
+  const pending = flag.status === "pending";
+  const line = document.createElement("div");
+  line.innerHTML = bfCard({
+    img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`, tone: pending ? "pending" : (flag.answer === "attack") ? "good" : "neutral",
+    title: (flag.status === "no ally") ? `${flag.itemName} — no ally targeted; direct the strike by hand`
+      : (flag.status === "no weapon") ? `${flag.itemName} — ${flag.ally?.name} carries no weapon to attack with`
+      : pending ? `${flag.ally?.name} may use a Reaction to make one attack — ${flag.dieFormula ?? "the die"} rides the hit`
+      : (flag.answer === "attack") ? `${flag.ally?.name} strikes${flag.weaponName ? ` with ${flag.weaponName}` : ""} — ${flag.dieFormula ?? "the die"} rides the hit`
+      : `${flag.ally?.name} declines${flag.timedOut ? " — the clock ran out" : ""}; the die was spent`,
+    lines: [ruleLine(RULE_TEXT.command)]
+  }) + (pending ? holdBarHTML(flag, "to answer") : "");
+  html.querySelector(".message-content")?.appendChild(line);
+  const ally = flag.ally?.uuid ? fromUuidSync(flag.ally.uuid) : null;
+  if ( pending && canAnswerFor(ally) ) {
+    const shownKey = popupKey(message.id, "command");
+    if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showCommandPopup(message); }
+    line.appendChild(momentButton(`Answer — ${flag.itemName}`, () => void showCommandPopup(message)));
+  }
+  armCommandTimer(message);
 });

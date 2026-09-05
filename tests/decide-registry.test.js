@@ -187,7 +187,15 @@ describe("d20 folds — three spends, one mechanism", () => {
 
   it("ships all three surveyed features on by default", () => {
     const { entries } = reg.parseList(spec(), spec().default);
-    expect(entries.map(e => e.kind).sort()).toEqual(["bardic", "heroic", "tactical"]);
+    // 2026-09-05: Ambush and Tactical Assessment ship too — the tactical SPEND with a scope of their own.
+    expect(entries.map(e => e.kind).sort()).toEqual([
+      "bardic",
+      "heroic",
+      "tactical",
+      "tactical",
+      "tactical"
+    ]);
+    expect(entries.map(e => e.name)).toContain("Ambush");
   });
 
   // ⚠ The default names the EFFECT ("Inspired") the bard applies, not the bard's own feat
@@ -327,7 +335,9 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     // the first kind that asks rather than tells (the prototype, built as drawn).
     // 2026-09-03: 26 → 28 — `emanation` joins with two kinds, feature and spell: how an aura
     // lives (always on with its token, or cast and adopted from the system's template).
-    expect(total).toBe(28);
+    // 2026-09-05: 28 → 29 — `command` joins the maneuver folds (Commander's Strike, Riposte's driven
+    // attack with the attacker changed to an ally).
+    expect(total).toBe(29);
   });
 
   it("puts every kind-bearing list spec's set in the table — unless the spec says it is MEMBERSHIP", () => {

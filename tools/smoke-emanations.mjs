@@ -26,7 +26,11 @@ const SECTIONS = {
   8: 'the template goes (concentration\'s end) — the region goes and Half Speed lifts',
   9: 'the switch: Emanations off removes the standing aura; on again raises it',
   10: 'the registrations FIRED (§11): createRegion, updateToken and the region events moved',
-  11: 'THE ACTIVE SCENE ONLY (user, 2026-09-04: the bleed): another scene made active brings the range\'s rings down and lifts the ally\'s effects; the range active again raises them once, no stack; a ring left on an inactive scene is brought down by the ready sweep'
+  11: 'THE ACTIVE SCENE ONLY (user, 2026-09-04: the bleed): another scene made active brings the range\'s rings down and lifts the ally\'s effects; the range active again raises them once, no stack; a ring left on an inactive scene is brought down by the ready sweep',
+  12: 'THE SECOND SLICE — Aura of Life: the pack\'s effect on the ally inside, nothing on the hostile; an ally at 0 HP starting its turn inside regains the activity\'s own 1 HP, receipted',
+  13: 'Crusader\'s Mantle: the ally inside wears the +1d4 radiant weapon-damage change the pack ships',
+  14: 'Aura of Vitality: a NOTICE — nothing applied; at the caster\'s turn start a card offers Start of Turn Heal with a button, never played',
+  15: 'Antilife Shell: a ring and a card, nothing applied; ends with concentration'
 };
 const DEPENDS = { 2: [1], 3: [1], 4: [1], 5: [1], 7: [6], 8: [6], 9: [1], 11: [1] };
 
@@ -87,6 +91,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   let combat = null;
   let template = null;
+  const addedItems = [];   // the second slice's spells, given to the Cleric for the run
   let elsewhere = null;   // §11's other scene
   let restored = false;
   const priorActiveCombats = [];
@@ -113,6 +118,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
       for (const id of priorActiveCombats) { try { await game.combats.get(id)?.update({ active: true }); } catch { /* gone */ } }
       try { if (template && scene.templates.get(template.id)) await template.delete(); } catch { /* gone */ }
+      try { const live = addedItems.filter(id => cleric.items.get(id)); if (live.length) await cleric.deleteEmbeddedDocuments('Item', live); } catch { /* gone */ }
       // The cast began concentration; end it so the next cast is not asked about the last one.
       try { if (cleric.concentration?.effects?.size) await cleric.endConcentration(); } catch { /* none */ }
       for (const r of scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'spell')) await r.delete().catch(() => {});
@@ -421,6 +427,135 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('10b. updateToken fired (the floor)', count('updateToken') > 0, `count=${count('updateToken')}`);
       ok('10c. deleteRegion fired (the lift)', count('deleteRegion') > 0, `count=${count('deleteRegion')}`);
     }
+
+    // ================================================== 12. Aura of Life (the second slice)
+    // The Cleric is GIVEN the four spells for the run (no slot spent on any cast); every cast is
+    // ended (concentration) before the next, which the module answers by taking the area down.
+    const SECOND = ['Aura of Life', "Crusader's Mantle", 'Aura of Vitality', 'Antilife Shell'];
+    const giveSpell = async name => {
+      if (cleric.items.some(i => (i.type === 'spell') && (i.name === name))) return cleric.items.find(i => (i.type === 'spell') && (i.name === name));
+      for (const id of ['dnd-players-handbook.spells', 'dnd5e.spells24']) {
+        const pack = game.packs.get(id);
+        if (!pack) continue;
+        const index = await pack.getIndex();
+        const hit = index.find(e => e.name === name);
+        if (!hit) continue;
+        const data = (await pack.getDocument(hit._id)).toObject();
+        delete data._id;
+        data.system.preparation = { mode: 'always', prepared: true };
+        const [doc] = await cleric.createEmbeddedDocuments('Item', [data]);
+        addedItems.push(doc.id);
+        return doc;
+      }
+      return null;
+    };
+    const castSecond = async name => {
+      const item = await giveSpell(name);
+      if (!item) throw new Error(`${name} not in the packs`);
+      const act = [...item.system.activities].find(a => a.target?.template?.type === 'radius') ?? item.system.activities.contents[0];
+      try { if (cleric.concentration?.effects?.size) await cleric.endConcentration(); } catch { /* none */ }
+      await sleep(800);
+      try {
+        await Promise.race([act.use({ consume: { spellSlot: false, resources: false }, subsequentActions: false }, { configure: false }, { create: true }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('use() did not settle')), 8000))]);
+      } catch (err) { log.push(`use(${name}): ${err.message}`); }
+      const tpl = await waitFor(() => scene.templates.find(t => t.getFlag('dnd5e', 'origin') === act.uuid) ?? null, 8000);
+      const region = await waitFor(() => { const r = spellRegion(name); return r?.attachment?.token ? r : null; }, 8000) ?? spellRegion(name);
+      return { item, act, tpl, region };
+    };
+    const secondList = `${prior.emanationList || 'Aura of Protection, Aura of Courage, Aura of Warding, Spirit Guardians'}, ${SECOND.join(', ')}`;
+    const ownCombat = async entries => {
+      // The suite's earlier combat (7's) goes first: overwriting the binding leaked it past the
+      // teardown and it stood through the next suites (the battery of 2026-09-05).
+      try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
+      combat = null;
+      for (const c of game.combats.filter(c => c.active)) { if (!priorActiveCombats.includes(c.id)) priorActiveCombats.push(c.id); await c.update({ active: false }); }
+      combat = await Combat.create({ scene: scene.id, active: true });
+      await combat.createEmbeddedDocuments('Combatant', entries.map(([tokDoc, actor, initiative]) => ({ tokenId: tokDoc.id, actorId: actor.id, initiative })));
+      await combat.startCombat();
+      if (ui.combat) ui.combat.viewed = combat;
+      await sleep(600);
+    };
+    if (want(12)) {
+      await set('emanationList', secondList);
+      await clrTok.update(clrPost, mv());
+      await rgrTok.update({ x: 1300, y: 300 }, mv());     // 15 ft above the Cleric — inside 30 ft
+      await vicTok.update(vicIn, mv());                   // inside too, but HOSTILE
+      await sleep(400);
+      const { region, tpl } = await castSecond('Aura of Life');
+      template = tpl ?? template;
+      ok('12a. Aura of Life cast: the area placed itself on the Cleric (30 ft plus half the token) and its region is adopted, attached', !!tpl && (tpl.distance === 32.5) && !!region && (region.attachment?.token?.id === clrTok.id), `template=${tpl?.distance} region=${region?.id} attached=${region?.attachment?.token?.id}`);
+      const fx = await waitFor(() => memberFx(ranger, region?.id)[0] ?? null, 6000);
+      ok('12b. the allied Ranger inside wears "Aura of Life — BF Test Cleric": the pack\'s own effect — Resistance to necrotic', !!fx && /^Aura of Life — BF Test Cleric/.test(fx.name) && fx.changes.some(c => (c.key === 'system.traits.dr.value') && (c.value === 'necrotic')), `fx=${fx?.name} changes=${JSON.stringify(fx?.changes)}`);
+      await sleep(800);
+      ok('12c. the hostile Victim inside receives nothing (a helpful aura)', memberFx(vicTok.actor, region?.id).length === 0, memberFx(vicTok.actor).map(e => e.name).join(','));
+      // The ally at 0 HP at the start of its turn regains the activity's own 1 HP.
+      const rgrHP = ranger.system._source.attributes.hp.value;
+      await ranger.update({ 'system.attributes.hp.value': 0 });
+      await ownCombat([[clrTok, cleric, 20], [rgrTok, ranger, 10]]);
+      const h0 = game.messages.size;
+      await combat.nextTurn();   // the Ranger's turn starts inside the aura
+      const healCard = await waitFor(() => game.messages.find(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationHeal')?.targetUuid === ranger.uuid) ?? null, 8000);
+      const receipt = await waitFor(() => healCard?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === ranger.uuid) ?? null, 6000);
+      ok('12d. the Ranger at 0 HP starting its turn inside regains 1 HP — the activity\'s own healing, a card and a receipt, never a number typed', !!healCard && (healCard.getFlag(MOD, 'emanationHeal')?.total === 1) && !!receipt && (ranger.system.attributes.hp.value === 1), `card=${!!healCard} total=${healCard?.getFlag(MOD, 'emanationHeal')?.total} hp=${ranger.system.attributes.hp.value} receipt=${JSON.stringify(receipt && { taken: receipt.taken, note: receipt.note })} msgs=${game.messages.size - h0}`);
+      await combat.nextTurn(); await sleep(400);   // round 2, the Cleric
+      await combat.nextTurn();                       // the Ranger again — at 1 HP now: no heal
+      await sleep(1500);
+      ok('12e. at 1 HP the next turn start pays nothing — the clause is 0 Hit Points', game.messages.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationHeal')?.targetUuid === ranger.uuid).length === 1, '');
+      await combat.delete(); combat = null;
+      await ranger.update({ 'system.attributes.hp.value': rgrHP });
+    }
+
+    // ================================================== 13. Crusader's Mantle
+    if (want(13)) {
+      await set('emanationList', secondList);
+      await clrTok.update(clrPost, mv());
+      await rgrTok.update({ x: 1300, y: 300 }, mv());
+      const { region } = await castSecond("Crusader's Mantle");
+      const fx = await waitFor(() => memberFx(ranger, region?.id)[0] ?? null, 6000);
+      ok('13a. Crusader\'s Mantle cast: the Ranger inside wears the pack\'s effect — +1d4[radiant] to weapon damage, the platform\'s own change', !!fx && fx.changes.some(c => (c.key === 'system.bonuses.mwak.damage') && /1d4/.test(String(c.value))), `fx=${fx?.name} changes=${JSON.stringify(fx?.changes)}`);
+      await rgrTok.update(home[rgrTok.id], mv());
+      const lifted = await waitFor(() => memberFx(ranger, region?.id).length === 0 ? true : null, 6000);
+      ok('13b. walking out lifts it', !!lifted, '');
+    }
+
+    // ================================================== 14. Aura of Vitality — a notice, never played
+    if (want(14)) {
+      await set('emanationList', secondList);
+      await clrTok.update(clrPost, mv());
+      await rgrTok.update({ x: 1300, y: 300 }, mv());
+      const { region, act } = await castSecond('Aura of Vitality');
+      await sleep(1200);
+      ok('14a. Aura of Vitality cast: the ring stands, and NOTHING is applied to the Ranger inside — the heal is aimed, a choice', !!region && (memberFx(ranger, region?.id).length === 0), `region=${region?.id} fx=${memberFx(ranger).map(e => e.name).join(',')}`);
+      const card = game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationCard')?.key === 'Aura of Vitality').at(-1);
+      ok('14b. the emanation card says it is a notice at the start of your turn', /start of your turn/.test(card?.content ?? ''), (card?.content ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 200));
+      await ownCombat([[clrTok, cleric, 20], [rgrTok, ranger, 10]]);
+      await combat.nextTurn(); await sleep(300);   // the Ranger
+      await combat.nextTurn();                       // round 2 — the Cleric's turn starts
+      const notice = await waitFor(() => game.messages.find(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationRemind')?.key === 'Aura of Vitality') ?? null, 8000);
+      const rf = notice?.getFlag(MOD, 'emanationRemind');
+      ok('14c. at the CASTER\'s turn start a notice card names Start of Turn Heal as theirs to use, with the creatures inside', !!rf && (rf.activityName === 'Start of Turn Heal') && (rf.activityUuid === [...act.item.system.activities].find(a => a.name === 'Start of Turn Heal')?.uuid) && /BF Test Ranger/.test(notice.content), `flag=${JSON.stringify(rf)}`);
+      const el = await waitFor(() => document.querySelector(`.message[data-message-id="${notice?.id}"] button`) ?? null, 4000);
+      ok('14d. …and the card carries the button for the caster (a GM answers for the fixture)', !!el && /Start of Turn Heal/.test(el.textContent ?? ''), el?.textContent ?? 'no button');
+      await combat.delete(); combat = null;
+    }
+
+    // ================================================== 15. Antilife Shell — a ring and nothing else
+    if (want(15)) {
+      await set('emanationList', secondList);
+      await clrTok.update(clrPost, mv());
+      await vicTok.update({ x: 1300, y: 700 }, mv());   // 5 ft below — inside the 10-ft barrier
+      const { region, tpl } = await castSecond('Antilife Shell');
+      await sleep(1200);
+      const card = game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationCard')?.key === 'Antilife Shell').at(-1);
+      ok('15a. Antilife Shell cast: the ring stands (10 ft plus half the token), the region is adopted harmful, nothing is applied to the hostile inside, and the card says it is a barrier', !!tpl && (tpl.distance === 12.5) && !!region && (memberFx(vicTok.actor, region?.id).length === 0) && /barrier/.test(card?.content ?? ''), `template=${tpl?.distance} region=${!!region} fx=${memberFx(vicTok.actor).length} card=${!!card}`);
+      try { if (cleric.concentration?.effects?.size) await cleric.endConcentration(); } catch { /* none */ }
+      const gone = await waitFor(() => (!scene.regions.get(region?.id) && !(tpl && scene.templates.get(tpl.id))) ? true : null, 8000);
+      ok('15b. ending concentration takes the ring down', !!gone, '');
+      template = null;
+    }
+    await set('emanationList', prior.emanationList);
+    if (addedItems.length) { const live = addedItems.filter(id => cleric.items.get(id)); if (live.length) await cleric.deleteEmbeddedDocuments('Item', live); addedItems.length = 0; }
 
     return { log, results, skips };
   } catch (err) {

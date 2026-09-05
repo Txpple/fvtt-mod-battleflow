@@ -46,12 +46,12 @@ const REFERENCE = {
                           // mastery.js until 2026-09-01 — the 2026-08-27 "all timers 24s"
                           // call swept the settings file, and this window was not in it.
                           // Listed here so the next sweep cannot miss it again.
-  maneuverFolds: 'Precision Attack:precision, Riposte:riposte, Shield Master:interpose, Shield Master:bash, Great Weapon Master:hew',   // v1.19.0 — the list IS the switch; interpose/bash/hew joined at the walk's scope-adds
+  maneuverFolds: "Precision Attack:precision, Riposte:riposte, Shield Master:interpose, Shield Master:bash, Great Weapon Master:hew, Commander's Strike:command",   // command joined 2026-09-05   // v1.19.0 — the list IS the switch; interpose/bash/hew joined at the walk's scope-adds
   // ⚠ v1.23.0 — the d20 folds. These MUST be listed here: the loop below walks the REFERENCE,
   // so a registered setting that this table does not name is simply never checked, and drifts
   // in silence forever. (`missing` catches the opposite case — a reference key with no
   // registration — but nothing catches a registration with no reference key.)
-  d20Folds: 'Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic',
+  d20Folds: 'Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic, Ambush:tactical, Tactical Assessment:tactical',   // the two scoped folds joined 2026-09-05
   d20FoldAsk: true,       // auto-offer where the module owns the number; checks are always player-pressed
   concMode: 'prompt',
   concTimer: 24,          // user 2026-08-27: all timers 24s
@@ -74,6 +74,9 @@ const REFERENCE = {
   hitMenuList: LIST_SPECS.hitMenu.default,   // the whole hit-option table, as shipped (2026-09-04)   // the whole clock-rider table, as shipped (2026-09-02, user ask)
   emanations: true,                                 // 2026-09-03 (user ruling) — the platform's Region keeps the aura
   emanationList: LIST_SPECS.emanations.default,     // the whole emanation table, as shipped
+  damageShieldList: LIST_SPECS.damageShields.default,   // the whole damage-shield table, as shipped (2026-09-04)
+  damageSaveList: LIST_SPECS.damageSaves.default,       // the whole damage-save table, as shipped (2026-09-04)
+  superiorityUseList: LIST_SPECS.superiorityUses.default,   // the whole superiority-use table, as shipped (2026-09-05)
 };
 
 const f = new Foundry(foundryConfig(env));

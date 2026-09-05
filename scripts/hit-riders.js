@@ -5,7 +5,7 @@
 import { TITLE, S, setting } from "./core.js";
 import { riderEntries, riderUpgradeEntries } from "./settings.js";
 import { riderKey } from "./decide/eligible.js";
-import { hitTargets } from "./shared.js";
+import { effectSourceOf, hitTargets } from "./shared.js";
 import { bfCard } from "./decide/present.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -76,49 +76,6 @@ function riderParts(item) {
 }
 
 /**
- * Who put a mark on, and what the mark is: walk its origin uuid up to the nearest Actor,
- * keeping the Item passed on the way. Both answers fall out of one walk.
- *
- * ⚠ Verified against a live mark, and it does NOT match a straight reading of the effect tray.
- * The tray sets `origin = concentration ?? effect` (effect-application.mjs:184), but that first
- * branch only fires when `chatMessage.system.concentration` is set; a real Hunter's Mark on
- * this table arrived pointing at the SOURCE ITEM'S OWN EFFECT,
- * `Actor.<caster>.Item.<hunters-mark>.ActiveEffect.<marker>`. Do not code to either shape — the
- * walk ends at the same Actor and Item whichever branch ran, and also survives a mark dragged
- * on by hand.
- *
- * ⚠ Origins go stale. Prone effects on this table point at a token that no longer exists and
- * resolve to null, so every hop must tolerate a miss.
- */
-function markSource(marker) {
-  const uuid = marker.origin || marker.getFlag("dnd5e", "dependentOn");
-  let doc = null;
-  try { doc = uuid ? fromUuidSync(uuid) : null; } catch { return null; }
-  const root = doc;
-  let item = null;
-  while ( doc && !(doc instanceof Actor) ) {
-    if ( doc instanceof Item ) item = doc;
-    doc = doc.parent;
-  }
-  if ( !(doc instanceof Actor) ) return null;
-
-  // The other shape: an effect sitting directly ON the caster, which NAMES its item rather than
-  // living underneath one — what the tray writes when the spell began concentration. The walk
-  // above finds the actor but never passes an Item, so the name has to be read off the flag.
-  // ⚠ This is uuid resolution, not a concentration test: nothing here asks whether anyone is
-  // still concentrating, and nothing should.
-  if ( !item ) {
-    const carried = root?.getFlag?.("dnd5e", "item");
-    try { item = carried?.uuid ? fromUuidSync(carried.uuid) : null; } catch { item = null; }
-    // ⚠ `flags.dnd5e.item.data` is populated ONLY when the item is not on the actor
-    // (active-effect.mjs:714) — the cached-spell shape innate and statblock casting use. Without
-    // this fallback a monster's mark resolves to no item and silently stops paying.
-    if ( !item && carried?.data ) item = new Item.implementation(carried.data, { parent: doc });
-  }
-  return item ? { actor: doc, item } : null;
-}
-
-/**
  * Every rider this attacker has earned against this one target: each mark the target carries
  * that THIS attacker placed, whose source the table lists, paying what that source says.
  *
@@ -135,7 +92,7 @@ function ridersAgainst(attacker, targetActor) {
   const listed = riderEntries();
   const found = new Map();
   for ( const marker of targetActor.effects ) {
-    const src = markSource(marker);
+    const src = effectSourceOf(marker);
     if ( src?.actor?.uuid !== attacker.uuid ) continue;
     const identifier = src.item.system?.identifier;
     if ( !identifier || !listed.some(e => e.name === identifier) ) continue;

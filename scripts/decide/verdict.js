@@ -315,6 +315,23 @@ export function interruptMultiplier(target, table) {
 }
 
 /**
+ * A HELD ATTACK's damage short by a REDUCTION the reactor rolled (Parry, 2026-09-05): the number
+ * comes off the parts in order, none below zero — one subtraction, the way the rule reads it,
+ * and the receipt keeps the parts it produced. Untouched when nothing is to be taken.
+ * @param {{value: number, type?: string|null, properties?: Set<string>}[]} damages
+ * @param {number} amount
+ */
+export function reduceDamages(damages, amount) {
+  let left = Math.max(0, Number(amount) || 0);
+  if ( !left ) return damages;
+  return damages.map(d => {
+    const cut = Math.min(Math.max(0, Number(d.value) || 0), left);
+    left -= cut;
+    return { ...d, value: Math.max(0, (Number(d.value) || 0) - cut) };
+  });
+}
+
+/**
  * What a verdict does to the number: 1 on a failure; the activity's own word on a success;
  * nothing at all for any other outcome (a "gone" target has nobody to pay).
  *

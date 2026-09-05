@@ -231,6 +231,31 @@ Hooks.once("init", () => {
     onChange: () => Hooks.callAll(`${MODULE_ID}.emanationsChanged`)
   });
 
+  // DAMAGE SHIELDS (user, 2026-09-04): the hit rider mirrored — a standing effect on the defender
+  // pays out against the attacker on a melee hit. A list; the list is the switch.
+  game.settings.register(MODULE_ID, S.damageShieldList, {
+    name: "Damage Shields",
+    hint: "A standing ward that strikes back at whoever hits its bearer with a melee attack roll, by the spell's own name, separated by commas — Death Armor, Fire Shield, Armor of Agathys. When a listed ward stands on a creature and a melee attack roll hits it from within the ward's own reach, the ward's damage is READ off the caster's spell, rolled in the open and applied to the attacker with a receipt (Death Armor once per turn; Fire Shield's type follows the warm or chill shield that stands; Armor of Agathys while its Temporary Hit Points last — the module marks that cast itself, since the pack ships no effect for it). Remove a name to keep that ward by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.damageShields.default
+  });
+
+  // DAMAGE SAVES (user, 2026-09-04: "make heat metal spell work"): a bare damage activity rolls
+  // its dice at the use (the general fix — nothing rolled them), and a listed row demands the
+  // save its text ties to the damage. A list; the list is the switch for the save half.
+  game.settings.register(MODULE_ID, S.damageSaveList, {
+    name: "Damage Saves",
+    hint: "A spell whose damage is followed by a saving throw, by the spell's own name, separated by commas — Heat Metal. When a listed spell's damage is used (Heat Metal's cast, or its Bonus Action reheat) the dice roll at once and land on the target, and the spell's own save is put to that target right after through the save gate; the failed-save effect (Heated Metal: Disadvantage on attack rolls and ability checks) lands, and the card says the table removes it if the object was dropped. Every bare damage spell rolls its dice at the use whatever this list says — the list decides only which ones demand a save after. Remove a name to keep that save by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.damageSaves.default
+  });
+
+  // SUPERIORITY USES (2026-09-05, "the rest of maneuvers"): the Battle Master's Bonus Action
+  // maneuvers — a chip, a marker or a rolled bonus at the use, the die on the hit after. A list.
+  game.settings.register(MODULE_ID, S.superiorityUseList, {
+    name: "Superiority Uses",
+    hint: "The Battle Master's Bonus Action maneuvers the module plays, by the feature's own name, separated by commas — Evasive Footwork (the die rolled and added to your AC until the start of your next turn), Bait and Switch (the die rolled; a popup asks who gains the AC — you by default), Lunging Attack (a chip until the end of the turn; the die is a ticked checkbox on the next melee hit's damage offer, since the 5-foot straight line is yours to judge), Feinting Attack (the pack's marker on the target; the attack gate reads it as Advantage for you alone, the next attack roll at that target spends it, and the die rides the hit). The Superiority Die is spent by the activity itself. Remove a name to keep that maneuver by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.superiorityUses.default
+  });
+
   game.settings.register(MODULE_ID, S.effectRiders, {
     name: "Effect Riders",
     hint: "A hit applies the effects riding it: the attack's own effects land on the targets it hit, through the system's application path — Ray of Frost's slow arrives with its damage instead of waiting for a click in the card's tray. Every application leaves a receipt on the damage card with a per-effect revert.",
@@ -550,4 +575,19 @@ export function hitMenuEntries() {
 /** Which rows of the emanation table stand, by the feature's or spell's name — `{ kind }`. */
 export function emanationEntries() {
   return listEntries(LIST_SPECS.emanations);
+}
+
+/** Which rows of the damage-shield table strike, by the spell's name — `{ kind }`. */
+export function damageShieldEntries() {
+  return listEntries(LIST_SPECS.damageShields);
+}
+
+/** Which rows of the damage-save table demand their save after the damage, by the spell's name — `{ kind }`. */
+export function damageSaveEntries() {
+  return listEntries(LIST_SPECS.damageSaves);
+}
+
+/** Which rows of the superiority-use table the module plays, by the feature's name — `{ kind }`. */
+export function superiorityUseEntries() {
+  return listEntries(LIST_SPECS.superiorityUses);
 }

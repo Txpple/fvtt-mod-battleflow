@@ -5,12 +5,15 @@
 import { MODULE_ID, TITLE, S, setting, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor } from "./core.js";
 import { emanationEntries } from "./settings.js";
 import { turnChitStands, writeTurnChit } from "./shared.js";
+import { riderPartFormula } from "./decide/clock.js";
 import { tokensInTemplates } from "./geometry.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { EMANATIONS } from "./decide/registry.js";
-import { reachAdmits, resolveChanges, emanationRange, triggerDue, memberEffectData, damageTypeFor, appliesOnScene } from "./decide/emanations.js";
-import { registerRelay } from "./ui.js";
+import { reachAdmits, resolveChanges, emanationRange, triggerDue, healTriggerDue, memberEffectData, damageTypeFor, appliesOnScene } from "./decide/emanations.js";
+import { canAnswerFor } from "./core.js";
+import { momentButton, registerRelay } from "./ui.js";
 import { rollDamageForSave } from "./auto-damage.js";
+import { applyDamagesWithReceipt } from "./auto-apply.js";
 
 /* ---------------------------------------------------------------------------------------------
  * EMANATIONS (user ruling 2026-09-03 — DESIGN §4 amended: "emanations are a core part of combat and
@@ -92,11 +95,13 @@ Hooks.once("init", () => {
     static async #onEnter(event) { if ( !gmHandles(event) ) return; await reconcileMembers(this.region); await maybeTrigger(this, event.data?.token ?? null, "enter"); }
     static async #onExit(event) { if ( !gmHandles(event) ) return; await forgetInitial(this.region, event.data?.token ?? null); await reconcileMembers(this.region); }
     static async #onTurnEnd(event) { if ( !gmHandles(event) ) return; await maybeTrigger(this, event.data?.token ?? event.data?.combatant?.token ?? null, "turnEnd"); }
+    static async #onTurnStart(event) { if ( !gmHandles(event) ) return; await maybeHeal(this, event.data?.token ?? event.data?.combatant?.token ?? null, "turnStart"); }
     static async #onToggle(event) { if ( !gmHandles(event) ) return; await reconcileMembers(this.region); }
     static events = {
       [EV.TOKEN_ENTER]: this.#onEnter,
       [EV.TOKEN_EXIT]: this.#onExit,
       [EV.TOKEN_TURN_END]: this.#onTurnEnd,
+      [EV.TOKEN_TURN_START]: this.#onTurnStart,
       [EV.BEHAVIOR_ACTIVATED]: this.#onToggle,
       [EV.BEHAVIOR_DEACTIVATED]: this.#onToggle
     };
@@ -275,6 +280,109 @@ async function maybeTrigger(behType, token, cause) {
     console.error(`${TITLE} | Emanation trigger failed — ask for the save by hand.`, err);
   }
 }
+
+/* --- the heal: an area pays a member at a moment (Aura of Life, the second slice) ------------- */
+
+/**
+ * The row's heal, at the member's turn start: an ally at 0 HP regains what the activity's own
+ * healing part says (Aura of Life: 1). Read off the pack, rolled on the caster, applied through
+ * the receipt chokepoint on a card that says why — never a number typed here (N1).
+ */
+async function maybeHeal(behType, token, cause) {
+  try {
+    if ( !isActiveGM() || !token?.actor ) return;
+    const beh = behType.behavior;
+    const sys = behType;
+    const row = rowNamed(sys.key);
+    if ( !row?.heal || beh.disabled || !live() || !listed().has(lower(row.key)) ) return;
+    const region = behType.region;
+    if ( !appliesHere(region) ) return;
+    const source = sys.source ? fromUuidSync(sys.source) : null;
+    if ( source && (token.id === source.id) ) return;
+    if ( !reachAdmits(sys.reach, source?.disposition ?? 1, token.disposition) ) return;
+    if ( !(region.tokens?.has?.(token) ?? true) ) return;
+    const actor = token.actor;
+    // ⚠ The 0-HP creature IS the one the text names, and dnd5e marks it `dead` at 0 HP on its own
+    // (measured 2026-09-05: the Ranger at 0 HP wore the dead status and the heal was refused) —
+    // so the platform's mark is not consulted; the rule's own condition is the Hit Points.
+    const due = healTriggerDue(row, { cause, hp: Number(actor.system?.attributes?.hp?.value ?? 0) });
+    if ( !due.due ) return;
+    const item = sys.item ? fromUuidSync(sys.item) : null;
+    const activity = [...(item?.system?.activities ?? [])].find(a => lower(a.name) === lower(row.heal.activity)) ?? null;
+    const part = activity?.healing;
+    const raw = part ? riderPartFormula({ number: part.number, denomination: part.denomination, custom: part.custom, bonus: part.bonus }) : null;
+    if ( !raw ) { console.warn(`${TITLE} | ${row.key}: no healing part on "${row.heal.activity}" — heal by hand.`); return; }
+    const casterActor = item?.actor ?? null;
+    const roll = await new Roll(raw, casterActor?.getRollData?.() ?? {}).evaluate();
+    const type = [...(part.types ?? [])][0] ?? "healing";
+    const card = await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: casterActor, token: source ?? undefined }),
+      content: bfCard({ img: item?.img ?? null, eyebrow: "Emanation", tone: "good",
+        title: `${row.key} — ${actor.name} regains ${roll.total} Hit Point${roll.total === 1 ? "" : "s"}`,
+        subtitle: `${due.why} inside ${source?.name ?? "the caster"}'s ${row.key}`,
+        lines: [ruleLine(row.rule)] }),
+      flags: { [MODULE_ID]: { emanationHeal: { ...statContext(casterActor?.uuid ?? null), key: row.key, regionId: region.id, targetUuid: actor.uuid, formula: raw, total: roll.total, why: due.why } } }
+    });
+    if ( card ) await applyDamagesWithReceipt(card, [{ uuid: actor.uuid, name: token.name }], [{ value: roll.total, type, properties: new Set() }], { note: row.key });
+  } catch(err) {
+    console.error(`${TITLE} | Emanation heal failed — heal by hand.`, err);
+  }
+}
+
+/* --- the notice: a heal the caster AIMS is offered at their turn start, never played (Aura of Vitality) --- */
+
+/** The turn moved: the current combatant's own spell emanations with a `remind` row say so on a card. */
+Hooks.on("updateCombat", (combat, changes) => {
+  try {
+    if ( !isActiveGM() || !live() ) return;
+    if ( !("turn" in changes) && !("round" in changes) ) return;
+    if ( !combat.started ) return;
+    const token = combat.combatant?.token ?? null;
+    const scene = combat.scene ?? token?.parent ?? null;
+    if ( !token || !scene ) return;
+    const names = listed();
+    for ( const region of scene.regions.filter(r => (flagOf(r)?.kind === "spell") && (flagOf(r)?.tokenId === token.id)) ) {
+      const row = rowNamed(flagOf(region).key);
+      if ( !row?.remind || (row.remind.on !== "sourceTurnStart") || !names.has(lower(row.key)) || !appliesHere(region) ) continue;
+      void remind(region, row, token);
+    }
+  } catch(err) {
+    console.error(`${TITLE} | Emanation notice failed.`, err);
+  }
+});
+
+async function remind(region, row, token) {
+  const sys = behaviorOf(region)?.system;
+  const item = sys?.item ? fromUuidSync(sys.item) : null;
+  const activity = [...(item?.system?.activities ?? [])].find(a => lower(a.name) === lower(row.remind.activity)) ?? null;
+  const caster = item?.actor ?? token.actor ?? null;
+  const inside = [...(region.tokens ?? [])].filter(t => t.id !== token.id).map(t => t.name);
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: caster, token }),
+    content: bfCard({ img: item?.img ?? null, eyebrow: "Emanation", tone: "pending",
+      title: `${row.key} — ${caster?.name ?? token.name}'s turn: ${activity?.name ?? row.remind.activity} is yours to use`,
+      subtitle: inside.length ? `inside the aura: ${inside.join(", ")}` : "nobody else stands inside the aura",
+      lines: [ruleLine(row.rule), row.caveat ? `<span style="opacity:0.8;">${row.caveat}</span>` : null] }),
+    flags: { [MODULE_ID]: { emanationRemind: { ...statContext(caster?.uuid ?? null), key: row.key, regionId: region.id, activityUuid: activity?.uuid ?? null, activityName: activity?.name ?? row.remind.activity } } }
+  });
+}
+
+// The notice's button: the caster's own client uses the activity (aim a creature first — the
+// system's own targeting; nothing is chosen for them).
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  const r = message.getFlag(MODULE_ID, "emanationRemind");
+  if ( !r?.activityUuid ) return;
+  const caster = r.sourceUuid ? fromUuidSync(r.sourceUuid) : null;
+  if ( !canAnswerFor(caster) ) return;
+  const holder = html.querySelector(".message-content");
+  if ( !holder ) return;
+  holder.appendChild(momentButton(`Use ${r.activityName}`, () => {
+    const activity = fromUuidSync(r.activityUuid);
+    if ( !activity ) { ui.notifications.warn(`${TITLE}: ${r.activityName} is no longer on the sheet.`); return; }
+    if ( !game.user.targets.size ) { ui.notifications.warn(`${TITLE}: target the creature to heal first, then press again.`); return; }
+    void activity.use({}, {}, {});
+  }));
+});
 
 /** Drop a token from the region's "asked at the cast" record. */
 async function forgetInitial(region, token) {
@@ -601,6 +709,8 @@ async function endCastEmanations(effect) {
 
 const KEY_LABELS = {
   "system.bonuses.abilities.save": v => `${Number(v) >= 0 ? "+" : ""}${v} to saving throws`,
+  "system.bonuses.mwak.damage": v => `+${v} to melee weapon damage`,
+  "system.bonuses.rwak.damage": v => `+${v} to ranged weapon damage`,
   "system.traits.dr.value": v => `Resistance to ${v}`,
   "system.traits.di.value": v => `Immunity to ${v}`,
   "system.traits.ci.value": v => `Immunity to the ${String(v).replace(/^\w/, c => c.toUpperCase())} condition`,
@@ -617,6 +727,8 @@ const partTypesOf = activity => [...(activity?.damage?.parts?.[0]?.types ?? [])]
 async function announce(row, actor, item, range, effect, verb, { activity = null, regionId = null } = {}) {
   try {
     const reach = row.reach === "helpful" ? "allies and neutrals inside" : "enemies inside";
+    const nothing = row.remind ? "a notice at the start of your turn — the heal is yours to aim"
+      : (row.effect === null) ? `no effect to apply — ${row.caveat ?? "the ring is the table's"}` : reach;
     const rangeText = range ? `${range}-foot Emanation` : "Emanation";
     // A damage part with several types (Spirit Guardians: necrotic OR radiant) is a choice the
     // card carries: the alignment's answer as the default, the caster's pick when made.
@@ -628,8 +740,8 @@ async function announce(row, actor, item, range, effect, verb, { activity = null
       content: bfCard({
         img: item?.img ?? null, eyebrow: "Emanation", tone: row.reach === "helpful" ? "good" : "bad",
         title: `${row.key} — ${actor?.name ?? ""} — ${rangeText}`,
-        subtitle: effect ? `${reach}: ${effect.name} — ${describeChanges(effect.changes)}${row.trigger ? " · a save on entering and on ending a turn inside" : ""}` : (row.trigger ? "a save on entering and on ending a turn inside" : reach),
-        lines: [ruleLine(row.rule), row.caveat ? `<span style="opacity:0.8;">${row.caveat}</span>` : null]
+        subtitle: effect ? `${reach}: ${effect.name} — ${describeChanges(effect.changes)}${row.trigger ? " · a save on entering and on ending a turn inside" : ""}${row.heal ? " · an ally at 0 HP regains Hit Points at the start of its turn" : ""}` : (row.trigger ? "a save on entering and on ending a turn inside" : nothing),
+        lines: [ruleLine(row.rule), (row.caveat && (row.effect !== null)) ? `<span style="opacity:0.8;">${row.caveat}</span>` : null]
       }),
       flags: { [MODULE_ID]: { emanationCard: { ...statContext(actor?.uuid ?? null), key: row.key, verb, range: range ?? null, regionId,
         ...(choice ? { types: choice.types, activityUuid: choice.activityUuid, damageType: choice.type, damageWhy: choice.why, chosen: false } : {}) } } }

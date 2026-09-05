@@ -4,7 +4,7 @@
  */
 import { MODULE_ID, TITLE, S, setting, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { hitMenuEntries } from "./settings.js";
-import { hitTargets, statSourceOf, withTargets } from "./shared.js";
+import { hitTargets, poolOf, statSourceOf, withTargets } from "./shared.js";
 import { bfCard, hitMenuHTML, momentBarHTML, popupKey, ruleLine } from "./decide/present.js";
 import { HIT_GROUPS, HIT_OPTIONS } from "./decide/registry.js";
 import { hitMenu, hitPick, sweepVerdict } from "./decide/hit-menu.js";
@@ -62,26 +62,6 @@ import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerRel
 const lower = s => String(s ?? "").toLowerCase();
 const featureNamed = (actor, name) => actor?.items?.find(i => (i.type === "feat") && (lower(i.name) === lower(name))) ?? null;
 const activityOfType = (item, type) => [...(item?.system?.activities ?? [])].find(a => a.type === type) ?? null;
-
-/**
- * The pool an activity consumes — the item its first `itemUses` target names. The 2024 pack
- * ships the target three ways (measured 2026-09-04): an item ID once advancement has remapped
- * it, the bare identifier `combat-superiority` (Trip, Goading, Menacing, Pushing, Disarming,
- * Maneuvering), and the compendium UUID of Combat Superiority (Distracting, Sweeping).
- */
-function poolOf(actor, activity) {
-  for ( const c of (activity?.consumption?.targets ?? []) ) {
-    if ( c.type !== "itemUses" ) continue;
-    const target = String(c.target ?? "");
-    if ( !target ) return activity.item ?? null;
-    const item = actor.items.get(target)
-      ?? actor.items.find(i => (i.system?.identifier === target) || (i.identifier === target))
-      ?? actor.items.find(i => (i._stats?.compendiumSource === target) || (i.flags?.core?.sourceId === target))
-      ?? actor.items.find(i => target.endsWith(`.${i._stats?.compendiumSource?.split(".").pop() ?? "\u0000"}`));
-    if ( item ) return item;
-  }
-  return null;
-}
 
 /** The die behind an option — its damage activity's first part, resolved on the sheet. "d8" reads as "1d8". */
 function dieFormulaOf(actor, activity) {

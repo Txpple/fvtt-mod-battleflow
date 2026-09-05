@@ -150,6 +150,29 @@ export function checkSources({ statuses = [], enabled, table, name = "You" }) {
   return out;
 }
 
+/**
+ * EFFECT SOURCES ON A CHECK (2026-09-04, Heat Metal): the effect-table rows whose `checks` facet
+ * says the ability on the roller's sheet bends ABILITY CHECKS too — Heated Metal, a monster's
+ * Averse ("Disadvantage on attack rolls and ability checks"). Read by name off the roller's own
+ * effects (or features, for a `match: "feature"` row), the Effect Sources list as the switch.
+ * @param {{effects?: {id?: string|null, name: string}[], features?: string[], enabled: Iterable<string>,
+ *          table: Readonly<Record<string, any>>, name?: string}} facts
+ */
+export function effectCheckSources({ effects = [], features = [], enabled, table, name = "You" }) {
+  const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
+  const out = [];
+  for ( const [key, row] of Object.entries(table ?? {}) ) {
+    if ( !row?.checks || !on.has(key.toLowerCase()) ) continue;
+    const carriers = (row.match === "feature")
+      ? ((features ?? []).some(f => String(f).toLowerCase() === key.toLowerCase()) ? [{ id: null }] : [])
+      : (effects ?? []).filter(e => String(e?.name ?? "").toLowerCase() === key.toLowerCase());
+    for ( const e of carriers ) {
+      out.push(Object.assign(reminderSource("effect", row.checks, `${name} — ${key}`, row.rule), e.id ? { effectId: e.id } : {}));
+    }
+  }
+  return out;
+}
+
 /** The check gate's judgement: the attack arithmetic over its sources, one object for the
  * dialog, the default button and the record (no `fails` — no check rule fails before the dice). */
 export function checkGate(sources) {
@@ -247,8 +270,12 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
   // The EDGE reads the attacker once and each target in turn: an attacker-side row that hinges
   // on the TARGET (Bloodied, Grappled…) belongs to the target pass, the rest to the attacker's.
   const targetJudges = new Set(["targetBloodied", "targetDamaged", "targetGrappled", "targetNotActed"]);
-  // A row that excepts its SOURCE hinges on the target too: the goader is one target of many.
-  const hingesOnTarget = row => targetJudges.has(row.judge) || (row.except === "source");
+  // A row that excepts — or admits ONLY — its SOURCE hinges on the target too: the goader is one
+  // target of many; the feinted creature's Advantage is the feinting fighter's alone.
+  const hingesOnTarget = row => targetJudges.has(row.judge) || (row.except === "source") || (row.only === "source");
+  // `only: "source"` (Feinting Attack, 2026-09-05): the bend stands for the creature whose action
+  // put the effect there and nobody else — a carrier with another source, or none, is skipped.
+  const notOnlyFor = (row, e, otherUuid) => (row.only === "source") && (!e?.sourceUuid || !otherUuid || (e.sourceUuid !== otherUuid));
   const attackerRowHere = row => (pass === "both") || ((pass === "target") === hingesOnTarget(row));
   // `except: "source"`: the bend stands against everyone but the creature that put the effect
   // there — a carrier whose source is the other side of this roll is skipped, not counted.
@@ -292,13 +319,13 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
     };
     if ( row.attacker && attackerRowHere(row) && judged(row) ) {
       for ( const e of carriers(attacker, row) ) {
-        if ( exceptedFor(row, e, target.uuid) ) continue;
+        if ( exceptedFor(row, e, target.uuid) || notOnlyFor(row, e, target.uuid) ) continue;
         out.push(Object.assign(say(attackerName, row.attacker), e.id ? { effectId: e.id } : {}));
       }
     }
     if ( row.target && targetRowHere && judged(row) ) {
       for ( const e of carriers(target, row) ) {
-        if ( exceptedFor(row, e, attacker.uuid) ) continue;
+        if ( exceptedFor(row, e, attacker.uuid) || notOnlyFor(row, e, attacker.uuid) ) continue;
         out.push(Object.assign(say(`${targetName} is`, row.target), e.id ? { effectId: e.id } : {}));
       }
     }
