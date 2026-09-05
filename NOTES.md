@@ -825,6 +825,77 @@ sets some modes itself, from a rule and not an effect (heavy armour → `skills.
 read. The gates' `modeSources` reads the changes; the rest is the platform's own default and
 stays unexplained by design (DESIGN §5).
 
+### A DamageActivity's follow-up is a DIALOG; a HealActivity's too (2026-09-05, Heat Metal)
+
+`DamageActivity#_triggerSubsequentActions` calls `rollDamage({event}, {}, {...})` — a damage
+roll WITH the configuration dialog — and `HealActivity`'s does the same for its healing. The
+ATTACK activity's is what does nothing after the card. So a bare damage spell (Heat Metal) or a
+maneuver whose activity is typed damage (Feinting Attack's die, Commander's Strike's die) opens a
+roll dialog on use, and with `hideCardButtons` on that dialog was the only path to Heat Metal's
+2d8 — and a machine that also rolls would roll TWICE. The volley machine's claim is the fix:
+`usageConfig.subsequentActions = false` in `dnd5e.preUseActivity`, then the module's own roll
+(damage-casts.js) or none (superiority-uses.js, maneuvers.js — the die belongs to the hit). A
+heal's dialog is left alone: Rally rolls through it and the cast slice lands the temp HP, which
+is the pack's design working.
+
+### The cast slice will apply EVERY effect a utility activity links — Bait and Switch ships twelve (2026-09-05)
+
+The 2024 pack models Bait and Switch's rolled AC bonus as TWELVE effects, "Baited AC +1" through
+"+12", all linked to the "Switch Places" activity, for the player to apply the one matching
+their roll. polish.js's `castApply` stamp reads "a utility with effects and a target" and the
+elect applied all twelve to the willing creature: AC 13 → 91 (smoke-superiority, first live
+run). Evasive Footwork's "Evasive AC" is the same class — a changeless placeholder for a rolled
+number. superiority-uses.js strips the stamp for every Battle Master maneuver card one hook
+after polish.js writes it (`flags.<module>.-=castApply` in `preCreateChatMessage`; the entry
+order puts polish.js first). **The rule that generalises:** a pack that models a rolled number
+as a fan of effects is not content for the cast slice; the machine that rolls the number
+applies the one effect.
+
+### dnd5e marks a 0-HP creature `dead` on its own (2026-09-05, Aura of Life)
+
+The built Ranger fixture at 0 HP wore the `dead` status without anyone pressing it, and a heal
+guard that read "not if dead" refused the one creature the text names ("an ally with 0 Hit
+Points"). The Hit Points are the condition; the platform's mark is bookkeeping. `healTriggerDue`
+reads HP alone.
+
+### Two "Parry"s, one name (2026-09-05)
+
+The Monster Manual's Parry is a `utility` Reaction whose roll is `@prof` — a +AC reaction the
+Interrupt list carries as `Parry:ac`. The Battle Master's Parry (the classes pack) is a `heal`
+Reaction whose healing formula is `@scale.battle-master.superiority.die + max(@abilities.str.mod,
+@abilities.dex.mod)` — the REDUCTION, modelled as a retroactive heal ("can be used to
+retroactively recover the received damage", says the pack). The hold tells them apart by the
+ACTIVITY (`INTERRUPT_REDUCTIONS["Parry"].activity === "Heal"` on the found item), never by the
+name: the fighter's becomes a `damage` interrupt with the formula on the hold, the monster's
+stays `ac`. The reduction is rolled at the ANSWER (the die spent from the pool, the Reaction
+spent), rides the hold target as `reduceBy`, and `reduceDamages` takes it off the parts in order
+before `applyDamage` — the receipt row reads "Parry — reduced by N".
+
+### A scale-value die must be resolved on the SHEET IT BELONGS TO (2026-09-05, Commander's Strike)
+
+`@scale.battle-master.superiority.die` on the fighter's Directed Attack rode the ALLY's weapon
+roll as written and read 0 on the Ranger (the d20-folds' bardic lesson, again: an unresolved
+`@scale` token rolls zero in silence). The command stamp resolves it on the fighter
+(`Roll.replaceFormulaData` against the fighter's roll data, "d8" read as "1d8") before it is
+armed for the injection.
+
+### The rescue window is a DOM window; the chat log is an application too (2026-09-05, suites)
+
+Two suite lessons the superiority suite paid for: a text match over `foundry.applications.instances`
+finds the CHAT LOG (it renders every card's text) before the popup, so a popup finder must
+exclude the sidebar classes; and the d20 folds' rescue window is the spine's own DOM window —
+found through `document.querySelectorAll(".application")` with a `[data-bf-rescue-row]` inside,
+its rows `[data-bf-rescue-action="<kind>"]` elements, not `data-action` buttons (the d20-folds
+suite's idiom).
+
+### `dnd5e.rollSkill` hands over the skill; `dnd5e.rollInitiative` fires after the number is set (5.3.3)
+
+The skill/tool hooks' second argument is `{ ability, skill|tool, subject }` — the scoped folds
+read `data.skill` there. `dnd5e.rollInitiative(actor, combatants)` fires after
+`Combat#rollInitiative` has written the combatant's initiative; the roll's own message is the
+last `flags.core.initiativeRoll` message the actor authored, and a fold that moves the number
+updates the combatant (`combatant.update({initiative})`) after composing.
+
 ## 3. The statblock caster
 
 Where most of the monster-side bugs lived.

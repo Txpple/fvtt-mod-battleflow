@@ -707,6 +707,96 @@ rows are the next groups the same table takes — the SWEEP's item 2, unchanged.
 BACKLOG item *the damage offer's three lazy edges* was built WITH this feature, as it said to
 be, and three PERMANENT layer pins went with it (ARCHITECTURE §7).
 
+### Damage shields (user, 2026-09-04 — the overnight commission)
+
+**A ward on the defender pays out against whoever hits it, and there is no choice in it.**
+Death Armor, Fire Shield and Armor of Agathys are the hit rider MIRRORED — SWEEP §1's ninth
+shape: a standing effect on the DEFENDER whose pack activity deals damage to the ATTACKER when
+a melee attack roll hits (R1 automates outcomes; judgment is what it never plays). The module
+finds the ward on the hit creature by the pack's effect NAME, walks it to its caster the way a
+mark is walked (a Death Armor on an ally is the caster's spell paying out on the ally's sheet),
+rolls the caster's own damage activity with dnd5e's roller on the elect — posted as the
+defender's, never mistakable for a spell the caster pressed — and lands it on the attacker
+through the receipt chokepoint with a note naming the ward. The reach is the activity's own (a
+reach weapon at 10 feet is beyond Flame Eruption's 5); once per turn is a chit on the defender;
+Fire Shield's TYPE follows the shield that stands; Armor of Agathys ships no effect, so the
+module MARKS the cast itself and the ward strikes while the Temporary Hit Points last, ending
+with a card when they are gone. Judged only when the attack's DAMAGE lands, so a Shield that
+turned the hit into a miss pays nothing. Membership is the Damage Shields list. Hellish Rebuke
+is NOT this family: a Reaction, a human's choice, the hold's.
+
+### Damage casts (user, 2026-09-04: "make heat metal spell work")
+
+**A bare damage activity's dice are the module's to roll, once.** Measured: dnd5e follows a
+damage activity's card by opening the damage ROLL DIALOG — a click the attack resolver and the
+save demand never ask of anyone — and Battle Flow hides the card's buttons, so Heat Metal's
+2d8 waited on a dialog and its save was never asked. Now a bare damage activity aimed at
+targets rolls at the use on the casting client (offered when the caster wants their dice, the
+save path's own offer; rolled straight otherwise), the native follow-up switched off at the use
+so it never rolls twice, chained to the card where the no-attack applier lands it with a
+receipt. Volley spells stay the volley machine's; a Battle Master maneuver's damage activity is
+its DIE and stays its own machine's. **A listed row demands the save its text ties to the
+damage** (`DAMAGE_SAVES`): Heat Metal's "On Damage Save" is used at the same targets right
+after the dice, so the demand, the timer, the roll and the failed-save press are the saves
+machine's; the pack's Heated Metal lands on the failure, and the card says the table removes
+it if the object was dropped — the drop is a judgment (R1). The check gate reads Heated Metal
+as it reads any effect-table row that bends ability checks by its text (`checks`).
+
+### Emanations — the second slice (2026-09-05)
+
+**Every 2024 PHB emanation with a standing effect is a row, and what the pack leaves to the
+table is said on the card.** Aura of Life, Aura of Purity, Circle of Power, Crusader's Mantle
+and Holy Aura apply exactly the pack's effect to allies inside (Crusader's Mantle's +1d4
+radiant on weapon damage is the platform's own change; Holy Protection's save Advantage is
+the save gate's to explain by item); each row's caveat names the clause the pack does not
+carry. **A heal the caster AIMS is a notice, never played** (Aura of Vitality: a card at the
+caster's turn start names Start of Turn Heal with a button, and the caster targets a creature
+and presses it — the choice stays theirs). **A barrier is a ring and a card** (Antilife Shell:
+nothing applied, the ring drawn for the table to honour). **An area can pay a member at a
+moment** (Aura of Life's ally at 0 Hit Points regains the activity's own 1 HP at its turn
+start — the region's own turn-start event; the Hit Points alone decide, because dnd5e marks a
+0-HP creature dead on its own). Left out on purpose: the rings that carry no effect (Antimagic
+Field, Globe of Invulnerability, Darkness, Daylight — a ring alone would be a guess about what
+the table wants drawn) and the emanation SAVES a Bonus Action casts (the cast's own demand
+already handles that moment).
+
+### The rest of the maneuvers (user, 2026-09-04: "do the rest of maneuvers")
+
+**Every Battle Master maneuver lands on a machine that already exists, and no maneuver plays a
+choice.** The nine that were neither folds nor on-hit picks, on the seats BACKLOG named for
+them:
+
+- **Parry is a damage interrupt that REDUCES by a roll.** The hold offers it as a `damage`
+  reaction (the pack's activity is a heal whose formula IS the reduction — die + max(Str, Dex),
+  the pack's max() standing in for the player's choice); the answer spends the die and the
+  Reaction, rolls the number in the open, and the applier lands the attack's damage short by it,
+  the receipt row saying why. The Monster Manual's AC "Parry" of the same name stays an AC hold:
+  the row applies only where the item carries the named activity.
+- **Evasive Footwork, Bait and Switch, Lunging Attack and Feinting Attack are USES** — a
+  consequence on a sheet at the Bonus Action, and for two of them a die on the hit after.
+  Evasive Footwork rolls the die in the open and writes the number on the fighter's AC until the
+  start of their next turn. Bait and Switch rolls the die and ASKS who wears the pack's own
+  "Baited AC +N" (a popup, the hold family's clock, the fighter by default) — the pack ships
+  twelve such effects, one per face, and the cast slice is kept off every maneuver's card so it
+  never applies them all. Lunging Attack is a chip until the end of the turn whose die is a
+  TICKED checkbox on the next melee hit's damage offer, because the 5-foot straight line is the
+  player's fact (the clock riders' ruling). Feinting Attack puts the pack's marker on the target
+  with the fighter as its source; the attack gate reads it as Advantage for the fighter alone
+  (`only: "source"` — the effect table's inverse of Goaded's exemption), the fighter's next
+  attack roll at that target spends it with a receipt, and the die rides the hit.
+- **Ambush and Tactical Assessment are d20 folds with a SCOPE** — the `tactical` spend (an
+  activity used) with the feature's own text saying which checks: Stealth, or History,
+  Investigation and Insight; Ambush on Initiative too, the one d20 the module otherwise never
+  met (`dnd5e.rollInitiative`), the combatant's number moved by the die and the original roll
+  standing as history. No refund; the die is spent either way it lands.
+- **Commander's Strike is a driven attack with the ATTACKER changed** — the `command` fold
+  kind: the fighter directs a willing ally, the ally's owner answers with a weapon and a Reaction
+  (the riposte's popup and relay), and the ally's own attack is driven at ITS target with the
+  fighter's die — resolved on the fighter — injected into the weapon's roll. The ally must target
+  the creature: the module never picks whom the ally strikes.
+- **Rally needed nothing built.** The pack's heal activity rolls through the system's own dialog
+  and the cast slice lands the Temporary Hit Points on the ally (measured).
+
 ## 7. How to use this document
 
 - **Before building**, locate the work here. If it is not here, decide whether it is in scope —

@@ -52,6 +52,31 @@ Maneuvering and Sweeping. The Superiority Die is read off the sheet and rides th
 is spent, and the maneuver's own save goes to the target through the save gate. A Sweeping
 Attack lists the creatures within five feet and rolls its die at the one you pick.
 
+**The rest of the Battle Master's maneuvers land too.** Parry reduces the damage taken by the
+die and modifier the pack's own formula rolls, spent from the pool at the reaction. Evasive
+Footwork rolls the die and puts the number on your AC until your next turn. Bait and Switch
+rolls the die and asks who wears it. Lunging Attack's die is a ticked checkbox on the next melee
+hit's damage offer, since the straight-line move is yours to judge. Feinting Attack marks the
+target: the attack gate reads it as Advantage for you alone, your next attack roll at that
+target spends it, and the die rides the hit. Ambush and Tactical Assessment are offered on the
+checks their text names (and Ambush on initiative). Commander's Strike hands a willing ally a
+Reaction attack with your die on its damage. Rally works as the pack ships it.
+
+**Wards strike back.** Fire Shield, Death Armor and Armor of Agathys pay out against whoever
+hits their bearer with a melee attack roll, from within the ward's own reach: the pack's own
+dice, rolled in the open as the defender's and applied to the attacker with a receipt. Fire
+Shield's type follows the shield that stands; Death Armor strikes once per turn; Armor of
+Agathys strikes while its Temporary Hit Points last and ends with them.
+
+**Bare damage spells roll their dice.** A spell like Heat Metal, whose damage has no attack
+roll and no save, rolls at the cast (or is offered to you) and lands on the target, and the
+save its text ties to the damage follows through the save gate — Heated Metal on a failure,
+the drop yours to play. Reheating on a later turn does the same again.
+
+**Auras, the second slice.** Aura of Life, Aura of Purity, Circle of Power, Crusader's Mantle
+and Holy Aura apply the pack's own effect to allies inside their ring; Aura of Vitality reminds
+you at the start of your turn that the heal is yours to aim; Antilife Shell draws its ring.
+
 **Saves happen at once.** A spell that forces a save rolls it for every target, opens the
 system's own Saving Throw dialog for each player with the demand and the stakes above it, and
 resolves half damage on a success. Anyone who does not press in time is rolled by the buzzer.
@@ -96,7 +121,7 @@ content is wrong, the content is fixed, not the module.
 Only public hooks are used. The only relationship in the manifest is a version pin on dnd5e, so
 a system update can never take the module down with it silently.
 
-**Every feature has its own switch.** There are 40 world settings and 2 client settings. All of
+**Every feature has its own switch.** There are 43 world settings and 2 client settings. All of
 them ship on, and any one can be turned off mid-session without touching the others.
 
 ## Documentation

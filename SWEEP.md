@@ -20,7 +20,10 @@ Everything a future session needs to start the sweep without re-deriving it:
    kind touched on day one, so the kind-by-kind walk has something to read against. **Item 2's
    MACHINE EXISTS (2026-09-04):** the hit menu shipped off its prototype with the Battle Master's
    eight on-hit maneuvers as its first group (`hit-menu.js`, `HIT_GROUPS` / `HIT_OPTIONS`, DESIGN
-   §5 *The hit menu*). What item 2 still holds is the OTHER groups — Brutal Strike, Stunning
+   §5 *The hit menu*). **The Battle Master is COMPLETE (2026-09-05): all nineteen maneuvers land on a machine** — the eight on-hit
+   ones on the hit menu, the nine others on the seats BACKLOG named (Parry an interrupt that reduces,
+   four Bonus Action uses in `superiority-uses.js`, two scoped d20 folds, Commander's Strike the
+   `command` fold kind, Rally native). What item 2 still holds is the OTHER groups — Brutal Strike, Stunning
    Strike, Open Hand Technique, Psionic Strike — each a group row (its pool and pick limit) and
    option rows on the same table; a new COST KIND (a Focus Point, a use) is a `poolOf` reader
    in the machine, not a new moment.
