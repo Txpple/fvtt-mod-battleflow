@@ -775,7 +775,11 @@ demands the save at all, and a success against half-on-save spell damage under C
 takes NONE, applied and receipted like Evasion's. A bare sheet save has no demand and the box
 lists the aura uncounted with its scope. Holy Aura needed nothing: the pack's Holy Protection
 carries the save Advantage and the attack gate already read the attackers' Disadvantage off it;
-the Fiend/Undead save on a melee hit stays the table's. **A heal the caster AIMS is a notice, never played** (Aura of Vitality: a card at the
+the Fiend/Undead save on a melee hit stays the table's. **A spell's ring includes its caster**
+(user, 2026-09-05: "he himself doesn't get adv … he doesn't have the effect"): "you and your
+allies" means the caster wears the spell's effect from the ring exactly as an ally does, once;
+a FEATURE's aura still skips its bearer, whose sheet carries the pack's own transfer effect,
+and a harmful ring never admits its caster. **A heal the caster AIMS is a notice, never played** (Aura of Vitality: a card at the
 caster's turn start names Start of Turn Heal with a button, and the caster targets a creature
 and presses it — the choice stays theirs). **A barrier is a ring and a card** (Antilife Shell:
 nothing applied, the ring drawn for the table to honour). **An area can pay a member at a

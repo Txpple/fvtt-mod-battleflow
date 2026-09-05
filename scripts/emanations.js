@@ -169,7 +169,13 @@ async function reconcileMembersNow(region) {
     const members = new Set();
     if ( active ) {
       for ( const tok of region.tokens ?? [] ) {
-        if ( !tok?.actor || (source && (tok.id === source.id)) ) continue;
+        if ( !tok?.actor ) continue;
+        // The SOURCE: a feature's aura (the Paladin's) already sits on its bearer as the pack's
+        // transfer effect, so the region never doubles it. A SPELL's emanation is "you and your
+        // allies" and the pack's effect is transfer:false — the caster wears it from the ring
+        // like everyone inside (user, 2026-09-05: "he himself doesn't get adv … he doesn't have
+        // the effect"). The reach still decides: a harmful ring never admits its own caster.
+        if ( source && (tok.id === source.id) && (row.kind !== "spell") ) continue;
         if ( !reachAdmits(sys.reach, source?.disposition ?? 1, tok.disposition) ) continue;
         members.add(tok);
       }

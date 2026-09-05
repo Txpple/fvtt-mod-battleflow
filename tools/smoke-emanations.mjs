@@ -489,6 +489,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('12b. the allied Ranger inside wears "Aura of Life — BF Test Cleric": the pack\'s own effect — Resistance to necrotic', !!fx && /^Aura of Life — BF Test Cleric/.test(fx.name) && fx.changes.some(c => (c.key === 'system.traits.dr.value') && (c.value === 'necrotic')), `fx=${fx?.name} changes=${JSON.stringify(fx?.changes)}`);
       await sleep(800);
       ok('12c. the hostile Victim inside receives nothing (a helpful aura)', memberFx(vicTok.actor, region?.id).length === 0, memberFx(vicTok.actor).map(e => e.name).join(','));
+      // (user, 2026-09-05: "he himself doesn't get adv … he doesn't have the effect") — a SPELL's
+      // emanation is "you and your allies": the CASTER wears it from the ring too, exactly once.
+      const own = await waitFor(() => memberFx(cleric, region?.id)[0] ?? null, 6000);
+      const lifeOnCleric = cleric.effects.filter(e => /^Aura of Life/.test(e.name));
+      ok('12c2. the CASTER wears its own spell aura from the ring — "Aura of Life — BF Test Cleric", exactly one Aura of Life effect on the sheet (the cast slice does not double it)',
+        !!own && /^Aura of Life — BF Test Cleric/.test(own.name) && (lifeOnCleric.length === 1), `own=${own?.name} all=${JSON.stringify(cleric.effects.map(e => e.name))}`);
       // The ally at 0 HP at the start of its turn regains the activity's own 1 HP.
       const rgrHP = ranger.system._source.attributes.hp.value;
       await ranger.update({ 'system.attributes.hp.value': 0 });
