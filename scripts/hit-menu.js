@@ -4,8 +4,8 @@
  */
 import { MODULE_ID, TITLE, S, setting, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { hitMenuEntries } from "./settings.js";
-import { hitTargets, poolOf, statSourceOf, withTargets } from "./shared.js";
-import { bfCard, hitMenuHTML, momentBarHTML, popupKey, ruleLine } from "./decide/present.js";
+import { hitTargets, poolOf, spendSuperiorityDie, statSourceOf, withTargets } from "./shared.js";
+import { bfCard, hitMenuHTML, momentBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { HIT_GROUPS, HIT_OPTIONS } from "./decide/registry.js";
 import { hitMenu, hitPick, sweepVerdict } from "./decide/hit-menu.js";
 import { riderPartFormula } from "./decide/clock.js";
@@ -255,8 +255,11 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
     // limited use. The count left is read AFTER the spend for the card.
     const pool = pick.poolUuid ? fromUuidSync(pick.poolUuid) : null;
     const left = pool ? Math.max(0, Number(pool.system?.uses?.value ?? 0) - 1) : null;
+    // The one pass-through (shared.js `spendSuperiorityDie`): the spend and its record, which the
+    // card line, the flash and the subtitle all read (user, 2026-09-05: uniform).
+    const poolSpend = pool ? { pool: pool.name, spent: 1, left, max: Number(pool.system?.uses?.max ?? 0), ability: row.feature, actorUuid: attacker?.uuid ?? null, at: Date.now() } : null;
     if ( pool ) {
-      void pool.update({ "system.uses.spent": Number(pool.system?.uses?.spent ?? 0) + 1 })
+      void spendSuperiorityDie(attacker, pool, row.feature)
         .catch(err => console.warn(`${TITLE} | Could not spend a ${group.dieLabel}.`, err));
     }
     const roll = attackMessage.rolls?.[0];
@@ -264,7 +267,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
       ...statContext(attacker?.uuid ?? null),
       attackId: attackMessage.id, key: pick.key, feature: row.feature, group: group.label, dieLabel: group.dieLabel,
       formula: pick.formula, type: pick.type ?? null, mode: pick.mode ?? "ride", rides,
-      rule: row.rule, line: row.line ?? null, caveat: row.caveat ?? null, poolLeft: left,
+      rule: row.rule, line: row.line ?? null, caveat: row.caveat ?? null, poolLeft: left, poolSpend,
       save: !!row.save, onFail: row.onFail ?? null, effects: !!row.effects, itemUuid: pick.itemUuid,
       attackRoll: roll ? { total: roll.total, isCritical: !!roll.isCritical, isFumble: !!roll.isFumble } : null
     });
@@ -571,11 +574,11 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   if ( hm ) {
     const line = document.createElement("div");
     line.innerHTML = bfCard({
-      eyebrow: "Maneuver", tone: hm.rides || (hm.mode === "sweep") ? "good" : "neutral",
+      eyebrow: `Maneuver — ${hm.feature}`, tone: hm.rides || (hm.mode === "sweep") ? "good" : "neutral",
       title: hm.rides ? `${hm.feature} — ${hm.formula}${hm.type ? ` ${hm.type}` : ""} rode this roll`
         : (hm.mode === "sweep") ? `${hm.feature} — the die is rolled at a second creature`
           : `${hm.feature} — its die could not be read off the sheet`,
-      subtitle: `one ${hm.dieLabel} spent${(hm.poolLeft !== null && hm.poolLeft !== undefined) ? ` · ${hm.poolLeft} left` : ""}${hm.caveat ? ` · ${hm.caveat}` : ""}`,
+      subtitle: `${spendPhrase(hm.poolSpend ? [hm.poolSpend] : [], hm.dieLabel)}${hm.caveat ? ` · ${hm.caveat}` : ""}`,
       lines: [hm.line, ruleLine(hm.rule), ...(hm.notes ?? []).map(n => `<span style="opacity:0.8;">${n}</span>`)]
     });
     html.querySelector(".message-content")?.appendChild(line);
@@ -585,7 +588,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   if ( hc ) {
     const line = document.createElement("div");
     line.innerHTML = bfCard({
-      eyebrow: "Maneuver", tone: "neutral",
+      eyebrow: `Maneuver — ${hc.feature}`, tone: "neutral",
       title: `${hc.feature} — from ${hc.attackerName ?? "the attacker"}’s hit`,
       lines: [hc.line, ruleLine(hc.rule)]
     });
@@ -598,10 +601,11 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const chosenName = sc.candidates?.find(c => c.uuid === sc.chosen)?.name ?? null;
     const line = document.createElement("div");
     line.innerHTML = bfCard({
-      eyebrow: "Sweeping Attack", tone: r ? ((r.verdict === "hit") ? "good" : "neutral") : "pending",
-      title: r?.none ? `Nobody swept${sc.timedOut ? " — the clock ran out" : ""}; the die was spent`
-        : r ? `${r.name ?? chosenName}: the die rolled ${r.rolled} — ${r.verdict === "hit" ? "the attack would hit, applied" : r.verdict === "miss" ? "the attack would miss" : "its AC could not be read"}${(r.ac !== null && r.ac !== undefined) ? ` (AC ${r.ac})` : ""}`
-        : chosenName ? `${chosenName} — rolling the die` : sc.candidates?.length ? `Pick the second creature — within 5 feet of ${sc.targetName} and within your reach` : `No creature within 5 feet of ${sc.targetName} and within your reach${sc.outOfReach?.length ? ` (out of reach: ${sc.outOfReach.join(", ")})` : ""} — nothing to sweep; the die was spent`,
+      img: sc.itemImg ?? null, eyebrow: `Maneuver — ${sc.feature}`, tone: r ? ((r.verdict === "hit") ? "good" : "neutral") : "pending",
+      title: r?.none ? `${sc.feature} — nobody swept${sc.timedOut ? " (timer)" : ""}; the die was spent`
+        : r ? `${sc.feature} — ${r.name ?? chosenName}: the die rolled ${r.rolled}, ${r.verdict === "hit" ? "the attack would hit — applied" : r.verdict === "miss" ? "the attack would miss" : "its AC could not be read"}${(r.ac !== null && r.ac !== undefined) ? ` (AC ${r.ac})` : ""}`
+        : chosenName ? `${sc.feature} — ${chosenName}: rolling the die` : sc.candidates?.length ? `${sc.feature} — pick the second creature` : `${sc.feature} — no creature within 5 feet of ${sc.targetName} and within your reach${sc.outOfReach?.length ? ` (out of reach: ${sc.outOfReach.join(", ")})` : ""}; the die was spent`,
+      subtitle: (!r && sc.candidates?.length && !chosenName) ? `within 5 feet of ${sc.targetName} and within your reach` : "",
       lines: [ruleLine(sc.rule)]
     }) + ((!sc.chosen && sc.candidates?.length) ? momentBarHTML(sc, "to pick") : "");
     html.querySelector(".message-content")?.appendChild(line);

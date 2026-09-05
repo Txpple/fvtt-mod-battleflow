@@ -52,7 +52,8 @@ export const S = {
   emanationList: "emanationList",
   damageShieldList: "damageShieldList",
   damageSaveList: "damageSaveList",
-  superiorityUseList: "superiorityUseList"
+  superiorityUseList: "superiorityUseList",
+  effectChoiceList: "effectChoiceList"
 };
 
 export const setting = key => game.settings.get(MODULE_ID, key);

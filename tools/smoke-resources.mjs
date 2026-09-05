@@ -214,7 +214,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!b3 && b3.textContent.includes('Free Cast: 1 of 2 remaining'),
         b3 ? b3.textContent.trim().slice(0, 120) : 'NO banner');
       ok('3b and the card line agrees',
-        !!card3 && !!lineFor(card3.id)?.textContent.includes('Free Cast — 1 of 2'));
+        !!card3 && !!lineFor(card3.id)?.textContent.includes('Free Cast: 1 of 2'));   // spendLine's one wording (2026-09-05)
       await until(() => !bannerNow(), 6000);   // let it fade before the next section
     }
 

@@ -9,7 +9,9 @@
  * switch left. ARCHITECTURE.md §8 carries the full policy.
  */
 import { MODULE_ID, S, setting } from "./core.js";
-import { blockEntries, interruptEntries } from "./settings.js";
+import { blockEntries, effectChoiceEntries, interruptEntries } from "./settings.js";
+import { EFFECT_CHOICES } from "./decide/registry.js";
+import { effectChoiceFor } from "./decide/choices.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Table polish — the no-target gate, the birth stamps, hidden buttons, dialog centering
@@ -148,10 +150,27 @@ function castApplyQualifies(doc) {
   return payloadWorthy;
 }
 
+/**
+ * A listed cast's CHOICE between alternative effects (EFFECT_CHOICES — Fire Shield's warm or
+ * chill shield), stamped pending on the card; the caster answers on the card (cast.js) and the
+ * elect applies only the pick. Null where the item is unlisted or the activity carries fewer
+ * than two of the row's names.
+ */
+function castChoice(activity) {
+  const name = String(activity?.item?.name ?? "").toLowerCase();
+  if ( !name || !effectChoiceEntries().some(e => String(e.kind).toLowerCase() === name) ) return null;
+  const key = Object.keys(EFFECT_CHOICES).find(k => k.toLowerCase() === name);
+  const row = key ? EFFECT_CHOICES[key] : null;
+  if ( !row ) return null;
+  const options = effectChoiceFor(row, (activity?.applicableEffects ?? []).map(e => e?.name));
+  return options ? { key, options, ask: row.ask, rule: row.rule, chosen: null } : null;
+}
+
 /** Everything the elect needs to apply a cast, captured off the card at preCreate. */
 function castPayload(doc) {
   const activity = activityOf(doc);
   const self = (activity?.target?.affects?.type === "self") ? activity?.actor : null;
+  const choice = castChoice(activity);
   return {
     activityUuid: doc.getFlag("dnd5e", "activity")?.uuid ?? null,
     concentration: doc.system?.concentration ?? null,
@@ -159,7 +178,9 @@ function castPayload(doc) {
     spellLevel: doc.system?.spellLevel ?? null,
     // A SELF-tagged activity aims at its own actor — the snapshot is incidental (v1.11.0).
     targets: self ? [{ uuid: self.uuid, name: self.name }]
-      : (doc.getFlag("dnd5e", "targets") ?? []).map(t => ({ uuid: t.uuid, name: t.name }))
+      : (doc.getFlag("dnd5e", "targets") ?? []).map(t => ({ uuid: t.uuid, name: t.name })),
+    // The caster's pick between alternative effects, pending until answered (2026-09-05).
+    ...(choice ? { choice } : {})
   };
 }
 

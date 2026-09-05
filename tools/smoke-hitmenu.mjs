@@ -335,8 +335,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const total = (dmg?.rolls ?? []).reduce((n, r) => n + (r.total ?? 0), 0);
       ok('3d. one roll, one receipt: the victim took the weapon and the die together', !!receipt && (receipt.taken === total), `taken=${receipt?.taken} total=${total}`);
       const cardText = await waitFor(() => { const t = textOf(document.querySelector(`.message[data-message-id="${dmg?.id}"]`)); return /rode this roll/.test(t) ? t : null; }, 4000);
-      ok('3e. the damage card says what rode: Trip Attack — 1d8 slashing rode this roll · one Superiority Die spent · 3 left',
-        /Trip Attack — 1d8 slashing rode this roll/.test(cardText ?? '') && /one Superiority Die spent/.test(cardText ?? '') && /3 left/.test(cardText ?? ''),
+      ok('3e. the damage card says what rode: Trip Attack — 1d8 slashing rode this roll · one Superiority Die spent · Combat Superiority: 3 of 4 remaining (the one wording, 2026-09-05)',
+        /Trip Attack — 1d8 slashing rode this roll/.test(cardText ?? '') && /one Superiority Die spent/.test(cardText ?? '') && /Combat Superiority: 3 of 4 remaining/.test(cardText ?? ''),
         (cardText ?? '').slice(0, 220));
       const card = await waitFor(() => cardsWith('hitManeuverCard').find(m => m.getFlag(MOD, 'hitManeuverCard')?.key === 'trip-attack' && m.getFlag(MOD, 'saves')), 10000);
       const saves = card?.getFlag(MOD, 'saves');
@@ -422,7 +422,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && !!receipt && (receipt.taken === resolved.rolled) && (second.system.attributes.hp.value === hpBefore - resolved.rolled),
         `resolved=${JSON.stringify(resolved)} roll=${!!rollMsg} receipt=${JSON.stringify(receipt)} hp=${hpBefore}→${second.system.attributes.hp.value}`);
       const cardText = textOf(document.querySelector(`.message[data-message-id="${card?.id}"]`));
-      ok('6e. the card says it', /the die rolled/.test(cardText) && /would hit, applied/.test(cardText), cardText.slice(0, 200));
+      ok('6e. the card says it', /the die rolled/.test(cardText) && /would hit — applied/.test(cardText), cardText.slice(0, 200));
       await settle();
     }
 

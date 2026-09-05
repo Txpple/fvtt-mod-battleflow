@@ -14,9 +14,9 @@ import { joinEffectReceipt } from "./decide/receipt.js";
 // claim instead): the import itself still pins auto-damage.js's evaluation — and with it every
 // hook registration order check-hook-order asserts — exactly where the §9 entry graph has it.
 import "./auto-damage.js";
-import { bfCard, popupKey, holdBarHTML } from "./decide/present.js";
+import { bfCard, popupKey, holdBarHTML, ruleLine, spendLine, spendPhrase } from "./decide/present.js";
 // Safe as a STATIC edge: shared.js registers no hooks and the entry graph evaluates it first.
-import { damagePartsOf, reactionSpent, spendReaction, statSourceOf, poolOf, spendPoolUse } from "./shared.js";
+import { damagePartsOf, reactionSpent, spendReaction, statSourceOf, poolOf, spendSuperiorityDie } from "./shared.js";
 // ⚠ ONE-WAY since D6 (2026-08-23). ui.js is the spine and no longer knows this feature exists;
 // what comes back are spine primitives only. Do NOT let a hold-shaped name travel the other
 // way — reinstating an `import … from "./hold.js"` in ui.js re-forms the cycle D6 broke.
@@ -463,7 +463,7 @@ async function stampSpellHold(message, entries) {
  * a client that OWNS its message, which is exactly what splits the two branches below:
  * the response message is the answering player's own (receipt embedded at creation), and
  * the direct branch runs only where this client owns the held message itself. */
-export async function answerHold(attackMessage, uuid, answer, { appliedEffects = [], reduceBy = null } = {}) {
+export async function answerHold(attackMessage, uuid, answer, { appliedEffects = [], reduceBy = null, poolSpend = null } = {}) {
   const hold = foundry.utils.deepClone(attackMessage.getFlag(MODULE_ID, "hold") ?? {});
   if ( hold.status !== "pending" ) return;
   const target = hold.targets?.find(t => t.uuid === uuid);
@@ -471,6 +471,7 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
   target.answer = answer;
   target.answeredAt = Date.now();   // the crash-resume horizon (the topple discipline)
   if ( Number(reduceBy) > 0 ) target.reduceBy = Number(reduceBy);   // Parry's roll, at the answer
+  if ( poolSpend ) target.poolSpend = poolSpend;                      // Parry's die, the spend record
 
   // Players cannot update someone else's message, so a player's answer travels as their OWN
   // message; the continuing client applies it to the hold (ARCHITECTURE.md §3 — clients
@@ -514,6 +515,7 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
       // effectReceipt shape, so receipts.js renders the row + the GM's revert for free.
       flags: { [MODULE_ID]: { respondsTo: attackMessage.id, uuid, answer, ac, effectLanded,
         ...(Number(reduceBy) > 0 ? { reduceBy: Number(reduceBy) } : {}),
+        ...(poolSpend ? { poolSpend } : {}),
         ...(appliedEffects.length ? { effectReceipt: { targets: appliedEffects } } : {}) } }
     });
     return;
@@ -555,6 +557,8 @@ registerRelay("respondsTo", {
     target.answeredAt = Date.now();   // the crash-resume horizon (the topple discipline)
     const reduceBy = Number(message.getFlag(MODULE_ID, "reduceBy"));
     if ( reduceBy > 0 ) target.reduceBy = reduceBy;
+    const poolSpend = message.getFlag(MODULE_ID, "poolSpend");
+    if ( poolSpend ) target.poolSpend = poolSpend;
   }
 });
 
@@ -816,8 +820,11 @@ async function driveHoldContinuation(attackMessage, hold) {
       const settled = interruptMultiplier(target, INTERRUPT_MULTIPLIERS);
       const reduced = (Number(target.reduceBy) > 0) ? Number(target.reduceBy) : null;
       const how = settled ? ((settled.multiplier === 0.5) ? "halved" : `×${settled.multiplier}`) : reduced ? `reduced by <strong>${reduced}</strong>` : null;
+      const maneuver = !!target.reduce;   // Parry: the maneuver family's words (user, 2026-09-05)
       announcements.push(bfCard({
-        img, eyebrow: (settled || reduced) ? "Reaction — it worked" : "Reaction — cast", title: target.reaction, subtitle: target.name,
+        img, eyebrow: maneuver ? `Maneuver — ${target.reaction}` : (settled || reduced) ? "Reaction — it worked" : "Reaction — cast",
+        title: maneuver ? (reduced ? `${target.reaction} — ${target.name} reduces the damage by ${reduced}` : `${target.reaction} — reduce the damage by hand`) : target.reaction,
+        subtitle: maneuver ? spendPhrase(target.poolSpend ? [target.poolSpend] : []) : target.name,
         tone: (settled || reduced) ? "good" : "neutral",
         lines: [(settled || reduced)
           ? `The attack still hits, and its damage against <strong>${target.name}</strong> is ${how} — the receipt says so.`
@@ -1267,9 +1274,31 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
           : "Let it land — no reaction.");
       }
 
+      // A MANEUVER reaction (Parry — INTERRUPT_REDUCTIONS) wears the maneuver family's language
+      // (user, 2026-09-05: "the same UI language and design as Riposte and other maneuvers"):
+      // `Maneuver — Name`, `Name — what happened`, who and the cost. The hold's own words stay
+      // for spells and features.
+      const maneuver = !!target.reduce;
+      let title = target.reaction;
+      if ( maneuver ) {
+        const attackerName = message.getAssociatedActor?.()?.name ?? "The attacker";
+        eyebrow = `Maneuver — ${target.reaction}`;
+        if ( hold.status === "pending" ) {
+          title = `${target.reaction} — ${target.name} may reduce the damage`;
+          subtitle = `${attackerName}'s melee attack hit`;
+        } else if ( target.answer === "cast" ) {
+          title = (Number(target.reduceBy) > 0)
+            ? `${target.reaction} — ${target.name} reduces the damage by ${target.reduceBy}`
+            : `${target.reaction} — ${target.name} parries; reduce the damage by hand`;
+          subtitle = spendPhrase(target.poolSpend ? [target.poolSpend] : []);
+        } else {
+          title = `${target.reaction} — ${target.name} declined${target.timedOut ? " (timer)" : ""}`;
+          subtitle = `${attackerName}'s melee attack hit`;
+        }
+      }
       block.innerHTML = bfCard({
         img: reactionImg(actor, target.reaction, target),
-        eyebrow, title: target.reaction, subtitle, lines, tone
+        eyebrow, title, subtitle, lines, tone
       }) + holdBarHTML(hold);
       scheduleBarSync(block);
 
@@ -1388,9 +1417,30 @@ async function parryReaction(attackMessage, target, actor) {
   } catch(err) {
     console.error(`${TITLE} | ${target.reaction}'s reduction could not be rolled — reduce by hand.`, err);
   }
-  if ( pool ) await spendPoolUse(pool).catch(err => console.warn(`${TITLE} | Could not spend a Superiority Die for ${target.reaction}.`, err));
+  // The one pass-through for a hand spend (shared.js): the record rides the answer so the card,
+  // the popup and the flash all say "Combat Superiority: N of M remaining" (user, 2026-09-05).
+  let poolSpend = null;
+  if ( pool ) poolSpend = await spendSuperiorityDie(actor, pool, target.reaction).catch(err => { console.warn(`${TITLE} | Could not spend a Superiority Die for ${target.reaction}.`, err); return null; });
   await spendReaction(actor, { origin: item?.uuid ?? null, what: target.reaction });
-  return answerHold(attackMessage, target.uuid, "cast", { reduceBy: total });
+  return answerHold(attackMessage, target.uuid, "cast", { reduceBy: total, poolSpend });
+}
+
+/** A maneuver reaction's popup (Parry): Riposte's shape — the card, the cost, the rule, the clock. */
+function maneuverPopupContent(attackMessage, target, actor, hold) {
+  const key = Object.keys(INTERRUPT_REDUCTIONS).find(k => k.toLowerCase() === String(target.reaction ?? "").toLowerCase());
+  const row = key ? INTERRUPT_REDUCTIONS[key] : null;
+  const attackerName = attackMessage.getAssociatedActor?.()?.name ?? "The attacker";
+  // The pool as it stands, before the spend — the same words the card will use after it.
+  const item = actor?.items.get(target.itemId) ?? reactionItem(actor, target.reaction);
+  const activity = item?.system?.activities?.get(target.reduce?.activityId) ?? null;
+  const pool = activity ? poolOf(actor, activity) : null;
+  const standing = pool ? spendLine({ pool: pool.name, left: Number(pool.system?.uses?.value ?? 0), max: Number(pool.system?.uses?.max ?? 0) }) : null;
+  return bfCard({
+    img: reactionImg(actor, target.reaction, target), eyebrow: `Maneuver — ${target.reaction}`, tone: "pending",
+    title: `${attackerName} hit you`,
+    subtitle: `Spend a Superiority Die and your Reaction to reduce the damage by the die plus your modifier${standing ? ` · ${standing}` : ""}`,
+    lines: row?.rule ? [ruleLine(row.rule)] : []
+  }) + holdBarHTML(hold, "to answer");
 }
 
 /**
@@ -1498,11 +1548,16 @@ async function showHoldPopup(attackMessage, hold, { manual = false } = {}) {
     // stood here until v1.1.15 and made the GM's popup a different shape from the player's for
     // no behavioural difference at all: it ran the same code as Pass, and the whole chain only
     // ever asks `answer === "cast"`. See the card controls for why it went.
+    // A maneuver reaction (Parry) asks in the maneuver family's shape — Riposte's popup: the
+    // art, `Maneuver — Name`, what happened, the cost, the rule; the answer button is the
+    // maneuver's own name (user, 2026-09-05).
+    const maneuver = !!target.reduce;
     await openMomentPopup(attackMessage, target.uuid, actor, {
-      title: target.reaction, icon: "fa-solid fa-shield-halved", width: 460,
-      content: await holdPopupContent(target, roll, actor, hold),
+      title: maneuver ? `${target.reaction} — ${actor?.name ?? ""}` : target.reaction,
+      icon: maneuver ? "fa-solid fa-hand-back-fist" : "fa-solid fa-shield-halved", width: 460,
+      content: maneuver ? maneuverPopupContent(attackMessage, target, actor, hold) : await holdPopupContent(target, roll, actor, hold),
       buttons: [
-        { action: "cast", label: `Cast ${target.reaction}`, default: true,
+        { action: "cast", label: maneuver ? target.reaction : `Cast ${target.reaction}`, default: true,
           callback: () => castReaction(attackMessage, target) },
         { action: "pass", label: "Pass",
           callback: () => answerHold(attackMessage, target.uuid, "pass") }

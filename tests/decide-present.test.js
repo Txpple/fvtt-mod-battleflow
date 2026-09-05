@@ -213,6 +213,54 @@ describe("rescueView — two machines, one window", () => {
     }
   };
 
+  it("two TACTICAL rows on one check (Tactical Mind and Ambush, 2026-09-05) get distinct keys, actions and quotes", () => {
+    const view = p.rescueView(
+      read({
+        d20fold: {
+          status: "pending",
+          testKind: "check",
+          skill: "ste",
+          baseTotal: 7,
+          deadline: 5000,
+          window: 15,
+          offers: [
+            { kind: "tactical", name: "Tactical Mind", label: "Tactical Mind", dieFormula: "1d10" },
+            {
+              kind: "tactical",
+              name: "Ambush",
+              label: "Ambush",
+              dieFormula: "1d8",
+              cost: "the superiority die is spent either way it lands",
+              rule: "When you make a Dexterity (Stealth) check…"
+            }
+          ]
+        }
+      }),
+      { reveal: true }
+    );
+    expect(view.rows.map(r => r.action)).toEqual(["tactical:Tactical Mind", "tactical:Ambush"]);
+    expect(view.rows.map(r => r.key)).toEqual([
+      "d20fold:tactical:Tactical Mind",
+      "d20fold:tactical:Ambush"
+    ]);
+    expect(new Set(view.quotes.map(q => q.key)).size).toBe(2);
+    // A lone one-row kind keeps its bare kind as the token — every suite and card that reads it stands.
+    expect(
+      p.rescueView(
+        read({
+          d20fold: {
+            status: "pending",
+            testKind: "check",
+            baseTotal: 7,
+            offers: [
+              { kind: "bardic", name: "Inspired", label: "Bardic Inspiration", dieFormula: "1d8" }
+            ]
+          }
+        })
+      ).rows[0].action
+    ).toBe("bardic");
+  });
+
   it("both pending — one row per rescue, each carrying the machine's own answer token", () => {
     const view = p.rescueView(read(bothPending), { reveal: true });
     expect(view.rows.map(r => r.key)).toEqual(["d20fold:bardic", "precision:precision"]);
@@ -374,14 +422,16 @@ describe("rescueView — two machines, one window", () => {
           testKind: "check",
           baseTotal: 9,
           targets: [],
-          offers: [{ kind: "tactical", label: "Tactical Mind", dieFormula: "1d10" }]
+          offers: [
+            { kind: "tactical", name: "Tactical Mind", label: "Tactical Mind", dieFormula: "1d10" }
+          ]
         }
       }),
       { composed: { total: 14, added: 5 }, reveal: true }
     );
     expect(view.headerLines).toEqual(["9 + 5 = 14 — ask your DM whether that lands."]);
     expect(view.headerLines.join(" ")).not.toMatch(/DC \d|fail|short/);
-    expect(view.rows[0].action).toBe("tactical");
+    expect(view.rows[0].action).toBe("tactical:Tactical Mind"); // a tactical row answers by NAME (2026-09-05)
     // ⚠ And the window must not CALL it short either — nothing here knows that it is.
     expect(view.verdictKnown).toBe(false);
   });
@@ -640,6 +690,27 @@ describe("cunningMenuHTML — the rules fold like every other box (user walk 202
     // "a line on the card" read as noise beside the fold).
     expect(html).not.toContain("the target must be Large or smaller");
     expect(html).not.toContain("a line on the card");
+  });
+});
+
+describe("riderMenuHTML — the same fold rule (user, 2026-09-05: no text above the rule tick)", () => {
+  it("a row is the tick, the name and the dice, then the closed rule — a caveat is NOT rendered", () => {
+    const html = p.riderMenuHTML([
+      {
+        key: "lunge",
+        label: "Lunging Attack",
+        formula: "1d8",
+        type: "bludgeoning",
+        why: "the chip",
+        rule: "Lunging Attack. As a Bonus Action…",
+        caveat: "if you moved at least 5 feet in a straight line just before the hit"
+      }
+    ]);
+    expect(html).toContain("Lunging Attack — 1d8 bludgeoning");
+    expect(html.match(/<details data-bf-rule/g)).toHaveLength(1);
+    expect(html).not.toContain("<details data-bf-rule open");
+    expect(html).not.toContain("if you moved at least 5 feet");
+    expect(html).not.toContain("the chip");
   });
 });
 

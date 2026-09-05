@@ -24,7 +24,8 @@ const SECTIONS = {
   4: 'Death Armor cast by the Cleric on the RANGER: the goblin hitting the Ranger takes the Cleric\'s 2d4 necrotic — the ward walked to its caster; once per turn in combat (the chit), the next turn again; out of combat every hit',
   5: 'Armor of Agathys: the cast is MARKED (a chip, the card says so); a hit strikes 5 cold while the temp HP stand; the pool going to zero ends the mark with a card; a hit after strikes nothing',
   6: 'the Damage Shields list is the switch: an empty list strikes nothing',
-  7: 'the registration FIRED (§11): the damage message hooks and postUseActivity moved'
+  7: 'the registration FIRED (§11): the damage message hooks and postUseActivity moved',
+  8: 'the cast ASKS (2026-09-05): Fire Shield cast through the cast slice waits on the card with a popup — warm or chill — and only the pick lands with its resistance; an empty Effect Choices list lands both'
 };
 const DEPENDS = {};
 
@@ -54,10 +55,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
   if (!game.settings.settings.has(`${MOD}.damageShieldList`)) return { fatal: 'damageShieldList not registered — OLD code (deploy --local, reload)' };
+  if (!game.settings.settings.has(`${MOD}.effectChoiceList`)) return { fatal: 'effectChoiceList not registered — OLD code (deploy --local, reload)' };
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'saves', 'castApply', 'concMode',
-    'reminderList', 'maneuverFolds', 'clockRiderList', 'hitMenuList', 'emanations', 'damageShieldList'];
+    'reminderList', 'maneuverFolds', 'clockRiderList', 'hitMenuList', 'emanations', 'damageShieldList', 'effectChoiceList'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -86,7 +88,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
   const closeDialogs = async () => {
     for (const app of foundry.applications.instances.values()) {
-      if (/RollConfigurationDialog/.test(app.constructor?.name ?? '') || (app.element?.innerHTML ?? '').includes('Damage — your roll')) { try { await app.close(); } catch { /* gone */ } }
+      if (/RollConfigurationDialog/.test(app.constructor?.name ?? '') || (app.element?.innerHTML ?? '').includes('Damage — your roll')
+        || (app.element?.innerHTML ?? '').includes('Cast — Fire Shield')) { try { await app.close(); } catch { /* gone */ } }
     }
   };
   const teardown = async () => {
@@ -381,6 +384,58 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('7a. createChatMessage and dnd5e.renderChatMessage fired (the shield\'s triggers)', (count('createChatMessage') > 0) && (count('dnd5e.renderChatMessage') > 0),
         `create=${count('createChatMessage')} render=${count('dnd5e.renderChatMessage')}`);
       ok('7b. dnd5e.postUseActivity fired (the mark\'s hook)', count('dnd5e.postUseActivity') > 0, `count=${count('dnd5e.postUseActivity')}`);
+    }
+
+    // ================================================== 8. the cast ASKS — warm or chill
+    if (want(8)) {
+      // The cast slice ON for this section only: the choice is stamped at the card's birth
+      // (polish.js), the popup opens on the caster's client — this page, the sole GM answering
+      // for the unowned Cleric — and the elect applies the pick (cast.js).
+      await set('castApply', true);
+      await set('effectChoiceList', 'Fire Shield');
+      const shieldsOn = () => cleric.effects.filter(e => ['Warm Shield', 'Chill Shield'].includes(e.name)).map(e => e.name);
+      const resistances = () => [...(cleric.system.traits.dr.value ?? [])];
+      const castShield = async () => {
+        await clearWards();
+        const use = fireShield.system.activities.find(a => a.type === 'utility');
+        clericToken.control({ releaseOthers: true });
+        const results = await use.use({ consume: { spellSlot: false, resources: false, action: false }, subsequentActions: false }, { configure: false }, {});
+        const card = results?.message ?? null;
+        await sleep(600);
+        return card;
+      };
+      const popupButton = label => [...document.querySelectorAll('.application.dialog button[data-action^="pick-"]')].find(b => textOf(b) === label) ?? null;
+
+      const card = await castShield();
+      const choice = card?.getFlag(MOD, 'castApply')?.choice ?? null;
+      ok('8a. the usage card carries the choice PENDING — Fire Shield, warm or chill — and nothing has landed',
+        !!choice && (choice.key === 'Fire Shield') && !choice.chosen && (JSON.stringify(choice.options) === JSON.stringify(['Warm Shield', 'Chill Shield'])) && (shieldsOn().length === 0),
+        `choice=${JSON.stringify(choice)} shields=${shieldsOn()}`);
+      const button = await waitFor(() => popupButton('Chill Shield'), 4000);
+      ok('8b. the popup opened on the caster\'s client with a button per shield, and the card says the cast waits',
+        !!button && !!popupButton('Warm Shield') && /warm shield or a chill shield/i.test(cardText(card?.id ?? '')),
+        `chill=${!!button} warm=${!!popupButton('Warm Shield')} card=${cardText(card?.id ?? '').slice(0, 160)}`);
+      if (button) button.click();
+      const landed = await waitFor(() => (shieldsOn().length ? shieldsOn() : null), 8000);
+      await sleep(300);
+      const chosen = card?.getFlag(MOD, 'castApply')?.choice?.chosen ?? null;
+      ok('8c. the pick lands ALONE — Chill Shield, and its resistance (fire) with it; the warm shield does not',
+        (chosen === 'Chill Shield') && (JSON.stringify(landed) === JSON.stringify(['Chill Shield'])) && resistances().includes('fire') && !resistances().includes('cold'),
+        `chosen=${chosen} shields=${JSON.stringify(landed)} dr=${JSON.stringify(resistances())}`);
+      ok('8d. the receipt names the one effect on the Cleric', (card?.getFlag(MOD, 'effectReceipt')?.targets ?? []).some(t => (t.effects ?? []).length === 1 && t.effects[0].name === 'Chill Shield'),
+        `receipt=${JSON.stringify(card?.getFlag(MOD, 'effectReceipt') ?? null)?.slice(0, 200)}`);
+
+      // The list is the switch: unlisted, the cast slice lands both as it always did.
+      await set('effectChoiceList', '');
+      const card2 = await castShield();
+      const both = await waitFor(() => (shieldsOn().length === 2 ? shieldsOn() : null), 8000);
+      ok('8e. an empty Effect Choices list asks nothing — both shields land, no choice on the card',
+        !card2?.getFlag(MOD, 'castApply')?.choice && (both?.length === 2) && !popupButton('Chill Shield'),
+        `choice=${JSON.stringify(card2?.getFlag(MOD, 'castApply')?.choice ?? null)} shields=${JSON.stringify(shieldsOn())}`);
+      await set('effectChoiceList', 'Fire Shield');
+      await set('castApply', false);
+      await closeDialogs();
+      await clearWards();
     }
 
     return { log, results, skips };

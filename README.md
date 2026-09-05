@@ -59,14 +59,21 @@ rolls the die and asks who wears it. Lunging Attack's die is a ticked checkbox o
 hit's damage offer, since the straight-line move is yours to judge. Feinting Attack marks the
 target: the attack gate reads it as Advantage for you alone, your next attack roll at that
 target spends it, and the die rides the hit. Ambush and Tactical Assessment are offered on the
-checks their text names (and Ambush on initiative). Commander's Strike hands a willing ally a
-Reaction attack with your die on its damage. Rally works as the pack ships it.
+checks their text names (and Ambush on initiative); used from the sheet first, they roll the
+die, tell you which check to make, and add it when you do. Commander's Strike tells the ally's
+player they may make a Reaction attack from their sheet; your die rides its damage. Rally works
+as the pack ships it. Every maneuver's card and popup wear the same shape, and a spent die
+says the same thing everywhere: the pool and how many remain.
 
 **Wards strike back.** Fire Shield, Death Armor and Armor of Agathys pay out against whoever
 hits their bearer with a melee attack roll, from within the ward's own reach: the pack's own
 dice, rolled in the open as the defender's and applied to the attacker with a receipt. Fire
 Shield's type follows the shield that stands; Death Armor strikes once per turn; Armor of
 Agathys strikes while its Temporary Hit Points last and ends with them.
+
+**A cast that offers a choice asks.** Fire Shield's warm or chill shield: a popup at the cast
+asks the caster which, the cast waits on the card until answered, and only the pick lands with
+its resistance. The Effect Choices list says which spells ask.
 
 **Bare damage spells roll their dice.** A spell like Heat Metal, whose damage has no attack
 roll and no save, rolls at the cast (or is offered to you) and lands on the target, and the

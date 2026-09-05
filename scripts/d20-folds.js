@@ -60,13 +60,14 @@
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext }
   from "./core.js";
 import { d20FoldEntries } from "./settings.js";
-import { grantingActor, hitTargets, modeAllows } from "./shared.js";
-import { bfCard, holdBarHTML, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
+import { grantingActor, hitTargets, modeAllows, poolSpendsOn } from "./shared.js";
+import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
   from "./decide/present.js";
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
 import { SUPERIORITY_FOLDS } from "./decide/registry.js";
-import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer,
-  registerRescue, syncRescuePopup } from "./ui.js";
+import { CHIP_FLAG } from "./decide/chips.js";
+import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments,
+  acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup } from "./ui.js";
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 
 /**
@@ -147,7 +148,9 @@ const TACTICAL = {
   die: marker => marker.activity.roll?.formula || null,
   spend: async (_actor, marker, message) => {
     await marker.activity.use({ subsequentActions: false }, { configure: false }, {
-      data: { flags: { dnd5e: { originatingMessage: message.id } } }
+      // `foldSpend`: this use is the RESCUE's spend, never the sheet's — the arming hook stands
+      // aside (2026-09-05: accepting Ambush on Initiative armed a second die for Stealth).
+      data: { flags: { dnd5e: { originatingMessage: message.id }, [MODULE_ID]: { foldSpend: message.id } } }
     });
     return true;
   }
@@ -246,7 +249,7 @@ function availableFolds(actor, testKind, spent = [], ctx = {}) {
     const tests = scope ? [...((scope.skills?.length) ? ["check"] : []), ...(scope.initiative ? ["initiative"] : [])] : spec.tests;
     if ( !tests.includes(testKind) ) continue;
     if ( scope && (testKind === "check") && !(ctx.skill && scope.skills.includes(ctx.skill)) ) continue;
-    if ( spent.includes(entry.kind) ) continue;
+    if ( spent.includes(entry.kind) || spent.includes(entry.name) ) continue;   // by NAME too: two tactical rows (2026-09-05)
     const marker = spec.find(actor, entry);
     if ( !marker ) continue;
     let dieFormula = spec.die(marker);
@@ -360,6 +363,9 @@ for ( const [hook, testKind] of PLAIN_HOOKS ) {
       // button on the same message and race the withheld verdict.
       if ( (testKind === "save") && pendingSaveDemandFor(subject) ) return;
       const skill = data?.skill ?? null;   // the skill hook's own data (dnd5e 5.3.3: `{ ability, skill|tool, subject }`)
+      // A maneuver ARMED from the sheet (Tactical Assessment, Ambush) folds in by itself; the
+      // other folds the check admits are offered after, inside that stamp.
+      if ( (testKind === "check") && await applyArmedFold(message, subject, testKind, { skill }) ) return;
       const offers = availableFolds(subject, testKind, [], { skill });
       if ( !offers.length ) return;
       const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
@@ -379,21 +385,55 @@ for ( const [hook, testKind] of PLAIN_HOOKS ) {
  * there; accepting it re-sets the combatant's initiative to the composed total — a fold, the
  * original roll standing as history (DESIGN §4).
  */
-Hooks.on("dnd5e.rollInitiative", async (actor, combatants) => {
+const initiativeStamps = new Set();   // same-client latch: the two roads below can meet on one message
+async function stampInitiative(actor, combatants, message) {
+  if ( !(actor instanceof Actor) || !modeAllows(actor) ) return;
+  if ( !message || message.getFlag(MODULE_ID, "d20fold") || !message.isAuthor ) return;
+  if ( initiativeStamps.has(message.id) ) return;
+  initiativeStamps.add(message.id);
   try {
-    if ( !(actor instanceof Actor) || !modeAllows(actor) ) return;
+    const total = Number(message.rolls?.[0]?.total ?? combatants?.[0]?.initiative ?? 0);
+    // Ambush ARMED from the sheet folds in by itself (the armed block below).
+    if ( await applyArmedFold(message, actor, "initiative", { combatants: combatants ?? [], total }) ) return;
     const offers = availableFolds(actor, "initiative");
     if ( !offers.length ) return;
-    const message = game.messages.contents.slice(-30).reverse().find(m => m.getFlag("core", "initiativeRoll")
-      && ((m.speaker?.actor === actor.id) || (m.getAssociatedActor?.()?.uuid === actor.uuid)));
-    if ( !message || message.getFlag(MODULE_ID, "d20fold") || !message.isAuthor ) return;
-    const total = Number(message.rolls?.[0]?.total ?? combatants?.[0]?.initiative ?? 0);
     const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
     await message.setFlag(MODULE_ID, "d20fold", { ...baseFlag(actor, offers, "initiative", total, window),
       combatId: game.combat?.id ?? null, combatantIds: (combatants ?? []).map(c => c.id) });
     armFoldTimer(message);
+  } finally {
+    initiativeStamps.delete(message.id);
+  }
+}
+
+// The actor's own roll (`Actor5e#rollInitiative` — the sheet, a macro): dnd5e's hook.
+Hooks.on("dnd5e.rollInitiative", async (actor, combatants) => {
+  try {
+    if ( !(actor instanceof Actor) ) return;
+    const message = game.messages.contents.slice(-30).reverse().find(m => m.getFlag("core", "initiativeRoll")
+      && ((m.speaker?.actor === actor.id) || (m.getAssociatedActor?.()?.uuid === actor.uuid)));
+    await stampInitiative(actor, combatants, message);
   } catch(err) {
     console.error(`${TITLE} | D20 fold stamp (initiative) failed.`, err);
+  }
+});
+
+// ⚠ THE COMBAT TRACKER'S ROLL BUTTON NEVER FIRES `dnd5e.rollInitiative` (measured 2026-09-05,
+// the walk: "ambush works for stealth, but does not work for initiative"). `Combat#rollInitiative`
+// rolls through the combatant, updates the initiative, then creates the roll message — it does
+// not pass through `Actor5e#rollInitiative`, where dnd5e's hook lives. The message itself is
+// the platform's own witness (`flags.core.initiativeRoll`), authored by the rolling client,
+// and by the time it exists the combatant's number is already set. Both roads meet on the
+// same stamp; the latch above and the `d20fold` check keep it to one.
+Hooks.on("createChatMessage", async message => {
+  try {
+    if ( !message.getFlag("core", "initiativeRoll") || !message.isAuthor ) return;
+    const actor = message.getAssociatedActor?.() ?? null;
+    if ( !(actor instanceof Actor) ) return;
+    const combatants = game.combat?.combatants?.filter(c => c.actor?.uuid === actor.uuid) ?? [];
+    await stampInitiative(actor, combatants, message);
+  } catch(err) {
+    console.error(`${TITLE} | D20 fold stamp (initiative message) failed.`, err);
   }
 });
 
@@ -472,7 +512,7 @@ async function answerFold(message, answer, { timedOut = false } = {}) {
   let withdrawn = false;
   await queueFlagWrite(message, "d20fold", current => {
     if ( (current.status !== "pending") || current.answer ) return;
-    if ( (answer !== "pass") && !(current.offers ?? []).some(o => o.kind === answer) ) return;
+    if ( (answer !== "pass") && !(current.offers ?? []).some(o => offerAnswers(o, answer)) ) return;
     /**
      * ⚠ THE SPEND-GUARD, AND IT LIVES INSIDE THE LOCK ON PURPOSE (§11 / D3: the state a guard
      * tests must be the state it writes). Between the window rendering and this click, a
@@ -515,17 +555,25 @@ async function answerFold(message, answer, { timedOut = false } = {}) {
   await resolveFold(message, answer);
 }
 
+/**
+ * Does this offer answer to this token? A kind alone for the one-row kinds (`heroic`, `bardic`,
+ * and a lone `tactical`), or `tactical:<name>` where two tactical rows stand (Tactical Mind AND
+ * Ambush on one Stealth check — 2026-09-05, the walk: the window keyed both by kind).
+ */
+const offerAnswers = (o, answer) => (o.kind === answer) || (`${o.kind}:${o.name}` === answer);
+
 /** The accept path: spend the marker, roll (or REROLL), stamp, announce, re-offer or finish. */
-async function resolveFold(message, kind) {
+async function resolveFold(message, answer) {
   if ( foldInFlight.has(message.id) ) return;
   foldInFlight.add(message.id);   // before the first await — the continueHold discipline
   try {
     const flag = message.getFlag(MODULE_ID, "d20fold");
-    if ( !flag || (flag.answer !== kind) || (flag.status !== "pending") ) return;
+    if ( !flag || (flag.answer !== answer) || (flag.status !== "pending") ) return;
     const actor = await fromUuid(flag.actorUuid);
     if ( !(actor instanceof Actor) ) return;
-    const spec = KINDS[kind];
-    const offer = (flag.offers ?? []).find(o => o.kind === kind);
+    const offer = (flag.offers ?? []).find(o => offerAnswers(o, answer));
+    const kind = offer?.kind;
+    const spec = kind ? KINDS[kind] : null;
     if ( !spec || !offer ) return;
 
     // ⚠ RE-FIND AT RESOLVE TIME, never trust the stamp. Minutes can pass inside the window and
@@ -619,7 +667,8 @@ async function resolveFold(message, kind) {
       : foldedRoll(baseRoll, folds);
 
     // What is still available AFTER this spend — the re-offer (finding 6).
-    const remaining = availableFolds(actor, flag.testKind, spends.map(s => s.kind), { skill: flag.skill ?? null });
+    // By NAME (2026-09-05): spending Ambush must not hide Tactical Mind, its kind-mate, from the re-offer.
+    const remaining = availableFolds(actor, flag.testKind, spends.map(s => s.name ?? s.kind), { skill: flag.skill ?? null });
     const stillFailing = isStillFailing(flag, composed, baseRoll, folds);
     const reoffer = remaining.length && stillFailing;
 
@@ -742,12 +791,14 @@ async function announce(message, actor, name, testKind, anyHit, lines, marker) {
     speaker: ChatMessage.getSpeaker({ actor }),
     content: bfCard({
       img: marker?.item?.img ?? marker?.effect?.img ?? null,
-      eyebrow: `D20 Fold — ${name}`,
+      // A tactical fold is a Battle Master maneuver (Ambush, Tactical Assessment) and wears the
+      // maneuver family's eyebrow (user, 2026-09-05: one UI language across the maneuvers).
+      eyebrow: (marker?.kind === "tactical") ? `Maneuver — ${name}` : `D20 Fold — ${name}`,
       tone: (testKind === "attack") ? (anyHit ? "good" : "neutral") : "good",
       title: (testKind === "attack")
         ? (anyHit ? `${name} — the miss becomes a hit` : `${name} — still a miss`)
         : `${name} — the roll is patched`,
-      subtitle: `${actor.name} spends ${name}`,
+      subtitle: (marker?.kind === "tactical") ? "one Superiority Die spent" : `${actor.name} spends ${name}`,
       lines
     })
   });
@@ -885,9 +936,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       const spends = flag.spends ?? [];
       const spent = spends.map(labelOf).join(" + ");
       const used = flag.outcome === "used";
+      const maneuver = used && spends.length && spends.every(s => s.kind === "tactical");
       block.innerHTML = bfCard({
         img: foldImg(actor, spends),
-        eyebrow: used ? "D20 Fold — spent"
+        eyebrow: maneuver ? `Maneuver — ${spent}` : used ? "D20 Fold — spent"
           : (flag.outcome === "gone") ? "D20 Fold — gone"
           : flag.timedOut ? "D20 Fold — timed out" : "D20 Fold — passed",
         title: used ? spent : "Nothing spent",
@@ -1112,4 +1164,176 @@ Hooks.on("deleteChatMessage", message => {
   // ⚠ No latch to clear here any more. The spine's ONE delete-sweep already drops every
   // `${messageId}|` key, and the merged window's is `|rescue` — a key this file does not own
   // and must not name. Re-adding a feature's name to that sweep is exactly what it forbids.
+});
+
+/* =============================================================================================
+ * ARMED FROM THE SHEET (user, 2026-09-05: "for tactical assessment, have the popup tell them to
+ * make the wisdom or int check and then add it. tactical mind should also then be an option
+ * after the roll") — a SCOPED tactical fold (Ambush, Tactical Assessment) USED from the sheet,
+ * before the check. The pack's utility use spends the die (dnd5e's consumption — the resource
+ * flash) and then did nothing: its roll button is hidden and no check has been rolled, so the
+ * die was gone and nothing came of it. Now the use ROLLS the die in the open, puts a chip
+ * carrying the number on the sheet, and a notice tells the player which check to make; the next
+ * check the scope names folds the number in with no rescue ask for THIS maneuver — and every
+ * other fold the check admits (Tactical Mind) is offered after, as it always was. The chip has
+ * no clock: the rule ties the use to the check, whenever the check comes; a chip nobody spends is
+ * the sheet's to remove. The rescue path (use nothing, roll, be offered) stands beside this.
+ * ========================================================================================== */
+
+const ARMED_KEY = "tactical";
+
+function armedChipFor(actor, testKind, skill = null) {
+  return actor?.effects?.find(e => {
+    if ( (e.getFlag(MODULE_ID, CHIP_FLAG) !== "use") || (e.getFlag(MODULE_ID, "useKey") !== ARMED_KEY) ) return false;
+    const a = e.getFlag(MODULE_ID, "armed");
+    if ( !a ) return false;
+    if ( testKind === "initiative" ) return !!a.initiative;
+    return (testKind === "check") && !!skill && (a.skills ?? []).includes(skill);
+  }) ?? null;
+}
+
+/** "an Intelligence (History or Investigation) or Wisdom (Insight) check" — off the system's own labels. */
+function checkPhrase(skills = [], initiative = false) {
+  const byAbility = new Map();
+  for ( const k of skills ) {
+    const s = CONFIG.DND5E.skills?.[k];
+    const ab = CONFIG.DND5E.abilities?.[s?.ability]?.label ?? String(s?.ability ?? "").toUpperCase();
+    if ( !byAbility.has(ab) ) byAbility.set(ab, []);
+    byAbility.get(ab).push(s?.label ?? k);
+  }
+  const parts = [...byAbility].map(([ab, names]) => `${ab} (${names.join(" or ")})`);
+  const checks = parts.length ? `${parts.join(" or ")} check` : "";
+  return [checks, initiative ? "Initiative roll" : ""].filter(Boolean).join(" or ");
+}
+const article = what => (/^[aeiou]/i.test(what) ? "an" : "a");
+
+Hooks.on("dnd5e.postUseActivity", async (activity, usageConfig, results) => {
+  try {
+    const actor = activity?.actor;
+    if ( !actor?.isOwner || (activity.type !== "utility") ) return;
+    const entry = d20FoldEntries().find(e => (e.kind === "tactical") && scopeOf(e) && (e.name.toLowerCase() === String(activity.item?.name ?? "").toLowerCase()));
+    if ( !entry ) return;
+    const scope = scopeOf(entry);
+    const message = (results?.message instanceof ChatMessage) ? results.message : null;
+    if ( message?.getFlag(MODULE_ID, "tacticalArmed") ) return;
+    // The RESCUE's own spend (accepting the offer after a roll) uses this same activity and
+    // carries `foldSpend`: that die is already folded into the roll — arm nothing.
+    if ( message?.getFlag(MODULE_ID, "foldSpend") || usageConfig?.data?.flags?.[MODULE_ID]?.foldSpend ) return;
+    let formula = activity.roll?.formula || null;
+    try {
+      const r = formula ? String(Roll.replaceFormulaData(formula, actor.getRollData())).trim().replace(/^d(\d+)/i, "1d$1") : null;
+      formula = (r && Roll.validate(r) && !/@/.test(r)) ? r : null;
+    } catch { formula = null; }
+    const rolled = formula ? await rollDie(formula, actor) : null;
+    if ( !rolled ) { console.warn(`${TITLE} | ${entry.name}'s die could not be read off the sheet — add it by hand.`); return; }
+    await rolled.roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${entry.name} — the die` });
+    const total = Number(rolled.summary.total) || 0;
+    const stale = actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "use") && (e.getFlag(MODULE_ID, "useKey") === ARMED_KEY) && (e.getFlag(MODULE_ID, "armed")?.name === entry.name));
+    if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
+    const what = checkPhrase(scope.skills ?? [], !!scope.initiative);
+    const chip = await ActiveEffect.implementation.create({
+      name: activity.item.name, img: activity.item.img ?? "icons/svg/dice-target.svg",
+      description: `<p><em>“${scope.rule}”</em></p><p>Written by Battle Flow when ${entry.name} was used: the die rolled ${total}; the next ${what} adds it.</p>`,
+      origin: activity.item.uuid, disabled: false, transfer: false,
+      flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: ARMED_KEY, armed: { name: entry.name, total, skills: [...(scope.skills ?? [])], initiative: !!scope.initiative, cardId: message?.id ?? null } } }
+    }, { parent: actor }).catch(err => { console.error(`${TITLE} | ${entry.name} could not be armed — add the die by hand.`, err); return null; });
+    if ( !message ) return;
+    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    await message.setFlag(MODULE_ID, "tacticalArmed", { ...statContext(actor.uuid), name: entry.name, total, what, rule: scope.rule,
+      skills: [...(scope.skills ?? [])], initiative: !!scope.initiative,
+      itemImg: activity.item.img ?? null, chipId: chip?.id ?? null, spent: null,
+      ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}) });
+  } catch(err) {
+    console.error(`${TITLE} | A maneuver's use failed to arm — add the die by hand.`, err);
+  }
+});
+
+/**
+ * The armed die folds into the check (or the Initiative roll) the moment it lands — stamped as
+ * a SPENT fold on the roll's message and composed through the same path as an accepted rescue,
+ * with every OTHER fold the check admits still offered after. Returns true when it did.
+ */
+async function applyArmedFold(message, actor, testKind, { skill = null, combatants = [], total = null } = {}) {
+  const chip = armedChipFor(actor, testKind, skill);
+  if ( !chip ) return false;
+  const a = chip.getFlag(MODULE_ID, "armed");
+  const base = Number(message.rolls?.[0]?.total ?? total ?? 0);
+  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const spends = [{ kind: "tactical", name: a.name, label: a.name, die: a.total }];
+  const remaining = availableFolds(actor, testKind, [], { skill }).filter(o => o.name.toLowerCase() !== a.name.toLowerCase());
+  const flag = { ...baseFlag(actor, remaining, testKind, base, remaining.length ? window : 0), spends, armed: true,
+    ...(skill ? { skill } : {}),
+    ...(testKind === "initiative" ? { combatId: game.combat?.id ?? null, combatantIds: combatants.map(c => c.id) } : {}) };
+  const composed = foldedRoll(foldBase(message, flag), foldFolds(message, { ...flag, status: "resolved", outcome: "used" }));
+  flag.foldedTotal = composed.total;
+  if ( !remaining.length ) { flag.status = "resolved"; flag.outcome = "used"; }
+  await message.setFlag(MODULE_ID, "d20fold", flag);
+  await chip.delete().catch(() => {});
+  const lines = [`${sumText(flag, composed)} — the roll now totals <strong>${composed.total}</strong>.`];
+  if ( testKind === "initiative" ) {
+    const combat = flag.combatId ? game.combats.get(flag.combatId) : game.combat;
+    for ( const id of (flag.combatantIds ?? []) ) {
+      const c = combat?.combatants?.get(id);
+      if ( c ) await c.update({ initiative: composed.total }).catch(err => console.warn(`${TITLE} | Could not move the initiative.`, err));
+    }
+    lines.push(`Initiative <strong>${base} → ${composed.total}</strong> — the order is updated.`);
+  }
+  let item = null;
+  try { item = chip.origin ? fromUuidSync(chip.origin) : null; } catch { item = null; }
+  await announce(message, actor, a.name, testKind, false, lines, { kind: "tactical", item });
+  if ( a.cardId ) {
+    const card = game.messages.get(a.cardId);
+    if ( card ) await queueFlagWrite(card, "tacticalArmed", current => {
+      if ( current.spent ) return false;
+      current.spent = { total: composed.total, base, testKind, skill: skill ?? null, at: Date.now() };
+    }).catch(() => { /* the roll's own card says it */ });
+  }
+  if ( remaining.length ) armFoldTimer(message);
+  return true;
+}
+
+async function showArmedNotice(message) {
+  const t = message.getFlag(MODULE_ID, "tacticalArmed");
+  if ( !t || t.spent ) return;
+  const actor = t.sourceUuid ? fromUuidSync(t.sourceUuid) : null;
+  // THE CHECKS ARE THE BUTTONS (user, 2026-09-05: "should be a button for either History,
+  // Investigation or Insight. player presses one of three buttons. then the check is made"):
+  // one per skill the scope names, Initiative too where Ambush's text says so and a combat
+  // runs; the press rolls that check through the system's own dialog, and the armed die folds
+  // in when it lands. No OK: the choice IS the acknowledgement.
+  const buttons = (t.skills ?? []).map((k, i) => ({
+    action: `skill-${k}`, label: CONFIG.DND5E.skills?.[k]?.label ?? k, default: i === 0,
+    callback: async () => { await acknowledgeMoment(message, "tacticalArmed"); void actor?.rollSkill?.({ skill: k }); }
+  }));
+  if ( t.initiative && actor && game.combat?.combatants?.some(c => c.actor?.uuid === actor.uuid) ) {
+    buttons.push({ action: "initiative", label: "Initiative",
+      callback: async () => { await acknowledgeMoment(message, "tacticalArmed"); void actor.rollInitiative({ createCombatants: false, rerollInitiative: true }); } });
+  }
+  await openMomentPopup(message, "armed", actor, {
+    title: `${t.name} — ${actor?.name ?? ""}`, icon: "fa-solid fa-dice-d20", width: 440,
+    content: bfCard({ img: t.itemImg, eyebrow: `Maneuver — ${t.name}`, tone: "pending",
+      title: `${t.name} — the die rolled ${t.total}`,
+      subtitle: `Which check? ${t.total} is added to it`,
+      lines: [ruleLine(t.rule)] }) + (t.deadline ? momentBarHTML(t, "reminder") : ""),
+    buttons,
+    autoCloseAt: t.deadline || null
+  });
+}
+
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  const t = message.getFlag(MODULE_ID, "tacticalArmed");
+  if ( !t ) return;
+  const live = !t.spent && (!t.deadline || (t.deadline > Date.now())) && !momentAcknowledged(message, "tacticalArmed");
+  const line = document.createElement("div");
+  line.innerHTML = bfCard({ img: t.itemImg, eyebrow: `Maneuver — ${t.name}`, tone: t.spent ? "good" : "pending",
+    title: t.spent ? `${t.name} — +${t.total} added: ${t.spent.base} + ${t.total} = ${t.spent.total}`
+      : `${t.name} — the die rolled ${t.total}; pick the check (${article(t.what)} ${t.what})`,
+    subtitle: spendPhrase(poolSpendsOn(message)), lines: [ruleLine(t.rule)] }) + (live ? momentBarHTML(t, "reminder") : "");
+  html.querySelector(".message-content")?.appendChild(line);
+  const actor = t.sourceUuid ? fromUuidSync(t.sourceUuid) : null;
+  if ( live && canAnswerFor(actor) ) {
+    const shownKey = popupKey(message.id, "armed");
+    if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showArmedNotice(message); }
+    line.appendChild(momentButton(`Answer — ${t.name}`, () => void showArmedNotice(message)));
+  }
 });

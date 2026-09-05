@@ -25,8 +25,9 @@ const SECTIONS = {
   6: 'Rally: NOTHING built — the pack\'s heal activity rolls through the system\'s own dialog and the cast slice lands the temp HP on the ally',
   7: 'Ambush / Tactical Assessment: a Stealth check offers Ambush (and not Tactical Assessment); a History check the reverse; Athletics neither; accepting spends the die and patches the total',
   8: 'Ambush on Initiative: the initiative roll offers Ambush; accepting moves the combatant\'s initiative by the die',
-  9: 'Commander\'s Strike: the fighter directs the Ranger; the Ranger\'s owner answers, its attack is driven at the goblin with the fighter\'s die on the damage, its Reaction spent',
-  10: 'the registration FIRED (§11): dnd5e.rollInitiative and dnd5e.rollSkill moved'
+  9: 'Commander\'s Strike (2026-09-05, no driven attack): the fighter directs the Ranger; the elect puts a chip carrying the fighter\'s die on the Ranger; the Ranger\'s owner gets an OK-only notice; the Ranger\'s OWN attack carries the die, the chip and the Reaction spent, the card records the strike',
+  10: 'the registration FIRED (§11): dnd5e.rollInitiative and dnd5e.rollSkill moved',
+  11: 'ARMED from the sheet (2026-09-05): Tactical Assessment used before the check rolls the die in the open, chips the number on the fighter, tells the player which check to make, and the next History/Investigation/Insight check folds it in with no ask (an Athletics check leaves it); Ambush the same on Initiative'
 };
 const DEPENDS = {};
 
@@ -270,7 +271,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const t = hold?.targets?.find(x => x.uuid === fighter.uuid);
       ok('1a. the goblin\'s melee hit on the fighter stamps a hold for Parry as a DAMAGE interrupt with the pack\'s reduction formula — the Monster Manual\'s AC Parry of the same name is not this',
         !!t && (t.reaction === 'Parry') && (t.kind === 'damage') && /superiority\.die/.test(t.reduce?.formula ?? ''), `target=${JSON.stringify(t)}`);
-      const popup = await waitFor(() => dialogWith('Cast Parry'), 6000);
+      const popup = await waitFor(() => dialogWith('Maneuver — Parry'), 6000);   // the maneuver family's popup (2026-09-05)
       popup?.element?.querySelector('button[data-action="cast"]')?.click();
       const resolved = await waitFor(() => (msg?.getFlag(MOD, 'hold')?.status === 'resolved') ? msg.getFlag(MOD, 'hold') : null, 10000);
       const rt = resolved?.targets?.find(x => x.uuid === fighter.uuid);
@@ -389,7 +390,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const rangerAC = ranger.system.attributes.ac.value;
       const card = await useAt(feat('Bait and Switch'), 'Switch Places', rangerToken);
       const bs = await waitFor(() => { const b = card?.getFlag(MOD, 'baitSwitch'); return b?.total ? b : null; }, 6000);
-      const popup = await waitFor(() => dialogWith('Who gains AC'), 6000);
+      const popup = await waitFor(() => dialogWith('who gains the AC'), 6000);   // the maneuver popup's words (2026-09-05)
       ok('5a. the die is rolled and a popup asks who gains the AC — the fighter and the willing Ranger', !!bs && (bs.options?.length === 2) && !!popup, `flag=${JSON.stringify(bs && { total: bs.total, options: bs.options?.map(o => o.name) })} popup=${!!popup}`);
       popup?.element?.querySelector('button[data-action="pick-1"]')?.click();
       const chosen = await waitFor(() => card?.getFlag(MOD, 'baitSwitch')?.chosen ?? null, 6000);
@@ -444,12 +445,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Accept Ambush on a fresh Stealth check: the rescue window's row.
       const ste2 = await foldOf('ste');
       const win = await waitFor(() => rescueWindow('Ambush'), 6000);
-      win?.querySelector('[data-bf-rescue-action="tactical"]')?.click();
+      win?.querySelector('[data-bf-rescue-action="tactical:Ambush"]')?.click();   // keyed by NAME since 2026-09-05 (two tactical rows can stand)
       const done = await waitFor(() => { const fl = ste2.m?.getFlag(MOD, 'd20fold'); return (fl?.status === 'resolved') ? fl : null; }, 10000);
       ok('7d. accepting Ambush spends a Superiority Die, rolls the die in the open and patches the check\'s total; the card names Ambush, not Tactical Mind',
         (done?.outcome === 'used') && (done?.spends?.[0]?.name === 'Ambush') && (done?.spends?.[0]?.label === 'Ambush') && (done?.foldedTotal === done?.baseTotal + done?.spends?.[0]?.die) && (poolLeft() === 3)
           && !game.messages.contents.some(m => (m.timestamp >= suiteStart) && /Second Wind isn't expended/.test(m.content ?? '')),
         `flag=${JSON.stringify(done && { outcome: done.outcome, spends: done.spends, base: done.baseTotal, folded: done.foldedTotal })} pool=${poolLeft()}`);
+      await sleep(600);
+      // The rescue's spend USES the Ambush activity — it must not ARM a second die (2026-09-05, the walk).
+      ok('7e. the rescue\'s spend arms nothing — no chip on the fighter, no "which check" card', !fighter.effects.some(e => (e.getFlag(MOD, 'useKey') === 'tactical') && e.getFlag(MOD, 'armed'))
+          && !game.messages.contents.some(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'tacticalArmed')),
+        `chip=${fighter.effects.some(e => e.getFlag(MOD, 'armed'))} armedCards=${game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'tacticalArmed')).length}`);
       await closeDialogs();
     }
 
@@ -469,11 +475,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('8a. the initiative roll is offered Ambush (testKind initiative, the combatant named)', (flag?.testKind === 'initiative') && (flag?.offers?.[0]?.label === 'Ambush') && flag?.combatantIds?.includes(combatant?.id),
         `flag=${JSON.stringify(flag && { testKind: flag.testKind, offers: flag.offers?.map(o => o.label), combatants: flag.combatantIds, base: flag.baseTotal })} init=${initBefore}`);
       const win = await waitFor(() => rescueWindow('Ambush'), 6000);
-      win?.querySelector('[data-bf-rescue-action="tactical"]')?.click();
+      win?.querySelector('[data-bf-rescue-action="tactical:Ambush"]')?.click();   // keyed by NAME since 2026-09-05 (two tactical rows can stand)
       const done = await waitFor(() => { const fl = initMsg?.getFlag(MOD, 'd20fold'); return (fl?.status === 'resolved') ? fl : null; }, 10000);
       await sleep(400);
       ok('8b. accepting moves the combatant\'s initiative by the die and says so', (done?.outcome === 'used') && (combat.combatants.get(combatant?.id)?.initiative === initBefore + (done?.spends?.[0]?.die ?? 0)) && (poolLeft() === 3),
         `init ${initBefore}→${combat.combatants.get(combatant?.id)?.initiative} die=${done?.spends?.[0]?.die} pool=${poolLeft()}`);
+      // The COMBAT TRACKER's roll (Combat#rollInitiative) never fires dnd5e.rollInitiative — the
+      // walk's "does not work for initiative" (2026-09-05). The roll's own message is the witness.
+      await closeDialogs(); await refill();
+      const before = game.messages.size;
+      face(10);
+      await combat.rollInitiative([combatant.id], { updateTurn: false });
+      const trackerMsg = await waitFor(() => game.messages.contents.slice(-10).reverse().find(m => m.getFlag('core', 'initiativeRoll') && (m.timestamp >= suiteStart) && m.getFlag(MOD, 'd20fold') && (m !== initMsg)) ?? null, 6000);
+      const tf = trackerMsg?.getFlag(MOD, 'd20fold');
+      ok('8c. the combat tracker\'s own roll is offered Ambush too — caught off the initiative message, since dnd5e\'s hook never fires on that road', (game.messages.size > before) && (tf?.testKind === 'initiative') && (tf?.offers?.[0]?.label === 'Ambush') && tf?.combatantIds?.includes(combatant?.id),
+        `msg=${!!trackerMsg} flag=${JSON.stringify(tf && { testKind: tf.testKind, offers: tf.offers?.map(o => o.label), combatants: tf.combatantIds })}`);
       await closeDialogs();
       await combat.delete(); combat = null;
     }
@@ -481,24 +497,91 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ================================================== 9. Commander's Strike
     if (want(9)) {
       await clearChips(); await refill(); await healFull(); await closeDialogs();
+      // 2026-09-05 (user): NO driven attack — the ally's owner is TOLD (a notice popup), the ally
+      // attacks from their own sheet, and the fighter's die rides that hit off a chip on the ally.
       const card = await useAt(feat("Commander's Strike"), 'Directed Attack', rangerToken);
-      const cmd = await waitFor(() => { const c = card?.getFlag(MOD, 'command'); return (c?.status === 'pending') ? c : null; }, 6000);
-      ok('9a. the use stamps the command on the card: the Ranger as the ally, the fighter\'s die resolved on the FIGHTER, the pool spent, and no damage dialog of dnd5e\'s own',
-        !!cmd && (cmd.ally?.uuid === ranger.uuid) && (cmd.dieFormula === '1d8') && (poolLeft() === 3) && !rollDialog(),
-        `cmd=${JSON.stringify(cmd && { ally: cmd.ally?.name, die: cmd.dieFormula, status: cmd.status })} pool=${poolLeft()} dialog=${!!rollDialog()}`);
+      const cmd = await waitFor(() => { const c = card?.getFlag(MOD, 'command'); return (c?.status === 'directed') ? c : null; }, 6000);
+      const chip = await waitFor(() => ranger.effects.find(e => (e.getFlag(MOD, 'useKey') === 'command') && (e.getFlag(MOD, 'cardId') === card?.id)) ?? null, 6000);
+      ok('9a. the use stamps the direction on the card (the Ranger as the ally, the fighter\'s die resolved on the FIGHTER, the pool spent, no damage dialog of dnd5e\'s own) and the elect puts the chip on the RANGER carrying that die',
+        !!cmd && (cmd.ally?.uuid === ranger.uuid) && (cmd.dieFormula === '1d8') && (poolLeft() === 3) && !rollDialog() && !!chip && (chip.getFlag(MOD, 'die') === '1d8') && (chip.getFlag(MOD, 'sourceUuid') === fighter.uuid),
+        `cmd=${JSON.stringify(cmd && { ally: cmd.ally?.name, die: cmd.dieFormula, status: cmd.status })} pool=${poolLeft()} dialog=${!!rollDialog()} chip=${!!chip} chipDie=${chip?.getFlag(MOD, 'die')}`);
       const popup = await waitFor(() => dialogWith('directs you to strike'), 6000);
-      // The Ranger's owner (a GM here) targets the goblin and answers.
-      target(goblinToken);
-      await sleep(80);
-      face(19);
-      popup?.element?.querySelector('button[data-action="attack"]')?.click();
-      const attackMsg = await waitFor(() => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'commandFor') === card?.id)).pop() ?? null, 10000);
-      const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+      ok('9b. the Ranger\'s owner gets the NOTICE — OK only, no weapon choice, no Attack button', !!popup && !!popup.element?.querySelector('button[data-action="ok"]') && !popup.element?.querySelector('button[data-action="attack"]') && !popup.element?.querySelector('select'),
+        `popup=${!!popup} ok=${!!popup?.element?.querySelector('button[data-action="ok"]')} attack=${!!popup?.element?.querySelector('button[data-action="attack"]')}`);
+      popup?.element?.querySelector('button[data-action="ok"]')?.click();
+      await sleep(300);
+      // The Ranger attacks the goblin from its own sheet: the chip's die rides the damage.
+      const { msg: attackMsg, originId } = await swing(ranger, rangerToken, rangerSword, goblinToken);
       const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
       const base = dmg?.rolls?.[0]?.formula ?? '';
-      ok('9b. the Ranger\'s attack is driven at the goblin with the fighter\'s die on the damage (the riposte die\'s injection into the weapon\'s own roll — two dice), the answer folded on the card',
-        !!attackMsg && (attackMsg.getAssociatedActor()?.uuid === ranger.uuid) && !!dmg && /1d8.*1d8/.test(base) && (card?.getFlag(MOD, 'command')?.answer === 'attack'),
-        `attack=${!!attackMsg} by=${attackMsg?.getAssociatedActor()?.name} dmg=${base} answer=${card?.getFlag(MOD, 'command')?.answer} reaction=${ranger.effects.some(e => /Reaction — used/.test(e.name))}`);
+      const ride = dmg?.getFlag(MOD, 'commandRide');
+      const struck = await waitFor(() => (card?.getFlag(MOD, 'command')?.status === 'struck') ? card.getFlag(MOD, 'command') : null, 6000);
+      ok('9c. the Ranger\'s OWN attack carries the fighter\'s die in the weapon\'s roll (two dice), the chip is spent, the Reaction spent, the damage says so, and the fighter\'s card records the strike',
+        !!attackMsg && (attackMsg.getAssociatedActor()?.uuid === ranger.uuid) && !!dmg && /1d8.*1d8/.test(base) && !!ride && (ride.cardId === card?.id)
+          && !ranger.effects.some(e => e.getFlag(MOD, 'useKey') === 'command') && (struck?.struck?.by === ranger.name),   // the Reaction chip is combat-only (§1d's settled rule) — out of combat none is written
+        `attack=${!!attackMsg} by=${attackMsg?.getAssociatedActor()?.name} dmg=${base} ride=${JSON.stringify(ride)} chipLeft=${ranger.effects.some(e => e.getFlag(MOD, 'useKey') === 'command')} reaction=${ranger.effects.some(e => /Reaction — used/.test(e.name))} card=${struck?.status}`);
+      await clearChips();
+    }
+
+    // ================================================== 11. ARMED from the sheet (2026-09-05)
+    if (want(11)) {
+      await clearChips(); await refill(); await closeDialogs();
+      if (game.combat) await game.combat.delete();
+      const armedChip = () => fighter.effects.find(e => (e.getFlag(MOD, 'useKey') === 'tactical') && e.getFlag(MOD, 'armed')) ?? null;
+      // Tactical Assessment used from the sheet, no check rolled yet.
+      fighterToken.control({ releaseOthers: true });
+      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      const taAct = feat('Tactical Assessment').system.activities.contents[0];
+      const taUse = await taAct.use({}, { configure: false }, {});
+      const taCard = taUse?.message ?? null;
+      const chip = await waitFor(armedChip, 6000);
+      const armed = await waitFor(() => taCard?.getFlag(MOD, 'tacticalArmed') ?? null, 4000);
+      const dieMsg = game.messages.contents.filter(m => (m.timestamp >= suiteStart) && /Tactical Assessment — the die/.test(m.flavor ?? '')).at(-1);
+      ok('11a. the use rolls the die IN THE OPEN, spends the pool, puts an ARMED chip carrying the number on the fighter (History, Investigation, Insight) and the card says which check to make',
+        !!chip && !!armed && !!dieMsg && (chip.getFlag(MOD, 'armed')?.total === dieMsg.rolls?.[0]?.total) && (armed.total === chip.getFlag(MOD, 'armed')?.total)
+          && (JSON.stringify(chip.getFlag(MOD, 'armed')?.skills) === JSON.stringify(['his', 'inv', 'ins'])) && (poolLeft() === 3) && /History or Investigation/.test(armed.what ?? '') && !armed.spent,
+        `chip=${JSON.stringify(chip?.getFlag(MOD, 'armed'))} card=${JSON.stringify(armed)} die=${dieMsg?.rolls?.[0]?.total} pool=${poolLeft()}`);
+      const notice = await waitFor(() => dialogWith('the die rolled'), 6000);
+      // (user, 2026-09-05): the checks ARE the buttons — History, Investigation, Insight; no OK.
+      const skillButtons = [...(notice?.element?.querySelectorAll('button[data-action^="skill-"]') ?? [])].map(b => b.dataset.action);
+      ok('11b. the popup offers the three checks as buttons — History, Investigation, Insight — and no OK', !!notice && (JSON.stringify(skillButtons) === JSON.stringify(['skill-his', 'skill-inv', 'skill-ins'])) && !notice.element?.querySelector('button[data-action="ok"]'),
+        `notice=${!!notice} buttons=${JSON.stringify(skillButtons)}`);
+      await closeDialogs();
+      await sleep(200);
+      // An Athletics check leaves the chip alone; a History check spends it and folds the number in.
+      const athRolls = await fighter.rollSkill({ skill: 'ath' }, { configure: false }, {});
+      await sleep(500);
+      ok('11c. an Athletics check does not spend the armed die', !!armedChip() && !(athRolls?.[0]?.parent?.getFlag(MOD, 'd20fold')?.armed), `chip=${!!armedChip()}`);
+      await closeDialogs();
+      const hisRolls = await fighter.rollSkill({ skill: 'his' }, { configure: false }, {});
+      const hisMsg = hisRolls?.[0]?.parent ?? null;
+      const folded = await waitFor(() => { const fl = hisMsg?.getFlag(MOD, 'd20fold'); return fl?.armed ? fl : null; }, 8000);
+      await sleep(400);
+      ok('11d. the History check folds the armed number in by itself — no rescue ask for Tactical Assessment, the total patched, the chip spent, the card marked; the pool untouched (spent at the use)',
+        !!folded && (folded.spends?.[0]?.name === 'Tactical Assessment') && (folded.spends?.[0]?.die === armed?.total) && (folded.foldedTotal === folded.baseTotal + (armed?.total ?? 0))
+          && !armedChip() && !(folded.offers ?? []).some(o => o.name === 'Tactical Assessment') && (poolLeft() === 3) && !!taCard?.getFlag(MOD, 'tacticalArmed')?.spent,
+        `flag=${JSON.stringify(folded && { spends: folded.spends, base: folded.baseTotal, folded: folded.foldedTotal, offers: folded.offers?.map(o => o.name), status: folded.status })} chip=${!!armedChip()} pool=${poolLeft()} spent=${JSON.stringify(taCard?.getFlag(MOD, 'tacticalArmed')?.spent)}`);
+      await closeDialogs();
+      // Ambush armed, then Initiative: the combatant's number moves by the armed die.
+      await refill();
+      const amAct = feat('Ambush').system.activities.contents[0];
+      const amUse = await amAct.use({}, { configure: false }, {});
+      const amChip = await waitFor(armedChip, 6000);
+      await closeDialogs();
+      combat = await Combat.create({ scene: scene.id, active: true });
+      await combat.createEmbeddedDocuments('Combatant', [{ actorId: fighter.id, tokenId: fighterDoc.id, sceneId: scene.id }, { actorId: goblin.id, tokenId: goblinDoc.id, sceneId: scene.id, initiative: 5 }]);
+      await sleep(300);
+      face(10);
+      await fighter.rollInitiative({ createCombatants: false, rerollInitiative: true }, { configure: false });
+      const combatant = combat.combatants.find(c => c.actorId === fighter.id);
+      const initMsg = await waitFor(() => game.messages.contents.slice(-10).reverse().find(m => m.getFlag('core', 'initiativeRoll') && m.getFlag(MOD, 'd20fold')?.armed) ?? null, 8000);
+      await sleep(400);
+      const initFlag = initMsg?.getFlag(MOD, 'd20fold');
+      ok('11e. Ambush armed from the sheet moves the Initiative by the armed die with no ask, the chip spent',
+        !!amChip && !!initFlag && (initFlag.spends?.[0]?.name === 'Ambush') && (combat.combatants.get(combatant?.id)?.initiative === initFlag.baseTotal + (amChip.getFlag(MOD, 'armed')?.total ?? 0)) && !armedChip(),
+        `chip=${JSON.stringify(amChip?.getFlag(MOD, 'armed'))} flag=${JSON.stringify(initFlag && { spends: initFlag.spends, base: initFlag.baseTotal, folded: initFlag.foldedTotal })} init=${combat.combatants.get(combatant?.id)?.initiative} chipLeft=${!!armedChip()} use=${!!amUse}`);
+      await closeDialogs();
+      await combat.delete(); combat = null;
       await clearChips();
     }
 

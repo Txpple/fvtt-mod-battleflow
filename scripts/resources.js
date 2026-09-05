@@ -52,6 +52,8 @@
  * immediate — it is the ledger, not the attention.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, statContext } from "./core.js";
+import { poolSpendsOn } from "./shared.js";
+import { spendLine } from "./decide/present.js";
 
 const flashed = new Set();
 // (cc): flashes held for an ability's own dice — usage message id → the armed flash.
@@ -68,34 +70,11 @@ const isUsage = m => (m.type === "usage") || (m.getFlag("dnd5e", "messageType") 
  * read LIVE off the post-consumption document — the item update commits before the message
  * is created, so by the time any client renders this, the remaining count is the truth.
  */
-function spendRows(message) {
-  if ( !isUsage(message) ) return [];
-  const deltas = message.system?.deltas;
-  if ( !deltas ) return [];
-  const actor = message.getAssociatedActor?.();
-  if ( !actor?.hasPlayerOwner ) return [];
-  const rows = [];
-  for ( const [itemId, changes] of Object.entries(deltas.item ?? {}) ) {
-    const item = actor.items.get(itemId);
-    if ( !item ) continue;
-    for ( const { keyPath, delta } of (changes ?? []) ) {
-      if ( !(delta > 0) ) continue;
-      if ( keyPath === "system.uses.spent" ) {
-        const uses = item.system.uses;
-        if ( !(uses?.max > 0) || !(uses.recovery?.length) ) continue;
-        rows.push({ pool: item.name, spent: delta, left: uses.value ?? 0, max: uses.max });
-      } else {
-        const m = /^system\.activities\.([a-zA-Z0-9]+)\.uses\.spent$/.exec(keyPath);
-        if ( !m ) continue;
-        const act = item.system.activities?.get?.(m[1]);
-        const uses = act?.uses;
-        if ( !(uses?.max > 0) || !(uses.recovery?.length) ) continue;
-        rows.push({ pool: act.name || item.name, spent: delta, left: uses.value ?? 0, max: uses.max });
-      }
-    }
-  }
-  return rows;
-}
+// ⚠ MOVED to shared.js `poolSpendsOn` (2026-09-05, user: "a single pass-through function all the
+// maneuvers call so it's uniform"): the same reader now also returns the module's own hand spends
+// (Parry at the hold, the hit menu at the damage — `poolSpend` records written by
+// `spendSuperiorityDie`), so the flash, the card line and every maneuver's subtitle agree.
+const spendRows = message => poolSpendsOn(message);
 
 /** The ability that was used, as the card names it. */
 function usedName(message) {
@@ -137,7 +116,7 @@ function flashBanner(actorName, ability, rows) {
   const stack = document.querySelectorAll(".bf-resource-banner").length;
   const banner = document.createElement("div");
   banner.className = "bf-resource-banner";
-  const detail = rows.map(r => `${esc(r.pool)}: ${r.left} of ${r.max} remaining`).join(" &nbsp;·&nbsp; ");
+  const detail = rows.map(r => esc(spendLine(r))).join(" &nbsp;·&nbsp; ");
   banner.innerHTML = `<div style="font-size:40px;">${esc(actorName)} used ${esc(ability)}</div>`
     + `<div style="font-size:26px;opacity:0.9;">${detail}</div>`;
   Object.assign(banner.style, {
@@ -212,6 +191,22 @@ Hooks.on("createChatMessage", message => {
   flashBanner(actorName, ability, rows);
 });
 
+// A HAND spend arrives as an UPDATE (Parry's answer folds onto the attack message; the hit
+// menu's record rides the damage message's birth flag, which `createChatMessage` above already
+// reads). Same idiom: young messages only, each record flashes once per client, the ability
+// named by the record itself. (2026-09-05, the uniform spend.)
+Hooks.on("updateChatMessage", message => {
+  if ( !setting(S.resourceNotices) ) return;
+  const rows = spendRows(message).filter(r => r.at);
+  if ( !rows.length ) return;
+  const fresh = rows.filter(r => (Math.abs(Date.now() - r.at) <= 10_000) && !flashed.has(`${message.id}|${r.at}`));
+  if ( !fresh.length ) return;
+  for ( const r of fresh ) flashed.add(`${message.id}|${r.at}`);
+  let actorName = "Someone";
+  try { actorName = (fresh[0].actorUuid ? fromUuidSync(fresh[0].actorUuid)?.name : null) ?? message.getAssociatedActor?.()?.name ?? "Someone"; } catch { /* the name is decoration */ }
+  flashBanner(actorName, fresh[0].ability ?? "an ability", fresh);
+});
+
 /* ---------------------------------------------------------------------------------------------
  * The data-plane stamp — the ledger's spend record, written once at spend time (2026-08-27)
  *
@@ -254,6 +249,6 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
   div.innerHTML = rows.map(r =>
     `<i class="fa-solid fa-hourglass-half" data-tooltip="${esc(r.pool)}"></i> `
-    + `${esc(r.pool)} — <strong>${r.left} of ${r.max}</strong> remaining`).join("<br>");
+    + esc(spendLine(r)).replace(/(\d+ of \d+)/, "<strong>$1</strong>")).join("<br>");
   content.appendChild(div);
 });

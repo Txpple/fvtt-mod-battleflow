@@ -113,6 +113,18 @@ export function bfCard({ img, eyebrow, title, subtitle, lines = [], tone = "neut
 export const ruleLine = text => `<em>“${text}”</em>`;
 
 /**
+ * THE ONE WORDING FOR A SPENT DIE (user, 2026-09-05: the popup, the card and the floating text
+ * must agree on the spend and on how many are left): `Combat Superiority: 3 of 4 remaining`.
+ * The flash, the card line and every maneuver's subtitle say exactly this; `spendPhrase` is the
+ * short form for a subtitle that leads with the spend.
+ * @param {{pool: string, left: number, max: number}} row
+ */
+export const spendLine = row => `${row.pool}: ${row.left} of ${row.max} remaining`;
+/** "one Superiority Die spent · Combat Superiority: 3 of 4 remaining" — or the bare spend when no row is known. */
+export const spendPhrase = (rows, die = "Superiority Die") => rows?.length
+  ? `one ${die} spent · ${rows.map(spendLine).join(" · ")}` : `one ${die} spent`;
+
+/**
  * The situational-bonus row every popup that STANDS IN FOR A ROLL DIALOG carries — the
  * concentration ask, the save ask, the Topple demand and the reminder gate — the native
  * dialog's own control, in the module's popup. `name` is the input's name, so the caller reads
@@ -267,7 +279,11 @@ export function cunningMenuHTML({ rows, max, dc, dice, chosen = [] }) {
  * the type, the uses left after as the tag, and the rule folded under it — NOTHING ELSE (user,
  * 2026-09-03: "I don't want that little blurb … it just should be the tick to open and inspect
  * the rule, plain and simple"). The clock's reason (`why`) stays on the CARD, where R5 wants it,
- * and off the offer; a row's caveat, where one exists, is the one line allowed.
+ * and off the offer. ⚠ NO CAVEAT LINE EITHER (user, 2026-09-05, on Lunging Attack's "if you
+ * moved at least 5 feet…": "you keep making this mistake … putting extra text above the rule
+ * tick") — a row is the tick, the name and the dice, then the fold; a condition the module
+ * cannot judge is in the rule quote already. The `caveat` field is accepted and IGNORED here so
+ * callers need not change; the card is where it may be said.
  * @param {{key: string, label: string, formula: string|null, type: string|null, why: string, rule: string,
  *          usesLeft?: number|null, caveat?: string}[]} riders
  */
@@ -281,7 +297,6 @@ export function riderMenuHTML(riders) {
         <input type="checkbox" name="bf-rider" value="${attr(r.key)}" checked style="margin:0;">
         <span style="font-weight:bold;">${attr(r.label)} — ${attr(r.formula)}${r.type ? ` ${attr(r.type)}` : ""}</span>
         <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;">${(r.usesLeft === null) || (r.usesLeft === undefined) ? "" : `${Math.max(0, r.usesLeft - 1)} use${(r.usesLeft - 1) === 1 ? "" : "s"} left after`}</span>
-        ${r.caveat ? `<span style="grid-column:2 / -1;font-size:var(--font-size-11,11px);opacity:0.8;">${attr(r.caveat)}</span>` : ""}
         ${foldedRuleHTML(r.rule).replace("grid-column:1 / -1", "grid-column:2 / -1")}
       </label>`).join("");
   return `
@@ -312,7 +327,6 @@ export function hitMenuHTML({ groups }) {
         <input type="checkbox" name="bf-hit" value="${attr(r.key)}" data-bf-hit-group="${attr(g.key)}" ${r.affordable ? "" : "disabled"} style="margin:0;">
         <span style="font-weight:bold;">${attr(r.label)}</span>
         <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;">${attr(r.cost)}</span>
-        ${r.caveat ? `<span style="grid-column:2 / -1;font-size:var(--font-size-11,11px);opacity:0.8;">${attr(r.caveat)}</span>` : ""}
         ${foldedRuleHTML(r.rule).replace("grid-column:1 / -1", "grid-column:2 / -1")}
       </label>`).join("");
     return `
@@ -552,9 +566,12 @@ export const RESCUE_SOURCES = [
       // so rendering them unconditionally puts LIVE, PRESSABLE buttons on a moment that is
       // already over. Seen at the table on 2026-08-24: the window timed out, both cards said
       // so, and it went on offering a reroll of a d20 nobody could still spend on.
+      // ⚠ TWO `tactical` ROWS CAN STAND AT ONCE (Tactical Mind and Ambush on one Stealth check,
+      // 2026-09-05: both quotes showed stacked and a press could answer the wrong row), so a
+      // tactical row's action carries its NAME — `tactical:Ambush`; every other kind is one row.
       ...((flag?.status === "pending") ? (flag?.offers ?? []) : []).map(o => ({
         kind: o.kind,
-        action: o.kind,
+        action: (o.kind === "tactical") ? `tactical:${o.name}` : o.kind,
         label: rescueLabel(o),
         die: o.dieFormula ?? null,
         spent: false,
@@ -569,7 +586,7 @@ export const RESCUE_SOURCES = [
       // number under `reroll` because a reroll brings its own crit and fumble with it.
       ...(flag?.spends ?? []).map(s => ({
         kind: s.kind,
-        action: s.kind,
+        action: (s.kind === "tactical") ? `tactical:${s.name}` : s.kind,
         label: rescueLabel(s),
         die: null,
         spent: true,
@@ -725,7 +742,7 @@ export function rescueView(read, { composed = null, reveal = false,
       rows.push({
         ...row,
         flag: source.flag,
-        key: `${source.flag}:${row.kind}`,
+        key: `${source.flag}:${(row.kind === "tactical") ? row.action : row.kind}`,   // one key per ROW where a kind can stand twice
         icon: RESCUE_KINDS[row.kind]?.icon ?? "fa-solid fa-dice-d20",
         img: row.img ?? null,
         cost: row.cost ?? RESCUE_KINDS[row.kind]?.cost ?? null,

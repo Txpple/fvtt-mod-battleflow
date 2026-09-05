@@ -2,8 +2,11 @@
  * Battle Flow — Phase 3 (cast slice): the elect executes a stamped cast payload - utility effects and healing, receipts throughout.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, isActiveGM } from "./core.js";
+import { MODULE_ID, TITLE, canAnswerFor, isActiveGM, queueFlagWrite } from "./core.js";
 import { damagePartsOf, statSourceOf } from "./shared.js";
+import { bfCard, popupKey, ruleLine } from "./decide/present.js";
+import { effectsAfterChoice } from "./decide/choices.js";
+import { momentButton, openMomentPopup, shownMoments } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 
@@ -41,7 +44,13 @@ async function executeCastApply(message) {
     if ( !payload?.targets?.length ) return;
     if ( message.getFlag(MODULE_ID, "effectReceipt")?.castDone ) return;
     const activity = payload.activityUuid ? await fromUuid(payload.activityUuid) : null;
-    const effects = activity?.applicableEffects ?? [];
+    const applicable = activity?.applicableEffects ?? [];
+    // A cast with a CHOICE between alternative effects (Fire Shield's warm or chill shield,
+    // 2026-09-05) waits on the card until the caster answers; then only the pick lands.
+    const names = effectsAfterChoice(applicable.map(e => e.name), payload.choice ?? null);
+    if ( names === null ) return;   // pending — the caster's popup is open on their client
+    const wanted = new Set(names.map(n => String(n).toLowerCase()));
+    const effects = applicable.filter(e => wanted.has(String(e.name).toLowerCase()));
     if ( !effects.length ) return;
     // The caster's concentration effect, for origin linkage — the tray's own rule
     // (concentration ?? effect); the riders' origin walk handles both shapes downstream.
@@ -91,4 +100,59 @@ function resolveStampedCast(message) {
 }
 Hooks.on("createChatMessage", resolveStampedCast);
 Hooks.on("dnd5e.renderChatMessage", message => resolveStampedCast(message));
+// The choice answered (the caster's flag write below) — the elect applies the pick.
+Hooks.on("updateChatMessage", message => { if ( message.getFlag(MODULE_ID, "castApply")?.choice?.chosen ) resolveStampedCast(message); });
+
+/* ---------------------------------------------------------------------------------------------
+ * THE CHOICE (user, 2026-09-05: "when i apply warm or chill shield, it applies both … this
+ * should also be a popup asking the player which shield to apply") — the moment spine, on the
+ * caster's own usage card. polish.js stamps the pending choice at birth (EFFECT_CHOICES, the
+ * Effect Choices list); the popup opens on the caster's client (a GM answers for an unowned
+ * caster — the hold's `canAnswerFor`), the answer is a fold onto the caster's OWN card, which
+ * the caster can always write, and the elect applies only the pick. No clock: a cast is the
+ * caster's own moment, nobody else is waiting on it, and the card's button reopens the popup.
+ * ------------------------------------------------------------------------------------------- */
+
+async function chooseEffect(card, name) {
+  const choice = card.getFlag(MODULE_ID, "castApply")?.choice;
+  if ( !choice || choice.chosen || !choice.options?.includes(name) ) return;
+  await queueFlagWrite(card, "castApply", current => {
+    if ( !current.choice || current.choice.chosen ) return false;
+    current.choice.chosen = name;
+    current.choice.answeredAt = Date.now();
+  });
+}
+
+async function showChoicePopup(card) {
+  const payload = card.getFlag(MODULE_ID, "castApply");
+  const choice = payload?.choice;
+  if ( !choice || choice.chosen ) return;
+  const actor = payload.targets?.[0]?.uuid ? fromUuidSync(payload.targets[0].uuid) : null;
+  let item = null;
+  try { item = fromUuidSync(card.getFlag("dnd5e", "item")?.uuid ?? ""); } catch { item = null; }
+  await openMomentPopup(card, "effectChoice", actor, {
+    title: `${choice.key} — ${actor?.name ?? ""}`, icon: "fa-solid fa-code-branch",
+    content: bfCard({ img: item?.img ?? null, eyebrow: `Cast — ${choice.key}`, tone: "pending",
+      title: choice.ask ?? "Which effect?", lines: [ruleLine(choice.rule)] }),
+    buttons: choice.options.map((name, i) => ({ action: `pick-${i}`, label: name, default: i === 0, callback: () => chooseEffect(card, name) }))
+  });
+}
+
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  const payload = message.getFlag(MODULE_ID, "castApply");
+  const choice = payload?.choice;
+  if ( !choice ) return;
+  const line = document.createElement("div");
+  line.innerHTML = bfCard({ eyebrow: `Cast — ${choice.key}`, tone: choice.chosen ? "good" : "pending",
+    title: choice.chosen ? `${choice.chosen} — the caster's choice` : (choice.ask ?? "Which effect?"),
+    subtitle: choice.chosen ? "" : `the cast waits for the pick — ${choice.options.join(" or ")}`,
+    lines: [ruleLine(choice.rule)] });
+  html.querySelector(".message-content")?.appendChild(line);
+  if ( choice.chosen ) return;
+  const actor = payload.targets?.[0]?.uuid ? fromUuidSync(payload.targets[0].uuid) : null;
+  if ( !canAnswerFor(actor) ) return;
+  const shownKey = popupKey(message.id, "effectChoice");
+  if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showChoicePopup(message); }
+  line.appendChild(momentButton(`Choose — ${choice.key}`, () => void showChoicePopup(message)));
+});
 

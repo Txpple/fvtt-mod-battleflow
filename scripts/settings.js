@@ -256,6 +256,15 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.superiorityUses.default
   });
 
+  // EFFECT CHOICES (user, 2026-09-05: "it applies both … a popup asking the player which shield"):
+  // a cast whose activity ships alternative effects asks the caster which one at the cast; only
+  // the pick lands. A list; the list is the switch.
+  game.settings.register(MODULE_ID, S.effectChoiceList, {
+    name: "Effect Choices",
+    hint: "A spell whose cast offers a choice between effects, by the spell's own name, separated by commas — Fire Shield (a warm shield or a chill shield). When a listed spell is cast, a popup asks the caster which effect to take and only that one lands on the sheet; the cast waits on the card until the choice is made, and the card's button reopens it. Remove a name to have every effect the pack ships land at once.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.effectChoices.default
+  });
+
   game.settings.register(MODULE_ID, S.effectRiders, {
     name: "Effect Riders",
     hint: "A hit applies the effects riding it: the attack's own effects land on the targets it hit, through the system's application path — Ray of Frost's slow arrives with its damage instead of waiting for a click in the card's tray. Every application leaves a receipt on the damage card with a per-effect revert.",
@@ -590,4 +599,9 @@ export function damageSaveEntries() {
 /** Which rows of the superiority-use table the module plays, by the feature's name — `{ kind }`. */
 export function superiorityUseEntries() {
   return listEntries(LIST_SPECS.superiorityUses);
+}
+
+/** Which rows of the effect-choice table ask at the cast, by the spell's name — `{ kind }`. */
+export function effectChoiceEntries() {
+  return listEntries(LIST_SPECS.effectChoices);
 }

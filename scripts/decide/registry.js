@@ -626,6 +626,32 @@ export const DAMAGE_SHIELDS = Object.freeze({
 export const DAMAGE_SHIELD_NAMES = new Set(Object.keys(DAMAGE_SHIELDS).map(n => n.toLowerCase()));
 
 /**
+ * EFFECT CHOICES (user, 2026-09-05: "when i apply warm or chill shield, it applies both … this
+ * should also be a popup asking the player which shield to apply"). A cast whose activity ships
+ * SEVERAL effects that the text makes alternatives — "as you choose" — and marks nothing to say
+ * so: the cast slice, reading "a utility with effects", landed every one. The choice is the
+ * caster's (R1), asked at the cast the way Spirit Guardians' damage type is asked (the moment
+ * spine, a popup on the caster's own card); only the pick lands. Measured on the packs:
+ *
+ *   Fire Shield        (PHB, L4, self) ships Warm Shield (Resistance to Cold) AND Chill Shield
+ *                      (Resistance to Fire) on one utility activity — one stands, the caster's pick.
+ *
+ *   effects   the pack's effect NAMES that are alternatives, in the order the popup offers them
+ *   ask       the popup's question
+ *
+ * Membership is the Effect Choices list (the item names). A row whose activity carries fewer than
+ * two of the names asks nothing (decide/choices.js). The effects themselves are the pack's (N1).
+ */
+export const EFFECT_CHOICES = Object.freeze({
+  "Fire Shield": Object.freeze({ effects: Object.freeze(["Warm Shield", "Chill Shield"]), ask: "A warm shield or a chill shield?",
+    rule: "The flames provide you with a warm shield or a chill shield, as you choose. The warm shield grants you Resistance to Cold damage, and the chill shield grants you Resistance to Fire damage.",
+    from: "PHB, level 4 (10 minutes)" })
+});
+
+/** The choices' item names, lower-cased — the closed set the Effect Choices list is validated against. */
+export const EFFECT_CHOICE_NAMES = new Set(Object.keys(EFFECT_CHOICES).map(n => n.toLowerCase()));
+
+/**
  * DAMAGE SAVES (user, 2026-09-04: "make heat metal spell work"). A bare damage activity whose
  * text ties a SAVE to taking the damage — the 2024 PHB's Heat Metal: "Cast and Heat" (2d8 Fire
  * at the object's holder) and "Reheat" (the same as a Bonus Action on later turns) are damage
@@ -1269,6 +1295,13 @@ export const LIST_SPECS = {
     // case-insensitive. Membership over SUPERIORITY_USES; the mechanism is superiority-uses.js.
     columns: ["kind"], kindColumn: "kind", kinds: SUPERIORITY_USE_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(SUPERIORITY_USES).join(", ")
+  },
+  effectChoices: {
+    label: "Effect Choices", setting: "effectChoiceList",
+    // Which rows of the effect-choice table ask at the cast — the ITEM names, whole-chunk,
+    // case-insensitive. Membership over EFFECT_CHOICES; the mechanism is cast.js.
+    columns: ["kind"], kindColumn: "kind", kinds: EFFECT_CHOICE_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(EFFECT_CHOICES).join(", ")
   },
   damageSaves: {
     label: "Damage Saves", setting: "damageSaveList",

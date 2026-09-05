@@ -4,8 +4,8 @@
  */
 import { MODULE_ID, TITLE, S, setting, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { superiorityUseEntries } from "./settings.js";
-import { chipData, hitTargets, placeOf } from "./shared.js";
-import { bfCard, holdBarHTML, popupKey, riderMenuHTML, ruleLine } from "./decide/present.js";
+import { chipData, hitTargets, placeOf, poolSpendsOn } from "./shared.js";
+import { bfCard, holdBarHTML, popupKey, riderMenuHTML, ruleLine, spendPhrase } from "./decide/present.js";
 import { MANEUVER_FEATURE_NAMES, SUPERIORITY_USES } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 import { riderPartFormula } from "./decide/clock.js";
@@ -115,7 +115,7 @@ async function drive(row, activity, actor, message) {
   const item = activity.item;
   const die = dieOf(actor, activity);
   const targets = (message.getFlag("dnd5e", "targets") ?? []).map(t => ({ uuid: t.uuid, name: t.name }));
-  const base = { ...statContext(actor.uuid), key: row.key, die, rule: row.rule };
+  const base = { ...statContext(actor.uuid), key: row.key, die, rule: row.rule, itemImg: item.img ?? null };
   if ( row.bonus ) {
     // Evasive Footwork: the die rolled in the open, the number on the sheet until the start of the next turn.
     const roll = die ? await new Roll(die).evaluate() : null;
@@ -146,7 +146,8 @@ async function drive(row, activity, actor, message) {
     await message.setFlag(MODULE_ID, "superiorityUse", { ...base, total: roll?.total ?? null,
       line: roll ? `${row.choice.what} +${roll.total} until the start of your next turn — yours or the other creature's` : "the die could not be read — apply the bonus by hand" });
     if ( !roll ) return;
-    await message.setFlag(MODULE_ID, "baitSwitch", { ...statContext(actor.uuid), status: "pending", key: row.key, itemUuid: item.uuid,
+    // ⚠ `rule` rides this flag too: the popup and the card quote it (a first live run printed “undefined”).
+    await message.setFlag(MODULE_ID, "baitSwitch", { ...statContext(actor.uuid), status: "pending", key: row.key, rule: row.rule, itemUuid: item.uuid, itemImg: item.img ?? null,
       total: roll.total, effectName: `${row.choice.effectPrefix}${roll.total}`, options, chosen: null, resolved: null,
       ...(window && other ? { window, deadline: Date.now() + (window * 1000) } : {}) });
     // Nobody else to choose: the fighter wears it, no question asked.
@@ -203,8 +204,9 @@ async function showBaitPopup(card) {
   await openMomentPopup(card, "bait", actor, {
     title: `${bs.key} — ${actor?.name ?? ""}`, icon: "fa-solid fa-people-arrows",
     content: bfCard({ img: item?.img ?? null, eyebrow: `Maneuver — ${bs.key}`, tone: "pending",
-      title: `Who gains AC +${bs.total} until the start of your next turn?`,
-      lines: [ruleLine(bs.rule)] }) + holdBarHTML(bs, "to choose"),
+      title: `The die rolled ${bs.total} — who gains the AC?`,
+      subtitle: `${spendPhrase(poolSpendsOn(card))} · AC +${bs.total} until the start of your next turn`,
+      lines: [ruleLine(bs.rule)] }) + holdBarHTML(bs, "to answer"),
     buttons: bs.options.map((o, i) => ({ action: `pick-${i}`, label: `${o.name} (+${bs.total} AC)`, default: i === 0, callback: () => chooseBait(card, o.uuid) }))
   });
 }
@@ -274,7 +276,8 @@ registerOfferPart({
     if ( !l ) return null;
     let ticked = !!l.die;
     return {
-      html: l.die ? riderMenuHTML([{ key: "lunge", label: l.row.key, formula: l.die, type: l.type, why: l.row.rider.caveat, rule: l.row.rule, caveat: l.row.rider.caveat }]) : "",
+      // The tick, the name and the dice, then the fold — nothing above the rule (user, 2026-09-05).
+      html: l.die ? riderMenuHTML([{ key: "lunge", label: l.row.key, formula: l.die, type: l.type, why: l.row.rider.caveat, rule: l.row.rule }]) : "",
       lines: l.die ? [] : [`<strong>${l.row.key}</strong> stands, but its die could not be read off the sheet — add it by hand.`],
       wire(element) {
         const box = element?.querySelector('input[name="bf-rider"][value="lunge"]');
@@ -344,25 +347,31 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const su = message.getFlag(MODULE_ID, "superiorityUse");
   if ( su ) {
     const line = document.createElement("div");
-    line.innerHTML = bfCard({ eyebrow: `Maneuver — ${su.key}`, tone: su.die ? "good" : "neutral",
+    // The maneuver card's one shape (user, 2026-09-05: "the same UI language and design as
+    // Riposte"): the feature's art, `Maneuver — Name`, `Name — what happened`, who and the cost.
+    // The spend, worded the one way (spendPhrase — the flash and the card line say the same).
+    const spend = spendPhrase(poolSpendsOn(message));
+    line.innerHTML = bfCard({ img: su.itemImg ?? null, eyebrow: `Maneuver — ${su.key}`, tone: su.die ? "good" : "neutral",
       title: su.total !== undefined && su.total !== null ? `${su.key} — the die rolled ${su.total}` : `${su.key} — ${su.die ?? "the die"} armed`,
-      subtitle: su.line ?? "", lines: [ruleLine(su.rule)] });
+      subtitle: `${spend}${su.line ? ` · ${su.line}` : ""}`, lines: [ruleLine(su.rule)] });
     html.querySelector(".message-content")?.appendChild(line);
   }
   const bs = message.getFlag(MODULE_ID, "baitSwitch");
   if ( bs ) {
     const chosenName = bs.options?.find(o => o.uuid === bs.chosen)?.name ?? null;
+    const fighterName = bs.options?.[0]?.name ?? "the fighter";
     const line = document.createElement("div");
-    line.innerHTML = bfCard({ eyebrow: "Bait and Switch", tone: bs.resolved ? "good" : "pending",
-      title: bs.resolved ? `${bs.resolved.name ?? chosenName}: AC +${bs.total} until the start of ${bs.options?.[0]?.name ?? "the fighter"}'s next turn${bs.timedOut ? " (the clock chose the fighter)" : ""}${bs.resolved.applied ? "" : " — the pack's effect was not found; apply it by hand"}`
-        : chosenName ? `${chosenName} — applying` : `Who gains AC +${bs.total}?`,
-      lines: [ruleLine(bs.rule)] }) + ((!bs.chosen && bs.deadline) ? holdBarHTML(bs, "to choose") : "");
+    line.innerHTML = bfCard({ img: bs.itemImg ?? null, eyebrow: `Maneuver — ${bs.key}`, tone: bs.resolved ? "good" : "pending",
+      title: bs.resolved ? `${bs.key} — ${bs.resolved.name ?? chosenName} gains AC +${bs.total}${bs.timedOut ? " (timer — the fighter)" : ""}${bs.resolved.applied ? "" : "; the pack's effect was not found — apply it by hand"}`
+        : chosenName ? `${bs.key} — ${chosenName} gains AC +${bs.total}` : `${bs.key} — who gains AC +${bs.total}?`,
+      subtitle: `${spendPhrase(poolSpendsOn(message))}${bs.resolved ? ` · until the start of ${fighterName}'s next turn` : ""}`,
+      lines: [ruleLine(bs.rule)] }) + ((!bs.chosen && bs.deadline) ? holdBarHTML(bs, "to answer") : "");
     html.querySelector(".message-content")?.appendChild(line);
     const actor = bs.sourceUuid ? fromUuidSync(bs.sourceUuid) : null;
     if ( !bs.chosen && canAnswerFor(actor) ) {
       const shownKey = popupKey(message.id, "bait");
       if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showBaitPopup(message); }
-      line.appendChild(momentButton("Choose — Bait and Switch", () => void showBaitPopup(message)));
+      line.appendChild(momentButton(`Answer — ${bs.key}`, () => void showBaitPopup(message)));
     }
     armBaitTimer(message);
     if ( bs.chosen ) void settleBait(message);   // the resume floor
@@ -371,7 +380,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   if ( sr?.rode?.length ) {
     for ( const r of sr.rode ) {
       const line = document.createElement("div");
-      line.innerHTML = bfCard({ eyebrow: "Maneuver", tone: "good", title: `${r.key} — ${r.formula}${r.type ? ` ${r.type}` : ""} rode this roll`, subtitle: r.why, lines: [ruleLine(r.rule)] });
+      line.innerHTML = bfCard({ eyebrow: `Maneuver — ${r.key}`, tone: "good", title: `${r.key} — ${r.formula}${r.type ? ` ${r.type}` : ""} rode this roll`, subtitle: r.why, lines: [ruleLine(r.rule)] });
       html.querySelector(".message-content")?.appendChild(line);
     }
   }

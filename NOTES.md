@@ -851,6 +851,35 @@ order puts polish.js first). **The rule that generalises:** a pack that models a
 as a fan of effects is not content for the cast slice; the machine that rolls the number
 applies the one effect.
 
+**The second shape of the same finding (2026-09-05, the walk of the overnight four):** Fire
+Shield ships Warm Shield AND Chill Shield on its one utility activity — "as you choose" — and
+marks nothing to say they are alternatives, so the same stamp landed both on Gren and he wore
+Resistance to Cold and to Fire at once (the walk's "resistance didn't apply" was the pair
+landing, not the change failing: each effect carries its `system.traits.dr.value` add, measured
+on the PHB pack). The pack has no field for "one of these"; the module's EFFECT_CHOICES row is
+where that fact lives, and the cast slice asks (cast.js, the Effect Choices list). A cast with
+several effects that all stand together (Bless, the Paladin's auras) is unchanged.
+
+### A utility activity with a roll formula does NOT roll it at the use — and the card's button is hidden (2026-09-05, Tactical Assessment)
+
+The 2024 pack ships Tactical Assessment and Ambush as utility activities whose `roll.formula`
+is the Superiority Die, consuming Combat Superiority. `use()` spends the die and posts a card
+with a Roll button; it rolls nothing. Battle Flow hides the card's buttons (the v1.12.0 policy),
+so a player pressing the maneuver on their sheet BEFORE the check spent a die and got nothing —
+the walk's "Tactical Assessment does nothing". The rescue path (roll the check, be offered) never
+met this because it never uses the activity from the sheet. Now the use is the ARMING
+(d20-folds.js): the module rolls the formula itself, chips the number, and folds it into the
+next check the scope names. Same class as Heat Metal's follow-up dialog (above): dnd5e leaves a
+second click for the human, and the module has hidden the thing to click.
+
+### The offer row: NOTHING above the rule fold — the third time (2026-09-05)
+
+Cunning Strike's rows lost their caveat line on 2026-09-02 ("just the rule tick"), the hit
+menu's on 2026-09-04, and Lunging Attack's rider row shipped one anyway ("if you moved at least
+5 feet…"). User: "you keep making this mistake … putting extra text above the rule tick".
+`riderMenuHTML` and `hitMenuHTML` now IGNORE a row's `caveat`; a condition the module cannot
+judge is in the pack's own rule text, folded. The card is where a caveat may be said.
+
 ### dnd5e marks a 0-HP creature `dead` on its own (2026-09-05, Aura of Life)
 
 The built Ranger fixture at 0 HP wore the `dead` status without anyone pressing it, and a heal
@@ -887,6 +916,17 @@ exclude the sidebar classes; and the d20 folds' rescue window is the spine's own
 found through `document.querySelectorAll(".application")` with a `[data-bf-rescue-row]` inside,
 its rows `[data-bf-rescue-action="<kind>"]` elements, not `data-action` buttons (the d20-folds
 suite's idiom).
+
+### The combat tracker's roll never fires `dnd5e.rollInitiative` (2026-09-05, the walk)
+
+"Ambush works for Stealth but not for Initiative." The suite rolled through
+`Actor5e#rollInitiative`, where dnd5e's hook lives; the table presses the tracker's d20, which
+is `Combat#rollInitiative` → `Combatant#getInitiativeRoll` → an update and a message, and the
+actor method is never entered. The platform's own `flags.core.initiativeRoll` on the created
+message is the witness that covers BOTH roads, and by the time it exists the combatant's number
+is already written (Foundry updates the combatants before creating the messages). d20-folds.js
+stamps from that message too, latched so the two roads meet once. A suite that only exercises
+the API method is not exercising the button.
 
 ### `dnd5e.rollSkill` hands over the skill; `dnd5e.rollInitiative` fires after the number is set (5.3.3)
 

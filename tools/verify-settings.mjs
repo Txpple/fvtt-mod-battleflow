@@ -77,6 +77,7 @@ const REFERENCE = {
   damageShieldList: LIST_SPECS.damageShields.default,   // the whole damage-shield table, as shipped (2026-09-04)
   damageSaveList: LIST_SPECS.damageSaves.default,       // the whole damage-save table, as shipped (2026-09-04)
   superiorityUseList: LIST_SPECS.superiorityUses.default,   // the whole superiority-use table, as shipped (2026-09-05)
+  effectChoiceList: LIST_SPECS.effectChoices.default,       // the whole effect-choice table, as shipped (2026-09-05)
 };
 
 const f = new Foundry(foundryConfig(env));

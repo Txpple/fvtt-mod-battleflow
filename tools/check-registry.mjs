@@ -228,7 +228,7 @@ const rows = KIND_SETS.map(set => {
 // its dice at the use, and a listed row demands the save its text ties to the damage — Heat Metal).
 // 2026-09-05: 44 → 45, for scripts/superiority-uses.js (a MACHINE: the Battle Master's Bonus Action
 // maneuvers — Evasive Footwork, Bait and Switch, Lunging Attack, Feinting Attack).
-const EXPECTED_SOURCE_FILES = 45;
+const EXPECTED_SOURCE_FILES = 46;   // 2026-09-05: decide/choices.js (the cast-time effect choice)
 const sourceFiles = [
   ...readdirSync(join(ROOT, "scripts")).filter(f => f.endsWith(".js")),
   ...readdirSync(join(ROOT, "scripts/decide")).filter(f => f.endsWith(".js")).map(f => `decide/${f}`)

@@ -497,6 +497,76 @@ export async function spendPoolUse(pool) {
   return pool.update({ "system.uses.spent": Number(pool.system?.uses?.spent ?? 0) + 1 });
 }
 
+/**
+ * THE ONE PASS-THROUGH FOR A DIE THE MODULE SPENDS BY HAND (user, 2026-09-05: "when maneuvers
+ * are consumed, it's not consistent with the popup about consuming a sup die and how many are
+ * left in the floating text … maybe you need a single pass-through function all the maneuvers
+ * call so it's uniform"). A maneuver used through its own activity spends the pool through dnd5e,
+ * which stamps `system.deltas` on the usage card and resources.js flashes it; a maneuver the
+ * module plays WITHOUT a use (Parry at the hold, the hit menu at the damage) spent the pool
+ * silently. Now both roads meet in one record shape — `{pool, spent, left, max}`, the same row
+ * resources.js reads off dnd5e's deltas — written by this function onto the caller's own flag
+ * (`poolSpend`, or a hold target's), and `poolSpendsOn` reads either road so every card, popup
+ * and flash say the same thing (`spendLine` in decide/present.js).
+ *
+ * @returns {Promise<{pool: string, spent: number, left: number, max: number, ability: string, actorUuid: string|null, at: number}|null>}
+ */
+export async function spendSuperiorityDie(actor, pool, ability) {
+  if ( !pool ) return null;
+  await spendPoolUse(pool);
+  const uses = pool.system?.uses ?? {};
+  return { pool: pool.name, spent: 1, left: Math.max(0, Number(uses.value ?? 0)), max: Number(uses.max ?? 0),
+    ability: String(ability ?? pool.name), actorUuid: actor?.uuid ?? null, at: Date.now() };
+}
+
+/**
+ * Every pool spend a message records, in the one row shape — dnd5e's own `system.deltas` on a
+ * usage card (recovery-rhythm pools only, the resource notices' gate), the module's `poolSpend`
+ * flag (a hand spend, the function above), and a hold target's `poolSpend` (Parry's, at the
+ * answer). Player-owned actors only, the line the notices draw. `left`/`max` for a delta row are
+ * read LIVE off the post-consumption document, as resources.js always did.
+ * @returns {{pool: string, spent: number, left: number, max: number, ability?: string, at?: number}[]}
+ */
+export function poolSpendsOn(message) {
+  const rows = [];
+  const isUsage = (message?.type === "usage") || (message?.getFlag?.("dnd5e", "messageType") === "usage");
+  const actor = message?.getAssociatedActor?.() ?? null;
+  if ( isUsage && message.system?.deltas && actor?.hasPlayerOwner ) {
+    for ( const [itemId, changes] of Object.entries(message.system.deltas.item ?? {}) ) {
+      const item = actor.items.get(itemId);
+      if ( !item ) continue;
+      for ( const { keyPath, delta } of (changes ?? []) ) {
+        if ( !(delta > 0) ) continue;
+        if ( keyPath === "system.uses.spent" ) {
+          const uses = item.system.uses;
+          if ( !(uses?.max > 0) || !(uses.recovery?.length) ) continue;
+          rows.push({ pool: item.name, spent: delta, left: uses.value ?? 0, max: uses.max });
+        } else {
+          const m = /^system\.activities\.([a-zA-Z0-9]+)\.uses\.spent$/.exec(keyPath);
+          if ( !m ) continue;
+          const act = item.system.activities?.get?.(m[1]);
+          const uses = act?.uses;
+          if ( !(uses?.max > 0) || !(uses.recovery?.length) ) continue;
+          rows.push({ pool: act.name || item.name, spent: delta, left: uses.value ?? 0, max: uses.max });
+        }
+      }
+    }
+  }
+  const own = actor?.hasPlayerOwner ?? true;
+  const hand = [];
+  const flagged = message?.getFlag?.(MODULE_ID, "poolSpend");
+  if ( flagged ) hand.push(...(Array.isArray(flagged) ? flagged : [flagged]));
+  for ( const t of (message?.getFlag?.(MODULE_ID, "hold")?.targets ?? []) ) if ( t.poolSpend ) hand.push(t.poolSpend);
+  const hm = message?.getFlag?.(MODULE_ID, "hitManeuver");
+  if ( hm?.poolSpend ) hand.push(hm.poolSpend);
+  for ( const r of hand ) {
+    let spender = null;
+    try { spender = r.actorUuid ? fromUuidSync(r.actorUuid) : null; } catch { spender = null; }
+    if ( (spender ? spender.hasPlayerOwner : own) && (r.max > 0) ) rows.push(r);
+  }
+  return rows;
+}
+
 /** Aim the user's targets at these tokens for the duration of `fn`, then put them back. */
 export async function withTargets(tokens, fn) {
   const before = [...game.user.targets];

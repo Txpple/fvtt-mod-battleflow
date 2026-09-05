@@ -6,9 +6,10 @@
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
   canAnswerFor, inRunningCombat, combatStamp, statContext } from "./core.js";
 import { maneuverFoldEntries } from "./settings.js";
-import { hitTargets, modeAllows, reactionSpent, spendReaction } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, RESCUE_KINDS,
+import { chipData, hitTargets, modeAllows, placeOf, poolSpendsOn, reactionSpent, spendReaction } from "./shared.js";
+import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, spendPhrase, RESCUE_KINDS,
   rescueView, rescueSourceFor } from "./decide/present.js";
+import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 // The same four names d20-folds.js takes, for the same reason and off the same registry: a
 // resolver that announces a verdict must compose it, and there is exactly one composition.
 import { ATTACK_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
@@ -376,7 +377,7 @@ async function resolvePrecision(message) {
         img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`,
         tone: anyHit ? "good" : "neutral",
         title: anyHit ? `${flag.itemName} — the miss becomes a hit` : `${flag.itemName} — still a miss`,
-        subtitle: `${attacker.name} spends a superiority die`,
+        subtitle: spendPhrase([]),   // the usage card the use posted carries the count (resources.js)
         lines
       })
     });
@@ -1362,7 +1363,6 @@ Hooks.on("deleteChatMessage", message => {
   disarmAskTimer(precisionTimers, message.id);
   disarmAskTimer(bashOfferTimers, message.id);
   disarmRiposteTimer(message.id);
-  disarmDeadline(commandTimers, message.id);
 });
 
 /* =============================================================================================
@@ -1387,20 +1387,6 @@ Hooks.on("deleteChatMessage", message => {
  *   THE CLOCK — the timer declines; the die is already spent (the use spent it).
  * ========================================================================================== */
 
-/** Every attack activity the ally carries, melee first, equipped first (the riposte's options widened to ranged). */
-function attackOptions(actor) {
-  const out = [];
-  for ( const item of actor.items.filter(i => i.type === "weapon") ) {
-    for ( const a of (item.system.activities?.contents ?? []) ) {
-      if ( a.type !== "attack" ) continue;
-      out.push({ itemId: item.id, activityId: a.id, name: item.name, equipped: !!item.system.equipped,
-        melee: a.attack?.type?.value === "melee", label: item.name + (item.system.equipped ? "" : " (stowed)") });
-    }
-  }
-  out.sort((a, b) => (Number(b.melee) - Number(a.melee)) || (Number(b.equipped) - Number(a.equipped)));
-  return out;
-}
-
 Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
   try {
     if ( (activity?.type !== "damage") || !activity.actor ) return;
@@ -1420,10 +1406,11 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
     if ( !message || message.getFlag(MODULE_ID, "command") ) return;
     void stampCommand(activity, activity.actor, message, found);
   } catch(err) {
-    console.error(`${TITLE} | Commander's Strike stamp failed.`, err);
+    console.error(`${TITLE} | Commander's Strike failed at the use — direct the strike by hand.`, err);
   }
 });
 
+/** The fighter's client, at the use: the ally, the die (the FIGHTER's scale value), the notice's clock. */
 async function stampCommand(activity, fighter, message, found) {
   const targets = (message.getFlag("dnd5e", "targets") ?? []).filter(t => t.uuid !== fighter.uuid);
   const ally = targets[0] ?? null;
@@ -1434,166 +1421,139 @@ async function stampCommand(activity, fighter, message, found) {
     const r = dieFormula ? String(Roll.replaceFormulaData(dieFormula, fighter.getRollData())).trim().replace(/^d(\d+)/i, "1d$1") : null;
     dieFormula = (r && Roll.validate(r) && !/@/.test(r)) ? r : null;
   } catch { dieFormula = null; }
-  const allyActor = ally ? await fromUuid(ally.uuid).catch(() => null) : null;
   const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
-  const options = (allyActor instanceof Actor) ? attackOptions(allyActor) : [];
-  const status = !ally ? "no ally" : !options.length ? "no weapon" : "pending";
   await message.setFlag(MODULE_ID, "command", {
-    status, ...statContext(fighter.uuid),
+    status: ally ? "directed" : "no ally", ...statContext(fighter.uuid),
     attackerUuid: fighter.uuid, attackerName: fighter.name, itemName: found.item.name, itemImg: found.item.img ?? null,
-    ally: ally ? { uuid: ally.uuid, name: ally.name } : null, dieFormula,
-    answer: null, weaponId: null, weaponName: null,
-    ...((window && (status === "pending")) ? { window, deadline: Date.now() + (window * 1000) } : {})
-  });
-  if ( status === "pending" ) armCommandTimer(message);
-}
-
-const commandTimers = new Map();
-function armCommandTimer(message) {
-  const flag = message?.getFlag(MODULE_ID, "command");
-  if ( !flag?.deadline || (flag.status !== "pending") || !isActiveGM() ) { disarmDeadline(commandTimers, message?.id); return; }
-  armDeadline(commandTimers, message.id, flag.deadline, async id => {
-    try {
-      const m = game.messages.get(id);
-      if ( !m ) return;
-      await queueFlagWrite(m, "command", current => {
-        if ( current.status !== "pending" ) return false;
-        current.answer = "declined"; current.timedOut = true; current.status = "resolved"; current.answeredAt = Date.now();
-      });
-    } catch(err) { console.error(`${TITLE} | Commander's Strike buzzer failed.`, err); }
+    itemUuid: found.item.uuid, ally: ally ? { uuid: ally.uuid, name: ally.name } : null, dieFormula, chipId: null,
+    ...((window && ally) ? { window, deadline: Date.now() + (window * 1000) } : {})
   });
 }
 
-/** The ally's answer — the owner of the card writes straight; anyone else sends the envelope. "attack" drives on this client. */
-async function answerCommand(message, answer, { weaponId = null, weaponName = null } = {}) {
+/**
+ * THE CHIP — written by the ELECT from the card (the fighter's client may not own the ally's
+ * sheet; every world write of a consequence is the elect's), once: the fighter's die on the
+ * ally's sheet until the end of the fighter's turn, spent by the ally's next attack's damage.
+ */
+async function ensureCommandChip(message) {
   const flag = message.getFlag(MODULE_ID, "command");
-  if ( !flag || (flag.status !== "pending") ) return;
-  if ( message.canUserModify?.(game.user, "update") ) {
-    let claimed = false;
-    await queueFlagWrite(message, "command", current => {
-      if ( current.status !== "pending" ) return false;
-      current.answer = answer; current.answeredAt = Date.now(); current.status = "resolved";
-      if ( weaponId ) { current.weaponId = weaponId; current.weaponName = weaponName; }
-      claimed = true;
-    });
-    if ( claimed && (answer === "attack") ) await resolveCommand(message, weaponId);
-    return;
+  if ( !flag || (flag.status !== "directed") || flag.chipId || !flag.ally?.uuid ) return;
+  const ally = await fromUuid(flag.ally.uuid).catch(() => null);
+  if ( !(ally instanceof Actor) ) return;
+  const standing = ally.effects.find(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "use") && (e.getFlag(MODULE_ID, "useKey") === "command") && (e.getFlag(MODULE_ID, "cardId") === message.id));
+  let chip = standing ?? null;
+  if ( !chip ) {
+    const stale = ally.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "use") && (e.getFlag(MODULE_ID, "useKey") === "command"));
+    if ( stale.length ) await ally.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
+    const fighter = flag.attackerUuid ? await fromUuid(flag.attackerUuid).catch(() => null) : null;
+    const clock = chipClock("steadyAim", placeOf(fighter ?? ally));
+    chip = await ActiveEffect.implementation.create({
+      name: flag.itemName, img: flag.itemImg ?? "icons/svg/aura.svg",
+      description: `<p><em>“${RULE_TEXT.command}”</em></p><p>Written by Battle Flow when ${flag.attackerName} used ${flag.itemName}: ${ally.name} may use a Reaction to make one attack with a weapon or an Unarmed Strike; ${flag.dieFormula ?? "the Superiority Die"} rides the damage of the next hit.</p>`,
+      origin: flag.itemUuid ?? null, disabled: false, transfer: false,
+      ...(clock ? chipData(clock) : {}),
+      flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: "command", die: flag.dieFormula ?? null, sourceUuid: flag.attackerUuid, sourceName: flag.attackerName, cardId: message.id } }
+    }, { parent: ally }).catch(err => { console.error(`${TITLE} | Commander's Strike could not mark the ally — add the die by hand.`, err); return null; });
   }
-  const ally = flag.ally?.uuid ? fromUuidSync(flag.ally.uuid) : null;
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: ally }),
-    content: bfCard({ img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`, tone: (answer === "attack") ? "good" : "neutral",
-      title: (answer === "attack") ? `${flag.ally?.name ?? "The ally"} strikes${weaponName ? ` with ${weaponName}` : ""}` : `${flag.ally?.name ?? "The ally"} declines`,
-      subtitle: `${flag.attackerName}'s ${flag.itemName}` }),
-    flags: { [MODULE_ID]: { commandAnswer: { messageId: message.id, answer, weaponId, weaponName } } }
-  });
-  if ( answer === "attack" ) await resolveCommand(message, weaponId, { trusted: true });
+  if ( chip ) await queueFlagWrite(message, "command", current => { if ( current.chipId ) return false; current.chipId = chip.id; });
 }
 
-registerRelay("commandAnswer", {
-  flagKey: "command",
-  targetOf: a => a.messageId,
-  owns: () => isActiveGM(),
-  fold: (current, a) => {
-    if ( current.status !== "pending" ) return false;
-    current.answer = a.answer; current.answeredAt = Date.now(); current.status = "resolved";
-    if ( a.weaponId ) { current.weaponId = a.weaponId; current.weaponName = a.weaponName; }
-  },
-  cleanup: true
-});
+Hooks.on("createChatMessage", message => { if ( isActiveGM() && message.getFlag(MODULE_ID, "command") ) void ensureCommandChip(message); });
 
-const commandInFlight = new Set();
-/** The accept path: the ally's Reaction spent, the die armed, the ally's own attack driven at ITS target (the riposte's drive). */
-async function resolveCommand(message, weaponId, { trusted = false } = {}) {
-  if ( commandInFlight.has(message.id) ) return;
-  commandInFlight.add(message.id);
-  try {
-    const flag = message.getFlag(MODULE_ID, "command");
-    if ( !flag?.ally?.uuid ) return;
-    if ( !trusted && (flag.answer !== "attack") ) return;
-    if ( riposteDriven(message.id, flag.ally.uuid) ) return;   // idempotent — the attack already exists
-    const ally = await fromUuid(flag.ally.uuid);
-    if ( !(ally instanceof Actor) || !ally.isOwner ) return;
-    const options = attackOptions(ally);
-    const chosen = options.find(o => o.itemId === (weaponId ?? flag.weaponId)) ?? options[0];
-    if ( !chosen ) return;
-    if ( !game.user.targets.size ) {
-      ui.notifications.warn(`${TITLE}: target the creature ${ally.name} strikes, then press Attack again.`);
-      // Re-open the question: the answer stands recorded, the attack is still to be driven.
-      return;
-    }
-    const weapon = ally.items.get(chosen.itemId);
-    const weaponAct = weapon?.system.activities?.contents?.find(a => a.id === chosen.activityId);
-    if ( !weaponAct ) return;
-    void spendReaction(ally, { origin: weapon.uuid, what: `${flag.itemName} (Commander's Strike)` });
-    riposteDie.set(ally.uuid, { formula: flag.dieFormula, type: [...(weapon.system.damage?.base?.types ?? [])][0] ?? "", armedAt: Date.now() });
-    const use = await weaponAct.use({ subsequentActions: false }, { configure: false }, {});
-    const usageId = use?.message?.id ?? null;
-    await weaponAct.rollAttack({}, { configure: false }, {
-      data: {
-        "flags.dnd5e.originatingMessage": usageId ?? message.id,
-        [`flags.${MODULE_ID}.riposteFor`]: message.id,
-        [`flags.${MODULE_ID}.riposteBy`]: ally.uuid,
-        [`flags.${MODULE_ID}.commandFor`]: message.id
-      }
-    });
-  } catch(err) {
-    console.error(`${TITLE} | Commander's Strike failed to drive the ally's attack.`, err);
-  } finally {
-    commandInFlight.delete(message.id);
-  }
-}
-
-async function showCommandPopup(message) {
+/**
+ * THE NOTICE — the ally's owner is told, and that is all (user, 2026-09-05: "a popup on the PC
+ * recipient, informing them that they can make an attack as a reaction"; "get rid of the weird
+ * trying to control that other pc workflow"). The Hew notice's shape: OK-only, the drain bar,
+ * auto-close at the deadline; the ally attacks from their own sheet and the chip does the rest.
+ */
+async function showCommandNotice(message) {
   const flag = message.getFlag(MODULE_ID, "command");
-  if ( !flag || (flag.status !== "pending") ) return;
+  if ( !flag || (flag.status !== "directed") ) return;
   const ally = flag.ally?.uuid ? fromUuidSync(flag.ally.uuid) : null;
-  if ( !canAnswerFor(ally) ) return;
-  const options = ally ? attackOptions(ally) : [];
-  const preferred = options[0] ?? null;
-  const selectHTML = (options.length > 1) ? `
-    <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
-      <label style="flex:1;font-size:var(--font-size-12,12px);">Attack with</label>
-      <select name="bf-command-weapon" style="flex:1;min-width:0;">${options.map(o => `<option value="${o.itemId}"${o.itemId === preferred?.itemId ? " selected" : ""}>${o.label}</option>`).join("")}</select>
-    </div>` : "";
-  let dialog;
-  const answer = kind => {
-    const id = dialog?.element?.querySelector('select[name="bf-command-weapon"]')?.value ?? preferred?.itemId ?? null;
-    return answerCommand(message, kind, { weaponId: id, weaponName: options.find(o => o.itemId === id)?.name ?? preferred?.name ?? null });
-  };
-  dialog = await openMomentPopup(message, "command", ally, {
-    title: `${flag.itemName} — ${flag.ally?.name ?? ""}`, icon: "fa-solid fa-bullhorn",
+  await openMomentPopup(message, "command", ally, {
+    title: `${flag.itemName} — ${flag.ally?.name ?? ""}`, icon: "fa-solid fa-bullhorn", width: 440,
     content: bfCard({ img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`, tone: "pending",
       title: `${flag.attackerName} directs you to strike`,
-      subtitle: `Use your Reaction to make one attack; ${flag.attackerName}'s ${flag.dieFormula ?? "Superiority Die"} rides the damage if it hits. Target the creature first.`,
-      lines: [ruleLine(RULE_TEXT.command)] }) + selectHTML + holdBarHTML(flag, "to answer"),
-    buttons: [
-      { action: "attack", label: preferred && (options.length === 1) ? `Attack with ${preferred.label}` : "Attack", default: true, callback: () => answer("attack") },
-      { action: "pass", label: "Decline", callback: () => answer("declined") }
-    ]
+      subtitle: `Use your Reaction to make one attack with a weapon or an Unarmed Strike from your sheet — ${flag.attackerName}'s ${flag.dieFormula ?? "Superiority Die"} rides the damage if it hits`,
+      lines: [ruleLine(RULE_TEXT.command)] }) + (flag.deadline ? momentBarHTML(flag, "reminder") : ""),
+    buttons: [{ action: "ok", label: "OK", default: true, callback: () => acknowledgeMoment(message, "command") }],
+    autoCloseAt: flag.deadline || null
   });
 }
 
+/**
+ * THE RIDE — the ally's next attack's damage: the chip on the ATTACKER carries the fighter's
+ * die, which folds INTO the base roll (the riposte die's idiom — one dice group, one total,
+ * crit-doubled with it); the chip is spent, the ally's Reaction with it, and the damage message
+ * says so. The fighter's card learns of it from the elect (below).
+ */
+Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+  try {
+    const activity = config.subject;
+    if ( activity?.type !== "attack" ) return;
+    const actor = activity.item?.actor;
+    if ( !actor ) return;
+    const chip = actor.effects.find(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "use") && (e.getFlag(MODULE_ID, "useKey") === "command"));
+    if ( !chip ) return;
+    const formula = chip.getFlag(MODULE_ID, "die");
+    const type = [...(activity.item?.system?.damage?.base?.types ?? [])][0] ?? "";
+    if ( formula ) {
+      const base = (config.rolls ?? []).find(r => r.base === true);
+      if ( base ) base.parts = [...(base.parts ?? []), formula];
+      else config.rolls.push({ data: config.rolls[0]?.data ?? {}, parts: [formula], options: { type, types: type ? [type] : [] } });
+    }
+    foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.commandRide`, {
+      ...statContext(actor.uuid), cardId: chip.getFlag(MODULE_ID, "cardId") ?? null, formula: formula ?? null, type,
+      by: actor.name, directedBy: chip.getFlag(MODULE_ID, "sourceName") ?? null, weapon: activity.item?.name ?? null
+    });
+    void chip.delete().catch(() => {});
+    void spendReaction(actor, { origin: chip.origin ?? null, what: "Commander's Strike" });
+  } catch(err) {
+    console.error(`${TITLE} | Commander's Strike's die failed to ride — add it by hand.`, err);
+  }
+});
+
+// The fighter's card records the strike — the elect folds it from the ally's damage message.
+Hooks.on("createChatMessage", message => {
+  const ride = message.getFlag(MODULE_ID, "commandRide");
+  if ( !ride?.cardId || !isActiveGM() ) return;
+  const card = game.messages.get(ride.cardId);
+  if ( !card ) return;
+  void queueFlagWrite(card, "command", current => {
+    if ( current.status !== "directed" ) return false;
+    current.status = "struck"; current.struck = { by: ride.by, weapon: ride.weapon ?? null, at: Date.now() };
+  }).catch(err => console.warn(`${TITLE} | Could not record the directed strike on the card.`, err));
+});
+
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  const ride = message.getFlag(MODULE_ID, "commandRide");
+  if ( ride ) {
+    const line = document.createElement("div");
+    line.innerHTML = bfCard({ eyebrow: "Maneuver — Commander's Strike", tone: "good",
+      title: `Commander's Strike — ${ride.formula ?? "the die"}${ride.type ? ` ${ride.type}` : ""} rode this roll`,
+      subtitle: `${ride.by}'s Reaction${ride.directedBy ? `, directed by ${ride.directedBy}` : ""}`,
+      lines: [ruleLine(RULE_TEXT.command)] });
+    html.querySelector(".message-content")?.appendChild(line);
+  }
   const flag = message.getFlag(MODULE_ID, "command");
   if ( !flag ) return;
-  const pending = flag.status === "pending";
+  const directed = flag.status === "directed";
+  const live = directed && (!flag.deadline || (flag.deadline > Date.now())) && !momentAcknowledged(message, "command");
   const line = document.createElement("div");
   line.innerHTML = bfCard({
-    img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`, tone: pending ? "pending" : (flag.answer === "attack") ? "good" : "neutral",
+    img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`, tone: (flag.status === "struck") ? "good" : directed ? "pending" : "neutral",
     title: (flag.status === "no ally") ? `${flag.itemName} — no ally targeted; direct the strike by hand`
-      : (flag.status === "no weapon") ? `${flag.itemName} — ${flag.ally?.name} carries no weapon to attack with`
-      : pending ? `${flag.ally?.name} may use a Reaction to make one attack — ${flag.dieFormula ?? "the die"} rides the hit`
-      : (flag.answer === "attack") ? `${flag.ally?.name} strikes${flag.weaponName ? ` with ${flag.weaponName}` : ""} — ${flag.dieFormula ?? "the die"} rides the hit`
-      : `${flag.ally?.name} declines${flag.timedOut ? " — the clock ran out" : ""}; the die was spent`,
+      : (flag.status === "struck") ? `${flag.itemName} — ${flag.struck?.by ?? flag.ally?.name} struck${flag.struck?.weapon ? ` with ${flag.struck.weapon}` : ""}; ${flag.dieFormula ?? "the die"} rode the hit`
+      : `${flag.itemName} — ${flag.ally?.name} may use a Reaction to make one attack; ${flag.dieFormula ?? "the die"} rides the hit`,
+    subtitle: spendPhrase(poolSpendsOn(message)),
     lines: [ruleLine(RULE_TEXT.command)]
-  }) + (pending ? holdBarHTML(flag, "to answer") : "");
+  }) + (live ? momentBarHTML(flag, "reminder") : "");
   html.querySelector(".message-content")?.appendChild(line);
+  if ( isActiveGM() ) void ensureCommandChip(message);   // the resume floor
   const ally = flag.ally?.uuid ? fromUuidSync(flag.ally.uuid) : null;
-  if ( pending && canAnswerFor(ally) ) {
+  if ( live && canAnswerFor(ally) ) {
     const shownKey = popupKey(message.id, "command");
-    if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showCommandPopup(message); }
-    line.appendChild(momentButton(`Answer — ${flag.itemName}`, () => void showCommandPopup(message)));
+    if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showCommandNotice(message); }
+    line.appendChild(momentButton(`Show — ${flag.itemName}`, () => void showCommandNotice(message)));
   }
-  armCommandTimer(message);
 });

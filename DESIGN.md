@@ -725,6 +725,23 @@ with a card when they are gone. Judged only when the attack's DAMAGE lands, so a
 turned the hit into a miss pays nothing. Membership is the Damage Shields list. Hellish Rebuke
 is NOT this family: a Reaction, a human's choice, the hold's.
 
+### Effect choices (user, 2026-09-05: "it applies both … a popup asking the player which shield")
+
+**A cast that offers a choice between effects asks the caster, and only the pick lands.** The
+walk of the overnight four found Fire Shield's cast landing BOTH shields: the pack ships Warm
+Shield and Chill Shield on one activity and marks nothing to say "as you choose", so the cast
+slice, reading "a utility with effects", applied every one — and the caster wore Resistance to
+both. The choice is the caster's (R1), asked the way Spirit Guardians' damage type is asked:
+a popup on the caster's own usage card at the cast (the moment spine), the cast WAITING on the
+card until it is answered, the card's button reopening the popup, and the elect applying the
+one effect chosen — its resistance with it. No clock: a cast is the caster's own moment and
+nobody else is waiting on it. Membership is the Effect Choices list (the spell names); the
+alternatives are the pack's effect names on the registry row, and a copy of the spell that
+carries fewer than two of them asks nothing. Bait and Switch's fan of twelve is NOT this
+family — a rolled number modelled as effects, the maneuver machine's — and neither is an
+activity whose several effects all stand at once (Bless, the auras), which the cast slice
+lands as before.
+
 ### Damage casts (user, 2026-09-04: "make heat metal spell work")
 
 **A bare damage activity's dice are the module's to roll, once.** Measured: dnd5e follows a
@@ -788,14 +805,34 @@ them:
   activity used) with the feature's own text saying which checks: Stealth, or History,
   Investigation and Insight; Ambush on Initiative too, the one d20 the module otherwise never
   met (`dnd5e.rollInitiative`), the combatant's number moved by the die and the original roll
-  standing as history. No refund; the die is spent either way it lands.
-- **Commander's Strike is a driven attack with the ATTACKER changed** — the `command` fold
-  kind: the fighter directs a willing ally, the ally's owner answers with a weapon and a Reaction
-  (the riposte's popup and relay), and the ally's own attack is driven at ITS target with the
-  fighter's die — resolved on the fighter — injected into the weapon's roll. The ally must target
-  the creature: the module never picks whom the ally strikes.
+  standing as history. No refund; the die is spent either way it lands. **Used from the sheet
+  FIRST, they ARM** (user, 2026-09-05: "have the popup tell them to make the wisdom or int check
+  and then add it"): the use rolls the die in the open, a chip carries the number, a notice names
+  the check, and the next check the scope names folds it in with no ask — every other fold that
+  check admits (Tactical Mind) is offered after, as it always was.
+- **Commander's Strike is a NOTICE and a chip, never a driven attack** (user, 2026-09-05: "a
+  popup on the PC recipient, informing them that they can make an attack as a reaction … get
+  rid of the weird trying to control that other pc workflow"). The fighter's use names the ally;
+  the elect puts a chip carrying the fighter's die — resolved on the fighter — on the ally until
+  the end of the fighter's turn; the ally's owner is TOLD, OK only; the ally attacks from their
+  own sheet, and that attack's damage folds the die into the weapon's roll, spends the chip and
+  the Reaction, and the fighter's card records the strike. No weapon popup, no relay, no attack
+  the module drives on someone else's sheet. (The first cut, 2026-09-05 morning, was Riposte's
+  driven attack with the attacker changed; the user pulled it the same day.)
 - **Rally needed nothing built.** The pack's heal activity rolls through the system's own dialog
   and the cast slice lands the Temporary Hit Points on the ally (measured).
+
+**One UI language for every maneuver** (user, 2026-09-05: "follow the same UI language and
+design as Riposte and other maneuvers"): the feature's art, the eyebrow `Maneuver — Name`, the
+title `Name — what happened`, the spend underneath, the rule quoted; the popup's window is
+`Name — who`, its answer button the maneuver's own verb or name and `Pass`; the card's recall
+button `Answer — …`. Parry, which rode the hold's "Reaction — cast" words, now wears these; so do
+Bait and Switch, Sweeping Attack, the hit-menu rides and the scoped folds. **And one wording for
+a spent die** (user: "it's not consistent with the popup about consuming a sup die and how many
+are left in the floating text"): `Combat Superiority: 3 of 4 remaining` on the flash, the card
+line and every subtitle, from ONE reader (`poolSpendsOn`) over dnd5e's own consumption deltas
+and the module's hand spends alike — the hand spends (Parry, the hit menu) go through ONE
+pass-through (`spendSuperiorityDie`) that spends the pool and writes that record.
 
 ## 7. How to use this document
 

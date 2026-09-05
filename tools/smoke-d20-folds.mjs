@@ -72,8 +72,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     /* --- 1: content ------------------------------------------------------------------- */
     if (has(1)) {
       const entries = game.modules.get(MODULE_ID)?.api?.registries?.d20Folds?.() ?? [];
+      // Since 2026-09-05 the shipped list also carries the two SCOPED tactical rows (Ambush,
+      // Tactical Assessment), so the count is five; what this asserts is that every entry is one
+      // of the three kinds and each kind is represented.
       ok("all three kinds are listed and live",
-        entries.length === 3 && entries.every(e => ["heroic", "tactical", "bardic"].includes(e.kind)),
+        (entries.length >= 3) && entries.every(e => ["heroic", "tactical", "bardic"].includes(e.kind))
+          && ["heroic", "tactical", "bardic"].every(k => entries.some(e => e.kind === k)),
         JSON.stringify(entries));
 
       ok("heroic marker is a boolean on the sheet",
