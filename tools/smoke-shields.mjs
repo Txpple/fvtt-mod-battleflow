@@ -50,7 +50,38 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const count = name => ledger?.[name] ?? 0;
   const errors = [];
   const origError = console.error;
-  console.error = (...args) => { errors.push('E ' + args.map(a => (a instanceof Error) ? a.message : String(a)).join(' ').slice(0, 300)); origError(...args); };
+  // The STACK, not the message (BACKLOG 2026-09-05: two console leads in a full run said nothing
+  // about where they came from) — and the page's own uncaught errors and rejections with it.
+  const describe = a => (a instanceof Error) ? (a.stack || a.message) : String(a);
+  console.error = (...args) => { errors.push('E ' + args.map(describe).join(' ').slice(0, 1500)); origError(...args); };
+  const onWindowError = ev => errors.push('window ' + describe(ev.error ?? ev.message).slice(0, 1500));
+  const onRejection = ev => errors.push('rejection ' + describe(ev.reason).slice(0, 1500));
+  window.addEventListener('error', onWindowError);
+  window.addEventListener('unhandledrejection', onRejection);
+  // `ActiveEffect "<id>" does not exist!` is the SERVER's reply to a delete of an effect already
+  // gone — the console line names the loser of a race, never the racer. Every ActiveEffect
+  // delete this page issues is recorded with its stack, so the id in the error can be walked back
+  // to the caller that lost.
+  const deletes = new Map();   // effect id → [{ name, stack, at }]
+  const recordDelete = (docs, stack) => { for (const d of docs) { const list = deletes.get(d.id) ?? []; list.push({ name: d.name, parent: d.parent?.name, stack, at: Date.now() - suiteStart }); deletes.set(d.id, list); } };
+  const origDeleteDocs = ActiveEffect.deleteDocuments;
+  const origDelete = ActiveEffect.prototype.delete;
+  ActiveEffect.deleteDocuments = function(ids = [], operation = {}) {
+    const parent = operation?.parent;
+    const docs = (parent ? ids.map(id => parent.effects?.get?.(id) ?? { id, name: '?' }) : ids.map(id => ({ id, name: '?' })));
+    recordDelete(docs, new Error().stack);
+    return origDeleteDocs.call(this, ids, operation);
+  };
+  ActiveEffect.prototype.delete = function(operation = {}) { recordDelete([this], new Error().stack); return origDelete.call(this, operation); };
+  const explainErrors = () => {
+    for (const e of errors.slice()) {
+      const id = /ActiveEffect "([^"]+)" does not exist/.exec(e)?.[1];
+      if (!id) continue;
+      const list = deletes.get(id);
+      if (!list) { errors.push(`  ↳ ${id}: no delete of it was issued by THIS page (another client's, or the system's own)`); continue; }
+      for (const d of list) errors.push(`  ↳ ${id} "${d.name}" on ${d.parent} deleted at +${d.at}ms by:\n${(d.stack ?? '').split('\n').slice(1, 9).join('\n')}`);
+    }
+  };
 
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
@@ -96,6 +127,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (restored) return;
     restored = true;
     console.error = origError;
+    window.removeEventListener('error', onWindowError);
+    window.removeEventListener('unhandledrejection', onRejection);
+    ActiveEffect.deleteDocuments = origDeleteDocs;
+    ActiveEffect.prototype.delete = origDelete;
+    explainErrors();
     for (const e of errors) log.push('console: ' + e);
     CONFIG.Dice.randomUniform = realPRNG;
     try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
@@ -215,6 +251,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       && (m.getFlag('dnd5e', 'originatingMessage') === originId));
     const shieldCards = after => game.messages.contents.filter(m => (m.timestamp >= after) && m.getFlag(MOD, 'damageShield'));
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    /** Which damage message each shield card claims, against the swing's own — a card claiming an OLDER message is a re-judgement. */
+    const claims = (cards, dmg) => cards.map(c => { const d = c.getFlag(MOD, 'damageShield'); return `${d?.key}:${d?.total}${d?.type ? d.type[0] : ''}@${d?.distanceFeet}ft ${d?.why} dmg=${d?.damageId === dmg?.id ? 'THIS' : ('OLD ' + d?.damageId)}`; }).join(' | ');
     const cardText = id => textOf(document.querySelector(`.message[data-message-id="${id}"]`));
     /** The goblin hits `victimToken` with `weapon` (a forced 19): the damage message with its receipt, and the shield cards since. */
     const swing = async (victimToken, weapon = melee) => {
@@ -298,13 +336,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const far = await swing(clericToken);
       ok('3a. a melee hit from 10 feet strikes nothing — the ward\'s reach is Flame Eruption\'s own 5 feet',
         !!far.dmg && !far.shield && !far.dmg.getFlag(MOD, 'damageShields'),
-        `cards=${far.cards.length} claim=${JSON.stringify(far.dmg?.getFlag(MOD, 'damageShields'))}`);
+        `cards=${far.cards.length} claim=${JSON.stringify(far.dmg?.getFlag(MOD, 'damageShields'))} ${claims(far.cards, far.dmg)}`);
       await goblinDoc.update({ x: 1400, y: 1200 }, mv());
       await sleep(300);
       if (ranged) {
         await healFull();
         const bow = await swing(clericToken, ranged);
-        ok('3b. a RANGED hit from 5 feet strikes nothing — every row is a melee attack roll', !!bow.dmg && !bow.shield, `cards=${bow.cards.length} weapon=${ranged.name}`);
+        ok('3b. a RANGED hit from 5 feet strikes nothing — every row is a melee attack roll', !!bow.dmg && !bow.shield, `cards=${bow.cards.length} weapon=${ranged.name} ${claims(bow.cards, bow.dmg)}`);
       }
     }
 
@@ -327,14 +365,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const chit = ranger.effects.find(e => (e.getFlag(MOD, 'mastery') === 'rider') && (e.getFlag(MOD, 'riderKey') === 'shield:Death Armor'));
       ok('4b. in combat: the first hit of the turn strikes and writes the once-per-turn chit on the DEFENDER',
         !!c1.shield && !!chit && /once this turn/.test(c1.shield.getFlag(MOD, 'damageShield')?.why ?? ''),
-        `cards=${c1.cards.length} chit=${chit?.name} why=${c1.shield?.getFlag(MOD, 'damageShield')?.why}`);
+        `cards=${c1.cards.length} chit=${chit?.name} ${claims(c1.cards, c1.dmg)}`);
       const c2 = await swing(rangerToken);
-      ok('4c. the second hit this turn strikes nothing — the chit stands', !!c2.dmg && !c2.shield, `cards=${c2.cards.length}`);
+      ok('4c. the second hit this turn strikes nothing — the chit stands', !!c2.dmg && !c2.shield, `cards=${c2.cards.length} ${claims(c2.cards, c2.dmg)}`);
       await combat.nextTurn(); await sleep(500);
       await combat.nextTurn(); await sleep(500);
       const c3 = await swing(rangerToken);
-      ok('4d. the next turn strikes again — the chit died with the turn it was written in', !!c3.shield && (combat.round === 2), `cards=${c3.cards.length} round=${combat.round}`);
+      ok('4d. the next turn strikes again — the chit died with the turn it was written in', !!c3.shield && (combat.round === 2), `cards=${c3.cards.length} round=${combat.round} ${claims(c3.cards, c3.dmg)}`);
       await combat.delete(); combat = null;
+      await waitFor(() => !ranger.effects.some(e => e.getFlag(MOD, 'mastery') === 'rider'), 4000);   // the module's deleteCombat sweep, not raced by clearWards
     }
 
     // ================================================== 5. Armor of Agathys
@@ -356,7 +395,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const ds = a1.shield?.getFlag(MOD, 'damageShield');
       ok('5b. a melee hit while the temp HP stand strikes Frost Damage — 5 cold at the goblin, the mark found without any pack effect',
         !!ds?.rolled && (ds.key === 'Armor of Agathys') && (ds.type === 'cold') && (ds.total === 5) && (goblinHP() === hpBefore - 5),
-        `flag=${JSON.stringify(ds)} hp ${hpBefore}→${goblinHP()}`);
+        `flag=${JSON.stringify(ds)} hp ${hpBefore}→${goblinHP()} cards: ${claims(a1.cards, a1.dmg)}`);
       // The goblin's own damage took the temp HP: is the mark gone, and said?
       const ended = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= a1.since) && m.getFlag(MOD, 'shieldEnded')), 5000);
       const markGone = !cleric.effects.some(e => e.getFlag(MOD, 'shield')?.key === 'Armor of Agathys');
@@ -365,7 +404,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `temp=${cleric.system.attributes.hp.temp} markGone=${markGone} ended=${!!ended}`);
       await healFull();
       const a2 = await swing(clericToken);
-      ok('5d. with the mark gone a hit strikes nothing', !!a2.dmg && !a2.shield, `cards=${a2.cards.length}`);
+      ok('5d. with the mark gone a hit strikes nothing', !!a2.dmg && !a2.shield, `cards=${a2.cards.length} ${claims(a2.cards, a2.dmg)}`);
     }
 
     // ================================================== 6. the list is the switch
@@ -375,7 +414,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await ward(fireShield, 'Warm Shield', cleric);
       await set('damageShieldList', '');
       const off = await swing(clericToken);
-      ok('6a. an empty Damage Shields list strikes nothing — the ward stays the table\'s by hand', !!off.dmg && !off.shield && !off.dmg.getFlag(MOD, 'damageShields'), `cards=${off.cards.length}`);
+      ok('6a. an empty Damage Shields list strikes nothing — the ward stays the table\'s by hand', !!off.dmg && !off.shield && !off.dmg.getFlag(MOD, 'damageShields'), `cards=${off.cards.length} ${claims(off.cards, off.dmg)}`);
       await set('damageShieldList', 'Death Armor, Fire Shield, Armor of Agathys');
     }
 

@@ -27,9 +27,10 @@ import { applyDamagesWithReceipt } from "./auto-apply.js";
  *   is the only way to the dice: the pack's damage activity on the CASTER's copy of the spell.
  *   Armor of Agathys ships no effect at all, so the module MARKS the cast itself (below).
  *
- *   THE HIT — judged on the attack's DAMAGE roll landing, on the elect (auto-apply's three
- *   triggers: arrival, the hold's release, render for resume). By then the hold has settled and
- *   `hitTargets` is final — a Shield that turned the hit into a miss pays nothing. A melee attack
+ *   THE HIT — judged ONCE, on the attack's DAMAGE roll landing, on the elect (auto-apply's three
+ *   triggers with auto-apply's gates: arrival for an unheld roll; the hold's release, and render
+ *   for a reload's resume, for a roll that WAS held — see `consider`). By then the hold has
+ *   settled and `hitTargets` is final — a Shield that turned the hit into a miss pays nothing. A melee attack
  *   roll (the activity's own attack type), within the ward's own reach (the activity's range,
  *   over the distance the gate measures), once per turn where the text says so (a turn chit on
  *   the DEFENDER — the Cleave shape), while the temp HP stand for Agathys.
@@ -113,26 +114,56 @@ function settledMeleeAttack(message) {
 }
 
 const runs = new Set();
+/** Damage messages this client has judged — a re-render or a flag write on one never re-judges it. */
+const judged = new Set();
 
-function consider(message) {
+/**
+ * ⚠ JUDGED ONCE, AT THE HIT. The judge reads the world AS IT IS — the tokens' distance, the
+ * ward on the defender, the turn chit, the temp HP — so a second reading of an old damage
+ * message answers a different question: not "did this hit strike back" but "would it strike
+ * back now". The shields suite caught it flaking three ways in a full run (2026-09-05): a
+ * ranged hit "paid" because the earlier MELEE message from 10 feet was re-judged after the
+ * goblin stepped back to 5; an empty list "paid" because the previous section's unwarded hit
+ * was re-judged once the ward was put on; and the once-per-turn chit stood on the next turn
+ * because the second hit of the previous turn was re-judged after the turn ended and wrote the
+ * chit afresh. The re-reader was `dnd5e.renderChatMessage`, which dnd5e fires on every card
+ * whenever the log re-renders — and at a reload, for EVERY card, against a table that has moved
+ * on. So the three triggers take the appliers' own gates (auto-apply.js, hold.js): creation
+ * judges an unheld roll once; an update or a render judges only a roll that WAS held and has
+ * been released (`attackHoldPending === false`), once, and a released roll's judgement is
+ * stamped on the card (`damageShields.judged`) so a reload does not judge it again.
+ */
+function consider(message, { resume = false } = {}) {
   try {
     if ( !listed().size ) return;
+    if ( judged.has(message.id) || runs.has(message.id) ) return;
+    if ( resume ) {
+      if ( message.getFlag(MODULE_ID, "attackHoldPending") !== false ) return;   // only an ex-held roll resumes here
+      if ( message.getFlag(MODULE_ID, "damageShields")?.judged ) return;         // …and only once across reloads
+    }
     const attackMessage = settledMeleeAttack(message);
     if ( !attackMessage ) return;
-    if ( runs.has(message.id) ) return;
-    void settle(message, attackMessage);
+    void settle(message, attackMessage, { wasHeld: resume });
   } catch(err) {
     console.error(`${TITLE} | Damage shield check failed.`, err);
   }
 }
 
-Hooks.on("createChatMessage", consider);
-Hooks.on("updateChatMessage", consider);          // the hold's release
-Hooks.on("dnd5e.renderChatMessage", consider);    // the reload resume
+Hooks.on("createChatMessage", message => consider(message));
+Hooks.on("updateChatMessage", message => consider(message, { resume: true }));          // the hold's release
+Hooks.on("dnd5e.renderChatMessage", message => consider(message, { resume: true }));    // the reload resume
 
-async function settle(damageMessage, attackMessage) {
+async function settle(damageMessage, attackMessage, { wasHeld = false } = {}) {
   runs.add(damageMessage.id);
+  judged.add(damageMessage.id);
   try {
+    // A released roll's judgement is stamped on the card first, so a reload (which renders every
+    // card) never judges it a second time against a table that has moved on. An unheld roll needs
+    // no stamp: nothing but its creation ever judges it.
+    if ( wasHeld ) {
+      try { await queueFlagWrite(damageMessage, "damageShields", current => { current.judged = true; }); }
+      catch(err) { console.warn(`${TITLE} | Could not stamp the shield judgement on the damage card.`, err); }
+    }
     const attacker = attackMessage.getAssociatedActor();
     if ( !attacker ) return;
     const hits = hitTargets(attackMessage);

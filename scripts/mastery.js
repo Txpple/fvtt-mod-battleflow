@@ -1262,7 +1262,16 @@ async function sweepCombatChips(combat) {
     const actors = new Set(combat.combatants.map(c => c.actor).filter(a => a instanceof Actor));
     await Promise.all([...actors].map(async actor => {
       const ids = actor.effects.filter(e => TURN_CHIPS.includes(e.getFlag(MODULE_ID, CHIP_FLAG))).map(e => e.id);
-      if ( ids.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", ids);
+      if ( !ids.length ) return;
+      try {
+        await actor.deleteEmbeddedDocuments("ActiveEffect", ids);
+      } catch(err) {
+        // Already gone — the platform's expiry tidy, a hand, or a spend racing this sweep (the
+        // shields suite met it 2026-09-05: `ActiveEffect "…" does not exist!` is the server naming
+        // the race's loser). A chip that is gone is the outcome wanted; only one that REMAINS is a
+        // failure worth a word — the expired-chip tidy above keeps the same contract.
+        if ( ids.some(id => actor.effects.get(id)) ) console.warn(`${TITLE} | Combat chip sweep failed on ${actor.name}.`, err);
+      }
     }));
   } catch(err) {
     console.error(`${TITLE} | Combat chip sweep failed.`, err);

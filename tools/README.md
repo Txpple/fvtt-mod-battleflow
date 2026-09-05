@@ -86,7 +86,17 @@ the whole suite tree was structurally blind to, because the tree always had a GM
 Sap hit from the PLAYER's client and asserts the split: the reminder still posts, the monster is
 never written to, the driver is whispered what did not land, and a GM rejoining mid-flight re-pays
 nothing. Run it with the bridge disconnected and no GM window; it refuses if it finds an active GM,
-since a stray one silently turns it into a weaker copy of `smoke-effects`.
+since a stray one silently turns it into a weaker copy of `smoke-effects`. It listens to the
+player page for the WHOLE run and prints every error it raised WITH ITS STACK (`player page:` lines
+in the log, stamped with when they happened) — the 2026-09-04 null-id sighting was never placed
+because only the message was kept.
+
+⚠ **A console lead a suite cannot place is a suite defect, not a mystery** (the shields flake,
+2026-09-05). `smoke-shields` shows the shape: it keeps every console error's STACK, the page's
+uncaught errors and unhandled rejections, records each ActiveEffect delete the page issues with its
+caller, and walks an `ActiveEffect "…" does not exist!` id back to the delete that lost the race —
+and its shield assertions print which DAMAGE MESSAGE each card claims, which is what exposed an old
+card being re-judged. Give a flaking suite those before bisecting sections.
 
 ⚠ **One at a time is enforced now, not remembered.** Suites take a pid lockfile in `harness.mjs`:
 a second one refuses and names the first. The sole-GM preflight could never see this, because

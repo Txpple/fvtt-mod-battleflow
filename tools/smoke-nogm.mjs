@@ -46,6 +46,27 @@ const player = new Foundry(playerConfig(env));
 await player.connect();
 announcePlan('nogm', plan, pulled);
 
+// The player page's own errors, for the WHOLE run (BACKLOG 2026-09-05: one null-id error on the
+// player page was seen "during the player's own swing" and only §spent was listening) — with the
+// STACK, not the message: pageerror carries it; a console.error(err) call's Error arrives as a
+// JSHandle whose stack is read back off the page. Each entry says when (ms into the run) and after
+// how many assertions, which places it between sections.
+const pageErrors = [];
+const runStart = Date.now();
+const stampError = text => pageErrors.push(`[+${Date.now() - runStart}ms, after ${out.results.length} assertions] ${text}`);
+try {
+  player.page.on('pageerror', e => stampError(`pageerror: ${(e?.stack || e?.message || e)}`.slice(0, 1500)));
+  player.page.on('console', m => {
+    if (m.type() !== 'error') return;
+    const loc = m.location?.();
+    const where = loc?.url ? ` @ ${loc.url.replace(/^.*\/(modules|systems|scripts)\//, '$1/')}:${loc.lineNumber}` : '';
+    stampError(`console: ${m.text().slice(0, 300)}${where}`);
+    Promise.all(m.args().map(a => a.evaluate(v => (v instanceof Error) ? v.stack : null).catch(() => null)))
+      .then(stacks => { for (const s of stacks) if (s) pageErrors.push(`  stack: ${s.slice(0, 1500)}`); })
+      .catch(() => {});
+  });
+} catch { /* no page handle — nothing to listen to */ }
+
 let gm = null;
 try {
   // ---------------------------------------------------------------- preflight: truly no GM
@@ -359,12 +380,8 @@ try {
     if (planted.error) {
       ok('§spent the section could set itself up', false, planted.error);
     } else {
-      // The player page's own errors, so a swing that finds no dialog says WHY (2026-09-03).
-      const pageErrors = [];
-      try {
-        player.page.on('pageerror', e => pageErrors.push(`pageerror: ${e?.message ?? e}`));
-        player.page.on('console', m => { if (m.type() === 'error') pageErrors.push(`console: ${m.text().slice(0, 300)}`); });
-      } catch { /* no page handle — nothing to listen to */ }
+      // The player page's own errors (listened for since the connect, above), so a swing that finds no dialog says WHY (2026-09-03).
+      const errorsBefore = pageErrors.length;
       const spent = await player.evaluate(async ({ modId, chipId, tokenId, weaponUuid }) => {
         const sleep = ms => new Promise(r => setTimeout(r, ms));
         const until = async (fn, ms = 15_000) => {
@@ -451,7 +468,7 @@ try {
       }, { modId: MOD, actorUuid: planted.actorUuid, priorList: planted.priorList });
       await disposeSafely(sweeper, 'nogm-sweeper');
 
-      if (pageErrors.length) out.log.push(...pageErrors.slice(0, 12).map(e => `  · player page: ${e}`));
+      if (pageErrors.length > errorsBefore) out.log.push(...pageErrors.slice(errorsBefore, errorsBefore + 12).map(e => `  · player page (during §spent): ${e}`));
       if (spent.error) {
         ok('§spent the section could run', false, spent.error);
       } else {
@@ -526,5 +543,7 @@ try {
   if (gm) await disposeSafely(gm, 'nogm-gm');
 }
 
+// Every error the player page raised during the run, with its stack, wherever it happened.
+if (pageErrors.length) out.log.push(...pageErrors.slice(0, 30).map(e => `player page: ${e}`));
 const failures = report({ tag: 'nogm', out, plan });
 process.exit(failures ? 1 : 0);

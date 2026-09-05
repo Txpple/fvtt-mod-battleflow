@@ -722,8 +722,11 @@ reach weapon at 10 feet is beyond Flame Eruption's 5); once per turn is a chit o
 Fire Shield's TYPE follows the shield that stands; Armor of Agathys ships no effect, so the
 module MARKS the cast itself and the ward strikes while the Temporary Hit Points last, ending
 with a card when they are gone. Judged only when the attack's DAMAGE lands, so a Shield that
-turned the hit into a miss pays nothing. Membership is the Damage Shields list. Hellish Rebuke
-is NOT this family: a Reaction, a human's choice, the hold's.
+turned the hit into a miss pays nothing — and judged ONCE, at the hit (2026-09-05): the judge
+reads the world as it stands (the distance, the ward, the chit, the temp HP), so a second reading
+of an old damage card would answer "would it strike NOW", not "did it strike". A re-render never
+re-judges; only a roll that was held resumes, once, on its release. Membership is the Damage
+Shields list. Hellish Rebuke is NOT this family: a Reaction, a human's choice, the hold's.
 
 ### Effect choices (user, 2026-09-05: "it applies both … a popup asking the player which shield")
 

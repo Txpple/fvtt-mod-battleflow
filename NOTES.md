@@ -479,6 +479,20 @@ legacy shape a migration writes, so matching only the flag no-ops on every curre
 **`dnd5e.renderChatMessage` fires for every message subtype**, so a usage card grows a module
 row exactly as an attack message does.
 
+**…and it fires AGAIN for an old card whenever the log re-renders it** — a flag write on the
+card, an actor or effect change dnd5e refreshes cards for, and at a reload for EVERY card. A
+machine that uses render as its "reload resume" and judges from the world as it stands
+(distance, a ward on the sheet, a turn chit, a pool) will re-judge an old hit against a table
+that has moved on. The shields suite caught it three ways in one full run (2026-09-05): a ranged
+hit "paid" because the earlier melee card from 10 feet re-rendered after the attacker stepped
+back to 5; an empty list "paid" because an unwarded hit's card re-rendered once the ward was
+put on; a once-per-turn chit stood on the NEXT turn because the previous turn's second hit
+re-rendered after the turn ended and wrote the chit afresh. Every section passed alone — the
+residue was the earlier section's CARDS, not its state. The house gate is the appliers' (auto-apply.js,
+hold.js): create judges an unheld roll once; update and render resume only a roll that WAS held
+(`attackHoldPending === false`), once, with a stamp on the card so a reload cannot resume it
+twice. `damage-shields.js` `consider` carries the note.
+
 **A damage activity rolls its damage the moment it is used**, same as an attack activity rolls
 its attack. `subsequentActions: false` suppresses it — which is also how module-driven uses
 avoid orphaning a native config dialog over the table.
