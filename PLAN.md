@@ -14,6 +14,326 @@
 > Every item traces to a rule in [ARCHITECTURE.md](ARCHITECTURE.md). Nothing here changes what
 > the module does at the table — **the UI/UX and the shipped behaviour are the asset being
 > protected, not the thing being changed.**
+>
+> ⚠ **A second pass is on this page as of 2026-09-05:** *THE MACHINE-TIER PASS*, directly
+> below. Its five decisions are ruled and it **awaits the user's go**. Nothing in it has been
+> built. [HANDOFF.md](HANDOFF.md) carries the state and the procedure for the session that
+> starts it, and retires when it is delivered.
+
+---
+
+## ▶ THE MACHINE-TIER PASS — RULED 2026-09-05, awaiting the go
+
+**Origin:** the 2026-09-05 architecture review (post-v1.32.1, **scored 7/10**). The
+2026-08-23 review scored the tree 8/10; the drop is not a regression in anything that pass
+built. The pure decision layer, the registries, the spine and the services would score about
+8.5 on their own, and the gate still proves every claim they make. The machine tier scores
+about 6: it doubled in thirteen days, and the growth was the copy-the-last-machine kind.
+Nothing below is a defect. Everything below is the shape the abilities sweep
+([SWEEP.md](SWEEP.md)) would otherwise land on, which is why it is proposed now and not parked.
+
+**No behaviour changes.** Every stage is a move or a shared seam, proven order-neutral by the
+Stage 0 snapshot and battery-green on the sandbox. Two rulings could have changed behaviour at
+the table (decisions 1 and 4); both were ruled the byte-identical or already-house way.
+**Rulings given 2026-09-05 (the table at the end). The pass starts on the user's go, not
+before** — a handoff is not a go.
+
+### What the review measured (by tool, 2026-09-05)
+
+| Tier | Files | Lines | Share |
+| --- | --- | --- | --- |
+| Machines | 22 | 14,407 | 63% |
+| Pure decision layer (`decide/`) | 14 | 4,682 | 20% |
+| Spine + core (ui, shared, settings, geometry, core) | 5 | 2,681 | 12% |
+| Services (auto-apply, auto-damage, effect-riders) | 3 | 953 | 4% |
+| The five largest machines (saves, hold, maneuvers, mastery, d20-folds) | 5 | 7,975 | 35% |
+
+| Since the 2026-08-23 review | |
+| --- | --- |
+| Commits | 175 |
+| Lines under `scripts/` | +12,631 / −643 |
+| New files | 15 |
+| Growth in the pure layer | about a third of the total |
+| Growth in eleven new small machines | about a third |
+| Growth inside saves / mastery / maneuvers | +745 / +576 / +450 |
+
+| Copied idiom | Count |
+| --- | --- |
+| Per-file in-flight sets and timer maps | 60 |
+| Popup shown-latch sites | 16 |
+| `dnd5e.renderChatMessage` registrations | 31 |
+| Whole-chat-log scans | 35 (13 in saves.js) |
+| Lower-case name helper | 9 files |
+| Row-by-name lookup / listed-set helper | 4 files each |
+| Feature-by-name / activity-by-name | 3 files each |
+| Safe uuid resolve as an inline try/catch | 30 sites |
+| Superiority-die formula resolution | 5 copies |
+| Driver predicates ("who acts") | 10 |
+| Distinct module flag keys | 77 |
+| Comment lines, whole tree | 37% |
+
+### What holds — the three strengths, not to be touched
+
+1. **The layering is enforced, not described.** `decide/` imports nothing and a tool fails the
+   build if that changes. Layers, hook names, hook order, registry kinds and the settings
+   surface each have a static check, and the layer check fails on a stale pin as well as a
+   missing one; it found the saves ↔ d20-folds cycle that a by-hand review had missed the day
+   before. The arithmetic that moves hit points has 503 unit tests running in under a second.
+2. **The spine absorbs copies.** The relay registry replaced three answer channels; the rescue
+   window replaced two popups; the offer-parts registry removed three permanent pins in one
+   pass; `queueFlagWrite` and the deadline primitives are used everywhere they should be.
+   "Build the seam with its third customer" is followed, and the pin list shrank to prove it.
+3. **Content is data, and the rules text is verbatim.** Eleven registry tables, closed kind sets
+   with a pinned count, strict list parsing that warns once and never guesses. The overnight run
+   of 2026-09-04/05 added nineteen maneuvers mostly as rows plus three small machines. The
+   known failure classes (dotted keys, the stale AC, re-judging history, the silent zero) are
+   written down and new code demonstrably applies them.
+
+### The five findings
+
+| # | Finding | Severity |
+| --- | --- | --- |
+| 1 | Machines couple to each other by flag shape and a hand-rolled precedence order | Serious |
+| 2 | Five machines are phase files holding several features each | Serious, but mechanical |
+| 3 | The resume-floor idiom is copied per machine with no spine primitive | Moderate |
+| 4 | Who drives a moment differs machine by machine | Moderate |
+| 5 | Helper duplication and mixed table conventions in the newest machines | Nit, cheap |
+
+**1. Coupling by flag shape and precedence.** The layer check sees imports; it cannot see a
+machine reading another machine's flag by string, and D2's own record says so. The bare-roll
+recognizer (which pending demand does a sheet roll answer) is implemented three times — in
+concentration, saves and the Topple fold — each checking the others' flags in a fixed order
+that the comments themselves call ship order rather than a ruling. The `saves` flag is read or
+written in **six files**, and `emanations.js` writes a complete copy of that shape with no
+shared constructor, so a change to the shape must be mirrored by hand. Sweep item 1 is the
+save-side bends, so this protocol gains participants first.
+
+**2. Phase files, not feature files.** `maneuvers.js` holds Precision, Riposte, Hew, the bash
+offer and Commander's Strike. `mastery.js` holds the payouts, the Topple demand, the notices,
+the Cleave arm, the chip spend and the tidy. `saves.js` holds the whole save lifecycle plus two
+choice kinds. The layer map lists each as one machine; the next maneuver kind lands as another
+two hundred lines in one of them. Mechanical, because the layer map makes a split cheap to
+police and no flag moves.
+
+**3. The resume floor has no primitive.** One in-flight set, one claim flag on the card, the
+same driver registered on create, update and render. Right, well explained, and copied about
+fifteen times. The damage-shields flake of 2026-09-05 was the newest copy judging world state
+without a claim. The largest render handlers do three jobs at once — draw the row, re-arm the
+clock, drive the continuation — in bodies of up to 230 lines.
+
+**4. Who drives.** Ten driver predicates. Some machines follow the flow-elect law and keep
+working without a GM; the cast slice, the riposte stamp, Hew and Commander's Strike gate on the
+active GM alone, emanations by design. Each file documents its own choice; nothing states the
+table in one place, and the no-GM suite cannot tell a deliberate gap from a forgotten one.
+
+**5. Duplicated helpers and table conventions.** The clearest sign of copy-the-last-machine in
+the 2026-09-04/05 work: nine lower-case helpers, four row lookups, thirty inline uuid
+try/catches, five die-resolution copies, and three table keying conventions (kebab id, display
+name, camelCase) each with its own derived names set.
+
+**Honourable mentions, deliberately NOT in this pass:** the whole-log scans and the all-actors
+walk in the emanation floor scale with world age (an index by flag is the eventual fix); type
+checking covers only the pure fifth; the 203 biome warnings are nits; the dnd5e pin at 5.3 is
+tight and comments cite system line numbers, so a 5.4 bump is a real migration the dispatch
+check half-covers; the transfer-flag repair in `hit-menu.js` edits owned items at ready, near
+the edge of the content-provenance rule.
+
+### STAGE 0 — pin the evaluation order (½ session, tools + docs only)
+
+**Does:** `check-hook-order.mjs` gains `--snapshot`, writing the full evaluation order (every
+registration, every hook, in order) to a tracked `tools/hook-order.snapshot`, and its default
+run diffs against that file and **fails on drift** unless the snapshot was refreshed on
+purpose. The named `CHECKS` stay as the load-bearing subset. `tools/README.md` gets the row.
+**Proves:** every later move is order-neutral by a command, not by eye — §7's "DIFF the printed
+evaluation order", made mechanical.
+
+### STAGE 1 — one lookup module (finding 5; 1 session)
+
+| Goes in | Replaces |
+| --- | --- |
+| `scripts/lookup.js`, spine: `sameName`, `featureNamed(actor, name)`, `activityNamed(item, name)`, `activityOfType(item, type)`, `resolveUuid(uuid)` (the try/catch), `resolveDie(actor, raw)` (the replace-and-validate idiom) | local copies in 9 machines, 30 inline try/catch sites, 5 die-resolution copies |
+| an `esc` export beside `attr` in `decide/present.js` | 3 copies |
+| `tableIndex(table, keyOf)` in `decide/registry.js` → `{ names, rowNamed }`, keyed by name or by the `feature` field | 4 row lookups, 6 hand-derived `*_NAMES` sets |
+| `listedNames(spec)` in `settings.js`, beside the existing list wrappers | 4 copies |
+
+**Rule:** the eleven tables **keep their keys**. A list setting's default derives from the keys
+(or `feature` fields), so renaming a key changes what a world's saved setting validates
+against. Only the *access* unifies.
+**Proves:** byte-identical behaviour — `npm run verify`, the Stage 0 diff, and each touched
+machine's suite (maneuvers, hitmenu, superiority, shields, heatmetal, sneak, clock, emanations,
+reminders, effects).
+**Docs:** ARCHITECTURE §7's module table gains `lookup.js`; `LAYER_OF` and
+`EXPECTED_SOURCE_FILES` move in the same commit.
+
+### STAGE 2 — the demand registry (finding 1; 1½ sessions)
+
+**Does:** a new pure module `decide/demand.js` holds `resolveDemand(rollFacts, cards, specs)` —
+the recognizer over plain roll facts (`respondsTo`, `originatingMessage`, actor uuid, ability)
+and a plain card list, with each demanding machine's spec `{ flagKey, pendingEntry(flag,
+actorUuid, ability), priority }`; plus the saves-flag constructors `saveDemandData(...)` and
+`saveTargetEntry(uuid, name)`, and the verdict reader `verdictsOn(flag)`. Unit-tested,
+precedence included. In `ui.js`: `registerDemand(flagKey, spec)`, and one EDGE reader
+`demandAnsweredBy(rollMessage)` that walks `game.messages` **once** per roll.
+**Converts:** concentration (`concAskAnsweredBy`), saves (`saveAnsweredBy`, `pendingDemandFor`),
+the Topple fold (`foldToppleSave`'s bare-roll branch), d20-folds (`pendingSaveDemandFor`).
+`emanations.js` builds its trigger card's flag through the constructor. hit-menu and sneak read
+verdicts through the reader.
+**Ruling 1 (2026-09-05): ship order kept** — concentration, then saves, then Topple — as an
+explicit `priority` on each spec. Byte-identical. Oldest-pending-first stays available as one
+field if a table ever wants it.
+**Docs:** ARCHITECTURE §4 gets the table of `respondsTo`'s five meanings (hold answer, save
+roll, concentration roll, precision die, d20-fold die) and the one reader. **The bytes do not
+change** — an answer in flight across a deploy must keep folding.
+**Proves:** unit tests for the recognizer; suites: saves, concentration, effects (Topple),
+d20-folds, emanations, hitmenu, sneak, nogm.
+
+### STAGE 3 — the resumable primitive (finding 3; 1½ sessions)
+
+**Does:** `registerResumable(flagKey, { pending(flag, message), drives(flag, message),
+drive(message) })` in `ui.js`. The spine registers `createChatMessage`, `updateChatMessage` and
+`dnd5e.renderChatMessage` **once**, walks the registry, keeps the in-flight latch keyed
+`${flagKey}|${messageId}`, and calls `drive`. The drive does no DOM work, so card-row order is
+untouched; the machine's own render hook keeps drawing its row.
+**Converts, in this order, one commit each:** cast (`castApply`, `healPending`), superiority-uses
+(`baitSwitch`), hit-menu (`hitManeuver` effects, `hitManeuverCard` follow-ups, `sweepCard`),
+sneak (`cunning` follow-ups), damage-shields (`consider`), then auto-apply's attack-damage trio
+and hold's spell-damage trio. The saves, concentration and mastery resume checks stay inside
+their render hooks this pass unless the Stage 0 diff shows them order-free.
+**Proves:** the Stage 0 diff and the machine's suite per conversion; the full battery at the
+end; `smoke-shields` **three times** (the flake's suite).
+
+### STAGE 3b — the withhold registry (ruling 2; ½ session; repays D9(d))
+
+**Does:** `registerWithhold(flagKey, { offer(rollMessage, ctx) → bool })` in `ui.js`. saves.js
+asks the spine `withholds(rollMessage, ctx)` where it calls `offerFoldOnSave` today; d20-folds
+registers its offer. The return half — d20-folds calling `foldSaveAnswer` — becomes a saves
+resumable on the **roll message** (Stage 3's shape: pending while the d20fold is unresolved,
+drive = the fold). Both lazy imports go, and the two OPEN pins `saves → d20-folds` /
+`d20-folds → saves` come out of `ALLOW`.
+**Ruling 2 (2026-09-05): now, not on a third customer.** The sweep is the third customer.
+**Proves:** `smoke-d20-folds` §6 and the saves suite's withhold sections; the layer gate passes
+with two fewer pins (the stale-pin rule forces the rows out).
+
+### STAGE 4 — split by moment, not by phase (finding 2; 4 sessions)
+
+Stage 2 lands first on purpose: the Topple fold's cross-machine reads go through the registry,
+and the split is cleaner after.
+
+| Today | After | Notes |
+| --- | --- | --- |
+| `maneuvers.js`, 1,559 lines | `precision.js`, `riposte.js`, `bash-offer.js`, `hew.js`, `command.js`. `RULE_TEXT` → `decide/registry.js` beside `MASTERY_RULES` (the 2026-09-01 precedent). `foldEntryFor`, `equippedShield`, `usableManeuver`, `meleeOptions`, `preferredMeleeOption` → `shared.js` (their second customer, saves.js, already exists) | the OPEN pin `saves → maneuvers` goes (D9(c)'s import half). The entry imports the five in that order at maneuvers' slot; the `CHECKS` rows naming `maneuvers.js` re-point at `precision.js` (its row is the one above the d20 row; its `rollAttackV2` stamp precedes the fold's) |
+| `mastery.js`, 1,498 lines | `mastery.js` keeps payouts, asks, notices, the Cleave arm; `topple.js` takes the `topple` flag, its timers, popup, fold and GM button; `chip-spend.js` takes `spendChips`, the expiry tidy and the combat sweep (`chipSpend`) | both already own their flags; `CHECKS` rows naming `mastery.js` are re-pointed where the row moved |
+| `saves.js`, 2,004 lines | **a machine directory (ruling 3):** `scripts/saves/`, one file per spine step. `index.js` — the entry imports this and nothing else of the machine; it imports the parts in the order that preserves today's registration order. `demand.js` — the stamp, the dead-target gate, the emanation reach. `areas.js` — template adoption, the bare-template claim, the spent-area sweep, the template CRUD fast paths, the concentration-ended trigger. `ask.js` — the system dialog with the demand fieldset, the straight roll, the buzzer. `verdict.js` — the fold, the die-less fold, the verdict line and its twin supersede, the legendary-resistance flip and unwind. `consequences.js` — effects per outcome, the status press, damage reconcile. `choices.js` — Interpose and the bash: spec, gate, answer, relay, clock, popup, announce, settle, **on the same `saves` flag, no new key**. `views.js` — the card row and the update and delete watchers. The save gate — `judgeSave`, the `preRollSavingThrowV2` hook, `drawSaveGate`, `postSheetAutoFail`, the record hook — → `reminders.js`, the gate machine, which already owns the attack and check gates; the buzzer's auto-fail check reads `saveSources` from `decide/` directly, so the directory never imports the gate | no part over ~450 lines; the one flag stays one flag. `check-layers.mjs` gains the group rule, §7 the directory paragraph; the `CHECKS` rows naming `saves.js` re-point at `saves/views.js` and `saves/verdict.js`; `reminders.js` grows by ~170 |
+| `hold.js`, `d20-folds.js` | unchanged | one flag each; the hold's views were moved into it by D6 on purpose; the armed-fold block shares `availableFolds`. ⚠ hold.js is the ready **second customer** for the directory rule the day it grows |
+
+**4c — the directory, ruled 2026-09-05 (the user: *"I'd rather do the longer term one"*).**
+Both cuts start from the same fact: `saves.js` is one flag with a long lifecycle. The *light
+cut* would have taken out only the two pieces that are separate moments — the gate and the
+choices — and left the demand's lifecycle whole in one ~1,400-line file, with no tool or
+doctrine change and the choices moved onto a new flag key. The *directory* cuts the lifecycle
+itself along the spine's own steps (stamp, route, ask, verdict, consequences, choices, views),
+one part each, under one folder, and the choices stay on the `saves` flag. **What it costs,
+exactly:**
+
+- **A layer-checker rule.** `LAYER_OF` declares each `saves/*.js` as a machine with
+  `group: "saves"`; an edge inside a group is legal; an edge from outside the group to any part
+  but `saves/index.js` fails with "import the index". About fifteen lines; the undeclared-file
+  and stale-file checks already walk the folder.
+- **A §7 paragraph.** *A machine may be a directory when one flag's lifecycle outgrows a file:
+  the directory is the unit the dependency rule tests, its parts may import each other,
+  `index.js` is its only public face and fixes the registration order of its parts, and the
+  entry imports the index.* The tier table lists `saves/` as one machine.
+- **A second place order can go wrong.** The parts register hooks as `index.js` imports them,
+  so that import list is load-bearing and its comment says so. The Stage 0 snapshot covers it
+  exactly as it covers the entry: the split is done when the snapshot diff is byte-identical
+  apart from the file names.
+- **Cross-part contracts stay hoisted `function` declarations called at hook time** — the
+  §7 rule that makes the tree's existing cycles safe applies inside the folder too.
+- About twice the light cut's sessions.
+
+**What it buys:** no part over ~450 lines where the sweep's save-side work lands; the choices
+need **no new flag key** (the light cut did); and a rule built once that `hold.js` — one flag,
+1,575 lines — takes the day it grows. The house builds a seam on its second customer; this one
+is ruled ahead of that on the user's word, for the long-term shape, and hold.js is the ready
+second customer. The gate still leaves for `reminders.js` under either cut: it is the gate
+machine's by the doc's own words ("the third table on the one gate machine"), and it is the
+sweep's landing zone.
+
+**Proves:** the Stage 0 diff per split with the re-pointed `CHECKS` explained in the commit; the
+family suites (maneuvers, superiority, effects, hold for Parry, saves, reminders, twoclient);
+the full battery at the end of the stage. `LAYER_OF` and `EXPECTED_SOURCE_FILES` move with
+every new file, and ARCHITECTURE §7's tier list and module table are recut.
+
+### STAGE 5 — who drives (finding 4; ½ session)
+
+**Does:** `drivesMastery` (mastery.js), `drivesSpellDamage` (hold.js) and `drivesPayouts`
+(auto-apply.js) collapse onto core's `drivesMomentFor(subjectUuid)` — the same body with a
+different subject resolution, a mechanical change. ARCHITECTURE §3 gets **the driver table**:
+machine × moment × driver × no-GM behaviour, one row per moment.
+**Ruling 4 (2026-09-05): the cast slice moves onto the flow elect** — apply what the caster's
+client may (`canApplyTo` per target), whisper the rest (`whisperNoGM`), the shape auto-apply
+already has. The riposte stamp, Hew, Commander's Strike, stats and emanations **stay GM-only**
+and the table says why (their writes land on other people's documents, or are the GM's by
+design).
+**Proves:** `smoke-nogm` asserts the table row by row; the full battery.
+
+### Rules for every stage
+
+- **Move, do not rewrite.** Flag shapes, setting keys, list defaults, table keys, rules text and
+  card copy do not change. Ruling 4 is the one behaviour change and it is written down.
+- **Every commit:** `npm run verify`; the Stage 0 hook-order diff byte-identical, or the
+  difference explained in the commit message; the touched machine's own suite.
+- **Every stage:** a battery-green pass on the LOCAL sandbox; world settings restored to
+  `tools/verify-settings.mjs`'s reference table; the docs recut before the next stage starts.
+- **Every new file:** declared in `LAYER_OF` and counted in `EXPECTED_SOURCE_FILES` in the same
+  commit; its layer named in its header. A directory machine's parts declare their group too,
+  and the `index.js` import list is load-bearing for order — its comment says so.
+- **No lint cleanup inside a move commit.** The 203-warning baseline stays; hiding a move in a
+  cleanup diff is how a move becomes a rewrite.
+- **No release, no prod deploy** inside this pass. Both stay on the user's word. Check
+  `git log` before every session; parallel sessions collide.
+- **Autonomy:** Stages 1, 3, 4a and 4b are mechanical enough for an autonomous overnight run
+  with the battery as the judge. Stages 2, 3b, 4c and 5 want the user present.
+
+### What this pass deliberately does NOT do
+
+- No index for the whole-log scans and the emanation floor's all-actors walk — measured (35
+  sites, 13 in saves.js), parked; the fix is an index by flag when a world's age makes it
+  visible, never a tail window (the tail lesson stands).
+- No type-checking expansion beyond `decide/`, no dnd5e 5.4 work, no biome cleanup.
+- No change to how popups, bars, cards or rows look. Nothing in this pass reaches the table's
+  eyes except ruling 4's no-GM behaviour.
+- No new content rows. The sweep starts after, on the shape this pass leaves.
+
+### Decisions — RULED 2026-09-05
+
+| # | Decision | Ruling |
+| --- | --- | --- |
+| 1 | Bare-roll precedence in the demand registry | **Keep the ship order** (concentration, saves, Topple) as an explicit `priority`. Byte-identical |
+| 2 | The withhold registry now, or on a third customer | **Now** (Stage 3b). The sweep is the third customer; two OPEN pins come out |
+| 3 | The saves cut: light, or a machine directory | **The directory** — `scripts/saves/`, one part per spine step, `index.js` the only face, the group rule in the layer checker, §7 amended. The review recommended the light cut; the user overturned it for the long-term shape (*"I'd rather do the longer term one"*). The design and its exact cost are under Stage 4c |
+| 4 | The cast slice with no GM | **Flow elect**, the auto-apply shape. Riposte stamp, Hew, Commander's Strike, stats, emanations stay GM-only, written in the driver table |
+| 5 | Scope | **The full pass**, about 9½ sessions, in the order below |
+
+### Sequencing (ruled order)
+
+```
+Stage 0   order snapshot              ½   tools + docs only
+Stage 1   lookup module                1   behaviour-neutral
+Stage 2   demand registry             1½   ruling 1
+Stage 3   resumable primitive         1½
+Stage 3b  withhold registry (D9 d)     ½   ruling 2
+Stage 4a  maneuvers split              1   D9(c)'s import half repaid
+Stage 4b  mastery split                1
+Stage 4c  saves, the directory         2   ruling 3 (the group rule, §7, the split)
+Stage 5   who drives                   ½   ruling 4
+```
+
+**When it is delivered:** ARCHITECTURE §10 D9 is recut (c and d repaid, e left standing with
+its rule), BACKLOG's *four sideways edges* row shrinks to the two that remain, this block gets
+its *HOW IT WENT* section with the measured cost against these estimates, and HANDOFF.md is
+deleted. Distrust the risk labels above; re-measure before scoping each stage — twice on this
+page the thing labelled risky was cheap and the surprise came from elsewhere.
 
 ---
 
