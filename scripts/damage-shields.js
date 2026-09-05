@@ -4,6 +4,7 @@
  */
 import { MODULE_ID, TITLE, activeCombatFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, whisperNoGM } from "./core.js";
 import { lower, itemNamed, activityNamed, resolveUuid } from "./lookup.js";
+import { registerResumable } from "./ui.js";
 import { damageShieldEntries, listedNames } from "./settings.js";
 import { damagePartsOf, effectSourceOf, hitTargets, resolveAttackMessage, turnChitStands, writeTurnChit } from "./shared.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
@@ -111,7 +112,6 @@ function settledMeleeAttack(message) {
   return attackMessage;
 }
 
-const runs = new Set();
 /** Damage messages this client has judged — a re-render or a flag write on one never re-judges it. */
 const judged = new Set();
 
@@ -132,27 +132,31 @@ const judged = new Set();
  * stamped on the card (`damageShields.judged`) so a reload does not judge it again.
  */
 function consider(message, { resume = false } = {}) {
-  try {
-    if ( !listed().size ) return;
-    if ( judged.has(message.id) || runs.has(message.id) ) return;
-    if ( resume ) {
-      if ( message.getFlag(MODULE_ID, "attackHoldPending") !== false ) return;   // only an ex-held roll resumes here
-      if ( message.getFlag(MODULE_ID, "damageShields")?.judged ) return;         // …and only once across reloads
-    }
-    const attackMessage = settledMeleeAttack(message);
-    if ( !attackMessage ) return;
-    void settle(message, attackMessage, { wasHeld: resume });
-  } catch(err) {
-    console.error(`${TITLE} | Damage shield check failed.`, err);
+  if ( !listed().size ) return false;
+  if ( judged.has(message.id) ) return false;
+  if ( resume ) {
+    if ( message.getFlag(MODULE_ID, "attackHoldPending") !== false ) return false;   // only an ex-held roll resumes here
+    if ( message.getFlag(MODULE_ID, "damageShields")?.judged ) return false;         // …and only once across reloads
   }
+  return !!settledMeleeAttack(message);
 }
 
-Hooks.on("createChatMessage", message => consider(message));
-Hooks.on("updateChatMessage", message => consider(message, { resume: true }));          // the hold's release
-Hooks.on("dnd5e.renderChatMessage", message => consider(message, { resume: true }));    // the reload resume
+// Declared to the spine's resumable registry (Stage 3, 2026-09-05), FLAGLESS: the hit is the
+// system's own damage roll, judged at creation before anything of this module is on it; the
+// hold's release (update) and the reload (render) are the resume, gated as above. The three
+// registrations and the in-flight `runs` latch were this file's; `judged` (this client has
+// judged it — never twice) stays, because it is memory, not a latch.
+registerResumable("damageShields", {
+  flagless: true,
+  pending: (_flag, message, cause) => consider(message, { resume: cause !== "create" }),
+  drives: () => true,   // per defender, inside: the flow elect for the ward's bearer
+  drive: message => {
+    const attackMessage = settledMeleeAttack(message);
+    return attackMessage ? settle(message, attackMessage, { wasHeld: message.getFlag(MODULE_ID, "attackHoldPending") === false }) : undefined;
+  }
+});
 
 async function settle(damageMessage, attackMessage, { wasHeld = false } = {}) {
-  runs.add(damageMessage.id);
   judged.add(damageMessage.id);
   try {
     // A released roll's judgement is stamped on the card first, so a reload (which renders every
@@ -205,8 +209,6 @@ async function settle(damageMessage, attackMessage, { wasHeld = false } = {}) {
     }
   } catch(err) {
     console.error(`${TITLE} | Damage shield payout failed — roll the ward's damage by hand.`, err);
-  } finally {
-    runs.delete(damageMessage.id);
   }
 }
 

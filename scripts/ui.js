@@ -1066,21 +1066,30 @@ export function pendingDemandsFor(actorUuid, { flagKey = null } = {}) {
  * and the battery is the judge.
  * ------------------------------------------------------------------------------------------- */
 
-/** flag key → { pending, drives, drive } */
+/** flag key → { pending, drives, drive, flagless } */
 const resumables = new Map();
 /** `${flagKey}|${messageId}` — a drive in flight on this client */
 const resuming = new Set();
 
-/** Declare a resumable moment. See the block above for the three callbacks. */
-export function registerResumable(flagKey, { pending, drives, drive }) {
-  resumables.set(flagKey, { pending, drives, drive });
+/**
+ * Declare a resumable moment. See the block above for the three callbacks.
+ *
+ * ⚠ `flagless: true` is for the two moments whose ARRIVAL carries no module flag — an attack's
+ * damage roll is the system's own message, and the appliers (auto-apply's payouts, the damage
+ * shields) judge it at creation before anything of this module is on it; only their RESUME
+ * reads a claim (`attackHoldPending`, `damageShields.judged`). For those the key is a name, the
+ * spine hands `pending` whatever that flag holds (usually nothing), and the machine reads what
+ * it needs off the message. Everything else is keyed on the flag it is a view of.
+ */
+export function registerResumable(flagKey, { pending, drives, drive, flagless = false }) {
+  resumables.set(flagKey, { pending, drives, drive, flagless });
 }
 
 function resume(message, cause) {
   for ( const [flagKey, r] of resumables ) {
     let flag;
-    try { flag = message.getFlag(MODULE_ID, flagKey); } catch { continue; }
-    if ( !flag ) continue;
+    try { flag = message.getFlag(MODULE_ID, flagKey) ?? null; } catch { continue; }
+    if ( !flag && !r.flagless ) continue;
     const key = `${flagKey}|${message.id}`;
     if ( resuming.has(key) ) continue;
     try {

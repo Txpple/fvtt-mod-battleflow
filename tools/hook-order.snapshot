@@ -58,9 +58,6 @@ createChatMessage	sneak.js
 dnd5e.renderChatMessage	sneak.js
 dnd5e.preRollDamageV2	clock-riders.js
 dnd5e.renderChatMessage	clock-riders.js
-createChatMessage	damage-shields.js
-updateChatMessage	damage-shields.js
-dnd5e.renderChatMessage	damage-shields.js
 dnd5e.postUseActivity	damage-shields.js
 updateActor	damage-shields.js
 dnd5e.renderChatMessage	damage-shields.js
