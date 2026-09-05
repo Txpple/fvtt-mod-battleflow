@@ -347,6 +347,9 @@ export function saveMultiplier(entry, damageOnSave) {
   // Dexterity, the effect deals half on a success, and the saver is not Incapacitated — read at
   // the fold. A success takes NONE (0 — applied and receipted, never silent), a failure HALF.
   if ( entry.evasion ) return (entry.outcome === "saved") ? 0 : (entry.outcome === "failed") ? 0.5 : null;
+  // CIRCLE OF POWER (2026-09-05): a standing effect whose row says a success against half-on-save
+  // spell damage takes NONE — the fold stamps the row's key; a success is 0, applied and receipted.
+  if ( entry.noneOnSuccess && (entry.outcome === "saved") ) return 0;
   if ( entry.outcome === "failed" ) return 1;
   if ( entry.outcome !== "saved" ) return null;
   if ( damageOnSave === "half" ) return 0.5;

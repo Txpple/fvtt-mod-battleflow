@@ -44,6 +44,7 @@ const SECTIONS = {
   18: 'the player-rolled damage offer on the SAVE path (was probe-save-damage-popup)',
   19: 'the save gate (option E, 2026-09-02): the system dialog, the section, the default, Fails',
   20: 'a save press (SAVE_PRESSES): Web ships no effect — a failure presses Restrained, receipted, with a revert',
+  23: 'the effect table\'s SAVES facet (2026-09-05): Aura of Purity counts Advantage against a demand imposing one of its conditions; Circle\'s Power against a spell, and a success takes NONE instead of half',
   21: 'Evasion: a Dexterity save for half — none on a success, half on a failure, said on the row and the receipt',
   22: 'the save gate says WHY when the PLATFORM bends the save (2026-09-04): an item effect on the sheet is a box'
 };
@@ -1803,12 +1804,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           return { card, entry: entryOf(card, rogue), receipt: dmg?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === rogue.uuid) };
         };
         const a = await runOne('+30');
-        ok('21a. a SUCCESS with Evasion takes NO damage — applied at ×0, receipted and said, the row says Evasion',
+        ok('23a. a SUCCESS with Evasion takes NO damage — applied at ×0, receipted and said, the row says Evasion',
           (a.entry?.outcome === 'saved') && (a.entry?.evasion === true) && (a.receipt?.taken === 0) && (a.receipt?.multiplier === 0)
             && /Evasion/.test(a.receipt?.note ?? '') && (rogue.system.attributes.hp.value === rMax),
           `outcome=${a.entry?.outcome} evasion=${a.entry?.evasion} taken=${a.receipt?.taken} mult=${a.receipt?.multiplier} note="${a.receipt?.note}" hp=${rogue.system.attributes.hp.value}/${rMax}`);
         const b = await runOne('-30');
-        ok('21b. a FAILURE with Evasion takes HALF — 5 of the flat 10',
+        ok('23b. a FAILURE with Evasion takes HALF — 5 of the flat 10',
           (b.entry?.outcome === 'failed') && (b.entry?.evasion === true) && (b.receipt?.taken === 5) && (b.receipt?.multiplier === 0.5)
             && /Evasion/.test(b.receipt?.note ?? ''),
           `outcome=${b.entry?.outcome} taken=${b.receipt?.taken} mult=${b.receipt?.multiplier} note="${b.receipt?.note}"`);
@@ -1816,7 +1817,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const eff = await ActiveEffect.implementation.fromStatusEffect('incapacitated');
         const [inc] = await ActiveEffect.implementation.create(eff.toObject(), { parent: rogue, keepId: true }).then(e => [e]);
         const c = await runOne('-30');
-        ok('21c. not while Incapacitated — the failure takes the full 10',
+        ok('23c. not while Incapacitated — the failure takes the full 10',
           (c.entry?.outcome === 'failed') && !c.entry?.evasion && (c.receipt?.taken === 10),
           `evasion=${c.entry?.evasion} taken=${c.receipt?.taken}`);
         await rogue.deleteEmbeddedDocuments('ActiveEffect', [inc.id]).catch(() => {});
@@ -1883,6 +1884,82 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const carriers = victim.effects.filter(e => e.statuses?.has?.('restrained'));
         if (carriers.length) await victim.deleteEmbeddedDocuments('ActiveEffect', carriers.map(e => e.id)).catch(() => {});
         if (trinket && victim.items.get(trinket.id)) await victim.deleteEmbeddedDocuments('Item', [trinket.id]).catch(() => {});
+      }
+    }
+
+    // ============================================== 23. the SAVES facet — Aura of Purity, Circle's Power
+    if (want(23)) {
+      const priorLists = { reminderList: game.settings.get(MOD, 'reminderList'), effectList: game.settings.get(MOD, 'effectList') };
+      const failEff = npc.items.get(poisonItem.id).effects.get(EFF_FAIL);
+      const priorStatuses = [...(failEff?.statuses ?? [])];
+      const wards = [];
+      try {
+        await clearChips();
+        await saveBonus(victim, '');
+        await healFull(victim);
+        if (!/\beffect\b/.test(priorLists.reminderList)) await set('reminderList', `${priorLists.reminderList}, effect`);
+        await set('effectList', `${priorLists.effectList}, Aura of Purity, Circle's Power`);
+        const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+        const defaultOf = dlg => dlg?.querySelector('button[autofocus]')?.dataset?.action ?? null;
+        // The demand names the TOKEN (the fixture's is "Hobgoblin"), so look the dialog up by the card's own entry name.
+        const dialogFor = card => until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 6000);
+        const ward = async name => { const [e] = await victim.createEmbeddedDocuments('ActiveEffect', [{ name, img: 'icons/svg/aura.svg', transfer: false, disabled: false }]); wards.push(e); return e; };
+        const castDexAt = async () => {
+          target(victimToken);
+          await sleep(120);
+          const use = await dexActivity().use({}, { configure: false }, {});
+          const card = use?.message instanceof ChatMessage ? use.message : null;
+          if (card) await until(() => card.getFlag(MOD, 'saves'));
+          return card;
+        };
+
+        // 21a–b: Aura of Purity against a demand whose failed effect imposes Poisoned.
+        await failEff.update({ statuses: ['poisoned'] });
+        await ward('Aura of Purity');
+        const cardA = await castDexAt();
+        const demandA = cardA?.getFlag(MOD, 'saves')?.demand;
+        ok('23a. the demand records what the save is against — a spell, and the Poisoned condition its failed effect imposes',
+          (demandA?.spell === true) && (demandA?.statuses ?? []).includes('poisoned'), `demand=${JSON.stringify(demandA)}`);
+        const dlgA = await dialogFor(cardA);
+        const textA = sectionText(dlgA);
+        ok('23b. the victim wearing Aura of Purity meets the gate: "Aura of Purity — against Poisoned", Net Advantage, Advantage the default',
+          !!dlgA && /Aura of Purity — against Poisoned/.test(textA) && /Net Advantage/.test(textA) && (defaultOf(dlgA) === 'advantage'),
+          `text="${textA.slice(0, 200)}" default=${defaultOf(dlgA)}`);
+        dlgA?.querySelector('button[autofocus]')?.click();
+        await until(() => cardA?.getFlag(MOD, 'saves')?.status === 'done', 10000);
+        // The elect's own damage for cardA lands after the verdict — wait for its receipt, then heal.
+        await until(() => game.messages.contents.some(m => (m.getFlag('dnd5e', 'originatingMessage') === cardA?.id) && m.getFlag(MOD, 'receipt')), 12000);
+        await sleep(300);
+        for (const w of wards.splice(0)) await w.delete().catch(() => {});
+        await failEff.update({ statuses: priorStatuses });
+
+        // 21c–d: Circle's Power against a spell — Advantage, and a SUCCESS takes none.
+        await ward("Circle's Power");
+        await victim.update({ 'system.abilities.dex.bonuses.save': '+30' });   // the fixture demands a DEXTERITY save: a rolled one succeeds
+        await healFull(victim);
+        const vMax = victim.system.attributes.hp.max;
+        const cardB = await castDexAt();
+        const dlgB = await dialogFor(cardB);
+        const textB = sectionText(dlgB);
+        ok('23c. the victim wearing Circle\'s Power meets the gate against a spell: "Circle\'s Power — against a spell", Net Advantage',
+          !!dlgB && /Circle's Power — against a spell/.test(textB) && /Net Advantage/.test(textB), `text="${textB.slice(0, 200)}"`);
+        dlgB?.querySelector('button[autofocus]')?.click();
+        await until(() => cardB?.getFlag(MOD, 'saves')?.status === 'done', 10000);
+        const entryB = cardB?.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === victim.uuid);
+        const beforeDmg = snap();
+        await dexActivity().rollDamage({}, { configure: false }, { data: { 'flags.dnd5e.originatingMessage': cardB.id } });
+        const dmgB = await until(() => fresh(beforeDmg).find(m => (m.getFlag('dnd5e', 'roll.type') === 'damage') && m.getFlag(MOD, 'receipt')?.targets?.some(t => t.uuid === victim.uuid)), 12000);
+        const rv = dmgB?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid);
+        ok('23d. the success is stamped noneOnSuccess and the half becomes NONE — 0 applied and receipted, the note naming Circle\'s Power, the pool untouched',
+          (entryB?.outcome === 'saved') && (entryB?.noneOnSuccess === "Circle's Power") && !!rv && (rv.taken === 0) && (rv.multiplier === 0) && /Circle's Power, no damage/.test(rv.note ?? '') && (victim.system.attributes.hp.value === vMax),
+          `entry=${JSON.stringify(entryB && { outcome: entryB.outcome, none: entryB.noneOnSuccess })} receipt=${JSON.stringify(rv && { taken: rv.taken, multiplier: rv.multiplier, note: rv.note })} hp ${vMax}→${victim.system.attributes.hp.value} allDmg=${JSON.stringify(game.messages.contents.filter(m => (m.getFlag('dnd5e', 'roll.type') === 'damage') && (m.getFlag('dnd5e', 'originatingMessage') === cardB?.id)).map(m => ({ t: new Date(m.timestamp).toISOString().slice(14, 23), by: m.speaker?.alias, receipts: m.getFlag(MOD, 'receipt')?.targets?.map(x => ({ n: x.name, taken: x.taken, mult: x.multiplier, note: x.note })) })))}`);
+      } finally {
+        for (const w of wards) await w.delete().catch(() => {});
+        await failEff?.update({ statuses: priorStatuses }).catch(() => {});
+        await saveBonus(victim, '');
+        await victim.update({ 'system.abilities.dex.bonuses.save': '' });
+        await set('reminderList', priorLists.reminderList);
+        await set('effectList', priorLists.effectList);
       }
     }
 

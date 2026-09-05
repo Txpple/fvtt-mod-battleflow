@@ -13,12 +13,12 @@ import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, reminderFieldse
 import { livePopups, openMomentPopup, adoptManagedPopup, DialogCarried, markDefaultButton,
   momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
   armDeadline, disarmDeadline, registerRelay, dramaticVerdictPause } from "./ui.js";
-import { EMANATIONS, EVASION, SAVE_BENDS, SAVE_PRESSES } from "./decide/registry.js";
+import { EFFECT_BENDS, EMANATIONS, EVASION, SAVE_BENDS, SAVE_PRESSES } from "./decide/registry.js";
 import { reachAdmits } from "./decide/emanations.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
-import { REMINDER_FLAG, modeSources, reminderRecord, saveGate, saveSources } from "./decide/reminders.js";
+import { REMINDER_FLAG, effectSaveSources, modeSources, reminderRecord, saveGate, saveNoneOnSuccess, saveSources } from "./decide/reminders.js";
 import { rollModeOf } from "./decide/chips.js";
-import { conditionEntries, emanationEntries, reminderEntries } from "./settings.js";
+import { conditionEntries, effectEntries, emanationEntries, reminderEntries } from "./settings.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt, revertEffect } from "./effect-riders.js";
 // ⚠ SAFE STATICALLY, unlike auto-damage.js's own ui.js import (v1.6.1's ESM order trap): the
@@ -197,6 +197,11 @@ async function stampSaveDemand(activity, message, results) {
       damageOnSave: onSave,
       hasDamage: saveModulated,
       effectNames,
+      // WHAT THE SAVE IS AGAINST (2026-09-05, the save gate's effect facet): a spell's demand,
+      // and the statuses its failed-save effects impose — Aura of Purity and Circle of Power read
+      // these off the pending demand when the roller's dialog opens.
+      demand: { spell: (activity.item?.type === "spell") || (activity.item?.system?.properties?.has?.("mgc") ?? false),
+        statuses: [...new Set(entries.filter(e => !e.onSave).flatMap(e => [...(e.effect?.statuses ?? [])]))] },
       ...(emanation ? { effectsHandled: "emanation" } : {}),
       activityUuid: activity.uuid,
       // The dnd5e area type (cube, sphere, …) — adoption's shape gate for a TOOLBAR-drawn
@@ -696,8 +701,21 @@ function judgeSave(actor, ability) {
   if ( on.has("effect") ) {
     const roll = { kind: "save", ability };
     sources.push(...modeSources({ effects: sheetModeEffects(actor), roll, rollLabel: rollLabelFor(roll), name: actor.name }));
+    // The effect table's `saves` facet (Aura of Purity, Circle of Power — 2026-09-05), read
+    // against the DEMAND this roller is answering; a bare sheet roll has none and is listed.
+    sources.push(...effectSaveSources({ effects: actor.effects.filter(e => !e.disabled).map(e => ({ id: e.id, name: e.name })),
+      enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, demand: pendingDemandFor(actor)?.demand ?? null, name: actor.name }));
   }
   return new DialogCarried({ ...saveGate(sources), actorUuid: actor.uuid, ability, failed: false });
+}
+
+/** The demand this actor is mid-answer on, if any — the newest pending card naming it undone. */
+function pendingDemandFor(actor) {
+  const cards = game.messages.contents.filter(m => {
+    const f = m.getFlag(MODULE_ID, "saves");
+    return f && (f.status === "pending") && (f.targets ?? []).some(t => !t.done && (t.uuid === actor.uuid));
+  });
+  return cards.at(-1)?.getFlag(MODULE_ID, "saves") ?? null;
 }
 
 // THE GATE, on every saving throw that opens a dialog — forced by a demand or rolled from the
@@ -1018,6 +1036,9 @@ export async function foldSaveAnswer(card, uuid, rollMessage) {
       entry.total = judged.total;
       entry.rollMessageId = rollMessage.id;
       if ( evasionApplies(rollMessage.getAssociatedActor?.(), current) ) entry.evasion = true;
+      // Circle of Power (2026-09-05): a success against half-on-save spell damage takes none.
+      const noneBy = noneOnSuccessFor(rollMessage.getAssociatedActor?.(), current);
+      if ( noneBy ) entry.noneOnSuccess = noneBy;
       if ( timedOut ) entry.timedOut = true;
       if ( forced ) entry.forced = true;
       if ( current.targets.every(t => t.done) ) {
@@ -1500,6 +1521,15 @@ function evasionApplies(actor, flag) {
   return actor.items.some(i => (i.type === "feat") && (i.name.toLowerCase() === EVASION.feature.toLowerCase()));
 }
 
+/** A standing effect that turns this saver's SUCCESS against half-on-save damage into none
+ * (the effect table's `halfToNone` — Circle of Power against a spell): the row's key, or null. */
+function noneOnSuccessFor(actor, flag) {
+  if ( !(actor instanceof Actor) || !flag?.hasDamage || (flag.damageOnSave !== "half") ) return null;
+  if ( !reminderEntries().some(e => e.kind === "effect") ) return null;
+  return saveNoneOnSuccess({ effects: actor.effects.filter(e => !e.disabled).map(e => ({ name: e.name })),
+    enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, demand: flag.demand ?? null });
+}
+
 /** The SAVE_PRESSES press: the canonical status on the failer, receipted as an applied effect
  * (the effect the status became — so the card's revert removes exactly it). */
 async function pressSaveStatus(card, flag, entry, press) {
@@ -1541,6 +1571,7 @@ async function applyOneSaveDamage(damageMessage, flag, entry) {
     multiplier,
     note: entry.evasion
       ? ((entry.outcome === "saved") ? "saved — Evasion, no damage" : "failed — Evasion, half damage")
+      : (entry.noneOnSuccess && (entry.outcome === "saved")) ? `saved — ${entry.noneOnSuccess}, no damage`
       : (entry.outcome === "saved")
         ? ((multiplier === 0.5) ? "saved — half damage" : "saved — full damage anyway")
         : undefined

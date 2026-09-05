@@ -759,6 +759,13 @@ describe("saveMultiplier — null means no application AND no receipt", () => {
     expect(v.saveMultiplier(e, "half")).toBe(0.5);
   });
 
+  it("Circle of Power (2026-09-05): a success stamped noneOnSuccess takes NONE — 0, applied and receipted; a failure still takes it all", () => {
+    expect(v.saveMultiplier({ outcome: "saved", noneOnSuccess: "Circle's Power" }, "half")).toBe(0);
+    expect(v.saveMultiplier({ outcome: "failed", noneOnSuccess: "Circle's Power" }, "half")).toBe(
+      1
+    );
+  });
+
   it("an interpose on a FAILED save cannot exist, and is not honoured if it does", () => {
     // Only a saved entry ever carries the choice — there is no failed-with-spend case.
     const e = entry("failed", { kind: "interpose", answer: "use" });

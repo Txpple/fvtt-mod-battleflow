@@ -872,6 +872,31 @@ met this because it never uses the activity from the sheet. Now the use is the A
 next check the scope names. Same class as Heat Metal's follow-up dialog (above): dnd5e leaves a
 second click for the human, and the module has hidden the thing to click.
 
+### The 2024 auras' SAVE clauses ship as prose only (2026-09-05, Aura of Purity)
+
+Measured on the PHB pack: Aura of Purity's effect carries the Poison Resistance and nothing
+else; Circle of Power's "Circle's Power" carries no change at all; Holy Aura's "Holy Protection"
+carries +1 to every save's roll mode (the one the system reads). So "Advantage on saving throws
+to avoid or end effects that include the Blinded, Charmed … condition" and "Advantage on saving
+throws against spells" exist only in the description. The effect table's `saves` facet holds
+them (decide/registry.js), and the save gate reads the DEMAND — the pending `saves` card's
+`demand` — to judge them: the demanding activity's item type, and the statuses its failed-save
+effects carry. A spell whose condition is not modelled as a status on its effect (a DDB import,
+a hand-built spell) is invisible to this, the same limit every effect reader has.
+
+### The emanation names what it applies "Effect — Source", and every effect reader matched exactly (2026-09-05)
+
+The walk: Aura of Purity stood on Morgash as **"Aura of Purity — Thomas"** (emanations.js
+appends the caster so two auras of one spell can be told apart), the demand card said
+"against Paralyzed", the fixture path proved the gate end to end — and the table saw nothing,
+because `effectSources`, `effectCheckSources` and the new `effectSaveSources` all matched an
+effect's name to its row EXACTLY. So Holy Protection applied by the region was never read by
+the attack gate either, since the day the second slice shipped. One helper now
+(`effectNamedAs`: the bare name, or the name with " — " and anything after) serves every
+reader. **The rule that generalises:** a reader that matches by name must know every shape
+the module itself writes that name in; the fixture suites plant effects by hand under the bare
+name and cannot catch this — the walk did.
+
 ### The offer row: NOTHING above the rule fold — the third time (2026-09-05)
 
 Cunning Strike's rows lost their caveat line on 2026-09-02 ("just the rule tick"), the hit

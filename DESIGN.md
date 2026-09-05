@@ -766,7 +766,16 @@ table is said on the card.** Aura of Life, Aura of Purity, Circle of Power, Crus
 and Holy Aura apply exactly the pack's effect to allies inside (Crusader's Mantle's +1d4
 radiant on weapon damage is the platform's own change; Holy Protection's save Advantage is
 the save gate's to explain by item); each row's caveat names the clause the pack does not
-carry. **A heal the caster AIMS is a notice, never played** (Aura of Vitality: a card at the
+carry. **The save clauses the packs leave out are the save gate's, by effect** (user,
+2026-09-05: "Aura of Purity doesn't really give advantage to saves like Hold Person, Hypnotic
+Pattern … do it for all the pack effect spells"): the effect table's `saves` facet reads the
+DEMAND — what the save is against — and Aura of Purity counts Advantage when the demanding
+spell's failed effect would impose one of its seven conditions, Circle's Power when a spell
+demands the save at all, and a success against half-on-save spell damage under Circle of Power
+takes NONE, applied and receipted like Evasion's. A bare sheet save has no demand and the box
+lists the aura uncounted with its scope. Holy Aura needed nothing: the pack's Holy Protection
+carries the save Advantage and the attack gate already read the attackers' Disadvantage off it;
+the Fiend/Undead save on a melee hit stays the table's. **A heal the caster AIMS is a notice, never played** (Aura of Vitality: a card at the
 caster's turn start names Start of Turn Heal with a button, and the caster targets a creature
 and presses it — the choice stays theirs). **A barrier is a ring and a card** (Antilife Shell:
 nothing applied, the ring drawn for the table to honour). **An area can pay a member at a

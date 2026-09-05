@@ -83,6 +83,9 @@ the drop yours to play. Reheating on a later turn does the same again.
 **Auras, the second slice.** Aura of Life, Aura of Purity, Circle of Power, Crusader's Mantle
 and Holy Aura apply the pack's own effect to allies inside their ring; Aura of Vitality reminds
 you at the start of your turn that the heal is yours to aim; Antilife Shell draws its ring.
+The save clauses the packs leave out are the save gate's: inside Aura of Purity a save against
+Hold Person or Hypnotic Pattern opens with Advantage and says why; inside Circle of Power every
+save against a spell does, and a success against half-damage spell takes none.
 
 **Saves happen at once.** A spell that forces a save rolls it for every target, opens the
 system's own Saving Throw dialog for each player with the demand and the stakes above it, and

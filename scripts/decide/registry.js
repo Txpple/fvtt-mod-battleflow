@@ -552,7 +552,7 @@ export const EMANATIONS = Object.freeze({
     rule: "An aura radiates from you in a 30-foot Emanation for the duration. While in the aura, you and your allies have Resistance to Necrotic damage, and your Hit Point maximums can’t be reduced. If an ally with 0 Hit Points starts its turn in the aura, that ally regains 1 Hit Point.",
     from: "Paladin spell, level 4 (Concentration, 10 minutes)" }),
   "Aura of Purity": Object.freeze({ kind: "spell", reach: "helpful", range: null, effect: "Aura of Purity", incapacitated: false,
-    caveat: "the pack's effect carries the Poison Resistance; the Advantage on saves against those conditions is the table's",
+    caveat: "the pack's effect carries the Poison Resistance; the Advantage on saves against those conditions is the save gate's (Effect Sources — Aura of Purity)",
     rule: "An aura radiates from you in a 30-foot Emanation for the duration. While in the aura, you and your allies have Resistance to Poison damage and Advantage on saving throws to avoid or end effects that include the Blinded, Charmed, Deafened, Frightened, Paralyzed, Poisoned, or Stunned condition.",
     from: "Paladin spell, level 4 (Concentration, 10 minutes)" }),
   "Aura of Vitality": Object.freeze({ kind: "spell", reach: "helpful", range: null, effect: null, incapacitated: false,
@@ -565,14 +565,14 @@ export const EMANATIONS = Object.freeze({
     rule: "An aura extends from you in a 10-foot Emanation for the duration. The aura prevents creatures other than Constructs and Undead from passing or reaching through it. An affected creature can cast spells or make attacks with Ranged or Reach weapons through the barrier. If you move so that an affected creature is forced to pass through the barrier, the spell ends.",
     from: "Druid spell, level 5 (Concentration, 1 hour)" }),
   "Circle of Power": Object.freeze({ kind: "spell", reach: "helpful", range: null, effect: "Circle's Power", incapacitated: false,
-    caveat: "the pack's effect carries no change — the Advantage on saves against spells, and none instead of half, are the table's",
+    caveat: "the pack's effect carries no change — the Advantage on saves against spells is the save gate's, and a success against half-on-save spell damage takes none (Effect Sources — Circle's Power)",
     rule: "An aura radiates from you in a 30-foot Emanation for the duration. While in the aura, you and your allies have Advantage on saving throws against spells and other magical effects. When an affected creature makes a saving throw against a spell or magical effect that allows a save to take only half damage, it takes no damage if it succeeds on the save.",
     from: "Cleric / Paladin spell, level 5 (Concentration, 10 minutes)" }),
   "Crusader's Mantle": Object.freeze({ kind: "spell", reach: "helpful", range: null, effect: "Crusader’s Mantle", incapacitated: false,
     rule: "You radiate a magical aura in a 30-foot Emanation. While in the aura, you and your allies each deal an extra 1d4 Radiant damage when hitting with a weapon or an Unarmed Strike.",
     from: "Paladin spell, level 3 (Concentration, 1 minute)" }),
   "Holy Aura": Object.freeze({ kind: "spell", reach: "helpful", range: null, effect: "Holy Protection", incapacitated: false,
-    caveat: "the pack's effect carries the Advantage on saves (the save gate says so); attackers' Disadvantage and the Fiend/Undead save on a melee hit are the table's",
+    caveat: "the pack's effect carries the Advantage on saves (the save gate says so) and the attack gate reads attackers' Disadvantage off it (Effect Sources — Holy Protection); the Fiend/Undead save on a melee hit is the table's",
     rule: "For the duration, you emit an aura in a 30-foot Emanation. While in the aura, creatures of your choice have Advantage on all saving throws, and other creatures have Disadvantage on attack rolls against them. In addition, when a Fiend or an Undead hits an affected creature with a melee attack roll, the attacker must succeed on a Constitution saving throw or have the Blinded condition until the end of its next turn.",
     from: "Cleric spell, level 8 (Concentration, 1 minute)" })
 });
@@ -857,6 +857,11 @@ export const CHECK_BENDS = Object.freeze({
  *             module holds; the row fires only when it is true
  *   spend     "attack" — the rules end the effect on the next attack roll ("your next attack
  *             roll"): the spend hook uses it up with a receipt, exactly as Vex and Sap
+ *   checks    a bend on the bearer's ABILITY CHECKS (Heated Metal, Averse) — the check gate's
+ *   saves     { bend, statuses?, spells?, halfToNone? } — a bend on the bearer's SAVING THROWS,
+ *             scoped by the DEMAND the save gate finds: against an effect imposing one of the
+ *             statuses (Aura of Purity), or against a spell (Circle of Power); `halfToNone` turns
+ *             a success against half-on-save damage into none (2026-09-05)
  *   rule      the ability's own sentence, from the pack (enrichers rendered as plain words)
  *   from      where it comes from, for the reader
  *
@@ -942,6 +947,19 @@ export const EFFECT_BENDS = Object.freeze({
   "Taunted": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Steps of the Fey",
     caveat: "counted — press Normal if this attack is at the one who taunted it",
     rule: "Creatures within 5 feet of the space you left must succeed on a Wisdom saving throw or have Disadvantage on attack rolls against creatures other than you until the start of your next turn." }),
+  // SAVE BENDS BY EFFECT (user, 2026-09-05: "Aura of Purity doesn't really give advantage to
+  // saves like Hold Person, Hypnotic Pattern … do it for all the pack effect spells"): the
+  // `saves` facet — the bend on the BEARER's saving throws, scoped by what the demand would do
+  // (`statuses`: a save against an effect that imposes one of these; `spells`: a save a spell
+  // demands), read against the demand the save gate finds. `halfToNone`: a success against
+  // half-on-save damage takes NONE (Circle of Power — an outcome, the applier's). The packs'
+  // effects carry no data for any of this (measured 2026-09-05); the rows are where it lives.
+  "Aura of Purity": Object.freeze({ attacker: null, target: null, scope: "any", from: "Aura of Purity",
+    saves: Object.freeze({ bend: "advantage", statuses: Object.freeze(["blinded", "charmed", "deafened", "frightened", "paralyzed", "poisoned", "stunned"]) }),
+    rule: "While in the aura, you and your allies have Resistance to Poison damage and Advantage on saving throws to avoid or end effects that include the Blinded, Charmed, Deafened, Frightened, Paralyzed, Poisoned, or Stunned condition." }),
+  "Circle's Power": Object.freeze({ attacker: null, target: null, scope: "any", from: "Circle of Power",
+    saves: Object.freeze({ bend: "advantage", spells: true, halfToNone: true }),
+    rule: "While in the aura, you and your allies have Advantage on saving throws against spells and other magical effects. When an affected creature makes a saving throw against a spell or magical effect that allows a save to take only half damage, it takes no damage if it succeeds on the save." }),
   "Cursed Attacks": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Bestow Curse",
     caveat: "counted — press Normal if this attack is not at the caster",
     rule: "While cursed, the target has Disadvantage on attack rolls against you." }),

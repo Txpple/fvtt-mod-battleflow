@@ -28,6 +28,20 @@ export const REMINDER_FLAG = "reminder";
 const conditionName = key => key.charAt(0).toUpperCase() + key.slice(1);
 
 /**
+ * Does an effect on a sheet answer to a table row's name? Exactly, or as the EMANATION machine
+ * names what it applies — the pack's effect name with the source appended ("Aura of Purity —
+ * Thomas", "Holy Protection — Thomas"), so a region-applied aura reads as its row (2026-09-05:
+ * Aura of Purity stood on Morgash under that name and no reader saw it).
+ * @param {string|null|undefined} effectName
+ * @param {string} key
+ */
+export const effectNamedAs = (effectName, key) => {
+  const name = String(effectName ?? "").toLowerCase();
+  const k = String(key ?? "").toLowerCase();
+  return !!k && ((name === k) || name.startsWith(`${k} — `));
+};
+
+/**
  * The caveat that rides a LABEL (user, 2026-09-02: "just say rogue — hiding"): a row's
  * "listed — …" caveat is the whole reason the row bends nothing, so it stays; a "counted — …"
  * caveat only restates the quoted rule's own condition, so it is dropped from the label —
@@ -165,12 +179,76 @@ export function effectCheckSources({ effects = [], features = [], enabled, table
     if ( !row?.checks || !on.has(key.toLowerCase()) ) continue;
     const carriers = (row.match === "feature")
       ? ((features ?? []).some(f => String(f).toLowerCase() === key.toLowerCase()) ? [{ id: null }] : [])
-      : (effects ?? []).filter(e => String(e?.name ?? "").toLowerCase() === key.toLowerCase());
+      : (effects ?? []).filter(e => effectNamedAs(e?.name, key));
     for ( const e of carriers ) {
       out.push(Object.assign(reminderSource("effect", row.checks, `${name} — ${key}`, row.rule), e.id ? { effectId: e.id } : {}));
     }
   }
   return out;
+}
+
+/**
+ * SAVE SOURCES BY EFFECT (user, 2026-09-05: "Aura of Purity doesn't really give advantage to
+ * saves like Hold Person, Hypnotic Pattern"): the effects on the roller's OWN sheet whose table
+ * row carries a `saves` facet, read against the DEMAND — what the save is against. A
+ * `statuses` row fires when the demand's failed-save effects impose one of them; a `spells` row
+ * when a spell demands the save. An UNKNOWN demand (a bare sheet roll — nothing pending) is
+ * LISTED, not counted: the box names the effect and its scope and leaves the button to the
+ * human (R1 — the module does not guess what a sheet roll is against).
+ * @param {{effects?: {id: string, name: string}[], enabled: Iterable<string>,
+ *          table: Readonly<Record<string, any>>,
+ *          demand?: {spell?: boolean|null, statuses?: string[]|null}|null, name?: string}} facts
+ */
+export function effectSaveSources({ effects = [], enabled, table, demand = null, name = "You" }) {
+  const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
+  const out = [];
+  for ( const [key, row] of Object.entries(table ?? {}) ) {
+    const facet = row?.saves;
+    if ( !facet || !on.has(key.toLowerCase()) ) continue;
+    const carriers = (effects ?? []).filter(e => effectNamedAs(e?.name, key));
+    if ( !carriers.length ) continue;
+    const scope = facet.statuses?.length
+      ? `a save against ${facet.statuses.map(conditionName).join(", ")}`
+      : facet.spells ? "a save against a spell or other magical effect" : "this save";
+    let bend = null;
+    let caveat = "";
+    if ( !demand ) {
+      caveat = ` (listed — ${scope}; press ${facet.bend === "advantage" ? "Advantage" : "Disadvantage"} if this is one)`;
+    } else if ( facet.statuses?.length ) {
+      const hits = (demand.statuses ?? []).filter(s => facet.statuses.includes(String(s).toLowerCase()));
+      if ( !hits.length ) continue;
+      bend = facet.bend;
+      caveat = ` — against ${hits.map(conditionName).join(", ")}`;
+    } else if ( facet.spells ) {
+      if ( !demand.spell ) continue;
+      bend = facet.bend;
+      caveat = " — against a spell";
+    } else {
+      bend = facet.bend;
+    }
+    for ( const e of carriers ) {
+      out.push(Object.assign(reminderSource("effect", bend, `${name} — ${key}${caveat}`, row.rule), e.id ? { effectId: e.id } : {}));
+    }
+  }
+  return out;
+}
+
+/**
+ * Does a standing effect turn a SUCCESS against half-on-save damage into none (Circle of
+ * Power's `halfToNone`, against a spell)? The row's key when one does, for the receipt's note.
+ * @param {{effects?: {name: string}[], enabled: Iterable<string>, table: Readonly<Record<string, any>>,
+ *          demand?: {spell?: boolean|null}|null}} facts
+ * @returns {string|null}
+ */
+export function saveNoneOnSuccess({ effects = [], enabled, table, demand = null }) {
+  const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
+  for ( const [key, row] of Object.entries(table ?? {}) ) {
+    const facet = row?.saves;
+    if ( !facet?.halfToNone || !on.has(key.toLowerCase()) ) continue;
+    if ( facet.spells && !demand?.spell ) continue;
+    if ( (effects ?? []).some(e => effectNamedAs(e?.name, key)) ) return key;
+  }
+  return null;
 }
 
 /** The check gate's judgement: the attack arithmetic over its sources, one object for the
@@ -304,7 +382,7 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
     if ( row.match === "feature" ) {
       return (who.features ?? []).some(f => String(f).toLowerCase() === name) ? [{ id: null }] : [];
     }
-    return (who.effects ?? []).filter(e => String(e?.name ?? "").toLowerCase() === name);
+    return (who.effects ?? []).filter(e => effectNamedAs(e?.name, name));
   };
   const out = [];
   for ( const [key, base] of Object.entries(table ?? {}) ) {

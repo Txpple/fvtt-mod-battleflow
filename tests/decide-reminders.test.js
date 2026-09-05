@@ -490,7 +490,8 @@ describe("effectSources — the sixth kind: an ability on either sheet, by name 
   });
   it("the table is data with one shape: every row names a side, a scope, a rule and where it is from; feature rows never share a name with an effect", () => {
     for (const [key, row] of Object.entries(T())) {
-      expect(row.attacker || row.target, key).toBeTruthy();
+      // A row bends an attack side, or a check, or a save (the `saves` facet, 2026-09-05).
+      expect(row.attacker || row.target || row.checks || row.saves, key).toBeTruthy();
       expect(["any", "spell", "weapon", "melee", "ranged"], key).toContain(row.scope);
       expect(row.rule.length, key).toBeGreaterThan(20);
       expect(row.from, key).toBeTruthy();
@@ -1017,5 +1018,124 @@ describe('modeSources — the platform\'s own roll mode, read off the effect CHA
     });
     expect(s.bend).toBe("disadvantage");
     expect(s.label).toBe("You — Plate Armor (Heavy Armor)");
+  });
+});
+
+describe("effectSaveSources — the `saves` facet (user, 2026-09-05: Aura of Purity, Circle of Power)", () => {
+  const facts = () => ({
+    enabled: ["Aura of Purity", "Circle's Power"],
+    table: reg.EFFECT_BENDS,
+    name: "Gren"
+  });
+  const purity = { id: "p1", name: "Aura of Purity" };
+  const circle = { id: "c1", name: "Circle's Power" };
+
+  it("Aura of Purity counts Advantage against a demand whose failed effect imposes one of its seven conditions, and names it", () => {
+    const out = r.effectSaveSources({
+      ...facts(),
+      effects: [purity],
+      demand: { spell: true, statuses: ["paralyzed"] }
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0].bend).toBe("advantage");
+    expect(out[0].label).toBe("Gren — Aura of Purity — against Paralyzed");
+    expect(out[0].effectId).toBe("p1");
+  });
+
+  it("…and says nothing against a demand that imposes none of them (a Fireball)", () => {
+    expect(
+      r.effectSaveSources({ ...facts(), effects: [purity], demand: { spell: true, statuses: [] } })
+    ).toEqual([]);
+  });
+
+  it("Circle's Power counts Advantage against any spell's demand and nothing against a monster's breath", () => {
+    const spell = r.effectSaveSources({
+      ...facts(),
+      effects: [circle],
+      demand: { spell: true, statuses: [] }
+    });
+    expect(spell.map(s => [s.bend, s.label])).toEqual([
+      ["advantage", "Gren — Circle's Power — against a spell"]
+    ]);
+    expect(
+      r.effectSaveSources({
+        ...facts(),
+        effects: [circle],
+        demand: { spell: false, statuses: ["poisoned"] }
+      })
+    ).toEqual([]);
+  });
+
+  it("an UNKNOWN demand (a bare sheet roll) lists the effect uncounted, with its scope and the button to press", () => {
+    const out = r.effectSaveSources({ ...facts(), effects: [purity, circle], demand: null });
+    expect(out.map(s => s.bend)).toEqual([null, null]);
+    expect(out[0].label).toMatch(
+      /^Gren — Aura of Purity \(listed — a save against Blinded, Charmed/
+    );
+    expect(out[0].label).toMatch(/press Advantage if this is one\)$/);
+    expect(out[1].label).toMatch(/a save against a spell or other magical effect/);
+  });
+
+  it("the list is the switch, and an effect not on the sheet is nothing", () => {
+    expect(
+      r.effectSaveSources({
+        ...facts(),
+        enabled: [],
+        effects: [purity],
+        demand: { spell: true, statuses: ["charmed"] }
+      })
+    ).toEqual([]);
+    expect(
+      r.effectSaveSources({
+        ...facts(),
+        effects: [],
+        demand: { spell: true, statuses: ["charmed"] }
+      })
+    ).toEqual([]);
+  });
+
+  it("saveNoneOnSuccess names Circle's Power against a spell, and nothing otherwise", () => {
+    expect(r.saveNoneOnSuccess({ ...facts(), effects: [circle], demand: { spell: true } })).toBe(
+      "Circle's Power"
+    );
+    expect(
+      r.saveNoneOnSuccess({ ...facts(), effects: [circle], demand: { spell: false } })
+    ).toBeNull();
+    expect(
+      r.saveNoneOnSuccess({ ...facts(), effects: [purity], demand: { spell: true } })
+    ).toBeNull();
+  });
+});
+
+describe('effectNamedAs — the emanation\'s suffix (2026-09-05: "Aura of Purity — Thomas" stood on Morgash and no reader saw it)', () => {
+  it("matches the bare name, the region's suffixed name, and nothing that merely starts alike", () => {
+    expect(r.effectNamedAs("Aura of Purity", "Aura of Purity")).toBe(true);
+    expect(r.effectNamedAs("Aura of Purity — Thomas", "aura of purity")).toBe(true);
+    expect(r.effectNamedAs("Aura of Purity Lite", "Aura of Purity")).toBe(false);
+    expect(r.effectNamedAs("", "Aura of Purity")).toBe(false);
+  });
+  it("every effect reader honours it: the attack gate (Holy Protection — Thomas), the check gate, the save facet", () => {
+    const enabled = ["Holy Protection", "Heated Metal", "Aura of Purity"];
+    const attack = r.effectSources({
+      enabled,
+      table: reg.EFFECT_BENDS,
+      attacker: {},
+      target: { uuid: "t", effects: [{ id: "h", name: "Holy Protection — Thomas" }] },
+      pass: "target"
+    });
+    expect(attack.map(s => s.bend)).toEqual(["disadvantage"]);
+    const check = r.effectCheckSources({
+      enabled,
+      table: reg.EFFECT_BENDS,
+      effects: [{ id: "m", name: "Heated Metal — Jetten" }]
+    });
+    expect(check.map(s => s.bend)).toEqual(["disadvantage"]);
+    const save = r.effectSaveSources({
+      enabled,
+      table: reg.EFFECT_BENDS,
+      effects: [{ id: "p", name: "Aura of Purity — Thomas" }],
+      demand: { spell: true, statuses: ["paralyzed"] }
+    });
+    expect(save.map(s => s.bend)).toEqual(["advantage"]);
   });
 });
