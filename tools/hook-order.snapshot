@@ -42,9 +42,6 @@ createChatMessage	mastery.js
 updateActiveEffect	mastery.js
 deleteCombat	mastery.js
 dnd5e.renderChatMessage	mastery.js
-createChatMessage	auto-apply.js
-updateChatMessage	auto-apply.js
-dnd5e.renderChatMessage	auto-apply.js
 dnd5e.preRollAttackV2	reminders.js
 renderRollConfigurationDialog	reminders.js
 targetToken	reminders.js

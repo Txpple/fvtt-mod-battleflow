@@ -8,6 +8,7 @@ import { receiptEntry, joinDamageReceipt } from "./decide/receipt.js";
 import { interruptMultiplier, reduceDamages } from "./decide/verdict.js";
 import { INTERRUPT_MULTIPLIERS } from "./decide/registry.js";
 import { hitTargets, resolveAttackMessage, damagePartsOf, statSourceOf } from "./shared.js";
+import { registerResumable } from "./ui.js";
 import { applyEffectRiders } from "./effect-riders.js";
 import { resolveHitMastery } from "./mastery.js";
 
@@ -32,58 +33,39 @@ function drivesPayouts(message) {
   } catch { return false; }
 }
 
-Hooks.on("createChatMessage", message => {
-  if ( !drivesPayouts(message) ) return;
-  if ( !setting(S.autoApply) && !setting(S.effectRiders) && !setting(S.masteryRiders) ) return;
-  void resolveAttackDamage(message);
+// The payouts' three triggers, declared to the spine's resumable registry (Stage 3, 2026-09-05),
+// FLAGLESS: the attack's damage roll is the system's own message, judged at creation before
+// anything of this module is on it. (gg) roll-now-apply-later: an attack held by a Shield-class
+// reaction rolls its damage anyway (auto-damage.js stamps the roll `attackHoldPending`), and the
+// application waits for the hold's resolution to release the claim — the darts' spellHoldPending
+// pattern, on the attack chain. The release write (pending → false, hold.js) is the bus event;
+// render is the reload resume — only an ex-claimed, unreceipted roll resumes. The re-entry guard
+// (the release write and a render can land in one tick, and over-applying damage is the worst
+// failure this module has) is the spine's `attackDamage|<id>` latch now.
+registerResumable("attackDamage", {
+  flagless: true,
+  pending: (_flag, message, cause) => (cause === "create")
+    || ((message.getFlag(MODULE_ID, "attackHoldPending") === false) && !message.getFlag(MODULE_ID, "receipt")),
+  drives: (_flag, message) => drivesPayouts(message)
+    && (setting(S.autoApply) || setting(S.effectRiders) || setting(S.masteryRiders)),
+  drive: resolveAttackDamage
 });
-
-// (gg) roll-now-apply-later: an attack held by a Shield-class reaction rolls its damage
-// anyway (auto-damage.js stamps the roll `attackHoldPending`), and the application waits
-// here for the hold's resolution to release the claim — the darts' spellHoldPending
-// pattern, on the attack chain. The release write (pending → false, hold.js) is the bus
-// event; render is the reload resume, exactly the spell applier's three triggers.
-Hooks.on("updateChatMessage", message => {
-  if ( !drivesPayouts(message) ) return;
-  if ( !setting(S.autoApply) && !setting(S.effectRiders) && !setting(S.masteryRiders) ) return;
-  if ( message.getFlag(MODULE_ID, "attackHoldPending") !== false ) return;
-  if ( message.getFlag(MODULE_ID, "receipt") ) return;
-  void resolveAttackDamage(message);
-});
-
-Hooks.on("dnd5e.renderChatMessage", message => {
-  if ( !drivesPayouts(message) ) return;
-  if ( !setting(S.autoApply) && !setting(S.effectRiders) && !setting(S.masteryRiders) ) return;
-  if ( message.getFlag(MODULE_ID, "attackHoldPending") !== false ) return; // only ex-claimed rolls resume here
-  if ( message.getFlag(MODULE_ID, "receipt") ) return;
-  void resolveAttackDamage(message);
-});
-
-/** Re-entry guard for the three triggers above — the release write and a render can land in
- * the same tick, and over-applying damage is the worst failure this module has. */
-const attackDamageRuns = new Set();
 
 async function resolveAttackDamage(message) {
-  if ( attackDamageRuns.has(message.id) ) return;
-  attackDamageRuns.add(message.id);
-  try {
-    if ( message.getFlag("dnd5e", "roll.type") !== "damage" ) return; // healing is typed "healing"
-    const attackMessage = resolveAttackMessage(message);
-    if ( !attackMessage ) return;
-    if ( message.getFlag(MODULE_ID, "attackHoldPending") === true ) {
-      // Claimed for a hold. Belt and braces (the spell applier's own idiom): if the hold
-      // has already RESOLVED — the release sweep ran before this roll landed — fall
-      // through and apply per its verdicts; a live claim keeps waiting for the release.
-      const hold = attackMessage.getFlag(MODULE_ID, "hold");
-      if ( !hold || (hold.status === "pending") ) return;
-    }
-    if ( message.getFlag(MODULE_ID, "receipt") ) return;               // applied already (resume)
-    const hits = hitTargets(attackMessage);
-    if ( !hits.length ) return; // every target Shield-flipped: the dice do nothing, by ruling
-    await resolveDamagePayouts(message, attackMessage, hits);
-  } finally {
-    attackDamageRuns.delete(message.id);
+  if ( message.getFlag("dnd5e", "roll.type") !== "damage" ) return; // healing is typed "healing"
+  const attackMessage = resolveAttackMessage(message);
+  if ( !attackMessage ) return;
+  if ( message.getFlag(MODULE_ID, "attackHoldPending") === true ) {
+    // Claimed for a hold. Belt and braces (the spell applier's own idiom): if the hold
+    // has already RESOLVED — the release sweep ran before this roll landed — fall
+    // through and apply per its verdicts; a live claim keeps waiting for the release.
+    const hold = attackMessage.getFlag(MODULE_ID, "hold");
+    if ( !hold || (hold.status === "pending") ) return;
   }
+  if ( message.getFlag(MODULE_ID, "receipt") ) return;               // applied already (resume)
+  const hits = hitTargets(attackMessage);
+  if ( !hits.length ) return; // every target Shield-flipped: the dice do nothing, by ruling
+  await resolveDamagePayouts(message, attackMessage, hits);
 }
 
 /**
