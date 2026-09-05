@@ -16,13 +16,14 @@
 > protected, not the thing being changed.**
 >
 > ⚠ **A second pass is on this page as of 2026-09-05:** *THE MACHINE-TIER PASS*, directly
-> below. Its five decisions are ruled and it **awaits the user's go**. Nothing in it has been
-> built. [HANDOFF.md](HANDOFF.md) carries the state and the procedure for the session that
-> starts it, and retires when it is delivered.
+> below. Its five decisions are ruled; **Stages 0 → 3b are delivered** (each stage's mark carries
+> its measured cost and its battery) and the pass is **paused after 3b on the user's word** for a
+> fresh window. [HANDOFF.md](HANDOFF.md) carries the state and the procedure for the session that
+> picks up Stage 4a, and retires when the pass is delivered.
 
 ---
 
-## ▶ THE MACHINE-TIER PASS — RULED 2026-09-05, awaiting the go
+## ▶ THE MACHINE-TIER PASS — RULED 2026-09-05; Stages 0 → 3b DELIVERED the same day; 4a → 5 owed
 
 **Origin:** the 2026-09-05 architecture review (post-v1.32.1, **scored 7/10**). The
 2026-08-23 review scored the tree 8/10; the drop is not a regression in anything that pass
@@ -205,7 +206,8 @@ ui.js; concentration, saves and the Topple fold declare (`answering: null` on To
 the constructor; hit-menu and sneak read verdicts through the reader. One measured normalisation:
 the reader sorts the log by timestamp (concentration already did; saves and Topple relied on
 `contents` order, which the comments called oldest-first). Hook order byte-identical — the spine's
-reader registers no hook. Cost: one session, most of it the two batteries of Stage 1.
+reader registers no hook. Cost: one session, most of it the two batteries of Stage 1. **Battery
+on the sandbox 28/28 green, settings clean** (recorded after the commit; the run was in flight).
 
 ### STAGE 3 — the resumable primitive (finding 3; 1½ sessions)
 
@@ -221,6 +223,22 @@ and hold's spell-damage trio. The saves, concentration and mastery resume checks
 their render hooks this pass unless the Stage 0 diff shows them order-free.
 **Proves:** the Stage 0 diff and the machine's suite per conversion; the full battery at the
 end; `smoke-shields` **three times** (the flake's suite).
+✅ **Done 2026-09-05, seven commits** — `registerResumable` in ui.js; the ten resumables: cast
+(`castApply`, `healPending`), `baitSwitch`, the hit menu's `hitManeuver` / `hitManeuverCard` /
+`sweepCard`, `cunning`, `damageShields`, `attackDamage`, `spellDamage`. ⚠ **What the plan did not
+foresee:** two of them judge an ARRIVAL with no module flag on the message (the attack's damage
+roll is the system's own), so the primitive gained `flagless: true` — the key is a name and the
+machine reads what it needs. Twelve registrations left the machines for the spine's three (181 →
+169 in the snapshot, each move refreshed and explained in its commit); the snapshot proved every
+drive starts at ui.js's slot now, ahead of the machines' own handlers on the same hooks — the
+order of synchronous prefixes, the battery the judge. ⚠ **Deviation from the per-commit rule,
+stated:** the machines' suites did not run per conversion — the sandbox is one process and the
+Stage 2 battery held it — so the stage's battery is the judge for all seven at once. One
+chain-guard mistake on the way (a grep's exit code let a syntax error commit; amended within the
+minute, the guard fixed). **Battery on the sandbox at HEAD (3 + 3b together): 26/28, the two reds
+the known classes — effects §14a (the Topple hit killed the target, the dice-variance class the
+suite's own header names) and emanations §11e (the suite's race) — both 57/57 and 68/68 on the
+immediate rerun of the same deploy; `smoke-shields` 23/23 three times; settings CLEAN.**
 
 ### STAGE 3b — the withhold registry (ruling 2; ½ session; repays D9(d))
 
@@ -233,6 +251,16 @@ drive = the fold). Both lazy imports go, and the two OPEN pins `saves → d20-fo
 **Ruling 2 (2026-09-05): now, not on a third customer.** The sweep is the third customer.
 **Proves:** `smoke-d20-folds` §6 and the saves suite's withhold sections; the layer gate passes
 with two fewer pins (the stale-pin rule forces the rows out).
+✅ **Done 2026-09-05** — `registerWithhold` / `registerWithheld` / `withholds` / `resumeWithheld`
+in ui.js; both lazy imports gone; the two OPEN pins out (8 → 6 pinned pairs, 2 OPEN: saves →
+maneuvers, saves → receipts); D9(d) recut. ⚠ **Not taken, on purpose:** the plan's "resumable on
+the roll message" for the return half. It would move the resume onto the demand's elect and add a
+reload resume — two behaviours the two-client suite does not pin today — so the resume stays a
+direct hand-back through the spine by the client that resolved the offer, at that instant, exactly
+as before. The d20fold flag gains one additive field (`resume.by`). Hook order byte-identical.
+Battery: the Stage 3 run above covers it (saves 102/102, d20-folds 60/60). **The pass paused here
+on the user's word (2026-09-05: "pause after 3b, commit, handoff for a fresh context window");
+HANDOFF.md is the commission for 4a → 5.**
 
 ### STAGE 4 — split by moment, not by phase (finding 2; 4 sessions)
 

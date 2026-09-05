@@ -1,127 +1,104 @@
-# HANDOFF.md — the machine-tier pass, ruled and awaiting the go (written 2026-09-05)
+# HANDOFF.md — the machine-tier pass, Stages 4a → 5 (recut 2026-09-05, end of the first window)
 
 > **Temporary by house rule** (BACKLOG's header: a commission is written when there is one and
-> retired when it is delivered). This one exists because the user asked for it at a context
-> boundary: *"write it down and I'll review in a new session, so give a handoff too."* Retire it
-> when the pass is delivered (docs recut, PLAN.md's block gains its *HOW IT WENT*) or declined
-> (the block marked so). Delete this file in that same commit.
+> retired when it is delivered). The first window delivered Stages 0 through 3b and stopped on
+> the user's instruction (*"pause after 3b, commit, handoff for a fresh context window"*).
+> Retire this file when the pass is delivered (docs recut, PLAN.md's block gains its *HOW IT
+> WENT*) or declined. Delete it in that same commit.
 
 ## Where things stand
 
-- **Tree:** HEAD `84e00ac` = **v1.32.1**. The working tree was clean when the review session
-  began. That session added **two documents and nothing else**: this file, and the block
-  *THE MACHINE-TIER PASS* at the top of [PLAN.md](PLAN.md). **No code changed. Nothing was
-  deployed. No world was touched** — the review ran the static gate and read every file under
-  `scripts/`; it never connected to the sandbox or to prod.
-- **Prod:** v1.32.1, unchanged by this session. A prod process restart stays the user's.
-- **Gate at HEAD:** `npm run verify` green — 23 static checks, 503 unit tests in 0.6 s,
-  8 pinned layer edges (4 OPEN under D9), no unpinned edge. `npm run layers` printed 46 files
-  and 245 internal edges.
-- **Owed:** nothing. BACKLOG's pick-up order is empty. This pass is **ruled but not started**:
-  the user ruled decisions 1–5 in the review session (ruling 3 overturned from the
-  recommendation — see below) and asked to review the written plan in a new session before
-  the go.
-- **Uncommitted:** both documents were written to the working tree and **not committed**, on
-  the standing rule that a commit is the user's call. `git status` will show them.
+- **Tree:** HEAD `= the docs commit above `297b634`` = v1.32.1 plus the pass's commits (Stage 0 `5fdff87`, Stage 1
+  `c734a21`, Stage 2 `355c455`, Stage 3 in seven commits `1ae1330`…`3cb6183`, Stage 3b
+  `297b634`, then this docs commit). Nothing released; **module.json still says 1.32.1**.
+- **Prod:** v1.32.1, untouched by this pass. A prod process restart stays the user's; a release
+  and a prod deploy stay on the user's word.
+- **Sandbox:** running HEAD (deployed with `deploy-house-module.mjs --local`, process bounced).
+  Fixtures in place; settings verified CLEAN after the last battery.
+- **Gate at HEAD:** `npm run verify` green — 23 static checks, 523 unit tests, biome baseline
+  **202** warnings (it was 203; one local helper's removal took one), **6 pinned layer edges
+  (2 OPEN under D9)**, no unpinned edge. The hook-order snapshot holds **169 registrations**.
+- **Batteries:** Stage 1: two runs (the first found the `tableIndex` key defect; the second 27/27). Stage 2: 28/28. Stages 3 + 3b together at HEAD: 26/28, the two reds the known classes (effects §14a dice variance, emanations §11e the suite's race), both green on the immediate rerun of the same deploy; `smoke-shields` 23/23 three times. Every run ended settings CLEAN.
+- **Owed by this pass:** Stages 4a, 4b, 4c, 5 (about 4½ sessions by the estimates; distrust
+  them). BACKLOG's pick-up order is otherwise empty.
 
-## What the review session did
+## What the first window did, and what it learned
 
-1. A full architectural review of `scripts/` — every one of the 46 files read in full, the
-   measurements taken by tool (line counts, duplication greps, churn since 2026-08-23, the
-   gate's own prints). **Score 7/10.** The pure decision layer, the registries, the spine and
-   the services score about 8.5 on their own; the machine tier about 6. The findings, the
-   numbers and the six-stage plan are in **PLAN.md → *THE MACHINE-TIER PASS***. Read that block
-   for the substance; this file is only the state and the procedure.
-2. Wrote the pass. Behaviour-neutral by construction except ruling 4 (the cast slice with no
-   GM), which is written down. The user ruled all five decisions in the same session; the
-   rulings are in the block's last table and repeated below.
+The stage marks in [PLAN.md](PLAN.md) → *THE MACHINE-TIER PASS* carry the substance and the
+measured cost per stage. The facts a next session would otherwise re-derive:
 
-## What the user is doing in the new session
+- **The snapshot is the instrument.** Every move of a registration between files shows as
+  lines in `tools/hook-order.snapshot`; `npm run hooks` fails on drift; `--snapshot` refreshes
+  in the same commit as an intended move. Stage 3 moved twelve registrations onto ui.js's slot
+  and each commit names the lines.
+- **`tableIndex` (decide/registry.js) spreads the ROW over `{ key }`, as the four copies did** —
+  a row that carries its own `key` field (USE_CHIPS) wins. `keyNamed(name)` is the table key.
+  The Steady Aim chip went missing on the first battery of Stage 1 for want of that line.
+- **The resumable primitive has two shapes:** keyed on the flag it is a view of (eight), and
+  `flagless` (two — the attack payouts and the damage shields judge an ARRIVAL that carries no
+  module flag). `cause` is `create` | `update` | `render`, and each machine's `pending` encodes
+  its old per-trigger gates exactly. The claims (`effectsApplied`, `resolving`, `judged`, the
+  receipt) stay the machines', through the serializer.
+- **The withhold registry keeps the protocol's timing and driver.** The resume is a direct
+  hand-back through the spine by the client that resolved the offer; the plan's "resumable on the
+  roll message" was deliberately not taken (it would move the resume onto the elect and add a
+  reload resume; the two-client suite pins neither). The d20fold flag gained `resume.by`.
+- **The demand registry sorts the log by timestamp** (concentration already did; saves and
+  Topple relied on `contents` order). Ruling 1's precedence is `priority` on the declaration.
+- **Emanations §11e can flake** on its own race (the stale template's `createRegion` sweep
+  beating the suite's 800 ms sleep); it passed on the rerun of the same code. Not the module's.
+- **The first commit chain of Stage 3 committed a syntax error** because a `grep | head` in the
+  chain masked the gate's exit code; amended within the minute. Guard chains on `$?`, never on
+  a grep.
 
-Reading the plan block, confirming or amending the five rulings recorded there, and then giving
-**the go for Stage 0**. A handoff is not a go (the standing procedure — the session-cycle rule).
-If a ruling changes, change it in PLAN.md's decisions table first, then start.
+## The next window: Stage 4a first
 
-## The five decisions — RULED 2026-09-05
+**Order:** 4a (maneuvers split) → 4b (mastery split) → 4c (the saves directory, ruling 3) → 5
+(who drives, ruling 4). Every stage: `git log` first; the LOCAL sandbox is the box; one
+battery-green pass; `tools/verify-settings.mjs` after; docs recut before the next stage; check in
+at every break point; no release, no prod.
 
-| # | Decision | Ruling |
-| --- | --- | --- |
-| 1 | Bare-roll precedence in the demand registry (Stage 2) | **Keep the ship order** — concentration, then saves, then Topple — as an explicit `priority` on each spec. Byte-identical; oldest-pending-first stays one field away |
-| 2 | Dissolve the two-way saves ↔ d20-folds cycle now, or on a third withholding moment | **Now** (Stage 3b, the withhold registry). The sweep is the third customer; the two OPEN pins come out |
-| 3 | The saves cut: the light cut, or a machine directory | **The directory** — `scripts/saves/`, one part per spine step, `index.js` the only face, a group rule in the layer checker, §7 amended. The review recommended the light cut; the user overturned it for the long-term shape (*"I'd rather do the longer term one"*). The full design and its exact cost are under Stage 4c. The gate still moves to `reminders.js` |
-| 4 | The cast slice with no GM | **Flow elect** — apply what the caster's client may, whisper the rest (the auto-apply shape). Riposte stamp, Hew, Commander's Strike, stats, emanations stay GM-only and the driver table says why |
-| 5 | Scope | **The full pass**, about 9½ sessions, in the ruled order |
+**Stage 4a — what is measured, not guessed (this window's reads):**
 
-## On the go — order and procedure
+- `maneuvers.js` sections by line at HEAD: PRECISION 161–450 (`rollAttackV2` stamp at 169, the
+  `registerRescue("precision")` at 425), RIPOSTE 450–837 (its `createChatMessage` at 496,
+  `registerRelay("riposteAnswer")` at 629, `preRollDamageV2` 726, `rollAttackV2` 769), HEW
+  837–999 (render 894, create 969), THE BASH OFFER 999–1175 (`rollAttackV2` 1015, the moot at
+  1121), SHARED PLUMBING 1175–1367 (render 1179, update 1316, delete 1361 — the rows, popups on
+  render, answer watcher, cleanup), COMMANDER'S STRIKE 1367–end (`preUseActivity` 1389,
+  `postUseActivity` 1399, the chip 1456, the ride 1485, create 1512, render 1523). Re-measure
+  after 3b's lines shifted nothing here (the file is untouched since Stage 1's helper swaps).
+- **Exports the tree depends on:** `RULE_TEXT` (line 87 — goes to decide/registry.js beside
+  `MASTERY_RULES`), `maneuverEntries`, `foldEntryFor` (116), `equippedShield` (126),
+  `usableManeuver`, `meleeOptions`, `preferredMeleeOption` — the five sheet readers go to
+  shared.js (their second customer, saves.js, exists: the two lazy sites at saves.js:1154 and
+  1295 are the OPEN pin `saves → maneuvers`, which then comes out).
+- **The gate rows that name `maneuvers.js`:** seven in `tools/check-hook-order.mjs` CHECKS
+  (`renderChatMessage` mastery → maneuvers, maneuvers → saves, maneuvers → d20-folds;
+  `rollAttackV2` maneuvers → d20-folds — LOAD-BEARING: precision stamps before the fold composes)
+  → re-point at `precision.js` where the row is precision's; one OPEN pin in `check-layers.mjs`
+  (`saves.js → maneuvers.js`); `LAYER_OF` gains five files; `EXPECTED_SOURCE_FILES` 48 → 52 (five
+  files in, one out). `battleflow.js` imports the five at maneuvers' slot (line 119), in the
+  order that keeps the snapshot byte-identical apart from file names: the section order above is
+  the registration order today, so precision, riposte, hew, bash-offer, command — but the SHARED
+  PLUMBING (rows, popups, answer watcher, cleanup at 1175–1367) registers between the bash offer
+  and Commander's Strike; where it lands (one shared file, or each feature's own rows) decides
+  three registrations' positions. Measure with the snapshot before choosing.
+- **The hook-registrations attribution regex** (`tools/hook-registrations.mjs`,
+  `scripts\/([\w.-]+\.js)`) does not match a path with a directory in it. Irrelevant for 4a/4b;
+  **4c's `saves/` directory needs it widened** to `scripts\/([\w./-]+\.js)` or every part reads
+  as `?` in the snapshot.
 
-- **Order:** Stage 0 → 1 → 2 → 3 → 3b → 4a → 4b → 4c → 5. Stage 2 before Stage 4 on
-  purpose: the Topple fold's cross-machine reads go through the registry, and the split is
-  cleaner after. Stage 3b after Stage 3: the return half of the withhold is a resumable. Docs
-  recut at the end of every stage, not at the end of the pass.
-- **Every session:** check `git log` first (parallel sessions collide); the LOCAL sandbox is
-  the test box; one battery-green pass; restore the world settings to the reference table in
-  `tools/verify-settings.mjs` after any run; check in at every break point; no release and no
-  prod deploy inside this pass — both stay on the user's word.
-- **Every commit:** `npm run verify`; the hook-order diff (Stage 0's snapshot) byte-identical or
-  the difference explained in the commit; the touched machine's own suite.
-- **Autonomy:** Stages 1, 3, 4a and 4b are mechanical enough for an autonomous overnight run
-  with the battery as the judge. Stages 2, 3b, 4c and 5 carry rulings or a doctrine change and
-  want the user present.
-
-## Facts the next session should not re-derive
-
-- The **bare-roll recognizer lives in three files** — `concAskAnsweredBy` (concentration.js),
-  `saveAnsweredBy` (saves.js), `foldToppleSave` (mastery.js) — and d20-folds.js reads the saves
-  flag in `pendingSaveDemandFor`. The precedence concentration → saves → Topple is **ship
-  order**; the comments call it an accident ("shipped first"), not a ruling. Ruling 1 keeps it.
-- `emanations.js` `maybeTrigger` **writes a complete `saves` flag by hand** — a second writer
-  of that shape with no shared constructor. The `saves` flag is read or written in **six files**:
-  saves, mastery, d20-folds, hit-menu, sneak, emanations.
-- `respondsTo` carries **five meanings**: a hold answer, a save roll, a concentration roll, the
-  precision die's message, a d20 fold's die message. Every recognizer checks whose card it
-  points at. The bytes must not change (an answer in flight across a deploy would stop folding).
-- **List-setting defaults derive from table KEYS** (or `feature` fields — two conventions).
-  Renaming a table key changes what a world's saved setting validates against. Stage 1 unifies
-  the *access* to the tables and must not rename a key.
-- **Adding or removing a static import moves hook registration order** (ARCHITECTURE §7, both
-  directions measured). Stage 0's snapshot exists so every later move is provable by a command.
-  **In the saves directory, `index.js`'s import list is the second such place** and its comment
-  must say so.
-- `tools/check-hook-order.mjs` `CHECKS` names files (`maneuvers.js`, `mastery.js`, `saves.js`).
-  A split must re-point those rows in the same commit as the split (saves' rows → `saves/views.js`
-  for the render row, `saves/verdict.js` where a create-hook order is pinned), and `LAYER_OF` in
-  `check-layers.mjs` plus `EXPECTED_SOURCE_FILES` in `check-registry.mjs` move with every new
-  file — the gate fails otherwise, which is the point. The directory needs the **group rule** in
-  `check-layers.mjs` first: parts of one group may import each other; from outside, only the
-  group's `index.js`.
-- **The saves directory never imports the gate.** The buzzer's auto-fail check
-  (`fireSaveTimer`) needs only `saveSources` over the condition table, which is `decide/`; the
-  dialog's Fails handshake rides `bfSaveDemand.failed` on the DialogCarried, a contract ui.js
-  already documents, and the gate hook in `reminders.js` writes it exactly as `drawSaveGate` does
-  today. `renderRollConfigurationDialog` order between the demand fieldset (saves) and the gate
-  fieldset (reminders) does not matter: both anchor on the dialog's CONFIGURATION part, not on
-  each other. Check it with the snapshot anyway.
-- The shared sheet readers a maneuvers split needs (`foldEntryFor`, `equippedShield`,
-  `usableManeuver`, `meleeOptions`, `preferredMeleeOption`) already have a **second customer**:
-  saves.js imports two of them today (the OPEN pin saves → maneuvers). shared.js is their home
-  by the house rule; `RULE_TEXT` goes to decide/registry.js beside `MASTERY_RULES`, the exact
-  precedent (2026-09-01). Stage 4a must land before 4c, or the saves directory imports a machine.
-- The damage-shields flake of 2026-09-05 was the **newest copy of the resume-floor idiom**
-  judging world state without a claim on the card. Stage 3's primitive is the general fix; the
-  shields suite is the one to run three times after it.
-- Biome baseline **203 warnings** (unused parameters 56, iterable callback returns 49, template
-  literals 33, unused variables 33, the rest small). Not part of this pass; do not "clean up"
-  inside a move commit — it hides the move in the diff.
-- Not split, on purpose: **hold.js** (one flag; its views were moved into it by D6) and
-  **d20-folds.js** (one flag; the armed-fold block shares `availableFolds`). hold.js is the ready
-  **second customer** for the directory rule if it grows; not this pass.
+**Stage 4b, 4c, 5:** as ruled in PLAN.md's block (rulings 3 and 4 stand; the directory needs the
+group rule in `check-layers.mjs` FIRST, then §7's paragraph, then the split; the gate goes to
+`reminders.js`; the cast slice moves onto the flow elect and the driver table lands in §3).
 
 ## What NOT to do
 
-- Do not start building before the go.
-- Do not touch prod, and do not force-reload the user's prod window.
-- In any stage: do not change flag shapes, setting keys, list defaults, table keys, rules text
-  or card copy. Move, do not rewrite. Ruling 4 is the one behaviour change.
-- Do not rename `respondsTo` or unify the envelope bytes; unify the *reader*.
-- Do not add a new flag key for the save choices; the directory keeps them on `saves`.
-- Do not run a suite or the fixture step while the user is walking the sandbox.
+- Do not release or deploy to prod; do not force-reload the user's prod window.
+- Move, do not rewrite: flag shapes, setting keys, list defaults, table keys, rules text, card
+  copy unchanged. Ruling 4 is the one behaviour change.
+- Do not rename `respondsTo` or unify the envelope bytes.
+- No lint cleanup inside a move commit (the 202 baseline stays).
+- Do not run a suite while the user is walking the sandbox; disconnect the bridge before a suite.
+- Do not commit on a grep's exit code.
