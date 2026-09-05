@@ -15,7 +15,7 @@ import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt, messageActivity } from "./effect-riders.js";
-import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerRelay, shownMoments } from "./ui.js";
+import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerRelay, registerResumable, shownMoments } from "./ui.js";
 
 /* ---------------------------------------------------------------------------------------------
  * THE HIT MENU (user, 2026-09-04 — "the actor should be given a choice if they have maneuvers,
@@ -327,14 +327,10 @@ async function runConsequences(damageMessage, hm) {
 
 /* --- the effect on the hit, on the elect (Distracting Strike) -------------------------------- */
 
-/** Same-client latch per damage message. */
-const effectsRun = new Set();
-
 async function settleHitEffects(message) {
   const hm = message.getFlag(MODULE_ID, "hitManeuver");
-  if ( !hm?.effects || hm.effectsApplied || effectsRun.has(message.id) ) return;
+  if ( !hm?.effects || hm.effectsApplied ) return;
   if ( !drivesMomentFor(hm.sourceUuid ?? null) ) return;
-  effectsRun.add(message.id);
   try {
     let claimed = false;
     await queueFlagWrite(message, "hitManeuver", current => {
@@ -351,8 +347,6 @@ async function settleHitEffects(message) {
     if ( effects.length && hits.length ) await applyEffectsWithReceipt(message, effects, hits, { source: statSourceOf(message) });
   } catch(err) {
     console.error(`${TITLE} | The maneuver's effect failed to apply.`, err);
-  } finally {
-    effectsRun.delete(message.id);
   }
 }
 
@@ -512,14 +506,10 @@ function armSweepTimer(card) {
   });
 }
 
-/** Same-client latch per card. */
-const sweepsRun = new Set();
-
 async function settleSweep(card) {
   const sc = card.getFlag(MODULE_ID, "sweepCard");
-  if ( !sc?.chosen || sc.resolved || sweepsRun.has(card.id) ) return;
+  if ( !sc?.chosen || sc.resolved ) return;
   if ( !drivesMomentFor(sc.sourceUuid ?? null) ) return;
-  sweepsRun.add(card.id);
   try {
     let claimed = false;
     await queueFlagWrite(card, "sweepCard", current => {
@@ -548,18 +538,29 @@ async function settleSweep(card) {
     });
   } catch(err) {
     console.error(`${TITLE} | The sweep failed to resolve — roll the die by hand.`, err);
-  } finally {
-    sweepsRun.delete(card.id);
   }
 }
 
-Hooks.on("updateChatMessage", message => {
-  const hcu = message.getFlag(MODULE_ID, "hitManeuverCard");
-  if ( hcu?.onFail || hcu?.pressUuids?.length ) void settleHitFollowups(message);
-  if ( message.getFlag(MODULE_ID, "sweepCard")?.chosen ) void settleSweep(message);
+// The three resume floors, declared to the spine's resumable registry (Stage 3, 2026-09-05) —
+// their create/update registrations, their render-time resume lines and the two per-message
+// latches (effectsRun, sweepsRun) were this file's; the per-target latch inside the follow-ups
+// and every claim through the serializer are unchanged. The causes are the triggers as they
+// were: the effects on arrival and reload, never on an update; the follow-ups and the sweep on
+// the answer's write and on reload.
+registerResumable("hitManeuver", {
+  pending: (flag, _message, cause) => (cause !== "update") && !!flag.effects && !flag.effectsApplied,
+  drives: flag => drivesMomentFor(flag.sourceUuid ?? null),
+  drive: settleHitEffects
 });
-Hooks.on("createChatMessage", message => {
-  if ( message.getFlag(MODULE_ID, "hitManeuver")?.effects ) void settleHitEffects(message);
+registerResumable("hitManeuverCard", {
+  pending: (flag, _message, cause) => (cause !== "create") && !!(flag.onFail || flag.pressUuids?.length),
+  drives: (flag, message) => drivesMomentFor(message.getFlag(MODULE_ID, "saves")?.sourceUuid ?? flag.sourceUuid ?? null),
+  drive: settleHitFollowups
+});
+registerResumable("sweepCard", {
+  pending: (flag, _message, cause) => (cause !== "create") && !!flag.chosen && !flag.resolved,
+  drives: flag => drivesMomentFor(flag.sourceUuid ?? null),
+  drive: settleSweep
 });
 
 /* --- the cards say it (R5) -------------------------------------------------------------------- */
@@ -577,7 +578,6 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       lines: [hm.line, ruleLine(hm.rule), ...(hm.notes ?? []).map(n => `<span style="opacity:0.8;">${n}</span>`)]
     });
     html.querySelector(".message-content")?.appendChild(line);
-    if ( hm.effects ) void settleHitEffects(message);   // the resume floor
   }
   const hc = message.getFlag(MODULE_ID, "hitManeuverCard");
   if ( hc ) {
@@ -588,7 +588,6 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       lines: [hc.line, ruleLine(hc.rule)]
     });
     html.querySelector(".message-content")?.appendChild(line);
-    if ( hc.onFail || hc.pressUuids?.length ) void settleHitFollowups(message);   // the resume floor
   }
   const sc = message.getFlag(MODULE_ID, "sweepCard");
   if ( sc ) {
@@ -612,6 +611,5 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       line.appendChild(momentButton(`Pick — ${sc.feature}`, () => void showSweepPopup(message)));
     }
     armSweepTimer(message);
-    if ( sc.chosen ) void settleSweep(message);   // the resume floor
   }
 });

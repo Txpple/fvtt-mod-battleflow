@@ -73,8 +73,6 @@ ready	hit-menu.js
 createItem	hit-menu.js
 dnd5e.preRollDamageV2	hit-menu.js
 createChatMessage	hit-menu.js
-updateChatMessage	hit-menu.js
-createChatMessage	hit-menu.js
 dnd5e.renderChatMessage	hit-menu.js
 preCreateChatMessage	superiority-uses.js
 dnd5e.preUseActivity	superiority-uses.js
