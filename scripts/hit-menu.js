@@ -3,6 +3,7 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
+import { lower, featureNamed, activityOfType, resolveUuid, resolveDie } from "./lookup.js";
 import { hitMenuEntries } from "./settings.js";
 import { hitTargets, poolOf, spendSuperiorityDie, statSourceOf, withTargets } from "./shared.js";
 import { bfCard, hitMenuHTML, momentBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
@@ -59,19 +60,11 @@ import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerRel
  * save and its DC, the condition. The table carries only names and rules text.
  * ------------------------------------------------------------------------------------------- */
 
-const lower = s => String(s ?? "").toLowerCase();
-const featureNamed = (actor, name) => actor?.items?.find(i => (i.type === "feat") && (lower(i.name) === lower(name))) ?? null;
-const activityOfType = (item, type) => [...(item?.system?.activities ?? [])].find(a => a.type === type) ?? null;
-
 /** The die behind an option — its damage activity's first part, resolved on the sheet. "d8" reads as "1d8". */
 function dieFormulaOf(actor, activity) {
   const part = activity?.damage?.parts?.[0];
   const raw = part ? riderPartFormula({ number: part.number, denomination: part.denomination, custom: part.custom, bonus: part.bonus }) : null;
-  if ( !raw ) return null;
-  try {
-    const resolved = String(Roll.replaceFormulaData(raw, actor.getRollData())).trim().replace(/^d(\d+)/i, "1d$1");
-    return Roll.validate(resolved) && !/@/.test(resolved) ? resolved : null;
-  } catch { return null; }
+  return resolveDie(actor, raw);
 }
 
 /**
@@ -253,7 +246,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
     }
     // The pool: one die spent, on the item the activity names — the clock riders' idiom for a
     // limited use. The count left is read AFTER the spend for the card.
-    const pool = pick.poolUuid ? fromUuidSync(pick.poolUuid) : null;
+    const pool = resolveUuid(pick.poolUuid);
     const left = pool ? Math.max(0, Number(pool.system?.uses?.value ?? 0) - 1) : null;
     // The one pass-through (shared.js `spendSuperiorityDie`): the spend and its record, which the
     // card line, the flash and the subtitle all read (user, 2026-09-05: uniform).
@@ -296,7 +289,7 @@ async function runConsequences(damageMessage, hm) {
   try {
     const attackMessage = game.messages.get(hm.attackId);
     const attacker = attackMessage?.getAssociatedActor();
-    const item = hm.itemUuid ? fromUuidSync(hm.itemUuid) : null;
+    const item = resolveUuid(hm.itemUuid);
     if ( !attackMessage || !attacker || !item ) return;
     const hits = hitTargets(attackMessage);
     const tokens = hits.map(t => tokenForUuid(t.uuid)).filter(Boolean);
@@ -350,7 +343,7 @@ async function settleHitEffects(message) {
     });
     if ( !claimed ) return;
     const attackMessage = game.messages.get(hm.attackId);
-    const item = hm.itemUuid ? fromUuidSync(hm.itemUuid) : null;
+    const item = resolveUuid(hm.itemUuid);
     const die = item ? activityOfType(item, "damage") : null;
     const effects = [...(die?.effects ?? [])].map(e => e.effect ?? item.effects.get(e._id)).filter(Boolean);
     const hits = attackMessage ? hitTargets(attackMessage) : [];
@@ -462,7 +455,7 @@ async function chooseSweep(card, uuid) {
 async function showSweepPopup(card) {
   const sc = card.getFlag(MODULE_ID, "sweepCard");
   if ( !sc || sc.chosen || !sc.candidates?.length ) return;
-  const attacker = sc.sourceUuid ? fromUuidSync(sc.sourceUuid) : null;
+  const attacker = resolveUuid(sc.sourceUuid);
   const dialog = await openMomentPopup(card, "sweep", attacker, {
     title: `${sc.feature} — ${attacker?.name ?? ""}`,
     icon: "fa-solid fa-arrows-left-right",
@@ -539,7 +532,7 @@ async function settleSweep(card) {
     }
     const pick = sc.candidates.find(c => c.uuid === sc.chosen);
     const actor = pick ? fromUuidSync(pick.uuid) : null;
-    const attacker = sc.sourceUuid ? fromUuidSync(sc.sourceUuid) : null;
+    const attacker = resolveUuid(sc.sourceUuid);
     const roll = await new Roll(sc.formula || "1d8").evaluate();
     await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: attacker }), flavor: `${sc.feature} — the die, at ${pick?.name ?? "the second creature"}` });
     const verdict = sweepVerdict({ ...(sc.attackRoll ?? { total: 0 }), ac: actor?.system?.attributes?.ac?.value ?? null });
@@ -609,7 +602,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       lines: [ruleLine(sc.rule)]
     }) + ((!sc.chosen && sc.candidates?.length) ? momentBarHTML(sc, "to pick") : "");
     html.querySelector(".message-content")?.appendChild(line);
-    const attacker = sc.sourceUuid ? fromUuidSync(sc.sourceUuid) : null;
+    const attacker = resolveUuid(sc.sourceUuid);
     if ( !sc.chosen && sc.candidates?.length && canAnswerFor(attacker) ) {
       // The popup is the ask (the moment spine); the card keeps a button to reopen it.
       const shownKey = popupKey(message.id, "sweep");

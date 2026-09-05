@@ -3,6 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, canAnswerFor, isActiveGM, queueFlagWrite } from "./core.js";
+import { resolveUuid } from "./lookup.js";
 import { damagePartsOf, statSourceOf } from "./shared.js";
 import { bfCard, popupKey, ruleLine } from "./decide/present.js";
 import { effectsAfterChoice } from "./decide/choices.js";
@@ -128,8 +129,7 @@ async function showChoicePopup(card) {
   const choice = payload?.choice;
   if ( !choice || choice.chosen ) return;
   const actor = payload.targets?.[0]?.uuid ? fromUuidSync(payload.targets[0].uuid) : null;
-  let item = null;
-  try { item = fromUuidSync(card.getFlag("dnd5e", "item")?.uuid ?? ""); } catch { item = null; }
+  const item = resolveUuid(card.getFlag("dnd5e", "item")?.uuid ?? "");
   await openMomentPopup(card, "effectChoice", actor, {
     title: `${choice.key} — ${actor?.name ?? ""}`, icon: "fa-solid fa-code-branch",
     content: bfCard({ img: item?.img ?? null, eyebrow: `Cast — ${choice.key}`, tone: "pending",

@@ -3,10 +3,11 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, statContext } from "./core.js";
-import { effectEntries } from "./settings.js";
+import { lower } from "./lookup.js";
+import { effectEntries, listedNames } from "./settings.js";
 import { chipData, placeOf } from "./shared.js";
 import { bfCard, ruleLine } from "./decide/present.js";
-import { USE_CHIPS } from "./decide/registry.js";
+import { USE_CHIPS, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -26,7 +27,7 @@ import { CHIP_FLAG, chipClock } from "./decide/chips.js";
  * client owns the actor. Idempotent per usage card: a chip that stands is refreshed, never doubled.
  * ------------------------------------------------------------------------------------------- */
 
-const lower = s => String(s ?? "").toLowerCase();
+const USE_CHIP_INDEX = tableIndex(USE_CHIPS);
 
 Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
   try {
@@ -34,9 +35,9 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
     const item = activity?.item;
     const actor = activity?.actor;
     if ( !item || !actor?.isOwner ) return;
-    const key = Object.keys(USE_CHIPS).find(k => lower(k) === lower(item.name));
+    const key = USE_CHIP_INDEX.keyNamed(item.name);
     if ( !key ) return;
-    const listed = new Set(effectEntries().map(e => lower(e.kind)));
+    const listed = listedNames(effectEntries());
     if ( !listed.has(lower(key)) ) return;   // the list is the switch — as for every effect row
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
     void writeUseChip(actor, item, USE_CHIPS[key], message);

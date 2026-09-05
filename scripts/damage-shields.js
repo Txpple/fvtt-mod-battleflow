@@ -3,11 +3,12 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, activeCombatFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, whisperNoGM } from "./core.js";
-import { damageShieldEntries } from "./settings.js";
+import { lower, itemNamed, activityNamed, resolveUuid } from "./lookup.js";
+import { damageShieldEntries, listedNames } from "./settings.js";
 import { damagePartsOf, effectSourceOf, hitTargets, resolveAttackMessage, turnChitStands, writeTurnChit } from "./shared.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { bfCard, ruleLine } from "./decide/present.js";
-import { DAMAGE_SHIELDS } from "./decide/registry.js";
+import { DAMAGE_SHIELDS, tableIndex } from "./decide/registry.js";
 import { durationSeconds, shieldDue, shieldEffectNames, shieldReach, shieldType } from "./decide/shields.js";
 import { messageActivity } from "./effect-riders.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
@@ -44,10 +45,8 @@ import { applyDamagesWithReceipt } from "./auto-apply.js";
  *   the flow-elect law holds: the roll posts, the monster is not written, the driver is told.
  * ------------------------------------------------------------------------------------------- */
 
-const lower = s => String(s ?? "").toLowerCase();
-const listed = () => new Set(damageShieldEntries().map(e => lower(e.kind)));
-const rowNamed = name => { const k = Object.keys(DAMAGE_SHIELDS).find(x => lower(x) === lower(name)); return k ? { key: k, ...DAMAGE_SHIELDS[k] } : null; };
-const activityNamed = (item, name) => [...(item?.system?.activities ?? [])].find(a => lower(a.name) === lower(name)) ?? null;
+const listed = () => listedNames(damageShieldEntries());
+const { rowNamed } = tableIndex(DAMAGE_SHIELDS);
 
 /**
  * Every listed ward standing on this creature: the row, the standing effect, its source (actor
@@ -69,8 +68,7 @@ function shieldsOn(defender) {
       if ( row.mark ) {
         const mark = effect.getFlag(MODULE_ID, "shield");
         if ( mark?.key !== key ) continue;
-        let item = null;
-        try { item = mark.itemUuid ? fromUuidSync(mark.itemUuid) : null; } catch { item = null; }
+        const item = resolveUuid(mark.itemUuid);
         source = item ? { actor: item.actor ?? defender, item } : null;
         scaling = Number(mark.scaling ?? 0);
       } else {
@@ -78,7 +76,7 @@ function shieldsOn(defender) {
         source = effectSourceOf(effect);
         if ( source && (lower(source.item?.name) !== lower(key)) ) source = null;
         if ( !source ) {
-          const own = defender.items.find(i => lower(i.name) === lower(key)) ?? null;
+          const own = itemNamed(defender, key);
           if ( own ) source = { actor: defender, item: own };
         }
       }
@@ -169,8 +167,7 @@ async function settle(damageMessage, attackMessage, { wasHeld = false } = {}) {
     const hits = hitTargets(attackMessage);
     const attackerToken = tokenOfActor(attacker);
     for ( const t of hits ) {
-      let defender = null;
-      try { defender = fromUuidSync(t.uuid); } catch { defender = null; }
+      const defender = resolveUuid(t.uuid);
       if ( !(defender instanceof Actor) || (defender.uuid === attacker.uuid) ) continue;
       if ( !drivesMomentFor(defender.uuid) ) continue;   // the elect for this ward's bearer
       const wards = shieldsOn(defender);

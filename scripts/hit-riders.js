@@ -3,6 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { TITLE, S, setting } from "./core.js";
+import { resolveUuid } from "./lookup.js";
 import { riderEntries, riderUpgradeEntries } from "./settings.js";
 import { riderKey } from "./decide/eligible.js";
 import { effectSourceOf, hitTargets } from "./shared.js";
@@ -42,7 +43,6 @@ import { bfCard } from "./decide/present.js";
  * dnd5e 5.3.3 cannot express "only against the marked creature"; Conditional ActiveEffects is
  * on the system roadmap. DELETE THIS WHOLE SECTION the day it ships (DESIGN.md §3).
  * ------------------------------------------------------------------------------------------- */
-
 
 /**
  * The attacker's own item that REPLACES a mark's damage, or null. Ranger level 20: "the damage
@@ -122,7 +122,7 @@ function riderTargets(message) {
     : (origin?.getAssociatedRolls("attack").pop() ?? null);
   if ( attack ) {
     const hits = hitTargets(attack)
-      .map(t => { try { return fromUuidSync(t.uuid); } catch { return null; } })
+      .map(t => resolveUuid(t.uuid))
       .filter(Boolean);
     if ( hits.length ) return hits;
   }

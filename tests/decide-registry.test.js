@@ -509,3 +509,22 @@ describe("CHECK_BENDS — the check table (user go 2026-09-03)", () => {
     expect(reg.CHECK_BENDS.frightened.platform).toBeUndefined();
   });
 });
+
+describe("tableIndex — one access to a name-keyed table (the machine-tier pass, Stage 1)", () => {
+  it("derives the closed name set from the keys, or from a named column", () => {
+    expect(reg.tableIndex(reg.USE_CHIPS).names).toEqual(new Set(["steady aim"]));
+    expect(reg.tableIndex(reg.CLOCK_RIDERS, r => r.feature).names).toEqual(reg.CLOCK_RIDER_NAMES);
+    expect(reg.DAMAGE_SHIELD_NAMES).toEqual(
+      new Set(Object.keys(reg.DAMAGE_SHIELDS).map(k => k.toLowerCase()))
+    );
+  });
+  it("keyNamed is the TABLE key, case-insensitive; rowNamed is the row over it — and a row's own key field wins on the row, as the copies had it", () => {
+    const idx = reg.tableIndex(reg.USE_CHIPS);
+    expect(idx.keyNamed("steady aim")).toBe("Steady Aim");
+    expect(idx.keyNamed("Steady Aim")).toBe("Steady Aim");
+    expect(idx.keyNamed("nothing")).toBeNull();
+    expect(idx.rowNamed("STEADY AIM")?.key).toBe("steadyAim"); // the row's own field — the Steady Aim chip's lesson
+    expect(idx.rowNamed("nothing")).toBeNull();
+    expect(reg.tableIndex(reg.DAMAGE_SHIELDS).rowNamed("fire shield")?.key).toBe("Fire Shield");
+  });
+});

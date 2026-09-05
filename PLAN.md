@@ -166,6 +166,16 @@ machine's suite (maneuvers, hitmenu, superiority, shields, heatmetal, sneak, clo
 reminders, effects).
 **Docs:** ARCHITECTURE §7's module table gains `lookup.js`; `LAYER_OF` and
 `EXPECTED_SOURCE_FILES` move in the same commit.
+✅ **Done 2026-09-05** — `lookup.js` (spine): `lower`, `sameName`, `itemNamed`, `featureNamed`,
+`activityNamed`, `activityOfType`, `resolveUuid`, `resolveDie`; `esc` beside `attr`;
+`tableIndex` in decide/registry.js (the eight `*_NAMES` sets derive through it, keys unchanged);
+`listedNames` in settings.js. Hook order byte-identical to the Stage 0 snapshot. ⚠ **The first
+battery found one defect (sneak §10):** `rowNamed` spreads the row over `{ key }` exactly as the
+four copies did, so a row carrying its own `key` field (USE_CHIPS, `key: "steadyAim"`) shadowed
+the TABLE key and the Steady Aim chip never wrote — the three sites that had used
+`Object.keys(TABLE).find` now use `keyNamed`, unit-tested. Emanations §11e failed once and passed
+on the rerun of the same code: the suite's own race (the stale template's `createRegion` sweep
+can beat its 800 ms sleep). **Second battery 27/27 green, settings clean.** Cost: one session.
 
 ### STAGE 2 — the demand registry (finding 1; 1½ sessions)
 
@@ -334,7 +344,14 @@ Stage 5   who drives                   ½   ruling 4
 **When it is delivered:** ARCHITECTURE §10 D9 is recut (c and d repaid, e left standing with
 its rule), BACKLOG's *four sideways edges* row shrinks to the two that remain, this block gets
 its *HOW IT WENT* section with the measured cost against these estimates, and HANDOFF.md is
-deleted. Distrust the risk labels above; re-measure before scoping each stage — twice on this
+deleted.
+
+**Folded in after the phases (user, 2026-09-05, mid-pass): the docs' SHAPE.** *"ARCHITECTURE.md
+at 98 KB is a lot of context for every Claude Code session to carry. For the new repo, consider
+the same content as dated ADRs under `docs/decisions/` plus a short CLAUDE.md that says which to
+read when. The scar-with-a-date style is good; the single file is the cost."* Not part of this
+pass's stages; it is the next docs commission once the pass is delivered — the dated-scar style
+kept, one file per decision, an index that says which to read when. Minor, by the user's word. Distrust the risk labels above; re-measure before scoping each stage — twice on this
 page the thing labelled risky was cheap and the surprise came from elsewhere.
 
 ---

@@ -837,6 +837,14 @@ const attr = s => String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;")
   .replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /**
+ * Text-safe: a name or a line that lands in markup. The same four characters as `attr`, one
+ * pass — the body three machines carried as their own `esc` until Stage 1 of the machine-tier
+ * pass (2026-09-05) put it beside `attr`, where a view's escaping belongs.
+ */
+export const esc = s => String(s ?? "").replace(/[&<>"]/g,
+  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/**
  * THE PANE — one verbatim, labelled rule quote (law 8).
  *
  * ⚠ ONE QUOTE, NEVER A STACK. Four rescues on screen means four rules, and a window that

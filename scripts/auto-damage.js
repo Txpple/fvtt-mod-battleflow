@@ -3,15 +3,13 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting } from "./core.js";
+import { resolveUuid } from "./lookup.js";
 import { hitTargets, modeAllows } from "./shared.js";
-import { TONE } from "./decide/present.js";
+import { TONE, esc } from "./decide/present.js";
 import { CONDITION_BENDS } from "./decide/registry.js";
 import { autoCritSources } from "./decide/reminders.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { stampHoldIfInterrupted } from "./hold.js";
-
-const esc = s => String(s ?? "").replace(/[&<>"]/g,
-  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 /** (hh): the "Against …" line names each target with its token icon (law 8 tooltip) —
  * the roll popup was the one volley surface still naming targets in text alone. Pure
@@ -99,7 +97,7 @@ export function critFor(attackMessage) {
     const attackerToken = tokenOfActor(attackMessage.getAssociatedActor());
     const per = hits.map(t => {
       const token = tokenForUuid(t.uuid);
-      const actor = token?.actor ?? (() => { try { return fromUuidSync(t.uuid); } catch { return null; } })();
+      const actor = token?.actor ?? resolveUuid(t.uuid);
       const distanceFeet = (attackerToken && token) ? nearestFeet(attackerToken, token) : null;
       return { name: t.name ?? actor?.name ?? "the target",
         sources: autoCritSources({ targetStatuses: actor?.statuses ?? [], distanceFeet,
@@ -235,7 +233,6 @@ export async function rollDamageForSave(activity, card) {
     console.error(`${TITLE} | Could not auto-roll the save spell's damage.`, err);
   }
 }
-
 
 /* ---------------------------------------------------------------------------------------------
  * The player's own roll (FLOW item 3) — offered, never taken

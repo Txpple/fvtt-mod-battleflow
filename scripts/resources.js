@@ -53,15 +53,12 @@
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, statContext } from "./core.js";
 import { poolSpendsOn } from "./shared.js";
-import { spendLine } from "./decide/present.js";
+import { esc, spendLine } from "./decide/present.js";
 
 const flashed = new Set();
 // (cc): flashes held for an ability's own dice — usage message id → the armed flash.
 const pendingFlash = new Map();
 const FLASH_FALLBACK_MS = 12_000;
-
-const esc = s => String(s ?? "").replace(/[&<>"]/g,
-  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 const isUsage = m => (m.type === "usage") || (m.getFlag("dnd5e", "messageType") === "usage");
 

@@ -5,6 +5,7 @@
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, rollerUserFor,
   drivesMomentFor, canApplyTo, whisperNoGM, canAnswerFor,
   statContext, sheetModeEffects, rollLabelFor } from "./core.js";
+import { resolveUuid } from "./lookup.js";
 import { tokensInTemplates } from "./geometry.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom, saveMultiplier, verdictText } from "./decide/verdict.js";
 import { isDeadForSaves } from "./decide/eligible.js";
@@ -13,7 +14,7 @@ import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, reminderFieldse
 import { livePopups, openMomentPopup, adoptManagedPopup, DialogCarried, markDefaultButton,
   momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer,
   armDeadline, disarmDeadline, registerRelay, dramaticVerdictPause } from "./ui.js";
-import { EFFECT_BENDS, EMANATIONS, EVASION, SAVE_BENDS, SAVE_PRESSES } from "./decide/registry.js";
+import { EFFECT_BENDS, EMANATIONS, EVASION, SAVE_BENDS, SAVE_PRESSES, tableIndex } from "./decide/registry.js";
 import { reachAdmits } from "./decide/emanations.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { REMINDER_FLAG, effectSaveSources, modeSources, reminderRecord, saveGate, saveNoneOnSuccess, saveSources } from "./decide/reminders.js";
@@ -91,7 +92,7 @@ import { offerSaveDamageRoll, rollDamageForSave } from "./auto-damage.js";
 /** Stamp-time filter: an unresolvable uuid stays IN (the buzzer voids gone targets — never
  * eat a demand on a lookup miss); a dead one stays out. */
 function saveDemandable(t) {
-  const actor = (() => { try { return fromUuidSync(t.uuid); } catch { return null; } })();
+  const actor = resolveUuid(t.uuid);
   if ( !(actor instanceof Actor) ) return true;
   return !isDeadForSaves(actor);
 }
@@ -270,9 +271,10 @@ function templatesForOrigin(activityUuid) {
  * reaches enemies, by disposition), and the caster's own token never owes its own spell a save.
  * Only a LISTED emanation row filters; every other area keeps the old answer. Null in, null out.
  */
+const EMANATION_INDEX = tableIndex(EMANATIONS);
 function emanationRowFor(activity) {
   if ( !activity?.item || !setting(S.emanations) ) return null;
-  const key = Object.keys(EMANATIONS).find(k => k.toLowerCase() === String(activity.item.name ?? "").toLowerCase());
+  const key = EMANATION_INDEX.keyNamed(activity.item.name);
   const row = key ? EMANATIONS[key] : null;
   if ( !row?.reach || !emanationEntries().some(e => e.kind === key.toLowerCase()) ) return null;
   return row;
@@ -394,7 +396,7 @@ async function refreshDemandFromTemplates(card) {
       if ( claimed ) templates = [claimed];
     }
     if ( !templates.length ) return;
-    const activity = flag.activityUuid ? (() => { try { return fromUuidSync(flag.activityUuid); } catch { return null; } })() : null;
+    const activity = flag.activityUuid ? resolveUuid(flag.activityUuid) : null;
     const contained = emanationReach(activity, tokensInTemplates(templates)) ?? [];
     // ⚠ THROUGH THE SERIALIZER (core.js), and the derivation moved INSIDE it. Everything
     // above is async — the template lookup and the bare-template claim both await — so the
@@ -754,7 +756,7 @@ function drawSaveDemand(app, element, demand) {
   if ( !entry || entry.done || (flag.status !== "pending") ) { void app.close(); return; }
   adoptManagedPopup(popupKey(card.id, `save:${demand.uuid}`), card, app);
   if ( element.querySelector("[data-bf-save-demand]") ) return;
-  const actor = (() => { try { return fromUuidSync(demand.uuid); } catch { return null; } })();
+  const actor = resolveUuid(demand.uuid);
   const ability = flag.abilities[0];
   const abilityLabel = CONFIG.DND5E.abilities[ability]?.label ?? ability;
   const stakes = [];
@@ -833,7 +835,7 @@ function drawSaveGate(app, element, gate, demand) {
 /** A sheet save that cannot succeed, pressed Fails with no demand to record it on: the card
  * is the record (R5) — nothing else in the world knows this save was owed. */
 function postSheetAutoFail(gate) {
-  const actor = (() => { try { return fromUuidSync(gate.actorUuid); } catch { return null; } })();
+  const actor = resolveUuid(gate.actorUuid);
   if ( !(actor instanceof Actor) ) return;
   const abilityLabel = CONFIG.DND5E.abilities[gate.ability]?.label ?? gate.ability;
   const failing = gate.sources.filter(s => s.autoFail);
@@ -1079,7 +1081,7 @@ async function announceSaveVerdict(card, flag, entry) {
     // The line speaks AS THE SAVER, not the caster (v1.19.x finding ⑧ — "Thomas holds"
     // rendered under Salyth's card), and the title leads with the SOURCE (finding ⑦ —
     // the walk's global rule: the ability, then the result).
-    const saver = (() => { try { return fromUuidSync(entry.uuid); } catch { return null; } })();
+    const saver = resolveUuid(entry.uuid);
     await ChatMessage.create({
       speaker: (saver instanceof Actor) ? ChatMessage.getSpeaker({ actor: saver }) : card.speaker,
       content: bfCard({
@@ -1288,7 +1290,7 @@ async function showSaveChoicePopup(card, uuid) {
   const entry = flag?.targets?.find(t => t.uuid === uuid);
   const c = entry?.choice;
   if ( !c || c.answer ) return;
-  const subject = (() => { try { return fromUuidSync(c.subjectUuid); } catch { return null; } })();
+  const subject = resolveUuid(c.subjectUuid);
   const interpose = c.kind === "interpose";
   const { RULE_TEXT } = await import("./maneuvers.js");
   await openMomentPopup(card, `choice:${uuid}`, subject, {
@@ -1423,7 +1425,7 @@ async function applySaveConsequences(card, uuid, rollMessage = null) {
     // players own, so the damage and the chips apply exactly as always. A demand aimed at
     // monsters cannot land, and the announcement below is the point at which to say so: the
     // verdict is already public and true, only the press is missing.
-    const saver = (() => { try { return fromUuidSync(uuid); } catch { return null; } })();
+    const saver = resolveUuid(uuid);
     if ( (saver instanceof Actor) && !canApplyTo(saver) ) {
       await announceSaveVerdict(card, flag, entry);
       await whisperNoGM(`${entry.name ?? saver.name}'s save consequences`,
@@ -1769,8 +1771,6 @@ async function fireSaveTimer(card) {
 
 /* --- who volunteers: the opt-out's silent roller --------------------------------------------- */
 
-
-
 /* --- the answer channels and the resume discipline ------------------------------------------- */
 
 Hooks.on("createChatMessage", message => {
@@ -1895,7 +1895,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         ? "var(--dnd5e-color-blue, #3a7ca5)" : "var(--dnd5e-color-maroon, #740b0b)"};">`
         + `${verdictText(flag, t)}</span>`;
     } else {
-      const actor = (() => { try { return fromUuidSync(t.uuid); } catch { return null; } })();
+      const actor = resolveUuid(t.uuid);
       const roller = (actor instanceof Actor) ? rollerUserFor(actor) : null;
       line.style.opacity = "0.75";
       // Since finding (h) the GM's popup really does pop for an offline owner's actor, so
@@ -1936,7 +1936,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
     for ( const t of flag.targets ) {
       if ( t.done ) continue;
-      const actor = (() => { try { return fromUuidSync(t.uuid); } catch { return null; } })();
+      const actor = resolveUuid(t.uuid);
       if ( !canAnswerFor(actor) ) continue;
       // v1.19.x finding (h): canAnswerFor ALONE routes the popup. The old extra
       // `isGM && hasPlayerOwner` quiet was mutually exclusive with canAnswerFor's own
@@ -1978,7 +1978,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       row.appendChild(bar);
       choiceBars = true;
     }
-    const subject = (() => { try { return fromUuidSync(c.subjectUuid); } catch { return null; } })();
+    const subject = resolveUuid(c.subjectUuid);
     if ( !canAnswerFor(subject) ) continue;
     const shownKey = popupKey(message.id, `choice:${t.uuid}`);
     if ( !shownMoments.has(shownKey) ) {

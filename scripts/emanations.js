@@ -3,12 +3,13 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor } from "./core.js";
-import { emanationEntries } from "./settings.js";
+import { lower, itemNamed, activityNamed, activityOfType, resolveUuid } from "./lookup.js";
+import { emanationEntries, listedNames } from "./settings.js";
 import { turnChitStands, writeTurnChit } from "./shared.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { tokensInTemplates } from "./geometry.js";
 import { bfCard, ruleLine } from "./decide/present.js";
-import { EMANATIONS } from "./decide/registry.js";
+import { EMANATIONS, tableIndex } from "./decide/registry.js";
 import { reachAdmits, resolveChanges, emanationRange, triggerDue, healTriggerDue, memberEffectData, damageTypeFor, appliesOnScene } from "./decide/emanations.js";
 import { canAnswerFor } from "./core.js";
 import { momentButton, registerRelay } from "./ui.js";
@@ -61,9 +62,8 @@ import { applyDamagesWithReceipt } from "./auto-apply.js";
 const FLAG = "emanation";                       // on the region, and on every member effect
 const TYPE = `${MODULE_ID}.emanation`;          // the behaviour type this module registers
 const STATUS = "bfEmanation";                   // the status a member effect wears, so the token shows it
-const lower = s => String(s ?? "").toLowerCase();
-const listed = () => new Set(emanationEntries().map(e => lower(e.kind)));
-const rowNamed = name => { const k = Object.keys(EMANATIONS).find(x => lower(x) === lower(name)); return k ? { key: k, ...EMANATIONS[k] } : null; };
+const listed = () => listedNames(emanationEntries());
+const { rowNamed } = tableIndex(EMANATIONS);
 const live = () => setting(S.emanations);
 const colorFor = reach => (reach === "harmful") ? "#b4463c" : "#46965f";   // TONE.bad / TONE.good, solid — a Region colour is a hex
 
@@ -220,7 +220,7 @@ async function maybeTrigger(behType, token, cause) {
     if ( !row?.trigger || !row.trigger.on.includes(cause) || beh.disabled || !live() || !listed().has(lower(row.key)) ) return;
     const region = behType.region;
     if ( !appliesHere(region) ) return;   // a ring on a scene nobody is playing on demands nothing
-    const source = sys.source ? fromUuidSync(sys.source) : null;
+    const source = resolveUuid(sys.source);
     if ( source && (token.id === source.id) ) return;
     if ( !reachAdmits(sys.reach, source?.disposition ?? 1, token.disposition) ) return;
     // A creature standing inside when the area was cast was asked by the CAST's own demand
@@ -232,8 +232,8 @@ async function maybeTrigger(behType, token, cause) {
       if ( f?.initial?.includes(token.id) ) { await forgetInitial(region, token); return; }
     }
     if ( !(region.tokens?.has?.(token) ?? true) && (cause === "turnEnd") ) return;   // ended its turn OUTSIDE
-    const item = sys.item ? fromUuidSync(sys.item) : null;
-    const activity = [...(item?.system?.activities ?? [])].find(a => a.type === "save") ?? null;
+    const item = resolveUuid(sys.item);
+    const activity = activityOfType(item, "save");
     const dc = activity?.save?.dc?.value;
     const abilities = [...(activity?.save?.ability ?? [])];
     if ( !activity || !(dc > 0) || !abilities.length ) return;
@@ -303,7 +303,7 @@ async function maybeHeal(behType, token, cause) {
     if ( !row?.heal || beh.disabled || !live() || !listed().has(lower(row.key)) ) return;
     const region = behType.region;
     if ( !appliesHere(region) ) return;
-    const source = sys.source ? fromUuidSync(sys.source) : null;
+    const source = resolveUuid(sys.source);
     if ( source && (token.id === source.id) ) return;
     if ( !reachAdmits(sys.reach, source?.disposition ?? 1, token.disposition) ) return;
     if ( !(region.tokens?.has?.(token) ?? true) ) return;
@@ -313,8 +313,8 @@ async function maybeHeal(behType, token, cause) {
     // so the platform's mark is not consulted; the rule's own condition is the Hit Points.
     const due = healTriggerDue(row, { cause, hp: Number(actor.system?.attributes?.hp?.value ?? 0) });
     if ( !due.due ) return;
-    const item = sys.item ? fromUuidSync(sys.item) : null;
-    const activity = [...(item?.system?.activities ?? [])].find(a => lower(a.name) === lower(row.heal.activity)) ?? null;
+    const item = resolveUuid(sys.item);
+    const activity = activityNamed(item, row.heal.activity);
     const part = activity?.healing;
     const raw = part ? riderPartFormula({ number: part.number, denomination: part.denomination, custom: part.custom, bonus: part.bonus }) : null;
     if ( !raw ) { console.warn(`${TITLE} | ${row.key}: no healing part on "${row.heal.activity}" — heal by hand.`); return; }
@@ -360,7 +360,7 @@ Hooks.on("updateCombat", (combat, changes) => {
 async function remind(region, row, token) {
   const sys = behaviorOf(region)?.system;
   const item = sys?.item ? fromUuidSync(sys.item) : null;
-  const activity = [...(item?.system?.activities ?? [])].find(a => lower(a.name) === lower(row.remind.activity)) ?? null;
+  const activity = activityNamed(item, row.remind.activity);
   const caster = item?.actor ?? token.actor ?? null;
   const inside = [...(region.tokens ?? [])].filter(t => t.id !== token.id).map(t => t.name);
   await ChatMessage.create({
@@ -378,7 +378,7 @@ async function remind(region, row, token) {
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const r = message.getFlag(MODULE_ID, "emanationRemind");
   if ( !r?.activityUuid ) return;
-  const caster = r.sourceUuid ? fromUuidSync(r.sourceUuid) : null;
+  const caster = resolveUuid(r.sourceUuid);
   if ( !canAnswerFor(caster) ) return;
   const holder = html.querySelector(".message-content");
   if ( !holder ) return;
@@ -440,7 +440,7 @@ function activitySizeOf(item, rollData) {
 /** What a feature's emanation on this token should look like now, or null when it should not stand. */
 function featureSpec(tok, row) {
   const actor = tok.actor;
-  const item = actor?.items.find(i => lower(i.name) === lower(row.key)) ?? null;
+  const item = itemNamed(actor, row.key);
   if ( !item ) return null;
   const rollData = actor.getRollData();
   const range = emanationRange(row, rollData, activitySizeOf(item, rollData));
@@ -555,7 +555,7 @@ async function adoptSpellRegion(region) {
   try {
     if ( !isActiveGM() || !live() || flagOf(region) ) return;
     const itemUuid = region.getFlag("dnd5e", "item");
-    const item = itemUuid ? fromUuidSync(itemUuid) : null;
+    const item = resolveUuid(itemUuid);
     if ( !item ) return;
     const row = rowNamed(item.name);
     if ( !row || (row.kind !== "spell") || !listed().has(lower(row.key)) ) return;
@@ -570,7 +570,7 @@ async function adoptSpellRegion(region) {
       effect: (effect && !resolved.unresolved.length) ? { name: effect.name, img: effect.img ?? item.img ?? null, description: row.rule, changes: resolved.changes } : null });
     const size = activitySizeOf(item, rollData);
     await announce(row, actor, item, size ?? region.shapes[0]?.radiusX ?? null, effect ? { name: effect.name, changes: resolved.changes } : null, "is cast",
-      { activity: [...(item.system?.activities ?? [])].find(a => a.type === "save") ?? null, regionId: region.id });
+      { activity: activityOfType(item, "save"), regionId: region.id });
     await reconcileMembers(region);
   } catch(err) {
     console.error(`${TITLE} | Could not adopt a spell's emanation — its effects apply by hand.`, err);

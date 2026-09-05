@@ -3,6 +3,7 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, activeCombatFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
+import { lower, featureNamed } from "./lookup.js";
 import { damagePartsOf, hitTargets, statSourceOf, withTargets, writeTurnChit } from "./shared.js";
 import { bfCard, cunningMenuHTML, ruleLine } from "./decide/present.js";
 import { CUNNING_OPTIONS, DEATH_STRIKE } from "./decide/registry.js";
@@ -39,11 +40,6 @@ import { applyEffectsWithReceipt } from "./effect-riders.js";
  * the dice are rolled — the roller owns the rogue and its items, so `use()` is theirs to
  * call); the follow-ups on the flow elect, off the card. Nothing crosses the wire.
  * ------------------------------------------------------------------------------------------- */
-
-const lower = s => String(s ?? "").toLowerCase();
-
-/** The feat on the sheet by name (case-insensitive), or null. */
-const featureNamed = (actor, name) => actor?.items?.find(i => (i.type === "feat") && (lower(i.name) === lower(name))) ?? null;
 
 /**
  * The activity on an item by name — one name, or a list in order of preference where the

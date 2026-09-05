@@ -3,11 +3,12 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, statContext } from "./core.js";
-import { damageSaveEntries } from "./settings.js";
+import { lower, activityNamed } from "./lookup.js";
+import { damageSaveEntries, listedNames } from "./settings.js";
 import { modeAllows, withTargets } from "./shared.js";
 import { tokenForUuid } from "./geometry.js";
 import { bfCard, ruleLine } from "./decide/present.js";
-import { DAMAGE_SAVES, MANEUVER_FEATURE_NAMES } from "./decide/registry.js";
+import { DAMAGE_SAVES, MANEUVER_FEATURE_NAMES, tableIndex } from "./decide/registry.js";
 import { volleyEntryFor } from "./volley-registry.js";
 import { offerSaveDamageRoll, rollDamageForSave } from "./auto-damage.js";
 
@@ -40,8 +41,7 @@ import { offerSaveDamageRoll, rollDamageForSave } from "./auto-damage.js";
  * it now too (the row's `checks` facet — decide/reminders.js effectCheckSources).
  * ------------------------------------------------------------------------------------------- */
 
-const lower = s => String(s ?? "").toLowerCase();
-const listed = () => new Set(damageSaveEntries().map(e => lower(e.kind)));
+const listed = () => listedNames(damageSaveEntries());
 
 /** Is this a bare damage activity the module will drive — aimed, on a side the mode admits, not a volley's? */
 function drives(activity, targetCount) {
@@ -70,8 +70,7 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig, messageCo
     console.warn(`${TITLE} | Could not claim the damage cast's roll.`, err);
   }
 });
-const rowNamed = name => { const k = Object.keys(DAMAGE_SAVES).find(x => lower(x) === lower(name)); return k ? { key: k, ...DAMAGE_SAVES[k] } : null; };
-const activityNamed = (item, name) => [...(item?.system?.activities ?? [])].find(a => lower(a.name) === lower(name)) ?? null;
+const { rowNamed } = tableIndex(DAMAGE_SAVES);
 
 Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
   try {

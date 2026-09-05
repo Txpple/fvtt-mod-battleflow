@@ -326,8 +326,43 @@ export const EVASION = Object.freeze({
   rule: "When you’re subjected to an effect that allows you to make a Dexterity saving throw to take only half damage, you instead take no damage if you succeed on the save and only half damage if you fail. You can’t use this feature if you have the Incapacitated condition."
 });
 
+/**
+ * THE ONE TABLE INDEX (Stage 1 of the machine-tier pass, 2026-09-05). A name-keyed table's
+ * closed name set and its row-by-name lookup, both case-insensitive, both derived from the
+ * table itself — where four machines each carried a `rowNamed` and six `*_NAMES` sets were
+ * derived by hand. `keyOf` names the column the list validates against when it is not the key
+ * (the clock riders and the hit options list their `feature`).
+ *
+ * ⚠ THE TABLES KEEP THEIR KEYS. A list setting's default derives from these names, so renaming a
+ * key changes what a world's saved setting validates against. Only the ACCESS is one body.
+ *
+ * @template T
+ * @param {Record<string, T>} table
+ * @param {((row: T, key: string) => string) | null} [keyOf] the name a row is listed by; the key by default
+ * ⚠ `rowNamed` spreads the ROW over `{ key }`, exactly as the four copies did — so a row that
+ * carries its own `key` field (USE_CHIPS: `key: "steadyAim"`) wins, and the TABLE key is not
+ * on the result. `keyNamed` is the table key, for the callers that index the table by it (the
+ * Steady Aim chip went missing on the first battery of Stage 1 for want of this line).
+ *
+ * @returns {{ names: Set<string>, keyNamed: (name: unknown) => string | null, rowNamed: (name: unknown) => (T & { key: string }) | null }}
+ */
+export function tableIndex(table, keyOf = null) {
+  const keys = Object.keys(table);
+  const nameOf = k => String(keyOf ? keyOf(/** @type {T} */ (table[k]), k) : k).toLowerCase();
+  const names = new Set(keys.map(nameOf));
+  const keyNamed = name => {
+    const wanted = String(name ?? "").toLowerCase();
+    return keys.find(x => nameOf(x) === wanted) ?? null;
+  };
+  const rowNamed = name => {
+    const k = keyNamed(name);
+    return k ? { key: k, .../** @type {T} */ (table[k]) } : null;
+  };
+  return { names, keyNamed, rowNamed };
+}
+
 /** The clock riders' feature names, lower-cased — the closed set the Clock Riders list is validated against. */
-export const CLOCK_RIDER_NAMES = new Set(Object.values(CLOCK_RIDERS).map(r => r.feature.toLowerCase()));
+export const CLOCK_RIDER_NAMES = tableIndex(CLOCK_RIDERS, r => r.feature).names;
 
 /**
  * THE HIT MENU (user, 2026-09-04 — "the actor should be given a choice if they have maneuvers, to
@@ -399,7 +434,7 @@ export const HIT_OPTIONS = Object.freeze({
 });
 
 /** The hit options' feature names, lower-cased — the closed set the Hit Menu list is validated against. */
-export const HIT_OPTION_NAMES = new Set(Object.values(HIT_OPTIONS).map(r => r.feature.toLowerCase()));
+export const HIT_OPTION_NAMES = tableIndex(HIT_OPTIONS, r => r.feature).names;
 
 /**
  * SUPERIORITY USES (2026-09-05, "the rest of maneuvers"): the Battle Master's BONUS ACTION
@@ -449,7 +484,7 @@ export const SUPERIORITY_USES = Object.freeze({
 });
 
 /** The superiority uses' feature names, lower-cased — the closed set the Superiority Uses list is validated against. */
-export const SUPERIORITY_USE_NAMES = new Set(Object.keys(SUPERIORITY_USES).map(n => n.toLowerCase()));
+export const SUPERIORITY_USE_NAMES = tableIndex(SUPERIORITY_USES).names;
 
 /**
  * SUPERIORITY FOLDS (2026-09-05): the Battle Master's maneuvers that ADD THE DIE TO A D20 TEST —
@@ -623,7 +658,7 @@ export const DAMAGE_SHIELDS = Object.freeze({
 });
 
 /** The shields' item names, lower-cased — the closed set the Damage Shields list is validated against. */
-export const DAMAGE_SHIELD_NAMES = new Set(Object.keys(DAMAGE_SHIELDS).map(n => n.toLowerCase()));
+export const DAMAGE_SHIELD_NAMES = tableIndex(DAMAGE_SHIELDS).names;
 
 /**
  * EFFECT CHOICES (user, 2026-09-05: "when i apply warm or chill shield, it applies both … this
@@ -649,7 +684,7 @@ export const EFFECT_CHOICES = Object.freeze({
 });
 
 /** The choices' item names, lower-cased — the closed set the Effect Choices list is validated against. */
-export const EFFECT_CHOICE_NAMES = new Set(Object.keys(EFFECT_CHOICES).map(n => n.toLowerCase()));
+export const EFFECT_CHOICE_NAMES = tableIndex(EFFECT_CHOICES).names;
 
 /**
  * DAMAGE SAVES (user, 2026-09-04: "make heat metal spell work"). A bare damage activity whose
@@ -676,12 +711,12 @@ export const DAMAGE_SAVES = Object.freeze({
 });
 
 /** The damage-save items' names, lower-cased — the closed set the Damage Saves list is validated against. */
-export const DAMAGE_SAVE_NAMES = new Set(Object.keys(DAMAGE_SAVES).map(n => n.toLowerCase()));
+export const DAMAGE_SAVE_NAMES = tableIndex(DAMAGE_SAVES).names;
 
 /** The two lifecycles an emanation can have — the closed set the R4 tripwire counts. */
 export const EMANATION_KINDS = new Set(["feature", "spell"]);
 /** The emanations' item names, lower-cased — the closed set the Emanations list is validated against. */
-export const EMANATION_NAMES = new Set(Object.keys(EMANATIONS).map(n => n.toLowerCase()));
+export const EMANATION_NAMES = tableIndex(EMANATIONS).names;
 
 /**
  * The 2024 Rules Glossary on range, verbatim (dnd5e.content24 / the premium PHB, appendix D —
@@ -1109,7 +1144,7 @@ export const EFFECT_BENDS = Object.freeze({
 export const EFFECT_KEYS = Object.freeze(Object.keys(EFFECT_BENDS));
 
 /** The closed set the Effect Sources list is validated against — the table's names, lower-cased. */
-export const EFFECT_NAMES = new Set(EFFECT_KEYS.map(k => k.toLowerCase()));
+export const EFFECT_NAMES = tableIndex(EFFECT_BENDS).names;
 
 
 /**

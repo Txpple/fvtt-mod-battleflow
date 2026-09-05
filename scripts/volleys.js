@@ -51,7 +51,7 @@ import { MODULE_ID, TITLE, S, setting, queueFlagWrite, deadlineIsLive, statConte
 import { modeAllows } from "./shared.js";
 import { volleyEntryFor, resolveVolleyCount } from "./volley-registry.js";
 import { castLevelOf, clampVolleyCount } from "./decide/eligible.js";
-import { popupKey, bfCard, momentBarHTML, reminderDetailsHTML } from "./decide/present.js";
+import { popupKey, bfCard, esc, momentBarHTML, reminderDetailsHTML } from "./decide/present.js";
 import { REMINDER_FLAG, reminderRecord } from "./decide/reminders.js";
 import { livePopups, openManagedPopup, armDeadline, disarmDeadline } from "./ui.js";
 import { tokenForUuid } from "./geometry.js";
@@ -151,9 +151,6 @@ async function stampVolley(activity, message, targets, spec) {
 /* ---------------------------------------------------------------------------------------------
  * The one decision surface — the caster aims the volley
  * ------------------------------------------------------------------------------------------- */
-
-const esc = s => String(s ?? "").replace(/[&<>"]/g,
-  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 /** Even spread, first targets first — the default the buzzer fires and the popup pre-fills. */
 function defaultAssignment(v) {

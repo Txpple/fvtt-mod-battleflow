@@ -60,6 +60,7 @@
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext }
   from "./core.js";
 import { d20FoldEntries } from "./settings.js";
+import { itemNamed, resolveUuid, resolveDie } from "./lookup.js";
 import { grantingActor, hitTargets, modeAllows, poolSpendsOn } from "./shared.js";
 import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
   from "./decide/present.js";
@@ -128,7 +129,7 @@ const HEROIC = {
 const TACTICAL = {
   tests: ["check"],
   find: (actor, entry) => {
-    const item = actor?.items?.find(i => i.name.toLowerCase() === entry.name.toLowerCase());
+    const item = itemNamed(actor, entry.name);
     const activity = item?.system.activities?.contents?.[0];
     if ( !activity ) return null;
     for ( const c of (activity.consumption?.targets ?? []) ) {
@@ -255,7 +256,7 @@ function availableFolds(actor, testKind, spent = [], ctx = {}) {
     let dieFormula = spec.die(marker);
     if ( scope && dieFormula ) {
       // The Superiority Die is a scale value — resolved on the fighter, "d8" read as "1d8".
-      try { const r = String(Roll.replaceFormulaData(dieFormula, actor.getRollData())).trim().replace(/^d(\d+)/i, "1d$1"); dieFormula = (Roll.validate(r) && !/@/.test(r)) ? r : null; } catch { dieFormula = null; }
+      dieFormula = resolveDie(actor, dieFormula);
     }
     if ( (entry.kind !== "heroic") && !dieFormula ) continue;   // a die-kind with no die is off
     // ⚠ `name` is the LOOKUP KEY (the item or effect to find); `label` is what the table reads.
@@ -807,7 +808,7 @@ async function announce(message, actor, name, testKind, anyHit, lines, marker) {
 /** A pass with nothing spent says so on a WITHHELD save, where the table is waiting on it. */
 async function announceIfNeeded(message, flag) {
   if ( !flag?.resume ) return;
-  const actor = (() => { try { return fromUuidSync(flag.actorUuid); } catch { return null; } })();
+  const actor = resolveUuid(flag.actorUuid);
   if ( !actor ) return;
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
@@ -859,7 +860,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const root = html instanceof HTMLElement ? html : html?.[0];
     if ( !root ) return;
 
-    const actor = (() => { try { return fromUuidSync(flag.actorUuid); } catch { return null; } })();
+    const actor = resolveUuid(flag.actorUuid);
     const block = document.createElement("div");
     block.className = "battleflow-d20fold";
     block.style.margin = "0.4rem 0 0";
@@ -961,7 +962,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
  */
 function foldImg(actor, named = []) {
   for ( const n of named ) {
-    const item = actor?.items?.find(i => i.name.toLowerCase() === n.name?.toLowerCase());
+    const item = itemNamed(actor, n.name);
     if ( item?.img ) return item.img;
     const effect = actor?.effects?.find(e => e.name?.toLowerCase() === n.name?.toLowerCase());
     if ( effect?.img ) return effect.img;
@@ -1083,7 +1084,7 @@ registerRescue("d20fold", {
   isPending: message => message.getFlag(MODULE_ID, "d20fold")?.status === "pending",
   subject: message => {
     const uuid = message.getFlag(MODULE_ID, "d20fold")?.actorUuid;
-    try { return uuid ? fromUuidSync(uuid) : null; } catch { return null; }
+    return resolveUuid(uuid);
   },
   view: message => {
     const flag = message.getFlag(MODULE_ID, "d20fold");
@@ -1219,11 +1220,7 @@ Hooks.on("dnd5e.postUseActivity", async (activity, usageConfig, results) => {
     // The RESCUE's own spend (accepting the offer after a roll) uses this same activity and
     // carries `foldSpend`: that die is already folded into the roll — arm nothing.
     if ( message?.getFlag(MODULE_ID, "foldSpend") || usageConfig?.data?.flags?.[MODULE_ID]?.foldSpend ) return;
-    let formula = activity.roll?.formula || null;
-    try {
-      const r = formula ? String(Roll.replaceFormulaData(formula, actor.getRollData())).trim().replace(/^d(\d+)/i, "1d$1") : null;
-      formula = (r && Roll.validate(r) && !/@/.test(r)) ? r : null;
-    } catch { formula = null; }
+    const formula = resolveDie(actor, activity.roll?.formula || null);
     const rolled = formula ? await rollDie(formula, actor) : null;
     if ( !rolled ) { console.warn(`${TITLE} | ${entry.name}'s die could not be read off the sheet — add it by hand.`); return; }
     await rolled.roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${entry.name} — the die` });
@@ -1278,8 +1275,7 @@ async function applyArmedFold(message, actor, testKind, { skill = null, combatan
     }
     lines.push(`Initiative <strong>${base} → ${composed.total}</strong> — the order is updated.`);
   }
-  let item = null;
-  try { item = chip.origin ? fromUuidSync(chip.origin) : null; } catch { item = null; }
+  const item = resolveUuid(chip.origin);
   await announce(message, actor, a.name, testKind, false, lines, { kind: "tactical", item });
   if ( a.cardId ) {
     const card = game.messages.get(a.cardId);
@@ -1295,7 +1291,7 @@ async function applyArmedFold(message, actor, testKind, { skill = null, combatan
 async function showArmedNotice(message) {
   const t = message.getFlag(MODULE_ID, "tacticalArmed");
   if ( !t || t.spent ) return;
-  const actor = t.sourceUuid ? fromUuidSync(t.sourceUuid) : null;
+  const actor = resolveUuid(t.sourceUuid);
   // THE CHECKS ARE THE BUTTONS (user, 2026-09-05: "should be a button for either History,
   // Investigation or Insight. player presses one of three buttons. then the check is made"):
   // one per skill the scope names, Initiative too where Ambush's text says so and a combat
@@ -1330,7 +1326,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       : `${t.name} — the die rolled ${t.total}; pick the check (${article(t.what)} ${t.what})`,
     subtitle: spendPhrase(poolSpendsOn(message)), lines: [ruleLine(t.rule)] }) + (live ? momentBarHTML(t, "reminder") : "");
   html.querySelector(".message-content")?.appendChild(line);
-  const actor = t.sourceUuid ? fromUuidSync(t.sourceUuid) : null;
+  const actor = resolveUuid(t.sourceUuid);
   if ( live && canAnswerFor(actor) ) {
     const shownKey = popupKey(message.id, "armed");
     if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showArmedNotice(message); }

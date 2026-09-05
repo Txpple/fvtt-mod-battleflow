@@ -87,6 +87,7 @@ const LAYER_OF = {
   "shared.js": "spine",
   "geometry.js": "spine",
   "settings.js": "spine",
+  "lookup.js": "spine",      // the sheet and document readers (the machine-tier pass, Stage 1)
 
   // REGISTRY — which content participates, in what way
   "volley-registry.js": "registry",

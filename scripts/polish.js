@@ -10,7 +10,7 @@
  */
 import { MODULE_ID, S, setting } from "./core.js";
 import { blockEntries, effectChoiceEntries, interruptEntries } from "./settings.js";
-import { EFFECT_CHOICES } from "./decide/registry.js";
+import { EFFECT_CHOICES, tableIndex } from "./decide/registry.js";
 import { effectChoiceFor } from "./decide/choices.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -156,10 +156,11 @@ function castApplyQualifies(doc) {
  * elect applies only the pick. Null where the item is unlisted or the activity carries fewer
  * than two of the row's names.
  */
+const EFFECT_CHOICE_INDEX = tableIndex(EFFECT_CHOICES);
 function castChoice(activity) {
   const name = String(activity?.item?.name ?? "").toLowerCase();
   if ( !name || !effectChoiceEntries().some(e => String(e.kind).toLowerCase() === name) ) return null;
-  const key = Object.keys(EFFECT_CHOICES).find(k => k.toLowerCase() === name);
+  const key = EFFECT_CHOICE_INDEX.keyNamed(name);
   const row = key ? EFFECT_CHOICES[key] : null;
   if ( !row ) return null;
   const options = effectChoiceFor(row, (activity?.applicableEffects ?? []).map(e => e?.name));

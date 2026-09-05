@@ -3,6 +3,7 @@
  * Split from mastery.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, activeCombatFor, statContext, sheetModeEffects, rollLabelFor } from "./core.js";
+import { featureNamed } from "./lookup.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./settings.js";
 import { chipSpentOnRecord, grantingActor, turnChitStands } from "./shared.js";
 import { DialogCarried, markDefaultButton } from "./ui.js";
@@ -286,7 +287,6 @@ Hooks.on("dnd5e.postRollConfiguration", (rolls, config, dialog, message) => {
 
 /* --- reading the table ---------------------------------------------------------------------- */
 
-
 /**
  * The range facts of THIS attack, as the dialog stands: is it a ranged attack roll (the
  * activity's attack type, or a weapon thrown — the attack mode is the dialog's dropdown), and
@@ -479,7 +479,7 @@ export function judgeRoll(attacker, { activity = null, attackMode = null, target
 function sneakFactsFor(attacker, activity, attackMode, net) {
   const item = activity?.item;
   if ( !item || (item.type !== "weapon") || (activity?.type !== "attack") ) return null;
-  const feature = attacker.items.find(i => (i.type === "feat") && (i.name.toLowerCase() === SNEAK_ATTACK.feature.toLowerCase()));
+  const feature = featureNamed(attacker, SNEAK_ATTACK.feature);
   if ( !feature ) return null;
   const damage = [...(feature.system?.activities ?? [])].find(a => (a.type === "damage") && a.damage?.parts?.length);
   const part = damage?.damage?.parts?.[0];

@@ -3,7 +3,8 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, activeCombatFor, statContext } from "./core.js";
-import { clockRiderEntries } from "./settings.js";
+import { lower, featureNamed, activityNamed } from "./lookup.js";
+import { clockRiderEntries, listedNames } from "./settings.js";
 import { turnChitStands, writeTurnChit } from "./shared.js";
 import { bfCard, riderMenuHTML, ruleLine } from "./decide/present.js";
 import { CLOCK_RIDERS } from "./decide/registry.js";
@@ -31,10 +32,6 @@ import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
  * card says so rather than adding nothing quietly.
  * ------------------------------------------------------------------------------------------- */
 
-const lower = s => String(s ?? "").toLowerCase();
-const featureNamed = (actor, name) => actor?.items?.find(i => (i.type === "feat") && (lower(i.name) === lower(name))) ?? null;
-const activityNamed = (item, name) => [...(item?.system?.activities ?? [])].find(a => lower(a.name) === lower(name)) ?? null;
-
 /** Uses left on an activity that carries them, or null when it carries none. */
 function usesLeftOf(activity) {
   const max = activity?.uses?.max;
@@ -52,7 +49,7 @@ export function clockRidersFor(attackMessage, activity) {
   const attacker = activity?.actor ?? attackMessage?.getAssociatedActor();
   const item = activity?.item;
   if ( !attacker || !item ) return [];
-  const listed = new Set(clockRiderEntries().map(e => lower(e.kind)));
+  const listed = listedNames(clockRiderEntries());
   if ( !listed.size ) return [];
   const combat = activeCombatFor(attacker);
   const weaponType = [...(item.system?.damage?.base?.types ?? [])][0] ?? null;

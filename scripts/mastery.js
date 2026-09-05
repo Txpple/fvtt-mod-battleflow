@@ -5,6 +5,7 @@
 import { MODULE_ID, TITLE, S, setting, isActiveGM, isFlowElectFor, drivesMomentFor,
   canApplyTo, whisperNoGM, queueFlagWrite, canAnswerFor, combatStamp, activeCombatFor,
   statContext } from "./core.js";
+import { resolveUuid } from "./lookup.js";
 import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { EFFECT_BENDS, MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.js";
 import { TURN_CHIPS, CHIP_FLAG, chipClock, chipIsDead, chipOwnedBy, chipSpentBy,
@@ -12,7 +13,7 @@ import { TURN_CHIPS, CHIP_FLAG, chipClock, chipIsDead, chipOwnedBy, chipSpentBy,
 import { REMINDER_FLAG, rolledWith } from "./decide/reminders.js";
 import { chipData, chipSpentOnRecord, chitStampOf, hitTargets, masteryLabel, modeAllows, placeOf, rollConfigFor,
   turnPlace } from "./shared.js";
-import { effectEntries } from "./settings.js";
+import { effectEntries, listedNames } from "./settings.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup, DialogCarried,
   momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged,
@@ -83,7 +84,6 @@ const MASTERY_EFFECTS = {
     ]
   }
 };
-
 
 /** Attacker, weapon and attack ability behind an attack message — or null. */
 function masteryContext(attackMessage) {
@@ -631,7 +631,7 @@ async function applyToppleFailure(card, uuid) {
   const flag = foundry.utils.deepClone(card.getFlag(MODULE_ID, "topple"));
   const entry = flag?.targets?.find(t => t.uuid === uuid);
   if ( !entry || (entry.outcome !== "prone") || entry.applied ) return;
-  const actor = (() => { try { return fromUuidSync(uuid); } catch { return null; } })();
+  const actor = resolveUuid(uuid);
   // ⚠ THE PRONE PRESS IS THE GM-ONLY HALF (v1.27.0). With no GM connected the save still
   // rolled and the card still judged it — the verdict is real and public — but nothing here
   // can touch the monster's conditions. This is the exact case the user named: tell the
@@ -745,7 +745,7 @@ async function foldToppleSave(saveMessage) {
         await dramaticVerdictPause(saveMessage);
         // Source-then-result and the saver's own card (v1.19.x findings ⑦/⑧ — the same
         // sweep as the save verdict line).
-        const stander = (() => { try { return fromUuidSync(entry.uuid); } catch { return null; } })();
+        const stander = resolveUuid(entry.uuid);
         await ChatMessage.create({
           speaker: (stander instanceof Actor) ? ChatMessage.getSpeaker({ actor: stander }) : card.speaker,
           content: bfCard({
@@ -875,7 +875,7 @@ async function postMasteryNotice(ctx, key, targets) {
  * the auto-dismiss and the drain bar are unchanged, and dismissal arms nothing.
  */
 async function showMasteryNotice(message, notice) {
-  const attacker = (() => { try { return fromUuidSync(notice.attackerUuid); } catch { return null; } })();
+  const attacker = resolveUuid(notice.attackerUuid);
   // THE ACK (ARCHITECTURE.md §5 law 3, finding (j)): ANY notice button resolves the card's
   // pending presentation — bar, recall, popup, all of it. Arm additionally arms (and the
   // "Cleave — armed" card the render block draws is gated on the arm, not the ack, so it
@@ -918,7 +918,7 @@ async function showMasteryNotice(message, notice) {
 const CLEAVE_ARM_TTL_MS = 60_000;   // out-of-combat only; in combat the turn stamp governs
 
 async function armCleave(notice) {
-  const attacker = (() => { try { return fromUuidSync(notice.attackerUuid); } catch { return null; } })();
+  const attacker = resolveUuid(notice.attackerUuid);
   if ( !(attacker instanceof Actor) || !notice.weapon?.id ) return;
   await attacker.setFlag(MODULE_ID, "cleaveArm", {
     itemId: notice.weapon.id, itemName: notice.weapon.name ?? "",
@@ -1151,7 +1151,7 @@ async function spendChips(message, ctx) {
     const spendRows = new Map(Object.entries(EFFECT_BENDS).filter(([, r]) => r.spend === "attack")
       .map(([k, r]) => [k.toLowerCase(), r]));
     if ( spendRows.size ) {
-      const listed = new Set(effectEntries().map(e => String(e.kind).toLowerCase()));
+      const listed = listedNames(effectEntries());
       const rowFor = (e, side) => {
         const r = spendRows.get(String(e.name ?? "").toLowerCase());
         if ( !(r && r[side] && listed.has(String(e.name).toLowerCase())) ) return null;
@@ -1288,7 +1288,7 @@ const disarmMasteryTimer = messageId => disarmAskTimer(masteryTimers, messageId)
 
 /** The Use/Pass popup — the same two controls for everybody, on the hold's own bar. */
 async function showMasteryPopup(message, m) {
-  const attacker = (() => { try { return fromUuidSync(m.attackerUuid); } catch { return null; } })();
+  const attacker = resolveUuid(m.attackerUuid);
   const label = masteryLabel(m.key);
   await openMomentPopup(message, "mastery", attacker, {
     title: `${label} — ${m.weapon?.name ?? ""}`, icon: "fa-solid fa-medal", width: 420,
@@ -1335,7 +1335,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       // up later) between the answer flag landing and the payout. Same stateless-view
       // discipline as the hold's resume check; executeMasteryAnswer is claim-first.
       if ( m.answer && drivesMasteryFlag(m) ) void executeMasteryAnswer(message);
-      const attacker = (() => { try { return fromUuidSync(m.attackerUuid); } catch { return null; } })();
+      const attacker = resolveUuid(m.attackerUuid);
       if ( canAnswerFor(attacker) && !m.answer ) {
         // ONE input surface: the popup decides, the card recalls a dismissed popup.
         const shownKey = popupKey(message.id, "mastery");
@@ -1373,7 +1373,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         scheduleBarSync(bar);
       }
     }
-    const attacker = (() => { try { return fromUuidSync(notice.attackerUuid); } catch { return null; } })();
+    const attacker = resolveUuid(notice.attackerUuid);
     const shownKey = popupKey(message.id, "notice");
     if ( canAnswerFor(attacker) && live && !shownMoments.has(shownKey) ) {
       shownMoments.add(shownKey);
@@ -1452,7 +1452,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       if ( (t.outcome === "prone") && t.answeredAt && !t.applied && drivesMasteryFlag(topple)
         && (Date.now() - t.answeredAt > 20_000) ) void applyToppleFailure(message, t.uuid);
       if ( t.done ) continue;
-      const actor = (() => { try { return fromUuidSync(t.uuid); } catch { return null; } })();
+      const actor = resolveUuid(t.uuid);
 
       // ⚠ The native [[/save]] enricher rolls for whatever token is SELECTED — which right
       // after an attack is the ATTACKER, so the GM rolled Morgash's save at the dummy's

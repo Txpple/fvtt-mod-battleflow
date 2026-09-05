@@ -3,10 +3,11 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
-import { superiorityUseEntries } from "./settings.js";
+import { lower, featureNamed, activityNamed, resolveUuid, resolveDie } from "./lookup.js";
+import { superiorityUseEntries, listedNames } from "./settings.js";
 import { chipData, hitTargets, placeOf, poolSpendsOn } from "./shared.js";
 import { bfCard, holdBarHTML, popupKey, riderMenuHTML, ruleLine, spendPhrase } from "./decide/present.js";
-import { MANEUVER_FEATURE_NAMES, SUPERIORITY_USES } from "./decide/registry.js";
+import { MANEUVER_FEATURE_NAMES, SUPERIORITY_USES, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { armDeadline, disarmDeadline, momentButton, openMomentPopup, shownMoments } from "./ui.js";
@@ -47,9 +48,8 @@ import { applyEffectsWithReceipt } from "./effect-riders.js";
  * Superiority Uses list. Nothing here counts turns: the chips wear the platform's clocks.
  * ------------------------------------------------------------------------------------------- */
 
-const lower = s => String(s ?? "").toLowerCase();
-const listed = () => new Set(superiorityUseEntries().map(e => lower(e.kind)));
-const rowNamed = name => { const k = Object.keys(SUPERIORITY_USES).find(x => lower(x) === lower(name)); return k ? { key: k, ...SUPERIORITY_USES[k] } : null; };
+const listed = () => listedNames(superiorityUseEntries());
+const { rowNamed } = tableIndex(SUPERIORITY_USES);
 const useRowFor = activity => {
   const row = rowNamed(activity?.item?.name);
   if ( !row || !listed().has(lower(row.key)) ) return null;
@@ -60,11 +60,7 @@ const useRowFor = activity => {
 function dieOf(actor, activity) {
   const part = activity?.damage?.parts?.[0];
   const raw = activity?.roll?.formula || (part ? riderPartFormula({ number: part.number, denomination: part.denomination, custom: part.custom, bonus: part.bonus }) : null);
-  if ( !raw ) return null;
-  try {
-    const resolved = String(Roll.replaceFormulaData(raw, actor.getRollData())).trim().replace(/^d(\d+)/i, "1d$1");
-    return (Roll.validate(resolved) && !/@/.test(resolved)) ? resolved : null;
-  } catch { return null; }
+  return resolveDie(actor, raw);
 }
 
 /** The fighter's standing use-chip for a row, or null. */
@@ -82,8 +78,7 @@ Hooks.on("preCreateChatMessage", doc => {
   try {
     const isUsage = (doc.type === "usage") || (doc.getFlag("dnd5e", "messageType") === "usage");
     if ( !isUsage || !doc.getFlag(MODULE_ID, "castApply") ) return;
-    let item = null;
-    try { item = fromUuidSync(doc.getFlag("dnd5e", "item")?.uuid ?? ""); } catch { item = null; }
+    const item = resolveUuid(doc.getFlag("dnd5e", "item")?.uuid ?? "");
     if ( !item || (item.type !== "feat") || !MANEUVER_FEATURE_NAMES.has(lower(item.name)) ) return;
     doc.updateSource({ [`flags.${MODULE_ID}.-=castApply`]: null });
   } catch(err) { console.warn(`${TITLE} | Could not keep the cast slice off a maneuver's card.`, err); }
@@ -199,8 +194,8 @@ async function chooseBait(card, uuid) {
 async function showBaitPopup(card) {
   const bs = card.getFlag(MODULE_ID, "baitSwitch");
   if ( !bs || bs.chosen ) return;
-  const actor = bs.sourceUuid ? fromUuidSync(bs.sourceUuid) : null;
-  const item = bs.itemUuid ? fromUuidSync(bs.itemUuid) : null;
+  const actor = resolveUuid(bs.sourceUuid);
+  const item = resolveUuid(bs.itemUuid);
   await openMomentPopup(card, "bait", actor, {
     title: `${bs.key} — ${actor?.name ?? ""}`, icon: "fa-solid fa-people-arrows",
     content: bfCard({ img: item?.img ?? null, eyebrow: `Maneuver — ${bs.key}`, tone: "pending",
@@ -320,13 +315,13 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
       if ( !hits.length ) continue;
       const spent = attackMessage.getFlag(MODULE_ID, "chipSpend")?.spent ?? [];
       const feinted = hits.every(t => {
-        let target = null; try { target = fromUuidSync(t.uuid); } catch { target = null; }
+        const target = resolveUuid(t.uuid);
         const marker = target?.effects?.find(e => (lower(e.name) === lower(row.marker.effect)) && (e.getFlag(MODULE_ID, "sourceUuid") === attacker.uuid));
         return !!marker || spent.some(s => (lower(s.name) === lower(row.marker.effect)) && (s.uuid === t.uuid));
       });
       if ( !feinted ) continue;
-      const feat = attacker.items.find(i => (i.type === "feat") && (lower(i.name) === lower(key)));
-      const act = [...(feat?.system?.activities ?? [])].find(a => lower(a.name) === lower(row.use)) ?? null;
+      const feat = featureNamed(attacker, key);
+      const act = activityNamed(feat, row.use);
       const die = act ? dieOf(attacker, act) : null;
       if ( !die ) continue;
       push(die);
@@ -367,7 +362,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       subtitle: `${spendPhrase(poolSpendsOn(message))}${bs.resolved ? ` · until the start of ${fighterName}'s next turn` : ""}`,
       lines: [ruleLine(bs.rule)] }) + ((!bs.chosen && bs.deadline) ? holdBarHTML(bs, "to answer") : "");
     html.querySelector(".message-content")?.appendChild(line);
-    const actor = bs.sourceUuid ? fromUuidSync(bs.sourceUuid) : null;
+    const actor = resolveUuid(bs.sourceUuid);
     if ( !bs.chosen && canAnswerFor(actor) ) {
       const shownKey = popupKey(message.id, "bait");
       if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showBaitPopup(message); }

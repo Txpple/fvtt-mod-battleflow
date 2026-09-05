@@ -5,6 +5,7 @@
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite,
   canAnswerFor, inRunningCombat, combatStamp, statContext } from "./core.js";
+import { itemNamed, resolveUuid, resolveDie } from "./lookup.js";
 import { maneuverFoldEntries } from "./settings.js";
 import { chipData, hitTargets, modeAllows, placeOf, poolSpendsOn, reactionSpent, spendReaction } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, spendPhrase, RESCUE_KINDS,
@@ -78,8 +79,6 @@ import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 
 /* --- the list: strict parse, the list is the switch ---------------------------------------- */
 
-
-
 /** Walk-5 (z): the rule line every popup quotes — the 2024 text VERBATIM, read off this
  * world's own PHB compendium items 2026-08-21 (punctuation included; the source mixes curly
  * and straight apostrophes). The popups keep the module's operational hints as separate
@@ -117,7 +116,7 @@ export const maneuverEntries = maneuverFoldEntries;
 export function foldEntryFor(actor, kind) {
   for ( const entry of maneuverEntries() ) {
     if ( entry.kind !== kind ) continue;
-    const item = actor?.items?.find(i => i.name.toLowerCase() === entry.name.toLowerCase());
+    const item = itemNamed(actor, entry.name);
     if ( item ) return { entry, item };
   }
   return null;
@@ -134,7 +133,7 @@ export const equippedShield = actor =>
  * P2). An activity with no consumption is simply usable.
  */
 function usableManeuver(actor, name) {
-  const item = actor?.items?.find(i => i.name.toLowerCase() === name.toLowerCase());
+  const item = itemNamed(actor, name);
   const activity = item?.system.activities?.contents?.[0];
   if ( !activity ) return null;
   for ( const c of (activity.consumption?.targets ?? []) ) {
@@ -427,7 +426,7 @@ registerRescue("precision", {
   isPending: message => message.getFlag(MODULE_ID, "precision")?.status === "pending",
   subject: message => {
     const uuid = message.getFlag(MODULE_ID, "precision")?.attackerUuid;
-    try { return uuid ? fromUuidSync(uuid) : null; } catch { return null; }
+    return resolveUuid(uuid);
   },
   /**
    * ⚠ COMPOSED HERE, NOT IN THE SPINE, and that is the §4.1 line: composing needs `foldsFrom`
@@ -591,7 +590,7 @@ async function answerRiposte(message, uuid, answer, { weaponId = null, weaponNam
     const live = message.getFlag(MODULE_ID, "riposte");
     const reactor = live?.reactors?.find(x => x.uuid === uuid);
     if ( !reactor || reactor.answer || (live.status !== "pending") ) return;
-    const actor = (() => { try { return fromUuidSync(uuid); } catch { return null; } })();
+    const actor = resolveUuid(uuid);
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor }),
       content: bfCard({
@@ -795,7 +794,7 @@ Hooks.on("dnd5e.rollAttackV2", async rolls => {
 /** The Riposte/Pass popup — two controls plus the weapon choice (an input, like the topple
  * bonus field: inputs inform the answer, they are not answers). */
 async function showRipostePopup(message, flag, reactor) {
-  const actor = (() => { try { return fromUuidSync(reactor.uuid); } catch { return null; } })();
+  const actor = resolveUuid(reactor.uuid);
   // The weapon choice (finding ④, the walk's ruling): default to the weapon last attacked
   // with; a single equipped melee weapon skips the dropdown entirely and is simply NAMED.
   const options = actor ? meleeOptions(actor) : [];
@@ -874,7 +873,7 @@ async function postHewReminder(attacker, featItem, weapon, why) {
 
 /** The Hew popup — the mastery notice's OK-only shape on the fold's own namespace. */
 async function showHewPopup(message, notice) {
-  const attacker = (() => { try { return fromUuidSync(notice.attackerUuid); } catch { return null; } })();
+  const attacker = resolveUuid(notice.attackerUuid);
   await openMomentPopup(message, "hew", attacker, {
     title: `Hew — ${attacker?.name ?? ""}`, icon: "fa-solid fa-axe-battle", width: 420,
     content: bfCard({
@@ -901,7 +900,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   row.innerHTML = momentBarHTML(notice, "reminder");
   html.querySelector(".message-content")?.appendChild(row);
   scheduleBarSync(row);
-  const attacker = (() => { try { return fromUuidSync(notice.attackerUuid); } catch { return null; } })();
+  const attacker = resolveUuid(notice.attackerUuid);
   const shownKey = popupKey(message.id, "hew");
   if ( canAnswerFor(attacker) && !shownMoments.has(shownKey) ) {
     shownMoments.add(shownKey);
@@ -1144,7 +1143,7 @@ async function mootPrecision(message) {
 
 /** The Use/Pass popup — a target select only when the swing struck more than one. */
 async function showBashOfferPopup(message, flag) {
-  const attacker = (() => { try { return fromUuidSync(flag.attackerUuid); } catch { return null; } })();
+  const attacker = resolveUuid(flag.attackerUuid);
   const options = flag.targets ?? [];
   const selectHTML = (options.length > 1) ? `
     <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
@@ -1200,7 +1199,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     if ( pending ) {
       scheduleBarSync(row);
       armPrecisionTimer(message);
-      const attacker = (() => { try { return fromUuidSync(p.attackerUuid); } catch { return null; } })();
+      const attacker = resolveUuid(p.attackerUuid);
       if ( canAnswerFor(attacker) && !p.answer ) {
         // ⚠ ONE CALL FOR BOTH JOBS. The spine owns the latch now (the content signature), so
         // the auto-show and the redraw are the same request; the recall flag is what tells it
@@ -1244,7 +1243,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         const bar = document.createElement("div");
         bar.innerHTML = holdBarHTML(r, "to answer");
         row.appendChild(bar);
-        const actor = (() => { try { return fromUuidSync(reactor.uuid); } catch { return null; } })();
+        const actor = resolveUuid(reactor.uuid);
         if ( canAnswerFor(actor) ) {
           const shownKey = popupKey(message.id, `riposte:${reactor.uuid}`);
           if ( !shownMoments.has(shownKey) ) {
@@ -1292,7 +1291,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     if ( pending ) {
       scheduleBarSync(row);
       armBashOfferTimer(message);
-      const attacker = (() => { try { return fromUuidSync(b.attackerUuid); } catch { return null; } })();
+      const attacker = resolveUuid(b.attackerUuid);
       if ( canAnswerFor(attacker) && !b.answer ) {
         const shownKey = popupKey(message.id, "bashoffer");
         if ( !shownMoments.has(shownKey) ) {
@@ -1416,11 +1415,7 @@ async function stampCommand(activity, fighter, message, found) {
   const ally = targets[0] ?? null;
   // The die is the FIGHTER's scale value — resolved here, on the fighter, because it rides the
   // ALLY's roll (measured: the raw `@scale.battle-master.superiority.die` read 0 on the Ranger).
-  let dieFormula = maneuverDieFormula(activity);
-  try {
-    const r = dieFormula ? String(Roll.replaceFormulaData(dieFormula, fighter.getRollData())).trim().replace(/^d(\d+)/i, "1d$1") : null;
-    dieFormula = (r && Roll.validate(r) && !/@/.test(r)) ? r : null;
-  } catch { dieFormula = null; }
+  const dieFormula = resolveDie(fighter, maneuverDieFormula(activity));
   const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
   await message.setFlag(MODULE_ID, "command", {
     status: ally ? "directed" : "no ally", ...statContext(fighter.uuid),

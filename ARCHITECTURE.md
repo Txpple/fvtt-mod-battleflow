@@ -535,6 +535,7 @@ in milliseconds and impossible to tangle. **Keep it that way** — the day somet
 | [decide/receipt.js](scripts/decide/receipt.js) | `traitOutcome`, `hpDelta`, `receiptEntry`, `joinDamageReceipt`, `joinEffectReceipt`, `takenOf`, `receiptAmounts`, `revertPlan`, `revertableEffect` |
 | [decide/present.js](scripts/decide/present.js) | `popupKey`, `TONE`, `bfCard`, `ruleLine`, `momentBarHTML`, `holdBarHTML`, `nextCascadeSlot`, `cascadePosition`; `situationalBonusHTML`, `modeButtons` — the controls every popup that stands in for a roll dialog carries; `modeTone`, `modeTagHTML` — the one mode tag, one meaning per hue (`fails` is the save gate's fourth answer, red); `reminderSectionHTML` / `reminderFieldsetHTML` / `reminderDetailsHTML` — the gate's section bare, inside the system's own roll dialog, and folded to its header line for a volley's ray rows; `sneakBoxHTML` (the Sneak Attack choice under the sources) and `cunningMenuHTML` (the Cunning Strike menu on the damage offer); the rescue view's row model and markup |
 | [geometry.js](scripts/geometry.js) | EDGE, not in the layer: `tokensInTemplates`, `templateShape` — they need canvas/CONFIG/PIXI; `tokenOfActor`, `tokenForUuid`, `feetOf`, `nearestFeet` — token distance in FEET, the readers the reminder gate grew and the damage service shares (the 5-foot automatic crit, 2026-09-02) |
+| [lookup.js](scripts/lookup.js) | SPINE, not in the layer (the machine-tier pass, Stage 1, 2026-09-05): `lower`, `sameName`, `itemNamed`, `featureNamed`, `activityNamed`, `activityOfType` — the sheet readers nine machines each carried; `resolveUuid` — the `fromUuidSync` guard that thirty sites wrote inline (a throw on an unloaded pack or a dead document is "not here"); `resolveDie` — a die formula resolved on THIS actor's roll data, an `@` left standing refused (five copies of the superiority-die idiom). Imports nothing, owns nothing. `core.js` and `shared.js` keep their own uuid guard: the leaf and this file's own layer. Its two pure companions: `tableIndex(table, keyOf)` in decide/registry.js (a name-keyed table's closed name set and its row-by-name — the six `*_NAMES` sets derive through it now, **the keys unchanged**) and `listedNames(entries)` in settings.js (a list's kinds as a lower-cased set, seven copies before) |
 
 ⚠ **`receiptAmounts` returns the row's TEXT as well as its figures, deliberately.** The two bugs
 that reached the table there were both a right number in the wrong sentence (the double-negative
@@ -554,7 +555,7 @@ those strings back into the view.**
 | 6 | entry | `battleflow.js` |
 | 5 | **machines** | hold · saves · mastery · maneuvers · concentration · volleys · cast · hit-riders · d20-folds · receipts · polish · resources · reminders · stats · sneak · clock-riders · use-chips · emanations · hit-menu · damage-shields · damage-casts · superiority-uses (the three of 2026-09-05) |
 | 4 | **services** | `auto-apply.js` · `effect-riders.js` · `auto-damage.js` — the consequence chokepoints (§2) |
-| 3 | spine | `ui.js` · `shared.js` · `geometry.js` · `settings.js` |
+| 3 | spine | `ui.js` · `shared.js` · `geometry.js` · `settings.js` · `lookup.js` (the sheet and document readers, 2026-09-05) |
 | 2 | registry | `volley-registry.js` |
 | 1 | decision | `decide/*` — **zero imports, asserted** |
 | 0 | core | `core.js` — a leaf, **asserted** |

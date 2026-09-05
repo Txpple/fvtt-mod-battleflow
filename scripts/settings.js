@@ -516,6 +516,13 @@ function listEntries(spec) {
   return entries;
 }
 
+/**
+ * The listed KINDS of a name-keyed list, lower-cased, as a set — "is this row switched on"
+ * for every table whose list names its rows (the shields, the emanations, the superiority
+ * uses, the damage saves, the effect rows). One body; it was seven (Stage 1, 2026-09-05).
+ */
+export const listedNames = entries => new Set(entries.map(e => String(e.kind ?? "").toLowerCase()));
+
 /** Which reactions interrupt an attack, and what each one changes — `{ name, kind }`. */
 export function interruptEntries() {
   return listEntries(LIST_SPECS.interrupt);

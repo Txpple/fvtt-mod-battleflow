@@ -4,6 +4,7 @@
  */
 import { MODULE_ID, TITLE, S, setting, rollerUserFor, canAnswerFor,
   drivesMomentFor, canApplyTo, whisperNoGM, statContext } from "./core.js";
+import { resolveUuid } from "./lookup.js";
 import { rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML } from "./decide/present.js";
 import { livePopups, momentButton, DialogCarried,
@@ -547,7 +548,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     }
     if ( setting(S.concMode) === "auto" ) void autoRollConcentration(message);
 
-    const actor = (() => { try { return fromUuidSync(ask.actorUuid); } catch(err) { return null; } })();
+    const actor = resolveUuid(ask.actorUuid);
     if ( (setting(S.concMode) === "prompt") && canAnswerFor(actor) ) {
       // Auto-show only for the OLDEST pending ask (multiple damage instances queue rather
       // than stack popups); the button recalls this ask's popup regardless.

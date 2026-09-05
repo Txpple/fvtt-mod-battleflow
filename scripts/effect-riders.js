@@ -3,6 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, statContext } from "./core.js";
+import { resolveUuid } from "./lookup.js";
 import { effectRecord, joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
 import { CHIP_FLAG } from "./decide/chips.js";
 import { statSourceOf } from "./shared.js";
@@ -20,7 +21,7 @@ import { statSourceOf } from "./shared.js";
 export function messageActivity(message) {
   const uuid = message?.getFlag("dnd5e", "activity")?.uuid;
   if ( !uuid ) return null;
-  try { return fromUuidSync(uuid); } catch { return null; }
+  return resolveUuid(uuid);
 }
 
 /**
@@ -174,7 +175,6 @@ export async function revertEffect(message, targetUuid, effectId) {
   entry.reverted = true;
   await message.setFlag(MODULE_ID, "effectReceipt", flag);
 }
-
 
 /* --- the twin-chip dedupe floor (the 2026-08-18 session's finding ⓪/②) ---------------------
  * `isActiveGM()` is per-USER: two sessions on the same account both pass it, both run an
