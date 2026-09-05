@@ -12,7 +12,7 @@ import { SAVE_FOLDS, foldedSave, foldsFrom, saveMultiplier, verdictText } from "
 import { isDeadForSaves } from "./decide/eligible.js";
 import { forceStatus, damagePartsOf, reactionSpent, rollConfigFor, spendReaction, statSourceOf } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, reminderFieldsetHTML, TONE } from "./decide/present.js";
-import { livePopups, openMomentPopup, adoptManagedPopup, DialogCarried, markDefaultButton, momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer, armDeadline, disarmDeadline, registerRelay, dramaticVerdictPause, registerDemand, demandAnsweredBy, pendingDemandsFor } from "./ui.js";
+import { livePopups, openMomentPopup, adoptManagedPopup, DialogCarried, markDefaultButton, momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer, armDeadline, disarmDeadline, registerRelay, dramaticVerdictPause, registerDemand, demandAnsweredBy, pendingDemandsFor, registerWithheld, withholds } from "./ui.js";
 import { EFFECT_BENDS, EMANATIONS, EVASION, SAVE_BENDS, SAVE_PRESSES, tableIndex } from "./decide/registry.js";
 import { reachAdmits } from "./decide/emanations.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
@@ -954,7 +954,16 @@ function saveAnsweredBy(rollMessage) {
 /** Same-client fold latch — the create watcher, the buzzer and the render resume can race. */
 const saveFolds = new Set();
 
-export async function foldSaveAnswer(card, uuid, rollMessage) {
+// The withheld side of the protocol (Stage 3b): a verdict this machine paused for an offer is
+// finished by the same fold, handed back through the spine — d20-folds.js used to import it.
+registerWithheld("saves", {
+  resume: ({ cardId, uuid }, rollMessage) => {
+    const card = game.messages.get(cardId);
+    return card ? foldSaveAnswer(card, uuid, rollMessage) : undefined;
+  }
+});
+
+async function foldSaveAnswer(card, uuid, rollMessage) {
   const key = `${card.id}|${uuid}`;
   if ( saveFolds.has(key) ) return;
   saveFolds.add(key);
@@ -983,13 +992,14 @@ export async function foldSaveAnswer(card, uuid, rollMessage) {
      *
      * ⚠ Legendary resistance and a timed-out roll are excluded: `forced` is a ruling rather than
      * arithmetic, and a save the clock already answered has nobody left at the keyboard.
-     * ⚠ The import is LAZY and the call FAILS OPEN — a broken offer must never swallow a
-     * verdict. `saveFolds` releases on the early return, so the resume can re-enter here.
+     * ⚠ Asked of the spine's withhold registry (Stage 3b, 2026-09-05 — it used to be a lazy
+     * import of d20-folds.js, the cycle's out-edge) and it FAILS OPEN there — a broken offer
+     * must never swallow a verdict. `saveFolds` releases on the early return, so the resume can
+     * re-enter here.
      */
     if ( !forced && !timedOut ) {
       const dc = card.getFlag(MODULE_ID, "saves")?.dc;
-      const { offerFoldOnSave } = await import("./d20-folds.js");
-      if ( await offerFoldOnSave(rollMessage, card, uuid, total, dc) ) return;
+      if ( await withholds(rollMessage, { by: "saves", card, uuid, total, dc }) ) return;
     }
     // ⚠ THROUGH THE SERIALIZER (core.js): per-target independence means two targets can fold
     // their answers against this one card at the same instant, and a clone-mutate-set drops

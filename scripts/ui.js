@@ -1109,3 +1109,62 @@ function resume(message, cause) {
 Hooks.on("createChatMessage", message => resume(message, "create"));
 Hooks.on("updateChatMessage", message => resume(message, "update"));
 Hooks.on("dnd5e.renderChatMessage", message => resume(message, "render"));
+
+/* ---------------------------------------------------------------------------------------------
+ * THE WITHHOLD REGISTRY (the machine-tier pass, Stage 3b, 2026-09-05 — ruling 2: now, not on a
+ * third customer; the abilities sweep is the third). Withhold-and-resume is moment lifecycle,
+ * and the spine owns moment lifecycle (§5): a machine about to fold a verdict asks whether any
+ * other machine wants to WITHHOLD it first (the d20 folds' offer on a failed, demanded save —
+ * the verdict pauses, nothing is applied, nothing has to be taken back), and the withholder
+ * hands the verdict back when its offer resolves. Until this registry the two halves were a
+ * two-way lazy import between saves.js and d20-folds.js — the cycle the layer check found on its
+ * first run (§10 D9(d)) — and the protocol was correct but coupled by name.
+ *
+ *   registerWithhold(flagKey, { offer(rollMessage, ctx) → bool })   the withholder: true means
+ *       "withheld — do not fold yet"; the offer FAILS OPEN (a broken offer never swallows a verdict)
+ *   registerWithheld(name, { resume(ctx, rollMessage) })             the withheld machine: how a
+ *       verdict it paused is finished; `ctx` is what it handed to `withholds`
+ *   withholds(rollMessage, ctx)                                       the withheld machine asks,
+ *       where it used to import the withholder
+ *   resumeWithheld(by, ctx, rollMessage)                              the withholder hands back,
+ *       where it used to import the withheld machine; `by` names the withheld machine — an
+ *       in-flight resume stamped before `by` existed falls to the one machine registered
+ *
+ * ⚠ The timing and the driver are the protocol's own, unchanged: the offer is asked at the fold,
+ * on the client folding; the resume is called by the client that resolved the offer, at that
+ * instant. The bytes on the d20fold flag gain one additive field (`resume.by`).
+ * ------------------------------------------------------------------------------------------- */
+
+/** flag key → { offer } */
+const withholders = new Map();
+/** name → { resume } */
+const withheldMachines = new Map();
+
+/** Declare a withholder — a machine that may pause another's verdict with an offer. */
+export function registerWithhold(flagKey, { offer }) {
+  withholders.set(flagKey, { offer });
+}
+
+/** Declare a withheld machine — one whose verdicts may be paused, and how it finishes them. */
+export function registerWithheld(name, { resume }) {
+  withheldMachines.set(name, { resume });
+}
+
+/** Does any withholder want this verdict paused? True means do not fold yet. Each offer fails open. */
+export async function withholds(rollMessage, ctx) {
+  for ( const [flagKey, w] of withholders ) {
+    try {
+      if ( await w.offer(rollMessage, ctx) ) return true;
+    } catch(err) {
+      console.error(`${TITLE} | The ${flagKey} withhold offer failed — folding the verdict as it is.`, err);
+    }
+  }
+  return false;
+}
+
+/** Hand a withheld verdict back to the machine that paused it. */
+export async function resumeWithheld(by, ctx, rollMessage) {
+  const machine = withheldMachines.get(by) ?? ((withheldMachines.size === 1) ? [...withheldMachines.values()][0] : null);
+  if ( !machine ) { console.warn(`${TITLE} | No machine registered to resume a withheld verdict${by ? ` for ${by}` : ""}.`); return; }
+  await machine.resume(ctx, rollMessage);
+}

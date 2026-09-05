@@ -67,7 +67,7 @@ import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RE
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
 import { SUPERIORITY_FOLDS } from "./decide/registry.js";
 import { CHIP_FLAG } from "./decide/chips.js";
-import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor } from "./ui.js";
+import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld } from "./ui.js";
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 
 /**
@@ -460,7 +460,14 @@ const armFoldTimer = message =>
  *
  * Returns true when an offer was stamped and the caller must NOT fold yet.
  * ========================================================================================== */
-export async function offerFoldOnSave(rollMessage, card, uuid, total, dc) {
+// Declared to the spine's withhold registry (Stage 3b, 2026-09-05): saves.js asks the spine at
+// its fold where it used to import this function. `by` names the machine to hand the verdict
+// back to; it rides the resume stamp (additive) so a reload knows who is owed.
+registerWithhold("d20fold", {
+  offer: (rollMessage, { by, card, uuid, total, dc }) => offerFoldOnSave(rollMessage, card, uuid, total, dc, by)
+});
+
+async function offerFoldOnSave(rollMessage, card, uuid, total, dc, by = null) {
   try {
     if ( !setting(S.d20FoldAsk) ) return false;
     const existing = rollMessage.getFlag(MODULE_ID, "d20fold");
@@ -475,7 +482,7 @@ export async function offerFoldOnSave(rollMessage, card, uuid, total, dc) {
     await rollMessage.setFlag(MODULE_ID, "d20fold", {
       ...baseFlag(actor, offers, "save", total, window),
       dc,                                   // ⚠ the ask OWNS it — never re-derived here
-      resume: { cardId: card.id, uuid }     // how the withheld verdict gets finished
+      resume: { cardId: card.id, uuid, ...(by ? { by } : {}) }     // how, and by whom, the withheld verdict gets finished
     });
     armFoldTimer(rollMessage);
     return true;
@@ -485,14 +492,13 @@ export async function offerFoldOnSave(rollMessage, card, uuid, total, dc) {
   }
 }
 
-/** Finish a verdict saves.js withheld for us — win, lose or pass, the save must resolve. */
+/** Finish a verdict another machine withheld for us — win, lose or pass, the save must resolve.
+ * Handed back through the spine (Stage 3b): this used to be a lazy import of saves.js, the
+ * cycle's return edge. A resume stamped before `by` existed falls to the one machine registered. */
 async function resumeWithheldSave(flag, rollMessage) {
   if ( !flag?.resume ) return;
   try {
-    const card = game.messages.get(flag.resume.cardId);
-    if ( !card ) return;
-    const { foldSaveAnswer } = await import("./saves.js");
-    await foldSaveAnswer(card, flag.resume.uuid, rollMessage);
+    await resumeWithheld(flag.resume.by ?? null, flag.resume, rollMessage);
   } catch(err) {
     console.error(`${TITLE} | resuming the withheld save failed.`, err);
   }

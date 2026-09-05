@@ -174,23 +174,11 @@ const ALLOW = [
       + "receipts.js is classed a machine because revertTarget has exactly one importer; a "
       + "second one makes it a service"
   },
-  {
-    from: "saves.js", to: "d20-folds.js", disposition: "OPEN (D9)",
-    why: "offerFoldOnSave (v1.23.0): a DEMANDED save folds its verdict the instant the roll "
-      + "lands, so saves.js must withhold that fold while an offer is live. The fold ARITHMETIC "
-      + "is a SAVE_FOLDS spec and correctly makes no edge — this edge is the offer's timing"
-  },
-  {
-    from: "d20-folds.js", to: "saves.js", disposition: "OPEN (D9)",
-    why: "foldSaveAnswer, the RETURN half of the row above: saves.js withholds a verdict, "
-      + "d20-folds.js hands it back once the offer resolves (win, lose or pass). ⚠ THIS CHECK "
-      + "FOUND IT ON ITS FIRST RUN, and a by-hand review of the same tree the same day missed "
-      + "it — a two-way machine cycle, both halves lazy, each half individually reasonable and "
-      + "commented. Not a defect: the protocol is correct and fails open. But WITHHOLD-AND-RESUME "
-      + "is a moment-lifecycle concept, and the spine owns moment lifecycle (§5) — the third "
-      + "machine pair to grow a two-way edge is the argument for a spine primitive, and that is "
-      + "what D9 records"
-  }
+  // ⚠ TWO ROWS WENT ON 2026-09-05 (the machine-tier pass, Stage 3b — ruling 2): `saves ->
+  // d20-folds` (offerFoldOnSave) and `d20-folds -> saves` (foldSaveAnswer), the two-way
+  // withhold-and-resume cycle this check found on its first run. The spine owns the protocol now
+  // (ui.js registerWithhold / registerWithheld / withholds / resumeWithheld); neither machine
+  // imports the other, and the stale-pin rule forced the rows out. D9(d) is repaid.
 ];
 
 /* --- the graph ---------------------------------------------------------------------------- */
