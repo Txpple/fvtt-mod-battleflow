@@ -324,8 +324,9 @@ is the final waypoint. A sight ray is `CONFIG.Canvas.polygonBackends.sight.testC
 { type: "sight", mode: "any" })`. ⚠ A fix on this was built and PULLED BACK the same evening
 (user: *"this particular fix isn't really a Battle Flow scoped item"*) — it is a movement-pipeline
 concern, not a rule of the game this module resolves; the working patch is
-[prototypes/teleports-in-battleflow.patch](prototypes/teleports-in-battleflow.patch) and the
-measurements above are what any home for it needs. Also measured: the animation module's own
+[prototypes/teleports-in-battleflow.patch](prototypes/teleports-in-battleflow.patch), and its
+home is the new sister module **fvtt-mod-miscpatches** (same evening, user call), where it ships
+as `scripts/patches/teleports.js` with its own suite. Also measured: the animation module's own
 "check collision" preset option is a MOVE-collision ray tested at the circle, before any move —
 a wall refuses there whatever the pipeline would do; that is the preset's setting to turn off.
 
