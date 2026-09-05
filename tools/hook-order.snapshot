@@ -79,7 +79,6 @@ dnd5e.renderChatMessage	hit-menu.js
 preCreateChatMessage	superiority-uses.js
 dnd5e.preUseActivity	superiority-uses.js
 dnd5e.postUseActivity	superiority-uses.js
-updateChatMessage	superiority-uses.js
 dnd5e.preRollDamageV2	superiority-uses.js
 dnd5e.renderChatMessage	superiority-uses.js
 dnd5e.postUseActivity	use-chips.js

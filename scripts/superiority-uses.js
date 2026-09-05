@@ -10,7 +10,7 @@ import { bfCard, holdBarHTML, popupKey, riderMenuHTML, ruleLine, spendPhrase } f
 import { MANEUVER_FEATURE_NAMES, SUPERIORITY_USES, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 import { riderPartFormula } from "./decide/clock.js";
-import { armDeadline, disarmDeadline, momentButton, openMomentPopup, shownMoments } from "./ui.js";
+import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerResumable, shownMoments } from "./ui.js";
 import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 
@@ -224,12 +224,10 @@ function armBaitTimer(card) {
   });
 }
 
-const baitRuns = new Set();
 async function settleBait(card) {
   const bs = card.getFlag(MODULE_ID, "baitSwitch");
-  if ( !bs?.chosen || bs.resolved || baitRuns.has(card.id) ) return;
+  if ( !bs?.chosen || bs.resolved ) return;
   if ( !drivesMomentFor(bs.sourceUuid ?? null) ) return;
-  baitRuns.add(card.id);
   try {
     let claimed = false;
     await queueFlagWrite(card, "baitSwitch", current => { if ( current.resolved || current.resolving ) return false; current.resolving = true; claimed = true; });
@@ -241,12 +239,17 @@ async function settleBait(card) {
     await queueFlagWrite(card, "baitSwitch", current => { current.resolving = false; current.resolved = { name: who?.name ?? null, applied: !!(effect && who), effectName: bs.effectName }; });
   } catch(err) {
     console.error(`${TITLE} | Bait and Switch failed to apply — apply the AC bonus by hand.`, err);
-  } finally {
-    baitRuns.delete(card.id);
   }
 }
 
-Hooks.on("updateChatMessage", message => { if ( message.getFlag(MODULE_ID, "baitSwitch")?.chosen ) void settleBait(message); });
+// The answer's write (or the timer's) settles it; a render is the reload resume. Declared to the
+// spine's resumable registry (Stage 3, 2026-09-05) — its update registration, its render-time
+// resume line and its own in-flight latch (baitRuns) were this file's.
+registerResumable("baitSwitch", {
+  pending: flag => !!flag.chosen && !flag.resolved,
+  drives: flag => drivesMomentFor(flag.sourceUuid ?? null),
+  drive: settleBait
+});
 
 /* --- the offer: Lunging Attack's die is a ticked checkbox (the player's fact) ---------------- */
 
@@ -369,7 +372,6 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       line.appendChild(momentButton(`Answer — ${bs.key}`, () => void showBaitPopup(message)));
     }
     armBaitTimer(message);
-    if ( bs.chosen ) void settleBait(message);   // the resume floor
   }
   const sr = message.getFlag(MODULE_ID, "superiorityRide");
   if ( sr?.rode?.length ) {
