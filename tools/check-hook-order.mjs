@@ -6,11 +6,27 @@
 // registrations can be behavioral. The assertions at the bottom are the orderings known
 // to be load-bearing; see the HANDOFF ground truth and the lazy import() in hold.js.
 //
-//   node tools/check-hook-order.mjs
+//   node tools/check-hook-order.mjs              the named CHECKS, and the snapshot diff
+//   node tools/check-hook-order.mjs --snapshot   refresh tools/hook-order.snapshot on purpose
+//
+// ⚠ THE SNAPSHOT (Stage 0 of the machine-tier pass, 2026-09-05). The named CHECKS are the
+// load-bearing SUBSET; they cannot see a move that reorders two registrations nobody has yet
+// named. §7's rule — "when an import is removed, DIFF the printed evaluation order" — was a
+// by-hand measurement (print before, print after, eyeball); it is mechanical now. The full
+// order, every registration on every hook, lives in `tools/hook-order.snapshot`, tracked, and
+// the default run FAILS on any drift from it. A move that is meant to change the order refreshes
+// the snapshot with `--snapshot` in the same commit and says why in the message; a move that is
+// meant to be order-neutral is proven so by this run printing nothing but PASS.
 //
 // ⚠ The LOADING of the registrations lives in `hook-registrations.mjs`, shared with
 // `check-hook-dispatch.mjs` — same list, two different questions asked of it.
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { loadRegistrations, groupByHook } from "./hook-registrations.mjs";
+
+const SNAPSHOT = join(dirname(fileURLToPath(import.meta.url)), "hook-order.snapshot");
+const refresh = process.argv.includes("--snapshot");
 
 const reg = await loadRegistrations();
 const byHook = groupByHook(reg);
@@ -66,4 +82,57 @@ for (const [hook, a, b, why] of CHECKS) {
   console.log(`${pass ? "PASS" : "FAIL"} ${hook}: ${a} before ${b} — ${why}`);
 }
 if (!ok) console.log("\nOrder regressed — re-read the HANDOFF ESM ground truth before shipping this.");
+
+/* --- the snapshot ------------------------------------------------------------------------- */
+
+// One line per registration, in evaluation order: `<hook>\t<file>`. The raw list, not the
+// grouped print, so a registration moving between two hooks' groups is a visible line move.
+const lines = reg.map(r => `${r.hook}\t${r.file}`);
+const header = "# tools/hook-order.snapshot — every Hooks registration in evaluation order (check-hook-order.mjs --snapshot). Tracked; a diff here is a hook-order change.";
+
+if (refresh) {
+  writeFileSync(SNAPSHOT, `${[header, ...lines].join("\n")}\n`);
+  console.log(`\nSNAPSHOT written: ${lines.length} registrations → tools/hook-order.snapshot`);
+} else if (!existsSync(SNAPSHOT)) {
+  ok = false;
+  console.log("\nFAIL no tools/hook-order.snapshot — run `node tools/check-hook-order.mjs --snapshot` and commit it");
+} else {
+  const want = readFileSync(SNAPSHOT, "utf8").split("\n").filter(l => l && !l.startsWith("#"));
+  const drift = diffLines(want, lines);
+  if (drift.length) {
+    ok = false;
+    console.log(`\nFAIL the evaluation order drifted from tools/hook-order.snapshot (${drift.length} line(s)):`);
+    for (const d of drift) console.log(`  ${d}`);
+    console.log("\nAn import added or removed, a file split, or a registration moved. If the change is "
+      + "intended, refresh with --snapshot in the same commit and explain the difference in the message.");
+  } else {
+    console.log(`\nPASS the evaluation order matches tools/hook-order.snapshot (${lines.length} registrations)`);
+  }
+}
+
 process.exit(ok ? 0 : 1);
+
+/**
+ * A line diff (LCS), printed unified-style: `-N old` for a line the snapshot has and the tree
+ * lost, `+N new` for one the tree gained, N the 1-based position in that side's list.
+ * @param {string[]} a the snapshot
+ * @param {string[]} b the tree
+ * @returns {string[]} the changed lines, in order; empty when identical
+ */
+function diffLines(a, b) {
+  const n = a.length, m = b.length;
+  const lcs = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      lcs[i][j] = (a[i] === b[j]) ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+    }
+  }
+  const out = [];
+  let i = 0, j = 0;
+  while ((i < n) || (j < m)) {
+    if ((i < n) && (j < m) && (a[i] === b[j])) { i++; j++; }
+    else if ((j < m) && ((i >= n) || (lcs[i][j + 1] >= lcs[i + 1][j]))) { out.push(`+${j + 1} ${b[j].replace("\t", " ")}`); j++; }
+    else { out.push(`-${i + 1} ${a[i].replace("\t", " ")}`); i++; }
+  }
+  return out;
+}

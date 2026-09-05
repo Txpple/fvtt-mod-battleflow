@@ -1286,7 +1286,9 @@ keyword alone.
 moment the card appears races the last flag write and flakes. Wait for the receipt itself.
 
 **Run the hook-order check before the battery** whenever a file, an import, or a same-hook
-registration was added. It needs no Foundry and fails loudly.
+registration was added or removed. It needs no Foundry and fails loudly — since 2026-09-05 on
+any drift from `tools/hook-order.snapshot` too, not only on the named pairs; a deliberate
+reorder refreshes the snapshot with `--snapshot` in the same commit.
 
 **⚠ THE SOLE-GM PREFLIGHT CANNOT SEE A SECOND SUITE, and now something else does.** Two suites
 launched against one box both join as `Tester Assistant`, and `preflightSoleGM` counts

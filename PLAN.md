@@ -146,6 +146,8 @@ run diffs against that file and **fails on drift** unless the snapshot was refre
 purpose. The named `CHECKS` stay as the load-bearing subset. `tools/README.md` gets the row.
 **Proves:** every later move is order-neutral by a command, not by eye — §7's "DIFF the printed
 evaluation order", made mechanical.
+✅ **Done 2026-09-05** — 181 registrations across 49 hooks snapshotted; the default run fails on
+drift (proven by tampering with one line); `tools/README.md`, ARCHITECTURE §7 and NOTES carry it.
 
 ### STAGE 1 — one lookup module (finding 5; 1 session)
 

@@ -637,6 +637,14 @@ the only thing holding concentration ahead of the entry order.
 > byte-identical (safe), `dramaticVerdictPause` five hooks changed (safe for a *reason*, not by
 > luck: no shared card, disjoint flag namespaces, and the one contended pair preserved).
 
+✅ **THE DIFF IS MECHANICAL SINCE 2026-09-05** (the machine-tier pass, Stage 0). The full
+evaluation order — every registration on every hook — is tracked in
+[tools/hook-order.snapshot](tools/hook-order.snapshot), and `npm run hooks` **fails on any drift
+from it**. The named `CHECKS` stay the load-bearing subset; the snapshot catches the reorder
+nobody has named yet. A move that is meant to change the order refreshes the file with
+`--snapshot` in the same commit and explains the difference in the message; a move meant to be
+order-neutral is proven so by the gate, not by eye.
+
 Cross-file symbols must be **hoisted `function` declarations called at hook time**, never at
 module-eval time — that is the only reason the existing import cycles are safe.
 
