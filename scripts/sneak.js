@@ -5,6 +5,7 @@
 import { MODULE_ID, TITLE, activeCombatFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { verdictsOn } from "./decide/demand.js";
 import { lower, featureNamed } from "./lookup.js";
+import { registerResumable } from "./ui.js";
 import { damagePartsOf, hitTargets, statSourceOf, withTargets, writeTurnChit } from "./shared.js";
 import { bfCard, cunningMenuHTML, ruleLine } from "./decide/present.js";
 import { CUNNING_OPTIONS, DEATH_STRIKE } from "./decide/registry.js";
@@ -313,8 +314,14 @@ async function settleCunningFollowups(card) {
   }
 }
 
-Hooks.on("updateChatMessage", message => {
-  if ( message.getFlag(MODULE_ID, "cunning")?.onFail ) void settleCunningFollowups(message);
+// The follow-up keyed on a failed save: on the answer's write and on reload, never at the card's
+// birth (no verdict yet). Declared to the spine's resumable registry (Stage 3, 2026-09-05) — its
+// updateChatMessage registration and its render-time resume line were this file's; the
+// per-target latch and the claim through the serializer inside are unchanged.
+registerResumable("cunning", {
+  pending: (flag, _message, cause) => (cause !== "create") && !!flag.onFail,
+  drives: (_flag, message) => drivesMomentFor(message.getFlag(MODULE_ID, "saves")?.sourceUuid ?? null),
+  drive: settleCunningFollowups
 });
 
 /* --- the cards say it (R5) -------------------------------------------------------------------- */
@@ -346,6 +353,5 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       lines: [ruleLine(cunning.rule), cunning.upgradeRule ? ruleLine(cunning.upgradeRule) : null]
     });
     html.querySelector(".message-content")?.appendChild(line);
-    if ( cunning.onFail ) void settleCunningFollowups(message);   // the resume floor
   }
 });

@@ -55,7 +55,6 @@ dnd5e.renderChatMessage	reminders.js
 dnd5e.renderChatMessage	reminders.js
 dnd5e.preRollDamageV2	sneak.js
 createChatMessage	sneak.js
-updateChatMessage	sneak.js
 dnd5e.renderChatMessage	sneak.js
 dnd5e.preRollDamageV2	clock-riders.js
 dnd5e.renderChatMessage	clock-riders.js
