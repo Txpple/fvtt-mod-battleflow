@@ -14,6 +14,9 @@ init	ui.js
 dnd5e.renderChatMessage	ui.js
 createChatMessage	ui.js
 deleteChatMessage	ui.js
+createChatMessage	ui.js
+updateChatMessage	ui.js
+dnd5e.renderChatMessage	ui.js
 createActiveEffect	effect-riders.js
 dnd5e.postUseActivity	hold.js
 dnd5e.postUseActivity	hold.js
@@ -118,9 +121,6 @@ updateChatMessage	concentration.js
 deleteChatMessage	concentration.js
 dnd5e.renderChatMessage	concentration.js
 preCreateChatMessage	concentration.js
-createChatMessage	cast.js
-dnd5e.renderChatMessage	cast.js
-updateChatMessage	cast.js
 dnd5e.renderChatMessage	cast.js
 dnd5e.preUseActivity	volleys.js
 dnd5e.postUseActivity	volleys.js

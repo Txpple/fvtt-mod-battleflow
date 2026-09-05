@@ -7,7 +7,7 @@ import { resolveUuid } from "./lookup.js";
 import { damagePartsOf, statSourceOf } from "./shared.js";
 import { bfCard, popupKey, ruleLine } from "./decide/present.js";
 import { effectsAfterChoice } from "./decide/choices.js";
-import { momentButton, openMomentPopup, shownMoments } from "./ui.js";
+import { momentButton, openMomentPopup, registerResumable, shownMoments } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 
@@ -33,13 +33,10 @@ import { applyEffectsWithReceipt } from "./effect-riders.js";
  * hold's verdict), and enchant/summon/forward (not effects-on-target casts).
  * ------------------------------------------------------------------------------------------- */
 
-/** Same-client concurrency latch — create + render can fire in one tick, same as the
- * mastery ask's executions latch and for the same reason. */
-const castExecutions = new Set();
+// The same-client concurrency latch (create + render in one tick) is the spine's now — the
+// resumable registry keys it `castApply|<id>` and `healPending|<id>` (Stage 3, 2026-09-05).
 
 async function executeCastApply(message) {
-  if ( castExecutions.has(message.id) ) return;
-  castExecutions.add(message.id);
   try {
     const payload = message.getFlag(MODULE_ID, "castApply");
     if ( !payload?.targets?.length ) return;
@@ -65,15 +62,10 @@ async function executeCastApply(message) {
     });
   } catch(err) {
     console.error(`${TITLE} | Cast auto-apply failed.`, err);
-  } finally {
-    castExecutions.delete(message.id);
   }
 }
 
 async function applyCastHealing(message) {
-  const key = `heal:${message.id}`;
-  if ( castExecutions.has(key) ) return;
-  castExecutions.add(key);
   try {
     if ( message.getFlag(MODULE_ID, "receipt") ) return; // applied (or reverted) already
     // A SELF-aimed heal carries its target ON the stamp (v1.11.0 self-aim, finding ① —
@@ -88,21 +80,23 @@ async function applyCastHealing(message) {
     await applyDamagesWithReceipt(message, targets, damages, { note: "Healing" });
   } catch(err) {
     console.error(`${TITLE} | Healing auto-apply failed.`, err);
-  } finally {
-    castExecutions.delete(key);
   }
 }
 
-/** The elect volunteers for stamped casts — on arrival, and on render for reload resume. */
-function resolveStampedCast(message) {
-  if ( !isActiveGM() ) return;
-  if ( message.getFlag(MODULE_ID, "castApply") ) void executeCastApply(message);
-  if ( message.getFlag(MODULE_ID, "healPending") ) void applyCastHealing(message);
-}
-Hooks.on("createChatMessage", resolveStampedCast);
-Hooks.on("dnd5e.renderChatMessage", message => resolveStampedCast(message));
-// The choice answered (the caster's flag write below) — the elect applies the pick.
-Hooks.on("updateChatMessage", message => { if ( message.getFlag(MODULE_ID, "castApply")?.choice?.chosen ) resolveStampedCast(message); });
+// The elect volunteers for stamped casts — on arrival, and on render for reload resume; the
+// choice answered (the caster's flag write below) is the one UPDATE that resumes the cast slice.
+// Declared to the spine's resumable registry (Stage 3, 2026-09-05): the three triggers were this
+// file's own registrations; the guards inside the two drives are unchanged.
+registerResumable("castApply", {
+  pending: (flag, _message, cause) => (cause !== "update") || !!flag.choice?.chosen,
+  drives: () => isActiveGM(),
+  drive: executeCastApply
+});
+registerResumable("healPending", {
+  pending: (_flag, _message, cause) => cause !== "update",
+  drives: () => isActiveGM(),
+  drive: applyCastHealing
+});
 
 /* ---------------------------------------------------------------------------------------------
  * THE CHOICE (user, 2026-09-05: "when i apply warm or chill shield, it applies both … this

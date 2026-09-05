@@ -1031,3 +1031,72 @@ export function demandAnsweredBy(rollMessage) {
 export function pendingDemandsFor(actorUuid, { flagKey = null } = {}) {
   return withCards(pendingDemands(actorUuid, demandCards(), [...demands.values()], { flagKey }));
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * THE RESUMABLE REGISTRY (the machine-tier pass, Stage 3, 2026-09-05) — the resume floor, once.
+ *
+ * ⚠ THE IDIOM IT REPLACES, copied about fifteen times: one in-flight set per file, the same
+ * driver registered on `createChatMessage`, `updateChatMessage` and `dnd5e.renderChatMessage`
+ * (arrival, the flag write that releases a claim, the reload), and a claim flag on the card so
+ * history is inert. Right, well explained in every copy, and the newest copy (the damage
+ * shields, 2026-09-05) judged world state on a re-render without a claim — the flake this file
+ * makes structurally harder to write again. A machine now declares its moment:
+ *
+ *   registerResumable(flagKey, {
+ *     pending(flag, message, cause)  — is there still work to drive on this card, judged on the
+ *                                      flag; `cause` is "create" | "update" | "render", because
+ *                                      an arrival and a resume are different questions (the
+ *                                      appliers resume only an ex-claimed roll; the shields judge
+ *                                      an unheld roll at creation and a released one once)
+ *     drives(flag, message)          — does THIS client drive it (the elect, the author, the
+ *                                      flow elect for the subject — the machine's own law)
+ *     drive(message)                 — the work; the claim on the card stays the machine's
+ *   })
+ *
+ * The spine registers the three hooks ONCE, walks the registry, keys the in-flight latch
+ * `${flagKey}|${messageId}` (two triggers landing in one tick — the release write and the
+ * render — run the drive once), and awaits the drive under it. ⚠ THE DRIVE DOES NO DOM WORK:
+ * card-row order is registration order, and the machine's own render hook keeps drawing its
+ * row exactly where it did. The spine's render registration is a driver, not a view.
+ *
+ * ⚠ REGISTRATION ORDER. The spine's three registrations sit at ui.js's slot — ahead of every
+ * machine's — so a converted drive now STARTS ahead of the machines' remaining own handlers on
+ * the same hook. Every drive is async and fire-and-forget behind a flag claim, so what moved is
+ * the order of the synchronous prefixes; the Stage 0 snapshot records the move, per conversion,
+ * and the battery is the judge.
+ * ------------------------------------------------------------------------------------------- */
+
+/** flag key → { pending, drives, drive } */
+const resumables = new Map();
+/** `${flagKey}|${messageId}` — a drive in flight on this client */
+const resuming = new Set();
+
+/** Declare a resumable moment. See the block above for the three callbacks. */
+export function registerResumable(flagKey, { pending, drives, drive }) {
+  resumables.set(flagKey, { pending, drives, drive });
+}
+
+function resume(message, cause) {
+  for ( const [flagKey, r] of resumables ) {
+    let flag;
+    try { flag = message.getFlag(MODULE_ID, flagKey); } catch { continue; }
+    if ( !flag ) continue;
+    const key = `${flagKey}|${message.id}`;
+    if ( resuming.has(key) ) continue;
+    try {
+      if ( !r.pending(flag, message, cause) || !r.drives(flag, message) ) continue;
+    } catch(err) {
+      console.error(`${TITLE} | The ${flagKey} resume check failed.`, err);
+      continue;
+    }
+    resuming.add(key);
+    Promise.resolve()
+      .then(() => r.drive(message))
+      .catch(err => console.error(`${TITLE} | The ${flagKey} drive failed.`, err))
+      .finally(() => resuming.delete(key));
+  }
+}
+
+Hooks.on("createChatMessage", message => resume(message, "create"));
+Hooks.on("updateChatMessage", message => resume(message, "update"));
+Hooks.on("dnd5e.renderChatMessage", message => resume(message, "render"));
