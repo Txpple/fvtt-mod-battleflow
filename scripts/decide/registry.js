@@ -624,6 +624,11 @@ export const CHECK_BENDS = Object.freeze({
  *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed", spend?: "attack",
  *   rule: string, from: string}>>>}
  */
+// `except: "source"` (2026-09-04, the walk: "disadvantage should not apply when attacking
+// morgash, the person doing the goading"): the bend stands against everyone BUT the creature
+// whose action put the effect there — Goaded (an attacker-side bend, skipped when the target
+// is the goader), Distracted (a target-side bend, skipped when the attacker is the distracter).
+// The EDGE reads each effect's source off the module's stamp on it, else off its origin.
 export const EFFECT_BENDS = Object.freeze({
   // --- A. standing, no caveat: the row is the whole truth ---------------------------------
   "Innate Sorcery": Object.freeze({ attacker: "advantage", target: null, scope: "spell", from: "Sorcerer",
@@ -686,8 +691,7 @@ export const EFFECT_BENDS = Object.freeze({
   "Compelled": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Compelled Duel",
     caveat: "counted — press Normal if this attack is at the one who compelled it",
     rule: "On a failed save, the target has Disadvantage on attack rolls against creatures other than you." }),
-  "Goaded": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Battle Master, Goading Attack",
-    caveat: "counted — press Normal if this attack is at the one who goaded it",
+  "Goaded": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", except: "source", from: "Battle Master, Goading Attack",
     rule: "The target must succeed on a Wisdom saving throw or have Disadvantage on attack rolls against targets other than you until the end of your next turn." }),
   "Taunted": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Steps of the Fey",
     caveat: "counted — press Normal if this attack is at the one who taunted it",
@@ -758,8 +762,7 @@ export const EFFECT_BENDS = Object.freeze({
   "Feinting Attack": Object.freeze({ attacker: "advantage", target: null, scope: "any", spend: "attack", from: "Battle Master",
     caveat: "counted — press Normal if this attack is not at the feinted target",
     rule: "You have Advantage on your next attack roll against that target this turn." }),
-  "Distracted": Object.freeze({ attacker: null, target: "advantage", scope: "any", spend: "attack", from: "Battle Master, Distracting Strike",
-    caveat: "counted — press Normal if you are the one who distracted it",
+  "Distracted": Object.freeze({ attacker: null, target: "advantage", scope: "any", spend: "attack", except: "source", from: "Battle Master, Distracting Strike",
     rule: "The next attack roll against the target by an attacker other than you has Advantage if the attack is made before the start of your next turn." }),
   "Aiming: Attack Advantage": Object.freeze({ attacker: "advantage", target: null, scope: "any", spend: "attack", from: "Aim, Deadly Aim (monsters)",
     rule: "It has Advantage on the next attack roll it makes during the current turn." }),

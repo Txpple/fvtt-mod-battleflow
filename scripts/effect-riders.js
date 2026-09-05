@@ -100,7 +100,9 @@ export async function applyEffectsTo(targets, effects,
         },
         // The module's application fingerprint — the twin-dedupe floor below polices ONLY
         // effects wearing it, so it can never delete another module's deliberate stack.
-        [MODULE_ID]: { applied: true }
+        // …and WHOSE action applied it, for the gate's `except: "source"` facet (a compendium
+        // origin names no actor, so the origin alone cannot say).
+        [MODULE_ID]: { applied: true, ...(source ? { sourceUuid: source } : {}) }
       } }, { flags: extraFlags ?? {} });
       // Native parity, bug-for-bug: an existing effect with this origin is re-enabled and
       // re-clocked rather than duplicated. (Like the tray, a concentration spell carrying

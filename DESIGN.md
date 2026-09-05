@@ -668,6 +668,10 @@ grouped by the feature that grants the rows, smites out) and built off the proto
   transfer effect — a passive on the wielder — and the module corrects the wielder's own copy of
   the item to `transfer: false`, and presses a lost effect from the compendium's copy (NOTES §2). Distracting Strike's *Distracted* has no save: applied on the hit,
   receipted; the gate already reads it (the effect table's row from the scan).
+- **The goader is exempt** (user, the walk: *"disadvantage should not apply when attacking
+  morgash, the person doing the goading"*): the effect table's `except: "source"` facet — Goaded
+  bends Jetten's attacks against everyone but Morgash, Distracted gives Advantage to every
+  attacker but Morgash. The gate reads each effect's source off the module's stamp on it.
 - **A LINE option says what the table plays** — Maneuvering Attack's ally move, Pushing's 15
   feet, Disarming's dropped object — on the card, never automated (R1).
 - **A riposte's hit offers the menu too.** A hit is a hit.

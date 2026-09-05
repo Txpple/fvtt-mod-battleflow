@@ -335,8 +335,12 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
   const effectsOn = enabled.has("effect") ? effectEntries().map(e => e.kind) : [];
   const scope = { classification: activity?.attack?.type?.classification ?? null,
     type: String(attackMode ?? "").startsWith("thrown") ? "ranged" : (activity?.attack?.type?.value ?? null) };
+  // An effect's SOURCE: the module's own stamp on what it applied (effect-riders.js), else the
+  // actor behind the effect's origin — the `except: "source"` facet reads it (Goaded, Distracted).
+  const sourceOf = e => e.getFlag(MODULE_ID, "sourceUuid") ?? grantingActor(e)?.uuid ?? null;
   const sheetOf = actor => ({
-    effects: actor.effects.filter(live).map(e => ({ id: e.id, name: e.name })),
+    uuid: actor.uuid,
+    effects: actor.effects.filter(live).map(e => ({ id: e.id, name: e.name, sourceUuid: sourceOf(e) })),
     features: actor.items.filter(i => i.type === "feat").map(i => i.name),
     bloodied: hpFraction(actor) <= 0.5, damaged: hpFraction(actor) < 1,
     grappled: !!actor.statuses?.has?.("grappled"),

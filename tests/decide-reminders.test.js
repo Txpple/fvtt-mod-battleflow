@@ -757,3 +757,71 @@ describe("checkSources + checkGate — the check gate's table (user go 2026-09-0
     expect(r.checkGate([]).net).toBe("normal");
   });
 });
+
+describe('effectSources — `except: "source"`: the bend stands against everyone but the one who caused it (2026-09-04)', () => {
+  const T = () => reg.EFFECT_BENDS;
+  it("Goaded: Disadvantage against anyone but the goader — judged on the target pass, per target", () => {
+    const me = {
+      uuid: "Actor.jetten",
+      effects: [{ id: "g1", name: "Goaded", sourceUuid: "Actor.morgash" }]
+    };
+    const facts = {
+      attacker: me,
+      enabled: ["Goaded"],
+      table: T(),
+      scope: {},
+      attackerName: "Jetten"
+    };
+    // The attacker pass leaves it alone: the row hinges on WHICH target.
+    expect(r.effectSources({ ...facts, pass: "attacker" })).toEqual([]);
+    const dummy = r.effectSources({
+      ...facts,
+      target: { uuid: "Actor.dummy" },
+      targetName: "the dummy",
+      pass: "target"
+    });
+    expect(dummy).toHaveLength(1);
+    expect(dummy[0]).toMatchObject({ bend: "disadvantage", effectId: "g1" });
+    expect(
+      r.effectSources({
+        ...facts,
+        target: { uuid: "Actor.morgash" },
+        targetName: "Morgash",
+        pass: "target"
+      })
+    ).toEqual([]);
+  });
+  it("Distracted: Advantage for any attacker but the distracter", () => {
+    const target = {
+      uuid: "Actor.jetten",
+      effects: [{ id: "d1", name: "Distracted", sourceUuid: "Actor.morgash" }]
+    };
+    const facts = {
+      target,
+      enabled: ["Distracted"],
+      table: T(),
+      scope: {},
+      targetName: "Jetten",
+      pass: "target"
+    };
+    expect(
+      r.effectSources({ ...facts, attacker: { uuid: "Actor.thomas" }, attackerName: "Thomas" })
+    ).toHaveLength(1);
+    expect(
+      r.effectSources({ ...facts, attacker: { uuid: "Actor.morgash" }, attackerName: "Morgash" })
+    ).toEqual([]);
+  });
+  it("an effect with no known source is counted — the gate never guesses an exemption", () => {
+    const me = { uuid: "Actor.jetten", effects: [{ id: "g1", name: "Goaded" }] };
+    expect(
+      r.effectSources({
+        attacker: me,
+        enabled: ["Goaded"],
+        table: T(),
+        scope: {},
+        target: { uuid: "Actor.morgash" },
+        pass: "target"
+      })
+    ).toHaveLength(1);
+  });
+});

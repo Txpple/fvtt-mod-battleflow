@@ -213,20 +213,11 @@ registerOfferPart({
       tag: g.left > 0 ? `${g.left} × ${g.die ?? "die"} left` : "no dice left",
       rows: g.rows.map(r => ({ key: r.key, label: r.label, cost: r.cost, caveat: r.caveat, rule: r.rule, affordable: r.affordable }))
     }));
-    const summary = () => {
-      const { picks } = hitPick({ menu, chosen });
-      if ( !picks.length ) return "No maneuver — the weapon rolls alone.";
-      return picks.map(({ row }) => (row.mode === "sweep")
-        ? `<strong>${row.label}</strong> — the die is rolled at a second creature after this roll.`
-        : `<strong>${row.label}</strong> — ${row.cost} rides this roll.`).join(" ");
-    };
     return {
       html: hitMenuHTML({ groups: groupsView }),
       lines: [`<strong>Maneuvers</strong> — ${menu.groups.some(g => g.left > 0) ? "pick one to ride this hit, or none; one maneuver per attack." : "no dice left; the rows stay for the record."}`],
       wire(element) {
         const boxes = [...(element?.querySelectorAll('input[name="bf-hit"]') ?? [])];
-        const out = element?.querySelector("[data-bf-hit-summary]");
-        const redraw = () => { if ( out ) out.innerHTML = summary(); };
         for ( const box of boxes ) {
           box.addEventListener("change", () => {
             if ( box.checked ) {
@@ -236,10 +227,8 @@ registerOfferPart({
               }
               chosen.add(box.value);
             } else chosen.delete(box.value);
-            redraw();
           });
         }
-        redraw();
       },
       /** The pick, on the attack message BEFORE the roll — the rider reads it there. */
       async commit() {

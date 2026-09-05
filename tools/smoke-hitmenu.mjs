@@ -295,22 +295,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await refill();
       const { msg } = await swing();
       const offer = await waitFor(offerEl, 6000);
-      const summary = () => textOf(offer?.querySelector('[data-bf-hit-summary]'));
-      const before = summary();
+      const noneTicked = () => [...(offer?.querySelectorAll('input[name="bf-hit"]') ?? [])].every(b => !b.checked);
+      const before = noneTicked();
       box(offer, 'trip-attack')?.click();
       await sleep(50);
-      const afterTrip = summary();
+      const afterTrip = !!box(offer, 'trip-attack')?.checked;
       box(offer, 'goading-attack')?.click();
       await sleep(50);
-      ok('2a. nothing ticked: the summary says the weapon rolls alone; Trip ticked: the summary names it',
-        /weapon rolls alone/.test(before) && /Trip Attack/.test(afterTrip) && /1d8 Superiority Die rides/.test(afterTrip),
-        `before="${before}" trip="${afterTrip}"`);
+      ok('2a. nothing ticked to start; Trip ticks — and there is no summary line under the groups (user, 2026-09-04: "superfluous")',
+        before && afterTrip && !offer?.querySelector('[data-bf-hit-summary]'), `before=${before} trip=${afterTrip} summary=${!!offer?.querySelector('[data-bf-hit-summary]')}`);
       ok('2b. a second tick in the group unticks the first — one maneuver per attack',
-        !box(offer, 'trip-attack')?.checked && !!box(offer, 'goading-attack')?.checked && /Goading Attack/.test(summary()) && !/Trip Attack/.test(summary()),
-        `trip=${box(offer, 'trip-attack')?.checked} goading=${box(offer, 'goading-attack')?.checked} summary="${summary()}"`);
+        !box(offer, 'trip-attack')?.checked && !!box(offer, 'goading-attack')?.checked,
+        `trip=${box(offer, 'trip-attack')?.checked} goading=${box(offer, 'goading-attack')?.checked}`);
       box(offer, 'goading-attack')?.click();
       await sleep(50);
-      ok('2c. untick it: nothing rides again', !box(offer, 'goading-attack')?.checked && /weapon rolls alone/.test(summary()), summary());
+      ok('2c. untick it: nothing ticked again', noneTicked(), `noneTicked=${noneTicked()}`);
       rollButton(offer)?.click();
       const dmg = await waitFor(() => { const d = damageFor(msg?.getFlag('dnd5e', 'originatingMessage') ?? msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
       ok('2d. no pick: no maneuver on the damage message, the pool untouched, the attack message records the empty pick',

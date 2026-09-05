@@ -298,7 +298,7 @@ export function riderMenuHTML(riders) {
  * COST and nothing else ("just give the cost for the sup die, just like Cunning Strike") — the
  * rule folded under it, a caveat where the rules leave something to the player. One pick per
  * group (the EDGE unticks the sibling). A group with no die left keeps its rows, greyed, and its
- * tag says why. The summary line under the groups names what will ride.
+ * tag says why. No summary line under the groups (user, 2026-09-04: "superfluous") — the ticks say it.
  * @param {{groups: {key: string, label: string, tag: string, off: boolean,
  *          rows: {key: string, label: string, cost: string, caveat?: string|null, rule: string, affordable: boolean}[]}[]}} view
  */
@@ -327,7 +327,6 @@ export function hitMenuHTML({ groups }) {
   return `
     <div data-bf-hit>
       ${blocks}
-      <div data-bf-hit-summary style="font-size:var(--font-size-11,11px);opacity:0.8;margin-top:0.35rem;"></div>
     </div>`;
 }
 

@@ -164,10 +164,12 @@ export function checkGate(sources) {
  * roll is in the row's scope; a target-side row when the TARGET does. A row with a `judge`
  * fires only when the fact it names is true; a row with `counted: false` is LISTED (bend null,
  * the caveat on the label); a row with a caveat is counted and says so. A row with `spend`
- * carries the effect's id so the spend hook can use it up.
+ * carries the effect's id so the spend hook can use it up. A row with `except: "source"` stands
+ * against everyone but the creature whose action applied the effect (each effect's `sourceUuid`,
+ * the EDGE's read): Goaded, Distracted.
  *
- * @param {{attacker?: {effects?: {id: string, name: string}[], features?: string[], bloodied?: boolean},
- *          target?: {effects?: {id: string, name: string}[], features?: string[], bloodied?: boolean, damaged?: boolean, grappled?: boolean, notActed?: boolean},
+ * @param {{attacker?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null}[], features?: string[], bloodied?: boolean},
+ *          target?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null}[], features?: string[], bloodied?: boolean, damaged?: boolean, grappled?: boolean, notActed?: boolean},
  *          enabled: Iterable<string>, table: Readonly<Record<string, any>>,
  *          scope?: {classification?: string|null, type?: string|null},
  *          attackerName?: string, targetName?: string, pass?: "both"|"attacker"|"target"}} facts
@@ -180,7 +182,12 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
   // The EDGE reads the attacker once and each target in turn: an attacker-side row that hinges
   // on the TARGET (Bloodied, Grappled…) belongs to the target pass, the rest to the attacker's.
   const targetJudges = new Set(["targetBloodied", "targetDamaged", "targetGrappled", "targetNotActed"]);
-  const attackerRowHere = row => (pass === "both") || ((pass === "target") === targetJudges.has(row.judge));
+  // A row that excepts its SOURCE hinges on the target too: the goader is one target of many.
+  const hingesOnTarget = row => targetJudges.has(row.judge) || (row.except === "source");
+  const attackerRowHere = row => (pass === "both") || ((pass === "target") === hingesOnTarget(row));
+  // `except: "source"`: the bend stands against everyone but the creature that put the effect
+  // there — a carrier whose source is the other side of this roll is skipped, not counted.
+  const exceptedFor = (row, e, otherUuid) => (row.except === "source") && !!e?.sourceUuid && !!otherUuid && (e.sourceUuid === otherUuid);
   const targetRowHere = pass !== "attacker";
   const inScope = row => {
     const s = row.scope ?? "any";
@@ -220,11 +227,13 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
     };
     if ( row.attacker && attackerRowHere(row) && judged(row) ) {
       for ( const e of carriers(attacker, row) ) {
+        if ( exceptedFor(row, e, target.uuid) ) continue;
         out.push(Object.assign(say(attackerName, row.attacker), e.id ? { effectId: e.id } : {}));
       }
     }
     if ( row.target && targetRowHere && judged(row) ) {
       for ( const e of carriers(target, row) ) {
+        if ( exceptedFor(row, e, attacker.uuid) ) continue;
         out.push(Object.assign(say(`${targetName} is`, row.target), e.id ? { effectId: e.id } : {}));
       }
     }
