@@ -1,8 +1,8 @@
 /**
- * Battle Flow — Phase 3 (cast slice): the elect executes a stamped cast payload - utility effects and healing, receipts throughout.
+ * Battle Flow — Phase 3 (cast slice): the caster's flow elect executes a stamped cast payload - utility effects and healing, receipts throughout.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, canAnswerFor, isActiveGM, queueFlagWrite } from "./core.js";
+import { MODULE_ID, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, whisperNoGM } from "./core.js";
 import { resolveUuid } from "./lookup.js";
 import { damagePartsOf, statSourceOf } from "./shared.js";
 import { bfCard, popupKey, ruleLine } from "./decide/present.js";
@@ -50,11 +50,25 @@ async function executeCastApply(message) {
     const wanted = new Set(names.map(n => String(n).toLowerCase()));
     const effects = applicable.filter(e => wanted.has(String(e.name).toLowerCase()));
     if ( !effects.length ) return;
+    // THE CAST SLICE ON THE FLOW ELECT (ruling 4 of the machine-tier pass, 2026-09-05): this
+    // client applies what it MAY — the caster's own sheet always, another PC's when it owns it, a
+    // monster's only as the GM — and the driver is TOLD what did not land (auto-apply's shape,
+    // core.js "THE FLOW ELECT"). With a GM connected every target is writable and nothing here
+    // changes. The marker below still writes, so the card is asked once: a GM rejoining re-pays
+    // nothing (smoke-nogm §rejoin's rule) and the whisper is the record of what to put on by hand.
+    const writable = payload.targets.filter(t => {
+      try { return canApplyTo(fromUuidSync(t.uuid)); } catch { return false; }
+    });
+    const blocked = payload.targets.filter(t => !writable.includes(t));
+    if ( blocked.length ) {
+      await whisperNoGM(`${effects.map(e => e.name).join(", ")} on ${blocked.map(t => t.name).join(", ")}`,
+        "The card stands — put the effect on by hand.");
+    }
     // The caster's concentration effect, for origin linkage — the tray's own rule
     // (concentration ?? effect); the riders' origin walk handles both shapes downstream.
     const concentration = payload.concentration
       ? (activity?.actor?.effects.get(payload.concentration) ?? null) : null;
-    await applyEffectsWithReceipt(message, effects, payload.targets, {
+    await applyEffectsWithReceipt(message, effects, writable, {
       concentration, scaling: payload.scaling ?? 0,
       spellLevel: payload.spellLevel ?? undefined,
       marker: "castDone",
@@ -83,18 +97,23 @@ async function applyCastHealing(message) {
   }
 }
 
-// The elect volunteers for stamped casts — on arrival, and on render for reload resume; the
-// choice answered (the caster's flag write below) is the one UPDATE that resumes the cast slice.
-// Declared to the spine's resumable registry (Stage 3, 2026-09-05): the three triggers were this
-// file's own registrations; the guards inside the two drives are unchanged.
+// The CASTER's flow elect volunteers for stamped casts — on arrival, and on render for reload
+// resume; the choice answered (the caster's flag write below) is the one UPDATE that resumes the
+// cast slice. Declared to the spine's resumable registry (Stage 3, 2026-09-05): the three triggers
+// were this file's own registrations; the guards inside the two drives are unchanged.
+// ⚠ RULING 4 (Stage 5, 2026-09-05): the driver was `isActiveGM()` alone — the one machine with a
+// subject still waiting for a GM, so a no-GM table's Bless or Second Wind sat until a GM arrived
+// and then landed late. The subject is the caster, whose usage card and healing roll these are;
+// `drivesMomentFor` is exactly `isActiveGM()` while a GM is on (ARCHITECTURE §3, the driver table).
+const castSubject = message => message?.getAssociatedActor?.()?.uuid ?? null;
 registerResumable("castApply", {
   pending: (flag, _message, cause) => (cause !== "update") || !!flag.choice?.chosen,
-  drives: () => isActiveGM(),
+  drives: (_flag, message) => drivesMomentFor(castSubject(message)),
   drive: executeCastApply
 });
 registerResumable("healPending", {
   pending: (_flag, _message, cause) => cause !== "update",
-  drives: () => isActiveGM(),
+  drives: (_flag, message) => drivesMomentFor(castSubject(message)),
   drive: applyCastHealing
 });
 

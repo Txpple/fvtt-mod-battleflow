@@ -18,10 +18,6 @@ import { popupKey, bfCard, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, DialogCarried, momentButton, scheduleBarSync, shownMoments, armDeadline,
   disarmDeadline, dramaticVerdictPause, registerDemand, demandAnsweredBy } from "./ui.js";
 
-/** Does this client drive the topple moment the flag names? The elect, or the attacker's own
- * player with no GM connected — mastery.js's `drivesMasteryFlag`, the same core body. */
-const drivesToppleFlag = flag => drivesMomentFor(flag?.attackerUuid);
-
 /* --- the twin-ask supersede (the 2026-08-18 session's finding ⓪/②) -------------------------
  * `isActiveGM()` is per-USER, not per-CLIENT: two sessions logged in as the same account
  * BOTH pass it, and both stamp the ask — the session's twin Topple cards (00:37:24, both by
@@ -34,7 +30,7 @@ const drivesToppleFlag = flag => drivesMomentFor(flag?.attackerUuid);
 Hooks.on("createChatMessage", message => {
   const flag = message.getFlag(MODULE_ID, "topple");
   if ( !flag?.sourceMessageId ) return;
-  if ( !drivesToppleFlag(flag) ) return;
+  if ( !drivesMomentFor(flag?.attackerUuid) ) return;
   const elder = game.messages.contents.some(m => {
     if ( m.id === message.id ) return false;
     if ( m.getFlag(MODULE_ID, "topple")?.sourceMessageId !== flag.sourceMessageId ) return false;
@@ -166,7 +162,7 @@ const toppleTimers = new Map();
 
 function armToppleTimer(message) {
   const flag = message?.getFlag(MODULE_ID, "topple");
-  if ( !flag?.deadline || !drivesToppleFlag(flag) ) return;
+  if ( !flag?.deadline || !drivesMomentFor(flag?.attackerUuid) ) return;
   if ( !(flag.targets ?? []).some(t => !t.done) ) return;
   armDeadline(toppleTimers, message.id, flag.deadline, fireToppleTimer);
 }
@@ -402,7 +398,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     for ( const t of topple.targets ) {
       // Crash-resume: a folded failure whose press and announcement died with their client —
       // done+prone, unapplied, stale past any live pause. Elect-driven, new-era stamps only.
-      if ( (t.outcome === "prone") && t.answeredAt && !t.applied && drivesToppleFlag(topple)
+      if ( (t.outcome === "prone") && t.answeredAt && !t.applied && drivesMomentFor(topple?.attackerUuid)
         && (Date.now() - t.answeredAt > 20_000) ) void applyToppleFailure(message, t.uuid);
       if ( t.done ) continue;
       const actor = resolveUuid(t.uuid);

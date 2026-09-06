@@ -7,7 +7,7 @@
  * the one mastery.js carried; nothing was rewritten.
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, isFlowElectFor, drivesMomentFor,
+import { MODULE_ID, TITLE, S, setting, drivesMomentFor,
   canApplyTo, whisperNoGM, queueFlagWrite, canAnswerFor, combatStamp, activeCombatFor,
   statContext } from "./core.js";
 import { resolveUuid } from "./lookup.js";
@@ -180,20 +180,16 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits) {
 // it hangs on the attack message itself. It deliberately reads only the attack AS ROLLED —
 // a Shield later flipping someone's hit to a miss does not re-open Graze for them (corner
 // acknowledged in PLAN.md; nobody has asked for it).
-/** Does this client drive a mastery moment belonging to `attacker`? GM as always; the
- * attacker's own player when no GM is connected (v1.27.0 — core.js "THE FLOW ELECT"). */
-const drivesMastery = attacker => isActiveGM()
-  || (!game.users.activeGM && isFlowElectFor(attacker));
-
-/** The same question from a message whose mastery flag names its attacker. Hoisted to core as
- * `drivesMomentFor` in v1.27.2 — three other machines needed the identical body. */
-const drivesMasteryFlag = flag => drivesMomentFor(flag?.attackerUuid);
+// Who drives a mastery moment is core's ONE question — `drivesMomentFor(subjectUuid)`, the
+// ATTACKER the subject (ARCHITECTURE §3, the driver table). This file carried the elect body's
+// first copy (v1.27.0) and a flag-shaped wrapper of core's (v1.27.2) until Stage 5 of the
+// machine-tier pass (2026-09-05) folded both away; the answer is byte-identical.
 
 Hooks.on("createChatMessage", message => {
   if ( !setting(S.masteryRiders) ) return;
   if ( message.getFlag("dnd5e", "roll.type") !== "attack" ) return;
   if ( message.getFlag("dnd5e", "roll.mastery") !== "graze" ) return;
-  if ( !drivesMastery(masteryContext(message)?.attacker) ) return;
+  if ( !drivesMomentFor(masteryContext(message)?.attacker?.uuid ?? null) ) return;
   void resolveMissMastery(message);
 });
 
@@ -706,7 +702,7 @@ Hooks.on("updateChatMessage", message => {
   if ( m ) {
     const dialog = livePopups.get(popupKey(message.id, "mastery"));
     if ( dialog && ((m.status !== "pending") || m.answer) ) void dialog.close();
-    if ( drivesMasteryFlag(m) && (m.status === "pending") && m.answer ) void executeMasteryAnswer(message);
+    if ( drivesMomentFor(m?.attackerUuid) && (m.status === "pending") && m.answer ) void executeMasteryAnswer(message);
   }
 
   // A durably-acknowledged notice closes its popup wherever it lives (the ACK, law 2) —
@@ -778,7 +774,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       // Resume an ask that answered while nobody could execute: the elect reloaded (or came
       // up later) between the answer flag landing and the payout. Same stateless-view
       // discipline as the hold's resume check; executeMasteryAnswer is claim-first.
-      if ( m.answer && drivesMasteryFlag(m) ) void executeMasteryAnswer(message);
+      if ( m.answer && drivesMomentFor(m?.attackerUuid) ) void executeMasteryAnswer(message);
       const attacker = resolveUuid(m.attackerUuid);
       if ( canAnswerFor(attacker) && !m.answer ) {
         // ONE input surface: the popup decides, the card recalls a dismissed popup.

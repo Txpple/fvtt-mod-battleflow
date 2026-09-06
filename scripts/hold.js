@@ -995,10 +995,10 @@ async function applySpellDamage(message) {
   }
 }
 
-/** Who drives a spell-damage roll's application: the GM, or with none the CASTER's own client
- * (v1.27.2 — the roll is theirs, and the message is theirs to stamp a receipt on). */
-const drivesSpellDamage = message =>
-  drivesMomentFor(message?.getAssociatedActor?.()?.uuid ?? null);
+/** The spell-damage moment's SUBJECT — the CASTER (the roll is theirs, and the message is theirs
+ * to stamp a receipt on). Who drives it is core's one question, `drivesMomentFor`; v1.27.2's
+ * wrapper folded away in Stage 5 of the machine-tier pass (2026-09-05). */
+const spellDamageSubject = message => message?.getAssociatedActor?.()?.uuid ?? null;
 
 // Three triggers, all flag-driven: arrival, the claim settling (the pending claim cleared by the
 // caster, or released by the resolution below), and render (reload resume) — declared to the
@@ -1008,12 +1008,12 @@ registerResumable("spellDamage", {
   pending: (_flag, message, cause) => (cause === "create")
     || ((cause === "update") && (message.getFlag(MODULE_ID, "spellHoldPending") === false) && !message.getFlag(MODULE_ID, "receipt"))
     || ((cause === "render") && (message.getFlag(MODULE_ID, "spellHoldPending") !== true) && !message.getFlag(MODULE_ID, "receipt")),
-  drives: (_flag, message) => setting(S.autoApply) && drivesSpellDamage(message),
+  drives: (_flag, message) => setting(S.autoApply) && drivesMomentFor(spellDamageSubject(message)),
   drive: applySpellDamage
 });
 
 Hooks.on("updateChatMessage", message => {
-  if ( !setting(S.autoApply) || !drivesSpellDamage(message) ) return;
+  if ( !setting(S.autoApply) || !drivesMomentFor(spellDamageSubject(message)) ) return;
   // A spell hold resolved — release every damage roll waiting on it. The elect owns this
   // write; the release itself (spellHoldPending → false) is the bus event that applies.
   const hold = message.getFlag(MODULE_ID, "hold");

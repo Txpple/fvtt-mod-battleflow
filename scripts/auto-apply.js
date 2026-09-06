@@ -2,7 +2,7 @@
  * Battle Flow — Phase 1b: auto-apply damage on the active-GM elect, the shared receipt applier, and the payout pipeline (application, then effect riders, then mastery).
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, isFlowElectFor, canApplyTo, whisperNoGM,
+import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, whisperNoGM,
   queueFlagWrite, statContext } from "./core.js";
 import { receiptEntry, joinDamageReceipt } from "./decide/receipt.js";
 import { interruptMultiplier, reduceDamages } from "./decide/verdict.js";
@@ -17,20 +17,15 @@ import { resolveHitMastery } from "./mastery.js";
  * ------------------------------------------------------------------------------------------- */
 
 /**
- * Does THIS client drive the payout chain for this damage roll? The active GM as always, and
- * with no GM connected the attacker's own player — so a GM disconnect degrades Battle Flow
- * instead of silently stopping it (v1.27.0, user call; see core.js "THE FLOW ELECT").
- *
- * ⚠ Resolved from the ATTACKER, not the room: the chain's writes land on the attack message,
- * which only its author may update. Unresolvable attacker ⇒ the old GM-only answer.
+ * The payout chain's SUBJECT for a damage roll — the ATTACKER, never the room: the chain's writes
+ * land on the attack message, which only its author may update. Who drives it is core's one
+ * question, `drivesMomentFor` (ARCHITECTURE §3, the driver table; this file's own copy of the
+ * elect body, v1.27.0, folded away in Stage 5 of the machine-tier pass, 2026-09-05). An
+ * unresolvable attacker resolves to null, which is the old GM-only answer.
  */
-function drivesPayouts(message) {
-  if ( isActiveGM() ) return true;
-  if ( game.users.activeGM ) return false;      // a GM is on and it is not us — never two drivers
-  try {
-    const attacker = resolveAttackMessage(message)?.getAssociatedActor?.() ?? null;
-    return attacker ? isFlowElectFor(attacker) : false;
-  } catch { return false; }
+function payoutSubject(message) {
+  try { return resolveAttackMessage(message)?.getAssociatedActor?.()?.uuid ?? null; }
+  catch { return null; }
 }
 
 // The payouts' three triggers, declared to the spine's resumable registry (Stage 3, 2026-09-05),
@@ -46,7 +41,7 @@ registerResumable("attackDamage", {
   flagless: true,
   pending: (_flag, message, cause) => (cause === "create")
     || ((message.getFlag(MODULE_ID, "attackHoldPending") === false) && !message.getFlag(MODULE_ID, "receipt")),
-  drives: (_flag, message) => drivesPayouts(message)
+  drives: (_flag, message) => drivesMomentFor(payoutSubject(message))
     && (setting(S.autoApply) || setting(S.effectRiders) || setting(S.masteryRiders)),
   drive: resolveAttackDamage
 });

@@ -15,6 +15,8 @@
 //   §chip    …and the monster is NOT written to — no Sapped chip appears
 //   §told    …and the driver gets a whisper naming what did not land
 //   §rejoin  a GM reconnecting does not re-pay a payout the player already drove
+//   §cast    the CAST SLICE drives on the caster's flow elect (ruling 4 of the machine-tier pass,
+//            2026-09-05): a self-buff lands on the caster's own sheet with nobody behind the screen
 //
 // ⚠ RUN IT WITH THE BRIDGE DISCONNECTED AND NO GM WINDOW OPEN. The suite refuses to run if it
 // finds an active GM — the whole point is their absence, and a stray GM silently converts this
@@ -32,7 +34,8 @@ const SECTIONS = {
   told: 'the driver is told what did not apply',
   rejoin: 'a GM rejoining does not re-pay what the player already drove',
   conc: 'CONCENTRATION runs end to end with no GM — the machine that loses least',
-  spent: 'a chip the player cannot delete is spent ONCE — the record on the card, not the sheet, says so'
+  spent: 'a chip the player cannot delete is spent ONCE — the record on the card, not the sheet, says so',
+  cast: 'the CAST SLICE on the flow elect — a self-buff lands on the caster\'s own sheet with no GM (ruling 4, 2026-09-05)'
 };
 const { plan, pulled } = sectionPlan(SECTIONS, {});
 const want = id => !plan || plan.includes(String(id));
@@ -482,6 +485,114 @@ try {
         ok('§spent THE SECOND SWING DOES NOT OFFER IT AGAIN — the record counts as spent; the system dialog opens instead',
           !spent.gate2 && spent.system2, `gate=${spent.gate2} system=${spent.system2} text=${spent.text2}`);
       }
+    }
+  }
+
+  /* --- §cast: the cast slice on the caster's flow elect (ruling 4, 2026-09-05) --------------
+   * ⚠ THE LAST MACHINE WITH A SUBJECT THAT STILL WAITED FOR A GM. Until Stage 5 of the
+   * machine-tier pass the cast slice's driver was `isActiveGM()` alone, so a no-GM table's
+   * Bless or Second Wind sat on its card until a GM arrived — and then landed LATE, on rejoin.
+   * Ruling 4 moved it onto the caster's flow elect, auto-apply's shape: this client applies
+   * what it MAY (the caster's own sheet, always), whispers the rest, and marks the card
+   * asked-and-answered. A self-aimed utility spell on the PC the player owns is the whole
+   * write set, so nothing here is degraded and nothing is whispered; the card and the chip
+   * are authored by the player. The driver table in ARCHITECTURE §3 is the contract.
+   * ------------------------------------------------------------------------------------- */
+  if (want('cast')) {
+    const cast = await player.evaluate(async modId => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const until = async (fn, ms = 12_000) => {
+        const t0 = Date.now();
+        while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(200); }
+        return fn();
+      };
+      const pc = game.actors.getName('BF Test PC Attacker');
+      if (!pc) return { error: 'no PC fixture' };
+      // A world setting a player cannot change — say so rather than reporting a false red.
+      if (!game.settings.get(modId, 'castApply')) return { skipped: 'castApply is off and a player cannot change a world setting' };
+      const EFF = 'bfnogmfavor00000';
+      const before = new Set(game.messages.contents.map(m => m.id));
+      let item = null;
+      try {
+        // The smoke-cast §6c fixture, on the PC the player owns — a self-aimed utility spell with
+        // one effect. Creating the item and using it are both the player's own writes.
+        [item] = await pc.createEmbeddedDocuments('Item', [{
+          name: 'BF NoGM Favor', type: 'spell',
+          system: {
+            level: 1, school: 'evo', properties: ['vocal'],
+            target: { affects: { type: 'self', count: '', choice: false } },
+            range: { units: 'self' },
+            method: 'spell', prepared: 1, identifier: 'bf-nogm-favor',
+            activities: {
+              bfnogmutil000000: {
+                _id: 'bfnogmutil000000', type: 'utility',
+                activation: { type: 'bonus', override: false },
+                consumption: { targets: [], spellSlot: false },
+                effects: [{ _id: EFF }],
+                target: { override: false, prompt: false }
+              }
+            }
+          },
+          effects: [{
+            _id: EFF, name: 'BF NoGM Favored', transfer: false, disabled: false,
+            img: 'icons/svg/sun.svg', duration: { seconds: 60 },
+            description: '<p>+1d4 melee damage (BF no-GM fixture).</p>',
+            changes: [{ key: 'system.bonuses.mwak.damage', mode: 2, value: '1d4' }]
+          }]
+        }]);
+        const activity = [...item.system.activities].find(a => a.type === 'utility');
+        if (!activity) return { error: 'the fixture spell has no utility activity' };
+        game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
+        await sleep(100);
+        const use = await activity.use({}, { configure: false }, {});
+        if (use === undefined) return { error: 'the fixture cast was refused' };
+        const card = await until(() => game.messages.contents.filter(m => !before.has(m.id))
+          .find(m => m.getFlag(modId, 'castApply')) ?? null, 12_000);
+        const done = await until(() => (card?.getFlag(modId, 'effectReceipt')?.castDone ? card : null), 12_000);
+        await sleep(300);
+        const chip = pc.effects.find(e => e.name === 'BF NoGM Favored') ?? null;
+        const whispers = game.messages.contents.filter(m => !before.has(m.id)
+          && (m.whisper ?? []).includes(game.user.id) && /no gm is connected/i.test(m.content ?? ''))
+          .map(m => (m.content ?? '').replace(/<[^>]+>/g, '').trim());
+        return {
+          pcUuid: pc.uuid,
+          cardPosted: !!card,
+          cardAuthorIsMe: card ? (card.author?.id === game.user.id) : null,
+          targets: card?.getFlag(modId, 'castApply')?.targets ?? null,
+          castDone: !!done,
+          chipOnPc: !!chip,
+          chipAuthorIsMe: chip ? ((chip._stats?.lastModifiedBy ?? chip._stats?.createdBy ?? game.user.id) === game.user.id) : null,
+          receiptTargets: card?.getFlag(modId, 'effectReceipt')?.targets?.length ?? 0,
+          whispers
+        };
+      } catch (err) {
+        return { error: String(err?.message ?? err) };
+      } finally {
+        const strays = pc.effects.filter(e => e.name === 'BF NoGM Favored');
+        if (strays.length) await pc.deleteEmbeddedDocuments('ActiveEffect', strays.map(e => e.id)).catch(() => {});
+        if (item && pc.items.get(item.id)) await pc.deleteEmbeddedDocuments('Item', [item.id]).catch(() => {});
+        const mine = game.messages.contents.filter(m => !before.has(m.id)
+          && (m.isAuthor || m.canUserModify(game.user, 'delete')));
+        if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id)).catch(() => {});
+      }
+    }, MOD);
+
+    if (cast.skipped) {
+      out.skips.push(`§cast ${cast.skipped}`);
+    } else if (cast.error) {
+      ok('§cast the section could set itself up', false, cast.error);
+    } else {
+      ok('§cast THE CAST SLICE DRIVES WITH NO GM — the usage card is stamped, and the PLAYER authored it',
+        cast.cardPosted && (cast.cardAuthorIsMe === true), JSON.stringify({ posted: cast.cardPosted, mine: cast.cardAuthorIsMe }));
+      ok('§cast …aimed at the caster alone (the self-aim), one target on the payload',
+        Array.isArray(cast.targets) && (cast.targets.length === 1) && (cast.targets[0]?.uuid === cast.pcUuid),
+        JSON.stringify(cast.targets));
+      ok('§cast …and the effect LANDS on the caster\'s own sheet — a write the player owns',
+        cast.chipOnPc === true, `chip on the PC=${cast.chipOnPc}`);
+      ok('§cast …with the receipt marking the card asked-and-answered (castDone) and one target receipted',
+        cast.castDone && (cast.receiptTargets === 1), `castDone=${cast.castDone} receiptTargets=${cast.receiptTargets}`);
+      ok('§cast …and nothing to whisper — every target was writable, so nothing was degraded',
+        (cast.whispers ?? []).length === 0, (cast.whispers ?? []).join(' | ') || 'no whisper');
     }
   }
 
