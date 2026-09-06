@@ -489,25 +489,60 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           + ` npcChip=${!!npc.effects.find(e => e.name === 'BF Favored')}`
           + ` victimChip=${!!victim.effects.find(e => e.name === 'BF Favored')}`);
 
-      // 6d. The carve-out — what SURVIVES of v1.5.1: a LISTED reaction with Apply the
-      // Reaction's Own Effect on is the hold machinery's to apply (Shield's +5 — the
-      // +10-two-chips catch, 2026-08-16). The cast slice must keep its hands off.
+      // 6d. A LISTED reaction cast FREESTANDING self-aims like any other SELF ability (user,
+      // 2026-09-06: Shield "should be castable freecasting ... conformance with other abilities
+      // like Adrenaline Rush"). Before this the carve-out was blanket — a listed reaction was
+      // never the cast slice's — and Gren's Shield sat on its card with the system's own apply
+      // buttons aimed at whatever was targeted. The hold settings are ON here: the carve-out
+      // now keys on a PENDING HOLD naming the caster (6e), not on the list alone.
       await set('reactionHold', true);
       await set('holdApplyEffect', true);
       await set('interruptList', 'BF Test Favor:ac');
-      await npc.deleteEmbeddedDocuments('ActiveEffect',
-        npc.effects.filter(e => e.name === 'BF Favored').map(e => e.id));
-      target();
+      const favored = () => npc.effects.filter(e => e.name === 'BF Favored');
+      await npc.deleteEmbeddedDocuments('ActiveEffect', favored().map(e => e.id));
+      target(victimToken); // an incidental enemy target — the snapshot must not steer a SELF cast
       await sleep(120);
       before = snap();
       use = await activityOf(favorItem, 'utility').use({}, { configure: false }, {});
-      await sleep(1800);
+      await until(() => fresh(before).some(m => m.getFlag(MOD, 'effectReceipt')?.castDone));
       msgs = fresh(before);
-      ok('6d. a LISTED reaction never self-aims — the hold machinery owns its application',
-        (use !== undefined) && !msgs.some(m => m.getFlag(MOD, 'castApply'))
-          && !npc.effects.some(e => e.name === 'BF Favored'),
-        `castApplyStamps=${msgs.filter(m => m.getFlag(MOD, 'castApply')).length}`
-          + ` chip=${!!npc.effects.find(e => e.name === 'BF Favored')}`);
+      const listedCard = usageCards(msgs).find(m => m.getFlag(MOD, 'castApply'));
+      ok('6d. a LISTED reaction cast with no hold pending self-aims — the caster, never the snapshot',
+        (use !== undefined) && !!listedCard
+          && (listedCard.getFlag(MOD, 'castApply').targets?.length === 1)
+          && (listedCard.getFlag(MOD, 'castApply').targets?.[0]?.uuid === npc.uuid)
+          && (favored().length === 1) && !victim.effects.some(e => e.name === 'BF Favored'),
+        `card=${!!listedCard} payloadTargets=${JSON.stringify(listedCard?.getFlag(MOD, 'castApply')?.targets ?? null)}`
+          + ` npcChips=${favored().length} victimChip=${!!victim.effects.find(e => e.name === 'BF Favored')}`);
+
+      // 6e. The carve-out that SURVIVES of v1.5.1, now exact: with a hold PENDING on the caster
+      // the cast is an ANSWER, and the hold machinery owns its application (Shield's +5 — the
+      // +10-two-chips catch, 2026-08-16). The cast slice must not stamp — so the effect can
+      // land at most ONCE, the hold's. A pending hold is fabricated here (its shape is the
+      // hold flag's: status, targets[].uuid/reaction/answer); the real hold path, AC read
+      // exactly +5, is smoke-hold's.
+      await npc.deleteEmbeddedDocuments('ActiveEffect', favored().map(e => e.id));
+      const fakeHold = await ChatMessage.create({
+        content: '<p>BF Test: a fabricated pending hold (smoke-cast 6e)</p>',
+        flags: { [MOD]: { hold: { status: 'pending', trigger: 'attack',
+          targets: [{ uuid: npc.uuid, name: npc.name, reaction: 'BF Test Favor', ac: 10 }] } } }
+      });
+      try {
+        target();
+        await sleep(120);
+        before = snap();
+        use = await activityOf(favorItem, 'utility').use({}, { configure: false }, {});
+        await sleep(1800);
+        msgs = fresh(before).filter(m => m.id !== fakeHold.id);
+        ok('6e. a LISTED reaction cast while a hold is pending on the caster is the hold\'s — no cast stamp, at most one chip',
+          (use !== undefined) && !msgs.some(m => m.getFlag(MOD, 'castApply'))
+            && (favored().length <= 1),
+          `castApplyStamps=${msgs.filter(m => m.getFlag(MOD, 'castApply')).length}`
+            + ` npcChips=${favored().length}`);
+      } finally {
+        await fakeHold.delete().catch(() => {});
+        await npc.deleteEmbeddedDocuments('ActiveEffect', favored().map(e => e.id)).catch(() => {});
+      }
       await set('reactionHold', false);
       await set('interruptList', prior.interruptList);
       await set('holdApplyEffect', prior.holdApplyEffect);

@@ -745,6 +745,21 @@ family — a rolled number modelled as effects, the maneuver machine's — and n
 activity whose several effects all stand at once (Bless, the auras), which the cast slice
 lands as before.
 
+### A listed reaction cast freestanding (user, 2026-09-06: "it should be castable freecasting … conformance with other abilities like Adrenaline Rush")
+
+**A reaction on the Interrupts list, cast with no hold waiting on the caster, self-aims like
+any other SELF ability.** Gren's Shield, cast from the sheet on his own turn, sat on its card
+with the system's own apply buttons aimed at whatever happened to be targeted — because the
+cast slice kept its hands off every listed reaction, a blanket carve-out from v1.5.1 that
+survived the v1.11.0 self-aim ruling. The carve-out existed for one reason: cast IN ANSWER to
+a hold, the hold applies the reaction's own effect, and a second application from the cast
+slice read +10 AC and two chips (2026-08-16). The reason is kept exactly and the blanket is
+gone: the birth stamp asks whether a PENDING hold names the caster — the hold's message exists
+before the answering cast's card, so the question has an answer at preCreate — and only then
+stands aside. Freestanding, the reaction is a SELF cast (Second Wind's shape, R4: no name
+list, the aim data on the activity); answering, it is the hold's, once. The two appliers can
+never both land on one cast (smoke-cast §6d and §6e; the through-the-hold +5 is smoke-hold's).
+
 ### Damage casts (user, 2026-09-04: "make heat metal spell work")
 
 **A bare damage activity's dice are the module's to roll, once.** Measured: dnd5e follows a

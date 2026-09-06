@@ -139,15 +139,36 @@ function castApplyQualifies(doc) {
   // should self aim") — the caster is the target, any UI snapshot is incidental (Second
   // Wind healed the targeted dummy, 2026-08-17), and no UI target is required at all.
   // Supersedes the v1.5.1 "self-buffs stay tray clicks" stance; DESIGN.md R4 amended.
-  // ⚠ The one carve-out is v1.5.1's ORIGINAL catch, kept as a carve-out instead of a
-  // blanket gate: a LISTED reaction with "Apply the Reaction's Own Effect" on is applied
-  // by the hold machinery when cast through a hold (Shield's +5 — the +10-two-chips bug,
-  // 2026-08-16), so the cast slice keeps its hands off listed reactions entirely.
+  // ⚠ The one carve-out is v1.5.1's ORIGINAL catch, narrowed 2026-09-06: a LISTED reaction
+  // with "Apply the Reaction's Own Effect" on is applied by the hold machinery when cast IN
+  // ANSWER to a hold (Shield's +5 — the +10-two-chips bug, 2026-08-16), so the cast slice keeps
+  // its hands off exactly then. Cast FREESTANDING — no pending hold names the caster — a listed
+  // reaction self-aims like any other SELF ability (user, 2026-09-06: Shield "should be castable
+  // freecasting just as a matter of conformance with other abilities like Adrenaline Rush").
+  // The hold's message exists BEFORE the answering cast's card, so preCreate sees it; and the
+  // hold's own applier (hold/answer.js) only runs when a hold is pending — the two paths can
+  // never both land on one cast.
   if ( setting(S.reactionHold) && setting(S.holdApplyEffect) ) {
     const itemName = (activity?.item?.name ?? "").toLowerCase();
-    if ( interruptEntries().some(e => e.name.toLowerCase() === itemName) ) return false;
+    if ( interruptEntries().some(e => e.name.toLowerCase() === itemName)
+      && holdPendingFor(activity?.actor?.uuid) ) return false;
   }
   return payloadWorthy;
+}
+
+/**
+ * Is a hold WAITING on this actor's reaction? The hold flag's shape is the hold machine's
+ * (hold/answer.js answerHoldsFor reads the same three fields); the WHOLE log is scanned, never
+ * a tail window — the same rule that file records. A pending hold means the cast that follows
+ * is an ANSWER, and the hold applies its effect; none means it is a freestanding self-cast.
+ */
+function holdPendingFor(actorUuid) {
+  if ( !actorUuid ) return false;
+  return game.messages.contents.some(message => {
+    const hold = message.getFlag(MODULE_ID, "hold");
+    return !!hold && (hold.status === "pending")
+      && (hold.targets ?? []).some(t => (t.uuid === actorUuid) && !t.answer);
+  });
 }
 
 /**
