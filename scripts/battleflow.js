@@ -113,10 +113,17 @@ import "./hit-menu.js";
 import "./superiority-uses.js";
 // use-chips.js beside them: a text-only feature's use becomes a chip the gate reads (2026-09-02).
 import "./use-chips.js";
-// ⚠ maneuvers.js after mastery.js, before concentration.js ON PURPOSE (v1.19.0): its card
-// rows must render below the mastery rows and above the saves verdict row / receipt rows —
+// ⚠ THE MANEUVER FOLDS after mastery.js, before concentration.js ON PURPOSE (v1.19.0): their
+// card rows must render below the mastery rows and above the saves verdict row / receipt rows —
 // renderChatMessage surface order IS registration order. check-hook-order.mjs asserts it.
-import "./maneuvers.js";
+// ⚠ FIVE FILES IN maneuvers.js's ONE SLOT (the machine-tier pass, Stage 4a, 2026-09-05), in the
+// order the sections of that file registered — precision, riposte, hew, the bash offer,
+// Commander's Strike — so the snapshot keeps every relative order the one file held.
+import "./precision.js";
+import "./riposte.js";
+import "./hew.js";
+import "./bash-offer.js";
+import "./command.js";
 // ⚠ d20-folds.js immediately after maneuvers.js ON PURPOSE (v1.23.0): it is the same family of
 // post-roll fold and its row belongs directly below the maneuver rows — Precision offers a
 // superiority die on the same missed attack that a Bardic die or a reroll would patch, and a

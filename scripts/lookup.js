@@ -62,3 +62,91 @@ export function resolveDie(actor, raw) {
     return (Roll.validate(r) && !/@/.test(r)) ? r : null;
   } catch { return null; }
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * THE MANEUVER READERS (the machine-tier pass, Stage 4a, 2026-09-05) — moved here from
+ * maneuvers.js when it split by moment. Two customers already: the five fold machines and
+ * saves.js (the OPEN pin `saves -> maneuvers` came out with the move). Sheet reads and one log
+ * read, nothing decided.
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * The folds entry of `kind` this actor actually carries — the listed item, by name, over the
+ * ENTRIES the caller read (`maneuverFoldEntries()` — this file reads no world setting). The
+ * pool-drawing kinds (precision/riposte) still go through usableManeuver for consumption;
+ * interpose/bash/hew have no pool of their own, so the item's PRESENCE is the capability
+ * and everything past that (shield in hand, verdict, melee) belongs to the caller.
+ */
+export function foldEntryFor(actor, kind, entries) {
+  for ( const entry of entries ) {
+    if ( entry.kind !== kind ) continue;
+    const item = itemNamed(actor, entry.name);
+    if ( item ) return { entry, item };
+  }
+  return null;
+}
+
+
+/** An equipped shield — Interpose's "holding a Shield" clause, read off the sheet. */
+export const equippedShield = actor =>
+  !!actor?.itemTypes?.equipment?.some(i => (i.system.type?.value === "shield") && i.system.equipped);
+
+/**
+ * The actor's usable copy of a listed maneuver: the item by name (case-insensitive), its
+ * first activity, and the consumption check — every itemUses consumption target must have a
+ * use left (Precision/Riposte both draw on the Combat Superiority pool, measured by probe
+ * P2). An activity with no consumption is simply usable.
+ */
+export function usableManeuver(actor, name) {
+  const item = itemNamed(actor, name);
+  const activity = item?.system.activities?.contents?.[0];
+  if ( !activity ) return null;
+  for ( const c of (activity.consumption?.targets ?? []) ) {
+    if ( c.type !== "itemUses" ) continue;
+    const pool = c.target ? actor.items.get(c.target) : item;
+    if ( ((pool?.system.uses?.value ?? 0) <= 0) ) return null;
+  }
+  return { item, activity };
+}
+
+/** The die formula behind a maneuver — read from the item's own data, never typed anywhere:
+ * a utility activity's roll formula (Precision) or a damage activity's first part (Riposte). */
+export function maneuverDieFormula(activity) {
+  return activity.roll?.formula
+    || activity.damage?.parts?.[0]?.formula
+    || null;
+}
+
+/** The reactor's melee options — every melee weapon CARRIED, not just equipped (v1.19.x
+ * finding (i)): 2024's weapon-swap rides any attack, so equipped-state bookkeeping must
+ * not hide the greatsword or eat the offer. Equipped first, stowed ones say so, and the
+ * sheet is never mutated — the resolved card names what swung; the bookkeeping stays
+ * human. (P3: the discriminator is activity.attack.type.value.) */
+export function meleeOptions(actor) {
+  const out = [];
+  for ( const item of actor.items.filter(i => i.type === "weapon") ) {
+    for ( const a of (item.system.activities?.contents ?? []) ) {
+      if ( (a.type === "attack") && (a.attack?.type?.value === "melee") )
+        out.push({ itemId: item.id, activityId: a.id, name: item.name,
+          equipped: !!item.system.equipped,
+          label: item.name + (item.system.equipped ? "" : " (stowed)") });
+    }
+  }
+  out.sort((a, b) => Number(b.equipped) - Number(a.equipped));
+  return out;
+}
+
+/** The weapon this reactor last ATTACKED with, off the log (v1.19.x finding ④ — the walk's
+ * "how is the weapon picked?"): newest attack message by this actor whose activity names an
+ * item still among the options. Inventory order was the old default and told nobody anything. */
+export function preferredMeleeOption(actor, options) {
+  if ( options.length <= 1 ) return options[0] ?? null;
+  const mine = game.messages.contents.slice(-100).reverse().filter(m =>
+    (m.getFlag("dnd5e", "roll.type") === "attack") && (m.getAssociatedActor?.()?.uuid === actor.uuid));
+  for ( const m of mine ) {
+    const itemId = m.getFlag("dnd5e", "activity")?.uuid?.match(/\.Item\.([^.]+)\./)?.[1] ?? null;
+    const match = itemId ? options.find(o => o.itemId === itemId) : null;
+    if ( match ) return match;
+  }
+  return options[0];
+}

@@ -128,6 +128,26 @@ export const MASTERY_RULES = Object.freeze({
   cleave: "If you hit a creature with a melee attack roll using this weapon, you can make a melee attack roll with the weapon against a second creature within 5 feet of the first that is also within your reach. On a hit, the second creature takes the weapon’s damage, but don’t add your ability modifier to that damage unless that modifier is negative. You can make this extra attack only once per turn."
 });
 
+/** Walk-5 (z): the maneuver folds' rule lines, the popups' quotes (DATA, moved here from
+ * maneuvers.js 2026-09-05 with the split by moment — the 2026-09-01 precedent above) — the 2024 text VERBATIM, read off this
+ * world's own PHB compendium items 2026-08-21 (punctuation included; the source mixes curly
+ * and straight apostrophes). The popups keep the module's operational hints as separate
+ * lines; these strings are the rules and must never be paraphrased. Keyed by KIND — the
+ * folds list maps items onto kinds, and each kind's mechanics are these features'. */
+export const RULE_TEXT = {
+  // ⚠ PRECISION'S QUOTE LIVES IN `RESCUE_KINDS` (decide/present.js) AND IS READ FROM THERE.
+  // It is the one fold kind that is also a RESCUE — the merged window draws it into its own
+  // quote pane — and law 8 says the quote IS the rule, so a second copy that drifts is the
+  // module telling the table something untrue. No key for it here (nothing ever read one;
+  // this layer imports nothing, present.js included). Every other kind is the folds' alone.
+  riposte: "When a creature misses you with a melee attack roll, you can take a Reaction and expend one Superiority Die to make a melee attack roll with a weapon or an Unarmed Strike against the creature. If you hit, add the Superiority Die to the attack's damage.",
+  bash: "If you attack a creature within 5 feet of you as part of the Attack action and hit with a Melee weapon, you can immediately bash the target with your Shield if it’s equipped, forcing the target to make a Strength saving throw (DC 8 plus your Strength modifier and Proficiency Bonus). On a failed save, you either push the target 5 feet from you or cause it to have the Prone condition (your choice). You can use this benefit only once on each of your turns.",
+  bashChoice: "On a failed save, you either push the target 5 feet from you or cause it to have the Prone condition (your choice).",
+  interpose: "If you’re subjected to an effect that allows you to make a Dexterity saving throw to take only half damage, you can take a Reaction to take no damage if you succeed on the saving throw and are holding a Shield.",
+  hew: "Immediately after you score a Critical Hit with a Melee weapon or reduce a creature to 0 Hit Points with one, you can make one attack with the same weapon as a Bonus Action.",
+  command: "When you take the Attack action on your turn, you can replace one of your attacks to direct one of your companions to strike. When you do so, choose a willing creature who can see or hear you and expend one Superiority Die. That creature can immediately use its Reaction to make one attack with a weapon or an Unarmed Strike, adding the Superiority Die to the attack's damage roll on a hit."
+};
+
 /**
  * The REMINDER kinds — the sources of Advantage or Disadvantage the gate can read off the table
  * before an attack roll (HANDOFF Stage 2, 2026-09-01). Each is a distinct way of KNOWING:
@@ -1179,7 +1199,7 @@ export const CONDITION_STATUSES = new Set(CONDITION_KEYS);
 export const KIND_SETS = [
   { name: "interrupt", owner: "hold.js", kinds: INTERRUPT_KINDS, system: null,
     note: "what a held reaction changes about an attack already rolled" },
-  { name: "maneuverFold", owner: "maneuvers.js", kinds: MANEUVER_KINDS, system: null,
+  { name: "maneuverFold", owner: "precision.js · riposte.js · hew.js · bash-offer.js · command.js", kinds: MANEUVER_KINDS, system: null,
     note: "how a listed feat folds into a resolved attack — D8 says this set is the one under pressure; "
       + "`command` (2026-09-05) is Riposte's driven attack with the attacker changed to an ally" },
   { name: "d20Fold", owner: "d20-folds.js", kinds: D20_FOLD_KINDS, system: null,

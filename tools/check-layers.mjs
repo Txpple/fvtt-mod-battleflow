@@ -57,7 +57,12 @@ const LAYER_OF = {
   "hold.js": "machines",
   "saves.js": "machines",
   "mastery.js": "machines",
-  "maneuvers.js": "machines",
+  // the maneuver folds — one file per moment since the machine-tier pass, Stage 4a (2026-09-05)
+  "precision.js": "machines",
+  "riposte.js": "machines",
+  "hew.js": "machines",
+  "bash-offer.js": "machines",
+  "command.js": "machines",
   "concentration.js": "machines",
   "volleys.js": "machines",
   "cast.js": "machines",
@@ -160,13 +165,11 @@ const ALLOW = [
       + "the gate's own judge. The judge reads the world (chips, tokens, the lists), so it "
       + "cannot live in decide/; a third surface reading it is the argument for a spine home"
   },
-  {
-    from: "saves.js", to: "maneuvers.js", disposition: "OPEN (D9)",
-    why: "interpose: foldEntryFor/equippedShield at the choice spec, RULE_TEXT at its popup. "
-      + "Genuinely cross-feature — a save's verdict opens a maneuver's choice. The principled fix "
-      + "is a save-choice registry beside SAVE_FOLDS, which is feature-shaped work; the seam "
-      + "arrives when the third choice kind does"
-  },
+  // ⚠ ONE ROW WENT ON 2026-09-05 (the machine-tier pass, Stage 4a): `saves -> maneuvers`
+  // (foldEntryFor/equippedShield at the interpose choice spec, RULE_TEXT at its popup). The
+  // readers live in lookup.js and the rules text in decide/registry.js now — both DOWNWARD from
+  // saves.js — and maneuvers.js itself is five files. D9(c)'s import half is repaid; the
+  // save-choice registry it also named stays feature-shaped work for the third choice kind.
   {
     from: "saves.js", to: "receipts.js", disposition: "OPEN (D9)",
     why: "revertTarget, lazy on purpose — a static import would evaluate receipts.js first and "

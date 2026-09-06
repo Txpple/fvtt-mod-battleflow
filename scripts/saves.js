@@ -5,7 +5,7 @@
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, rollerUserFor,
   drivesMomentFor, canApplyTo, whisperNoGM, canAnswerFor,
   statContext, sheetModeEffects, rollLabelFor } from "./core.js";
-import { resolveUuid } from "./lookup.js";
+import { equippedShield, foldEntryFor, resolveUuid } from "./lookup.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { tokensInTemplates } from "./geometry.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom, saveMultiplier, verdictText } from "./decide/verdict.js";
@@ -13,12 +13,12 @@ import { isDeadForSaves } from "./decide/eligible.js";
 import { forceStatus, damagePartsOf, reactionSpent, rollConfigFor, spendReaction, statSourceOf } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, reminderFieldsetHTML, TONE } from "./decide/present.js";
 import { livePopups, openMomentPopup, adoptManagedPopup, DialogCarried, markDefaultButton, momentButton, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer, armDeadline, disarmDeadline, registerRelay, dramaticVerdictPause, registerDemand, demandAnsweredBy, pendingDemandsFor, registerWithheld, withholds } from "./ui.js";
-import { EFFECT_BENDS, EMANATIONS, EVASION, SAVE_BENDS, SAVE_PRESSES, tableIndex } from "./decide/registry.js";
+import { EFFECT_BENDS, EMANATIONS, EVASION, RULE_TEXT, SAVE_BENDS, SAVE_PRESSES, tableIndex } from "./decide/registry.js";
 import { reachAdmits } from "./decide/emanations.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { REMINDER_FLAG, effectSaveSources, modeSources, reminderRecord, saveGate, saveNoneOnSuccess, saveSources } from "./decide/reminders.js";
 import { rollModeOf } from "./decide/chips.js";
-import { conditionEntries, effectEntries, emanationEntries, reminderEntries } from "./settings.js";
+import { conditionEntries, effectEntries, emanationEntries, maneuverFoldEntries, reminderEntries } from "./settings.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt, revertEffect } from "./effect-riders.js";
 // ⚠ SAFE STATICALLY, unlike auto-damage.js's own ui.js import (v1.6.1's ESM order trap): the
@@ -1140,7 +1140,6 @@ const saveChoiceTimers = new Map();
  * attacker's either/or), interpose on a listed shield-bearer's SUCCESS (walk-5 (y)).
  * Null for almost every save. */
 async function saveChoiceSpec(card, flag, entry) {
-  const { foldEntryFor, equippedShield } = await import("./maneuvers.js");
   if ( entry.outcome === "saved" ) {
     // Interpose eligibility, read at VERDICT time: half-on-success DEX damage, the listed
     // feat on the saver, a shield in hand, the Reaction free — and the save already held.
@@ -1150,7 +1149,7 @@ async function saveChoiceSpec(card, flag, entry) {
     const saver = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
     if ( !(saver instanceof Actor) ) return null;
     if ( reactionSpent(saver) ) return null;
-    const found = foldEntryFor(saver, "interpose");
+    const found = foldEntryFor(saver, "interpose", maneuverFoldEntries());
     if ( !found || !equippedShield(saver) ) return null;
     return { kind: "interpose", itemName: found.item.name, itemImg: found.item.img,
       subjectUuid: entry.uuid };
@@ -1158,7 +1157,7 @@ async function saveChoiceSpec(card, flag, entry) {
   if ( entry.outcome !== "failed" ) return null;
   const attacker = card.getAssociatedActor?.();
   if ( !attacker ) return null;
-  const found = foldEntryFor(attacker, "bash");
+  const found = foldEntryFor(attacker, "bash", maneuverFoldEntries());
   if ( !found ) return null;
   if ( found.item.name.toLowerCase() !== String(flag.item?.name ?? "").toLowerCase() ) return null;
   const activity = flag.activityUuid ? await fromUuid(flag.activityUuid).catch(() => null) : null;
@@ -1281,7 +1280,6 @@ async function showSaveChoicePopup(card, uuid) {
   if ( !c || c.answer ) return;
   const subject = resolveUuid(c.subjectUuid);
   const interpose = c.kind === "interpose";
-  const { RULE_TEXT } = await import("./maneuvers.js");
   await openMomentPopup(card, `choice:${uuid}`, subject, {
     title: `${c.itemName} — ${subject?.name ?? ""}`,
     icon: interpose ? "fa-solid fa-shield" : "fa-solid fa-hand-fist",

@@ -5,8 +5,8 @@
 // Reads the weapon mastery RULE TEXT off the SYSTEM's own references
 // (CONFIG.DND5E.weaponMasteries[*].reference → rules journal page), plus the canonical
 // Prone status (name/img/_id) the bash/topple press lands. Read-only, no preflight — safe
-// beside a live session. The RULE_TEXT / MASTERY_RULES constants in mastery.js and
-// maneuvers.js must match this output VERBATIM (punctuation included — the source mixes
+// beside a live session. The RULE_TEXT / MASTERY_RULES constants in decide/registry.js
+// must match this output VERBATIM (punctuation included — the source mixes
 // curly and straight apostrophes). Run it after any dnd5e system upgrade.
 //
 //   node tools/probe-mastery-rules.mjs
