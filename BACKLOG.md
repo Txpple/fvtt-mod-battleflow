@@ -57,11 +57,13 @@ simply that the message carries `rollCtx`.
 **Do not “fix” it by removing the registration.** The hook is correct and cheap; only its
 exercise is missing.
 
-### The four sideways edges (was debt row D9)
+### The two sideways edges (was four; was debt row D9)
 
 **What:** the tree is layered and the rule is *depend downward only*. Seven places had one
 feature importing another feature — sideways. **Three were repaid** by moving the shared thing
-down into the plumbing where both could reach it. **Four remain, deliberately.**
+down into the plumbing where both could reach it. **Two remain, deliberately** — the machine-tier
+pass (2026-09-05) repaid two more, exactly as their triggers said (Stage 3b built the withhold
+registry ahead of a third customer on the user's ruling; Stage 4a moved the readers down).
 
 **Why not now:** you cannot design a good shared seam from one example. The house lesson (D8) is
 that **the seam is built by the feature that proves its shape** — build it on one caller and you
@@ -71,9 +73,9 @@ are guessing, and a wrong shared part is worse than an honest sideways one.
 
 | Edge | Waiting for |
 | --- | --- |
-| `saves → maneuvers` | a **third** choice kind, to prove the registry's shape |
-| `saves ↔ d20-folds` | a **second** machine that needs withhold-and-resume, before it becomes a spine primitive |
-| `saves → receipts` | `receipts.js` gaining a **second** importer |
+| ~~`saves → maneuvers`~~ | ✅ **repaid 2026-09-05** (Stage 4a): the readers went to `lookup.js`, the rules text to `decide/registry.js`; the save-choice REGISTRY still waits for a **third** choice kind |
+| ~~`saves ↔ d20-folds`~~ | ✅ **repaid 2026-09-05** (Stage 3b, ruling 2): the spine's withhold registry — `registerWithhold` / `registerWithheld` in ui.js |
+| `saves → receipts` (`saves/verdict.js` since Stage 4c) | `receipts.js` gaining a **second** importer |
 | `volleys → reminders` (BY DESIGN, 2026-09-02) | a **third** surface for the gate's judge (`judgeRoll` — the dialog's gate and the volley's aim are two), to prove a spine home |
 
 ⚠ **Self-expiring:** the pins live in [tools/check-layers.mjs](tools/check-layers.mjs) and
@@ -114,13 +116,13 @@ on today's three callers alone is still a guess about the fourth).
 **Two clock residues to pick up on the same pass, notes not rows:** "first round" is judged in
 three EDGE places — [clock-riders.js](scripts/clock-riders.js) through `riderDue`,
 [sneak.js](scripts/sneak.js) for Death Strike, [reminders.js](scripts/reminders.js) for
-Assassinate — and [maneuvers.js](scripts/maneuvers.js) still judges a maneuver's once-per-turn
+Assassinate — and [bash-offer.js](scripts/bash-offer.js) still judges a maneuver's once-per-turn
 off a flag stamp rather than a turn chit (`decide/chips.js` `TURN_CHITS`). Neither is wrong;
 both are the walk landing faster than the shape.
 
 ### The template fast-path Foundry 14 took away (was debt row D12)
 
-**What:** `saves.js` listens for `createMeasuredTemplate` / `updateMeasuredTemplate` so it can
+**What:** `saves/areas.js` listens for `createMeasuredTemplate` / `updateMeasuredTemplate` so it can
 re-derive who is standing inside a spell's area the moment one is placed. **Foundry 14 dispatches
 neither name.** Measured 2026-08-24 ([tools/probe-surfaces.mjs](tools/probe-surfaces.mjs)):
 placing one template moves `scene.templates` 0→1 **and `scene.regions` 0→1**, and what fires is
@@ -174,7 +176,7 @@ untested path.
 
 | Item | Shape |
 | --- | --- |
-| **Hypnotic Pattern's area outliving an "instantaneous" cast** (2026-09-02 — user: "it's an edge case, leave it") | The spent-template sweep (saves.js) has three buckets: instantaneous → swept at the last verdict; concentration → swept with concentration; any other duration → the GM's to clear. The PHB copy of Hypnotic Pattern is Concentration, 1 minute, so it is already the second bucket; an imported or edited copy with the concentration flag missing falls into the third. No data rule separates it from Grease (1 minute, no concentration, an area that MUST persist) — only the text does. If it ever matters: a "Spent Areas" list, the Block List's shape, read as a fourth bucket. Not before a second spell lands in it. |
+| **Hypnotic Pattern's area outliving an "instantaneous" cast** (2026-09-02 — user: "it's an edge case, leave it") | The spent-template sweep (saves/areas.js) has three buckets: instantaneous → swept at the last verdict; concentration → swept with concentration; any other duration → the GM's to clear. The PHB copy of Hypnotic Pattern is Concentration, 1 minute, so it is already the second bucket; an imported or edited copy with the concentration flag missing falls into the third. No data rule separates it from Grease (1 minute, no concentration, an area that MUST persist) — only the text does. If it ever matters: a "Spent Areas" list, the Block List's shape, read as a fourth bucket. Not before a second spell lands in it. |
 | **An ability that lands as an effect shows no chit on the token** (user observation, 2026-09-03 — parked, undecided) | Steady Aim is the example and the class is every `USE_CHIPS` row and every feature whose use puts an ActiveEffect on the sheet: the effect exists, the gate reads it, the roll spends it — but the TOKEN shows nothing, because the chip carries no status and Foundry paints a token icon only for effects that do. The mastery chips (Vexed, Sapped, Slowed) have the same shape. User: *"not sure if it's a good thing or bad thing because stuff would stack up too much, but something to think about."* The two honest answers: give the module's chips a status/icon so the token says what the sheet says (a data change on the chip row, one line each, and the platform's expiry keeps them tidy), or leave the token clean and let the gate's box be the reminder (today's shape). **A third, the user's (same day): a BUFF BAR** — a strip of the character's live chips, read off the sheet, as the first slice of the chit layer (DESIGN §6): it is a view over the registries and the effects already there, shows what a token icon would show without crowding the canvas, and is the surface the spendable chits would later join. Long-term; it rides the chit layer's timeline, not this list's. ⚠ **PROTOTYPED AND PARKED 2026-09-03** (user: *"I'm not sold on this, let's keep the work here but park it"*): the clickable draft is [prototypes/buff-bar.html](prototypes/buff-bar.html) (open it in a browser; also published at https://claude.ai/code/artifact/8b6e00cd-7b22-4a73-8975-048c11ec408f) — a mock Foundry screen with the bar drawn in the module's palette, four placements (above the hotbar, over the token, sidebar header, its own window), three scenarios, and six questions left UNRULED: placement, marks-on-others as a second group, spent chits struck through, platform conditions in or out, whose bar, what a click does. Nothing was decided; pick it up from the prototype, not from scratch. **What would settle the near-term half:** a walk where a player looks for the buff on the token and does not find it — or one where the icons pile up and the table asks for quiet. Until then nothing is owed. |
 | **The rest of the Battle Master's maneuvers** (user, 2026-09-04: "add to backlog we have to do the rest of maneuvers") — ✅ **DELIVERED 2026-09-05** (the overnight run; DESIGN §5 *The rest of the maneuvers*, `smoke-superiority`) | All nineteen now land on a machine. Two folds (Precision, Riposte); eight on the hit menu (2026-09-04); and the nine that remained, each on the machine the row predicted: **Parry** is a `damage` interrupt that REDUCES by a roll (`INTERRUPT_REDUCTIONS`; the hold rolls die + max(Str, Dex) — the pack's own formula — at the answer and the applier lands the damage short, the receipt saying why; the Monster Manual's AC "Parry" of the same name stays `ac`). **Evasive Footwork, Bait and Switch, Lunging Attack, Feinting Attack** are `SUPERIORITY_USES` (superiority-uses.js): a rolled AC chip, the pack's "Baited AC +N" on the fighter's pick (a popup, the fighter by default), a chip whose die is a ticked checkbox on the next melee hit's offer, the pack's marker on the target read by the gate for the fighter alone (`only: "source"`) and spent by the next attack roll with the die on the hit. **Ambush and Tactical Assessment** are the d20 folds' `tactical` spend with a scope (`SUPERIORITY_FOLDS`: Stealth / History-Investigation-Insight; Ambush on Initiative through `dnd5e.rollInitiative`, the combatant's number moved by the die). **Commander's Strike** is the `command` fold kind (29 kinds now): Riposte's driven attack with the ally as the attacker, the fighter's die resolved on the fighter and injected into the ally's weapon roll. **Rally** needed nothing: the pack's heal rolls through the system's own dialog and the cast slice lands the temp HP (measured). ⚠ Two content facts the run found: Bait and Switch ships TWELVE "Baited AC" effects (one per face) and the cast slice applied them all (AC 13 → 91) until every maneuver's card was kept off it; Feinting's marker is spent by the chip-spend machine, never a second delete (NOTES §2). |
 | **A pass over the pack for target effects flagged as the wielder's passive** (2026-09-04, user: "you should probably do a universal pass on that") — ✅ **SCANNED 2026-09-04: Goaded is the only one** | Goading Attack's Goaded ships `transfer: true` — a passive on the wielder — and the walk lost a whole afternoon to it (NOTES §2). The module now corrects a HIT-OPTION row's target-facing effects on the wielder's copy and presses a lost one from the compendium. **The corpus was scanned the same evening** ([tools/filter-transfer.mjs](tools/filter-transfer.mjs) over `scan-corpus.mjs`'s JSON; 2,311 rows at dnd5e 5.3.3 / Foundry 14.365). ⚠ **The first cut of the filter over-counted by an order of magnitude, and the reason is the finding worth keeping:** 82 items link a `transfer: true` effect from an activity, but 70 of those are transfer + **DISABLED** — dnd5e's own convention for a self-buff the activity switches on (Rage, Bladesong, Innate Sorcery, Mirror Image). That shape is correct and never fails the Goaded way. **The Goaded shape is transfer + ENABLED + an activity aimed at someone else, and the corpus holds two:** Goading Attack (repaired) and **Aura of Warding** — which is a real passive (the Paladin's own resistance) whose ally grant the emanation machine already applies from its own registry, and which carries no clock, so nothing ever deletes it off the sheet. **Nothing is owed; the row-per-hit half has no hits.** The tool stays for the next system bump: `node tools/scan-corpus.mjs out.json && node tools/filter-transfer.mjs out.json` (add `--all` for the 82 with their disabled flags). |

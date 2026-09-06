@@ -848,7 +848,7 @@ maneuver whose activity is typed damage (Feinting Attack's die, Commander's Stri
 roll dialog on use, and with `hideCardButtons` on that dialog was the only path to Heat Metal's
 2d8 — and a machine that also rolls would roll TWICE. The volley machine's claim is the fix:
 `usageConfig.subsequentActions = false` in `dnd5e.preUseActivity`, then the module's own roll
-(damage-casts.js) or none (superiority-uses.js, maneuvers.js — the die belongs to the hit). A
+(damage-casts.js) or none (superiority-uses.js, the fold files — the die belongs to the hit). A
 heal's dialog is left alone: Rally rolls through it and the cast slice lands the temp HP, which
 is the pack's design working.
 

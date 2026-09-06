@@ -136,7 +136,7 @@ feature; changing one is a change to this document.
 | **A macro platform** — no OnUse macros, no effect macros | It is someone else's data model. |
 | **An extension platform for homebrew** | The answer to "my custom thing needs this" is a list entry, never a new extension point. Breadth of *official content* is in scope; a platform never is. |
 | **A no-GM degraded mode** | Unowned actors are a hard permission wall, so any degraded mode would apply mixed target sets *partially* — silent partial application is this module's worst failure class. |
-| **Rewriting a d20 roll the system produced** | The module never reaches into an evaluated `Roll` and changes its number. It reads the roll, **folds** later inputs in beside it on a module flag, and announces the arithmetic in the open. ⚠ **This does not forbid changing an outcome.** Precision Attack turns a miss into a hit after the fact and has shipped since v1.19.0 ([maneuvers.js](scripts/maneuvers.js) `resolvePrecision`, [decide/verdict.js](scripts/decide/verdict.js) `hitsAmong`): the original message stands as history, the new die posts as its own message, and the verdict is recomputed on the flag. Post-roll folds of that shape are **in scope**; silently editing the system's number is not. ⚠ **And the fold is a MECHANISM as of 2026-08-23**, not one feature's special case: `ATTACK_FOLDS` / `SAVE_FOLDS` in `decide/verdict.js`, composed rather than ordered — the attacker's folds move the total, the defender's move the AC, one verdict at the end (the user ruling; ARCHITECTURE §10 D8, and §11's "Adding a FOLD" checklist). |
+| **Rewriting a d20 roll the system produced** | The module never reaches into an evaluated `Roll` and changes its number. It reads the roll, **folds** later inputs in beside it on a module flag, and announces the arithmetic in the open. ⚠ **This does not forbid changing an outcome.** Precision Attack turns a miss into a hit after the fact and has shipped since v1.19.0 ([precision.js](scripts/precision.js) `resolvePrecision`, [decide/verdict.js](scripts/decide/verdict.js) `hitsAmong`): the original message stands as history, the new die posts as its own message, and the verdict is recomputed on the flag. Post-roll folds of that shape are **in scope**; silently editing the system's number is not. ⚠ **And the fold is a MECHANISM as of 2026-08-23**, not one feature's special case: `ATTACK_FOLDS` / `SAVE_FOLDS` in `decide/verdict.js`, composed rather than ordered — the attacker's folds move the total, the defender's move the AC, one verdict at the end (the user ruling; ARCHITECTURE §10 D8, and §11's "Adding a FOLD" checklist). |
 
 ---
 
@@ -699,7 +699,7 @@ target — an id, the identifier `combat-superiority`, or Combat Superiority's c
 the three shapes the pack ships), the save and its DC, the condition.
 
 **Not in this slice, by ruling or by scope:** Precision Attack and Riposte stay folds
-(maneuvers.js); the nine maneuvers that are neither on-hit nor folds are BACKLOG rows, each
+(precision.js and riposte.js since the 2026-09-05 split); the nine maneuvers that are neither on-hit nor folds are BACKLOG rows, each
 mapped to the machine it would land on; Barbarian (Brutal Strike) and Monk (Stunning Strike)
 rows are the next groups the same table takes — the SWEEP's item 2, unchanged.
 

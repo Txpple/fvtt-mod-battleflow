@@ -312,6 +312,30 @@ family suites (maneuvers, superiority, effects, hold for Parry, saves, reminders
 the full battery at the end of the stage. `LAYER_OF` and `EXPECTED_SOURCE_FILES` move with
 every new file, and ARCHITECTURE §7's tier list and module table are recut.
 
+✅ **4a done 2026-09-05** — five files in maneuvers' slot (precision, riposte, hew, bash-offer,
+command); the readers went to **`lookup.js`, not `shared.js`** as this table wrote — measured:
+shared.js would have needed two same-layer spine pins (settings.js, lookup.js) that Stage 1
+deliberately avoided, and lookup.js needs none (`foldEntryFor` takes the entries the caller read).
+`RULE_TEXT` to decide/registry.js, its never-read `precision` alias dropped (a zero-import layer
+cannot point at `RESCUE_KINDS`). The shared plumbing became each feature's own rows: 16 → 23
+snapshot lines, all in the slot, every shared-card order kept. The OPEN pin `saves → maneuvers`
+came out. **Battery on the sandbox: 4a's own run (see HOW IT WENT).**
+✅ **4b done 2026-09-05** — mastery.js keeps the payouts (the Topple card's POSTING included —
+the payout writes the flag, the card is the bus, topple.js drives it; neither imports the other),
+the ask, the notices and the Cleave arm; topple.js and chip-spend.js took the rest. chip-spend's
+create hook reads the attacker off `messageActivity` directly (the actor is all the spend ever
+used of `masteryContext`). 10 → 14 snapshot lines in the slot, the create-hook order kept.
+✅ **4c done 2026-09-05** — `scripts/saves/` as designed, eight parts. ⚠ **What the plan did not
+foresee:** ESM evaluates a CYCLE's first-listed member LAST, so the index lists `verdict.js`
+before `ask.js` to land ask's dialog hook where saves.js had it — the header says so and the
+snapshot proves it (12 → 9 lines under the part names in the same order; the three that left are
+the save gate's, now reminders.js's — two lines there, since the gate's section rides the
+existing dialog render registration). The buzzer's automatic-failure check reads
+`saveSources`/`saveGate` off decide/ directly, exactly as ruled. `check-layers.mjs` gained
+`GROUPS` (a directory's parts, its face, "import the index"); `hook-registrations.mjs`'s regex
+admits a slash; `check-registry.mjs` walks scripts/ recursively (it hard-coded decide/). §7 has
+the directory paragraph; the tier table lists `saves/` as one machine.
+
 ### STAGE 5 — who drives (finding 4; ½ session)
 
 **Does:** `drivesMastery` (mastery.js), `drivesSpellDamage` (hold.js) and `drivesPayouts`

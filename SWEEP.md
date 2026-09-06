@@ -51,7 +51,7 @@ rows to, a machine that reads a table, or a moment the spine already has:
 | **Use chip** | a text-only feature becomes a chip on use; the gate reads it, the roll spends it (Steady Aim) | `USE_CHIPS` + use-chips.js | a data row |
 | **Clock rider** | extra damage that rides a hit when the round / the turn / the uses say so, a ticked checkbox on the offer (Dread Ambusher, Dreadful Strike, Divine Strike, Assassinate's dice) | `CLOCK_RIDERS` + clock-riders.js | a data row, a `judge` at most |
 | **Hit menu** | the hit offers a choice that spends something before the damage rolls (Cunning Strike, Devious Strikes, Death Strike) | `CUNNING_OPTIONS` + sneak.js | today Rogue-only — the generalisation is the sweep's biggest lever (§4) |
-| **Save press** | a failed save presses a condition the pack does not carry as an effect (Web's Restrained) | `SAVE_PRESSES` + saves.js | a data row |
+| **Save press** | a failed save presses a condition the pack does not carry as an effect (Web's Restrained) | `SAVE_PRESSES` + saves/consequences.js | a data row |
 | **Turn chit / the Reaction** | once per turn, or one Reaction per round, read off the running combat and never a memory | `TURN_CHITS`, `reactionStands`, shared.js | none — every offer's gate already reads it |
 | **Verdict outcome** | the verdict itself changes for a feature (Evasion: none on a success, half on a failure) | `EVASION`, verdict.js | a row per feature of the shape |
 | **Condition clause** | a glossary clause hangs off a condition (Incapacitated breaks concentration; Paralyzed auto-fails; the automatic crit within 5 ft) | `CONDITION_BENDS`, `SAVE_BENDS`, concentration.js | a data row |
