@@ -88,7 +88,7 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
  * @returns {{isCritical: boolean, rolled: boolean, auto: boolean,
  *            sources: {status: string, label: string, rule: string}[], dropped: string[]}}
  */
-export function critFor(attackMessage) {
+function critFor(attackMessage) {
   const rolled = attackMessage?.rolls?.[0]?.isCritical ?? false;
   const out = { isCritical: rolled, rolled, auto: false, sources: [], dropped: [] };
   try {

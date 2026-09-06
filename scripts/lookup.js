@@ -21,7 +21,7 @@
 export const lower = s => String(s ?? "").toLowerCase();
 
 /** Do two names mean the same feature, spell or activity? */
-export const sameName = (a, b) => lower(a) === lower(b);
+const sameName = (a, b) => lower(a) === lower(b);
 
 /** The item on the sheet by name, any type, or null. */
 export const itemNamed = (actor, name) => actor?.items?.find(i => sameName(i.name, name)) ?? null;

@@ -67,7 +67,7 @@ function cunningDC(actor, activity = null) {
 }
 
 /** The armed, not-yet-rolled Sneak Attack on an attack message, or null. */
-export function sneakArmedOn(attackMessage) {
+function sneakArmedOn(attackMessage) {
   const s = attackMessage?.getFlag(MODULE_ID, "sneak");
   return (s?.armed && !s.rolled) ? s : null;
 }

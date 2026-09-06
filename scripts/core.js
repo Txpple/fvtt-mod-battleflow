@@ -102,11 +102,11 @@ export const rollerUserFor = actor => game.users
  *
  * Returns undefined when nobody can drive (no GM, no active owner) — the correct no-op.
  */
-export const flowElectFor = actor =>
+const flowElectFor = actor =>
   game.users.activeGM ?? (actor ? rollerUserFor(actor) : undefined);
 
 /** Is THIS client the flow elect for that actor? Identical to `isActiveGM()` whenever a GM is on. */
-export const isFlowElectFor = actor => flowElectFor(actor)?.isSelf ?? false;
+const isFlowElectFor = actor => flowElectFor(actor)?.isSelf ?? false;
 
 /**
  * Does THIS client drive a moment whose subject is `subjectUuid`? The one question every

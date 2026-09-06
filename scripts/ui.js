@@ -144,7 +144,7 @@ export class DialogCarried {
  * (saves.js drawSaveDemand); the two paint the same fieldset — `[data-bf-save-demand]`,
  * before the dialog's configuration part — so the suites find either the same way.
  */
-export function drawDemandFieldset(app, element, demand) {
+function drawDemandFieldset(app, element, demand) {
   const card = game.messages.get(demand.cardId);
   if ( !card ) return;
   if ( demand.owed && !demand.owed(card) ) { void app.close(); return; }

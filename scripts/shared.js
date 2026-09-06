@@ -492,7 +492,7 @@ export function poolOf(actor, activity) {
 }
 
 /** Spend one use of a pool item on the sheet — the clock riders' idiom for a limited use. */
-export async function spendPoolUse(pool) {
+async function spendPoolUse(pool) {
   if ( !pool ) return null;
   return pool.update({ "system.uses.spent": Number(pool.system?.uses?.spent ?? 0) + 1 });
 }

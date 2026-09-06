@@ -45,7 +45,7 @@ function usesLeftOf(activity) {
  * @param {ChatMessage} attackMessage
  * @param {object} activity   the ATTACK activity that hit
  */
-export function clockRidersFor(attackMessage, activity) {
+function clockRidersFor(attackMessage, activity) {
   const attacker = activity?.actor ?? attackMessage?.getAssociatedActor();
   const item = activity?.item;
   if ( !attacker || !item ) return [];

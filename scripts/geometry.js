@@ -119,7 +119,7 @@ export function tokensInTemplates(templates) {
  * since v14, until 16 — migrate to ShapeData when 16 lands; current-scene only), else
  * Euclidean math. The fallback ladder below the rescue is v1.13.0's, kept for toolbar-drawn
  * and foreign templates that carry no dimensions flag. */
-export function templateShape(doc) {
+function templateShape(doc) {
   const honest = honestDims(doc);
   const distance = honest?.distance ?? doc.distance ?? 0;
   const width = honest?.width ?? doc.width ?? 0;

@@ -195,7 +195,7 @@ async function stampSaveDemand(activity, message, results) {
  * Only a LISTED emanation row filters; every other area keeps the old answer. Null in, null out.
  */
 const EMANATION_INDEX = tableIndex(EMANATIONS);
-export function emanationRowFor(activity) {
+function emanationRowFor(activity) {
   if ( !activity?.item || !setting(S.emanations) ) return null;
   const key = EMANATION_INDEX.keyNamed(activity.item.name);
   const row = key ? EMANATIONS[key] : null;
