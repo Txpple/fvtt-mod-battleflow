@@ -15,15 +15,14 @@
 > the module does at the table — **the UI/UX and the shipped behaviour are the asset being
 > protected, not the thing being changed.**
 >
-> ⚠ **A second pass is on this page as of 2026-09-05:** *THE MACHINE-TIER PASS*, directly
-> below. Its five decisions are ruled; **Stages 0 → 3b are delivered** (each stage's mark carries
-> its measured cost and its battery) and the pass is **paused after 3b on the user's word** for a
-> fresh window. [HANDOFF.md](HANDOFF.md) carries the state and the procedure for the session that
-> picks up Stage 4a, and retires when the pass is delivered.
+> ✅ **A second pass is on this page as of 2026-09-05, DELIVERED 2026-09-06:** *THE MACHINE-TIER PASS*, directly
+> below. Its five decisions are ruled and **every stage is delivered** (each stage's mark carries
+> its measured cost; *HOW IT WENT* at the block's head carries the batteries). HANDOFF.md is
+> retired; nothing is released — the release and the prod deploy stay on the user's word.
 
 ---
 
-## ▶ THE MACHINE-TIER PASS — RULED 2026-09-05; Stages 0 → 3b DELIVERED the same day; 4a → 5 owed
+## ▶ THE MACHINE-TIER PASS — RULED 2026-09-05; ✅ DELIVERED 2026-09-05/06 (Stages 0 → 5, battery-green)
 
 **Origin:** the 2026-09-05 architecture review (post-v1.32.1, **scored 7/10**). The
 2026-08-23 review scored the tree 8/10; the drop is not a regression in anything that pass
@@ -38,6 +37,32 @@ Stage 0 snapshot and battery-green on the sandbox. Two rulings could have change
 the table (decisions 1 and 4); both were ruled the byte-identical or already-house way.
 **Rulings given 2026-09-05 (the table at the end). The pass starts on the user's go, not
 before** — a handoff is not a go.
+
+### ✅ HOW IT WENT — measured, not estimated (2026-09-05/06, two windows)
+
+| Stage | Estimate | Measured | What the estimate missed |
+| --- | --- | --- | --- |
+| 0 → 3b | 5 sessions | the first window, one day | see the marks under each stage |
+| 4a | 1 | about 1 | the readers' home: `lookup.js`, not `shared.js` (two same-layer pins avoided); the shared plumbing became eleven registrations, not three |
+| 4b | 1 | about ½ | the Topple card's POSTING stays with the payouts (the card is the bus); `masteryContext` was only ever the actor to the spend |
+| 4c | 2 | about 1 | ESM evaluates a cycle's first-listed member LAST — the index lists `verdict.js` before `ask.js`; `check-registry.mjs` had hard-coded `decide/`; the gate's move is two snapshot lines, not three |
+| 5 | ½ | about ½ | the appliers already split per target; ruling 4 is the driver plus one whisper in `executeCastApply` |
+
+**Batteries (the LOCAL sandbox):** the Stage 4a deploy 25/28 — effects §14a (the dice-variance
+class, hp 0), emanations §11e and its cascade §11f (the suite's own race), and `smoke-nogm` §cast
+running from the tree against code that did not yet carry ruling 4 (the new test biting on the old
+behaviour). **HEAD (4b + 4c + 5 together): 28/28, every suite — effects 57/57, emanations 68/68,
+nogm 24/24 among them; settings CLEAN.** The Stage 0 snapshot was the instrument throughout: every
+split's diff was predicted before it ran and matched (16 → 23, 10 → 14, 12 → 9 + 2 lines).
+
+**Tools that grew:** `GROUPS` in check-layers (a directory machine), the attribution regex, the
+recursive source-file walk. **Pins:** 6 → 5 (D9(c) repaid; the one OPEN pin is
+`saves/verdict.js → receipts.js`). **Files:** 48 → 61. **Biome baseline:** 202 throughout.
+
+⚠ **Two things for the release that follows (on the user's word):** the sandbox deploy never
+prunes, so the stale `maneuvers.js` and `saves.js` were deleted by hand — a prod WebDAV deploy
+needs the same, or ships the zip; and ruling 4 is the one behaviour a table can see (a no-GM cast
+lands on the caster's own sheet at once instead of late on rejoin).
 
 ### What the review measured (by tool, 2026-09-05)
 
@@ -401,10 +426,12 @@ Stage 4c  saves, the directory         2   ruling 3 (the group rule, §7, the sp
 Stage 5   who drives                   ½   ruling 4
 ```
 
+✅ **All delivered 2026-09-05/06 — see HOW IT WENT at the head of this block.**
+
 **When it is delivered:** ARCHITECTURE §10 D9 is recut (c and d repaid, e left standing with
 its rule), BACKLOG's *four sideways edges* row shrinks to the two that remain, this block gets
 its *HOW IT WENT* section with the measured cost against these estimates, and HANDOFF.md is
-deleted.
+deleted. ✅ Done 2026-09-06.
 
 **Folded in after the phases (user, 2026-09-05, mid-pass): the docs' SHAPE.** *"ARCHITECTURE.md
 at 98 KB is a lot of context for every Claude Code session to carry. For the new repo, consider
