@@ -15,9 +15,9 @@
 > the module does at the table — **the UI/UX and the shipped behaviour are the asset being
 > protected, not the thing being changed.**
 >
-> ⚠ **A third block is on this page as of 2026-09-05, DRAWN and NOT RULED:** *THE HOLD DIRECTORY*, directly
-> below — the measurement ARCHITECTURE §7's second-customer sentence asks for, waiting on the user's
-> three decisions. Nothing has moved.
+> ✅ **A third block is on this page as of 2026-09-05, DRAWN, RULED and DELIVERED the same evening:**
+> *THE HOLD DIRECTORY*, directly below — `hold.js` is `scripts/hold/`, nine parts by moment, the
+> second customer of the directory rule; its *HOW IT WENT* is measured against its own drawing.
 >
 > ✅ **A second pass is on this page as of 2026-09-05, DELIVERED 2026-09-06:** *THE MACHINE-TIER PASS*, directly
 > below. Its five decisions are ruled and **every stage is delivered** (each stage's mark carries
@@ -26,14 +26,40 @@
 
 ---
 
-## ▶ THE HOLD DIRECTORY — DRAWN 2026-09-05, NOT RULED, NOT STARTED
+## ▶ THE HOLD DIRECTORY — DRAWN 2026-09-05; RULED AND ✅ DELIVERED THE SAME EVENING
 
 **Origin:** the user's refactor binge after the machine-tier pass, with the backlog and the debt
 register both empty of owed work. ARCHITECTURE §7 names `hold.js` — one flag, 1,564 lines — as
 the **ready second customer** for the directory-machine rule the saves cut built (ruling 3). This
 block is the measurement that rule asks for before anything moves: the census of the file, the
 parts by MOMENT, the registration order the index must reproduce, and the exact cost. **It is a
-drawing. Nothing has moved. The user rules on it and says go, or parks it.**
+drawing; the user ruled all three decisions as recommended the same evening ("do the needful")
+and the cut is on main.** *HOW IT WENT* follows the drawing.
+
+### ✅ HOW IT WENT — measured against the drawing (2026-09-05, one sitting)
+
+| Drawn | Measured |
+| --- | --- |
+| nine parts by moment, a DAG | nine parts, a DAG — with ONE deviation the call graph forced: `closeAnsweredHoldPopups` sits in `continue.js` with the update watcher that calls it, not in `views.js` as drawn, because `continue → views → continue` would have been the cycle the drawing said there would not be |
+| one outside export | one: `stampHoldIfInterrupted`, re-exported by the index. The other seven were never dead INSIDE the machine — they are what the parts import from each other now, so they stayed `export` on their part and lost the index. The split script exported exactly what a sibling reads and nothing else |
+| the index reproduces snapshot lines 21–27, one line moves | exactly that: 8 lines out, 8 in, the delete sweep first (`clock.js`), the seven others in the old order. Refreshed with `--snapshot`; the commit says why |
+| two bare imports in the index keep ui.js's bar above the row | needed: `lookup.js` imports `effect-riders.js`, which would otherwise have evaluated before ui.js and moved its `createActiveEffect` line. The index imports `ui.js` then `effect-riders.js` bare before its parts — hold.js's own import order, made explicit |
+| three `CHECKS` re-pointed | three, all PASS; their reasons recut to say the index holds the order now |
+| `EXPECTED_SOURCE_FILES` 61 → 69, nine `LAYER_OF` rows, `GROUPS` gains hold | as drawn; the ALLOW row for the permanent cycle names `hold/index.js` |
+| the lazy `import("./auto-apply.js")` | ⚠ the one thing the drawing missed: a part's LAZY import is a relative path too, and `check-imports` caught it (`../auto-apply.js`). The static ones the split script rewrote; the dynamic one it did not |
+| about 1 session | about one hour from the drawing to the family suites green, one more for the docs and the battery |
+
+**Suites (the LOCAL sandbox, deployed with `--local`, the stale hold.js pruned by hand — the deploy
+never prunes):** the family battery first — `smoke-battleflow` ALL PASS (104s), `smoke-hold` ALL PASS
+(155s), `smoke-twoclient` 13/13, `smoke-superiority` 34/34 — settings CLEAN. **The full battery:**
+**28/28, every suite — saves 102/102, emanations 68/68, effects 57/57, nogm 24/24 among them — 39m 39s; hook coverage NEVER FIRED — none; settings CLEAN.**
+
+**What the cut changed for a reader:** the hold's popup, row, buzzer, veto and no-attack applier
+are byte-for-byte the same code in eight files of 53–328 lines, each headed by its moment. The
+comment pass touched fifteen code comments, four tool notes and six doc lines that named `hold.js`
+for code; history lines (D1, D2, D6, the Phase 2 moves) keep the name.
+
+
 
 **No behaviour changes.** Every step is a move, proven by the Stage 0 snapshot and the family
 suites (`smoke-hold`, `smoke-battleflow` §3–4, `smoke-twoclient`, `smoke-superiority` for Parry,
@@ -130,7 +156,7 @@ in the snapshot, hold's `deleteChatMessage` moves from line 28 to line 21. Two w
 - Not `d20-folds.js` (1,336 lines, the next largest) — nothing has ruled it ready, and the
   house builds a seam on its second customer, not its third by momentum.
 
-### Decisions — waiting on the user
+### Decisions — RULED 2026-09-05 (all three as recommended: go; (a) the line moves; the face is one name)
 
 | # | Question | Options |
 | --- | --- | --- |
