@@ -32,7 +32,7 @@
 import "../auto-damage.js";
 // ⚠ ONE-WAY since D6 (2026-08-23). ui.js is the spine and no longer knows this feature exists;
 // what comes back are spine primitives only. Do NOT let a hold-shaped name travel the other
-// way — reinstating an `import … from "./hold/…"` in ui.js re-forms the cycle D6 broke.
+// way — an import of anything under hold/ from ui.js re-forms the cycle D6 broke.
 // These two bare imports PIN the order hold.js's own import list had: ui.js's body (and its
 // damage-offer bar registration) and effect-riders' evaluate before any part of this machine,
 // so the bar still registers above the hold row (asserted in check-hook-order.mjs).
