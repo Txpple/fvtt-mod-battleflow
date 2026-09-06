@@ -33,30 +33,6 @@ unwatched** — which is exactly why it is safe to be quiet about it.
 
 ## Architecture
 
-### The never-fired hook: `dnd5e.rollDeathSaveV2` (coverage gap, not a dead handler)
-
-**What:** the D11 hook-coverage report has printed this line on every battery since the stat
-plane shipped, and its own instruction is *"do not let a line sit here unexplained across two
-releases."* This is the explanation, so the next session does not re-investigate it from scratch.
-
-**Verdict: a genuine coverage gap.** Both halves were checked on 2026-09-01. The hook NAME is
-real — it is in `tools/dnd5e-hooks.json`, the system’s own reference — so this is **not** the
-`rollToolV2` class of bug, where v1.23.0 registered a hook that never existed and nothing noticed
-for a release. And the registration is live: `stats.js` lists it among `D20_TEST_HOOKS`, which is
-what stamps `rollCtx` on every d20 test message.
-
-**Why it never fires:** nothing in the battery drives a PC to 0 HP and rolls death saves. No
-suite has a reason to — death saves are not a machine this module resolves; the stat plane only
-STAMPS them for later reporting.
-
-**Cost of leaving it:** low, and knowable. If the stamp were broken, the loss would be death-save
-rows missing their context in party-stats reporting — not a table-facing failure. The fix, when
-someone wants it, is a fixture that drops a PC to 0 and rolls three death saves; the assertion is
-simply that the message carries `rollCtx`.
-
-**Do not “fix” it by removing the registration.** The hook is correct and cheap; only its
-exercise is missing.
-
 ### The two sideways edges (was four; was debt row D9)
 
 **What:** the tree is layered and the rule is *depend downward only*. Seven places had one

@@ -16,6 +16,7 @@ import { announcePlan, connectSuite, loadEnv, sectionPlan } from './harness.mjs'
 const SECTIONS = {
   3: 'the hit chain',
   '3b': 'the data-plane stamp — combat + source on the receipt, in and out of combat',
+  '3c': 'the data-plane stamp on a DEATH SAVE — a PC at 0 HP rolls one; rollCtx rides its message',
   4: 'revert via a real DOM click',
   '4b': 'the immunity receipt (rolled N, took 0, WHY)',
   '4c': 'revert a KILL — the flake, made deterministic',
@@ -451,6 +452,80 @@ if (want('3b')) {
       gone.ok && gone.content.includes('Ends on Battle Flow Test Range')
         && gone.content.includes(`round ${gone.closed}`),
       gone.ok ? 'end line present with round count' : (gone.why ?? ''));
+  }
+}
+
+// ------------------------- 3c. the data-plane stamp on a DEATH SAVE — the never-fired hook
+// `dnd5e.rollDeathSaveV2` sat in the D11 coverage report's NEVER FIRED list on every battery
+// since the stat plane shipped (BACKLOG, 2026-09-01: a coverage gap, not a dead handler —
+// nothing drove a PC to 0 HP). This is the exercise. The stamp is the same `rollCtx` §3b reads
+// off an attack; only the roll differs: a character-type actor, its HP at 0, dnd5e's own
+// `rollDeathSave` (the death-save subject has no hit dice to spend and no target, and the hook
+// fires under the V2 name — the header lesson of stats.js). A goblin cannot roll one, so the
+// subject is the PC fixture fixture-suite places, and the section says so if it is missing.
+// Out of combat is enough for the stamp's shape (§3b proved the in-combat half on the same
+// stamp); the assertion is the one BACKLOG named — the message carries `rollCtx`.
+if (want('3c')) {
+  const r = await f.evaluate(async () => {
+    const MOD = 'fvtt-mod-battleflow';
+    try {
+      const pc = game.actors.getName('BF Test PC Attacker');
+      if (!pc) return { ok: false, why: 'BF Test PC Attacker is not in the world — run tools/fixture-suite.mjs' };
+      if (!pc.system.attributes?.death) return { ok: false, why: `${pc.name} (${pc.type}) has no death block` };
+      const prior = {
+        hp: pc.system.attributes.hp.value, temp: pc.system.attributes.hp.temp ?? 0,
+        success: pc.system.attributes.death.success, failure: pc.system.attributes.death.failure,
+      };
+      let messageId = null;
+      try {
+        await pc.update({
+          'system.attributes.hp.value': 0, 'system.attributes.hp.temp': 0,
+          'system.attributes.death.success': 0, 'system.attributes.death.failure': 0,
+        });
+        // `legacy: false` — the 5.x path (the same call the sheet's button makes); the dialog
+        // skipped and the roll kept to this client, like every other roll a suite drives.
+        const rolls = await pc.rollDeathSave({ legacy: false }, { configure: false }, { rollMode: 'selfroll' });
+        if (!rolls?.length) return { ok: false, why: 'rollDeathSave produced no rolls (was HP really 0?)' };
+        const message = rolls[0].parent;
+        messageId = message?.id ?? null;
+        if (!(message instanceof ChatMessage)) return { ok: false, why: 'the death save has no message to stamp' };
+        // The stamp is an async setFlag on the rolling client; wait for it the way §3b waits
+        // for the damage message rather than reading the flag on the same tick.
+        let ctx = null;
+        for (let i = 0; i < 20 && !ctx; i++) {
+          await new Promise(r => setTimeout(r, 250));
+          ctx = game.messages.get(messageId)?.getFlag(MOD, 'rollCtx') ?? null;
+        }
+        return {
+          ok: true, rollCtx: ctx, total: rolls[0].total,
+          rollType: message.getFlag('dnd5e', 'roll.type') ?? null,
+          expectedSource: pc.uuid,
+          inCombat: !!game.combat?.started,
+          after: { hp: pc.system.attributes.hp.value, success: pc.system.attributes.death.success,
+            failure: pc.system.attributes.death.failure },
+        };
+      } finally {
+        // The fixture is shared with §5c and the walk: HP and the death counters back to
+        // what they were (a natural 20 would have set HP 1 and cleared both; a 1 counts two
+        // failures), and the roll's own card off the log with the rest of the residue.
+        await pc.update({
+          'system.attributes.hp.value': prior.hp, 'system.attributes.hp.temp': prior.temp,
+          'system.attributes.death.success': prior.success, 'system.attributes.death.failure': prior.failure,
+        });
+        if (messageId) await game.messages.get(messageId)?.delete();
+      }
+    } catch (err) {
+      return { ok: false, why: `${err.message}
+${err.stack}` };
+    }
+  }, null);
+  if (!r.ok) report('3c death save', false, r.why);
+  else {
+    report('3c a PC at 0 HP rolled a death save through dnd5e’s own path (roll.type death)',
+      r.rollType === 'death', `d20 total ${r.total}; after: ${JSON.stringify(r.after)}`);
+    report('3c rollCtx rides the death-save message — combat null out of combat, source = the PC',
+      !!r.rollCtx && r.rollCtx.combat === null && r.rollCtx.sourceUuid === r.expectedSource,
+      `${JSON.stringify(r.rollCtx)} expected source ${r.expectedSource}${r.inCombat ? ' ⚠ a combat was running' : ''}`);
   }
 }
 
