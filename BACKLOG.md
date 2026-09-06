@@ -60,7 +60,7 @@ one and the build refuses until its row is deleted.** This list cannot go stale 
 register did.
 
 ⚠ **Separately and permanently closed, not backlog:** the two surviving import cycles
-(`hold.js ↔ auto-damage.js`, `auto-apply.js ↔ mastery.js`). The first is **load-bearing** — the
+(`hold/index.js ↔ auto-damage.js`, `auto-apply.js ↔ mastery.js`). The first is **load-bearing** — the
 bare import pins module evaluation order and the hook-order check depends on it. **Breaking them
 would make the tree worse.** See *SETTLED*.
 

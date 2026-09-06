@@ -54,10 +54,21 @@ const LAYER_OF = {
   "battleflow.js": "entry",
 
   // MACHINES — one feature each: a trigger, its views, its resolver
-  "hold.js": "machines",
+  // hold/ — the reaction hold, ONE machine as a DIRECTORY (2026-09-05, the second customer of
+  // the rule saves/ built the same day): nine parts by moment, a DAG (no cycle), index.js the
+  // only face and the one re-export (stampHoldIfInterrupted, auto-damage's).
+  "hold/index.js": "machines",
+  "hold/lookup.js": "machines",
+  "hold/clock.js": "machines",
+  "hold/trigger.js": "machines",
+  "hold/spell-hold.js": "machines",
+  "hold/answer.js": "machines",
+  "hold/continue.js": "machines",
+  "hold/spell-damage.js": "machines",
+  "hold/views.js": "machines",
   // saves/ — ONE machine as a DIRECTORY (the machine-tier pass, Stage 4c, 2026-09-05 — ruling
   // 3): its parts import each other freely, index.js is its only public face, and GROUPS below
-  // is what says so. hold.js is the ready second customer the day it grows.
+  // is what says so. hold/ took the same rule later the same day.
   "saves/index.js": "machines",
   "saves/demand.js": "machines",
   "saves/areas.js": "machines",
@@ -139,7 +150,8 @@ const LAYER_OF = {
  * ------------------------------------------------------------------------------------------- */
 
 const GROUPS = {
-  saves: { face: "saves/index.js" }
+  saves: { face: "saves/index.js" },
+  hold: { face: "hold/index.js" }
 };
 /** The group a scripts-relative path belongs to, or null (decide/ is a layer, not a group). */
 const groupOf = rel => (rel.includes("/") && GROUPS[rel.split("/")[0]]) ? rel.split("/")[0] : null;
@@ -157,9 +169,9 @@ const groupOf = rel => (rel.includes("/") && GROUPS[rel.split("/")[0]]) ? rel.sp
 
 const ALLOW = [
   {
-    from: "auto-damage.js", to: "hold.js", disposition: "PERMANENT",
+    from: "auto-damage.js", to: "hold/index.js", disposition: "PERMANENT",
     why: "hold's own feature API (stampHoldIfInterrupted) on the deliberate order-pinning edge; "
-      + "the paired bare `import \"./auto-damage.js\"` in hold.js is what fixes evaluation order "
+      + "the paired bare `import \"../auto-damage.js\"` in hold/index.js is what fixes evaluation order "
       + "(§7, D6) — breaking it drops the damage-offer bar below the hold row"
   },
   {

@@ -4,7 +4,7 @@
 // same-hook registration (Phase 2's saves.js is the expected customer): evaluation order
 // is import-graph order, not the entry list, and relative order between same-hook
 // registrations can be behavioral. The assertions at the bottom are the orderings known
-// to be load-bearing; see the HANDOFF ground truth and the lazy import() in hold.js.
+// to be load-bearing; see the HANDOFF ground truth and the lazy import() in hold/spell-damage.js.
 //
 //   node tools/check-hook-order.mjs              the named CHECKS, and the snapshot diff
 //   node tools/check-hook-order.mjs --snapshot   refresh tools/hook-order.snapshot on purpose
@@ -40,12 +40,12 @@ const before = (hook, a, b) => {
   return ia >= 0 && ib >= 0 && ia < ib;
 };
 const CHECKS = [
-  ["dnd5e.preApplyDamage", "hold.js", "concentration.js",
+  ["dnd5e.preApplyDamage", "hold/spell-damage.js", "concentration.js",
     "the hold's veto before concentration's cause capture (Hooks.call stops at the first false)"],
-  ["dnd5e.renderChatMessage", "hold.js", "mastery.js",
-    "hold rows render above mastery rows on a shared attack card (D6 moved the hold's row out of ui.js into hold.js; this assertion moved with it)"],
-  ["dnd5e.renderChatMessage", "ui.js", "hold.js",
-    "the damage-offer bar renders above the hold row — they shared one registration in ui.js until D6, and the order is now held by hold.js importing ui.js (so ui.js's body, and its registration, evaluate first)"],
+  ["dnd5e.renderChatMessage", "hold/views.js", "mastery.js",
+    "hold rows render above mastery rows on a shared attack card (D6 moved the hold's row out of ui.js into hold.js, and the directory cut put it in hold/views.js; this assertion moved with it twice)"],
+  ["dnd5e.renderChatMessage", "ui.js", "hold/views.js",
+    "the damage-offer bar renders above the hold row — they shared one registration in ui.js until D6, and the order is now held by hold/index.js importing ui.js bare, ahead of its parts (so ui.js's body, and its registration, evaluate first)"],
   ["dnd5e.renderChatMessage", "mastery.js", "receipts.js",
     "mastery rows render above receipt rows on a shared attack card"],
   ["dnd5e.renderChatMessage", "saves/views.js", "receipts.js",

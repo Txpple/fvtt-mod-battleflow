@@ -195,7 +195,7 @@ function takeSuiteLock(tag) {
  * name granularity, with the per-file rollup derived from the static registration list.
  *
  * ⚠ ONE HONEST CAVEAT, and `hook-coverage.mjs` prints it: `Hooks.call` (as opposed to `callAll`)
- * STOPS AT THE FIRST HANDLER THAT RETURNS FALSE. `dnd5e.preApplyDamage` is one — hold.js's veto
+ * STOPS AT THE FIRST HANDLER THAT RETURNS FALSE. `dnd5e.preApplyDamage` is one — the hold's veto (hold/spell-damage.js)
  * can legitimately stop it before concentration.js's handler. So "the name fired" implies every
  * listener ran for `callAll`, and only "at least the first" for `call`.
  * ─────────────────────────────────────────────────────────────────────────────────────────── */

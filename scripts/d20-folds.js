@@ -876,7 +876,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
        * lines and the shared bar.
        *
        * ⚠ AND ONE INPUT SURFACE, which is the half that is architecture rather than taste
-       * (hold.js's own note): the POPUP decides and the card only offers a way to call it
+       * (hold/views.js's own note): the POPUP decides and the card only offers a way to call it
        * BACK. v1 put a full set of answer buttons on the card AND in the popup — two surfaces
        * for one decision, which is exactly what the hold family stopped doing in 2026-08-16.
        */

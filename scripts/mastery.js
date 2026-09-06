@@ -589,7 +589,7 @@ function liveCleaveArm(actor) {
  * popup's question (finding ③: the popup must say the Cleave before the dice do). Read-only;
  * the strip below stays the only consumer. Reached from auto-damage.js by LAZY import — the
  * entry evaluates that file before this one, and a static edge would drag concentration.js
- * ahead of hold.js (the §9 order the entry warns about). */
+ * ahead of the hold's parts (the §9 order the entry warns about). */
 function cleaveArmedFor(item) {
   if ( item?.type !== "weapon" ) return null;
   const arm = liveCleaveArm(item.actor);

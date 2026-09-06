@@ -228,7 +228,7 @@ const rows = KIND_SETS.map(set => {
 // its dice at the use, and a listed row demands the save its text ties to the damage — Heat Metal).
 // 2026-09-05: 44 → 45, for scripts/superiority-uses.js (a MACHINE: the Battle Master's Bonus Action
 // maneuvers — Evasive Footwork, Bait and Switch, Lunging Attack, Feinting Attack).
-const EXPECTED_SOURCE_FILES = 61;   // 2026-09-05: lookup.js, decide/demand.js (the machine-tier pass, Stages 1–2); maneuvers.js → five fold files (Stage 4a); topple.js, chip-spend.js (Stage 4b); saves.js → saves/ (eight parts, Stage 4c)
+const EXPECTED_SOURCE_FILES = 69;   // 2026-09-05 (later): hold.js → hold/ (nine parts, the directory rule's second customer). Earlier the same day: lookup.js, decide/demand.js (the machine-tier pass, Stages 1–2); maneuvers.js → five fold files (Stage 4a); topple.js, chip-spend.js (Stage 4b); saves.js → saves/ (eight parts, Stage 4c)
 // Every module under scripts/, recursively — decide/ and, since Stage 4c (2026-09-05), a machine
 // directory (saves/) count file by file; the pin above moves with every one.
 const walk = (dir, prefix = "") => readdirSync(join(ROOT, dir), { withFileTypes: true }).flatMap(d =>

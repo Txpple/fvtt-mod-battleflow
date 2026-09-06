@@ -14,7 +14,7 @@
  *     application and ONE concentration check per target. The roll is aimed by setting the
  *     canvas target around `rollDamage` (the maneuvers drive idiom), so the roll message's
  *     own snapshot names exactly that target — and polish.js's existing `spellDamage` birth
- *     stamp + hold.js's applier do the application, the hold blocklist (Magic Missile:Shield)
+ *     stamp + hold/spell-damage.js's applier do the application, the hold blocklist (Magic Missile:Shield)
  *     defers it, and concentration rides the application. Nothing downstream is new.
  *   - ATTACK kind (Scorching Ray): each ray is its OWN attack, resolved independently — the
  *     fold drives one real `rollAttack` per ray at that ray's chosen target through the
@@ -427,7 +427,7 @@ async function aimed(uuid, fn) {
 /**
  * DARTS: one aggregated damage roll per target that takes any. The roll message's own
  * target snapshot (stamped from the canvas aim) is what polish.js's spellDamage claim and
- * hold.js's applier key on — per-target application, hold deferral and the per-target
+ * hold/spell-damage.js's applier key on — per-target application, hold deferral and the per-target
  * concentration check are all the EXISTING machinery. `volleyDarts` is read by the
  * preRollDamageV2 multiplier below; per-dart damage never scales with the slot (the count
  * does — measured: MM's part carries no scaling mode).
@@ -442,7 +442,7 @@ async function driveDarts(message, activity, v) {
         [`flags.${MODULE_ID}.volleyTarget`]: a.uuid,
         [`flags.${MODULE_ID}.volleyDarts`]: a.count
       } });
-      // The caster's own claim release (hold.js's releaseUnheldSpellDamage cannot see these
+      // The caster's own claim release (hold/spell-hold.js's releaseUnheldSpellDamage cannot see these
       // rolls — it polls at USE time and the volley rolls arrive a popup later): a
       // blocklisted spell's roll is born spellHoldPending, and when the usage card carries
       // NO hold — nobody eligible, everyone spent — the claim must fold or the applier

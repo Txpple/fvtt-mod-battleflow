@@ -78,7 +78,7 @@
  * The entry (ARCHITECTURE.md §7): the only esmodules entry, importing every sibling in the original
  * section order. Plain ES imports — no build step, no manifest change. Evaluation order is
  * import-graph order, not this list; the one registration-order constraint that matters (the
- * hold's preApplyDamage veto before concentration's cause capture) is held by hold.js reaching
+ * hold's preApplyDamage veto before concentration's cause capture) is held by hold/spell-damage.js reaching
  * auto-apply.js through a lazy import — see the comment at that call site before making it
  * static.
  * ------------------------------------------------------------------------------------------- */
@@ -88,7 +88,7 @@ import "./settings.js";
 import "./shared.js";
 import "./polish.js";
 import "./auto-damage.js";
-import "./hold.js";
+import "./hold/index.js";
 import "./ui.js";
 import "./hit-riders.js";
 import "./auto-apply.js";

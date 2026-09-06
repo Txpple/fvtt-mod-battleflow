@@ -9,7 +9,7 @@ import { TONE, esc } from "./decide/present.js";
 import { CONDITION_BENDS } from "./decide/registry.js";
 import { autoCritSources } from "./decide/reminders.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
-import { stampHoldIfInterrupted } from "./hold.js";
+import { stampHoldIfInterrupted } from "./hold/index.js";
 
 /** (hh): the "Against …" line names each target with its token icon (law 8 tooltip) —
  * the roll popup was the one volley surface still naming targets in text alone. Pure
@@ -292,10 +292,10 @@ const CRIT_BADGE = `<span style="display:inline-block;padding:0.05rem 0.45rem;bo
  * a twin. The key is keyed to the CARD's id, so an attack chain and a save chain cannot collide.
  */
 async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, buttonIcon, extraHTML = "", wire = null, ...card }) {
-  // ⚠ Lazily bound, the same discipline hold.js and saves.js keep (v1.6.1's ESM order trap).
+  // ⚠ Lazily bound, the same discipline hold/ and saves/ keep (v1.6.1's ESM order trap).
   // A STATIC import of ui.js here evaluates it during THIS file's own import — the entry reaches
-  // auto-damage.js through polish.js -> hold.js, at which point hold has not yet reached its own
-  // ui import — which runs ui.js's body, and its renderChatMessage/deleteChatMessage
+  // auto-damage.js before hold/index.js, whose own bare ui.js import has not yet run at that
+  // point — which runs ui.js's body, and its renderChatMessage/deleteChatMessage
   // registrations, ahead of this file's. Measured with check-hook-order: the static form moves
   // them, the dynamic form leaves the whole evaluation order byte-identical. Keep this dynamic.
   const { popupKey, bfCard, momentBarHTML } = await import("./decide/present.js");

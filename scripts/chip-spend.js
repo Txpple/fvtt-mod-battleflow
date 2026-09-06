@@ -145,7 +145,8 @@ async function spendChips(message, ctx) {
  * that deletes here, so no election is needed); dnd5e files the chip under Unavailable Effects
  * and the token icon is already gone. The document is all that lingers, and it lingered on
  * every sheet until 2026-09-01. A deleted combat ends every window at once: no turn will ever
- * come round, so the chips it clocked go with it — hold.js clears `reactionSpent` the same way.
+ * come round, so the chips it clocked go with it — the hold's `reactionSpent` chip among them
+ * (hold/trigger.js writes it; since 2026-09-02 nothing clears it by hand).
  * ------------------------------------------------------------------------------------------- */
 /** Expired chips awaiting the tidy, per parent — flushed on a microtask (see below). */
 const expiryTidy = new Map();

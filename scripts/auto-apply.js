@@ -33,7 +33,7 @@ function payoutSubject(message) {
 // anything of this module is on it. (gg) roll-now-apply-later: an attack held by a Shield-class
 // reaction rolls its damage anyway (auto-damage.js stamps the roll `attackHoldPending`), and the
 // application waits for the hold's resolution to release the claim — the darts' spellHoldPending
-// pattern, on the attack chain. The release write (pending → false, hold.js) is the bus event;
+// pattern, on the attack chain. The release write (pending → false, hold/continue.js) is the bus event;
 // render is the reload resume — only an ex-claimed, unreceipted roll resumes. The re-entry guard
 // (the release write and a render can land in one tick, and over-applying damage is the worst
 // failure this module has) is the spine's `attackDamage|<id>` latch now.

@@ -37,7 +37,7 @@ const LEDGER_DIR = join(REPO, "dist", "hook-ledger");
 // ⚠ `Hooks.call` STOPS AT THE FIRST HANDLER RETURNING FALSE; `Hooks.callAll` never does. For a
 // name dispatched by `call`, "it fired" means at least the first listener ran — not all of them.
 // This module registers on exactly one such seam, and the report says so rather than implying a
-// coverage it cannot prove. (§9: `preApplyDamage` is the veto seam, and hold.js's veto stopping
+// coverage it cannot prove. (§9: `preApplyDamage` is the veto seam, and the hold's veto stopping
 // concentration.js's handler is CORRECT behaviour, not a gap.)
 const SHORT_CIRCUITING = new Set(["dnd5e.preApplyDamage"]);
 

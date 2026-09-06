@@ -126,7 +126,7 @@ const judged = new Set();
  * because the second hit of the previous turn was re-judged after the turn ended and wrote the
  * chit afresh. The re-reader was `dnd5e.renderChatMessage`, which dnd5e fires on every card
  * whenever the log re-renders — and at a reload, for EVERY card, against a table that has moved
- * on. So the three triggers take the appliers' own gates (auto-apply.js, hold.js): creation
+ * on. So the three triggers take the appliers' own gates (auto-apply.js, hold/spell-damage.js): creation
  * judges an unheld roll once; an update or a render judges only a roll that WAS held and has
  * been released (`attackHoldPending === false`), once, and a released roll's judgement is
  * stamped on the card (`damageShields.judged`) so a reload does not judge it again.

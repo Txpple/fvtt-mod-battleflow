@@ -1197,7 +1197,7 @@ export const CONDITION_STATUSES = new Set(CONDITION_KEYS);
  * because the system has no concept of an "interrupt kind" or a "fold kind" at all.
  */
 export const KIND_SETS = [
-  { name: "interrupt", owner: "hold.js", kinds: INTERRUPT_KINDS, system: null,
+  { name: "interrupt", owner: "hold/", kinds: INTERRUPT_KINDS, system: null,
     note: "what a held reaction changes about an attack already rolled" },
   { name: "maneuverFold", owner: "precision.js · riposte.js · hew.js · bash-offer.js · command.js", kinds: MANEUVER_KINDS, system: null,
     note: "how a listed feat folds into a resolved attack — D8 says this set is the one under pressure; "

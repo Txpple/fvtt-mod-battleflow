@@ -8,7 +8,8 @@
  * own row/popup views", and those views needed `reactionItem`/`answerHold`/`continueHold` from
  * hold.js — the ui.js ↔ hold.js cycle (§10 D6), and the one place the spine depended on a
  * FEATURE. D6 (2026-08-23) moved all 349 lines of them into hold.js, where the flag they are a
- * view of already lives. The dependency now runs one way, hold.js → ui.js, and the §7 rule
+ * view of already lives. The dependency now runs one way, hold/ → ui.js (the hold is a directory
+ * of parts since 2026-09-05; every part imports the spine, none is imported by it), and the §7 rule
  * "depend downward only" holds here without an exception.
  *
  * The MARKUP the spine draws — the house card, the bar, the rule line, the staircase
@@ -516,14 +517,15 @@ export async function dramaticVerdictPause(rollMessage) {
 
 // ⚠ dnd5e.renderChatMessage hooks append rows to a card, and their on-card ORDER is their
 // registration order — which is now ACROSS files, not down this one: this bar, then the hold
-// row (hold.js), then the mastery row + Topple affordance, then the receipt rows.
+// row (hold/views.js), then the mastery row + Topple affordance, then the receipt rows.
 //
 // ⚠ D6 (2026-08-23) made that ordering explicit rather than incidental. The bar used to share
 // the hold's registration in this file, which is why it rendered above the hold row for free.
-// It keeps that position for a structural reason now: hold.js imports THIS file, so this body
-// evaluates first and this registration lands first. Both halves of that are asserted in
-// check-hook-order.mjs (`ui.js` before `hold.js`). ⚠ If ui.js ever stops being imported by
-// hold.js, this bar moves BELOW the hold row and nothing but that assertion will say so.
+// It keeps that position for a structural reason now: hold/index.js imports THIS file (bare, for
+// exactly this) before any of its parts, so this body evaluates first and this registration lands
+// first. Both halves of that are asserted in check-hook-order.mjs (`ui.js` before `hold/views.js`).
+// ⚠ If the hold's index ever stops importing ui.js ahead of its parts, this bar moves BELOW the
+// hold row and nothing but that assertion will say so.
 //
 // The bar is a view of `damageOffer`, which this file does not own — a layering smell left
 // deliberately unaddressed by D6, whose scope was the cycle. Its natural home is whichever
@@ -940,7 +942,7 @@ Hooks.on("deleteChatMessage", message => {
   for ( const key of [...rescueContent.keys()] ) {
     if ( key.startsWith(prefix) ) rescueContent.delete(key);
   }
-  // ⚠ The hold's buzzer used to be disarmed HERE. D6 moved the clock into hold.js, which now
+  // ⚠ The hold's buzzer used to be disarmed HERE. D6 moved the clock into the hold (hold/clock.js), which now
   // registers its own one-line sweep — the same shape every other timer-owning machine already
   // uses (concentration, maneuvers, mastery, saves, volleys). This sweep stays generic: it
   // clears popups, latches and acks for EVERY machine off one `${messageId}|` prefix, which is
@@ -954,7 +956,7 @@ Hooks.on("deleteChatMessage", message => {
 // reached the feature by STRING rather than by import, it survived D6's cycle break untouched
 // and made no edge for check-imports to see: the layering smell D6 recorded and deferred.
 //
-// It is hold.js's own `closeAnsweredHoldPopups` now, built on `livePopups` — the same shape
+// It is the hold's own `closeAnsweredHoldPopups` now (hold/continue.js), built on `livePopups` — the same shape
 // every other machine already used for presentation law 4 (mastery, maneuvers, saves and
 // concentration each close their own popups this way). ⚠ Do not re-add a feature's flag name to
 // this file. The spine holds the PRIMITIVES; knowing what "answered" means is the machine's.

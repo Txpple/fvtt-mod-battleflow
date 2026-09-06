@@ -51,9 +51,9 @@ Hooks.on("createChatMessage", async message => {
       if ( !(actor instanceof Actor) ) continue;
       if ( (actor.system.attributes?.hp?.value ?? 0) <= 0 ) continue;  // the dead don't riposte
       if ( actor.uuid === attacker.uuid ) continue;
-      // ⚠ NOT a budget test — this flag is the CLICK-VOLUME GUARD (hold.js), and the module
+      // ⚠ NOT a budget test — this flag is the CLICK-VOLUME GUARD (the hold's chip, hold/trigger.js), and the module
       // does not track action economy at all: that is the table's job, by user ruling. Every
-      // read of it, here and in hold.js/saves.js, only declines to OFFER; nothing anywhere
+      // read of it, here and in hold/ and saves/, only declines to OFFER; nothing anywhere
       // refuses a cast or blocks an action. Read as "don't nag this actor again this turn."
       // The old wording here said "one reaction per round" and led a careful reviewer to
       // diagnose a rules violation the module cannot commit.
@@ -118,7 +118,7 @@ async function fireRiposteTimer(messageId) {
 /** One reactor's answer — claim through the flag lock; "riposte" executes on this client.
  * ⚠ A PLAYER reactor cannot update the enemy's attack message (ChatMessage update is
  * author-or-GM), so their answer travels as their OWN message and the elect folds it in —
- * hold.js answerHold's §4.1 split, applied here. The driven attack still runs on the
+ * hold/answer.js's answerHold §4.1 split, applied here. The driven attack still runs on the
  * answering client (their dice, their pool); the fold and the drive are independent, and
  * the elect's 20s crash-resume covers a client that died between the two. */
 async function answerRiposte(message, uuid, answer, { weaponId = null, weaponName = null } = {}) {

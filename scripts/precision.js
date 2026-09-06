@@ -48,9 +48,9 @@ import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
  *   its damage roll as an extra part (the hit-riders idiom, never a mutation).
  *
  * ⚠ THE FLAG NEVER TOUCHES `hold` — three measured hazards (2026-08-20 exploration): the
- * one-message-one-hold slot (hold.js:301), hitTargets treating ANY hold verdict as
- * authoritative truthiness, and hold.js being the tree's most fragile file. Own keys, own
- * popup namespaces, own timers. hold.js is imported for two exports and edited not at all.
+ * one-message-one-hold slot (the stamp in hold/trigger.js), hitTargets treating ANY hold verdict
+ * as authoritative truthiness, and the hold being the tree's most fragile machine. Own keys, own
+ * popup namespaces, own timers. Nothing of hold/ is imported here, and nothing of it was edited.
  *
  * ⚠ RIPOSTE MUST NEVER RE-ENTER THE INTERRUPT LIST: the name alone re-arms three unrelated
  * behaviours there (the cast-is-the-answer matcher, reactionSpent's setter, the cast slice's

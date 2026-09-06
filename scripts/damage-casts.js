@@ -26,7 +26,7 @@ import { offerSaveDamageRoll, rollDamageForSave } from "./auto-damage.js";
  *      activity aimed at targets is the module's to roll the moment it is used, on the casting
  *      client — offered when the caster wants their dice back, rolled straight otherwise, the
  *      native follow-up switched off at the use so it never rolls twice — chained to the usage
- *      card, where polish.js's `spellDamage` stamp and hold.js's no-attack applier already land it
+ *      card, where polish.js's `spellDamage` stamp and hold/spell-damage.js's no-attack applier already land it
  *      on the targets with a receipt. Volley spells stay the volley machine's; a listed hold
  *      (Magic Missile) keeps its pending claim untouched.
  *   2. THE SAVE NEVER FOLLOWED. The text ties it to the damage — "if a creature is holding or

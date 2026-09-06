@@ -489,7 +489,7 @@ back to 5; an empty list "paid" because an unwarded hit's card re-rendered once 
 put on; a once-per-turn chit stood on the NEXT turn because the previous turn's second hit
 re-rendered after the turn ended and wrote the chit afresh. Every section passed alone — the
 residue was the earlier section's CARDS, not its state. The house gate is the appliers' (auto-apply.js,
-hold.js): create judges an unheld roll once; update and render resume only a roll that WAS held
+hold/spell-damage.js): create judges an unheld roll once; update and render resume only a roll that WAS held
 (`attackHoldPending === false`), once, with a stamp on the card so a reload cannot resume it
 twice. `damage-shields.js` `consider` carries the note.
 
