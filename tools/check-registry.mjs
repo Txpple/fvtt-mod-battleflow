@@ -228,11 +228,13 @@ const rows = KIND_SETS.map(set => {
 // its dice at the use, and a listed row demands the save its text ties to the damage — Heat Metal).
 // 2026-09-05: 44 → 45, for scripts/superiority-uses.js (a MACHINE: the Battle Master's Bonus Action
 // maneuvers — Evasive Footwork, Bait and Switch, Lunging Attack, Feinting Attack).
-const EXPECTED_SOURCE_FILES = 54;   // 2026-09-05: lookup.js, decide/demand.js (the machine-tier pass, Stages 1–2); maneuvers.js → five fold files (Stage 4a); topple.js, chip-spend.js (Stage 4b)
-const sourceFiles = [
-  ...readdirSync(join(ROOT, "scripts")).filter(f => f.endsWith(".js")),
-  ...readdirSync(join(ROOT, "scripts/decide")).filter(f => f.endsWith(".js")).map(f => `decide/${f}`)
-];
+const EXPECTED_SOURCE_FILES = 61;   // 2026-09-05: lookup.js, decide/demand.js (the machine-tier pass, Stages 1–2); maneuvers.js → five fold files (Stage 4a); topple.js, chip-spend.js (Stage 4b); saves.js → saves/ (eight parts, Stage 4c)
+// Every module under scripts/, recursively — decide/ and, since Stage 4c (2026-09-05), a machine
+// directory (saves/) count file by file; the pin above moves with every one.
+const walk = (dir, prefix = "") => readdirSync(join(ROOT, dir), { withFileTypes: true }).flatMap(d =>
+  d.isDirectory() ? walk(`${dir}/${d.name}`, `${prefix}${d.name}/`)
+    : (d.name.endsWith(".js") ? [`${prefix}${d.name}`] : []));
+const sourceFiles = walk("scripts");
 if (sourceFiles.length !== EXPECTED_SOURCE_FILES) {
   fail("source-file count", `scripts/ holds ${sourceFiles.length} modules, the pin says `
     + `${EXPECTED_SOURCE_FILES} — if a file was added or removed on purpose, move `

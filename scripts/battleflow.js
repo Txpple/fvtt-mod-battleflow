@@ -141,10 +141,13 @@ import "./cast.js";
 // on the usage card above the saves machinery's rows, and its preRollDamageV2 dart
 // multiplier must not disturb hit-riders' (attack-gated, disjoint) registration order.
 import "./volleys.js";
-// ⚠ saves.js before receipts.js ON PURPOSE: its verdict row must register (and so render)
+// ⚠ saves/ before receipts.js ON PURPOSE: its verdict row must register (and so render)
 // above the receipt rows, and it reaches receipts.js only through a lazy import() so this
 // entry position is what actually decides the order. check-hook-order.mjs asserts it.
-import "./saves.js";
+// ⚠ A DIRECTORY MACHINE (the machine-tier pass, Stage 4c, 2026-09-05 — ruling 3): the entry
+// imports its index and nothing else in there; the index's own import list fixes the order of
+// its parts (§7). The save GATE left for reminders.js in the same move.
+import "./saves/index.js";
 // emanations.js after saves.js: its trigger card carries a `saves` demand the saves machine drives
 // (the chat log is the bus — no import between them); it renders no row on any shared card (2026-09-03).
 import "./emanations.js";

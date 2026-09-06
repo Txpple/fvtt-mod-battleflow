@@ -1,19 +1,19 @@
 /**
- * Battle Flow — The reminder gate: what bends this attack roll, and what it nets to — BEFORE the dice.
+ * Battle Flow — The gate machine: what bends this attack, save or check, and what it nets to — BEFORE the dice.
  * Split from mastery.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, activeCombatFor, statContext, sheetModeEffects, rollLabelFor } from "./core.js";
-import { featureNamed } from "./lookup.js";
+import { featureNamed, resolveUuid } from "./lookup.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./settings.js";
 import { chipSpentOnRecord, grantingActor, turnChitStands } from "./shared.js";
-import { DialogCarried, markDefaultButton } from "./ui.js";
-import { bfCard, reminderFieldsetHTML, sneakBoxHTML } from "./decide/present.js";
+import { DialogCarried, markDefaultButton, pendingDemandsFor } from "./ui.js";
+import { bfCard, reminderFieldsetHTML, ruleLine, sneakBoxHTML, TONE } from "./decide/present.js";
 import { CHIP_FLAG, chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.js";
-import { CHECK_BENDS, CONDITION_BENDS, EFFECT_BENDS, MASTERY_RULES, RANGE_RULES, SNEAK_ATTACK } from "./decide/registry.js";
+import { CHECK_BENDS, CONDITION_BENDS, EFFECT_BENDS, MASTERY_RULES, RANGE_RULES, SAVE_BENDS, SNEAK_ATTACK } from "./decide/registry.js";
 import { parseDice, sneakWeaponQualifies } from "./decide/sneak.js";
 import { feetOf, nearestFeet, tokenOfActor } from "./geometry.js";
-import { REMINDER_FLAG, checkGate, checkSources, conditionSources, effectCheckSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
-  reminderRecord, reminderSource, reminderView, rolledWith } from "./decide/reminders.js";
+import { REMINDER_FLAG, checkGate, checkSources, conditionSources, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
+  reminderRecord, reminderSource, reminderView, rolledWith, saveGate, saveSources } from "./decide/reminders.js";
 
 /* ---------------------------------------------------------------------------------------------
  * THE GATE (HANDOFF Stage 2 + 3, user rulings 2026-09-01: "I don't want a rescue, I want
@@ -157,6 +157,10 @@ Hooks.on("renderRollConfigurationDialog", (app, element) => {
   try {
     const check = app.options?.bfCheckGate;
     if ( check ) drawCheckGate(element, check);
+    // The save gate's section (below) — beside the demand fieldset saves/ask.js draws on the same
+    // dialog; the demand object rides in so the Fails button can record the failure on it.
+    const save = app.options?.bfSaveGate;
+    if ( save ) drawSaveGate(app, element, save, app.options?.bfSaveDemand ?? null);
     if ( !app.options?.bfReminder ) return;
     openGates.add(app);
     drawGate(app);
@@ -532,4 +536,157 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     subtitle: what
   });
   html.querySelector(".message-content")?.appendChild(line);
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * THE SAVE GATE (option E, user ruling 2026-09-02 — DESIGN §5 *The Save Gate*) — the second of the
+ * three tables on the one gate machine, moved here from saves.js in the machine-tier pass, Stage
+ * 4c (2026-09-05): the gate machine owns the attack, the check and the save gate alike. The
+ * judge, the pre-roll hook, the section drawn into the system's own saving-throw dialog (with
+ * the Fails button when the save cannot succeed), the sheet-roll failure card and the record.
+ * The demand's fieldset on the same dialog is the saves machine's own (saves/ask.js); the two
+ * meet only through the dialog's options — no import either way. The saves buzzer reads the
+ * automatic failures off decide/ directly (saves/ask.js autoFailSources) for the same reason.
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * THE SAVE GATE'S JUDGE: the roller's statuses against the save table for this ability, and
+ * the effects on the roller's own sheet that set the platform's mode for it (user, 2026-09-04:
+ * "see the calculus for why there is advantage/dis, just like attacks" — The Duskheart's
+ * `+1` on Wisdom saves opened the dialog at `1d20adv` with no word about who), netted as the
+ * attack gate nets, or `fails` when a source says the save cannot succeed. Null when the
+ * Reminder Sources list carries neither `condition` nor `effect` — the list is the switch, for
+ * saves as for attacks; WHICH conditions is the Condition Sources list, and the mode reader
+ * rides the `effect` kind because that is what it reads. A DialogCarried, so the pre-roll
+ * hook, the rendered dialog and the record all hold one object.
+ * @param {Actor} actor
+ * @param {string} ability
+ */
+function judgeSave(actor, ability) {
+  const on = new Set(reminderEntries().map(e => e.kind));
+  if ( !on.has("condition") && !on.has("effect") ) return null;
+  const sources = [];
+  if ( on.has("condition") ) {
+    sources.push(...saveSources({ statuses: actor.statuses ?? [], ability,
+      enabled: conditionEntries().map(e => e.kind), table: SAVE_BENDS, name: actor.name }));
+  }
+  if ( on.has("effect") ) {
+    const roll = { kind: "save", ability };
+    sources.push(...modeSources({ effects: sheetModeEffects(actor), roll, rollLabel: rollLabelFor(roll), name: actor.name }));
+    // The effect table's `saves` facet (Aura of Purity, Circle of Power — 2026-09-05), read
+    // against the DEMAND this roller is answering; a bare sheet roll has none and is listed.
+    sources.push(...effectSaveSources({ effects: actor.effects.filter(e => !e.disabled).map(e => ({ id: e.id, name: e.name })),
+      enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, demand: pendingDemandFor(actor)?.demand ?? null, name: actor.name }));
+  }
+  return new DialogCarried({ ...saveGate(sources), actorUuid: actor.uuid, ability, failed: false });
+}
+
+/** The demand this actor is mid-answer on, if any — the newest pending card naming it undone. */
+function pendingDemandFor(actor) {
+  return pendingDemandsFor(actor.uuid, { flagKey: "saves" }).at(-1)?.card.getFlag(MODULE_ID, "saves") ?? null;
+}
+
+// THE GATE, on every saving throw that opens a dialog — forced by a demand or rolled from the
+// sheet (option E folds the old option D in: one surface for every save). Templated like the
+// attack hook (dnd5e.preRoll<Name>V2 — pinned in check-hook-dispatch). A judgement with a
+// source forces the dialog open — a shift-clicked save still meets it — and sets the default.
+Hooks.on("dnd5e.preRollSavingThrowV2", (config, dialog, message) => {
+  try {
+    if ( dialog?.configure === false ) return;       // no dialog, no gate
+    const actor = config?.subject;
+    if ( !(actor instanceof Actor) ) return;
+    const gate = judgeSave(actor, config.ability);
+    if ( !gate ) return;
+    dialog.options ??= {};
+    dialog.options.bfSaveGate = gate;
+    config.bfSaveGate = gate;
+    if ( !gate.sources.length ) return;
+    dialog.configure = true;
+    // Fails takes the focus itself below; the dialog's own default stays Normal behind it.
+    dialog.options.defaultButton = gate.autoFail ? "normal" : gate.net;
+  } catch(err) {
+    console.error(`${TITLE} | Save gate failed — rolling natively.`, err);
+  }
+});
+
+/**
+ * The gate's section in the dialog — the attack gate's fieldset, on the save hook — and the
+ * fourth button when the save cannot succeed. Idempotent across the dialog's own re-renders
+ * (only its formulas part is replaced; the section and the button are siblings that persist).
+ */
+function drawSaveGate(app, element, gate, demand) {
+  if ( !gate?.sources?.length ) return;
+  if ( !element.querySelector("[data-bf-reminder]") ) {
+    const host = document.createElement("div");
+    host.innerHTML = reminderFieldsetHTML(gate.view, { open: false });
+    const fieldset = host.firstElementChild;
+    const configuration = element.querySelector('[data-application-part="configuration"]');
+    const buttons = element.querySelector('[data-application-part="buttons"]');
+    if ( configuration ) configuration.insertAdjacentElement("afterend", fieldset);
+    else if ( buttons ) buttons.insertAdjacentElement("beforebegin", fieldset);
+    else element.querySelector("form")?.appendChild(fieldset);
+  }
+  const modeButtonsEl = [...element.querySelectorAll('[data-application-part="buttons"] button[data-action]')];
+  if ( gate.autoFail && !element.querySelector("[data-bf-fails]") ) {
+    const sibling = modeButtonsEl.find(b => b.dataset.action !== "bf-fails");
+    if ( sibling ) {
+      const fails = document.createElement("button");
+      fails.type = "button";
+      fails.className = sibling.className;
+      fails.dataset.action = "bf-fails";
+      fails.setAttribute("data-bf-fails", "");
+      fails.innerHTML = `<i class="fa-solid fa-xmark" inert></i> Fails`;
+      fails.style.cssText = `border-color:${TONE.bad};`;
+      fails.addEventListener("click", () => {
+        try {
+          gate.failed = true;
+          if ( demand ) demand.failed = gate.sources;
+          else postSheetAutoFail(gate);
+        } finally {
+          void app.close();
+        }
+      });
+      sibling.insertAdjacentElement("beforebegin", fails);
+    }
+  }
+  // The highlighted default follows the net — Fails when the save cannot succeed — marked to
+  // stay marked (ui.js markDefaultButton).
+  markDefaultButton(element, gate.autoFail ? "bf-fails" : gate.net);
+}
+
+/** A sheet save that cannot succeed, pressed Fails with no demand to record it on: the card
+ * is the record (R5) — nothing else in the world knows this save was owed. */
+function postSheetAutoFail(gate) {
+  const actor = resolveUuid(gate.actorUuid);
+  if ( !(actor instanceof Actor) ) return;
+  const abilityLabel = CONFIG.DND5E.abilities[gate.ability]?.label ?? gate.ability;
+  const failing = gate.sources.filter(s => s.autoFail);
+  void ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor }),
+    content: bfCard({
+      img: actor.img ?? null, eyebrow: "Saving throw — automatic failure", tone: "bad",
+      title: `${actor.name}: ${abilityLabel} save fails`,
+      subtitle: failing.map(s => s.statusName).join(", "),
+      lines: [...new Set(failing.map(s => s.detail))].map(ruleLine)
+    }),
+    flags: { [MODULE_ID]: { saveAutoFail: { ...statContext(actor.uuid), ability: gate.ability,
+      sources: failing.map(s => ({ status: s.status, label: s.label })) } } }
+  }).catch(err => console.error(`${TITLE} | Automatic-failure card failed.`, err));
+}
+
+// The record: what the gate showed, what it netted to, what was pressed — on the save message,
+// the attack gate's flag and the attack gate's card line (reminders.js reads it for any roll).
+Hooks.on("dnd5e.postRollConfiguration", (rolls, config, dialog, message) => {
+  try {
+    const gate = config?.bfSaveGate;
+    if ( !gate?.sources?.length || !rolls?.length ) return;
+    if ( foundry.utils.getProperty(message, "data.flags.dnd5e.roll.type") !== "save" ) return;
+    const mode = rollModeOf(rolls[0]?.options?.advantageMode);
+    foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${REMINDER_FLAG}`, {
+      ...reminderRecord({ sources: gate.sources, net: gate.net, mode, answeredAt: Date.now() }),
+      ...statContext(gate.actorUuid)
+    });
+  } catch(err) {
+    console.error(`${TITLE} | Save gate record failed.`, err);
+  }
 });

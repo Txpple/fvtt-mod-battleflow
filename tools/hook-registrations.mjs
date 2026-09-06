@@ -27,7 +27,9 @@ export async function loadRegistrations() {
   const reg = []; // { hook, file } in registration order
   const fileFromStack = () => {
     const frame = (new Error().stack ?? "").split("\n").find(l => l.includes("/scripts/"));
-    return frame?.match(/scripts\/([\w.-]+\.js)/)?.[1] ?? "?";
+    // A directory machine's part reads as `saves/views.js` — the slash is in the class since
+    // Stage 4c (2026-09-05); before it every part would have read as "?".
+    return frame?.match(/scripts\/([\w./-]+\.js)/)?.[1] ?? "?";
   };
   globalThis.Hooks = {
     on: hook => { reg.push({ hook, file: fileFromStack() }); },

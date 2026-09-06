@@ -55,7 +55,17 @@ const LAYER_OF = {
 
   // MACHINES — one feature each: a trigger, its views, its resolver
   "hold.js": "machines",
-  "saves.js": "machines",
+  // saves/ — ONE machine as a DIRECTORY (the machine-tier pass, Stage 4c, 2026-09-05 — ruling
+  // 3): its parts import each other freely, index.js is its only public face, and GROUPS below
+  // is what says so. hold.js is the ready second customer the day it grows.
+  "saves/index.js": "machines",
+  "saves/demand.js": "machines",
+  "saves/areas.js": "machines",
+  "saves/ask.js": "machines",
+  "saves/verdict.js": "machines",
+  "saves/consequences.js": "machines",
+  "saves/choices.js": "machines",
+  "saves/views.js": "machines",
   "mastery.js": "machines",
   "topple.js": "machines",        // the Topple demand off mastery's card (Stage 4b, 2026-09-05)
   "chip-spend.js": "machines",    // the chip spend and the two tidies (Stage 4b, 2026-09-05)
@@ -121,6 +131,20 @@ const LAYER_OF = {
 };
 
 /* ---------------------------------------------------------------------------------------------
+ * THE GROUPS — a machine that is a DIRECTORY (§7, 2026-09-05). The directory is the unit the
+ * dependency rule tests: an edge INSIDE a group is legal (the parts are one machine, and their
+ * cycles are hoisted-function-at-hook-time safe like every other cycle in the tree); an edge from
+ * OUTSIDE the group to any part but its face fails with "import the index". The face itself is
+ * then judged by the ordinary depth rule. Declared by directory name; a part's group is its folder.
+ * ------------------------------------------------------------------------------------------- */
+
+const GROUPS = {
+  saves: { face: "saves/index.js" }
+};
+/** The group a scripts-relative path belongs to, or null (decide/ is a layer, not a group). */
+const groupOf = rel => (rel.includes("/") && GROUPS[rel.split("/")[0]]) ? rel.split("/")[0] : null;
+
+/* ---------------------------------------------------------------------------------------------
  * THE ALLOWLIST — every edge that is not strictly downward, and why it is allowed to exist.
  *
  * ⚠ A row here is a DECISION, not an exemption. Three dispositions appear, and they are
@@ -173,11 +197,11 @@ const ALLOW = [
   // saves.js — and maneuvers.js itself is five files. D9(c)'s import half is repaid; the
   // save-choice registry it also named stays feature-shaped work for the third choice kind.
   {
-    from: "saves.js", to: "receipts.js", disposition: "OPEN (D9)",
+    from: "saves/verdict.js", to: "receipts.js", disposition: "OPEN (D9)",
     why: "revertTarget, lazy on purpose — a static import would evaluate receipts.js first and "
-      + "register its render row above the verdict row (the ESM order trap, saves.js:1206). "
-      + "receipts.js is classed a machine because revertTarget has exactly one importer; a "
-      + "second one makes it a service"
+      + "register its render row above the verdict row (the ESM order trap; the legendary-"
+      + "resistance unwind). receipts.js is classed a machine because revertTarget has exactly "
+      + "one importer; a second one makes it a service"
   },
   // ⚠ TWO ROWS WENT ON 2026-09-05 (the machine-tier pass, Stage 3b — ruling 2): `saves ->
   // d20-folds` (offerFoldOnSave) and `d20-folds -> saves` (foldSaveAnswer), the two-way
@@ -266,6 +290,14 @@ for (const e of edges) {
   const fromDepth = DEPTH[LAYER_OF[e.from]];
   const toDepth = DEPTH[LAYER_OF[e.to]];
   if ((fromDepth === undefined) || (toDepth === undefined)) continue;   // reported by (1)
+  // (4a) a directory machine: inside the group every edge is legal; from outside, only the face.
+  const gTo = groupOf(e.to), gFrom = groupOf(e.from);
+  if (gTo && (gFrom === gTo)) continue;
+  if (gTo && (e.to !== GROUPS[gTo].face)) {
+    fail("import the index", `scripts/${e.from} imports "${e.to}" — a PART of the ${gTo}/ machine. `
+      + `Import ${GROUPS[gTo].face} instead: a directory machine's index is its only public face (§7)`);
+    continue;
+  }
   if (toDepth < fromDepth) continue;                                    // downward: always legal
   if (allowed.has(key(e))) { used.add(key(e)); violations.push(e); continue; }
   const direction = (toDepth === fromDepth) ? "SAME-LAYER" : "UPWARD";
