@@ -1,5 +1,5 @@
 /**
- * Battle Flow — Phase 1.5: the reaction hold. Two entry points, one machine - eligibility, both triggers (attack and listed spell), answers, continuation, the veto, the no-attack damage applier's claim. Views live in ui.js.
+ * Battle Flow — Phase 1.5: the reaction hold. Two entry points, one machine - eligibility, both triggers (attack and listed spell), answers, continuation, the veto, the no-attack damage applier's claim, and its own views (the row and the popup — moved in from ui.js by D6, 2026-08-23; ui.js is the spine and knows nothing of this feature).
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, drivesMomentFor,

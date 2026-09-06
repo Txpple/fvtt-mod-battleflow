@@ -15,10 +15,128 @@
 > the module does at the table — **the UI/UX and the shipped behaviour are the asset being
 > protected, not the thing being changed.**
 >
+> ⚠ **A third block is on this page as of 2026-09-05, DRAWN and NOT RULED:** *THE HOLD DIRECTORY*, directly
+> below — the measurement ARCHITECTURE §7's second-customer sentence asks for, waiting on the user's
+> three decisions. Nothing has moved.
+>
 > ✅ **A second pass is on this page as of 2026-09-05, DELIVERED 2026-09-06:** *THE MACHINE-TIER PASS*, directly
 > below. Its five decisions are ruled and **every stage is delivered** (each stage's mark carries
 > its measured cost; *HOW IT WENT* at the block's head carries the batteries). HANDOFF.md is
 > retired; nothing is released — the release and the prod deploy stay on the user's word.
+
+---
+
+## ▶ THE HOLD DIRECTORY — DRAWN 2026-09-05, NOT RULED, NOT STARTED
+
+**Origin:** the user's refactor binge after the machine-tier pass, with the backlog and the debt
+register both empty of owed work. ARCHITECTURE §7 names `hold.js` — one flag, 1,564 lines — as
+the **ready second customer** for the directory-machine rule the saves cut built (ruling 3). This
+block is the measurement that rule asks for before anything moves: the census of the file, the
+parts by MOMENT, the registration order the index must reproduce, and the exact cost. **It is a
+drawing. Nothing has moved. The user rules on it and says go, or parks it.**
+
+**No behaviour changes.** Every step is a move, proven by the Stage 0 snapshot and the family
+suites (`smoke-hold`, `smoke-battleflow` §3–4, `smoke-twoclient`, `smoke-superiority` for Parry,
+`smoke-nogm` for the no-GM cast that answers a hold), and the full battery at the end.
+
+### The census (2026-09-05, HEAD)
+
+Eight registrations, forty-two top-level declarations, one export anybody outside reads.
+
+| Where | Registrations | What |
+| --- | --- | --- |
+| `Hooks.on("dnd5e.postUseActivity")` ×3 | lines 245, 362, 567 | the reaction-spent chip on ANY reaction; the second trigger (a listed spell — Magic Missile's shape); the cast that IS the answer |
+| `updateChatMessage` ×2 | 678, 1015 | the continuation (every held target answered → drive); the spell-damage release (a `spellHoldPending` flip is the bus event) |
+| `dnd5e.preApplyDamage` | 912 | the `negate` veto — pinned before concentration.js's cause capture (`CHECKS`) |
+| `dnd5e.renderChatMessage` | 1202 | the row on the attack card — pinned after ui.js's bar and before mastery.js's row (`CHECKS`) |
+| `deleteChatMessage` | 1562 | the buzzer's own sweep — four lines |
+
+**The outside face is ONE name:** `stampHoldIfInterrupted`, imported by `auto-damage.js` (the
+attack trigger). The other seven exports (`reactionItem`, `answerHold`, `continueHold`,
+`reactionImg`, `armHoldTimer`, `disarmHoldTimer`, `reactionACBonus`) have no importer — the
+files that mention them do so in comments ("the continueHold discipline"). ⚠ That is a finding on
+its own: knip does not flag them, so the directory's `index.js` re-exports exactly one name and
+the rest lose their `export`. The entry's `import "./hold.js"` becomes `import "./hold/index.js"`,
+the bare `import "./auto-damage.js"` (load-bearing, D6 — it pins auto-damage's evaluation) moves
+to the index at the same position in its import list, and the cycle
+`auto-damage.js → hold/index.js → trigger.js → auto-damage.js` is the one hold.js already has,
+safe for the §7 reason (a hoisted `function` declaration, called at hook time — the re-export is a
+live binding to it).
+
+### The parts, by moment (the call graph decides — no part calls a later one)
+
+| Part | Lines (about) | Holds | Registers |
+| --- | --- | --- | --- |
+| `lookup.js` | 300 | the readers: `hasSpellSlot`, `reactionItem`, `usableReaction`, `reductionFor`, `findInterrupt`, `castSpellName`, `reactionNameFor`, `findCastActivity`, `hasReactionEffect`, `applyReactionEffect`, `reactionImg`, `reactionACBonus`, `reactionACArrived` | nothing |
+| `clock.js` | 45 | `armHoldTimer`, `disarmHoldTimer`, `fireHoldTimer` | `deleteChatMessage` (1562) — ⚠ see the order note |
+| `trigger.js` | 120 | the reaction-spent chip; `stampHoldIfInterrupted` (the export), `holdWouldMatter` | `postUseActivity` (245) |
+| `spell-hold.js` | 160 | the second trigger: `stampSpellHold`, `releaseUnheldSpellDamage`, `continueSpellHold` | `postUseActivity` (362) |
+| `answer.js` | 230 | `answerHold`, `answerHoldsFor`, `castReaction`, `parryReaction` | `postUseActivity` (567) |
+| `continue.js` | 230 | `continueHold`, `driveHoldContinuation`, `settleForACChange` | `updateChatMessage` (678) |
+| `spell-damage.js` | 130 | the v1.6.0 no-attack applier: the veto, `applySpellDamage`, `spellDamageSubject`, the `spellDamage` resumable | `preApplyDamage` (912), `updateChatMessage` (1015) |
+| `views.js` | 340 | `closeAnsweredHoldPopups`, `revealDetail`, `revealLine`, the row, `maneuverPopupContent`, `holdPopupContent`, `showHoldPopup` | `renderChatMessage` (1202) |
+| `index.js` | 40 | the face: the header, the bare auto-damage import, the parts in order, `export { stampHoldIfInterrupted }` | nothing |
+
+**Why it is cleaner than the saves cut:** the call graph is a DAG. `views` → `answer` →
+`lookup`; `continue` → `lookup`, `clock`; `spell-hold` → `lookup`, `clock`; `spell-damage` →
+nothing above `core`. No part calls a later one, so **no cycle and no first-listed-evaluates-LAST
+trick** — the index's import list IS the registration order, and a part may import another
+statically. Two parts are shared readers with no hook (`lookup.js`, and nearly `clock.js`), the
+same shape Stage 4a's `lookup.js` took for the maneuvers.
+
+### The order — one line moves, and the choice is the user's
+
+The index lists `trigger → spell-hold → answer → continue → spell-damage → views`, and that
+reproduces today's snapshot lines 21–27 byte-identically (the veto and the release sit in
+`spell-damage.js`, evaluated after `continue.js`, exactly where 912 and 1015 fall today). **The
+one line that cannot stay put is the buzzer's `deleteChatMessage` (28):** `clock.js` is imported
+by `trigger.js`, so it evaluates FIRST and its sweep registers ahead of the file's other seven —
+in the snapshot, hold's `deleteChatMessage` moves from line 28 to line 21. Two ways, both honest:
+
+- **(a) Let it move and say why** — the precedent is Stage 4a, where shared plumbing became
+  eleven feature registrations and the snapshot was refreshed with the reason in the commit.
+  The proof that it is order-neutral: the eleven `deleteChatMessage` handlers each sweep their
+  own key (ui.js the spine's `${id}|` prefix, mastery/topple/the folds their chips and latches,
+  hold its timer) and none reads another's; the relative order among them is not in `CHECKS`
+  and never was. **Recommended** — the sweep stays beside the clock it serves.
+- **(b) Keep the snapshot byte-identical** by registering the four-line sweep in `views.js`,
+  the last part evaluated. Costs a misfiled sweep with a comment explaining the misfile. The
+  saves cut chose byte-identical; that cut had cycles to prove, this one does not.
+
+### What it costs, exactly
+
+- `check-layers.mjs`: nine `hold/*.js` rows in `LAYER_OF` with `group: "hold"`; the GROUPS
+  rule already exists (Stage 4c) — no new mechanism.
+- `check-registry.mjs`: `EXPECTED_SOURCE_FILES` 61 → 69.
+- `check-hook-order.mjs`: the three `CHECKS` rows naming `hold.js` re-point at the part that
+  registers the hook (`hold/spell-damage.js` for the veto, `hold/views.js` for the row, twice);
+  the snapshot refreshed under (a) with the one-line reason, or byte-identical under (b).
+- ARCHITECTURE §7: the tier table lists `hold/` as one machine beside `saves/`; §9's entry
+  graph names the index; the second-customer sentence becomes past tense. §10 D6's row: the
+  load-bearing cycle now runs through `hold/index.js` — the sentence, not the ruling, changes.
+- Every doc line that names `hold.js` for CODE — the machine-tier rule: point at the file that
+  holds the code now (ARCHITECTURE's D1/D2/D6 history names it as history, and history stays).
+  `precision.js:53`'s comment and `ui.js:523–525`'s order note name `hold.js` and must name the
+  index.
+- **Estimate: about 1 session** (the saves cut measured about 1 against 2, with cycles; this
+  has none and a single export). The family suites plus one full battery on the sandbox.
+
+### What it does NOT do
+
+- No change to what the hold does, shows, or when. The popup, the row, the buzzer, the veto and
+  the no-attack applier are byte-for-byte the same code in new files.
+- No repayment of D6's `hold ↔ auto-damage` cycle — it is permanent by ruling and the
+  directory keeps it exactly where it is.
+- Not `d20-folds.js` (1,336 lines, the next largest) — nothing has ruled it ready, and the
+  house builds a seam on its second customer, not its third by momentum.
+
+### Decisions — waiting on the user
+
+| # | Question | Options |
+| --- | --- | --- |
+| 1 | Do it at all | go / park (it is not owed; ARCHITECTURE §7 only says *ready*) |
+| 2 | The buzzer's line | (a) let `deleteChatMessage` move and refresh the snapshot with the reason — recommended; (b) byte-identical, the sweep misfiled in `views.js` |
+| 3 | The dead exports | drop the seven `export` keywords with the move (recommended — the face is one name), or keep them and say why knip is quiet |
 
 ---
 
