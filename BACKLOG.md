@@ -88,37 +88,25 @@ register did.
 bare import pins module evaluation order and the hook-order check depends on it. **Breaking them
 would make the tree worse.** See *SETTLED*.
 
-### The damage offer's three lazy edges — ✅ REPAID 2026-09-04 (the hit menu built the seam)
+### Two clock residues — one shape in three places, and one machine off the chit registry
 
-> **Delivered as this item said to:** the hit menu (the sweep's item 2, first slice — the Battle Master's on-hit maneuvers) landed on the damage offer, and the seam was built WITH it: `registerOfferPart` in auto-damage.js, the machines declaring their contributions into the service (ARCHITECTURE §7 *The offer's contributions*). The three PERMANENT pins are gone — `npm run layers` prints 8 pinned pairs, down from 11. The two clock residues below are still notes, still not rows. The original text stays for the argument.
+**What:** "first round" is judged in three EDGE places — [decide/clock.js](scripts/decide/clock.js)
+through `riderDue` for the clock riders, [sneak.js](scripts/sneak.js) for Death Strike, and
+[reminders.js](scripts/reminders.js) for Assassinate — and [bash-offer.js](scripts/bash-offer.js)
+still judges a maneuver's once-per-turn off a flag stamp on the attacker rather than a turn chit
+(`decide/chips.js` `TURN_CHITS`, which every other once-per-turn in the module reads). Neither is
+wrong; both are the walk landing faster than the shape. Found 2026-09-03 beside the damage
+offer's lazy edges, which the hit menu repaid 2026-09-04 (`registerOfferPart`, ARCHITECTURE §7
+*The offer's contributions*); these two were left as notes then and are the only part of that
+item still open.
 
-#### (was) one shape, three times (found 2026-09-03)
+**Why not now:** the house rule (D8) — the seam is built by the feature that proves its shape.
+Three judges of "first round" are a shape; a shared reader written from them alone is still a
+guess about the fourth caller's facts (which combatant, whose turn, which combat).
 
-**What:** `npm run layers` prints **11 pinned pairs**; D9 was written at 8. The three that
-joined during the 2026-09-02 walk are `auto-damage.js → sneak.js`, `auto-damage.js →
-clock-riders.js` (both PERMANENT, lazy) and `volleys.js → reminders.js` (BY DESIGN). Read the
-first two beside the older `auto-damage.js → mastery.js` and they are **one shape, three times**:
-the damage OFFER — a service — reaching into a machine to paint that machine's content on the
-popup (the armed Cleave line, the Cunning Strike menu, the due clock riders). The pin says so in
-its own words: *"the same shape as its lazy edge to mastery.js."*
-
-**Why it is here and not in the register:** nothing is broken and the pins are honest. But the
-house rule (D8; D9's dispositions) is that **the third instance of a shape is what proves a
-seam** — here an offer-contributions list the machines declare into and the service walks,
-`ATTACK_FOLDS`-style — and every future thing that lands on the damage offer adds a fourth pin
-until it exists.
-
-**What would un-park it:** the next content that lands on the damage offer. The abilities
-sweep's one-popup hit menu ([SWEEP.md](SWEEP.md) §0 item 2) is the likely candidate, and the
-seam makes that menu cheaper — **build the seam WITH that feature, not before it** (a seam built
-on today's three callers alone is still a guess about the fourth).
-
-**Two clock residues to pick up on the same pass, notes not rows:** "first round" is judged in
-three EDGE places — [clock-riders.js](scripts/clock-riders.js) through `riderDue`,
-[sneak.js](scripts/sneak.js) for Death Strike, [reminders.js](scripts/reminders.js) for
-Assassinate — and [bash-offer.js](scripts/bash-offer.js) still judges a maneuver's once-per-turn
-off a flag stamp rather than a turn chit (`decide/chips.js` `TURN_CHITS`). Neither is wrong;
-both are the walk landing faster than the shape.
+**What would un-park it:** a FOURTH thing that judges "first round" (the first-round reader goes
+to `decide/clock.js` with it), or the next once-per-turn maneuver that lands on the bash offer
+(it moves to a turn chit with it).
 
 ### The template fast-path Foundry 14 took away (was debt row D12)
 
