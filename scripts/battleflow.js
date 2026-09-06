@@ -94,6 +94,11 @@ import "./hit-riders.js";
 import "./auto-apply.js";
 import "./effect-riders.js";
 import "./mastery.js";
+// ⚠ topple.js and chip-spend.js in mastery.js's slot (the machine-tier pass, Stage 4b,
+// 2026-09-05): the Topple demand's lifecycle and the chip spend, in the order mastery.js
+// registered them — its rows stay above theirs on a shared attack card.
+import "./topple.js";
+import "./chip-spend.js";
 import "./reminders.js";
 // sneak.js after reminders.js: the gate stamps the arm on the attack message, the sneak machine
 // reads it at the damage roll; its card lines sit under the gate's (2026-09-02).

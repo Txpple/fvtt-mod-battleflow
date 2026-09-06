@@ -57,6 +57,8 @@ const LAYER_OF = {
   "hold.js": "machines",
   "saves.js": "machines",
   "mastery.js": "machines",
+  "topple.js": "machines",        // the Topple demand off mastery's card (Stage 4b, 2026-09-05)
+  "chip-spend.js": "machines",    // the chip spend and the two tidies (Stage 4b, 2026-09-05)
   // the maneuver folds — one file per moment since the machine-tier pass, Stage 4a (2026-09-05)
   "precision.js": "machines",
   "riposte.js": "machines",
