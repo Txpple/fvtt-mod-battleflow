@@ -15,6 +15,10 @@
 > the module does at the table — **the UI/UX and the shipped behaviour are the asset being
 > protected, not the thing being changed.**
 >
+> ▶ **A fourth block is on this page as of 2026-09-09, DRAWN and NOT RULED:** *THE METAMAGIC PASS*, directly
+> below — the ten 2024 options measured against the pack and the module, five stages, six decisions for the
+> user; its prototype is [prototypes/metamagic.html](prototypes/metamagic.html). Nothing starts until it is ruled.
+
 > ✅ **A third block is on this page as of 2026-09-05, DRAWN, RULED and DELIVERED the same evening:**
 > *THE HOLD DIRECTORY*, directly below — `hold.js` is `scripts/hold/`, nine parts by moment, the
 > second customer of the directory rule; its *HOW IT WENT* is measured against its own drawing.
@@ -25,6 +29,170 @@
 > retired; nothing is released — the release and the prod deploy stay on the user's word.
 
 ---
+
+## ▶ THE METAMAGIC PASS — DRAWN 2026-09-09; NOT RULED, NOT STARTED
+
+**Origin:** the 2026-09-09 session's Careful Spell report ([BACKLOG.md](BACKLOG.md) *From play*):
+two Fireballs rolled the excluded allies' saves through the ask timer and applied their damage, and
+the second revert is what un-killed Gren. The user's word on the fix: *"overall, need metamagic
+implemented. follow pattern like sneak attk/manuevers with check box?"* — then *"start making a
+plan for metamagic support as a whole"*. Careful Spell is the example; **the class is the ten
+2024 Metamagic options**, and this block is the drawing for all ten. It measures what exists,
+names where each option bites, and puts the decisions in one table for the user to rule. **Nothing
+below starts on this page; it starts on the user's go, off the ruled table.**
+
+**The prototype comes first** (house rule): [prototypes/metamagic.html](prototypes/metamagic.html)
+— the cast dialog with the metamagic group, Careful's protect picker, Heightened's one-target
+radio, Transmuted's type radios, the 0-SP state, and the two later moments (Empowered on the
+damage roll, Seeking on the miss). Open it in a browser (also published at https://claude.ai/code/artifact/e558548b-cd03-4779-9905-7930b1d10854); the side panel asks the four questions the
+decisions table carries. Rule off the prototype, then the table.
+
+### What was measured (2026-09-09, the sandbox's PHB pack and Gren's sheet)
+
+- **The pack ships every option as a feat with `type.subtype: "metamagic"`** and ONE utility
+  activity whose consumption target is `itemUses` of **Font of Magic by compendium uuid**
+  (`Compendium.dnd-players-handbook.classes.Item.phbscrFontOfMagi`), value 1 or 2. Careful's
+  activity also carries `target.affects.count: "@abilities.cha.mod"`. The activation carries no
+  type — only a `condition` string ("When you cast a spell that forces other creatures to make a
+  saving throw"). **The condition is prose; eligibility must be a registry predicate on the
+  spell's activity, not a read of the option.**
+- **Font of Magic is the pool**: a feat with `uses.max: "@scale.sorcerer.points"`, long-rest
+  recovery, two utility activities (Regain Spell Slot, Regain Sorcery Points — slot ↔ point
+  conversion, both already handled by the system and by `resources.js`'s "a positive delta is a
+  regain" rule). `poolOf` (shared.js) resolves compendium-source targets **three ways already**,
+  so the pool read is the superiority die's read with a different name; `spendPoolUse` is the
+  spend; `poolSpendsOn` + `spendLine` already render *"Sorcery Points: 3 of 5 remaining"* off a
+  `poolSpend` flag. **No pool code is new.**
+- **Nothing in the module reads sorcery points, metamagic, or spell components today**; one row
+  knows the Sorcerer at all (`EFFECT_BENDS["Innate Sorcery"]`). No reroll exists for damage dice
+  or attack d20s outside the d20 folds (Heroic Inspiration) and Precision Attack's add-a-die.
+- **Gren** (the world's Sorcerer, `BF Test Shielder`'s source) knows **Careful and Subtle**, has
+  Font of Magic at 5 points, and Fireball. He is the fixture's source, cloned or built.
+- **The costs, the eligibility and the moment of each option:**
+
+| Option | SP | Eligible when (registry predicate on the SPELL's activity) | Moment | What the module does |
+| --- | --- | --- | --- | --- |
+| Careful | 1 | a save activity | cast | the chosen creatures (≤ CHA mod, min 1) leave the demand's target list at BOTH filters (demand.js:65 and areas.js:150's adoption); a card line names them *protected*; no ask, no damage |
+| Heightened | 2 | a save activity | cast | one chosen target's demand carries `heightened`; the save gate reads it as a Disadvantage source — the channel `effectSaveSources` already reads the demand through |
+| Subtle | 1 | any spell | cast | a card line; nothing else (the module never reads components and never will need to) |
+| Distant | 1 | range ≥ 5 ft, or Touch | cast | the range reminder's `rangeFactsFor` reads a doubled value (Touch → 30) for this cast; a card line |
+| Extended | 1 | duration ≥ 1 minute | cast | the cast's effect clock doubled (max 24 h) on the effects the cast creates; the concentration gate reads Advantage — Extended as a source; a card line |
+| Transmuted | 1 | a damage part of acid/cold/fire/lightning/poison/thunder | cast | the cast's damage rolls carry the picked type — the emanation damage-type radio is the precedent, generalised to the spell's own parts (changing an EXISTING part's type is unbuilt; every rider only ADDS parts) |
+| Twinned | 1 | the spell scales targets by level (`target.affects.count` grows with `@scaling`, or the pack's scaling flag) | cast | the target snapshot gains one creature; the demand / attack sees N+1; a card line "cast as level +1 for targets" |
+| Quickened | 2 | casting time is an action | cast | **a card line only** — action economy is settled out (DESIGN §8: *a reaction-budget abstraction — REJECTED*) |
+| Empowered | 1 | a spell damage roll (any option already used is no bar) | the damage roll | a fold AFTER the dice: pick up to CHA-mod dice, reroll them, the new rolls stand; the card shows old → new |
+| Seeking | 1 | a spell attack that missed | the miss | Precision Attack's shape: Use/Pass on the miss, reroll the d20, the new roll stands |
+
+**Two options patch a rolled result** (Empowered, Seeking). That is the §11 rule 4 auto-revert
+obligation the Heroic Inspiration widening was refused on (DESIGN §8: *"nothing ships that can do
+it yet"*). It is the honest reason they go last, and the reason they may need their own ruling
+before code.
+
+### Where it lands — the seams, all existing
+
+- **The surface is the system's ActivityUsageDialog**, one fieldset on `renderActivityUsageDialog`
+  — the emanation damage-type radios' idiom exactly (emanations.js:656: a `Map` keyed by activity
+  uuid holds the pick until the cast lands). ⚠ **Not the attack gate**: a save spell never opens
+  it. The pick is carried onto the cast's card in `preCreateChatMessage` (polish.js:209 stamps the
+  cast payload; the metamagic pick joins it) — the ground truth at polish.js:41 stands: the
+  system snapshots targets BEFORE `preUseActivity`, so Twinned writes `messageConfig` directly.
+- **The rows are the offer-row law's shape**: a tick, the name, the cost as the tag, *the rule ▸*
+  folded under, nothing above it (DESIGN §6's offer-row law; the 2026-09-05 standing rule). Rule
+  text read live off the option on the sheet (presentation law 8). One option per cast greys the
+  rest (the feature's own text); Empowered and Seeking are not rows here.
+- **The spend** goes through `spendPoolUse` on Font of Magic with the record on the SPELL's card
+  as `poolSpend` — one card, one *"Sorcery Points: N of M remaining"* line, the flash and the
+  ledger reading it as they read a superiority die. The option's own activity is never `use()`d
+  (a second card for a spend is noise; decision 2 says so and asks).
+- **The registry**: `METAMAGIC` in `decide/registry.js` — `{ feature, cost, moment: "cast"|"damage"|"miss", when: predicateKey, picks: null|"protect"|"target"|"type", rule? }`
+  with the predicates as named keys resolved in `decide/metamagic.js` (pure, testable, no Foundry).
+  One `LIST_SPECS.metamagic` membership list over the table (`membership: true, whole: true`, the
+  `conditions` idiom) so a table can switch an option off — **not** a new kind set, so the R4
+  tripwire's 29 does not move. `EXPECTED_SOURCE_FILES` moves by two (`scripts/metamagic.js`,
+  `scripts/decide/metamagic.js`) with the reason in the commit.
+- **The layer rule holds**: `saves/` reads the demand's `protected` / `heightened` fields, the
+  gate reads the demand (as it does for `EFFECT_BENDS.saves`), `metamagic.js` writes the payload.
+  No sideways import: the demand is the seam, the same one `emanationReach` proved.
+
+### STAGE 0 — the fixture and the probe (½ session)
+
+`BF Test Sorcerer` in `fixture-suite.mjs`: **BUILT** from the PHB pack (Sorcerer 5, Font of Magic,
+all ten metamagic feats added directly — options are `class` feats nothing grants, so the
+builder's level-set class item resolves `@scale.sorcerer.points` and the feats go on as items),
+Fireball, Hold Person, Chromatic Orb; placed off the fixture line like the Cleric (the Fireball
+needs clear ground). A cloned Gren is the alternative and carries DDB residue (Innate Sorcery's
+effect had been stripped on import) — build, do not clone. `probe-pack-shapes.mjs` gains the
+metamagic feats: assert every option's consumption target resolves through `poolOf` on the
+built sheet. **This stage is the measurement the rest of the estimate rests on.**
+
+### STAGE 1 — the group, the spend, and the three data-only options (1 session)
+
+`decide/metamagic.js` (predicates, the menu, the pick — unit-tested), `metamagic.js` (the
+fieldset, the pending map, the card stamp, the spend), the registry table and list, the card line.
+**Subtle, Quickened, Distant** ship here: they are the pick + the spend + a line (Distant also
+feeds `rangeFactsFor` a doubled value read off the card's payload). `smoke-metamagic` §1–3.
+
+### STAGE 2 — Careful and Heightened (1 session; the reported bug closes here)
+
+The demand gains `protected: [uuid]` and `heightened: uuid`; both filters (demand.js:65,
+areas.js:150) drop protected targets; the save gate adds *Heightened Spell* as a Disadvantage
+source through the demand channel. The BACKLOG row's settling test is `smoke-metamagic` §4: a
+Fireball over two allies, protected, **no ask posts for them, no damage lands, the timer never
+rolls for them**. §5: Heightened's gate opens with the source.
+
+### STAGE 3 — Extended, Transmuted, Twinned (1–2 sessions; re-measure first)
+
+Three different seams, each small, none shared: the effect clock (Extended, on the effects the
+cast creates + the concentration gate's source), the damage part's type (Transmuted — the first
+change to an EXISTING part; measure how `rolls[].options.type` is read downstream by the verdict
+before touching it), the target snapshot (Twinned — `messageConfig` write, `withTargets` is the
+precedent). Suite §6–8.
+
+### STAGE 4 — Empowered and Seeking (1 session, AFTER a ruling on the rolled-result obligation)
+
+Two folds on existing moments: Empowered as an offer part on the spell's damage (the offer-part
+contract, `registerOfferPart`; the fold opens AFTER the dice with the dice shown), Seeking as
+`precision.js`'s shape on a spell attack miss. Both must either carry the auto-revert or be ruled
+exempt (decision 5). Suite §9–10.
+
+### What this pass deliberately does NOT do
+
+- **Police the turn** for Quickened (settled). **Judge** sight, willingness, or a Twinned target's
+  legality — the player's tick, like Sneak Attack's conditions (settled).
+- **Refund** a sorcery point on a revert (DESIGN §8: Tactical Mind's refund stays unmodelled; the
+  manual Refund button was declined). A revert takes back HP and effects, as it does today.
+- **Model Font of Magic's conversions** — the system's own activities do them; the ledger already
+  reads a regain correctly.
+- **Touch the 2014 options** (SWEEP §5: ignore 2014).
+
+### Decisions — TO RULE (the prototype's side panel asks the first four)
+
+| # | Decision | Recommendation |
+| --- | --- | --- |
+| 1 | **Careful's protected list**: a picker in the dialog, or *allies under the template* by default with the picker to adjust | **Default to the caster's allies under the template, picker to adjust** — it is what the table means nine times in ten, and the tick still has to be the player's. Capped at CHA mod; over the cap the row says so |
+| 2 | **The spend**: by hand on the spell's card, or through the option's own activity | **By hand** (`spendPoolUse`, `poolSpend` on the spell's card) — one card, one line, the uniform-spend rule of 2026-09-05 |
+| 3 | **Should the ask timer roll a save for a PC?** (independent of metamagic; the same night's bug) | **Rule it here, separately.** Recommendation: the buzzer rolls for NPCs and leaves a PC's ask PENDING with its card bar at zero — the GM presses. One branch in `fireSaveTimer`; a setting if the table disagrees |
+| 4 | **Quickened as a card line only** | **Yes** — anything more reopens a settled row |
+| 5 | **Empowered / Seeking and the rolled-result obligation** (§11 rule 4) | **Stage 4 waits on this.** Recommendation: they carry the obligation the honest way — the fold's receipt records old and new dice, and the existing revert restores the ROLL's applied damage, not the roll; the roll itself stays as rolled, said on the card. If that is not acceptable, they stay out and the row goes to DESIGN §8 |
+| 6 | **Order** | 0 → 1 → 2 (the bug) → 3 → 4. Stage 2 could go before 1's three data-only options if the bug is the urgency; the group and the spend are Stage 1 either way |
+
+### Sequencing (proposed)
+
+```
+Stage 0  fixture + probe                       ½ session   the estimate's ground
+Stage 1  group, spend, Subtle/Quickened/Distant 1 session
+Stage 2  Careful, Heightened                    1 session   closes the reported bug
+Stage 3  Extended, Transmuted, Twinned          1–2 sessions (re-measure Transmuted first)
+Stage 4  Empowered, Seeking                     1 session   after decision 5
+```
+
+**When it is delivered:** a DESIGN §6 block *Metamagic* (written when RULED, before code — §7's
+rule), the BACKLOG Careful row retired, SWEEP §2's "options nothing grants" count recut, this
+block's *HOW IT WENT* measured against the sessions above. Distrust the estimates: the machine-tier
+pass's lesson stands — the thing labelled risky was cheap and the surprise came from elsewhere.
+
+---
+
 
 ## ▶ THE HOLD DIRECTORY — DRAWN 2026-09-05; RULED AND ✅ DELIVERED THE SAME EVENING
 

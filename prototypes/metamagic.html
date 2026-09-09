@@ -1,0 +1,268 @@
+<title>Battle Flow Metamagic</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
+<style>
+  :root{
+    --ground:#15171b; --canvas:#1e2126; --panel:#24272d; --panel-2:#2b2f36; --line:#3a3f48;
+    --ink:#e8e3d6; --ink-2:#b5b0a4; --ink-3:#7d7a72;
+    --good:rgb(70,150,95); --bad:rgb(180,70,60); --pending:rgb(222,120,40); --crit:rgb(232,190,50); --neutral:rgb(120,120,120);
+    --good-soft:rgba(70,150,95,.18); --bad-soft:rgba(180,70,60,.18); --pending-soft:rgba(222,120,40,.18); --neutral-soft:rgba(120,120,120,.16);
+    --font:"Signika",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45;color-scheme:dark}
+  .wrap{max-width:1380px;margin:0 auto;padding:22px 20px 40px}
+  header.top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+  header.top h1{margin:0;font-size:22px;font-weight:600}
+  header.top p{margin:0;color:var(--ink-2);max-width:62ch}
+  .eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+  .scenes{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+  .scenes button{font:inherit;font-size:12.5px;padding:6px 10px;border-radius:4px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);cursor:pointer}
+  .scenes button[aria-pressed="true"]{background:var(--pending-soft);border-color:var(--pending);color:var(--ink)}
+  .studio{display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start}
+  @media (max-width:980px){.studio{grid-template-columns:1fr}}
+  .screen{position:relative;min-height:640px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--canvas);padding:26px 12px}
+  .map{position:absolute;inset:0;
+    background-image:radial-gradient(ellipse at 30% 40%,rgba(90,110,80,.22),transparent 55%),radial-gradient(ellipse at 70% 70%,rgba(120,90,60,.18),transparent 50%),
+      linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+    background-size:auto,auto,50px 50px,50px 50px}
+
+  /* the system's usage dialog, mocked */
+  .dlg{position:relative;width:min(480px,100%);margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.55)}
+  .dlg .title{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-weight:600;font-size:13px}
+  .dlg .title i{width:14px;height:14px;border-radius:3px;background:var(--crit);opacity:.9}
+  .dlg .body{padding:12px 14px 14px}
+  .fg{display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center;margin:6px 0;font-size:12.5px;color:var(--ink-2)}
+  .fg select,.fg input[type=text]{font:inherit;font-size:12.5px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:3px;padding:4px 6px}
+  fieldset{margin:12px 0 0;padding:8px 10px 10px;border:1px solid var(--line);border-radius:4px}
+  legend{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);padding:0 4px}
+  .pool{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--ink-2);margin:0 0 4px}
+  .pool b{color:var(--ink);font-weight:600}
+  .row{display:grid;grid-template-columns:auto 1fr auto;gap:2px 8px;align-items:center;margin:5px 0;padding:6px 8px;border-radius:4px;background:rgba(0,0,0,.18);border:1px solid var(--line);border-left:3px solid var(--pending);cursor:pointer}
+  .row.off{opacity:.5;cursor:not-allowed;border-left-color:var(--neutral)}
+  .row.on{background:var(--pending-soft)}
+  .row input[type=checkbox],.row input[type=radio]{margin:0;accent-color:var(--pending)}
+  .row .nm{font-weight:600;font-size:13px}
+  .row .cost{font-size:10px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;color:var(--ink-2)}
+  .row .cost.no{color:var(--bad)}
+  .row details{grid-column:2 / -1;font-size:11.5px;color:var(--ink-2)}
+  .row details summary{cursor:pointer;color:var(--ink-3);font-size:11px;list-style:none}
+  .row details summary::before{content:"▸ "} .row details[open] summary::before{content:"▾ "}
+  .row details p{margin:3px 0 0;font-style:italic;border-left:2px solid var(--line);padding-left:8px}
+  .sub{grid-column:2 / -1;display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12px;color:var(--ink-2);padding:4px 0 2px}
+  .sub label{display:flex;align-items:center;gap:4px;cursor:pointer}
+  .sub .cap{width:100%;font-size:11px;color:var(--ink-3)}
+  .btnrow{display:flex;gap:8px;margin-top:12px}
+  .btn{flex:1;font:inherit;font-weight:600;font-size:13px;padding:9px 12px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);cursor:pointer;text-align:left;line-height:1.3}
+  .btn.primary{background:var(--pending-soft);border-color:var(--pending)}
+  .btn .fml{display:block;font-weight:400;font-size:12px;color:var(--ink-2);margin-top:2px}
+  .clock{font-size:11px;color:var(--ink-3);text-align:right;margin-top:6px}
+  .dice{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+  .die{width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--line);border-radius:4px;background:var(--panel-2);font-weight:600;cursor:pointer;user-select:none}
+  .die.low{color:var(--bad)} .die.pick{outline:2px solid var(--pending);background:var(--pending-soft)}
+  .die.locked{cursor:not-allowed;opacity:.6}
+
+  .side{display:flex;flex-direction:column;gap:12px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+  .panel h3{margin:0 0 6px;font-size:13px;font-weight:600}
+  .panel p,.panel li{font-size:12.5px;color:var(--ink-2);margin:0}
+  .panel ol,.panel ul{padding-left:18px;margin:0;display:flex;flex-direction:column;gap:6px}
+  .panel li b{color:var(--ink);font-weight:600}
+  .card{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:6px 8px;margin-top:6px;font-size:12.5px;color:var(--ink-2)}
+  .card b{color:var(--ink);font-weight:600}
+  .card .ey{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+  .q{border-left:3px solid var(--pending);padding-left:8px}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Battle Flow · prototype · 2026-09-09 · nothing here is ruled</div>
+      <h1>Metamagic: the pick rides the cast, the spend rides the card</h1>
+    </div>
+    <p>Three moments. The cast dialog carries the cast-time options as one group; Empowered is a fold on the damage roll; Seeking is a fold on the miss. Rules quoted are the 2024 PHB pack's own text. Tick rows, watch the button.</p>
+  </header>
+
+  <div class="scenes" role="tablist" aria-label="Scenarios">
+    <button aria-pressed="true" data-scene="gren">Gren, Sorcerer 5 — Fireball over two allies (Careful, Subtle known; 4 SP)</button>
+    <button aria-pressed="false" data-scene="ten">Sorcerer 10 — Hold Person, every option known (7 SP)</button>
+    <button aria-pressed="false" data-scene="broke">Gren — 0 Sorcery Points</button>
+    <button aria-pressed="false" data-scene="empowered">Moment 2 — Empowered on the damage roll</button>
+    <button aria-pressed="false" data-scene="seeking">Moment 3 — Seeking on a miss</button>
+  </div>
+
+  <div class="studio">
+    <div class="screen"><div class="map"></div><div class="dlg" id="dlg"></div></div>
+    <aside class="side" id="side"></aside>
+  </div>
+</div>
+
+<script>
+const RULES = {
+  careful: "When you cast a spell that forces other creatures to make a saving throw, you can protect some of those creatures from the spell’s full force. To do so, spend 1 Sorcery Point and choose a number of those creatures up to your Charisma modifier (minimum of one creature). A chosen creature automatically succeeds on its saving throw against the spell, and it takes no damage if it would normally take half damage on a successful save.",
+  distant: "When you cast a spell that has a range of at least 5 feet, you can spend 1 Sorcery Point to double the spell’s range. Or when you cast a spell that has a range of Touch, you can spend 1 Sorcery Point to make the spell’s range 30 feet.",
+  empowered: "When you roll damage for a spell, you can spend 1 Sorcery Point to reroll a number of the damage dice up to your Charisma modifier (minimum of one), and you must use the new rolls. You can use Empowered Spell even if you’ve already used a different Metamagic option during the casting of the spell.",
+  extended: "When you cast a spell that has a duration of 1 minute or longer, you can spend 1 Sorcery Point to double its duration to a maximum duration of 24 hours. If the affected spell requires Concentration, you have Advantage on any saving throw you make to maintain that Concentration.",
+  heightened: "When you cast a spell that forces a creature to make a saving throw, you can spend 2 Sorcery Points to give one target of the spell Disadvantage on saves against the spell.",
+  quickened: "When you cast a spell that has a casting time of an action, you can spend 2 Sorcery Points to change the casting time to a Bonus Action for this casting. You can’t modify a spell in this way if you’ve already cast a level 1+ spell on the current turn, nor can you cast a level 1+ spell on this turn after modifying a spell in this way.",
+  seeking: "If you make an attack roll for a spell and miss, you can spend 1 Sorcery Point to reroll the d20, and you must use the new roll. You can use Seeking Spell even if you’ve already used a different Metamagic option during the casting of the spell.",
+  subtle: "When you cast a spell, you can spend 1 Sorcery Point to cast it without any Verbal, Somatic, or Material components, except Material components that are consumed by the spell or that have a cost specified in the spell.",
+  transmuted: "When you cast a spell that deals a type of damage from the following list, you can spend 1 Sorcery Point to change that damage type to one of the other listed types: Acid, Cold, Fire, Lightning, Poison, Thunder.",
+  twinned: "When you cast a spell, such as Charm Person, that can be cast with a higher-level spell slot to target an additional creature, you can spend 1 Sorcery Point to increase the spell’s effective level by 1."
+};
+const OPTIONS = {
+  careful:    { name:"Careful Spell",    cost:1, when:s=>s.save,            why:"no saving throw" },
+  distant:    { name:"Distant Spell",    cost:1, when:s=>s.rangeFt>=5||s.touch, why:"range Self" },
+  extended:   { name:"Extended Spell",   cost:1, when:s=>s.minutes>=1,       why:"instantaneous" },
+  heightened: { name:"Heightened Spell", cost:2, when:s=>s.save,            why:"no saving throw" },
+  quickened:  { name:"Quickened Spell",  cost:2, when:s=>s.action,          why:"not an action" },
+  subtle:     { name:"Subtle Spell",     cost:1, when:s=>true,              why:"" },
+  transmuted: { name:"Transmuted Spell", cost:1, when:s=>!!s.dtype,         why:"no listed damage type" },
+  twinned:    { name:"Twinned Spell",    cost:1, when:s=>s.scalesTargets,   why:"does not add a target at a higher level" }
+};
+const SCENES = {
+  gren: { who:"Gren Greenmantle", cha:3, sp:4, spMax:5, known:["careful","subtle"],
+    spell:{ name:"Fireball", slot:3, save:true, rangeFt:150, touch:false, minutes:0, action:true, dtype:"fire", scalesTargets:false,
+      under:[["Gren",true],["Aldric",true],["Brenna",true],["Hobgoblin captain",false],["Hobgoblin",false],["Hobgoblin",false]] } },
+  ten: { who:"Ysolde, Sorcerer 10", cha:5, sp:7, spMax:10, known:Object.keys(OPTIONS),
+    spell:{ name:"Hold Person", slot:2, save:true, rangeFt:60, touch:false, minutes:1, action:true, dtype:null, scalesTargets:true,
+      under:[["Bandit leader",false],["Bandit",false]] } },
+  broke: { who:"Gren Greenmantle", cha:3, sp:0, spMax:5, known:["careful","subtle"],
+    spell:{ name:"Fireball", slot:3, save:true, rangeFt:150, touch:false, minutes:0, action:true, dtype:"fire", scalesTargets:false,
+      under:[["Gren",true],["Aldric",true],["Hobgoblin",false]] } }
+};
+const state = { scene:"gren", picked:null, protect:new Set(), heightenedOn:null, twin:null, dtype:null, rerolls:new Set(), ruleOpen:new Set() };
+
+function fold(key){ return `<details ${state.ruleOpen.has(key)?"open":""} data-fold="${key}"><summary>the rule</summary><p>${RULES[key]}</p></details>`; }
+function row(key, sc){
+  const o = OPTIONS[key], s = sc.spell;
+  const eligible = o.when(s), afford = sc.sp >= o.cost;
+  const other = state.picked && state.picked !== key;      // one option per cast
+  const off = !eligible || !afford || other;
+  const on = state.picked === key;
+  let tag = `${o.cost} SP`;
+  if ( !eligible ) tag = o.why; else if ( !afford ) tag = `${o.cost} SP — ${sc.sp} left`;
+  let sub = "";
+  if ( on && key === "careful" ) {
+    const max = Math.max(1, sc.cha);
+    sub = `<div class="sub"><span class="cap">Protect up to ${max} (Charisma ${sc.cha >= 0 ? "+" : ""}${sc.cha}) — no save asked, no damage taken</span>` +
+      s.under.map(([n, ally], i) => `<label><input type="checkbox" data-protect="${i}" ${state.protect.has(i)?"checked":""} ${(!state.protect.has(i) && state.protect.size>=max)?"disabled":""}> ${n}${ally?"":" <span style='color:var(--ink-3)'>(foe)</span>"}</label>`).join("") + `</div>`;
+  }
+  if ( on && key === "heightened" ) sub = `<div class="sub"><span class="cap">One target has Disadvantage on its saves against this spell</span>` +
+      s.under.map(([n], i) => `<label><input type="radio" name="hi" data-hi="${i}" ${state.heightenedOn===i?"checked":""}> ${n}</label>`).join("") + `</div>`;
+  if ( on && key === "transmuted" ) sub = `<div class="sub"><span class="cap">${s.name} deals ${s.dtype} — change it to</span>` +
+      ["acid","cold","fire","lightning","poison","thunder"].filter(t=>t!==s.dtype).map(t => `<label><input type="radio" name="dt" data-dt="${t}" ${state.dtype===t?"checked":""}> ${t[0].toUpperCase()+t.slice(1)}</label>`).join("") + `</div>`;
+  if ( on && key === "twinned" ) sub = `<div class="sub"><span class="cap">Cast as level ${s.slot+1} for targets: one more creature</span><label><input type="text" value="target a second creature on the canvas" readonly style="width:26ch"></label></div>`;
+  if ( on && key === "quickened" ) sub = `<div class="sub"><span class="cap">The card will say Bonus Action; the module does not police the turn (settled: action economy is not its job)</span></div>`;
+  return `<div class="row ${off?"off":""} ${on?"on":""}" data-row="${key}">
+    <input type="checkbox" ${on?"checked":""} ${off?"disabled":""}>
+    <span class="nm">${o.name}</span><span class="cost ${(!eligible||!afford)?"no":""}">${tag}</span>${sub}${fold(key)}</div>`;
+}
+
+function castDialog(sc){
+  const s = sc.spell, o = state.picked ? OPTIONS[state.picked] : null;
+  const rows = sc.known.map(k => row(k, sc)).join("");
+  const spend = o ? `${o.cost} SP` : "";
+  let label = `Cast ${s.name}`;
+  if ( state.picked === "careful" && state.protect.size ) label += ` — Careful (${[...state.protect].map(i=>s.under[i][0]).join(", ")} protected)`;
+  else if ( o ) label += ` — ${o.name.replace(" Spell","")}`;
+  return `<div class="title"><i></i>${s.name}: Usage</div><div class="body">
+    <div class="fg"><span>Spell Slot</span><select><option>Level ${s.slot} (2 of 3)</option><option>Level ${s.slot+1} (1 of 1)</option></select></div>
+    <div class="fg"><span>Consume Slot</span><label><input type="checkbox" checked> Yes</label></div>
+    ${s.save ? `<div class="fg"><span>Template</span><label><input type="checkbox" checked> Place on cast</label></div>` : ""}
+    <fieldset><legend>Battle Flow — Metamagic</legend>
+      <div class="pool"><span>${sc.who}</span><span><b>Sorcery Points: ${sc.sp} of ${sc.spMax}</b>${spend?` · spends ${spend}`:""}</span></div>
+      ${rows}
+      ${sc.sp===0 ? `<p style="font-size:11.5px;color:var(--ink-3);margin:4px 0 0">No Sorcery Points — the rows stay, greyed, so the sheet is not the only place that says so.</p>` : ""}
+    </fieldset>
+    <div class="btnrow"><button class="btn primary">${label}<span class="fml">${spend ? `Sorcery Points ${sc.sp} → ${sc.sp - o.cost}` : "no metamagic"}</span></button></div>
+  </div>`;
+}
+
+function empoweredDialog(){
+  const dice = [6,1,2,5,3,1,4,2];
+  const max = 3, picked = state.rerolls;
+  return `<div class="title"><i></i>Fireball — damage rolled</div><div class="body">
+    <div style="font-size:12.5px;color:var(--ink-2)">8d6 fire · <b style="color:var(--ink)">${dice.reduce((a,b)=>a+b)}</b> — three creatures failed, two saved</div>
+    <div class="row on" style="margin-top:10px"><input type="checkbox" checked disabled><span class="nm">Empowered Spell</span><span class="cost">1 SP · reroll up to ${max}</span>
+      <div class="sub"><span class="cap">Pick the dice to reroll (Charisma +3). The new rolls stand. Same cast, second option — the rules allow Empowered on top of another.</span></div>
+      ${fold("empowered")}</div>
+    <div class="dice">${dice.map((d,i)=>`<span class="die ${d<=2?"low":""} ${picked.has(i)?"pick":""} ${(!picked.has(i)&&picked.size>=max)?"locked":""}" data-die="${i}">${d}</span>`).join("")}</div>
+    <div class="btnrow"><button class="btn primary">Reroll ${picked.size} ${picked.size===1?"die":"dice"}<span class="fml">Sorcery Points 3 → 2</span></button><button class="btn">Keep the roll</button></div>
+    <div class="clock">the popup's clock: keep at expiry (law 11)</div>
+  </div>`;
+}
+function seekingDialog(){
+  return `<div class="title"><i></i>Chromatic Orb — missed</div><div class="body">
+    <div style="font-size:12.5px;color:var(--ink-2)">Attack roll <b style="color:var(--ink)">11</b> vs AC 16 — a miss by 5</div>
+    <div class="row on" style="margin-top:10px"><input type="checkbox" checked disabled><span class="nm">Seeking Spell</span><span class="cost">1 SP · reroll the d20</span>${fold("seeking")}</div>
+    <div class="btnrow"><button class="btn primary">Reroll the d20<span class="fml">Sorcery Points 3 → 2 · the new roll stands</span></button><button class="btn">Take the miss</button></div>
+    <div class="clock">the same shape as Precision Attack's fold: a popup on the miss, Use or Pass, pass at expiry</div>
+  </div>`;
+}
+
+function side(){
+  const sc = SCENES[state.scene];
+  if ( state.scene === "empowered" || state.scene === "seeking" ) return `
+    <div class="panel"><h3>What this moment is</h3><ul>
+      <li><b>A fold, not a cast option.</b> Empowered fires when damage is rolled; Seeking fires on a miss. Both sit outside the one-option-per-cast rule by their own text.</li>
+      <li><b>The precedent is Precision Attack</b> (a die onto a missed attack, Use/Pass, pass at expiry) and the d20 folds (Heroic Inspiration's reroll).</li>
+      <li><b>Both patch a rolled result</b>, which is the §11 rule 4 auto-revert obligation the Heroic Inspiration widening was refused on. That is the plan's most honest reason to put them last.</li>
+    </ul></div>
+    <div class="panel"><h3>After the press — the card</h3>
+      <div class="card"><div class="ey">card line</div><b>Empowered Spell</b> — rerolled 1, 1, 2 → 4, 6, 3 · <b>Sorcery Points: 2 of 5 remaining</b></div>
+      <div class="card"><div class="ey">card line</div><b>Seeking Spell</b> — 11 rerolled → 17, a hit · <b>Sorcery Points: 2 of 5 remaining</b></div>
+    </div>`;
+  const s = sc.spell, o = state.picked ? OPTIONS[state.picked] : null;
+  const prot = [...state.protect].map(i=>s.under[i][0]);
+  let after = `<div class="card"><div class="ey">the spell's card</div><b>${s.name}</b> — level ${s.slot}${o?` · <b>${o.name}</b>`:""}${o?` · Sorcery Points: ${sc.sp-o.cost} of ${sc.spMax} remaining`:""}</div>`;
+  if ( state.picked === "careful" ) after += `<div class="card"><div class="ey">the save demand</div>${s.under.filter((_,i)=>!state.protect.has(i)).map(([n])=>n).join(", ")} — Dex save DC 15${prot.length?`<br><b>Protected:</b> ${prot.join(", ")} — no ask, no damage`:""}</div>`;
+  if ( state.picked === "heightened" && state.heightenedOn !== null ) after += `<div class="card"><div class="ey">the save gate</div>${s.under[state.heightenedOn][0]}'s gate opens with <b>Disadvantage — Heightened Spell</b> as the source</div>`;
+  if ( state.picked === "transmuted" && state.dtype ) after += `<div class="card"><div class="ey">the damage roll</div>8d6 <b>${state.dtype}</b> (was fire)</div>`;
+  if ( state.picked === "distant" ) after += `<div class="card"><div class="ey">the range reminder</div>${s.name}'s range reads <b>${s.rangeFt*2} ft</b> for this cast</div>`;
+  if ( state.picked === "extended" ) after += `<div class="card"><div class="ey">the effect's clock</div>${s.name}: <b>2 minutes</b>; the concentration gate opens with Advantage — Extended Spell</div>`;
+  if ( state.picked === "subtle" ) after += `<div class="card"><div class="ey">the card line</div><b>Subtle Spell</b> — cast without components. Nothing else changes; the line is the whole feature.</div>`;
+  return `
+    <div class="panel"><h3>Where the group sits</h3><ul>
+      <li><b>The system's own usage dialog</b> — the slot picker's window, one fieldset added on its render hook. The emanation damage-type radios already live here (user, 2026-09-03: "inserted in the casting initial window").</li>
+      <li><b>Not the attack gate.</b> A save spell has no attack roll, so the gate never opens for it.</li>
+      <li><b>One option per cast</b> — the rules say so, so a tick greys the rest. Empowered and Seeking are later moments, not rows here.</li>
+    </ul></div>
+    <div class="panel"><h3>What is read, and what is not</h3><ul>
+      <li><b>Read:</b> the metamagic feats on the sheet (subtype <i>metamagic</i>), Font of Magic's uses as the pool, the spell's save / range / duration / damage type / target scaling for eligibility.</li>
+      <li><b>Not judged:</b> whether the creature is one you can see, whether a Twinned target is legal, whether a level 1+ spell was already cast this turn. The player's tick, the module's arithmetic (settled: the module does not judge Sneak Attack's conditions either).</li>
+    </ul></div>
+    <div class="panel"><h3>After the press</h3>${after}</div>
+    <div class="panel q"><h3>Open questions this page asks you</h3><ol>
+      <li>Careful's protected list: a picker here, or the spell's targets minus the caster's allies by default with the picker to adjust?</li>
+      <li>The spend: by hand on the spell's card (one card, one line), or through the option's own activity (a second card, the system's own consumption)?</li>
+      <li>Should the ask timer ever roll a save for a PC? Independent of metamagic; the same night's bug.</li>
+      <li>Quickened as a card line only — acceptable, given action economy is settled out?</li>
+    </ol></div>`;
+}
+
+function render(){
+  const dlg = document.getElementById("dlg");
+  if ( state.scene === "empowered" ) dlg.innerHTML = empoweredDialog();
+  else if ( state.scene === "seeking" ) dlg.innerHTML = seekingDialog();
+  else dlg.innerHTML = castDialog(SCENES[state.scene]);
+  document.getElementById("side").innerHTML = side();
+}
+document.querySelector(".scenes").addEventListener("click", e => {
+  const b = e.target.closest("button[data-scene]"); if ( !b ) return;
+  for ( const x of document.querySelectorAll(".scenes button") ) x.setAttribute("aria-pressed", x === b ? "true" : "false");
+  Object.assign(state, { scene:b.dataset.scene, picked:null, protect:new Set(), heightenedOn:null, twin:null, dtype:null, rerolls:new Set() });
+  render();
+});
+document.getElementById("dlg").addEventListener("click", e => {
+  const die = e.target.closest("[data-die]");
+  if ( die ) { const i = +die.dataset.die; if ( state.rerolls.has(i) ) state.rerolls.delete(i); else if ( state.rerolls.size < 3 ) state.rerolls.add(i); return render(); }
+  if ( e.target.closest("details") ) { const k = e.target.closest("details").dataset.fold; if ( e.target.closest("summary") ) { state.ruleOpen.has(k) ? state.ruleOpen.delete(k) : state.ruleOpen.add(k); } return; }
+  const p = e.target.closest("[data-protect]"); if ( p ) { const i = +p.dataset.protect; p.checked ? state.protect.add(i) : state.protect.delete(i); return render(); }
+  const h = e.target.closest("[data-hi]"); if ( h ) { state.heightenedOn = +h.dataset.hi; return render(); }
+  const d = e.target.closest("[data-dt]"); if ( d ) { state.dtype = d.dataset.dt; return render(); }
+  if ( e.target.closest(".sub") ) return;
+  const r = e.target.closest(".row[data-row]"); if ( !r || r.classList.contains("off") ) return;
+  const k = r.dataset.row; state.picked = state.picked === k ? null : k; state.protect = new Set(); state.heightenedOn = null; state.dtype = null; render();
+});
+render();
+</script>
