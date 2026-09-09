@@ -127,7 +127,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (!fs) return { card: null, why: 'no fieldset' };
     const row = rowsOf(fs).find(r => r.key === key);
     if (!row?.box || row.box.disabled) { await app?.close(); return { card: null, why: `row ${key} ${row ? (row.box?.disabled ? 'disabled' : 'no box') : 'missing'}` }; }
-    row.box.click();
+    if (!row.box.checked) row.box.click();   // a pick still pending from an earlier window arrives ticked
     await sleep(100);
     if (tweak) { await tweak(fs); await sleep(80); }
     const useBtn = app.element.querySelector('button[data-action="use"], button[type="submit"]');
@@ -603,10 +603,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     } else if (want(17)) ok('17. fixtures', false, 'BF Test Ranger missing');
 
     if (want(18) && rgrTok) {
-      await sorcTok.update(sorcHome, { teleport: true, animate: false });
-      await rgrTok.update({ x: sorcHome.x + scene.grid.size, y: sorcHome.y }, { teleport: true, animate: false });
-      await attTok.update({ x: sorcHome.x, y: sorcHome.y - scene.grid.size }, { teleport: true, animate: false });
-      await sleep(300);
+      await gather();
       game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
       const { app, fs } = await openWindow('Fireball', { consume: { spellSlot: false }, create: { measuredTemplate: false } });
       rowsOf(fs).find(r => r.key === 'careful')?.box?.click(); await sleep(80);
