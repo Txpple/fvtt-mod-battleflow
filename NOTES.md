@@ -1315,6 +1315,15 @@ module that is working perfectly. It happened twice in one afternoon while conve
 and `smoke-volleys` waited for `status === 'resolved'` when the two spread ROLLS post after it.
 Both were the conversion, not the code.
 
+**⚠ TWO SECTIONS FAIL INSIDE THE BATTERY AND PASS ALONE — the ordering class, undiagnosed (2026-09-09).**
+The metamagic pass's battery flagged `smoke-saves` §22b/c (a Wisdom save found the Dexterity dialog
+still open; the Restrained dialog was then never found) and `smoke-emanations` §11e/f (a stale ring's
+effect not lifted on the inactive-scene sweep; four auras where three were owed). Both rerun green
+alone immediately after, on the same code and world. Nothing in either section touches the seams
+that day's work changed; the shape is a dialog or an effect from an EARLIER suite still standing
+when the section opens. Recorded so the next battery reads a repeat as a pattern, not a surprise —
+and so nobody spends a night on the code first. Rerun the section alone before diagnosing.
+
 **⚠ A BINDING DECLARED INSIDE A SECTION GATE IS INVISIBLE UNTIL SOMEONE FILTERS.** Once suites
 gained `--section`, any `const` declared in one section and read from another still passed a
 FULL run — declaration order is unchanged — and threw only under `--section`. Three were found

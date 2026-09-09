@@ -53,6 +53,12 @@ two filters, the demand channel into the save gate, the one effect applier, the 
 idiom, the d20 folds. Nothing new was invented below the machine tier. Distrust the estimates
 next time in the other direction.
 
+**The battery (2026-09-09, 40 minutes, 25 suites):** every registration fired (181/181), settings
+clean; five suites flagged — two were pins (the d20-folds content pin admits the fourth kind; the
+metamagic suite moved after the battery's token re-placement, where it needs to be), one a suite
+wait (Steady Aim's card flag is a second write), and two the ordering class NOTES §5 now records
+(saves §22, emanations §11 — green alone). Nothing in the module changed for any of the five.
+
 **The prototype comes first** (house rule): [prototypes/metamagic.html](prototypes/metamagic.html)
 — the cast dialog with the metamagic group, Careful's protect picker, Heightened's one-target
 radio, Transmuted's type radios, the 0-SP state, and the two later moments (Empowered on the

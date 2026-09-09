@@ -554,6 +554,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const walkBefore = rogue.system.attributes.movement.walk;
         const useResults = await steadyAct.use({}, { configure: false }, {});
         const chip = await waitFor(() => rogue.effects.find(e => (e.name === 'Steady Aim') && (e.getFlag(MOD, 'mastery') === 'use')), 6000);
+        // The card's flag is a SECOND write after the chip (NOTES §5: wait for the thing the next
+        // assertion reads — the battery of 2026-09-09 read it a beat early, card=false, chip=true).
+        await waitFor(() => useResults?.message?.getFlag(MOD, 'useChip') ? true : null, 4000);
         ok('10a. using Steady Aim (text-only in the pack) writes the chip on the rogue: named as the feature, Speed 0, the card says so',
           !!chip && (rogue.system.attributes.movement.walk === 0) && !!useResults?.message?.getFlag(MOD, 'useChip'),
           `chip=${!!chip} walk=${walkBefore}→${rogue.system.attributes.movement.walk} card=${!!useResults?.message?.getFlag(MOD, 'useChip')}`);
