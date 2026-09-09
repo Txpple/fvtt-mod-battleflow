@@ -262,16 +262,43 @@ async function stampSaveDemand(activity, message, results) {
       // targets' own save asks arm off the FLAG — not off this call returning. The two windows
       // run concurrently on purpose; a caster thinking about dice must never hold up the
       // table's saves.
-      if ( setting(S.playerRollDamage) ) {
-        void offerSaveDamageRoll(activity, message,
-          { damageOnSave: onSave, targets, awaiting });
-      }
-      else await rollDamageForSave(activity, message);
+      // ⚠ NOT while the caster is being asked who the area spares (the metamagic ask, 2026-09-09 —
+      // user: "can everything, including the animation, be paused so the person has time to
+      // select their choices?"): the dice, their popup, its clock and their animation all wait
+      // for the answer. The deferral rides the card; the ask's answer (metamagic.js) says when.
+      if ( metamagic.hold ) await message.setFlag(MODULE_ID, "savesDeferredRoll", { damageOnSave: onSave });
+      else await rollSaveDamageNow(activity, message, { damageOnSave: onSave, targets, awaiting });
     }
   } catch(err) {
     console.error(`${TITLE} | Could not stamp the save demand.`, err);
   }
 }
+
+/** The caster's dice — their own popup, or the automation's roll — for a demand just stamped. */
+async function rollSaveDamageNow(activity, message, { damageOnSave, targets, awaiting }) {
+  if ( setting(S.playerRollDamage) ) {
+    void offerSaveDamageRoll(activity, message, { damageOnSave, targets, awaiting });
+  }
+  else await rollDamageForSave(activity, message);
+}
+
+// The deferred dice, once the metamagic ask is answered — on the client that answered it (the
+// same locality as the stamp: the caster's, or the elect's at the clock). One runner, by
+// construction: the hook is local, and the deferral flag is cleared before the dice roll.
+Hooks.on("battleflow.metamagicAskAnswered", async message => {
+  try {
+    const deferred = message?.getFlag(MODULE_ID, "savesDeferredRoll");
+    if ( !deferred ) return;
+    const activity = resolveUuid(message.getFlag("dnd5e", "activity")?.uuid ?? "");
+    if ( !activity ) return;
+    await message.unsetFlag(MODULE_ID, "savesDeferredRoll");
+    const flag = message.getFlag(MODULE_ID, "saves");
+    if ( !flag || (flag.status === "done") ) return;   // everyone spared — no dice owed
+    await rollSaveDamageNow(activity, message, { damageOnSave: deferred.damageOnSave ?? "half", targets: flag.targets ?? [], awaiting: false });
+  } catch(err) {
+    console.error(`${TITLE} | The deferred save damage could not roll — press the card's damage.`, err);
+  }
+});
 
 /**
  * AN EMANATION'S REACH AT THE CAST (user, 2026-09-03: "when I cast it as a cleric, it affects all

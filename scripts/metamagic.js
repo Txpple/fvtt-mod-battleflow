@@ -696,6 +696,8 @@ async function answerMetamagicAsk(message, picked, { timedOut = false } = {}) {
       if ( mark ) flag.demand = { ...(flag.demand ?? {}), heightened: { ...mark, caster: ask.casterName ?? null, rule } };
       if ( !flag.targets.length ) flag.status = "done";   // everyone spared — nobody owes a save
     });
+    // The sequence resumes: the saves machine rolls the dice it deferred while the question stood.
+    Hooks.callAll("battleflow.metamagicAskAnswered", message);
   } catch(err) {
     console.error(`${TITLE} | The metamagic ask could not be answered — the demand waits; the card's Answer button reopens it.`, err);
   }

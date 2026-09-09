@@ -337,10 +337,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const askPopup = await waitFor(() => { const d = popupFor(card.id, 'metamagicAsk'); return (d?.rendered && d.element?.querySelector?.('[data-bf-metamagic-ask]')) ? d : null; }, 8000);
       const askRows = [...(askPopup?.element?.querySelectorAll('input[name="bf-metamagic-ask"]') ?? [])].map(i => ({ name: i.dataset.name, uuid: i.value, checked: i.checked, el: i, group: i.closest('[data-bf-ask-group]')?.dataset?.bfAskGroup ?? null, token: i.dataset.token }));
       const heldEmpty = !(card.getFlag(MOD, 'saves')?.targets?.length);
+      // Everything waits on the answer: no damage dice, no damage popup, while the ask stands.
+      const damageFor = () => game.messages.filter(m => (m.getFlag('dnd5e', 'originatingMessage') === card.id) && (m.getFlag('dnd5e', 'roll.type') === 'damage')).length;
+      const damageBefore = damageFor();
+      const offerBefore = [...foundry.applications.instances.values()].some(a => a.rendered && /Damage — your roll|Roll damage/i.test(a.element?.textContent ?? ''));
+      const deferred = !!card.getFlag(MOD, 'savesDeferredRoll');
       if (pick) await pick(askRows, askPopup?.element ?? null);
       askPopup?.element?.querySelector('button[data-action="ok"]')?.click();
       const adopted = await waitFor(() => { const f2 = card.getFlag(MOD, 'saves'); return (f2?.status === 'done' || (f2?.templated && f2.targets.length)) ? f2 : null; }, 8000);
-      return { card, askRows, heldEmpty, why: askPopup ? (adopted ? '' : 'the ask was answered but the demand never filled') : 'no ask popup opened' };
+      const damageAfter = adopted ? await waitFor(() => damageFor() > damageBefore ? damageFor() : null, 8000) : null;
+      return { card, askRows, heldEmpty, damageBefore, offerBefore, deferred, damageAfter, why: askPopup ? (adopted ? '' : 'the ask was answered but the demand never filled') : 'no ask popup opened' };
     };
     const names = list => (list ?? []).map(t => t.name).sort().join(',');
 
@@ -348,9 +354,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(9) && rgrTok && vicTok) {
       await gather();
       await set('saveTimer', 0);
-      const { card, why, askRows, heldEmpty } = await castArea('careful');
+      const { card, why, askRows, heldEmpty, damageBefore, offerBefore, deferred, damageAfter } = await castArea('careful');
       carefulCard = card;
       ok('9x. the ask opened at the area listing everyone inside — four, the Sorcerer and the Ranger ticked, the goblins not — while the demand waited empty', askRows?.length === 4 && askRows.filter(r => r.checked).map(r => r.name).sort().join(',') === 'BF Test Ranger,BF Test Sorcerer' && heldEmpty === true, `rows=${askRows?.map(r => `${r.name}:${r.checked}`).join(',')} heldEmpty=${heldEmpty}`);
+      ok('9z. the dice waited on the answer: no damage roll and no damage popup while the ask stood, the deferral on the card; the roll landed after OK', askRows && damageBefore === 0 && offerBefore === false && deferred === true && (damageAfter ?? 0) > 0, JSON.stringify({ damageBefore, offerBefore, deferred, damageAfter }));
       ok('9y. two groups: the Sorcerer (player-owned for the run) under Party, the Ranger and the goblins under Non-Party; every row names its token', askRows?.find(r => r.name === 'BF Test Sorcerer')?.group === 'Party' && askRows?.filter(r => r.name !== 'BF Test Sorcerer').every(r => r.group === 'Non-Party') && askRows.every(r => !!r.token), askRows?.map(r => r.name + '@' + r.group).join(','));
       if (card) keepCards.add(card.id);
       const saves = card?.getFlag(MOD, 'saves'), mm = card?.getFlag(MOD, 'metamagic');
