@@ -264,7 +264,16 @@ const out = await f.evaluate(async ({ playerName }) => {
         let index;
         try { index = await pack.getIndex(); } catch { continue; }
         const hit = index.find(e => e.name === name);
-        if (hit) { const doc = await pack.getDocument(hit._id); const data = doc.toObject(); delete data._id; return data; }
+        if (hit) {
+          const doc = await pack.getDocument(hit._id); const data = doc.toObject(); delete data._id;
+          // ⚠ `toObject()` DROPS `_stats.compendiumSource`, and the 2024 pack's consumption targets
+          // are compendium UUIDs the system remaps to the owned copy BY THAT STAMP (measured on the
+          // fighter, fixture-d20-folds.mjs; measured again 2026-09-09 on the Sorcerer: every
+          // metamagic option names Font of Magic by UUID, and without the stamp `poolOf` read
+          // nothing). Every built item carries its source, so a target can always find its pool.
+          foundry.utils.setProperty(data, "_stats.compendiumSource", doc.uuid);
+          return data;
+        }
       }
       return null;
     };
@@ -289,7 +298,24 @@ const out = await f.evaluate(async ({ playerName }) => {
         feats: ["Sneak Attack", "Cunning Strike", "Devious Strikes", "Improved Cunning Strike", "Supreme Sneak", "Assassinate", "Steady Aim", "Evasion"],
         gear: ["Rapier", "Longsword", "Shortbow"], abilities: { dex: 18, str: 12, con: 14 }, hp: 90, x: 700 },
       { name: "BF Test Ranger", classes: [["Ranger", 5], ["Gloom Stalker", null]],
-        feats: ["Dread Ambusher"], gear: ["Longsword", "Longbow"], abilities: { dex: 16, str: 14, wis: 16, con: 14 }, hp: 44, x: 500 }
+        feats: ["Dread Ambusher"], gear: ["Longsword", "Longbow"], abilities: { dex: 16, str: 14, wis: 16, con: 14 }, hp: 44, x: 500 },
+      // The metamagic pass (2026-09-09, PLAN *THE METAMAGIC PASS* Stage 0): a Sorcerer with EVERY
+      // 2024 option on the sheet. The options are class feats nothing grants (SWEEP: "options
+      // nothing grants"), so they go on as items beside Font of Magic, whose uses.max is
+      // `@scale.sorcerer.points` — resolved by the level-set class item exactly as the Rogue's
+      // sneak-attack scale is. Charisma 16 (+3) is load-bearing: Careful's cap and Empowered's
+      // reroll count both read the modifier, and the suite asserts against 3. Built, not cloned:
+      // Gren (the world's Sorcerer) knows only Careful and Subtle and carries DDB import residue
+      // (Innate Sorcery's effect had been stripped). Fireball (a save spell over an area), Hold
+      // Person (a save spell that scales targets), Chromatic Orb (a spell attack) are the three
+      // spell shapes the ten options need. ⚠ BOTTOM ROW like the Paladin and the Cleric, and
+      // well away from both: a Fireball needs clear ground, and the Paladin's aura must not stand
+      // over the fixture.
+      { name: "BF Test Sorcerer", classes: [["Sorcerer", 5], ["Draconic Sorcery", null]],
+        feats: ["Font of Magic", "Metamagic", "Careful Spell", "Distant Spell", "Empowered Spell", "Extended Spell", "Heightened Spell",
+          "Quickened Spell", "Seeking Spell", "Subtle Spell", "Transmuted Spell", "Twinned Spell"],
+        spells: ["Fireball", "Hold Person", "Chromatic Orb"], gear: ["Dagger"], spellcasting: "cha",
+        abilities: { cha: 16, con: 14, dex: 14, str: 8 }, hp: 32, x: 1000, y: 1800 }
     ];
     const built = [];
     for (const spec of BUILT) {
@@ -332,6 +358,28 @@ const out = await f.evaluate(async ({ playerName }) => {
         for (const n of lacking) { const data = await findPackItem(PHB_CLASSES, n); if (data) add.push(data); else log.push(`⚠ ${n} not found — ${spec.name} lacks it`); }
         for (const n of lackingSpells) { const data = await findPackItem(PHB_SPELLS, n); if (data) { data.system.preparation = { mode: "prepared", prepared: true }; add.push(data); } else log.push(`⚠ ${n} not found — ${spec.name} lacks it`); }
         if (add.length) { await actor.createEmbeddedDocuments("Item", add); log.push(`gave ${spec.name} ${add.map(i => i.name).join(", ")}`); }
+      }
+      // An item built before the source stamp was understood (2026-09-09) is healed in place —
+      // idempotent, the d20-folds fixture's idiom — so a rebuilt world and a healed one agree.
+      const unstamped = actor.items.filter(i => !i._stats?.compendiumSource);
+      if (unstamped.length) {
+        const updates = [];
+        for (const i of unstamped) {
+          const packs = i.type === "spell" ? PHB_SPELLS : (i.type === "feat" || i.type === "class" || i.type === "subclass") ? PHB_CLASSES : PHB_GEAR;
+          for (const id of packs) {
+            const index = await game.packs.get(id)?.getIndex().catch(() => null);
+            const hit = index?.find(e => e.name === i.name);
+            if (hit) { updates.push({ _id: i.id, "_stats.compendiumSource": `Compendium.${id}.Item.${hit._id}` }); break; }
+          }
+        }
+        if (updates.length) { await actor.updateEmbeddedDocuments("Item", updates); log.push(`stamped ${updates.length} of ${spec.name}'s items with their compendium source`); }
+      }
+      // A built caster's spells read the ACTOR's spellcasting ability (the pack's spells carry no
+      // class link); unset, the DC computed at 8 + proficiency (measured 2026-09-09: 11 on a
+      // Sorcerer 5 with Charisma 16, where 14 is right).
+      if (spec.spellcasting && (actor.system._source.attributes?.spellcasting !== spec.spellcasting)) {
+        await actor.update({ "system.attributes.spellcasting": spec.spellcasting });
+        log.push(`set ${spec.name}'s spellcasting ability to ${spec.spellcasting}`);
       }
       // A bare character walks at 0 — give it a speed, so a feature that zeroes it can be seen to.
       if (!(actor.system._source.attributes?.movement?.walk > 0)) { await actor.update({ 'system.attributes.movement.walk': 30 }); log.push(`gave ${spec.name} a walking speed of 30`); }
