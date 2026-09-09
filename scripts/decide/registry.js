@@ -92,7 +92,7 @@ export const INTERRUPT_REDUCTIONS = Object.freeze({
  * and deliberately uncounted (§6); a kind here names a SPEND, which is content, which is
  * precisely what the R4 tripwire is counting.
  */
-export const D20_FOLD_KINDS = new Set(["heroic", "tactical", "bardic"]);
+export const D20_FOLD_KINDS = new Set(["heroic", "tactical", "bardic", "seeking"]);
 
 /**
  * The closed set of volley kinds. Lives here, in the pure layer, so that ONE definition serves
@@ -1341,7 +1341,10 @@ export const LIST_SPECS = {
     // said — which is the right way round.
     // Ambush and Tactical Assessment (2026-09-05) are the `tactical` SPEND with a scope of their
     // own (SUPERIORITY_FOLDS) — the name is the lookup key and the label both.
-    default: "Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic, Ambush:tactical, Tactical Assessment:tactical"
+    // Seeking Spell (the metamagic pass, Stage 4, 2026-09-09): a REROLL like heroic, on a SPELL
+    // attack's miss, paid from Font of Magic by hand — the item is the lookup key, and the
+    // Metamagic list must admit it too (the option's own switch).
+    default: "Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic, Ambush:tactical, Tactical Assessment:tactical, Seeking Spell:seeking"
   },
   rider: {
     label: "Rider List", setting: "riderList",

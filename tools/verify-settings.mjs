@@ -51,7 +51,7 @@ const REFERENCE = {
   // so a registered setting that this table does not name is simply never checked, and drifts
   // in silence forever. (`missing` catches the opposite case — a reference key with no
   // registration — but nothing catches a registration with no reference key.)
-  d20Folds: 'Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic, Ambush:tactical, Tactical Assessment:tactical',   // the two scoped folds joined 2026-09-05
+  d20Folds: 'Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic, Ambush:tactical, Tactical Assessment:tactical, Seeking Spell:seeking',   // the two scoped folds joined 2026-09-05; Seeking Spell 2026-09-09
   d20FoldAsk: true,       // auto-offer where the module owns the number; checks are always player-pressed
   concMode: 'prompt',
   concTimer: 24,          // user 2026-08-27: all timers 24s

@@ -59,9 +59,9 @@
  * ------------------------------------------------------------------------------------------- */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext }
   from "./core.js";
-import { d20FoldEntries } from "./settings.js";
-import { itemNamed, resolveUuid, resolveDie } from "./lookup.js";
-import { grantingActor, hitTargets, modeAllows, poolSpendsOn } from "./shared.js";
+import { d20FoldEntries, metamagicEntries, listedNames } from "./settings.js";
+import { itemNamed, lower, resolveUuid, resolveDie } from "./lookup.js";
+import { grantingActor, hitTargets, modeAllows, poolSpendsOn, poolOf, spendPoolUses } from "./shared.js";
 import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
   from "./decide/present.js";
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
@@ -205,7 +205,38 @@ const BARDIC = {
   spend: async (_actor, marker) => { await marker.effect.delete(); return true; }
 };
 
-const KINDS = { heroic: HEROIC, tactical: TACTICAL, bardic: BARDIC };
+/**
+ * Seeking Spell (the metamagic pass, Stage 4, 2026-09-09) — a SPELL attack's miss, by the option's
+ * own text; a REROLL like heroic, paid from Font of Magic BY HAND (the uniform spend — the record
+ * lands on the attack message, where the flash and the card line read it). The option must stand
+ * on the sheet AND be admitted by the Metamagic list, the option's own switch; its cost is its
+ * activity's consumption value, read live (N1).
+ */
+const SEEKING = {
+  tests: ["attack"],
+  find: (actor, entry, ctx = {}) => {
+    if ( !ctx.spell ) return null;
+    if ( !listedNames(metamagicEntries()).has(lower(entry.name)) ) return null;
+    const item = itemNamed(actor, entry.name);
+    const activity = item?.system?.activities?.contents?.[0] ?? null;
+    if ( !item || !activity ) return null;
+    const pool = poolOf(actor, activity);
+    const cost = Math.max(1, Number(activity.consumption?.targets?.find(t => t.type === "itemUses")?.value) || 1);
+    if ( !pool || ((pool.system?.uses?.value ?? 0) < cost) ) return null;
+    return { kind: "seeking", item, pool, cost };
+  },
+  die: () => null,                                        // a REROLL contributes no die
+  spend: async (actor, marker, message) => {
+    const record = await spendPoolUses(actor, marker.pool, "Seeking Spell", marker.cost, "Sorcery Points");
+    if ( !record ) return false;
+    if ( message ) await message.setFlag(MODULE_ID, "poolSpend", record);
+    return true;
+  }
+};
+
+const KINDS = { heroic: HEROIC, tactical: TACTICAL, bardic: BARDIC, seeking: SEEKING };
+/** The kinds that REPLACE the d20 rather than add to it — heroic, and Seeking Spell since 2026-09-09. */
+const REROLL_KINDS = new Set(["heroic", "seeking"]);
 
 // The bard behind an Inspired effect — `origin` is their ITEM, and the actor is its parent — is
 // `grantingActor` in shared.js since 2026-09-01: the reminder gate's Sapped-by line is the same
@@ -250,14 +281,14 @@ function availableFolds(actor, testKind, spent = [], ctx = {}) {
     if ( !tests.includes(testKind) ) continue;
     if ( scope && (testKind === "check") && !(ctx.skill && scope.skills.includes(ctx.skill)) ) continue;
     if ( spent.includes(entry.kind) || spent.includes(entry.name) ) continue;   // by NAME too: two tactical rows (2026-09-05)
-    const marker = spec.find(actor, entry);
+    const marker = spec.find(actor, entry, ctx);
     if ( !marker ) continue;
     let dieFormula = spec.die(marker);
     if ( scope && dieFormula ) {
       // The Superiority Die is a scale value — resolved on the fighter, "d8" read as "1d8".
       dieFormula = resolveDie(actor, dieFormula);
     }
-    if ( (entry.kind !== "heroic") && !dieFormula ) continue;   // a die-kind with no die is off
+    if ( !REROLL_KINDS.has(entry.kind) && !dieFormula ) continue;   // a die-kind with no die is off
     // ⚠ `name` is the LOOKUP KEY (the item or effect to find); `label` is what the table reads.
     // For `bardic` those genuinely differ — "Inspired" vs "Bardic Inspiration". See KIND_LABEL.
     // A scoped entry is called by its own name (Ambush is not Tactical Mind on a card).
@@ -303,11 +334,13 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
     if ( message.getFlag(MODULE_ID, "d20fold") ) return;            // never re-stamp
     const roll = rolls[0];
 
-    let offers = availableFolds(attacker, "attack");
+    // A SPELL attack (2026-09-09): Seeking Spell's fit — carried on the flag for the re-offer.
+    const spell = subject.item?.type === "spell";
+    let offers = availableFolds(attacker, "attack", [], { spell });
     // ⚠ A natural 1 stands for the ADD kinds — precision's fence, same reason: no die added to a
     // fumble un-fumbles it. It does NOT stand for `heroic`, because a reroll replaces the die
     // outright and rerolling a 1 is the entire point of the feature.
-    if ( roll.isFumble ) offers = offers.filter(o => o.kind === "heroic");
+    if ( roll.isFumble ) offers = offers.filter(o => REROLL_KINDS.has(o.kind));
     if ( !offers.length ) return;
 
     const snapshot = message.getFlag("dnd5e", "targets") ?? [];
@@ -318,6 +351,7 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
     const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
     await message.setFlag(MODULE_ID, "d20fold", {
       ...baseFlag(attacker, offers, "attack", roll.total, window),
+      ...(spell ? { spell: true } : {}),
       targets: judged.map(t => ({ uuid: t.uuid, name: t.name, ac: t.ac,
         margin: t.ac - roll.total, verdict: null }))
     });
@@ -582,7 +616,8 @@ async function resolveFold(message, answer) {
     // the marker can be gone — the boolean toggled off on the sheet, the effect expired, the
     // last Second Wind spent elsewhere. Recording a spend that did not happen shipped a lie
     // once (ui.js:407); spending something no longer there is the same lie in reverse.
-    const marker = spec.find(actor, { name: offer.name, kind });
+    // The find takes the roll's context too (Seeking Spell fits a SPELL attack alone — carried on the flag).
+    const marker = spec.find(actor, { name: offer.name, kind }, { spell: !!flag.spell });
     if ( !marker ) {
       await queueFlagWrite(message, "d20fold", current => {
         current.status = "resolved";
@@ -611,13 +646,13 @@ async function resolveFold(message, answer) {
     if ( !(await spec.spend(actor, marker, message)) ) return;
 
     // 2. The new number, public, stamped so no other recognizer can claim it.
-    const rolled = (kind === "heroic")
+    const rolled = REROLL_KINDS.has(kind)
       ? await rerollOf(message, actor)
       : await rollDie(spec.die(marker) ?? offer.dieFormula, actor);
     if ( !rolled ) return;
     await rolled.roll.toMessage({
       speaker: ChatMessage.getSpeaker({ actor }),
-      flavor: (kind === "heroic") ? `${labelOf(offer)} — the reroll` : `${labelOf(offer)} — the die`,
+      flavor: REROLL_KINDS.has(kind) ? `${labelOf(offer)} — the reroll` : `${labelOf(offer)} — the die`,
       flags: { [MODULE_ID]: { respondsTo: message.id } }
     });
 
@@ -631,7 +666,7 @@ async function resolveFold(message, answer) {
     // path every other reader uses.
     const spends = [...(flag.spends ?? []), {
       kind, name: offer.name, label: offer.label,
-      ...(kind === "heroic" ? { reroll: rolled.summary } : { die: rolled.summary.total })
+      ...(REROLL_KINDS.has(kind) ? { reroll: rolled.summary } : { die: rolled.summary.total })
     }];
     const pending = { ...flag, status: "resolved", outcome: "used", spends };
     /**
@@ -670,7 +705,7 @@ async function resolveFold(message, answer) {
 
     // What is still available AFTER this spend — the re-offer (finding 6).
     // By NAME (2026-09-05): spending Ambush must not hide Tactical Mind, its kind-mate, from the re-offer.
-    const remaining = availableFolds(actor, flag.testKind, spends.map(s => s.name ?? s.kind), { skill: flag.skill ?? null });
+    const remaining = availableFolds(actor, flag.testKind, spends.map(s => s.name ?? s.kind), { skill: flag.skill ?? null, spell: !!flag.spell });
     const stillFailing = isStillFailing(flag, composed, baseRoll, folds);
     const reoffer = remaining.length && stillFailing;
 
@@ -987,7 +1022,7 @@ function offerLines(flag, offers) {
   // ⚠ The cost rides on the offer's OWN line, so it reaches the card and the popup alike and
   // can never be read as applying to a different fold in the list.
   const lines = offers.map(o => `<strong>${labelOf(o)}</strong>`
-    + (o.kind === "heroic" ? " — reroll the d20" : ` — add ${o.dieFormula}`)
+    + (REROLL_KINDS.has(o.kind) ? " — reroll the d20" : ` — add ${o.dieFormula}`)
     + (SPEND_COST[o.kind] ? ` <em>(${SPEND_COST[o.kind]})</em>` : ""));
   if ( setting(S.holdReveal) ) {
     for ( const t of flag.targets ?? [] ) {

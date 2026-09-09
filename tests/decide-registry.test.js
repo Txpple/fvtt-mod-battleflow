@@ -188,9 +188,11 @@ describe("d20 folds — three spends, one mechanism", () => {
   it("ships all three surveyed features on by default", () => {
     const { entries } = reg.parseList(spec(), spec().default);
     // 2026-09-05: Ambush and Tactical Assessment ship too — the tactical SPEND with a scope of their own.
+    // 2026-09-09: Seeking Spell too — the metamagic pass's reroll on a spell attack's miss.
     expect(entries.map(e => e.kind).sort()).toEqual([
       "bardic",
       "heroic",
+      "seeking",
       "tactical",
       "tactical",
       "tactical"
@@ -337,7 +339,8 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     // lives (always on with its token, or cast and adopted from the system's template).
     // 2026-09-05: 28 → 29 — `command` joins the maneuver folds (Commander's Strike, Riposte's driven
     // attack with the attacker changed to an ally).
-    expect(total).toBe(29);
+    // 2026-09-09: 29 → 30 — `seeking` joins the d20 folds (Seeking Spell, the metamagic pass).
+    expect(total).toBe(30);
   });
 
   it("puts every kind-bearing list spec's set in the table — unless the spec says it is MEMBERSHIP", () => {

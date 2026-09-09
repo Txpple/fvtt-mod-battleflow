@@ -17,19 +17,22 @@
  * once the owned copy carries its source stamp — measured 2026-09-09), and the SPELL's shape for
  * the fit. What it never judges: sight, willingness, the turn (DESIGN §8).
  *
- * The later moments (Empowered on the damage dice, Seeking on the miss) are Stage 4's and are
- * not here yet; Careful's protected set and Heightened's mark are Stage 2's and ride the same
- * birth flag.
+ * Careful's protected set and Heightened's mark (Stage 2) ride the same birth flag, derived where
+ * the save's reach is known (saves/demand.js). The later moments: Empowered is the fold on the
+ * damage dice at the end of this file (Stage 4); Seeking is a d20 fold KIND in d20-folds.js — the
+ * machine that already owns the reroll, the verdict and the withheld save.
  */
-import { MODULE_ID, TITLE, statContext, queueFlagWrite } from "./core.js";
-import { lower } from "./lookup.js";
+import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, isActiveGM, whisperNoGM } from "./core.js";
+import { lower, resolveUuid } from "./lookup.js";
 import { saveTargetEntry } from "./decide/demand.js";
 import { metamagicEntries, listedNames } from "./settings.js";
-import { poolOf, spendPoolUses } from "./shared.js";
+import { poolOf, spendPoolUses, poolSpendsOn } from "./shared.js";
 import { feetOf } from "./geometry.js";
-import { foldedRuleHTML, esc } from "./decide/present.js";
+import { bfCard, foldedRuleHTML, esc, holdBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
-import { METAMAGIC_FLAG, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom } from "./decide/metamagic.js";
+import { METAMAGIC_FLAG, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome } from "./decide/metamagic.js";
+import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync } from "./ui.js";
+import { applyDamagesWithReceipt } from "./auto-apply.js";
 
 const INDEX = tableIndex(METAMAGIC);
 /** The name the record shows for Font of Magic's uses — what the table calls them. */
@@ -137,7 +140,7 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
       if ( pick ) {
         const item = known.get(pick.feature);
         const typeBox = fs.querySelector(`[data-bf-metamagic-row="transmuted"] input[name="bf-metamagic-type"]:checked`);
-        pending.set(activity.uuid, { key: pick.key, feature: pick.feature, cost: pick.cost, itemUuid: item?.uuid ?? null, actorUuid: actor.uuid,
+        pending.set(activity.uuid, { key: pick.key, feature: pick.feature, cost: pick.cost, itemUuid: item?.uuid ?? null, actorUuid: actor.uuid, at: Date.now(),
           spellUuid: activity.item?.uuid ?? null, activityUuid: activity.uuid, spellName: activity.item?.name ?? null,
           // The option's rule rides the record where a later gate quotes it (Extended's concentration source).
           ...(pick.key === 'extended' ? { rule: metamagicRuleText(item?.system?.description?.value ?? '') } : {}),
@@ -158,6 +161,20 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
     const footer = element.querySelector("footer, .form-footer");
     if ( footer ) footer.before(fs); else (element.querySelector("form") ?? element).appendChild(fs);
   } catch(err) { console.warn(`${TITLE} | Could not add the metamagic fieldset.`, err); }
+});
+
+// ⚠ A PICK OUTLIVES ITS DIALOG ONLY UNTIL A CARD IS BORN. A tick made and the window cancelled, or a
+// cast whose template is never placed (measured 2026-09-09: the pick landed on the NEXT Fireball,
+// spent a point for an option nobody ticked), must not wait in memory for the next cast of the
+// same spell. The dialog's close hook sweeps a pick no card has claimed, after the card's own
+// creation has had its moment; and the stamp refuses a pick older than the window a cast can take.
+const PICK_TTL_MS = 5 * 60 * 1000;
+Hooks.on("closeActivityUsageDialog", app => {
+  try {
+    const uuid = (app?.activity ?? app?.options?.activity)?.uuid ?? null;
+    if ( !uuid || !pending.has(uuid) ) return;
+    setTimeout(() => { const p = pending.get(uuid); if ( p && !p.born ) pending.delete(uuid); }, 3000);
+  } catch { /* the sweep is a courtesy */ }
 });
 
 /** One row: the tick, the name, the tag, the rule folded under — nothing above the fold (the offer-row law). */
@@ -240,7 +257,11 @@ Hooks.on("preCreateChatMessage", doc => {
     const isUsage = (doc.type === "usage") || (doc.getFlag("dnd5e", "messageType") === "usage");
     if ( !isUsage ) return;
     const pick = pending.get(uuid);
-    doc.updateSource({ flags: { [MODULE_ID]: { [METAMAGIC_FLAG]: { ...pick, spent: false, ...statContext(pick.actorUuid ?? null) } } } });
+    if ( (Date.now() - (pick.at ?? 0)) > PICK_TTL_MS ) { pending.delete(uuid); return; }   // a stale pick is nobody's
+    pick.born = true;
+    const { born, at, ...record } = pick;
+    void born; void at;
+    doc.updateSource({ flags: { [MODULE_ID]: { [METAMAGIC_FLAG]: { ...record, spent: false, ...statContext(pick.actorUuid ?? null) } } } });
   } catch(err) { console.warn(`${TITLE} | The metamagic pick could not be stamped on the card.`, err); }
 });
 
@@ -357,3 +378,237 @@ async function applyAdjustment(message, record, candidates, chosen) {
     if ( mark ) flag.demand.heightened = mark; else delete flag.demand.heightened;
   });
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * Empowered Spell: a fold on the spell's damage dice (the metamagic pass, Stage 4, 2026-09-09;
+ * user: "let's try default")
+ *
+ * THE MOMENT is the damage roll. When a spell's damage lands on the caster's own client, a popup
+ * shows the dice as chips; the caster ticks up to CHA-mod of them and presses Reroll, or keeps
+ * the roll; the buzzer keeps it. Reroll spends the point BY HAND (the record on the damage
+ * message — the flash and the card line read it), rerolls the ticked dice, and PATCHES THE
+ * MESSAGE'S OWN ROLL the way the dice rules do: the old face stays, struck through and inactive,
+ * the new face joins active, and the total moves — so every reader downstream (the verdicts, the
+ * appliers) sees the new number without knowing why, and the card shows both. The rolled-result
+ * obligation (§11 rule 4) is carried the honest way: damage ALREADY applied off this message (a
+ * receipt stands) is moved by the difference through the one applier, as its own receipt, on the
+ * elect; a client that cannot apply says so in a whisper. Empowered stands outside the one-per-cast
+ * rule by its own text, so a Careful or Transmuted cast can still take it.
+ * ------------------------------------------------------------------------------------------- */
+
+const EMPOWERED_FLAG = "empowered";
+const empoweredTimers = new Map();
+// ⚠ dnd5e dispatches the damage hook TWICE per roll (the literal `dnd5e.rollDamageV2` and the templated
+// `dnd5e.roll${name}V2` — measured 2026-09-09: "fired 2 for this roll"), and the never-re-stamp read
+// cannot see a setFlag still in flight. One in-flight set per moment keeps the offer, the popup and
+// the spend single.
+const empoweredOffering = new Set();
+const empoweredResolving = new Set();
+
+/** The dice a damage message shows — every active face of every die term, keyed `roll:term:index`. */
+function empoweredDice(rolls) {
+  const out = [];
+  (rolls ?? []).forEach((roll, i) => {
+    (roll?.terms ?? []).forEach((term, j) => {
+      if ( !Number.isFinite(term?.faces) || !Array.isArray(term.results) ) return;
+      term.results.forEach((r, k) => {
+        if ( r.active === false ) return;
+        out.push({ key: `${i}:${j}:${k}`, roll: i, term: j, index: k, faces: term.faces, result: r.result });
+      });
+    });
+  });
+  return out;
+}
+
+Hooks.on("dnd5e.rollDamageV2", (rolls, data) => {
+  try { void offerEmpowered(rolls, data?.subject ?? null); }
+  catch(err) { console.error(`${TITLE} | Empowered Spell's offer failed.`, err); }
+});
+
+async function offerEmpowered(rolls, activity) {
+  if ( !activity || (activity.item?.type !== "spell") ) return;
+  const actor = activity.actor;
+  if ( !actor?.isOwner ) return;
+  const message = rolls?.[0]?.parent;
+  if ( !(message instanceof ChatMessage) ) return;
+  if ( message.getFlag(MODULE_ID, EMPOWERED_FLAG) || empoweredOffering.has(message.id) ) return;   // never re-stamp
+  const item = knownOptions(actor).get("Empowered Spell");
+  if ( !item ) return;
+  empoweredOffering.add(message.id);
+  try { await stampEmpowered(message, actor, item); }
+  finally { empoweredOffering.delete(message.id); }
+}
+
+async function stampEmpowered(message, actor, item) {
+  const pool = poolFor(actor, item);
+  const cost = costOf(item) ?? 1;
+  if ( !pool || ((pool.system?.uses?.value ?? 0) < cost) ) return;
+  const dice = empoweredDice(message.rolls);
+  if ( !dice.length ) return;
+  const cap = Math.max(1, Number(actor.system?.abilities?.cha?.mod) || 1);
+  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  await message.setFlag(MODULE_ID, EMPOWERED_FLAG, {
+    status: "pending", feature: "Empowered Spell", actorUuid: actor.uuid, poolId: pool.id, cost, cap, dice,
+    oldTotal: (message.rolls ?? []).reduce((sum, r) => sum + (Number(r.total) || 0), 0),
+    rule: metamagicRuleText(item.system?.description?.value ?? ""),
+    ...statContext(actor.uuid),
+    ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
+  });
+  armAskTimer(empoweredTimers, message, EMPOWERED_FLAG, live => keepEmpowered(live, { timedOut: true }));
+  await showEmpoweredPopup(message);
+}
+
+/** The picked chips in a popup's form, in the order they were ticked. */
+const picksIn = form => [...(form?.querySelectorAll?.('[data-bf-die][data-picked="1"]') ?? [])]
+  .sort((a, b) => Number(a.dataset.order) - Number(b.dataset.order)).map(b => b.dataset.bfDie);
+
+async function showEmpoweredPopup(message) {
+  const flag = message.getFlag(MODULE_ID, EMPOWERED_FLAG);
+  if ( !flag || (flag.status !== "pending") ) return;
+  const actor = resolveUuid(flag.actorUuid);
+  if ( !actor ) return;
+  const pool = actor.items?.get(flag.poolId) ?? null;
+  const chips = flag.dice.map(d => `<button type="button" data-bf-die="${esc(d.key)}" data-picked="0" data-tooltip="d${d.faces}"
+      style="width:2.2rem;height:2.2rem;margin:0.15rem;padding:0;font-weight:bold;${d.result <= 2 ? "color:#b4463c;" : ""}">${d.result}</button>`).join("");
+  await openMomentPopup(message, EMPOWERED_FLAG, actor, {
+    title: `Empowered Spell — ${actor.name}`, icon: "fa-solid fa-wand-sparkles", width: 460,
+    content: bfCard({
+      img: actor.items?.find(i => i.name === "Empowered Spell")?.img ?? null,
+      eyebrow: "Metamagic — Empowered Spell", tone: "pending",
+      title: `${flag.oldTotal} damage — reroll up to ${flag.cap} ${flag.cap === 1 ? "die" : "dice"}?`,
+      subtitle: `${POOL_NAME}: ${pool?.system?.uses?.value ?? "?"} of ${pool?.system?.uses?.max ?? "?"} · ${flag.cost} SP`,
+      lines: [ruleLine(flag.rule)]
+    }) + `<div data-bf-empowered-dice data-cap="${flag.cap}" style="margin:0.4rem 0;">${chips}</div>` + holdBarHTML(flag, "to answer"),
+    buttons: [
+      { action: "reroll", label: "Reroll the picked dice", default: true, callback: (event, button) => resolveEmpowered(message, picksIn(button.form)) },
+      { action: "keep", label: "Keep the roll", callback: () => keepEmpowered(message) }
+    ]
+  });
+}
+
+// The chips toggle by delegation — the popup's element is the dialog's own, and one listener on
+// the document serves every open popup. The cap is enforced as the ticks are made.
+Hooks.once("ready", () => document.addEventListener("click", ev => {
+  const chip = ev.target?.closest?.("[data-bf-die]");
+  if ( !chip ) return;
+  ev.preventDefault();
+  const box = chip.closest("[data-bf-empowered-dice]");
+  const cap = Number(box?.dataset?.cap) || 99;
+  const picked = [...(box?.querySelectorAll('[data-picked="1"]') ?? [])];
+  if ( chip.dataset.picked === "1" ) { chip.dataset.picked = "0"; chip.style.outline = ""; return; }
+  if ( picked.length >= cap ) return;
+  chip.dataset.picked = "1"; chip.dataset.order = String(Date.now()); chip.style.outline = "2px solid rgb(222,120,40)";
+}));
+
+async function keepEmpowered(message, { timedOut = false } = {}) {
+  await queueFlagWrite(message, EMPOWERED_FLAG, current => {
+    if ( current.status !== "pending" ) return false;
+    current.status = "kept";
+    if ( timedOut ) current.timedOut = true;
+  });
+}
+
+async function resolveEmpowered(message, picks) {
+  if ( empoweredResolving.has(message.id) ) return;
+  empoweredResolving.add(message.id);
+  try {
+    const flag = message.getFlag(MODULE_ID, EMPOWERED_FLAG);
+    if ( !flag || (flag.status !== "pending") ) return;
+    const chosen = empoweredPlan({ dice: flag.dice, picks, cap: flag.cap });
+    if ( !chosen.length ) { await keepEmpowered(message); return; }
+    const actor = resolveUuid(flag.actorUuid);
+    const pool = actor?.items?.get(flag.poolId) ?? null;
+    if ( !actor || !pool ) return;
+    const record = await spendPoolUses(actor, pool, "Empowered Spell", flag.cost, POOL_NAME);
+    // The reroll, on the message's own rolls: the old face inactive and struck, the new one active.
+    const data = (message.rolls ?? []).map(r => r.toJSON());
+    const done = [];
+    for ( const d of chosen ) {
+      const term = data[d.roll]?.terms?.[d.term];
+      const old = term?.results?.[d.index];
+      if ( !term || !old ) continue;
+      const fresh = await new Roll(`1d${d.faces}`).evaluate();
+      old.active = false; old.rerolled = true;
+      term.results.push({ result: fresh.total, active: true });
+      done.push({ key: d.key, old: old.result, new: fresh.total });
+    }
+    const rebuilt = data.map(rd => { const r = Roll.fromData(rd); r._total = r._evaluateTotal(); return r; });
+    const outcome = empoweredOutcome({ oldTotal: flag.oldTotal, picks: done });
+    await message.update({
+      rolls: rebuilt.map(r => JSON.stringify(r.toJSON())),
+      flags: { [MODULE_ID]: { poolSpend: record, [EMPOWERED_FLAG]: { ...flag, status: "used", picks: done, newTotal: outcome.newTotal, delta: outcome.delta } } }
+    });
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor }),
+      content: bfCard({ img: actor.items?.find(i => i.name === "Empowered Spell")?.img ?? null,
+        eyebrow: "Metamagic — Empowered Spell", tone: outcome.delta >= 0 ? "good" : "neutral",
+        title: `Empowered Spell — ${outcome.line}`,
+        subtitle: spendPhrase(poolSpendsOn(message), "Sorcery Point") || `${POOL_NAME} spent`,
+        lines: [outcome.delta === 0 ? "The total stands." : `The damage is ${outcome.newTotal} now — the new rolls stand.`] }),
+      flags: { [MODULE_ID]: { respondsTo: message.id } }
+    });
+    await moveAppliedDamage(message, outcome);
+  } catch(err) {
+    console.error(`${TITLE} | Empowered Spell's reroll failed — reroll the dice by hand.`, err);
+  } finally {
+    empoweredResolving.delete(message.id);
+  }
+}
+
+/**
+ * Damage ALREADY applied off this message is moved by the difference — the §11 rule 4 obligation
+ * carried through the one applier, as its own receipt (revertable like any other). A rerolled
+ * total that fell heals the difference back the same way.
+ */
+async function moveAppliedDamage(message, outcome) {
+  const receipt = message.getFlag(MODULE_ID, "receipt");
+  const targets = (receipt?.targets ?? []).filter(t => !t.reverted);
+  if ( !targets.length || !outcome.delta ) return;
+  const type = message.rolls?.[0]?.options?.type ?? null;
+  if ( !isActiveGM() ) {
+    await whisperNoGM(`Empowered Spell moved the damage by ${outcome.delta > 0 ? "+" : ""}${outcome.delta} on ${targets.map(t => t.name).join(", ")} — already applied; adjust by hand`);
+    return;
+  }
+  for ( const t of targets ) {
+    const multiplier = Number(t.multiplier ?? 1) || 1;
+    const amount = Math.abs(outcome.delta);
+    const damages = outcome.delta > 0 ? [{ value: amount, type }] : [{ value: amount, type: "healing" }];
+    await applyDamagesWithReceipt(message, [{ uuid: t.uuid, name: t.name }], damages,
+      { note: outcome.delta > 0 ? "Empowered Spell — the reroll" : "Empowered Spell — rerolled lower", multiplier });
+  }
+}
+
+// The card while the fold is pending: the offer and a recall; the elect arms the buzzer on render
+// (a player's roll stamps on the player's client, where armAskTimer is a no-op — the folds' lesson).
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  try {
+    const flag = message.getFlag(MODULE_ID, EMPOWERED_FLAG);
+    if ( !flag ) return;
+    const content = html.querySelector?.(".message-content") ?? html;
+    if ( !content || content.querySelector(".bf-empowered-line") ) return;
+    const div = document.createElement("div");
+    div.className = "bf-empowered-line";
+    div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
+    if ( flag.status === "pending" ) {
+      div.innerHTML = `<i class="fa-solid fa-wand-sparkles" data-tooltip="Metamagic"></i> Empowered Spell — offered: reroll up to ${flag.cap} ${flag.cap === 1 ? "die" : "dice"} ${holdBarHTML(flag, "to answer")}`;
+      const actor = resolveUuid(flag.actorUuid);
+      if ( actor?.isOwner ) div.appendChild(momentButton("Answer", () => { void showEmpoweredPopup(message); }));
+      scheduleBarSync(div);
+      armAskTimer(empoweredTimers, message, EMPOWERED_FLAG, live => keepEmpowered(live, { timedOut: true }));
+    } else if ( flag.status === "used" ) {
+      div.innerHTML = `<i class="fa-solid fa-wand-sparkles" data-tooltip="Metamagic"></i> ${esc(`Empowered Spell — ${empoweredOutcome({ oldTotal: flag.oldTotal, picks: flag.picks ?? [] }).line}`)}`;
+    } else {
+      div.innerHTML = `<i class="fa-solid fa-wand-sparkles" data-tooltip="Metamagic"></i> Empowered Spell — kept${flag.timedOut ? " (the clock ran out)" : ""}`;
+    }
+    content.appendChild(div);
+  } catch(err) { console.warn(`${TITLE} | The Empowered line could not render.`, err); }
+});
+
+// A resolved fold closes its popup (law 4) and stands its buzzer down.
+Hooks.on("updateChatMessage", message => {
+  const flag = message.getFlag(MODULE_ID, EMPOWERED_FLAG);
+  if ( !flag || (flag.status === "pending") ) return;
+  disarmAskTimer(empoweredTimers, message.id);
+  const open = livePopups.get(popupKey(message.id, EMPOWERED_FLAG));
+  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+});

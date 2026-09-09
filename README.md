@@ -52,6 +52,16 @@ Maneuvering and Sweeping. The Superiority Die is read off the sheet and rides th
 is spent, and the maneuver's own save goes to the target through the save gate. A Sweeping
 Attack lists the creatures within five feet and rolls its die at the one you pick.
 
+**Metamagic is a tick in the casting window.** A Sorcerer casting a spell sees the options they
+know as rows in the spell's own casting window — the name, the cost in Sorcery Points, the rule
+folded under — and one tick does the arithmetic the option names: Careful's protected allies never
+see the save prompt, Heightened marks one target for Disadvantage, Distant doubles the range the
+reminder reads, Extended doubles the clock on what the cast lands, Transmuted retypes every roll of
+the cast, Twinned fits only the spells whose target count grows with the slot. Empowered is offered
+after the damage dice and rerolls the ones you pick; Seeking is offered on a spell attack's miss
+beside Heroic Inspiration. The points are spent on the spell's card, with the same floating text
+and the same card line every other pool gets.
+
 **The rest of the Battle Master's maneuvers land too.** Parry reduces the damage taken by the
 die and modifier the pack's own formula rolls, spent from the pool at the reaction. Evasive
 Footwork rolls the die and puts the number on your AC until your next turn. Bait and Switch

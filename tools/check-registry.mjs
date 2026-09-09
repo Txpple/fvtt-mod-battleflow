@@ -170,7 +170,11 @@ for (const [key, spec] of Object.entries(LIST_SPECS)) {
 // 2026-09-05: 28 → 29, `command` joins the maneuver folds — Commander's Strike, Riposte's driven
 // attack with the ATTACKER changed to an ally: a genuinely different spend (the fighter's die, the
 // ally's Reaction and weapon), on the set D8 already named as the one under pressure.
-const EXPECTED_KINDS = 29;
+// 2026-09-09: 29 → 30, `seeking` joins the d20 folds (the metamagic pass, Stage 4): Seeking Spell is a
+// REROLL of a spell attack's miss paid from Font of Magic BY HAND — a genuinely different spend from
+// heroic's boolean write, tactical's use() and bardic's effect delete, on the machine that already
+// owns the reroll, the verdict and the withheld save.
+const EXPECTED_KINDS = 30;
 
 // The mastery set must match the rule text it is presented with: a mastery this module
 // resolves but cannot quote breaks presentation law 8 (ARCHITECTURE.md §5) at the popup.

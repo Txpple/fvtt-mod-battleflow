@@ -10,7 +10,9 @@ import {
   carefulProtects,
   heightenedMark,
   scalesTargetsFrom,
-  extendedDuration
+  extendedDuration,
+  empoweredPlan,
+  empoweredOutcome
 } from "../scripts/decide/metamagic.js";
 
 // The three fixture spells as the probe measured them (tools/probe-metamagic.mjs, 2026-09-09).
@@ -324,5 +326,37 @@ describe("Extended, Transmuted, Twinned (Stage 3)", () => {
     expect(metamagicCardLine({ key: "twinned", feature: "Twinned Spell" })).toMatch(
       /one more target/
     );
+  });
+});
+
+describe("Empowered (Stage 4)", () => {
+  const dice = [
+    { key: "0:0:0", faces: 6, result: 1 },
+    { key: "0:0:1", faces: 6, result: 1 },
+    { key: "0:0:2", faces: 6, result: 2 },
+    { key: "0:0:3", faces: 6, result: 5 }
+  ];
+  it("keeps the ticked dice up to the cap, once each, ignoring keys the roll never showed", () => {
+    expect(
+      empoweredPlan({ dice, picks: ["0:0:1", "0:0:1", "0:0:0", "9:9:9", "0:0:2"], cap: 2 }).map(
+        d => d.key
+      )
+    ).toEqual(["0:0:1", "0:0:0"]);
+    expect(empoweredPlan({ dice, picks: ["0:0:3"], cap: 0 }).length).toBe(1);
+    expect(empoweredPlan({ dice, picks: [], cap: 3 })).toEqual([]);
+  });
+  it("moves the total by the dice's change and says so", () => {
+    const o = empoweredOutcome({
+      oldTotal: 22,
+      picks: [
+        { old: 1, new: 4 },
+        { old: 1, new: 6 },
+        { old: 2, new: 3 }
+      ]
+    });
+    expect(o.delta).toBe(9);
+    expect(o.newTotal).toBe(31);
+    expect(o.line).toBe("1, 1, 2 → 4, 6, 3 · 22 → 31");
+    expect(empoweredOutcome({ oldTotal: 10, picks: [{ old: 6, new: 1 }] }).newTotal).toBe(5);
   });
 });

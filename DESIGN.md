@@ -915,7 +915,12 @@ option names and judges nothing else.** RULED 2026-09-09 off the prototype
   cast's own damage parts** (the first change to an EXISTING part; every rider so far only adds
   one); **Twinned adds one creature to the target snapshot** (`messageConfig`, written directly —
   the system snapshots targets before `preUseActivity`).
-- **Empowered and Seeking are folds AFTER a roll** (user: "let's try default"): Empowered opens
+- **Empowered and Seeking are folds AFTER a roll** (user: "let's try default"). **Delivered 2026-09-09
+  (Stage 4):** Seeking is a d20 fold KIND on the machine that owns the reroll — offered on a spell
+  attack's miss beside Heroic Inspiration, one Sorcery Point by hand; Empowered patches the damage
+  message's own roll the way the dice rules do (the old face struck and inactive, the new one
+  active, the total moved) so everything downstream reads the new number, and damage already
+  applied is moved by the difference as its own receipt. As drawn: Empowered opens
   on the spell's damage with the dice shown, up to CHA-mod of them picked and rerolled, the new
   rolls standing; Seeking is Precision Attack's shape on a spell attack's miss — Use or Pass, the
   d20 rerolled, the new roll standing, Pass at expiry. Both carry the rolled-result obligation

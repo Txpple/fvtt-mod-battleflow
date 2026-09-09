@@ -63,7 +63,8 @@
  */
 function contributionOf(spend, uuid) {
   const at = uuid === undefined ? {} : { uuid };
-  if ( spend?.kind === "heroic" ) {
+  // Seeking Spell (2026-09-09) is the second reroll — the same replace, the same crit and fumble.
+  if ( (spend?.kind === "heroic") || (spend?.kind === "seeking") ) {
     return Number.isFinite(spend.reroll?.total)
       ? { ...at, replace: {
           total: spend.reroll.total,

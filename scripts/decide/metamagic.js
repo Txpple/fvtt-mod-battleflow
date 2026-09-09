@@ -226,6 +226,39 @@ export function extendedDuration(duration) {
 }
 
 /**
+ * EMPOWERED SPELL'S PICK (Stage 4, 2026-09-09): the dice the caster ticked, up to the cap (the
+ * Charisma modifier, minimum one), each found among the dice the roll showed. A key is
+ * `roll:term:index` — the die's place in the message's rolls.
+ * @param {{dice: {key: string, faces: number, result: number}[], picks: string[], cap: number}} args
+ */
+export function empoweredPlan({ dice, picks, cap }) {
+  const limit = Math.max(1, Number(cap) || 1);
+  const seen = new Set();
+  const out = [];
+  for ( const key of picks ?? [] ) {
+    if ( seen.has(key) ) continue;
+    const die = (dice ?? []).find(d => d.key === key);
+    if ( !die ) continue;
+    seen.add(key);
+    out.push(die);
+    if ( out.length >= limit ) break;
+  }
+  return out;
+}
+
+/**
+ * The arithmetic of the reroll: the new total is the old one moved by every die's change, and the
+ * sentence the card says — the old faces, an arrow, the new, then the totals.
+ * @param {{oldTotal: number, picks: {old: number, new: number}[]}} args
+ */
+export function empoweredOutcome({ oldTotal, picks }) {
+  const delta = (picks ?? []).reduce((sum, p) => sum + ((Number(p.new) || 0) - (Number(p.old) || 0)), 0);
+  const newTotal = (Number(oldTotal) || 0) + delta;
+  const line = `${(picks ?? []).map(p => p.old).join(", ")} → ${(picks ?? []).map(p => p.new).join(", ")} · ${oldTotal} → ${newTotal}`;
+  return { delta, newTotal, line };
+}
+
+/**
  * Distant Spell's arithmetic: a Touch spell reaches 30 feet; any other range is doubled.
  * @param {SpellFacts} facts
  * @returns {number|null}

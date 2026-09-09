@@ -515,6 +515,12 @@ export const RESCUE_KINDS = {
     cost: "expended when rolled, whether or not it helps",
     rule: "Once within the next hour when the creature fails a D20 Test, the creature can roll the Bardic Inspiration die and add the number rolled to the d20, potentially turning the failure into a success. A Bardic Inspiration die is expended when it's rolled."
   },
+  seeking: {
+    label: "Seeking Spell",
+    icon: "fa-solid fa-compass",
+    cost: "1 Sorcery Point, spent either way, and the new roll stands",
+    rule: "If you make an attack roll for a spell and miss, you can spend 1 Sorcery Point to reroll the d20, and you must use the new roll. You can use Seeking Spell even if you’ve already used a different Metamagic option during the casting of the spell."
+  },
   precision: {
     label: "Precision Attack",
     icon: "fa-solid fa-crosshairs",
@@ -785,7 +791,7 @@ export function rescueView(read, { composed = null, reveal = false,
       label: r.label,
       text: r.rule ?? RESCUE_KINDS[r.kind]?.rule ?? null,
       detail: (r.spent || r.withdrawn) ? ""
-        : `${(r.kind === "heroic") ? "Rerolls the d20" : `Adds ${r.die ?? "a die"}`}`
+        : `${((r.kind === "heroic") || (r.kind === "seeking")) ? "Rerolls the d20" : `Adds ${r.die ?? "a die"}`}`
           + (r.cost ? ` — ${r.cost}.` : ".")
     }))
     .filter(q => q.text);

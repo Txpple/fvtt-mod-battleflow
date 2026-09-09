@@ -34,7 +34,9 @@ const SECTIONS = {
   11: 'the picker to adjust (Stage 2): from the card, the Ranger is released from Careful\'s list — the Ranger joins the demand as a fresh entry, the Sorcerer stays protected',
   12: 'Twinned Spell (Stage 3): Hold Person fits (its source target count is a formula over the cast\'s level), Fireball does not; the cast spends the point and the card says one more target',
   13: 'Transmuted Spell (Stage 3): ticking it shows the five other listed types; cold picked; the card carries cold from fire; the spell\'s damage roll chained to the card wears cold',
-  14: 'Extended Spell (Stage 3): Hold Person on the Victim, a forced failure — Paralyzed lands with its clock doubled (120 s); the caster\'s concentration save opens with Extended Spell as an Advantage source'
+  14: 'Extended Spell (Stage 3): Hold Person on the Victim, a forced failure — Paralyzed lands with its clock doubled (120 s); the caster\'s concentration save opens with Extended Spell as an Advantage source',
+  15: 'Seeking Spell (Stage 4): a missed Chromatic Orb (AC 60) is offered Seeking as a d20 fold; the popup\'s button rerolls the d20, the spend records the reroll, one Sorcery Point goes by hand with the record on the attack message',
+  16: 'Empowered Spell (Stage 4): a Fireball damage roll is offered Empowered; the popup shows the eight dice, the cap holds at three, Reroll spends the point, patches the message\'s own roll (three faces struck, the total moved), and announces old → new'
 };
 const DEPENDS = { 4: ['3'], 11: ['9'] };
 
@@ -67,7 +69,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
   if (!game.settings.settings.has(`${MOD}.metamagicList`)) return { fatal: 'metamagicList not registered — OLD code (deploy --local, wait out the cache, or restart the box)' };
 
-  const SETTING_KEYS = ['metamagicList', 'reminderList', 'requireTarget', 'saves', 'autoApply', 'saveTimer'];
+  const SETTING_KEYS = ['metamagicList', 'reminderList', 'requireTarget', 'saves', 'autoApply', 'saveTimer', 'd20Folds', 'd20FoldAsk', 'holdTimer'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -94,6 +96,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const poolSpent0 = pool()?.system.uses.spent ?? 0;
   const slots0 = foundry.utils.deepClone(sorc.system._source.spells ?? {});
   const myCards = () => game.messages.filter(m => (m.timestamp >= suiteStart) && ((m.author?.id === game.user.id) || m.getFlag(MOD, 'metamagic')));
+  const uiMod = await import(`/modules/${MOD}/scripts/ui.js`);
+  /** The module's own moment popup for a message + sub-key, or null. */
+  const popupFor = (messageId, sub) => uiMod.livePopups.get(`${messageId}|${sub}`) ?? null;
+  const closeMomentPopups = async () => { for (const [key, dlg] of [...uiMod.livePopups]) { if (/|(empowered|d20fold|armed)$/.test(key) || key.includes('|empowered')) { try { await dlg.close(); } catch { /* gone */ } } } };
   const closeDialogs = async () => {
     for (const app of foundry.applications.instances.values()) {
       if (/ActivityUsageDialog|UsageDialog|RollConfigurationDialog/.test(app.constructor?.name ?? '') || app.element?.querySelector?.('[data-bf-metamagic-field]')) { try { await app.close(); } catch { /* gone */ } }
@@ -404,7 +410,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     if (want(13)) {
       const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
-      const { app, fs } = await openWindow('Fireball', { consume: { spellSlot: false } });
+      const { app, fs } = await openWindow('Fireball', { consume: { spellSlot: false }, create: { measuredTemplate: false } });
       const row = rowsOf(fs).find(r => r.key === 'transmuted');
       row?.box?.click(); await sleep(80);
       const radios = [...(fs?.querySelectorAll('input[name="bf-metamagic-type"]') ?? [])];
@@ -422,6 +428,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await spellAct('Fireball').rollDamage({}, { configure: false }, { data: { 'flags.dnd5e.originatingMessage': card?.id } });
       const dmg = await waitFor(() => game.messages.find(m => !dmgBefore.has(m.id) && m.rolls?.length && m.getFlag('dnd5e', 'roll.type') === 'damage') ?? null, 6000);
       ok('13d. the damage roll wears cold, not fire, and says why', dmg?.rolls?.[0]?.options?.type === 'cold' && dmg?.getFlag(MOD, 'metamagicType')?.type === 'cold', `type=${dmg?.rolls?.[0]?.options?.type} flag=${JSON.stringify(dmg?.getFlag(MOD, 'metamagicType'))}`);
+      // The same roll is offered Empowered (its own moment, §16): keep it, so its popup is not the one §16 finds.
+      await sleep(300); try { await popupFor(dmg?.id, 'empowered')?.close(); } catch { /* gone */ }
     }
 
     if (want(14) && victim) {
@@ -439,8 +447,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const flag = card?.getFlag(MOD, 'metamagic');
       ok('14a. Extended cast: the pick on the card with the spell\'s uuid and its rule', flag?.key === 'extended' && flag?.spellUuid === sorc.items.find(i => i.name === 'Hold Person')?.uuid && /Advantage on any saving throw/.test(flag?.rule ?? ''), why || JSON.stringify({ key: flag?.key, spellUuid: flag?.spellUuid, rule: (flag?.rule ?? '').slice(0, 40) }));
       // The buzzer rolls the forced failure; the verdict applies Paralyzed through the one applier.
-      const paralyzed = await waitFor(() => vicActor.effects.find(e => e.statuses?.has?.('paralyzed') && e.getFlag(MOD, 'applied')) ?? null, 12000);
-      ok('14b. the failed save lands Paralyzed with its clock DOUBLED: 120 seconds, not 60', paralyzed?.duration?.seconds === 120, `seconds=${paralyzed?.duration?.seconds} outcome=${JSON.stringify(card?.getFlag(MOD, 'saves')?.targets?.map(t => t.outcome))}`);
+      // The applier creates the effect, THEN doubles its clock (a second write): wait for the doubled clock, not the effect.
+      const paralyzed = await waitFor(() => { const e = vicActor.effects.find(x => x.statuses?.has?.('paralyzed') && x.getFlag(MOD, 'applied')); return (e && (e.duration?.seconds === 120)) ? e : null; }, 12000) ?? vicActor.effects.find(x => x.statuses?.has?.('paralyzed')) ?? null;
+      const receiptCards = game.messages.filter(m => (m.getFlag(MOD, 'effectReceipt')?.targets ?? []).some(t => t.uuid === vicActor.uuid)).map(m => `${m.id === card?.id ? 'THIS' : m.id}:${m.getFlag(MOD, 'metamagic')?.key ?? '-'}`);
+      ok('14b. the failed save lands Paralyzed with its clock DOUBLED: 120 seconds, not 60', paralyzed?.duration?.seconds === 120, `seconds=${paralyzed?.duration?.seconds} outcome=${JSON.stringify(card?.getFlag(MOD, 'saves')?.targets?.map(t => t.outcome))} origin=${paralyzed?.origin} receipts=${receiptCards.join(',')} cardKey=${card?.getFlag(MOD, 'metamagic')?.key}`);
       // The caster concentrates on Hold Person: the concentration save's gate carries Extended as Advantage.
       const conc = sorc.effects.find(e => e.statuses?.has?.('concentrating'));
       log.push(`§14 concentration effect: ${conc ? `${conc.name} origin=${conc.origin}` : 'none'}`);
@@ -461,6 +471,84 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await vicActor.update({ 'system.abilities.wis.bonuses.save': bonus0 });
       game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
     } else if (want(14)) ok('14. fixtures', false, 'BF Test Victim missing');
+
+    // --- Stage 4: Seeking and Empowered ------------------------------------------------------
+    if (want(15)) {
+      const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
+      await set('d20Folds', game.settings.settings.get(`${MOD}.d20Folds`).default);
+      await set('d20FoldAsk', true);
+      await set('holdTimer', 0);
+      const foe = attTok.actor;
+      const priorAC = { calc: foe.system._source.attributes.ac.calc, flat: foe.system._source.attributes.ac.flat ?? null };
+      await foe.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 60 });   // a guaranteed miss
+      await sorcTok.update(sorcHome, { teleport: true, animate: false });
+      await attTok.update({ x: sorcHome.x + scene.grid.size * 2, y: sorcHome.y }, { teleport: true, animate: false });
+      const foeTok = canvas.tokens.get(attTok.id);
+      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      foeTok?.setTarget(true, { releaseOthers: true });
+      await sleep(200);
+      const before = new Set(game.messages.map(m => m.id));
+      await spellAct('Chromatic Orb').use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, {});
+      const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.getFlag('dnd5e', 'messageType') === 'usage' || m.type === 'usage')) ?? null, 6000);
+      await spellAct('Chromatic Orb').rollAttack({}, { configure: false }, { data: { 'flags.dnd5e.originatingMessage': card?.id } });
+      const attack = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.getFlag('dnd5e', 'roll.type') === 'attack' && m.getFlag(MOD, 'd20fold')) ?? null, 8000);
+      const fold = attack?.getFlag(MOD, 'd20fold');
+      ok('15a. the missed spell attack is offered Seeking Spell as a d20 fold', !!fold && (fold.offers ?? []).some(o => o.kind === 'seeking') && fold.spell === true, `offers=${JSON.stringify((fold?.offers ?? []).map(o => `${o.kind}:${o.label}`))} spell=${fold?.spell}`);
+      // Answer from the popup, as the player would: the offer's own button.
+      const popup = await waitFor(() => [...foundry.applications.instances.values()].find(a => a.rendered && a.element?.querySelector?.('[data-bf-rescue-action="seeking"]')) ?? null, 6000);
+      popup?.element?.querySelector('[data-bf-rescue-action="seeking"]')?.click();
+      const resolved = await waitFor(() => { const f2 = attack?.getFlag(MOD, 'd20fold'); return (f2?.spends ?? []).some(s => s.kind === 'seeking') ? f2 : null; }, 10000);
+      const f15 = attack?.getFlag(MOD, 'd20fold');
+      ok('15b. Seeking rerolls the d20 — the spend records the reroll, the total replaced', !!resolved && Number.isFinite(resolved.spends.find(s => s.kind === 'seeking')?.reroll?.total) && Number.isFinite(resolved.foldedTotal), JSON.stringify({ popup: !!popup, status: f15?.status, outcome: f15?.outcome, answer: f15?.answer, spends: f15?.spends, folded: f15?.foldedTotal, base: f15?.baseTotal }));
+      ok('15c. one Sorcery Point spent by hand, the record on the attack message', pool().system.uses.value === 4 && attack?.getFlag(MOD, 'poolSpend')?.pool === 'Sorcery Points' && attack?.getFlag(MOD, 'poolSpend')?.ability === 'Seeking Spell', `pool=${pool().system.uses.value} record=${JSON.stringify(attack?.getFlag(MOD, 'poolSpend'))}`);
+      const res = attack ? await renderedLine(attack, 'bf-resource-line') : null;
+      ok('15d. the attack card carries the resource line', /Sorcery Points: 4 of 5 remaining/.test(res ?? ''), res);
+      await closeDialogs();
+      await foe.update({ 'system.attributes.ac.calc': priorAC.calc, 'system.attributes.ac.flat': priorAC.flat });
+      await attTok.update(attHome, { teleport: true, animate: false });
+      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+    }
+
+    if (want(16)) {
+      const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
+      const fired0 = count('dnd5e.rollDamageV2');
+      const t16 = Date.now();
+      log.push(`§16 start: pool ${pool().system.uses.value}/${pool().system.uses.max}, rollDamageV2 fired ${fired0} so far`);
+      await set('holdTimer', 0);
+      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      const before = new Set(game.messages.map(m => m.id));
+      await spellAct('Fireball').use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, {});
+      const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.getFlag('dnd5e', 'messageType') === 'usage' || m.type === 'usage')) ?? null, 6000);
+      await spellAct('Fireball').rollDamage({}, { configure: false }, { data: { 'flags.dnd5e.originatingMessage': card?.id } });
+      const dmg = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.getFlag('dnd5e', 'roll.type') === 'damage' && m.getFlag(MOD, 'empowered')) ?? null, 8000);
+      const flag = dmg?.getFlag(MOD, 'empowered');
+      ok('16a. the spell\'s damage roll is offered Empowered: eight dice, the cap 3, the total recorded', flag?.status === 'pending' && flag?.dice?.length === 8 && flag?.cap === 3 && flag?.oldTotal === dmg?.rolls?.[0]?.total, JSON.stringify({ status: flag?.status, dice: flag?.dice?.length, cap: flag?.cap, old: flag?.oldTotal }));
+      const popup = await waitFor(() => { const d = popupFor(dmg?.id, 'empowered'); return (d?.rendered && d.element?.querySelector?.('[data-bf-empowered-dice]')) ? d : null; }, 6000);
+      const chips = [...(popup?.element?.querySelectorAll('[data-bf-die]') ?? [])];
+      ok('16b. the popup shows the eight dice as chips', chips.length === 8, `chips=${chips.length}`);
+      // Tick the two lowest dice, then a third and a fourth — the cap holds at three.
+      const sorted = chips.slice().sort((a, b) => Number(a.textContent) - Number(b.textContent));
+      for (const c of sorted.slice(0, 4)) { c.click(); await sleep(30); }
+      const picked = chips.filter(c => c.dataset.picked === '1');
+      ok('16c. the cap holds: four ticks, three picked', picked.length === 3, `picked=${picked.length}`);
+      const oldTotal = dmg.rolls[0].total;
+      const oldFaces = picked.map(c => Number(c.textContent));
+      popup?.element?.querySelector('button[data-action="reroll"]')?.click();
+      const used = await waitFor(() => { const f2 = dmg.getFlag(MOD, 'empowered'); return f2?.status === 'used' ? f2 : null; }, 10000);
+      log.push(`§16 after: pool ${pool().system.uses.value}, rollDamageV2 fired ${count('dnd5e.rollDamageV2') - fired0} for this roll, poolSpend=${JSON.stringify(dmg.getFlag(MOD, 'poolSpend'))}`);
+      log.push(`§16 spends since start: ${game.messages.filter(m => (m.timestamp >= t16) && m.getFlag(MOD, 'poolSpend')).map(m => `${m.getFlag(MOD, 'poolSpend').ability}@${m.id.slice(-4)}`).join(',')} | empowered flags: ${game.messages.filter(m => m.getFlag(MOD, 'empowered')).map(m => `${m.id.slice(-4)}:${m.getFlag(MOD, 'empowered').status}`).join(',')} | spent=${pool().system.uses.spent}`);
+      ok('16d. Reroll: the point spent, three dice rerolled, the flag says which and what', !!used && used.picks?.length === 3 && pool().system.uses.value === 4 && used.picks.every(pk => Number.isFinite(pk.old) && Number.isFinite(pk.new)), JSON.stringify({ picks: used?.picks, pool: pool().system.uses.value }));
+      const roll = game.messages.get(dmg.id)?.rolls?.[0];
+      const results = roll?.terms?.find(t => Array.isArray(t.results))?.results ?? [];
+      const struck = results.filter(r => r.active === false && r.rerolled).length;
+      const active = results.filter(r => r.active !== false).length;
+      ok('16e. the message\'s own roll is patched: three faces struck and inactive, eight active, the total moved by the difference', struck === 3 && active === 8 && roll?.total === (oldTotal + used.delta) && roll?.total === used.newTotal, `struck=${struck} active=${active} total=${roll?.total} old=${oldTotal} delta=${used?.delta} new=${used?.newTotal}`);
+      const announce = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.getFlag(MOD, 'respondsTo') === dmg.id && /Empowered Spell/.test(m.content ?? '')) ?? null, 6000);
+      ok('16f. the announce card says the old faces, the arrow, the new, and the totals', !!announce && new RegExp(`${oldFaces.sort((a, b) => a - b).join(', ')}|${used?.picks?.map(pk => pk.old).join(', ')}`).test(announce.content) && /→/.test(announce.content), announce?.content?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 140));
+      const line = dmg ? await renderedLine(dmg, 'bf-empowered-line') : null;
+      ok('16g. the damage card carries the Empowered line', /Empowered Spell — .*→/.test(line ?? ''), line);
+      await closeDialogs();
+    }
 
     if (want(8)) {
       ok('8a. renderActivityUsageDialog fired', count('renderActivityUsageDialog') > 0, `count=${count('renderActivityUsageDialog')}`);

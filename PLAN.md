@@ -15,9 +15,9 @@
 > the module does at the table — **the UI/UX and the shipped behaviour are the asset being
 > protected, not the thing being changed.**
 >
-> ▶ **A fourth block is on this page as of 2026-09-09, DRAWN and RULED the same day:** *THE METAMAGIC PASS*, directly
-> below — the ten 2024 options measured against the pack and the module, five stages, six decisions for the
-> user, all six ruled; its prototype is [prototypes/metamagic.html](prototypes/metamagic.html); DESIGN §6 *Metamagic* carries the rulings. It starts on the user's go.
+> ✅ **A fourth block is on this page as of 2026-09-09, DRAWN, RULED and DELIVERED the same day:** *THE METAMAGIC PASS*, directly
+> below — the ten 2024 options measured against the pack and the module, five stages, six decisions ruled, every stage
+> shipped by evening with its measured cost; its prototype is [prototypes/metamagic.html](prototypes/metamagic.html); DESIGN §6 *Metamagic* carries the rulings. Not released; prod stays on v1.34.3.
 
 > ✅ **A third block is on this page as of 2026-09-05, DRAWN, RULED and DELIVERED the same evening:**
 > *THE HOLD DIRECTORY*, directly below — `hold.js` is `scripts/hold/`, nine parts by moment, the
@@ -30,7 +30,7 @@
 
 ---
 
-## ▶ THE METAMAGIC PASS — DRAWN AND RULED 2026-09-09; NOT STARTED
+## ▶ THE METAMAGIC PASS — DRAWN, RULED AND ✅ DELIVERED 2026-09-09 (Stages 0 → 4, one day)
 
 **Origin:** the 2026-09-09 session's Careful Spell report ([BACKLOG.md](BACKLOG.md) *From play*):
 two Fireballs rolled the excluded allies' saves through the ask timer and applied their damage, and
@@ -39,7 +39,19 @@ implemented. follow pattern like sneak attk/manuevers with check box?"* — then
 plan for metamagic support as a whole"*. Careful Spell is the example; **the class is the ten
 2024 Metamagic options**, and this block is the drawing for all ten. It measures what exists,
 names where each option bites, and puts the decisions in one table for the user to rule. **Nothing
-below starts on this page; it starts on the user's go, off the ruled table — RULED 2026-09-09, every decision as recommended but decision 3, which the user ruled the other way.**
+below starts on this page; it starts on the user's go, off the ruled table — RULED 2026-09-09, every decision as recommended but decision 3, which the user ruled the other way. GO given the same day; every stage delivered by evening, each stage's mark below carrying its measured cost and surprises.**
+
+### ✅ HOW IT WENT — measured against the drawing (2026-09-09, one day)
+
+The drawing said four to five sessions; it took one day of five stages, and the surprises came
+where the drawing was most confident: the fixture (a built item carries no compendium source
+stamp, so the pack's consumption targets resolved to nothing), Twinned (a DATA read after all —
+the drawing had it as the hard one), the template spell's spend (the post-use hook waits for
+placement), and the damage hook firing twice. What the drawing got right: every seam it named
+was the seam used — the usage dialog's fieldset, the birth flag, the uniform spend, the demand's
+two filters, the demand channel into the save gate, the one effect applier, the emanation type
+idiom, the d20 folds. Nothing new was invented below the machine tier. Distrust the estimates
+next time in the other direction.
 
 **The prototype comes first** (house rule): [prototypes/metamagic.html](prototypes/metamagic.html)
 — the cast dialog with the metamagic group, Careful's protect picker, Heightened's one-target
@@ -204,7 +216,28 @@ change to an EXISTING part; measure how `rolls[].options.type` is read downstrea
 before touching it), the target snapshot (Twinned — `messageConfig` write, `withTargets` is the
 precedent). Suite §6–8.
 
-### STAGE 4 — Empowered and Seeking (1 session, AFTER a ruling on the rolled-result obligation)
+### STAGE 4 — Empowered and Seeking (1 session, AFTER a ruling on the rolled-result obligation) — ✅ DELIVERED 2026-09-09 (~3 hours)
+
+**How it went:** two shapes, both borrowed. **Seeking is a fourth d20 fold KIND** (`seeking`, the R4
+pin 29 → 30 with its reason): a reroll like heroic on a SPELL attack's miss, paid from Font of Magic
+by hand, on the machine that already owns the reroll, the verdict and the withheld save — the cost
+was one spec object, a `REROLL_KINDS` set where `heroic` had been a literal six times, and the
+roll's context (`spell`) threaded into the find at the offer AND at the resolve (the resolver
+re-finds the marker without context and read the option as gone — the first run's only failure).
+**Empowered is a fold on the damage message** (metamagic.js): the dice as chips, the cap as the
+ticks are made, and on Reroll the MESSAGE'S OWN ROLL patched the way the dice rules do — the old
+face inactive and marked rerolled, the new face active, the total moved — so the verdicts and the
+appliers downstream read the new number without knowing why; damage already applied is moved by
+the difference through the one applier as its own receipt (the §11 rule 4 obligation, carried).
+Two measurements the suite forced: dnd5e dispatches the damage hook TWICE per roll (the literal
+name and the templated one), so the offer and the resolve carry in-flight guards; and the doubled
+clock (Extended) is a SECOND write after the create, which a test must wait for. And one real
+edge the full run surfaced: a pick ticked in the window for a cast whose template was never
+placed (or a window cancelled after the tick) waited in memory and landed on the NEXT cast of the
+same spell, spending a point for an option nobody ticked — the dialog's close hook now sweeps a
+pick no card has claimed, and the stamp refuses one older than five minutes. `smoke-metamagic`
+§15–16; the whole suite 70/70; unit tests 24; verify green; settings CLEAN (the D20 Folds default
+grew `Seeking Spell:seeking` and the reference table with it).
 
 Two folds on existing moments: Empowered as an offer part on the spell's damage (the offer-part
 contract, `registerOfferPart`; the fold opens AFTER the dice with the dice shown), Seeking as

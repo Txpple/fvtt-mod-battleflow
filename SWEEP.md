@@ -76,7 +76,7 @@ ignored — the table plays 2024.
 | (a) race traits | 45 | 23 | 8 | 1 (Stone's Endurance) |
 | (b) class features | 116 | 46 | 16 | 13 |
 | (c) subclass features | 279 | 156 | 44 | 16 |
-| — options nothing grants (invocations, metamagic, maneuvers, boons) | 69 | 28 | 6 | 9 |
+| — options nothing grants (invocations, metamagic, maneuvers, boons) | 69 | 28 | 6 | 9 | ← the ten metamagic options DELIVERED 2026-09-09 (PLAN *THE METAMAGIC PASS*); the maneuvers before them |
 | (d) feats | 109 | 66 | 23 | 12 |
 | — supernatural gifts | 20 | 2 | 1 | 0 |
 | (e) spells | 428 | 265 | 28 | 23 |
