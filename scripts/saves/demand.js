@@ -6,8 +6,9 @@
  * the registration order. Every body here is the one saves.js carried; nothing was rewritten.
  */
 import { MODULE_ID, TITLE, S, setting, statContext } from "../core.js";
-import { resolveUuid } from "../lookup.js";
+import { resolveUuid, itemNamed } from "../lookup.js";
 import { saveDemandData, saveTargetEntry } from "../decide/demand.js";
+import { METAMAGIC_FLAG, carefulProtects, heightenedMark, metamagicRuleText } from "../decide/metamagic.js";
 import { tokensInTemplates } from "../geometry.js";
 import { isDeadForSaves } from "../decide/eligible.js";
 import { EMANATIONS, tableIndex } from "../decide/registry.js";
@@ -18,6 +19,48 @@ import { emanationEntries } from "../settings.js";
 // before this line is read and no hook registration moves. Re-checked with check-hook-order; do
 // not promote it to dynamic without re-running that.
 import { offerSaveDamageRoll, rollDamageForSave } from "../auto-damage.js";
+
+/* --- metamagic on the demand (the metamagic pass, Stage 2, 2026-09-09) ---------------------- */
+
+/** The caster's identity and side, as Careful's and Heightened's defaults read them. */
+function casterFactsOf(activity) {
+  const caster = activity?.actor ?? null;
+  const tok = caster?.token ?? caster?.getActiveTokens?.(true, true)?.[0] ?? null;
+  return { casterUuid: caster?.uuid ?? null, casterDisposition: tok?.disposition ?? (caster ? CONST.TOKEN_DISPOSITIONS.FRIENDLY : null) };
+}
+
+/**
+ * What the cast's metamagic does to THIS demand: Careful's protected creatures leave the target
+ * list (no ask, no timer roll, no damage — the option's own words), Heightened's mark rides the
+ * demand for the save gate to read. The card's birth flag (metamagic.js) says which option was
+ * ticked; the lists are derived here from the creatures the save REACHES — at the stamp for a
+ * targeted cast, at adoption for a bare cast whose area lands later — and written back onto the
+ * metamagic flag so the card line and the adjust popup show what stands. The player's own
+ * adjustment (`protected` / `target` already on the flag with `chosen: true`) is honoured, never
+ * recomputed. Called from the stamp and from the adoption refresh alike.
+ * @returns {Promise<{protectedUuids: Set<string>, heightened: {uuid: string, name: string, caster: string|null, rule: string}|null}>}
+ */
+export async function metamagicForDemand(card, activity, contained) {
+  const none = { protectedUuids: new Set(), heightened: null };
+  const mm = card?.getFlag(MODULE_ID, METAMAGIC_FLAG);
+  if ( !mm || !Array.isArray(contained) ) return none;
+  const facts = casterFactsOf(activity);
+  if ( mm.key === "careful" ) {
+    const list = carefulProtects({ contained, ...facts, cap: mm.cap ?? 1, chosen: mm.chosen ? (mm.protected ?? []).map(p => p.uuid) : null });
+    const same = JSON.stringify(list) === JSON.stringify(mm.protected ?? null);
+    if ( !same && card.canUserModify?.(game.user, "update") ) await card.setFlag(MODULE_ID, METAMAGIC_FLAG, { ...mm, protected: list });
+    return { protectedUuids: new Set(list.map(p => p.uuid)), heightened: null };
+  }
+  if ( mm.key === "heightened" ) {
+    const mark = heightenedMark({ contained, ...facts, chosen: mm.chosen ? (mm.target?.uuid ?? null) : null });
+    if ( !mark ) return none;
+    const rule = mm.rule ?? metamagicRuleText(itemNamed(activity?.actor, mm.feature)?.system?.description?.value ?? "");
+    const same = (mm.target?.uuid === mark.uuid) && (mm.rule === rule);
+    if ( !same && card.canUserModify?.(game.user, "update") ) await card.setFlag(MODULE_ID, METAMAGIC_FLAG, { ...mm, target: mark, rule });
+    return { protectedUuids: new Set(), heightened: { ...mark, caster: activity?.actor?.name ?? null, rule } };
+  }
+  return none;
+}
 
 /* --- the stamp: the casting client writes the demand on the usage card --------------------- */
 
@@ -62,8 +105,12 @@ async function stampSaveDemand(activity, message, results) {
     // cast still stamps a WAITING demand below). Placed BEFORE the setFlag so an all-dead
     // cast starves everything downstream by construction: no demand, no auto-roll, and no
     // v1.18.0 caster damage offer — the offer block never runs.
-    const targets = raw.filter(saveDemandable);
-    if ( raw.length && !targets.length ) return; // every target is dead — fully native cast
+    // Careful Spell's protected creatures leave the list here; Heightened's mark joins the demand
+    // below (the metamagic pass, Stage 2). Read off the card's birth flag against the creatures
+    // the save reaches — the snapshot for a targeted cast, the area for a placed one.
+    const metamagic = await metamagicForDemand(message, activity, contained ?? raw);
+    const targets = raw.filter(saveDemandable).filter(t => !metamagic.protectedUuids.has(t.uuid));
+    if ( raw.length && !targets.length && !metamagic.protectedUuids.size ) return; // every target is dead — fully native cast
     // A TEMPLATE-SHAPED activity's targetless cast stamps a WAITING demand (v1.12.0,
     // finding ③ — the natural Web flow is cast bare, then place: the old bail meant
     // adoption had no customer and the area produced no saves at all). The demand stamps
@@ -136,7 +183,9 @@ async function stampSaveDemand(activity, message, results) {
       // and the statuses its failed-save effects impose — Aura of Purity and Circle of Power read
       // these off the pending demand when the roller's dialog opens.
       demand: { spell: (activity.item?.type === "spell") || (activity.item?.system?.properties?.has?.("mgc") ?? false),
-        statuses: [...new Set(entries.filter(e => !e.onSave).flatMap(e => [...(e.effect?.statuses ?? [])]))] },
+        statuses: [...new Set(entries.filter(e => !e.onSave).flatMap(e => [...(e.effect?.statuses ?? [])]))],
+        // Heightened Spell's mark (2026-09-09): the one target whose gate opens at Disadvantage.
+        ...(metamagic.heightened ? { heightened: metamagic.heightened } : {}) },
       effectsHandled: emanation ? "emanation" : null,
       activityUuid: activity.uuid,
       // The dnd5e area type (cube, sphere, …) — adoption's shape gate for a TOOLBAR-drawn

@@ -11,7 +11,7 @@ import { MODULE_ID, TITLE, S, setting, queueFlagWrite,
 import { resolveUuid } from "../lookup.js";
 import { saveTargetEntry } from "../decide/demand.js";
 import { tokensInTemplates } from "../geometry.js";
-import { saveDemandable, emanationReach } from "./demand.js";
+import { saveDemandable, emanationReach, metamagicForDemand } from "./demand.js";
 
 /** Every template on any scene that this activity placed — the origin flag is the tie. */
 function templatesForOrigin(activityUuid) {
@@ -133,6 +133,9 @@ export async function refreshDemandFromTemplates(card) {
     if ( !templates.length ) return;
     const activity = flag.activityUuid ? resolveUuid(flag.activityUuid) : null;
     const contained = emanationReach(activity, tokensInTemplates(templates)) ?? [];
+    // Careful's protected creatures never join the demand, Heightened's mark joins it (the metamagic
+    // pass, Stage 2): derived from the area's contents, before the serialized write below.
+    const metamagic = await metamagicForDemand(card, activity, contained);
     // ⚠ THROUGH THE SERIALIZER (core.js), and the derivation moved INSIDE it. Everything
     // above is async — the template lookup and the bare-template claim both await — so the
     // `flag` read at the top of this function is stale by the time the write lands. Building
@@ -143,8 +146,8 @@ export async function refreshDemandFromTemplates(card) {
     await queueFlagWrite(card, "saves", current => {
       const prev = current.targets ?? [];
       const done = prev.filter(t => t.done);
-      const keep = prev.filter(t => !t.done && contained.some(c => c.uuid === t.uuid));
-      const fresh = contained.filter(c => !prev.some(t => t.uuid === c.uuid))
+      const keep = prev.filter(t => !t.done && contained.some(c => c.uuid === t.uuid) && !metamagic.protectedUuids.has(t.uuid));
+      const fresh = contained.filter(c => !prev.some(t => t.uuid === c.uuid)).filter(c => !metamagic.protectedUuids.has(c.uuid))
         // The dead-target gate reaches adoption too (v1.19.0): a corpse standing in the placed
         // area never joins the demand — same filter, same predicate, same user call.
         .filter(saveDemandable)
@@ -152,6 +155,7 @@ export async function refreshDemandFromTemplates(card) {
       // No choice stamps at adoption either (walk-5 (y)): Interpose opens off the VERDICT, so
       // a late-adopted shield-bearer meets it exactly like a snapshot target — when they save.
       const next = [...done, ...keep, ...fresh];
+      if ( metamagic.heightened && (current.demand?.heightened?.uuid !== metamagic.heightened.uuid) ) current.demand = { ...(current.demand ?? {}), heightened: metamagic.heightened };
       if ( !next.length ) return false; // waiting keeps waiting; a populated one never strands
       // ⚠ `return false` is LOOP PROTECTION, not tidiness: this refresh is driven from the
       // render hook as its reliability floor, so an unconditional write would be

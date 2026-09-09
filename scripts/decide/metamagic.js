@@ -148,6 +148,48 @@ export function metamagicCardLine(record) {
 }
 
 /**
+ * CAREFUL SPELL'S PROTECTED LIST (user ruling 2026-09-09, decision 1: "default"): the caster's
+ * ALLIES among the creatures the save reaches — the caster first, then the rest in the order the
+ * area found them — up to the cap (the Charisma modifier, minimum one). When the player has
+ * ADJUSTED the list (`chosen`, uuids), the chosen creatures that the save still reaches stand
+ * instead, capped the same way. Sight and willingness are never judged.
+ * @param {{contained: {uuid: string, name: string, disposition?: number|null}[], casterUuid: string|null,
+ *          casterDisposition: number|null, cap: number, chosen?: string[]|null}} args
+ * @returns {{uuid: string, name: string}[]}
+ */
+export function carefulProtects({ contained, casterUuid = null, casterDisposition = null, cap, chosen = null }) {
+  const limit = Math.max(1, Number(cap) || 1);
+  const list = Array.isArray(contained) ? contained : [];
+  const entry = c => ({ uuid: c.uuid, name: c.name });
+  if ( Array.isArray(chosen) ) {
+    // In the order the player ticked them, among what the save still reaches.
+    return chosen.map(uuid => list.find(c => c.uuid === uuid)).filter(Boolean).slice(0, limit).map(entry);
+  }
+  const allies = list.filter(c => (c.uuid === casterUuid)
+    || ((casterDisposition !== null) && (c.disposition !== undefined) && (c.disposition === casterDisposition)));
+  allies.sort((a, b) => (a.uuid === casterUuid ? -1 : 0) - (b.uuid === casterUuid ? -1 : 0));
+  return allies.slice(0, limit).map(entry);
+}
+
+/**
+ * HEIGHTENED SPELL'S MARK: one target of the spell whose saves against it are at Disadvantage —
+ * the player's pick when made (`chosen`), else the FIRST creature the save reaches that is not
+ * the caster's ally (an enemy of the caster's side; a neutral when no enemy stands there).
+ * @param {{contained: {uuid: string, name: string, disposition?: number|null}[], casterUuid: string|null,
+ *          casterDisposition: number|null, chosen?: string|null}} args
+ * @returns {{uuid: string, name: string}|null}
+ */
+export function heightenedMark({ contained, casterUuid = null, casterDisposition = null, chosen = null }) {
+  const list = Array.isArray(contained) ? contained : [];
+  const entry = c => ({ uuid: c.uuid, name: c.name });
+  if ( chosen ) { const c = list.find(x => x.uuid === chosen); return c ? entry(c) : null; }
+  const others = list.filter(c => (c.uuid !== casterUuid) && ((casterDisposition === null) || (c.disposition !== casterDisposition)));
+  const enemy = others.find(c => (casterDisposition !== null) && (c.disposition === -casterDisposition));
+  const pick = enemy ?? others[0] ?? null;
+  return pick ? entry(pick) : null;
+}
+
+/**
  * Distant Spell's arithmetic: a Touch spell reaches 30 feet; any other range is doubled.
  * @param {SpellFacts} facts
  * @returns {number|null}

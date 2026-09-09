@@ -153,7 +153,23 @@ fieldset, the pending map, the card stamp, the spend), the registry table and li
 **Subtle, Quickened, Distant** ship here: they are the pick + the spend + a line (Distant also
 feeds `rangeFactsFor` a doubled value read off the card's payload). `smoke-metamagic` §1–3.
 
-### STAGE 2 — Careful and Heightened (1 session; the reported bug closes here)
+### STAGE 2 — Careful and Heightened (1 session; the reported bug closes here) — ✅ DELIVERED 2026-09-09 (~2 hours)
+
+**How it went:** as drawn, on the demand's two seams. The lists are DERIVED where the save's reach
+is known (`metamagicForDemand`, saves/demand.js — called by the stamp and by the adoption
+refresh alike), written back onto the card's metamagic flag, and the player's adjustment
+(`chosen: true`) is honoured from then on; the picker is a button on the card line (Protect… /
+Mark…) opening a DialogV2, OK re-deriving the demand through the serializer — a released
+creature joins as a fresh entry, a newly protected one leaves and its ask closes (the dropped-entry
+sweep). Heightened rides `demand.heightened` and the save gate adds it as a Disadvantage source
+quoting the caster's own feat; the buzzer rolls the marked target at Disadvantage. Three suite
+lessons: a template's origin is the ACTIVITY, so every waiting Fireball demand of the run competes
+for a placed area (adoption serves the oldest — the suite clears its own earlier cards); the goblins
+are unlinked tokens, so a demand entry's uuid is the token actor's; and a DialogV2 waits through
+the static `wait`, not an instance method. ⚠ One limit left as is: a TARGETED (non-template) cast's
+snapshot carries no dispositions, so Careful's default there protects the caster alone — the
+picker adjusts. `smoke-metamagic` 48/48; unit tests 19; verify green. **The Fireball report is
+closed** (BACKLOG's row retired).
 
 The demand gains `protected: [uuid]` and `heightened: uuid`; both filters (demand.js:65,
 areas.js:150) drop protected targets; the save gate adds *Heightened Spell* as a Disadvantage

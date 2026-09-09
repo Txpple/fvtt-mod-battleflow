@@ -593,8 +593,15 @@ function judgeSave(actor, ability) {
     sources.push(...modeSources({ effects: sheetModeEffects(actor), roll, rollLabel: rollLabelFor(roll), name: actor.name }));
     // The effect table's `saves` facet (Aura of Purity, Circle of Power — 2026-09-05), read
     // against the DEMAND this roller is answering; a bare sheet roll has none and is listed.
+    const demand = pendingDemandFor(actor)?.demand ?? null;
     sources.push(...effectSaveSources({ effects: actor.effects.filter(e => !e.disabled).map(e => ({ id: e.id, name: e.name })),
-      enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, demand: pendingDemandFor(actor)?.demand ?? null, name: actor.name }));
+      enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, demand, name: actor.name }));
+    // Heightened Spell's mark on the demand (metamagic, 2026-09-09): THIS roller's saves against
+    // the spell are at Disadvantage — the caster's option, quoted from the caster's own feat.
+    const mark = demand?.heightened ?? null;
+    if ( mark && (mark.uuid === actor.uuid) ) {
+      sources.push(reminderSource("effect", "disadvantage", `${actor.name} — Heightened Spell${mark.caster ? ` (${mark.caster}'s)` : ""}`, mark.rule ?? ""));
+    }
   }
   return new DialogCarried({ ...saveGate(sources), actorUuid: actor.uuid, ability, failed: false });
 }

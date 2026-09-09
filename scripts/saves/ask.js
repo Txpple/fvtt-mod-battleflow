@@ -253,7 +253,10 @@ async function fireSaveTimer(card) {
     // A save the rules fail before the dice is recorded as that failure, not rolled.
     const failing = autoFailSources(actor, flag.abilities[0]);
     if ( failing.length ) { await foldSaveAutoFail(card, entry.uuid, { sources: failing, timedOut: true }); continue; }
-    await rollSaveAnswer(card, entry.uuid, { timedOut: true });
+    // Heightened Spell's mark (metamagic, 2026-09-09): the buzzer rolls the marked target at
+    // Disadvantage, as the gate would have defaulted it.
+    const heightened = flag.demand?.heightened?.uuid === entry.uuid;
+    await rollSaveAnswer(card, entry.uuid, { timedOut: true, mode: heightened ? "disadvantage" : null });
   }
   // A "gone" verdict never reaches applySaveConsequences (stamped applied above), so its
   // public line emits here — ONE merged card however many vanished (v1.19.0, FLOW item 7).

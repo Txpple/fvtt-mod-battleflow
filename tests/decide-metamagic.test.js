@@ -6,7 +6,9 @@ import {
   metamagicPick,
   metamagicRuleText,
   metamagicCardLine,
-  distantRange
+  distantRange,
+  carefulProtects,
+  heightenedMark
 } from "../scripts/decide/metamagic.js";
 
 // The three fixture spells as the probe measured them (tools/probe-metamagic.mjs, 2026-09-09).
@@ -231,5 +233,61 @@ describe("the words", () => {
         target: { name: "Bandit" }
       })
     ).toMatch(/Bandit saves with Disadvantage/);
+  });
+});
+
+describe("Careful and Heightened (Stage 2)", () => {
+  const CASTER = "Actor.sorc";
+  const contained = [
+    { uuid: "Actor.orc", name: "Orc", disposition: -1 },
+    { uuid: CASTER, name: "Gren", disposition: 1 },
+    { uuid: "Actor.aldric", name: "Aldric", disposition: 1 },
+    { uuid: "Actor.brenna", name: "Brenna", disposition: 1 },
+    { uuid: "Actor.cass", name: "Cass", disposition: 1 },
+    { uuid: "Actor.goblin", name: "Goblin", disposition: -1 }
+  ];
+  it("protects the caster's allies by default, the caster first, up to the cap", () => {
+    const list = carefulProtects({ contained, casterUuid: CASTER, casterDisposition: 1, cap: 3 });
+    expect(list.map(p => p.name)).toEqual(["Gren", "Aldric", "Brenna"]);
+  });
+  it("a cap below one still protects one", () => {
+    expect(
+      carefulProtects({ contained, casterUuid: CASTER, casterDisposition: 1, cap: 0 }).length
+    ).toBe(1);
+  });
+  it("honours the player's chosen list, capped, among what the save reaches", () => {
+    const list = carefulProtects({
+      contained,
+      casterUuid: CASTER,
+      casterDisposition: 1,
+      cap: 3,
+      chosen: ["Actor.cass", "Actor.orc", "Actor.nobody"]
+    });
+    expect(list.map(p => p.name)).toEqual(["Cass", "Orc"]);
+  });
+  it("marks the first enemy for Heightened, or the chosen creature", () => {
+    expect(heightenedMark({ contained, casterUuid: CASTER, casterDisposition: 1 })?.name).toBe(
+      "Orc"
+    );
+    expect(
+      heightenedMark({
+        contained,
+        casterUuid: CASTER,
+        casterDisposition: 1,
+        chosen: "Actor.goblin"
+      })?.name
+    ).toBe("Goblin");
+    expect(
+      heightenedMark({ contained: [contained[1]], casterUuid: CASTER, casterDisposition: 1 })
+    ).toBe(null);
+  });
+  it("with no enemy in reach, a neutral is marked before nothing", () => {
+    const only = [
+      { uuid: CASTER, name: "Gren", disposition: 1 },
+      { uuid: "Actor.n", name: "Villager", disposition: 0 }
+    ];
+    expect(
+      heightenedMark({ contained: only, casterUuid: CASTER, casterDisposition: 1 })?.name
+    ).toBe("Villager");
   });
 });

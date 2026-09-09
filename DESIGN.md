@@ -887,8 +887,12 @@ option names and judges nothing else.** RULED 2026-09-09 off the prototype
   is written once and read everywhere; the option's own activity is never `use()`d (a second card
   for a spend is noise). Never refunded on a revert (§8, Tactical Mind's row).
 - **Careful protects the caster's ALLIES under the template by default** (user: "default"), the
-  picker there to adjust, capped at the Charisma modifier (minimum one) — over the cap the row
-  says so. A protected creature leaves the save demand's target list at BOTH filters (the stamp
+  picker there to adjust, capped at the Charisma modifier (minimum one). **Delivered 2026-09-09
+  (Stage 2):** the list is derived where the save's reach is known — at the stamp for a targeted
+  cast, at the area's adoption for a bare one — and the card line carries a *Protect…* button
+  (the caster's or a GM's) whose popup ticks creatures up to the cap; Heightened's line carries
+  *Mark…* the same way. A targeted cast's snapshot names no sides, so its default protects the
+  caster alone until the picker says otherwise. A protected creature leaves the save demand's target list at BOTH filters (the stamp
   and the template's later adoption): no ask, no timer roll, no damage; the card names them
   *protected*. The tick is the player's; the module never judges sight or willingness (the Sneak
   Attack ruling).

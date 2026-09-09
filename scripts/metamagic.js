@@ -21,8 +21,9 @@
  * not here yet; Careful's protected set and Heightened's mark are Stage 2's and ride the same
  * birth flag.
  */
-import { MODULE_ID, TITLE, statContext } from "./core.js";
+import { MODULE_ID, TITLE, statContext, queueFlagWrite } from "./core.js";
 import { lower } from "./lookup.js";
+import { saveTargetEntry } from "./decide/demand.js";
 import { metamagicEntries, listedNames } from "./settings.js";
 import { poolOf, spendPoolUses } from "./shared.js";
 import { feetOf } from "./geometry.js";
@@ -133,7 +134,13 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
       if ( pick ) {
         const item = known.get(pick.feature);
         pending.set(activity.uuid, { key: pick.key, feature: pick.feature, cost: pick.cost, itemUuid: item?.uuid ?? null, actorUuid: actor.uuid,
-          poolId: poolFor(actor, item)?.id ?? null, ...(pick.key === "distant" ? { rangeFeet: distantRange(facts) } : {}) });
+          poolId: poolFor(actor, item)?.id ?? null,
+          ...(pick.key === "distant" ? { rangeFeet: distantRange(facts) } : {}),
+          // Careful's cap is the Charisma modifier, minimum one (the option's own words); the
+          // protected list itself is derived where the save's reach is known (saves/demand.js).
+          ...(pick.key === "careful" ? { cap: Math.max(1, Number(actor.system?.abilities?.cha?.mod) || 1) } : {}),
+          // Heightened's rule rides the demand for the save gate's fold (law 8: the feat's own text).
+          ...(pick.key === "heightened" ? { rule: metamagicRuleText(item?.system?.description?.value ?? "") } : {}) });
       } else pending.delete(activity.uuid);
     };
     for ( const b of boxes ) b.addEventListener("change", sync);
@@ -207,6 +214,81 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     div.className = "bf-metamagic-line";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
     div.innerHTML = `<i class="fa-solid fa-wand-sparkles" data-tooltip="Metamagic"></i> ${esc(metamagicCardLine(record))}`;
+    // THE PICKER TO ADJUST (user ruling 2026-09-09, decision 1: "default … picker to adjust"):
+    // Careful's protected list and Heightened's mark are derived from the save's reach; the
+    // caster (or a GM) can change them from the card while the demand is pending. The button is
+    // drawn only where the click can write — the card is the caster's own message.
+    const saves = message.getFlag(MODULE_ID, "saves");
+    const adjustable = (record.key === "careful") || (record.key === "heightened");
+    if ( adjustable && saves && (saves.status === "pending") && message.canUserModify?.(game.user, "update") ) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.bfMetamagicAdjust = record.key;
+      b.style.cssText = "margin-left:0.5rem;font-size:var(--font-size-11,11px);line-height:1.4;padding:0 0.4rem;";
+      b.textContent = record.key === "careful" ? "Protect…" : "Mark…";
+      b.addEventListener("click", ev => { ev.preventDefault(); void adjustDialog(message, record, saves); });
+      div.appendChild(b);
+    }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The metamagic line could not render.`, err); }
 });
+
+/**
+ * The adjust popup: every creature the demand reaches (its pending and done targets, and the
+ * protected ones) with a tick each — up to the cap for Careful, one radio for Heightened. OK
+ * rewrites the metamagic flag with `chosen: true` (the derivation honours it from then on) and
+ * re-derives the demand's targets through the serializer: a newly protected creature leaves
+ * (its popup closes — law 4, the dropped-entry sweep), a released one joins as a fresh entry.
+ */
+async function adjustDialog(message, record, saves) {
+  const careful = record.key === "careful";
+  const protectedList = record.protected ?? [];
+  const candidates = [...(saves.targets ?? []).map(t => ({ uuid: t.uuid, name: t.name, done: !!t.done })), ...protectedList.map(p => ({ uuid: p.uuid, name: p.name, done: false }))]
+    .filter((c, i, arr) => arr.findIndex(x => x.uuid === c.uuid) === i);
+  if ( !candidates.length ) return;
+  const cap = Math.max(1, Number(record.cap) || 1);
+  const isOn = c => careful ? protectedList.some(p => p.uuid === c.uuid) : (record.target?.uuid === c.uuid);
+  const rows = candidates.map(c => `<label style="display:flex;align-items:center;gap:0.4rem;margin:0.2rem 0;${c.done ? "opacity:0.6;" : ""}">
+      <input type="${careful ? "checkbox" : "radio"}" name="bf-metamagic-adjust" value="${esc(c.uuid)}" ${isOn(c) ? "checked" : ""} ${c.done ? "disabled" : ""}> ${esc(c.name)}${c.done ? " (already rolled)" : ""}</label>`).join("");
+  const content = `<div data-bf-metamagic-adjust="${esc(record.key)}">
+    <p style="margin:0 0 0.4rem;">${careful ? `Protect up to ${cap} — no save, no damage.` : "One creature saves against the spell at Disadvantage."}</p>${rows}</div>`;
+  const chosen = await foundry.applications.api.DialogV2.wait({
+    window: { title: `${record.feature} — ${message.getFlag(MODULE_ID, "saves")?.item?.name ?? "the spell"}` },
+    position: { width: 380 }, content, rejectClose: false,
+    buttons: [
+      { action: "ok", label: "OK", default: true, callback: (event, button) => [...button.form.querySelectorAll('input[name="bf-metamagic-adjust"]:checked')].map(i => i.value) },
+      { action: "cancel", label: "Cancel", callback: () => null }
+    ]
+  }).catch(() => null);
+  if ( !Array.isArray(chosen) ) return;
+  await applyAdjustment(message, record, candidates, careful ? chosen.slice(0, cap) : chosen.slice(0, 1));
+}
+
+async function applyAdjustment(message, record, candidates, chosen) {
+  const nameOf = uuid => candidates.find(c => c.uuid === uuid)?.name ?? uuid;
+  const current = message.getFlag(MODULE_ID, METAMAGIC_FLAG) ?? record;
+  if ( record.key === "careful" ) {
+    const list = chosen.map(uuid => ({ uuid, name: nameOf(uuid) }));
+    await message.setFlag(MODULE_ID, METAMAGIC_FLAG, { ...current, protected: list, chosen: true });
+    const prot = new Set(chosen);
+    await queueFlagWrite(message, "saves", flag => {
+      const prev = flag.targets ?? [];
+      const kept = prev.filter(t => t.done || !prot.has(t.uuid));
+      const back = candidates.filter(c => !c.done && !prot.has(c.uuid) && !prev.some(t => t.uuid === c.uuid)).map(c => saveTargetEntry(c.uuid, c.name));
+      const next = [...kept, ...back];
+      if ( (next.length === prev.length) && next.every((t, i) => t.uuid === prev[i]?.uuid) ) return false;
+      flag.targets = next;
+      if ( next.length && next.every(t => t.done) ) flag.status = "done";
+    });
+    return;
+  }
+  const uuid = chosen[0] ?? null;
+  const target = uuid ? { uuid, name: nameOf(uuid) } : null;
+  await message.setFlag(MODULE_ID, METAMAGIC_FLAG, { ...current, target, chosen: true });
+  await queueFlagWrite(message, "saves", flag => {
+    const mark = target ? { ...target, caster: flag.casterName ?? null, rule: current.rule ?? "" } : null;
+    if ( (flag.demand?.heightened?.uuid ?? null) === (mark?.uuid ?? null) ) return false;
+    flag.demand = { ...(flag.demand ?? {}) };
+    if ( mark ) flag.demand.heightened = mark; else delete flag.demand.heightened;
+  });
+}
