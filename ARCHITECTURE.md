@@ -781,9 +781,17 @@ is held back, and everything downstream of it with the card.
 
 > A hold is **client-local**, in memory, keyed by an **opaque subject**. `holdFor(subject)`
 > answers with a promise or `null`; `null` means nothing *here* is holding, which on a remote
-> client may mean nothing here can *see* a hold. A hold **always settles**: with the card that
-> lifted it, or with `null` meaning nothing was posted and nothing should play. **The consumer
-> bounds its own wait** — a hold is a courtesy, never a guarantee of liveness.
+> client may mean nothing here can *see* a hold. A hold **always settles**, three ways: with the
+> **card** that lifted it (play it), with **`null`** meaning nothing was posted and nothing should
+> play, or with a **truthy sentinel** meaning the hold lifted and nothing is known — carry on.
+> **The consumer bounds its own wait** — a hold is a courtesy, never a guarantee of liveness.
+
+⚠ **The third outcome is not decoration, and collapsing it into `null` is a live bug** — it was
+shipped for an hour on 2026-09-09 and caught by FX Studio reviewing its gate against this text. A
+hold that outlives its own clock has NOT established that the cast came to nothing: the points were
+spent before the question was asked and the template is on the map. A consumer reading that `null`
+as *the thing never happened* suppresses the picture permanently for what is only a late answer.
+**Fail open** — the sentinel is truthy, so a consumer's "truthy plays" rule needs no code for it.
 
 ⚠ **A null RETURN and a null RESOLUTION are opposite instructions** — *play now* and *play
 nothing* — and they look identical. [tests/holds.test.js](tests/holds.test.js) pins the

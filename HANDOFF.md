@@ -79,6 +79,10 @@ authorized to plan and edit this repo"*) while the FX Studio session built the m
      the hold still open for the very card that lifts it. Release moved to `preCreateChatMessage`.
 - **A self-bound**, tied to the ask's own clock plus 30s slack. ⚠ A **clockless** ask gets a
   clockless hold deliberately (§5 law 11); a default bound would lift while the caster reads.
+  ⚠ An expired bound **LIFTS, it does not cancel** — a hold settles three ways (the card, `null`
+  for nothing-was-posted, a truthy sentinel for lifted-and-nothing-known). Collapsing the third
+  into `null` shipped for an hour and would have suppressed the picture permanently for a late
+  answer; FX Studio caught it reviewing its gate against the contract text.
 - **[tests/holds.test.js](tests/holds.test.js), 14 tests** — the refcount, the self-bound, and the
   null-return-vs-null-resolution distinction, which are what a later refactor would quietly break.
 - ⚠ **The hold is CLIENT-LOCAL**, and this is the thing to know before trusting it: plain Maps in

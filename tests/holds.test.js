@@ -98,7 +98,8 @@ describe("the refcount — decision 1, and the one a modal sequence needs", () =
 
     lowerSecond();
     expect(holds.isHeld(uuid)).toBe(false);
-    await expect(waiting).resolves.toBe(null);
+    // The windows drained with no card in hand — LIFTED, not cancelled (the third outcome).
+    await expect(waiting).resolves.toBeTruthy();
   });
 
   it("lowers once however often the lowerer is called", () => {
@@ -123,7 +124,11 @@ describe("the refcount — decision 1, and the one a modal sequence needs", () =
 });
 
 describe("releaseHold — the terminal paths, where the question has stopped being askable", () => {
-  it("settles however many raises stand", async () => {
+  /**
+   * ⚠ An EXPLICIT release with null is the only thing that says "nothing was posted, play
+   * nothing". The refcount reaching zero on its own means the opposite (the test above).
+   */
+  it("settles however many raises stand, and an explicit null CANCELS", async () => {
     const uuid = subject();
     holds.raiseHold(uuid, { reason: "window-1" });
     holds.raiseHold(uuid, { reason: "window-2" });
@@ -147,7 +152,13 @@ describe("releaseHold — the terminal paths, where the question has stopped bei
 });
 
 describe("the self-bound — a hold whose moment carries a clock", () => {
-  it("settles itself with null once the clock plus slack has run out", async () => {
+  /**
+   * ⚠ AND IT LIFTS, IT DOES NOT CANCEL. An expired bound has not established that the cast came to
+   * nothing — the points were spent before the question was asked and the template is on the map —
+   * so resolving `null` here would tell a consumer to suppress the picture permanently for what is
+   * only a late answer. This assertion is the fix for a bug that shipped for an hour.
+   */
+  it("lifts itself with a truthy value, never null, once the clock plus slack has run out", async () => {
     vi.useFakeTimers();
     const uuid = subject();
     holds.raiseHold(uuid, { reason: "test", bound: 1000 });
@@ -155,7 +166,9 @@ describe("the self-bound — a hold whose moment carries a clock", () => {
     expect(holds.isHeld(uuid)).toBe(true);
     vi.advanceTimersByTime(1001);
     expect(holds.isHeld(uuid)).toBe(false);
-    await expect(waiting).resolves.toBe(null);
+    const settled = await waiting;
+    expect(settled).toBeTruthy();
+    expect(settled).not.toBe(null);
   });
 
   /**

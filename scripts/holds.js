@@ -39,9 +39,10 @@
  * THE PUBLIC SURFACE (`game.modules.get("fvtt-mod-battleflow").api`), read by other modules and
  * never imported by them:
  *   holdFor(subject)   a promise that settles when the hold lifts, or null when nothing holds.
- *                      Settles with the CARD that lifted it, or with `null` meaning nothing was
- *                      posted and nothing should play. ⚠ A null RETURN and a null RESOLUTION
- *                      mean opposite things: the first is "play now", the second "play nothing".
+ *                      THREE outcomes: the CARD (play it), `null` (nothing was posted — play
+ *                      NOTHING), or a truthy sentinel (the hold lifted, nothing is known — carry
+ *                      on). ⚠ A null RETURN and a null RESOLUTION mean opposite things: the first
+ *                      is "play now", the second "play nothing".
  *   castHold(uuid)     the original name, kept forever — FX Studio shipped against it 2026-09-09.
  *   holds              { version, keys } so a consumer can tell this contract from the first one.
  * and the hooks `battleflow.holdOpened` / `battleflow.castReleased`.
@@ -51,6 +52,20 @@ import { MODULE_ID, TITLE } from "./core.js";
 
 /** The contract's version, read by other modules to tell this surface from the first one. */
 const HOLD_CONTRACT = Object.freeze({ version: 1, keys: ["activity", "message", "document"] });
+
+/**
+ * ⚠ THE THIRD OUTCOME, and the reason it exists (FX Studio, 2026-09-09, reviewing its gate against
+ * this contract). A hold settles three ways, not two: with the CARD, with `null` — nothing was
+ * posted, play nothing — and with THIS, meaning *the hold lifted and nothing is known; carry on*.
+ *
+ * Collapsing the third into `null` is a real bug and it was shipped for an hour. A hold that
+ * outlives its own clock has NOT established that the cast came to nothing — the points were spent
+ * before the question was ever asked and the template is on the map — so a consumer reading that
+ * `null` as "the thing never happened" suppresses the picture PERMANENTLY for what is only a late
+ * answer. Fail open: the sentinel is truthy, so a consumer's "truthy plays" rule does the right
+ * thing with no code on its side.
+ */
+const HOLD_LIFTED = Object.freeze({ lifted: true });
 
 /**
  * subject key → the live hold. `count` is the refcount (decision 1); `settled` guards against a
@@ -102,8 +117,8 @@ export function raiseHold(subject, { reason = "unspecified", bound = null } = {}
     entry = { promise, resolve, count: 1, reason, timer: null, settled: false };
     if ( Number.isFinite(bound) && (Number(bound) > 0) ) {
       entry.timer = setTimeout(() => {
-        console.warn(`${TITLE} | A hold on ${key} (${reason}) outlived its clock — releasing it so nothing waits forever.`);
-        settle(key, null);
+        console.warn(`${TITLE} | A hold on ${key} (${reason}) outlived its clock — lifting it so nothing waits forever.`);
+        settle(key, HOLD_LIFTED);
       }, Number(bound));
     }
     holds.set(key, entry);
@@ -117,13 +132,18 @@ export function raiseHold(subject, { reason = "unspecified", bound = null } = {}
   };
 }
 
-/** Lower one raise. The hold settles only when the last raise has been lowered (decision 1). */
+/**
+ * Lower one raise. The hold settles only when the last raise has been lowered (decision 1), and
+ * lowering the last one with no card in hand LIFTS the hold rather than cancelling it — the
+ * windows drained and the moment carries on. Only an explicit `releaseHold(subject, null)` says
+ * nothing was posted.
+ */
 function lowerHold(key, message = null) {
   const entry = holds.get(key);
   if ( !entry ) return;
   entry.count -= 1;
   if ( entry.count > 0 ) return;
-  settle(key, message);
+  settle(key, message ?? HOLD_LIFTED);
 }
 
 /** Settle a hold and forget it, whatever its refcount — the terminal paths and the self-bound. */
