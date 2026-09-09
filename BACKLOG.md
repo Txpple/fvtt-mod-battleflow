@@ -155,6 +155,17 @@ four, or this item becomes unbuildable without a migration:**
 | Release is an **explicit lifecycle call**, never coupled to "the card posted" | In a sequence the card posts at step 1 while steps 2..N still stand — card-arrival as the release signal is exactly the coupling that would have to be torn out |
 | Every decision popup keeps opening through **`openManagedPopup`** ([ui.js](scripts/ui.js)) | It is the one place that knows when a dialog opens and closes, so it is the only place a sequence can be counted without editing every machine. A machine that opens its own dialog is outside the sequence and cannot be brought back in cheaply |
 
+⚠ **The one place the two modules' rules genuinely disagree, written down in both (2026-09-09).**
+A **Hold Timer of 0** is a clockless ask *by explicit setting* (§5 law 11), so Battle Flow raises a
+**clockless hold** — on purpose. FX Studio bounds every gate at five minutes and **plays when a
+bound expires** (fail open, correct on its own terms), so at that setting the area picture fires
+while the question is still on the caster's screen. **Neither side is wrong and neither will
+unilaterally change**: a consumer that trusts a producer's liveness is the bug, and a late picture
+beats a lost one. ⚠ **If a play report ever says "the animation fired while I was still choosing",
+this is the cause and the Hold Timer is the first thing to read** — do not go looking in the hold
+registry. The default is **24s** (bound 54s, comfortably inside five minutes), so the normal path
+never reaches it. The sized fix is FX Studio's and is per-gate, not a longer global bound.
+
 **The sister side.** FX Studio is building a **gate seam** — its dispatcher asks registered gates
 whether a moment is held and awaits any promise — with Battle Flow as one feature-detected tenant
 and no dependency either way (its BACKLOG, *The cast hold*). The pictures half above is that seam's

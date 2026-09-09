@@ -97,6 +97,12 @@ authorized to plan and edit this repo"*) while the FX Studio session built the m
   advisory it worked from is in this session's transcript; its `holdFor` signature had not landed
   back here when this was written. ⚠ **Neither module may import the other**, and some tables
   install neither.
+- **The joint proof, and the one run still owed.** FX Studio's `smoke-replay` **50/50** ran with its
+  gate registered against the sandbox's **pre-`holds.js`** Battle Flow — so the `castHold` fallback
+  is proved LIVE, not asserted. ⚠ **Nothing has exercised the `holdFor` road at the table.** Deploy
+  this build to the sandbox and re-run that suite once the user's walk is over; it needs no change
+  on either side. It is also the only automated proof the two modules work together — this repo's
+  harness cannot reach the carrier road at all (§2).
 
 ## 4. Known gaps and where the evidence is
 
