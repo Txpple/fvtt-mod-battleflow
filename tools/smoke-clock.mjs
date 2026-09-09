@@ -231,6 +231,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `spent ${spentBefore}→${dreadAct().uses.spent} left=${cr?.riders?.[0]?.usesLeft} value=${dreadAct().uses.value}`);
       const text = await waitFor(() => { const t = cardText(dmg?.id); return /rode this roll/.test(t) ? t : null; }, 4000);
       ok('1d. the damage card says what rode and why (R5)', /Dreadful Strike — 2d6 psychic rode this roll/.test(text ?? '') && /out of combat/.test(text ?? ''), (text ?? '').slice(0, 200));
+      // The uniform spend (user report 2026-09-09: no floating text when Dreadful Strike is consumed): the
+      // record every pool spend writes rides the damage message from birth, so the flash, the card line and the
+      // ledger read it (the line and the flash draw for player-owned actors; the record is there either way).
+      const ps = [].concat(dmg?.getFlag(MOD, 'poolSpend') ?? []);
+      ok('1x. the spend is recorded as every other pool spend is - Dreadful Strike, 1 spent, the uses left and the max, born on the damage message', ps.length === 1 && /Dreadful Strike/.test(ps[0].pool) && ps[0].spent === 1 && ps[0].max > 0 && ps[0].left === (dreadAct().uses.value ?? 0) && ps[0].actorUuid === ranger.uuid, JSON.stringify(ps));
       const receipt = dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid);
       const total = (dmg?.rolls ?? []).reduce((n, r) => n + (r.total ?? 0), 0);
       ok('1e. one roll, one receipt — the victim took the weapon and the rider together', !!receipt && (receipt.taken === total), `taken=${receipt?.taken} total=${total}`);

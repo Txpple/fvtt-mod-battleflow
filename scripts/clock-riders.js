@@ -148,6 +148,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
     if ( !riders.length ) return;
     const attacker = activity.actor;
     const record = [];
+    const spends = [];
     for ( const r of riders ) {
       if ( r.formula ) {
         config.rolls.push({
@@ -173,10 +174,18 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
         const spent = Number(r.activity.uses?.spent ?? 0) + 1;
         void r.feature.update({ [`system.activities.${r.activity.id}.uses.spent`]: spent })
           .catch(err => console.warn(`${TITLE} | Could not spend a use of ${r.label}.`, err));
+        // THE UNIFORM SPEND (user report 2026-09-09: "when Jetten consumes Dreadful Strike there
+        // is no floating text that it was used/remaining"): the record every other pool spend
+        // writes, born on the damage message, so the flash, the card line and the ledger read it
+        // the same way they read a superiority die or a Sorcery Point (shared.js poolSpendsOn).
+        const max = Number(r.activity.uses?.max ?? 0);
+        if ( max > 0 ) spends.push({ pool: r.activity.name || r.feature.name, spent: 1, left: Math.max(0, max - spent), max,
+          ability: r.label, actorUuid: attacker?.uuid ?? null, at: Date.now() });
       }
     }
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.clockRiders`,
       { ...statContext(attacker?.uuid ?? null), attackId: attackMessage.id, riders: record });
+    if ( spends.length ) foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.poolSpend`, spends);
   } catch(err) {
     console.error(`${TITLE} | Clock rider failed to ride — add its damage by hand.`, err);
   }

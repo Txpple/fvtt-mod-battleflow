@@ -53,8 +53,11 @@ function casterFactsOf(activity) {
  * @returns {Promise<{protectedUuids: Set<string>, heightened: {uuid: string, name: string, caster: string|null, rule: string}|null}>}
  */
 export async function metamagicForDemand(card, activity, contained) {
-  const none = { protectedUuids: new Set(), heightened: null, hold: false };
   const mm = card?.getFlag(MODULE_ID, METAMAGIC_FLAG);
+  // An ask still to come — Careful or Heightened, nothing chosen in the window yet: at the area
+  // when it lands (`hold` says it is open now). The stamp defers the caster's dice on it.
+  const pendingAsk = !!mm && ((mm.key === "careful") || (mm.key === "heightened")) && !mm.chosen;
+  const none = { protectedUuids: new Set(), heightened: null, hold: false, pendingAsk };
   if ( !mm || !Array.isArray(contained) ) return none;
   const facts = casterFactsOf(activity);
   // THE ASK AT THE AREA (user ruling 2026-09-09, third look: "when the template is placed …
@@ -85,7 +88,7 @@ export async function metamagicForDemand(card, activity, contained) {
     // §9: the protected two were asked their saves). Only a DEFAULT list is derived and written.
     const same = JSON.stringify(list) === JSON.stringify(mm.protected ?? null);
     if ( !mm.chosen && !same && card.canUserModify?.(game.user, "update") ) await card.setFlag(MODULE_ID, METAMAGIC_FLAG, { ...mm, protected: list });
-    return { protectedUuids: new Set(list.map(p => p.uuid)), heightened: null };
+    return { protectedUuids: new Set(list.map(p => p.uuid)), heightened: null, hold: false, pendingAsk };
   }
   if ( mm.key === "heightened" ) {
     const mark = heightenedMark({ contained, ...facts, chosen: mm.chosen ? (mm.target?.uuid ?? null) : null });
@@ -93,7 +96,7 @@ export async function metamagicForDemand(card, activity, contained) {
     const rule = mm.rule ?? metamagicRuleText(itemNamed(activity?.actor, mm.feature)?.system?.description?.value ?? "");
     const same = (mm.target?.uuid === mark.uuid) && (mm.rule === rule);
     if ( !mm.chosen && !same && card.canUserModify?.(game.user, "update") ) await card.setFlag(MODULE_ID, METAMAGIC_FLAG, { ...mm, target: mark, rule });
-    return { protectedUuids: new Set(), heightened: { ...mark, caster: activity?.actor?.name ?? null, rule } };
+    return { protectedUuids: new Set(), heightened: { ...mark, caster: activity?.actor?.name ?? null, rule }, hold: false, pendingAsk };
   }
   return none;
 }
@@ -266,7 +269,8 @@ async function stampSaveDemand(activity, message, results) {
       // user: "can everything, including the animation, be paused so the person has time to
       // select their choices?"): the dice, their popup, its clock and their animation all wait
       // for the answer. The deferral rides the card; the ask's answer (metamagic.js) says when.
-      if ( metamagic.hold ) await message.setFlag(MODULE_ID, "savesDeferredRoll", { damageOnSave: onSave });
+      // …and not while the ask is still TO COME: a bare cast's area lands later, and its ask with it.
+      if ( metamagic.hold || (metamagic.pendingAsk && awaiting) ) await message.setFlag(MODULE_ID, "savesDeferredRoll", { damageOnSave: onSave });
       else await rollSaveDamageNow(activity, message, { damageOnSave: onSave, targets, awaiting });
     }
   } catch(err) {
