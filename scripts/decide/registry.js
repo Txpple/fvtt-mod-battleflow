@@ -1210,7 +1210,10 @@ export const TRANSMUTED_TYPES = Object.freeze(["acid", "cold", "fire", "lightnin
  * text grants the extra creature but the pack's count is a plain number (Jump, 2024 PHB).
  */
 export const TWINNED_EXCEPTIONS = Object.freeze({
-  except: Object.freeze(["Magic Missile", "Scorching Ray"]),
+  // Animate Dead, Create Undead, Cordon of Arrows and Tasha's Mind Whip: OUT by the user's word
+  // (2026-09-09, "remove all as options") - the first three read as twinnable from the data (a
+  // corpse or an arrow is the extra), the last is not in the PHB pack at all.
+  except: Object.freeze(["Magic Missile", "Scorching Ray", "Animate Dead", "Create Undead", "Cordon of Arrows", "Tasha's Mind Whip"]),
   also: Object.freeze(["Jump"])
 });
 const METAMAGIC_NAMES = tableIndex(METAMAGIC).names;

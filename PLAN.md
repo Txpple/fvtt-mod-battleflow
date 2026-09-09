@@ -207,7 +207,7 @@ Etherealness and Chain Lightning (in by their text — the list was short), and 
 reads differently — RULED: Magic Missile and Scorching Ray OUT ("the extra is a dart/ray"), Jump IN
 (the text grants the creature, the data says nothing) — the `TWINNED_EXCEPTIONS` table in the
 registry; Animate Dead, Create Undead, Cordon of Arrows and Tasha's Mind Whip (not in the PHB pack)
-await a word. (2) **Extended lands in the ONE applier** (`applyEffectsTo`, effect-riders.js —
+RULED OUT later the same day (user: "remove all as options") - the exceptions table carries all six. (2) **Extended lands in the ONE applier** (`applyEffectsTo`, effect-riders.js —
 every cast's effects pass through it: the cast slice's, the save verdict's), doubling the created
 effect's clock to 24 h at most; and the concentration save's gate reads the cast's card through
 `config.isConcentration` (the system marks the roll) — one more `judgeSave` argument, no new hook.

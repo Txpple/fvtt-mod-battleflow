@@ -7,9 +7,10 @@
 // ⚠ Disconnect the MCP bridge first (the sole-GM preflight).
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 
-// The user's list as ruled 2026-09-09: Chain Lightning in; Magic Missile and Scorching Ray out ("the extra is a dart/ray").
+// The user's list as ruled 2026-09-09: Chain Lightning in; Magic Missile and Scorching Ray out ("the extra is a dart/ray");
+// Animate Dead, Create Undead, Cordon of Arrows and Tasha's Mind Whip out ("remove all as options") - so Mind Whip leaves the list.
 const USER_LIST = ["Chain Lightning", "Charm Person", "Jump", "Longstrider", "Blindness/Deafness", "Enhance Ability", "Hold Person", "Invisibility",
-  "Spider Climb", "Tasha's Mind Whip", "Fly", "Gaseous Form", "Banishment", "Charm Monster", "Freedom of Movement", "Hold Monster",
+  "Spider Climb", "Fly", "Gaseous Form", "Banishment", "Charm Monster", "Freedom of Movement", "Hold Monster",
   "Animal Friendship", "Bane", "Bless", "Command", "Heroism"];
 const f = await connectSuite({ tag: "probe-twinnable", watchdogMs: 300_000, requireElect: false, env: loadEnv() });
 const out = await f.evaluate(async () => {
