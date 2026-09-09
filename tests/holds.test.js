@@ -63,6 +63,13 @@ describe("holdFor — the answer another module reads", () => {
    * ⚠ THE DISTINCTION A CONSUMER MUST NOT COLLAPSE, and the reason it is pinned here: a null
    * RETURN means "nothing is holding, play now"; a null RESOLUTION means "the hold lifted and
    * no card was posted, play NOTHING". They are opposite instructions that look identical.
+   *
+   * ⚠ WHAT MAKES IT DANGEROUS RATHER THAN MERELY CONFUSING IS THAT THE SAFE DEFAULT FLIPS (the FX
+   * Studio session's framing, 2026-09-09, and the sharpest statement of it either repo has). For a
+   * RETURN, null must mean *carry on* — that is exactly what keeps a table with no Battle Flow
+   * installed unaffected. For a RESOLUTION, null means *stop*. So the one value that guarantees no
+   * harm in the first position guarantees a LOST PICTURE in the second, and a self-bound settling
+   * null is precisely the case that crosses them — which is the bug that shipped for an hour.
    */
   it("distinguishes a null return from a null resolution", async () => {
     const uuid = subject();
