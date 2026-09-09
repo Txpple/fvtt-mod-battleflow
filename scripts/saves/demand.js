@@ -14,6 +14,7 @@ import { isDeadForSaves } from "../decide/eligible.js";
 import { EMANATIONS, tableIndex } from "../decide/registry.js";
 import { reachAdmits } from "../decide/emanations.js";
 import { emanationEntries } from "../settings.js";
+import { isPartyMember } from "../shared.js";
 // ⚠ SAFE STATICALLY, unlike auto-damage.js's own ui.js import (v1.6.1's ESM order trap): the
 // entry reaches auto-damage.js long before this directory, so that module is fully evaluated
 // before this line is read and no hook registration moves. Re-checked with check-hook-order; do
@@ -21,18 +22,6 @@ import { emanationEntries } from "../settings.js";
 import { offerSaveDamageRoll, rollDamageForSave } from "../auto-damage.js";
 
 /* --- metamagic on the demand (the metamagic pass, Stage 2, 2026-09-09) ---------------------- */
-
-/** A party member: in the primary party group, or a player-owned character (the ask's first group, 2026-09-09). */
-function isPartyMember(uuid) {
-  try {
-    const actor = resolveUuid(uuid);
-    if ( !(actor instanceof Actor) ) return false;
-    const base = actor.isToken ? (game.actors.get(actor.id) ?? actor) : actor;
-    const party = game.actors?.party?.system?.members?.map?.(m => m.actor?.id ?? m.actor) ?? [];
-    if ( party.includes(base.id) ) return true;
-    return (base.type === "character") && !!base.hasPlayerOwner;
-  } catch { return false; }
-}
 
 /** The caster's identity and side, as Careful's and Heightened's defaults read them. */
 function casterFactsOf(activity) {
@@ -117,6 +106,15 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
   const message = (results?.message instanceof ChatMessage) ? results.message : null;
   if ( !message ) return; // used with create: false — no card, no bus, nothing to run
   void stampSaveDemand(activity, message, results);
+});
+
+// A usage card the metamagic ask held back until the caster answered (metamagic.js, 2026-09-09):
+// it is born with the pick made, so the stamp runs as it would have at the use — the placed
+// templates in hand, the protected filtered, the dice rolled — on the client that posted it.
+Hooks.on("battleflow.deferredUsageCard", ({ activity, message, templates }) => {
+  if ( !setting(S.saves) ) return;
+  if ( (activity?.type !== "save") || !(message instanceof ChatMessage) ) return;
+  void stampSaveDemand(activity, message, { templates: [templates ?? []] });
 });
 
 async function stampSaveDemand(activity, message, results) {

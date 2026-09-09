@@ -586,3 +586,18 @@ export async function withTargets(tokens, fn) {
     before.forEach((t, i) => t.setTarget(true, { releaseOthers: i === 0 }));
   }
 }
+
+/**
+ * A PARTY member (the metamagic ask's first group, 2026-09-09): in the primary party group, or a
+ * player-owned character. A token actor is read through its base.
+ */
+export function isPartyMember(uuid) {
+  try {
+    const actor = fromUuidSync(uuid);
+    if ( !(actor instanceof Actor) ) return false;
+    const base = actor.isToken ? (game.actors.get(actor.id) ?? actor) : actor;
+    const party = game.actors?.party?.system?.members?.map?.(m => m.actor?.id ?? m.actor) ?? [];
+    if ( party.includes(base.id) ) return true;
+    return (base.type === "character") && !!base.hasPlayerOwner;
+  } catch { return false; }
+}

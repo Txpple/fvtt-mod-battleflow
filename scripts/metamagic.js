@@ -25,12 +25,12 @@
 import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, isActiveGM, whisperNoGM, canAnswerFor } from "./core.js";
 import { lower, resolveUuid } from "./lookup.js";
 import { metamagicEntries, listedNames } from "./settings.js";
-import { poolOf, spendPoolUses, poolSpendsOn } from "./shared.js";
-import { feetOf, tokenOfActor } from "./geometry.js";
+import { poolOf, spendPoolUses, poolSpendsOn, isPartyMember } from "./shared.js";
+import { feetOf, tokenOfActor, tokensInTemplates } from "./geometry.js";
 import { bfCard, foldedRuleHTML, esc, holdBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
 import { METAMAGIC_FLAG, METAMAGIC_ASK_FLAG, askDefaults, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome, carefulProtects, heightenedMark } from "./decide/metamagic.js";
-import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync } from "./ui.js";
+import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync, dramaticVerdictPause } from "./ui.js";
 import { saveTargetEntry } from "./decide/demand.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 
@@ -304,19 +304,95 @@ Hooks.on("preCreateChatMessage", doc => {
     pick.born = true;
     const { born, at, ...record } = pick;
     void born; void at;
-    doc.updateSource({ flags: { [MODULE_ID]: { [METAMAGIC_FLAG]: { ...record, spent: false, ...statContext(pick.actorUuid ?? null) } } } });
+    const flags = { [MODULE_ID]: { [METAMAGIC_FLAG]: { ...record, spent: false, ...statContext(pick.actorUuid ?? null) } } };
+    // THE DEFERRED CARD (user, 2026-09-09: "the animation fires right away, presumably because the
+    // card is posted right away. Is there a way the card can be deferred until the person picks?").
+    // A Careful or Heightened cast whose pick waits for the AREA — nothing chosen in the window, a
+    // template to place — keeps its card's data here and cancels the birth; the system places the
+    // template regardless, the ask opens off a small carrier when the area has landed, and the real
+    // card — the animation everyone keys on, the dice, the saves — is posted on the answer.
+    const activity = resolveUuid(uuid);
+    const areaComing = ((record.key === "careful") || (record.key === "heightened")) && !record.chosen && !!activity?.target?.template?.type;
+    if ( areaComing ) {
+      const data = doc.toObject();
+      data.flags = foundry.utils.mergeObject(data.flags ?? {}, flags);
+      deferredCards.set(uuid, { data, pick: record, actorUuid: pick.actorUuid ?? null });
+      return false;
+    }
+    doc.updateSource({ flags });
   } catch(err) { console.warn(`${TITLE} | The metamagic pick could not be stamped on the card.`, err); }
 });
+
+/** activity uuid → the usage card held back until the caster has answered the ask at the area. */
+const deferredCards = new Map();
+const DEFERRED_FLAG = "metamagicDeferred";
 
 Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
   try {
     const pick = pending.get(activity?.uuid);
     if ( !pick ) return;
     pending.delete(activity.uuid);
+    const held = deferredCards.get(activity.uuid);
+    if ( held ) {
+      deferredCards.delete(activity.uuid);
+      void carryDeferredCard(activity, held, (results?.templates ?? []).flat().filter(t => t?.parent));
+      return;
+    }
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
     void spendForPick(activity, pick, message);
   } catch(err) { console.error(`${TITLE} | The metamagic spend failed — spend the Sorcery Points by hand.`, err); }
 });
+
+/**
+ * The deferred card's road: the points are spent now (the cast happened); if the area holds
+ * anyone, a CARRIER — a whisper to the caster and the GM, wearing the ask flag and the held card —
+ * asks the question, and the answer posts the real card; an area with nobody in it, or no area at
+ * all, posts the card at once (the demand's adoption road asks later if a template ever lands).
+ */
+async function carryDeferredCard(activity, held, templates) {
+  const actor = activity?.actor;
+  const pool = held.pick.poolId ? actor?.items?.get(held.pick.poolId) : null;
+  const record = pool ? await spendPoolUses(actor, pool, held.pick.feature, held.pick.cost ?? 1, POOL_NAME) : null;
+  if ( !pool ) console.warn(`${TITLE} | ${held.pick.feature}: no Sorcery Points pool on ${actor?.name} — nothing spent.`);
+  const contained = tokensInTemplates(templates) ?? [];
+  const templateIds = templates.map(t => t.id);
+  if ( !contained.length ) { await postDeferredCard(held, record, null, templateIds); return; }
+  const casterTok = tokenOfActor(actor) ?? null;
+  const casterDisposition = casterTok?.document?.disposition ?? actor?.prototypeToken?.disposition ?? CONST.TOKEN_DISPOSITIONS.FRIENDLY;
+  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const whisper = [...new Set([...(actor ? game.users.filter(u => actor.testUserPermission(u, "OWNER")).map(u => u.id) : []), ...game.users.filter(u => u.isGM).map(u => u.id)])];
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor }), whisper,
+    content: bfCard({ img: actor?.items?.find(i => i.name === held.pick.feature)?.img ?? null, eyebrow: `Metamagic — ${held.pick.feature}`, tone: "pending",
+      title: held.pick.key === "careful" ? "Who does the spell spare?" : "Who saves at Disadvantage?", subtitle: `${activity.item?.name ?? "the spell"} — the card follows the answer` }),
+    flags: { [MODULE_ID]: {
+      [METAMAGIC_ASK_FLAG]: {
+        status: "pending", kind: held.pick.key, feature: held.pick.feature, cap: held.pick.cap ?? 1, rule: held.pick.rule ?? metamagicRuleText(actor?.items?.find(i => i.name === held.pick.feature)?.system?.description?.value ?? ""),
+        candidates: contained.map(c => ({ uuid: c.uuid, name: c.name, disposition: c.disposition ?? null, tokenId: c.tokenId ?? null, party: isPartyMember(c.uuid) })),
+        casterUuid: actor?.uuid ?? null, casterDisposition, casterName: actor?.name ?? null,
+        ...statContext(actor?.uuid ?? null),
+        ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
+      },
+      [DEFERRED_FLAG]: { data: held.data, pick: held.pick, poolSpend: record, templateIds, activityUuid: activity.uuid }
+    } }
+  });
+}
+
+/** The real card, at last: the held data with the pick made chosen and the spend on it; the demand's stamp follows by hook. */
+async function postDeferredCard(held, record, answer, templateIds) {
+  const data = foundry.utils.deepClone(held.data);
+  const mm = foundry.utils.getProperty(data, `flags.${MODULE_ID}.${METAMAGIC_FLAG}`) ?? {};
+  foundry.utils.setProperty(data, `flags.${MODULE_ID}.${METAMAGIC_FLAG}`, { ...mm, spent: !!record, ...(answer ?? {}) });
+  if ( record ) foundry.utils.setProperty(data, `flags.${MODULE_ID}.poolSpend`, record);
+  if ( !game.users.get(data.author)?.active || (data.author !== game.user.id && !game.user.isGM) ) data.author = game.user.id;
+  const card = await ChatMessage.create(data);
+  if ( !card ) return null;
+  const activity = resolveUuid(held.pick.activityUuid ?? "") ?? null;
+  const scene = canvas.scene ?? game.scenes.active;
+  const templates = (templateIds ?? []).map(id => scene?.templates?.get(id)).filter(Boolean);
+  Hooks.callAll("battleflow.deferredUsageCard", { activity, message: card, templates });
+  return card;
+}
 
 async function spendForPick(activity, pick, message) {
   const actor = activity?.actor;
@@ -337,6 +413,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   try {
     const record = message.getFlag(MODULE_ID, METAMAGIC_FLAG);
     if ( !record ) return;
+    if ( message.getFlag(MODULE_ID, METAMAGIC_ASK_FLAG)?.status === "pending" ) return;   // the ask's own line speaks
     const content = html.querySelector?.(".message-content") ?? html;
     if ( !content || content.querySelector(".bf-metamagic-line") ) return;
     const div = document.createElement("div");
@@ -423,6 +500,8 @@ async function stampEmpowered(message, actor, item) {
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
   });
   armAskTimer(empoweredTimers, message, EMPOWERED_FLAG, live => keepEmpowered(live, { timedOut: true }));
+  // The table sees the dice land before the question about them opens (the verdict pause's rule).
+  await dramaticVerdictPause(message);
   await showEmpoweredPopup(message);
 }
 
@@ -436,8 +515,9 @@ async function showEmpoweredPopup(message) {
   const actor = resolveUuid(flag.actorUuid);
   if ( !actor ) return;
   const pool = actor.items?.get(flag.poolId) ?? null;
+  // Eight to a row (user, 2026-09-09: "make this horizontal rows, 8 die per row").
   const chips = flag.dice.map(d => `<button type="button" data-bf-die="${esc(d.key)}" data-picked="0" data-tooltip="d${d.faces}"
-      style="width:2.2rem;height:2.2rem;margin:0.15rem;padding:0;font-weight:bold;${d.result <= 2 ? "color:#b4463c;" : ""}">${d.result}</button>`).join("");
+      style="width:2.2rem;height:2.2rem;margin:0;padding:0;font-weight:bold;${d.result <= 2 ? "color:#b4463c;" : ""}">${d.result}</button>`).join("");
   await openMomentPopup(message, EMPOWERED_FLAG, actor, {
     title: `Empowered Spell — ${actor.name}`, icon: "fa-solid fa-wand-sparkles", width: 460,
     content: bfCard({
@@ -446,7 +526,7 @@ async function showEmpoweredPopup(message) {
       title: `${flag.oldTotal} damage — reroll up to ${flag.cap} ${flag.cap === 1 ? "die" : "dice"}?`,
       subtitle: `${POOL_NAME}: ${pool?.system?.uses?.value ?? "?"} of ${pool?.system?.uses?.max ?? "?"} · ${flag.cost} SP`,
       lines: [ruleLine(flag.rule)]
-    }) + `<div data-bf-empowered-dice data-cap="${flag.cap}" style="margin:0.4rem 0;">${chips}</div>` + holdBarHTML(flag, "to answer"),
+    }) + `<div data-bf-empowered-dice data-cap="${flag.cap}" style="margin:0.4rem 0;display:grid;grid-template-columns:repeat(8, 2.2rem);gap:0.3rem;justify-content:start;">${chips}</div>` + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "reroll", label: "Reroll the picked dice", default: true, callback: (event, button) => resolveEmpowered(message, picksIn(button.form)) },
       { action: "keep", label: "Keep the roll", callback: () => keepEmpowered(message) }
@@ -681,6 +761,16 @@ async function answerMetamagicAsk(message, picked, { timedOut = false } = {}) {
       mark = c ? { uuid: c.uuid, name: c.name } : null;
     }
     const rule = mm.rule ?? ask.rule ?? "";
+    const held = message.getFlag(MODULE_ID, DEFERRED_FLAG);
+    if ( held ) {
+      // The deferred card's answer: the pick made chosen on the held data, the real card posted, the
+      // carrier gone. The demand, the dice and the saves all follow the card, in that order.
+      await message.setFlag(MODULE_ID, METAMAGIC_ASK_FLAG, { ...ask, status: "done", answer: chosen, ...(timedOut ? { timedOut: true } : {}) });
+      const answer = { chosen: true, ...(ask.kind === "careful" ? { protected: protectedList } : { target: mark, rule }) };
+      await postDeferredCard({ data: held.data, pick: held.pick }, held.poolSpend ?? null, answer, held.templateIds ?? []);
+      await message.delete().catch(() => {});
+      return;
+    }
     await message.update({ flags: { [MODULE_ID]: {
       [METAMAGIC_FLAG]: { ...mm, chosen: true, ...(ask.kind === "careful" ? { protected: protectedList } : { target: mark, rule }) },
       [METAMAGIC_ASK_FLAG]: { ...ask, status: "done", answer: chosen, ...(timedOut ? { timedOut: true } : {}) }

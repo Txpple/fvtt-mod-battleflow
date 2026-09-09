@@ -142,6 +142,7 @@ dnd5e.preRollDamageV2	volleys.js
 dnd5e.renderChatMessage	volleys.js
 deleteChatMessage	volleys.js
 dnd5e.postUseActivity	saves/demand.js
+battleflow.deferredUsageCard	saves/demand.js
 battleflow.metamagicAskAnswered	saves/demand.js
 createMeasuredTemplate	saves/areas.js
 updateMeasuredTemplate	saves/areas.js

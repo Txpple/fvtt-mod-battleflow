@@ -135,6 +135,8 @@ export function metamagicRuleText(html) {
     .replace(/<blockquote>[\s\S]*?<\/blockquote>/gi, " ")
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'")
+    // The pack's live lookups go, and the phrase that framed one with them ("minimum of one, currently [[lookup …]]").
+    .replace(/,?\s*currently\s*\[\[\/?lookup[^\]]*\]\]/gi, "")
     .replace(/\[\[\/?lookup[^\]]*\]\]/g, "")
     .replace(/\s+/g, " ").trim();
   return text.replace(/^Cost:\s*\d+\s*Sorcery Points?\s*/i, "").trim();
