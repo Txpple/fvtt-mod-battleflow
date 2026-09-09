@@ -15,9 +15,9 @@
 > the module does at the table — **the UI/UX and the shipped behaviour are the asset being
 > protected, not the thing being changed.**
 >
-> ▶ **A fourth block is on this page as of 2026-09-09, DRAWN and NOT RULED:** *THE METAMAGIC PASS*, directly
+> ▶ **A fourth block is on this page as of 2026-09-09, DRAWN and RULED the same day:** *THE METAMAGIC PASS*, directly
 > below — the ten 2024 options measured against the pack and the module, five stages, six decisions for the
-> user; its prototype is [prototypes/metamagic.html](prototypes/metamagic.html). Nothing starts until it is ruled.
+> user, all six ruled; its prototype is [prototypes/metamagic.html](prototypes/metamagic.html); DESIGN §6 *Metamagic* carries the rulings. It starts on the user's go.
 
 > ✅ **A third block is on this page as of 2026-09-05, DRAWN, RULED and DELIVERED the same evening:**
 > *THE HOLD DIRECTORY*, directly below — `hold.js` is `scripts/hold/`, nine parts by moment, the
@@ -30,7 +30,7 @@
 
 ---
 
-## ▶ THE METAMAGIC PASS — DRAWN 2026-09-09; NOT RULED, NOT STARTED
+## ▶ THE METAMAGIC PASS — DRAWN AND RULED 2026-09-09; NOT STARTED
 
 **Origin:** the 2026-09-09 session's Careful Spell report ([BACKLOG.md](BACKLOG.md) *From play*):
 two Fireballs rolled the excluded allies' saves through the ask timer and applied their damage, and
@@ -39,7 +39,7 @@ implemented. follow pattern like sneak attk/manuevers with check box?"* — then
 plan for metamagic support as a whole"*. Careful Spell is the example; **the class is the ten
 2024 Metamagic options**, and this block is the drawing for all ten. It measures what exists,
 names where each option bites, and puts the decisions in one table for the user to rule. **Nothing
-below starts on this page; it starts on the user's go, off the ruled table.**
+below starts on this page; it starts on the user's go, off the ruled table — RULED 2026-09-09, every decision as recommended but decision 3, which the user ruled the other way.**
 
 **The prototype comes first** (house rule): [prototypes/metamagic.html](prototypes/metamagic.html)
 — the cast dialog with the metamagic group, Careful's protect picker, Heightened's one-target
@@ -165,16 +165,16 @@ exempt (decision 5). Suite §9–10.
   reads a regain correctly.
 - **Touch the 2014 options** (SWEEP §5: ignore 2014).
 
-### Decisions — TO RULE (the prototype's side panel asks the first four)
+### Decisions — RULED 2026-09-09 (the prototype's side panel asked the first four)
 
-| # | Decision | Recommendation |
+| # | Decision | Ruling |
 | --- | --- | --- |
-| 1 | **Careful's protected list**: a picker in the dialog, or *allies under the template* by default with the picker to adjust | **Default to the caster's allies under the template, picker to adjust** — it is what the table means nine times in ten, and the tick still has to be the player's. Capped at CHA mod; over the cap the row says so |
-| 2 | **The spend**: by hand on the spell's card, or through the option's own activity | **By hand** (`spendPoolUse`, `poolSpend` on the spell's card) — one card, one line, the uniform-spend rule of 2026-09-05 |
-| 3 | **Should the ask timer roll a save for a PC?** (independent of metamagic; the same night's bug) | **Rule it here, separately.** Recommendation: the buzzer rolls for NPCs and leaves a PC's ask PENDING with its card bar at zero — the GM presses. One branch in `fireSaveTimer`; a setting if the table disagrees |
-| 4 | **Quickened as a card line only** | **Yes** — anything more reopens a settled row |
-| 5 | **Empowered / Seeking and the rolled-result obligation** (§11 rule 4) | **Stage 4 waits on this.** Recommendation: they carry the obligation the honest way — the fold's receipt records old and new dice, and the existing revert restores the ROLL's applied damage, not the roll; the roll itself stays as rolled, said on the card. If that is not acceptable, they stay out and the row goes to DESIGN §8 |
-| 6 | **Order** | 0 → 1 → 2 (the bug) → 3 → 4. Stage 2 could go before 1's three data-only options if the bug is the urgency; the group and the spend are Stage 1 either way |
+| 1 | **Careful's protected list**: a picker in the dialog, or *allies under the template* by default with the picker to adjust | **Default to the caster's allies under the template, picker to adjust** — it is what the table means nine times in ten, and the tick still has to be the player's. Capped at CHA mod; over the cap the row says so **RULED: the default** (user: "default"). |
+| 2 | **The spend**: by hand on the spell's card, or through the option's own activity | **By hand** (`spendPoolUse`, `poolSpend` on the spell's card) — one card, one line, the uniform-spend rule of 2026-09-05 **RULED: by hand** (user, after an ELI5 of the two: "by hand") — and the floating spend text every decrement gets (user: "don't forget … it gets the floating text popup on decrementing uses like Hunter's Mark"); the flash reads poolSpendsOn, so the hand record is enough. |
+| 3 | **Should the ask timer roll a save for a PC?** (independent of metamagic; the same night's bug) | **Rule it here, separately.** Recommendation: the buzzer rolls for NPCs and leaves a PC's ask PENDING with its card bar at zero — the GM presses. One branch in `fireSaveTimer`; a setting if the table disagrees **RULED THE OTHER WAY: the timer keeps rolling for PCs** (user: "people afk, it needs to play through so the table can continue"). No branch in fireSaveTimer; DESIGN §6 records it. |
+| 4 | **Quickened as a card line only** | **Yes** — anything more reopens a settled row **RULED: yes** (user: "just a blurb how it's settled at the table, no automation, the default language"). |
+| 5 | **Empowered / Seeking and the rolled-result obligation** (§11 rule 4) | **Stage 4 waits on this.** Recommendation: they carry the obligation the honest way — the fold's receipt records old and new dice, and the existing revert restores the ROLL's applied damage, not the roll; the roll itself stays as rolled, said on the card. If that is not acceptable, they stay out and the row goes to DESIGN §8 **RULED: as recommended** (user: "let's try default"). |
+| 6 | **Order** | 0 → 1 → 2 (the bug) → 3 → 4. Stage 2 could go before 1's three data-only options if the bug is the urgency; the group and the spend are Stage 1 either way **RULED: keep the order** (user: "keep now and we'll look for bugs later"). |
 
 ### Sequencing (proposed)
 

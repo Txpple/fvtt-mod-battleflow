@@ -865,6 +865,66 @@ line and every subtitle, from ONE reader (`poolSpendsOn`) over dnd5e's own consu
 and the module's hand spends alike — the hand spends (Parry, the hit menu) go through ONE
 pass-through (`spendSuperiorityDie`) that spends the pool and writes that record.
 
+### Metamagic (user, 2026-09-09: "need metamagic implemented … follow pattern like sneak attk/manuevers with check box")
+
+**Metamagic is a pick on the cast and a spend on the card; the module does the arithmetic the
+option names and judges nothing else.** RULED 2026-09-09 off the prototype
+([prototypes/metamagic.html](prototypes/metamagic.html)); the drawing and the stages are
+[PLAN.md](PLAN.md) *THE METAMAGIC PASS*. Not yet built.
+
+- **The pick is a group in the system's own cast dialog** — one fieldset on the usage dialog's
+  render hook, the emanation damage-type radios' idiom, never the attack gate (a save spell never
+  opens it). Every row is the offer-row law's shape: a tick, the option's name, the cost as the
+  tag (`1 SP`), the rule folded under, nothing above it. A row the spell does not fit, or the
+  points cannot afford, stays visible and greyed with the reason as its tag. **One option per
+  cast**, as the feature's text says; a tick greys the rest. Empowered and Seeking are not rows
+  here — they are later moments and their own text exempts them from the one-per-cast rule.
+- **The spend is BY HAND** (user: "by hand"): `spendPoolUse` on Font of Magic, the record on the
+  SPELL's card as `poolSpend` — one card, one line `Sorcery Points: 4 of 5 remaining`, and the
+  floating spend text that Hunter's Mark, the superiority die and every other decrement already
+  get (user: "don't forget … it gets the floating text popup on decrementing uses"). The flash,
+  the card line and every subtitle come from the ONE reader (`poolSpendsOn`), so the hand spend
+  is written once and read everywhere; the option's own activity is never `use()`d (a second card
+  for a spend is noise). Never refunded on a revert (§8, Tactical Mind's row).
+- **Careful protects the caster's ALLIES under the template by default** (user: "default"), the
+  picker there to adjust, capped at the Charisma modifier (minimum one) — over the cap the row
+  says so. A protected creature leaves the save demand's target list at BOTH filters (the stamp
+  and the template's later adoption): no ask, no timer roll, no damage; the card names them
+  *protected*. The tick is the player's; the module never judges sight or willingness (the Sneak
+  Attack ruling).
+- **Heightened marks one target on the demand**, and the save gate reads the mark as a
+  Disadvantage source named *Heightened Spell* — the channel the effect table's `saves` facet
+  already reads through the pending demand.
+- **Subtle and Quickened are a card line and a spend, nothing more.** Components are never read;
+  the turn is never policed (user, on Quickened: "just a blurb how it's settled at the table, no
+  automation" — §8's action-economy row stands). The line is the default language.
+- **Distant doubles the range the gate's reminder reads for that cast** (Touch → 30 ft);
+  **Extended doubles the clock on the effects the cast creates** (24 h cap) and gives the
+  concentration gate *Extended Spell* as an Advantage source; **Transmuted changes the type on the
+  cast's own damage parts** (the first change to an EXISTING part; every rider so far only adds
+  one); **Twinned adds one creature to the target snapshot** (`messageConfig`, written directly —
+  the system snapshots targets before `preUseActivity`).
+- **Empowered and Seeking are folds AFTER a roll** (user: "let's try default"): Empowered opens
+  on the spell's damage with the dice shown, up to CHA-mod of them picked and rerolled, the new
+  rolls standing; Seeking is Precision Attack's shape on a spell attack's miss — Use or Pass, the
+  d20 rerolled, the new roll standing, Pass at expiry. Both carry the rolled-result obligation
+  the honest way: the receipt records old and new dice, a revert restores the APPLIED damage as
+  it does today, and the roll itself stays as rolled, said on the card. **Shipped to find its
+  bugs at the table**, not held for a proof (user: "we'll look for bugs later").
+- **The ask timer keeps rolling for PCs** (user: "people afk, it needs to play through so the
+  table can continue"). Asked beside this pass because the same night's Fireball rolled Gren's
+  own save; ruled as it stands. Careful is the fix for the excluded, not the timer.
+
+**What is read, and what is not.** Read: the metamagic feats on the sheet (the pack's
+`type.subtype: "metamagic"`), Font of Magic's uses as the pool (the pack's options consume it
+by compendium uuid; `poolOf` resolves that), and the SPELL's own save, range, duration, damage
+types and target scaling for eligibility — the option's own activation is a prose condition, so
+the predicate is a registry row, never a read of the option. Not judged: sight, a willing
+creature, a Twinned target's legality, whether a level 1+ spell was already cast this turn.
+One membership list over the table (`Metamagic List`), the conditions idiom, so a table can
+switch an option off; no new kind set. The 2014 options are ignored (SWEEP §5).
+
+
 ## 7. How to use this document
 
 - **Before building**, locate the work here. If it is not here, decide whether it is in scope —
