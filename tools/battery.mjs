@@ -84,6 +84,9 @@ const ORDER = [
   { name: "smoke-shields", note: "the damage shields — Fire Shield's type by its effect, Death Armor walked to its caster and once per turn, Armor of Agathys marked at the cast and ended with its pool, the reach, the list" },
   { name: "smoke-heatmetal", note: "the damage casts — Heat Metal's dice roll at the use and land, the save follows through the machine, Heated Metal read by both gates, the reheat, the list" },
   { name: "smoke-superiority", note: "the rest of the Battle Master's maneuvers — Parry's reduction on the hold, the four Bonus Action uses, Ambush and Tactical Assessment as scoped folds, Commander's Strike as a driven attack, Rally natively" },
+  // The metamagic pass (2026-09-09): the Sorcerer fixture stands on the bottom row and the suite moves
+  // the goblins and the Ranger under a Fireball, so it runs before the fixture re-placement below.
+  { name: "smoke-metamagic", note: "metamagic — the group in the casting window, the spend by hand, Careful's protected leaving the demand, Heightened's mark on the save gate, Distant / Extended / Transmuted / Twinned, Empowered on the dice, Seeking on the miss" },
   // ⚠ Before smoke-surfaces for the same reason smoke-surfaces is last: it places a real template
   // (Spirit Guardians) and creates Regions on the range, all deleted in its `finally` (2026-09-03).
   // The same lesson as smoke-nogm's seed below: the Victim token smoke-emanations needs is swept
