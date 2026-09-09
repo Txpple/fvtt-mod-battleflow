@@ -55,28 +55,44 @@ Nothing is owed by default. When the user walks and reports:
 The three other play reports of 2026-09-09 stay parked in BACKLOG *From play* (Spirit Guardians
 out of range, the stale Shield/Immutable Barrier effect, private rolls) — not owed.
 
-## 3. FX Studio — what changed there, and the note to keep
+## 3. FX Studio — the hold, now a registry rather than a patch (recut 2026-09-09, later)
 
 The user uses **FX Studio** (`../fvtt-mod-fxstudio`, their own module, in active development), not
-Automated Animations. Its area picture plays on the template's **Region** — before the ask. So:
+Automated Animations. Its area picture plays on the template's **Region** — before the ask. The
+first answer, written the same day, was one Map inside metamagic.js. **It is now
+[scripts/holds.js](scripts/holds.js), a spine file**, built on the user's written authorization
+(*"if you need to take action to improve battleflow to be systemically compatible, you are
+authorized to plan and edit this repo"*) while the FX Studio session built the matching seam.
 
-- **Battle Flow** exposes `game.modules.get("fvtt-mod-battleflow").api.castHold(activityUuid)`
-  (metamagic.js): a promise that settles with the cast's card when a held cast posts its real
-  card, on this client or arriving from another (the elect's clock kept the default);
-  `battleflow.castReleased` fires beside it. No hold → `null`. Also `battleflow.deferredUsageCard`
-  (saves/demand.js stamps the demand off it) and `battleflow.metamagicAskAnswered` (the deferred
-  dice) — both local hooks.
-- **FX Studio** (`scripts/readers/dnd5e.js`, the `createRegion` handler, commit `8ea90d0`) awaits
-  that hold before an area picture, bounded at five minutes; no hold, no wait. Its three checks
-  (`check-imports`, `check-layers`, `check-legacy`) are green; deployed to the sandbox with
-  `deploy-house-module.mjs fvtt-mod-fxstudio --local`; pushed.
-- ⚠ **It is a PATCH, and the user asked for the note to be kept** ("keep a note on that fx studio,
-  as that is a tool in active development"): one reader, one call site; the message and effect
-  readers never ask (harmless today — Battle Flow holds the card itself); FX Studio's timing policy
-  and Battle Flow's ARCHITECTURE do not name the hold. **The systemic shape is drawn, not ruled**, in
-  FX Studio's BACKLOG (first section, *The cast hold*): the wait in the dispatcher for every moment,
-  one timing-policy line, the api recorded in ARCHITECTURE beside the volley registry. About an
-  hour. Do not start it unasked; do not let a later FX Studio refactor drop the hold.
+- **The api** is recorded in [ARCHITECTURE.md](ARCHITECTURE.md) §7, *The public API* — the contract
+  in full, and the four decisions in holds.js that are load-bearing for the modal sequence.
+  `holdFor(subject)` is the general surface; **`castHold(uuid)` is an alias and is kept forever**
+  (FX Studio shipped against that name); `holds` is `{ version, keys }` for capability detection;
+  `battleflow.holdOpened` fires when one is raised, `battleflow.castReleased` when one settles.
+- **Two defects fixed on the way**, both found writing the contract down:
+  1. metamagic.js had **no `deleteChatMessage` handler** — the only moment machine without one. A
+     GM deleting the carrier whisper stranded the hold forever: FX Studio waited its full five
+     minutes and no card ever posted. It now posts the card as cast, the failed-carrier road's
+     own repair. ⚠ The guard is the hold itself — only the casting client holds one.
+  2. The hold **released one beat too late** (after `ChatMessage.create` resolved, while
+     `createChatMessage` hooks fire *during* it), so a consumer reading the released card found
+     the hold still open for the very card that lifts it. Release moved to `preCreateChatMessage`.
+- **A self-bound**, tied to the ask's own clock plus 30s slack. ⚠ A **clockless** ask gets a
+  clockless hold deliberately (§5 law 11); a default bound would lift while the caster reads.
+- **[tests/holds.test.js](tests/holds.test.js), 14 tests** — the refcount, the self-bound, and the
+  null-return-vs-null-resolution distinction, which are what a later refactor would quietly break.
+- ⚠ **The hold is CLIENT-LOCAL**, and this is the thing to know before trusting it: plain Maps in
+  the casting client's memory. Elsewhere `holdFor` answers `null`, which means *nothing here can
+  see one*, not *nothing is holding*. Harmless today because the template's placer is the caster —
+  **a GM placing a template for a player is already outside that luck.** Promoting a hold to world
+  state is a real change with a real cost; it is not done, and the docs do not pretend otherwise.
+- **FX Studio's side** (`scripts/readers/dnd5e.js`, the `createRegion` handler, commit `8ea90d0`)
+  still awaits the hold, bounded at five minutes, and keeps working unchanged through the rename.
+  That session is building a **gate seam** — the wait in its *dispatcher*, asking a list of
+  registered gates, with Battle Flow one feature-detected tenant and no dependency either way. The
+  advisory it worked from is in this session's transcript; its `holdFor` signature had not landed
+  back here when this was written. ⚠ **Neither module may import the other**, and some tables
+  install neither.
 
 ## 4. Known gaps and where the evidence is
 
@@ -95,11 +111,11 @@ Automated Animations. Its area picture plays on the template's **Region** — be
 - **Docs recut for the metamagic pass:** PLAN (the block with HOW IT WENT per stage), DESIGN §6
   *Metamagic*, ARCHITECTURE (the decide row, the machines list), SWEEP §2's row, README, BACKLOG.
   The three evening recuts (ask at the area, deferred card, cast hold) are in the commit messages
-  and DESIGN's Careful bullet; ARCHITECTURE does not yet list the `api.castHold` surface (§3).
+  and DESIGN's Careful bullet. ARCHITECTURE §7 now records the public API in full (§3).
 
 ## 5. Release, when the user says so
 
 `tools/build-release.ps1` for the zip; `deploy-house-module.mjs fvtt-mod-battleflow` (no flag) is
 PROD — never run it unasked. Two new files since v1.34.3 (`scripts/metamagic.js`,
 `scripts/decide/metamagic.js`); WebDAV never prunes, nothing was removed this pass. The R4 pin is
-30 (`seeking`), the source-file pin 71.
+30 (`seeking`), the source-file pin 72.

@@ -31,6 +31,7 @@ import { bfCard, foldedRuleHTML, esc, holdBarHTML, popupKey, ruleLine, spendPhra
 import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
 import { METAMAGIC_FLAG, METAMAGIC_ASK_FLAG, askDefaults, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome, carefulProtects, heightenedMark } from "./decide/metamagic.js";
 import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync, dramaticVerdictPause } from "./ui.js";
+import { raiseHold, releaseHold, isHeld } from "./holds.js";
 import { saveTargetEntry } from "./decide/demand.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 
@@ -329,39 +330,61 @@ const deferredCards = new Map();
 const DEFERRED_FLAG = "metamagicDeferred";
 
 /* ---------------------------------------------------------------------------------------------
- * THE CAST HOLD — the one thing another module needs to know (FX Studio, 2026-09-09: its area
- * picture plays on the template's Region, before the question; the user: "the animation still
- * fires"). While a cast's card is held back for the ask, `castHold(activityUuid)` hands out a
- * promise that settles when the real card posts — on this client, or anywhere (the usage card
- * arriving with the pick made). No hold, null. Read through the module's `api`; never imported.
+ * THE CAST HOLD — metamagic's one use of the hold registry ([holds.js](holds.js), which owns the
+ * shape and the public api; this file owns only WHEN a cast is held, and every way the question
+ * can stop standing). While the ask at the area is up the cast's card does not exist, so a module
+ * that keys on the card is told *not yet* rather than shown a picture for a spell nobody has
+ * aimed yet (FX Studio, 2026-09-09; the user: "the animation still fires").
+ *
+ * ⚠ EVERY PATH THAT ENDS THE QUESTION MUST RELEASE, and they are not all happy ones: the answer,
+ * the clock, an area with nobody in it, a carrier that could not post, a carrier somebody DELETED,
+ * and the real card's BIRTH. The last is why the release below is on `preCreateChatMessage` and
+ * not on `createChatMessage`: create hooks fire DURING the create, so a consumer reading the
+ * released card on `createChatMessage` would otherwise find the hold still open — for the very
+ * card that lifts it.
  * ------------------------------------------------------------------------------------------- */
-const castHolds = new Map();   // activity uuid → { promise, resolve }
+
+/** Slack over the ask's own clock before a hold gives up on itself — the answer still has to write. */
+const HOLD_SLACK_MS = 30_000;
+
+/**
+ * Raise metamagic's hold on a cast, bounded by the ask's own clock when it has one. A clockless
+ * ask gets a clockless hold on purpose: a moment waits forever only by explicit setting
+ * (ARCHITECTURE §5 law 11), and a self-bound under one would lift while the caster is still reading.
+ */
 function openCastHold(uuid) {
-  if ( castHolds.has(uuid) ) return castHolds.get(uuid).promise;
-  let resolve;
-  const promise = new Promise(r => { resolve = r; });
-  castHolds.set(uuid, { promise, resolve });
-  return promise;
+  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  raiseHold(uuid, { reason: "metamagic-ask", bound: window ? ((window * 1000) + HOLD_SLACK_MS) : null });
 }
-function releaseCastHold(uuid, message = null) {
-  const hold = castHolds.get(uuid);
-  if ( !hold ) return;
-  castHolds.delete(uuid);
-  hold.resolve(message);
-  Hooks.callAll("battleflow.castReleased", { activityUuid: uuid, message });
-}
-Hooks.once("init", () => {
-  const mod = game.modules.get(MODULE_ID);
-  if ( mod ) mod.api = Object.assign(mod.api ?? {}, {
-    /** A promise that settles with the cast's card when the hold lifts, or null when nothing holds this activity. */
-    castHold: uuid => castHolds.get(uuid)?.promise ?? null
-  });
+
+// The real card's BIRTH lifts the hold, before any `createChatMessage` handler can observe it...
+Hooks.on("preCreateChatMessage", doc => {
+  const uuid = doc.getFlag?.("dnd5e", "activity")?.uuid ?? null;
+  if ( uuid && doc.getFlag?.(MODULE_ID, METAMAGIC_FLAG)?.chosen ) releaseHold(uuid, doc);
 });
-// A held cast's real card can be posted from another client (the elect's clock kept the default):
-// its arrival lifts the hold here too.
+// ...and a card posted from ANOTHER client (the elect's clock kept the default) fires no preCreate
+// here, so its arrival lifts the hold too. Both roads are idempotent; whichever runs first wins.
 Hooks.on("createChatMessage", message => {
   const uuid = message.getFlag("dnd5e", "activity")?.uuid ?? null;
-  if ( uuid && castHolds.has(uuid) && message.getFlag(MODULE_ID, METAMAGIC_FLAG)?.chosen ) releaseCastHold(uuid, message);
+  if ( uuid && message.getFlag(MODULE_ID, METAMAGIC_FLAG)?.chosen ) releaseHold(uuid, message);
+});
+
+// A DELETED CARRIER is the ask withdrawn by hand, and it used to strand the hold forever — this
+// was the only moment machine in the module with no `deleteChatMessage` handler (found 2026-09-09
+// while writing the hold's contract down). The cast happened and the points are spent, so the
+// honest repair is the one the failed-carrier road already takes: post the card as cast, which
+// releases the hold on its way past. ⚠ The GUARD is the hold itself — only the client that cast
+// holds one, so exactly one client does this, by construction.
+Hooks.on("deleteChatMessage", message => {
+  try {
+    const ask = message.getFlag(MODULE_ID, METAMAGIC_ASK_FLAG);
+    const held = message.getFlag(MODULE_ID, DEFERRED_FLAG);
+    if ( !held || (ask?.status !== "pending") ) return;
+    const uuid = held.activityUuid ?? held.pick?.activityUuid ?? "";
+    if ( !isHeld(uuid) ) return;
+    console.warn(`${TITLE} | The ask at the area was deleted — posting ${held.pick?.feature ?? "the cast"}'s card as cast.`);
+    void postDeferredCard({ data: held.data, pick: held.pick }, held.poolSpend ?? null, null, held.templateIds ?? []);
+  } catch(err) { console.error(`${TITLE} | The deleted ask's card could not be posted.`, err); }
 });
 
 Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
@@ -427,8 +450,8 @@ async function postDeferredCard(held, record, answer, templateIds) {
   if ( record ) foundry.utils.setProperty(data, `flags.${MODULE_ID}.poolSpend`, record);
   if ( !game.users.get(data.author)?.active || (data.author !== game.user.id && !game.user.isGM) ) data.author = game.user.id;
   const card = await ChatMessage.create(data);
-  if ( !card ) { releaseCastHold(held.pick.activityUuid ?? ""); return null; }
-  releaseCastHold(held.pick.activityUuid ?? "", card);
+  if ( !card ) { releaseHold(held.pick.activityUuid ?? "", null); return null; }
+  releaseHold(held.pick.activityUuid ?? "", card);
   const activity = resolveUuid(held.pick.activityUuid ?? "") ?? null;
   const scene = canvas.scene ?? game.scenes.active;
   const templates = (templateIds ?? []).map(id => scene?.templates?.get(id)).filter(Boolean);

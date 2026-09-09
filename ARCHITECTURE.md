@@ -634,7 +634,7 @@ those strings back into the view.**
 | 6 | entry | `battleflow.js` |
 | 5 | **machines** | hold · **saves/** (one machine, a directory of eight parts — below) · mastery · topple · chip-spend · precision · riposte · hew · bash-offer · command · concentration · volleys · cast · hit-riders · d20-folds · receipts · polish · resources · reminders (the gate machine — attack, save and check gates) · stats · sneak · clock-riders · use-chips · emanations · hit-menu · damage-shields · damage-casts · superiority-uses · metamagic (the Sorcerer's options in the cast dialog, the points spent on the card — 2026-09-09). The machine-tier pass (2026-09-05, Stage 4) split maneuvers.js into five and mastery.js into three by MOMENT, and made saves.js the directory |
 | 4 | **services** | `auto-apply.js` · `effect-riders.js` · `auto-damage.js` — the consequence chokepoints (§2) |
-| 3 | spine | `ui.js` · `shared.js` · `geometry.js` · `settings.js` · `lookup.js` (the sheet and document readers, 2026-09-05) |
+| 3 | spine | `ui.js` · `shared.js` · `geometry.js` · `settings.js` · `lookup.js` (the sheet and document readers, 2026-09-05) · `holds.js` (the hold registry — what another module asks before it plays, 2026-09-09) |
 | 2 | registry | `volley-registry.js` |
 | 1 | decision | `decide/*` — **zero imports, asserted** |
 | 0 | core | `core.js` — a leaf, **asserted** |
@@ -758,6 +758,53 @@ order-neutral is proven so by the gate, not by eye.
 
 Cross-file symbols must be **hoisted `function` declarations called at hook time**, never at
 module-eval time — that is the only reason the existing import cycles are safe.
+
+### The public API — the only surface another module may read (2026-09-09)
+
+`game.modules.get("fvtt-mod-battleflow").api`. ⚠ **Everything else in this tree is private**, and
+the rule runs both ways: **Battle Flow imports no other module and calls into none.** A table may
+install this module alone, or with FX Studio, or with neither — nothing here may assume a
+neighbour. What other modules need is *published*, never *reached for*.
+
+| Surface | Owner | What it is |
+| --- | --- | --- |
+| `registries` | [settings.js](scripts/settings.js) | the settings lists, read-only — inspection, not an extension point (§6 rule 5) |
+| `volleyRegistry` | [volley-registry.js](scripts/volley-registry.js) | volley membership, read-only, same rule |
+| `acknowledgeMoment` | [ui.js](scripts/ui.js) | resolve a card's pending presentation (law 3) |
+| `holdFor(subject)` · `castHold(uuid)` · `holds` | [holds.js](scripts/holds.js) | **the hold** — below |
+
+**The hold** is the one surface with a consumer outside this repo, so its contract is written
+here rather than only in the file. It exists because a module that keys on the usage card would
+otherwise play a picture for a spell nobody has aimed yet: while Careful Spell asks *who does the
+spell spare?* — a question the module can only ask once the template has landed — the cast's card
+is held back, and everything downstream of it with the card.
+
+> A hold is **client-local**, in memory, keyed by an **opaque subject**. `holdFor(subject)`
+> answers with a promise or `null`; `null` means nothing *here* is holding, which on a remote
+> client may mean nothing here can *see* a hold. A hold **always settles**: with the card that
+> lifted it, or with `null` meaning nothing was posted and nothing should play. **The consumer
+> bounds its own wait** — a hold is a courtesy, never a guarantee of liveness.
+
+⚠ **A null RETURN and a null RESOLUTION are opposite instructions** — *play now* and *play
+nothing* — and they look identical. [tests/holds.test.js](tests/holds.test.js) pins the
+distinction, along with the refcount.
+
+`castHold` is the name the surface was born with on 2026-09-09 and FX Studio shipped against the
+same day; it is an alias of `holdFor` and **is kept forever**. `holds` is `{ version, keys }`, so a
+consumer can tell this contract from that first one without probing for functions. The hooks
+beside it: `battleflow.holdOpened` when one is raised, `battleflow.castReleased` when one settles.
+
+⚠ **The release is on `preCreateChatMessage`, never on `createChatMessage`**, and that is
+load-bearing rather than incidental: create hooks fire DURING the create, so a consumer reading the
+released card on `createChatMessage` would otherwise find the hold still open — for the very card
+that lifts it.
+
+**Four decisions in [holds.js](scripts/holds.js) are load-bearing** for the modal sequence the
+module wants long term (BACKLOG, *The modal sequence*), and each is cheap now and expensive later:
+the hold is **refcounted** (never a boolean), keyed by an **opaque subject** (never an activity
+uuid), released by an **explicit lifecycle call** (never coupled to "the card posted"), and
+`openManagedPopup` stays the one place a decision popup opens. ⚠ Today exactly one thing ever
+holds — which is precisely why a boolean would look correct forever and then cost a migration.
 
 ---
 

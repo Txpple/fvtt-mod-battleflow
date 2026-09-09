@@ -116,6 +116,7 @@ const LAYER_OF = {
   "shared.js": "spine",
   "geometry.js": "spine",
   "settings.js": "spine",
+  "holds.js": "spine",     // the hold registry — what other modules ask before they play (2026-09-09)
   "lookup.js": "spine",      // the sheet and document readers (the machine-tier pass, Stage 1)
 
   // REGISTRY — which content participates, in what way

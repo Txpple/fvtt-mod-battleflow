@@ -1,6 +1,7 @@
 # tools/hook-order.snapshot — every Hooks registration in evaluation order (check-hook-order.mjs --snapshot). Tracked; a diff here is a hook-order change.
 init	settings.js
 renderSettingsConfig	settings.js
+init	holds.js
 dnd5e.preUseActivity	polish.js
 dnd5e.preUseActivity	polish.js
 preCreateChatMessage	polish.js
@@ -82,8 +83,9 @@ renderActivityUsageDialog	metamagic.js
 closeActivityUsageDialog	metamagic.js
 dnd5e.preRollDamageV2	metamagic.js
 preCreateChatMessage	metamagic.js
-init	metamagic.js
+preCreateChatMessage	metamagic.js
 createChatMessage	metamagic.js
+deleteChatMessage	metamagic.js
 dnd5e.postUseActivity	metamagic.js
 dnd5e.renderChatMessage	metamagic.js
 dnd5e.rollDamageV2	metamagic.js

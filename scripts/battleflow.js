@@ -86,6 +86,7 @@
 import "./core.js";
 import "./settings.js";
 import "./shared.js";
+import "./holds.js";
 import "./polish.js";
 import "./auto-damage.js";
 import "./hold/index.js";

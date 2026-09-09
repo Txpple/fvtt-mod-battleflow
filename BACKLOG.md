@@ -113,6 +113,55 @@ untested path.
 
 ---
 
+### The modal sequence, and the pictures Battle Flow's own moments never play (2026-09-09)
+
+**What:** two wants the user named on the same day, parked together because they are the same seam
+seen from two sides — and because each is a *goal for some workflows, not all*.
+
+1. **The modal sequence.** A workflow where several windows are answered **in order**, and the
+   visual chain — the picture, the dice, the saves — waits for the whole sequence to drain, not
+   for one window. Today the popup pile is a **staircase in causal order** (ARCHITECTURE §5 law 7,
+   a user ruling with table findings behind it): concurrent by design, with one narrow exception
+   (the rescue view). A modal sequence is a **change to law 7**, not an addition to it, and it is
+   wanted for *some* workflows only — so it arrives as an option per moment, never as the default.
+2. **The pictures that never play.** An ability consumed through a Battle Flow popup posts no
+   dnd5e **usage card** — it posts a `bfCard`, or writes a record on an attack or damage message
+   that already exists. FX Studio's message reader keys on usage messages (`type === "usage"`) and
+   builds its subject from the ITEM on them, so a maneuver spent at the hold, a Sorcery Point
+   consumed, a Sneak Attack's dice — **none of them reach a reader, and none of them play**, though
+   the same ability triggered on its own would. The user: *"an animation doesn't trigger, because a
+   card isn't technically drawn."*
+
+**Why not now:** the user's own call on the sequence (*"not a priority now"*). On the pictures, the
+honest reason is the house lesson (D8): **the emitter is not one line and there is no single site
+yet.** `poolSpendsOn` ([shared.js](scripts/shared.js)) is the uniform *reader* of a spend, but the
+records are *written* in five places, and the riders the user named are not spends at all — Sneak
+Attack writes `sneak` / `sneakDamage` flags on a message that already exists and consumes no pool.
+So the emitter's real home is the **moment's resolve step**, which means the spine, which means it
+should be designed once against two or three real callers rather than guessed from one.
+
+**What would un-park it:** the user's word on either half. They are independent — the pictures can
+be built without the sequence, and are the more useful of the two.
+
+⚠ **NO BLOCKERS — the contract the hold work must keep.** The compatibility work in flight
+(`api.holdFor`, the generalisation of `castHold`) is a strict subset of what a modal sequence
+needs, and it stays that way only if four things hold. **Anyone touching the hold must keep all
+four, or this item becomes unbuildable without a migration:**
+
+| Decision | Why it is load-bearing |
+| --- | --- |
+| The hold is **refcounted**, never a boolean per subject | A sequence of N windows raises N holds against one subject; a boolean cannot count them down, and today's single holder would have hidden that forever |
+| The hold is keyed by an **opaque subject**, not an activity uuid | A sequence's subject may be a popup key or a message id; an activity-only key locks the seam to casts |
+| Release is an **explicit lifecycle call**, never coupled to "the card posted" | In a sequence the card posts at step 1 while steps 2..N still stand — card-arrival as the release signal is exactly the coupling that would have to be torn out |
+| Every decision popup keeps opening through **`openManagedPopup`** ([ui.js](scripts/ui.js)) | It is the one place that knows when a dialog opens and closes, so it is the only place a sequence can be counted without editing every machine. A machine that opens its own dialog is outside the sequence and cannot be brought back in cheaply |
+
+**The sister side.** FX Studio is building a **gate seam** — its dispatcher asks registered gates
+whether a moment is held and awaits any promise — with Battle Flow as one feature-detected tenant
+and no dependency either way (its BACKLOG, *The cast hold*). The pictures half above is that seam's
+mirror: a **source** Battle Flow publishes and FX Studio may read. ⚠ Neither module may import the
+other; Battle Flow publishes events and an api, and never calls FX Studio. Some tables install
+neither.
+
 ## From play — reported 2026-09-09, not yet reproduced
 
 > ⚠ **These three (four when written; Careful closed 2026-09-09) are the one exception to the charter at the top of this file:** they are live
