@@ -82,6 +82,8 @@ renderActivityUsageDialog	metamagic.js
 closeActivityUsageDialog	metamagic.js
 dnd5e.preRollDamageV2	metamagic.js
 preCreateChatMessage	metamagic.js
+init	metamagic.js
+createChatMessage	metamagic.js
 dnd5e.postUseActivity	metamagic.js
 dnd5e.renderChatMessage	metamagic.js
 dnd5e.rollDamageV2	metamagic.js

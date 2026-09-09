@@ -317,6 +317,7 @@ Hooks.on("preCreateChatMessage", doc => {
       const data = doc.toObject();
       data.flags = foundry.utils.mergeObject(data.flags ?? {}, flags);
       deferredCards.set(uuid, { data, pick: record, actorUuid: pick.actorUuid ?? null });
+      openCastHold(uuid);
       return false;
     }
     doc.updateSource({ flags });
@@ -326,6 +327,42 @@ Hooks.on("preCreateChatMessage", doc => {
 /** activity uuid → the usage card held back until the caster has answered the ask at the area. */
 const deferredCards = new Map();
 const DEFERRED_FLAG = "metamagicDeferred";
+
+/* ---------------------------------------------------------------------------------------------
+ * THE CAST HOLD — the one thing another module needs to know (FX Studio, 2026-09-09: its area
+ * picture plays on the template's Region, before the question; the user: "the animation still
+ * fires"). While a cast's card is held back for the ask, `castHold(activityUuid)` hands out a
+ * promise that settles when the real card posts — on this client, or anywhere (the usage card
+ * arriving with the pick made). No hold, null. Read through the module's `api`; never imported.
+ * ------------------------------------------------------------------------------------------- */
+const castHolds = new Map();   // activity uuid → { promise, resolve }
+function openCastHold(uuid) {
+  if ( castHolds.has(uuid) ) return castHolds.get(uuid).promise;
+  let resolve;
+  const promise = new Promise(r => { resolve = r; });
+  castHolds.set(uuid, { promise, resolve });
+  return promise;
+}
+function releaseCastHold(uuid, message = null) {
+  const hold = castHolds.get(uuid);
+  if ( !hold ) return;
+  castHolds.delete(uuid);
+  hold.resolve(message);
+  Hooks.callAll("battleflow.castReleased", { activityUuid: uuid, message });
+}
+Hooks.once("init", () => {
+  const mod = game.modules.get(MODULE_ID);
+  if ( mod ) mod.api = Object.assign(mod.api ?? {}, {
+    /** A promise that settles with the cast's card when the hold lifts, or null when nothing holds this activity. */
+    castHold: uuid => castHolds.get(uuid)?.promise ?? null
+  });
+});
+// A held cast's real card can be posted from another client (the elect's clock kept the default):
+// its arrival lifts the hold here too.
+Hooks.on("createChatMessage", message => {
+  const uuid = message.getFlag("dnd5e", "activity")?.uuid ?? null;
+  if ( uuid && castHolds.has(uuid) && message.getFlag(MODULE_ID, METAMAGIC_FLAG)?.chosen ) releaseCastHold(uuid, message);
+});
 
 Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
   try {
@@ -357,6 +394,8 @@ async function carryDeferredCard(activity, held, templates) {
   const contained = tokensInTemplates(templates) ?? [];
   const templateIds = templates.map(t => t.id);
   if ( !contained.length ) { await postDeferredCard(held, record, null, templateIds); return; }
+  const uuid = activity.uuid;
+  const carrierMade = await (async () => {
   const casterTok = tokenOfActor(actor) ?? null;
   const casterDisposition = casterTok?.document?.disposition ?? actor?.prototypeToken?.disposition ?? CONST.TOKEN_DISPOSITIONS.FRIENDLY;
   const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
@@ -375,7 +414,9 @@ async function carryDeferredCard(activity, held, templates) {
       },
       [DEFERRED_FLAG]: { data: held.data, pick: held.pick, poolSpend: record, templateIds, activityUuid: activity.uuid }
     } }
-  });
+  }); return true; })().catch(err => { console.error(`${TITLE} | The ask's carrier could not be posted — the card posts as cast.`, err); return false; });
+  if ( !carrierMade ) await postDeferredCard(held, record, null, templateIds);
+  void uuid;
 }
 
 /** The real card, at last: the held data with the pick made chosen and the spend on it; the demand's stamp follows by hook. */
@@ -386,7 +427,8 @@ async function postDeferredCard(held, record, answer, templateIds) {
   if ( record ) foundry.utils.setProperty(data, `flags.${MODULE_ID}.poolSpend`, record);
   if ( !game.users.get(data.author)?.active || (data.author !== game.user.id && !game.user.isGM) ) data.author = game.user.id;
   const card = await ChatMessage.create(data);
-  if ( !card ) return null;
+  if ( !card ) { releaseCastHold(held.pick.activityUuid ?? ""); return null; }
+  releaseCastHold(held.pick.activityUuid ?? "", card);
   const activity = resolveUuid(held.pick.activityUuid ?? "") ?? null;
   const scene = canvas.scene ?? game.scenes.active;
   const templates = (templateIds ?? []).map(id => scene?.templates?.get(id)).filter(Boolean);
