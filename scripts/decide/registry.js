@@ -1175,6 +1175,34 @@ export const EFFECT_NAMES = tableIndex(EFFECT_BENDS).names;
 export const CONDITION_STATUSES = new Set(CONDITION_KEYS);
 
 /**
+ * METAMAGIC (the metamagic pass, 2026-09-09 — DESIGN §6 *Metamagic*): the ten 2024 options,
+ * keyed by the feat's own name. Each row says WHEN the option fits the spell being cast (a
+ * named predicate over the spell's facts — decide/metamagic.js resolves it; the pack's option
+ * carries its condition as PROSE, so the predicate lives here), at which MOMENT it is offered
+ * (`cast`: a row in the cast dialog; `damage`: a fold after the spell's damage dice; `miss`: a
+ * fold on a spell attack's miss), and what it PICKS beyond the tick (`protect`: creatures the
+ * save leaves alone; `target`: one creature; `type`: a damage type; `twin`: one more target).
+ * ⚠ NO COST HERE (N1): the cost is the option's own consumption target on the sheet, read live.
+ * `apply` names the arithmetic the module does after the press, for the reader; the code is the
+ * mechanism's. The rule text is read off the feat on the sheet at render (law 8), never copied.
+ */
+export const METAMAGIC = Object.freeze({
+  "Careful Spell":    { key: "careful",    moment: "cast",   when: "save",       picks: "protect", apply: "the protected creatures leave the save demand" },
+  "Distant Spell":    { key: "distant",    moment: "cast",   when: "range",      picks: null,      apply: "the range the gate's reminder reads is doubled (Touch → 30 ft)" },
+  "Empowered Spell":  { key: "empowered",  moment: "damage", when: "damageRoll", picks: "dice",    apply: "up to CHA-mod dice rerolled, the new rolls stand" },
+  "Extended Spell":   { key: "extended",   moment: "cast",   when: "duration",   picks: null,      apply: "the effects' clock doubled (24 h cap); concentration saves with Advantage" },
+  "Heightened Spell": { key: "heightened", moment: "cast",   when: "save",       picks: "target",  apply: "one target's save gate reads Disadvantage" },
+  "Quickened Spell":  { key: "quickened",  moment: "cast",   when: "action",     picks: null,      apply: "a card line: Bonus Action (never policed — DESIGN §8)" },
+  "Seeking Spell":    { key: "seeking",    moment: "miss",   when: "spellAttack", picks: null,     apply: "the d20 rerolled on a miss, the new roll stands" },
+  "Subtle Spell":     { key: "subtle",     moment: "cast",   when: "any",        picks: null,      apply: "a card line: cast without components" },
+  "Transmuted Spell": { key: "transmuted", moment: "cast",   when: "damageType", picks: "type",    apply: "the cast's damage parts carry the picked type" },
+  "Twinned Spell":    { key: "twinned",    moment: "cast",   when: "scalesTargets", picks: "twin", apply: "one more creature in the target snapshot, the cast one level higher for targets" }
+});
+/** The damage types Transmuted Spell trades between — the option's own list. */
+export const TRANSMUTED_TYPES = Object.freeze(["acid", "cold", "fire", "lightning", "poison", "thunder"]);
+const METAMAGIC_NAMES = tableIndex(METAMAGIC).names;
+
+/**
  * THE R4 TRIPWIRE, AS DATA (DESIGN.md R4, PLAN.md Phase 3).
  *
  * R4's bargain is that a new ABILITY costs a data entry and zero code, and that this is safe
@@ -1375,6 +1403,15 @@ export const LIST_SPECS = {
     // case-insensitive. Membership over EFFECT_CHOICES; the mechanism is cast.js.
     columns: ["kind"], kindColumn: "kind", kinds: EFFECT_CHOICE_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(EFFECT_CHOICES).join(", ")
+  },
+  metamagic: {
+    label: "Metamagic", setting: "metamagicList",
+    // Which rows of the metamagic table the module plays — the FEAT names, whole-chunk,
+    // case-insensitive. Membership over METAMAGIC (not a kind set: one table, one mechanism,
+    // metamagic.js — the conditions idiom); the list is the switch, an option removed stays the
+    // player's to play by hand.
+    columns: ["kind"], kindColumn: "kind", kinds: METAMAGIC_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(METAMAGIC).join(", ")
   },
   damageSaves: {
     label: "Damage Saves", setting: "damageSaveList",

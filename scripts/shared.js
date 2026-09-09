@@ -491,12 +491,6 @@ export function poolOf(actor, activity) {
   return null;
 }
 
-/** Spend one use of a pool item on the sheet — the clock riders' idiom for a limited use. */
-async function spendPoolUse(pool) {
-  if ( !pool ) return null;
-  return pool.update({ "system.uses.spent": Number(pool.system?.uses?.spent ?? 0) + 1 });
-}
-
 /**
  * THE ONE PASS-THROUGH FOR A DIE THE MODULE SPENDS BY HAND (user, 2026-09-05: "when maneuvers
  * are consumed, it's not consistent with the popup about consuming a sup die and how many are
@@ -512,10 +506,23 @@ async function spendPoolUse(pool) {
  * @returns {Promise<{pool: string, spent: number, left: number, max: number, ability: string, actorUuid: string|null, at: number}|null>}
  */
 export async function spendSuperiorityDie(actor, pool, ability) {
+  return spendPoolUses(actor, pool, ability, 1);
+}
+
+/**
+ * The same pass-through for a pool spent N at a time under a name of its own (the metamagic
+ * pass, 2026-09-09: Heightened and Quickened cost 2 Sorcery Points, and the pool item is
+ * called Font of Magic while the table calls the points Sorcery Points). One record shape, one
+ * reader, one wording — `Sorcery Points: 3 of 5 remaining` on the flash, the card and the popup.
+ * @param {number} n how many uses to spend (the option's own consumption value, read live)
+ * @param {string|null} poolName the name the record shows for the pool; the item's by default
+ */
+export async function spendPoolUses(actor, pool, ability, n = 1, poolName = null) {
   if ( !pool ) return null;
-  await spendPoolUse(pool);
+  const count = Math.max(1, Number(n) || 1);
+  await pool.update({ "system.uses.spent": Number(pool.system?.uses?.spent ?? 0) + count });
   const uses = pool.system?.uses ?? {};
-  return { pool: pool.name, spent: 1, left: Math.max(0, Number(uses.value ?? 0)), max: Number(uses.max ?? 0),
+  return { pool: poolName ?? pool.name, spent: count, left: Math.max(0, Number(uses.value ?? 0)), max: Number(uses.max ?? 0),
     ability: String(ability ?? pool.name), actorUuid: actor?.uuid ?? null, at: Date.now() };
 }
 

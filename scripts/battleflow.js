@@ -118,6 +118,9 @@ import "./hit-menu.js";
 import "./superiority-uses.js";
 // use-chips.js beside them: a text-only feature's use becomes a chip the gate reads (2026-09-02).
 import "./use-chips.js";
+// Metamagic (2026-09-09): the pick rides the cast dialog, the points spend on the card. Before
+// saves/ so its birth flag exists on the same preCreate cycle the demand stamp reads.
+import "./metamagic.js";
 // ⚠ THE MANEUVER FOLDS after mastery.js, before concentration.js ON PURPOSE (v1.19.0): their
 // card rows must render below the mastery rows and above the saves verdict row / receipt rows —
 // renderChatMessage surface order IS registration order. check-hook-order.mjs asserts it.

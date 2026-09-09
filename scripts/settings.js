@@ -265,6 +265,15 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.effectChoices.default
   });
 
+  // METAMAGIC (user, 2026-09-09: "need metamagic implemented … follow pattern like sneak attk /
+  // maneuvers with check box"): the Sorcerer's options as a group in the cast dialog, the points
+  // spent by hand on the spell's card. A list; the list is the switch.
+  game.settings.register(MODULE_ID, S.metamagicList, {
+    name: "Metamagic",
+    hint: "The Sorcerer's Metamagic options the module plays, by the feat's own name, separated by commas. A listed option the caster knows appears as a row in the spell's casting window — a tick, its cost in Sorcery Points, the rule folded under — and the points are spent on the spell's card when the cast lands; Empowered Spell is offered after the spell's damage dice and Seeking Spell on a spell attack's miss instead. Remove a name to keep that option by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.metamagic.default
+  });
+
   game.settings.register(MODULE_ID, S.effectRiders, {
     name: "Effect Riders",
     hint: "A hit applies the effects riding it: the attack's own effects land on the targets it hit, through the system's application path — Ray of Frost's slow arrives with its damage instead of waiting for a click in the card's tray. Every application leaves a receipt on the damage card with a per-effect revert.",
@@ -611,4 +620,9 @@ export function superiorityUseEntries() {
 /** Which rows of the effect-choice table ask at the cast, by the spell's name — `{ kind }`. */
 export function effectChoiceEntries() {
   return listEntries(LIST_SPECS.effectChoices);
+}
+
+/** Which rows of the metamagic table the module plays, by the feat's name — `{ kind }`. */
+export function metamagicEntries() {
+  return listEntries(LIST_SPECS.metamagic);
 }

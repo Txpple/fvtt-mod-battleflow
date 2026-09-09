@@ -114,7 +114,16 @@ before code.
   gate reads the demand (as it does for `EFFECT_BENDS.saves`), `metamagic.js` writes the payload.
   No sideways import: the demand is the seam, the same one `emanationReach` proved.
 
-### STAGE 0 — the fixture and the probe (½ session)
+### STAGE 0 — the fixture and the probe (½ session) — ✅ DELIVERED 2026-09-09 (~1 hour)
+
+**How it went:** the probe found two things the drawing had not: a built item copied with
+`toObject()` carries no `_stats.compendiumSource`, and the pack's consumption targets are
+compendium UUIDs the system remaps by that stamp — so `poolOf` read NOTHING on the built
+Sorcerer while it read Font of Magic on Gren (advancement stamps it). The fixture builder now
+stamps every built item (the d20-folds fixture's lesson, generalised; the Cleric, Rogue and
+Ranger were healed in place). And a built caster's DC computed at 8 + proficiency until the
+actor's spellcasting ability was set. Hold Person's target count is a plain `1` with no
+scaling in the data — Twinned's fit is Stage 3's question, as the row says. Probe 10/10.
 
 `BF Test Sorcerer` in `fixture-suite.mjs`: **BUILT** from the PHB pack (Sorcerer 5, Font of Magic,
 all ten metamagic feats added directly — options are `class` feats nothing grants, so the
@@ -125,7 +134,19 @@ effect had been stripped on import) — build, do not clone. `probe-pack-shapes.
 metamagic feats: assert every option's consumption target resolves through `poolOf` on the
 built sheet. **This stage is the measurement the rest of the estimate rests on.**
 
-### STAGE 1 — the group, the spend, and the three data-only options (1 session)
+### STAGE 1 — the group, the spend, and the three data-only options (1 session) — ✅ DELIVERED 2026-09-09 (~2 hours)
+
+**How it went:** as drawn, with three measurements the suite forced. (1) A spell with a template
+fires `postUseActivity` only AFTER the template is placed (the system awaits placement before
+the hook), so the spend — which rides that hook — lands when the player places the template; a
+headless client never places one, so the suite casts with `create.measuredTemplate: false`. The
+birth flag is on the card before either way. (2) The uniform spend's reader draws the flash and
+the card line for PLAYER-OWNED actors only, by ruling; the GM-owned fixture is granted a player
+owner for the run. (3) The test range is a 100-ft square and the world measures its diagonal at
+85 ft, so Chromatic Orb's 90 ft cannot be out of range on it — the suite shortens the orb to 60
+for the section. Distant reached the gate through one new argument (`rangeFeet`) on
+`judgeRoll`, read off the originating card in the attack hook — no import between machines.
+`smoke-metamagic` 33/33; unit tests 18 files / 537; verify green.
 
 `decide/metamagic.js` (predicates, the menu, the pick — unit-tested), `metamagic.js` (the
 fieldset, the pending map, the card stamp, the spend), the registry table and list, the card line.

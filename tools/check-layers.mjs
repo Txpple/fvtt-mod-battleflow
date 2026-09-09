@@ -96,6 +96,7 @@ const LAYER_OF = {
   "sneak.js": "machines",
   "clock-riders.js": "machines",
   "use-chips.js": "machines",
+  "metamagic.js": "machines",   // the Sorcerer's options in the cast dialog, the points on the card (2026-09-09)
   "emanations.js": "machines",
   "hit-menu.js": "machines",
   "damage-shields.js": "machines",
@@ -122,6 +123,7 @@ const LAYER_OF = {
 
   // DECISION — pure functions over plain data. ZERO imports, asserted below.
   "decide/geometry.js": "decision",
+  "decide/metamagic.js": "decision",
   "decide/registry.js": "decision",
   "decide/verdict.js": "decision",
   "decide/eligible.js": "decision",

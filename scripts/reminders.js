@@ -11,6 +11,7 @@ import { bfCard, reminderFieldsetHTML, ruleLine, sneakBoxHTML, TONE } from "./de
 import { CHIP_FLAG, chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.js";
 import { CHECK_BENDS, CONDITION_BENDS, EFFECT_BENDS, MASTERY_RULES, RANGE_RULES, SAVE_BENDS, SNEAK_ATTACK } from "./decide/registry.js";
 import { parseDice, sneakWeaponQualifies } from "./decide/sneak.js";
+import { METAMAGIC_FLAG } from "./decide/metamagic.js";
 import { feetOf, nearestFeet, tokenOfActor } from "./geometry.js";
 import { REMINDER_FLAG, checkGate, checkSources, conditionSources, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
   reminderRecord, reminderSource, reminderView, rolledWith, saveGate, saveSources } from "./decide/reminders.js";
@@ -61,6 +62,16 @@ import { REMINDER_FLAG, checkGate, checkSources, conditionSources, effectCheckSo
  * hook polish.js already rides for the same dialog.
  * ------------------------------------------------------------------------------------------- */
 
+/** The Distant Spell range a roll's originating card carries, in feet, or null (metamagic.js writes it). */
+function distantRangeOn(message) {
+  try {
+    const data = message?.data ?? {};
+    const id = data["flags.dnd5e.originatingMessage"] ?? foundry.utils.getProperty(data, "flags.dnd5e.originatingMessage") ?? null;
+    const feet = id ? game.messages.get(id)?.getFlag(MODULE_ID, METAMAGIC_FLAG)?.rangeFeet : null;
+    return Number.isFinite(Number(feet)) && (Number(feet) > 0) ? Number(feet) : null;
+  } catch { return null; }
+}
+
 /** The dialogs standing with a gate in them — re-judged on a re-target (the polish.js idiom: the APP, not the element). */
 const openGates = new Set();
 
@@ -73,7 +84,10 @@ Hooks.on("dnd5e.preRollAttackV2", (config, dialog, message) => {
     if ( !(attacker instanceof Actor) ) return;
     if ( !reminderEntries().length ) return;          // the list is the switch
     // ONE judgement, re-runnable from the dialog's own form: the sources, the net, the view.
-    const judge = attackMode => ({ ...judgeRoll(attacker, { activity, attackMode }), attackMode: attackMode ?? null });
+    // A Distant Spell cast (2026-09-09): the spell's usage card carries the doubled range, and this
+    // attack roll names that card as its origin — the gate's range reminder reads the doubled value.
+    const rangeFeet = distantRangeOn(message);
+    const judge = attackMode => ({ ...judgeRoll(attacker, { activity, attackMode, rangeFeet }), attackMode: attackMode ?? null });
     const first = judge(config.attackMode);
     // The dialog carries the judgement whether or not it found anything — one object shared
     // with the config, so the record reads what was LAST shown after any re-judgement, and a
@@ -297,7 +311,7 @@ Hooks.on("dnd5e.postRollConfiguration", (rolls, config, dialog, message) => {
  * its normal and long range in feet. A weapon's range is the item's (normal/long) unless the
  * activity overrides it; a spell's is the activity's single range.
  */
-function rangeFactsFor(activity, attackMode) {
+function rangeFactsFor(activity, attackMode, rangeFeet = null) {
   const item = activity?.item;
   const thrown = String(attackMode ?? "").startsWith("thrown");
   const ranged = thrown || (activity?.attack?.type?.value === "ranged");
@@ -308,6 +322,10 @@ function rangeFactsFor(activity, attackMode) {
   } else {
     value = item.system.range?.value; long = item.system.range?.long; units = item.system.range?.units;
   }
+  // A Distant Spell cast (metamagic.js, 2026-09-09) carries its doubled range on the card; the
+  // caller read it off the originating card and hands it in as feet, and it stands in for the
+  // spell's own for this cast alone (a spell has one range, so no long band).
+  if ( rangeFeet !== null ) return { ranged: true, normalFeet: Number(rangeFeet), longFeet: null };
   return { ranged: true, normalFeet: feetOf(value, units), longFeet: feetOf(long, units) };
 }
 
@@ -344,14 +362,14 @@ function closeEnemiesOf(attackerToken) {
  * targets when not given. Each chip source carries its `effectId`, so a volley can carry the
  * spend forward ray by ray; `spendNote` is appended to a chip's label ("— spent by this ray").
  */
-function sourcesFor(attacker, enabled, { activity = null, attackMode = null, targets = null, spent = null, spendNote = "" } = {}) {
+function sourcesFor(attacker, enabled, { activity = null, attackMode = null, targets = null, spent = null, spendNote = "", rangeFeet = null } = {}) {
   const out = [];
   const attackerName = attacker.name;
   const live = e => !chipIsDead(e.duration ?? {}) && !chipSpentOnRecord(e) && !spent?.has(e.id);
   const conditions = enabled.has("condition") ? conditionEntries().map(e => e.kind) : [];
   const conditionFacts = { enabled: conditions, table: CONDITION_BENDS };
   const attackerToken = tokenOfActor(attacker);
-  const range = enabled.has("range") ? rangeFactsFor(activity, attackMode) : { ranged: false };
+  const range = enabled.has("range") ? rangeFactsFor(activity, attackMode, rangeFeet) : { ranged: false };
   // The effect kind: which abilities to look for, the roll's own scope, and each sheet's facts.
   const effectsOn = enabled.has("effect") ? effectEntries().map(e => e.kind) : [];
   const scope = { classification: activity?.attack?.type?.classification ?? null,
@@ -458,10 +476,10 @@ function hpFraction(actor) {
  *          spent?: Set<string>|null, spendNote?: string}} [facts]
  * @returns {{sources: object[], net: "advantage"|"disadvantage"|"normal", view: object, spends: string[]}|null}
  */
-export function judgeRoll(attacker, { activity = null, attackMode = null, targets = null, spent = null, spendNote = "" } = {}) {
+export function judgeRoll(attacker, { activity = null, attackMode = null, targets = null, spent = null, spendNote = "", rangeFeet = null } = {}) {
   const enabled = new Set(reminderEntries().map(e => e.kind));
   if ( !enabled.size ) return null;
-  const sources = sourcesFor(attacker, enabled, { activity, attackMode, targets, spent, spendNote });
+  const sources = sourcesFor(attacker, enabled, { activity, attackMode, targets, spent, spendNote, rangeFeet });
   const net = netMode(sources);
   const sneak = enabled.has("sneak") ? sneakFactsFor(attacker, activity, attackMode, net) : null;
   // ⚠ Only what the rules SPEND carries forward through a volley's rays (user report, 2026-09-02:
