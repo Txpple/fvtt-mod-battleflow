@@ -886,13 +886,16 @@ option names and judges nothing else.** RULED 2026-09-09 off the prototype
   the card line and every subtitle come from the ONE reader (`poolSpendsOn`), so the hand spend
   is written once and read everywhere; the option's own activity is never `use()`d (a second card
   for a spend is noise). Never refunded on a revert (§8, Tactical Mind's row).
-- **Careful protects the caster's ALLIES under the template by default** (user: "default"), the
-  picker there to adjust, capped at the Charisma modifier (minimum one). **Delivered 2026-09-09
-  (Stage 2):** the list is derived where the save's reach is known — at the stamp for a targeted
-  cast, at the area's adoption for a bare one — and the card line carries a *Protect…* button
-  (the caster's or a GM's) whose popup ticks creatures up to the cap; Heightened's line carries
-  *Mark…* the same way. A targeted cast's snapshot names no sides, so its default protects the
-  caster alone until the picker says otherwise. A protected creature leaves the save demand's target list at BOTH filters (the stamp
+- **Careful's ticks are IN THE CASTING WINDOW, before the cast goes out, and every NON-HOSTILE is
+  the default** (user, 2026-09-09, second look: "the ticks need to be not on the card, but the
+  popup … picking before casting is executed"; "non-hostile actors (neutral and allies) as default
+  picks" — superseding the morning's "allies, picker to adjust" and the card button it produced).
+  The row lists the selected targets, or — a bare template cast selects nobody — every non-hostile
+  creature the spell can reach, nearest first, the caster among them, pre-ticked up to the Charisma
+  modifier (minimum one); the pick rides the cast as CHOSEN and the demand honours it against
+  whatever the area finally contains — never rewriting it, even when the stamp's reach is empty.
+  Heightened's one target is a radio over the hostiles in reach the same way, the nearest by
+  default. No picker on the card. A protected creature leaves the save demand's target list at BOTH filters (the stamp
   and the template's later adoption): no ask, no timer roll, no damage; the card names them
   *protected*. The tick is the player's; the module never judges sight or willingness (the Sneak
   Attack ruling).

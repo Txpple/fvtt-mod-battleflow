@@ -24,13 +24,12 @@
  */
 import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, isActiveGM, whisperNoGM } from "./core.js";
 import { lower, resolveUuid } from "./lookup.js";
-import { saveTargetEntry } from "./decide/demand.js";
 import { metamagicEntries, listedNames } from "./settings.js";
 import { poolOf, spendPoolUses, poolSpendsOn } from "./shared.js";
-import { feetOf } from "./geometry.js";
+import { feetOf, nearestFeet, tokenOfActor } from "./geometry.js";
 import { bfCard, foldedRuleHTML, esc, holdBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
-import { METAMAGIC_FLAG, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome } from "./decide/metamagic.js";
+import { METAMAGIC_FLAG, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome, carefulProtects, heightenedMark } from "./decide/metamagic.js";
 import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 
@@ -67,6 +66,37 @@ function costOf(item) {
 function poolFor(actor, item) {
   const activity = item?.system?.activities?.contents?.[0] ?? null;
   return activity ? poolOf(actor, activity) : null;
+}
+
+/**
+ * Who an option can name BEFORE the cast (user ruling 2026-09-09: "picking before casting is
+ * executed"): the selected targets when there are any, else every creature on the scene within
+ * the spell's range of the caster, alive and not secret, nearest first — the non-hostiles for
+ * Careful (`side: "friend"`, the caster among them), the hostiles for Heightened (`side: "foe"`).
+ * Plain rows for the decision layer, which picks the defaults.
+ */
+function candidatesFor(actor, facts, side) {
+  const casterTok = tokenOfActor(actor) ?? null;
+  const casterDisposition = casterTok?.document?.disposition ?? actor.prototypeToken?.disposition ?? CONST.TOKEN_DISPOSITIONS.FRIENDLY;
+  const hostile = (casterDisposition === 1) ? -1 : (casterDisposition === -1) ? 1 : null;
+  const row = (doc, tok) => ({ uuid: doc.actor?.uuid ?? null, name: doc.name, disposition: doc.disposition ?? null,
+    feet: (casterTok && tok) ? (nearestFeet(casterTok, tok) ?? 0) : 0 });
+  const selected = [...(game.user?.targets ?? [])].map(t => row(t.document, t)).filter(t => t.uuid);
+  if ( selected.length ) return { casterDisposition, casterUuid: actor.uuid, targets: selected };
+  const reach = Number.isFinite(facts?.rangeFeet) ? facts.rangeFeet : null;
+  const out = [];
+  for ( const tok of (canvas.tokens?.placeables ?? []) ) {
+    const doc = tok.document;
+    if ( !doc?.actor || doc.isSecret || (doc.disposition === -2) ) continue;
+    const isFoe = (hostile !== null) && (doc.disposition === hostile);
+    if ( (side === "friend") ? isFoe : !isFoe ) continue;
+    if ( (doc.actor.system?.attributes?.hp?.value ?? 1) <= 0 ) continue;
+    const r = row(doc, tok);
+    if ( (reach !== null) && (r.uuid !== actor.uuid) && (r.feet > reach) ) continue;
+    out.push(r);
+  }
+  out.sort((a, b) => a.feet - b.feet);
+  return { casterDisposition, casterUuid: actor.uuid, targets: out };
 }
 
 /** The facts of the spell being cast, as decide/metamagic.js reads them. */
@@ -118,12 +148,23 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
     if ( !menu.length ) return;
     const current = pending.get(activity.uuid)?.key ?? null;
     const currentType = pending.get(activity.uuid)?.type ?? null;
+    // CAREFUL'S TICKS ARE IN THE WINDOW, BEFORE THE CAST GOES OUT (user ruling 2026-09-09, second
+    // look: "the ticks need to be not on the card, but the popup … picking before casting is
+    // executed"; "non-hostile actors (neutral and allies) as default picks"). The candidates are
+    // the caster's selected targets when there are any, else every non-hostile creature on the
+    // scene the spell can reach (nearest first, the caster among them), pre-ticked up to the cap
+    // by carefulProtects' own default. The pick rides the record as CHOSEN, so the demand honours
+    // it against whatever the area finally contains.
+    const cap = Math.max(1, Number(actor.system?.abilities?.cha?.mod) || 1);
+    const protect = { cap, ...candidatesFor(actor, facts, "friend"), chosen: pending.get(activity.uuid)?.protected?.map(p => p.uuid) ?? null };
+    // Heightened's one target the same way: the hostiles in reach, the nearest marked by default.
+    const mark = { ...candidatesFor(actor, facts, "foe"), chosen: pending.get(activity.uuid)?.target?.uuid ?? null };
     const fs = document.createElement("fieldset");
     fs.dataset.bfMetamagicField = "";
     fs.innerHTML = `<legend>Battle Flow — Metamagic</legend>
       <div data-bf-metamagic-pool style="display:flex;justify-content:space-between;font-size:var(--font-size-12,12px);opacity:0.85;margin:0 0 0.25rem;">
         <span>${esc(actor.name)}</span><span><strong>${POOL_NAME}: ${points} of ${max}</strong>${first ? "" : " — no pool found"}</span></div>
-      ${menu.map(row => rowHTML(row, known.get(row.feature), current, { facts, currentType })).join("")}
+      ${menu.map(row => rowHTML(row, known.get(row.feature), current, { facts, currentType, protect, mark })).join("")}
       ${points === 0 ? `<p class="hint" style="margin:0.25rem 0 0;">No ${POOL_NAME} — the rows stay so the sheet is not the only place that says so.</p>` : ""}`;
     const boxes = fs.querySelectorAll('input[name="bf-metamagic"]');
     const sync = () => {
@@ -140,6 +181,10 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
       if ( pick ) {
         const item = known.get(pick.feature);
         const typeBox = fs.querySelector(`[data-bf-metamagic-row="transmuted"] input[name="bf-metamagic-type"]:checked`);
+        const protectBoxes = [...fs.querySelectorAll(`[data-bf-metamagic-row="careful"] input[name="bf-metamagic-protect"]`)];
+        const protectOn = protectBoxes.filter(b => b.checked);
+        for ( const b of protectBoxes ) if ( !b.checked ) b.disabled = protectOn.length >= cap;
+        const markBox = fs.querySelector(`[data-bf-metamagic-row="heightened"] input[name="bf-metamagic-mark"]:checked`);
         pending.set(activity.uuid, { key: pick.key, feature: pick.feature, cost: pick.cost, itemUuid: item?.uuid ?? null, actorUuid: actor.uuid, at: Date.now(),
           spellUuid: activity.item?.uuid ?? null, activityUuid: activity.uuid, spellName: activity.item?.name ?? null,
           // The option's rule rides the record where a later gate quotes it (Extended's concentration source).
@@ -150,13 +195,15 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
           ...(pick.key === "distant" ? { rangeFeet: distantRange(facts) } : {}),
           // Careful's cap is the Charisma modifier, minimum one (the option's own words); the
           // protected list itself is derived where the save's reach is known (saves/demand.js).
-          ...(pick.key === "careful" ? { cap: Math.max(1, Number(actor.system?.abilities?.cha?.mod) || 1) } : {}),
-          // Heightened's rule rides the demand for the save gate's fold (law 8: the feat's own text).
-          ...(pick.key === "heightened" ? { rule: metamagicRuleText(item?.system?.description?.value ?? "") } : {}) });
+          ...(pick.key === "careful" ? { cap, ...(protectBoxes.length ? { chosen: true, protected: protectOn.map(b => ({ uuid: b.value, name: b.dataset.name ?? b.value })) } : {}) } : {}),
+          // Heightened's rule rides the demand for the save gate's fold (law 8: the feat's own text),
+          // and the target the window marked rides as CHOSEN.
+          ...(pick.key === "heightened" ? { rule: metamagicRuleText(item?.system?.description?.value ?? ""),
+            ...(markBox ? { chosen: true, target: { uuid: markBox.value, name: markBox.dataset.name ?? markBox.value } } : {}) } : {}) });
       } else pending.delete(activity.uuid);
     };
     for ( const b of boxes ) b.addEventListener("change", sync);
-    for ( const r of fs.querySelectorAll('input[name="bf-metamagic-type"]') ) r.addEventListener("change", sync);
+    for ( const r of fs.querySelectorAll('input[name="bf-metamagic-type"], input[name="bf-metamagic-protect"], input[name="bf-metamagic-mark"]') ) r.addEventListener("change", sync);
     sync();
     const footer = element.querySelector("footer, .form-footer");
     if ( footer ) footer.before(fs); else (element.querySelector("form") ?? element).appendChild(fs);
@@ -178,7 +225,7 @@ Hooks.on("closeActivityUsageDialog", app => {
 });
 
 /** One row: the tick, the name, the tag, the rule folded under — nothing above the fold (the offer-row law). */
-function rowHTML(row, item, current, { facts = null, currentType = null } = {}) {
+function rowHTML(row, item, current, { facts = null, currentType = null, protect = null, mark = null } = {}) {
   const off = !row.eligible || !row.affordable;
   const rule = metamagicRuleText(item?.system?.description?.value ?? "");
   // Transmuted's one pick beyond the tick: the new type, a radio per listed type the spell does
@@ -191,6 +238,16 @@ function rowHTML(row, item, current, { facts = null, currentType = null } = {}) 
     const cap = s => `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
     sub = `<div data-bf-metamagic-sub="type" style="grid-column:2 / -1;display:flex;flex-wrap:wrap;gap:0.3rem 0.75rem;font-size:var(--font-size-12,12px);">
       ${options.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="radio" name="bf-metamagic-type" value="${t}" ${t === picked ? "checked" : ""} style="margin:0;"> ${cap(t)}</label>`).join("")}</div>`;
+  }
+  if ( (row.key === "careful") && !off && protect?.targets?.length ) {
+    const defaults = new Set(carefulProtects({ contained: protect.targets, casterUuid: protect.casterUuid, casterDisposition: protect.casterDisposition, cap: protect.cap, chosen: protect.chosen }).map(p => p.uuid));
+    sub = `<div data-bf-metamagic-sub="protect" style="grid-column:2 / -1;display:flex;flex-wrap:wrap;gap:0.3rem 0.75rem;font-size:var(--font-size-12,12px);">
+      ${protect.targets.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="checkbox" name="bf-metamagic-protect" value="${esc(t.uuid)}" data-name="${esc(t.name)}" ${defaults.has(t.uuid) ? "checked" : ""} style="margin:0;"> ${esc(t.name)}</label>`).join("")}</div>`;
+  }
+  if ( (row.key === "heightened") && !off && mark?.targets?.length ) {
+    const picked = heightenedMark({ contained: mark.targets, casterUuid: mark.casterUuid, casterDisposition: mark.casterDisposition, chosen: mark.chosen })?.uuid ?? null;
+    sub = `<div data-bf-metamagic-sub="mark" style="grid-column:2 / -1;display:flex;flex-wrap:wrap;gap:0.3rem 0.75rem;font-size:var(--font-size-12,12px);">
+      ${mark.targets.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="radio" name="bf-metamagic-mark" value="${esc(t.uuid)}" data-name="${esc(t.name)}" ${t.uuid === picked ? "checked" : ""} style="margin:0;"> ${esc(t.name)}</label>`).join("")}</div>`;
   }
   return `<div data-bf-metamagic-row="${esc(row.key)}" data-bf-off="${off ? 1 : 0}"
       style="display:grid;grid-template-columns:auto 1fr auto;gap:0.2rem 0.6rem;align-items:center;margin:0.3rem 0;padding:0.4rem 0.6rem;border-radius:4px;
@@ -300,84 +357,9 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     div.className = "bf-metamagic-line";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
     div.innerHTML = `<i class="fa-solid fa-wand-sparkles" data-tooltip="Metamagic"></i> ${esc(metamagicCardLine(record))}`;
-    // THE PICKER TO ADJUST (user ruling 2026-09-09, decision 1: "default … picker to adjust"):
-    // Careful's protected list and Heightened's mark are derived from the save's reach; the
-    // caster (or a GM) can change them from the card while the demand is pending. The button is
-    // drawn only where the click can write — the card is the caster's own message.
-    const saves = message.getFlag(MODULE_ID, "saves");
-    const adjustable = (record.key === "careful") || (record.key === "heightened");
-    if ( adjustable && saves && (saves.status === "pending") && message.canUserModify?.(game.user, "update") ) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.dataset.bfMetamagicAdjust = record.key;
-      b.style.cssText = "margin-left:0.5rem;font-size:var(--font-size-11,11px);line-height:1.4;padding:0 0.4rem;";
-      b.textContent = record.key === "careful" ? "Protect…" : "Mark…";
-      b.addEventListener("click", ev => { ev.preventDefault(); void adjustDialog(message, record, saves); });
-      div.appendChild(b);
-    }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The metamagic line could not render.`, err); }
 });
-
-/**
- * The adjust popup: every creature the demand reaches (its pending and done targets, and the
- * protected ones) with a tick each — up to the cap for Careful, one radio for Heightened. OK
- * rewrites the metamagic flag with `chosen: true` (the derivation honours it from then on) and
- * re-derives the demand's targets through the serializer: a newly protected creature leaves
- * (its popup closes — law 4, the dropped-entry sweep), a released one joins as a fresh entry.
- */
-async function adjustDialog(message, record, saves) {
-  const careful = record.key === "careful";
-  const protectedList = record.protected ?? [];
-  const candidates = [...(saves.targets ?? []).map(t => ({ uuid: t.uuid, name: t.name, done: !!t.done })), ...protectedList.map(p => ({ uuid: p.uuid, name: p.name, done: false }))]
-    .filter((c, i, arr) => arr.findIndex(x => x.uuid === c.uuid) === i);
-  if ( !candidates.length ) return;
-  const cap = Math.max(1, Number(record.cap) || 1);
-  const isOn = c => careful ? protectedList.some(p => p.uuid === c.uuid) : (record.target?.uuid === c.uuid);
-  const rows = candidates.map(c => `<label style="display:flex;align-items:center;gap:0.4rem;margin:0.2rem 0;${c.done ? "opacity:0.6;" : ""}">
-      <input type="${careful ? "checkbox" : "radio"}" name="bf-metamagic-adjust" value="${esc(c.uuid)}" ${isOn(c) ? "checked" : ""} ${c.done ? "disabled" : ""}> ${esc(c.name)}${c.done ? " (already rolled)" : ""}</label>`).join("");
-  const content = `<div data-bf-metamagic-adjust="${esc(record.key)}">
-    <p style="margin:0 0 0.4rem;">${careful ? `Protect up to ${cap} — no save, no damage.` : "One creature saves against the spell at Disadvantage."}</p>${rows}</div>`;
-  const chosen = await foundry.applications.api.DialogV2.wait({
-    window: { title: `${record.feature} — ${message.getFlag(MODULE_ID, "saves")?.item?.name ?? "the spell"}` },
-    position: { width: 380 }, content, rejectClose: false,
-    buttons: [
-      { action: "ok", label: "OK", default: true, callback: (event, button) => [...button.form.querySelectorAll('input[name="bf-metamagic-adjust"]:checked')].map(i => i.value) },
-      { action: "cancel", label: "Cancel", callback: () => null }
-    ]
-  }).catch(() => null);
-  if ( !Array.isArray(chosen) ) return;
-  await applyAdjustment(message, record, candidates, careful ? chosen.slice(0, cap) : chosen.slice(0, 1));
-}
-
-async function applyAdjustment(message, record, candidates, chosen) {
-  const nameOf = uuid => candidates.find(c => c.uuid === uuid)?.name ?? uuid;
-  const current = message.getFlag(MODULE_ID, METAMAGIC_FLAG) ?? record;
-  if ( record.key === "careful" ) {
-    const list = chosen.map(uuid => ({ uuid, name: nameOf(uuid) }));
-    await message.setFlag(MODULE_ID, METAMAGIC_FLAG, { ...current, protected: list, chosen: true });
-    const prot = new Set(chosen);
-    await queueFlagWrite(message, "saves", flag => {
-      const prev = flag.targets ?? [];
-      const kept = prev.filter(t => t.done || !prot.has(t.uuid));
-      const back = candidates.filter(c => !c.done && !prot.has(c.uuid) && !prev.some(t => t.uuid === c.uuid)).map(c => saveTargetEntry(c.uuid, c.name));
-      const next = [...kept, ...back];
-      if ( (next.length === prev.length) && next.every((t, i) => t.uuid === prev[i]?.uuid) ) return false;
-      flag.targets = next;
-      if ( next.length && next.every(t => t.done) ) flag.status = "done";
-    });
-    return;
-  }
-  const uuid = chosen[0] ?? null;
-  const target = uuid ? { uuid, name: nameOf(uuid) } : null;
-  await message.setFlag(MODULE_ID, METAMAGIC_FLAG, { ...current, target, chosen: true });
-  await queueFlagWrite(message, "saves", flag => {
-    const mark = target ? { ...target, caster: flag.casterName ?? null, rule: current.rule ?? "" } : null;
-    if ( (flag.demand?.heightened?.uuid ?? null) === (mark?.uuid ?? null) ) return false;
-    flag.demand = { ...(flag.demand ?? {}) };
-    if ( mark ) flag.demand.heightened = mark; else delete flag.demand.heightened;
-  });
-}
 
 /* ---------------------------------------------------------------------------------------------
  * Empowered Spell: a fold on the spell's damage dice (the metamagic pass, Stage 4, 2026-09-09;

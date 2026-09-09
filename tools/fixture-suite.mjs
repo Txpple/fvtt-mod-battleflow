@@ -383,6 +383,13 @@ const out = await f.evaluate(async ({ playerName }) => {
       }
       // A bare character walks at 0 — give it a speed, so a feature that zeroes it can be seen to.
       if (!(actor.system._source.attributes?.movement?.walk > 0)) { await actor.update({ 'system.attributes.movement.walk': 30 }); log.push(`gave ${spec.name} a walking speed of 30`); }
+      // Full HP every run, not only when the pool is re-seeded: a built caster who took their own
+      // Fireball stays at 0 across runs otherwise, and a dead fixture is silently filtered from every
+      // demand and list (measured 2026-09-09, the Sorcerer).
+      if ((actor.system.attributes?.hp?.value ?? 0) < (actor.system.attributes?.hp?.max ?? 0)) {
+        await actor.update({ 'system.attributes.hp.value': actor.system.attributes.hp.max });
+        log.push(`healed ${spec.name} to full`);
+      }
       if ((actor.system.attributes?.hp?.max ?? 0) !== spec.hp) {
         await actor.update({ "system.attributes.hp.max": spec.hp, "system.attributes.hp.value": spec.hp });
         log.push(`seeded ${spec.name}'s HP pool (${spec.hp}/${spec.hp})`);

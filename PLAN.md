@@ -189,6 +189,20 @@ snapshot carries no dispositions, so Careful's default there protects the caster
 picker adjusts. `smoke-metamagic` 48/48; unit tests 19; verify green. **The Fireball report is
 closed** (BACKLOG's row retired).
 
+**The second look (the user, on the sandbox the same evening):** "the ticks need to be not on the
+card, but the popup … picking before casting is executed"; "non-hostile actors (neutral and allies)
+as default picks". Recut: Careful's ticks and Heightened's radio are IN THE CASTING WINDOW — the
+selected targets, or every creature the spell can reach on the scene (non-hostiles for Careful,
+hostiles for Heightened, nearest first) — pre-ticked by the decision layer's default up to the
+cap; the pick rides the cast as CHOSEN and the demand never rewrites a chosen list (the stamp of a
+bare cast sees an empty reach, and writing that back had erased the ticks — the one real bug the
+second look found). The card picker is gone. Two suite lessons: a caster who took their own
+Fireball in an earlier run stays at 0 across runs and is silently filtered everywhere (the
+fixture heals every built actor each run now), and a script that cuts a span by two markers must
+assert their order (a reversed pair duplicated a block and deployed a module that did not load —
+repaired within the minute). `smoke-metamagic` 73/73.
+
+
 The demand gains `protected: [uuid]` and `heightened: uuid`; both filters (demand.js:65,
 areas.js:150) drop protected targets; the save gate adds *Heightened Spell* as a Disadvantage
 source through the demand channel. The BACKLOG row's settling test is `smoke-metamagic` §4: a

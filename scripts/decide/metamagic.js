@@ -165,10 +165,16 @@ export function carefulProtects({ contained, casterUuid = null, casterDispositio
     // In the order the player ticked them, among what the save still reaches.
     return chosen.map(uuid => list.find(c => c.uuid === uuid)).filter(Boolean).slice(0, limit).map(entry);
   }
-  const allies = list.filter(c => (c.uuid === casterUuid)
-    || ((casterDisposition !== null) && (c.disposition !== undefined) && (c.disposition === casterDisposition)));
-  allies.sort((a, b) => (a.uuid === casterUuid ? -1 : 0) - (b.uuid === casterUuid ? -1 : 0));
-  return allies.slice(0, limit).map(entry);
+  // NON-HOSTILE by default (user ruling 2026-09-09, second look: "neutral and allies"): every
+  // creature that is not on the side opposed to the caster's — the caster first, then the
+  // caster's own side, then the neutrals, each group in the order the list came (nearest first
+  // where the window built it). A secret token is nobody's to protect.
+  const hostile = (casterDisposition === 1) ? -1 : (casterDisposition === -1) ? 1 : null;
+  const rank = c => (c.uuid === casterUuid) ? 0 : (c.disposition === casterDisposition) ? 1 : 2;
+  const friends = list.filter(c => (c.uuid === casterUuid)
+    || ((c.disposition !== undefined) && (c.disposition !== null) && (c.disposition !== -2) && (c.disposition !== hostile)));
+  friends.sort((a, b) => rank(a) - rank(b));
+  return friends.slice(0, limit).map(entry);
 }
 
 /**

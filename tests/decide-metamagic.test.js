@@ -360,3 +360,35 @@ describe("Empowered (Stage 4)", () => {
     expect(empoweredOutcome({ oldTotal: 10, picks: [{ old: 6, new: 1 }] }).newTotal).toBe(5);
   });
 });
+
+describe("Careful's default is every non-hostile (the second look, 2026-09-09)", () => {
+  const CASTER = "Actor.sorc";
+  const scene = [
+    { uuid: "Actor.orc", name: "Orc", disposition: -1 },
+    { uuid: "Actor.villager", name: "Villager", disposition: 0 },
+    { uuid: CASTER, name: "Gren", disposition: 1 },
+    { uuid: "Actor.aldric", name: "Aldric", disposition: 1 },
+    { uuid: "Actor.spy", name: "Spy", disposition: -2 }
+  ];
+  it("protects the caster, then allies, then neutrals — never a hostile or a secret token", () => {
+    expect(
+      carefulProtects({ contained: scene, casterUuid: CASTER, casterDisposition: 1, cap: 5 }).map(
+        p => p.name
+      )
+    ).toEqual(["Gren", "Aldric", "Villager"]);
+    expect(
+      carefulProtects({ contained: scene, casterUuid: CASTER, casterDisposition: 1, cap: 2 }).map(
+        p => p.name
+      )
+    ).toEqual(["Gren", "Aldric"]);
+  });
+  it("a hostile caster's non-hostiles are its own side and the neutrals", () => {
+    const list = carefulProtects({
+      contained: scene,
+      casterUuid: "Actor.orc",
+      casterDisposition: -1,
+      cap: 5
+    });
+    expect(list.map(p => p.name)).toEqual(["Orc", "Villager"]);
+  });
+});

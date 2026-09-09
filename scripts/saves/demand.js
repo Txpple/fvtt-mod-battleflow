@@ -47,8 +47,11 @@ export async function metamagicForDemand(card, activity, contained) {
   const facts = casterFactsOf(activity);
   if ( mm.key === "careful" ) {
     const list = carefulProtects({ contained, ...facts, cap: mm.cap ?? 1, chosen: mm.chosen ? (mm.protected ?? []).map(p => p.uuid) : null });
+    // ⚠ A CHOSEN list is the player's and is never rewritten — the stamp of a bare cast sees an
+    // EMPTY reach, and writing that back erased the ticks made in the window (measured 2026-09-09,
+    // §9: the protected two were asked their saves). Only a DEFAULT list is derived and written.
     const same = JSON.stringify(list) === JSON.stringify(mm.protected ?? null);
-    if ( !same && card.canUserModify?.(game.user, "update") ) await card.setFlag(MODULE_ID, METAMAGIC_FLAG, { ...mm, protected: list });
+    if ( !mm.chosen && !same && card.canUserModify?.(game.user, "update") ) await card.setFlag(MODULE_ID, METAMAGIC_FLAG, { ...mm, protected: list });
     return { protectedUuids: new Set(list.map(p => p.uuid)), heightened: null };
   }
   if ( mm.key === "heightened" ) {
@@ -56,7 +59,7 @@ export async function metamagicForDemand(card, activity, contained) {
     if ( !mark ) return none;
     const rule = mm.rule ?? metamagicRuleText(itemNamed(activity?.actor, mm.feature)?.system?.description?.value ?? "");
     const same = (mm.target?.uuid === mark.uuid) && (mm.rule === rule);
-    if ( !same && card.canUserModify?.(game.user, "update") ) await card.setFlag(MODULE_ID, METAMAGIC_FLAG, { ...mm, target: mark, rule });
+    if ( !mm.chosen && !same && card.canUserModify?.(game.user, "update") ) await card.setFlag(MODULE_ID, METAMAGIC_FLAG, { ...mm, target: mark, rule });
     return { protectedUuids: new Set(), heightened: { ...mark, caster: activity?.actor?.name ?? null, rule } };
   }
   return none;
