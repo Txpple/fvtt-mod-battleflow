@@ -8,7 +8,9 @@ import {
   metamagicCardLine,
   distantRange,
   carefulProtects,
-  heightenedMark
+  heightenedMark,
+  scalesTargetsFrom,
+  extendedDuration
 } from "../scripts/decide/metamagic.js";
 
 // The three fixture spells as the probe measured them (tools/probe-metamagic.mjs, 2026-09-09).
@@ -289,5 +291,38 @@ describe("Careful and Heightened (Stage 2)", () => {
     expect(
       heightenedMark({ contained: only, casterUuid: CASTER, casterDisposition: 1 })?.name
     ).toBe("Villager");
+  });
+});
+
+describe("Extended, Transmuted, Twinned (Stage 3)", () => {
+  it("reads Twinned's fit off the SOURCE target count: a formula over the cast's level", () => {
+    expect(scalesTargetsFrom("@item.level - 1")).toBe(true);
+    expect(scalesTargetsFrom("1 + @scaling")).toBe(true);
+    expect(scalesTargetsFrom(3)).toBe(false);
+    expect(scalesTargetsFrom("")).toBe(false);
+    expect(scalesTargetsFrom(null)).toBe(false);
+    // The user's exceptions (2026-09-09): a dart or a ray is not a target; Jump's data says nothing.
+    const exceptions = { except: ["Magic Missile", "Scorching Ray"], also: ["Jump"] };
+    expect(scalesTargetsFrom("1 + @scaling", { name: "Magic Missile", exceptions })).toBe(false);
+    expect(scalesTargetsFrom("1", { name: "Jump", exceptions })).toBe(true);
+    expect(scalesTargetsFrom("@item.level - 1", { name: "Hold Person", exceptions })).toBe(true);
+  });
+  it("doubles a duration to 24 hours at most, rounds and turns as they are", () => {
+    expect(extendedDuration({ seconds: 60 })).toEqual({ seconds: 120 });
+    expect(extendedDuration({ seconds: 80000 })).toEqual({ seconds: 86400 });
+    expect(extendedDuration({ rounds: 10, turns: 1 })).toEqual({ rounds: 20, turns: 2 });
+    expect(extendedDuration({})).toEqual({});
+    expect(extendedDuration({ seconds: 0 })).toEqual({});
+  });
+  it("the card lines for the three", () => {
+    expect(
+      metamagicCardLine({ key: "transmuted", feature: "Transmuted Spell", type: "cold" })
+    ).toBe("Transmuted Spell — the damage is cold");
+    expect(metamagicCardLine({ key: "extended", feature: "Extended Spell" })).toMatch(
+      /duration doubled/
+    );
+    expect(metamagicCardLine({ key: "twinned", feature: "Twinned Spell" })).toMatch(
+      /one more target/
+    );
   });
 });

@@ -6,6 +6,8 @@
 // options — Subtle (a line), Quickened (a line, 2 SP), Distant (the gate's range doubled).
 // Stage 2: Careful's protected creatures leave the save demand (the area's adoption road), the
 // picker on the card adjusts the list, Heightened's mark rides the demand into the save gate.
+// Stage 3: Twinned's fit off the source target count, Transmuted's type on every roll of the cast,
+// Extended's doubled clock on the effects the cast lands and its Advantage on the concentration save.
 //
 // Fixtures: BF Test Sorcerer (Sorcerer 5, Font of Magic at 5 points, all ten options, Fireball /
 // Hold Person / Chromatic Orb — tools/fixture-suite.mjs), BF Test Attacker and BF Test Victim (the
@@ -29,7 +31,10 @@ const SECTIONS = {
   8: 'the registration FIRED (§11): renderActivityUsageDialog and dnd5e.postUseActivity moved',
   9: 'Careful Spell (Stage 2): a bare Fireball cast with Careful, the area placed over the Sorcerer, the Ranger and the two goblins — the two allies leave the demand (protected, the caster first), the goblins owe the save, the card names the protected, no ask opens for them',
   10: 'Heightened Spell (Stage 2): the same area — the first goblin is marked on the demand; its save gate opens with "Heightened Spell" as a Disadvantage source and Disadvantage as the default; the other goblin\'s gate carries no such source',
-  11: 'the picker to adjust (Stage 2): from the card, the Ranger is released from Careful\'s list — the Ranger joins the demand as a fresh entry, the Sorcerer stays protected'
+  11: 'the picker to adjust (Stage 2): from the card, the Ranger is released from Careful\'s list — the Ranger joins the demand as a fresh entry, the Sorcerer stays protected',
+  12: 'Twinned Spell (Stage 3): Hold Person fits (its source target count is a formula over the cast\'s level), Fireball does not; the cast spends the point and the card says one more target',
+  13: 'Transmuted Spell (Stage 3): ticking it shows the five other listed types; cold picked; the card carries cold from fire; the spell\'s damage roll chained to the card wears cold',
+  14: 'Extended Spell (Stage 3): Hold Person on the Victim, a forced failure — Paralyzed lands with its clock doubled (120 s); the caster\'s concentration save opens with Extended Spell as an Advantage source'
 };
 const DEPENDS = { 4: ['3'], 11: ['9'] };
 
@@ -163,7 +168,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const poolLine = fs?.querySelector('[data-bf-metamagic-pool]')?.textContent ?? '';
       ok('1g. the pool line reads Sorcery Points: 5 of 5', /Sorcery Points: 5 of 5/.test(poolLine), poolLine.trim());
       ok('1h. every row folds its rule, and the fold carries the pack\'s text without the cost line', rows.every(r => r.rule) && rows.every(r => !/Cost:/.test(r.rule?.textContent ?? '')) && /protect some of those creatures/.test(rows.find(r => r.key === 'careful')?.rule?.textContent ?? ''), rows.find(r => r.key === 'careful')?.rule?.textContent?.slice(0, 80));
-      ok('1i. nothing above the fold but the tick, the name and the tag (the offer-row law)', rows.every(r => r.rule && (r.rule.previousElementSibling?.tagName === 'SPAN')), '');
+      ok('1i. nothing above the fold but the tick, the name, the tag - and a control only where the option demands one (Transmuted: the type)', rows.every(r => r.rule && ((r.rule.previousElementSibling?.tagName === 'SPAN') || (r.rule.previousElementSibling?.dataset?.bfMetamagicSub && r.key === 'transmuted'))), rows.filter(r => r.rule?.previousElementSibling?.tagName !== 'SPAN').map(r => r.key).join(','));
       await app?.close();
     }
 
@@ -379,6 +384,84 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     } else if (want(11)) ok('11. needs §9\'s card', false, 'no Careful card');
 
     await scatter();
+
+    // --- Stage 3: Twinned, Transmuted, Extended -----------------------------------------------
+    if (want(12)) {
+      const { app, fs } = await openWindow('Hold Person', { consume: { spellSlot: false } });
+      const rows = rowsOf(fs);
+      const tw = rows.find(r => r.key === 'twinned'), ex = rows.find(r => r.key === 'extended'), tr = rows.find(r => r.key === 'transmuted');
+      ok('12a. Hold Person fits Twinned — the source count is a formula over the cast\'s level', !!tw && !tw.off && tw.tag === '1 SP', tw?.tag);
+      ok('12b. …and Extended (1 minute), not Transmuted (no damage)', !!ex && !ex.off && !!tr && tr.off && tr.tag === 'no listed damage type', `extended=${ex?.tag} transmuted=${tr?.tag}`);
+      await app?.close();
+      const fb = await openWindow('Fireball', { consume: { spellSlot: false } });
+      const fbRows = rowsOf(fb.fs);
+      ok('12c. Fireball does not fit Twinned (a fixed area, no count formula)', fbRows.find(r => r.key === 'twinned')?.off === true, fbRows.find(r => r.key === 'twinned')?.tag);
+      await fb.app?.close();
+      const { card, why } = await castWith('Hold Person', 'twinned', { consume: { spellSlot: false } });
+      const flag = card?.getFlag(MOD, 'metamagic');
+      ok('12d. Twinned cast: the pick on the card, the point spent, the line', flag?.key === 'twinned' && flag?.spent === true && /one more target/.test((card ? await renderedLine(card, 'bf-metamagic-line') : '') ?? ''), why || JSON.stringify(flag));
+    }
+
+    if (want(13)) {
+      const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
+      const { app, fs } = await openWindow('Fireball', { consume: { spellSlot: false } });
+      const row = rowsOf(fs).find(r => r.key === 'transmuted');
+      row?.box?.click(); await sleep(80);
+      const radios = [...(fs?.querySelectorAll('input[name="bf-metamagic-type"]') ?? [])];
+      ok('13a. ticking Transmuted shows the five other listed types, fire absent', radios.length === 5 && !radios.some(r => r.value === 'fire') && radios.some(r => r.checked), radios.map(r => `${r.value}${r.checked ? '✓' : ''}`).join(','));
+      const cold = radios.find(r => r.value === 'cold'); cold?.click(); await sleep(80);
+      const before = new Set(game.messages.map(m => m.id));
+      app.element.querySelector('button[data-action="use"], button[type="submit"]')?.click();
+      const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.getFlag('dnd5e', 'messageType') === 'usage' || m.type === 'usage') && m.getFlag('dnd5e', 'activity')?.uuid === spellAct('Fireball')?.uuid) ?? null, 8000);
+      await waitFor(() => card?.getFlag(MOD, 'metamagic')?.spent === true, 6000);
+      const flag = card?.getFlag(MOD, 'metamagic');
+      ok('13b. the card carries the pick: cold, from fire', flag?.key === 'transmuted' && flag?.type === 'cold' && (flag?.from ?? []).includes('fire'), JSON.stringify({ key: flag?.key, type: flag?.type, from: flag?.from }));
+      ok('13c. the card line says the damage is cold', /the damage is cold/.test((card ? await renderedLine(card, 'bf-metamagic-line') : '') ?? ''), '');
+      // The spell's own damage roll, chained to the card as the module and the card button chain it.
+      const dmgBefore = new Set(game.messages.map(m => m.id));
+      await spellAct('Fireball').rollDamage({}, { configure: false }, { data: { 'flags.dnd5e.originatingMessage': card?.id } });
+      const dmg = await waitFor(() => game.messages.find(m => !dmgBefore.has(m.id) && m.rolls?.length && m.getFlag('dnd5e', 'roll.type') === 'damage') ?? null, 6000);
+      ok('13d. the damage roll wears cold, not fire, and says why', dmg?.rolls?.[0]?.options?.type === 'cold' && dmg?.getFlag(MOD, 'metamagicType')?.type === 'cold', `type=${dmg?.rolls?.[0]?.options?.type} flag=${JSON.stringify(dmg?.getFlag(MOD, 'metamagicType'))}`);
+    }
+
+    if (want(14) && victim) {
+      const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
+      const vicActor = scene.tokens.find(t => t.actorId === victim.id)?.actor ?? victim;
+      const bonus0 = vicActor.system._source.abilities?.wis?.bonuses?.save ?? '';
+      await vicActor.update({ 'system.abilities.wis.bonuses.save': '-30' });   // a forced failure (the saves suite's idiom)
+      for (const e of vicActor.effects.filter(e => e.statuses?.has?.('paralyzed'))) await e.delete();
+      await set('saveTimer', 1);
+      const vTok = canvas.tokens.get(scene.tokens.find(t => t.actorId === victim.id)?.id);
+      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      vTok?.setTarget(true, { releaseOthers: true });
+      await sleep(200);
+      const { card, why } = await castWith('Hold Person', 'extended', { consume: { spellSlot: false } });
+      const flag = card?.getFlag(MOD, 'metamagic');
+      ok('14a. Extended cast: the pick on the card with the spell\'s uuid and its rule', flag?.key === 'extended' && flag?.spellUuid === sorc.items.find(i => i.name === 'Hold Person')?.uuid && /Advantage on any saving throw/.test(flag?.rule ?? ''), why || JSON.stringify({ key: flag?.key, spellUuid: flag?.spellUuid, rule: (flag?.rule ?? '').slice(0, 40) }));
+      // The buzzer rolls the forced failure; the verdict applies Paralyzed through the one applier.
+      const paralyzed = await waitFor(() => vicActor.effects.find(e => e.statuses?.has?.('paralyzed') && e.getFlag(MOD, 'applied')) ?? null, 12000);
+      ok('14b. the failed save lands Paralyzed with its clock DOUBLED: 120 seconds, not 60', paralyzed?.duration?.seconds === 120, `seconds=${paralyzed?.duration?.seconds} outcome=${JSON.stringify(card?.getFlag(MOD, 'saves')?.targets?.map(t => t.outcome))}`);
+      // The caster concentrates on Hold Person: the concentration save's gate carries Extended as Advantage.
+      const conc = sorc.effects.find(e => e.statuses?.has?.('concentrating'));
+      log.push(`§14 concentration effect: ${conc ? `${conc.name} origin=${conc.origin}` : 'none'}`);
+      const rem = await import(`/modules/${MOD}/scripts/reminders.js`);
+      let gateText = '';
+      if (conc) {
+        const pendingRoll = sorc.rollConcentration({ target: 10 }, { configure: true }, {});
+        pendingRoll?.catch?.(() => {});
+        const dlg = await waitFor(() => [...foundry.applications.instances.values()].find(a => /RollConfigurationDialog/.test(a.constructor?.name ?? '') && a.element?.querySelector?.('[data-bf-reminder]')) ?? null, 6000);
+        gateText = dlg?.element?.querySelector?.('[data-bf-reminder]')?.textContent?.replace(/\s+/g, ' ') ?? '';
+        try { await dlg?.close(); } catch { /* gone */ }
+      }
+      ok('14c. the concentration save\'s gate carries Extended Spell as an Advantage source', !!conc && /Extended Spell/.test(gateText) && /Net Advantage/.test(gateText), conc ? (gateText.slice(0, 160) || 'no gate section') : 'no concentration effect on the caster');
+      void rem;
+      await closeDialogs();
+      for (const e of vicActor.effects.filter(e => e.statuses?.has?.('paralyzed'))) await e.delete().catch(() => {});
+      for (const e of sorc.effects.filter(e => e.statuses?.has?.('concentrating'))) await e.delete().catch(() => {});
+      await vicActor.update({ 'system.abilities.wis.bonuses.save': bonus0 });
+      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+    } else if (want(14)) ok('14. fixtures', false, 'BF Test Victim missing');
+
     if (want(8)) {
       ok('8a. renderActivityUsageDialog fired', count('renderActivityUsageDialog') > 0, `count=${count('renderActivityUsageDialog')}`);
       ok('8b. dnd5e.postUseActivity fired', count('dnd5e.postUseActivity') > 0, `count=${count('dnd5e.postUseActivity')}`);

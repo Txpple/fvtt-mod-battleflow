@@ -177,7 +177,26 @@ source through the demand channel. The BACKLOG row's settling test is `smoke-met
 Fireball over two allies, protected, **no ask posts for them, no damage lands, the timer never
 rolls for them**. §5: Heightened's gate opens with the source.
 
-### STAGE 3 — Extended, Transmuted, Twinned (1–2 sessions; re-measure first)
+### STAGE 3 — Extended, Transmuted, Twinned (1–2 sessions; re-measure first) — ✅ DELIVERED 2026-09-09 (~2 hours)
+
+**How it went:** re-measuring paid twice. (1) **Twinned is a data read after all**: the pack keeps
+a twinnable spell's target count as a FORMULA over the cast's level in the SOURCE (`@item.level - 1`
+on Hold Person — the prepared value is a number, which is what Stage 0 saw); no text read, no
+`messageConfig` surgery either — dnd5e snapshots every targeted creature, and the module never
+policed the count, so Twinned is the fit, the spend and the line. The read was checked against the
+user's own list of twenty (`tools/probe-twinnable.mjs`): it finds the twenty plus Hideous Laughter,
+Etherealness and Chain Lightning (in by their text — the list was short), and four the table
+reads differently — RULED: Magic Missile and Scorching Ray OUT ("the extra is a dart/ray"), Jump IN
+(the text grants the creature, the data says nothing) — the `TWINNED_EXCEPTIONS` table in the
+registry; Animate Dead, Create Undead, Cordon of Arrows and Tasha's Mind Whip (not in the PHB pack)
+await a word. (2) **Extended lands in the ONE applier** (`applyEffectsTo`, effect-riders.js —
+every cast's effects pass through it: the cast slice's, the save verdict's), doubling the created
+effect's clock to 24 h at most; and the concentration save's gate reads the cast's card through
+`config.isConcentration` (the system marks the roll) — one more `judgeSave` argument, no new hook.
+(3) **Transmuted is the emanation idiom**: the radio under the row, the pick on the card, and
+`preRollDamageV2` retyping every roll of the cast whose type is a listed one — the first change to
+an EXISTING part, and it cost twenty lines. `smoke-metamagic` §12–14 12/12; unit tests 22; verify
+green.
 
 Three different seams, each small, none shared: the effect clock (Extended, on the effects the
 cast creates + the concentration gate's source), the damage part's type (Transmuted — the first

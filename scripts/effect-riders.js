@@ -7,6 +7,7 @@ import { resolveUuid } from "./lookup.js";
 import { effectRecord, joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
 import { CHIP_FLAG } from "./decide/chips.js";
 import { statSourceOf } from "./shared.js";
+import { METAMAGIC_FLAG, extendedDuration } from "./decide/metamagic.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1.9A — effect riders: a hit applies the effects riding it (PLAN.md section A).
@@ -84,7 +85,7 @@ export async function applyEffectRiders(damageMessage, attackMessage, hits) {
  * it right). It rides every record via the data-plane stamp, resolved once per application.
  */
 export async function applyEffectsTo(targets, effects,
-  { concentration = null, scaling = 0, spellLevel, matchNames = false, extraFlags = null, source = null } = {}) {
+  { concentration = null, scaling = 0, spellLevel, matchNames = false, extraFlags = null, source = null, extend = false } = {}) {
   const context = statContext(source);
   const out = [];
   for ( const target of targets ) {
@@ -123,6 +124,13 @@ export async function applyEffectsTo(targets, effects,
           ...effect.toObject(), disabled: false, transfer: false, origin: origin.uuid
         }, effectFlags), { parent: actor });
       }
+      // Extended Spell (metamagic, 2026-09-09): the cast's effects run twice as long, 24 hours at
+      // most — the option's own words, done here because every cast's effects land through this
+      // one applier (the cast slice's, the save verdict's).
+      if ( applied && extend ) {
+        const longer = extendedDuration(applied.duration ?? {});
+        if ( Object.keys(longer).length ) applied = (await applied.update({ duration: longer })) ?? applied;
+      }
       if ( applied && !entry.effects.some(e => e.id === applied.id) ) {
         // Plain fields only across the layer line (§2 rule 1) — the document stays here.
         entry.effects.push(effectRecord({ id: applied.id, name: applied.name,
@@ -142,7 +150,9 @@ export async function applyEffectsTo(targets, effects,
  */
 export async function applyEffectsWithReceipt(receiptMessage, effects, targets,
   { concentration = null, scaling = 0, spellLevel, marker, source = null } = {}) {
-  const entries = await applyEffectsTo(targets, effects, { concentration, scaling, spellLevel, source });
+  const entries = await applyEffectsTo(targets, effects, {
+    // Extended Spell rides the receipt card (the usage card carries the metamagic flag).
+    extend: receiptMessage?.getFlag?.(MODULE_ID, METAMAGIC_FLAG)?.key === "extended", concentration, scaling, spellLevel, source });
   if ( !entries.length && !marker ) return;
   // ⚠ THE READ MOVED BELOW THE AWAIT, and the write is queued (core.js `queueFlagWrite`). This
   // used to clone the flag FIRST and merge into that copy after `applyEffectsTo` — a window

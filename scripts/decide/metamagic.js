@@ -190,6 +190,42 @@ export function heightenedMark({ contained, casterUuid = null, casterDisposition
 }
 
 /**
+ * TWINNED SPELL'S FIT, read off the data after all (measured 2026-09-09, Stage 3): a spell that
+ * gains a target at a higher slot level carries its target count as a FORMULA over the cast's
+ * level in the pack's source (`@item.level - 1` on Hold Person and Charm Person); a fixed count
+ * (Magic Missile's darts), a blank one (an attack spell) or a template are not it.
+ * @param {string|number|null|undefined} countFormula the item's SOURCE `target.affects.count`
+ * @param {{name?: string|null, exceptions?: {except?: readonly string[], also?: readonly string[]}|null}} [opts]
+ *        the spell's name and the table's exceptions (registry.js TWINNED_EXCEPTIONS): `also` fits
+ *        regardless of the data, `except` never fits
+ */
+export function scalesTargetsFrom(countFormula, { name = null, exceptions = null } = {}) {
+  const lower = s => String(s ?? "").toLowerCase();
+  if ( name && (exceptions?.also ?? []).some(n => lower(n) === lower(name)) ) return true;
+  if ( name && (exceptions?.except ?? []).some(n => lower(n) === lower(name)) ) return false;
+  const f = String(countFormula ?? "");
+  return /@item\.level|@scaling/.test(f);
+}
+
+/**
+ * EXTENDED SPELL'S ARITHMETIC: the duration doubled, to a maximum of 24 hours (the option's own
+ * words). Seconds cap at 86,400; rounds and turns double as they are (a combat clock has no
+ * hours to cap against). A duration with nothing on it stays as it is.
+ * @param {{seconds?: number|null, rounds?: number|null, turns?: number|null}} duration
+ * @returns {{seconds?: number, rounds?: number, turns?: number}} the fields that changed
+ */
+export function extendedDuration(duration) {
+  const out = {};
+  const seconds = Number(duration?.seconds);
+  if ( Number.isFinite(seconds) && (seconds > 0) ) out.seconds = Math.min(86400, seconds * 2);
+  const rounds = Number(duration?.rounds);
+  if ( Number.isFinite(rounds) && (rounds > 0) ) out.rounds = rounds * 2;
+  const turns = Number(duration?.turns);
+  if ( Number.isFinite(turns) && (turns > 0) ) out.turns = turns * 2;
+  return out;
+}
+
+/**
  * Distant Spell's arithmetic: a Touch spell reaches 30 feet; any other range is doubled.
  * @param {SpellFacts} facts
  * @returns {number|null}

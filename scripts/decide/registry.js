@@ -1200,6 +1200,19 @@ export const METAMAGIC = Object.freeze({
 });
 /** The damage types Transmuted Spell trades between — the option's own list. */
 export const TRANSMUTED_TYPES = Object.freeze(["acid", "cold", "fire", "lightning", "poison", "thunder"]);
+/**
+ * TWINNED SPELL'S EXCEPTIONS to the data read (user rulings 2026-09-09, against the pack scan —
+ * tools/probe-twinnable.mjs). The read is the pack's own statement — a target count that grows
+ * with the cast's level — and it is right for the many; these are the few where the table's
+ * reading of "can target an additional creature" differs from the data, or the data says
+ * nothing. `except`: the count grows but the extra is a dart or a ray, not a target the way
+ * Twinned means it (user: "remove Magic Missile … Scorching Ray, same reason"). `also`: the
+ * text grants the extra creature but the pack's count is a plain number (Jump, 2024 PHB).
+ */
+export const TWINNED_EXCEPTIONS = Object.freeze({
+  except: Object.freeze(["Magic Missile", "Scorching Ray"]),
+  also: Object.freeze(["Jump"])
+});
 const METAMAGIC_NAMES = tableIndex(METAMAGIC).names;
 
 /**

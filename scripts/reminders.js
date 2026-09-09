@@ -580,7 +580,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
  * @param {Actor} actor
  * @param {string} ability
  */
-function judgeSave(actor, ability) {
+function judgeSave(actor, ability, { concentration = false } = {}) {
   const on = new Set(reminderEntries().map(e => e.kind));
   if ( !on.has("condition") && !on.has("effect") ) return null;
   const sources = [];
@@ -602,8 +602,36 @@ function judgeSave(actor, ability) {
     if ( mark && (mark.uuid === actor.uuid) ) {
       sources.push(reminderSource("effect", "disadvantage", `${actor.name} — Heightened Spell${mark.caster ? ` (${mark.caster}'s)` : ""}`, mark.rule ?? ""));
     }
+    // Extended Spell (metamagic, 2026-09-09): a concentration save for a spell cast Extended is
+    // at Advantage — the option's own second sentence, read off the cast's card.
+    if ( concentration ) {
+      for ( const card of extendedCastsHeldBy(actor) ) {
+        const rec = card.getFlag(MODULE_ID, METAMAGIC_FLAG);
+        sources.push(reminderSource("effect", "advantage", `${actor.name} — Extended Spell (${card.getFlag("dnd5e", "item")?.name ?? rec.spellName ?? "the spell"})`, rec.rule ?? ""));
+      }
+    }
   }
   return new DialogCarried({ ...saveGate(sources), actorUuid: actor.uuid, ability, failed: false });
+}
+
+/**
+ * The Extended casts this actor is still concentrating on: the newest usage card per spell that
+ * carries the Extended flag, matched to a standing concentration effect by the spell's uuid (the
+ * effect's origin) or the item id the system stamps on it.
+ */
+function extendedCastsHeldBy(actor) {
+  const held = (actor?.effects ?? []).filter(e => !e.disabled && e.statuses?.has?.("concentrating"));
+  if ( !held.length ) return [];
+  const out = [];
+  for ( const m of game.messages.contents.slice(-200).reverse() ) {
+    const rec = m.getFlag(MODULE_ID, METAMAGIC_FLAG);
+    if ( (rec?.key !== "extended") || (rec.actorUuid !== actor.uuid) ) continue;
+    const itemId = rec.spellUuid?.split(".").pop() ?? null;
+    if ( !held.some(e => (e.origin === rec.spellUuid) || (e.origin && itemId && e.origin.endsWith(`.${itemId}`)) || (e.getFlag?.("dnd5e", "item")?.id === itemId)) ) continue;
+    if ( out.some(c => c.getFlag(MODULE_ID, METAMAGIC_FLAG)?.spellUuid === rec.spellUuid) ) continue;
+    out.push(m);
+  }
+  return out;
 }
 
 /** The demand this actor is mid-answer on, if any — the newest pending card naming it undone. */
@@ -620,7 +648,7 @@ Hooks.on("dnd5e.preRollSavingThrowV2", (config, dialog, message) => {
     if ( dialog?.configure === false ) return;       // no dialog, no gate
     const actor = config?.subject;
     if ( !(actor instanceof Actor) ) return;
-    const gate = judgeSave(actor, config.ability);
+    const gate = judgeSave(actor, config.ability, { concentration: !!config.isConcentration });
     if ( !gate ) return;
     dialog.options ??= {};
     dialog.options.bfSaveGate = gate;

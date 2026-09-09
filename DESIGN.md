@@ -902,6 +902,13 @@ option names and judges nothing else.** RULED 2026-09-09 off the prototype
 - **Subtle and Quickened are a card line and a spend, nothing more.** Components are never read;
   the turn is never policed (user, on Quickened: "just a blurb how it's settled at the table, no
   automation" — §8's action-economy row stands). The line is the default language.
+- **Delivered 2026-09-09 (Stage 3), three ways the drawing did not expect:** Twinned is a DATA
+  read — the pack keeps a twinnable spell's target count as a formula over the cast's level —
+  checked against the user's list and corrected by a small exceptions table (Magic Missile and
+  Scorching Ray out, "the extra is a dart/ray"; Jump in); the count is never policed, so Twinned
+  is the fit, the spend and the line. Extended lands in the one effect applier every cast's
+  effects pass through, and the concentration gate reads the cast's card. Transmuted is the
+  emanation damage-type idiom on the cast's own parts.
 - **Distant doubles the range the gate's reminder reads for that cast** (Touch → 30 ft);
   **Extended doubles the clock on the effects the cast creates** (24 h cap) and gives the
   concentration gate *Extended Spell* as an Advantage source; **Transmuted changes the type on the

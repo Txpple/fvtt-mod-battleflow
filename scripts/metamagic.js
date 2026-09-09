@@ -28,8 +28,8 @@ import { metamagicEntries, listedNames } from "./settings.js";
 import { poolOf, spendPoolUses } from "./shared.js";
 import { feetOf } from "./geometry.js";
 import { foldedRuleHTML, esc } from "./decide/present.js";
-import { METAMAGIC, TRANSMUTED_TYPES, tableIndex } from "./decide/registry.js";
-import { METAMAGIC_FLAG, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange } from "./decide/metamagic.js";
+import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
+import { METAMAGIC_FLAG, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom } from "./decide/metamagic.js";
 
 const INDEX = tableIndex(METAMAGIC);
 /** The name the record shows for Font of Magic's uses — what the table calls them. */
@@ -85,7 +85,9 @@ function spellFactsOf(activity) {
     action: String(activation?.type ?? "") === "action",
     damageTypes, damageRoll: parts.length > 0,
     spellAttack: activity?.type === "attack",
-    scalesTargets: false   // Stage 3's question: the pack keeps target scaling in prose
+    // The SOURCE count, not the prepared one: `@item.level - 1` is what says the spell gains a
+    // target at a higher level (the prepared value is a number — measured, Stage 0).
+    scalesTargets: !activity?.target?.template?.type && scalesTargetsFrom(item?.system?._source?.target?.affects?.count ?? null, { name: item?.name ?? null, exceptions: TWINNED_EXCEPTIONS })
   };
 }
 
@@ -112,12 +114,13 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
     const menu = metamagicMenu({ table: METAMAGIC, listed: known.keys(), known: known.keys(), facts, points, costs, transmutedTypes: TRANSMUTED_TYPES });
     if ( !menu.length ) return;
     const current = pending.get(activity.uuid)?.key ?? null;
+    const currentType = pending.get(activity.uuid)?.type ?? null;
     const fs = document.createElement("fieldset");
     fs.dataset.bfMetamagicField = "";
     fs.innerHTML = `<legend>Battle Flow — Metamagic</legend>
       <div data-bf-metamagic-pool style="display:flex;justify-content:space-between;font-size:var(--font-size-12,12px);opacity:0.85;margin:0 0 0.25rem;">
         <span>${esc(actor.name)}</span><span><strong>${POOL_NAME}: ${points} of ${max}</strong>${first ? "" : " — no pool found"}</span></div>
-      ${menu.map(row => rowHTML(row, known.get(row.feature), current)).join("")}
+      ${menu.map(row => rowHTML(row, known.get(row.feature), current, { facts, currentType })).join("")}
       ${points === 0 ? `<p class="hint" style="margin:0.25rem 0 0;">No ${POOL_NAME} — the rows stay so the sheet is not the only place that says so.</p>` : ""}`;
     const boxes = fs.querySelectorAll('input[name="bf-metamagic"]');
     const sync = () => {
@@ -133,8 +136,14 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
       const pick = metamagicPick({ menu, chosen: picked });
       if ( pick ) {
         const item = known.get(pick.feature);
+        const typeBox = fs.querySelector(`[data-bf-metamagic-row="transmuted"] input[name="bf-metamagic-type"]:checked`);
         pending.set(activity.uuid, { key: pick.key, feature: pick.feature, cost: pick.cost, itemUuid: item?.uuid ?? null, actorUuid: actor.uuid,
+          spellUuid: activity.item?.uuid ?? null, activityUuid: activity.uuid, spellName: activity.item?.name ?? null,
+          // The option's rule rides the record where a later gate quotes it (Extended's concentration source).
+          ...(pick.key === 'extended' ? { rule: metamagicRuleText(item?.system?.description?.value ?? '') } : {}),
           poolId: poolFor(actor, item)?.id ?? null,
+          // Transmuted's new type: the radio under its row (the first other listed type until picked).
+          ...(pick.key === "transmuted" ? { from: facts.damageTypes.filter(t => TRANSMUTED_TYPES.includes(t)), type: typeBox?.value ?? TRANSMUTED_TYPES.find(t => !facts.damageTypes.includes(t)) ?? null } : {}),
           ...(pick.key === "distant" ? { rangeFeet: distantRange(facts) } : {}),
           // Careful's cap is the Charisma modifier, minimum one (the option's own words); the
           // protected list itself is derived where the save's reach is known (saves/demand.js).
@@ -144,6 +153,7 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
       } else pending.delete(activity.uuid);
     };
     for ( const b of boxes ) b.addEventListener("change", sync);
+    for ( const r of fs.querySelectorAll('input[name="bf-metamagic-type"]') ) r.addEventListener("change", sync);
     sync();
     const footer = element.querySelector("footer, .form-footer");
     if ( footer ) footer.before(fs); else (element.querySelector("form") ?? element).appendChild(fs);
@@ -151,18 +161,73 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
 });
 
 /** One row: the tick, the name, the tag, the rule folded under — nothing above the fold (the offer-row law). */
-function rowHTML(row, item, current) {
+function rowHTML(row, item, current, { facts = null, currentType = null } = {}) {
   const off = !row.eligible || !row.affordable;
   const rule = metamagicRuleText(item?.system?.description?.value ?? "");
+  // Transmuted's one pick beyond the tick: the new type, a radio per listed type the spell does
+  // not already deal (the prototype's row). Not a caveat — a control the option's text demands.
+  let sub = "";
+  if ( (row.key === "transmuted") && !off ) {
+    const has = new Set(facts?.damageTypes ?? []);
+    const options = TRANSMUTED_TYPES.filter(t => !has.has(t));
+    const picked = currentType ?? options[0] ?? null;
+    const cap = s => `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
+    sub = `<div data-bf-metamagic-sub="type" style="grid-column:2 / -1;display:flex;flex-wrap:wrap;gap:0.3rem 0.75rem;font-size:var(--font-size-12,12px);">
+      ${options.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="radio" name="bf-metamagic-type" value="${t}" ${t === picked ? "checked" : ""} style="margin:0;"> ${cap(t)}</label>`).join("")}</div>`;
+  }
   return `<div data-bf-metamagic-row="${esc(row.key)}" data-bf-off="${off ? 1 : 0}"
       style="display:grid;grid-template-columns:auto 1fr auto;gap:0.2rem 0.6rem;align-items:center;margin:0.3rem 0;padding:0.4rem 0.6rem;border-radius:4px;
              background:rgba(0,0,0,0.25);border:1px solid var(--color-border-dark,rgba(0,0,0,0.4));border-left:3px solid ${off ? "rgb(120,120,120)" : "rgb(222,120,40)"};${off ? "opacity:0.55;" : ""}">
       <input type="checkbox" name="bf-metamagic" value="${esc(row.key)}" ${current === row.key ? "checked" : ""} ${off ? "disabled" : ""} style="margin:0;">
       <label style="font-weight:bold;cursor:pointer;">${esc(row.feature)}</label>
       <span style="font-size:var(--font-size-11,11px);letter-spacing:0.04em;text-transform:uppercase;white-space:nowrap;opacity:0.8;">${esc(row.tag)}</span>
+      ${sub}
       ${foldedRuleHTML(rule)}
     </div>`;
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * Transmuted Spell: every damage roll of the cast wears the picked type (Stage 3, 2026-09-09)
+ * ------------------------------------------------------------------------------------------- */
+
+/** The metamagic record on the card a roll names as its origin, or on the activity's newest card. */
+function recordForRoll(activity, message) {
+  try {
+    const data = message?.data ?? {};
+    const id = data["flags.dnd5e.originatingMessage"] ?? foundry.utils.getProperty(data, "flags.dnd5e.originatingMessage") ?? null;
+    const card = id ? game.messages.get(id) : null;
+    const record = card?.getFlag(MODULE_ID, METAMAGIC_FLAG) ?? null;
+    if ( record ) return record;
+    // No origin named (a roll from the sheet): the activity's newest card of the last minute.
+    const recent = game.messages.contents.slice(-40).reverse().find(m => (m.getFlag("dnd5e", "activity")?.uuid === activity?.uuid)
+      && m.getFlag(MODULE_ID, METAMAGIC_FLAG) && (Math.abs(Date.now() - (m.timestamp ?? 0)) <= 60_000));
+    return recent?.getFlag(MODULE_ID, METAMAGIC_FLAG) ?? null;
+  } catch { return null; }
+}
+
+// The emanation damage-type idiom (emanations.js): the roll's `options.type` is what the verdict
+// and the applier read, so the change lands there, on the roller's client, before the dice.
+Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+  try {
+    const activity = config.subject;
+    if ( activity?.item?.type !== "spell" ) return;
+    const record = recordForRoll(activity, message);
+    if ( (record?.key !== "transmuted") || !record.type ) return;
+    const to = lower(record.type);
+    let changed = false;
+    for ( const roll of config.rolls ?? [] ) {
+      const was = lower(roll.options?.type ?? "");
+      if ( !TRANSMUTED_TYPES.includes(was) || (was === to) ) continue;
+      roll.options ??= {};
+      roll.options.type = to;
+      if ( Array.isArray(roll.options.types) ) roll.options.types = [to];
+      changed = true;
+    }
+    if ( changed ) foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.metamagicType`, { type: to, feature: record.feature });
+  } catch(err) {
+    console.warn(`${TITLE} | Transmuted Spell could not set the damage type — the roll wears the spell's own.`, err);
+  }
+});
 
 /* ---------------------------------------------------------------------------------------------
  * The card: born with the pick; the points spent once the cast has landed
