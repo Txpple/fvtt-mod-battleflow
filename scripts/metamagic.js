@@ -22,15 +22,16 @@
  * damage dice at the end of this file (Stage 4); Seeking is a d20 fold KIND in d20-folds.js — the
  * machine that already owns the reroll, the verdict and the withheld save.
  */
-import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, isActiveGM, whisperNoGM } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, isActiveGM, whisperNoGM, canAnswerFor } from "./core.js";
 import { lower, resolveUuid } from "./lookup.js";
 import { metamagicEntries, listedNames } from "./settings.js";
 import { poolOf, spendPoolUses, poolSpendsOn } from "./shared.js";
-import { feetOf, nearestFeet, tokenOfActor } from "./geometry.js";
+import { feetOf, tokenOfActor } from "./geometry.js";
 import { bfCard, foldedRuleHTML, esc, holdBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
-import { METAMAGIC_FLAG, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome, carefulProtects, heightenedMark } from "./decide/metamagic.js";
+import { METAMAGIC_FLAG, METAMAGIC_ASK_FLAG, askDefaults, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome, carefulProtects, heightenedMark } from "./decide/metamagic.js";
 import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync } from "./ui.js";
+import { saveTargetEntry } from "./decide/demand.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 
 const INDEX = tableIndex(METAMAGIC);
@@ -69,34 +70,18 @@ function poolFor(actor, item) {
 }
 
 /**
- * Who an option can name BEFORE the cast (user ruling 2026-09-09: "picking before casting is
- * executed"): the selected targets when there are any, else every creature on the scene within
- * the spell's range of the caster, alive and not secret, nearest first — the non-hostiles for
- * Careful (`side: "friend"`, the caster among them), the hostiles for Heightened (`side: "foe"`).
- * Plain rows for the decision layer, which picks the defaults.
+ * Who an option can name IN THE WINDOW: the creatures the caster has selected, and nobody else
+ * (user, 2026-09-09, third look: a scene-wide list "on a screen with many actors is too much").
+ * A cast that selects nobody — the area comes later — is asked at the area instead (the ask flag,
+ * below). Plain rows for the decision layer, which picks the defaults.
  */
-function candidatesFor(actor, facts, side) {
+function candidatesFor(actor) {
   const casterTok = tokenOfActor(actor) ?? null;
   const casterDisposition = casterTok?.document?.disposition ?? actor.prototypeToken?.disposition ?? CONST.TOKEN_DISPOSITIONS.FRIENDLY;
-  const hostile = (casterDisposition === 1) ? -1 : (casterDisposition === -1) ? 1 : null;
-  const row = (doc, tok) => ({ uuid: doc.actor?.uuid ?? null, name: doc.name, disposition: doc.disposition ?? null,
-    feet: (casterTok && tok) ? (nearestFeet(casterTok, tok) ?? 0) : 0 });
-  const selected = [...(game.user?.targets ?? [])].map(t => row(t.document, t)).filter(t => t.uuid);
-  if ( selected.length ) return { casterDisposition, casterUuid: actor.uuid, targets: selected };
-  const reach = Number.isFinite(facts?.rangeFeet) ? facts.rangeFeet : null;
-  const out = [];
-  for ( const tok of (canvas.tokens?.placeables ?? []) ) {
-    const doc = tok.document;
-    if ( !doc?.actor || doc.isSecret || (doc.disposition === -2) ) continue;
-    const isFoe = (hostile !== null) && (doc.disposition === hostile);
-    if ( (side === "friend") ? isFoe : !isFoe ) continue;
-    if ( (doc.actor.system?.attributes?.hp?.value ?? 1) <= 0 ) continue;
-    const r = row(doc, tok);
-    if ( (reach !== null) && (r.uuid !== actor.uuid) && (r.feet > reach) ) continue;
-    out.push(r);
-  }
-  out.sort((a, b) => a.feet - b.feet);
-  return { casterDisposition, casterUuid: actor.uuid, targets: out };
+  const selected = [...(game.user?.targets ?? [])]
+    .map(t => ({ uuid: t.actor?.uuid ?? null, name: t.document?.name ?? t.name, disposition: t.document?.disposition ?? null }))
+    .filter(t => t.uuid);
+  return { casterDisposition, casterUuid: actor.uuid, targets: selected };
 }
 
 /** The facts of the spell being cast, as decide/metamagic.js reads them. */
@@ -156,9 +141,10 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
     // by carefulProtects' own default. The pick rides the record as CHOSEN, so the demand honours
     // it against whatever the area finally contains.
     const cap = Math.max(1, Number(actor.system?.abilities?.cha?.mod) || 1);
-    const protect = { cap, ...candidatesFor(actor, facts, "friend"), chosen: pending.get(activity.uuid)?.protected?.map(p => p.uuid) ?? null };
-    // Heightened's one target the same way: the hostiles in reach, the nearest marked by default.
-    const mark = { ...candidatesFor(actor, facts, "foe"), chosen: pending.get(activity.uuid)?.target?.uuid ?? null };
+    const selected = candidatesFor(actor);
+    const protect = { cap, ...selected, chosen: pending.get(activity.uuid)?.protected?.map(p => p.uuid) ?? null };
+    // Heightened's one target the same way, a radio over the selected creatures.
+    const mark = { ...selected, chosen: pending.get(activity.uuid)?.target?.uuid ?? null };
     const fs = document.createElement("fieldset");
     fs.dataset.bfMetamagicField = "";
     fs.innerHTML = `<legend>Battle Flow — Metamagic</legend>
@@ -592,5 +578,134 @@ Hooks.on("updateChatMessage", message => {
   if ( !flag || (flag.status === "pending") ) return;
   disarmAskTimer(empoweredTimers, message.id);
   const open = livePopups.get(popupKey(message.id, EMPOWERED_FLAG));
+  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * THE ASK AT THE AREA (user ruling 2026-09-09, third look): when a Careful or Heightened cast
+ * selected nobody in the window and its area has landed, the caster is asked ONCE, of everything
+ * the area holds — ticks for Careful (the party pre-ticked up to the cap, then the caster's side,
+ * then neutrals), a radio for Heightened (the first hostile by default) — in two groups, the
+ * PARTY and everyone else, a tick pinging the token on the map so the name can be matched to the
+ * creature. The save demand waits, empty and clockless, until the answer fills it: the targets
+ * minus the protected, the deadline from then. The clock keeps the default. saves/demand.js
+ * raises the ask flag and holds the demand; this side opens the popup, answers it, fills the
+ * demand and releases the clock.
+ * ------------------------------------------------------------------------------------------- */
+
+const askTimers = new Map();
+
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  try {
+    const ask = message.getFlag(MODULE_ID, METAMAGIC_ASK_FLAG);
+    if ( !ask ) return;
+    const content = html.querySelector?.(".message-content") ?? html;
+    if ( !content || content.querySelector(".bf-metamagic-ask") ) return;
+    if ( ask.status !== "pending" ) return;
+    const div = document.createElement("div");
+    div.className = "bf-metamagic-ask";
+    div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
+    div.innerHTML = `<i class="fa-solid fa-wand-sparkles" data-tooltip="Metamagic"></i> ${esc(ask.feature)} — ${ask.kind === "careful" ? "who does the spell spare?" : "who saves at Disadvantage?"} ${holdBarHTML(ask, "to answer")}`;
+    const caster = resolveUuid(ask.casterUuid);
+    if ( caster && canAnswerFor(caster) ) div.appendChild(momentButton("Answer", () => { void showMetamagicAsk(message); }));
+    scheduleBarSync(div);
+    content.appendChild(div);
+    armAskTimer(askTimers, message, METAMAGIC_ASK_FLAG, live => answerMetamagicAsk(live, null, { timedOut: true }));
+    if ( caster && canAnswerFor(caster) ) void showMetamagicAsk(message);
+  } catch(err) { console.warn(`${TITLE} | The metamagic ask could not render.`, err); }
+});
+
+/** The ask's popup: the party, then everyone else in the area, the defaults ticked; OK answers, the clock keeps the default. */
+async function showMetamagicAsk(message) {
+  const ask = message.getFlag(MODULE_ID, METAMAGIC_ASK_FLAG);
+  if ( !ask || (ask.status !== "pending") ) return;
+  const caster = resolveUuid(ask.casterUuid);
+  if ( !caster ) return;
+  const defaults = new Set(askDefaults(ask).map(c => c.uuid));
+  const careful = ask.kind === "careful";
+  const side = c => (c.disposition === ask.casterDisposition) ? "" : (c.disposition === 0 ? " <span style='opacity:0.7'>(neutral)</span>" : " <span style='opacity:0.7'>(hostile)</span>");
+  const rowOf = c => `<label style="display:flex;align-items:center;gap:0.4rem;margin:0.2rem 0;cursor:pointer;">
+      <input type="${careful ? "checkbox" : "radio"}" name="bf-metamagic-ask" value="${esc(c.uuid)}" data-name="${esc(c.name)}" data-token="${esc(c.tokenId ?? "")}" ${defaults.has(c.uuid) ? "checked" : ""} style="margin:0;"> ${esc(c.name)}${side(c)}</label>`;
+  const party = ask.candidates.filter(c => c.party), others = ask.candidates.filter(c => !c.party);
+  const group = (title, list) => list.length ? `<div data-bf-ask-group="${title}" style="margin:0.3rem 0;"><div style="font-size:var(--font-size-11,11px);letter-spacing:0.08em;text-transform:uppercase;opacity:0.7;margin:0.2rem 0;">${title}</div>${list.map(rowOf).join("")}</div>` : "";
+  await openMomentPopup(message, METAMAGIC_ASK_FLAG, caster, {
+    title: `${ask.feature} — ${caster.name}`, icon: "fa-solid fa-wand-sparkles", width: 420,
+    content: bfCard({
+      img: caster.items?.find(i => i.name === ask.feature)?.img ?? null,
+      eyebrow: `Metamagic — ${ask.feature}`, tone: "pending",
+      title: careful ? `Who does the spell spare? Up to ${ask.cap}.` : "Who saves at Disadvantage?",
+      subtitle: `${ask.candidates.length} in the area — a tick pings the token`,
+      lines: [ask.rule ? ruleLine(ask.rule) : ""]
+    }) + `<div data-bf-metamagic-ask="${esc(ask.kind)}" data-cap="${ask.cap}" style="margin:0.4rem 0;">${group("Party", party)}${group("Non-Party", others)}</div>` + holdBarHTML(ask, "to answer"),
+    buttons: [
+      { action: "ok", label: "OK", default: true, callback: (event, button) => answerMetamagicAsk(message, [...button.form.querySelectorAll('input[name="bf-metamagic-ask"]:checked')].map(i => i.value)) }
+    ]
+  });
+}
+
+// A tick pings the creature's token on the map (user, 2026-09-09: "so a person can confirm which"),
+// and the cap holds as the ticks are made — one listener, every popup (the Empowered chips' idiom).
+Hooks.once("ready", () => document.addEventListener("change", ev => {
+  const any = ev.target?.closest?.('input[name="bf-metamagic-ask"]');
+  if ( !any ) return;
+  if ( any.checked && any.dataset.token ) {
+    const tok = canvas.tokens?.get(any.dataset.token);
+    if ( tok ) { try { canvas.ping(tok.center); } catch { /* no canvas to ping */ } }
+  }
+  if ( any.type !== "checkbox" ) return;
+  const holder = any.closest("[data-bf-metamagic-ask]");
+  const cap = Number(holder?.dataset?.cap) || 99;
+  const on = [...(holder?.querySelectorAll('input[name="bf-metamagic-ask"]:checked') ?? [])];
+  if ( on.length > cap ) { any.checked = false; return; }
+  for ( const b of holder?.querySelectorAll('input[name="bf-metamagic-ask"]') ?? [] ) if ( !b.checked ) b.disabled = on.length >= cap;
+}));
+
+/**
+ * The answer — the caster's ticks, or the defaults when the clock ran out — written as CHOSEN on
+ * the cast's flag; then the demand is filled from the area's creatures minus the protected, the
+ * clock started, and the saves machine takes it from there (its asks open on the fill).
+ */
+async function answerMetamagicAsk(message, picked, { timedOut = false } = {}) {
+  try {
+    const ask = message.getFlag(MODULE_ID, METAMAGIC_ASK_FLAG);
+    if ( !ask || (ask.status !== "pending") ) return;
+    const chosen = Array.isArray(picked) ? picked : askDefaults(ask).map(c => c.uuid);
+    const named = uuid => ask.candidates.find(c => c.uuid === uuid) ?? null;
+    const mm = message.getFlag(MODULE_ID, METAMAGIC_FLAG) ?? {};
+    let protectedList = [];
+    let mark = null;
+    if ( ask.kind === "careful" ) {
+      protectedList = chosen.map(named).filter(Boolean).slice(0, Math.max(1, Number(ask.cap) || 1)).map(c => ({ uuid: c.uuid, name: c.name }));
+    } else {
+      const c = named(chosen[0] ?? null);
+      mark = c ? { uuid: c.uuid, name: c.name } : null;
+    }
+    const rule = mm.rule ?? ask.rule ?? "";
+    await message.update({ flags: { [MODULE_ID]: {
+      [METAMAGIC_FLAG]: { ...mm, chosen: true, ...(ask.kind === "careful" ? { protected: protectedList } : { target: mark, rule }) },
+      [METAMAGIC_ASK_FLAG]: { ...ask, status: "done", answer: chosen, ...(timedOut ? { timedOut: true } : {}) }
+    } } });
+    const protectedUuids = new Set(protectedList.map(p => p.uuid));
+    const window = Math.max(0, Number(ask.window) || 0);
+    await queueFlagWrite(message, "saves", flag => {
+      const prev = flag.targets ?? [];
+      const fresh = ask.candidates.filter(c => !protectedUuids.has(c.uuid) && !prev.some(t => t.uuid === c.uuid)).map(c => saveTargetEntry(c.uuid, c.name));
+      flag.targets = [...prev.filter(t => t.done || !protectedUuids.has(t.uuid)), ...fresh];
+      flag.awaitingTemplate = false;
+      if ( window ) { flag.window = window; flag.deadline = Date.now() + (window * 1000); }
+      if ( mark ) flag.demand = { ...(flag.demand ?? {}), heightened: { ...mark, caster: ask.casterName ?? null, rule } };
+      if ( !flag.targets.length ) flag.status = "done";   // everyone spared — nobody owes a save
+    });
+  } catch(err) {
+    console.error(`${TITLE} | The metamagic ask could not be answered — the demand waits; the card's Answer button reopens it.`, err);
+  }
+}
+
+// An answered ask closes its popup (law 4) and stands its clock down.
+Hooks.on("updateChatMessage", message => {
+  const ask = message.getFlag(MODULE_ID, METAMAGIC_ASK_FLAG);
+  if ( !ask || (ask.status === "pending") ) return;
+  disarmAskTimer(askTimers, message.id);
+  const open = livePopups.get(popupKey(message.id, METAMAGIC_ASK_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
 });

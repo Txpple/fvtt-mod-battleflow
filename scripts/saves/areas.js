@@ -136,6 +136,7 @@ export async function refreshDemandFromTemplates(card) {
     // Careful's protected creatures never join the demand, Heightened's mark joins it (the metamagic
     // pass, Stage 2): derived from the area's contents, before the serialized write below.
     const metamagic = await metamagicForDemand(card, activity, contained);
+    if ( metamagic.hold ) return;   // the caster is being asked who the area spares — waiting keeps waiting
     // ⚠ THROUGH THE SERIALIZER (core.js), and the derivation moved INSIDE it. Everything
     // above is async — the template lookup and the bare-template claim both await — so the
     // `flag` read at the top of this function is stale by the time the write lands. Building

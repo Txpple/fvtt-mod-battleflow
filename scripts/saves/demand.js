@@ -8,7 +8,7 @@
 import { MODULE_ID, TITLE, S, setting, statContext } from "../core.js";
 import { resolveUuid, itemNamed } from "../lookup.js";
 import { saveDemandData, saveTargetEntry } from "../decide/demand.js";
-import { METAMAGIC_FLAG, carefulProtects, heightenedMark, metamagicRuleText } from "../decide/metamagic.js";
+import { METAMAGIC_FLAG, METAMAGIC_ASK_FLAG, carefulProtects, heightenedMark, metamagicRuleText } from "../decide/metamagic.js";
 import { tokensInTemplates } from "../geometry.js";
 import { isDeadForSaves } from "../decide/eligible.js";
 import { EMANATIONS, tableIndex } from "../decide/registry.js";
@@ -21,6 +21,18 @@ import { emanationEntries } from "../settings.js";
 import { offerSaveDamageRoll, rollDamageForSave } from "../auto-damage.js";
 
 /* --- metamagic on the demand (the metamagic pass, Stage 2, 2026-09-09) ---------------------- */
+
+/** A party member: in the primary party group, or a player-owned character (the ask's first group, 2026-09-09). */
+function isPartyMember(uuid) {
+  try {
+    const actor = resolveUuid(uuid);
+    if ( !(actor instanceof Actor) ) return false;
+    const base = actor.isToken ? (game.actors.get(actor.id) ?? actor) : actor;
+    const party = game.actors?.party?.system?.members?.map?.(m => m.actor?.id ?? m.actor) ?? [];
+    if ( party.includes(base.id) ) return true;
+    return (base.type === "character") && !!base.hasPlayerOwner;
+  } catch { return false; }
+}
 
 /** The caster's identity and side, as Careful's and Heightened's defaults read them. */
 function casterFactsOf(activity) {
@@ -41,10 +53,31 @@ function casterFactsOf(activity) {
  * @returns {Promise<{protectedUuids: Set<string>, heightened: {uuid: string, name: string, caster: string|null, rule: string}|null}>}
  */
 export async function metamagicForDemand(card, activity, contained) {
-  const none = { protectedUuids: new Set(), heightened: null };
+  const none = { protectedUuids: new Set(), heightened: null, hold: false };
   const mm = card?.getFlag(MODULE_ID, METAMAGIC_FLAG);
   if ( !mm || !Array.isArray(contained) ) return none;
   const facts = casterFactsOf(activity);
+  // THE ASK AT THE AREA (user ruling 2026-09-09, third look: "when the template is placed …
+  // intercept the next message, do a popup like careful spell check marks, listing everything in
+  // the template, then continue … with the ticked excluded"). A pick the window could not make —
+  // nobody was selected, the area came later — is asked NOW, of the creatures the area holds, and
+  // the demand WAITS (no targets, no clock, no asks) until the caster answers or the clock keeps
+  // the default. The ask rides its own flag (metamagic.js opens the popup and answers it); this
+  // helper only says "not yet".
+  if ( ((mm.key === "careful") || (mm.key === "heightened")) && !mm.chosen && contained.length ) {
+    const ask = card.getFlag(MODULE_ID, METAMAGIC_ASK_FLAG);
+    if ( ask?.status !== "pending" && card.canUserModify?.(game.user, "update") ) {
+      const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+      await card.setFlag(MODULE_ID, METAMAGIC_ASK_FLAG, {
+        status: "pending", kind: mm.key, feature: mm.feature, cap: mm.cap ?? 1, rule: mm.rule ?? null,
+        candidates: contained.map(c => ({ uuid: c.uuid, name: c.name, disposition: c.disposition ?? null, tokenId: c.tokenId ?? null, party: isPartyMember(c.uuid) })),
+        casterUuid: facts.casterUuid, casterDisposition: facts.casterDisposition, casterName: activity?.actor?.name ?? null,
+        ...statContext(facts.casterUuid),
+        ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
+      });
+    }
+    return { ...none, hold: true };
+  }
   if ( mm.key === "careful" ) {
     const list = carefulProtects({ contained, ...facts, cap: mm.cap ?? 1, chosen: mm.chosen ? (mm.protected ?? []).map(p => p.uuid) : null });
     // ⚠ A CHOSEN list is the player's and is never rewritten — the stamp of a bare cast sees an
@@ -112,8 +145,10 @@ async function stampSaveDemand(activity, message, results) {
     // below (the metamagic pass, Stage 2). Read off the card's birth flag against the creatures
     // the save reaches — the snapshot for a targeted cast, the area for a placed one.
     const metamagic = await metamagicForDemand(message, activity, contained ?? raw);
-    const targets = raw.filter(saveDemandable).filter(t => !metamagic.protectedUuids.has(t.uuid));
-    if ( raw.length && !targets.length && !metamagic.protectedUuids.size ) return; // every target is dead — fully native cast
+    // A metamagic ask still open (the area's creatures to be ticked) holds the demand EMPTY, the
+    // clockless wait a not-yet-placed area already takes; the answer fills it (metamagic.js).
+    const targets = metamagic.hold ? [] : raw.filter(saveDemandable).filter(t => !metamagic.protectedUuids.has(t.uuid));
+    if ( raw.length && !targets.length && !metamagic.protectedUuids.size && !metamagic.hold ) return; // every target is dead — fully native cast
     // A TEMPLATE-SHAPED activity's targetless cast stamps a WAITING demand (v1.12.0,
     // finding ③ — the natural Web flow is cast bare, then place: the old bail meant
     // adoption had no customer and the area produced no saves at all). The demand stamps
@@ -172,7 +207,7 @@ async function stampSaveDemand(activity, message, results) {
     // exist yet (the bare Web cast — `contained` null, not empty). Duration areas are
     // untouched: placed-and-empty Web keeps its wait, its area persists by design.
     const durationUnits = activity.item?.system?.duration?.units ?? null;
-    const emptyInstant = awaiting && !!contained && (durationUnits === "inst");
+    const emptyInstant = awaiting && !!contained && (durationUnits === "inst") && !metamagic.hold;
     // The flag through its one constructor (decide/demand.js, Stage 2 — emanations.js stamps the
     // same shape for its trigger card); the field order is the stamp's own.
     await message.setFlag(MODULE_ID, "saves", saveDemandData({

@@ -29,16 +29,16 @@ const SECTIONS = {
   6: 'no points: with Font of Magic spent out every row stays, greyed, "1 SP — 0 left"; the pool line says 0 of 5',
   7: 'the list is the switch: an empty Metamagic list draws no group; a list of one draws one row',
   8: 'the registration FIRED (§11): renderActivityUsageDialog and dnd5e.postUseActivity moved',
-  9: 'Careful Spell (Stage 2): a bare Fireball cast with Careful, the area placed over the Sorcerer, the Ranger and the two goblins — the two allies leave the demand (protected, the caster first), the goblins owe the save, the card names the protected, no ask opens for them',
+  9: 'Careful Spell (Stage 2, the third look): a bare Fireball cast with Careful, the area placed over the Sorcerer, the Ranger and the two goblins — the ASK opens at the area listing the four with the two non-hostiles ticked while the demand waits empty; OK → the two leave the demand, the goblins owe the save, the card names the protected',
   10: 'Heightened Spell (Stage 2): the same area — the first goblin is marked on the demand; its save gate opens with "Heightened Spell" as a Disadvantage source and Disadvantage as the default; the other goblin\'s gate carries no such source',
-  11: 'Heightened\'s pick in the window (the second look, 2026-09-09): with nobody targeted the row lists the hostiles in reach as radios, the nearest marked; the SECOND goblin picked is the one the demand marks when the area lands',
+  11: 'Heightened with nobody targeted (the third look): the window lists nobody; the ask at the area lists the four with the first goblin marked; the SECOND goblin picked is the one the demand marks',
   12: 'Twinned Spell (Stage 3): Hold Person fits (its source target count is a formula over the cast\'s level), Fireball does not; the cast spends the point and the card says one more target',
   13: 'Transmuted Spell (Stage 3): ticking it shows the five other listed types; cold picked; the card carries cold from fire; the spell\'s damage roll chained to the card wears cold',
   14: 'Extended Spell (Stage 3): Hold Person on the Victim, a forced failure — Paralyzed lands with its clock doubled (120 s); the caster\'s concentration save opens with Extended Spell as an Advantage source',
   15: 'Seeking Spell (Stage 4): a missed Chromatic Orb (AC 60) is offered Seeking as a d20 fold; the popup\'s button rerolls the d20, the spend records the reroll, one Sorcery Point goes by hand with the record on the attack message',
   16: 'Empowered Spell (Stage 4): a Fireball damage roll is offered Empowered; the popup shows the eight dice, the cap holds at three, Reroll spends the point, patches the message\'s own roll (three faces struck, the total moved), and announces old → new',
   17: 'Careful\'s ticks in the casting window (user, 2026-09-09): with the Ranger and a goblin targeted, the row lists both with the ally pre-ticked; the player\'s own pick (the goblin) is honoured on the demand',
-  18: 'Careful\'s ticks with NO target selected (the second look): the row lists every non-hostile creature within the spell\'s reach — the Sorcerer and the Ranger among them, the goblins absent — pre-ticked up to the cap'
+  18: 'Careful with NO target selected (the third look): the window lists nobody; the ask at the area lists exactly the creatures inside'
 };
 const DEPENDS = { 4: ['3'], 11: ['9'] };
 
@@ -102,7 +102,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const uiMod = await import(`/modules/${MOD}/scripts/ui.js`);
   /** The module's own moment popup for a message + sub-key, or null. */
   const popupFor = (messageId, sub) => uiMod.livePopups.get(`${messageId}|${sub}`) ?? null;
-  const closeMomentPopups = async () => { for (const [key, dlg] of [...uiMod.livePopups]) { if (/|(empowered|d20fold|armed)$/.test(key) || key.includes('|empowered')) { try { await dlg.close(); } catch { /* gone */ } } } };
+  const closeMomentPopups = async () => { for (const [key, dlg] of [...uiMod.livePopups]) { if (/|(empowered|d20fold|armed|metamagicAsk)$/.test(key) || key.includes('|empowered')) { try { await dlg.close(); } catch { /* gone */ } } } };
   const closeDialogs = async () => {
     for (const app of foundry.applications.instances.values()) {
       if (/ActivityUsageDialog|UsageDialog|RollConfigurationDialog/.test(app.constructor?.name ?? '') || app.element?.querySelector?.('[data-bf-metamagic-field]')) { try { await app.close(); } catch { /* gone */ } }
@@ -317,7 +317,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if ((attTok.x !== attHome.x) || (attTok.y !== attHome.y)) await attTok.update(attHome, { teleport: true, animate: false });
     };
     /** A bare cast with the option, then the area placed by hand over the gathered tokens (the adoption road). */
-    const castArea = async (key, tweak = null) => {
+    const castArea = async (key, tweak = null, pick = null) => {
       const { card, why } = await castWith('Fireball', key, { consume: { spellSlot: false }, create: { measuredTemplate: false } }, tweak);
       if (!card) return { card: null, why };
       await waitFor(() => card.getFlag(MOD, 'saves') ? card : null, 6000);
@@ -329,8 +329,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       templates.push(tpl.id);
       await sleep(300);
       try { ui.chat?.updateMessage?.(card); } catch { /* the next render adopts */ }
-      const adopted = await waitFor(() => { const f2 = card.getFlag(MOD, 'saves'); return (f2?.templated && f2.targets.length) ? f2 : null; }, 8000);
-      return { card, why: adopted ? '' : 'the area was never adopted' };
+      // The ask at the area (the third look, 2026-09-09): the popup lists everyone inside; the demand waits until OK.
+      const askPopup = await waitFor(() => { const d = popupFor(card.id, 'metamagicAsk'); return (d?.rendered && d.element?.querySelector?.('[data-bf-metamagic-ask]')) ? d : null; }, 8000);
+      const askRows = [...(askPopup?.element?.querySelectorAll('input[name="bf-metamagic-ask"]') ?? [])].map(i => ({ name: i.dataset.name, uuid: i.value, checked: i.checked, el: i, group: i.closest('[data-bf-ask-group]')?.dataset?.bfAskGroup ?? null, token: i.dataset.token }));
+      const heldEmpty = !(card.getFlag(MOD, 'saves')?.targets?.length);
+      if (pick) await pick(askRows, askPopup?.element ?? null);
+      askPopup?.element?.querySelector('button[data-action="ok"]')?.click();
+      const adopted = await waitFor(() => { const f2 = card.getFlag(MOD, 'saves'); return (f2?.status === 'done' || (f2?.templated && f2.targets.length)) ? f2 : null; }, 8000);
+      return { card, askRows, heldEmpty, why: askPopup ? (adopted ? '' : 'the ask was answered but the demand never filled') : 'no ask popup opened' };
     };
     const names = list => (list ?? []).map(t => t.name).sort().join(',');
 
@@ -338,8 +344,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(9) && rgrTok && vicTok) {
       await gather();
       await set('saveTimer', 0);
-      const { card, why } = await castArea('careful');
+      const { card, why, askRows, heldEmpty } = await castArea('careful');
       carefulCard = card;
+      ok('9x. the ask opened at the area listing everyone inside — four, the Sorcerer and the Ranger ticked, the goblins not — while the demand waited empty', askRows?.length === 4 && askRows.filter(r => r.checked).map(r => r.name).sort().join(',') === 'BF Test Ranger,BF Test Sorcerer' && heldEmpty === true, `rows=${askRows?.map(r => `${r.name}:${r.checked}`).join(',')} heldEmpty=${heldEmpty}`);
+      ok('9y. two groups: the Sorcerer (player-owned for the run) under Party, the Ranger and the goblins under Non-Party; every row names its token', askRows?.find(r => r.name === 'BF Test Sorcerer')?.group === 'Party' && askRows?.filter(r => r.name !== 'BF Test Sorcerer').every(r => r.group === 'Non-Party') && askRows.every(r => !!r.token), askRows?.map(r => r.name + '@' + r.group).join(','));
       if (card) keepCards.add(card.id);
       const saves = card?.getFlag(MOD, 'saves'), mm = card?.getFlag(MOD, 'metamagic');
       log.push(`§9: saves=${JSON.stringify({ status: saves?.status, templated: saves?.templated, awaiting: saves?.awaitingTemplate, n: saves?.targets?.length, mmKeys: Object.keys(mm ?? {}) })} templates=${scene.templates.filter(t => t.getFlag('dnd5e', 'origin') === saves?.activityUuid).length} otherDemands=${game.messages.filter(m => m.id !== card?.id && m.getFlag(MOD, 'saves')?.activityUuid === saves?.activityUuid).length}`);
@@ -347,7 +355,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('9a. the cast is born with Careful and the cap (Charisma +3)', mm?.key === 'careful' && mm?.cap === 3, why || JSON.stringify({ key: mm?.key, cap: mm?.cap }));
       // The window's default: every non-hostile in reach up to the cap (three) - the Sorcerer first, the Ranger
       // beside him, a third ally from the row (the Paladin, 35 ft off); the DEMAND protects the two the area holds.
-      ok('9b. the window ticked the caster first and the Ranger, up to the cap, and the demand honours it', mm?.chosen === true && (mm?.protected?.length === 3) && (mm.protected[0].uuid === sorc.uuid) && mm.protected.some(p => p.uuid === ranger.uuid), JSON.stringify(mm?.protected));
+      ok('9b. the answer is the caster first and the Ranger, marked chosen', mm?.chosen === true && (mm?.protected?.length === 2) && (mm.protected[0].uuid === sorc.uuid) && (mm.protected[1].uuid === ranger.uuid), JSON.stringify(mm?.protected));
       ok('9c. the demand holds the two goblins and neither ally', (saves?.targets?.length === 2) && saves.targets.every(t => [attacker.id, victim.id].some(id => String(t.uuid).endsWith(id))), names(saves?.targets));
       const line = card ? await renderedLine(card, 'bf-metamagic-line') : null;
       ok('9d. the card names the protected: no save, no damage', /Careful Spell — .*protected: no save, no damage/.test(line ?? '') && /BF Test Sorcerer/.test(line ?? '') && /BF Test Ranger/.test(line ?? ''), line);
@@ -386,13 +394,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('saveTimer', 0);
       game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
       let radios = [];
+      let windowRadios = 0;
       const { card, why } = await castArea('heightened', fs => {
-        radios = [...(fs?.querySelectorAll('[data-bf-metamagic-row="heightened"] input[name="bf-metamagic-mark"]') ?? [])];
-        radios[1]?.click();
+        windowRadios = (fs?.querySelectorAll('[data-bf-metamagic-row="heightened"] input[name="bf-metamagic-mark"]') ?? []).length;
+      }, rows => {
+        radios = rows;
+        const goblins = rows.filter(r => /Hobgoblin|Goblin/.test(r.name));
+        goblins[1]?.el?.click();
       });
-      ok('11a. with nobody targeted the Heightened row lists the hostiles in reach — the two goblins, no ally — the nearest marked', radios.length === 2 && radios.every(r => /Hobgoblin|Goblin/.test(r.dataset.name)) && radios.some(r => r.checked), radios.map(r => `${r.dataset.name}:${r.checked}`).join(','));
+      ok('11a. with nobody targeted the window lists nobody; the ask at the area lists the four with the first goblin marked', windowRadios === 0 && radios.length === 4 && radios.filter(r => r.checked).length === 1 && /Hobgoblin|Goblin/.test(radios.find(r => r.checked)?.name ?? ''), `window=${windowRadios} rows=${radios.map(r => `${r.name}:${r.checked}`).join(',')}`);
       const mm = card?.getFlag(MOD, 'metamagic'), saves = card?.getFlag(MOD, 'saves');
-      ok('11b. the second goblin picked is the one the demand marks once the area lands', mm?.chosen === true && !!mm?.target && saves?.demand?.heightened?.uuid === radios[1]?.value && mm.target.uuid === radios[1]?.value, why || JSON.stringify({ target: mm?.target, mark: saves?.demand?.heightened?.name }));
+      const second = radios.filter(r => /Hobgoblin|Goblin/.test(r.name))[1];
+      ok('11b. the second goblin picked is the one the demand marks', mm?.chosen === true && !!mm?.target && saves?.demand?.heightened?.uuid === second?.uuid && mm.target.uuid === second?.uuid, why || JSON.stringify({ target: mm?.target, mark: saves?.demand?.heightened?.name }));
       await closeDialogs();
     } else if (want(11)) ok('11. fixtures', false, 'BF Test Ranger or BF Test Victim missing');
 
@@ -599,11 +612,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       rowsOf(fs).find(r => r.key === 'careful')?.box?.click(); await sleep(80);
       const ticks = [...(fs?.querySelectorAll('[data-bf-metamagic-row="careful"] input[name="bf-metamagic-protect"]') ?? [])];
       const names18 = ticks.map(t => t.dataset.name);
-      const sd = scene.tokens.get(sorcTok.id);
-      log.push(`§18 sorcerer token: x=${sd?.x},y=${sd?.y} disp=${sd?.disposition} hidden=${sd?.hidden} secret=${sd?.isSecret} hp=${sd?.actor?.system?.attributes?.hp?.value} onCanvas=${!!canvas.tokens.get(sorcTok.id)} actorUuid=${sd?.actor?.uuid}`);
-      ok('18a. with nobody targeted the row lists the non-hostiles in reach: the Sorcerer and the Ranger present, no goblin', names18.includes('BF Test Sorcerer') && names18.includes('BF Test Ranger') && !names18.some(n => /Hobgoblin|Goblin/.test(n)), names18.join(','));
-      ok('18b. the caster is first and ticked, the ticks stop at the cap (3)', ticks[0]?.dataset.name === 'BF Test Sorcerer' && ticks[0]?.checked && ticks.filter(t => t.checked).length === Math.min(3, ticks.length), ticks.map(t => `${t.dataset.name}:${t.checked}`).join(','));
+      ok('18x. with nobody targeted the window lists nobody — the pick waits for the area', ticks.length === 0, names18.join(','));
       await app?.close();
+      await closeDialogs();
+      const gone = await castArea('careful');
+      ok('18y. the ask at the area lists exactly the four inside — never the Paladin or Gren out on the range', gone.askRows?.length === 4 && !gone.askRows.some(r => /Paladin|Gren|Cleric|Rogue|Shielder/.test(r.name)), gone.why || gone.askRows?.map(r => r.name).join(','));
       await scatter();
     } else if (want(18)) ok('18. fixtures', false, 'BF Test Ranger missing');
 

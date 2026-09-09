@@ -88,6 +88,9 @@ dnd5e.rollDamageV2	metamagic.js
 ready	metamagic.js
 dnd5e.renderChatMessage	metamagic.js
 updateChatMessage	metamagic.js
+dnd5e.renderChatMessage	metamagic.js
+ready	metamagic.js
+updateChatMessage	metamagic.js
 dnd5e.rollAttackV2	precision.js
 dnd5e.renderChatMessage	precision.js
 updateChatMessage	precision.js

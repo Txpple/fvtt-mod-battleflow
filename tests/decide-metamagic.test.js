@@ -12,7 +12,8 @@ import {
   scalesTargetsFrom,
   extendedDuration,
   empoweredPlan,
-  empoweredOutcome
+  empoweredOutcome,
+  askDefaults
 } from "../scripts/decide/metamagic.js";
 
 // The three fixture spells as the probe measured them (tools/probe-metamagic.mjs, 2026-09-09).
@@ -390,5 +391,83 @@ describe("Careful's default is every non-hostile (the second look, 2026-09-09)",
       cap: 5
     });
     expect(list.map(p => p.name)).toEqual(["Orc", "Villager"]);
+  });
+});
+
+describe("the ask at the area (the third look, 2026-09-09)", () => {
+  const candidates = [
+    { uuid: "Actor.g1", name: "Goblin", disposition: -1 },
+    { uuid: "Actor.gren", name: "Gren", disposition: 1 },
+    { uuid: "Actor.rgr", name: "Ranger", disposition: 1 },
+    { uuid: "Actor.v", name: "Villager", disposition: 0 },
+    { uuid: "Actor.g2", name: "Hobgoblin", disposition: -1 }
+  ];
+  it("Careful's defaults are the non-hostiles up to the cap, the caster first", () => {
+    expect(
+      askDefaults({
+        kind: "careful",
+        candidates,
+        casterUuid: "Actor.gren",
+        casterDisposition: 1,
+        cap: 2
+      }).map(c => c.name)
+    ).toEqual(["Gren", "Ranger"]);
+    expect(
+      askDefaults({
+        kind: "careful",
+        candidates,
+        casterUuid: "Actor.gren",
+        casterDisposition: 1,
+        cap: 5
+      }).map(c => c.name)
+    ).toEqual(["Gren", "Ranger", "Villager"]);
+  });
+  it("Heightened's default is the first hostile in the area", () => {
+    expect(
+      askDefaults({
+        kind: "heightened",
+        candidates,
+        casterUuid: "Actor.gren",
+        casterDisposition: 1
+      }).map(c => c.name)
+    ).toEqual(["Goblin"]);
+    expect(
+      askDefaults({
+        kind: "heightened",
+        candidates: [candidates[1]],
+        casterUuid: "Actor.gren",
+        casterDisposition: 1
+      })
+    ).toEqual([]);
+  });
+});
+
+describe("the party comes first in Careful's defaults", () => {
+  const candidates = [
+    { uuid: "Actor.ally", name: "Hired Guard", disposition: 1, party: false },
+    { uuid: "Actor.jetten", name: "Jetten", disposition: 1, party: true },
+    { uuid: "Actor.gren", name: "Gren", disposition: 1, party: true },
+    { uuid: "Actor.morgash", name: "Morgash", disposition: 1, party: true },
+    { uuid: "Actor.orc", name: "Orc", disposition: -1, party: false }
+  ];
+  it("ticks the caster, then the party, then the rest, up to the cap", () => {
+    expect(
+      askDefaults({
+        kind: "careful",
+        candidates,
+        casterUuid: "Actor.gren",
+        casterDisposition: 1,
+        cap: 3
+      }).map(c => c.name)
+    ).toEqual(["Gren", "Jetten", "Morgash"]);
+    expect(
+      askDefaults({
+        kind: "careful",
+        candidates,
+        casterUuid: "Actor.gren",
+        casterDisposition: 1,
+        cap: 4
+      }).map(c => c.name)
+    ).toEqual(["Gren", "Jetten", "Morgash", "Hired Guard"]);
   });
 });

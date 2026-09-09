@@ -20,6 +20,21 @@
 
 /** The flag the cast's card carries: `{ key, feature, cost, ... }` (metamagic.js writes it). */
 export const METAMAGIC_FLAG = "metamagic";
+/** The ask at the area — who the spell spares, or who saves at Disadvantage — raised by the demand, answered by metamagic.js. */
+export const METAMAGIC_ASK_FLAG = "metamagicAsk";
+
+/**
+ * The ask's defaults, from its own facts: Careful's non-hostiles up to the cap, Heightened's
+ * nearest hostile — the same arithmetic the cast would have used silently.
+ * @param {{kind: string, candidates: {uuid: string, name: string, disposition?: number|null}[], casterUuid: string|null, casterDisposition: number|null, cap?: number}} ask
+ * @returns {{uuid: string, name: string}[]}
+ */
+export function askDefaults(ask) {
+  const facts = { contained: ask?.candidates ?? [], casterUuid: ask?.casterUuid ?? null, casterDisposition: ask?.casterDisposition ?? null };
+  if ( ask?.kind === "careful" ) return carefulProtects({ ...facts, cap: ask.cap ?? 1 });
+  const mark = heightenedMark(facts);
+  return mark ? [mark] : [];
+}
 
 /**
  * The named predicates a registry row's `when` resolves to, over the facts of the spell being
@@ -170,7 +185,9 @@ export function carefulProtects({ contained, casterUuid = null, casterDispositio
   // caster's own side, then the neutrals, each group in the order the list came (nearest first
   // where the window built it). A secret token is nobody's to protect.
   const hostile = (casterDisposition === 1) ? -1 : (casterDisposition === -1) ? 1 : null;
-  const rank = c => (c.uuid === casterUuid) ? 0 : (c.disposition === casterDisposition) ? 1 : 2;
+  // The PARTY first (user, 2026-09-09: "party members default check yes to the extent allowed"),
+  // then the caster's own side, then the neutrals — the caster ahead of all.
+  const rank = c => (c.uuid === casterUuid) ? 0 : c.party ? 1 : (c.disposition === casterDisposition) ? 2 : 3;
   const friends = list.filter(c => (c.uuid === casterUuid)
     || ((c.disposition !== undefined) && (c.disposition !== null) && (c.disposition !== -2) && (c.disposition !== hostile)));
   friends.sort((a, b) => rank(a) - rank(b));
