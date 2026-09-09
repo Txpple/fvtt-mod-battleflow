@@ -153,6 +153,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     try { if ((sorcTok.x !== sorcHome.x) || (sorcTok.y !== sorcHome.y)) await sorcTok.update(sorcHome, { teleport: true, animate: false }); } catch { /* fine */ }
     try { const orb = sorc.items.find(i => (i.type === 'spell') && (i.name === 'Chromatic Orb')); if (orb && (orb.system._source.range.value !== 90)) await orb.update({ 'system.range.value': 90 }); } catch { /* fine */ }
     try { if (player) await sorc.update({ ownership: ownership0 }, { diff: false, recursive: false }); } catch (e) { log.push(`ownership restore failed: ${e.message}`); }
+    try { await closeMomentPopups(); } catch { /* fine */ }
+    await sleep(1500);   // in-flight verdicts land before their cards go
     try { const live = (globalThis.__bfMetamagicTemplates ?? []).filter(id => scene.templates.get(id)); if (live.length) await scene.deleteEmbeddedDocuments('MeasuredTemplate', live); } catch { /* fine */ }
     try { const ids = myCards().map(m => m.id); if (ids.length) await ChatMessage.deleteDocuments(ids); } catch (e) { log.push(`message cleanup failed: ${e.message}`); }
   };
@@ -304,6 +306,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // suite's making left to claim the area — the template's origin is the ACTIVITY, shared by
       // every cast of the spell, and adoption serves the oldest waiting card.
       const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
+      // Let in-flight verdicts land before their cards go (the 2026-09-09 run: 'Verdict line failed - ChatMessage does not exist').
+      await closeDialogs(); await closeMomentPopups(); await sleep(1500);
       const stale = myCards().filter(m => !keepCards.has(m.id)).map(m => m.id);
       if (stale.length) await ChatMessage.deleteDocuments(stale);
       await sorcTok.update(sorcHome, { teleport: true, animate: false });
