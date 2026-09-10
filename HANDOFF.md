@@ -97,12 +97,17 @@ authorized to plan and edit this repo"*) while the FX Studio session built the m
   advisory it worked from is in this session's transcript; its `holdFor` signature had not landed
   back here when this was written. ⚠ **Neither module may import the other**, and some tables
   install neither.
-- **The joint proof, and the one run still owed.** FX Studio's `smoke-replay` **50/50** ran with its
-  gate registered against the sandbox's **pre-`holds.js`** Battle Flow — so the `castHold` fallback
-  is proved LIVE, not asserted. ⚠ **Nothing has exercised the `holdFor` road at the table.** Deploy
-  this build to the sandbox and re-run that suite once the user's walk is over; it needs no change
-  on either side. It is also the only automated proof the two modules work together — this repo's
+- ✅ **The joint proof — MADE, and it is green on both roads** (2026-09-09, after the four commits).
+  `deploy-house-module.mjs fvtt-mod-battleflow --local` put `holds.js` on the sandbox
+  (byte-identical), and FX Studio's `smoke-replay` ran **50 of 50**, its §15 gate section included:
+  nothing plays while the hold stands · it plays when the hold lifts · a hold that lifts on NOTHING
+  plays nothing · the gate unregisters · with nothing holding, the same cast plays straight away.
+  Settings **CLEAN** after. The earlier 50/50 had run against the PRE-`holds.js` build, which
+  separately proves the `castHold` fallback live — so **both roads are now covered**, the old and
+  the new. It remains the only automated proof the two modules work together: this repo's own
   harness cannot reach the carrier road at all (§2).
+  ⚠ `smoke-replay.mjs` has **no `--help`** — passing one runs a PARTIAL plan (§1–§6) and still
+  exits 0. A green exit is not a pass; read the `PASS: n of n` line.
 
 ## 4. Known gaps and where the evidence is
 
