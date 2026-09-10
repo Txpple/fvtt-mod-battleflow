@@ -106,8 +106,14 @@ authorized to plan and edit this repo"*) while the FX Studio session built the m
   separately proves the `castHold` fallback live — so **both roads are now covered**, the old and
   the new. It remains the only automated proof the two modules work together: this repo's own
   harness cannot reach the carrier road at all (§2).
-  ⚠ `smoke-replay.mjs` has **no `--help`** — passing one runs a PARTIAL plan (§1–§6) and still
-  exits 0. A green exit is not a pass; read the `PASS: n of n` line.
+  ⚠ **A GREEN EXIT CODE IS NOT A PASS** — read the `PASS: n of n` line and the `⚠ PARTIAL RUN`
+  stamp. A deliberately partial run (`--section n`) exits 0 by design, and the first invocation
+  here **stopped mid-§6 at 15 assertions with no report line at all** and still exited 0. ⚠ The
+  cause is **UNKNOWN and unchased** — an earlier version of this bullet blamed passing `--help`,
+  and that was **wrong**: `sectionPlan` parses with `strict: false`, so an unknown flag is ignored
+  and asks for the WHOLE suite (verified both repos, 2026-09-09). Do not pass a flag believing it
+  truncates. If it recurs, the candidates are the 900 s connection watchdog or a section throwing
+  inside the page, and the last console line before the report says which.
 
 ## 4. Known gaps and where the evidence is
 
