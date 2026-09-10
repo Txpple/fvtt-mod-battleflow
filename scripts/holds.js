@@ -99,7 +99,8 @@ function holdEntry(subject) {
  * matched by exactly one call of what it returns — the returned function is idempotent, so a
  * machine that lowers twice on two paths (the answer AND the carrier's deletion) is safe.
  *
- * `bound` is a millisecond ceiling after which the hold settles itself with `null`. Pass it
+ * `bound` is a millisecond ceiling after which the hold LIFTS itself (the truthy sentinel — never
+ * `null`, which would read as "play nothing" for what is only a late answer). Pass it
  * whenever the moment carries a clock, and pass nothing when it does not: a moment waits
  * forever only by explicit setting (ARCHITECTURE §5 law 11), and a self-bound under a
  * deliberately clockless ask would release while the caster is still reading.
