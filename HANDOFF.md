@@ -119,8 +119,10 @@ authorized to plan and edit this repo"*) while the FX Studio session built the m
 
 - **The battery** (2026-09-09, 25 suites, 181/181 registrations fired, `dist/battery/2026-09-09T16-49-37`)
   ran before the evening's recuts (the ask at the area, the deferred card, the cast hold, the
-  Dreadful Strike spend record). Only `smoke-metamagic` (76/76) and `smoke-clock` §1 have run on
-  HEAD. A full battery on HEAD is the honest next check before any release; two sections failed
+  Dreadful Strike spend record). On HEAD **after the hold commits** (2026-09-09, later):
+  `smoke-metamagic` **76/76** with no Battle Flow errors or warnings, `smoke-clock` §1, and FX
+  Studio's `smoke-replay` 50/50 (§3); settings CLEAN after each. A full battery on HEAD is still
+  the honest next check before any release; two sections failed
   inside the last battery and passed alone (saves §22, emanations §11 — NOTES §5, the ordering
   class): rerun alone before diagnosing.
 - **Twinned** is a data read with an exceptions table (`TWINNED_EXCEPTIONS`, registry.js); every
