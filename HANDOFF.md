@@ -117,14 +117,12 @@ authorized to plan and edit this repo"*) while the FX Studio session built the m
 
 ## 4. Known gaps and where the evidence is
 
-- **The battery** (2026-09-09, 25 suites, 181/181 registrations fired, `dist/battery/2026-09-09T16-49-37`)
-  ran before the evening's recuts (the ask at the area, the deferred card, the cast hold, the
-  Dreadful Strike spend record). On HEAD **after the hold commits** (2026-09-09, later):
-  `smoke-metamagic` **76/76** with no Battle Flow errors or warnings, `smoke-clock` §1, and FX
-  Studio's `smoke-replay` 50/50 (§3); settings CLEAN after each. A full battery on HEAD is still
-  the honest next check before any release; two sections failed
-  inside the last battery and passed alone (saves §22, emanations §11 — NOTES §5, the ordering
-  class): rerun alone before diagnosing.
+- ✅ **The battery on HEAD is GREEN** (2026-09-10T01-22-08, after the hold commits): every suite
+  green, settings clean, **40m 20s**; hook coverage **188/188 registrations, 49/49 observable
+  names** (181 last time — the seven new are the hold work's). ⚠ Both sections that failed INSIDE
+  the previous battery and passed alone (saves §22, emanations §11 — the ordering class, NOTES §5)
+  ran clean in-battery this time: saves 102/102, emanations 68/68. `dist/battery/2026-09-10T01-22-08`
+  holds every suite's full output. This is the pre-release check, made.
 - **Twinned** is a data read with an exceptions table (`TWINNED_EXCEPTIONS`, registry.js); every
   name the user was asked about is ruled — Magic Missile, Scorching Ray, Animate Dead, Create
   Undead, Cordon of Arrows, Tasha's Mind Whip OUT; Jump, Chain Lightning IN.
