@@ -6,8 +6,9 @@ session"); retire it when the commission below is delivered (BACKLOG's rule: no 
 **Where we are.** The metamagic pass — all ten 2024 Sorcerer options — was drawn, ruled and
 delivered on 2026-09-09 in one day (PLAN.md *THE METAMAGIC PASS*, DESIGN §6 *Metamagic*), then
 recut three times the same evening from the user's live walks on the sandbox. **Everything is
-committed and pushed** (main == origin/main, 24 commits after v1.34.3). **Nothing is released:
-prod stays on v1.34.3**, and the release is the user's call alone. The sandbox carries HEAD;
+committed and pushed** (main == origin/main). ✅ **RELEASED as v1.35.0 on 2026-09-10** (the user:
+"commit/push release to prod") — the metamagic pass and the hold registry together, after the
+battery on HEAD went green. The sandbox carries HEAD;
 `smoke-metamagic` is 76/76 on it, settings CLEAN, the battery green (2026-09-09, before the
 evening's recuts — see §4).
 
@@ -137,6 +138,10 @@ authorized to plan and edit this repo"*) while the FX Studio session built the m
 ## 5. Release, when the user says so
 
 `tools/build-release.ps1` for the zip; `deploy-house-module.mjs fvtt-mod-battleflow` (no flag) is
-PROD — never run it unasked. Two new files since v1.34.3 (`scripts/metamagic.js`,
-`scripts/decide/metamagic.js`); WebDAV never prunes, nothing was removed this pass. The R4 pin is
+PROD — never run it unasked. Three new files since v1.34.3 (`scripts/metamagic.js`,
+`scripts/decide/metamagic.js`, `scripts/holds.js`); WebDAV never prunes, nothing was removed this pass.
+⚠ **A half-awake Molten box answers every WebDAV GET with a 404 page, so `--check` reports every
+file DIFFER with ONE identical hash** — seen 2026-09-10 on the first check of the night. It is not
+a stopped box: a read through the molten5e bridge (`get-world-info`) wakes it, and the re-check is
+then sane. Never deploy on an all-identical check; wake it, re-check, then deploy. The R4 pin is
 30 (`seeking`), the source-file pin 72.
