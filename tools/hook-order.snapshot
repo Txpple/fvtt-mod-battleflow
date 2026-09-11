@@ -79,6 +79,7 @@ dnd5e.preRollDamageV2	superiority-uses.js
 dnd5e.renderChatMessage	superiority-uses.js
 dnd5e.postUseActivity	use-chips.js
 dnd5e.renderChatMessage	use-chips.js
+dnd5e.preUseActivity	metamagic.js
 renderActivityUsageDialog	metamagic.js
 closeActivityUsageDialog	metamagic.js
 dnd5e.preRollDamageV2	metamagic.js

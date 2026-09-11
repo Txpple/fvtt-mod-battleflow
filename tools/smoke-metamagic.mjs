@@ -38,7 +38,8 @@ const SECTIONS = {
   15: 'Seeking Spell (Stage 4): a missed Chromatic Orb (AC 60) is offered Seeking as a d20 fold; the popup\'s button rerolls the d20, the spend records the reroll, one Sorcery Point goes by hand with the record on the attack message',
   16: 'Empowered Spell (Stage 4): a Fireball damage roll is offered Empowered; the popup shows the eight dice, the cap holds at three, Reroll spends the point, patches the message\'s own roll (three faces struck, the total moved), and announces old → new',
   17: 'Careful\'s ticks in the casting window (user, 2026-09-09): with the Ranger and a goblin targeted, the row lists both with the ally pre-ticked; the player\'s own pick (the goblin) is honoured on the demand',
-  18: 'Careful with NO target selected (the third look): the window lists nobody; the ask at the area lists exactly the creatures inside'
+  18: 'Careful with NO target selected (the third look): the window lists nobody; the ask at the area lists exactly the creatures inside',
+  19: 'the cantrip (2026-09-10): Fire Bolt has no slot, template or scaling, so the system never opened the usage dialog and the group never showed - the module opens it; Distant, Quickened, Subtle, Transmuted and Twinned fit, Careful, Heightened and Extended do not; Transmuted\'s type radios are inert until Transmuted is ticked',
 };
 const DEPENDS = { 4: ['3'], 11: ['9'] };
 
@@ -683,6 +684,34 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('18y. the ask at the area lists exactly the four inside — never the Paladin or Gren out on the range', gone.askRows?.length === 4 && !gone.askRows.some(r => /Paladin|Gren|Cleric|Rogue|Shielder/.test(r.name)), gone.why || gone.askRows?.map(r => r.name).join(','));
       await scatter();
     } else if (want(18)) ok('18. fixtures', false, 'BF Test Ranger missing');
+
+    if (want(19)) {
+      const p19 = pool(); if (p19.system.uses.spent) await p19.update({ 'system.uses.spent': 0 });
+      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      // The real path: the default dialog config (configure undecided), which for a cantrip used to mean no window at all.
+      const act19 = spellAct('Fire Bolt');
+      const pending19 = act19?.use({ consume: { spellSlot: false } }, {}, { create: true });
+      pending19?.catch?.(() => {});
+      const app19 = await waitFor(() => [...foundry.applications.instances.values()].find(a => /ActivityUsageDialog|UsageDialog/.test(a.constructor?.name ?? '') && a.element?.querySelector?.('[data-bf-metamagic-field]')) ?? null, 6000);
+      const fs19 = app19?.element?.querySelector('[data-bf-metamagic-field]') ?? null;
+      ok('19a. Fire Bolt opens the casting window with the metamagic group (the system alone would have opened nothing)', !!act19 && !!fs19, JSON.stringify({ spell: !!act19, window: !!app19, group: !!fs19 }));
+      const rows19 = rowsOf(fs19);
+      const on19 = rows19.filter(r => !r.off).map(r => r.key).sort();
+      const off19 = rows19.filter(r => r.off).map(r => r.key).sort();
+      ok('19b. the rows that fit a cantrip attack: Distant, Quickened, Subtle, Transmuted, Twinned; Careful, Heightened and Extended greyed', on19.join(',') === 'distant,quickened,subtle,transmuted,twinned' && ['careful', 'extended', 'heightened'].every(k => off19.includes(k)), JSON.stringify({ on: on19, off: off19 }));
+      ok('19c. no scaling section was drawn for the cantrip - the lever is invisible', !app19?.element?.querySelector('[name="scalingValue"], [name="spell.slot"]'), 'scaling controls present');
+      // TRANSMUTED'S TYPE RADIOS ARE INERT UNTIL TRANSMUTED IS TICKED (user, 2026-09-10).
+      const types19 = () => [...(fs19?.querySelectorAll('[data-bf-metamagic-row="transmuted"] input[name="bf-metamagic-type"]') ?? [])];
+      const tRow = rows19.find(r => r.key === 'transmuted');
+      const inert0 = types19().length > 0 && types19().every(r => r.disabled);
+      tRow?.box?.click(); await sleep(80);
+      const live1 = types19().every(r => !r.disabled);
+      tRow?.box?.click(); await sleep(80);
+      const inert2 = types19().every(r => r.disabled);
+      ok('19d. the Transmuted type radios are greyed until Transmuted is ticked, live once it is, greyed again when it is not', inert0 && live1 && inert2, JSON.stringify({ radios: types19().length, inert0, live1, inert2 }));
+      await app19?.close();
+      await closeDialogs();
+    }
 
     if (want(8)) {
       ok('8a. renderActivityUsageDialog fired', count('renderActivityUsageDialog') > 0, `count=${count('renderActivityUsageDialog')}`);

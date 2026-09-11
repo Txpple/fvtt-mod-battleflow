@@ -117,6 +117,37 @@ function spellFactsOf(activity) {
 /** activity uuid → the pick made in the dialog (`{ key, feature, cost, poolId, rangeFeet }`). */
 const pending = new Map();
 
+/** The window's rows for a spell's use - the same read the window makes - or null when the caster has none that fit. */
+function windowMenuFor(activity) {
+  const actor = activity?.actor;
+  if ( !activity || (activity.item?.type !== "spell") || !actor?.isOwner ) return null;
+  const known = knownOptions(actor);
+  if ( !known.size ) return null;
+  const first = [...known.values()].map(i => poolFor(actor, i)).find(Boolean) ?? null;
+  const points = Math.max(0, Number(first?.system?.uses?.value ?? 0));
+  const costs = Object.fromEntries([...known].map(([feature, item]) => [feature, costOf(item)]));
+  const menu = metamagicMenu({ table: METAMAGIC, listed: known.keys(), known: known.keys(), facts: spellFactsOf(activity), points, costs, transmutedTypes: TRANSMUTED_TYPES });
+  return menu.length ? menu : null;
+}
+
+// THE WINDOW OPENS FOR A CANTRIP (user, 2026-09-10: "firebolt doesn't seem to trigger any
+// metamagics" - "is there a rule why, or bug?" A bug). The system opens the usage dialog only when
+// a use has something to configure - a slot, a template, scaling, consumption - and a cantrip has
+// none, so it never opened the window the whole group lives in. The lever is the system's own: a use
+// whose `scaling` is not `false` requires the dialog, and a cantrip at scaling 0 draws no scaling
+// section (it needs no slot and cannot scale) and consumes nothing. So when the caster has a row
+// that fits and can be paid, and nothing else would open the window, the module says "scaling 0".
+// A caller that suppressed the dialog (`configure: false` - the suites, a macro) is respected.
+Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig) => {
+  try {
+    if ( dialogConfig?.configure === false ) return;
+    if ( usageConfig?.scaling !== false ) return;                 // something else opens it already
+    const menu = windowMenuFor(activity);
+    if ( !menu?.some(r => r.eligible && r.affordable) ) return;
+    usageConfig.scaling = 0;
+  } catch(err) { console.warn(`${TITLE} | Could not open the casting window for the metamagic group.`, err); }
+});
+
 Hooks.on("renderActivityUsageDialog", (app, element) => {
   try {
     const activity = app?.activity ?? app?.options?.activity ?? null;
@@ -171,10 +202,13 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
       // HEIGHTENED'S RADIO IS INERT UNTIL HEIGHTENED IS TICKED (user, 2026-09-10: "targets of heightened
       // should be greyed out if the checkbox is not checked"). A live radio under an unticked option
       // reads as a choice already made; it greys with its row and wakes with the tick.
-      const heightenedOn = picked === "heightened";
-      for ( const r of fs.querySelectorAll('[data-bf-metamagic-row="heightened"] input[name="bf-metamagic-mark"]') ) r.disabled = !heightenedOn;
-      const markSub = fs.querySelector('[data-bf-metamagic-row="heightened"] [data-bf-metamagic-sub="mark"]');
-      if ( markSub ) markSub.style.opacity = heightenedOn ? "1" : "0.45";
+      // Transmuted's type radios the same (user, 2026-09-10: "transmute spell needs the same grey out").
+      for ( const [key, sub, name] of [["heightened", "mark", "bf-metamagic-mark"], ["transmuted", "type", "bf-metamagic-type"]] ) {
+        const on = picked === key;
+        for ( const r of fs.querySelectorAll(`[data-bf-metamagic-row="${key}"] input[name="${name}"]`) ) r.disabled = !on;
+        const box = fs.querySelector(`[data-bf-metamagic-row="${key}"] [data-bf-metamagic-sub="${sub}"]`);
+        if ( box ) box.style.opacity = on ? "1" : "0.45";
+      }
       const row = menu.find(r => r.key === picked);
       const pick = metamagicPick({ menu, chosen: picked });
       if ( pick ) {

@@ -314,7 +314,7 @@ const out = await f.evaluate(async ({ playerName }) => {
       { name: "BF Test Sorcerer", classes: [["Sorcerer", 5], ["Draconic Sorcery", null]],
         feats: ["Font of Magic", "Metamagic", "Careful Spell", "Distant Spell", "Empowered Spell", "Extended Spell", "Heightened Spell",
           "Quickened Spell", "Seeking Spell", "Subtle Spell", "Transmuted Spell", "Twinned Spell"],
-        spells: ["Fireball", "Hold Person", "Chromatic Orb"], gear: ["Dagger"], spellcasting: "cha",
+        spells: ["Fireball", "Hold Person", "Chromatic Orb", "Fire Bolt"], gear: ["Dagger"], spellcasting: "cha",   // Fire Bolt: the CANTRIP shape (2026-09-10) - no slot, no template, no scaling, so the system alone opens no window
         abilities: { cha: 16, con: 14, dex: 14, str: 8 }, hp: 32, x: 1000, y: 1800 }
     ];
     const built = [];
