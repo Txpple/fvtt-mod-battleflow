@@ -57,6 +57,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     return false;
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // THE MOMENT EVENTS (events.js version 2, 2026-09-11): every payload the module publishes during this
+  // run — the GATE publishes it from the record landing, so a section asserts the resolve it drove was heard.
+  const moments = [];
+  const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
+  const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
+  const plain = p => { try { return JSON.stringify(p) === JSON.stringify(JSON.parse(JSON.stringify(p))); } catch { return false; } };
   const suiteStart = Date.now();
 
   const mod = game.modules.get(MOD);
@@ -355,6 +361,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           !!receipt?.targets?.some(t => (t.uuid === victim.uuid)
             && t.effects.some(e => e.id === vexed?.id)),
           JSON.stringify(receipt?.targets?.map(t => ({ uuid: t.uuid, effects: t.effects }))));
+        // THE MOMENT EVENTS (events.js version 2): the Vexed chip joining the effect receipt publishes `effect`
+        // through the GATE — marker `<target>|<effect id>`, the target as the payload's target.
+        const efv = momentsOf('effect').filter(p => (p.messageId === dmg?.id) && (p.details?.effectId === vexed?.id));
+        ok('2c. the chip\'s landing was PUBLISHED through the gate: battleflow.moment "effect" (kind effectReceipt, marker victim|effect) — the victim as the target, the Vexed effect by id and name; once, plain and frozen',
+          (efv.length === 1) && (efv[0].kind === 'effectReceipt') && (efv[0].marker === `${victim.uuid}|${vexed?.id}`) && (efv[0].targets?.[0]?.actorUuid === victim.uuid)
+            && (efv[0].ability === vexed?.name) && Object.isFrozen(efv[0]) && plain(efv[0]),
+          `effect=${JSON.stringify(efv[0])}`);
       }
     }
 
@@ -484,6 +497,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('5d. the popup closed once the answer landed',
           await waitFor(() => !document.querySelector('.application.dialog button[data-action="use"]')) !== null,
           'a Use/Pass dialog is still open');
+        // THE MOMENT EVENTS (events.js version 2): the mastery ask resolving to `done` publishes `mastery` through the GATE.
+        const mv = momentsOf('mastery').filter(p => p.messageId === attackMsg.id);
+        ok('5e. the ask\'s resolve was PUBLISHED through the gate: battleflow.moment "mastery" (kind mastery) — the attacker, slow, used, the victim as the target; once, plain and frozen',
+          (mv.length === 1) && (mv[0].kind === 'mastery') && (mv[0].actorUuid === pc.uuid) && (mv[0].details?.key === 'slow') && (mv[0].details?.outcome === 'used')
+            && (mv[0].targets?.some(t => t.actorUuid === victim.uuid)) && Object.isFrozen(mv[0]) && plain(mv[0]),
+          `mastery=${JSON.stringify(mv[0])}`);
       }
     }
 
@@ -1410,6 +1429,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
   } finally {
+    Hooks.off('battleflow.moment', momentHookId);
     await teardown();
     for (const a of [victim, shielder, pc, npc].filter(Boolean)) {
       try { await a.longRest?.({ dialog: false, chat: false }); } catch { /* fine */ }

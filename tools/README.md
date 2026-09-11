@@ -30,10 +30,11 @@ it quietly runs the prerequisite and says so.
 | `check-registry.mjs` | every `S` key is registered and every registration is named in `S`; every registry entry declares a known kind and no amount; every shipped list-setting default survives its own strict parser; the **R4 kind total** and the **source-file count** match their pins. |
 | `check-imports.mjs` | every relative import resolves, and every named binding is really exported — including through the lazy `await import()` idiom. |
 | `check-comments.mjs` | every `/**` block sits on a declaration, so an extraction cannot strand a doc. |
+| `check-moments.mjs` | **the moment gate's coverage** (ARCHITECTURE §7 *The moment events*, version 2): every flag key the module writes — every write shape, constants resolved — is classified in `decide/moments.js` as a RESOLVE (published by the gate) or STATE (with a reason), no row is stale, every world-writing file is pinned to the record its writes resolve into, and the registry's own shape holds. Prints the classification as a table. A new key fails the build until somebody says what it is. |
 | `bump-version.mjs --check` | `module.json`'s `version` and its `download` URL name the same tag. |
 | `tsc --noEmit` | ⚠ **real, and only over `scripts/decide/`** — the six pure modules opt in with `// @ts-check`. `checkJs` stays false globally; files opt IN, one at a time. |
 
-All of them run inside `npm run verify`, along with biome, knip and the unit tests — **ten static
+All of them run inside `npm run verify`, along with biome, knip and the unit tests — **eleven static
 checks and the suite**, all offline, all in seconds. ⚠ **Do not hand-carry the counts out of
 here.** The tools print their own (`237` tests, `98` biome warnings and `28` source files as of
 2026-08-23); every number this repo has typed into prose twice has gone stale at least once.

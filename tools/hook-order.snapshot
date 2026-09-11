@@ -2,6 +2,10 @@
 init	settings.js
 renderSettingsConfig	settings.js
 init	holds.js
+createChatMessage	events.js
+updateChatMessage	events.js
+ready	events.js
+deleteChatMessage	events.js
 init	events.js
 dnd5e.preUseActivity	polish.js
 dnd5e.preUseActivity	polish.js

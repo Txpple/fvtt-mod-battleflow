@@ -69,6 +69,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     return false;
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // THE MOMENT EVENTS (events.js version 2, 2026-09-11): every payload the module publishes during this
+  // run — the GATE publishes it from the record landing, so a section asserts the resolve it drove was heard.
+  const moments = [];
+  const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
+  const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
+  const plain = p => { try { return JSON.stringify(p) === JSON.stringify(JSON.parse(JSON.stringify(p))); } catch { return false; } };
 
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
@@ -337,6 +343,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const gone = await waitFor(() => concEffects().length === 0);
       ok('4b. the break is real: the concentration effect is gone', !!gone,
         `effects=${concEffects().length}`);
+      // THE MOMENT EVENTS (events.js version 2): the verdict landing on the concentration record publishes
+      // `save` through the GATE, and the failure `break` beside it — one resolve, two words, one momentId.
+      const cv = momentsOf('save').filter(p => p.messageId === askMsg?.id);
+      const bv = momentsOf('break').filter(p => p.messageId === askMsg?.id);
+      ok('4z. the verdict was PUBLISHED through the gate: battleflow.moment "save" (kind concentration) and "break" — the concentrator (the ask record\'s own actor), success false, the DC; once each, the same momentId, plain and frozen',
+        (cv.length === 1) && (bv.length === 1) && (cv[0].kind === 'concentration') && (cv[0].actorUuid === ask?.actorUuid) && !!ask?.actorUuid && (cv[0].details?.success === false)
+          && (cv[0].details?.dc === ask?.dc) && (bv[0].momentId === cv[0].momentId) && Object.isFrozen(cv[0]) && plain(cv[0]) && plain(bv[0]),
+        `save=${JSON.stringify(cv[0])} break=${JSON.stringify(bv[0])}`);
       const depGone = await waitFor(() => !victim.effects.get(dep.id));
       ok('4c. the dependent effect cascades away with it (native dependentOn)', !!depGone,
         depGone ? '' : 'dependent survived the break');
@@ -697,6 +711,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   } catch (err) {
     ok('SUITE', false, `unhandled: ${err?.message}\n${err?.stack}`);
   } finally {
+    Hooks.off('battleflow.moment', momentHookId);
     await teardown();
     for (const a of [shielder, victim, npc].filter(Boolean)) {
       try { await a.longRest?.({ dialog: false, chat: false }); } catch { /* fine */ }

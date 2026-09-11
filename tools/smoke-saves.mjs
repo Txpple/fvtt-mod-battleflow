@@ -74,6 +74,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     return false;
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // THE MOMENT EVENTS (events.js version 2, 2026-09-11): every payload the module publishes during this
+  // run — the GATE publishes it from the record landing, so a section asserts the resolve it drove was heard.
+  const moments = [];
+  const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
+  const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
+  const plain = p => { try { return JSON.stringify(p) === JSON.stringify(JSON.parse(JSON.stringify(p))); } catch { return false; } };
   const suiteStart = Date.now();
 
   const mod = game.modules.get(MOD);
@@ -398,6 +404,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1b. forced verdicts fold per target: the -30 fails, the +30 saves',
         (ev?.outcome === 'failed') && (es?.outcome === 'saved') && ev?.done && es?.done,
         `victim=${ev?.outcome} shielder=${es?.outcome}`);
+      // THE MOMENT EVENTS (events.js version 2): each target's verdict landing on the saves record publishes
+      // `save` through the GATE, marker = the target's uuid, the caster and the DC in the details.
+      const sv = momentsOf('save').filter(p => p.messageId === card1.id);
+      const svV = sv.find(p => p.actorUuid === victim.uuid), svS = sv.find(p => p.actorUuid === shielder.uuid);
+      ok('1z. the verdicts were PUBLISHED through the gate: battleflow.moment "save" (kind saves) once per target — the victim failed, the shielder saved, the DC and the caster on each; plain and frozen',
+        (sv.length === 2) && !!svV && !!svS && (svV.kind === 'saves') && (svV.marker === victim.uuid) && (svV.details?.outcome === 'failed') && (svS.details?.outcome === 'saved')
+          && (svV.details?.dc === 15) && (svV.details?.casterUuid === flag?.sourceUuid) && (svV.ability === flag?.item?.name) && Object.isFrozen(svV) && plain(svV) && plain(svS),
+        `saves=${JSON.stringify(sv.map(p => ({ actor: p.actorUuid, marker: p.marker, outcome: p.details?.outcome, ability: p.ability })))}`);
 
       const rollV = ev?.rollMessageId ? game.messages.get(ev.rollMessageId) : null;
       ok('1c. the roll chains to the card, answers by the exact channel, and carries the DC',
@@ -2083,6 +2097,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
   } finally {
+    Hooks.off('battleflow.moment', momentHookId);
     await teardown();
     for (const a of [victim, shielder, npc, game.actors.getName('BF Test PC Attacker')]
       .filter(Boolean)) {

@@ -608,6 +608,7 @@ in milliseconds and impossible to tangle. **Keep it that way** — the day somet
 | [decide/choices.js](scripts/decide/choices.js) | `effectChoiceFor` (which of a cast's effects are the alternatives a listed row names — fewer than two present asks nothing), `effectsAfterChoice` (what lands once the pick is made: the non-alternatives plus the pick; pending is null and the caller waits; a pick outside the options is pending too) — the cast-time effect choice, 2026-09-05 |
 | [decide/demand.js](scripts/decide/demand.js) | `resolveDemand` (which pending demand a roll answers — the stamped, the chained and the bare channel, the ship order as `priority`; §4's table), `pendingDemands` (mid-answer, with no roll in hand); `saveDemandData`, `saveTargetEntry`, `verdictsOn` — the saves flag's two constructors and its verdict reader (the machine-tier pass, Stage 2, 2026-09-05) |
 | [decide/metamagic.js](scripts/decide/metamagic.js) | `metamagicFits` (does the option fit the spell — the pack keeps the option's condition as prose, so the predicate is the registry's `when`), `metamagicMenu` (the cast dialog's rows, read off the sheet and the list, the cost read live, the fit and the affordability as the tag), `metamagicPick` (one, eligible, affordable), `metamagicRuleText` (the feat's own text without the pack's cost line), `metamagicCardLine` (source, then result), `distantRange`, `carefulProtects` (the allies the save reaches, the caster first, up to the cap — or the player's chosen list), `heightenedMark` (the first enemy in reach, or the chosen one), `scalesTargetsFrom` (Twinned's fit off the source target count, with the user's exceptions), `extendedDuration` (doubled, 24 h at most), `empoweredPlan` (the ticked dice up to the cap), `empoweredOutcome` (the new total and the arrow sentence) — the metamagic pass's arithmetic, 2026-09-09. Seeking Spell is a d20 fold KIND (`seeking`, d20-folds.js), not a metamagic.js moment |
+| [decide/moments.js](scripts/decide/moments.js) | `MOMENT_RECORDS` (every flag key that means *something resolved* — its word(s), what resolving means, `resolved(record, ctx)` → the markers and plain facts), `STATE_KEYS` (every other key, with its reason), `MOMENT_WORDS` / `MOMENT_KINDS` (the contract's vocabulary), `resolvedMoments`, `newMoments`, `momentId` — the moment gate's data (2026-09-11, §7 *The moment events*). ⚠ Classifies, never curates: a key is a resolve or state, a fact about the code |
 | [decide/shields.js](scripts/decide/shields.js) | `shieldDue` (is a damage shield due on this hit — melee, within the activity's reach, once per turn, while the temp HP stand), `shieldReach`, `shieldType` (the type the standing effect decides), `shieldEffectNames`, `durationSeconds` — the damage shields' arithmetic, 2026-09-05. `reduceDamages` (Parry's subtraction) sits in decide/verdict.js beside the multiplier; `healTriggerDue` (Aura of Life's 0-HP ally) in decide/emanations.js; `effectCheckSources` (an effect that bends checks by its text) in decide/reminders.js |
 | [decide/verdict.js](scripts/decide/verdict.js) | `hitsAmong`, `modeAdmits`, `saveOutcome`, `saveMultiplier`, `verdictText`, and the fold layer (`ATTACK_FOLDS`, `SAVE_FOLDS`, `foldsFrom`, `foldedRoll`, `foldedVerdict`, `foldedSave`) |
 | [decide/eligible.js](scripts/decide/eligible.js) | `isDeadForSaves`, `limitedUses`, `isReactionItem`, `castLevelOf`, `clampVolleyCount`, `riderKey` |
@@ -772,7 +773,7 @@ neighbour. What other modules need is *published*, never *reached for*.
 | `volleyRegistry` | [volley-registry.js](scripts/volley-registry.js) | volley membership, read-only, same rule |
 | `acknowledgeMoment` | [ui.js](scripts/ui.js) | resolve a card's pending presentation (law 3) |
 | `holdFor(subject)` · `castHold(uuid)` · `holds` | [holds.js](scripts/holds.js) | **the hold** — below |
-| `moments` and the hooks `battleflow.moment` · `battleflow.<event>` | [events.js](scripts/events.js) | **the moment events** — below |
+| `moments` and the hooks `battleflow.moment` · `battleflow.<event>` | [events.js](scripts/events.js) | **the moment events** — below; version 2 (2026-09-11) is a GATE over the module's own records ([decide/moments.js](scripts/decide/moments.js)), every resolve published |
 
 **The hold** is the one surface with a consumer outside this repo, so its contract is written
 here rather than only in the file. It exists because a module that keys on the usage card would
@@ -815,38 +816,87 @@ die rides the damage roll, Parry rides the hold's answer, Sneak Attack's dice wr
 message that already exists — so a module that keys its pictures on the card never sees them,
 though the same ability used from the sheet would play (BACKLOG, *the pictures that never play*,
 built 2026-09-11 on the user's word). The fix is not a fake card: [events.js](scripts/events.js)
-`publishMoment(event, facts)` fires **`battleflow.moment`** with a plain payload, then
-**`battleflow.<event>`** with the same payload, at the point a machine has already resolved the
-moment once — behind the machine's own idempotence latch, never a second latch here.
+fires **`battleflow.moment`** with a plain payload, then **`battleflow.<event>`** with the same
+payload, at the point the moment resolved.
+
+⚠ **VERSION 2 IS A GATE, NOT A SET OF CALLS (2026-09-11, later the same day).** Version 1 had
+three publishers — a hand-placed `publishMoment` in hit-menu.js, sneak.js and hold/answer.js, each
+behind its own latch — and the riders, the folds, the masteries, the shields, the spends and the
+receipts had none, with nothing in the tree able to say so (the user: *"Dread Ambusher did not,
+though if I use the card it does"*). The user's ruling: *"if an ability/card is folded in a battle
+flow, it should be exposed to fx studio as well … something architecturally solid so as this
+grows, it's not missed / no drift, like a gate that any time an embedded card is played, it goes
+through that hook"* — and on what plays: *"if it is shown or not, that is up to the manager of fx
+studio."* So the rule is **every resolve publishes**, and the shape follows from §4 law 3: the
+flag is the state and every view is derived from it, so a resolve IS a record landing on a
+message, and the gate watches the RECORDS.
+
+> **Three parts.** (1) [decide/moments.js](scripts/decide/moments.js) — `MOMENT_RECORDS`, one row
+> per flag key that means *something resolved*: the word(s) it publishes under, one sentence on
+> what resolving means, and `resolved(record, ctx)` → every resolved moment in the record, each
+> with a stable **marker** (a target uuid, an index, `message`) and plain facts; and `STATE_KEYS`,
+> every other key the module writes with the reason it is state. Together they classify every key.
+> (2) events.js — **one publisher**, on `createChatMessage` and `updateChatMessage`, computing each
+> registered record's markers and publishing the ones this client has not seen; on `ready` the log
+> is remembered without publishing, and a deleted message forgets its markers. The edge from
+> unresolved to resolved IS the idempotence — no machine keeps a latch for it, and a machine that
+> resolves twice writes the same marker twice and is heard once. (3)
+> [tools/check-moments.mjs](tools/check-moments.mjs) — every flag key the module writes (scanned
+> across every write shape, constants resolved) is in exactly one of the two lists, no row is
+> stale, and **every file that writes the world** — a document update, an embedded create, a use,
+> a roll posted, a house service that does one — is pinned to the record(s) its writes resolve
+> into or a reason none does (the user's amendment 1: a resolve that lands on an actor or an item
+> alone would otherwise be invisible to a gate that watches messages). An unclassified key fails
+> `npm run verify`. A new machine publishes by writing the record it already writes; forgetting to
+> classify is the only failure left, and it is loud.
+
+> **The publishing client.** A resolve publishes on ONE client: by default the client that WROTE
+> the record (the roller whose damage the die rode, the elect that folded a relayed answer) — the
+> client with the facts at the instant they are true. A registry row may name another
+> (`publisher`): the hold names the answering player (`answeredBy`, written at the answer on both
+> the direct and the relayed branch), so Shield's picture fires where it did in version 1 (the
+> user's amendment 2). Every other client REMEMBERS the marker without publishing, so a later
+> write to the same message cannot re-fire an old resolve anywhere.
 
 > The payload is **plain** — uuids and ids, strings, numbers, booleans, frozen, serialisable —
 > and carries **no flag shape** from this module; a consumer resolves the uuids itself and learns
-> nothing about how the moment was stored. It is **client-local**, like the hold: published on the
-> client that resolved the moment (the roller, the reactor) and nowhere else — the right client for
-> a picture, and the only one with the facts at the instant they are true. **Nobody listening is
-> a no-op** the platform already provides: no feature detect, no try/catch around a neighbour, no
-> setting. Battle Flow still imports no other module and calls into none.
+> nothing about how the moment was stored. **Nobody listening is a no-op** the platform already
+> provides: no feature detect, no try/catch around a neighbour, no setting. Battle Flow still
+> imports no other module and calls into none.
 
-The vocabulary is **closed** — `maneuver` · `sneak` · `fold` · `rider` · `hold-answered` — and a
-new word is a contract change and a version bump; `api.moments` is `{ version, events, hooks }`.
-The payload's fields: `event`, `module`, `version`, `actorUuid` / `actorName` / `tokenUuid` (who
-resolved it), `itemUuid` / `itemName` / `activityUuid` / `ability` (what it is about), `messageId`
-(the message it resolved ON) and `attackId` (the attack it rode), `targets[]` as
-`{ actorUuid, tokenUuid, name, hit? }` (`hit` only when a verdict is known), `spend` in the uniform
-row shape or null, `details` (event-specific plain facts: a formula, the Cunning picks, an answer),
-`at`. Three publishers today, three shapes — the hit menu's die on the damage message
-([hit-menu.js](scripts/hit-menu.js), a spend riding a roll), Sneak Attack's dice
-([sneak.js](scripts/sneak.js), a rider with no pool), and a hold answered by a cast
-([hold/answer.js](scripts/hold/answer.js), an answer on the attack message; Parry is ALSO a
-maneuver and publishes under both words). `fold` and `rider` have no publisher yet — named so the
-vocabulary does not churn when they land. [tests/events.test.js](tests/events.test.js) pins the
-shape and the silent failures; `smoke-sneak` §4g, `smoke-hitmenu` §3i and `smoke-superiority` §1e
-assert each publisher on the sandbox.
+The vocabulary is **closed**, a word per MECHANISM FAMILY — `maneuver` · `sneak` · `fold` ·
+`rider` · `hold-answered` · `mastery` · `shield` · `spend` · `damage` · `effect` · `save` ·
+`break` · `use` · `cast` · `volley` · `choice` · `metamagic` — and `kind` names the exact record
+(`hitManeuver`, `clockRiders`, `receipt`, …); a consumer keys on either. A new word is a contract
+change and a version bump; `api.moments` is `{ version: 2, events, kinds, hooks }`. The payload's
+fields: `event`, `module`, `version`, **`kind`, `marker`, `momentId`** (`<messageId>|<kind>|<marker>`,
+unique per resolve — the key a consumer dedupes on), `actorUuid` / `actorName` / `tokenUuid` (who
+resolved it), `itemUuid` / `itemName` / `activityUuid` / `ability` (what it is about; a row that
+knows only a name has the item found on the sheet by item name, then by ACTIVITY name — Dreadful
+Strike on Dread Ambusher), `messageId` (the message it resolved ON) and `attackId` (the attack it
+rode), `targets[]` as `{ actorUuid, tokenUuid, name, hit? }` (`hit` only when a verdict is known;
+a row may ask for the attack's hit targets, read through shared.js `hitTargets`), `spend` in the
+uniform row shape or null, `details` (kind-specific plain facts), `at`. A resolve under two words
+(Parry: `hold-answered` and `maneuver`; a failed concentration save: `save` and `break`) fires the
+pair once per word, one payload each, the same `momentId`. `hold-answered` now publishes a **pass**
+too (`details.answer`); a revert is its own marker (`<uuid>|reverted`) under `damage` / `effect`.
+[tests/decide-moments.test.js](tests/decide-moments.test.js) pins every row against fixture
+records and the edges (a pending hold resolves nothing, a spend still pending its verdict is not
+yet a fold, a revert is one more resolve); [tests/events.test.js](tests/events.test.js) pins the
+payload and the gate (once per marker, the remembering client, the row's publisher over the
+writer, the ready sweep). On the sandbox: `smoke-hitmenu` §3i, `smoke-sneak` §4g,
+`smoke-superiority` §1e (the three version-1 publishers, unchanged assertions, now through the
+gate), `smoke-clock` §1y (`rider` and `spend`), `smoke-saves` §1z (`save` per target),
+`smoke-shields` §1y (`shield` and `damage`), `smoke-effects` §2c and §5e (`effect`, `mastery`),
+`smoke-concentration` §4c (`save` and `break`).
 
-⚠ **A cast that answers a hold is heard twice by a consumer that keys on cards** — once on the
-dnd5e usage card the cast posts, once as `hold-answered`. That is by design (the two carry
-different facts: the card the spell, the event the hold it answered) and the consumer picks; a
-picture keyed to the card does not also fire on the event unless its author keys it there too.
+⚠ **A consumer DEDUPES AGAINST THE CARD.** `damage`, `effect`, `spend` and `save` fire for
+resolves the platform ALSO posts a card for (a plain weapon hit's receipt, a cast's effect, a use's
+resource movement), and a cast that answers a hold posts its own usage card beside
+`hold-answered`. That is by design — the two carry different facts (the card the spell, the event
+the moment) — and the consumer picks; `momentId` is the key to dedupe on. Which moments get a
+picture is FX Studio's manager's call; this side publishes every resolve and knows nobody is
+listening.
 
 **Four decisions in [holds.js](scripts/holds.js) are load-bearing** for the modal sequence the
 module wants long term (BACKLOG, *The modal sequence*), and each is cheap now and expensive later:
@@ -1024,6 +1074,16 @@ evidence.
    Neither was caught by any check. Both were caught by reading the diff.
 3. Not every write needs it. A single-decision object with one writer (concentration's ask,
    mastery's own flag) is not a per-target read-modify-write and the argument does not reach it.
+
+**Adding a RECORD** (a new flag key the module writes — a moment's state, a resolve, a fingerprint):
+1. `npm run moments` fails until the key is classified in [decide/moments.js](scripts/decide/moments.js):
+   a **resolve** (a `MOMENT_RECORDS` row — the word(s), what resolving means, its markers and
+   plain facts; the gate publishes it, nothing else to write) or **state** (a `STATE_KEYS` reason,
+   a sentence somebody will read). A key that changes a document but never a message is still
+   caught: the file that writes the world is pinned in `WORLD_WRITERS` to the record its write
+   resolves into. ⚠ Classify, do not curate — whether the moment gets a picture is the consumer's.
+2. A new WORD is a contract change: `MOMENT_WORDS`, the version in events.js, this section, and
+   FX Studio's ARCHITECTURE §2 — in the same commit.
 
 **Adding a FOLD** (anything that changes an already-rolled outcome after the fact — a reroll,
 an added die, a reaction that moves AC):

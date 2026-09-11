@@ -140,6 +140,7 @@ const LAYER_OF = {
   "decide/shields.js": "decision",
   "decide/choices.js": "decision",
   "decide/demand.js": "decision",
+  "decide/moments.js": "decision",   // the moment records — what a resolve IS, as data (2026-09-11)
 
   // CORE — the leaf: ids, settings accessor, the elect, the flag serializer
   "core.js": "core"
@@ -183,6 +184,12 @@ const ALLOW = [
     why: "resolveHitMastery, routed from the damage chokepoint. Breaking it means moving "
       + "applyDamagesWithReceipt — the single chokepoint every machine routes through — into a "
       + "third module (PLAN.md Tier 2: low value, real risk)"
+  },
+  {
+    from: "events.js", to: "shared.js", disposition: "BY DESIGN",
+    why: "spine → spine: the moment gate reads an attack's HIT TARGETS through `hitTargets`, the one "
+      + "registry walk every reader uses (D8 — folds compose there), when a resolve's row asks for the "
+      + "attack's targets. A second walk in events.js would be a second verdict. (2026-09-11, the gate)"
   },
   {
     from: "auto-apply.js", to: "effect-riders.js", disposition: "BY DESIGN",

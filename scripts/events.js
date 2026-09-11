@@ -11,50 +11,71 @@
  * sheet would play. The fix is not a fake card: it is a plain event at the RESOLVE step of the
  * moment, with everything a picture needs and nothing a flag shape leaks.
  *
+ * ⚠ THE GATE (version 2, the same day, the user: "if an ability/card is folded in a battle flow,
+ * it should be exposed to fx studio as well … a gate that any time an embedded card is played, it
+ * goes through that hook"). Version 1 had three publishers, each a hand-placed call in its own
+ * machine behind its own latch — and the riders, the folds, the masteries, the shields, the
+ * spends and the receipts had none, with nothing in the tree able to say so. State law 3 (§4)
+ * says the flag is the state and every view is derived from it, so a resolve IS a record landing
+ * on a message, and this file now watches the RECORDS: one publisher, over the registry in
+ * decide/moments.js, on message create and update. A machine publishes by writing the record it
+ * already writes; a machine that writes a record nobody has classified fails the build
+ * (tools/check-moments.mjs). The three hand-placed calls are three registry rows now.
+ *
  * ⚠ THE DIRECTION OF KNOWLEDGE. This file knows no other module. It calls `Hooks.callAll`, and a
  * hook nobody listens to is a no-op the platform already provides — that is the whole of "fail
  * silently", and it costs no feature detect, no try/catch around a neighbour, no setting. Battle
  * Flow imports no other module and calls into none (ARCHITECTURE §7, the public API); what a
  * neighbour needs is PUBLISHED. A consumer that wants these subscribes to the names below and
- * resolves the uuids itself.
+ * resolves the uuids itself. Whether a moment gets a picture is the consumer's call, never this
+ * file's (the user: "if it is shown or not, that is up to the manager of fx studio") — every
+ * resolve publishes.
  *
- * ⚠ CLIENT-LOCAL, LIKE THE HOLD. A Foundry hook fires on the client that called it. The event is
- * published on the client that RESOLVED the moment — the roller whose damage the die rode, the
- * reactor who answered the hold — and nowhere else. That is the right client for a picture (the
- * consumer's own model is "the client that resolves plays; the engine propagates"), and it is the
- * only client that has the facts at the instant they are true.
+ * ⚠ CLIENT-LOCAL, LIKE THE HOLD. A Foundry hook fires on the client that called it. A resolve is
+ * published on ONE client: by default the client that WROTE the record (the roller whose damage
+ * the die rode, the elect that folded a relayed answer), because that is the client with the
+ * facts at the instant they are true; a registry row may name another (the hold names the
+ * answering player, so Shield's picture fires where it did in version 1). Every OTHER client sees
+ * the same record land and REMEMBERS it without publishing, so a later write to the same message
+ * cannot re-fire an old resolve anywhere. On `ready` every message in the log is remembered the
+ * same way — a reload publishes nothing that already happened.
  *
  * THE PAYLOAD IS PLAIN. Uuids and ids, never documents; strings, numbers, booleans, arrays of the
  * same. It is frozen, it serialises, and it carries NO flag shape from this module: a consumer
  * reading it learns nothing about how the moment was stored, which is what lets the storage
  * change without breaking a neighbour (FX Studio's own rule: "never reads its internal flags").
  *
- * THE EVENTS (the vocabulary, closed — a new word is a contract change and a version bump):
- *   maneuver       a Combat Superiority die rode a hit (the hit menu), or answered a hold (Parry)
- *   sneak          Sneak Attack's dice rode a hit, with the Cunning Strike picks
- *   fold           a die or reroll folded into a d20 test (Bardic, Heroic, Tactical, Seeking)
- *   rider          a clock rider's damage rode a hit (Dreadful Strike, Divine Strike, …)
- *   hold-answered  a held roll's reaction was answered by a cast (Shield, Parry, Uncanny Dodge)
- * Two of the five have no publisher yet (`fold`, `rider`) — they are named so the vocabulary does
- * not churn when they land; a consumer that subscribes to them today hears nothing, correctly.
+ * THE VOCABULARY is decide/moments.js `MOMENT_WORDS` — a word per MECHANISM FAMILY (maneuver,
+ * sneak, fold, rider, hold-answered, mastery, shield, spend, damage, effect, save, break, use,
+ * cast, volley, choice, metamagic); `kind` on the payload names the exact record. A new word is a
+ * contract change and a version bump.
  *
- * THE HOOKS. Every event fires twice: `battleflow.moment` with the payload (one subscription hears
- * everything), then `battleflow.<event>` with the same payload (a subscription per kind). The
- * contract rides the api as `moments` — `{ version, events, hooks }` — so a consumer can tell this
- * surface from a later one without probing for functions.
+ * THE HOOKS. Every resolve fires `battleflow.moment` with the payload (one subscription hears
+ * everything), then `battleflow.<event>` with the same payload (a subscription per word); a
+ * resolve under two words (Parry: hold-answered and maneuver) fires the pair twice, one payload
+ * each. The contract rides the api as `moments` — `{ version, events, kinds, hooks }`.
  *
- * ⚠ ONE EVENT PER RESOLVE. The publisher is called at the point a machine has ALREADY decided the
- * moment resolved once — behind its own idempotence latch (a `done` flag, a run set, a first-answer
- * guard). This file adds no latch of its own: a second latch here would hide a machine that
- * resolves twice, and that is a bug worth seeing.
+ * ⚠ ONE EVENT PER RESOLVE, STRUCTURALLY. Each resolve has a MARKER inside its record (a target
+ * uuid, an index, "message"), and this client publishes a `<message>|<kind>|<marker>` once. There
+ * is no latch per machine to get right; a machine that resolves twice writes the same marker twice
+ * and is heard once, which is what a picture wants.
+ *
+ * ⚠ A CONSUMER DEDUPES AGAINST THE CARD. `damage`, `effect`, `spend` and `save` fire for resolves
+ * the platform ALSO posts a card for (a plain weapon hit's receipt, a cast's effect), and a cast
+ * that answers a hold posts its own usage card beside `hold-answered`. The two carry different
+ * facts (the card the spell, the event the moment), and the consumer picks — `momentId` on the
+ * payload is the key to dedupe on, unique per resolve.
  */
 
 import { MODULE_ID, TITLE } from "./core.js";
+import { MOMENT_KINDS, MOMENT_RECORDS, MOMENT_WORDS, isMomentWord, momentId, newMoments, resolvedMoments } from "./decide/moments.js";
+import { hitTargets } from "./shared.js";
 
 /** The contract's version and vocabulary, read by other modules to tell this surface from a later one. */
 export const MOMENT_CONTRACT = Object.freeze({
-  version: 1,
-  events: Object.freeze(["maneuver", "sneak", "fold", "rider", "hold-answered"]),
+  version: 2,
+  events: MOMENT_WORDS,
+  kinds: MOMENT_KINDS,
   hooks: Object.freeze(["battleflow.moment", "battleflow.<event>"])
 });
 
@@ -80,6 +101,12 @@ function actorByUuid(uuid) {
     const doc = globalThis.fromUuidSync?.(uuid) ?? null;
     return (doc?.documentName === "Actor") ? doc : (doc?.actor ?? null);
   } catch { return null; }
+}
+
+/** A document by uuid without a round trip, or null. */
+function docByUuid(uuid) {
+  if ( !uuid ) return null;
+  try { return globalThis.fromUuidSync?.(uuid) ?? null; } catch { return null; }
 }
 
 /**
@@ -111,6 +138,9 @@ function spendRow(spend) {
  * null when the event is not in the vocabulary — a typo here is a contract violation, and it is
  * warned rather than thrown because a picture is never worth the moment it decorates.
  *
+ * ⚠ Called by the gate below, and by nothing else in the tree since version 2: a machine
+ * publishes by writing its record. Exported for the gate's tests.
+ *
  * @param {string} event                 one of MOMENT_CONTRACT.events
  * @param {object} facts
  * @param {Actor|string|null} [facts.actor]        who resolved the moment (the roller, the reactor)
@@ -122,28 +152,35 @@ function spendRow(spend) {
  * @param {Array<object|string>} [facts.targets]   the creatures the moment is about (actor uuids, or reader rows)
  * @param {object|object[]|null} [facts.spend]     the pool spend in the uniform row shape, if any
  * @param {object} [facts.details]                 event-specific plain facts (a formula, the picks, an answer)
+ * @param {string|null} [facts.kind]               the record key (the registry row) — version 2
+ * @param {string|null} [facts.marker]             the resolve's marker inside its record — version 2
  */
 export function publishMoment(event, { actor = null, item = null, activity = null, ability = null, message = null,
-  attackMessage = null, targets = [], spend = null, details = {} } = {}) {
-  if ( !MOMENT_CONTRACT.events.includes(event) ) {
+  attackMessage = null, targets = [], spend = null, details = {}, kind = null, marker = null } = {}) {
+  if ( !isMomentWord(event) ) {
     console.warn(`${TITLE} | publishMoment: "${event}" is not in the moment vocabulary — nothing published.`);
     return null;
   }
   let payload;
   try {
     const actorDoc = (typeof actor === "string") ? actorByUuid(actor) : actor;
+    const itemDoc = (typeof item === "string") ? docByUuid(item) : item;
+    const messageId = idOf(message);
     payload = Object.freeze({
       event,
       module: MODULE_ID,
       version: MOMENT_CONTRACT.version,
+      kind,
+      marker,
+      momentId: (kind && marker) ? momentId(messageId, kind, marker) : null,
       actorUuid: uuidOf(actor),
       actorName: actorDoc?.name ?? null,
       tokenUuid: tokenUuidOf(actorDoc),
       itemUuid: uuidOf(item),
-      itemName: (typeof item === "string") ? null : (item?.name ?? null),
+      itemName: itemDoc?.name ?? null,
       activityUuid: uuidOf(activity),
-      ability: ability ?? (typeof item === "string" ? null : (item?.name ?? null)),
-      messageId: idOf(message),
+      ability: ability ?? itemDoc?.name ?? null,
+      messageId,
       attackId: idOf(attackMessage),
       targets: Object.freeze((targets ?? []).map(targetRow).map(Object.freeze)),
       spend: spendRow(spend) ? Object.freeze(spendRow(spend)) : null,
@@ -167,6 +204,109 @@ export function publishMoment(event, { actor = null, item = null, activity = nul
   }
   return payload;
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * THE GATE — the records watched, the resolves published once.
+ * ------------------------------------------------------------------------------------------- */
+
+/** Every `<message>|<kind>|<marker>` this client has seen resolved — published here or remembered. */
+const seen = new Set();
+
+/** The plain facts a row may default to, read off the message once per event. */
+function ctxOf(message) {
+  let actorUuid = null;
+  try { actorUuid = message.getAssociatedActor?.()?.uuid ?? null; } catch { /* a synthetic speaker */ }
+  return {
+    messageId: message.id ?? null,
+    itemUuid: message.getFlag?.("dnd5e", "item")?.uuid ?? null,
+    activityUuid: message.getFlag?.("dnd5e", "activity")?.uuid ?? null,
+    actorUuid
+  };
+}
+
+/**
+ * A row's plain facts made into publishMoment's facts: the item found by name on the actor's
+ * sheet when the row knew only a name, the attack's hit targets read when the row asked for them.
+ */
+function factsOf(facts, message) {
+  const actor = actorByUuid(facts.actor ?? null);
+  let item = facts.item ?? null;
+  if ( !item && facts.itemName && actor ) {
+    // By the item's name first; then by an ACTIVITY's name — a rider's label is its activity
+    // (Dreadful Strike on Dread Ambusher), and a picture wants the feature that owns it.
+    try {
+      const items = actor.items ?? [];
+      item = items.find?.(i => i.name === facts.itemName)?.uuid
+        ?? items.find?.(i => [...(i.system?.activities ?? [])].some(a => a?.name === facts.itemName))?.uuid ?? null;
+    } catch { item = null; }
+  }
+  const attackMessage = facts.attackId ? (game.messages?.get?.(facts.attackId) ?? null) : null;
+  let targets = facts.targets ?? [];
+  if ( (facts.targetsFrom === "attack") && attackMessage ) {
+    try { targets = hitTargets(attackMessage).map(t => ({ ...t, hit: true })); } catch { targets = []; }
+  }
+  return { actor: facts.actor ?? null, item, activity: facts.activity ?? null, ability: facts.ability ?? facts.itemName ?? null,
+    message, attackMessage: attackMessage ?? facts.attackId ?? null, targets, spend: facts.spend ?? null, details: facts.details ?? {} };
+}
+
+/**
+ * The gate's one step: for every registered record on this message, the resolves this client has
+ * not seen are remembered, and published when this client is their publisher.
+ *
+ * @param {ChatMessage} message
+ * @param {string|null} writerId   the user who wrote the change (the author on create, the updater on update)
+ * @param {boolean} publish        false on the ready sweep — remember everything, publish nothing
+ */
+export function observeMessage(message, writerId, publish = true) {
+  const flags = message?.flags?.[MODULE_ID];
+  if ( !flags ) return [];
+  const ctx = ctxOf(message);
+  const out = [];
+  for ( const key of Object.keys(flags) ) {
+    if ( !MOMENT_RECORDS[key] ) continue;
+    let moments;
+    try { moments = resolvedMoments(key, flags[key], ctx); }
+    catch(err) { console.warn(`${TITLE} | the moment registry's "${key}" row failed to read a record — nothing published for it.`, err); continue; }
+    for ( const m of newMoments(message.id, key, moments, seen) ) {
+      seen.add(momentId(message.id, key, m.marker));
+      if ( !publish ) continue;
+      const publisher = m.publisher ?? writerId;
+      if ( publisher !== game.user?.id ) continue;
+      const facts = factsOf(m.facts ?? {}, message);
+      for ( const event of m.events ?? [] ) {
+        const payload = publishMoment(event, { ...facts, kind: key, marker: m.marker });
+        if ( payload ) out.push(payload);
+      }
+    }
+  }
+  return out;
+}
+
+// A record born resolved (a die riding a damage roll, a ward's strike on its own message): the
+// author's client publishes; every other client remembers.
+Hooks.on("createChatMessage", (message, _options, userId) => {
+  observeMessage(message, userId ?? message.author?.id ?? null);
+});
+
+// A record that resolved by an update (an answer folded onto the hold, a verdict onto the saves
+// flag, a receipt onto the attack): the updater's client publishes — unless the row names another.
+Hooks.on("updateChatMessage", (message, changes, _options, userId) => {
+  if ( !changes?.flags?.[MODULE_ID] ) return;
+  observeMessage(message, userId ?? null);
+});
+
+// The log as it stands is history: remembered, never republished. A reload, a late join, a
+// client that missed a create all start from here.
+Hooks.once("ready", () => {
+  try { for ( const message of game.messages ?? [] ) observeMessage(message, null, false); }
+  catch(err) { console.warn(`${TITLE} | the moment gate could not read the log on ready — old resolves may republish once.`, err); }
+});
+
+// A deleted message takes its memory with it — the id will not come back.
+Hooks.on("deleteChatMessage", message => {
+  const prefix = `${message.id}|`;
+  for ( const id of seen ) if ( id.startsWith(prefix) ) seen.delete(id);
+});
 
 Hooks.once("init", () => {
   const mod = game.modules.get(MODULE_ID);

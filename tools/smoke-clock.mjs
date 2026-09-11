@@ -39,6 +39,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     return false;
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // THE MOMENT EVENTS (events.js version 2, 2026-09-11): every payload the module publishes during this
+  // run — the GATE publishes it from the record landing, so a section asserts the resolve it drove was heard.
+  const moments = [];
+  const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
+  const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
+  const plain = p => { try { return JSON.stringify(p) === JSON.stringify(JSON.parse(JSON.stringify(p))); } catch { return false; } };
   const suiteStart = Date.now();
   const ledger = globalThis.__bfHookLedger ?? null;
   const count = name => ledger?.[name] ?? 0;
@@ -236,6 +242,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // ledger read it (the line and the flash draw for player-owned actors; the record is there either way).
       const ps = [].concat(dmg?.getFlag(MOD, 'poolSpend') ?? []);
       ok('1x. the spend is recorded as every other pool spend is - Dreadful Strike, 1 spent, the uses left and the max, born on the damage message', ps.length === 1 && /Dreadful Strike/.test(ps[0].pool) && ps[0].spent === 1 && ps[0].max > 0 && ps[0].left === (dreadAct().uses.value ?? 0) && ps[0].actorUuid === ranger.uuid, JSON.stringify(ps));
+      // THE MOMENT EVENTS (events.js version 2): the clockRiders record landing on the damage message publishes
+      // `rider` through the GATE (decide/moments.js — no publisher in clock-riders.js), and the poolSpend record
+      // beside it publishes `spend`. The item is the FEATURE (Dread Ambusher), found by the activity's name.
+      const rev = momentsOf('rider').filter(p => p.messageId === dmg?.id);
+      const sev = momentsOf('spend').filter(p => p.messageId === dmg?.id);
+      ok('1y. the resolve was PUBLISHED through the gate: battleflow.moment "rider" (kind clockRiders, marker dread-ambusher) — the ranger, Dreadful Strike on Dread Ambusher, the attack, the victim as a hit target, the formula, a momentId — and "spend" (kind poolSpend) beside it; once each, plain and frozen',
+        (rev.length === 1) && (sev.length === 1) && (rev[0].kind === 'clockRiders') && (rev[0].marker === 'dread-ambusher') && (rev[0].actorUuid === ranger.uuid)
+          && (rev[0].ability === 'Dreadful Strike') && (rev[0].itemName === 'Dread Ambusher') && (rev[0].attackId === cr?.attackId) && (rev[0].targets?.[0]?.actorUuid === victim.uuid) && (rev[0].targets?.[0]?.hit === true)
+          && (rev[0].details?.formula === '2d6') && (rev[0].momentId === `${dmg?.id}|clockRiders|dread-ambusher`) && (sev[0].kind === 'poolSpend') && /Dreadful Strike/.test(sev[0].spend?.pool ?? '')
+          && Object.isFrozen(rev[0]) && plain(rev[0]) && plain(sev[0]),
+        `rider=${JSON.stringify(rev[0])} spend=${JSON.stringify(sev[0])}`);
       const receipt = dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid);
       const total = (dmg?.rolls ?? []).reduce((n, r) => n + (r.total ?? 0), 0);
       ok('1e. one roll, one receipt — the victim took the weapon and the rider together', !!receipt && (receipt.taken === total), `taken=${receipt?.taken} total=${total}`);
@@ -413,6 +430,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
   } finally {
+    Hooks.off('battleflow.moment', momentHookId);
     await teardown();
   }
 }, sectionArg(plan, SECTIONS));

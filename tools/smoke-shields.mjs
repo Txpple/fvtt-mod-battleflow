@@ -45,6 +45,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     return false;
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // THE MOMENT EVENTS (events.js version 2, 2026-09-11): every payload the module publishes during this
+  // run — the GATE publishes it from the record landing, so a section asserts the resolve it drove was heard.
+  const moments = [];
+  const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
+  const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
+  const plain = p => { try { return JSON.stringify(p) === JSON.stringify(JSON.parse(JSON.stringify(p))); } catch { return false; } };
   const suiteStart = Date.now();
   const ledger = globalThis.__bfHookLedger ?? null;
   const count = name => ledger?.[name] ?? 0;
@@ -306,6 +312,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1b. …applied to the GOBLIN through the receipt chokepoint: a receipt on the ward\'s roll card naming the ward, the goblin\'s HP down by the roll',
         !!receipt && (receipt.taken === ds?.total) && (goblinHP() === hpBefore - (ds?.total ?? 0)) && /Fire Shield on BF Test Cleric/.test(receipt.note ?? ''),
         `receipt=${JSON.stringify(receipt)} hp ${hpBefore}→${goblinHP()} total=${ds?.total}`);
+      // THE MOMENT EVENTS (events.js version 2): the damageShield record on the ward's roll publishes `shield`
+      // through the GATE, and the receipt on the same card publishes `damage` (kind receipt, the goblin's marker).
+      const shv = momentsOf('shield').filter(p => p.messageId === shield?.id);
+      const dmv = momentsOf('damage').filter(p => p.messageId === shield?.id);
+      ok('1y. the ward\'s strike was PUBLISHED through the gate: battleflow.moment "shield" (kind damageShield) — the Cleric, Fire Shield, the goblin as the target, the total and the type — and "damage" (kind receipt) for the receipt on the same card, the goblin\'s taken; once each, plain and frozen',
+        (shv.length === 1) && (dmv.length === 1) && (shv[0].kind === 'damageShield') && (shv[0].actorUuid === cleric.uuid) && (shv[0].ability === 'Fire Shield')
+          && (shv[0].targets?.[0]?.actorUuid === goblin.uuid) && (shv[0].details?.total === ds?.total) && (shv[0].details?.type === 'fire')
+          && (dmv[0].kind === 'receipt') && (dmv[0].marker === goblin.uuid) && (dmv[0].targets?.[0]?.actorUuid === goblin.uuid) && (dmv[0].details?.taken === ds?.total)
+          && Object.isFrozen(shv[0]) && plain(shv[0]) && plain(dmv[0]),
+        `shield=${JSON.stringify(shv[0])} damage=${JSON.stringify(dmv[0])}`);
       ok('1c. one ward, one payout: the damage message carries the claim, and exactly one shield card was posted',
         (dmg?.getFlag(MOD, 'damageShields')?.paid?.length === 1) && (cards.length === 1),
         `paid=${JSON.stringify(dmg?.getFlag(MOD, 'damageShields'))} cards=${cards.length}`);
@@ -481,6 +497,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
   } finally {
+    Hooks.off('battleflow.moment', momentHookId);
     await teardown();
   }
 }, sectionArg(plan, SECTIONS));
