@@ -581,7 +581,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('16c. the cap holds: four ticks, three picked', picked.length === 3, `picked=${picked.length}`);
       const oldTotal = dmg.rolls[0].total;
       const oldFaces = picked.map(c => Number(c.textContent));
+      const clicked16 = Date.now();
       popup?.element?.querySelector('button[data-action="reroll"]')?.click();
+      // THE WINDOW GOES AT THE CLICK (user, 2026-09-10: "when you pick the dice and roll, kinda lags
+      // closing") - the dice are still landing for up to six seconds after this.
+      const gone16 = await waitFor(() => (!popup?.rendered || !popup?.element?.isConnected) ? { ms: Date.now() - clicked16 } : null, 5000);
       const used = await waitFor(() => { const f2 = dmg.getFlag(MOD, 'empowered'); return f2?.status === 'used' ? f2 : null; }, 10000);
       log.push(`§16 after: pool ${pool().system.uses.value}, rollDamageV2 fired ${count('dnd5e.rollDamageV2') - fired0} for this roll, poolSpend=${JSON.stringify(dmg.getFlag(MOD, 'poolSpend'))}`);
       log.push(`§16 spends since start: ${game.messages.filter(m => (m.timestamp >= t16) && m.getFlag(MOD, 'poolSpend')).map(m => `${m.getFlag(MOD, 'poolSpend').ability}@${m.id.slice(-4)}`).join(',')} | empowered flags: ${game.messages.filter(m => m.getFlag(MOD, 'empowered')).map(m => `${m.id.slice(-4)}:${m.getFlag(MOD, 'empowered').status}`).join(',')} | spent=${pool().system.uses.spent}`);
@@ -602,6 +606,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const gate16 = !!announce && announce.isRoll && announce.rolls.some(r => r.dice.length > 0) && announce.isContentVisible && !announce.getFlag('dice-so-nice', 'skip');
       const faces16 = announce?.rolls?.[0]?.dice?.map(d => d.results.find(r => r.active !== false)?.result) ?? [];
       const picksNew = (used?.picks ?? []).map(pk => pk.new);
+      ok('16i. the window closed at the click, well before the dice landed', !!gone16 && gone16.ms < 1500, JSON.stringify(gone16 ?? { gone: false }));
       ok('16h. the announce card carries the rerolled dice as ONE roll that passes the Dice So Nice gate, its faces the new faces of the picks in order', gate16 && faces16.length === picksNew.length && faces16.every((f, i) => f === picksNew[i]), JSON.stringify({ isRoll: announce?.isRoll, faces: faces16, picks: picksNew, visible: announce?.isContentVisible }));
       await closeDialogs();
     }

@@ -593,8 +593,12 @@ async function showEmpoweredPopup(message) {
       lines: [ruleLine(flag.rule)]
     }) + `<div data-bf-empowered-dice data-cap="${flag.cap}" style="margin:0.4rem 0;display:grid;grid-template-columns:repeat(8, 2.2rem);gap:0.3rem;justify-content:start;">${chips}</div>` + holdBarHTML(flag, "to answer"),
     buttons: [
-      { action: "reroll", label: "Reroll the picked dice", default: true, callback: (event, button) => resolveEmpowered(message, picksIn(button.form)) },
-      { action: "keep", label: "Keep the roll", callback: () => keepEmpowered(message) }
+      // THE WINDOW GOES AT THE CLICK (user, 2026-09-10: "when you pick the dice and roll, kinda lags
+      // closing"). DialogV2 AWAITS a button's callback before it closes, and the resolution now waits
+      // out the dice - so a callback that returned the resolution held the window open for the whole
+      // animation. The picks are read while the form is still in the DOM; the work is fired, not awaited.
+      { action: "reroll", label: "Reroll the picked dice", default: true, callback: (event, button) => { const picks = picksIn(button.form); void resolveEmpowered(message, picks); } },
+      { action: "keep", label: "Keep the roll", callback: () => { void keepEmpowered(message); } }
     ]
   });
 }
@@ -632,6 +636,16 @@ async function resolveEmpowered(message, picks) {
     const actor = resolveUuid(flag.actorUuid);
     const pool = actor?.items?.get(flag.poolId) ?? null;
     if ( !actor || !pool ) return;
+    // ANSWERED IS NOT PENDING (the d20 folds' rule, the same day). The status leaves "pending" HERE,
+    // before the spend, the roll and the dice: the updateChatMessage handler below closes any popup
+    // and stands the buzzer down, the card says the dice are rolling, and the clock can no longer
+    // "keep" a roll the caster has already chosen to reroll.
+    await queueFlagWrite(message, EMPOWERED_FLAG, current => {
+      if ( current.status !== "pending" ) return false;
+      current.status = "answering";
+      current.answered = chosen.map(d => d.key);
+    });
+    if ( message.getFlag(MODULE_ID, EMPOWERED_FLAG)?.status !== "answering" ) return;   // somebody else got there
     const record = await spendPoolUses(actor, pool, "Empowered Spell", flag.cost, POOL_NAME);
     // THE DICE ARE ONE ROLL, AND THEY RIDE THE ANNOUNCE CARD (user, 2026-09-10: "on a reroll, the
     // dice so nice, if avail, should roll again"). The module's other rerolls post their die as a
@@ -675,6 +689,14 @@ async function resolveEmpowered(message, picks) {
     await moveAppliedDamage(message, outcome);
   } catch(err) {
     console.error(`${TITLE} | Empowered Spell's reroll failed — reroll the dice by hand.`, err);
+    // Never strand "answering": the offer comes back if nothing was spent; if the point went, the
+    // moment is used and the error above says the dice are the caster's to reroll by hand.
+    await queueFlagWrite(message, EMPOWERED_FLAG, current => {
+      if ( current.status !== "answering" ) return false;
+      const spent = !!message.getFlag(MODULE_ID, "poolSpend");
+      current.status = spent ? "used" : "pending";
+      if ( !spent ) delete current.answered;
+    }).catch(() => {});
   } finally {
     empoweredResolving.delete(message.id);
   }
@@ -720,6 +742,9 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       if ( actor?.isOwner ) div.appendChild(momentButton("Answer", () => { void showEmpoweredPopup(message); }));
       scheduleBarSync(div);
       armAskTimer(empoweredTimers, message, EMPOWERED_FLAG, live => keepEmpowered(live, { timedOut: true }));
+    } else if ( flag.status === "answering" ) {
+      const n = (flag.answered ?? []).length;
+      div.innerHTML = `<i class="fa-solid fa-wand-sparkles" data-tooltip="Metamagic"></i> Empowered Spell — answered: rerolling ${n} ${n === 1 ? "die" : "dice"}, the dice are rolling`;
     } else if ( flag.status === "used" ) {
       div.innerHTML = `<i class="fa-solid fa-wand-sparkles" data-tooltip="Metamagic"></i> ${esc(`Empowered Spell — ${empoweredOutcome({ oldTotal: flag.oldTotal, picks: flag.picks ?? [] }).line}`)}`;
     } else {
