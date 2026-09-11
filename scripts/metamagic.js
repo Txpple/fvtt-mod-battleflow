@@ -143,6 +143,11 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
     // it against whatever the area finally contains.
     const cap = Math.max(1, Number(actor.system?.abilities?.cha?.mod) || 1);
     const selected = candidatesFor(actor);
+    // A TEMPLATE SPELL LISTS NOBODY IN THE WINDOW (user, 2026-09-10, Fireball with Thomas targeted:
+    // "it shouldn't have him in the check box. just assume a template and don't put targeted creatures
+    // in there"). Whoever is targeted is not who the area will hold; the pick waits for the placed
+    // template and is asked there, of everything inside it - the carrier road, §18's.
+    if ( activity?.target?.template?.type ) selected.targets = [];
     const protect = { cap, ...selected, chosen: pending.get(activity.uuid)?.protected?.map(p => p.uuid) ?? null };
     // Heightened's one target the same way, a radio over the selected creatures.
     const mark = { ...selected, chosen: pending.get(activity.uuid)?.target?.uuid ?? null };
@@ -163,6 +168,13 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
         else b.disabled = true;   // one option per cast: a tick greys the rest
         if ( row ) row.style.opacity = (b.disabled && !own) ? "0.55" : "1";
       }
+      // HEIGHTENED'S RADIO IS INERT UNTIL HEIGHTENED IS TICKED (user, 2026-09-10: "targets of heightened
+      // should be greyed out if the checkbox is not checked"). A live radio under an unticked option
+      // reads as a choice already made; it greys with its row and wakes with the tick.
+      const heightenedOn = picked === "heightened";
+      for ( const r of fs.querySelectorAll('[data-bf-metamagic-row="heightened"] input[name="bf-metamagic-mark"]') ) r.disabled = !heightenedOn;
+      const markSub = fs.querySelector('[data-bf-metamagic-row="heightened"] [data-bf-metamagic-sub="mark"]');
+      if ( markSub ) markSub.style.opacity = heightenedOn ? "1" : "0.45";
       const row = menu.find(r => r.key === picked);
       const pick = metamagicPick({ menu, chosen: picked });
       if ( pick ) {

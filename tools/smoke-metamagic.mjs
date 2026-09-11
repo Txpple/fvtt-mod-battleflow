@@ -535,7 +535,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // THE WINDOW GOES AT THE CLICK (user, 2026-09-10: "the form stays for a few seconds"), not at the
       // verdict - the dice are still landing for up to six seconds after this.
       const goneAfter = await waitFor(() => (!popup?.rendered || !popup?.element?.isConnected) ? { ms: Date.now() - clickedAt } : null, 5000);
-      const resolved = await waitFor(() => { const f2 = attack?.getFlag(MOD, 'd20fold'); return (f2?.spends ?? []).some(s => s.kind === 'seeking') ? f2 : null; }, 10000);
+      // The spend is RECORDED before the dice are waited out (the 2026-09-10 review), so a spend on the flag
+      // is no longer the verdict - foldedTotal is. Wait for the verdict.
+      const resolved = await waitFor(() => { const f2 = attack?.getFlag(MOD, 'd20fold'); return ((f2?.spends ?? []).some(s => s.kind === 'seeking') && Number.isFinite(f2?.foldedTotal)) ? f2 : null; }, 15000);
       const f15 = attack?.getFlag(MOD, 'd20fold');
       ok('15b. Seeking rerolls the d20 — the spend records the reroll, the total replaced', !!resolved && Number.isFinite(resolved.spends.find(s => s.kind === 'seeking')?.reroll?.total) && Number.isFinite(resolved.foldedTotal), JSON.stringify({ popup: !!popup, status: f15?.status, outcome: f15?.outcome, answer: f15?.answer, spends: f15?.spends, folded: f15?.foldedTotal, base: f15?.baseTotal }));
       ok('15c. one Sorcery Point spent by hand, the record on the attack message', pool().system.uses.value === 4 && attack?.getFlag(MOD, 'poolSpend')?.pool === 'Sorcery Points' && attack?.getFlag(MOD, 'poolSpend')?.ability === 'Seeking Spell', `pool=${pool().system.uses.value} record=${JSON.stringify(attack?.getFlag(MOD, 'poolSpend'))}`);
@@ -623,7 +625,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       canvas.tokens.get(rgrTok.id)?.setTarget(true, { releaseOthers: true });
       canvas.tokens.get(attTok.id)?.setTarget(true, { releaseOthers: false });
       await sleep(200);
-      const { app, fs } = await openWindow('Fireball', { consume: { spellSlot: false }, create: { measuredTemplate: false } });
+      // HOLD PERSON, not Fireball (2026-09-10): a template spell lists nobody in the window - the pick
+      // waits for the area (18w) - so the window's creature controls are exercised on a targeted spell.
+      const { app, fs } = await openWindow('Hold Person', { consume: { spellSlot: false }, create: { measuredTemplate: false } });
+      // HEIGHTENED'S RADIO IS INERT UNTIL HEIGHTENED IS TICKED (user, 2026-09-10).
+      const radios17 = () => [...(fs?.querySelectorAll('[data-bf-metamagic-row="heightened"] input[name="bf-metamagic-mark"]') ?? [])];
+      const hRow = rowsOf(fs).find(r => r.key === 'heightened');
+      const inertBefore = radios17().length === 2 && radios17().every(r => r.disabled);
+      hRow?.box?.click(); await sleep(80);
+      const liveAfter = radios17().every(r => !r.disabled);
+      hRow?.box?.click(); await sleep(80);
+      const inertAgain = radios17().every(r => r.disabled);
+      ok('17c. the Heightened radio is greyed until Heightened is ticked, live once it is, greyed again when it is not', inertBefore && liveAfter && inertAgain, JSON.stringify({ radios: radios17().length, inertBefore, liveAfter, inertAgain }));
       const row = rowsOf(fs).find(r => r.key === 'careful');
       row?.box?.click(); await sleep(80);
       const ticks = [...(fs?.querySelectorAll('[data-bf-metamagic-row="careful"] input[name="bf-metamagic-protect"]') ?? [])];
@@ -634,7 +647,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       tickOf(attTok.actor?.uuid)?.click(); await sleep(80);
       const before = new Set(game.messages.map(m => m.id));
       app.element.querySelector('button[data-action="use"], button[type="submit"]')?.click();
-      const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.getFlag('dnd5e', 'messageType') === 'usage' || m.type === 'usage') && m.getFlag('dnd5e', 'activity')?.uuid === spellAct('Fireball')?.uuid) ?? null, 8000);
+      const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.getFlag('dnd5e', 'messageType') === 'usage' || m.type === 'usage') && m.getFlag('dnd5e', 'activity')?.uuid === spellAct('Hold Person')?.uuid) ?? null, 8000);
       await waitFor(() => card?.getFlag(MOD, 'saves')?.targets?.length ? card : null, 6000);
       const mm = card?.getFlag(MOD, 'metamagic'), saves = card?.getFlag(MOD, 'saves');
       ok('17b. the pick is honoured on the demand: the goblin protected, the Ranger owes the save', mm?.chosen === true && (mm?.protected ?? []).length === 1 && String(mm.protected[0].uuid).endsWith(attacker.id) && (saves?.targets ?? []).some(t => t.uuid === ranger.uuid) && !(saves?.targets ?? []).some(t => String(t.uuid).endsWith(attacker.id)), JSON.stringify({ protected: mm?.protected, targets: names(saves?.targets) }));
@@ -645,6 +658,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     if (want(18) && rgrTok) {
       await gather();
+      // 18w. A TEMPLATE SPELL WITH CREATURES TARGETED STILL LISTS NOBODY (user, 2026-09-10: Fireball with
+      // Thomas targeted "shouldn't have him in the check box") - the pick waits for the area.
+      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      canvas.tokens.get(rgrTok.id)?.setTarget(true, { releaseOthers: true });
+      canvas.tokens.get(attTok.id)?.setTarget(true, { releaseOthers: false });
+      await sleep(200);
+      const w18 = await openWindow('Fireball', { consume: { spellSlot: false }, create: { measuredTemplate: false } });
+      rowsOf(w18.fs).find(r => r.key === 'careful')?.box?.click(); await sleep(80);
+      const ticksW = [...(w18.fs?.querySelectorAll('[data-bf-metamagic-row="careful"] input[name="bf-metamagic-protect"]') ?? [])];
+      const marksW = [...(w18.fs?.querySelectorAll('[data-bf-metamagic-row="heightened"] input[name="bf-metamagic-mark"]') ?? [])];
+      ok('18w. a template spell with two creatures targeted lists nobody in the window - Careful ticks none, Heightened radios none', ticksW.length === 0 && marksW.length === 0, JSON.stringify({ targeted: game.user.targets.size, ticks: ticksW.length, radios: marksW.length }));
+      await w18.app?.close();
+      await closeDialogs();
       game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
       const { app, fs } = await openWindow('Fireball', { consume: { spellSlot: false }, create: { measuredTemplate: false } });
       rowsOf(fs).find(r => r.key === 'careful')?.box?.click(); await sleep(80);
