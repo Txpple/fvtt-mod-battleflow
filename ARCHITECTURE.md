@@ -634,7 +634,7 @@ those strings back into the view.**
 | 6 | entry | `battleflow.js` |
 | 5 | **machines** | hold · **saves/** (one machine, a directory of eight parts — below) · mastery · topple · chip-spend · precision · riposte · hew · bash-offer · command · concentration · volleys · cast · hit-riders · d20-folds · receipts · polish · resources · reminders (the gate machine — attack, save and check gates) · stats · sneak · clock-riders · use-chips · emanations · hit-menu · damage-shields · damage-casts · superiority-uses · metamagic (the Sorcerer's options in the cast dialog, the points spent on the card — 2026-09-09). The machine-tier pass (2026-09-05, Stage 4) split maneuvers.js into five and mastery.js into three by MOMENT, and made saves.js the directory |
 | 4 | **services** | `auto-apply.js` · `effect-riders.js` · `auto-damage.js` — the consequence chokepoints (§2) |
-| 3 | spine | `ui.js` · `shared.js` · `geometry.js` · `settings.js` · `lookup.js` (the sheet and document readers, 2026-09-05) · `holds.js` (the hold registry — what another module asks before it plays, 2026-09-09) |
+| 3 | spine | `ui.js` · `shared.js` · `geometry.js` · `settings.js` · `lookup.js` (the sheet and document readers, 2026-09-05) · `holds.js` (the hold registry — what another module asks before it plays, 2026-09-09) · `events.js` (the moment events — what the module publishes when a moment resolves, 2026-09-11) |
 | 2 | registry | `volley-registry.js` |
 | 1 | decision | `decide/*` — **zero imports, asserted** |
 | 0 | core | `core.js` — a leaf, **asserted** |
@@ -772,6 +772,7 @@ neighbour. What other modules need is *published*, never *reached for*.
 | `volleyRegistry` | [volley-registry.js](scripts/volley-registry.js) | volley membership, read-only, same rule |
 | `acknowledgeMoment` | [ui.js](scripts/ui.js) | resolve a card's pending presentation (law 3) |
 | `holdFor(subject)` · `castHold(uuid)` · `holds` | [holds.js](scripts/holds.js) | **the hold** — below |
+| `moments` and the hooks `battleflow.moment` · `battleflow.<event>` | [events.js](scripts/events.js) | **the moment events** — below |
 
 **The hold** is the one surface with a consumer outside this repo, so its contract is written
 here rather than only in the file. It exists because a module that keys on the usage card would
@@ -806,6 +807,46 @@ beside it: `battleflow.holdOpened` when one is raised, `battleflow.castReleased`
 load-bearing rather than incidental: create hooks fire DURING the create, so a consumer reading the
 released card on `createChatMessage` would otherwise find the hold still open — for the very card
 that lifts it.
+
+**The moment events** are the other surface with a consumer outside this repo, and the mirror
+of the hold: the hold tells a neighbour *not yet*, the events tell it *now, and here is what*.
+An ability used through one of the module's own popups posts no dnd5e usage card — a maneuver
+die rides the damage roll, Parry rides the hold's answer, Sneak Attack's dice write a record on a
+message that already exists — so a module that keys its pictures on the card never sees them,
+though the same ability used from the sheet would play (BACKLOG, *the pictures that never play*,
+built 2026-09-11 on the user's word). The fix is not a fake card: [events.js](scripts/events.js)
+`publishMoment(event, facts)` fires **`battleflow.moment`** with a plain payload, then
+**`battleflow.<event>`** with the same payload, at the point a machine has already resolved the
+moment once — behind the machine's own idempotence latch, never a second latch here.
+
+> The payload is **plain** — uuids and ids, strings, numbers, booleans, frozen, serialisable —
+> and carries **no flag shape** from this module; a consumer resolves the uuids itself and learns
+> nothing about how the moment was stored. It is **client-local**, like the hold: published on the
+> client that resolved the moment (the roller, the reactor) and nowhere else — the right client for
+> a picture, and the only one with the facts at the instant they are true. **Nobody listening is
+> a no-op** the platform already provides: no feature detect, no try/catch around a neighbour, no
+> setting. Battle Flow still imports no other module and calls into none.
+
+The vocabulary is **closed** — `maneuver` · `sneak` · `fold` · `rider` · `hold-answered` — and a
+new word is a contract change and a version bump; `api.moments` is `{ version, events, hooks }`.
+The payload's fields: `event`, `module`, `version`, `actorUuid` / `actorName` / `tokenUuid` (who
+resolved it), `itemUuid` / `itemName` / `activityUuid` / `ability` (what it is about), `messageId`
+(the message it resolved ON) and `attackId` (the attack it rode), `targets[]` as
+`{ actorUuid, tokenUuid, name, hit? }` (`hit` only when a verdict is known), `spend` in the uniform
+row shape or null, `details` (event-specific plain facts: a formula, the Cunning picks, an answer),
+`at`. Three publishers today, three shapes — the hit menu's die on the damage message
+([hit-menu.js](scripts/hit-menu.js), a spend riding a roll), Sneak Attack's dice
+([sneak.js](scripts/sneak.js), a rider with no pool), and a hold answered by a cast
+([hold/answer.js](scripts/hold/answer.js), an answer on the attack message; Parry is ALSO a
+maneuver and publishes under both words). `fold` and `rider` have no publisher yet — named so the
+vocabulary does not churn when they land. [tests/events.test.js](tests/events.test.js) pins the
+shape and the silent failures; `smoke-sneak` §4g, `smoke-hitmenu` §3i and `smoke-superiority` §1e
+assert each publisher on the sandbox.
+
+⚠ **A cast that answers a hold is heard twice by a consumer that keys on cards** — once on the
+dnd5e usage card the cast posts, once as `hold-answered`. That is by design (the two carry
+different facts: the card the spell, the event the hold it answered) and the consumer picks; a
+picture keyed to the card does not also fire on the event unless its author keys it there too.
 
 **Four decisions in [holds.js](scripts/holds.js) are load-bearing** for the modal sequence the
 module wants long term (BACKLOG, *The modal sequence*), and each is cheap now and expensive later:

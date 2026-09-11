@@ -87,6 +87,7 @@ import "./core.js";
 import "./settings.js";
 import "./shared.js";
 import "./holds.js";
+import "./events.js";   // the moment events — what the module PUBLISHES at a resolve (2026-09-11)
 import "./polish.js";
 import "./auto-damage.js";
 import "./hold/index.js";

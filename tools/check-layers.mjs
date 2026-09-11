@@ -117,6 +117,7 @@ const LAYER_OF = {
   "geometry.js": "spine",
   "settings.js": "spine",
   "holds.js": "spine",     // the hold registry — what other modules ask before they play (2026-09-09)
+  "events.js": "spine",    // the moment events — what the module publishes at a resolve (2026-09-11)
   "lookup.js": "spine",      // the sheet and document readers (the machine-tier pass, Stage 1)
 
   // REGISTRY — which content participates, in what way

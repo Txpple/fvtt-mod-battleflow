@@ -11,6 +11,7 @@ import { bfCard, cunningMenuHTML, ruleLine } from "./decide/present.js";
 import { CUNNING_OPTIONS, DEATH_STRIKE } from "./decide/registry.js";
 import { cunningMenu, cunningPick, sneakFormula } from "./decide/sneak.js";
 import { tokenForUuid } from "./geometry.js";
+import { publishMoment } from "./events.js";
 import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
@@ -218,6 +219,16 @@ Hooks.on("createChatMessage", message => {
   const sd = message.getFlag(MODULE_ID, "sneakDamage");
   if ( !sd || sd.effectsDone || effectsRun.has(message.id) ) return;
   effectsRun.add(message.id);
+  // THE MOMENT, PUBLISHED (events.js, 2026-09-11): the sneak dice rode, no pool was spent, the
+  // picks are known — one event on the roller's client, behind the latch above, before the effects.
+  {
+    const attackMessage = game.messages.get(sd.attackId);
+    const attacker = attackMessage?.getAssociatedActor?.() ?? message.getAssociatedActor?.() ?? null;
+    publishMoment("sneak", { actor: attacker, item: featureNamed(attacker, "Sneak Attack"), ability: "Sneak Attack", message, attackMessage,
+      targets: attackMessage ? hitTargets(attackMessage).map(t => ({ ...t, hit: true })) : [],
+      details: { dice: sd.dice ?? null, formula: sd.formula ?? null, cost: sd.cost ?? 0, dc: sd.dc ?? null,
+        picks: (sd.cunning ?? []).map(c => c.key) } });
+  }
   void runCunningEffects(message, sd, null);
 });
 

@@ -48,6 +48,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const suiteStart = Date.now();
+  // THE MOMENT EVENTS (events.js, 2026-09-11): every payload the module publishes during this run,
+  // so a section can assert the resolve it drove was PUBLISHED with plain facts (uuids, never documents).
+  const moments = [];
+  const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
+  const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
+  const plain = p => { try { return JSON.stringify(p) === JSON.stringify(JSON.parse(JSON.stringify(p))); } catch { return false; } };
   const ledger = globalThis.__bfHookLedger ?? null;
   const count = name => ledger?.[name] ?? 0;
   const errors = [];
@@ -287,6 +293,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `rolled=${total} reduceBy=${rt?.reduceBy} taken=${receipt?.taken} note="${receipt?.note}" hp ${hpBefore}→${fighter.system.attributes.hp.value}`);
       // Out of combat there is no turn to bring a Reaction back, so no chip is written (the settled rule) — the pool is the spend to assert.
       ok('1d. the pool is spent (the Reaction chip is a combat-only document — out of combat none is written, by the settled rule)', poolLeft() === 3, `pool=${poolLeft()}`);
+      // THE MOMENT, PUBLISHED (events.js): Parry answers a hold AND spends a Superiority Die, so it
+      // publishes under both words — `hold-answered` and `maneuver` — once each, on the attack message.
+      const held = momentsOf('hold-answered').filter(p => p.messageId === msg?.id);
+      const man = momentsOf('maneuver').filter(p => p.messageId === msg?.id);
+      const h = held[0], m = man[0];
+      ok('1e. the resolve was PUBLISHED: battleflow.moment "hold-answered" — the fighter, Parry, the attack message, the goblin as the target, answer cast, the reduction, the spend; and "maneuver" beside it (mode reduce); once each, plain and frozen',
+        (held.length === 1) && (man.length === 1) && !!h && !!m && (h.actorUuid === fighter.uuid) && (h.ability === 'Parry') && (h.attackId === msg?.id)
+          && (h.targets?.[0]?.actorUuid === goblin.uuid) && (h.details?.answer === 'cast') && (h.details?.kind === 'damage') && (h.details?.reduceBy === rt?.reduceBy)
+          && (h.spend?.pool === 'Combat Superiority') && (h.spend?.left === 3) && (m.details?.mode === 'reduce') && (m.spend?.left === 3)
+          && Object.isFrozen(h) && plain(h) && plain(m),
+        `held=${held.length} man=${man.length} h=${JSON.stringify(h)}`);
       await clearChips();
     }
 
@@ -595,6 +612,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
   } finally {
+    Hooks.off('battleflow.moment', momentHookId);
     await teardown();
   }
 }, sectionArg(plan, SECTIONS));

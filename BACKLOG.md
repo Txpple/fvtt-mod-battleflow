@@ -124,7 +124,7 @@ seen from two sides — and because each is a *goal for some workflows, not all*
    a user ruling with table findings behind it): concurrent by design, with one narrow exception
    (the rescue view). A modal sequence is a **change to law 7**, not an addition to it, and it is
    wanted for *some* workflows only — so it arrives as an option per moment, never as the default.
-2. **The pictures that never play.** An ability consumed through a Battle Flow popup posts no
+2. ~~**The pictures that never play.**~~ ✅ **BUILT 2026-09-11 on the user's word ("go"): the moment events** — [events.js](scripts/events.js) `publishMoment`, the hooks `battleflow.moment` / `battleflow.<event>`, a plain payload, three publishers (the hit menu's die, Sneak Attack, a hold answered by a cast; Parry under both words), ARCHITECTURE §7 *The moment events*. The user's ruling on the shape: *"from the battleflow perspective, no real dependency because fx studio is optional. events would just fail silently"* — Battle Flow fires a hook it does not know anyone hears; FX Studio grows a reader in ITS repo (its commission, written into its PLAN.md the same day). `fold` and `rider` are named in the vocabulary with no publisher yet. The survey that led here: An ability consumed through a Battle Flow popup posts no
    dnd5e **usage card** — it posts a `bfCard`, or writes a record on an attack or damage message
    that already exists. FX Studio's message reader keys on usage messages (`type === "usage"`) and
    builds its subject from the ITEM on them, so a maneuver spent at the hold, a Sorcery Point
@@ -140,8 +140,8 @@ Attack writes `sneak` / `sneakDamage` flags on a message that already exists and
 So the emitter's real home is the **moment's resolve step**, which means the spine, which means it
 should be designed once against two or three real callers rather than guessed from one.
 
-**What would un-park it:** the user's word on either half. They are independent — the pictures can
-be built without the sequence, and are the more useful of the two.
+**What would un-park it:** the user's word on either half. They are independent — the pictures
+WERE built without the sequence (2026-09-11, above); the sequence stays parked on the user's call.
 
 ⚠ **NO BLOCKERS — the contract the hold work must keep.** The compatibility work in flight
 (`api.holdFor`, the generalisation of `castHold`) is a strict subset of what a modal sequence

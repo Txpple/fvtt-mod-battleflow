@@ -11,6 +11,7 @@ import { joinEffectReceipt } from "../decide/receipt.js";
 import { bfCard } from "../decide/present.js";
 import { spendReaction, poolOf, spendSuperiorityDie } from "../shared.js";
 import { registerRelay } from "../ui.js";
+import { publishMoment } from "../events.js";
 import { reactionItem, reactionNameFor, applyReactionEffect, reactionACArrived, reactionImg } from "./lookup.js";
 
 /** Record an answer for one held target and continue once every held target has answered.
@@ -35,6 +36,22 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
   const actor = await fromUuid(uuid);
   const ac = actor?.system?.attributes?.ac?.value ?? null;
   target.acAtAnswer = ac;
+  // THE MOMENT, PUBLISHED (events.js, 2026-09-11): a CAST answered the hold — the reaction used,
+  // the die (Parry's) spent, the number rolled. Once, on the answering client, behind the
+  // first-answer guard above; a pass is not a moment anyone pictures. Parry is ALSO a maneuver
+  // (its die is a Superiority Die), so it publishes under both words: a consumer keyed to
+  // maneuvers hears it beside the hit menu's, and one keyed to holds hears it beside Shield.
+  if ( answer === "cast" ) {
+    const reactor = (actor?.documentName === "Actor") ? actor : (actor?.actor ?? null);
+    const item = reactor?.items?.get?.(target.itemId) ?? reactionItem(reactor, target.reaction) ?? null;
+    const attacker = attackMessage.getAssociatedActor?.() ?? null;
+    const facts = { actor: reactor, item, activity: (target.activityId && item) ? item.system?.activities?.get?.(target.activityId) ?? null : null,
+      ability: target.reaction, message: attackMessage, attackMessage,
+      targets: attacker ? [{ uuid: attacker.uuid, name: attacker.name }] : [], spend: poolSpend ?? null,
+      details: { answer, kind: target.kind ?? null, reduceBy: Number(reduceBy) > 0 ? Number(reduceBy) : null, spell: hold.spell ?? null } };
+    publishMoment("hold-answered", facts);
+    if ( poolSpend ) publishMoment("maneuver", { ...facts, details: { ...facts.details, key: null, formula: target.reduce?.formula ?? null, mode: "reduce" } });
+  }
 
   if ( !attackMessage.isOwner ) {
     // Say what actually happened, not just "reacts" — this card is the table's record AND

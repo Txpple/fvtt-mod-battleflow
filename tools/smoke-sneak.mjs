@@ -42,6 +42,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const suiteStart = Date.now();
+  // THE MOMENT EVENTS (events.js, 2026-09-11): every payload the module publishes during this run,
+  // so a section can assert the resolve it drove was PUBLISHED with plain facts (uuids, never documents).
+  const moments = [];
+  const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
+  const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
+  const plain = p => { try { return JSON.stringify(p) === JSON.stringify(JSON.parse(JSON.stringify(p))); } catch { return false; } };
   const errors = [];
   const origError = console.error;
   const origWarn = console.warn;
@@ -385,6 +391,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('4f. the victim fails (-30) and lands Prone through the pack\'s own effect, receipted on the demand card',
         answered && (entry?.outcome === 'failed') && victim.statuses?.has?.('prone') && !!er?.effects?.some(e => /Tripped/.test(e.name)),
         `answered=${answered} outcome=${entry?.outcome} prone=${victim.statuses?.has?.('prone')} receipt=${JSON.stringify(er?.effects?.map(e => e.name))}`);
+      // THE MOMENT, PUBLISHED (events.js): one `sneak` event on the damage message, plain, with the picks.
+      const ev = momentsOf('sneak').filter(p => p.messageId === dmg?.id);
+      const p = ev[0];
+      ok('4g. the resolve was PUBLISHED once: battleflow.moment "sneak" — the rogue, Sneak Attack, the damage message, the attack, the victim as a hit target, the formula and the Trip pick; plain and frozen',
+        (ev.length === 1) && !!p && (p.actorUuid === rogue.uuid) && (p.itemName === 'Sneak Attack') && (p.attackId === msg3?.id)
+          && (p.targets?.[0]?.actorUuid === victim.uuid) && (p.targets?.[0]?.hit === true) && !!p.targets?.[0]?.tokenUuid
+          && (p.details?.formula === '6d6') && (p.details?.picks?.join() === 'trip') && (p.spend === null) && Object.isFrozen(p) && plain(p),
+        `events=${ev.length} payload=${JSON.stringify(p)}`);
+      const fxs = game.modules.get('fvtt-mod-fxstudio')?.active ? game.modules.get('fvtt-mod-fxstudio').api : null;
+      if (fxs?.ledger) { const fe = fxs.ledger.find(x => x.id === `${dmg?.id}:sneak`); log.push(`FX Studio (observed, not asserted): ${fe ? `${fe.played ? 'PLAYED' : 'did not play'} ${fe.fx ?? '(no fx)'} on "${fe.when}" via ${fe.key ?? '-'}${fe.why ? ` — ${fe.why}` : ''}` : 'no ledger entry for the published moment'}`); }
       await clearChips();
     }
 
@@ -585,6 +601,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };
   } finally {
+    Hooks.off('battleflow.moment', momentHookId);
     await teardown();
   }
 }, sectionArg(plan, SECTIONS));

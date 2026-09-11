@@ -12,6 +12,7 @@ import { HIT_GROUPS, HIT_OPTIONS } from "./decide/registry.js";
 import { hitMenu, hitPick, sweepVerdict } from "./decide/hit-menu.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
+import { publishMoment } from "./events.js";
 import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt, messageActivity } from "./effect-riders.js";
@@ -283,6 +284,16 @@ Hooks.on("createChatMessage", message => {
   const hm = message.getFlag(MODULE_ID, "hitManeuver");
   if ( !hm || hm.done || consequencesRun.has(message.id) ) return;
   consequencesRun.add(message.id);
+  // THE MOMENT, PUBLISHED (events.js, 2026-09-11): the die rode, the pool is spent, the message
+  // exists — one event on the roller's client, behind the latch above, before the consequences.
+  {
+    const attackMessage = game.messages.get(hm.attackId);
+    publishMoment("maneuver", { actor: attackMessage?.getAssociatedActor?.() ?? message.getAssociatedActor?.() ?? null,
+      item: resolveUuid(hm.itemUuid), ability: hm.feature, message, attackMessage,
+      targets: attackMessage ? hitTargets(attackMessage).map(t => ({ ...t, hit: true })) : [], spend: hm.poolSpend ?? null,
+      details: { key: hm.key, group: hm.group ?? null, formula: hm.formula ?? null, type: hm.type ?? null, mode: hm.mode ?? "ride",
+        critical: !!hm.attackRoll?.isCritical } });
+  }
   void runConsequences(message, hm);
 });
 
