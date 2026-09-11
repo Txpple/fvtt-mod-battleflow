@@ -30,7 +30,7 @@ import { feetOf, tokenOfActor, tokensInTemplates } from "./geometry.js";
 import { bfCard, foldedRuleHTML, esc, holdBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
 import { METAMAGIC_FLAG, METAMAGIC_ASK_FLAG, askDefaults, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome, carefulProtects, heightenedMark } from "./decide/metamagic.js";
-import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync, dramaticVerdictPause } from "./ui.js";
+import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync, dramaticVerdictPause, registerResumable } from "./ui.js";
 import { raiseHold, releaseHold, isHeld } from "./holds.js";
 import { saveTargetEntry } from "./decide/demand.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
@@ -628,6 +628,7 @@ async function keepEmpowered(message, { timedOut = false } = {}) {
 async function resolveEmpowered(message, picks) {
   if ( empoweredResolving.has(message.id) ) return;
   empoweredResolving.add(message.id);
+  let record = null;   // the spend, once it has happened - the failure path below must not lose it
   try {
     const flag = message.getFlag(MODULE_ID, EMPOWERED_FLAG);
     if ( !flag || (flag.status !== "pending") ) return;
@@ -646,7 +647,7 @@ async function resolveEmpowered(message, picks) {
       current.answered = chosen.map(d => d.key);
     });
     if ( message.getFlag(MODULE_ID, EMPOWERED_FLAG)?.status !== "answering" ) return;   // somebody else got there
-    const record = await spendPoolUses(actor, pool, "Empowered Spell", flag.cost, POOL_NAME);
+    record = await spendPoolUses(actor, pool, "Empowered Spell", flag.cost, POOL_NAME);
     // THE DICE ARE ONE ROLL, AND THEY RIDE THE ANNOUNCE CARD (user, 2026-09-10: "on a reroll, the
     // dice so nice, if avail, should roll again"). The module's other rerolls post their die as a
     // message (`roll.toMessage`, d20-folds.js) and Dice So Nice animates it on the create, unasked;
@@ -681,26 +682,66 @@ async function resolveEmpowered(message, picks) {
         lines: [outcome.delta === 0 ? "The total stands." : `The damage is ${outcome.newTotal} now — the new rolls stand.`] }),
       flags: { [MODULE_ID]: { respondsTo: message.id } }
     });
-    if ( announce ) await dramaticVerdictPause(announce);
-    await message.update({
-      rolls: rebuilt.map(r => JSON.stringify(r.toJSON())),
-      flags: { [MODULE_ID]: { poolSpend: record, [EMPOWERED_FLAG]: { ...flag, status: "used", picks: done, newTotal: outcome.newTotal, delta: outcome.delta } } }
-    });
-    await moveAppliedDamage(message, outcome);
-  } catch(err) {
-    console.error(`${TITLE} | Empowered Spell's reroll failed — reroll the dice by hand.`, err);
-    // Never strand "answering": the offer comes back if nothing was spent; if the point went, the
-    // moment is used and the error above says the dice are the caster's to reroll by hand.
+    // THE DURABLE INTENT, BEFORE THE PAUSE (the 2026-09-10 review). The pause is seconds, and a
+    // client that died inside it used to leave "answering" for ever: the point gone from the sheet,
+    // nothing on the message, the dice never patched. So everything the completion needs is written
+    // FIRST - the spend where every spend is read, the patched rolls, the picks, the outcome - and
+    // the completion is one idempotent step that this client takes after the dice, and that the
+    // elect's resume takes instead if this client never does (registerResumable, below).
     await queueFlagWrite(message, EMPOWERED_FLAG, current => {
       if ( current.status !== "answering" ) return false;
-      const spent = !!message.getFlag(MODULE_ID, "poolSpend");
-      current.status = spent ? "used" : "pending";
-      if ( !spent ) delete current.answered;
-    }).catch(() => {});
+      current.pending = { rolls: rebuilt.map(r => JSON.stringify(r.toJSON())), picks: done, newTotal: outcome.newTotal, delta: outcome.delta, at: Date.now() };
+    });
+    if ( record ) await message.setFlag(MODULE_ID, "poolSpend", record);
+    if ( announce ) await dramaticVerdictPause(announce);
+    await completeEmpowered(message);
+  } catch(err) {
+    console.error(`${TITLE} | Empowered Spell's reroll failed — reroll the dice by hand.`, err);
+    // Never strand "answering", and never offer a second point for the same dice: if nothing was
+    // spent the offer comes back; if the point went, the moment is used, the spend is recorded on
+    // the message like every spend (the flash and the ledger read it there), and the error above
+    // says the dice are the caster's to reroll by hand.
+    const spent = record;
+    if ( message.getFlag(MODULE_ID, EMPOWERED_FLAG)?.pending ) { await completeEmpowered(message).catch(() => {}); }
+    else {
+      await queueFlagWrite(message, EMPOWERED_FLAG, current => {
+        if ( current.status !== "answering" ) return false;
+        current.status = spent ? "used" : "pending";
+        if ( !spent ) delete current.answered;
+      }).catch(() => {});
+      if ( spent && !message.getFlag(MODULE_ID, "poolSpend") ) await message.setFlag(MODULE_ID, "poolSpend", spent).catch(() => {});
+    }
   } finally {
     empoweredResolving.delete(message.id);
   }
 }
+
+/**
+ * THE COMPLETION - the one step between "answering" and "used": the patched rolls onto the message,
+ * the picks and the outcome onto the flag, the applied damage moved. Idempotent by status: the first
+ * writer flips "answering" to "used" and the second finds nothing to do. The clicking client takes it
+ * after the dice; the elect's resume takes it instead when that client never does.
+ */
+async function completeEmpowered(message) {
+  const flag = message.getFlag(MODULE_ID, EMPOWERED_FLAG);
+  if ( (flag?.status !== "answering") || !flag.pending ) return;
+  const { rolls, picks, newTotal, delta } = flag.pending;
+  const { pending: _done, answered: _keys, ...rest } = flag;
+  void _done; void _keys;
+  await message.update({
+    rolls,
+    flags: { [MODULE_ID]: { [EMPOWERED_FLAG]: { ...rest, status: "used", picks, newTotal, delta, "-=pending": null, "-=answered": null } } }
+  });
+  await moveAppliedDamage(message, { newTotal, delta });
+}
+
+/** Past the longest the pause can be (six seconds of dice, up to ten of dramatic beat), with slack. */
+const EMPOWERED_RESUME_MS = 20_000;
+registerResumable(EMPOWERED_FLAG, {
+  pending: flag => (flag?.status === "answering") && !!flag.pending && ((Date.now() - (flag.pending.at ?? 0)) > EMPOWERED_RESUME_MS),
+  drives: () => isActiveGM(),
+  drive: message => completeEmpowered(message)
+});
 
 /**
  * Damage ALREADY applied off this message is moved by the difference — the §11 rule 4 obligation

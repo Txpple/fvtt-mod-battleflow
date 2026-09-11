@@ -612,68 +612,89 @@ async function resolveFold(message, answer) {
     const spec = kind ? KINDS[kind] : null;
     if ( !spec || !offer ) return;
 
-    // ⚠ RE-FIND AT RESOLVE TIME, never trust the stamp. Minutes can pass inside the window and
-    // the marker can be gone — the boolean toggled off on the sheet, the effect expired, the
-    // last Second Wind spent elsewhere. Recording a spend that did not happen shipped a lie
-    // once (ui.js:407); spending something no longer there is the same lie in reverse.
-    // The find takes the roll's context too (Seeking Spell fits a SPELL attack alone — carried on the flag).
-    const marker = spec.find(actor, { name: offer.name, kind }, { spell: !!flag.spell });
-    if ( !marker ) {
-      await queueFlagWrite(message, "d20fold", current => {
-        current.status = "resolved";
-        current.outcome = current.spends?.length ? "used" : "gone";
-      });
-      await resumeWithheldSave(flag, message);
-      return;
-    }
+    // ⚠ THE RESUME GATE (the 2026-09-10 review). A spend recorded on the flag with its verdict still
+    // pending means a resolver got as far as the dice and died before composing - the crash-resume
+    // (twenty seconds on, below) lands here. It must not spend or roll again: it composes.
+    const already = (flag.spends ?? []).some(sp => sp.pendingVerdict && (sp.kind === kind) && ((sp.name ?? sp.kind) === (offer.name ?? kind)));
+    let spends;
+    let marker = null;   // the sheet's own marker; a resume has none to find, the spend already took it
+    if ( already ) {
+      spends = flag.spends ?? [];
+    } else {
+      // ⚠ RE-FIND AT RESOLVE TIME, never trust the stamp. Minutes can pass inside the window and
+      // the marker can be gone — the boolean toggled off on the sheet, the effect expired, the
+      // last Second Wind spent elsewhere. Recording a spend that did not happen shipped a lie
+      // once (ui.js:407); spending something no longer there is the same lie in reverse.
+      // The find takes the roll's context too (Seeking Spell fits a SPELL attack alone — carried on the flag).
+      marker = spec.find(actor, { name: offer.name, kind }, { spell: !!flag.spell });
+      if ( !marker ) {
+        await queueFlagWrite(message, "d20fold", current => {
+          current.status = "resolved";
+          current.outcome = current.spends?.length ? "used" : "gone";
+        });
+        await resumeWithheldSave(flag, message);
+        return;
+      }
 
-    // ⚠ AND AGAIN HERE, because `resolveFold` has a second caller: the elect's crash-resume
-    // picks up an accepted answer whose client died, up to twenty seconds later, and the roll
-    // can have been fixed in between. Re-finding the marker was already the rule at this line
-    // ("never trust the stamp"); re-checking the PREMISE is the same rule about the roll.
-    if ( !foldPremiseAlive(message, flag) ) {
+      // ⚠ AND AGAIN HERE, because `resolveFold` has a second caller: the elect's crash-resume
+      // picks up an accepted answer whose client died, up to twenty seconds later, and the roll
+      // can have been fixed in between. Re-finding the marker was already the rule at this line
+      // ("never trust the stamp"); re-checking the PREMISE is the same rule about the roll.
+      if ( !foldPremiseAlive(message, flag) ) {
+        await queueFlagWrite(message, "d20fold", current => {
+          if ( current.status !== "pending" ) return false;
+          current.status = "resolved";
+          current.outcome = "no longer needed";
+          current.offers = [];
+        });
+        await resumeWithheldSave(flag, message);
+        return;
+      }
+
+      // 1. REALLY spend it — a write, a use() or a delete, whichever this kind is.
+      if ( !(await spec.spend(actor, marker, message)) ) return;
+
+      // 2. The new number, public, stamped so no other recognizer can claim it.
+      const rolled = REROLL_KINDS.has(kind)
+        ? await rerollOf(message, actor)
+        : await rollDie(spec.die(marker) ?? offer.dieFormula, actor);
+      if ( !rolled ) return;
+      const rolledMessage = await rolled.roll.toMessage({
+        speaker: ChatMessage.getSpeaker({ actor }),
+        flavor: REROLL_KINDS.has(kind) ? `${labelOf(offer)} — the reroll` : `${labelOf(offer)} — the die`,
+        flags: { [MODULE_ID]: { respondsTo: message.id } }
+      });
+
+      // 3. Record the spend, then compose the verdict across EVERY fold on this message.
+      //
+      // ⚠ THE 2026-08-23 RULING, OBEYED RATHER THAN QUOTED, and not hypothetical: maneuvers.js
+      // registers `dnd5e.rollAttackV2` BEFORE this file, so a Battle Master holding Heroic
+      // Inspiration is offered a Precision die AND a fold on the same missed attack. Announcing
+      // `baseTotal + die` here would ignore a superiority die already spent on the same roll and
+      // disagree with `hitTargets`, which walks the whole registry. Compose ONCE, through the
+      // path every other reader uses.
+      // 2b. RECORD THE SPEND NOW, BEFORE THE DICE ARE WAITED OUT (the 2026-09-10 review). The pause
+      // below is seconds; a resolver that dies inside it used to leave a flag that said "answered,
+      // nothing spent" - and the crash-resume, twenty seconds on, would spend AGAIN. The entry is
+      // written with `pendingVerdict` so the resume gate at the top can tell an in-flight spend from a
+      // finished one, and the verdict write strips the marker.
+      const entry = {
+        kind, name: offer.name, label: offer.label, pendingVerdict: true,
+        ...(REROLL_KINDS.has(kind) ? { reroll: rolled.summary } : { die: rolled.summary.total })
+      };
       await queueFlagWrite(message, "d20fold", current => {
         if ( current.status !== "pending" ) return false;
-        current.status = "resolved";
-        current.outcome = "no longer needed";
-        current.offers = [];
+        current.spends = [...(current.spends ?? []), entry];
       });
-      await resumeWithheldSave(flag, message);
-      return;
+      spends = [...(flag.spends ?? []), entry];
+
+      // THE DICE LAND BEFORE THE VERDICT (user, 2026-09-10, of Seeking: "the dice so nice should roll
+      // again"). The die already rode its own message and Dice So Nice already animated it - but the
+      // verdict below was composed onto the attack card in the same tick, so the answer was on screen
+      // before the dice had finished and the reroll never read as one. The pause is the spine's
+      // (capped, cosmetic, never blocking); every verdict in the module keeps this order.
+      if ( rolledMessage ) await dramaticVerdictPause(rolledMessage);
     }
-
-    // 1. REALLY spend it — a write, a use() or a delete, whichever this kind is.
-    if ( !(await spec.spend(actor, marker, message)) ) return;
-
-    // 2. The new number, public, stamped so no other recognizer can claim it.
-    const rolled = REROLL_KINDS.has(kind)
-      ? await rerollOf(message, actor)
-      : await rollDie(spec.die(marker) ?? offer.dieFormula, actor);
-    if ( !rolled ) return;
-    const rolledMessage = await rolled.roll.toMessage({
-      speaker: ChatMessage.getSpeaker({ actor }),
-      flavor: REROLL_KINDS.has(kind) ? `${labelOf(offer)} — the reroll` : `${labelOf(offer)} — the die`,
-      flags: { [MODULE_ID]: { respondsTo: message.id } }
-    });
-    // THE DICE LAND BEFORE THE VERDICT (user, 2026-09-10, of Seeking: "the dice so nice should roll
-    // again"). The die already rode its own message and Dice So Nice already animated it - but the
-    // verdict below was composed onto the attack card in the same tick, so the answer was on screen
-    // before the dice had finished and the reroll never read as one. The pause is the spine's
-    // (capped, cosmetic, never blocking); every verdict in the module keeps this order.
-    if ( rolledMessage ) await dramaticVerdictPause(rolledMessage);
-
-    // 3. Record the spend, then compose the verdict across EVERY fold on this message.
-    //
-    // ⚠ THE 2026-08-23 RULING, OBEYED RATHER THAN QUOTED, and not hypothetical: maneuvers.js
-    // registers `dnd5e.rollAttackV2` BEFORE this file, so a Battle Master holding Heroic
-    // Inspiration is offered a Precision die AND a fold on the same missed attack. Announcing
-    // `baseTotal + die` here would ignore a superiority die already spent on the same roll and
-    // disagree with `hitTargets`, which walks the whole registry. Compose ONCE, through the
-    // path every other reader uses.
-    const spends = [...(flag.spends ?? []), {
-      kind, name: offer.name, label: offer.label,
-      ...(REROLL_KINDS.has(kind) ? { reroll: rolled.summary } : { die: rolled.summary.total })
-    }];
     const pending = { ...flag, status: "resolved", outcome: "used", spends };
     /**
      * ⚠ PICK THE SPEC SET BY TEST KIND. This defaulted to `ATTACK_FOLDS` and that was a real
@@ -718,7 +739,7 @@ async function resolveFold(message, answer) {
     const lines = [];
     let anyHit = false;
     await queueFlagWrite(message, "d20fold", current => {
-      current.spends = spends;
+      current.spends = spends.map(sp => { const done = { ...sp }; delete done.pendingVerdict; return done; });
       current.foldedTotal = composed.total;
       current.answer = null;                       // ⚠ cleared so a re-offer can be answered
       current.offers = reoffer ? remaining : [];
@@ -1228,7 +1249,9 @@ Hooks.on("updateChatMessage", (message) => {
   }
   // Crash-resume, the precision block's 20s horizon: an accepted offer whose resolver never ran
   // (the answerer's client died between the write and the spend) is picked up by whoever is
-  // still here; `resolveFold` re-checks status so the two can never spend twice.
+  // still here. `resolveFold` re-checks status, and - since the die's message began waiting out
+  // its dice (2026-09-10) - reads the spend RECORDED before that wait, so a resolver that died
+  // inside the pause is composed for, never spent for twice.
   if ( flag.answer && (flag.answer !== "pass") && flag.answeredAt
     && (Date.now() - flag.answeredAt > 20_000) ) {
     void resolveFold(message, flag.answer);
