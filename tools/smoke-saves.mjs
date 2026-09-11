@@ -847,6 +847,63 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const chained8e = game.messages.contents.filter(m =>
         m.getFlag('dnd5e', 'originatingMessage') === msg8e.id);
       await ChatMessage.deleteDocuments([msg8e.id, ...chained8e.map(m => m.id)]);
+
+      // 8f (2026-09-10, the user's report: the Adult Green Dragon's Poison Breath "doesn't clean
+      // up after itself"): a monster's FEATURE is a `feat` item with NO system.duration, and the
+      // demand read the ITEM's duration — so a breath weapon stamped `durationUnits: null`, the
+      // sweep read null as a duration area waiting on a concentration that never existed, and
+      // the cone stood forever (a breath at nobody left a pending card with zero targets). The
+      // stamp now falls back to the ACTIVITY's duration: the same empty-instant shape as 8e, on
+      // a feat whose save activity says `inst` the way the Monster Manual ships it.
+      const [breath] = await npc.createEmbeddedDocuments('Item', [{
+        name: 'BF Test Breath', type: 'feat',
+        system: {
+          activities: {
+            bfbreathact00000: {
+              _id: 'bfbreathact00000', type: 'save',
+              activation: { type: 'action', override: false },
+              consumption: { targets: [] },
+              duration: { units: 'inst', override: false },
+              damage: { onSave: 'half', parts: [{ custom: { enabled: true, formula: '10' }, types: ['poison'] }] },
+              save: { ability: ['con'], dc: { calculation: '', formula: '15' } },
+              target: { override: false, prompt: true, template: { type: 'cone', size: '30', units: 'ft' }, affects: { type: 'enemy' } }
+            }
+          }
+        }
+      }]);
+      try {
+        const breathAct = () => npc.items.get(breath.id)?.system.activities.get('bfbreathact00000');
+        const before8f = snap();
+        const [tpl8f] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
+          t: 'cone', x: 200, y: 400, distance: 30, direction: 0,   // far from every fixture token
+          flags: { dnd5e: { origin: breathAct().uuid } }
+        }]);
+        created.templates.push(tpl8f.id);
+        const msg8f = await ChatMessage.create({
+          speaker: ChatMessage.getSpeaker({ actor: npc }),
+          content: '<p>BF 8f feature-breath fixture</p>',
+          flags: { dnd5e: {
+            targets: [],
+            activity: { id: breathAct().id, uuid: breathAct().uuid, type: 'save' }
+          } }
+        });
+        Hooks.callAll('dnd5e.postUseActivity', breathAct(), {},
+          { message: msg8f, templates: [[tpl8f]] });
+        const stamped8f = await until(() => msg8f.getFlag(MOD, 'saves'), 6000);
+        ok('8f. a FEATURE\'s breath (a feat: no item duration) stamps the ACTIVITY\'s "inst" — and an empty one stamps DONE',
+          !!stamped8f && (stamped8f.durationUnits === 'inst') && (stamped8f.status === 'done')
+            && (stamped8f.templated === true) && !stamped8f.awaitingTemplate,
+          `durationUnits=${stamped8f?.durationUnits} status=${stamped8f?.status} `
+            + `templated=${stamped8f?.templated} awaiting=${stamped8f?.awaitingTemplate}`);
+        const swept8f = await until(() => !scene.templates.get(tpl8f.id), 8000);
+        ok('8f. …and the cone is swept like any spent instant area',
+          !!swept8f, `still=${!!scene.templates.get(tpl8f.id)} rolled=${fresh(before8f).some(m => m.getFlag('dnd5e', 'originatingMessage') === msg8f.id)}`);
+        const chained8f = game.messages.contents.filter(m =>
+          m.getFlag('dnd5e', 'originatingMessage') === msg8f.id);
+        await ChatMessage.deleteDocuments([msg8f.id, ...chained8f.map(m => m.id)]);
+      } finally {
+        if (npc.items.get(breath.id)) await npc.deleteEmbeddedDocuments('Item', [breath.id]).catch(() => {});
+      }
     }
 
     // ============================================== 9. rider damage (onSave "full") + per-row bars

@@ -207,7 +207,15 @@ async function stampSaveDemand(activity, message, results) {
     // this client may be a player). A clockless wait belongs only to an area that does not
     // exist yet (the bare Web cast — `contained` null, not empty). Duration areas are
     // untouched: placed-and-empty Web keeps its wait, its area persists by design.
-    const durationUnits = activity.item?.system?.duration?.units ?? null;
+    // ⚠ The ITEM's duration for a spell, the ACTIVITY's for a feature (2026-09-10, the user's
+    // report: the Adult Green Dragon's Poison Breath and Noxious Miasma "don't clean up after
+    // themselves"). A monster's feature is a `feat` item with NO system.duration, so its demand
+    // stamped null, and the sweep (areas.js) read null as a duration area waiting on a
+    // concentration that never existed — every breath weapon's cone stood forever, and a
+    // breath at nobody left a pending card with zero targets instead of an empty instant.
+    // A spell keeps the item's word: dnd5e's activity duration on a spell is not the spell's
+    // (Shield's utility activity reads "inst" under a 1-round spell).
+    const durationUnits = activity.item?.system?.duration?.units ?? activity.duration?.units ?? null;
     const emptyInstant = awaiting && !!contained && (durationUnits === "inst") && !metamagic.hold;
     // The flag through its one constructor (decide/demand.js, Stage 2 — emanations.js stamps the
     // same shape for its trigger card); the field order is the stamp's own.
