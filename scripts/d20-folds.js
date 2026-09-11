@@ -881,8 +881,17 @@ async function rerollOf(message, actor) {
   const original = message.rolls?.[0];
   if ( !original ) return null;
   const RollCls = original.constructor;
-  const roll = new RollCls(original.formula, original.data ?? actor.getRollData(),
-    foundry.utils.deepClone(original.options ?? {}));
+  // ⚠ NOT `configured` (user, 2026-09-10: "when I had adv/dis, it seemed like it rolled 4 dice not
+  // 2"). dnd5e 5.3 writes advantage as `1d20adv` and EXPANDS the die's number at evaluation
+  // (BasicDie.expandAdvantage: `_number = (count + 1) * size`), so an evaluated roll's formula reads
+  // `2d20adv + …`. Rebuilt from that formula with the original's options — which carry
+  // `configured: true` — the constructor SKIPS configureModifiers, the parsed `2d20adv` stands, and
+  // evaluation expands it again: four dice. Dropping `configured` makes the constructor run the
+  // system's own normalisation (D20Die.applyAdvantage: number = 1, one `adv`), so the reroll is
+  // built exactly as the original was and rolls two.
+  const options = foundry.utils.deepClone(original.options ?? {});
+  delete options.configured;
+  const roll = new RollCls(original.formula, original.data ?? actor.getRollData(), options);
   await roll.evaluate();
   return { roll, summary: {
     total: roll.total,
@@ -906,6 +915,21 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const block = document.createElement("div");
     block.className = "battleflow-d20fold";
     block.style.margin = "0.4rem 0 0";
+
+    if ( (flag.status === "pending") && flag.answer ) {
+      // ANSWERED, NOT YET RESOLVED — the die's message is on the log and its dice are landing
+      // (the same window the popup withdraws in, above). The card says so instead of offering.
+      const chosen = (flag.offers ?? []).find(o => offerAnswers(o, flag.answer)) ?? null;
+      block.innerHTML = bfCard({
+        img: foldImg(actor, chosen ? [chosen] : (flag.offers ?? [])),
+        eyebrow: "D20 Fold — answered",
+        title: chosen ? labelOf(chosen) : "Passed",
+        subtitle: chosen ? `${actor?.name ?? ""} · the dice are rolling` : `${actor?.name ?? ""} · ${testKindPhrase(flag)}`,
+        tone: "neutral"
+      });
+      root.append(block);
+      return;
+    }
 
     if ( flag.status === "pending" ) {
       const offers = flag.offers ?? [];
@@ -1123,7 +1147,12 @@ const foldBase = (message, flag) => message.rolls?.[0] ?? { total: flag?.baseTot
  * back whatever it was given.
  */
 registerRescue("d20fold", {
-  isPending: message => message.getFlag(MODULE_ID, "d20fold")?.status === "pending",
+  // ⚠ ANSWERED IS NOT PENDING (user, 2026-09-10: "if I click use it, the menu doesn't go away").
+  // `answerFold` claims the answer inside the lock and the status stays "pending" until the elect
+  // resolves — a window that was milliseconds until the die's message began waiting out its dice
+  // (dramaticVerdictPause), and is now seconds. A popup asking a question the player has answered
+  // is a lie on screen (law 4), however short; it withdraws at the answer, not at the verdict.
+  isPending: message => { const f = message.getFlag(MODULE_ID, "d20fold"); return (f?.status === "pending") && !f.answer; },
   subject: message => {
     const uuid = message.getFlag(MODULE_ID, "d20fold")?.actorUuid;
     return resolveUuid(uuid);

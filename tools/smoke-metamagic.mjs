@@ -521,7 +521,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const before = new Set(game.messages.map(m => m.id));
       await spellAct('Chromatic Orb').use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, {});
       const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.getFlag('dnd5e', 'messageType') === 'usage' || m.type === 'usage')) ?? null, 6000);
-      await spellAct('Chromatic Orb').rollAttack({}, { configure: false }, { data: { 'flags.dnd5e.originatingMessage': card?.id } });
+      // WITH ADVANTAGE (user, 2026-09-10: 'it seemed like it rolled 4 dice not 2') - dnd5e 5.3 expands
+      // `1d20adv` to two dice at evaluation, so the original's formula reads `2d20adv`; a reroll rebuilt
+      // from it with the original's `configured` option skipped the normalisation and expanded AGAIN.
+      await spellAct('Chromatic Orb').rollAttack({ advantage: true }, { configure: false }, { data: { 'flags.dnd5e.originatingMessage': card?.id } });
       const attack = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.getFlag('dnd5e', 'roll.type') === 'attack' && m.getFlag(MOD, 'd20fold')) ?? null, 8000);
       const fold = attack?.getFlag(MOD, 'd20fold');
       ok('15a. the missed spell attack is offered Seeking Spell as a d20 fold', !!fold && (fold.offers ?? []).some(o => o.kind === 'seeking') && fold.spell === true, `offers=${JSON.stringify((fold?.offers ?? []).map(o => `${o.kind}:${o.label}`))} spell=${fold?.spell}`);
@@ -540,6 +543,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const reroll15 = game.messages.find(m => m.getFlag(MOD, 'respondsTo') === attack?.id && m.isRoll) ?? null;
       const gate15 = !!reroll15 && reroll15.rolls.some(r => r.dice.length > 0) && reroll15.isContentVisible && !reroll15.getFlag('dice-so-nice', 'skip');
       ok('15e. the reroll rides its own message and passes the Dice So Nice gate (a roll, dice, visible)', gate15 && reroll15.rolls[0].dice[0].faces === 20, JSON.stringify({ found: !!reroll15, isRoll: reroll15?.isRoll, dice: reroll15?.rolls?.[0]?.dice?.length, faces: reroll15?.rolls?.[0]?.dice?.[0]?.faces, visible: reroll15?.isContentVisible }));
+      const origD20 = attack?.rolls?.[0]?.dice?.[0]?.results?.length ?? 0;
+      const reD20 = reroll15?.rolls?.[0]?.dice?.[0]?.results?.length ?? 0;
+      ok('15f. under advantage the original rolled two d20s and the reroll rolled exactly as many - two, never four', origD20 === 2 && reD20 === 2, JSON.stringify({ original: origD20, reroll: reD20, formula: reroll15?.rolls?.[0]?.formula }));
       await closeDialogs();
       await foe.update({ 'system.attributes.ac.calc': priorAC.calc, 'system.attributes.ac.flat': priorAC.flat });
       await attTok.update(attHome, { teleport: true, animate: false });
