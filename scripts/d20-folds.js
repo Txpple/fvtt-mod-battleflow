@@ -783,12 +783,14 @@ async function resolveFold(message, answer) {
       }
     });
 
-    // ⚠ The unmodelled refund goes on the SETTLE CARD too, not just the row. This is the card
-    // the table actually reads at the moment the use is spent, and Tactical Mind is the one
-    // fold whose rule says the use may come back — see resolvedLines for the full argument.
-    if ( (kind === "tactical") && !scopeOf({ kind, name: offer.name }) ) {
-      lines.push("⚠ If the check still fails, this use of Second Wind isn't expended — "
-        + "restore it by hand; the module cannot tell whether the check succeeded.");
+    // THE REFUND IS ASKED, NOT LEFT TO THE TABLE (user, 2026-09-11: "its time to add the refund
+    // button"). Tactical Mind is the one fold whose rule hands the use back, and the module still
+    // cannot decide it (no DC for a raw check — NOTES). So the settle card points at the ask the
+    // refund block below raises once this card is posted; see `askRefund` for the shape.
+    const refundable = (kind === "tactical") && !scopeOf({ kind, name: offer.name }) && !Number.isFinite(flag.dc);
+    if ( refundable ) {
+      lines.push("If the check still fails, this use of Second Wind isn't expended — "
+        + "the next window asks which it was.");
     }
     // Initiative (Ambush): the fold's whole point is the order — the combatant's number moves.
     if ( flag.testKind === "initiative" ) {
@@ -800,6 +802,9 @@ async function resolveFold(message, answer) {
       lines.push(`Initiative <strong>${flag.baseTotal} → ${composed.total}</strong> — the order is updated.`);
     }
     await announce(message, actor, labelOf(offer), flag.testKind, anyHit, lines, marker);
+    // The refund question rides the fold message; it is SHOWN once the fold is fully resolved
+    // (the render below), so it never competes with a re-offer window for the same roll.
+    if ( refundable ) await stampRefundAsk(message, actor, offer, marker);
 
     if ( reoffer ) {
       // Still failing and something left to spend: ask again rather than deciding for them.
@@ -1037,7 +1042,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         title: used ? spent : "Nothing spent",
         subtitle: actor?.name ?? "",
         tone: used ? "good" : "neutral",
-        lines: resolvedLines(flag)
+        lines: resolvedLines(flag, message)
       });
       root.append(block);
     }
@@ -1094,7 +1099,7 @@ function offerLines(flag, offers) {
 }
 
 /** The settled card's body — the numbers the verdict was reached with, as the hold does. */
-function resolvedLines(flag) {
+function resolvedLines(flag, message) {
   if ( flag.outcome === "gone" ) return ["The resource was no longer there to spend."];
   if ( flag.outcome === "no longer needed" ) {
     return ["No longer needed — the roll got there without it, and nothing was spent."];
@@ -1120,16 +1125,16 @@ function resolvedLines(flag) {
       : `Still fails DC ${flag.dc}.`);
   }
   /**
-   * ⚠ THE UNMODELLED REFUND, SAID OUT LOUD (user ruling 2026-08-23: leave it unmodelled).
-   * Tactical Mind is the only one of the three with a refund clause, and the module cannot
-   * decide it — the refund turns on the check FAILING and no DC exists for a check. Leaving the
-   * rule unimplemented is a decision; leaving it unimplemented AND unmentioned would be the
-   * module quietly eating a use the rules say the player keeps. So the card names it and hands
-   * it to the humans, which is R1 rather than an apology.
+   * THE REFUND, ASKED (user, 2026-09-11 — it was left unmodelled on 2026-08-23 and a manual
+   * button declined then; the ruling moved). Tactical Mind is the only fold with a refund
+   * clause, and the module still cannot decide it: the refund turns on the check FAILING and
+   * no DC exists for a raw check. So the human is ASKED — R1: the decision stays theirs, the
+   * outcome (the use restored) is automated. The state line reads off the refund flag.
    */
-  if ( (flag.spends ?? []).some(s => s.kind === "tactical") ) {
-    lines.push("⚠ If the check still fails, this use of Second Wind isn't expended — "
-      + "restore it by hand; the module cannot tell whether the check succeeded.");
+  const refund = message.getFlag(MODULE_ID, "tacticalRefund");
+  if ( refund ) lines.push(refundLine(refund));
+  else if ( (flag.spends ?? []).some(s => s.kind === "tactical") && !Number.isFinite(flag.dc) ) {
+    lines.push("If the check still fails, this use of Second Wind isn't expended.");
   }
   return lines;
 }
@@ -1429,5 +1434,139 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const shownKey = popupKey(message.id, "armed");
     if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showArmedNotice(message); }
     line.appendChild(momentButton(`Answer — ${t.name}`, () => void showArmedNotice(message)));
+  }
+});
+
+/* =============================================================================================
+ * THE REFUND ASK — Tactical Mind's own clause (user, 2026-09-11: "its time to add the refund
+ * button … a window that pops up after the tactical mind")
+ *
+ * "If the check still fails, this use of Second Wind isn't expended." The module cannot judge a
+ * raw check — no DC exists for one anywhere in dnd5e (NOTES) — so once the die is added it ASKS
+ * the one who can: did the check succeed, or did it still fail. R1 kept both ways: the decision
+ * is the human's, the outcome (the use written back, a receipt) is the module's. The answer is
+ * durable on the fold message (`tacticalRefund`), so every client and a reload read one state.
+ *
+ * ⚠ Only Tactical Mind itself, and only on a check the module holds no DC for. A SCOPED
+ * tactical fold (Ambush, Tactical Assessment) is a superiority die, spent either way it lands
+ * (DESIGN §6), and a demanded save decides itself.
+ *
+ * ⚠ The popup runs the house clock and closes at expiry (law 11); the card's control STAYS until
+ * answered. The GM's ruling can come after the clock, and a use the rules hand back must remain
+ * claimable — an open question on a card is not a stale claim, it is the truth of the moment.
+ * ========================================================================================== */
+
+/** The pool the feature consumes — the activity's `itemUses` target, the actor's own Second Wind. */
+function refundPoolFor(actor, name, marker = null) {
+  const item = marker?.item ?? itemNamed(actor, name);
+  const activity = marker?.activity ?? item?.system.activities?.contents?.[0];
+  if ( !activity ) return null;
+  const c = (activity.consumption?.targets ?? []).find(t => t.type === "itemUses");
+  if ( !c ) return null;
+  return (c.target ? actor.items.get(c.target) : item) ?? null;
+}
+
+async function stampRefundAsk(message, actor, offer, marker) {
+  try {
+    const pool = refundPoolFor(actor, offer.name, marker);
+    if ( !pool ) return;
+    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    await queueFlagWrite(message, "tacticalRefund", current => {
+      if ( current.status ) return false;                 // one ask per roll
+      delete current.targets;
+      Object.assign(current, {
+        status: "pending", name: offer.name, label: labelOf(offer), actorUuid: actor.uuid,
+        poolUuid: pool.uuid, poolName: pool.name,
+        itemImg: marker?.item?.img ?? itemNamed(actor, offer.name)?.img ?? null,
+        rule: RESCUE_KINDS.tactical.rule,
+        ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
+      });
+    });
+  } catch(err) {
+    console.error(`${TITLE} | The ${offer.name} refund ask failed to stamp.`, err);
+  }
+}
+
+/** The state sentence on the settled card — one home, so the card and the receipt agree. */
+function refundLine(r) {
+  if ( r.status === "refunded" ) return `The check still failed — the use of ${r.poolName} was <strong>refunded</strong>.`;
+  if ( r.status === "kept" ) return `The check succeeded — the use of ${r.poolName} stays spent.`;
+  return `Did the check succeed? If it still failed, this use of ${r.poolName} isn't expended — answer to refund it.`;
+}
+
+/** First writer wins; a refund then writes the pool back and posts the receipt. */
+async function answerRefund(message, choice) {
+  let claimed = false;
+  await queueFlagWrite(message, "tacticalRefund", current => {
+    if ( current.status !== "pending" ) return false;
+    current.status = choice;                              // "kept" | "refunded"
+    current.answeredAt = Date.now();
+    claimed = true;
+  });
+  if ( !claimed || (choice !== "refunded") ) return;
+  const r = message.getFlag(MODULE_ID, "tacticalRefund");
+  const actor = resolveUuid(r.actorUuid);
+  try {
+    const pool = await fromUuid(r.poolUuid);
+    if ( !pool ) throw new Error(`the pool ${r.poolUuid} is gone`);
+    const spent = Number(pool.system?.uses?.spent ?? 0);
+    if ( spent > 0 ) await pool.update({ "system.uses.spent": spent - 1 });
+    const uses = pool.system?.uses ?? {};
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor }),
+      content: bfCard({
+        img: r.itemImg, eyebrow: `D20 Fold — ${r.label}`, tone: "good",
+        title: `${r.label} — the use is refunded`,
+        subtitle: `${actor?.name ?? ""} · the check still failed`,
+        lines: [`${r.poolName}: <strong>${uses.value ?? 0} of ${uses.max ?? 0}</strong> remaining.`, ruleLine(r.rule)]
+      })
+    });
+  } catch(err) {
+    console.error(`${TITLE} | The ${r.poolName} refund failed to write.`, err);
+    ui.notifications?.warn(`${TITLE} | The refund could not be written — restore the use of ${r.poolName} by hand.`);
+  }
+}
+
+async function showRefundNotice(message) {
+  const r = message.getFlag(MODULE_ID, "tacticalRefund");
+  if ( !r || (r.status !== "pending") ) return;
+  const actor = resolveUuid(r.actorUuid);
+  await openMomentPopup(message, "refund", actor, {
+    title: `${r.label} — ${actor?.name ?? ""}`, icon: RESCUE_KINDS.tactical.icon, width: 440,
+    content: bfCard({
+      img: r.itemImg, eyebrow: `D20 Fold — ${r.label}`, tone: "pending",
+      title: "Did the check succeed?",
+      subtitle: `If it still failed, this use of ${r.poolName} comes back`,
+      lines: [ruleLine(r.rule)]
+    }) + (r.deadline ? momentBarHTML(r, "to answer") : ""),
+    buttons: [
+      { action: "keep", label: "It succeeded — keep the spend", callback: () => answerRefund(message, "kept") },
+      { action: "refund", label: `It still failed — refund the use`, callback: () => answerRefund(message, "refunded") }
+    ],
+    autoCloseAt: r.deadline || null
+  });
+}
+
+// The ask shows once the fold itself is settled (its own window is down), inside the settled
+// card's block: the bar while the clock runs, and the recall button until it is answered.
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  try {
+    const r = message.getFlag(MODULE_ID, "tacticalRefund");
+    if ( !r || (r.status !== "pending") ) return;
+    if ( message.getFlag(MODULE_ID, "d20fold")?.status === "pending" ) return;
+    const root = html instanceof HTMLElement ? html : html?.[0];
+    if ( !root ) return;
+    const host = root.querySelector(".battleflow-d20fold") ?? root.querySelector(".message-content") ?? root;
+    const line = document.createElement("div");
+    line.innerHTML = momentBarHTML(r, "to answer");
+    host.appendChild(line);
+    scheduleBarSync(line);
+    const actor = resolveUuid(r.actorUuid);
+    if ( !canAnswerFor(actor) ) return;
+    const shownKey = popupKey(message.id, "refund");
+    if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showRefundNotice(message); }
+    line.appendChild(momentButton(`Answer — ${r.label}`, () => void showRefundNotice(message)));
+  } catch(err) {
+    console.error(`${TITLE} | The refund ask failed to render.`, err);
   }
 });

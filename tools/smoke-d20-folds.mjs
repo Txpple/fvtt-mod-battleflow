@@ -27,9 +27,10 @@ const SECTIONS = {
   6: "TWO RESCUES, ONE WINDOW — the merged view, and the composition under it",
   7: "TWO TARGETS, ONE DIE — the fold's card counts the die once, not once per target",
   8: "THE WINDOW CLOSES — when the clock runs out, and when a spend makes it moot",
-  9: "THE WASTED-SPEND RACE — a click on a dead premise burns nothing"
+  9: "THE WASTED-SPEND RACE — a click on a dead premise burns nothing",
+  10: "THE REFUND ASK — Tactical Mind on a raw check asks whether it failed; refund restores the use, keep does not"
 };
-const DEPENDS = { 2: [1], 3: [1], 5: [1] };
+const DEPENDS = { 2: [1], 3: [1], 5: [1], 10: [1] };
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
 
@@ -1199,6 +1200,115 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             await pool.update({ "system.uses.spent": 0 }).catch(() => {});
           }
           game.user.targets.forEach(x => { x.setTarget(false, { releaseOthers: true }); });
+        }
+      }
+    }
+
+    /* --- 10: THE REFUND ASK ------------------------------------------------------------ */
+    if (has(10)) {
+      // ⚠ THE RULING MOVED (user, 2026-09-11: "its time to add the refund button"). Tactical
+      // Mind's clause — "if the check still fails, this use of Second Wind isn't expended" —
+      // used to be a sentence on the card and nothing else, because no DC exists for a raw
+      // check and the module cannot judge it. Now it ASKS: after the die is added and the fold
+      // is settled, one window — succeeded, or still failed. Refund writes the use back and
+      // posts a receipt; keep leaves it spent. Both are asserted against the POOL, not the flag.
+      const sw = fighter.items.find(i => i.name === "Second Wind");
+      const tm = fighter.items.find(i => i.name === "Tactical Mind");
+      if (!sw || !tm) {
+        skips.push("section 10: the fixture needs Second Wind and Tactical Mind");
+      } else {
+        const priorTimer = game.settings.get(MODULE_ID, "holdTimer");
+        const priorSpent = sw.system.uses.spent ?? 0;
+        const priorInspiration = fighter.system.attributes.inspiration;
+        const made = [];
+        try {
+          await game.settings.set(MODULE_ID, "holdTimer", 40);
+          if (priorSpent > 0) await sw.update({ "system.uses.spent": 0 });
+          // Heroic off, so the tactical row is the only rescue and no re-offer stands between
+          // the spend and the ask (the re-offer path is §3/§6's business).
+          await fighter.update({ "system.attributes.inspiration": false });
+
+          const run = async choice => {
+            const priorDialogs = new Set([...document.querySelectorAll(".application")].map(el => el.id));
+            const before = game.messages.size;
+            const usesBefore = fighter.items.get(sw.id).system.uses.value;
+            await fighter.rollAbilityCheck({ ability: "str" }, { configure: false }, { create: true });
+            const msg = await until(() => game.messages.contents.slice(before)
+              .findLast(m => m.getFlag(MODULE_ID, "d20fold")?.status === "pending"), 8000);
+            if (msg) made.push(msg);
+            const popup = await until(() => [...document.querySelectorAll(".application")]
+              .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
+                && !!el.querySelector('[data-bf-rescue-action="tactical:Tactical Mind"]')), 8000);
+            ok(`§10 (${choice}) the check offers Tactical Mind`, !!popup, popup ? "row present" : "NO WINDOW");
+            popup?.querySelector('[data-bf-rescue-action="tactical:Tactical Mind"]')?.click();
+            // A check never moots (no DC), so whatever else the fighter holds — the fixture's
+            // Bardic die — is RE-OFFERED after the spend and the fold stays pending until the
+            // human presses Pass. The refund ask waits for that settle, by design: it must not
+            // compete with the re-offer window for the same roll.
+            await until(() => {
+              const cur = msg?.getFlag(MODULE_ID, "d20fold");
+              return ((cur?.status === "resolved") || (cur?.spends?.length && !cur.answer)) ? cur : null;
+            }, 20_000);
+            await sleep(400);
+            [...document.querySelectorAll(".application")]
+              .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id) && !!el.querySelector('button[data-action="pass"]'))
+              ?.querySelector('button[data-action="pass"]')?.click();
+            const fold = await until(() => {
+              const cur = msg?.getFlag(MODULE_ID, "d20fold");
+              return (cur?.status === "resolved") ? cur : null;
+            }, 20_000);
+            ok(`§10 (${choice}) the die is added and the fold settles`,
+              !!fold && fold.spends?.some(s => s.kind === "tactical") && Number.isFinite(fold.foldedTotal),
+              JSON.stringify(fold?.spends ?? null));
+            const usesSpent = fighter.items.get(sw.id).system.uses.value;
+            ok(`§10 (${choice}) a use of Second Wind is really spent first`,
+              usesSpent === usesBefore - 1, `uses ${usesBefore} → ${usesSpent}`);
+
+            const ask = await until(() => {
+              const r = msg?.getFlag(MODULE_ID, "tacticalRefund");
+              return (r?.status === "pending") ? r : null;
+            }, 8000);
+            ok(`§10 (${choice}) the refund ask is stamped on the roll, pending, naming the pool`,
+              !!ask && (ask.poolName === "Second Wind") && Number.isFinite(ask.deadline),
+              JSON.stringify(ask ? { status: ask.status, pool: ask.poolName, deadline: !!ask.deadline } : null));
+            const win = await until(() => [...document.querySelectorAll(".application")]
+              .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
+                && !!el.querySelector('button[data-action="refund"]') && !!el.querySelector('button[data-action="keep"]')), 8000);
+            ok(`§10 (${choice}) the ask POPS with both answers`, !!win, win ? "keep + refund" : "NO WINDOW");
+            const receiptsBefore = game.messages.size;
+            win?.querySelector(`button[data-action="${choice}"]`)?.click();
+            const settled = await until(() => {
+              const r = msg?.getFlag(MODULE_ID, "tacticalRefund");
+              return (r?.status && (r.status !== "pending")) ? r : null;
+            }, 10_000);
+            await sleep(500);
+            const usesAfter = fighter.items.get(sw.id).system.uses.value;
+            if (choice === "refund") {
+              ok("⚠ §10 RECEIPT: refund RESTORES the use of Second Wind on the sheet",
+                (settled?.status === "refunded") && (usesAfter === usesBefore), `uses ${usesSpent} → ${usesAfter} status=${settled?.status}`);
+              const receipt = game.messages.contents.slice(receiptsBefore)
+                .find(m => /use is refunded/.test(m.content ?? ""));
+              ok("§10 …and a receipt card says so", !!receipt, receipt ? "posted" : "NO RECEIPT");
+              if (receipt) made.push(receipt);
+            } else {
+              ok("⚠ §10 RECEIPT: keep leaves the use SPENT",
+                (settled?.status === "kept") && (usesAfter === usesSpent), `uses ${usesSpent} → ${usesAfter} status=${settled?.status}`);
+            }
+            ok(`§10 (${choice}) the window closes on the answer`,
+              await until(() => (!document.getElementById(win?.id ?? "") ? true : null), 5000) === true,
+              "closed");
+            // Sweep the fold's own die message.
+            for (const m of game.messages.contents.slice(before)) {
+              if (m.getFlag(MODULE_ID, "respondsTo") === msg?.id) made.push(m);
+            }
+          };
+          await run("refund");
+          await run("keep");
+        } finally {
+          await game.settings.set(MODULE_ID, "holdTimer", priorTimer).catch(() => {});
+          await fighter.update({ "system.attributes.inspiration": priorInspiration }).catch(() => {});
+          await fighter.items.get(sw.id)?.update({ "system.uses.spent": priorSpent }).catch(() => {});
+          for (const m of made) await m.delete().catch(() => {});
         }
       }
     }

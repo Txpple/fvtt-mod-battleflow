@@ -131,6 +131,7 @@ updateChatMessage	d20-folds.js
 deleteChatMessage	d20-folds.js
 dnd5e.postUseActivity	d20-folds.js
 dnd5e.renderChatMessage	d20-folds.js
+dnd5e.renderChatMessage	d20-folds.js
 dnd5e.preApplyDamage	concentration.js
 dnd5e.damageActor	concentration.js
 createActiveEffect	concentration.js

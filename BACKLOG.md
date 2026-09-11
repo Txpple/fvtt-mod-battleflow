@@ -226,16 +226,20 @@ neither.
 
 ### Two content facts worth keeping
 
-Both are unmodelled, and neither is findable by guessing.
+Neither is findable by guessing. **Both were ruled on 2026-09-11** and nothing is open on
+either; the rows stay as the record.
 
 - **Heroic Inspiration's rules text**, quoted verbatim in the popup (presentation law 8), is
-  `dnd5e.content24` → *Appendix D: Rule References* → page **`nkEPI89CiQnOaLYh`**. ⚠ The full
-  text is **wider than what shipped**: *"any die"* reaches **damage rolls**, and the transfer
-  clause — *"it's lost unless you give it to a player character who lacks it"* — is a **second
-  unmodelled half**. ⚠ Widening it is what triggers §11 rule 4's auto-revert obligation, and it
-  is **SETTLED as not shipping** until that machinery exists.
+  `dnd5e.content24` → *Appendix D: Rule References* → page **`nkEPI89CiQnOaLYh`**. The full
+  text is wider than what shipped: *"any die"* reaches **damage rolls**, and the transfer
+  clause — *"it's lost unless you give it to a player character who lacks it"* — is a second
+  half. ✅ **CLOSED (user, 2026-09-11):** the transfer is *"a table handling level thing"*, and
+  the reroll reaches every d20 test the module meets — attacks, saves, ability/skill/tool checks
+  through the sheet's own roll dialog ([tools/probe-heroic-check.mjs](tools/probe-heroic-check.mjs)),
+  Initiative. Damage dice are not wanted (they would trigger §11 rule 4's auto-revert obligation).
 - **Tactical Mind's refund** — *"if the check still fails, this use of Second Wind isn't
-  expended."* ⚠ **Unbuildable as an automatic rule**: the refund is conditional on the check
-  FAILING and **no DC exists for an ability check anywhere in dnd5e**. It is a GM ruling or a
-  player-pressed un-spend, not arithmetic. Also **SETTLED** — a manual *"Refund"* button was
-  offered and declined.
+  expended."* Unbuildable as an AUTOMATIC rule: the refund is conditional on the check FAILING
+  and **no DC exists for an ability check anywhere in dnd5e**. ✅ **BUILT AS AN ASK (user,
+  2026-09-11: "its time to add the refund button")** — after the die is added and the fold
+  settles, one window: succeeded (keep) or still failed (refund, the use written back with a
+  receipt). DESIGN §8 carries the ruling; `smoke-d20-folds` §10 pins it.

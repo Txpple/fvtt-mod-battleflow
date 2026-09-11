@@ -666,6 +666,9 @@ computable from system data**. The GM holds that number in their head and nothin
 This is not a gap to work around with inference. It is a boundary — and the ruling that draws
 it (where the module may offer BY ITSELF, and where a human must press) is written out in
 `scripts/d20-folds.js`'s own header, which is the only place it can go stale against the code.
+The boundary is what shapes Tactical Mind's refund (2026-09-11): the module cannot decide
+whether the check still failed, so it ASKS after the die is added — the refund block in
+d20-folds.js — and the human's answer writes the use back or leaves it spent (DESIGN §8).
 
 ### dnd5e DECLARES ITS OWN HOOKS, machine-readably, in the shipped bundle (2026-08-23)
 
