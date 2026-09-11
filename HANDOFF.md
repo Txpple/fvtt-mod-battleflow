@@ -6,7 +6,7 @@ session"); retire it when the commission below is delivered (BACKLOG's rule: no 
 **Where we are.** The metamagic pass — all ten 2024 Sorcerer options — was drawn, ruled and
 delivered on 2026-09-09 in one day (PLAN.md *THE METAMAGIC PASS*, DESIGN §6 *Metamagic*), then
 recut three times the same evening from the user's live walks on the sandbox. **Everything is
-committed and pushed** (main == origin/main). ✅ **RELEASED as v1.35.0 on 2026-09-10** (the user:
+committed and pushed** (main == origin/main). ✅ **RELEASED as v1.35.0 on 2026-09-10, then v1.35.1 the same day** — the reroll fixes (four dice under advantage, the dice animating, the popups closing at the click), the durability review, the cantrip window, the window tidies (the user:
 "commit/push release to prod") — the metamagic pass and the hold registry together, after the
 battery on HEAD went green. The sandbox carries HEAD;
 `smoke-metamagic` is 76/76 on it, settings CLEAN, the battery green (2026-09-09, before the

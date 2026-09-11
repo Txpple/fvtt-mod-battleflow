@@ -17,7 +17,7 @@
 >
 > ✅ **A fourth block is on this page as of 2026-09-09, DRAWN, RULED and DELIVERED the same day:** *THE METAMAGIC PASS*, directly
 > below — the ten 2024 options measured against the pack and the module, five stages, six decisions ruled, every stage
-> shipped by evening with its measured cost; its prototype is [prototypes/metamagic.html](prototypes/metamagic.html); DESIGN §6 *Metamagic* carries the rulings. Released as **v1.35.0** (2026-09-10) with the hold registry (ARCHITECTURE §7 *The public API*).
+> shipped by evening with its measured cost; its prototype is [prototypes/metamagic.html](prototypes/metamagic.html); DESIGN §6 *Metamagic* carries the rulings. Released as **v1.35.0** (2026-09-10) with the hold registry (ARCHITECTURE §7 *The public API*); **v1.35.1** the same day carried the play fixes from the first walks (rerolls, the cantrip window).
 
 > ✅ **A third block is on this page as of 2026-09-05, DRAWN, RULED and DELIVERED the same evening:**
 > *THE HOLD DIRECTORY*, directly below — `hold.js` is `scripts/hold/`, nine parts by moment, the
