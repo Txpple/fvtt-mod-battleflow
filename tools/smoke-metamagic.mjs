@@ -530,7 +530,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('15a. the missed spell attack is offered Seeking Spell as a d20 fold', !!fold && (fold.offers ?? []).some(o => o.kind === 'seeking') && fold.spell === true, `offers=${JSON.stringify((fold?.offers ?? []).map(o => `${o.kind}:${o.label}`))} spell=${fold?.spell}`);
       // Answer from the popup, as the player would: the offer's own button.
       const popup = await waitFor(() => [...foundry.applications.instances.values()].find(a => a.rendered && a.element?.querySelector?.('[data-bf-rescue-action="seeking"]')) ?? null, 6000);
+      const clickedAt = Date.now();
       popup?.element?.querySelector('[data-bf-rescue-action="seeking"]')?.click();
+      // THE WINDOW GOES AT THE CLICK (user, 2026-09-10: "the form stays for a few seconds"), not at the
+      // verdict - the dice are still landing for up to six seconds after this.
+      const goneAfter = await waitFor(() => (!popup?.rendered || !popup?.element?.isConnected) ? { ms: Date.now() - clickedAt } : null, 5000);
       const resolved = await waitFor(() => { const f2 = attack?.getFlag(MOD, 'd20fold'); return (f2?.spends ?? []).some(s => s.kind === 'seeking') ? f2 : null; }, 10000);
       const f15 = attack?.getFlag(MOD, 'd20fold');
       ok('15b. Seeking rerolls the d20 — the spend records the reroll, the total replaced', !!resolved && Number.isFinite(resolved.spends.find(s => s.kind === 'seeking')?.reroll?.total) && Number.isFinite(resolved.foldedTotal), JSON.stringify({ popup: !!popup, status: f15?.status, outcome: f15?.outcome, answer: f15?.answer, spends: f15?.spends, folded: f15?.foldedTotal, base: f15?.baseTotal }));
@@ -546,6 +550,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const origD20 = attack?.rolls?.[0]?.dice?.[0]?.results?.length ?? 0;
       const reD20 = reroll15?.rolls?.[0]?.dice?.[0]?.results?.length ?? 0;
       ok('15f. under advantage the original rolled two d20s and the reroll rolled exactly as many - two, never four', origD20 === 2 && reD20 === 2, JSON.stringify({ original: origD20, reroll: reD20, formula: reroll15?.rolls?.[0]?.formula }));
+      ok('15g. the window closed at the click, well before the dice landed', !!goneAfter && goneAfter.ms < 1500, JSON.stringify(goneAfter ?? { gone: false }));
       await closeDialogs();
       await foe.update({ 'system.attributes.ac.calc': priorAC.calc, 'system.attributes.ac.flat': priorAC.flat });
       await attTok.update(attHome, { teleport: true, animate: false });

@@ -928,6 +928,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         tone: "neutral"
       });
       root.append(block);
+      // THE SYNC IS WHAT CLOSES THE WINDOW (user, 2026-09-10: "the form stays for a few seconds").
+      // The draw runs off this call, sees nothing pending, and closes; without it the answered
+      // render left the window standing until the RESOLVED render - the whole length of the dice.
+      syncRescuePopup(message);
       return;
     }
 
