@@ -534,6 +534,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('15c. one Sorcery Point spent by hand, the record on the attack message', pool().system.uses.value === 4 && attack?.getFlag(MOD, 'poolSpend')?.pool === 'Sorcery Points' && attack?.getFlag(MOD, 'poolSpend')?.ability === 'Seeking Spell', `pool=${pool().system.uses.value} record=${JSON.stringify(attack?.getFlag(MOD, 'poolSpend'))}`);
       const res = attack ? await renderedLine(attack, 'bf-resource-line') : null;
       ok('15d. the attack card carries the resource line', /Sorcery Points: 4 of 5 remaining/.test(res ?? ''), res);
+      // THE DICE ROLL AGAIN (user, 2026-09-10: "the dice so nice, if avail, should roll again"). Dice So
+      // Nice animates any CREATED message that is a roll with dice, content visible, not flagged skip -
+      // its own gate, read from its source. The reroll rides its own message, so the gate must hold.
+      const reroll15 = game.messages.find(m => m.getFlag(MOD, 'respondsTo') === attack?.id && m.isRoll) ?? null;
+      const gate15 = !!reroll15 && reroll15.rolls.some(r => r.dice.length > 0) && reroll15.isContentVisible && !reroll15.getFlag('dice-so-nice', 'skip');
+      ok('15e. the reroll rides its own message and passes the Dice So Nice gate (a roll, dice, visible)', gate15 && reroll15.rolls[0].dice[0].faces === 20, JSON.stringify({ found: !!reroll15, isRoll: reroll15?.isRoll, dice: reroll15?.rolls?.[0]?.dice?.length, faces: reroll15?.rolls?.[0]?.dice?.[0]?.faces, visible: reroll15?.isContentVisible }));
       await closeDialogs();
       await foe.update({ 'system.attributes.ac.calc': priorAC.calc, 'system.attributes.ac.flat': priorAC.flat });
       await attTok.update(attHome, { teleport: true, animate: false });
@@ -578,6 +584,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('16f. the announce card says the old faces, the arrow, the new, and the totals', !!announce && new RegExp(`${oldFaces.sort((a, b) => a - b).join(', ')}|${used?.picks?.map(pk => pk.old).join(', ')}`).test(announce.content) && /→/.test(announce.content), announce?.content?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 140));
       const line = dmg ? await renderedLine(dmg, 'bf-empowered-line') : null;
       ok('16g. the damage card carries the Empowered line', /Empowered Spell — .*→/.test(line ?? ''), line);
+      // THE DICE ROLL AGAIN (user, 2026-09-10). Empowered PATCHES the damage message's own roll, so no
+      // created message ever carried the fresh dice and Dice So Nice never saw them. Now the ticked dice
+      // are ONE Roll on the announce card - a roll, dice, visible - and the faces on it are the faces
+      // the picks record, in order.
+      const gate16 = !!announce && announce.isRoll && announce.rolls.some(r => r.dice.length > 0) && announce.isContentVisible && !announce.getFlag('dice-so-nice', 'skip');
+      const faces16 = announce?.rolls?.[0]?.dice?.map(d => d.results.find(r => r.active !== false)?.result) ?? [];
+      const picksNew = (used?.picks ?? []).map(pk => pk.new);
+      ok('16h. the announce card carries the rerolled dice as ONE roll that passes the Dice So Nice gate, its faces the new faces of the picks in order', gate16 && faces16.length === picksNew.length && faces16.every((f, i) => f === picksNew[i]), JSON.stringify({ isRoll: announce?.isRoll, faces: faces16, picks: picksNew, visible: announce?.isContentVisible }));
       await closeDialogs();
     }
 

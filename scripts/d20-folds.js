@@ -67,7 +67,7 @@ import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RE
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
 import { SUPERIORITY_FOLDS } from "./decide/registry.js";
 import { CHIP_FLAG } from "./decide/chips.js";
-import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld } from "./ui.js";
+import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause } from "./ui.js";
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 
 /**
@@ -650,11 +650,17 @@ async function resolveFold(message, answer) {
       ? await rerollOf(message, actor)
       : await rollDie(spec.die(marker) ?? offer.dieFormula, actor);
     if ( !rolled ) return;
-    await rolled.roll.toMessage({
+    const rolledMessage = await rolled.roll.toMessage({
       speaker: ChatMessage.getSpeaker({ actor }),
       flavor: REROLL_KINDS.has(kind) ? `${labelOf(offer)} — the reroll` : `${labelOf(offer)} — the die`,
       flags: { [MODULE_ID]: { respondsTo: message.id } }
     });
+    // THE DICE LAND BEFORE THE VERDICT (user, 2026-09-10, of Seeking: "the dice so nice should roll
+    // again"). The die already rode its own message and Dice So Nice already animated it - but the
+    // verdict below was composed onto the attack card in the same tick, so the answer was on screen
+    // before the dice had finished and the reroll never read as one. The pause is the spine's
+    // (capped, cosmetic, never blocking); every verdict in the module keeps this order.
+    if ( rolledMessage ) await dramaticVerdictPause(rolledMessage);
 
     // 3. Record the spend, then compose the verdict across EVERY fold on this message.
     //

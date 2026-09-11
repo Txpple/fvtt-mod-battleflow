@@ -25,7 +25,7 @@
 import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, isActiveGM, whisperNoGM, canAnswerFor } from "./core.js";
 import { lower, resolveUuid } from "./lookup.js";
 import { metamagicEntries, listedNames } from "./settings.js";
-import { poolOf, spendPoolUses, poolSpendsOn, isPartyMember } from "./shared.js";
+import { poolOf, spendPoolUses, isPartyMember } from "./shared.js";
 import { feetOf, tokenOfActor, tokensInTemplates } from "./geometry.js";
 import { bfCard, foldedRuleHTML, esc, holdBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
@@ -633,32 +633,44 @@ async function resolveEmpowered(message, picks) {
     const pool = actor?.items?.get(flag.poolId) ?? null;
     if ( !actor || !pool ) return;
     const record = await spendPoolUses(actor, pool, "Empowered Spell", flag.cost, POOL_NAME);
-    // The reroll, on the message's own rolls: the old face inactive and struck, the new one active.
+    // THE DICE ARE ONE ROLL, AND THEY RIDE THE ANNOUNCE CARD (user, 2026-09-10: "on a reroll, the
+    // dice so nice, if avail, should roll again"). The module's other rerolls post their die as a
+    // message (`roll.toMessage`, d20-folds.js) and Dice So Nice animates it on the create, unasked;
+    // this one PATCHES the damage message's own roll instead, so a fresh Roll per die evaluated in
+    // memory was never seen by anyone. So: the ticked dice are rolled as ONE Roll, in pick order,
+    // and that Roll is the announce card's — the card every roll-reader and DSN already keys on. No
+    // DSN-specific call; a table without it loses nothing.
     const data = (message.rolls ?? []).map(r => r.toJSON());
+    const live = chosen.filter(d => data[d.roll]?.terms?.[d.term]?.results?.[d.index]);
+    if ( !live.length ) { await keepEmpowered(message); return; }
+    const fresh = await new Roll(live.map(d => `1d${d.faces}`).join(" + ")).evaluate();
+    const faces = fresh.dice.map(die => die.results.find(r => r.active !== false)?.result ?? die.total);
     const done = [];
-    for ( const d of chosen ) {
-      const term = data[d.roll]?.terms?.[d.term];
-      const old = term?.results?.[d.index];
-      if ( !term || !old ) continue;
-      const fresh = await new Roll(`1d${d.faces}`).evaluate();
+    live.forEach((d, i) => {
+      const term = data[d.roll].terms[d.term];
+      const old = term.results[d.index];
       old.active = false; old.rerolled = true;
-      term.results.push({ result: fresh.total, active: true });
-      done.push({ key: d.key, old: old.result, new: fresh.total });
-    }
+      term.results.push({ result: faces[i], active: true });
+      done.push({ key: d.key, old: old.result, new: faces[i] });
+    });
     const rebuilt = data.map(rd => { const r = Roll.fromData(rd); r._total = r._evaluateTotal(); return r; });
     const outcome = empoweredOutcome({ oldTotal: flag.oldTotal, picks: done });
-    await message.update({
-      rolls: rebuilt.map(r => JSON.stringify(r.toJSON())),
-      flags: { [MODULE_ID]: { poolSpend: record, [EMPOWERED_FLAG]: { ...flag, status: "used", picks: done, newTotal: outcome.newTotal, delta: outcome.delta } } }
-    });
-    await ChatMessage.create({
+    // The dice land BEFORE the total moves — the same order every verdict in the module keeps
+    // (dramaticVerdictPause: capped, cosmetic, never blocking).
+    const announce = await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor }),
+      rolls: [fresh],
       content: bfCard({ img: actor.items?.find(i => i.name === "Empowered Spell")?.img ?? null,
         eyebrow: "Metamagic — Empowered Spell", tone: outcome.delta >= 0 ? "good" : "neutral",
         title: `Empowered Spell — ${outcome.line}`,
-        subtitle: spendPhrase(poolSpendsOn(message), "Sorcery Point") || `${POOL_NAME} spent`,
+        subtitle: spendPhrase(record ? [record] : [], "Sorcery Point") || `${POOL_NAME} spent`,
         lines: [outcome.delta === 0 ? "The total stands." : `The damage is ${outcome.newTotal} now — the new rolls stand.`] }),
       flags: { [MODULE_ID]: { respondsTo: message.id } }
+    });
+    if ( announce ) await dramaticVerdictPause(announce);
+    await message.update({
+      rolls: rebuilt.map(r => JSON.stringify(r.toJSON())),
+      flags: { [MODULE_ID]: { poolSpend: record, [EMPOWERED_FLAG]: { ...flag, status: "used", picks: done, newTotal: outcome.newTotal, delta: outcome.delta } } }
     });
     await moveAppliedDamage(message, outcome);
   } catch(err) {
