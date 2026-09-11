@@ -13,7 +13,7 @@ import { tokensInTemplates } from "../geometry.js";
 import { isDeadForSaves } from "../decide/eligible.js";
 import { EMANATIONS, tableIndex } from "../decide/registry.js";
 import { reachAdmits } from "../decide/emanations.js";
-import { emanationEntries } from "../settings.js";
+import { emanationEntries, spentAreaListed } from "../settings.js";
 import { isPartyMember } from "../shared.js";
 // ⚠ SAFE STATICALLY, unlike auto-damage.js's own ui.js import (v1.6.1's ESM order trap): the
 // entry reaches auto-damage.js long before this directory, so that module is fully evaluated
@@ -216,7 +216,9 @@ async function stampSaveDemand(activity, message, results) {
     // A spell keeps the item's word: dnd5e's activity duration on a spell is not the spell's
     // (Shield's utility activity reads "inst" under a 1-round spell).
     const durationUnits = activity.item?.system?.duration?.units ?? activity.duration?.units ?? null;
-    const emptyInstant = awaiting && !!contained && (durationUnits === "inst") && !metamagic.hold;
+    // …and a LISTED spent area (the fourth bucket, 2026-09-10) is an instant for this purpose too.
+    const instantArea = (durationUnits === "inst") || spentAreaListed(activity.item?.name);
+    const emptyInstant = awaiting && !!contained && instantArea && !metamagic.hold;
     // The flag through its one constructor (decide/demand.js, Stage 2 — emanations.js stamps the
     // same shape for its trigger card); the field order is the stamp's own.
     await message.setFlag(MODULE_ID, "saves", saveDemandData({

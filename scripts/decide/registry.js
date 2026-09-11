@@ -739,6 +739,31 @@ export const EMANATION_KINDS = new Set(["feature", "spell"]);
 export const EMANATION_NAMES = tableIndex(EMANATIONS).names;
 
 /**
+ * SPENT AREAS — the spent-template sweep's FOURTH bucket (user ruling 2026-09-10, on the Adult
+ * Green Dragon's Noxious Miasma beside Hypnotic Pattern). The sweep (saves/areas.js) reads the
+ * area's life off the DATA: instantaneous → spent at the last verdict; concentration → spent with
+ * the concentration; any other duration → the GM's, because Grease's minute is the area's own and
+ * MUST persist. These rows are the areas whose data LIES about the area — the duration written on
+ * the activity is an EFFECT's clock (Noxious Miasma's −2 AC "until the end of its next turn"), or
+ * the concentration flag can go missing on an imported copy (Hypnotic Pattern) — so the text, not
+ * the data, says the area is spent the moment its last verdict lands. Membership is the Spent
+ * Areas list (the item names, whole-chunk, case-insensitive). ⚠ A row here is a claim about the
+ * TEXT: an area that genuinely persists (Grease, Web, Cloudkill) must never be listed.
+ *
+ *   rule   the sentence that says the area itself does not persist
+ *   data   what the pack writes instead, and why the sweep would otherwise keep the area
+ */
+export const SPENT_AREAS = Object.freeze({
+  "Noxious Miasma": Object.freeze({
+    rule: "Constitution Saving Throw: DC 17, each creature in a 20-foot-radius Sphere centered on a point the dragon can see within 90 feet. Failure: 7 (2d6) Poison damage, and the target takes a −2 penalty to AC until the end of its next turn.",
+    data: "Monster Manual, Adult Green Dragon — the activity's duration reads 1 turn: the AC penalty's clock, not the cloud's" }),
+  "Hypnotic Pattern": Object.freeze({
+    rule: "You create a twisting pattern of colors that weaves through the air inside a 30-foot Cube within range. The pattern appears for a moment and vanishes. Each creature in the area who can see the pattern must succeed on a Wisdom saving throw or have the Charmed condition for the duration.",
+    data: "PHB, level 3 (Concentration, 1 minute) — the DURATION is the Charmed condition's; the pattern \"appears for a moment and vanishes\", and an imported copy missing the concentration flag falls into the GM's bucket" })
+});
+export const SPENT_AREA_NAMES = tableIndex(SPENT_AREAS).names;
+
+/**
  * The 2024 Rules Glossary on range, verbatim (dnd5e.content24 / the premium PHB, appendix D —
  * "Range" and "Ranged Attacks in Close Combat"; presentation law 8). The `&Reference[...]`
  * enrichers in the source render as the bare condition names.
@@ -1445,6 +1470,14 @@ export const LIST_SPECS = {
     // Membership over EMANATIONS; the mechanism is emanations.js.
     columns: ["kind"], kindColumn: "kind", kinds: EMANATION_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(EMANATIONS).join(", ")
+  },
+  spentAreas: {
+    label: "Spent Areas", setting: "spentAreaList",
+    // Which rows of the spent-area table are swept at the last verdict whatever their data says —
+    // the ITEM names, whole-chunk, case-insensitive. Membership over SPENT_AREAS; the mechanism is
+    // the sweep in saves/areas.js (and the empty-instant stamp in saves/demand.js).
+    columns: ["kind"], kindColumn: "kind", kinds: SPENT_AREA_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(SPENT_AREAS).join(", ")
   }
 };
 

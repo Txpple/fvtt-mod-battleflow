@@ -79,6 +79,7 @@ const REFERENCE = {
   superiorityUseList: LIST_SPECS.superiorityUses.default,   // the whole superiority-use table, as shipped (2026-09-05)
   effectChoiceList: LIST_SPECS.effectChoices.default,       // the whole effect-choice table, as shipped (2026-09-05)
   metamagicList: LIST_SPECS.metamagic.default,              // the whole metamagic table, as shipped (2026-09-09)
+  spentAreaList: LIST_SPECS.spentAreas.default,             // the whole spent-area table, as shipped (2026-09-10)
 };
 
 const f = new Foundry(foundryConfig(env));

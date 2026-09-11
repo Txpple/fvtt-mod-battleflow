@@ -12,6 +12,7 @@ import { resolveUuid } from "../lookup.js";
 import { saveTargetEntry } from "../decide/demand.js";
 import { tokensInTemplates } from "../geometry.js";
 import { saveDemandable, emanationReach, metamagicForDemand } from "./demand.js";
+import { spentAreaListed } from "../settings.js";
 
 /** Every template on any scene that this activity placed — the origin flag is the tie. */
 function templatesForOrigin(activityUuid) {
@@ -244,7 +245,10 @@ export async function cleanupSpentTemplates(card, { endedConcentrationId = null 
   // (the marked targets' chips) correctly cascading with it. A non-concentration duration
   // area stays the GM's to clear (leftover, recorded); an unresolvable caster leaves the
   // area standing rather than guessing.
-  if ( flag.durationUnits !== "inst" ) {
+  // The FOURTH bucket (user ruling 2026-09-10): a listed name is spent at the last verdict
+  // whatever its data says — Noxious Miasma's "1 turn" is the AC penalty's clock, not the
+  // cloud's (decide/registry.js SPENT_AREAS; the Spent Areas list is the switch).
+  if ( (flag.durationUnits !== "inst") && !spentAreaListed(flag.item?.name) ) {
     const concId = card.system?.concentration;
     if ( !concId ) return;
     // ⚠ The hook's hint, not a collection read, decides the just-ended case: `deleteActiveEffect`

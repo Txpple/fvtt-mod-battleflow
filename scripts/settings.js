@@ -239,6 +239,15 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.damageShields.default
   });
 
+  // SPENT AREAS (user ruling 2026-09-10): the spent-template sweep's fourth bucket — areas whose
+  // data says "duration" while the text says the area is gone with the cast. A list; the list is
+  // the switch.
+  game.settings.register(MODULE_ID, S.spentAreaList, {
+    name: "Spent Areas",
+    hint: "Areas that leave the map once their last save is resolved even though their data carries a duration, by the spell's or feature's own name, separated by commas — Noxious Miasma, Hypnotic Pattern. The sweep reads an area's life off its data (instantaneous: spent at the last verdict; concentration: spent with the concentration; any other duration: yours to clear, because Grease must persist); a listed name is swept at the last verdict whatever its data says, because its duration is an effect's clock and not the area's. Remove a name to keep that area by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.spentAreas.default
+  });
+
   // DAMAGE SAVES (user, 2026-09-04: "make heat metal spell work"): a bare damage activity rolls
   // its dice at the use (the general fix — nothing rolled them), and a listed row demands the
   // save its text ties to the damage. A list; the list is the switch for the save half.
@@ -605,6 +614,17 @@ export function emanationEntries() {
 /** Which rows of the damage-shield table strike, by the spell's name — `{ kind }`. */
 export function damageShieldEntries() {
   return listEntries(LIST_SPECS.damageShields);
+}
+
+/** Which rows of the spent-area table are swept at the last verdict whatever their data says, by the item's name — `{ kind }`. */
+export function spentAreaEntries() {
+  return listEntries(LIST_SPECS.spentAreas);
+}
+
+/** Is this area's item listed as spent at the last verdict (the sweep's fourth bucket)? */
+export function spentAreaListed(itemName) {
+  const wanted = String(itemName ?? "").toLowerCase();
+  return !!wanted && spentAreaEntries().some(e => e.kind === wanted);
 }
 
 /** Which rows of the damage-save table demand their save after the damage, by the spell's name — `{ kind }`. */

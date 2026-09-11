@@ -904,6 +904,65 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       } finally {
         if (npc.items.get(breath.id)) await npc.deleteEmbeddedDocuments('Item', [breath.id]).catch(() => {});
       }
+
+      // 8g (user ruling 2026-09-10 — the FOURTH bucket): a LISTED spent area is swept at the last
+      // verdict whatever its data says. The fixture wears Noxious Miasma's name and its data lie
+      // (a 1-turn activity duration, no concentration): listed, an empty placement stamps DONE and
+      // the area is swept like an instant; with the name struck from the Spent Areas list the same
+      // cast stamps a WAITING demand and the area stands — the GM's bucket, as before the ruling.
+      const priorSpent = game.settings.get(MOD, 'spentAreaList');
+      const [miasma] = await npc.createEmbeddedDocuments('Item', [{
+        name: 'Noxious Miasma', type: 'feat',
+        system: {
+          activities: {
+            bfmiasmaact00000: {
+              _id: 'bfmiasmaact00000', type: 'save',
+              activation: { type: 'action', override: false },
+              consumption: { targets: [] },
+              duration: { value: '1', units: 'turn', override: false },
+              damage: { onSave: 'none', parts: [{ custom: { enabled: true, formula: '7' }, types: ['poison'] }] },
+              save: { ability: ['con'], dc: { calculation: '', formula: '17' } },
+              target: { override: false, prompt: true, template: { type: 'sphere', size: '20', units: 'ft' }, affects: { type: 'creature' } }
+            }
+          }
+        }
+      }]);
+      try {
+        const miasmaAct = () => npc.items.get(miasma.id)?.system.activities.get('bfmiasmaact00000');
+        const castEmpty = async label => {
+          const [tpl] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
+            t: 'circle', x: 200, y: 700, distance: 20,   // far from every fixture token
+            flags: { dnd5e: { origin: miasmaAct().uuid } }
+          }]);
+          created.templates.push(tpl.id);
+          const msg = await ChatMessage.create({
+            speaker: ChatMessage.getSpeaker({ actor: npc }),
+            content: `<p>BF 8g ${label} fixture</p>`,
+            flags: { dnd5e: { targets: [], activity: { id: miasmaAct().id, uuid: miasmaAct().uuid, type: 'save' } } }
+          });
+          Hooks.callAll('dnd5e.postUseActivity', miasmaAct(), {}, { message: msg, templates: [[tpl]] });
+          const stamped = await until(() => msg.getFlag(MOD, 'saves'), 6000);
+          await sleep(2500);
+          const still = !!scene.templates.get(tpl.id);
+          const chained = game.messages.contents.filter(m => m.getFlag('dnd5e', 'originatingMessage') === msg.id);
+          await ChatMessage.deleteDocuments([msg.id, ...chained.map(m => m.id)]).catch(() => {});
+          if (still) await scene.templates.get(tpl.id)?.delete().catch(() => {});
+          return { stamped, still };
+        };
+        await game.settings.set(MOD, 'spentAreaList', 'Noxious Miasma, Hypnotic Pattern');
+        const listed = await castEmpty('listed');
+        ok('8g. LISTED, a 1-turn feature area placed on nobody stamps DONE and is swept — the fourth bucket',
+          !!listed.stamped && (listed.stamped.status === 'done') && (listed.stamped.durationUnits === 'turn') && !listed.still,
+          `status=${listed.stamped?.status} durationUnits=${listed.stamped?.durationUnits} still=${listed.still}`);
+        await game.settings.set(MOD, 'spentAreaList', 'Hypnotic Pattern');
+        const struck = await castEmpty('struck');
+        ok('8g. STRUCK from the list, the same cast waits and the area stands — the GM\'s bucket',
+          !!struck.stamped && (struck.stamped.status === 'pending') && struck.stamped.awaitingTemplate && struck.still,
+          `status=${struck.stamped?.status} awaiting=${struck.stamped?.awaitingTemplate} still=${struck.still}`);
+      } finally {
+        await game.settings.set(MOD, 'spentAreaList', priorSpent);
+        if (npc.items.get(miasma.id)) await npc.deleteEmbeddedDocuments('Item', [miasma.id]).catch(() => {});
+      }
     }
 
     // ============================================== 9. rider damage (onSave "full") + per-row bars
