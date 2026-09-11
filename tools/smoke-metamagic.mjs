@@ -39,7 +39,7 @@ const SECTIONS = {
   16: 'Empowered Spell (Stage 4): a Fireball damage roll is offered Empowered; the popup shows the eight dice, the cap holds at three, Reroll spends the point, patches the message\'s own roll (three faces struck, the total moved), and announces old → new',
   17: 'Careful\'s ticks in the casting window (user, 2026-09-09): with the Ranger and a goblin targeted, the row lists both with the ally pre-ticked; the player\'s own pick (the goblin) is honoured on the demand',
   18: 'Careful with NO target selected (the third look): the window lists nobody; the ask at the area lists exactly the creatures inside',
-  19: 'the cantrip (2026-09-10): Fire Bolt has no slot, template or scaling, so the system never opened the usage dialog and the group never showed - the module opens it; Distant, Quickened, Subtle, Transmuted and Twinned fit, Careful, Heightened and Extended do not; Transmuted\'s type radios are inert until Transmuted is ticked',
+  19: 'the cantrip (2026-09-10): Fire Bolt has no slot, template or scaling, so the system never opened the usage dialog and the group never showed - the module opens it; Distant, Quickened, Subtle and Transmuted fit, Careful, Heightened, Extended and Twinned (no slot to raise) do not; Transmuted\'s type radios are inert until Transmuted is ticked',
 };
 const DEPENDS = { 4: ['3'], 11: ['9'] };
 
@@ -698,7 +698,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const rows19 = rowsOf(fs19);
       const on19 = rows19.filter(r => !r.off).map(r => r.key).sort();
       const off19 = rows19.filter(r => r.off).map(r => r.key).sort();
-      ok('19b. the rows that fit a cantrip attack: Distant, Quickened, Subtle, Transmuted, Twinned; Careful, Heightened and Extended greyed', on19.join(',') === 'distant,quickened,subtle,transmuted,twinned' && ['careful', 'extended', 'heightened'].every(k => off19.includes(k)), JSON.stringify({ on: on19, off: off19 }));
+      // Twinned (2024) fits only a spell that a HIGHER SLOT lets target one more creature - a cantrip cannot be
+      // cast with a slot at all, so it is greyed, rightly (the first draft of this line expected it lit).
+      ok('19b. the rows that fit a cantrip attack: Distant, Quickened, Subtle, Transmuted; Careful, Heightened, Extended and Twinned greyed', on19.join(',') === 'distant,quickened,subtle,transmuted' && ['careful', 'extended', 'heightened', 'twinned'].every(k => off19.includes(k)), JSON.stringify({ on: on19, off: off19 }));
       ok('19c. no scaling section was drawn for the cantrip - the lever is invisible', !app19?.element?.querySelector('[name="scalingValue"], [name="spell.slot"]'), 'scaling controls present');
       // TRANSMUTED'S TYPE RADIOS ARE INERT UNTIL TRANSMUTED IS TICKED (user, 2026-09-10).
       const types19 = () => [...(fs19?.querySelectorAll('[data-bf-metamagic-row="transmuted"] input[name="bf-metamagic-type"]') ?? [])];
