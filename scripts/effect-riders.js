@@ -85,7 +85,7 @@ export async function applyEffectRiders(damageMessage, attackMessage, hits) {
  * it right). It rides every record via the data-plane stamp, resolved once per application.
  */
 export async function applyEffectsTo(targets, effects,
-  { concentration = null, scaling = 0, spellLevel, matchNames = false, extraFlags = null, source = null, extend = false } = {}) {
+  { concentration = null, scaling = 0, spellLevel, matchNames = false, extraFlags = null, source = null, extend = false, clock = null } = {}) {
   const context = statContext(source);
   const out = [];
   for ( const target of targets ) {
@@ -113,15 +113,25 @@ export async function applyEffectsTo(targets, effects,
       const existing = actor.effects.find(e => (e.origin === origin.uuid)
         || (matchNames && (e.name === effect.name)));
       let applied;
+      // `clock` (2026-09-10): a caller that knows the effect's RAW window better than the pack's
+      // numbers — the reaction's self-cast, whose "until the start of your next turn" is the
+      // Reaction chip's clock pinned to the REACTOR's place — hands `{duration, start}` in, and
+      // it lands on create and on refresh alike. Nobody else passes one; the pack's clock stands.
       if ( existing ) {
         // ⚠ `?? existing`: an empty-diff update returns undefined (same bug as the
         // mastery applier) and the receipt entry would vanish with it.
+        // ⚠ `expired: false` on the refresh: core v14 MARKS an expired effect rather than
+        // deleting it, so a re-cast over a leftover would otherwise re-clock a document the
+        // platform still reads as expired — suppressed, granting nothing.
+        const restart = effect.constructor.getEffectStart
+          ? { start: effect.constructor.getEffectStart() }
+          : effect.constructor.getInitialDuration();
         applied = (await existing.update(foundry.utils.mergeObject({
-          ...effect.constructor.getInitialDuration(), disabled: false
+          ...restart, duration: { expired: false }, disabled: false, ...(clock ?? {})
         }, effectFlags))) ?? existing;
       } else {
         applied = await ActiveEffect.implementation.create(foundry.utils.mergeObject({
-          ...effect.toObject(), disabled: false, transfer: false, origin: origin.uuid
+          ...effect.toObject(), disabled: false, transfer: false, origin: origin.uuid, ...(clock ?? {})
         }, effectFlags), { parent: actor });
       }
       // Extended Spell (metamagic, 2026-09-09): the cast's effects run twice as long, 24 hours at

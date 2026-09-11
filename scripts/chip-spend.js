@@ -151,9 +151,15 @@ async function spendChips(message, ctx) {
 /** Expired chips awaiting the tidy, per parent — flushed on a microtask (see below). */
 const expiryTidy = new Map();
 
+/** What the tidy owns: the module's chips, and the reaction's self-cast effect the hold applied
+ * (hold/lookup.js `applyReactionEffect` — the stale-Shield report, 2026-09-10: an expired barrier
+ * the platform had marked and nobody deleted sat on Gren's sheet under Unavailable Effects and
+ * told the offer gate Shield was still up). A pack effect somebody dragged on by hand is not ours. */
+const tidyOwns = effect => !!effect.getFlag(MODULE_ID, CHIP_FLAG) || !!effect.getFlag(MODULE_ID, "reactionEffect");
+
 Hooks.on("updateActiveEffect", (effect, changes) => {
   if ( changes?.duration?.expired !== true ) return;
-  if ( !effect.getFlag(MODULE_ID, CHIP_FLAG) || !(effect.parent instanceof Actor) ) return;
+  if ( !tidyOwns(effect) || !(effect.parent instanceof Actor) ) return;
   if ( !isActiveGM() ) return;
   // ⚠ COLLECTED, THEN ONE DELETE PER PARENT (review finding 9, 2026-09-01). The platform stamps
   // expiry as ONE batched update per parent and dispatches this hook once per effect,
@@ -192,7 +198,9 @@ async function sweepCombatChips(combat) {
     // actors — never within one, where a synthetic actor's writes must stay batched (NOTES §1).
     const actors = new Set(combat.combatants.map(c => c.actor).filter(a => a instanceof Actor));
     await Promise.all([...actors].map(async actor => {
-      const ids = actor.effects.filter(e => TURN_CHIPS.includes(e.getFlag(MODULE_ID, CHIP_FLAG))).map(e => e.id);
+      // …and the reaction's self-cast effect clocked to this combat (same reason: its turn will never come).
+      const ids = actor.effects.filter(e => TURN_CHIPS.includes(e.getFlag(MODULE_ID, CHIP_FLAG))
+        || (e.getFlag(MODULE_ID, "reactionEffect") && (e._source.start?.combat === combat.id))).map(e => e.id);
       if ( !ids.length ) return;
       try {
         await actor.deleteEmbeddedDocuments("ActiveEffect", ids);

@@ -48,7 +48,12 @@ const SECTIONS = {
   // CREATED A COMBAT — so `updateCombat`/`deleteCombat`, the whole reactionSpent lifecycle, had
   // never run under test. It creates a real Combat and deletes it in a `finally`.
   7: 'the PER-TURN CLEARS: reactionSpent set only in combat, cleared on turn and on delete',
-  8: 'a TEXT-ONLY feature in the Interrupt list (the 2024 Uncanny Dodge) is found BY NAME and holds as a damage kind'
+  8: 'a TEXT-ONLY feature in the Interrupt list (the 2024 Uncanny Dodge) is found BY NAME and holds as a damage kind',
+  // ⚠ Added 2026-09-10 for the table's 2026-09-09 report ("a stale Shield effect … the next hit
+  // offered no reaction"), reproduced by tools/probe-shield-leftover.mjs: the pack's clock ran
+  // against the ATTACKER's turn, the platform MARKED the barrier expired instead of deleting it,
+  // and the offer gate read the suppressed leftover as Shield still standing.
+  9: 'the STALE SHIELD: the barrier is clocked to the SHIELDER\'s next turn, tidied when it expires, and the next hit holds again'
 };
 // Every scenario stamps its own hold on its own attack and restores what it changed, so none
 // of them names another. §4b and §4c both read `results.realCast` — that is one section's data
@@ -1628,6 +1633,71 @@ const r = await f.evaluate(async ({ sections }) => {
       }
     }
 
+    // ---- 9. THE STALE SHIELD (2026-09-10) ----------------------------------------------------
+    // The table's shape, on the GM-owned stand-in: a two-combatant combat, the attacker FIRST.
+    // r1t0 the attacker hits into Shield's window, the popup's own Cast answers, the barrier
+    // lands. Then the boundaries: at r1t1 (the shielder's own turn start — "until the start of
+    // your next turn") the platform marks it expired and the module's tidy DELETES it, AC back
+    // to base; at r2t0 the attacker swings again and the hold OFFERS, because nothing dead is
+    // read as standing and the Reaction chip came back with the shielder's turn.
+    if (want('9')) {
+      let combat = null;
+      const wasMine = [];
+      try {
+        const { actor: sh, token: shObj } = await ensureShielder();
+        const shAC = sh.system.attributes.ac.value;
+        let foeTok = scene.tokens.find(t => t.actorId === attacker.id) ?? null;
+        if (!foeTok) {
+          [foeTok] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(
+            attacker.prototypeToken.toObject(), { x: 1100, y: 1200, actorId: attacker.id }, { inplace: false })]);
+          wasMine.push(foeTok.id);
+        }
+        if (game.combat) await game.combat.delete();
+        combat = await Combat.create({ scene: scene.id, active: true });
+        await combat.createEmbeddedDocuments('Combatant', [
+          { tokenId: foeTok.id, actorId: attacker.id, initiative: 20 },
+          { tokenId: shObj.document.id, actorId: sh.id, initiative: 10 }
+        ]);
+        await combat.startCombat();
+        await sleep(600);
+        const at = () => `r${combat.round}t${combat.turn}`;
+        const barrier = () => sh.effects.find(e => e.name === 'Imperceptible Barrier') ?? null;
+        const shape = () => { const e = barrier(); return e ? { present: true, active: e.active, expired: e.duration?.expired ?? null,
+          units: e._source.duration?.units, value: e._source.duration?.value, expiry: e._source.duration?.expiry,
+          startCombatant: e._source.start?.combatant ?? null, ac: sh.system.attributes.ac.value } : { present: false, ac: sh.system.attributes.ac.value }; };
+        const shielderCombatant = combat.combatants.find(c => c.actorId === sh.id)?.id ?? null;
+
+        const first = await attackIntoFlipWindow(activity, shObj, shAC);
+        if (!first) throw new Error(`§9: no attack landed in [${shAC}, ${shAC + 4}]`);
+        const pending = await waitFor(() => { const h = game.messages.get(first.msg.id)?.getFlag(MOD, 'hold'); return h?.status === 'pending' ? h : null; });
+        const castButton = await waitFor(() => castButtonFor(first.msg.id), 8000);
+        if (!castButton) throw new Error('§9: no Cast button');
+        castButton.click();
+        const resolved = await waitFor(() => { const h = game.messages.get(first.msg.id)?.getFlag(MOD, 'hold'); return h?.status === 'resolved' ? h : null; }, 25000);
+        await sleep(1200);
+        const landed = { at: at(), pending: !!pending, verdict: resolved?.targets?.[0]?.verdict, ...shape(), shielderCombatant };
+
+        await combat.nextTurn(); await sleep(1500);        // r1t1 — the shielder's own turn start
+        const ownTurn = { at: at(), ...shape(), reactionSpent: await reactionSpentOf(sh) };
+        await combat.nextTurn(); await sleep(1500);        // r2t0 — the attacker again
+        const second = await attackIntoFlipWindow(activity, shObj, shAC);
+        if (!second) throw new Error('§9: no second attack in the window');
+        const held2 = await waitFor(() => { const h = game.messages.get(second.msg.id)?.getFlag(MOD, 'hold'); return h?.status === 'pending' ? h : null; }, 8000);
+        const again = { at: at(), total: second.total, held: !!held2, ...shape() };
+        if (held2) {
+          const merged = foundry.utils.deepClone(held2); merged.targets.forEach(t => { if (!t.answer) t.answer = 'pass'; });
+          await game.messages.get(second.msg.id).setFlag(MOD, 'hold', merged); await sleep(1200);
+        }
+        results.staleShield = { baseAC: shAC, landed, ownTurn, again };
+      } finally {
+        try { if (combat) await combat.delete(); } catch { /* gone */ }
+        try { if (game.combat) await game.combat.delete(); } catch { /* ditto */ }
+        for (const id of wasMine) { try { await scene.tokens.get(id)?.delete(); } catch { /* gone */ } }
+        const sh = game.actors.getName('BF Test Shielder');
+        if (sh) { await clearReaction(sh); await clearBarriers(sh); }
+      }
+    }
+
     return { ok: true, results, log };
   } catch (err) {
     return { ok: false, why: `${err.message}\n${err.stack}`, results, log };
@@ -1943,6 +2013,20 @@ if (want('7')) {
   report('deleteCombat: the fight ends and the flag clears EVEN WITH reactionHold OFF',
     t?.setBeforeDelete === true && t?.clearedOnDelete === true,
     `setBefore=${t?.setBeforeDelete} clearedAfter=${t?.clearedOnDelete}`);
+}
+if (want('9')) {
+  const s = x.staleShield;
+  report('§9 the cast lands the barrier clocked to the SHIELDER: zero turns at the reactor\'s turnStart, start = the shielder\'s combatant, AC +5',
+    s?.landed?.pending && s?.landed?.verdict === 'miss' && s?.landed?.present && s?.landed?.active
+    && s?.landed?.units === 'turns' && s?.landed?.value === 0 && s?.landed?.expiry === 'turnStart'
+    && s?.landed?.startCombatant === s?.landed?.shielderCombatant && s?.landed?.ac === s?.baseAC + 5,
+    JSON.stringify(s?.landed));
+  report('§9 at the shielder\'s own next turn the barrier is GONE (expired, then tidied) and the AC is back to base — the Reaction back too',
+    s?.ownTurn?.present === false && s?.ownTurn?.ac === s?.baseAC && s?.ownTurn?.reactionSpent === false,
+    JSON.stringify(s?.ownTurn));
+  report('§9 the attacker\'s next swing HOLDS again — nothing dead is read as Shield standing',
+    s?.again?.held === true && s?.again?.ac === s?.baseAC,
+    JSON.stringify(s?.again));
 }
 if (r.log?.length) console.log(`\n[hold] discarded rolls: ${r.log.length}`);
 if (failures && x.diag) console.log(`\n[hold] diagnostics:\n${JSON.stringify(x.diag, null, 2)}`);

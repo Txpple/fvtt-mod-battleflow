@@ -225,6 +225,23 @@ what was written. Assert on `_source` for the window, on `duration` for the plat
 warns once, gone at v16) — read `units`/`value`/`expired` instead. Measured live by
 `tools/probe-expiry.mjs`; pinned by `tools/smoke-expiry.mjs`.
 
+**⚠ THE MARK IS SUPPRESSION, and a PACK effect the module applies is on this clock too
+(2026-09-10, the table's stale-Shield report, reproduced by `tools/probe-shield-leftover.mjs`).**
+Core v14's `ActiveEffect#isSuppressed` is `!!(system.isSuppressed ?? duration.expired)` and
+`active` is `!disabled && !isSuppressed` — so an expired effect nobody deletes is still on the
+sheet, filed by dnd5e under *Unavailable Effects*, granting nothing, and `disabled` still reads
+false. Two lessons the reaction's self-cast effect taught: **(1) any reader that means "is this
+standing" must read `active`**, never `!disabled` (the hold's `hasReactionEffect` read
+`!disabled` and told the offer gate Shield was up over an AC that had gone back down — the next
+hit got no hold); **(2) an effect the module applies from a PACK is the module's to clock and to
+tidy** — the pack's `{1 rounds, turnStart}` was stamped with the attacker's combatant (the
+platform's default is whoever's turn it IS, and a reaction is cast on somebody else's turn), ran
+a turn long, expired exactly at the attacker's next swing, and the expired-chip tidy skipped it
+because it wore `reactionEffect`, not `CHIP_FLAG`. Now: the reaction's effect takes the Reaction
+chip's clock (zero turns at the REACTOR's turnStart, `start` = the reactor's place, via
+`applyEffectsTo`'s `clock`), `tidyOwns` covers it, and a refresh over a leftover writes
+`expired: false` explicitly (the platform never clears the mark on its own). `smoke-hold` §9.
+
 ---
 
 ### v14 models an emanation end to end — MEASURED (2026-09-03, tools/probe-emanations.mjs)

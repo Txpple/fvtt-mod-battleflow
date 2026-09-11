@@ -289,6 +289,17 @@ exception that proves it:** its life is a STAMP COMPARISON against the running t
 attack's chit dies with the victim's turn — because the mark is GM-written and a no-GM table's
 first chit would otherwise stand forever. The platform's expiry is its tidy, not its judge.
 
+**⚠ A reaction's own effect is on the same clock (2026-09-10, the table's stale-Shield report).**
+Shield's *"until the start of your next turn"* is the Reaction chip's sentence exactly, so the
+effect the hold applies for a cast reaction takes that clock — zero turns, judged at the
+REACTOR's turnStart, `start` pinned to the reactor's place — instead of the pack's `{1 rounds,
+turnStart}`, which the platform stamps with whoever's turn it IS (the attacker's; a reaction is
+cast on somebody else's turn) and which therefore ran a turn long and expired at the attacker's
+next swing. And **an expired effect is MARKED, not deleted** (core v14's `isSuppressed` reads
+the mark): the barrier stayed on the sheet under *Unavailable Effects* granting nothing, and the
+offer gate read it as Shield still standing. The tidy that deletes what Foundry marked owns the
+reaction's effect too, and the gate reads `active` — dead is never standing.
+
 ### The gate before the roll (user rulings, 2026-09-01)
 
 **A reminder is proactive, never a rescue** — *"I don't want a rescue, I want proactivity."* When

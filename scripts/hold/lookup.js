@@ -15,7 +15,8 @@ import { MODULE_ID, TITLE } from "../core.js";
 import { limitedUses, isReactionItem, isTextOnlyFeature } from "../decide/eligible.js";
 import { INTERRUPT_REDUCTIONS } from "../decide/registry.js";
 import { interruptEntries } from "../settings.js";
-import { reactionSpent, poolOf } from "../shared.js";
+import { reactionSpent, poolOf, placeOf, chipData } from "../shared.js";
+import { chipClock } from "../decide/chips.js";
 import { applyEffectsTo } from "../effect-riders.js";
 
 /** Is a slot of at least `level` available (including pact magic)? */
@@ -216,12 +217,20 @@ async function findCastActivity(actor, spellName) {
  * the casting client applies from an item CLONE (Activity#use clones the item), so its
  * origin uuid differs from the one the continuing client would compute, and an origin-only
  * test would happily apply Shield twice.
+ *
+ * ⚠ `active`, never `!disabled` (the 2026-09-09 table report, reproduced 2026-09-10 by
+ * tools/probe-shield-leftover.mjs). Core v14 does not delete an effect whose clock ran out —
+ * it marks it `duration.expired`, and `isSuppressed` reads that mark, so the barrier stays on
+ * the sheet under dnd5e's *Unavailable Effects* granting nothing. Reading it as standing told
+ * the offer gate "Shield is already up" over an AC that had gone back down: the next hit got no
+ * hold, no popup, and landed. `active` is core's own `!disabled && !isSuppressed` — the same
+ * exclusion the reminder gate's effect read makes.
  */
 export function hasReactionEffect(actor, reactionName, ids) {
   if ( !actor || !reactionName ) return false;
   const item = reactionItem(actor, reactionName, ids);
   const names = new Set((item?.effects?.contents ?? []).map(e => e.name));
-  return actor.effects.some(e => !e.disabled && (names.has(e.name)
+  return actor.effects.some(e => e.active && (names.has(e.name)
     || (e.origin && item && e.origin.includes(item.id))));
 }
 
@@ -256,10 +265,21 @@ export async function applyReactionEffect(activity, actor, reactionName, ids) {
       effects = (spell?.effects?.contents ?? []).filter(e => !e.transfer);
     }
     if ( !effects.length ) return [];
+    // THE CLOCK (2026-09-10, the stale-Shield report). The pack writes Shield's "until the start
+    // of your next turn" as `{1 rounds, expiry: turnStart}` and the platform stamps `start` with
+    // whoever's turn it IS — the attacker's, since a reaction is cast on somebody else's turn. So
+    // the barrier outlived the text by a turn and expired at the ATTACKER's next turn, exactly
+    // when the next swing came. The sentence is the Reaction chip's own (decide/chips.js
+    // CHIP_WINDOWS.reaction: zero turns, judged at the REACTOR's turnStart, pinned to the
+    // reactor's place) — so a pack effect that says turnStart takes that clock, in the running
+    // combat the reactor is part of. Out of combat there is no turn: the pack's own clock stands.
+    const sameSentence = effects.every(e => (e._source?.duration?.expiry ?? e.duration?.expiry) === "turnStart");
+    const clock = sameSentence ? chipClock("reaction", placeOf(actor)) : null;
     return await applyEffectsTo([{ uuid: actor.uuid, name: actor.name }], effects, {
       matchNames: true,
       extraFlags: { [MODULE_ID]: { reactionEffect: true } },
-      source: actor.uuid // the data-plane stamp's source — the reactor's own self-cast
+      source: actor.uuid, // the data-plane stamp's source — the reactor's own self-cast
+      clock: clock?.start ? chipData(clock) : null
     });
   } catch(err) {
     console.error(`${TITLE} | Could not apply the reaction's effect — apply it from the card.`, err);
