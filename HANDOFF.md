@@ -16,7 +16,7 @@ evening's recuts — see §4).
 
 ## 1. What the user is walking, and how it should behave
 
-Cast Fireball as Gren (every option is on his sheet, sandbox only, 5 Sorcery Points):
+Cast Fireball as Gren (all TEN options on his sheet on the **sandbox** as of 2026-09-10 — the four he lacked were added from the PHB on the user's word; **prod Gren has his two RAW picks, Careful and Subtle, and was not touched**; 5 Sorcery Points):
 
 1. **The casting window** carries the *Battle Flow — Metamagic* group: a row per option the sheet
    grants, the cost as the tag, the rule folded under; rows the spell does not fit or the points
