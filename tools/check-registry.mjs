@@ -196,8 +196,8 @@ const rows = KIND_SETS.map(set => {
 
 /* --- the source-file count, pinned ------------------------------------------------------ */
 
-// ⚠ 28 is `scripts/*.js` + `scripts/decide/*.js`, and it is quoted by name in ARCHITECTURE.md,
-// HANDOFF.md and check-comments' own output. Bump it deliberately when a file is added, the
+// ⚠ 28 is `scripts/*.js` + `scripts/decide/*.js`, and it is quoted by name in ARCHITECTURE.md and
+// check-comments' own output. Bump it deliberately when a file is added, the
 // same way EXPECTED_KINDS moves — the refusal is the feature.
 // v1.23.0: 27 → 28, for scripts/d20-folds.js. It is a MACHINE and it earns its own file rather
 // than joining maneuvers.js: these are not maneuvers, they draw on no superiority pool, and two

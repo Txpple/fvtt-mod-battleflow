@@ -1199,6 +1199,8 @@ artifact that silently rots. The builder now recurses **and** re-reads the finis
 prove every relative import resolves to something *inside it* — the archive checking itself,
 because that is the only place the defect was ever visible.
 
+**⚠ A HALF-AWAKE Molten box answers every WebDAV GET with a 404 page, so `deploy-house-module.mjs --check` reports every file DIFFER with ONE identical hash** (seen 2026-09-10 on the first check of the night). It is not a stopped box: a read through the molten5e bridge (`get-world-info`) wakes it, and the re-check is then sane. **Never deploy on an all-identical check** — wake it, re-check, then deploy. And WebDAV never prunes: a file removed from the tree must be deleted on the box by hand, or the zip shipped instead.
+
 ### Testing against the live sandbox
 
 The sandbox is a byte copy of prod — same world id, same users — which is

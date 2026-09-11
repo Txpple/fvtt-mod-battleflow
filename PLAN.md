@@ -53,6 +53,8 @@ two filters, the demand channel into the save gate, the one effect applier, the 
 idiom, the d20 folds. Nothing new was invented below the machine tier. Distrust the estimates
 next time in the other direction.
 
+**One road the suite does not drive (carried here from the retired handoff, 2026-09-11):** the **carrier road** — card held at birth, the ask off a whisper, the real card posted on OK — is exercised only by a live cast. The headless harness cannot click through the system's own template placement, so `smoke-metamagic`'s Careful sections take the ADOPTION road (card first, template placed by hand, the ask on the card). A live report on the carrier road has no test behind it; writing one means driving `activity.use()` with `create.measuredTemplate: true` and completing the preview with synthetic pointer events on the canvas — untried.
+
 **The battery (2026-09-09, 40 minutes, 25 suites):** every registration fired (181/181), settings
 clean; five suites flagged — two were pins (the d20-folds content pin admits the fourth kind; the
 metamagic suite moved after the battery's token re-placement, where it needs to be), one a suite
