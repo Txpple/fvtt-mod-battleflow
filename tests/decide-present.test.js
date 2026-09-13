@@ -157,22 +157,68 @@ describe("the staircase — finding (s)", () => {
     expect(p.cascadePosition(anchor, 9)).toEqual(p.cascadePosition(anchor, 1));
   });
 
-  it("fronts the elders DEEPEST FIRST, so slot 0 ends on top — z-order is causal order", () => {
+  it("fronts the pile back to front, so slot 0 ends on top — z-order is causal order", () => {
     const slots = new Map([
-      ["first", 0],
-      ["second", 1],
-      ["third", 2]
+      ["m|first", 0],
+      ["m|second", 1],
+      ["m|third", 2]
     ]);
-    expect(p.eldersDeepestFirst(slots, "third")).toEqual(["second", "first"]);
+    expect(p.pileBackToFront(slots)).toEqual(["m|third", "m|second", "m|first"]);
   });
 
-  it("never fronts the newcomer itself — it belongs at the BACK of the pile", () => {
+  it("walks the newcomer too — it belongs at the BACK of its class", () => {
     const slots = new Map([
-      ["a", 0],
-      ["b", 1]
+      ["m|a", 0],
+      ["m|b", 1]
     ]);
-    expect(p.eldersDeepestFirst(slots, "b")).toEqual(["a"]);
-    expect(p.eldersDeepestFirst(slots, "a")).toEqual(["b"]);
+    expect(p.pileBackToFront(slots).at(-1)).toBe("m|a");
+  });
+});
+
+describe("the rank — masteries, then the carrier offers, then the rest (user ruling 2026-09-13)", () => {
+  it("ranks by the key's sub: the mastery family 0, the listed offers 1, everything else 2", () => {
+    expect(p.popupRank("m|mastery")).toBe(0);
+    expect(p.popupRank("m|notice")).toBe(0);
+    expect(p.popupRank("m|topple:Actor.abc")).toBe(0);
+    expect(p.popupRank("m|bashoffer")).toBe(1);
+    expect(p.popupRank("m|hew")).toBe(1);
+    expect(p.popupRank("m|command")).toBe(1);
+    expect(p.popupRank("m|riposte:Actor.abc")).toBe(1);
+    expect(p.popupRank("m|hold")).toBe(2);
+    expect(p.popupRank("m|save:Actor.abc")).toBe(2);
+    expect(p.popupRank("m|rescue")).toBe(2);
+  });
+
+  it("ranks a key with no sub, and an unruled sub, LAST — a new moment is unranked until ruled", () => {
+    expect(p.popupRank("bf-cascade-1")).toBe(2);
+    expect(p.popupRank("m|somethingNew")).toBe(2);
+    expect(p.popupRank(undefined)).toBe(2);
+  });
+
+  it("THE FINDING: the bash offer arrives first (the attack roll), the mastery second (the damage message) — the mastery still fronts", () => {
+    const slots = new Map([
+      ["atk|bashoffer", 0],
+      ["dmg|mastery", 1]
+    ]);
+    expect(p.pileBackToFront(slots)).toEqual(["atk|bashoffer", "dmg|mastery"]);
+  });
+
+  it("event order still decides WITHIN a class, and the unranked go behind both", () => {
+    const slots = new Map([
+      ["a|hold", 0],
+      ["b|bashoffer", 1],
+      ["c|notice", 2],
+      ["d|hew", 3],
+      ["e|mastery", 4]
+    ]);
+    // back → front: the unranked, then the offers latest-first, then the masteries latest-first
+    expect(p.pileBackToFront(slots)).toEqual([
+      "a|hold",
+      "d|hew",
+      "b|bashoffer",
+      "e|mastery",
+      "c|notice"
+    ]);
   });
 });
 

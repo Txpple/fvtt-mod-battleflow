@@ -22,7 +22,7 @@
 import { MODULE_ID, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor,
   queueFlagWrite } from "./core.js";
 import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, cascadePosition,
-  eldersDeepestFirst, rescuePaneHTML, rescueRowsHTML } from "./decide/present.js";
+  pileBackToFront, rescuePaneHTML, rescueRowsHTML } from "./decide/present.js";
 import { pendingDemands, resolveDemand } from "./decide/demand.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -74,10 +74,10 @@ export async function openManagedPopup(key, message, dialog) {
     try { ui.chat?.updateMessage?.(message); } catch(err) { /* row refreshes next render */ }
     return close(...args);
   };
-  // THE CASCADE (ARCHITECTURE.md §5 law 7, recut by walk-4 finding (s)): the pile is a QUEUE IN
-  // EVENT ORDER, and Z-ORDER IS CAUSAL ORDER (user ruling). The layout arithmetic — smallest
-  // free slot, the step, the elders' fronting order — is decide/present.js; the dialogs are
-  // this file's.
+  // THE CASCADE (ARCHITECTURE.md §5 law 7, recut by walk-4 finding (s), ranked 2026-09-13):
+  // the pile is a QUEUE IN EVENT ORDER, and Z-ORDER IS RANK, THEN CAUSAL ORDER (user rulings).
+  // The layout arithmetic — smallest free slot, the step, the rank table, the pile's fronting
+  // order — is decide/present.js; the dialogs are this file's.
   const slot = nextCascadeSlot(popupSlots.values());
   popupSlots.set(key, slot);
   livePopups.set(key, dialog);
@@ -89,10 +89,12 @@ export async function openManagedPopup(key, message, dialog) {
       const want = cascadePosition(cascadeAnchor, slot);
       if ( (want.left !== left) || (want.top !== top) ) dialog.setPosition(want);
     }
-    if ( slot ) {
-      // Re-front the elders, deepest first, so slot 0 ends on top and this newcomer sits
-      // at the BACK of the pile — its turn comes when the earlier moments are answered.
-      for ( const k of eldersDeepestFirst(popupSlots, key) ) {
+    if ( popupSlots.size > 1 ) {
+      // Re-front the whole pile back to front — rank, then slot — so the lowest rank's
+      // earliest moment ends on top. The newcomer is in the walk too: a mastery arriving after
+      // the bash offer outranks it and goes in front; anything else sits at the BACK of its
+      // class, its turn coming when the earlier moments are answered.
+      for ( const k of pileBackToFront(popupSlots) ) {
         const d = livePopups.get(k);
         if ( d?.rendered ) { try { d.bringToFront?.(); } catch(err) { /* fronting is best-effort */ } }
       }

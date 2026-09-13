@@ -120,7 +120,7 @@ seen from two sides — and because each is a *goal for some workflows, not all*
 
 1. **The modal sequence.** A workflow where several windows are answered **in order**, and the
    visual chain — the picture, the dice, the saves — waits for the whole sequence to drain, not
-   for one window. Today the popup pile is a **staircase in causal order** (ARCHITECTURE §5 law 7,
+   for one window. Today the popup pile is a **staircase in rank, then causal order** (ARCHITECTURE §5 law 7,
    a user ruling with table findings behind it): concurrent by design, with one narrow exception
    (the rescue view). A modal sequence is a **change to law 7**, not an addition to it, and it is
    wanted for *some* workflows only — so it arrives as an option per moment, never as the default.

@@ -443,15 +443,45 @@ export function cascadePosition(anchor, slot) {
 }
 
 /**
- * The other popups, DEEPEST FIRST — the re-fronting order that makes Z-ORDER CAUSAL ORDER
- * (user ruling): the FIRST moment's popup stays in FRONT, every later arrival layers BEHIND
- * it, and the player clicks through in the order things happened. A bash exists because the
- * hit landed; the hit answers first. Fronting them deepest-first leaves slot 0 on top and the
- * newcomer at the back of the pile.
+ * THE RANK (user ruling 2026-09-13, ARCHITECTURE §5 law 7's tiebreak). Two windows born of
+ * ONE hit — a weapon's mastery and Shield Master's bash — are one event, and which of them
+ * the pile fronted was an accident of which hook fired first: the bash offer is stamped on the
+ * attack roll, the mastery rides the damage message a beat later, so event order put the feat's
+ * offer in front of the weapon's own property. The user (Thomas Invictus' sword: Sap behind the
+ * bash): *"masteries always go first … then feat riders second"* — the rank orders the classes,
+ * and event order still decides within a class and for everything unranked.
+ *
+ * The key's SUB (`popupKey(messageId, sub)`) names the moment; the table ranks the CLASSES.
+ *   0  the weapon's mastery — the ask, the notice (Vex, Sap, Cleave), the Topple demand
+ *   1  a listed carrier's OFFER on the hit (the Maneuver Folds list, decide/registry.js): the bash,
+ *      the hew, Commander's Strike, the Riposte
+ *   2  everything else, in event order as before
+ * ⚠ A new sub stays at rank 2 unless it is ruled into a class — the table is the ruling.
  */
-export function eldersDeepestFirst(slots, key) {
-  return [...slots.entries()].filter(([k]) => k !== key)
-    .sort(([, a], [, b]) => b - a)
+export const POPUP_RANK = Object.freeze({
+  mastery: 0, notice: 0, topple: 0,
+  bashoffer: 1, hew: 1, command: 1, riposte: 1
+});
+
+/** A popup key's rank — the sub before its first `:` looked up in the table; unlisted (and
+ * keys with no sub at all) rank last. */
+export function popupRank(key) {
+  const sub = String(key ?? "").split("|")[1] ?? "";
+  const family = sub.split(":")[0] ?? "";
+  return POPUP_RANK[family] ?? 2;
+}
+
+/**
+ * The whole pile, BACK TO FRONT — the re-fronting order that makes Z-ORDER RANK, THEN CAUSAL
+ * ORDER (user rulings 2026-09-02 and 2026-09-13): the lowest rank's earliest moment ends on
+ * top, every later arrival of its class layers behind it, and the player clicks through the
+ * masteries, then the offers, then the rest, each in the order things happened. Fronting every
+ * key in this order (the newcomer included — it may outrank an elder) leaves the front where
+ * the ruling puts it.
+ */
+export function pileBackToFront(slots) {
+  return [...slots.entries()]
+    .sort(([ka, a], [kb, b]) => (popupRank(kb) - popupRank(ka)) || (b - a))
     .map(([k]) => k);
 }
 

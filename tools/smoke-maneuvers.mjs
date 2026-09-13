@@ -1075,6 +1075,26 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `third=${JSON.stringify({ left: d3.position.left, top: d3.position.top })} anchor=${JSON.stringify(p1)}`);
         await d2.close(); await d3.close();
         await sleep(150);
+        // THE RANK (user ruling 2026-09-13, Thomas Invictus' sword): the bash offer is stamped
+        // on the attack roll and the mastery rides the damage message a beat later, so event
+        // order alone put the feat's offer in front of the weapon's own mastery. Ranked: the
+        // mastery fronts even though it arrived second; the unranked go behind both. The keys
+        // are the machines' real subs through the same opener the real popups take.
+        const dBash = mk('BF Rank Bash');
+        const dMast = mk('BF Rank Mastery');
+        const dHold = mk('BF Rank Hold');
+        await uiMod.openManagedPopup(`${anyMsg.id}|bashoffer`, anyMsg, dBash);
+        await uiMod.openManagedPopup(`${anyMsg.id}|mastery`, anyMsg, dMast);
+        await sleep(300);
+        ok('Q4. the RANK — the mastery arrives second and still fronts the bash offer',
+          zOf(dMast) > zOf(dBash), `mastery=${zOf(dMast)} bash=${zOf(dBash)}`);
+        await uiMod.openManagedPopup(`${anyMsg.id}|hold`, anyMsg, dHold);
+        await sleep(300);
+        ok('Q5. an unranked newcomer goes to the back — mastery, then the offer, then the rest',
+          (zOf(dMast) > zOf(dBash)) && (zOf(dBash) > zOf(dHold)),
+          `mastery=${zOf(dMast)} bash=${zOf(dBash)} hold=${zOf(dHold)}`);
+        await dBash.close(); await dMast.close(); await dHold.close();
+        await sleep(150);
       }
     }
 

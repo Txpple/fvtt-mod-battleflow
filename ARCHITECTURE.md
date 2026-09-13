@@ -437,8 +437,20 @@ Each was a user ruling, and each has a table finding behind it.
    choice may state knowns — "Take half" is legal once the save is in.)
 6. **Source, then result.** Every follow-up line leads with the ability that caused it.
 7. **The stack is a queue in event order.** Concurrent popups form a staircase from a common
-   anchor, and **z-order is causal order** — the first moment stays in front, so the player
-   clicks through in the order things happened.
+   anchor, and **z-order is rank, then causal order** — within a class the first moment stays
+   in front, so the player clicks through in the order things happened.
+   - ⚠ **THE RANK (user ruling 2026-09-13).** Two windows born of ONE hit are one event, and
+     event order alone fronted whichever machine's hook fired first: Shield Master's bash offer
+     is stamped on the attack roll, the weapon's mastery rides the damage message a beat later,
+     so the feat's offer sat in front of the weapon's own property (Thomas Invictus' sword, Sap
+     behind the bash). The user: *"it's no different than mastery — we just need these to be
+     ordered."* So the pile fronts by CLASS first — the weapon's mastery (the ask, the notice,
+     the Topple demand), then a listed carrier's offer on the hit (the bash, the hew, Commander's
+     Strike, the Riposte), then everything else — and by event order within a class. The table is
+     `POPUP_RANK` in [decide/present.js](scripts/decide/present.js), keyed by the popup key's sub;
+     a new moment is unranked (last) until it is ruled into a class. The staircase's POSITIONS
+     stay in event order; only the fronting changes. This is z-order, not sequencing — both
+     windows still open together, and the modal sequence (BACKLOG) stays parked.
    - ⚠ **THE ONE EXCEPTION, AND IT IS NARROW (v1.24.0, the rescue view): several moments about
      ONE ROLL present as ONE WINDOW.** A Battle Master holding a Bardic die who misses is
      stamped by two machines on the same attack, and a staircase of two popups is still two
