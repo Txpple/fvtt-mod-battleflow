@@ -577,6 +577,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const popup = await waitFor(() => { const d = popupFor(dmg?.id, 'empowered'); return (d?.rendered && d.element?.querySelector?.('[data-bf-empowered-dice]')) ? d : null; }, 6000);
       const chips = [...(popup?.element?.querySelectorAll('[data-bf-die]') ?? [])];
       ok('16b. the popup shows the eight dice as chips', chips.length === 8, `chips=${chips.length}`);
+      // NO PICK, NO REROLL (user, 2026-09-12): the button opens greyed out and wakes on the first tick.
+      const rerollBtn = () => popup?.element?.querySelector('button[data-action="reroll"]');
+      ok('16b2. Reroll is disabled before any die is ticked', rerollBtn()?.disabled === true, `disabled=${rerollBtn()?.disabled}`);
+      chips[0]?.click(); await sleep(30);
+      ok('16b3. Reroll wakes on the first tick', rerollBtn()?.disabled === false, `disabled=${rerollBtn()?.disabled}`);
+      chips[0]?.click(); await sleep(30);
+      ok('16b4. ...and sleeps again when it is unticked', rerollBtn()?.disabled === true, `disabled=${rerollBtn()?.disabled}`);
       // Tick the two lowest dice, then a third and a fourth — the cap holds at three.
       const sorted = chips.slice().sort((a, b) => Number(a.textContent) - Number(b.textContent));
       for (const c of sorted.slice(0, 4)) { c.click(); await sleep(30); }

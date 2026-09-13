@@ -937,7 +937,7 @@ option names and judges nothing else.** RULED 2026-09-09 off the prototype
   active, the total moved) so everything downstream reads the new number, and damage already
   applied is moved by the difference as its own receipt. As drawn: Empowered opens
   on the spell's damage with the dice shown, up to CHA-mod of them picked and rerolled, the new
-  rolls standing; Seeking is Precision Attack's shape on a spell attack's miss — Use or Pass, the
+  rolls standing (Reroll is greyed until a die is ticked — user, 2026-09-12); Seeking is Precision Attack's shape on a spell attack's miss — Use or Pass, the
   d20 rerolled, the new roll standing, Pass at expiry. Both carry the rolled-result obligation
   the honest way: the receipt records old and new dice, a revert restores the APPLIED damage as
   it does today, and the roll itself stays as rolled, said on the card. **Shipped to find its

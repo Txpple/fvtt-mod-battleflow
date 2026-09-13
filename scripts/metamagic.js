@@ -629,7 +629,7 @@ async function showEmpoweredPopup(message) {
   // Eight to a row (user, 2026-09-09: "make this horizontal rows, 8 die per row").
   const chips = flag.dice.map(d => `<button type="button" data-bf-die="${esc(d.key)}" data-picked="0" data-tooltip="d${d.faces}"
       style="width:2.2rem;height:2.2rem;margin:0;padding:0;font-weight:bold;${d.result <= 2 ? "color:#b4463c;" : ""}">${d.result}</button>`).join("");
-  await openMomentPopup(message, EMPOWERED_FLAG, actor, {
+  const dialog = await openMomentPopup(message, EMPOWERED_FLAG, actor, {
     title: `Empowered Spell — ${actor.name}`, icon: "fa-solid fa-wand-sparkles", width: 460,
     content: bfCard({
       img: actor.items?.find(i => i.name === "Empowered Spell")?.img ?? null,
@@ -647,6 +647,16 @@ async function showEmpoweredPopup(message) {
       { action: "keep", label: "Keep the roll", callback: () => { void keepEmpowered(message); } }
     ]
   });
+  // NO PICK, NO REROLL (user, 2026-09-12: "if a person doesn't have dice selected, the reroll dice
+  // should be greyed out"). The button opens disabled; the chip toggles below keep it honest.
+  syncEmpoweredReroll(dialog?.element?.querySelector?.("[data-bf-empowered-dice]") ?? null);
+}
+
+/** The Reroll button is live only while at least one die is ticked. */
+function syncEmpoweredReroll(box) {
+  const button = box?.closest?.("form")?.querySelector?.('button[data-action="reroll"]');
+  if ( !button ) return;
+  button.disabled = !box.querySelector('[data-picked="1"]');
 }
 
 // The chips toggle by delegation — the popup's element is the dialog's own, and one listener on
@@ -658,9 +668,9 @@ Hooks.once("ready", () => document.addEventListener("click", ev => {
   const box = chip.closest("[data-bf-empowered-dice]");
   const cap = Number(box?.dataset?.cap) || 99;
   const picked = [...(box?.querySelectorAll('[data-picked="1"]') ?? [])];
-  if ( chip.dataset.picked === "1" ) { chip.dataset.picked = "0"; chip.style.outline = ""; return; }
-  if ( picked.length >= cap ) return;
-  chip.dataset.picked = "1"; chip.dataset.order = String(Date.now()); chip.style.outline = "2px solid rgb(222,120,40)";
+  if ( chip.dataset.picked === "1" ) { chip.dataset.picked = "0"; chip.style.outline = ""; }
+  else if ( picked.length < cap ) { chip.dataset.picked = "1"; chip.dataset.order = String(Date.now()); chip.style.outline = "2px solid rgb(222,120,40)"; }
+  syncEmpoweredReroll(box);
 }));
 
 async function keepEmpowered(message, { timedOut = false } = {}) {
