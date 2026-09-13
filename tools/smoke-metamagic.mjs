@@ -170,6 +170,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // filtered from every list and demand (found 2026-09-09 - 10c and 18a read him missing).
     if (sorc.system.attributes.hp.value < sorc.system.attributes.hp.max) await sorc.update({ 'system.attributes.hp.value': sorc.system.attributes.hp.max });
     for (const e of sorc.effects.filter(e => e.statuses?.has?.('dead'))) await e.delete().catch(() => {});
+    // The Ranger too (2026-09-12): §10/§11's Fireballs can leave him dead for the next run.
+    const rgr0 = game.actors.getName('BF Test Ranger');
+    if (rgr0 && rgr0.system.attributes.hp.value < rgr0.system.attributes.hp.max) await rgr0.update({ 'system.attributes.hp.value': rgr0.system.attributes.hp.max });
+    for (const e of (rgr0?.effects ?? []).filter(e => e.statuses?.has?.('dead') || e.statuses?.has?.('bloodied'))) await e.delete().catch(() => {});
     log.push(`Font of Magic: ${p0.system.uses.value}/${p0.system.uses.max}; CHA mod ${sorc.system.abilities.cha.mod}`);
 
     if (want(1)) {
@@ -624,6 +628,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // --- Careful's ticks in the window (user, 2026-09-09) ---------------------------------------
     if (want(17) && rgrTok) {
       const p17 = pool(); if (p17.system.uses.spent) await p17.update({ 'system.uses.spent': 0 });
+      // THE RANGER AT FULL HP (found 2026-09-12): the two Fireballs of §10 and §11 land on him and
+      // whether he survives them is dice - a dead Ranger is filtered from the demand (saveDemandable)
+      // and 17b reads him missing. The Sorcerer's heal at the top of the run is the same fix.
+      if (ranger.system.attributes.hp.value < ranger.system.attributes.hp.max) await ranger.update({ 'system.attributes.hp.value': ranger.system.attributes.hp.max });
+      for (const e of ranger.effects.filter(e => e.statuses?.has?.('dead') || e.statuses?.has?.('bloodied'))) await e.delete().catch(() => {});
       await set('saveTimer', 0);
       await sorcTok.update(sorcHome, { teleport: true, animate: false });
       await rgrTok.update({ x: sorcHome.x + scene.grid.size, y: sorcHome.y }, { teleport: true, animate: false });
