@@ -8,11 +8,12 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, inRunningCombat,
-  combatStamp, statContext } from "./core.js";
+  combatStamp, statContext, drivesMomentFor } from "./core.js";
 import { resolveUuid, foldEntryFor } from "./lookup.js";
 import { maneuverFoldEntries } from "./settings.js";
 import { RULE_TEXT } from "./decide/registry.js";
-import { hitTargets, modeAllows } from "./shared.js";
+import { hitOfferStep } from "./decide/sequence.js";
+import { hitTargets, modeAllows, resolveAttackMessage } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
   armAskTimer, disarmAskTimer } from "./ui.js";
@@ -28,6 +29,16 @@ import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoment
  * demand, the failure's Prone-or-push choice) is the machinery that already exists. Once
  * per turn in combat (the feat's own clause, the Cleave stamp discipline); out of combat
  * every hit offers — "we don't have timers and combat rounds yet".
+ *
+ * ⚠ THE SEQUENCE (user ruling 2026-09-13 — decide/sequence.js carries the rule): the hit still
+ * STAMPS the offer (the record is right: RAW's trigger is the hit), but it stamps it QUEUED —
+ * no clock, no popup, a quiet row — and the offer is PROMOTED to pending from the damage
+ * chokepoint (auto-apply.js `resolveDamagePayouts`, after the mastery rider) once the damage has
+ * landed and the mastery's decision, if it asked one, is answered. The clock starts at the
+ * promotion, so the damage prompt and the mastery never eat the offer's window. A hit whose
+ * damage left nobody standing resolves the offer MOOT with no popup (the dead gate, after the
+ * damage). When no payout stage is on at all (resolver, riders and masteries all off) nothing
+ * would ever promote it, so it opens at the hit as it always did.
  * ========================================================================================== */
 
 const bashOfferTimers = new Map();
@@ -61,16 +72,17 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
       living.push({ uuid: t.uuid, name: t.name });
     }
     if ( !living.length ) return;                                // a corpse cannot be bashed (the dead gate)
-    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    // THE SEQUENCE: queued behind the damage unless nothing downstream would ever promote it.
+    const sequenced = setting(S.autoApply) || setting(S.effectRiders) || setting(S.masteryRiders);
     await message.setFlag(MODULE_ID, "bashOffer", {
-      status: "pending", answer: null,
+      status: sequenced ? "queued" : "pending", answer: null,
       itemId: found.item.id, activityId: activity.id,
       itemName: found.item.name, itemImg: found.item.img,
       attackerUuid: attacker.uuid, targets: living,
       ...statContext(attacker.uuid), // the data-plane stamp
-      ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
+      ...(sequenced ? {} : offerClock())
     });
-    armBashOfferTimer(message);
+    if ( !sequenced ) armBashOfferTimer(message);
   } catch(err) {
     console.error(`${TITLE} | Bash offer stamp failed.`, err);
   }
@@ -78,6 +90,75 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
 
 const armBashOfferTimer = message =>
   armAskTimer(bashOfferTimers, message, "bashOffer", live => answerBashOffer(live, "pass", { timedOut: true }));
+
+/** The offer's window and deadline, read at the moment the clock STARTS. */
+function offerClock() {
+  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  return window ? { window, deadline: Date.now() + (window * 1000) } : {};
+}
+
+/* --- THE SEQUENCE: queued at the hit, promoted after the damage and the mastery's decision --- */
+
+/** A damage message whose payouts have run for this attack — the receipt when damage was
+ * applied, the mastery flag or the message itself otherwise (the chokepoint calls
+ * `sequenceBashOffer` only after its stages ran, so on that path existence is enough). */
+function damageLandedFor(attackMessage) {
+  return game.messages.contents.some(m => (m.getFlag("dnd5e", "roll.type") === "damage")
+    && (resolveAttackMessage(m)?.id === attackMessage.id));
+}
+
+/** The facts the decision reads, gathered from the attack message and the world. */
+async function offerFacts(attackMessage, { damageLanded } = {}) {
+  const b = attackMessage.getFlag(MODULE_ID, "bashOffer");
+  if ( !b ) return null;
+  let living = 0;
+  const standing = [];
+  for ( const t of (b.targets ?? []) ) {
+    const a = await fromUuid(t.uuid).catch(() => null);
+    if ( !(a instanceof Actor) ) continue;
+    if ( a.statuses?.has?.("dead") ) continue;
+    if ( (a.type === "npc") && ((a.system.attributes?.hp?.value ?? 0) <= 0) ) continue;
+    standing.push(t);
+    living += 1;
+  }
+  return {
+    status: b.status,
+    masteryStatus: attackMessage.getFlag(MODULE_ID, "mastery")?.status ?? null,
+    damageLanded: damageLanded ?? damageLandedFor(attackMessage),
+    living, standing
+  };
+}
+
+/**
+ * Move a queued offer along — the ELECT's call (drivesMomentFor the attacker), idempotent:
+ * "wait" and "none" write nothing, so the chokepoint, the mastery watcher and the render
+ * resume can all call it. Promotion starts the clock; moot resolves quietly.
+ */
+export async function sequenceBashOffer(attackMessage, { damageLanded } = {}) {
+  try {
+    const facts = await offerFacts(attackMessage, { damageLanded });
+    if ( !facts ) return;
+    const step = hitOfferStep(facts);
+    if ( (step === "wait") || (step === "none") ) return;
+    let moved = false;
+    await queueFlagWrite(attackMessage, "bashOffer", current => {
+      if ( current.status !== "queued" ) return;
+      if ( step === "promote" ) {
+        Object.assign(current, offerClock());
+        current.targets = facts.standing;
+        current.promotedAt = Date.now();   // the record of WHEN the clock started (after the damage)
+        current.status = "pending";
+      } else {
+        current.status = "moot";
+        current.mootAt = Date.now();
+      }
+      moved = true;
+    });
+    if ( moved && (step === "promote") ) armBashOfferTimer(attackMessage);
+  } catch(err) {
+    console.error(`${TITLE} | Bash offer sequencing failed.`, err);
+  }
+}
 
 /** Has the offer's driven usage already happened? The provenance flag is the receipt. */
 const bashDriven = messageId => game.messages.contents.some(m =>
@@ -181,14 +262,21 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const row = document.createElement("div");
     row.className = "battleflow-maneuver";
     const pending = b.status === "pending";
+    const queued = b.status === "queued";
+    const title = pending ? `${b.itemName} — offered on the hit`
+      : queued ? `${b.itemName} — offered after the damage`
+      : (b.status === "moot") ? `${b.itemName} — no one left to bash`
+      : (b.answer === "use" ? `${b.itemName} — used` : `${b.itemName} — passed${b.timedOut ? " (timer)" : ""}`);
     row.innerHTML = bfCard({
       img: b.itemImg, eyebrow: `Maneuver — ${b.itemName}`,
-      tone: pending ? "pending" : (b.answer === "use" ? "good" : "neutral"),
-      title: pending ? `${b.itemName} — offered on the hit`
-        : (b.answer === "use" ? `${b.itemName} — used` : `${b.itemName} — passed${b.timedOut ? " (timer)" : ""}`),
+      tone: (pending || queued) ? "pending" : (b.answer === "use" ? "good" : "neutral"),
+      title,
       subtitle: (b.targets ?? []).map(t => t.name).join(", ")
     }) + (pending ? holdBarHTML(b, "to answer") : "");
     html.querySelector(".message-content")?.appendChild(row);
+    // The sequence's resume (the elect): a queued offer whose damage landed while nobody was
+    // driving — the render re-reads the facts and moves it, or leaves it waiting.
+    if ( queued && drivesMomentFor(b.attackerUuid) ) void sequenceBashOffer(message);
     if ( pending ) {
       scheduleBarSync(row);
       armBashOfferTimer(message);
@@ -220,6 +308,10 @@ Hooks.on("updateChatMessage", message => {
     const dialog = livePopups.get(popupKey(message.id, "bashoffer"));
     if ( dialog && ((b.status !== "pending") || b.answer) ) void dialog.close();
     if ( b.status !== "pending" ) disarmAskTimer(bashOfferTimers, message.id);
+    // THE SEQUENCE's second trigger: the mastery ask on this same attack message just settled
+    // (mastery.js writes its status here) — the queued offer's turn, on the elect.
+    if ( (b.status === "queued") && drivesMomentFor(b.attackerUuid)
+      && (message.getFlag(MODULE_ID, "mastery")?.status === "done") ) void sequenceBashOffer(message);
   }
 });
 

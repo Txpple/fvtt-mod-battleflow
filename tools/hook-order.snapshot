@@ -41,6 +41,10 @@ dnd5e.preRollDamageV2	mastery.js
 updateChatMessage	mastery.js
 deleteChatMessage	mastery.js
 dnd5e.renderChatMessage	mastery.js
+dnd5e.rollAttackV2	bash-offer.js
+dnd5e.renderChatMessage	bash-offer.js
+updateChatMessage	bash-offer.js
+deleteChatMessage	bash-offer.js
 createChatMessage	topple.js
 createChatMessage	topple.js
 updateChatMessage	topple.js
@@ -114,10 +118,6 @@ deleteChatMessage	riposte.js
 dnd5e.renderChatMessage	hew.js
 createChatMessage	hew.js
 updateChatMessage	hew.js
-dnd5e.rollAttackV2	bash-offer.js
-dnd5e.renderChatMessage	bash-offer.js
-updateChatMessage	bash-offer.js
-deleteChatMessage	bash-offer.js
 dnd5e.preUseActivity	command.js
 dnd5e.postUseActivity	command.js
 createChatMessage	command.js

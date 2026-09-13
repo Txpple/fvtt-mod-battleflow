@@ -452,23 +452,29 @@ export function cascadePosition(anchor, slot) {
  * and event order still decides within a class and for everything unranked.
  *
  * The key's SUB (`popupKey(messageId, sub)`) names the moment; the table ranks the CLASSES.
- *   0  the weapon's mastery — the ask, the notice (Vex, Sap, Cleave), the Topple demand
- *   1  a listed carrier's OFFER on the hit (the Maneuver Folds list, decide/registry.js): the bash,
+ * The same day's second ruling put the DAMAGE first of all (*"damage, nothing until damage.
+ * then mastery rider. then other stuff"*) — the damage prompt outranks everything, and the hit's
+ * offers are also SEQUENCED behind it (decide/sequence.js), so the rank is the belt on that.
+ *   0  the damage prompt ("You hit! — roll damage", auto-damage.js)
+ *   1  the weapon's mastery — the ask, the notice (Vex, Sap, Cleave), the Topple demand
+ *   2  a listed carrier's OFFER on the hit (the Maneuver Folds list, decide/registry.js): the bash,
  *      the hew, Commander's Strike, the Riposte
- *   2  everything else, in event order as before
- * ⚠ A new sub stays at rank 2 unless it is ruled into a class — the table is the ruling.
+ *   3  everything else, in event order as before
+ * ⚠ A new sub stays at the last rank unless it is ruled into a class — the table is the ruling.
  */
 export const POPUP_RANK = Object.freeze({
-  mastery: 0, notice: 0, topple: 0,
-  bashoffer: 1, hew: 1, command: 1, riposte: 1
+  damage: 0,
+  mastery: 1, notice: 1, topple: 1,
+  bashoffer: 2, hew: 2, command: 2, riposte: 2
 });
+const UNRANKED = 3;
 
 /** A popup key's rank — the sub before its first `:` looked up in the table; unlisted (and
  * keys with no sub at all) rank last. */
 export function popupRank(key) {
   const sub = String(key ?? "").split("|")[1] ?? "";
   const family = sub.split(":")[0] ?? "";
-  return POPUP_RANK[family] ?? 2;
+  return POPUP_RANK[family] ?? UNRANKED;
 }
 
 /**

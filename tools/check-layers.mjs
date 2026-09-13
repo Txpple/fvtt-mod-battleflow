@@ -141,6 +141,7 @@ const LAYER_OF = {
   "decide/choices.js": "decision",
   "decide/demand.js": "decision",
   "decide/moments.js": "decision",   // the moment records — what a resolve IS, as data (2026-09-11)
+  "decide/sequence.js": "decision",  // the hit's sequence — a queued offer waits for the damage and the mastery's decision (2026-09-13)
 
   // CORE — the leaf: ids, settings accessor, the elect, the flag serializer
   "core.js": "core"
@@ -184,6 +185,12 @@ const ALLOW = [
     why: "resolveHitMastery, routed from the damage chokepoint. Breaking it means moving "
       + "applyDamagesWithReceipt — the single chokepoint every machine routes through — into a "
       + "third module (PLAN.md Tier 2: low value, real risk)"
+  },
+  {
+    from: "auto-apply.js", to: "bash-offer.js", disposition: "BY DESIGN",
+    why: "sequenceBashOffer, routed from the same damage chokepoint as the mastery rider — the hit's "
+      + "offer opens AFTER the damage and the mastery's decision (user ruling 2026-09-13, "
+      + "decide/sequence.js), and the chokepoint is the one place that knows both have run"
   },
   {
     from: "events.js", to: "shared.js", disposition: "BY DESIGN",

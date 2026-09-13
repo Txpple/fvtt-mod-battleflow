@@ -830,16 +830,33 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await victim.update({ 'system.attributes.hp.max': 1000, 'system.attributes.hp.value': 1000 });
         await acFlat(victim, 1);
         await victim.effects.find(e => e.statuses.has('prone'))?.delete().catch(() => {});
-        let offer = null, atkMsg = null;
+        let offer = null, atkMsg = null, queuedFirst = null, dmgAtPromotion = null;
         for (let i = 0; i < 6 && !offer; i++) {
           const { msg } = await attack(pcAttackAct(), victimToken);
           atkMsg = msg;
-          offer = await until(() => msg?.getFlag(MOD, 'bashOffer'), 4000);
+          // THE SEQUENCE (user ruling 2026-09-13): the hit stamps the offer QUEUED, and it goes
+          // pending only once the damage has landed — the clock starts then, not at the hit.
+          const stamped = await until(() => msg?.getFlag(MOD, 'bashOffer'), 4000);
+          if (stamped) {
+            queuedFirst = stamped.status;
+            offer = await until(() => {
+              const b = msg?.getFlag(MOD, 'bashOffer');
+              return (b?.status === 'pending') ? b : null;
+            }, 12000);
+            const dmg = offer ? await waitDamage(msg?.getFlag('dnd5e', 'originatingMessage'), 500) : null;
+            dmgAtPromotion = dmg ? dmg.timestamp : null;
+          }
           if (!offer) log.push(`B4: attempt ${i + 1} produced no offer (miss/fumble) — retrying`);
         }
         ok('B4a. a melee weapon HIT by the listed carrier stamps the bash offer ((g))',
           (offer?.status === 'pending') && ((offer?.targets ?? []).length === 1),
           `offer=${!!offer} targets=${offer?.targets?.length}`);
+        // (holdTimer is 0 in this section — a clockless ask by setting — so the proof of "the clock
+        // starts at the promotion" is promotedAt, stamped by the promote write, after the damage.)
+        ok('B4a2. THE SEQUENCE — stamped queued at the hit, pending only after the damage landed, promoted after it',
+          (queuedFirst === 'queued') && Number.isFinite(dmgAtPromotion) && Number.isFinite(offer?.promotedAt)
+            && (offer.promotedAt >= dmgAtPromotion) && (offer.promotedAt > (atkMsg?.timestamp ?? 0)),
+          `first=${queuedFirst} damageAt=${dmgAtPromotion} promotedAt=${offer?.promotedAt} attackAt=${atkMsg?.timestamp}`);
         const popup = await until(() => dialogsWith('— bash')[0], 6000);
         ok('B4b. the offer popup carries Use/Pass',
           !!popup && !!popup.querySelector('button[data-action="use"]')

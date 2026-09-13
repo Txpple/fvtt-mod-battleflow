@@ -176,23 +176,33 @@ describe("the staircase — finding (s)", () => {
 });
 
 describe("the rank — masteries, then the carrier offers, then the rest (user ruling 2026-09-13)", () => {
-  it("ranks by the key's sub: the mastery family 0, the listed offers 1, everything else 2", () => {
-    expect(p.popupRank("m|mastery")).toBe(0);
-    expect(p.popupRank("m|notice")).toBe(0);
-    expect(p.popupRank("m|topple:Actor.abc")).toBe(0);
-    expect(p.popupRank("m|bashoffer")).toBe(1);
-    expect(p.popupRank("m|hew")).toBe(1);
-    expect(p.popupRank("m|command")).toBe(1);
-    expect(p.popupRank("m|riposte:Actor.abc")).toBe(1);
-    expect(p.popupRank("m|hold")).toBe(2);
-    expect(p.popupRank("m|save:Actor.abc")).toBe(2);
-    expect(p.popupRank("m|rescue")).toBe(2);
+  it("ranks by the key's sub: the damage prompt 0, the mastery family 1, the listed offers 2, everything else 3", () => {
+    expect(p.popupRank("m|damage")).toBe(0);
+    expect(p.popupRank("m|mastery")).toBe(1);
+    expect(p.popupRank("m|notice")).toBe(1);
+    expect(p.popupRank("m|topple:Actor.abc")).toBe(1);
+    expect(p.popupRank("m|bashoffer")).toBe(2);
+    expect(p.popupRank("m|hew")).toBe(2);
+    expect(p.popupRank("m|command")).toBe(2);
+    expect(p.popupRank("m|riposte:Actor.abc")).toBe(2);
+    expect(p.popupRank("m|hold")).toBe(3);
+    expect(p.popupRank("m|save:Actor.abc")).toBe(3);
+    expect(p.popupRank("m|rescue")).toBe(3);
   });
 
   it("ranks a key with no sub, and an unruled sub, LAST — a new moment is unranked until ruled", () => {
-    expect(p.popupRank("bf-cascade-1")).toBe(2);
-    expect(p.popupRank("m|somethingNew")).toBe(2);
-    expect(p.popupRank(undefined)).toBe(2);
+    expect(p.popupRank("bf-cascade-1")).toBe(3);
+    expect(p.popupRank("m|somethingNew")).toBe(3);
+    expect(p.popupRank(undefined)).toBe(3);
+  });
+
+  it("THE SECOND RULING: the damage prompt fronts everything, however late it arrives", () => {
+    const slots = new Map([
+      ["atk|bashoffer", 0],
+      ["dmg|notice", 1],
+      ["atk|damage", 2]
+    ]);
+    expect(p.pileBackToFront(slots)).toEqual(["atk|bashoffer", "dmg|notice", "atk|damage"]);
   });
 
   it("THE FINDING: the bash offer arrives first (the attack roll), the mastery second (the damage message) — the mastery still fronts", () => {

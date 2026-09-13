@@ -11,6 +11,7 @@ import { hitTargets, resolveAttackMessage, damagePartsOf, statSourceOf } from ".
 import { registerResumable } from "./ui.js";
 import { applyEffectRiders } from "./effect-riders.js";
 import { resolveHitMastery } from "./mastery.js";
+import { sequenceBashOffer } from "./bash-offer.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1b — auto-apply damage to hit targets (the active-GM elect; single writer)
@@ -92,6 +93,10 @@ async function resolveDamagePayouts(damageMessage, attackMessage, hits) {
     await applyEffectRiders(damageMessage, attackMessage, writable);
   }
   if ( setting(S.masteryRiders) ) await resolveHitMastery(damageMessage, attackMessage, hits);
+  // THE SEQUENCE (user ruling 2026-09-13, decide/sequence.js): the hit's offer opens only now —
+  // after the damage, and after the mastery's decision if one is pending (the watcher in
+  // bash-offer.js takes it from there when the ask is answered).
+  await sequenceBashOffer(attackMessage, { damageLanded: true });
 }
 
 /**

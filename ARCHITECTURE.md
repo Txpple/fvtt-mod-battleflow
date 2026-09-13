@@ -444,13 +444,27 @@ Each was a user ruling, and each has a table finding behind it.
      is stamped on the attack roll, the weapon's mastery rides the damage message a beat later,
      so the feat's offer sat in front of the weapon's own property (Thomas Invictus' sword, Sap
      behind the bash). The user: *"it's no different than mastery — we just need these to be
-     ordered."* So the pile fronts by CLASS first — the weapon's mastery (the ask, the notice,
-     the Topple demand), then a listed carrier's offer on the hit (the bash, the hew, Commander's
-     Strike, the Riposte), then everything else — and by event order within a class. The table is
-     `POPUP_RANK` in [decide/present.js](scripts/decide/present.js), keyed by the popup key's sub;
-     a new moment is unranked (last) until it is ruled into a class. The staircase's POSITIONS
-     stay in event order; only the fronting changes. This is z-order, not sequencing — both
-     windows still open together, and the modal sequence (BACKLOG) stays parked.
+     ordered."* So the pile fronts by CLASS first — the damage prompt, then the weapon's mastery
+     (the ask, the notice, the Topple demand), then a listed carrier's offer on the hit (the
+     bash, the hew, Commander's Strike, the Riposte), then everything else — and by event order
+     within a class. The table is `POPUP_RANK` in [decide/present.js](scripts/decide/present.js),
+     keyed by the popup key's sub; a new moment is unranked (last) until it is ruled into a
+     class. The staircase's POSITIONS stay in event order; only the fronting changes.
+   - ⚠ **THE HIT'S SEQUENCE (the same day's second ruling, the screenshot: the bash offer in
+     front of the damage prompt, the Sap notice never seen).** The user: *"damage, nothing until
+     damage. then mastery rider. then other stuff."* A rank fronts windows that are already
+     open; this one says the offer must not OPEN yet. So a hit's offer is stamped QUEUED at the
+     hit (the record: RAW's trigger is the hit; a quiet row, no clock, no popup) and PROMOTED to
+     pending from the damage chokepoint (auto-apply.js `resolveDamagePayouts`, after the mastery
+     rider) once the damage has landed and the mastery's DECISION, if it asked one (Slow, Topple,
+     Push), is answered — the clock starts at the promotion, so the earlier windows never eat
+     its window. A mastery NOTICE (Vex, Sap, Cleave) is not a decision (§6) and does not hold
+     the offer; the rank fronts it. A hit whose damage left nobody standing resolves the offer
+     moot, no popup. The rule is pure — [decide/sequence.js](scripts/decide/sequence.js)
+     `hitOfferStep` — and bash-offer.js is its one customer (Hew moved to the damage side on its
+     own earlier, finding (k)). ⚠ This is a sequence of ONE hit's own consequences, decided from
+     records; it is not the modal sequence BACKLOG parks (windows answered in order across
+     machines with the chain waiting on the pile), which stays parked.
    - ⚠ **THE ONE EXCEPTION, AND IT IS NARROW (v1.24.0, the rescue view): several moments about
      ONE ROLL present as ONE WINDOW.** A Battle Master holding a Bardic die who misses is
      stamped by two machines on the same attack, and a staircase of two popups is still two
