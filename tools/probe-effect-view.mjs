@@ -89,22 +89,15 @@ const out = await f.evaluate(async () => {
     const gone = await until(() => { const b = document.getElementById("bf-effect-view-bar"); const names = b ? [...b.querySelectorAll(".bf-ev-chip .nm")].map(n => n.textContent) : []; return names.includes("Bless") ? null : names; }, 3000);
     ok("4. the bar redraws when an effect is deleted", Array.isArray(gone) && !gone.includes("Bless") && gone.includes("Prone"), `chips=${JSON.stringify(gone)}`);
 
-    // THE BAR'S ACTIONS (user ruling 2026-09-15): a chip opens a fold — Details, and Remove for an owner
+    // THE BAR'S ACTIONS (user ruling 2026-09-15): a chip opens a fold with Remove, for an owner
     const barEl = () => document.getElementById("bf-effect-view-bar");
     const chipNamed = name => [...(barEl()?.querySelectorAll("button.bf-ev-chip") ?? [])].find(c => c.querySelector(".nm")?.textContent === name) ?? null;
     chipNamed("Prone")?.click();
     const fold = await until(() => barEl()?.querySelector(".bf-ev-fold"), 2000);
     const foldActions = fold ? [...fold.querySelectorAll("button")].map(b => b.dataset.action) : [];
-    ok("6. a chip click opens a fold upward with Details and Remove (the GM owns every creature)",
-      !!fold && foldActions.includes("details") && foldActions.includes("remove"), `actions=${JSON.stringify(foldActions)}`);
-    fold?.querySelector('button[data-action="details"]')?.click();
-    const details = await until(() => [...document.querySelectorAll(".application")].find(a => a.querySelector(".bf-ev-details")), 4000);
-    ok("6b. Details opens a window with the effect's name, kind and description",
-      !!details && details.querySelector(".bf-ev-details h3")?.textContent === "Prone" && /debuff/.test(details.querySelector(".meta")?.textContent ?? ""), `open=${!!details}`);
-    for ( const a of foundry.applications.instances.values() ) { if ( a.element?.querySelector?.(".bf-ev-details") ) await a.close().catch(() => {}); }
-    chipNamed("Prone")?.click();
-    const fold2 = await until(() => barEl()?.querySelector(".bf-ev-fold"), 2000);
-    fold2?.querySelector('button[data-action="remove"]')?.click();
+    ok("6. a chip click opens a fold upward with Remove and nothing else (the GM owns every creature)",
+      !!fold && foldActions.length === 1 && foldActions[0] === "remove", `actions=${JSON.stringify(foldActions)}`);
+    fold?.querySelector('button[data-action="remove"]')?.click();
     const proneGone = await until(() => invictus.effects.get(made[1].id) ? null : true, 4000);
     ok("6c. Remove deletes the effect, and the bar redraws without it",
       proneGone === true && !!(await until(() => chipNamed("Prone") ? null : true, 3000)), "");

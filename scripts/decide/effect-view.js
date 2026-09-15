@@ -44,7 +44,7 @@ export const MARK_KEYS = Object.freeze(["vex", "sap", "slow"]);
  * @property {string} id
  * @property {string} name
  * @property {string|null} img
- * @property {"buff"|"debuff"} tone
+ * @property {"buff"|"debuff"|"concentration"} tone
  * @property {string} clock
  * @property {string} [detail]      a value beside the name with no clock glyph (the sheet rows)
  * @property {boolean} noIcon       the token cannot show this one
@@ -100,6 +100,9 @@ export function changeSign(change) {
  * @param {EffectFact} fact @returns {"buff"|"debuff"}
  */
 export function toneOf(fact) {
+  // Concentration first (user, 2026-09-15: "a special mechanic frequently used, so lets make that
+  // yellow"): dnd5e's own concentration effect carries the `concentrating` status.
+  if ( (fact.statuses ?? []).includes("concentrating") ) return "concentration";
   if ( (fact.statuses ?? []).length ) return "debuff";
   if ( fact.chipKey && MARK_KEYS.includes(fact.chipKey) ) return "debuff";
   const signs = (fact.changes ?? []).map(changeSign).filter(Boolean);
@@ -112,7 +115,8 @@ export function toneOf(fact) {
 /** @param {EffectFact[]} facts @returns {EffectRow[]} debuffs first, then buffs, each in sheet order */
 export function effectRows(facts) {
   const rows = (facts ?? []).filter(listed).map(rowOf);
-  return [...rows.filter(r => r.tone === "debuff"), ...rows.filter(r => r.tone === "buff")];
+  // concentration leads (the thing a hit can break), then the debuffs, then the buffs
+  return ["concentration", "debuff", "buff"].flatMap(tone => rows.filter(r => r.tone === tone));
 }
 
 /**

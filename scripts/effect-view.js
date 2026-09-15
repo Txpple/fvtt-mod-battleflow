@@ -13,6 +13,7 @@
  *                    opens the full list upward; a CHIP opens a fold with its one action (Remove
  *                    an effect on the creature, Disable an item's, Clear a sheet row) — for an
  *                    owner, which the GM is for every creature ("editing conditions on the fly").
+ *                    A Details entry was tried the same day and dropped ("didnt like it").
  * The bar and the hover card each have a CLIENT switch. The draft is on the branch
  * `effect-view` (2026-09-15) with decide/effect-view.js's two heuristics unruled.
  *
@@ -137,6 +138,7 @@ function ensureStyle() {
     .bf-ev-none{font-size:11.5px;color:#7d7a72;font-style:italic}
     .bf-ev-chip{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;padding:2px 7px 2px 4px;border-radius:4px;border:1px solid var(--bf-tone);background:color-mix(in srgb,var(--bf-tone) 20%,transparent);color:#e8e3d6;line-height:1.25;white-space:nowrap}
     .bf-ev-chip.buff{--bf-tone:rgb(70,150,95)} .bf-ev-chip.debuff{--bf-tone:rgb(180,70,60)}
+    .bf-ev-chip.concentration{--bf-tone:rgb(232,190,50)}
     .bf-ev-chip img{width:18px;height:18px;border-radius:3px;border:0;flex:none;filter:drop-shadow(0 0 1px #000)}
     .bf-ev-chip .txt{display:flex;flex-direction:column} .bf-ev-chip .nm{font-weight:600;font-size:11.5px} .bf-ev-chip .clk{font-size:10px;color:#b5b0a4}
     .bf-ev-chip .clk::before{content:"◔ ";opacity:.7}
@@ -165,13 +167,7 @@ function ensureStyle() {
     .bf-ev-panel .bf-ev-chip{position:relative}
     .bf-ev-panel .bf-ev-lbl{margin-top:8px} .bf-ev-panel .bf-ev-lbl:first-of-type{margin-top:0}
     .bf-ev-chip.unavailable{opacity:.55;border-style:dashed}
-    .bf-ev-fold .bf-ev-act.details{border-color:#6aa3ff;background:rgba(106,163,255,.16)} .bf-ev-fold .bf-ev-act.details:hover{background:rgba(106,163,255,.32)}
-    .bf-ev-details{display:flex;gap:12px;align-items:flex-start;font-size:13px}
-    .bf-ev-details img{width:56px;height:56px;border-radius:5px;border:1px solid #3a3f48;flex:none}
-    .bf-ev-details h3{margin:0 0 4px;font-size:15px;border:0}
-    .bf-ev-details .meta{display:flex;flex-wrap:wrap;gap:4px 14px;margin-bottom:8px;font-size:12px}
-    .bf-ev-details .meta em{font-style:normal;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.65;margin-right:5px}
-    .bf-ev-details .bf-ev-desc p{margin:0 0 6px}
+
   `;
   document.head.appendChild(style);
 }
@@ -263,7 +259,7 @@ function drawBar() {
   const combat = game.combat?.started ? game.combat : null;
   const sub = combat ? `Round ${combat.round}${combat.combatant?.actor === actor ? " · your turn" : ""}` : "";
   const owner = actor.isOwner === true;
-  const body = rows.length ? rows.map(r => chipHTML(r, { button: true })).join("") : `<span class="bf-ev-none">nothing on them</span>`;
+  const body = rows.length ? rows.map(r => chipHTML(r, { button: owner })).join("") : `<span class="bf-ev-none">nothing on them</span>`;
   bar.innerHTML = `<button type="button" class="who" aria-expanded="false" title="${owner ? "Every effect on " : ""}${esc(actor.name)}"><b>${esc(actor.name)}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</button><div class="bf-ev-list">${body}</div>`;
   bar.dataset.actor = actor.uuid;
   if ( !bar.dataset.wired ) { wireBar(bar); bar.dataset.wired = "1"; }
@@ -290,13 +286,14 @@ function barActorNow(bar) {
 function openFold(bar, chip, actor) {
   const row = everyRow(factsOf(actor), sheetOf(actor)).find(r => r.id === chip.dataset.row);
   if ( !row ) return;
-  // Details for anyone who can see the bar; the write action only for an owner (the GM owns all).
+  // The one write, for an owner (the GM owns every creature). Details was tried and dropped
+  // (user, 2026-09-15: "didnt like it").
   const act = rowAction(row, { owner: actor.isOwner === true });
+  if ( !act ) return;
   closeFolds(bar);
   const fold = document.createElement("div");
   fold.className = "bf-ev-fold";
-  fold.innerHTML = `<button type="button" class="bf-ev-act details" data-action="details" data-row="${esc(row.id)}">Details</button>`
-    + (act ? `<button type="button" class="bf-ev-act ${act.action}" data-action="${act.action}" data-row="${esc(row.id)}">${esc(act.label)}</button>` : "");
+  fold.innerHTML = `<button type="button" class="bf-ev-act ${act.action}" data-action="${act.action}" data-row="${esc(row.id)}">${esc(act.label)}</button>`;
   const host = chip.closest(".bf-ev-panel") ?? bar;
   host.appendChild(fold);
   const hr = host.getBoundingClientRect(), cr = chip.getBoundingClientRect();
@@ -316,57 +313,14 @@ function openPanel(bar, who, actor) {
   const panel = document.createElement("div");
   panel.className = "bf-ev-panel";
   panel.innerHTML = `<h4>${esc(actor.name)} — ${total} effect${total === 1 ? "" : "s"}</h4>`
-    + (groups.length ? groups.map(g => `<div class="bf-ev-lbl">${esc(g.label)}</div><div class="bf-ev-list">${g.rows.map(r => chipHTML(r, { button: true })).join("")}</div>`).join("")
+    + (groups.length ? groups.map(g => `<div class="bf-ev-lbl">${esc(g.label)}</div><div class="bf-ev-list">${g.rows.map(r => chipHTML(r, { button: actor.isOwner === true })).join("")}</div>`).join("")
       : '<span class="bf-ev-none">nothing on them</span>');
   bar.appendChild(panel);
   who.setAttribute("aria-expanded", "true");
 }
 
-/**
- * DETAILS (user, 2026-09-15: "open the relevant rule/card in a popup window"): one window with
- * the effect's own description — dnd5e writes one on most cast effects — or, when the effect
- * carries none, the description of the item it came from (its origin), plus its source, its
- * clock and its kind. The sheet rows get the rule in a sentence.
- */
-async function showDetails(actor, rowId) {
-  const row = everyRow(factsOf(actor), sheetOf(actor)).find(r => r.id === rowId);
-  if ( !row ) return;
-  let body = "", source = "";
-  if ( rowId === "sheet:tempHp" ) {
-    body = `<p>${esc(actor.name)} has <b>${esc(row.detail)}</b> temporary hit points. They absorb damage first, a new grant does not stack (the higher number stands), and they last until spent or until a long rest.</p>`;
-  } else if ( rowId === "sheet:inspiration" ) {
-    body = `<p>${esc(actor.name)} has Heroic Inspiration: reroll one die after rolling it, once, and the inspiration is spent.</p>`;
-  } else {
-    const effect = [...(actor.allApplicableEffects?.() ?? actor.effects)].find(e => e.id === rowId);
-    if ( !effect ) return;
-    const origin = effect.origin ? await fromUuid(effect.origin).catch(() => null) : null;
-    const item = (origin instanceof Item) ? origin : ((effect.parent instanceof Item) ? effect.parent : null);
-    const own = String(effect.description ?? "").trim();
-    const fromItem = String(item?.system?.description?.value ?? "").trim();
-    body = own ? `<div class="bf-ev-desc">${own}</div>`
-      : (fromItem ? `<div class="bf-ev-desc">${fromItem}</div>` : `<p class="bf-ev-none">No description on this effect.</p>`);
-    const from = item?.name ?? origin?.name ?? null;
-    const by = (origin instanceof Item) ? origin.actor?.name : ((origin instanceof Actor) ? origin.name : null);
-    source = from ? `${esc(from)}${(by && (by !== from)) ? ` — ${esc(by)}` : ""}` : "";
-  }
-  const meta = [
-    source ? `<span><em>Source</em>${source}</span>` : "",
-    row.clock ? `<span><em>Clock</em>${esc(row.clock)}</span>` : "",
-    `<span><em>Kind</em>${row.tone === "debuff" ? "debuff" : "buff"}</span>`
-  ].filter(Boolean).join("");
-  const content = `<div class="bf-ev-details">${row.img ? `<img src="${esc(row.img)}" alt="">` : ""}<div><h3>${esc(row.name)}</h3><div class="meta">${meta}</div>${body}</div></div>`;
-  const dialog = new foundry.applications.api.DialogV2({
-    window: { title: `${row.name} — ${actor.name}`, icon: "fa-solid fa-circle-info" },
-    position: { width: 460 }, content,
-    buttons: [{ action: "ok", label: "Close", default: true, callback: () => {} }],
-    rejectClose: false
-  });
-  await dialog.render({ force: true });
-}
-
-/** Do the fold's action: open the details, delete an actor's effect, disable an item's, clear a sheet row. */
+/** Do the fold's action: delete an actor's effect, disable an item's, clear a sheet row. */
 async function doAction(actor, action, rowId) {
-  if ( action === "details" ) return showDetails(actor, rowId);
   if ( action === "clear" ) {
     if ( rowId === "sheet:tempHp" ) return actor.update({ "system.attributes.hp.temp": 0 });
     if ( rowId === "sheet:inspiration" ) return actor.update({ "system.attributes.inspiration": false });

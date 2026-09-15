@@ -41,6 +41,18 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
     expect(listed(fact({ temporary: false, worn: true, statuses: ["poisoned"] }))).toBe(true);
   });
 
+  it("tones concentration its own way, first of all (user, 2026-09-15: yellow)", () => {
+    expect(toneOf(fact({ name: "Concentrating: Bane", statuses: ["concentrating"] }))).toBe(
+      "concentration"
+    );
+    const rows = effectRows([
+      fact({ id: "a", name: "Bless" }),
+      fact({ id: "b", name: "Prone", statuses: ["prone"] }),
+      fact({ id: "c", name: "Concentrating: Bane", statuses: ["concentrating"] })
+    ]);
+    expect(rows.map(r => r.name)).toEqual(["Concentrating: Bane", "Prone", "Bless"]);
+  });
+
   it("tones a condition and a module mark as a debuff", () => {
     expect(toneOf(fact({ statuses: ["prone"] }))).toBe("debuff");
     expect(toneOf(fact({ name: "Sapped", chipKey: "sap" }))).toBe("debuff");
