@@ -85,6 +85,7 @@ const LAYER_OF = {
   "riposte.js": "machines",
   "hew.js": "machines",
   "bash-offer.js": "machines",
+  "effect-view.js": "machines",   // the effect view — a creature's buffs and debuffs on hover, on a held key, on a bar (2026-09-15 draft)
   "command.js": "machines",
   "concentration.js": "machines",
   "volleys.js": "machines",
@@ -142,6 +143,7 @@ const LAYER_OF = {
   "decide/demand.js": "decision",
   "decide/moments.js": "decision",   // the moment records — what a resolve IS, as data (2026-09-11)
   "decide/sequence.js": "decision",  // the hit's sequence — a queued offer waits for the damage and the mastery's decision (2026-09-13)
+  "decide/effect-view.js": "decision", // the effect view's rows — which effects are listed, how each is toned (2026-09-15 draft)
 
   // CORE — the leaf: ids, settings accessor, the elect, the flag serializer
   "core.js": "core"

@@ -11,6 +11,8 @@ export const S = {
   autoDamage: "autoDamage",
   dramaticBeat: "dramaticBeat",
   playerRollDamage: "playerRollDamage",
+  effectBar: "effectBar",       // the effect view's bar above the hotbar (client, 2026-09-15 draft)
+  effectHover: "effectHover",   // the effect view's hover card and held key (client, 2026-09-15 draft)
   damageTimer: "damageTimer",
   autoApply: "autoApply",
   requireTarget: "requireTarget",

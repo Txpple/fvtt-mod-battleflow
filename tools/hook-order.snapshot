@@ -205,3 +205,14 @@ dnd5e.rollConcentrationV2	stats.js
 combatStart	stats.js
 createChatMessage	stats.js
 deleteCombat	stats.js
+hoverToken	effect-view.js
+highlightObjects	effect-view.js
+canvasReady	effect-view.js
+controlToken	effect-view.js
+createActiveEffect	effect-view.js
+updateActiveEffect	effect-view.js
+deleteActiveEffect	effect-view.js
+updateCombat	effect-view.js
+deleteCombat	effect-view.js
+fvtt-mod-battleflow.effectViewChanged	effect-view.js
+ready	effect-view.js

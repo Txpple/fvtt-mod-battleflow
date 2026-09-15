@@ -43,6 +43,19 @@ Hooks.once("init", () => {
     scope: "client", config: true, type: Boolean, default: true
   });
 
+  // THE EFFECT VIEW (DESIGN §6, 2026-09-15 draft): two client switches, one per surface family.
+  game.settings.register(MODULE_ID, S.effectBar, {
+    name: "Effect Bar",
+    hint: "A strip above the hotbar listing the buffs and debuffs on the token you control (or your own character): every temporary effect on the sheet, including the ones that paint no icon on the token. Redraws as effects come and go. Your client only.",
+    scope: "client", config: true, type: Boolean, default: true,
+    onChange: () => Hooks.callAll(`${MODULE_ID}.effectViewChanged`)
+  });
+  game.settings.register(MODULE_ID, S.effectHover, {
+    name: "Effect Cards on Hover and Alt",
+    hint: "Point at any token to see its buffs and debuffs beside it; hold Alt (Foundry's highlight key) to see every creature's list at once. Nothing is on screen until you ask. Your client only.",
+    scope: "client", config: true, type: Boolean, default: true
+  });
+
   // The window HAD no setting ("one switch, not two") while the popup was invisible to
   // everyone but its roller. Walk-4 finding (w) made the wait a TABLE moment — the card runs
   // the same draining bar for everyone — and a visible clock earns the family's own knob.

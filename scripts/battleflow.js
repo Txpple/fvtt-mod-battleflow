@@ -164,3 +164,5 @@ import "./resources.js";
 // renders no card rows, so its position constrains nothing — it sits at the end so the
 // machines' registrations keep their pinned order unchanged.
 import "./stats.js";
+// THE EFFECT VIEW (DESIGN §6, 2026-09-15 draft): a view over the sheet — writes nothing.
+import "./effect-view.js";

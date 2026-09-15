@@ -1,0 +1,88 @@
+/**
+ * Battle Flow — DECISION (ARCHITECTURE.md §2): THE EFFECT VIEW's rows — what a creature's
+ * effects LOOK like as a list, from plain facts.
+ *
+ * DESIGN §6 (user ruling 2026-09-15): buffs and debuffs, visible on demand, the icon-less ones
+ * included; never actions. The edge (effect-view.js) reads the sheet and draws; this file decides
+ * which effects are listed, what each row says, and how it is toned.
+ *
+ * ⚠ DRAFT HEURISTICS (2026-09-15, on the branch) — two calls the user has not ruled:
+ *   - TONE: a platform condition (the effect carries a status) or one of the module's own marks
+ *     on a victim (Vexed, Sapped, Slowed) is a DEBUFF; everything else temporary is shown as a
+ *     BUFF. Hunter's Mark on a target is the case this gets wrong — no status, not a module mark,
+ *     yet a debuff. A data rule (a list, R4) is the honest fix if the user wants it right.
+ *   - NO ICON: the token paints an icon only for an effect that carries a status (BACKLOG's
+ *     measurement), so every status-less row is tagged.
+ *
+ * Pure: no Foundry, no documents, no settings.
+ */
+
+/** The module's marks that sit on a VICTIM — debuffs by nature. */
+export const MARK_KEYS = Object.freeze(["vex", "sap", "slow"]);
+
+/*
+ * One effect, as the edge read it off the sheet.
+ * @typedef {object} EffectFact
+ * @property {string} id
+ * @property {string} name
+ * @property {string|null} img
+ * @property {boolean} active        core's `active` — not disabled, not suppressed
+ * @property {boolean} temporary     core's `isTemporary` — has a clock (measured 2026-09-15 on Foundry 14.365: a bare status does NOT count)
+ * @property {boolean} worn          a transfer effect from an item on the sheet — worn gear, a passive
+ * @property {string[]} statuses     the condition ids it carries
+ * @property {string|null} chipKey   `flags.<module>.mastery` when it is one of the module's chips
+ * @property {string} clock          the platform's duration label ("2 Rounds", "Unlimited", "")
+ * @property {string|null} origin    the effect's origin uuid, if any
+ */
+
+/*
+ * @typedef {object} EffectRow
+ * @property {string} id
+ * @property {string} name
+ * @property {string|null} img
+ * @property {"buff"|"debuff"} tone
+ * @property {string} clock
+ * @property {boolean} noIcon       the token cannot show this one
+ */
+
+/**
+ * Which effects are listed: the ACTIVE ones that are a clocked effect, a condition, or an effect
+ * APPLIED to the creature (a cast's — Death Armor, Bless, Hunter's Mark); never a worn item's
+ * transfer effect (the Cloak's +1, a passive). Measured 2026-09-15: Death Armor sits on the
+ * sheet with no clock and Prone with no clock either, and both are exactly what the view is for.
+ */
+export function listed(fact) {
+  if ( !fact || fact.active !== true ) return false;
+  return fact.temporary === true || (fact.statuses ?? []).length > 0 || fact.worn !== true;
+}
+
+/** @param {EffectFact} fact @returns {"buff"|"debuff"} */
+export function toneOf(fact) {
+  if ( (fact.statuses ?? []).length ) return "debuff";
+  if ( fact.chipKey && MARK_KEYS.includes(fact.chipKey) ) return "debuff";
+  return "buff";
+}
+
+/** @param {EffectFact[]} facts @returns {EffectRow[]} debuffs first, then buffs, each in sheet order */
+export function effectRows(facts) {
+  const rows = (facts ?? []).filter(listed).map(f => ({
+    id: f.id, name: f.name, img: f.img ?? null,
+    tone: toneOf(f), clock: f.clock ?? "",
+    noIcon: !(f.statuses ?? []).length
+  }));
+  return [...rows.filter(r => r.tone === "debuff"), ...rows.filter(r => r.tone === "buff")];
+}
+
+/**
+ * The marks a creature HOLDS on others (question 2, drafted IN as a second group): an effect on
+ * another creature whose origin is this creature or one of its items.
+ * @param {string} holderUuid
+ * @param {{bearer: string, fact: EffectFact}[]} others  effects on OTHER creatures, with the bearer's name
+ * @returns {(EffectRow & {bearer: string})[]}
+ */
+export function marksHeldBy(holderUuid, others) {
+  if ( !holderUuid ) return [];
+  return (others ?? [])
+    .filter(({ fact }) => listed(fact) && typeof fact.origin === "string" && fact.origin.startsWith(holderUuid))
+    .map(({ bearer, fact }) => ({ ...effectRows([fact])[0], bearer }));
+}
