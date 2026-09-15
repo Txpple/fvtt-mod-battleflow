@@ -41,6 +41,35 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
     expect(listed(fact({ temporary: false, worn: true, statuses: ["poisoned"] }))).toBe(true);
   });
 
+  it('lists the bearer\'s own standing aura, worn as it is (user, 2026-09-15: "protected doesnt show on invictus tho, even tho he is")', () => {
+    // Aura of Protection's "Protected" on the Paladin: the pack's transfer effect, no clock, no status
+    const protectedOnPaladin = fact({
+      name: "Protected",
+      temporary: false,
+      clock: "",
+      worn: true,
+      aura: true,
+      changes: [{ key: "system.bonuses.abilities.save", mode: 2, value: "@abilities.cha.mod" }]
+    });
+    expect(listed(protectedOnPaladin)).toBe(true);
+    // a buff, tagged no-icon (the token paints nothing for a passive), disable is its one write
+    const [row] = effectRows([protectedOnPaladin]);
+    expect(row.tone).toBe("buff");
+    expect(row.noIcon).toBe(true);
+    expect(rowAction(row, { owner: true })).toEqual({ action: "disable", label: "Disable" });
+    // the same effect with the row struck from the list, or the switch off — a passive like the Cloak
+    expect(listed(fact({ name: "Protected", temporary: false, worn: true, aura: false }))).toBe(
+      false
+    );
+    expect(listed(fact({ name: "Protected", temporary: false, worn: true }))).toBe(false);
+    // and never when the sheet has it off or the platform suppresses it
+    expect(
+      listed(fact({ name: "Protected", temporary: false, worn: true, aura: true, active: false }))
+    ).toBe(false);
+    // the full list still files it under Passive, as the sheet does
+    expect(panelGroups([protectedOnPaladin]).map(g => g.label)).toEqual(["Passive"]);
+  });
+
   it("tones concentration its own way, first of all (user, 2026-09-15: yellow)", () => {
     expect(toneOf(fact({ name: "Concentrating: Bane", statuses: ["concentrating"] }))).toBe(
       "concentration"

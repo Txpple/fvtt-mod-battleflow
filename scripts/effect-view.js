@@ -24,6 +24,9 @@
 import { MODULE_ID, S, setting } from "./core.js";
 import { CHIP_FLAG } from "./decide/chips.js";
 import { allRows, everyRow, marksHeldBy, panelGroups, rowAction } from "./decide/effect-view.js";
+import { EMANATIONS, tableIndex } from "./decide/registry.js";
+import { emanationEntries, listedNames } from "./settings.js";
+import { lower } from "./lookup.js";
 
 const ROOT_ID = "bf-effect-view";
 
@@ -57,6 +60,24 @@ function hostileOriginOf(effect) {
   } catch { return null; }
 }
 
+const { rowNamed: emanationRow } = tableIndex(EMANATIONS);
+
+/**
+ * Is this effect the bearer's OWN standing aura — the pack's transfer effect on a FEATURE the
+ * emanation table names, while the module runs that row? Read the way the floor (emanations.js,
+ * featureSpec) reads it: the item by the row's key, the effect by the row's `effect` name, the
+ * row on the Emanations list with the switch on. A spell's emanation never lands here: its effect
+ * is transfer:false and the caster wears the ring's copy like everyone inside.
+ */
+function ownAuraOf(effect) {
+  const item = effect.parent;
+  if ( !(item instanceof Item) || (effect.transfer !== true) ) return false;
+  const row = emanationRow(item.name);
+  if ( !row || (row.kind !== "feature") || !row.effect ) return false;
+  if ( lower(effect.name) !== lower(row.effect) ) return false;
+  return !!setting(S.emanations) && listedNames(emanationEntries()).has(lower(row.key));
+}
+
 /** One effect as the decision layer wants it. */
 function factOf(effect) {
   return {
@@ -64,6 +85,7 @@ function factOf(effect) {
     active: effect.active === true, temporary: effect.isTemporary === true,
     disabled: effect.disabled === true,
     worn: (effect.parent instanceof Item) && (effect.transfer === true),
+    aura: ownAuraOf(effect),
     onItem: effect.parent instanceof Item,
     statuses: [...(effect.statuses ?? [])],
     chipKey: effect.getFlag?.(MODULE_ID, CHIP_FLAG) ?? null,

@@ -29,6 +29,7 @@ export const MARK_KEYS = Object.freeze(["vex", "sap", "slow"]);
  * @property {boolean} active        core's `active` — not disabled, not suppressed
  * @property {boolean} temporary     core's `isTemporary` — has a clock (measured 2026-09-15 on Foundry 14.365: a bare status does NOT count)
  * @property {boolean} worn          a transfer effect from an item on the sheet — worn gear, a passive
+ * @property {boolean} [aura]        a worn effect that is the bearer's OWN standing aura — the pack's effect on a feature the emanation table names, while the module runs that row (Aura of Protection's "Protected" on the Paladin)
  * @property {string[]} statuses     the condition ids it carries
  * @property {string|null} chipKey   `flags.<module>.mastery` when it is one of the module's chips
  * @property {string} clock          the platform's duration label ("2 Rounds", "Unlimited", "")
@@ -55,10 +56,19 @@ export const MARK_KEYS = Object.freeze(["vex", "sap", "slow"]);
  * APPLIED to the creature (a cast's — Death Armor, Bless, Hunter's Mark); never a worn item's
  * transfer effect (the Cloak's +1, a passive). Measured 2026-09-15: Death Armor sits on the
  * sheet with no clock and Prone with no clock either, and both are exactly what the view is for.
+ *
+ * ⚠ ONE worn effect IS in force: the bearer's own standing aura (user, 2026-09-15, on prod:
+ * "protected doesnt show on invictus tho, even tho he is"). A feature's emanation sits on its
+ * bearer as the pack's transfer effect, and the floor (emanations.js) marks everyone else inside
+ * the ring but never doubles the bearer — so the one creature radiating the aura was the one the
+ * view would not show. The bearer stands inside the ring like anyone: listed, a buff, named as
+ * the pack names it ("Protected"; the allies' copies read "Protected — Invictus"). The class is
+ * every feature row of the emanation table (Protection, Courage, Warding), gated as the floor
+ * gates them; a struck row is a passive like the Cloak again.
  */
 export function listed(fact) {
   if ( !fact || fact.active !== true ) return false;
-  return fact.temporary === true || (fact.statuses ?? []).length > 0 || fact.worn !== true;
+  return fact.temporary === true || (fact.statuses ?? []).length > 0 || fact.worn !== true || fact.aura === true;
 }
 
 /** Foundry's ActiveEffect change modes, by number — the decision layer imports nothing. */

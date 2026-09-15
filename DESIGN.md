@@ -249,6 +249,22 @@ sandbox. **The shape, as ruled:**
   (measured on Foundry 14.365: the token paints a clocked effect or a condition; a clockless
   applied effect paints nothing). The hover card adds a second group, the marks the creature holds
   on others (question 2, ruled in).
+  **One worn effect IS in force — the bearer's own standing aura** (user, 2026-09-15, on prod:
+  *"protected doesnt show on invictus tho, even tho he is (as a buff on bar/hover)"*, ruled shape
+  1 of two and released as v1.42.0 for game day). A feature's emanation sits on its bearer as
+  the pack's transfer effect; the floor marks everyone else inside the ring and never doubles
+  the bearer (emanations.js) — so the one creature radiating the aura was the one the view hid.
+  Listed as a buff, named as the pack names it ("Protected" on the Paladin, "Protected — Invictus"
+  on his allies), tagged *no icon* — his token paints nothing for a passive while the allies'
+  copies carry the ring's status; the full list still files it under Passive as the sheet does.
+  The class is every feature row of the emanation table (Protection, Courage, Warding), read the
+  way the floor reads it (the item by the row's key, the effect by the row's name) and gated as
+  the floor gates it (the Emanations list, the switch) — a struck row is a passive like the Cloak
+  again. The pack's passive keeps applying while the Paladin is incapacitated, and so does the
+  row: the view shows what the sheet applies. The shape not taken: the floor writing the bearer a
+  changeless marker so his token paints the chit too — a document that does nothing but stand.
+  Pinned by `tests/decide-effect-view.test.js`; built and released without a sandbox run (the
+  sandbox was the 6.0 box that day, off limits by the user's word) — the live proof is the table's.
 - **The bar is the ONE interactive surface** (user: *"if a player clicks on their name, it shows
   a list of all their buffs … click on it has a menu fold up that says Remove … the DM should
   have access to do this for any npc/pc"*). The **name** opens the full list upward — ALL of it,
