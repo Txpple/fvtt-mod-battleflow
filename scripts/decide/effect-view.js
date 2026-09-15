@@ -35,6 +35,7 @@ export const MARK_KEYS = Object.freeze(["vex", "sap", "slow"]);
  * @property {string} clock          the platform's duration label ("2 Rounds", "Unlimited", "")
  * @property {string|null} origin    the effect's origin uuid, if any
  * @property {boolean} [onItem]      the effect document belongs to an item on the sheet, not the actor
+ * @property {boolean} [disabled]    the sheet's own toggle is OFF (distinct from suppressed: `active` false with the toggle on)
  */
 
 /*
@@ -68,11 +69,7 @@ export function toneOf(fact) {
 
 /** @param {EffectFact[]} facts @returns {EffectRow[]} debuffs first, then buffs, each in sheet order */
 export function effectRows(facts) {
-  const rows = (facts ?? []).filter(listed).map(f => ({
-    id: f.id, name: f.name, img: f.img ?? null, onItem: f.worn === true || f.onItem === true,
-    tone: toneOf(f), clock: f.clock ?? "",
-    noIcon: f.temporary !== true && !(f.statuses ?? []).length
-  }));
+  const rows = (facts ?? []).filter(listed).map(rowOf);
   return [...rows.filter(r => r.tone === "debuff"), ...rows.filter(r => r.tone === "buff")];
 }
 
@@ -109,6 +106,50 @@ export function rowAction(row, { owner }) {
   if ( String(row.id).startsWith("sheet:") ) return { action: "clear", label: "Clear" };
   if ( row.onItem === true ) return { action: "disable", label: "Disable" };
   return { action: "remove", label: "Remove" };
+}
+
+/** One row from one fact, no listing test — the panel's groups and the bar share this shape. */
+function rowOf(f) {
+  return {
+    id: f.id, name: f.name, img: f.img ?? null, onItem: f.worn === true || f.onItem === true,
+    tone: toneOf(f), clock: f.clock ?? "",
+    noIcon: f.temporary !== true && !(f.statuses ?? []).length
+  };
+}
+
+/**
+ * THE PANEL'S GROUPS (user ruling 2026-09-15: "if i click morgash, it should show ALL, including
+ * passives"): the name's panel mirrors the SHEET's own sections, not the bar's rule —
+ *   Temporary    active, with a clock or a condition
+ *   Passive      active, clockless — the worn gear, the class features, the applied clockless
+ *                casts the bar also shows (Death Armor)
+ *   Unavailable  enabled but SUPPRESSED by the platform — the item unequipped or unattuned, or the
+ *                clock expired and the leftover never swept (the user, on the Luckstone and the
+ *                Miasma's −2 AC) — listed so the GM can sweep it; never a disabled one, that is a
+ *                choice the sheet already shows as off
+ * The sheet rows (temp HP, inspiration) join Temporary. Empty groups are dropped.
+ * @param {EffectFact[]} facts
+ * @param {{tempHp?: number|null, inspiration?: boolean}} [sheet]
+ * @returns {{label: string, rows: EffectRow[]}[]}
+ */
+export function panelGroups(facts, sheet = {}) {
+  const temporary = [], passive = [], unavailable = [];
+  for ( const f of (facts ?? []) ) {
+    if ( !f ) continue;
+    if ( f.active === true ) ((f.temporary === true) || (f.statuses ?? []).length ? temporary : passive).push(rowOf(f));
+    else if ( f.disabled !== true ) unavailable.push({ ...rowOf(f), unavailable: true });
+  }
+  temporary.push(...sheetRows(sheet));
+  return [
+    { label: "Temporary", rows: temporary },
+    { label: "Passive", rows: passive },
+    { label: "Unavailable", rows: unavailable }
+  ].filter(g => g.rows.length);
+}
+
+/** Every row the panel can show, flat — the lookup behind a fold on any chip. */
+export function everyRow(facts, sheet = {}) {
+  return panelGroups(facts, sheet).flatMap(g => g.rows);
 }
 
 /** Every row for one creature: the effects (debuffs, then buffs), then the sheet's own buffs. */

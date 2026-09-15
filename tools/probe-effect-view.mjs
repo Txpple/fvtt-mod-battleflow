@@ -117,8 +117,11 @@ const out = await f.evaluate(async () => {
     barEl()?.querySelector("button.who")?.click();
     const panel = await until(() => barEl()?.querySelector(".bf-ev-panel"), 2000);
     const panelNames = panel ? [...panel.querySelectorAll(".bf-ev-chip .nm")].map(n => n.textContent) : [];
-    ok("6e. the name opens the full list upward, one chip per row, each clickable",
-      !!panel && panelNames.includes("Death Armor") && panelNames.includes("Heroic Inspiration") && !!panel.querySelector("button.bf-ev-chip"), `rows=${JSON.stringify(panelNames)}`);
+    const panelLabels = panel ? [...panel.querySelectorAll(".bf-ev-lbl")].map(l => l.textContent) : [];
+    ok("6e. the name opens the full list upward — ALL of it, grouped as the sheet groups it: the passives (the worn Cloak) join the temporaries, each row clickable",
+      !!panel && panelNames.includes("Death Armor") && panelNames.includes("Heroic Inspiration") && panelNames.some(n => n.startsWith("Bonus AC"))
+        && panelLabels.includes("Temporary") && panelLabels.includes("Passive") && !!panel.querySelector("button.bf-ev-chip"),
+      `groups=${JSON.stringify(panelLabels)} rows=${JSON.stringify(panelNames)}`);
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     await sleep(100);
     ok("6f. Escape closes it", !barEl()?.querySelector(".bf-ev-panel"), "");

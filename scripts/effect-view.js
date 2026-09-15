@@ -22,7 +22,7 @@
  */
 import { MODULE_ID, S, setting } from "./core.js";
 import { CHIP_FLAG } from "./decide/chips.js";
-import { allRows, marksHeldBy, rowAction } from "./decide/effect-view.js";
+import { allRows, everyRow, marksHeldBy, panelGroups, rowAction } from "./decide/effect-view.js";
 
 const ROOT_ID = "bf-effect-view";
 
@@ -39,6 +39,7 @@ function factOf(effect) {
   return {
     id: effect.id, name: effect.name, img: effect.img ?? null,
     active: effect.active === true, temporary: effect.isTemporary === true,
+    disabled: effect.disabled === true,
     worn: (effect.parent instanceof Item) && (effect.transfer === true),
     onItem: effect.parent instanceof Item,
     statuses: [...(effect.statuses ?? [])],
@@ -84,7 +85,7 @@ function chipHTML(row, { button = false } = {}) {
   const clock = row.clock ? `<span class="clk">${esc(row.clock)}</span>` : (row.detail ? `<span class="dtl">${esc(row.detail)}</span>` : "");
   const inner = `${icon}<span class="txt"><span class="nm">${esc(row.name)}</span>${clock}</span>${tag}`;
   return button
-    ? `<button type="button" class="bf-ev-chip ${row.tone}" data-row="${esc(row.id)}" title="${esc(row.name)}">${inner}</button>`
+    ? `<button type="button" class="bf-ev-chip ${row.tone}${row.unavailable ? " unavailable" : ""}" data-row="${esc(row.id)}" title="${esc(row.name)}${row.unavailable ? " — unavailable: suppressed by the platform (unequipped, unattuned or expired)" : ""}">${inner}</button>`
     : `<span class="bf-ev-chip ${row.tone}" title="${esc(row.name)}">${inner}</span>`;
 }
 
@@ -138,6 +139,8 @@ function ensureStyle() {
     .bf-ev-panel h4{margin:0 0 6px;font-size:12.5px;font-weight:600;color:#e8e3d6}
     .bf-ev-panel .bf-ev-list{flex-direction:column;gap:3px}
     .bf-ev-panel .bf-ev-chip{position:relative}
+    .bf-ev-panel .bf-ev-lbl{margin-top:8px} .bf-ev-panel .bf-ev-lbl:first-of-type{margin-top:0}
+    .bf-ev-chip.unavailable{opacity:.55;border-style:dashed}
     .bf-ev-fold .bf-ev-act.details{border-color:#6aa3ff;background:rgba(106,163,255,.16)} .bf-ev-fold .bf-ev-act.details:hover{background:rgba(106,163,255,.32)}
     .bf-ev-details{display:flex;gap:12px;align-items:flex-start;font-size:13px}
     .bf-ev-details img{width:56px;height:56px;border-radius:5px;border:1px solid #3a3f48;flex:none}
@@ -261,7 +264,7 @@ function barActorNow(bar) {
 
 /** Open the one-action fold above a chip. */
 function openFold(bar, chip, actor) {
-  const row = rowsOf(actor).find(r => r.id === chip.dataset.row);
+  const row = everyRow(factsOf(actor), sheetOf(actor)).find(r => r.id === chip.dataset.row);
   if ( !row ) return;
   // Details for anyone who can see the bar; the write action only for an owner (the GM owns all).
   const act = rowAction(row, { owner: actor.isOwner === true });
@@ -282,10 +285,15 @@ function openFold(bar, chip, actor) {
 /** Open the full list above the name — every row, each a chip with its own fold. */
 function openPanel(bar, who, actor) {
   closeFolds(bar);
-  const rows = rowsOf(actor);
+  // ALL of them, grouped as the sheet groups them (user ruling 2026-09-15) — the bar's rule is
+  // for the bar; the panel is the sheet's effects tab, in reach.
+  const groups = panelGroups(factsOf(actor), sheetOf(actor));
+  const total = groups.reduce((n, g) => n + g.rows.length, 0);
   const panel = document.createElement("div");
   panel.className = "bf-ev-panel";
-  panel.innerHTML = `<h4>${esc(actor.name)} — ${rows.length} effect${rows.length === 1 ? "" : "s"}</h4><div class="bf-ev-list">${rows.length ? rows.map(r => chipHTML(r, { button: true })).join("") : '<span class="bf-ev-none">nothing on them</span>'}</div>`;
+  panel.innerHTML = `<h4>${esc(actor.name)} — ${total} effect${total === 1 ? "" : "s"}</h4>`
+    + (groups.length ? groups.map(g => `<div class="bf-ev-lbl">${esc(g.label)}</div><div class="bf-ev-list">${g.rows.map(r => chipHTML(r, { button: true })).join("")}</div>`).join("")
+      : '<span class="bf-ev-none">nothing on them</span>');
   bar.appendChild(panel);
   who.setAttribute("aria-expanded", "true");
 }
@@ -297,7 +305,7 @@ function openPanel(bar, who, actor) {
  * clock and its kind. The sheet rows get the rule in a sentence.
  */
 async function showDetails(actor, rowId) {
-  const row = rowsOf(actor).find(r => r.id === rowId);
+  const row = everyRow(factsOf(actor), sheetOf(actor)).find(r => r.id === rowId);
   if ( !row ) return;
   let body = "", source = "";
   if ( rowId === "sheet:tempHp" ) {

@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   allRows,
   effectRows,
+  everyRow,
   listed,
   marksHeldBy,
+  panelGroups,
   rowAction,
   sheetRows,
   toneOf
@@ -140,5 +142,43 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
     ]);
     expect(rows.find(r => r.id === "w").onItem).toBe(true);
     expect(rows.find(r => r.id === "a").onItem).toBe(false);
+  });
+
+  it("the panel's groups mirror the sheet: Temporary, Passive, Unavailable (user, 2026-09-15: show ALL, including passives)", () => {
+    const groups = panelGroups(
+      [
+        fact({ id: "b", name: "Blessed" }),
+        fact({ id: "p", name: "Prone", temporary: false, statuses: ["prone"] }),
+        fact({ id: "t", name: "Tough", temporary: false, worn: true }),
+        fact({ id: "d", name: "Death Armor", temporary: false }),
+        fact({
+          id: "l",
+          name: "Lucky",
+          temporary: false,
+          worn: true,
+          active: false,
+          disabled: false
+        }),
+        fact({ id: "m", name: "Damaged: -2 AC", temporary: false, active: false, disabled: false }),
+        fact({
+          id: "w",
+          name: "Wand of the War Mage +1",
+          temporary: false,
+          worn: true,
+          active: false,
+          disabled: true
+        })
+      ],
+      { tempHp: 3 }
+    );
+    expect(groups.map(g => g.label)).toEqual(["Temporary", "Passive", "Unavailable"]);
+    expect(groups[0].rows.map(r => r.name)).toEqual(["Blessed", "Prone", "Temporary HP"]);
+    expect(groups[1].rows.map(r => r.name)).toEqual(["Tough", "Death Armor"]);
+    expect(groups[2].rows.map(r => r.name)).toEqual(["Lucky", "Damaged: -2 AC"]);
+    expect(groups[2].rows.every(r => r.unavailable === true)).toBe(true);
+    expect(
+      everyRow([fact({ id: "d", temporary: false, active: false, disabled: false })]).map(r => r.id)
+    ).toEqual(["d"]);
+    expect(panelGroups([])).toEqual([]);
   });
 });
