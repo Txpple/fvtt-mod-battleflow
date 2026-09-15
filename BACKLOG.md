@@ -245,6 +245,14 @@ victim's) WAS a pattern and shipped (DESIGN §5, `appliedClock`).
 **What would settle it:** the world record's change key edited to `system.attributes.ac.bonus`
 (the user's content, one field), and a bug report to the dnd5e team for the pack.
 
+✅ **The world record is fixed on PROD (2026-09-15, late — after the user restored prod to
+dnd5e 5.3.3):** Bramblemaw's base actor, effect `TSWsGeApnMgxOyIF`, now writes
+`system.attributes.ac.bonus` ADD −2; the placed Bramblemaw on *Bramblemaw's Lair* reads the
+new key through its base (its delta never carried the feature), and *Party Camp* holds no
+Bramblemaw on the restored world. The pack itself still carries the slip — a fresh import of
+the Adult or Ancient Green Dragon brings it back — so the row stays as awareness; the upstream
+bug report is the user's call.
+
 ### Two content facts worth keeping
 
 Neither is findable by guessing. **Both were ruled on 2026-09-11** and nothing is open on
