@@ -309,6 +309,28 @@ receipt on the attack card, written before the chip goes), and the chit that mak
 the only tick is world time, which moves only when the GM advances it — so an out-of-combat chip
 lives until the spend closes it, and that is the rule, not a gap.
 
+**⚠ THE CLOCK A PACK'S EFFECT CARRIES WHEN IT LANDS (2026-09-15, two table findings — the same
+rule read the other way: the platform judges the clock, so the clock must be WRITTEN right).**
+`decide/chips.js` `appliedClock`, read by the one applier every cast's and every save's effects
+go through (`effect-riders.js`). (1) **An empty clock takes the spell's.** The official books
+write a spell's duration twice — on the spell and on its effect (the PHB's Blessed carries 60 s,
+Mage Armor's 28 800 s) — and dnd5e derives nothing at apply time, so a pack that wrote it once
+(Heroes of Faerûn's Death Armor: 1 hour on the spell, nothing on the effect) landed a clockless,
+icon-less effect from the native button and from ours alike; now the effect takes the spell's
+duration, and an effect that carries its own clock is left exactly as written — parity with the
+button for every correctly authored spell. (2) **"Until the end of its next turn" is the TARGET's
+turn.** The Monster Manual writes that phrase as N turns (Noxious Miasma's −2 AC: 1 turn), and the
+platform counts turns from whoever's turn it is when the effect lands — the dragon's — so the
+penalty was expired at the end of the dragon's own turn, before the victim ever acted. A turns
+clock landing on someone ELSE in a running combat is re-pinned to the bearer's place: N rounds,
+`expiry: "turnEnd"`, `start` the bearer's combatant — the Vex chip's shape. On the caster themself
+and out of combat the turns stand as written. **And one repair of the same effect's CHANGE**
+(`EFFECT_KEY_REMAPS`, decide/registry.js — membership in data, R4): the Miasma writes its −2
+against `system.armor.value`, an armor ITEM's field that means nothing on an actor in dnd5e
+5.3.3; it lands as the actor's AC bonus. Proof: `tools/probe-applied-clock.mjs` 8/8 — Death
+Armor's hour; the Miasma's −2 active on the dragon's turn (AC 22 → 20), alive through the
+victim's own turn, expired at its end.
+
 **⚠ Dead is the platform's MARK, never the arithmetic** (review, 2026-09-01). A one-round chip's
 `remaining` reads zero for the whole of the round its boundary falls in and the mark arrives only
 at the event, so a reader that treated zero as dead dropped Vex on the one turn it exists for.
