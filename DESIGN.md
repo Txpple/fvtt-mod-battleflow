@@ -232,15 +232,45 @@ architecture to keep (every spendable thing a registry entry, R4; every moment o
 spine; the popup a view and the flag the state, R2) are kept anyway — they are the module's own
 rules, not the chit layer's — and nothing waits on them.
 
-**The candidates**, drawn in place on the mock table 2026-09-14 (`prototypes/effect-views.html`):
-a **hover card** on the token; a **held Alt** that shows every creature's list at once and clears
-on release (Foundry's own highlight gesture); a **count badge** on the token that opens the list;
-**chip lines in the combat tracker**; a **turn-start card** in the log; and the platform's own
-token-icon pile beside them for contrast. The suggested shape is one renderer with two triggers —
-the hover card for a player, the held key for the table — since neither adds anything at rest.
-Four questions wait on a ruling before any go: where the list opens; whether marks held on
-others (Vex on the Boss) belong in it; whether platform conditions that already paint an icon
-are in or out; what a click does. **Not scheduled.**
+**BUILT 2026-09-15 and merged the same day** (user: *"lets merge this branch on to main. i love
+it!"*) — `scripts/effect-view.js` and its pure half `scripts/decide/effect-view.js`, drafted on a
+branch off the prototype (`prototypes/effect-views.html`) and ruled shot by shot off the live
+sandbox. **The shape, as ruled:**
+
+- **Three surfaces, one renderer, nothing written by the view itself.** The **bar** above the
+  hotbar for the controlled token (else the user's own character), always on; the **hover card**
+  beside any token pointed at; the **held Alt** (Foundry's own highlight gesture) showing every
+  creature's list at once and clearing on release. Two client switches, one per family.
+- **What the bar and the cards list — what is IN FORCE:** an active effect that is clocked, a
+  condition, or applied to the creature by a cast (Death Armor, Bless, Hunter's Mark); never a
+  worn item's transfer effect (the Cloak's +1 — the sheet itself, not something that happened).
+  Plus two buffs dnd5e keeps as numbers, not effects: **Temporary HP** and **Heroic Inspiration**,
+  read off the sheet, no clock, no source. A row the token cannot paint is tagged *no icon*
+  (measured on Foundry 14.365: the token paints a clocked effect or a condition; a clockless
+  applied effect paints nothing). The hover card adds a second group, the marks the creature holds
+  on others (question 2, ruled in).
+- **The bar is the ONE interactive surface** (user: *"if a player clicks on their name, it shows
+  a list of all their buffs … click on it has a menu fold up that says Remove … the DM should
+  have access to do this for any npc/pc"*). The **name** opens the full list upward — ALL of it,
+  grouped as the sheet groups it: Temporary, Passive, Unavailable (enabled but suppressed by the
+  platform: an unattuned Luckstone, an expired leftover) — so the GM can sweep a dead effect on
+  the fly. A **chip** opens a fold with its ONE write, for an owner (the GM owns all): Remove an
+  effect on the creature, Disable an item's (never deleted — that would edit the item), Clear a
+  sheet row. A *Details* entry was tried the same day and dropped (*"didnt like it"*). The hover
+  card and the held key stay read-only.
+- **Tone is a PATTERN, not a list** (user, on the Miasma's −2 AC drawn green: *"look for the
+  pattern to fix this, so it catches other cases"*): **concentration** (dnd5e's `concentrating`
+  status) is its own yellow and leads; a condition or one of the module's marks is a debuff; else
+  the effect's own CHANGES decide (a subtraction, a halving, a downgrade or a disadvantage flag is
+  a penalty and a penalty makes a debuff, outranking any bonus); else WHO cast it (an origin on
+  the other side by token disposition is a debuff — where a marker with no readable change lands,
+  Hunter's Mark on the target); else a buff.
+- **Order:** concentration, debuffs, buffs, the sheet rows last; the panel vertical, reading left.
+
+The other three candidates the prototype drew — a count badge, chip lines in the combat tracker,
+a turn-start card — were not picked and are not planned. Proof: `tools/probe-effect-view.mjs`
+16/16 on the sandbox; `tests/decide-effect-view.test.js` pins the rows, the groups, the tone
+pattern and the fold's action.
 
 ### Where a chip belongs on the sheet (user rule, 2026-09-01)
 
