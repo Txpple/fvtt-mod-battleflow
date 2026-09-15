@@ -51,8 +51,11 @@ const out = await f.evaluate(async () => {
       !!bar && (barNames[0] === "Prone") && barNames.includes("Bless") && barNames.includes("Death Armor") && !barNames.some(n => n.startsWith("Bonus AC")), `chips=${JSON.stringify(barNames)}`);
     const hot = document.getElementById("hotbar")?.getBoundingClientRect(), br = bar?.getBoundingClientRect();
     ok("1b. it sits above the hotbar", !!hot && !!br && (br.bottom <= hot.top), `bar.bottom=${br?.bottom} hotbar.top=${hot?.top}`);
-    ok("1c. Bless is tagged as painting no icon, Prone is not",
-      !!bar && !!bar.querySelector(".bf-ev-chip.buff em") && !bar.querySelector(".bf-ev-chip.debuff em"), "");
+    const tagged = bar ? [...bar.querySelectorAll(".bf-ev-chip")].filter(c => c.querySelector("em")).map(c => c.querySelector(".nm").textContent) : [];
+    ok("1c. the clockless Death Armor is tagged as painting no icon; Bless (clocked) and Prone (a condition) are not",
+      tagged.includes("Death Armor") && !tagged.includes("Bless") && !tagged.includes("Prone"), `tagged=${JSON.stringify(tagged)}`);
+    ok("1d. a clockless row shows no clock at all — never the platform's \"None\"",
+      !!bar && ![...bar.querySelectorAll(".bf-ev-chip .clk")].some(c => /none/i.test(c.textContent)), "");
 
     // THE HOVER CARD: the platform's hook, as a mouse-over would fire it
     Hooks.callAll("hoverToken", token, true);

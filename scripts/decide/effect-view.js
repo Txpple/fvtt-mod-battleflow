@@ -11,8 +11,9 @@
  *     on a victim (Vexed, Sapped, Slowed) is a DEBUFF; everything else temporary is shown as a
  *     BUFF. Hunter's Mark on a target is the case this gets wrong — no status, not a module mark,
  *     yet a debuff. A data rule (a list, R4) is the honest fix if the user wants it right.
- *   - NO ICON: the token paints an icon only for an effect that carries a status (BACKLOG's
- *     measurement), so every status-less row is tagged.
+ *   - NO ICON: measured on the sandbox 2026-09-15 (Foundry 14.365): the token paints an icon for
+ *     a CLOCKED effect (Bless, a mastery mark) and for a condition (Prone); an applied effect with
+ *     no clock (Death Armor, Healed by Prayer) paints nothing. Those are the rows tagged.
  *
  * Pure: no Foundry, no documents, no settings.
  */
@@ -68,7 +69,7 @@ export function effectRows(facts) {
   const rows = (facts ?? []).filter(listed).map(f => ({
     id: f.id, name: f.name, img: f.img ?? null,
     tone: toneOf(f), clock: f.clock ?? "",
-    noIcon: !(f.statuses ?? []).length
+    noIcon: f.temporary !== true && !(f.statuses ?? []).length
   }));
   return [...rows.filter(r => r.tone === "debuff"), ...rows.filter(r => r.tone === "buff")];
 }

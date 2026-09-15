@@ -37,10 +37,15 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
     expect(toneOf(fact())).toBe("buff");
   });
 
-  it("tags every status-less row as one the token cannot paint", () => {
-    const rows = effectRows([fact(), fact({ id: "e2", name: "Prone", statuses: ["prone"] })]);
-    expect(rows.find(r => r.name === "Bless").noIcon).toBe(true);
+  it("tags the rows the token cannot paint: clockless and status-less (measured 2026-09-15)", () => {
+    const rows = effectRows([
+      fact(),
+      fact({ id: "e2", name: "Prone", temporary: false, statuses: ["prone"] }),
+      fact({ id: "e3", name: "Death Armor", temporary: false, clock: "" })
+    ]);
+    expect(rows.find(r => r.name === "Bless").noIcon).toBe(false);
     expect(rows.find(r => r.name === "Prone").noIcon).toBe(false);
+    expect(rows.find(r => r.name === "Death Armor").noIcon).toBe(true);
   });
 
   it("orders debuffs first, then buffs, each in sheet order", () => {

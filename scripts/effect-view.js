@@ -23,6 +23,12 @@ const ROOT_ID = "bf-effect-view";
 
 /* --- reading the sheet ---------------------------------------------------------------------- */
 
+/** The platform's own duration label, minus its "None" — a clockless row says nothing. */
+function clockLabel(effect) {
+  const label = effect.duration?.label ?? "";
+  return (!label || /^none$/i.test(label)) ? "" : label;
+}
+
 /** One effect as the decision layer wants it. */
 function factOf(effect) {
   return {
@@ -31,7 +37,7 @@ function factOf(effect) {
     worn: (effect.parent instanceof Item) && (effect.transfer === true),
     statuses: [...(effect.statuses ?? [])],
     chipKey: effect.getFlag?.(MODULE_ID, CHIP_FLAG) ?? null,
-    clock: effect.duration?.label ?? "",
+    clock: clockLabel(effect),
     origin: typeof effect.origin === "string" ? effect.origin : null
   };
 }
