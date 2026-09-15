@@ -164,7 +164,7 @@ function ensureStyle() {
     .bf-ev-panel{position:absolute;left:0;bottom:calc(100% + 6px);z-index:71;min-width:260px;max-height:60vh;overflow:auto;padding:8px 10px;background:rgba(17,19,23,.97);border:1px solid #3a3f48;border-radius:5px;box-shadow:0 8px 24px rgba(0,0,0,.6)}
     .bf-ev-panel h4{margin:0 0 6px;font-size:12.5px;font-weight:600;color:#e8e3d6}
     #${ROOT_ID}-bar .bf-ev-panel .bf-ev-list{flex-direction:column;flex-wrap:nowrap;gap:3px}   /* vertical, one row per line (user, 2026-09-15) — outranks the bar's row rule */
-    #${ROOT_ID}-bar .bf-ev-panel .bf-ev-chip{align-self:stretch}
+    #${ROOT_ID}-bar .bf-ev-panel .bf-ev-chip{align-self:stretch;justify-content:flex-start;text-align:left}   /* a button centres its content; the list reads left (user, 2026-09-15) */
     .bf-ev-panel .bf-ev-chip{position:relative}
     .bf-ev-panel .bf-ev-lbl{margin-top:8px} .bf-ev-panel .bf-ev-lbl:first-of-type{margin-top:0}
     .bf-ev-chip.unavailable{opacity:.55;border-style:dashed}

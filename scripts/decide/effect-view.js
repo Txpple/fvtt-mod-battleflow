@@ -191,6 +191,9 @@ export function panelGroups(facts, sheet = {}) {
     else if ( f.disabled !== true ) unavailable.push({ ...rowOf(f), noIcon: false, unavailable: true });
   }
   temporary.push(...sheetRows(sheet));
+  // concentration leads the Temporary group as it leads the bar (user, 2026-09-15: "should be moved up top")
+  const ordered = ["concentration", "debuff", "buff"].flatMap(tone => temporary.filter(r => r.tone === tone));
+  temporary.splice(0, temporary.length, ...ordered);
   return [
     { label: "Temporary", rows: temporary },
     { label: "Passive", rows: passive },

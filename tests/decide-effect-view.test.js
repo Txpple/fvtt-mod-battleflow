@@ -257,6 +257,7 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
       [
         fact({ id: "b", name: "Blessed" }),
         fact({ id: "p", name: "Prone", temporary: false, statuses: ["prone"] }),
+        fact({ id: "k", name: "Concentrating: Bane", statuses: ["concentrating"] }),
         fact({ id: "t", name: "Tough", temporary: false, worn: true }),
         fact({ id: "d", name: "Death Armor", temporary: false }),
         fact({
@@ -280,7 +281,13 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
       { tempHp: 3 }
     );
     expect(groups.map(g => g.label)).toEqual(["Temporary", "Passive", "Unavailable"]);
-    expect(groups[0].rows.map(r => r.name)).toEqual(["Blessed", "Prone", "Temporary HP"]);
+    // concentration leads the group, then the debuffs, then the buffs (the sheet rows last)
+    expect(groups[0].rows.map(r => r.name)).toEqual([
+      "Concentrating: Bane",
+      "Prone",
+      "Blessed",
+      "Temporary HP"
+    ]);
     expect(groups[1].rows.map(r => r.name)).toEqual(["Tough", "Death Armor"]);
     expect(groups[2].rows.map(r => r.name)).toEqual(["Lucky", "Damaged: -2 AC"]);
     expect(groups[2].rows.every(r => r.unavailable === true)).toBe(true);
