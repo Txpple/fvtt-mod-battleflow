@@ -5,8 +5,8 @@
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, statContext } from "./core.js";
 import { resolveUuid } from "./lookup.js";
 import { effectRecord, joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
-import { CHIP_FLAG } from "./decide/chips.js";
-import { statSourceOf } from "./shared.js";
+import { CHIP_FLAG, appliedClock } from "./decide/chips.js";
+import { statSourceOf, placeOf } from "./shared.js";
 import { METAMAGIC_FLAG, extendedDuration } from "./decide/metamagic.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -61,6 +61,28 @@ export async function applyEffectRiders(damageMessage, attackMessage, hits) {
   }
 }
 
+/** The activity an effect belongs to: the one on its item that lists it (null when none does). */
+function activityOfEffect(effect) {
+  const item = effect?.parent;
+  const activities = item?.system?.activities;
+  if ( !activities?.contents ) return null;
+  return activities.contents.find(a => (a.effects ?? []).some(e => e._id === effect.id)) ?? null;
+}
+
+/** The facts the clock rule reads, gathered at the edge — see decide/chips.js `appliedClock`. */
+function clockFor(effect, actor, source) {
+  try {
+    const d = effect.duration ?? {};
+    const own = { seconds: d.seconds, rounds: d.rounds, turns: d.turns };
+    const activity = activityOfEffect(effect);
+    const cast = activity?.duration?.getEffectData?.() ?? {};
+    return appliedClock({ own, cast, place: placeOf(actor), self: !!source && (source === actor.uuid) });
+  } catch(err) {
+    console.error(`${TITLE} | The applied effect's clock could not be read — the pack's own stands.`, err);
+    return null;
+  }
+}
+
 /**
  * THE application loop — every document-copy effect application in the module runs through
  * here (the Phase 3 convergence, completed v1.8.0): the riders, the cast slice, the save
@@ -112,6 +134,9 @@ export async function applyEffectsTo(targets, effects,
       // deviating from the button the module is pressing would be worse than matching it.)
       const existing = actor.effects.find(e => (e.origin === origin.uuid)
         || (matchNames && (e.name === effect.name)));
+      // THE CLOCK (decide/chips.js `appliedClock`, 2026-09-15): a caller's own `clock` wins; else
+      // the rule decides from the effect's clock, its activity's, the target's place and self.
+      const pin = clock ?? clockFor(effect, actor, source);
       let applied;
       // `clock` (2026-09-10): a caller that knows the effect's RAW window better than the pack's
       // numbers — the reaction's self-cast, whose "until the start of your next turn" is the
@@ -127,11 +152,11 @@ export async function applyEffectsTo(targets, effects,
           ? { start: effect.constructor.getEffectStart() }
           : effect.constructor.getInitialDuration();
         applied = (await existing.update(foundry.utils.mergeObject({
-          ...restart, duration: { expired: false }, disabled: false, ...(clock ?? {})
+          ...restart, duration: { expired: false }, disabled: false, ...(pin ?? {})
         }, effectFlags))) ?? existing;
       } else {
         applied = await ActiveEffect.implementation.create(foundry.utils.mergeObject({
-          ...effect.toObject(), disabled: false, transfer: false, origin: origin.uuid, ...(clock ?? {})
+          ...effect.toObject(), disabled: false, transfer: false, origin: origin.uuid, ...(pin ?? {})
         }, effectFlags), { parent: actor });
       }
       // Extended Spell (metamagic, 2026-09-09): the cast's effects run twice as long, 24 hours at

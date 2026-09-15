@@ -125,6 +125,66 @@ export function chipClock(key, place) {
 }
 
 /**
+ * THE CLOCK OF AN APPLIED EFFECT (2026-09-15, two table findings on one day). What a cast's or a
+ * save's effect should carry when it lands on a creature, from three facts:
+ *
+ *   own    the effect document's own clock as the pack wrote it ({seconds, rounds, turns}, any
+ *          may be missing)
+ *   cast   the activity's duration, as dnd5e's own conversion gives it (`duration.getEffectData()`:
+ *          {seconds} | {rounds} | {turns} | {} for instantaneous, permanent, special)
+ *   place  the TARGET's place in the running combat (shared.js `placeOf`), or null
+ *   self   the effect lands on the caster themself
+ *
+ * Two rules, one per finding:
+ *
+ *   1. AN EMPTY CLOCK TAKES THE SPELL'S. The official books write a spell's duration twice — on
+ *      the spell and on its effect (the PHB's Blessed carries 60 s, Mage Armor 28 800 s) — and
+ *      dnd5e derives nothing at apply time; a pack that wrote it once (Heroes of Faerûn's Death
+ *      Armor: the spell says 1 hour, the effect says nothing) lands a clockless effect from the
+ *      native button and from ours alike. So an effect with no clock of its own takes the
+ *      activity's. An effect that carries a clock keeps it exactly — parity with the button for
+ *      every correctly written spell.
+ *
+ *   2. "UNTIL THE END OF ITS NEXT TURN" IS THE TARGET'S TURN. The Monster Manual writes that
+ *      phrase as a duration of N TURNS (Noxious Miasma: "a −2 penalty to AC until the end of its
+ *      next turn" → 1 turn). The platform counts turns from the combatant whose turn it is when
+ *      the effect lands — the DRAGON's — so a 1-turn effect applied on the dragon's turn is
+ *      expired at the end of that same turn, suppressed before the victim ever acts (the stale
+ *      Shield's mechanism, measured 2026-09-10). A TURNS clock landing on someone ELSE in a
+ *      running combat is therefore re-pinned to the bearer's own place: N rounds, expiry at the
+ *      bearer's turnEnd — the Vex chip's shape ("before the end of your next turn"), which the
+ *      platform judges against `start.combatant`. On the caster themself, and out of combat,
+ *      the turns stand as written.
+ *
+ * @typedef {{seconds?: number|null, rounds?: number|null, turns?: number|null}} ClockFacts
+ * @typedef {{combat: string, combatant: string|null, initiative: number|null, round: number, turn: number, time: number}} Place
+ * @param {{own?: ClockFacts, cast?: ClockFacts, place?: Place|null, self?: boolean}} [facts]
+ * @returns {{duration: Record<string, any>, start?: Place}|null}  what to merge onto the effect, or null
+ *          to leave the document exactly as the pack wrote it
+ */
+export function appliedClock({ own = {}, cast = {}, place = null, self = false } = {}) {
+  const n = v => (Number.isFinite(Number(v)) && Number(v) > 0) ? Number(v) : 0;
+  const has = d => n(d?.seconds) || n(d?.rounds) || n(d?.turns);
+  const effective = has(own) ? own : (has(cast) ? cast : null);
+  if ( !effective ) return null;
+  // v14 duration data is {value, units, expiry} (CHIP_WINDOWS' shape); the facts come in as the
+  // derived seconds/rounds/turns and go out as value + units.
+  const turns = n(effective.turns);
+  if ( turns && place?.combatant && !self ) {
+    return {
+      duration: { value: turns, units: "rounds", expiry: "turnEnd", expired: false },
+      start: { combat: place.combat, combatant: place.combatant, initiative: place.initiative,
+        round: place.round, turn: place.turn, time: place.time }
+    };
+  }
+  if ( has(own) ) return null;                    // its own clock, as written — untouched
+  const [value, units] = n(effective.seconds) ? [n(effective.seconds), "seconds"]
+    : (n(effective.rounds) ? [n(effective.rounds), "rounds"] : [turns, "turns"]);
+  // `expired: false`: a refresh over an expired leftover re-arms it (the Shield finding)
+  return { duration: { value, units, expired: false } };
+}
+
+/**
  * Is a chip dead by the platform's own reading? Expired is dead. A clock that never resolved
  * (`remaining` null or NaN) is dead too. A chip with NO clock is left alone — a durationless
  * effect is somebody else's contract.

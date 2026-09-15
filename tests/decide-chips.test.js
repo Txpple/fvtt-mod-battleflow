@@ -287,3 +287,57 @@ describe("reactionStands — back at the start of the reactor's next turn (2026-
     ).toBe(false);
   });
 });
+
+describe("appliedClock — what a cast's or a save's effect carries when it lands (2026-09-15)", () => {
+  const place = {
+    combat: "c1",
+    combatant: "victim",
+    initiative: 12,
+    round: 2,
+    turn: 1,
+    time: 1000
+  };
+
+  it("rule 1: an effect with no clock of its own takes the spell's (Death Armor, 1 hour written once)", () => {
+    expect(c.appliedClock({ own: {}, cast: { seconds: 3600 } })).toEqual({
+      duration: { value: 3600, units: "seconds", expired: false }
+    });
+    expect(
+      c.appliedClock({ own: { seconds: null, rounds: null, turns: null }, cast: { rounds: 10 } })
+    ).toEqual({
+      duration: { value: 10, units: "rounds", expired: false }
+    });
+  });
+
+  it("rule 1: an effect that carries its own clock is left exactly as written (Blessed's 60 s; parity with the button)", () => {
+    expect(c.appliedClock({ own: { seconds: 60 }, cast: { seconds: 3600 } })).toBeNull();
+    expect(c.appliedClock({ own: { rounds: 1 }, cast: {} })).toBeNull();
+  });
+
+  it("nothing to say for an instantaneous or permanent cast with a clockless effect", () => {
+    expect(c.appliedClock({ own: {}, cast: {} })).toBeNull();
+    expect(c.appliedClock({})).toBeNull();
+    expect(c.appliedClock({ own: { seconds: 0 }, cast: { seconds: 0 } })).toBeNull();
+  });
+
+  it("rule 2: a TURNS clock landing on someone else in combat is pinned to the bearer's place — N rounds, turnEnd (the Miasma's −2 AC)", () => {
+    const pin = c.appliedClock({ own: { turns: 1 }, cast: { turns: 1 }, place, self: false });
+    expect(pin.duration).toEqual({ value: 1, units: "rounds", expiry: "turnEnd", expired: false });
+    expect(pin.start).toEqual(place);
+    // the same from the activity alone, when the effect itself was written clockless
+    expect(c.appliedClock({ own: {}, cast: { turns: 2 }, place }).duration).toMatchObject({
+      value: 2,
+      units: "rounds"
+    });
+  });
+
+  it("rule 2 does not fire on the caster themself, out of combat, or for a bearer not in the tracker", () => {
+    expect(c.appliedClock({ own: { turns: 1 }, place, self: true })).toBeNull();
+    expect(c.appliedClock({ own: { turns: 1 }, place: null })).toBeNull();
+    expect(c.appliedClock({ own: { turns: 1 }, place: { ...place, combatant: null } })).toBeNull();
+    // a clockless effect out of combat still takes the spell's turns as written
+    expect(c.appliedClock({ own: {}, cast: { turns: 1 }, place: null })).toEqual({
+      duration: { value: 1, units: "turns", expired: false }
+    });
+  });
+});
