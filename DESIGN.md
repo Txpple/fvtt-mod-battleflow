@@ -324,12 +324,18 @@ platform counts turns from whoever's turn it is when the effect lands — the dr
 penalty was expired at the end of the dragon's own turn, before the victim ever acted. A turns
 clock landing on someone ELSE in a running combat is re-pinned to the bearer's place: N rounds,
 `expiry: "turnEnd"`, `start` the bearer's combatant — the Vex chip's shape. On the caster themself
-and out of combat the turns stand as written. **And one repair of the same effect's CHANGE**
-(`EFFECT_KEY_REMAPS`, decide/registry.js — membership in data, R4): the Miasma writes its −2
-against `system.armor.value`, an armor ITEM's field that means nothing on an actor in dnd5e
-5.3.3; it lands as the actor's AC bonus. Proof: `tools/probe-applied-clock.mjs` 8/8 — Death
-Armor's hour; the Miasma's −2 active on the dragon's turn (AC 22 → 20), alive through the
-victim's own turn, expired at its end.
+and out of combat the turns stand as written. ⚠ **The Miasma's −2 itself still does not land,
+and that is the pack's, not the module's** (user ruling 2026-09-15, "i dont want specific
+carveouts"): the Monster Manual's **Adult Green Dragon** stat block (Bramblemaw is an instance
+of it; the Ancient Green Dragon carries the same record) writes the penalty against
+`system.armor.value`, an armor ITEM's field that means nothing on a creature in dnd5e 5.3.3 —
+and nothing in 6.0 maps it. Measured across every effect in every premium book on the box (1,793
+non-transfer effects): it is the ONLY base effect that writes an item field onto a creature; every
+other item-field key belongs to an enchantment, which is meant to. A remap row was built, proven
+and REMOVED the same day as a one-monster carve-out; the fix is at the data (the world record's
+change key → `system.attributes.ac.bonus`), and the slip is worth reporting upstream. Proof of
+the clock: `tools/probe-applied-clock.mjs` — Death Armor's hour; the Miasma's effect pinned to
+the victim, active through the dragon's turn end and the victim's own turn, expired at its end.
 
 **⚠ Dead is the platform's MARK, never the arithmetic** (review, 2026-09-01). A one-round chip's
 `remaining` reads zero for the whole of the round its boundary falls in and the mark arrives only

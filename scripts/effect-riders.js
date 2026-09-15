@@ -5,8 +5,7 @@
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, statContext } from "./core.js";
 import { resolveUuid } from "./lookup.js";
 import { effectRecord, joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
-import { CHIP_FLAG, appliedClock, remapChanges } from "./decide/chips.js";
-import { EFFECT_KEY_REMAPS } from "./decide/registry.js";
+import { CHIP_FLAG, appliedClock } from "./decide/chips.js";
 import { statSourceOf, placeOf } from "./shared.js";
 import { METAMAGIC_FLAG, extendedDuration } from "./decide/metamagic.js";
 
@@ -159,10 +158,7 @@ export async function applyEffectsTo(targets, effects,
           ...restart, duration: { expired: false }, disabled: false, ...(pin ?? {})
         }, effectFlags))) ?? existing;
       } else {
-        // THE CHANGES (decide/chips.js `remapChanges`): a key written against an item's field is
-        // moved to the actor's equivalent (the Miasma's −2 AC) — the value and the mode stand.
         const data = effect.toObject();
-        data.changes = remapChanges(data.changes, EFFECT_KEY_REMAPS);
         applied = await ActiveEffect.implementation.create(foundry.utils.mergeObject({
           ...data, disabled: false, transfer: false, origin: origin.uuid, ...(pin ?? {})
         }, effectFlags), { parent: actor });

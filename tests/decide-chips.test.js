@@ -341,38 +341,3 @@ describe("appliedClock — what a cast's or a save's effect carries when it land
     });
   });
 });
-
-describe("remapChanges — a change written against an item's field, landing on an actor (2026-09-15)", () => {
-  const remaps = {
-    "system.armor.value": { to: "system.attributes.ac.bonus", why: "the armor item's own AC field" }
-  };
-
-  it("moves the Miasma's −2 AC from the armor item's key to the actor's AC bonus, value and mode untouched", () => {
-    const out = c.remapChanges([{ key: "system.armor.value", mode: 2, value: -2 }], remaps);
-    expect(out).toEqual([{ key: "system.attributes.ac.bonus", mode: 2, value: -2 }]);
-  });
-
-  it("passes every other change through untouched, in order", () => {
-    const changes = [
-      { key: "system.attributes.ac.bonus", mode: 2, value: "1" },
-      { key: "system.armor.value", mode: 2, value: -2 },
-      { key: "flags.dnd5e.advantage.save.all", mode: 5, value: "1" }
-    ];
-    const out = c.remapChanges(changes, remaps);
-    expect(out.map(x => x.key)).toEqual([
-      "system.attributes.ac.bonus",
-      "system.attributes.ac.bonus",
-      "flags.dnd5e.advantage.save.all"
-    ]);
-    expect(out[0]).toBe(changes[0]);
-    expect(out[2]).toBe(changes[2]);
-  });
-
-  it("tolerates no changes, no table, and a change with no key", () => {
-    expect(c.remapChanges(undefined, remaps)).toEqual([]);
-    expect(c.remapChanges([{ mode: 2, value: 1 }], remaps)).toEqual([{ mode: 2, value: 1 }]);
-    expect(c.remapChanges([{ key: "system.armor.value" }], undefined)).toEqual([
-      { key: "system.armor.value" }
-    ]);
-  });
-});

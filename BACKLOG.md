@@ -228,6 +228,23 @@ neither.
 | **Clock riders with a damage TYPE the rules leave to the player** (2026-09-02) | Divine Strike, Primal Strike and Divine Fury ride with the activity's FIRST type and say so on the card (DESIGN §8 — no picker was wanted). A cleric who wants Radiant over Necrotic edits the activity's part order once. **A picker on the offer is one row of controls away if a table asks.** |
 | **The pack's own "Assasinate" (sic) effect row beside the "Assassinate" feature row** (2026-09-02) | The 2024 PHB's Assassinate feature ships a transfer effect misspelled *Assasinate* (its Initiative Advantage), and the effect scan of 2026-09-02 carried it into `EFFECT_BENDS` under that name. The clock row added the same day is keyed by the FEATURE's name, correctly spelled, with the clock as its judge. Two rows, two things; if the pack ever fixes the spelling the effect row's key must follow it. |
 
+### The Monster Manual's Adult Green Dragon writes Noxious Miasma's −2 AC against an armor item's field (2026-09-15)
+
+**What:** the stat block's "Damaged: −2 AC" effect (the Adult and the Ancient Green Dragon; Bramblemaw
+is the Adult's instance) carries one change, `system.armor.value` ADD −2 — an armor ITEM's field.
+On a creature in dnd5e 5.3.3 that key changes nothing (the system reads it off the equipped armor
+and shield documents only), and dnd5e 6.0's notes map nothing either. Measured across every effect
+in every premium book on the sandbox: the one base effect in the corpus that writes an item field
+onto a creature; the 68 others are enchantments, which are meant to.
+
+**Why not in the module:** a remap row was built, proven (AC 22 → 20 on the sandbox) and removed
+the same day on the user's ruling — one monster's slip is a carve-out, and the house does not carry
+those. The clock half of the same report (the −2 expiring on the dragon's turn instead of the
+victim's) WAS a pattern and shipped (DESIGN §5, `appliedClock`).
+
+**What would settle it:** the world record's change key edited to `system.attributes.ac.bonus`
+(the user's content, one field), and a bug report to the dnd5e team for the pack.
+
 ### Two content facts worth keeping
 
 Neither is findable by guessing. **Both were ruled on 2026-09-11** and nothing is open on
