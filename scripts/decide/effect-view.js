@@ -182,8 +182,13 @@ export function panelGroups(facts, sheet = {}) {
   const temporary = [], passive = [], unavailable = [];
   for ( const f of (facts ?? []) ) {
     if ( !f ) continue;
-    if ( f.active === true ) ((f.temporary === true) || (f.statuses ?? []).length ? temporary : passive).push(rowOf(f));
-    else if ( f.disabled !== true ) unavailable.push({ ...rowOf(f), unavailable: true });
+    // the no-icon tag is for the in-force rows a token could be expected to show; a passive or a
+    // suppressed effect never paints one, so the tag would say nothing there
+    if ( f.active === true ) {
+      if ( (f.temporary === true) || (f.statuses ?? []).length ) temporary.push(rowOf(f));
+      else passive.push({ ...rowOf(f), noIcon: false });
+    }
+    else if ( f.disabled !== true ) unavailable.push({ ...rowOf(f), noIcon: false, unavailable: true });
   }
   temporary.push(...sheetRows(sheet));
   return [
