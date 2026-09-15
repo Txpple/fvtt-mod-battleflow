@@ -9,15 +9,20 @@
  *                    creature's list at once and clears on release
  *   THE BAR          a strip above the hotbar for the controlled token (else the user's own
  *                    character), always on; redrawn when effects change, control changes, or a
- *                    turn passes
+ *                    turn passes. THE ONE INTERACTIVE SURFACE (user ruling 2026-09-15): the NAME
+ *                    opens the full list upward; a CHIP opens a fold with its one action (Remove
+ *                    an effect on the creature, Disable an item's, Clear a sheet row) — for an
+ *                    owner, which the GM is for every creature ("editing conditions on the fly").
  * The bar and the hover card each have a CLIENT switch. The draft is on the branch
  * `effect-view` (2026-09-15) with decide/effect-view.js's two heuristics unruled.
  *
- * ⚠ This machine WRITES NOTHING — no flag, no message, no effect. It is a view.
+ * ⚠ What this machine WRITES: nothing of its own — no flag, no message. The bar's fold deletes or
+ * disables an ActiveEffect, or zeroes temp HP / inspiration, on the user's click and through the
+ * platform's own permission (an owner's write). Every other surface is a pure view.
  */
 import { MODULE_ID, S, setting } from "./core.js";
 import { CHIP_FLAG } from "./decide/chips.js";
-import { allRows, marksHeldBy } from "./decide/effect-view.js";
+import { allRows, marksHeldBy, rowAction } from "./decide/effect-view.js";
 
 const ROOT_ID = "bf-effect-view";
 
@@ -35,6 +40,7 @@ function factOf(effect) {
     id: effect.id, name: effect.name, img: effect.img ?? null,
     active: effect.active === true, temporary: effect.isTemporary === true,
     worn: (effect.parent instanceof Item) && (effect.transfer === true),
+    onItem: effect.parent instanceof Item,
     statuses: [...(effect.statuses ?? [])],
     chipKey: effect.getFlag?.(MODULE_ID, CHIP_FLAG) ?? null,
     clock: clockLabel(effect),
@@ -72,11 +78,14 @@ function marksOf(actor) {
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-function chipHTML(row) {
+function chipHTML(row, { button = false } = {}) {
   const icon = row.img ? `<img src="${esc(row.img)}" alt="">` : "";
   const tag = row.noIcon ? `<em title="This effect paints no icon on the token">no icon</em>` : "";
   const clock = row.clock ? `<span class="clk">${esc(row.clock)}</span>` : (row.detail ? `<span class="dtl">${esc(row.detail)}</span>` : "");
-  return `<span class="bf-ev-chip ${row.tone}" title="${esc(row.name)}">${icon}<span class="txt"><span class="nm">${esc(row.name)}</span>${clock}</span>${tag}</span>`;
+  const inner = `${icon}<span class="txt"><span class="nm">${esc(row.name)}</span>${clock}</span>${tag}`;
+  return button
+    ? `<button type="button" class="bf-ev-chip ${row.tone}" data-row="${esc(row.id)}" title="${esc(row.name)}">${inner}</button>`
+    : `<span class="bf-ev-chip ${row.tone}" title="${esc(row.name)}">${inner}</span>`;
 }
 
 /** The list for one actor: debuffs, buffs, and (for the hover card) the marks it holds. */
@@ -115,6 +124,27 @@ function ensureStyle() {
     #${ROOT_ID}-bar .bf-ev-list{flex-direction:row;flex-wrap:wrap;gap:5px}
     #${ROOT_ID}-bar .bf-ev-chip{padding:4px 9px 4px 5px} #${ROOT_ID}-bar .bf-ev-chip img{width:24px;height:24px}
     #${ROOT_ID}-bar.empty{display:none}
+    #${ROOT_ID}-bar button{font:inherit;cursor:pointer}
+    #${ROOT_ID}-bar button.who{background:none;border:0;border-right:1px solid #3a3f48;border-radius:0;text-align:left;color:inherit}
+    #${ROOT_ID}-bar button.who:hover b,#${ROOT_ID}-bar button.who[aria-expanded="true"] b{color:#ffd7ad}
+    #${ROOT_ID}-bar button.bf-ev-chip:hover,#${ROOT_ID}-bar button.bf-ev-chip[aria-expanded="true"]{box-shadow:0 0 0 2px rgba(255,255,255,.14)}
+    #${ROOT_ID}-bar button:focus-visible{outline:2px solid rgb(222,120,40);outline-offset:1px}
+    .bf-ev-fold{position:absolute;bottom:calc(100% + 6px);z-index:71;display:flex;flex-direction:column;gap:3px;padding:5px;background:rgba(17,19,23,.97);border:1px solid #3a3f48;border-radius:5px;box-shadow:0 8px 24px rgba(0,0,0,.6)}
+    .bf-ev-fold::after{content:"";position:absolute;left:14px;bottom:-6px;width:10px;height:10px;background:rgba(17,19,23,.97);border-right:1px solid #3a3f48;border-bottom:1px solid #3a3f48;transform:rotate(45deg)}
+    .bf-ev-fold .bf-ev-act{font:inherit;font-size:12px;padding:5px 12px;border-radius:4px;border:1px solid rgb(180,70,60);background:rgba(180,70,60,.2);color:#e8e3d6;cursor:pointer;white-space:nowrap}
+    .bf-ev-fold .bf-ev-act:hover{background:rgba(180,70,60,.4)}
+    .bf-ev-fold .bf-ev-act.clear{border-color:#7d7a72;background:rgba(120,120,120,.16)} .bf-ev-fold .bf-ev-act.clear:hover{background:rgba(120,120,120,.3)}
+    .bf-ev-panel{position:absolute;left:0;bottom:calc(100% + 6px);z-index:71;min-width:260px;max-height:60vh;overflow:auto;padding:8px 10px;background:rgba(17,19,23,.97);border:1px solid #3a3f48;border-radius:5px;box-shadow:0 8px 24px rgba(0,0,0,.6)}
+    .bf-ev-panel h4{margin:0 0 6px;font-size:12.5px;font-weight:600;color:#e8e3d6}
+    .bf-ev-panel .bf-ev-list{flex-direction:column;gap:3px}
+    .bf-ev-panel .bf-ev-chip{position:relative}
+    .bf-ev-fold .bf-ev-act.details{border-color:#6aa3ff;background:rgba(106,163,255,.16)} .bf-ev-fold .bf-ev-act.details:hover{background:rgba(106,163,255,.32)}
+    .bf-ev-details{display:flex;gap:12px;align-items:flex-start;font-size:13px}
+    .bf-ev-details img{width:56px;height:56px;border-radius:5px;border:1px solid #3a3f48;flex:none}
+    .bf-ev-details h3{margin:0 0 4px;font-size:15px;border:0}
+    .bf-ev-details .meta{display:flex;flex-wrap:wrap;gap:4px 14px;margin-bottom:8px;font-size:12px}
+    .bf-ev-details .meta em{font-style:normal;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.65;margin-right:5px}
+    .bf-ev-details .bf-ev-desc p{margin:0 0 6px}
   `;
   document.head.appendChild(style);
 }
@@ -205,10 +235,146 @@ function drawBar() {
   if ( !actor ) return;
   const combat = game.combat?.started ? game.combat : null;
   const sub = combat ? `Round ${combat.round}${combat.combatant?.actor === actor ? " · your turn" : ""}` : "";
-  bar.innerHTML = `<div class="who"><b>${esc(actor.name)}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</div>${listHTML(actor)}`;
+  const owner = actor.isOwner === true;
+  const body = rows.length ? rows.map(r => chipHTML(r, { button: true })).join("") : `<span class="bf-ev-none">nothing on them</span>`;
+  bar.innerHTML = `<button type="button" class="who" aria-expanded="false" title="${owner ? "Every effect on " : ""}${esc(actor.name)}"><b>${esc(actor.name)}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</button><div class="bf-ev-list">${body}</div>`;
+  bar.dataset.actor = actor.uuid;
+  if ( !bar.dataset.wired ) { wireBar(bar); bar.dataset.wired = "1"; }
   const hotbar = document.getElementById("hotbar");
   const above = hotbar ? (window.innerHeight - hotbar.getBoundingClientRect().top + 8) : 76;
   bar.style.bottom = `${above}px`;
+}
+
+/* --- the bar's actions (user ruling 2026-09-15) --------------------------------------------- */
+
+/** Close whatever fold or panel is open on the bar. */
+function closeFolds(bar) {
+  for ( const el of bar.querySelectorAll(".bf-ev-fold, .bf-ev-panel") ) el.remove();
+  for ( const b of bar.querySelectorAll("[aria-expanded='true']") ) b.setAttribute("aria-expanded", "false");
+}
+
+/** The actor the bar is drawn for — re-read at click time, never cached across draws. */
+function barActorNow(bar) {
+  const a = bar.dataset.actor ? fromUuidSync(bar.dataset.actor) : null;
+  return (a instanceof Actor) ? a : barActor();
+}
+
+/** Open the one-action fold above a chip. */
+function openFold(bar, chip, actor) {
+  const row = rowsOf(actor).find(r => r.id === chip.dataset.row);
+  if ( !row ) return;
+  // Details for anyone who can see the bar; the write action only for an owner (the GM owns all).
+  const act = rowAction(row, { owner: actor.isOwner === true });
+  closeFolds(bar);
+  const fold = document.createElement("div");
+  fold.className = "bf-ev-fold";
+  fold.innerHTML = `<button type="button" class="bf-ev-act details" data-action="details" data-row="${esc(row.id)}">Details</button>`
+    + (act ? `<button type="button" class="bf-ev-act ${act.action}" data-action="${act.action}" data-row="${esc(row.id)}">${esc(act.label)}</button>` : "");
+  const host = chip.closest(".bf-ev-panel") ?? bar;
+  host.appendChild(fold);
+  const hr = host.getBoundingClientRect(), cr = chip.getBoundingClientRect();
+  fold.style.left = `${Math.max(0, cr.left - hr.left)}px`;
+  if ( host !== bar ) fold.style.bottom = `${hr.bottom - cr.top + 6}px`;
+  chip.setAttribute("aria-expanded", "true");
+  fold.querySelector("button")?.focus();
+}
+
+/** Open the full list above the name — every row, each a chip with its own fold. */
+function openPanel(bar, who, actor) {
+  closeFolds(bar);
+  const rows = rowsOf(actor);
+  const panel = document.createElement("div");
+  panel.className = "bf-ev-panel";
+  panel.innerHTML = `<h4>${esc(actor.name)} — ${rows.length} effect${rows.length === 1 ? "" : "s"}</h4><div class="bf-ev-list">${rows.length ? rows.map(r => chipHTML(r, { button: true })).join("") : '<span class="bf-ev-none">nothing on them</span>'}</div>`;
+  bar.appendChild(panel);
+  who.setAttribute("aria-expanded", "true");
+}
+
+/**
+ * DETAILS (user, 2026-09-15: "open the relevant rule/card in a popup window"): one window with
+ * the effect's own description — dnd5e writes one on most cast effects — or, when the effect
+ * carries none, the description of the item it came from (its origin), plus its source, its
+ * clock and its kind. The sheet rows get the rule in a sentence.
+ */
+async function showDetails(actor, rowId) {
+  const row = rowsOf(actor).find(r => r.id === rowId);
+  if ( !row ) return;
+  let body = "", source = "";
+  if ( rowId === "sheet:tempHp" ) {
+    body = `<p>${esc(actor.name)} has <b>${esc(row.detail)}</b> temporary hit points. They absorb damage first, a new grant does not stack (the higher number stands), and they last until spent or until a long rest.</p>`;
+  } else if ( rowId === "sheet:inspiration" ) {
+    body = `<p>${esc(actor.name)} has Heroic Inspiration: reroll one die after rolling it, once, and the inspiration is spent.</p>`;
+  } else {
+    const effect = [...(actor.allApplicableEffects?.() ?? actor.effects)].find(e => e.id === rowId);
+    if ( !effect ) return;
+    const origin = effect.origin ? await fromUuid(effect.origin).catch(() => null) : null;
+    const item = (origin instanceof Item) ? origin : ((effect.parent instanceof Item) ? effect.parent : null);
+    const own = String(effect.description ?? "").trim();
+    const fromItem = String(item?.system?.description?.value ?? "").trim();
+    body = own ? `<div class="bf-ev-desc">${own}</div>`
+      : (fromItem ? `<div class="bf-ev-desc">${fromItem}</div>` : `<p class="bf-ev-none">No description on this effect.</p>`);
+    const from = item?.name ?? origin?.name ?? null;
+    const by = (origin instanceof Item) ? origin.actor?.name : ((origin instanceof Actor) ? origin.name : null);
+    source = from ? `${esc(from)}${(by && (by !== from)) ? ` — ${esc(by)}` : ""}` : "";
+  }
+  const meta = [
+    source ? `<span><em>Source</em>${source}</span>` : "",
+    row.clock ? `<span><em>Clock</em>${esc(row.clock)}</span>` : "",
+    `<span><em>Kind</em>${row.tone === "debuff" ? "debuff" : "buff"}</span>`
+  ].filter(Boolean).join("");
+  const content = `<div class="bf-ev-details">${row.img ? `<img src="${esc(row.img)}" alt="">` : ""}<div><h3>${esc(row.name)}</h3><div class="meta">${meta}</div>${body}</div></div>`;
+  const dialog = new foundry.applications.api.DialogV2({
+    window: { title: `${row.name} — ${actor.name}`, icon: "fa-solid fa-circle-info" },
+    position: { width: 460 }, content,
+    buttons: [{ action: "ok", label: "Close", default: true, callback: () => {} }],
+    rejectClose: false
+  });
+  await dialog.render({ force: true });
+}
+
+/** Do the fold's action: open the details, delete an actor's effect, disable an item's, clear a sheet row. */
+async function doAction(actor, action, rowId) {
+  if ( action === "details" ) return showDetails(actor, rowId);
+  if ( action === "clear" ) {
+    if ( rowId === "sheet:tempHp" ) return actor.update({ "system.attributes.hp.temp": 0 });
+    if ( rowId === "sheet:inspiration" ) return actor.update({ "system.attributes.inspiration": false });
+    return;
+  }
+  const effect = [...(actor.allApplicableEffects?.() ?? actor.effects)].find(e => e.id === rowId);
+  if ( !effect ) return;
+  if ( action === "remove" ) return effect.delete();
+  if ( action === "disable" ) return effect.update({ disabled: true });
+}
+
+function wireBar(bar) {
+  bar.addEventListener("click", ev => {
+    try {
+      const actor = barActorNow(bar);
+      if ( !actor ) return;
+      const act = ev.target.closest("button.bf-ev-act");
+      if ( act ) {
+        ev.preventDefault();
+        closeFolds(bar);
+        void doAction(actor, act.dataset.action, act.dataset.row).catch(err => console.error(`${MODULE_ID} | effect view (action) failed.`, err));
+        return;
+      }
+      const chip = ev.target.closest("button.bf-ev-chip");
+      if ( chip ) {
+        ev.preventDefault();
+        if ( chip.getAttribute("aria-expanded") === "true" ) { chip.closest(".bf-ev-panel") ? (bar.querySelector(".bf-ev-fold")?.remove(), chip.setAttribute("aria-expanded", "false")) : closeFolds(bar); }
+        else openFold(bar, chip, actor);
+        return;
+      }
+      const who = ev.target.closest("button.who");
+      if ( who ) {
+        ev.preventDefault();
+        if ( who.getAttribute("aria-expanded") === "true" ) closeFolds(bar); else openPanel(bar, who, actor);
+      }
+    } catch(err) { console.error(`${MODULE_ID} | effect view (bar click) failed.`, err); }
+  });
+  // Anywhere else, or Escape: the folds close.
+  document.addEventListener("pointerdown", ev => { if ( !bar.contains(ev.target) ) closeFolds(bar); });
+  document.addEventListener("keydown", ev => { if ( ev.key === "Escape" ) closeFolds(bar); });
 }
 
 let barTimer = null;

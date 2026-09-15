@@ -4,6 +4,7 @@ import {
   effectRows,
   listed,
   marksHeldBy,
+  rowAction,
   sheetRows,
   toneOf
 } from "../scripts/decide/effect-view.js";
@@ -116,5 +117,28 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
       inspiration: true
     });
     expect(rows.map(r => r.name)).toEqual(["Prone", "Bless", "Temporary HP", "Heroic Inspiration"]);
+  });
+
+  it("the bar's action per row: remove an actor's effect, disable an item's, clear a sheet row; nothing for a non-owner", () => {
+    expect(rowAction({ id: "e1" }, { owner: true })).toEqual({ action: "remove", label: "Remove" });
+    expect(rowAction({ id: "e2", onItem: true }, { owner: true })).toEqual({
+      action: "disable",
+      label: "Disable"
+    });
+    expect(rowAction({ id: "sheet:tempHp" }, { owner: true })).toEqual({
+      action: "clear",
+      label: "Clear"
+    });
+    expect(rowAction({ id: "e1" }, { owner: false })).toBeNull();
+    expect(rowAction(null, { owner: true })).toBeNull();
+  });
+
+  it("a row remembers whether its effect lives on an item", () => {
+    const rows = effectRows([
+      fact({ id: "w", statuses: ["poisoned"], worn: true }),
+      fact({ id: "a" })
+    ]);
+    expect(rows.find(r => r.id === "w").onItem).toBe(true);
+    expect(rows.find(r => r.id === "a").onItem).toBe(false);
   });
 });

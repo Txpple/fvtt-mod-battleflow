@@ -89,6 +89,40 @@ const out = await f.evaluate(async () => {
     const gone = await until(() => { const b = document.getElementById("bf-effect-view-bar"); const names = b ? [...b.querySelectorAll(".bf-ev-chip .nm")].map(n => n.textContent) : []; return names.includes("Bless") ? null : names; }, 3000);
     ok("4. the bar redraws when an effect is deleted", Array.isArray(gone) && !gone.includes("Bless") && gone.includes("Prone"), `chips=${JSON.stringify(gone)}`);
 
+    // THE BAR'S ACTIONS (user ruling 2026-09-15): a chip opens a fold — Details, and Remove for an owner
+    const barEl = () => document.getElementById("bf-effect-view-bar");
+    const chipNamed = name => [...(barEl()?.querySelectorAll("button.bf-ev-chip") ?? [])].find(c => c.querySelector(".nm")?.textContent === name) ?? null;
+    chipNamed("Prone")?.click();
+    const fold = await until(() => barEl()?.querySelector(".bf-ev-fold"), 2000);
+    const foldActions = fold ? [...fold.querySelectorAll("button")].map(b => b.dataset.action) : [];
+    ok("6. a chip click opens a fold upward with Details and Remove (the GM owns every creature)",
+      !!fold && foldActions.includes("details") && foldActions.includes("remove"), `actions=${JSON.stringify(foldActions)}`);
+    fold?.querySelector('button[data-action="details"]')?.click();
+    const details = await until(() => [...document.querySelectorAll(".application")].find(a => a.querySelector(".bf-ev-details")), 4000);
+    ok("6b. Details opens a window with the effect's name, kind and description",
+      !!details && details.querySelector(".bf-ev-details h3")?.textContent === "Prone" && /debuff/.test(details.querySelector(".meta")?.textContent ?? ""), `open=${!!details}`);
+    for ( const a of foundry.applications.instances.values() ) { if ( a.element?.querySelector?.(".bf-ev-details") ) await a.close().catch(() => {}); }
+    chipNamed("Prone")?.click();
+    const fold2 = await until(() => barEl()?.querySelector(".bf-ev-fold"), 2000);
+    fold2?.querySelector('button[data-action="remove"]')?.click();
+    const proneGone = await until(() => invictus.effects.get(made[1].id) ? null : true, 4000);
+    ok("6c. Remove deletes the effect, and the bar redraws without it",
+      proneGone === true && !!(await until(() => chipNamed("Prone") ? null : true, 3000)), "");
+    chipNamed("Temporary HP")?.click();
+    const fold3 = await until(() => barEl()?.querySelector(".bf-ev-fold"), 2000);
+    const clearLabel = fold3?.querySelector('button[data-action="clear"]')?.textContent ?? null;
+    fold3?.querySelector('button[data-action="clear"]')?.click();
+    const cleared = await until(() => (invictus.system.attributes.hp.temp ?? 0) === 0 ? true : null, 4000);
+    ok("6d. a sheet row's fold says Clear, and Clear zeroes the temp HP", clearLabel === "Clear" && cleared === true, `label=${clearLabel} temp=${invictus.system.attributes.hp.temp}`);
+    barEl()?.querySelector("button.who")?.click();
+    const panel = await until(() => barEl()?.querySelector(".bf-ev-panel"), 2000);
+    const panelNames = panel ? [...panel.querySelectorAll(".bf-ev-chip .nm")].map(n => n.textContent) : [];
+    ok("6e. the name opens the full list upward, one chip per row, each clickable",
+      !!panel && panelNames.includes("Death Armor") && panelNames.includes("Heroic Inspiration") && !!panel.querySelector("button.bf-ev-chip"), `rows=${JSON.stringify(panelNames)}`);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await sleep(100);
+    ok("6f. Escape closes it", !barEl()?.querySelector(".bf-ev-panel"), "");
+
     // THE SWITCH: off, the bar leaves
     await game.settings.set(MOD, "effectBar", false);
     const off = await until(() => document.getElementById("bf-effect-view-bar") ? null : true, 3000);

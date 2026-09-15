@@ -34,6 +34,7 @@ export const MARK_KEYS = Object.freeze(["vex", "sap", "slow"]);
  * @property {string|null} chipKey   `flags.<module>.mastery` when it is one of the module's chips
  * @property {string} clock          the platform's duration label ("2 Rounds", "Unlimited", "")
  * @property {string|null} origin    the effect's origin uuid, if any
+ * @property {boolean} [onItem]      the effect document belongs to an item on the sheet, not the actor
  */
 
 /*
@@ -68,7 +69,7 @@ export function toneOf(fact) {
 /** @param {EffectFact[]} facts @returns {EffectRow[]} debuffs first, then buffs, each in sheet order */
 export function effectRows(facts) {
   const rows = (facts ?? []).filter(listed).map(f => ({
-    id: f.id, name: f.name, img: f.img ?? null,
+    id: f.id, name: f.name, img: f.img ?? null, onItem: f.worn === true || f.onItem === true,
     tone: toneOf(f), clock: f.clock ?? "",
     noIcon: f.temporary !== true && !(f.statuses ?? []).length
   }));
@@ -89,6 +90,25 @@ export function sheetRows({ tempHp = null, inspiration = false } = {}) {
   if ( Number.isFinite(tempHp) && tempHp > 0 ) rows.push({ id: "sheet:tempHp", name: "Temporary HP", img: "icons/svg/regen.svg", tone: "buff", clock: "", detail: String(tempHp), noIcon: false });
   if ( inspiration === true ) rows.push({ id: "sheet:inspiration", name: "Heroic Inspiration", img: "icons/svg/sun.svg", tone: "buff", clock: "", detail: "", noIcon: false });
   return rows;
+}
+
+/**
+ * THE ACTION a row offers on the bar (user ruling 2026-09-15: click a buff, a fold opens with
+ * Remove, and the DM has it for any creature). What "remove" means depends on where the row lives:
+ *   remove   an effect that sits on the creature — deleted
+ *   disable  an effect that belongs to an item on the sheet (a worn thing's condition) — turned
+ *            off, never deleted, because deleting it would edit the item
+ *   clear    a sheet row — the number set back to nothing (temp HP 0, inspiration off)
+ * Null when the viewer cannot write to the creature: the fold never opens.
+ * @param {{id: string, onItem?: boolean}} row
+ * @param {{owner: boolean}} viewer
+ * @returns {{action: "remove"|"disable"|"clear", label: string}|null}
+ */
+export function rowAction(row, { owner }) {
+  if ( !owner || !row ) return null;
+  if ( String(row.id).startsWith("sheet:") ) return { action: "clear", label: "Clear" };
+  if ( row.onItem === true ) return { action: "disable", label: "Disable" };
+  return { action: "remove", label: "Remove" };
 }
 
 /** Every row for one creature: the effects (debuffs, then buffs), then the sheet's own buffs. */

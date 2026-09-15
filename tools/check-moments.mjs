@@ -247,6 +247,7 @@ const WORLD_WRITERS = {
   "cast.js": ["castApply", "effectReceipt", "receipt"],
   "reminders.js": "the gate before the roll — a dialog's default and a Fails press; the roll's verdict is the saves record's resolve",
   "stats.js": "the data plane's stamps and roster — stats, never a moment",
+  "effect-view.js": "the bar's fold on the user's own click: an effect deleted or disabled, temp HP or inspiration zeroed — the platform's own edits under the owner's permission, no module record and no moment (DESIGN §6, 2026-09-15)",
   "shared.js": "spine plumbing: turn chits written for the machines (their resolve is the record the machine writes), the pool spend helper (its record is poolSpend)",
   "ui.js": "spine plumbing: an envelope's cleanup delete, a popup's lifecycle — presentation",
   "core.js": "spine plumbing: the flag-write serializer every record goes through — the record is the resolve",
