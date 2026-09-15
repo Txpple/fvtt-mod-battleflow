@@ -185,6 +185,22 @@ export function appliedClock({ own = {}, cast = {}, place = null, self = false }
 }
 
 /**
+ * THE CHANGES OF AN APPLIED EFFECT (2026-09-15, beside `appliedClock`): a change written against
+ * an item's field lands on an actor where it means nothing, so it is moved to the actor field that
+ * means the same — the table is `EFFECT_KEY_REMAPS` (decide/registry.js), handed in so this stays
+ * pure. Everything else passes through untouched, order kept.
+ * @param {{key?: string}[]} changes
+ * @param {Record<string, {to: string}>} remaps
+ * @returns {{key?: string}[]}
+ */
+export function remapChanges(changes, remaps) {
+  return (changes ?? []).map(c => {
+    const to = c?.key ? remaps?.[c.key]?.to : null;
+    return to ? { ...c, key: to } : c;
+  });
+}
+
+/**
  * Is a chip dead by the platform's own reading? Expired is dead. A clock that never resolved
  * (`remaining` null or NaN) is dead too. A chip with NO clock is left alone — a durationless
  * effect is somebody else's contract.

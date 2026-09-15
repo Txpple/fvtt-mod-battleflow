@@ -5,7 +5,8 @@
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, statContext } from "./core.js";
 import { resolveUuid } from "./lookup.js";
 import { effectRecord, joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
-import { CHIP_FLAG, appliedClock } from "./decide/chips.js";
+import { CHIP_FLAG, appliedClock, remapChanges } from "./decide/chips.js";
+import { EFFECT_KEY_REMAPS } from "./decide/registry.js";
 import { statSourceOf, placeOf } from "./shared.js";
 import { METAMAGIC_FLAG, extendedDuration } from "./decide/metamagic.js";
 
@@ -72,8 +73,11 @@ function activityOfEffect(effect) {
 /** The facts the clock rule reads, gathered at the edge — see decide/chips.js `appliedClock`. */
 function clockFor(effect, actor, source) {
   try {
-    const d = effect.duration ?? {};
-    const own = { seconds: d.seconds, rounds: d.rounds, turns: d.turns };
+    // v14 keeps an effect's clock as {value, units}; the derived seconds/rounds/turns are not to be
+    // trusted here (a clockless effect derives `seconds: Infinity`, measured 2026-09-15).
+    const d = effect._source?.duration ?? effect.duration ?? {};
+    const own = {};
+    if ( (d.value > 0) && ["seconds", "rounds", "turns"].includes(d.units) ) own[d.units] = Number(d.value);
     const activity = activityOfEffect(effect);
     const cast = activity?.duration?.getEffectData?.() ?? {};
     return appliedClock({ own, cast, place: placeOf(actor), self: !!source && (source === actor.uuid) });
@@ -155,8 +159,12 @@ export async function applyEffectsTo(targets, effects,
           ...restart, duration: { expired: false }, disabled: false, ...(pin ?? {})
         }, effectFlags))) ?? existing;
       } else {
+        // THE CHANGES (decide/chips.js `remapChanges`): a key written against an item's field is
+        // moved to the actor's equivalent (the Miasma's −2 AC) — the value and the mode stand.
+        const data = effect.toObject();
+        data.changes = remapChanges(data.changes, EFFECT_KEY_REMAPS);
         applied = await ActiveEffect.implementation.create(foundry.utils.mergeObject({
-          ...effect.toObject(), disabled: false, transfer: false, origin: origin.uuid, ...(pin ?? {})
+          ...data, disabled: false, transfer: false, origin: origin.uuid, ...(pin ?? {})
         }, effectFlags), { parent: actor });
       }
       // Extended Spell (metamagic, 2026-09-09): the cast's effects run twice as long, 24 hours at

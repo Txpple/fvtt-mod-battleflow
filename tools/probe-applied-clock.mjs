@@ -46,10 +46,10 @@ const out = await f.evaluate(async () => {
     const deathArmor = invictus.items.getName("Death Armor");
     const daEffect = deathArmor?.effects.contents[0] ?? null;
     ok("0. Death Armor's own effect is clockless as the pack wrote it, its spell says 1 hour",
-      !!daEffect && !(daEffect.duration?.seconds > 0) && deathArmor.system.duration?.units === "hour", `effect=${!!daEffect} seconds=${daEffect?.duration?.seconds} spell=${JSON.stringify(deathArmor?.system?.duration)}`);
+      !!daEffect && !(daEffect._source.duration?.value > 0) && deathArmor.system.duration?.units === "hour", `effect=${!!daEffect} value=${daEffect?._source.duration?.value} units=${daEffect?._source.duration?.units} spell=${JSON.stringify({ value: deathArmor?.system?.duration?.value, units: deathArmor?.system?.duration?.units })}`);
     for ( const e of invictus.effects.filter(e => e.name === "Death Armor") ) await e.delete();
     const r1 = await applyEffectsTo([{ uuid: invictus.uuid, name: invictus.name }], [daEffect], { source: invictus.uuid });
-    const landedDA = invictus.effects.find(e => e.name === "Death Armor");
+    const landedDA = invictus.effects.get(r1[0]?.effects?.[0]?.id ?? "") ?? invictus.effects.find(e => e.name === "Death Armor");
     if ( landedDA ) made.push(landedDA);
     ok("1. rule 1 — the landed Death Armor carries the spell's hour (3600 s) and paints as temporary",
       !!landedDA && (landedDA.duration?.seconds === 3600) && (landedDA._source.duration?.units === "seconds") && (landedDA.isTemporary === true), `seconds=${landedDA?.duration?.seconds} units=${landedDA?._source.duration?.units} value=${landedDA?._source.duration?.value} temp=${landedDA?.isTemporary} entries=${r1.length}`);
@@ -68,14 +68,20 @@ const out = await f.evaluate(async () => {
     await combat.startCombat();
     await sleep(300);
     ok("2a. combat: the dragon's turn first", combat.combatant?.actorId === drgActor.id, `turn=${combat.combatant?.name}`);
+    // a leftover from an earlier table test would be found by name and read as the landed one —
+    // sweep any same-named effect first, and find the landed one by the id the applier returns
+    for ( const e of invictus.effects.filter(e => e.name === mEffect.name) ) await e.delete();
     const r2 = await applyEffectsTo([{ uuid: invictus.uuid, name: invictus.name }], [mEffect], { source: drgActor.uuid });
-    const landedM = invictus.effects.find(e => e.name === mEffect.name);
+    const landedId = r2[0]?.effects?.[0]?.id ?? null;
+    const landedM = landedId ? invictus.effects.get(landedId) : invictus.effects.find(e => e.name === mEffect.name);
     if ( landedM ) made.push(landedM);
     const invCombatant = combat.combatants.find(c => c.actorId === invictus.id);
     ok("2b. rule 2 — the −2 AC lands pinned to INVICTUS's place: 1 round, expiry turnEnd, start.combatant = Invictus",
       !!landedM && (landedM._source.duration?.value === 1) && (landedM._source.duration?.units === "rounds") && (landedM.duration?.expiry === "turnEnd") && (landedM._source.start?.combatant === invCombatant?.id),
       `value=${landedM?._source.duration?.value} units=${landedM?._source.duration?.units} expiry=${landedM?.duration?.expiry} start=${landedM?._source.start?.combatant} invictus=${invCombatant?.id} entries=${r2.length}`);
-    ok("2c. it is ACTIVE on the dragon's turn (AC 22 → 20)", landedM?.active === true && invictus.system.attributes.ac.value === 20, `active=${landedM?.active} ac=${invictus.system.attributes.ac.value}`);
+    const acNow = invictus.system.attributes.ac;
+    ok("2c. it is ACTIVE on the dragon's turn, and its change lands (AC 22 → 20)", landedM?.active === true && acNow.value === 20,
+      `active=${landedM?.active} ac=${JSON.stringify({ value: acNow.value, flat: acNow.flat, calc: acNow.calc, bonus: acNow.bonus, armor: acNow.armor, shield: acNow.shield })} changes=${JSON.stringify(landedM?.changes?.map(c => ({ key: c.key, mode: c.mode, value: c.value })) ?? null)} sourceChanges=${JSON.stringify(mEffect?._source?.changes ?? mEffect?._source?.system?.changes ?? null)}`);
     await combat.nextTurn(); await sleep(400);   // the dragon's turn ends → Invictus's turn
     ok("2d. still active through the dragon's turn end, on Invictus's own turn", combat.combatant?.actorId === invictus.id && invictus.effects.get(landedM.id)?.active === true,
       `turn=${combat.combatant?.name} active=${invictus.effects.get(landedM.id)?.active}`);

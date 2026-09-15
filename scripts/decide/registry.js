@@ -764,6 +764,24 @@ export const SPENT_AREAS = Object.freeze({
 export const SPENT_AREA_NAMES = tableIndex(SPENT_AREAS).names;
 
 /**
+ * EFFECT KEY REMAPS (2026-09-15, the Monster Manual's Noxious Miasma): a change key a pack wrote
+ * against an ITEM's field, landing on an ACTOR where that field does not exist. dnd5e 5.3.3 reads
+ * `system.armor.value` off the equipped armor and shield documents only (data/actor/templates/
+ * attributes.mjs), so the Miasma's "Damaged: −2 AC" — one change, `system.armor.value` ADD −2 —
+ * applies to nobody: active, clocked, and worth nothing. Membership is a table so the next such
+ * key is a row, not a special case (R4). The value and the mode travel unchanged; only the key
+ * moves, and only when the effect lands on an actor.
+ *
+ *   to     the actor field that means the same thing
+ *   why    what the pack wrote, and where dnd5e reads it
+ */
+export const EFFECT_KEY_REMAPS = Object.freeze({
+  "system.armor.value": Object.freeze({
+    to: "system.attributes.ac.bonus",
+    why: "an armor item's own AC field; on an actor the equivalent is the AC bonus (Monster Manual, Noxious Miasma's Damaged: −2 AC)" })
+});
+
+/**
  * The 2024 Rules Glossary on range, verbatim (dnd5e.content24 / the premium PHB, appendix D —
  * "Range" and "Ranged Attacks in Close Combat"; presentation law 8). The `&Reference[...]`
  * enrichers in the source render as the bare condition names.
