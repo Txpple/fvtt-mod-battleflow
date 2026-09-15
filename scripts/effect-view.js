@@ -151,6 +151,7 @@ function ensureStyle() {
     #${ROOT_ID}-bar .bf-ev-list{flex-direction:row;flex-wrap:wrap;gap:5px}
     #${ROOT_ID}-bar .bf-ev-chip{padding:4px 9px 4px 5px} #${ROOT_ID}-bar .bf-ev-chip img{width:24px;height:24px}
     #${ROOT_ID}-bar.empty{display:none}
+    #${ROOT_ID}-bar.bare button.who{border-right:0;margin-right:0;padding-right:4px}
     #${ROOT_ID}-bar button{font:inherit;cursor:pointer}
     #${ROOT_ID}-bar button.who{background:none;border:0;border-right:1px solid #3a3f48;border-radius:0;text-align:left;color:inherit}
     #${ROOT_ID}-bar button.who:hover b,#${ROOT_ID}-bar button.who[aria-expanded="true"] b{color:#ffd7ad}
@@ -255,13 +256,16 @@ function drawBar() {
   }
   const actor = barActor();
   const rows = actor ? rowsOf(actor) : [];
-  bar.classList.toggle("empty", !actor || !rows.length);
+  // The bar stands whenever there is someone to stand for (user, 2026-09-15: "id like the bar to
+  // always appear ... the name only if theres no buff") — empty rows draw the name alone.
+  bar.classList.toggle("empty", !actor);
   if ( !actor ) return;
   const combat = game.combat?.started ? game.combat : null;
   const sub = combat ? `Round ${combat.round}${combat.combatant?.actor === actor ? " · your turn" : ""}` : "";
   const owner = actor.isOwner === true;
-  const body = rows.length ? rows.map(r => chipHTML(r, { button: owner })).join("") : `<span class="bf-ev-none">nothing on them</span>`;
-  bar.innerHTML = `<button type="button" class="who" aria-expanded="false" title="${owner ? "Every effect on " : ""}${esc(actor.name)}"><b>${esc(actor.name)}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</button><div class="bf-ev-list">${body}</div>`;
+  const body = rows.map(r => chipHTML(r, { button: owner })).join("");
+  bar.classList.toggle("bare", !rows.length);
+  bar.innerHTML = `<button type="button" class="who" aria-expanded="false" title="${owner ? "Every effect on " : ""}${esc(actor.name)}"><b>${esc(actor.name)}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</button>${rows.length ? `<div class="bf-ev-list">${body}</div>` : ""}`;
   bar.dataset.actor = actor.uuid;
   if ( !bar.dataset.wired ) { wireBar(bar); bar.dataset.wired = "1"; }
   const hotbar = document.getElementById("hotbar");
