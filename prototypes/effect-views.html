@@ -1,0 +1,277 @@
+<title>Effect Views</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
+<style>
+  :root{
+    --ground:#15171b; --canvas:#1e2126; --panel:#24272d; --panel-2:#2b2f36; --line:#3a3f48;
+    --ink:#e8e3d6; --ink-2:#b5b0a4; --ink-3:#7d7a72;
+    --good:rgb(70,150,95); --bad:rgb(180,70,60); --pending:rgb(222,120,40); --neutral:rgb(120,120,120); --mark:rgb(110,140,220);
+    --good-soft:rgba(70,150,95,.2); --bad-soft:rgba(180,70,60,.2); --pending-soft:rgba(222,120,40,.2); --neutral-soft:rgba(120,120,120,.16); --mark-soft:rgba(110,140,220,.2);
+    --font:"Signika",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45;color-scheme:dark}
+  .wrap{max-width:1380px;margin:0 auto;padding:22px 20px 40px}
+  header.top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+  header.top h1{margin:0;font-size:22px;font-weight:600}
+  header.top p{margin:0;color:var(--ink-2);max-width:64ch}
+  header.top p b{color:var(--ink);font-weight:600}
+  .eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+  .studio{display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start}
+  @media (max-width:980px){.studio{grid-template-columns:1fr}}
+
+  /* ---- the mock Foundry screen ---- */
+  .screen{position:relative;height:640px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--canvas)}
+  .map{position:absolute;inset:0;
+    background-image:radial-gradient(ellipse at 30% 40%,rgba(90,110,80,.22),transparent 55%),radial-gradient(ellipse at 70% 70%,rgba(120,90,60,.18),transparent 50%),
+      linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+    background-size:auto,auto,50px 50px,50px 50px}
+  .controls{position:absolute;left:10px;top:12px;display:flex;flex-direction:column;gap:6px}
+  .controls i{display:block;width:32px;height:32px;border-radius:4px;background:rgba(0,0,0,.45);border:1px solid var(--line)}
+  .sidebar{position:absolute;right:0;top:0;bottom:0;width:300px;background:#1a1c20;border-left:1px solid var(--line);display:flex;flex-direction:column}
+  .sidebar .tabs{display:flex;gap:2px;padding:6px;border-bottom:1px solid var(--line)}
+  .sidebar .tabs i{flex:1;height:22px;border-radius:3px;background:rgba(255,255,255,.06)}
+  .sidebar .tabs i.on{background:rgba(255,255,255,.14)}
+  .chat{flex:1;padding:8px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:8px 10px;font-size:12px;color:var(--ink-2)}
+  .card b{color:var(--ink);font-weight:600}
+  .card .row{display:flex;justify-content:space-between;gap:8px}
+  .hotbar{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);display:flex;gap:3px;padding:4px;background:rgba(0,0,0,.55);border:1px solid var(--line);border-radius:5px}
+  .hotbar i{display:block;width:44px;height:44px;border-radius:3px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
+
+  /* the combat tracker (the sidebar's combat tab) */
+  .trk{display:none;flex-direction:column;gap:0;padding:6px 8px;font-size:12px}
+  .trk .hd{display:flex;justify-content:space-between;padding:4px 2px 8px;color:var(--ink-2)}
+  .trk .hd b{color:var(--ink)}
+  .trk .cb{display:flex;flex-direction:column;gap:4px;padding:6px 6px;border-top:1px solid var(--line)}
+  .trk .cb.turn{background:rgba(255,158,61,.08);border-left:3px solid #ff9e3d;padding-left:4px}
+  .trk .cb .nm{display:flex;justify-content:space-between;align-items:center}
+  .trk .cb .nm b{color:var(--ink);font-weight:600}
+  .trk .cb .nm span{color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .trk .cb .chips{display:flex;flex-wrap:wrap;gap:3px}
+  .trk .icons{display:flex;gap:2px}
+  .trk .icons i{display:block;width:16px;height:16px;border-radius:2px;background:rgba(255,255,255,.14);border:1px solid var(--line)}
+
+  .token{position:absolute;width:50px;height:50px;border-radius:50%;border:3px solid;display:grid;place-items:center;font-weight:700;font-size:15px;color:#111;box-shadow:0 2px 8px rgba(0,0,0,.5);cursor:default}
+  .token.pc{background:#c9b98a;border-color:#6aa3ff}
+  .token.foe{background:#9a5a4a;border-color:#e0553f;color:#f4efe6}
+  .token .nm{position:absolute;top:100%;margin-top:4px;font-size:11px;font-weight:600;color:var(--ink);text-shadow:0 1px 2px #000;white-space:nowrap;left:50%;transform:translateX(-50%)}
+  .token.ctrl{outline:2px solid #ff9e3d;outline-offset:3px}
+
+  /* the platform's own token icons — the pile the user does not want */
+  .token .pile{position:absolute;left:-6px;top:-4px;display:none;flex-direction:column;gap:1px}
+  .token .pile i{display:block;width:13px;height:13px;border-radius:2px;background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.35)}
+  .screen[data-view="icons"] .token .pile{display:flex}
+
+  /* chips — one shape everywhere */
+  .chip{display:inline-flex;align-items:center;gap:5px;padding:2px 7px 2px 5px;border-radius:4px;border:1px solid var(--tone);background:var(--tone-soft);font-size:11px;line-height:1.3;white-space:nowrap;color:var(--ink)}
+  .chip .clk{color:var(--ink-2);font-size:10px}
+  .chip .clk::before{content:"◔ ";opacity:.7}
+  .chip.good{--tone:var(--good);--tone-soft:var(--good-soft)}
+  .chip.bad{--tone:var(--bad);--tone-soft:var(--bad-soft)}
+  .chip.pending{--tone:var(--pending);--tone-soft:var(--pending-soft)}
+  .chip.mark{--tone:var(--mark);--tone-soft:var(--mark-soft)}
+  .chip.spent{--tone:var(--neutral);--tone-soft:var(--neutral-soft);color:var(--ink-2)}
+  .chip.spent .nm{text-decoration:line-through;text-decoration-color:rgba(255,255,255,.35)}
+  .chip.hidden-on-token::after{content:"no icon";font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-left:2px}
+
+  /* 1 · hover card */
+  .hover{position:absolute;z-index:20;width:250px;background:#111317;border:1px solid var(--line);border-radius:5px;padding:8px 10px;box-shadow:0 8px 24px rgba(0,0,0,.6);display:none;pointer-events:none}
+  .hover.show{display:block}
+  .hover h4{margin:0 0 6px;font-size:12.5px;font-weight:600;display:flex;justify-content:space-between}
+  .hover h4 span{color:var(--ink-3);font-weight:400;font-size:11px}
+  .hover .list{display:flex;flex-direction:column;gap:3px}
+  .hover .list .chip{align-self:flex-start}
+  .hover .none{font-size:11.5px;color:var(--ink-3);font-style:italic}
+
+  /* 2 · hold-a-key overlay: one card beside every token */
+  .ov{position:absolute;z-index:15;display:none;flex-direction:column;gap:3px;padding:6px 8px;background:rgba(17,19,23,.94);border:1px solid var(--line);border-radius:5px;box-shadow:0 6px 18px rgba(0,0,0,.5)}
+  .ov .chip{align-self:flex-start}
+  .screen[data-view="overlay"].held .ov{display:flex}
+  .keyhint{position:absolute;left:52px;top:14px;z-index:16;font-size:11.5px;color:var(--ink-2);background:rgba(0,0,0,.55);border:1px solid var(--line);border-radius:4px;padding:4px 9px;display:none}
+  .keyhint kbd{font:inherit;font-size:11px;padding:0 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;background:var(--panel-2);color:var(--ink)}
+  .screen[data-view="overlay"] .keyhint{display:block}
+
+  /* 3 · count badge */
+  .badge{position:absolute;right:-8px;top:-8px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:#111317;border:1px solid var(--ink-2);color:var(--ink);font-size:11px;font-weight:700;display:none;place-items:center;font-variant-numeric:tabular-nums}
+  .badge.warn{border-color:var(--pending);color:#ffd7ad}
+  .screen[data-view="badge"] .badge{display:grid}
+
+  /* 5 · turn-start card */
+  .turncard{display:none}
+  .screen[data-view="turncard"] .turncard{display:block}
+  .turncard .chips{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
+  .screen[data-view="turncard"] .card.late{display:none}
+
+  /* ---- the controls panel ---- */
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px 14px 12px;display:flex;flex-direction:column;gap:14px;position:sticky;top:12px}
+  .panel h3{margin:0 0 6px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+  .opts{display:flex;flex-direction:column;gap:4px}
+  .opts button{font:inherit;text-align:left;font-size:12.5px;padding:7px 9px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-2);cursor:pointer;display:flex;flex-direction:column;gap:2px}
+  .opts button b{color:var(--ink);font-weight:600;font-size:13px}
+  .opts button small{font-size:11px;color:var(--ink-3)}
+  .opts button[aria-pressed="true"]{border-color:var(--ink);background:#30343b}
+  .opts button[aria-pressed="true"] small{color:var(--ink-2)}
+  .opts button:focus-visible{outline:2px solid var(--pending);outline-offset:1px}
+  .chrome{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:12px;color:var(--ink-2);align-items:baseline}
+  .chrome span:nth-child(odd){color:var(--ink-3);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase}
+  .chrome span b{color:var(--ink);font-weight:600}
+  .note{font-size:12px;color:var(--ink-2);margin:0;line-height:1.4}
+  .note b{color:var(--ink);font-weight:600}
+  .try{font:inherit;font-size:12.5px;padding:6px 10px;border-radius:4px;border:1px solid var(--pending);background:var(--pending-soft);color:var(--ink);cursor:pointer}
+  .try:focus-visible{outline:2px solid var(--pending);outline-offset:1px}
+
+  /* ---- questions to rule ---- */
+  .rule{margin-top:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+  .q{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+  .q h4{margin:0 0 4px;font-size:13.5px;font-weight:600}
+  .q p{margin:0;font-size:12.5px;color:var(--ink-2)}
+  .q .default{margin-top:6px;font-size:11.5px;color:var(--ink-3)}
+  .q .default b{color:var(--ink-2);font-weight:600}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Battle Flow · the chit layer, seen without a bar</div>
+      <h1>Effect views</h1>
+    </div>
+    <p>Every placement of the buff bar was chrome on the screen all the time. The need under it is narrower: <b>see every ActiveEffect on a creature, including the ones that paint no token icon.</b> Five ways to answer that with nothing standing on the canvas at rest, and the platform's own icon pile beside them for contrast. Same scenario as the bar: round 3, Ysolde's turn.</p>
+  </header>
+
+  <div class="studio">
+    <div class="screen" id="screen" data-view="hover">
+      <div class="map"></div>
+      <div class="controls"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="keyhint">Holding <kbd>Alt</kbd> — every creature's effects</div>
+
+      <div class="token pc ctrl" style="left:205px;top:300px" data-who="ysolde">Y<span class="nm">Ysolde</span><span class="badge warn">3</span><span class="pile"><i></i></span></div>
+      <div class="token pc" style="left:120px;top:400px" data-who="gren">G<span class="nm">Gren</span><span class="badge">2</span><span class="pile"><i></i><i></i></span></div>
+      <div class="token foe" style="left:340px;top:230px" data-who="boss">B<span class="nm">Goblin Boss</span><span class="badge">2</span><span class="pile"><i></i></span></div>
+      <div class="token foe" style="left:440px;top:390px" data-who="ogre">O<span class="nm">Ogre</span><span class="badge">1</span><span class="pile"></span></div>
+
+      <div class="ov" style="left:265px;top:296px" data-ov="ysolde"></div>
+      <div class="ov" style="left:180px;top:396px" data-ov="gren"></div>
+      <div class="ov" style="left:400px;top:226px" data-ov="boss"></div>
+      <div class="ov" style="left:500px;top:386px" data-ov="ogre"></div>
+
+      <div class="sidebar">
+        <div class="tabs" id="tabs"><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="chat" id="chat">
+          <div class="card turncard"><div class="row"><b>Ysolde — your turn</b><span>Round 3</span></div>What is on you, and what you have on others.<div class="chips" id="turnchips"></div></div>
+          <div class="card"><div class="row"><b>Ysolde — Shortsword</b><span>Attack</span></div>Advantage · Steady Aim · <b>hits</b> Goblin Boss (19 vs AC 17)</div>
+          <div class="card late"><div class="row"><b>Sneak Attack — 3d6</b><span>Damage</span></div>Cunning Strike: Trip (DC 14) — the Goblin Boss is <b>Prone</b>. 7 + 11 = <b>18</b></div>
+          <div class="card late"><div class="row"><b>Vex</b><span>Weapon Mastery</span></div>Advantage on Ysolde's next attack roll against the Goblin Boss before the end of her next turn.</div>
+        </div>
+        <div class="trk" id="trk">
+          <div class="hd"><b>Round 3</b><span>Ysolde's turn</span></div>
+          <div class="cb turn"><div class="nm"><b>Ysolde</b><span>17</span></div><div class="chips" data-trk="ysolde"></div></div>
+          <div class="cb"><div class="nm"><b>Goblin Boss</b><span>14</span></div><div class="chips" data-trk="boss"></div></div>
+          <div class="cb"><div class="nm"><b>Gren</b><span>12</span></div><div class="chips" data-trk="gren"></div></div>
+          <div class="cb"><div class="nm"><b>Ogre</b><span>6</span></div><div class="chips" data-trk="ogre"></div></div>
+        </div>
+      </div>
+
+      <div class="hotbar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="hover" id="hover"></div>
+    </div>
+
+    <aside class="panel">
+      <div>
+        <h3>The view</h3>
+        <div class="opts" id="opts">
+          <button data-v="hover" aria-pressed="true"><b>Hover card</b><small>Point at a token, its effects list appears. Nothing at rest.</small></button>
+          <button data-v="overlay" aria-pressed="false"><b>Hold a key</b><small>Hold Alt, every creature shows its list at once. Let go, gone.</small></button>
+          <button data-v="badge" aria-pressed="false"><b>Count badge</b><small>One number on the token; hover or click opens the list.</small></button>
+          <button data-v="tracker" aria-pressed="false"><b>Tracker chips</b><small>A chip line under each combatant in the combat tracker.</small></button>
+          <button data-v="turncard" aria-pressed="false"><b>Turn-start card</b><small>A chat card at each turn start: what is on you, what you hold on others.</small></button>
+          <button data-v="icons" aria-pressed="false"><b>Token icons</b><small>The platform's way — give every chip a status icon. The pile.</small></button>
+        </div>
+      </div>
+      <div id="try" hidden><button class="try" id="tryBtn">Hold Alt (click to toggle)</button></div>
+      <div>
+        <h3>What it costs the screen</h3>
+        <div class="chrome" id="chrome"></div>
+      </div>
+      <p class="note" id="viewnote"></p>
+    </aside>
+  </div>
+
+  <div class="rule">
+    <div class="q"><h4>Where does the list open?</h4><p>Hover and hold-key both read off the token; the tracker and the card read off the sidebar. They are not exclusive: one renderer, several triggers.</p><div class="default">Suggested pairing: <b>hover card + hold-key</b>, the same list two ways.</div></div>
+    <div class="q"><h4>Whose effects, and marks on others?</h4><p>Your own chips, the marks you hold on other creatures (Vex on the Boss), or both. The bar's unruled question, still open.</p><div class="default">Shown here: <b>own chips on every view; marks only on the turn card</b>.</div></div>
+    <div class="q"><h4>Platform conditions in or out?</h4><p>Prone already paints an icon. A list that repeats it is complete; a list that omits it is a Battle Flow list.</p><div class="default">Shown here: <b>in</b>, with "no icon" marked on the ones the token cannot show.</div></div>
+    <div class="q"><h4>What does a click do?</h4><p>Nothing, opens the sheet's effects tab, or the chip's own rule text popover.</p><div class="default">Suggested: <b>the rule text</b> (law 8, verbatim), like the popups.</div></div>
+  </div>
+</div>
+
+<script>
+  const EFFECTS = {
+    ysolde: { name: "Ysolde", sub: "Rogue 5", chips: [
+      { nm: "Steady Aim", cls: "spent", clk: "spent on this attack", noicon: true },
+      { nm: "Uncanny Dodge", cls: "pending", clk: "back at your next turn", noicon: true },
+      { nm: "Vexed (you → Goblin Boss)", cls: "mark", clk: "end of your next turn", mark: true }
+    ] },
+    gren: { name: "Gren", sub: "Fighter 5", chips: [
+      { nm: "Bless", cls: "good", clk: "9 rounds" },
+      { nm: "Second Wind used", cls: "spent", clk: "short rest", noicon: true }
+    ] },
+    boss: { name: "Goblin Boss", sub: "", chips: [
+      { nm: "Prone", cls: "bad", clk: "until it stands" },
+      { nm: "Vexed by Ysolde", cls: "mark", clk: "end of her next turn", noicon: true }
+    ] },
+    ogre: { name: "Ogre", sub: "", chips: [
+      { nm: "Slowed", cls: "bad", clk: "start of Gren's next turn", noicon: true }
+    ] }
+  };
+  const CHROME = {
+    hover:    { rest: "nothing", trigger: "mouse over a token", covers: "one creature at a time", note: "The lightest answer. It rides Foundry's own tooltip timing, so it costs a hover — a keyboard user needs the badge or the key." },
+    overlay:  { rest: "nothing", trigger: "hold Alt", covers: "every creature on the scene", note: "Foundry already uses a held Alt to highlight objects; this answers it with the lists. A GM reads the whole board in one gesture." },
+    badge:    { rest: "one number per token", trigger: "hover or click the badge", covers: "one creature", note: "The smallest thing that is always on. It says THAT there are effects without saying what; the count going orange means one of them is a pending decision." },
+    tracker:  { rest: "a chip line per combatant", trigger: "none — it is the tracker", covers: "everyone in the combat", note: "Uses chrome that is already open in a fight. Out of combat it shows nothing, which is honest: the chips that matter are combat chips." },
+    turncard: { rest: "a card in the log", trigger: "the turn starts", covers: "the one whose turn it is", note: "The reminder machine already posts at turn start. A player reads it once, at the moment it matters; it does not follow them around." },
+    icons:    { rest: "an icon per effect, on the token", trigger: "none", covers: "everyone", note: "The platform's answer, and the reason for the question: the pile crowds the token and still cannot show a chip that has no status." }
+  };
+  const screen = document.getElementById("screen");
+  const chip = c => `<span class="chip ${c.cls}${c.noicon ? " hidden-on-token" : ""}"><span class="nm">${c.nm}</span><span class="clk">${c.clk}</span></span>`;
+  const own = who => EFFECTS[who].chips.filter(c => !c.mark);
+
+  // fill every surface once; the view only decides what is visible
+  for ( const who of Object.keys(EFFECTS) ) {
+    document.querySelector(`[data-ov="${who}"]`).innerHTML = own(who).map(chip).join("");
+    document.querySelector(`[data-trk="${who}"]`).innerHTML = own(who).map(chip).join("");
+  }
+  document.getElementById("turnchips").innerHTML = EFFECTS.ysolde.chips.map(chip).join("");
+
+  const hover = document.getElementById("hover");
+  for ( const t of document.querySelectorAll(".token") ) {
+    t.addEventListener("mouseenter", () => {
+      const v = screen.dataset.view;
+      if ( v !== "hover" && v !== "badge" ) return;
+      const who = t.dataset.who, e = EFFECTS[who], list = own(who);
+      hover.innerHTML = `<h4>${e.name} <span>${list.length} effect${list.length === 1 ? "" : "s"}</span></h4><div class="list">${list.length ? list.map(chip).join("") : '<span class="none">nothing on them</span>'}</div>`;
+      hover.style.left = `${t.offsetLeft + 62}px`; hover.style.top = `${t.offsetTop - 6}px`;
+      hover.classList.add("show");
+    });
+    t.addEventListener("mouseleave", () => hover.classList.remove("show"));
+  }
+
+  const opts = document.getElementById("opts"), chrome = document.getElementById("chrome"), note = document.getElementById("viewnote"), tryBox = document.getElementById("try");
+  const tabs = document.getElementById("tabs").children, chat = document.getElementById("chat"), trk = document.getElementById("trk");
+  function setView(v) {
+    screen.dataset.view = v; screen.classList.remove("held");
+    for ( const b of opts.querySelectorAll("button") ) b.setAttribute("aria-pressed", String(b.dataset.v === v));
+    const c = CHROME[v];
+    chrome.innerHTML = `<span>at rest</span><span><b>${c.rest}</b></span><span>trigger</span><span>${c.trigger}</span><span>covers</span><span>${c.covers}</span>`;
+    note.textContent = c.note;
+    tryBox.hidden = v !== "overlay";
+    const inTracker = v === "tracker";
+    chat.style.display = inTracker ? "none" : "flex"; trk.style.display = inTracker ? "flex" : "none";
+    tabs[0].classList.toggle("on", !inTracker); tabs[1].classList.toggle("on", inTracker);
+    hover.classList.remove("show");
+  }
+  opts.addEventListener("click", e => { const b = e.target.closest("button"); if ( b ) setView(b.dataset.v); });
+  document.getElementById("tryBtn").addEventListener("click", () => screen.classList.toggle("held"));
+  document.addEventListener("keydown", e => { if ( e.key === "Alt" && screen.dataset.view === "overlay" ) { e.preventDefault(); screen.classList.add("held"); } });
+  document.addEventListener("keyup", e => { if ( e.key === "Alt" ) screen.classList.remove("held"); });
+  setView("hover");
+</script>

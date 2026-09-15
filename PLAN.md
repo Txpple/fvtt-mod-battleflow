@@ -1192,7 +1192,8 @@ Genuinely small — the source is clean.
 ## Phase 2 — Extract the DECISION layer
 
 **This is the phase that matters.** It is simultaneously the refactor, the test strategy, and
-the thing that makes the chit layer reachable — and it changes no behaviour.
+the thing that made the chit layer reachable (a direction since retired — DESIGN §6, 2026-09-15) —
+and it changes no behaviour.
 
 ### The problem, measured
 
@@ -1733,7 +1734,12 @@ stabilization pass.
 
 ## The chit layer — readiness, not work
 
-No chit work is scheduled ([DESIGN.md §6](DESIGN.md)). The obligation on this pass is only to
+> ⚠ **RETIRED 2026-09-15** (user: *"we just need to show debuffs and buffs. not avail actions"*):
+> the chit layer left DESIGN §6, replaced by the effect view. The three properties below were
+> delivered by this pass and stay true because they are good architecture on their own; nothing
+> waits on them any more. Kept as the record of why they were built.
+
+No chit work was scheduled ([DESIGN.md §6](DESIGN.md)). The obligation on this pass was only to
 leave three properties true, and every phase above happens to strengthen them:
 
 1. **Every spendable thing is a registry entry** — Phase 3.

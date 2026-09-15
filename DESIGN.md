@@ -213,34 +213,34 @@ An icon vanishing must never be a mystery; a wrong-target hit must never need su
 
 ---
 
-## 6. The future: the chit layer
+## 6. The effect view, and the feature rulings
 
-A **later** direction, recorded here so the architecture does not foreclose it, and explicitly
-**not** current work.
+**The effect view (user ruling 2026-09-15): buffs and debuffs, visible on demand — never actions.**
+A creature can carry more ActiveEffects than its token shows: most of the module's chips (Steady
+Aim, Vexed, Sapped, Slowed, an armed Cleave, a used reaction) carry no status and paint no icon,
+so the sheet knows things the table cannot see. What is wanted is **every effect on a creature
+visible when someone asks, the icon-less ones included, with nothing standing on the canvas at
+rest.** The user (2026-09-15): *"we just need to show debuffs and buffs. not avail actions."*
 
-The end state is a turn-based interaction surface where a player acts through the **chits
-associated with their character** — their reactions, their maneuvers, their masteries, their
-limited-use resources — presented as a set of live, spendable things rather than as a sheet to
-search. The table moment stops being "a popup appears when the module needs an answer" and
-becomes "here is everything you could spend right now, and what it would do."
+**What this replaces.** Until 2026-09-15 this section carried **the chit layer** — a later
+direction where a player would act through the spendable things tied to their character
+(reactions, maneuvers, masteries, uses) presented as live chits, with a **buff bar** as its
+candidate first slice (prototyped 2026-09-03, parked, `prototypes/buff-bar.html`). Both are
+**retired on the user's word**: every placement of the bar was chrome on the screen all the time,
+and the spendable surface was never the need. The three properties the chit layer asked the
+architecture to keep (every spendable thing a registry entry, R4; every moment one shape on the
+spine; the popup a view and the flag the state, R2) are kept anyway — they are the module's own
+rules, not the chit layer's — and nothing waits on them.
 
-What today's work must preserve for that to be reachable:
-
-- **Every spendable thing is already a registry entry** (R4), so a chit surface is a *view over
-  the registries*, not a second inventory.
-- **Every moment already declares its subject, its options, its clock and its answer channels**
-  in one shape (the moment spine), so a chit is a moment rendered differently.
-- **Nothing is keyed to a popup.** The popup is a view; the flag is the state (R2).
-
-No chit work is scheduled. The obligation on current work is only to keep those three
-properties true.
-
-**A candidate first slice is a buff bar** (user, 2026-09-03): a strip of the character's live
-chips — Steady Aim, Vexed, Cleave armed, the mastery marks — read off the sheet, so the buffs
-the gate already reads are visible without a token icon per chip crowding the canvas. A view
-over what already exists, no new state; the spendable chits join the same strip later.
-⚠ **Prototyped the same day and PARKED, not sold** (`prototypes/buff-bar.html`; BACKLOG carries
-the six open questions). It is a candidate, not the plan.
+**The candidates**, drawn in place on the mock table 2026-09-14 (`prototypes/effect-views.html`):
+a **hover card** on the token; a **held Alt** that shows every creature's list at once and clears
+on release (Foundry's own highlight gesture); a **count badge** on the token that opens the list;
+**chip lines in the combat tracker**; a **turn-start card** in the log; and the platform's own
+token-icon pile beside them for contrast. The suggested shape is one renderer with two triggers —
+the hover card for a player, the held key for the table — since neither adds anything at rest.
+Four questions wait on a ruling before any go: where the list opens; whether marks held on
+others (Vex on the Boss) belong in it; whether platform conditions that already paint an icon
+are in or out; what a click does. **Not scheduled.**
 
 ### Where a chip belongs on the sheet (user rule, 2026-09-01)
 
