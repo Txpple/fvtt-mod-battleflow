@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { effectRows, listed, marksHeldBy, toneOf } from "../scripts/decide/effect-view.js";
+import {
+  allRows,
+  effectRows,
+  listed,
+  marksHeldBy,
+  sheetRows,
+  toneOf
+} from "../scripts/decide/effect-view.js";
 
 const fact = (over = {}) => ({
   id: "e1",
@@ -82,5 +89,32 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
     expect(held).toHaveLength(1);
     expect(held[0]).toMatchObject({ name: "Sapped", bearer: "Goblin Boss", tone: "debuff" });
     expect(marksHeldBy(null, [])).toEqual([]);
+  });
+
+  it("the sheet rows: temp HP and Heroic Inspiration are buffs read off the sheet, not effects (user, 2026-09-15)", () => {
+    expect(sheetRows({ tempHp: 3, inspiration: false })).toMatchObject([
+      {
+        id: "sheet:tempHp",
+        name: "Temporary HP",
+        detail: "3",
+        tone: "buff",
+        clock: "",
+        noIcon: false
+      }
+    ]);
+    expect(sheetRows({ tempHp: 0, inspiration: true }).map(r => r.name)).toEqual([
+      "Heroic Inspiration"
+    ]);
+    expect(sheetRows({ tempHp: 0, inspiration: false })).toEqual([]);
+    expect(sheetRows({})).toEqual([]);
+    expect(sheetRows({ tempHp: null, inspiration: "yes" })).toEqual([]);
+  });
+
+  it("allRows: the effects first (debuffs, then buffs), then the sheet's own buffs", () => {
+    const rows = allRows([fact(), fact({ id: "p", name: "Prone", statuses: ["prone"] })], {
+      tempHp: 5,
+      inspiration: true
+    });
+    expect(rows.map(r => r.name)).toEqual(["Prone", "Bless", "Temporary HP", "Heroic Inspiration"]);
   });
 });

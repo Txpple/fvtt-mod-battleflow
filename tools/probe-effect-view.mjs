@@ -43,12 +43,21 @@ const out = await f.evaluate(async () => {
     await sleep(300);
     report.facts = [...invictus.allApplicableEffects()].filter(e => e.isTemporary || e.statuses.size).map(e => ({ name: e.name, active: e.active, temporary: e.isTemporary, statuses: [...e.statuses], label: e.duration?.label ?? null }));
 
+    // THE SHEET ROWS: temp HP and Heroic Inspiration are numbers on the sheet, not effects
+    const priorSheet = { temp: invictus.system.attributes.hp.temp, insp: invictus.system.attributes.inspiration };
+    await invictus.update({ "system.attributes.hp.temp": 7, "system.attributes.inspiration": true });
+    report.priorSheet = priorSheet;
+
     // THE BAR: control the token, the strip draws for him
     token.control({ releaseOthers: true });
     const bar = await until(() => { const b = document.getElementById("bf-effect-view-bar"); return (b && !b.classList.contains("empty") && b.querySelector(".bf-ev-chip")) ? b : null; });
     const barNames = bar ? [...bar.querySelectorAll(".bf-ev-chip .nm")].map(n => n.textContent) : [];
     ok("1. the bar draws above the hotbar for the controlled token: Prone (debuff) first, Bless and the applied Death Armor listed, the worn Cloak not",
       !!bar && (barNames[0] === "Prone") && barNames.includes("Bless") && barNames.includes("Death Armor") && !barNames.some(n => n.startsWith("Bonus AC")), `chips=${JSON.stringify(barNames)}`);
+    const tempChip = bar ? [...bar.querySelectorAll(".bf-ev-chip")].find(c => c.querySelector(".nm")?.textContent === "Temporary HP") : null;
+    ok("1e. the sheet rows — Temporary HP 7 and Heroic Inspiration listed as buffs, after the effects, with no clock glyph",
+      !!tempChip && (tempChip.querySelector(".dtl")?.textContent === "7") && !tempChip.querySelector(".clk") && barNames.includes("Heroic Inspiration")
+        && (barNames.indexOf("Temporary HP") > barNames.indexOf("Bless")), `chips=${JSON.stringify(barNames)} detail=${tempChip?.querySelector(".dtl")?.textContent}`);
     const hot = document.getElementById("hotbar")?.getBoundingClientRect(), br = bar?.getBoundingClientRect();
     ok("1b. it sits above the hotbar", !!hot && !!br && (br.bottom <= hot.top), `bar.bottom=${br?.bottom} hotbar.top=${hot?.top}`);
     const tagged = bar ? [...bar.querySelectorAll(".bf-ev-chip")].filter(c => c.querySelector("em")).map(c => c.querySelector(".nm").textContent) : [];
@@ -89,6 +98,7 @@ const out = await f.evaluate(async () => {
   } finally {
     try { for ( const c of document.querySelectorAll(".bf-ev-card") ) c.remove(); } catch { /* fine */ }
     try { const ids = made.map(e => e.id).filter(id => invictus.effects.get(id)); if ( ids.length ) await invictus.deleteEmbeddedDocuments("ActiveEffect", ids); } catch(err) { report.log.push(`cleanup effects: ${err?.message}`); }
+    try { if ( report.priorSheet ) await invictus.update({ "system.attributes.hp.temp": report.priorSheet.temp ?? 0, "system.attributes.inspiration": report.priorSheet.insp ?? false }); } catch(err) { report.log.push(`cleanup sheet: ${err?.message}`); }
     try { canvas.tokens?.releaseAll?.(); } catch { /* fine */ }
     try { if ( placed.length ) await scene.deleteEmbeddedDocuments("Token", placed); } catch(err) { report.log.push(`cleanup tokens: ${err?.message}`); }
     try { await game.settings.set(MOD, "effectBar", priorBar); await game.settings.set(MOD, "effectHover", priorHover); } catch { /* fine */ }

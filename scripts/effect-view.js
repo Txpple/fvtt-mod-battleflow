@@ -17,7 +17,7 @@
  */
 import { MODULE_ID, S, setting } from "./core.js";
 import { CHIP_FLAG } from "./decide/chips.js";
-import { effectRows, marksHeldBy } from "./decide/effect-view.js";
+import { allRows, marksHeldBy } from "./decide/effect-view.js";
 
 const ROOT_ID = "bf-effect-view";
 
@@ -48,6 +48,15 @@ function factsOf(actor) {
   return effects.map(factOf);
 }
 
+/** The sheet's own buffs that are numbers, not effects: temp HP and Heroic Inspiration. */
+function sheetOf(actor) {
+  const attrs = actor?.system?.attributes ?? {};
+  return { tempHp: Number(attrs.hp?.temp) || 0, inspiration: attrs.inspiration === true };
+}
+
+/** Every row for an actor — the effects and the sheet rows. */
+const rowsOf = actor => allRows(factsOf(actor), sheetOf(actor));
+
 /** The marks this actor holds on the other creatures on the scene (question 2, drafted in). */
 function marksOf(actor) {
   const others = [];
@@ -66,13 +75,13 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 function chipHTML(row) {
   const icon = row.img ? `<img src="${esc(row.img)}" alt="">` : "";
   const tag = row.noIcon ? `<em title="This effect paints no icon on the token">no icon</em>` : "";
-  const clock = row.clock ? `<span class="clk">${esc(row.clock)}</span>` : "";
+  const clock = row.clock ? `<span class="clk">${esc(row.clock)}</span>` : (row.detail ? `<span class="dtl">${esc(row.detail)}</span>` : "");
   return `<span class="bf-ev-chip ${row.tone}" title="${esc(row.name)}">${icon}<span class="txt"><span class="nm">${esc(row.name)}</span>${clock}</span>${tag}</span>`;
 }
 
 /** The list for one actor: debuffs, buffs, and (for the hover card) the marks it holds. */
 function listHTML(actor, { withMarks = false } = {}) {
-  const rows = effectRows(factsOf(actor));
+  const rows = rowsOf(actor);
   const marks = withMarks ? marksOf(actor) : [];
   const body = rows.length ? rows.map(chipHTML).join("") : `<span class="bf-ev-none">nothing on them</span>`;
   const held = marks.length
@@ -97,6 +106,7 @@ function ensureStyle() {
     .bf-ev-chip img{width:18px;height:18px;border-radius:3px;border:0;flex:none;filter:drop-shadow(0 0 1px #000)}
     .bf-ev-chip .txt{display:flex;flex-direction:column} .bf-ev-chip .nm{font-weight:600;font-size:11.5px} .bf-ev-chip .clk{font-size:10px;color:#b5b0a4}
     .bf-ev-chip .clk::before{content:"◔ ";opacity:.7}
+    .bf-ev-chip .dtl{font-size:11px;color:#e8e3d6;font-weight:700;font-variant-numeric:tabular-nums}
     .bf-ev-chip em{font-style:normal;font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#7d7a72;margin-left:2px}
     #${ROOT_ID}-bar{position:fixed;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:6px;padding:5px 7px;background:rgba(20,22,26,.92);border:1px solid #3a3f48;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.45);max-width:min(900px,calc(100vw - 340px));font-size:12px;color:#b5b0a4}
     #${ROOT_ID}-bar .who{display:flex;flex-direction:column;padding:0 8px 0 4px;border-right:1px solid #3a3f48;margin-right:2px;line-height:1.15}
@@ -123,7 +133,7 @@ function showHover(token) {
   const card = document.createElement("div");
   card.className = "bf-ev-card";
   card.dataset.token = token.id;
-  const rows = effectRows(factsOf(actor));
+  const rows = rowsOf(actor);
   card.innerHTML = `<h4>${esc(token.name)} <span>${rows.length} effect${rows.length === 1 ? "" : "s"}</span></h4>${listHTML(actor, { withMarks: true })}`;
   placeBeside(card, token);
   document.body.appendChild(card);
@@ -155,7 +165,7 @@ function showOverlay() {
   clearOverlay();
   for ( const token of (canvas.tokens?.placeables ?? []) ) {
     if ( !token.actor || !token.visible ) continue;
-    const rows = effectRows(factsOf(token.actor));
+    const rows = rowsOf(token.actor);
     if ( !rows.length ) continue;
     const card = document.createElement("div");
     card.className = "bf-ev-card";
@@ -190,7 +200,7 @@ function drawBar() {
     document.body.appendChild(bar);
   }
   const actor = barActor();
-  const rows = actor ? effectRows(factsOf(actor)) : [];
+  const rows = actor ? rowsOf(actor) : [];
   bar.classList.toggle("empty", !actor || !rows.length);
   if ( !actor ) return;
   const combat = game.combat?.started ? game.combat : null;
@@ -210,6 +220,7 @@ function redrawBar() {
 
 Hooks.on("canvasReady", redrawBar);
 Hooks.on("controlToken", redrawBar);
+Hooks.on("updateActor", redrawBar);          // temp HP and inspiration live on the actor
 Hooks.on("createActiveEffect", redrawBar);
 Hooks.on("updateActiveEffect", redrawBar);
 Hooks.on("deleteActiveEffect", redrawBar);

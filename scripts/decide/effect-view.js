@@ -43,6 +43,7 @@ export const MARK_KEYS = Object.freeze(["vex", "sap", "slow"]);
  * @property {string|null} img
  * @property {"buff"|"debuff"} tone
  * @property {string} clock
+ * @property {string} [detail]      a value beside the name with no clock glyph (the sheet rows)
  * @property {boolean} noIcon       the token cannot show this one
  */
 
@@ -72,6 +73,27 @@ export function effectRows(facts) {
     noIcon: f.temporary !== true && !(f.statuses ?? []).length
   }));
   return [...rows.filter(r => r.tone === "debuff"), ...rows.filter(r => r.tone === "buff")];
+}
+
+/**
+ * THE SHEET ROWS (user, 2026-09-15: "temp hps would be a good buff ... its not listed in effects tho"):
+ * two buffs dnd5e keeps as NUMBERS on the sheet, never as effects — Temporary HP and Heroic
+ * Inspiration. Read off the sheet, listed as buffs with no clock and no source (the sheet does not
+ * record where the temp HP came from, so the row says only what the sheet says). Not effects, so
+ * the no-icon tag does not apply to them.
+ * @param {{tempHp?: number|null, inspiration?: boolean}} sheet
+ * @returns {EffectRow[]}
+ */
+export function sheetRows({ tempHp = null, inspiration = false } = {}) {
+  const rows = [];
+  if ( Number.isFinite(tempHp) && tempHp > 0 ) rows.push({ id: "sheet:tempHp", name: "Temporary HP", img: "icons/svg/regen.svg", tone: "buff", clock: "", detail: String(tempHp), noIcon: false });
+  if ( inspiration === true ) rows.push({ id: "sheet:inspiration", name: "Heroic Inspiration", img: "icons/svg/sun.svg", tone: "buff", clock: "", detail: "", noIcon: false });
+  return rows;
+}
+
+/** Every row for one creature: the effects (debuffs, then buffs), then the sheet's own buffs. */
+export function allRows(facts, sheet) {
+  return [...effectRows(facts), ...sheetRows(sheet)];
 }
 
 /**

@@ -209,6 +209,7 @@ hoverToken	effect-view.js
 highlightObjects	effect-view.js
 canvasReady	effect-view.js
 controlToken	effect-view.js
+updateActor	effect-view.js
 createActiveEffect	effect-view.js
 updateActiveEffect	effect-view.js
 deleteActiveEffect	effect-view.js
