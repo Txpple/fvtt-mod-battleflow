@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   allRows,
+  changeSign,
   effectRows,
   everyRow,
   listed,
@@ -40,11 +41,106 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
     expect(listed(fact({ temporary: false, worn: true, statuses: ["poisoned"] }))).toBe(true);
   });
 
-  it("tones a condition and a module mark as a debuff, everything else as a buff (draft heuristic)", () => {
+  it("tones a condition and a module mark as a debuff", () => {
     expect(toneOf(fact({ statuses: ["prone"] }))).toBe("debuff");
     expect(toneOf(fact({ name: "Sapped", chipKey: "sap" }))).toBe("debuff");
     expect(toneOf(fact({ name: "Cleave", chipKey: "cleave" }))).toBe("buff");
     expect(toneOf(fact())).toBe("buff");
+  });
+
+  it("reads a change's sign: a subtraction, a halving, a downgrade or disadvantage is a penalty; the mirror is a bonus", () => {
+    expect(changeSign({ key: "system.attributes.ac.bonus", mode: 2, value: "-2" })).toBe("penalty");
+    expect(changeSign({ key: "system.attributes.ac.bonus", mode: 2, value: "+2" })).toBe("bonus");
+    expect(changeSign({ key: "system.attributes.movement.walk", mode: 1, value: "0.5" })).toBe(
+      "penalty"
+    );
+    expect(changeSign({ key: "system.attributes.movement.walk", mode: 1, value: "2" })).toBe(
+      "bonus"
+    );
+    expect(changeSign({ key: "system.attributes.ac.value", mode: 3, value: "10" })).toBe("penalty");
+    expect(changeSign({ key: "system.attributes.ac.value", mode: 4, value: "16" })).toBe("bonus");
+    expect(changeSign({ key: "flags.dnd5e.disadvantage.attack.all", mode: 5, value: "1" })).toBe(
+      "penalty"
+    );
+    expect(changeSign({ key: "flags.dnd5e.advantage.save.all", mode: 5, value: "1" })).toBe(
+      "bonus"
+    );
+    expect(
+      changeSign({ key: "system.attributes.senses.darkvision", mode: 5, value: "60" })
+    ).toBeNull();
+    expect(
+      changeSign({ key: "system.attributes.ac.bonus", mode: 2, value: "@abilities.str.mod" })
+    ).toBeNull();
+    expect(changeSign(null)).toBeNull();
+  });
+
+  it("THE PATTERN (user, 2026-09-15, the Miasma's Damaged: -2 AC): a penalty in the changes is a debuff, a penalty outranks a bonus", () => {
+    expect(
+      toneOf(
+        fact({
+          name: "Damaged: -2 AC",
+          changes: [{ key: "system.attributes.ac.bonus", mode: 2, value: "-2" }]
+        })
+      )
+    ).toBe("debuff");
+    expect(
+      toneOf(
+        fact({
+          name: "Blessed",
+          changes: [{ key: "system.bonuses.All-Attacks", mode: 2, value: "1d4" }]
+        })
+      )
+    ).toBe("buff");
+    expect(
+      toneOf(
+        fact({
+          name: "Haste",
+          changes: [
+            { key: "system.attributes.ac.bonus", mode: 2, value: "2" },
+            { key: "system.attributes.movement.walk", mode: 1, value: "2" }
+          ]
+        })
+      )
+    ).toBe("buff");
+    expect(
+      toneOf(
+        fact({
+          name: "Slow",
+          changes: [
+            { key: "system.attributes.movement.walk", mode: 1, value: "0.5" },
+            { key: "system.attributes.ac.bonus", mode: 2, value: "-2" }
+          ]
+        })
+      )
+    ).toBe("debuff");
+    expect(
+      toneOf(
+        fact({
+          name: "Mixed",
+          changes: [
+            { key: "system.attributes.ac.bonus", mode: 2, value: "2" },
+            { key: "system.attributes.hp.tempmax", mode: 2, value: "-5" }
+          ]
+        })
+      )
+    ).toBe("debuff");
+  });
+
+  it("with no readable change, who put it there decides: an enemy's marker is a debuff, an ally's or your own a buff", () => {
+    expect(toneOf(fact({ name: "Hunter's Mark", changes: [], hostileOrigin: true }))).toBe(
+      "debuff"
+    );
+    expect(toneOf(fact({ name: "Hunter's Mark", changes: [], hostileOrigin: false }))).toBe("buff");
+    expect(toneOf(fact({ name: "Death Armor", changes: [], hostileOrigin: null }))).toBe("buff");
+    // a readable change outranks the side: an enemy's accidental buff stays a buff
+    expect(
+      toneOf(
+        fact({
+          changes: [{ key: "system.attributes.ac.bonus", mode: 2, value: "1" }],
+          hostileOrigin: true
+        })
+      )
+    ).toBe("buff");
   });
 
   it("tags the rows the token cannot paint: clockless and status-less (measured 2026-09-15)", () => {

@@ -7,10 +7,9 @@
  * which effects are listed, what each row says, and how it is toned.
  *
  * ⚠ DRAFT HEURISTICS (2026-09-15, on the branch) — two calls the user has not ruled:
- *   - TONE: a platform condition (the effect carries a status) or one of the module's own marks
- *     on a victim (Vexed, Sapped, Slowed) is a DEBUFF; everything else temporary is shown as a
- *     BUFF. Hunter's Mark on a target is the case this gets wrong — no status, not a module mark,
- *     yet a debuff. A data rule (a list, R4) is the honest fix if the user wants it right.
+ *   - TONE: ruled 2026-09-15 as a PATTERN, not a list (`toneOf` below): a condition or a module
+ *     mark; else what the effect's CHANGES do to the numbers (a penalty is a debuff); else who
+ *     put it there (an enemy's is a debuff); else a buff. Found on the Miasma's "Damaged: −2 AC".
  *   - NO ICON: measured on the sandbox 2026-09-15 (Foundry 14.365): the token paints an icon for
  *     a CLOCKED effect (Bless, a mastery mark) and for a condition (Prone); an applied effect with
  *     no clock (Death Armor, Healed by Prayer) paints nothing. Those are the rows tagged.
@@ -36,6 +35,8 @@ export const MARK_KEYS = Object.freeze(["vex", "sap", "slow"]);
  * @property {string|null} origin    the effect's origin uuid, if any
  * @property {boolean} [onItem]      the effect document belongs to an item on the sheet, not the actor
  * @property {boolean} [disabled]    the sheet's own toggle is OFF (distinct from suppressed: `active` false with the toggle on)
+ * @property {{key: string, mode: number, value: string|number}[]} [changes]  the effect's own changes
+ * @property {boolean|null} [hostileOrigin]  the origin's creature stands on the other side from the bearer; null when unknown
  */
 
 /*
@@ -60,10 +61,51 @@ export function listed(fact) {
   return fact.temporary === true || (fact.statuses ?? []).length > 0 || fact.worn !== true;
 }
 
-/** @param {EffectFact} fact @returns {"buff"|"debuff"} */
+/** Foundry's ActiveEffect change modes, by number — the decision layer imports nothing. */
+const MODE = Object.freeze({ CUSTOM: 0, MULTIPLY: 1, ADD: 2, DOWNGRADE: 3, UPGRADE: 4, OVERRIDE: 5 });
+
+/**
+ * What one change does to the creature: a penalty, a bonus, or nothing readable.
+ * A penalty is a subtraction (ADD of a negative number), a halving (MULTIPLY below one), a
+ * DOWNGRADE, or a disadvantage flag. A bonus is the mirror. OVERRIDE and CUSTOM say nothing.
+ * @param {{key?: string, mode?: number, value?: string|number}} change
+ * @returns {"penalty"|"bonus"|null}
+ */
+export function changeSign(change) {
+  if ( !change ) return null;
+  const key = String(change.key ?? "").toLowerCase();
+  if ( /disadvantage/.test(key) ) return "penalty";
+  if ( /advantage/.test(key) ) return "bonus";
+  const mode = Number(change.mode);
+  if ( mode === MODE.DOWNGRADE ) return "penalty";
+  if ( mode === MODE.UPGRADE ) return "bonus";
+  const n = Number(String(change.value ?? "").trim());
+  if ( !Number.isFinite(n) ) return null;
+  if ( mode === MODE.ADD ) return n < 0 ? "penalty" : (n > 0 ? "bonus" : null);
+  if ( mode === MODE.MULTIPLY ) return n < 1 ? "penalty" : (n > 1 ? "bonus" : null);
+  return null;
+}
+
+/**
+ * THE TONE (user, 2026-09-15, the Miasma's "Damaged: −2 AC" drawn green: "look for the pattern to
+ * fix this, so it catches other cases"). Four signals, in order:
+ *   1. a condition (a status) is a debuff; one of the module's marks on a victim is a debuff;
+ *   2. the effect's own CHANGES — any penalty (a subtraction, a halving, a downgrade, a
+ *      disadvantage flag) makes it a debuff, else any bonus makes it a buff. A penalty outranks
+ *      a bonus when both appear: a thing that costs you is worth the red;
+ *   3. WHO PUT IT THERE — an effect whose origin is a creature on the other side (hostile to the
+ *      bearer) is a debuff; a marker with no readable change, like Hunter's Mark on the target,
+ *      lands here;
+ *   4. else a buff — the effect's own cast, an ally's, a worn thing.
+ * @param {EffectFact} fact @returns {"buff"|"debuff"}
+ */
 export function toneOf(fact) {
   if ( (fact.statuses ?? []).length ) return "debuff";
   if ( fact.chipKey && MARK_KEYS.includes(fact.chipKey) ) return "debuff";
+  const signs = (fact.changes ?? []).map(changeSign).filter(Boolean);
+  if ( signs.includes("penalty") ) return "debuff";
+  if ( signs.includes("bonus") ) return "buff";
+  if ( fact.hostileOrigin === true ) return "debuff";
   return "buff";
 }
 

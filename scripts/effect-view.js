@@ -34,6 +34,28 @@ function clockLabel(effect) {
   return (!label || /^none$/i.test(label)) ? "" : label;
 }
 
+/** A creature's side, as its token on the scene says it (else its prototype): 1 friendly, 0 neutral, −1 hostile. */
+function sideOf(actor) {
+  if ( !actor ) return null;
+  const onScene = canvas.tokens?.placeables?.find(t => t.actor === actor)?.document;
+  const d = onScene?.disposition ?? actor.prototypeToken?.disposition;
+  return Number.isFinite(d) ? d : null;
+}
+
+/** Does the effect's origin stand on the OTHER side from its bearer? Null when either side is unknown. */
+function hostileOriginOf(effect) {
+  try {
+    const bearer = (effect.parent instanceof Actor) ? effect.parent : effect.parent?.actor ?? null;
+    if ( !bearer || !effect.origin ) return null;
+    const origin = fromUuidSync(effect.origin, { strict: false });
+    const source = (origin instanceof Actor) ? origin : (origin?.actor instanceof Actor ? origin.actor : null);
+    if ( !source || (source === bearer) ) return source ? false : null;
+    const a = sideOf(bearer), b = sideOf(source);
+    if ( (a === null) || (b === null) ) return null;
+    return (a * b) < 0;   // friendly against hostile, either way round; neutral is nobody's enemy
+  } catch { return null; }
+}
+
 /** One effect as the decision layer wants it. */
 function factOf(effect) {
   return {
@@ -45,7 +67,9 @@ function factOf(effect) {
     statuses: [...(effect.statuses ?? [])],
     chipKey: effect.getFlag?.(MODULE_ID, CHIP_FLAG) ?? null,
     clock: clockLabel(effect),
-    origin: typeof effect.origin === "string" ? effect.origin : null
+    origin: typeof effect.origin === "string" ? effect.origin : null,
+    changes: (effect.changes ?? []).map(c => ({ key: c.key, mode: c.mode, value: c.value })),
+    hostileOrigin: hostileOriginOf(effect)
   };
 }
 
