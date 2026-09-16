@@ -1,8 +1,18 @@
-# HANDOFF — the dnd5e 6.0 compatibility pass (phase 1 delivered 2026-09-15, late; phase 2 next)
+# HANDOFF — the dnd5e 6.0 compatibility pass (phase 1 delivered 2026-09-15, late; phase 2 next — written for a fresh window)
 
 > A commission file: written because there is one, retired when it is delivered (BACKLOG's rule —
 > no standing handoff). Every line below is the state at the moment of writing, measured.
 > `ASSESSMENT.md` is the plan; this file is where the pass stands against it.
+
+## ⚠ Read this first: the next step
+
+Phase 2 of ASSESSMENT §4 (the readers, classes B–F, the battery's middle) starts **on the user's
+"go"** — not on this file. Before the first edit: `git log --oneline -3` (parallel sessions
+collide), `node ../fvtt-mcp-molten5e/scripts/local-foundry.mjs status` (the sandbox up, the
+world active), `deploy-house-module.mjs fvtt-mod-battleflow --local --check` (byte-identical),
+and `node tools/verify-settings.mjs` (CLEAN). Every phase-2 commit: the file swept through the
+seam, its suite's asserts rewritten to the 6.0 card in the same commit, deploy --local, the suite
+green, settings verified. Nothing is released until phase 5, and prod stays 5.3.3 / v1.42.0.
 
 ## Where things stand
 
