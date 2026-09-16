@@ -21,7 +21,7 @@ import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, registerRes
 // check-hook-order; do not move this file's entry position without re-running it.
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 import { SURFACES } from "./surfaces.js";
-import { activityUuidOf, masteryOf, targetsOf } from "./decide/card.js";
+import { activityUuidOf, masteryOf, originData, targetsOf } from "./decide/card.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1.6 — the maneuver folds (FLOW item 1, built v1.19.0 after probes P1-P3; the walk's
@@ -229,7 +229,7 @@ async function resolvePrecision(message) {
     //    rolls nothing). Recording "used" without using shipped a lie once (ui.js:407);
     //    never again.
     await activity.use({ subsequentActions: false }, { configure: false }, {
-      data: { flags: { dnd5e: { originatingMessage: message.id } } }
+      data: originData(message.id)   // the 6.0 card's origin (decide/card.js), never the deleted flag
     });
 
     // 2. The die, public, from the item's own formula — provenance-stamped so no other

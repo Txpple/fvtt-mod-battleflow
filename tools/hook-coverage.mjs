@@ -69,18 +69,14 @@ const BEFORE_THE_INSTRUMENT = new Map([
 // Excluded from the denominator for the same reason the boot rows are — a score that cannot be
 // reached is a score nobody chases — and checked BOTH WAYS below, so the day a platform upgrade
 // starts dispatching one the report says the pin is stale instead of quietly reading green.
-const NOT_DISPATCHED_HERE = new Map([
-  ["createMeasuredTemplate", "MEASURED ZERO on Foundry 14.365 (tools/probe-surfaces.mjs, "
-    + "2026-08-24): creating a MeasuredTemplate moves scene.templates 0→1 AND scene.regions "
-    + "0→1, and the hooks that fire are preCreateRegion/createRegion/drawRegion — v14 backs a "
-    + "template with a Region document and dispatches nothing under the MeasuredTemplate name. "
-    + "saves.js calls these a fast-path over a render-hook RELIABILITY FLOOR, and the floor is "
-    + "what has carried template adoption all along (smoke-saves §8, table-proven). See "
-    + "ARCHITECTURE §10 D12 for the open question this leaves"],
-  ["updateMeasuredTemplate", "MEASURED ZERO on Foundry 14.365 (same probe, same run): updating "
-    + "the template dispatched NOTHING AT ALL — not one hook name moved. Same cause and same "
-    + "floor as its create twin above"]
-]);
+//
+// ⚠ EMPTY SINCE THE dnd5e 6.0 PASS (phase 3, 2026-09-16). The two rows it held — createMeasuredTemplate
+// and updateMeasuredTemplate, MEASURED ZERO on Foundry 14.365 (tools/probe-surfaces.mjs, 2026-08-24:
+// a template create moved scene.templates 0→1 AND scene.regions 0→1, and only the Region hooks
+// fired) — are retired with the registrations they pinned: saves/areas.js rides createRegion /
+// updateRegion now, which the platform dispatches (smoke-surfaces §3 still pins the measurement).
+// The category stays so the next platform-side absence has a home with a reason.
+const NOT_DISPATCHED_HERE = new Map([]);
 
 let files = [];
 try {

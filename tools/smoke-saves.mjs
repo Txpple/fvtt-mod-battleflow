@@ -101,7 +101,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!scene || !victim || !npc || !shielder) return { fatal: 'missing fixture: scene or BF Test actors' };
 
   const CHIP_NAMES = ['BF Poisoned', 'BF Splashed'];
-  const created = { items: [], tokens: [], templates: [] };
+  const created = { items: [], tokens: [], templates: [] };   // templates: the REGION ids this suite placed (dnd5e 6.0 areas are Regions)
+  // An area the way dnd5e 6.0.1's TemplatePlacement writes it: a Region whose shape is the
+  // platform's own (radius in PIXELS), the ACTIVITY on `flags.dnd5e.activity` when a cast owns it.
+  const px = scene.grid.size / scene.grid.distance;
+  const circleArea = (x, y, ft, flags = {}) => scene.createEmbeddedDocuments('Region', [{
+    name: 'BF test area', shapes: [{ type: 'circle', x, y, radius: ft * px }], flags
+  }]);
+  const areaFor = activityUuid => ({ dnd5e: { activity: activityUuid } });
   const priorActor = {};
   let shimScene = null; // §12's own 140px scene — deleted whole in teardown
   let restored = false;
@@ -135,8 +142,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       const liveTokens = created.tokens.filter(id => scene.tokens.get(id));
       if (liveTokens.length) await scene.deleteEmbeddedDocuments('Token', liveTokens);
-      const liveTemplates = created.templates.filter(id => scene.templates.get(id));
-      if (liveTemplates.length) await scene.deleteEmbeddedDocuments('MeasuredTemplate', liveTemplates);
+      const liveTemplates = created.templates.filter(id => scene.regions.get(id));
+      if (liveTemplates.length) await scene.deleteEmbeddedDocuments('Region', liveTemplates);
       if (shimScene && game.scenes.get(shimScene.id)) await shimScene.delete();
       for (const [actorId, data] of Object.entries(priorActor)) {
         await game.actors.get(actorId)?.update(data);
@@ -691,17 +698,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // the untargeted victim standing inside joins; the targeted shielder outside drops
       // (the live Shatter and Moonbeam reports, one mechanism).
       let hookFired = 0;
-      const hid = Hooks.on('createMeasuredTemplate', () => { hookFired++; });
+      const hid = Hooks.on('createRegion', () => { hookFired++; });
       // Radius 2.5 ft ON PURPOSE (retuned v1.13.0 for CORE's grid-aware shapes): the
       // fixture tokens stand 200px apart — one grid square over — and a GRIDDED 5 ft
       // circle covers the whole adjacent square, so "outside" stopped being testable
       // exactly the way the old 10 ft Euclidean rim did (bit 2026-08-16). 2.5 ft covers
       // only the origin square gridded AND only a 70px disc Euclidean: the neighbor is
       // out under either branch, whatever core's gridTemplates setting says.
-      const [tpl] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
-        t: 'circle', x: victimToken.center.x, y: victimToken.center.y, distance: 2.5,
-        flags: { dnd5e: { origin: card.getFlag(MOD, 'saves').activityUuid } }
-      }]);
+      const [tpl] = await circleArea(victimToken.center.x, victimToken.center.y, 2.5, areaFor(card.getFlag(MOD, 'saves').activityUuid));
       created.templates.push(tpl.id);
       // The adoption floor rides the card's RENDER (the CRUD hooks measurably never fire on
       // this page) — nudge one, exactly as any table chatter would.
@@ -712,19 +716,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         return (f2?.templated && f2.targets.some(t => t.uuid === victim.uuid)
           && !f2.targets.some(t => t.uuid === shielder.uuid)) ? f2 : null;
       });
-      Hooks.off('createMeasuredTemplate', hid);
+      Hooks.off('createRegion', hid);
       if (!adopted) {
         const f2 = card.getFlag(MOD, 'saves');
         log.push(`8a dbg: ${JSON.stringify({
           hookFired,
-          hookCount: Hooks.events.createMeasuredTemplate?.length ?? 0,
-          tplExists: !!scene.templates.get(tpl.id),
-          tplOrigin: tpl.getFlag('dnd5e', 'origin'),
+          hookCount: Hooks.events.createRegion?.length ?? 0,
+          tplExists: !!scene.regions.get(tpl.id),
+          tplOrigin: tpl.getFlag('dnd5e', 'activity'),
           cardActivity: f2?.activityUuid,
-          equal: tpl.getFlag('dnd5e', 'origin') === f2?.activityUuid,
+          equal: tpl.getFlag('dnd5e', 'activity') === f2?.activityUuid,
           status: f2?.status, undone: (f2?.targets ?? []).filter(t => !t.done).length,
           activeGM: game.users.activeGM?.isSelf ?? null,
-          victimCenter: victimToken?.center, tplXY: { x: tpl.x, y: tpl.y }
+          victimCenter: victimToken?.center, tplXY: { x: tpl.shapes?.[0]?.x, y: tpl.shapes?.[0]?.y }
         })}`);
       }
       ok('8a. a template adopts the demand: containment in, stale manual targets out',
@@ -747,11 +751,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // delete + re-place because tpl.update() measurably no-ops on this headless page
       // (same half-dead template plumbing as the create hook); live moves and re-places
       // funnel into the identical recompute.
-      await scene.deleteEmbeddedDocuments('MeasuredTemplate', [tpl.id]);
-      const [tpl2] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
-        t: 'circle', x: shielderToken.center.x, y: shielderToken.center.y, distance: 2.5,
-        flags: { dnd5e: { origin: card.getFlag(MOD, 'saves').activityUuid } }
-      }]);
+      await scene.deleteEmbeddedDocuments('Region', [tpl.id]);
+      const [tpl2] = await circleArea(shielderToken.center.x, shielderToken.center.y, 2.5, areaFor(card.getFlag(MOD, 'saves').activityUuid));
       created.templates.push(tpl2.id);
       await sleep(300);
       try { ui.chat?.updateMessage?.(card); } catch { /* re-renders next message anyway */ }
@@ -762,10 +763,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       });
       if (!walked) {
         const f2 = card.getFlag(MOD, 'saves');
-        const tplNow = scene.templates.get(tpl.id);
+        const tplNow = scene.regions.get(tpl2.id);
         log.push(`8b dbg: ${JSON.stringify({
-          tplXY: { x: tplNow?.x, y: tplNow?.y }, shielderCenter: shielderToken.center,
-          origin: tplNow?.getFlag('dnd5e', 'origin'),
+          tplXY: { x: tplNow?.shapes?.[0]?.x, y: tplNow?.shapes?.[0]?.y }, shielderCenter: shielderToken.center,
+          origin: tplNow?.getFlag('dnd5e', 'activity'),
           targets: f2?.targets?.map(t => ({ n: t.name, done: t.done, applied: t.applied })),
           templated: f2?.templated
         })}`);
@@ -782,10 +783,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(600);
       await shielder.rollSavingThrow({ ability: 'con' }, { configure: false }, {});
       await until(() => (card.getFlag(MOD, 'saves')?.targets ?? []).every(t => t.done && t.applied));
-      await until(() => !scene.templates.get(tpl2.id), 8000);
-      ok('8c. the instantaneous template is spent once every consequence landed',
-        !scene.templates.get(tpl2.id),
-        `template=${!!scene.templates.get(tpl2.id)} autoDmg=${!!autoDmg8}`);
+      await until(() => !scene.regions.get(tpl2.id), 8000);
+      ok('8c. the instantaneous area is spent once every consequence landed',
+        !scene.regions.get(tpl2.id),
+        `area=${!!scene.regions.get(tpl2.id)} autoDmg=${!!autoDmg8}`);
 
       // 8d (v1.10.0 — the stamp's 5.3.3 nesting): results.templates entries are ARRAYS
       // (#placeTemplate pushes drawPreview()'s resolution — the raw createEmbeddedDocuments
@@ -794,9 +795,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // drive drawPreview, so the hook is fired by hand with the exact nested shape the
       // live flow produces: the stamp must contain, not snapshot.
       await clearChips();
-      const [tpl8d] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
-        t: 'circle', x: victimToken.center.x, y: victimToken.center.y, distance: 2.5
-      }]);
+      const [tpl8d] = await circleArea(victimToken.center.x, victimToken.center.y, 2.5);
       created.templates.push(tpl8d.id);
       const msg8d = await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor: npc }),
@@ -830,10 +829,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // The TEMPLATE-SHAPED activity on purpose: a targetless cast of a non-template
       // activity stays native by the gate above §8a, and never reaches the stamp.
       const before8e = snap();
-      const [tpl8e] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
-        t: 'circle', x: 200, y: 200, distance: 2.5,   // far from every fixture token
-        flags: { dnd5e: { origin: tmplActivity().uuid } }
-      }]);
+      const [tpl8e] = await circleArea(200, 200, 2.5, areaFor(tmplActivity().uuid));   // far from every fixture token
       created.templates.push(tpl8e.id);
       const msg8e = await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor: npc }),
@@ -852,9 +848,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && !stamped8e.deadline,
         `status=${stamped8e?.status} templated=${stamped8e?.templated} `
           + `awaiting=${stamped8e?.awaitingTemplate} targets=${(stamped8e?.targets ?? []).length}`);
-      const swept8e = await until(() => !scene.templates.get(tpl8e.id), 8000);
+      const swept8e = await until(() => !scene.regions.get(tpl8e.id), 8000);
       ok('8e. …and the convergent floor sweeps the empty area',
-        !!swept8e, `still=${!!scene.templates.get(tpl8e.id)}`);
+        !!swept8e, `still=${!!scene.regions.get(tpl8e.id)}`);
       const rolled8e = fresh(before8e).some(m =>
         m._source.system?.origin === msg8e.id);
       ok('8e. nothing rolled damage at nobody', !rolled8e, `chained=${rolled8e}`);
@@ -888,9 +884,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       try {
         const breathAct = () => npc.items.get(breath.id)?.system.activities.get('bfbreathact00000');
         const before8f = snap();
-        const [tpl8f] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
-          t: 'cone', x: 200, y: 400, distance: 30, direction: 0,   // far from every fixture token
-          flags: { dnd5e: { origin: breathAct().uuid } }
+        const [tpl8f] = await scene.createEmbeddedDocuments('Region', [{   // a cone, far from every fixture token
+          name: 'BF test cone', shapes: [{ type: 'cone', x: 200, y: 400, radius: 30 * px, angle: 53.13, rotation: 0 }],
+          flags: areaFor(breathAct().uuid)
         }]);
         created.templates.push(tpl8f.id);
         const msg8f = await ChatMessage.create({
@@ -909,9 +905,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             && (stamped8f.templated === true) && !stamped8f.awaitingTemplate,
           `durationUnits=${stamped8f?.durationUnits} status=${stamped8f?.status} `
             + `templated=${stamped8f?.templated} awaiting=${stamped8f?.awaitingTemplate}`);
-        const swept8f = await until(() => !scene.templates.get(tpl8f.id), 8000);
+        const swept8f = await until(() => !scene.regions.get(tpl8f.id), 8000);
         ok('8f. …and the cone is swept like any spent instant area',
-          !!swept8f, `still=${!!scene.templates.get(tpl8f.id)} rolled=${fresh(before8f).some(m => m._source.system?.origin === msg8f.id)}`);
+          !!swept8f, `still=${!!scene.regions.get(tpl8f.id)} rolled=${fresh(before8f).some(m => m._source.system?.origin === msg8f.id)}`);
         const chained8f = game.messages.contents.filter(m =>
           m._source.system?.origin === msg8f.id);
         await ChatMessage.deleteDocuments([msg8f.id, ...chained8f.map(m => m.id)]);
@@ -944,10 +940,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       try {
         const miasmaAct = () => npc.items.get(miasma.id)?.system.activities.get('bfmiasmaact00000');
         const castEmpty = async label => {
-          const [tpl] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
-            t: 'circle', x: 200, y: 700, distance: 20,   // far from every fixture token
-            flags: { dnd5e: { origin: miasmaAct().uuid } }
-          }]);
+          const [tpl] = await circleArea(200, 700, 20, areaFor(miasmaAct().uuid));   // far from every fixture token
           created.templates.push(tpl.id);
           const msg = await ChatMessage.create({
             speaker: ChatMessage.getSpeaker({ actor: npc }),
@@ -957,10 +950,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           Hooks.callAll('dnd5e.postUseActivity', miasmaAct(), {}, { message: msg, templates: [[tpl]] });
           const stamped = await until(() => msg.getFlag(MOD, 'saves'), 6000);
           await sleep(2500);
-          const still = !!scene.templates.get(tpl.id);
+          const still = !!scene.regions.get(tpl.id);
           const chained = game.messages.contents.filter(m => m._source.system?.origin === msg.id);
           await ChatMessage.deleteDocuments([msg.id, ...chained.map(m => m.id)]).catch(() => {});
-          if (still) await scene.templates.get(tpl.id)?.delete().catch(() => {});
+          if (still) await scene.regions.get(tpl.id)?.delete().catch(() => {});
           return { stamped, still };
         };
         await game.settings.set(MOD, 'spentAreaList', 'Noxious Miasma, Hypnotic Pattern');
@@ -1052,10 +1045,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // cast even exists. 10d2 then fails reporting a fossil-wall breach that never
       // happened: the module was right and the range was dirty. Three strays were
       // standing when this was diagnosed.
-      const strayAreas10 = scene.templates.filter(t => !t.getFlag('dnd5e', 'origin'));
+      // A toolbar draw at Foundry 14 is a Region wearing the core MeasuredTemplate flag and no activity.
+      const strayAreas10 = scene.regions.filter(r => r.getFlag('core', 'MeasuredTemplate') && !r.getFlag('dnd5e', 'activity'));
       if (strayAreas10.length) {
-        log.push(`section 10 swept ${strayAreas10.length} origin-less leftover template(s)`);
-        await scene.deleteEmbeddedDocuments('MeasuredTemplate', strayAreas10.map(t => t.id));
+        log.push(`section 10 swept ${strayAreas10.length} unowned leftover drawn template(s)`);
+        await scene.deleteEmbeddedDocuments('Region', strayAreas10.map(t => t.id));
       }
       await saveBonus(victim, '-30');
       const vMax10 = await healFull(victim);
@@ -1111,14 +1105,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const oldBefore10 = {
         targets: (cardOld10.getFlag(MOD, 'saves')?.targets ?? []).length,
         templated: cardOld10.getFlag(MOD, 'saves')?.templated ?? false,
-        scenePool: scene.templates.map(t => ({ id: t.id, t: t.t,
-          origin: t.getFlag('dnd5e', 'origin') ?? null })),
+        scenePool: scene.regions.filter(r => r.getFlag('core', 'MeasuredTemplate') || r.getFlag('dnd5e', 'activity')).map(r => ({ id: r.id, t: r.shapes?.[0]?.type,
+          origin: r.getFlag('dnd5e', 'activity') ?? null })),
       };
-      const gpx10 = scene.grid.size / scene.grid.distance;
-      const side10 = 200 / gpx10; // a 200px square around the victim, in scene units
-      const [tpl10] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
-        t: 'rect', x: victimToken.center.x - 100, y: victimToken.center.y - 100,
-        direction: 45, distance: side10 * Math.SQRT2
+      // Foundry 14's template toolbar creates a REGION marked `flags.core.MeasuredTemplate` — the
+      // rectangle shape a cube is placed as (TemplatePlacement: rect → rectangle), 200px around the victim.
+      const [tpl10] = await scene.createEmbeddedDocuments('Region', [{
+        name: 'BF toolbar rect', shapes: [{ type: 'rectangle', x: victimToken.center.x - 100, y: victimToken.center.y - 100, width: 200, height: 200, rotation: 0 }],
+        flags: { core: { MeasuredTemplate: true } }
       }]);
       created.templates.push(tpl10.id);
       await sleep(300);
@@ -1140,7 +1134,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && (adopted10.deadline <= Date.now() + 15_500),
         `targets=[${(card10.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.name).join()}] `
           + `deadline=${adopted10?.deadline} now=${Date.now()} `
-          + `originOnPage=${JSON.stringify(scene.templates.get(tpl10.id)?.getFlag('dnd5e', 'origin') ?? null)}`);
+          + `originOnPage=${JSON.stringify(scene.regions.get(tpl10.id)?.getFlag('dnd5e', 'activity') ?? null)}`);
       const oldFlag10 = cardOld10.getFlag(MOD, 'saves');
       ok('10d2. the OLDER waiting cast is not the customer — one area fills exactly one demand',
         (oldFlag10?.status === 'pending') && ((oldFlag10?.targets ?? []).length === 0)
@@ -1151,7 +1145,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           + ` | oldTs=${cardOld10.timestamp} newTs=${card10.timestamp}`
           + ` sameActivity=${oldFlag10?.activityUuid === card10.getFlag(MOD, 'saves')?.activityUuid}`
           + ` oldStatus=${oldFlag10?.status} oldTemplated=${oldFlag10?.templated}`
-          + ` tplOrigin=${JSON.stringify(scene.templates.get(tpl10.id)?.getFlag('dnd5e', 'origin') ?? null)}`
+          + ` tplOrigin=${JSON.stringify(scene.regions.get(tpl10.id)?.getFlag('dnd5e', 'activity') ?? null)}`
           + ` oldBefore=${JSON.stringify(oldBefore10)}`
           + ` newerSeenFromOld=${game.messages.contents.some(m => (m.id !== cardOld10.id)
               && (m.timestamp > cardOld10.timestamp)
@@ -1276,6 +1270,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     let card12 = null;               // §13 rides this demand's completed lifecycle
     let tpl12Id = null;
     const actUuid12 = tmplActivity().uuid;
+    // The cube on the shim scene, the region's own shape (§12 places it, §13 re-places it, §14 borrows it).
+    const cube12 = () => ({ name: 'BF shim cube', shapes: [{ type: 'rectangle', x: 1400, y: 1400, width: 280, height: 280, rotation: 0 }], flags: { dnd5e: { activity: actUuid12 } } });
     if (want(12)) {
       await clearChips();
       await saveBonus(victim, '-30');
@@ -1303,18 +1299,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (!card12) return { fatal: 'section 12 cast produced no card' };
       await until(() => card12.getFlag(MOD, 'saves'), 6000);
 
-      // The dialog placement's exact shape on the shim scene: origin-tied, honest
-      // dimensions stamped, honest diagonal SENT — whatever the server stores is its
-      // truth, and the rescue must not care.
-      const sent12 = Math.hypot(10, 10);
-      const [tpl12] = await shimScene.createEmbeddedDocuments('MeasuredTemplate', [{
-        t: 'rect', x: 1400, y: 1400, direction: 45, distance: sent12,
-        flags: { dnd5e: { origin: actUuid12, dimensions: { size: 10, adjustedSize: false } } }
-      }]);
+      // The dialog placement's exact shape on the shim scene at dnd5e 6.0: a REGION, the cube a
+      // rectangle in PIXELS (TemplatePlacement: 10 ft × 140px/5ft = 280), the ACTIVITY on its flag.
+      // The v14 shim's corrupted distance and the honest-dimensions rescue it forced are gone with
+      // the template document; the region's shape is the truth the module reads.
+      const [tpl12] = await shimScene.createEmbeddedDocuments('Region', [cube12()]);
       tpl12Id = tpl12.id;
-      const stored12 = shimScene.templates.get(tpl12.id)?.distance ?? NaN;
-      log.push(`section 12 shimFactor=${(stored12 / sent12).toFixed(3)} `
-        + `(sent ${sent12.toFixed(3)}, stored ${stored12.toFixed(3)}) — 1.000 means upstream healed`);
+      log.push(`section 12 region ${tpl12.id} shape=${JSON.stringify(tpl12.shapes[0])} grid=${shimScene.grid.size}px`);
 
       try { ui.chat?.updateMessage?.(card12); } catch { /* the next render carries it */ }
       const adopted12 = await until(() => {
@@ -1322,11 +1313,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         return (f?.templated && (f.targets ?? []).length) ? f : null;
       });
       const uuids12 = (adopted12?.targets ?? []).map(t => t.uuid);
-      ok('12a. containment is spell-true on a 140px grid — the honest dimensions flag wins',
+      ok('12a. containment is spell-true on a 140px grid — the region\'s own geometry, the platform\'s test',
         !!adopted12 && uuids12.includes(victim.uuid) && !uuids12.includes(shielder.uuid)
           && (uuids12.length === 1),
-        `targets=[${(adopted12?.targets ?? []).map(t => t.name).join()}] `
-          + `shim=${(stored12 / sent12).toFixed(3)}`);
+        `targets=[${(adopted12?.targets ?? []).map(t => t.name).join()}]`);
 
       // Run it to done for §13: the popup asks for the NPC arrival, -30 fails, applied lands.
       const name12 = adopted12?.targets?.[0]?.name ?? victim.name;
@@ -1353,19 +1343,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(13)) {
       // 13a: the completion one-shot swept §12's template (durationUnits "inst" rides
       // the fixture item).
-      const gone13 = await until(() => !shimScene.templates.get(tpl12Id), 8000);
+      const gone13 = await until(() => !shimScene.regions.get(tpl12Id), 8000);
       ok('13a. an instantaneous demand sweeps its area at completion', !!gone13,
-        `still=${!!shimScene.templates.get(tpl12Id)}`);
+        `still=${!!shimScene.regions.get(tpl12Id)}`);
 
       // 13b: a stale leftover — the lost-one-shot shape — converges on the next render.
-      const [stale13] = await shimScene.createEmbeddedDocuments('MeasuredTemplate', [{
-        t: 'rect', x: 1400, y: 1400, direction: 45, distance: Math.hypot(10, 10),
-        flags: { dnd5e: { origin: actUuid12, dimensions: { size: 10, adjustedSize: false } } }
-      }]);
+      const [stale13] = await shimScene.createEmbeddedDocuments('Region', [cube12()]);
       try { ui.chat?.updateMessage?.(card12); } catch { /* render floor */ }
-      const swept13 = await until(() => !shimScene.templates.get(stale13.id), 8000);
+      const swept13 = await until(() => !shimScene.regions.get(stale13.id), 8000);
       ok('13b. a done demand re-sweeps a stale area on render — the convergent floor', !!swept13,
-        `still=${!!shimScene.templates.get(stale13.id)}`);
+        `still=${!!shimScene.regions.get(stale13.id)}`);
 
       // 13c: the fossil wall. The stub is status DONE and carries no `templated`, so no
       // floor in the machine can act on it — it exists only to be newer.
@@ -1373,17 +1360,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         content: 'BF test — newer same-activity stub (section 13c)',
         flags: { [MOD]: { saves: { status: 'done', activityUuid: actUuid12, targets: [] } } }
       });
-      const [stale13c] = await shimScene.createEmbeddedDocuments('MeasuredTemplate', [{
-        t: 'rect', x: 1400, y: 1400, direction: 45, distance: Math.hypot(10, 10),
-        flags: { dnd5e: { origin: actUuid12, dimensions: { size: 10, adjustedSize: false } } }
-      }]);
+      const [stale13c] = await shimScene.createEmbeddedDocuments('Region', [cube12()]);
       try { ui.chat?.updateMessage?.(card12); } catch { /* render floor */ }
       await sleep(1500);
-      const held13 = !!shimScene.templates.get(stale13c.id);
+      const held13 = !!shimScene.regions.get(stale13c.id);
       ok('13c. a newer same-activity cast disarms an old card\'s sweep — the fossil wall',
         held13, `survived=${held13}`);
-      if (shimScene.templates.get(stale13c.id)) {
-        await shimScene.deleteEmbeddedDocuments('MeasuredTemplate', [stale13c.id]);
+      if (shimScene.regions.get(stale13c.id)) {
+        await shimScene.deleteEmbeddedDocuments('Region', [stale13c.id]);
       }
       await ChatMessage.deleteDocuments([stub13.id]);
     }
@@ -1439,10 +1423,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           + `effect=${!!concEff14}`);
 
       const actUuid14 = concActivity().uuid;
-      const [tpl14] = await shimScene.createEmbeddedDocuments('MeasuredTemplate', [{
-        t: 'rect', x: 1400, y: 1400, direction: 45, distance: Math.hypot(10, 10),
-        flags: { dnd5e: { origin: actUuid14, dimensions: { size: 10, adjustedSize: false } } }
-      }]);
+      const [tpl14] = await shimScene.createEmbeddedDocuments('Region', [{ ...cube12(), flags: { dnd5e: { activity: actUuid14 } } }]);
       try { ui.chat?.updateMessage?.(card14); } catch { /* the next render carries it */ }
       const adopted14 = await until(() => {
         const f = card14.getFlag(MOD, 'saves');
@@ -1461,15 +1442,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       try { ui.chat?.updateMessage?.(card14); } catch { /* render floor */ }
       await sleep(2000);
       ok('14b. a DURATION area stands after its demand completes — concentration is alive',
-        !!done14 && !!shimScene.templates.get(tpl14.id),
-        `done=${!!done14} still=${!!shimScene.templates.get(tpl14.id)}`);
+        !!done14 && !!shimScene.regions.get(tpl14.id),
+        `done=${!!done14} still=${!!shimScene.regions.get(tpl14.id)}`);
 
       // 14c: concentration ends — the deleteActiveEffect trigger sweeps the orphaned area.
       if (concEff14) await concEff14.delete();
-      const gone14 = await until(() => !shimScene.templates.get(tpl14.id), 8000);
+      const gone14 = await until(() => !shimScene.regions.get(tpl14.id), 8000);
       ok('14c. concentration ends and the orphaned area sweeps — finding ① converges',
         !!concEff14 && !!gone14,
-        `concEffect=${!!concEff14} still=${!!shimScene.templates.get(tpl14.id)}`);
+        `concEffect=${!!concEff14} still=${!!shimScene.regions.get(tpl14.id)}`);
     }
 
     // ============================================== 15. the verdict LINES (v1.19.0, FLOW item 7)
@@ -2598,11 +2579,11 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
     /* teardown ----------------------------------------------------------------------------- */
     await closeEverything();
     game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
-    // Any template the bare cast managed to leave behind goes with it.
-    const strayTemplates = canvas.scene.templates
-      .filter(t => t.user?.id === game.user.id).map(t => t.id);
+    // Any drawn template the bare cast managed to leave behind goes with it (a Region at Foundry 14).
+    const strayTemplates = canvas.scene.regions
+      .filter(r => r.getFlag('core', 'MeasuredTemplate') && !r.getFlag('dnd5e', 'activity')).map(r => r.id);
     if (strayTemplates.length) {
-      await canvas.scene.deleteEmbeddedDocuments('MeasuredTemplate', strayTemplates).catch(() => {});
+      await canvas.scene.deleteEmbeddedDocuments('Region', strayTemplates).catch(() => {});
     }
     await ChatMessage.deleteDocuments([...new Set(created)].filter(id => game.messages.has(id)))
       .catch(() => {});

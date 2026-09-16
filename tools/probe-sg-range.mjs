@@ -79,9 +79,10 @@ const out = await f.evaluate(async () => {
     };
     if ( !region ) throw new Error("no region adopted");
 
-    // The two shapes that can disagree: the Region's (the platform's membership) and the DRAWN
-    // template's (what `tokensInTemplates` reads when no honest dnd5e dimensions are stamped).
-    const { tokensInTemplates } = await import("/modules/fvtt-mod-battleflow/scripts/geometry.js");
+    // The two answers that can disagree: the Region's membership (the platform's, async) and the
+    // module's own containment (`tokensInRegions` — the platform's test run directly; the 6.0 pass
+    // retired the drawn-template reader, so `template` is null on a 6.0 box and its columns read null).
+    const { tokensInRegions } = await import("/modules/fvtt-mod-battleflow/scripts/geometry.js");
     report.gridTemplates = game.settings.get("core", "gridTemplates");
     report.drawnShape = template?.object?.shape?.constructor?.name ?? null;
     const drawnContains = p => { const s = template?.object?.shape; return s ? s.contains(p.x - template.x, p.y - template.y) : null; };
@@ -103,7 +104,7 @@ const out = await f.evaluate(async () => {
       let inside = null; try { inside = region.testPoint({ x: tokCentre.x, y: tokCentre.y, elevation: vicTok.elevation }); } catch(err) { inside = `n/a: ${err.message}`; }
       report.samples.push({ squares: [dx, dy], euclidFt: Math.round(euclid * 100) / 100, rulerFt: ruler,
         regionMember: !!(region.tokens?.has?.(vicTok)), regionTestPoint: inside,
-        drawnTemplateContains: drawnContains(tokCentre), moduleTokensInTemplate: (tokensInTemplates([template]) ?? []).map(t => t.name),
+        drawnTemplateContains: drawnContains(tokCentre), moduleTokensInRegion: (tokensInRegions([region]) ?? []).map(t => t.name),
         halfSpeed: memberFx(vicTok.actor).length, saveAskedOnEnter: enterAsks() - n0, castDemandTargets: castTargets() });
       await vicTok.update(far, mv()); await sleep(1200);
     }
@@ -117,7 +118,7 @@ const out = await f.evaluate(async () => {
       const before = castTargets();
       const card = castCardFor();
       if ( card ) { await ui.chat.updateMessage(card, true); await sleep(2500); }
-      report.renderFloor = { castCard: card?.id ?? null, status: card?.getFlag(MOD, "saves")?.status ?? null, regionMember: !!(region.tokens?.has?.(vicTok)), targetsBefore: before, targetsAfterRender: castTargets(), moduleTokensInTemplate: (tokensInTemplates([template]) ?? []).map(t => t.name) };
+      report.renderFloor = { castCard: card?.id ?? null, status: card?.getFlag(MOD, "saves")?.status ?? null, regionMember: !!(region.tokens?.has?.(vicTok)), targetsBefore: before, targetsAfterRender: castTargets(), moduleTokensInRegion: (tokensInRegions([region]) ?? []).map(t => t.name) };
       await vicTok.update(far, mv()); await sleep(1000);
     }
 

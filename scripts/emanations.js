@@ -8,7 +8,9 @@ import { lower, itemNamed, activityNamed, activityOfType, resolveUuid } from "./
 import { emanationEntries, listedNames } from "./settings.js";
 import { turnChitStands, writeTurnChit } from "./shared.js";
 import { riderPartFormula } from "./decide/clock.js";
-import { tokensInTemplates } from "./geometry.js";
+import { tokensInRegions } from "./geometry.js";
+import { emanationShapeData } from "./decide/geometry.js";
+import { castLevelOn } from "./decide/card.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { EMANATIONS, tableIndex } from "./decide/registry.js";
 import { reachAdmits, resolveChanges, emanationRange, triggerDue, healTriggerDue, memberEffectData, damageTypeFor, appliesOnScene } from "./decide/emanations.js";
@@ -44,8 +46,15 @@ import { SURFACES } from "./surfaces.js";
  *   - the ROWS (decide/registry.js EMANATIONS; membership is the Emanations list) — which item,
  *     which effect, who it reaches, where its range lives, what triggers inside it;
  *   - the LIFECYCLE — a feature's emanation stands whenever its token is on the scene and the
- *     range resolves (reconcileScene); a spell's is the template the system placed, adopted when its
- *     Region appears and gone when the template goes (concentration's own cascade);
+ *     range resolves (reconcileScene); a spell's is the REGION placed at the cast — the platform's
+ *     own emanation shape on the caster's token (dnd5e 6.0 places every area as a Region) — adopted
+ *     when it appears and ended here when the concentration that sustains it goes (6.0 does NOT
+ *     make a placed region a dependent; measured 2026-09-15);
+ *   - the §3.6 RULING (2026-09-15): Battle Flow's emanations stay Battle Flow's. The platform's
+ *     own `dnd5e.applyActiveEffect` behaviour is never allowed onto a region this module adopts
+ *     (the option on the module's own creates, the veto below on anyone else's) — it admits no
+ *     neutrals to a helpful aura and fires no turn events, and the Player's Handbook pack declares
+ *     none anyway;
  *   - the FLOOR — the active GM keeps the standing effects true to membership (reconcileMembers) on
  *     every event and on every token move: apply to a member that lacks it, lift from a non-member
  *     that carries it. The Region's events are the fast path; the floor is the truth (the saves
@@ -143,8 +152,17 @@ function holdersOf(region) {
 
 /**
  * Apply the standing effect to every member the reach admits, lift it from everyone else on the
- * scene. Idempotent, GM-only, cheap: membership is the platform's (`region.tokens`), the effect is
- * fingerprinted with the region's id.
+ * scene. Idempotent, GM-only, cheap: membership is the platform's own containment test run HERE
+ * (geometry.js tokensInRegions → `TokenDocument#testInsideRegion`), the effect is fingerprinted
+ * with the region's id.
+ *
+ * ⚠ GEOMETRY, NOT `region.tokens` (the 6.0 pass, phase 3 — measured on Foundry 14.367): the
+ * platform fills `region.tokens` from a TOKEN update it makes on the active GM with
+ * `noHook: true` (RegionDocument#updateTokens), so the membership of a region just created — or
+ * just moved with its token — lands SILENTLY: no updateToken hook, and the region events reach
+ * only the behaviours that already exist. A floor that read `region.tokens` right after raising a
+ * ring saw an empty set (the Ranger inside wore two auras of three, smoke-emanations §11a, one run
+ * in three); the same test evaluated directly is the truth at once.
  *
  * ⚠ SERIALIZED PER REGION. One token move fires the region's own enter event, the token's update
  * hook and the region's update hook within a tick, and three floors reading "no effect yet" before
@@ -170,7 +188,8 @@ async function reconcileMembersNow(region) {
     const active = !!beh && !beh.disabled && !!row && !!sys.effect && live() && listed().has(lower(row.key)) && appliesHere(region);
     const members = new Set();
     if ( active ) {
-      for ( const tok of region.tokens ?? [] ) {
+      for ( const entry of tokensInRegions([region]) ?? [] ) {
+        const tok = region.parent.tokens.get(entry.tokenId);
         if ( !tok?.actor ) continue;
         // The SOURCE: a feature's aura (the Paladin's) already sits on its bearer as the pack's
         // transfer effect, so the region never doubles it. A SPELL's emanation is "you and your
@@ -402,11 +421,12 @@ async function forgetInitial(region, token) {
 }
 
 /**
- * Make a template's Region this module's emanation: the behaviour first (the flag every reader
- * keys on is written last, so a flagged region always carries its behaviour), attached to the
- * source token, INVISIBLE as a region — the template it backs draws the ring (user, 2026-09-03:
- * "the black circle, not the green area") — and flagged with what it is, plus who stood inside
- * when it appeared (the cast's demand already asked those).
+ * Make a Region this module's emanation: the behaviour first (the flag every reader keys on is
+ * written last, so a flagged region always carries its behaviour), attached to the source token,
+ * DRAWN as the ring in the reach's hue — the region is the only document there is at dnd5e 6.0
+ * (the template that once drew "the black circle, not the green area" is gone with the shim), so
+ * it shows its own shape, not the squares it covers — and flagged with what it is, plus who stood
+ * inside when it appeared (the cast's demand already asked those).
  */
 async function adoptRegion(region, { kind, key, tok, itemUuid, reach, scaling = 0, effect = null, disabled = false }) {
   // ⚠ ORDER. The "asked at the cast" record goes down FIRST: creating the behaviour subscribes
@@ -416,18 +436,43 @@ async function adoptRegion(region, { kind, key, tok, itemUuid, reach, scaling = 
   // on, and a flagged region without its behaviour is tolerated for the milliseconds between.
   // ⚠ GEOMETRY, not membership: a region just created has not computed `tokens` yet (empty for
   // the first beat — the record came out empty and the dummy was asked twice again). The
-  // template it backs is on the scene now, and the spine's containment reads it directly.
-  const template = region.parent?.templates?.get(region.id) ?? null;
-  const inside = template ? (tokensInTemplates([template]) ?? []).map(e => e.tokenId) : [...(region.tokens ?? [])].map(t => t.id);
+  // region's own shapes are on the scene now, and the spine's containment tests them directly.
+  const inside = (tokensInRegions([region]) ?? []).map(e => e.tokenId);
   const initial = inside.filter(id => id && (id !== tok?.id));
   await region.update({
-    color: colorFor(reach), visibility: CONST.REGION_VISIBILITY.LAYER,
+    color: colorFor(reach), visibility: CONST.REGION_VISIBILITY.ALWAYS, highlightMode: "shapes",
     flags: { [MODULE_ID]: { [FLAG]: { kind, key, tokenId: tok?.id ?? null, itemUuid, initial } } }
   });
   await region.createEmbeddedDocuments("RegionBehavior", [{ type: TYPE, name: key, disabled,
     system: { key, source: tok?.uuid ?? null, item: itemUuid, reach, scaling, effect } }]);
-  if ( tok ) await region.update({ attachment: { token: tok.id } });
+  if ( tok && (region.attachment?.token?.id !== tok.id) ) await region.update({ attachment: { token: tok.id } });
 }
+
+/** The scene's pixels per unit of distance — a range in the scene's units, as a region radius. */
+const pxPerUnit = scene => scene.grid.size / scene.grid.distance;
+
+/**
+ * THE §3.6 RULING'S VETO: the platform attaches its own `dnd5e.*` region behaviours on the
+ * active GM's `createRegion` (`Activity.placeTemplateBehaviors`) — the same seam this module
+ * adopts on. This module's own creates pass `options.dnd5e.createActivityBehaviors: false`;
+ * for a region placed by anyone else (the platform's own placement of a listed spell, a future
+ * pack that declares behaviours) the behaviour is refused at preCreate, on the client creating
+ * it, so an adopted ring never carries two standing effects. Only listed emanation spells: an
+ * unlisted spell's area is the platform's to run as it likes.
+ */
+Hooks.on("preCreateRegionBehavior", (behavior, data) => {
+  try {
+    if ( !String(data?.type ?? "").startsWith("dnd5e.") ) return;
+    const region = behavior?.parent;
+    if ( !region ) return;
+    if ( flagOf(region) ) return false;
+    const item = resolveUuid(region.getFlag("dnd5e", "item"));
+    const row = item ? rowNamed(item.name) : null;
+    if ( row && (row.kind === "spell") && live() && listed().has(lower(row.key)) ) return false;
+  } catch(err) {
+    console.warn(`${TITLE} | Could not judge a region behaviour — the platform's stands.`, err);
+  }
+});
 
 /* --- the lifecycle: a feature's emanation stands with its token ------------------------------- */
 
@@ -504,7 +549,7 @@ async function reconcileScene(scene) {
     }
   }
   const seen = new Set();
-  const removeArea = async region => { await liftAll(region); const t = scene.templates.get(region.id); if ( t ) await t.delete().catch(() => {}); if ( scene.regions.get(region.id) ) await region.delete().catch(() => {}); };
+  const removeArea = async region => { await liftAll(region); if ( scene.regions.get(region.id) ) await region.delete().catch(() => {}); };
   for ( const region of scene.regions.filter(r => flagOf(r)?.kind === "feature") ) {
     const f = flagOf(region);
     const id = `${f.tokenId}|${f.key}`;
@@ -515,9 +560,10 @@ async function reconcileScene(scene) {
     seen.add(id);
     wanted.delete(id);
     const beh = behaviorOf(region);
-    const template = scene.templates.get(region.id);
-    const distance = w.range + (w.tok.width * scene.grid.distance) / 2;
-    if ( template && (template.distance !== distance) ) await template.update({ distance });
+    // The range moved (a level taken): the emanation's radius follows. The base follows the
+    // token by itself — the region is attached.
+    const radius = w.range * pxPerUnit(scene);
+    if ( region.shapes?.[0]?.radius !== radius ) await region.update({ shapes: [emanationShapeData(w.tok, radius)] });
     if ( beh ) {
       const upd = {};
       if ( beh.disabled !== w.disabled ) upd.disabled = w.disabled;
@@ -528,19 +574,20 @@ async function reconcileScene(scene) {
   }
   for ( const w of wanted.values() ) {
     try {
-      // A TEMPLATE, like a spell's: it draws the ring the table sees (user: "the black circle,
-      // not the green area"), and its Region — same id, attached to the token — is the machine.
-      // Centred on the token, the class's range plus half the token (an emanation measures from
-      // the edge). No dnd5e flags: a feature's aura demands no save, so the saves machine's
-      // template adoption must never see it as an area of anything.
-      const [template] = await scene.createEmbeddedDocuments("MeasuredTemplate", [{
-        t: "circle", x: w.tok.x + (w.tok.width * scene.grid.size) / 2, y: w.tok.y + (w.tok.height * scene.grid.size) / 2,
-        distance: w.range + (w.tok.width * scene.grid.distance) / 2,
-        fillColor: colorFor(w.row.reach),
+      // A REGION, the platform's own emanation shape (dnd5e 6.0 places a spell's the same way):
+      // the token's base plus the class's range, measured from the edge (the 2024 rule, Foundry
+      // 14's EmanationShapeData), attached to the token so it walks with them. It draws the ring
+      // the table sees and is the machine. No dnd5e flags: a feature's aura demands no save, so
+      // the saves machine's area adoption must never see it as an area of anything; and no
+      // platform behaviour on it (the §3.6 ruling).
+      const [region] = await scene.createEmbeddedDocuments("Region", [{
+        name: `${w.row.key} [${w.actor.name}]`, color: colorFor(w.row.reach),
+        shapes: [emanationShapeData(w.tok, w.range * pxPerUnit(scene))],
+        attachment: { token: w.tok.id },
+        visibility: CONST.REGION_VISIBILITY.ALWAYS, highlightMode: "shapes",
         flags: { [MODULE_ID]: { [FLAG]: { kind: "feature", key: w.row.key, tokenId: w.tok.id, itemUuid: w.item.uuid } } }
-      }]);
-      const region = template ? (scene.regions.get(template.id) ?? await new Promise(r => setTimeout(() => r(scene.regions.get(template.id)), 400))) : null;
-      if ( !region ) { console.error(`${TITLE} | ${w.row.key} around ${w.actor.name}: the template's region never appeared.`); continue; }
+      }], { dnd5e: { createActivityBehaviors: false } });
+      if ( !region ) { console.error(`${TITLE} | ${w.row.key} around ${w.actor.name}: the region was not created.`); continue; }
       await adoptRegion(region, { kind: "feature", key: w.row.key, tok: w.tok, itemUuid: w.item.uuid, reach: w.row.reach, effect: w.effect, disabled: w.disabled });
       await announce(w.row, w.actor, w.item, w.range, w.effect, "stands");
       await reconcileMembers(scene.regions.get(region.id) ?? region);
@@ -553,7 +600,7 @@ async function reconcileScene(scene) {
   for ( const region of scene.regions.filter(r => flagOf(r)?.kind === "spell") ) await reconcileMembers(region);
 }
 
-/* --- the lifecycle: a spell's emanation is the template the system placed ------------------- */
+/* --- the lifecycle: a spell's emanation is the region placed at the cast --------------------- */
 
 async function adoptSpellRegion(region) {
   try {
@@ -564,7 +611,11 @@ async function adoptSpellRegion(region) {
     const row = rowNamed(item.name);
     if ( !row || (row.kind !== "spell") || !listed().has(lower(row.key)) ) return;
     const actor = item.actor ?? null;
-    const tok = actor?.token ?? region.parent.tokens.find(t => t.actor && ((t.actor === actor) || (t.actor.uuid === actor?.uuid))) ?? null;
+    // The placement stamps the USAGE TOKEN as the region's origin (dnd5e 6.0: `flags.dnd5e.origin`
+    // is `activity.getUsageToken()?.uuid`, the activity moved to `flags.dnd5e.activity`).
+    const originTok = resolveUuid(region.getFlag("dnd5e", "origin"));
+    const tok = (originTok?.documentName === "Token") ? originTok
+      : actor?.token ?? region.parent.tokens.find(t => t.actor && ((t.actor === actor) || (t.actor.uuid === actor?.uuid))) ?? null;
     const rollData = actor?.getRollData?.() ?? {};
     const effect = row.effect ? (item.effects.find(e => lower(e.name) === lower(row.effect)) ?? null) : null;
     const resolved = effect ? resolveChanges(effect.changes.map(c => ({ key: c.key, mode: c.mode, value: c.value, priority: c.priority })), rollData) : { changes: [], unresolved: [] };
@@ -573,7 +624,8 @@ async function adoptSpellRegion(region) {
     await adoptRegion(region, { kind: "spell", key: row.key, tok, itemUuid, reach: row.reach, scaling,
       effect: (effect && !resolved.unresolved.length) ? { name: effect.name, img: effect.img ?? item.img ?? null, description: row.rule, changes: resolved.changes } : null });
     const size = activitySizeOf(item, rollData);
-    await announce(row, actor, item, size ?? region.shapes[0]?.radiusX ?? null, effect ? { name: effect.name, changes: resolved.changes } : null, "is cast",
+    const drawn = region.shapes?.[0]?.radius;
+    await announce(row, actor, item, size ?? (Number.isFinite(drawn) ? drawn / pxPerUnit(region.parent) : null), effect ? { name: effect.name, changes: resolved.changes } : null, "is cast",
       { activity: activityOfType(item, "save"), regionId: region.id });
     await reconcileMembers(region);
   } catch(err) {
@@ -596,12 +648,14 @@ function castEmanationRow(activity) {
 
 // The caster is not asked to click the area down (user, 2026-09-03: "I shouldn't need to place
 // the template, it should just put it where the caster's token is"): the system's own placement
-// prompt is switched off for a listed emanation spell, and the template is placed here on the
-// casting client — centred on the caster's token, the spell's size plus half the token (an
-// emanation measures from the edge), carrying the flags the system would have written (origin,
-// item, spell level), and made the concentration effect's dependent so it ends with the spell.
-// From there nothing is new: the region appears, the GM adopts it, the saves machine's floor
-// adopts the template into the cast's demand.
+// prompt is switched off for a listed emanation spell, and the REGION is placed here on the
+// casting client — the data `TemplatePlacement.fromActivity` would have written (dnd5e 6.0.1,
+// read from source): the platform's emanation shape on the caster's token, attached to it, the
+// spell's size from the token's edge, the flags the placement stamps (activity, item, the usage
+// token as origin, spell level, dimensions). No platform behaviour on it (the §3.6 ruling), and
+// no dependent flag: 6.0 makes no placed region a concentration dependent — endCastEmanations
+// below ends it with the spell. From there nothing is new: the region appears, the GM adopts it,
+// the saves machine's floor adopts the area into the cast's demand.
 Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
   try {
     if ( !castEmanationRow(activity) ) return;
@@ -623,23 +677,28 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
 
 async function placeCastEmanation(activity, row, message) {
   const actor = activity.actor;
-  const tok = actor.token ?? actor.getActiveTokens?.(true, true)?.[0] ?? null;
+  const tok = actor.token ?? activity.getUsageToken?.() ?? actor.getActiveTokens?.(true, true)?.[0] ?? null;
   const scene = tok?.parent;
   if ( !tok || !scene ) return;
-  const size = Number(activity.target.template.size);
-  const half = (tok.width * scene.grid.distance) / 2;
-  const spellLevel = Number(message?.system?.spellLevel ?? activity.item.system?.level ?? 0) || activity.item.system?.level;
-  // The concentration effect for this cast owns the area: dnd5e 5.2+ tracks a dependent by the
-  // `dependentOn` flag ON THE DEPENDENT, registered when it is created — so the flag goes into
-  // the create data (the deprecated `addDependent` after the fact never reached the registry).
-  // The system deletes dependents when concentration ends; the region goes with the template.
-  const conc = [...(actor.concentration?.effects ?? [])].find(e => (e.getFlag?.("dnd5e", "item")?.id === activity.item.id) || (e.flags?.dnd5e?.item?.id === activity.item.id))
-    ?? [...(actor.concentration?.effects ?? [])].at(-1) ?? null;
-  await scene.createEmbeddedDocuments("MeasuredTemplate", [{
-    t: "circle", x: tok.x + (tok.width * scene.grid.size) / 2, y: tok.y + (tok.height * scene.grid.size) / 2,
-    distance: size + half,
-    flags: { dnd5e: { origin: activity.uuid, item: activity.item.uuid, spellLevel, ...(conc ? { dependentOn: conc.uuid } : {}) } }
-  }]);
+  const tpl = activity.target.template;
+  const units = scene.grid.units;
+  // The spell's size in the SCENE's units, the placement's own way (its `convertLength` call).
+  const inScene = n => (n === "" || n === null || n === undefined) ? undefined
+    : (Number(dnd5e.utils.convertLength(Number(n), tpl.units || "ft", units, { strict: false })) || Number(n));
+  const size = inScene(tpl.size);
+  const spellLevel = castLevelOn(message) ?? activity.getRollData?.()?.item?.level ?? activity.item.system?.level ?? null;
+  await scene.createEmbeddedDocuments("Region", [{
+    name: `${activity.item.name} [${game.user.name}]`, color: game.user.color,
+    shapes: [emanationShapeData(tok, size * pxPerUnit(scene))],
+    ...(canvas?.level?.id ? { levels: [canvas.level.id] } : {}),
+    restriction: { enabled: true, type: "move" },
+    attachment: { token: tok.id },
+    visibility: CONST.REGION_VISIBILITY.ALWAYS, highlightMode: "coverage",
+    flags: { dnd5e: {
+      activity: activity.uuid, item: activity.item.uuid, origin: tok.uuid, spellLevel,
+      dimensions: { size, width: inScene(tpl.width), height: inScene(tpl.height), units }
+    } }
+  }], { dnd5e: { createActivityBehaviors: false } });
   // The type picked in the CASTING WINDOW (below) is written onto the emanation card the GM posts
   // as the area is adopted — the card's own buttons can still change it later. No dialog shown
   // (a fast-forward cast): the alignment's default stands, no extra click (N4).
@@ -690,11 +749,11 @@ async function carryDamageTypeChoice(activity) {
   }
 }
 
-// The spell ends when concentration does. dnd5e 5.3 does NOT delete a placed template on
-// endConcentration (measured, smoke-emanations §8: the template stood after the effect went),
-// and the saves machine's own duration sweep waits for every verdict to land. So the area this
-// module adopted goes here, on the GM, the moment the concentration effect for its activity is
-// deleted: the template (its region follows, v14 shares the id) or the bare region.
+// The spell ends when concentration does. dnd5e does NOT delete a placed area on endConcentration
+// (5.3: measured, smoke-emanations §8; 6.0.1: measured 2026-09-15, a placed region is no
+// dependent), and the saves machine's own duration sweep waits for every verdict to land. So the
+// area this module adopted goes here, on the GM, the moment the concentration effect for its
+// activity is deleted.
 Hooks.on("deleteActiveEffect", effect => {
   if ( !isActiveGM() || !effect?.statuses?.has?.("concentrating") ) return;
   void endCastEmanations(effect);
@@ -704,9 +763,7 @@ async function endCastEmanations(effect) {
     const activityUuid = effect.flags?.dnd5e?.activity?.uuid ?? null;
     if ( !activityUuid ) return;
     for ( const scene of game.scenes ) {
-      for ( const region of scene.regions.filter(r => (flagOf(r)?.kind === "spell") && (r.getFlag("dnd5e", "origin") === activityUuid)) ) {
-        const template = scene.templates.get(region.id);
-        if ( template ) await template.delete().catch(() => {});
+      for ( const region of scene.regions.filter(r => (flagOf(r)?.kind === "spell") && (r.getFlag("dnd5e", "activity") === activityUuid)) ) {
         if ( scene.regions.get(region.id) ) await region.delete().catch(() => {});
       }
     }

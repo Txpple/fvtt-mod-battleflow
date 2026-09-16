@@ -155,8 +155,8 @@ deleteChatMessage	volleys.js
 dnd5e.postUseActivity	saves/demand.js
 battleflow.deferredUsageCard	saves/demand.js
 battleflow.metamagicAskAnswered	saves/demand.js
-createMeasuredTemplate	saves/areas.js
-updateMeasuredTemplate	saves/areas.js
+createRegion	saves/areas.js
+updateRegion	saves/areas.js
 deleteActiveEffect	saves/areas.js
 renderRollConfigurationDialog	saves/ask.js
 createChatMessage	saves/verdict.js
@@ -167,6 +167,7 @@ dnd5e.renderChatMessage	saves/views.js
 init	emanations.js
 updateCombat	emanations.js
 dnd5e.renderChatMessage	emanations.js
+preCreateRegionBehavior	emanations.js
 dnd5e.preUseActivity	emanations.js
 dnd5e.postUseActivity	emanations.js
 renderActivityUsageDialog	emanations.js

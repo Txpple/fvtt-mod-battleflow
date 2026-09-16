@@ -21,38 +21,52 @@ const token = ({ x = 0, y = 0, width = 1, height = 1, grid = 100, object = null 
   parent: grid ? { grid: { size: grid } } : null
 });
 
-describe("honestDims — spell truth over the v14 shim's corrupted fields", () => {
-  const withDims = (t, dims) => ({ t, width: 0, flags: { dnd5e: { dimensions: dims } } });
-
-  it("returns null when no dimensions were stamped — the doc is all there is", () => {
-    expect(geo.honestDims({ t: "circle", flags: {} })).toBe(null);
+describe("regionShapeTypeFor — the placement's map from dnd5e's template type to Foundry 14's shape", () => {
+  it("maps a 5e cube (rect) to a rectangle and a line (ray) to a line — TemplatePlacement#createShapeData", () => {
+    expect(geo.regionShapeTypeFor("rect")).toBe("rectangle");
+    expect(geo.regionShapeTypeFor("ray")).toBe("line");
   });
 
-  it("returns null for an adjustedSize placement — its final size lives only in distance", () => {
-    // Emanations sized up by the token: doc math is correct there and must win.
-    expect(geo.honestDims(withDims("circle", { size: 20, adjustedSize: true }))).toBe(null);
+  it("keeps circle, cone, ring and emanation under their own names", () => {
+    expect(geo.regionShapeTypeFor("circle")).toBe("circle");
+    expect(geo.regionShapeTypeFor("cone")).toBe("cone");
+    expect(geo.regionShapeTypeFor("ring")).toBe("ring");
+    expect(geo.regionShapeTypeFor("emanation")).toBe("emanation");
   });
 
-  it("takes a circle's size straight through", () => {
-    expect(geo.honestDims(withDims("circle", { size: 20 }))).toMatchObject({ distance: 20 });
+  it("refuses a type the placement does not know — no claim is ever made on it", () => {
+    expect(geo.regionShapeTypeFor("wall-of-fire")).toBe(null);
+    expect(geo.regionShapeTypeFor(null)).toBe(null);
+    expect(geo.regionShapeTypeFor(undefined)).toBe(null);
+  });
+});
+
+describe("emanationShapeData — the platform's own emanation shape around a token", () => {
+  it("is a token base at the token's position and size with the radius in pixels (dnd5e 6.0.1 fromActivity)", () => {
+    expect(geo.emanationShapeData({ x: 1300, y: 600, width: 1, height: 1, shape: 0 }, 300)).toEqual(
+      {
+        type: "emanation",
+        x: 0,
+        y: 0,
+        rotation: 0,
+        base: { type: "token", x: 1300, y: 600, rotation: 0, width: 1, height: 1, shape: 0 },
+        radius: 300
+      }
+    );
   });
 
-  it("gives a rect the DIAGONAL — a dnd5e cube rides a corner-to-corner rect", () => {
-    // The single most load-bearing line: a 20ft cube is a rect of diagonal 20√2.
-    expect(geo.honestDims(withDims("rect", { size: 20 })).distance).toBeCloseTo(Math.hypot(20, 20));
+  it("keeps a Large body's base and shape — the radius measures from the edge, not the centre", () => {
+    const d = geo.emanationShapeData({ x: 0, y: 0, width: 2, height: 2, shape: 1 }, 200);
+    expect(d.base).toMatchObject({ width: 2, height: 2, shape: 1 });
+    expect(d.radius).toBe(200);
   });
 
-  it("carries a ray's width, and refuses a ray that has none", () => {
-    expect(geo.honestDims(withDims("ray", { size: 30, width: 5 }))).toMatchObject({
-      distance: 30,
-      width: 5
-    });
-    expect(geo.honestDims(withDims("ray", { size: 30 }))).toBe(null);
-  });
-
-  it("refuses a zero or missing size rather than building a zero-area shape", () => {
-    expect(geo.honestDims(withDims("circle", { size: 0 }))).toBe(null);
-    expect(geo.honestDims(withDims("circle", {}))).toBe(null);
+  it("falls back to the default base shape when the token names none", () => {
+    expect(geo.emanationShapeData({ x: 0, y: 0, width: 1, height: 1 }, 100).base.shape).toBe(0);
+    expect(
+      geo.emanationShapeData({ x: 0, y: 0, width: 1, height: 1, shape: null }, 100, { shape: 3 })
+        .base.shape
+    ).toBe(3);
   });
 });
 

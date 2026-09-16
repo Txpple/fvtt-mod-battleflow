@@ -1,44 +1,65 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): template and token geometry that needs
+ * Battle Flow — DECISION layer (ARCHITECTURE.md §2): area and token geometry that needs
  * no Foundry at all.
  *
- * Moved verbatim out of saves.js (PLAN.md Phase 2, "move, do not rewrite"). These three read
- * fields off document-SHAPED objects and return plain values — no `game`, no `canvas`, no
- * `CONFIG`, no `PIXI`, no hooks, no flags, no writes — so they are unit-testable in
- * milliseconds. Their two callers do need Foundry, and live one layer up in
+ * Moved verbatim out of saves.js (PLAN.md Phase 2, "move, do not rewrite"), then recut for
+ * dnd5e 6.0 (the 6.0 pass, phase 3): an activity's area is a REGION now, and the region's own
+ * shapes are the truth — the v14 MeasuredTemplate shim, whose corrupted `distance` this file
+ * once worked around with the dnd5e `dimensions` flag (`honestDims`), is no longer on the
+ * path. What is left reads fields off document-SHAPED objects and returns plain values — no
+ * `game`, no `canvas`, no `CONFIG`, no `PIXI`, no hooks, no flags, no writes — so it is
+ * unit-testable in milliseconds. Its callers do need Foundry, and live one layer up in
  * [geometry.js](../geometry.js), which is EDGE for exactly that reason (§2 rule 1).
  *
  * ⚠ Depend downward only: nothing here may import a machine, the spine, or core.js.
  */
 
 /**
- * ⚠⚠ THE v14 REGION-SHIM GROUND TRUTH (the v1.13.0 walk's finding ①, probes 7–9,
- * 2026-08-17): Foundry 14 shims MeasuredTemplates onto Regions, and this build's CREATE
- * round-trip corrupts the stored units — `distance` comes back ×(gridSize/100) (×1.4 on a
- * 140px grid, ×0.7 on 70px, invisible on the 100px test range) and `width` comes back as
- * RAW PIXELS. The client pipeline is clean (probe 8: local clean/validate leaves values
- * untouched); the scaling happens server-side. The renderer draws from the same lying
- * field, so the PLACED area (shape, highlight, and any doc-math) is uniformly oversized —
- * only the dnd5e `dimensions` flag survives honest, because fromActivity stamps the
- * spell's own size and the shim never touches flags.
- *
- * So: SPELL-TRUTH FIRST. When the placement stamped honest dimensions, geometry is built
- * from them — the demand matches the 20 ft cube the caster cast and the honest preview
- * they aimed, not the corrupted stored field. This deliberately supersedes the
- * drawn-shape-first rule (standing item 17) while the shim lies: the drawn object IS the
- * corrupted doc. Self-healing — once upstream fixes the shim, doc.distance equals the
- * dimensions-derived value and every branch agrees again. adjustedSize placements
- * (emanations sized up by token) keep doc math: their final size lives only in distance.
+ * The Region shape type a dnd5e template type is placed as — the system's `areaTargetTypes`
+ * table names the OLD MeasuredTemplate type (`rect`, `ray`, …) and `TemplatePlacement`
+ * (dnd5e 6.0.1, `#createShapeData`) maps it onto Foundry 14's shape data: a 5e cube is a
+ * `rectangle`, a line a `line`, an emanation an `emanation`; circle, cone and ring keep their
+ * names. Null when the type is not one the placement knows — no claim is ever made on it.
+ * @param {string|null|undefined} templateType   The `template` of an areaTargetTypes row.
+ * @returns {"circle"|"cone"|"rectangle"|"line"|"emanation"|"ring"|null}
  */
-export function honestDims(doc) {
-  const dim = doc.flags?.dnd5e?.dimensions;
-  if ( !(dim?.size > 0) || dim.adjustedSize ) return null;
-  if ( (doc.t === "ray") && !(dim.width > 0) ) return null;
+export function regionShapeTypeFor(templateType) {
+  switch ( templateType ) {
+    case "circle": return "circle";
+    case "cone": return "cone";
+    case "rect":
+    case "rectangle": return "rectangle";
+    case "ray":
+    case "line": return "line";
+    case "emanation":
+    case "radius": return "emanation";
+    case "ring": return "ring";
+    default: return null;
+  }
+}
+
+/**
+ * The shape data of an emanation around a token, exactly as dnd5e 6.0.1's `TemplatePlacement`
+ * writes it (`#createShapeData` "emanation" + `fromActivity`'s token assignment): a `token`
+ * base carrying the token's own position, size and shape, and the radius in PIXELS measured
+ * from the base's edge — the 2024 rule, and Foundry 14's `EmanationShapeData`. Built here so
+ * the module's own placements (a feature's aura, a listed spell's ring) are byte-for-byte the
+ * platform's, and unit-tested against that shape.
+ * @param {{x:number, y:number, width:number, height:number, shape?:number|null}} tok   The token document's fields.
+ * @param {number} radiusPx   The emanation's radius in pixels.
+ * @param {{ shape?: number }} [defaults]   The base shape to use when the token names none (Foundry's RECTANGLE_1 is 0).
+ */
+export function emanationShapeData(tok, radiusPx, { shape = 0 } = {}) {
   return {
-    // A dnd5e cube rides a rect drawn corner-to-corner: distance is the diagonal.
-    distance: (doc.t === "rect") ? Math.hypot(dim.size, dim.size) : dim.size,
-    width: (doc.t === "ray") ? dim.width : (doc.width ?? 0)
+    type: "emanation",
+    x: 0, y: 0, rotation: 0,
+    base: {
+      type: "token", x: tok.x, y: tok.y, rotation: 0,
+      width: tok.width, height: tok.height,
+      shape: (tok.shape === null || tok.shape === undefined) ? shape : tok.shape
+    },
+    radius: radiusPx
   };
 }
 

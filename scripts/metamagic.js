@@ -26,7 +26,7 @@ import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, isActiveGM, 
 import { lower, resolveUuid } from "./lookup.js";
 import { metamagicEntries, listedNames } from "./settings.js";
 import { poolOf, spendPoolUses, isPartyMember } from "./shared.js";
-import { feetOf, tokenOfActor, tokensInTemplates } from "./geometry.js";
+import { feetOf, tokenOfActor, tokensInRegions } from "./geometry.js";
 import { bfCard, foldedRuleHTML, esc, holdBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
 import { METAMAGIC_FLAG, METAMAGIC_ASK_FLAG, askDefaults, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome, carefulProtects, heightenedMark } from "./decide/metamagic.js";
@@ -461,7 +461,7 @@ async function carryDeferredCard(activity, held, templates) {
   const pool = held.pick.poolId ? actor?.items?.get(held.pick.poolId) : null;
   const record = pool ? await spendPoolUses(actor, pool, held.pick.feature, held.pick.cost ?? 1, POOL_NAME) : null;
   if ( !pool ) console.warn(`${TITLE} | ${held.pick.feature}: no Sorcery Points pool on ${actor?.name} — nothing spent.`);
-  const contained = tokensInTemplates(templates) ?? [];
+  const contained = tokensInRegions(templates) ?? [];
   const templateIds = templates.map(t => t.id);
   if ( !contained.length ) { await postDeferredCard(held, record, null, templateIds); return; }
   const uuid = activity.uuid;
@@ -501,7 +501,7 @@ async function postDeferredCard(held, record, answer, templateIds) {
   releaseHold(held.pick.activityUuid ?? "", card);
   const activity = resolveUuid(held.pick.activityUuid ?? "") ?? null;
   const scene = canvas.scene ?? game.scenes.active;
-  const templates = (templateIds ?? []).map(id => scene?.templates?.get(id)).filter(Boolean);
+  const templates = (templateIds ?? []).map(id => scene?.regions?.get(id)).filter(Boolean);   // a placed area is a Region (dnd5e 6.0)
   Hooks.callAll("battleflow.deferredUsageCard", { activity, message: card, templates });
   return card;
 }

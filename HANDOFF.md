@@ -1,4 +1,4 @@
-# HANDOFF — the dnd5e 6.0 compatibility pass (phases 1 and 2 delivered 2026-09-16, early; phase 3 next)
+# HANDOFF — the dnd5e 6.0 compatibility pass (phases 1–3 delivered 2026-09-16; phase 4 next)
 
 > A commission file: written because there is one, retired when it is delivered (BACKLOG's rule —
 > no standing handoff). Every line below is the state at the moment of writing, measured.
@@ -6,14 +6,16 @@
 
 ## ⚠ Read this first: the next step
 
-Phase 3 of ASSESSMENT §4 (AREAS — class I: `saves/areas`, `geometry` on regions, `emanations`
-on the new placement hooks, with the §3.6 ruling applied) starts **on the user's "go"** — not on
-this file. Before the first edit: `git log --oneline -3` (parallel sessions collide),
-`node ../fvtt-mcp-molten5e/scripts/local-foundry.mjs status` (the sandbox up, the world active),
-`deploy-house-module.mjs fvtt-mod-battleflow --local --check` (byte-identical), and
+Phase 4 of ASSESSMENT §4 (SUMMARIES AND BUTTONS — class M and §3.8: where Battle Flow's rows draw
+on chained cards, the card buttons hidden as DATA — `shouldHideChatButton`, not the DOM) starts
+**on the user's "go"** — not on this file. The proof it owes is exactly the battery's last two reds:
+smoke-saves §1a3 and §10b. Before the first edit: `git log --oneline -3` (parallel sessions
+collide), `node ../fvtt-mcp-molten5e/scripts/local-foundry.mjs status` (the sandbox up, the world
+active), `deploy-house-module.mjs fvtt-mod-battleflow --local --check` (byte-identical), and
 `node tools/verify-settings.mjs` (CLEAN). Same discipline: the file swept, its suite's asserts
 rewritten in the same commit, deploy --local, the suite green, settings verified. ⚠ If a suite
-reports an AC or a save that cannot be, run `node tools/scrub-fixture-residue.mjs` first (below).
+reports an AC, a save, a corpse or a token square that cannot be, run
+`node tools/scrub-fixture-residue.mjs` (below) and `node tools/fixture-suite.mjs` first.
 Nothing is released until phase 5, and prod stays 5.3.3 / v1.42.0.
 
 ## Where things stand
@@ -24,7 +26,7 @@ Nothing is released until phase 5, and prod stays 5.3.3 / v1.42.0.
   pass's bytes to prod; do NOT copy prod → sandbox while the pass runs.
 - **The sandbox is the 6.0 box:** Foundry 14.367 / dnd5e 6.0.1, the world active, the tree
   deployed there (`deploy-house-module.mjs fvtt-mod-battleflow --local`, byte-identical at the
-  end of phase 1). Fixtures placed, settings verified CLEAN after the last run. The pre-fixture
+  end of phase 3). Fixtures placed, settings verified CLEAN after the last run. The pre-fixture
   snapshot (`bf-snapshots/`, `tools/world-snapshot.mjs restore`) is the way back.
 - **The MCP repo's 6.0 pass is done** (`../fvtt-mcp-molten5e` v1.5.2, `58c9687`) — the harness
   rides it; every suite and probe below ran through it.
@@ -121,16 +123,93 @@ Nothing is released until phase 5, and prod stays 5.3.3 / v1.42.0.
   (concentration §6). Settings CLEAN after every run. Not re-run this phase: smoke-battleflow,
   smoke-hold (phase 1's), smoke-emanations, smoke-surfaces, smoke-nogm (phase 3's and the last).
 
-## Phase 3 — NEXT, on the user's go (ASSESSMENT §4.3)
+## Phase 3 — DELIVERED (ASSESSMENT §4.3), 2026-09-16
 
-Class I: `saves/areas.js` walks `scene.templates` and matches `flags.dnd5e.origin` — regions now,
-`flags.dnd5e.activity` / `item` on the region, `region.tokens` for containment; `saves/demand.js`
-and `metamagic.js` hand `results.templates` (RegionDocuments) to `tokensInTemplates`;
-`decide/geometry.js` reads `flags.dnd5e.dimensions`; `emanations.js` adopts regions (the §3.6
-ruling: suppress the platform's auto-behaviour on adopted regions — `createActivityBehaviors:
-false` or a veto in `dnd5e.createMeasuredTemplate`). The proof: smoke-metamagic §9/§18,
-smoke-saves §8 (areas), smoke-emanations, smoke-surfaces. Then phase 4 (class M — the card
-buttons as data, the summaries) and phase 5 (docs, release with the new module.json).
+- **The area is a Region, everywhere.** `TemplatePlacement.fromActivity` (6.0.1, read from source)
+  creates RegionDocuments stamped `flags.dnd5e.activity` (the ACTIVITY — the tie every path keys
+  on), `item`, `origin` (the usage TOKEN's uuid now), `spellLevel`, `dimensions`; and at Foundry
+  14 `Scene#templates` is DEPRECATED — the toolbar's drawn template is a Region wearing
+  `flags.core.MeasuredTemplate`. No MeasuredTemplate is created or read anywhere in `scripts/`.
+- **Containment is the platform's own test.** `geometry.js tokensInRegions` runs
+  `TokenDocument#testInsideRegion` (grid-aware containment points against the region's polygon
+  tree, from the document's committed source position, no canvas) — the v14 shim's corrupted
+  `distance`, the `honestDims` rescue and the whole template-shape ladder are gone with the
+  template document. `decide/geometry.js` keeps the pure readers and gains `regionShapeTypeFor`
+  (the placement's map: rect → rectangle, ray → line, radius → emanation) and
+  `emanationShapeData` (the platform's own emanation shape around a token, byte-for-byte),
+  unit-tested.
+- **saves/areas.js:** regions matched on `flags.dnd5e.activity`; the toolbar claim finds a
+  core-flagged unowned region of the expected shape and stamps the activity; the fast paths ride
+  `createRegion` / `updateRegion` (which the platform dispatches); the sweeps delete Regions.
+  ⚠ A placed region is NOT a concentration dependent at 6.0 (measured 2026-09-15) — the duration
+  sweep on `deleteActiveEffect` is the only thing that ends a duration area. The refresh latch
+  queues ONE re-offer behind a refresh in flight: the render floor and the createRegion fast
+  path land in the same beat at the cast, and the dropped one was the cast's demand staying
+  empty (smoke-emanations §6f, one run in two).
+- **emanations.js:** a feature's aura and a listed spell's ring are Regions created the
+  platform's way (the emanation shape on the token's base, the radius from the EDGE, attached),
+  drawn by the region itself (visibility ALWAYS, highlightMode `shapes` — the ring, not the
+  covered squares; **the visible change of this phase, for the user to rule on**). The cast
+  placement writes what `fromActivity` would (the flags above, `levels`, the move restriction)
+  with `options.dnd5e.createActivityBehaviors: false`; `endCastEmanations` matches the
+  activity flag. **The §3.6 ruling's veto:** `preCreateRegionBehavior` refuses any `dnd5e.*`
+  behaviour on a region this module adopts (flagged, or a listed spell's) — measured empty in
+  smoke-emanations §6-2. **The membership floor reads geometry, not `region.tokens`:** Foundry
+  fills `region.tokens` through a token update made with `noHook: true`
+  (`RegionDocument#updateTokens`), so a just-raised ring's membership lands silently — the floor
+  that read it saw an empty set (§11a, one run in three).
+- **Customers:** saves/demand (`results.templates` is the flat RegionDocument[]; the flatten
+  stays for the hand-fired nested shape), metamagic (regions by id), precision.js (the one
+  phase-2 leftover: its use() wrote the deleted `originatingMessage` flag — `originData` now).
+- **The suites:** smoke-saves places Regions with the platform's shapes (a cone as a cone, the
+  toolbar rect core-flagged) and asserts on `scene.regions`; §12–14's shim scene keeps its
+  140px grid but the section proves containment off the region's own geometry (the shim factor
+  it logged is moot); smoke-metamagic's area is a Region; smoke-emanations asserts the emanation
+  shape and radius (feet × px from the edge), the placement's flags, the veto, the ring's
+  visibility, and heals the Victim's TOKEN actor at setup (§7's real damage left it a corpse the
+  cast's demand rightly skipped — 6f); §11e creates the stale effect before the stale ring (the
+  deleteRegion hooks of §11c re-schedule a sweep that can land between the two); the pack keys
+  are accepted in BOTH spellings (the PHB pack still ships `system.bonuses.*`, shimmed until
+  7.0); §6c asserts the effect Battle Flow owns, not the platform's arithmetic (see below).
+  smoke-surfaces §3 keeps its pin (a MeasuredTemplate create dispatches as a Region) counting
+  core-flagged regions. `tools/hook-coverage.mjs`'s two never-dispatched pins are retired with
+  the registrations; `tools/hook-order.snapshot` refreshed (createRegion/updateRegion in
+  saves/areas.js, preCreateRegionBehavior in emanations.js). `probe-sg-range.mjs` reads
+  `tokensInRegions`.
+- **`tools/scrub-fixture-residue.mjs`** gains the corpse row: an unlinked BF Test token's
+  synthetic actor at 0 HP is healed (matched on the BASE actor's name — the token is "Hobgoblin").
+- **Green:** verify (648 unit tests, every static check); on the sandbox **smoke-emanations
+  69/69**, **smoke-metamagic 90/90**, **smoke-surfaces 20/20**, smoke-saves 105/107 (§1a3, §10b —
+  the usage card's button hide, class M, PHASE 4; §12–14 8/8 on their own run first). Settings
+  CLEAN after every run. Runs under `dist/phase3/`.
+
+### Findings paid for in phase 3 (carry into NOTES in phase 5)
+
+- **`RegionDocument#updateTokens` writes membership with `noHook: true`** (Foundry 14.367, read
+  from source, measured by §11a): no `updateToken` fires for `_regions`; region events reach only
+  behaviours that already exist. Any floor over membership must test geometry itself.
+- **A placed region is no concentration dependent at dnd5e 6.0.1** — only ActiveEffects, Items
+  and Activities carry the dependents mixin; `endConcentration` leaves the area standing.
+- **The PHB pack's Half Speed (`system.attributes.movement.speed` ×0.5) leaves an NPC's speed at
+  30 on dnd5e 6.0.1** — the effect lands (Battle Flow's part), the platform's prepare order
+  overwrites `movement.speed` from `speeds.walk`. The pack's / the platform's, not ours; a
+  BACKLOG row in phase 5.
+- **Fixture residue this phase cost a battery:** the platform probe of 2026-09-15 left the Paladin's
+  token NEUTRAL (a helpful aura from a neutral source admits no ally — every feature-aura assert
+  red); a scratch probe left the Ranger on the ring's inside square (§13b's walk-out a no-op);
+  smoke-saves deletes the Victim/Shielder tokens by design and re-creates its own — run
+  `tools/fixture-suite.mjs` after it before any suite that needs them (the battery's order does).
+- The suite files are CRLF in the working copy; a multi-line edit script must normalise.
+
+## Phase 4 — NEXT, on the user's go (ASSESSMENT §4.4)
+
+Class M and §3.8: the card buttons hidden as data (`Activity#shouldHideChatButton` /
+the 6.0 button model — the DOM hide in ui.js is the last HTML-anchored behaviour), and where
+Battle Flow's rows draw on CHAINED cards (a damage card is a summary of its usage card at 6.0).
+The proof: smoke-saves §1a3 and §10b, then a full battery. Then phase 5 (docs, RELEASE-NOTES, the
+version, the prod deploy that MUST ship the new module.json; DESIGN §5 reconciled with the
+platform's clock; ARCHITECTURE's geometry rows — `honestDims` and `tokensInTemplates` are gone;
+NOTES' findings above; BACKLOG's Half Speed row).
 
 ## Hazards (still true)
 
@@ -139,7 +218,10 @@ buttons as data, the summaries) and phase 5 (docs, release with the new module.j
 - `verify-settings` drifts after any crashed suite; `--fix` restores. Run it after every run.
 - `game.settings.set("core","moduleConfiguration")` is silently dropped while the module's system
   maximum is exceeded — the pin is 6.9.99 now, so this only bites a downgrade.
-- An emanation region's shape needs `base: { type: "rectangle", … }` — a bare bounds object fails.
+- An emanation region's shape is `emanationShapeData` (decide/geometry.js) — a `token` base with the
+  token's own fields; a bare bounds object fails.
+- `Scene#templates` is deprecated at Foundry 14 — never read it; a drawn template is a Region with
+  `flags.core.MeasuredTemplate`.
 
 ## When this is delivered
 

@@ -1,96 +1,118 @@
 /**
- * Battle Flow — MACHINE, a part of scripts/saves/ (ARCHITECTURE.md §7): the AREAS — a placed template is the demand's authority: adoption
- * (the render floor and the CRUD fast paths), the bare toolbar template's claim, the spent-area
+ * Battle Flow — MACHINE, a part of scripts/saves/ (ARCHITECTURE.md §7): the AREAS — a placed area is the demand's authority: adoption
+ * (the render floor and the CRUD fast paths), the bare toolbar area's claim, the spent-area
  * sweep and the concentration-ended trigger.
  * The machine-tier pass, Stage 4c (2026-09-05, ruling 3): saves.js became this directory —
  * one flag, one machine, one part per spine step; index.js is the only public face and fixes
- * the registration order. Every body here is the one saves.js carried; nothing was rewritten.
+ * the registration order.
+ *
+ * THE AREA IS A REGION (the dnd5e 6.0 pass, phase 3). `TemplatePlacement.fromActivity` creates
+ * RegionDocuments — no MeasuredTemplate exists any more, and Foundry 14 backs even the toolbar's
+ * drawn template with a Region (`flags.core.MeasuredTemplate`). What the placement stamps on the
+ * region, read from 6.0.1's own source: `flags.dnd5e.activity` (the ACTIVITY uuid — the tie
+ * every path here keys on), `item`, `origin` (the usage TOKEN's uuid now, not the activity's),
+ * `spellLevel`, `dimensions`. The region's shapes are honest geometry — the shim's corrupted
+ * `distance` and the `dimensions` workaround it forced (`honestDims`) are gone with it — and
+ * containment is the platform's own test (geometry.js `tokensInRegions`). The Region hooks DO
+ * dispatch (measured 2026-08-24, smoke-surfaces §3), so the fast paths ride `createRegion` /
+ * `updateRegion`; the card's render stays the reliability floor.
  */
-import { MODULE_ID, TITLE, S, setting, queueFlagWrite, 
+import { MODULE_ID, TITLE, S, setting, queueFlagWrite,
   drivesMomentFor } from "../core.js";
 import { resolveUuid } from "../lookup.js";
 import { saveTargetEntry } from "../decide/demand.js";
-import { tokensInTemplates } from "../geometry.js";
+import { regionShapeTypeFor } from "../decide/geometry.js";
+import { tokensInRegions } from "../geometry.js";
 import { saveDemandable, emanationReach, metamagicForDemand } from "./demand.js";
 import { spentAreaListed } from "../settings.js";
 
-/** Every template on any scene that this activity placed — the origin flag is the tie. */
-function templatesForOrigin(activityUuid) {
+/** The activity a region was placed for — the tie every path here keys on. */
+const activityOfRegion = region => region?.getFlag?.("dnd5e", "activity") ?? null;
+
+/** Every region on any scene that this activity placed — the activity flag is the tie. */
+function regionsForActivity(activityUuid) {
   const found = [];
   for ( const scene of game.scenes ) {
-    for ( const t of scene.templates ) {
-      if ( t.getFlag("dnd5e", "origin") === activityUuid ) found.push(t);
+    for ( const r of scene.regions ) {
+      if ( activityOfRegion(r) === activityUuid ) found.push(r);
     }
   }
   return found;
 }
 
-/** The foundry template type a demand's area will wear (cube → rect &c.) — the system's
- * own map, so the module never hardcodes the correspondence. Null when the demand predates
- * templateType (pre-v1.13.0 stamps) or the type is unmapped: no toolbar adoption, only the
- * origin-tied paths. */
-function expectedTemplateT(flag) {
+/** The Region shape type a demand's area will wear (cube → rectangle &c.) — the system's
+ * own map through the placement's, so the module never hardcodes the correspondence. Null
+ * when the demand predates templateType (pre-v1.13.0 stamps) or the type is unmapped: no
+ * toolbar adoption, only the activity-tied paths. */
+function expectedShapeType(flag) {
   if ( !flag.templateType ) return null;
-  return CONFIG.DND5E?.areaTargetTypes?.[flag.templateType]?.template ?? null;
+  return regionShapeTypeFor(CONFIG.DND5E?.areaTargetTypes?.[flag.templateType]?.template ?? null);
 }
 
+/** A region the TOOLBAR drew: Foundry 14's own template shim marks it, and no activity owns it. */
+const isBareTemplate = region => !!region.getFlag("core", "MeasuredTemplate") && !activityOfRegion(region);
+
 /**
- * A TOOLBAR-drawn template carries no dnd5e origin flag — there is nothing for
- * templatesForOrigin to ever match, so before v1.13.0 the card's own "waiting for the
+ * A TOOLBAR-drawn area carries no dnd5e activity flag — there is nothing for
+ * regionsForActivity to ever match, so before v1.13.0 the card's own "waiting for the
  * template's area" line pointed at a placement path that could not work (the v1.12.0
- * walk's finding ①). The waiting demand may CLAIM such a template: the newest origin-less
+ * walk's finding ①). The waiting demand may CLAIM such an area: the newest unowned drawn
  * template of the demand's expected shape, on the ELECT'S CURRENT SCENE only (the toolbar
  * draw happens where the table is looking; and _stats.createdTime has been observed
  * unreadable on this box, so the created-after gate cannot carry the fossil bound alone —
- * the scene restriction is the second wall). The claim writes the origin flag onto the
- * template, so from that moment every downstream mechanism — moves, re-placement, the
+ * the scene restriction is the second wall). The claim writes the activity flag onto the
+ * region, so from that moment every downstream mechanism — moves, re-placement, the
  * spent sweep — treats it exactly like a dialog placement. Elect write, like every
  * world-visible mutation.
  */
-async function claimBareTemplate(card, flag) {
-  const expected = expectedTemplateT(flag);
+async function claimBareRegion(card, flag) {
+  const expected = expectedShapeType(flag);
   if ( !expected ) return null;
   const here = canvas?.scene;
   if ( !here ) return null;
   const candidates = [];
-  for ( const t of here.templates ) {
-    if ( t.getFlag("dnd5e", "origin") ) continue;
-    if ( t.t !== expected ) continue;
-    const born = t._stats?.createdTime ?? t._source?._stats?.createdTime ?? null;
+  for ( const r of here.regions ) {
+    if ( !isBareTemplate(r) ) continue;
+    if ( r.shapes?.[0]?.type !== expected ) continue;
+    const born = r._stats?.createdTime ?? r._source?._stats?.createdTime ?? null;
     if ( born && (born < card.timestamp) ) continue; // predates the cast — decoration
-    candidates.push({ t, born: born ?? 0 });
+    candidates.push({ r, born: born ?? 0 });
   }
   if ( !candidates.length ) return null;
   candidates.sort((a, b) => a.born - b.born);
-  const tpl = candidates.at(-1).t;
-  await tpl.setFlag("dnd5e", "origin", flag.activityUuid);
-  return tpl;
+  const region = candidates.at(-1).r;
+  await region.setFlag("dnd5e", "activity", flag.activityUuid);
+  return region;
 }
 
-/** Same-client latch: one containment refresh in flight per card. */
-const templateRefreshes = new Set();
+/** Same-client latch: one containment refresh in flight per card — and ONE re-offer queued behind
+ * it. The render floor and the createRegion fast path land in the same beat at the cast (the
+ * region is created from the same postUseActivity the demand is stamped from): a refresh already
+ * in flight had read "no region yet" and the fast path that carried the region was dropped by the
+ * latch, so the cast's demand stayed empty until something else re-rendered the card
+ * (smoke-emanations §6f, one run in two on the 6.0 box). Same idiom as the emanation sweep: a
+ * request that arrives mid-flight re-runs once after, however many asked. */
+const templateRefreshes = new Map();   // card id → { again: boolean }
 
 /**
- * Re-derive a live demand's target set from its templates — the area is the authority, in
+ * Re-derive a live demand's target set from its regions — the area is the authority, in
  * both directions (2026-08-16: the mephit was targeted but outside Moonbeam; the dummy
  * stood inside Shatter untargeted). Done entries keep their verdicts (history never
  * re-rolls); pending entries outside drop; new arrivals join fresh. The elect owns the
- * write. Idempotent: no template ⇒ no-op; an unchanged set writes nothing.
+ * write. Idempotent: no region ⇒ no-op; an unchanged set writes nothing.
  *
- * ⚠ Driven from the RENDER hook as the reliability floor, with the template CRUD hooks as
+ * ⚠ Driven from the RENDER hook as the reliability floor, with the Region CRUD hooks as
  * fast-paths. The original placement's create event fires BEFORE the stamp exists and finds
- * nothing, so the render floor is the only thing that catches it — measured 2026-08-16:
- * createMeasuredTemplate simply never dispatched on the
- * headless elect for an embedded create (a listener registered around the create counted
- * zero fires), so anything that MUST happen cannot ride those hooks alone. And NO awaiting
- * canvas readiness anywhere in here — a shape-wait against template.object never came back
- * on that same elect; templateShape's document-geometry fallback carries containment.
+ * nothing, so the render floor is the only thing that catches it. And NO awaiting canvas
+ * readiness anywhere in here — containment reads the region document's own geometry.
  */
 export async function refreshDemandFromTemplates(card) {
   if ( !setting(S.saves) ) return;
   if ( !drivesMomentFor(card.getFlag(MODULE_ID, "saves")?.sourceUuid ?? null) ) return;
-  if ( templateRefreshes.has(card.id) ) return;
-  templateRefreshes.add(card.id);
+  const inFlight = templateRefreshes.get(card.id);
+  if ( inFlight ) { inFlight.again = true; return; }
+  const latch = { again: false };
+  templateRefreshes.set(card.id, latch);
   try {
     const flag = card.getFlag(MODULE_ID, "saves");
     if ( flag?.status !== "pending" ) return;
@@ -102,20 +124,20 @@ export async function refreshDemandFromTemplates(card) {
     const wasWaiting = !(flag.targets ?? []).length;
     if ( !wasWaiting && !(flag.targets ?? []).some(t => !t.done) ) return;
     // ONE customer per area among WAITING casts: the newest same-activity waiting demand
-    // owns any arriving template (the fossil rule, standing item 17, applied to waiting —
+    // owns any arriving area (the fossil rule, standing item 17, applied to waiting —
     // the v1.12.0 walk left FOUR bare Web casts waiting, and without this gate one placed
     // cube fills all four: four popup sets for one area. Older waiting casts stay waiting
     // forever, which is already item 5's deliberate shape).
     if ( wasWaiting ) {
       // ⚠ ANY newer same-activity cast disarms this one — not just a newer cast that is
       // still WAITING. The narrower test (v1.13.0) held only until the newer demand
-      // adopted: the claim stamps `origin = activityUuid` onto the toolbar template, the
-      // newer card then has targets and stops counting as "newer waiting", and this older
-      // card walks straight into templatesForOrigin — which now MATCHES, because the
-      // origin it was just stamped with is shared by every cast of that activity. Both
-      // demands then own one area and both apply damage (smoke-saves §10d2/§10f, caught
-      // 2026-08-19: the victim died at 0/11 off one rect). Same fossil rule as the sweep's
-      // wall, stated the same way: the NEWEST cast owns the area, period.
+      // adopted: the claim stamps the activity onto the toolbar region, the newer card
+      // then has targets and stops counting as "newer waiting", and this older card walks
+      // straight into regionsForActivity — which now MATCHES, because the activity it was
+      // just stamped with is shared by every cast of that activity. Both demands then own
+      // one area and both apply damage (smoke-saves §10d2/§10f, caught 2026-08-19: the
+      // victim died at 0/11 off one rect). Same fossil rule as the sweep's wall, stated
+      // the same way: the NEWEST cast owns the area, period.
       const newer = game.messages.contents.some(m => {
         if ( (m.id === card.id) || (m.timestamp <= card.timestamp) ) return false;
         const f = m.getFlag(MODULE_ID, "saves");
@@ -123,28 +145,28 @@ export async function refreshDemandFromTemplates(card) {
       });
       if ( newer ) return;
     }
-    let templates = templatesForOrigin(flag.activityUuid);
-    // Nothing origin-tied: a waiting demand may claim a toolbar-drawn (origin-less)
-    // template of its expected shape — the claim stamps the origin, so this branch runs
-    // at most once per template ever.
-    if ( !templates.length && wasWaiting ) {
-      const claimed = await claimBareTemplate(card, flag);
-      if ( claimed ) templates = [claimed];
+    let regions = regionsForActivity(flag.activityUuid);
+    // Nothing activity-tied: a waiting demand may claim a toolbar-drawn (unowned) area of
+    // its expected shape — the claim stamps the activity, so this branch runs at most once
+    // per region ever.
+    if ( !regions.length && wasWaiting ) {
+      const claimed = await claimBareRegion(card, flag);
+      if ( claimed ) regions = [claimed];
     }
-    if ( !templates.length ) return;
+    if ( !regions.length ) return;
     const activity = flag.activityUuid ? resolveUuid(flag.activityUuid) : null;
-    const contained = emanationReach(activity, tokensInTemplates(templates)) ?? [];
+    const contained = emanationReach(activity, tokensInRegions(regions)) ?? [];
     // Careful's protected creatures never join the demand, Heightened's mark joins it (the metamagic
     // pass, Stage 2): derived from the area's contents, before the serialized write below.
     const metamagic = await metamagicForDemand(card, activity, contained);
     if ( metamagic.hold ) return;   // the caster is being asked who the area spares — waiting keeps waiting
     // ⚠ THROUGH THE SERIALIZER (core.js), and the derivation moved INSIDE it. Everything
-    // above is async — the template lookup and the bare-template claim both await — so the
-    // `flag` read at the top of this function is stale by the time the write lands. Building
-    // the new target list from that stale read is a lost update with teeth: a save answer
-    // folding in during the await window (rollSaveAnswer's own write) would be rebuilt away,
-    // and the target would be re-demanded after it had already rolled. The mutate is
-    // synchronous, so only the derivation moves; the awaits stay out here.
+    // above is async — the claim awaits — so the `flag` read at the top of this function is
+    // stale by the time the write lands. Building the new target list from that stale read
+    // is a lost update with teeth: a save answer folding in during the await window
+    // (rollSaveAnswer's own write) would be rebuilt away, and the target would be
+    // re-demanded after it had already rolled. The mutate is synchronous, so only the
+    // derivation moves; the awaits stay out here.
     await queueFlagWrite(card, "saves", current => {
       const prev = current.targets ?? [];
       const done = prev.filter(t => t.done);
@@ -180,39 +202,45 @@ export async function refreshDemandFromTemplates(card) {
       }
     });
   } catch(err) {
-    console.error(`${TITLE} | Template containment refresh failed.`, err);
+    console.error(`${TITLE} | Area containment refresh failed.`, err);
   } finally {
     templateRefreshes.delete(card.id);
+    if ( latch.again ) void refreshDemandFromTemplates(card);
   }
 }
 
-/** The CRUD fast-path: when the hooks DO fire, refresh the newest live demand at once.
- * An origin-LESS template (the toolbar draw, finding ①) is offered to the newest WAITING
- * demand expecting its shape — the refresh's claim does the actual tying. */
-function refreshTemplatedDemands(templateDoc) {
+/** The CRUD fast-path: when a region appears or its shapes move, refresh the newest live
+ * demand at once. An unowned drawn template (the toolbar draw, finding ①) is offered to the
+ * newest WAITING demand expecting its shape — the refresh's claim does the actual tying. */
+function refreshTemplatedDemands(region) {
   if ( !setting(S.saves) ) return;
   // Per-demand rather than per-room: the loop below already filters to live demands, and each
   // one is driven by whoever drives its caster (v1.27.2).
-  const origin = templateDoc.getFlag("dnd5e", "origin");
+  const origin = activityOfRegion(region);
+  const bare = isBareTemplate(region);
+  if ( !origin && !bare ) return;   // somebody's region, nobody's area — a feature aura, a hazard, a door
   const live = game.messages.contents.filter(m => {
     const f = m.getFlag(MODULE_ID, "saves");
     if ( (f?.status !== "pending") || f.pinnedTargets ) return false;
     if ( origin ) return (f.activityUuid === origin)
       // Undone targets, or a WAITING demand (zero targets) whose area just arrived.
       && (!(f.targets ?? []).length || (f.targets ?? []).some(t => !t.done));
-    return !(f.targets ?? []).length && (expectedTemplateT(f) === templateDoc.t);
+    return !(f.targets ?? []).length && (expectedShapeType(f) === region.shapes?.[0]?.type);
   }).sort((a, b) => a.timestamp - b.timestamp);
   const card = live.at(-1);
   if ( card ) void refreshDemandFromTemplates(card);
 }
-Hooks.on("createMeasuredTemplate", doc => { refreshTemplatedDemands(doc); });
-Hooks.on("updateMeasuredTemplate", doc => { refreshTemplatedDemands(doc); });
+Hooks.on("createRegion", region => { refreshTemplatedDemands(region); });
+Hooks.on("updateRegion", (region, changes) => {
+  // The area moved (Moonbeam walks; an attached ring follows its token), or was just claimed.
+  if ( ("shapes" in changes) || ("attachment" in changes) || (changes.flags?.dnd5e && ("activity" in changes.flags.dnd5e)) ) refreshTemplatedDemands(region);
+});
 
 /** The sweep's same-client re-entry latch (the banner note inside cleanupSpentTemplates). */
 const templateSweepsInFlight = new Set();
 
 /**
- * An INSTANTANEOUS spell's template is spent once every verdict's consequences landed —
+ * An INSTANTANEOUS spell's area is spent once every verdict's consequences landed —
  * Shatter's circle has nothing left to say, so it leaves the canvas (user call 2026-08-16).
  * Duration spells (Moonbeam, Web) keep theirs: the area persists and containment keeps
  * reading it. The card keeps the spell's text either way — nothing is lost with the shape.
@@ -223,12 +251,12 @@ const templateSweepsInFlight = new Set();
  * an elect flip mid-chain (a second GM session connecting/disconnecting re-elects; probe
  * sessions did exactly that during the walk). The render/update floors now re-offer the
  * sweep for done demands, so a lost one-shot converges on the next render, whoever the
- * elect is by then. Idempotent and cheap: the origin filter usually finds nothing.
+ * elect is by then. Idempotent and cheap: the activity filter usually finds nothing.
  *
  * ⚠ The NEWEST-CAST fossil wall: re-casting the same activity reuses the same
  * activityUuid, so an OLD done card's sweep would delete the CURRENT cast's area. Any
  * newer same-activity save card disarms this card's sweep forever. (The narrow blind
- * spot — a re-render landing in the ms between the new cast's template and its stamp —
+ * spot — a re-render landing in the ms between the new cast's region and its stamp —
  * needs a full-log re-render inside that window; accepted.)
  */
 export async function cleanupSpentTemplates(card, { endedConcentrationId = null } = {}) {
@@ -237,14 +265,14 @@ export async function cleanupSpentTemplates(card, { endedConcentrationId = null 
   if ( !(flag.targets ?? []).every(t => t.done && (t.applied || (t.outcome === "gone"))) ) return;
   // An INSTANTANEOUS area is spent when its last consequence lands (v1.14.0). A DURATION
   // area is spent when the CONCENTRATION that sustains it is gone (the 2026-08-18 session's
-  // finding ①: Faerie Fire's region outlived the spell — the native end-of-concentration
-  // cascade owns that deletion but demonstrably lost it, the same lost-one-shot class as
-  // finding ② was, so the same convergent floor answers it). The usage card carries its own
-  // concentration effect id (system.concentration, stamped by the system at cast); when the
-  // caster no longer wears that effect, the spell is over and the area goes — dependents
-  // (the marked targets' chips) correctly cascading with it. A non-concentration duration
-  // area stays the GM's to clear (leftover, recorded); an unresolvable caster leaves the
-  // area standing rather than guessing.
+  // finding ①: Faerie Fire's region outlived the spell — and at dnd5e 6.0 a placed region is
+  // not a concentration dependent at all, measured 2026-09-15: ending concentration leaves
+  // the region standing, so this floor is the ONLY thing that takes it down). The usage card
+  // carries its own concentration effect id (system.concentration, stamped by the system at
+  // cast); when the caster no longer wears that effect, the spell is over and the area goes —
+  // dependents (the marked targets' chips) correctly cascading with it. A non-concentration
+  // duration area stays the GM's to clear (leftover, recorded); an unresolvable caster leaves
+  // the area standing rather than guessing.
   // The FOURTH bucket (user ruling 2026-09-10): a listed name is spent at the last verdict
   // whatever its data says — Noxious Miasma's "1 turn" is the AC penalty's clock, not the
   // cloud's (decide/registry.js SPENT_AREAS; the Spent Areas list is the switch).
@@ -270,21 +298,20 @@ export async function cleanupSpentTemplates(card, { endedConcentrationId = null 
   if ( superseded ) return;
   // ⚠ ONE SWEEP IN FLIGHT PER CARD (2026-08-28, the live Fireball's three red banners). The
   // floor is convergent on purpose — consequence pass, update and render all offer it in the
-  // same beat — and the try/catch below does tolerate the losers' misses. But v14 shims every
-  // template onto a backing Region, and a concurrent second delete surfaces "Region does not
-  // exist" as a UI NOTIFICATION the catch never sees — one banner per extra floor. The latch
-  // makes the overlap not happen; a floor arriving after the winner finishes still runs and
-  // correctly finds nothing.
+  // same beat — and the try/catch below does tolerate the losers' misses. But a concurrent
+  // second delete surfaces "Region does not exist" as a UI NOTIFICATION the catch never sees —
+  // one banner per extra floor. The latch makes the overlap not happen; a floor arriving after
+  // the winner finishes still runs and correctly finds nothing.
   if ( templateSweepsInFlight.has(card.id) ) return;
   templateSweepsInFlight.add(card.id);
   try {
     for ( const scene of game.scenes ) {
-      const spent = scene.templates.filter(t => t.getFlag("dnd5e", "origin") === flag.activityUuid);
-      // Tolerate the race against the native cascade deleting the same documents — whichever
-      // cleanup wins, the other's miss must not throw the floor off its next offer.
+      const spent = scene.regions.filter(r => activityOfRegion(r) === flag.activityUuid);
+      // Tolerate the race against another cleanup deleting the same documents — whichever
+      // wins, the other's miss must not throw the floor off its next offer.
       try {
-        if ( spent.length ) await scene.deleteEmbeddedDocuments("MeasuredTemplate", spent.map(t => t.id));
-      } catch(err) { /* already gone — the cascade or the other elect twin got there */ }
+        if ( spent.length ) await scene.deleteEmbeddedDocuments("Region", spent.map(r => r.id));
+      } catch(err) { /* already gone — the other elect twin got there */ }
     }
   } finally {
     templateSweepsInFlight.delete(card.id);

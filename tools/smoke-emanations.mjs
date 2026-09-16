@@ -21,9 +21,9 @@ const SECTIONS = {
   3: 'reach: a hostile inside a helpful aura receives nothing',
   4: 'the AREA moving onto a standing ally applies it; moving away lifts it',
   5: 'Incapacitated on the Paladin lifts the aura from everyone inside; recovering restores it',
-  6: 'Spirit Guardians: the placed template is adopted — attached to the Cleric, Half Speed on the hostile inside and not on the ally',
+  6: 'Spirit Guardians: the placed area (a Region, dnd5e 6.0) is adopted — attached to the Cleric, Half Speed on the hostile inside and not on the ally',
   7: 'Spirit Guardians triggers: a save demand card when the hostile enters, another when it ends its turn inside, none for a second entry in the same turn',
-  8: 'the template goes (concentration\'s end) — the region goes and Half Speed lifts',
+  8: 'the area goes (concentration\'s end) — the region goes and Half Speed lifts',
   9: 'the switch: Emanations off removes the standing aura; on again raises it',
   10: 'the registrations FIRED (§11): createRegion, updateToken and the region events moved',
   11: 'THE ACTIVE SCENE ONLY (user, 2026-09-04: the bleed): another scene made active brings the range\'s rings down and lifts the ally\'s effects; the range active again raises them once, no stack; a ring left on an inactive scene is brought down by the ready sweep',
@@ -117,7 +117,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await closeDialogs();
       try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
       for (const id of priorActiveCombats) { try { await game.combats.get(id)?.update({ active: true }); } catch { /* gone */ } }
-      try { if (template && scene.templates.get(template.id)) await template.delete(); } catch { /* gone */ }
+      try { if (template && scene.regions.get(template.id)) await template.delete(); } catch { /* gone */ }
       try { const live = addedItems.filter(id => cleric.items.get(id)); if (live.length) await cleric.deleteEmbeddedDocuments('Item', live); } catch { /* gone */ }
       // The cast began concentration; end it so the next cast is not asked about the last one.
       try { if (cleric.concentration?.effects?.size) await cleric.endConcentration(); } catch { /* none */ }
@@ -144,8 +144,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('emanationList', 'Aura of Protection, Aura of Courage, Aura of Warding, Spirit Guardians');
     await set('saves', true); await set('saveTimer', 24); await set('playerRollDamage', false); await set('autoApply', true); await set('requireTarget', false);
     await clearMembers();
+    // The Victim's TOKEN actor (unlinked) takes §7's real damage every run — at 0 HP it is a corpse
+    // the cast's demand rightly skips (the dead-target gate), so it starts every run at full.
+    if (vicTok.actor && (vicTok.actor.system.attributes.hp.value < vicTok.actor.system.attributes.hp.max)) await vicTok.actor.update({ 'system.attributes.hp.value': vicTok.actor.system.attributes.hp.max });
     try { if (cleric.concentration?.effects?.size) await cleric.endConcentration(); } catch { /* none */ }
-    for (const t of scene.templates.filter(t => t.getFlag('dnd5e', 'item') === sgItemUuid())) await t.delete().catch(() => {});
+    for (const r of scene.regions.filter(r => r.getFlag('dnd5e', 'item') === sgItemUuid())) await r.delete().catch(() => {});
     // Everyone home and apart: the Paladin and Cleric on the bottom row, the line at y=1000.
     for (const [id, pos] of Object.entries(home)) { const t = scene.tokens.get(id); if ((t.x !== pos.x) || (t.y !== pos.y)) await t.update(pos, mv()); }
     await sleep(800);
@@ -158,19 +161,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Start from nothing: an aura standing from an earlier run is deleted, and the sweep the
       // deletion schedules raises it again (a feature's aura is always on — the region is not
       // its switch), which is what posts the card §1g reads.
-      for (const r of scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature')) { const t = scene.templates.get(r.id); if (t) await t.delete().catch(() => {}); if (scene.regions.get(r.id)) await r.delete().catch(() => {}); }
+      for (const r of scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature')) { if (scene.regions.get(r.id)) await r.delete().catch(() => {}); }
       // All three, not the first: the sweep raises them one create at a time.
       const region = await waitFor(() => ['Aura of Protection', 'Aura of Courage', 'Aura of Warding'].every(k => featureRegion(palTok, k)) ? featureRegion(palTok, 'Aura of Protection') : null, 12000);
       ok('1b. a Region for Aura of Protection stands, attached to the Paladin\'s token', !!region && (region.attachment?.token?.id === palTok.id), `region=${region?.id} attached=${region?.attachment?.token?.id}`);
-      const palTemplate = region ? scene.templates.get(region.id) : null;
-      ok('1c. it is a TEMPLATE (the ring the table sees) centred on the token, the class\'s 10 feet plus half the token (@scale.paladin.aura — no number in the module)', !!palTemplate && (palTemplate.distance === 12.5) && (palTemplate.x === palTok.x + grid / 2) && (palTemplate.y === palTok.y + grid / 2) && !palTemplate.getFlag('dnd5e', 'origin'), `template=${palTemplate?.id} distance=${palTemplate?.distance} at=(${palTemplate?.x},${palTemplate?.y}) region shape=${region?.shapes?.[0]?.type}`);
+      const palShape = region?.shapes?.[0] ?? null;
+      ok('1c. it is the platform\'s own EMANATION shape on the token\'s base — the class\'s 10 feet from the edge (@scale.paladin.aura — no number in the module), no dnd5e flags', !!palShape && (palShape.type === 'emanation') && (palShape.radius === 10 * px) && (palShape.base?.x === palTok.x) && (palShape.base?.y === palTok.y) && !region.getFlag('dnd5e', 'activity'), `region=${region?.id} shape=${JSON.stringify(palShape)}`);
       const beh = region?.behaviors?.find(b => b.type === TYPE);
       const change = beh?.system?.effect?.changes?.[0];
-      ok('1d. the behaviour carries the pack\'s effect with the PALADIN\'s Charisma resolved in', !!beh && (change?.key === 'system.rolls.ability.save.bonus') && (String(change?.value) === String(chaMod)), `changes=${JSON.stringify(beh?.system?.effect?.changes)}`);
+      ok('1d. the behaviour carries the pack\'s effect with the PALADIN\'s Charisma resolved in', !!beh && ['system.rolls.ability.save.bonus', 'system.bonuses.abilities.save'].includes(change?.key) && (String(change?.value) === String(chaMod)), `changes=${JSON.stringify(beh?.system?.effect?.changes)}`);
       await sleep(1500);   // let a second sweep, if one was queued, settle before counting
       const featureRegions = scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature' && r.getFlag(MOD, 'emanation')?.tokenId === palTok.id);
       ok('1e. all three auras stand (Protection, Courage, Warding) — EXACTLY one region each', (featureRegions.length === 3) && ['Aura of Protection', 'Aura of Courage', 'Aura of Warding'].every(k => featureRegions.filter(r => r.getFlag(MOD, 'emanation').key === k).length === 1), featureRegions.map(r => r.name).join(' | '));
-      ok('1f. the region itself is invisible — the template draws the ring (the black circle, user 2026-09-03)', region?.visibility === CONST.REGION_VISIBILITY.LAYER, `visibility=${region?.visibility}`);
+      ok('1f. the region draws the ring itself — visible to all, its own shape (dnd5e 6.0: there is no template to draw it)', (region?.visibility === CONST.REGION_VISIBILITY.ALWAYS) && (region?.highlightMode === 'shapes'), `visibility=${region?.visibility} highlightMode=${region?.highlightMode}`);
       ok('1g. a card announced the aura (R5)', game.messages.some(m => (m.timestamp >= suiteStart - 60_000) && m.getFlag(MOD, 'emanationCard')?.key === 'Aura of Protection') || game.messages.some(m => m.getFlag(MOD, 'emanationCard')?.key === 'Aura of Protection'), '');
       ok('1h. the Paladin does not receive its own aura twice (the transfer effect already covers it)', memberFx(paladin).length === 0, `memberFx=${memberFx(paladin).map(e => e.name).join(',')}`);
     }
@@ -179,12 +182,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const region = featureRegion(palTok, 'Aura of Protection');
     const inside = { x: palTok.x, y: palTok.y - 2 * grid };     // two squares above: one square gap, inside 10 ft
     if (want(2) && region) {
-      const saveBefore = ranger.system.bonuses?.abilities?.save ?? '';
+      const saveBonus = () => ranger.system.rolls?.ability?.save?.bonus ?? ranger.system.bonuses?.abilities?.save ?? '';   // 6.0 moved it under rolls.*
+      const saveBefore = saveBonus();
       await rgrTok.update(inside, mv());
       const fx = await waitFor(() => memberFx(ranger, region.id)[0] ?? null, 6000);
       ok('2a. the Ranger receives "Protected — BF Test Paladin"', fx?.name === 'Protected — BF Test Paladin', `effects=${memberFx(ranger).map(e => e.name).join(',')}`);
       ok('2b. …with the PALADIN\'s Charisma (+3), not the Ranger\'s', String(fx?.changes?.[0]?.value) === String(chaMod), `value=${fx?.changes?.[0]?.value} paladinCha=${chaMod} rangerCha=${ranger.system.abilities.cha.mod}`);
-      ok('2c. the Ranger\'s save bonus now carries it', String(ranger.system.bonuses?.abilities?.save ?? '').includes(String(chaMod)), `before="${saveBefore}" after="${ranger.system.bonuses?.abilities?.save}"`);
+      ok('2c. the Ranger\'s save bonus now carries it', String(saveBonus()).includes(String(chaMod)), `before="${saveBefore}" after="${saveBonus()}"`);
       ok('2d. Courage and Warding land too — three member effects, one per aura', memberFx(ranger).length === 3, memberFx(ranger).map(e => e.name).join(' | '));
       await rgrTok.update(home[rgrTok.id], mv());
       const gone = await waitFor(() => memberFx(ranger).length === 0 ? true : null, 6000);
@@ -251,18 +255,24 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await Promise.race([sgAct.use({ consume: { spellSlot: false, resources: false } }, { configure: false }, { create: true }),
           new Promise((_, rej) => setTimeout(() => rej(new Error('use() did not settle — the placement prompt was not switched off')), 8000))]);
       } catch (err) { log.push(`use(): ${err.message}`); }
-      template = await waitFor(() => scene.templates.find(t => t.getFlag('dnd5e', 'origin') === sgAct.uuid) ?? null, 8000);
-      ok('6-. the area placed itself on the Cleric — no click: centred on the token, 15 ft plus half the token', !!template && (template.x === clrTok.x + grid / 2) && (template.y === clrTok.y + grid / 2) && (template.distance === 17.5), `template=${template?.id} at=(${template?.x},${template?.y}) distance=${template?.distance} spellLevel=${template?.getFlag('dnd5e', 'spellLevel')}`);
+      template = await waitFor(() => scene.regions.find(r => r.getFlag('dnd5e', 'activity') === sgAct.uuid) ?? null, 8000);
+      const sgShape = template?.shapes?.[0] ?? null;
+      ok('6-. the area placed itself on the Cleric — no click: the platform\'s emanation shape on the token\'s base, 15 ft from the edge, the placement\'s flags (activity, item, the token as origin, spell level)', !!sgShape && (sgShape.type === 'emanation') && (sgShape.base?.x === clrTok.x) && (sgShape.base?.y === clrTok.y) && (sgShape.radius === 15 * px) && (template.getFlag('dnd5e', 'item') === sgItemUuid()) && (template.getFlag('dnd5e', 'origin') === clrTok.uuid) && (template.getFlag('dnd5e', 'spellLevel') === 3), `region=${template?.id} shape=${JSON.stringify(sgShape)} flags=${JSON.stringify(template?.flags?.dnd5e)}`);
+      ok('6-2. no platform behaviour rides the adopted ring (the §3.6 ruling) — only Battle Flow\'s', !!template && !template.behaviors.some(b => String(b.type).startsWith('dnd5e.')), `behaviours=${template?.behaviors.map(b => b.type).join(',')}`);
       const conc = [...(cleric.concentration?.effects ?? [])].at(-1);
       ok('6+. …and the Cleric is concentrating on it (the effect the area will end with)', !!conc && (conc.flags?.dnd5e?.activity?.uuid === sgAct.uuid), `conc=${conc?.name} activity=${conc?.flags?.dnd5e?.activity?.uuid}`);
       // Adoption writes the flag first, the behaviour, then the attachment — wait for the last.
       sgRegion = await waitFor(() => { const r = spellRegion('Spirit Guardians'); return r?.attachment?.token ? r : null; }, 8000) ?? spellRegion('Spirit Guardians');
-      ok('6a. the template\'s Region is adopted: flagged, attached to the Cleric\'s token', !!sgRegion && (sgRegion.attachment?.token?.id === clrTok.id), `region=${sgRegion?.id} attached=${sgRegion?.attachment?.token?.id} cardsSinceUse=${game.messages.size - b6}`);
+      ok('6a. the placed Region is adopted: flagged, attached to the Cleric\'s token', !!sgRegion && (sgRegion.attachment?.token?.id === clrTok.id), `region=${sgRegion?.id} attached=${sgRegion?.attachment?.token?.id} cardsSinceUse=${game.messages.size - b6}`);
       const beh = await waitFor(() => scene.regions.get(sgRegion?.id)?.behaviors?.find(b => b.type === TYPE) ?? null, 4000);
       ok('6b. its behaviour carries Half Speed and the harmful reach', (beh?.system?.reach === 'harmful') && (beh?.system?.effect?.name === 'Half Speed'), `system=${JSON.stringify(beh?.system)}`);
       const vicActor = vicTok.actor;
       const fx = await waitFor(() => memberFx(vicActor, sgRegion?.id)[0] ?? null, 6000);
-      ok('6c. the hostile Victim inside is Half Speed — ONE effect, and it wears a status so the token shows it', !!fx && (memberFx(vicActor, sgRegion?.id).length === 1) && (vicActor.system.attributes.movement.walk === Math.floor((vicActor.system._source.attributes.movement.walk ?? 30) / 2)) && vicActor.effects.get(fx.id)?.statuses?.has?.('bfEmanation'), `walk=${vicActor.system.attributes.movement.walk} source=${vicActor.system._source.attributes.movement.walk} fx=${memberFx(vicActor, sgRegion?.id).map(e => e.name).join(',')} statuses=${[...(vicActor.effects.get(fx?.id)?.statuses ?? [])].join(',')}`);
+      // What Battle Flow owns is the EFFECT: one per region per creature, the pack's own change on it, a status so
+      // the token shows it. Whether the platform then halves the sheet's speed is the pack's change key against
+      // the platform's prepare order (dnd5e 6.0.1 + PHB: `movement.speed` ×0.5 leaves an NPC's speed at 30 —
+      // measured 2026-09-16; the speed is logged, never asserted).
+      ok('6c. the hostile Victim inside is Half Speed — ONE effect carrying the pack\'s change, and it wears a status so the token shows it', !!fx && (memberFx(vicActor, sgRegion?.id).length === 1) && fx.changes.some(c => /movement/.test(c.key) && (String(c.value) === '0.5')) && vicActor.effects.get(fx.id)?.statuses?.has?.('bfEmanation'), `speed=${vicActor.system.attributes.movement.speed} walk=${vicActor.system.attributes.movement.walk} source=${vicActor.system._source.attributes.movement.speeds?.walk} fx=${memberFx(vicActor, sgRegion?.id).map(e => e.name).join(',')} statuses=${[...(vicActor.effects.get(fx?.id)?.statuses ?? [])].join(',')}`);
       await sleep(1500);
       ok('6c2. standing inside at the cast, the Victim was asked ONCE — by the cast\'s demand, not by an "enter" trigger', triggerCards().length === 0, `triggerCards=${triggerCards().length} initial=${JSON.stringify(sgRegion?.getFlag(MOD, 'emanation')?.initial)}`);
       const castFlag = game.messages.contents.filter(x => (x.timestamp >= suiteStart) && x.getFlag(MOD, 'saves') && !x.getFlag(MOD, 'saves').pinnedTargets && x.getFlag(MOD, 'saves').activityUuid === sgAct.uuid).at(-1)?.getFlag(MOD, 'saves');
@@ -365,20 +375,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const vicActor = vicTok.actor;
       const rid = sgRegion.id;
       const tid = template?.id ?? null;
-      // The REAL end: concentration drops, and the system's own dependent cascade takes the
-      // template, the template takes its region, the region's going lifts the effect.
+      // The REAL end: concentration drops; dnd5e 6.0 makes no placed region a dependent, so the
+      // module ends the area itself (endCastEmanations), and the region's going lifts the effect.
       await cleric.endConcentration();
-      const gone = await waitFor(() => (!(tid && scene.templates.get(tid)) && !scene.regions.get(rid) && memberFx(vicActor, rid).length === 0) ? true : null, 10000);
-      if (!scene.templates.get(tid)) template = null;
-      ok('8a. ending concentration deletes the template (its dependent), the region with it, and lifts Half Speed from the Victim', !!gone, `template=${!!(tid && scene.templates.get(tid))} region=${!!scene.regions.get(rid)} fx=${memberFx(vicActor, rid).map(e => e.name).join(',')} walk=${vicActor.system.attributes.movement.walk}`);
+      const gone = await waitFor(() => (!(tid && scene.regions.get(tid)) && !scene.regions.get(rid) && memberFx(vicActor, rid).length === 0) ? true : null, 10000);
+      if (!(tid && scene.regions.get(tid))) template = null;
+      ok('8a. ending concentration ends the area (the module\'s own hook — no dependent at 6.0), and lifts Half Speed from the Victim', !!gone, `area=${!!(tid && scene.regions.get(tid))} region=${!!scene.regions.get(rid)} fx=${memberFx(vicActor, rid).map(e => e.name).join(',')} walk=${vicActor.system.attributes.movement.walk}`);
     }
 
     // ================================================== 9. the switch
     if (want(9)) {
       // The setting's own onChange sweeps (no token nudge needed — that is what §9 proves).
       await set('emanations', false);
-      const gone = await waitFor(() => (!featureRegion(palTok, 'Aura of Protection') && !scene.templates.some(t => t.getFlag(MOD, 'emanation')?.tokenId === palTok.id)) ? true : null, 8000);
-      ok('9a. Emanations off: the standing aura — template and region — is removed from the scene', !!gone, scene.regions.filter(r => r.getFlag(MOD, 'emanation')).map(r => r.name).join(' | '));
+      const gone = await waitFor(() => !featureRegion(palTok, 'Aura of Protection') ? true : null, 8000);
+      ok('9a. Emanations off: the standing aura\'s region is removed from the scene', !!gone, scene.regions.filter(r => r.getFlag(MOD, 'emanation')).map(r => r.name).join(' | '));
       await set('emanations', true);
       const back = await waitFor(() => featureRegion(palTok, 'Aura of Protection'), 8000);
       ok('9b. on again: the aura is raised again', !!back, '');
@@ -387,7 +397,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ================================================== 11. the active scene only
     if (want(11)) {
       const ringsUp = () => ['Aura of Protection', 'Aura of Courage', 'Aura of Warding'].every(k => featureRegion(palTok, k));
-      const ringsDown = () => !scene.regions.some(r => r.getFlag(MOD, 'emanation')?.kind === 'feature') && !scene.templates.some(t => t.getFlag(MOD, 'emanation')?.kind === 'feature');
+      const ringsDown = () => !scene.regions.some(r => r.getFlag(MOD, 'emanation')?.kind === 'feature');
       await rgrTok.update(inside, mv());
       const three = await waitFor(() => memberFx(ranger).length === 3 ? true : null, 8000);
       ok('11a. the Ranger inside the ring wears the three auras on the ACTIVE range', !!three, memberFx(ranger).map(e => e.name).join(' | '));
@@ -400,17 +410,22 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const lifted = await waitFor(() => (memberFx(ranger).length === 0) ? true : null, 10000);
       ok('11b. another scene made active: the Ranger\'s three effects are LIFTED, though its range token still stands inside the ring', !!lifted, `left=${memberFx(ranger).map(e => e.name).join(',')} active=${game.scenes.active?.name}`);
       const down = await waitFor(() => ringsDown() ? true : null, 10000);
-      ok('11c. the range\'s rings — regions and templates — come down: a ring stands on the active scene only', !!down, scene.regions.filter(r => r.getFlag(MOD, 'emanation')).map(r => r.name).join(' | '));
+      ok('11c. the range\'s rings come down: a ring stands on the active scene only', !!down, scene.regions.filter(r => r.getFlag(MOD, 'emanation')).map(r => r.name).join(' | '));
       ok('11d. no ring was raised on the other scene (no Paladin there)', !elsewhere.regions.some(r => r.getFlag(MOD, 'emanation')), '');
       // A ring left standing on an INACTIVE scene (the old code's, or a GM's reload mid-sweep):
       // the ready sweep brings it down. Raised by hand here as the old code would have, with the
       // Ranger's range token inside; the sweep of that scene must lift and delete it.
-      const stale = await scene.createEmbeddedDocuments('MeasuredTemplate', [{ t: 'circle', x: palTok.x + grid / 2, y: palTok.y + grid / 2, distance: 12.5, flags: { [MOD]: { emanation: { kind: 'feature', key: 'Aura of Protection', tokenId: palTok.id, itemUuid: paladin.items.find(i => i.name === 'Aura of Protection')?.uuid } } } }]);
+      // ⚠ The EFFECT goes down first, wearing the region id the create will carry: §11c's own
+      // deleteRegion hooks re-schedule a sweep of the range, and a sweep that lands between a
+      // hand-made region and its effect removes the region with nothing yet to lift — the effect
+      // then stands orphaned and the sweep this section fires finds no ring (2026-09-16, one run).
+      const staleId = foundry.utils.randomID();
+      await ranger.createEmbeddedDocuments('ActiveEffect', [{ name: 'Protected — BF Test Paladin (stale)', flags: { [MOD]: { emanation: { regionId: staleId } } } }]);
+      const stale = await scene.createEmbeddedDocuments('Region', [{ _id: staleId, name: 'stale ring', shapes: [{ type: 'circle', x: palTok.x + grid / 2, y: palTok.y + grid / 2, radius: 12.5 * px }], flags: { [MOD]: { emanation: { kind: 'feature', key: 'Aura of Protection', tokenId: palTok.id, itemUuid: paladin.items.find(i => i.name === 'Aura of Protection')?.uuid } } } }], { keepId: true });
       await sleep(800);
-      await ranger.createEmbeddedDocuments('ActiveEffect', [{ name: 'Protected — BF Test Paladin (stale)', flags: { [MOD]: { emanation: { regionId: stale[0].id } } } }]);
       Hooks.call(`${MOD}.emanationsChanged`);   // the same everywhere-sweep ready runs
-      const swept = await waitFor(() => (!scene.templates.get(stale[0].id) && memberFx(ranger, stale[0].id).length === 0) ? true : null, 10000);
-      ok('11e. a stale ring on an inactive scene is brought down by the everywhere-sweep, and the effect it wrote is lifted from the actor', !!swept, `template=${!!scene.templates.get(stale[0].id)} fx=${memberFx(ranger, stale[0].id).length}`);
+      const swept = await waitFor(() => (!scene.regions.get(stale[0].id) && memberFx(ranger, stale[0].id).length === 0) ? true : null, 10000);
+      ok('11e. a stale ring on an inactive scene is brought down by the everywhere-sweep, and the effect it wrote is lifted from the actor', !!swept, `region=${!!scene.regions.get(stale[0].id)} fx=${memberFx(ranger, stale[0].id).length}`);
       await scene.activate();
       const back = await waitFor(() => (ringsUp() && memberFx(ranger).length === 3) ? true : null, 15000);
       await sleep(1500);   // a second sweep, if queued, settles before counting
@@ -459,7 +474,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await Promise.race([act.use({ consume: { spellSlot: false, resources: false }, subsequentActions: false }, { configure: false }, { create: true }),
           new Promise((_, rej) => setTimeout(() => rej(new Error('use() did not settle')), 8000))]);
       } catch (err) { log.push(`use(${name}): ${err.message}`); }
-      const tpl = await waitFor(() => scene.templates.find(t => t.getFlag('dnd5e', 'origin') === act.uuid) ?? null, 8000);
+      const tpl = await waitFor(() => scene.regions.find(r => r.getFlag('dnd5e', 'activity') === act.uuid) ?? null, 8000);
       const region = await waitFor(() => { const r = spellRegion(name); return r?.attachment?.token ? r : null; }, 8000) ?? spellRegion(name);
       return { item, act, tpl, region };
     };
@@ -484,7 +499,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(400);
       const { region, tpl } = await castSecond('Aura of Life');
       template = tpl ?? template;
-      ok('12a. Aura of Life cast: the area placed itself on the Cleric (30 ft plus half the token) and its region is adopted, attached', !!tpl && (tpl.distance === 32.5) && !!region && (region.attachment?.token?.id === clrTok.id), `template=${tpl?.distance} region=${region?.id} attached=${region?.attachment?.token?.id}`);
+      ok('12a. Aura of Life cast: the area placed itself on the Cleric (30 ft from the token\'s edge) and its region is adopted, attached', !!tpl && (tpl.shapes?.[0]?.type === 'emanation') && (tpl.shapes?.[0]?.radius === 30 * px) && !!region && (region.attachment?.token?.id === clrTok.id), `shape=${JSON.stringify(tpl?.shapes?.[0])} region=${region?.id} attached=${region?.attachment?.token?.id}`);
       const fx = await waitFor(() => memberFx(ranger, region?.id)[0] ?? null, 6000);
       ok('12b. the allied Ranger inside wears "Aura of Life — BF Test Cleric": the pack\'s own effect — Resistance to necrotic', !!fx && /^Aura of Life — BF Test Cleric/.test(fx.name) && fx.changes.some(c => (c.key === 'system.traits.dr.value') && (c.value === 'necrotic')), `fx=${fx?.name} changes=${JSON.stringify(fx?.changes)}`);
       await sleep(800);
@@ -519,7 +534,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await rgrTok.update({ x: 1300, y: 300 }, mv());
       const { region } = await castSecond("Crusader's Mantle");
       const fx = await waitFor(() => memberFx(ranger, region?.id)[0] ?? null, 6000);
-      ok('13a. Crusader\'s Mantle cast: the Ranger inside wears the pack\'s effect — +1d4[radiant] to weapon damage, the platform\'s own change', !!fx && fx.changes.some(c => (c.key === 'system.rolls.damage.mwak.bonus') && /1d4/.test(String(c.value))), `fx=${fx?.name} changes=${JSON.stringify(fx?.changes)}`);
+      ok('13a. Crusader\'s Mantle cast: the Ranger inside wears the pack\'s effect — +1d4[radiant] to weapon damage, the platform\'s own change', !!fx && fx.changes.some(c => ['system.rolls.damage.mwak.bonus', 'system.bonuses.mwak.damage'].includes(c.key) && /1d4/.test(String(c.value))), `fx=${fx?.name} changes=${JSON.stringify(fx?.changes)}`);
       await rgrTok.update(home[rgrTok.id], mv());
       const lifted = await waitFor(() => memberFx(ranger, region?.id).length === 0 ? true : null, 6000);
       ok('13b. walking out lifts it', !!lifted, '');
@@ -554,9 +569,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const { region, tpl } = await castSecond('Antilife Shell');
       await sleep(1200);
       const card = game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationCard')?.key === 'Antilife Shell').at(-1);
-      ok('15a. Antilife Shell cast: the ring stands (10 ft plus half the token), the region is adopted harmful, nothing is applied to the hostile inside, and the card says it is a barrier', !!tpl && (tpl.distance === 12.5) && !!region && (memberFx(vicTok.actor, region?.id).length === 0) && /barrier/.test(card?.content ?? ''), `template=${tpl?.distance} region=${!!region} fx=${memberFx(vicTok.actor).length} card=${!!card}`);
+      ok('15a. Antilife Shell cast: the ring stands (10 ft from the token\'s edge), the region is adopted harmful, nothing is applied to the hostile inside, and the card says it is a barrier', !!tpl && (tpl.shapes?.[0]?.radius === 10 * px) && !!region && (memberFx(vicTok.actor, region?.id).length === 0) && /barrier/.test(card?.content ?? ''), `shape=${JSON.stringify(tpl?.shapes?.[0])} region=${!!region} fx=${memberFx(vicTok.actor).length} card=${!!card}`);
       try { if (cleric.concentration?.effects?.size) await cleric.endConcentration(); } catch { /* none */ }
-      const gone = await waitFor(() => (!scene.regions.get(region?.id) && !(tpl && scene.templates.get(tpl.id))) ? true : null, 8000);
+      const gone = await waitFor(() => (!scene.regions.get(region?.id) && !(tpl && scene.regions.get(tpl.id))) ? true : null, 8000);
       ok('15b. ending concentration takes the ring down', !!gone, '');
       template = null;
     }

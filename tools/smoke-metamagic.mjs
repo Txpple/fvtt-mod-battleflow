@@ -156,7 +156,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     try { if (player) await sorc.update({ ownership: ownership0 }, { diff: false, recursive: false }); } catch (e) { log.push(`ownership restore failed: ${e.message}`); }
     try { await closeMomentPopups(); } catch { /* fine */ }
     await sleep(1500);   // in-flight verdicts land before their cards go
-    try { const live = (globalThis.__bfMetamagicTemplates ?? []).filter(id => scene.templates.get(id)); if (live.length) await scene.deleteEmbeddedDocuments('MeasuredTemplate', live); } catch { /* fine */ }
+    try { const live = (globalThis.__bfMetamagicTemplates ?? []).filter(id => scene.regions.get(id)); if (live.length) await scene.deleteEmbeddedDocuments('Region', live); } catch { /* fine */ }
     try { const ids = myCards().map(m => m.id); if (ids.length) await ChatMessage.deleteDocuments(ids); } catch (e) { log.push(`message cleanup failed: ${e.message}`); }
   };
 
@@ -331,9 +331,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (!card) return { card: null, why };
       await waitFor(() => card.getFlag(MOD, 'saves') ? card : null, 6000);
       const g = scene.grid.size;
-      const [tpl] = await scene.createEmbeddedDocuments('MeasuredTemplate', [{
-        t: 'circle', x: sorcTok.x + g / 2, y: sorcTok.y + g / 2, distance: 20,
-        flags: { dnd5e: { origin: card.getFlag(MOD, 'saves')?.activityUuid ?? spellAct('Fireball').uuid } }
+      // The area as dnd5e 6.0 places it: a Region, the platform's circle (radius in pixels), the ACTIVITY on its flag.
+      const [tpl] = await scene.createEmbeddedDocuments('Region', [{
+        name: 'BF metamagic area', shapes: [{ type: 'circle', x: sorcTok.x + g / 2, y: sorcTok.y + g / 2, radius: 20 * (g / scene.grid.distance) }],
+        flags: { dnd5e: { activity: card.getFlag(MOD, 'saves')?.activityUuid ?? spellAct('Fireball').uuid } }
       }]);
       templates.push(tpl.id);
       await sleep(300);
@@ -366,7 +367,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('9y. two groups: the Sorcerer (player-owned for the run) under Party, the Ranger and the goblins under Non-Party; every row names its token', askRows?.find(r => r.name === 'BF Test Sorcerer')?.group === 'Party' && askRows?.filter(r => r.name !== 'BF Test Sorcerer').every(r => r.group === 'Non-Party') && askRows.every(r => !!r.token), askRows?.map(r => r.name + '@' + r.group).join(','));
       if (card) keepCards.add(card.id);
       const saves = card?.getFlag(MOD, 'saves'), mm = card?.getFlag(MOD, 'metamagic');
-      log.push(`§9: saves=${JSON.stringify({ status: saves?.status, templated: saves?.templated, awaiting: saves?.awaitingTemplate, n: saves?.targets?.length, mmKeys: Object.keys(mm ?? {}) })} templates=${scene.templates.filter(t => t.getFlag('dnd5e', 'origin') === saves?.activityUuid).length} otherDemands=${game.messages.filter(m => m.id !== card?.id && m.getFlag(MOD, 'saves')?.activityUuid === saves?.activityUuid).length}`);
+      log.push(`§9: saves=${JSON.stringify({ status: saves?.status, templated: saves?.templated, awaiting: saves?.awaitingTemplate, n: saves?.targets?.length, mmKeys: Object.keys(mm ?? {}) })} areas=${scene.regions.filter(r => r.getFlag('dnd5e', 'activity') === saves?.activityUuid).length} otherDemands=${game.messages.filter(m => m.id !== card?.id && m.getFlag(MOD, 'saves')?.activityUuid === saves?.activityUuid).length}`);
       log.push(`§9: demand targets=${names(saves?.targets)} protected=${names(mm?.protected)} dispositions sorc=${sorcTok.disposition} rgr=${rgrTok.disposition} att=${attTok.disposition} vic=${vicTok.disposition}`);
       ok('9a. the cast is born with Careful and the cap (Charisma +3)', mm?.key === 'careful' && mm?.cap === 3, why || JSON.stringify({ key: mm?.key, cap: mm?.cap }));
       // The window's default: every non-hostile in reach up to the cap (three) - the Sorcerer first, the Ranger

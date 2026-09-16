@@ -34,6 +34,16 @@ try {
         rows.push(`${actor.name}: ${found.join(", ")}${check ? "" : " — cleared"}`);
       }
     }
+    // An UNLINKED fixture token's synthetic actor at 0 HP (the emanation triggers' real damage,
+    // smoke-emanations §7): a corpse every save demand rightly skips — 6f read empty for a day.
+    for ( const scene of game.scenes ) {
+      for ( const tok of scene.tokens.filter(t => t.actor && !t.actorLink && /^BF Test/i.test(game.actors.get(t.actorId)?.name ?? "")) ) {
+        const hp = tok.actor.system.attributes?.hp;
+        if ( !(hp?.max > 0) || (hp.value > 0) ) continue;
+        if ( !check ) await tok.actor.update({ "system.attributes.hp.value": hp.max });
+        rows.push(`${game.actors.get(tok.actorId)?.name} (token "${tok.name}" on ${scene.name}): hp ${hp.value}/${hp.max}${check ? "" : " — healed"}`);
+      }
+    }
     return rows;
   }, check);
   console.log(out.length ? out.join("\n") : "clean — no residue on any BF Test actor");

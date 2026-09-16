@@ -10,7 +10,7 @@ import { applicableProfiles, resolveUuid, itemNamed } from "../lookup.js";
 import { activityUuidOf, targetsOf } from "../decide/card.js";
 import { saveDemandData, saveTargetEntry } from "../decide/demand.js";
 import { METAMAGIC_FLAG, METAMAGIC_ASK_FLAG, carefulProtects, heightenedMark, metamagicRuleText } from "../decide/metamagic.js";
-import { tokensInTemplates } from "../geometry.js";
+import { tokensInRegions } from "../geometry.js";
 import { isDeadForSaves } from "../decide/eligible.js";
 import { EMANATIONS, tableIndex } from "../decide/registry.js";
 import { reachAdmits } from "../decide/emanations.js";
@@ -121,22 +121,16 @@ Hooks.on("battleflow.deferredUsageCard", ({ activity, message, templates }) => {
 async function stampSaveDemand(activity, message, results) {
   try {
     if ( message.getFlag(MODULE_ID, "saves") ) return; // never re-stamp
-    // ⚠ A template spell's target set is what the TEMPLATE contains, not what was clicked —
+    // ⚠ A template spell's target set is what the AREA contains, not what was clicked —
     // in both directions (user call 2026-08-16: the mephit was targeted but stood outside
     // Moonbeam's circle; the dummy stood inside Shatter's untargeted). postUseActivity fires
-    // after _finalizeUsage, so a placed template is already in results.templates, awaited
-    // and real. Manual targeting stays the bus for everything without a template.
-    // ⚠⚠ results.templates entries are ARRAYS, not documents (5.3.3 ground truth, read from
-    // source after two live misfires): #placeTemplate pushes drawPreview()'s resolution,
-    // which is the raw createEmbeddedDocuments result — an array per placement. Unflattened,
-    // the parent filter dropped every live placement and the stamp silently fell back to the
-    // manual snapshot (the Shatter/Gren strand, 2026-08-17) — the adoption floor then had to
-    // drag the demand back to the area, stranding the snapshot targets' popups.
-    // Containment reads the drawn shape when one exists and falls back to document
-    // geometry otherwise (templateShape) — never await canvas readiness here: an await
-    // against template.object has been observed to never come back on the headless elect,
-    // and the fallback makes it unnecessary.
-    const contained = emanationReach(activity, tokensInTemplates((results?.templates ?? []).flat().filter(t => t?.parent)));
+    // after _finalizeUsage, so a placed area is already in results.templates, awaited and
+    // real. Manual targeting stays the bus for everything without a template.
+    // At dnd5e 6.0 `results.templates` is the RegionDocument[] the placement created (5.3.3
+    // nested an array per placement — the flatten is kept, harmless on the flat shape, so a
+    // hand-fired hook carrying the old nesting still stamps; smoke-saves §8d). Containment is
+    // the platform's own test on the region document — no canvas readiness awaited here.
+    const contained = emanationReach(activity, tokensInRegions((results?.templates ?? []).flat().filter(t => t?.parent)));
     const raw = contained ?? targetsOf(message);
     // THE DEAD-TARGET GATE (v1.19.0 — the user call recorded in the corner list above). The
     // filter runs on the RESOLVED set only; raw emptiness keeps its meaning (a bare template

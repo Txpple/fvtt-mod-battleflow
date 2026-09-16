@@ -249,16 +249,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ["createRegion", Hooks.on("createRegion", () => { seen.createRegion++; })]
         ];
         let tpl = null;
+        // `Scene#templates` is deprecated at Foundry 14 (the document merged into Region) — the
+        // shim's region wears `flags.core.MeasuredTemplate`, and that is what is counted.
+        const drawn = () => scene.regions.filter(r => r.getFlag("core", "MeasuredTemplate")).length;
         try {
-          const before = { templates: scene.templates.size, regions: scene.regions.size };
+          const before = { templates: drawn(), regions: scene.regions.size };
           // Far from the fixture tokens on purpose — nothing here should touch containment.
           const made = await scene.createEmbeddedDocuments("MeasuredTemplate", [{
             t: "circle", x: 100, y: 100, distance: 5
           }]);
           tpl = made?.[0] ?? null;
           await sleep(600);
-          ok("a MeasuredTemplate really was created", !!tpl && scene.templates.size === before.templates + 1,
-            `templates ${before.templates}→${scene.templates.size}`);
+          ok("a MeasuredTemplate really was created", !!tpl && drawn() === before.templates + 1,
+            `templates ${before.templates}→${drawn()}`);
           // The positive half — something DID fire, so a zero above is a real absence and not
           // a broken listener or a create that never happened.
           ok("…and Foundry 14 dispatches it as a REGION", seen.createRegion > 0
@@ -281,10 +284,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // ⚠ A leftover template on the active scene poisons smoke-saves §8, which re-derives
           // its target sets from whatever areas are standing. Deleted in a `finally` for the
           // same reason smoke-hold §7 deletes its combat.
-          try { if (tpl) await tpl.delete(); } catch { /* already gone */ }
+          try { if (tpl) await (scene.regions.get(tpl.id) ?? tpl).delete(); } catch { /* already gone */ }
           await sleep(300);
           ok("the template is cleaned up — no area left standing for the next suite",
-            !tpl || !scene.templates.get(tpl.id), `templates=${scene.templates.size}`);
+            !tpl || !scene.regions.get(tpl.id), `drawn templates=${drawn()}`);
         }
       }
     }
