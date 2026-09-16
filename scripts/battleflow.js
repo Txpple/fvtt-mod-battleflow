@@ -51,7 +51,7 @@
  * permission fact; a single writer prevents double-apply); the chain is resolved through the
  * system's own message registry (`system.origin`), never a parallel one.
  *
- * Ground truths (dnd5e release-6.0.1, on Foundry v14 — the 6.0 pass, 2026-09-15; ASSESSMENT.md):
+ * Ground truths (dnd5e release-6.0.1, on Foundry v14 — the 6.0 pass, 2026-09-15; NOTES §2 *the 6.0 pass*):
  *   - dnd5e.rollAttackV2 fires on the rolling client only, after the attack message exists
  *     and before ammo consumption; rolls[0].parent IS the attack message (basic-roll.mjs
  *     buildPost assigns it whenever a message document was created).

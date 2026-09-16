@@ -264,7 +264,7 @@ Hooks.on("preCreateChatMessage", doc => {
 //
 // Since dnd5e 6.0 the buttons are DATA — `system.buttons[]` on the usage message, each drawn
 // through its `visibility` and the activity's own `shouldHideChatButton` (the 6.0 pass, phase
-// 4, ASSESSMENT §2.M). So the hide is a filter on that data at the card's birth
+// 4, NOTES §2 *the 6.0 pass* §2.M). So the hide is a filter on that data at the card's birth
 // (`dnd5e.preCreateUsageMessage`), not a sweep of a DOM the platform re-renders at will: a
 // button that is not in the data is on no client's card, and a re-render cannot draw it back.
 // The handlers underneath survive (`Activity#onChatAction`), so anything that still reaches

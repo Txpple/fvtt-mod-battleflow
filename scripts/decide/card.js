@@ -3,7 +3,7 @@
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): THE CARD SEAM — what kind of card a message
  * is, whose it is, and from which card it came, read off the message's TYPED data.
  *
- * THE dnd5e 6.0 PASS, phase 1 (2026-09-15, ASSESSMENT.md §2 B–F). At 5.3.3 a roll card was a plain
+ * THE dnd5e 6.0 PASS, phase 1 (2026-09-15, NOTES §2 *the 6.0 pass* §2 B–F). At 5.3.3 a roll card was a plain
  * message carrying `flags.dnd5e.{messageType, roll.type, activity, item, targets,
  * originatingMessage}`, and this module read those flags in roughly ninety places across forty
  * files — each site its own copy of "is this a damage roll", "who was targeted", "which card did
@@ -13,7 +13,7 @@
  * rename is one file.
  *
  * ⚠ READS `type` AND `system.*` ONLY. The platform keeps `getFlag("dnd5e", …)` read fallbacks for
- * the old keys; they are courtesy, not contract (ASSESSMENT §3b rule 4), and nothing here leans
+ * the old keys; they are courtesy, not contract (NOTES §2 *the 6.0 pass* §3b rule 4), and nothing here leans
  * on them. The one concession is a target row's `uuid` (the 5.x descriptor's key), accepted
  * beside 6.0's `actor` so a record written under either shape reads the same.
  *
@@ -258,7 +258,7 @@ const CONCENTRATION_PROMPT_BUTTONS = new Set(["concentration", "endConcentration
  * Is this the platform's own concentration prompt — `challengeConcentration`'s whispered
  * roll request, or `promptConcentrationEnd`'s at 0 HP / incapacitated? Both are
  * `type: "prompt"` with a button of that kind; concentration.js vetoes them while its machine
- * runs (ASSESSMENT §5 ruling 2: the platform's prompt is a reminder, Battle Flow's machine is a
+ * runs (NOTES §2 *the 6.0 pass* §5 ruling 2: the platform's prompt is a reminder, Battle Flow's machine is a
  * resolution).
  */
 export function isConcentrationPrompt(msg) {

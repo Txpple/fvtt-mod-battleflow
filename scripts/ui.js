@@ -555,7 +555,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 /* ---------------------------------------------------------------------------------------------
- * THE CARD ROWS SEAM (the dnd5e 6.0 pass, phase 4 — ASSESSMENT §2.M and §3.8)
+ * THE CARD ROWS SEAM (the dnd5e 6.0 pass, phase 4 — NOTES §2 *the 6.0 pass* §2.M and §3.8)
  *
  * Since dnd5e 6.0 a save or check rolled against a usage card is a SUMMARY: the platform hides
  * the roll's own card (`html.hidden`, client setting `chatCardSummary`, default on) and

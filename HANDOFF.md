@@ -1,314 +1,50 @@
-# HANDOFF — the dnd5e 6.0 compatibility pass (phases 1–4 delivered 2026-09-16; phase 5 next)
+# HANDOFF — the dnd5e 6.0 compatibility pass: DELIVERED on the sandbox; the release is pending
 
 > A commission file: written because there is one, retired when it is delivered (BACKLOG's rule —
-> no standing handoff). Every line below is the state at the moment of writing, measured.
-> `ASSESSMENT.md` is the plan; this file is where the pass stands against it.
+> no standing handoff). The pass's plan (ASSESSMENT.md) is retired into NOTES §2 *The dnd5e 6.0
+> pass*; this file retires with the release commit.
 
-## ⚠ Read this first: the next step
+## What is left, and whose call it is
 
-Phase 5 of ASSESSMENT §4 (DOCS AND RELEASE) starts **on the user's "go"** — not on this file. It
-owes: the ONE RED LEFT in the battery (smoke-nogm §rejoin — pre-existing, measured on the phase-3
-tree too; the facts and the pick-up are under "Phase 4 — DELIVERED"), the open ruling on the
-ring's look (below), then the docs (DESIGN §5 on the platform's clock; ARCHITECTURE's geometry
-rows, its surfaces row — the usage card's buttons are data, `cardSummary` is the anchor — and its
-hook table for `preCreateUsageMessage` and the card-rows seam; NOTES' phase-1/2/3/4 findings;
-BACKLOG's Half Speed row), RELEASE-NOTES, the version, the prod deploy that MUST ship the new
-module.json, ASSESSMENT retired, this file retired. Before the first edit: `git log --oneline -3`
-(parallel sessions collide), `node ../fvtt-mcp-molten5e/scripts/local-foundry.mjs status` (the
-sandbox up, the world active), `deploy-house-module.mjs fvtt-mod-battleflow --local --check`
-(byte-identical), and `node tools/verify-settings.mjs` (CLEAN). ⚠ If a suite reports an AC, a
-save, a corpse or a token square that cannot be, run `node tools/scrub-fixture-residue.mjs` and
-`node tools/fixture-suite.mjs` first. Nothing is released until the user says so, and prod stays
-5.3.3 / v1.42.0 for 2026-09-22.
+Every phase of the pass is delivered and committed on main (phases 1–4, then phase 5's docs and
+the version, v2.0.0): the module rides dnd5e 6.0.1 on the sandbox with the FULL BATTERY green
+(29 of 29 entries — the last red, smoke-nogm §rejoin, was the suite counting §spent's notice
+as the rejoin's; fixed 2026-09-16, 24/24 twice). Settings CLEAN. The sandbox is byte-identical.
 
-## Where things stand
+Three things are the user's:
 
-- **Prod is on the RESTORED pre-6.0 box:** Foundry 14.364 / dnd5e 5.3.3, Battle Flow **v1.42.0**
-  (main at the pass's commits is NOT deployable to prod — its pin is 6.0). Prod plays on 5.3.3
-  until the pass ships and the user says so (game session **2026-09-22**). ⚠ Do NOT deploy the
-  pass's bytes to prod; do NOT copy prod → sandbox while the pass runs.
-- **The sandbox is the 6.0 box:** Foundry 14.367 / dnd5e 6.0.1, the world active, the tree
-  deployed there (`deploy-house-module.mjs fvtt-mod-battleflow --local`, byte-identical at the
-  end of phase 3). Fixtures placed, settings verified CLEAN after the last run. The pre-fixture
-  snapshot (`bf-snapshots/`, `tools/world-snapshot.mjs restore`) is the way back.
-- **The MCP repo's 6.0 pass is done** (`../fvtt-mcp-molten5e` v1.5.2, `58c9687`) — the harness
-  rides it; every suite and probe below ran through it.
+1. **The ring's look.** Every aura and listed spell's ring is a Region drawn by the region itself
+   (visibility ALWAYS, highlightMode `shapes`, the reach's hue) — the platform draws its own 6.0
+   areas as covered squares (`coverage`). A screenshot of the Paladin's aura on the test range
+   was handed over with phase 5. Rule: keep, or the platform's look (`highlightMode: "coverage"`
+   in emanations.js and the cast placement — one field each), or hidden.
+2. **The version.** Bumped to **v2.0.0** (the pin moved to a platform major and v1.42.0 is the
+   last release for 5.3.x — the textbook major). A minor (1.43.0) is one `bump-version` away
+   if preferred; nothing is tagged or pushed.
+3. **Prod.** Prod is the RESTORED pre-6.0 box (Foundry 14.364 / dnd5e 5.3.3, Battle Flow
+   v1.42.0) for game day 2026-09-22. **v2.0.0 cannot run there** — its pin is 6.0.0–6.9.99, and
+   Foundry drops the module's enable silently when the system maximum is exceeded. The release
+   ships when prod moves to dnd5e 6.0 (the user's upgrade, the user's timing); the deploy then
+   MUST ship the new module.json (a WebDAV copy never prunes — nothing was removed from
+   `scripts/` this pass, so the copy is enough, but `--check` after).
 
-## Phase 1 — DELIVERED (ASSESSMENT §4.1)
+## The release chain (NOTES §5 *Release*; the sequence that worked every time)
 
-- **The pin:** `module.json` dnd5e 6.0.0 → 6.9.99 (the whole 6.x line, user 2026-09-15), verified 6.0.1; `tools/dnd5e-hooks.json`
-  regenerated (8 added, 0 removed); `CONFIG.statusEffects` read as the object it is (`forceStatus`).
-- **The seam:** `scripts/decide/card.js` — what kind of card, whose, from which, off `type` and
-  `system.*` ONLY (never the flags; unit-tested against 6.0.1's own shapes, `tests/decide-card.test.js`).
-  `targetsOf` hands every reader the house shape (`uuid` = the target ACTOR, one row per actor,
-  the token beside it); `originData` / `ORIGIN_KEY` is what every roll the module drives writes.
-  ⚠ A reader joins the seam WITH its customer (knip fails on one nobody reads): phase 2 adds the
-  mastery, the attack mode, `onSave`, `resisted`, `targetsInData`, the death/concentration
-  predicates beside the files that read them.
-- **The shared readers through it:** `shared.js` (`hitTargets`, `resolveAttackMessage`,
-  `effectSourceOf` reads `system.origin` first, `poolSpendsOn`, new `targetDescriptorOf`),
-  `lookup.js`, `effect-riders.js` — **the applier is built the tray's way** (`getAppliedEffectChanges`,
-  `system.origin`, dedupe on `_stats.duplicateSource`, `forApplication`; `origin` still written
-  for this module's own readers until phase 2 migrates them), `messageActivity` is
-  `getAssociatedActivity()`. **Ruling 1 landed:** `appliedClock` (rules 1 and 2) is RETIRED —
-  the platform's clock stands (`tools/probe-applied-clock.mjs` deleted with it; DESIGN §5's text
-  is phase 5's). **Ruling 4 landed:** a null AC is a MISS (`decide/verdict.js`).
-- **The chain files for the two suites:** auto-apply, auto-damage (`rollDamageForAttack` is
-  6.0.1's own one-liner, `ability` forwarded), polish (the potion snapshot at `system.targets`,
-  `getAssociatedActivity`, the item's name off the card's reference), hit-riders, reminders (the
-  origin in the data, the save record's kind), ui (`demandAnsweredBy`'s facts: `rollType` is the
-  card kind, `saveKind` the sub-kind), hold/spell-damage, hold/spell-hold, hold/lookup (profiles
-  resolve async; the applying activity passed through), hold/continue (a fixed AC is `override`).
-- **The surfaces map + gate (§3b):** `scripts/surfaces.js` holds every platform HTML anchor (10:
-  three core, seven dnd5e); `tools/check-surfaces.mjs` fails the build on a selector literal
-  outside the map (67 sites swept, 30 files) and on a dnd5e anchor gone from the verified
-  version's templates (`tools/dnd5e-surfaces.json`, `--regen`, pinned). In `npm run verify`.
-- **Green:** verify (642 unit tests, every static check incl. the new gate); on the sandbox
-  **smoke-battleflow ALL PASS** (full run + §5e re-run) and **smoke-hold ALL PASS** (full run
-  with one failure, §4d6, fixed and re-run green). Their asserts read the 6.0 card (`m.type`,
-  `_source.system.origin`, `system.targets`) and write `system.origin`; the forced AC is
-  `override`.
-
-### Findings paid for in phase 1 (carry into NOTES in phase 5)
-
-- **A moved token's document is INTERIM while it walks** (Foundry 14.367, measured by the new
-  `tools/probe-auto-crit.mjs`): `doc.x/y` follow the animation (100 → 370 at 300 ms), `_source.x/y`
-  hold the destination from the moment the update resolves. `geometry.js documentSquares` reads
-  the source now; the automatic crit within 5 ft of a Paralyzed victim fired one swing late before.
-  Suites: never sleep for a walk — wait for `doc.x === doc._source.x` (§5e's `arrived`).
-- **A walk to a square off the scene is CONSTRAINED to the edge** — §5e's "10 feet" square lay off
-  the scene once other suites had parked the victim at x=100; the section places the victim on
-  its fixture square first.
-- **6.0's AC model at the fixtures:** the forced AC is `override`; a crashed run's override
-  outlives the 5.x `calc: 'default'` restore (it clears nothing now) — smoke-hold's stand-in resets
-  `override: null` every run. The victim's `override: 1` after smoke-battleflow is pre-existing
-  behaviour (5.x left `flat: 1` the same way).
-- The headless client throws inside the token animation when a token update's result is sampled
-  SYNCHRONOUSLY (`#createAnimationMovementPath`, `.last` of undefined); await the update.
-
-## Phase 2 — DELIVERED (ASSESSMENT §4.2), 2026-09-16 early
-
-- **The readers, through the seam:** every `flags.dnd5e` read in `scripts/` is gone except the
-  REGION/TEMPLATE flags (class I, phase 3: `emanations.js`, `saves/areas.js`, `decide/geometry.js`)
-  and the flags on EFFECTS and ITEMS the platform still writes (`dependentOn`, an effect's `item`,
-  `consumed`). The seam gained `masteryOf`, `onSaveOf`, `resistedOf`, `targetsInData` (null when
-  the data names no snapshot — "aimed at nobody" and "not written yet" are different facts) and
-  `isConcentrationPrompt`; every driven roll writes `system.origin` (`originData`) — the two the
-  first grep missed were NESTED (`flags: { dnd5e: { originatingMessage } }` in saves/ask and the
-  fold's spend) and one was optional-chained (`message.flags?.dnd5e` in resources) — grep for
-  `originatingMessage`, `flags?.dnd5e` and `dnd5e: {` too, next time.
-- **Class G:** `lookup.js` `profileEffects` / `applicableProfiles` (the profile BESIDE its
-  effect, so `onSave` and `_id` stay readable) and `profileEffectSync` for polish's preCreate
-  `castChoice`. **Class N:** riders clone the shared roll data; `ranged` is a ranged mode
-  (reminders `modeIsRanged`); the emanation card labels `system.rolls.*` beside `bonuses.*`.
-- **Fix J:** concentration.js vetoes both native prompts by TYPE (`isConcentrationPrompt`), the
-  ruling's rationale verbatim in the comment. **Also found:** the private roll mode — dnd5e 6.0
-  hands `rollMode` straight to `ChatMessage.create` as `messageMode`, which knows only Foundry 14's
-  ids (`gm`, not the deprecated `gmroll` that `CONST.DICE_ROLL_MODES.PRIVATE` still returns) — so
-  the concentration roll had gone PUBLIC; `PRIVATE_ROLL_MODE = "gm"`.
-- **The suites (class O):** every `smoke-*` / `probe-*` reads the 6.0 card (`m.type`,
-  `_source.system?.origin`, `system.targets` mapped `actor → uuid`, `system.mastery`,
-  `system.onSave`, `system.resisted` for the LR flip); forces AC through `ac.override` (the 5.x
-  `calc: "flat"` pair still forces but its restore clears nothing — every restore leaked an
-  override into the next suite) and save outcomes through `abilities.<x>.save.roll.bonus` (same
-  story: the old key's `""` cleared nothing); effect change keys `system.rolls.*`; the
-  concentration dependent is a `flags.dnd5e.dependents` row (`addDependent` is gone); an applied
-  effect's `origin` is the ACTIVITY (the tray's 6.0 changes stamp it); a card's associated actor is
-  its TOKEN's actor first (an unlinked fixture speaks as its synthetic actor, under the token's
-  name); a concentration save inherits the sheet's own con-save mode.
-- **`tools/scrub-fixture-residue.mjs` (new):** clears the override and the bonus the old restores
-  left on every BF Test actor — seven fixtures carried residue after the first battery.
-- **Green:** verify (648 unit tests, every static check); on the sandbox the battery's middle
-  (23 steps) — **every suite passes** except: smoke-saves 105/107 (§1a3, §10b — the usage card's
-  button hide, class M, PHASE 4) and smoke-metamagic 82/90 (§9x/9y/9z/9b–9e, §18y — who stands
-  inside the Fireball's area, class I, PHASE 3). Runs: `dist/battery/2026-09-16T02-11-50` (the
-  first pass, 7 red), `…T02-46-44` (the re-run after the fixes and the scrub), `…T03-12-18`
-  (concentration §6). Settings CLEAN after every run. Not re-run this phase: smoke-battleflow,
-  smoke-hold (phase 1's), smoke-emanations, smoke-surfaces, smoke-nogm (phase 3's and the last).
-
-## Phase 3 — DELIVERED (ASSESSMENT §4.3), 2026-09-16
-
-- **The area is a Region, everywhere.** `TemplatePlacement.fromActivity` (6.0.1, read from source)
-  creates RegionDocuments stamped `flags.dnd5e.activity` (the ACTIVITY — the tie every path keys
-  on), `item`, `origin` (the usage TOKEN's uuid now), `spellLevel`, `dimensions`; and at Foundry
-  14 `Scene#templates` is DEPRECATED — the toolbar's drawn template is a Region wearing
-  `flags.core.MeasuredTemplate`. No MeasuredTemplate is created or read anywhere in `scripts/`.
-- **Containment is the platform's own test.** `geometry.js tokensInRegions` runs
-  `TokenDocument#testInsideRegion` (grid-aware containment points against the region's polygon
-  tree, from the document's committed source position, no canvas) — the v14 shim's corrupted
-  `distance`, the `honestDims` rescue and the whole template-shape ladder are gone with the
-  template document. `decide/geometry.js` keeps the pure readers and gains `regionShapeTypeFor`
-  (the placement's map: rect → rectangle, ray → line, radius → emanation) and
-  `emanationShapeData` (the platform's own emanation shape around a token, byte-for-byte),
-  unit-tested.
-- **saves/areas.js:** regions matched on `flags.dnd5e.activity`; the toolbar claim finds a
-  core-flagged unowned region of the expected shape and stamps the activity; the fast paths ride
-  `createRegion` / `updateRegion` (which the platform dispatches); the sweeps delete Regions.
-  ⚠ A placed region is NOT a concentration dependent at 6.0 (measured 2026-09-15) — the duration
-  sweep on `deleteActiveEffect` is the only thing that ends a duration area. The refresh latch
-  queues ONE re-offer behind a refresh in flight: the render floor and the createRegion fast
-  path land in the same beat at the cast, and the dropped one was the cast's demand staying
-  empty (smoke-emanations §6f, one run in two).
-- **emanations.js:** a feature's aura and a listed spell's ring are Regions created the
-  platform's way (the emanation shape on the token's base, the radius from the EDGE, attached),
-  drawn by the region itself (visibility ALWAYS, highlightMode `shapes` — the ring, not the
-  covered squares; **the visible change of this phase, for the user to rule on**). The cast
-  placement writes what `fromActivity` would (the flags above, `levels`, the move restriction)
-  with `options.dnd5e.createActivityBehaviors: false`; `endCastEmanations` matches the
-  activity flag. **The §3.6 ruling's veto:** `preCreateRegionBehavior` refuses any `dnd5e.*`
-  behaviour on a region this module adopts (flagged, or a listed spell's) — measured empty in
-  smoke-emanations §6-2. **The membership floor reads geometry, not `region.tokens`:** Foundry
-  fills `region.tokens` through a token update made with `noHook: true`
-  (`RegionDocument#updateTokens`), so a just-raised ring's membership lands silently — the floor
-  that read it saw an empty set (§11a, one run in three).
-- **Customers:** saves/demand (`results.templates` is the flat RegionDocument[]; the flatten
-  stays for the hand-fired nested shape), metamagic (regions by id), precision.js (the one
-  phase-2 leftover: its use() wrote the deleted `originatingMessage` flag — `originData` now).
-- **The suites:** smoke-saves places Regions with the platform's shapes (a cone as a cone, the
-  toolbar rect core-flagged) and asserts on `scene.regions`; §12–14's shim scene keeps its
-  140px grid but the section proves containment off the region's own geometry (the shim factor
-  it logged is moot); smoke-metamagic's area is a Region; smoke-emanations asserts the emanation
-  shape and radius (feet × px from the edge), the placement's flags, the veto, the ring's
-  visibility, and heals the Victim's TOKEN actor at setup (§7's real damage left it a corpse the
-  cast's demand rightly skipped — 6f); §11e creates the stale effect before the stale ring (the
-  deleteRegion hooks of §11c re-schedule a sweep that can land between the two); the pack keys
-  are accepted in BOTH spellings (the PHB pack still ships `system.bonuses.*`, shimmed until
-  7.0); §6c asserts the effect Battle Flow owns, not the platform's arithmetic (see below).
-  smoke-surfaces §3 keeps its pin (a MeasuredTemplate create dispatches as a Region) counting
-  core-flagged regions. `tools/hook-coverage.mjs`'s two never-dispatched pins are retired with
-  the registrations; `tools/hook-order.snapshot` refreshed (createRegion/updateRegion in
-  saves/areas.js, preCreateRegionBehavior in emanations.js). `probe-sg-range.mjs` reads
-  `tokensInRegions`.
-- **`tools/scrub-fixture-residue.mjs`** gains the corpse row: an unlinked BF Test token's
-  synthetic actor at 0 HP is healed (matched on the BASE actor's name — the token is "Hobgoblin").
-- **Green:** verify (648 unit tests, every static check); on the sandbox **smoke-emanations
-  69/69**, **smoke-metamagic 90/90**, **smoke-surfaces 20/20**, smoke-saves 105/107 (§1a3, §10b —
-  the usage card's button hide, class M, PHASE 4; §12–14 8/8 on their own run first). Settings
-  CLEAN after every run. Runs under `dist/phase3/`.
-
-### Findings paid for in phase 3 (carry into NOTES in phase 5)
-
-- **`RegionDocument#updateTokens` writes membership with `noHook: true`** (Foundry 14.367, read
-  from source, measured by §11a): no `updateToken` fires for `_regions`; region events reach only
-  behaviours that already exist. Any floor over membership must test geometry itself.
-- **A placed region is no concentration dependent at dnd5e 6.0.1** — only ActiveEffects, Items
-  and Activities carry the dependents mixin; `endConcentration` leaves the area standing.
-- **The PHB pack's Half Speed (`system.attributes.movement.speed` ×0.5) leaves an NPC's speed at
-  30 on dnd5e 6.0.1** — the effect lands (Battle Flow's part), the platform's prepare order
-  overwrites `movement.speed` from `speeds.walk`. The pack's / the platform's, not ours; a
-  BACKLOG row in phase 5.
-- **Fixture residue this phase cost a battery:** the platform probe of 2026-09-15 left the Paladin's
-  token NEUTRAL (a helpful aura from a neutral source admits no ally — every feature-aura assert
-  red); a scratch probe left the Ranger on the ring's inside square (§13b's walk-out a no-op);
-  smoke-saves deletes the Victim/Shielder tokens by design and re-creates its own — run
-  `tools/fixture-suite.mjs` after it before any suite that needs them (the battery's order does).
-- The suite files are CRLF in the working copy; a multi-line edit script must normalise.
-
-## Phase 4 — DELIVERED (ASSESSMENT §4.4), 2026-09-16
-
-- **The button hide is a filter on the card's DATA.** `polish.js` rides `dnd5e.preCreateUsageMessage`
-  and drops every `system.buttons[]` row but `refundResource` before the usage card is created
-  (the setting is world-scoped, so the creating client's answer is everyone's). The DOM hide and
-  its `SURFACES.cardButtons` anchor are gone; a button that is not in the data is on no client's
-  card and no re-render can draw it back. The handlers underneath survive
-  (`Activity#onChatAction`); Refund Resource keeps the platform's own visibility rule. The
-  setting's hint says what the keep-list is (it had promised Place Measured Template since
-  v1.12.0 deleted that exemption). ⚠ A suite that PRESSES a hidden button (smoke-resources §5's
-  heal) must turn the setting off first — the button no longer exists to press.
-- **The chained-card summaries — the card-rows seam** (`ui.js` `cardRow`, `SURFACES.cardSummary`).
-  Measured on 6.0.1: a save or check rolled against a usage card has a `summaryTemplate`, its
-  origin `rendersSummaries`, and with the client setting `chatCardSummary` on (default) the
-  platform sets `html.hidden` on the roll's own card BEFORE `dnd5e.renderChatMessage` fires and
-  draws the roll inside the usage card as `.card-summary[data-message-id]`. The rows Battle Flow
-  stamps on such rolls are exactly the save gate's record (`reminders.js` REMINDER_FLAG) and the
-  d20 fold family (`d20-folds.js`: the fold block, the armed line, the refund ask) — the rest of
-  ASSESSMENT §2.M's list draws on usage or attack cards (saves/views, topple, concentration,
-  ui.js's offer bar) and was never hidden. A row that can land on a chained roll registers as
-  `Hooks.on("dnd5e.renderChatMessage", cardRow(draw))`: the same drawer runs on the shown card
-  (host = the card's content) and, skipping the hidden copy, inside the summary when the usage
-  card renders (one dispatcher, registered once in ui.js). Registration ORDER is untouched — the
-  wrapper sits in each file's own slot; the snapshot gains ui.js's dispatcher and the nudge.
-  **The nudge:** the platform re-renders the origin on the descendant's create/delete/`system`
-  update only (`#refreshOrigin`), so a FLAG write on a summarized roll (a fold answered) re-renders
-  nothing — `updateChatMessage` in ui.js calls `ui.chat.updateMessage(origin)` when this module's
-  flags move on a summarized roll.
-- **The suites:** smoke-saves §1a3 and §10b read the buttons as data (the platform's own
-  `_usageChatButtons` list guards the vacuous pass; the card's data and the rendered icon-row
-  carry Refund Resource at most); **§24 (new)** rolls a chained save with the setting on — the
-  roll's card hidden, the summary in the usage card, the gate's record drawn INSIDE it and not on
-  the hidden card, the nudge (a flag flip re-draws the summary), and with the setting off a fresh
-  roll's own card shown with the row. smoke-resources §5 turns the hide off for the button it
-  presses (and restores it). smoke-nogm §spent waits for the log to go QUIET before returning
-  (below). `tools/dnd5e-surfaces.json` regenerated (`cardSummary` in, `cardButtons` out);
-  `tools/hook-order.snapshot` refreshed (polish's render hook → preCreateUsageMessage; ui.js +2).
-- **Green:** verify (648 unit tests, every static check); the FULL BATTERY on the sandbox
-  (`dist/battery/2026-09-16T12-06-54`, 38m55s): **28 of 29 entries green** — smoke-saves 111/111
-  (the two phase-4 reds and §24), d20-folds 36/36, reminders 65/65, resources 23/23, metamagic
-  90/90, emanations 69/69, surfaces 20/20, every other suite ALL PASS; settings CLEAN after the
-  battery and after every run since. Runs under `dist/phase4/`.
-
-### The one red left: smoke-nogm §rejoin (NOT phase 4's — the phase-5 window's first job)
-
-smoke-nogm 22/24 in the battery. **§cast was a suite race, fixed:** its "nothing to whisper"
-assert snapshots the log at the section's start, and §spent's second swing had an attack still
-rolling as its dialog closed — its damage landed 8 ms into §cast (measured: type=damage,
-flags attackFor, origin = the swing's card) and the two no-GM whispers followed 120 and 240 ms
-later (3 runs in 6). §spent now waits for the log to go quiet (no new message for 1.5 s, 10 s
-roof); §cast green 6 runs in 6 since. **§rejoin is PRE-EXISTING at 6.0** — measured on the
-phase-3 tree (HEAD stashed, deployed, run: 23/24, the same red) and on this one, every run:
-"the rejoining GM adds no new reminder — sap notices before rejoin=1 after=2". The mechanism to
-confirm in phase 5: the player's flow elect drove the swing with no GM (damage whispered as not
-applied, the Sap chip whispered as not applied, ONE notice posted), and the rejoining GM's resume
-paths drive the swing AGAIN — `resolveHitMastery` posts a second Sap notice (`mastery.js:138`);
-the chip count stays 0 (the section's other assert passes), so it is the NOTICE's claim, not the
-payout's, that the resume does not recognise — most likely auto-apply's `attackDamage` resumable
-still `pending` after a whispered degradation, or the notice's own dedupe reading a 5.x field.
-Pick-up: `tools/smoke-nogm.mjs` §rejoin (`hit.noticeId`, `hit.sapNotices`), `scripts/auto-apply.js`
-registerResumable("attackDamage") `pending`, and what the no-GM whisper path marks on the receipt.
-Not in phase 4's scope (rendering and the button data), so recorded here rather than fixed blind.
-
-### Findings paid for in phase 4 (carry into NOTES in phase 5)
-
-- **`ChatMessage5e#renderHTML` sets `html.hidden` BEFORE `dnd5e.renderChatMessage` fires** (6.0.1)
-  — a render hook can read it as "this is the platform's hidden copy of a summarized roll"; a
-  popout (`options.canClose`) is never hidden.
-- **Core carries `hidden` over on a per-message re-render** (`ChatLog#rerenderMessage`, Foundry
-  14.367: `replacement.hidden = existing.hidden`) — turning `chatCardSummary` off does not unhide a
-  card already rendered hidden until the log renders afresh. The platform's own toggle behaviour;
-  smoke-saves §24d proves the toggle on a NEW roll for that reason.
-- **The platform re-renders a summarized roll's origin on create, delete and `system` change
-  only** (`ChatMessage5e#_onUpdate → #refreshOrigin`) — a flag write re-renders nothing; the nudge
-  in ui.js is what re-draws a summary after a fold's answer.
-- **The fixture Victim's TOKEN is named "Hobgoblin"** — a demand's popup carries the token's name
-  (`flag.targets[0].name`), not the actor's; §24 found it the way §19 already knew it.
-- **A section that snapshots the log must let the previous section's swing SETTLE** — a rolled
-  attack's damage and its whispers land up to a second after the dialog closes (smoke-nogm).
-
-## Phase 5 — NEXT, on the user's go (ASSESSMENT §4.5)
-
-Docs, RELEASE-NOTES, the version, the prod deploy that MUST ship the new module.json; DESIGN §5
-reconciled with the platform's clock; ARCHITECTURE's geometry rows (`honestDims` and
-`tokensInTemplates` are gone, `regionShapeTypeFor` / `emanationShapeData` / `tokensInRegions` are
-in), its surfaces row (`cardSummary` in, the button anchor out — the buttons are data) and its
-hook table (`dnd5e.preCreateUsageMessage` in polish.js; the card-rows seam and the nudge in
-ui.js); NOTES' phase-1/2/3/4 findings; BACKLOG's Half Speed row; ASSESSMENT retires; this file
-retires. **First: the smoke-nogm §rejoin red above — a release ships a green battery.**
-**Open ruling for the user before release:** the ring is now drawn by the region itself
-(visibility ALWAYS, highlightMode `shapes`, the reach's hue) — the platform draws its own 6.0
-areas as covered squares (`coverage`); the user has not seen either on the sandbox yet.
+`npm run verify` → commit → annotated tag `v2.0.0` → push main + tag → `tools/build-release.ps1`
+(runs verify, forward slashes) → hand-written `dist/RELEASE-NOTES.md` (never NOTES.md) →
+`gh release create v2.0.0 --notes-file dist/RELEASE-NOTES.md <zip> module.json` → when prod is on
+6.0: `deploy-house-module.mjs fvtt-mod-battleflow --check` (an all-identical hash is a half-awake
+box: wake it with a molten5e read, re-check) → deploy on the user's word → `--check` every file
+MATCH → `disconnect-bridge` on molten5e. The PROCESS restart that vends the version string is
+the user's via the Molten panel. Delete this file in the release commit and say so.
 
 ## Hazards (still true)
 
-- The harness's `Bash` background cap is 10 minutes — a suite launched that way survives (it
-  detaches) but its stdout is lost; redirect to a file under `dist/` and read that.
+- The harness's `Bash` background cap is 10 minutes — the battery runs in the background with
+  its stdout redirected to a file under `dist/`; read that.
 - `verify-settings` drifts after any crashed suite; `--fix` restores. Run it after every run.
-- `game.settings.set("core","moduleConfiguration")` is silently dropped while the module's system
-  maximum is exceeded — the pin is 6.9.99 now, so this only bites a downgrade.
-- An emanation region's shape is `emanationShapeData` (decide/geometry.js) — a `token` base with the
-  token's own fields; a bare bounds object fails.
+- ⚠ If a suite reports an AC, a save, a corpse or a token square that cannot be, run
+  `node tools/scrub-fixture-residue.mjs` and `node tools/fixture-suite.mjs` first.
 - `Scene#templates` is deprecated at Foundry 14 — never read it; a drawn template is a Region with
-  `flags.core.MeasuredTemplate`.
-
-## When this is delivered
-
-Retire this file (delete it, say so in the commit). ASSESSMENT.md retires with the last phase.
+  `flags.core.MeasuredTemplate`. An emanation region's shape is `emanationShapeData`.
+- ⚠ Do NOT copy prod → sandbox while prod is still 5.3.3 (the sandbox is the 6.0 box).

@@ -2,7 +2,7 @@
  * Battle Flow — CORE (ARCHITECTURE.md §7, a leaf beside core.js): THE SURFACES MAP — every HTML
  * anchor this module reads off the PLATFORM's own markup, in one place.
  *
- * THE POSTURE (the dnd5e 6.0 pass, ASSESSMENT.md §3b, user-ruled 2026-09-15). At 6.0 the card's
+ * THE POSTURE (the dnd5e 6.0 pass, NOTES §2 *the 6.0 pass* §3b, user-ruled 2026-09-15). At 6.0 the card's
  * DATA became the stable part and its HTML the unstable part — dnd5e treats `message.system` as
  * API and says outright not to rely on the card's markup, which now renders from templates that
  * will move through 6.x. This module's HTML dependencies are FEW against ~90 data reads, and the

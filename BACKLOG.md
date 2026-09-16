@@ -227,6 +227,7 @@ neither.
 | **A Cunning Strike option no fixture exercises: Rend Mind** (2026-09-02) | The row is data (`CUNNING_OPTIONS.rendMind` — Psychic Blades only, the free use before the three-dice use) and the unit tests read it, but no Soulknife stands on the sandbox, so `smoke-sneak` never drives it live. The first Soulknife at the table is the measurement; a fixture is the fix. |
 | **Clock riders with a damage TYPE the rules leave to the player** (2026-09-02) | Divine Strike, Primal Strike and Divine Fury ride with the activity's FIRST type and say so on the card (DESIGN §8 — no picker was wanted). A cleric who wants Radiant over Necrotic edits the activity's part order once. **A picker on the offer is one row of controls away if a table asks.** |
 | **The pack's own "Assasinate" (sic) effect row beside the "Assassinate" feature row** (2026-09-02) | The 2024 PHB's Assassinate feature ships a transfer effect misspelled *Assasinate* (its Initiative Advantage), and the effect scan of 2026-09-02 carried it into `EFFECT_BENDS` under that name. The clock row added the same day is keyed by the FEATURE's name, correctly spelled, with the clock as its judge. Two rows, two things; if the pack ever fixes the spelling the effect row's key must follow it. |
+| **The PHB pack's Half Speed leaves an NPC's speed at 30 on dnd5e 6.0.1** (measured 2026-09-16, the 6.0 pass, phase 3 — smoke-emanations §6c) | The pack's effect writes `system.attributes.movement.speed` ×0.5; the effect LANDS (Battle Flow's part, asserted on the effect it owns), and the platform's prepare order then overwrites `movement.speed` from `speeds.walk`, so the number the sheet shows never halves. The pack's / the platform's, not ours: nothing in the module writes movement. Awareness for the table (a halved creature moves at full speed on the sheet until dnd5e or the pack fixes the key); worth an upstream report beside the Miasma's. |
 
 ### The Monster Manual's Adult Green Dragon writes Noxious Miasma's −2 AC against an armor item's field (2026-09-15)
 
@@ -252,6 +253,11 @@ new key through its base (its delta never carried the feature), and *Party Camp*
 Bramblemaw on the restored world. The pack itself still carries the slip — a fresh import of
 the Adult or Ancient Green Dragon brings it back — so the row stays as awareness; the upstream
 bug report is the user's call.
+
+**At dnd5e 6.0 the row is ONE FIELD (the 6.0 pass, 2026-09-16):** the clock half is the platform's
+own now (a `targetEnd` pseudo-expiry on the activity's `duration.expiry`; DESIGN §5, NOTES §2
+*the 6.0 pass* ruling 1), and the AC half is the change key above. Nothing in the module carries
+either; a fresh import still brings the pack's slip back.
 
 ### Two content facts worth keeping
 

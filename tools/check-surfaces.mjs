@@ -4,7 +4,7 @@
 // (`scripts/surfaces.js`), and every dnd5e-authored anchor in that map still appears in the
 // dnd5e version `module.json` verifies.
 //
-// WHY (the dnd5e 6.0 pass, ASSESSMENT.md §3b — user-ruled 2026-09-15): at 6.0 the card's DATA
+// WHY (the dnd5e 6.0 pass, NOTES §2 *the 6.0 pass* §3b — user-ruled 2026-09-15): at 6.0 the card's DATA
 // became the stable part and its HTML the unstable part. dnd5e says outright not to rely on the
 // card's markup; it renders from templates that will move through 6.x. Two anchors broke on the
 // day (`.card-buttons button[data-action]` — the usage card's buttons moved into an icon row; the
@@ -142,7 +142,7 @@ for (const file of files) {
         literalSites++;
         const line = code.slice(0, at).split("\n").length;
         fail("one map", `scripts/${rel}:~${line} spells out the platform anchor "${fragment}" — read it as `
-          + `SURFACES.${key} from scripts/surfaces.js instead (the 6.0 pass's posture, ASSESSMENT §3b)`);
+          + `SURFACES.${key} from scripts/surfaces.js instead (the 6.0 pass's posture, NOTES §2 *the 6.0 pass* §3b)`);
         at = code.indexOf(fragment, at + fragment.length);
       }
     }

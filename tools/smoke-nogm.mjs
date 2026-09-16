@@ -607,6 +607,15 @@ try {
   // ------------------------------------------------------- §rejoin: the GM comes back
   if (want('rejoin')) {
     console.log('[nogm] GM joining to test the rejoin case…');
+    // ⚠ The count to hold the rejoin against is the count the moment BEFORE the GM connects —
+    // not §hit's. §spent swings the same Sap weapon twice after §hit, and each hit posts its
+    // own notice (the second's damage lands late, even into §cast); measured against §hit's
+    // number the rejoin read 'before=1 after=2' on every 6.0 run, and the extra notice was
+    // §spent's, not the rejoin's (2026-09-16, phase 5 of the 6.0 pass).
+    const preRejoin = await player.evaluate(({ modId, beforeIds }) => {
+      const before = new Set(beforeIds);
+      return game.messages.contents.filter(m => !before.has(m.id) && (m.getFlag(modId, 'masteryNotice')?.key === 'sap')).length;
+    }, { modId: MOD, beforeIds: hit.beforeIds });
     gm = new Foundry(foundryConfig(env));
     await gm.connect();
     // Give the GM's client time to render the log and run every resume path it owns.
@@ -634,8 +643,8 @@ try {
     // paths must recognise finished work rather than re-running it. A second Sap notice for
     // one swing is the failure this section exists to catch.
     ok('§rejoin the rejoining GM adds no new reminder — the run\'s count is unchanged',
-      after.sapNotices === hit.sapNotices,
-      `sap notices during the run: before rejoin=${hit.sapNotices} after=${after.sapNotices}`);
+      after.sapNotices === preRejoin,
+      `sap notices during the run: at §hit=${hit.sapNotices} before rejoin=${preRejoin} after=${after.sapNotices}`);
     ok('§rejoin …and no chip lands late — the resume never re-pays the payout',
       after.chips === 0, `sapped chips on the victim=${after.chips}`);
     ok('§rejoin the original card survives the rejoin', after.noticeStillThere,

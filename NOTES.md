@@ -347,7 +347,14 @@ as `scripts/patches/teleports.js` with its own suite. Also measured: the animati
 "check collision" preset option is a MOVE-collision ray tested at the circle, before any move —
 a wall refuses there whatever the pipeline would do; that is the preset's setting to turn off.
 
-## 2. dnd5e 5.3.x
+## 2. dnd5e — 5.3.x as measured through 2026-09-15, and the 6.0 pass that closes the section
+
+> ⚠ **Every `flags.dnd5e.*` fact below is 5.3.x HISTORY.** Since dnd5e 6.0 (the pass of
+> 2026-09-15/16, *The dnd5e 6.0 pass* at the end of this section) a roll card IS its data:
+> `message.type` says what it is and `message.system.*` says the rest; nothing is written to
+> `flags.dnd5e` on a message any more and the world migration deletes the old flags. The
+> subsections between here and there stand as the record of what 5.3.x did and why the module
+> was shaped as it was; the 6.0 truth, and the seam every reader goes through now, is the last one.
 
 ### Rolls and damage
 
@@ -994,6 +1001,156 @@ read `data.skill` there. `dnd5e.rollInitiative(actor, combatants)` fires after
 `Combat#rollInitiative` has written the combatant's initiative; the roll's own message is the
 last `flags.core.initiativeRoll` message the actor authored, and a fold that moves the number
 updates the combatant (`combatant.update({initiative})`) after composing.
+
+### The dnd5e 6.0 pass (2026-09-15 → 2026-09-16; ASSESSMENT.md retired into this note)
+
+dnd5e 6.0 landed on prod 2026-09-15 and Battle Flow stopped: the module could not even be
+enabled (its pin was 5.3.99 — Foundry drops the setting write silently when a system maximum
+is exceeded), and with the pin raised every guard that read a card's flags failed closed (the
+attack landed, the damage rolled, no receipt followed). The pass was five phases on the sandbox
+(Foundry 14.367 / dnd5e 6.0.1), each battery-green for what it touched, released as one; prod
+played on a restored 5.3.3 box at v1.42.0 meanwhile (game day 2026-09-22). Measured, not
+guessed: the 5.3.3 → 6.0.1 source diff (573 files) read against every call site, and the
+battery. The commits: 338cff3 / 6016fe8 (phase 1), e59499b (2), 515379f (3), e9090fa (4).
+
+**§1 Why it broke, in one paragraph.** In 5.3.3 a roll card was a plain message carrying
+`flags.dnd5e.{messageType, roll.type, activity, item, targets, originatingMessage}`, and Battle
+Flow was a reader of that log. In 6.0.1 the card IS the data: `message.type` (`attack`,
+`damage`, `healing`, `save`, `check`, `generic`, `usage`, `prompt`…) says what it is,
+`message.system.{origin, targets, activity, item, ability, mode, mastery, ammunition, onSave,
+resisted, level}` says the rest, target descriptors are token-precise (`{actor, token, ac, img,
+name}` — no `uuid`), and the message registry files rolls by `system.origin` only. Beside that:
+an activity's area is a Region (no MeasuredTemplate is created), effect profiles resolve their
+effect asynchronously, and `CONFIG.statusEffects` is an object keyed by id.
+
+**§2 The breaks, by class, and the fix each took.**
+- **A** the pin → 6.0.0–6.9.99 (the whole 6.x line, user 2026-09-15), verified 6.0.1;
+  `tools/dnd5e-hooks.json` regenerated (8 hooks added, 0 removed — every registration still
+  fires by name).
+- **B–F** every `flags.dnd5e` read (≈90 sites, 40 files) → ONE seam, `decide/card.js`: `cardKind`
+  / `isCard` off `type` (death and concentration saves are `save` told apart by `system.type`;
+  initiative a `check`), `targetsOf` (6.0's token-keyed `system.targets` in the house shape),
+  `originIdOf` / `originData` (`system.origin` — written by every roll the module drives; the
+  platform's `getFlag` read fallbacks are courtesy, never load-bearing), `masteryOf`, `onSaveOf`,
+  `resistedOf` (the legendary-resistance flip), `targetsInData` (null when the pre-create data
+  names no snapshot — "aimed at nobody" and "not written yet" are different facts),
+  `isConcentrationPrompt`. ⚠ Two writes the first grep missed were NESTED (`flags: { dnd5e: {
+  originatingMessage } }`) and one optional-chained — grep those spellings too.
+- **G** effect profiles: `lookup.js` `profileEffects` / `applicableProfiles` resolve async and
+  keep the profile BESIDE its effect (`onSave`, `_id` stay readable); `profileEffectSync` serves
+  the one preCreate customer off the item's own embedded effect.
+- **H** `CONFIG.statusEffects[id]` (an object now); condition immunity SUPPRESSES the effect, so
+  `forceStatus` may report "refused" for an immune creature though the outcome is right.
+- **I** the areas are Regions (phase 3): `TemplatePlacement.fromActivity` creates RegionDocuments
+  stamped `flags.dnd5e.activity` (the tie), `item`, `origin` (the usage TOKEN), `spellLevel`,
+  `dimensions`; `Scene#templates` is deprecated at Foundry 14 (a drawn template is a Region
+  wearing `flags.core.MeasuredTemplate`). Containment is the platform's own
+  `TokenDocument#testInsideRegion` (`geometry.js tokensInRegions`); the v14 shim's corrupted
+  distance, `honestDims` and the template-shape ladder went with the template. Every aura is a
+  Region created the platform's way (`decide/geometry.js emanationShapeData`, the emanation
+  shape on the token's base, radius from the EDGE, attached, drawn by the region itself:
+  visibility ALWAYS, highlightMode `shapes`). A placed region is NO concentration dependent at
+  6.0.1 — the `deleteActiveEffect` sweep is what ends a duration area.
+- **J** concentration: both native prompts (`type: "prompt"` with a `concentration` /
+  `endConcentration` button) are vetoed by TYPE — ruling 2 below. Also found: dnd5e hands
+  `rollMode` straight to `ChatMessage.create` as `messageMode`, which knows only Foundry 14's
+  ids — `CONST.DICE_ROLL_MODES.PRIVATE` still returns the deprecated `gmroll`, so the private
+  concentration roll had gone PUBLIC; `PRIVATE_ROLL_MODE = "gm"`.
+- **K** the applied clock: `appliedClock` RETIRED — the platform's clock stands (ruling 1).
+- **L** the applier is built the tray's way: `getAppliedEffectChanges`, `system.origin`, dedupe on
+  `_stats.duplicateSource`, `forApplication`; an applied effect's `origin` is the ACTIVITY.
+- **M** the card DOM (phase 4): the usage card's buttons are DATA (`system.buttons[]`, filtered
+  in `dnd5e.preCreateUsageMessage`, Refund Resource kept); a save or check chained to a usage
+  card is HIDDEN and drawn as a summary INSIDE the usage card (client setting `chatCardSummary`,
+  default on) — the rows Battle Flow stamps on such rolls (the save gate's record, the d20 fold
+  family) draw through `ui.js cardRow` into `.card-summary[data-message-id]`.
+- **N** a null AC is a MISS (the platform's `evaluatedTargets`, ruling 4); riders `deepClone`
+  the shared roll data (the per-roll damage rules write into it); `ranged` is an attack mode;
+  the PHB pack still ships `system.bonuses.*` change keys (shimmed to `system.rolls.*` until
+  7.0) — accepted in both spellings.
+- **O** every suite reads the 6.0 card: `m.type`, `_source.system?.origin`, `system.targets`
+  mapped actor→uuid; AC forced through `ac.override` (the 5.x `calc/flat` restore clears
+  NOTHING at 6.0 — every restore leaked an override into the next suite), save outcomes through
+  `abilities.<x>.save.roll.bonus` (same leak); the concentration dependent a
+  `flags.dnd5e.dependents` row (`addDependent` is gone). `tools/scrub-fixture-residue.mjs`
+  clears what the old restores left (AC override, save bonus, an unlinked token's corpse).
+
+**§3b The posture — what is written against the card's HTML.** At 6.0 the card's DATA is the
+stable part and its HTML the unstable part (dnd5e treats `message.system` as API and says
+outright not to rely on the card's markup, which renders from templates that will move through
+6.x). The hook-dispatch gate's class, applied to selectors: (1) every HTML anchor lives in ONE
+map, `scripts/surfaces.js` — no selector string for a platform element anywhere else; (2)
+`tools/check-surfaces.mjs` fails the build on a literal outside the map and on a dnd5e anchor
+gone from the verified version's shipped templates (`tools/dnd5e-surfaces.json`, `--regen`,
+pinned like the hook artifact); (3) data over anchors wherever the platform offers it; (4) the
+platform's `getFlag` READ FALLBACKS are courtesy, not contract. Cadence, measured: 5.3 shipped
+three patch releases with zero breaking changes; 6.0.1 was five bug fixes. Breaks land on the
+major, deprecations expire on the second minor (6.2), patches are safe — the realistic exposure
+is one deprecation sweep at 6.2 plus cosmetic template churn.
+
+**§5 The rulings (the user, 2026-09-15).** (1) **The clock:** adopt the platform's — an empty
+clock takes the activity's duration natively (`Activity#getAppliedEffectChanges`), and the
+pseudo-expiries `sourceStart | sourceEnd | targetStart | targetEnd` are the vocabulary for
+turn-edge clocks (Vex `sourceEnd`, Sap/Slow `sourceStart`, "until the end of ITS next turn"
+`targetEnd`); the platform's `turnStart` pin stands where Battle Flow said `turnEnd`; the
+once-per-turn chits stay Battle Flow's. (2) **Concentration:** VETO both native prompts, keep the
+machine — *the platform's prompt is a reminder, Battle Flow's machine is a resolution* (the
+platform whispers a card with a button and stops; Battle Flow asks on the right client with a
+draining bar, rolls for a player who walks away, breaks and cascades on a failure, and at 0 HP
+or incapacitated ends concentration because the rule says so). Revisit only if a 6.x prompt
+gains a timer and a consequence. (3) **Emanations:** KEEP Battle Flow's; the pass suppresses the
+platform's auto-behaviour on regions it adopts (`options.dnd5e.createActivityBehaviors: false`
+at the placement, a `preCreateRegionBehavior` veto on any `dnd5e.*` behaviour on an adopted
+region). Measured with Battle Flow OFF (`probe-platform-emanations.mjs`): the PHB pack declares
+ZERO activity behaviours on any aura spell, so the platform's region machinery does nothing at
+this table without authoring; hand-authored it does the plain "effect while inside, gone on
+exit" case for FRIENDLY only (no neutrals, no caster-reach exclusion, no turn events, no
+feature auras), and concentration did not clean it up. (4) **Null AC:** a target whose AC cannot
+be read is a MISS, the platform's own verdict. (5) **The sandbox:** the fixtures, the raised pin
+and the module stay on for the pass; `tools/world-snapshot.mjs restore` is the way back.
+
+**Not in this pass, recorded for the next:** effects' rule changes (`attack|check|save|d20 :
+advantage|bonus|minimum|maximum`, conditioned on roll data — Sap and Bless-class bonuses could be
+authored as one effect the dialog pre-selects; Vex cannot, roll data carries no target; a
+prototype first); the platform's region behaviour beyond the ruling; `autoApplyDowned` and the
+trays' player settings (they overlap `receipts.js clearDefeated` and the "never removed"
+trays — the reference table in `verify-settings` grows by these, with a ruling each);
+`aggregateDamageTerms` for a per-type receipt breakdown; `dnd5e.buildDamageRollConfig` as the
+native place for type-dependent riders.
+
+**Findings paid for on the way (Foundry 14.367 / dnd5e 6.0.1, measured):**
+- **A moved token's document is INTERIM while it walks:** `doc.x/y` follow the animation,
+  `_source.x/y` hold the destination from the moment the update resolves — `documentSquares`
+  reads the source; a suite never sleeps for a walk, it waits for `doc.x === doc._source.x`. A
+  walk to a square off the scene is CONSTRAINED to the edge. The headless client throws inside
+  the token animation when a token update's result is sampled synchronously — await the update.
+- **`RegionDocument#updateTokens` writes membership with `noHook: true`** — no `updateToken`
+  fires for `_regions`, region events reach only behaviours that already exist; any floor over
+  membership must test geometry itself (a just-raised ring's `region.tokens` reads empty).
+- **A placed region is no concentration dependent** — only ActiveEffects, Items and Activities
+  carry the dependents mixin; `endConcentration` leaves the area standing.
+- **The cast's render floor and the region's `createRegion` land in the same beat** — the
+  refresh latch queues ONE re-offer behind a refresh in flight, or the cast's demand stays empty.
+- **The PHB pack's Half Speed (`system.attributes.movement.speed` ×0.5) leaves an NPC's speed at
+  30 on 6.0.1** — the effect lands, the platform's prepare order overwrites `movement.speed` from
+  `speeds.walk`. The pack's / the platform's, not ours (BACKLOG).
+- **`ChatMessage5e#renderHTML` sets `html.hidden` BEFORE `dnd5e.renderChatMessage` fires** —
+  a render hook can read it as "the platform's hidden copy of a summarized roll"; a popout
+  (`options.canClose`) is never hidden. **Core carries `hidden` over on a per-message re-render**
+  (`ChatLog#rerenderMessage`: `replacement.hidden = existing.hidden`) — turning `chatCardSummary`
+  off does not unhide a card already rendered hidden until the log renders afresh. **The
+  platform re-renders a summarized roll's origin on create, delete and `system` change only**
+  (`#refreshOrigin`) — a flag write re-renders nothing, so ui.js nudges the origin itself.
+- **The fixture Victim's TOKEN is named "Hobgoblin"** — a demand's popup carries the token's
+  name, not the actor's. **A section that snapshots the log must let the previous section's
+  swing SETTLE** — a rolled attack's damage and its no-GM whispers land up to a second after the
+  dialog closes (smoke-nogm §spent → §cast); and a count held against an OLD snapshot folds in
+  every later section's cards (§rejoin counted §spent's notice as the rejoin's for a day).
+- **Fixture residue cost a battery:** a platform probe left the Paladin's token NEUTRAL (a
+  helpful aura from a neutral source admits no ally — every feature-aura assert red); a scratch
+  probe parked the Ranger inside the ring. A probe that moves tokens must put them back;
+  smoke-saves deletes the Victim/Shielder tokens by design and `fixture-suite` re-places them.
+- The suite files are CRLF in some working copies; a multi-line edit script must normalise.
 
 ## 3. The statblock caster
 

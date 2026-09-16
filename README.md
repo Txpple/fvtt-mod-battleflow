@@ -1,7 +1,7 @@
 # Battle Flow
 
 **Battles, flowing.** A combat-resolution module for Foundry VTT (v14) and the dnd5e system
-(5.3.x, 2024 rules). When an attack hits, the damage rolls, applies, and the effects that ride
+(6.x, 2024 rules — v2.0.0 onward; v1.42.0 is the last release for dnd5e 5.3.x). When an attack hits, the damage rolls, applies, and the effects that ride
 it land. When a spell demands a save, everyone rolls. When an aura moves, the creatures inside
 it feel it. The table only touches the moments that are genuinely theirs.
 

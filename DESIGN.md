@@ -325,33 +325,34 @@ receipt on the attack card, written before the chip goes), and the chit that mak
 the only tick is world time, which moves only when the GM advances it — so an out-of-combat chip
 lives until the spend closes it, and that is the rule, not a gap.
 
-**⚠ THE CLOCK A PACK'S EFFECT CARRIES WHEN IT LANDS (2026-09-15, two table findings — the same
-rule read the other way: the platform judges the clock, so the clock must be WRITTEN right).**
-`decide/chips.js` `appliedClock`, read by the one applier every cast's and every save's effects
-go through (`effect-riders.js`). (1) **An empty clock takes the spell's.** The official books
-write a spell's duration twice — on the spell and on its effect (the PHB's Blessed carries 60 s,
-Mage Armor's 28 800 s) — and dnd5e derives nothing at apply time, so a pack that wrote it once
-(Heroes of Faerûn's Death Armor: 1 hour on the spell, nothing on the effect) landed a clockless,
-icon-less effect from the native button and from ours alike; now the effect takes the spell's
-duration, and an effect that carries its own clock is left exactly as written — parity with the
-button for every correctly authored spell. (2) **"Until the end of its next turn" is the TARGET's
-turn.** The Monster Manual writes that phrase as N turns (Noxious Miasma's −2 AC: 1 turn), and the
-platform counts turns from whoever's turn it is when the effect lands — the dragon's — so the
-penalty was expired at the end of the dragon's own turn, before the victim ever acted. A turns
-clock landing on someone ELSE in a running combat is re-pinned to the bearer's place: N rounds,
-`expiry: "turnEnd"`, `start` the bearer's combatant — the Vex chip's shape. On the caster themself
-and out of combat the turns stand as written. ⚠ **The Miasma's −2 itself still does not land,
-and that is the pack's, not the module's** (user ruling 2026-09-15, "i dont want specific
-carveouts"): the Monster Manual's **Adult Green Dragon** stat block (Bramblemaw is an instance
-of it; the Ancient Green Dragon carries the same record) writes the penalty against
-`system.armor.value`, an armor ITEM's field that means nothing on a creature in dnd5e 5.3.3 —
-and nothing in 6.0 maps it. Measured across every effect in every premium book on the box (1,793
-non-transfer effects): it is the ONLY base effect that writes an item field onto a creature; every
-other item-field key belongs to an enchantment, which is meant to. A remap row was built, proven
-and REMOVED the same day as a one-monster carve-out; the fix is at the data (the world record's
-change key → `system.attributes.ac.bonus`), and the slip is worth reporting upstream. Proof of
-the clock: `tools/probe-applied-clock.mjs` — Death Armor's hour; the Miasma's effect pinned to
-the victim, active through the dragon's turn end and the victim's own turn, expired at its end.
+**⚠ THE CLOCK A PACK'S EFFECT CARRIES WHEN IT LANDS IS THE PLATFORM'S TOO (2026-09-15, two table
+findings; RULED the same evening for dnd5e 6.0 — ruling 1 of the 6.0 pass, NOTES §2).** The same
+rule read the other way: the platform judges the clock, so the clock must be WRITTEN right — and
+since dnd5e 6.0 the platform writes it. (1) **An empty clock takes the spell's.** The official
+books write a spell's duration twice — on the spell and on its effect (the PHB's Blessed carries
+60 s, Mage Armor's 28 800 s) — and a pack that wrote it once (Heroes of Faerûn's Death Armor: 1
+hour on the spell, nothing on the effect) landed a clockless, icon-less effect from the native
+button and from ours alike. dnd5e 6.0's `Activity#getAppliedEffectChanges` gives such an effect
+the activity's duration, and the one applier every cast's and every save's effects go through
+(`effect-riders.js`, built the tray's way) rides it — parity with the button for every correctly
+authored spell, and for the once-written ones. (2) **"Until the end of its next turn" is the
+TARGET's turn, and the platform has the words for it now:** the pseudo-expiries `sourceStart |
+sourceEnd | targetStart | targetEnd` (`ActiveEffect5e.PSEUDO_EXPIRIES`), judged against the
+SOURCE actor or the bearer by the same combat tracker the player sees — Vex is `sourceEnd`, Sap
+and Slow `sourceStart`, the reaction chip `targetStart`, the Monster Manual's Miasma `targetEnd`.
+The platform's `turnStart` pin stands where this module once said `turnEnd`; this module's own
+re-derivation of both rules (`appliedClock`, v1.41.0) is RETIRED with the pass, and DESIGN states
+one rule, not two. The once-per-turn chits (Cleave, Sneak Attack, a clock rider, Steady Aim —
+"dies with the turn in progress, whoever's it is") have no platform equivalent and stay this
+module's. ⚠ **The Miasma's −2 itself still does not land, and that is the pack's, not the
+module's** (user ruling 2026-09-15, "i dont want specific carveouts"): the Monster Manual's
+**Adult Green Dragon** stat block (Bramblemaw is an instance of it; the Ancient Green Dragon
+carries the same record) writes the penalty against `system.armor.value`, an armor ITEM's field
+that means nothing on a creature — measured across every effect in every premium book on the box
+(1,793 non-transfer effects): the ONLY base effect that writes an item field onto a creature. A
+remap row was built, proven and REMOVED the same day as a one-monster carve-out; the fix is at
+the data (the world record's change key → `system.attributes.ac.bonus`, done on prod
+2026-09-15), and the slip is worth reporting upstream.
 
 **⚠ Dead is the platform's MARK, never the arithmetic** (review, 2026-09-01). A one-round chip's
 `remaining` reads zero for the whole of the round its boundary falls in and the mark arrives only

@@ -140,7 +140,7 @@ export function meleeOptions(actor) {
 }
 
 /* ---------------------------------------------------------------------------------------------
- * THE EFFECT PROFILES (the dnd5e 6.0 pass, phase 2 — ASSESSMENT §2 G). An activity's `effects`
+ * THE EFFECT PROFILES (the dnd5e 6.0 pass, phase 2 — NOTES §2 *the 6.0 pass* §2 G). An activity's `effects`
  * list holds PROFILES — `{_id, uuid, level, onSave, …}` with a `getEffect()` that resolves the
  * document (the item's own embedded effect by `_id`, an external one by `uuid` — asynchronously)
  * — and `applicableEffects` is that list filtered to the cast level. The 5.x `profile.effect`

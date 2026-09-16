@@ -684,7 +684,7 @@ async function foldConcentrationAutoFail(askMessage, sources = []) {
 }
 
 /**
- * THE PLATFORM'S CONCENTRATION PROMPTS ARE VETOED — both of them (the dnd5e 6.0 pass, ASSESSMENT
+ * THE PLATFORM'S CONCENTRATION PROMPTS ARE VETOED — both of them (the dnd5e 6.0 pass, NOTES §2 *the 6.0 pass*
  * §5 ruling 2, user 2026-09-15): **the platform's prompt is a reminder, Battle Flow's machine is
  * a resolution.** The platform whispers the owner a card with a button and stops — nobody waits
  * on it, nothing expires, an unpressed button leaves the spell running; at 0 HP or incapacitated
