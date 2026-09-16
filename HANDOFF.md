@@ -201,15 +201,41 @@ Nothing is released until phase 5, and prod stays 5.3.3 / v1.42.0.
   `tools/fixture-suite.mjs` after it before any suite that needs them (the battery's order does).
 - The suite files are CRLF in the working copy; a multi-line edit script must normalise.
 
-## Phase 4 — NEXT, on the user's go (ASSESSMENT §4.4)
+## Phase 4 — NEXT, on the user's go (ASSESSMENT §4.4) — written for a fresh window
 
-Class M and §3.8: the card buttons hidden as data (`Activity#shouldHideChatButton` /
-the 6.0 button model — the DOM hide in ui.js is the last HTML-anchored behaviour), and where
-Battle Flow's rows draw on CHAINED cards (a damage card is a summary of its usage card at 6.0).
-The proof: smoke-saves §1a3 and §10b, then a full battery. Then phase 5 (docs, RELEASE-NOTES, the
-version, the prod deploy that MUST ship the new module.json; DESIGN §5 reconciled with the
-platform's clock; ARCHITECTURE's geometry rows — `honestDims` and `tokensInTemplates` are gone;
-NOTES' findings above; BACKLOG's Half Speed row).
+**What it is (ASSESSMENT §2.M + §3.8).** Two things the card's DOM used to carry are DATA at 6.0:
+1. **The button hide.** `polish.js:267–272` (`KEPT_CARD_BUTTONS`, `hideCardButtons`) hides
+   `.card-buttons button[data-action]` — the 6.0 usage card renders its buttons from
+   `system.buttons[]` (each with a `visibility`) as `section.icon-row > ul > li > button.icon`,
+   so the hide finds NOTHING (smoke-saves §1a3 and §10b read `buttons=0` — the suites' own
+   selector finds nothing either). The 6.0 way: filter the buttons in
+   `dnd5e.preCreateUsageMessage` (the data), keeping `refundResource`, and/or
+   `Activity#shouldHideChatButton(button, message)` (see the TransformActivity override in
+   dnd5e.mjs for the shape). The surfaces map (`scripts/surfaces.js cardButtons`) already lists
+   both anchors — retire the DOM anchor with the DOM hide; `tools/check-surfaces.mjs` gates it.
+2. **The chained-card summaries.** A save or check rolled against a usage card is rendered as a
+   SUMMARY inside the usage card (`.card-summary[data-message-id][data-target-uuid]`) and its
+   own message is hidden by default (client setting `chatCardSummary`). Every row Battle Flow
+   appends to a save message — `saves/views`, `topple`, `d20-folds`, `concentration`,
+   `reminders`, `ui.js` ~550 — must ALSO draw in the summary block, where players look.
+   This changes where the rows draw, not what they say. Measure first: which of these rows
+   are invisible today with the setting on (a probe that rolls a chained save and reads both
+   DOMs), then decide the one seam the rows render through.
+
+**The proof.** smoke-saves §1a3 and §10b rewritten to read the buttons as data (`m.system.buttons`
+and their `visibility`, plus the rendered icon-row); a new section or suite for the summary
+rows (a chained save's verdict row visible inside the usage card); then a FULL battery
+(`node tools/battery.mjs`) — phase 3 ran only its four suites, and the battery has not been run
+whole since phase 2's middle. Expect fixture residue on the way: `tools/scrub-fixture-residue.mjs`
+and `tools/fixture-suite.mjs` are the two repairs; a probe that moves tokens must put them back.
+
+**Then phase 5** (docs, RELEASE-NOTES, the version, the prod deploy that MUST ship the new
+module.json; DESIGN §5 reconciled with the platform's clock; ARCHITECTURE's geometry rows —
+`honestDims` and `tokensInTemplates` are gone, `regionShapeTypeFor` / `emanationShapeData` /
+`tokensInRegions` are in; NOTES' phase-1/2/3 findings; BACKLOG's Half Speed row; ASSESSMENT
+retires). **Open ruling for the user before release:** the ring is now drawn by the region
+itself (visibility ALWAYS, highlightMode `shapes`, the reach's hue) — the platform draws its own
+6.0 areas as covered squares (`coverage`); the user has not seen either on the sandbox yet.
 
 ## Hazards (still true)
 
