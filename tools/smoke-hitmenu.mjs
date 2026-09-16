@@ -200,18 +200,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     for (const a of [victim, second]) {
       priorActor[a.id] = {
-        'system.attributes.ac.calc': a.system._source.attributes.ac.calc,
-        'system.attributes.ac.flat': a.system._source.attributes.ac.flat,
-        'system.abilities.str.bonuses.save': a.system._source.abilities?.str?.bonuses?.save ?? '',
-        'system.abilities.wis.bonuses.save': a.system._source.abilities?.wis?.bonuses?.save ?? '',
+        'system.attributes.ac.override': a.system._source.attributes.ac.override ?? null,
+        'system.abilities.str.save.roll.bonus': a.system._source.abilities?.str?.save?.roll?.bonus ?? '',
+        'system.abilities.wis.save.roll.bonus': a.system._source.abilities?.wis?.save?.roll?.bonus ?? '',
         'system.attributes.hp.value': a.system._source.attributes.hp.value,
         'system.attributes.hp.max': a.system._source.attributes.hp.max
       };
       // AC 1 so every forced 19 hits (and the sweep's verdict is a hit); a deep pool so nobody
       // dies under a longsword; the saves forced to fail.
-      await a.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1,
+      await a.update({ 'system.attributes.ac.override': 1,
         'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400,
-        'system.abilities.str.bonuses.save': '-30', 'system.abilities.wis.bonuses.save': '-30' });
+        'system.abilities.str.save.roll.bonus': '-30', 'system.abilities.wis.save.roll.bonus': '-30' });
     }
     const healFull = async () => {
       for (const a of [victim, second]) {
@@ -235,8 +234,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       .find(el => (el?.innerHTML ?? '').includes('Damage — your roll')) ?? null;
     const saveDialogEl = () => [...foundry.applications.instances.values()]
       .filter(app => app.rendered && app.element?.querySelector?.('[data-bf-save-demand]')).map(app => app.element)[0] ?? null;
-    const damageFor = originId => game.messages.contents.find(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
-      && (m.getFlag('dnd5e', 'originatingMessage') === originId));
+    const damageFor = originId => game.messages.contents.find(m => (m.type === 'damage')
+      && (m._source.system?.origin === originId));
     const cardsWith = flagKey => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, flagKey));
     /** A programmatic hit with the longsword at the victim — no dialog; the offer is the machine's to open. */
     const swing = async ({ d20 = 19 } = {}) => {
@@ -246,9 +245,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       face(d20);
       const results = await attack.use({ subsequentActions: false }, { configure: false }, {});
       const usageId = results?.message?.id ?? null;
-      const rolls = await attack.rollAttack({}, { configure: false }, usageId ? { data: { 'flags.dnd5e.originatingMessage': usageId } } : {});
+      const rolls = await attack.rollAttack({}, { configure: false }, usageId ? { data: { 'system.origin': usageId } } : {});
       const msg = rolls?.[0]?.parent ?? null;
-      return { msg, originId: msg?.getFlag('dnd5e', 'originatingMessage') ?? msg?.id };
+      return { msg, originId: msg?._source.system?.origin ?? msg?.id };
     };
     const menuOf = offer => offer?.querySelector('[data-bf-hit]') ?? null;
     const box = (offer, key) => offer?.querySelector(`input[name="bf-hit"][value="${key}"]`) ?? null;
@@ -292,7 +291,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1e. the offer\'s line says what the menu is for',
         /Maneuvers/.test(textOf(offer)) && /one maneuver per attack/.test(textOf(offer)), textOf(offer).slice(0, 200));
       rollButton(offer)?.click();
-      await waitFor(() => damageFor(msg?.getFlag('dnd5e', 'originatingMessage') ?? msg?.id)?.getFlag(MOD, 'receipt'), 12000);
+      await waitFor(() => damageFor(msg?._source.system?.origin ?? msg?.id)?.getFlag(MOD, 'receipt'), 12000);
       await settle();
     }
 
@@ -317,7 +316,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(50);
       ok('2c. untick it: nothing ticked again', noneTicked(), `noneTicked=${noneTicked()}`);
       rollButton(offer)?.click();
-      const dmg = await waitFor(() => { const d = damageFor(msg?.getFlag('dnd5e', 'originatingMessage') ?? msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+      const dmg = await waitFor(() => { const d = damageFor(msg?._source.system?.origin ?? msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
       ok('2d. no pick: no maneuver on the damage message, the pool untouched, the attack message records the empty pick',
         !!dmg && !dmg.getFlag(MOD, 'hitManeuver') && (poolLeft() === 4) && (game.messages.get(msg?.id)?.getFlag(MOD, 'hitPick')?.key === null),
         `hm=${!!dmg?.getFlag(MOD, 'hitManeuver')} pool=${poolLeft()} pick=${JSON.stringify(game.messages.get(msg?.id)?.getFlag(MOD, 'hitPick'))}`);

@@ -14,6 +14,7 @@ import { durationSeconds, shieldDue, shieldEffectNames, shieldReach, shieldType 
 import { messageActivity } from "./effect-riders.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
+import { CARD, castLevelOn, isCard } from "./decide/card.js";
 
 /* ---------------------------------------------------------------------------------------------
  * DAMAGE SHIELDS (user, 2026-09-04 — "death armor needs its damage shield effect automated";
@@ -101,7 +102,7 @@ function shieldsOn(defender) {
 
 /** Does this damage message answer a MELEE attack roll whose hold has settled? The attack, or null. */
 function settledMeleeAttack(message) {
-  if ( message.getFlag("dnd5e", "roll.type") !== "damage" ) return null;
+  if ( !isCard(message, CARD.damage) ) return null;
   const attackMessage = resolveAttackMessage(message);
   if ( !attackMessage ) return null;
   if ( message.getFlag(MODULE_ID, "attackHoldPending") === true ) {
@@ -282,7 +283,7 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
     if ( !row?.mark || !listed().has(lower(row.key)) ) return;
     if ( row.cast && (lower(activity.name) !== lower(row.cast)) ) return;
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
-    const spellLevel = Number(message?.system?.spellLevel ?? item.system?.level ?? 0);
+    const spellLevel = Number(castLevelOn(message) ?? item.system?.level ?? 0);
     const scaling = Math.max(0, spellLevel - Number(item.system?.level ?? 0));
     void writeMark(actor, item, row, { spellLevel, scaling, message });
   } catch(err) {

@@ -18,6 +18,7 @@ import { effectEntries, listedNames } from "./settings.js";
 import { bfCard } from "./decide/present.js";
 import { messageActivity } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
+import { CARD, isCard, targetsOf } from "./decide/card.js";
 
 /* --- the spend: the attack roll that uses a chip up (HANDOFF Stage 1, 2026-09-01) -----------
  * The rules spend Vex and Sap on the NEXT attack roll whether or not the roll honoured them —
@@ -29,7 +30,7 @@ import { SURFACES } from "./surfaces.js";
  * is a write to the MONSTER.
  * ------------------------------------------------------------------------------------------- */
 Hooks.on("createChatMessage", message => {
-  if ( message.getFlag("dnd5e", "roll.type") !== "attack" ) return;
+  if ( !isCard(message, CARD.attack) ) return;
   // The attacker behind the roll, off the activity every attack message names — the same read
   // mastery.js's `masteryContext` makes; the spend needs the actor alone.
   const attacker = messageActivity(message)?.item?.actor ?? null;
@@ -64,7 +65,7 @@ async function spendChips(message, ctx) {
       }
     }
     // The bearer attacked: this attacker's own Vex on it.
-    for ( const t of (message.getFlag("dnd5e", "targets") ?? []) ) {
+    for ( const t of targetsOf(message) ) {
       const actor = await fromUuid(t.uuid);
       if ( !(actor instanceof Actor) || (actor.uuid === attacker.uuid) ) continue;
       for ( const e of actor.effects ) {
@@ -93,7 +94,7 @@ async function spendChips(message, ctx) {
       for ( const e of attacker.effects ) {
         if ( rowFor(e, "attacker") && unspent(e) ) spent.push({ actor: attacker, effect: e, key: "effect" });
       }
-      for ( const t of (message.getFlag("dnd5e", "targets") ?? []) ) {
+      for ( const t of targetsOf(message) ) {
         const actor = await fromUuid(t.uuid);
         if ( !(actor instanceof Actor) || (actor.uuid === attacker.uuid) ) continue;
         for ( const e of actor.effects ) {

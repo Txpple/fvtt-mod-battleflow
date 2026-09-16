@@ -12,6 +12,7 @@ import { DAMAGE_SAVES, MANEUVER_FEATURE_NAMES, tableIndex } from "./decide/regis
 import { volleyEntryFor } from "./volley-registry.js";
 import { offerSaveDamageRoll, rollDamageForSave } from "./auto-damage.js";
 import { SURFACES } from "./surfaces.js";
+import { targetsInData, targetsOf } from "./decide/card.js";
 
 /* ---------------------------------------------------------------------------------------------
  * DAMAGE CASTS (user, 2026-09-04 — "make heat metal spell work"). MEASURED on the sandbox: the
@@ -63,8 +64,8 @@ function drives(activity, targetCount) {
 // activity's calls rollDamage with a dialog.
 Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig, messageConfig) => {
   try {
-    const snapshot = foundry.utils.getProperty(messageConfig ?? {}, "data.flags.dnd5e.targets");
-    const n = Array.isArray(snapshot) ? snapshot.length : game.user.targets.size;
+    const snapshot = targetsInData(messageConfig?.data);   // null: not written yet — the client's targets
+    const n = snapshot ? snapshot.length : game.user.targets.size;
     if ( !drives(activity, n) ) return;
     usageConfig.subsequentActions = false;
   } catch(err) {
@@ -77,7 +78,7 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
   try {
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
     if ( !message ) return;                                          // used with create: false — no card, no bus
-    const targets = (message.getFlag("dnd5e", "targets") ?? []).map(t => ({ uuid: t.uuid, name: t.name, img: t.img ?? null }));
+    const targets = targetsOf(message).map(t => ({ uuid: t.uuid, name: t.name, img: t.img ?? null }));
     if ( !drives(activity, targets.length) ) return;                 // nothing aimed — the humans have it
     if ( message.getFlag(MODULE_ID, "damageCast") ) return;          // never re-drive
     // The consumed-flag write the suppressed follow-up skips — the volley machine's two lines.

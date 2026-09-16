@@ -9,6 +9,7 @@
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, 
   drivesMomentFor } from "../core.js";
 import { resolveUuid } from "../lookup.js";
+import { resistedOf } from "../decide/card.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom, verdictText } from "../decide/verdict.js";
 import { bfCard } from "../decide/present.js";
 import { registerDemand, demandAnsweredBy, registerWithheld, withholds } from "../ui.js";
@@ -102,9 +103,9 @@ export async function foldSaveAnswer(card, uuid, rollMessage) {
   try {
     const total = rollMessage.rolls?.[0]?.total;
     if ( typeof total !== "number" ) return;
-    // The stored DC is the authority (the ask's-DC rule) — plus forceSuccess, in case
+    // The stored DC is the authority (the ask's-DC rule) — plus `resisted`, in case
     // legendary resistance beat the fold to the message (a resume after an elect reload).
-    const forced = rollMessage.getFlag("dnd5e", "roll.forceSuccess") === true;
+    const forced = resistedOf(rollMessage);
     const timedOut = rollMessage.getFlag(MODULE_ID, "timedOut") === true;
 
     /* --- THE D20 FOLD OFFER: WITHHOLD, DO NOT UNDO (v1.23.0) ---------------------------------
@@ -245,8 +246,8 @@ Hooks.on("createChatMessage", message => {
 });
 
 /* --- legendary resistance: the one late answer ----------------------------------------------
- * resistSave (npc.mjs) spends the resource and stamps `flags.dnd5e.roll.forceSuccess` onto
- * the SAVE message as an update — strictly after the failure landed, possibly after its
+ * resistSave (npc.mjs) spends the resource and stamps `system.resisted` (decide/card.js
+ * `resistedOf`) onto the SAVE message as an update — strictly after the failure landed, possibly after its
  * consequences did. The elect overturns the verdict: flip the entry, and if consequences
  * already ran, un-apply what the failure applied (receipt-exact) and re-apply what a success
  * grants. This is the corner Phase 2.5 recorded as accepted; Phase 2 owns it.

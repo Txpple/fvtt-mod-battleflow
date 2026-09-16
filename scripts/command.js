@@ -15,6 +15,7 @@ import { popupKey, bfCard, momentBarHTML, ruleLine, spendPhrase } from "./decide
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 import { openMomentPopup, momentButton, shownMoments, acknowledgeMoment, momentAcknowledged } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
+import { targetsOf } from "./decide/card.js";
 
 /* =============================================================================================
  * COMMANDER'S STRIKE (2026-09-05, "the rest of maneuvers") — the `command` fold kind: Riposte's
@@ -63,7 +64,7 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
 
 /** The fighter's client, at the use: the ally, the die (the FIGHTER's scale value), the notice's clock. */
 async function stampCommand(activity, fighter, message, found) {
-  const targets = (message.getFlag("dnd5e", "targets") ?? []).filter(t => t.uuid !== fighter.uuid);
+  const targets = targetsOf(message).filter(t => t.uuid !== fighter.uuid);
   const ally = targets[0] ?? null;
   // The die is the FIGHTER's scale value — resolved here, on the fighter, because it rides the
   // ALLY's roll (measured: the raw `@scale.battle-master.superiority.die` read 0 on the Ranger).
@@ -147,7 +148,8 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
     if ( formula ) {
       const base = (config.rolls ?? []).find(r => r.base === true);
       if ( base ) base.parts = [...(base.parts ?? []), formula];
-      else config.rolls.push({ data: config.rolls[0]?.data ?? {}, parts: [formula], options: { type, types: type ? [type] : [] } });
+      // 6.0: per-roll damage rules WRITE into a roll's data (`roll.damageType`, `@ruleBonus`) — a shared object would carry the last rider's type onto roll 0.
+      else config.rolls.push({ data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}), parts: [formula], options: { type, types: type ? [type] : [] } });
     }
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.commandRide`, {
       ...statContext(actor.uuid), cardId: chip.getFlag(MODULE_ID, "cardId") ?? null, formula: formula ?? null, type,

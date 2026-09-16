@@ -70,7 +70,7 @@ const out = await f.evaluate(async () => {
 
   try {
     // Force the hit exactly as the suite does…
-    await victimBase.update({ "system.attributes.ac.calc": "flat", "system.attributes.ac.flat": 1 });
+    await victimBase.update({ "system.attributes.ac.override": 1 });
     // …and force the DEATH, which the suite leaves to the dice. A pool of 1 makes any damage
     // lethal, so the branch that only runs on a kill runs every time.
     await victim.update({ "system.attributes.hp.value": 1 });
@@ -87,15 +87,15 @@ const out = await f.evaluate(async () => {
     const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
     const usageId = results?.message?.id ?? null;
     const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
-      { data: { "flags.dnd5e.originatingMessage": usageId } });
+      { data: { 'system.origin': usageId } });
     report.attack = { total: rolls?.[0]?.total ?? null, fumble: rolls?.[0]?.isFumble ?? null };
 
     let damageMsg = null;
     for (let i = 0; i < 40 && !damageMsg; i++) {
       await sleep(250);
       damageMsg = game.messages.contents.slice(-10).find(m =>
-        m.getFlag("dnd5e", "roll.type") === "damage"
-        && m.getFlag("dnd5e", "originatingMessage") === usageId
+        m.type === "damage"
+        && m._source.system?.origin === usageId
         && m.getFlag(MOD, "receipt"));
     }
     if (!damageMsg) return { ...report, fatal: "no receipted damage message", rejections, errors };

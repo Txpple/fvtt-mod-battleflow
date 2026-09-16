@@ -15,6 +15,7 @@ import { RULE_TEXT } from "./decide/registry.js";
 import { hitTargets, modeAllows, reactionSpent, spendReaction } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
+import { CARD, activityUuidOf, isCard, originData, originIdInData, targetsOf } from "./decide/card.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
   armDeadline, disarmDeadline, registerRelay } from "./ui.js";
 
@@ -33,12 +34,12 @@ const RIPOSTE_DIE_TTL_MS = 60_000;
 Hooks.on("createChatMessage", async message => {
   try {
     if ( !isActiveGM() ) return;
-    if ( message.getFlag("dnd5e", "roll.type") !== "attack" ) return;
+    if ( !isCard(message, CARD.attack) ) return;
     if ( message.getFlag(MODULE_ID, "riposte") ) return;               // never re-stamp
     if ( message.getFlag(MODULE_ID, "riposteFor") ) return;            // a driven attack never chains re-offers
     const entry = maneuverFoldEntries().find(e => e.kind === "riposte");
     if ( !entry ) return;
-    const activityUuid = message.getFlag("dnd5e", "activity")?.uuid;
+    const activityUuid = activityUuidOf(message);
     const attackActivity = activityUuid ? await fromUuid(activityUuid) : null;
     if ( attackActivity?.attack?.type?.value !== "melee" ) return;     // melee misses only (P3)
     const attacker = message.getAssociatedActor?.();
@@ -46,7 +47,7 @@ Hooks.on("createChatMessage", async message => {
 
     const hitSet = new Set(hitTargets(message).map(t => t.uuid));      // as rolled — Graze's no-reopen
     const reactors = [];
-    for ( const t of (message.getFlag("dnd5e", "targets") ?? []) ) {
+    for ( const t of targetsOf(message) ) {
       if ( hitSet.has(t.uuid) ) continue;
       const actor = await fromUuid(t.uuid).catch(() => null);
       if ( !(actor instanceof Actor) ) continue;
@@ -239,7 +240,7 @@ async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {})
       const usageId = use?.message?.id ?? null;
       await weaponAct.rollAttack({}, { configure: false }, {
         data: {
-          "flags.dnd5e.originatingMessage": usageId ?? message.id,
+          ...originData(usageId ?? message.id),
           [`flags.${MODULE_ID}.riposteFor`]: message.id,
           [`flags.${MODULE_ID}.riposteBy`]: uuid
         }
@@ -272,11 +273,11 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
     // When the damage names its chain, verify it leads to OUR driven attack — a different
     // attack rolled inside the window must not inherit the die. A chainless roll (the native
     // button) falls back to the actor+TTL match.
-    const originId = message?.data?.["flags.dnd5e.originatingMessage"];
+    const originId = originIdInData(message?.data);
     if ( originId ) {
       const origin = game.messages.get(originId);
       if ( origin ) {
-        const chainAttacks = (origin.getFlag("dnd5e", "roll.type") === "attack")
+        const chainAttacks = isCard(origin, CARD.attack)
           ? [origin] : (origin.getAssociatedRolls?.("attack") ?? []);
         if ( !chainAttacks.some(a => a.getFlag(MODULE_ID, "riposteFor")) ) return;
       }

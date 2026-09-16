@@ -21,6 +21,7 @@ import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, registerRes
 // check-hook-order; do not move this file's entry position without re-running it.
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 import { SURFACES } from "./surfaces.js";
+import { activityUuidOf, masteryOf, targetsOf } from "./decide/card.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1.6 — the maneuver folds (FLOW item 1, built v1.19.0 after probes P1-P3; the walk's
@@ -63,7 +64,7 @@ import { SURFACES } from "./surfaces.js";
  * damage, and with the resolver off there is no path for it that the table asked for.
  *
  * THE PER-ROLL RIDER RULING (recorded for Pass C, the volleys): a module-driven attack that
- * stamps the FLAT `flags.dnd5e.originatingMessage` key is a REAL attack — riders ride it
+ * stamps its origin (`system.origin`, decide/card.js) is a REAL attack — riders ride it
  * unchanged, because riderTargets' first branch resolves the chain. Riders ride attack ROLLS;
  * the all-targets-or-nothing intersection lives WITHIN one damage roll; N driven rolls are N
  * independent rider folds. Riposte is the shipped precedent.
@@ -128,7 +129,7 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
     }
 
     // Clean misses only (the scope fence above): resolvable ACs, every one of them missed.
-    const snapshot = attackMessage.getFlag("dnd5e", "targets") ?? [];
+    const snapshot = targetsOf(attackMessage);
     if ( !snapshot.length || hitTargets(attackMessage).length ) return;
     const judged = snapshot.filter(t => (t.ac !== null) && (t.ac !== undefined));
     if ( !judged.length ) return;                                      // null AC — humans have it
@@ -290,7 +291,7 @@ async function resolvePrecision(message) {
     });
     // Graze already paid on this miss? Say so — the ruling is announce, no unwind (the
     // symmetric twin of Graze's own "reads the attack as rolled" no-reopen).
-    if ( (message.getFlag("dnd5e", "roll.mastery") === "graze")
+    if ( (masteryOf(message) === "graze")
       && message.getFlag(MODULE_ID, "receipt")?.targets?.length ) {
       lines.push("⚠ Graze already paid on the miss — revert its receipt if you rule it void.");
     }
@@ -308,7 +309,8 @@ async function resolvePrecision(message) {
     // 4. The re-drive — the hold continuation's template: hitTargets re-run (it now reads
     //    the verdicts), the player's own dice honoured, the straight roll otherwise.
     if ( !anyHit || !hitTargets(message).length ) return;
-    const attackActivity = await fromUuid(message.getFlag("dnd5e", "activity")?.uuid);
+    const activityUuid = activityUuidOf(message);
+    const attackActivity = activityUuid ? await fromUuid(activityUuid) : null;
     if ( !attackActivity ) return;
     if ( setting(S.playerRollDamage) ) return void offerDamageRoll(attackActivity, message);
     await rollDamageForAttack(attackActivity, message);

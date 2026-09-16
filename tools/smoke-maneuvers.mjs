@@ -199,17 +199,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (!pcToken || !enemyToken || !victimToken) return { fatal: 'tokens never reached the canvas' };
 
     priorActor[victim.id] = {
-      'system.attributes.ac.calc': victim.system._source.attributes.ac.calc,
-      'system.attributes.ac.flat': victim.system._source.attributes.ac.flat,
+      'system.attributes.ac.override': victim.system._source.attributes.ac.override ?? null,
       'system.attributes.hp.value': victim.system._source.attributes.hp.value
     };
     priorActor[enemy.id] = {
-      'system.attributes.ac.calc': enemy.system._source.attributes.ac.calc ?? 'default',
-      'system.attributes.ac.flat': enemy.system._source.attributes.ac.flat ?? null,
+      'system.attributes.ac.override': enemy.system._source.attributes.ac.override ?? null,
       'system.attributes.hp.value': enemy.system._source.attributes.hp.value
     };
     const acFlat = (a, n) => a.update({
-      'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': n });
+      'system.attributes.ac.override': n });
 
     const pcAttackAct = () => pc.items.find(i => i.name === enemyWeapon.name)
       ?.system.activities.find(a => a.type === 'attack');
@@ -223,7 +221,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const use = await activity.use({ subsequentActions: false }, { configure: false }, {});
       const usageId = use?.message?.id ?? null;
       const rolls = await activity.rollAttack({ advantage: false, disadvantage: true },
-        { configure: false }, usageId ? { data: { 'flags.dnd5e.originatingMessage': usageId } } : {});
+        { configure: false }, usageId ? { data: { 'system.origin': usageId } } : {});
       await sleep(200);
       return { usageId, msg: rolls?.[0]?.parent ?? null, roll: rolls?.[0] ?? null };
     };
@@ -233,8 +231,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return fn();
     };
     const waitDamage = (originId, ms = 10000) => until(() => game.messages.contents.find(x =>
-      (x.getFlag('dnd5e', 'roll.type') === 'damage')
-      && (x.getFlag('dnd5e', 'originatingMessage') === originId)), ms);
+      (x.type === 'damage')
+      && (x._source.system?.origin === originId)), ms);
     const dialogsWith = text => [...document.querySelectorAll('.application')]
       .filter(el => (el.innerHTML ?? '').includes(text));
     /**
@@ -283,7 +281,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const stamped = await until(() => card?.getFlag(MOD, 'saves'), 5000);
         if (stamped) return card;
         log.push(`castAt: the demand did not stamp (attempt ${attempt}: card=${!!card}, userTargets=${game.user.targets.size}, `
-          + `dnd5eTargets=${JSON.stringify((card?.getFlag('dnd5e', 'targets') ?? []).map(t => t.name))}, `
+          + `dnd5eTargets=${JSON.stringify((card?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor })).map(t => t.name))}, `
           + `tokenDestroyed=${!!token?.destroyed}, tokenActor=${token?.actor?.name ?? null}) — retrying`);
       }
       return null;
@@ -318,7 +316,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const p = msg.getFlag(MOD, 'precision');
           return (p?.status === 'resolved') ? p : null;
         }, 6000);
-        const dmg = await waitDamage(msg.getFlag('dnd5e', 'originatingMessage'), 2500);
+        const dmg = await waitDamage(msg._source.system?.origin, 2500);
         ok('P3. Pass — the miss stands, nothing rolls, the die is not spent',
           (resolved?.outcome === 'passed') && !dmg && (poolUses() === usesBefore),
           `outcome=${resolved?.outcome} dmg=${!!dmg} uses ${usesBefore}→${poolUses()}`);
@@ -332,7 +330,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('P4. a hit stamps no precision offer',
           !!msg && !msg.getFlag(MOD, 'precision'),
           `flag=${!!msg?.getFlag(MOD, 'precision')}`);
-        await waitDamage(msg?.getFlag('dnd5e', 'originatingMessage'), 8000); // let the chain finish
+        await waitDamage(msg?._source.system?.origin, 8000); // let the chain finish
         await acFlat(victim, 25);
       }
 
@@ -364,7 +362,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // The re-drive stamps the FLAT originating key — the exact property the riders key
           // on (riderTargets branch 1), so this single assert pins the per-roll rider ruling's
           // mechanism without a full rider fixture.
-          const dmg = await waitDamage(msg.getFlag('dnd5e', 'originatingMessage'), 12000);
+          const dmg = await waitDamage(msg._source.system?.origin, 12000);
           const applied = await until(() => {
             const r = dmg?.getFlag(MOD, 'receipt');
             return r?.targets?.some(t => t.uuid === victim.uuid) ? r : null;
@@ -404,7 +402,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const p = msg.getFlag(MOD, 'precision');
             return (p?.status === 'resolved') ? p : null;
           }, 10000);
-          const dmg = await waitDamage(msg.getFlag('dnd5e', 'originatingMessage'), 2000);
+          const dmg = await waitDamage(msg._source.system?.origin, 2000);
           ok('P7. left alone — the buzzer answers Pass, nothing rolls, nothing spends',
             (resolved?.outcome === 'passed (timer)') && !dmg && (poolUses() === usesBefore),
             `outcome=${resolved?.outcome} uses ${usesBefore}→${poolUses()}`);
@@ -438,9 +436,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const driven = await until(() => game.messages.contents.find(m =>
           (m.getFlag(MOD, 'riposteFor') === msg?.id) && (m.getFlag(MOD, 'riposteBy') === pc.uuid)), 15000);
         ok('R2b. accepting drives a REAL attack carrying its provenance, aimed at the attacker',
-          !!driven && (driven.getFlag('dnd5e', 'roll.type') === 'attack')
-            && (driven.getFlag('dnd5e', 'targets') ?? []).some(t => t.uuid === enemy.uuid),
-          `driven=${!!driven} targets=${JSON.stringify(driven?.getFlag('dnd5e', 'targets')?.map(t => t.name))}`);
+          !!driven && (driven.type === 'attack')
+            && (driven.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor })).some(t => t.uuid === enemy.uuid),
+          `driven=${!!driven} targets=${JSON.stringify(driven?.system?.targets?.map(t => t.name))}`);
         ok('R2c. the maneuver really spent — the pool is down one',
           poolUses() === usesBefore - 1, `uses ${usesBefore}→${poolUses()}`);
 
@@ -448,7 +446,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (drivenRoll?.isFumble) {
           skips.push('R2d/e — the driven attack rolled a natural 1 (miss); die-in-damage not exercised this run');
         } else {
-          const dmg = await waitDamage(driven?.getFlag('dnd5e', 'originatingMessage'), 12000);
+          const dmg = await waitDamage(driven?._source.system?.origin, 12000);
           // v1.19.x finding (d): the die folds INTO the base roll — ONE dice group, one
           // total. Weapon d8 + die d8 ⇒ exactly two d8 TERMS in a single roll — counted by
           // GROUP, not by literal "1d8": a driven CRIT doubles both to 2d8 (the 2024 rule,
@@ -514,7 +512,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await sleep(100);
           const use = await bowAct.use({ subsequentActions: false }, { configure: false }, {});
           const rolls = await bowAct.rollAttack({ advantage: false, disadvantage: true },
-            { configure: false }, { data: { 'flags.dnd5e.originatingMessage': use?.message?.id } });
+            { configure: false }, { data: { 'system.origin': use?.message?.id } });
           await sleep(1800);
           const msg = rolls?.[0]?.parent;
           ok('R4. a ranged miss offers nothing — the fold is melee-gated',
@@ -648,7 +646,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const offAct = pc.items.get(offhand.id)?.system.activities.find(a => a.type === 'attack');
         await acFlat(victim, 1);
         const { msg: offMsg } = await attack(offAct, victimToken);
-        await waitDamage(offMsg?.getFlag('dnd5e', 'originatingMessage'), 8000);
+        await waitDamage(offMsg?._source.system?.origin, 8000);
         await acFlat(victim, 25);
         await closeDialogs('Weapon Mastery');
 
@@ -697,7 +695,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
                 && /superiority die rides this roll/i.test(offer?.innerHTML ?? ''),
               `offer=${!!offer} title="${title}"`);
             offer?.querySelector('button[data-action="roll"]')?.click();
-            const dmg = await waitDamage(driven?.getFlag('dnd5e', 'originatingMessage'), 12000);
+            const dmg = await waitDamage(driven?._source.system?.origin, 12000);
             ok('RP2. the celebrated button rolls through the same chokepoint — the damage lands',
               !!dmg, `dmg=${!!dmg}`);
           }
@@ -843,7 +841,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               const b = msg?.getFlag(MOD, 'bashOffer');
               return (b?.status === 'pending') ? b : null;
             }, 12000);
-            const dmg = offer ? await waitDamage(msg?.getFlag('dnd5e', 'originatingMessage'), 500) : null;
+            const dmg = offer ? await waitDamage(msg?._source.system?.origin, 500) : null;
             dmgAtPromotion = dmg ? dmg.timestamp : null;
           }
           if (!offer) log.push(`B4: attempt ${i + 1} produced no offer (miss/fumble) — retrying`);
@@ -1021,7 +1019,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         for (let i = 0; i < 6 && !hew; i++) {
           await victim.update({ 'system.attributes.hp.value': 1 });
           const { msg } = await attack(pcAttackAct(), victimToken);
-          dmg = await waitDamage(msg?.getFlag('dnd5e', 'originatingMessage'), 10000);
+          dmg = await waitDamage(msg?._source.system?.origin, 10000);
           if (!dmg) { log.push(`H1: attempt ${i + 1} rolled no damage (fumble) — retrying`); continue; }
           hew = await until(() => game.messages.contents.find(m => (m.timestamp >= suiteStart)
             && /Hew — .*can attack again/.test(m.content ?? '')), 10000);

@@ -184,10 +184,10 @@ try {
       const use = await activity.use({ subsequentActions: false }, { configure: false }, {});
       const usageId = use?.message?.id ?? null;
       const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
-        { data: { 'flags.dnd5e.originatingMessage': usageId } });
+        { data: { 'system.origin': usageId } });
       attackMsg = rolls?.[0]?.parent ?? null;
       // hitTargets is the module's own reading; from here just ask the card.
-      const targets = attackMsg?.getFlag('dnd5e', 'targets') ?? [];
+      const targets = (attackMsg?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor }));
       const total = rolls?.[0]?.total ?? 0;
       hitLanded = targets.some(t => total >= (t.ac ?? 99));
       if (!hitLanded) await sleep(250);
@@ -196,7 +196,7 @@ try {
 
     // Damage, so the payout chain runs its full length.
     const dmg = activity.damage ? await activity.rollDamage({}, { configure: false },
-      { data: { 'flags.dnd5e.originatingMessage': attackMsg.id } }).catch(() => null) : null;
+      { data: { 'system.origin': attackMsg.id } }).catch(() => null) : null;
 
     // Wait for what the assertions read: the notice card.
     const notice = await until(() => game.messages.contents
@@ -427,18 +427,18 @@ try {
           if (!li) throw new Error('the usage card never reached the DOM');
           const event = { target: li.querySelector('button[data-action="rollAttack"]') ?? li, clientY: 200,
             altKey: false, ctrlKey: false, metaKey: false, shiftKey: false };
-          const attacksBefore = game.messages.contents.filter(m => m.getFlag('dnd5e', 'roll.type') === 'attack').length;
+          const attacksBefore = game.messages.contents.filter(m => m.type === 'attack').length;
           void activity.rollAttack({ event }, {}, {});
           return { usageId, attacksBefore };
         };
-        const lastAttack = () => game.messages.contents.filter(m => m.getFlag('dnd5e', 'roll.type') === 'attack').pop() ?? null;
+        const lastAttack = () => game.messages.contents.filter(m => m.type === 'attack').pop() ?? null;
 
         // Swing 1: the gate lists the Vex; press Advantage; the spend is RECORDED and the chip stays.
         const first = await buttonSwing();
         const gate1 = await until(gateOpen, 8000);
         const text1 = (gate1?.element?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ');
         gate1?.element?.querySelector('button[data-action="advantage"]')?.click();
-        const msg1 = await until(() => { const m = lastAttack(); return (m && (m.getFlag('dnd5e', 'originatingMessage') === first.usageId)) ? m : null; }, 8000);
+        const msg1 = await until(() => { const m = lastAttack(); return (m && (m._source.system?.origin === first.usageId)) ? m : null; }, 8000);
         const record = await until(() => game.messages.get(msg1?.id ?? '')?.getFlag(modId, 'chipSpend')?.spent?.find(s => s.id === chipId) ?? null, 8000);
         await sleep(1500);
         const chipStillThere = !!token.actor.effects.get(chipId);
@@ -537,7 +537,7 @@ try {
             _id: EFF, name: 'BF NoGM Favored', transfer: false, disabled: false,
             img: 'icons/svg/sun.svg', duration: { seconds: 60 },
             description: '<p>+1d4 melee damage (BF no-GM fixture).</p>',
-            changes: [{ key: 'system.bonuses.mwak.damage', mode: 2, value: '1d4' }]
+            changes: [{ key: 'system.rolls.damage.mwak.bonus', mode: 2, value: '1d4' }]
           }]
         }]);
         const activity = [...item.system.activities].find(a => a.type === 'utility');

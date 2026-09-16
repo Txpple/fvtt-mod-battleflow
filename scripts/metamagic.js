@@ -35,6 +35,7 @@ import { raiseHold, releaseHold, isHeld } from "./holds.js";
 import { saveTargetEntry } from "./decide/demand.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
+import { CARD, activityUuidOf, isCard, originIdInData } from "./decide/card.js";
 
 const INDEX = tableIndex(METAMAGIC);
 /** The name the record shows for Font of Magic's uses — what the table calls them. */
@@ -302,12 +303,12 @@ function rowHTML(row, item, current, { facts = null, currentType = null, protect
 function recordForRoll(activity, message) {
   try {
     const data = message?.data ?? {};
-    const id = data["flags.dnd5e.originatingMessage"] ?? foundry.utils.getProperty(data, "flags.dnd5e.originatingMessage") ?? null;
+    const id = originIdInData(data);
     const card = id ? game.messages.get(id) : null;
     const record = card?.getFlag(MODULE_ID, METAMAGIC_FLAG) ?? null;
     if ( record ) return record;
     // No origin named (a roll from the sheet): the activity's newest card of the last minute.
-    const recent = game.messages.contents.slice(-40).reverse().find(m => (m.getFlag("dnd5e", "activity")?.uuid === activity?.uuid)
+    const recent = game.messages.contents.slice(-40).reverse().find(m => (activityUuidOf(m) === activity?.uuid)
       && m.getFlag(MODULE_ID, METAMAGIC_FLAG) && (Math.abs(Date.now() - (m.timestamp ?? 0)) <= 60_000));
     return recent?.getFlag(MODULE_ID, METAMAGIC_FLAG) ?? null;
   } catch { return null; }
@@ -343,10 +344,9 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
 
 Hooks.on("preCreateChatMessage", doc => {
   try {
-    const uuid = doc.getFlag("dnd5e", "activity")?.uuid ?? null;
+    const uuid = activityUuidOf(doc);
     if ( !uuid || !pending.has(uuid) ) return;
-    const isUsage = (doc.type === "usage") || (doc.getFlag("dnd5e", "messageType") === "usage");
-    if ( !isUsage ) return;
+    if ( !isCard(doc, CARD.usage) ) return;
     const pick = pending.get(uuid);
     if ( (Date.now() - (pick.at ?? 0)) > PICK_TTL_MS ) { pending.delete(uuid); return; }   // a stale pick is nobody's
     pick.born = true;
@@ -412,7 +412,7 @@ Hooks.on("preCreateChatMessage", doc => {
 // ...and a card posted from ANOTHER client (the elect's clock kept the default) fires no preCreate
 // here, so its arrival lifts the hold too. Both roads are idempotent; whichever runs first wins.
 Hooks.on("createChatMessage", message => {
-  const uuid = message.getFlag("dnd5e", "activity")?.uuid ?? null;
+  const uuid = activityUuidOf(message);
   if ( uuid && message.getFlag(MODULE_ID, METAMAGIC_FLAG)?.chosen ) releaseHold(uuid, message);
 });
 

@@ -19,20 +19,21 @@ import { refreshDemandFromTemplates, cleanupSpentTemplates } from "./areas.js";
 import { openSaveDialog, armSaveTimer, disarmSaveTimer } from "./ask.js";
 import { armSaveChoiceTimer, disarmSaveChoiceTimer, showSaveChoicePopup } from "./choices.js";
 import { SURFACES } from "../surfaces.js";
+import { CARD, isCard, resistedOf } from "../decide/card.js";
 
 /* --- the answer channels and the resume discipline ------------------------------------------- */
 
 Hooks.on("createChatMessage", message => {
   // A save roll landing: fold it into whatever demand it answers. The demand names its own
   // driver, so the gate moves inside — this hook cannot know the card before it looks (v1.27.2).
-  if ( message.getFlag("dnd5e", "roll.type") === "save" ) {
+  if ( isCard(message, CARD.save) ) {
     const found = saveAnsweredBy(message);
     if ( found && drivesMomentFor(found.card.getFlag(MODULE_ID, "saves")?.sourceUuid ?? null) )
       void foldSaveAnswer(found.card, found.uuid, message);
   }
   // The card's damage roll landing: verdicts that already exist apply now; the rest apply
   // as they fold, per target.
-  if ( message.getFlag("dnd5e", "roll.type") === "damage" ) {
+  if ( isCard(message, CARD.damage) ) {
     const origin = message.getOriginatingMessage?.();
     if ( origin && (origin !== message) && origin.getFlag(MODULE_ID, "saves") ) {
       void reconcileSaveDamage(origin);
@@ -42,8 +43,7 @@ Hooks.on("createChatMessage", message => {
 
 Hooks.on("updateChatMessage", message => {
   // Legendary resistance: a save flipped to success after the fact.
-  if ( (message.getFlag("dnd5e", "roll.type") === "save")
-    && (message.getFlag("dnd5e", "roll.forceSuccess") === true) ) {
+  if ( isCard(message, CARD.save) && resistedOf(message) ) {
     void flipForcedSave(message);
   }
 

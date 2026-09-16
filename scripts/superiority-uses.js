@@ -14,6 +14,7 @@ import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerRes
 import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
+import { CARD, isCard, itemUuidOf, targetsOf } from "./decide/card.js";
 
 /* ---------------------------------------------------------------------------------------------
  * SUPERIORITY USES (user, 2026-09-04: "do the rest of maneuvers"). The Battle Master's Bonus
@@ -77,9 +78,8 @@ const chipFor = (actor, key) => actor?.effects?.find(e => (e.getFlag(MODULE_ID, 
 // removed here, one hook later, for every Battle Master maneuver card.
 Hooks.on("preCreateChatMessage", doc => {
   try {
-    const isUsage = (doc.type === "usage") || (doc.getFlag("dnd5e", "messageType") === "usage");
-    if ( !isUsage || !doc.getFlag(MODULE_ID, "castApply") ) return;
-    const item = resolveUuid(doc.getFlag("dnd5e", "item")?.uuid ?? "");
+    if ( !isCard(doc, CARD.usage) || !doc.getFlag(MODULE_ID, "castApply") ) return;
+    const item = resolveUuid(itemUuidOf(doc) ?? "");
     if ( !item || (item.type !== "feat") || !MANEUVER_FEATURE_NAMES.has(lower(item.name)) ) return;
     doc.updateSource({ [`flags.${MODULE_ID}.-=castApply`]: null });
   } catch(err) { console.warn(`${TITLE} | Could not keep the cast slice off a maneuver's card.`, err); }
@@ -110,7 +110,7 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
 async function drive(row, activity, actor, message) {
   const item = activity.item;
   const die = dieOf(actor, activity);
-  const targets = (message.getFlag("dnd5e", "targets") ?? []).map(t => ({ uuid: t.uuid, name: t.name }));
+  const targets = targetsOf(message).map(t => ({ uuid: t.uuid, name: t.name }));
   const base = { ...statContext(actor.uuid), key: row.key, die, rule: row.rule, itemImg: item.img ?? null };
   if ( row.bonus ) {
     // Evasive Footwork: the die rolled in the open, the number on the sheet until the start of the next turn.
@@ -302,7 +302,8 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
     if ( !attacker ) return;
     const names = listed();
     const type = [...(activity.item?.system?.damage?.base?.types ?? [])][0] ?? null;
-    const push = formula => config.rolls.push({ data: config.rolls[0]?.data ?? {}, parts: [formula], options: { type, types: type ? [type] : [] } });
+    // 6.0: per-roll damage rules WRITE into a roll's data — each rider gets its own copy (hit-riders' rule).
+    const push = formula => config.rolls.push({ data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}), parts: [formula], options: { type, types: type ? [type] : [] } });
     const rode = [];
     // Lunging: the chip on the attacker, a melee hit, the offer's tick (absent: rides).
     const lunge = lungeFor(attackMessage, activity);

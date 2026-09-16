@@ -180,7 +180,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
       config.rolls.push({
         // No `properties`: the sneak dice are the weapon's type but not its magic — they must
         // not inherit the flags that decide physical-resistance bypass (hit-riders' rule).
-        data: config.rolls[0]?.data ?? {},
+        data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}),
         parts: [formula],
         options: { type: sneak.type ?? null, types: sneak.type ? [sneak.type] : [] }
       });

@@ -37,13 +37,13 @@ const out = await f.evaluate(async () => {
   const popups = () => [...document.querySelectorAll(".application")].filter(el => (el.innerHTML ?? "").includes("Damage — your roll"));
   const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
   const t0 = performance.now();
-  const rolls = await activity.rollAttack({ advantage: true }, { configure: false }, { data: { "flags.dnd5e.originatingMessage": results?.message?.id } });
+  const rolls = await activity.rollAttack({ advantage: true }, { configure: false }, { data: { 'system.origin': results?.message?.id } });
   mark("rollAttack resolved", t0);
   let opened = null;
   for (let i = 0; i < 100 && !opened; i++) { if (popups().length) opened = performance.now() - t0; else await sleep(50); }
   mark(`popup opened at`, t0 - (opened ?? 0));
   const attackMsg = rolls?.[0]?.parent;
-  const info = { timings: t, errors, popupOpenedMs: opened, hit: attackMsg?.rolls?.[0]?.total, targets: attackMsg?.getFlag("dnd5e", "targets")?.length,
+  const info = { timings: t, errors, popupOpenedMs: opened, hit: attackMsg?.rolls?.[0]?.total, targets: attackMsg?.system?.targets?.length,
     offerFlag: attackMsg?.getFlag(MOD, "damageOffer") ?? null, sneakFlag: attackMsg?.getFlag(MOD, "sneak") ?? null };
   // tidy: press the offer, restore settings
   await sleep(300);

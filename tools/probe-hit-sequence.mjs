@@ -75,7 +75,7 @@ const out = await f.evaluate(async () => {
       await sleep(100);
       const use = await activity.use({ subsequentActions: false }, { configure: false }, {});
       const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
-        use?.message?.id ? { data: { "flags.dnd5e.originatingMessage": use.message.id } } : {});
+        use?.message?.id ? { data: { 'system.origin': use.message.id } } : {});
       const msg = rolls?.[0]?.parent ?? null;
       const stamped = await until(() => msg?.getFlag(MOD, "bashOffer"), 3000);
       if ( !stamped ) { log(`attempt ${i + 1}: no offer stamped (a miss)`); await sleep(1500); continue; }
@@ -84,11 +84,11 @@ const out = await f.evaluate(async () => {
       atk = msg;
     }
     if ( !atk ) return { ...report, fatal: "eight swings, no hit" };
-    report.rollMastery = atk.getFlag("dnd5e", "roll.mastery") ?? null;
+    report.rollMastery = atk.system?.mastery ?? null;
     ok("1. the hit stamps the offer QUEUED — no popup at the hit", (queuedAtHit === "queued") && (bashPopupAtHit === 0), `status=${queuedAtHit} popups=${bashPopupAtHit}`);
 
     const dmg = await until(() => game.messages.contents.find(m => (m.timestamp >= started)
-      && (m.getFlag("dnd5e", "roll.type") === "damage") && (m.getFlag("dnd5e", "originatingMessage") === atk.getFlag("dnd5e", "originatingMessage"))), 15000);
+      && (m.type === "damage") && (m._source.system?.origin === atk._source.system?.origin)), 15000);
     ok("2. the damage lands (auto-rolled here; at the table the prompt's Roll Damage)", !!dmg, `damage=${!!dmg}`);
     const receipt = await until(() => dmg?.getFlag(MOD, "receipt"), 10000);
     const notice = await until(() => game.messages.contents.find(m => (m.timestamp >= started)

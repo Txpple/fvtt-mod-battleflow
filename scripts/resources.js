@@ -44,7 +44,7 @@
  *
  * (cc), 2026-08-21 — the flash waits for the ability's own dice: an activity that carries
  * dice still to roll (Second Wind's heal, a damage feat) holds its flash in a pending map
- * and releases when the linked roll message arrives — `flags.dnd5e.originatingMessage` for
+ * and releases when the linked roll message arrives — its origin (`system.origin`) for
  * card-button rolls, the activity uuid for sheet-driven rolls (BOTH measured 2026-08-21;
  * a sheet roll has no enclosing card and never stamps the first key). A 12s fallback means
  * a player who never rolls still flashes. Client-local like everything here: the roll
@@ -55,13 +55,14 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, statContext } from "./core.js
 import { poolSpendsOn } from "./shared.js";
 import { esc, spendLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
+import { CARD, activityUuidOf, isCard, itemUuidOf, originIdOf } from "./decide/card.js";
 
 const flashed = new Set();
 // (cc): flashes held for an ability's own dice — usage message id → the armed flash.
 const pendingFlash = new Map();
 const FLASH_FALLBACK_MS = 12_000;
 
-const isUsage = m => (m.type === "usage") || (m.getFlag("dnd5e", "messageType") === "usage");
+const isUsage = m => isCard(m, CARD.usage);
 
 /**
  * The qualifying spends on a usage message: [{pool, spent, left, max}]. `left`/`max` are
@@ -76,7 +77,7 @@ const spendRows = message => poolSpendsOn(message);
 
 /** The ability that was used, as the card names it. */
 function usedName(message) {
-  try { return fromUuidSync(message.getFlag("dnd5e", "item")?.uuid ?? "")?.name ?? null; }
+  try { return fromUuidSync(itemUuidOf(message) ?? "")?.name ?? null; }
   catch { return null; }
 }
 
@@ -135,9 +136,8 @@ function flashBanner(actorName, ability, rows) {
  */
 function awaitsOwnDice(message) {
   try {
-    const flags = message.flags?.dnd5e ?? {};
-    const item = fromUuidSync(flags.item?.uuid ?? "");
-    const act = item?.system?.activities?.get?.(flags.activity?.id ?? "");
+    // The activity the card names (`system.activity`, the card seam) — the platform's own resolver.
+    const act = message.getAssociatedActivity?.() ?? null;
     if ( !act ) return false;
     if ( act.type === "heal" ) {
       const h = act.healing ?? {};
@@ -153,10 +153,11 @@ function awaitsOwnDice(message) {
  * roll has one, by the activity uuid when it came from the sheet. */
 function releasePending(message) {
   if ( !pendingFlash.size || !message.rolls?.length ) return;
-  const d = message.flags?.dnd5e ?? {};
+  const originId = originIdOf(message);
+  const activityUuid = activityUuidOf(message);
   for ( const [cardId, p] of pendingFlash ) {
-    if ( (d.originatingMessage === cardId)
-      || (p.activityUuid && (d.activity?.uuid === p.activityUuid)) ) {
+    if ( (originId === cardId)
+      || (p.activityUuid && (activityUuid === p.activityUuid)) ) {
       clearTimeout(p.timer);
       pendingFlash.delete(cardId);
       flashBanner(p.actorName, p.ability, p.rows);
@@ -183,7 +184,7 @@ Hooks.on("createChatMessage", message => {
       flashBanner(actorName, ability, rows);
     }, FLASH_FALLBACK_MS);
     pendingFlash.set(message.id, { timer, rows, actorName, ability,
-      activityUuid: message.flags?.dnd5e?.activity?.uuid ?? null });
+      activityUuid: activityUuidOf(message) });
     return;
   }
   flashBanner(actorName, ability, rows);

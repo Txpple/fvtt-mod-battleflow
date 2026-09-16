@@ -11,6 +11,7 @@ import { momentButton, openMomentPopup, registerResumable, shownMoments } from "
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
+import { itemUuidOf, targetsOf } from "./decide/card.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 3 (cast slice) — auto-apply on cast (ARCHITECTURE.md §6, pulled ahead 2026-08-16).
@@ -43,7 +44,8 @@ async function executeCastApply(message) {
     if ( !payload?.targets?.length ) return;
     if ( message.getFlag(MODULE_ID, "effectReceipt")?.castDone ) return;
     const activity = payload.activityUuid ? await fromUuid(payload.activityUuid) : null;
-    const applicable = activity?.applicableEffects ?? [];
+    // 6.0: the activity's list holds PROFILES; the effects resolve asynchronously (lookup.js).
+    const applicable = (await activity?.getApplicableEffects?.()) ?? [];
     // A cast with a CHOICE between alternative effects (Fire Shield's warm or chill shield,
     // 2026-09-05) waits on the card until the caster answers; then only the pick lands.
     const names = effectsAfterChoice(applicable.map(e => e.name), payload.choice ?? null);
@@ -88,7 +90,7 @@ async function applyCastHealing(message) {
     const stamp = message.getFlag(MODULE_ID, "healPending");
     const targets = stamp?.selfAim
       ? [{ uuid: stamp.uuid, name: stamp.name }]
-      : (message.getFlag("dnd5e", "targets") ?? []).map(t => ({ uuid: t.uuid, name: t.name }));
+      : targetsOf(message).map(t => ({ uuid: t.uuid, name: t.name }));
     if ( !targets.length ) return;
     const damages = damagePartsOf(message.rolls);
     if ( !damages.length ) return;
@@ -143,7 +145,7 @@ async function showChoicePopup(card) {
   const choice = payload?.choice;
   if ( !choice || choice.chosen ) return;
   const actor = payload.targets?.[0]?.uuid ? fromUuidSync(payload.targets[0].uuid) : null;
-  const item = resolveUuid(card.getFlag("dnd5e", "item")?.uuid ?? "");
+  const item = resolveUuid(itemUuidOf(card) ?? "");
   await openMomentPopup(card, "effectChoice", actor, {
     title: `${choice.key} — ${actor?.name ?? ""}`, icon: "fa-solid fa-code-branch",
     content: bfCard({ img: item?.img ?? null, eyebrow: `Cast — ${choice.key}`, tone: "pending",

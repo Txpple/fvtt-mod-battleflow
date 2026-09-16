@@ -178,14 +178,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     for (const a of [cleric, goblin]) {
       priorActor[a.id] = {
-        'system.attributes.ac.calc': a.system._source.attributes.ac.calc,
-        'system.attributes.ac.flat': a.system._source.attributes.ac.flat,
+        'system.attributes.ac.override': a.system._source.attributes.ac.override ?? null,
         'system.attributes.hp.value': a.system._source.attributes.hp.value,
         'system.attributes.hp.max': a.system._source.attributes.hp.max,
-        'system.abilities.con.bonuses.save': a.system._source.abilities?.con?.bonuses?.save ?? ''
+        'system.abilities.con.save.roll.bonus': a.system._source.abilities?.con?.save?.roll?.bonus ?? ''
       };
-      await a.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1,
-        'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400, 'system.abilities.con.bonuses.save': '-30' });
+      await a.update({ 'system.attributes.ac.override': 1,
+        'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400, 'system.abilities.con.save.roll.bonus': '-30' });
     }
     const goblinHP = () => goblin.system.attributes.hp.value;
     const healFull = async () => goblin.update({ 'system.attributes.hp.value': 400 });
@@ -200,8 +199,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const target = token => token.setTarget(true, { releaseOthers: true });
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const cardText = id => textOf(document.querySelector(`.message[data-message-id="${id}"]`));
-    const damageFor = originId => game.messages.contents.find(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
-      && (m.getFlag('dnd5e', 'originatingMessage') === originId));
+    const damageFor = originId => game.messages.contents.find(m => (m.type === 'damage')
+      && (m._source.system?.origin === originId));
     const saveDialogEl = () => [...foundry.applications.instances.values()]
       .filter(app => app.rendered && app.element?.querySelector?.('[data-bf-save-demand]')).map(app => app.element)[0] ?? null;
     const rollDialog = () => [...foundry.applications.instances.values()]
@@ -222,8 +221,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const card = results?.message ?? null;
       return { since, card };
     };
-    const damageRollsFor = originId => game.messages.contents.filter(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
-      && (m.getFlag('dnd5e', 'originatingMessage') === originId));
+    const damageRollsFor = originId => game.messages.contents.filter(m => (m.type === 'damage')
+      && (m._source.system?.origin === originId));
     let cardOne = null;
     let demandOne = null;
 
@@ -285,7 +284,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const attack = melee.system.activities.find(a => a.type === 'attack');
       const results = await attack.use({ subsequentActions: false }, { configure: false }, {});
       face(19);
-      void attack.rollAttack({}, {}, results?.message?.id ? { data: { 'flags.dnd5e.originatingMessage': results.message.id } } : {});
+      void attack.rollAttack({}, {}, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
       const dialog = await waitFor(rollDialog, 6000);
       await waitFor(() => dialog?.element?.querySelector('[data-bf-reminder]'), 2500);
       const section = textOf(dialog?.element?.querySelector('[data-bf-reminder]'));

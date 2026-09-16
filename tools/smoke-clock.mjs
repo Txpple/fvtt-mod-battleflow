@@ -158,12 +158,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const { doc: rogueDoc, token: rogueToken } = await placeToken(rogue, 1300, 1700);
 
     priorActor[victim.id] = {
-      'system.attributes.ac.calc': victim.system._source.attributes.ac.calc,
-      'system.attributes.ac.flat': victim.system._source.attributes.ac.flat,
+      'system.attributes.ac.override': victim.system._source.attributes.ac.override ?? null,
       'system.attributes.hp.value': victim.system._source.attributes.hp.value,
       'system.attributes.hp.max': victim.system._source.attributes.hp.max
     };
-    await victim.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1,
+    await victim.update({ 'system.attributes.ac.override': 1,
       'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400 });
     const healFull = async () => victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max, 'system.attributes.hp.temp': 0 });
 
@@ -177,14 +176,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const target = token => token.setTarget(true, { releaseOthers: true });
     const weaponOf = (actor, name) => actor.items.find(i => (i.type === 'weapon') && (i.name === name));
     const attackOf = item => item.system.activities.find(a => a.type === 'attack');
-    const damageFor = originId => game.messages.contents.find(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
-      && (m.getFlag('dnd5e', 'originatingMessage') === originId));
+    const damageFor = originId => game.messages.contents.find(m => (m.type === 'damage')
+      && (m._source.system?.origin === originId));
     const offerEl = () => [...foundry.applications.instances.values()].map(a => a.element)
       .find(el => (el?.innerHTML ?? '').includes('Damage — your roll')) ?? null;
     const rollDialog = () => [...foundry.applications.instances.values()]
       .find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element) ?? null;
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag('dnd5e', 'roll.type') === 'attack')).pop() ?? null;
+    const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.type === 'attack')).pop() ?? null;
     const waitAttackAfter = async id => waitFor(() => { const m = lastAttack(); return (m && (m.id !== id)) ? m : null; }, 8000);
     /** A programmatic hit (no dialog): use + rollAttack configure:false, forced 19; returns the damage message with its receipt. */
     const swing = async (actor, token, item) => {
@@ -195,9 +194,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       face(19);
       const act = attackOf(item);
       const results = await act.use({ subsequentActions: false }, { configure: false }, {});
-      const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'flags.dnd5e.originatingMessage': results.message.id } } : {});
+      const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
       const attackMsg = rolls?.[0]?.parent ?? null;
-      const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+      const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
       const offer = await waitFor(offerEl, 1500);
       offer?.querySelector('button[data-action="roll"]')?.click();
       const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
@@ -270,9 +269,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       face(19);
       const act = attackOf(longsword);
       const results = await act.use({ subsequentActions: false }, { configure: false }, {});
-      const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'flags.dnd5e.originatingMessage': results.message.id } } : {});
+      const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
       const attackMsg = rolls?.[0]?.parent ?? null;
-      const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+      const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
       const offer = await waitFor(offerEl, 6000);
       const text = textOf(offer);
       const box = offer?.querySelector('input[name="bf-rider"][value="dread-ambusher"]');
@@ -290,9 +289,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const spent2 = dreadAct().uses.spent ?? 0;
       const results2 = await act.use({ subsequentActions: false }, { configure: false }, {});
       face(19);
-      const rolls2 = await act.rollAttack({}, { configure: false }, results2?.message?.id ? { data: { 'flags.dnd5e.originatingMessage': results2.message.id } } : {});
+      const rolls2 = await act.rollAttack({}, { configure: false }, results2?.message?.id ? { data: { 'system.origin': results2.message.id } } : {});
       const attackMsg2 = rolls2?.[0]?.parent ?? null;
-      const originId2 = attackMsg2?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg2?.id;
+      const originId2 = attackMsg2?._source.system?.origin ?? attackMsg2?.id;
       const offer2 = await waitFor(offerEl, 6000);
       const box2 = offer2?.querySelector('input[name="bf-rider"][value="dread-ambusher"]');
       box2?.click();
@@ -360,7 +359,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const usageId = results?.message?.id ?? null;
       const before5 = lastAttack()?.id ?? null;
       face(19);
-      void act.rollAttack({}, {}, usageId ? { data: { 'flags.dnd5e.originatingMessage': usageId } } : {});
+      void act.rollAttack({}, {}, usageId ? { data: { 'system.origin': usageId } } : {});
       const dialog = await waitFor(rollDialog, 6000);
       await waitFor(() => dialog?.element?.querySelector('[data-bf-reminder]'), 2500);
       const section = textOf(dialog?.element?.querySelector('[data-bf-reminder]'));
@@ -370,7 +369,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `ticked=${ticked} section="${section.slice(0, 200)}"`);
       dialog?.element?.querySelector('button[data-action="advantage"]')?.click();
       const attackMsg = await waitAttackAfter(before5);
-      const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+      const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
       const offer = await waitFor(offerEl, 6000);
       const offerText = textOf(offer);
       offer?.querySelector('button[data-action="roll"]')?.click();
@@ -391,7 +390,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const results2 = await act.use({ subsequentActions: false }, { configure: false }, {});
       const before5b = lastAttack()?.id ?? null;
       face(19);
-      void act.rollAttack({}, {}, results2?.message?.id ? { data: { 'flags.dnd5e.originatingMessage': results2.message.id } } : {});
+      void act.rollAttack({}, {}, results2?.message?.id ? { data: { 'system.origin': results2.message.id } } : {});
       const dialog2 = await waitFor(rollDialog, 6000);
       await waitFor(() => dialog2?.element?.querySelector('[data-bf-reminder]'), 2500);
       const section2 = textOf(dialog2?.element?.querySelector('[data-bf-reminder]'));
@@ -399,7 +398,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (tick2 && !tick2.checked) tick2.click();
       dialog2?.element?.querySelector('button[data-action="advantage"]')?.click();
       const attackMsg2 = await waitAttackAfter(before5b);
-      const originId2 = attackMsg2?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg2?.id;
+      const originId2 = attackMsg2?._source.system?.origin ?? attackMsg2?.id;
       (await waitFor(offerEl, 6000))?.querySelector('button[data-action="roll"]')?.click();
       const dmg2 = await waitFor(() => { const d = damageFor(originId2); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
       ok('5c. round two: no Assassinate source on the gate, and no level rides the sneak hit',

@@ -174,8 +174,10 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
     config.rolls.push({
       // No `properties`: the rider is its own damage and must NOT inherit the weapon's
       // magical/silvered flags — those decide physical-resistance bypass, which force and
-      // necrotic have no business claiming.
-      data: config.rolls[0]?.data ?? {},
+      // necrotic have no business claiming. ⚠ The roll data is CLONED, not shared (dnd5e 6.0):
+      // the per-roll damage rules write `roll.damageType` and `@ruleBonus` into each roll's
+      // data, and one object shared by reference carried the last rider's type onto roll 0.
+      data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}),
       parts: [part.formula],
       options: { type: part.type, types: part.type ? [part.type] : [] }
     });

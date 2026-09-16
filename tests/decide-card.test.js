@@ -150,6 +150,15 @@ describe("targetsOf — 6.0's token-keyed descriptors, in the house shape (uuid 
     expect(c.targetsOf({ system: { targets: "junk" } })).toEqual([]);
     expect(c.TARGETS_KEY).toBe("system.targets");
   });
+  it("targetsInData: a usage's pre-create data, flattened or expanded — and NULL when it names no snapshot", () => {
+    const d = descriptor("Actor.v1", "Scene.s.Token.t1");
+    expect(c.targetsInData({ "system.targets": [d] })[0]).toMatchObject({ uuid: "Actor.v1" });
+    expect(c.targetsInData({ system: { targets: [d] } })[0]).toMatchObject({ uuid: "Actor.v1" });
+    expect(c.targetsInData({ system: { targets: [] } })).toEqual([]); // aimed at nobody — a claim
+    expect(c.targetsInData({ system: {} })).toBeNull(); // not written yet — read the client's targets
+    expect(c.targetsInData({ flags: { dnd5e: { targets: [d] } } })).toBeNull();
+    expect(c.targetsInData(undefined)).toBeNull();
+  });
 });
 
 describe("describeTarget — the descriptor the module writes when IT names a target", () => {
@@ -236,10 +245,28 @@ describe("activityRefOf / itemRefOf — the source references a card carries", (
   });
 });
 
-describe("the roll's own facts — the 5.x roll.* sub-keys at their 6.0 homes (phase 1's customers; phase 2 adds the rest with theirs)", () => {
+describe("the roll's own facts — the 5.x roll.* sub-keys at their 6.0 homes", () => {
   it("a save or check: the ability it was rolled with", () => {
     expect(c.abilityOf({ type: "save", system: { ability: "dex" } })).toBe("dex");
     expect(c.abilityOf({ type: "usage" })).toBeNull();
+  });
+  it("an attack: the mastery it was rolled with (was roll.mastery), null when none", () => {
+    expect(c.masteryOf(attack())).toBe("graze");
+    expect(c.masteryOf(attack({ mastery: null }))).toBeNull();
+    expect(c.masteryOf({ type: "damage", system: {} })).toBeNull();
+    expect(c.masteryOf({ flags: { dnd5e: { roll: { mastery: "vex" } } } })).toBeNull();
+  });
+  it("a damage roll: what a saved target takes (was roll.damageOnSave), null when the card carries none", () => {
+    expect(c.onSaveOf({ type: "damage", system: { onSave: "half" } })).toBe("half");
+    expect(c.onSaveOf({ type: "damage", system: { onSave: "none" } })).toBe("none");
+    expect(c.onSaveOf({ type: "damage", system: { onSave: null } })).toBeNull();
+    expect(c.onSaveOf({ type: "damage", system: {} })).toBeNull();
+  });
+  it("a save: resisted by legendary resistance (was roll.forceSuccess) — true only when the platform wrote it", () => {
+    expect(c.resistedOf({ type: "save", system: { resisted: true } })).toBe(true);
+    expect(c.resistedOf({ type: "save", system: { resisted: false } })).toBe(false);
+    expect(c.resistedOf({ type: "save", system: {} })).toBe(false);
+    expect(c.resistedOf({ flags: { dnd5e: { roll: { forceSuccess: true } } } })).toBe(false);
   });
   it("a usage card: the cast level (was spellLevel), the upcast steps, the concentration effect", () => {
     const usage = { type: "usage", system: { level: 3, scaling: 2, concentration: "eff1" } };
@@ -251,5 +278,38 @@ describe("the roll's own facts — the 5.x roll.* sub-keys at their 6.0 homes (p
     expect(c.castLevelOn({ type: "usage", system: { level: 0 } })).toBe(0); // a cantrip is level 0, not "none"
     expect(c.scalingOf({ type: "usage" })).toBe(0);
     expect(c.concentrationIdOf({ type: "usage", system: { concentration: "" } })).toBeNull();
+  });
+});
+
+describe("isConcentrationPrompt — the platform's two concentration prompts, by TYPE (6.0.1 Actor5e#challengeConcentration / #promptConcentrationEnd)", () => {
+  it("the whispered roll request on damage, and the end-it prompt when dead or incapacitated", () => {
+    expect(
+      c.isConcentrationPrompt({
+        type: "prompt",
+        system: { broadcast: false, buttons: [{ dc: 10, format: "short", type: "concentration" }] }
+      })
+    ).toBe(true);
+    expect(
+      c.isConcentrationPrompt({
+        type: "prompt",
+        system: { broadcast: false, buttons: [{ type: "endConcentration" }] }
+      })
+    ).toBe(true);
+  });
+  it("not any other prompt, not a concentration SAVE, not a 5.x content match", () => {
+    expect(
+      c.isConcentrationPrompt({
+        type: "prompt",
+        system: { buttons: [{ type: "save", ability: "con" }] }
+      })
+    ).toBe(false);
+    expect(c.isConcentrationPrompt({ type: "prompt", system: { buttons: [] } })).toBe(false);
+    expect(c.isConcentrationPrompt({ type: "save", system: { type: "concentration" } })).toBe(
+      false
+    );
+    expect(
+      c.isConcentrationPrompt({ type: "base", content: '<button data-action="concentration">' })
+    ).toBe(false);
+    expect(c.isConcentrationPrompt(null)).toBe(false);
   });
 });

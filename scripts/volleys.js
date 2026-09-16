@@ -57,6 +57,7 @@ import { livePopups, openManagedPopup, armDeadline, disarmDeadline } from "./ui.
 import { tokenForUuid } from "./geometry.js";
 import { judgeRoll } from "./reminders.js";
 import { SURFACES } from "./surfaces.js";
+import { castLevelOn, originData, targetsInData, targetsOf } from "./decide/card.js";
 
 const volleyTimers = new Map();
 
@@ -92,8 +93,8 @@ function volleySpec(activity, usageConfig, targetCount, { castLevel } = {}) {
  * ------------------------------------------------------------------------------------------- */
 
 Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig, messageConfig) => {
-  const snapshot = foundry.utils.getProperty(messageConfig ?? {}, "data.flags.dnd5e.targets");
-  const spec = volleySpec(activity, usageConfig, Array.isArray(snapshot) ? snapshot.length : 0);
+  const snapshot = targetsInData(messageConfig?.data);
+  const spec = volleySpec(activity, usageConfig, snapshot ? snapshot.length : 0);
   if ( !spec ) return;
   // The claim: no native single follow-up roll — the volley drives every projectile itself.
   usageConfig.subsequentActions = false;
@@ -102,12 +103,12 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig, messageCo
 Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
   const message = (results?.message instanceof ChatMessage) ? results.message : null;
   if ( !message ) return;
-  const targets = (message.getFlag("dnd5e", "targets") ?? [])
+  const targets = targetsOf(message)
     .map(t => ({ uuid: t.uuid, name: t.name, img: t.img ?? null }));
-  // The message's own spellLevel is the cast level the system stands behind (see
+  // The message's own level is the cast level the system stands behind (see
   // castLevelOf's warning) — the config is only the fallback for content that never
   // stamps one.
-  const spellLevel = Number(message.system?.spellLevel) || 0;
+  const spellLevel = castLevelOn(message) ?? 0;
   const spec = volleySpec(activity, usageConfig, targets.length,
     spellLevel ? { castLevel: spellLevel } : {});
   if ( !spec ) return;
@@ -438,7 +439,7 @@ async function driveDarts(message, activity, v) {
     if ( !(a.count > 0) ) continue;
     await aimed(a.uuid, async () => {
       const rolls = await activity.rollDamage({}, { configure: false }, { data: {
-        "flags.dnd5e.originatingMessage": message.id,
+        ...originData(message.id),
         [`flags.${MODULE_ID}.volleyFor`]: message.id,
         [`flags.${MODULE_ID}.volleyTarget`]: a.uuid,
         [`flags.${MODULE_ID}.volleyDarts`]: a.count
@@ -496,7 +497,7 @@ async function driveRays(message, activity, v) {
         ? { rolls: [{ options: { advantage: false, disadvantage: true } }] }
         : {};
     await aimed(ray.uuid, () => activity.rollAttack(cfg, { configure: false }, { data: {
-      "flags.dnd5e.originatingMessage": message.id,
+      ...originData(message.id),
       [`flags.${MODULE_ID}.volleyFor`]: message.id,
       [`flags.${MODULE_ID}.volleyRay`]: i + 1,
       ...(record ? { [`flags.${MODULE_ID}.${REMINDER_FLAG}`]: record } : {})
@@ -598,7 +599,7 @@ function renderVolleyRow(message, v, html) {
  */
 function renderVolleyAim(message, html) {
   if ( !message.getFlag(MODULE_ID, "volleyFor") ) return;
-  const target = (message.getFlag("dnd5e", "targets") ?? [])[0];
+  const target = targetsOf(message)[0];
   if ( !target?.name ) return;
   const content = html.querySelector?.(SURFACES.messageContent) ?? html;
   if ( !content || content.querySelector(".bf-volley-aim") ) return;

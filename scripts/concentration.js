@@ -9,6 +9,7 @@ import { rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML } from "./decide/present.js";
 import { livePopups, momentButton, DialogCarried, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer, dramaticVerdictPause, registerDemand, demandAnsweredBy } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
+import { isConcentrationPrompt, itemUuidOf } from "./decide/card.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 2.5 — the concentration assist: damage → ask → roll → verdict → break.
@@ -46,15 +47,23 @@ import { SURFACES } from "./surfaces.js";
  */
 const recentDamageCauses = new Map();
 
+/**
+ * The GM-private roll mode, by Foundry 14's own id. ⚠ `CONST.DICE_ROLL_MODES.PRIVATE` still reads
+ * "gmroll" (deprecated, until v16) — but dnd5e 6.0 hands the mode straight to `ChatMessage.create`
+ * as `messageMode`, which knows only the configured ids (`CONFIG.ChatMessage.modes`: public, gm,
+ * blind, self), so the legacy word fell through to a PUBLIC roll (smoke-concentration §10b, 2026-09-16).
+ */
+const PRIVATE_ROLL_MODE = "gm";
+
 Hooks.on("dnd5e.preApplyDamage", (actor, amount, updates, options) => {
   if ( setting(S.concMode) === "off" ) return;
   if ( !(Number(amount) > 0) || !actor?.uuid ) return;
   const message = options?.originatingMessage;
   if ( !(message instanceof ChatMessage) ) return;
-  // Every usage AND damage card carries the whole messageFlags set (mixin.mjs:203/:895), so
-  // the item behind the damage is one flag read; the speaker names the attacker.
+  // Every usage AND damage card names its item (`system.item`, the card seam), so the item
+  // behind the damage is one read; the speaker names the attacker.
   let source = null;
-  try { source = fromUuidSync(message.getFlag("dnd5e", "item")?.uuid ?? "")?.name ?? null; }
+  try { source = fromUuidSync(itemUuidOf(message) ?? "")?.name ?? null; }
   catch(err) { source = null; }
   const attacker = message.getAssociatedActor?.()?.name ?? null;
   if ( actor.concentration?.effects?.size ) {
@@ -233,7 +242,7 @@ async function rollConcentrationAnswer(askMessage, { timedOut = false, mode = nu
           respondsTo: askMessage.id,
           ...(timedOut ? { timedOut: true } : {})
         } } },
-        ...(setting(S.concVisibility) ? {} : { rollMode: CONST.DICE_ROLL_MODES.PRIVATE })
+        ...(setting(S.concVisibility) ? {} : { rollMode: PRIVATE_ROLL_MODE })
       }
     );
   } catch(err) {
@@ -632,7 +641,7 @@ async function showConcPopup(message, ask) {
       { configure: true, options: { bfSaveDemand: demand } },
       {
         data: { flags: { [MODULE_ID]: { respondsTo: message.id } } },
-        ...(setting(S.concVisibility) ? {} : { rollMode: CONST.DICE_ROLL_MODES.PRIVATE })
+        ...(setting(S.concVisibility) ? {} : { rollMode: PRIVATE_ROLL_MODE })
       }
     );
     if ( !rolls?.length && demand.failed ) await foldConcentrationAutoFail(message, demand.failed);
@@ -675,18 +684,29 @@ async function foldConcentrationAutoFail(askMessage, sources = []) {
 }
 
 /**
- * The native concentration prompt (challengeConcentration's whispered roll-request card) is
- * this feature's moment while the mode is on — a stale roll button under an automated flow is
- * the attack-card spam again. Vetoed on the creating client, and ONLY while an active GM
- * exists to stamp asks: a GM-less table degrades to native behavior, not to silence. A GM's
- * own [[/concentration]] enricher request is safe — message content stores the raw enricher
- * text (enrichment happens at render), never this rendered dataset markup.
+ * THE PLATFORM'S CONCENTRATION PROMPTS ARE VETOED — both of them (the dnd5e 6.0 pass, ASSESSMENT
+ * §5 ruling 2, user 2026-09-15): **the platform's prompt is a reminder, Battle Flow's machine is
+ * a resolution.** The platform whispers the owner a card with a button and stops — nobody waits
+ * on it, nothing expires, an unpressed button leaves the spell running; at 0 HP or incapacitated
+ * it still asks, on a rule with no choice in it. Battle Flow asks on the right client with a
+ * draining bar, rolls for a player who walks away, breaks the spell and cascades its effects on
+ * a failure, writes the card that says why, and at 0 HP or incapacitated ends concentration
+ * because the rule says so (DESIGN R1, "a determined outcome plays"). Running both is two asks
+ * for one save and a race: a player who presses the platform's button rolls a save the machine
+ * never sees while its bar drains toward a second roll.
+ *
+ * At 6.0 the prompt is `type: "prompt"` with its buttons as DATA (`system.buttons[{type}]`) and
+ * no content — `challengeConcentration`'s roll request on damage, and `promptConcentrationEnd`'s
+ * "end it" when a dead or incapacitated effect lands (new in 6.0, beside this file's own outright
+ * break). Matched by TYPE (decide/card.js `isConcentrationPrompt`), never by content. Vetoed on
+ * the creating client, and ONLY while an active GM exists to stamp asks: a GM-less table
+ * degrades to native behavior, not to silence. A GM's own [[/concentration]] enricher request
+ * is a `base` message and passes. Revisit only if a 6.x prompt gains a timer and a consequence.
  */
 Hooks.on("preCreateChatMessage", doc => {
   if ( setting(S.concMode) === "off" ) return;
   if ( !game.users.activeGM ) return;
-  if ( !doc.whisper?.length || doc.rolls?.length ) return;
-  if ( !doc.content?.includes('data-action="concentration"') ) return;
+  if ( !isConcentrationPrompt(doc) ) return;
   return false;
 });
 

@@ -139,6 +139,49 @@ export function meleeOptions(actor) {
   return out;
 }
 
+/* ---------------------------------------------------------------------------------------------
+ * THE EFFECT PROFILES (the dnd5e 6.0 pass, phase 2 — ASSESSMENT §2 G). An activity's `effects`
+ * list holds PROFILES — `{_id, uuid, level, onSave, …}` with a `getEffect()` that resolves the
+ * document (the item's own embedded effect by `_id`, an external one by `uuid` — asynchronously)
+ * — and `applicableEffects` is that list filtered to the cast level. The 5.x `profile.effect`
+ * getter is deprecated (until 6.2), warns on every read, and returns a PROMISE, so every
+ * `e.effect && applicable.has(e.effect.id)` test qualified nothing. These read the profile
+ * BESIDE its effect, so a customer keeps the profile's own facts (`onSave`, `_id`).
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * Every profile in `list` beside the effect it resolves to (null when gone).
+ * @typedef {object} ResolvedProfile
+ * @property {object} profile              the activity's own row — `_id`, `uuid`, `onSave`, `level`
+ * @property {ActiveEffect|null} effect    the document it names, null when the item has lost it
+ * @returns {Promise<ResolvedProfile[]>}
+ */
+export async function profileEffects(list) {
+  const out = [];
+  for ( const profile of (list ?? []) ) {
+    let effect = null;
+    try { effect = (await profile?.getEffect?.()) ?? null; } catch { effect = null; }
+    out.push({ profile, effect });
+  }
+  return out;
+}
+
+/** The activity's APPLICABLE profiles (its `applicableEffects`, level-filtered) that still resolve to an effect. */
+export async function applicableProfiles(activity) {
+  return (await profileEffects(activity?.applicableEffects ?? [])).filter(p => p.effect);
+}
+
+/**
+ * One profile's effect, SYNCHRONOUSLY — for a reader that runs at preCreate and cannot await:
+ * the item's own embedded effect by the profile's id; an external one (a uuid) only when the
+ * index can hand it over without a round trip. Null otherwise.
+ */
+export function profileEffectSync(profile, item) {
+  if ( !profile ) return null;
+  if ( profile.uuid ) return resolveUuid(profile.uuid);
+  return item?.effects?.get?.(profile._id) ?? null;
+}
+
 /** The weapon this reactor last ATTACKED with, off the log (v1.19.x finding ④ — the walk's
  * "how is the weapon picked?"): newest attack message by this actor whose activity names an
  * item still among the options. Inventory order was the old default and told nobody anything. */

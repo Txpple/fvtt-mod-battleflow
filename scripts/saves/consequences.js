@@ -7,7 +7,8 @@
  * the registration order. Every body here is the one saves.js carried; nothing was rewritten.
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canApplyTo, whisperNoGM, statContext } from "../core.js";
-import { resolveUuid } from "../lookup.js";
+import { applicableProfiles, resolveUuid } from "../lookup.js";
+import { CARD, castLevelOn, isCard, onSaveOf, originIdOf } from "../decide/card.js";
 import { saveMultiplier } from "../decide/verdict.js";
 import { forceStatus, damagePartsOf, statSourceOf } from "../shared.js";
 import { dramaticVerdictPause } from "../ui.js";
@@ -115,11 +116,10 @@ async function applySaveEffects(card, flag, entry) {
   if ( flag.effectsHandled ) return;
   const activity = flag.activityUuid ? await fromUuid(flag.activityUuid) : null;
   if ( !activity ) return; // the item is gone (a consumed scroll) — accepted corner above
-  const applicable = new Set((activity.applicableEffects ?? []).map(e => e.id));
-  const toApply = (activity.effects ?? [])
-    .filter(e => e.effect && applicable.has(e.effect.id))
-    .filter(e => (entry.outcome === "failed") || e.onSave)
-    .map(e => e.effect);
+  // 6.0: the activity's list holds PROFILES whose effects resolve asynchronously (lookup.js).
+  const toApply = (await applicableProfiles(activity))
+    .filter(({ profile }) => (entry.outcome === "failed") || profile.onSave)
+    .map(({ effect }) => effect);
   // A pack that brought NO effect for a failure the text names (Web's Restrained — SAVE_PRESSES,
   // 2026-09-02): press the standard status, the caster as its origin, and receipt it on the card
   // so the revert is there — the Topple idiom, as data.
@@ -133,7 +133,7 @@ async function applySaveEffects(card, flag, entry) {
   await applyEffectsWithReceipt(card, toApply, [{ uuid: entry.uuid, name: entry.name }], {
     concentration,
     scaling: card.system?.scaling ?? 0,
-    spellLevel: card.system?.spellLevel ?? undefined,
+    spellLevel: castLevelOn(card) ?? undefined,
     source: statSourceOf(card) // the data-plane stamp — the caster whose demand this is
   });
 }
@@ -180,8 +180,7 @@ async function pressSaveStatus(card, flag, entry, press) {
  * click natively, and the module's suite rolls pass the origin explicitly. Whole log. */
 export function saveDamageMessages(card) {
   return game.messages.contents.filter(m =>
-    (m.getFlag("dnd5e", "roll.type") === "damage")
-    && (m.getFlag("dnd5e", "originatingMessage") === card.id));
+    isCard(m, CARD.damage) && (originIdOf(m) === card.id));
 }
 
 /** Land one chained damage roll on one target at its verdict's multiplier — the receipt says
@@ -190,8 +189,7 @@ export function saveDamageMessages(card) {
  * any existing receipt entry — reverted included — as "handled": a human's manual ↩ revert
  * must stick, never be re-fought by the machine). */
 export async function applyOneSaveDamage(damageMessage, flag, entry) {
-  const damageOnSave = damageMessage.getFlag("dnd5e", "roll.damageOnSave")
-    ?? flag.damageOnSave ?? "half";
+  const damageOnSave = onSaveOf(damageMessage) ?? flag.damageOnSave ?? "half";
   const multiplier = saveMultiplier(entry, damageOnSave);
   if ( multiplier == null ) return;
   const damages = damagePartsOf(damageMessage.rolls);

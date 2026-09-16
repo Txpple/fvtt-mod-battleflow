@@ -231,13 +231,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     for (const a of [cleric, ranger, goblin]) {
       priorActor[a.id] = {
-        'system.attributes.ac.calc': a.system._source.attributes.ac.calc,
-        'system.attributes.ac.flat': a.system._source.attributes.ac.flat,
+        'system.attributes.ac.override': a.system._source.attributes.ac.override ?? null,
         'system.attributes.hp.value': a.system._source.attributes.hp.value,
         'system.attributes.hp.max': a.system._source.attributes.hp.max,
         'system.attributes.hp.temp': a.system._source.attributes.hp.temp ?? 0
       };
-      await a.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1,
+      await a.update({ 'system.attributes.ac.override': 1,
         'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 });
     }
     const healFull = async () => {
@@ -253,8 +252,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const face = (n, faces = 20) => { CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces); };
     const target = token => token.setTarget(true, { releaseOthers: true });
     const attackOf = item => item.system.activities.find(a => a.type === 'attack');
-    const damageFor = originId => game.messages.contents.find(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
-      && (m.getFlag('dnd5e', 'originatingMessage') === originId));
+    const damageFor = originId => game.messages.contents.find(m => (m.type === 'damage')
+      && (m._source.system?.origin === originId));
     const shieldCards = after => game.messages.contents.filter(m => (m.timestamp >= after) && m.getFlag(MOD, 'damageShield'));
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     /** Which damage message each shield card claims, against the swing's own — a card claiming an OLDER message is a re-judgement. */
@@ -269,9 +268,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       face(19);
       const act = attackOf(weapon);
       const results = await act.use({ subsequentActions: false }, { configure: false }, {});
-      const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'flags.dnd5e.originatingMessage': results.message.id } } : {});
+      const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
       const attackMsg = rolls?.[0]?.parent ?? null;
-      const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+      const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
       const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
       // The shield's roll follows the damage landing; give it a beat, then read.
       const shield = await waitFor(() => shieldCards(since)[0] ?? null, 5000);

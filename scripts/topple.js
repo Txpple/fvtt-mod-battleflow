@@ -16,6 +16,7 @@ import { resolveUuid } from "./lookup.js";
 import { forceStatus, rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, momentBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
+import { CARD, abilityOf, isCard, originData, originIdOf } from "./decide/card.js";
 import { livePopups, DialogCarried, momentButton, scheduleBarSync, shownMoments, armDeadline,
   disarmDeadline, dramaticVerdictPause, registerDemand, demandAnsweredBy } from "./ui.js";
 
@@ -97,7 +98,7 @@ async function showTopplePopup(message, topple, target) {
     const rolls = await actor.rollSavingThrow(
       { ability: flag.ability || "con", target: flag.dc },
       { configure: true, options: { bfSaveDemand: demand } },
-      { data: { "flags.dnd5e.originatingMessage": message.id } }
+      { data: originData(message.id) }
     );
     // Fails pressed: no roll, and the demand names what failed it — recorded as the failure
     // it is, the same write the fold makes, Prone pressed by the same consequence.
@@ -146,7 +147,7 @@ async function rollToppleSave(message, target, { mode = null, bonus = null, time
       ...rollConfigFor(mode, bonus) },
     { configure: false },
     { data: {
-      "flags.dnd5e.originatingMessage": message.id,
+      ...originData(message.id),
       ...(timedOut ? { [`flags.${MODULE_ID}.timedOut`]: true } : {})
     } });
 }
@@ -179,8 +180,8 @@ async function fireToppleTimer(messageId) {
       if ( t.done ) continue;
       // An unfolded answer beats the clock, not races it.
       const landed = game.messages.contents.find(m =>
-        (m.getFlag("dnd5e", "roll.type") === "save")
-        && (m.getFlag("dnd5e", "originatingMessage") === card.id)
+        isCard(m, CARD.save)
+        && (originIdOf(m) === card.id)
         && (m.getAssociatedActor?.()?.uuid === t.uuid));
       if ( landed ) { void foldToppleSave(landed); continue; }
       const actor = await fromUuid(t.uuid).catch(() => null);
@@ -219,7 +220,7 @@ async function fireToppleTimer(messageId) {
  * flag and are skipped — their GM buttons still work.
  */
 Hooks.on("createChatMessage", message => {
-  if ( message.getFlag("dnd5e", "roll.type") !== "save" ) return;
+  if ( !isCard(message, CARD.save) ) return;
   // The FOLD is a judgement plus a flag write on the card — reachable without a GM. Its
   // consequence (the Prone press) guards itself in applyToppleFailure.
   if ( !isActiveGM() && game.users.activeGM ) return;
@@ -300,7 +301,7 @@ async function foldToppleSave(saveMessage) {
     for ( const { card } of found.matches ) {
       const flag = foundry.utils.deepClone(card.getFlag(MODULE_ID, "topple"));
       if ( !(flag?.dc > 0) ) continue;
-      if ( flag.ability && (saveMessage.getFlag("dnd5e", "roll.ability") !== flag.ability) ) continue;
+      if ( flag.ability && (abilityOf(saveMessage) !== flag.ability) ) continue;
       const entry = flag.targets?.find(t => !t.done && (t.uuid === actor.uuid));
       if ( !entry ) continue;
       const success = total >= flag.dc;

@@ -14,6 +14,7 @@ import { EFFECT_CHOICES, tableIndex } from "./decide/registry.js";
 import { effectChoiceFor } from "./decide/choices.js";
 import { CARD, TARGETS_KEY, activityTypeOf, activityUuidOf, castLevelOn, isCard, itemNameOf, targetsOf } from "./decide/card.js";
 import { targetDescriptorOf } from "./shared.js";
+import { profileEffectSync } from "./lookup.js";
 import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -177,7 +178,9 @@ function castChoice(activity) {
   const key = EFFECT_CHOICE_INDEX.keyNamed(name);
   const row = key ? EFFECT_CHOICES[key] : null;
   if ( !row ) return null;
-  const options = effectChoiceFor(row, (activity?.applicableEffects ?? []).map(e => e?.name));
+  // ⚠ SYNC — this runs at preCreate. 6.0's profiles resolve their effects asynchronously; the
+  // names are read off the item's own embedded effects by the profile's id (lookup.js).
+  const options = effectChoiceFor(row, (activity?.applicableEffects ?? []).map(p => profileEffectSync(p, activity?.item)?.name));
   return options ? { key, options, ask: row.ask, rule: row.rule, chosen: null } : null;
 }
 

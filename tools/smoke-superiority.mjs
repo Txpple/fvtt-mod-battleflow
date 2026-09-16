@@ -214,9 +214,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       };
       await a.update({ 'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 });
     }
-    priorActor[goblin.id]['system.attributes.ac.calc'] = goblin.system._source.attributes.ac.calc;
-    priorActor[goblin.id]['system.attributes.ac.flat'] = goblin.system._source.attributes.ac.flat;
-    await goblin.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+    priorActor[goblin.id]['system.attributes.ac.override'] = goblin.system._source.attributes.ac.override ?? null;
+    await goblin.update({ 'system.attributes.ac.override': 1 });
     const healFull = async () => { for (const a of [fighter, ranger, goblin]) await a.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 }); };
 
     // -------------------------------------------------- helpers
@@ -230,8 +229,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const cardText = id => textOf(document.querySelector(`.message[data-message-id="${id}"]`));
     const attackOf = item => item.system.activities.find(a => a.type === 'attack');
-    const damageFor = originId => game.messages.contents.find(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
-      && (m.getFlag('dnd5e', 'originatingMessage') === originId));
+    const damageFor = originId => game.messages.contents.find(m => (m.type === 'damage')
+      && (m._source.system?.origin === originId));
     const offerEl = () => [...foundry.applications.instances.values()].map(a => a.element)
       .find(el => (el?.innerHTML ?? '').includes('Damage — your roll')) ?? null;
     const rollDialog = () => [...foundry.applications.instances.values()]
@@ -244,7 +243,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // document, its rows are `[data-bf-rescue-action]` elements, not dialog buttons.
     const rescueWindow = text => [...document.querySelectorAll('.application')]
       .find(el => el.querySelector('[data-bf-rescue-row]') && (el.textContent ?? '').includes(text)) ?? null;
-    const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag('dnd5e', 'roll.type') === 'attack')).pop() ?? null;
+    const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.type === 'attack')).pop() ?? null;
     /** A programmatic hit (no dialog) by `actor` with `weapon` at `victimToken`. */
     const swing = async (actor, actorToken, weapon, victimToken, { d20 = 19 } = {}) => {
       actorToken.control({ releaseOthers: true });
@@ -253,9 +252,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       face(d20);
       const act = attackOf(weapon);
       const results = await act.use({ subsequentActions: false }, { configure: false }, {});
-      const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'flags.dnd5e.originatingMessage': results.message.id } } : {});
+      const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
       const msg = rolls?.[0]?.parent ?? null;
-      return { msg, originId: msg?.getFlag('dnd5e', 'originatingMessage') ?? msg?.id };
+      return { msg, originId: msg?._source.system?.origin ?? msg?.id };
     };
     const useAt = async (item, activityName, token, opts = {}) => {
       fighterToken.control({ releaseOthers: true });
@@ -284,7 +283,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const dieMsg = game.messages.contents.filter(m => (m.timestamp >= suiteStart) && /Parry — the die/.test(m.flavor ?? '')).at(-1);
       ok('1b. the answer rolls the die plus the modifier IN THE OPEN and rides the hold as the reduction', !!rt && (rt.answer === 'cast') && (Number(rt.reduceBy) > 0) && !!dieMsg && (dieMsg.rolls?.[0]?.total === rt.reduceBy),
         `reduceBy=${rt?.reduceBy} die=${dieMsg?.rolls?.[0]?.formula}=${dieMsg?.rolls?.[0]?.total}`);
-      const dmg = await waitFor(() => { const d = damageFor(msg?.getFlag('dnd5e', 'originatingMessage') ?? msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+      const dmg = await waitFor(() => { const d = damageFor(msg?._source.system?.origin ?? msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
       const receipt = dmg?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === fighter.uuid);
       const total = (dmg?.rolls ?? []).reduce((n, r) => n + (r.total ?? 0), 0);
       const expected = Math.max(0, total - (rt?.reduceBy ?? 0));
@@ -324,14 +323,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const results = await act.use({ subsequentActions: false }, { configure: false }, {});
       const before = lastAttack()?.id ?? null;
       face(19);
-      void act.rollAttack({}, {}, results?.message?.id ? { data: { 'flags.dnd5e.originatingMessage': results.message.id } } : {});
+      void act.rollAttack({}, {}, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
       const dialog = await waitFor(rollDialog, 6000);
       await waitFor(() => dialog?.element?.querySelector('[data-bf-reminder]'), 2500);
       const section = textOf(dialog?.element?.querySelector('[data-bf-reminder]'));
       ok('2b. the fighter\'s attack gate lists Feinting Attack on the goblin — Net Advantage', /Feinting Attack/.test(section) && /Net Advantage/.test(section), `section="${section.slice(0, 200)}"`);
       dialog?.element?.querySelector('button[data-action="advantage"]')?.click();
       const attackMsg = await waitFor(() => { const m = lastAttack(); return (m && (m.id !== before)) ? m : null; }, 8000);
-      const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+      const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
       const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
       const sr = dmg?.getFlag(MOD, 'superiorityRide');
       ok('2c. the die rides the hit\'s damage as its own part in the weapon\'s type, the card says so, and the marker is spent',
@@ -346,7 +345,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const ract = attackOf(rangerSword);
       const rres = await ract.use({ subsequentActions: false }, { configure: false }, {});
       face(19);
-      void ract.rollAttack({}, {}, rres?.message?.id ? { data: { 'flags.dnd5e.originatingMessage': rres.message.id } } : {});
+      void ract.rollAttack({}, {}, rres?.message?.id ? { data: { 'system.origin': rres.message.id } } : {});
       const rdialog = await waitFor(rollDialog, 6000);
       await sleep(1200);
       const rsection = textOf(rdialog?.element?.querySelector('[data-bf-reminder]'));

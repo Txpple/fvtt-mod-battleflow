@@ -67,6 +67,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const victim = game.actors.getName('BF Test Victim');
   if (!victim) return { fatal: 'missing fixture: BF Test Victim' };
+  // 6.0: a card's associated actor is its TOKEN's actor first (ChatMessage5e#getAssociatedActor) — an
+  // unlinked victim token on the range speaks as its synthetic actor, under the token's name.
+  const speaker = () => game.scenes.active?.tokens.find(t => t.actorId === victim.id)?.actor ?? victim;
   // A qualifying spender must be PLAYER-OWNED: grant a non-GM user ownership for the run
   // and restore the exact prior ownership map after.
   const player = game.users.find(u => !u.isGM);
@@ -105,7 +108,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   // either surface, so it keeps a short settle: long enough for a wrong one to show itself.
   const useAndCard = async (act, { banner = true, line = banner } = {}) => {
     const before = new Set(game.messages.contents.map(m => m.id));
-    const isUsage = m => (m.type === 'usage') || (m.getFlag('dnd5e', 'messageType') === 'usage');
+    const isUsage = m => (m.type === 'usage');
     const fresh = () => game.messages.contents.find(m => !before.has(m.id) && isUsage(m)) ?? null;
     await act.use({}, { configure: false }, {});
     const card = await until(fresh, 6000);
@@ -179,7 +182,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const card1 = await useAndCard(acts('bfnoticeself0000'));
       const b1 = bannerNow();
       ok('1a the banner flashed: who, what, and x of y remaining',
-        !!b1 && b1.textContent.includes('BF Test Victim used BF Notice Feat')
+        !!b1 && b1.textContent.includes(`${speaker().name} used BF Notice Feat`)
           && b1.textContent.includes('BF Notice Feat: 2 of 3 remaining'),
         b1 ? b1.textContent.trim().slice(0, 120) : 'NO banner');
       ok('1b the card keeps the durable line',
@@ -273,8 +276,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await until(() => rollNow() && bannerNow(), 8000);
       const healRoll = rollNow();
       ok('5d the roll links to the card (the (cc) linkage pin, card-button path)',
-        !!healRoll && (healRoll.getFlag('dnd5e', 'originatingMessage') === card5?.id),
-        JSON.stringify({ link: healRoll?.getFlag('dnd5e', 'originatingMessage') ?? null, card: card5?.id }));
+        !!healRoll && (healRoll._source.system?.origin === card5?.id),
+        JSON.stringify({ link: healRoll?._source.system?.origin ?? null, card: card5?.id }));
       const b5 = bannerNow();
       ok('5e the flash released WITH the dice — after the roll, not the use',
         !!b5 && b5.textContent.includes('used BF Notice Heal')
@@ -335,7 +338,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const card7 = await useAndCard(spendAct());
       const stamp7 = await until(() => card7?.getFlag(MOD, 'spend'), 6000);
       ok('7a a qualifying spend stamps rows + EXPLICIT null combat + the spender as source',
-        !!stamp7 && stamp7.combat === null && stamp7.sourceUuid === victim.uuid
+        !!stamp7 && stamp7.combat === null && stamp7.sourceUuid === speaker().uuid
           && stamp7.rows?.length === 1 && stamp7.rows[0].pool === 'BF Stamp Feat'
           && (typeof stamp7.rows[0].left === 'number') && (typeof stamp7.rows[0].max === 'number')
           && !stamp7.slots,

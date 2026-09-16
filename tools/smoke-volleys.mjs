@@ -143,7 +143,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   // flag would return instantly and prove nothing (PLAN 1.3).
   const castSettled = async beforeIds => {
     await until(() => fresh(beforeIds).some(m => (m.type === 'usage')
-      || (m.getFlag('dnd5e', 'messageType') === 'usage')), 5000);
+      ), 5000);
     await sleep(400);
   };
 
@@ -186,11 +186,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (!victimToken || !shielderToken) return { fatal: 'target tokens never reached the canvas' };
     // AC rides along with hp because SS3 forces it (see there); teardown restores both.
     priorActor[victim.id] = { 'system.attributes.hp.value': victim.system._source.attributes.hp.value,
-      'system.attributes.ac.calc': victim.system._source.attributes.ac.calc,
-      'system.attributes.ac.flat': victim.system._source.attributes.ac.flat };
+      'system.attributes.ac.override': victim.system._source.attributes.ac.override ?? null };
     priorActor[shielder.id] = { 'system.attributes.hp.value': shielder.system._source.attributes.hp.value,
-      'system.attributes.ac.calc': shielder.system._source.attributes.ac.calc,
-      'system.attributes.ac.flat': shielder.system._source.attributes.ac.flat };
+      'system.attributes.ac.override': shielder.system._source.attributes.ac.override ?? null };
 
     // The Magic Missile shape: damage activity, count "2 + @item.level", innate consumption
     // (self-uses so the consumed-flag replication has something to record; no slots needed),
@@ -262,7 +260,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (v1?.kind === 'damage') && (v1?.n === 3) && (v1?.targets?.length === 2) && (v1?.status === 'pending'),
         JSON.stringify({ kind: v1?.kind, n: v1?.n, t: v1?.targets?.length, s: v1?.status }));
       ok('1b the native single follow-up is suppressed (no damage roll, no stray dialog roll)',
-        !msgs.some(m => m.getFlag('dnd5e', 'roll.type') === 'damage'),
+        !msgs.some(m => m.type === 'damage'),
         `${msgs.length} new messages`);
       const dlg1 = findDialog('BF Volley Missile');
       ok('1c the caster popup is up with one stepper per target and the bar',
@@ -280,24 +278,24 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         for (const s of steppers) s.value = (s.dataset.bfVolleyUuid === victim.uuid) ? '2' : '1';
         dlg1.element.querySelector('button[data-action="fire"]')?.click();
       }
-      await until(() => fresh(before).filter(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
+      await until(() => fresh(before).filter(m => (m.type === 'damage')
         && m.getFlag(MOD, 'volleyFor')).length >= 3, 2500);
       msgs = fresh(before);
-      const dartRolls = msgs.filter(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
+      const dartRolls = msgs.filter(m => (m.type === 'damage')
         && m.getFlag(MOD, 'volleyFor'));
       const forVictim = dartRolls.find(m => m.getFlag(MOD, 'volleyTarget') === victim.uuid);
       const forShielder = dartRolls.find(m => m.getFlag(MOD, 'volleyTarget') === shielder.uuid);
       ok('1d two aimed damage rolls — one per target, chained to the card',
         (dartRolls.length === 2) && !!forVictim && !!forShielder
-          && dartRolls.every(m => m.getFlag('dnd5e', 'originatingMessage') === card1?.id),
+          && dartRolls.every(m => m._source.system?.origin === card1?.id),
         `rolls=${dartRolls.length}`);
       ok('1e dart aggregation: 2 darts = 2 dice groups in ONE message, 1 dart = 1',
         (forVictim?.rolls?.length === 2) && (forShielder?.rolls?.length === 1)
           && forVictim.rolls.every(r => r.formula.includes('1d4')),
         JSON.stringify({ v: forVictim?.rolls?.length, s: forShielder?.rolls?.length }));
       ok('1f each dart roll snapshots exactly its own target',
-        ((forVictim?.getFlag('dnd5e', 'targets') ?? []).map(t => t.uuid).join() === victim.uuid)
-          && ((forShielder?.getFlag('dnd5e', 'targets') ?? []).map(t => t.uuid).join() === shielder.uuid));
+        ((forVictim?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor })).map(t => t.uuid).join() === victim.uuid)
+          && ((forShielder?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor })).map(t => t.uuid).join() === shielder.uuid));
       await until(() => forVictim?.getFlag(MOD, 'receipt') && forShielder?.getFlag(MOD, 'receipt'), 1500);
       ok('1g both rolls applied through the existing spellDamage machinery (receipts per target)',
         !!forVictim?.getFlag(MOD, 'receipt') && !!forShielder?.getFlag(MOD, 'receipt'));
@@ -320,7 +318,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         [forVictim, forShielder].every(m =>
           !!document.querySelector(`[data-message-id="${m?.id}"] .bf-volley-aim img[data-tooltip]`)
             && !!document.querySelector(`[data-message-id="${m?.id}"] .bf-volley-aim`)
-              ?.textContent.includes((m?.getFlag('dnd5e', 'targets') ?? [])[0]?.name ?? '@@')));
+              ?.textContent.includes((m?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor }))[0]?.name ?? '@@')));
     }
 
     // ============================================================ §2 upcast — the count scales
@@ -364,10 +362,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const dlg2 = findDialog('BF Volley Up');
       // The X is "get on with it": closing fires the volley with the default even spread (3/2).
       await dlg2?.close();
-      await until(() => fresh(before).filter(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
+      await until(() => fresh(before).filter(m => (m.type === 'damage')
         && m.getFlag(MOD, 'volleyFor')).length >= 2, 2500);
       msgs = fresh(before);
-      const upRolls = msgs.filter(m => (m.getFlag('dnd5e', 'roll.type') === 'damage') && m.getFlag(MOD, 'volleyFor'));
+      const upRolls = msgs.filter(m => (m.type === 'damage') && m.getFlag(MOD, 'volleyFor'));
       const upV = upRolls.find(m => m.getFlag(MOD, 'volleyTarget') === victim.uuid);
       const upS = upRolls.find(m => m.getFlag(MOD, 'volleyTarget') === shielder.uuid);
       ok('2b closing fired the even spread: 3 dice groups and 2',
@@ -384,8 +382,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // assertion failing anyway. That is the whole of the documented "38/39 first run"
       // variance. Flat AC 1 leaves the natural 1 as the ONLY way to miss, and 3e now counts
       // fumbles rather than assuming three hits, so the dice cannot make this suite lie.
-      await victim.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
-      await shielder.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+      await victim.update({ 'system.attributes.ac.override': 1 });
+      await shielder.update({ 'system.attributes.ac.override': 1 });
       targetBoth();
       before = snap();
       await srAct.use({}, { configure: false }, {});
@@ -394,7 +392,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const v3 = card3?.getFlag(MOD, 'volley');
       ok('3a volley stamps: kind attack, n 3 — and NO native first ray rolled',
         (v3?.kind === 'attack') && (v3?.n === 3)
-          && !msgs.some(m => m.getFlag('dnd5e', 'roll.type') === 'attack'),
+          && !msgs.some(m => m.type === 'attack'),
         JSON.stringify({ kind: v3?.kind, n: v3?.n, msgs: msgs.length }));
       const dlg3 = findDialog('BF Volley Rays');
       ok('3b the popup offers one target pick per ray',
@@ -425,18 +423,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       // the three rays are sequential real attacks, each with its own damage — wait for the
       // LAST one rather than for a clock sized to the slowest plausible run.
-      await until(() => fresh(before).filter(m => (m.getFlag('dnd5e', 'roll.type') === 'attack')
+      await until(() => fresh(before).filter(m => (m.type === 'attack')
         && m.getFlag(MOD, 'volleyRay')).length >= 3, 4500);
       msgs = fresh(before);
-      const rays = msgs.filter(m => (m.getFlag('dnd5e', 'roll.type') === 'attack') && m.getFlag(MOD, 'volleyRay'))
+      const rays = msgs.filter(m => (m.type === 'attack') && m.getFlag(MOD, 'volleyRay'))
         .sort((a, b) => a.getFlag(MOD, 'volleyRay') - b.getFlag(MOD, 'volleyRay'));
       ok('3c three real attacks drove, in ray order, chained to the card',
-        (rays.length === 3) && rays.every(m => m.getFlag('dnd5e', 'originatingMessage') === card3?.id),
+        (rays.length === 3) && rays.every(m => m._source.system?.origin === card3?.id),
         `rays=${rays.length}`);
       ok('3d each ray aims exactly its chosen target',
-        ((rays[0]?.getFlag('dnd5e', 'targets') ?? []).map(t => t.uuid).join() === victim.uuid)
-          && ((rays[1]?.getFlag('dnd5e', 'targets') ?? []).map(t => t.uuid).join() === shielder.uuid)
-          && ((rays[2]?.getFlag('dnd5e', 'targets') ?? []).map(t => t.uuid).join() === victim.uuid));
+        ((rays[0]?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor })).map(t => t.uuid).join() === victim.uuid)
+          && ((rays[1]?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor })).map(t => t.uuid).join() === shielder.uuid)
+          && ((rays[2]?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor })).map(t => t.uuid).join() === victim.uuid));
       // vs flat AC 1 only a natural 1 misses, so hits === rays - fumbles. Counting it makes the
       // assertion say what its own title always said - "each HITTING ray" - instead of assuming
       // all three hit and failing on a 1-in-20 that is the module behaving correctly.
@@ -446,7 +444,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // ATTACKS) is not enough on its own - snapshotting here would race the pipeline. Now that
       // the fumble count is known, wait for exactly the damages that should exist.
       const rayDamageOf = () => fresh(before).filter(m =>
-        (m.getFlag('dnd5e', 'roll.type') === 'damage') && !m.getFlag(MOD, 'volleyFor'));
+        (m.type === 'damage') && !m.getFlag(MOD, 'volleyFor'));
       await until(() => rayDamageOf().length >= wantDamage
         && rayDamageOf().every(m => !!m.getFlag(MOD, 'receipt')), 4500);
       const rayDamage = rayDamageOf();
@@ -478,14 +476,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('3e2 (ii) each ray damage names ITS OWN attack; its receipt lands on THAT ray\'s target',
         rayDamage.every(m => {
           const atk = game.messages.get(m.getFlag(MOD, 'attackFor'));
-          const aimed = (atk?.getFlag('dnd5e', 'targets') ?? [])[0]?.uuid;
+          const aimed = (atk?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor }))[0]?.uuid;
           const got = (m.getFlag(MOD, 'receipt')?.targets ?? []).map(t => t.uuid);
           return !!atk && !!atk.getFlag(MOD, 'volleyRay') && !!aimed
             && (got.length === 1) && (got[0] === aimed);
         }),
         JSON.stringify(rayDamage.map(m => ({
           ray: game.messages.get(m.getFlag(MOD, 'attackFor'))?.getFlag(MOD, 'volleyRay') ?? null,
-          aimed: (game.messages.get(m.getFlag(MOD, 'attackFor'))?.getFlag('dnd5e', 'targets') ?? [])[0]?.name ?? null,
+          aimed: (game.messages.get(m.getFlag(MOD, 'attackFor'))?.system?.targets ?? [])[0]?.name ?? null,
           got: (m.getFlag(MOD, 'receipt')?.targets ?? []).map(t => t.name)
         }))));
       ok('3f (ee) each ray attack names its ray and target on the card',
@@ -567,7 +565,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // only and failed a working module (PLAN 1.3's trap, second sighting). Wait for what 5b
       // reads: both rolls, and the resolved status with them.
       const expRollsNow = () => fresh(before).filter(m =>
-        (m.getFlag('dnd5e', 'roll.type') === 'damage') && m.getFlag(MOD, 'volleyFor'));
+        (m.type === 'damage') && m.getFlag(MOD, 'volleyFor'));
       await until(() => (card5?.getFlag(MOD, 'volley')?.status === 'resolved')
         && (expRollsNow().length === 2), 9000);
       const v5 = card5?.getFlag(MOD, 'volley');
@@ -597,7 +595,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!card6 && !card6.getFlag(MOD, 'hold'));
       await findDialog('BF Volley Missile')?.close();   // fire the default spread
       const claimedNow = () => fresh(before).filter(m =>
-        (m.getFlag('dnd5e', 'roll.type') === 'damage') && m.getFlag(MOD, 'volleyFor'));
+        (m.type === 'damage') && m.getFlag(MOD, 'volleyFor'));
       await until(() => claimedNow().length === 1, 6000);
       const claimed = claimedNow();
       ok('6b the driven dart roll was born with BOTH claims (spellDamage + the hold pending)',
@@ -649,7 +647,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         JSON.stringify({ kind: v7?.kind, n: v7?.n }));
       await findDialog('Scorching Ray')?.close();   // fire the default spread
       const rays7Now = () => fresh(before).filter(m =>
-        (m.getFlag('dnd5e', 'roll.type') === 'attack') && m.getFlag(MOD, 'volleyRay'));
+        (m.type === 'attack') && m.getFlag(MOD, 'volleyRay'));
       await until(() => rays7Now().length === 3, 8000);
       const rays7 = rays7Now();
       ok('7c its three rays drove for real', rays7.length === 3, `rays=${rays7.length}`);
@@ -699,10 +697,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         dlg8.element.querySelector('button[data-action="fire"]')?.click();
       }
       const rays8Now = () => fresh(before).filter(m =>
-        (m.getFlag('dnd5e', 'roll.type') === 'attack') && m.getFlag(MOD, 'volleyRay'));
+        (m.type === 'attack') && m.getFlag(MOD, 'volleyRay'));
       await until(() => rays8Now().length === 2, 8000);
       const rays8 = rays8Now();
-      const targets8 = rays8.map(m => (m.getFlag('dnd5e', 'targets') ?? [])[0]?.uuid).sort();
+      const targets8 = rays8.map(m => (m.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor }))[0]?.uuid).sort();
       ok('8b duplicate picks fell back to one-each: two attacks, DISTINCT targets',
         (rays8.length === 2) && (new Set(targets8).size === 2),
         JSON.stringify(targets8));
@@ -724,7 +722,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         dlg9.element.querySelector('button[data-action="fire"]')?.click();
       }
       const rays9Now = () => fresh(before).filter(m =>
-        (m.getFlag('dnd5e', 'roll.type') === 'attack') && m.getFlag(MOD, 'volleyRay'))
+        (m.type === 'attack') && m.getFlag(MOD, 'volleyRay'))
         .sort((a, b) => a.getFlag(MOD, 'volleyRay') - b.getFlag(MOD, 'volleyRay'));
       await until(() => rays9Now().length === 3, 8000);
       const rays9 = rays9Now();
@@ -808,7 +806,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await aim(0, victim.uuid);
       dlg10?.element.querySelector('button[data-action="fire"]')?.click();
       const rays10Now = () => fresh(before).filter(m =>
-        (m.getFlag('dnd5e', 'roll.type') === 'attack') && m.getFlag(MOD, 'volleyRay'))
+        (m.type === 'attack') && m.getFlag(MOD, 'volleyRay'))
         .sort((a, b) => a.getFlag(MOD, 'volleyRay') - b.getFlag(MOD, 'volleyRay'));
       await until(() => rays10Now().length === 3, 8000);
       const rays10 = rays10Now();
@@ -862,7 +860,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (judges11().length === 3) && [0, 1, 2].every(i => /Innate Sorcery/.test(jtext11(i)) && !/spent by this ray/.test(jtext11(i)) && (modeOf11(i) === 'advantage')),
         [0, 1, 2].map(i => `ray${i + 1}="${jtext11(i).slice(0, 80)}" mode=${modeOf11(i)}`).join(' | '));
       try { await dlg11?.close(); } catch { /* closing fires the volley as aimed */ }
-      await until(() => fresh(before).filter(m => m.getFlag('dnd5e', 'roll.type') === 'attack').length >= 3, 15000);
+      await until(() => fresh(before).filter(m => m.type === 'attack').length >= 3, 15000);
       await sleep(800);
       await npc.deleteEmbeddedDocuments('ActiveEffect', [sorcery.id]).catch(() => {});
       await set('reminderList', priorLists.reminderList);

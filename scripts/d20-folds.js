@@ -70,6 +70,7 @@ import { CHIP_FLAG } from "./decide/chips.js";
 import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause } from "./ui.js";
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 import { SURFACES } from "./surfaces.js";
+import { activityUuidOf, originData, targetsOf } from "./decide/card.js";
 
 /**
  * THE PER-KIND TABLES ARE VIEWS ONTO `RESCUE_KINDS` (decide/present.js), NOT COPIES.
@@ -151,7 +152,7 @@ const TACTICAL = {
     await marker.activity.use({ subsequentActions: false }, { configure: false }, {
       // `foldSpend`: this use is the RESCUE's spend, never the sheet's — the arming hook stands
       // aside (2026-09-05: accepting Ambush on Initiative armed a second die for Stealth).
-      data: { flags: { dnd5e: { originatingMessage: message.id }, [MODULE_ID]: { foldSpend: message.id } } }
+      data: { ...originData(message.id), flags: { [MODULE_ID]: { foldSpend: message.id } } }
     });
     return true;
   }
@@ -344,7 +345,7 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
     if ( roll.isFumble ) offers = offers.filter(o => REROLL_KINDS.has(o.kind));
     if ( !offers.length ) return;
 
-    const snapshot = message.getFlag("dnd5e", "targets") ?? [];
+    const snapshot = targetsOf(message);
     if ( !snapshot.length || hitTargets(message).length ) return;   // clean misses only
     const judged = snapshot.filter(t => (t.ac !== null) && (t.ac !== undefined));
     if ( !judged.length ) return;                                   // null AC — humans have it
@@ -826,7 +827,8 @@ async function resolveFold(message, answer) {
     }
     if ( flag.testKind !== "attack" ) return;
     if ( !anyHit || !hitTargets(message).length ) return;
-    const attackActivity = await fromUuid(message.getFlag("dnd5e", "activity")?.uuid);
+    const activityUuid = activityUuidOf(message);
+    const attackActivity = activityUuid ? await fromUuid(activityUuid) : null;
     if ( !attackActivity ) return;
     if ( setting(S.playerRollDamage) ) return void offerDamageRoll(attackActivity, message);
     await rollDamageForAttack(attackActivity, message);

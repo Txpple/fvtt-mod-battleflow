@@ -155,7 +155,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
         config.rolls.push({
           // No `properties`: a feature's extra damage is its own, never the weapon's magic
           // (hit-riders' rule on physical-resistance bypass).
-          data: config.rolls[0]?.data ?? {},
+          data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}),
           parts: [r.formula],
           options: { type: r.type ?? null, types: r.type ? [r.type] : [] }
         });

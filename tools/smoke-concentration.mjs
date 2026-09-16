@@ -150,7 +150,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const mine = newSince(suiteMark).filter(m =>
         m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
           || Object.keys(m.flags?.[MOD] ?? {}).length
-          || m.content?.includes?.('data-action="concentration"'));
+          || m.content?.includes?.('data-action="concentration"')
+          || ((m.type === 'prompt') && (m.system?.buttons ?? []).some(b => /concentration/i.test(b.type ?? ''))));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {
       log.push(`TEARDOWN ERROR: ${err?.message}`);
@@ -184,12 +185,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // -------------------------------------------------- fixtures
     priorActor[shielder.id] = {
-      'system.abilities.con.bonuses.save':
-        shielder.system._source.abilities?.con?.bonuses?.save ?? '',
+      'system.abilities.con.save.roll.bonus':
+        shielder.system._source.abilities?.con?.save?.roll?.bonus ?? '',
       'system.attributes.hp.value': shielder.system._source.attributes.hp.value,
       'system.attributes.hp.temp': shielder.system._source.attributes.hp.temp,
-      'system.attributes.ac.calc': shielder.system._source.attributes.ac.calc,
-      'system.attributes.ac.flat': shielder.system._source.attributes.ac.flat,
+      'system.attributes.ac.override': shielder.system._source.attributes.ac.override ?? null,
     };
 
     // The concentration ability as the module will resolve it — every DC/bonus lever below
@@ -204,7 +204,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const modern = dnd5e.settings.rulesVersion === 'modern';
     log.push(`rules version: ${dnd5e.settings.rulesVersion} (DC cap ${modern ? 30 : 'none'})`);
 
-    const saveBonus = v => shielder.update({ 'system.abilities.con.bonuses.save': v });
+    const saveBonus = v => shielder.update({ 'system.abilities.con.save.roll.bonus': v });
     const setTemp = v => shielder.update({ 'system.attributes.hp.temp': v });
     const healFull = () => shielder.update({
       'system.attributes.hp.value': shielder.system.attributes.hp.max,
@@ -260,6 +260,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       .find(m => m.getFlag(MOD, 'concentration')?.status === 'done');
     const contentNew = (mark, needle) => newSince(mark)
       .find(m => m.content?.includes?.(needle));
+    // 6.0: the native concentration request is a 'prompt' card with its button as DATA and no content.
+    const nativeNew = mark => newSince(mark)
+      .find(m => (m.type === 'prompt') && (m.system?.buttons ?? []).some(b => b.type === 'concentration'));
     // Since 2026-09-03 the ask IS the system's Saving Throw dialog (option E, the save demand's
     // shape) — found by the application registry and our demand fieldset, never by a class the
     // dialog may not wear; told from a save demand by the fieldset's own eyebrow.
@@ -330,10 +333,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ================================================== 4. failure breaks, and the cascade is native
     if (want(4)) {
       await saveBonus('');
+      // 6.0: `addDependent` is gone — a dependent is a row in the concentration effect's own
+      // `flags.dnd5e.dependents` list, honoured when the dependent names it as origin.
+      const conc = concEffects()[0];
       const [dep] = await victim.createEmbeddedDocuments('ActiveEffect', [{
-        name: 'BF Conc Dependent', img: 'icons/svg/aura.svg' }]);
+        name: 'BF Conc Dependent', img: 'icons/svg/aura.svg', origin: conc.uuid }]);
       created.effects.push({ actorId: victim.id, id: dep.id });
-      await concEffects()[0].addDependent(dep);
+      await conc.setFlag('dnd5e', 'dependents', [...(conc.getFlag('dnd5e', 'dependents') ?? []), { uuid: dep.uuid }]);
       const t0 = marker();
       await smack(70); // DC 30 vs a mortal modifier — deterministic failure
       const askMsg = await waitFor(() => doneAskNew(t0));
@@ -443,9 +449,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         holdsCard ? '' : 'no timer wording found');
       const roll6 = (ask?.outcome?.rollMessageId ? game.messages.get(ask.outcome.rollMessageId) : null)
         ?.rolls?.[0];
-      ok('6d. the buzzer roll is straight — data-driven only, no ad-hoc inputs',
-        roll6?.options?.advantageMode === 0,
-        `advMode=${roll6?.options?.advantageMode}`);
+      // 6.0: a concentration save is a CON save and inherits the sheet's own con-save mode (the
+      // fixture's Tideheart grants advantage there) — "straight" means the sheet's mode and no
+      // ad-hoc input, not advantageMode 0.
+      const sheetMode6 = shielder.system.abilities?.con?.save?.roll?.mode ?? 0;
+      ok('6d. the buzzer roll is straight — data-driven only (the sheet\x27s own con-save mode), no ad-hoc inputs',
+        (roll6?.options?.advantageMode === sheetMode6),   // the +30 in the formula is the SHEET's (saveBonus), not an input
+        `advMode=${roll6?.options?.advantageMode} sheetMode=${sheetMode6} formula=${roll6?.formula}`);
       await set('concTimer', 0);
     }
 
@@ -509,12 +519,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // leaks into section 10's window wearing the wrong whisper (bit 10c, 2026-08-16).
       await waitFor(() => contentNew(t0, 'holds'));
       ok('9. the native request card is suppressed while the mode is on',
-        !contentNew(t0, 'data-action="concentration"'),
+        !nativeNew(t0),
         'a native concentration request card leaked through');
       await set('concMode', 'off');
       const t1 = marker();
       await smack(9);
-      const native = await waitFor(() => contentNew(t1, 'data-action="concentration"'), 5000);
+      const native = await waitFor(() => nativeNew(t1), 5000);
       ok('9b. with the mode off the native card returns (kill-switch discipline)', !!native,
         native ? '' : 'no native card appeared with the module off');
       await sleep(800);
@@ -595,7 +605,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const token = canvas.tokens.get(tokenDoc.id);
       if (!token) return { fatal: 'shielder token never reached the canvas' };
       // Flat AC 1 + advantage = a deterministic hit shy of a double fumble.
-      await shielder.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+      await shielder.update({ 'system.attributes.ac.override': 1 });
       const npcItem = npc.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
       const activity = npcItem?.system.activities.find(a => a.type === 'attack');
       if (!activity) return { fatal: 'BF Test Attacker has no attack activity' };
@@ -615,7 +625,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
         const usageId = results?.message?.id ?? null;
         const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
-          usageId ? { data: { 'flags.dnd5e.originatingMessage': usageId } } : {});
+          usageId ? { data: { 'system.origin': usageId } } : {});
         if (rolls?.[0]?.isFumble) { log.push('12: fumble, retrying'); continue; }
         ask = (await waitFor(() => doneAskNew(t0), 10_000))?.getFlag(MOD, 'concentration');
       }
@@ -643,8 +653,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const tSetup = marker();
       await shielder.update({
         'system.attributes.hp.value': 5, 'system.attributes.hp.temp': 0,
-        'system.attributes.ac.calc': priorActor[shielder.id]['system.attributes.ac.calc'],
-        'system.attributes.ac.flat': priorActor[shielder.id]['system.attributes.ac.flat'] });
+        'system.attributes.ac.override': priorActor[shielder.id]['system.attributes.ac.override'] });
       const setupAsk = await waitFor(() => doneAskNew(tSetup));
       ok('13. a GM hand-lowering HP on a concentrator raises the check too',
         !!setupAsk && (setupAsk.getFlag(MOD, 'concentration')?.outcome?.success === true),

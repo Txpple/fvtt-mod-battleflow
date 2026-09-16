@@ -188,8 +188,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces);
         };
         const priorAC = {
-          calc: foe.system._source.attributes.ac.calc ?? "default",
-          flat: foe.system._source.attributes.ac.flat ?? null
+          override: foe.system._source.attributes.ac.override ?? null
         };
         const priorHP = foe.system.attributes.hp.value;
         const priorInspiration = fighter.system.attributes.inspiration;
@@ -198,7 +197,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // AC 18: a forced 5 (+5 to hit) totals 10 and misses; a forced 19 totals 24 and hits.
           // The band is stated here so the two numbers below are not magic.
           await foe.update({
-            "system.attributes.ac.calc": "flat", "system.attributes.ac.flat": 18,
+            "system.attributes.ac.override": 18,
             "system.attributes.hp.value": foe.system.attributes.hp.max
           });
           if (!fighter.system.attributes.inspiration) {
@@ -230,7 +229,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const usageId = use?.message?.id ?? null;
           const rolls = await act.rollAttack({ advantage: false, disadvantage: false },
             { configure: false },
-            usageId ? { data: { "flags.dnd5e.originatingMessage": usageId } } : {});
+            usageId ? { data: { 'system.origin': usageId } } : {});
           attackMsg = rolls?.[0]?.parent ?? null;
           const flag = await until(() => attackMsg?.getFlag(MODULE_ID, "d20fold"), 8000);
 
@@ -305,7 +304,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               bar ? "offered" : "no damage offer");
           } else {
             const dmg = await until(() => game.messages.contents.findLast(m =>
-              (m.getFlag("dnd5e", "roll.type") === "damage")
+              (m.type === "damage")
               && (m.speaker?.actor === fighter.id)
               && (m.timestamp >= (attackMsg?.timestamp ?? 0))), 15_000);
             ok("…and the damage re-drives itself on the new verdict", !!dmg,
@@ -319,7 +318,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // check offers more than one kind, and this section just spent one of them.
           CONFIG.Dice.randomUniform = realPRNG;
           await foe.update({
-            "system.attributes.ac.calc": priorAC.calc, "system.attributes.ac.flat": priorAC.flat,
+            "system.attributes.ac.override": priorAC.override,
             "system.attributes.hp.value": priorHP
           }).catch(() => {});
           await fighter.update({ "system.attributes.inspiration": priorInspiration })
@@ -460,8 +459,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces);
         };
         const priorAC = {
-          calc: foe.system._source.attributes.ac.calc ?? "default",
-          flat: foe.system._source.attributes.ac.flat ?? null
+          override: foe.system._source.attributes.ac.override ?? null
         };
         const priorHP = foe.system.attributes.hp.value;
         const priorInspiration = fighter.system.attributes.inspiration;
@@ -513,7 +511,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           }
 
           await foe.update({
-            "system.attributes.ac.calc": "flat", "system.attributes.ac.flat": 18,
+            "system.attributes.ac.override": 18,
             "system.attributes.hp.value": foe.system.attributes.hp.max
           });
 
@@ -537,7 +535,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const usageId = use?.message?.id ?? null;
           const rolls = await act.rollAttack({ advantage: false, disadvantage: false },
             { configure: false },
-            usageId ? { data: { "flags.dnd5e.originatingMessage": usageId } } : {});
+            usageId ? { data: { 'system.origin': usageId } } : {});
           attackMsg = rolls?.[0]?.parent ?? null;
 
           const fold = await until(() => attackMsg?.getFlag(MODULE_ID, "d20fold"), 8000);
@@ -691,7 +689,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               !!bar, bar ? "offered" : "NO DAMAGE OFFER after the composed hit");
           } else {
             const dmg = await until(() => game.messages.contents.findLast(m =>
-              (m.getFlag("dnd5e", "roll.type") === "damage")
+              (m.type === "damage")
               && (m.speaker?.actor === fighter.id)
               && (m.timestamp >= (attackMsg?.timestamp ?? 0))), 15_000);
             ok("⚠ RECEIPT 3: the damage re-drives itself on the composed hit",
@@ -709,7 +707,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           CONFIG.Dice.randomUniform = realPRNG;
           await game.settings.set(MODULE_ID, "holdTimer", priorTimer).catch(() => {});
           await foe.update({
-            "system.attributes.ac.calc": priorAC.calc, "system.attributes.ac.flat": priorAC.flat,
+            "system.attributes.ac.override": priorAC.override,
             "system.attributes.hp.value": priorHP
           }).catch(() => {});
           await fighter.update({ "system.attributes.inspiration": priorInspiration })
@@ -814,12 +812,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             for (const t of [placedA, placedB]) {
               const a = t.actor;
               if ( !priorAC.has(a.uuid) ) priorAC.set(a.uuid, {
-                calc: a.system._source.attributes.ac.calc ?? "default",
-                flat: a.system._source.attributes.ac.flat ?? null,
+                override: a.system._source.attributes.ac.override ?? null,
                 hp: a.system.attributes.hp.value
               });
               await a.update({
-                "system.attributes.ac.calc": "flat", "system.attributes.ac.flat": 30,
+                "system.attributes.ac.override": 30,
                 "system.attributes.hp.value": a.system.attributes.hp.max
               });
             }
@@ -837,7 +834,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const usageId = use?.message?.id ?? null;
             const rolls = await act.rollAttack({ advantage: false, disadvantage: false },
               { configure: false },
-              usageId ? { data: { "flags.dnd5e.originatingMessage": usageId } } : {});
+              usageId ? { data: { 'system.origin': usageId } } : {});
             const attackMsg = rolls?.[0]?.parent ?? null;
             const flag = await until(() => {
               const cur = attackMsg?.getFlag(MODULE_ID, "d20fold");
@@ -890,7 +887,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           for (const [uuid, prior] of priorAC) {
             const a = await fromUuid(uuid).catch(() => null);
             if (a) await a.update({
-              "system.attributes.ac.calc": prior.calc, "system.attributes.ac.flat": prior.flat,
+              "system.attributes.ac.override": prior.override,
               "system.attributes.hp.value": prior.hp
             }).catch(() => {});
           }
@@ -942,8 +939,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces);
         };
         const priorAC = {
-          calc: foe.system._source.attributes.ac.calc ?? "default",
-          flat: foe.system._source.attributes.ac.flat ?? null
+          override: foe.system._source.attributes.ac.override ?? null
         };
         const priorHP = foe.system.attributes.hp.value;
         const priorInspiration = fighter.system.attributes.inspiration;
@@ -976,7 +972,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const swing = async (ac, d20) => {
             await sweep();
             await foe.update({
-              "system.attributes.ac.calc": "flat", "system.attributes.ac.flat": ac,
+              "system.attributes.ac.override": ac,
               "system.attributes.hp.value": foe.system.attributes.hp.max
             });
             game.user.targets.forEach(x => { x.setTarget(false, { releaseOthers: true }); });
@@ -989,7 +985,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const usageId = use?.message?.id ?? null;
             const rolls = await act.rollAttack({ advantage: false, disadvantage: false },
               { configure: false },
-              usageId ? { data: { "flags.dnd5e.originatingMessage": usageId } } : {});
+              usageId ? { data: { 'system.origin': usageId } } : {});
             const msg = rolls?.[0]?.parent ?? null;
             await until(() => msg?.getFlag(MODULE_ID, "precision"), 8000);
             await until(() => windows(prior).length === 1, 8000);
@@ -1051,7 +1047,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           CONFIG.Dice.randomUniform = realPRNG;
           await game.settings.set(MODULE_ID, "holdTimer", priorTimer).catch(() => {});
           await foe.update({
-            "system.attributes.ac.calc": priorAC.calc, "system.attributes.ac.flat": priorAC.flat,
+            "system.attributes.ac.override": priorAC.override,
             "system.attributes.hp.value": priorHP
           }).catch(() => {});
           await fighter.update({ "system.attributes.inspiration": priorInspiration })
@@ -1100,8 +1096,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces);
         };
         const priorAC = {
-          calc: foe.system._source.attributes.ac.calc ?? "default",
-          flat: foe.system._source.attributes.ac.flat ?? null
+          override: foe.system._source.attributes.ac.override ?? null
         };
         const priorHP = foe.system.attributes.hp.value;
         const priorInspiration = fighter.system.attributes.inspiration;
@@ -1125,7 +1120,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             await sleep(500);
           }
           await foe.update({
-            "system.attributes.ac.calc": "flat", "system.attributes.ac.flat": 15,
+            "system.attributes.ac.override": 15,
             "system.attributes.hp.value": foe.system.attributes.hp.max
           });
           game.user.targets.forEach(x => { x.setTarget(false, { releaseOthers: true }); });
@@ -1143,7 +1138,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const usageId = use?.message?.id ?? null;
           const rolls = await act.rollAttack({ advantage: false, disadvantage: false },
             { configure: false },
-            usageId ? { data: { "flags.dnd5e.originatingMessage": usageId } } : {});
+            usageId ? { data: { 'system.origin': usageId } } : {});
           const attackMsg = rolls?.[0]?.parent ?? null;
           const win = await until(() => {
             const w = windows()[0];
@@ -1190,7 +1185,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           CONFIG.Dice.randomUniform = realPRNG;
           await game.settings.set(MODULE_ID, "holdTimer", priorTimer).catch(() => {});
           await foe.update({
-            "system.attributes.ac.calc": priorAC.calc, "system.attributes.ac.flat": priorAC.flat,
+            "system.attributes.ac.override": priorAC.override,
             "system.attributes.hp.value": priorHP
           }).catch(() => {});
           await fighter.update({ "system.attributes.inspiration": priorInspiration })

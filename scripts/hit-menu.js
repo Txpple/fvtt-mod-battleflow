@@ -4,7 +4,7 @@
  */
 import { MODULE_ID, TITLE, S, setting, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { verdictsOn } from "./decide/demand.js";
-import { lower, featureNamed, activityOfType, resolveUuid, resolveDie } from "./lookup.js";
+import { lower, featureNamed, activityOfType, profileEffects, resolveUuid, resolveDie } from "./lookup.js";
 import { hitMenuEntries } from "./settings.js";
 import { hitTargets, poolOf, spendSuperiorityDie, statSourceOf, withTargets } from "./shared.js";
 import { bfCard, hitMenuHTML, momentBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
@@ -115,10 +115,11 @@ function menuFor(attackMessage, activity) {
  * flag set is corrected on the wielder's own copy of the item — the actor's world data, never
  * the compendium — by the client that owns it, at ready and when the item lands.
  */
-function targetFacingEffects(row, item) {
+async function targetFacingEffects(row, item) {
   const out = [];
-  if ( row.save ) for ( const e of (activityOfType(item, "save")?.effects ?? []) ) if ( e.effect ) out.push(e.effect);
-  if ( row.effects ) for ( const e of (activityOfType(item, "damage")?.effects ?? []) ) if ( e.effect ) out.push(e.effect);
+  // 6.0: an activity's list holds PROFILES whose effects resolve asynchronously (lookup.js).
+  if ( row.save ) for ( const { effect } of await profileEffects(activityOfType(item, "save")?.effects) ) if ( effect ) out.push(effect);
+  if ( row.effects ) for ( const { effect } of await profileEffects(activityOfType(item, "damage")?.effects) ) if ( effect ) out.push(effect);
   if ( row.onFail ) { const e = item.effects.find(x => x.statuses?.has?.(row.onFail)); if ( e ) out.push(e); }
   return out;
 }
@@ -148,7 +149,7 @@ async function repairTransferEffects(actor) {
   for ( const row of Object.values(HIT_OPTIONS) ) {
     const item = featureNamed(actor, row.feature);
     if ( !item ) continue;
-    for ( const effect of targetFacingEffects(row, item) ) {
+    for ( const effect of await targetFacingEffects(row, item) ) {
       if ( !effect.transfer ) continue;
       try {
         await effect.update({ transfer: false });
@@ -241,7 +242,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
       config.rolls.push({
         // No `properties`: the die is the weapon's type but not its magic — it must not inherit
         // the flags that decide physical-resistance bypass (hit-riders' rule).
-        data: config.rolls[0]?.data ?? {},
+        data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}),
         parts: [pick.formula],
         options: { type: pick.type ?? null, types: pick.type ? [pick.type] : [] }
       });
@@ -305,7 +306,7 @@ async function runConsequences(damageMessage, hm) {
         // A linked effect the item has LOST (the transfer-flag story above, before the repair
         // ran) is pressed on the failure from the compendium's own copy — the same effect id
         // on the source item; the content is read, never typed.
-        const missing = (act.effects ?? []).filter(e => !e.effect && !e.onSave).map(e => e._id);
+        const missing = (await profileEffects(act.effects)).filter(({ profile, effect }) => !effect && !profile.onSave).map(({ profile }) => profile._id);
         const source = missing.length ? await compendiumCopyOf(item) : null;
         const pressUuids = missing.map(id => source?.effects?.get(id)?.uuid).filter(Boolean);
         if ( missing.length && !pressUuids.length ) notes.push(`${hm.feature}: its effect is missing from the sheet and its source could not be read — apply it by hand`);
@@ -345,7 +346,7 @@ async function settleHitEffects(message) {
     const attackMessage = game.messages.get(hm.attackId);
     const item = resolveUuid(hm.itemUuid);
     const die = item ? activityOfType(item, "damage") : null;
-    const effects = [...(die?.effects ?? [])].map(e => e.effect ?? item.effects.get(e._id)).filter(Boolean);
+    const effects = (await profileEffects(die?.effects)).map(({ effect }) => effect).filter(Boolean);
     const hits = attackMessage ? hitTargets(attackMessage) : [];
     if ( effects.length && hits.length ) await applyEffectsWithReceipt(message, effects, hits, { source: statSourceOf(message) });
   } catch(err) {

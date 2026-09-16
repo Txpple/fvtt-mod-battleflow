@@ -116,11 +116,11 @@ const out = await f.evaluate(async () => {
 
     const weapon = attacker.items.find(i => i.system.activities?.some?.(a => a.type === "attack"));
     const activity = () => attacker.items.get(weapon.id).system.activities.find(a => a.type === "attack");
-    const damageFor = usageId => game.messages.contents.find(m => m.getFlag("dnd5e", "roll.type") === "damage" && m.getFlag("dnd5e", "originatingMessage") === usageId);
+    const damageFor = usageId => game.messages.contents.find(m => m.type === "damage" && m._source.system?.origin === usageId);
     const attack = async () => {
       shielderObj.setTarget(true, { releaseOthers: true });
       const usage = await activity().use({ subsequentActions: false }, { configure: false }, {});
-      const rolls = await activity().rollAttack({ advantage: true }, { configure: false }, { data: { "flags.dnd5e.originatingMessage": usage?.message?.id } });
+      const rolls = await activity().rollAttack({ advantage: true }, { configure: false }, { data: { 'system.origin': usage?.message?.id } });
       const t = rolls?.[0];
       return { usageId: usage?.message?.id, msg: t?.parent, total: t?.total, crit: t?.isCritical, fumble: t?.isFumble };
     };

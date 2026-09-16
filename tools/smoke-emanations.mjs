@@ -166,7 +166,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1c. it is a TEMPLATE (the ring the table sees) centred on the token, the class\'s 10 feet plus half the token (@scale.paladin.aura — no number in the module)', !!palTemplate && (palTemplate.distance === 12.5) && (palTemplate.x === palTok.x + grid / 2) && (palTemplate.y === palTok.y + grid / 2) && !palTemplate.getFlag('dnd5e', 'origin'), `template=${palTemplate?.id} distance=${palTemplate?.distance} at=(${palTemplate?.x},${palTemplate?.y}) region shape=${region?.shapes?.[0]?.type}`);
       const beh = region?.behaviors?.find(b => b.type === TYPE);
       const change = beh?.system?.effect?.changes?.[0];
-      ok('1d. the behaviour carries the pack\'s effect with the PALADIN\'s Charisma resolved in', !!beh && (change?.key === 'system.bonuses.abilities.save') && (String(change?.value) === String(chaMod)), `changes=${JSON.stringify(beh?.system?.effect?.changes)}`);
+      ok('1d. the behaviour carries the pack\'s effect with the PALADIN\'s Charisma resolved in', !!beh && (change?.key === 'system.rolls.ability.save.bonus') && (String(change?.value) === String(chaMod)), `changes=${JSON.stringify(beh?.system?.effect?.changes)}`);
       await sleep(1500);   // let a second sweep, if one was queued, settle before counting
       const featureRegions = scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature' && r.getFlag(MOD, 'emanation')?.tokenId === palTok.id);
       ok('1e. all three auras stand (Protection, Courage, Warding) — EXACTLY one region each', (featureRegions.length === 3) && ['Aura of Protection', 'Aura of Courage', 'Aura of Warding'].every(k => featureRegions.filter(r => r.getFlag(MOD, 'emanation').key === k).length === 1), featureRegions.map(r => r.name).join(' | '));
@@ -288,7 +288,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const card = await waitFor(() => triggerCards().find(m => m.getFlag(MOD, 'emanationTrigger')?.cause === 'enter' && m.getFlag(MOD, 'emanationTrigger')?.targetUuid === vicActor.uuid) ?? null, 8000);
       const flag = card?.getFlag(MOD, 'saves');
       ok('7b. entering raises a save demand card for the Victim alone — Wisdom, the spell\'s DC, half on a success', !!card && (flag?.abilities?.[0] === 'wis') && (flag?.dc === sgAct.save.dc.value) && (flag?.targets?.length === 1) && (flag.targets[0].uuid === vicActor.uuid) && (flag?.damageOnSave === 'half'), `flag=${JSON.stringify(flag && { abilities: flag.abilities, dc: flag.dc, targets: flag.targets.map(t => t.name), effectsHandled: flag.effectsHandled, scaling: flag.scaling })}`);
-      const dmg = await waitFor(() => game.messages.find(m => (m.timestamp >= suiteStart) && (m.getFlag('dnd5e', 'originatingMessage') === card?.id) && (m.getFlag('dnd5e', 'roll.type') === 'damage')) ?? null, 8000);
+      const dmg = await waitFor(() => game.messages.find(m => (m.timestamp >= suiteStart) && (m._source.system?.origin === card?.id) && (m.type === 'damage')) ?? null, 8000);
       ok('7c. the spell\'s damage rolled against the demand (3d8 at 3rd level — the card\'s own chain)', !!dmg && /3d8/.test(dmg.rolls?.[0]?.formula ?? ''), `formula=${dmg?.rolls?.[0]?.formula}`);
       // The TYPE: the pack's part offers necrotic OR radiant; the alignment decides the default
       // (the built Cleric has none → radiant), and the card carries the choice.
@@ -355,7 +355,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await combat.nextTurn();     // the Victim's turn ENDS inside
       const endCard = await waitFor(() => triggerCards().find(m => m.getFlag(MOD, 'emanationTrigger')?.cause === 'turnEnd') ?? null, 8000);
       ok('7e. ending its turn inside raises a save demand (tokenTurnEnd on the GM)', !!endCard, `cards=${triggerCards().length} (was ${n2})`);
-      const endDmg = await waitFor(() => game.messages.find(m => (m.timestamp >= suiteStart) && (m.getFlag('dnd5e', 'originatingMessage') === endCard?.id) && (m.getFlag('dnd5e', 'roll.type') === 'damage')) ?? null, 8000);
+      const endDmg = await waitFor(() => game.messages.find(m => (m.timestamp >= suiteStart) && (m._source.system?.origin === endCard?.id) && (m.type === 'damage')) ?? null, 8000);
       ok('7e2. …and its damage wears the chosen type, necrotic', endDmg?.rolls?.[0]?.options?.type === 'necrotic', `type=${endDmg?.rolls?.[0]?.options?.type} chosen=${endDmg?.getFlag(MOD, 'emanationType')?.chosen}`);
       await closeDialogs();
     }
@@ -519,7 +519,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await rgrTok.update({ x: 1300, y: 300 }, mv());
       const { region } = await castSecond("Crusader's Mantle");
       const fx = await waitFor(() => memberFx(ranger, region?.id)[0] ?? null, 6000);
-      ok('13a. Crusader\'s Mantle cast: the Ranger inside wears the pack\'s effect — +1d4[radiant] to weapon damage, the platform\'s own change', !!fx && fx.changes.some(c => (c.key === 'system.bonuses.mwak.damage') && /1d4/.test(String(c.value))), `fx=${fx?.name} changes=${JSON.stringify(fx?.changes)}`);
+      ok('13a. Crusader\'s Mantle cast: the Ranger inside wears the pack\'s effect — +1d4[radiant] to weapon damage, the platform\'s own change', !!fx && fx.changes.some(c => (c.key === 'system.rolls.damage.mwak.bonus') && /1d4/.test(String(c.value))), `fx=${fx?.name} changes=${JSON.stringify(fx?.changes)}`);
       await rgrTok.update(home[rgrTok.id], mv());
       const lifted = await waitFor(() => memberFx(ranger, region?.id).length === 0 ? true : null, 6000);
       ok('13b. walking out lifts it', !!lifted, '');

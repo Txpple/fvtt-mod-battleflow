@@ -216,10 +216,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     log.push(`grid: ${gridFeet} ${scene.grid.units} per ${squarePx}px square`);
 
     priorActor[victim.id] = {
-      'system.attributes.ac.calc': victim.system._source.attributes.ac.calc,
-      'system.attributes.ac.flat': victim.system._source.attributes.ac.flat
+      'system.attributes.ac.override': victim.system._source.attributes.ac.override ?? null
     };
-    await victim.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+    await victim.update({ 'system.attributes.ac.override': 1 });
     const healFull = async () => {
       await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max, 'system.attributes.hp.temp': 0 });
       await pc.update({ 'system.attributes.hp.value': pc.system.attributes.hp.max });
@@ -237,8 +236,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return test();
     };
     const waitDamage = async (originId, { flag = 'receipt', timeout = 10_000 } = {}) => waitFor(() =>
-      game.messages.contents.find(x => (x.getFlag('dnd5e', 'roll.type') === 'damage')
-        && (x.getFlag('dnd5e', 'originatingMessage') === originId)
+      game.messages.contents.find(x => (x.type === 'damage')
+        && (x._source.system?.origin === originId)
         && (!flag || x.getFlag(MOD, flag))), timeout);
     const chipOn = (actor, key) => actor.effects.find(e => e.getFlag(MOD, 'mastery') === key);
     const target = token => { token.setTarget(true, { releaseOthers: true }); };
@@ -252,9 +251,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const results = await pcAttack().use({ subsequentActions: false }, { configure: false }, {});
       const usageId = results?.message?.id ?? null;
       const rolls = await pcAttack().rollAttack({ advantage, disadvantage: false }, { configure: false },
-        usageId ? { data: { 'flags.dnd5e.originatingMessage': usageId } } : {});
+        usageId ? { data: { 'system.origin': usageId } } : {});
       const attackMsg = rolls?.[0]?.parent ?? null;
-      const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+      const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
       await waitDamage(originId);
       const bearer = (key === 'cleave') ? pc : victim;
       const chip = rolls?.[0]?.isFumble ? null
@@ -303,14 +302,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const results = await act.use({ subsequentActions: false }, { configure: false }, {});
       const usageId = results?.message?.id ?? null;
       const before = game.messages.size;
-      if (flat) void act.rollAttack({}, {}, usageId ? { data: { 'flags.dnd5e.originatingMessage': usageId } } : {});
+      if (flat) void act.rollAttack({}, {}, usageId ? { data: { 'system.origin': usageId } } : {});
       else void act.rollAttack({ event: await buttonEvent(usageId) }, {}, {});
       const { dialog, system } = await findGate();
       return { dialog, system, usageId, messagesBefore: before };
     };
     const defaultButton = dlg => dlg?.element?.querySelector('button[autofocus]')?.dataset?.action ?? null;
     /** Is the re-issued attack LINKED to its usage card — by flag, and in the system's own registry? */
-    const linked = (msg, usageId) => (msg?.getFlag('dnd5e', 'originatingMessage') === usageId)
+    const linked = (msg, usageId) => (msg?._source.system?.origin === usageId)
       && (game.messages.get(usageId)?.getAssociatedRolls?.('attack') ?? []).some(m => m.id === msg?.id);
     /** The gate's section, as the table reads it (the dialog's whole text where the section is absent). */
     const popupText = dlg => ((dlg?.element?.querySelector('[data-bf-reminder]') ?? dlg?.element?.querySelector('.window-content'))?.textContent ?? '')
@@ -321,13 +320,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       btn?.click();
       return !!btn;
     };
-    const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag('dnd5e', 'roll.type') === 'attack')).pop() ?? null;
+    const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.type === 'attack')).pop() ?? null;
     const waitAttackAfter = async id => waitFor(() => { const m = lastAttack(); return (m && (m.id !== id)) ? m : null; }, 8000);
     /** Let a re-issued roll's whole chain land — damage, receipt AND the mastery payout that
      * follows the receipt — before the next section clears chips; a payout landing after a
      * clear is a stale chip in the next section's popup (seen on the first run). */
     const settle = async msg => {
-      const originId = msg?.getFlag('dnd5e', 'originatingMessage') ?? msg?.id;
+      const originId = msg?._source.system?.origin ?? msg?.id;
       const dmg = await waitDamage(originId, { flag: 'receipt', timeout: 8000 });
       if (dmg) await waitFor(() => game.messages.get(dmg.id)?.getFlag(MOD, 'effectReceipt'), 5000);
       await sleep(600);
@@ -379,7 +378,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         pressed && !!roll && (roll.options?.advantageMode === 1) && /2d20kh|2d20adv/i.test(roll.formula ?? ''),
         `pressed=${pressed} mode=${roll?.options?.advantageMode} formula=${roll?.formula}`);
       ok('1c2. the re-issued attack is LINKED to its usage card — the flag, and the system\'s own registry (the orphan finding)',
-        linked(msg, usageId), `originating=${msg?.getFlag('dnd5e', 'originatingMessage')} usage=${usageId}`);
+        linked(msg, usageId), `originating=${msg?._source.system?.origin} usage=${usageId}`);
       const rem = msg?.getFlag(MOD, 'reminder');
       ok('1d. the attack message carries the reminder record: the source, net advantage, mode advantage, honoured, stamped',
         !!rem && (rem.sources?.[0]?.kind === 'vex') && (rem.net === 'advantage') && (rem.mode === 'advantage')
@@ -404,7 +403,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await press(d2, 'advantage');
         const m2 = await waitAttackAfter(before2);
         ok('1h. …and its re-issue is linked to the card as well', linked(m2, u2),
-          `originating=${m2?.getFlag('dnd5e', 'originatingMessage')} usage=${u2}`);
+          `originating=${m2?._source.system?.origin} usage=${u2}`);
         await settle(m2);
       }
     }

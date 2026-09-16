@@ -124,6 +124,18 @@ export function targetsOf(msg) {
 }
 
 /**
+ * The same off a usage's pre-create DATA (`messageConfig.data` at `dnd5e.preUseActivity`,
+ * flattened or expanded) — or NULL when the data names no snapshot at all. The distinction is
+ * the volley's and the damage cast's: "nobody was aimed at" (an empty list) is a claim to make,
+ * "the platform has not written the snapshot yet" (null) means read the client's live targets.
+ * @returns {Target[]|null}
+ */
+export function targetsInData(data) {
+  const raw = data?.system?.targets ?? data?.[TARGETS_KEY];
+  return Array.isArray(raw) ? normaliseTargets(raw) : null;
+}
+
+/**
  * The platform's own descriptor for one creature (`TargetsField.getDescriptors`, 6.0) — what the
  * module writes when IT names a target (the potion that aims at its drinker). The name is the
  * TOKEN's, the identity the actor's, the AC nulled under total cover exactly as the platform nulls it.
@@ -201,6 +213,27 @@ export const itemNameOf = msg => itemRefOf(msg)?.name ?? null;
 /** The ability a save or check was rolled with, or null. */
 export const abilityOf = msg => msg?.system?.ability ?? null;
 
+/**
+ * The weapon mastery an attack was rolled with (5.x `roll.mastery`), or null. The platform
+ * writes it only when the wielder genuinely has that mastery with that weapon — eligibility,
+ * identity and the which-mastery choice are all pre-solved upstream (mastery.js's customer).
+ */
+export const masteryOf = msg => msg?.system?.mastery ?? null;
+
+/**
+ * How a damage roll treats a target that SAVED (5.x `roll.damageOnSave`): `half` | `none` |
+ * `full`, or null when the card carries none — the demand's own record then decides
+ * (saves/consequences.js's customer).
+ */
+export const onSaveOf = msg => msg?.system?.onSave ?? null;
+
+/**
+ * Was this save turned into a success after the fact — legendary resistance (5.x
+ * `roll.forceSuccess`, written as an UPDATE on the save message once its failure landed)?
+ * The saves machine watches for the flip and overturns the verdict (saves/verdict.js).
+ */
+export const resistedOf = msg => msg?.system?.resisted === true;
+
 /** The level a spell was cast at, off its usage card (5.x `spellLevel`), or null when it carries none. */
 export function castLevelOn(msg) {
   const level = msg?.system?.level;
@@ -212,3 +245,24 @@ export const scalingOf = msg => Number(msg?.system?.scaling) || 0;
 
 /** The id of the concentration effect a usage card started, or null. */
 export const concentrationIdOf = msg => msg?.system?.concentration || null;
+
+/* ---------------------------------------------------------------------------------------------
+ * THE PLATFORM'S PROMPTS — a `prompt` card is a whispered request with buttons as data
+ * (`system.buttons[{type}]`), no content to match on. Read by TYPE.
+ * ------------------------------------------------------------------------------------------- */
+
+/** The button kinds the platform's concentration prompts carry: "roll it" on damage, "end it" when dead or incapacitated. */
+const CONCENTRATION_PROMPT_BUTTONS = new Set(["concentration", "endConcentration"]);
+
+/**
+ * Is this the platform's own concentration prompt — `challengeConcentration`'s whispered
+ * roll request, or `promptConcentrationEnd`'s at 0 HP / incapacitated? Both are
+ * `type: "prompt"` with a button of that kind; concentration.js vetoes them while its machine
+ * runs (ASSESSMENT §5 ruling 2: the platform's prompt is a reminder, Battle Flow's machine is a
+ * resolution).
+ */
+export function isConcentrationPrompt(msg) {
+  if ( !isCard(msg, CARD.prompt) ) return false;
+  const buttons = msg?.system?.buttons;
+  return Array.isArray(buttons) && buttons.some(b => CONCENTRATION_PROMPT_BUTTONS.has(b?.type));
+}

@@ -21,12 +21,13 @@ import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { registerOfferPart } from "./auto-damage.js";
 import { messageActivity } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
+import { CARD, isCard, masteryOf, targetsOf } from "./decide/card.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1.9B/C — weapon mastery riders (PLAN.md sections B and C).
  *
- * Detection is one flag read: the system stamps the mastery used onto
- * `flags.dnd5e.roll.mastery` of the attack message (attack.mjs:167), and only when the
+ * Detection is one read: the system stamps the mastery used onto the attack message
+ * (`system.mastery` since dnd5e 6.0 — decide/card.js `masteryOf`), and only when the
  * wielder genuinely has that mastery with that weapon — eligibility, identity and the
  * which-mastery choice are all pre-solved upstream. Masteries are PC-only in data (the
  * trait lives on character actors alone), so the ask always has a natural owner: the
@@ -108,7 +109,7 @@ function dealtFor(damageMessage, uuid) {
 /** Route a hit's mastery to its payout or its ask. Runs on the elect, after application. */
 export async function resolveHitMastery(damageMessage, attackMessage, hits) {
   try {
-    const key = attackMessage.getFlag("dnd5e", "roll.mastery");
+    const key = masteryOf(attackMessage);
     if ( !key ) return;
     const ctx = masteryContext(attackMessage);
     if ( !ctx ) return;
@@ -188,8 +189,8 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits) {
 
 Hooks.on("createChatMessage", message => {
   if ( !setting(S.masteryRiders) ) return;
-  if ( message.getFlag("dnd5e", "roll.type") !== "attack" ) return;
-  if ( message.getFlag("dnd5e", "roll.mastery") !== "graze" ) return;
+  if ( !isCard(message, CARD.attack) ) return;
+  if ( masteryOf(message) !== "graze" ) return;
   if ( !drivesMomentFor(masteryContext(message)?.attacker?.uuid ?? null) ) return;
   void resolveMissMastery(message);
 });
@@ -207,7 +208,7 @@ async function resolveMissMastery(attackMessage) {
 
     const hitSet = new Set(hitTargets(attackMessage).map(t => t.uuid));
     const missed = [];
-    for ( const t of (attackMessage.getFlag("dnd5e", "targets") ?? []) ) {
+    for ( const t of targetsOf(attackMessage) ) {
       if ( hitSet.has(t.uuid) ) continue;
       const actor = await fromUuid(t.uuid);
       if ( (actor instanceof Actor) && ((actor.system.attributes?.hp?.value ?? 0) > 0) )

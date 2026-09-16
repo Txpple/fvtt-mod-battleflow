@@ -160,7 +160,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         img: 'icons/svg/angel.svg',
         description: '<p>Adds 1d4 to attack rolls and saving throws (BF test fixture).</p>',
         duration: { seconds: 60 },
-        changes: [{ key: 'system.bonuses.abilities.save', mode: 2, value: '1d4' }]
+        changes: [{ key: 'system.rolls.ability.save.bonus', mode: 2, value: '1d4' }]
       }]
     }]);
     created.items.push({ actorId: npc.id, id: blessItem.id });
@@ -218,7 +218,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return fn();
     };
     const usageCards = msgs => msgs.filter(m =>
-      (m.type === 'usage') || (m.getFlag('dnd5e', 'messageType') === 'usage'));
+      (m.type === 'usage'));
 
     // The watermark, the usage result and its readout, out here rather than in §1: every
     // section below re-snaps and re-reads them, so a block-scoped `let` in the first one
@@ -309,10 +309,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       use = await activityOf(cureItem, 'heal').use({ subsequentActions: false }, { configure: false }, {});
       if (use === undefined) return { fatal: 'the Cure fixture cast was refused' };
       await activityOf(cureItem, 'heal').rollDamage({}, { configure: false },
-        use?.message?.id ? { data: { 'flags.dnd5e.originatingMessage': use.message.id } } : {});
+        use?.message?.id ? { data: { 'system.origin': use.message.id } } : {});
       await until(() => fresh(before).some(m => m.getFlag(MOD, 'receipt')));
       msgs = fresh(before);
-      const healRoll = msgs.find(m => m.getFlag('dnd5e', 'roll.type') === 'healing');
+      const healRoll = msgs.find(m => m.type === 'healing');
       const healReceipt = healRoll?.getFlag(MOD, 'receipt');
       const rolled = healRoll?.rolls?.reduce((n, r) => n + r.total, 0) ?? 0;
       const hpAfter = victim.system.attributes.hp.value;
@@ -417,10 +417,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       use = await activityOf(windItem, 'heal').use({ subsequentActions: false }, { configure: false }, {});
       if (use === undefined) return { fatal: 'the Second Wind fixture use was refused' };
       await activityOf(windItem, 'heal').rollDamage({}, { configure: false },
-        use?.message?.id ? { data: { 'flags.dnd5e.originatingMessage': use.message.id } } : {});
+        use?.message?.id ? { data: { 'system.origin': use.message.id } } : {});
       await until(() => fresh(before).some(m => m.getFlag(MOD, 'receipt')));
       msgs = fresh(before);
-      const windRoll = msgs.find(m => m.getFlag('dnd5e', 'roll.type') === 'healing');
+      const windRoll = msgs.find(m => m.type === 'healing');
       const windStamp = windRoll?.getFlag(MOD, 'healPending');
       const windReceipt = windRoll?.getFlag(MOD, 'receipt');
       ok('6a. a SELF heal aims at its caster — the wrong target is ignored, the stamp says self',
@@ -439,7 +439,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       use = await activityOf(windItem, 'heal').use({ subsequentActions: false }, { configure: false }, {});
       if (use === undefined) return { fatal: 'the bare Second Wind use was refused' };
       await activityOf(windItem, 'heal').rollDamage({}, { configure: false },
-        use?.message?.id ? { data: { 'flags.dnd5e.originatingMessage': use.message.id } } : {});
+        use?.message?.id ? { data: { 'system.origin': use.message.id } } : {});
       await until(() => fresh(before).some(m => m.getFlag(MOD, 'receipt')));
       ok('6b. a SELF heal needs no target at all — a bare cast lands on the caster',
         npc.system.attributes.hp.value === Math.min(npcMax, npcBefore2 + 7),
@@ -467,7 +467,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           _id: FAV, name: 'BF Favored', transfer: false, disabled: false,
           img: 'icons/svg/sun.svg', duration: { seconds: 60 },
           description: '<p>+1d4 melee damage (BF test fixture).</p>',
-          changes: [{ key: 'system.bonuses.mwak.damage', mode: 2, value: '1d4' }]
+          changes: [{ key: 'system.rolls.damage.mwak.bonus', mode: 2, value: '1d4' }]
         }]
       }]);
       created.items.push({ actorId: npc.id, id: favorItem.id });

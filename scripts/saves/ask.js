@@ -16,6 +16,7 @@ import { saveGate, saveSources } from "../decide/reminders.js";
 import { conditionEntries, reminderEntries } from "../settings.js";
 import { foldSaveAnswer, foldSaveAutoFail } from "./verdict.js";
 import { SURFACES } from "../surfaces.js";
+import { originData } from "../decide/card.js";
 
 /* --- the roll: whoever owns the decision presses it ----------------------------------------- */
 
@@ -24,10 +25,12 @@ const saveRollsInFlight = new Set();
 
 /** The message data every answer to a demand carries — chained to the card, and the exact channel. */
 function saveAnswerData(card, uuid, timedOut) {
-  return { data: { flags: {
+  return { data: {
     // Chained to the demand card so the system's registry ties the whole moment together — a
-    // programmatic roll must pass this explicitly (no DOM click to inherit it from).
-    dnd5e: { originatingMessage: card.id },
+    // programmatic roll must pass this explicitly (no DOM click to inherit it from), and under
+    // the key the registry indexes (decide/card.js ORIGIN_KEY — `system.origin` since 6.0).
+    ...originData(card.id),
+    flags: {
     // The exact answer channel: WHICH card, WHICH target. Immune to the getSpeaker
     // oldest-token trap by construction — the fold never has to resolve this roll's actor.
     [MODULE_ID]: { respondsTo: card.id, saveFor: uuid, ...(timedOut ? { timedOut: true } : {}) }

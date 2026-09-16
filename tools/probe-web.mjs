@@ -25,7 +25,7 @@ const out = await f.evaluate(async () => {
   }
   const cards = game.messages.contents.filter(m => m.getFlag(MOD, "saves") && /web/i.test(m.getFlag(MOD, "saves")?.item?.name ?? "")).slice(-2);
   info.cards = cards.map(m => ({ id: m.id, saves: m.getFlag(MOD, "saves"), effectReceipt: m.getFlag(MOD, "effectReceipt") ?? null,
-    itemUuid: m.getFlag("dnd5e", "item")?.uuid ?? null, activityUuid: m.getFlag("dnd5e", "activity")?.uuid ?? null }));
+    itemUuid: m.system?.item?.uuid ?? null, activityUuid: m.system?.activity?.uuid ?? null }));
   const dummy = game.actors.getName("Practice Dummy");
   info.dummyEffects = dummy?.effects.map(e => ({ name: e.name, statuses: [...e.statuses], origin: e.origin })) ?? null;
   return info;

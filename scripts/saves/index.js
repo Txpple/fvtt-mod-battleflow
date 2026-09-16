@@ -41,7 +41,7 @@
  * The buzzer ROLLS (a demanded save is mandatory — the concentration timer's rule, not the
  * hold's): at the deadline the elect rolls every still-unanswered target straight,
  * data-driven. Legendary resistance is the one late answer: resistSave flips
- * `flags.dnd5e.roll.forceSuccess` onto the save message as an UPDATE after the failure
+ * `system.resisted` onto the save message as an UPDATE after the failure
  * landed, so the elect watches for it and OVERTURNS the verdict — un-applying what the
  * failure applied (receipt-exact) and re-applying what a success grants. That closes the
  * corner Phase 2.5 accepted.

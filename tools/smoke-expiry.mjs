@@ -190,10 +190,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const { doc: pcTokenDoc, token: pcToken } = await placeToken(pc, 1500, 1400);
 
     priorActor[victim.id] = {
-      'system.attributes.ac.calc': victim.system._source.attributes.ac.calc,
-      'system.attributes.ac.flat': victim.system._source.attributes.ac.flat
+      'system.attributes.ac.override': victim.system._source.attributes.ac.override ?? null
     };
-    await victim.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+    await victim.update({ 'system.attributes.ac.override': 1 });
     const healFull = async () => {
       await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max, 'system.attributes.hp.temp': 0 });
       await pc.update({ 'system.attributes.hp.value': pc.system.attributes.hp.max });
@@ -209,7 +208,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const rolls = await activity.rollAttack(
         { advantage, disadvantage: false },
         { configure: false },
-        usageId ? { data: { 'flags.dnd5e.originatingMessage': usageId } } : {});
+        usageId ? { data: { 'system.origin': usageId } } : {});
       return { usageId, attackMsg: rolls?.[0]?.parent ?? null, roll: rolls?.[0] ?? null };
     };
     const pcAttack = () => pc.items.get(blade.id).system.activities.find(a => a.type === 'attack');
@@ -225,8 +224,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return test();
     };
     const waitDamage = async (originId, { flag = 'receipt', timeout = 10_000 } = {}) => waitFor(() =>
-      game.messages.contents.find(x => (x.getFlag('dnd5e', 'roll.type') === 'damage')
-        && (x.getFlag('dnd5e', 'originatingMessage') === originId)
+      game.messages.contents.find(x => (x.type === 'damage')
+        && (x._source.system?.origin === originId)
         && (!flag || x.getFlag(MOD, flag))), timeout);
     const chipOn = (actor, key) => actor.effects.find(e => e.getFlag(MOD, 'mastery') === key);
     // ⚠ `duration` is the PREPARED clock — out of combat the platform reframes rounds as
@@ -256,7 +255,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await setMastery(key);
         const before = new Set([victim, pc].flatMap(a => a.effects.map(e => e.id)));
         const { attackMsg, roll } = await attack(pcAttack(), victimToken, { advantage });
-        const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+        const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
         await waitDamage(originId);
         const bearer = (key === 'cleave') ? pc : victim;
         const fresh = () => bearer.effects.find(e => (e.getFlag(MOD, 'mastery') === key) && !before.has(e.id));
@@ -336,11 +335,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (gate || system) { try { await app.close(); } catch { /* gone */ } }
       }
     };
-    const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag('dnd5e', 'roll.type') === 'attack')).pop() ?? null;
+    const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.type === 'attack')).pop() ?? null;
     const waitAttackAfter = async id => waitFor(() => { const m = lastAttack(); return (m && (m.id !== id)) ? m : null; }, 8000);
     /** Let a re-issued roll's whole chain land — damage, receipt and the payout after it. */
     const settle = async msg => {
-      const originId = msg?.getFlag('dnd5e', 'originatingMessage') ?? msg?.id;
+      const originId = msg?._source.system?.origin ?? msg?.id;
       const dmg = await waitDamage(originId, { flag: 'receipt', timeout: 8000 });
       if (dmg) await waitFor(() => game.messages.get(dmg.id)?.getFlag(MOD, 'effectReceipt'), 5000);
       await sleep(600);
@@ -434,7 +433,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           !!rec && (rec.key === 'sap') && (rec.uuid === victim.uuid), JSON.stringify(spend));
         const gone = await waitFor(() => !victim.effects.get(sapId));
         ok('3b. the Sapped chip is gone', gone, `gone=${gone}`);
-        const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+        const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
         await waitDamage(originId, { flag: null, timeout: 6000 }); // let the chain settle
         await healFull();
       }
@@ -614,8 +613,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const vexGone = await waitFor(() => !victim.effects.get(vexId));
       ok('10c. pressed Advantage: the spend is honoured and the chip is gone; the re-issue is linked to its card',
         !!spend?.spent?.some(s => (s.id === vexId) && (s.honoured === true)) && vexGone
-          && (msg?.getFlag('dnd5e', 'originatingMessage') === usageId),
-        `${JSON.stringify(spend?.spent)} gone=${vexGone} linked=${msg?.getFlag('dnd5e', 'originatingMessage') === usageId}`);
+          && (msg?._source.system?.origin === usageId),
+        `${JSON.stringify(spend?.spent)} gone=${vexGone} linked=${msg?._source.system?.origin === usageId}`);
       await settle(msg);
 
       // (b) Sap on a bearer whose turn comes BEFORE the attacker's next: the victim to the top.
@@ -645,7 +644,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const spend2 = await waitFor(() => game.messages.get(m2?.id ?? '')?.getFlag(MOD, 'chipSpend'));
         ok('10f. pressed Disadvantage: the Sap spend is honoured against the net',
           !!spend2?.spent?.some(s => (s.id === sapId) && (s.honoured === true)), JSON.stringify(spend2?.spent));
-        const originId2 = m2?.getFlag('dnd5e', 'originatingMessage') ?? m2?.id;
+        const originId2 = m2?._source.system?.origin ?? m2?.id;
         await waitDamage(originId2, { flag: null, timeout: 6000 });
         await vc.update({ initiative: 20 }); // the fixture order back
         await sleep(300);

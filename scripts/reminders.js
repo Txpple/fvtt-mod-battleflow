@@ -64,6 +64,9 @@ import { REMINDER_FLAG, checkGate, checkSources, conditionSources, effectCheckSo
  * hook polish.js already rides for the same dialog.
  * ------------------------------------------------------------------------------------------- */
 
+/** Does the attack MODE make the roll ranged — a weapon thrown, or 6.0's own `ranged` mode (WeaponAttackMode gained it)? */
+const modeIsRanged = attackMode => (attackMode === "ranged") || String(attackMode ?? "").startsWith("thrown");
+
 /** The Distant Spell range a roll's originating card carries, in feet, or null (metamagic.js writes it). */
 function distantRangeOn(message) {
   try {
@@ -316,7 +319,7 @@ Hooks.on("dnd5e.postRollConfiguration", (rolls, config, dialog, message) => {
 function rangeFactsFor(activity, attackMode, rangeFeet = null) {
   const item = activity?.item;
   const thrown = String(attackMode ?? "").startsWith("thrown");
-  const ranged = thrown || (activity?.attack?.type?.value === "ranged");
+  const ranged = thrown || modeIsRanged(attackMode) || (activity?.attack?.type?.value === "ranged");
   if ( !ranged ) return { ranged: false };
   let value = null, long = null, units = null;
   if ( activity.range?.override || (item?.type !== "weapon") ) {
@@ -375,7 +378,7 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
   // The effect kind: which abilities to look for, the roll's own scope, and each sheet's facts.
   const effectsOn = enabled.has("effect") ? effectEntries().map(e => e.kind) : [];
   const scope = { classification: activity?.attack?.type?.classification ?? null,
-    type: String(attackMode ?? "").startsWith("thrown") ? "ranged" : (activity?.attack?.type?.value ?? null) };
+    type: modeIsRanged(attackMode) ? "ranged" : (activity?.attack?.type?.value ?? null) };
   // An effect's SOURCE: the module's own stamp on what it applied (effect-riders.js), else the
   // actor behind the effect's origin — the `except: "source"` facet reads it (Goaded, Distracted).
   const sourceOf = e => e.getFlag(MODULE_ID, "sourceUuid") ?? grantingActor(e)?.uuid ?? null;
@@ -514,7 +517,7 @@ function sneakFactsFor(attacker, activity, attackMode, net) {
   const dice = parseDice(resolved);
   if ( !dice ) return null;
   const finesse = !!item.system?.properties?.has?.("fin");
-  const ranged = String(attackMode ?? "").startsWith("thrown") || (activity?.attack?.type?.value === "ranged");
+  const ranged = modeIsRanged(attackMode) || (activity?.attack?.type?.value === "ranged");
   if ( !sneakWeaponQualifies({ finesse, ranged }) ) return null;
   const type = [...(item.system?.damage?.base?.types ?? [])][0] ?? null;   // "the same as the weapon's type"
   const used = turnChitStands(attacker, "sneak");

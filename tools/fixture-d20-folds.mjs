@@ -177,7 +177,7 @@ const out = await f.evaluate(async () => {
     const src = foe.system._source.attributes.ac;
     if ((src.calc === "flat") || (foe.system.attributes.hp.value < foe.system.attributes.hp.max)) {
       await foe.update({
-        "system.attributes.ac.calc": "default", "system.attributes.ac.flat": null,
+        "system.attributes.ac.override": null,
         "system.attributes.hp.value": foe.system.attributes.hp.max
       });
       log.push(`restored ${foeToken.name}: full HP, default AC`);

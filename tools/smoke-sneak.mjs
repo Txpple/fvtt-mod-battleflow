@@ -164,19 +164,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     rogueToken.control({ releaseOthers: true });
 
     priorActor[victim.id] = {
-      'system.attributes.ac.calc': victim.system._source.attributes.ac.calc,
-      'system.attributes.ac.flat': victim.system._source.attributes.ac.flat,
-      'system.abilities.dex.bonuses.save': victim.system._source.abilities?.dex?.bonuses?.save ?? '',
-      'system.abilities.con.bonuses.save': victim.system._source.abilities?.con?.bonuses?.save ?? '',
+      'system.attributes.ac.override': victim.system._source.attributes.ac.override ?? null,
+      'system.abilities.dex.save.roll.bonus': victim.system._source.abilities?.dex?.save?.roll?.bonus ?? '',
+      'system.abilities.con.save.roll.bonus': victim.system._source.abilities?.con?.save?.roll?.bonus ?? '',
       'system.attributes.hp.value': victim.system._source.attributes.hp.value,
       'system.attributes.hp.max': victim.system._source.attributes.hp.max
     };
     // ⚠ A DEEP POOL, on purpose: 7d6 kills an 11-HP goblin outright, and the saves machine
     // rightly refuses a demand on a dead target (the v1.19.0 gate) — so every Cunning Strike
     // effect would vanish for the truest of reasons. The victim must survive a rogue.
-    await victim.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1,
+    await victim.update({ 'system.attributes.ac.override': 1,
       'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400,
-      'system.abilities.dex.bonuses.save': '-30', 'system.abilities.con.bonuses.save': '-30' });
+      'system.abilities.dex.save.roll.bonus': '-30', 'system.abilities.con.save.roll.bonus': '-30' });
     const healFull = async () => {
       await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max, 'system.attributes.hp.temp': 0 });
       const down = victim.effects.filter(e => ['dead', 'unconscious'].some(s => e.statuses?.has?.(s)));
@@ -196,7 +195,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const face = (n, faces = 20) => { CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces); };
     const target = token => token.setTarget(true, { releaseOthers: true });
-    const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag('dnd5e', 'roll.type') === 'attack')).pop() ?? null;
+    const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.type === 'attack')).pop() ?? null;
     const waitAttackAfter = async id => waitFor(() => { const m = lastAttack(); return (m && (m.id !== id)) ? m : null; }, 8000);
     const rollDialog = () => [...foundry.applications.instances.values()]
       .find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element) ?? null;
@@ -204,8 +203,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       .find(el => (el?.innerHTML ?? '').includes('Damage — your roll')) ?? null;
     const saveDialogEl = () => [...foundry.applications.instances.values()]
       .filter(app => app.rendered && app.element?.querySelector?.('[data-bf-save-demand]')).map(app => app.element)[0] ?? null;
-    const damageFor = originId => game.messages.contents.find(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
-      && (m.getFlag('dnd5e', 'originatingMessage') === originId));
+    const damageFor = originId => game.messages.contents.find(m => (m.type === 'damage')
+      && (m._source.system?.origin === originId));
     /** Open the gate for a swing with `item`, the sheet/use shape (dialog allowed). */
     const openGate = async (item, { d20 = 19 } = {}) => {
       await healFull();
@@ -216,7 +215,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const usageId = results?.message?.id ?? null;
       const before = lastAttack()?.id ?? null;
       face(d20);
-      void act.rollAttack({}, {}, usageId ? { data: { 'flags.dnd5e.originatingMessage': usageId } } : {});
+      void act.rollAttack({}, {}, usageId ? { data: { 'system.origin': usageId } } : {});
       const dialog = await waitFor(rollDialog, 6000);
       // The section rides the render hook — wait for it rather than for the dialog (a bare dialog
       // is the §2 shape, so this wait may legitimately time out there).
@@ -238,7 +237,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ticked: !!box?.checked, sectionText: textOf(dialog?.element?.querySelector('[data-bf-reminder]')) };
       press(dialog, mode);
       const msg = await waitAttackAfter(before);
-      return { dialog, usageId, msg, seen, originId: msg?.getFlag('dnd5e', 'originatingMessage') ?? msg?.id };
+      return { dialog, usageId, msg, seen, originId: msg?._source.system?.origin ?? msg?.id };
     };
     const ensureVexed = async () => {
       // Vex the victim with the rapier (Vex is its 2024 mastery) — a programmatic hit, no dialog.
@@ -248,9 +247,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       target(victimToken);
       face(19);
       const results = await act.use({ subsequentActions: false }, { configure: false }, {});
-      const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'flags.dnd5e.originatingMessage': results.message.id } } : {});
+      const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
       const attackMsg = rolls?.[0]?.parent ?? null;
-      const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+      const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
       await waitFor(() => damageFor(originId)?.getFlag(MOD, 'receipt'), 10000);
       // ⚠ masteryRiders is OFF (no chips from the mastery machine); press Vexed by hand instead —
       // the gate reads the chip, not who wrote it.
@@ -292,7 +291,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // the offer opened (auto damage) — dismiss it to roll and let the chain land before §2
       const offer = await waitFor(offerEl, 6000);
       offer?.querySelector('button[data-action="roll"]')?.click();
-      await waitFor(() => damageFor(msg?.getFlag('dnd5e', 'originatingMessage') ?? msg?.id)?.getFlag(MOD, 'receipt'), 10000);
+      await waitFor(() => damageFor(msg?._source.system?.origin ?? msg?.id)?.getFlag(MOD, 'receipt'), 10000);
       await sleep(500);
     }
 
@@ -327,7 +326,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await ensureVexed();
       const { msg } = await armedSwing(rapier, { mode: 'advantage', tick: true });
       msg3 = msg;
-      originId3 = msg?.getFlag('dnd5e', 'originatingMessage') ?? msg?.id;
+      originId3 = msg?._source.system?.origin ?? msg?.id;
       const offer = await waitFor(offerEl, 6000);
       const menu = offer?.querySelector('[data-bf-cunning]');
       const rows = [...(menu?.querySelectorAll('[data-bf-cunning-row]') ?? [])].map(r => r.dataset.bfCunningRow);
@@ -409,7 +408,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
       await ensureVexed();
       const { msg } = await armedSwing(rapier, { mode: 'advantage', tick: true, d20: 20 });
-      const originId = msg?.getFlag('dnd5e', 'originatingMessage') ?? msg?.id;
+      const originId = msg?._source.system?.origin ?? msg?.id;
       ok('5. (setup) the forced 20 crit', msg?.rolls?.[0]?.isCritical === true, `crit=${msg?.rolls?.[0]?.isCritical}`);
       const offer = await waitFor(offerEl, 6000);
       offer?.querySelector('input[name="bf-cunning"][value="knockOut"]')?.click();
@@ -443,7 +442,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(500);
       await ensureVexed();
       const { msg: m1 } = await armedSwing(rapier, { mode: 'advantage', tick: true });
-      const o1 = m1?.getFlag('dnd5e', 'originatingMessage') ?? m1?.id;
+      const o1 = m1?._source.system?.origin ?? m1?.id;
       (await waitFor(offerEl, 6000))?.querySelector('button[data-action="roll"]')?.click();
       await waitFor(() => damageFor(o1)?.getFlag(MOD, 'receipt'), 12000);
       const chit = await waitFor(() => rogue.effects.find(e => e.getFlag(MOD, 'mastery') === 'sneak'), 6000);
@@ -454,7 +453,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const { msg: m2, seen: seen2 } = await armedSwing(rapier, { mode: 'advantage' });
       ok('6b. the second swing this turn shows the box greyed with the reason, and no tick',
         !!seen2.boxText && /used this turn/.test(seen2.boxText) && !seen2.hasTick, `text="${seen2.boxText.slice(0, 120)}" tick=${seen2.hasTick}`);
-      const o2 = m2?.getFlag('dnd5e', 'originatingMessage') ?? m2?.id;
+      const o2 = m2?._source.system?.origin ?? m2?.id;
       const dmg2 = await waitFor(() => { const d = damageFor(o2); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
       ok('6c. …not armed: auto damage rolls straight (no offer), and no sneak dice ride',
         (m2?.getFlag(MOD, 'sneak')?.armed === false) && !!dmg2 && !dmg2.getFlag(MOD, 'sneakDamage') && !offerEl(),
@@ -485,7 +484,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         created.items.push({ actorId: rogue.id, id: envenom.id });
         await ensureVexed();
         const { msg } = await armedSwing(rapier, { mode: 'advantage', tick: true });
-        const originId = msg?.getFlag('dnd5e', 'originatingMessage') ?? msg?.id;
+        const originId = msg?._source.system?.origin ?? msg?.id;
         const offer = await waitFor(offerEl, 6000);
         const label = textOf(offer?.querySelector('[data-bf-cunning-row="poison"]'));
         ok('7a. the menu shows Poison upgraded by Envenom Weapons', /Poison \(Envenom Weapons\)/.test(label), label.slice(0, 120));
@@ -537,7 +536,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await sleep(500);
         await ensureVexed();
         const { msg } = await armedSwing(rapier, { mode: 'advantage', tick: true });
-        const originId = msg?.getFlag('dnd5e', 'originatingMessage') ?? msg?.id;
+        const originId = msg?._source.system?.origin ?? msg?.id;
         (await waitFor(offerEl, 6000))?.querySelector('button[data-action="roll"]')?.click();
         const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
         const taken = dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid)?.taken ?? 0;
@@ -586,7 +585,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           !!spend?.spent?.some(s => (s.id === chip?.id) && (s.key === 'effect')) && gone && (rogue.system.attributes.movement.walk === walkBefore),
           `spend=${JSON.stringify(spend?.spent?.map(x => x.name))} gone=${gone} walk=${rogue.system.attributes.movement.walk}`);
         (await waitFor(offerEl, 6000))?.querySelector('button[data-action="roll"]')?.click();
-        await waitFor(() => damageFor(msg?.getFlag('dnd5e', 'originatingMessage') ?? msg?.id)?.getFlag(MOD, 'receipt'), 12000);
+        await waitFor(() => damageFor(msg?._source.system?.origin ?? msg?.id)?.getFlag(MOD, 'receipt'), 12000);
         await clearChips();
       }
     }

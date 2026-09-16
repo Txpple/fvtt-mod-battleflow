@@ -1,4 +1,4 @@
-# HANDOFF — the dnd5e 6.0 compatibility pass (phase 1 delivered 2026-09-15, late; phase 2 next — written for a fresh window)
+# HANDOFF — the dnd5e 6.0 compatibility pass (phases 1 and 2 delivered 2026-09-16, early; phase 3 next)
 
 > A commission file: written because there is one, retired when it is delivered (BACKLOG's rule —
 > no standing handoff). Every line below is the state at the moment of writing, measured.
@@ -6,13 +6,15 @@
 
 ## ⚠ Read this first: the next step
 
-Phase 2 of ASSESSMENT §4 (the readers, classes B–F, the battery's middle) starts **on the user's
-"go"** — not on this file. Before the first edit: `git log --oneline -3` (parallel sessions
-collide), `node ../fvtt-mcp-molten5e/scripts/local-foundry.mjs status` (the sandbox up, the
-world active), `deploy-house-module.mjs fvtt-mod-battleflow --local --check` (byte-identical),
-and `node tools/verify-settings.mjs` (CLEAN). Every phase-2 commit: the file swept through the
-seam, its suite's asserts rewritten to the 6.0 card in the same commit, deploy --local, the suite
-green, settings verified. Nothing is released until phase 5, and prod stays 5.3.3 / v1.42.0.
+Phase 3 of ASSESSMENT §4 (AREAS — class I: `saves/areas`, `geometry` on regions, `emanations`
+on the new placement hooks, with the §3.6 ruling applied) starts **on the user's "go"** — not on
+this file. Before the first edit: `git log --oneline -3` (parallel sessions collide),
+`node ../fvtt-mcp-molten5e/scripts/local-foundry.mjs status` (the sandbox up, the world active),
+`deploy-house-module.mjs fvtt-mod-battleflow --local --check` (byte-identical), and
+`node tools/verify-settings.mjs` (CLEAN). Same discipline: the file swept, its suite's asserts
+rewritten in the same commit, deploy --local, the suite green, settings verified. ⚠ If a suite
+reports an AC or a save that cannot be, run `node tools/scrub-fixture-residue.mjs` first (below).
+Nothing is released until phase 5, and prod stays 5.3.3 / v1.42.0.
 
 ## Where things stand
 
@@ -79,23 +81,56 @@ green, settings verified. Nothing is released until phase 5, and prod stays 5.3.
 - The headless client throws inside the token animation when a token update's result is sampled
   SYNCHRONOUSLY (`#createAnimationMovementPath`, `.last` of undefined); await the update.
 
-## Phase 2 — NEXT, on the user's go (ASSESSMENT §4.2)
+## Phase 2 — DELIVERED (ASSESSMENT §4.2), 2026-09-16 early
 
-Classes B–F swept file by file through the seam, the suites' asserts rewritten in the same
-commits. What is still on the old keys, by `grep -rn 'getFlag("dnd5e"\|flags\.dnd5e' scripts`
-(~70 sites): bash-offer, cast (⚠ `castChoice` runs at preCreate, SYNC — profiles have no `name`
-now; read the item's embedded effect by the profile's `_id`, `uuid` only for an external one),
-chip-spend, command, concentration (fix J: veto both native prompts by TYPE — ruling 2's
-rationale verbatim in the comment, DESIGN R1, the commit), d20-folds, damage-casts,
-damage-shields, emanations (the region flags — class I, phase 3), hew, mastery (`masteryOf`),
-metamagic, precision, resources, riposte, saves/* (`onSaveOf`, `resistedOf`; areas are phase 3),
-superiority-uses, topple, volleys (`targetsInData` at the pre-create snapshot), events/moments
-(comments only). Class G (`applicableEffects` → `await getApplicableEffects()`): cast, polish
-`castChoice`, saves/choices, saves/consequences, saves/demand, hit-menu. Class N: `deepClone` the
-riders' shared roll data; accept `ranged`; `bonuses.*` → `rolls.*`.
-The battery's middle is the proof: saves, volleys, maneuvers, folds, cast, riders, concentration,
-effects, expiry, reminders, sneak, clock, hit menu, shields, heat metal, superiority, metamagic,
-resources — `dist/battery/2026-09-15T18-09-57/` is the pre-pass baseline (23/27 failed).
+- **The readers, through the seam:** every `flags.dnd5e` read in `scripts/` is gone except the
+  REGION/TEMPLATE flags (class I, phase 3: `emanations.js`, `saves/areas.js`, `decide/geometry.js`)
+  and the flags on EFFECTS and ITEMS the platform still writes (`dependentOn`, an effect's `item`,
+  `consumed`). The seam gained `masteryOf`, `onSaveOf`, `resistedOf`, `targetsInData` (null when
+  the data names no snapshot — "aimed at nobody" and "not written yet" are different facts) and
+  `isConcentrationPrompt`; every driven roll writes `system.origin` (`originData`) — the two the
+  first grep missed were NESTED (`flags: { dnd5e: { originatingMessage } }` in saves/ask and the
+  fold's spend) and one was optional-chained (`message.flags?.dnd5e` in resources) — grep for
+  `originatingMessage`, `flags?.dnd5e` and `dnd5e: {` too, next time.
+- **Class G:** `lookup.js` `profileEffects` / `applicableProfiles` (the profile BESIDE its
+  effect, so `onSave` and `_id` stay readable) and `profileEffectSync` for polish's preCreate
+  `castChoice`. **Class N:** riders clone the shared roll data; `ranged` is a ranged mode
+  (reminders `modeIsRanged`); the emanation card labels `system.rolls.*` beside `bonuses.*`.
+- **Fix J:** concentration.js vetoes both native prompts by TYPE (`isConcentrationPrompt`), the
+  ruling's rationale verbatim in the comment. **Also found:** the private roll mode — dnd5e 6.0
+  hands `rollMode` straight to `ChatMessage.create` as `messageMode`, which knows only Foundry 14's
+  ids (`gm`, not the deprecated `gmroll` that `CONST.DICE_ROLL_MODES.PRIVATE` still returns) — so
+  the concentration roll had gone PUBLIC; `PRIVATE_ROLL_MODE = "gm"`.
+- **The suites (class O):** every `smoke-*` / `probe-*` reads the 6.0 card (`m.type`,
+  `_source.system?.origin`, `system.targets` mapped `actor → uuid`, `system.mastery`,
+  `system.onSave`, `system.resisted` for the LR flip); forces AC through `ac.override` (the 5.x
+  `calc: "flat"` pair still forces but its restore clears nothing — every restore leaked an
+  override into the next suite) and save outcomes through `abilities.<x>.save.roll.bonus` (same
+  story: the old key's `""` cleared nothing); effect change keys `system.rolls.*`; the
+  concentration dependent is a `flags.dnd5e.dependents` row (`addDependent` is gone); an applied
+  effect's `origin` is the ACTIVITY (the tray's 6.0 changes stamp it); a card's associated actor is
+  its TOKEN's actor first (an unlinked fixture speaks as its synthetic actor, under the token's
+  name); a concentration save inherits the sheet's own con-save mode.
+- **`tools/scrub-fixture-residue.mjs` (new):** clears the override and the bonus the old restores
+  left on every BF Test actor — seven fixtures carried residue after the first battery.
+- **Green:** verify (648 unit tests, every static check); on the sandbox the battery's middle
+  (23 steps) — **every suite passes** except: smoke-saves 105/107 (§1a3, §10b — the usage card's
+  button hide, class M, PHASE 4) and smoke-metamagic 82/90 (§9x/9y/9z/9b–9e, §18y — who stands
+  inside the Fireball's area, class I, PHASE 3). Runs: `dist/battery/2026-09-16T02-11-50` (the
+  first pass, 7 red), `…T02-46-44` (the re-run after the fixes and the scrub), `…T03-12-18`
+  (concentration §6). Settings CLEAN after every run. Not re-run this phase: smoke-battleflow,
+  smoke-hold (phase 1's), smoke-emanations, smoke-surfaces, smoke-nogm (phase 3's and the last).
+
+## Phase 3 — NEXT, on the user's go (ASSESSMENT §4.3)
+
+Class I: `saves/areas.js` walks `scene.templates` and matches `flags.dnd5e.origin` — regions now,
+`flags.dnd5e.activity` / `item` on the region, `region.tokens` for containment; `saves/demand.js`
+and `metamagic.js` hand `results.templates` (RegionDocuments) to `tokensInTemplates`;
+`decide/geometry.js` reads `flags.dnd5e.dimensions`; `emanations.js` adopts regions (the §3.6
+ruling: suppress the platform's auto-behaviour on adopted regions — `createActivityBehaviors:
+false` or a veto in `dnd5e.createMeasuredTemplate`). The proof: smoke-metamagic §9/§18,
+smoke-saves §8 (areas), smoke-emanations, smoke-surfaces. Then phase 4 (class M — the card
+buttons as data, the summaries) and phase 5 (docs, release with the new module.json).
 
 ## Hazards (still true)
 

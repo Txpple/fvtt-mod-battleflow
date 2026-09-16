@@ -13,6 +13,7 @@ import { RULE_TEXT } from "./decide/registry.js";
 import { modeAllows } from "./shared.js";
 import { popupKey, bfCard, momentBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
+import { CARD, activityUuidOf, isCard, originIdOf } from "./decide/card.js";
 import { livePopups, openMomentPopup, scheduleBarSync, shownMoments, acknowledgeMoment,
   momentAcknowledged } from "./ui.js";
 
@@ -117,14 +118,15 @@ function queueHewCheck(damageMessage, fn) {
  * the damage's originatingMessage is the USAGE card, not the attack roll. Null when this
  * damage cannot earn a Hew (no melee attack chain, no listed carrier, resolver off). */
 async function hewChainContext(damageMessage) {
-  const originId = damageMessage.getFlag("dnd5e", "originatingMessage");
+  const originId = originIdOf(damageMessage);
   const origin = originId ? game.messages.get(originId) : null;
   if ( !origin ) return null;
-  const attackMessage = (origin.getFlag("dnd5e", "roll.type") === "attack")
+  const attackMessage = isCard(origin, CARD.attack)
     ? origin
     : ((origin.getAssociatedRolls?.("attack") ?? []).at(-1) ?? null);
-  if ( !attackMessage || (attackMessage.getFlag("dnd5e", "roll.type") !== "attack") ) return null;
-  const activity = await fromUuid(attackMessage.getFlag("dnd5e", "activity")?.uuid ?? "").catch(() => null);
+  if ( !attackMessage || !isCard(attackMessage, CARD.attack) ) return null;
+  const activityUuid = activityUuidOf(attackMessage);
+  const activity = activityUuid ? await fromUuid(activityUuid).catch(() => null) : null;
   if ( activity?.attack?.type?.value !== "melee" ) return null;
   const attacker = attackMessage.getAssociatedActor?.();
   if ( !attacker || !modeAllows(attacker) ) return null;
@@ -150,7 +152,7 @@ async function maybeHewCritReminder(damageMessage) {
 
 Hooks.on("createChatMessage", message => {
   if ( !isActiveGM() ) return;
-  if ( message.getFlag("dnd5e", "roll.type") !== "damage" ) return;
+  if ( !isCard(message, CARD.damage) ) return;
   void queueHewCheck(message, () => maybeHewCritReminder(message));
 });
 

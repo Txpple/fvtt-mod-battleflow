@@ -16,6 +16,7 @@ import { hitOfferStep } from "./decide/sequence.js";
 import { hitTargets, modeAllows, resolveAttackMessage } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
+import { CARD, isCard } from "./decide/card.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
   armAskTimer, disarmAskTimer } from "./ui.js";
 
@@ -104,7 +105,7 @@ function offerClock() {
  * applied, the mastery flag or the message itself otherwise (the chokepoint calls
  * `sequenceBashOffer` only after its stages ran, so on that path existence is enough). */
 function damageLandedFor(attackMessage) {
-  return game.messages.contents.some(m => (m.getFlag("dnd5e", "roll.type") === "damage")
+  return game.messages.contents.some(m => isCard(m, CARD.damage)
     && (resolveAttackMessage(m)?.id === attackMessage.id));
 }
 

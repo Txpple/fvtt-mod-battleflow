@@ -718,6 +718,11 @@ async function endCastEmanations(effect) {
 /* --- the card (R5 / N3): an emanation says what it is when it appears ------------------------- */
 
 const KEY_LABELS = {
+  // dnd5e 6.0 moved the roll bonuses under `system.rolls.*` (migrated packs carry the new keys;
+  // the old ones are shimmed until 7.0) — both spellings label the same change.
+  "system.rolls.ability.save.bonus": v => `${Number(v) >= 0 ? "+" : ""}${v} to saving throws`,
+  "system.rolls.damage.mwak.bonus": v => `+${v} to melee weapon damage`,
+  "system.rolls.damage.rwak.bonus": v => `+${v} to ranged weapon damage`,
   "system.bonuses.abilities.save": v => `${Number(v) >= 0 ? "+" : ""}${v} to saving throws`,
   "system.bonuses.mwak.damage": v => `+${v} to melee weapon damage`,
   "system.bonuses.rwak.damage": v => `+${v} to ranged weapon damage`,

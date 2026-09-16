@@ -238,12 +238,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (!victimToken) return { fatal: 'victim token never reached the canvas' };
 
     priorActor[victim.id] = {
-      'system.attributes.ac.calc': victim.system._source.attributes.ac.calc,
-      'system.attributes.ac.flat': victim.system._source.attributes.ac.flat,
+      'system.attributes.ac.override': victim.system._source.attributes.ac.override ?? null,
       'system.traits.di.value': Array.from(victim.system._source.traits?.di?.value ?? []),
     };
     const acFlat = async n => victim.update({
-      'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': n });
+      'system.attributes.ac.override': n });
     const healFull = async () => victim.update({
       'system.attributes.hp.value': victim.system.attributes.hp.max,
       'system.attributes.hp.temp': 0 });
@@ -266,7 +265,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const rolls = await activity.rollAttack(
         { advantage, disadvantage },
         { configure: false },
-        (origin && usageId) ? { data: { 'flags.dnd5e.originatingMessage': usageId } } : {});
+        (origin && usageId) ? { data: { 'system.origin': usageId } } : {});
       const attackMsg = rolls?.[0]?.parent ?? null;
       return { usageId, attackMsg, roll: rolls?.[0] ?? null };
     };
@@ -275,8 +274,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const until = Date.now() + timeout;
       while (Date.now() < until) {
         const m = game.messages.contents.find(x =>
-          (x.getFlag('dnd5e', 'roll.type') === 'damage')
-          && (x.getFlag('dnd5e', 'originatingMessage') === originId)
+          (x.type === 'damage')
+          && (x._source.system?.origin === originId)
           && (!flag || x.getFlag(MOD, flag)));
         if (m) return m;
         await sleep(250);
@@ -317,14 +316,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await setMastery('vex');
       {
         const { attackMsg, roll } = await attack(pcAttack());
-        ok('1. a mastery PC attack stamps flags.dnd5e.roll.mastery',
-          attackMsg?.getFlag('dnd5e', 'roll.mastery') === 'vex',
-          `flag=${attackMsg?.getFlag('dnd5e', 'roll.mastery')} fumble=${roll?.isFumble}`);
+        ok('1. a mastery PC attack stamps system.mastery',
+          attackMsg?.system?.mastery === 'vex',
+          `flag=${attackMsg?.system?.mastery} fumble=${roll?.isFumble}`);
         // Wait for the RECEIPT, not merely the damage message: the receipt is stamped after
         // application finishes, so this is the pipeline-quiescence marker. Section 2 heals and
         // asserts HP-dependent payouts — an application still in flight from here would drain
         // the healed pool underneath it and the dead-skip would eat the payout.
-        await waitDamage(attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id, { flag: 'receipt' });
+        await waitDamage(attackMsg?._source.system?.origin ?? attackMsg?.id, { flag: 'receipt' });
         await sleep(600); // payout tail (the mastery stage runs after the receipt)
       }
       {
@@ -332,9 +331,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ?.system.activities.find(a => a.type === 'attack');
         const { attackMsg } = await attack(activity);
         ok('1b. a non-mastery (NPC) attack stamps nothing',
-          !attackMsg?.getFlag('dnd5e', 'roll.mastery'),
-          `flag=${attackMsg?.getFlag('dnd5e', 'roll.mastery')}`);
-        await waitDamage(attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id, { flag: 'receipt' });
+          !attackMsg?.system?.mastery,
+          `flag=${attackMsg?.system?.mastery}`);
+        await waitDamage(attackMsg?._source.system?.origin ?? attackMsg?.id, { flag: 'receipt' });
         await sleep(600);
       }
     }
@@ -355,7 +354,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // The chip proves the payout ran, so the receipt hunt starts AFTER it — waiting for
         // the damage message first flaked once when the chain ran slow and the 10s window
         // expired an instant before everything landed at once.
-        const dmg = await waitDamage(attackMsg.getFlag('dnd5e', 'originatingMessage'), { flag: 'effectReceipt' });
+        const dmg = await waitDamage(attackMsg._source.system?.origin, { flag: 'effectReceipt' });
         const receipt = dmg?.getFlag(MOD, 'effectReceipt');
         ok('2b. the Vexed chip joins the effect receipt',
           !!receipt?.targets?.some(t => (t.uuid === victim.uuid)
@@ -386,7 +385,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await victim.update({ 'system.traits.di.value': [...weaponTypes] });
           const hpBefore = victim.system.attributes.hp.value;
           const { attackMsg } = await attack(pcAttack());
-          const dmg = await waitDamage(attackMsg.getFlag('dnd5e', 'originatingMessage'), { flag: 'receipt' });
+          const dmg = await waitDamage(attackMsg._source.system?.origin, { flag: 'receipt' });
           const entry = dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid);
           const vexed = victim.effects.find(e => (e.getFlag(MOD, 'mastery') === 'vex') && !e.disabled);
           ok('3. immune target: pool full, took 0, and NO Vex (the damage gate)',
@@ -395,7 +394,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
           await setMastery('sap');
           const second = await attack(pcAttack());
-          await waitDamage(second.attackMsg.getFlag('dnd5e', 'originatingMessage'), { flag: 'receipt' });
+          await waitDamage(second.attackMsg._source.system?.origin, { flag: 'receipt' });
           const sapped = await waitFor(() => victim.effects.find(e => (e.getFlag(MOD, 'mastery') === 'sap') && !e.disabled));
           ok('3b. Sap lands on the same immune target (hit is enough — no damage gate)',
             !!sapped, `sapped=${!!sapped}`);
@@ -423,7 +422,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const hit = async () => {
           for ( let i = 0; i < 4; i++ ) {
             const r = await attack(pcAttack());
-            const dmg = await waitDamage(r.attackMsg?.getFlag('dnd5e', 'originatingMessage'),
+            const dmg = await waitDamage(r.attackMsg?._source.system?.origin,
               { flag: 'receipt' });
             if (dmg) return true;
             log.push(`§4: the swing missed — rolling again (${i + 1}/4)`);
@@ -457,7 +456,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         let attackMsg = null, m = null;
         for (let try5 = 0; (try5 < 4) && !m; try5++) {
           ({ attackMsg } = await attack(pcAttack()));
-          await waitDamage(attackMsg.getFlag('dnd5e', 'originatingMessage'), { flag: 'receipt' });
+          await waitDamage(attackMsg._source.system?.origin, { flag: 'receipt' });
           m = await waitFor(() => {
             const flag = game.messages.get(attackMsg.id)?.getFlag(MOD, 'mastery');
             return (flag?.status === 'pending') ? flag : null;
@@ -513,7 +512,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('holdTimer', 2);
       {
         const { attackMsg } = await attack(pcAttack());
-        await waitDamage(attackMsg.getFlag('dnd5e', 'originatingMessage'), { flag: 'receipt' });
+        await waitDamage(attackMsg._source.system?.origin, { flag: 'receipt' });
         const pending = await waitFor(() => {
           const flag = game.messages.get(attackMsg.id)?.getFlag(MOD, 'mastery');
           return (flag?.status === 'pending') ? flag : null;
@@ -549,7 +548,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (roll?.isFumble) {
           skip('topple: nat-1 fumble missed outright (flake, 1/400) — hit path not exercised');
         } else {
-        await waitDamage(attackMsg.getFlag('dnd5e', 'originatingMessage'), { flag: 'receipt' });
+        await waitDamage(attackMsg._source.system?.origin, { flag: 'receipt' });
         const card = await waitFor(() => game.messages.contents.slice(before).find(m => m.getFlag(MOD, 'topple')));
         const dc = 8 + (pc.system.attributes?.prof ?? 0)
           + (pc.system.abilities?.[pcAttack().ability || 'str']?.mod ?? 0);
@@ -585,7 +584,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await victim.toggleStatusEffect('prone', { active: true });
         const before = game.messages.size;
         const { attackMsg } = await attack(pcAttack());
-        await waitDamage(attackMsg.getFlag('dnd5e', 'originatingMessage'), { flag: 'receipt' });
+        await waitDamage(attackMsg._source.system?.origin, { flag: 'receipt' });
         await sleep(1200);
         const card = game.messages.contents.slice(before).find(m => m.getFlag(MOD, 'topple'));
         ok('8. a target already prone is never asked about Topple', !card, `card=${!!card}`);
@@ -601,7 +600,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       {
         const before = game.messages.size;
         const { attackMsg } = await attack(pcAttack());
-        await waitDamage(attackMsg.getFlag('dnd5e', 'originatingMessage'), { flag: 'receipt' });
+        await waitDamage(attackMsg._source.system?.origin, { flag: 'receipt' });
         // ⚠ Match the ANNOUNCEMENT's eyebrow, not /push/i — the native usage card prints the
         // mastery name in its subtitle ("Simple Melee • Push") and matched first.
         const cards = await waitFor(() => {
@@ -715,9 +714,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('11. a spell hit applies the card\'s effects to the target (1.9A)',
           !!applied && !!receipt?.targets?.some(t => (t.uuid === victim.uuid) && t.effects.length),
           `chip=${applied?.name ?? 'none'} receipt=${!!receipt}`);
-        ok('11b. the applied effect\'s origin is the spell\'s own effect (non-concentration shape)',
-          !!applied?.origin && rof.item.effects.some(e => e.uuid === applied.origin),
-          `origin=${applied?.origin}`);
+        // 6.0: the platform's applied-effect changes stamp `origin` as the ACTIVITY (and `system.origin.activity`
+        // beside it); at 5.3.3 it was the spell's own effect. The shape is the platform's — assert theirs.
+        ok('11b. the applied effect\'s origin is the spell\'s own activity (the tray\'s 6.0 shape), and system.origin names it too',
+          !!applied?.origin && (fromUuidSync(applied.origin)?.item?.uuid === rof.item.uuid)
+            && (applied?.system?.origin?.activity === applied.origin),
+          `origin=${applied?.origin} system.origin=${JSON.stringify(applied?.system?.origin ?? null)}`);
 
         // Re-cast: refresh, never stack (native parity).
         const again = await attack(spellAttack());
@@ -784,7 +786,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // where 1.9D used to trade one for the other.
         if (want(13)) {
           const usageCards = () => game.messages.contents.filter(m =>
-            ((m.type === 'usage') || (m.getFlag('dnd5e', 'messageType') === 'usage'))
+            ((m.type === 'usage'))
             && m.speaker?.alias?.startsWith?.('BF Test'));
 
           await setMastery('vex');
@@ -838,12 +840,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         _id: 'dnd5eprone000000', name: 'Prone', statuses: ['prone'], disabled: true,
         img: 'icons/svg/falling.svg'
       }], { keepId: true });
-      // ⚠ Force outcomes through the PER-ABILITY save bonus (abilities.con.bonuses.save) —
-      // the smoke-saves channel. The global system.bonuses.abilities.save is NOT folded into
+      // ⚠ Force outcomes through the PER-ABILITY save bonus (abilities.con.save.roll.bonus) —
+      // the smoke-saves channel. The global system.rolls.ability.save.bonus is NOT folded into
       // rollSavingThrow at 5.3.3 (measured 2026-08-17: bonus "+30", saveTotal 10), so the old
       // ±30 here never forced anything and §14d was a coin flip the whole time.
-      priorActor[victim.id]['system.abilities.con.bonuses.save'] =
-        victim.system._source.abilities?.con?.bonuses?.save ?? '';
+      priorActor[victim.id]['system.abilities.con.save.roll.bonus'] =
+        victim.system._source.abilities?.con?.save?.roll?.bonus ?? '';
 
       let before14 = snap14();
       const atk14 = await attack(pcAttack());
@@ -852,9 +854,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const tflag = toppleMsg?.getFlag(MOD, 'topple');
       const diag14 = () => JSON.stringify({
         total: atk14.roll?.total ?? null,
-        mastery: atk14.attackMsg?.getFlag('dnd5e', 'roll.mastery') ?? null,
-        snapTargets: (atk14.attackMsg?.getFlag('dnd5e', 'targets') ?? []).map(t => `${t.name}:${t.ac}`),
-        dmgMsg: fresh14(before14).some(m => m.getFlag('dnd5e', 'roll.type') === 'damage'),
+        mastery: atk14.attackMsg?.system?.mastery ?? null,
+        snapTargets: (atk14.attackMsg?.system?.targets ?? []).map(t => `${t.name}:${t.ac}`),
+        dmgMsg: fresh14(before14).some(m => m.type === 'damage'),
         prone: victim.statuses.has('prone'), hp: victim.system.attributes.hp.value,
         fresh: fresh14(before14).length
       });
@@ -864,9 +866,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         toppleMsg ? `dc=${tflag.dc}` : `no topple card — ${diag14()}`);
 
       if (toppleMsg && atk14.attackMsg) {
-        await victim.update({ 'system.abilities.con.bonuses.save': '-30' });
+        await victim.update({ 'system.abilities.con.save.roll.bonus': '-30' });
         await victim.rollSavingThrow({ ability: 'con' }, { configure: false },
-          { data: { 'flags.dnd5e.originatingMessage': atk14.attackMsg.id } });
+          { data: { 'system.origin': atk14.attackMsg.id } });
         await sleep(1200);
         ok('14b. a save chained to another message does not fold the topple card',
           toppleMsg.getFlag(MOD, 'topple').targets[0].done === false,
@@ -874,7 +876,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
         before14 = snap14();
         const saveRolls14 = await victim.rollSavingThrow({ ability: 'con' }, { configure: false },
-          { data: { 'flags.dnd5e.originatingMessage': toppleMsg.id } });
+          { data: { 'system.origin': toppleMsg.id } });
         await until14(() => toppleMsg.getFlag(MOD, 'topple').targets[0].done);
         // The announcement posts AFTER the flag flips done (the handoff's same-breath race) —
         // and since v1.5.1 also after the dice-animation pause — give it a generous wait.
@@ -889,7 +891,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           e14.done && (e14.outcome === 'prone') && victim.statuses.has('prone')
             && (e14.applied === true) && (announced === 1),
           `outcome=${e14.outcome} prone=${victim.statuses.has('prone')} applied=${e14.applied} announced=${announced}`
-            + ` | save: type=${sm14?.getFlag('dnd5e', 'roll.type')} origin=${sm14?.getFlag('dnd5e', 'originatingMessage')}`
+            + ` | save: type=${sm14?.type} origin=${sm14?._source.system?.origin}`
             + ` total=${sm14?.rolls?.[0]?.total} assoc=${sm14?.getAssociatedActor?.()?.uuid} expected=${victim.uuid}`);
 
         // v1.11.0 (finding ⑤), the ENABLE branch: pressing THROUGH the disabled leftover
@@ -902,7 +904,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `origin=${prone14?.origin ?? 'none'} attackerUuid=${toppleMsg.getFlag(MOD, 'topple').attackerUuid ?? 'none'}`);
 
         await victim.toggleStatusEffect('prone', { active: false });
-        await victim.update({ 'system.abilities.con.bonuses.save': '+30' });
+        await victim.update({ 'system.abilities.con.save.roll.bonus': '+30' });
         // ⚠ Retry the attack until a topple card appears (bounded): vs AC 1 only a fumble
         // misses, but a double-nat-1 under advantage IS a real 0.25% — and it hit this
         // section twice on 2026-08-17. Heal + un-prone between tries (the dead-skip and
@@ -920,7 +922,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (topple2) {
           const preAnnounce = snap14();
           const rolls14d = await victim.rollSavingThrow({ ability: 'con' }, { configure: false },
-            { data: { 'flags.dnd5e.originatingMessage': topple2.id } });
+            { data: { 'system.origin': topple2.id } });
           await until14(() => topple2.getFlag(MOD, 'topple').targets[0].done);
           const e14b = topple2.getFlag(MOD, 'topple').targets[0];
           // RECUT at v1.15.0 (the 2026-08-18 session's finding ⑤, overturning v1.6.0's
@@ -934,21 +936,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               && (announced2 === 0) && (stood2 === 1),
             `outcome=${e14b.outcome} prone=${victim.statuses.has('prone')} prone-cards=${announced2} stood-cards=${stood2}`
               + ` | saveTotal=${rolls14d?.[0]?.total} dc=${topple2.getFlag(MOD, 'topple').dc}`
-              + ` bonusNow=${JSON.stringify(victim.system.abilities?.con?.bonuses?.save ?? null)}`);
+              + ` bonusNow=${JSON.stringify(victim.system.abilities?.con?.save?.roll?.bonus ?? null)}`);
         } else {
           ok('14d. a successful save announces — stays standing, once, and no Prone', false,
             `no second topple card — ${JSON.stringify({
               attackTotal: atk14d?.roll?.total ?? null,
               isCrit: atk14d?.roll?.isCritical ?? null,
-              mastery: atk14d?.attackMsg?.getFlag('dnd5e', 'roll.mastery') ?? null,
+              mastery: atk14d?.attackMsg?.system?.mastery ?? null,
               victimHp: victim.system.attributes.hp.value,
               victimProne: victim.statuses.has('prone'),
-              dmgAppeared: fresh14(before14).some(m => m.getFlag('dnd5e', 'roll.type') === 'damage'),
+              dmgAppeared: fresh14(before14).some(m => m.type === 'damage'),
               freshCount: fresh14(before14).length
             })}`);
         }
 
-        await victim.update({ 'system.abilities.con.bonuses.save': '-30' });
+        await victim.update({ 'system.abilities.con.save.roll.bonus': '-30' });
         // Bounded retry — a miss (or a leftover Prone, which the stamp skips) flaked this
         // section (2026-08-20); 14g below already carries the same loop for the same reason.
         let topple3 = null;
@@ -1020,7 +1022,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const e14g = topple4.getFlag(MOD, 'topple').targets[0];
           await until14(() => victim.statuses.has('prone'), 10_000);
           const timerRoll = game.messages.contents.find(m =>
-            (m.getFlag('dnd5e', 'originatingMessage') === topple4.id)
+            (m._source.system?.origin === topple4.id)
             && m.getFlag(MOD, 'timedOut'));
           ok('14i. the buzzer rolls the unanswered save (marked) and the failure presses Prone',
             e14g.done && (e14g.outcome === 'prone') && (e14g.timedOut === true)
@@ -1101,8 +1103,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // no-roll half, reachable the day a Con-save auto-fail row exists; measured 2026-09-03
         // (a Paralyzed target's dialog correctly grew no Fails button).
         await victim.toggleStatusEffect('prone', { active: false });
-        await victim.update({ 'system.abilities.con.bonuses.save':
-          priorActor[victim.id]['system.abilities.con.bonuses.save'] });
+        await victim.update({ 'system.abilities.con.save.roll.bonus':
+          priorActor[victim.id]['system.abilities.con.save.roll.bonus'] });
       }
     }
 
@@ -1205,7 +1207,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ④ the fold refuses other machines' rolls; ⓪/② twin asks and twin chips converge.
     if (want(16)) {
       await setMastery('topple');
-      await victim.update({ 'system.abilities.con.bonuses.save': '+30' }); // every save succeeds — no Prone side-effects
+      await victim.update({ 'system.abilities.con.save.roll.bonus': '+30' }); // every save succeeds — no Prone side-effects
       let card16 = null;
       for (let try16 = 0; (try16 < 4) && !card16; try16++) {
         await victim.toggleStatusEffect('prone', { active: false });
@@ -1305,8 +1307,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `converged=${!!converged16} elderStands=${!!(eA16 && victim.effects.get(eA16.id))} `
           + `count=${victim.effects.filter(e => e.name === 'BF Twin Chip').length}`);
       for (const e of victim.effects.filter(e => e.name === 'BF Twin Chip')) await e.delete();
-      await victim.update({ 'system.abilities.con.bonuses.save':
-        priorActor[victim.id]['system.abilities.con.bonuses.save'] });
+      await victim.update({ 'system.abilities.con.save.roll.bonus':
+        priorActor[victim.id]['system.abilities.con.save.roll.bonus'] });
     }
 
     // ================================================== 17. the Cleave arm (v1.19.0, FLOW item 8)
@@ -1334,7 +1336,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // 17a — the reminder pops with the Arm control; pressing it writes the actor flag.
         {
           const { attackMsg } = await attack(pcAttack());
-          await waitDamage(attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id, { flag: 'receipt' });
+          await waitDamage(attackMsg?._source.system?.origin ?? attackMsg?.id, { flag: 'receipt' });
           const dialog = await waitFor(() => cleaveDialogs()[0], 8000);
           ok('17a. the Cleave reminder offers Arm/Dismiss (a decision, not an OK)',
             !!dialog && !!dialog.querySelector('button[data-action="arm"]')
@@ -1364,7 +1366,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // arm is consumed. (str 16 ⇒ the unstripped formula would carry "+ 3".)
         {
           const { attackMsg } = await attack(pcAttack());
-          const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+          const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
           const dmg = await waitDamage(originId, { flag: 'receipt' });
           const formula = dmg?.rolls?.[0]?.formula ?? '';
           ok('17c. armed — the damage roll drops the ability modifier',
@@ -1383,7 +1385,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await pc.setFlag(MOD, 'cleaveArm',
             { itemId: blade.id, itemName: blade.name, stamp: null, armedAt: Date.now() });
           const { attackMsg } = await attack(pcAttack());
-          const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+          const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
           const dmg = await waitDamage(originId, { flag: 'receipt' });
           const formula = dmg?.rolls?.[0]?.formula ?? '';
           ok('17d. negative mod — the strip SKIPS (the penalty stays), the arm still consumes',
@@ -1400,7 +1402,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await pc.setFlag(MOD, 'cleaveArm',
             { itemId: blade.id, itemName: blade.name, stamp: 'staleCombat:1:0', armedAt: Date.now() });
           const { attackMsg } = await attack(pcAttack());
-          const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+          const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
           const dmg = await waitDamage(originId, { flag: 'receipt' });
           const formula = dmg?.rolls?.[0]?.formula ?? '';
           ok('17e. a stale combat stamp never strips — mismatch IS expiry, the flag self-cleans',
@@ -1413,7 +1415,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // 17f — the unarmed baseline: no flag, no strip, byte-identical to before the feature.
         {
           const { attackMsg } = await attack(pcAttack());
-          const originId = attackMsg?.getFlag('dnd5e', 'originatingMessage') ?? attackMsg?.id;
+          const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
           const dmg = await waitDamage(originId, { flag: 'receipt' });
           const formula = dmg?.rolls?.[0]?.formula ?? '';
           ok('17f. unarmed — the modifier rides as always, no strip stamp',

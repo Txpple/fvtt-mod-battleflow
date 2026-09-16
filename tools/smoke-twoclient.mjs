@@ -165,7 +165,7 @@ const holdOnShielder = () => gm.evaluate(async () => {
     token.setTarget(true, { releaseOthers: true });
     const usage = await activity().use({ subsequentActions: false }, { configure: false }, {});
     const rolls = await activity().rollAttack({ advantage: true }, { configure: false },
-      { data: { 'flags.dnd5e.originatingMessage': usage?.message?.id } });
+      { data: { 'system.origin': usage?.message?.id } });
     const roll = rolls?.[0];
     const msg = roll?.parent;
     const ac = shielder.system.attributes.ac.value;

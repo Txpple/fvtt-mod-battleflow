@@ -192,7 +192,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     for (const a of [victim, shielder]) {
       priorActor[a.id] = {
         'system.attributes.hp.value': a.system._source.attributes.hp.value,
-        'system.abilities.con.bonuses.save': a.system._source.abilities?.con?.bonuses?.save ?? '',
+        'system.abilities.con.save.roll.bonus': a.system._source.abilities?.con?.save?.roll?.bonus ?? '',
       };
     }
     priorActor[victim.id]['system.resources.legres.max'] =
@@ -200,7 +200,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     priorActor[victim.id]['system.resources.legres.spent'] =
       victim.system._source.resources?.legres?.spent ?? 0;
 
-    const saveBonus = (a, v) => a.update({ 'system.abilities.con.bonuses.save': v });
+    const saveBonus = (a, v) => a.update({ 'system.abilities.con.save.roll.bonus': v });
     // ⚠ Healing must also RAISE THE DEAD. `isDeadForSaves` filters on the dead STATUS as well
     // as NPC hp, and a status is an ActiveEffect — it survives an hp restore and it survives
     // across runs (the poisoned-prone-chip class, NOTES §5). A prior run that killed the PC
@@ -322,7 +322,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return fn();
     };
     const usageCards = msgs => msgs.filter(m =>
-      (m.type === 'usage') || (m.getFlag('dnd5e', 'messageType') === 'usage'));
+      (m.type === 'usage'));
     const chipOn = (a, name) => a.effects.find(e => e.name === name);
     // Since option E the ask IS the system's Saving Throw dialog — found by the application
     // registry and our demand fieldset, never by a class the dialog may not wear.
@@ -334,7 +334,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const demandText = el => el?.querySelector?.('[data-bf-save-demand]')?.textContent ?? '';
     const entryOf = (card, a) => card.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === a.uuid);
     const rollDamageChained = card => saveActivity().rollDamage({}, { configure: false },
-      { data: { 'flags.dnd5e.originatingMessage': card.id } });
+      { data: { 'system.origin': card.id } });
 
     // ============================================== 1. the stamp + two forced verdicts + effects
     let card1;
@@ -357,11 +357,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // late-arrival ordering, so the auto roll is asserted and then deleted to keep that
       // ordering constructible.
       const autoDmg = await until(() => fresh(before).find(m =>
-        (m.getFlag('dnd5e', 'roll.type') === 'damage')
-        && (m.getFlag('dnd5e', 'originatingMessage') === card1.id)));
+        (m.type === 'damage')
+        && (m._source.system?.origin === card1.id)));
       ok('1a2. the demand rolls its own damage at the stamp (the hidden-buttons companion)',
-        !!autoDmg && (autoDmg.getFlag('dnd5e', 'roll.damageOnSave') === 'half'),
-        `auto=${!!autoDmg} onSave=${autoDmg?.getFlag('dnd5e', 'roll.damageOnSave')}`);
+        !!autoDmg && (autoDmg.system?.onSave === 'half'),
+        `auto=${!!autoDmg} onSave=${autoDmg?.system?.onSave}`);
 
       // ⑯ at the DOM: the save card carries real Save/Damage buttons, and every one of them
       // is hidden — a zero-button card would make this pass vacuously, so the count guards.
@@ -415,11 +415,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
       const rollV = ev?.rollMessageId ? game.messages.get(ev.rollMessageId) : null;
       ok('1c. the roll chains to the card, answers by the exact channel, and carries the DC',
-        (rollV?.getFlag('dnd5e', 'originatingMessage') === card1.id)
+        (rollV?._source.system?.origin === card1.id)
           && (rollV?.getFlag(MOD, 'respondsTo') === card1.id)
           && (rollV?.getFlag(MOD, 'saveFor') === victim.uuid)
           && (rollV?.rolls?.[0]?.options?.target === 15),
-        `origin=${rollV?.getFlag('dnd5e', 'originatingMessage')} target=${rollV?.rolls?.[0]?.options?.target}`);
+        `origin=${rollV?._source.system?.origin} target=${rollV?.rolls?.[0]?.options?.target}`);
 
       const receipt = card1.getFlag(MOD, 'effectReceipt');
       const evR = receipt?.targets?.find(t => t.uuid === victim.uuid);
@@ -440,16 +440,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const before = snap();
       await rollDamageChained(card1);
       const dmg = await until(() => fresh(before).find(m =>
-        (m.getFlag('dnd5e', 'roll.type') === 'damage')
+        (m.type === 'damage')
         && (m.getFlag(MOD, 'receipt')?.targets?.length === 2)));
       const rv = dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid);
       const rs = dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === shielder.uuid);
       ok('2a. the failed target takes the flat 10 in full; the saved target takes exactly half',
-        (dmg?.getFlag('dnd5e', 'roll.damageOnSave') === 'half')
+        (dmg?.system?.onSave === 'half')
           && (rv?.taken === 10) && !rv?.multiplier
           && (rs?.taken === 5) && (rs?.multiplier === 0.5)
           && (rs?.note === 'saved — half damage'),
-        `onSave=${dmg?.getFlag('dnd5e', 'roll.damageOnSave')} v.taken=${rv?.taken} `
+        `onSave=${dmg?.system?.onSave} v.taken=${rv?.taken} `
           + `s.taken=${rs?.taken} s.mult=${rs?.multiplier} s.note=${rs?.note}`);
       ok('2b. the pools moved by exactly those numbers',
         (victim.system.attributes.hp.value === vMax - 10)
@@ -470,7 +470,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (!card) return { fatal: 'section 3 cast produced no card' };
       await until(() => card.getFlag(MOD, 'saves'));
       // The stamp's own auto-roll IS the early damage now — nothing to press.
-      const dmg = await until(() => fresh(before).find(m => m.getFlag('dnd5e', 'roll.type') === 'damage'));
+      const dmg = await until(() => fresh(before).find(m => m.type === 'damage'));
       await sleep(1800);
       ok('3a. a pending target\'s damage WAITS — per-target independence, nothing applied',
         !!dmg && !dmg.getFlag(MOD, 'receipt')
@@ -539,7 +539,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const roll = entry?.rollMessageId ? game.messages.get(entry.rollMessageId) : null;
       ok('4a. a bare sheet roll answers the pending demand, judged against the STORED DC',
         (entry?.outcome === 'failed') && !roll?.getFlag(MOD, 'respondsTo')
-          && !roll?.getFlag('dnd5e', 'originatingMessage')
+          && !roll?._source.system?.origin
           && (roll?.rolls?.[0]?.options?.target == null),
         `outcome=${entry?.outcome} target=${roll?.rolls?.[0]?.options?.target}`);
       // Wait for the whole consequence pass, not the first chip — the two creates are
@@ -598,7 +598,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await victim.rollSavingThrow({ ability: 'con' }, { configure: false }, {});
       await until(() => entryOf(card, victim)?.applied);
       const dmg = await until(() => fresh(before).find(m =>
-        (m.getFlag('dnd5e', 'roll.type') === 'damage')
+        (m.type === 'damage')
         && m.getFlag(MOD, 'receipt')?.targets?.some(t => t.uuid === victim.uuid)));
       ok('6-pre. the failure landed in full first (10 damage, both chips)',
         (victim.system.attributes.hp.value === vMax - 10) && !!chipOn(victim, 'BF Poisoned'),
@@ -777,8 +777,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Resolve the walked demand; the fixture is INSTANTANEOUS, so the spent template
       // leaves the canvas with the last consequence.
       const autoDmg8 = fresh(before).find(m =>
-        (m.getFlag('dnd5e', 'roll.type') === 'damage')
-        && (m.getFlag('dnd5e', 'originatingMessage') === card.id));
+        (m.type === 'damage')
+        && (m._source.system?.origin === card.id));
       await sleep(600);
       await shielder.rollSavingThrow({ ability: 'con' }, { configure: false }, {});
       await until(() => (card.getFlag(MOD, 'saves')?.targets ?? []).every(t => t.done && t.applied));
@@ -819,7 +819,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `templated=${stamped8d?.templated} targets=[${(stamped8d?.targets ?? []).map(t => t.name).join()}]`);
       // Sweep the fixture message and anything chained to it before teardown counts cards.
       const chained8d = game.messages.contents.filter(m =>
-        m.getFlag('dnd5e', 'originatingMessage') === msg8d.id);
+        m._source.system?.origin === msg8d.id);
       await ChatMessage.deleteDocuments([msg8d.id, ...chained8d.map(m => m.id)]);
 
       // 8e (user ruling 2026-08-28 — the swamp Fireballs): an INSTANTANEOUS area placed on
@@ -856,10 +856,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('8e. …and the convergent floor sweeps the empty area',
         !!swept8e, `still=${!!scene.templates.get(tpl8e.id)}`);
       const rolled8e = fresh(before8e).some(m =>
-        m.getFlag('dnd5e', 'originatingMessage') === msg8e.id);
+        m._source.system?.origin === msg8e.id);
       ok('8e. nothing rolled damage at nobody', !rolled8e, `chained=${rolled8e}`);
       const chained8e = game.messages.contents.filter(m =>
-        m.getFlag('dnd5e', 'originatingMessage') === msg8e.id);
+        m._source.system?.origin === msg8e.id);
       await ChatMessage.deleteDocuments([msg8e.id, ...chained8e.map(m => m.id)]);
 
       // 8f (2026-09-10, the user's report: the Adult Green Dragon's Poison Breath "doesn't clean
@@ -911,9 +911,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             + `templated=${stamped8f?.templated} awaiting=${stamped8f?.awaitingTemplate}`);
         const swept8f = await until(() => !scene.templates.get(tpl8f.id), 8000);
         ok('8f. …and the cone is swept like any spent instant area',
-          !!swept8f, `still=${!!scene.templates.get(tpl8f.id)} rolled=${fresh(before8f).some(m => m.getFlag('dnd5e', 'originatingMessage') === msg8f.id)}`);
+          !!swept8f, `still=${!!scene.templates.get(tpl8f.id)} rolled=${fresh(before8f).some(m => m._source.system?.origin === msg8f.id)}`);
         const chained8f = game.messages.contents.filter(m =>
-          m.getFlag('dnd5e', 'originatingMessage') === msg8f.id);
+          m._source.system?.origin === msg8f.id);
         await ChatMessage.deleteDocuments([msg8f.id, ...chained8f.map(m => m.id)]);
       } finally {
         if (npc.items.get(breath.id)) await npc.deleteEmbeddedDocuments('Item', [breath.id]).catch(() => {});
@@ -958,7 +958,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const stamped = await until(() => msg.getFlag(MOD, 'saves'), 6000);
           await sleep(2500);
           const still = !!scene.templates.get(tpl.id);
-          const chained = game.messages.contents.filter(m => m.getFlag('dnd5e', 'originatingMessage') === msg.id);
+          const chained = game.messages.contents.filter(m => m._source.system?.origin === msg.id);
           await ChatMessage.deleteDocuments([msg.id, ...chained.map(m => m.id)]).catch(() => {});
           if (still) await scene.templates.get(tpl.id)?.delete().catch(() => {});
           return { stamped, still };
@@ -1013,8 +1013,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `pending=${pending9} bars=${barCount()}`);
 
       await sleep(900); // an auto-roll would land inside this window if the gate regressed
-      const autoDmg9 = fresh(before).find(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
-        && (m.getFlag('dnd5e', 'originatingMessage') === card.id));
+      const autoDmg9 = fresh(before).find(m => (m.type === 'damage')
+        && (m._source.system?.origin === card.id));
       ok('9b. rider damage never auto-rolls at the stamp', !autoDmg9, `autoRolled=${!!autoDmg9}`);
 
       // Resolve through the popups (the §1 idiom); if the 4s buzzer wins a race instead,
@@ -1172,8 +1172,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         .find(b => b.textContent.trim() === 'Normal')?.click();
       await until(() => card10.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), 20000);
       const e10 = entryOf(card10, victim);
-      const dmg10 = fresh(snap10).find(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
-        && (m.getFlag('dnd5e', 'originatingMessage') === card10.id));
+      const dmg10 = fresh(snap10).find(m => (m.type === 'damage')
+        && (m._source.system?.origin === card10.id));
       ok('10f. the adopted demand runs the whole machine — verdict, damage, receipt',
         (e10?.outcome === 'failed') && (victim.system.attributes.hp.value === vMax10 - 10),
         `outcome=${e10?.outcome} applied=${e10?.applied} dmgRolled=${!!dmg10} `
@@ -1203,11 +1203,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           + `(actor=${!!pcActor} playerUser=${!!playerUser11} hasPlayerOwner=${pcActor?.hasPlayerOwner})`);
       } else {
         priorActor[pcActor.id] = {
-          'system.abilities.con.bonuses.save': pcActor.system._source.abilities?.con?.bonuses?.save ?? '',
+          'system.abilities.con.save.roll.bonus': pcActor.system._source.abilities?.con?.save?.roll?.bonus ?? '',
           'system.attributes.hp.value': pcActor.system._source.attributes.hp.value,
           ...(priorActor[pcActor.id] ?? {})
         };
-        await pcActor.update({ 'system.abilities.con.bonuses.save': '-30' });
+        await pcActor.update({ 'system.abilities.con.save.roll.bonus': '-30' });
         await saveBonus(victim, '-30');
         await healFull(victim);
         await healFull(pcActor);
@@ -1527,7 +1527,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // "holds (legendary resistance)" line posts forced-marked; the fail line STANDS.
       const entry15 = card15.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === victim.uuid);
       const rollMsg15 = entry15?.rollMessageId ? game.messages.get(entry15.rollMessageId) : null;
-      if (rollMsg15) await rollMsg15.setFlag('dnd5e', 'roll.forceSuccess', true);
+      if (rollMsg15) await rollMsg15.update({ 'system.resisted': true });
       const corrected = await until(() => {
         const l = linesFor(card15.id, victim.uuid, true);
         return l.length ? l : null;
@@ -1576,8 +1576,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const card16b = use16b?.message instanceof ChatMessage ? use16b.message : null;
       await sleep(2500);
       const autoDmg16b = fresh(before16b).find(m =>
-        (m.getFlag('dnd5e', 'roll.type') === 'damage')
-        && (m.getFlag('dnd5e', 'originatingMessage') === card16b?.id));
+        (m.type === 'damage')
+        && (m._source.system?.origin === card16b?.id));
       ok('16b. every target dead — no demand stamps and no damage auto-rolls (fully native)',
         !!card16b && !card16b.getFlag(MOD, 'saves') && !autoDmg16b,
         `flag=${!!card16b?.getFlag(MOD, 'saves')} autoDmg=${!!autoDmg16b}`);
@@ -1728,7 +1728,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const dialogFor = name => until(() => savePopups().find(p => demandText(p).includes(name)), 6000);
       const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
       const defaultOf = dlg => dlg?.querySelector('button[autofocus]')?.dataset?.action ?? null;
-      const saveRollsIn = before => fresh(before).filter(m => m.getFlag('dnd5e', 'roll.type') === 'save');
+      const saveRollsIn = before => fresh(before).filter(m => m.type === 'save');
       const castDex = async () => {
         target(victimToken);
         await sleep(120);
@@ -1866,7 +1866,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const PRESSES = [['Web', 'restrained', 'a'], ['Grease', 'prone', 'c'], ['Sleet Storm', 'prone', 'd']];
       await clearChips();
       await saveBonus(victim, '-30');
-      await victim.update({ 'system.abilities.dex.bonuses.save': '-30' });   // all three are DEXTERITY saves
+      await victim.update({ 'system.abilities.dex.save.roll.bonus': '-30' });   // all three are DEXTERITY saves
       await healFull(victim);
       for (const [itemName, status, letter] of PRESSES) {
         const stray = victim.effects.filter(e => e.statuses?.has?.(status));
@@ -1905,7 +1905,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await npc.deleteEmbeddedDocuments('Item', [pressItem.id]).catch(() => {});
       }
       await saveBonus(victim, '');
-      await victim.update({ 'system.abilities.dex.bonuses.save': '' });
+      await victim.update({ 'system.abilities.dex.save.roll.bonus': '' });
     }
 
     // ============================================== 21. Evasion
@@ -1915,12 +1915,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       else {
         const rogueToken = await mkToken(rogue, 800);
         priorActor[rogue.id] = { 'system.attributes.hp.value': rogue.system._source.attributes.hp.value,
-          'system.abilities.dex.bonuses.save': rogue.system._source.abilities?.dex?.bonuses?.save ?? '' };
+          'system.abilities.dex.save.roll.bonus': rogue.system._source.abilities?.dex?.save?.roll?.bonus ?? '' };
         const rMax = rogue.system.attributes.hp.max;
-        const damageFor = card => game.messages.contents.find(m => (m.getFlag('dnd5e', 'roll.type') === 'damage') && (m.getFlag('dnd5e', 'originatingMessage') === card?.id));
+        const damageFor = card => game.messages.contents.find(m => (m.type === 'damage') && (m._source.system?.origin === card?.id));
         const heal = () => rogue.update({ 'system.attributes.hp.value': rMax });
         const runOne = async bonus => {
-          await rogue.update({ 'system.abilities.dex.bonuses.save': bonus });
+          await rogue.update({ 'system.abilities.dex.save.roll.bonus': bonus });
           await heal();
           target(rogueToken);
           await sleep(120);
@@ -2058,14 +2058,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         dlgA?.querySelector('button[autofocus]')?.click();
         await until(() => cardA?.getFlag(MOD, 'saves')?.status === 'done', 10000);
         // The elect's own damage for cardA lands after the verdict — wait for its receipt, then heal.
-        await until(() => game.messages.contents.some(m => (m.getFlag('dnd5e', 'originatingMessage') === cardA?.id) && m.getFlag(MOD, 'receipt')), 12000);
+        await until(() => game.messages.contents.some(m => (m._source.system?.origin === cardA?.id) && m.getFlag(MOD, 'receipt')), 12000);
         await sleep(300);
         for (const w of wards.splice(0)) await w.delete().catch(() => {});
         await failEff.update({ statuses: priorStatuses });
 
         // 21c–d: Circle's Power against a spell — Advantage, and a SUCCESS takes none.
         await ward("Circle's Power");
-        await victim.update({ 'system.abilities.dex.bonuses.save': '+30' });   // the fixture demands a DEXTERITY save: a rolled one succeeds
+        await victim.update({ 'system.abilities.dex.save.roll.bonus': '+30' });   // the fixture demands a DEXTERITY save: a rolled one succeeds
         await healFull(victim);
         const vMax = victim.system.attributes.hp.max;
         const cardB = await castDexAt();
@@ -2077,17 +2077,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await until(() => cardB?.getFlag(MOD, 'saves')?.status === 'done', 10000);
         const entryB = cardB?.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === victim.uuid);
         const beforeDmg = snap();
-        await dexActivity().rollDamage({}, { configure: false }, { data: { 'flags.dnd5e.originatingMessage': cardB.id } });
-        const dmgB = await until(() => fresh(beforeDmg).find(m => (m.getFlag('dnd5e', 'roll.type') === 'damage') && m.getFlag(MOD, 'receipt')?.targets?.some(t => t.uuid === victim.uuid)), 12000);
+        await dexActivity().rollDamage({}, { configure: false }, { data: { 'system.origin': cardB.id } });
+        const dmgB = await until(() => fresh(beforeDmg).find(m => (m.type === 'damage') && m.getFlag(MOD, 'receipt')?.targets?.some(t => t.uuid === victim.uuid)), 12000);
         const rv = dmgB?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid);
         ok('23d. the success is stamped noneOnSuccess and the half becomes NONE — 0 applied and receipted, the note naming Circle\'s Power, the pool untouched',
           (entryB?.outcome === 'saved') && (entryB?.noneOnSuccess === "Circle's Power") && !!rv && (rv.taken === 0) && (rv.multiplier === 0) && /Circle's Power, no damage/.test(rv.note ?? '') && (victim.system.attributes.hp.value === vMax),
-          `entry=${JSON.stringify(entryB && { outcome: entryB.outcome, none: entryB.noneOnSuccess })} receipt=${JSON.stringify(rv && { taken: rv.taken, multiplier: rv.multiplier, note: rv.note })} hp ${vMax}→${victim.system.attributes.hp.value} allDmg=${JSON.stringify(game.messages.contents.filter(m => (m.getFlag('dnd5e', 'roll.type') === 'damage') && (m.getFlag('dnd5e', 'originatingMessage') === cardB?.id)).map(m => ({ t: new Date(m.timestamp).toISOString().slice(14, 23), by: m.speaker?.alias, receipts: m.getFlag(MOD, 'receipt')?.targets?.map(x => ({ n: x.name, taken: x.taken, mult: x.multiplier, note: x.note })) })))}`);
+          `entry=${JSON.stringify(entryB && { outcome: entryB.outcome, none: entryB.noneOnSuccess })} receipt=${JSON.stringify(rv && { taken: rv.taken, multiplier: rv.multiplier, note: rv.note })} hp ${vMax}→${victim.system.attributes.hp.value} allDmg=${JSON.stringify(game.messages.contents.filter(m => (m.type === 'damage') && (m._source.system?.origin === cardB?.id)).map(m => ({ t: new Date(m.timestamp).toISOString().slice(14, 23), by: m.speaker?.alias, receipts: m.getFlag(MOD, 'receipt')?.targets?.map(x => ({ n: x.name, taken: x.taken, mult: x.multiplier, note: x.note })) })))}`);
       } finally {
         for (const w of wards) await w.delete().catch(() => {});
         await failEff?.update({ statuses: priorStatuses }).catch(() => {});
         await saveBonus(victim, '');
-        await victim.update({ 'system.abilities.dex.bonuses.save': '' });
+        await victim.update({ 'system.abilities.dex.save.roll.bonus': '' });
         await set('reminderList', priorLists.reminderList);
         await set('effectList', priorLists.effectList);
       }
@@ -2269,7 +2269,7 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
     const snap = () => new Set(game.messages.contents.map(m => m.id));
     const fresh = before => game.messages.contents.filter(m => !before.has(m.id));
     const usageCards = msgs => msgs.filter(m =>
-      (m.type === 'usage') || (m.getFlag('dnd5e', 'messageType') === 'usage'));
+      (m.type === 'usage'));
     const until = async (fn, ms = 15000) => {
       const t0 = Date.now();
       while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(200); }
@@ -2311,15 +2311,15 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
 
     /** The damage roll chained to a card, if it has landed. */
     const damageFor = card => game.messages.contents.slice(-30).find(m =>
-      (m.getFlag('dnd5e', 'roll.type') === 'damage')
-      && (m.getFlag('dnd5e', 'originatingMessage') === card?.id));
+      (m.type === 'damage')
+      && (m._source.system?.origin === card?.id));
     const waitDamage = async (card, ms) => {
       const d = await until(() => damageFor(card), ms);
       if (d) created.push(d.id);
       return d;
     };
 
-    const saveBonus = (a, v) => a.update({ 'system.abilities.con.bonuses.save': v });
+    const saveBonus = (a, v) => a.update({ 'system.abilities.con.save.roll.bonus': v });
     const healFull = a => a.update({ 'system.attributes.hp.value': a.system.attributes.hp.max });
 
     /* 1 — setting OFF: the stamp still auto-rolls, and nothing pops. ----------------------- */
@@ -2361,10 +2361,10 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
       popups[0]?.querySelector('button[data-action="roll"]')?.click();
       const dmg = await waitDamage(card, 8000);
       ok(6, 'button pressed — rolls, chained, carrying damageOnSave',
-        !!dmg && (dmg.getFlag('dnd5e', 'originatingMessage') === card.id)
-          && (dmg.getFlag('dnd5e', 'roll.damageOnSave') === 'half'),
-        `damage=${!!dmg} origin=${dmg?.getFlag('dnd5e', 'originatingMessage') === card.id}`
-          + ` onSave=${dmg?.getFlag('dnd5e', 'roll.damageOnSave')}`);
+        !!dmg && (dmg._source.system?.origin === card.id)
+          && (dmg.system?.onSave === 'half'),
+        `damage=${!!dmg} origin=${dmg?._source.system?.origin === card.id}`
+          + ` onSave=${dmg?.system?.onSave}`);
       created.push(...fresh(before).map(m => m.id));
       await closeEverything();
     }
@@ -2475,11 +2475,11 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
       // applied — if two rolls exist, the popup forked; if one roll shows two receipt entries for
       // one target, the applier did.
       const chained = game.messages.contents
-        .filter(m => (m.getFlag('dnd5e', 'roll.type') === 'damage')
-                  && (m.getFlag('dnd5e', 'originatingMessage') === card.id))
+        .filter(m => (m.type === 'damage')
+                  && (m._source.system?.origin === card.id))
         .map(m => ({
           id: m.id, total: m.rolls?.[0]?.total ?? null,
-          onSave: m.getFlag('dnd5e', 'roll.damageOnSave') ?? null,
+          onSave: m.system?.onSave ?? null,
           receipt: (m.getFlag(MOD, 'receipt')?.targets ?? [])
             .map(t => `${t.name ?? t.uuid?.slice(-6)}:${t.taken}${t.multiplier ? `x${t.multiplier}` : ''}${t.reverted ? '(rev)' : ''}`)
         }));
@@ -2538,7 +2538,7 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
       const noneYet = !damageFor(card);
 
       await act('bfprobehalf00000').rollDamage({}, { configure: false },
-        { data: { 'flags.dnd5e.originatingMessage': card.id } });
+        { data: { 'system.origin': card.id } });
       const dmg = await until(() => {
         const d = damageFor(card);
         return (d?.getFlag(MOD, 'receipt')?.targets?.length === 2) ? d : null;

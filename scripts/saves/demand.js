@@ -6,7 +6,8 @@
  * the registration order. Every body here is the one saves.js carried; nothing was rewritten.
  */
 import { MODULE_ID, TITLE, S, setting, statContext } from "../core.js";
-import { resolveUuid, itemNamed } from "../lookup.js";
+import { applicableProfiles, resolveUuid, itemNamed } from "../lookup.js";
+import { activityUuidOf, targetsOf } from "../decide/card.js";
 import { saveDemandData, saveTargetEntry } from "../decide/demand.js";
 import { METAMAGIC_FLAG, METAMAGIC_ASK_FLAG, carefulProtects, heightenedMark, metamagicRuleText } from "../decide/metamagic.js";
 import { tokensInTemplates } from "../geometry.js";
@@ -136,7 +137,7 @@ async function stampSaveDemand(activity, message, results) {
     // against template.object has been observed to never come back on the headless elect,
     // and the fallback makes it unnecessary.
     const contained = emanationReach(activity, tokensInTemplates((results?.templates ?? []).flat().filter(t => t?.parent)));
-    const raw = contained ?? (message.getFlag("dnd5e", "targets") ?? []);
+    const raw = contained ?? targetsOf(message);
     // THE DEAD-TARGET GATE (v1.19.0 — the user call recorded in the corner list above). The
     // filter runs on the RESOLVED set only; raw emptiness keeps its meaning (a bare template
     // cast still stamps a WAITING demand below). Placed BEFORE the setFlag so an all-dead
@@ -172,8 +173,8 @@ async function stampSaveDemand(activity, message, results) {
 
     // The effect names by outcome, resolved NOW while the item surely exists — the popup's
     // stakes line and the LR unwind both read these without needing the live document.
-    const applicable = new Set((activity.applicableEffects ?? []).map(e => e.id));
-    const entries = (activity.effects ?? []).filter(e => e.effect && applicable.has(e.effect.id));
+    // 6.0: the activity's list holds PROFILES whose effects resolve asynchronously (lookup.js).
+    const entries = (await applicableProfiles(activity)).map(({ profile, effect }) => ({ onSave: profile.onSave, effect }));
     // An EMANATION spell's effect (Spirit Guardians' Half Speed) is the area's STANDING effect,
     // kept by the region while a creature stands inside — the verdict never applies it, and the
     // dialog never promises it (user walk, 2026-09-03: two Half Speeds, two lifecycles).
@@ -301,7 +302,7 @@ Hooks.on("battleflow.metamagicAskAnswered", async message => {
   try {
     const deferred = message?.getFlag(MODULE_ID, "savesDeferredRoll");
     if ( !deferred ) return;
-    const activity = resolveUuid(message.getFlag("dnd5e", "activity")?.uuid ?? "");
+    const activity = resolveUuid(activityUuidOf(message) ?? "");
     if ( !activity ) return;
     await message.unsetFlag(MODULE_ID, "savesDeferredRoll");
     const flag = message.getFlag(MODULE_ID, "saves");
