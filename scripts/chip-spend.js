@@ -17,6 +17,7 @@ import { chipSpentOnRecord, masteryLabel } from "./shared.js";
 import { effectEntries, listedNames } from "./settings.js";
 import { bfCard } from "./decide/present.js";
 import { messageActivity } from "./effect-riders.js";
+import { SURFACES } from "./surfaces.js";
 
 /* --- the spend: the attack roll that uses a chip up (HANDOFF Stage 1, 2026-09-01) -----------
  * The rules spend Vex and Sap on the NEXT attack roll whether or not the roll honoured them —
@@ -234,6 +235,6 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       subtitle: `${r.bearer}: ${r.key === "sap" ? "its" : "the attacker's"} next attack roll was this one, `
         + `rolled ${rolledWith(r.mode)}${r.honoured === false ? " — the chip went unclaimed" : ""}.`
     });
-    html.querySelector(".message-content")?.appendChild(line);
+    html.querySelector(SURFACES.messageContent)?.appendChild(line);
   }
 });

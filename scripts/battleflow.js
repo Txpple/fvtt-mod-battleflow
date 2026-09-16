@@ -49,24 +49,33 @@
  * in-memory workflow object, no patching. The attacker's client volunteers the damage roll
  * (its attack, its dice); the active-GM elect volunteers the application (ownership is a
  * permission fact; a single writer prevents double-apply); the chain is resolved through the
- * system's own message registry (flags.dnd5e.originatingMessage), never a parallel one.
+ * system's own message registry (`system.origin`), never a parallel one.
  *
- * Ground truths (dnd5e release-5.3.3 = commit 965ad2d, on Foundry v14):
+ * Ground truths (dnd5e release-6.0.1, on Foundry v14 — the 6.0 pass, 2026-09-15; ASSESSMENT.md):
  *   - dnd5e.rollAttackV2 fires on the rolling client only, after the attack message exists
  *     and before ammo consumption; rolls[0].parent IS the attack message (basic-roll.mjs
  *     buildPost assigns it whenever a message document was created).
- *   - Hit/miss is computed at render time and never persisted (chat-message.mjs:463):
- *     isMiss = !crit && ((total < ac) || fumble). Downstream consumers must recompute.
- *   - flags.dnd5e.targets = [{uuid, name, img, ac}] where uuid is the target ACTOR's uuid
- *     (utils.mjs getTargetDescriptors) and ac is null under total cover.
- *   - flags.dnd5e.originatingMessage is natively stamped from the DOM click's enclosing card
- *     (basic-roll.mjs:173); a programmatic roll MUST pass it in message data explicitly or
- *     the roll never enters dnd5e.registry.messages and the chain breaks.
+ *   - Every roll card is a TYPED message (`type: attack | damage | healing | save | check`)
+ *     with a data model: `system.{activity, item, origin, targets}` on every roll card and the
+ *     roll's own facts beside them (`system.{ability, mode, mastery, ammunition}` on an attack,
+ *     `system.onSave` on a damage roll, `system.{type, resisted}` on a save). Nothing is written
+ *     to `flags.dnd5e` any more and the world migration deletes the old keys — every read goes
+ *     through decide/card.js, the one seam, and every HTML anchor through scripts/surfaces.js.
+ *   - Hit/miss is computed at render time and never persisted (AttackMessageData#evaluatedTargets):
+ *     isMiss = ac === null || (!crit && ((total < ac) || fumble)). Downstream consumers recompute
+ *     (decide/verdict.js hitsAmong) — a null AC is a MISS, the platform's verdict, adopted.
+ *   - system.targets = [{actor, token, ac, img, name}], one row per TOKEN
+ *     (TargetsField.getDescriptors); ac is null under total cover. This module keys its records
+ *     by the ACTOR (decide/card.js targetsOf: `uuid` = the actor, one row per actor).
+ *   - system.origin is natively stamped from the DOM click's enclosing card (basic-roll.mjs
+ *     buildPost); a programmatic roll MUST pass it in message data explicitly (decide/card.js
+ *     originData) or the roll never enters dnd5e.registry.messages — indexed on
+ *     `_source.system.origin` ONLY — and the chain breaks.
  *   - The native damage tray builds damages via aggregateDamageRolls(rolls,
  *     {respectProperties: true}) → {value, type, properties: Set} and applies with
- *     actor.applyDamage(damages, {multiplier: 1, isDelta: true, originatingMessage, origin})
- *     (damage-application.mjs:335). Mirrored verbatim so the system's math stays
- *     authoritative. Healing activities mark their rolls "healing", never "damage".
+ *     actor.applyDamage(damages, {multiplier: 1, isDelta: true, originatingMessage, origin}).
+ *     Mirrored verbatim so the system's math stays authoritative. Healing activities mark their
+ *     rolls "healing", never "damage".
  *   - applyDamage writes system.attributes.hp.{value,temp,tempmax}. Receipts snapshot the
  *     SOURCE values (actor.system._source): Actor#update writes source data, and derived
  *     values can carry active-effect noise that a later revert must not bake in.

@@ -10,12 +10,15 @@
  *
  * ⚠ SPINE, NOT DECISION. `fromUuidSync` and `Roll` are Foundry globals, and `actor.items` is a
  * document collection — EDGE by §2's test, so this cannot live in decide/. It imports nothing
- * and owns no hook, no flag, no write; keep it that way. `core.js` and `shared.js` keep their own
- * copies of the uuid guard on purpose: core is the leaf and shared is this file's own layer.
+ * and owns no hook, no flag, no write; keep it that way (its one import is the pure card seam,
+ * decide/card.js — downward). `core.js` and `shared.js` keep their own copies of the uuid guard
+ * on purpose: core is the leaf and shared is this file's own layer.
  *
  * ⚠ Names match CASE-INSENSITIVELY everywhere here, because that is what every copy did: the
  * packs' names are the tables' keys and the tables are typed by hand.
  */
+
+import { CARD, activityUuidOf, isCard } from "./decide/card.js";
 
 /** A name folded for comparison — the one lower-case helper. */
 export const lower = s => String(s ?? "").toLowerCase();
@@ -142,9 +145,9 @@ export function meleeOptions(actor) {
 export function preferredMeleeOption(actor, options) {
   if ( options.length <= 1 ) return options[0] ?? null;
   const mine = game.messages.contents.slice(-100).reverse().filter(m =>
-    (m.getFlag("dnd5e", "roll.type") === "attack") && (m.getAssociatedActor?.()?.uuid === actor.uuid));
+    isCard(m, CARD.attack) && (m.getAssociatedActor?.()?.uuid === actor.uuid));
   for ( const m of mine ) {
-    const itemId = m.getFlag("dnd5e", "activity")?.uuid?.match(/\.Item\.([^.]+)\./)?.[1] ?? null;
+    const itemId = activityUuidOf(m)?.match(/\.Item\.([^.]+)\./)?.[1] ?? null;
     const match = itemId ? options.find(o => o.itemId === itemId) : null;
     if ( match ) return match;
   }

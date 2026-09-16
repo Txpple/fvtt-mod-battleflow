@@ -12,6 +12,7 @@ import { maneuverFoldEntries } from "./settings.js";
 import { RULE_TEXT } from "./decide/registry.js";
 import { modeAllows } from "./shared.js";
 import { popupKey, bfCard, momentBarHTML, ruleLine } from "./decide/present.js";
+import { SURFACES } from "./surfaces.js";
 import { livePopups, openMomentPopup, scheduleBarSync, shownMoments, acknowledgeMoment,
   momentAcknowledged } from "./ui.js";
 
@@ -79,7 +80,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   if ( momentAcknowledged(message, "hewNotice") ) return;   // the ACK ends the presentation
   const row = document.createElement("div");
   row.innerHTML = momentBarHTML(notice, "reminder");
-  html.querySelector(".message-content")?.appendChild(row);
+  html.querySelector(SURFACES.messageContent)?.appendChild(row);
   scheduleBarSync(row);
   const attacker = resolveUuid(notice.attackerUuid);
   const shownKey = popupKey(message.id, "hew");

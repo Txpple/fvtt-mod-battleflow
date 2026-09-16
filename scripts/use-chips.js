@@ -9,6 +9,7 @@ import { chipData, placeOf } from "./shared.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { USE_CHIPS, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
+import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
  * USE CHIPS (user report 2026-09-02: "i added steady aim, which isnt appling, and should then
@@ -77,5 +78,5 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     subtitle: u.note ?? "spent by the roll",
     lines: [ruleLine(u.rule)]
   });
-  html.querySelector(".message-content")?.appendChild(line);
+  html.querySelector(SURFACES.messageContent)?.appendChild(line);
 });

@@ -11,6 +11,7 @@ import { bfCard, ruleLine } from "./decide/present.js";
 import { DAMAGE_SAVES, MANEUVER_FEATURE_NAMES, tableIndex } from "./decide/registry.js";
 import { volleyEntryFor } from "./volley-registry.js";
 import { offerSaveDamageRoll, rollDamageForSave } from "./auto-damage.js";
+import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
  * DAMAGE CASTS (user, 2026-09-04 — "make heat metal spell work"). MEASURED on the sandbox: the
@@ -126,5 +127,5 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     title: "Drop it, or keep it and take the Disadvantage",
     lines: [dc.line, ruleLine(dc.rule)]
   });
-  html.querySelector(".message-content")?.appendChild(line);
+  html.querySelector(SURFACES.messageContent)?.appendChild(line);
 });

@@ -34,7 +34,9 @@
  * @property {string | null} originatingMessage the system's chain — the card the roll was pressed on
  * @property {string | null} actorUuid         who rolled
  * @property {string | null} ability           which ability
- * @property {string | null} rollType          the system's roll type (`save`, `concentration`, …)
+ * @property {string | null} rollType          the roll's kind (`save`, `check`, … — decide/card.js `rollKindOf`; since dnd5e 6.0 a
+ *                                              concentration or death save is a `save` whose sub-kind rides `saveKind`)
+ * @property {string | null} [saveKind]         `ability` | `concentration` | `death` on a save, null otherwise
  *
  * @typedef {object} DemandCard
  * @property {string} id

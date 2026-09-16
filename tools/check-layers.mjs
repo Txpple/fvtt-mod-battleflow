@@ -144,9 +144,11 @@ const LAYER_OF = {
   "decide/moments.js": "decision",   // the moment records — what a resolve IS, as data (2026-09-11)
   "decide/sequence.js": "decision",  // the hit's sequence — a queued offer waits for the damage and the mastery's decision (2026-09-13)
   "decide/effect-view.js": "decision", // the effect view's rows — which effects are listed, how each is toned (2026-09-15 draft)
+  "decide/card.js": "decision",        // THE CARD SEAM — what kind of card, whose, from which, off the typed message (the dnd5e 6.0 pass, 2026-09-15)
 
   // CORE — the leaf: ids, settings accessor, the elect, the flag serializer
-  "core.js": "core"
+  "core.js": "core",
+  "surfaces.js": "core"   // THE SURFACES MAP — every platform HTML anchor, a second leaf; imports nothing (the dnd5e 6.0 pass, 2026-09-15)
 };
 
 /* ---------------------------------------------------------------------------------------------

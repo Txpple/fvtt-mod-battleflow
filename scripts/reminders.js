@@ -12,7 +12,9 @@ import { CHIP_FLAG, chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.j
 import { CHECK_BENDS, CONDITION_BENDS, EFFECT_BENDS, MASTERY_RULES, RANGE_RULES, SAVE_BENDS, SNEAK_ATTACK } from "./decide/registry.js";
 import { parseDice, sneakWeaponQualifies } from "./decide/sneak.js";
 import { METAMAGIC_FLAG } from "./decide/metamagic.js";
+import { CARD, itemNameOf, originIdInData, rollKindInData } from "./decide/card.js";
 import { feetOf, nearestFeet, tokenOfActor } from "./geometry.js";
+import { SURFACES } from "./surfaces.js";
 import { REMINDER_FLAG, checkGate, checkSources, conditionSources, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
   reminderRecord, reminderSource, reminderView, rolledWith, saveGate, saveSources } from "./decide/reminders.js";
 
@@ -66,7 +68,7 @@ import { REMINDER_FLAG, checkGate, checkSources, conditionSources, effectCheckSo
 function distantRangeOn(message) {
   try {
     const data = message?.data ?? {};
-    const id = data["flags.dnd5e.originatingMessage"] ?? foundry.utils.getProperty(data, "flags.dnd5e.originatingMessage") ?? null;
+    const id = originIdInData(data);
     const feet = id ? game.messages.get(id)?.getFlag(MODULE_ID, METAMAGIC_FLAG)?.rangeFeet : null;
     return Number.isFinite(Number(feet)) && (Number(feet) > 0) ? Number(feet) : null;
   } catch { return null; }
@@ -153,8 +155,8 @@ function drawGate(app, { force = false } = {}) {
       fieldset.appendChild(box.firstElementChild);
       fieldset.querySelector('input[name="bf-sneak"]')?.addEventListener("change", ev => { gate.sneakArmed = !!ev.target.checked; });
     }
-    const configuration = element.querySelector('[data-application-part="configuration"]');
-    const buttons = element.querySelector('[data-application-part="buttons"]');
+    const configuration = element.querySelector(SURFACES.dialogConfiguration);
+    const buttons = element.querySelector(SURFACES.dialogButtons);
     if ( configuration ) configuration.insertAdjacentElement("afterend", fieldset);
     else if ( buttons ) buttons.insertAdjacentElement("beforebegin", fieldset);
     else element.querySelector("form")?.appendChild(fieldset);
@@ -250,8 +252,8 @@ function drawCheckGate(element, gate) {
     const host = document.createElement("div");
     host.innerHTML = reminderFieldsetHTML(gate.view, { open: false });
     const fieldset = host.firstElementChild;
-    const configuration = element.querySelector('[data-application-part="configuration"]');
-    const buttons = element.querySelector('[data-application-part="buttons"]');
+    const configuration = element.querySelector(SURFACES.dialogConfiguration);
+    const buttons = element.querySelector(SURFACES.dialogButtons);
     if ( configuration ) configuration.insertAdjacentElement("afterend", fieldset);
     else if ( buttons ) buttons.insertAdjacentElement("beforebegin", fieldset);
     else element.querySelector("form")?.appendChild(fieldset);
@@ -540,7 +542,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     title: s.rolled ? `Sneak Attack — ${s.dice} rode the damage` : `Sneak Attack armed — ${s.dice} on the hit, once per turn`,
     subtitle: `${s.weaponName ?? "the weapon"}${s.type ? `, ${s.type}` : ""}`
   });
-  html.querySelector(".message-content")?.appendChild(line);
+  html.querySelector(SURFACES.messageContent)?.appendChild(line);
 });
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
@@ -553,7 +555,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     title: `Reminded — net ${modeTitle(r.net)}, rolled ${rolledWith(r.mode)}${r.honoured ? "" : " (against the net)"}`,
     subtitle: what
   });
-  html.querySelector(".message-content")?.appendChild(line);
+  html.querySelector(SURFACES.messageContent)?.appendChild(line);
 });
 
 /* ---------------------------------------------------------------------------------------------
@@ -607,7 +609,7 @@ function judgeSave(actor, ability, { concentration = false } = {}) {
     if ( concentration ) {
       for ( const card of extendedCastsHeldBy(actor) ) {
         const rec = card.getFlag(MODULE_ID, METAMAGIC_FLAG);
-        sources.push(reminderSource("effect", "advantage", `${actor.name} — Extended Spell (${card.getFlag("dnd5e", "item")?.name ?? rec.spellName ?? "the spell"})`, rec.rule ?? ""));
+        sources.push(reminderSource("effect", "advantage", `${actor.name} — Extended Spell (${itemNameOf(card) ?? rec.spellName ?? "the spell"})`, rec.rule ?? ""));
       }
     }
   }
@@ -673,13 +675,13 @@ function drawSaveGate(app, element, gate, demand) {
     const host = document.createElement("div");
     host.innerHTML = reminderFieldsetHTML(gate.view, { open: false });
     const fieldset = host.firstElementChild;
-    const configuration = element.querySelector('[data-application-part="configuration"]');
-    const buttons = element.querySelector('[data-application-part="buttons"]');
+    const configuration = element.querySelector(SURFACES.dialogConfiguration);
+    const buttons = element.querySelector(SURFACES.dialogButtons);
     if ( configuration ) configuration.insertAdjacentElement("afterend", fieldset);
     else if ( buttons ) buttons.insertAdjacentElement("beforebegin", fieldset);
     else element.querySelector("form")?.appendChild(fieldset);
   }
-  const modeButtonsEl = [...element.querySelectorAll('[data-application-part="buttons"] button[data-action]')];
+  const modeButtonsEl = [...element.querySelectorAll(`${SURFACES.dialogButtons} button[data-action]`)];
   if ( gate.autoFail && !element.querySelector("[data-bf-fails]") ) {
     const sibling = modeButtonsEl.find(b => b.dataset.action !== "bf-fails");
     if ( sibling ) {
@@ -733,7 +735,7 @@ Hooks.on("dnd5e.postRollConfiguration", (rolls, config, dialog, message) => {
   try {
     const gate = config?.bfSaveGate;
     if ( !gate?.sources?.length || !rolls?.length ) return;
-    if ( foundry.utils.getProperty(message, "data.flags.dnd5e.roll.type") !== "save" ) return;
+    if ( rollKindInData(message?.data) !== CARD.save ) return;
     const mode = rollModeOf(rolls[0]?.options?.advantageMode);
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${REMINDER_FLAG}`, {
       ...reminderRecord({ sources: gate.sources, net: gate.net, mode, answeredAt: Date.now() }),

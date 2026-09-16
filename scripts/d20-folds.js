@@ -69,6 +69,7 @@ import { SUPERIORITY_FOLDS } from "./decide/registry.js";
 import { CHIP_FLAG } from "./decide/chips.js";
 import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause } from "./ui.js";
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
+import { SURFACES } from "./surfaces.js";
 
 /**
  * THE PER-KIND TABLES ARE VIEWS ONTO `RESCUE_KINDS` (decide/present.js), NOT COPIES.
@@ -1428,7 +1429,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     title: t.spent ? `${t.name} — +${t.total} added: ${t.spent.base} + ${t.total} = ${t.spent.total}`
       : `${t.name} — the die rolled ${t.total}; pick the check (${article(t.what)} ${t.what})`,
     subtitle: spendPhrase(poolSpendsOn(message)), lines: [ruleLine(t.rule)] }) + (live ? momentBarHTML(t, "reminder") : "");
-  html.querySelector(".message-content")?.appendChild(line);
+  html.querySelector(SURFACES.messageContent)?.appendChild(line);
   const actor = resolveUuid(t.sourceUuid);
   if ( live && canAnswerFor(actor) ) {
     const shownKey = popupKey(message.id, "armed");
@@ -1556,7 +1557,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     if ( message.getFlag(MODULE_ID, "d20fold")?.status === "pending" ) return;
     const root = html instanceof HTMLElement ? html : html?.[0];
     if ( !root ) return;
-    const host = root.querySelector(".battleflow-d20fold") ?? root.querySelector(".message-content") ?? root;
+    const host = root.querySelector(".battleflow-d20fold") ?? root.querySelector(SURFACES.messageContent) ?? root;
     const line = document.createElement("div");
     line.innerHTML = momentBarHTML(r, "to answer");
     host.appendChild(line);

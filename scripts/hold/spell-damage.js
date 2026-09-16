@@ -7,6 +7,7 @@
  */
 import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, whisperNoGM } from "../core.js";
 import { damagePartsOf } from "../shared.js";
+import { CARD, isCard, itemNameOf, originIdOf, targetsOf } from "../decide/card.js";
 import { registerResumable } from "../ui.js";
 
 /**
@@ -36,15 +37,13 @@ Hooks.on("dnd5e.preApplyDamage", (actor, amount, updates, options) => {
   // ⚠ Damage only. applyDamage is the path healing takes too (a heal is negative damage with
   // roll.type "healing"), and a reaction that stops a spell must never be able to refuse
   // someone a cure cast from the same card. Phase 1b draws the same line for the same reason.
-  if ( damageMessage?.getFlag("dnd5e", "roll.type") !== "damage" ) return;
+  if ( !isCard(damageMessage, CARD.damage) ) return;
   const origin = damageMessage.getOriginatingMessage?.();
   let hold = (origin && (origin !== damageMessage)) ? origin.getFlag(MODULE_ID, "hold") : null;
   // Fallback (v1.6.0): a genuinely unbridged roll still gets the block — find the governing
   // hold by spell + actor, newest first, whole log (the tail-window lesson).
   if ( !hold && damageMessage.getFlag(MODULE_ID, "spellDamage") ) {
-    let name = null;
-    try { name = fromUuidSync(damageMessage.getFlag("dnd5e", "item")?.uuid ?? "")?.name?.toLowerCase() ?? null; }
-    catch { name = null; }
+    const name = itemNameOf(damageMessage)?.toLowerCase() ?? null;
     if ( name ) {
       hold = game.messages.contents.filter(m => {
         const h = m.getFlag(MODULE_ID, "hold");
@@ -83,7 +82,7 @@ async function applySpellDamage(message) {
       // or not-yet-bridged claim keeps waiting — the release write will re-trigger.
       if ( !hold || (hold.status === "pending") ) return;
     }
-    const targets = (message.getFlag("dnd5e", "targets") ?? [])
+    const targets = targetsOf(message)
       .filter(t => hold?.targets?.find(h => h.uuid === t.uuid)?.verdict !== "negated")
       .map(t => ({ uuid: t.uuid, name: t.name }));
     if ( !targets.length ) return;
@@ -138,7 +137,7 @@ Hooks.on("updateChatMessage", message => {
   const hold = message.getFlag(MODULE_ID, "hold");
   if ( (hold?.trigger === "spell") && (hold.status === "resolved") ) {
     for ( const dmg of game.messages.contents.filter(m =>
-      (m.getFlag("dnd5e", "originatingMessage") === message.id)
+      (originIdOf(m) === message.id)
       && (m.getFlag(MODULE_ID, "spellHoldPending") === true) ) ) {
       void dmg.setFlag(MODULE_ID, "spellHoldPending", false);
     }

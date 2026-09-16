@@ -15,6 +15,7 @@ import { MODULE_ID, TITLE, isActiveGM, drivesMomentFor, canApplyTo, whisperNoGM,
 import { resolveUuid } from "./lookup.js";
 import { forceStatus, rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, momentBarHTML, ruleLine } from "./decide/present.js";
+import { SURFACES } from "./surfaces.js";
 import { livePopups, DialogCarried, momentButton, scheduleBarSync, shownMoments, armDeadline,
   disarmDeadline, dramaticVerdictPause, registerDemand, demandAnsweredBy } from "./ui.js";
 
@@ -390,7 +391,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       const bar = document.createElement("div");
       bar.innerHTML = momentBarHTML(topple, "to roll");
       if ( bar.innerHTML.trim() ) {
-        html.querySelector(".message-content")?.appendChild(bar);
+        html.querySelector(SURFACES.messageContent)?.appendChild(bar);
         scheduleBarSync(bar);
       }
       armToppleTimer(message);
@@ -419,13 +420,13 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
           shownMoments.add(shownKey);
           void showTopplePopup(message, topple, t);
         }
-        html.querySelector(".message-content")?.appendChild(momentButton(`Roll save — ${t.name}`, () => {
+        html.querySelector(SURFACES.messageContent)?.appendChild(momentButton(`Roll save — ${t.name}`, () => {
           void showTopplePopup(message, message.getFlag(MODULE_ID, "topple"), t);
         }));
       }
 
       if ( game.user.isGM ) {
-        html.querySelector(".message-content")?.appendChild(momentButton(`${t.name} failed — Prone`, async () => {
+        html.querySelector(SURFACES.messageContent)?.appendChild(momentButton(`${t.name} failed — Prone`, async () => {
           const live = await fromUuid(t.uuid);
           if ( live instanceof Actor ) await forceStatus(live, "prone",
             { origin: message.getFlag(MODULE_ID, "topple")?.attackerUuid ?? null });

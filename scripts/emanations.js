@@ -16,6 +16,7 @@ import { canAnswerFor } from "./core.js";
 import { momentButton, registerRelay } from "./ui.js";
 import { rollDamageForSave } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
+import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
  * EMANATIONS (user ruling 2026-09-03 — DESIGN §4 amended: "emanations are a core part of combat and
@@ -383,7 +384,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   if ( !r?.activityUuid ) return;
   const caster = resolveUuid(r.sourceUuid);
   if ( !canAnswerFor(caster) ) return;
-  const holder = html.querySelector(".message-content");
+  const holder = html.querySelector(SURFACES.messageContent);
   if ( !holder ) return;
   holder.appendChild(momentButton(`Use ${r.activityName}`, () => {
     const activity = fromUuidSync(r.activityUuid);
@@ -670,7 +671,7 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
         <div class="form-fields" style="gap:0.75rem;">${types.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;"><input type="radio" name="bf-emanation-type" value="${t}" ${t === current ? "checked" : ""}> ${cap(t)}</label>`).join("")}</div>
         <p class="hint">${cap(current)} is the default — ${why}. The pick applies to every roll of this cast; the spell's card can change it later.</p></div>`;
     for ( const r of fs.querySelectorAll('input[name="bf-emanation-type"]') ) r.addEventListener("change", () => { if ( r.checked ) pendingTypes.set(activity.uuid, r.value); });
-    const footer = element.querySelector("footer, .form-footer");
+    const footer = element.querySelector(SURFACES.dialogFooter);
     if ( footer ) footer.before(fs); else (element.querySelector("form") ?? element).appendChild(fs);
   } catch(err) { console.warn(`${TITLE} | Could not add the damage-type fieldset.`, err); }
 });
@@ -811,7 +812,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     b.addEventListener("click", ev => { ev.preventDefault(); void chooseDamageType(message, type); });
     row.appendChild(b);
   }
-  html.querySelector(".message-content")?.appendChild(row);
+  html.querySelector(SURFACES.messageContent)?.appendChild(row);
 });
 
 // Every roll of the cast wears the type: the save activity's own damage roll — the cast's, the

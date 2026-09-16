@@ -15,6 +15,7 @@ import { SAVE_BENDS } from "../decide/registry.js";
 import { saveGate, saveSources } from "../decide/reminders.js";
 import { conditionEntries, reminderEntries } from "../settings.js";
 import { foldSaveAnswer, foldSaveAutoFail } from "./verdict.js";
+import { SURFACES } from "../surfaces.js";
 
 /* --- the roll: whoever owns the decision presses it ----------------------------------------- */
 
@@ -168,7 +169,7 @@ function drawSaveDemand(app, element, demand) {
     lines: stakes, tone: "pending"
   })}${holdBarHTML(flag, "to roll")}</fieldset>`;
   const fieldset = host.firstElementChild;
-  const configuration = element.querySelector('[data-application-part="configuration"]');
+  const configuration = element.querySelector(SURFACES.dialogConfiguration);
   const formulas = element.querySelector('[data-application-part="formulas"]');
   if ( configuration ) configuration.insertAdjacentElement("beforebegin", fieldset);
   else if ( formulas ) formulas.insertAdjacentElement("afterend", fieldset);

@@ -16,6 +16,7 @@ import { reactionItem, reactionImg, reactionACBonus } from "./lookup.js";
 import { armHoldTimer } from "./clock.js";
 import { answerHold, castReaction } from "./answer.js";
 import { continueHold } from "./continue.js";
+import { SURFACES } from "../surfaces.js";
 
 /**
  * The math a hold is allowed to show, or null when the reveal is off (the RAW default: you know
@@ -166,7 +167,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       block.append(controls);
     });
   }
-  html.querySelector(".message-content")?.appendChild(row);
+  html.querySelector(SURFACES.messageContent)?.appendChild(row);
 
   // Resume a hold that is READY but has nobody driving it: every answer landed, then the
   // continuing client reloaded before writing the verdict (the settle window makes that gap

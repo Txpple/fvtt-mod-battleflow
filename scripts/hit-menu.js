@@ -16,6 +16,7 @@ import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt, messageActivity } from "./effect-riders.js";
 import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerRelay, registerResumable, shownMoments } from "./ui.js";
+import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
  * THE HIT MENU (user, 2026-09-04 — "the actor should be given a choice if they have maneuvers,
@@ -579,7 +580,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       subtitle: `${spendPhrase(hm.poolSpend ? [hm.poolSpend] : [], hm.dieLabel)}${hm.caveat ? ` · ${hm.caveat}` : ""}`,
       lines: [hm.line, ruleLine(hm.rule), ...(hm.notes ?? []).map(n => `<span style="opacity:0.8;">${n}</span>`)]
     });
-    html.querySelector(".message-content")?.appendChild(line);
+    html.querySelector(SURFACES.messageContent)?.appendChild(line);
   }
   const hc = message.getFlag(MODULE_ID, "hitManeuverCard");
   if ( hc ) {
@@ -589,7 +590,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       title: `${hc.feature} — from ${hc.attackerName ?? "the attacker"}’s hit`,
       lines: [hc.line, ruleLine(hc.rule)]
     });
-    html.querySelector(".message-content")?.appendChild(line);
+    html.querySelector(SURFACES.messageContent)?.appendChild(line);
   }
   const sc = message.getFlag(MODULE_ID, "sweepCard");
   if ( sc ) {
@@ -604,7 +605,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       subtitle: (!r && sc.candidates?.length && !chosenName) ? `within 5 feet of ${sc.targetName} and within your reach` : "",
       lines: [ruleLine(sc.rule)]
     }) + ((!sc.chosen && sc.candidates?.length) ? momentBarHTML(sc, "to pick") : "");
-    html.querySelector(".message-content")?.appendChild(line);
+    html.querySelector(SURFACES.messageContent)?.appendChild(line);
     const attacker = resolveUuid(sc.sourceUuid);
     if ( !sc.chosen && sc.candidates?.length && canAnswerFor(attacker) ) {
       // The popup is the ask (the moment spine); the card keeps a button to reopen it.

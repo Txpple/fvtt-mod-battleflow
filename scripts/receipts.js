@@ -6,6 +6,7 @@ import { MODULE_ID, TITLE } from "./core.js";
 import { clearStatus } from "./shared.js";
 import { receiptAmounts, revertPlan, traitPhrase } from "./decide/receipt.js";
 import { revertEffect } from "./effect-riders.js";
+import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Receipts — the revert row on damage cards. Public facts, GM-only pools and controls.
@@ -42,7 +43,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   // uses toggleAttribute for the same reason, chat-message.mjs:166).
   if ( receipt?.targets?.some(t => !t.reverted)
     && (game.settings.get("dnd5e", "autoCollapseChatTrays") !== "manual") ) {
-    html.querySelector("damage-application")?.toggleAttribute("open", false);
+    html.querySelector(SURFACES.damageTray)?.toggleAttribute("open", false);
   }
 
   const row = document.createElement("div");
@@ -243,7 +244,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     }
   }
 
-  html.querySelector(".message-content")?.appendChild(row);
+  html.querySelector(SURFACES.messageContent)?.appendChild(row);
 });
 
 /**

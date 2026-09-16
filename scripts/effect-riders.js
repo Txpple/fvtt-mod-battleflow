@@ -5,24 +5,27 @@
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, statContext } from "./core.js";
 import { resolveUuid } from "./lookup.js";
 import { effectRecord, joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
-import { CHIP_FLAG, appliedClock } from "./decide/chips.js";
-import { statSourceOf, placeOf } from "./shared.js";
+import { CHIP_FLAG } from "./decide/chips.js";
+import { CARD, castLevelOn, concentrationIdOf, isCard, scalingOf } from "./decide/card.js";
+import { statSourceOf } from "./shared.js";
 import { METAMAGIC_FLAG, extendedDuration } from "./decide/metamagic.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1.9A — effect riders: a hit applies the effects riding it (PLAN.md section A).
  * The attack activity's own effect list is the on-hit set; application mirrors the native
- * tray's _applyEffectToActor (effect-application.mjs:182) — same origin rules
- * (concentration ?? effect), same dependentOn cascade, same re-enable-instead-of-stack for
- * an existing same-origin copy. Per-target on purpose: the damage riders' split-target
- * intersection refusal does not apply to effects, because each target gets its own document.
+ * tray's _prepareEffectData (dnd5e 6.0 effect-application.mjs) — the activity's own changes,
+ * the same `system.origin` provenance, the same dedupe on the copy's source stamp, the same
+ * re-enable-instead-of-stack for an existing copy. Per-target on purpose: the damage riders'
+ * split-target intersection refusal does not apply to effects, because each target gets its
+ * own document.
  * ------------------------------------------------------------------------------------------- */
 
-/** The activity behind a chain message, from the flag every activity message carries. */
+/**
+ * The activity behind a chain message — the platform's own read (`system.activity.uuid` first,
+ * the item's collection by id when the uuid is stale; dnd5e 6.0 `ChatMessage5e#getAssociatedActivity`).
+ */
 export function messageActivity(message) {
-  const uuid = message?.getFlag("dnd5e", "activity")?.uuid;
-  if ( !uuid ) return null;
-  return resolveUuid(uuid);
+  return message?.getAssociatedActivity?.() ?? null;
 }
 
 /**
@@ -37,7 +40,8 @@ export async function applyEffectRiders(damageMessage, attackMessage, hits) {
     // writer appears. The mastery applier deep-clones and preserves this marker.
     if ( damageMessage.getFlag(MODULE_ID, "effectReceipt")?.ridersDone ) return;
     const activity = messageActivity(attackMessage);
-    const effects = activity?.applicableEffects ?? [];
+    // 6.0: an activity's effect list holds PROFILES whose effect resolves asynchronously.
+    const effects = (await activity?.getApplicableEffects?.()) ?? [];
     if ( !effects.length ) return;
 
     // The usage card carries the cast's metadata (concentration id, scaling, spell level).
@@ -45,16 +49,18 @@ export async function applyEffectRiders(damageMessage, attackMessage, hits) {
     // non-concentration assumed) only covers genuinely chainless rolls — kept because the
     // registry walk can still come up empty (a roll made without its card in the log).
     const usage = attackMessage.getOriginatingMessage?.();
-    const usageCard = (usage instanceof ChatMessage) ? usage : null;
+    const usageCard = ((usage instanceof ChatMessage) && isCard(usage, CARD.usage)) ? usage : null;
     const concentration = usageCard
-      ? usageCard.getAssociatedActor()?.effects.get(usageCard.system?.concentration) : null;
+      ? usageCard.getAssociatedActor()?.effects.get(concentrationIdOf(usageCard)) : null;
 
     await applyEffectsWithReceipt(damageMessage, effects, hits, {
       concentration,
-      scaling: usageCard?.system?.scaling ?? 0,
-      spellLevel: usageCard?.system?.spellLevel ?? undefined,
+      scaling: scalingOf(usageCard),
+      spellLevel: castLevelOn(usageCard) ?? undefined,
       marker: "ridersDone",
-      source: statSourceOf(attackMessage)
+      source: statSourceOf(attackMessage),
+      message: usageCard ?? attackMessage,
+      activity
     });
   } catch(err) {
     console.error(`${TITLE} | Effect riders failed.`, err);
@@ -69,38 +75,35 @@ function activityOfEffect(effect) {
   return activities.contents.find(a => (a.effects ?? []).some(e => e._id === effect.id)) ?? null;
 }
 
-/** The facts the clock rule reads, gathered at the edge — see decide/chips.js `appliedClock`. */
-function clockFor(effect, actor, source) {
-  try {
-    // v14 keeps an effect's clock as {value, units}; the derived seconds/rounds/turns are not to be
-    // trusted here (a clockless effect derives `seconds: Infinity`, measured 2026-09-15).
-    const d = effect._source?.duration ?? effect.duration ?? {};
-    const own = {};
-    if ( (d.value > 0) && ["seconds", "rounds", "turns"].includes(d.units) ) own[d.units] = Number(d.value);
-    const activity = activityOfEffect(effect);
-    const cast = activity?.duration?.getEffectData?.() ?? {};
-    return appliedClock({ own, cast, place: placeOf(actor), self: !!source && (source === actor.uuid) });
-  } catch(err) {
-    console.error(`${TITLE} | The applied effect's clock could not be read — the pack's own stands.`, err);
-    return null;
-  }
-}
-
 /**
  * THE application loop — every document-copy effect application in the module runs through
  * here (the Phase 3 convergence, completed v1.8.0): the riders, the cast slice, the save
- * slice, and the reaction's self-cast sliver. Mirrors the native tray's
- * _applyEffectToActor: same origin rule (concentration ?? effect), same dependentOn
- * cascade, same re-enable-instead-of-stack. Returns receipt-shaped entries
- * ([{uuid, name, img, effects: [...]}], only targets where something landed) so callers
- * that cannot write a flag yet (the hold's answering client, whose response message does
- * not exist until after the application) still get the receipt to carry.
+ * slice, and the reaction's self-cast sliver. Built THE TRAY'S WAY (dnd5e 6.0
+ * effect-application.mjs `_prepareEffectData`, adopted in the 6.0 pass, 2026-09-15): the
+ * activity that lists the effect authors its changes (`getAppliedEffectChanges` — the clock,
+ * see below), the provenance is `system.origin.{activity|item, effect, message, profile}`, the
+ * dedupe key is the copy's `_stats.duplicateSource` (or `compendiumSource` for a pack effect),
+ * and the changes are resolved for THIS application (`ActiveEffect.forApplication` — an `@` in a
+ * change's value read on the origin's or the target's roll data). A tray-applied Bless and a
+ * Battle Flow-applied Bless are now the same document, and the platform's own tooling
+ * (`getSourceActor`, `matchesOrigin`, the rest expiry) sees ours. Returns receipt-shaped
+ * entries ([{uuid, name, img, effects: [...]}], only targets where something landed) so callers
+ * that cannot write a flag yet (the hold's answering client, whose response message does not
+ * exist until after the application) still get the receipt to carry.
+ *
+ * THE CLOCK (user ruling 1 of the 6.0 pass, 2026-09-15 — DESIGN §5 states ONE rule now): the
+ * platform's. `Activity#getAppliedEffectChanges` gives a clockless effect its activity's
+ * duration (Death Armor's hour, written once on the spell) and pins a finite non-turns clock
+ * landing in combat to `turnStart`; "until the end of ITS next turn" is the activity's own
+ * `duration.expiry` at the data (`targetEnd`, one of the pseudo-expiries the platform judges
+ * against the bearer's or the source's turn). This module's `appliedClock` — rule 1 re-derived,
+ * rule 2's re-pin to the bearer's turnEnd — is retired with it. The once-per-turn chits stay
+ * this module's (shared.js `writeTurnChit`).
  *
  * The two policy options exist for the reaction sliver and stay this narrow:
- *  - `matchNames`: dedupe by name AS WELL AS origin — the casting client applies from an
- *    item CLONE (Activity#use clones the item), so its origin uuid differs from the one
- *    the continuing client would compute, and an origin-only test would happily apply
- *    Shield twice.
+ *  - `matchNames`: dedupe by name AS WELL AS the source stamp — the casting client applies from
+ *    an item CLONE (Activity#use clones the item), so its effect's uuid differs from the one
+ *    the continuing client would compute, and a stamp-only test would happily apply Shield twice.
  *  - `extraFlags`: merged into the created/updated effect — how the reaction path keeps
  *    its `reactionEffect` marker (the flag inventory's "which module path created it").
  *
@@ -108,9 +111,13 @@ function clockFor(effect, actor, source) {
  * applying these effects (the riders' attacker, the cast/save slices' caster, the reaction
  * sliver's own reactor — whose self-cast is exactly why no message walk from here could get
  * it right). It rides every record via the data-plane stamp, resolved once per application.
+ * `message` is the card the application answers to (the tray's `chatMessage` — the usage card
+ * when there is one) and `activity` the activity applying, when the caller knows it better than
+ * the effect's own item does (a cast activity applying its linked spell's effects).
  */
 export async function applyEffectsTo(targets, effects,
-  { concentration = null, scaling = 0, spellLevel, matchNames = false, extraFlags = null, source = null, extend = false, clock = null } = {}) {
+  { concentration = null, scaling = 0, spellLevel, matchNames = false, extraFlags = null, source = null,
+    extend = false, clock = null, message = null, activity = null } = {}) {
   const context = statContext(source);
   const out = [];
   for ( const target of targets ) {
@@ -118,50 +125,74 @@ export async function applyEffectsTo(targets, effects,
     if ( !(actor instanceof Actor) ) continue;
     const entry = { uuid: target.uuid, name: target.name, img: actor.img ?? null, effects: [] };
     for ( const effect of effects ) {
+      const act = activity ?? activityOfEffect(effect);
+      const item = act?.item ?? ((effect.parent instanceof Item) ? effect.parent : null);
       const origin = concentration ?? effect;
-      const effectFlags = foundry.utils.mergeObject({ flags: {
+      const sourceKey = effect.inCompendium ? "compendiumSource" : "duplicateSource";
+      const profile = act?.effects?.find?.(e => (e.uuid === effect.uuid) || (e._id === effect.id))?._id ?? null;
+
+      // The activity's own changes first (the clock), then the provenance and the flags.
+      const changes = act?.getAppliedEffectChanges?.(effect, { chatMessage: message ?? undefined, target: actor }) ?? {};
+      const flags = {
         dnd5e: {
-          dependentOn: origin.uuid,
+          ...(concentration ? { dependentOn: concentration.uuid } : {}),
           scaling,
-          spellLevel
+          ...(((spellLevel !== undefined) && (spellLevel !== null)) ? { spellLevel } : {})
         },
         // The module's application fingerprint — the twin-dedupe floor below polices ONLY
         // effects wearing it, so it can never delete another module's deliberate stack.
         // …and WHOSE action applied it, for the gate's `except: "source"` facet (a compendium
         // origin names no actor, so the origin alone cannot say).
         [MODULE_ID]: { applied: true, ...(source ? { sourceUuid: source } : {}) }
-      } }, { flags: extraFlags ?? {} });
-      // Native parity, bug-for-bug: an existing effect with this origin is re-enabled and
-      // re-clocked rather than duplicated. (Like the tray, a concentration spell carrying
-      // TWO effects collides with itself here — both share the concentration origin — but
-      // deviating from the button the module is pressing would be worse than matching it.)
-      const existing = actor.effects.find(e => (e.origin === origin.uuid)
+      };
+      foundry.utils.mergeObject(flags, extraFlags ?? {});
+      foundry.utils.mergeObject(changes, {
+        flags,
+        system: { origin: {
+          ...(act ? { activity: act.uuid } : (item ? { item: item.uuid } : {})),
+          ...(concentration ? { effect: concentration.uuid } : {}),
+          ...(message?.uuid ? { message: message.uuid } : {}),
+          ...(profile ? { profile } : {})
+        } }
+      });
+
+      // Native parity: an existing copy of THIS effect is re-enabled and re-clocked rather than
+      // duplicated — by the copy's source stamp (the tray's key), or by name for the reaction
+      // sliver (`matchNames`). Two effects of one concentration spell no longer collide: the
+      // 5.x tray keyed on `origin` (concentration ?? effect) and this loop matched it bug-for-bug.
+      const existing = actor.effects.find(e => (e._stats?.[sourceKey] === effect.uuid)
         || (matchNames && (e.name === effect.name)));
-      // THE CLOCK (decide/chips.js `appliedClock`, 2026-09-15): a caller's own `clock` wins; else
-      // the rule decides from the effect's clock, its activity's, the target's place and self.
-      const pin = clock ?? clockFor(effect, actor, source);
       let applied;
       // `clock` (2026-09-10): a caller that knows the effect's RAW window better than the pack's
       // numbers — the reaction's self-cast, whose "until the start of your next turn" is the
       // Reaction chip's clock pinned to the REACTOR's place — hands `{duration, start}` in, and
-      // it lands on create and on refresh alike. Nobody else passes one; the pack's clock stands.
+      // it lands on create and on refresh alike, over the activity's own changes. Nobody else
+      // passes one; the platform's clock stands.
       if ( existing ) {
         // ⚠ `?? existing`: an empty-diff update returns undefined (same bug as the
         // mastery applier) and the receipt entry would vanish with it.
         // ⚠ `expired: false` on the refresh: core v14 MARKS an expired effect rather than
         // deleting it, so a re-cast over a leftover would otherwise re-clock a document the
         // platform still reads as expired — suppressed, granting nothing.
-        const restart = effect.constructor.getEffectStart
-          ? { start: effect.constructor.getEffectStart() }
-          : effect.constructor.getInitialDuration();
-        applied = (await existing.update(foundry.utils.mergeObject({
-          ...restart, duration: { expired: false }, disabled: false, ...(pin ?? {})
-        }, effectFlags))) ?? existing;
+        const data = foundry.utils.mergeObject({
+          _id: existing.id, disabled: false, duration: { expired: false },
+          start: effect.constructor.getEffectStart()
+        }, changes);
+        if ( clock ) foundry.utils.mergeObject(data, clock);
+        applied = (await existing.update(data)) ?? existing;
       } else {
-        const data = effect.toObject();
-        applied = await ActiveEffect.implementation.create(foundry.utils.mergeObject({
-          ...data, disabled: false, transfer: false, origin: origin.uuid, ...(pin ?? {})
-        }, effectFlags), { parent: actor });
+        // `origin` is still written beside `system.origin` — this module's own readers
+        // (`grantingActor`, `effectSourceOf`, the chip's owner) walk it; the platform reads
+        // `system.origin` first and falls back to it. Phase 2 of the 6.0 pass migrates the readers.
+        const data = foundry.utils.mergeObject({
+          ...effect.toObject(), disabled: false, transfer: false, origin: origin.uuid,
+          _stats: { [sourceKey]: effect.uuid, [effect.inCompendium ? "duplicateSource" : "compendiumSource"]: null }
+        }, changes);
+        if ( clock ) foundry.utils.mergeObject(data, clock);
+        data.system ??= {};
+        data.system.changes = await ActiveEffect.implementation.forApplication(
+          data.system.changes, act ?? item ?? resolveUuid(source) ?? actor, actor);
+        applied = await ActiveEffect.implementation.create(data, { parent: actor });
       }
       // Extended Spell (metamagic, 2026-09-09): the cast's effects run twice as long, 24 hours at
       // most — the option's own words, done here because every cast's effects land through this
@@ -185,13 +216,16 @@ export async function applyEffectsTo(targets, effects,
  * Apply and stamp in one move — the shape the riders, the cast slice and the save slice
  * use, where the receipt message already exists. Entries merge into `receiptMessage`'s
  * effectReceipt flag under the caller's own done-`marker`, so the rider and cast stages
- * can never mistake each other's work for their own.
+ * can never mistake each other's work for their own. `message` is the card the application
+ * answers to when it is not the receipt's own (the riders: the usage card, the receipt on the
+ * damage roll); `activity` the applying activity when the caller knows it.
  */
 export async function applyEffectsWithReceipt(receiptMessage, effects, targets,
-  { concentration = null, scaling = 0, spellLevel, marker, source = null } = {}) {
+  { concentration = null, scaling = 0, spellLevel, marker, source = null, message = null, activity = null } = {}) {
   const entries = await applyEffectsTo(targets, effects, {
     // Extended Spell rides the receipt card (the usage card carries the metamagic flag).
-    extend: receiptMessage?.getFlag?.(MODULE_ID, METAMAGIC_FLAG)?.key === "extended", concentration, scaling, spellLevel, source });
+    extend: receiptMessage?.getFlag?.(MODULE_ID, METAMAGIC_FLAG)?.key === "extended",
+    concentration, scaling, spellLevel, source, message: message ?? receiptMessage, activity });
   if ( !entries.length && !marker ) return;
   // ⚠ THE READ MOVED BELOW THE AWAIT, and the write is queued (core.js `queueFlagWrite`). This
   // used to clone the flag FIRST and merge into that copy after `applyEffectsTo` — a window

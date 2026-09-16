@@ -1,0 +1,59 @@
+{
+  "$comment": "GENERATED — do not hand-edit. node tools/check-surfaces.mjs --regen",
+  "system": "dnd5e",
+  "version": "6.0.1",
+  "source": "each dnd5e-authored anchor's proof text, searched (whitespace-collapsed) in the file scripts/surfaces.js names",
+  "anchors": {
+    "messageContent": {
+      "where": "core"
+    },
+    "messageId": {
+      "where": "core"
+    },
+    "formGroup": {
+      "where": "core"
+    },
+    "damageTray": {
+      "where": "dnd5e",
+      "file": "templates/chat/damage-card.hbs",
+      "proof": "<damage-application",
+      "found": true
+    },
+    "cardButtons": {
+      "where": "dnd5e",
+      "file": "templates/chat/parts/card-buttons.hbs",
+      "proof": "data-action",
+      "found": true
+    },
+    "dialogConfiguration": {
+      "where": "dnd5e",
+      "file": "dnd5e.mjs",
+      "proof": "configuration: { template: \"systems/dnd5e/templates/dice/roll-configuration.hbs\"",
+      "found": true
+    },
+    "dialogButtons": {
+      "where": "dnd5e",
+      "file": "dnd5e.mjs",
+      "proof": "buttons: { template: \"systems/dnd5e/templates/dice/roll-buttons.hbs\"",
+      "found": true
+    },
+    "dialogDefault": {
+      "where": "dnd5e",
+      "file": "templates/dice/roll-buttons.hbs",
+      "proof": "autofocus",
+      "found": true
+    },
+    "dialogRoll": {
+      "where": "dnd5e",
+      "file": "templates/dice/roll-buttons.hbs",
+      "proof": "data-action=\"{{ @key }}\"",
+      "found": true
+    },
+    "dialogFooter": {
+      "where": "dnd5e",
+      "file": "dnd5e.mjs",
+      "proof": "class ActivityUsageDialog extends Dialog5e",
+      "found": true
+    }
+  }
+}

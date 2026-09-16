@@ -188,19 +188,21 @@ export function foldedRoll(roll, folds = []) {
 }
 
 /**
- * One target's verdict after every fold that names it. `"unresolved"` is the null-AC case.
+ * One target's verdict after every fold that names it.
  *
- * ⚠ A null AC (total cover, or a target with no AC data) is deliberately NOT auto-resolvable.
- * The system's own targets tray classes those rows as hits because `total < null` is false, but
- * the outcome is not determined by data we trust, so those targets are left to humans
- * (DESIGN.md R1) and the native tray.
+ * ⚠ A null AC (total cover, or a target with no AC data) is a MISS — the platform's own verdict
+ * since dnd5e 6.0 (`AttackMessageData#evaluatedTargets`: `isMiss = ac === null || …`, a crit
+ * included), adopted by user ruling 4 of the 6.0 pass (2026-09-15). Until then this returned
+ * `"unresolved"` and left the row to humans, because 5.3.3's tray classed it a HIT (`total <
+ * null` is false) and neither reading was data we trusted; the platform has since made up its
+ * mind. A fold's FORCED verdict (the negate hold) still beats it — a ruling, not a modifier.
  */
 export function foldedVerdict(target, roll, folds = []) {
   const mine = folds.filter(f => f.uuid === target.uuid);
   const forced = mine.findLast(f => f.verdict);
   if ( forced ) return forced.verdict;
   const ac = mine.findLast(f => Number.isFinite(f.ac))?.ac ?? target.ac;
-  if ( (ac === null) || (ac === undefined) ) return "unresolved";
+  if ( (ac === null) || (ac === undefined) ) return "miss";
   const rolled = foldedRoll(roll, mine);
   if ( rolled.isCritical ) return "hit";
   if ( rolled.isFumble ) return "miss";

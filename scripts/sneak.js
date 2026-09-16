@@ -14,6 +14,7 @@ import { tokenForUuid } from "./geometry.js";
 import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
+import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
  * SNEAK ATTACK (user, 2026-09-02 — the prototype *Sneak Attack, Cunningly*, "go with the
@@ -106,7 +107,7 @@ function sneakOfferParts(attackMessage, activity) {
     /** Keep the pick legal and the button honest, live. */
     wire(element) {
       const boxes = [...(element?.querySelectorAll('input[name="bf-cunning"]') ?? [])];
-      const button = element?.querySelector('button[data-action="roll"]');
+      const button = element?.querySelector(SURFACES.dialogRoll);
       const baseLabel = button?.textContent?.trim() ?? "Roll Damage";
       const relabel = () => { if ( button ) button.innerHTML = `<i class="fa-solid fa-dice-d6" inert></i> ${baseLabel} — ${formulaLabel()}`; };
       const order = [];
@@ -344,7 +345,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         ...(sd.notes ?? []).map(n => `<span style="opacity:0.8;">${n}</span>`)
       ]
     });
-    html.querySelector(".message-content")?.appendChild(line);
+    html.querySelector(SURFACES.messageContent)?.appendChild(line);
   }
   const cunning = message.getFlag(MODULE_ID, "cunning");
   if ( cunning ) {
@@ -354,6 +355,6 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       title: `${cunning.label} — from ${cunning.attackerName ?? "the rogue"}’s Sneak Attack`,
       lines: [ruleLine(cunning.rule), cunning.upgradeRule ? ruleLine(cunning.upgradeRule) : null]
     });
-    html.querySelector(".message-content")?.appendChild(line);
+    html.querySelector(SURFACES.messageContent)?.appendChild(line);
   }
 });

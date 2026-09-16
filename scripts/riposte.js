@@ -14,6 +14,7 @@ import { maneuverFoldEntries } from "./settings.js";
 import { RULE_TEXT } from "./decide/registry.js";
 import { hitTargets, modeAllows, reactionSpent, spendReaction } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, ruleLine } from "./decide/present.js";
+import { SURFACES } from "./surfaces.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
   armDeadline, disarmDeadline, registerRelay } from "./ui.js";
 
@@ -428,7 +429,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         }
       }
     }
-    html.querySelector(".message-content")?.appendChild(row);
+    html.querySelector(SURFACES.messageContent)?.appendChild(row);
   }
 });
 

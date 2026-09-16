@@ -13,6 +13,7 @@ import { riderPartFormula } from "./decide/clock.js";
 import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerResumable, shownMoments } from "./ui.js";
 import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
+import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
  * SUPERIORITY USES (user, 2026-09-04: "do the rest of maneuvers"). The Battle Master's Bonus
@@ -352,7 +353,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     line.innerHTML = bfCard({ img: su.itemImg ?? null, eyebrow: `Maneuver — ${su.key}`, tone: su.die ? "good" : "neutral",
       title: su.total !== undefined && su.total !== null ? `${su.key} — the die rolled ${su.total}` : `${su.key} — ${su.die ?? "the die"} armed`,
       subtitle: `${spend}${su.line ? ` · ${su.line}` : ""}`, lines: [ruleLine(su.rule)] });
-    html.querySelector(".message-content")?.appendChild(line);
+    html.querySelector(SURFACES.messageContent)?.appendChild(line);
   }
   const bs = message.getFlag(MODULE_ID, "baitSwitch");
   if ( bs ) {
@@ -364,7 +365,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         : chosenName ? `${bs.key} — ${chosenName} gains AC +${bs.total}` : `${bs.key} — who gains AC +${bs.total}?`,
       subtitle: `${spendPhrase(poolSpendsOn(message))}${bs.resolved ? ` · until the start of ${fighterName}'s next turn` : ""}`,
       lines: [ruleLine(bs.rule)] }) + ((!bs.chosen && bs.deadline) ? holdBarHTML(bs, "to answer") : "");
-    html.querySelector(".message-content")?.appendChild(line);
+    html.querySelector(SURFACES.messageContent)?.appendChild(line);
     const actor = resolveUuid(bs.sourceUuid);
     if ( !bs.chosen && canAnswerFor(actor) ) {
       const shownKey = popupKey(message.id, "bait");
@@ -378,7 +379,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     for ( const r of sr.rode ) {
       const line = document.createElement("div");
       line.innerHTML = bfCard({ eyebrow: `Maneuver — ${r.key}`, tone: "good", title: `${r.key} — ${r.formula}${r.type ? ` ${r.type}` : ""} rode this roll`, subtitle: r.why, lines: [ruleLine(r.rule)] });
-      html.querySelector(".message-content")?.appendChild(line);
+      html.querySelector(SURFACES.messageContent)?.appendChild(line);
     }
   }
 });

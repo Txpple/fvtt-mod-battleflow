@@ -4,6 +4,7 @@
  */
 import { MODULE_ID, TITLE, S, setting } from "./core.js";
 import { KIND_SETS, LIST_SPECS, parseList, rejectMessage } from "./decide/registry.js";
+import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Settings registration
@@ -445,12 +446,12 @@ Hooks.on("renderSettingsConfig", (app, element) => {
   const setEnabled = (field, enabled) => {
     if ( !field ) return;
     field.disabled = !enabled;
-    const group = field.closest(".form-group");
+    const group = field.closest(SURFACES.formGroup);
     if ( group ) group.style.opacity = enabled ? "" : "0.4";
   };
 
   const addDivider = (field, text) => {
-    const group = field?.closest(".form-group");
+    const group = field?.closest(SURFACES.formGroup);
     if ( !group || group.previousElementSibling?.classList?.contains("bf-divider") ) return;
     const header = document.createElement("h4");
     header.className = "divider bf-divider";

@@ -67,9 +67,9 @@ describe("hitsAmong — the hit test", () => {
     expect(v.hitsAmong({ targets, roll: roll(99, { isFumble: true }) })).toEqual([]);
   });
 
-  it("LEAVES a null-AC target to the humans rather than counting it a hit", () => {
-    // The system's own tray classes these as hits because `total < null` is false. We do not:
-    // the outcome is not determined by data we trust (DESIGN.md R1).
+  it("a null-AC target (total cover) is a MISS, a crit included — the platform's own verdict since 6.0 (ruling 4, 2026-09-15)", () => {
+    // 5.3.3's tray classed these as hits (`total < null` is false) and this module left them to
+    // humans; 6.0's `evaluatedTargets` reads `ac === null` as a miss, and so does this.
     const cover = [{ uuid: "c", ac: null }, { uuid: "d" }];
     expect(v.hitsAmong({ targets: cover, roll: roll(99) })).toEqual([]);
     expect(v.hitsAmong({ targets: cover, roll: roll(99, { isCritical: true }) })).toEqual([]);
@@ -230,9 +230,9 @@ describe("foldedRoll — the composed number", () => {
 describe("foldedVerdict — one target, every fold that names it", () => {
   const t = { uuid: "a", ac: 15 };
 
-  it("reports unresolved for a null AC rather than guessing", () => {
-    expect(v.foldedVerdict({ uuid: "a", ac: null }, roll(99), [])).toBe("unresolved");
-    expect(v.foldedVerdict({ uuid: "a" }, roll(99), [])).toBe("unresolved");
+  it("a null AC is a miss — the platform's own verdict since 6.0 (ruling 4)", () => {
+    expect(v.foldedVerdict({ uuid: "a", ac: null }, roll(99), [])).toBe("miss");
+    expect(v.foldedVerdict({ uuid: "a" }, roll(99), [])).toBe("miss");
   });
 
   it("a forced verdict short-circuits the arithmetic entirely", () => {

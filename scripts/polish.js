@@ -12,6 +12,9 @@ import { MODULE_ID, S, setting } from "./core.js";
 import { blockEntries, effectChoiceEntries, interruptEntries } from "./settings.js";
 import { EFFECT_CHOICES, tableIndex } from "./decide/registry.js";
 import { effectChoiceFor } from "./decide/choices.js";
+import { CARD, TARGETS_KEY, activityTypeOf, activityUuidOf, castLevelOn, isCard, itemNameOf, targetsOf } from "./decide/card.js";
+import { targetDescriptorOf } from "./shared.js";
+import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Table polish — the no-target gate, the birth stamps, hidden buttons, dialog centering
@@ -68,22 +71,13 @@ function potionDefaultsToDrinker(activity) {
   return true;
 }
 
-/** The system's own target descriptor shape (getTargetDescriptors) — name off the TOKEN,
- *  identity off its actor, and AC nulled under total cover exactly as the system nulls it. */
-function targetDescriptor(token, actor) {
-  const subject = token?.actor ?? actor;
-  if ( !subject?.uuid ) return null;
-  const ac = subject.statuses?.has("coverTotal") ? null : subject.system?.attributes?.ac?.value;
-  return { name: token?.name ?? subject.name, img: subject.img, uuid: subject.uuid, ac: ac ?? null };
-}
-
 Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig, messageConfig) => {
   if ( !potionDefaultsToDrinker(activity) ) return;
 
   // RULE 2 — a real target always wins. BOTH sides must be empty before filling: the snapshot
   // decides the outcome, the live set decides what the dialog shows, and acting on a
   // disagreement between them would target the canvas without changing the roll.
-  const path = "data.flags.dnd5e.targets";
+  const path = `data.${TARGETS_KEY}`;
   const snapshot = foundry.utils.getProperty(messageConfig ?? {}, path);
   if ( game.user.targets.size || (Array.isArray(snapshot) && snapshot.length) ) return;
 
@@ -92,7 +86,7 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig, messageCo
   // A token is needed to TARGET, but not to aim: an off-scene drinker still gets the snapshot
   // so the heal lands, matching how `affects: self` needs no token at all.
   const token = actor.getActiveTokens?.()?.[0] ?? null;
-  const descriptor = targetDescriptor(token, actor);
+  const descriptor = targetDescriptorOf(token, actor);
   if ( !descriptor ) return;
 
   foundry.utils.setProperty(messageConfig, path, [descriptor]);
@@ -100,15 +94,14 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig, messageCo
 });
 
 /**
- * The activity a card was produced by, or null.
- *
- * ⚠ The try/catch is not defensive noise. `fromUuidSync` THROWS on a uuid whose pack is not
- * already cached, so every call site had to guard it — and three byte-identical copies of the
- * guard stood in this file until the duplicate census collected them (2026-08-23). EDGE by §2
- * rule 1 (it resolves a document), so it belongs here rather than in `decide/`.
+ * The activity a card was produced by, or null — the platform's own read (dnd5e 6.0
+ * `getAssociatedActivity`: `system.activity.uuid` with strict:false, the item's collection by
+ * id when the uuid is stale). The guard stays: three byte-identical copies of it stood in this
+ * file until the duplicate census collected them (2026-08-23), and a pre-create document may
+ * not resolve a speaker yet. EDGE by §2 rule 1 (it resolves a document).
  */
 function activityOf(doc) {
-  try { return fromUuidSync(doc.getFlag("dnd5e", "activity")?.uuid ?? "") ?? null; }
+  try { return doc.getAssociatedActivity?.() ?? null; }
   catch { return null; }
 }
 
@@ -124,7 +117,7 @@ function activityOf(doc) {
  */
 function castApplyQualifies(doc) {
   if ( !setting(S.castApply) ) return false;
-  const activityType = doc.getFlag("dnd5e", "activity")?.type;
+  const activityType = activityTypeOf(doc);
   if ( (activityType !== "utility") && (activityType !== "heal") ) return false;
   const activity = activityOf(doc);
   const affects = activity?.target?.affects?.type ?? null;
@@ -133,7 +126,7 @@ function castApplyQualifies(doc) {
   if ( !affects ) return false;
   const payloadWorthy = (activityType === "heal") || !!doc.system?.effects?.length;
   if ( affects !== "self" ) {
-    return payloadWorthy && !!(doc.getFlag("dnd5e", "targets") ?? []).length;
+    return payloadWorthy && !!targetsOf(doc).length;
   }
   // A SELF-tagged activity SELF-AIMS (v1.11.0, user call: "anything that is tagged SELF
   // should self aim") — the caster is the target, any UI snapshot is incidental (Second
@@ -194,13 +187,13 @@ function castPayload(doc) {
   const self = (activity?.target?.affects?.type === "self") ? activity?.actor : null;
   const choice = castChoice(activity);
   return {
-    activityUuid: doc.getFlag("dnd5e", "activity")?.uuid ?? null,
+    activityUuid: activityUuidOf(doc),
     concentration: doc.system?.concentration ?? null,
     scaling: doc.system?.scaling ?? 0,
-    spellLevel: doc.system?.spellLevel ?? null,
+    spellLevel: castLevelOn(doc),
     // A SELF-tagged activity aims at its own actor — the snapshot is incidental (v1.11.0).
     targets: self ? [{ uuid: self.uuid, name: self.name }]
-      : (doc.getFlag("dnd5e", "targets") ?? []).map(t => ({ uuid: t.uuid, name: t.name })),
+      : targetsOf(doc).map(t => ({ uuid: t.uuid, name: t.name })),
     // The caster's pick between alternative effects, pending until answered (2026-09-05).
     ...(choice ? { choice } : {})
   };
@@ -215,12 +208,12 @@ Hooks.on("preCreateChatMessage", doc => {
   // finding ① — Second Wind healed the targeted dummy because this stamp read the
   // incidental snapshot; the self-aim gate existed on the castApply path since v1.5.1
   // and the heal-roll path had missed it).
-  if ( setting(S.castApply) && (doc.getFlag("dnd5e", "roll.type") === "healing") ) {
+  if ( setting(S.castApply) && isCard(doc, CARD.healing) ) {
     const activity = activityOf(doc);
     if ( (activity?.target?.affects?.type === "self") && activity?.actor ) {
       doc.updateSource({ flags: { [MODULE_ID]: { healPending: {
         selfAim: true, uuid: activity.actor.uuid, name: activity.actor.name } } } });
-    } else if ( (doc.getFlag("dnd5e", "targets") ?? []).length ) {
+    } else if ( targetsOf(doc).length ) {
       doc.updateSource({ flags: { [MODULE_ID]: { healPending: true } } });
     }
   }
@@ -234,27 +227,19 @@ Hooks.on("preCreateChatMessage", doc => {
   // is stamped from birth precisely so the applier can never lose a race to the hold.
   // NOT gated on autoApply: the stamp is also what the veto's fallback keys on, whether
   // or not anything auto-applies.
-  if ( (doc.getFlag("dnd5e", "roll.type") === "damage")
-    && (doc.getFlag("dnd5e", "activity")?.type === "damage")
-    && (doc.getFlag("dnd5e", "targets") ?? []).length ) {
+  if ( isCard(doc, CARD.damage) && (activityTypeOf(doc) === "damage") && targetsOf(doc).length ) {
     const claim = { spellDamage: true };
     if ( setting(S.reactionHold) ) {
-      let name = null;
-      try { name = fromUuidSync(doc.getFlag("dnd5e", "item")?.uuid ?? "")?.name ?? null; }
-      catch { name = null; }
+      const name = itemNameOf(doc);   // the card's item reference carries the name
       if ( name && blockEntries().some(e => e.spell.toLowerCase() === name.toLowerCase()) )
         claim.spellHoldPending = true;
     }
     doc.updateSource({ flags: { [MODULE_ID]: claim } });
   }
 
-  // ⚠ At 5.3.3 the usage card is a real message SUBTYPE (`type: "usage"`, registered in
-  // data/chat-message/_module.mjs). `flags.dnd5e.messageType === "usage"` is the LEGACY
-  // shape the system's own migrateData writes for pre-subtype documents (chat-message.mjs:91)
-  // — matching only that silently no-ops on every card this system actually creates
-  // (bit live 2026-08-15). Accept both so old worlds and new agree.
-  const isUsage = (doc.type === "usage") || (doc.getFlag("dnd5e", "messageType") === "usage");
-  if ( !isUsage ) return;
+  // The usage card is a message SUBTYPE (`type: "usage"`). Since dnd5e 6.0 every card is typed
+  // and the legacy `flags.dnd5e.messageType` this once also accepted is gone (decide/card.js).
+  if ( !isCard(doc, CARD.usage) ) return;
 
   // Phase 3 (cast slice): a no-gate cast the applier will handle — the native card is the
   // bus, stamped with the payload the elect executes from. Cards are never suppressed
@@ -280,7 +265,7 @@ const KEPT_CARD_BUTTONS = new Set(["refundResource"]);
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   if ( !setting(S.hideCardButtons) ) return;
-  for ( const button of html.querySelectorAll(".card-buttons button[data-action]") ) {
+  for ( const button of html.querySelectorAll(SURFACES.cardButtons) ) {
     if ( !KEPT_CARD_BUTTONS.has(button.dataset.action) ) button.style.display = "none";
   }
 });
@@ -294,7 +279,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
  *
  * DISPLAY-ONLY, DELIBERATELY. An earlier design put a checkbox on each row to untarget from
  * the dialog; it was scoped out (user call, 2026-08-19) because every downstream machine here
- * reads the message SNAPSHOT — `flags.dnd5e.targets` in hold, saves, mastery, shared and cast —
+ * reads the message SNAPSHOT — `system.targets` (decide/card.js) in hold, saves, mastery, shared and cast —
  * while only the requireTarget veto and hit-riders read `game.user.targets` live. Until it is
  * MEASURED that dnd5e stamps that flag after the dialog resolves, a checkbox would change the
  * canvas and not the roll: a control that looks authoritative and lies. Because this stays

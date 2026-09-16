@@ -37,17 +37,26 @@ export function tokenForUuid(uuid) {
 }
 
 /**
- * Every occupied square's center for a token, from its DOCUMENT — the authoritative position.
- * `tokenSamplePoints` reads the drawn object's center for a 1×1 body, and a drawn token lags
- * its document while it animates a move; a rule is judged where the token IS, not where it is
- * still walking from.
+ * Every occupied square's center for a token, from its document's SOURCE — the committed
+ * position, where the walk ends.
+ *
+ * ⚠ MEASURED on Foundry 14.367 (the 6.0 pass, 2026-09-15 — tools/probe-auto-crit.mjs): while a
+ * token animates a move its document's `x`/`y` are INTERIM, following the drawn token along
+ * the path (100 → 370 at 300 ms), and `_source.x`/`y` hold the destination from the moment the
+ * update resolves. So neither the drawn object nor the prepared document is `where the token
+ * is`; the source is where it is GOING TO STAND, which is what the player who dragged it there
+ * and pressed Attack meant. The automatic crit within 5 feet of a Paralyzed victim read a
+ * mid-walk position and fired one swing late before this (smoke-battleflow §5e, inverted).
  */
 function documentSquares(doc) {
   const grid = doc.parent?.grid?.size;
   if ( !grid ) return [];
+  const x = doc._source?.x ?? doc.x, y = doc._source?.y ?? doc.y;
   const w = Math.max(1, Math.round(doc.width ?? 1)), h = Math.max(1, Math.round(doc.height ?? 1));
-  if ( (w === 1) && (h === 1) ) return [{ x: doc.x + grid / 2, y: doc.y + grid / 2 }];
-  return tokenSamplePoints(doc);
+  if ( (w === 1) && (h === 1) ) return [{ x: x + grid / 2, y: y + grid / 2 }];
+  // The larger body's squares, walked from the SAME committed corner (a settled view of the
+  // document — no `object`, so the pure reader never falls back to the drawn center).
+  return tokenSamplePoints({ parent: doc.parent, width: doc.width, height: doc.height, x, y });
 }
 
 /** A length in the scene's or an item's units, as FEET through the system's own table — or null. */

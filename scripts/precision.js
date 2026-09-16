@@ -20,6 +20,7 @@ import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, registerRes
 // file, so nothing here can reorder auto-damage's registrations. Re-checked with
 // check-hook-order; do not move this file's entry position without re-running it.
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
+import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1.6 — the maneuver folds (FLOW item 1, built v1.19.0 after probes P1-P3; the walk's
@@ -417,7 +418,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
             : `${p.itemName} — passed${p.timedOut ? " (timer)" : ""}`),
       subtitle: (p.targets ?? []).map(t => t.name).join(", ")
     }) + (pending ? holdBarHTML(p, "to answer") : "");
-    html.querySelector(".message-content")?.appendChild(row);
+    html.querySelector(SURFACES.messageContent)?.appendChild(row);
     if ( pending ) {
       scheduleBarSync(row);
       armPrecisionTimer(message);

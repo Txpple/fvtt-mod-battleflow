@@ -14,6 +14,7 @@ import { chipData, placeOf, poolSpendsOn, spendReaction } from "./shared.js";
 import { popupKey, bfCard, momentBarHTML, ruleLine, spendPhrase } from "./decide/present.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 import { openMomentPopup, momentButton, shownMoments, acknowledgeMoment, momentAcknowledged } from "./ui.js";
+import { SURFACES } from "./surfaces.js";
 
 /* =============================================================================================
  * COMMANDER'S STRIKE (2026-09-05, "the rest of maneuvers") — the `command` fold kind: Riposte's
@@ -179,7 +180,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       title: `Commander's Strike — ${ride.formula ?? "the die"}${ride.type ? ` ${ride.type}` : ""} rode this roll`,
       subtitle: `${ride.by}'s Reaction${ride.directedBy ? `, directed by ${ride.directedBy}` : ""}`,
       lines: [ruleLine(RULE_TEXT.command)] });
-    html.querySelector(".message-content")?.appendChild(line);
+    html.querySelector(SURFACES.messageContent)?.appendChild(line);
   }
   const flag = message.getFlag(MODULE_ID, "command");
   if ( !flag ) return;
@@ -194,7 +195,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     subtitle: spendPhrase(poolSpendsOn(message)),
     lines: [ruleLine(RULE_TEXT.command)]
   }) + (live ? momentBarHTML(flag, "reminder") : "");
-  html.querySelector(".message-content")?.appendChild(line);
+  html.querySelector(SURFACES.messageContent)?.appendChild(line);
   if ( isActiveGM() ) void ensureCommandChip(message);   // the resume floor
   const ally = flag.ally?.uuid ? fromUuidSync(flag.ally.uuid) : null;
   if ( live && canAnswerFor(ally) ) {

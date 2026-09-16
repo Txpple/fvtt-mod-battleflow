@@ -5,6 +5,7 @@
 import { MODULE_ID, TITLE, S, setting, activeCombatFor, canApplyTo, combatStamp } from "./core.js";
 import { CHIP_FLAG, chipClock, chitStamp, reactionStands } from "./decide/chips.js";
 import { foldsFrom, hitsAmong, modeAdmits } from "./decide/verdict.js";
+import { CARD, describeTarget, isCard, targetsOf } from "./decide/card.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Shared: the hit test and the chain walk
@@ -13,10 +14,11 @@ import { foldsFrom, hitsAmong, modeAdmits } from "./decide/verdict.js";
 /**
  * Targets from an attack message's snapshot that the attack roll actually hit, recomputing
  * the system's own render-time test: crit hits, fumble misses, otherwise total >= ac.
- * A null AC (total cover, or a target with no AC data) is deliberately NOT auto-resolvable:
- * the system's targets tray classes those rows as hits (total < null is false), but the
- * outcome isn't determined by data we trust, so those targets are left to humans
- * (DESIGN.md R1) and the native tray.
+ * A null AC (total cover, or a target with no AC data) is a MISS — the platform's own verdict
+ * since dnd5e 6.0 (`AttackMessageData#evaluatedTargets`; user ruling 4 of the 6.0 pass,
+ * 2026-09-15). 5.3.3's tray read it as a hit and this module left the row to humans; both
+ * readings are gone. The snapshot is read through the card seam (decide/card.js `targetsOf`:
+ * `uuid` is the target ACTOR, one row per actor, the token beside it).
  */
 export function hitTargets(attackMessage) {
   const roll = attackMessage.rolls[0];
@@ -29,7 +31,7 @@ export function hitTargets(attackMessage) {
   // the signature and the body. `foldsFrom` walks the REGISTRY instead and the only thing this
   // shell still supplies is the reader — which is also what keeps the judgment pure.
   return hitsAmong({
-    targets: attackMessage.getFlag("dnd5e", "targets") ?? [],
+    targets: targetsOf(attackMessage),
     folds: foldsFrom(key => attackMessage.getFlag(MODULE_ID, key)),
     roll: { isCritical: roll.isCritical, isFumble: roll.isFumble, total: roll.total }
   });
@@ -74,7 +76,7 @@ export function resolveAttackMessage(damageMessage) {
   }
   const origin = damageMessage.getOriginatingMessage(); // falls back to the message itself
   if ( origin === damageMessage ) return null;
-  if ( origin.getFlag("dnd5e", "roll.type") === "attack" ) return origin;
+  if ( isCard(origin, CARD.attack) ) return origin;
   return origin.getAssociatedRolls("attack")
     .filter(m => m.timestamp <= damageMessage.timestamp)
     .pop() ?? null;
@@ -161,7 +163,9 @@ export async function forceStatus(actor, statusId, { origin = null } = {}) {
   // is not this press: re-enabling it revives that effect's name, duration and changes under
   // Topple's origin, and the gate then names the wrong source. Told by the status's own
   // localized name, which is what fromStatusEffect builds.
-  const canonicalName = game.i18n.localize(CONFIG.statusEffects.find(s => s.id === statusId)?.name ?? "");
+  // ⚠ `CONFIG.statusEffects` is an OBJECT keyed by id since dnd5e 6.0 (`_configureStatusEffects`);
+  // the 5.x array's `.find` threw here on every press (the 6.0 pass, 2026-09-15).
+  const canonicalName = game.i18n.localize(CONFIG.statusEffects[statusId]?.name ?? "");
   const active = actor.effects.find(e => e.statuses.has(statusId) && !e.disabled);
   const dormant = actor.effects.find(e => e.statuses.has(statusId) && e.disabled && (e.name === canonicalName));
   if ( active ) {
@@ -432,18 +436,21 @@ export async function spendReaction(actor, { origin = null, what = "a Reaction" 
  * defender is a mark in reverse, and the D8 lesson is that a seam is built by its second customer.
  *
  * ⚠ Verified against a live mark, and it does NOT match a straight reading of the effect tray.
- * The tray sets `origin = concentration ?? effect` (effect-application.mjs:184), but that first
- * branch only fires when `chatMessage.system.concentration` is set; a real Hunter's Mark on
- * this table arrived pointing at the SOURCE ITEM'S OWN EFFECT,
- * `Actor.<caster>.Item.<hunters-mark>.ActiveEffect.<marker>`. Do not code to either shape — the
- * walk ends at the same Actor and Item whichever branch ran, and also survives a mark dragged
- * on by hand.
+ * The 5.x tray set `origin = concentration ?? effect` (effect-application.mjs:184), but that
+ * first branch only fired when `chatMessage.system.concentration` was set; a real Hunter's Mark
+ * on this table arrived pointing at the SOURCE ITEM'S OWN EFFECT,
+ * `Actor.<caster>.Item.<hunters-mark>.ActiveEffect.<marker>`. Since dnd5e 6.0 the tray writes no
+ * `origin` at all: the provenance is `system.origin.{actor, item, activity, effect, message}`
+ * (the platform's own `getSourceActor` reads actor ?? item ?? activity ?? origin), and this
+ * module's applier writes both. Do not code to any one shape — the walk ends at the same Actor
+ * and Item whichever was written, and also survives a mark dragged on by hand.
  *
  * ⚠ Origins go stale. Prone effects on this table point at a token that no longer exists and
  * resolve to null, so every hop must tolerate a miss.
  */
 export function effectSourceOf(marker) {
-  const uuid = marker.origin || marker.getFlag("dnd5e", "dependentOn");
+  const so = marker.system?.origin ?? {};
+  const uuid = so.actor || so.item || so.activity || marker.origin || marker.getFlag("dnd5e", "dependentOn") || so.effect;
   let doc = null;
   try { doc = uuid ? fromUuidSync(uuid) : null; } catch { return null; }
   const root = doc;
@@ -536,7 +543,7 @@ export async function spendPoolUses(actor, pool, ability, n = 1, poolName = null
  */
 export function poolSpendsOn(message) {
   const rows = [];
-  const isUsage = (message?.type === "usage") || (message?.getFlag?.("dnd5e", "messageType") === "usage");
+  const isUsage = isCard(message, CARD.usage);
   const actor = message?.getAssociatedActor?.() ?? null;
   if ( isUsage && message.system?.deltas && actor?.hasPlayerOwner ) {
     for ( const [itemId, changes] of Object.entries(message.system.deltas.item ?? {}) ) {
@@ -572,6 +579,22 @@ export function poolSpendsOn(message) {
     if ( (spender ? spender.hasPlayerOwner : own) && (r.max > 0) ) rows.push(r);
   }
   return rows;
+}
+
+/**
+ * The platform's own descriptor for one creature (decide/card.js `describeTarget`, the shape of
+ * `TargetsField.getDescriptors`) — read off the TOKEN when there is one, the actor otherwise. What
+ * the module writes when IT names a target (polish.js: the potion that aims at its drinker).
+ * @param {Token|TokenDocument|null} token
+ * @param {Actor|null} actor
+ */
+export function targetDescriptorOf(token, actor) {
+  const doc = token?.document ?? token ?? null;
+  const subject = doc?.actor ?? actor;
+  if ( !subject?.uuid ) return null;
+  return describeTarget({ actorUuid: subject.uuid, tokenUuid: doc?.uuid ?? null,
+    name: doc?.name ?? subject.name, img: doc?.texture?.src ?? subject.img ?? null,
+    ac: subject.system?.attributes?.ac?.value ?? null, totalCover: !!subject.statuses?.has?.("coverTotal") });
 }
 
 /** Aim the user's targets at these tokens for the duration of `fn`, then put them back. */

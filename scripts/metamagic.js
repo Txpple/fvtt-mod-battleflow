@@ -34,6 +34,7 @@ import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups,
 import { raiseHold, releaseHold, isHeld } from "./holds.js";
 import { saveTargetEntry } from "./decide/demand.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
+import { SURFACES } from "./surfaces.js";
 
 const INDEX = tableIndex(METAMAGIC);
 /** The name the record shows for Font of Magic's uses — what the table calls them. */
@@ -238,7 +239,7 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
     for ( const b of boxes ) b.addEventListener("change", sync);
     for ( const r of fs.querySelectorAll('input[name="bf-metamagic-type"], input[name="bf-metamagic-protect"], input[name="bf-metamagic-mark"]') ) r.addEventListener("change", sync);
     sync();
-    const footer = element.querySelector("footer, .form-footer");
+    const footer = element.querySelector(SURFACES.dialogFooter);
     if ( footer ) footer.before(fs); else (element.querySelector("form") ?? element).appendChild(fs);
   } catch(err) { console.warn(`${TITLE} | Could not add the metamagic fieldset.`, err); }
 });
@@ -525,7 +526,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const record = message.getFlag(MODULE_ID, METAMAGIC_FLAG);
     if ( !record ) return;
     if ( message.getFlag(MODULE_ID, METAMAGIC_ASK_FLAG)?.status === "pending" ) return;   // the ask's own line speaks
-    const content = html.querySelector?.(".message-content") ?? html;
+    const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-metamagic-line") ) return;
     const div = document.createElement("div");
     div.className = "bf-metamagic-line";
@@ -828,7 +829,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   try {
     const flag = message.getFlag(MODULE_ID, EMPOWERED_FLAG);
     if ( !flag ) return;
-    const content = html.querySelector?.(".message-content") ?? html;
+    const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-empowered-line") ) return;
     const div = document.createElement("div");
     div.className = "bf-empowered-line";
@@ -878,7 +879,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   try {
     const ask = message.getFlag(MODULE_ID, METAMAGIC_ASK_FLAG);
     if ( !ask ) return;
-    const content = html.querySelector?.(".message-content") ?? html;
+    const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-metamagic-ask") ) return;
     if ( ask.status !== "pending" ) return;
     const div = document.createElement("div");

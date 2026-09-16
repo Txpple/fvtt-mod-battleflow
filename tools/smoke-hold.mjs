@@ -244,7 +244,7 @@ const r = await f.evaluate(async ({ sections }) => {
       const usage = await activity().use({ subsequentActions: false }, { configure: false }, {});
       const usageId = usage?.message?.id;
       const rolls = await activity().rollAttack(
-        opts, { configure: false }, { data: { 'flags.dnd5e.originatingMessage': usageId } });
+        opts, { configure: false }, { data: { 'system.origin': usageId } });
       const msg = rolls?.[0]?.parent;
       return { usageId, msg, total: rolls?.[0]?.total, crit: rolls?.[0]?.isCritical,
         fumble: rolls?.[0]?.isFumble };
@@ -283,8 +283,8 @@ const r = await f.evaluate(async ({ sections }) => {
     // announcement messages that push a real damage card out of a 14-message tail. That flaked
     // two assertions on 2026-08-15 ("damage flows" and the crit skip) and cost a bisect.
     const damageFor = usageId => game.messages.contents.find(m =>
-      m.getFlag('dnd5e', 'roll.type') === 'damage'
-      && m.getFlag('dnd5e', 'originatingMessage') === usageId);
+      (m.type === 'damage')
+      && (m._source.system?.origin === usageId));
 
     // (gg) roll-now-apply-later: the shape of a held attack's damage in one read. `rolled`
     // is the dice existing (they always do now), `pending` the attackHoldPending claim
@@ -303,8 +303,8 @@ const r = await f.evaluate(async ({ sections }) => {
     // stray Shield effect makes a "hit" by the harness's captured baseAC a miss to the module.
     const diagnose = (usageId, total) => ({
       existsAnywhere: !!game.messages.contents.find(m =>
-        m.getFlag('dnd5e', 'roll.type') === 'damage'
-        && m.getFlag('dnd5e', 'originatingMessage') === usageId),
+        (m.type === 'damage')
+        && (m._source.system?.origin === usageId)),
       attackTotal: total ?? null,
       grenLiveAC: gren.system.attributes.ac.value,
       grenBaseAC: baseAC,
@@ -355,6 +355,9 @@ const r = await f.evaluate(async ({ sections }) => {
         'system.spells.spell1.value': actor.system.spells.spell1.max || 4,
         'system.attributes.hp.value': actor.system.attributes.hp.max,
         'system.attributes.hp.temp': 0,
+        // 6.0's AC model: a forced AC is `override`, and a crashed run's leaves it standing (the
+        // 5.x `calc: default` restore clears nothing now) — Gren's own AC every run (2026-09-15).
+        'system.attributes.ac.override': null,
       });
       await clearReaction(actor);
       for (const e of actor.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
@@ -451,8 +454,9 @@ const r = await f.evaluate(async ({ sections }) => {
       // the broken statblock, where the module's only job is to SAY SO. Testing only the first
       // is exactly how this suite stayed green while the table was broken (2026-08-15).
       await base.update(flatAC
-        ? { 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 13 }
-        : { 'system.attributes.ac.calc': 'natural', 'system.attributes.ac.flat': 13 });
+        ? { 'system.attributes.ac.override': 13 }
+        // 6.0's AC model: natural armour is the `natural` calc over `flat`; a fixed number is `override`.
+        : { 'system.attributes.ac.calcs': ['natural'], 'system.attributes.ac.flat': 13, 'system.attributes.ac.override': null });
       await clearReaction(actor);
       await clearBarriers(actor);
 
@@ -469,7 +473,7 @@ const r = await f.evaluate(async ({ sections }) => {
         tokenObj.setTarget(true, { releaseOthers: true });
         const usage = await getActivity().use({ subsequentActions: false }, { configure: false }, {});
         const rolls = await getActivity().rollAttack({ advantage: true }, { configure: false },
-          { data: { 'flags.dnd5e.originatingMessage': usage?.message?.id } });
+          { data: { 'system.origin': usage?.message?.id } });
         const t = rolls?.[0];
         if (t && !t.isCritical && !t.isFumble && (t.total >= ac) && (t.total < ac + 5)) {
           return { usageId: usage?.message?.id, msg: t.parent, total: t.total };
@@ -666,7 +670,7 @@ const r = await f.evaluate(async ({ sections }) => {
         victimTokenObj.setTarget(true, { releaseOthers: true });
         const usage = await activity().use({ subsequentActions: false }, { configure: false }, {});
         const rolls = await activity().rollAttack({ advantage: true }, { configure: false },
-          { data: { 'flags.dnd5e.originatingMessage': usage?.message?.id } });
+          { data: { 'system.origin': usage?.message?.id } });
         const t = rolls?.[0];
         if (t && !t.isCritical && !t.isFumble && (t.total >= vAC) && (t.total < vAC + 5)) {
           atk = { usageId: usage?.message?.id, msg: t.parent, total: t.total };
@@ -744,7 +748,7 @@ const r = await f.evaluate(async ({ sections }) => {
         victimTokenObj.setTarget(true, { releaseOthers: true });
         const usage = await activity().use({ subsequentActions: false }, { configure: false }, {});
         const rolls = await activity().rollAttack({ advantage: true }, { configure: false },
-          { data: { 'flags.dnd5e.originatingMessage': usage?.message?.id } });
+          { data: { 'system.origin': usage?.message?.id } });
         const t = rolls?.[0];
         if (!t || t.isCritical || t.isFumble || (t.total < vAC)) { await sleep(100); continue; }
         const msg = t.parent;
@@ -792,7 +796,7 @@ const r = await f.evaluate(async ({ sections }) => {
         victimTokenObj.setTarget(true, { releaseOthers: true });
         const usage = await activity().use({ subsequentActions: false }, { configure: false }, {});
         const rolls = await activity().rollAttack({ advantage: true }, { configure: false },
-          { data: { 'flags.dnd5e.originatingMessage': usage?.message?.id } });
+          { data: { 'system.origin': usage?.message?.id } });
         const t = rolls?.[0];
         if (t && !t.isCritical && !t.isFumble && (t.total >= vAC) && (t.total < vAC + 5)) {
           atk = { usageId: usage?.message?.id, msg: t.parent, total: t.total };
@@ -843,13 +847,13 @@ const r = await f.evaluate(async ({ sections }) => {
           [{ name: 'Shield', type: 'equipment', system: { type: { value: 'shield' } } }]);
       }
       await victimBase.update({
-        'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+        'system.attributes.ac.override': 1 });
 
       canvas.tokens.get(vTokDoc.id).setTarget(true, { releaseOthers: true });
       const usage = await activity().use({ subsequentActions: false }, { configure: false }, {});
       const usageId = usage?.message?.id;
       const rolls = await activity().rollAttack({ advantage: true }, { configure: false },
-        { data: { 'flags.dnd5e.originatingMessage': usageId } });
+        { data: { 'system.origin': usageId } });
       await sleep(2500);
       results.mundaneShield = {
         itemType: mundane.type,
@@ -880,7 +884,7 @@ const r = await f.evaluate(async ({ sections }) => {
       data.system.prepared = 0;        // as a 2024 NPC statblock actually stores it
       const [npcShield] = await vActor.createEmbeddedDocuments('Item', [data]);
       await victimBase.update({
-        'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 10 });
+        'system.attributes.ac.override': 10 });
       await clearReaction(vActor);
 
       const slots = Object.entries(vActor.system.spells ?? {})
@@ -892,7 +896,7 @@ const r = await f.evaluate(async ({ sections }) => {
         canvas.tokens.get(vTokDoc.id).setTarget(true, { releaseOthers: true });
         const usage = await activity().use({ subsequentActions: false }, { configure: false }, {});
         const rolls = await activity().rollAttack({ advantage: true }, { configure: false },
-          { data: { 'flags.dnd5e.originatingMessage': usage?.message?.id } });
+          { data: { 'system.origin': usage?.message?.id } });
         const t = rolls?.[0];
         if (t && !t.isCritical && !t.isFumble && t.total >= 10 && t.total < 15) atk = { msg: t.parent, total: t.total };
         else await sleep(70);
@@ -1077,7 +1081,7 @@ const r = await f.evaluate(async ({ sections }) => {
       // damage card in the log and the gate reads as broken when it is fine.
       if (!offUsageId) throw new Error('the PC attack produced no usage message to trace');
       const offRolls = await pcActivity().rollAttack({ advantage: true }, { configure: false },
-        { data: { 'flags.dnd5e.originatingMessage': offUsageId } });
+        { data: { 'system.origin': offUsageId } });
       await sleep(2500);
       const offHeld = !!game.messages.get(offRolls?.[0]?.parent?.id)?.getFlag(MOD, 'hold');
 
@@ -1309,7 +1313,7 @@ const r = await f.evaluate(async ({ sections }) => {
       // the live-fire exercise the veto has to survive (damage-application.mjs:335).
       const rollAndAwaitAuto = async (usageMsg, actor, { expectApply }) => {
         const rolls = await missile().rollDamage({}, { configure: false },
-          { data: { 'flags.dnd5e.originatingMessage': usageMsg.id } });
+          { data: { 'system.origin': usageMsg.id } });
         const damageMsg = rolls?.[0]?.parent;
         if (!damageMsg) throw new Error('Magic Missile rolled no damage message');
         const damages = dnd5e.dice.aggregateDamageRolls(damageMsg.rolls, { respectProperties: true })
@@ -1431,10 +1435,9 @@ const r = await f.evaluate(async ({ sections }) => {
         const freshMsgs = () => game.messages.contents.filter(m => !before.has(m.id));
         const holdMsg = await waitFor(() => freshMsgs().find(m =>
           m.getFlag(MOD, 'hold')?.status === 'pending') ?? null, 10000);
-        const heldOnUsage = !!holdMsg && ((holdMsg.type === 'usage')
-          || (holdMsg.getFlag('dnd5e', 'messageType') === 'usage'));
+        const heldOnUsage = !!holdMsg && (holdMsg.type === 'usage');
         const rolls = await missile().rollDamage({}, { configure: false },
-          holdMsg ? { data: { 'flags.dnd5e.originatingMessage': holdMsg.id } } : {});
+          holdMsg ? { data: { 'system.origin': holdMsg.id } } : {});
         const damageMsg = rolls?.[0]?.parent;
         // ⚠ Captured AT THE ROLL: the claim is stamped at preCreate (baked into the doc)
         // and the resolution releases it later — reading this flag after the answer reads

@@ -54,6 +54,7 @@
 import { MODULE_ID, TITLE, S, setting, isActiveGM, statContext } from "./core.js";
 import { poolSpendsOn } from "./shared.js";
 import { esc, spendLine } from "./decide/present.js";
+import { SURFACES } from "./surfaces.js";
 
 const flashed = new Set();
 // (cc): flashes held for an ability's own dice — usage message id → the armed flash.
@@ -239,7 +240,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   if ( !setting(S.resourceNotices) ) return;
   const rows = spendRows(message);
   if ( !rows.length ) return;
-  const content = html.querySelector?.(".message-content") ?? html;
+  const content = html.querySelector?.(SURFACES.messageContent) ?? html;
   if ( !content || content.querySelector(".bf-resource-line") ) return;
   const div = document.createElement("div");
   div.className = "bf-resource-line";

@@ -10,6 +10,7 @@ import { bfCard, riderMenuHTML, ruleLine } from "./decide/present.js";
 import { CLOCK_RIDERS } from "./decide/registry.js";
 import { riderDue, riderPartFormula } from "./decide/clock.js";
 import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
+import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
  * CLOCK RIDERS (user, 2026-09-02 — "the damage riders on clock (assassin, gloomstalker) should
@@ -204,6 +205,6 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       subtitle: `${r.why}${(r.usesLeft !== undefined) ? ` · ${r.usesLeft} use${r.usesLeft === 1 ? "" : "s"} left` : ""}${r.caveat ? ` · ${r.caveat}` : ""}`,
       lines: [ruleLine(r.rule)]
     });
-    html.querySelector(".message-content")?.appendChild(line);
+    html.querySelector(SURFACES.messageContent)?.appendChild(line);
   }
 });

@@ -56,6 +56,7 @@ import { REMINDER_FLAG, reminderRecord } from "./decide/reminders.js";
 import { livePopups, openManagedPopup, armDeadline, disarmDeadline } from "./ui.js";
 import { tokenForUuid } from "./geometry.js";
 import { judgeRoll } from "./reminders.js";
+import { SURFACES } from "./surfaces.js";
 
 const volleyTimers = new Map();
 
@@ -562,7 +563,7 @@ Hooks.on("deleteChatMessage", message => {
 });
 
 function renderVolleyRow(message, v, html) {
-  const content = html.querySelector?.(".message-content") ?? html;
+  const content = html.querySelector?.(SURFACES.messageContent) ?? html;
   if ( !content || content.querySelector(".bf-volley-row") ) {
     // Re-render with a resolved flag: replace the pending row so the bar never lingers.
     const row = content?.querySelector?.(".bf-volley-row");
@@ -599,7 +600,7 @@ function renderVolleyAim(message, html) {
   if ( !message.getFlag(MODULE_ID, "volleyFor") ) return;
   const target = (message.getFlag("dnd5e", "targets") ?? [])[0];
   if ( !target?.name ) return;
-  const content = html.querySelector?.(".message-content") ?? html;
+  const content = html.querySelector?.(SURFACES.messageContent) ?? html;
   if ( !content || content.querySelector(".bf-volley-aim") ) return;
   const ray = Number(message.getFlag(MODULE_ID, "volleyRay")) || 0;
   const div = document.createElement("div");

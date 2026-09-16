@@ -98,7 +98,7 @@ export const MOMENT_WORDS = Object.freeze([
  * @property {string|null} [publisher]    a user id that should publish instead of the writer
  * @typedef {object} MomentCtx
  * @property {string|null} messageId
- * @property {string|null} itemUuid       the item a usage card names (flags.dnd5e.item.uuid)
+ * @property {string|null} itemUuid       the item a usage card names (system.item.uuid)
  * @property {string|null} activityUuid   the activity it names
  * @property {string|null} actorUuid      the message's speaker actor
  * @typedef {object} MomentRecordRow

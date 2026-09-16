@@ -1,86 +1,100 @@
-# HANDOFF — the dnd5e 6.0 compatibility pass (written 2026-09-15, late evening)
+# HANDOFF — the dnd5e 6.0 compatibility pass (phase 1 delivered 2026-09-15, late; phase 2 next)
 
 > A commission file: written because there is one, retired when it is delivered (BACKLOG's rule —
 > no standing handoff). Every line below is the state at the moment of writing, measured.
-
-## ⚠ Read this first: the order of work
-
-1. **The MCP itself is being updated for 6.0 first** (`../fvtt-mcp-molten5e` — its headless
-   client, tools and `dist/` were written against dnd5e 5.3.x; the sandbox is now a 6.0.1 box).
-   Battle Flow's harness (`tools/harness.mjs`, every suite and probe) rides that repo's
-   `dist/foundry.js`, so nothing here runs against the sandbox until the MCP pass is done.
-   **Do not start Battle Flow's phase 1 until the user says the MCP is ready.**
-2. Then Battle Flow's pass, per `ASSESSMENT.md` §4 — phase 1 first. The user says "go".
+> `ASSESSMENT.md` is the plan; this file is where the pass stands against it.
 
 ## Where things stand
 
-- **Prod is on the RESTORED pre-6.0 box:** Foundry 14.364 / dnd5e 5.3.3, Battle Flow
-  **v1.42.0** (main == tag == release == prod, released late 2026-09-15 for the game session
-  of **2026-09-22**). Prod plays on 5.3.3 until the 6.0 pass ships and the user says so.
-  ⚠ Do NOT deploy 6.0-pass bytes to prod; do NOT copy prod → sandbox while the pass runs (it
-  would put 5.3.3 content under a 6.0 system).
-- **The sandbox is the 6.0 box:** Foundry 14.367 / dnd5e 6.0.1, the world active. Its copy of
-  `modules/fvtt-mod-battleflow/module.json` has the dnd5e pin raised to `6.0.99` (the repo's is
-  still 5.3.99 — the server silently refuses to activate a module whose system maximum is
-  exceeded). Battle Flow is ENABLED in the sandbox world (v1.42.0 bytes are NOT deployed there —
-  it runs v1.41.0; deploy with `deploy-house-module.mjs fvtt-mod-battleflow --local` when the
-  pass starts). The BF Test fixtures are placed (`tools/fixture-suite.mjs` ran). World settings
-  verified CLEAN against `tools/verify-settings.mjs` after the battery. A world snapshot taken
-  BEFORE the fixtures sits at `bf-snapshots/`; `node tools/world-snapshot.mjs restore` returns
-  the sandbox to the exact prod copy of 2026-09-15 (ruling 5: keep the fixtures for the pass).
-- **`ASSESSMENT.md` is the plan.** The break list by class (§2), what the platform now offers
-  (§3), the HTML-anchor posture (§3b), the phased order (§4), and **all five rulings closed**
-  (§5): the clock adopts the platform's pseudo-expiries; concentration prompts are VETOED with
-  the user's rationale recorded (carry it into the code comment, DESIGN R1 and the commit);
-  emanations stay Battle Flow's and the platform's auto-behaviour is suppressed on adopted
-  regions (measured: the PHB pack declares zero behaviours, the mechanism works when authored,
-  neutrals excluded, concentration did not clean up); null AC follows 6.0 (a miss); the sandbox
-  keeps its fixtures.
-- **The battery at 6.0.1** (v1.41.0 bytes, pin raised): `dist/battery/2026-09-15T18-09-57/` —
-  23 of 27 suites failed in 94 minutes, exactly the class the diff predicted. Green or near:
-  smoke-surfaces 17/17, smoke-riders 8/8, smoke-emanations 63/68, smoke-concentration 9/10.
-  Dead at the first guard: battleflow, hold, saves, maneuvers, volleys, clock, hitmenu, shields.
-  ⚠ The suites assert on the same `flags.dnd5e.*` the module reads — they are rewritten class
-  by class alongside the code (ASSESSMENT §2.O).
-- **Hook inventory:** `tools/dnd5e-hooks.json` is at 5.3.3 in the tree (verify green on main).
-  Regenerate it in phase 1 with
-  `node tools/check-hook-dispatch.mjs --regen C:/Users/sippelmc/AppData/Local/FoundryVTT/Data/systems/dnd5e`
-  (6.0.1: 8 hooks added, 0 removed) in the same commit as the module.json pin bump.
-- **The dnd5e source diff** that the assessment was read against: clone
-  `https://github.com/foundryvtt/dnd5e.git` (`--filter=blob:none`), tags `release-5.3.3` and
-  `release-6.0.1`; `git diff release-5.3.3 release-6.0.1 -- module` is the reference. The three
-  diff analyses (chat layer; rolls and activities; actors, effects, tokens, regions) are
-  summarised into ASSESSMENT §2–3 with file:line cites; nothing else was kept.
-- **`tools/probe-platform-emanations.mjs`** (new, committed): the measurement behind ruling 3 —
-  `read` prints each aura spell's behaviours/effects; `module-off` / `walk` / `module-on`
-  toggles Battle Flow in the world and walks a friendly, a neutral and a hostile through a
-  hand-authored platform behaviour. Reusable when the pack data changes.
-- **Deferred, not owed:** the user's final walk of v1.41.0's effect view (the seven items in
-  the retired handoff `c424a89`) — "already tested anyhow". Bramblemaw's Miasma key edits landed
-  on the pre-6.0 prod and are in BACKLOG's row.
+- **Prod is on the RESTORED pre-6.0 box:** Foundry 14.364 / dnd5e 5.3.3, Battle Flow **v1.42.0**
+  (main at the pass's commits is NOT deployable to prod — its pin is 6.0). Prod plays on 5.3.3
+  until the pass ships and the user says so (game session **2026-09-22**). ⚠ Do NOT deploy the
+  pass's bytes to prod; do NOT copy prod → sandbox while the pass runs.
+- **The sandbox is the 6.0 box:** Foundry 14.367 / dnd5e 6.0.1, the world active, the tree
+  deployed there (`deploy-house-module.mjs fvtt-mod-battleflow --local`, byte-identical at the
+  end of phase 1). Fixtures placed, settings verified CLEAN after the last run. The pre-fixture
+  snapshot (`bf-snapshots/`, `tools/world-snapshot.mjs restore`) is the way back.
+- **The MCP repo's 6.0 pass is done** (`../fvtt-mcp-molten5e` v1.5.2, `58c9687`) — the harness
+  rides it; every suite and probe below ran through it.
 
-## Phase 1, when the user says go (ASSESSMENT §4.1)
+## Phase 1 — DELIVERED (ASSESSMENT §4.1)
 
-The pin (6.0.0 min / 6.0.1 verified / 6.0.99 max), the hook artifact, `CONFIG.statusEffects`
-as an object (`shared.js:164`), the shared readers (`shared.js` hitTargets /
-resolveAttackMessage / forceStatus, `effect-riders.js` messageActivity + the applier built the
-tray's way with `Activity#getAppliedEffectChanges`, `lookup.js`), ONE seam module for "what
-kind of card, whose, from which" (decide-tier, unit-tested against 6.0.1 message shapes), and
-the surfaces map + `tools/check-surfaces.mjs` static gate (§3b). Green: smoke-battleflow,
-smoke-hold — their asserts rewritten in the same commits. Deploy `--local` after every change;
-a world reload is enough for scripts, a process restart for module.json.
+- **The pin:** `module.json` dnd5e 6.0.0 → 6.0.99, verified 6.0.1; `tools/dnd5e-hooks.json`
+  regenerated (8 added, 0 removed); `CONFIG.statusEffects` read as the object it is (`forceStatus`).
+- **The seam:** `scripts/decide/card.js` — what kind of card, whose, from which, off `type` and
+  `system.*` ONLY (never the flags; unit-tested against 6.0.1's own shapes, `tests/decide-card.test.js`).
+  `targetsOf` hands every reader the house shape (`uuid` = the target ACTOR, one row per actor,
+  the token beside it); `originData` / `ORIGIN_KEY` is what every roll the module drives writes.
+  ⚠ A reader joins the seam WITH its customer (knip fails on one nobody reads): phase 2 adds the
+  mastery, the attack mode, `onSave`, `resisted`, `targetsInData`, the death/concentration
+  predicates beside the files that read them.
+- **The shared readers through it:** `shared.js` (`hitTargets`, `resolveAttackMessage`,
+  `effectSourceOf` reads `system.origin` first, `poolSpendsOn`, new `targetDescriptorOf`),
+  `lookup.js`, `effect-riders.js` — **the applier is built the tray's way** (`getAppliedEffectChanges`,
+  `system.origin`, dedupe on `_stats.duplicateSource`, `forApplication`; `origin` still written
+  for this module's own readers until phase 2 migrates them), `messageActivity` is
+  `getAssociatedActivity()`. **Ruling 1 landed:** `appliedClock` (rules 1 and 2) is RETIRED —
+  the platform's clock stands (`tools/probe-applied-clock.mjs` deleted with it; DESIGN §5's text
+  is phase 5's). **Ruling 4 landed:** a null AC is a MISS (`decide/verdict.js`).
+- **The chain files for the two suites:** auto-apply, auto-damage (`rollDamageForAttack` is
+  6.0.1's own one-liner, `ability` forwarded), polish (the potion snapshot at `system.targets`,
+  `getAssociatedActivity`, the item's name off the card's reference), hit-riders, reminders (the
+  origin in the data, the save record's kind), ui (`demandAnsweredBy`'s facts: `rollType` is the
+  card kind, `saveKind` the sub-kind), hold/spell-damage, hold/spell-hold, hold/lookup (profiles
+  resolve async; the applying activity passed through), hold/continue (a fixed AC is `override`).
+- **The surfaces map + gate (§3b):** `scripts/surfaces.js` holds every platform HTML anchor (10:
+  three core, seven dnd5e); `tools/check-surfaces.mjs` fails the build on a selector literal
+  outside the map (67 sites swept, 30 files) and on a dnd5e anchor gone from the verified
+  version's templates (`tools/dnd5e-surfaces.json`, `--regen`, pinned). In `npm run verify`.
+- **Green:** verify (642 unit tests, every static check incl. the new gate); on the sandbox
+  **smoke-battleflow ALL PASS** (full run + §5e re-run) and **smoke-hold ALL PASS** (full run
+  with one failure, §4d6, fixed and re-run green). Their asserts read the 6.0 card (`m.type`,
+  `_source.system.origin`, `system.targets`) and write `system.origin`; the forced AC is
+  `override`.
 
-## Hazards paid for this session
+### Findings paid for in phase 1 (carry into NOTES in phase 5)
 
-- The harness's `Bash` background cap is 10 minutes — a battery launched that way survives
-  (it detaches) but its stdout is lost; read `dist/battery/<run>/` instead. Watch the process by
-  PID (`tasklist //FI "PID eq N"`), not by command-line grep — two watchers misfired.
-- `game.settings.set("core","moduleConfiguration")` from an assistant-role client is accepted
-  and silently dropped while the module's system maximum is exceeded. Raise the pin, restart the
-  process, then enable.
-- An emanation region's shape needs `base: { type: "rectangle", x, y, width*grid, height*grid,
-  rotation }` — a bare token bounds object fails validation ("base: does not have a valid type").
+- **A moved token's document is INTERIM while it walks** (Foundry 14.367, measured by the new
+  `tools/probe-auto-crit.mjs`): `doc.x/y` follow the animation (100 → 370 at 300 ms), `_source.x/y`
+  hold the destination from the moment the update resolves. `geometry.js documentSquares` reads
+  the source now; the automatic crit within 5 ft of a Paralyzed victim fired one swing late before.
+  Suites: never sleep for a walk — wait for `doc.x === doc._source.x` (§5e's `arrived`).
+- **A walk to a square off the scene is CONSTRAINED to the edge** — §5e's "10 feet" square lay off
+  the scene once other suites had parked the victim at x=100; the section places the victim on
+  its fixture square first.
+- **6.0's AC model at the fixtures:** the forced AC is `override`; a crashed run's override
+  outlives the 5.x `calc: 'default'` restore (it clears nothing now) — smoke-hold's stand-in resets
+  `override: null` every run. The victim's `override: 1` after smoke-battleflow is pre-existing
+  behaviour (5.x left `flat: 1` the same way).
+- The headless client throws inside the token animation when a token update's result is sampled
+  SYNCHRONOUSLY (`#createAnimationMovementPath`, `.last` of undefined); await the update.
+
+## Phase 2 — NEXT, on the user's go (ASSESSMENT §4.2)
+
+Classes B–F swept file by file through the seam, the suites' asserts rewritten in the same
+commits. What is still on the old keys, by `grep -rn 'getFlag("dnd5e"\|flags\.dnd5e' scripts`
+(~70 sites): bash-offer, cast (⚠ `castChoice` runs at preCreate, SYNC — profiles have no `name`
+now; read the item's embedded effect by the profile's `_id`, `uuid` only for an external one),
+chip-spend, command, concentration (fix J: veto both native prompts by TYPE — ruling 2's
+rationale verbatim in the comment, DESIGN R1, the commit), d20-folds, damage-casts,
+damage-shields, emanations (the region flags — class I, phase 3), hew, mastery (`masteryOf`),
+metamagic, precision, resources, riposte, saves/* (`onSaveOf`, `resistedOf`; areas are phase 3),
+superiority-uses, topple, volleys (`targetsInData` at the pre-create snapshot), events/moments
+(comments only). Class G (`applicableEffects` → `await getApplicableEffects()`): cast, polish
+`castChoice`, saves/choices, saves/consequences, saves/demand, hit-menu. Class N: `deepClone` the
+riders' shared roll data; accept `ranged`; `bonuses.*` → `rolls.*`.
+The battery's middle is the proof: saves, volleys, maneuvers, folds, cast, riders, concentration,
+effects, expiry, reminders, sneak, clock, hit menu, shields, heat metal, superiority, metamagic,
+resources — `dist/battery/2026-09-15T18-09-57/` is the pre-pass baseline (23/27 failed).
+
+## Hazards (still true)
+
+- The harness's `Bash` background cap is 10 minutes — a suite launched that way survives (it
+  detaches) but its stdout is lost; redirect to a file under `dist/` and read that.
 - `verify-settings` drifts after any crashed suite; `--fix` restores. Run it after every run.
+- `game.settings.set("core","moduleConfiguration")` is silently dropped while the module's system
+  maximum is exceeded — the pin is 6.0.99 now, so this only bites a downgrade.
+- An emanation region's shape needs `base: { type: "rectangle", … }` — a bare bounds object fails.
 
 ## When this is delivered
 

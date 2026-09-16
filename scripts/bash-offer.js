@@ -15,6 +15,7 @@ import { RULE_TEXT } from "./decide/registry.js";
 import { hitOfferStep } from "./decide/sequence.js";
 import { hitTargets, modeAllows, resolveAttackMessage } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, ruleLine } from "./decide/present.js";
+import { SURFACES } from "./surfaces.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
   armAskTimer, disarmAskTimer } from "./ui.js";
 
@@ -273,7 +274,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       title,
       subtitle: (b.targets ?? []).map(t => t.name).join(", ")
     }) + (pending ? holdBarHTML(b, "to answer") : "");
-    html.querySelector(".message-content")?.appendChild(row);
+    html.querySelector(SURFACES.messageContent)?.appendChild(row);
     // The sequence's resume (the elect): a queued offer whose damage landed while nobody was
     // driving — the render re-reads the facts and moves it, or leaves it waiting.
     if ( queued && drivesMomentFor(b.attackerUuid) ) void sequenceBashOffer(message);

@@ -8,8 +8,10 @@ import { hitTargets, modeAllows } from "./shared.js";
 import { TONE, esc } from "./decide/present.js";
 import { CONDITION_BENDS } from "./decide/registry.js";
 import { autoCritSources } from "./decide/reminders.js";
+import { CARD, isCard, originData, originIdInData, originIdOf } from "./decide/card.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { stampHoldIfInterrupted } from "./hold/index.js";
+import { SURFACES } from "./surfaces.js";
 
 /** (hh): the "Against …" line names each target with its token icon (law 8 tooltip) —
  * the roll popup was the one volley surface still naming targets in text alone. Pure
@@ -122,17 +124,17 @@ function critFor(attackMessage) {
  * The attack an about-to-roll damage answers, from the roll's message DATA (no document yet):
  * the module's own drives stamp `attackFor`; the card's Damage button carries the click, whose
  * enclosing card is the usage card and whose last attack roll is the one (dnd5e's own
- * #rollDamage reads it the same way); the flat originatingMessage key is the sheet shape.
+ * #rollDamage reads it the same way); the origin key in the data is the sheet shape.
  */
 export function attackMessageForDamage(config, message) {
   const data = message?.data ?? {};
   const forId = data[`flags.${MODULE_ID}.attackFor`] ?? foundry.utils.getProperty(data, `flags.${MODULE_ID}.attackFor`);
   if ( forId ) return game.messages.get(forId) ?? null;
-  const cardId = config?.event?.target?.closest?.("[data-message-id]")?.dataset?.messageId
-    ?? data["flags.dnd5e.originatingMessage"] ?? foundry.utils.getProperty(data, "flags.dnd5e.originatingMessage");
+  const cardId = config?.event?.target?.closest?.(SURFACES.messageId)?.dataset?.messageId
+    ?? originIdInData(data);
   const card = cardId ? game.messages.get(cardId) : null;
   if ( !card ) return null;
-  if ( card.getFlag("dnd5e", "roll.type") === "attack" ) return card;
+  if ( isCard(card, CARD.attack) ) return card;
   return card.getAssociatedRolls?.("attack")?.pop() ?? null;
 }
 
@@ -163,29 +165,22 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const line = document.createElement("div");
   line.style.cssText = "margin:0.3rem 0;font-size:var(--font-size-12,12px);line-height:1.5;";
   line.innerHTML = `${CRIT_BADGE} <span style="opacity:0.85;">${auto.sources.map(s => s.label).join(" · ")}</span>`;
-  html.querySelector(".message-content")?.appendChild(line);
+  html.querySelector(SURFACES.messageContent)?.appendChild(line);
 });
 
 /**
- * Press the Damage button the way AttackActivity.#rollDamage does at 5.3.3: recover attack
- * mode and ammunition from the attack message's flags — including the stored copy of
- * ammunition destroyed by consumption — pre-set critical, skip the dialog. The
- * originatingMessage is stamped explicitly because a programmatic roll has no DOM click to
- * inherit it from; without it the damage message never registers and auto-apply can't chain.
+ * Press the Damage button the way AttackActivity#rollDamage does at 6.0.1: the ability, the
+ * attack mode and the ammunition off the attack card's typed data (the platform rebuilds
+ * ammunition destroyed by consumption from its own snapshot, `system.ammunitionItem`), pre-set
+ * critical, skip the dialog. The origin is stamped explicitly (decide/card.js ORIGIN_KEY)
+ * because a programmatic roll has no DOM click to inherit it from; without it the damage
+ * message never registers and auto-apply can't chain.
  */
 export async function rollDamageForAttack(activity, attackMessage) {
   try {
-    const attackMode = attackMessage.getFlag("dnd5e", "roll.attackMode");
-    let ammunition;
-    const actor = attackMessage.getAssociatedActor();
-    if ( actor ) {
-      const storedData = attackMessage.getFlag("dnd5e", "roll.ammunitionData");
-      ammunition = storedData
-        ? new Item.implementation(storedData, { parent: actor })
-        : actor.items.get(attackMessage.getFlag("dnd5e", "roll.ammunition"));
-    }
+    const { ability, mode: attackMode, ammunitionItem: ammunition } = attackMessage.system ?? {};
     const isCritical = critFor(attackMessage).isCritical;
-    const originId = attackMessage.getFlag("dnd5e", "originatingMessage") ?? attackMessage.id;
+    const originId = originIdOf(attackMessage) ?? attackMessage.id;
     // (ii): EVERY driven roll names the exact attack it answers — resolveAttackMessage
     // reads this stamp first, because the registry walk misattributes under a volley
     // (three rays share one usage card and "last attack before the damage" is ray 3 for
@@ -196,9 +191,9 @@ export async function rollDamageForAttack(activity, attackMessage) {
     // resolved while the popup sat open needs no claim and applies straight.
     const holdPending = attackMessage.getFlag(MODULE_ID, "hold")?.status === "pending";
     await activity.rollDamage(
-      { ammunition, attackMode, isCritical },
+      { ability, ammunition, attackMode, isCritical },
       { configure: false },
-      { data: { "flags.dnd5e.originatingMessage": originId,
+      { data: { ...originData(originId),
         [`flags.${MODULE_ID}.attackFor`]: attackMessage.id,
         ...(holdPending ? { [`flags.${MODULE_ID}.attackHoldPending`]: true } : {}) } }
     );
@@ -228,7 +223,7 @@ export async function rollDamageForSave(activity, card) {
     // data carries the upcast the system stamped at the cast — the fallback when no demand does.
     const scaling = Number(card.getFlag(MODULE_ID, "saves")?.scaling ?? card.system?.scaling ?? 0);
     await activity.rollDamage(scaling > 0 ? { scaling } : {}, { configure: false },
-      { data: { "flags.dnd5e.originatingMessage": card.id } });
+      { data: originData(card.id) });
   } catch(err) {
     console.error(`${TITLE} | Could not auto-roll the save spell's damage.`, err);
   }

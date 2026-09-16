@@ -259,7 +259,8 @@ export async function applyReactionEffect(activity, actor, reactionName, ids) {
     // owning item is the feature ("Spellcasting"), so fall back to the reaction's own item on
     // this actor, which is where Imperceptible Barrier actually sits. Resolved through
     // reactionItem, never a bare name match: on an armoured caster that finds the worn shield.
-    let effects = activity?.applicableEffects ?? [];
+    const own = (await activity?.getApplicableEffects?.()) ?? [];   // 6.0: profiles resolve asynchronously
+    let effects = own;
     if ( !effects.length && reactionName ) {
       const spell = reactionItem(actor, reactionName, ids);
       effects = (spell?.effects?.contents ?? []).filter(e => !e.transfer);
@@ -276,6 +277,7 @@ export async function applyReactionEffect(activity, actor, reactionName, ids) {
     const sameSentence = effects.every(e => (e._source?.duration?.expiry ?? e.duration?.expiry) === "turnStart");
     const clock = sameSentence ? chipClock("reaction", placeOf(actor)) : null;
     return await applyEffectsTo([{ uuid: actor.uuid, name: actor.name }], effects, {
+      activity: (effects === own) ? (activity ?? null) : null,   // the applying activity, when the effects are its own
       matchNames: true,
       extraFlags: { [MODULE_ID]: { reactionEffect: true } },
       source: actor.uuid, // the data-plane stamp's source — the reactor's own self-cast

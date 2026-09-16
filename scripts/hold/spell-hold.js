@@ -8,6 +8,7 @@ import { MODULE_ID, TITLE, S, setting, statContext } from "../core.js";
 import { blockEntries } from "../settings.js";
 import { bfCard } from "../decide/present.js";
 import { reactionSpent, statSourceOf } from "../shared.js";
+import { CARD, isCard, itemUuidOf, targetsOf } from "../decide/card.js";
 import { usableReaction, reactionNameFor, reactionImg } from "./lookup.js";
 import { armHoldTimer, disarmHoldTimer } from "./clock.js";
 
@@ -65,9 +66,9 @@ async function releaseUnheldSpellDamage(activity, holdMessage) {
     let damage = null;
     while ( !damage && (Date.now() < deadline) ) {
       damage = game.messages.contents.filter(m =>
-        (m.getFlag("dnd5e", "roll.type") === "damage")
+        isCard(m, CARD.damage)
         && (m.author?.id === game.user.id)
-        && (m.getFlag("dnd5e", "item")?.uuid === itemUuid)
+        && (itemUuidOf(m) === itemUuid)
         && (m.getFlag(MODULE_ID, "spellDamage") === true)
         && (m.timestamp >= holdMessage.timestamp - 10_000)).pop() ?? null;
       if ( !damage ) await new Promise(r => setTimeout(r, 200));
@@ -88,7 +89,7 @@ async function releaseUnheldSpellDamage(activity, holdMessage) {
  */
 async function stampSpellHold(message, entries) {
   if ( message.getFlag(MODULE_ID, "hold") ) return;      // already held; never re-stamp
-  const targets = message.getFlag("dnd5e", "targets") ?? [];
+  const targets = targetsOf(message);
   if ( !targets.length ) return;
 
   const held = [];

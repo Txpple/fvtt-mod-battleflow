@@ -212,7 +212,7 @@ if (want('3')) {
       const attacker = game.actors.get(attackerId);
       // Force a hit: flat AC 1 on the BASE (unlinked tokens derive live from base + delta,
       // so this propagates). Nat-1 fumble still misses — advantage makes that 1/400.
-      await base.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+      await base.update({ 'system.attributes.ac.override': 1 });
       const hp0 = foundry.utils.deepClone(victim.system._source.attributes.hp);
 
       canvas.tokens.get(victimToken).setTarget(true, { releaseOthers: true });
@@ -227,7 +227,7 @@ if (want('3')) {
       const rolls = await activity.rollAttack(
         { advantage: true },
         { configure: false },
-        { data: { 'flags.dnd5e.originatingMessage': usageId } });
+        { data: { 'system.origin': usageId } });
       if (!rolls?.length) return { ok: false, why: 'attack roll produced no rolls' };
       const attackTotal = rolls[0].total;
       // ⚠ THE ONE FORCING HOLE LEFT UNGUARDED UNTIL 2026-08-23. Flat AC 1 + advantage makes a
@@ -243,14 +243,14 @@ if (want('3')) {
       for (let i = 0; i < 40 && !damageMsg; i++) {
         await new Promise(r => setTimeout(r, 250));
         damageMsg = game.messages.contents.slice(-10).find(m =>
-          m.getFlag('dnd5e', 'roll.type') === 'damage'
-          && m.getFlag('dnd5e', 'originatingMessage') === usageId
+          (m.type === 'damage')
+          && (m._source.system?.origin === usageId)
           && m.getFlag('fvtt-mod-battleflow', 'receipt'));
       }
       if (!damageMsg) {
         const tail = game.messages.contents.slice(msgCount).map(m => ({
-          id: m.id, type: m.getFlag('dnd5e', 'roll.type') ?? m.getFlag('dnd5e', 'messageType'),
-          origin: m.getFlag('dnd5e', 'originatingMessage'),
+          id: m.id, type: m.type,
+          origin: m._source.system?.origin ?? null,
           bf: !!m.getFlag('fvtt-mod-battleflow', 'receipt'),
         }));
         return { ok: false, fumble, why: fumble
@@ -302,7 +302,7 @@ if (want('3b')) {
     const r = await f.evaluate(async ({ victimId, victimToken, attackerId, attackerToken, itemName }) => {
       try {
         const base = game.actors.get(victimId);
-        await base.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+        await base.update({ 'system.attributes.ac.override': 1 });
         canvas.tokens.get(victimToken).setTarget(true, { releaseOthers: true });
         const attacker = game.actors.get(attackerId);
         const activity = attacker.items.getName(itemName).system.activities
@@ -311,14 +311,14 @@ if (want('3b')) {
         const usageId = results?.message?.id ?? null;
         if (!usageId) return { ok: false, why: 'no usage message id' };
         const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
-          { data: { 'flags.dnd5e.originatingMessage': usageId } });
+          { data: { 'system.origin': usageId } });
         if (!rolls?.length) return { ok: false, why: 'attack roll produced no rolls' };
         let damageMsg = null;
         for (let i = 0; i < 40 && !damageMsg; i++) {
           await new Promise(r => setTimeout(r, 250));
           damageMsg = game.messages.contents.slice(-10).find(m =>
-            m.getFlag('dnd5e', 'roll.type') === 'damage'
-            && m.getFlag('dnd5e', 'originatingMessage') === usageId
+            (m.type === 'damage')
+            && (m._source.system?.origin === usageId)
             && m.getFlag('fvtt-mod-battleflow', 'receipt'));
         }
         if (!damageMsg) {
@@ -498,7 +498,7 @@ if (want('3c')) {
         }
         return {
           ok: true, rollCtx: ctx, total: rolls[0].total,
-          rollType: message.getFlag('dnd5e', 'roll.type') ?? null,
+          rollType: (message.type === 'save') ? message.system.type : message.type,   // 6.0: a death save is type save, sub-kind death
           expectedSource: pc.uuid,
           inCombat: !!game.combat?.started,
           after: { hp: pc.system.attributes.hp.value, success: pc.system.attributes.death.success,
@@ -598,7 +598,7 @@ if (want('4b')) {
       if (!types.size) return { ok: false, why: `${itemName} deals no typed damage — nothing to be immune to` };
 
       await base.update({
-        'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1,
+        'system.attributes.ac.override': 1,
         'system.traits.di.value': [...types],
       });
       // Full pool first: an assertion that a number did not move is only worth anything if
@@ -617,7 +617,7 @@ if (want('4b')) {
       const rolls = await activity.rollAttack(
         { advantage: true },
         { configure: false },
-        { data: { 'flags.dnd5e.originatingMessage': usageId } });
+        { data: { 'system.origin': usageId } });
       const fumble = rolls?.[0]?.isFumble ?? false;
 
       // Whole-log search by originating id — a tail window flakes (handoff ground truth).
@@ -625,8 +625,8 @@ if (want('4b')) {
       for (let i = 0; i < 40 && !damageMsg; i++) {
         await new Promise(r => setTimeout(r, 250));
         damageMsg = game.messages.contents.find(m =>
-          m.getFlag('dnd5e', 'roll.type') === 'damage'
-          && m.getFlag('dnd5e', 'originatingMessage') === usageId
+          (m.type === 'damage')
+          && (m._source.system?.origin === usageId)
           && m.getFlag('fvtt-mod-battleflow', 'receipt'));
       }
       if (!damageMsg) return { ok: true, fumble, noDamage: true };
@@ -705,7 +705,7 @@ if (want('4c')) {
       const base = game.actors.get(victimId);
       victim = canvas.tokens.get(victimToken).actor;
       const attacker = game.actors.get(attackerId);
-      await base.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+      await base.update({ 'system.attributes.ac.override': 1 });
       priorHp = foundry.utils.deepClone(victim.system._source.attributes.hp);
       // ⚠ THE FORCING, and it is the whole point of the section: a pool of 1 makes ANY damage
       // lethal, so the dead-target branch is walked on every run instead of one in eight.
@@ -718,7 +718,7 @@ if (want('4c')) {
       const usageId = results?.message?.id ?? null;
       if (!usageId) return { ok: false, why: 'no usage message id' };
       const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
-        { data: { 'flags.dnd5e.originatingMessage': usageId } });
+        { data: { 'system.origin': usageId } });
       if (rolls?.[0]?.isFumble) {
         return { ok: false, fumble: true,
           why: 'THE FORCED HIT MISSED: natural 1 on both advantage dice vs flat AC 1 '
@@ -729,8 +729,8 @@ if (want('4c')) {
       for (let i = 0; i < 40 && !damageMsg; i++) {
         await new Promise(r => setTimeout(r, 250));
         damageMsg = game.messages.contents.slice(-10).find(m =>
-          m.getFlag('dnd5e', 'roll.type') === 'damage'
-          && m.getFlag('dnd5e', 'originatingMessage') === usageId
+          (m.type === 'damage')
+          && (m._source.system?.origin === usageId)
           && m.getFlag('fvtt-mod-battleflow', 'receipt'));
       }
       if (!damageMsg) return { ok: false, why: 'no receipted damage message' };
@@ -800,7 +800,7 @@ if (want('5')) {
     try {
       const victim = game.actors.get(victimId);
       const attacker = game.actors.get(attackerId);
-      await victim.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 40 });
+      await victim.update({ 'system.attributes.ac.override': 40 });
 
       canvas.tokens.get(victimToken).setTarget(true, { releaseOthers: true });
       const activity = attacker.items.getName(itemName).system.activities
@@ -810,7 +810,7 @@ if (want('5')) {
       const rolls = await activity.rollAttack(
         { disadvantage: true },
         { configure: false },
-        { data: { 'flags.dnd5e.originatingMessage': usageId } });
+        { data: { 'system.origin': usageId } });
       const isCritical = rolls?.[0]?.isCritical ?? false;
 
       // Damage must NOT appear: a miss means the dice never exist. (A 1/400 nat-20 crit
@@ -819,8 +819,8 @@ if (want('5')) {
       for (let i = 0; i < 16 && !damageMsg; i++) {
         await new Promise(r => setTimeout(r, 250));
         damageMsg = game.messages.contents.slice(-6).find(m =>
-          m.getFlag('dnd5e', 'roll.type') === 'damage'
-          && m.getFlag('dnd5e', 'originatingMessage') === usageId);
+          (m.type === 'damage')
+          && (m._source.system?.origin === usageId));
       }
       return { ok: true, attackTotal: rolls?.[0]?.total, isCritical, damageAppeared: !!damageMsg };
     } catch (err) {
@@ -843,11 +843,11 @@ if (want('5b')) {
       const out = {};
       const base = game.actors.get(victimId);
       const attacker = game.actors.get(attackerId);
-      await base.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 40 });
+      await base.update({ 'system.attributes.ac.override': 40 });
       const activity = () => attacker.items.getName(itemName).system.activities
         .find(a => a.type === 'attack');
       const usageCards = () => game.messages.contents.filter(m =>
-        ((m.type === 'usage') || (m.getFlag('dnd5e', 'messageType') === 'usage'))
+        (m.type === 'usage')
         && m.speaker?.alias?.startsWith('BF Test'));
 
       // (a) The rip stayed ripped: no suppress* setting is registered.
@@ -901,7 +901,7 @@ if (want('5c')) {
       // the victim mid-matrix and the later attacks would resolve against a corpse.
       await game.settings.set(MOD, 'autoApply', false);
       const base = game.actors.get(victimId);
-      await base.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+      await base.update({ 'system.attributes.ac.override': 1 });
 
       // A character-type attacker, cloned from the NPC's own attack item so the two sides
       // differ ONLY in actor.type. Idempotent by name; cleaned up with the rest by alias.
@@ -948,13 +948,13 @@ if (want('5c')) {
         const rolls = await activity.rollAttack(
           { advantage: true },
           { configure: false },
-          { data: { 'flags.dnd5e.originatingMessage': usageId } });
+          { data: { 'system.origin': usageId } });
         let dmg = null;
         for (let i = 0; i < 16 && !dmg; i++) {
           await new Promise(r => setTimeout(r, 250));
           dmg = game.messages.contents.slice(-8).find(m =>
-            m.getFlag('dnd5e', 'roll.type') === 'damage'
-            && m.getFlag('dnd5e', 'originatingMessage') === usageId);
+            (m.type === 'damage')
+            && (m._source.system?.origin === usageId));
         }
         // vs AC 1 with advantage only a fumble misses (1/400) — reported so a flake reads
         // as a flake rather than a broken gate.
@@ -1059,7 +1059,7 @@ if (want('5d')) {
     await game.settings.set(MOD, 'riders', false);
     await game.settings.set(MOD, 'masteryRiders', false);
     // Force the hit the way smoke-battleflow does: flat AC 1 on the base actor.
-    await victim.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+    await victim.update({ 'system.attributes.ac.override': 1 });
 
     const created = [];   // every message this probe makes, deleted at the end
 
@@ -1086,19 +1086,19 @@ if (want('5d')) {
       const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
       const usageId = results?.message?.id ?? null;
       const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
-        { data: { 'flags.dnd5e.originatingMessage': usageId } });
+        { data: { 'system.origin': usageId } });
       await sleep(150);
       const fresh = game.messages.contents.slice(before);
       created.push(...fresh.map(m => m.id));
-      const attackMsg = fresh.find(m => m.getFlag('dnd5e', 'roll.type') === 'attack')
+      const attackMsg = fresh.find(m => (m.type === 'attack'))
         ?? rolls?.[0]?.parent ?? null;
       return { usageId, attackMsg, total: rolls?.[0]?.total ?? null };
     };
 
     /** Did a damage message land for this usage? */
     const damageFor = usageId => game.messages.contents.slice(-25).find(m =>
-      (m.getFlag('dnd5e', 'roll.type') === 'damage')
-      && (m.getFlag('dnd5e', 'originatingMessage') === usageId));
+      ((m.type === 'damage'))
+      && ((m._source.system?.origin === usageId)));
 
     const waitDamage = async (usageId, ms) => {
       for (let i = 0; i < Math.ceil(ms / 250); i++) {
@@ -1186,9 +1186,9 @@ if (want('5d')) {
       popups[0]?.querySelector('button[data-action="roll"]')?.click();
       const dmg = await waitDamage(usageId, 8000);
       results.push({ n: 6, name: 'button pressed — rolls, stamped',
-        pass: !!dmg && (dmg.getFlag('dnd5e', 'originatingMessage') === usageId)
+        pass: !!dmg && ((dmg._source.system?.origin === usageId))
               && ((dmg.rolls?.[0]?.isCritical ?? false) === (wasCrit ?? false)),
-        detail: `damage=${!!dmg} origin=${dmg?.getFlag('dnd5e', 'originatingMessage') === usageId}`
+        detail: `damage=${!!dmg} origin=${dmg?._source.system?.origin === usageId}`
               + ` attackCrit=${wasCrit} damageCrit=${dmg?.rolls?.[0]?.isCritical ?? null}` });
 
       /* 11 — (w): the roll folds the offer — the card's bar has nothing left to draw. ----- */
@@ -1263,7 +1263,7 @@ if (want('5d')) {
       const { usageId, attackMsg } = await attack(two);
       await sleep(1200);
       const popups = popupEls();
-      const hits = attackMsg ? (attackMsg.getFlag('dnd5e', 'targets') ?? []).length : 0;
+      const hits = attackMsg ? (attackMsg.system.targets ?? []).length : 0;
       results.push({ n: 3, name: 'two targets hit — exactly ONE popup',
         pass: (popups.length === 1) && (hits >= 2),
         detail: `targeted=${two.length} snapshot=${hits} popups=${popups.length}` });
@@ -1296,7 +1296,7 @@ if (want('5d')) {
     if (extraTokDoc) await canvas.scene.deleteEmbeddedDocuments('Token', [extraTokDoc.id]).catch(() => {});
     if (extra) await extra.delete().catch(() => {});
     await victim.update({
-      'system.attributes.ac.calc': prior.victimAC?.calc ?? 'default',
+      'system.attributes.ac.override': prior.victimAC?.override ?? null,   // 6.0: the forced AC is `override`
       'system.attributes.ac.flat': prior.victimAC?.flat ?? null
     }).catch(() => {});
     for (const [k, v] of Object.entries(prior)) {
@@ -1333,12 +1333,24 @@ if (want('5e')) {
     const MOD = 'fvtt-mod-battleflow';
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const out = { log: [] };
+    // ⚠ WAIT FOR THE WALK, never sleep for it (Foundry 14.367, measured 2026-09-15 — the 6.0 pass):
+    // a moved token's document x/y are INTERIM while it animates and `_source` holds the
+    // destination; this section slept 400 ms and, with the tokens far from their fixture squares
+    // after a battery, judged the near swing mid-walk and the far swing at the near square.
+    const arrived = async tok => {
+      for (let i = 0; i < 100 && ((tok.document.x !== tok.document._source.x) || (tok.document.y !== tok.document._source.y)); i++) await sleep(100);
+    };
     const base = game.actors.get(victimId);
     const vTok = canvas.tokens.get(victimToken), aTok = canvas.tokens.get(attackerToken);
     const victim = vTok?.actor;
     const attacker = game.actors.get(attackerId);
     if (!vTok || !aTok || !victim) return { ok: false, why: 'fixture tokens missing from the canvas' };
     const priorPos = { x: aTok.document.x, y: aTok.document.y };
+    // ⚠ The victim on its FIXTURE square first (the 6.0 pass, 2026-09-15): earlier suites walk the
+    // tokens about, and with the victim at the scene's left edge the "10 feet" square lay OFF the
+    // scene — the platform constrained the walk to the edge, the attacker stayed adjacent, and the
+    // far swing read as a crit that was the near square's. Restored with the attacker.
+    const vPrior = { x: vTok.document.x, y: vTok.document.y };
     const priorHp = foundry.utils.deepClone(victim.system._source.attributes.hp);
     let paralyzed = null;
     const swing = async () => {
@@ -1347,31 +1359,33 @@ if (want('5e')) {
       const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
       const usageId = results?.message?.id ?? null;
       const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
-        { data: { 'flags.dnd5e.originatingMessage': usageId } });
+        { data: { 'system.origin': usageId } });
       let damageMsg = null;
       for (let i = 0; i < 40 && !damageMsg; i++) {
         await sleep(250);
         damageMsg = game.messages.contents.slice(-10).find(m =>
-          m.getFlag('dnd5e', 'roll.type') === 'damage' && m.getFlag('dnd5e', 'originatingMessage') === usageId);
+          (m.type === 'damage') && (m._source.system?.origin === usageId));
       }
       return { d20Crit: rolls?.[0]?.isCritical ?? false, fumble: rolls?.[0]?.isFumble ?? false,
         damageCrit: damageMsg?.rolls?.[0]?.isCritical ?? null, autoCrit: damageMsg?.getFlag(MOD, 'autoCrit') ?? null,
         formula: damageMsg?.rolls?.[0]?.formula ?? null, damageId: damageMsg?.id ?? null };
     };
     try {
-      await base.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+      await vTok.document.update({ x: 1100, y: 1000 });
+      await arrived(vTok);
+      await base.update({ 'system.attributes.ac.override': 1 });
       await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
       // Paralyzed on the TOKEN's actor (unlinked: that is who is attacked), adjacent.
       const eff = await ActiveEffect.implementation.fromStatusEffect('paralyzed');
       paralyzed = await ActiveEffect.implementation.create(eff.toObject(), { parent: victim, keepId: true });
       const grid = canvas.scene.grid.size;
       await aTok.document.update({ x: vTok.document.x - grid, y: vTok.document.y });
-      await sleep(400);
+      await arrived(aTok);
       out.near = await swing();
       // Heal so the far swing is not a kill, and step back two squares — 10 feet.
       await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
       await aTok.document.update({ x: vTok.document.x - 2 * grid, y: vTok.document.y });
-      await sleep(400);
+      await arrived(aTok);
       out.far = await swing();
       // The card says why (R5).
       const li = document.querySelector(`[data-message-id="${out.near.damageId}"]`);
@@ -1383,6 +1397,7 @@ if (want('5e')) {
       try {
         if (paralyzed) await paralyzed.delete();
         await aTok.document.update(priorPos);
+        await vTok.document.update(vPrior);
         await victim.update({ 'system.attributes.hp.value': priorHp.value, 'system.attributes.hp.temp': priorHp.temp });
         for (const e of victim.effects.filter(x => x.statuses?.has?.('dead'))) await e.delete();
       } catch { /* best effort */ }

@@ -18,6 +18,7 @@ import { applySaveConsequences, reconcileSaveDamage } from "./consequences.js";
 import { refreshDemandFromTemplates, cleanupSpentTemplates } from "./areas.js";
 import { openSaveDialog, armSaveTimer, disarmSaveTimer } from "./ask.js";
 import { armSaveChoiceTimer, disarmSaveChoiceTimer, showSaveChoicePopup } from "./choices.js";
+import { SURFACES } from "../surfaces.js";
 
 /* --- the answer channels and the resume discipline ------------------------------------------- */
 
@@ -121,7 +122,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     });
     line.textContent = `${abilityLabel} save DC ${flag.dc} — waiting for the template's area`;
     row.appendChild(line);
-    html.querySelector(".message-content")?.appendChild(row);
+    html.querySelector(SURFACES.messageContent)?.appendChild(row);
     return;
   }
 
@@ -247,5 +248,5 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     // the update floor above.
     if ( flag.status !== "pending" ) void cleanupSpentTemplates(message);
   }
-  html.querySelector(".message-content")?.appendChild(row);
+  html.querySelector(SURFACES.messageContent)?.appendChild(row);
 });

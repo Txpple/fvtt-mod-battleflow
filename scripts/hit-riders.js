@@ -8,6 +8,7 @@ import { riderEntries, riderUpgradeEntries } from "./settings.js";
 import { riderKey } from "./decide/eligible.js";
 import { effectSourceOf, hitTargets } from "./shared.js";
 import { bfCard } from "./decide/present.js";
+import { CARD, isCard, originIdInData } from "./decide/card.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1.75 — hit riders (the attacker's client, folded into the attack's own damage roll)
@@ -108,16 +109,17 @@ function ridersAgainst(attacker, targetActor) {
  * Who this damage roll is landing on, in order of trust:
  *  1. the originating attack message's snapshot, filtered to the targets it actually hit — the
  *     same authority Phase 1a and 1b use. Battle Flow's own damage rolls always stamp
- *     `originatingMessage`, so this covers auto-damage and a hold's continuation exactly.
+ *     `system.origin`, so this covers auto-damage and a hold's continuation exactly.
  *  2. the rolling client's live targets, for a human pressing the native Damage button —
- *     ⚠ `AttackActivity.#rollDamage` passes no message data at all (attack.mjs:305), so there
- *     is no chain to walk on that path and the selection is all there is.
+ *     ⚠ the card's own button carries only the DOM click, which the platform reads at
+ *     buildPost — AFTER this hook — so there is no chain to walk on that path and the
+ *     selection is all there is.
  * The snapshot carries ACTOR uuids, and this hook is synchronous, so resolution is Sync.
  */
 function riderTargets(message) {
-  const originId = message?.data?.["flags.dnd5e.originatingMessage"];
+  const originId = originIdInData(message?.data);
   const origin = originId ? game.messages.get(originId) : null;
-  const attack = (origin?.getFlag("dnd5e", "roll.type") === "attack")
+  const attack = isCard(origin, CARD.attack)
     ? origin
     : (origin?.getAssociatedRolls("attack").pop() ?? null);
   if ( attack ) {

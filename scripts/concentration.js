@@ -8,6 +8,7 @@ import { resolveUuid } from "./lookup.js";
 import { rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML } from "./decide/present.js";
 import { livePopups, momentButton, DialogCarried, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer, dramaticVerdictPause, registerDemand, demandAnsweredBy } from "./ui.js";
+import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 2.5 — the concentration assist: damage → ask → roll → verdict → break.
@@ -570,7 +571,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     });
     row.appendChild(line);
   }
-  html.querySelector(".message-content")?.appendChild(row);
+  html.querySelector(SURFACES.messageContent)?.appendChild(row);
 });
 
 // Dialogs on their way up — between the call and the render that adopts them (saves.js's shape).

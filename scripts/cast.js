@@ -10,6 +10,7 @@ import { effectsAfterChoice } from "./decide/choices.js";
 import { momentButton, openMomentPopup, registerResumable, shownMoments } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
+import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 3 (cast slice) — auto-apply on cast (ARCHITECTURE.md §6, pulled ahead 2026-08-16).
@@ -160,7 +161,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     title: choice.chosen ? `${choice.chosen} — the caster's choice` : (choice.ask ?? "Which effect?"),
     subtitle: choice.chosen ? "" : `the cast waits for the pick — ${choice.options.join(" or ")}`,
     lines: [ruleLine(choice.rule)] });
-  html.querySelector(".message-content")?.appendChild(line);
+  html.querySelector(SURFACES.messageContent)?.appendChild(line);
   if ( choice.chosen ) return;
   const actor = payload.targets?.[0]?.uuid ? fromUuidSync(payload.targets[0].uuid) : null;
   if ( !canAnswerFor(actor) ) return;

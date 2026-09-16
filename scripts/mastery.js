@@ -20,6 +20,7 @@ import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoment
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { registerOfferPart } from "./auto-damage.js";
 import { messageActivity } from "./effect-riders.js";
+import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 1.9B/C — weapon mastery riders (PLAN.md sections B and C).
@@ -764,7 +765,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       title: pending ? `${label} — ${(m.targets ?? []).map(t => t.name).join(", ")}` : outcome,
       subtitle: pending ? (MASTERY_RULES[m.key] ?? "") : `${label} — ${m.weapon?.name ?? ""}`
     }) + (pending ? holdBarHTML(m) : "");
-    html.querySelector(".message-content")?.appendChild(row);
+    html.querySelector(SURFACES.messageContent)?.appendChild(row);
     // The bar only drains once synced — the popup always got this via openManagedPopup and
     // the card row forgot it, so the card sat frozen at full (reported live 2026-08-16).
     if ( pending ) scheduleBarSync(row);
@@ -809,7 +810,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       const bar = document.createElement("div");
       bar.innerHTML = momentBarHTML(notice, "reminder");
       if ( bar.innerHTML.trim() ) {
-        html.querySelector(".message-content")?.appendChild(bar);
+        html.querySelector(SURFACES.messageContent)?.appendChild(bar);
         scheduleBarSync(bar);
       }
     }
@@ -831,9 +832,9 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
           title: "Cleave — armed",
           subtitle: `The next ${arm.itemName || "weapon"} damage roll drops the ability modifier.`
         });
-        html.querySelector(".message-content")?.appendChild(armed);
+        html.querySelector(SURFACES.messageContent)?.appendChild(armed);
       } else if ( canAnswerFor(attacker) && live ) {
-        html.querySelector(".message-content")?.appendChild(momentButton("Answer", () => {
+        html.querySelector(SURFACES.messageContent)?.appendChild(momentButton("Answer", () => {
           void showMasteryNotice(message, message.getFlag(MODULE_ID, "masteryNotice"));
         }, { margin: "0.25rem 0 0" }));
       }
@@ -851,6 +852,6 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       title: "Cleave — ability modifier dropped",
       subtitle: `${stripped.itemName || "The weapon"}'s Cleave — this roll takes no ability modifier.`
     });
-    html.querySelector(".message-content")?.appendChild(line);
+    html.querySelector(SURFACES.messageContent)?.appendChild(line);
   }
 });

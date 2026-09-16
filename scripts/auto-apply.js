@@ -8,6 +8,7 @@ import { receiptEntry, joinDamageReceipt } from "./decide/receipt.js";
 import { interruptMultiplier, reduceDamages } from "./decide/verdict.js";
 import { INTERRUPT_MULTIPLIERS } from "./decide/registry.js";
 import { hitTargets, resolveAttackMessage, damagePartsOf, statSourceOf } from "./shared.js";
+import { CARD, isCard } from "./decide/card.js";
 import { registerResumable } from "./ui.js";
 import { applyEffectRiders } from "./effect-riders.js";
 import { resolveHitMastery } from "./mastery.js";
@@ -48,7 +49,7 @@ registerResumable("attackDamage", {
 });
 
 async function resolveAttackDamage(message) {
-  if ( message.getFlag("dnd5e", "roll.type") !== "damage" ) return; // healing is typed "healing"
+  if ( !isCard(message, CARD.damage) ) return; // healing is typed "healing"
   const attackMessage = resolveAttackMessage(message);
   if ( !attackMessage ) return;
   if ( message.getFlag(MODULE_ID, "attackHoldPending") === true ) {

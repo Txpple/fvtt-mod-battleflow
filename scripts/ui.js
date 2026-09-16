@@ -24,6 +24,8 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor,
 import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, cascadePosition,
   pileBackToFront, rescuePaneHTML, rescueRowsHTML } from "./decide/present.js";
 import { pendingDemands, resolveDemand } from "./decide/demand.js";
+import { abilityOf, originIdOf, rollKindOf, subKindOf } from "./decide/card.js";
+import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
  * The hold's views: a durable row on the attack card, plus a popup for whoever can answer.
@@ -156,7 +158,7 @@ function drawDemandFieldset(app, element, demand) {
   host.innerHTML = `<fieldset data-bf-save-demand><legend>${demand.legend ?? "The demand"}</legend>`
     + `${bfCard(demand.present(card))}${holdBarHTML(demand.bar?.(card) ?? null, "to roll")}</fieldset>`;
   const fieldset = host.firstElementChild;
-  const configuration = element.querySelector('[data-application-part="configuration"]');
+  const configuration = element.querySelector(SURFACES.dialogConfiguration);
   const formulas = element.querySelector('[data-application-part="formulas"]');
   if ( configuration ) configuration.insertAdjacentElement("beforebegin", fieldset);
   else if ( formulas ) formulas.insertAdjacentElement("afterend", fieldset);
@@ -200,7 +202,7 @@ export function markDefaultButton(element, action) {
     fontWeight: "bold",
     textShadow: "0 1px 2px rgba(0,0,0,0.6)"
   };
-  for ( const button of element.querySelectorAll('[data-application-part="buttons"] button[data-action]') ) {
+  for ( const button of element.querySelectorAll(`${SURFACES.dialogButtons} button[data-action]`) ) {
     const isDefault = button.dataset.action === action;
     button.toggleAttribute("autofocus", isDefault);
     button.toggleAttribute("data-bf-default", isDefault);
@@ -220,7 +222,7 @@ Hooks.on("renderRollConfigurationDialog", (app, element) => {
     // to say re-marks its net after (this hook is registered before the machines').
     const markOwn = () => {
       if ( element.querySelector("[data-bf-default]") ) return;   // a gate got there first
-      const own = element.querySelector('[data-application-part="buttons"] button[autofocus]')?.dataset?.action;
+      const own = element.querySelector(`${SURFACES.dialogButtons} ${SURFACES.dialogDefault}`)?.dataset?.action;
       if ( own ) markDefaultButton(element, own);
     };
     markOwn();
@@ -547,7 +549,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       title: "Waiting on the dice",
       subtitle: `${message.getAssociatedActor()?.name ?? "The roller"} has the damage roll`
     }) + momentBarHTML(offer, "to roll");
-    html.querySelector(".message-content")?.appendChild(row);
+    html.querySelector(SURFACES.messageContent)?.appendChild(row);
     scheduleBarSync(row);
   }
 });
@@ -1022,10 +1024,11 @@ export function demandAnsweredBy(rollMessage) {
   const facts = {
     respondsTo: rollMessage.getFlag(MODULE_ID, "respondsTo") ?? null,
     saveFor: rollMessage.getFlag(MODULE_ID, "saveFor") ?? null,
-    originatingMessage: rollMessage.getFlag("dnd5e", "originatingMessage") ?? null,
+    originatingMessage: originIdOf(rollMessage),
     actorUuid: rollMessage.getAssociatedActor?.()?.uuid ?? null,
-    ability: rollMessage.getFlag("dnd5e", "roll.ability") ?? null,
-    rollType: rollMessage.getFlag("dnd5e", "roll.type") ?? null
+    ability: abilityOf(rollMessage),
+    rollType: rollKindOf(rollMessage),
+    saveKind: subKindOf(rollMessage)
   };
   const found = resolveDemand(facts, demandCards(), [...demands.values()]);
   return found ? { flagKey: found.flagKey, matches: withCards(found.matches) } : null;

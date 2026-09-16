@@ -13,6 +13,7 @@ import { DAMAGE_SHIELDS, tableIndex } from "./decide/registry.js";
 import { durationSeconds, shieldDue, shieldEffectNames, shieldReach, shieldType } from "./decide/shields.js";
 import { messageActivity } from "./effect-riders.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
+import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
  * DAMAGE SHIELDS (user, 2026-09-04 — "death armor needs its damage shield effect automated";
@@ -356,7 +357,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       subtitle: `${ds.attackerName} hit ${ds.defenderName} with a melee attack${(ds.distanceFeet !== null) && (ds.distanceFeet !== undefined) ? ` from ${ds.distanceFeet} feet` : ""} · ${ds.why}${ds.also ? ` · both ${ds.effectName} and ${ds.also} stand — the first pays` : ""}`,
       lines: [ruleLine(ds.rule)]
     });
-    html.querySelector(".message-content")?.appendChild(line);
+    html.querySelector(SURFACES.messageContent)?.appendChild(line);
   }
   const mark = message.getFlag(MODULE_ID, "shieldMark");
   if ( mark ) {
@@ -367,6 +368,6 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       subtitle: "every melee hit strikes back while the Temporary Hit Points last",
       lines: [ruleLine(mark.rule)]
     });
-    html.querySelector(".message-content")?.appendChild(line);
+    html.querySelector(SURFACES.messageContent)?.appendChild(line);
   }
 });

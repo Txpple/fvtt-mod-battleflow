@@ -132,7 +132,10 @@ async function driveHoldContinuation(attackMessage, hold) {
         // arrived") sent the reader looking for a module bug that was not there. Reported live
         // 2026-08-15 on a hand-authored Skeletal Mage; the official Monster Manual pack has
         // exactly one flat statblock out of 500, so this is bad data, not a shape to support.
-        const flatAC = (actor?.system?.attributes?.ac?.calc === "flat")
+        // 6.0's AC model (the 6.0 pass, 2026-09-15): the fixed number is `ac.override` (the 5.x
+        // `calc: "flat"` migrates to it); `calc` is derived and never says "flat" any more.
+        const ac = actor?.system?.attributes?.ac;
+        const flatAC = ((ac?.override !== null) && (ac?.override !== undefined) || (ac?.calc === "flat"))
           && hasReactionEffect(actor, target.reaction, target);
         announcements.push(bfCard({
           img, eyebrow: "Reaction — not applied", title: target.reaction, subtitle: target.name,
