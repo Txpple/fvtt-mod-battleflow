@@ -48,7 +48,7 @@ const FRAGMENTS = {
   messageId: ["[data-message-id]"],
   formGroup: [".form-group"],
   damageTray: ["damage-application"],
-  cardButtons: [".card-buttons", ".icon-row"],
+  cardSummary: [".card-summary"],
   dialogConfiguration: ['data-application-part="configuration"'],
   dialogButtons: ['data-application-part="buttons"'],
   dialogDefault: ["button[autofocus]"],

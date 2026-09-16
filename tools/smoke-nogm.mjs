@@ -454,7 +454,15 @@ try {
         const gate2 = gateOpen();
         const text2 = (gate2?.element?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ');
         await closeAll();
-        await sleep(300);
+        // ⚠ Let the swing's consequences LAND before the section returns (2026-09-16, phase 4 of
+        // the 6.0 pass): the second swing's attack rolls as its dialog closes, the damage follows,
+        // and with no GM the two whispers follow that — a damage that landed 8 ms into §cast made
+        // its whispers §cast's (3 runs in 6). Wait for the log to go quiet, not for a fixed beat.
+        { const t0 = Date.now(); let last = game.messages.size, quietSince = Date.now();
+          while ((Date.now() - t0 < 10_000) && (Date.now() - quietSince < 1500)) {
+            await sleep(200);
+            if (game.messages.size !== last) { last = game.messages.size; quietSince = Date.now(); }
+          } }
         return { log, gate1: !!gate1, text1: text1.slice(0, 200), record, chipStillThere,
           gate2: !!gate2, text2: text2.slice(0, 200), system2, whisperedStays: game.messages.contents.some(m =>
             (m.whisper ?? []).includes(game.user.id) && /records the spend/i.test(m.content ?? '')) };

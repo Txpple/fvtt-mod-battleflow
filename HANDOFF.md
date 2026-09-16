@@ -1,4 +1,4 @@
-# HANDOFF — the dnd5e 6.0 compatibility pass (phases 1–3 delivered 2026-09-16; phase 4 next)
+# HANDOFF — the dnd5e 6.0 compatibility pass (phases 1–4 delivered 2026-09-16; phase 5 next)
 
 > A commission file: written because there is one, retired when it is delivered (BACKLOG's rule —
 > no standing handoff). Every line below is the state at the moment of writing, measured.
@@ -6,17 +6,20 @@
 
 ## ⚠ Read this first: the next step
 
-Phase 4 of ASSESSMENT §4 (SUMMARIES AND BUTTONS — class M and §3.8: where Battle Flow's rows draw
-on chained cards, the card buttons hidden as DATA — `shouldHideChatButton`, not the DOM) starts
-**on the user's "go"** — not on this file. The proof it owes is exactly the battery's last two reds:
-smoke-saves §1a3 and §10b. Before the first edit: `git log --oneline -3` (parallel sessions
-collide), `node ../fvtt-mcp-molten5e/scripts/local-foundry.mjs status` (the sandbox up, the world
-active), `deploy-house-module.mjs fvtt-mod-battleflow --local --check` (byte-identical), and
-`node tools/verify-settings.mjs` (CLEAN). Same discipline: the file swept, its suite's asserts
-rewritten in the same commit, deploy --local, the suite green, settings verified. ⚠ If a suite
-reports an AC, a save, a corpse or a token square that cannot be, run
-`node tools/scrub-fixture-residue.mjs` (below) and `node tools/fixture-suite.mjs` first.
-Nothing is released until phase 5, and prod stays 5.3.3 / v1.42.0.
+Phase 5 of ASSESSMENT §4 (DOCS AND RELEASE) starts **on the user's "go"** — not on this file. It
+owes: the ONE RED LEFT in the battery (smoke-nogm §rejoin — pre-existing, measured on the phase-3
+tree too; the facts and the pick-up are under "Phase 4 — DELIVERED"), the open ruling on the
+ring's look (below), then the docs (DESIGN §5 on the platform's clock; ARCHITECTURE's geometry
+rows, its surfaces row — the usage card's buttons are data, `cardSummary` is the anchor — and its
+hook table for `preCreateUsageMessage` and the card-rows seam; NOTES' phase-1/2/3/4 findings;
+BACKLOG's Half Speed row), RELEASE-NOTES, the version, the prod deploy that MUST ship the new
+module.json, ASSESSMENT retired, this file retired. Before the first edit: `git log --oneline -3`
+(parallel sessions collide), `node ../fvtt-mcp-molten5e/scripts/local-foundry.mjs status` (the
+sandbox up, the world active), `deploy-house-module.mjs fvtt-mod-battleflow --local --check`
+(byte-identical), and `node tools/verify-settings.mjs` (CLEAN). ⚠ If a suite reports an AC, a
+save, a corpse or a token square that cannot be, run `node tools/scrub-fixture-residue.mjs` and
+`node tools/fixture-suite.mjs` first. Nothing is released until the user says so, and prod stays
+5.3.3 / v1.42.0 for 2026-09-22.
 
 ## Where things stand
 
@@ -201,41 +204,98 @@ Nothing is released until phase 5, and prod stays 5.3.3 / v1.42.0.
   `tools/fixture-suite.mjs` after it before any suite that needs them (the battery's order does).
 - The suite files are CRLF in the working copy; a multi-line edit script must normalise.
 
-## Phase 4 — NEXT, on the user's go (ASSESSMENT §4.4) — written for a fresh window
+## Phase 4 — DELIVERED (ASSESSMENT §4.4), 2026-09-16
 
-**What it is (ASSESSMENT §2.M + §3.8).** Two things the card's DOM used to carry are DATA at 6.0:
-1. **The button hide.** `polish.js:267–272` (`KEPT_CARD_BUTTONS`, `hideCardButtons`) hides
-   `.card-buttons button[data-action]` — the 6.0 usage card renders its buttons from
-   `system.buttons[]` (each with a `visibility`) as `section.icon-row > ul > li > button.icon`,
-   so the hide finds NOTHING (smoke-saves §1a3 and §10b read `buttons=0` — the suites' own
-   selector finds nothing either). The 6.0 way: filter the buttons in
-   `dnd5e.preCreateUsageMessage` (the data), keeping `refundResource`, and/or
-   `Activity#shouldHideChatButton(button, message)` (see the TransformActivity override in
-   dnd5e.mjs for the shape). The surfaces map (`scripts/surfaces.js cardButtons`) already lists
-   both anchors — retire the DOM anchor with the DOM hide; `tools/check-surfaces.mjs` gates it.
-2. **The chained-card summaries.** A save or check rolled against a usage card is rendered as a
-   SUMMARY inside the usage card (`.card-summary[data-message-id][data-target-uuid]`) and its
-   own message is hidden by default (client setting `chatCardSummary`). Every row Battle Flow
-   appends to a save message — `saves/views`, `topple`, `d20-folds`, `concentration`,
-   `reminders`, `ui.js` ~550 — must ALSO draw in the summary block, where players look.
-   This changes where the rows draw, not what they say. Measure first: which of these rows
-   are invisible today with the setting on (a probe that rolls a chained save and reads both
-   DOMs), then decide the one seam the rows render through.
+- **The button hide is a filter on the card's DATA.** `polish.js` rides `dnd5e.preCreateUsageMessage`
+  and drops every `system.buttons[]` row but `refundResource` before the usage card is created
+  (the setting is world-scoped, so the creating client's answer is everyone's). The DOM hide and
+  its `SURFACES.cardButtons` anchor are gone; a button that is not in the data is on no client's
+  card and no re-render can draw it back. The handlers underneath survive
+  (`Activity#onChatAction`); Refund Resource keeps the platform's own visibility rule. The
+  setting's hint says what the keep-list is (it had promised Place Measured Template since
+  v1.12.0 deleted that exemption). ⚠ A suite that PRESSES a hidden button (smoke-resources §5's
+  heal) must turn the setting off first — the button no longer exists to press.
+- **The chained-card summaries — the card-rows seam** (`ui.js` `cardRow`, `SURFACES.cardSummary`).
+  Measured on 6.0.1: a save or check rolled against a usage card has a `summaryTemplate`, its
+  origin `rendersSummaries`, and with the client setting `chatCardSummary` on (default) the
+  platform sets `html.hidden` on the roll's own card BEFORE `dnd5e.renderChatMessage` fires and
+  draws the roll inside the usage card as `.card-summary[data-message-id]`. The rows Battle Flow
+  stamps on such rolls are exactly the save gate's record (`reminders.js` REMINDER_FLAG) and the
+  d20 fold family (`d20-folds.js`: the fold block, the armed line, the refund ask) — the rest of
+  ASSESSMENT §2.M's list draws on usage or attack cards (saves/views, topple, concentration,
+  ui.js's offer bar) and was never hidden. A row that can land on a chained roll registers as
+  `Hooks.on("dnd5e.renderChatMessage", cardRow(draw))`: the same drawer runs on the shown card
+  (host = the card's content) and, skipping the hidden copy, inside the summary when the usage
+  card renders (one dispatcher, registered once in ui.js). Registration ORDER is untouched — the
+  wrapper sits in each file's own slot; the snapshot gains ui.js's dispatcher and the nudge.
+  **The nudge:** the platform re-renders the origin on the descendant's create/delete/`system`
+  update only (`#refreshOrigin`), so a FLAG write on a summarized roll (a fold answered) re-renders
+  nothing — `updateChatMessage` in ui.js calls `ui.chat.updateMessage(origin)` when this module's
+  flags move on a summarized roll.
+- **The suites:** smoke-saves §1a3 and §10b read the buttons as data (the platform's own
+  `_usageChatButtons` list guards the vacuous pass; the card's data and the rendered icon-row
+  carry Refund Resource at most); **§24 (new)** rolls a chained save with the setting on — the
+  roll's card hidden, the summary in the usage card, the gate's record drawn INSIDE it and not on
+  the hidden card, the nudge (a flag flip re-draws the summary), and with the setting off a fresh
+  roll's own card shown with the row. smoke-resources §5 turns the hide off for the button it
+  presses (and restores it). smoke-nogm §spent waits for the log to go QUIET before returning
+  (below). `tools/dnd5e-surfaces.json` regenerated (`cardSummary` in, `cardButtons` out);
+  `tools/hook-order.snapshot` refreshed (polish's render hook → preCreateUsageMessage; ui.js +2).
+- **Green:** verify (648 unit tests, every static check); the FULL BATTERY on the sandbox
+  (`dist/battery/2026-09-16T12-06-54`, 38m55s): **28 of 29 entries green** — smoke-saves 111/111
+  (the two phase-4 reds and §24), d20-folds 36/36, reminders 65/65, resources 23/23, metamagic
+  90/90, emanations 69/69, surfaces 20/20, every other suite ALL PASS; settings CLEAN after the
+  battery and after every run since. Runs under `dist/phase4/`.
 
-**The proof.** smoke-saves §1a3 and §10b rewritten to read the buttons as data (`m.system.buttons`
-and their `visibility`, plus the rendered icon-row); a new section or suite for the summary
-rows (a chained save's verdict row visible inside the usage card); then a FULL battery
-(`node tools/battery.mjs`) — phase 3 ran only its four suites, and the battery has not been run
-whole since phase 2's middle. Expect fixture residue on the way: `tools/scrub-fixture-residue.mjs`
-and `tools/fixture-suite.mjs` are the two repairs; a probe that moves tokens must put them back.
+### The one red left: smoke-nogm §rejoin (NOT phase 4's — the phase-5 window's first job)
 
-**Then phase 5** (docs, RELEASE-NOTES, the version, the prod deploy that MUST ship the new
-module.json; DESIGN §5 reconciled with the platform's clock; ARCHITECTURE's geometry rows —
-`honestDims` and `tokensInTemplates` are gone, `regionShapeTypeFor` / `emanationShapeData` /
-`tokensInRegions` are in; NOTES' phase-1/2/3 findings; BACKLOG's Half Speed row; ASSESSMENT
-retires). **Open ruling for the user before release:** the ring is now drawn by the region
-itself (visibility ALWAYS, highlightMode `shapes`, the reach's hue) — the platform draws its own
-6.0 areas as covered squares (`coverage`); the user has not seen either on the sandbox yet.
+smoke-nogm 22/24 in the battery. **§cast was a suite race, fixed:** its "nothing to whisper"
+assert snapshots the log at the section's start, and §spent's second swing had an attack still
+rolling as its dialog closed — its damage landed 8 ms into §cast (measured: type=damage,
+flags attackFor, origin = the swing's card) and the two no-GM whispers followed 120 and 240 ms
+later (3 runs in 6). §spent now waits for the log to go quiet (no new message for 1.5 s, 10 s
+roof); §cast green 6 runs in 6 since. **§rejoin is PRE-EXISTING at 6.0** — measured on the
+phase-3 tree (HEAD stashed, deployed, run: 23/24, the same red) and on this one, every run:
+"the rejoining GM adds no new reminder — sap notices before rejoin=1 after=2". The mechanism to
+confirm in phase 5: the player's flow elect drove the swing with no GM (damage whispered as not
+applied, the Sap chip whispered as not applied, ONE notice posted), and the rejoining GM's resume
+paths drive the swing AGAIN — `resolveHitMastery` posts a second Sap notice (`mastery.js:138`);
+the chip count stays 0 (the section's other assert passes), so it is the NOTICE's claim, not the
+payout's, that the resume does not recognise — most likely auto-apply's `attackDamage` resumable
+still `pending` after a whispered degradation, or the notice's own dedupe reading a 5.x field.
+Pick-up: `tools/smoke-nogm.mjs` §rejoin (`hit.noticeId`, `hit.sapNotices`), `scripts/auto-apply.js`
+registerResumable("attackDamage") `pending`, and what the no-GM whisper path marks on the receipt.
+Not in phase 4's scope (rendering and the button data), so recorded here rather than fixed blind.
+
+### Findings paid for in phase 4 (carry into NOTES in phase 5)
+
+- **`ChatMessage5e#renderHTML` sets `html.hidden` BEFORE `dnd5e.renderChatMessage` fires** (6.0.1)
+  — a render hook can read it as "this is the platform's hidden copy of a summarized roll"; a
+  popout (`options.canClose`) is never hidden.
+- **Core carries `hidden` over on a per-message re-render** (`ChatLog#rerenderMessage`, Foundry
+  14.367: `replacement.hidden = existing.hidden`) — turning `chatCardSummary` off does not unhide a
+  card already rendered hidden until the log renders afresh. The platform's own toggle behaviour;
+  smoke-saves §24d proves the toggle on a NEW roll for that reason.
+- **The platform re-renders a summarized roll's origin on create, delete and `system` change
+  only** (`ChatMessage5e#_onUpdate → #refreshOrigin`) — a flag write re-renders nothing; the nudge
+  in ui.js is what re-draws a summary after a fold's answer.
+- **The fixture Victim's TOKEN is named "Hobgoblin"** — a demand's popup carries the token's name
+  (`flag.targets[0].name`), not the actor's; §24 found it the way §19 already knew it.
+- **A section that snapshots the log must let the previous section's swing SETTLE** — a rolled
+  attack's damage and its whispers land up to a second after the dialog closes (smoke-nogm).
+
+## Phase 5 — NEXT, on the user's go (ASSESSMENT §4.5)
+
+Docs, RELEASE-NOTES, the version, the prod deploy that MUST ship the new module.json; DESIGN §5
+reconciled with the platform's clock; ARCHITECTURE's geometry rows (`honestDims` and
+`tokensInTemplates` are gone, `regionShapeTypeFor` / `emanationShapeData` / `tokensInRegions` are
+in), its surfaces row (`cardSummary` in, the button anchor out — the buttons are data) and its
+hook table (`dnd5e.preCreateUsageMessage` in polish.js; the card-rows seam and the nudge in
+ui.js); NOTES' phase-1/2/3/4 findings; BACKLOG's Half Speed row; ASSESSMENT retires; this file
+retires. **First: the smoke-nogm §rejoin red above — a release ships a green battery.**
+**Open ruling for the user before release:** the ring is now drawn by the region itself
+(visibility ALWAYS, highlightMode `shapes`, the reach's hue) — the platform draws its own 6.0
+areas as covered squares (`coverage`); the user has not seen either on the sandbox yet.
 
 ## Hazards (still true)
 

@@ -46,7 +46,8 @@ const SECTIONS = {
   20: 'a save press (SAVE_PRESSES): Web ships no effect — a failure presses Restrained, receipted, with a revert',
   23: 'the effect table\'s SAVES facet (2026-09-05): Aura of Purity counts Advantage against a demand imposing one of its conditions; Circle\'s Power against a spell, and a success takes NONE instead of half',
   21: 'Evasion: a Dexterity save for half — none on a success, half on a failure, said on the row and the receipt',
-  22: 'the save gate says WHY when the PLATFORM bends the save (2026-09-04): an item effect on the sheet is a box'
+  22: 'the save gate says WHY when the PLATFORM bends the save (2026-09-04): an item effect on the sheet is a box',
+  24: 'the chained roll\'s SUMMARY (the 6.0 pass, phase 4): the roll\'s card hidden, the gate\'s record inside the usage card, the nudge, summaries off'
 };
 // §2 rolls the damage of the demand §1 cast (`card1`); §13 rides §12's completed lifecycle —
 // its card, its template id and its 140px scene. Both couplings are declared in the code
@@ -370,15 +371,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!autoDmg && (autoDmg.system?.onSave === 'half'),
         `auto=${!!autoDmg} onSave=${autoDmg?.system?.onSave}`);
 
-      // ⑯ at the DOM: the save card carries real Save/Damage buttons, and every one of them
-      // is hidden — a zero-button card would make this pass vacuously, so the count guards.
-      const cardEl = document.querySelector(`[data-message-id="${card1.id}"]`);
-      const btns = [...(cardEl?.querySelectorAll('.card-buttons button[data-action]') ?? [])];
-      const visibleBtns = btns.filter(b =>
-        (b.dataset.action !== 'refundResource') && (b.style.display !== 'none'));
-      ok('1a3. the card\'s action buttons are hidden — the machine owns the workflow',
-        (btns.length > 0) && (visibleBtns.length === 0),
-        `buttons=${btns.length} visible=[${visibleBtns.map(b => b.dataset.action).join()}]`);
+      // ⑯ as DATA (dnd5e 6.0, the pass's phase 4): the platform's own list for this activity
+      // carries real Save/Damage buttons — that list guards the vacuous pass — and the card's
+      // `system.buttons` keeps none of them (Refund Resource at most); the rendered icon-row agrees.
+      const platformBtns = saveActivity()._usageChatButtons({ hasConsumption: false }).map(b => b.action);
+      const dataBtns = (card1.system?.buttons ?? []).map(b => b.action);
+      const cardEl = ui.chat.element.querySelector(`.message[data-message-id="${card1.id}"]`);
+      const drawnBtns = [...(cardEl?.querySelectorAll('.icon-row button[data-action]') ?? [])].map(b => b.dataset.action);
+      ok('1a3. the card\'s action buttons are dropped from its DATA — the machine owns the workflow; Refund Resource is the only one that may stay',
+        platformBtns.includes('rollSave') && platformBtns.includes('rollDamage')
+          && dataBtns.every(a => a === 'refundResource') && drawnBtns.every(a => a === 'refundResource'),
+        `platform=[${platformBtns.join()}] data=[${dataBtns.join()}] drawn=[${drawnBtns.join()}]`);
       if (autoDmg) await ChatMessage.deleteDocuments([autoDmg.id]);
 
       // Both targets answer through the popup — the ONE input surface now that the silent
@@ -1078,16 +1081,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `flag=${!!flag10} targets=${flag10?.targets?.length} awaiting=${flag10?.awaitingTemplate} `
           + `deadline=${flag10?.deadline} window=${flag10?.window} tmplType=${flag10?.templateType}`);
 
-      // ②'s pin at the DOM: this card carries a REAL Place Measured Template button and it
-      // is hidden with the rest — the count guards the vacuous pass.
-      const cardEl10 = await until(() => document.querySelector(`[data-message-id="${card10.id}"]`), 4000);
-      const btns10 = [...(cardEl10?.querySelectorAll('.card-buttons button[data-action]') ?? [])];
-      const hasPlace10 = btns10.some(b => b.dataset.action === 'placeTemplate');
-      const visible10 = btns10.filter(b =>
-        (b.dataset.action !== 'refundResource') && (b.style.display !== 'none'));
-      ok('10b. Place Measured Template exists and hides — the keep-list is refundResource only',
-        hasPlace10 && (visible10.length === 0),
-        `placeBtn=${hasPlace10} visible=[${visible10.map(b => b.dataset.action).join()}]`);
+      // ②'s pin as DATA (6.0): the platform's own list for this activity carries a REAL Place
+      // Template button (the vacuous-pass guard); the card's data keeps none of it — the
+      // keep-list is refundResource only — and the rendered icon-row agrees.
+      const platform10 = tmplActivity()._usageChatButtons({ hasConsumption: false }).map(b => b.action);
+      const data10 = (card10.system?.buttons ?? []).map(b => b.action);
+      const cardEl10 = await until(() => ui.chat.element.querySelector(`.message[data-message-id="${card10.id}"]`), 4000);
+      const drawn10 = [...(cardEl10?.querySelectorAll('.icon-row button[data-action]') ?? [])].map(b => b.dataset.action);
+      ok('10b. Place Template is a button the platform offers and the card\'s DATA drops it — the keep-list is refundResource only',
+        platform10.includes('placeTemplate') && data10.every(a => a === 'refundResource') && drawn10.every(a => a === 'refundResource'),
+        `platform=[${platform10.join()}] data=[${data10.join()}] drawn=[${drawn10.join()}]`);
       const waitLine10 = await until(() => {
         const t = document.querySelector(`[data-message-id="${card10.id}"]`)
           ?.querySelector('.battleflow-saves')?.textContent ?? '';
@@ -2071,6 +2074,109 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await victim.update({ 'system.abilities.dex.save.roll.bonus': '' });
         await set('reminderList', priorLists.reminderList);
         await set('effectList', priorLists.effectList);
+      }
+    }
+
+    // ============================================================ §24 the chained roll's SUMMARY (the 6.0 pass, phase 4)
+    // dnd5e 6.0 draws a save rolled against a usage card as a SUMMARY inside that card and hides
+    // the roll's own card (client setting chatCardSummary, default on). Every row Battle Flow
+    // draws on such a roll — here the save gate's record, §19's shape — must draw where the table
+    // looks: inside the summary (ui.js cardRow). And a flag write on the summarized roll must
+    // re-render the summary — the platform re-renders the origin on a system change only.
+    if (want(24)) {
+      const priorSummary = game.settings.get('dnd5e', 'chatCardSummary');
+      const setStatus24 = async (actor, id, on) => {
+        const carriers = actor.effects.filter(e => e.statuses?.has?.(id));
+        if (on && !carriers.length) {
+          const eff = await ActiveEffect.implementation.fromStatusEffect(id);
+          await ActiveEffect.implementation.create(eff.toObject(), { parent: actor, keepId: true });
+        } else if (!on && carriers.length) {
+          await actor.deleteEmbeddedDocuments('ActiveEffect', carriers.map(e => e.id));
+        }
+        await sleep(150);
+      };
+      const text = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+      try {
+        await game.settings.set('dnd5e', 'chatCardSummary', true);
+        await clearChips();
+        await saveBonus(victim, '');
+        await healFull(victim);
+        await setStatus24(victim, 'restrained', true);
+        target(victimToken);
+        await sleep(120);
+        const use24 = await dexActivity().use({}, { configure: false }, {});
+        const card24 = use24?.message instanceof ChatMessage ? use24.message : null;
+        if (!card24) return { fatal: 'section 24 dex cast produced no card' };
+        await until(() => card24.getFlag(MOD, 'saves'));
+        const name24 = card24.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? victim.name;   // the TOKEN's name (an unlinked fixture speaks under it)
+        const dlg24 = await until(() => savePopups().find(p => demandText(p).includes(name24)), 6000);
+        dlg24?.querySelector('button[data-action="normal"]')?.click();   // against the net: the record says so
+        await until(() => entryOf(card24, victim)?.done);
+        const entry24 = entryOf(card24, victim);
+        const roll24 = entry24?.rollMessageId ? game.messages.get(entry24.rollMessageId) : null;
+        if (!roll24) {
+          ok('24a. the roll is chained (system.origin = the usage card), its own card is HIDDEN and the usage card carries its summary — the platform\'s 6.0 shape, measured',
+            false, `no roll message: entry=${JSON.stringify(entry24)} dialog=${!!dlg24} popups=${savePopups().length} flag=${JSON.stringify(card24.getFlag(MOD, 'saves'))?.slice(0, 300)}`);
+          throw new Error('section 24: no roll message — see 24a');
+        }
+        const log24 = ui.chat.element;
+        const ownLi = () => log24?.querySelector(`.message[data-message-id="${roll24?.id}"]`);
+        const summaryEl = () => log24?.querySelector(
+          `.message[data-message-id="${card24.id}"] .card-summary[data-message-id="${roll24?.id}"]`);
+
+        const summary24 = await until(() => summaryEl(), 6000);
+        ok('24a. the roll is chained (system.origin = the usage card), its own card is HIDDEN and the usage card carries its summary — the platform\'s 6.0 shape, measured',
+          !!roll24 && (roll24._source.system?.origin === card24.id) && (ownLi()?.hidden === true) && !!summary24,
+          `roll=${!!roll24} origin=${roll24?._source.system?.origin} hidden=${ownLi()?.hidden} summary=${!!summary24}`);
+
+        const rowIn = await until(() => /Reminded — net Disadvantage/.test(text(summaryEl())) ? summaryEl() : null, 6000);
+        ok('24b. the save gate\'s record draws INSIDE the summary, where the table looks — and not on the hidden card',
+          !!rowIn && /against the net/.test(text(rowIn)) && !/Reminded — net/.test(text(ownLi())),
+          `inSummary=${!!rowIn} onHidden=${/Reminded — net/.test(text(ownLi()))} text="${text(summaryEl()).slice(0, 200)}"`);
+
+        // The nudge: a FLAG write on the summarized roll (nothing in `system` moves) re-renders
+        // the origin — the record flipped to honoured drops "(against the net)" from the row.
+        const rem24 = roll24?.getFlag(MOD, 'reminder');
+        await roll24?.setFlag(MOD, 'reminder', { ...rem24, honoured: true });
+        const refreshed = await until(() => {
+          const t = text(summaryEl());
+          return /Reminded — net Disadvantage/.test(t) && !/against the net/.test(t) ? t : null;
+        }, 6000);
+        ok('24c. a flag write on the summarized roll re-renders its summary — Battle Flow nudges the origin (the platform re-renders it on a system change only)',
+          !!refreshed, `text="${(refreshed ?? text(summaryEl())).slice(0, 200)}"`);
+
+        await until(() => entryOf(card24, victim)?.applied, 12000);
+
+        // Summaries OFF: a FRESH roll's own card is shown and draws the row itself, and its usage
+        // card renders no summary. ⚠ Proven on a new roll, not by re-rendering the old one: core's
+        // ChatLog#rerenderMessage carries `hidden` over from the existing element (Foundry 14.367,
+        // measured here), so a card once summarized stays hidden until the log renders afresh —
+        // the platform's own toggle behaviour, not this module's.
+        await game.settings.set('dnd5e', 'chatCardSummary', false);
+        await clearChips();
+        await healFull(victim);
+        target(victimToken);
+        await sleep(120);
+        const useD = await dexActivity().use({}, { configure: false }, {});
+        const cardD = useD?.message instanceof ChatMessage ? useD.message : null;
+        if (cardD) await until(() => cardD.getFlag(MOD, 'saves'));
+        const dlgD = cardD ? await until(() => savePopups().find(p => demandText(p).includes(name24)), 6000) : null;
+        dlgD?.querySelector('button[data-action="normal"]')?.click();
+        if (cardD) await until(() => entryOf(cardD, victim)?.done);
+        const rollD = cardD ? game.messages.get(entryOf(cardD, victim)?.rollMessageId ?? '') : null;
+        const liD = () => log24?.querySelector(`.message[data-message-id="${rollD?.id}"]`);
+        const shown = await until(() => rollD && (liD()?.hidden === false) && /Reminded — net/.test(text(liD())) ? liD() : null, 6000);
+        const summaryD = log24?.querySelector(`.message[data-message-id="${cardD?.id}"] .card-summary`);
+        ok('24d. with summaries OFF a fresh roll\'s own card is shown and draws the row itself, and its usage card renders no summary',
+          !!shown && !summaryD,
+          `roll=${!!rollD} shown=${!!shown} hidden=${liD()?.hidden} summary=${!!summaryD}`);
+        if (cardD) await until(() => entryOf(cardD, victim)?.applied, 12000);
+      } catch (err) {
+        if (!String(err?.message).startsWith('section 24: no roll message')) throw err;
+      } finally {
+        await game.settings.set('dnd5e', 'chatCardSummary', priorSummary);
+        await setStatus24(victim, 'restrained', false);
+        await clearChips();
       }
     }
 

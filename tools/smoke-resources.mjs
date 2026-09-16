@@ -61,7 +61,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   }
 
   const SETTING_KEYS = ['resourceNotices', 'volleys', 'castApply', 'autoDamage', 'autoApply',
-    'requireTarget', 'reactionHold', 'saves', 'concMode'];
+    'requireTarget', 'reactionHold', 'saves', 'concMode', 'hideCardButtons'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -245,6 +245,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ============================================================ §5 (cc) the flash waits for the dice
     if (want(5)) {
       log.push('§5 deferred flash');
+      // Since dnd5e 6.0 the hide filters the card's DATA at birth (polish.js), so the button this
+      // section presses only exists with the hide OFF — restored with the rest in teardown.
+      await set('hideCardButtons', false);
       [healFeat] = await victim.createEmbeddedDocuments('Item', [{
         name: 'BF Notice Heal', type: 'feat',
         system: {
@@ -261,8 +264,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!card5 && !bannerNow(), bannerNow()?.textContent?.slice(0, 60) ?? 'quiet');
       ok('5b the durable card line does NOT wait (the ledger is immediate)',
         !!card5 && !!lineFor(card5.id) && lineFor(card5.id).textContent.includes('2 of 3'));
-      // The card button is the player's real path (hidden by hideCardButtons but never
-      // removed) — click it, submit the native config dialog, and the flash releases.
+      // The card button is the player's real path (present with hideCardButtons off — at 6.0
+      // the hide drops it from the card's data) — click it, submit the native config dialog,
+      // and the flash releases.
       const healBtn = document.querySelector(`[data-message-id="${card5?.id}"] button[data-action="rollHealing"]`);
       ok('5c the heal button exists on the card', !!healBtn);
       const beforeRoll = new Set(game.messages.contents.map(m => m.id));

@@ -15,7 +15,6 @@ import { effectChoiceFor } from "./decide/choices.js";
 import { CARD, TARGETS_KEY, activityTypeOf, activityUuidOf, castLevelOn, isCard, itemNameOf, targetsOf } from "./decide/card.js";
 import { targetDescriptorOf } from "./shared.js";
 import { profileEffectSync } from "./lookup.js";
-import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Table polish — the no-target gate, the birth stamps, hidden buttons, dialog centering
@@ -261,16 +260,24 @@ Hooks.on("preCreateChatMessage", doc => {
 // and its conditional template-standing machinery are deleted outright). Post-cast
 // placement lives in the cast-time usage prompt and the canvas template controls, and the
 // save machine's WAITING demand (saves.js, v1.12.0) adopts an area whenever it lands —
-// the containment-starvation rationale is gone. Display-level and stateless (every DOM
-// tree); the handlers underneath survive, so anything that still slips through folds
-// normally.
+// the containment-starvation rationale is gone.
+//
+// Since dnd5e 6.0 the buttons are DATA — `system.buttons[]` on the usage message, each drawn
+// through its `visibility` and the activity's own `shouldHideChatButton` (the 6.0 pass, phase
+// 4, ASSESSMENT §2.M). So the hide is a filter on that data at the card's birth
+// (`dnd5e.preCreateUsageMessage`), not a sweep of a DOM the platform re-renders at will: a
+// button that is not in the data is on no client's card, and a re-render cannot draw it back.
+// The handlers underneath survive (`Activity#onChatAction`), so anything that still reaches
+// them folds normally; Refund Resource keeps the platform's own rule (shown once something
+// was consumed). ⚠ The setting is read on the CREATING client — it is world-scoped, so every
+// client reads the same answer.
 const KEPT_CARD_BUTTONS = new Set(["refundResource"]);
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+Hooks.on("dnd5e.preCreateUsageMessage", (activity, messageConfig) => {
   if ( !setting(S.hideCardButtons) ) return;
-  for ( const button of html.querySelectorAll(SURFACES.cardButtons) ) {
-    if ( !KEPT_CARD_BUTTONS.has(button.dataset.action) ) button.style.display = "none";
-  }
+  const buttons = messageConfig?.data?.system?.buttons;
+  if ( !Array.isArray(buttons) ) return;
+  messageConfig.data.system.buttons = buttons.filter(b => KEPT_CARD_BUTTONS.has(b?.action));
 });
 
 /* ---------------------------------------------------------------------------------------------

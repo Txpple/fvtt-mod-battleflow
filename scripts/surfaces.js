@@ -33,12 +33,13 @@ export const SURFACES = Object.freeze({
   /** dnd5e's damage tray on a damage card — closed once the module has applied (receipts.js). */
   damageTray: "damage-application",
   /**
-   * The action buttons on a usage card — hidden when the machine runs those workflows
-   * (polish.js). 6.0 renders them as `section.icon-row > ul > li > button.icon[data-action]`
-   * (chat/parts/card-buttons.hbs); the legacy content card keeps `.card-buttons`. Both listed
-   * until phase 4 of the 6.0 pass moves the hide to data (`system.buttons[].visibility`).
+   * dnd5e's SUMMARY of a chained roll inside its usage card (chat/usage-card.hbs): a save or
+   * check rolled against the card is drawn here and its own card is hidden (client setting
+   * `chatCardSummary`), so every row this module draws on such a roll draws here too (ui.js
+   * `cardRow`, the 6.0 pass phase 4). The usage card's BUTTONS are data since 6.0
+   * (`system.buttons[]`, filtered at birth in polish.js) — no anchor for them any more.
    */
-  cardButtons: ".card-buttons button[data-action], .icon-row button[data-action]",
+  cardSummary: ".card-summary[data-message-id]",
   /** The roll configuration dialog's two parts (dnd5e's RollConfigurationDialog PARTS): the
    * fieldsets, and the button row the gate's section is drawn above. */
   dialogConfiguration: '[data-application-part="configuration"]',
@@ -62,7 +63,7 @@ export const SURFACE_SOURCES = Object.freeze({
   messageId: { where: "core" },
   formGroup: { where: "core" },
   damageTray: { where: "dnd5e", file: "templates/chat/damage-card.hbs", proof: "<damage-application" },
-  cardButtons: { where: "dnd5e", file: "templates/chat/parts/card-buttons.hbs", proof: "data-action" },
+  cardSummary: { where: "dnd5e", file: "templates/chat/usage-card.hbs", proof: 'class="card-summary" data-message-id' },
   dialogConfiguration: { where: "dnd5e", file: "dnd5e.mjs", proof: 'configuration: { template: "systems/dnd5e/templates/dice/roll-configuration.hbs"' },
   dialogButtons: { where: "dnd5e", file: "dnd5e.mjs", proof: 'buttons: { template: "systems/dnd5e/templates/dice/roll-buttons.hbs"' },
   dialogDefault: { where: "dnd5e", file: "templates/dice/roll-buttons.hbs", proof: "autofocus" },

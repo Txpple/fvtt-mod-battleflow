@@ -554,6 +554,69 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   }
 });
 
+/* ---------------------------------------------------------------------------------------------
+ * THE CARD ROWS SEAM (the dnd5e 6.0 pass, phase 4 — ASSESSMENT §2.M and §3.8)
+ *
+ * Since dnd5e 6.0 a save or check rolled against a usage card is a SUMMARY: the platform hides
+ * the roll's own card (`html.hidden`, client setting `chatCardSummary`, default on) and
+ * re-renders the usage card with the roll drawn inside it (`.card-summary[data-message-id]`,
+ * SURFACES.cardSummary). Every row this module appends to such a roll's card — the save gate's
+ * record, the d20 fold's offer and its refund ask — would land in the hidden element, where
+ * nobody looks. So a row that can land on a chained roll registers through `cardRow`: the SAME
+ * drawer runs on the roll's own card when that card is shown, and inside its summary when the
+ * usage card renders. One drawer, two hosts, never both. This changes where the rows draw, not
+ * what they say.
+ *
+ * ⚠ The platform re-renders the origin on the descendant's create, delete and `system` update
+ * only (ChatMessage5e#_onUpdate → #refreshOrigin, 6.0.1). A FLAG write on a summarized roll — a
+ * fold answered, a record stamped after the roll — changes nothing the origin re-reads, so this
+ * module nudges the origin's re-render itself whenever its own flags move on a summarized roll.
+ * ------------------------------------------------------------------------------------------- */
+
+const summaryRows = [];
+
+/** The platform's own predicate for "this roll is drawn as a summary" (ChatMessage5e#renderHTML). */
+const rendersAsSummary = message => !!message?.system?.summaryTemplate
+  && !!message.system.origin?.system?.rendersSummaries
+  && game.settings.get("dnd5e", "chatCardSummary") === true;
+
+/**
+ * Wrap a row drawer `(message, host, root)` for `dnd5e.renderChatMessage`. On a shown card the
+ * host is the card's content and `root` its element. The platform's HIDDEN copy of a summarized
+ * roll (`html.hidden`, set by ChatMessage5e#renderHTML before this hook fires — and NOT set for a
+ * popout, which is a shown card) is skipped: that roll's rows draw inside its summary instead,
+ * when its usage card renders (below).
+ */
+export function cardRow(draw) {
+  summaryRows.push(draw);
+  return (message, html) => {
+    const root = html instanceof HTMLElement ? html : html?.[0];
+    if ( !root || root.hidden ) return;
+    draw(message, root.querySelector(SURFACES.messageContent) ?? root, root);
+  };
+}
+
+// The summary host: every summary inside a rendering card is a chained roll's — run that
+// roll's drawers there, the summary element both host and root.
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  const root = html instanceof HTMLElement ? html : html?.[0];
+  if ( !root ) return;
+  for ( const el of root.querySelectorAll(SURFACES.cardSummary) ) {
+    const summarized = game.messages.get(el.dataset.messageId);
+    if ( !summarized ) continue;
+    for ( const draw of summaryRows ) {
+      try { draw(summarized, el, el); }
+      catch(err) { console.error(`${TITLE} | A summary row failed to render.`, err); }
+    }
+  }
+});
+
+// The nudge: this module's flags moved on a summarized roll → its origin re-renders the summary.
+Hooks.on("updateChatMessage", (message, changed) => {
+  if ( !changed?.flags?.[MODULE_ID] || !rendersAsSummary(message) ) return;
+  ui.chat?.updateMessage(message.system.origin);
+});
+
 /**
  * A popup must not outlive the message it is a view of. Deleting the hold — which is what the
  * smoke suites do to every message they create — used to leave one open dialog per hold

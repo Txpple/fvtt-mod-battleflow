@@ -10,7 +10,7 @@ init	events.js
 dnd5e.preUseActivity	polish.js
 dnd5e.preUseActivity	polish.js
 preCreateChatMessage	polish.js
-dnd5e.renderChatMessage	polish.js
+dnd5e.preCreateUsageMessage	polish.js
 renderRollConfigurationDialog	polish.js
 renderActivityUsageDialog	polish.js
 targetToken	polish.js
@@ -18,6 +18,8 @@ renderRollConfigurationDialog	polish.js
 renderRollConfigurationDialog	ui.js
 init	ui.js
 dnd5e.renderChatMessage	ui.js
+dnd5e.renderChatMessage	ui.js
+updateChatMessage	ui.js
 createChatMessage	ui.js
 deleteChatMessage	ui.js
 createChatMessage	ui.js

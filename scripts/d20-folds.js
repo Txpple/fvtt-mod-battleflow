@@ -67,9 +67,8 @@ import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RE
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
 import { SUPERIORITY_FOLDS } from "./decide/registry.js";
 import { CHIP_FLAG } from "./decide/chips.js";
-import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause } from "./ui.js";
+import { cardRow, momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause } from "./ui.js";
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
-import { SURFACES } from "./surfaces.js";
 import { activityUuidOf, originData, targetsOf } from "./decide/card.js";
 
 /**
@@ -933,12 +932,13 @@ async function rerollOf(message, actor) {
  * PRESENT — a button PER OFFER, on the card and in the popup
  * ========================================================================================== */
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+// A fold offered on a save answering a demand lands on a roll the platform draws as a SUMMARY
+// inside the usage card at 6.0 (the roll's own card hidden) — so the block rides ui.js's cardRow
+// seam: the same drawer, on the shown card or inside the summary, wherever the table looks.
+Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
   try {
     const flag = message.getFlag(MODULE_ID, "d20fold");
     if ( !flag ) return;
-    const root = html instanceof HTMLElement ? html : html?.[0];
-    if ( !root ) return;
 
     const actor = resolveUuid(flag.actorUuid);
     const block = document.createElement("div");
@@ -956,7 +956,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         subtitle: chosen ? `${actor?.name ?? ""} · the dice are rolling` : `${actor?.name ?? ""} · ${testKindPhrase(flag)}`,
         tone: "neutral"
       });
-      root.append(block);
+      host.append(block);
       // THE SYNC IS WHAT CLOSES THE WINDOW (user, 2026-09-10: "the form stays for a few seconds").
       // The draw runs off this call, sees nothing pending, and closes; without it the answered
       // render left the window standing until the RESOLVED render - the whole length of the dice.
@@ -987,7 +987,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         lines: offerLines(flag, offers)
       }) + holdBarHTML(flag, "to answer");
       scheduleBarSync(block);
-      root.append(block);
+      host.append(block);
 
       /**
        * ⚠ THE ELECT ARMS HERE, NOT ONLY AT THE STAMP. A player's check stamps this flag on the
@@ -1047,12 +1047,12 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         tone: used ? "good" : "neutral",
         lines: resolvedLines(flag, message)
       });
-      root.append(block);
+      host.append(block);
     }
   } catch(err) {
     console.error(`${TITLE} | D20 fold render failed.`, err);
   }
-});
+}));
 
 /**
  * The art for the card — the marker's own, the way the hold shows the reaction's.
@@ -1422,7 +1422,7 @@ async function showArmedNotice(message) {
   });
 }
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
   const t = message.getFlag(MODULE_ID, "tacticalArmed");
   if ( !t ) return;
   const live = !t.spent && (!t.deadline || (t.deadline > Date.now())) && !momentAcknowledged(message, "tacticalArmed");
@@ -1431,14 +1431,14 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     title: t.spent ? `${t.name} — +${t.total} added: ${t.spent.base} + ${t.total} = ${t.spent.total}`
       : `${t.name} — the die rolled ${t.total}; pick the check (${article(t.what)} ${t.what})`,
     subtitle: spendPhrase(poolSpendsOn(message)), lines: [ruleLine(t.rule)] }) + (live ? momentBarHTML(t, "reminder") : "");
-  html.querySelector(SURFACES.messageContent)?.appendChild(line);
+  host.appendChild(line);
   const actor = resolveUuid(t.sourceUuid);
   if ( live && canAnswerFor(actor) ) {
     const shownKey = popupKey(message.id, "armed");
     if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showArmedNotice(message); }
     line.appendChild(momentButton(`Answer — ${t.name}`, () => void showArmedNotice(message)));
   }
-});
+}));
 
 /* =============================================================================================
  * THE REFUND ASK — Tactical Mind's own clause (user, 2026-09-11: "its time to add the refund
@@ -1552,17 +1552,15 @@ async function showRefundNotice(message) {
 
 // The ask shows once the fold itself is settled (its own window is down), inside the settled
 // card's block: the bar while the clock runs, and the recall button until it is answered.
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
   try {
     const r = message.getFlag(MODULE_ID, "tacticalRefund");
     if ( !r || (r.status !== "pending") ) return;
     if ( message.getFlag(MODULE_ID, "d20fold")?.status === "pending" ) return;
-    const root = html instanceof HTMLElement ? html : html?.[0];
-    if ( !root ) return;
-    const host = root.querySelector(".battleflow-d20fold") ?? root.querySelector(SURFACES.messageContent) ?? root;
+    const block = host.querySelector(".battleflow-d20fold") ?? host;
     const line = document.createElement("div");
     line.innerHTML = momentBarHTML(r, "to answer");
-    host.appendChild(line);
+    block.appendChild(line);
     scheduleBarSync(line);
     const actor = resolveUuid(r.actorUuid);
     if ( !canAnswerFor(actor) ) return;
@@ -1572,4 +1570,4 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   } catch(err) {
     console.error(`${TITLE} | The refund ask failed to render.`, err);
   }
-});
+}));

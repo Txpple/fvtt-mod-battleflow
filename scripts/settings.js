@@ -85,7 +85,7 @@ Hooks.once("init", () => {
   // one card-shaping switch left is hideCardButtons below.
   game.settings.register(MODULE_ID, S.hideCardButtons, {
     name: "Hide Redundant Buttons",
-    hint: "Hide the action buttons on chat cards — Attack, Damage, Saving Throw and the rest — leaving only Refund Resource and Place Measured Template. The module runs those workflows itself (attacks auto-roll, saves pop up, damage applies by verdict), so the buttons are a second, manual path that mostly confuses; the card keeps its text, its targets and its effects tray. Placing a template stays pressable because nothing automates it — and a placed template is how a save spell finds its targets.",
+    hint: "Hide the action buttons on chat cards — Attack, Damage, Saving Throw, Place Template and the rest — leaving only Refund Resource. The module runs those workflows itself (attacks auto-roll, saves pop up, damage applies by verdict), so the buttons are a second, manual path that mostly confuses; the card keeps its text, its targets and its effects tray. An area is placed from the cast's own prompt or the canvas controls, and a waiting save spell finds its targets when it lands.",
     scope: "world", config: true, type: Boolean, default: true
   });
 

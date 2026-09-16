@@ -19,10 +19,10 @@
       "proof": "<damage-application",
       "found": true
     },
-    "cardButtons": {
+    "cardSummary": {
       "where": "dnd5e",
-      "file": "templates/chat/parts/card-buttons.hbs",
-      "proof": "data-action",
+      "file": "templates/chat/usage-card.hbs",
+      "proof": "class=\"card-summary\" data-message-id",
       "found": true
     },
     "dialogConfiguration": {

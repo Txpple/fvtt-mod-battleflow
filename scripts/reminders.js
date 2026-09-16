@@ -6,7 +6,7 @@ import { MODULE_ID, TITLE, activeCombatFor, statContext, sheetModeEffects, rollL
 import { featureNamed, resolveUuid } from "./lookup.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./settings.js";
 import { chipSpentOnRecord, grantingActor, turnChitStands } from "./shared.js";
-import { DialogCarried, markDefaultButton, pendingDemandsFor } from "./ui.js";
+import { DialogCarried, cardRow, markDefaultButton, pendingDemandsFor } from "./ui.js";
 import { bfCard, reminderFieldsetHTML, ruleLine, sneakBoxHTML, TONE } from "./decide/present.js";
 import { CHIP_FLAG, chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.js";
 import { CHECK_BENDS, CONDITION_BENDS, EFFECT_BENDS, MASTERY_RULES, RANGE_RULES, SAVE_BENDS, SNEAK_ATTACK } from "./decide/registry.js";
@@ -548,7 +548,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   html.querySelector(SURFACES.messageContent)?.appendChild(line);
 });
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+// A save's record lands on a roll the platform draws as a SUMMARY inside the usage card at 6.0
+// (the roll's own card hidden) — so the row rides ui.js's cardRow seam: the same drawer, on the
+// shown card or inside the summary, wherever the table looks.
+Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
   const r = message.getFlag(MODULE_ID, REMINDER_FLAG);
   if ( !r?.sources?.length ) return;
   const line = document.createElement("div");
@@ -558,8 +561,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     title: `Reminded — net ${modeTitle(r.net)}, rolled ${rolledWith(r.mode)}${r.honoured ? "" : " (against the net)"}`,
     subtitle: what
   });
-  html.querySelector(SURFACES.messageContent)?.appendChild(line);
-});
+  host.appendChild(line);
+}));
 
 /* ---------------------------------------------------------------------------------------------
  * THE SAVE GATE (option E, user ruling 2026-09-02 — DESIGN §5 *The Save Gate*) — the second of the
