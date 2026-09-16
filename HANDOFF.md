@@ -19,7 +19,7 @@
 
 ## Phase 1 — DELIVERED (ASSESSMENT §4.1)
 
-- **The pin:** `module.json` dnd5e 6.0.0 → 6.0.99, verified 6.0.1; `tools/dnd5e-hooks.json`
+- **The pin:** `module.json` dnd5e 6.0.0 → 6.9.99 (the whole 6.x line, user 2026-09-15), verified 6.0.1; `tools/dnd5e-hooks.json`
   regenerated (8 added, 0 removed); `CONFIG.statusEffects` read as the object it is (`forceStatus`).
 - **The seam:** `scripts/decide/card.js` — what kind of card, whose, from which, off `type` and
   `system.*` ONLY (never the flags; unit-tested against 6.0.1's own shapes, `tests/decide-card.test.js`).
@@ -93,7 +93,7 @@ resources — `dist/battery/2026-09-15T18-09-57/` is the pre-pass baseline (23/2
   detaches) but its stdout is lost; redirect to a file under `dist/` and read that.
 - `verify-settings` drifts after any crashed suite; `--fix` restores. Run it after every run.
 - `game.settings.set("core","moduleConfiguration")` is silently dropped while the module's system
-  maximum is exceeded — the pin is 6.0.99 now, so this only bites a downgrade.
+  maximum is exceeded — the pin is 6.9.99 now, so this only bites a downgrade.
 - An emanation region's shape needs `base: { type: "rectangle", … }` — a bare bounds object fails.
 
 ## When this is delivered

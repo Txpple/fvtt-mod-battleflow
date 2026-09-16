@@ -998,7 +998,7 @@ The module rides **public hooks and document writes only** (R3). The seams it de
 
 ### Version pinning
 
-`module.json` pins the dnd5e 6.0.x family (6.0.0 → 6.0.99, verified 6.0.1 — the 6.0 pass, 2026-09-15; 5.3.x until then) and Foundry v14. This module rides system workflow
+`module.json` pins the whole dnd5e 6.x line (6.0.0 → 6.9.99, verified 6.0.1 — the 6.0 pass, 2026-09-15; 5.3.x until then) and Foundry v14. This module rides system workflow
 hooks and churns with dnd5e minors — that churn isolation is why it is a sibling module rather
 than a feature of another.
 
