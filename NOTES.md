@@ -1048,8 +1048,9 @@ effect asynchronously, and `CONFIG.statusEffects` is an object keyed by id.
   `TokenDocument#testInsideRegion` (`geometry.js tokensInRegions`); the v14 shim's corrupted
   distance, `honestDims` and the template-shape ladder went with the template. Every aura is a
   Region created the platform's way (`decide/geometry.js emanationShapeData`, the emanation
-  shape on the token's base, radius from the EDGE, attached, drawn by the region itself:
-  visibility ALWAYS, highlightMode `shapes`). A placed region is NO concentration dependent at
+  shape on the token's base, radius from the EDGE, attached — and INVISIBLE at the table:
+  visibility LAYER, ruling 6 below; the walk of 2026-09-18 saw the region's own drawing and the
+  user preferred none). A placed region is NO concentration dependent at
   6.0.1 — the `deleteActiveEffect` sweep is what ends a duration area.
 - **J** concentration: both native prompts (`type: "prompt"` with a `concentration` /
   `endConcentration` button) are vetoed by TYPE — ruling 2 below. Also found: dnd5e hands
@@ -1108,6 +1109,42 @@ exit" case for FRIENDLY only (no neutrals, no caster-reach exclusion, no turn ev
 feature auras), and concentration did not clean it up. (4) **Null AC:** a target whose AC cannot
 be read is a MISS, the platform's own verdict. (5) **The sandbox:** the fixtures, the raised pin
 and the module stay on for the pass; `tools/world-snapshot.mjs restore` is the way back.
+(6) **The ring (the walk, 2026-09-18):** INVISIBLE. With no template left to draw it, the pass
+had let the region draw the aura itself (visibility ALWAYS, highlightMode `shapes` — a filled
+hatched disc); the user, shown it on Invictus: *"I prefer the ring to be invisible."* Every
+region this module raises or adopts is visibility LAYER now — the Regions layer alone shows it,
+the GM's tool — and the member's chit on the token is what the table sees. The 2026-09-03 walk's
+"faint ring" was the TEMPLATE's; the template is gone and the ring with it.
+
+**§6 The walk (the user, 2026-09-18) — findings, each fixed with its suite section.** (1) Careful
+Spell drew the targeted creature's checkbox under its tick row in the casting window; ruled: NO
+names in the window, the creatures to spare are asked on the card (the 2026-09-09 ticks retired;
+metamagic.js, smoke-metamagic §17). (2) The attack gate read the Aura of Protection's "Protected"
+on an ally as Protection from Evil and Good's "Protected" — two pack effects, one name; the effect
+table's row gains `item`, the sheet reports each effect's item (an aura's member copy names its
+row, else the origin item), and a row with `item` stands only for an effect from that item when
+the sheet knows (`effectCarriesRow`, unit-tested). (3) A Fireball's usage card said each save
+twice — the platform's summary row and Battle Flow's line; ruled "the recommended": the summary
+row is the one line, carrying the verdict's tail beside its total (`verdictTail`, saves/views.js,
+`SURFACES.summaryRow`), Battle Flow's line drawn only where no row exists — summaries off, an
+automatic failure with no die, the target gone (smoke-saves §24e/f). (4) The effect view's hover
+card no longer shows for a CONTROLLED token — the bar is its list and the card got in the way of
+moving it (probe-effect-view §2c). (5) The bar's name panel lists the marks the creature holds on
+others as its last group, the hover card's second group — in the panel, not on the strip ("no no
+these get moved over there"). Also confirmed on the walk: the null AC miss (ruling 4) agreed as the
+rule; the applied clock (ruling 1) good. (7) Slow's area stood after the cast — every
+concentration area whose pack data puts the spell's minute on the activity does; ruled "placed
+and gone, like Hypnotic Pattern": the `SPENT_AREAS` registry gains the class — Slow, Fear,
+Confusion, Sleep, Calm Emotions, Faerie Fire (the area chooses the targets at the cast, the
+effect rides them; the Spent Areas list default grows with it — `verify-settings --fix` on a
+world carrying the old default). (8) The per-verdict PUBLIC CARDS ("Slow — Morgash holds / 19 vs
+DC 17 — saved", v1.19.0 FLOW item 7, and the merged "gone" card) RETIRED: the usage card carries
+every verdict now — in the platform's row or its own line — so the cards said it a third time
+(`announceSaveVerdict`, the twin-supersede hook and the `verdictLine` flag gone; smoke-saves §15
+asserts none post, §17b/§19h read the card). Topple's own "stays standing" card is another
+machine's and stays. (9) That Topple card read "Constitution save ? vs DC 15": the success
+branch printed the pre-write clone's total, set only inside the serializer — it prints the roll's
+own total now.
 
 **Not in this pass, recorded for the next:** effects' rule changes (`attack|check|save|d20 :
 advantage|bonus|minimum|maximum`, conditioned on roll data — Sap and Bless-class bonuses could be

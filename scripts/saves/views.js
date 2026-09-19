@@ -10,7 +10,7 @@
 import { MODULE_ID, rollerUserFor,
   drivesMomentFor, canAnswerFor } from "../core.js";
 import { resolveUuid } from "../lookup.js";
-import { verdictText } from "../decide/verdict.js";
+import { verdictTail, verdictText } from "../decide/verdict.js";
 import { popupKey, holdBarHTML, momentBarHTML } from "../decide/present.js";
 import { livePopups, momentButton, scheduleBarSync, shownMoments } from "../ui.js";
 import { saveAnsweredBy, foldSaveAnswer, flipForcedSave } from "./verdict.js";
@@ -134,6 +134,36 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const abilityLabel = CONFIG.DND5E.abilities[flag.abilities?.[0]]?.label ?? flag.abilities?.[0] ?? "";
 
   for ( const t of flag.targets ) {
+    // THE SUMMARY ROW IS THE LINE (user ruling 2026-09-18, the 6.0 walk: the platform's summary
+    // row and this line said each verdict twice — "one row per creature, the platform's, carrying
+    // Battle Flow's words"). A resolved target whose roll is summarized INSIDE this card gets the
+    // verdict's tail written into that row beside its total, and no line of its own; a target
+    // with no summary row (summaries off on this client, an automatic failure that rolled no die,
+    // the target gone) keeps the line below. The platform re-renders the summary from its
+    // template on every render of the card, so the tail is written fresh each time.
+    if ( t.done && t.rollMessageId ) {
+      const summary = [...html.querySelectorAll(SURFACES.cardSummary)].find(el => el.dataset.messageId === t.rollMessageId) ?? null;
+      const host = summary?.querySelector(SURFACES.summaryRow) ?? null;
+      const tail = host ? verdictTail(flag, t) : null;
+      if ( tail ) {
+        if ( !host.querySelector(".bf-verdict") ) {
+          // TWO LINES (user, 2026-09-18: "red part circle is on one line top, and other is line
+          // below … justify the number check/x to the right"): the row wraps, the name's pill
+          // list grows to push the total to the right edge, and the verdict takes the whole
+          // second line — so a name never breaks to make room for the words.
+          host.style.flexWrap = "wrap";
+          const names = host.querySelector("ul");
+          if ( names ) { names.style.flex = "1 1 auto"; names.style.minWidth = "0"; names.style.justifyContent = "flex-start"; }
+          const span = document.createElement("span");
+          span.className = "bf-verdict";
+          span.style.cssText = "flex:1 0 100%;text-align:right;font-size:var(--font-size-11, 11px);font-weight:bold;color:"
+            + `${t.outcome === "saved" ? "var(--dnd5e-color-blue, #3a7ca5)" : "var(--dnd5e-color-maroon, #740b0b)"};`;
+          span.textContent = tail;
+          host.appendChild(span);
+        }
+        continue;
+      }
+    }
     const line = document.createElement("div");
     Object.assign(line.style, {
       fontSize: "var(--font-size-11, 11px)", lineHeight: "1.6", fontWeight: "bold"

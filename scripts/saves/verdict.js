@@ -6,12 +6,9 @@
  * one flag, one machine, one part per spine step; index.js is the only public face and fixes
  * the registration order. Every body here is the one saves.js carried; nothing was rewritten.
  */
-import { MODULE_ID, TITLE, S, setting, queueFlagWrite, 
-  drivesMomentFor } from "../core.js";
-import { resolveUuid } from "../lookup.js";
+import { MODULE_ID, TITLE, S, setting, queueFlagWrite } from "../core.js";
 import { resistedOf } from "../decide/card.js";
-import { SAVE_FOLDS, foldedSave, foldsFrom, verdictText } from "../decide/verdict.js";
-import { bfCard } from "../decide/present.js";
+import { SAVE_FOLDS, foldedSave, foldsFrom } from "../decide/verdict.js";
 import { registerDemand, demandAnsweredBy, registerWithheld, withholds } from "../ui.js";
 import { revertEffect } from "../effect-riders.js";
 import { disarmSaveTimer } from "./ask.js";
@@ -179,71 +176,15 @@ export async function foldSaveAnswer(card, uuid, rollMessage) {
   }
 }
 
-/* --- the verdict line: a table moment opened in public is closed in public ------------------ *
- * v1.19.0 (FLOW item 7) — a deliberate, user-sanctioned REVERSAL of standing item 15's "NO
- * verdict announcement cards": the demand card's rows fold verdicts silently, so on scrollback
- * an open demand was indistinguishable from a stalled one — the same silence finding ⑤ priced
- * for Topple. One public card per verdict, tone by stakes (good holds / bad fails), wording
- * from verdictText so the card can never disagree with the row. It says the VERDICT and the
- * stakes-word only — never "damage landed" (autoApply may be off; verdictText already keeps
- * that honesty). Idempotence: `announced` is claimed through queueFlagWrite BEFORE posting —
- * two targets' consequence passes run concurrently against one card, which is exactly the
- * measured shape queueFlagWrite exists for. Twin-supersede below covers the two-elects race. */
-
-export async function announceSaveVerdict(card, flag, entry) {
-  try {
-    if ( entry.announced ) return;
-    let claimed = false;
-    await queueFlagWrite(card, "saves", current => {
-      const t = current.targets?.find(x => x.uuid === entry.uuid);
-      if ( t && t.done && !t.announced ) { t.announced = true; claimed = true; }
-    });
-    if ( !claimed ) return;
-    const saved = entry.outcome === "saved";
-    // The line speaks AS THE SAVER, not the caster (v1.19.x finding ⑧ — "Thomas holds"
-    // rendered under Salyth's card), and the title leads with the SOURCE (finding ⑦ —
-    // the walk's global rule: the ability, then the result).
-    const saver = resolveUuid(entry.uuid);
-    await ChatMessage.create({
-      speaker: (saver instanceof Actor) ? ChatMessage.getSpeaker({ actor: saver }) : card.speaker,
-      content: bfCard({
-        img: flag.item?.img ?? null,
-        eyebrow: `Saving Throw — ${flag.item?.name ?? "the effect"}`,
-        tone: saved ? "good" : "bad",
-        title: saved ? `${flag.item?.name ?? "The effect"} — ${entry.name} holds`
-                     : `${flag.item?.name ?? "The effect"} — ${entry.name} fails`,
-        subtitle: verdictText(flag, entry) ?? ""
-      }),
-      flags: { [MODULE_ID]: { verdictLine: {
-        sourceMessageId: card.id, uuid: entry.uuid,
-        // Part of the supersede KEY: a legendary-resistance correction re-announces the same
-        // (card, target) with forced=true, and must never be eaten as the fail line's twin.
-        forced: !!entry.forced
-      } } }
-    });
-  } catch(err) {
-    console.error(`${TITLE} | Verdict line failed.`, err);
-  }
-}
-
-/* The twin-line supersede — the topple card's sourceMessageId idiom, applied to the new
- * elect-posted card: isActiveGM() is per-USER, so two sessions on one account can both
- * announce. Keyed (sourceMessageId, uuid); the elder stays, the newcomer deletes itself. */
-Hooks.on("createChatMessage", message => {
-  const v = message.getFlag(MODULE_ID, "verdictLine");
-  if ( !v?.sourceMessageId ) return;
-  if ( !drivesMomentFor(game.messages.get(v.sourceMessageId)
-    ?.getFlag(MODULE_ID, "saves")?.sourceUuid ?? null) ) return;
-  const elder = game.messages.contents.some(m => {
-    if ( m.id === message.id ) return false;
-    const o = m.getFlag(MODULE_ID, "verdictLine");
-    if ( !o || (o.sourceMessageId !== v.sourceMessageId) || (o.uuid !== v.uuid)
-      || (!!o.forced !== !!v.forced) ) return false;
-    return (m.timestamp < message.timestamp)
-      || ((m.timestamp === message.timestamp) && (m.id < message.id));
-  });
-  if ( elder ) message.delete().catch(() => { /* the other twin got there first */ });
-});
+/* --- the verdict line, RETIRED (user, 2026-09-18, the 6.0 walk) ----------------------------- *
+ * v1.19.0 (FLOW item 7) posted one public card per verdict — a reversal of standing item 15's
+ * "NO verdict announcement cards", because the demand card's rows folded verdicts silently and
+ * an open demand read as a stalled one on scrollback. Since the 6.0 pass the usage card carries
+ * every verdict where the table looks — in the platform's summary row beside the total
+ * (saves/views.js, `verdictTail`) or in its own line where no row exists — so the card said it
+ * a third time: "didnt we say that these would be redundant now". Gone with it: the `announced`
+ * claim, the `verdictLine` flag and the twin-supersede hook. Topple's "stays standing" card is
+ * another machine's and stands. */
 
 /* --- legendary resistance: the one late answer ----------------------------------------------
  * resistSave (npc.mjs) spends the resource and stamps `system.resisted` (decide/card.js
@@ -278,7 +219,6 @@ export async function flipForcedSave(rollMessage) {
         flipped = foundry.utils.deepClone(entry);
       });
       if ( !flipped ) return;   // another writer claimed the flip first
-      const flag = card.getFlag(MODULE_ID, "saves");   // post-flip, for the verdict line
       const entry = flipped;
       // ALWAYS unwind, whatever `applied` says: the effects pass and the damage pass are
       // independently timed (damage can land through the arrival path before the effects
@@ -286,7 +226,7 @@ export async function flipForcedSave(rollMessage) {
       // an unwind over empty receipts is a no-op, and a still-pending consequence pass
       // re-reads the flipped flag after its pause and applies the success path itself.
       await unwindFailedConsequences(card, entry);
-      await announceSaveVerdict(card, flag, entry);   // the corrected verdict, forced-marked
+      // The corrected verdict shows on the card itself — the flag write above re-renders it.
       return; // one roll answers one entry
     }
   } catch(err) {

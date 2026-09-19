@@ -759,7 +759,30 @@ export const SPENT_AREAS = Object.freeze({
     data: "Monster Manual, Adult Green Dragon — the activity's duration reads 1 turn: the AC penalty's clock, not the cloud's" }),
   "Hypnotic Pattern": Object.freeze({
     rule: "You create a twisting pattern of colors that weaves through the air inside a 30-foot Cube within range. The pattern appears for a moment and vanishes. Each creature in the area who can see the pattern must succeed on a Wisdom saving throw or have the Charmed condition for the duration.",
-    data: "PHB, level 3 (Concentration, 1 minute) — the DURATION is the Charmed condition's; the pattern \"appears for a moment and vanishes\", and an imported copy missing the concentration flag falls into the GM's bucket" })
+    data: "PHB, level 3 (Concentration, 1 minute) — the DURATION is the Charmed condition's; the pattern \"appears for a moment and vanishes\", and an imported copy missing the concentration flag falls into the GM's bucket" }),
+  // THE CLASS (user, 2026-09-18, the 6.0 walk, on Slow: "the template stays on slow, which should
+  // be placed and gone, like hypnotic pattern"): a concentration spell whose area only CHOOSES its
+  // targets at the cast — the effect rides the targets for the duration and the area itself is
+  // nothing after the save. The pack writes the spell's minute on the activity, so without a row
+  // the sweep keeps the area until concentration ends.
+  "Slow": Object.freeze({
+    rule: "You alter time around up to six creatures of your choice in a 40-foot Cube within range. Each target must succeed on a Wisdom saving throw or be affected by this spell for the duration.",
+    data: "PHB, level 3 (Concentration, 1 minute) — the duration is the targets' slowing; the Cube chooses them at the cast" }),
+  "Fear": Object.freeze({
+    rule: "Each creature in a 30-foot Cone must succeed on a Wisdom saving throw or drop whatever it is holding and have the Frightened condition for the duration.",
+    data: "PHB, level 3 (Concentration, 1 minute) — the duration is the Frightened condition's; the Cone is the cast's" }),
+  "Confusion": Object.freeze({
+    rule: "Each creature in a 10-foot-radius Sphere centered on a point you choose within range must succeed on a Wisdom saving throw, or that target can't take Bonus Actions or Reactions and must roll 1d10 at the start of each of its turns to determine its behavior for that turn.",
+    data: "PHB, level 4 (Concentration, 1 minute) — the duration is the confusion's; the Sphere chooses the targets at the cast" }),
+  "Sleep": Object.freeze({
+    rule: "Each creature of your choice in a 5-foot-radius Sphere centered on a point within range must succeed on a Wisdom saving throw or have the Incapacitated condition until the end of its next turn, at which point it must repeat the save.",
+    data: "PHB, level 1 (Concentration, 1 minute) — the duration is the targets' sleep; the Sphere chooses them at the cast" }),
+  "Calm Emotions": Object.freeze({
+    rule: "Each Humanoid in a 20-foot-radius Sphere centered on a point you choose within range must succeed on a Charisma saving throw or be affected by one of the following effects (choose for each creature).",
+    data: "PHB, level 2 (Concentration, 1 minute) — the duration is the effect's on each Humanoid; the Sphere chooses them at the cast" }),
+  "Faerie Fire": Object.freeze({
+    rule: "Objects in a 20-foot Cube within range are outlined in blue, green, or violet light (your choice). Each creature in the Cube is also outlined if it fails a Dexterity saving throw.",
+    data: "PHB, level 1 (Concentration, 1 minute) — the outline is on what stood in the Cube at the cast; the Cube itself is nothing after (the 2026-08-18 region that outlived the spell)" })
 });
 export const SPENT_AREA_NAMES = tableIndex(SPENT_AREAS).names;
 
@@ -1043,7 +1066,9 @@ export const EFFECT_BENDS = Object.freeze({
   "Cursed Attacks": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Bestow Curse",
     caveat: "counted — press Normal if this attack is not at the caster",
     rule: "While cursed, the target has Disadvantage on attack rolls against you." }),
-  "Protected": Object.freeze({ attacker: null, target: "disadvantage", scope: "any", from: "Protection from Evil and Good",
+  // `item`: the row stands only for an effect that comes from THIS item, when the sheet knows —
+  // the Aura of Protection hands out a "Protected" too, a save bonus (walk finding, 2026-09-18).
+  "Protected": Object.freeze({ attacker: null, target: "disadvantage", scope: "any", from: "Protection from Evil and Good", item: "Protection from Evil and Good",
     caveat: "counted — press Normal if the attacker is not an Aberration, Celestial, Elemental, Fey, Fiend or Undead",
     rule: "Creatures of those types have Disadvantage on attack rolls against the target." }),
   "Protection from Evil and Good": Object.freeze({ attacker: null, target: "disadvantage", scope: "any", from: "Protection from Evil and Good (2014)",

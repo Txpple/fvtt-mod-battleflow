@@ -227,8 +227,15 @@ function placeBeside(card, token) {
 Hooks.on("hoverToken", (token, hovered) => {
   try {
     if ( !setting(S.effectHover) ) return;
-    if ( hovered ) showHover(token); else if ( hoverCard?.dataset.token === token.id ) hideHover();
+    // NOT FOR A CONTROLLED TOKEN (user, 2026-09-18, the 6.0 walk: "its redundant to what the buff
+    // bar presents and gets in the way when controlling the token") — the bar is its list already.
+    if ( hovered && !token.controlled ) showHover(token); else if ( hoverCard?.dataset.token === token.id ) hideHover();
   } catch(err) { console.error(`${MODULE_ID} | effect view (hover) failed.`, err); }
+});
+
+// Taking control of the token under the pointer takes its card down the same way.
+Hooks.on("controlToken", (token, controlled) => {
+  if ( controlled && (hoverCard?.dataset.token === token.id) ) hideHover();
 });
 
 /* --- the held key --------------------------------------------------------------------------- */
@@ -337,11 +344,20 @@ function openPanel(bar, who, actor) {
   // for the bar; the panel is the sheet's effects tab, in reach.
   const groups = panelGroups(factsOf(actor), sheetOf(actor));
   const total = groups.reduce((n, g) => n + g.rows.length, 0);
+  // ON OTHERS (user, 2026-09-18, the 6.0 walk: "id like to see all buffs including the on others"
+  // — then, shown them on the strip, "no no these get moved over there", the panel): the marks
+  // this creature holds on other creatures, the hover card's second group, as the panel's last
+  // group — plain chips, since the fold's one action belongs to the bearer's owner.
+  const marks = marksOf(actor);
+  const held = marks.length
+    ? `<div class="bf-ev-lbl">On others</div><div class="bf-ev-list">${marks.map(m => chipHTML({ ...m, name: `${m.name} → ${m.bearer}` })).join("")}</div>`
+    : "";
   const panel = document.createElement("div");
   panel.className = "bf-ev-panel";
   panel.innerHTML = `<h4>${esc(actor.name)} — ${total} effect${total === 1 ? "" : "s"}</h4>`
     + (groups.length ? groups.map(g => `<div class="bf-ev-lbl">${esc(g.label)}</div><div class="bf-ev-list">${g.rows.map(r => chipHTML(r, { button: actor.isOwner === true })).join("")}</div>`).join("")
-      : '<span class="bf-ev-none">nothing on them</span>');
+      : '<span class="bf-ev-none">nothing on them</span>')
+    + held;
   bar.appendChild(panel);
   who.setAttribute("aria-expanded", "true");
 }

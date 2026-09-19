@@ -18,7 +18,7 @@ import { saveNoneOnSuccess } from "../decide/reminders.js";
 import { effectEntries, reminderEntries } from "../settings.js";
 import { applyDamagesWithReceipt } from "../auto-apply.js";
 import { applyEffectsWithReceipt } from "../effect-riders.js";
-import { announceSaveVerdict } from "./verdict.js";
+
 import { gateSaveChoice, announceBashOutcome, settleInterpose } from "./choices.js";
 import { cleanupSpentTemplates } from "./areas.js";
 
@@ -55,16 +55,14 @@ export async function applySaveConsequences(card, uuid, rollMessage = null) {
     // verdict is already public and true, only the press is missing.
     const saver = resolveUuid(uuid);
     if ( (saver instanceof Actor) && !canApplyTo(saver) ) {
-      await announceSaveVerdict(card, flag, entry);
       await whisperNoGM(`${entry.name ?? saver.name}'s save consequences`,
         "The verdict stands on the card — apply the damage and any condition by hand.");
       return;
     }
 
-    // The verdict ANNOUNCES before its consequences land (v1.19.0, FLOW item 7 — the line
-    // sits above the receipt rows, per "cards say one thing, once"), and AFTER the pause +
-    // re-read, so a legendary-resistance flip mid-pause announces the FINAL verdict.
-    await announceSaveVerdict(card, flag, entry);
+    // NO public verdict card (user, 2026-09-18, the 6.0 walk): the usage card carries the verdict
+    // — in the platform's summary row or its own line — and v1.19.0's line (FLOW item 7) said it
+    // a third time. "Cards say one thing, once."
 
     // A fold CHOICE can hold this target's pass here (v1.19.x, findings ⑤/⑥): Interpose on
     // a successful DEX save, the bash's Prone-or-push on a failed listed save. `applied`

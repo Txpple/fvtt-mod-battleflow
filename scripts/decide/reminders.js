@@ -42,6 +42,25 @@ export const effectNamedAs = (effectName, key) => {
 };
 
 /**
+ * Does this worn effect stand for the row? By NAME (`effectNamedAs`), and — when the row names
+ * the ITEM it comes from (`item`) and the sheet knows the effect's own — by that item too. Two
+ * pack effects can share a name: the Aura of Protection's "Protected" is a save bonus, Protection
+ * from Evil and Good's "Protected" is Disadvantage for some attackers, and the walk of 2026-09-18
+ * offered a Paladin's ally the spell's Disadvantage off the aura's chit. An effect whose item is
+ * unknown (hand-applied, another module's) still matches by name: the discriminator only ever
+ * turns a wrong match off, never a right one.
+ * @param {{name?: string, item?: string|null}} effect
+ * @param {string} key
+ * @param {{item?: string}|null} [row]
+ */
+export const effectCarriesRow = (effect, key, row = null) => {
+  if ( !effectNamedAs(effect?.name, key) ) return false;
+  const want = row?.item ? String(row.item).toLowerCase() : "";
+  const have = effect?.item ? String(effect.item).toLowerCase() : "";
+  return !want || !have || (want === have);
+};
+
+/**
  * The caveat that rides a LABEL (user, 2026-09-02: "just say rogue — hiding"): a row's
  * "listed — …" caveat is the whole reason the row bends nothing, so it stays; a "counted — …"
  * caveat only restates the quoted rule's own condition, so it is dropped from the label —
@@ -382,7 +401,7 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
     if ( row.match === "feature" ) {
       return (who.features ?? []).some(f => String(f).toLowerCase() === name) ? [{ id: null }] : [];
     }
-    return (who.effects ?? []).filter(e => effectNamedAs(e?.name, name));
+    return (who.effects ?? []).filter(e => effectCarriesRow(e, name, row));
   };
   const out = [];
   for ( const [key, base] of Object.entries(table ?? {}) ) {

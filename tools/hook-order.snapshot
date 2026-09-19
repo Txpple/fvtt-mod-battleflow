@@ -161,7 +161,6 @@ createRegion	saves/areas.js
 updateRegion	saves/areas.js
 deleteActiveEffect	saves/areas.js
 renderRollConfigurationDialog	saves/ask.js
-createChatMessage	saves/verdict.js
 createChatMessage	saves/views.js
 updateChatMessage	saves/views.js
 deleteChatMessage	saves/views.js
@@ -209,6 +208,7 @@ combatStart	stats.js
 createChatMessage	stats.js
 deleteCombat	stats.js
 hoverToken	effect-view.js
+controlToken	effect-view.js
 highlightObjects	effect-view.js
 canvasReady	effect-view.js
 controlToken	effect-view.js

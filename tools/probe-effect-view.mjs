@@ -66,7 +66,13 @@ const out = await f.evaluate(async () => {
     ok("1d. a clockless row shows no clock at all — never the platform's \"None\"",
       !!bar && ![...bar.querySelectorAll(".bf-ev-chip .clk")].some(c => /none/i.test(c.textContent)), "");
 
-    // THE HOVER CARD: the platform's hook, as a mouse-over would fire it
+    // THE HOVER CARD: the platform's hook, as a mouse-over would fire it. Not for a CONTROLLED token
+    // (user, 2026-09-18): the bar is its list already — so the card is proved on the token released.
+    Hooks.callAll("hoverToken", token, true);
+    await sleep(150);
+    ok("2c. a controlled token gets no hover card — the bar is its list (2026-09-18)", !document.querySelector(`.bf-ev-card[data-token="${token.id}"]`), "");
+    token.release();
+    await sleep(150);
     Hooks.callAll("hoverToken", token, true);
     const card = await until(() => document.querySelector(`.bf-ev-card[data-token="${token.id}"]`), 3000);
     ok("2. the hover card appears for the token with the same list",
@@ -74,6 +80,8 @@ const out = await f.evaluate(async () => {
     Hooks.callAll("hoverToken", token, false);
     await sleep(100);
     ok("2b. and leaves when the hover ends", !document.querySelector(`.bf-ev-card[data-token="${token.id}"]`), "");
+    token.control({ releaseOthers: true });
+    await sleep(150);
 
     // THE HELD KEY: Foundry fires highlightObjects on Alt
     Hooks.callAll("highlightObjects", true);

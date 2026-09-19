@@ -10,7 +10,7 @@ import { applicableProfiles, resolveUuid, itemNamed } from "../lookup.js";
 import { activityUuidOf, targetsOf } from "../decide/card.js";
 import { saveDemandData, saveTargetEntry } from "../decide/demand.js";
 import { METAMAGIC_FLAG, METAMAGIC_ASK_FLAG, carefulProtects, heightenedMark, metamagicRuleText } from "../decide/metamagic.js";
-import { tokensInRegions } from "../geometry.js";
+import { tokenForUuid, tokensInRegions } from "../geometry.js";
 import { isDeadForSaves } from "../decide/eligible.js";
 import { EMANATIONS, tableIndex } from "../decide/registry.js";
 import { reachAdmits } from "../decide/emanations.js";
@@ -29,6 +29,14 @@ function casterFactsOf(activity) {
   const caster = activity?.actor ?? null;
   const tok = caster?.token ?? caster?.getActiveTokens?.(true, true)?.[0] ?? null;
   return { casterUuid: caster?.uuid ?? null, casterDisposition: tok?.disposition ?? (caster ? CONST.TOKEN_DISPOSITIONS.FRIENDLY : null) };
+}
+
+/** The token document behind a demand row — its own id, the snapshot's token uuid, or the actor's token on the canvas. */
+function tokenDocOf(c) {
+  if ( c?.tokenId ) return canvas?.tokens?.get(c.tokenId)?.document ?? null;
+  const viaUuid = c?.token ? resolveUuid(c.token) : null;
+  if ( viaUuid instanceof TokenDocument ) return viaUuid;
+  return tokenForUuid(c?.uuid)?.document ?? null;
 }
 
 /**
@@ -63,7 +71,13 @@ export async function metamagicForDemand(card, activity, contained) {
       const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
       await card.setFlag(MODULE_ID, METAMAGIC_ASK_FLAG, {
         status: "pending", kind: mm.key, feature: mm.feature, cap: mm.cap ?? 1, rule: mm.rule ?? null,
-        candidates: contained.map(c => ({ uuid: c.uuid, name: c.name, disposition: c.disposition ?? null, tokenId: c.tokenId ?? null, party: isPartyMember(c.uuid) })),
+        // A TARGETED cast's rows are the card's target snapshot — actor uuid, token uuid, name —
+        // with no disposition and no token id, so the ask ticked nobody by default (the walk's
+        // suite, 2026-09-18, once Careful stopped listing names in the window); the token fills both.
+        candidates: contained.map(c => {
+          const tok = tokenDocOf(c);
+          return { uuid: c.uuid, name: c.name, disposition: c.disposition ?? tok?.disposition ?? null, tokenId: c.tokenId ?? tok?.id ?? null, party: isPartyMember(c.uuid) };
+        }),
         casterUuid: facts.casterUuid, casterDisposition: facts.casterDisposition, casterName: activity?.actor?.name ?? null,
         ...statContext(facts.casterUuid),
         ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})

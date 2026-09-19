@@ -29,7 +29,7 @@ import { poolOf, spendPoolUses, isPartyMember } from "./shared.js";
 import { feetOf, tokenOfActor, tokensInRegions } from "./geometry.js";
 import { bfCard, foldedRuleHTML, esc, holdBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
-import { METAMAGIC_FLAG, METAMAGIC_ASK_FLAG, askDefaults, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome, carefulProtects, heightenedMark } from "./decide/metamagic.js";
+import { METAMAGIC_FLAG, METAMAGIC_ASK_FLAG, askDefaults, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome, heightenedMark } from "./decide/metamagic.js";
 import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync, dramaticVerdictPause, registerResumable } from "./ui.js";
 import { raiseHold, releaseHold, isHeld } from "./holds.js";
 import { saveTargetEntry } from "./decide/demand.js";
@@ -167,29 +167,28 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
     if ( !menu.length ) return;
     const current = pending.get(activity.uuid)?.key ?? null;
     const currentType = pending.get(activity.uuid)?.type ?? null;
-    // CAREFUL'S TICKS ARE IN THE WINDOW, BEFORE THE CAST GOES OUT (user ruling 2026-09-09, second
-    // look: "the ticks need to be not on the card, but the popup … picking before casting is
-    // executed"; "non-hostile actors (neutral and allies) as default picks"). The candidates are
-    // the caster's selected targets when there are any, else every non-hostile creature on the
-    // scene the spell can reach (nearest first, the caster among them), pre-ticked up to the cap
-    // by carefulProtects' own default. The pick rides the record as CHOSEN, so the demand honours
-    // it against whatever the area finally contains.
+    // CAREFUL LISTS NOBODY IN THE WINDOW (user ruling 2026-09-18, the 6.0 walk, Hold Person with
+    // Morgash targeted: "morgash checkbox shouldnt be under careful spell, no name should be, its
+    // queried in a subsequent popup for careful spell" — superseding 2026-09-09's ticks in the
+    // window, which 2026-09-10 had already taken off every template spell). The tick row is the
+    // tick, the name, the cost and the rule; the creatures to spare are asked ON THE CARD once the
+    // cast is out — saves/demand.js raises the ask off the creatures the save reaches (a targeted
+    // cast's targets at the stamp, a placed area's contents at adoption), the demand waits on the
+    // answer, and the pick rides the record as CHOSEN. Only the cap travels from here.
     const cap = Math.max(1, Number(actor.system?.abilities?.cha?.mod) || 1);
     const selected = candidatesFor(actor);
-    // A TEMPLATE SPELL LISTS NOBODY IN THE WINDOW (user, 2026-09-10, Fireball with Thomas targeted:
-    // "it shouldn't have him in the check box. just assume a template and don't put targeted creatures
-    // in there"). Whoever is targeted is not who the area will hold; the pick waits for the placed
-    // template and is asked there, of everything inside it - the carrier road, §18's.
+    // A TEMPLATE SPELL LISTS NOBODY IN THE WINDOW for Heightened either (user, 2026-09-10, Fireball
+    // with Thomas targeted: "it shouldn't have him in the check box"). Whoever is targeted is not
+    // who the area will hold; the pick waits for the placed area and is asked there.
     if ( activity?.target?.template?.type ) selected.targets = [];
-    const protect = { cap, ...selected, chosen: pending.get(activity.uuid)?.protected?.map(p => p.uuid) ?? null };
-    // Heightened's one target the same way, a radio over the selected creatures.
+    // Heightened's one target: a radio over the selected creatures.
     const mark = { ...selected, chosen: pending.get(activity.uuid)?.target?.uuid ?? null };
     const fs = document.createElement("fieldset");
     fs.dataset.bfMetamagicField = "";
     fs.innerHTML = `<legend>Battle Flow — Metamagic</legend>
       <div data-bf-metamagic-pool style="display:flex;justify-content:space-between;font-size:var(--font-size-12,12px);opacity:0.85;margin:0 0 0.25rem;">
         <span>${esc(actor.name)}</span><span><strong>${POOL_NAME}: ${points} of ${max}</strong>${first ? "" : " — no pool found"}</span></div>
-      ${menu.map(row => rowHTML(row, known.get(row.feature), current, { facts, currentType, protect, mark })).join("")}
+      ${menu.map(row => rowHTML(row, known.get(row.feature), current, { facts, currentType, mark })).join("")}
       ${points === 0 ? `<p class="hint" style="margin:0.25rem 0 0;">No ${POOL_NAME} — the rows stay so the sheet is not the only place that says so.</p>` : ""}`;
     const boxes = fs.querySelectorAll('input[name="bf-metamagic"]');
     const sync = () => {
@@ -216,9 +215,6 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
       if ( pick ) {
         const item = known.get(pick.feature);
         const typeBox = fs.querySelector(`[data-bf-metamagic-row="transmuted"] input[name="bf-metamagic-type"]:checked`);
-        const protectBoxes = [...fs.querySelectorAll(`[data-bf-metamagic-row="careful"] input[name="bf-metamagic-protect"]`)];
-        const protectOn = protectBoxes.filter(b => b.checked);
-        for ( const b of protectBoxes ) if ( !b.checked ) b.disabled = protectOn.length >= cap;
         const markBox = fs.querySelector(`[data-bf-metamagic-row="heightened"] input[name="bf-metamagic-mark"]:checked`);
         pending.set(activity.uuid, { key: pick.key, feature: pick.feature, cost: pick.cost, itemUuid: item?.uuid ?? null, actorUuid: actor.uuid, at: Date.now(),
           spellUuid: activity.item?.uuid ?? null, activityUuid: activity.uuid, spellName: activity.item?.name ?? null,
@@ -229,8 +225,8 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
           ...(pick.key === "transmuted" ? { from: facts.damageTypes.filter(t => TRANSMUTED_TYPES.includes(t)), type: typeBox?.value ?? TRANSMUTED_TYPES.find(t => !facts.damageTypes.includes(t)) ?? null } : {}),
           ...(pick.key === "distant" ? { rangeFeet: distantRange(facts) } : {}),
           // Careful's cap is the Charisma modifier, minimum one (the option's own words); the
-          // protected list itself is derived where the save's reach is known (saves/demand.js).
-          ...(pick.key === "careful" ? { cap, ...(protectBoxes.length ? { chosen: true, protected: protectOn.map(b => ({ uuid: b.value, name: b.dataset.name ?? b.value })) } : {}) } : {}),
+          // protected list itself is asked where the save's reach is known (saves/demand.js).
+          ...(pick.key === "careful" ? { cap } : {}),
           // Heightened's rule rides the demand for the save gate's fold (law 8: the feat's own text),
           // and the target the window marked rides as CHOSEN.
           ...(pick.key === "heightened" ? { rule: metamagicRuleText(item?.system?.description?.value ?? ""),
@@ -238,7 +234,7 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
       } else pending.delete(activity.uuid);
     };
     for ( const b of boxes ) b.addEventListener("change", sync);
-    for ( const r of fs.querySelectorAll('input[name="bf-metamagic-type"], input[name="bf-metamagic-protect"], input[name="bf-metamagic-mark"]') ) r.addEventListener("change", sync);
+    for ( const r of fs.querySelectorAll('input[name="bf-metamagic-type"], input[name="bf-metamagic-mark"]') ) r.addEventListener("change", sync);
     sync();
     const footer = element.querySelector(SURFACES.dialogFooter);
     if ( footer ) footer.before(fs); else (element.querySelector("form") ?? element).appendChild(fs);
@@ -260,7 +256,7 @@ Hooks.on("closeActivityUsageDialog", app => {
 });
 
 /** One row: the tick, the name, the tag, the rule folded under — nothing above the fold (the offer-row law). */
-function rowHTML(row, item, current, { facts = null, currentType = null, protect = null, mark = null } = {}) {
+function rowHTML(row, item, current, { facts = null, currentType = null, mark = null } = {}) {
   const off = !row.eligible || !row.affordable;
   const rule = metamagicRuleText(item?.system?.description?.value ?? "");
   // Transmuted's one pick beyond the tick: the new type, a radio per listed type the spell does
@@ -274,11 +270,7 @@ function rowHTML(row, item, current, { facts = null, currentType = null, protect
     sub = `<div data-bf-metamagic-sub="type" style="grid-column:2 / -1;display:flex;flex-wrap:wrap;gap:0.3rem 0.75rem;font-size:var(--font-size-12,12px);">
       ${options.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="radio" name="bf-metamagic-type" value="${t}" ${t === picked ? "checked" : ""} style="margin:0;"> ${cap(t)}</label>`).join("")}</div>`;
   }
-  if ( (row.key === "careful") && !off && protect?.targets?.length ) {
-    const defaults = new Set(carefulProtects({ contained: protect.targets, casterUuid: protect.casterUuid, casterDisposition: protect.casterDisposition, cap: protect.cap, chosen: protect.chosen }).map(p => p.uuid));
-    sub = `<div data-bf-metamagic-sub="protect" style="grid-column:2 / -1;display:flex;flex-wrap:wrap;gap:0.3rem 0.75rem;font-size:var(--font-size-12,12px);">
-      ${protect.targets.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="checkbox" name="bf-metamagic-protect" value="${esc(t.uuid)}" data-name="${esc(t.name)}" ${defaults.has(t.uuid) ? "checked" : ""} style="margin:0;"> ${esc(t.name)}</label>`).join("")}</div>`;
-  }
+  // Careful draws NO names here (user ruling 2026-09-18): the creatures to spare are asked on the card.
   if ( (row.key === "heightened") && !off && mark?.targets?.length ) {
     const picked = heightenedMark({ contained: mark.targets, casterUuid: mark.casterUuid, casterDisposition: mark.casterDisposition, chosen: mark.chosen })?.uuid ?? null;
     sub = `<div data-bf-metamagic-sub="mark" style="grid-column:2 / -1;display:flex;flex-wrap:wrap;gap:0.3rem 0.75rem;font-size:var(--font-size-12,12px);">

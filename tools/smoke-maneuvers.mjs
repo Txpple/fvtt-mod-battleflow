@@ -745,12 +745,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('B1a. a failed listed save opens the bash choice instead of hard-pressing (⑤)',
           choice?.kind === 'bash',
           `choice=${choice ? choice.kind : JSON.stringify(card?.getFlag(MOD, 'saves')?.targets?.[0] ?? null)}`);
-        const verdict = game.messages.contents.find(m =>
-          m.getFlag(MOD, 'verdictLine')?.sourceMessageId === card?.id);
-        ok('B1b. the verdict line leads with the SOURCE and speaks as the SAVER (⑦/⑧)',
-          !!verdict && (verdict.content ?? '').includes('BF Shield Master — ')
-            && (verdict.speaker?.actor === victim.id),
-          `sourceTitle=${(verdict?.content ?? '').includes('BF Shield Master — ')} speaker=${verdict?.speaker?.actor} want=${victim.id}`);
+        // The v1.19.0 verdict line is RETIRED (2026-09-18): the usage card carries the verdict —
+        // in the platform's summary row or its own line — and no public card posts for it.
+        const verdictCards = game.messages.contents.filter(m => m.getFlag(MOD, 'verdictLine')?.sourceMessageId === card?.id);
+        const cardTextB1 = () => (ui.chat.element?.querySelector(`.message[data-message-id="${card?.id}"]`)?.textContent ?? '').replace(/\s+/g, ' ');
+        const onCardB1 = await until(() => /vs DC \d+ — failed/.test(cardTextB1()) ? cardTextB1() : null, 6000);
+        ok('B1b. the verdict is on the usage card — "vs DC … — failed" — and no public verdict card posts (the line retired 2026-09-18)',
+          !!onCardB1 && (verdictCards.length === 0),
+          `cards=${verdictCards.length} text="${(onCardB1 ?? cardTextB1()).slice(0, 160)}"`);
         const popup = await until(() => dialogsWith('Knock Prone')[0], 6000);
         ok('B1c. the choice popup carries Knock Prone / Push 5 feet, quotes the feat verbatim ((z)) and tooltips its icon ((aa))',
           !!popup && !!popup.querySelector('button[data-action="prone"]')

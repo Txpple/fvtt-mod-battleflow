@@ -38,7 +38,7 @@ const SECTIONS = {
   12: 'spell-truth geometry (v1.13.0 walk finding ①)',
   13: 'the spent sweep converges (finding ②)',
   14: 'the duration sweep (2026-08-18 finding ①)',
-  15: 'the verdict LINES (v1.19.0, FLOW item 7)',
+  15: 'NO verdict lines (2026-09-18: v1.19.0\'s public cards retired — the usage card carries every verdict); the LR flip corrects the card',
   16: 'the DEAD-TARGET gate (v1.19.0, user call)',
   17: 'the BASH shape (v1.19.0, FLOW item 5)',
   18: 'the player-rolled damage offer on the SAVE path (was probe-save-damage-popup)',
@@ -47,7 +47,7 @@ const SECTIONS = {
   23: 'the effect table\'s SAVES facet (2026-09-05): Aura of Purity counts Advantage against a demand imposing one of its conditions; Circle\'s Power against a spell, and a success takes NONE instead of half',
   21: 'Evasion: a Dexterity save for half — none on a success, half on a failure, said on the row and the receipt',
   22: 'the save gate says WHY when the PLATFORM bends the save (2026-09-04): an item effect on the sheet is a box',
-  24: 'the chained roll\'s SUMMARY (the 6.0 pass, phase 4): the roll\'s card hidden, the gate\'s record inside the usage card, the nudge, summaries off'
+  24: 'the chained roll\'s SUMMARY (the 6.0 pass, phase 4): the roll\'s card hidden, the gate\'s record inside the usage card, the nudge, summaries off; the verdict written into the platform\'s row, the line only where no row (2026-09-18)'
 };
 // §2 rolls the damage of the demand §1 cast (`card1`); §13 rides §12's completed lifecycle —
 // its card, its template id and its 140px scene. Both couplings are declared in the code
@@ -1462,11 +1462,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // announced guard, and a legendary-resistance flip posts the CORRECTED line (forced-
     // marked so the twin-supersede never eats it) while the honest fail line stands.
     if (want(15)) {
-      const linesFor = (cardId, uuid, forced = null) => game.messages.contents.filter(m => {
-        const v = m.getFlag(MOD, 'verdictLine');
-        return v && (v.sourceMessageId === cardId) && (v.uuid === uuid)
-          && ((forced === null) || (!!v.forced === forced));
-      });
+      const linesFor = cardId => game.messages.contents.filter(m => m.getFlag(MOD, 'verdictLine')?.sourceMessageId === cardId);
       await clearChips();
       await saveBonus(victim, '-30');
       await saveBonus(shielder, '+30');
@@ -1483,45 +1479,33 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const f = card15.getFlag(MOD, 'saves');
         return f?.targets?.every(t => t.done && t.applied) ? f : null;
       }, 25000);
-      await sleep(1200); // the announce rides after the (zero) pause — let the creates land
+      await sleep(1500); // where a line would have posted — let any create land
 
-      const failLines = await until(() => {
-        const l = linesFor(card15.id, victim.uuid, false);
-        return l.length ? l : null;
-      }, 8000) ?? [];
-      const holdLines = linesFor(card15.id, shielder.uuid, false);
-      ok('15a. one public line per verdict — "fails" bad for the failure, "holds" good for the save',
-        !!done15 && (failLines.length === 1) && /fails/.test(failLines[0]?.content ?? '')
-          && (holdLines.length === 1) && /holds/.test(holdLines[0]?.content ?? ''),
-        `fail=${failLines.length} hold=${holdLines.length}`);
-      ok('15b. the line carries verdictText verbatim — total, DC and the stakes-word',
-        /vs DC 15/.test(failLines[0]?.content ?? '') && /vs DC 15/.test(holdLines[0]?.content ?? '')
-          && /half damage/.test(holdLines[0]?.content ?? ''),
-        `failContent has DC=${/vs DC 15/.test(failLines[0]?.content ?? '')}`);
+      // NO public line posts (2026-09-18): the usage card says each verdict once, in the
+      // platform's summary row or its own line.
+      const cardText15 = () => (ui.chat.element?.querySelector(`.message[data-message-id="${card15.id}"]`)?.textContent ?? '').replace(/\s+/g, ' ');
+      ok('15a. no public verdict card posts — the usage card carries both verdicts (v1.19.0\'s lines retired 2026-09-18)',
+        !!done15 && (linesFor(card15.id).length === 0) && /vs DC 15/.test(cardText15()) && /half damage/.test(cardText15()),
+        `lines=${linesFor(card15.id).length} card="${cardText15().slice(0, 240)}"`);
 
-      // 15c — a render storm re-announces nothing (the announced guard through queueFlagWrite).
+      // 15c — a render storm posts nothing either.
       for (let i = 0; i < 3; i++) { try { ui.chat?.updateMessage?.(card15); } catch {} }
       await sleep(1500);
-      ok('15c. re-renders add no second line — announced is claimed before posting',
-        (linesFor(card15.id, victim.uuid, false).length === 1)
-          && (linesFor(card15.id, shielder.uuid, false).length === 1),
-        `victim=${linesFor(card15.id, victim.uuid, false).length} shielder=${linesFor(card15.id, shielder.uuid, false).length}`);
+      ok('15c. re-renders post nothing', linesFor(card15.id).length === 0, `lines=${linesFor(card15.id).length}`);
 
-      // 15d — legendary resistance flips the failure AFTER its line posted: the corrected
-      // "holds (legendary resistance)" line posts forced-marked; the fail line STANDS.
+      // 15d — legendary resistance flips the failure AFTER it landed: the entry flips forced
+      // and the usage card reads the corrected verdict — "(legendary resistance)".
       const entry15 = card15.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === victim.uuid);
       const rollMsg15 = entry15?.rollMessageId ? game.messages.get(entry15.rollMessageId) : null;
       if (rollMsg15) await rollMsg15.update({ 'system.resisted': true });
-      const corrected = await until(() => {
-        const l = linesFor(card15.id, victim.uuid, true);
-        return l.length ? l : null;
-      }, 10000) ?? [];
-      const flipped15 = card15.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === victim.uuid);
-      ok('15d. the LR flip announces the CORRECTED verdict; the honest fail line stands',
-        !!rollMsg15 && (flipped15?.outcome === 'saved') && (flipped15?.forced === true)
-          && (corrected.length === 1) && /legendary resistance/.test(corrected[0]?.content ?? '')
-          && (linesFor(card15.id, victim.uuid, false).length === 1),
-        `flipped=${flipped15?.outcome}/${flipped15?.forced} corrected=${corrected.length}`);
+      const flipped15 = await until(() => {
+        const t = card15.getFlag(MOD, 'saves')?.targets?.find(x => x.uuid === victim.uuid);
+        return ((t?.outcome === 'saved') && (t?.forced === true)) ? t : null;
+      }, 10000);
+      const corrected = await until(() => /legendary resistance/.test(cardText15()) ? cardText15() : null, 6000);
+      ok('15d. the LR flip corrects the verdict ON THE CARD — "(legendary resistance)" in the victim\'s row — and posts no card',
+        !!rollMsg15 && !!flipped15 && !!corrected && (linesFor(card15.id).length === 0),
+        `flipped=${flipped15?.outcome}/${flipped15?.forced} lines=${linesFor(card15.id).length} card="${(corrected ?? cardText15()).slice(0, 240)}"`);
 
       await set('saveTimer', 0);
       await victim.update({ 'system.resources.legres.max':
@@ -1676,14 +1660,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         return f?.targets?.every(t => t.done && t.applied) ? f : null;
       }, 25000);
       await sleep(1200);
-      const holdLine17 = game.messages.contents.find(m => {
-        const v = m.getFlag(MOD, 'verdictLine');
-        return v && (v.sourceMessageId === card17b?.id) && (v.uuid === shielder.uuid);
-      });
-      ok('17b. the pass stays standing and the verdict line says holds',
-        !!done17b && !shielder.statuses?.has?.('prone')
-          && !!holdLine17 && /holds/.test(holdLine17?.content ?? ''),
-        `prone=${shielder.statuses?.has?.('prone')} line=${!!holdLine17}`);
+      const entry17b = done17b?.targets?.find(t => t.uuid === shielder.uuid);
+      ok('17b. the pass stays standing and the card\'s verdict reads saved (no public line since 2026-09-18)',
+        !!done17b && !shielder.statuses?.has?.('prone') && (entry17b?.outcome === 'saved'),
+        `prone=${shielder.statuses?.has?.('prone')} outcome=${entry17b?.outcome}`);
 
       await set('saveTimer', 0);
       if (victim.statuses?.has?.('prone')) await victim.toggleStatusEffect('prone', { active: false });
@@ -1780,13 +1760,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('19g. the consequences follow the automatic failure exactly as a rolled one: both chips, full damage owed',
         !!chipOn(victim, 'BF Poisoned') && !!chipOn(victim, 'BF Splashed') && (entryOf(cardE, victim)?.applied === true),
         `chips=[${CHIP_NAMES.map(n => !!chipOn(victim, n)).join()}]`);
-      const lineE = await until(() => game.messages.contents.find(m => {
-        const v = m.getFlag(MOD, 'verdictLine');
-        return v && (v.sourceMessageId === cardE.id) && (v.uuid === victim.uuid);
-      }), 6000);
-      ok('19h. the verdict line prints the condition where the total would be',
-        /cannot succeed/.test(lineE?.content ?? '') && /Paralyzed/.test(lineE?.content ?? '') && !/null/.test(lineE?.content ?? ''),
-        (lineE?.content ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 160));
+      const cardTextE = () => (ui.chat.element?.querySelector(`.message[data-message-id="${cardE.id}"] .battleflow-saves`)?.textContent ?? '').replace(/\s+/g, ' ');
+      const lineE = await until(() => /cannot succeed/.test(cardTextE()) ? cardTextE() : null, 6000);
+      ok('19h. the card\'s own line prints the condition where the total would be (no die rolled, so no summary row to carry it)',
+        !!lineE && /Paralyzed/.test(lineE) && !/null/.test(lineE), (lineE ?? cardTextE()).slice(0, 160));
 
       // 19i: the buzzer on a save that cannot succeed records the failure rather than rolling.
       await clearChips();
@@ -2145,6 +2122,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('24c. a flag write on the summarized roll re-renders its summary — Battle Flow nudges the origin (the platform re-renders it on a system change only)',
           !!refreshed, `text="${(refreshed ?? text(summaryEl())).slice(0, 200)}"`);
 
+        // THE VERDICT IN THE PLATFORM'S ROW (user ruling 2026-09-18): the summary row carries
+        // "vs DC … — saved/failed" beside its total, and Battle Flow draws no second line for it.
+        const tail24 = await until(() => summaryEl()?.querySelector('.bf-verdict') ?? null, 6000);
+        const bfLines24 = () => [...(log24?.querySelectorAll(`.message[data-message-id="${card24.id}"] .battleflow-saves div`) ?? [])].map(d => text(d));
+        ok('24e. the verdict is written into the platform\'s summary row — "vs DC … — saved/failed" beside the total — and Battle Flow draws no second line for that target (user ruling 2026-09-18)',
+          !!tail24 && /^vs DC \d+ — (saved|failed)/.test(text(tail24)) && !bfLines24().some(l => /vs DC/.test(l)),
+          `tail="${text(tail24)}" lines=${JSON.stringify(bfLines24())}`);
+
         await until(() => entryOf(card24, victim)?.applied, 12000);
 
         // Summaries OFF: a FRESH roll's own card is shown and draws the row itself, and its usage
@@ -2170,6 +2155,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('24d. with summaries OFF a fresh roll\'s own card is shown and draws the row itself, and its usage card renders no summary',
           !!shown && !summaryD,
           `roll=${!!rollD} shown=${!!shown} hidden=${liD()?.hidden} summary=${!!summaryD}`);
+        const lineD = cardD ? await until(() => { const ls = [...(log24?.querySelectorAll(`.message[data-message-id="${cardD.id}"] .battleflow-saves div`) ?? [])].map(d => text(d)); return ls.some(l => /vs DC/.test(l)) ? ls : null; }, 6000) : null;
+        ok('24f. with summaries OFF there is no summary row to carry the verdict, so the card\'s own line says it (the 2026-09-18 ruling\'s other half)', !!lineD, JSON.stringify(lineD));
         if (cardD) await until(() => entryOf(cardD, victim)?.applied, 12000);
       } catch (err) {
         if (!String(err?.message).startsWith('section 24: no roll message')) throw err;

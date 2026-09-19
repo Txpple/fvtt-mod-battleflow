@@ -1139,3 +1139,64 @@ describe('effectNamedAs — the emanation\'s suffix (2026-09-05: "Aura of Purity
     expect(save.map(s => s.bend)).toEqual(["advantage"]);
   });
 });
+
+describe("effectCarriesRow — a row's `item` tells two pack effects of one name apart (walk finding, 2026-09-18)", () => {
+  const T = () => reg.EFFECT_BENDS;
+  it("the Aura of Protection's Protected on an ally never fires Protection from Evil and Good's row", () => {
+    const aura = {
+      effects: [{ id: "a1", name: "Protected — Invictus", item: "Aura of Protection" }]
+    };
+    expect(
+      r.effectSources({
+        target: aura,
+        enabled: ["Protected"],
+        table: T(),
+        scope: {},
+        targetName: "Gren"
+      })
+    ).toEqual([]);
+  });
+  it("the spell's own Protected fires it, and an effect whose item is unknown still matches by name", () => {
+    const spell = {
+      effects: [{ id: "s1", name: "Protected", item: "Protection from Evil and Good" }]
+    };
+    const hand = { effects: [{ id: "h1", name: "Protected" }] };
+    for (const who of [spell, hand]) {
+      const out = r.effectSources({
+        target: who,
+        enabled: ["Protected"],
+        table: T(),
+        scope: {},
+        targetName: "Gren"
+      });
+      expect(out.map(s => [s.bend, s.label])).toEqual([["disadvantage", "Gren is — Protected"]]);
+    }
+  });
+  it("effectCarriesRow itself: name first, then the item only when both sides know it", () => {
+    expect(
+      r.effectCarriesRow({ name: "Blur", item: "Blur" }, "Protected", {
+        item: "Protection from Evil and Good"
+      })
+    ).toBe(false);
+    expect(
+      r.effectCarriesRow({ name: "Protected", item: "Aura of Protection" }, "Protected", {
+        item: "Protection from Evil and Good"
+      })
+    ).toBe(false);
+    expect(
+      r.effectCarriesRow(
+        { name: "protected — X", item: "protection from evil and good" },
+        "Protected",
+        { item: "Protection from Evil and Good" }
+      )
+    ).toBe(true);
+    expect(
+      r.effectCarriesRow({ name: "Protected" }, "Protected", {
+        item: "Protection from Evil and Good"
+      })
+    ).toBe(true);
+    expect(
+      r.effectCarriesRow({ name: "Protected", item: "Aura of Protection" }, "Protected", {})
+    ).toBe(true);
+  });
+});

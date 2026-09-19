@@ -247,8 +247,11 @@ sandbox. **The shape, as ruled:**
   Plus two buffs dnd5e keeps as numbers, not effects: **Temporary HP** and **Heroic Inspiration**,
   read off the sheet, no clock, no source. A row the token cannot paint is tagged *no icon*
   (measured on Foundry 14.365: the token paints a clocked effect or a condition; a clockless
-  applied effect paints nothing). The hover card adds a second group, the marks the creature holds
-  on others (question 2, ruled in).
+  applied effect paints nothing). The hover card and the bar's name panel add a last group, the
+  marks the creature holds on others (question 2, ruled in; in the panel too, user 2026-09-18 —
+  not on the strip: *"no no these get moved over there"*). The hover card
+  never shows for a CONTROLLED token — the bar is its list, and the card sat in the way of moving
+  it (user, 2026-09-18).
   **One worn effect IS in force — the bearer's own standing aura** (user, 2026-09-15, on prod:
   *"protected doesnt show on invictus tho, even tho he is (as a buff on bar/hover)"*, ruled shape
   1 of two and released as v1.42.0 for game day). A feature's emanation sits on its bearer as
@@ -424,7 +427,10 @@ abilities that bend an attack roll and sit on a sheet as an ACTIVE EFFECT or as 
 compendium scan of every pack on the sandbox (thirty, system and premium) found seventy-odd; the
 effect table (`decide/registry.js` `EFFECT_BENDS`) carries each as one row of data — matched by
 the effect's or the feature's own NAME (user ruling: it is what a GM can type; an unmatched name
-never fires), on the attacker's side or the target's, with a SCOPE from day one (Innate Sorcery
+never fires) — and, where two pack effects share a name, by the ITEM the effect comes from (`item`
+on the row: the Aura of Protection's *Protected* is a save bonus, Protection from Evil and Good's
+*Protected* the Disadvantage row; a walk finding, 2026-09-18) — on the attacker's side or the
+target's, with a SCOPE from day one (Innate Sorcery
 is spell attacks only; a row without one would silently have been "any"), a caveat where the
 module cannot judge, and `counted: false` where the caveat is the rule rather than the exception
 (user, 2026-09-02, on Demon Armor: *"very edge case"* — shown so nobody forgets the item, out of
@@ -666,11 +672,12 @@ automated — that sentence is the whole job, and the module does exactly that m
   cast's level, half on a success — and the saves machine drives it as it drives any demand. Once
   per turn as the text says, counted only for a combatant (§8). The standing effect (Half Speed)
   is the region's, never applied again by the verdict.
-- **Drawn as the template's ring, and only that** (user walk, 2026-09-03: *"the ring is nice
-  … can the paladin aura have the black circle too? and not the green area"*). A feature's aura
-  is a TEMPLATE too — the same ring a spell's placement draws, centred on the token and moving
-  with it — and the Region behind every emanation is invisible; the fill wears the palette's hue
-  faintly, the border stays the platform's black.
+- **Not drawn at all** (user ruling 2026-09-18, the 6.0 walk: *"I prefer the ring to be
+  invisible"*). On 5.3.x the template drew a faint ring (user walk, 2026-09-03: *"the ring is nice
+  … can the paladin aura have the black circle too? and not the green area"*); since dnd5e 6.0
+  the area is the Region itself and there is no template. The region is the machine — centred on
+  the token, moving with it, computing membership — and invisible at the table (visibility LAYER:
+  the Regions layer alone shows it, the GM's tool). What the table sees is the member's chit.
 - **A member effect shows on the token** (user walk: *"it should show a chit when in, and be
   removed when out"*): Foundry draws only temporary effects on a token and a standing aura has
   no clock, so the member's copy wears a module status (`bfEmanation`) — visible while inside,
@@ -973,17 +980,18 @@ option names and judges nothing else.** RULED 2026-09-09 off the prototype
   is written once and read everywhere; the option's own activity is never `use()`d (a second card
   for a spend is noise). Never refunded on a revert (the refund ask is Tactical Mind's alone —
   §8, its row).
-- **Careful's ticks are IN THE CASTING WINDOW, before the cast goes out, and every NON-HOSTILE is
-  the default** (user, 2026-09-09, second look: "the ticks need to be not on the card, but the
-  popup … picking before casting is executed"; "non-hostile actors (neutral and allies) as default
-  picks" — superseding the morning's "allies, picker to adjust" and the card button it produced).
-  The row lists the selected targets, or — a bare template cast selects nobody — every non-hostile
-  creature the spell can reach, nearest first, the caster among them, pre-ticked up to the Charisma
-  modifier (minimum one); the pick rides the cast as CHOSEN and the demand honours it against
-  whatever the area finally contains — never rewriting it, even when the stamp's reach is empty.
-  Heightened's one target is a radio over the hostiles in reach the same way, the nearest by
-  default. No picker on the card. A protected creature leaves the save demand's target list at BOTH filters (the stamp
-  and the template's later adoption): no ask, no timer roll, no damage; the card names them
+- **Careful lists NOBODY in the casting window; the creatures to spare are asked on the card**
+  (user ruling 2026-09-18, the 6.0 walk, Hold Person with Morgash targeted: *"morgash checkbox
+  shouldnt be under careful spell, no name should be, its queried in a subsequent popup"* —
+  retiring 2026-09-09's ticks in the window, which 2026-09-10 had already taken off every
+  template spell). The tick row is the tick, the name, the cost and the rule. Once the cast is
+  out, the ask opens on the card of the creatures the save REACHES — a targeted cast's targets at
+  the stamp, a placed area's contents at adoption — every non-hostile ticked by default up to the
+  Charisma modifier (minimum one), the demand waiting on the answer or the clock's default; the
+  pick rides the cast as CHOSEN and is never rewritten. Heightened's one target is still a radio
+  in the window over the selected creatures (nobody for a template spell), the nearest hostile by
+  default. A protected creature leaves the save demand's target list at BOTH filters (the stamp
+  and the area's later adoption): no ask, no timer roll, no damage; the card names them
   *protected*. The tick is the player's; the module never judges sight or willingness (the Sneak
   Attack ruling).
 - **Heightened marks one target on the demand**, and the save gate reads the mark as a

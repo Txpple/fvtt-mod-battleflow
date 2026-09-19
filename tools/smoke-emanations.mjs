@@ -173,7 +173,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(1500);   // let a second sweep, if one was queued, settle before counting
       const featureRegions = scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature' && r.getFlag(MOD, 'emanation')?.tokenId === palTok.id);
       ok('1e. all three auras stand (Protection, Courage, Warding) — EXACTLY one region each', (featureRegions.length === 3) && ['Aura of Protection', 'Aura of Courage', 'Aura of Warding'].every(k => featureRegions.filter(r => r.getFlag(MOD, 'emanation').key === k).length === 1), featureRegions.map(r => r.name).join(' | '));
-      ok('1f. the region draws the ring itself — visible to all, its own shape (dnd5e 6.0: there is no template to draw it)', (region?.visibility === CONST.REGION_VISIBILITY.ALWAYS) && (region?.highlightMode === 'shapes'), `visibility=${region?.visibility} highlightMode=${region?.highlightMode}`);
+      ok('1f. the region is invisible at the table — the Regions layer alone shows it (user ruling 2026-09-18), its own shape', (region?.visibility === CONST.REGION_VISIBILITY.LAYER) && (region?.highlightMode === 'shapes'), `visibility=${region?.visibility} highlightMode=${region?.highlightMode}`);
       ok('1g. a card announced the aura (R5)', game.messages.some(m => (m.timestamp >= suiteStart - 60_000) && m.getFlag(MOD, 'emanationCard')?.key === 'Aura of Protection') || game.messages.some(m => m.getFlag(MOD, 'emanationCard')?.key === 'Aura of Protection'), '');
       ok('1h. the Paladin does not receive its own aura twice (the transfer effect already covers it)', memberFx(paladin).length === 0, `memberFx=${memberFx(paladin).map(e => e.name).join(',')}`);
     }

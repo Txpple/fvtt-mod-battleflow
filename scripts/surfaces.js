@@ -40,6 +40,12 @@ export const SURFACES = Object.freeze({
    * (`system.buttons[]`, filtered at birth in polish.js) — no anchor for them any more.
    */
   cardSummary: ".card-summary[data-message-id]",
+  /**
+   * The ROW dnd5e draws inside that summary for a save (chat/save-summary.hbs): the die, the
+   * target's pill, the roll's total, the resist buttons. Battle Flow writes the verdict's tail
+   * beside the total (saves/views.js, user ruling 2026-09-18) instead of drawing its own line.
+   */
+  summaryRow: ".save-summary",
   /** The roll configuration dialog's two parts (dnd5e's RollConfigurationDialog PARTS): the
    * fieldsets, and the button row the gate's section is drawn above. */
   dialogConfiguration: '[data-application-part="configuration"]',
@@ -64,6 +70,7 @@ export const SURFACE_SOURCES = Object.freeze({
   formGroup: { where: "core" },
   damageTray: { where: "dnd5e", file: "templates/chat/damage-card.hbs", proof: "<damage-application" },
   cardSummary: { where: "dnd5e", file: "templates/chat/usage-card.hbs", proof: 'class="card-summary" data-message-id' },
+  summaryRow: { where: "dnd5e", file: "templates/chat/save-summary.hbs", proof: 'class="icon-row save-summary' },
   dialogConfiguration: { where: "dnd5e", file: "dnd5e.mjs", proof: 'configuration: { template: "systems/dnd5e/templates/dice/roll-configuration.hbs"' },
   dialogButtons: { where: "dnd5e", file: "dnd5e.mjs", proof: 'buttons: { template: "systems/dnd5e/templates/dice/roll-buttons.hbs"' },
   dialogDefault: { where: "dnd5e", file: "templates/dice/roll-buttons.hbs", proof: "autofocus" },

@@ -67,7 +67,9 @@ import { SURFACES } from "./surfaces.js";
  *
  * REACH (user, 2026-09-03): helpful auras reach allies and neutrals, harmful ones enemies, by token
  * disposition — the caster's "designate creatures to be unaffected" is that default.
- * DRAWN as a ring for everyone (user: "let's try a faint ring, I need to judge") in the palette's hue.
+ * NOT DRAWN (user ruling 2026-09-18, the 6.0 walk: "I prefer the ring to be invisible"): the region is
+ * the machine only — visibility LAYER, so it shows on the Regions layer alone (a GM's tool) and never
+ * at the table. The member's chit on the token is what the table sees.
  * ------------------------------------------------------------------------------------------- */
 
 const FLAG = "emanation";                       // on the region, and on every member effect
@@ -77,6 +79,8 @@ const listed = () => listedNames(emanationEntries());
 const { rowNamed } = tableIndex(EMANATIONS);
 const live = () => setting(S.emanations);
 const colorFor = reach => (reach === "harmful") ? "#b4463c" : "#46965f";   // TONE.bad / TONE.good, solid — a Region colour is a hex
+/** The ring is invisible at the table (user ruling 2026-09-18): the Regions layer alone shows it. */
+const RING_VISIBILITY = () => CONST.REGION_VISIBILITY.LAYER;
 
 /** The one Battle Flow behaviour on a region, or null. */
 const behaviorOf = region => region?.behaviors?.find(b => b.type === TYPE) ?? null;
@@ -440,7 +444,7 @@ async function adoptRegion(region, { kind, key, tok, itemUuid, reach, scaling = 
   const inside = (tokensInRegions([region]) ?? []).map(e => e.tokenId);
   const initial = inside.filter(id => id && (id !== tok?.id));
   await region.update({
-    color: colorFor(reach), visibility: CONST.REGION_VISIBILITY.ALWAYS, highlightMode: "shapes",
+    color: colorFor(reach), visibility: RING_VISIBILITY(), highlightMode: "shapes",
     flags: { [MODULE_ID]: { [FLAG]: { kind, key, tokenId: tok?.id ?? null, itemUuid, initial } } }
   });
   await region.createEmbeddedDocuments("RegionBehavior", [{ type: TYPE, name: key, disabled,
@@ -564,6 +568,8 @@ async function reconcileScene(scene) {
     // token by itself — the region is attached.
     const radius = w.range * pxPerUnit(scene);
     if ( region.shapes?.[0]?.radius !== radius ) await region.update({ shapes: [emanationShapeData(w.tok, radius)] });
+    // A ring raised before the 2026-09-18 ruling was drawn; the sweep hides it in place.
+    if ( region.visibility !== RING_VISIBILITY() ) await region.update({ visibility: RING_VISIBILITY() });
     if ( beh ) {
       const upd = {};
       if ( beh.disabled !== w.disabled ) upd.disabled = w.disabled;
@@ -576,15 +582,15 @@ async function reconcileScene(scene) {
     try {
       // A REGION, the platform's own emanation shape (dnd5e 6.0 places a spell's the same way):
       // the token's base plus the class's range, measured from the edge (the 2024 rule, Foundry
-      // 14's EmanationShapeData), attached to the token so it walks with them. It draws the ring
-      // the table sees and is the machine. No dnd5e flags: a feature's aura demands no save, so
-      // the saves machine's area adoption must never see it as an area of anything; and no
-      // platform behaviour on it (the §3.6 ruling).
+      // 14's EmanationShapeData), attached to the token so it walks with them. It is the machine
+      // and nothing the table sees (RING_VISIBILITY — the user's ruling, 2026-09-18). No dnd5e
+      // flags: a feature's aura demands no save, so the saves machine's area adoption must never
+      // see it as an area of anything; and no platform behaviour on it (the §3.6 ruling).
       const [region] = await scene.createEmbeddedDocuments("Region", [{
         name: `${w.row.key} [${w.actor.name}]`, color: colorFor(w.row.reach),
         shapes: [emanationShapeData(w.tok, w.range * pxPerUnit(scene))],
         attachment: { token: w.tok.id },
-        visibility: CONST.REGION_VISIBILITY.ALWAYS, highlightMode: "shapes",
+        visibility: RING_VISIBILITY(), highlightMode: "shapes",
         flags: { [MODULE_ID]: { [FLAG]: { kind: "feature", key: w.row.key, tokenId: w.tok.id, itemUuid: w.item.uuid } } }
       }], { dnd5e: { createActivityBehaviors: false } });
       if ( !region ) { console.error(`${TITLE} | ${w.row.key} around ${w.actor.name}: the region was not created.`); continue; }
@@ -693,7 +699,7 @@ async function placeCastEmanation(activity, row, message) {
     ...(canvas?.level?.id ? { levels: [canvas.level.id] } : {}),
     restriction: { enabled: true, type: "move" },
     attachment: { token: tok.id },
-    visibility: CONST.REGION_VISIBILITY.ALWAYS, highlightMode: "coverage",
+    visibility: RING_VISIBILITY(), highlightMode: "coverage",
     flags: { dnd5e: {
       activity: activity.uuid, item: activity.item.uuid, origin: tok.uuid, spellLevel,
       dimensions: { size, width: inScene(tpl.width), height: inScene(tpl.height), units }

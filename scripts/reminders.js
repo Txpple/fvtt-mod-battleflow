@@ -382,9 +382,17 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
   // An effect's SOURCE: the module's own stamp on what it applied (effect-riders.js), else the
   // actor behind the effect's origin — the `except: "source"` facet reads it (Goaded, Distracted).
   const sourceOf = e => e.getFlag(MODULE_ID, "sourceUuid") ?? grantingActor(e)?.uuid ?? null;
+  // The ITEM an effect comes from, by name, for a row's `item` discriminator (decide/reminders.js
+  // effectCarriesRow): an aura's member copy names its emanation row, else the origin item.
+  const itemOf = e => {
+    const key = e.getFlag(MODULE_ID, "emanation")?.key;
+    if ( key ) return key;
+    const origin = e.origin ? resolveUuid(e.origin) : null;
+    return (origin instanceof Item) ? origin.name : null;
+  };
   const sheetOf = actor => ({
     uuid: actor.uuid,
-    effects: actor.effects.filter(live).map(e => ({ id: e.id, name: e.name, sourceUuid: sourceOf(e) })),
+    effects: actor.effects.filter(live).map(e => ({ id: e.id, name: e.name, sourceUuid: sourceOf(e), item: itemOf(e) })),
     features: actor.items.filter(i => i.type === "feat").map(i => i.name),
     bloodied: hpFraction(actor) <= 0.5, damaged: hpFraction(actor) < 1,
     grappled: !!actor.statuses?.has?.("grappled"),

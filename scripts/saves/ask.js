@@ -242,7 +242,7 @@ async function fireSaveTimer(card) {
         gone.done = true;
         gone.outcome = "gone";
         gone.applied = true; // nothing to apply to
-        gone.announced = true; // the merged card below is its line — never one per target
+
         if ( current.targets.every(t => t.done) ) current.status = "done";
         goneName = gone.name;
       });
@@ -262,19 +262,8 @@ async function fireSaveTimer(card) {
     const heightened = flag.demand?.heightened?.uuid === entry.uuid;
     await rollSaveAnswer(card, entry.uuid, { timedOut: true, mode: heightened ? "disadvantage" : null });
   }
-  // A "gone" verdict never reaches applySaveConsequences (stamped applied above), so its
-  // public line emits here — ONE merged card however many vanished (v1.19.0, FLOW item 7).
-  if ( goneNames.length ) {
-    await ChatMessage.create({
-      speaker: card.speaker,
-      content: bfCard({
-        img: flag.item?.img ?? null,
-        eyebrow: `Saving Throw — ${flag.item?.name ?? "the effect"}`,
-        tone: "neutral",
-        title: goneNames.length === 1 ? `${goneNames[0]} is gone` : `${goneNames.join(", ")} are gone`,
-        subtitle: "nothing to roll — the demand is closed for them"
-      }),
-      flags: { [MODULE_ID]: { verdictLine: { sourceMessageId: card.id, uuid: "gone" } } }
-    }).catch(err => console.error(`${TITLE} | Gone line failed.`, err));
-  }
+  // A "gone" verdict never reaches applySaveConsequences (stamped applied above); the card's
+  // own line says "gone — nothing to roll" (verdictText). The merged public card v1.19.0 posted
+  // here retired with the verdict line (2026-09-18).
+  if ( goneNames.length ) console.debug(`${TITLE} | Gone at the buzzer: ${goneNames.join(", ")}.`);
 }

@@ -369,6 +369,27 @@ export function saveMultiplier(entry, damageOnSave) {
 export function verdictText(flag, t) {
   if ( !t.done ) return null;
   if ( t.outcome === "gone" ) return "the target is gone — nothing to roll";
+  // The save gate's automatic failure (option E, 2026-09-02): no die was rolled, so there is
+  // no total to print — the condition that failed it is the number's replacement.
+  const roll = t.autoFailed ? `cannot succeed${t.autoFailedBy ? ` (${t.autoFailedBy})` : ""}` : `${t.total}`;
+  return `${roll} ${verdictStakes(flag, t)}`;
+}
+
+/**
+ * The verdict WITHOUT its total — "vs DC 15 — saved — half damage" — for the one place the total
+ * is already printed: the platform's summary row inside the usage card, which shows the die and
+ * gains this beside it (user ruling 2026-09-18, the 6.0 walk: the summary row and Battle Flow's
+ * line said each verdict twice; one row per creature, the platform's, carrying these words).
+ * Null when there is no such row to write into: unresolved, the target gone, or an automatic
+ * failure that rolled no die — those keep Battle Flow's own line, `verdictText`.
+ */
+export function verdictTail(flag, t) {
+  if ( !t?.done || (t.outcome === "gone") || t.autoFailed ) return null;
+  return verdictStakes(flag, t);
+}
+
+/** "vs DC 15 — saved — half damage (legendary resistance) (timer)": the verdict after its total. */
+function verdictStakes(flag, t) {
   const half = flag.hasDamage
     ? t.evasion ? " — no damage (Evasion)"
       : (flag.damageOnSave === "half") ? " — half damage"
@@ -376,9 +397,6 @@ export function verdictText(flag, t) {
     : "";
   const base = (t.outcome === "saved")
     ? `saved${half}` : `failed${(t.evasion && flag.hasDamage) ? " — half damage (Evasion)" : ""}`;
-  // The save gate's automatic failure (option E, 2026-09-02): no die was rolled, so there is
-  // no total to print — the condition that failed it is the number's replacement.
-  const roll = t.autoFailed ? `cannot succeed${t.autoFailedBy ? ` (${t.autoFailedBy})` : ""}` : `${t.total}`;
-  return `${roll} vs DC ${flag.dc} — ${base}`
+  return `vs DC ${flag.dc} — ${base}`
     + `${t.forced ? " (legendary resistance)" : ""}${t.timedOut ? " (timer)" : ""}`;
 }

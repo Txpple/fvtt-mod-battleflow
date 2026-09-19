@@ -348,8 +348,10 @@ async function foldToppleSave(saveMessage) {
           content: bfCard({
             img: flag.weapon?.img, eyebrow: "Weapon Mastery — Topple", tone: "neutral",
             title: `Topple — ${entry.name} stays standing`,
-            subtitle: `Constitution save ${entry.total ?? "?"} vs DC ${flag.dc}`
-              + `${entry.timedOut ? " — rolled by the timer" : ""}`
+            // ⚠ `entry` is the pre-write clone — its total is written only inside the serializer
+            // above. The card read "Constitution save ? vs DC 15" (the 6.0 walk, 2026-09-18).
+            subtitle: `Constitution save ${total} vs DC ${flag.dc}`
+              + `${saveMessage.getFlag(MODULE_ID, "timedOut") ? " — rolled by the timer" : ""}`
           })
         });
       }

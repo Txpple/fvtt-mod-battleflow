@@ -794,6 +794,23 @@ describe("verdictText — the one line the row and the card both read", () => {
     );
   });
 
+  it("verdictTail is the same line without its total — for the platform's summary row (2026-09-18); null where no row exists", () => {
+    const saved = { done: true, outcome: "saved", total: 18 };
+    expect(`${saved.total} ${v.verdictTail(flag, saved)}`).toBe(v.verdictText(flag, saved));
+    const forced = { done: true, outcome: "saved", total: 9, forced: true, timedOut: true };
+    expect(`${forced.total} ${v.verdictTail(flag, forced)}`).toBe(v.verdictText(flag, forced));
+    expect(v.verdictTail(flag, { done: false })).toBe(null);
+    expect(v.verdictTail(flag, { done: true, outcome: "gone" })).toBe(null);
+    expect(
+      v.verdictTail(flag, {
+        done: true,
+        outcome: "failed",
+        autoFailed: true,
+        autoFailedBy: "Paralyzed"
+      })
+    ).toBe(null);
+  });
+
   it("reads the stakes off the effect — none and full-anyway both say so", () => {
     expect(
       v.verdictText({ ...flag, damageOnSave: "none" }, { done: true, outcome: "saved", total: 18 })

@@ -37,7 +37,7 @@ const SECTIONS = {
   14: 'Extended Spell (Stage 3): Hold Person on the Victim, a forced failure — Paralyzed lands with its clock doubled (120 s); the caster\'s concentration save opens with Extended Spell as an Advantage source',
   15: 'Seeking Spell (Stage 4): a missed Chromatic Orb (AC 60) is offered Seeking as a d20 fold; the popup\'s button rerolls the d20, the spend records the reroll, one Sorcery Point goes by hand with the record on the attack message',
   16: 'Empowered Spell (Stage 4): a Fireball damage roll is offered Empowered; the popup shows the eight dice, the cap holds at three, Reroll spends the point, patches the message\'s own roll (three faces struck, the total moved), and announces old → new',
-  17: 'Careful\'s ticks in the casting window (user, 2026-09-09): with the Ranger and a goblin targeted, the row lists both with the ally pre-ticked; the player\'s own pick (the goblin) is honoured on the demand',
+  17: 'Careful lists NOBODY in the casting window (user, 2026-09-18 — the ticks of 2026-09-09 retired): with the Ranger and a goblin targeted, the row is the tick, the name, the cost and the rule; the ask opens on the card listing the two with the ally ticked; the player\'s own pick (the goblin) is honoured on the demand',
   18: 'Careful with NO target selected (the third look): the window lists nobody; the ask at the area lists exactly the creatures inside',
   19: 'the cantrip (2026-09-10): Fire Bolt has no slot, template or scaling, so the system never opened the usage dialog and the group never showed - the module opens it; Distant, Quickened, Subtle and Transmuted fit, Careful, Heightened, Extended and Twinned (no slot to raise) do not; Transmuted\'s type radios are inert until Transmuted is ticked',
 };
@@ -658,15 +658,22 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const row = rowsOf(fs).find(r => r.key === 'careful');
       row?.box?.click(); await sleep(80);
       const ticks = [...(fs?.querySelectorAll('[data-bf-metamagic-row="careful"] input[name="bf-metamagic-protect"]') ?? [])];
-      const tickOf = uuid => ticks.find(t => t.value === uuid);
-      ok('17a. with two creatures targeted, the Careful row lists both, the Ranger (an ally) pre-ticked and the goblin not', ticks.length === 2 && tickOf(ranger.uuid)?.checked === true && !!tickOf(attTok.actor?.uuid) && !tickOf(attTok.actor?.uuid).checked, ticks.map(t => `${t.dataset.name}:${t.checked}`).join(','));
-      // The player's own pick: the goblin protected, the Ranger not.
-      tickOf(ranger.uuid)?.click(); await sleep(50);
-      tickOf(attTok.actor?.uuid)?.click(); await sleep(80);
+      ok('17a. with two creatures targeted, the Careful row lists NOBODY — the tick, the name, the cost and the rule, no more (user, 2026-09-18)', !!row && ticks.length === 0, `ticks=${ticks.length}`);
       const before = new Set(game.messages.map(m => m.id));
       app.element.querySelector('button[data-action="use"], button[type="submit"]')?.click();
       const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage') && m.system?.activity?.uuid === spellAct('Hold Person')?.uuid) ?? null, 8000);
-      await waitFor(() => card?.getFlag(MOD, 'saves')?.targets?.length ? card : null, 6000);
+      // THE ASK OPENS ON THE CARD (2026-09-18): the two the cast targeted, the ally ticked by default,
+      // the demand waiting empty until the answer.
+      const askPopup = await waitFor(() => { const d = popupFor(card?.id, 'metamagicAsk'); return (d?.rendered && d.element?.querySelector?.('[data-bf-metamagic-ask]')) ? d : null; }, 8000);
+      const askRows = [...(askPopup?.element?.querySelectorAll('input[name="bf-metamagic-ask"]') ?? [])].map(i => ({ name: i.dataset.name, uuid: i.value, checked: i.checked, el: i }));
+      const askOf = uuid => askRows.find(r => r.uuid === uuid);
+      const heldEmpty = !(card?.getFlag(MOD, 'saves')?.targets?.length);
+      ok('17d. the ask opens on the card listing the two targeted — the Ranger (an ally) ticked, the goblin not — while the demand waits empty', askRows.length === 2 && askOf(ranger.uuid)?.checked === true && !!askOf(attTok.actor?.uuid) && !askOf(attTok.actor?.uuid).checked && heldEmpty, JSON.stringify({ rows: askRows.map(r => `${r.name}:${r.checked}`), heldEmpty }));
+      // The player's own pick: the goblin protected, the Ranger not.
+      askOf(ranger.uuid)?.el.click(); await sleep(50);
+      askOf(attTok.actor?.uuid)?.el.click(); await sleep(80);
+      askPopup?.element?.querySelector('button[data-action="ok"]')?.click();
+      await waitFor(() => card?.getFlag(MOD, 'saves')?.targets?.length ? card : null, 8000);
       const mm = card?.getFlag(MOD, 'metamagic'), saves = card?.getFlag(MOD, 'saves');
       ok('17b. the pick is honoured on the demand: the goblin protected, the Ranger owes the save', mm?.chosen === true && (mm?.protected ?? []).length === 1 && String(mm.protected[0].uuid).endsWith(attacker.id) && (saves?.targets ?? []).some(t => t.uuid === ranger.uuid) && !(saves?.targets ?? []).some(t => String(t.uuid).endsWith(attacker.id)), JSON.stringify({ protected: mm?.protected, targets: names(saves?.targets) }));
       await closeDialogs();

@@ -931,9 +931,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await until14(() => fresh14(preAnnounce).some(m => m.content?.includes('stays standing')), 10_000);
           const announced2 = fresh14(preAnnounce).filter(m => m.content?.includes('falls Prone')).length;
           const stood2 = fresh14(preAnnounce).filter(m => m.content?.includes('stays standing')).length;
-          ok('14d. a successful save announces — stays standing, once, and no Prone',
+          // The card prints the ROLL's total, never "?" (the 6.0 walk, 2026-09-18: the success branch read the pre-write clone).
+          const stoodText = (fresh14(preAnnounce).find(m => m.content?.includes('stays standing'))?.content ?? '').replace(/<[^>]+>/g, ' ');
+          ok('14d. a successful save announces — stays standing, once, with the roll\'s total against the DC, and no Prone',
             e14b.done && (e14b.outcome === 'saved') && !victim.statuses.has('prone')
-              && (announced2 === 0) && (stood2 === 1),
+              && (announced2 === 0) && (stood2 === 1) && /Constitution save \d+ vs DC \d+/.test(stoodText),
             `outcome=${e14b.outcome} prone=${victim.statuses.has('prone')} prone-cards=${announced2} stood-cards=${stood2}`
               + ` | saveTotal=${rolls14d?.[0]?.total} dc=${topple2.getFlag(MOD, 'topple').dc}`
               + ` bonusNow=${JSON.stringify(victim.system.abilities?.con?.save?.roll?.bonus ?? null)}`);

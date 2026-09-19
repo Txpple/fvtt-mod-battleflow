@@ -25,6 +25,12 @@
       "proof": "class=\"card-summary\" data-message-id",
       "found": true
     },
+    "summaryRow": {
+      "where": "dnd5e",
+      "file": "templates/chat/save-summary.hbs",
+      "proof": "class=\"icon-row save-summary",
+      "found": true
+    },
     "dialogConfiguration": {
       "where": "dnd5e",
       "file": "dnd5e.mjs",

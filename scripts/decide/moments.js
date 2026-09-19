@@ -577,7 +577,7 @@ export const STATE_KEYS = Object.freeze({
   volleyRay: "provenance — a volley's roll names its ray",
   savesDeferredRoll: "the caster's deferred damage roll while the saves are pending; the verdicts are the resolve",
   saveAutoFail: "the Fails press on the roll message; the verdict on the saves flag is the resolve",
-  verdictLine: "the verdict's own card line — a view",
+
   damageSaveCard: "the save card a damage cast drove; its verdicts land on the saves flag",
   damageShields: "the shield judgement's claim on the damage message (paid, judged) — a latch; damageShield on the ward's roll is the resolve",
   shield: "an ActiveEffect's fingerprint — the standing ward; shieldMark is its raising and damageShield its strike",
