@@ -1048,10 +1048,17 @@ effect asynchronously, and `CONFIG.statusEffects` is an object keyed by id.
   `TokenDocument#testInsideRegion` (`geometry.js tokensInRegions`); the v14 shim's corrupted
   distance, `honestDims` and the template-shape ladder went with the template. Every aura is a
   Region created the platform's way (`decide/geometry.js emanationShapeData`, the emanation
-  shape on the token's base, radius from the EDGE, attached — and INVISIBLE at the table:
-  visibility LAYER, ruling 6 below; the walk of 2026-09-18 saw the region's own drawing and the
-  user preferred none). A placed region is NO concentration dependent at
-  6.0.1 — the `deleteActiveEffect` sweep is what ends a duration area.
+  shape on the token's base, radius from the EDGE, attached — and INVISIBLE: locked, visibility
+  LAYER_UNLOCKED, ruling 6 below; the walk of 2026-09-18 saw the region's own drawing and the
+  user preferred none, and plain LAYER still showed it whenever dnd5e's placement left the
+  Regions layer active, 2026-09-19). A placed region is NO concentration dependent at
+  6.0.1 — the `deleteActiveEffect` sweep is what ends a duration area: the saves machine's
+  (areas.js) for a cast with a demand, and — since the walk's day-after finding (2026-09-19, Fog
+  Cloud's region outliving Jetten's concentration while Web's went) — emanations.js
+  `endConcentrationAreas` for every other concentration cast: exactly the areas the caster's
+  client tied to the concentration effect at the cast (`areas`, dnd5e.postUseActivity), the
+  activity match only for an untied area no other concentration of the spell can claim (a Region
+  carries no creation time on the client, measured).
 - **J** concentration: both native prompts (`type: "prompt"` with a `concentration` /
   `endConcentration` button) are vetoed by TYPE — ruling 2 below. Also found: dnd5e hands
   `rollMode` straight to `ChatMessage.create` as `messageMode`, which knows only Foundry 14's
@@ -1112,8 +1119,11 @@ and the module stay on for the pass; `tools/world-snapshot.mjs restore` is the w
 (6) **The ring (the walk, 2026-09-18):** INVISIBLE. With no template left to draw it, the pass
 had let the region draw the aura itself (visibility ALWAYS, highlightMode `shapes` — a filled
 hatched disc); the user, shown it on Invictus: *"I prefer the ring to be invisible."* Every
-region this module raises or adopts is visibility LAYER now — the Regions layer alone shows it,
-the GM's tool — and the member's chit on the token is what the table sees. The 2026-09-03 walk's
+region this module raises or adopts is LOCKED with LAYER_UNLOCKED visibility now — Foundry's one
+never-drawn shape; a GM unlocks it in the Regions tab to see it (the first cut, plain LAYER,
+showed the ring whenever dnd5e's area placement left the Regions layer active — the user's
+"occasionally, the paladin aura shows" of 2026-09-19) — and the member's chit on the token is what
+the table sees. The 2026-09-03 walk's
 "faint ring" was the TEMPLATE's; the template is gone and the ring with it.
 
 **§6 The walk (the user, 2026-09-18) — findings, each fixed with its suite section.** (1) Careful

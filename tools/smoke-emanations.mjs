@@ -30,7 +30,8 @@ const SECTIONS = {
   12: 'THE SECOND SLICE — Aura of Life: the pack\'s effect on the ally inside, nothing on the hostile; an ally at 0 HP starting its turn inside regains the activity\'s own 1 HP, receipted',
   13: 'Crusader\'s Mantle: the ally inside wears the +1d4 radiant weapon-damage change the pack ships',
   14: 'Aura of Vitality: a NOTICE — nothing applied; at the caster\'s turn start a card offers Start of Turn Heal with a button, never played',
-  15: 'Antilife Shell: a ring and a card, nothing applied; ends with concentration'
+  15: 'Antilife Shell: a ring and a card, nothing applied; ends with concentration',
+  16: 'a NO-SAVE concentration area (Fog Cloud, 2026-09-19): no demand card, no dependent at 6.0 — the module\'s own sweep ends the region with the concentration, exactly the areas the effect is tied to; a re-cast\'s area stands when the old concentration goes; an untied area is swept only when no other concentration of the spell stands'
 };
 const DEPENDS = { 2: [1], 3: [1], 4: [1], 5: [1], 7: [6], 8: [6], 9: [1], 11: [1] };
 
@@ -173,7 +174,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(1500);   // let a second sweep, if one was queued, settle before counting
       const featureRegions = scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature' && r.getFlag(MOD, 'emanation')?.tokenId === palTok.id);
       ok('1e. all three auras stand (Protection, Courage, Warding) — EXACTLY one region each', (featureRegions.length === 3) && ['Aura of Protection', 'Aura of Courage', 'Aura of Warding'].every(k => featureRegions.filter(r => r.getFlag(MOD, 'emanation').key === k).length === 1), featureRegions.map(r => r.name).join(' | '));
-      ok('1f. the region is invisible at the table — the Regions layer alone shows it (user ruling 2026-09-18), its own shape', (region?.visibility === CONST.REGION_VISIBILITY.LAYER) && (region?.highlightMode === 'shapes'), `visibility=${region?.visibility} highlightMode=${region?.highlightMode}`);
+      ok('1f. the region is drawn nowhere — locked with LAYER_UNLOCKED visibility, hidden even on the Regions layer (user rulings 2026-09-18/19), its own shape', (region?.visibility === CONST.REGION_VISIBILITY.LAYER_UNLOCKED) && (region?.locked === true) && (region?.highlightMode === 'shapes'), `visibility=${region?.visibility} locked=${region?.locked} highlightMode=${region?.highlightMode}`);
       ok('1g. a card announced the aura (R5)', game.messages.some(m => (m.timestamp >= suiteStart - 60_000) && m.getFlag(MOD, 'emanationCard')?.key === 'Aura of Protection') || game.messages.some(m => m.getFlag(MOD, 'emanationCard')?.key === 'Aura of Protection'), '');
       ok('1h. the Paladin does not receive its own aura twice (the transfer effect already covers it)', memberFx(paladin).length === 0, `memberFx=${memberFx(paladin).map(e => e.name).join(',')}`);
     }
@@ -381,6 +382,43 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const gone = await waitFor(() => (!(tid && scene.regions.get(tid)) && !scene.regions.get(rid) && memberFx(vicActor, rid).length === 0) ? true : null, 10000);
       if (!(tid && scene.regions.get(tid))) template = null;
       ok('8a. ending concentration ends the area (the module\'s own hook — no dependent at 6.0), and lifts Half Speed from the Victim', !!gone, `area=${!!(tid && scene.regions.get(tid))} region=${!!scene.regions.get(rid)} fx=${memberFx(vicActor, rid).map(e => e.name).join(',')} walk=${vicActor.system.attributes.movement.walk}`);
+    }
+
+    // ================================================== 16. a no-save concentration area ends with the concentration
+    if (want(16)) {
+      // Fog Cloud's shape (user, 2026-09-19: "the region/vfx stays even after he loses concentration.
+      // didnt have the problem with gren's web"): a concentration cast with no save has no card of
+      // this module's, and 6.0 makes no placed region a dependent — endConcentrationAreas ends it.
+      // Faked at the documents: a concentrating effect carrying the activity uuid the platform
+      // stamps, a region stamped the same; the re-cast is a NEWER effect and a NEWER region.
+      const fogAct = `Actor.${cleric.id}.Item.bfFogCloud000000.Activity.bfFogCloudAct000`;
+      const mkRegion = async name => (await scene.createEmbeddedDocuments('Region', [{ name, shapes: [{ type: 'circle', x: 300, y: 300, radius: 100 }], flags: { dnd5e: { activity: fogAct } } }]))[0];
+      const mkConc = async () => (await cleric.createEmbeddedDocuments('ActiveEffect', [{ name: 'Concentrating: BF Fog', statuses: ['concentrating'], flags: { dnd5e: { activity: { uuid: fogAct } } } }]))[0];
+      // THE TIE: the casting client writes `areas` on its concentration effect (the postUseActivity
+      // hook); here the documents are faked, so the tie is written by hand.
+      const e1 = await mkConc(); const r1 = await mkRegion('BF Fog area 1'); await e1.setFlag(MOD, 'areas', [r1.uuid]);
+      const e2 = await mkConc(); const r2 = await mkRegion('BF Fog area 2'); await e2.setFlag(MOD, 'areas', [r2.uuid]);
+      let e3 = null, e4 = null, r3 = null;
+      try {
+        await e1.delete();
+        const oldGone = await waitFor(() => !scene.regions.get(r1.id) ? true : null, 8000);
+        await sleep(600);
+        ok('16a. the OLD concentration ending takes ITS area down and leaves the re-cast\'s standing (the tie: each effect names the areas its cast placed)', !!oldGone && !!scene.regions.get(r2.id), `r1=${!!scene.regions.get(r1.id)} r2=${!!scene.regions.get(r2.id)}`);
+        await e2.delete();
+        const allGone = await waitFor(() => !scene.regions.get(r2.id) ? true : null, 8000);
+        ok('16b. the LAST concentration ending takes the last area down — no demand card, no dependent, the module\'s sweep alone', !!allGone, `r2=${!!scene.regions.get(r2.id)}`);
+        // 16c. an UNTIED area (a cast from before the tie): spared while another concentration of the
+        // spell stands — it could be that one's — and swept on the activity when the last one goes.
+        e3 = await mkConc(); r3 = await mkRegion('BF Fog area 3 (untied)'); e4 = await mkConc();
+        await e3.delete(); await sleep(800);
+        const sparedC = !!scene.regions.get(r3.id);
+        await e4.delete();
+        const sweptC = await waitFor(() => !scene.regions.get(r3.id) ? true : null, 8000);
+        ok('16c. an untied area is spared while another concentration of the spell stands, and swept when the last one goes', sparedC && !!sweptC, `spared=${sparedC} swept=${!!sweptC}`);
+      } finally {
+        for (const r of [r1, r2, r3]) if (r && scene.regions.get(r.id)) await r.delete().catch(() => {});
+        for (const e of [e1, e2, e3, e4]) if (e && cleric.effects.get(e.id)) await e.delete().catch(() => {});
+      }
     }
 
     // ================================================== 9. the switch

@@ -676,8 +676,10 @@ automated — that sentence is the whole job, and the module does exactly that m
   invisible"*). On 5.3.x the template drew a faint ring (user walk, 2026-09-03: *"the ring is nice
   … can the paladin aura have the black circle too? and not the green area"*); since dnd5e 6.0
   the area is the Region itself and there is no template. The region is the machine — centred on
-  the token, moving with it, computing membership — and invisible at the table (visibility LAYER:
-  the Regions layer alone shows it, the GM's tool). What the table sees is the member's chit.
+  the token, moving with it, computing membership — and drawn nowhere (locked, visibility
+  LAYER_UNLOCKED: hidden even on the Regions layer until a GM unlocks it; plain LAYER showed it
+  whenever an area placement left that layer active, 2026-09-19). What the table sees is the
+  member's chit.
 - **A member effect shows on the token** (user walk: *"it should show a chit when in, and be
   removed when out"*): Foundry draws only temporary effects on a token and a standing aura has
   no clock, so the member's copy wears a module status (`bfEmanation`) — visible while inside,

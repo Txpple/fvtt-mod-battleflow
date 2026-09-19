@@ -68,8 +68,8 @@ import { SURFACES } from "./surfaces.js";
  * REACH (user, 2026-09-03): helpful auras reach allies and neutrals, harmful ones enemies, by token
  * disposition — the caster's "designate creatures to be unaffected" is that default.
  * NOT DRAWN (user ruling 2026-09-18, the 6.0 walk: "I prefer the ring to be invisible"): the region is
- * the machine only — visibility LAYER, so it shows on the Regions layer alone (a GM's tool) and never
- * at the table. The member's chit on the token is what the table sees.
+ * the machine only — locked, LAYER_UNLOCKED, so it draws nowhere, not even on the Regions layer, until
+ * a GM unlocks it (RING_VISIBILITY). The member's chit on the token is what the table sees.
  * ------------------------------------------------------------------------------------------- */
 
 const FLAG = "emanation";                       // on the region, and on every member effect
@@ -79,8 +79,18 @@ const listed = () => listedNames(emanationEntries());
 const { rowNamed } = tableIndex(EMANATIONS);
 const live = () => setting(S.emanations);
 const colorFor = reach => (reach === "harmful") ? "#b4463c" : "#46965f";   // TONE.bad / TONE.good, solid — a Region colour is a hex
-/** The ring is invisible at the table (user ruling 2026-09-18): the Regions layer alone shows it. */
-const RING_VISIBILITY = () => CONST.REGION_VISIBILITY.LAYER;
+/**
+ * The ring is invisible at the table (user ruling 2026-09-18) — and NOWHERE ELSE EITHER. LAYER
+ * visibility (the first cut) draws the region whenever the Regions layer is active, and dnd5e's
+ * own area placement puts the caster on that layer: every Web or Fog Cloud placed showed the
+ * Paladin's ring until the next click elsewhere (user, 2026-09-19: "occasionally, the paladin
+ * aura shows … it re-disappears … periodic"). Foundry's one never-drawn shape is a LOCKED region
+ * with LAYER_UNLOCKED visibility (Region#isVisible: on the layer, locked + LAYER_UNLOCKED is
+ * false before the observer test) — a GM who wants to see it unlocks it in the Regions tab.
+ */
+const RING_VISIBILITY = () => CONST.REGION_VISIBILITY.LAYER_UNLOCKED;
+/** The visibility fields every ring wears: never drawn, unlocked by hand to see it. */
+const ringHidden = () => ({ visibility: RING_VISIBILITY(), locked: true });
 
 /** The one Battle Flow behaviour on a region, or null. */
 const behaviorOf = region => region?.behaviors?.find(b => b.type === TYPE) ?? null;
@@ -444,7 +454,7 @@ async function adoptRegion(region, { kind, key, tok, itemUuid, reach, scaling = 
   const inside = (tokensInRegions([region]) ?? []).map(e => e.tokenId);
   const initial = inside.filter(id => id && (id !== tok?.id));
   await region.update({
-    color: colorFor(reach), visibility: RING_VISIBILITY(), highlightMode: "shapes",
+    color: colorFor(reach), ...ringHidden(), highlightMode: "shapes",
     flags: { [MODULE_ID]: { [FLAG]: { kind, key, tokenId: tok?.id ?? null, itemUuid, initial } } }
   });
   await region.createEmbeddedDocuments("RegionBehavior", [{ type: TYPE, name: key, disabled,
@@ -568,8 +578,9 @@ async function reconcileScene(scene) {
     // token by itself — the region is attached.
     const radius = w.range * pxPerUnit(scene);
     if ( region.shapes?.[0]?.radius !== radius ) await region.update({ shapes: [emanationShapeData(w.tok, radius)] });
-    // A ring raised before the 2026-09-18 ruling was drawn; the sweep hides it in place.
-    if ( region.visibility !== RING_VISIBILITY() ) await region.update({ visibility: RING_VISIBILITY() });
+    // A ring raised before the 2026-09-18 ruling was drawn, and one raised before 2026-09-19's
+    // showed on the layer; the sweep hides it in place.
+    if ( (region.visibility !== RING_VISIBILITY()) || !region.locked ) await region.update(ringHidden());
     if ( beh ) {
       const upd = {};
       if ( beh.disabled !== w.disabled ) upd.disabled = w.disabled;
@@ -590,7 +601,7 @@ async function reconcileScene(scene) {
         name: `${w.row.key} [${w.actor.name}]`, color: colorFor(w.row.reach),
         shapes: [emanationShapeData(w.tok, w.range * pxPerUnit(scene))],
         attachment: { token: w.tok.id },
-        visibility: RING_VISIBILITY(), highlightMode: "shapes",
+        ...ringHidden(), highlightMode: "shapes",
         flags: { [MODULE_ID]: { [FLAG]: { kind: "feature", key: w.row.key, tokenId: w.tok.id, itemUuid: w.item.uuid } } }
       }], { dnd5e: { createActivityBehaviors: false } });
       if ( !region ) { console.error(`${TITLE} | ${w.row.key} around ${w.actor.name}: the region was not created.`); continue; }
@@ -659,7 +670,7 @@ function castEmanationRow(activity) {
 // read from source): the platform's emanation shape on the caster's token, attached to it, the
 // spell's size from the token's edge, the flags the placement stamps (activity, item, the usage
 // token as origin, spell level, dimensions). No platform behaviour on it (the §3.6 ruling), and
-// no dependent flag: 6.0 makes no placed region a concentration dependent — endCastEmanations
+// no dependent flag: 6.0 makes no placed region a concentration dependent — endConcentrationAreas
 // below ends it with the spell. From there nothing is new: the region appears, the GM adopts it,
 // the saves machine's floor adopts the area into the cast's demand.
 Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
@@ -699,7 +710,7 @@ async function placeCastEmanation(activity, row, message) {
     ...(canvas?.level?.id ? { levels: [canvas.level.id] } : {}),
     restriction: { enabled: true, type: "move" },
     attachment: { token: tok.id },
-    visibility: RING_VISIBILITY(), highlightMode: "coverage",
+    ...ringHidden(), highlightMode: "coverage",
     flags: { dnd5e: {
       activity: activity.uuid, item: activity.item.uuid, origin: tok.uuid, spellLevel,
       dimensions: { size, width: inScene(tpl.width), height: inScene(tpl.height), units }
@@ -762,21 +773,78 @@ async function carryDamageTypeChoice(activity) {
 // activity is deleted.
 Hooks.on("deleteActiveEffect", effect => {
   if ( !isActiveGM() || !effect?.statuses?.has?.("concentrating") ) return;
-  void endCastEmanations(effect);
+  void endConcentrationAreas(effect);
 });
-async function endCastEmanations(effect) {
+/**
+ * EVERY area a concentration cast placed comes down with the concentration (user, 2026-09-19,
+ * the 6.0 walk: "when jetten casts fog cloud, the region/vfx stays even after he loses
+ * concentration. didnt have the problem with gren's web"). Web demands a save, so the saves
+ * machine's own sweep (saves/areas.js cleanupSpentTemplates) ended its area; Fog Cloud demands
+ * nothing of anybody, so no card of this module's knew it — and at dnd5e 6.0 a placed region is
+ * no concentration dependent (measured 2026-09-15), so the platform did not end it either. The
+ * class is every region stamped with the cast's activity: this module's own emanation
+ * placements and the platform's TemplatePlacement alike. A cast that HAS a demand card stays the
+ * saves machine's (it lifts the area's effects too) — only this module's own emanation regions
+ * are ended here for such a cast, as before. THE TIE: casting the same spell again ends the old
+ * concentration after the new area may already stand, and both regions wear one activity uuid —
+ * so the casting client stamps its concentration effect with the areas the cast placed (`areas`,
+ * the hook below; the effect is the caster's own document, which a player may write where a
+ * Region is the scene's), and the sweep ends exactly those. An UNTIED area (a cast from before
+ * the tie, a client without the module) falls back to the activity match — but only while no
+ * other concentration effect for the same activity stands on the caster, so a re-cast's area is
+ * never taken for the old one's. (A Region carries no `_stats` on the client — measured
+ * 2026-09-19 — so creation time was never a tie.)
+ */
+async function endConcentrationAreas(effect) {
   try {
     const activityUuid = effect.flags?.dnd5e?.activity?.uuid ?? null;
     if ( !activityUuid ) return;
+    const actor = (effect.parent instanceof Actor) ? effect.parent : null;
+    const tied = effect.getFlag(MODULE_ID, AREAS_FLAG);
+    const another = !!actor?.effects?.some(e => (e.id !== effect.id) && e.statuses?.has?.("concentrating")
+      && (e.flags?.dnd5e?.activity?.uuid === activityUuid));
+    // An untied area is this cast's only when nothing else can claim it: the cast made no tie
+    // and no other concentration of the same spell stands.
+    const untiedIsOurs = !Array.isArray(tied) && !another;
+    const demanded = game.messages.contents.some(m => (m.system?.concentration === effect.id) && m.getFlag(MODULE_ID, "saves")?.templated);
     for ( const scene of game.scenes ) {
-      for ( const region of scene.regions.filter(r => (flagOf(r)?.kind === "spell") && (r.getFlag("dnd5e", "activity") === activityUuid)) ) {
+      for ( const region of scene.regions.filter(r => r.getFlag("dnd5e", "activity") === activityUuid) ) {
+        const own = !!flagOf(region);                                   // this module's own emanation placement
+        if ( demanded && !own ) continue;                               // the saves machine's cast, its sweep
+        if ( !own && !untiedIsOurs && !(tied ?? []).includes(region.uuid) ) continue;
         if ( scene.regions.get(region.id) ) await region.delete().catch(() => {});
       }
     }
   } catch(err) {
-    console.error(`${TITLE} | Could not end an emanation with its concentration — delete the area by hand.`, err);
+    console.error(`${TITLE} | Could not end an area with its concentration — delete the area by hand.`, err);
   }
 }
+
+/** The flag on a concentration effect: the uuids of the regions its cast placed (the sweep's tie). */
+const AREAS_FLAG = "areas";
+
+// THE TIE IS WRITTEN AT THE CAST, on the casting client: the platform hands the placed regions
+// to postUseActivity (`results.templates`, RegionDocument[] at 6.0) and the usage card names the
+// concentration effect it made (`system.concentration`); the effect is the caster's own, so the
+// write is the caster's. A cast with no concentration ties nothing (its area is instantaneous
+// or the GM's — the saves machine's buckets).
+Hooks.on("dnd5e.postUseActivity", async (activity, usageConfig, results) => {
+  try {
+    const regions = (results?.templates ?? []).flat().filter(r => r?.parent && r.uuid);
+    if ( !regions.length ) return;
+    const actor = activity?.actor;
+    if ( !(actor instanceof Actor) || !actor.isOwner ) return;
+    const concId = results?.message?.system?.concentration ?? null;
+    const effect = (concId ? actor.effects.get(concId) : null)
+      ?? actor.effects.filter(e => e.statuses?.has?.("concentrating") && (e.flags?.dnd5e?.activity?.uuid === activity.uuid)).at(-1)
+      ?? null;
+    if ( !effect ) return;
+    const prior = effect.getFlag(MODULE_ID, AREAS_FLAG) ?? [];
+    await effect.setFlag(MODULE_ID, AREAS_FLAG, [...new Set([...prior, ...regions.map(r => r.uuid)])]);
+  } catch(err) {
+    console.warn(`${TITLE} | Could not tie a cast's area to its concentration — the area may outlive the spell.`, err);
+  }
+});
 
 /* --- the card (R5 / N3): an emanation says what it is when it appears ------------------------- */
 

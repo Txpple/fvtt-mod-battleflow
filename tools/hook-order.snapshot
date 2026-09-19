@@ -173,6 +173,7 @@ dnd5e.preUseActivity	emanations.js
 dnd5e.postUseActivity	emanations.js
 renderActivityUsageDialog	emanations.js
 deleteActiveEffect	emanations.js
+dnd5e.postUseActivity	emanations.js
 dnd5e.renderChatMessage	emanations.js
 dnd5e.preRollDamageV2	emanations.js
 ready	emanations.js

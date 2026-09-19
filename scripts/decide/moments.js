@@ -608,6 +608,7 @@ export const STATE_KEYS = Object.freeze({
   // region and template fingerprints (emanations.js), never on a message
   emanation: "a Region's or template's fingerprint — the aura's kind, key, source token and who stood inside at the cast",
   emanationTrigger: "the demand card an emanation's region raised on a creature — beside the saves record, which is the resolve",
+  areas: "an ActiveEffect field on a concentration effect — the uuids of the regions its cast placed, the sweep's tie (emanations.js, 2026-09-19)",
   saveFor: "an envelope field beside respondsTo — the saves channel's target uuid"
 });
 
