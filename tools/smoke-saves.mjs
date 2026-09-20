@@ -1929,7 +1929,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         .find(el => el?.querySelector?.('[data-application-part="buttons"]') && !el.querySelector('[data-bf-save-demand]')
           && /Saving Throw/i.test(el.querySelector('h1, .window-title')?.textContent ?? ''));
       const formulaOf = dlg => (dlg?.querySelector('.formula, [data-application-part="formulas"]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
-      const closeVia = async (dlg, action) => { dlg?.querySelector(`button[data-action="${action}"]`)?.click(); await sleep(400); };
+      // Wait for the dialog to actually LEAVE: a cold client on Foundry 14.368 closes its first roll dialog
+      // slower than a fixed pause, and the next probe read the still-open one (6.0.3 check, 2026-09-19).
+      const closeVia = async (dlg, action) => { dlg?.querySelector(`button[data-action="${action}"]`)?.click(); await until(() => !dlg?.isConnected, 8000); await sleep(200); };
       // Diagnostic only: the Reminder Sources list as the world holds it (its `effect` kind is the switch).
       const kindsOn = (() => { try { return String(game.settings.get(MOD, 'reminderList') ?? ''); } catch { return '(unreadable)'; } })();
       const [trinket] = await victim.createEmbeddedDocuments('Item', [{
@@ -1952,11 +1954,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
         // 22b: a Wisdom save — the key names the ability; no section, the dialog as it always was.
         void victim.rollSavingThrow({ ability: 'wis' }, {}, {});
-        const dlgB = await until(() => sheetDialog(), 6000);
+        const dlgB = await until(() => { const dd = sheetDialog(); return /Wisdom/i.test(dd?.querySelector('h1, .window-title')?.textContent ?? '') ? dd : null; }, 6000);
         await sleep(300);
         ok('22b. a Wisdom save shows nothing — the effect names Dexterity, and a mode change on another ability is not this roll\'s',
           !!dlgB && !dlgB.querySelector('[data-bf-reminder]'),
-          `dialog=${!!dlgB} section=${!!dlgB?.querySelector('[data-bf-reminder]')}`);
+          `dialog=${!!dlgB} section=${!!dlgB?.querySelector('[data-bf-reminder]')} title="${dlgB?.querySelector('h1, .window-title')?.textContent?.trim()}" text="${sectionText(dlgB).slice(0, 200)}"`);
         await closeVia(dlgB, 'normal');
 
         // 22c: Restrained beside it — the status row's Disadvantage against the trinket's

@@ -1156,6 +1156,16 @@ machine's and stays. (9) That Topple card read "Constitution save ? vs DC 15": t
 branch printed the pre-write clone's total, set only inside the serializer — it prints the roll's
 own total now.
 
+**§7 The 6.0.3 check (2026-09-19).** The user moved the sandbox to Foundry 14.368 / dnd5e 6.0.3
+(6.0.2 and 6.0.3 are bug-fix patches: negative modifiers in the breakdown, roll requests from a
+detached window, `system.rolls.attack.*` effects applying, duration-less effects expiring after one
+turn in combat — none had a workaround in this module, so nothing changed). The two static pins
+regenerated with no hook or anchor moved; the manifest's verified pin is 6.0.3; the full battery
+29/29 after one suite recut (smoke-saves §22: a cold client on 14.368 closes its first roll dialog
+slower than a fixed pause, so the suite now waits for the dialog to leave and finds the Wisdom
+dialog by title — the module was right both times, probed). The PHB pack's Half Speed still leaves
+an NPC's sheet speed at 30 on 6.0.3 (smoke-emanations §6c: speed=30 walk=30); the BACKLOG row stands.
+
 **Not in this pass, recorded for the next:** effects' rule changes (`attack|check|save|d20 :
 advantage|bonus|minimum|maximum`, conditioned on roll data — Sap and Bless-class bonuses could be
 authored as one effect the dialog pre-selects; Vex cannot, roll data carries no target; a
