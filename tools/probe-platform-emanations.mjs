@@ -8,7 +8,7 @@
 //              walks a FRIENDLY, a NEUTRAL and a HOSTILE token in and out, ends concentration,
 //              and reports what landed and what cleaned up.
 // Usage: node probe-platform-emanations.mjs read|walk
-import { Foundry } from "file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js";
+import { Foundry } from "fvtt-mcp-dnd5e/client";
 import { loadEnv } from "file:///D:/Workbench/FVTT/Repos/fvtt-mod-battleflow/tools/harness.mjs";
 import { foundryConfig } from "file:///D:/Workbench/FVTT/Repos/fvtt-mod-battleflow/tools/target.mjs";
 

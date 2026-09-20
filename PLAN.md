@@ -1058,7 +1058,7 @@ So: tooling that reads the source without changing what ships.
 - [x] `package.json` — `private: true`, `type: "module"`, devDependencies only. **Nothing in
       `dependencies`, ever** (DESIGN R3). Scripts: `lint`, `format`, `check`, `knip`, `test`,
       `test:live`, `verify` (the whole gate).
-- [x] **Biome** for lint + format, matching the house config in `fvtt-mcp-molten5e`
+- [x] **Biome** for lint + format, matching the house config in `fvtt-mcp-dnd5e`
       (2-space, 100 cols, LF) — but keeping this repo's existing double-quote/semicolon style
       so the first run is not a 10,000-line reformat. `noFloatingPromises: error` is the rule
       that matters most here: fire-and-forget hook handlers are how this module works, and an
@@ -1782,7 +1782,7 @@ taken (the sleep budget). **Distrust the risk labels; re-measure before scoping.
 ## Settled calls
 
 - **JSDoc + `// @ts-check`, not TypeScript** (user call, 2026-08-22). The sibling
-  `fvtt-mcp-molten5e` is TypeScript with a real build; this module's no-build-step hot-deploy
+  `fvtt-mcp-dnd5e` is TypeScript with a real build; this module's no-build-step hot-deploy
   is worth more. `tsconfig.json` with `checkJs`/`noEmit` type-checks the shipped source as-is,
   adoptable one file at a time and reversible.
 - **No bundler, no transpile.** What ships is what is written (§0.1).

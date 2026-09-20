@@ -26,6 +26,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.0",
     "@types/node": "^26.0.0",
+    "fvtt-mcp-dnd5e": "file:../fvtt-mcp-dnd5e",
     "knip": "^5.64.0",
     "typescript": "^6.0.3",
     "vitest": "~3.2.6"

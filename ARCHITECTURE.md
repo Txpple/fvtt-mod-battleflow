@@ -301,7 +301,7 @@ registration; the Stage 0 snapshot is what would prove a later move order-free).
 
 Every consequence this module assigns — damage, healing, an applied effect, a spend, a table
 moment — carries two machine-readable fields so an external reader (the stats MCP,
-`../fvtt-mcp-molten5e`) can fold the chat log into a per-combat ledger **without parsing HTML
+`../fvtt-mcp-dnd5e`) can fold the chat log into a per-combat ledger **without parsing HTML
 and without re-deriving context after the fact**:
 
 > ⚠ **The reader is SHIPPED (2026-09-01): `get-combat-stats` and `scripts/party-stats.mjs` in

@@ -24,7 +24,7 @@
 // `smoke-twoclient.mjs` instead of here.
 import { connectSuite, disposeSafely, loadEnv } from './harness.mjs';
 import { playerConfig } from './target.mjs';
-import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+import { Foundry } from 'fvtt-mcp-dnd5e/client';
 
 const env = loadEnv();
 const gm = await connectSuite({ tag: 'topo', watchdogMs: 240_000 });

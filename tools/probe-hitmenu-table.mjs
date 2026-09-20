@@ -5,7 +5,7 @@
 //   node tools/probe-hitmenu-table.mjs [messageId ...]     default: every card with a hitManeuverCard flag
 // ⚠ Disconnect the MCP bridge first (the sole-GM preflight).
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
-import { Foundry } from "file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js";
+import { Foundry } from "fvtt-mcp-dnd5e/client";
 import { foundryConfig } from "./target.mjs";
 
 // `--observe`: connect WITHOUT the sole-GM preflight — a read while the table's GM is logged in.

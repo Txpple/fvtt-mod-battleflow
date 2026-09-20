@@ -2,17 +2,10 @@
 // Effects" macro's job, actor-scoped rather than scene-scoped) and long-rest the party.
 // The post-testing reset — run it whenever dogfooding leaves chips and spent slots behind.
 // Item-embedded effects are untouched (they live on items, not in actor.effects).
-import { readFileSync } from 'node:fs';
-import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+import { Foundry, loadEnv } from 'fvtt-mcp-dnd5e/client';
 import { foundryConfig } from './target.mjs';
 
-const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
-const env = {};
-for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
-  if (line.trimStart().startsWith('#')) continue;
-  const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-  if (m) env[m[1]] = m[2];
-}
+const env = loadEnv();
 setTimeout(() => { console.error('[maintain-party] WATCHDOG 120s'); process.exit(3); }, 120_000);
 
 const f = new Foundry(foundryConfig(env));

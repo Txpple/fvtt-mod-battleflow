@@ -9,17 +9,10 @@
 //
 // Prints, per entry: who has it, whether an AC-bonus change resolves, and enough of the
 // description to classify it. Read-only — changes nothing.
-import { readFileSync } from 'node:fs';
-import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+import { Foundry, loadEnv } from 'fvtt-mcp-dnd5e/client';
 import { foundryConfig } from './target.mjs';
 
-const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
-const env = {};
-for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
-  if (line.trimStart().startsWith('#')) continue;
-  const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-  if (m) env[m[1]] = m[2];
-}
+const env = loadEnv();
 setTimeout(() => { console.error('[audit] WATCHDOG 240s'); process.exit(3); }, 240_000);
 
 const f = new Foundry(foundryConfig(env));

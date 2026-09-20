@@ -449,7 +449,7 @@ const out = await f.evaluate(async ({ playerName }) => {
   } catch (err) {
     return { ok: false, why: `${err.message}\n${err.stack}`, log };
   }
-}, { playerName: env.MOLTEN_TEST_USER ?? null });
+}, { playerName: env.FOUNDRY_PLAYER_USER ?? env.MOLTEN_TEST_USER ?? null });
 
 for (const line of out.log ?? []) console.log(`  ${line}`);
 if (!out.ok) {

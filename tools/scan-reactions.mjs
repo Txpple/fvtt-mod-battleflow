@@ -1,18 +1,12 @@
 // Survey every reaction-cost item in the world's compendia, so the curated interrupt list
 // in ARCHITECTURE.md §6 is built from what this table can actually encounter rather than memory.
 // Writes raw JSON to scratchpad; classification happens afterwards against the text.
-import { readFileSync, writeFileSync } from 'node:fs';
-import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+import { writeFileSync } from 'node:fs';
+import { Foundry, loadEnv } from 'fvtt-mcp-dnd5e/client';
 import { foundryConfig } from './target.mjs';
 import { disposeSafely } from './harness.mjs';
 
-const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
-const env = {};
-for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
-  if (line.trimStart().startsWith('#')) continue;
-  const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-  if (m) env[m[1]] = m[2];
-}
+const env = loadEnv();
 setTimeout(() => { console.error('[scan] WATCHDOG 600s'); process.exit(3); }, 600_000);
 
 const f = new Foundry(foundryConfig(env));

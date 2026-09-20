@@ -3,7 +3,7 @@
 Everything here is **development tooling**. None of it ships in the module zip.
 
 Suites drive a **live Foundry world** through the sibling MCP repo's headless
-browser (`../fvtt-mcp-molten5e`, needs its `.env` and a built `dist/`). Read
+browser (`fvtt-mcp-dnd5e/client` — a `file:../fvtt-mcp-dnd5e` dependency: `npm install` once, and it needs that repo's `.env` and a built `dist/`). Read
 [NOTES.md §5](../NOTES.md) before running anything — the protocol there is not optional.
 
 ```bash

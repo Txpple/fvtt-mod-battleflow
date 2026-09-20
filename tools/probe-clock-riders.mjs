@@ -5,20 +5,14 @@
 //      "hasn't taken a turn", "once per turn", "once on each of your turns" — with its damage
 //      activities, so the clock-rider table is built from what ships rather than from memory.
 // Usage: node tools/probe-clock-riders.mjs [outfile.json]
-import { readFileSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+import { Foundry, loadEnv } from 'fvtt-mcp-dnd5e/client';
 import { foundryConfig } from './target.mjs';
 import { disposeSafely } from './harness.mjs';
 
-const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
-const env = {};
-for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
-  if (line.trimStart().startsWith('#')) continue;
-  const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-  if (m) env[m[1]] = m[2];
-}
+const env = loadEnv();
 setTimeout(() => { console.error('[probe] WATCHDOG 600s'); process.exit(3); }, 600_000);
 
 const f = new Foundry(foundryConfig(env));

@@ -4,13 +4,8 @@
 // 2026-08-17 — that audit covered the 42 SPELL copies; this one grafts the feat and
 // sweeps every PC's FEATURES for activity→ghost-effect references). The graft preserves
 // the compendium's _id so the activity's existing reference binds.
-import { readFileSync } from 'node:fs';
-import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
-const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
-const env = {};
-for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
-  const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line); if (m) env[m[1]] = m[2];
-}
+import { Foundry, loadEnv } from 'fvtt-mcp-dnd5e/client';
+const env = loadEnv();
 setTimeout(() => { console.error('[fix] WATCHDOG 120s'); process.exit(3); }, 120_000);
 const f = new Foundry(foundryConfig(env));
 await f.connect();

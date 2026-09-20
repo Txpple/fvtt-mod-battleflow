@@ -4,5 +4,5 @@
   "project": ["scripts/**/*.js", "tests/**/*.js"],
   "ignore": ["dist/**", "tools/**"],
   "ignoreExportsUsedInFile": true,
-  "ignoreDependencies": []
+  "ignoreDependencies": ["fvtt-mcp-dnd5e"]
 }

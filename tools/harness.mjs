@@ -3,7 +3,9 @@
  * (PLAN.md § FOUNDATION PASS 1.1 + 1.4).
  *
  * Twenty-six files in `tools/` opened with the same twenty lines: read the MCP's `.env` by
- * hand, arm a watchdog, build a `Foundry`, connect, preflight. That is not merely repetitive —
+ * hand, arm a watchdog, build a `Foundry` (reached by ABSOLUTE PATH into a sibling checkout —
+ * which the MCP's rename to `fvtt-mcp-dnd5e` then broke in twenty-one files at once; since 3.0
+ * it is the declared `fvtt-mcp-dnd5e/client` contract, a `file:` dependency), connect, preflight. That is not merely repetitive —
  * it DRIFTED. The watchdog tag was spelled four ways, half the files logged the target and
  * half did not, and a suite that forgot `preflightSoleGM` would assert on work happening in
  * another client (target.mjs documents what that costs). One home, one shape.
@@ -33,25 +35,20 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { Foundry } from "file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js";
+import { Foundry, loadEnv } from "fvtt-mcp-dnd5e/client";
 import { foundryConfig, preflightSoleGM } from "./target.mjs";
 
-const MCP = "D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e";
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 
 /** Where a suite leaves its hook ledger for `hook-coverage.mjs` to union. */
 export const LEDGER_DIR = join(REPO, "dist", "hook-ledger");
 
-/** The MCP's `.env`, parsed the way all 26 callers parsed it — comments out, `K=V` in. */
-export function loadEnv() {
-  const env = {};
-  for (const line of readFileSync(`${MCP}/.env`, "utf8").split(/\r?\n/)) {
-    if (line.trimStart().startsWith("#")) continue;
-    const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-    if (m) env[m[1]] = m[2];
-  }
-  return env;
-}
+/**
+ * The MCP repo's `.env` — the family's one secrets file — through its own reader
+ * (`fvtt-mcp-dnd5e/env`, re-exported by the client), which is what the twenty-six copies of the
+ * six-line loop that used to live here (and in every tool) had re-implemented.
+ */
+export { loadEnv };
 
 /**
  * Section ids sort NUMERIC-AWARE: `10` follows `9` rather than `1`, and `4a2` sits between `4`
@@ -250,8 +247,9 @@ const DISPOSE_CEILING_MS = 10_000;
  * HANG UP FOR REAL — `Foundry#dispose()`, raced against a ceiling.
  *
  * ⚠ THIS EXISTS BECAUSE THE OLD CEREMONY WAS A LIE. Every suite in this tree ended with
- * `await f.disconnect?.()` and **`disconnect` is not a method on `Foundry` — `dispose` is**, so
- * the optional chain swallowed it silently from the day the harness was written. Nothing closed,
+ * `await f.disconnect?.()` and **`disconnect` was not a method on `Foundry` — `dispose` is**, so
+ * the optional chain swallowed it silently from the day the harness was written (the MCP's 3.0
+ * client added `disconnect()` as a documented alias; this wrapper stays for the ledger dump). Nothing closed,
  * nothing complained, and the session was really torn down by process exit. **That is D11's own
  * failure class living inside the test tooling**: a call that reads correctly, does nothing, and
  * reports nothing. Found 2026-08-23 by the hook ledger, which needed a teardown seam and

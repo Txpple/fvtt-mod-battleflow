@@ -24,7 +24,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+import { Foundry, loadEnv } from 'fvtt-mcp-dnd5e/client';
 import { foundryConfig, isProdTarget } from './target.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -33,13 +33,7 @@ const NEW_NAME = 'Clear Temp Effects + Full Rest (Scene)';
 const OLD_NAME = 'Clear Temp Effects (Scene)';
 const MACRO_ID = '8ablqYRiKDOEWLPz';   // same id on both worlds — the sandbox is a copy of prod
 
-const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
-const env = {};
-for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
-  if (line.trimStart().startsWith('#')) continue;
-  const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-  if (m) env[m[1]] = m[2];
-}
+const env = loadEnv();
 setTimeout(() => { console.error('[macro] WATCHDOG 180s'); process.exit(3); }, 180_000);
 
 const f = new Foundry(foundryConfig(env));

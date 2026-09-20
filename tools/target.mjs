@@ -2,7 +2,7 @@
  * WHICH INSTANCE A SUITE TALKS TO — one decision, in one place (2026-08-19).
  *
  * The local sandbox is THE test environment now (user call). It is a byte copy of prod's
- * world imaged by `fvtt-mcp-molten5e/scripts/pull-prod-to-local.mjs`, so the same world id,
+ * world imaged by `fvtt-mcp-dnd5e/scripts/pull-prod-to-local.mjs`, so the same world id,
  * the same users and the same fixtures exist on both — which is exactly why a suite pointed
  * at the wrong one is so easy to miss and so expensive: these suites MUTATE settings, actors
  * and chat. Every harness in tools/ resolves its connection here so the choice can never
@@ -11,59 +11,53 @@
  *   node tools/smoke-saves.mjs               → the local sandbox (default)
  *   BF_TARGET=prod node tools/smoke-saves.mjs → Molten prod, deliberately
  *
- * Local needs no magicUrl (nothing to wake) and uses LOCAL_ADMIN_KEY to launch a cold world;
- * the world id and join identity are inherited from the prod values because the sandbox is a
- * copy of prod — the same inheritance the MCP's `local` profile does (docs/local-sandbox.md).
+ * Both targets are the MCP's own host presets (`fvtt-mcp-dnd5e/client`, src/hosts/env.ts):
+ * `local` never wakes and launches a cold world with FOUNDRY_ADMIN_KEY (the 2.x LOCAL_* names
+ * still read as aliases); `prod` is the `molten` preset, whose wake URL rides on the Host — the
+ * `magicUrl` this file used to pass had been silently dropped by the MCP's hosts refactor, so a
+ * sleeping box was never woken. The world id is the preset's (FOUNDRY_WORLD_ID, or the one world
+ * the bridge discovers on /setup).
  */
+import { foundryConfig as clientConfig } from 'fvtt-mcp-dnd5e/client';
+
+const HOST_OF = { local: 'local', prod: 'molten' };
+
+function target() {
+  const t = (process.env.BF_TARGET ?? 'local').toLowerCase();
+  if ((t !== 'local') && (t !== 'prod')) {
+    throw new Error(`BF_TARGET must be "local" or "prod" — got "${t}"`);
+  }
+  return t;
+}
 
 /** Resolve the Foundry connection config for the chosen target. */
 export function foundryConfig(env) {
-  const target = (process.env.BF_TARGET ?? 'local').toLowerCase();
-  if ((target !== 'local') && (target !== 'prod')) {
-    throw new Error(`BF_TARGET must be "local" or "prod" — got "${target}"`);
-  }
-  if (target === 'prod') {
+  const t = target();
+  if (t === 'prod') {
     console.log('[target] PROD (Molten) — this run mutates the live world');
-    return {
-      serverUrl: env.MOLTEN_SERVER_URL, magicUrl: env.MOLTEN_MAGIC_URL,
-      user: env.FOUNDRY_USER || 'Claude', password: env.FOUNDRY_PASSWORD,
-      adminKey: env.MOLTEN_ADMIN_KEY, worldId: env.MOLTEN_WORLD_ID,
-    };
+    return clientConfig(env, HOST_OF[t], 'bridge');
   }
-  const serverUrl = env.LOCAL_SERVER_URL || 'http://localhost:30000';
   // ⚠ The suites join as their OWN identity, NOT the MCP bridge's (user-created
-  // "Tester Assistant", role 3, 2026-08-19). Not for parallelism — only one GM-capable
-  // client may be connected either way, because the elect picks exactly one. It is for
-  // DETECTABILITY: sharing DM Assistant made a bridge/suite collision invisible (both
-  // `game.users` and `/api/status` count USERS, not sockets — measured), so it read as
-  // nine mysterious failures instead of one loud abort. Distinct accounts make the
-  // overlap visible to preflightSoleGM. Deliberately NOT `LOCAL_FOUNDRY_USER`: that key
-  // belongs to the MCP's own local profile and would move the bridge too.
-  const user = env.BF_SUITE_USER || 'Tester Assistant';
-  console.log(`[target] local sandbox (${serverUrl}) as "${user}"`);
-  return {
-    serverUrl,                       // no magicUrl: a local box never sleeps
-    user,
-    password: env.BF_SUITE_PASSWORD ?? '',
-    adminKey: env.LOCAL_ADMIN_KEY,
-    worldId: env.LOCAL_WORLD_ID || env.MOLTEN_WORLD_ID,
-  };
+  // "Tester Assistant", role 3, 2026-08-19; FOUNDRY_SUITE_USER, alias BF_SUITE_USER). Not for
+  // parallelism — only one GM-capable client may be connected either way, because the elect
+  // picks exactly one. It is for DETECTABILITY: sharing DM Assistant made a bridge/suite
+  // collision invisible (both `game.users` and `/api/status` count USERS, not sockets —
+  // measured), so it read as nine mysterious failures instead of one loud abort. Distinct
+  // accounts make the overlap visible to preflightSoleGM.
+  const cfg = clientConfig(env, HOST_OF[t], 'suite');
+  console.log(`[target] local sandbox (${cfg.serverUrl}) as "${cfg.user}"`);
+  return cfg;
 }
 
 /**
  * The SECOND client's config for the two-client probes (probe-player-seam,
  * probe-popup-topology): same instance as foundryConfig picked, joined as the player test
- * identity instead of the bridge. No adminKey — the world is already up by the time a
- * second client joins, and a player has no business launching it.
+ * identity (FOUNDRY_PLAYER_USER, alias MOLTEN_TEST_USER) instead of the bridge. No adminKey —
+ * the world is already up by the time a second client joins, and a player has no business
+ * launching it.
  */
 export function playerConfig(env) {
-  const base = foundryConfig(env);
-  return {
-    serverUrl: base.serverUrl,
-    ...(base.magicUrl ? { magicUrl: base.magicUrl } : {}),
-    user: env.MOLTEN_TEST_USER, password: env.MOLTEN_TEST_PASSWORD ?? '',
-    worldId: base.worldId,
-  };
+  return clientConfig(env, HOST_OF[target()], 'player');
 }
 
 /**

@@ -4,20 +4,13 @@
 // drift; when the USER changes a setting, update the TABLE HERE, never fight it. Reads every
 // world-scoped key, reports drift, and restores it with --fix. Timer values are the
 // 2026-08-27 user call: every timer 24s (superseded 2026-08-17's 15s).
-import { readFileSync } from 'node:fs';
-import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+import { Foundry, loadEnv } from 'fvtt-mcp-dnd5e/client';
 import { foundryConfig } from './target.mjs';
 import { LIST_SPECS } from '../scripts/decide/registry.js';
 import { disposeSafely } from './harness.mjs';
 
 const FIX = process.argv.includes('--fix');
-const MCP = 'D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e';
-const env = {};
-for (const line of readFileSync(`${MCP}/.env`, 'utf8').split(/\r?\n/)) {
-  if (line.trimStart().startsWith('#')) continue;
-  const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-  if (m) env[m[1]] = m[2];
-}
+const env = loadEnv();
 setTimeout(() => { console.error('[verify] WATCHDOG 120s'); process.exit(3); }, 120_000);
 
 // THE REFERENCE TABLE — the single source (NOTES.md points here). Update it when the

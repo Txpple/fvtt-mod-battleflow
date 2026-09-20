@@ -39,21 +39,24 @@
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { loadEnv, repoRoot, resolveHostConfig } from "fvtt-mcp-dnd5e/client";
 
-const MCP = "D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e";
-const LAUNCHER = join(MCP, "scripts", "local-foundry.mjs");
+// The MCP repo's launcher and its `local` host preset (FOUNDRY_DATA_DIR, FOUNDRY_WORLD_ID — or,
+// unset, the one world under Data/worlds, the launcher's own rule).
+const LAUNCHER = join(repoRoot(), "scripts", "local-foundry.mjs");
+const LOCAL = resolveHostConfig(loadEnv(), "local");
 
-const env = {};
-for (const line of readFileSync(join(MCP, ".env"), "utf8").split(/\r?\n/)) {
-  if (line.trimStart().startsWith("#")) continue;
-  const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(line);
-  if (m) env[m[1]] = m[2];
-}
-
-const dataRoot = env.LOCAL_FOUNDRY_DATA;
-const worldId = env.LOCAL_WORLD_ID || env.MOLTEN_WORLD_ID;
+const dataRoot = LOCAL.dataDir;
+const worldId = LOCAL.worldId ?? (() => {
+  try {
+    const ids = readdirSync(join(dataRoot, "worlds"), { withFileTypes: true })
+      .filter(d => d.isDirectory() && existsSync(join(dataRoot, "worlds", d.name, "world.json")))
+      .map(d => d.name);
+    return ids.length === 1 ? ids[0] : "";
+  } catch { return ""; }
+})();
 if (!dataRoot || !worldId) {
-  console.error("[snapshot] LOCAL_FOUNDRY_DATA and a world id are required in the MCP repo's .env");
+  console.error("[snapshot] FOUNDRY_DATA_DIR and a world id (FOUNDRY_WORLD_ID, or exactly one world under Data/worlds) are required in the MCP repo's .env");
   process.exit(2);
 }
 

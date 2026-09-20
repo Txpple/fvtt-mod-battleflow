@@ -25,7 +25,7 @@
 // Run:  node tools/smoke-nogm.mjs [--section runs,chip,told,rejoin] [--list]
 import { announcePlan, disposeSafely, loadEnv, report, sectionPlan } from './harness.mjs';
 import { playerConfig, foundryConfig } from './target.mjs';
-import { Foundry } from 'file:///D:/Workbench/FVTT/Repos/fvtt-mcp-molten5e/dist/foundry.js';
+import { Foundry } from 'fvtt-mcp-dnd5e/client';
 
 const MOD = 'fvtt-mod-battleflow';
 const SECTIONS = {
