@@ -244,6 +244,27 @@ chip's clock (zero turns at the REACTOR's turnStart, `start` = the reactor's pla
 
 ---
 
+### A TEMPLATE with a `start` is tracked like a live effect — and marked expired on the item (2026-09-21, the walk)
+
+**The registry tracks any embedded effect that is temporary, active and has a non-null `start`
+— it never asks whether the effect is a live application or an item's TEMPLATE.** The MM pack
+ships `start: {time: 0, …}` on 61 of its feature effects (the PHB's ship `start: null`), so a
+monster feature's template — Bramblemaw's Noxious Miasma, *Damaged: −2 AC, 1 turn, turnStart*,
+sitting on the dragon's own item — is registered the moment the world loads, and the first
+`updateWorldTime` out of combat (a `turns` clock reframes to seconds `null`, remaining
+`Infinity`, and `!Number.isFinite(remaining)` COUNTS as reached) or the dragon's own next
+turn start writes `duration.expired: true` onto the template. From then on every application
+copies the mark — `toObject()` carries `duration.expired` and the pack's `start.time: 0` —
+and the copy is born suppressed: listed under Unavailable, the −2 never lands. **The tray's
+`_prepareEffectData` has the same hole.** The applier (effect-riders.js) now writes
+`duration.expired: false` and a fresh `getEffectStart()` on the CREATE branch too (the refresh
+branch already did) — the template's clock state never rides into an application, whatever the
+pack shipped and whatever the registry did to it since. The template itself still shows
+expired on the sheet until someone clears it; `start: null` on it ends the tracking for good
+(done on the sandbox's Bramblemaw 2026-09-21; prod's carries the same mark).
+
+---
+
 ### v14 models an emanation end to end — MEASURED (2026-09-03, tools/probe-emanations.mjs)
 
 - **`RegionDocument.createTokenEmanation(token, range, regionData, {excludeToken, gridBased})`**
@@ -1210,6 +1231,20 @@ native place for type-dependent riders.
   probe parked the Ranger inside the ring. A probe that moves tokens must put them back;
   smoke-saves deletes the Victim/Shielder tokens by design and `fixture-suite` re-places them.
 - The suite files are CRLF in some working copies; a multi-line edit script must normalise.
+
+### dnd5e 6.0 falls an actor for ANY of its linked tokens, on ANY scene (2026-09-21, the walk)
+
+"A weird falling buff circling Gren and Jetten, can't be dropped": `TokenDocument5e#updateFalling`
+asks `actor.getDependentTokens({linked: true, concreteOnly: true}).some(t => t._isFalling())` —
+every linked token of the actor, every scene in the world, not the one being played — and
+re-toggles the `falling` status on the ACTOR whenever it disagrees, on every related update.
+Both had a token parked at elevation 5 on *Hidden Temple* (no movement surfaces there, so the
+level base 0 is the floor); the tokens on the active scene stood at 0. Deleting the effect
+re-created it within the second (the server log shows the pairs). The platform's, not ours: fix
+at the data — ground the stray tokens and the status drops by itself. ⚠ Updating a token's
+elevation on an UNVIEWED scene throws in core 14.368 (`RegionDocument#testSamples` reads the
+private `#polygonTree` the lazy getter builds — touch `region.polygonTree` on each region
+first, or view the scene).
 
 ## 3. The statblock caster
 

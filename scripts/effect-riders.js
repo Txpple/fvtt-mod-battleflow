@@ -188,6 +188,15 @@ export async function applyEffectsTo(targets, effects,
           ...effect.toObject(), disabled: false, transfer: false, origin: origin.uuid,
           _stats: { [sourceKey]: effect.uuid, [effect.inCompendium ? "duplicateSource" : "compendiumSource"]: null }
         }, changes);
+        // ⚠ THE TEMPLATE'S CLOCK STATE NEVER RIDES INTO AN APPLICATION (2026-09-21, the Miasma's
+        // −2 AC listed as Unavailable and granting nothing). The MM pack ships a `start` on its
+        // feature effects, and an effect with a start is one core v14's expiry registry TRACKS —
+        // the template on the dragon's own item, sitting on its sheet, is marked `expired` at the
+        // next time advance or the dragon's own turn start, and `toObject()` copies the mark: a
+        // copy born expired is suppressed on arrival. The tray has the same hole. Fresh start,
+        // unexpired — exactly what the refresh branch above already writes.
+        data.duration = { ...(data.duration ?? {}), expired: false };
+        data.start = effect.constructor.getEffectStart();
         if ( clock ) foundry.utils.mergeObject(data, clock);
         data.system ??= {};
         data.system.changes = await ActiveEffect.implementation.forApplication(

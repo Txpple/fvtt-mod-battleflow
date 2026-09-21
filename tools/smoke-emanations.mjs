@@ -190,6 +190,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('2a. the Ranger receives "Protected — BF Test Paladin"', fx?.name === 'Protected — BF Test Paladin', `effects=${memberFx(ranger).map(e => e.name).join(',')}`);
       ok('2b. …with the PALADIN\'s Charisma (+3), not the Ranger\'s', String(fx?.changes?.[0]?.value) === String(chaMod), `value=${fx?.changes?.[0]?.value} paladinCha=${chaMod} rangerCha=${ranger.system.abilities.cha.mod}`);
       ok('2c. the Ranger\'s save bonus now carries it', String(saveBonus()).includes(String(chaMod)), `before="${saveBefore}" after="${saveBonus()}"`);
+      // ⚠ THE THREE FLOORS ARE SERIALIZED (one region at a time, one create each): 2a waited for
+      // Protection's copy alone, and on a slower box (the 2026-09-21 prod mirror: 49 scenes) the
+      // assert ran between Protection's create and Courage's. Wait for all three — the claim is
+      // that they land, not that they land within one tick of the first.
+      await waitFor(() => (memberFx(ranger).length === 3) ? true : null, 6000);
       ok('2d. Courage and Warding land too — three member effects, one per aura', memberFx(ranger).length === 3, memberFx(ranger).map(e => e.name).join(' | '));
       await rgrTok.update(home[rgrTok.id], mv());
       const gone = await waitFor(() => memberFx(ranger).length === 0 ? true : null, 6000);

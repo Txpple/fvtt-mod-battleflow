@@ -784,6 +784,11 @@ grouped by the feature that grants the rows, smites out) and built off the proto
   morgash, the person doing the goading"*): the effect table's `except: "source"` facet — Goaded
   bends Jetten's attacks against everyone but Morgash, Distracted gives Advantage to every
   attacker but Morgash. The gate reads each effect's source off the module's stamp on it.
+  **The same facet, the other way, is `only: "source"`** (Feinting Attack; and from 2026-09-21
+  Vow of Enmity, Clairvoyant Combatant, Strike Fear — the walk: *"vow of enmity is not giving
+  invictus advantage reminder when he swings"*): the 2024 packs put each of these markers on the
+  creature the feature is USED ON, so the row reads the target's sheet and the bend is the
+  source's alone. A caveat stays only where the words hold a fact the module cannot read.
 - **A LINE option says what the table plays** — Maneuvering Attack's ally move, Pushing's 15
   feet, Disarming's dropped object — on the card, never automated (R1).
 - **A riposte's hit offers the menu too.** A hit is a hit.

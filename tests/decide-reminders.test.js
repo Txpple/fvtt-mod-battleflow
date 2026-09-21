@@ -737,6 +737,154 @@ describe('effectSources — `only: "source"` (Feinting Attack, 2026-09-05): the 
   });
 });
 
+describe('effectSources — the marker sits on the OTHER creature (2026-09-21: "vow of enmity is not giving invictus advantage reminder when he swings")', () => {
+  // The 2024 packs put every one of these effects on the creature the feature is used ON, with
+  // the user as its source — the paladin's sheet never carries a Vow. Read where the pack puts
+  // it, judged by the source facet, on the target pass.
+  const T = () => reg.EFFECT_BENDS;
+  it("Vow of Enmity: the sworn creature wears the marker; the paladin swinging at it gets Advantage, nobody else does, and the paladin gets nothing elsewhere", () => {
+    const sworn = {
+      uuid: "Scene.s.Token.t.Actor.dummy",
+      effects: [{ id: "v1", name: "Vow of Enmity", sourceUuid: "Actor.invictus" }]
+    };
+    const facts = {
+      enabled: ["Vow of Enmity"],
+      table: T(),
+      scope: {},
+      attackerName: "Invictus",
+      targetName: "the dummy"
+    };
+    const mine = r.effectSources({
+      ...facts,
+      attacker: { uuid: "Actor.invictus", effects: [] },
+      target: sworn,
+      pass: "target"
+    });
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({ kind: "effect", bend: "advantage", effectId: "v1" });
+    expect(mine[0].label).toBe("the dummy is — Vow of Enmity");
+    expect(mine[0].spend).toBeUndefined();
+    // another attacker at the sworn creature: the vow is not theirs
+    expect(
+      r.effectSources({
+        ...facts,
+        attacker: { uuid: "Actor.morgash", effects: [] },
+        target: sworn,
+        pass: "target"
+      })
+    ).toEqual([]);
+    // the paladin at an unsworn creature: nothing — and the attacker pass never fires it
+    expect(
+      r.effectSources({
+        ...facts,
+        attacker: { uuid: "Actor.invictus", effects: [] },
+        target: { uuid: "Actor.other", effects: [] },
+        pass: "target"
+      })
+    ).toEqual([]);
+    expect(
+      r.effectSources({
+        ...facts,
+        attacker: { uuid: "Actor.invictus", effects: [] },
+        target: sworn,
+        pass: "attacker"
+      })
+    ).toEqual([]);
+    // the old shape — the marker on the paladin's own sheet — is no longer read at all
+    expect(
+      r.effectSources({
+        ...facts,
+        attacker: { uuid: "Actor.invictus", effects: [{ id: "v0", name: "Vow of Enmity" }] },
+        target: { uuid: "Actor.other", effects: [] },
+        pass: "both"
+      })
+    ).toEqual([]);
+  });
+  it("Clairvoyant Combatant: both bends are the seer's — the bonded creature's Disadvantage is against the seer alone, the seer's Advantage is at the bonded creature alone", () => {
+    const bonded = {
+      uuid: "Actor.gob",
+      effects: [{ id: "c1", name: "Clairvoyant Combatant", sourceUuid: "Actor.hazel" }]
+    };
+    const facts = { enabled: ["Clairvoyant Combatant"], table: T(), scope: {}, pass: "target" };
+    // the bonded creature attacks the seer: Disadvantage; attacks anyone else: nothing
+    const atSeer = r.effectSources({
+      ...facts,
+      attacker: bonded,
+      target: { uuid: "Actor.hazel", effects: [] },
+      attackerName: "the goblin",
+      targetName: "Hazel"
+    });
+    expect(atSeer).toHaveLength(1);
+    expect(atSeer[0]).toMatchObject({ bend: "disadvantage", effectId: "c1" });
+    expect(
+      r.effectSources({ ...facts, attacker: bonded, target: { uuid: "Actor.jetten", effects: [] } })
+    ).toEqual([]);
+    // the seer attacks the bonded creature: Advantage; anyone else attacking it: nothing
+    const seerAt = r.effectSources({
+      ...facts,
+      attacker: { uuid: "Actor.hazel", effects: [] },
+      target: bonded,
+      attackerName: "Hazel",
+      targetName: "the goblin"
+    });
+    expect(seerAt).toHaveLength(1);
+    expect(seerAt[0]).toMatchObject({ bend: "advantage", effectId: "c1" });
+    expect(
+      r.effectSources({ ...facts, attacker: { uuid: "Actor.jetten", effects: [] }, target: bonded })
+    ).toEqual([]);
+  });
+  it("Compelled and Taunted: Disadvantage against everyone but the one who caused it — judged, no caveat left on the label", () => {
+    for (const name of ["Compelled", "Taunted"]) {
+      const me = { uuid: "Actor.gob", effects: [{ id: "x1", name, sourceUuid: "Actor.invictus" }] };
+      const facts = {
+        attacker: me,
+        enabled: [name],
+        table: T(),
+        scope: {},
+        attackerName: "the goblin",
+        pass: "target"
+      };
+      const atOther = r.effectSources({
+        ...facts,
+        target: { uuid: "Actor.jetten", effects: [] },
+        targetName: "Jetten"
+      });
+      expect(atOther).toHaveLength(1);
+      expect(atOther[0]).toMatchObject({
+        bend: "disadvantage",
+        effectId: "x1",
+        label: `the goblin — ${name}`
+      });
+      expect(
+        r.effectSources({
+          ...facts,
+          target: { uuid: "Actor.invictus", effects: [] },
+          targetName: "Invictus"
+        })
+      ).toEqual([]);
+    }
+  });
+  it("the rows that stay caveated are the ones whose fact the module cannot read", () => {
+    expect(T()["Prey: Attack Advantage"]).toMatchObject({ attacker: "advantage", target: null });
+    expect(T()["Prey: Attack Advantage"].caveat).toMatch(/press Normal/);
+    expect(T()["Strike Fear: Terrify"]).toMatchObject({
+      attacker: null,
+      target: "advantage",
+      only: "source"
+    });
+    expect(T()["Strike Fear: Terrify"].caveat).toMatch(/no longer Frightened/);
+    for (const name of [
+      "Vow of Enmity",
+      "Clairvoyant Combatant",
+      "Compelled",
+      "Taunted",
+      "Feinting Attack"
+    ]) {
+      expect(T()[name].caveat, name).toBeUndefined();
+    }
+  });
+});
+
 describe("effectCheckSources — an effect that bends ability checks by its text (Heat Metal, 2026-09-04)", () => {
   it("Heated Metal on the roller's sheet is Disadvantage on a check; off the list, or absent, nothing", () => {
     const facts = { table: reg.EFFECT_BENDS, name: "Jetten" };

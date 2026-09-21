@@ -960,6 +960,11 @@ export const CHECK_BENDS = Object.freeze({
  *             module holds; the row fires only when it is true
  *   spend     "attack" — the rules end the effect on the next attack roll ("your next attack
  *             roll"): the spend hook uses it up with a receipt, exactly as Vex and Sap
+ *   only      "source" — the bend is for the creature whose action put the effect there and
+ *             nobody else (Vow of Enmity: the sworn creature wears the marker, the paladin's
+ *             Advantage is the paladin's alone); a carrier with no recorded source is skipped
+ *   except    "source" — the bend stands against everyone BUT that creature (Goaded, Compelled);
+ *             a carrier with no recorded source is counted — the gate never guesses an exemption
  *   checks    a bend on the bearer's ABILITY CHECKS (Heated Metal, Averse) — the check gate's
  *   saves     { bend, statuses?, spells?, halfToNone? } — a bend on the bearer's SAVING THROWS,
  *             scoped by the DEMAND the save gate finds: against an effect imposing one of the
@@ -975,7 +980,7 @@ export const CHECK_BENDS = Object.freeze({
  * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature", attacker: "advantage"|"disadvantage"|null,
  *   target: "advantage"|"disadvantage"|null, scope: "any"|"spell"|"weapon"|"melee"|"ranged", caveat?: string,
  *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed", spend?: "attack",
- *   rule: string, from: string}>>>}
+ *   only?: "source", except?: "source", rule: string, from: string}>>>}
  */
 // `except: "source"` (2026-09-04, the walk: "disadvantage should not apply when attacking
 // morgash, the person doing the goading"): the bend stands against everyone BUT the creature
@@ -1029,26 +1034,36 @@ export const EFFECT_BENDS = Object.freeze({
     rule: "While in sunlight, it has Disadvantage on attack rolls and ability checks." }),
   "Disadv.: Attacks & Checks": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Fear of Fire (monsters)",
     rule: "If it takes Fire damage, it has Disadvantage on attack rolls and ability checks until the end of its next turn." }),
-  // --- B. counted, with a caveat the module cannot judge ------------------------------------
-  "Vow of Enmity": Object.freeze({ attacker: "advantage", target: null, scope: "any", from: "Paladin",
-    caveat: "counted — press Normal if this attack is not at the sworn creature",
+  // --- B. the effect sits on the OTHER creature — the source's facet judges it ---------------
+  // ⚠ RE-READ AGAINST THE PACKS (2026-09-21, the walk: "vow of enmity is not giving invictus
+  // advantage reminder when he swings"). Every one of these effects lands on the creature the
+  // feature is USED ON, not on its user — Vow of Enmity's activity targets one creature within
+  // 30 feet, and the sworn creature wears the marker with the paladin as its source. Read on
+  // the paladin's own sheet (the old rows: `attacker: "advantage"`) it fired for nobody. The
+  // rows now read the marker where the pack puts it and let the SOURCE facet judge what the
+  // caveat used to ask the table to judge: `only: "source"` where the bend is the source's alone,
+  // `except: "source"` where it stands against everyone but the source. A caveat stays only
+  // where the words still hold a fact the module cannot read (Prey's target is never recorded;
+  // Strike Fear's Frightened can be cured under the marker).
+  "Vow of Enmity": Object.freeze({ attacker: null, target: "advantage", scope: "any", only: "source", from: "Paladin",
     rule: "You have Advantage on attack rolls against the creature for 1 minute or until you use this feature again." }),
+  // Marked as Prey: the pack's effect is on the MONSTER (a self-ranged utility), the marked
+  // creature is nowhere in the data — the caveat is the whole of what the module can say.
   "Prey: Attack Advantage": Object.freeze({ attacker: "advantage", target: null, scope: "any", from: "Marked as Prey (monsters)",
     caveat: "counted — press Normal if this attack is not at the marked creature",
     rule: "It has Advantage on attack rolls against the target until the start of its next turn." }),
-  "Clairvoyant Combatant": Object.freeze({ attacker: "advantage", target: "disadvantage", scope: "any", from: "Clairvoyant Combatant",
-    caveat: "counted — press Normal if the other creature is not the bonded one",
+  // Both sides, both the source's: the bonded creature's Disadvantage is against the seer alone,
+  // the seer's Advantage is at the bonded creature alone.
+  "Clairvoyant Combatant": Object.freeze({ attacker: "disadvantage", target: "advantage", scope: "any", only: "source", from: "Clairvoyant Combatant",
     rule: "On a failed save, the creature has Disadvantage on attack rolls against you, and you have Advantage on attack rolls against that creature for the duration of the bond." }),
-  "Strike Fear: Terrify": Object.freeze({ attacker: "advantage", target: null, scope: "any", from: "Strike Fear (Heroes of Faerûn)",
+  "Strike Fear: Terrify": Object.freeze({ attacker: null, target: "advantage", scope: "any", only: "source", from: "Strike Fear (Heroes of Faerûn)",
     caveat: "counted — press Normal if the target is no longer Frightened by you",
     rule: "While the target is Frightened in this way, you have Advantage on attack rolls against the target." }),
-  "Compelled": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Compelled Duel",
-    caveat: "counted — press Normal if this attack is at the one who compelled it",
+  "Compelled": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", except: "source", from: "Compelled Duel",
     rule: "On a failed save, the target has Disadvantage on attack rolls against creatures other than you." }),
   "Goaded": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", except: "source", from: "Battle Master, Goading Attack",
     rule: "The target must succeed on a Wisdom saving throw or have Disadvantage on attack rolls against targets other than you until the end of your next turn." }),
-  "Taunted": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Steps of the Fey",
-    caveat: "counted — press Normal if this attack is at the one who taunted it",
+  "Taunted": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", except: "source", from: "Steps of the Fey",
     rule: "Creatures within 5 feet of the space you left must succeed on a Wisdom saving throw or have Disadvantage on attack rolls against creatures other than you until the start of your next turn." }),
   // SAVE BENDS BY EFFECT (user, 2026-09-05: "Aura of Purity doesn't really give advantage to
   // saves like Hold Person, Hypnotic Pattern … do it for all the pack effect spells"): the
@@ -1132,7 +1147,6 @@ export const EFFECT_BENDS = Object.freeze({
   // superiority-uses.js with the fighter as its source; `only: "source"` — the Advantage is the
   // fighter's alone, and only the fighter's next attack roll at that target spends it.
   "Feinting Attack": Object.freeze({ attacker: null, target: "advantage", scope: "any", only: "source", spend: "attack", from: "Battle Master",
-    caveat: "counted — press Normal if this attack is not at the feinted target",
     rule: "You have Advantage on your next attack roll against that target this turn." }),
   "Distracted": Object.freeze({ attacker: null, target: "advantage", scope: "any", spend: "attack", except: "source", from: "Battle Master, Distracting Strike",
     rule: "The next attack roll against the target by an attacker other than you has Advantage if the attack is made before the start of your next turn." }),
