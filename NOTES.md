@@ -1009,7 +1009,9 @@ enabled (its pin was 5.3.99 — Foundry drops the setting write silently when a 
 is exceeded), and with the pin raised every guard that read a card's flags failed closed (the
 attack landed, the damage rolled, no receipt followed). The pass was five phases on the sandbox
 (Foundry 14.367 / dnd5e 6.0.1), each battery-green for what it touched, released as one; prod
-played on a restored 5.3.3 box at v1.42.0 meanwhile (game day 2026-09-22). Measured, not
+played on a restored 5.3.3 box at v1.42.0 meanwhile (game day 2026-09-22); prod moved to
+dnd5e 6.0.3 / Foundry 14.368 on 2026-09-21 and v2.0.1 was deployed the same day (80/80 bytes;
+the process restart vends the new module.json, then `verify-settings --fix`). Measured, not
 guessed: the 5.3.3 → 6.0.1 source diff (573 files) read against every call site, and the
 battery. The commits: 338cff3 / 6016fe8 (phase 1), e59499b (2), 515379f (3), e9090fa (4).
 
