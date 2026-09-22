@@ -1596,6 +1596,11 @@ alone immediately after, on the same code and world. Nothing in either section t
 that day's work changed; the shape is a dialog or an effect from an EARLIER suite still standing
 when the section opens. Recorded so the next battery reads a repeat as a pattern, not a surprise —
 and so nobody spends a night on the code first. Rerun the section alone before diagnosing.
+**Two more of the class (2026-09-22, the Pack Tactics pass):** `smoke-saves` §18/11 (the late roll's
+`taken` read undefined while the HP had moved 60→55) and `smoke-superiority` §1b/c/e (Parry's
+`reduceBy` read undefined while the card said *"reduced by 10"* and the HP held) — both a READ
+landing before its WRITE, the outcome itself right; both green alone straight after (112/112,
+35/35), and neither suite walks the gate rows that day changed.
 
 **⚠ A BINDING DECLARED INSIDE A SECTION GATE IS INVISIBLE UNTIL SOMEONE FILTERS.** Once suites
 gained `--section`, any `const` declared in one section and read from another still passed a

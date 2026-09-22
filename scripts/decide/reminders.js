@@ -351,10 +351,12 @@ export function modeKeys({ kind = null, ability = null, skill = null, tool = nul
  * the caveat on the label); a row with a caveat is counted and says so. A row with `spend`
  * carries the effect's id so the spend hook can use it up. A row with `except: "source"` stands
  * against everyone but the creature whose action applied the effect (each effect's `sourceUuid`,
- * the EDGE's read): Goaded, Distracted.
+ * the EDGE's read): Goaded, Distracted. The map's fact `allyNear` (an ally of the attacker within
+ * 5 feet of the target — Pack Tactics) is three-valued: true fires, false skips, null — the
+ * attacker's side unreadable — counts, since the gate never guesses an exemption.
  *
  * @param {{attacker?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null}[], features?: string[], bloodied?: boolean},
- *          target?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null}[], features?: string[], bloodied?: boolean, damaged?: boolean, grappled?: boolean, notActed?: boolean},
+ *          target?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null}[], features?: string[], bloodied?: boolean, damaged?: boolean, grappled?: boolean, notActed?: boolean, allyNear?: boolean|null},
  *          enabled: Iterable<string>, table: Readonly<Record<string, any>>,
  *          scope?: {classification?: string|null, type?: string|null},
  *          attackerName?: string, targetName?: string, pass?: "both"|"attacker"|"target"}} facts
@@ -366,7 +368,7 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
   // The EDGE reads the attacker once and each target in turn: an attacker-side row that hinges
   // on the TARGET (Bloodied, Grappled…) belongs to the target pass, the rest to the attacker's.
-  const targetJudges = new Set(["targetBloodied", "targetDamaged", "targetGrappled", "targetNotActed"]);
+  const targetJudges = new Set(["targetBloodied", "targetDamaged", "targetGrappled", "targetNotActed", "allyNearTarget"]);
   // A row that excepts — or admits ONLY — its SOURCE hinges on the target too: the goader is one
   // target of many; the feinted creature's Advantage is the feinting fighter's alone.
   const hingesOnTarget = row => targetJudges.has(row.judge) || (row.except === "source") || (row.only === "source");
@@ -393,6 +395,9 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
       // The combat clock (Assassinate): round one, and the target has not taken a turn — the
       // EDGE reads both off the running combat; out of combat the fact is simply false.
       case "targetNotActed": return !!target.notActed;
+      // The map (Pack Tactics, 2026-09-22): only a MEASURED "no ally near" skips the row — an
+      // unreadable side (null, or a sheet handed in without the fact) is counted.
+      case "allyNearTarget": return target.allyNear !== false;
       default: return true;
     }
   };

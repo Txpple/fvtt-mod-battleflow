@@ -21,7 +21,8 @@ const SECTIONS = {
   7: 'Envenom Weapons: the upgraded Poison — its damage, and Poisoned on top',
   8: 'Death Strike: round one, the Con save, the damage again',
   9: 'the registration FIRED (§11): preRollDamageV2 moved',
-  10: 'Steady Aim (a use chip): the use writes the chip, the gate reads it as Advantage, the roll spends it'
+  10: 'Steady Aim (a use chip): the use writes the chip, the gate reads it as Advantage, the roll spends it',
+  11: 'the ally clause off the map (2026-09-22): an ally beside the target ticks the box at Normal; none, or Disadvantage, does not'
 };
 const DEPENDS = { 4: ['3'], 9: ['4'] };
 
@@ -587,6 +588,55 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (await waitFor(offerEl, 6000))?.querySelector('button[data-action="roll"]')?.click();
         await waitFor(() => damageFor(msg?._source.system?.origin ?? msg?.id)?.getFlag(MOD, 'receipt'), 12000);
         await clearChips();
+      }
+    }
+
+    // ================================================== 11. the ally clause, off the map
+    // (user, 2026-09-22 — the DESIGN §8 row reopened: "if theres a ally defined as being in same
+    // faction....that istn really out of scope"): at a Normal roll the box ticks itself when an
+    // ally of the rogue stands within 5 feet of the target, and not when none does or when the
+    // roll has Disadvantage. The ally is an UNLINKED token, another creature than the target.
+    if (want(11)) {
+      await clearChips();
+      const priorSides = { victim: victimDoc.disposition, rogue: rogueDoc.disposition };
+      const squarePx = scene.grid.size;
+      let allyDoc = null;
+      const tickAt = async () => {
+        const { dialog } = await openGate(rapier);
+        const seen = { hasTick: !!tickOf(dialog), ticked: !!tickOf(dialog)?.checked,
+          section: textOf(dialog?.element?.querySelector('[data-bf-reminder]')) };
+        await closeDialogs();
+        await sleep(300);
+        return seen;
+      };
+      try {
+        await rogueDoc.update({ disposition: 1 });
+        await victimDoc.update({ disposition: -1 });
+        await sleep(200);
+        const alone = await tickAt();
+        ok('11a. a Normal roll with no ally of the rogue beside the target: the box is offered, unticked',
+          alone.hasTick && !alone.ticked, JSON.stringify(alone).slice(0, 240));
+        [allyDoc] = await scene.createEmbeddedDocuments('Token', [
+          foundry.utils.mergeObject(victim.prototypeToken.toObject(),
+            { x: 1400, y: 1600 + squarePx, actorId: victim.id, actorLink: false, disposition: 1, name: 'BF Test Ally' }, { inplace: false })]);
+        created.tokens.push(allyDoc.id);
+        for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(allyDoc.id)); i++) await sleep(250);
+        rogueToken.control({ releaseOthers: true });
+        const flanked = await tickAt();
+        ok('11b. …an ally of the rogue within 5 feet of the target: the box ticks itself at a Normal roll',
+          flanked.hasTick && flanked.ticked && !/Net (Advantage|Disadvantage)/.test(flanked.section),
+          JSON.stringify(flanked).slice(0, 240));
+        await rogue.toggleStatusEffect('poisoned', { active: true });
+        await sleep(200);
+        const poisoned = await tickAt();
+        ok("11c. …and the rogue Poisoned — Disadvantage: unticked (\"you don't have Disadvantage on the attack roll\")",
+          poisoned.hasTick && !poisoned.ticked && /Net Disadvantage/.test(poisoned.section), JSON.stringify(poisoned).slice(0, 240));
+      } finally {
+        await rogue.toggleStatusEffect('poisoned', { active: false }).catch(() => {});
+        if (allyDoc && scene.tokens.get(allyDoc.id)) await scene.deleteEmbeddedDocuments('Token', [allyDoc.id]).catch(() => {});
+        if (allyDoc) { const i = created.tokens.indexOf(allyDoc.id); if (i >= 0) created.tokens.splice(i, 1); }
+        await victimDoc.update({ disposition: priorSides.victim }).catch(() => {});
+        await rogueDoc.update({ disposition: priorSides.rogue }).catch(() => {});
       }
     }
 

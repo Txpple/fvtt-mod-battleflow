@@ -178,7 +178,8 @@ export const REMINDER_KINDS = new Set(["vex", "sap", "prone", "condition", "rang
  * roll — a checkbox in the section, because the roll still needs its Advantage / Normal press.
  * The PLAYER decides whether the conditions hold (user: "the player can determine if they have
  * the conditions"); the module reads what it can (the weapon is Finesse or ranged, the roll's
- * net) and says what it cannot (an ally within 5 feet). The DAMAGE is automated: the dice ride
+ * net, and — reopened 2026-09-22 — an ally of the rogue within 5 feet of the target, off the
+ * map) and ticks the box when they hold; the tick stays the player's. The DAMAGE is automated: the dice ride
  * the damage roll (the hit-riders seam), crit-doubled for free, once per turn as a turn chip.
  */
 export const SNEAK_ATTACK = Object.freeze({
@@ -956,8 +957,11 @@ export const CHECK_BENDS = Object.freeze({
  *             item, and stay out of the net); default true
  *   judge     "bloodied" (the bearer at or below half HP), "targetBloodied", "targetDamaged"
  *             (the target at or below half / short of full), "targetGrappled", "targetNotActed"
- *             (round one, and the target has not taken a turn — the combat clock) — a fact the
- *             module holds; the row fires only when it is true
+ *             (round one, and the target has not taken a turn — the combat clock), "allyNearTarget"
+ *             (an ally of the attacker, not Incapacitated, within 5 feet of the target — the map)
+ *             — a fact the module holds; the row fires only when it is true. The map's fact can
+ *             also be UNKNOWN (an attacker whose side the module cannot name): the row is then
+ *             counted, as `except` does — the gate never guesses an exemption
  *   spend     "attack" — the rules end the effect on the next attack roll ("your next attack
  *             roll"): the spend hook uses it up with a receipt, exactly as Vex and Sap
  *   only      "source" — the bend is for the creature whose action put the effect there and
@@ -979,7 +983,7 @@ export const CHECK_BENDS = Object.freeze({
  *
  * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature", attacker: "advantage"|"disadvantage"|null,
  *   target: "advantage"|"disadvantage"|null, scope: "any"|"spell"|"weapon"|"melee"|"ranged", caveat?: string,
- *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed", spend?: "attack",
+ *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget", spend?: "attack",
  *   only?: "source", except?: "source", rule: string, from: string}>>>}
  */
 // `except: "source"` (2026-09-04, the walk: "disadvantage should not apply when attacking
@@ -1164,8 +1168,12 @@ export const EFFECT_BENDS = Object.freeze({
   "Vigilant": Object.freeze({ attacker: null, target: "disadvantage", scope: "any", spend: "attack", from: "Tyro of the Gauntlet (Heroes of Faerûn)",
     rule: "When you take the Ready action, the next attack roll made against you has Disadvantage before the start of your next turn." }),
   // --- D. a feature, never an effect: matched by the feature's name --------------------------
-  "Pack Tactics": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", from: "monsters",
-    caveat: "counted — press Normal if no ally of the attacker is within 5 feet of the target",
+  // Pack Tactics is judged on the MAP (user, 2026-09-22: "the hobgoblin in party camp attacking
+  // the practice dummy is triggering adv prompt bc of pack tactics, yet that shouldn't apply
+  // here"): an ally of the attacker within 5 feet of the target, or nothing. The caveat stands
+  // for the one case the map cannot answer — an attacker whose side the module cannot name.
+  "Pack Tactics": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", judge: "allyNearTarget", from: "monsters",
+    caveat: "counted — when the attacker's side cannot be read; press Normal if no ally of the attacker is within 5 feet of the target",
     rule: "It has Advantage on an attack roll against a creature if at least one of its allies is within 5 feet of the creature and the ally doesn’t have the Incapacitated condition." }),
   "Bloodied Fury": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", judge: "bloodied", from: "monsters",
     rule: "While Bloodied, it has Advantage on attack rolls." }),

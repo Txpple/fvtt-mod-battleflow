@@ -410,6 +410,33 @@ describe("effectSources — the sixth kind: an ability on either sheet, by name 
       })
     ).toEqual([]);
   });
+  it("Pack Tactics is judged on the map (2026-09-22): an ally near the target fires, none skips, an unreadable side counts", () => {
+    const wolf = { features: ["Pack Tactics"] };
+    const at = allyNear =>
+      r.effectSources({
+        attacker: wolf,
+        target: { allyNear },
+        enabled: all(),
+        table: T(),
+        scope: {},
+        attackerName: "Wolf",
+        pass: "target"
+      });
+    expect(at(true).map(s => [s.bend, s.label])).toEqual([["advantage", "Wolf — Pack Tactics"]]);
+    expect(at(false)).toEqual([]);
+    expect(at(null)).toHaveLength(1);
+    // …and it hinges on the TARGET: the attacker's own pass never carries it.
+    expect(
+      r.effectSources({
+        attacker: wolf,
+        enabled: all(),
+        table: T(),
+        scope: {},
+        attackerName: "Wolf",
+        pass: "attacker"
+      })
+    ).toEqual([]);
+  });
   it("a judged row fires only when the fact is true — Bloodied Fury on the bearer's HP, Blood Frenzy on the target's", () => {
     const fury = { features: ["Bloodied Fury"] };
     expect(

@@ -150,6 +150,17 @@ rules code review checks against.
 Press buttons whose results are fully determined by rules already in the game data. Anything
 requiring human judgment is *held for* a human, never performed for one.
 
+**Game logic is not judgment** (user, 2026-09-22, on Pack Tactics and Sneak Attack's ally
+clause: *"if theres a ally defined as being in same faction....that istn really out of scope"* —
+*"easily discernable with game logic, doesnt need human judgment"*). A condition the table's own
+data settles — which side a token is on (its disposition), how far apart two tokens stand (the
+grid), whether a creature carries a status — is a FACT to read, not a decision to hold. *"An ally
+within 5 feet of the target, not Incapacitated"* is the worked case, judged off the map since that
+day. Before a rule's clause is parked as "the player's call", ask whether those facts compute it;
+if they do, it is in scope. What stays held is what they cannot settle — a creature's choice, a
+guess at intent — and a side the data leaves unnamed (a neutral or secret token) is counted,
+never guessed.
+
 ### R2 — The chat log is the state and the bus. No sockets, ever
 
 There is no in-memory workflow object anywhere. Every hop is a stateless reaction to a
@@ -434,8 +445,11 @@ target's, with a SCOPE from day one (Innate Sorcery
 is spell attacks only; a row without one would silently have been "any"), a caveat where the
 module cannot judge, and `counted: false` where the caveat is the rule rather than the exception
 (user, 2026-09-02, on Demon Armor: *"very edge case"* — shown so nobody forgets the item, out of
-the net). A row the module CAN judge — *while Bloodied*, the target Grappled — fires only when
-the fact is true. A row the rules spend on the next attack roll (Guiding Bolt, Vicious Mockery)
+the net). A row the module CAN judge — *while Bloodied*, the target Grappled, an ally of the
+attacker within 5 feet of the target (Pack Tactics, off the map since 2026-09-22: a token on the
+attacker's side, alive, not Incapacitated) — fires only when the fact is true; a map fact the
+module cannot read (an attacker whose side is neutral or secret) counts, never guessed exempt.
+A row the rules spend on the next attack roll (Guiding Bolt, Vicious Mockery)
 is spent by the roll with a receipt, Vex and Sap's shape. WHICH rows count is the Effect Sources
 list, membership like the condition table; the list is parsed whole, names' colons and all.
 
@@ -554,9 +568,11 @@ old queue-of-saves habit went with the popup. The Condition Sources list switche
 feature is on the attacker's sheet and the weapon is Finesse or ranged, the gate's section grows
 one more box, OUTSIDE the fold: the dice read off the feature's own damage activity and resolved
 on the sheet (`@scale.rogue.sneak-attack` → *7d6*), the rule verbatim, a *read for you* line —
-the weapon judged, the roll's net judged, the ally within 5 feet **left to the player** (*"the
-player can determine if they have the conditions"*) — and a checkbox, ticked when the roll nets
-Advantage. The press records the arm on the attack card. On the hit the DAMAGE OFFER opens even
+the weapon judged, the roll's net judged, the ally within 5 feet **judged off the map since
+2026-09-22** (it was left to the player until then — *"the player can determine if they have the
+conditions"*; §8 has the reopening) — and a checkbox, ticked when the conditions hold: the roll
+nets Advantage, or an ally of the rogue stands within 5 feet of the target and the roll has no
+Disadvantage. The tick stays the player's. The press records the arm on the attack card. On the hit the DAMAGE OFFER opens even
 under auto damage, because a decision is pending: the Cunning Strike menu, **read off the sheet,
 subclass included** — Cunning Strike's Poison, Trip and Withdraw; Devious Strikes' Daze, Knock Out
 and Obscure; the Thief's Stealth Attack; Envenom Weapons upgrading Poison; Rend Mind on Psychic
@@ -1086,10 +1102,10 @@ was written to prevent.
 | **Hand-carrying any counted number into prose** | **DON'T.** ⚠ **Quote the tool's output; never retype it.** | nothing. This is a standing rule. |
 | **A post-roll "second die" rescue for a forgotten Advantage** | **NOT SHIPPING** (user, 2026-09-01: *"I don't want a rescue, I want proactivity"*). The reminder is the GATE before the roll (§5); a rescue that rolls a second d20 after a flat roll is the shape that was put and declined. | the user asking for it, by name |
 | **Netting multiple sources of Advantage/Disadvantage by count** | **NEVER.** Any Advantage against any Disadvantage is a normal roll, however many of each (user ruling 2026-09-01; the Rules Glossary's own sentence). A "majority wins" reading is wrong and stays wrong. | nothing. It is the rule. |
-| **Vendoring AC5e's code** | **CLOSED 2026-09-01 — its TABLE shipped as data instead** (DESIGN §5 *the gate*; `decide/reminders.js` `CONDITION_BENDS`). Its behaviour — silently setting the roll mode — is the thing the user said no to; its geometry features (range bands, nearby foes, flanking, armour, encumbrance) were never wanted. | a table asking for the geometry features, by name |
+| **Vendoring AC5e's code** | **CLOSED 2026-09-01 — its TABLE shipped as data instead** (DESIGN §5 *the gate*; `decide/reminders.js` `CONDITION_BENDS`). Its behaviour — silently setting the roll mode — is the thing the user said no to; its geometry features (range bands, nearby foes, flanking, armour, encumbrance) were never wanted AS AC5e's. ⚠ The geometry a rule's own clause needs is the module's own reading, not this row (R1, *game logic is not judgment*): the range bands and the nearby foe shipped 2026-09-02, the ally beside the target 2026-09-22. | a table asking for the geometry features, by name |
 | **Spending Sap or Vex on a volley as a whole** | **NOT SHIPPING (2026-09-02).** The rules spend Sap on *"its next attack roll"* and Vex on *"your next attack roll against that creature"* — one attack roll, and each ray of a volley is one. So ray 1 spends the chip and the rays after it roll unbent, and the aim popup SAYS so on ray 1's row. Three rays at Disadvantage for one Sap hit is generous to the Sapper and is not the text (N1). Reopens only on a rules revision that says "attack action" where it says "attack roll". |
 | **The module resolving a save with no press** (option C of *The Save Gate*) | **NEVER** (user ruling 2026-09-02: E was chosen, *"never C"*). A save the rules fail before the dice gets a **Fails** button as the default — no dice, but still a press. The buzzer's Fails is the timer's answer, as the buzzer's straight roll always was; it is not the module deciding for a human at the keyboard. | nothing. It is the line R1 draws. |
-| **The module judging Sneak Attack's conditions** (the ally within 5 feet, whether the target sees the rogue) | **NO** (user, 2026-09-02: *"the player can determine if they have the conditions"*). The gate reads what it can — the weapon, the roll's net — and says the rest is the player's; the tick is theirs. Geometry over allies is exactly the AC5e feature set that was never wanted. | the user asking for the ally clause to be judged, by name |
+| **The module judging Sneak Attack's conditions** (the ally within 5 feet, whether the target sees the rogue) | ✅ **REOPENED 2026-09-22 BY ITS OWN CONDITION — the ally clause is judged.** It was NO (user, 2026-09-02: *"the player can determine if they have the conditions"*), on the reading that geometry over allies was the AC5e feature set never wanted. The user asked for the ally clause by name (2026-09-22, after Pack Tactics lent a hobgoblin Advantage against a dummy nobody stood beside: *"Reopen — do both"*) and ruled the principle behind it — an ally on the same side within a measured distance is game logic, not judgment (R1, *game logic is not judgment*). The box now ticks itself when the roll nets Advantage, or when an ally of the rogue, not Incapacitated, stands within 5 feet of every target and the roll has no Disadvantage; the tick stays the player's either way. | nothing. Closed — R1 carries the principle |
 | **Asking before a clock rider rides** | **REVERSED THE SAME EVENING** (user, 2026-09-02, from the table: *"dreadful strike should have a check box, optional to use, so make like sneak attack"*). Each due rider is a TICKED checkbox on the damage offer — the rules make it available, the player may decline, and a declined rider spends nothing. The offer opens for a due rider even under auto damage, as it does for an armed Sneak Attack. What stays settled: a rider with a genuine choice *inside* it (which of two options, a resource spend) is not in the table; a damage TYPE the rules leave open takes the activity's first and says which. | a type picker, by name |
 | **Judging once-per-turn for a creature outside the running combat** | **NO** (user, 2026-09-02: *"the turn counting should only be in combat"*). The chits — Sneak Attack, Cleave, a clock rider — count only for a COMBATANT in the running combat; a creature acting outside it has no turn, so every hit offers. The summon-on-its-summoner's-turn case (review finding 18) was given up on purpose. | nothing. It is the rule. |
 | **A tooltip on the gate's header line** | **NO** (user, 2026-09-02: *"it just makes stuff unreadable"*). The arithmetic sentence stays in the view for the record and is not drawn. | nothing. |

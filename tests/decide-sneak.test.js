@@ -33,6 +33,22 @@ describe("the weapon", () => {
   });
 });
 
+describe("sneakConditionsHold — the box's default tick (the ally clause off the map, 2026-09-22)", () => {
+  it("Advantage holds on its own, ally or not", () => {
+    expect(s.sneakConditionsHold({ net: "advantage" })).toBe(true);
+    expect(s.sneakConditionsHold({ net: "advantage", allyNear: false })).toBe(true);
+  });
+  it("without Advantage, a MEASURED ally within 5 feet holds — unless the roll has Disadvantage", () => {
+    expect(s.sneakConditionsHold({ net: "normal", allyNear: true })).toBe(true);
+    expect(s.sneakConditionsHold({ net: "disadvantage", allyNear: true })).toBe(false);
+  });
+  it("no ally, or a side the module cannot read, leaves the tick to the player", () => {
+    expect(s.sneakConditionsHold({ net: "normal", allyNear: false })).toBe(false);
+    expect(s.sneakConditionsHold({ net: "normal", allyNear: null })).toBe(false);
+    expect(s.sneakConditionsHold({ net: "normal" })).toBe(false);
+  });
+});
+
 describe("cunningMenu — the options, read off the sheet", () => {
   const menu = (features, extra = {}) =>
     s.cunningMenu({ options: reg.CUNNING_OPTIONS, features, dice: 7, ...extra });

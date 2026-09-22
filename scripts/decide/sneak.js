@@ -6,7 +6,7 @@
  *
  * THE FLOW AS DRAWN (user ruling 2026-09-02, the prototype *Sneak Attack, Cunningly* — "go with
  * the prototype and iterate"): the tick is at the GATE (the player judges the conditions; the
- * module says what it read), Cunning Strike is picked on the DAMAGE OFFER after the hit, the
+ * module ticks it when what it read says they hold), Cunning Strike is picked on the DAMAGE OFFER after the hit, the
  * costs come off the sneak dice BEFORE the roll ("You remove the die before rolling"), a crit
  * doubles what is left (free — the crit stamp lands on every part), the effects run through the
  * saves machine on the activities the pack ships, and once per turn is a turn chip.
@@ -34,11 +34,25 @@ export function parseDice(formula) {
 
 /**
  * Does the WEAPON qualify? "the attack uses a Finesse or a Ranged weapon" — the two facts the
- * module can read off the item and the roll. Everything else in the rule is the player's.
+ * module can read off the item and the roll.
  * @param {{finesse?: boolean, ranged?: boolean}} weapon
  */
 export function sneakWeaponQualifies({ finesse = false, ranged = false } = {}) {
   return !!finesse || !!ranged;
+}
+
+/**
+ * Do the ROLL's conditions hold, as far as the module can read them — the box's default tick?
+ * "if you have Advantage on the roll", or without it "if at least one of your allies is within
+ * 5 feet of the target, the ally doesn't have the Incapacitated condition, and you don't have
+ * Disadvantage on the attack roll". `allyNear` is the map's fact (user, 2026-09-22 — the DESIGN
+ * §8 row reopened): true only when measured for every target; anything else leaves the second
+ * clause to the player, whose tick it stays either way.
+ * @param {{net: "advantage"|"disadvantage"|"normal", allyNear?: boolean|null}} roll
+ */
+export function sneakConditionsHold({ net, allyNear = null }) {
+  if ( net === "advantage" ) return true;
+  return (allyNear === true) && (net !== "disadvantage");
 }
 
 /**

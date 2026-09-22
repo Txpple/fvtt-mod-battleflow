@@ -10,7 +10,7 @@ import { DialogCarried, cardRow, markDefaultButton, pendingDemandsFor } from "./
 import { bfCard, reminderFieldsetHTML, ruleLine, sneakBoxHTML, TONE } from "./decide/present.js";
 import { CHIP_FLAG, chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.js";
 import { CHECK_BENDS, CONDITION_BENDS, EFFECT_BENDS, MASTERY_RULES, RANGE_RULES, SAVE_BENDS, SNEAK_ATTACK } from "./decide/registry.js";
-import { parseDice, sneakWeaponQualifies } from "./decide/sneak.js";
+import { parseDice, sneakConditionsHold, sneakWeaponQualifies } from "./decide/sneak.js";
 import { METAMAGIC_FLAG } from "./decide/metamagic.js";
 import { CARD, itemNameOf, originIdInData, rollKindInData } from "./decide/card.js";
 import { feetOf, nearestFeet, tokenOfActor } from "./geometry.js";
@@ -356,6 +356,27 @@ function closeEnemiesOf(attackerToken) {
 }
 
 /**
+ * Is an ALLY of the attacker within 5 feet of this target (user, 2026-09-22 — Pack Tactics, and
+ * Sneak Attack's second clause)? The mirror of `closeEnemiesOf`: a token on the attacker's own
+ * side of the table (friendly with friendly, hostile with hostile), alive, not Incapacitated, and
+ * another creature than the attacker or the target. Null when the attacker's side cannot be
+ * named — no token, a neutral or secret one — which the callers count rather than guess.
+ */
+function allyNearTarget(attackerToken, targetToken) {
+  const mine = attackerToken?.document?.disposition;
+  if ( !targetToken || ((mine !== 1) && (mine !== -1)) ) return null;
+  const selves = new Set([attackerToken.actor?.uuid, targetToken.actor?.uuid].filter(Boolean));
+  for ( const other of (canvas.tokens?.placeables ?? []) ) {
+    if ( (other === attackerToken) || (other === targetToken) || (other.document?.disposition !== mine) ) continue;
+    const actor = other.actor;
+    if ( !actor || selves.has(actor.uuid) || ((actor.system?.attributes?.hp?.value ?? 0) <= 0) || actor.statuses?.has?.("incapacitated") ) continue;
+    const d = nearestFeet(other, targetToken);
+    if ( (d !== null) && (d <= 5) ) return true;
+  }
+  return false;
+}
+
+/**
  * Every source this gate can read for the roll about to happen, in the order the table reads
  * them: the attacker's own state first, then each target's. Names are the TOKEN's where a token
  * is what was targeted — that is what the table calls it. A chip is live when the platform has
@@ -448,9 +469,9 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     }
     if ( attackerSheet ) {
       // Target-side rows, and the attacker-side rows that hinge on THIS target (Bloodied,
-      // Grappled…) — the attacker's plain rows went out once above.
-      out.push(...effectSources({ attacker: attackerSheet, target: sheetOf(target), enabled: effectsOn,
-        table: EFFECT_BENDS, scope, attackerName, targetName, pass: "target" }));
+      // Grappled, an ally beside it…) — the attacker's plain rows went out once above.
+      out.push(...effectSources({ attacker: attackerSheet, target: { ...sheetOf(target), allyNear: allyNearTarget(attackerToken, token) },
+        enabled: effectsOn, table: EFFECT_BENDS, scope, attackerName, targetName, pass: "target" }));
     }
   }
   return out;
@@ -494,7 +515,7 @@ export function judgeRoll(attacker, { activity = null, attackMode = null, target
   if ( !enabled.size ) return null;
   const sources = sourcesFor(attacker, enabled, { activity, attackMode, targets, spent, spendNote, rangeFeet });
   const net = netMode(sources);
-  const sneak = enabled.has("sneak") ? sneakFactsFor(attacker, activity, attackMode, net) : null;
+  const sneak = enabled.has("sneak") ? sneakFactsFor(attacker, activity, attackMode, net, targets ?? game.user.targets) : null;
   // ⚠ Only what the rules SPEND carries forward through a volley's rays (user report, 2026-09-02:
   // Innate Sorcery — a standing effect — showed on ray 1 alone): Vex, Sap, and an effect row
   // marked `spend`. Every other source with an effect id stands for every ray.
@@ -507,11 +528,13 @@ export function judgeRoll(attacker, { activity = null, attackMode = null, target
  * name on the attacker's sheet, its dice read off the feature's own damage activity and
  * resolved on the sheet (`@scale.rogue.sneak-attack` → "7d6"; anything that does not resolve
  * to plain dice is never armed — an unresolved token rolls zero in silence), and the weapon
- * as the dialog stands: Finesse, or ranged (the attack's type, or a thrown mode). What the
- * module cannot read — the ally within 5 feet — is said, never judged. Null when there is
- * nothing to offer: no feature, no dice, a weapon that does not qualify, a non-weapon attack.
+ * as the dialog stands: Finesse, or ranged (the attack's type, or a thrown mode). The ally
+ * within 5 feet is read off the map for every target (user, 2026-09-22 — the DESIGN §8 row
+ * reopened), and the box ticks itself when the conditions hold; the tick stays the player's.
+ * Null when there is nothing to offer: no feature, no dice, a weapon that does not qualify, a
+ * non-weapon attack.
  */
-function sneakFactsFor(attacker, activity, attackMode, net) {
+function sneakFactsFor(attacker, activity, attackMode, net, targets = []) {
   const item = activity?.item;
   if ( !item || (item.type !== "weapon") || (activity?.type !== "attack") ) return null;
   const feature = featureNamed(attacker, SNEAK_ATTACK.feature);
@@ -529,11 +552,15 @@ function sneakFactsFor(attacker, activity, attackMode, net) {
   if ( !sneakWeaponQualifies({ finesse, ranged }) ) return null;
   const type = [...(item.system?.damage?.base?.types ?? [])][0] ?? null;   // "the same as the weapon's type"
   const used = turnChitStands(attacker, "sneak");
+  // The ally clause holds only when it is MEASURED true at every target of the roll.
+  const aimed = [...(targets ?? [])].filter(t => t.actor && (t.actor.uuid !== attacker.uuid));
+  const attackerToken = tokenOfActor(attacker);
+  const allyNear = aimed.length ? aimed.every(t => allyNearTarget(attackerToken, t) === true) : null;
   return {
     dice: `${dice.number}d${dice.faces}`, number: dice.number, faces: dice.faces, type, weaponName: item.name,
     finesse, ranged, rule: SNEAK_ATTACK.rule,
     used: used ? "used this turn — the chit on you clears at the end of the turn" : null,
-    armed: !used && (net === "advantage")
+    armed: !used && sneakConditionsHold({ net, allyNear })
   };
 }
 

@@ -894,17 +894,52 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await closeGates();
         }
         await unplant();
-        // 11e: Pack Tactics — a FEATURE by name, counted; the quoted rule names the ally within
-        // 5 feet (the label is the fact alone, user 2026-09-02).
+        // 11e: Pack Tactics — a FEATURE by name, JUDGED ON THE MAP (user, 2026-09-22: the
+        // hobgoblin's Advantage against a dummy nobody stood beside): nothing with no ally of the
+        // attacker within 5 feet of the target; counted, the rule quoted, with one; nothing again
+        // once that ally is Incapacitated. The ally is an UNLINKED token — another creature than
+        // the target, on the attacker's side (the label is the fact alone, user 2026-09-02).
         [packTactics] = await pc.createEmbeddedDocuments('Item', [{ name: 'Pack Tactics', type: 'feat', system: { description: { value: '' } } }]);
         created.items.push({ actorId: pc.id, id: packTactics.id });
-        {
-          const { dialog } = await gatedSwing();
-          const text = popupText(dialog);
-          ok('11e. Pack Tactics as a feature: counted, Advantage, the rule quoted',
-            /— Pack Tactics/.test(text) && /at least one of its allies is within 5 feet of the creature/.test(text)
-              && /1 Modifier — Net Advantage/.test(text), text.slice(0, 300));
-          await closeGates();
+        const priorSides = { victim: victimTokenDoc.disposition, pc: pcTokenDoc.disposition };
+        let allyDoc = null;
+        try {
+          await pcTokenDoc.update({ disposition: 1 });
+          await victimTokenDoc.update({ disposition: -1 });
+          await sleep(200);
+          {
+            const { dialog, system } = await gatedSwing();
+            ok('11e. Pack Tactics with no ally of the attacker within 5 feet of the target: nothing — the row is judged on the map',
+              !dialog && system, `section=${!!dialog} system=${system} text="${popupText(dialog).slice(0, 200)}"`);
+            await closeGates();
+          }
+          [allyDoc] = await scene.createEmbeddedDocuments('Token', [
+            foundry.utils.mergeObject(victim.prototypeToken.toObject(),
+              { x: 1400, y: 1400 + squarePx, actorId: victim.id, actorLink: false, disposition: 1, name: 'BF Test Ally' }, { inplace: false })]);
+          created.tokens.push(allyDoc.id);
+          for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(allyDoc.id)); i++) await sleep(250);
+          pcToken.control({ releaseOthers: true });
+          {
+            const { dialog } = await gatedSwing();
+            const text = popupText(dialog);
+            ok('11e2. …an ally of the attacker beside the target: counted, Advantage, the rule quoted',
+              /— Pack Tactics/.test(text) && /at least one of its allies is within 5 feet of the creature/.test(text)
+                && /1 Modifier — Net Advantage/.test(text), text.slice(0, 300));
+            await closeGates();
+          }
+          await canvas.tokens.get(allyDoc.id)?.actor?.toggleStatusEffect('incapacitated', { active: true });
+          await sleep(200);
+          {
+            const { dialog, system } = await gatedSwing();
+            ok("11e3. …and that ally Incapacitated: nothing — \"the ally doesn't have the Incapacitated condition\"",
+              !dialog && system, `section=${!!dialog} system=${system} text="${popupText(dialog).slice(0, 200)}"`);
+            await closeGates();
+          }
+        } finally {
+          if (allyDoc && scene.tokens.get(allyDoc.id)) await scene.deleteEmbeddedDocuments('Token', [allyDoc.id]).catch(() => {});
+          if (allyDoc) { const i = created.tokens.indexOf(allyDoc.id); if (i >= 0) created.tokens.splice(i, 1); }
+          await victimTokenDoc.update({ disposition: priorSides.victim }).catch(() => {});
+          await pcTokenDoc.update({ disposition: priorSides.pc }).catch(() => {});
         }
         await pc.deleteEmbeddedDocuments('Item', [packTactics.id]);
         created.items.splice(created.items.findIndex(i => i.id === packTactics.id), 1);

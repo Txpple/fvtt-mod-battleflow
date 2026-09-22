@@ -216,7 +216,10 @@ neither.
 > **AC5e adoption left this list 2026-09-01 — its TABLE shipped as data** (DESIGN §5 *the gate
 > before the roll*; `CONDITION_BENDS` in `decide/registry.js`), and vendoring its code is
 > SETTLED against (DESIGN §8). The geometry features it also carries — range bands, nearby foes,
-> flanking, armour, encumbrance — were never wanted and are not here.
+> flanking, armour, encumbrance — were never wanted AS AC5e's and are not here. ⚠ Geometry a
+> rule's own clause needs is in scope as the module's own reading (DESIGN R1, *game logic is not
+> judgment*, 2026-09-22): the range bands and the nearby foe shipped that way, and the ally beside
+> the target (Pack Tactics, Sneak Attack) on 2026-09-22.
 
 | Item | Shape |
 | --- | --- |
