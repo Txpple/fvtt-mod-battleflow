@@ -7,7 +7,7 @@
  * the registration order. Every body here is the one saves.js carried; nothing was rewritten.
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canApplyTo, whisperNoGM, statContext } from "../core.js";
-import { applicableProfiles, resolveUuid } from "../lookup.js";
+import { applicableProfiles, cardActivity, resolveUuid } from "../lookup.js";
 import { CARD, castLevelOn, isCard, onSaveOf, originIdOf } from "../decide/card.js";
 import { saveMultiplier } from "../decide/verdict.js";
 import { forceStatus, damagePartsOf, statSourceOf } from "../shared.js";
@@ -112,8 +112,10 @@ async function applySaveEffects(card, flag, entry) {
   // Guardians' Half Speed) is the area's STANDING effect, kept by the region while the creature
   // stands inside — applying it again here would double it. The demand says so; damage still lands.
   if ( flag.effectsHandled ) return;
-  const activity = flag.activityUuid ? await fromUuid(flag.activityUuid) : null;
-  if ( !activity ) return; // the item is gone (a consumed scroll) — accepted corner above
+  // Through the CARD (lookup.js, 2026-09-22): an item the use deleted (a thrown vial, a scroll's
+  // last use) is read off the card's snapshot — the old "accepted corner" is closed.
+  const activity = cardActivity(card, flag.activityUuid);
+  if ( !activity ) return;
   // 6.0: the activity's list holds PROFILES whose effects resolve asynchronously (lookup.js).
   const toApply = (await applicableProfiles(activity))
     .filter(({ profile }) => (entry.outcome === "failed") || profile.onSave)

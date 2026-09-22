@@ -14,7 +14,7 @@ import { EFFECT_CHOICES, tableIndex } from "./decide/registry.js";
 import { effectChoiceFor } from "./decide/choices.js";
 import { CARD, TARGETS_KEY, activityTypeOf, activityUuidOf, castLevelOn, isCard, itemNameOf, targetsOf } from "./decide/card.js";
 import { targetDescriptorOf } from "./shared.js";
-import { profileEffectSync } from "./lookup.js";
+import { cardActivity, profileEffectSync } from "./lookup.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Table polish — the no-target gate, the birth stamps, hidden buttons, dialog centering
@@ -98,12 +98,10 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig, messageCo
  * `getAssociatedActivity`: `system.activity.uuid` with strict:false, the item's collection by
  * id when the uuid is stale). The guard stays: three byte-identical copies of it stood in this
  * file until the duplicate census collected them (2026-08-23), and a pre-create document may
- * not resolve a speaker yet. EDGE by §2 rule 1 (it resolves a document).
+ * not resolve a speaker yet. EDGE by §2 rule 1 (it resolves a document). One home since
+ * 2026-09-22: lookup.js `cardActivity`, which also answers for an item the use deleted.
  */
-function activityOf(doc) {
-  try { return doc.getAssociatedActivity?.() ?? null; }
-  catch { return null; }
-}
+const activityOf = doc => cardActivity(doc);
 
 /**
  * Phase 3's structural gate — no name list, a shape (DESIGN.md R4 done right): a used

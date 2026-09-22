@@ -71,6 +71,7 @@ function shieldsOn(defender) {
       if ( row.mark ) {
         const mark = effect.getFlag(MODULE_ID, "shield");
         if ( mark?.key !== key ) continue;
+        // live only: a mark is written only for a spell listed BY NAME, which a scroll ("Spell Scroll: X") never is
         const item = resolveUuid(mark.itemUuid);
         source = item ? { actor: item.actor ?? defender, item } : null;
         scaling = Number(mark.scaling ?? 0);

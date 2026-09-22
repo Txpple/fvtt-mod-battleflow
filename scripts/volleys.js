@@ -58,6 +58,7 @@ import { tokenForUuid } from "./geometry.js";
 import { judgeRoll } from "./reminders.js";
 import { SURFACES } from "./surfaces.js";
 import { castLevelOn, originData, targetsInData, targetsOf } from "./decide/card.js";
+import { cardActivity } from "./lookup.js";
 
 const volleyTimers = new Map();
 
@@ -230,7 +231,7 @@ async function openVolleyPopup(message) {
   if ( open ) { open.bringToFront?.(); return; }
   // The rays' judge needs the caster and the activity (the range kind reads the spell's own
   // range); a volley whose activity no longer resolves aims without a judgement.
-  const activity = (v.kind === "attack") ? await fromUuid(v.activityUuid).catch(() => null) : null;
+  const activity = (v.kind === "attack") ? cardActivity(message, v.activityUuid) : null;
   const caster = activity?.item?.actor ?? null;
 
   const noun = unitNoun(v);
@@ -400,7 +401,9 @@ async function fireVolley(message, assignment) {
 
   try {
     const v = message.getFlag(MODULE_ID, "volley");
-    const activity = await fromUuid(v.activityUuid);
+    // Through the CARD (lookup.js): a scroll's last Scorching Ray is gone from the sheet by the
+    // time its rays are driven; the card's snapshot still carries the spell.
+    const activity = cardActivity(message, v.activityUuid);
     if ( !activity ) {
       console.warn(`${TITLE} | Volley activity ${v.activityUuid} no longer resolves — nothing driven.`);
       return;

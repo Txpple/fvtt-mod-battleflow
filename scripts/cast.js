@@ -3,7 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, whisperNoGM } from "./core.js";
-import { resolveUuid } from "./lookup.js";
+import { cardActivity, cardItem } from "./lookup.js";
 import { damagePartsOf, statSourceOf } from "./shared.js";
 import { bfCard, popupKey, ruleLine } from "./decide/present.js";
 import { effectsAfterChoice } from "./decide/choices.js";
@@ -11,7 +11,7 @@ import { momentButton, openMomentPopup, registerResumable, shownMoments } from "
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
-import { itemUuidOf, targetsOf } from "./decide/card.js";
+import { targetsOf } from "./decide/card.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 3 (cast slice) — auto-apply on cast (ARCHITECTURE.md §6, pulled ahead 2026-08-16).
@@ -43,7 +43,9 @@ async function executeCastApply(message) {
     const payload = message.getFlag(MODULE_ID, "castApply");
     if ( !payload?.targets?.length ) return;
     if ( message.getFlag(MODULE_ID, "effectReceipt")?.castDone ) return;
-    const activity = payload.activityUuid ? await fromUuid(payload.activityUuid) : null;
+    // Through the CARD (lookup.js): the potion the drink used up is gone by now, and the card's
+    // snapshot of it is where its effect still lives (2026-09-22, Gren's Poison Resistance).
+    const activity = cardActivity(message, payload.activityUuid);
     // 6.0: the activity's list holds PROFILES; the effects resolve asynchronously (lookup.js).
     const applicable = (await activity?.getApplicableEffects?.()) ?? [];
     // A cast with a CHOICE between alternative effects (Fire Shield's warm or chill shield,
@@ -75,7 +77,8 @@ async function executeCastApply(message) {
       concentration, scaling: payload.scaling ?? 0,
       spellLevel: payload.spellLevel ?? undefined,
       marker: "castDone",
-      source: statSourceOf(message) // the data-plane stamp — the caster's own usage card
+      source: statSourceOf(message), // the data-plane stamp — the caster's own usage card
+      activity // the one resolved above — live, or the card's snapshot of a used-up item
     });
   } catch(err) {
     console.error(`${TITLE} | Cast auto-apply failed.`, err);
@@ -145,7 +148,7 @@ async function showChoicePopup(card) {
   const choice = payload?.choice;
   if ( !choice || choice.chosen ) return;
   const actor = payload.targets?.[0]?.uuid ? fromUuidSync(payload.targets[0].uuid) : null;
-  const item = resolveUuid(itemUuidOf(card) ?? "");
+  const item = cardItem(card);
   await openMomentPopup(card, "effectChoice", actor, {
     title: `${choice.key} — ${actor?.name ?? ""}`, icon: "fa-solid fa-code-branch",
     content: bfCard({ img: item?.img ?? null, eyebrow: `Cast — ${choice.key}`, tone: "pending",

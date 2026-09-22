@@ -60,7 +60,7 @@
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext }
   from "./core.js";
 import { d20FoldEntries, metamagicEntries, listedNames } from "./settings.js";
-import { itemNamed, lower, resolveUuid, resolveDie } from "./lookup.js";
+import { cardActivity, itemNamed, lower, resolveUuid, resolveDie } from "./lookup.js";
 import { grantingActor, hitTargets, modeAllows, poolSpendsOn, poolOf, spendPoolUses } from "./shared.js";
 import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
   from "./decide/present.js";
@@ -826,8 +826,7 @@ async function resolveFold(message, answer) {
     }
     if ( flag.testKind !== "attack" ) return;
     if ( !anyHit || !hitTargets(message).length ) return;
-    const activityUuid = activityUuidOf(message);
-    const attackActivity = activityUuid ? await fromUuid(activityUuid) : null;
+    const attackActivity = cardActivity(message, activityUuidOf(message));
     if ( !attackActivity ) return;
     if ( setting(S.playerRollDamage) ) return void offerDamageRoll(attackActivity, message);
     await rollDamageForAttack(attackActivity, message);

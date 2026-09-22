@@ -9,7 +9,7 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
-import { resolveUuid, usableManeuver, maneuverDieFormula, meleeOptions, preferredMeleeOption } from "./lookup.js";
+import { cardActivity, resolveUuid, usableManeuver, maneuverDieFormula, meleeOptions, preferredMeleeOption } from "./lookup.js";
 import { maneuverFoldEntries } from "./settings.js";
 import { RULE_TEXT } from "./decide/registry.js";
 import { hitTargets, modeAllows, reactionSpent, spendReaction } from "./shared.js";
@@ -39,8 +39,7 @@ Hooks.on("createChatMessage", async message => {
     if ( message.getFlag(MODULE_ID, "riposteFor") ) return;            // a driven attack never chains re-offers
     const entry = maneuverFoldEntries().find(e => e.kind === "riposte");
     if ( !entry ) return;
-    const activityUuid = activityUuidOf(message);
-    const attackActivity = activityUuid ? await fromUuid(activityUuid) : null;
+    const attackActivity = cardActivity(message, activityUuidOf(message));
     if ( attackActivity?.attack?.type?.value !== "melee" ) return;     // melee misses only (P3)
     const attacker = message.getAssociatedActor?.();
     if ( !attacker ) return;

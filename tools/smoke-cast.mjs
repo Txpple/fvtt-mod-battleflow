@@ -18,7 +18,8 @@ const SECTIONS = {
   3: 'healing: dice roll, heal up',
   4: 'damage activities: the card posts, the cast slice keeps its hands off',
   5: 'no targets, no feature',
-  6: 'SELF-tagged activities self-aim (v1.11.0)'
+  6: 'SELF-tagged activities self-aim (v1.11.0)',
+  7: 'a used-up item still applies (2026-09-22): the last potion, and both drinks of a stack of two'
 };
 // §2 is the RE-cast: it asserts a second Bless refreshes the chips §1 landed, so it needs §1.
 const DEPENDS = { 2: ['1'] };
@@ -79,7 +80,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Sweep stragglers on the targets by name (batched — the synthetic-actor lesson).
       for (const a of [victim, shielder, npc]) {
         const strays = a.effects.filter(e =>
-          e.name.startsWith('BF Blessed') || e.name.startsWith('BF Favored'));
+          e.name.startsWith('BF Blessed') || e.name.startsWith('BF Favored') || e.name.startsWith('BF Potioned'));
         if (strays.length) await a.deleteEmbeddedDocuments('ActiveEffect', strays.map(e => e.id));
       }
       for (const [actorId, ids] of Object.entries(created.items.reduce((m, i) => {
@@ -546,6 +547,74 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('reactionHold', false);
       await set('interruptList', prior.interruptList);
       await set('holdApplyEffect', prior.holdApplyEffect);
+    }
+
+    // ---------------------------------------------------- 7. a used-up item still applies
+    // (user, 2026-09-22: "in sandbox i have a potion of resistence on gren, but it doesnt auto
+    // apply … when drnk/used"). dnd5e 6.0 SPENDS before it posts: the drink that uses up the last
+    // potion DELETES it, and only then is the card created — so the activity the stamp names is
+    // gone when the elect applies. The cast slice reads it off the card's snapshot now (lookup.js
+    // cardActivity). A stack keeps its item until the last drink, so both shapes are walked.
+    if (want(7)) {
+      const POT = 'bfpotioneffect00';
+      const potion = qty => ({
+        name: 'BF Test Potion', type: 'consumable',
+        system: {
+          type: { value: 'potion' }, quantity: qty,
+          uses: { max: '1', spent: 0, autoDestroy: true, recovery: [] },
+          activities: {
+            bfpotionutil0000: {
+              _id: 'bfpotionutil0000', type: 'utility',
+              activation: { type: 'bonus', override: false },
+              consumption: { targets: [{ type: 'itemUses', value: '1', target: '' }], spellSlot: false },
+              effects: [{ _id: POT }],
+              range: { override: false, units: 'self' },
+              target: { override: false, prompt: false, affects: { type: 'self', count: '', choice: false } }
+            }
+          }
+        },
+        effects: [{
+          _id: POT, name: 'BF Potioned', transfer: false, disabled: false,
+          img: 'icons/svg/aura.svg', duration: { seconds: 3600 },
+          description: '<p>Resistance to Poison damage (BF test fixture).</p>',
+          changes: [{ key: 'system.traits.dr.value', mode: 2, value: 'poison' }]
+        }]
+      });
+      const potioned = () => npc.effects.filter(e => e.name === 'BF Potioned');
+      const clearPotioned = async () => { if (potioned().length) await npc.deleteEmbeddedDocuments('ActiveEffect', potioned().map(e => e.id)); };
+      /** Drink once: the use, the card, the item's fate, and the effect on the drinker. */
+      const drink = async item => {
+        await clearPotioned();
+        target();   // SELF — no target needed, none given
+        await sleep(120);
+        const act = npc.items.get(item.id)?.system.activities.get('bfpotionutil0000');
+        if (!act) return { refused: true };
+        const used = await act.use({}, { configure: false }, {});
+        const card = (used?.message instanceof ChatMessage) ? used.message : null;
+        const stamp = card?.getFlag(MOD, 'castApply') ?? null;
+        const done = card ? await until(() => card.getFlag(MOD, 'effectReceipt')?.castDone, 8000) : false;
+        const chip = potioned()[0] ?? null;
+        return { card: !!card, stamp: !!stamp, done: !!done, chip: !!chip, left: npc.items.get(item.id)?.system.quantity ?? 0,
+          resists: npc.system.traits.dr.value.has('poison'), receipt: (card?.getFlag(MOD, 'effectReceipt')?.targets ?? []).map(t => t.uuid) };
+      };
+      try {
+        const [single] = await npc.createEmbeddedDocuments('Item', [potion(1)]);
+        created.items.push({ actorId: npc.id, id: single.id });
+        const a = await drink(single);
+        ok('7a. the LAST potion: the drink deletes it before the card, and its effect still lands on the drinker, receipted',
+          a.card && a.stamp && a.done && a.chip && (a.left === 0) && a.resists && (a.receipt.join() === npc.uuid), JSON.stringify(a));
+
+        const [stack] = await npc.createEmbeddedDocuments('Item', [potion(2)]);
+        created.items.push({ actorId: npc.id, id: stack.id });
+        const b1 = await drink(stack);
+        ok('7b. a stack of TWO, the first drink: the item stays (quantity 1) and the effect lands',
+          b1.stamp && b1.done && b1.chip && (b1.left === 1), JSON.stringify(b1));
+        const b2 = await drink(stack);
+        ok('7c. …and the second drink uses the stack up — the item is gone and the effect lands all the same',
+          b2.stamp && b2.done && b2.chip && (b2.left === 0), JSON.stringify(b2));
+      } finally {
+        await clearPotioned();
+      }
     }
 
     return { log, results, skips };

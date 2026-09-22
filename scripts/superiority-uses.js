@@ -3,7 +3,7 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
-import { lower, featureNamed, activityNamed, resolveUuid, resolveDie } from "./lookup.js";
+import { cardItem, lower, featureNamed, activityNamed, resolveUuid, resolveDie } from "./lookup.js";
 import { superiorityUseEntries, listedNames } from "./settings.js";
 import { chipData, hitTargets, placeOf, poolSpendsOn } from "./shared.js";
 import { bfCard, holdBarHTML, popupKey, riderMenuHTML, ruleLine, spendPhrase } from "./decide/present.js";
@@ -14,7 +14,7 @@ import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerRes
 import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
-import { CARD, isCard, itemUuidOf, targetsOf } from "./decide/card.js";
+import { CARD, isCard, targetsOf } from "./decide/card.js";
 
 /* ---------------------------------------------------------------------------------------------
  * SUPERIORITY USES (user, 2026-09-04: "do the rest of maneuvers"). The Battle Master's Bonus
@@ -79,7 +79,7 @@ const chipFor = (actor, key) => actor?.effects?.find(e => (e.getFlag(MODULE_ID, 
 Hooks.on("preCreateChatMessage", doc => {
   try {
     if ( !isCard(doc, CARD.usage) || !doc.getFlag(MODULE_ID, "castApply") ) return;
-    const item = resolveUuid(itemUuidOf(doc) ?? "");
+    const item = cardItem(doc);
     if ( !item || (item.type !== "feat") || !MANEUVER_FEATURE_NAMES.has(lower(item.name)) ) return;
     doc.updateSource({ [`flags.${MODULE_ID}.-=castApply`]: null });
   } catch(err) { console.warn(`${TITLE} | Could not keep the cast slice off a maneuver's card.`, err); }
@@ -196,6 +196,7 @@ async function showBaitPopup(card) {
   const bs = card.getFlag(MODULE_ID, "baitSwitch");
   if ( !bs || bs.chosen ) return;
   const actor = resolveUuid(bs.sourceUuid);
+  // live only: Bait and Switch is a maneuver FEATURE — never used up, so the sheet is the truth
   const item = resolveUuid(bs.itemUuid);
   await openMomentPopup(card, "bait", actor, {
     title: `${bs.key} — ${actor?.name ?? ""}`, icon: "fa-solid fa-people-arrows",
@@ -233,6 +234,7 @@ async function settleBait(card) {
     let claimed = false;
     await queueFlagWrite(card, "baitSwitch", current => { if ( current.resolved || current.resolving ) return false; current.resolving = true; claimed = true; });
     if ( !claimed ) return;
+    // live only: Bait and Switch is a maneuver FEATURE — never used up, so the sheet is the truth
     const item = bs.itemUuid ? await fromUuid(bs.itemUuid) : null;
     const effect = item?.effects.find(e => lower(e.name) === lower(bs.effectName)) ?? null;
     const who = bs.options.find(o => o.uuid === bs.chosen) ?? null;

@@ -4,12 +4,12 @@
  */
 import { MODULE_ID, TITLE, S, setting, rollerUserFor, canAnswerFor,
   drivesMomentFor, canApplyTo, whisperNoGM, statContext } from "./core.js";
-import { resolveUuid } from "./lookup.js";
+import { cardItem, resolveUuid } from "./lookup.js";
 import { rollConfigFor } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML } from "./decide/present.js";
 import { livePopups, momentButton, DialogCarried, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer, dramaticVerdictPause, registerDemand, demandAnsweredBy } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
-import { isConcentrationPrompt, itemUuidOf } from "./decide/card.js";
+import { isConcentrationPrompt } from "./decide/card.js";
 
 /* ---------------------------------------------------------------------------------------------
  * Phase 2.5 — the concentration assist: damage → ask → roll → verdict → break.
@@ -61,10 +61,9 @@ Hooks.on("dnd5e.preApplyDamage", (actor, amount, updates, options) => {
   const message = options?.originatingMessage;
   if ( !(message instanceof ChatMessage) ) return;
   // Every usage AND damage card names its item (`system.item`, the card seam), so the item
-  // behind the damage is one read; the speaker names the attacker.
-  let source = null;
-  try { source = fromUuidSync(itemUuidOf(message) ?? "")?.name ?? null; }
-  catch(err) { source = null; }
+  // behind the damage is one read — through the card, so a used-up item still names itself;
+  // the speaker names the attacker.
+  const source = cardItem(message)?.name ?? null;
   const attacker = message.getAssociatedActor?.()?.name ?? null;
   if ( actor.concentration?.effects?.size ) {
     recentDamageCauses.set(actor.uuid, { at: Date.now(), source, attacker });

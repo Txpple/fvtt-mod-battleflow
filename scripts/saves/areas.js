@@ -19,7 +19,7 @@
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite,
   drivesMomentFor } from "../core.js";
-import { resolveUuid } from "../lookup.js";
+import { cardActivity } from "../lookup.js";
 import { saveTargetEntry } from "../decide/demand.js";
 import { regionShapeTypeFor } from "../decide/geometry.js";
 import { tokensInRegions } from "../geometry.js";
@@ -154,7 +154,7 @@ export async function refreshDemandFromTemplates(card) {
       if ( claimed ) regions = [claimed];
     }
     if ( !regions.length ) return;
-    const activity = flag.activityUuid ? resolveUuid(flag.activityUuid) : null;
+    const activity = cardActivity(card, flag.activityUuid);
     const contained = emanationReach(activity, tokensInRegions(regions)) ?? [];
     // Careful's protected creatures never join the demand, Heightened's mark joins it (the metamagic
     // pass, Stage 2): derived from the area's contents, before the serialized write below.

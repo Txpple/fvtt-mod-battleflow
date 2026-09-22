@@ -23,7 +23,7 @@
  * machine that already owns the reroll, the verdict and the withheld save.
  */
 import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, isActiveGM, whisperNoGM, canAnswerFor } from "./core.js";
-import { lower, resolveUuid } from "./lookup.js";
+import { cardActivity, lower, resolveUuid } from "./lookup.js";
 import { metamagicEntries, listedNames } from "./settings.js";
 import { poolOf, spendPoolUses, isPartyMember } from "./shared.js";
 import { feetOf, tokenOfActor, tokensInRegions } from "./geometry.js";
@@ -491,7 +491,7 @@ async function postDeferredCard(held, record, answer, templateIds) {
   const card = await ChatMessage.create(data);
   if ( !card ) { releaseHold(held.pick.activityUuid ?? "", null); return null; }
   releaseHold(held.pick.activityUuid ?? "", card);
-  const activity = resolveUuid(held.pick.activityUuid ?? "") ?? null;
+  const activity = cardActivity(card, held.pick.activityUuid ?? null);
   const scene = canvas.scene ?? game.scenes.active;
   const templates = (templateIds ?? []).map(id => scene?.regions?.get(id)).filter(Boolean);   // a placed area is a Region (dnd5e 6.0)
   Hooks.callAll("battleflow.deferredUsageCard", { activity, message: card, templates });

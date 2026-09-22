@@ -8,7 +8,7 @@
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, 
   drivesMomentFor } from "../core.js";
-import { applicableProfiles, equippedShield, foldEntryFor, resolveUuid } from "../lookup.js";
+import { applicableProfiles, cardActivity, equippedShield, foldEntryFor, resolveUuid } from "../lookup.js";
 import { forceStatus, reactionSpent, spendReaction } from "../shared.js";
 import { bfCard, momentBarHTML, ruleLine } from "../decide/present.js";
 import { openMomentPopup, armDeadline, disarmDeadline, registerRelay } from "../ui.js";
@@ -63,7 +63,7 @@ async function saveChoiceSpec(card, flag, entry) {
   const found = foldEntryFor(attacker, "bash", maneuverFoldEntries());
   if ( !found ) return null;
   if ( found.item.name.toLowerCase() !== String(flag.item?.name ?? "").toLowerCase() ) return null;
-  const activity = flag.activityUuid ? await fromUuid(flag.activityUuid).catch(() => null) : null;
+  const activity = cardActivity(card, flag.activityUuid);
   // 6.0: the activity's list holds PROFILES whose effects resolve asynchronously (lookup.js).
   const presses = (await applicableProfiles(activity)).some(({ profile }) => !profile.onSave);
   if ( !presses ) return null;   // nothing to choose between — the push against no press is no choice

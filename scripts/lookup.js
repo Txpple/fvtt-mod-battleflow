@@ -52,6 +52,51 @@ export function resolveUuid(uuid) {
   catch { return null; }
 }
 
+/* ---------------------------------------------------------------------------------------------
+ * THE CARD'S ITEM AND ACTIVITY (user, 2026-09-22: "in sandbox i have a potion of resistence on
+ * gren, but it doesnt auto apply … when drnk/used"). A use SPENDS before it posts: dnd5e 6.0
+ * `Activity#use` applies the consumption — deleting an item whose last use it was (a potion, a
+ * scroll: `uses.autoDestroy`) — and only then creates the card, so a uuid stamped for the used
+ * thing names a document that is already gone. The card keeps a SNAPSHOT of the deleted item
+ * (`system.deltas.deleted`), and the platform's own read rebuilds it
+ * (`ChatMessage5e#getAssociatedItem` / `getAssociatedActivity`, parented to the speaker) — the
+ * read the card's own buttons use. These two are that read, behind the live one: the document
+ * while it stands, else the card's copy when it is the SAME item. `tools/check-card-reads.mjs`
+ * fails the build on a bare uuid read of an activity or item anywhere else.
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * The ITEM behind a card: the live document by `uuid` when it stands, else the card's own item
+ * (live, or rebuilt from its snapshot once the use deleted it) — only when it is the item the
+ * uuid names. No `uuid`: the card's own item. Null when neither answers.
+ */
+export function cardItem(message, uuid = null) {
+  const live = resolveUuid(uuid);
+  if ( live ) return live;
+  let item = null;
+  try { item = message?.getAssociatedItem?.() ?? null; } catch { item = null; }
+  if ( !uuid || !item ) return item;
+  const id = /(?:^|\.)Item\.([^.]+)$/.exec(String(uuid))?.[1] ?? null;
+  return (id && (item.id === id)) ? item : null;
+}
+
+/**
+ * The ACTIVITY behind a card: the live one by `uuid` when it stands, else read off the card's
+ * item — so a save or rider activity on the same item as the card's own (a weapon's rider save
+ * on its attack card) resolves too. No `uuid`: the card's own activity. Null when neither answers.
+ */
+export function cardActivity(message, uuid = null) {
+  const live = resolveUuid(uuid);
+  if ( live ) return live;
+  if ( !uuid ) {
+    try { return message?.getAssociatedActivity?.() ?? null; } catch { return null; }
+  }
+  const [, itemId, activityId] = /(?:^|\.)Item\.([^.]+)\.Activity\.([^.]+)$/.exec(String(uuid)) ?? [];
+  if ( !itemId ) return null;
+  const item = cardItem(message);
+  return (item?.id === itemId) ? (item.system?.activities?.get?.(activityId) ?? null) : null;
+}
+
 /**
  * A die formula resolved on THIS actor's roll data, or null when it does not resolve: a scale
  * value (`@scale.battle-master.superiority.die`) read on the wrong sheet collapses to "0" in

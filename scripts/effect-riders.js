@@ -3,7 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, statContext } from "./core.js";
-import { resolveUuid } from "./lookup.js";
+import { cardActivity, resolveUuid } from "./lookup.js";
 import { effectRecord, joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
 import { CHIP_FLAG } from "./decide/chips.js";
 import { CARD, castLevelOn, concentrationIdOf, isCard, scalingOf } from "./decide/card.js";
@@ -22,10 +22,11 @@ import { METAMAGIC_FLAG, extendedDuration } from "./decide/metamagic.js";
 
 /**
  * The activity behind a chain message — the platform's own read (`system.activity.uuid` first,
- * the item's collection by id when the uuid is stale; dnd5e 6.0 `ChatMessage5e#getAssociatedActivity`).
+ * the item's collection by id when the uuid is stale; dnd5e 6.0 `ChatMessage5e#getAssociatedActivity`),
+ * through lookup.js's one home since 2026-09-22 (`cardActivity`, which never throws).
  */
 export function messageActivity(message) {
-  return message?.getAssociatedActivity?.() ?? null;
+  return cardActivity(message);
 }
 
 /**

@@ -55,7 +55,8 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, statContext } from "./core.js
 import { poolSpendsOn } from "./shared.js";
 import { esc, spendLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
-import { CARD, activityUuidOf, isCard, itemUuidOf, originIdOf } from "./decide/card.js";
+import { CARD, activityUuidOf, isCard, originIdOf } from "./decide/card.js";
+import { cardItem } from "./lookup.js";
 
 const flashed = new Set();
 // (cc): flashes held for an ability's own dice — usage message id → the armed flash.
@@ -75,10 +76,9 @@ const isUsage = m => isCard(m, CARD.usage);
 // `spendSuperiorityDie`), so the flash, the card line and every maneuver's subtitle agree.
 const spendRows = message => poolSpendsOn(message);
 
-/** The ability that was used, as the card names it. */
+/** The ability that was used, as the card names it — through the card, so a used-up item still names itself. */
 function usedName(message) {
-  try { return fromUuidSync(itemUuidOf(message) ?? "")?.name ?? null; }
-  catch { return null; }
+  return cardItem(message)?.name ?? null;
 }
 
 /**

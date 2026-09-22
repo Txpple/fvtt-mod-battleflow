@@ -7,7 +7,7 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, canAnswerFor } from "./core.js";
-import { resolveUuid, foldEntryFor } from "./lookup.js";
+import { cardActivity, resolveUuid, foldEntryFor } from "./lookup.js";
 import { maneuverFoldEntries } from "./settings.js";
 import { RULE_TEXT } from "./decide/registry.js";
 import { modeAllows } from "./shared.js";
@@ -125,8 +125,7 @@ async function hewChainContext(damageMessage) {
     ? origin
     : ((origin.getAssociatedRolls?.("attack") ?? []).at(-1) ?? null);
   if ( !attackMessage || !isCard(attackMessage, CARD.attack) ) return null;
-  const activityUuid = activityUuidOf(attackMessage);
-  const activity = activityUuid ? await fromUuid(activityUuid).catch(() => null) : null;
+  const activity = cardActivity(attackMessage, activityUuidOf(attackMessage));
   if ( activity?.attack?.type?.value !== "melee" ) return null;
   const attacker = attackMessage.getAssociatedActor?.();
   if ( !attacker || !modeAllows(attacker) ) return null;

@@ -1246,6 +1246,26 @@ elevation on an UNVIEWED scene throws in core 14.368 (`RegionDocument#testSample
 private `#polygonTree` the lazy getter builds — touch `region.polygonTree` on each region
 first, or view the scene).
 
+### A use SPENDS before it posts: a used-up item is gone before its card exists (2026-09-22)
+
+"A Potion of Poison Resistance on Gren doesn't auto-apply when drunk" — healing potions did.
+`Activity#use` (6.0.3) runs `#applyUsageUpdates` — which DELETES an item whose last use this
+was (`uses.autoDestroy`, quantity 1: potions, scrolls, vials) — and only then creates the usage
+card. Every uuid stamped for the used thing names a document already gone, so a bare
+`fromUuid(activityUuid)` answers nothing, in silence: the cast slice applied nothing, a vial's
+failed-save effect never landed (a code note had filed it as an "accepted corner"), a scroll's
+volley never drove. A healing potion survived only because its heal rides the roll. The card
+keeps a SNAPSHOT of the deleted item (`system.deltas.deleted`) and the platform's own read
+rebuilds it, parented to the speaker (`ChatMessage5e#getAssociatedItem`, `getAssociatedActivity`
+— what the card's own buttons use); an effect profile without a uuid resolves off that rebuilt
+item's own `effects` (`getEffect` reads `item.effects.get(_id)`), so the effect is all there.
+Read every card's item or activity through lookup.js `cardItem` / `cardActivity`;
+`tools/check-card-reads.mjs` fails the build on the bare shape. A stack of two keeps its item
+(quantity 1) until the last drink, which is why the bug looked intermittent. Pinned by
+smoke-cast §7 and smoke-saves §25. ⚠ A REGION names its activity by uuid with no card behind it,
+and dnd5e's own region behaviors resolve it the same way — an area from a used-up scroll loses
+its activity on the platform's side too.
+
 ## 3. The statblock caster
 
 Where most of the monster-side bugs lived.

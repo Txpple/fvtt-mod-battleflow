@@ -47,7 +47,8 @@ const SECTIONS = {
   23: 'the effect table\'s SAVES facet (2026-09-05): Aura of Purity counts Advantage against a demand imposing one of its conditions; Circle\'s Power against a spell, and a success takes NONE instead of half',
   21: 'Evasion: a Dexterity save for half — none on a success, half on a failure, said on the row and the receipt',
   22: 'the save gate says WHY when the PLATFORM bends the save (2026-09-04): an item effect on the sheet is a box',
-  24: 'the chained roll\'s SUMMARY (the 6.0 pass, phase 4): the roll\'s card hidden, the gate\'s record inside the usage card, the nudge, summaries off; the verdict written into the platform\'s row, the line only where no row (2026-09-18)'
+  24: 'the chained roll\'s SUMMARY (the 6.0 pass, phase 4): the roll\'s card hidden, the gate\'s record inside the usage card, the nudge, summaries off; the verdict written into the platform\'s row, the line only where no row (2026-09-18)',
+  25: 'a used-up item\'s failed save (2026-09-22): the vial is gone before its card exists, and its effect still lands — read off the card'
 };
 // §2 rolls the damage of the demand §1 cast (`card1`); §13 rides §12's completed lifecycle —
 // its card, its template id and its 140px scene. Both couplings are declared in the code
@@ -101,7 +102,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const npc = game.actors.getName('BF Test Attacker');
   if (!scene || !victim || !npc || !shielder) return { fatal: 'missing fixture: scene or BF Test actors' };
 
-  const CHIP_NAMES = ['BF Poisoned', 'BF Splashed'];
+  const CHIP_NAMES = ['BF Poisoned', 'BF Splashed', 'BF Vial Poisoned'];
   const created = { items: [], tokens: [], templates: [] };   // templates: the REGION ids this suite placed (dnd5e 6.0 areas are Regions)
   // An area the way dnd5e 6.0.1's TemplatePlacement writes it: a Region whose shape is the
   // platform's own (radius in PIXELS), the ACTIVITY on `flags.dnd5e.activity` when a cast owns it.
@@ -2165,6 +2166,60 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       } finally {
         await game.settings.set('dnd5e', 'chatCardSummary', priorSummary);
         await setStatus24(victim, 'restrained', false);
+        await clearChips();
+      }
+    }
+
+    // ============================================== 25. a used-up item's failed save
+    // (2026-09-22 — the Potion of Poison Resistance on Gren, the class not the example): dnd5e
+    // 6.0 SPENDS before it posts, so a vial whose last use this is is deleted before its card
+    // exists and the activity the demand stamped names nothing. The consequence reads it off the
+    // card's snapshot (lookup.js cardActivity) — the old "accepted corner (a consumed scroll)".
+    if (want(25)) {
+      const VIAL_EFF = 'bfvialeffect0000';
+      const [vial] = await npc.createEmbeddedDocuments('Item', [{
+        name: 'BF Test Vial', type: 'consumable',
+        system: {
+          type: { value: 'poison' }, quantity: 1,
+          uses: { max: '1', spent: 0, autoDestroy: true, recovery: [] },
+          activities: {
+            bfvialsave000000: {
+              _id: 'bfvialsave000000', type: 'save',
+              activation: { type: 'action', override: false },
+              consumption: { targets: [{ type: 'itemUses', value: '1', target: '' }], spellSlot: false },
+              damage: { onSave: 'none', parts: [] },
+              effects: [{ _id: VIAL_EFF, onSave: false }],
+              save: { ability: ['con'], dc: { calculation: '', formula: '15' } },
+              target: { override: false, prompt: true, affects: { type: 'creature', count: '1', choice: false } }
+            }
+          }
+        },
+        effects: [{ _id: VIAL_EFF, name: 'BF Vial Poisoned', transfer: false, disabled: false,
+          img: 'icons/svg/poison.svg', duration: { seconds: 60 },
+          description: '<p>Poisoned by a vial (BF test fixture — fail only).</p>' }]
+      }]);
+      created.items.push({ actorId: npc.id, id: vial.id });
+      try {
+        await clearChips();
+        await saveBonus(victim, '-30');          // forced failure vs DC 15
+        await healFull(victim);
+        target(victimToken);
+        await sleep(120);
+        const act = npc.items.get(vial.id).system.activities.get('bfvialsave000000');
+        const use = await act.use({}, { configure: false }, {});
+        const card25 = use?.message instanceof ChatMessage ? use.message : null;
+        const gone = !npc.items.get(vial.id);
+        const stamped = card25 ? await until(() => card25.getFlag(MOD, 'saves')) : null;
+        const popup = card25 ? await until(() => savePopups()[0], 8000) : null;
+        popup?.querySelector('button[data-action="normal"]')?.click();
+        if (card25) await until(() => entryOf(card25, victim)?.applied, 12000);
+        const chip = await until(() => chipOn(victim, 'BF Vial Poisoned'), 6000);
+        const entry = card25 ? entryOf(card25, victim) : null;
+        ok('25a. the vial\'s last use DELETES it before the card, yet the demand stands, the save fails, and the vial\'s effect lands off the card\'s snapshot',
+          gone && !!stamped && (entry?.outcome === 'failed') && !!chip,
+          `gone=${gone} card=${!!card25} stamped=${!!stamped} popup=${!!popup} outcome=${entry?.outcome} applied=${entry?.applied} chip=${!!chip}`);
+      } finally {
+        await saveBonus(victim, priorActor[victim.id]['system.abilities.con.save.roll.bonus']);
         await clearChips();
       }
     }

@@ -7,7 +7,7 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
-import { resolveUuid, usableManeuver, maneuverDieFormula } from "./lookup.js";
+import { cardActivity, resolveUuid, usableManeuver, maneuverDieFormula } from "./lookup.js";
 import { maneuverFoldEntries } from "./settings.js";
 import { hitTargets, modeAllows } from "./shared.js";
 import { bfCard, holdBarHTML, spendPhrase, rescueView, rescueSourceFor } from "./decide/present.js";
@@ -309,8 +309,7 @@ async function resolvePrecision(message) {
     // 4. The re-drive — the hold continuation's template: hitTargets re-run (it now reads
     //    the verdicts), the player's own dice honoured, the straight roll otherwise.
     if ( !anyHit || !hitTargets(message).length ) return;
-    const activityUuid = activityUuidOf(message);
-    const attackActivity = activityUuid ? await fromUuid(activityUuid) : null;
+    const attackActivity = cardActivity(message, activityUuidOf(message));
     if ( !attackActivity ) return;
     if ( setting(S.playerRollDamage) ) return void offerDamageRoll(attackActivity, message);
     await rollDamageForAttack(attackActivity, message);

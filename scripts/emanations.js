@@ -420,6 +420,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const holder = html.querySelector(SURFACES.messageContent);
   if ( !holder ) return;
   holder.appendChild(momentButton(`Use ${r.activityName}`, () => {
+    // live only: the button USES the ability, and a used-up item cannot be used — the warning below is the answer
     const activity = fromUuidSync(r.activityUuid);
     if ( !activity ) { ui.notifications.warn(`${TITLE}: ${r.activityName} is no longer on the sheet.`); return; }
     if ( !game.user.targets.size ) { ui.notifications.warn(`${TITLE}: target the creature to heal first, then press again.`); return; }
@@ -623,6 +624,7 @@ async function adoptSpellRegion(region) {
   try {
     if ( !isActiveGM() || !live() || flagOf(region) ) return;
     const itemUuid = region.getFlag("dnd5e", "item");
+    // live only: a region names its item by uuid with no card behind it — dnd5e's own region reads resolve the same way
     const item = resolveUuid(itemUuid);
     if ( !item ) return;
     const row = rowNamed(item.name);

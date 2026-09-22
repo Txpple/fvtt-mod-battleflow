@@ -294,6 +294,7 @@ async function runConsequences(damageMessage, hm) {
   try {
     const attackMessage = game.messages.get(hm.attackId);
     const attacker = attackMessage?.getAssociatedActor();
+    // live only: the paying maneuver FEATURE — never used up, so the sheet is the truth
     const item = resolveUuid(hm.itemUuid);
     if ( !attackMessage || !attacker || !item ) return;
     const hits = hitTargets(attackMessage);
@@ -344,6 +345,7 @@ async function settleHitEffects(message) {
     });
     if ( !claimed ) return;
     const attackMessage = game.messages.get(hm.attackId);
+    // live only: the paying maneuver FEATURE — never used up, so the sheet is the truth
     const item = resolveUuid(hm.itemUuid);
     const die = item ? activityOfType(item, "damage") : null;
     const effects = (await profileEffects(die?.effects)).map(({ effect }) => effect).filter(Boolean);
