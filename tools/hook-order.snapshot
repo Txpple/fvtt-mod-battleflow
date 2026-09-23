@@ -179,6 +179,7 @@ dnd5e.preRollDamageV2	emanations.js
 ready	emanations.js
 fvtt-mod-battleflow.emanationsChanged	emanations.js
 updateScene	emanations.js
+renderSceneNavigation	emanations.js
 canvasReady	emanations.js
 createToken	emanations.js
 deleteToken	emanations.js

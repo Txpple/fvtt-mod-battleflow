@@ -342,9 +342,12 @@ expired on the sheet until someone clears it; `start: null` on it ends the track
   2026-09-04). A Region's `tokens` set and its events are per scene, so an aura applied through
   the token on scene A stands on the token on scene B where nothing will ever lift it, and B's
   own ring writes a second copy under a different region id. Two consequences the module now
-  lives by: an emanation stands on the ACTIVE scene only (DESIGN §5), and a lift must read the
-  world's actors, not just the scene's tokens — the token that wore the effect may be on another
-  scene, or deleted.
+  lives by: the member copy is counted per AURA (the bearer's item and the row), not per region,
+  so a second scene can never stack it — an emanation stood on the ACTIVE scene only from
+  2026-09-04, and on every LIVE scene (active, or viewed by a connected player — a GM's view
+  only while no player is connected) since 2026-09-23
+  (DESIGN §6); and a lift must read the world's actors, not just the scene's tokens — the token
+  that wore the effect may be on another scene, or deleted.
 
 **A bare token move is WALKED, and a teleport needs the `displace` action (measured 2026-09-04,
 the test range, Foundry 14.365 / dnd5e 5.3.3).** `document.move([{x, y}])` with no action takes
@@ -363,8 +366,9 @@ is the final waypoint. A sight ray is `CONFIG.Canvas.polygonBackends.sight.testC
 (user: *"this particular fix isn't really a Battle Flow scoped item"*) — it is a movement-pipeline
 concern, not a rule of the game this module resolves; the working patch is
 [prototypes/teleports-in-battleflow.patch](prototypes/teleports-in-battleflow.patch), and its
-home is the new sister module **fvtt-mod-miscpatches** (same evening, user call), where it ships
-as `scripts/patches/teleports.js` with its own suite. Also measured: the animation module's own
+home is the new sister module **fvtt-mod-miscpatches** (same evening, user call), where it shipped
+as `scripts/patches/teleports.js` with its own suite — carried into FX Studio 2026-09-06 and
+REMOVED from Misc Patches in its v1.1.0 (user, 2026-09-23: "no longer relevant"). Also measured: the animation module's own
 "check collision" preset option is a MOVE-collision ray tested at the circle, before any move —
 a wall refuses there whatever the pipeline would do; that is the preset's setting to turn off.
 
@@ -391,8 +395,29 @@ permission needed: a player's drag moves the ring — measured on the Lair, 2026
 drags and a re-raise mid-walk, base = token every time). A ring raised from a token's PREPARED
 x/y mid-animation would start off it; emanations.js raises from the committed `_source` and the
 sweep re-bases a drifted ring (smoke-emanations §4d). ⚠ The Session 8 "stuck ring" did not
-reproduce; the measured half of that report is the ACTIVE-SCENE rule (BACKLOG, "the aura on a
-scene nobody activated").
+reproduce; the measured half of that report was the ACTIVE-SCENE rule (BACKLOG, "the aura on a
+scene nobody activated" — ruled and built the same day: a viewed scene is live).
+
+### A user's VIEWED scene has no document hook — the scene navigation's render is the signal (2026-09-23)
+
+`User#viewedScene` is a plain client property (user.mjs:51), not a schema field: each client
+sets its own in `Canvas#initializeUserActivity` (board.mjs:1519, every canvas draw) and
+broadcasts it as user activity; every other client writes it in `Users#handleUserActivity`
+(users.mjs:141) — with no hook. What that handler DOES do is `ui.nav?.render()` on a scene change
+or a (dis)connection, and the canvas draw re-renders the navigation for this client's own view
+(board.mjs:1499). So `renderSceneNavigation` is the one public signal for "someone is looking at
+a different scene"; `userConnected` fires only for the connection half. emanations.js reads the
+live set on that render (and on an activation) and sweeps only when it changed — the navigation
+renders often. Measured with two clients (smoke-twoclient `pull`): the GM heard a player's
+navigation within 2 s, one render.
+
+⚠ **An Assistant GM cannot pull a player to a scene.** The server's `pullToScene` handler
+forwards only when the sender `isGM` on the SERVER, which a role-3 user is not
+(dist/database/documents/scene.mjs, 14.368): `Scene#pullUsers` from the suite's Tester Assistant
+emitted and the player never moved — silently. The table's GM (role 4) pulls fine. A suite that
+needs a player on a scene makes the PLAYER navigate; the broadcast is the same one a pull ends
+in. `pullUsers` also skips a user the GM does not yet see as `active` — right after a client
+connects, its first activity may not have arrived.
 
 ## 2. dnd5e — 5.3.x as measured through 2026-09-15, and the 6.0 pass that closes the section
 
@@ -1392,6 +1417,14 @@ delay, and that was enough to turn a theoretical lost-merge into a measured doub
 **A lost receipt entry is two faults, not one.** The card under-reports, *and* the receipt is
 the idempotence guard — so a missing entry reads as "not applied yet" and the consequence lands
 twice. Any flag that doubles as a guard must be written under a lock.
+
+**A unit test that builds its own input can pass over a field the live caller never sends
+(2026-09-23).** `memberEffectData` read `row.name`, and its unit test handed it `{ name: … }` —
+green for three weeks while every live call passed `tableIndex`'s `rowNamed` shape, whose name is
+`key`. Every aura copy on the table was written with its `key` flag missing and a description
+opening "undefined:". The reminder gate hid it (it falls back to the origin item's name). Found
+only when a live assertion read the flag. A decision function's test should build its input with
+the PRODUCER the edge uses (`rowNamed`), not a literal of the shape the author remembers.
 
 **A guard read before an `await` is stale by the write — test it again INSIDE the serialized
 mutate (2026-09-23).** The area refresh checked "pending" at its top, awaited the protected list,

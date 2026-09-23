@@ -13,6 +13,16 @@
 //            (the hold's fold is the CONTINUING CLIENT's, the other two are the elect's) is
 //            never put to the question.
 //
+//   §pull   — A SCENE A PLAYER IS ON IS LIVE (user, 2026-09-23 — Session 8 played on scenes the
+//            players were pulled to and nobody activated, and the Paladin's aura stood on none of
+//            them). Another user's view reaches the GM only through the platform's activity
+//            broadcast — no document hook carries it — so only a second client can prove the GM
+//            hears it. ⚠ The PLAYER navigates; the suite does not pull. The server forwards a pull
+//            only from a full Gamemaster (`Scene.#pullToScene`: `if (!this.user.isGM) return`,
+//            Foundry 14.368) and this suite runs as an Assistant GM — measured 2026-09-23, the
+//            request never reached the player. A pulled client sends the same broadcast as one
+//            that navigated (`Canvas#initializeUserActivity`, run by every canvas draw).
+//
 //   §close  — THE POPUP CLOSING ACROSS CLIENTS (debt D2). `closeAnsweredHoldPopups` runs on
 //            EVERY client, before the continuing-client gate, precisely because the popup to
 //            close is usually on a different client from the one driving the resolution. When
@@ -29,7 +39,7 @@
 // `BF Test Shielder` on purpose — that one is deliberately GM-only (`ownership: {default: 0}`)
 // so smoke-hold can answer for it, which is the exact opposite of what this suite needs.
 //
-// Sections: `--section relay`, `--section close`, `--list`.
+// Sections: `--section relay`, `--section close`, `--section ack`, `--section pull`, `--list`.
 import { announcePlan, connectSuite, disposeSafely, loadEnv, report, sectionPlan }
   from './harness.mjs';
 import { playerConfig } from './target.mjs';
@@ -38,7 +48,8 @@ import { Foundry } from 'fvtt-mcp-dnd5e/client';
 const SECTIONS = {
   relay: "the hold's RELAYED answer — the player writes its own message, the elect folds it",
   close: "the hold's popup CLOSES on the other client when the buzzer answers it",
-  ack: "a PLAYER's OK on a GM-authored notice reaches the GM's card (the relayed ack)"
+  ack: "a PLAYER's OK on a GM-authored notice reaches the GM's card (the relayed ack)",
+  pull: "a scene the PLAYER is on is live: the Paladin's aura stands there though another scene is active and the GM is elsewhere, and comes down when the player leaves; the GM's own preview, a player connected, raises nothing"
 };
 // Each section stands its own attack up on the shared fixture and cleans up after itself.
 const DEPENDS = {};
@@ -87,7 +98,11 @@ const setup = await gm.evaluate(async ({ playerId }) => {
   // nothing to do with what is under test.
   await set('holdSkipFutile', false);
   await set('holdApplyEffect', true);
-  await set('holdTimer', 20);          // §relay answers by hand well inside this
+  // §relay answers by hand well inside this. ⚠ 45 s, not 20 (2026-09-23): on a loaded workstation
+  // the round trips to two headless clients ate the whole 20 s — the buzzer resolved the hold
+  // (timedOut) before the player's click landed, and relay/2 read "no message" three runs running
+  // while relay/4-5 passed on the TIMEOUT's pass. The click was never the fault.
+  await set('holdTimer', 45);
   await set('autoDamage', 'all');
   await set('autoApply', true);
   await set('requireTarget', false);
@@ -217,7 +232,12 @@ if (want('relay')) {
         const dlg = [...foundry.applications.instances.values()]
           .find(a => (a instanceof foundry.applications.api.DialogV2) && a.rendered
             && /Shield/i.test(a.options?.window?.title ?? ''));
-        if (dlg) return { found: true, title: dlg.options?.window?.title ?? null };
+        if (dlg) {
+          // The relay is only exercised when the player CANNOT write the attack message — say so.
+          const m = game.messages.get(id);
+          return { found: true, title: dlg.options?.window?.title ?? null, attackIsOwner: m?.isOwner ?? null,
+            attackAuthor: m?.author?.name ?? null, speaker: m?.speaker?.alias ?? null };
+        }
         await new Promise(r => setTimeout(r, 200));
       }
       const seen = game.messages.get(id)?.getFlag('fvtt-mod-battleflow', 'hold');
@@ -235,12 +255,27 @@ if (want('relay')) {
         .find(a => (a instanceof foundry.applications.api.DialogV2) && a.rendered
           && /Shield/i.test(a.options?.window?.title ?? ''));
       if (!dlg) return { clicked: false };
-      dlg.element.querySelector('button[data-action="pass"]')?.click();
+      // ⚠ CAUGHT AT CREATION, not only polled from the log (2026-09-23): the envelope DELETES
+      // ITSELF once the continuing client folds it (the relay's cleanup), and on a quick box the
+      // whole create → fold → delete ran inside one 200 ms poll — relay/4-5 green (the fold
+      // happened) while relay/2 read "no message", twice running. The hook sees it either way.
+      let caught = null;
+      const hook = Hooks.on('createChatMessage', m => {
+        if (!caught && !before.has(m.id) && (m.author?.id === game.user.id)) caught = m;
+      });
+      const buttons = [...dlg.element.querySelectorAll('button')].map(x => `${x.dataset.action ?? '?'}:${x.textContent.trim()}${x.disabled ? '(disabled)' : ''}`);
+      // The hold as THIS client sees it at the click: an answer on a hold already resolved is
+      // dropped by design (answerHold's first-answer-wins), so a slow run names itself here.
+      const holdSnap = () => { const m = [...game.messages.contents].reverse().find(x => x.getFlag('fvtt-mod-battleflow', 'hold')); const h = m?.getFlag('fvtt-mod-battleflow', 'hold'); return { status: h?.status ?? null, answers: (h?.targets ?? []).map(t => `${t.answer ?? '-'}${t.timedOut ? ' (timed out)' : ''}`) }; };
+      const holdBefore = holdSnap();
+      const passBtn = dlg.element.querySelector('button[data-action="pass"]');
+      passBtn?.click();
       // Wait for the player's OWN message — that is the relay, and it is written here.
       for (let i = 0; i < 40; i++) {
-        const mine = game.messages.contents.find(m => !before.has(m.id)
+        const mine = caught ?? game.messages.contents.find(m => !before.has(m.id)
           && (m.author?.id === game.user.id));
         if (mine) {
+          Hooks.off('createChatMessage', hook);
           return { clicked: true, msgId: mine.id, author: mine.author?.name ?? null,
             respondsTo: mine.getFlag('fvtt-mod-battleflow', 'respondsTo') ?? null,
             answer: mine.getFlag('fvtt-mod-battleflow', 'answer') ?? null,
@@ -249,7 +284,8 @@ if (want('relay')) {
         }
         await new Promise(r => setTimeout(r, 200));
       }
-      return { clicked: true, msgId: null };
+      Hooks.off('createChatMessage', hook);
+      return { clicked: !!passBtn, msgId: null, buttons, holdAtClick: holdBefore };
     }, null);
 
     ok('relay/2. the answer travelled as the PLAYER\'S OWN message, stamped respondsTo',
@@ -267,7 +303,7 @@ if (want('relay')) {
         // the resolution, and fall back to the answered-but-pending shape at the deadline.
         if (h?.targets?.[0]?.answer && ((h.status === 'resolved') || (i === 59))) {
           return { answer: h.targets[0].answer, status: h.status,
-            verdict: h.targets[0].verdict ?? null };
+            verdict: h.targets[0].verdict ?? null, timedOut: !!h.targets[0].timedOut };
         }
         await new Promise(r => setTimeout(r, 250));
       }
@@ -432,6 +468,109 @@ if (want('ack')) {
   out.skips.push(`§ack ${SECTIONS.ack}`);
 }
 
+/* --- §pull: the scene a player was pulled to ------------------------------------------------ */
+
+if (want('pull')) {
+  // The GM makes ANOTHER scene active (every client follows it) and stands the Ranger inside the
+  // Paladin's ring on the range; then only the PLAYER goes back to the range — the table's own
+  // shape in Session 8. The GM never views the range while it counts: the player's view is the
+  // only thing that makes it live.
+  const setupPull = await gm.evaluate(async () => {
+    const MOD = 'fvtt-mod-battleflow';
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const scene = game.scenes.getName('Battle Flow Test Range');
+    const paladin = game.actors.getName('BF Test Paladin');
+    const ranger = game.actors.getName('BF Test Ranger');
+    const palTok = scene?.tokens.find(t => t.actorId === paladin?.id);
+    const rgrTok = scene?.tokens.find(t => t.actorId === ranger?.id);
+    if (!palTok || !rgrTok) return { fatal: 'missing fixture: BF Test Paladin or BF Test Ranger on the range — run tools/fixture-suite.mjs' };
+    if (!game.settings.get(MOD, 'emanations')) return { fatal: 'Emanations are off — the reference has them on (tools/verify-settings.mjs)' };
+    const st = globalThis.__bf2c;
+    st.pull = { priorActive: game.scenes.active?.id ?? null, rangerId: rgrTok.id, rangerHome: { x: rgrTok.x, y: rgrTok.y } };
+    const elsewhere = await Scene.create({ name: 'BF Test Elsewhere (2client)', width: 2000, height: 2000, grid: { size: 100, distance: 5 } });
+    st.pull.elsewhereId = elsewhere.id;
+    await elsewhere.activate();
+    const grid = scene.grid.size;
+    await rgrTok.update({ x: palTok.x, y: palTok.y - (2 * grid) }, { teleport: true, animate: false });
+    const rings = () => scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature' && r.getFlag(MOD, 'emanation')?.tokenId === palTok.id).length;
+    const fx = () => ranger.effects.filter(e => e.getFlag(MOD, 'emanation')).length;
+    for (let i = 0; (i < 60) && ((rings() > 0) || (fx() > 0)); i++) await sleep(250);
+    return { rings: rings(), fx: fx(), active: game.scenes.active?.name, gmViews: game.scenes.get(game.user.viewedScene)?.name ?? null };
+  }, null);
+  if (setupPull.fatal) {
+    ok('pull/0. fixtures', false, setupPull.fatal);
+  } else {
+    ok('pull/1. another scene active and nobody on the range: no ring stands there and the Ranger inside wears nothing',
+      (setupPull.rings === 0) && (setupPull.fx === 0), JSON.stringify(setupPull));
+    // THE GM'S PREVIEW, a player connected: the range is NOT live (user, 2026-09-23 — "keep GM
+    // views counted if it keeps accuracy": a GM's view counts only while no player is connected).
+    const preview = await gm.evaluate(async () => {
+      const MOD = 'fvtt-mod-battleflow';
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const scene = game.scenes.getName('Battle Flow Test Range');
+      const ranger = game.actors.getName('BF Test Ranger');
+      const elsewhere = game.scenes.get(globalThis.__bf2c.pull.elsewhereId);
+      // ⚠ Scene#view REFUSES while the canvas is still loading (a warning, no throw) — on a loaded
+      // box the activation's draw was still running and the GM never left (2026-09-23). Wait the
+      // load out, and confirm the view took, before the absence of rings means anything.
+      for (let i = 0; (i < 40) && canvas.loading; i++) await sleep(250);
+      for (let i = 0; (i < 3) && (game.user.viewedScene !== scene.id); i++) {
+        await scene.view();
+        for (let j = 0; (j < 40) && (game.user.viewedScene !== scene.id || canvas.loading); j++) await sleep(250);
+      }
+      await sleep(3000);   // load-bearing: rings that were going to rise on the GM's view have risen
+      const out = { gmViews: game.scenes.get(game.user.viewedScene)?.name ?? null,
+        rings: scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature').length,
+        fx: ranger.effects.filter(e => e.getFlag(MOD, 'emanation')).length,
+        players: game.users.filter(u => u.active && !u.isGM).map(u => u.name) };
+      for (let i = 0; (i < 40) && canvas.loading; i++) await sleep(250);
+      await elsewhere.view();
+      for (let i = 0; (i < 40) && (game.user.viewedScene !== elsewhere.id); i++) await sleep(250);
+      return out;
+    }, null);
+    ok('pull/1b. the GM previews the range while a player is connected: no ring rises and the Ranger inside wears nothing (a GM\'s view counts only when no player is on)',
+      (preview.gmViews === 'Battle Flow Test Range') && (preview.rings === 0) && (preview.fx === 0) && (preview.players.length > 0), JSON.stringify(preview));
+    const navBefore = await gm.evaluate(async () => globalThis.__bfHookLedger?.renderSceneNavigation ?? 0, null);
+    await player.evaluate(async () => { await game.scenes.getName('Battle Flow Test Range')?.view(); }, null);
+    const pulled = await gm.evaluate(async ({ playerId, navBefore }) => {
+      const MOD = 'fvtt-mod-battleflow';
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const scene = game.scenes.getName('Battle Flow Test Range');
+      const ranger = game.actors.getName('BF Test Ranger');
+      const palTok = scene.tokens.find(t => t.actorId === game.actors.getName('BF Test Paladin')?.id);
+      const rings = () => scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature' && r.getFlag(MOD, 'emanation')?.tokenId === palTok.id).length;
+      const fx = () => ranger.effects.filter(e => e.getFlag(MOD, 'emanation')).length;
+      let i = 0;
+      for (; (i < 80) && !((rings() === 3) && (fx() === 3)); i++) await sleep(250);
+      return { rings: rings(), fx: fx(), ms: i * 250, playerViews: game.scenes.get(game.users.get(playerId)?.viewedScene)?.name ?? null,
+        gmViews: game.scenes.get(game.user.viewedScene)?.name ?? null, active: game.scenes.active?.name,
+        navFired: (globalThis.__bfHookLedger?.renderSceneNavigation ?? 0) - navBefore };
+    }, { playerId: who.id, navBefore });
+    ok('pull/2. THE PLAYER ON THE RANGE: the Paladin\'s three rings stand there and the Ranger inside wears the three auras — no activation, the GM elsewhere',
+      (pulled.rings === 3) && (pulled.fx === 3) && (pulled.playerViews === 'Battle Flow Test Range') && (pulled.gmViews !== 'Battle Flow Test Range'), JSON.stringify(pulled));
+    // Conjoined with the player's view having ARRIVED: a navigation render happens for other
+    // reasons too, so counting one alone passes on a run where the player never moved.
+    ok('pull/3. the GM heard the player\'s view through renderSceneNavigation (the only public signal a remote view raises)',
+      (pulled.playerViews === 'Battle Flow Test Range') && (pulled.navFired > 0), JSON.stringify(pulled));
+    await player.evaluate(async () => { await game.scenes.active?.view(); }, null);
+    const left = await gm.evaluate(async playerId => {
+      const MOD = 'fvtt-mod-battleflow';
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const scene = game.scenes.getName('Battle Flow Test Range');
+      const ranger = game.actors.getName('BF Test Ranger');
+      const rings = () => scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature').length;
+      const fx = () => ranger.effects.filter(e => e.getFlag(MOD, 'emanation')).length;
+      let i = 0;
+      for (; (i < 80) && ((rings() > 0) || (fx() > 0)); i++) await sleep(250);
+      return { rings: rings(), fx: fx(), ms: i * 250, playerViews: game.scenes.get(game.users.get(playerId)?.viewedScene)?.name ?? null };
+    }, who.id);
+    ok('pull/4. the player back on the active scene: nobody is on the range, its rings come down and the Ranger\'s three are lifted',
+      (left.rings === 0) && (left.fx === 0) && (left.playerViews !== 'Battle Flow Test Range'), JSON.stringify(left));
+  }
+} else {
+  out.skips.push(`§pull ${SECTIONS.pull}`);
+}
+
 /* --- teardown: always ---------------------------------------------------------------------- */
 
 const torn = await gm.evaluate(async () => {
@@ -440,6 +579,19 @@ const torn = await gm.evaluate(async () => {
   const errs = [];
   try { for (const [k, v] of Object.entries(st.prior)) await game.settings.set(MODULE, k, v); }
   catch (err) { errs.push(`settings: ${err?.message}`); }
+  // §pull: the Ranger home, the prior active scene back (every client follows it), the scene gone.
+  try {
+    if (st.pull) {
+      const scene = game.scenes.getName('Battle Flow Test Range');
+      const rgr = scene?.tokens.get(st.pull.rangerId);
+      if (rgr) await rgr.update(st.pull.rangerHome, { teleport: true, animate: false });
+      const back = st.pull.priorActive ? game.scenes.get(st.pull.priorActive) : null;
+      if (back && (game.scenes.active?.id !== back.id)) await back.activate();
+      if (canvas.scene?.id !== scene?.id) await scene?.view();
+      const elsewhere = game.scenes.get(st.pull.elsewhereId);
+      if (elsewhere) await elsewhere.delete();
+    }
+  } catch (err) { errs.push(`pull: ${err?.message}`); }
   try {
     const scene = game.scenes.getName('Battle Flow Test Range');
     const tok = scene?.tokens.get(st.tokenId);

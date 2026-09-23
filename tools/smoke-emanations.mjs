@@ -26,7 +26,7 @@ const SECTIONS = {
   8: 'the area goes (concentration\'s end) — the region goes and Half Speed lifts',
   9: 'the switch: Emanations off removes the standing aura; on again raises it',
   10: 'the registrations FIRED (§11): createRegion, updateToken and the region events moved',
-  11: 'THE ACTIVE SCENE ONLY (user, 2026-09-04: the bleed): another scene made active brings the range\'s rings down and lifts the ally\'s effects; the range active again raises them once, no stack; a ring left on an inactive scene is brought down by the ready sweep',
+  11: 'LIVE SCENES ONLY (user, 2026-09-04: the bleed; 2026-09-23: a viewed scene is live): another scene made active and viewed brings the range\'s rings down and lifts the ally\'s effects; a stale ring on a scene nobody is on is brought down by the ready sweep; the range VIEWED (not active) raises them; two live scenes with the ally inside the ring on both give ONE copy per aura; the range active again raises them once, no stack',
   12: 'THE SECOND SLICE — Aura of Life: the pack\'s effect on the ally inside, nothing on the hostile; an ally at 0 HP starting its turn inside regains the activity\'s own 1 HP, receipted',
   13: 'Crusader\'s Mantle: the ally inside wears the +1d4 radiant weapon-damage change the pack ships',
   14: 'Aura of Vitality: a NOTICE — nothing applied; at the caster\'s turn start a card offers Start of Turn Heal with a button, never played',
@@ -75,9 +75,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const tok = actor => scene.tokens.find(t => t.actorId === actor.id) ?? null;
   const palTok = tok(paladin), clrTok = tok(cleric), rgrTok = tok(ranger), vicTok = tok(victim);
   if (!palTok || !clrTok || !rgrTok || !vicTok) return { fatal: 'a fixture token is missing from the range — run tools/fixture-suite.mjs' };
-  // The range must be ACTIVE, not merely viewed: a ring stands on the active scene only. Done
-  // after every fatal check (a fatal return runs no teardown — the battery's copy once left the
-  // range active), and the user's active scene is handed back in teardown.
+  // The range is made ACTIVE as well as viewed: a ring stands on a live scene (active, or one a
+  // connected user views), and §11 moves the active scene away and back. Done after every fatal
+  // check (a fatal return runs no teardown — the battery's copy once left the range active), and
+  // the user's active scene is handed back in teardown.
   const priorActiveScene = game.scenes.active?.id ?? null;
   if (game.scenes.active?.id !== scene.id) { await scene.activate(); await sleep(1500); }
   if (canvas.scene?.id !== scene.id) { await scene.view(); await sleep(1500); }
@@ -454,7 +455,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('9b. on again: the aura is raised again', !!back, '');
     }
 
-    // ================================================== 11. the active scene only
+    // ================================================== 11. live scenes only
     if (want(11)) {
       const ringsUp = () => ['Aura of Protection', 'Aura of Courage', 'Aura of Warding'].every(k => featureRegion(palTok, k));
       const ringsDown = () => !scene.regions.some(r => r.getFlag(MOD, 'emanation')?.kind === 'feature');
@@ -468,9 +469,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await elsewhere.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(ranger.prototypeToken.toObject(), { x: 500, y: 500, actorId: ranger.id }, { inplace: false })]);
       await elsewhere.activate();
       const lifted = await waitFor(() => (memberFx(ranger).length === 0) ? true : null, 10000);
-      ok('11b. another scene made active: the Ranger\'s three effects are LIFTED, though its range token still stands inside the ring', !!lifted, `left=${memberFx(ranger).map(e => e.name).join(',')} active=${game.scenes.active?.name}`);
+      ok('11b. another scene made active (every client views it): the Ranger\'s three effects are LIFTED, though its range token still stands inside the ring', !!lifted, `left=${memberFx(ranger).map(e => e.name).join(',')} active=${game.scenes.active?.name} viewing=${game.users.filter(u => u.active).map(u => `${u.name}@${game.scenes.get(u.viewedScene)?.name}`).join(',')}`);
       const down = await waitFor(() => ringsDown() ? true : null, 10000);
-      ok('11c. the range\'s rings come down: a ring stands on the active scene only', !!down, scene.regions.filter(r => r.getFlag(MOD, 'emanation')).map(r => r.name).join(' | '));
+      ok('11c. the range\'s rings come down: nobody is on the range — neither active nor viewed', !!down, scene.regions.filter(r => r.getFlag(MOD, 'emanation')).map(r => r.name).join(' | '));
       ok('11d. no ring was raised on the other scene (no Paladin there)', !elsewhere.regions.some(r => r.getFlag(MOD, 'emanation')), '');
       // A ring left standing on an INACTIVE scene (the old code's, or a GM's reload mid-sweep):
       // the ready sweep brings it down. Raised by hand here as the old code would have, with the
@@ -485,11 +486,39 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(800);
       Hooks.call(`${MOD}.emanationsChanged`);   // the same everywhere-sweep ready runs
       const swept = await waitFor(() => (!scene.regions.get(stale[0].id) && memberFx(ranger, stale[0].id).length === 0) ? true : null, 10000);
-      ok('11e. a stale ring on an inactive scene is brought down by the everywhere-sweep, and the effect it wrote is lifted from the actor', !!swept, `region=${!!scene.regions.get(stale[0].id)} fx=${memberFx(ranger, stale[0].id).length}`);
+      ok('11e. a stale ring on a scene nobody is on is brought down by the everywhere-sweep, and the effect it wrote is lifted from the actor', !!swept, `region=${!!scene.regions.get(stale[0].id)} fx=${memberFx(ranger, stale[0].id).length}`);
+      // THE RANGE VIEWED, NOT ACTIVE (user, 2026-09-23: Session 8 played on scenes the players were
+      // pulled to and nobody activated). This client is the ONLY connected user, and a GM's view
+      // counts while no player is connected (the canvas draw sets `viewedScene` and re-renders the
+      // navigation) — ⚠ a player client left connected to the sandbox fails this step, rightly. A
+      // PLAYER on a scene, and the GM's preview not counting beside one, is smoke-twoclient `pull`.
+      const navBefore = count('renderSceneNavigation');
+      await scene.view();
+      const viewed = await waitFor(() => (ringsUp() && memberFx(ranger).length === 3) ? true : null, 15000);
+      ok('11g. the range VIEWED while another scene is active: the rings stand and the Ranger wears the three auras', !!viewed && (game.scenes.active?.id === elsewhere.id), `fx=${memberFx(ranger).length} rings=${scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature').length} active=${game.scenes.active?.name} viewing=${game.user.viewedScene === scene.id}`);
+      ok('11h. renderSceneNavigation FIRED on the view (the live-set watch\'s signal — ARCHITECTURE §11: a registered hook is asserted fired)', count('renderSceneNavigation') > navBefore, `before=${navBefore} after=${count('renderSceneNavigation')}`);
+      // TWO LIVE SCENES, ONE COPY: the Paladin stands on the active scene too, the Ranger beside
+      // him there as well as inside his ring on the range. A linked bearer's aura is one aura on
+      // every scene (decide/emanations.js emanationGroup): three copies, never six.
+      const elsePal = (await elsewhere.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(paladin.prototypeToken.toObject(), { x: 700, y: 500, actorId: paladin.id }, { inplace: false })]))[0];
+      const elseRgr = elsewhere.tokens.find(t => t.actorId === ranger.id);
+      const elseRings = () => elsewhere.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature');
+      const both = await waitFor(() => (elseRings().length === 3) && ringsUp() ? true : null, 15000);
+      await sleep(1500);   // load-bearing: a second floor, if one were going to write a second copy, lands before counting
+      ok('11i. two live scenes, the Ranger inside the Paladin\'s ring on BOTH: three rings on each, and EXACTLY three effects — one per aura, no stack', !!both && (memberFx(ranger).length === 3) && ['Aura of Protection', 'Aura of Courage', 'Aura of Warding'].every(k => memberFx(ranger).filter(e => e.getFlag(MOD, 'emanation')?.key === k).length === 1), `fx=${memberFx(ranger).map(e => e.name).join(' | ')} elseRings=${elseRings().length} rangeRings=${scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature').length} elseRanger=${!!elseRgr} elsePal=${!!elsePal}`);
+      await rgrTok.update(home[rgrTok.id], mv());
+      await sleep(1500);   // load-bearing: the lift, if it were going to take the copy the other scene still grants, lands first
+      ok('11j. the Ranger steps out on the range: still three — it stands inside the ring on the other live scene', memberFx(ranger).length === 3, `fx=${memberFx(ranger).length}`);
+      await elseRgr.update({ x: 1500, y: 1500 }, mv());
+      const outBoth = await waitFor(() => (memberFx(ranger).length === 0) ? true : null, 8000);
+      ok('11k. out on both scenes: all three lifted', !!outBoth, `fx=${memberFx(ranger).map(e => e.name).join(',')}`);
+      await rgrTok.update(inside, mv());
       await scene.activate();
       const back = await waitFor(() => (ringsUp() && memberFx(ranger).length === 3) ? true : null, 15000);
       await sleep(1500);   // a second sweep, if queued, settles before counting
       ok('11f. the range active again: the rings stand and the Ranger wears the three auras — exactly three, no stack', !!back && (memberFx(ranger).length === 3) && (scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature').length === 3), `fx=${memberFx(ranger).length} rings=${scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature').length}`);
+      const elseDown = await waitFor(() => (elseRings().length === 0) ? true : null, 10000);
+      ok('11l. the other scene, no longer active and viewed by nobody: its rings come down', !!elseDown, elseRings().map(r => r.name).join(' | '));
       await rgrTok.update(home[rgrTok.id], mv());
       await waitFor(() => memberFx(ranger).length === 0 ? true : null, 6000);
       if (game.scenes.get(elsewhere.id)) await elsewhere.delete().catch(() => {});

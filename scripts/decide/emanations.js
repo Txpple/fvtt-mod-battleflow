@@ -162,23 +162,91 @@ export function triggerDue({ inCombat, chitStands }) {
 }
 
 /**
- * Does an emanation on this scene apply anything right now? ONLY ON THE ACTIVE SCENE. An effect
- * lives on the actor, and a linked actor is one document across every scene — so an aura on the
- * camp scene put Protected on the Cleric's token on the battle map, and a party that leaves a
- * token of itself on every scene it visits got the ally beside the Paladin the effect once PER
- * SCENE (user, 2026-09-04: "an aura from one scene bleeding into another"; Morgash wore
- * seventeen). Play happens on the active scene, the platform's own idea of where the party is:
- * a feature's ring stands there and nowhere else, a spell's area applies and demands only there,
- * and anything an emanation elsewhere wrote is lifted.
- * @param {string|null} regionSceneId   the scene the emanation's region is on
+ * The scenes play is on NOW: the active scene, and every scene a connected user is VIEWING (user,
+ * 2026-09-23, Session 8: the table played on scenes the players were pulled to and nobody had
+ * activated — the ally beside Invictus never got the +2). The active scene alone was the
+ * 2026-09-04 answer to the bleed; what made the bleed was one effect per REGION, so a party
+ * token left on 22 scenes wrote 22 copies. The count is now kept per aura instead
+ * (`emanationGroup`, `groupMembers`), so a second live scene can never stack — and a scene
+ * nobody is looking at still raises nothing.
+ *
+ * ⚠ A GM's view counts ONLY WHILE NO PLAYER IS CONNECTED (user, 2026-09-23: "keep GM views
+ * counted if it keeps accuracy"). In a session the players' screens are where the party is; a GM
+ * previewing an old scene where the party's leftover tokens stand together would otherwise raise
+ * the rings there and hand an ally the aura on the real map while it stands out of range. Alone —
+ * prepping, testing — the GM's view is the only one, and it counts. An Assistant GM (the MCP
+ * bridge, a suite) is a GM here.
  * @param {string|null} activeSceneId   game.scenes.active's id
+ * @param {Array<{ sceneId: string|null, name?: string|null, isGM?: boolean }>} viewers   each CONNECTED user's viewed scene
+ * @returns {Map<string, string>}   scene id → why it is live
+ */
+export function liveScenes(activeSceneId, viewers = []) {
+  const live = new Map();
+  if ( activeSceneId ) live.set(activeSceneId, "the active scene");
+  const connected = (viewers ?? []).filter(Boolean);
+  const players = connected.filter(v => !v.isGM);
+  for ( const v of (players.length ? players : connected) ) {
+    if ( !v.sceneId || live.has(v.sceneId) ) continue;
+    live.set(v.sceneId, `${v.name || "a connected user"} is viewing it`);
+  }
+  return live;
+}
+
+/**
+ * Does an emanation on this scene apply anything right now? Only on a LIVE scene (`liveScenes`):
+ * a feature's ring stands there and nowhere else, a spell's area applies and demands only there,
+ * and anything an emanation elsewhere wrote is lifted. An effect lives on the actor, and a linked
+ * actor is one document across every scene — a ring on a scene nobody plays on would reach the
+ * ally on the one they do (user, 2026-09-04: "an aura from one scene bleeding into another").
+ * @param {string|null} regionSceneId   the scene the emanation's region is on
+ * @param {Map<string, string>|null} live   `liveScenes`' answer
  * @returns {{ applies: boolean, why: string }}
  */
-export function appliesOnScene(regionSceneId, activeSceneId) {
+export function appliesOnScene(regionSceneId, live) {
   if ( !regionSceneId ) return { applies: false, why: "no scene" };
-  if ( !activeSceneId ) return { applies: false, why: "no active scene" };
-  if ( regionSceneId !== activeSceneId ) return { applies: false, why: "not the active scene" };
-  return { applies: true, why: "the active scene" };
+  const why = live?.get(regionSceneId) ?? null;
+  if ( !why ) return { applies: false, why: "nobody is playing on this scene" };
+  return { applies: true, why };
+}
+
+/**
+ * ONE AURA, however many scenes it stands on: the source's item and the row. A linked bearer's
+ * item has one uuid on every scene (`Actor.<id>.Item.<id>`), so the Paladin's ring on the camp and
+ * his ring on the battle map are the same aura, and the ally inside both wears ONE effect. An
+ * unlinked bearer's item lives on its own token (`Scene.….Token.….Actor.….Item.…`) — a different
+ * creature, a different aura, as it should be. A region that names no item is a group of one.
+ * @param {string|null} itemUuid
+ * @param {string|null} key   the emanation row's name
+ * @param {string} regionId
+ */
+export function emanationGroup(itemUuid, key, regionId) {
+  return (itemUuid && key) ? `${itemUuid}|${key}` : `region:${regionId}`;
+}
+
+/**
+ * Who wears one aura's effect, across every region of it (the scenes it stands on), and from
+ * which region. A creature inside the aura on ANY live scene wears it once — the first region
+ * that admits it names the copy, so pass the one the table is most likely on first. The reach and
+ * the source rule are the per-region ones: a feature's own bearer never wears its ring (the
+ * pack's transfer effect already sits on the sheet), a spell's caster does when the reach admits
+ * its side (user, 2026-09-05: "he himself doesn't get adv … he doesn't have the effect").
+ * @param {Array<{ regionId: string, applies: boolean, kind: string, reach: "helpful"|"harmful",
+ *   sourceTokenId: string|null, sourceDisposition: number,
+ *   inside: Array<{ tokenId: string, actorKey: string, disposition: number }> }>} areas
+ * @returns {Map<string, string>}   actor key → the region whose copy it wears
+ */
+export function groupMembers(areas) {
+  const out = new Map();
+  for ( const a of areas ?? [] ) {
+    if ( !a?.applies ) continue;
+    for ( const t of a.inside ?? [] ) {
+      if ( !t?.actorKey || out.has(t.actorKey) ) continue;
+      if ( a.sourceTokenId && (t.tokenId === a.sourceTokenId) && (a.kind !== "spell") ) continue;
+      if ( !reachAdmits(a.reach, a.sourceDisposition, t.disposition) ) continue;
+      out.set(t.actorKey, a.regionId);
+    }
+  }
+  return out;
 }
 
 /**
@@ -207,22 +275,26 @@ export function damageTypeFor(types, alignment = null, chosen = null) {
 /**
  * The ActiveEffect a member receives — the pack's effect, named for its source, carrying the
  * resolved changes and the fingerprint the floor reads to know it is this emanation's.
- * @param {{ name: string, rule?: string }} row
+ * @param {{ key: string, rule?: string }} row   the row as `tableIndex`'s `rowNamed` hands it —
+ *        its name is `key` (the table's own key). ⚠ The rows carry no `name`: this read `row.name`
+ *        until 2026-09-23, and every member copy was written with its `key` flag missing and its
+ *        description opening "undefined:" (a unit test that passed a hand-made `{ name }` hid it).
  * @param {{ name: string, img?: string|null, description?: string|null, changes: any[] }} effect   the pack's effect, changes already resolved
- * @param {{ sourceName: string, itemUuid: string|null, regionId: string, moduleId: string, flagKey: string, status?: string|null }} ids
+ * @param {{ sourceName: string, itemUuid: string|null, regionId: string, group?: string|null, moduleId: string, flagKey: string, status?: string|null }} ids
  *        `status`: a status id the effect wears so the token SHOWS it — Foundry draws only
  *        temporary effects on a token, and a standing aura has no clock to be temporary by
  *        (user, 2026-09-03: "it should show a chit when in, and be removed when out").
+ *        `group`: the aura it is a copy of (`emanationGroup`) — the floor keeps one per group.
  */
-export function memberEffectData(row, effect, { sourceName, itemUuid, regionId, moduleId, flagKey, status = null }) {
+export function memberEffectData(row, effect, { sourceName, itemUuid, regionId, group = null, moduleId, flagKey, status = null }) {
   return {
     name: `${effect.name} — ${sourceName}`,
     img: effect.img ?? "icons/svg/aura.svg",
-    description: `<p><em>“${row.rule ?? ""}”</em></p><p>${row.name}: ${sourceName}'s emanation. Battle Flow keeps this while the creature stands inside it.</p>`,
+    description: `<p><em>“${row.rule ?? ""}”</em></p><p>${row.key}: ${sourceName}'s emanation. Battle Flow keeps this while the creature stands inside it.</p>`,
     origin: itemUuid ?? null,
     disabled: false, transfer: false,
     ...(status ? { statuses: [status] } : {}),
     changes: effect.changes.map(c => ({ ...c })),
-    flags: { [moduleId]: { [flagKey]: { regionId, key: row.name } } }
+    flags: { [moduleId]: { [flagKey]: { regionId, key: row.key, ...(group ? { group } : {}) } } }
   };
 }

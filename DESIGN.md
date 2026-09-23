@@ -731,6 +731,20 @@ automated — that sentence is the whole job, and the module does exactly that m
   spell's area applies and demands only there; a scene going inactive brings its areas down and
   lifts what they wrote from EVERY actor holding it, not only the tokens on that scene. The
   platform's own idea of where the party is, and one scene at a time means nothing can stack.
+- **…AMENDED: on every LIVE scene — the active one, and every scene a connected user is
+  viewing — with ONE copy per aura** (user, 2026-09-23, Session 8: *"allies next to Invictus not
+  getting the +2"* — the table played on scenes the players were pulled to and nobody activated;
+  the ruling on the proposal: *"ok sounds good"*). The bleed was never the second scene; it was
+  one member effect per REGION, so 22 rings wrote 22 copies. The count is now kept per AURA — the
+  bearer's item and the row (`emanationGroup`): the Paladin's ring on the camp and his ring on the
+  battle map are one aura, and the ally inside either wears one copy, lifted only when it stands
+  inside neither. A scene nobody is on still raises nothing, and a lift still reads every actor.
+  **A GM's view counts only while no player is connected** (user, same day: *"keep GM views
+  counted if it keeps accuracy"*). In a session the players' screens are where the party is: a
+  GM previewing an old scene where the party's leftover tokens stand together would raise the
+  rings there and give an ally the aura on the real map while it stands out of range. Alone —
+  prepping, testing — the GM's view is the only one, and it counts. An Assistant GM (the MCP
+  bridge, a suite) is a GM for this.
 - **Aura of Courage's pack effect carries no change.** The Frightened immunity is a CONTENT fix
   at the world (user: *"agree"*); the module applies what the pack ships.
 - **The first slice** is the Paladin's three auras and Spirit Guardians — one of each shape. Aura
