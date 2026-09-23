@@ -15,7 +15,9 @@
   installed there but **disabled** (FX Studio owns teleports now).
 - **Sandbox (localhost:30000):** Battle Flow's working tree deployed (module.json still says
   2.0.3), the BF Test fixtures present (no longer an exact prod copy), Misc Patches disabled,
-  settings CLEAN against `tools/verify-settings.mjs`.
+  settings CLEAN against `tools/verify-settings.mjs`. A Loot Shelf session also deployed Loot
+  Shelf 1.2.2 there afterwards (scripts only; its manifest reads 1.2.1 until a process restart)
+  and left ~20 Loot Shelf receipt lines in chat.
 - **Proof:** `npm run verify` green (663 unit tests). Full battery 19/22 green, settings clean;
   the three reds explained — smoke-saves §2 was the Shielder fixture inheriting Gren's drunk
   Poison Resistance (fixed in `tools/fixture-suite.mjs`, 9/9 after), smoke-d20-folds §10's
