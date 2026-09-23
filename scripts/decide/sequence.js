@@ -34,3 +34,17 @@ export function hitOfferStep({ status, masteryStatus = null, damageLanded, livin
   if ( masteryStatus === "pending" ) return "wait";
   return living > 0 ? "promote" : "moot";
 }
+
+/**
+ * Can this struck creature be bashed? Shield Master: *"If you attack a creature within 5 feet of
+ * you … and hit with a Melee weapon"* — the reach is the feat's own clause, and the map settles it
+ * (DESIGN R1, "game logic is not judgment"): Session 8 offered the bash on reach-weapon and thrown
+ * hits well beyond 5 feet (2026-09-22). A distance that could not be measured — no tokens, theatre
+ * of the mind — keeps the offer: it is a question the player can pass, never an outcome.
+ * @param {number|null} distanceFeet  attacker to target, nearest edges, in FEET (null: unmeasured)
+ * @returns {boolean}
+ */
+export function withinBashReach(distanceFeet) {
+  if ( (distanceFeet === null) || (distanceFeet === undefined) || !Number.isFinite(Number(distanceFeet)) ) return true;
+  return Number(distanceFeet) <= 5;
+}

@@ -12,7 +12,8 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor,
 import { resolveUuid, foldEntryFor } from "./lookup.js";
 import { maneuverFoldEntries } from "./settings.js";
 import { RULE_TEXT } from "./decide/registry.js";
-import { hitOfferStep } from "./decide/sequence.js";
+import { hitOfferStep, withinBashReach } from "./decide/sequence.js";
+import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { hitTargets, modeAllows, resolveAttackMessage } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
@@ -65,15 +66,20 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
     if ( used?.stamp && (used.stamp === combatStamp()) ) return; // once on each of your turns
     const hits = hitTargets(message);
     if ( !hits.length ) return;
+    const attackerToken = tokenOfActor(attacker);
     const living = [];
     for ( const t of hits ) {
       const a = await fromUuid(t.uuid).catch(() => null);
       if ( !(a instanceof Actor) ) continue;
       if ( a.statuses?.has?.("dead") ) continue;
       if ( (a.type === "npc") && ((a.system.attributes?.hp?.value ?? 0) <= 0) ) continue;
+      // "a creature within 5 feet of you" — measured at the hit, where the feat asks it; a reach
+      // weapon's 10-foot swing and a thrown javelin carry no bash (Session 8, 2026-09-22).
+      const token = tokenForUuid(t.uuid);
+      if ( !withinBashReach((attackerToken && token) ? nearestFeet(attackerToken, token) : null) ) continue;
       living.push({ uuid: t.uuid, name: t.name });
     }
-    if ( !living.length ) return;                                // a corpse cannot be bashed (the dead gate)
+    if ( !living.length ) return;                  // a corpse or a creature out of reach cannot be bashed
     // THE SEQUENCE: queued behind the damage unless nothing downstream would ever promote it.
     const sequenced = setting(S.autoApply) || setting(S.effectRiders) || setting(S.masteryRiders);
     await message.setFlag(MODULE_ID, "bashOffer", {

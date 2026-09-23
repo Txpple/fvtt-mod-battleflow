@@ -21,7 +21,9 @@ const SECTIONS = {
   5: "SOMEONE ELSE'S mark",
   6: 'no mark at all',
   7: 'concentration origin',
-  8: 'Foe Slayer REPLACES'
+  8: 'Foe Slayer REPLACES',
+  9: "the tray's shape: a stale compendium item beside a fresh activity",
+  10: 'through the cast: the applier names the caster'
 };
 // §§2-4 re-roll against the mark §1 placed and never place one of their own — the coupling is
 // real, so asking for any of them runs §1 first.
@@ -58,6 +60,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     riders: game.settings.get(MOD, 'riders'),
     riderList: game.settings.get(MOD, 'riderList'),
     riderUpgrades: game.settings.get(MOD, 'riderUpgrades'),
+    // §10 casts through the cast slice; the settings it pins come back with the rest.
+    castApply: game.settings.get(MOD, 'castApply'),
+    dramaticBeat: game.settings.get(MOD, 'dramaticBeat'),
+    reactionHold: game.settings.get(MOD, 'reactionHold'),
   };
 
   const scene = game.scenes.getName('Battle Flow Test Range');
@@ -68,11 +74,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     return { fatal: 'missing fixture: scene "Battle Flow Test Range" or a BF Test actor' };
   }
 
-  const created = { items: [], effects: [], tokens: [] };
+  const created = { items: [], effects: [], tokens: [], messages: [] };
+  // §10's edits to a fixture item that may pre-date this run: put back exactly as found.
+  const itemRestores = [];
   let restored = false;
   const teardown = async () => {
     if (restored) return;
     restored = true;
+    for (const { item, effect, data } of itemRestores.reverse()) {
+      if (!item?.parent?.items.get(item.id)) continue;
+      if (effect) await item.updateEmbeddedDocuments('ActiveEffect', [{ _id: effect, ...data }]);
+      else await item.update(data);
+    }
+    const liveMessages = created.messages.filter(id => game.messages.get(id));
+    if (liveMessages.length) await ChatMessage.deleteDocuments(liveMessages);
     // ⚠ A synthetic actor rebuilds its embedded collections from the delta on every write, so
     // deletions go out as ONE call per collection, never one document at a time.
     for (const [actorId, ids] of Object.entries(created.effects.reduce((m, e) => {
@@ -163,10 +178,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (!victimToken) return { fatal: 'victim token never reached the canvas' };
 
     // ---- helpers
-    const putMark = async originUuid => {
-      const [made] = await victim.createEmbeddedDocuments('ActiveEffect', [{
+    const putMark = async (originUuid, extra = {}) => {
+      const [made] = await victim.createEmbeddedDocuments('ActiveEffect', [foundry.utils.mergeObject({
         ...markerTemplate.toObject(), disabled: false, transfer: false, origin: originUuid
-      }]);
+      }, extra)]);
       created.effects.push({ actorId: victim.id, id: made.id });
       return made;
     };
@@ -267,6 +282,79 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // Replaces, never stacks: exactly ONE force part, and it is the d10.
         ok('8. Foe Slayer replaces the die (d10, and only one)',
           (force.length === 1) && (force[0].formula === '1d10'), JSON.stringify(rolls));
+      }
+    }
+
+    // The shape the table's marks actually had (Session 8, 2026-09-22 — six hits, no die): the
+    // 6.0 migration left the PACK's uuid in every world template's `system.origin.item`, and an
+    // application copies the template and merges its own provenance over it. §§1-8 never saw it:
+    // they plant the 5.x `origin` string on a template fresh from the pack, which has no `item`.
+    const packMark = (await findInPacks('hunters-mark'))?.uuid
+      ?? 'Compendium.dnd-players-handbook.spells.Item.phbsplHuntersMar';
+    // A Foe Slayer the fixture already owned (or §8 granted) replaces the die: expect its d10.
+    const expectDie = () => (attacker.items.some(i => i.system?.identifier === 'foe-slayer') ? '1d10' : '1d6');
+    const markActivity = [...hmAttacker.system.activities].find(a =>
+      (a.type === 'utility') && (a.effects ?? []).some(e => e._id === markerTemplate.id) && !a.activation?.override)
+      ?? [...hmAttacker.system.activities].find(a => (a.type === 'utility') && (a.effects ?? []).length);
+
+    // ------------------------------------ 9. the tray's shape: stale item, fresh activity
+    if (want(9)) {
+      // Exactly what `_prepareEffectData` leaves on the target: the template's stale `item`
+      // beside the `activity` the tray writes fresh, and no `origin` string of ours.
+      await clearMarks();
+      await putMark(null, { system: { origin: { item: packMark, activity: markActivity?.uuid ?? null } } });
+      rolls = await rollAt();
+      ok("9. a mark carrying the pack's uuid beside a fresh activity still pays",
+        (forceParts(rolls).length === 1) && (forceParts(rolls)[0].formula === expectDie()),
+        `activity=${markActivity?.uuid ?? 'NONE'} ${JSON.stringify(rolls)}`);
+    }
+
+    // ------------------------------------ 10. through the cast: the applier names the caster
+    if (want(10)) {
+      // The table's path end to end: the cast slice lands the mark from a template staled the
+      // way the migration staled Jetten's, and the landed copy must name the CASTER — to this
+      // module's reader (the die) and to the platform's own (`getSourceActor`, which every
+      // "your next turn" clock is judged against).
+      await clearMarks();
+      // §7's hand-made concentration would make this cast ask which one to drop.
+      const ownConc = created.effects.filter(e => (e.actorId === attacker.id) && attacker.effects.get(e.id));
+      if (ownConc.length) await attacker.deleteEmbeddedDocuments('ActiveEffect', ownConc.map(e => e.id));
+      if (!markActivity) {
+        ok('10. cast lands a mark that names the caster', false, 'no Mark Creature activity on the fixture');
+      } else {
+        await game.settings.set(MOD, 'castApply', true);
+        await game.settings.set(MOD, 'dramaticBeat', 0);
+        await game.settings.set(MOD, 'reactionHold', false);
+        const slotKey = `system.activities.${markActivity.id}.consumption.spellSlot`;
+        itemRestores.push({ item: hmAttacker, data: { [slotKey]: markActivity.consumption?.spellSlot ?? true } });
+        itemRestores.push({ item: hmAttacker, effect: markerTemplate.id,
+          data: { 'system.origin.item': markerTemplate.system.origin?.item ?? null } });
+        await hmAttacker.updateEmbeddedDocuments('ActiveEffect',
+          [{ _id: markerTemplate.id, 'system.origin.item': packMark }]);
+        // The innate shape (smoke-cast's fixtures): the cast spends no slot the fixture lacks.
+        await hmAttacker.update({ [slotKey]: false });
+        victimToken.setTarget(true, { releaseOthers: true });
+        await sleep(120);
+        const before = new Set(game.messages.contents.map(m => m.id));
+        const used = await hmAttacker.system.activities.get(markActivity.id).use({}, { configure: false }, {});
+        let landed = null;
+        for (let i = 0; i < 40 && !landed; i++) {
+          landed = victim.effects.find(e => (e._stats?.duplicateSource === markerTemplate.uuid)
+            && e.getFlag(MOD, 'applied'));
+          if (!landed) await sleep(200);
+        }
+        created.messages.push(...game.messages.contents.filter(m => !before.has(m.id)).map(m => m.id));
+        for (const e of attacker.effects.filter(e => e.statuses?.has?.('concentrating')))
+          created.effects.push({ actorId: attacker.id, id: e.id });
+        if (landed) created.effects.push({ actorId: victim.id, id: landed.id });
+        ok('10a. the cast lands the mark through the applier', !!landed,
+          `use=${used === undefined ? 'REFUSED' : 'ok'} landed=${landed?.uuid ?? 'NONE'}`);
+        ok("10b. the landed mark names the caster to the platform's own reader",
+          landed?.getSourceActor?.() === attacker,
+          `system.origin=${JSON.stringify(landed?.system?.origin ?? null)}`);
+        rolls = await rollAt();
+        ok('10c. and the hit pays the die', (forceParts(rolls).length === 1)
+          && (forceParts(rolls)[0].formula === expectDie()), JSON.stringify(rolls));
       }
     }
 

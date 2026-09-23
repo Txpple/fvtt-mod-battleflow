@@ -131,6 +131,11 @@ const out = await f.evaluate(async ({ playerName }) => {
       data.ownership = { default: 0 };        // GM-only: no player may answer for it
       data.prototypeToken.actorLink = true;   // linked: no delta to lose items through
       data.prototypeToken.name = "BF Test Shielder";
+      // ⚠ GREN'S SHEET, NOT GREN'S EVENING (2026-09-23): the clone is taken from whatever the
+      // live Gren is wearing — after Session 8 that was a drunk Potion of Poison Resistance, and
+      // smoke-saves §2's poison burst came out halved TWICE (2 of a saved 10). The actor's own
+      // applied effects are play state, not the character; the items' own effects stay.
+      data.effects = [];
       shielder = await Actor.create(data);
       made.push("BF Test Shielder");
       log.push("created BF Test Shielder from Gren Greenmantle");

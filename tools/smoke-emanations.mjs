@@ -225,6 +225,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('4c. the Paladin walking away lifts it', !!gone, `left=${memberFx(ranger).map(e => e.name).join(',')}`);
       await rgrTok.update(home[rgrTok.id], mv());
       await sleep(400);
+      // 4d. THE DRIFTED RING (Session 8, 2026-09-22: Invictus's ring stood "one square up and left"
+      // of him). A ring whose base has come off its token — raised mid-walk — is only SHIFTED by
+      // the platform on the next move, the offset carried along; the sweep puts it back under him.
+      const live4 = scene.regions.get(region.id);
+      const s4 = live4?.shapes?.[0]?.toObject?.() ?? foundry.utils.deepClone(live4?.shapes?.[0]);
+      if (s4) {
+        await live4.update({ shapes: [{ ...s4, base: { ...s4.base, x: s4.base.x - grid, y: s4.base.y - grid } }] });
+        await palTok.update({ x: palTok._source.x + grid, y: palTok._source.y }, mv());
+        const healed = await waitFor(() => {
+          const b = scene.regions.get(region.id)?.shapes?.[0]?.base;
+          return (b && (b.x === palTok._source.x) && (b.y === palTok._source.y)) ? b : null;
+        }, 8000);
+        ok('4d. a ring knocked off its token is back under it after the next move — the sweep re-bases it', !!healed,
+          `base=${JSON.stringify(scene.regions.get(region.id)?.shapes?.[0]?.base ?? null)} token=${palTok._source.x},${palTok._source.y}`);
+        await palTok.update(home[palTok.id], mv());
+        await sleep(600);
+      }
     }
 
     // ================================================== 5. Incapacitated

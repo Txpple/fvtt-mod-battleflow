@@ -1374,6 +1374,22 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await shimScene.deleteEmbeddedDocuments('Region', [stale13c.id]);
       }
       await ChatMessage.deleteDocuments([stub13.id]);
+
+      // 13d: THE ORPHAN (2026-09-23, the user's Careful Fireball left its circle standing): an area
+      // refresh read "pending" before its awaits, the buzzer closed the demand inside them, and the
+      // refresh's write appended a creature to the DONE demand — nobody left to ask it. The guard
+      // stops new orphans; the floor here must still clear a circle a card already stuck that way
+      // left: a closed demand's never-asked entry does not hold the area up.
+      const prior13d = foundry.utils.deepClone(card12.getFlag(MOD, 'saves'));
+      const [stale13d] = await shimScene.createEmbeddedDocuments('Region', [cube12()]);
+      await card12.setFlag(MOD, 'saves', { ...prior13d, status: 'done',
+        targets: [...(prior13d.targets ?? []), { uuid: shielder.uuid, name: shielder.name, done: false, outcome: null, total: null, rollMessageId: null }] });
+      try { ui.chat?.updateMessage?.(card12); } catch { /* render floor */ }
+      const swept13d = await until(() => !shimScene.regions.get(stale13d.id), 8000);
+      ok('13d. a CLOSED demand with a never-asked entry still sweeps its area — the orphan holds nothing up',
+        !!swept13d, `still=${!!shimScene.regions.get(stale13d.id)}`);
+      if (shimScene.regions.get(stale13d.id)) await shimScene.deleteEmbeddedDocuments('Region', [stale13d.id]);
+      await card12.setFlag(MOD, 'saves', prior13d);
     }
 
     // ============================================== 14. the duration sweep (2026-08-18 finding ①)

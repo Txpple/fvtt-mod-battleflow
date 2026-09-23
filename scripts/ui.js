@@ -83,8 +83,10 @@ export async function openManagedPopup(key, message, dialog) {
   const slot = nextCascadeSlot(popupSlots.values());
   popupSlots.set(key, slot);
   livePopups.set(key, dialog);
+  const priorFocus = document.activeElement;
   try {
     await dialog.render({ force: true });
+    returnTheKeyboard(dialog, priorFocus);
     const { left, top } = dialog.position ?? {};
     if ( Number.isFinite(left) && Number.isFinite(top) ) {
       if ( !cascadeAnchor ) cascadeAnchor = { left, top };
@@ -111,6 +113,25 @@ export async function openManagedPopup(key, message, dialog) {
     if ( !popupSlots.size ) cascadeAnchor = null;
     console.error(`${TITLE} | Could not open the popup — answer from the card.`, err);
   }
+}
+
+/**
+ * A MOMENT POPUP NEVER TAKES THE KEYBOARD (Session 8, 2026-09-22: Morgash's Tactical Mind offer
+ * was answered PASS twenty seconds in by nobody who meant it, and the table went to the sheet).
+ * ApplicationV2 focuses the `[autofocus]` element on first render (application.mjs:1801) and
+ * DialogV2 puts `autofocus` on the `default` button — so a popup opened by SOMEONE ELSE'S roll
+ * stole focus from the chat box, a sheet field or the canvas, and the next Enter, or Space (the
+ * pause key), pressed its default: Pass on the rescue window, Use on the bash offer, Cast Shield
+ * on the hold. A moment is answered with the pointer; focus goes back where it was, or nowhere.
+ * (The system's own roll dialogs keep Enter — the roller opened those; `markDefaultButton`.)
+ */
+function returnTheKeyboard(dialog, priorFocus) {
+  const active = document.activeElement;
+  if ( !active || !dialog.element?.contains?.(active) ) return;
+  const back = priorFocus && (priorFocus !== document.body) && priorFocus.isConnected
+    && !dialog.element.contains(priorFocus) && (typeof priorFocus.focus === "function");
+  if ( back ) priorFocus.focus({ preventScroll: true });
+  else active.blur?.();
 }
 
 /**

@@ -830,6 +830,25 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await victim.update({ 'system.attributes.hp.max': 1000, 'system.attributes.hp.value': 1000 });
         await acFlat(victim, 1);
         await victim.effects.find(e => e.statuses.has('prone'))?.delete().catch(() => {});
+        // THE FEAT'S REACH (Session 8, 2026-09-22 — the bash offered on hits beyond 5 feet): "if
+        // you attack a creature within 5 feet of you". The PC stands two squares off; a HIT from
+        // there stamps nothing. Then the PC steps beside the target, where the chain below runs.
+        {
+          let far = null;
+          for (let i = 0; i < 4 && !far; i++) {
+            const { msg, roll } = await attack(pcAttackAct(), victimToken);
+            if (roll && !roll.isFumble) far = msg;
+          }
+          await sleep(2500);
+          const feet = canvas.grid.measurePath([pcToken.center, victimToken.center]).distance;
+          ok('B4e. a HIT from beyond 5 feet stamps no bash offer — the feat\'s own reach (Session 8)',
+            !!far && (feet > 5) && !far.getFlag(MOD, 'bashOffer'),
+            `hit=${!!far} feet=${feet} offer=${JSON.stringify(far?.getFlag(MOD, 'bashOffer') ?? null)}`);
+        }
+        const pcHome = { x: pcToken.document.x, y: pcToken.document.y };
+        await pcToken.document.update({ x: victimToken.document.x, y: victimToken.document.y + canvas.grid.size },
+          { animate: false });
+        await sleep(500);
         let offer = null, atkMsg = null, queuedFirst = null, dmgAtPromotion = null;
         for (let i = 0; i < 6 && !offer; i++) {
           const { msg } = await attack(pcAttackAct(), victimToken);
@@ -875,6 +894,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('B4d. the driven demand fails and the chosen press lands the (x) standard chip — end to end',
           !!applied && (chip?.id === 'dnd5eprone000000'), `applied=${!!applied} chip=${chip?.id ?? null}`);
         await chip?.delete().catch(() => {});
+        await pcToken.document.update(pcHome, { animate: false });
         await acFlat(victim, 25);
         await closeDialogs('BF Shield Master');
       }

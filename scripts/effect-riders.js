@@ -147,12 +147,21 @@ export async function applyEffectsTo(targets, effects,
         [MODULE_ID]: { applied: true, ...(source ? { sourceUuid: source } : {}) }
       };
       foundry.utils.mergeObject(flags, extraFlags ?? {});
+      // THE PROVENANCE IS THIS APPLICATION'S, WHOLE (2026-09-23, Session 8's silent Hunter's
+      // Mark). The template's own `system.origin` is its LINEAGE — the 6.0 migration left the
+      // pack's uuid in `item` on 207 of the world's 243 applied templates — and a merge that
+      // names only `activity` leaves it standing, so the platform's `getSourceActor` (actor ??
+      // item ?? activity) walked to the compendium and found no caster: no rider die, and every
+      // "your next turn" clock judged against nobody. Every key is written, null where this
+      // application has nothing to say, and `item` names the item actually used.
       foundry.utils.mergeObject(changes, {
         flags,
         system: { origin: {
-          ...(act ? { activity: act.uuid } : (item ? { item: item.uuid } : {})),
-          ...(concentration ? { effect: concentration.uuid } : {}),
-          ...(message?.uuid ? { message: message.uuid } : {}),
+          actor: null, behavior: null,
+          activity: act?.uuid ?? null,
+          item: (act?.item ?? item)?.uuid ?? null,
+          effect: concentration?.uuid ?? null,
+          message: message?.uuid ?? null,
           ...(profile ? { profile } : {})
         } }
       });

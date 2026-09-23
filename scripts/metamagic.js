@@ -970,6 +970,9 @@ async function answerMetamagicAsk(message, picked, { timedOut = false } = {}) {
     const protectedUuids = new Set(protectedList.map(p => p.uuid));
     const window = Math.max(0, Number(ask.window) || 0);
     await queueFlagWrite(message, "saves", flag => {
+      // A demand already closed takes no new targets — nothing would ever ask them, and its area
+      // would never be swept (areas.js, the same guard, 2026-09-23).
+      if ( (flag.status ?? "pending") !== "pending" ) return false;
       const prev = flag.targets ?? [];
       const fresh = ask.candidates.filter(c => !protectedUuids.has(c.uuid) && !prev.some(t => t.uuid === c.uuid)).map(c => saveTargetEntry(c.uuid, c.name));
       flag.targets = [...prev.filter(t => t.done || !protectedUuids.has(t.uuid)), ...fresh];

@@ -168,6 +168,12 @@ export async function refreshDemandFromTemplates(card) {
     // re-demanded after it had already rolled. The mutate is synchronous, so only the
     // derivation moves; the awaits stay out here.
     await queueFlagWrite(card, "saves", current => {
+      // ⚠ THE STATUS IS RE-READ HERE TOO (2026-09-23 — the user's Careful Fireball left its
+      // circle standing). The "pending" test at the top ran BEFORE the awaits; the buzzer can
+      // roll the last target and close the demand inside them, and this write then appended a
+      // creature to a DONE demand — no clock left to ask it, so it owed a save forever and the
+      // spent-area sweep (every target done) never ran. A closed demand's target set is history.
+      if ( current.status !== "pending" ) return false;
       const prev = current.targets ?? [];
       const done = prev.filter(t => t.done);
       const keep = prev.filter(t => !t.done && contained.some(c => c.uuid === t.uuid) && !metamagic.protectedUuids.has(t.uuid));
@@ -262,7 +268,11 @@ const templateSweepsInFlight = new Set();
 export async function cleanupSpentTemplates(card, { endedConcentrationId = null } = {}) {
   const flag = card.getFlag(MODULE_ID, "saves");
   if ( !flag?.templated ) return;
-  if ( !(flag.targets ?? []).every(t => t.done && (t.applied || (t.outcome === "gone"))) ) return;
+  // Every verdict's consequences landed. On a CLOSED demand an entry that never got a verdict is
+  // an orphan the race fixed above could leave (2026-09-23) — no clock will ever ask it, so it
+  // does not hold the area up; this is what clears a circle a card already stuck that way left.
+  const closed = flag.status === "done";
+  if ( !(flag.targets ?? []).every(t => (t.done && (t.applied || (t.outcome === "gone"))) || (closed && !t.done)) ) return;
   // An INSTANTANEOUS area is spent when its last consequence lands (v1.14.0). A DURATION
   // area is spent when the CONCENTRATION that sustains it is gone (the 2026-08-18 session's
   // finding ①: Faerie Fire's region outlived the spell — and at dnd5e 6.0 a placed region is

@@ -368,6 +368,32 @@ as `scripts/patches/teleports.js` with its own suite. Also measured: the animati
 "check collision" preset option is a MOVE-collision ray tested at the circle, before any move —
 a wall refuses there whatever the pipeline would do; that is the preset's setting to turn off.
 
+### A dialog's DEFAULT button takes the keyboard when it opens (2026-09-23)
+
+`ApplicationV2#_postRender` focuses the `[autofocus]` element on first render
+(application.mjs:1801), and `DialogV2` puts `autofocus` on the button marked `default` — so a
+moment popup opened by SOMEONE ELSE'S roll pulled focus out of the chat box, a sheet field or
+the canvas, and the next Enter, or Space (the pause key), pressed its default: Pass on the rescue
+window, Use on the bash offer, Cast Shield on the hold — twelve popups default to an answer.
+Session 8: Morgash's Tactical Mind offer (1d10 on a 17) was answered PASS twenty seconds in, not
+by the timer; the table then spent Second Wind twice from the sheet and rolled the d10 by hand.
+`openManagedPopup` hands the focus back (`returnTheKeyboard`) — a moment is answered with the
+pointer. The system's own roll dialogs keep Enter: the roller opened those (`markDefaultButton`).
+Pinned by smoke-d20-folds ("an Enter in chat is not a Pass").
+
+### An attached emanation is RE-BASED only when its base matches the token exactly (2026-09-23)
+
+`TokenDocument#computeAttachedRegionUpdates` (14.368) moves an attached `emanation` by
+`updateSource({base: destination})` only when the shape's base equals the token's ORIGIN (x, y,
+width, height, shape); anything else is `shape.move` by the delta — the offset carried along
+forever. The mover's client computes the updates and the SERVER applies them (no region
+permission needed: a player's drag moves the ring — measured on the Lair, 2026-09-23, three
+drags and a re-raise mid-walk, base = token every time). A ring raised from a token's PREPARED
+x/y mid-animation would start off it; emanations.js raises from the committed `_source` and the
+sweep re-bases a drifted ring (smoke-emanations §4d). ⚠ The Session 8 "stuck ring" did not
+reproduce; the measured half of that report is the ACTIVE-SCENE rule (BACKLOG, "the aura on a
+scene nobody activated").
+
 ## 2. dnd5e — 5.3.x as measured through 2026-09-15, and the 6.0 pass that closes the section
 
 > ⚠ **Every `flags.dnd5e.*` fact below is 5.3.x HISTORY.** Since dnd5e 6.0 (the pass of
@@ -1266,6 +1292,42 @@ smoke-cast §7 and smoke-saves §25. ⚠ A REGION names its activity by uuid wit
 and dnd5e's own region behaviors resolve it the same way — an area from a used-up scroll loses
 its activity on the platform's side too.
 
+### An applied copy carries its TEMPLATE'S lineage: `system.origin.item` names the PACK (2026-09-23)
+
+Session 8: Jetten's Hunter's Mark landed on the Mound and moved twice, and six hits on the marked
+creature paid no 1d6 (every session through 9/8 had). The 6.0 migration moved every world item's
+effect-template `origin` — the pack's own uuid — into `system.origin.item`: **207 of the world's
+243 applied templates** (Hunter's Mark, Bless, Hex, Death Armor, Guidance, Vicious Mockery…).
+Both appliers copy the template and MERGE their provenance over it — the tray's
+`_prepareEffectData` writes `activity` (or `item`), `effect`, `message`, `profile`; ours wrote the
+same — so a copy on the target carried a fresh `activity` beside a stale compendium `item`.
+`effectSourceOf` read `actor || item || activity` and walked to the pack (an index entry: no
+actor) — no rider die, no damage shield's source; the platform's own `getSourceActor`
+(`actor ?? item ?? activity ?? origin`) finds nobody the same way, so every `sourceStart` /
+`sourceEnd` clock on those copies expires "past the creation round" at any turn edge rather than
+on the caster's. `effect.origin` (the PREPARED field: `effect ?? behavior ?? activity ?? item ??
+actor`) reads right, which is why `grantingActor` never broke. Fixed both ways: the reader TRIES
+each candidate, `activity` first, and a compendium walk is nobody; the applier writes the copy's
+`system.origin` WHOLE — every key, null where it has nothing to say, `item` the item actually
+used — so the platform's reader names the caster for what this module applies. ⚠ A copy the
+TRAY applies still carries the stale item: the reader copes, the platform's clock does not (a
+platform gap — Misc Patches territory, or a one-time data sweep of the 207 templates; neither
+done). Pinned by smoke-riders §9 (the tray's shape) and §10 (a real cast through the applier;
+both fail on v2.0.3). ⚠ §§1-8 had planted the 5.x `origin` string on a template fresh from the
+pack, which carries no `item` — the suite never saw the table's shape.
+
+### 6.0's moved-key table follows ONE hop — Roving's +10 read "3510" (2026-09-23)
+
+`ActiveEffect5e._applyChangeShim` rewrites a change's key through `SHIM_FIELDS` once; some keys
+moved twice and the table records each move separately (`movement.speed` → `movement.walk` →
+`movement.speeds.walk`). The PHB's Roving (a premium pack not yet written for 6.0) adds 10 to
+`movement.speed`; one hop lands it on `movement.walk`, no longer a number field — measured on an
+in-memory 35-foot ranger: walk, climb and swim **3510**. The chain followed: 45, 45, 45. A
+platform fix, so NOT this module's: Misc Patches' `shim-chains.js` points each entry at the end of
+its chain at `setup` (smoke-shim-chains 5/5). ⚠ Misc Patches is DISABLED on prod (its teleport
+patch moved to FX Studio); the fix reaches the table only when the user enables it, with its
+`teleports` switch off.
+
 ## 3. The statblock caster
 
 Where most of the monster-side bugs lived.
@@ -1330,6 +1392,18 @@ delay, and that was enough to turn a theoretical lost-merge into a measured doub
 **A lost receipt entry is two faults, not one.** The card under-reports, *and* the receipt is
 the idempotence guard — so a missing entry reads as "not applied yet" and the consequence lands
 twice. Any flag that doubles as a guard must be written under a lock.
+
+**A guard read before an `await` is stale by the write — test it again INSIDE the serialized
+mutate (2026-09-23).** The area refresh checked "pending" at its top, awaited the protected list,
+and meanwhile the buzzer closed the demand; its write then appended a creature to a DONE demand —
+a save nobody would ever ask, and a Fireball circle that never swept. Moving the derivation into
+`queueFlagWrite` was not enough: the PRECONDITION has to move in with it (saves/areas.js,
+metamagic.js; smoke-saves §13d pins the floor that clears a card already stuck).
+
+**A suite that PLANTS a state tests the planted shape, not the table's (2026-09-23).** smoke-riders
+had planted its marks by hand in the 5.x shape for months; the table's marks came through the 6.0
+applier with a stale pack `item` beside them, and every rider section stayed green while six hits
+paid nothing. Drive the real writer at least once per feature (smoke-riders §10 casts the mark).
 
 **Silent partial application is the worst failure class this module has.** It is the reasoning
 behind the rider intersection rule, and behind refusing a no-GM degraded mode. Prefer "did

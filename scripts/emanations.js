@@ -92,6 +92,16 @@ const RING_VISIBILITY = () => CONST.REGION_VISIBILITY.LAYER_UNLOCKED;
 /** The visibility fields every ring wears: never drawn, unlocked by hand to see it. */
 const ringHidden = () => ({ visibility: RING_VISIBILITY(), locked: true });
 
+/**
+ * Where a token STANDS — its committed placement (the document's source), never a frame of the
+ * walk. A token's prepared x/y are interim while it animates (geometry.js, the measured note), so a
+ * ring raised from them mid-walk sat off its token for good: Foundry re-bases an attached emanation
+ * only when its base matches the token's start exactly, and otherwise just shifts it by the move —
+ * carrying the offset along (Session 8, 2026-09-22: a ring "one square up and left" of Invictus).
+ */
+const standing = tok => ({ x: tok._source?.x ?? tok.x, y: tok._source?.y ?? tok.y,
+  width: tok._source?.width ?? tok.width, height: tok._source?.height ?? tok.height, shape: tok._source?.shape ?? tok.shape });
+
 /** The one Battle Flow behaviour on a region, or null. */
 const behaviorOf = region => region?.behaviors?.find(b => b.type === TYPE) ?? null;
 /** The region's Battle Flow flag, or null. */
@@ -575,10 +585,14 @@ async function reconcileScene(scene) {
     seen.add(id);
     wanted.delete(id);
     const beh = behaviorOf(region);
-    // The range moved (a level taken): the emanation's radius follows. The base follows the
-    // token by itself — the region is attached.
+    // The range moved (a level taken): the emanation's radius follows. The base follows the token
+    // by itself — the region is attached — and a ring that has DRIFTED off it (raised mid-walk,
+    // above) is put back under the token here, so every sweep converges on where it stands.
     const radius = w.range * pxPerUnit(scene);
-    if ( region.shapes?.[0]?.radius !== radius ) await region.update({ shapes: [emanationShapeData(w.tok, radius)] });
+    const shape = emanationShapeData(standing(w.tok), radius);
+    const base = region.shapes?.[0]?.base;
+    const drifted = !base || ["x", "y", "width", "height"].some(k => base[k] !== shape.base[k]);
+    if ( (region.shapes?.[0]?.radius !== radius) || drifted ) await region.update({ shapes: [shape] });
     // A ring raised before the 2026-09-18 ruling was drawn, and one raised before 2026-09-19's
     // showed on the layer; the sweep hides it in place.
     if ( (region.visibility !== RING_VISIBILITY()) || !region.locked ) await region.update(ringHidden());
@@ -600,7 +614,7 @@ async function reconcileScene(scene) {
       // see it as an area of anything; and no platform behaviour on it (the §3.6 ruling).
       const [region] = await scene.createEmbeddedDocuments("Region", [{
         name: `${w.row.key} [${w.actor.name}]`, color: colorFor(w.row.reach),
-        shapes: [emanationShapeData(w.tok, w.range * pxPerUnit(scene))],
+        shapes: [emanationShapeData(standing(w.tok), w.range * pxPerUnit(scene))],
         attachment: { token: w.tok.id },
         ...ringHidden(), highlightMode: "shapes",
         flags: { [MODULE_ID]: { [FLAG]: { kind: "feature", key: w.row.key, tokenId: w.tok.id, itemUuid: w.item.uuid } } }
@@ -708,7 +722,7 @@ async function placeCastEmanation(activity, row, message) {
   const spellLevel = castLevelOn(message) ?? activity.getRollData?.()?.item?.level ?? activity.item.system?.level ?? null;
   await scene.createEmbeddedDocuments("Region", [{
     name: `${activity.item.name} [${game.user.name}]`, color: game.user.color,
-    shapes: [emanationShapeData(tok, size * pxPerUnit(scene))],
+    shapes: [emanationShapeData(standing(tok), size * pxPerUnit(scene))],
     ...(canvas?.level?.id ? { levels: [canvas.level.id] } : {}),
     restriction: { enabled: true, type: "move" },
     attachment: { token: tok.id },
@@ -1000,6 +1014,11 @@ Hooks.on("updateToken", (tok, changes) => {
   // recomputed). A change of actor or disposition: the whole sweep.
   if ( ("x" in changes) || ("y" in changes) || ("elevation" in changes) || ("_regions" in changes) ) {
     for ( const region of tok.parent.regions.filter(r => flagOf(r)) ) void reconcileMembers(region);
+    // A feature ring's SOURCE moved: once the platform's own move of the attached ring has landed,
+    // the sweep checks the ring still sits on the token and re-bases one that drifted.
+    if ( (("x" in changes) || ("y" in changes)) && tok.parent.regions.some(r => (flagOf(r)?.kind === "feature") && (flagOf(r).tokenId === tok.id)) ) {
+      setTimeout(() => scheduleScene(tok.parent), 1000);
+    }
   }
   if ( ("actorId" in changes) || ("disposition" in changes) || ("actorLink" in changes) ) scheduleScene(tok.parent);
 });

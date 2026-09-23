@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hitOfferStep } from "../scripts/decide/sequence.js";
+import { hitOfferStep, withinBashReach } from "../scripts/decide/sequence.js";
 
 /**
  * THE HIT'S SEQUENCE (user ruling 2026-09-13): "damage, nothing until damage. then mastery
@@ -45,5 +45,27 @@ describe("hitOfferStep — a queued offer waits for the damage and the mastery's
     expect(
       hitOfferStep({ status: "queued", masteryStatus: "done", damageLanded: true, living: 0 })
     ).toBe("moot");
+  });
+});
+
+/**
+ * Shield Master's reach (Session 8, 2026-09-22): the bash was offered on hits well beyond 5 feet.
+ * The feat's own clause — "a creature within 5 feet of you" — is settled by the map.
+ */
+describe("withinBashReach — the feat's 5 feet, judged off the map", () => {
+  it("admits a creature within 5 feet, adjacent or diagonal", () => {
+    expect(withinBashReach(5)).toBe(true);
+    expect(withinBashReach(0)).toBe(true);
+  });
+
+  it("refuses a reach weapon's 10 feet and a thrown weapon's range", () => {
+    expect(withinBashReach(10)).toBe(false);
+    expect(withinBashReach(30)).toBe(false);
+  });
+
+  it("keeps the offer when the distance could not be measured — a question, not an outcome", () => {
+    expect(withinBashReach(null)).toBe(true);
+    expect(withinBashReach(undefined)).toBe(true);
+    expect(withinBashReach(Number.NaN)).toBe(true);
   });
 });

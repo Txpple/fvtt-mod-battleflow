@@ -225,6 +225,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               .filter(el => el.tagName === "DIALOG").map(el => el.id));
 
           face(5);
+          // Someone is TYPING when the window opens (Session 8: the Tactical Mind offer answered
+          // Pass by nobody who meant it) — the popup must leave the keyboard where it was.
+          const typing = document.createElement("input");
+          typing.id = "bf-smoke-typing";
+          document.body.append(typing);
+          typing.focus();
           const use = await act.use({ subsequentActions: false }, { configure: false }, {});
           const usageId = use?.message?.id ?? null;
           const rolls = await act.rollAttack({ advantage: false, disadvantage: false },
@@ -258,6 +264,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             !!popup?.querySelector('[data-bf-rescue-action="heroic"]')
               && !!popup?.querySelector('button[data-action="pass"]'),
             `popup=${!!popup} rows=${popup?.querySelectorAll("[data-bf-rescue-row]").length ?? 0}`);
+          ok("the window leaves the keyboard where it was — an Enter in chat is not a Pass",
+            (document.activeElement === typing) && !popup?.contains(document.activeElement),
+            `active=${document.activeElement?.id || document.activeElement?.tagName || "none"}`);
+          typing.remove();
 
           // The reroll: forced to 19, so 24 clears AC 18 and the verdict MUST flip.
           face(19);

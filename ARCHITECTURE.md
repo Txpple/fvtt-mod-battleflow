@@ -485,6 +485,12 @@ Each was a user ruling, and each has a table finding behind it.
     (N3).
 11. **Every moment has a clock that RESOLVES it at expiry** — pass for decisions, roll for
     demanded saves, dismiss for reminders. A moment waits forever only by explicit setting.
+12. **A moment never takes the keyboard (2026-09-23).** A popup opened by someone else's roll
+    hands the focus back to wherever it was — the chat box, a sheet field, the canvas — because
+    Foundry focuses a dialog's default button on first render and the next Enter or Space
+    (the pause key) pressed it: Session 8's Tactical Mind offer was answered Pass by nobody who
+    meant it. One home, `openManagedPopup` (`returnTheKeyboard`, ui.js); a moment is answered with
+    the pointer. The system's own roll dialogs keep Enter — the roller opened them.
 
 ### Timer mechanics
 

@@ -447,19 +447,40 @@ export async function spendReaction(actor, { origin = null, what = "a Reaction" 
  *
  * ⚠ Origins go stale. Prone effects on this table point at a token that no longer exists and
  * resolve to null, so every hop must tolerate a miss.
+ *
+ * ⚠ AN APPLIED COPY CARRIES ITS TEMPLATE'S LINEAGE (measured 2026-09-23 — Session 8's Hunter's
+ * Mark paid no die on six hits). The 6.0 migration moved every world item's effect-template
+ * `origin` — the pack's own uuid, `Compendium.dnd-players-handbook.spells.Item.phbsplHuntersMar`
+ * — into `system.origin.item` (207 of the world's 243 applied templates). Both appliers (the
+ * tray's `_prepareEffectData` and ours) copy the template and MERGE their provenance over it, so
+ * a copy on the target carries a fresh `activity` beside a stale compendium `item`. Reading
+ * `item` first walked to the pack, found no actor and dropped the mark. So each candidate is
+ * TRIED: the first that walks to a world Actor with an item wins, and `activity` leads — it is
+ * the field every application writes fresh, where `item`/`actor` can ride in from the template.
  */
 export function effectSourceOf(marker) {
   const so = marker.system?.origin ?? {};
-  const uuid = so.actor || so.item || so.activity || marker.origin || marker.getFlag("dnd5e", "dependentOn") || so.effect;
+  const candidates = [so.activity, so.item, so.actor, marker.origin,
+    marker.getFlag("dnd5e", "dependentOn"), so.effect];
+  for ( const uuid of new Set(candidates.filter(u => (typeof u === "string") && u)) ) {
+    const found = sourceFromUuid(uuid);
+    if ( found ) return found;
+  }
+  return null;
+}
+
+/** One candidate's walk for effectSourceOf: the uuid up to its Actor, keeping the Item passed. */
+function sourceFromUuid(uuid) {
   let doc = null;
-  try { doc = uuid ? fromUuidSync(uuid) : null; } catch { return null; }
+  try { doc = fromUuidSync(uuid); } catch { return null; }
   const root = doc;
   let item = null;
   while ( doc && !(doc instanceof Actor) ) {
     if ( doc instanceof Item ) item = doc;
     doc = doc.parent;
   }
-  if ( !(doc instanceof Actor) ) return null;
+  // A pack's actor is nobody at the table — a compendium uuid is lineage, never a source.
+  if ( !(doc instanceof Actor) || doc.pack ) return null;
 
   // The other shape: an effect sitting directly ON the caster, which NAMES its item rather than
   // living underneath one — what the tray writes when the spell began concentration. The walk
