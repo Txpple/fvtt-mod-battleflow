@@ -1349,9 +1349,30 @@ moved twice and the table records each move separately (`movement.speed` → `mo
 `movement.speed`; one hop lands it on `movement.walk`, no longer a number field — measured on an
 in-memory 35-foot ranger: walk, climb and swim **3510**. The chain followed: 45, 45, 45. A
 platform fix, so NOT this module's: Misc Patches' `shim-chains.js` points each entry at the end of
-its chain at `setup` (smoke-shim-chains 5/5). ⚠ Misc Patches is DISABLED on prod (its teleport
-patch moved to FX Studio); the fix reaches the table only when the user enables it, with its
-`teleports` switch off.
+its chain at `setup` (smoke-shim-chains 5/5). Misc Patches v1.1.0 carries it and is ENABLED on
+prod since 2026-09-23 (the teleport patch removed); 6.0.5 still ships the one-hop table.
+
+### 6.0.4 and 6.0.5, read against the module — nothing on our paths (2026-09-23)
+
+The whole 6.0.3 → 6.0.5 diff is 48 files, most of them scroll packs; the user upgraded prod and
+the sandbox the same day. Read file by file for what this module leans on:
+- **The activity save/check buttons' bonus** (`SaveActivity#rollSave`, `CheckActivity#rollCheck`:
+  #7496 wrong actor's roll data, #7527 the throw) — this module never rolls through the card's
+  buttons; the save machine calls the actor's own roll. Nothing to change; the table's own
+  button presses stop throwing.
+- **Rest expiry** (`Actor5e` rest: #7516 — an effect expires on a rest only when its
+  `duration.expiry` IS that rest). Before, an effect with a turn clock could vanish on a rest. The
+  module's chips carry turn expiries and are tidied by the spend, the combat's end and its own
+  expired-chip sweep, never by a rest — so this only stops the platform removing them early.
+- **The status migration guard** (`ActiveEffect5e`, `TokenDocument5e`: `&& data._id`) — an
+  effect created with no `_id` could be matched against a status entry and retyped `condition`.
+  The module registers no status in `CONFIG.statusEffects` (the aura copy's `bfEmanation` is a
+  plain status string), so it was never exposed.
+- **The roll dialog's dice** (#7485, `identifyDice(roll.clone().simplify().terms)`) — display
+  only; every anchor the module reads there still appears (`check-surfaces --regen`: all ok).
+- **Scrolls carry `flags.dnd5e.spellLevel`** (the PHB and SRD scroll items) — new data; the
+  volley and cast paths read the cast level off the card and the item, unchanged.
+- **Hooks:** `check-hook-dispatch --regen`: 0 added, 0 removed.
 
 ## 3. The statblock caster
 

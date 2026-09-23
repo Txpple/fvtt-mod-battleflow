@@ -1,7 +1,7 @@
 {
   "$comment": "GENERATED — do not hand-edit. node tools/check-surfaces.mjs --regen",
   "system": "dnd5e",
-  "version": "6.0.3",
+  "version": "6.0.5",
   "source": "each dnd5e-authored anchor's proof text, searched (whitespace-collapsed) in the file scripts/surfaces.js names",
   "anchors": {
     "messageContent": {

@@ -556,6 +556,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // gone when the elect applies. The cast slice reads it off the card's snapshot now (lookup.js
     // cardActivity). A stack keeps its item until the last drink, so both shapes are walked.
     if (want(7)) {
+      // ⚠ THE DRINKER IS THE TOKEN'S OWN ACTOR when the Attacker's token is unlinked (the monster
+      // norm — fixture-suite places both goblins unlinked). At the table an unlinked monster drinks
+      // from its TOKEN's sheet, and the card names that token, so Battle Flow applies to the actor
+      // the card names. A potion on the WORLD actor's sheet beside an unlinked token is a sheet
+      // nobody at the table drinks from: on 2026-09-23 the rebuilt fixture's token took the effect
+      // (correctly) while 7a/7c read the world actor and saw nothing. Drink as the table does.
+      const drinker = scene.tokens.find(t => t.actorId === npc.id)?.actor ?? npc;
       const POT = 'bfpotioneffect00';
       const potion = qty => ({
         name: 'BF Test Potion', type: 'consumable',
@@ -580,32 +587,30 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           changes: [{ key: 'system.traits.dr.value', mode: 2, value: 'poison' }]
         }]
       });
-      const potioned = () => npc.effects.filter(e => e.name === 'BF Potioned');
-      const clearPotioned = async () => { if (potioned().length) await npc.deleteEmbeddedDocuments('ActiveEffect', potioned().map(e => e.id)); };
+      const potioned = () => drinker.effects.filter(e => e.name === 'BF Potioned');
+      const clearPotioned = async () => { if (potioned().length) await drinker.deleteEmbeddedDocuments('ActiveEffect', potioned().map(e => e.id)); };
       /** Drink once: the use, the card, the item's fate, and the effect on the drinker. */
       const drink = async item => {
         await clearPotioned();
         target();   // SELF — no target needed, none given
         await sleep(120);
-        const act = npc.items.get(item.id)?.system.activities.get('bfpotionutil0000');
+        const act = drinker.items.get(item.id)?.system.activities.get('bfpotionutil0000');
         if (!act) return { refused: true };
         const used = await act.use({}, { configure: false }, {});
         const card = (used?.message instanceof ChatMessage) ? used.message : null;
         const stamp = card?.getFlag(MOD, 'castApply') ?? null;
         const done = card ? await until(() => card.getFlag(MOD, 'effectReceipt')?.castDone, 8000) : false;
         const chip = potioned()[0] ?? null;
-        return { card: !!card, stamp: !!stamp, done: !!done, chip: !!chip, left: npc.items.get(item.id)?.system.quantity ?? 0,
-          resists: npc.system.traits.dr.value.has('poison'), receipt: (card?.getFlag(MOD, 'effectReceipt')?.targets ?? []).map(t => t.uuid) };
+        return { card: !!card, stamp: !!stamp, done: !!done, chip: !!chip, left: drinker.items.get(item.id)?.system.quantity ?? 0,
+          resists: drinker.system.traits.dr.value.has('poison'), receipt: (card?.getFlag(MOD, 'effectReceipt')?.targets ?? []).map(t => t.uuid) };
       };
       try {
-        const [single] = await npc.createEmbeddedDocuments('Item', [potion(1)]);
-        created.items.push({ actorId: npc.id, id: single.id });
+        const [single] = await drinker.createEmbeddedDocuments('Item', [potion(1)]);
         const a = await drink(single);
         ok('7a. the LAST potion: the drink deletes it before the card, and its effect still lands on the drinker, receipted',
-          a.card && a.stamp && a.done && a.chip && (a.left === 0) && a.resists && (a.receipt.join() === npc.uuid), JSON.stringify(a));
+          a.card && a.stamp && a.done && a.chip && (a.left === 0) && a.resists && (a.receipt.join() === drinker.uuid), JSON.stringify(a));
 
-        const [stack] = await npc.createEmbeddedDocuments('Item', [potion(2)]);
-        created.items.push({ actorId: npc.id, id: stack.id });
+        const [stack] = await drinker.createEmbeddedDocuments('Item', [potion(2)]);
         const b1 = await drink(stack);
         ok('7b. a stack of TWO, the first drink: the item stays (quantity 1) and the effect lands',
           b1.stamp && b1.done && b1.chip && (b1.left === 1), JSON.stringify(b1));
@@ -614,6 +619,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           b2.stamp && b2.done && b2.chip && (b2.left === 0), JSON.stringify(b2));
       } finally {
         await clearPotioned();
+        // The teardown's item sweep reads world actors; a potion left on the token's own actor goes here.
+        const left = drinker.items.filter(i => i.name === 'BF Test Potion').map(i => i.id);
+        if (left.length) await drinker.deleteEmbeddedDocuments('Item', left).catch(() => {});
       }
     }
 
