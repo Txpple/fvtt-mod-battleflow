@@ -1390,6 +1390,33 @@ Compulsion, Divine Word, Healing Word…) is a targeting choice and needs nothin
 ⚠ Before this, a placed area's save demand asked everyone it held, so Slow asked the party member
 standing in its cube (Session 8, 9:58 pm: Invictus rolled a Wisdom save against the party's Slow).
 
+### Arcana Unleashed is installed on both boxes, and nothing reads it yet (2026-09-24)
+
+The house's fifth premium book: `dnd-arcana-unleashed` v1.0.1, a 2024-rules core expansion on
+magic (the Tasha's shape — subclasses, feats, spells, magic items, factions, a bestiary, an
+adventure). Same pack ids on the sandbox and on prod; its Item packs are `.subclasses`
+(71 rows: 8 subclasses, 61 features), `.feats` (37), `.spells` (33, levels 2–9), `.items` (69
+magic items), `.backgrounds` (11), `.bastions` (9); beside them `.effects` (40 ActiveEffects),
+`.actors` (38 NPCs), `.book` (36 journal entries), `.tables`, `.scenes`, `.adventures`.
+Measured by [tools/probe-premium-module.mjs](tools/probe-premium-module.mjs) (Foundry 14.368 /
+dnd5e 6.0.5, pack indexes only). Three facts worth keeping:
+
+- **No name-keyed row fires on it.** Zero collisions between its Item names and the registry's
+  keys, feature fields or settings defaults; and none of its 33 spells shares a name with a
+  PHB spell (the one shared name is the generic *Spellcasting* class feature). So the module's
+  behaviour at the table is unchanged by the install, and the book is entirely unswept — SWEEP
+  §2 has the counts and the names to read first, BACKLOG *Features* the row.
+- **It ships a standalone ActiveEffect compendium** — the first in the house. 38 are
+  enchantments (the book's evolving magic items, *Evolve to …*, which the system applies to
+  ITEMS); 2 are base effects, *Dodging* (`statuses: ["dodging"]`, `transfer: false`) and
+  *Darkening Ammunition*. Every effect reader in the module matches effects ON AN ACTOR by
+  name, which still holds for an effect applied from a pack; what has never been measured is
+  a pack feature that links a compendium effect by uuid rather than embedding it. Measure
+  before a row.
+- **The scanner needs no change, the classifier did.** `scan-corpus.mjs` walks every Item pack;
+  `classify-corpus.mjs` ranks packs by id and dropped everything unranked, so its four Item
+  packs were added to `PACK_RANK` (2026-09-24). The probe is general: point it at the next book.
+
 ## 3. The statblock caster
 
 Where most of the monster-side bugs lived.

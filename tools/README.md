@@ -164,6 +164,11 @@ effects actually carry — the `SAVE_PRESSES` candidates). `probe-steady-aim-liv
 live table's Steady Aim chip and attack records without touching anything;
 `probe-conditions.mjs` presses each 2024 status on a fixture and reads what the platform applies
 (NOTES §2 *What the platform applies for a condition*), restoring the fixture in `finally`.
+`probe-premium-module.mjs <module-id> <out.json>` (2026-09-24, Arcana Unleashed) reads what a
+premium module ships pack by pack — counts, types, names — and lists the names the registry
+already keys a row on and the names the 2024 packs already carry, so the next book the house
+buys is measured before it is described; pack indexes only, no sole-GM preflight because it
+asserts on nothing.
 
 Read-only sweeps of the official compendia. Curated lists are built from what 5e 2024 actually
 ships, never from what the party owns (DESIGN N1). Re-run after adding content.

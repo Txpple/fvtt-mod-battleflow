@@ -27,9 +27,14 @@ Everything a future session needs to start the sweep without re-deriving it:
    Strike, Open Hand Technique, Psionic Strike — each a group row (its pool and pick limit) and
    option rows on the same table; a new COST KIND (a Focus Point, a use) is a `poolOf` reader
    in the machine, not a new moment.
-4. **The corpus is current.** Rescanned 2026-09-03 with the fixed activation column; the
-   numbers in §2 held (587 rows matched a family, one more than the survey's 586; the rest
-   identical). The JSON lives in the session scratchpad, not the repo — regenerate it:
+4. **The corpus is NOT current — a fifth book landed 2026-09-24.** *Arcana Unleashed*
+   (`dnd-arcana-unleashed`, a 2024-rules core expansion on magic) is installed on both boxes and
+   is IN the corpus by the ruling in item 1 (2024 rules, not 2014); every number in §2 predates
+   it (its measured shape is in §2). **The rescan is the sweep's first step now**, and
+   `classify-corpus.mjs` already ranks its four Item packs. The last rescan was 2026-09-03 with
+   the fixed activation column; the numbers held then (587 rows matched a family, one more than
+   the survey's 586; the rest identical). The JSON lives in the session scratchpad, not the
+   repo — regenerate it:
    `node tools/scan-corpus.mjs <out.json>` (live, read-only, ~10 min, the user out of the
    world — the harness refuses two GMs; the process hits its own 900 s watchdog after the file
    is written, which is harmless) then
@@ -70,6 +75,39 @@ The 2024 packs only: the premium Player's Handbook, Heroes of Faerûn, the DMG's
 gifts; the SRD 2024 packs are a subset and were deduplicated against them by name; the 2014
 legacy packs (`dnd5e.classfeatures`, `dnd5e.spells`, `dnd5e.races`, `dnd5e.subclasses`) are
 ignored — the table plays 2024.
+
+⚠ **A fifth book, unscanned (2026-09-24): *Arcana Unleashed*** — a core rule expansion on
+magic in the Tasha's shape, 2024 rules, so the ruling above puts it IN. The table below does
+not include it. What it ships, measured on the sandbox by
+[tools/probe-premium-module.mjs](tools/probe-premium-module.mjs) (module v1.0.1, Foundry 14.368
+/ dnd5e 6.0.5, pack indexes only — activities and text are the rescan's):
+
+| Pack | Rows | What |
+| --- | --- | --- |
+| `dnd-arcana-unleashed.subclasses` | 71 | 8 subclasses (Arcana Domain, Arcane Archer, Warrior of the Mystic Arts, Vestige Patron, and the Conjurer / Enchanter / Necromancer / Transmuter wizards), 61 features |
+| `dnd-arcana-unleashed.feats` | 37 | origin, general, one fighting style, epic boons (the book's own grouping) |
+| `dnd-arcana-unleashed.spells` | 33 | levels 2–9; **none shares a name with a PHB spell**, so no per-spell list row is touched today and none has read them |
+| `dnd-arcana-unleashed.items` | 69 | magic items, with `.effects` beside it: 38 enchantments (the book's evolving items) and 2 base effects |
+| `dnd-arcana-unleashed.actors` | 38 | a bestiary — eight CR 15 archmages, living spells, spirit summons, three named CR 17–19 |
+| `.backgrounds` `.bastions` `.tables` `.book` `.scenes` `.adventures` | — | nothing the sweep reads |
+
+**Zero name collisions** with anything the registry keys on (table keys, feature fields, the
+settings lists' shipped defaults), so nothing the module does today changes. What the rescan
+must read, flagged BY NAME only — nothing below is a measured claim about a mechanism:
+
+- **Arcane Shot and its eight shot options** (Banishing, Beguiling, Bursting, Enfeebling,
+  Grasping, Piercing, Seeking, Shadow) look like item 2's next group — a pool, a pick on a hit,
+  the target's save through the save gate — the Battle Master's shape on a Fighter subclass.
+  Curving Shot names a miss.
+- **Warrior of the Mystic Arts** spends Focus Points (Focused Strike, Mystic Focus) — the
+  `poolOf` cost kind item 2 names.
+- **Spell Resistant, Boon of the Iron Mind, Arcane Safeguard** read like save-side bends (item
+  1, the `saves` facet). **Aura of Evasion** (a level-7 spell) reads like an emanation row.
+- **The bestiary** grows the GM's side, which this survey never covered: the archmages, the
+  living spells and the three named monsters are new monster features for the monster-trait
+  slice (BACKLOG *Features*).
+- **Instinctive Charm** (Enchanter) is a reaction that answers an attack — read it against the
+  Interrupt kinds, which know `ac` and `damage` only (§3 item 3).
 
 | Kind | Rows | Match at least one family | Of those, text-only | Already named in a registry table |
 | --- | --- | --- | --- | --- |

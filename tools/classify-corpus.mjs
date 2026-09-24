@@ -18,6 +18,9 @@ const raw = JSON.parse(readFileSync(file, 'utf8'));
 const PACK_RANK = {
   'dnd-players-handbook.classes': 1, 'dnd-players-handbook.feats': 1, 'dnd-players-handbook.origins': 1,
   'dnd-players-handbook.spells': 1, 'dnd-heroes-faerun.options': 1, 'dnd-dungeon-masters-guide.equipment': 1,
+  // Arcana Unleashed (2026-09-24, the fifth book — SWEEP §2, NOTES §2): premium, 2024 rules, unscanned yet
+  'dnd-arcana-unleashed.subclasses': 1, 'dnd-arcana-unleashed.feats': 1, 'dnd-arcana-unleashed.spells': 1,
+  'dnd-arcana-unleashed.items': 1,
   'dnd5e.classes24': 2, 'dnd5e.feats24': 2, 'dnd5e.origins24': 2, 'dnd5e.spells24': 2,
 };
 const rows2024 = raw.rows.filter(r => PACK_RANK[r.pack]);
