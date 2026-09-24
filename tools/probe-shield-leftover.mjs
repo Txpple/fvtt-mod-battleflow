@@ -1,4 +1,4 @@
-// Probe (2026-09-10): THE STALE SHIELD — the 2026-09-09 table report (BACKLOG *From play*):
+// Probe (2026-09-10): THE STALE SHIELD — the 2026-09-09 table report (closed 2026-09-10; RULINGS *Chips and clocks*):
 // "a stale Shield effect survived a revert, so the next hit offered no reaction", the leftover
 // found on Gren's sheet under the SYSTEM's *Unavailable Effects* panel.
 //
