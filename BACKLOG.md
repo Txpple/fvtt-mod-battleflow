@@ -31,14 +31,6 @@ unwatched** — which is exactly why it is safe to be quiet about it.
 
 ---
 
-## ⚠ Up next — flagged by the user to address SOON (2026-09-23)
-
-> The one exception to the charter above: the user put this here to be picked up soon, not parked.
-
-| Item | What is known |
-| --- | --- |
-| **Testing that fits the size of the change** (user, 2026-09-23: *"we need to figure out a better way to do unit testing - we cant be doing 6 hour battery tests every time we do a minor set of updates"*) | **The cost, measured the same day:** a two-file change (emanations.js + its decide file) ran the static gate (680 unit tests, seconds) and then the FULL live battery — 29 suites, 51 minutes on the sandbox — plus deploy → restart → rerun cycles for each fix round, and a sandbox shared with other sessions that had to be asked off it. The session's wall-clock was mostly waiting on the live tier. **What already exists to build on:** the tier rule (ARCHITECTURE §11 — an assertion that needs no live world belongs in a unit test); the hook ledger and `hook-coverage` (which suite fires which registration — the raw material of a file → suite map); `--section` on every suite. **Directions to weigh, none chosen:** ① change-scoped live runs — a map from source file to the suites that exercise it, so a change runs its own suites and the full battery runs only before a release (or unattended, overnight); ② push more down the tiers — EDGE code that only reads documents tested against plain fakes, so fewer assertions need Foundry at all; ③ a smoke subset of the battery (one pass per machine) for minor changes. Wants a short design pass and the user's pick before code. **Also on the table for that pass, all from 2026-09-23:** two checks still flake under load — `smoke-expiry` §8b (the out-of-combat spend's record, red in the battery, 46/46 alone) and `smoke-d20-folds` §10 (finds its receipt by slicing the log at a pre-click COUNT; a deletion shifts it — match by content since a timestamp instead); `smoke-twoclient` relay was hardened this day (45 s hold timer, the envelope caught at creation). The battery's coverage reading: three registrations never fired — `hoverToken`, `highlightObjects`, `fvtt-mod-battleflow.effectViewChanged`, all effect-view.js — a COVERAGE GAP, not dead code: `tools/probe-effect-view.mjs` drives all three (16/16, 2026-09-15) and is not in the battery. |
-
 ## Architecture
 
 ### The two sideways edges (was four; was debt row D9)

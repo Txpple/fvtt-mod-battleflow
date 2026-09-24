@@ -16,6 +16,19 @@
 // Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'damage-casts.js',        // Heat Metal's dice at the use, the reheat, the list
+  'saves/index.js',         // §2 / §4 — the save demanded after the damage lands
+  'saves/demand.js',
+  'saves/verdict.js',
+  'saves/consequences.js',
+  'reminders.js'            // §3 — Heated Metal read by the attack gate and the check gate
+];
+
 const SECTIONS = {
   1: 'Cast and Heat, the goblin targeted: the 2d8 fire rolls at the use (no button pressed), chained to the card, and LANDS on the goblin with a receipt',
   2: 'the save follows: a demand card for the goblin (Con, the Cleric\'s DC); the forced failure lands Heated Metal on the goblin, receipted, and the card says what the table plays',

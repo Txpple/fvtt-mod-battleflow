@@ -18,6 +18,15 @@ import { announcePlan, connectSuite, loadEnv, sectionPlan, sectionArg, finish }
 
 const TAG = "smoke-d20-folds";
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  "d20-folds.js",           // Heroic Inspiration, Tactical Mind, the Bardic die — stamp, spend, reroll
+  "precision.js"            // §5 rolls the Precision Attack card beside the folds — the claim proof found it acting here first (2026-09-23)
+];
+
 const SECTIONS = {
   1: "content — the three markers resolve, and the bardic die comes from the BARD",
   2: "spend — each kind actually takes its resource away",
@@ -381,10 +390,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // ⚠ Asserts the OFFER LIST, not just that something was stamped. v1 offered only the
       // first eligible fold, so `heroic` — first in the shipped list — hid Tactical Mind and
       // Bardic completely: three separate table reports, one cause.
-      const before = game.messages.size;
+      // ⚠ A COUNT IS NOT A CURSOR: slicing the log at a pre-click message count misses the new card
+      // when a deletion elsewhere in the log shifts the index (flaked in the 2026-09-23 battery).
+      // Every find here matches by CONTENT created since a pre-click TIMESTAMP instead.
+      const since = Date.now();
       await fighter.rollAbilityCheck({ ability: "str" }, { configure: false }, { create: true });
       await sleep(600);
-      const msg = game.messages.contents.slice(before).findLast(m => m.getFlag(MODULE_ID, "d20fold"));
+      const msg = game.messages.contents.findLast(m => (m.timestamp >= since) && m.getFlag(MODULE_ID, "d20fold"));
       const flag = msg?.getFlag(MODULE_ID, "d20fold");
       ok("an ability check stamps a d20 fold offer", !!flag, flag ? "stamped" : "NO FLAG");
       if (flag) {
@@ -407,10 +419,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
       // ⚠ Kind-matching: Tactical Mind is ability-check-only by its own rules text, so it must
       // NOT appear on an attack or a save. v1 had no such matching at all.
-      const before2 = game.messages.size;
+      const since2 = Date.now();
       await fighter.rollSavingThrow({ ability: "dex" }, { configure: false }, { create: true });
       await sleep(600);
-      const sMsg = game.messages.contents.slice(before2).findLast(m => m.getFlag(MODULE_ID, "d20fold"));
+      const sMsg = game.messages.contents.findLast(m => (m.timestamp >= since2) && m.getFlag(MODULE_ID, "d20fold"));
       const sFlag = sMsg?.getFlag(MODULE_ID, "d20fold");
       ok("a native save stamps an offer too", !!sFlag, sFlag ? "stamped" : "NO FLAG");
       if (sFlag) {
@@ -647,7 +659,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             (after?.querySelector('[data-bf-rescue-row$=":bardic"]')?.textContent ?? "no row")
               .replace(/\s+/g, " ").trim());
 
-          const before = game.messages.size;
+          const since = Date.now();
           face(6, 8);
           rowFor(after ?? win, "use")?.click();
           // ⚠ A LONG BUDGET, AND THE ELAPSED TIME REPORTED. `resolvePrecision` really uses the
@@ -680,7 +692,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             + `${precDone?.targets?.[0]?.verdict} (un-composed ${precDone?.attackTotal} + `
             + `${precDone?.die} = ${(precDone?.attackTotal ?? 0) + (precDone?.die ?? 0)})`);
 
-          const card = await until(() => game.messages.contents.slice(before).findLast(m =>
+          const card = await until(() => game.messages.contents.findLast(m => (m.timestamp >= since) &&
             (m.content ?? "").includes("Precision Attack") && (m.content ?? "").includes("vs AC")),
             15_000);
           const text = (card?.content ?? "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
@@ -862,7 +874,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const popup = await until(() => [...document.querySelectorAll(".application")]
               .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
                 && !!el.querySelector('[data-bf-rescue-action="bardic"]')), 8000);
-            const before = game.messages.size;
+            const since = Date.now();
             face(3, 8);
             popup?.querySelector('[data-bf-rescue-action="bardic"]')?.click();
             const done = await until(() => {
@@ -879,7 +891,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
                 && (done?.targets ?? []).every(t => t.verdict === "miss"),
               JSON.stringify((done?.targets ?? []).map(t => t.verdict)));
 
-            const card = await until(() => game.messages.contents.slice(before).findLast(m =>
+            const card = await until(() => game.messages.contents.findLast(m => (m.timestamp >= since) &&
               (m.content ?? "").includes("vs AC 30")), 15_000);
             const text = (card?.content ?? "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
             const sums = [...text.matchAll(/10 \+ (\d+) = (\d+) vs AC 30/g)].map(m => m[2]);
@@ -1235,11 +1247,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
           const run = async choice => {
             const priorDialogs = new Set([...document.querySelectorAll(".application")].map(el => el.id));
-            const before = game.messages.size;
+            const since = Date.now();
             const usesBefore = fighter.items.get(sw.id).system.uses.value;
             await fighter.rollAbilityCheck({ ability: "str" }, { configure: false }, { create: true });
-            const msg = await until(() => game.messages.contents.slice(before)
-              .findLast(m => m.getFlag(MODULE_ID, "d20fold")?.status === "pending"), 8000);
+            const msg = await until(() => game.messages.contents
+              .findLast(m => (m.timestamp >= since) && (m.getFlag(MODULE_ID, "d20fold")?.status === "pending")), 8000);
             if (msg) made.push(msg);
             const popup = await until(() => [...document.querySelectorAll(".application")]
               .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
@@ -1280,7 +1292,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
                 && !!el.querySelector('button[data-action="refund"]') && !!el.querySelector('button[data-action="keep"]')), 8000);
             ok(`§10 (${choice}) the ask POPS with both answers`, !!win, win ? "keep + refund" : "NO WINDOW");
-            const receiptsBefore = game.messages.size;
+            const receiptsSince = Date.now();
             win?.querySelector(`button[data-action="${choice}"]`)?.click();
             const settled = await until(() => {
               const r = msg?.getFlag(MODULE_ID, "tacticalRefund");
@@ -1291,8 +1303,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             if (choice === "refund") {
               ok("⚠ §10 RECEIPT: refund RESTORES the use of Second Wind on the sheet",
                 (settled?.status === "refunded") && (usesAfter === usesBefore), `uses ${usesSpent} → ${usesAfter} status=${settled?.status}`);
-              const receipt = game.messages.contents.slice(receiptsBefore)
-                .find(m => /use is refunded/.test(m.content ?? ""));
+              // WAITED FOR, not read once: the receipt is created AFTER the pool write the line
+              // above asserts on, so a single read after the fixed sleep races its round trip.
+              const receipt = await until(() => game.messages.contents
+                .findLast(m => (m.timestamp >= receiptsSince) && /use is refunded/.test(m.content ?? "")), 8000);
               ok("§10 …and a receipt card says so", !!receipt, receipt ? "posted" : "NO RECEIPT");
               if (receipt) made.push(receipt);
             } else {
@@ -1303,7 +1317,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               await until(() => (!document.getElementById(win?.id ?? "") ? true : null), 5000) === true,
               "closed");
             // Sweep the fold's own die message.
-            for (const m of game.messages.contents.slice(before)) {
+            for (const m of game.messages.contents.filter(m => m.timestamp >= since)) {
               if (m.getFlag(MODULE_ID, "respondsTo") === msg?.id) made.push(m);
             }
           };

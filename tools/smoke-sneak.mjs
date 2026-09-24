@@ -11,6 +11,23 @@
 // Sections: `--section 3`, `--section 1,7`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'sneak.js',               // the box, the menu, the dice, the crit, the chit
+  'reminders.js',           // §1 / §11 — the Sneak Attack box under the gate's sources
+  'use-chips.js',           // §10 — Steady Aim written as a chip on use
+  'saves/index.js',         // §4 / §7 / §8 — the Cunning Strike effects through the saves machine
+  'saves/demand.js',
+  'saves/ask.js',
+  'saves/verdict.js',
+  'saves/consequences.js',
+  'chip-spend.js',           // Steady Aim and the Cunning Strike chips are spent on the hit — chipSpend ×10 (the claim proof, 2026-09-23)
+  'clock-riders.js'          // the Rogue fixture's clock riders fire beside the sneak dice — clockRiders ×2 (the same reading)
+];
+
 const SECTIONS = {
   1: 'the gate: the Sneak Attack box under the sources, ticked on Advantage, the record on the card',
   2: 'the weapon and the list are the switch: a longsword offers nothing, and so does a list without sneak',

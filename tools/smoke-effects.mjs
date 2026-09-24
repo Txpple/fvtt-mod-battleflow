@@ -13,6 +13,19 @@
 // ALWAYS run; only the numbered assertion blocks are skippable.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'mastery.js',             // §1-§6, §9, §10, §15-§17 — the payouts, the ask, the notices, the Cleave arm
+  'topple.js',              // §7 / §8 / §14 — the Topple demand and its fold
+  'receipts.js',            // §12 — the effect revert
+  'polish.js',              // §13 — every use shows its first card
+  'chip-spend.js',           // the mastery chips are SPENT here — chipSpend ×3 in the battery of 2026-09-23 (the claim proof's reading)
+  'concentration.js'         // §12's revert breaks a concentration — one concentration record published here (the same reading)
+];
+
 const SECTIONS = {
   1: 'the mastery flag stamp (PLAN E1)',
   2: 'Vex pays on damage dealt (auto)',

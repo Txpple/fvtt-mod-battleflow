@@ -20,6 +20,22 @@
 // Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'metamagic.js',           // the casting window's group, the spend, every option
+  'saves/demand.js',        // §9-§11 / §17 / §18 — Careful's protected leave the demand, Heightened's mark
+  'saves/areas.js',         // §9 / §11 / §18 — the ask at the placed area
+  'saves/ask.js',           // §10 — Heightened as a source on the save gate
+  'saves/verdict.js',       // §14 — the forced failure Extended's Paralyzed rides
+  'reminders.js',           // §5 / §10 / §14 — Distant's range, Heightened's source, Extended's Advantage
+  'd20-folds.js',           // §15 — Seeking Spell as a d20 fold
+  'concentration.js',       // §14 — Extended's Advantage on the concentration save
+  'resources.js'            // §3 — the resource line the spend grows on the card
+];
+
 const SECTIONS = {
   1: 'the casting window carries the group: Fireball on the Sorcerer shows the eight cast-time rows — six fit, Extended (instantaneous) and Twinned greyed with the reason as the tag — the pool line reads 5 of 5, every row folds its rule',
   2: 'one option per cast: ticking Subtle greys the other rows; unticking frees them',

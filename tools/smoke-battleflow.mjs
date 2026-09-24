@@ -13,6 +13,16 @@
 // with its own `f.evaluate`, so the plan never has to cross the serialization boundary.
 import { announcePlan, connectSuite, loadEnv, sectionPlan } from './harness.mjs';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'receipts.js',            // §4 / §4b / §4c — the revert row, clicked
+  'polish.js',              // §5b — the card always posts, the no-target gate
+  'stats.js'                // §3b / §3c — the data-plane stamps, the death save's rollCtx
+];
+
 const SECTIONS = {
   3: 'the hit chain',
   '3b': 'the data-plane stamp — combat + source on the receipt, in and out of combat',

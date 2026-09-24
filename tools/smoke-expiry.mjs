@@ -16,6 +16,15 @@
 // Sections: `--section 4`, `--section 1,7`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'mastery.js',             // the chips the payouts write, on the platform's clock
+  'chip-spend.js'           // §2 / §3 / §7 / §8 — the spend and the two tidies
+];
+
 const SECTIONS = {
   1: 'the clock: v14 shape, the RAW window, the attacker\'s OWN combatant',
   2: 'the spend: the attacker\'s next attack on the bearer spends Vex — record first, chip second',
@@ -561,8 +570,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('8a. nothing ticks out of combat: seconds later it still stands, unexpired',
         !!victim.effects.get(chip?.id) && !victim.effects.get(chip?.id)?.duration.expired,
         JSON.stringify(clockOf(victim.effects.get(chip?.id))));
-      const second = await swing('sap');
-      const spend = await waitFor(() => game.messages.get(second.attackMsg?.id ?? '')?.getFlag(MOD, 'chipSpend'));
+      // ⚠ THE SPEND IS FOUND BY CONTENT, NOT ON `second.attackMsg`. swing() RETRIES a fumble or a
+      // kill, and Vex is spent by the FIRST attack of the retry chain (hit or miss) — so the record
+      // lives on attempt 1's message while `attackMsg` is the last attempt's. Every red 8b in the
+      // battery logs (09-02, 09-04, 09-05, 09-23) sat beside a "swing(sap) attempt 1: … swinging
+      // again" line with recorded=false gone=true: dice, not load.
+      const spendSince = Date.now();
+      await swing('sap');
+      const spend = await waitFor(() => game.messages.contents.findLast(m => (m.timestamp >= spendSince)
+        && m.getFlag(MOD, 'chipSpend')?.spent?.some(s => s.id === chip?.id))?.getFlag(MOD, 'chipSpend'));
       const gone = await waitFor(() => !victim.effects.get(chip?.id));
       ok('8b. the spend still closes it: the next attack records it and the chip goes',
         !!spend?.spent?.some(s => s.id === chip?.id) && gone && (spend?.combat === null),

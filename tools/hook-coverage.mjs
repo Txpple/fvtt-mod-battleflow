@@ -23,12 +23,22 @@
 //      category below and its own printed reason.
 // **Only a person can tell these apart**, which is exactly why this prints rather than fails.
 //
+// ⚠ A SECOND SECTION FOLLOWS THE HOOK REPORT (2026-09-23): THE CLAIM PROOF. The same ledgers carry
+// a `moments` half — every `battleflow.moment` the page heard, by record kind — and
+// tools/claim-proof.mjs reads it against the declared coverage map (tools/coverage-map.mjs): did
+// each file a suite claims actually ACT there, and did a file act in a suite that never claimed
+// it? Same contract, same exit code: printed, never enforced. It lives here rather than in its own
+// battery step because the battery already runs this file at its tail and prints from NEVER FIRED
+// to the end, so the proof lands on screen with no second command.
+//
 //   node tools/hook-coverage.mjs          # after a battery
 //   node tools/battery.mjs                # runs it for you, at the end
 //
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { classifyClaims, loadFileKinds, loadOrder, loadSuiteTags, soleWriters, tagTable }
+  from "./claim-proof.mjs";
 import { loadRegistrations, groupByHook } from "./hook-registrations.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -100,9 +110,11 @@ if (!files.length) {
 const total = new Map();      // hook name -> times dispatched, across every suite
 const seenIn = new Map();     // hook name -> [suite tags]
 const suites = [];
+const momentsByTag = new Map(); // tag -> { kind: count }, only for a ledger that carries the half
 for (const name of files.sort()) {
-  const { tag, ledger } = JSON.parse(readFileSync(join(LEDGER_DIR, name), "utf8"));
+  const { tag, ledger, moments } = JSON.parse(readFileSync(join(LEDGER_DIR, name), "utf8"));
   suites.push(tag);
+  if (moments?.kinds) momentsByTag.set(tag, moments.kinds);
   for (const [hook, n] of Object.entries(ledger)) {
     total.set(hook, (total.get(hook) ?? 0) + n);
     if (!seenIn.has(hook)) seenIn.set(hook, []);
@@ -212,3 +224,118 @@ console.log(`\nREPORT ${fired.length}/${observable} observable hook names exerci
   + (boot.length ? `, ${boot.length} unobservable by construction` : "")
   + (undispatched.length ? `, ${undispatched.length} not dispatched by this Foundry` : "")
   + ". Coverage is reported, never enforced.");
+
+/* === THE CLAIM PROOF — did each claimed file ACT in the suite that claims it? ================== */
+//
+// ⚠ NOTHING BELOW MAY TURN THE EXIT CODE. The hook half above already decided whether the
+// instrument worked; a missing coverage map, a ledger without its moment half, an unreadable
+// battery order — each prints what it is and stops this half, never the battery's tail.
+
+console.log("\n\nCLAIM PROOF — each declared claim against the moments its suite published "
+  + "(tools/claim-proof.mjs)");
+
+let coverage = null;
+try {
+  const mod = await import("./coverage-map.mjs");
+  coverage = await mod.loadCoverageMap();
+  if (!(coverage instanceof Map)) throw new Error("loadCoverageMap() did not return a Map");
+} catch (err) {
+  console.log(`  coverage map not available (${String(err?.message ?? err).split("\n")[0]}) — the `
+    + "claim proof needs tools/coverage-map.mjs's loadCoverageMap(). Nothing to prove against; "
+    + "not a result.");
+}
+
+if (coverage) {
+  const fileKinds = loadFileKinds();
+  const sole = soleWriters(fileKinds);
+  const { suiteToTag, problems, notSuites } = tagTable({
+    order: await loadOrder(), tags: loadSuiteTags(), ledgerTags: suites
+  });
+  for (const p of problems) console.log(`  ⚠ TAG TABLE: ${p}`);
+  if (notSuites.length) {
+    console.log(`  ledgers from steps that are not battery suites (ignored): ${notSuites.join(", ")}`);
+  }
+  const withMoments = suites.filter(t => momentsByTag.has(t));
+  console.log(`  ${withMoments.length}/${suites.length} ledger(s) carry a moment half`
+    + (withMoments.length < suites.length
+      ? " — the rest predate it or were not armed, and read NOT MEASURED" : ""));
+
+  const { rows, unclaimed, notMeasured, unknownSuites } = classifyClaims({
+    coverage, suiteToTag, moments: momentsByTag, fileKinds, sole
+  });
+  for (const s of unknownSuites) {
+    console.log(`  ⚠ the coverage map claims for "${s}", which is not a battery suite`);
+  }
+
+  const STATUSES = ["PROVEN", "PROVEN (shared kind)", "UNPROVEN", "UNPROVABLE-BY-MOMENTS",
+    "NOT MEASURED", "NO SUCH FILE"];
+  const count = (list, st) => list.filter(r => r.status === st).length;
+  const sw = Math.max(...[...coverage.keys()].map(k => k.length), 10);
+  console.log("\n  PER SUITE — proven / shared / UNPROVEN / unprovable / not measured / no such file");
+  for (const suite of coverage.keys()) {
+    const mine = rows.filter(r => r.suite === suite);
+    const tag = suiteToTag.get(suite);
+    const why = (tag === null) ? " (never leaves a ledger)"
+      : tag ? ` (no moment half in ${tag}.json)` : " (no tag)";
+    const note = notMeasured.includes(suite) ? `  NOT MEASURED${why}` : "";
+    console.log(`    ${suite.padEnd(sw)}  `
+      + `${STATUSES.map(st => String(count(mine, st)).padStart(3)).join(" ")}${note}`);
+  }
+
+  const unproven = rows.filter(r => r.status === "UNPROVEN");
+  if (unproven.length) {
+    console.log(`\n  ⚠ UNPROVEN — ${unproven.length} claim(s). The suite claims the file, the file `
+      + "writes moment kinds, and none was published while the suite ran. A stale or generous "
+      + "claim, or a path that stopped resolving — READ THESE:");
+    for (const r of unproven) {
+      console.log(`    ${r.suite.padEnd(sw)}  ${r.file}  (writes ${r.expected.join(", ")})`);
+    }
+  } else if (rows.some(r => ["PROVEN", "PROVEN (shared kind)"].includes(r.status))) {
+    // ⚠ Only when something WAS measured: "none unproven" over zero measured claims reads as a
+    // clean result, and it is no result at all.
+    console.log("\n  UNPROVEN — none among the measured claims.");
+  }
+
+  for (const r of rows.filter(x => x.status === "NO SUCH FILE")) {
+    console.log(`  ⚠ NO SUCH FILE: ${r.suite} claims ${r.file} — ${r.reason}`);
+  }
+
+  if (unclaimed.length) {
+    console.log(`\n  ⚠ ACTED BUT UNCLAIMED — ${unclaimed.length} file(s) whose OWN record kind was `
+      + "published in a suite that does not claim them (a missing claim, the other direction):");
+    for (const u of unclaimed) console.log(`    ${u.suite.padEnd(sw)}  ${u.file}  (${u.kinds.join(", ")})`);
+  }
+
+  const shared = rows.filter(r => r.status === "PROVEN (shared kind)");
+  if (shared.length) {
+    console.log(`\n  PROVEN (shared kind) — ${shared.length} claim(s) proven only by a kind other `
+      + "files also write, or one the file is only pinned to: something ran, this file is one candidate:");
+    for (const r of shared) console.log(`    ${r.suite.padEnd(sw)}  ${r.file}  (${r.via.join(", ")})`);
+  }
+
+  // The unprovable set once per FILE rather than once per claim — it is a fact of the file.
+  const unprovable = [...new Map(rows.filter(r => r.status === "UNPROVABLE-BY-MOMENTS")
+    .map(r => [r.file, r.reason]))];
+  if (unprovable.length) {
+    console.log(`\n  UNPROVABLE-BY-MOMENTS — ${unprovable.length} claimed file(s) that publish no `
+      + "moment kind; a limit of this instrument, not of the suites:");
+    for (const [file, why] of unprovable) console.log(`    ${file}  — ${why}`);
+  }
+
+  if (notMeasured.length) {
+    console.log(`\n  NOT MEASURED — ${notMeasured.length} suite(s): ${notMeasured.join(", ")}. `
+      + "Their claims are neither proven nor unproven; run them with the moment ledger armed.");
+  }
+  console.log("\n  ⚠ A moment publishes on the client that WROTE its record; the ledger hears the "
+    + "tester's page only, so a second client's own resolves are not counted. It under-reports, "
+    + "never over.");
+
+  const unmeasured = ["NOT MEASURED", "UNPROVABLE-BY-MOMENTS", "NO SUCH FILE"];
+  const measured = rows.filter(r => !unmeasured.includes(r.status));
+  const proven = count(rows, "PROVEN") + count(rows, "PROVEN (shared kind)");
+  console.log(`\nREPORT claims: ${proven}/${measured.length} measured claims proven `
+    + `(${count(rows, "PROVEN (shared kind)")} by a shared kind), ${unproven.length} UNPROVEN, `
+    + `${unclaimed.length} acted-but-unclaimed, ${count(rows, "UNPROVABLE-BY-MOMENTS")} unprovable `
+    + `by moments, ${count(rows, "NOT MEASURED")} not measured, across ${coverage.size} suite(s). `
+    + "Reported, never enforced.");
+}

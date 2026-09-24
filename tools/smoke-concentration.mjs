@@ -22,6 +22,14 @@
 // ALWAYS run; only the numbered assertion blocks are skippable.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'concentration.js'        // the assist — ask, roll, verdict, break, both modes
+];
+
 const SECTIONS = {
   1: 'auto mode: the floor DC, and quiet good news',
   2: 'the DC is half the damage…',

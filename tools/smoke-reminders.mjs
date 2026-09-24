@@ -12,6 +12,15 @@
 // Sections: `--section 3`, `--section 1,7`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'reminders.js',           // the gate — every source, the net, the press, the check gate
+  'chip-spend.js'           // §2 / §11 — the roll spends the chip
+];
+
 const SECTIONS = {
   1: 'Vex: the gate stands in for the dialog, the press re-issues the roll, the card says so',
   2: 'programmatic rolls (configure: false) are never gated — and still spend the chip',

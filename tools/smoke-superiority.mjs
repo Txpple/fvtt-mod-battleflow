@@ -16,6 +16,23 @@
 // Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'superiority-uses.js',    // §2-§5 — the four Bonus Action uses
+  'command.js',             // §9 — Commander's Strike, the notice and the chip
+  'd20-folds.js',           // §7 / §8 / §11 — Ambush and Tactical Assessment as scoped folds, armed
+  'hold/index.js',          // §1 — Parry as a DAMAGE hold, answered and reduced
+  'hold/trigger.js',
+  'hold/answer.js',
+  'hold/continue.js',
+  'cast.js',                // §6 — Rally's temp HP through the cast slice
+  'reminders.js',           // §2 — the Feinting marker read by the attack gate
+  'chip-spend.js'           // §2 / §3 / §9 — the marker and the chips spent by the roll
+];
+
 const SECTIONS = {
   1: 'Parry: the goblin hits the fighter — a DAMAGE hold (not the Monster Manual\'s AC Parry), the answer rolls die + modifier in the open, the damage lands REDUCED with the receipt saying so, the pool and the Reaction spent',
   2: 'Feinting Attack: the pack\'s marker on the goblin with the fighter as source; the fighter\'s attack gate reads it as Advantage; the die rides the hit and the marker is spent; the Ranger\'s gate never reads it',

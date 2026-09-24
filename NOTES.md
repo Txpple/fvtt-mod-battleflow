@@ -1662,6 +1662,48 @@ ships on), so a table change is two edits, the reference and the default. ⚠ Th
 on unfixed drift since the same day — a battery once printed "settings clean" over six drifted
 settings because drift alone exited 0.
 
+**Testing that fits the size of the change (2026-09-23, user ruling — Shape A, both halves).**
+The full battery is about 50 minutes and a two-file change used to pay all of it. Now
+`node tools/battery.mjs --changed --list` prints the plan for the working tree (or `--changed main`
+for a branch) and `--changed` runs it: each suite's `COVERS` claims select it, a `decide/` change
+walks up to the machines that import it, a seed is pulled by `needs`, and the plan says why every
+row runs. Measured on the day: an `emanations.js` + `decide/emanations.js` change selects nine
+rows (about 17 minutes) — seven of them because `saves/demand.js` imports one decide function —
+and a `mastery.js` change six rows. ⚠ **Three things the design pass found and kept honest:**
+(1) the hook ledger cannot scope a change — nearly every machine listens on the same chat hooks,
+so a registration-to-ledger join maps almost every file to 23 of 26 suites, which is why the map
+is DECLARED and the runtime proof reads MOMENTS (what a file wrote), not hooks (what it heard);
+(2) a `decide/` file the spine imports is the full battery — `verdict.js`, `receipt.js`,
+`card.js` and eight more — because `shared.js` / `auto-apply.js` reach everything, and the plan
+names the importer that made it full; (3) the "unit tier" direction was already done — all
+twenty `decide/` files have a test file — so it stayed a per-feature rule (ARCHITECTURE §11)
+rather than a project. **The release floor is unchanged: the full battery, unattended.** The
+first battery through the new harness (2026-09-23, 30 rows with `probe-effect-view` in, 62 min)
+read hook coverage 56/56 and claims 76/84 proven; its eight UNPROVEN were triaged in
+ARCHITECTURE §10 D11 (four are `polish.js`'s non-record jobs, four the two-client suites reading
+low) and its six acted-but-unclaimed files were claimed. ⚠ The one red that run was
+`smoke-hold` §7 (b), set=false — and it was neither timing nor the tooling: **the sandbox had been
+refreshed from prod that afternoon, and Gren Greenmantle arrived with his first-level slots spent
+at the table (0 of 4).** The suite's direct Shield cast consumed a slot by default, dnd5e refused
+the use before `preUseActivity` resolved, no `postUseActivity` fired and no chip was written;
+every guard in `spendReaction` read true when probed. The cast now consumes nothing, as
+smoke-shields already did. The class is the standing one: **a campaign PC's slot count is not a
+fixture** — what a suite needs must not depend on what the last session left in the world. The
+settings drift the same run reported (`requireTarget`) was the LAUNDERING class from NOTES §5:
+a first attempt at the battery was killed mid-`smoke-battleflow` with the pin down, and the
+reference table caught it, as designed.
+
+**⚠ A message COUNT is not a cursor (2026-09-23).** `smoke-d20-folds` found its cards by slicing
+the chat log at a pre-click `game.messages.size`; a deletion elsewhere shifts the index and the
+find misses — it flaked in the battery and passed alone, four times. Every site now matches by
+CONTENT since a TIMESTAMP taken before the click (`m.timestamp >= since`, the creation ms), and
+one receipt that was read after a fixed sleep now waits for the receipt itself. Same day, the
+other standing flake read differently: `smoke-expiry` §8b was DICE, not load — `swing('sap')`
+re-swings after a natural 1 or a killed victim, Vex is spent by the FIRST swing hit or miss, and
+the assertion read the spend record off the LAST swing's message. Four battery reds, each beside
+a "swinging again" line. The assertion now finds the record by the chip it names since the
+swing's timestamp; the module's order (record, then the chip) was right all along.
+
 **⚠ Run suites one at a time, not chained in a single shell command.** A back-to-back battery
 produced exactly one polluted assertion — a message-count delta of −20 — green in isolation,
 twice. The shape says a prior suite's teardown sweep landing late.

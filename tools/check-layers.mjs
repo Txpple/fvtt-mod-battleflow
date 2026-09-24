@@ -26,11 +26,11 @@
 //
 //   node tools/check-layers.mjs
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join, normalize, relative, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { dirname, join, normalize, relative, resolve, sep } from "node:path";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const SCRIPTS = join(ROOT, "scripts");
+export const SCRIPTS = join(ROOT, "scripts");
 
 /* ---------------------------------------------------------------------------------------------
  * THE LAYER MAP — ARCHITECTURE.md §2 and §7, declared once, in code.
@@ -47,9 +47,9 @@ const SCRIPTS = join(ROOT, "scripts");
  * calling a service, which is downward and always was.
  * ------------------------------------------------------------------------------------------- */
 
-const DEPTH = { core: 0, decision: 1, registry: 2, spine: 3, services: 4, machines: 5, entry: 6 };
+export const DEPTH = { core: 0, decision: 1, registry: 2, spine: 3, services: 4, machines: 5, entry: 6 };
 
-const LAYER_OF = {
+export const LAYER_OF = {
   // the one esmodules entry — imports its siblings in a deliberate order (§7)
   "battleflow.js": "entry",
 
@@ -159,12 +159,12 @@ const LAYER_OF = {
  * then judged by the ordinary depth rule. Declared by directory name; a part's group is its folder.
  * ------------------------------------------------------------------------------------------- */
 
-const GROUPS = {
+export const GROUPS = {
   saves: { face: "saves/index.js" },
   hold: { face: "hold/index.js" }
 };
 /** The group a scripts-relative path belongs to, or null (decide/ is a layer, not a group). */
-const groupOf = rel => (rel.includes("/") && GROUPS[rel.split("/")[0]]) ? rel.split("/")[0] : null;
+export const groupOf = rel => (rel.includes("/") && GROUPS[rel.split("/")[0]]) ? rel.split("/")[0] : null;
 
 /* ---------------------------------------------------------------------------------------------
  * THE ALLOWLIST — every edge that is not strictly downward, and why it is allowed to exist.
@@ -246,10 +246,10 @@ const ALLOW = [
 
 /* --- the graph ---------------------------------------------------------------------------- */
 
-const toPosix = p => p.split(sep).join("/");
+export const toPosix = p => p.split(sep).join("/");
 
 /** Every .js file under scripts/, recursively, as a scripts-relative posix path. */
-function jsFiles(dir) {
+export function jsFiles(dir) {
   const out = [];
   for (const name of readdirSync(dir)) {
     const full = join(dir, name);
@@ -264,7 +264,7 @@ function jsFiles(dir) {
  * the interesting edges live, because `await import()` is this module's cycle-breaking and
  * order-pinning idiom (six of the eleven allowlisted edges below are lazy).
  */
-function edgesOf(file) {
+export function edgesOf(file) {
   const src = readFileSync(file, "utf8");
   const from = toPosix(relative(SCRIPTS, file));
   const out = [];
@@ -279,111 +279,123 @@ function edgesOf(file) {
   return out;
 }
 
-const files = jsFiles(SCRIPTS).map(f => ({ path: f, rel: toPosix(relative(SCRIPTS, f)) }))
-  .sort((a, b) => a.rel.localeCompare(b.rel));
-const edges = files.flatMap(f => edgesOf(f.path));
+/* --- the check ---------------------------------------------------------------------------- */
 
-/* --- the assertions ----------------------------------------------------------------------- */
+// ⚠ THE MAPS ABOVE ARE IMPORTED, SO THE CHECK RUNS ONLY WHEN THIS FILE IS THE ENTRY. The tier map
+// is the coverage map's second input (tools/coverage-map.mjs: a machine is claimed by a suite, a
+// spine change is the full battery), and it stays declared HERE, once — a copy in the coverage
+// map would be the same drift this file exists to stop. `npm run layers` behaves exactly as it
+// did before the maps were exported (2026-09-23, change-scoped live testing).
+const isEntry = process.argv[1] && (pathToFileURL(resolve(process.argv[1])).href === import.meta.url);
+if (isEntry) main();
 
-const failures = [];
-const fail = (rule, msg) => failures.push(`${rule}: ${msg}`);
+function main() {
+  const files = jsFiles(SCRIPTS).map(f => ({ path: f, rel: toPosix(relative(SCRIPTS, f)) }))
+    .sort((a, b) => a.rel.localeCompare(b.rel));
+  const edges = files.flatMap(f => edgesOf(f.path));
 
-// (1) every file declares a layer. An undeclared file is a NEW file whose layer nobody chose.
-for (const f of files) {
-  if (!LAYER_OF[f.rel]) {
-    fail("layer map", `scripts/${f.rel} has no layer — declare it in LAYER_OF in this file `
-      + "(ARCHITECTURE §11, \"Adding a file\": declare its layer in its header comment too)");
+  /* --- the assertions ----------------------------------------------------------------------- */
+
+  const failures = [];
+  const fail = (rule, msg) => failures.push(`${rule}: ${msg}`);
+
+  // (1) every file declares a layer. An undeclared file is a NEW file whose layer nobody chose.
+  for (const f of files) {
+    if (!LAYER_OF[f.rel]) {
+      fail("layer map", `scripts/${f.rel} has no layer — declare it in LAYER_OF in this file `
+        + "(ARCHITECTURE §11, \"Adding a file\": declare its layer in its header comment too)");
+    }
   }
-}
-// ...and every declared layer names a file that exists, so the map cannot rot either.
-for (const rel of Object.keys(LAYER_OF)) {
-  if (!files.some(f => f.rel === rel)) {
-    fail("layer map", `LAYER_OF names scripts/${rel}, which does not exist — remove the row`);
+  // ...and every declared layer names a file that exists, so the map cannot rot either.
+  for (const rel of Object.keys(LAYER_OF)) {
+    if (!files.some(f => f.rel === rel)) {
+      fail("layer map", `LAYER_OF names scripts/${rel}, which does not exist — remove the row`);
+    }
   }
-}
 
-// (2) the pure layer imports NOTHING. §7's "⚠ keep it that way", made mechanical.
-for (const e of edges) {
-  if (LAYER_OF[e.from] === "decision") {
-    fail("decide/ is pure", `scripts/${e.from} imports "${e.to}" — the DECISION layer has zero `
-      + "imports by design (§7). If it needs game/canvas/a document it is EDGE: move it up a layer");
+  // (2) the pure layer imports NOTHING. §7's "⚠ keep it that way", made mechanical.
+  for (const e of edges) {
+    if (LAYER_OF[e.from] === "decision") {
+      fail("decide/ is pure", `scripts/${e.from} imports "${e.to}" — the DECISION layer has zero `
+        + "imports by design (§7). If it needs game/canvas/a document it is EDGE: move it up a layer");
+    }
   }
-}
 
-// (3) core.js is a leaf.
-for (const e of edges.filter(e => e.from === "core.js")) {
-  fail("core is a leaf", `core.js imports "${e.to}" — core.js imports nothing (§7)`);
-}
-
-// (4) every edge is strictly downward, or pinned with a reason.
-const key = e => `${e.from} -> ${e.to}`;
-const allowed = new Map(ALLOW.map(a => [`${a.from} -> ${a.to}`, a]));
-const used = new Set();
-const violations = [];
-for (const e of edges) {
-  const fromDepth = DEPTH[LAYER_OF[e.from]];
-  const toDepth = DEPTH[LAYER_OF[e.to]];
-  if ((fromDepth === undefined) || (toDepth === undefined)) continue;   // reported by (1)
-  // (4a) a directory machine: inside the group every edge is legal; from outside, only the face.
-  const gTo = groupOf(e.to), gFrom = groupOf(e.from);
-  if (gTo && (gFrom === gTo)) continue;
-  if (gTo && (e.to !== GROUPS[gTo].face)) {
-    fail("import the index", `scripts/${e.from} imports "${e.to}" — a PART of the ${gTo}/ machine. `
-      + `Import ${GROUPS[gTo].face} instead: a directory machine's index is its only public face (§7)`);
-    continue;
+  // (3) core.js is a leaf.
+  for (const e of edges.filter(e => e.from === "core.js")) {
+    fail("core is a leaf", `core.js imports "${e.to}" — core.js imports nothing (§7)`);
   }
-  if (toDepth < fromDepth) continue;                                    // downward: always legal
-  if (allowed.has(key(e))) { used.add(key(e)); violations.push(e); continue; }
-  const direction = (toDepth === fromDepth) ? "SAME-LAYER" : "UPWARD";
-  fail("depend downward", `scripts/${e.from} (${LAYER_OF[e.from]}) imports "${e.to}" `
-    + `(${LAYER_OF[e.to]}) — ${direction}, and not in the allowlist. Either invert the `
-    + "dependency (the service usually belongs in the lower layer — that is D1's whole lesson), "
-    + "or add a row to ALLOW in this file saying why it must exist");
-}
 
-// (5) no stale pins. A row for an edge that no longer exists misreports the shape of the tree.
-for (const a of ALLOW) {
-  if (!used.has(`${a.from} -> ${a.to}`)) {
-    fail("stale pin", `ALLOW lists ${a.from} -> ${a.to}, and that edge no longer exists — `
-      + "delete the row. (D2's evidence row went stale in place for weeks; a pin that cannot go "
-      + "stale silently is the point of this check)");
+  // (4) every edge is strictly downward, or pinned with a reason.
+  const key = e => `${e.from} -> ${e.to}`;
+  const allowed = new Map(ALLOW.map(a => [`${a.from} -> ${a.to}`, a]));
+  const used = new Set();
+  const violations = [];
+  for (const e of edges) {
+    const fromDepth = DEPTH[LAYER_OF[e.from]];
+    const toDepth = DEPTH[LAYER_OF[e.to]];
+    if ((fromDepth === undefined) || (toDepth === undefined)) continue;   // reported by (1)
+    // (4a) a directory machine: inside the group every edge is legal; from outside, only the face.
+    const gTo = groupOf(e.to), gFrom = groupOf(e.from);
+    if (gTo && (gFrom === gTo)) continue;
+    if (gTo && (e.to !== GROUPS[gTo].face)) {
+      fail("import the index", `scripts/${e.from} imports "${e.to}" — a PART of the ${gTo}/ machine. `
+        + `Import ${GROUPS[gTo].face} instead: a directory machine's index is its only public face (§7)`);
+      continue;
+    }
+    if (toDepth < fromDepth) continue;                                    // downward: always legal
+    if (allowed.has(key(e))) { used.add(key(e)); violations.push(e); continue; }
+    const direction = (toDepth === fromDepth) ? "SAME-LAYER" : "UPWARD";
+    fail("depend downward", `scripts/${e.from} (${LAYER_OF[e.from]}) imports "${e.to}" `
+      + `(${LAYER_OF[e.to]}) — ${direction}, and not in the allowlist. Either invert the `
+      + "dependency (the service usually belongs in the lower layer — that is D1's whole lesson), "
+      + "or add a row to ALLOW in this file saying why it must exist");
   }
+
+  // (5) no stale pins. A row for an edge that no longer exists misreports the shape of the tree.
+  for (const a of ALLOW) {
+    if (!used.has(`${a.from} -> ${a.to}`)) {
+      fail("stale pin", `ALLOW lists ${a.from} -> ${a.to}, and that edge no longer exists — `
+        + "delete the row. (D2's evidence row went stale in place for weeks; a pin that cannot go "
+        + "stale silently is the point of this check)");
+    }
+  }
+
+  /* --- the report --------------------------------------------------------------------------- */
+
+  if (failures.length) {
+    console.error("");
+    for (const f of failures) console.error(`FAIL ${f}`);
+    console.error(`\n${failures.length} layering failure(s).`);
+    process.exit(1);
+  }
+
+  const byLayer = Object.keys(DEPTH).sort((a, b) => DEPTH[b] - DEPTH[a]);
+  const counts = Object.fromEntries(byLayer.map(l =>
+    [l, files.filter(f => LAYER_OF[f.rel] === l).length]));
+
+  console.log("LAYERS AND THE EDGES THAT CROSS THEM (ARCHITECTURE.md §7 — the dependency rule)");
+  for (const l of byLayer) {
+    console.log(`  ${String(DEPTH[l]).padStart(2)}  ${l.padEnd(9)} ${String(counts[l]).padStart(2)} `
+      + `file${counts[l] === 1 ? "" : "s"}`);
+  }
+  const kinds = ["static", "bare", "star", "lazy"];
+  const tally = kinds.map(k => `${k} ${edges.filter(e => e.kind === k).length}`).join(" · ");
+  console.log(`\n  ${edges.length} internal edges: ${tally}`);
+
+  // ⚠ SITES vs PAIRS, said precisely: `saves.js -> maneuvers.js` is one pinned pair holding two
+  // call sites. A count that quietly means one when it reads like the other is how this repo's
+  // hand-carried numbers went stale twice (PLAN.md, the commit count).
+  console.log(`\n  ${ALLOW.length} pinned pair(s), ${violations.length} call site(s) — `
+    + "not downward, each with a reason:");
+  const w = Math.max(...ALLOW.map(a => `${a.from} -> ${a.to}`.length));
+  for (const a of ALLOW) {
+    const sites = violations.filter(e => (e.from === a.from) && (e.to === a.to));
+    const forms = [...new Set(sites.map(e => e.kind))].join("/");
+    console.log(`    ${`${a.from} -> ${a.to}`.padEnd(w)}  ${a.disposition.padEnd(11)} `
+      + `${sites.length}× ${forms}`);
+  }
+  const open = ALLOW.filter(a => a.disposition.startsWith("OPEN")).length;
+  console.log(`\nPASS every edge is downward or pinned (${files.length} files, ${edges.length} edges, `
+    + `${ALLOW.length} pinned pairs, ${open} of them OPEN debt — ARCHITECTURE §10 D9).`);
 }
-
-/* --- the report --------------------------------------------------------------------------- */
-
-if (failures.length) {
-  console.error("");
-  for (const f of failures) console.error(`FAIL ${f}`);
-  console.error(`\n${failures.length} layering failure(s).`);
-  process.exit(1);
-}
-
-const byLayer = Object.keys(DEPTH).sort((a, b) => DEPTH[b] - DEPTH[a]);
-const counts = Object.fromEntries(byLayer.map(l =>
-  [l, files.filter(f => LAYER_OF[f.rel] === l).length]));
-
-console.log("LAYERS AND THE EDGES THAT CROSS THEM (ARCHITECTURE.md §7 — the dependency rule)");
-for (const l of byLayer) {
-  console.log(`  ${String(DEPTH[l]).padStart(2)}  ${l.padEnd(9)} ${String(counts[l]).padStart(2)} `
-    + `file${counts[l] === 1 ? "" : "s"}`);
-}
-const kinds = ["static", "bare", "star", "lazy"];
-const tally = kinds.map(k => `${k} ${edges.filter(e => e.kind === k).length}`).join(" · ");
-console.log(`\n  ${edges.length} internal edges: ${tally}`);
-
-// ⚠ SITES vs PAIRS, said precisely: `saves.js -> maneuvers.js` is one pinned pair holding two
-// call sites. A count that quietly means one when it reads like the other is how this repo's
-// hand-carried numbers went stale twice (PLAN.md, the commit count).
-console.log(`\n  ${ALLOW.length} pinned pair(s), ${violations.length} call site(s) — `
-  + "not downward, each with a reason:");
-const w = Math.max(...ALLOW.map(a => `${a.from} -> ${a.to}`.length));
-for (const a of ALLOW) {
-  const sites = violations.filter(e => (e.from === a.from) && (e.to === a.to));
-  const forms = [...new Set(sites.map(e => e.kind))].join("/");
-  console.log(`    ${`${a.from} -> ${a.to}`.padEnd(w)}  ${a.disposition.padEnd(11)} `
-    + `${sites.length}× ${forms}`);
-}
-const open = ALLOW.filter(a => a.disposition.startsWith("OPEN")).length;
-console.log(`\nPASS every edge is downward or pinned (${files.length} files, ${edges.length} edges, `
-  + `${ALLOW.length} pinned pairs, ${open} of them OPEN debt — ARCHITECTURE §10 D9).`);

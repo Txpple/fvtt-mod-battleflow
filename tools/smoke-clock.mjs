@@ -12,6 +12,16 @@
 // Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'clock-riders.js',        // Dreadful Strike and Assassinate on the combat clock
+  'sneak.js',               // §5 — the sneak hit Assassinate rides
+  'reminders.js'            // §5 — Advantage against a creature that has not acted (the effect table)
+];
+
 const SECTIONS = {
   1: 'out of combat: Dreadful Strike rides every hit — 2d6 psychic as its own part, a use spent, the card says why',
   2: 'the offer: a ticked checkbox per due rider, optional — unticked, nothing rides and nothing is spent',

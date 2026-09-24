@@ -26,6 +26,22 @@
 // are one scenario — the hold fires, then the cast answers it.
 import { announcePlan, connectSuite, sectionPlan } from './harness.mjs';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'hold/index.js',          // the whole reaction hold — every part, §1 to §9
+  'hold/lookup.js',
+  'hold/clock.js',
+  'hold/trigger.js',
+  'hold/spell-hold.js',
+  'hold/answer.js',
+  'hold/continue.js',
+  'hold/spell-damage.js',
+  'hold/views.js'
+];
+
 const SECTIONS = {
   1: 'the hold fires (and §2: CAST answers it, the AC re-test turns the hit)',
   3: 'PASS lets the attack through: the released dice APPLY',
@@ -1562,9 +1578,15 @@ const r = await f.evaluate(async ({ sections }) => {
       // The Reaction is a CHIP now (2026-09-02): standing and not yet marked expired by the platform.
       const spent = () => reactionSpentOf(game.actors.get(gren.id));
       const shieldActivity = () => gren.items.get(shield.id)?.system.activities?.contents?.[0];
+      // ⚠ CONSUME NOTHING — the slot is not the fixture. Gren is a campaign PC and the sandbox is a
+      // prod copy: the copy of 2026-09-23 arrived with his first-level slots SPENT at the table
+      // (0 of 4), dnd5e refused the use before `preUseActivity` even resolved, no `postUseActivity`
+      // fired, and (b) read set=false on three runs while every guard in spendReaction read true
+      // (measured with tools/probe-spend, scratch). smoke-shields casts the same way. The world is
+      // disposable; what a suite needs must not depend on what the last session left in it.
       const castShield = async () => {
-        await shieldActivity()?.use({ subsequentActions: false }, { configure: false },
-          { create: false });
+        await shieldActivity()?.use({ consume: { spellSlot: false, resources: false, action: false }, subsequentActions: false },
+          { configure: false }, { create: false });
         await sleep(500);
       };
       try {
@@ -1587,8 +1609,15 @@ const r = await f.evaluate(async ({ sections }) => {
           ...(foeToken ? [{ actorId: foeToken.actorId, tokenId: foeToken.id, sceneId: scene.id }] : [])
         ]);
         await combat.rollAll();
+        // Activated as smoke-battleflow §7 does: the module reads `game.combat` (core.js
+        // activeCombatFor), the ACTIVE encounter, and this suite must not depend on a fresh
+        // combat happening to be it. (Not the 2026-09-23 red — that was the slot, see castShield.)
+        await combat.activate();
         await combat.startCombat();
         await sleep(400);
+        // What the MODULE will see, kept for the assertion line: a false here explains a false below.
+        const combatSeen = { gameCombatIsOurs: game.combat?.id === combat.id, combatActive: combat.active,
+          viewed: canvas.scene?.name ?? null, grenOwner: !!gren.isOwner, grenInTracker: combat.getCombatantsByActor(gren).length };
         // ⚠ Step OFF Gren first if the initiative put us on him: `updateCombat` clears the flag
         // for whoever's turn it now is, so setting it while Gren is current would be cleared by
         // the very next tick and (c) would pass for the wrong reason.
@@ -1599,7 +1628,10 @@ const r = await f.evaluate(async ({ sections }) => {
         const startedOnGren = combat.combatant?.actor?.id === gren.id;
         await clearReaction(gren);
         await castShield();
-        const inCombat = await spent();
+        // Wait for the flag rather than read it after castShield()'s fixed sleep (the tier rule,
+        // ARCHITECTURE §11): the chip is written after the cast resolves. The out-of-combat read
+        // above is the OPPOSITE claim — nothing must be set — and stays a read after the sleep.
+        const inCombat = !!(await waitFor(spent, 6000));
 
         // (c) `updateCombat`: Gren's own turn comes round and the flag clears.
         let reached = false;
@@ -1622,7 +1654,7 @@ const r = await f.evaluate(async ({ sections }) => {
         const clearedOnDelete = !(await spent());
 
         results.turnClears = {
-          outOfCombatSet: outOfCombat, startedOnGren, inCombatSet: inCombat,
+          outOfCombatSet: outOfCombat, startedOnGren, inCombatSet: inCombat, ...combatSeen,
           turnReached: reached, clearedOnTurn, setBeforeDelete, clearedOnDelete
         };
       } finally {
@@ -2005,7 +2037,7 @@ if (want('7')) {
   report('OUT of combat, a reaction does NOT set reactionSpent (the stranding guard)',
     t?.outOfCombatSet === false, `set=${t?.outOfCombatSet}`);
   report('IN a running combat, the same reaction DOES set it',
-    t?.inCombatSet === true, `set=${t?.inCombatSet} (startedOnGren=${t?.startedOnGren})`);
+    t?.inCombatSet === true, `set=${t?.inCombatSet} (startedOnGren=${t?.startedOnGren} gameCombatIsOurs=${t?.gameCombatIsOurs} active=${t?.combatActive} viewed=${t?.viewed} owner=${t?.grenOwner} inTracker=${t?.grenInTracker})`);
   // updateCombat — the first of the two hooks the battery had never dispatched.
   report("updateCombat: the actor's own turn comes round and the flag clears",
     t?.turnReached === true && t?.clearedOnTurn === true,

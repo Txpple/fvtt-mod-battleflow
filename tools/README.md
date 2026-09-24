@@ -8,6 +8,7 @@ browser (`fvtt-mcp-dnd5e/client` — a `file:../fvtt-mcp-dnd5e` dependency: `npm
 
 ```bash
 node tools/battery.mjs                     # every suite, in order, each captured to a file
+node tools/battery.mjs --changed --list    # what this change needs re-run, and why — then drop --list
 node tools/smoke-saves.mjs                 # one suite, the local sandbox (default)
 node tools/smoke-saves.mjs --list          # its sections, without connecting
 node tools/smoke-saves.mjs --section 8     # just §8 (plus anything §8 depends on)
@@ -28,6 +29,7 @@ it quietly runs the prerequisite and says so.
 | `check-hook-dispatch.mjs` | ⚠ every `dnd5e.*` hook this module registers is one dnd5e **actually dispatches** (ARCHITECTURE §10 D10). The set is **generated** from the installed system's own bundle — literal `Hooks.call*` names ∪ its `@memberof hookEvents` JSDoc — committed as `dnd5e-hooks.json` and **pinned to the version `module.json` verifies**. `--regen` re-extracts and prints the diff. ⚠ **Run it after any dnd5e upgrade, and read the diff:** a name that disappeared is a listener that has gone silent. Core (non-dnd5e) hooks are **not** covered and cannot be — measured, see the file header. |
 | `check-surfaces.mjs` | ⚠ every HTML anchor this module reads off the PLATFORM's markup lives in ONE map (`scripts/surfaces.js`) — no selector string for a platform element anywhere else — and every dnd5e-authored anchor still appears in the shipped templates and bundle of the version `module.json` verifies, recorded in `dnd5e-surfaces.json` (**generated** by `--regen`, pinned to the version like the hook artifact). The 6.0 pass's posture (NOTES §2 *the 6.0 pass* §3b, 2026-09-15): the card's DATA is the contract and its HTML is not; what HTML is still read is counted and checked at the pin bump. Core's own anchors are listed, not checked. |
 | `check-layers.mjs` | ARCHITECTURE §7's dependency rule, mechanical: every edge is downward or pinned in `ALLOW` with a reason, and a pin whose edge has gone FAILS. Since 2026-09-05 it also holds `GROUPS` — a machine that is a directory (`saves/`): edges inside the group are legal, an outside import of any part but `index.js` fails with "import the index". |
+| `check-coverage-map.mjs` | the live suites' `COVERS` claims (the coverage map, below), **both ways**: every machine-tier file is claimed by some battery suite; every claim names a machine that exists (a rename fails here — the layer pins' self-expiry); every ORDER suite declares COVERS and every file declaring COVERS is in ORDER (an unrun suite rots); no claim names a spine file ("spine files are covered by the full battery, drop the claim"); every `needs` resolves above its suite. Prints the suite → covers table. **No allowlist**: a machine nothing drives is claimed by the nearest suite with a comment saying so. `npm run coverage`. |
 | `check-registry.mjs` | every `S` key is registered and every registration is named in `S`; every registry entry declares a known kind and no amount; every shipped list-setting default survives its own strict parser; the **R4 kind total** and the **source-file count** match their pins. |
 | `check-imports.mjs` | every relative import resolves, and every named binding is really exported — including through the lazy `await import()` idiom. |
 | `check-comments.mjs` | every `/**` block sits on a declaration, so an extraction cannot strand a doc. |
@@ -36,7 +38,7 @@ it quietly runs the prerequisite and says so.
 | `bump-version.mjs --check` | `module.json`'s `version` and its `download` URL name the same tag. |
 | `tsc --noEmit` | ⚠ **real, and only over `scripts/decide/`** — the six pure modules opt in with `// @ts-check`. `checkJs` stays false globally; files opt IN, one at a time. |
 
-All of them run inside `npm run verify`, along with biome, knip and the unit tests — **thirteen static
+All of them run inside `npm run verify`, along with biome, knip and the unit tests — **fourteen static
 checks and the suite**, all offline, all in seconds. ⚠ **Do not hand-carry the counts out of
 here.** The tools print their own (`237` tests, `98` biome warnings and `28` source files as of
 2026-08-23); every number this repo has typed into prose twice has gone stale at least once.
@@ -59,7 +61,7 @@ after it) · `smoke-saves` · `smoke-volleys` · `smoke-maneuvers` · `smoke-cas
 `smoke-concentration` · `smoke-twoclient` · `check-popup-routing` · `reset-fixture-state` ·
 `smoke-effects` · `smoke-resources` · `smoke-surfaces` · `smoke-reminders` · `smoke-sneak` ·
 `smoke-clock` · `smoke-hitmenu` · `smoke-shields` · `smoke-heatmetal` · `smoke-superiority` · `fixture-suite` · `smoke-emanations` · `smoke-resources` · `smoke-surfaces` · `fixture-suite` · `smoke-nogm` (last — it must find no active GM, and the seed
-above it re-places the token it needs). `battery.mjs` holds the order; quote it, never this line.
+above it re-places the token it needs). `ORDER` in `coverage-map.mjs` holds the order (`battery.mjs --list` prints it); quote it, never this line.
 
 ⚠ **`smoke-saves` §23 (2026-09-05)** puts the auras' effects on the victim BY NAME (Aura of Purity, Circle's Power) and gives the fixture's failed-save effect a status for the run, so the save gate's `saves` facet has a demand to judge; it lists `effect` in Reminder Sources and the two names in Effect Sources for the section and restores both.
 
@@ -110,11 +112,38 @@ both suites join as the same user and it counts users, not sockets (NOTES §5).
 
 | Flag | Effect |
 | --- | --- |
-| *(none)* | all thirteen entries, in the canonical order, each captured to `dist/battery/<stamp>/` |
-| `--from smoke-saves` | resume after a failure, still in order |
-| `smoke-hold smoke-battleflow` | a subset — still run in the canonical order |
+| *(none)* | every ORDER entry, in the canonical order, each captured to `dist/battery/<stamp>/` |
+| `--changed` | **change-scoped**: the suites the working tree's change selects (`git diff HEAD`, the index, and the untracked files), needs pulled, in canonical order |
+| `--changed main` | the same for a branch: everything since it left `main` (`main...HEAD`) plus the working tree |
+| `--files scripts/emanations.js …` | the same selector on a list by hand — for checking what a change would run without making it |
+| `--from smoke-saves` | resume after a failure, still in order — and pulls what the resumed rows need from above the cut |
+| `smoke-hold smoke-battleflow` | a subset — still run in the canonical order; a suite's `needs` are pulled and named (`smoke-hold` alone runs `smoke-battleflow` first) |
+| `--section 4 smoke-hold` | one suite's sections; only that suite receives `--section`, a pulled need runs whole |
 | `--snapshot` | take a world snapshot first, roll it back after (the cure for the crash-launder hazard) |
-| `--list` | the order and why, without running anything |
+| `--list` | the order, the needs and the notes, without running anything. With `--changed` / `--files` / names: **the plan**, each row with why it runs (the file that claimed it, the suite that needed it, or the reason for the full battery), and each changed file that runs nothing with why |
+
+**`needs`** is a field on an ORDER row: the rows that suite cannot run without, each resolved to
+the **nearest row of that name above it** — which is how the three `fixture-suite` seeds each serve
+the suites below them. `smoke-hold` needs `smoke-battleflow` (adjacent in ORDER, so nothing can
+run between them), `smoke-d20-folds` its `fixture-d20-folds`, `smoke-effects` the
+`reset-fixture-state` sweep, `smoke-metamagic` / `smoke-emanations` / `probe-effect-view` /
+`smoke-nogm` a `fixture-suite`. It replaced the old "ask for both" refusal: the battery runs the
+dependency and says so.
+
+**The coverage map** (`coverage-map.mjs`, 2026-09-23). Every battery suite declares
+`export const COVERS = [...]` beside its `SECTIONS` — the **machine-tier** files (scripts-relative:
+`"emanations.js"`, `"saves/ask.js"`) whose behaviour its sections drive. A claim means *"a
+change there should re-run me"*; it is judgment from the suite's own sections, and generous.
+`--changed` reads the claims: a changed machine selects its claimants; a changed `decide/` or
+registry file is walked UP the import graph (the layer check's own edge reader) to the machines
+that import it; a changed suite selects itself and a changed seed the suites that need it; docs,
+`tests/` and `package.json` run nothing. ⚠ **A spine change is the full battery, honestly** —
+core, spine, services and entry files (`check-layers.mjs`'s tiers, never a hand list), a
+`decide/` file the walk finds the spine importing, `harness.mjs` / `target.mjs` / `battery.mjs` /
+`coverage-map.mjs`, and `module.json` (the manifest the platform loads). Those are imported by
+nearly every machine; there is no smaller set that tests them, and the plan says which file made
+it full. `check-coverage-map.mjs` checks the map **both ways** in `npm run verify`, so a
+claim cannot outlive its file and a machine cannot go unclaimed.
 
 Failures print in full to the console **as well as** landing in the file — the `| tail` that
 twice lost `smoke-battleflow`'s "2 FAILURE(S)" evidence cannot happen through this door.
@@ -154,7 +183,10 @@ ships, never from what the party owns (DESIGN N1). Re-run after adding content.
 | `world-snapshot.mjs` | `take` / `restore` / `status` / `drop` — roll the sandbox's databases back after a battery. The copy is 24 MB and takes 0.05s; the ~75s cost is the world bounce either side. **Local only.** |
 | `harness.mjs` | the twenty lines every suite used to copy — env, watchdog, connect, preflight, the section plan, one reporter, the **suite lock**, and the **hook ledger** it arms at connect and writes at teardown. Not a suite; nothing runs it directly. |
 | `hook-coverage.mjs` | ⚠ **the only measurement in the tree that is about BEHAVIOUR** (ARCHITECTURE §10 D11): which of the module's hook registrations actually FIRED during the run (it prints the count; 83 when it was built, 172 by 2026-09-05), unioned from the per-suite ledgers in `dist/hook-ledger/`. **It reports; it never fails.** A never-fired line is a coverage gap, a dead handler or a rare hook — only a person can tell which, and v1.23.0 would have printed four dead ones beside a green battery. |
-| `battery.mjs` | the whole battery in one command, in the order that works, captured to files. |
+| `claim-proof.mjs` | **the runtime half of the coverage map** (2026-09-23), printed as `hook-coverage`'s second section. The harness also counts every `battleflow.moment` by record `kind` into the same ledger file (`moments`); this reads it against each suite's `COVERS`: a claimed file is PROVEN (a kind only it writes was published there), PROVEN (shared kind), **UNPROVEN** (it writes kinds, none published — a stale claim), UNPROVABLE-BY-MOMENTS (it writes no kind — derived from the gate's tables, not listed) or NOT MEASURED (no moment half in the ledger). It also names a file that acted in a suite that does NOT claim it. The tag → suite join is read off each script's `connectSuite({ tag })`. Same contract: **reports, never fails.** ⚠ It hears the tester's page only — a second client's resolves are not counted. |
+| `moment-writers.mjs` | the gate's flag-write scan and its `WORLD_WRITERS` pins, moved out of `check-moments.mjs` so the claim proof reads the SAME answer to "which file writes which record" (2026-09-23). |
+| `battery.mjs` | the whole battery in one command, in the order that works, captured to files — or, with `--changed`, only what the change selects. |
+| `coverage-map.mjs` | **the order and the claims** (2026-09-23): `ORDER` (the battery's rows, their notes and `needs`), `loadCoverageMap()` (every suite's `COVERS`, parsed from its text — suites run on import), `isSpine` / `tierOf` (the tier map's answer), `suitesFor` / `planFor` (the change selector). Not a suite. |
 | `bump-version.mjs` | move **both** `module.json` version fields together; `--check` asserts they are in step and is part of the gate. |
 
 ### The disposable-world cycle

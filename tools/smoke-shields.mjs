@@ -17,6 +17,16 @@
 // Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'damage-shields.js',      // Fire Shield, Death Armor, Armor of Agathys — the ward pays out
+  'cast.js',                // §8 — Fire Shield cast through the cast slice, the warm-or-chill ask
+  'polish.js'               // §8 — the cast-time effect choice stamped at birth
+];
+
 const SECTIONS = {
   1: 'Fire Shield (warm): a melee hit from 5 feet — the ward\'s 2d8 rolled in the open as the Cleric\'s, typed FIRE by the standing effect, applied to the goblin with a receipt; the damage card carries the claim',
   2: 'Fire Shield (chill): the type follows the effect — COLD',

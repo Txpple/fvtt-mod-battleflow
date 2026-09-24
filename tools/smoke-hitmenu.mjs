@@ -14,6 +14,19 @@
 // Sections: `--section 3`, `--section 1,6`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'hit-menu.js',            // the Combat Superiority group on the damage offer, the pick, the sweep
+  'saves/index.js',         // §3 / §4 — the maneuver's save through the saves machine
+  'saves/demand.js',
+  'saves/ask.js',
+  'saves/verdict.js',
+  'saves/consequences.js'
+];
+
 const SECTIONS = {
   1: 'the offer opens under AUTO damage: the Combat Superiority group, eight rows read off the sheet, the row the name and the cost',
   2: 'one pick per group: the sibling gives way; the summary names what rides',

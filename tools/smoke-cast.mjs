@@ -12,6 +12,15 @@
 // run; only the numbered assertion blocks are skippable.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'cast.js',                // the cast slice — utility effects, the heal, the used-up item
+  'polish.js'               // the cast-slice birth stamps the slice reads
+];
+
 const SECTIONS = {
   1: 'the native-card bus',
   2: 'the rip stayed ripped (v1.10.0)',

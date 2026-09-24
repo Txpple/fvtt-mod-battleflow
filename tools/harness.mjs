@@ -220,21 +220,65 @@ const installLedger = () => {
 };
 
 /**
+ * THE MOMENT LEDGER — the hook ledger's twin, one level down (the claim proof, 2026-09-23).
+ *
+ * The hook ledger already counts `battleflow.moment` as a NAME; what it cannot say is WHICH record
+ * resolved, and the record is what ties a publication to the file that wrote it
+ * (tools/claim-proof.mjs). So this listens on the gate's one hook and counts by `kind` (the record
+ * key), with `event` beside it because it is free.
+ *
+ * ⚠ A LISTENER, NOT A WRAPPER — the hook ledger's own rule. `Hooks.on` adds one more subscriber the
+ * way FX Studio's reader is one, touches no function identity, and a subscriber that threw would be
+ * isolated by `callAll` anyway; the try is so it never has to be.
+ *
+ * ⚠ IT HEARS THIS CLIENT ONLY. A moment publishes on the client that wrote the record (events.js),
+ * so a second client's resolves are not counted here. The report says so; it under-reports, never over.
+ */
+const installMomentLedger = () => {
+  if (globalThis.__bfMomentLedger) return "already";
+  if (typeof Hooks?.on !== "function") return "no Hooks.on";
+  const ledger = { total: 0, kinds: Object.create(null), events: Object.create(null), unkeyed: 0 };
+  Hooks.on("battleflow.moment", payload => {
+    try {
+      ledger.total++;
+      if (payload?.kind) ledger.kinds[payload.kind] = (ledger.kinds[payload.kind] ?? 0) + 1;
+      else ledger.unkeyed++;
+      if (payload?.event) ledger.events[payload.event] = (ledger.events[payload.event] ?? 0) + 1;
+    } catch { /* a counter never reaches the moment it counts */ }
+  });
+  globalThis.__bfMomentLedger = ledger;
+  return "installed";
+};
+
+/**
  * Read the page's ledger and leave it beside the others for `hook-coverage.mjs`.
  *
  * ⚠ A FAILURE HERE IS LOUD AND WRITES NOTHING. A ledger file that exists but under-reports would
  * name live handlers as dead — the exact false alarm that trains a reader to ignore the report,
  * which is how this instrument would die. Absent is honest; wrong is not.
+ *
+ * The moment ledger rides the same file under `moments`, and the same rule one level down: the
+ * key is written only when the page ARMED it. An unarmed page writes no `moments` at all, which
+ * the claim report reads as NOT MEASURED — never as an empty `{}`, which would read as "measured,
+ * nothing published" and turn every claim UNPROVEN.
  */
 export async function dumpHookLedger(tag, f) {
   try {
-    const ledger = await f.evaluate(() => ({ ...(globalThis.__bfHookLedger ?? {}) }), null);
+    const { ledger, moments } = await f.evaluate(() => {
+      const m = globalThis.__bfMomentLedger;
+      return {
+        ledger: { ...(globalThis.__bfHookLedger ?? {}) },
+        moments: m ? { total: m.total, unkeyed: m.unkeyed, kinds: { ...m.kinds }, events: { ...m.events } } : null
+      };
+    }, null);
     const fired = Object.keys(ledger).length;
     if (!fired) { console.warn(`[${tag}] hook ledger EMPTY — not written`); return; }
     mkdirSync(LEDGER_DIR, { recursive: true });
     writeFileSync(join(LEDGER_DIR, `${tag}.json`),
-      JSON.stringify({ tag, at: new Date().toISOString(), ledger }, null, 2));
-    console.log(`[${tag}] hook ledger: ${fired} distinct hooks fired`);
+      JSON.stringify({ tag, at: new Date().toISOString(), ledger, ...(moments ? { moments } : {}) }, null, 2));
+    console.log(`[${tag}] hook ledger: ${fired} distinct hooks fired`
+      + (moments ? `; moment ledger: ${moments.total} published, ${Object.keys(moments.kinds).length} kind(s)`
+        : "; moment ledger NOT armed — its claims will read NOT MEASURED"));
   } catch (err) {
     console.warn(`[${tag}] hook ledger NOT captured — ${err.message}`);
   }
@@ -320,6 +364,8 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, env =
   // seam that catches all of them without editing a single suite.
   const install = await f.evaluate(installLedger, null).catch(e => `failed: ${e.message}`);
   if (install !== "installed") console.warn(`[${tag}] hook ledger not armed (${install})`);
+  const moments = await f.evaluate(installMomentLedger, null).catch(e => `failed: ${e.message}`);
+  if (moments !== "installed") console.warn(`[${tag}] moment ledger not armed (${moments})`);
 
   // ⚠ ONE TEARDOWN, UNDER BOTH NAMES. `disconnect` is what all sixteen suites call and did not
   // exist (see `disposeSafely` above); `dispose` is the real one. Both now dump the ledger and

@@ -18,6 +18,17 @@
 // why none of them declare a dependency.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'volleys.js',             // the volley folds — darts, rays, the registry, expiry, the blocklist
+  'reminders.js',           // §10 / §11 — the gate at the aim, judged per ray (judgeRoll)
+  'damage-casts.js',         // a volley spell's damage cast lands through the damage-cast machine — the claim proof saw damageCast published here (battery 2026-09-23)
+  'chip-spend.js'            // a chip spent on a ray's hit — chipSpend published here (the same reading)
+];
+
 const SECTIONS = {
   1: 'darts, aimed by hand',
   2: 'upcast — the count scales',

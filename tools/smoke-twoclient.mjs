@@ -45,6 +45,22 @@ import { announcePlan, connectSuite, disposeSafely, loadEnv, report, sectionPlan
 import { playerConfig } from './target.mjs';
 import { Foundry } from 'fvtt-mcp-dnd5e/client';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'hold/index.js',          // relay / close — the relayed answer, the popup closing across clients
+  'hold/lookup.js',
+  'hold/clock.js',
+  'hold/trigger.js',
+  'hold/answer.js',
+  'hold/continue.js',
+  'hold/views.js',
+  'mastery.js',             // ack — a player's OK on the mastery notice reaches the GM's card
+  'emanations.js'           // pull — a scene a player is on is live
+];
+
 const SECTIONS = {
   relay: "the hold's RELAYED answer — the player writes its own message, the elect folds it",
   close: "the hold's popup CLOSES on the other client when the buzzer answers it",

@@ -25,6 +25,14 @@ import { announcePlan, connectSuite, loadEnv, sectionPlan, sectionArg, finish }
 
 const TAG = "smoke-surfaces";
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  "polish.js"               // §2 — the usage dialog's target block (renderActivityUsageDialog)
+];
+
 const SECTIONS = {
   1: "settings — the config form renders, the dividers land, and the interlock greys its dependents",
   2: "usage dialog — a real ActivityUsageDialog renders and carries the target block",

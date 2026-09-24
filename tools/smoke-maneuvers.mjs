@@ -20,6 +20,19 @@
 // `--list`. Fixtures and teardown ALWAYS run; only the fold groups are skippable.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'precision.js',           // P, P8, M1, Q — Precision Attack
+  'riposte.js',             // R, RP — Riposte's driven attack
+  'hew.js',                 // H — the Hew reminder
+  'bash-offer.js',          // B — the bash offer on a listed carrier's hit
+  'saves/choices.js',       // B / I — the Prone-or-push choice and Interpose
+  'saves/verdict.js'        // I — Interpose on a save success
+];
+
 const SECTIONS = {
   P: 'Precision — the stamp gates, Pass, Use, the re-drive',
   R: 'Riposte — the offer and the driven attack',

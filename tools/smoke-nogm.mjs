@@ -28,6 +28,17 @@ import { playerConfig, foundryConfig } from './target.mjs';
 import { Foundry } from 'fvtt-mcp-dnd5e/client';
 
 const MOD = 'fvtt-mod-battleflow';
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'mastery.js',             // runs / chip / told / rejoin — the payout with no GM behind the screen
+  'chip-spend.js',          // spent — a chip the player cannot delete is spent once
+  'concentration.js',       // conc — the assist end to end with no GM
+  'cast.js'                 // cast — the cast slice on the caster's flow elect
+];
+
 const SECTIONS = {
   runs: 'the mastery reminder still posts with no GM connected',
   chip: 'the monster is never written to — no chip lands',

@@ -15,6 +15,16 @@
 // Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'emanations.js',          // the auras, Spirit Guardians, the live scenes, the second slice
+  'saves/demand.js',        // §7 — the demand on enter and on turn end
+  'saves/areas.js'          // §6 / §7 — the placed area the demand is judged against
+];
+
 const SECTIONS = {
   1: 'the behaviour type is registered at init, and the sweep raises the Paladin\'s aura: a Region attached to the token, the class\'s own 10 feet, the Paladin\'s +3 resolved into the effect',
   2: 'an ally walking in receives "Protected — BF Test Paladin" with the PALADIN\'s Charisma, not its own; walking out loses it',

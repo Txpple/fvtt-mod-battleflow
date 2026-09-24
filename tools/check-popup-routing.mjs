@@ -26,6 +26,17 @@ import { connectSuite, disposeSafely, loadEnv } from './harness.mjs';
 import { playerConfig } from './target.mjs';
 import { Foundry } from 'fvtt-mcp-dnd5e/client';
 
+// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
+// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
+// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
+// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+export const COVERS = [
+  'saves/index.js',         // a player-cast demand's popup routes to whoever decides
+  'saves/demand.js',
+  'saves/ask.js',
+  'saves/views.js'
+];
+
 const env = loadEnv();
 const gm = await connectSuite({ tag: 'topo', watchdogMs: 240_000 });
 
