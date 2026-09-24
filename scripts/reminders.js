@@ -638,6 +638,7 @@ function judgeSave(actor, ability, { concentration = false } = {}) {
     // against the DEMAND this roller is answering; a bare sheet roll has none and is listed.
     const demand = pendingDemandFor(actor)?.demand ?? null;
     sources.push(...effectSaveSources({ effects: actor.effects.filter(e => !e.disabled).map(e => ({ id: e.id, name: e.name })),
+      features: actor.items.filter(i => i.type === "feat").map(i => i.name),
       enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, demand, name: actor.name }));
     // Heightened Spell's mark on the demand (metamagic, 2026-09-09): THIS roller's saves against
     // the spell are at Disadvantage — the caster's option, quoted from the caster's own feat.

@@ -978,7 +978,8 @@ export const CHECK_BENDS = Object.freeze({
  *             "feature" — the row names an Item of type feat on the actor (never an effect:
  *             Innate Sorcery the FEATURE is always on the sheet, Innate Sorcery the EFFECT only
  *             while it runs — so a feature row must never name something that also lands as
- *             an effect)
+ *             an effect). The attack gate, the check gate and the SAVE gate all read it (the
+ *             save gate since Slice A, 2026-09-24 — Brave, Fey Ancestry, Dwarven Resilience)
  *   attacker  the bend on the bearer's OWN attack rolls, or null
  *   target    the bend on attack rolls AGAINST the bearer, or null
  *   scope     "any" | "spell" | "weapon" | "melee" | "ranged" — which attacks the row touches
@@ -1261,7 +1262,22 @@ export const EFFECT_BENDS = Object.freeze({
   "Assassinate": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any",
     judge: "targetNotActed",
     rule: "During the first round of each combat, you have Advantage on attack rolls against any creature that hasn’t taken a turn.",
-    from: "Rogue — Assassin (Surprising Strikes)" })
+    from: "Rogue — Assassin (Surprising Strikes)" }),
+  // --- G. SPECIES TRAITS whose one bend is on SAVES (Slice A, 2026-09-24) ----------------------
+  // The 2024 PHB ships these as text alone — no effect to find (measured on the pack, the Slice A
+  // inventory) — so they are FEATURE rows the save gate reads by name, scoped by the demand's
+  // statuses the Aura of Purity way. A save to END the condition is a bare sheet roll with no
+  // demand: the row is listed there, never counted (R1 — the module does not guess what a sheet
+  // roll is against). Dwarven Resilience's Poison Resistance is the species' own advancement.
+  "Brave": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Halfling",
+    saves: Object.freeze({ bend: "advantage", statuses: Object.freeze(["frightened"]) }),
+    rule: "You have Advantage on saving throws you make to avoid or end the Frightened condition." }),
+  "Fey Ancestry": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Elf",
+    saves: Object.freeze({ bend: "advantage", statuses: Object.freeze(["charmed"]) }),
+    rule: "You have Advantage on saving throws you make to avoid or end the Charmed condition." }),
+  "Dwarven Resilience": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Dwarf",
+    saves: Object.freeze({ bend: "advantage", statuses: Object.freeze(["poisoned"]) }),
+    rule: "You have Resistance to Poison damage. You also have Advantage on saving throws you make to avoid or end the Poisoned condition." })
 });
 
 /** The table's rows, in the order the table reads them. */

@@ -1282,6 +1282,94 @@ describe("effectSaveSources — the `saves` facet (user, 2026-09-05: Aura of Pur
   });
 });
 
+describe("effectSaveSources — FEATURE rows (Slice A, 2026-09-24: Brave, Fey Ancestry, Dwarven Resilience)", () => {
+  const facts = () => ({
+    enabled: ["Brave", "Fey Ancestry", "Dwarven Resilience"],
+    table: reg.EFFECT_BENDS,
+    name: "Pip"
+  });
+
+  it("Brave counts Advantage against a demand that would frighten, with no effect on the sheet", () => {
+    const out = r.effectSaveSources({
+      ...facts(),
+      effects: [],
+      features: ["Brave", "Lucky"],
+      demand: { spell: true, statuses: ["frightened"] }
+    });
+    expect(out.map(s => [s.bend, s.label])).toEqual([
+      ["advantage", "Pip — Brave — against Frightened"]
+    ]);
+    expect(out[0].effectId).toBeUndefined();
+  });
+
+  it("…and a bare sheet roll (a save to END the condition has no demand) lists it uncounted", () => {
+    const out = r.effectSaveSources({ ...facts(), features: ["Brave"], demand: null });
+    expect(out.map(s => s.bend)).toEqual([null]);
+    expect(out[0].label).toBe(
+      "Pip — Brave (listed — a save against Frightened; press Advantage if this is one)"
+    );
+  });
+
+  it("each trait answers its own condition only: Fey Ancestry charmed, Dwarven Resilience poisoned", () => {
+    const features = ["Fey Ancestry", "Dwarven Resilience"];
+    const charm = r.effectSaveSources({
+      ...facts(),
+      features,
+      demand: { spell: true, statuses: ["charmed"] }
+    });
+    expect(charm.map(s => s.label)).toEqual(["Pip — Fey Ancestry — against Charmed"]);
+    const poison = r.effectSaveSources({
+      ...facts(),
+      features,
+      demand: { spell: false, statuses: ["poisoned"] }
+    });
+    expect(poison.map(s => s.label)).toEqual(["Pip — Dwarven Resilience — against Poisoned"]);
+    expect(
+      r.effectSaveSources({
+        ...facts(),
+        features,
+        demand: { spell: true, statuses: ["frightened"] }
+      })
+    ).toEqual([]);
+  });
+
+  it("nothing without the feature, nothing from an EFFECT of the name, and the list is the switch", () => {
+    const demand = { spell: true, statuses: ["frightened"] };
+    expect(r.effectSaveSources({ ...facts(), features: [], demand })).toEqual([]);
+    expect(
+      r.effectSaveSources({
+        ...facts(),
+        effects: [{ id: "b", name: "Brave" }],
+        features: [],
+        demand
+      })
+    ).toEqual([]);
+    expect(r.effectSaveSources({ ...facts(), enabled: [], features: ["Brave"], demand })).toEqual(
+      []
+    );
+  });
+
+  it("the rows bend no attack and no check — the other two readers skip them", () => {
+    const enabled = facts().enabled;
+    expect(
+      r.effectSources({
+        enabled,
+        table: reg.EFFECT_BENDS,
+        attacker: { features: ["Brave"] },
+        target: { uuid: "t", features: ["Brave"] }
+      })
+    ).toEqual([]);
+    expect(r.effectCheckSources({ enabled, table: reg.EFFECT_BENDS, features: ["Brave"] })).toEqual(
+      []
+    );
+  });
+
+  it("the three ship in the Effect Sources default", () => {
+    const names = reg.LIST_SPECS.effects.default.split(", ");
+    for (const n of ["Brave", "Fey Ancestry", "Dwarven Resilience"]) expect(names).toContain(n);
+  });
+});
+
 describe('effectNamedAs — the emanation\'s suffix (2026-09-05: "Aura of Purity — Thomas" stood on Morgash and no reader saw it)', () => {
   it("matches the bare name, the region's suffixed name, and nothing that merely starts alike", () => {
     expect(r.effectNamedAs("Aura of Purity", "Aura of Purity")).toBe(true);

@@ -156,6 +156,7 @@ export function noneOnSuccessFor(actor, flag) {
   if ( !(actor instanceof Actor) || !flag?.hasDamage || (flag.damageOnSave !== "half") ) return null;
   if ( !reminderEntries().some(e => e.kind === "effect") ) return null;
   return saveNoneOnSuccess({ effects: actor.effects.filter(e => !e.disabled).map(e => ({ name: e.name })),
+    features: actor.items.filter(i => i.type === "feat").map(i => i.name),
     enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, demand: flag.demand ?? null });
 }
 

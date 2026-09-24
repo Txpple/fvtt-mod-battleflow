@@ -184,6 +184,25 @@ export function checkSources({ statuses = [], enabled, table, name = "You" }) {
 }
 
 /**
+ * What carries a row on the roller's sheet: the worn effects named as the row, or — for a
+ * `match: "feature"` row — ONE carrier with no effect id when a feature of that name is owned.
+ * The check gate read features first; the save gate reads them too since Slice A (2026-09-24:
+ * Brave, Fey Ancestry, Dwarven Resilience ship as text alone, no effect to find), so the three
+ * readers of one facet share one test and cannot drift.
+ * @param {any} row
+ * @param {string} key
+ * @param {{id?: string|null, name: string}[]} [effects]
+ * @param {string[]} [features]
+ * @returns {{id?: string|null, name?: string}[]}
+ */
+function rowCarriers(row, key, effects = [], features = []) {
+  if ( row?.match === "feature" ) {
+    return (features ?? []).some(f => String(f).toLowerCase() === key.toLowerCase()) ? [{ id: null }] : [];
+  }
+  return (effects ?? []).filter(e => effectNamedAs(e?.name, key));
+}
+
+/**
  * EFFECT SOURCES ON A CHECK (2026-09-04, Heat Metal): the effect-table rows whose `checks` facet
  * says the ability on the roller's sheet bends ABILITY CHECKS too — Heated Metal, a monster's
  * Averse ("Disadvantage on attack rolls and ability checks"). Read by name off the roller's own
@@ -196,9 +215,7 @@ export function effectCheckSources({ effects = [], features = [], enabled, table
   const out = [];
   for ( const [key, row] of Object.entries(table ?? {}) ) {
     if ( !row?.checks || !on.has(key.toLowerCase()) ) continue;
-    const carriers = (row.match === "feature")
-      ? ((features ?? []).some(f => String(f).toLowerCase() === key.toLowerCase()) ? [{ id: null }] : [])
-      : (effects ?? []).filter(e => effectNamedAs(e?.name, key));
+    const carriers = rowCarriers(row, key, effects, features);
     for ( const e of carriers ) {
       out.push(Object.assign(reminderSource("effect", row.checks, `${name} — ${key}`, row.rule), e.id ? { effectId: e.id } : {}));
     }
@@ -214,17 +231,21 @@ export function effectCheckSources({ effects = [], features = [], enabled, table
  * when a spell demands the save. An UNKNOWN demand (a bare sheet roll — nothing pending) is
  * LISTED, not counted: the box names the effect and its scope and leaves the button to the
  * human (R1 — the module does not guess what a sheet roll is against).
- * @param {{effects?: {id: string, name: string}[], enabled: Iterable<string>,
+ * A `match: "feature"` row (Brave, Fey Ancestry, Dwarven Resilience — Slice A, 2026-09-24) is
+ * carried by the feature of its name in `features`; a save to END the condition (the repeat
+ * save at a turn's end) is a bare sheet roll with no demand, so the row is LISTED there, as
+ * every row is.
+ * @param {{effects?: {id: string, name: string}[], features?: string[], enabled: Iterable<string>,
  *          table: Readonly<Record<string, any>>,
  *          demand?: {spell?: boolean|null, statuses?: string[]|null}|null, name?: string}} facts
  */
-export function effectSaveSources({ effects = [], enabled, table, demand = null, name = "You" }) {
+export function effectSaveSources({ effects = [], features = [], enabled, table, demand = null, name = "You" }) {
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
   const out = [];
   for ( const [key, row] of Object.entries(table ?? {}) ) {
     const facet = row?.saves;
     if ( !facet || !on.has(key.toLowerCase()) ) continue;
-    const carriers = (effects ?? []).filter(e => effectNamedAs(e?.name, key));
+    const carriers = rowCarriers(row, key, effects, features);
     if ( !carriers.length ) continue;
     const scope = facet.statuses?.length
       ? `a save against ${facet.statuses.map(conditionName).join(", ")}`
@@ -255,17 +276,17 @@ export function effectSaveSources({ effects = [], enabled, table, demand = null,
 /**
  * Does a standing effect turn a SUCCESS against half-on-save damage into none (Circle of
  * Power's `halfToNone`, against a spell)? The row's key when one does, for the receipt's note.
- * @param {{effects?: {name: string}[], enabled: Iterable<string>, table: Readonly<Record<string, any>>,
+ * @param {{effects?: {name: string}[], features?: string[], enabled: Iterable<string>, table: Readonly<Record<string, any>>,
  *          demand?: {spell?: boolean|null}|null}} facts
  * @returns {string|null}
  */
-export function saveNoneOnSuccess({ effects = [], enabled, table, demand = null }) {
+export function saveNoneOnSuccess({ effects = [], features = [], enabled, table, demand = null }) {
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
   for ( const [key, row] of Object.entries(table ?? {}) ) {
     const facet = row?.saves;
     if ( !facet?.halfToNone || !on.has(key.toLowerCase()) ) continue;
     if ( facet.spells && !demand?.spell ) continue;
-    if ( (effects ?? []).some(e => effectNamedAs(e?.name, key)) ) return key;
+    if ( rowCarriers(row, key, effects, features).length ) return key;
   }
   return null;
 }

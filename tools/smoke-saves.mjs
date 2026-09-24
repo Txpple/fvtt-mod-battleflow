@@ -65,7 +65,8 @@ const SECTIONS = {
   21: 'Evasion: a Dexterity save for half — none on a success, half on a failure, said on the row and the receipt',
   22: 'the save gate says WHY when the PLATFORM bends the save (2026-09-04): an item effect on the sheet is a box',
   24: 'the chained roll\'s SUMMARY (the 6.0 pass, phase 4): the roll\'s card hidden, the gate\'s record inside the usage card, the nudge, summaries off; the verdict written into the platform\'s row, the line only where no row (2026-09-18)',
-  25: 'a used-up item\'s failed save (2026-09-22): the vial is gone before its card exists, and its effect still lands — read off the card'
+  25: 'a used-up item\'s failed save (2026-09-22): the vial is gone before its card exists, and its effect still lands — read off the card',
+  26: 'a FEATURE row\'s saves facet (Slice A, 2026-09-24): Brave, a text-only trait on the sheet, counts Advantage against a demand that would frighten, and nothing against one that would poison'
 };
 // §2 rolls the damage of the demand §1 cast (`card1`); §13 rides §12's completed lifecycle —
 // its card, its template id and its 140px scene. Both couplings are declared in the code
@@ -2085,6 +2086,71 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await failEff?.update({ statuses: priorStatuses }).catch(() => {});
         await saveBonus(victim, '');
         await victim.update({ 'system.abilities.dex.save.roll.bonus': '' });
+        await set('reminderList', priorLists.reminderList);
+        await set('effectList', priorLists.effectList);
+      }
+    }
+
+    // ============================================================ §26 a FEATURE row's saves facet (Slice A)
+    // Brave, Fey Ancestry and Dwarven Resilience ship as TEXT alone — no effect on the sheet — so
+    // the save gate reads them by the feature's name (decide/reminders.js rowCarriers, 2026-09-24).
+    // The pack item is text, so a bare feat named Brave IS the pack's shape; §23's demand, re-aimed.
+    if (want(26)) {
+      const priorLists = { reminderList: game.settings.get(MOD, 'reminderList'), effectList: game.settings.get(MOD, 'effectList') };
+      const failEff = npc.items.get(poisonItem.id).effects.get(EFF_FAIL);
+      const priorStatuses = [...(failEff?.statuses ?? [])];
+      let trait = null;
+      try {
+        await clearChips();
+        await saveBonus(victim, '');
+        await healFull(victim);
+        if (!/\beffect\b/.test(priorLists.reminderList)) await set('reminderList', `${priorLists.reminderList}, effect`);
+        if (!/(^|,\s*)Brave(\s*,|$)/i.test(priorLists.effectList)) await set('effectList', `${priorLists.effectList}, Brave`);
+        const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+        const defaultOf = dlg => dlg?.querySelector('button[autofocus]')?.dataset?.action ?? null;
+        const dialogFor = card => until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 6000);
+        const castDexAt = async () => {
+          target(victimToken);
+          await sleep(120);
+          const use = await dexActivity().use({}, { configure: false }, {});
+          const card = use?.message instanceof ChatMessage ? use.message : null;
+          if (card) await until(() => card.getFlag(MOD, 'saves'));
+          return card;
+        };
+        const settle = async card => {
+          await until(() => card?.getFlag(MOD, 'saves')?.status === 'done', 10000);
+          await until(() => game.messages.contents.some(m => (m._source.system?.origin === card?.id) && m.getFlag(MOD, 'receipt')), 12000);
+          await sleep(300);
+          await healFull(victim);
+        };
+        [trait] = await victim.createEmbeddedDocuments('Item', [{ name: 'Brave', type: 'feat',
+          system: { type: { value: 'race' }, description: { value: '<p>You have Advantage on saving throws you make to avoid or end the Frightened condition.</p>' } } }]);
+
+        // 26a: a demand that would frighten — the trait counts, with no effect anywhere on the sheet.
+        await failEff.update({ statuses: ['frightened'] });
+        const cardA = await castDexAt();
+        const dlgA = await dialogFor(cardA);
+        const textA = sectionText(dlgA);
+        ok('26a. a text-only Brave on the sheet meets the gate against a frightening demand: "Brave — against Frightened", Net Advantage, Advantage the default',
+          !!dlgA && /Brave — against Frightened/.test(textA) && /Net Advantage/.test(textA) && (defaultOf(dlgA) === 'advantage')
+            && !victim.effects.some(e => /brave/i.test(e.name)),
+          `text="${textA.slice(0, 200)}" default=${defaultOf(dlgA)}`);
+        dlgA?.querySelector('button[autofocus]')?.click();
+        await settle(cardA);
+
+        // 26b: a demand that would poison — Brave is not in the section at all.
+        await failEff.update({ statuses: ['poisoned'] });
+        const cardB = await castDexAt();
+        const dlgB = await dialogFor(cardB);
+        const textB = sectionText(dlgB);
+        ok('26b. …and against a poisoning demand Brave is nowhere in the section',
+          !!dlgB && !/Brave/.test(textB), `text="${textB.slice(0, 200)}"`);
+        dlgB?.querySelector('button[data-action="normal"]')?.click();
+        await settle(cardB);
+      } finally {
+        await trait?.delete().catch(() => {});
+        await failEff?.update({ statuses: priorStatuses }).catch(() => {});
+        await saveBonus(victim, '');
         await set('reminderList', priorLists.reminderList);
         await set('effectList', priorLists.effectList);
       }
