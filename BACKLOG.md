@@ -43,18 +43,6 @@ once-per-turn reads). Neither is wrong. **Un-parked by** a FOURTH judge of "firs
 reader goes to `decide/clock.js` with it), or the next once-per-turn maneuver on the bash offer
 (it moves to a turn chit with it).
 
-### The template fast-path Foundry 14 took away (2026-08-24)
-
-`saves/areas.js` registers `createMeasuredTemplate` / `updateMeasuredTemplate` to re-derive who
-stands in an area the moment it is placed. Foundry 14 dispatches neither (measured,
-`tools/probe-surfaces.mjs`: placing a template raises `createRegion`; the update raises nothing).
-Nothing is broken: the reliability floor re-derives containment on the card's render hook, and
-that floor carries area adoption (`smoke-saves` §8). Re-pointing at the Region hooks is not a
-rename — the reader takes a template's flags off a document a Region does not carry. **Do not
-delete the two registrations either:** a dead registration costs nothing and a deleted one cannot
-come back. The pin in `tools/hook-coverage.mjs` is checked both ways. **Un-parked by** a
-table-visible lag in area adoption, or Foundry restoring the names.
-
 ### The modal sequence (2026-09-09, the user's call: "not a priority now")
 
 A workflow where several windows are answered **in order** and the visual chain waits for the
