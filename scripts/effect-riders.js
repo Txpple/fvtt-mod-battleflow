@@ -237,14 +237,17 @@ export async function applyEffectsTo(targets, effects,
  * effectReceipt flag under the caller's own done-`marker`, so the rider and cast stages
  * can never mistake each other's work for their own. `message` is the card the application
  * answers to when it is not the receipt's own (the riders: the usage card, the receipt on the
- * damage roll); `activity` the applying activity when the caller knows it.
+ * damage roll); `activity` the applying activity when the caller knows it; `clock` a
+ * `{duration, start}` the caller knows better than the pack (applyEffectsTo's).
  */
 export async function applyEffectsWithReceipt(receiptMessage, effects, targets,
-  { concentration = null, scaling = 0, spellLevel, marker, source = null, message = null, activity = null } = {}) {
+  { concentration = null, scaling = 0, spellLevel, marker, source = null, message = null, activity = null, clock = null } = {}) {
   const entries = await applyEffectsTo(targets, effects, {
     // Extended Spell rides the receipt card (the usage card carries the metamagic flag).
     extend: receiptMessage?.getFlag?.(MODULE_ID, METAMAGIC_FLAG)?.key === "extended",
-    concentration, scaling, spellLevel, source, message: message ?? receiptMessage, activity });
+    // `clock` passes through (Slice A, 2026-09-24): the hit menu's Frost's Chill hands the rule's
+    // window in, pinned to the attacker's place — applyEffectsTo already took it.
+    concentration, scaling, spellLevel, source, clock, message: message ?? receiptMessage, activity });
   if ( !entries.length && !marker ) return;
   // ⚠ THE READ MOVED BELOW THE AWAIT, and the write is queued (core.js `queueFlagWrite`). This
   // used to clone the flag FIRST and merge into that copy after `applyEffectsTo` — a window

@@ -11,7 +11,7 @@
  * nothing else — the save and the condition live in the rule folded under it and on the card
  * after. One pick per group ("You can use only one maneuver per attack"); a group with no die left
  * keeps its rows, greyed. The die rides the damage roll for every option but a sweep, whose die
- * is rolled apart at a second creature.
+ * is rolled apart at a second creature. One pick on the whole hit (2026-09-24): the record is one.
  *
  * What is decided here is the reading and the arithmetic, never the choice: which rows the sheet
  * grants and the list admits, which the pool can pay for, whether a pick is legal, and whether
@@ -22,49 +22,75 @@
  * The menu for one hit: every group whose paying feature stands on the sheet with a resolved pool,
  * and under it every listed option the sheet grants, in table order.
  *
+ * A group with `feature: null` requires nothing on the sheet (Giant Ancestry, Slice A 2026-09-24);
+ * a group with `pool: "option"` pays per OPTION — `pools` is then keyed by the option's key, each
+ * with its own uses, die and damage type, and a row without a pool is absent. A row with a `press`
+ * and no die costs "1 use". `fits` is the size judge's answer per option key (`maxSize`): false
+ * greys the row with the fact as its tag; null (the size could not be read) leaves it open.
+ *
  * @param {{groups: Readonly<Record<string, any>>, options: Readonly<Record<string, any>>,
  *          listed: Iterable<string>, features: Iterable<string>, melee?: boolean,
- *          pools: Record<string, {left: number, die: string|null}|null|undefined>}} facts
+ *          pools: Record<string, {left: number, die: string|null, type?: string|null}|null|undefined>,
+ *          fits?: Record<string, boolean|null|undefined>}} facts
  *        `listed` = the Hit Menu list's feature names; `features` = the feat names on the sheet;
- *        `melee` = whether this attack is a melee attack; `pools` = per group key, the dice left
- *        and the die the sheet resolved (null when the pool or the die could not be read)
+ *        `melee` = whether this attack is a melee attack; `pools` = per group key (per option key
+ *        for an option-pool group), the uses left and the die the sheet resolved (null when the
+ *        pool or the die could not be read)
  * @returns {{groups: {key: string, label: string, max: number, die: string|null, left: number, rule: string,
+ *            perOption: boolean, heading: string, per: string, eyebrow: string, dieLabel: string,
  *            rows: {key: string, feature: string, label: string, cost: string, mode: string, save: boolean,
  *                   line: string|null, caveat: string|null, rule: string, affordable: boolean}[]}[]}}
  */
-export function hitMenu({ groups, options, listed, features, melee = true, pools }) {
+export function hitMenu({ groups, options, listed, features, melee = true, pools, fits = {} }) {
   const lower = (s) => String(s ?? "").toLowerCase();
   const admits = new Set([...listed].map(lower));
   const have = new Set([...features].map(lower));
   const out = [];
   for ( const [gkey, group] of Object.entries(groups ?? {}) ) {
-    if ( !have.has(lower(group.feature)) ) continue;
-    const pool = pools?.[gkey];
-    if ( !pool ) continue;
-    const left = Math.max(0, Number(pool.left) || 0);
+    if ( group.feature && !have.has(lower(group.feature)) ) continue;
+    const perOption = group.pool === "option";
+    const shared = perOption ? null : pools?.[gkey];
+    if ( !perOption && !shared ) continue;
     const rows = [];
+    let left = perOption ? 0 : Math.max(0, Number(shared?.left) || 0);
     for ( const [key, row] of Object.entries(options ?? {}) ) {
       if ( row.group !== gkey ) continue;
       if ( !admits.has(lower(row.feature)) || !have.has(lower(row.feature)) ) continue;
       if ( row.melee && !melee ) continue;
+      const pool = perOption ? pools?.[key] : shared;
+      if ( !pool ) continue;
+      const rowLeft = Math.max(0, Number(pool.left) || 0);
+      if ( perOption ) left += rowLeft;
+      // The size judge (`maxSize`, Hill's Tumble): only a MEASURED misfit greys the row.
+      const tooLarge = !!row.maxSize && (fits?.[key] === false);
+      const unknownSize = !!row.maxSize && ((fits?.[key] === null) || (fits?.[key] === undefined));
+      const cost = perOption
+        ? (pool.die ? `${pool.die}${pool.type ? ` ${pool.type}` : ""} · 1 ${group.dieLabel}` : `1 ${group.dieLabel}`)
+        : `${pool.die ?? "1 die"} ${group.dieLabel}`;
       rows.push({
         key, feature: row.feature, label: row.feature,
-        cost: `${pool.die ?? "1 die"} ${group.dieLabel}`,
+        cost: tooLarge ? "too large" : cost,
         mode: row.mode ?? "ride", save: !!row.save,
-        line: row.line ?? null, caveat: row.caveat ?? null, rule: row.rule,
-        affordable: (left > 0) && !!pool.die
+        line: row.line ?? null,
+        caveat: tooLarge ? "the target is larger than Large" : unknownSize ? "the target's size could not be read" : (row.caveat ?? null),
+        rule: row.rule,
+        affordable: (rowLeft > 0) && (!!pool.die || !!row.press) && !tooLarge
       });
     }
     if ( !rows.length ) continue;
-    out.push({ key: gkey, label: group.label, max: group.max ?? 1, die: pool.die ?? null, left, rule: group.rule, rows });
+    out.push({ key: gkey, label: group.label, max: group.max ?? 1, die: perOption ? null : (shared?.die ?? null), left, rule: group.rule,
+      perOption, heading: group.heading ?? group.label, per: group.per ?? "one pick per hit",
+      eyebrow: group.eyebrow ?? "Maneuver", dieLabel: group.dieLabel, rows });
   }
   return { groups: out };
 }
 
 /**
- * The PICK: the chosen rows, one per group at most, every one affordable. The offer keeps the
- * pick legal as it is made (one box per group); this is the arithmetic that stands behind it, and
- * an illegal pick — two in one group, or an unaffordable row — picks nothing from that group.
+ * The PICK: the chosen rows, one per group at most, every one affordable — and ONE on the whole
+ * hit (Slice A, decided 2026-09-24: the pick is recorded as one record, so a second group's pick
+ * would be dropped in silence; the offer's wire keeps one tick on the menu). The offer keeps the
+ * pick legal as it is made; this is the arithmetic that stands behind it, and an illegal pick —
+ * two in one group, two across groups, or an unaffordable row — picks nothing.
  * @param {{menu: ReturnType<typeof hitMenu>, chosen?: Iterable<string>}} facts
  * @returns {{picks: {group: string, row: any}[], dropped: string[]}}
  */
@@ -80,6 +106,7 @@ export function hitPick({ menu, chosen = [] }) {
       else dropped.push(row.key);
     }
   }
+  if ( picks.length > 1 ) return { picks: [], dropped: [...dropped, ...picks.map(p => p.row.key)] };
   return { picks, dropped };
 }
 

@@ -27,9 +27,9 @@ describe("file → moment kinds — derived from the real gate", () => {
     for (const k of MOMENT_KINDS) expect(written.has(k), k).toBe(true);
   });
 
-  it("a machine's own records are its kinds: the hit menu writes hitManeuver and sweepCard, and is pinned to receipt", () => {
+  it("a machine's own records are its kinds: the hit menu writes hitManeuver, sweepCard and (Hill's Tumble's press, 2026-09-24) effectReceipt, and is pinned to receipt", () => {
     const hm = real.get("hit-menu.js");
-    expect([...hm.writes].sort()).toEqual(["hitManeuver", "sweepCard"]);
+    expect([...hm.writes].sort()).toEqual(["effectReceipt", "hitManeuver", "sweepCard"]);
     expect(hm.pinned.has("receipt")).toBe(true);
     expect(kindsWrittenBy(real, "hit-menu.js").has("receipt")).toBe(true);
   });

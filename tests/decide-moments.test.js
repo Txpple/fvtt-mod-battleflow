@@ -590,6 +590,20 @@ describe("the moment registry — the edges", () => {
       targetsFrom: "attack",
       spend: hm.poolSpend
     });
+    // A Giant Ancestry boon (maneuver false, Slice A 2026-09-24) is no maneuver: it rides as a rider.
+    const boon = {
+      ...hm,
+      feature: "Fire's Burn",
+      key: "fires-burn",
+      maneuver: false,
+      type: "fire",
+      poolSpend: { pool: "Fire's Burn", spent: 1, left: 2, max: 3 }
+    };
+    expect(markers("hitManeuver", boon)).toEqual([["message", ["rider"]]]);
+    expect(resolves("hitManeuver", boon)[0].facts.details).toMatchObject({
+      key: "fires-burn",
+      type: "fire"
+    });
   });
 
   it("status-gated rows resolve only past their edge", () => {

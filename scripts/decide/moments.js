@@ -129,9 +129,9 @@ export const MOMENT_RECORDS = Object.freeze({
   /* maneuver ----------------------------------------------------------------------------------- */
 
   hitManeuver: {
-    events: ["maneuver"],
-    means: "a Combat Superiority die from the hit menu rode the damage roll (hit-menu.js); the record arrives resolved on the damage message",
-    resolved: (r, ctx) => whole(["maneuver"], {
+    events: ["maneuver", "rider"],
+    means: "a pick from the hit menu rode the damage roll (hit-menu.js); the record arrives resolved on the damage message. A Combat Superiority die publishes maneuver; a Giant Ancestry boon (maneuver false, 2026-09-24) publishes rider",
+    resolved: (r, ctx) => whole([(r.maneuver === false) ? "rider" : "maneuver"], {
       actor: source(r) ?? ctx.actorUuid, item: r.itemUuid ?? null, ability: r.feature ?? null, attackId: r.attackId ?? null,
       targetsFrom: "attack", spend: r.poolSpend ?? null,
       details: { key: r.key ?? null, group: r.group ?? null, formula: r.formula ?? null, type: r.type ?? null,

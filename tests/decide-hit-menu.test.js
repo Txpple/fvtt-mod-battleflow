@@ -27,13 +27,19 @@ const menu = (features, extra = {}) =>
   });
 
 describe("the table", () => {
-  it("names eight on-hit maneuvers, every one paying from Combat Superiority, with a rule each", () => {
+  it("names eight on-hit maneuvers paying from Combat Superiority and three Giant Ancestry boons, with a rule each", () => {
     const rows = Object.values(reg.HIT_OPTIONS);
-    expect(rows).toHaveLength(8);
+    const by = g => rows.filter(r => r.group === g).map(r => r.feature);
+    expect(by("combat-superiority")).toHaveLength(8);
+    expect(by("giant-ancestry")).toEqual(["Fire's Burn", "Frost's Chill", "Hill's Tumble"]);
+    expect(rows).toHaveLength(11);
     for (const row of rows) {
-      expect(row.group).toBe("combat-superiority");
       expect(reg.HIT_GROUPS[row.group]).toBeTruthy();
       expect(row.rule.length).toBeGreaterThan(40);
+    }
+    for (const [key, g] of Object.entries(reg.HIT_GROUPS)) {
+      expect(["feature", "option"], key).toContain(g.pool);
+      expect(g.eyebrow && g.heading && g.per && g.dieLabel, key).toBeTruthy();
     }
     expect(reg.HIT_OPTIONS["sweeping-attack"]).toMatchObject({ mode: "sweep", melee: true });
     expect(reg.HIT_OPTIONS["trip-attack"]).toMatchObject({ save: true, onFail: "prone" });
@@ -112,6 +118,96 @@ describe("hitMenu — the rows, read off the sheet", () => {
       "sweeping-attack"
     ]);
     expect(menu(feats, { melee: false }).groups[0].rows.map(r => r.key)).toEqual(["trip-attack"]);
+  });
+});
+
+describe("Giant Ancestry — a group with no feature, paying per option (Slice A, 2026-09-24)", () => {
+  const giant = (features, pools, extra = {}) =>
+    h.hitMenu({
+      groups: reg.HIT_GROUPS,
+      options: reg.HIT_OPTIONS,
+      listed: ALL(),
+      features,
+      pools,
+      ...extra
+    });
+
+  it("the table: Frost's Chill clocks its effect to `slow`, Hill's Tumble presses Prone up to Large, the group requires nothing", () => {
+    expect(reg.HIT_GROUPS["giant-ancestry"]).toMatchObject({
+      feature: null,
+      pool: "option",
+      dieLabel: "use"
+    });
+    expect(reg.HIT_OPTIONS["frosts-chill"]).toMatchObject({ effects: true, clock: "slow" });
+    expect(reg.HIT_OPTIONS["hills-tumble"]).toMatchObject({ press: "prone", maxSize: "lg" });
+  });
+
+  it("a Goliath with Fire's Burn: its own group, its own uses, the boon's die and damage type as the cost", () => {
+    const m = giant(["Fire's Burn"], { "fires-burn": { left: 3, die: "1d10", type: "fire" } });
+    expect(m.groups).toHaveLength(1);
+    expect(m.groups[0]).toMatchObject({
+      key: "giant-ancestry",
+      perOption: true,
+      left: 3,
+      die: null,
+      heading: "Giant Ancestry",
+      per: "one boon per hit",
+      eyebrow: "Giant Ancestry"
+    });
+    expect(m.groups[0].rows[0]).toMatchObject({
+      key: "fires-burn",
+      cost: "1d10 fire · 1 use",
+      affordable: true
+    });
+  });
+
+  it("an option without a readable pool is absent; no uses left greys it", () => {
+    expect(giant(["Fire's Burn"], {}).groups).toEqual([]);
+    const m = giant(["Fire's Burn"], { "fires-burn": { left: 0, die: "1d10", type: "fire" } });
+    expect(m.groups[0].left).toBe(0);
+    expect(m.groups[0].rows[0].affordable).toBe(false);
+  });
+
+  it("a dieless PRESS row costs one use and is affordable on its uses alone", () => {
+    const m = giant(
+      ["Hill's Tumble"],
+      { "hills-tumble": { left: 2, die: null } },
+      { fits: { "hills-tumble": true } }
+    );
+    expect(m.groups[0].rows[0]).toMatchObject({
+      key: "hills-tumble",
+      cost: "1 use",
+      affordable: true,
+      caveat: null
+    });
+  });
+
+  it("the size judge: a target larger than Large greys Hill's Tumble with the fact as its tag; an unread size leaves it open", () => {
+    const pools = { "hills-tumble": { left: 2, die: null } };
+    const big = giant(["Hill's Tumble"], pools, { fits: { "hills-tumble": false } }).groups[0]
+      .rows[0];
+    expect(big).toMatchObject({
+      cost: "too large",
+      affordable: false,
+      caveat: "the target is larger than Large"
+    });
+    const unread = giant(["Hill's Tumble"], pools, { fits: {} }).groups[0].rows[0];
+    expect(unread.affordable).toBe(true);
+    expect(unread.caveat).toMatch(/could not be read/);
+  });
+
+  it("a Goliath Battle Master sees both groups, and ONE pick on the whole hit: two across groups pick nothing", () => {
+    const m = giant(["Combat Superiority", "Trip Attack", "Fire's Burn"], {
+      "combat-superiority": { left: 4, die: "1d8" },
+      "fires-burn": { left: 3, die: "1d10", type: "fire" }
+    });
+    expect(m.groups.map(g => g.key)).toEqual(["combat-superiority", "giant-ancestry"]);
+    expect(h.hitPick({ menu: m, chosen: ["fires-burn"] }).picks.map(p => p.row.key)).toEqual([
+      "fires-burn"
+    ]);
+    const both = h.hitPick({ menu: m, chosen: ["trip-attack", "fires-burn"] });
+    expect(both.picks).toEqual([]);
+    expect(both.dropped.sort()).toEqual(["fires-burn", "trip-attack"]);
   });
 });
 

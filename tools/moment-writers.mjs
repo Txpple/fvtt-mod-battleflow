@@ -176,7 +176,7 @@ const WORLD_WRITERS = {
   "topple.js": ["topple", "effectReceipt"],
   "chip-spend.js": ["chipSpend"],
   "use-chips.js": ["useChip"],
-  "hit-menu.js": ["hitManeuver", "sweepCard", "receipt"],
+  "hit-menu.js": ["hitManeuver", "sweepCard", "receipt", "effectReceipt"],   // effectReceipt: Hill's Tumble's no-save press, receipted on the damage card (2026-09-24)
   "hit-riders.js": "the weapon's own damage parts, folded into the roll config before it rolls — the damage message is the platform's and its receipt the resolve",
   "sneak.js": ["sneakDamage", "effectReceipt"],
   "clock-riders.js": ["clockRiders", "poolSpend"],

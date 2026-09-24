@@ -2,15 +2,17 @@
  * Battle Flow — The hit menu: on a hit, the options the sheet grants are offered before the dice, grouped by the feature that pays; the die rides the roll, the pool is spent, the save goes through the saves machine.
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { verdictsOn } from "./decide/demand.js";
 import { lower, featureNamed, activityOfType, profileEffects, resolveUuid, resolveDie } from "./lookup.js";
 import { hitMenuEntries } from "./settings.js";
-import { hitTargets, poolOf, spendSuperiorityDie, statSourceOf, withTargets } from "./shared.js";
+import { chipData, forceStatus, hitTargets, placeOf, poolOf, spendSuperiorityDie, statSourceOf, withTargets } from "./shared.js";
 import { bfCard, hitMenuHTML, momentBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { HIT_GROUPS, HIT_OPTIONS } from "./decide/registry.js";
 import { hitMenu, hitPick, sweepVerdict } from "./decide/hit-menu.js";
 import { riderPartFormula } from "./decide/clock.js";
+import { chipClock } from "./decide/chips.js";
+import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
@@ -57,9 +59,19 @@ import { SURFACES } from "./surfaces.js";
  *   (decide/hit-menu.js `sweepVerdict`), and applies the die through the receipt chokepoint
  *   when it would hit.
  *
+ *   GIANT ANCESTRY (Slice A, 2026-09-24) — the Goliath's on-hit boons, a second group: no
+ *   feature to require (the parent is text), each boon paying from its OWN uses; its die rides in
+ *   the boon's own damage type (Fire's Burn fire, Frost's Chill cold — never the weapon's); Frost's
+ *   Chill's "Chilled" lands clocked to the attacker's next turn start; Hill's Tumble presses Prone
+ *   with no save, receipted, on a target of Large or smaller read off the sheet.
+ *
+ *   ONE PICK PER HIT (decided 2026-09-24): the pick is one record, so a tick anywhere on the menu
+ *   unticks every other; the array shape is BACKLOG's.
+ *
  * WHAT IS READ, NEVER TYPED (N1): the die formula, the pool (the activity's consumption target
  * — an id, an identifier, or a compendium source: the three shapes the 2024 pack ships), the
- * save and its DC, the condition. The table carries only names and rules text.
+ * save and its DC, the condition, the damage type, the target's size. The table carries only
+ * names and rules text.
  * ------------------------------------------------------------------------------------------- */
 
 /** The die behind an option — its damage activity's first part, resolved on the sheet. "d8" reads as "1d8". */
@@ -82,24 +94,58 @@ function menuFor(attackMessage, activity) {
   const features = attacker.items.filter(i => i.type === "feat").map(i => i.name);
   const edge = {};
   const pools = {};
+  const fits = {};
+  const hits = attackMessage ? hitTargets(attackMessage) : [];
   for ( const [gkey, group] of Object.entries(HIT_GROUPS) ) {
-    if ( !featureNamed(attacker, group.feature) ) continue;
+    // A group with no paying feature (Giant Ancestry's text-only parent) requires nothing.
+    if ( group.feature && !featureNamed(attacker, group.feature) ) continue;
+    const perOption = group.pool === "option";
     for ( const [key, row] of Object.entries(HIT_OPTIONS) ) {
       if ( row.group !== gkey ) continue;
       const feat = featureNamed(attacker, row.feature);
       const die = feat ? activityOfType(feat, "damage") : null;
-      if ( !feat || !die ) continue;
-      const pool = poolOf(attacker, die);
-      const formula = dieFormulaOf(attacker, die);
-      edge[key] = { item: feat, dieActivity: die, saveActivity: activityOfType(feat, "save"), pool, formula };
-      pools[gkey] ??= pool ? { left: Number(pool.system?.uses?.value ?? 0), die: formula } : null;
-      if ( pools[gkey] && !pools[gkey].die && formula ) pools[gkey].die = formula;
+      // A no-save press (Hill's Tumble) ships a utility activity and no die — its uses are the cost.
+      const paying = die ?? ((feat && row.press) ? activityOfType(feat, "utility") : null);
+      if ( !feat || !paying ) continue;
+      const pool = poolOf(attacker, paying);
+      const formula = die ? dieFormulaOf(attacker, die) : null;
+      // The boon's OWN damage type (Fire's Burn: fire), read off its damage part — never the weapon's.
+      // ⚠ Only for an option-pool group: a maneuver's die part lists SEVERAL types (the die takes
+      // the weapon's), and its first read "bludgeoning" on a greataxe (measured live, 2026-09-24).
+      const partType = (die && perOption) ? ([...(die.damage?.parts?.[0]?.types ?? [])][0] ?? null) : null;
+      edge[key] = { item: feat, dieActivity: die, saveActivity: activityOfType(feat, "save"), pool, formula, type: partType };
+      if ( perOption ) pools[key] = pool ? { left: Number(pool.system?.uses?.value ?? 0), die: formula, type: partType } : null;
+      else {
+        pools[gkey] ??= pool ? { left: Number(pool.system?.uses?.value ?? 0), die: formula } : null;
+        if ( pools[gkey] && !pools[gkey].die && formula ) pools[gkey].die = formula;
+      }
+      if ( row.maxSize ) fits[key] = sizeFits(hits, row.maxSize);
     }
   }
   const melee = activity.attack?.type?.value !== "ranged";
-  const menu = hitMenu({ groups: HIT_GROUPS, options: HIT_OPTIONS, listed, features, melee, pools });
+  const menu = hitMenu({ groups: HIT_GROUPS, options: HIT_OPTIONS, listed, features, melee, pools, fits });
   const type = [...(item.system?.damage?.base?.types ?? [])][0] ?? null;
   return { attacker, menu, edge, type };
+}
+
+/**
+ * THE SIZE JUDGE (`maxSize`, Hill's Tumble — "a Large or smaller creature", Slice A 2026-09-24):
+ * every hit target's size read off its sheet against the system's own ordering
+ * (`CONFIG.DND5E.actorSizes[size].numerical`). False when one is larger; null when a size cannot
+ * be read — the row stays open and the table judges (the gate never guesses).
+ */
+function sizeFits(hits, maxSize) {
+  const sizes = CONFIG.DND5E?.actorSizes ?? {};
+  const cap = sizes[maxSize]?.numerical;
+  if ( !Number.isFinite(cap) || !hits.length ) return null;
+  let unknown = false;
+  for ( const h of hits ) {
+    const size = fromUuidSync(h.uuid)?.system?.traits?.size;
+    const n = sizes[size]?.numerical;
+    if ( !Number.isFinite(n) ) { unknown = true; continue; }
+    if ( n > cap ) return false;
+  }
+  return unknown ? null : true;
 }
 
 /* --- the pack's transfer flag, corrected on the sheet --------------------------------------- */
@@ -184,22 +230,35 @@ registerOfferPart({
     if ( !read?.menu.groups.length ) return null;
     const { menu, edge, type } = read;
     const chosen = new Set();
+    // An option-pool group (Giant Ancestry) counts USES, a shared pool DICE — each in its own words.
+    const leftTag = g => g.perOption
+      ? (g.left > 0 ? `${g.left} ${g.left === 1 ? g.dieLabel : `${g.dieLabel}s`} left` : `no ${g.dieLabel}s left`)
+      : (g.left > 0 ? `${g.left} × ${g.die ?? "die"} left` : "no dice left");
     const groupsView = menu.groups.map(g => ({
       key: g.key, label: g.label, off: g.left <= 0,
-      tag: g.left > 0 ? `${g.left} × ${g.die ?? "die"} left` : "no dice left",
+      tag: leftTag(g),
       rows: g.rows.map(r => ({ key: r.key, label: r.label, cost: r.cost, caveat: r.caveat, rule: r.rule, affordable: r.affordable }))
     }));
+    // The offer line in the group's own voice ("Maneuvers — … one maneuver per attack"); with two
+    // groups on one sheet, the one rule both share: one pick per hit (2026-09-24).
+    const live = menu.groups.some(g => g.left > 0);
+    const solo = menu.groups.length === 1 ? menu.groups[0] : null;
+    const heading = menu.groups.map(g => g.heading).join(" · ");
+    const summary = live
+      ? `pick one to ride this hit, or none; ${solo ? solo.per : "one pick per hit"}.`
+      : `${solo?.perOption ? `no ${solo.dieLabel}s left` : "no dice left"}; the rows stay for the record.`;
     return {
       html: hitMenuHTML({ groups: groupsView }),
-      lines: [`<strong>Maneuvers</strong> — ${menu.groups.some(g => g.left > 0) ? "pick one to ride this hit, or none; one maneuver per attack." : "no dice left; the rows stay for the record."}`],
+      lines: [`<strong>${heading}</strong> — ${summary}`],
       wire(element) {
         const boxes = [...(element?.querySelectorAll('input[name="bf-hit"]') ?? [])];
         for ( const box of boxes ) {
           box.addEventListener("change", () => {
             if ( box.checked ) {
-              // One pick per group: the sibling gives way (the rules — "only one maneuver per attack").
+              // ONE pick on the whole hit (the rules — "only one maneuver per attack" — within a
+              // group; the one-record pick across groups, decided 2026-09-24): every other gives way.
               for ( const other of boxes ) {
-                if ( (other !== box) && (other.dataset.bfHitGroup === box.dataset.bfHitGroup) && other.checked ) { other.checked = false; chosen.delete(other.value); }
+                if ( (other !== box) && other.checked ) { other.checked = false; chosen.delete(other.value); }
               }
               chosen.add(box.value);
             } else chosen.delete(box.value);
@@ -214,7 +273,7 @@ registerOfferPart({
         try {
           await attackMessage.setFlag(MODULE_ID, "hitPick", pick && facts ? {
             key: pick.row.key, group: pick.group, feature: pick.row.feature, mode: pick.row.mode,
-            formula: facts.formula, type, itemUuid: facts.item.uuid, poolUuid: facts.pool?.uuid ?? null
+            formula: facts.formula, type: facts.type ?? type, itemUuid: facts.item.uuid, poolUuid: facts.pool?.uuid ?? null
           } : { key: null });
         } catch(err) {
           console.error(`${TITLE} | Could not record the maneuver pick — the weapon rolls alone.`, err);
@@ -262,9 +321,11 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.hitManeuver`, {
       ...statContext(attacker?.uuid ?? null),
       attackId: attackMessage.id, key: pick.key, feature: row.feature, group: group.label, dieLabel: group.dieLabel,
+      eyebrow: group.eyebrow ?? "Maneuver", maneuver: (group.eyebrow ?? "Maneuver") === "Maneuver",
       formula: pick.formula, type: pick.type ?? null, mode: pick.mode ?? "ride", rides,
       rule: row.rule, line: row.line ?? null, caveat: row.caveat ?? null, poolLeft: left, poolSpend,
       save: !!row.save, onFail: row.onFail ?? null, effects: !!row.effects, itemUuid: pick.itemUuid,
+      clock: row.clock ?? null, press: row.press ?? null,
       attackRoll: roll ? { total: roll.total, isCritical: !!roll.isCritical, isFumble: !!roll.isFumble } : null
     });
     // Spent by dealing the damage: the card's Damage button pressed twice must not ride twice.
@@ -334,7 +395,7 @@ async function runConsequences(damageMessage, hm) {
 
 async function settleHitEffects(message) {
   const hm = message.getFlag(MODULE_ID, "hitManeuver");
-  if ( !hm?.effects || hm.effectsApplied ) return;
+  if ( !(hm?.effects || hm?.press) || hm.effectsApplied ) return;
   if ( !drivesMomentFor(hm.sourceUuid ?? null) ) return;
   try {
     let claimed = false;
@@ -347,13 +408,50 @@ async function settleHitEffects(message) {
     const attackMessage = game.messages.get(hm.attackId);
     // live only: the paying maneuver FEATURE — never used up, so the sheet is the truth
     const item = resolveUuid(hm.itemUuid);
-    const die = item ? activityOfType(item, "damage") : null;
-    const effects = (await profileEffects(die?.effects)).map(({ effect }) => effect).filter(Boolean);
     const hits = attackMessage ? hitTargets(attackMessage) : [];
-    if ( effects.length && hits.length ) await applyEffectsWithReceipt(message, effects, hits, { source: statSourceOf(message) });
+    if ( hm.effects ) {
+      const die = item ? activityOfType(item, "damage") : null;
+      const effects = (await profileEffects(die?.effects)).map(({ effect }) => effect).filter(Boolean);
+      // `clock` (Frost's Chill, 2026-09-24): the window the rule states, pinned to the ATTACKER's
+      // place — the Slow mastery's clock — never the pack's (Chilled ships none that means it).
+      const attacker = resolveUuid(hm.sourceUuid ?? null) ?? attackMessage?.getAssociatedActor?.() ?? null;
+      const window = hm.clock ? chipClock(hm.clock, attacker ? placeOf(attacker) : null) : null;
+      if ( effects.length && hits.length ) await applyEffectsWithReceipt(message, effects, hits,
+        { source: statSourceOf(message), clock: window ? chipData(window) : null });
+    }
+    if ( hm.press ) await pressOnHit(message, hm, hits, item);
   } catch(err) {
     console.error(`${TITLE} | The maneuver's effect failed to apply.`, err);
   }
+}
+
+/**
+ * THE NO-SAVE PRESS (Hill's Tumble, Slice A 2026-09-24): the status on every hit target, receipted
+ * as an applied effect on the damage card — the SAVE_PRESSES shape (saves/consequences.js), with
+ * no save in front of it. A target already wearing the status is skipped (nothing to press,
+ * nothing to receipt); one the module may not write is skipped and said on the card.
+ */
+async function pressOnHit(message, hm, hits, item) {
+  const pressed = [];
+  const skipped = [];
+  for ( const h of hits ) {
+    const subject = fromUuidSync(h.uuid);
+    const actor = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
+    if ( !(actor instanceof Actor) || !canApplyTo(actor) ) { skipped.push(h.name); continue; }
+    if ( actor.statuses?.has?.(hm.press) ) continue;
+    const landed = await forceStatus(actor, hm.press, { origin: item?.uuid ?? null });
+    const effect = landed ? actor.effects.find(e => e.statuses?.has?.(hm.press)) : null;
+    if ( !effect ) { skipped.push(h.name); continue; }
+    pressed.push(h.name);
+    await queueFlagWrite(message, "effectReceipt", current => {
+      joinEffectReceipt(current, { uuid: h.uuid, name: h.name, img: actor.img ?? null,
+        effects: [effectRecord({ id: effect.id, name: effect.name, img: effect.img, description: hm.rule }, statContext(hm.sourceUuid ?? null))] });
+    });
+  }
+  await queueFlagWrite(message, "hitManeuver", current => {
+    current.pressed = pressed;
+    if ( skipped.length ) current.notes = [...(current.notes ?? []), `${hm.feature}: ${skipped.join(", ")} — apply ${hm.press} by hand`];
+  });
 }
 
 /* --- the follow-up: what a FAILED save presses that the activity did not carry --------------- */
@@ -554,7 +652,7 @@ async function settleSweep(card) {
 // were: the effects on arrival and reload, never on an update; the follow-ups and the sweep on
 // the answer's write and on reload.
 registerResumable("hitManeuver", {
-  pending: (flag, _message, cause) => (cause !== "update") && !!flag.effects && !flag.effectsApplied,
+  pending: (flag, _message, cause) => (cause !== "update") && !!(flag.effects || flag.press) && !flag.effectsApplied,
   drives: flag => drivesMomentFor(flag.sourceUuid ?? null),
   drive: settleHitEffects
 });
@@ -575,11 +673,15 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const hm = message.getFlag(MODULE_ID, "hitManeuver");
   if ( hm ) {
     const line = document.createElement("div");
+    // A no-die press (Hill's Tumble) says what it pressed; the eyebrow is the group's family word.
+    const pressTitle = hm.press
+      ? `${hm.feature} — ${hm.pressed?.length ? `${hm.pressed.join(", ")} ${hm.pressed.length === 1 ? "has" : "have"}` : "the target has"} the ${hm.press.charAt(0).toUpperCase()}${hm.press.slice(1)} condition`
+      : null;
     line.innerHTML = bfCard({
-      eyebrow: `Maneuver — ${hm.feature}`, tone: hm.rides || (hm.mode === "sweep") ? "good" : "neutral",
+      eyebrow: `${hm.eyebrow ?? "Maneuver"} — ${hm.feature}`, tone: hm.rides || (hm.mode === "sweep") || hm.press ? "good" : "neutral",
       title: hm.rides ? `${hm.feature} — ${hm.formula}${hm.type ? ` ${hm.type}` : ""} rode this roll`
         : (hm.mode === "sweep") ? `${hm.feature} — the die is rolled at a second creature`
-          : `${hm.feature} — its die could not be read off the sheet`,
+          : pressTitle ?? `${hm.feature} — its die could not be read off the sheet`,
       subtitle: `${spendPhrase(hm.poolSpend ? [hm.poolSpend] : [], hm.dieLabel)}${hm.caveat ? ` · ${hm.caveat}` : ""}`,
       lines: [hm.line, ruleLine(hm.rule), ...(hm.notes ?? []).map(n => `<span style="opacity:0.8;">${n}</span>`)]
     });

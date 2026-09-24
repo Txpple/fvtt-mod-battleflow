@@ -19,7 +19,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 // full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
 // it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
 export const COVERS = [
-  'hit-menu.js',            // the Combat Superiority group on the damage offer, the pick, the sweep
+  'hit-menu.js',            // the Combat Superiority group on the damage offer, the pick, the sweep; §12-15 Giant Ancestry
   'saves/index.js',         // §3 / §4 — the maneuver's save through the saves machine
   'saves/demand.js',
   'saves/ask.js',
@@ -38,6 +38,10 @@ const SECTIONS = {
   8: 'the Hit Menu list is the switch: an empty list offers nothing',
   9: 'a critical hit doubles the die; Goaded lands on the target and NEVER on the fighter (the pack ships it transfer:true)',
   11: 'a copy that has lost its effect: Goaded still lands, pressed from the compendium',
+  12: 'Giant Ancestry — Fire\'s Burn (Slice A, 2026-09-24): the Goliath\'s own group, no feature required; 1d10 FIRE rides (the boon\'s type, not the axe\'s), the boon\'s own use spent, the card in the Giant Ancestry voice, published as a rider',
+  13: 'Frost\'s Chill: 1d6 cold rides, and "Chilled" lands on the hit clocked to the start of the attacker\'s next turn (the pack ships no duration), receipted',
+  14: 'Hill\'s Tumble: no die, one use — Prone pressed with NO save, receipted; a Huge target greys the row "too large"',
+  15: 'one pick per hit across groups: a Battle Master with Fire\'s Burn sees both groups; a tick in one unticks the other; the line says "one pick per hit"',
   10: 'the registration FIRED (§11): preRollDamageV2 moved with a maneuver on it'
 };
 const DEPENDS = { 10: ['3'], 11: ['9'] };
@@ -104,7 +108,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const STATUSES = ['prone', 'frightened'];
   const clearChips = async () => {
     for (const a of [victim, second, fighter]) {
-      const chips = a.effects.filter(e => e.getFlag(MOD, 'mastery') || /^(Distracted|Goaded|Frightened|Prone)/.test(e.name)
+      const chips = a.effects.filter(e => e.getFlag(MOD, 'mastery') || /^(Distracted|Goaded|Frightened|Prone|Chilled)/.test(e.name)
         || STATUSES.some(s => e.statuses?.has?.(s)));
       const live = chips.map(e => e.id).filter(id => a.effects.get(id));
       if (live.length) await a.deleteEmbeddedDocuments('ActiveEffect', live).catch(() => {});
@@ -540,6 +544,164 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!goaded && !!gr?.effects?.some(e => /Goaded/.test(e.name)) && (goaded?.transfer === false),
         `goaded=${!!goaded} transfer=${goaded?.transfer} receipt=${JSON.stringify(gr?.effects?.map(e => e.name))}`);
       await settle();
+    }
+
+    // ================================================== 12-15. Giant Ancestry (Slice A, 2026-09-24)
+    // The Goliath fixture carries Fire's Burn; Frost's Chill and Hill's Tumble join it from the
+    // origins pack for these sections and leave after. The list admits the three for the run.
+    if (want(12) || want(13) || want(14) || want(15)) {
+      const EIGHT = 'Trip Attack, Goading Attack, Menacing Attack, Pushing Attack, Disarming Attack, Distracting Strike, Maneuvering Attack, Sweeping Attack';
+      const goliath = game.actors.getName('BF Test Goliath');
+      const axe = goliath?.items.find(i => (i.type === 'weapon') && (i.name === 'Greataxe'));
+      const origins = game.packs.get('dnd-players-handbook.origins');
+      if (!goliath || !axe || !origins) {
+        ok('12. the BF Test Goliath fixture with a Greataxe and the PHB origins pack (run tools/fixture-suite.mjs)', false, `goliath=${!!goliath} axe=${!!axe} origins=${!!origins}`);
+      } else {
+        const gItems = [];
+        const fItems = [];
+        const priorSize = victim.system._source.traits?.size ?? 'med';
+        const boonData = async name => {
+          const idx = await origins.getIndex();
+          const hit = idx.find(e => e.name === name);
+          if (!hit) return null;
+          const doc = await origins.getDocument(hit._id);
+          const data = doc.toObject(); delete data._id;
+          foundry.utils.setProperty(data, '_stats.compendiumSource', doc.uuid);
+          return data;
+        };
+        try {
+          await set('hitMenuList', `${EIGHT}, Fire's Burn, Frost's Chill, Hill's Tumble`);
+          const add = [];
+          for (const n of ["Fire's Burn", "Frost's Chill", "Hill's Tumble"]) {
+            if (goliath.items.some(i => (i.type === 'feat') && (i.name === n))) continue;
+            const d = await boonData(n);
+            if (d) add.push(d); else log.push(`⚠ ${n} not in the origins pack`);
+          }
+          if (add.length) gItems.push(...(await goliath.createEmbeddedDocuments('Item', add)).map(d => d.id));
+          const boon = n => goliath.items.find(i => (i.type === 'feat') && (i.name === n));
+          const usesOf = n => Number(boon(n)?.system.uses?.value ?? -1);
+          const refillBoons = async () => { for (const n of ["Fire's Burn", "Frost's Chill", "Hill's Tumble"]) await boon(n)?.update({ 'system.uses.spent': 0 }); };
+          const goliathToken = canvas.tokens.placeables.find(t => t.actor?.id === goliath.id) ?? (await placeToken(goliath, 1400, 1500)).token;
+          const gAttack = axe.system.activities.find(a => a.type === 'attack');
+          const swingGoliath = async () => {
+            await healFull();
+            goliathToken.control({ releaseOthers: true });
+            target(victimToken);
+            await sleep(80);
+            face(19);
+            const results = await gAttack.use({ subsequentActions: false }, { configure: false }, {});
+            const usageId = results?.message?.id ?? null;
+            const rolls = await gAttack.rollAttack({}, { configure: false }, usageId ? { data: { 'system.origin': usageId } } : {});
+            const msg = rolls?.[0]?.parent ?? null;
+            return { msg, originId: msg?._source.system?.origin ?? msg?.id };
+          };
+          const goliathWith = async key => {
+            const { msg, originId } = await swingGoliath();
+            const offer = await waitFor(offerEl, 6000);
+            const offerText = textOf(offer);
+            if (key) box(offer, key)?.click();
+            await sleep(60);
+            rollButton(offer)?.click();
+            const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+            return { msg, dmg, hm: dmg?.getFlag(MOD, 'hitManeuver') ?? null, offerText };
+          };
+          const cardOf = m => textOf(document.querySelector(`.message[data-message-id="${m?.id}"]`));
+
+          if (want(12)) {
+            await refillBoons();
+            const before = usesOf("Fire's Burn");
+            const since = Date.now();
+            const { dmg, hm, offerText } = await goliathWith('fires-burn');
+            const part = (dmg?.rolls ?? []).find(r => /^1d10$/.test(r.formula));
+            ok('12a. the offer opens with a Giant Ancestry group — no Giant Ancestry feature on the sheet — in its own voice, the row the boon\'s die and type and one use',
+              /Giant Ancestry/.test(offerText) && /one boon per hit/.test(offerText) && /1d10 fire · 1 use/i.test(offerText) && !goliath.items.some(i => i.name === 'Giant Ancestry'),
+              offerText.slice(0, 260));
+            ok('12b. 1d10 rides as its own part in FIRE — the boon\'s type, never the greataxe\'s slashing',
+              !!hm && (hm.key === 'fires-burn') && hm.rides && (hm.type === 'fire') && !!part && [...(part.options?.types ?? [part.options?.type])].includes('fire'),
+              `hm=${JSON.stringify(hm && { key: hm.key, type: hm.type, formula: hm.formula })} parts=${JSON.stringify((dmg?.rolls ?? []).map(r => [r.formula, r.options?.type]))}`);
+            ok('12c. the boon\'s OWN use is spent, and the card says it in the Giant Ancestry voice ("one use spent")',
+              (usesOf("Fire's Burn") === before - 1) && /Giant Ancestry — Fire's Burn/.test(cardOf(dmg)) && /one use spent/.test(cardOf(dmg)),
+              `uses ${before}→${usesOf("Fire's Burn")} card="${cardOf(dmg).slice(0, 240)}"`);
+            await sleep(300);
+            const rider = momentsOf('rider', since).filter(x => x.messageId === dmg?.id);
+            const man = momentsOf('maneuver', since).filter(x => x.messageId === dmg?.id);
+            ok('12d. published as a RIDER, not a maneuver — a species boon is no maneuver',
+              (rider.length === 1) && (man.length === 0) && (rider[0]?.ability === "Fire's Burn"), `rider=${rider.length} maneuver=${man.length}`);
+            await settle();
+          }
+
+          if (want(13)) {
+            await refillBoons();
+            const { dmg, hm } = await goliathWith('frosts-chill');
+            const part = (dmg?.rolls ?? []).find(r => /^1d6$/.test(r.formula));
+            ok('13a. 1d6 COLD rides, effects on the hit, the clock the Slow mastery\'s',
+              !!hm && (hm.key === 'frosts-chill') && (hm.type === 'cold') && hm.effects && (hm.clock === 'slow') && !!part,
+              JSON.stringify(hm && { key: hm.key, type: hm.type, clock: hm.clock }));
+            const er = await waitFor(() => game.messages.get(dmg?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => (t.uuid === victim.uuid) && t.effects?.length), 12000);
+            const chilled = victim.effects.find(e => e.name === 'Chilled');
+            const dur = chilled?._source?.duration ?? null;
+            ok('13b. "Chilled" lands on the victim, receipted, clocked to one round ending at a turn START (the pack ships none)',
+              !!chilled && !!er?.effects?.some(e => /Chilled/.test(e.name)) && /turnStart/.test(JSON.stringify(dur)) && /"value":1\b|"rounds":1\b/.test(JSON.stringify(dur)),
+              `chilled=${!!chilled} duration=${JSON.stringify(dur)} receipt=${JSON.stringify(er?.effects?.map(e => e.name))}`);
+            await settle();
+          }
+
+          if (want(14)) {
+            await refillBoons();
+            const before = usesOf("Hill's Tumble");
+            const { dmg, hm } = await goliathWith('hills-tumble');
+            const er = await waitFor(() => game.messages.get(dmg?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => (t.uuid === victim.uuid) && t.effects?.length), 12000);
+            ok('14a. Hill\'s Tumble: nothing rides, one use spent, Prone pressed with NO save card, receipted on the damage card',
+              !!hm && (hm.key === 'hills-tumble') && !hm.rides && (hm.press === 'prone') && (usesOf("Hill's Tumble") === before - 1)
+                && victim.statuses?.has?.('prone') && !!er?.effects?.some(e => /Prone/i.test(e.name)) && !cardsWith('hitManeuverCard').some(m => m.getFlag(MOD, 'hitManeuverCard')?.key === 'hills-tumble'),
+              `hm=${JSON.stringify(hm && { key: hm.key, rides: hm.rides, press: hm.press })} uses ${before}→${usesOf("Hill's Tumble")} prone=${victim.statuses?.has?.('prone')} receipt=${JSON.stringify(er?.effects?.map(e => e.name))}`);
+            await waitFor(() => /has the Prone condition/.test(cardOf(dmg)), 4000);
+            ok('14b. the card says what it pressed, in the Giant Ancestry voice', /Giant Ancestry — Hill's Tumble/.test(cardOf(dmg)) && /has the Prone condition/.test(cardOf(dmg)), cardOf(dmg).slice(0, 240));
+            await settle();
+            // A Huge target: the size judge greys the row with the fact as its tag.
+            await victim.update({ 'system.traits.size': 'huge' });
+            const { msg } = await swingGoliath();
+            const offer = await waitFor(offerEl, 6000);
+            const row = offer?.querySelector('[data-bf-hit-row="hills-tumble"]');
+            ok('14c. against a Huge target the row is greyed, its tag "too large"; the other boons stay open',
+              !!row && !!box(offer, 'hills-tumble')?.disabled && /too large/i.test(textOf(row)) && !box(offer, 'fires-burn')?.disabled,
+              `row=${textOf(row).slice(0, 120)} disabled=${box(offer, 'hills-tumble')?.disabled}`);
+            rollButton(offer)?.click();
+            await waitFor(() => damageFor(msg?._source.system?.origin ?? msg?.id)?.getFlag(MOD, 'receipt'), 12000);
+            await victim.update({ 'system.traits.size': priorSize });
+            await settle();
+          }
+
+          if (want(15)) {
+            await refill();
+            const d = await boonData("Fire's Burn");
+            if (d && !fighter.items.some(i => i.name === "Fire's Burn")) fItems.push(...(await fighter.createEmbeddedDocuments('Item', [d])).map(x => x.id));
+            const { msg } = await swing();
+            const offer = await waitFor(offerEl, 6000);
+            const groups = [...(offer?.querySelectorAll('[data-bf-hit] > [data-bf-hit-group]') ?? [])].map(g => g.dataset.bfHitGroup);
+            box(offer, 'trip-attack')?.click();
+            await sleep(50);
+            box(offer, 'fires-burn')?.click();
+            await sleep(50);
+            ok('15a. both groups on one offer, and a tick in Giant Ancestry unticks Combat Superiority\'s — one pick per hit, said on the line',
+              (groups.join() === 'combat-superiority,giant-ancestry') && !box(offer, 'trip-attack')?.checked && !!box(offer, 'fires-burn')?.checked && /one pick per hit/.test(textOf(offer)),
+              `groups=${groups.join()} trip=${box(offer, 'trip-attack')?.checked} fire=${box(offer, 'fires-burn')?.checked} line="${textOf(offer).slice(0, 200)}"`);
+            rollButton(offer)?.click();
+            const dmg = await waitFor(() => { const x = damageFor(msg?._source.system?.origin ?? msg?.id); return x?.getFlag(MOD, 'receipt') ? x : null; }, 12000);
+            ok('15b. the one pick rides — Fire\'s Burn — and the Superiority Die is untouched',
+              (dmg?.getFlag(MOD, 'hitManeuver')?.key === 'fires-burn') && (poolLeft() === 4), `hm=${dmg?.getFlag(MOD, 'hitManeuver')?.key} pool=${poolLeft()}`);
+            await settle();
+          }
+        } finally {
+          await victim.update({ 'system.traits.size': priorSize }).catch(() => {});
+          const gl = gItems.filter(id => goliath.items.get(id));
+          if (gl.length) await goliath.deleteEmbeddedDocuments('Item', gl).catch(() => {});
+          await goliath.items.find(i => i.name === "Fire's Burn")?.update({ 'system.uses.spent': 0 }).catch(() => {});
+          const fl = fItems.filter(id => fighter.items.get(id));
+          if (fl.length) await fighter.deleteEmbeddedDocuments('Item', fl).catch(() => {});
+          await set('hitMenuList', EIGHT);
+        }
+      }
     }
 
     // ================================================== 10. the registration FIRED
