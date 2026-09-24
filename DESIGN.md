@@ -4,8 +4,10 @@
 > refactor must trace back to this page. When a decision is ambiguous, this document wins.
 > When this document and the code disagree, that is a bug in one of them — surface it.
 >
-> This page is meant to be **stable**. It records intent, not progress. Implementation lives
-> in [ARCHITECTURE.md](ARCHITECTURE.md); hard-won facts live in [NOTES.md](NOTES.md).
+> This page records intent, not progress. The rulings that shaped each feature live in
+> [RULINGS.md](RULINGS.md); the structure in [ARCHITECTURE.md](ARCHITECTURE.md); platform facts
+> in [NOTES.md](NOTES.md); what is known and deliberately not scheduled in
+> [BACKLOG.md](BACKLOG.md).
 
 ---
 
@@ -14,12 +16,10 @@
 **Battle Flow makes D&D 5e battles flow.** Attack → hit → damage → save → effect resolves
 itself, and the table only touches the moments that are genuinely theirs.
 
-The system — dnd5e on Foundry VTT — already owns all of the hard math: hit determination
-against AC, resistance-correct damage, real saving throws, effect application, concentration
-linkage. Every link of that chain simply ends at a **button**.
-
-Battle Flow's entire job is **pressing the buttons whose outcomes are already determined**,
-while:
+The system — dnd5e on Foundry VTT — already owns the hard math: hit determination against AC,
+resistance-correct damage, real saving throws, effect application, concentration linkage. Every
+link of that chain ends at a **button**. Battle Flow's job is **pressing the buttons whose
+outcomes are already determined**, while:
 
 - **pausing** where a human genuinely gets a say (the reaction window, the choice),
 - **announcing** what matters (hits, spends, breaks, expirations),
@@ -28,29 +28,27 @@ while:
 
 ## 2. The four north stars
 
-These are the reasons the module exists. They are immutable. Everything in
-[ARCHITECTURE.md](ARCHITECTURE.md) is downstream of them.
+The reasons the module exists. They are immutable; everything in ARCHITECTURE is downstream.
 
 ### N1 — Canon only
 
-The module relies exclusively on **content the compendia already ship, and the mechanics the
+The module relies exclusively on **content the compendia already ship and the mechanics the
 system already implements**. Nothing is transcribed, homebrewed, or hard-coded as a number.
 
-- **How much** is always read from the content's own data — a mark's bonus-damage activity, a
-  spell's damage parts, a save's DC. The module never stores an amount.
+- **How much** is read from the content's own data — a mark's bonus-damage activity, a spell's
+  damage parts, a save's DC. The module never stores an amount.
 - **Which mechanics** come from the system: `Actor5e#applyDamage` does the resistance math,
-  `rollSavingThrow` rolls the save, the native effect-application path applies effects. The
-  module chooses *when*, never *what*.
-- When content is wrong, **fix the content**, not the module. A module that learns an
-  ability's name to work around bad data has taken on a maintenance burden that never ends.
+  `rollSavingThrow` rolls the save, the native path applies effects. The module chooses *when*,
+  never *what*.
+- When content is wrong, **fix the content**, not the module.
 
-*Sibling rule: this is the same discipline as `fvtt-mcp-dnd5e` — premium packs are the
-library, and the tooling reads them rather than reproducing them.*
+*Sibling rule: the same discipline as `fvtt-mcp-dnd5e` — premium packs are the library, and the
+tooling reads them rather than reproducing them.*
 
 ### N2 — The 80/20 rule
 
-5e is too large to encapsulate completely, and completeness is not the goal. **Capture the
-flows that actually consume table time; leave the infrequent edge cases to humans.**
+5e is too large to encapsulate, and completeness is not the goal. **Capture the flows that
+consume table time; leave the infrequent edge cases to humans.**
 
 - The measure of a feature is *table seconds saved per session*, not rules coverage.
 - An edge case is not a bug. "Cast with no GM logged in and nothing applied" is by design.
@@ -59,26 +57,23 @@ flows that actually consume table time; leave the infrequent edge cases to human
 
 ### N3 — New players first
 
-The module's UI exists so that someone who has never played 5e can take their turn without
-knowing which chat card to hunt for.
+Someone who has never played 5e can take their turn without knowing which chat card to hunt for.
 
-- **Popups replace card-hunting.** The thing you must answer comes to you, centered, with the
+- **Popups replace card-hunting.** The thing you must answer comes to you, centred, with the
   rule quoted verbatim from the feature's own text.
-- **Spends announce themselves.** When a resource is consumed, a reaction is spent, or an
-  effect lands, the table is told — an icon appearing or vanishing is never a mystery.
-- **Targeting and canvas interaction are made easier**, not more powerful.
-- **Nothing is a required answer.** Every moment has a default outcome and a clock; the
-  human's control *preempts* the default. A table is never blocked on a player who stepped
-  away — unless it explicitly chooses to be (timer 0).
+- **Spends announce themselves.** An icon appearing or vanishing is never a mystery.
+- **Nothing is a required answer.** Every moment has a default outcome and a clock; the human's
+  control *preempts* the default. A table is never blocked on a player who stepped away unless
+  it explicitly chooses to be (timer 0).
 
 ### N4 — Flow
 
 Combat should move. Every design choice is weighed against whether it makes the round faster.
 
-- **GM click economy ≈ zero.** In steady state the GM answers nothing. Any feature that adds a
+- **GM click economy ≈ zero.** In steady state the GM answers nothing. A feature that adds a
   recurring mandatory GM click is misdesigned.
-- **Automate outcomes, never decisions.** If the rules already determine the result, press the
-  button. If judgment is involved, hold for a human — never play it for them.
+- **Automate outcomes, never decisions.** If the rules determine the result, press the button.
+  If judgment is involved, hold for a human.
 - **Never block on a human indefinitely** without the table saying so.
 
 ---
@@ -89,94 +84,78 @@ Combat should move. Every design choice is weighed against whether it makes the 
 
 - **The rules target is 5e 2024 as the dnd5e system ships it.** Curated lists are built by
   sweeping the official compendia, not by asking what the party owns. A spell that exists and
-  fits a shipped feature belongs on the list whether or not anyone has cast it.
+  fits a shipped feature belongs on the list whether or not anyone has cast it. The 2014 packs
+  are ignored (SWEEP §5).
 - **Dogfooding is the development method, and the table sets priority.** Nothing ships that
   has not been played. What the table needs decides *order of work* — never *bounds of scope*.
-- **Every feature is individually toggleable, and ships ON** (user call 2026-09-03: *"have it
-  ship all on"* — a fresh table gets the configuration this table plays, every machine live).
-  One switch per feature still, so any feature can be killed mid-session without touching the
-  others. *(Until 2026-09-03 every feature shipped OFF so the ladder could be walked one setting
-  at a time; the ladder has been walked, and the shipped defaults now match the reference table
-  in `tools/verify-settings.mjs`.)*
-- **Every feature must be individually deletable** the day the system ships it natively.
-  Being made redundant is the success condition, not a risk.
+- **Every feature is individually toggleable, and ships ON** (user, 2026-09-03). A fresh table
+  gets the configuration this table plays; any feature can be killed mid-session without
+  touching the others. The shipped defaults are the reference table in
+  `tools/verify-settings.mjs`.
+- **Every feature must be individually deletable** the day the system ships it natively. Being
+  made redundant is the success condition.
 
 ### What Battle Flow is not
 
 It is deliberately not midi-qol. midi solves automation with a ~50,000-line workflow engine, a
-flags platform, and three hard dependencies (DAE, socketlib, lib-wrapper) — plus wholesale
-replacement of eight document classes and 33 patches, pinned per dnd5e minor family. Its
-serial in-memory workflow blocks on cross-client prompts with timeouts, which is the source of
-its race conditions and its 700-line undo system.
-
-Battle Flow solves the same chain with a few thousand lines, curated lists instead of
-platforms, and zero dependencies. The trade is safe because midi's own current code
-demonstrates the thesis: it now mostly *orchestrates native dnd5e machinery* — which means a
-small module can orchestrate the same public hooks directly.
-
-*(The full source-level evaluation that established this — midi-qol, DAE, dnd5e native
-automation, and the 2025–26 ecosystem — was recorded in `RESEARCH.md` and is preserved in git
-history. Its conclusions are the paragraph above and §4.)*
+flags platform, three hard dependencies, wholesale replacement of eight document classes, and a
+serial in-memory workflow that blocks on cross-client prompts — the source of its race conditions
+and its undo system. Battle Flow solves the same chain with a few thousand lines, curated lists
+instead of platforms, and zero dependencies. The trade is safe because midi's own current code
+mostly *orchestrates native dnd5e machinery* — so a small module can orchestrate the same public
+hooks directly. (The source-level evaluation that established this is `RESEARCH.md` in git
+history; its conclusions are this paragraph and §4.)
 
 ---
 
 ## 4. Non-goals (permanent)
 
-The 80% of midi-qol this module exists to refuse. These do not get revisited feature by
-feature; changing one is a change to this document.
+The 80% of midi-qol this module exists to refuse. These are not revisited feature by feature;
+changing one is a change to this document.
 
 | Refused | Why |
 | --- | --- |
 | **Reaction automation** — auto-casting, cross-client prompts, timeout protocols | Humans play reactions. The hold is a pause, not a system (N4). |
-| **Opportunity-attack detection**, movement-triggered anything | Judgment, not outcome (N4). ⚠ **AMENDED 2026-09-03 (user ruling) — EMANATIONS ARE THE EXCEPTION, and the platform is why.** An aura applying to whoever stands inside it is an OUTCOME the rules determine, "no different than auto-applying Slow with mastery", and Foundry 14 models the area itself: a Region attached to the token moves with it, tracks who is inside, and raises the enter/exit/turn events. What stays refused is the MODULE doing range math on movement — the trigger is the platform's membership, never a distance this module measures (§5 *Emanations*). |
-| **Cover / line-of-sight / range math** | The system does not model it reliably; guessing is worse than asking (N2). |
+| **Opportunity-attack detection**, movement-triggered anything | Judgment, not outcome (N4). **Emanations are the one exception** (user, 2026-09-03): an aura applying to whoever stands inside it is an OUTCOME the rules determine, and Foundry 14 models the area itself — a Region attached to the token tracks who is inside and raises the events. What stays refused is the MODULE doing range math on movement; the trigger is the platform's membership (RULINGS *Emanations*). |
+| **Cover / line-of-sight / range math** | The system does not model it reliably; guessing is worse than asking (N2). ⚠ Geometry a rule's own clause needs — the range bands, a foe within 5 feet, an ally beside the target — is the module's own reading of the map, not this row (R1). |
 | **Workflow undo** | The per-application revert receipt is the full extent. |
-| **A flags / aura platform** | Curated tables only (§5). ⚠ **Still refused after the 2026-09-03 amendment above, and the line is the same one:** emanations are curated ROWS over the platform's own emanation shape and Region behaviour — no aura engine, no distance polling, no flag vocabulary of our own. The Active-Auras family solved this on v11–13 with a polling platform; on 14 the platform has the shape, and a module that re-implemented it would be the platform's obsolete twin. |
-| **Template / AoE target management** | Targeting stays human (N4). |
-| **A macro platform** — no OnUse macros, no effect macros | It is someone else's data model. |
-| **An extension platform for homebrew** | The answer to "my custom thing needs this" is a list entry, never a new extension point. Breadth of *official content* is in scope; a platform never is. |
-| **A no-GM degraded mode** | Unowned actors are a hard permission wall, so any degraded mode would apply mixed target sets *partially* — silent partial application is this module's worst failure class. |
-| **Rewriting a d20 roll the system produced** | The module never reaches into an evaluated `Roll` and changes its number. It reads the roll, **folds** later inputs in beside it on a module flag, and announces the arithmetic in the open. ⚠ **This does not forbid changing an outcome.** Precision Attack turns a miss into a hit after the fact and has shipped since v1.19.0 ([precision.js](scripts/precision.js) `resolvePrecision`, [decide/verdict.js](scripts/decide/verdict.js) `hitsAmong`): the original message stands as history, the new die posts as its own message, and the verdict is recomputed on the flag. Post-roll folds of that shape are **in scope**; silently editing the system's number is not. ⚠ **And the fold is a MECHANISM as of 2026-08-23**, not one feature's special case: `ATTACK_FOLDS` / `SAVE_FOLDS` in `decide/verdict.js`, composed rather than ordered — the attacker's folds move the total, the defender's move the AC, one verdict at the end (the user ruling; ARCHITECTURE §10 D8, and §11's "Adding a FOLD" checklist). |
+| **A flags / aura platform** | Curated tables only. Emanations are curated ROWS over the platform's own Region behaviour — no aura engine, no distance polling, no flag vocabulary of our own. |
+| **Template / AoE target management** | Targeting stays human (N4). A spell whose text chooses its targets asks the caster who (RULINGS *Spells that choose their targets*); the module never picks. |
+| **A macro platform** — no OnUse macros, no effect macros | Someone else's data model. |
+| **An extension platform for homebrew** | "My custom thing needs this" is answered by a list entry, never a new extension point. |
+| **A no-GM degraded mode** | Unowned actors are a hard permission wall; a degraded mode would apply mixed target sets *partially*, this module's worst failure class. |
+| **Rewriting a d20 roll the system produced** | The module never changes an evaluated `Roll`'s number. It **folds** later inputs in beside it on a module flag and announces the arithmetic (`ATTACK_FOLDS` / `SAVE_FOLDS` in `decide/verdict.js`, composed: the attacker's folds move the total, the defender's move the AC, one verdict). Changing an OUTCOME this way is in scope — Precision Attack turns a miss into a hit after the fact, the original message standing as history. Silently editing the system's number is not. |
 
 ---
 
 ## 5. The five binding rules
 
-Everything in [ARCHITECTURE.md](ARCHITECTURE.md) is an implementation of these. They are the
-rules code review checks against.
+Everything in ARCHITECTURE is an implementation of these. They are what code review checks.
 
 ### R1 — Automate outcomes, never decisions
 
 Press buttons whose results are fully determined by rules already in the game data. Anything
 requiring human judgment is *held for* a human, never performed for one.
 
-**Game logic is not judgment** (user, 2026-09-22, on Pack Tactics and Sneak Attack's ally
-clause: *"if theres a ally defined as being in same faction....that istn really out of scope"* —
-*"easily discernable with game logic, doesnt need human judgment"*). A condition the table's own
-data settles — which side a token is on (its disposition), how far apart two tokens stand (the
-grid), whether a creature carries a status — is a FACT to read, not a decision to hold. *"An ally
-within 5 feet of the target, not Incapacitated"* is the worked case, judged off the map since that
-day. Before a rule's clause is parked as "the player's call", ask whether those facts compute it;
-if they do, it is in scope. What stays held is what they cannot settle — a creature's choice, a
-guess at intent — and a side the data leaves unnamed (a neutral or secret token) is counted,
-never guessed.
+**Game logic is not judgment** (user, 2026-09-22). A condition the table's own data settles —
+which side a token is on, how far apart two tokens stand, whether a creature carries a status —
+is a FACT to read, not a decision to hold. Before a rule's clause is parked as "the player's
+call", ask whether those facts compute it; if they do, it is in scope. What stays held is what
+they cannot settle — a creature's choice, a guess at intent — and a side the data leaves unnamed
+(a neutral or secret token) is counted, never guessed.
 
 ### R2 — The chat log is the state and the bus. No sockets, ever
 
-There is no in-memory workflow object anywhere. Every hop is a stateless reaction to a
-persisted document that Foundry's own server replication delivers to every client. No client
-ever *commands* another: clients **volunteer** actions based on what appears in the log.
-
-This buys, for free, everything a workflow engine hand-maintains: ordering, reload-safety,
-permission enforcement, and an audit trail.
+There is no in-memory workflow object anywhere. Every hop is a stateless reaction to a persisted
+document that Foundry's own replication delivers to every client. No client *commands* another:
+clients **volunteer** actions based on what appears in the log. This buys ordering,
+reload-safety, permission enforcement and an audit trail for free.
 
 ### R3 — Zero dependencies. Public hooks only. No patching
 
 No libWrapper, no socketlib, no DAE. No monkey-patching, no document-class replacement, no
-private-method wrapping. The only `relationships` entry is a version **pin** on dnd5e — a
-compatibility declaration, not a library.
-
-If a feature cannot be built on public hooks plus document writes, it is out of scope.
+private-method wrapping. The only `relationships` entry is a version **pin** on dnd5e. If a
+feature cannot be built on public hooks plus document writes, it is out of scope.
 
 ### R4 — Mechanisms in code, membership in data, amounts in content
 
@@ -184,943 +163,54 @@ The single most important structural rule in the module.
 
 | Layer | Holds | Changing it costs |
 | --- | --- | --- |
-| **Code** | KINDS of question — an AC-recheck reaction, a damage-reduce reaction, the closed 8-mastery set, the generic save / concentration / cast / volley machines | A code change, a review, a release |
+| **Code** | KINDS of question — an AC-recheck reaction, a damage-reduce reaction, the closed mastery set, the generic save / concentration / cast / volley machines | A code change, a review, a release |
 | **Data** (registries + settings lists) | WHICH abilities participate — Shield is an entry, not a code path | One line |
 | **Content** (the compendium) | HOW MUCH — every number, every DC, every die | Nothing; it is already correct |
 
-A new ability must cost a **data entry, zero code**. Code grows only when a genuinely new
-KIND of question appears.
-
-**The tripwire:** if new kinds start arriving faster than one per phase, that is a signal to
-reach for an existing conditions library (AC5e is the standing candidate) — not a licence to
-special-case names.
-
-⚠ **The tripwire is now MEASURED, not asserted** (Phase 3). `npm run verify` prints the kinds
-table and **pins the total**, so a new kind fails the gate until someone changes the pin on
-purpose. Today: **23 kinds across 6 sets** — interrupt 2, maneuver fold 5, d20 fold 3, volley 2,
-mastery 7 of the system's 8, reminder 4 (vex, sap, prone, condition — the four ways the gate can
-READ a source of Advantage or Disadvantage; the thirteen conditions under the fourth are
-membership, declared as such, and deliberately uncounted). The rule is not "no new kinds"; it
-is "no *unnoticed* new kinds". Until this
-existed nobody could state the rate, so the condition above could never actually fire — and
-[ARCHITECTURE §10 D8](ARCHITECTURE.md) asserts it already *is* firing on qualitative grounds.
-
-⚠ **"Adopt" means VENDOR AND MODIFY, never take a dependency** (user call, 2026-08-23). This
-matters twice over. It is the only reading compatible with **R2** — a library import is exactly
-what R2 forbids, so the tripwire as originally written pointed at a remedy the design rules
-prohibit. And it reconciles the second reading recorded in PLAN's backlog: **AC5e decorates
-rolls** (advantage, disadvantage, auto-crit) **and never applies; Battle Flow applies and never
-decorates.** The fence is clean and complementary, which means AC5e is not a *replacement* the
-module falls back to when registries fail — it is a body of solved condition math to draw from,
-on our own terms, inside our own layering. Vendoring is what makes both statements true at once.
+A new ability must cost a **data entry, zero code**. Code grows only when a genuinely new KIND of
+question appears. **The tripwire is measured, not asserted:** `npm run verify` prints the kinds
+table and pins the total (`KIND_SETS`, `tools/check-registry.mjs`), so a new kind fails the gate
+until someone moves the pin on purpose. The rule is not "no new kinds"; it is "no *unnoticed* new
+kinds". ⚠ **"Adopt" a conditions library means vendor its knowledge as data, never take a
+dependency** (2026-08-23; R3): AC5e's condition table shipped as rows (`CONDITION_BENDS`), its
+code never (§8).
 
 ### R5 — Receipts and announcements
 
-Every automated application stamps what it did — prior values, deltas, created-effect ids —
-onto the causing message, and offers a revert. Every invisible state change gets a table-facing
-line.
-
+Every automated application stamps what it did — prior values, deltas, created-effect ids — onto
+the causing message, and offers a revert. Every invisible state change gets a table-facing line.
 An icon vanishing must never be a mystery; a wrong-target hit must never need surgery.
 
 ---
 
-## 6. The effect view, and the feature rulings
+## 6. The feature rulings
 
-**The effect view (user ruling 2026-09-15): buffs and debuffs, visible on demand — never actions.**
-A creature can carry more ActiveEffects than its token shows: most of the module's chips (Steady
-Aim, Vexed, Sapped, Slowed, an armed Cleave, a used reaction) carry no status and paint no icon,
-so the sheet knows things the table cannot see. What is wanted is **every effect on a creature
-visible when someone asks, the icon-less ones included, with nothing standing on the canvas at
-rest.** The user (2026-09-15): *"we just need to show debuffs and buffs. not avail actions."*
+The rulings that shaped each feature — what the user decided, when, the mechanism it settled and
+the suite that pins it — live in **[RULINGS.md](RULINGS.md)**, one section per feature:
 
-**What this replaces.** Until 2026-09-15 this section carried **the chit layer** — a later
-direction where a player would act through the spendable things tied to their character
-(reactions, maneuvers, masteries, uses) presented as live chits, with a **buff bar** as its
-candidate first slice (prototyped 2026-09-03, parked, `prototypes/buff-bar.html`). Both are
-**retired on the user's word**: every placement of the bar was chrome on the screen all the time,
-and the spendable surface was never the need. The three properties the chit layer asked the
-architecture to keep (every spendable thing a registry entry, R4; every moment one shape on the
-spine; the popup a view and the flag the state, R2) are kept anyway — they are the module's own
-rules, not the chit layer's — and nothing waits on them.
+| Section | Ruled |
+| --- | --- |
+| The effect view | 2026-09-15 |
+| Chips and clocks — where a chip belongs, and who keeps its time | 2026-09-01 → 09-15 |
+| The gate before the roll (attack, save and check gates; Sneak Attack; clock riders) | 2026-09-01 → 09-04 |
+| Emanations, and the second slice | 2026-09-03 → 09-23 |
+| The hit menu | 2026-09-04 |
+| The rest of the maneuvers | 2026-09-04/05 |
+| Damage shields · Effect choices · A listed reaction cast freestanding · Damage casts | 2026-09-04 → 09-06 |
+| Metamagic | 2026-09-09 → 09-24 |
+| Spells that choose their targets | 2026-09-24 |
 
-**BUILT 2026-09-15 and merged the same day** (user: *"lets merge this branch on to main. i love
-it!"*) — `scripts/effect-view.js` and its pure half `scripts/decide/effect-view.js`, drafted on a
-branch off the prototype (`prototypes/effect-views.html`) and ruled shot by shot off the live
-sandbox. **The shape, as ruled:**
-
-- **Three surfaces, one renderer, nothing written by the view itself.** The **bar** above the
-  hotbar for the controlled token (else the user's own character), always on; the **hover card**
-  beside any token pointed at; the **held Alt** (Foundry's own highlight gesture) showing every
-  creature's list at once and clearing on release. Two client switches, one per family.
-- **What the bar and the cards list — what is IN FORCE:** an active effect that is clocked, a
-  condition, or applied to the creature by a cast (Death Armor, Bless, Hunter's Mark); never a
-  worn item's transfer effect (the Cloak's +1 — the sheet itself, not something that happened).
-  Plus two buffs dnd5e keeps as numbers, not effects: **Temporary HP** and **Heroic Inspiration**,
-  read off the sheet, no clock, no source. A row the token cannot paint is tagged *no icon*
-  (measured on Foundry 14.365: the token paints a clocked effect or a condition; a clockless
-  applied effect paints nothing). The hover card and the bar's name panel add a last group, the
-  marks the creature holds on others (question 2, ruled in; in the panel too, user 2026-09-18 —
-  not on the strip: *"no no these get moved over there"*). The hover card
-  never shows for a CONTROLLED token — the bar is its list, and the card sat in the way of moving
-  it (user, 2026-09-18).
-  **One worn effect IS in force — the bearer's own standing aura** (user, 2026-09-15, on prod:
-  *"protected doesnt show on invictus tho, even tho he is (as a buff on bar/hover)"*, ruled shape
-  1 of two and released as v1.42.0 for game day). A feature's emanation sits on its bearer as
-  the pack's transfer effect; the floor marks everyone else inside the ring and never doubles
-  the bearer (emanations.js) — so the one creature radiating the aura was the one the view hid.
-  Listed as a buff, named as the pack names it ("Protected" on the Paladin, "Protected — Invictus"
-  on his allies), tagged *no icon* — his token paints nothing for a passive while the allies'
-  copies carry the ring's status; the full list still files it under Passive as the sheet does.
-  The class is every feature row of the emanation table (Protection, Courage, Warding), read the
-  way the floor reads it (the item by the row's key, the effect by the row's name) and gated as
-  the floor gates it (the Emanations list, the switch) — a struck row is a passive like the Cloak
-  again. The pack's passive keeps applying while the Paladin is incapacitated, and so does the
-  row: the view shows what the sheet applies. The shape not taken: the floor writing the bearer a
-  changeless marker so his token paints the chit too — a document that does nothing but stand.
-  Pinned by `tests/decide-effect-view.test.js`; built and released without a sandbox run (the
-  sandbox was the 6.0 box that day, off limits by the user's word) — the live proof is the table's.
-- **The bar is the ONE interactive surface** (user: *"if a player clicks on their name, it shows
-  a list of all their buffs … click on it has a menu fold up that says Remove … the DM should
-  have access to do this for any npc/pc"*). The **name** opens the full list upward — ALL of it,
-  grouped as the sheet groups it: Temporary, Passive, Unavailable (enabled but suppressed by the
-  platform: an unattuned Luckstone, an expired leftover) — so the GM can sweep a dead effect on
-  the fly. A **chip** opens a fold with its ONE write, for an owner (the GM owns all): Remove an
-  effect on the creature, Disable an item's (never deleted — that would edit the item), Clear a
-  sheet row. A *Details* entry was tried the same day and dropped (*"didnt like it"*). The hover
-  card and the held key stay read-only.
-- **Tone is a PATTERN, not a list** (user, on the Miasma's −2 AC drawn green: *"look for the
-  pattern to fix this, so it catches other cases"*): **concentration** (dnd5e's `concentrating`
-  status) is its own yellow and leads; a condition or one of the module's marks is a debuff; else
-  the effect's own CHANGES decide (a subtraction, a halving, a downgrade or a disadvantage flag is
-  a penalty and a penalty makes a debuff, outranking any bonus); else WHO cast it (an origin on
-  the other side by token disposition is a debuff — where a marker with no readable change lands,
-  Hunter's Mark on the target); else a buff.
-- **Order:** concentration, debuffs, buffs, the sheet rows last; the panel vertical, reading left.
-
-The other three candidates the prototype drew — a count badge, chip lines in the combat tracker,
-a turn-start card — were not picked and are not planned. Proof: `tools/probe-effect-view.mjs`
-16/16 on the sandbox; `tests/decide-effect-view.test.js` pins the rows, the groups, the tone
-pattern and the fold's action.
-
-### Where a chip belongs on the sheet (user rule, 2026-09-01)
-
-**Combat chips are TEMPORARY effects. Passive is for long-term spells and worn abilities.**
-
-The dnd5e sheet sorts effects into Temporary (has a duration), Passive (has none) and
-Unavailable (expired or suppressed), and the section a chip lands in is a statement about what
-kind of thing it is. Anything this module applies out of a swing, a save or a reaction — Vexed,
-Sapped, Slowed, and the conditions pressed off a failed demand — is a **combat** chip and
-carries a real, resolvable duration. Passive is reserved for what a character *wears*: a
-long-duration spell, an item's standing benefit, a class feature that is simply true.
-
-Two consequences worth stating, because both have already bitten:
-
-- **A chip with a duration Foundry cannot measure is worse than no chip.** It is filed under
-  Unavailable, never renders on the token, and reads to the table as the feature silently doing
-  nothing. That was the v1.27.1 Sap report; the cause was a round-based clock stamped against a
-  combat that was not `game.combat` (see `activeCombatFor` in core.js).
-- **A chip nothing expires accumulates.** Expired mastery chips were never removed from a
-  target and piled up on the sheet, hiding whichever one was live. The sweep runs at apply
-  time, on the actor being chipped.
-
-**⚠ THE PLATFORM KEEPS THE CLOCK; THE MODULE KEEPS ITS WORD (2026-09-01, HANDOFF R-C).** A
-combat chip's duration is not a number this module counts down — it is the RULES TEXT written
-once as Foundry v14 expiry data: `{value: 1, units: "rounds", expiry: "turnStart"}` for *"until
-the start of your next turn"* (Sap, Slow), `expiry: "turnEnd"` for *"before the end of your next
-turn"* (Vex), and `{value: 0, units: "turns", expiry: "turnEnd"}` for the once-per-turn Cleave
-chit — each with `start` pinned to the **attacker's own combatant**, because the platform judges
-the event against whoever `start` names and its own stamp is merely whoever's turn it is. Foundry
-marks the chip expired on the exact boundary, on the GM client; the module deletes what Foundry
-marked, and sweeps its chips when a combat is deleted. **Nothing in this module counts turns, and
-nothing may start to.** Two things are the module's, because they are events rather than time:
-the attack roll that SPENDS Vex or Sap (the rules spend them claimed or not; the spend is a
-receipt on the attack card, written before the chip goes), and the chit that makes Cleave's
-*"once per turn"* a document rather than a memory. ⚠ **Out of combat there is no clock at all** —
-the only tick is world time, which moves only when the GM advances it — so an out-of-combat chip
-lives until the spend closes it, and that is the rule, not a gap.
-
-**⚠ THE CLOCK A PACK'S EFFECT CARRIES WHEN IT LANDS IS THE PLATFORM'S TOO (2026-09-15, two table
-findings; RULED the same evening for dnd5e 6.0 — ruling 1 of the 6.0 pass, NOTES §2).** The same
-rule read the other way: the platform judges the clock, so the clock must be WRITTEN right — and
-since dnd5e 6.0 the platform writes it. (1) **An empty clock takes the spell's.** The official
-books write a spell's duration twice — on the spell and on its effect (the PHB's Blessed carries
-60 s, Mage Armor's 28 800 s) — and a pack that wrote it once (Heroes of Faerûn's Death Armor: 1
-hour on the spell, nothing on the effect) landed a clockless, icon-less effect from the native
-button and from ours alike. dnd5e 6.0's `Activity#getAppliedEffectChanges` gives such an effect
-the activity's duration, and the one applier every cast's and every save's effects go through
-(`effect-riders.js`, built the tray's way) rides it — parity with the button for every correctly
-authored spell, and for the once-written ones. (2) **"Until the end of its next turn" is the
-TARGET's turn, and the platform has the words for it now:** the pseudo-expiries `sourceStart |
-sourceEnd | targetStart | targetEnd` (`ActiveEffect5e.PSEUDO_EXPIRIES`), judged against the
-SOURCE actor or the bearer by the same combat tracker the player sees — Vex is `sourceEnd`, Sap
-and Slow `sourceStart`, the reaction chip `targetStart`, the Monster Manual's Miasma `targetEnd`.
-The platform's `turnStart` pin stands where this module once said `turnEnd`; this module's own
-re-derivation of both rules (`appliedClock`, v1.41.0) is RETIRED with the pass, and DESIGN states
-one rule, not two. The once-per-turn chits (Cleave, Sneak Attack, a clock rider, Steady Aim —
-"dies with the turn in progress, whoever's it is") have no platform equivalent and stay this
-module's. ⚠ **The Miasma's −2 itself still does not land, and that is the pack's, not the
-module's** (user ruling 2026-09-15, "i dont want specific carveouts"): the Monster Manual's
-**Adult Green Dragon** stat block (Bramblemaw is an instance of it; the Ancient Green Dragon
-carries the same record) writes the penalty against `system.armor.value`, an armor ITEM's field
-that means nothing on a creature — measured across every effect in every premium book on the box
-(1,793 non-transfer effects): the ONLY base effect that writes an item field onto a creature. A
-remap row was built, proven and REMOVED the same day as a one-monster carve-out; the fix is at
-the data (the world record's change key → `system.attributes.ac.bonus`, done on prod
-2026-09-15), and the slip is worth reporting upstream.
-
-**⚠ Dead is the platform's MARK, never the arithmetic** (review, 2026-09-01). A one-round chip's
-`remaining` reads zero for the whole of the round its boundary falls in and the mark arrives only
-at the event, so a reader that treated zero as dead dropped Vex on the one turn it exists for.
-Zero on the clock is alive; a negative clock — which comes a round after the boundary — is the
-one arithmetic fallback, for a table with no GM to write the mark. **The Cleave chit is the
-exception that proves it:** its life is a STAMP COMPARISON against the running turn (the
-`combatStamp` idiom), pinned to the turn IN PROGRESS rather than to the attacker — an opportunity
-attack's chit dies with the victim's turn — because the mark is GM-written and a no-GM table's
-first chit would otherwise stand forever. The platform's expiry is its tidy, not its judge.
-
-**⚠ A reaction's own effect is on the same clock (2026-09-10, the table's stale-Shield report).**
-Shield's *"until the start of your next turn"* is the Reaction chip's sentence exactly, so the
-effect the hold applies for a cast reaction takes that clock — zero turns, judged at the
-REACTOR's turnStart, `start` pinned to the reactor's place — instead of the pack's `{1 rounds,
-turnStart}`, which the platform stamps with whoever's turn it IS (the attacker's; a reaction is
-cast on somebody else's turn) and which therefore ran a turn long and expired at the attacker's
-next swing. And **an expired effect is MARKED, not deleted** (core v14's `isSuppressed` reads
-the mark): the barrier stayed on the sheet under *Unavailable Effects* granting nothing, and the
-offer gate read it as Shield still standing. The tidy that deletes what Foundry marked owns the
-reaction's effect too, and the gate reads `active` — dead is never standing.
-
-### The gate before the roll (user rulings, 2026-09-01)
-
-**A reminder is proactive, never a rescue** — *"I don't want a rescue, I want proactivity."* When
-something this module can READ bends an attack roll, the gate meets the roller BEFORE the dice:
-**inside the system's own Attack Roll dialog** (user ruling 2026-09-02 — *"can't the gate look
-more like the native UI?"*). The dialog opens as it always does — forced open even under a
-fast-forward key, because a reminder that a shift-click skips is no reminder — and Battle Flow
-adds ONE section to it, shaped like the dialog's own CONFIGURATION: **a box per source** (user:
-*"boxes holding each condition"*) with the fact, the bend as a badge, and the rule quoted
-verbatim — under **one header line, the count and the net as a coloured tag** ("2 Modifiers —
-Net [Advantage]"). **There is no net block** (user, 2026-09-02: *"just not having the net"* —
-the tag on the header IS the net, the boxes under it are why, and the arithmetic rides the
-header as its tooltip). **One palette, one meaning per hue, everywhere the module paints**
-(user, the same day: *"normalize the palette"*): green is good for you (Advantage, saved,
-honoured, paid), red is bad for you (Disadvantage, failed, it landed anyway), orange is waiting
-on you (every popup spine, the timer bar), yellow is a critical hit, grey is nothing bending —
-Normal is grey because colour means the roll bends and Normal is the absence of one, and Listed
-is the grey OUTLINE, told from Normal by fill, never by hue. Blue stays out; dnd5e means healing
-by it. Foundry's disposition colours and dnd5e's damage maroon are the platform's.
-The human presses one of the dialog's own three buttons and the roll goes out natively —
-the card link, the crit, the attack mode, the ammunition, the mastery, the roll mode, the
-situational bonus and the spell's consume choice are all the system's, untouched. **Nothing is
-ever applied for the roller** (R1, and the fence in mastery.js). The card says what was shown
-and what was pressed, and the stats plane reads honour off it. (The 2026-09-01 shape — a house
-popup standing in for the dialog and re-issuing the roll — lasted one day; three of the
-review's twenty findings were that re-issue.)
-
-**The highlighted button is the outcome the solver worked out** (user ruling 2026-09-01). The
-platform always has a default — a dialog makes its first button the default when none is
-flagged, so "nothing pre-selected" meant *Advantage on Enter* whatever the net — and the honest
-default is the NET the section names. Enter is still a press. **And the mark stays put**
-(user, 2026-09-03: *"sometimes the default doesn't highlight"*): the platform's own mark is
-keyboard focus, which any click elsewhere takes away, so the gates mark the default with a
-persistent border in the palette's hue for the outcome, focus beside it — one spine helper
-for all three gates. **The section follows the
-dialog** (user, 2026-09-02): the dialog re-renders on each of its own dropdowns and the sources
-are re-judged from the form as it stands — a dagger switched to Thrown grows its range box and
-the default moves with the net — and a re-target on the canvas re-judges too.
-
-**A recorded spend counts as spent** whatever the sheet says: with no GM the chip a player
-cannot delete lingers on the monster, and the receipt on the attack card is what keeps it from
-being offered and spent again.
-
-**An ability on the sheet is a source too — effect sources** (user, 2026-09-02: *"I like
-effect sources reminder"*). Innate Sorcery, Reckless, Blur, Vow of Enmity, Pack Tactics: the
-abilities that bend an attack roll and sit on a sheet as an ACTIVE EFFECT or as a FEATURE. A
-compendium scan of every pack on the sandbox (thirty, system and premium) found seventy-odd; the
-effect table (`decide/registry.js` `EFFECT_BENDS`) carries each as one row of data — matched by
-the effect's or the feature's own NAME (user ruling: it is what a GM can type; an unmatched name
-never fires) — and, where two pack effects share a name, by the ITEM the effect comes from (`item`
-on the row: the Aura of Protection's *Protected* is a save bonus, Protection from Evil and Good's
-*Protected* the Disadvantage row; a walk finding, 2026-09-18) — on the attacker's side or the
-target's, with a SCOPE from day one (Innate Sorcery
-is spell attacks only; a row without one would silently have been "any"), a caveat where the
-module cannot judge, and `counted: false` where the caveat is the rule rather than the exception
-(user, 2026-09-02, on Demon Armor: *"very edge case"* — shown so nobody forgets the item, out of
-the net). A row the module CAN judge — *while Bloodied*, the target Grappled, an ally of the
-attacker within 5 feet of the target (Pack Tactics, off the map since 2026-09-22: a token on the
-attacker's side, alive, not Incapacitated) — fires only when the fact is true; a map fact the
-module cannot read (an attacker whose side is neutral or secret) counts, never guessed exempt.
-A row the rules spend on the next attack roll (Guiding Bolt, Vicious Mockery)
-is spent by the roll with a receipt, Vex and Sap's shape. WHICH rows count is the Effect Sources
-list, membership like the condition table; the list is parsed whole, names' colons and all.
-
-**Range is a source like any other** (user, 2026-09-02 — *"bake in the disadvantage at long
-range"*; the class, not the example: any RANGED attack roll — a bow, a thrown dagger, a ranged
-spell). Both glossary rules, read off the same distance Prone measures and the activity's own
-range: beyond normal range is Disadvantage; beyond long range — or beyond a single range —
-cannot be made, so it is listed and not counted; an enemy within 5 feet of the attacker is
-Disadvantage with the caveat the module cannot judge (*can it see you? is it Incapacitated?*),
-the Frightened shape. No range number is the module's.
-
-**The net is the 5e rule, restated by the user as the ruling:** *if multiple sources contend,
-it always nets to a regular attack, even if you have more of one than the other* — adv/adv is
-Advantage, adv/disadv is normal, adv/disadv/disadv is normal. A source the module cannot judge
-(a prone target with no token to measure from, an Incapacitated attacker who should not be
-rolling at all) is **listed and not counted**.
-
-**What the gate reads is membership** (R4): the Reminder Sources list names the KINDS — the
-attacker's own Vexed chip on a target, a Sapped chip on the attacker, Prone on either side with
-the 5-foot geometry, the condition table, a ranged attack's own range, and the effect table — and the Condition
-Sources list names WHICH of the thirteen 2024 conditions — and Hiding, the system's own status,
-which grants Invisible while hidden (user, 2026-09-02) — count. Both lists are switches; an
-empty Reminder Sources list is the gate turned off. **AC5e's knowledge, as data, never its
-code** (R-B, sharpened): the rows carry each condition's *Attacks Affected* clause verbatim
-from the world's own glossary (Hiding's is the glossary's *Unseen Attackers and Targets*), and
-the fourteenth cost a row and nothing else — Hiding proved it the day it was asked for.
-
-**A volley meets the gate at its aim** (user, 2026-09-02: *"go make the changes, including
-volley"*). Scorching Ray's rays roll with the dialog suppressed, so the dialog's gate never sees
-them — and the aim popup already holds every fact the gate needs: the caster, one target per
-ray, one mode per ray, and the order the rays fire in. So the gate's own judge runs there, once
-per ray, in ray order: each ray row carries the section **folded to its header line** (user:
-*"for the rays, start in collapsed mode"* — a native `<details>`; the tag says what the ray
-rolls without opening it; the dialog's own section folds the same way since the same day —
-*"attacks should have the nice collapse like volleys"*), the ray's mode select **defaults to its net** (the highlighted-button
-ruling, again), re-aiming a ray re-judges every ray after it, and one press fires the volley.
-**Spends are carried forward in ray order, and that is canon (N1):** Sap bends *"its next attack
-roll"* and Vex *"your next attack roll against that creature"* — ONE ray each — so the chip shows
-on the first ray that uses it, marked *spent by this ray*, and on no ray after; the spend hook
-was already right, the silence was the bug. Each ray's attack card carries the same record the
-dialog's gate stamps, so the card line and the stats plane read a ray exactly as they read a
-sword. Darts are damage, not attack rolls: nothing to judge, nothing drawn. (Spending Sap on the
-volley as a whole is a house rule — §8.)
-
-**An outcome the table carries is APPLIED, not reminded** (user, 2026-09-02: *"an attack within 5
-feet of paralyzed auto crits"*). The Paralyzed and Unconscious rows quote *"Any attack roll that
-hits you is a Critical Hit if the attacker is within 5 feet of you"*, and R1 says automate
-outcomes: the damage service reads the same table (`critWithinFeet`, data) over the same
-distance the gate measures, and makes the damage roll critical at every path that rolls it — the
-module's own drive, and the card's Damage button through the pre-roll-damage hook. One source
-for the crit (`critFor`): the d20's own verdict or the condition's clause, so the offer's badge
-and the dice cannot disagree. One roll serves every target it hit, so it applies only when true
-of all of them (the riders' intersection rule) and says so on the offer when it is not. An
-unmeasurable distance is never a crit. The damage card says why it doubled (R5).
-
-**What the gate never touches:** a roll whose caller suppressed the dialog and has no aim of its
-own — the resolver's own rolls, a riposte inside a fold, a macro, the suites. No dialog, no
-gate.
-
-**The save gate is the attack pattern on the save hook** (user ruling 2026-09-02, option E of
-*The Save Gate*; *"no need to queue, allow cascading saves"*). A forced save — a demand from a
-Fireball, a Topple-shaped press — opens **dnd5e's own Saving Throw dialog** with two Battle Flow
-fieldsets: THE DEMAND above the dialog's own configuration (who is rolling, the DC, what a
-success buys, the timer bar) and BEFORE YOU ROLL below it — the save table's bends (Restrained on
-Dexterity saves, the Dodge action's Advantage with its caveats) under the same header line, folded
-to it, the highlighted default the net. The house save popup retired that day; a save rolled
-from the sheet meets the same gate, so one surface serves every save (option D folded into E).
-**The Topple save and the concentration check joined it 2026-09-03** — the last two house
-popups standing in for the same dialog: each opens the system's Saving Throw dialog with its
-own demand fieldset above the configuration (who rolls, the DC, the stakes, the bar), adopted
-under the key its recall and its buzzer already used; the dialog's buttons, situational bonus
-and roll mode are the system's, and the gate's section draws on them as on any save. Both
-machines honour the gate's Fails button (a save the rules fail before the dice, recorded as
-the failure it is) — though today no row reaches it there: both are Constitution saves, and
-the table's automatic failures name Strength and Dexterity only.
-
-**The save and check gates say WHY when the PLATFORM bends the roll** (user, 2026-09-04: *"when
-saves are made, I would like to see the calculus for why there is advantage/dis, just like
-attacks, by clicking the net modifier and seeing what is under it"*). Harrow Vane's Wisdom save
-opened at `1d20adv` with Advantage highlighted and no section under it: The Duskheart (*"you
-have advantage on Wisdom saving throws"*) ships an item effect that changes
-`system.abilities.wis.save.roll.mode` by +1, dnd5e 5.x sums every such change into one mode
-(there are no advantage flags any more), and the gate read only statuses. Now the roller's
-APPLIED effects are read for the key that names this roll — the ability's save or check, the
-skill, the tool — and each is a box in the same folded section: the fact names the ITEM
-("Harrow Vane — The Duskheart"), the rule line says in words what the change does, because a
-mode change carries no rules text of its own. They net with the status rows as the attack gate
-nets; the dialog's own default is the platform's and is never re-set. Read off the effect
-CHANGES, never the sheet's computed mode — the computed mode says *advantage* and cannot say
-who. ⚠ What this does not explain: a mode the SYSTEM sets from a rule of its own (heavy
-armour's Stealth Disadvantage, a 2014-rules condition's blanket save penalty) — not an effect,
-so no box; the dialog's default stands unexplained there, as it did everywhere before.
-
-**The check gate is the same pattern on the ability-check hook** (user go 2026-09-03 — *"I
-suppose the ability check gate"*). A raw check, a skill or a tool rolled with the dialog meets
-the roller's statuses against a third table (`CHECK_BENDS`: Poisoned and Frightened, the
-glossary's *Ability Checks Affected* clauses verbatim), the Condition Sources list the switch as
-for the other two, the section drawn into the system's own dialog, the default moved to the
-net, the press recorded on the check's message. ⚠ **Nothing is applied** — Poisoned's
-Disadvantage the platform already rolls (measured: dnd5e bends the dice itself), so that box
-explains a default the dialog already shows; Frightened the platform leaves alone, so that
-row is the gate's own, the line-of-sight caveat in the quoted rule. Initiative is an ability
-check and is skipped on purpose (§4: not a d20 this module meets); Exhaustion's subtraction
-and Blinded's sight failures are the platform's and out of scope.
-**A save the rules fail before the dice** — Paralyzed, Stunned, Unconscious, Petrified on a
-Strength or Dexterity save — grows a fourth button, **Fails**, as the default: no dice, the
-failure recorded on the card with the condition where the total would be, the consequences
-following exactly as a rolled failure's. The human still presses it (R1) — **option C, the module
-resolving a d20 test with no press, was ruled out** and stays out. The buzzer takes the Fails
-path too: rolling dice the rules have already failed would be the module contradicting the
-table. Every pending demand for an actor opens its dialog, stepped down the staircase — the GM's
-old queue-of-saves habit went with the popup. The Condition Sources list switches both gates.
-
-**Sneak Attack is a CHOICE beside the roll, and the flow is the prototype's** (user, 2026-09-02:
-*"go with the prototype and iterate"* — *Sneak Attack, Cunningly*). When the Sneak Attack
-feature is on the attacker's sheet and the weapon is Finesse or ranged, the gate's section grows
-one more box, OUTSIDE the fold: the dice read off the feature's own damage activity and resolved
-on the sheet (`@scale.rogue.sneak-attack` → *7d6*), the rule verbatim, a *read for you* line —
-the weapon judged, the roll's net judged, the ally within 5 feet **judged off the map since
-2026-09-22** (it was left to the player until then — *"the player can determine if they have the
-conditions"*; §8 has the reopening) — and a checkbox, ticked when the conditions hold: the roll
-nets Advantage, or an ally of the rogue stands within 5 feet of the target and the roll has no
-Disadvantage. The tick stays the player's. The press records the arm on the attack card. On the hit the DAMAGE OFFER opens even
-under auto damage, because a decision is pending: the Cunning Strike menu, **read off the sheet,
-subclass included** — Cunning Strike's Poison, Trip and Withdraw; Devious Strikes' Daze, Knock Out
-and Obscure; the Thief's Stealth Attack; Envenom Weapons upgrading Poison; Rend Mind on Psychic
-Blades — each row the feature that grants it, its die cost and its rule, up to two with Improved
-Cunning Strike, the button naming the formula the pick leaves. **The costs come off before the
-roll** (the rule's own sentence), the sneak dice ride the weapon's roll as their own part in the
-weapon's type, **a critical hit doubles what is left** (free — the crit stamp lands on every
-part), one roll and one receipt. The effects run through the saves machine on the activities the
-pack ships, at the hit target, with the pack's own conditions attached; Envenom's failure also
-presses Poisoned; Death Strike on round one demands its Con save or the attack's damage lands
-again; a line option (Withdraw, Stealth Attack) is a line on the card. Once per turn is a turn
-chit on the attacker, the Cleave chit's shape — the second swing that turn shows the box greyed
-with the reason, and the next turn offers the tick again.
-
-**Damage riders on the combat clock are NOTIFIED, never asked** (user, 2026-09-02: *"should just
-notify the player that they are available and will be added to the damage. i believe crit should
-double those"*). A second class of rider beside the marks: a feature on the attacker's sheet
-whose extra damage is conditioned on the ROUND or the TURN — the Gloom Stalker's Dreadful Strike
-(once per turn, limited uses), the Assassin's Rogue-level strike on a first-round Sneak Attack,
-Divine Strike, Primal Strike, Divine Fury, the Fey Wanderer's Dreadful Strikes — found by a
-30-pack survey and carried as one row each (`CLOCK_RIDERS`): the feature by name, the pack's
-damage activity (the dice read off the sheet, scaled), the clock. When the clock says a listed
-feature applies, its part rides the hit's damage roll, the once-per-turn chit is written, a
-limited use is spent, the damage offer says what will ride, and the card says what rode and why
-(R5). A crit doubles it with everything else. The Assassin's Advantage against a creature that
-has not acted is an effect-table row with the clock as its judge. Left out on purpose, and said
-in the table: the rows that are a CHOICE (Colossus Slayer or Horde Breaker, Brutal Strike's
-forgone Advantage, a resource spend) or an unjudgeable fact (a favored enemy). The Clock Riders
-list is membership, like the effect table. *(Revised the same evening: the riders are a ticked
-checkbox on the offer, not a line — DESIGN §8.)*
-
-**The first walk of the table, 2026-09-02 evening — what it changed.** A standing effect source
-(Innate Sorcery) shows on every ray of a volley: only what the rules SPEND — Vex, Sap, a `spend`
-row — is carried forward ray to ray. The Sneak Attack box folds its rule under "the rule ▸" and
-keeps the tick and the read-for-you line visible; a used-this-turn box says so under its title.
-**A text-only feature becomes a chip on use** (Steady Aim: the 2024 PHB ships it with no effect
-at all) — `USE_CHIPS` writes the chip named as the feature, the effect table reads it, the roll
-spends it; Speed 0 rides the chip. **A save whose failure the pack does not carry as an effect
-presses the standard status from a row** (`SAVE_PRESSES`: Web → Restrained — the PHB's Web
-ships no effect), receipted with a revert; never a graft on the content. **Evasion is an
-outcome**: a Dexterity save for half takes none on a success and half on a failure, not while
-Incapacitated; applied at ×0 and receipted, never silent. **Incapacitated breaks
-concentration** — the glossary's clause, off the effect that brings the condition, no save.
-**The Reaction is a chip** (§8). **Uncanny Dodge stays an attack-roll interrupt** — the 2024 text
-names an attack roll; it has no bearing on a save. **An interrupt is the ABILITY by name, never
-its effect** (user, 2026-09-02): a 2024 reaction feature declares its activation on the activity
-with no override flag, and a feature the pack ships as text only (the PHB's Uncanny Dodge) is
-found by name the way the maneuver folds find Riposte — the cast answer spends the Reaction chip
-itself. **A damage interrupt the module can settle is settled** (`INTERRUPT_MULTIPLIERS`):
-Uncanny Dodge lands the held attack's damage against the reactor at ×0.5, the receipt row and
-the card say so; Absorb Elements and Deflect Attacks stay "reduce by hand", their arithmetic
-being a resistance or a roll the module cannot read. **The gate's labels are the fact alone**
-(user, later the same day, four times over): "Rogue — Hiding", "Ranged attack within 5 feet of
-X", "Morgash is Prone (Cunning Strike: Tripped) — 30 feet away"; the "(counted — press Normal
-if …)" tails are gone because the quoted rule already says the condition, and the "listed — …"
-caveats stay because they are the whole reason a row bends nothing. **The Sneak Attack box is
-"Sneak Attack — 5d6", the tick and the folded rule** — the read-for-you line went the same way;
-**the Cunning Strike rows are the name, the cost and the folded rule**; **the damage offer's
-menus scroll in a viewport-bounded box** so the Roll button never leaves the screen, and **that
-button names the weapon** ("Shortbow + Sneak Attack 5d6"). **Every row on the offer is the
-same shape** (user, 2026-09-03: *"I don't want that little blurb of text … it just should be the
-tick to open and inspect the rule, plain and simple"*): a tick, the name and the dice, a fact as
-the tag (uses left, the cost), the rule folded under — no explanatory line under a row and no
-sentence under a menu's title. The clock's reason ("once this turn", "out of combat — every
-hit") belongs to the card's receipt (R5), not the offer; the Cunning Strike header carries its
-facts alone (the dice, the DC, up to how many).
-
-### Emanations (user rulings, 2026-09-03)
-
-**An aura applies itself to the creatures inside it, and the platform keeps the geometry and the
-clock.** The user's ruling opened §4 to them — *"emanations are a core part of combat and you
-want to automate the application of damage, effects, bonuses etc. — no different than auto
-applying Slow with mastery"* — and the measurement that made it fit (tools/probe-emanations.mjs,
-Foundry 14.365) is that **nothing here measures a distance or counts a turn**:
-`RegionDocument.createTokenEmanation` builds the rules-correct shape (the token's base plus the
-radius — from the edge, as the 2024 rule reads), attached to the token; the Region tracks who
-stands inside and raises enter / exit / turn-end; a template's Region can be attached the same
-way. The 2024 pack ships every aura's EFFECT and says in its own text that who-is-inside is not
-automated — that sentence is the whole job, and the module does exactly that much:
-
-- **A feature's aura is always on** (the Paladin's): it stands whenever the token is on the
-  scene and its range resolves, and is gone when the token or the feature goes. **Off while the
-  source is Incapacitated** (the text). A GM deleting the region by hand gets it back on the next
-  sweep — the switch is the setting or the list, not the region.
-- **A spell's aura places itself on the caster** (user, 2026-09-03: *"I shouldn't need to place
-  the template, it should just put it where the caster's token is"*): the system's placement
-  prompt is switched off for a listed emanation spell and the template lands centred on the
-  caster's token — the spell's size plus half the token, an emanation measuring from the edge —
-  carrying the flags the system would have written. Adopted when its Region appears, attached to
-  the caster, and **ended by the module when the concentration effect for that cast is deleted**
-  (dnd5e 5.3 leaves a placed template standing after `endConcentration` — measured).
-- **The cast's own save asks only who the aura reaches** (user, 2026-09-03: *"when I cast it as
-  a cleric, it affects all neutral/allies, should just be enemies"*): the saves machine's area
-  adoption asks everyone standing in a placed area — right for a Fireball — and for a listed
-  emanation row it filters by the row's reach and never asks the caster. Spirit Guardians cast
-  among allies demands nothing of them.
-- **Range is the content's** (N1, and the row says where, never what): the activity's own size
-  when the pack gives one (Spirit Guardians: 15), else the class's own scale value the pack's
-  aura activities already reference (`@scale.paladin.aura` — 10 at 6th, 30 at 18th; *Aura
-  Expansion* is a scale step, not a feature the module looks for). **A Paladin below 6th has no
-  aura, and the scale value says so.** ⚠ The "type 10 into a row" answer was put and withdrawn on
-  measurement: the number was in the data all along.
-- **The effect is the pack's, with the SOURCE's numbers read in.** The platform resolves a
-  formula against the creature wearing the effect — the pack's own note on Aura of Protection:
-  *"it will add their Charisma modifier and not the Paladin's."* So a member receives
-  *"Protected — Ysolde"* carrying `+3`, read off the Paladin at write time, re-read when the
-  Paladin changes. Named for its source; its origin is the source's item.
-- **Reach by disposition (user defaults):** helpful auras reach allies and neutrals, harmful ones
-  enemies — the caster's *"designate creatures to be unaffected"* IS that default. The source's
-  own token is never a member of its own emanation (measured; the transfer effect covers it).
-- **A triggered save is a demand over the bus** (R2): Spirit Guardians' *enter* and *ends its
-  turn there* raise a `saves` card for that ONE creature — Wisdom, the spell's DC, its dice at the
-  cast's level, half on a success — and the saves machine drives it as it drives any demand. Once
-  per turn as the text says, counted only for a combatant (§8). The standing effect (Half Speed)
-  is the region's, never applied again by the verdict.
-- **Not drawn at all** (user ruling 2026-09-18, the 6.0 walk: *"I prefer the ring to be
-  invisible"*). On 5.3.x the template drew a faint ring (user walk, 2026-09-03: *"the ring is nice
-  … can the paladin aura have the black circle too? and not the green area"*); since dnd5e 6.0
-  the area is the Region itself and there is no template. The region is the machine — centred on
-  the token, moving with it, computing membership — and drawn nowhere (locked, visibility
-  LAYER_UNLOCKED: hidden even on the Regions layer until a GM unlocks it; plain LAYER showed it
-  whenever an area placement left that layer active, 2026-09-19). What the table sees is the
-  member's chit.
-- **A member effect shows on the token** (user walk: *"it should show a chit when in, and be
-  removed when out"*): Foundry draws only temporary effects on a token and a standing aura has
-  no clock, so the member's copy wears a module status (`bfEmanation`) — visible while inside,
-  gone with the effect on the way out. **One copy, one lifecycle:** the cast's own demand never
-  applies the spell's standing effect (the two Half Speeds with two clocks were the walk's
-  "inconsistent chit").
-- **A damage type the part leaves open is the alignment's by default and the caster's by
-  choice** (user walk, 2026-09-03: *"spirit guardians should have a choice between necrotic and
-  radiant"*). The 2024 text decides it by alignment — Radiant for good or neutral, Necrotic for
-  evil — so the default is read off the sheet and said on the card ("Damage type — the alignment
-  reads Chaotic Evil"). **The pick is made in the casting window** (user: *"inserted in the
-  casting initial window"*): a Battle Flow fieldset on the system's own usage dialog — the gate's
-  idiom, one public render hook, no patch — with a radio per type the part offers and the
-  default checked; a fast-forward cast takes the default with no click. The card carries the
-  same choice as buttons for a change of mind mid-spell; a pick folds onto the card over the
-  relay, and every roll of that cast — the cast's own and the triggers' — wears it. ⚠ This is the emanation's answer, not the clock riders' (§8: those take
-  the activity's first type and say so); the difference is that here the rules NAME the deciding
-  fact, so a default exists that is not a guess.
-- **Asked once at the cast** (user walk: *"if I cast it and the dummy is in range, it triggers
-  two saves"*): whoever stands inside when the area appears is asked by the cast's demand; the
-  area attaching around them is not an entry. Leave and come back, and the trigger asks again.
-- **The floor is the truth**: the active GM keeps the standing effects true to the platform's
-  membership on every event and every token move — apply to a member that lacks it, lift from a
-  non-member that carries it, one write per creature per region. The Region's events are the
-  fast path. With no GM the flow-elect law holds: nothing lands, the mover is told.
-- **An emanation exists on the ACTIVE scene only** (user, 2026-09-04: *"isn't that an issue if
-  there is an aura from one scene bleeding into another?"* — it was). A member effect lives on
-  the actor, and a linked actor is one document on every scene it has a token on; a party leaves
-  a token of itself on every scene it visits. So the Paladin's ring on the camp scene put
-  Protected on the Cleric's token on the battle map, and Thomas gaining Aura of Protection raised
-  a ring on all 22 scenes he stood on and gave Morgash the effect seventeen times, none of which
-  anything could lift. The rule: a feature's ring stands on the active scene and nowhere else; a
-  spell's area applies and demands only there; a scene going inactive brings its areas down and
-  lifts what they wrote from EVERY actor holding it, not only the tokens on that scene. The
-  platform's own idea of where the party is, and one scene at a time means nothing can stack.
-- **…AMENDED: on every LIVE scene — the active one, and every scene a connected user is
-  viewing — with ONE copy per aura** (user, 2026-09-23, Session 8: *"allies next to Invictus not
-  getting the +2"* — the table played on scenes the players were pulled to and nobody activated;
-  the ruling on the proposal: *"ok sounds good"*). The bleed was never the second scene; it was
-  one member effect per REGION, so 22 rings wrote 22 copies. The count is now kept per AURA — the
-  bearer's item and the row (`emanationGroup`): the Paladin's ring on the camp and his ring on the
-  battle map are one aura, and the ally inside either wears one copy, lifted only when it stands
-  inside neither. A scene nobody is on still raises nothing, and a lift still reads every actor.
-  **A GM's view counts only while no player is connected** (user, same day: *"keep GM views
-  counted if it keeps accuracy"*). In a session the players' screens are where the party is: a
-  GM previewing an old scene where the party's leftover tokens stand together would raise the
-  rings there and give an ally the aura on the real map while it stands out of range. Alone —
-  prepping, testing — the GM's view is the only one, and it counts. An Assistant GM (the MCP
-  bridge, a suite) is a GM for this.
-- **Aura of Courage's pack effect carries no change.** The Frightened immunity is a CONTENT fix
-  at the world (user: *"agree"*); the module applies what the pack ships.
-- **The first slice** is the Paladin's three auras and Spirit Guardians — one of each shape. Aura
-  of Vitality (a heal the player AIMS — a choice) and Antilife Shell (a barrier with no effect)
-  are deliberately absent; the corpus scan for every other Emanation follows.
-
-**⚠ PRONE IS THE NAMED EXCEPTION, AND IT STAYS PASSIVE (user call, 2026-09-01).** It is pressed
-as a status with no duration, so it sits in Passive — and that is correct rather than tolerated.
-5e gives Prone no window: it lasts until the creature spends half its movement to stand. Making
-it Temporary would mean inventing an expiry the rules do not grant, and the consequence is not
-cosmetic — **it would stand creatures up on a clock nobody rolled for**, including the prone
-creature that is choosing to stay down. The section it renders in is a lie worth telling; a
-condition that removes itself is not.
-
-The rule above therefore reads: *combat chips carry a duration because their rules give them
-one.* Prone has no duration because the rules give it none. Same principle, opposite outcome —
-so a future pass that "fixes" Prone into the Temporary section is a REGRESSION, not tidying.
-The same holds for any other condition pressed off a failed demand: take the duration from the
-rules, and where the rules give none, give none.
+A feature not in that file has no ruling yet: locate the work here first (§7), rule it off a
+prototype where it has a UI (the house habit), then write its section.
 
 ---
-
-### The hit menu (user rulings, 2026-09-04)
-
-**The commission:** *"add support for trip attack and goading attack, maneuvers … the actor
-should be given a choice if they have maneuvers, to pick when they hit."* Trip and Goading are
-the examples; the class is the Battle Master's ON-HIT maneuvers, and the machine is the general
-form of the Cunning Strike menu — the sweep's item 2, ruled 2026-09-03 (one popup per hit,
-grouped by the feature that grants the rows, smites out) and built off the prototype
-[prototypes/hit-menu.html](prototypes/hit-menu.html) (*"looks good"*).
-
-**The shape, as ruled off the prototype:**
-
-- **One popup per hit, a group per paying feature.** The damage offer carries a *Combat
-  Superiority* group beside the *Cunning Strike* menu; a Fighter/Rogue sees both. A group is the
-  feature that pays (`HIT_GROUPS`: its pool, its die, its pick limit, its DC rule); a row is a
-  feature on the sheet that spends from it (`HIT_OPTIONS`). Membership is the Hit Menu list.
-- **The row is the name and the cost, nothing else** (*"just give the cost for the sup die,
-  just like Cunning Strike says 1d6 of sneak attack. don't give all the details like wis
-  save/etc. that's in the rule"*). `1d8 Superiority Die` is the tag; the save and the condition
-  live in the rule folded under the row and on the card after. A caveat the rules leave to the
-  player (*Large or smaller*) is the one extra line.
-- **One pick per group** — the 2024 text: *"You can use only one maneuver per attack."* Ticking
-  a second row unticks the first. A maneuver AND a Cunning Strike on one hit is allowed — two
-  features, two groups.
-- **An affordable row opens the offer even under auto damage** — a decision is pending, the
-  Sneak Attack ruling of 2026-09-02 applied. No dice left: the offer does not open for the menu;
-  asked for (Player Rolls Damage), the group shows *no dice left* and its rows greyed.
-- **The die rides the damage roll** as its own part in the weapon's type, crit-doubled by the
-  same stamp; the pool is spent on the sheet. **Sweeping Attack's die does not ride**: a POPUP
-  asks the attacker to pick a creature within 5 feet of the original target (user, the walk of
-  2026-09-04: *"sweeping attack should be a popup choice, its just on the card"* — the moment
-  spine: a button per creature, Nobody, the hold family's clock; when it runs out the only
-  creature is taken, else nobody, and the die is spent either way), the elect rolls the die in
-  the open, judges the ORIGINAL attack roll against that creature's AC and applies it through
-  the receipt chokepoint when it would hit.
-- **The save is the pack's own activity**, used at the hit target after the damage lands, so
-  the demand, the timer and the failed-save press are the saves machine's, and the condition
-  the activity carries (Goaded, Frightened) lands through it. A condition the pack left on the
-  ITEM unlinked (Trip's Prone — measured 2026-09-04) is pressed on the failure by a follow-up,
-  the Envenom Weapons shape. **The fighter never carries a target's effect** (user, the walk:
-  *"the fighter should never have the effect on as a precondition"*): the pack ships Goaded as a
-  transfer effect — a passive on the wielder — and the module corrects the wielder's own copy of
-  the item to `transfer: false`, and presses a lost effect from the compendium's copy (NOTES §2). Distracting Strike's *Distracted* has no save: applied on the hit,
-  receipted; the gate already reads it (the effect table's row from the scan).
-- **The goader is exempt** (user, the walk: *"disadvantage should not apply when attacking
-  morgash, the person doing the goading"*): the effect table's `except: "source"` facet — Goaded
-  bends Jetten's attacks against everyone but Morgash, Distracted gives Advantage to every
-  attacker but Morgash. The gate reads each effect's source off the module's stamp on it.
-  **The same facet, the other way, is `only: "source"`** (Feinting Attack; and from 2026-09-21
-  Vow of Enmity, Clairvoyant Combatant, Strike Fear — the walk: *"vow of enmity is not giving
-  invictus advantage reminder when he swings"*): the 2024 packs put each of these markers on the
-  creature the feature is USED ON, so the row reads the target's sheet and the bend is the
-  source's alone. A caveat stays only where the words hold a fact the module cannot read.
-- **A LINE option says what the table plays** — Maneuvering Attack's ally move, Pushing's 15
-  feet, Disarming's dropped object — on the card, never automated (R1).
-- **A riposte's hit offers the menu too.** A hit is a hit.
-
-**What is read, never typed (N1):** the die (`@scale.battle-master.superiority.die` on the
-option's own damage activity, resolved on the sheet), the pool (the activity's consumption
-target — an id, the identifier `combat-superiority`, or Combat Superiority's compendium UUID:
-the three shapes the pack ships), the save and its DC, the condition.
-
-**Not in this slice, by ruling or by scope:** Precision Attack and Riposte stay folds
-(precision.js and riposte.js since the 2026-09-05 split); the nine maneuvers that are neither on-hit nor folds are BACKLOG rows, each
-mapped to the machine it would land on; Barbarian (Brutal Strike) and Monk (Stunning Strike)
-rows are the next groups the same table takes — the SWEEP's item 2, unchanged.
-
-**The seam it proved:** the offer's contributions (`registerOfferPart`, auto-damage.js) — the
-BACKLOG item *the damage offer's three lazy edges* was built WITH this feature, as it said to
-be, and three PERMANENT layer pins went with it (ARCHITECTURE §7).
-
-### Damage shields (user, 2026-09-04 — the overnight commission)
-
-**A ward on the defender pays out against whoever hits it, and there is no choice in it.**
-Death Armor, Fire Shield and Armor of Agathys are the hit rider MIRRORED — SWEEP §1's ninth
-shape: a standing effect on the DEFENDER whose pack activity deals damage to the ATTACKER when
-a melee attack roll hits (R1 automates outcomes; judgment is what it never plays). The module
-finds the ward on the hit creature by the pack's effect NAME, walks it to its caster the way a
-mark is walked (a Death Armor on an ally is the caster's spell paying out on the ally's sheet),
-rolls the caster's own damage activity with dnd5e's roller on the elect — posted as the
-defender's, never mistakable for a spell the caster pressed — and lands it on the attacker
-through the receipt chokepoint with a note naming the ward. The reach is the activity's own (a
-reach weapon at 10 feet is beyond Flame Eruption's 5); once per turn is a chit on the defender;
-Fire Shield's TYPE follows the shield that stands; Armor of Agathys ships no effect, so the
-module MARKS the cast itself and the ward strikes while the Temporary Hit Points last, ending
-with a card when they are gone. Judged only when the attack's DAMAGE lands, so a Shield that
-turned the hit into a miss pays nothing — and judged ONCE, at the hit (2026-09-05): the judge
-reads the world as it stands (the distance, the ward, the chit, the temp HP), so a second reading
-of an old damage card would answer "would it strike NOW", not "did it strike". A re-render never
-re-judges; only a roll that was held resumes, once, on its release. Membership is the Damage
-Shields list. Hellish Rebuke is NOT this family: a Reaction, a human's choice, the hold's.
-
-### Effect choices (user, 2026-09-05: "it applies both … a popup asking the player which shield")
-
-**A cast that offers a choice between effects asks the caster, and only the pick lands.** The
-walk of the overnight four found Fire Shield's cast landing BOTH shields: the pack ships Warm
-Shield and Chill Shield on one activity and marks nothing to say "as you choose", so the cast
-slice, reading "a utility with effects", applied every one — and the caster wore Resistance to
-both. The choice is the caster's (R1), asked the way Spirit Guardians' damage type is asked:
-a popup on the caster's own usage card at the cast (the moment spine), the cast WAITING on the
-card until it is answered, the card's button reopening the popup, and the elect applying the
-one effect chosen — its resistance with it. No clock: a cast is the caster's own moment and
-nobody else is waiting on it. Membership is the Effect Choices list (the spell names); the
-alternatives are the pack's effect names on the registry row, and a copy of the spell that
-carries fewer than two of them asks nothing. Bait and Switch's fan of twelve is NOT this
-family — a rolled number modelled as effects, the maneuver machine's — and neither is an
-activity whose several effects all stand at once (Bless, the auras), which the cast slice
-lands as before.
-
-### A listed reaction cast freestanding (user, 2026-09-06: "it should be castable freecasting … conformance with other abilities like Adrenaline Rush")
-
-**A reaction on the Interrupts list, cast with no hold waiting on the caster, self-aims like
-any other SELF ability.** Gren's Shield, cast from the sheet on his own turn, sat on its card
-with the system's own apply buttons aimed at whatever happened to be targeted — because the
-cast slice kept its hands off every listed reaction, a blanket carve-out from v1.5.1 that
-survived the v1.11.0 self-aim ruling. The carve-out existed for one reason: cast IN ANSWER to
-a hold, the hold applies the reaction's own effect, and a second application from the cast
-slice read +10 AC and two chips (2026-08-16). The reason is kept exactly and the blanket is
-gone: the birth stamp asks whether a PENDING hold names the caster — the hold's message exists
-before the answering cast's card, so the question has an answer at preCreate — and only then
-stands aside. Freestanding, the reaction is a SELF cast (Second Wind's shape, R4: no name
-list, the aim data on the activity); answering, it is the hold's, once. The two appliers can
-never both land on one cast (smoke-cast §6d and §6e; the through-the-hold +5 is smoke-hold's).
-
-### Damage casts (user, 2026-09-04: "make heat metal spell work")
-
-**A bare damage activity's dice are the module's to roll, once.** Measured: dnd5e follows a
-damage activity's card by opening the damage ROLL DIALOG — a click the attack resolver and the
-save demand never ask of anyone — and Battle Flow hides the card's buttons, so Heat Metal's
-2d8 waited on a dialog and its save was never asked. Now a bare damage activity aimed at
-targets rolls at the use on the casting client (offered when the caster wants their dice, the
-save path's own offer; rolled straight otherwise), the native follow-up switched off at the use
-so it never rolls twice, chained to the card where the no-attack applier lands it with a
-receipt. Volley spells stay the volley machine's; a Battle Master maneuver's damage activity is
-its DIE and stays its own machine's. **A listed row demands the save its text ties to the
-damage** (`DAMAGE_SAVES`): Heat Metal's "On Damage Save" is used at the same targets right
-after the dice, so the demand, the timer, the roll and the failed-save press are the saves
-machine's; the pack's Heated Metal lands on the failure, and the card says the table removes
-it if the object was dropped — the drop is a judgment (R1). The check gate reads Heated Metal
-as it reads any effect-table row that bends ability checks by its text (`checks`).
-
-### Emanations — the second slice (2026-09-05)
-
-**Every 2024 PHB emanation with a standing effect is a row, and what the pack leaves to the
-table is said on the card.** Aura of Life, Aura of Purity, Circle of Power, Crusader's Mantle
-and Holy Aura apply exactly the pack's effect to allies inside (Crusader's Mantle's +1d4
-radiant on weapon damage is the platform's own change; Holy Protection's save Advantage is
-the save gate's to explain by item); each row's caveat names the clause the pack does not
-carry. **The save clauses the packs leave out are the save gate's, by effect** (user,
-2026-09-05: "Aura of Purity doesn't really give advantage to saves like Hold Person, Hypnotic
-Pattern … do it for all the pack effect spells"): the effect table's `saves` facet reads the
-DEMAND — what the save is against — and Aura of Purity counts Advantage when the demanding
-spell's failed effect would impose one of its seven conditions, Circle's Power when a spell
-demands the save at all, and a success against half-on-save spell damage under Circle of Power
-takes NONE, applied and receipted like Evasion's. A bare sheet save has no demand and the box
-lists the aura uncounted with its scope. Holy Aura needed nothing: the pack's Holy Protection
-carries the save Advantage and the attack gate already read the attackers' Disadvantage off it;
-the Fiend/Undead save on a melee hit stays the table's. **A spell's ring includes its caster**
-(user, 2026-09-05: "he himself doesn't get adv … he doesn't have the effect"): "you and your
-allies" means the caster wears the spell's effect from the ring exactly as an ally does, once;
-a FEATURE's aura still skips its bearer, whose sheet carries the pack's own transfer effect,
-and a harmful ring never admits its caster. **A heal the caster AIMS is a notice, never played** (Aura of Vitality: a card at the
-caster's turn start names Start of Turn Heal with a button, and the caster targets a creature
-and presses it — the choice stays theirs). **A barrier is a ring and a card** (Antilife Shell:
-nothing applied, the ring drawn for the table to honour). **An area can pay a member at a
-moment** (Aura of Life's ally at 0 Hit Points regains the activity's own 1 HP at its turn
-start — the region's own turn-start event; the Hit Points alone decide, because dnd5e marks a
-0-HP creature dead on its own). Left out on purpose: the rings that carry no effect (Antimagic
-Field, Globe of Invulnerability, Darkness, Daylight — a ring alone would be a guess about what
-the table wants drawn) and the emanation SAVES a Bonus Action casts (the cast's own demand
-already handles that moment).
-
-### The rest of the maneuvers (user, 2026-09-04: "do the rest of maneuvers")
-
-**Every Battle Master maneuver lands on a machine that already exists, and no maneuver plays a
-choice.** The nine that were neither folds nor on-hit picks, on the seats BACKLOG named for
-them:
-
-- **Parry is a damage interrupt that REDUCES by a roll.** The hold offers it as a `damage`
-  reaction (the pack's activity is a heal whose formula IS the reduction — die + max(Str, Dex),
-  the pack's max() standing in for the player's choice); the answer spends the die and the
-  Reaction, rolls the number in the open, and the applier lands the attack's damage short by it,
-  the receipt row saying why. The Monster Manual's AC "Parry" of the same name stays an AC hold:
-  the row applies only where the item carries the named activity.
-- **Evasive Footwork, Bait and Switch, Lunging Attack and Feinting Attack are USES** — a
-  consequence on a sheet at the Bonus Action, and for two of them a die on the hit after.
-  Evasive Footwork rolls the die in the open and writes the number on the fighter's AC until the
-  start of their next turn. Bait and Switch rolls the die and ASKS who wears the pack's own
-  "Baited AC +N" (a popup, the hold family's clock, the fighter by default) — the pack ships
-  twelve such effects, one per face, and the cast slice is kept off every maneuver's card so it
-  never applies them all. Lunging Attack is a chip until the end of the turn whose die is a
-  TICKED checkbox on the next melee hit's damage offer, because the 5-foot straight line is the
-  player's fact (the clock riders' ruling). Feinting Attack puts the pack's marker on the target
-  with the fighter as its source; the attack gate reads it as Advantage for the fighter alone
-  (`only: "source"` — the effect table's inverse of Goaded's exemption), the fighter's next
-  attack roll at that target spends it with a receipt, and the die rides the hit.
-- **Ambush and Tactical Assessment are d20 folds with a SCOPE** — the `tactical` spend (an
-  activity used) with the feature's own text saying which checks: Stealth, or History,
-  Investigation and Insight; Ambush on Initiative too, the one d20 the module otherwise never
-  met (`dnd5e.rollInitiative`), the combatant's number moved by the die and the original roll
-  standing as history. No refund; the die is spent either way it lands. **Used from the sheet
-  FIRST, they ARM** (user, 2026-09-05: "have the popup tell them to make the wisdom or int check
-  and then add it"): the use rolls the die in the open, a chip carries the number, a notice names
-  the check, and the next check the scope names folds it in with no ask — every other fold that
-  check admits (Tactical Mind) is offered after, as it always was.
-- **Commander's Strike is a NOTICE and a chip, never a driven attack** (user, 2026-09-05: "a
-  popup on the PC recipient, informing them that they can make an attack as a reaction … get
-  rid of the weird trying to control that other pc workflow"). The fighter's use names the ally;
-  the elect puts a chip carrying the fighter's die — resolved on the fighter — on the ally until
-  the end of the fighter's turn; the ally's owner is TOLD, OK only; the ally attacks from their
-  own sheet, and that attack's damage folds the die into the weapon's roll, spends the chip and
-  the Reaction, and the fighter's card records the strike. No weapon popup, no relay, no attack
-  the module drives on someone else's sheet. (The first cut, 2026-09-05 morning, was Riposte's
-  driven attack with the attacker changed; the user pulled it the same day.)
-- **Rally needed nothing built.** The pack's heal activity rolls through the system's own dialog
-  and the cast slice lands the Temporary Hit Points on the ally (measured).
-
-**One UI language for every maneuver** (user, 2026-09-05: "follow the same UI language and
-design as Riposte and other maneuvers"): the feature's art, the eyebrow `Maneuver — Name`, the
-title `Name — what happened`, the spend underneath, the rule quoted; the popup's window is
-`Name — who`, its answer button the maneuver's own verb or name and `Pass`; the card's recall
-button `Answer — …`. Parry, which rode the hold's "Reaction — cast" words, now wears these; so do
-Bait and Switch, Sweeping Attack, the hit-menu rides and the scoped folds. **And one wording for
-a spent die** (user: "it's not consistent with the popup about consuming a sup die and how many
-are left in the floating text"): `Combat Superiority: 3 of 4 remaining` on the flash, the card
-line and every subtitle, from ONE reader (`poolSpendsOn`) over dnd5e's own consumption deltas
-and the module's hand spends alike — the hand spends (Parry, the hit menu) go through ONE
-pass-through (`spendSuperiorityDie`) that spends the pool and writes that record.
-
-### Metamagic (user, 2026-09-09: "need metamagic implemented … follow pattern like sneak attk/manuevers with check box")
-
-**Metamagic is a pick on the cast and a spend on the card; the module does the arithmetic the
-option names and judges nothing else.** RULED 2026-09-09 off the prototype
-([prototypes/metamagic.html](prototypes/metamagic.html)); the drawing and the stages are
-[PLAN.md](PLAN.md) *THE METAMAGIC PASS*. Not yet built.
-
-- **The pick is a group in the system's own cast dialog** — one fieldset on the usage dialog's
-  render hook, the emanation damage-type radios' idiom, never the attack gate (a save spell never
-  opens it). Every row is the offer-row law's shape: a tick, the option's name, the cost as the
-  tag (`1 SP`), the rule folded under, nothing above it. A row the spell does not fit, or the
-  points cannot afford, stays visible and greyed with the reason as its tag. **One option per
-  cast**, as the feature's text says; a tick greys the rest. Empowered and Seeking are not rows
-  here — they are later moments and their own text exempts them from the one-per-cast rule.
-- **The spend is BY HAND** (user: "by hand"): `spendPoolUse` on Font of Magic, the record on the
-  SPELL's card as `poolSpend` — one card, one line `Sorcery Points: 4 of 5 remaining`, and the
-  floating spend text that Hunter's Mark, the superiority die and every other decrement already
-  get (user: "don't forget … it gets the floating text popup on decrementing uses"). The flash,
-  the card line and every subtitle come from the ONE reader (`poolSpendsOn`), so the hand spend
-  is written once and read everywhere; the option's own activity is never `use()`d (a second card
-  for a spend is noise). Never refunded on a revert (the refund ask is Tactical Mind's alone —
-  §8, its row).
-- **Careful lists NOBODY in the casting window; the creatures to spare are asked on the card**
-  (user ruling 2026-09-18, the 6.0 walk, Hold Person with Morgash targeted: *"morgash checkbox
-  shouldnt be under careful spell, no name should be, its queried in a subsequent popup"* —
-  retiring 2026-09-09's ticks in the window, which 2026-09-10 had already taken off every
-  template spell). The tick row is the tick, the name, the cost and the rule. Once the cast is
-  out, the ask opens on the card of the creatures the save REACHES — a targeted cast's targets at
-  the stamp, a placed area's contents at adoption — every non-hostile ticked by default up to the
-  Charisma modifier (minimum one), the demand waiting on the answer or the clock's default; the
-  pick rides the cast as CHOSEN and is never rewritten. Heightened's one target is still a radio
-  in the window over the selected creatures (nobody for a template spell), the nearest hostile by
-  default. A protected creature leaves the save demand's target list at BOTH filters (the stamp
-  and the area's later adoption): no ask, no timer roll, no damage; the card names them
-  *protected*. The tick is the player's; the module never judges sight or willingness (the Sneak
-  Attack ruling).
-- **Heightened marks one target on the demand**, and the save gate reads the mark as a
-  Disadvantage source named *Heightened Spell* — the channel the effect table's `saves` facet
-  already reads through the pending demand.
-- **Subtle and Quickened are a card line and a spend, nothing more.** Components are never read;
-  the turn is never policed (user, on Quickened: "just a blurb how it's settled at the table, no
-  automation" — §8's action-economy row stands). The line is the default language.
-- **Delivered 2026-09-09 (Stage 3), three ways the drawing did not expect:** Twinned is a DATA
-  read — the pack keeps a twinnable spell's target count as a formula over the cast's level —
-  checked against the user's list and corrected by a small exceptions table (Magic Missile and
-  Scorching Ray out, "the extra is a dart/ray"; Jump in); the count is never policed, so Twinned
-  is the fit, the spend and the line. Extended lands in the one effect applier every cast's
-  effects pass through, and the concentration gate reads the cast's card. Transmuted is the
-  emanation damage-type idiom on the cast's own parts.
-- **Distant doubles the range the gate's reminder reads for that cast** (Touch → 30 ft);
-  **Extended doubles the clock on the effects the cast creates** (24 h cap) and gives the
-  concentration gate *Extended Spell* as an Advantage source; **Transmuted changes the type on the
-  cast's own damage parts** (the first change to an EXISTING part; every rider so far only adds
-  one); **Twinned adds one creature to the target snapshot** (`messageConfig`, written directly —
-  the system snapshots targets before `preUseActivity`).
-- **Empowered and Seeking are folds AFTER a roll** (user: "let's try default"). **Delivered 2026-09-09
-  (Stage 4):** Seeking is a d20 fold KIND on the machine that owns the reroll — offered on a spell
-  attack's miss beside Heroic Inspiration, one Sorcery Point by hand; Empowered patches the damage
-  message's own roll the way the dice rules do (the old face struck and inactive, the new one
-  active, the total moved) so everything downstream reads the new number, and damage already
-  applied is moved by the difference as its own receipt. As drawn: Empowered opens
-  on the spell's damage with the dice shown, up to CHA-mod of them picked and rerolled, the new
-  rolls standing (Reroll is greyed until a die is ticked — user, 2026-09-12); Seeking is Precision Attack's shape on a spell attack's miss — Use or Pass, the
-  d20 rerolled, the new roll standing, Pass at expiry. Both carry the rolled-result obligation
-  the honest way: the receipt records old and new dice, a revert restores the APPLIED damage as
-  it does today, and the roll itself stays as rolled, said on the card. **Shipped to find its
-  bugs at the table**, not held for a proof (user: "we'll look for bugs later").
-- **The ask timer keeps rolling for PCs** (user: "people afk, it needs to play through so the
-  table can continue"). Asked beside this pass because the same night's Fireball rolled Gren's
-  own save; ruled as it stands. Careful is the fix for the excluded, not the timer.
-
-**What is read, and what is not.** Read: the metamagic feats on the sheet (the pack's
-`type.subtype: "metamagic"`), Font of Magic's uses as the pool (the pack's options consume it
-by compendium uuid; `poolOf` resolves that), and the SPELL's own save, range, duration, damage
-types and target scaling for eligibility — the option's own activation is a prose condition, so
-the predicate is a registry row, never a read of the option. Not judged: sight, a willing
-creature, a Twinned target's legality, whether a level 1+ spell was already cast this turn.
-One membership list over the table (`Metamagic List`), the conditions idiom, so a table can
-switch an option off; no new kind set. The 2014 options are ignored (SWEEP §5).
-
-### Spells that choose their targets (user, 2026-09-24 — Session 8's Slow; ruled off the prototype *Creatures of Your Choice*)
-
-Session 8: Gren cast Slow and Invictus, standing in the cube, was asked for a Wisdom save.
-Slow reads *"up to six creatures of your choice in a 40-foot Cube"* — the area is where the
-caster CHOOSES, not who owes the save — and a placed area asks everyone it holds. (Tom reached
-for Careful Spell to keep Invictus out; by the rules Careful does nothing on Slow.)
-
-- **The class, by name** (§6 registry rule 1): the Chosen Areas list over `CHOSEN_AREAS` — the
-  PHB's seven: Slow, Sleep, Conjure Barrage, Conjure Volley, Word of Radiance, Destructive Wave,
-  Weird. dnd5e's own `target.affects.choice` flags only four of them (measured against the pack),
-  so the flag is not the membership. Spirit Guardians is not listed: its aura's reach already
-  reaches enemies only. A spell that chooses by TARGETING (Bane, Enthrall, Compulsion, Divine
-  Word) needs nothing — the tokens the player targets are the choice.
-- **Asked only when there is a real choice** (the ruling): the area holds someone not hostile to
-  the caster, or more hostiles than the spell lets the caster choose. The number is the spell's
-  own words (Slow's "up to six"), read off its text, never stored (N1). Otherwise every hostile
-  is the choice, nobody is asked, and the card still says who.
-- **The question is the ask at the area** (Careful's popup, clock and answer — a third kind, not
-  a copy): *Who does Slow affect? Up to 6.*, the spell's own sentence quoted, the hostiles
-  ticked, the party and neutrals not, a tick pinging the token. The clock keeps the ticked
-  default. The caster is never a candidate for their own spell; a corpse never is. The demand
-  waits, empty and clockless, as it does for Careful, and its dice wait with it.
-- **Heightened Spell on such a spell asks ONE question**: the choice ticks, with a Disadvantage
-  radio beside each row, live only on the ticked.
-- **Careful Spell greys** on a listed spell — *you choose its targets* — because the creatures
-  Careful would spare are the ones the caster already leaves out (the ruling).
-- **The picture waits for the answer** (the 2026-09-09 ruling on Careful's ask, carried over): the
-  card is not held back — the hold registry holds the cast's activity from the card's birth, which
-  FX Studio already asks before it plays the card or the placed area — and the answer lifts it.
-- **The record** is `areaChoice` on the spell's card (`chosen`, `left`, `asked`): one line —
-  *Slow — chosen: Bramblemaw, Giant Crocodile · not chosen: Invictus* — and a `choice` moment
-  when the caster was asked; a default nobody chose publishes nothing.
-
-**Not built, and why:** using a metamagic option from the SHEET (the other half of Session 8's
-report — Tom's Careful Spell card) arms nothing. The casting window is where metamagic lives and
-it offered Careful on Slow; the user weighed an armed-chip design and a redirect off the same
-prototype and ruled that neither earned its keep ("i dont see what any of this metamagic edits
-gets us").
-
 
 ## 7. How to use this document
 
 - **Before building**, locate the work here. If it is not here, decide whether it is in scope —
   and if so, add it here *first*.
-- **When tempted to generalize**, re-read R4 and §4. Breadth of official content is in scope;
-  a new extension point never is.
+- **When tempted to generalize**, re-read R4 and §4. Breadth of official content is in scope; a
+  new extension point never is.
 - **When a dnd5e release absorbs a feature**, delete ours and celebrate (§3).
 - **When this document and the code disagree**, surface it rather than silently choosing.
 
@@ -1129,38 +219,28 @@ gets us").
 ## 8. Settled — do not re-propose
 
 **Each row is a decision plus the one condition that would reopen it.** Proposing one again
-without that condition costs the session twice: once to re-derive the answer, and once to
-re-explain why it was already the answer.
-
-⚠ **THIS TABLE LIVES HERE BECAUSE IT OUTLIVED ITS PREVIOUS HOMES.** It began in a continuity
-handoff, moved into the rescue-view commission when that retired (`41583c2`), and moved again
-when THAT was delivered (v1.24.0) — each time because the document holding it was temporary and
-the rulings were not. §7 says to locate work here before building; these are the answers for
-work that should not be built at all, so this is where they belong.
-
-⚠ **A ROW LEAVES ONLY BY ITS OWN CONDITION.** "Closed" rows stay: the record of why something is
-not being done is worth more than the space it costs, and deleting one invites the proposal it
-was written to prevent.
+without that condition costs the session twice. ⚠ **A row leaves only by its own condition;**
+closed rows stay, because deleting one invites the proposal it was written to prevent.
 
 | Settled | The ruling | What would reopen it |
 | --- | --- | --- |
-| **D9's four remaining machine→machine edges** | **NOT being repaid, and that is the finished answer, not a delay.** Each is pinned in `check-layers.mjs` with its reason and its trigger — see [BACKLOG.md](BACKLOG.md). ⚠ **The pins are SELF-EXPIRING** — repay an edge and the build fails until its row is deleted. | the trigger named in the pin actually arriving |
-| **The two permanent import cycles** | `hold/index.js ↔ auto-damage.js` (hold.js's, through the index since the directory cut) and `auto-apply.js ↔ mastery.js` are **PERMANENT BY DECISION**. ⚠ The first is **load-bearing**: the bare `import "./auto-damage.js"` pins module evaluation order and `check-hook-order` depends on it. **Doing this work would make the tree worse.** | nothing. Closed. |
-| **The double reminder on a Vexing (or Sapping) hit** | **Working as intended (user, 2026-09-03: "vex as it works is fine and going as expected").** The notice popup at the hit ("Vex — Advantage on your next attack") AND the gate box at the next swing both stand; they are two moments, not one said twice — the hit is when the chip is earned, the roll is when it is spent. The notice does NOT quieten when the gate lists vex. | the table finding the pair noisy in play |
-| **Tactical Mind's refund** | ✅ **ASKED, since 2026-09-11 (the user: "its time to add the refund button").** The module still cannot DECIDE it — **no DC exists for an ability check anywhere in dnd5e** — so after the die is added and the fold settles, one window asks the player: *succeeded — keep the spend*, or *still failed — refund the use*. Refund writes the use of Second Wind back and posts a receipt; keep leaves it spent; the answer is durable on the roll (`tacticalRefund`). Only Tactical Mind itself (a scoped tactical fold — Ambush, Tactical Assessment — is a superiority die, spent either way). **The question states the numbers** (the walk, 2026-09-24: "say the old, the new adjusted, and ask your DM if it passes"): *The check was 12; Tactical Mind's d10 rolled 5, so it is now 17 — Does 17 pass? Ask your GM.* — and *Does 17 pass DC 15?* when the roll carried a DC (a requested check). **A check WITH a DC asks too**: it used to raise no ask at all, so one that still failed kept its use spent. Pinned by `smoke-d20-folds` §10. The 2026-08-23 ruling (unmodelled, a manual button declined) is superseded. | nothing owed. With a DC known the module could settle it itself; the user asked for the question (2026-09-24), so it asks |
-| **Widening Heroic Inspiration** to *"any die"* (damage rolls) or the transfer clause | **NOT SHIPPING — and CLOSED on the user's word (2026-09-11).** Heroic Inspiration reaches every d20 test the module meets — attacks, saves (demanded and native), ability, skill and tool checks, Initiative — measured through the sheet's own roll dialog ([tools/probe-heroic-check.mjs](tools/probe-heroic-check.mjs)). The transfer clause is *"a table handling level thing"*; damage-die rerolls would trigger §11 rule 4's auto-revert obligation and are not wanted. | nothing. Closed |
-| **The `smoke-battleflow` flake** | ✅ **CLOSED 2026-08-24 — a real revert bug** (reverting a KILL restored the pool off-card; the lethal branch ran ~one run in eight). Fixed, and `smoke-battleflow` §4c is deterministic about it. | nothing. Closed, reproduced, fixed and pinned |
-| **Short-duration effect expiry** (mastery chips) | ✅ **CLOSED 2026-09-01 BY ITS OWN CONDITION — the decision was made, and the answer is that the question dissolves.** It was *blocked on whether this module should own TURN-TIME at all*; measured against Foundry 14.365's own client, **the platform already owns it**: every ActiveEffect carries `start.combatant` and a `duration.expiry` event, the registry refreshes on every turn and round boundary (GM-side) and judges the event against the ORIGINATING combatant. So the module never keeps a clock — it writes each chip's RAW window once (`decide/chips.js`), and owns only EVENTS: the attack roll that SPENDS Vex or Sap, the once-per-turn Cleave chit, and tidying what Foundry marked expired. See §5 *"the platform keeps the clock"* and HANDOFF Stage 1. | nothing. Closed — and a future pass that builds a module-side sweeper or turn counter is a REGRESSION, not a feature |
-| **A reaction-budget abstraction** | **REJECTED.** Action economy is not this module's job; every read of `reactionSpent` is an *offer gate*, never enforcement. | nothing. Closed. |
-| **Hand-carrying any counted number into prose** | **DON'T.** ⚠ **Quote the tool's output; never retype it.** | nothing. This is a standing rule. |
-| **A post-roll "second die" rescue for a forgotten Advantage** | **NOT SHIPPING** (user, 2026-09-01: *"I don't want a rescue, I want proactivity"*). The reminder is the GATE before the roll (§5); a rescue that rolls a second d20 after a flat roll is the shape that was put and declined. | the user asking for it, by name |
-| **Netting multiple sources of Advantage/Disadvantage by count** | **NEVER.** Any Advantage against any Disadvantage is a normal roll, however many of each (user ruling 2026-09-01; the Rules Glossary's own sentence). A "majority wins" reading is wrong and stays wrong. | nothing. It is the rule. |
-| **Vendoring AC5e's code** | **CLOSED 2026-09-01 — its TABLE shipped as data instead** (DESIGN §5 *the gate*; `decide/reminders.js` `CONDITION_BENDS`). Its behaviour — silently setting the roll mode — is the thing the user said no to; its geometry features (range bands, nearby foes, flanking, armour, encumbrance) were never wanted AS AC5e's. ⚠ The geometry a rule's own clause needs is the module's own reading, not this row (R1, *game logic is not judgment*): the range bands and the nearby foe shipped 2026-09-02, the ally beside the target 2026-09-22. | a table asking for the geometry features, by name |
-| **Spending Sap or Vex on a volley as a whole** | **NOT SHIPPING (2026-09-02).** The rules spend Sap on *"its next attack roll"* and Vex on *"your next attack roll against that creature"* — one attack roll, and each ray of a volley is one. So ray 1 spends the chip and the rays after it roll unbent, and the aim popup SAYS so on ray 1's row. Three rays at Disadvantage for one Sap hit is generous to the Sapper and is not the text (N1). Reopens only on a rules revision that says "attack action" where it says "attack roll". |
-| **The module resolving a save with no press** (option C of *The Save Gate*) | **NEVER** (user ruling 2026-09-02: E was chosen, *"never C"*). A save the rules fail before the dice gets a **Fails** button as the default — no dice, but still a press. The buzzer's Fails is the timer's answer, as the buzzer's straight roll always was; it is not the module deciding for a human at the keyboard. | nothing. It is the line R1 draws. |
-| **The module judging Sneak Attack's conditions** (the ally within 5 feet, whether the target sees the rogue) | ✅ **REOPENED 2026-09-22 BY ITS OWN CONDITION — the ally clause is judged.** It was NO (user, 2026-09-02: *"the player can determine if they have the conditions"*), on the reading that geometry over allies was the AC5e feature set never wanted. The user asked for the ally clause by name (2026-09-22, after Pack Tactics lent a hobgoblin Advantage against a dummy nobody stood beside: *"Reopen — do both"*) and ruled the principle behind it — an ally on the same side within a measured distance is game logic, not judgment (R1, *game logic is not judgment*). The box now ticks itself when the roll nets Advantage, or when an ally of the rogue, not Incapacitated, stands within 5 feet of every target and the roll has no Disadvantage; the tick stays the player's either way. | nothing. Closed — R1 carries the principle |
-| **Asking before a clock rider rides** | **REVERSED THE SAME EVENING** (user, 2026-09-02, from the table: *"dreadful strike should have a check box, optional to use, so make like sneak attack"*). Each due rider is a TICKED checkbox on the damage offer — the rules make it available, the player may decline, and a declined rider spends nothing. The offer opens for a due rider even under auto damage, as it does for an armed Sneak Attack. What stays settled: a rider with a genuine choice *inside* it (which of two options, a resource spend) is not in the table; a damage TYPE the rules leave open takes the activity's first and says which. | a type picker, by name |
-| **Judging once-per-turn for a creature outside the running combat** | **NO** (user, 2026-09-02: *"the turn counting should only be in combat"*). The chits — Sneak Attack, Cleave, a clock rider — count only for a COMBATANT in the running combat; a creature acting outside it has no turn, so every hit offers. The summon-on-its-summoner's-turn case (review finding 18) was given up on purpose. | nothing. It is the rule. |
-| **A tooltip on the gate's header line** | **NO** (user, 2026-09-02: *"it just makes stuff unreadable"*). The arithmetic sentence stays in the view for the record and is not drawn. | nothing. |
-| **The Reaction as a flag the module clears by hand** | **RETIRED 2026-09-02** (user: *"shield should probably be refactored similarly (reaction, one per turn)"*). The Reaction is a CHIP on the reactor, spent by any interrupt, back at the start of the reactor's next turn by stamp arithmetic (`reactionStands`) — the same clock every other window keeps. | nothing. |
-| **A combat-stats readout at the table** (a "what happened this fight" card, a per-session summary) | **NOT HERE** (user, 2026-09-03: *"we are running great stats on the MCP reporting, not here"*). This module WRITES the data plane — `statContext` on every consequence (ARCHITECTURE §4) — and the reader is `fvtt-app-sessionscribe` (`analyze-combat`; `fvtt-mcp-dnd5e`'s `get-combat-stats` until 2026-09-23). Reporting is that repo's job; here the obligation is only that every new consequence writer stamps the plane. | nothing. The split is the design. |
+| **The remaining machine→machine import edges** | **Not being repaid, and that is the answer.** Each is pinned in `tools/check-layers.mjs` with its reason and its trigger (BACKLOG *Architecture*); the pins are self-expiring — repay an edge and the build fails until its row is deleted. | the trigger named in the pin arriving |
+| **The two permanent import cycles** | `hold/index.js ↔ auto-damage.js` and `auto-apply.js ↔ mastery.js` are permanent by decision. The first is load-bearing: the bare import pins module evaluation order and `check-hook-order` depends on it. | nothing |
+| **The double reminder on a Vexing or Sapping hit** | Working as intended (2026-09-03): the notice at the hit and the gate box at the next swing are two moments — the chip earned, the chip spent. | the table finding the pair noisy |
+| **Tactical Mind's refund** | **Asked, since 2026-09-11.** No DC exists for an ability check anywhere in dnd5e, so after the die is added one window asks: succeeded (keep) or still failed (refund the Second Wind use, receipted). The question states the numbers (2026-09-24): *The check was 12; Tactical Mind's d10 rolled 5, so it is now 17 — Does 17 pass? Ask your GM.* A check WITH a DC asks too. Only Tactical Mind; a scoped tactical fold is a superiority die, spent either way. Pinned by `smoke-d20-folds` §10. | nothing owed |
+| **Widening Heroic Inspiration** to damage dice or the transfer clause | **Closed (2026-09-11).** It reaches every d20 test the module meets; the transfer is a table matter; damage-die rerolls would trigger ARCHITECTURE §11's auto-revert obligation and are not wanted. | nothing |
+| **Short-duration effect expiry** (mastery chips) | **Closed 2026-09-01 by its own condition:** the platform owns turn-time (every effect carries `start.combatant` and an expiry event, judged GM-side), so the module writes each chip's window once and owns only events (RULINGS *Chips and clocks*). A module-side sweeper or turn counter is a regression. | nothing |
+| **A reaction-budget abstraction** | **Rejected.** Action economy is not this module's job; every read of `reactionSpent` is an offer gate, never enforcement. | nothing |
+| **Hand-carrying a counted number into prose** | **Don't.** Quote the tool's output; never retype it. | nothing; a standing rule |
+| **A post-roll "second die" rescue for a forgotten Advantage** | **Not shipping** (2026-09-01: "I don't want a rescue, I want proactivity"). The reminder is the gate before the roll. | the user asking for it by name |
+| **Netting Advantage/Disadvantage by count** | **Never.** Any Advantage against any Disadvantage is a normal roll, however many of each (the glossary's sentence). | nothing |
+| **Vendoring AC5e's code** | **Closed 2026-09-01 — its table shipped as data** (`CONDITION_BENDS`). Silently setting the roll mode is what the user said no to; its geometry features (flanking, armour, encumbrance) were never wanted AS AC5e's. Geometry a rule's own clause needs is the module's own reading (R1). | a table asking for the geometry features by name |
+| **Spending Sap or Vex on a volley as a whole** | **Not shipping (2026-09-02).** The rules spend them on one attack roll, and each ray is one; ray 1 spends the chip and says so. | a rules revision saying "attack action" |
+| **The module resolving a save with no press** (option C of the save gate) | **Never** (2026-09-02). A save the rules fail before the dice gets a Fails button as the default — no dice, still a press. | nothing; the line R1 draws |
+| **The module judging Sneak Attack's conditions** | **Reopened 2026-09-22 by its own condition — the ally clause is judged** off the map (R1, game logic is not judgment); the tick stays the player's. | nothing |
+| **Asking before a clock rider rides** | **Reversed 2026-09-02:** each due rider is a ticked checkbox on the offer; a declined rider spends nothing. A rider with a choice inside it is not in the table; an open damage type takes the activity's first and says which. | a type picker, by name |
+| **Judging once-per-turn for a creature outside the running combat** | **No** (2026-09-02). The chits count only for a combatant; outside combat every hit offers. | nothing |
+| **A tooltip on the gate's header line** | **No** (2026-09-02). The arithmetic sentence stays in the view and is not drawn. | nothing |
+| **The Reaction as a flag the module clears by hand** | **Retired 2026-09-02** for the chip (RULINGS *Chips and clocks*). | nothing |
+| **A combat-stats readout at the table** | **Not here** (2026-09-03). This module WRITES the data plane (`statContext`, ARCHITECTURE §4); `fvtt-app-sessionscribe` reads it. The obligation here is that every new consequence writer stamps the plane. | nothing; the split is the design |
+| **Composing a metamagic option used from the SHEET** | **Declined (2026-09-24).** The casting window is where metamagic lives; an armed-chip design earned nothing. | nothing |
