@@ -395,6 +395,34 @@ describe("the moment registry — the edges", () => {
     expect(out[2].facts.details).toMatchObject({ answer: "pass", timedOut: true });
   });
 
+  it("a reduction that is NOT a maneuver (Stone's Endurance, reduce.maneuver false) publishes hold-answered alone, its use spent", () => {
+    const flag = {
+      sourceUuid: "Actor.g",
+      targets: [
+        {
+          uuid: "Actor.o",
+          name: "O",
+          reaction: "Stone's Endurance",
+          kind: "damage",
+          itemId: "s",
+          answer: "cast",
+          reduceBy: 9,
+          reduce: {
+            formula: "1d12 + @abilities.con.mod",
+            maneuver: false,
+            eyebrow: "Reaction",
+            spend: "use"
+          },
+          poolSpend: { pool: "Stone's Endurance", spent: 1, left: 2, max: 3 }
+        }
+      ]
+    };
+    const out = resolves("hold", flag);
+    expect(out.map(m => m.events)).toEqual([["hold-answered"]]);
+    expect(out[0].facts.spend).toMatchObject({ pool: "Stone's Endurance", left: 2 });
+    expect(out[0].facts.details).toMatchObject({ reduceBy: 9, mode: "reduce" });
+  });
+
   it("the saves flag resolves one save per target done — and the attacker's choice beside it", () => {
     const flag = {
       sourceUuid: "Actor.c",

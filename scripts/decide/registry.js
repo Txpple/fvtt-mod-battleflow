@@ -59,11 +59,31 @@ export const INTERRUPT_MULTIPLIERS = Object.freeze({
  * that number, the receipt row saying why. ⚠ Keyed by the Interrupt list's own names — and the
  * Monster Manual ships a different "Parry" (a +2 AC Reaction, `ac`); the row applies only where
  * the found item carries the named activity, so the monster's stays an AC hold.
+ *
+ * The Goliath's Stone's Endurance (Slice A, 2026-09-24) is the second row, the same shape: the
+ * pack's heal activity whose formula (`1d12 + @abilities.con.mod`) is the reduction, spent from
+ * the item's OWN uses (its activity consumes `itemUses` with an empty target — the item itself).
+ * Before this row it held as a plain damage interrupt: Cast USED the heal, healing a Goliath at
+ * full HP, and the whole hit landed "reduce by hand". It covers ATTACK hits only — the hold
+ * stamps on a hit; a save's or an area's damage stays the table's.
+ *
+ *   activity  the activity's name — or, when the stored name is EMPTY (Stone's Endurance's is:
+ *             dnd5e shows the type's localized title), the first heal activity: locale-proof
+ *   pool      true — the activity's consumption target is spent, one use, and none left offers nothing
+ *   eyebrow   the family the card and popup wear: "Maneuver" (Parry) or "Reaction" (a species trait)
+ *   spend     what one use is called on the cost line: "Superiority Die", "use"
+ *   hit       the trigger as the card says it: "melee attack" (Parry's rule), "attack" (any hit)
+ *   by        what the reduction is, in words, for the popup's ask
  */
 export const INTERRUPT_REDUCTIONS = Object.freeze({
   "Parry": Object.freeze({ activity: "Heal", pool: true,
+    eyebrow: "Maneuver", spend: "Superiority Die", hit: "melee attack", by: "the die plus your modifier",
     rule: "When another creature damages you with a melee attack roll, you can take a Reaction and expend one Superiority Die to reduce the damage by the number you roll on your Superiority Die plus your Strength or Dexterity modifier (your choice).",
-    from: "Fighter — Battle Master 3" })
+    from: "Fighter — Battle Master 3" }),
+  "Stone's Endurance": Object.freeze({ activity: "Heal", pool: true,
+    eyebrow: "Reaction", spend: "use", hit: "attack", by: "1d12 plus your Constitution modifier",
+    rule: "When you take damage, you can take a Reaction to roll 1d12. Add your Constitution modifier to the number rolled and reduce the damage by that total.",
+    from: "Goliath — Giant Ancestry (Stone)" })
 });
 
 /**

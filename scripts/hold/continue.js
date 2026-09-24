@@ -167,11 +167,14 @@ async function driveHoldContinuation(attackMessage, hold) {
       const settled = interruptMultiplier(target, INTERRUPT_MULTIPLIERS);
       const reduced = (Number(target.reduceBy) > 0) ? Number(target.reduceBy) : null;
       const how = settled ? ((settled.multiplier === 0.5) ? "halved" : `×${settled.multiplier}`) : reduced ? `reduced by <strong>${reduced}</strong>` : null;
-      const maneuver = !!target.reduce;   // Parry: the maneuver family's words (user, 2026-09-05)
+      // Parry: the maneuver family's words (user, 2026-09-05); Stone's Endurance the same shape in
+      // its own voice — the row's eyebrow and spend, stamped on the flag (Slice A, 2026-09-24).
+      const maneuver = !!target.reduce;
+      const r = target.reduce ?? {};
       announcements.push(bfCard({
-        img, eyebrow: maneuver ? `Maneuver — ${target.reaction}` : (settled || reduced) ? "Reaction — it worked" : "Reaction — cast",
+        img, eyebrow: maneuver ? `${r.eyebrow ?? "Maneuver"} — ${target.reaction}` : (settled || reduced) ? "Reaction — it worked" : "Reaction — cast",
         title: maneuver ? (reduced ? `${target.reaction} — ${target.name} reduces the damage by ${reduced}` : `${target.reaction} — reduce the damage by hand`) : target.reaction,
-        subtitle: maneuver ? spendPhrase(target.poolSpend ? [target.poolSpend] : []) : target.name,
+        subtitle: maneuver ? spendPhrase(target.poolSpend ? [target.poolSpend] : [], r.spend ?? "Superiority Die") : target.name,
         tone: (settled || reduced) ? "good" : "neutral",
         lines: [(settled || reduced)
           ? `The attack still hits, and its damage against <strong>${target.name}</strong> is ${how} — the receipt says so.`

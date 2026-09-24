@@ -128,7 +128,13 @@ function reductionFor(item, reactionName) {
   const key = Object.keys(INTERRUPT_REDUCTIONS).find(k => k.toLowerCase() === String(reactionName ?? "").toLowerCase());
   const row = key ? INTERRUPT_REDUCTIONS[key] : null;
   if ( !row ) return null;
-  const activity = [...(item?.system?.activities ?? [])].find(a => a.name?.toLowerCase() === row.activity.toLowerCase()) ?? null;
+  // By name — or, LOCALE-PROOF (Slice A, 2026-09-24), the first heal activity whose STORED name
+  // is empty: Stone's Endurance's is "", which dnd5e displays as the type's localized title, so
+  // "Heal" matched in English only.
+  const activities = [...(item?.system?.activities ?? [])];
+  const activity = activities.find(a => a.name?.toLowerCase() === row.activity.toLowerCase())
+    ?? activities.find(a => (a.type === "heal") && !a._source?.name)
+    ?? null;
   const h = activity?.healing;
   const formula = h ? (h.custom?.enabled ? h.custom.formula : ((Number(h.number) > 0 && Number(h.denomination) > 0) ? `${h.number}d${h.denomination}${h.bonus ? ` + ${h.bonus}` : ""}` : (h.bonus || null))) : null;
   if ( !activity || !formula ) return null;
@@ -153,7 +159,13 @@ export async function findInterrupt(actor, { isCritical }) {
       // The pool the die comes from: none left, nothing to offer.
       const pool = reduce.row.pool ? poolOf(actor, reduce.activity) : null;
       if ( pool && !(Number(pool.system?.uses?.value ?? 0) > 0) ) continue;
-      return { entry: { ...entry, kind }, ...found, reduce: { formula: reduce.formula, activityId: reduce.activity.id } };
+      // The row's voice rides the hold flag (Slice A, 2026-09-24), so the views, the answer and
+      // the announcement say "Reaction — Stone's Endurance … one use spent" without a lookup;
+      // `maneuver` decides whether the resolve also publishes the `maneuver` word.
+      const row = reduce.row;
+      return { entry: { ...entry, kind }, ...found, reduce: { formula: reduce.formula, activityId: reduce.activity.id,
+        eyebrow: row.eyebrow ?? "Maneuver", spend: row.spend ?? "Superiority Die", hit: row.hit ?? "melee attack",
+        by: row.by ?? "the die plus your modifier", maneuver: (row.eyebrow ?? "Maneuver") === "Maneuver" } };
     }
     // ALREADY STANDING ⇒ DON'T ASK AGAIN (user call, the v1.15.0 walk's finding ⑥: "if they
     // have shield up, just dont prompt for shield"). Gren was re-prompted for Shield with his

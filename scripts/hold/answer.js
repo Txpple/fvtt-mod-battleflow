@@ -235,7 +235,7 @@ async function parryReaction(attackMessage, target, actor) {
   const activity = item?.system?.activities?.get(target.reduce.activityId) ?? null;
   const pool = activity ? poolOf(actor, activity) : null;
   if ( pool && !(Number(pool.system?.uses?.value ?? 0) > 0) ) {
-    ui.notifications.warn(`${TITLE}: ${actor.name} has no Superiority Die left for ${target.reaction}.`);
+    ui.notifications.warn(`${TITLE}: ${actor.name} has no ${target.reduce.spend ?? "Superiority Die"} left for ${target.reaction}.`);
     return answerHold(attackMessage, target.uuid, "pass");
   }
   let total = 0;
@@ -250,7 +250,7 @@ async function parryReaction(attackMessage, target, actor) {
   // The one pass-through for a hand spend (shared.js): the record rides the answer so the card,
   // the popup and the flash all say "Combat Superiority: N of M remaining" (user, 2026-09-05).
   let poolSpend = null;
-  if ( pool ) poolSpend = await spendSuperiorityDie(actor, pool, target.reaction).catch(err => { console.warn(`${TITLE} | Could not spend a Superiority Die for ${target.reaction}.`, err); return null; });
+  if ( pool ) poolSpend = await spendSuperiorityDie(actor, pool, target.reaction).catch(err => { console.warn(`${TITLE} | Could not spend a ${target.reduce.spend ?? "Superiority Die"} for ${target.reaction}.`, err); return null; });
   await spendReaction(actor, { origin: item?.uuid ?? null, what: target.reaction });
   return answerHold(attackMessage, target.uuid, "cast", { reduceBy: total, poolSpend });
 }

@@ -105,6 +105,46 @@ describe("interrupt list — the one DECLARED fallback", () => {
   });
 });
 
+describe("INTERRUPT_REDUCTIONS — a reaction that reduces by a roll (Parry; Stone's Endurance, Slice A 2026-09-24)", () => {
+  it("every row names its activity, pays from a pool, and carries its own voice — eyebrow, spend, trigger, the ask", () => {
+    for (const [key, row] of Object.entries(reg.INTERRUPT_REDUCTIONS)) {
+      expect(row.activity, key).toBeTruthy();
+      expect(row.pool, key).toBe(true);
+      expect(["Maneuver", "Reaction"], key).toContain(row.eyebrow);
+      expect(row.spend, key).toBeTruthy();
+      expect(row.hit, key).toMatch(/attack$/);
+      expect(row.by, key).toBeTruthy();
+      expect(row.rule.length, key).toBeGreaterThan(20);
+      expect(row.from, key).toBeTruthy();
+    }
+  });
+  it("Stone's Endurance is a Reaction spending its own use on any attack; Parry stays the maneuver on a melee attack", () => {
+    expect(reg.INTERRUPT_REDUCTIONS["Stone's Endurance"]).toMatchObject({
+      eyebrow: "Reaction",
+      spend: "use",
+      hit: "attack"
+    });
+    expect(reg.INTERRUPT_REDUCTIONS.Parry).toMatchObject({
+      eyebrow: "Maneuver",
+      spend: "Superiority Die",
+      hit: "melee attack"
+    });
+  });
+  it("every reduction row is a damage interrupt on the shipped default list", () => {
+    const entries = reg.parseList(
+      reg.LIST_SPECS.interrupt,
+      reg.LIST_SPECS.interrupt.default
+    ).entries;
+    for (const key of Object.keys(reg.INTERRUPT_REDUCTIONS)) {
+      expect(
+        entries.map(e => e.name),
+        key
+      ).toContain(key);
+    }
+    expect(entries.find(e => e.name === "Stone's Endurance")?.kind).toBe("damage");
+  });
+});
+
 describe("block list — both halves required", () => {
   const spec = () => reg.LIST_SPECS.block;
 

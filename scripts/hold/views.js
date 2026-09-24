@@ -118,22 +118,25 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       // (user, 2026-09-05: "the same UI language and design as Riposte and other maneuvers"):
       // `Maneuver — Name`, `Name — what happened`, who and the cost. The hold's own words stay
       // for spells and features.
+      // A reduction row that is not a maneuver (Stone's Endurance, Slice A 2026-09-24) wears the
+      // same shape in its own voice — the row's eyebrow, trigger and spend, stamped on the flag.
       const maneuver = !!target.reduce;
       let title = target.reaction;
       if ( maneuver ) {
         const attackerName = message.getAssociatedActor?.()?.name ?? "The attacker";
-        eyebrow = `Maneuver — ${target.reaction}`;
+        const r = target.reduce;
+        eyebrow = `${r.eyebrow ?? "Maneuver"} — ${target.reaction}`;
         if ( hold.status === "pending" ) {
           title = `${target.reaction} — ${target.name} may reduce the damage`;
-          subtitle = `${attackerName}'s melee attack hit`;
+          subtitle = `${attackerName}'s ${r.hit ?? "melee attack"} hit`;
         } else if ( target.answer === "cast" ) {
           title = (Number(target.reduceBy) > 0)
             ? `${target.reaction} — ${target.name} reduces the damage by ${target.reduceBy}`
-            : `${target.reaction} — ${target.name} parries; reduce the damage by hand`;
-          subtitle = spendPhrase(target.poolSpend ? [target.poolSpend] : []);
+            : `${target.reaction} — ${target.name} reacts; reduce the damage by hand`;
+          subtitle = spendPhrase(target.poolSpend ? [target.poolSpend] : [], r.spend ?? "Superiority Die");
         } else {
           title = `${target.reaction} — ${target.name} declined${target.timedOut ? " (timer)" : ""}`;
-          subtitle = `${attackerName}'s melee attack hit`;
+          subtitle = `${attackerName}'s ${r.hit ?? "melee attack"} hit`;
         }
       }
       block.innerHTML = bfCard({
@@ -197,10 +200,11 @@ function maneuverPopupContent(attackMessage, target, actor, hold) {
   const activity = item?.system?.activities?.get(target.reduce?.activityId) ?? null;
   const pool = activity ? poolOf(actor, activity) : null;
   const standing = pool ? spendLine({ pool: pool.name, left: Number(pool.system?.uses?.value ?? 0), max: Number(pool.system?.uses?.max ?? 0) }) : null;
+  const r = target.reduce ?? {};
   return bfCard({
-    img: reactionImg(actor, target.reaction, target), eyebrow: `Maneuver — ${target.reaction}`, tone: "pending",
+    img: reactionImg(actor, target.reaction, target), eyebrow: `${r.eyebrow ?? "Maneuver"} — ${target.reaction}`, tone: "pending",
     title: `${attackerName} hit you`,
-    subtitle: `Spend a Superiority Die and your Reaction to reduce the damage by the die plus your modifier${standing ? ` · ${standing}` : ""}`,
+    subtitle: `Spend ${r.spend === "use" ? "a use" : `a ${r.spend ?? "Superiority Die"}`} and your Reaction to reduce the damage by ${r.by ?? "the die plus your modifier"}${standing ? ` · ${standing}` : ""}`,
     lines: row?.rule ? [ruleLine(row.rule)] : []
   }) + holdBarHTML(hold, "to answer");
 }

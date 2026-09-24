@@ -272,12 +272,12 @@ export const MOMENT_RECORDS = Object.freeze({
 
   hold: {
     events: ["hold-answered"],
-    means: "a held roll's reaction was answered by its target — cast or pass (hold/answer.js, hold/clock.js); one resolve per target with an answer. Parry's die publishes under maneuver too",
+    means: "a held roll's reaction was answered by its target — cast or pass (hold/answer.js, hold/clock.js); one resolve per target with an answer. Parry's die publishes under maneuver too; Stone's Endurance's use does not (reduce.maneuver false, 2026-09-24)",
     resolved: (r, ctx) => (r?.targets ?? []).filter(t => t.answer).map(t => {
       const item = itemUuid(t.uuid, t.itemId);
       return {
         marker: `${t.uuid}`,
-        events: t.poolSpend ? ["hold-answered", "maneuver"] : ["hold-answered"],
+        events: (t.poolSpend && (t.reduce?.maneuver !== false)) ? ["hold-answered", "maneuver"] : ["hold-answered"],
         // The answerer's client, when the write was the elect's (a relayed answer) — the picture
         // fired there before this gate existed, and still does.
         publisher: t.answeredBy ?? null,

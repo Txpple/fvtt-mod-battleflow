@@ -107,7 +107,7 @@ Hooks.once("init", () => {
 
   game.settings.register(MODULE_ID, S.interruptList, {
     name: "Interrupt Reactions",
-    hint: 'Which reactions pause the chain, as "Name:kind" separated by commas. kind is "ac" (raises AC — the hold re-tests the attack against the new AC, and crits skip the pause since a natural 20 hits regardless) or "damage" (reduces damage — the hold pauses and announces; the reduction itself stays a human call). Names must match the item on the actor. See ARCHITECTURE.md §6 for the full survey.',
+    hint: 'Which reactions pause the chain, as "Name:kind" separated by commas. kind is "ac" (raises AC — the hold re-tests the attack against the new AC, and crits skip the pause since a natural 20 hits regardless) or "damage" (reduces damage — the hold pauses and announces; Uncanny Dodge’s halving and the rolled reductions of Parry and Stone’s Endurance are applied for you, any other reduction is made by hand). Names must match the item on the actor. See ARCHITECTURE.md §6 for the full survey.',
     // ⚠ THE DEFAULT LIVES WITH ITS PARSER (decide/registry.js), and so does the note on why
     // Riposte is deliberately absent from it. A default the gate can only reach by scraping
     // source is a default the gate cannot really check — see the spec header.
