@@ -365,6 +365,11 @@ is stamped where it lands, in `effectReceipt`; stamping the pick as well would c
   annotates the SAME halving for the card's sentence — presentational, never double-applied.
   The message's rolls remain the pre-mitigation side; the difference is the
   damage-lost-to-traits meter. Healing-typed parts arrive negated, same sign as `taken`.
+  **`traits[]` is read net of that multiplier** (2026-09-24): dnd5e folds the caller's
+  multiplier into each part's `active.multiplier` before the traits, so until this fix a halved
+  save labelled every target "resistant" and a resistant target that saved got no label (session
+  8's dragon breath, found by the scribe's meter). Rows stamped before v2.0.7 carry the old
+  labels; the scribe's meter never reads them.
 - **`answeredAt` on every moment answer** (fold, precision, mastery, riposte, bashOffer, save
   choice, hold per-target, concentration outcome — buzzer answers included): with the flag's
   `deadline`/`window`, decision latency under the clock is arithmetic.

@@ -48,28 +48,37 @@ export function statFields(context) {
  * `active` is dnd5e's own annotation from `calculateDamage`, and that is the whole point:
  * recomputing di/dr/dv here would drift from bypasses, modification and thresholds, while
  * asking the system's own method cannot.
+ *
+ * ⚠ `active.multiplier` is the traits' factor TIMES the caller's own `multiplier` (a saved
+ * half, Uncanny Dodge): actor.mjs multiplies `options.multiplier` into it before the traits.
+ * Read raw, a halved save labelled every target "resistant" and a resistant target that saved
+ * (× 0.25) got no label at all (session 8's dragon breath, found by the scribe 2026-09-24).
+ * The caller's share is divided out first; immunity and a threshold are ×0 either way.
  */
-export function traitOutcome(active) {
+export function traitOutcome(active, multiplier = 1) {
   const a = active ?? {};
+  const own = (typeof a.multiplier === "number") && multiplier ? a.multiplier / multiplier : a.multiplier;
+  const near = (x, y) => Math.abs(x - y) < 1e-9;
   return a.threshold ? "threshold"
-    : (a.multiplier === 0) ? "immune"
-    : (a.multiplier === 0.5) ? "resistant"
-    : (a.multiplier === 2) ? "vulnerable"
+    : (own === 0) ? "immune"
+    : near(own, 0.5) ? "resistant"
+    : near(own, 2) ? "vulnerable"
     : (a.all?.modification || a.type?.modification) ? "modified"
     : null;
 }
 
 /**
  * The reason list a receipt row renders: one entry per (type, outcome), deduped — several
- * parts of one type share one story and the row tells it once.
+ * parts of one type share one story and the row tells it once. `multiplier` is the caller's
+ * (the entry's own), divided out of each part's annotation.
  *
  * `calc` is `calculateDamage`'s return, which is an ARRAY carrying an `amount` property — and
  * `false` when a hook cancelled the calculation, which is why it is guarded rather than mapped.
  */
-export function traitReasons(calc) {
+export function traitReasons(calc, multiplier = 1) {
   const traits = [];
   for ( const d of (calc || []) ) {
-    const outcome = traitOutcome(d.active);
+    const outcome = traitOutcome(d.active, multiplier);
     if ( outcome && !traits.some(t => (t.type === d.type) && (t.outcome === outcome)) ) {
       traits.push({ type: d.type, outcome });
     }
@@ -117,7 +126,7 @@ export function receiptEntry({ uuid, name, img = null, note, multiplier = 1, pri
     // own rolls stay the pre-mitigation side, and the difference IS the damage-lost-to-traits
     // meter. Healing-typed parts arrive negated, same sign convention as `taken`.
     parts: (calc || []).map(d => ({ type: d.type ?? null, amount: d.value ?? 0 })),
-    traits: traitReasons(calc),
+    traits: traitReasons(calc, multiplier),
     reverted: false,
     ...statFields(context)
   };

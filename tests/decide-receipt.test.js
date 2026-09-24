@@ -38,6 +38,18 @@ describe("traitOutcome — what the traits made of one part", () => {
     expect(r.traitOutcome({})).toBe(null);
     expect(r.traitOutcome(undefined)).toBe(null);
   });
+
+  it("divides the caller's multiplier out — a halved save is not a resistance", () => {
+    // dnd5e folds options.multiplier into active.multiplier before the traits (actor.mjs):
+    // saved, no trait → 0.5 raw; saved AND resistant → 0.25 raw; saved AND vulnerable → 1 raw.
+    // Session 8's breath (2026-09-24): Morgash 32 → 16 was labelled resistant, Gren 32 → 8 not.
+    expect(r.traitOutcome({ multiplier: 0.5 }, 0.5)).toBe(null);
+    expect(r.traitOutcome({ multiplier: 0.25 }, 0.5)).toBe("resistant");
+    expect(r.traitOutcome({ multiplier: 1 }, 0.5)).toBe("vulnerable");
+    // immunity and a threshold are ×0 whatever the caller passed
+    expect(r.traitOutcome({ multiplier: 0 }, 0.5)).toBe("immune");
+    expect(r.traitOutcome({ threshold: 10, multiplier: 0 }, 0.5)).toBe("threshold");
+  });
 });
 
 describe("traitReasons — the row's reason list", () => {
@@ -62,6 +74,14 @@ describe("traitReasons — the row's reason list", () => {
       { type: "cold", outcome: "resistant" },
       { type: "cold", outcome: "threshold" }
     ]);
+  });
+
+  it("passes the entry's multiplier through, so a saved volley reads its traits right", () => {
+    const calc = summary(12, [
+      { type: "poison", active: { multiplier: 0.5 } },
+      { type: "fire", active: { multiplier: 0.25 } }
+    ]);
+    expect(r.traitReasons(calc, 0.5)).toEqual([{ type: "fire", outcome: "resistant" }]);
   });
 
   it("says nothing about parts that landed plain", () => {
