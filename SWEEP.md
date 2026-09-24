@@ -1,10 +1,16 @@
 # The abilities sweep — survey
 
-**Status: SHELVED (2026-09-03, user call: "a longer term project"). Surveyed, its three
-questions ruled, nothing scheduled or owed.** A fifth document by design, for the length of the
-sweep: it holds the survey behind a planned pass over every racial trait, class feature,
-subclass feature, feat and spell that would qualify for Battle Flow, in that order. When the
-sweep is scoped, what it settles moves into DESIGN §8 / BACKLOG and this file goes.
+**Status: Slice A IN BUILD (2026-09-24, the user's go).** Shelved 2026-09-03 ("a longer term
+project"); the long-term order of 2026-09-24 (HANDOFF §1) un-shelved it one slice at a time.
+Slice A — PHB species traits and origin feats — is measured and ruled (§6): **PHB first**
+(Arcana Unleashed's origin feats are the next phase); **tiers 1–3 in build** (the save gate's
+feature match and Stone's Endurance; the hit menu's Giant Ancestry group; Savage Attacker's
+popup and the `roll` interrupt kind); **five PARKED** with triggers; **Relentless Endurance
+HELD** for Slice B's kill moment; **one pick per hit** for now. A fifth document by design,
+for the length of the sweep: it holds the survey behind a planned pass over every racial
+trait, class feature, subclass feature, feat and spell that would qualify for Battle Flow, in
+that order. As each slice is scoped, what it settles moves into DESIGN §8 / RULINGS / BACKLOG;
+when the sweep is done, this file goes.
 
 ## 0. Picking it up later — read this first
 
@@ -27,14 +33,16 @@ Everything a future session needs to start the sweep without re-deriving it:
    Strike, Open Hand Technique, Psionic Strike — each a group row (its pool and pick limit) and
    option rows on the same table; a new COST KIND (a Focus Point, a use) is a `poolOf` reader
    in the machine, not a new moment.
-4. **The corpus is NOT current — a fifth book landed 2026-09-24.** *Arcana Unleashed*
-   (`dnd-arcana-unleashed`, a 2024-rules core expansion on magic) is installed on both boxes and
-   is IN the corpus by the ruling in item 1 (2024 rules, not 2014); every number in §2 predates
-   it (its measured shape is in §2). **The rescan is the sweep's first step now**, and
-   `classify-corpus.mjs` already ranks its four Item packs. The last rescan was 2026-09-03 with
-   the fixed activation column; the numbers held then (587 rows matched a family, one more than
-   the survey's 586; the rest identical). The JSON lives in the session scratchpad, not the
-   repo — regenerate it:
+4. **The corpus was RESCANNED 2026-09-24** (Foundry 14.368 / dnd5e 6.0.5, the sandbox), with
+   *Arcana Unleashed* (`dnd-arcana-unleashed`, a 2024-rules core expansion on magic) IN it by
+   the ruling in item 1. **1188 deduplicated 2024 rows** — race 45, class 115, subclass 325,
+   class? 84 (options nothing grants), feat 138, gift 20, spell 461 — and **657 match a
+   family**. §2's tables are the 2026-09-03 survey (1066 / 586) and stay as the families'
+   shape; the new totals are these. Arcana Unleashed's **10 origin feats** were measured: 3 need
+   module work (Arcane Omens and Transmuted Anatomy, a Reaction +1d4 to a failed save; Arcane
+   Overload, +PB to one Evocation damage roll) — **the phase AFTER Slice A**, by the user's
+   ruling; 4 are native or sheet-level, 3 out of combat. The JSON lives in the session
+   scratchpad, not the repo — regenerate it:
    `node tools/scan-corpus.mjs <out.json>` (live, read-only, ~10 min, the user out of the
    world — the harness refuses two GMs; the process hits its own 900 s watchdog after the file
    is written, which is harmless) then
@@ -42,7 +50,9 @@ Everything a future session needs to start the sweep without re-deriving it:
 5. **The eight shapes are tables in `scripts/decide/registry.js`** (§1 names each). A row
    there, a unit test in `tests/decide-registry.test.js`, a section in the matching
    `tools/smoke-*.mjs` suite is the whole cost of a band-1 item.
-6. **Nothing here blocks anything.** Prod is at v1.30.0 (2026-09-04); the sandbox is the test area, and a release goes out only on the user's word.
+6. **Slice A is §6** — the measured inventory, the tiers in build, what is parked and held.
+   Nothing else here blocks anything. Prod is at v2.0.8 (2026-09-24); the sandbox is the test
+   area, and a release goes out only on the user's word.
 
 ## 1. What the walk taught — the families of change
 
@@ -76,9 +86,9 @@ gifts; the SRD 2024 packs are a subset and were deduplicated against them by nam
 legacy packs (`dnd5e.classfeatures`, `dnd5e.spells`, `dnd5e.races`, `dnd5e.subclasses`) are
 ignored — the table plays 2024.
 
-⚠ **A fifth book, unscanned (2026-09-24): *Arcana Unleashed*** — a core rule expansion on
-magic in the Tasha's shape, 2024 rules, so the ruling above puts it IN. The table below does
-not include it. What it ships, measured on the sandbox by
+⚠ **A fifth book, rescanned 2026-09-24 (§0 item 4 has the totals): *Arcana Unleashed*** — a
+core rule expansion on magic in the Tasha's shape, 2024 rules, so the ruling above puts it IN.
+The kind table below predates it. What it ships, measured on the sandbox by
 [tools/probe-premium-module.mjs](tools/probe-premium-module.mjs) (module v1.0.1, Foundry 14.368
 / dnd5e 6.0.5, pack indexes only — activities and text are the rescan's):
 
@@ -184,14 +194,20 @@ mechanism; what it needs is the existing ones opened up:
    subtracts from the roll: Warding Flare, Cutting Words, Shadowy Dodge, Bend Luck, Cosmic
    Omen, Protection (the fighting style), Soul of Vengeance, Guided Strike (+10 for an ally).
    About a dozen rows, mostly text-only, all spending the Reaction chip. *Cost 2 (a kind).*
+   **Being BUILT in Slice A (2026-09-24, tier 3)** as the `roll` interrupt kind, with three
+   customers: **Warding Flare, Shadowy Dodge, Lucky** (its Disadvantage half) — §6.
 4. **Standing once-per-turn riders with a target judge.** Hunter's Prey (Colossus Slayer: 1d8
    if the target is below its maximum), Superior Hunter's Prey, Frenzy, Bestial Fury, Frigid
    Explorer, Lunar Form, Eldritch Smite, Lifedrinker, Radiant Strikes if the pack's passive
    effect does not already add it. `CLOCK_RIDERS` rows with the `targetDamaged` judge the
    effect table already has. *Cost 1 each.*
-5. **d20 folds beyond the three kinds.** A reroll kind (Halfling Luck, Indomitable, Lucky,
-   Fanatical Focus, Boon of Fortune's Favor) and a damage-die reroll (Savage Attacker, Piercer,
-   Tavern Brawler). *Cost 2 (two kinds), then rows.*
+5. **d20 folds beyond the three kinds.** A reroll kind (Indomitable, Fanatical Focus, Boon of
+   Fortune's Favor) and a damage-die kind (Savage Attacker — the PHB customer, in build in
+   Slice A tier 3 as a keep-either popup; Piercer). *Cost 2 (two kinds), then rows.*
+   ⚠ **Measured 2026-09-24:** Halfling Luck and Tavern Brawler are **NATIVE** — Luck ships
+   `flags.dnd5e.halflingLucky`, which dnd5e 6.0.5 turns into `r1` on attacks, checks, saves
+   and initiative; Tavern Brawler's `r1` is in the feat's own attack formula. Lucky's
+   Advantage half is PARKED (§6), its Disadvantage half is item 3's.
 6. **Range-row cancellers.** Sharpshooter, Crossbow Expert and Spell Sniper exist to negate
    rows the range kind already draws (long range, an enemy within 5 feet, cover). Three feats,
    frequent at the table, one row type. *Cost 1–2.*
@@ -205,8 +221,8 @@ mechanism; what it needs is the existing ones opened up:
    check the effect NAME matches the row). *Cost 1, except the miss trigger.*
 
 **Kinds, by yield.** (a) Races are thin: seven breath weapons the packs already carry, Stone's
-Endurance ✓, three save bends (Brave, Fey Ancestry, Dwarven Resilience — item 1), Luck (item 5),
-the Goliath's Giant Ancestry options. (b) Classes: every core feature that mattered is in;
+Endurance ✓, three save bends (Brave, Fey Ancestry, Dwarven Resilience — item 1), Luck (NATIVE,
+measured 2026-09-24), the Goliath's Giant Ancestry options (the hit menu, §6). (b) Classes: every core feature that mattered is in;
 what remains is Brutal Strike, Stunning Strike, Indomitable, Danger Sense,
 Studied Attacks, Relentless Rage, Second Wind / Tactical Shift — items 1, 2, 5, 8. (c)
 Subclasses are the volume — 156 rows, 44 text-only — and almost all of them land in items 2,
@@ -233,6 +249,11 @@ already carries.
 Then the kind-by-kind walk the user asked for, (a) to (e), reading each row against the
 tables rather than inventing a mechanism per feature ([[examples-are-classes]]).
 
+**Scoped since 2026-09-24 by slice, not by item** (HANDOFF §1): Slice A (species and origin
+feats, §6) takes items 1, 2, 3 and 5 with real content behind them; Slice B (the GM's side)
+takes the kill moment; session 0 of the next campaign sets Slice C onward from the party's own
+kit.
+
 ## 5. The three questions — all RULED 2026-09-03
 
 - ~~Do the 2014 legacy packs stay ignored?~~ **Yes, ignore 2014** (user: "ignore 2014"). The
@@ -246,3 +267,156 @@ tables rather than inventing a mechanism per feature ([[examples-are-classes]]).
   which gate it bends — the attacker/target facets it has today plus a saves facet (abilities +
   bend, the `SAVE_BENDS` shape). The Condition Sources list already switches both gates; this
   follows it. The Reminder Sources list stays the kinds switch for both.
+
+## 6. Slice A — species and origin feats: the drawing (measured 2026-09-24)
+
+The inventory behind HANDOFF §2's plan, measured (its step A0): the rescan (§0 item 4),
+`classify-corpus.mjs --kind race|feat`, four feats read whole off the sandbox, the dnd5e 6.0.5
+bundle for the native flags, `scripts/decide/registry.js` for the tables. The class is **every
+PHB species trait and origin feat** ([[examples-are-classes]]): 45 species rows
+(`dnd-players-handbook.origins`, featType `race`) and 10 origin feats
+(`dnd-players-handbook.feats`, `type.subtype = "origin"` — NOT a featType). **No row is a plain
+ROW today** — every table-shaped one needs a vocabulary item. Every limited use sits on the
+ITEM (`system.uses`, the activity consumes `itemUses`); none carries activity uses.
+
+### The rulings (user, 2026-09-24)
+
+- **PHB first.** Arcana Unleashed's origin feats are the phase AFTER Slice A (§0 item 4).
+- **Tiers 1–3 in build:**
+  - **Tier 1** — the save gate matches `match: "feature"` rows (Brave, Fey Ancestry, Dwarven
+    Resilience), and **Stone's Endurance** on `INTERRUPT_REDUCTIONS` beside Parry.
+  - **Tier 2** — the hit menu's **Giant Ancestry group** (Fire's Burn, Frost's Chill, Hill's
+    Tumble).
+  - **Tier 3** — **Savage Attacker's popup** (the damage-die kind) and the **`roll` interrupt
+    kind** (§3 item 3) with **Warding Flare, Shadowy Dodge and Lucky** (its Disadvantage half)
+    as customers. The UI was ruled off the Slice A prototype the same day: Savage Attacker on
+    the hit, Disadvantage as a rescue of the hit.
+- **PARKED, each with its trigger:**
+  - **Lucky's Advantage half** — works via the sheet today (the pack spends the point, the
+    player sets Advantage on the roll dialog). Reopens if the table asks for it at the gate.
+  - **Trance** — a named-spell scope + an immunity bend. Reopens when an elf sits down against
+    a sleep effect.
+  - **Healer's healing rerolls on spells** — a new kind (reroll 1s on another item's healing
+    dice). Reopens when a Healer plays a healing caster.
+  - **Inner Radiance's turn-end pulse** — a new kind (PB radiant to all within 10 ft at the end
+    of the bearer's turn; the pack rolls once, on use). Reopens when an Aasimar sits down.
+  - **Celestial Revelation's extra damage** — a `CLOCK_RIDERS` row needing a `transformed`
+    judge (two of three forms leave no SELF effect), an attack-or-spell trigger and a flat
+    `@prof` amount. Reopens with the pulse. ⚠ **Pack data defect:** Necrotic Shroud's
+    Frightened lasts **60 s** against the rule's "until the end of your next turn" — fix at
+    the data, never a carve-out.
+- **HELD:** **Relentless Endurance** → Slice B's **kill moment**, built once with Undead
+  Fortitude and the monster Relentless trait.
+- **One pick per hit, for now.** The hit menu carries one pick per hit; **a Goliath Battle
+  Master is the trigger** for the array shape (a maneuver and a boon on the same hit).
+
+### Species — the rows that are not NATIVE or OUT
+
+| Trait | What the pack carries | Verdict → where |
+| --- | --- | --- |
+| **Brave** (Halfling), **Fey Ancestry** (Elf), **Dwarven Resilience** (Poisoned saves) | text-only, no effect | ROW+VOCAB → `EFFECT_BENDS` `saves` `{bend: advantage, statuses: [frightened / charmed / poisoned]}`; the save gate matches effect names only today → the feature match. **Tier 1** |
+| **Stone's Endurance** (Goliath) | heal activity, Reaction, `1d12 + @abilities.con.mod` (the formula IS the reduction — Parry's shape); ITEM `@prof` lr | ROW → `INTERRUPT_REDUCTIONS`. ⚠ **Corrected:** its spend and lookup already work as Parry's — dnd5e fills the empty activity name with the type title "Heal", and an empty consumption target makes `poolOf` return the item, so `pool: true` spends its own uses. The lookup is made locale-proof (name, or type `heal` when unnamed). Attack hits only; save and area damage stays by hand. **Tier 1** |
+| **Fire's Burn**, **Frost's Chill**, **Hill's Tumble** (Goliath) | damage 1d10 fire / damage 1d6 cold + effect "Chilled" (−10 speed) / utility, no save; each ITEM `@prof` lr | ROW+VOCAB → `HIT_OPTIONS` under a Giant Ancestry group paid per option; Hill's Tumble needs a no-save press and a size judge (≤ Large). ⚠ **Corrected:** "Chilled" DOES carry a 1-turn clock (`turnStart`); it is still pinned the Slow mastery's way, so an opportunity attack's clock is the attacker's. **Tier 2** |
+| **Trance** (Elf) | text-only | ROW+VOCAB, low priority. **PARKED** |
+| **Celestial Revelation — the extra damage** (Aasimar) | nothing rolls it | ROW+VOCAB → `CLOCK_RIDERS`. **PARKED** |
+| **Celestial Revelation — Inner Radiance** | damage on use, 10-ft template | NEW-KIND, the turn-end pulse. **PARKED** |
+| **Relentless Endurance** (Orc) | heal activity, no activation ("reduced to 0 HP"); ITEM `1` lr | the kill moment. **HELD → Slice B** |
+
+**NATIVE (23):** Celestial Resistance, Healing Hands, Heavenly Wings, Necrotic Shroud (⚠ the
+60 s defect above), Breath Weapon (the reference item + five typed), Dragonborn Damage
+Resistance, Draconic Flight, Darkvision, Dwarven Resilience's resistance, Dwarven Toughness,
+Stonecunning, Elven Lineage (Drow / High / Wood), **Gnomish Cunning** (a transfer effect,
+`save.roll.mode = 1`), Cloud's Jaunt, **Storm's Thunder** (a plain reaction damage activity),
+Large Form, Powerful Build (carry), Halfling Nimbleness, **Luck** (`flags.dnd5e.halflingLucky`
+→ `r1` inside the roll), Adrenaline Rush, Fiendish Legacy (all three).
+**OUT (11):** Light Bearer, Draconic Ancestry, Keen Senses, Gnomish Lineage (Forest, Rock),
+Giant Ancestry's parent (the container), Naturally Stealthy, Resourceful, Skillful, Versatile,
+Otherworldly Presence — plus Powerful Build's grapple-escape half (a check; no check gate).
+
+### Origin feats — the rows that are not NATIVE or OUT
+
+| Feat | What the pack carries | Verdict → where |
+| --- | --- | --- |
+| **Savage Attacker** | text-only: no activity, effect or uses | NEW-KIND → the damage-die kind: the weapon dice twice, keep either; once per turn by `TURN_CHITS`; owes ARCHITECTURE §11's auto-revert. **Tier 3** |
+| **Lucky — Disadvantage** | utility, no activation, consumes `itemUses` 1; ITEM `@prof` lr, one pool with Advantage | NEW-KIND → the `roll` interrupt (the defender cannot choose pre-roll: `preRollAttackV2` is sync on the attacker's client). **Tier 3** |
+| **Lucky — Advantage** | utility, consumes `itemUses` 1; the pack's Note: spends, does not enforce | ROW+VOCAB (a "next D20 Test" chip window + a save-side read). **PARKED** — the sheet does it |
+| **Healer — Healing Rerolls (spells)** | nothing: the `r1` lives only in Battle Medic's own formulas | NEW-KIND. **PARKED** |
+
+**NATIVE (6):** Alert's initiative (`initiativeAlert`), Healer's Battle Medic (`1dXr1 + @prof`
+in its four activities), Magic Initiate (ONE item, repeatable), Tavern Brawler's strike and
+rerolls (`1d4r1 + @abilities.str.mod` in the feat's own attack), Tavern Brawler's improvised
+weaponry, Tough. **OUT (5):** Alert's initiative swap, Crafter, Musician, Skilled, Tavern
+Brawler's Push (tokens are never moved).
+
+### The rule text, verbatim (the rows' `rule` strings)
+
+- **Brave**: "You have Advantage on saving throws you make to avoid or end the Frightened condition."
+- **Fey Ancestry**: "You have Advantage on saving throws you make to avoid or end the Charmed condition."
+- **Dwarven Resilience**: "You have Resistance to Poison damage. You also have Advantage on saving throws you make to avoid or end the Poisoned condition."
+- **Trance**: "You don’t need to sleep, and magic can’t put you to sleep. You can finish a Long Rest in 4 hours if you spend those hours in a trancelike meditation, during which you retain consciousness."
+- **Fire's Burn**: "When you hit a target with an attack roll and deal damage to it, you can also deal 1d10 Fire damage to that target."
+- **Frost's Chill**: "When you hit a target with an attack roll and deal damage to it, you can also deal 1d6 Cold damage to that target and reduce its Speed by 10 feet until the start of your next turn."
+- **Hill's Tumble**: "When you hit a Large or smaller creature with an attack roll and deal damage to it, you can give that target the Prone condition."
+- **Stone's Endurance**: "When you take damage, you can take a Reaction to roll 1d12. Add your Constitution modifier to the number rolled and reduce the damage by that total."
+- **Celestial Revelation (extra damage)**: "Once on each of your turns before the transformation ends, you can deal extra damage to one target when you deal damage to it with an attack or a spell. The extra damage equals your Proficiency Bonus, and the extra damage’s type is either Necrotic for Necrotic Shroud or Radiant for Heavenly Wings and Inner Radiance."
+- **Celestial Revelation (Inner Radiance)**: "Inner Radiance. Searing light temporarily radiates from your eyes and mouth. For the duration, you shed Bright Light in a 10-foot radius and Dim Light for an additional 10 feet, and at the end of each of your turns, each creature within 10 feet of you takes Radiant damage equal to your Proficiency Bonus."
+- **Relentless Endurance**: "When you are reduced to 0 Hit Points but not killed outright, you can drop to 1 Hit Point instead. Once you use this trait, you can’t do so again until you finish a Long Rest."
+- **Savage Attacker**: "You’ve trained to deal particularly damaging strikes. Once per turn when you hit a target with a weapon, you can roll the weapon’s damage dice twice and use either roll against the target."
+- **Lucky (Disadvantage)**: "When a creature rolls a d20 for an attack roll against you, you can spend 1 Luck Point to impose Disadvantage on that roll."
+
+### New vocabulary (extends a table that exists)
+
+1. **The save gate reads features by name** (`match: "feature"`; the check gate already does)
+   — Brave, Fey Ancestry, Dwarven Resilience; Trance. Tier 1.
+2. **A named-spell scope + an immunity bend** on the saves facet — Trance. Parked.
+3. **A hit-menu group paid from each option's own item uses** (`pool: "option"`) — the three
+   boons. Tier 2. (Corrected: `poolOf` already returns the option item when the consumption
+   target is empty; what is new is one pool per option.)
+4. **The hit menu on any attack roll** — measured: the rider gate is `activity.type !==
+   "attack"`, so spell attacks already qualify; no damage parts, no offer ("and deal damage").
+5. **A no-save press** (`press: "prone"`) — Hill's Tumble. Tier 2.
+6. **A size judge (≤ Large)** — Hill's Tumble (later Trip and Pushing Attack's clause). Tier 2.
+7. **An applied-effect clock, the attacker's next turn start** — Frost's Chill. Tier 2.
+   (Corrected: the pack's "Chilled" carries the clock; the pin is the Slow mastery's, for the
+   opportunity attack.)
+8. **An interrupt reduction spent from item uses, found without a stored name** — Stone's
+   Endurance. Tier 1. (Corrected: both already work as Parry's; the lookup is made
+   locale-proof and the wording carries the row's own eyebrow and spend.)
+9. **A `transformed` judge + an attack-or-spell trigger + a flat `@prof` amount** on
+   `CLOCK_RIDERS` — Celestial Revelation. Parked.
+10. **A "next D20 Test" chip window + a save-side read of the chip** — Lucky's Advantage.
+    Parked.
+
+### New kinds
+
+- **The `roll` interrupt** — a defender's post-roll answer that bends the attacker's d20 (a
+  second die taken low, then a re-verdict). Customers: Warding Flare, Shadowy Dodge, Lucky's
+  Disadvantage. Tier 3.
+- **The damage-die kind** (keep either of two full sets of the weapon dice) — Savage Attacker.
+  Tier 3.
+- **Healing-die reroll-1s on spells** — Healer. Parked.
+- **The turn-end aura pulse** — Inner Radiance. Parked.
+- **The kill moment** — Relentless Endurance. Held for Slice B.
+- *Not needed:* a d20 reroll fold for Halfling Luck — the system does it natively.
+
+### What HANDOFF §2 got wrong against the data
+
+1. **Halfling Luck is NATIVE**, not a d20-reroll fold (the flag becomes `r1` inside attack,
+   check, save and initiative rolls).
+2. **Gnomish Cunning is NATIVE**, not a row (a transfer effect, `save.roll.mode = 1`).
+3. **Brave, Fey Ancestry and Dwarven Resilience are not plain rows** — text-only; the saves
+   facet matches effect names, never a feature (vocabulary 1).
+4. **The Goliath boons land on the hit menu**, not `CLOCK_RIDERS` / `SAVE_PRESSES` — no
+   once-per-turn clock, ITEM uses, Frost's Chill applies an effect, Hill's Tumble has no save.
+5. **Tavern Brawler is not a damage-die customer** — its `r1` is in its own formula.
+6. **Stone's Endurance is not a d20-interrupt neighbour** — a damage reduction on
+   `INTERRUPT_REDUCTIONS`, and (corrected) it spends and resolves as Parry's already.
+7. **Storm's Thunder needs nothing** — a plain reaction damage activity.
+8. **Healer is not "nothing"** — Battle Medic is native; spell healing rerolls are uncarried
+   (and the pack spends neither the Healer's Kit use nor the target's Hit Die).
+9. **Celestial Revelation is more than a use chip plus a clock rider** — the pack's own
+   activities spend the use; the rider's judge has no self effect in two of three forms; Inner
+   Radiance's pulse is a new kind; Necrotic Shroud's clock is wrong in the data.
+10. **Magic Initiate is one item**, not three.
+11. **The classifier misses rows** — Lucky, Fire's Burn and Hill's Tumble get no family;
+    Healer's `d20-fold` is a false positive (a healing die).
