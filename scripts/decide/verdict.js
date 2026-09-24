@@ -101,7 +101,14 @@ export const ATTACK_FOLDS = [
       if ( (t.kind === "negate") || (t.verdict === "negated") ) {
         return { uuid: t.uuid, verdict: t.verdict };
       }
-      if ( Number.isFinite(t.acAtVerdict) ) return { uuid: t.uuid, ac: t.acAtVerdict };
+      // A `roll` answer (Slice A, 2026-09-24 — Lucky, Warding Flare, Shadowy Dodge): Disadvantage
+      // imposed after the hit showed. The bent d20 is a REPLACE for this target alone — it carries
+      // its own crit and fumble (a natural 20 under Disadvantage can stop being one), which is why
+      // it cannot be an `add` — beside the AC it was judged against, so a later fold still composes.
+      const bent = Number.isFinite(t.bent?.total)
+        ? { replace: { total: t.bent.total, isCritical: t.bent.isCritical === true, isFumble: t.bent.isFumble === true } }
+        : {};
+      if ( Number.isFinite(t.acAtVerdict) ) return { uuid: t.uuid, ac: t.acAtVerdict, ...bent };
       return { uuid: t.uuid, verdict: t.verdict };
     }
   },

@@ -22,7 +22,7 @@ const REFERENCE = {
   requireTarget: true,
   reactionHold: true,
   blockList: 'Magic Missile:Shield',
-  interruptList: 'Shield:ac, Absorb Elements:damage, Uncanny Dodge:damage, Defensive Duelist:ac, Illusory Self:ac, Glorious Defense:ac, Parry:ac, Counterattack:ac, Defensive Stance:ac, Whirlwind of Sand:ac, Deflect Attacks:damage, Stone\'s Endurance:damage',
+  interruptList: 'Shield:ac, Absorb Elements:damage, Uncanny Dodge:damage, Defensive Duelist:ac, Illusory Self:ac, Glorious Defense:ac, Parry:ac, Counterattack:ac, Defensive Stance:ac, Whirlwind of Sand:ac, Deflect Attacks:damage, Stone\'s Endurance:damage, Lucky:roll, Warding Flare:roll, Shadowy Dodge:roll',   // the roll kind joined 2026-09-24 (Slice A)
   holdReveal: true,
   holdTimer: 24,          // user 2026-08-27: all timers 24s (30 briefly the same day; 15 per 2026-08-17, 12 before)
   holdSkipFutile: true,
@@ -74,6 +74,7 @@ const REFERENCE = {
   metamagicList: LIST_SPECS.metamagic.default,              // the whole metamagic table, as shipped (2026-09-09)
   spentAreaList: LIST_SPECS.spentAreas.default,             // the whole spent-area table, as shipped (2026-09-10)
   chosenAreaList: LIST_SPECS.chosenAreas.default,           // the whole chosen-area table, as shipped (2026-09-24)
+  damageEitherList: LIST_SPECS.damageEither.default,        // the whole rolled-twice table, as shipped (Slice A, 2026-09-24)
 };
 
 const f = new Foundry(foundryConfig(env));

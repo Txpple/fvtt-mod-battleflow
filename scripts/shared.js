@@ -256,6 +256,20 @@ export function damagePartsOf(rolls) {
 }
 
 /**
+ * A damage message's rolls rebuilt from PATCHED roll data (decide/damage-dice.js — a die struck,
+ * a face added), each total re-evaluated so every reader downstream sees the new number. Lifted
+ * out of metamagic.js (Empowered Spell, 2026-09-09) on 2026-09-24 when Savage Attacker became the
+ * second customer (Slice A). ⚠ `_evaluateTotal` is PRIVATE Foundry API, accepted since Empowered
+ * shipped: `Roll.fromData` restores the stored `_total`, and the terms' new results only count
+ * once the total is taken again. One home, so a Foundry release that renames it breaks one line.
+ * @param {object[]} rollsData  `Roll#toJSON` shapes
+ * @returns {Roll[]}
+ */
+export function rebuildRolls(rollsData) {
+  return (rollsData ?? []).map(rd => { const r = Roll.fromData(rd); r._total = r._evaluateTotal(); return r; });
+}
+
+/**
  * A human's answer turned into the roll configuration it implies — spread straight into a
  * `rollSavingThrow`/`rollConcentration` config, and EMPTY when the answer asked for nothing.
  *

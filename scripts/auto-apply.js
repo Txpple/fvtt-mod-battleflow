@@ -3,7 +3,7 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, whisperNoGM,
-  queueFlagWrite, statContext } from "./core.js";
+  queueFlagWrite, statContext, isActiveGM } from "./core.js";
 import { receiptEntry, joinDamageReceipt } from "./decide/receipt.js";
 import { interruptMultiplier, reduceDamages } from "./decide/verdict.js";
 import { INTERRUPT_MULTIPLIERS } from "./decide/registry.js";
@@ -39,10 +39,18 @@ function payoutSubject(message) {
 // render is the reload resume — only an ex-claimed, unreceipted roll resumes. The re-entry guard
 // (the release write and a render can land in one tick, and over-applying damage is the worst
 // failure this module has) is the spine's `attackDamage|<id>` latch now.
+// ⚠ A SECOND CLAIM (Slice A, 2026-09-24): Savage Attacker's question — roll the weapon's dice
+// again? — is asked AFTER the dice and BEFORE they land ("the damage waits for the answer", the
+// ruled prototype), so a damage message born with `either` due holds the application until the
+// answer settles it; the settling write is the bus event, the same as the hold's release. The
+// dice land once, with whichever set stood — nothing applied has to be moved.
+const EITHER_WAITS = new Set(["due", "pending", "answering"]);
+const eitherWaits = message => EITHER_WAITS.has(message.getFlag(MODULE_ID, "either")?.status);
 registerResumable("attackDamage", {
   flagless: true,
   pending: (_flag, message, cause) => (cause === "create")
-    || ((message.getFlag(MODULE_ID, "attackHoldPending") === false) && !message.getFlag(MODULE_ID, "receipt")),
+    || ((message.getFlag(MODULE_ID, "attackHoldPending") === false) && !message.getFlag(MODULE_ID, "receipt"))
+    || (!!message.getFlag(MODULE_ID, "either") && !eitherWaits(message) && !message.getFlag(MODULE_ID, "receipt")),
   drives: (_flag, message) => drivesMomentFor(payoutSubject(message))
     && (setting(S.autoApply) || setting(S.effectRiders) || setting(S.masteryRiders)),
   drive: resolveAttackDamage
@@ -59,6 +67,7 @@ async function resolveAttackDamage(message) {
     const hold = attackMessage.getFlag(MODULE_ID, "hold");
     if ( !hold || (hold.status === "pending") ) return;
   }
+  if ( eitherWaits(message) ) return;   // Savage Attacker's answer first (the claim above)
   if ( message.getFlag(MODULE_ID, "receipt") ) return;               // applied already (resume)
   const hits = hitTargets(attackMessage);
   if ( !hits.length ) return; // every target Shield-flipped: the dice do nothing, by ruling
@@ -186,6 +195,34 @@ export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { n
     }
   } catch(err) {
     console.error(`${TITLE} | Auto-apply failed.`, err);
+  }
+}
+
+/**
+ * Damage ALREADY applied off a message whose dice were rerolled after the fact is moved by the
+ * difference — the §11 *Adding a FOLD* rule 4 obligation, carried through the one applier above
+ * as its own receipt (revertable like any other); a total that fell heals the difference back the
+ * same way. Lifted out of metamagic.js (Empowered Spell, 2026-09-09) on 2026-09-24 for its second
+ * customer, Savage Attacker (Slice A): `feature` names the source on the note and the whisper, and
+ * Empowered's bytes are unchanged. Only the elect applies; anyone else says so.
+ * @param {ChatMessage} message
+ * @param {{delta: number, feature: string}} outcome
+ */
+export async function moveAppliedDamage(message, { delta, feature }) {
+  const receipt = message.getFlag(MODULE_ID, "receipt");
+  const targets = (receipt?.targets ?? []).filter(t => !t.reverted);
+  if ( !targets.length || !delta ) return;
+  const type = message.rolls?.[0]?.options?.type ?? null;
+  if ( !isActiveGM() ) {
+    await whisperNoGM(`${feature} moved the damage by ${delta > 0 ? "+" : ""}${delta} on ${targets.map(t => t.name).join(", ")} — already applied; adjust by hand`);
+    return;
+  }
+  for ( const t of targets ) {
+    const multiplier = Number(t.multiplier ?? 1) || 1;
+    const amount = Math.abs(delta);
+    const damages = delta > 0 ? [{ value: amount, type }] : [{ value: amount, type: "healing" }];
+    await applyDamagesWithReceipt(message, [{ uuid: t.uuid, name: t.name }], damages,
+      { note: delta > 0 ? `${feature} — the reroll` : `${feature} — rerolled lower`, multiplier });
   }
 }
 

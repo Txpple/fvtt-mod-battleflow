@@ -13,8 +13,10 @@
  */
 import { MODULE_ID, TITLE } from "../core.js";
 import { limitedUses, isReactionItem, isTextOnlyFeature } from "../decide/eligible.js";
-import { INTERRUPT_REDUCTIONS } from "../decide/registry.js";
+import { INTERRUPT_MULTIPLIERS, INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "../decide/registry.js";
+import { d20ModeOf, liveRows, plainRule, rescueRows } from "../decide/rescue-hit.js";
 import { interruptEntries } from "../settings.js";
+import { lower, activityNamed } from "../lookup.js";
 import { reactionSpent, poolOf, placeOf, chipData } from "../shared.js";
 import { chipClock } from "../decide/chips.js";
 import { applyEffectsTo } from "../effect-riders.js";
@@ -142,11 +144,16 @@ function reductionFor(item, reactionName) {
 }
 
 /**
- * The first curated interrupt this actor can actually use right now, or null.
+ * The first curated interrupt this actor can actually use right now, or null. `spentOk` asks
+ * past a spent Reaction — only for the greyed row the popup that rescues a hit shows beside a live
+ * `roll` row (Slice A, 2026-09-24: "a spent row stays, greyed, with the reason as its tag").
  */
-export async function findInterrupt(actor, { isCritical }) {
-  if ( !actor || reactionSpent(actor) ) return null;
+export async function findInterrupt(actor, { isCritical, spentOk = false }) {
+  if ( !actor || (!spentOk && reactionSpent(actor)) ) return null;
   for ( const entry of interruptEntries() ) {
+    // The `roll` kind (Slice A) is never the ONE reaction this walk finds: its rows ride beside it,
+    // every one the sheet holds (rollRescuesOf, below), and a spent Reaction does not hide Lucky.
+    if ( entry.kind === "roll" ) continue;
     const found = await usableReaction(actor, entry.name);
     if ( !found ) continue;
     // A reduction row makes the reaction a `damage` interrupt whatever the list's kind says —
@@ -185,6 +192,106 @@ export async function findInterrupt(actor, { isCritical }) {
     return { entry, ...found };
   }
   return null;
+}
+
+/**
+ * The `roll` rows this actor holds (Slice A, ruled 2026-09-24): every Interrupt-list entry of the
+ * `roll` kind whose feature is on the sheet, with the facts its row is drawn from — the cost
+ * shape off INTERRUPT_ROLLS, the uses left read live off the ITEM (N1). Every row, spent or not:
+ * the popup greys a spent one with its reason (decide/rescue-hit.js `rescueRows`).
+ * ⚠ A row that spends uses demands the item carry them: the 2014 Halfling's "Lucky" trait shares
+ * the name and has none — it is the natural-1 reroll dnd5e plays itself.
+ * @returns {{name: string, row: object, item: Item, activity: object|null, left: number|null, max: number|null}[]}
+ */
+export function rollRescuesOf(actor) {
+  if ( !actor ) return [];
+  const out = [];
+  for ( const entry of interruptEntries() ) {
+    if ( entry.kind !== "roll" ) continue;
+    const key = Object.keys(INTERRUPT_ROLLS).find(k => lower(k) === lower(entry.name));
+    const row = key ? INTERRUPT_ROLLS[key] : null;
+    if ( !row ) continue;   // a `roll` entry the table has no cost shape for: nothing to spend, never guessed
+    const item = actor.items.find(i => (i.type === "feat") && (lower(i.name) === lower(key))
+      && (!row.uses || (Number(i.system?.uses?.max) > 0)));
+    if ( !item ) continue;
+    const max = row.uses ? Number(item.system.uses.max) : null;
+    out.push({ name: key, row, item, activity: activityNamed(item, row.activity),
+      left: row.uses ? Math.max(0, Number(item.system.uses.value ?? 0)) : null, max });
+  }
+  return out;
+}
+
+/** The facts a rescue row is judged on, read off the actor and the attack roll. */
+function rescueFactsOf(actor, roll) {
+  const d20 = roll?.dice?.[0] ?? null;
+  return { reactionSpent: reactionSpent(actor), isCritical: !!roll?.isCritical,
+    mode: d20ModeOf({ number: d20?.number, modifiers: d20?.modifiers }) };
+}
+
+/** A found reaction as the plain facts its row is drawn from (decide/rescue-hit.js `rescueRows`). */
+function primaryFacts(actor, found) {
+  const kind = found.reduce ? "damage" : found.entry.kind;
+  const item = found.item;
+  const spell = (item?.type === "spell") || (found.activity?.type === "cast");
+  const max = Number(item?.system?.uses?.max);
+  const multiplierKey = Object.keys(INTERRUPT_MULTIPLIERS).find(k => lower(k) === lower(found.entry.name));
+  return { name: found.entry.name, kind,
+    bonus: (kind === "ac") ? reactionACBonus(found.entry.name, actor, { itemId: item?.id, activityId: found.activity?.id }) : null,
+    spell, pool: !!found.reduce, multiplier: multiplierKey ? INTERRUPT_MULTIPLIERS[multiplierKey].multiplier : null,
+    uses: (!spell && (max > 0)) ? { left: Number(item.system.uses.value ?? 0), max } : null };
+}
+
+/** A `roll` record as the plain facts its row is drawn from. */
+const rollFacts = r => ({ name: r.name, reaction: r.row.reaction, uses: r.row.uses, point: r.row.point ?? null, left: r.left });
+
+/**
+ * THE POPUP THAT RESCUES A HIT — what it would hold for this defender right now (Slice A, ruled
+ * 2026-09-24): the rows (decide/rescue-hit.js `rescueRows`), the records the hold stamps, and
+ * whether any row is live. Null when the defender holds no `roll` row at all — the hold then
+ * stays exactly the one-reaction popup it has always been.
+ *
+ * The reaction row: `found` when the walk found one live. When it did not, a reaction the actor
+ * holds is still SHOWN, greyed, where the reason is a fact the table can see — the Reaction spent
+ * this round, or a natural 20 that no AC can answer ("a crit ignores AC", prototype scene 2c) —
+ * and never otherwise (a Shield already standing, a hopeless one: `hidePrimary`).
+ * @param {Actor} actor
+ * @param {object} roll  the attack's D20Roll
+ * @param {{found?: object|null, hidePrimary?: boolean}} [opts]
+ */
+export async function rescueStateOf(actor, roll, { found = null, hidePrimary = false } = {}) {
+  const rolls = rollRescuesOf(actor);
+  if ( !rolls.length ) return null;
+  const facts = rescueFactsOf(actor, roll);
+  let shown = found;
+  if ( !found && !hidePrimary ) {
+    const candidate = await findInterrupt(actor, { isCritical: false, spentOk: true });
+    const kind = candidate ? (candidate.reduce ? "damage" : candidate.entry.kind) : null;
+    if ( candidate && (facts.reactionSpent || (facts.isCritical && (kind === "ac"))) ) shown = candidate;
+  }
+  const rows = rescueRows({ primary: shown ? primaryFacts(actor, shown) : null, rolls: rolls.map(rollFacts), facts });
+  return { rows, live: liveRows(rows).length > 0,
+    records: rolls.map(r => ({ name: r.name, itemId: r.item.id, activityId: r.activity?.id ?? null })) };
+}
+
+/**
+ * The rows as the popup draws them NOW: the stamped rows, the `roll` rows' costs re-read live (a
+ * Luck Point spent on another hold since, the Reaction taken) — and each with its rule, verbatim
+ * (law 8): a `roll` row's off INTERRUPT_ROLLS, the reaction's off its own item's text.
+ * @param {Actor} actor
+ * @param {{rows?: object[], reaction?: string, itemId?: string, activityId?: string|null}} target
+ * @param {object} roll
+ */
+export function rescueRowsNow(actor, target, roll) {
+  const stamped = target?.rows ?? [];
+  const fresh = new Map(rescueRows({ primary: null, rolls: rollRescuesOf(actor).map(rollFacts),
+    facts: rescueFactsOf(actor, roll) }).map(r => [r.key, r]));
+  return stamped.map(r => {
+    const now = (r.kind === "roll") ? (fresh.get(r.key) ?? { ...r, off: "no longer on the sheet", tag: "no longer on the sheet" }) : r;
+    const rollKey = Object.keys(INTERRUPT_ROLLS).find(k => lower(k) === lower(r.key));
+    const rule = rollKey ? INTERRUPT_ROLLS[rollKey].rule
+      : plainRule(reactionItem(actor, r.key, (r.key === target.reaction) ? target : {})?.system?.description?.value ?? "");
+    return { ...now, rule };
+  });
 }
 
 /** The spell a `cast` activity casts — the activity's own name is decoration, the link is truth. */

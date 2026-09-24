@@ -277,6 +277,90 @@ describe("foldsFrom + ATTACK_FOLDS — the registry that replaced the named para
     expect(folds).toEqual([{ uuid: "a", verdict: "negated", from: "hold" }]);
   });
 
+  // Slice A (2026-09-24): Lucky, Warding Flare, Shadowy Dodge — Disadvantage imposed after the hit.
+  // The bent d20 is a REPLACE for its own target, beside the AC it was judged against.
+  it("a `roll` answer contributes its bent roll as a replace, beside its AC", () => {
+    const folds = v.foldsFrom(
+      read({
+        hold: {
+          targets: [
+            {
+              uuid: "a",
+              kind: "roll",
+              answer: "roll",
+              verdict: "miss",
+              acAtVerdict: 15,
+              bent: { total: 13, isCritical: false, isFumble: false }
+            },
+            { uuid: "b", kind: "ac", verdict: "hit", acAtVerdict: 15 }
+          ]
+        }
+      })
+    );
+    expect(folds).toEqual([
+      {
+        uuid: "a",
+        ac: 15,
+        replace: { total: 13, isCritical: false, isFumble: false },
+        from: "hold"
+      },
+      { uuid: "b", ac: 15, from: "hold" }
+    ]);
+  });
+
+  it("the bent roll decides the verdict for ITS target only — the other still sees the rolled 17", () => {
+    const roll = { total: 17, isCritical: false, isFumble: false };
+    const folds = v.foldsFrom(
+      read({
+        hold: {
+          targets: [
+            { uuid: "a", answer: "roll", verdict: "miss", acAtVerdict: 15, bent: { total: 13 } },
+            { uuid: "b", verdict: "hit", acAtVerdict: 15 }
+          ]
+        }
+      })
+    );
+    expect(
+      v
+        .hitsAmong({
+          targets: [
+            { uuid: "a", ac: 15 },
+            { uuid: "b", ac: 15 }
+          ],
+          roll,
+          folds
+        })
+        .map(t => t.uuid)
+    ).toEqual(["b"]);
+  });
+
+  it("a natural 20 the bent roll undid is no longer a crit — and a 16 against AC 15 still hits", () => {
+    const roll = { total: 25, isCritical: true, isFumble: false };
+    const folds = v.foldsFrom(
+      read({
+        hold: {
+          targets: [
+            {
+              uuid: "a",
+              answer: "roll",
+              verdict: "hit",
+              acAtVerdict: 15,
+              bent: { total: 16, isCritical: false }
+            }
+          ]
+        }
+      })
+    );
+    const mine = folds.filter(f => f.uuid === "a");
+    expect(v.foldedRoll(roll, mine)).toMatchObject({
+      total: 16,
+      isCritical: false,
+      replaced: true
+    });
+    expect(v.foldedVerdict({ uuid: "a", ac: 15 }, roll, folds)).toBe("hit");
+    expect(v.foldedVerdict({ uuid: "a", ac: 17 }, roll, folds)).toBe("hit"); // the hold's own AC (15) is the one judged
+  });
+
   it("a hold with no acAtVerdict falls back to its baked verdict", () => {
     const folds = v.foldsFrom(read({ hold: { targets: [{ uuid: "a", verdict: "miss" }] } }));
     expect(folds).toEqual([{ uuid: "a", verdict: "miss", from: "hold" }]);

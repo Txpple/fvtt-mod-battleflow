@@ -960,3 +960,27 @@ export function rescueRowsHTML(rows = []) {
     </button>`;
   }).join("");
 }
+
+/**
+ * THE OFFER ROW, TICKED (Slice A, ruled 2026-09-24 off prototypes/slice-a.html): one row per
+ * source — a tick, the name and what it does, a FACT as the tag (the cost, or why it cannot be
+ * taken), and "the rule ▸" folded under it. ⚠ NOTHING ELSE on the row, above it or below it (the
+ * standing rule, 2026-09-05: never a caveat line). A row that cannot be taken stays, greyed, its
+ * reason as the tag. One tick at a time (the EDGE unticks the sibling); the tick stays even on a
+ * one-row popup (the ruling). Serves the popup that rescues a hit (the `roll` interrupt) and
+ * Savage Attacker's "roll it again?".
+ * @param {{name: string, rows: {key: string, name: string, dice?: string|null, tag?: string|null,
+ *          off?: string|null, rule?: string|null}[]}} view
+ */
+export function tickRowsHTML({ name, rows }) {
+  const items = (rows ?? []).map(r => `
+      <label data-bf-tick-row="${attr(r.key)}" style="display:grid;grid-template-columns:auto 1fr auto;gap:0.2rem 0.5rem;align-items:center;
+             margin:0.3rem 0;padding:0.35rem 0.5rem;border-radius:4px;background:rgba(0,0,0,0.06);
+             border:1px solid var(--color-border-light,rgba(0,0,0,0.2));${r.off ? "opacity:0.5;" : "cursor:pointer;"}">
+        <input type="checkbox" name="${attr(name)}" value="${attr(r.key)}" ${r.off ? "disabled" : ""} style="margin:0;">
+        <span style="font-weight:bold;">${esc(r.name)}${r.dice ? ` <span style="font-weight:normal;opacity:0.8;">${esc(r.dice)}</span>` : ""}</span>
+        <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;${r.off ? "color:var(--color-level-error,#b44);" : ""}">${esc(r.off ?? r.tag ?? "")}</span>
+        ${foldedRuleHTML(r.rule ?? "").replace("grid-column:1 / -1", "grid-column:2 / -1")}
+      </label>`).join("");
+  return `<div data-bf-ticks="${attr(name)}" style="margin-top:0.4rem;">${items}</div>`;
+}

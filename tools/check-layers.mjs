@@ -98,6 +98,7 @@ export const LAYER_OF = {
   "clock-riders.js": "machines",
   "use-chips.js": "machines",
   "metamagic.js": "machines",   // the Sorcerer's options in the cast dialog, the points on the card (2026-09-09)
+  "damage-either.js": "machines",   // the damage dice rolled twice — Savage Attacker on a weapon hit (Slice A, 2026-09-24)
   "emanations.js": "machines",
   "hit-menu.js": "machines",
   "damage-shields.js": "machines",
@@ -129,6 +130,8 @@ export const LAYER_OF = {
   "decide/geometry.js": "decision",
   "decide/metamagic.js": "decision",
   "decide/area-ask.js": "decision",
+  "decide/rescue-hit.js": "decision",    // the `roll` interrupt's arithmetic and rows (Slice A, 2026-09-24)
+  "decide/damage-dice.js": "decision",   // the damage-dice folds' patch — Empowered per die, Savage per set (2026-09-24)
   "decide/registry.js": "decision",
   "decide/verdict.js": "decision",
   "decide/eligible.js": "decision",

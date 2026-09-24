@@ -132,6 +132,11 @@ import "./use-chips.js";
 // Metamagic (2026-09-09): the pick rides the cast dialog, the points spend on the card. Before
 // saves/ so its birth flag exists on the same preCreate cycle the demand stamp reads.
 import "./metamagic.js";
+// The damage dice rolled twice (Slice A, 2026-09-24 — Savage Attacker): Empowered's fold on a weapon
+// hit's dice, beside it — the same seams (preRollDamageV2's birth flag, rollDamageV2's offer), a
+// card line under the damage roll's own. Its preRollDamageV2 registration lands after every rider's,
+// which is nothing it reads: the weapon's roll count is auto-damage.js's, taken first.
+import "./damage-either.js";
 // ⚠ THE MANEUVER FOLDS after mastery.js, before concentration.js ON PURPOSE (v1.19.0): their
 // card rows must render below the mastery rows and above the saves verdict row / receipt rows —
 // renderChatMessage surface order IS registration order. check-hook-order.mjs asserts it.

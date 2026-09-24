@@ -8,6 +8,7 @@ import { hitTargets, modeAllows } from "./shared.js";
 import { TONE, esc } from "./decide/present.js";
 import { CONDITION_BENDS } from "./decide/registry.js";
 import { autoCritSources } from "./decide/reminders.js";
+import { critStands } from "./decide/rescue-hit.js";
 import { CARD, isCard, originData, originIdInData, originIdOf } from "./decide/card.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { stampHoldIfInterrupted } from "./hold/index.js";
@@ -53,7 +54,19 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
   // The stamp still raises the popup and the clock; the roll below is born attackHoldPending
   // (rollDamageForAttack reads the hold), and the resolution releases or discards it.
   await stampHoldIfInterrupted(attackMessage, rolls[0], hits);
+  // The ONE case the dice wait for the hold (Slice A, 2026-09-24): a crit a live Disadvantage row
+  // could undo — doubled dice rolled now would be wrong the moment the second d20 comes up lower.
+  // The hold's continuation rolls them (`damageAfterHold`, below), crit or not as the answer left it.
+  if ( attackMessage.getFlag(MODULE_ID, "hold")?.critAtStake ) return;
+  return offerOrRollDamage(subject, attackMessage);
+});
 
+/**
+ * The damage after a hit: offered to the attacker, or rolled after the dramatic beat. The tail
+ * of the attack trigger above, and the hold's continuation's for a crit it held back (Slice A,
+ * 2026-09-24 — one path, so the held crit's dice are offered and rolled exactly as any hit's).
+ */
+function offerOrRollDamage(subject, attackMessage) {
   // The player asked for their own dice back: offer the roll instead of taking it. The popup
   // IS the pause, so it ABSORBS the dramatic beat rather than stacking a 15s window behind a
   // 3s wait (FLOW item 3, decision 2) — a beat is a held breath, and you cannot hold one twice.
@@ -69,7 +82,27 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
 
   const beat = (Math.max(0, Number(setting(S.dramaticBeat)) || 0)) * 1000;
   setTimeout(() => rollDamageForAttack(subject, attackMessage), beat);
-});
+}
+
+/**
+ * The crit the hold held back (Slice A, 2026-09-24; hold/continue.js calls it once the hold has
+ * resolved): the attack's damage, offered or rolled exactly as at the hit — provided the attack
+ * still hits someone. A Disadvantage that turned it into a miss leaves no dice to roll.
+ * @param {ChatMessage} attackMessage
+ */
+export async function damageAfterHold(attackMessage) {
+  try {
+    if ( !hitTargets(attackMessage).length ) return;
+    const activity = attackMessage.getAssociatedActivity?.() ?? null;
+    if ( !activity ) {
+      console.warn(`${TITLE} | The held crit's damage has no activity to roll from — roll it from the card.`);
+      return;
+    }
+    return offerOrRollDamage(activity, attackMessage);
+  } catch(err) {
+    console.error(`${TITLE} | The held crit's damage failed — roll it from the card.`, err);
+  }
+}
 
 /* ---------------------------------------------------------------------------------------------
  * THE CRIT, ONE SOURCE (user, 2026-09-02 — "an attack within 5 feet of paralyzed auto crits").
@@ -91,8 +124,12 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
  *            sources: {status: string, label: string, rule: string}[], dropped: string[]}}
  */
 function critFor(attackMessage) {
-  const rolled = attackMessage?.rolls?.[0]?.isCritical ?? false;
-  const out = { isCritical: rolled, rolled, auto: false, sources: [], dropped: [] };
+  const d20Crit = attackMessage?.rolls?.[0]?.isCritical ?? false;
+  // A NATURAL 20 THE HOLD UNDID (Slice A, 2026-09-24): a defender's Disadvantage bent the roll and
+  // the lower d20 stood, so the d20 no longer says crit for that target — and one roll serves every
+  // hit target, so it doubles only while it stands for all of them (decide/rescue-hit.js).
+  const rolled = d20Crit && rolledCritStands(attackMessage);
+  const out = { isCritical: rolled, rolled, undone: d20Crit && !rolled, auto: false, sources: [], dropped: [] };
   try {
     const hits = hitTargets(attackMessage);
     if ( !hits.length ) return out;
@@ -118,6 +155,19 @@ function critFor(attackMessage) {
     console.error(`${TITLE} | Automatic crit judgement failed — the d20's own verdict stands.`, err);
   }
   return out;
+}
+
+/** Does the d20's own crit still stand after the hold — no bent roll took it from a hit target? */
+function rolledCritStands(attackMessage) {
+  try {
+    const bents = Object.fromEntries((attackMessage?.getFlag(MODULE_ID, "hold")?.targets ?? [])
+      .filter(t => t.bent).map(t => [t.uuid, t.bent]));
+    if ( !Object.keys(bents).length ) return true;
+    return critStands({ rolledCrit: true, hitUuids: hitTargets(attackMessage).map(t => t.uuid), bents });
+  } catch(err) {
+    console.error(`${TITLE} | The bent roll's crit could not be read — the d20's own verdict stands.`, err);
+    return true;
+  }
 }
 
 /**
@@ -146,9 +196,18 @@ export function attackMessageForDamage(config, message) {
 Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
   try {
     if ( config?.subject?.type !== "attack" ) return;
+    // HOW MANY OF THESE ROLLS ARE THE ACTIVITY'S OWN (Slice A, 2026-09-24): dnd5e builds the
+    // activity's damage parts first and every rider (a mark, Sneak Attack, a clock rider, a
+    // maneuver's die) pushes its roll AFTER — and this registration is the first on the hook
+    // (tools/hook-order.snapshot), so the count is taken before any rider has run. Savage Attacker
+    // rolls "the weapon's damage dice" again: these, never a rider's (damage-either.js).
+    foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.weaponRolls`, config.rolls?.length ?? 0);
     const attackMessage = attackMessageForDamage(config, message);
     if ( !attackMessage ) return;
     const crit = critFor(attackMessage);
+    // The card's own Damage button carries the d20's crit into this config: a crit the hold
+    // undid (Slice A) is taken back out, the way a condition's crit is put in below.
+    if ( crit.undone && !crit.auto ) { config.isCritical = false; return; }
     if ( !crit.auto ) return;
     config.isCritical = true;
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.autoCrit`,

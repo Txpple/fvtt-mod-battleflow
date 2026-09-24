@@ -188,6 +188,7 @@ const WORLD_WRITERS = {
   "hew.js": "a reminder's card and its notice latch — presentation; the extra attack is a real roll with its own card",
   "d20-folds.js": ["d20fold", "tacticalRefund", "poolSpend"],
   "metamagic.js": ["metamagic", "empowered", "poolSpend"],
+  "damage-either.js": ["either"],   // Savage Attacker (Slice A, 2026-09-24): the patched rolls land with the record; a damage already applied moves through auto-apply.js's receipt
   "area-ask.js": ["metamagic", "areaChoice", "saves"],   // the ask at the area (2026-09-24, out of metamagic.js): its answer writes the metamagic record, a chosen area's choice and the demand it fills
   "concentration.js": ["concentration", "effectReceipt"],
   "saves/areas.js": ["saves"],

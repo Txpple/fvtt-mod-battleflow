@@ -9,12 +9,13 @@
  */
 import { MODULE_ID, S, setting, canAnswerFor, isContinuingClient } from "../core.js";
 import { INTERRUPT_REDUCTIONS } from "../decide/registry.js";
-import { bfCard, popupKey, holdBarHTML, ruleLine, spendLine, spendPhrase } from "../decide/present.js";
+import { bfCard, popupKey, holdBarHTML, ruleLine, spendLine, spendPhrase, tickRowsHTML } from "../decide/present.js";
+import { bentLines, liveRows, rescueTitle } from "../decide/rescue-hit.js";
 import { poolOf } from "../shared.js";
 import { openMomentPopup, momentButton, scheduleBarSync, shownMoments } from "../ui.js";
-import { reactionItem, reactionImg, reactionACBonus } from "./lookup.js";
+import { reactionItem, reactionImg, reactionACBonus, rescueRowsNow } from "./lookup.js";
 import { armHoldTimer } from "./clock.js";
-import { answerHold, castReaction } from "./answer.js";
+import { answerHold, castReaction, rescueReaction } from "./answer.js";
 import { continueHold } from "./continue.js";
 import { SURFACES } from "../surfaces.js";
 
@@ -112,6 +113,21 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         else if ( target.answer === "pass" ) lines.push(target.timedOut
           ? "The reaction window closed — no answer, so the attack lands."
           : "Let it land — no reaction.");
+      }
+      // THE ATTACKER'S VIEW OF A BENT ROLL (Slice A, prototype scene 2d, ruled 2026-09-24): the
+      // eyebrow names the source, the first line who bent the roll and what it did — "Lucky bent the
+      // roll — Disadvantage, 17 → 13, MISS" — and the struck d20 sits under it for anyone checking.
+      // A resolved view, so it draws itself and returns: nothing below (the maneuver words, the
+      // controls, the resumes) belongs to a hold that is done.
+      if ( (target.answer === "roll") && target.bent && target.verdict && (hold.status !== "pending") ) {
+        const rescue = target.rescue ?? target.reaction;
+        const { headline, detail } = bentLines({ rescue, bent: target.bent, verdict: target.verdict, ac: target.acAtVerdict ?? null });
+        block.innerHTML = bfCard({
+          img: reactionImg(actor, rescue, {}), eyebrow: `Attack — Disadvantage · ${rescue}`,
+          title: rescue, subtitle: target.name, tone: (target.verdict === "miss") ? "good" : "bad",
+          lines: [`<strong>${headline}</strong>`, detail]
+        });
+        return;
       }
 
       // A MANEUVER reaction (Parry — INTERRUPT_REDUCTIONS) wears the maneuver family's language
@@ -309,6 +325,10 @@ async function showHoldPopup(attackMessage, hold, { manual = false } = {}) {
     // the DM can always summon the question on purpose. A click is never spam.
     if ( !manual && game.user.isGM && actor?.hasPlayerOwner ) continue;
 
+    // THE POPUP THAT RESCUES A HIT (Slice A, ruled 2026-09-24): a defender holding a `roll` row
+    // is asked in the row shape — every way to rescue the hit a ticked row, one answer.
+    if ( target.rows?.length ) { await showRescuePopup(attackMessage, target, actor, hold, roll); continue; }
+
     // ⚠ THE SAME TWO BUTTONS FOR EVERYONE. The question is binary — take the reaction or don't
     // — and it is the same question whoever is answering it. A GM-only third button ("Skip")
     // stood here until v1.1.15 and made the GM's popup a different shape from the player's for
@@ -330,4 +350,51 @@ async function showHoldPopup(attackMessage, hold, { manual = false } = {}) {
       ]
     });
   }
+}
+
+/**
+ * THE POPUP THAT RESCUES A HIT (Slice A, ruled 2026-09-24 off prototypes/slice-a.html, scenes
+ * 2a–2c): the hold popup the table knows from Shield, with more than one row — "Rescue the hit —
+ * <defender>" when there are several. Each way to rescue the hit is a row (decide/present.js
+ * `tickRowsHTML`); one ticked at a time; Answer uses the ticked one, Pass lets the hit land, and at
+ * expiry the buzzer passes. A spent row stays greyed with its reason, re-read live as the popup
+ * opens. The situation line states the premise and never an outcome (law 5): Shield might lift
+ * the AC past the roll, the second d20 might not turn it — the popup says neither.
+ */
+async function showRescuePopup(attackMessage, target, actor, hold, roll) {
+  const rows = rescueRowsNow(actor, target, roll);
+  if ( !liveRows(rows).length ) return;   // spent since the stamp: nothing left to take (the buzzer passes it)
+  const attacker = attackMessage.getAssociatedActor?.()?.name ?? "The attacker";
+  const weapon = attackMessage.getAssociatedActivity?.()?.item?.name ?? "the attack";
+  const reveal = revealDetail(target, roll, actor);
+  const situation = roll?.isCritical ? "<strong>natural 20</strong> — a <strong>critical hit</strong>."
+    : reveal ? `<strong>${reveal.total}</strong> vs AC <strong>${reveal.liveAC}</strong> — a hit.`
+    : `Something hits <strong>${target.name}</strong>.`;
+  const dialog = await openMomentPopup(attackMessage, target.uuid, actor, {
+    title: rescueTitle(rows, target.name), icon: "fa-solid fa-shield-halved", width: 460,
+    content: bfCard({ img: actor?.img ?? null, eyebrow: "Reaction — held", tone: "pending",
+      title: `${attacker} hit you`, subtitle: `${weapon} · ${target.name} · Reaction` })
+      + holdBarHTML(hold) + `<div style="padding:0.4rem 0.1rem;">${situation}</div>`
+      + tickRowsHTML({ name: "bf-rescue", rows }),
+    buttons: [
+      // The window goes at the click (Empowered's lesson): the answer is fired, not awaited.
+      { action: "answer", label: "Answer", default: true, callback: (_event, button) => {
+        const pick = button?.form?.querySelector?.('input[name="bf-rescue"]:checked')?.value ?? null;
+        const row = rows.find(r => (r.key === pick) && !r.off);
+        if ( !row ) return;
+        if ( row.kind === "roll" ) void rescueReaction(attackMessage, target, row.key);
+        else void castReaction(attackMessage, target);
+      } },
+      { action: "pass", label: "Pass", callback: () => answerHold(attackMessage, target.uuid, "pass") }
+    ]
+  });
+  // One tick at a time, and Answer live only while one is ticked — the tick stays even on one row.
+  const form = dialog?.element?.querySelector?.("form") ?? dialog?.element ?? null;
+  const answer = form?.querySelector?.('button[data-action="answer"]') ?? null;
+  const boxes = [...(form?.querySelectorAll?.('input[name="bf-rescue"]') ?? [])];
+  if ( answer ) answer.disabled = true;
+  for ( const box of boxes ) box.addEventListener("change", () => {
+    if ( box.checked ) for ( const other of boxes ) if ( other !== box ) other.checked = false;
+    if ( answer ) answer.disabled = !boxes.some(b => b.checked);
+  });
 }

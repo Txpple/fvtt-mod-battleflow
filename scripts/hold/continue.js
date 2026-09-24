@@ -6,8 +6,10 @@
  * what keeps the parts a DAG (views → continue, never back).
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, isContinuingClient } from "../core.js";
-import { interruptMultiplier } from "../decide/verdict.js";
-import { INTERRUPT_MULTIPLIERS } from "../decide/registry.js";
+import { foldedRoll, interruptMultiplier } from "../decide/verdict.js";
+import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS } from "../decide/registry.js";
+import { rescueSpendText } from "../decide/rescue-hit.js";
+import { damageAfterHold } from "../auto-damage.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
 import { bfCard, popupKey, spendPhrase } from "../decide/present.js";
 import { livePopups } from "../ui.js";
@@ -114,9 +116,18 @@ async function driveHoldContinuation(attackMessage, hold) {
   for ( const target of hold.targets ) {
     const actor = await fromUuid(target.uuid);
     const liveAC = actor?.system?.attributes?.ac?.value ?? target.ac;
-    const hit = roll.isCritical || (!roll.isFumble && (roll.total >= liveAC));
+    // THE COMPOSED ROLL (Slice A, 2026-09-24): a `roll` answer's bent d20 is a `replace` — it
+    // carries its own crit and fumble (a natural 20 under Disadvantage can stop being one), so the
+    // verdict is the fold layer's arithmetic over it, never the raw total (decide/verdict.js).
+    const rolled = foldedRoll({ total: roll.total, isCritical: roll.isCritical, isFumble: roll.isFumble },
+      bentFold(target));
+    const hit = rolled.isCritical || (!rolled.isFumble && (rolled.total >= liveAC));
     target.verdict = hit ? "hit" : "miss";
     target.acAtVerdict = liveAC;
+    if ( target.answer === "roll" ) {
+      announcements.push(bentAnnouncement(actor, target, hit));
+      continue;
+    }
     if ( target.answer !== "cast" ) continue;
     const img = reactionImg(actor, target.reaction, target);
     if ( target.kind === "ac" ) {
@@ -203,6 +214,36 @@ async function driveHoldContinuation(attackMessage, hold) {
     && (m.getFlag(MODULE_ID, "attackHoldPending") === true) ) ) {
     await dmg.setFlag(MODULE_ID, "attackHoldPending", false);
   }
+
+  // A CRIT THE HOLD COULD UNDO (Slice A, 2026-09-24): its dice were never rolled at the hit
+  // (trigger.js stamps `critAtStake`, auto-damage.js stands aside), so they are rolled NOW — once,
+  // by this continuing client, the one that rolled the attack — crit or not as the answer left
+  // it (auto-damage.js `critFor` reads the bent roll), and only if anyone is still hit.
+  if ( hold.critAtStake ) await damageAfterHold(attackMessage);
+}
+
+/** A target's own bent roll as the fold contribution `foldedRoll` takes — none when unbent. */
+function bentFold(target) {
+  const b = target?.bent;
+  return Number.isFinite(b?.total)
+    ? [{ uuid: target.uuid, replace: { total: b.total, isCritical: b.isCritical === true, isFumble: b.isFumble === true } }]
+    : [];
+}
+
+/**
+ * The defender's card after a `roll` answer (prototype scenes 2b, 2b2): the row, what it cost,
+ * and — when the hit still lands — that it did not turn it. The attacker's view (who bent the
+ * roll, the arrow, the verdict) is the attack card's own row (views.js).
+ */
+function bentAnnouncement(actor, target, hit) {
+  const found = Object.keys(INTERRUPT_ROLLS).find(k => k.toLowerCase() === String(target.rescue ?? "").toLowerCase());
+  const row = found ? INTERRUPT_ROLLS[found] : null;
+  const spend = rescueSpendText({ row, poolSpend: target.poolSpend ?? null });
+  return bfCard({
+    img: reactionImg(actor, target.rescue ?? target.reaction, {}), eyebrow: `Reaction — ${target.rescue ?? target.reaction}`,
+    title: target.rescue ?? target.reaction, subtitle: target.name, tone: hit ? "bad" : "good",
+    lines: [spend, hit ? "It did not turn the hit." : "<strong>The attack misses.</strong>"].filter(Boolean)
+  });
 }
 
 /**

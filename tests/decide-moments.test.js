@@ -298,6 +298,20 @@ describe("the moment registry — shape", () => {
       },
       metamagic: { key: "quickened", feature: "Quickened Spell", cost: 2, spent: true },
       empowered: { status: "used", picks: [0, 2], newTotal: 21, delta: 6 },
+      either: {
+        status: "used",
+        feature: "Savage Attacker",
+        key: "savage-attacker",
+        actorUuid: "Actor.f",
+        attackId: "atk",
+        formula: "1d8",
+        first: 5,
+        second: 7,
+        stands: "second",
+        delta: 2,
+        total: 11,
+        sourceUuid: "Actor.f"
+      },
       areaChoice: {
         spell: "Slow",
         chosen: [{ uuid: "Actor.b", name: "Bramblemaw" }],
@@ -421,6 +435,79 @@ describe("the moment registry — the edges", () => {
     expect(out.map(m => m.events)).toEqual([["hold-answered"]]);
     expect(out[0].facts.spend).toMatchObject({ pool: "Stone's Endurance", left: 2 });
     expect(out[0].facts.details).toMatchObject({ reduceBy: 9, mode: "reduce" });
+  });
+
+  it("a `roll` answer (Slice A, 2026-09-24) names the row that bent the roll, and its Luck Point is never a maneuver", () => {
+    const out = resolves("hold", {
+      sourceUuid: "Actor.g",
+      targets: [
+        {
+          uuid: "Actor.h",
+          name: "H",
+          reaction: "Shield",
+          kind: "ac",
+          itemId: "s",
+          activityId: "c",
+          rescues: [{ name: "Lucky", itemId: "lk", activityId: "dis" }],
+          answer: "roll",
+          rescue: "Lucky",
+          verdict: "miss",
+          bent: { how: "lower", total: 13, isCritical: false },
+          poolSpend: { pool: "Luck Points", spent: 1, left: 2, max: 3 },
+          answeredBy: "userH"
+        }
+      ]
+    });
+    expect(out.map(m => m.events)).toEqual([["hold-answered"]]);
+    expect(out[0].facts).toMatchObject({
+      item: "Actor.h.Item.lk",
+      activity: "Actor.h.Item.lk.Activity.dis",
+      ability: "Lucky"
+    });
+    expect(out[0].facts.details).toMatchObject({
+      answer: "roll",
+      rescue: "Lucky",
+      how: "lower",
+      stood: 13,
+      verdict: "miss"
+    });
+    expect(out[0].facts.details.mode).toBeUndefined();
+  });
+
+  it("Savage Attacker's record resolves once it is used — kept, due, pending, spent and moot resolve nothing", () => {
+    const base = {
+      feature: "Savage Attacker",
+      actorUuid: "Actor.f",
+      attackId: "atk",
+      formula: "2d6",
+      first: 5,
+      second: 10
+    };
+    for (const status of ["due", "pending", "answering", "kept", "spent", "moot"]) {
+      expect(markers("either", { ...base, status }), status).toEqual([]);
+    }
+    const out = resolves("either", {
+      ...base,
+      status: "used",
+      stands: "second",
+      delta: 5,
+      total: 14
+    });
+    expect(out.length).toBe(1);
+    expect(out[0].events).toEqual(["fold"]);
+    expect(out[0].facts).toMatchObject({
+      actor: "Actor.f",
+      ability: "Savage Attacker",
+      attackId: "atk",
+      targetsFrom: "attack"
+    });
+    expect(out[0].facts.details).toMatchObject({
+      first: 5,
+      second: 10,
+      stands: "second",
+      delta: 5,
+      total: 14
+    });
   });
 
   it("the saves flag resolves one save per target done — and the attacker's choice beside it", () => {

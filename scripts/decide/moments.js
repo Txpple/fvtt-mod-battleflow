@@ -50,7 +50,8 @@
  *                  Commander's Strike, the Bonus Action maneuvers and their rides)
  *   sneak          Sneak Attack's dice rode a hit, with the Cunning Strike picks
  *   fold           a die or reroll folded into a d20 test (Bardic, Heroic, Tactical, Seeking;
- *                  Precision also, being a die on an attack), and Tactical Mind's refund
+ *                  Precision also, being a die on an attack), and Tactical Mind's refund; a
+ *                  weapon's damage dice rolled again as a set (Savage Attacker, 2026-09-24)
  *   rider          a clock rider's damage rode a hit (Dreadful Strike, Divine Strike, …)
  *   hold-answered  a held roll's reaction was answered — cast OR passed (`details.answer`)
  *   mastery        a weapon mastery's ask resolved (Vex, Sap, Slow, Topple, Push, Graze, Cleave)
@@ -256,6 +257,17 @@ export const MOMENT_RECORDS = Object.freeze({
     }) : []
   },
 
+  either: {
+    events: ["fold"],
+    means: "a weapon's damage dice were rolled again as a set and the higher set stood — Savage Attacker (damage-either.js, Slice A 2026-09-24); resolved when `status` is used",
+    resolved: (r, ctx) => (r?.status === "used") ? whole(["fold"], {
+      actor: r.actorUuid ?? source(r) ?? ctx.actorUuid, itemName: r.feature ?? null, ability: r.feature ?? null,
+      attackId: r.attackId ?? null, targetsFrom: "attack",
+      details: { formula: r.formula ?? null, first: r.first ?? null, second: r.second ?? null,
+        stands: r.stands ?? null, delta: r.delta ?? null, total: r.total ?? null }
+    }) : []
+  },
+
   /* rider -------------------------------------------------------------------------------------- */
 
   clockRiders: {
@@ -274,18 +286,27 @@ export const MOMENT_RECORDS = Object.freeze({
     events: ["hold-answered"],
     means: "a held roll's reaction was answered by its target — cast or pass (hold/answer.js, hold/clock.js); one resolve per target with an answer. Parry's die publishes under maneuver too; Stone's Endurance's use does not (reduce.maneuver false, 2026-09-24)",
     resolved: (r, ctx) => (r?.targets ?? []).filter(t => t.answer).map(t => {
-      const item = itemUuid(t.uuid, t.itemId);
+      // A `roll` answer (Slice A, 2026-09-24) names the row that bent the roll — its item, not the
+      // reaction the hold was stamped around — and its spend is a Luck Point or a feature's use,
+      // never a Superiority Die: only Parry's die publishes under `maneuver`.
+      const bent = (t.answer === "roll") ? ((t.rescues ?? []).find(x => x.name === t.rescue) ?? { name: t.rescue ?? null }) : null;
+      const item = itemUuid(t.uuid, bent ? (bent.itemId ?? null) : t.itemId);
+      const die = !!t.poolSpend && !bent;
       return {
         marker: `${t.uuid}`,
-        events: (t.poolSpend && (t.reduce?.maneuver !== false)) ? ["hold-answered", "maneuver"] : ["hold-answered"],
+        // Merged 2026-09-24: a Superiority Die publishes under maneuver (Parry); a use that is not a
+        // maneuver (Stone's Endurance, reduce.maneuver false) and a `roll` rescue's spend do not.
+        events: (die && (t.reduce?.maneuver !== false)) ? ["hold-answered", "maneuver"] : ["hold-answered"],
         // The answerer's client, when the write was the elect's (a relayed answer) — the picture
         // fired there before this gate existed, and still does.
         publisher: t.answeredBy ?? null,
-        facts: { actor: t.uuid ?? null, item, activity: activityUuid(item, t.activityId), ability: t.reaction ?? null, attackId: ctx.messageId,
+        facts: { actor: t.uuid ?? null, item, activity: activityUuid(item, bent ? (bent.activityId ?? null) : t.activityId),
+          ability: (bent ? bent.name : t.reaction) ?? null, attackId: ctx.messageId,
           targets: source(r) ? [{ uuid: source(r), name: null }] : [], spend: t.poolSpend ?? null,
           details: { answer: t.answer, kind: t.kind ?? null, reduceBy: (Number(t.reduceBy) > 0) ? Number(t.reduceBy) : null,
             spell: r.spell ?? null, trigger: r.trigger ?? "attack", timedOut: !!t.timedOut,
-            ...(t.poolSpend ? { formula: t.reduce?.formula ?? null, mode: "reduce" } : {}) } }
+            ...(die ? { formula: t.reduce?.formula ?? null, mode: "reduce" } : {}),
+            ...(bent ? { rescue: bent.name, how: t.bent?.how ?? null, stood: t.bent?.total ?? null, verdict: t.verdict ?? null } : {}) } }
       };
     })
   },
@@ -560,6 +581,9 @@ export const STATE_KEYS = Object.freeze({
   ac: "an envelope field beside respondsTo — the AC the reaction produced",
   effectLanded: "an envelope field beside respondsTo — whether the reaction's effect had arrived",
   reduceBy: "an envelope field beside respondsTo — Parry's roll, carried to the fold",
+  bent: "an envelope field beside respondsTo — a `roll` answer's bent d20 (Slice A), carried to the fold",
+  rescue: "an envelope field beside respondsTo — which `roll` row bent the roll (Slice A), carried to the fold",
+  weaponRolls: "provenance — how many of an attack's damage rolls are the activity's own, counted before any rider (auto-damage.js); Savage Attacker rerolls those",
   sweepAnswer: "an envelope — the sweep's pick; the fold onto sweepCard is the resolve",
   saveChoiceAnswer: "an envelope — a save-side choice; the fold onto the saves flag is the resolve",
   riposteAnswer: "an envelope — a reactor's answer; the fold onto the riposte flag is the resolve",

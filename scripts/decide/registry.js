@@ -33,7 +33,11 @@
 export const MANEUVER_KINDS = new Set(["precision", "riposte", "interpose", "bash", "hew", "command"]);
 
 /** The closed set of interrupt kinds — what a held reaction changes about an attack. */
-export const INTERRUPT_KINDS = new Set(["ac", "damage"]);
+// `roll` (Slice A, ruled 2026-09-24 off prototypes/slice-a.html): the defender bends the ROLL
+// itself — Disadvantage imposed after the hit showed, a second d20 and the lower standing. Not
+// `ac` (the AC never moves, and a natural 20 can be undone, which an AC change never can) and
+// not `damage` (it changes whether the attack hit at all). Its rows are INTERRUPT_ROLLS.
+export const INTERRUPT_KINDS = new Set(["ac", "damage", "roll"]);
 
 /**
  * DAMAGE INTERRUPTS THE MODULE CAN SETTLE ITSELF (user, 2026-09-02: "uncanny dodge … doesn't
@@ -84,6 +88,38 @@ export const INTERRUPT_REDUCTIONS = Object.freeze({
     eyebrow: "Reaction", spend: "use", hit: "attack", by: "1d12 plus your Constitution modifier",
     rule: "When you take damage, you can take a Reaction to roll 1d12. Add your Constitution modifier to the number rolled and reduce the damage by that total.",
     from: "Goliath — Giant Ancestry (Stone)" })
+});
+
+/**
+ * THE `roll` INTERRUPTS (Slice A, ruled 2026-09-24 off prototypes/slice-a.html): a defender's
+ * answer to a hit that imposes Disadvantage on the attack roll already made — a second d20 with
+ * the attack's own modifiers, the lower standing, the verdict taken again against the live AC
+ * (decide/rescue-hit.js holds the arithmetic). Three customers and three COST shapes, which is
+ * the whole of what differs between them — so the shape is data and the mechanism is one:
+ *   reaction  true when the answer takes the Reaction (the chip); Lucky takes none
+ *   uses      true when it spends one of the ITEM's own uses (Lucky's Luck Points, Warding
+ *             Flare's Wisdom-mod uses); Shadowy Dodge spends nothing but the Reaction
+ *   point     what one use is called on the row's tag, when the table calls it something
+ *   activity  the pack's activity that IS this answer, by name — a use from the sheet answers
+ *             the hold (the cast-IS-the-answer path); Lucky ships two, only "Disadvantage" is this
+ *   after     what the rule leaves to the table once the roll is bent — a card line, never a move
+ * ⚠ Keyed by the Interrupt list's own names (the `roll` kind); membership stays that list. The
+ * `rule` is the pack's text VERBATIM (law 8) — Lucky's Disadvantage paragraph alone, Warding
+ * Flare's with the pack's "currently N" lookup dropped, as the ruled prototype quotes them.
+ * ⚠ The 2014 Halfling's "Lucky" TRAIT shares the name and none of this (no uses, no activity —
+ * the natural-1 reroll dnd5e plays natively): the lookup demands the item's own uses.
+ */
+export const INTERRUPT_ROLLS = Object.freeze({
+  "Lucky": Object.freeze({ reaction: false, uses: true, point: "Luck Point", activity: "Disadvantage",
+    rule: "Disadvantage. When a creature rolls a d20 for an attack roll against you, you can spend 1 Luck Point to impose Disadvantage on that roll.",
+    from: "Origin feat" }),
+  "Warding Flare": Object.freeze({ reaction: true, uses: true, point: null, activity: "Flare",
+    rule: "When a creature that you can see within 30 feet of yourself makes an attack roll, you can take a Reaction to impose Disadvantage on the attack roll, causing light to flare before it hits or misses. You can use this feature a number of times equal to your Wisdom modifier (minimum of once). You regain all expended uses when you finish a Long Rest.",
+    from: "Cleric — Light Domain 3" }),
+  "Shadowy Dodge": Object.freeze({ reaction: true, uses: false, point: null, activity: "Shadowy Dodge",
+    after: "teleport up to 30 feet if you wish (the table moves the token)",
+    rule: "When a creature makes an attack roll against you, you can take a Reaction to impose Disadvantage on that roll. Whether the attack hits or misses, you can then teleport up to 30 feet to an unoccupied space you can see.",
+    from: "Ranger — Gloom Stalker" })
 });
 
 /**
@@ -1422,6 +1458,28 @@ export const TWINNED_EXCEPTIONS = Object.freeze({
 const METAMAGIC_NAMES = tableIndex(METAMAGIC).names;
 
 /**
+ * THE DAMAGE DICE, ROLLED TWICE (Slice A, ruled 2026-09-24 off prototypes/slice-a.html): a feature
+ * that lets the attacker roll a weapon's damage dice a second time and use either roll. The popup
+ * asks only WHETHER to use it on this hit; on yes the weapon's dice — every die of the activity's
+ * own damage rolls, the doubled set on a crit, never a modifier and never a rider — are rolled
+ * again AS A SET, and the higher set total stands with no second question (damage-either.js the
+ * machine, decide/damage-dice.js the arithmetic). One customer today.
+ *   key     the once-per-turn chit's riderKey (TURN_CHITS `rider`, the clock riders' shape)
+ *   weapon  true — "when you hit a target with a weapon": a weapon item only
+ * Once per turn is counted only for a combatant (RULINGS *Chips and clocks*); out of combat
+ * every hit offers. Membership is the Damage Rolled Twice list.
+ * ⚠ NOT A KIND — the R4 tripwire does not move for it (ARCHITECTURE §11 step 3's test, 2026-09-24):
+ * one table read by ONE machine, rows of data, the CLOCK_RIDERS / DAMAGE_SHIELDS / METAMAGIC shape.
+ * Nothing dispatches on a kind column; a second customer is a row here and zero code.
+ */
+export const DAMAGE_EITHER = Object.freeze({
+  "Savage Attacker": Object.freeze({ key: "savage-attacker", weapon: true,
+    rule: "Once per turn when you hit a target with a weapon, you can roll the weapon’s damage dice twice and use either roll against the target.",
+    from: "Origin feat" })
+});
+const DAMAGE_EITHER_NAMES = tableIndex(DAMAGE_EITHER).names;
+
+/**
  * THE R4 TRIPWIRE, AS DATA (DESIGN.md R4, ARCHITECTURE §6).
  *
  * R4's bargain is that a new ABILITY costs a data entry and zero code, and that this is safe
@@ -1445,7 +1503,8 @@ const METAMAGIC_NAMES = tableIndex(METAMAGIC).names;
  */
 export const KIND_SETS = [
   { name: "interrupt", owner: "hold/index.js", kinds: INTERRUPT_KINDS, system: null,
-    note: "what a held reaction changes about an attack already rolled" },
+    note: "what a held reaction changes about an attack already rolled — the AC, the damage, or "
+      + "(2026-09-24, Slice A) the roll itself: Disadvantage after the hit showed" },
   { name: "maneuverFold", owner: "precision.js · riposte.js · hew.js · bash-offer.js · command.js", kinds: MANEUVER_KINDS, system: null,
     note: "how a listed feat folds into a resolved attack — D8 says this set is the one under pressure; "
       + "`command` (2026-09-05) is Riposte's driven attack with the attacker changed to an ally" },
@@ -1512,9 +1571,12 @@ export const LIST_SPECS = {
     // that was struck from the live worlds at v1.16.0. It lives in the Maneuver Folds list
     // instead. This default carried it until v1.19.0 — the strike missed the registered
     // default, so a fresh world or Reset Defaults kept re-seeding the bug.
+    // Lucky, Warding Flare and Shadowy Dodge (Slice A, 2026-09-24): the `roll` kind — the rows
+    // beside Shield in the popup that rescues a hit (INTERRUPT_ROLLS carries their cost shapes).
     default: "Shield:ac, Absorb Elements:damage, Uncanny Dodge:damage, Defensive Duelist:ac, "
       + "Illusory Self:ac, Glorious Defense:ac, Parry:ac, Counterattack:ac, Defensive Stance:ac, "
-      + "Whirlwind of Sand:ac, Deflect Attacks:damage, Stone's Endurance:damage"
+      + "Whirlwind of Sand:ac, Deflect Attacks:damage, Stone's Endurance:damage, "
+      + "Lucky:roll, Warding Flare:roll, Shadowy Dodge:roll"
   },
   block: {
     label: "Block List", setting: "blockList",
@@ -1664,6 +1726,14 @@ export const LIST_SPECS = {
     // reach in saves/demand.js and the ask at the area in metamagic.js.
     columns: ["kind"], kindColumn: "kind", kinds: CHOSEN_AREA_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(CHOSEN_AREAS).join(", ")
+  },
+  damageEither: {
+    label: "Damage Rolled Twice", setting: "damageEitherList",
+    // Which rows of the rolled-twice table offer on a weapon hit — the FEATURE names, whole-chunk,
+    // case-insensitive. Membership over DAMAGE_EITHER; the mechanism is damage-either.js (Slice A,
+    // 2026-09-24). The list is the switch (ARCHITECTURE §8 rule 1): an empty list offers nothing.
+    columns: ["kind"], kindColumn: "kind", kinds: DAMAGE_EITHER_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(DAMAGE_EITHER).join(", ")
   }
 };
 
