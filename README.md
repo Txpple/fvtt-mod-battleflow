@@ -39,7 +39,9 @@ read bends it, the system's own roll dialog opens with a Battle Flow section lis
 source with its rule quoted: a condition on either side, the target being within five feet of a
 prone creature, the range of a ranged attack, or a feature on either sheet by name. Innate
 Sorcery, Reckless Attack, Vow of Enmity, Pack Tactics, Blur and seventy more were swept from
-every official pack. The net result is the highlighted button. You still press it.
+the official 2024 packs (the Player's Handbook, the Monster Manual, the Dungeon Master's Guide
+and Heroes of Faerûn; Arcana Unleashed is next). The net result is the highlighted button. You
+still press it.
 
 **Riders pay out with the hit.** Hunter's Mark, weapon masteries, Sneak Attack with the full
 Cunning Strike menu, Divine Strike, Dreadful Strike, the Assassin's first-round dice, and other
@@ -146,11 +148,14 @@ them ship on, and any one can be turned off mid-session without touching the oth
 
 ## Documentation
 
-Four documents, plus **[SWEEP.md](SWEEP.md)** for the length of the abilities sweep it surveys:
+Five documents, plus **[SWEEP.md](SWEEP.md)** for the length of the abilities sweep it surveys:
 the 2024 corpus sorted into the module's mechanism families, kind by kind.
 
 - **[DESIGN.md](DESIGN.md)** is the north star. What the module is for, the four goals it exists
-  to serve, what is permanently out of scope. Read it before proposing anything.
+  to serve, what is permanently out of scope, and what is settled. Read it before proposing
+  anything.
+- **[RULINGS.md](RULINGS.md)** is what each feature does as the user ruled it: the ruling, its
+  date, the mechanism it settled and the suite that pins it.
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** is how the code is required to be shaped so it stays
   that way. Layers, the volunteer model, the state model, the moment spine, the registry model,
   and the checklist for adding anything.
