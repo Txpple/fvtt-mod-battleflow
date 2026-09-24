@@ -341,7 +341,7 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     // attack with the attacker changed to an ally).
     // 2026-09-09: 29 → 30 — `seeking` joins the d20 folds (Seeking Spell, the metamagic pass).
     // 2026-09-24: 30 → 31 — `roll` joins the interrupts (Slice A: Disadvantage imposed after the
-    // hit — Lucky, Warding Flare, Shadowy Dodge).
+    // hit — Lucky, Warding Flare, Shadowy Dodge). Savage Attacker's table is rows, not a kind.
     expect(total).toBe(31);
   });
 

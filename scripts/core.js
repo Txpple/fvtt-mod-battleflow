@@ -58,7 +58,8 @@ export const S = {
   effectChoiceList: "effectChoiceList",
   metamagicList: "metamagicList",
   spentAreaList: "spentAreaList",
-  chosenAreaList: "chosenAreaList"
+  chosenAreaList: "chosenAreaList",
+  damageEitherList: "damageEitherList"   // Savage Attacker's list (Slice A, 2026-09-24)
 };
 
 export const setting = key => game.settings.get(MODULE_ID, key);

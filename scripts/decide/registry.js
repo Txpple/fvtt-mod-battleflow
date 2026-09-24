@@ -1362,6 +1362,28 @@ export const TWINNED_EXCEPTIONS = Object.freeze({
 const METAMAGIC_NAMES = tableIndex(METAMAGIC).names;
 
 /**
+ * THE DAMAGE DICE, ROLLED TWICE (Slice A, ruled 2026-09-24 off prototypes/slice-a.html): a feature
+ * that lets the attacker roll a weapon's damage dice a second time and use either roll. The popup
+ * asks only WHETHER to use it on this hit; on yes the weapon's dice — every die of the activity's
+ * own damage rolls, the doubled set on a crit, never a modifier and never a rider — are rolled
+ * again AS A SET, and the higher set total stands with no second question (damage-either.js the
+ * machine, decide/damage-dice.js the arithmetic). One customer today.
+ *   key     the once-per-turn chit's riderKey (TURN_CHITS `rider`, the clock riders' shape)
+ *   weapon  true — "when you hit a target with a weapon": a weapon item only
+ * Once per turn is counted only for a combatant (RULINGS *Chips and clocks*); out of combat
+ * every hit offers. Membership is the Damage Rolled Twice list.
+ * ⚠ NOT A KIND — the R4 tripwire does not move for it (ARCHITECTURE §11 step 3's test, 2026-09-24):
+ * one table read by ONE machine, rows of data, the CLOCK_RIDERS / DAMAGE_SHIELDS / METAMAGIC shape.
+ * Nothing dispatches on a kind column; a second customer is a row here and zero code.
+ */
+export const DAMAGE_EITHER = Object.freeze({
+  "Savage Attacker": Object.freeze({ key: "savage-attacker", weapon: true,
+    rule: "Once per turn when you hit a target with a weapon, you can roll the weapon’s damage dice twice and use either roll against the target.",
+    from: "Origin feat" })
+});
+const DAMAGE_EITHER_NAMES = tableIndex(DAMAGE_EITHER).names;
+
+/**
  * THE R4 TRIPWIRE, AS DATA (DESIGN.md R4, ARCHITECTURE §6).
  *
  * R4's bargain is that a new ABILITY costs a data entry and zero code, and that this is safe
@@ -1608,6 +1630,14 @@ export const LIST_SPECS = {
     // reach in saves/demand.js and the ask at the area in metamagic.js.
     columns: ["kind"], kindColumn: "kind", kinds: CHOSEN_AREA_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(CHOSEN_AREAS).join(", ")
+  },
+  damageEither: {
+    label: "Damage Rolled Twice", setting: "damageEitherList",
+    // Which rows of the rolled-twice table offer on a weapon hit — the FEATURE names, whole-chunk,
+    // case-insensitive. Membership over DAMAGE_EITHER; the mechanism is damage-either.js (Slice A,
+    // 2026-09-24). The list is the switch (ARCHITECTURE §8 rule 1): an empty list offers nothing.
+    columns: ["kind"], kindColumn: "kind", kinds: DAMAGE_EITHER_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(DAMAGE_EITHER).join(", ")
   }
 };
 

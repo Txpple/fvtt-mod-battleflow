@@ -298,6 +298,20 @@ describe("the moment registry — shape", () => {
       },
       metamagic: { key: "quickened", feature: "Quickened Spell", cost: 2, spent: true },
       empowered: { status: "used", picks: [0, 2], newTotal: 21, delta: 6 },
+      either: {
+        status: "used",
+        feature: "Savage Attacker",
+        key: "savage-attacker",
+        actorUuid: "Actor.f",
+        attackId: "atk",
+        formula: "1d8",
+        first: 5,
+        second: 7,
+        stands: "second",
+        delta: 2,
+        total: 11,
+        sourceUuid: "Actor.f"
+      },
       areaChoice: {
         spell: "Slow",
         chosen: [{ uuid: "Actor.b", name: "Bramblemaw" }],
@@ -430,6 +444,42 @@ describe("the moment registry — the edges", () => {
       verdict: "miss"
     });
     expect(out[0].facts.details.mode).toBeUndefined();
+  });
+
+  it("Savage Attacker's record resolves once it is used — kept, due, pending, spent and moot resolve nothing", () => {
+    const base = {
+      feature: "Savage Attacker",
+      actorUuid: "Actor.f",
+      attackId: "atk",
+      formula: "2d6",
+      first: 5,
+      second: 10
+    };
+    for (const status of ["due", "pending", "answering", "kept", "spent", "moot"]) {
+      expect(markers("either", { ...base, status }), status).toEqual([]);
+    }
+    const out = resolves("either", {
+      ...base,
+      status: "used",
+      stands: "second",
+      delta: 5,
+      total: 14
+    });
+    expect(out.length).toBe(1);
+    expect(out[0].events).toEqual(["fold"]);
+    expect(out[0].facts).toMatchObject({
+      actor: "Actor.f",
+      ability: "Savage Attacker",
+      attackId: "atk",
+      targetsFrom: "attack"
+    });
+    expect(out[0].facts.details).toMatchObject({
+      first: 5,
+      second: 10,
+      stands: "second",
+      delta: 5,
+      total: 14
+    });
   });
 
   it("the saves flag resolves one save per target done — and the attacker's choice beside it", () => {

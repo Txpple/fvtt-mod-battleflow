@@ -106,10 +106,14 @@ export const ORDER = [
     name: "smoke-emanations", note: "the emanations — the Paladin's aura stands with its token, applies to allies inside, lifts on exit; Spirit Guardians adopted, its saves on enter and turn end",
     needs: ["fixture-suite"]
   },
-  // Slice A, tier 3 (2026-09-24): rides BF Test Halfling (Lucky), a fixture the tier 1+2 build added to
-  // fixture-suite — the nearest seed above is theirs.
+  // Slice A, tier 3 (2026-09-24): both ride BF Test Halfling (Lucky, Savage Attacker), a fixture the
+  // tier 1+2 build added to fixture-suite — the nearest seed above is theirs.
   {
     name: "smoke-rescue", note: "the `roll` interrupt — Lucky, Warding Flare, Shadowy Dodge bend the hit: the popup's rows, the second d20, the crit undone, all-spent skips",
+    needs: ["fixture-suite"]
+  },
+  {
+    name: "smoke-savage", note: "Savage Attacker — the popup on a weapon hit, the set rolled again, the higher standing, the damage waiting, once per turn, the hold first",
     needs: ["fixture-suite"]
   },
   // The effect view's probe joined the battery on 2026-09-23 (change-scoped live testing): it was

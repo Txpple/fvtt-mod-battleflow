@@ -26,10 +26,10 @@
  * fold KIND in d20-folds.js — the machine that already owns the reroll, the verdict and the
  * withheld save.
  */
-import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, isActiveGM, whisperNoGM } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, isActiveGM } from "./core.js";
 import { cardActivity, lower, resolveUuid } from "./lookup.js";
 import { metamagicEntries, listedNames, chosenAreaListed } from "./settings.js";
-import { poolOf, spendPoolUses, isPartyMember } from "./shared.js";
+import { poolOf, spendPoolUses, isPartyMember, rebuildRolls } from "./shared.js";
 import { feetOf, tokenOfActor, tokensInRegions } from "./geometry.js";
 import { bfCard, foldedRuleHTML, esc, holdBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
@@ -38,7 +38,8 @@ import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, askWords, heightenedMark, choiceCapFro
 import { newAsk, registerAskAnswerPart } from "./area-ask.js";
 import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync, dramaticVerdictPause, registerResumable } from "./ui.js";
 import { raiseHold, releaseHold, isHeld } from "./holds.js";
-import { applyDamagesWithReceipt } from "./auto-apply.js";
+import { moveAppliedDamage } from "./auto-apply.js";
+import { rerollFaces } from "./decide/damage-dice.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originIdInData } from "./decide/card.js";
 
@@ -733,15 +734,11 @@ async function resolveEmpowered(message, picks) {
     if ( !live.length ) { await keepEmpowered(message); return; }
     const fresh = await new Roll(live.map(d => `1d${d.faces}`).join(" + ")).evaluate();
     const faces = fresh.dice.map(die => die.results.find(r => r.active !== false)?.result ?? die.total);
-    const done = [];
-    live.forEach((d, i) => {
-      const term = data[d.roll].terms[d.term];
-      const old = term.results[d.index];
-      old.active = false; old.rerolled = true;
-      term.results.push({ result: faces[i], active: true });
-      done.push({ key: d.key, old: old.result, new: faces[i] });
-    });
-    const rebuilt = data.map(rd => { const r = Roll.fromData(rd); r._total = r._evaluateTotal(); return r; });
+    // The patch and the rebuild are the damage-dice folds' shared pieces since 2026-09-24 (Savage
+    // Attacker, the second customer): decide/damage-dice.js strikes each old face and adds the new,
+    // shared.js rebuilds the rolls with their totals taken again.
+    const { data: patched, done } = rerollFaces(data, live, faces);
+    const rebuilt = rebuildRolls(patched);
     const outcome = empoweredOutcome({ oldTotal: flag.oldTotal, picks: done });
     // The dice land BEFORE the total moves — the same order every verdict in the module keeps
     // (dramaticVerdictPause: capped, cosmetic, never blocking).
@@ -805,7 +802,7 @@ async function completeEmpowered(message) {
     rolls,
     flags: { [MODULE_ID]: { [EMPOWERED_FLAG]: { ...rest, status: "used", picks, newTotal, delta, "-=pending": null, "-=answered": null } } }
   });
-  await moveAppliedDamage(message, { newTotal, delta });
+  await moveAppliedDamage(message, { delta, feature: "Empowered Spell" });   // auto-apply.js — the one mover since 2026-09-24
 }
 
 /** Past the longest the pause can be (six seconds of dice, up to ten of dramatic beat), with slack. */
@@ -815,29 +812,6 @@ registerResumable(EMPOWERED_FLAG, {
   drives: () => isActiveGM(),
   drive: message => completeEmpowered(message)
 });
-
-/**
- * Damage ALREADY applied off this message is moved by the difference — the §11 rule 4 obligation
- * carried through the one applier, as its own receipt (revertable like any other). A rerolled
- * total that fell heals the difference back the same way.
- */
-async function moveAppliedDamage(message, outcome) {
-  const receipt = message.getFlag(MODULE_ID, "receipt");
-  const targets = (receipt?.targets ?? []).filter(t => !t.reverted);
-  if ( !targets.length || !outcome.delta ) return;
-  const type = message.rolls?.[0]?.options?.type ?? null;
-  if ( !isActiveGM() ) {
-    await whisperNoGM(`Empowered Spell moved the damage by ${outcome.delta > 0 ? "+" : ""}${outcome.delta} on ${targets.map(t => t.name).join(", ")} — already applied; adjust by hand`);
-    return;
-  }
-  for ( const t of targets ) {
-    const multiplier = Number(t.multiplier ?? 1) || 1;
-    const amount = Math.abs(outcome.delta);
-    const damages = outcome.delta > 0 ? [{ value: amount, type }] : [{ value: amount, type: "healing" }];
-    await applyDamagesWithReceipt(message, [{ uuid: t.uuid, name: t.name }], damages,
-      { note: outcome.delta > 0 ? "Empowered Spell — the reroll" : "Empowered Spell — rerolled lower", multiplier });
-  }
-}
 
 // The card while the fold is pending: the offer and a recall; the elect arms the buzzer on render
 // (a player's roll stamps on the player's client, where armAskTimer is a no-op — the folds' lesson).

@@ -50,7 +50,8 @@
  *                  Commander's Strike, the Bonus Action maneuvers and their rides)
  *   sneak          Sneak Attack's dice rode a hit, with the Cunning Strike picks
  *   fold           a die or reroll folded into a d20 test (Bardic, Heroic, Tactical, Seeking;
- *                  Precision also, being a die on an attack), and Tactical Mind's refund
+ *                  Precision also, being a die on an attack), and Tactical Mind's refund; a
+ *                  weapon's damage dice rolled again as a set (Savage Attacker, 2026-09-24)
  *   rider          a clock rider's damage rode a hit (Dreadful Strike, Divine Strike, …)
  *   hold-answered  a held roll's reaction was answered — cast OR passed (`details.answer`)
  *   mastery        a weapon mastery's ask resolved (Vex, Sap, Slow, Topple, Push, Graze, Cleave)
@@ -253,6 +254,17 @@ export const MOMENT_RECORDS = Object.freeze({
     resolved: (r, ctx) => ((r?.status === "kept") || (r?.status === "refunded")) ? whole(["fold"], {
       actor: r.actorUuid ?? ctx.actorUuid, itemName: r.name ?? null, ability: r.name ?? null,
       details: { outcome: r.status, poolName: r.poolName ?? null, poolUuid: r.poolUuid ?? null }
+    }) : []
+  },
+
+  either: {
+    events: ["fold"],
+    means: "a weapon's damage dice were rolled again as a set and the higher set stood — Savage Attacker (damage-either.js, Slice A 2026-09-24); resolved when `status` is used",
+    resolved: (r, ctx) => (r?.status === "used") ? whole(["fold"], {
+      actor: r.actorUuid ?? source(r) ?? ctx.actorUuid, itemName: r.feature ?? null, ability: r.feature ?? null,
+      attackId: r.attackId ?? null, targetsFrom: "attack",
+      details: { formula: r.formula ?? null, first: r.first ?? null, second: r.second ?? null,
+        stands: r.stands ?? null, delta: r.delta ?? null, total: r.total ?? null }
     }) : []
   },
 
@@ -569,6 +581,7 @@ export const STATE_KEYS = Object.freeze({
   reduceBy: "an envelope field beside respondsTo — Parry's roll, carried to the fold",
   bent: "an envelope field beside respondsTo — a `roll` answer's bent d20 (Slice A), carried to the fold",
   rescue: "an envelope field beside respondsTo — which `roll` row bent the roll (Slice A), carried to the fold",
+  weaponRolls: "provenance — how many of an attack's damage rolls are the activity's own, counted before any rider (auto-damage.js); Savage Attacker rerolls those",
   sweepAnswer: "an envelope — the sweep's pick; the fold onto sweepCard is the resolve",
   saveChoiceAnswer: "an envelope — a save-side choice; the fold onto the saves flag is the resolve",
   riposteAnswer: "an envelope — a reactor's answer; the fold onto the riposte flag is the resolve",

@@ -74,6 +74,7 @@ const REFERENCE = {
   metamagicList: LIST_SPECS.metamagic.default,              // the whole metamagic table, as shipped (2026-09-09)
   spentAreaList: LIST_SPECS.spentAreas.default,             // the whole spent-area table, as shipped (2026-09-10)
   chosenAreaList: LIST_SPECS.chosenAreas.default,           // the whole chosen-area table, as shipped (2026-09-24)
+  damageEitherList: LIST_SPECS.damageEither.default,        // the whole rolled-twice table, as shipped (Slice A, 2026-09-24)
 };
 
 const f = new Foundry(foundryConfig(env));

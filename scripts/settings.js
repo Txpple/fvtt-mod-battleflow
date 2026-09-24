@@ -270,6 +270,14 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.chosenAreas.default
   });
 
+  // DAMAGE ROLLED TWICE (Slice A, ruled 2026-09-24 off prototypes/slice-a.html): Savage Attacker
+  // asks on a weapon hit whether to roll the weapon's dice again. A list; the list is the switch.
+  game.settings.register(MODULE_ID, S.damageEitherList, {
+    name: "Damage Rolled Twice",
+    hint: "A feature that rolls a weapon's damage dice twice and keeps either roll, by the feature's own name, separated by commas — Savage Attacker. On a weapon hit, a popup asks the attacker whether to use it on THIS hit (once per turn in combat); on yes the weapon's dice are rolled again as a set — never the modifier, never a rider's dice — and the higher set stands, the card showing both. Remove a name to keep that feature by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.damageEither.default
+  });
+
   // DAMAGE SAVES (user, 2026-09-04: "make heat metal spell work"): a bare damage activity rolls
   // its dice at the use (the general fix — nothing rolled them), and a listed row demands the
   // save its text ties to the damage. A list; the list is the switch for the save half.
@@ -652,6 +660,11 @@ export function spentAreaListed(itemName) {
 /** Which rows of the chosen-area table ask their caster who they affect, by the spell's name — `{ kind }`. */
 export function chosenAreaEntries() {
   return listEntries(LIST_SPECS.chosenAreas);
+}
+
+/** Which rows of the rolled-twice table offer on a weapon hit, by the feature's name — `{ kind }`. */
+export function damageEitherEntries() {
+  return listEntries(LIST_SPECS.damageEither);
 }
 
 /** Is this spell listed as one whose caster chooses who its area affects? */
