@@ -300,13 +300,15 @@ registration; the Stage 0 snapshot is what would prove a later move order-free).
 ### The data plane — stat stamps (the party-stats commission, 2026-08-27)
 
 Every consequence this module assigns — damage, healing, an applied effect, a spend, a table
-moment — carries two machine-readable fields so an external reader (the stats MCP,
-`../fvtt-mcp-dnd5e`) can fold the chat log into a per-combat ledger **without parsing HTML
-and without re-deriving context after the fact**:
+moment — carries two machine-readable fields so an external reader (the session scribe,
+`../fvtt-app-sessionscribe`) can fold the chat log into a per-combat ledger **without parsing
+HTML and without re-deriving context after the fact**:
 
-> ⚠ **The reader is SHIPPED (2026-09-01): `get-combat-stats` and `scripts/party-stats.mjs` in
-> the MCP repo consume this section as a wire format.** A change to any stamped shape below is
-> a breaking change to a live external consumer, not a refactor — coordinate, don't drift.
+> ⚠ **The reader is SHIPPED (2026-09-01) and moved (2026-09-23).** `fvtt-app-sessionscribe`'s
+> `analyze-combat` (its `src/page/combat-stats.ts`) consumes this section as a wire format. It
+> was `fvtt-mcp-dnd5e`'s `get-combat-stats` until that repo's 4.0.0; the move was proven at
+> parity first. A change to any stamped shape below is a breaking change to a live external
+> consumer, not a refactor — coordinate, don't drift.
 
 - **`combat`** — `combatStamp()`'s `"combatId:round:turn"`, **null out of combat by contract**
   (reports group the null bucket as "out of combat"; they never drop it — short rests, traps
@@ -327,7 +329,7 @@ means "resolved at write time, and the answer was nothing"; an absent field mark
 before the plane existed.** A scan tells legacy history from an out-of-combat event by exactly
 that difference — do not tidy the nulls away.
 
-**The stamped families — this table is the MCP's read contract:**
+**The stamped families — this table is the scribe's read contract:**
 
 | Flag | Stamp granularity | `sourceUuid` means |
 | --- | --- | --- |
@@ -341,7 +343,7 @@ that difference — do not tidy the nulls away.
 | `holdSkipped` (attack messages) | per flag, at the skip | the attacker whose swing outran the reaction |
 | `combatRoster` (a GM-whispered marker card per combat) | once at combatStart; closed (`endedRound`/`endedAt`) at deleteCombat | null — the roster is nobody's action |
 | `chipSpend` (attack messages, 2026-09-01) — `spent: [{id, name, key, uuid, bearer, mode, honoured}]`, the chips this attack roll used up | per flag, at the spend (the elect, on the attack card) | the attacker (whose swing spent them). `honoured` is against the gate's NET when the gate ran AND listed that chip's kind (`netShownFor`), else the chip's own bend. ⚠ This record is also the gate's memory: a chip whose spend is on record is never offered again, whatever the sheet says (a no-GM table cannot delete the monster's chip) |
-| `reminder` (attack messages the gate met, 2026-09-01 — in the dialog, or a volley's ray judged at the aim since 2026-09-02) — `sources: [{kind, bend, label}]`, `net`, `mode`, `honoured`, `answeredAt` | per flag, at the press (a ray: as it fires), on the roller's client | the attacker. ⚠ Two new families for the MCP's scan `KEYS` — the accuracy meter can now split "rolled with Advantage because the table was reminded" from "rolled flat against the net" |
+| `reminder` (attack messages the gate met, 2026-09-01 — in the dialog, or a volley's ray judged at the aim since 2026-09-02) — `sources: [{kind, bend, label}]`, `net`, `mode`, `honoured`, `answeredAt` | per flag, at the press (a ray: as it fires), on the roller's client | the attacker. ⚠ Two new families for the scribe's scan `KEYS` (not read there yet) — the accuracy meter can now split "rolled with Advantage because the table was reminded" from "rolled flat against the net" |
 
 | `damageShield` (the ward's own roll card, 2026-09-05) — `key`, `attackerUuid`, `total`, `type`, `why` | per flag, at the strike (the elect) | the DEFENDER whose ward struck (the receipt on the same card names the attacker as the taker) |
 | `damageCast` (a bare damage activity's usage card, 2026-09-05) · `superiorityUse` · `baitSwitch` · `command` · `shieldMark` · `castApply.choice` | per flag, at the use (the caster's client) | the caster / the fighter whose use it is |
