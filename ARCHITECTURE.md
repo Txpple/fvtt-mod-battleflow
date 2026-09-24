@@ -343,12 +343,17 @@ that difference — do not tidy the nulls away.
 | `holdSkipped` (attack messages) | per flag, at the skip | the attacker whose swing outran the reaction |
 | `combatRoster` (a GM-whispered marker card per combat) | once at combatStart; closed (`endedRound`/`endedAt`) at deleteCombat | null — the roster is nobody's action |
 | `chipSpend` (attack messages, 2026-09-01) — `spent: [{id, name, key, uuid, bearer, mode, honoured}]`, the chips this attack roll used up | per flag, at the spend (the elect, on the attack card) | the attacker (whose swing spent them). `honoured` is against the gate's NET when the gate ran AND listed that chip's kind (`netShownFor`), else the chip's own bend. ⚠ This record is also the gate's memory: a chip whose spend is on record is never offered again, whatever the sheet says (a no-GM table cannot delete the monster's chip) |
-| `reminder` (attack messages the gate met, 2026-09-01 — in the dialog, or a volley's ray judged at the aim since 2026-09-02) — `sources: [{kind, bend, label}]`, `net`, `mode`, `honoured`, `answeredAt` | per flag, at the press (a ray: as it fires), on the roller's client | the attacker. ⚠ Two new families for the scribe's scan `KEYS` (read since 2026-09-23) — the accuracy meter can now split "rolled with Advantage because the table was reminded" from "rolled flat against the net" |
-
+| `reminder` (the roll messages the gate met: attacks since 2026-09-01 — in the dialog, or a volley's ray judged at the aim since 2026-09-02 — and saves / concentration checks through the save gate since 2026-09-04) — `sources: [{kind, bend, label}]`, `net`, `mode`, `honoured`, `answeredAt` | per flag, at the press (a ray: as it fires), on the roller's client | the roller (the attacker, or the one saving). ⚠ Two new families for the scribe's scan `KEYS` (read since 2026-09-23) — the report splits "rolled with Advantage because the table was reminded" from "rolled flat against the net", with the hits among reminded attacks and the saves made among reminded saves |
 | `damageShield` (the ward's own roll card, 2026-09-05) — `key`, `attackerUuid`, `total`, `type`, `why` | per flag, at the strike (the elect) | the DEFENDER whose ward struck (the receipt on the same card names the attacker as the taker) |
-| `damageCast` (a bare damage activity's usage card, 2026-09-05) · `superiorityUse` · `baitSwitch` · `command` · `shieldMark` · `castApply.choice` | per flag, at the use (the caster's client) | the caster / the fighter whose use it is |
+| `damageCast` (a bare damage activity's usage card, 2026-09-05) · `superiorityUse` · `baitSwitch` · `command` · `shieldMark` | per flag, at the use (the caster's client) | the caster / the fighter whose use it is |
 | `superiorityRide` (a damage message, 2026-09-05) — `rode: [{key, formula, type, why}]` | per flag, at the roll (the roller's client) | the attacker whose die rode |
 | `emanationHeal` · `emanationRemind` (2026-09-05) | per flag, at the event (the elect) | the caster of the area |
+| `clockRiders` (a damage message, 2026-09-02) — `attackId`, `riders: [{key, label, formula, type, why, usesLeft}]`: Dreadful Strike, Divine Strike, Primal Strike, Divine Fury, Assassinate riding the hit | per flag, at the damage roll | the attacker whose feature rode. The rider's damage is in the receipt; the use it spent is the `poolSpend` state record |
+| `emanationCard` (the aura's card, 2026-09-03; posted again each time the emanation stands) — `key`, `verb`, `range`, `regionId`, and where the aura offers a damage type `types`, `damageType`, `chosen` | per flag, at the post | the emanation's owner. A reader names the aura once; the reposts are bookkeeping, not play |
+
+**`castApply.choice` is unstamped by ruling** (owner, 2026-09-23). The caster's pick between
+alternative effects (Fire Shield's warm or chill) is a decision, not a consequence. What it picks
+is stamped where it lands, in `effectReceipt`; stamping the pick as well would count it twice.
 
 **Second-pass fields (2026-08-27, the stats commission's follow-up):**
 
