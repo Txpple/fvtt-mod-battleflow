@@ -35,13 +35,13 @@ it quietly runs the prerequisite and says so.
 | `check-comments.mjs` | every `/**` block sits on a declaration, so an extraction cannot strand a doc. |
 | `check-card-reads.mjs` | a card's ITEM or ACTIVITY is read through `lookup.js` `cardItem` / `cardActivity` — never a bare `fromUuid` / `fromUuidSync` / `resolveUuid` of an `activityUuid`, `itemUuid` or `itemUuidOf(…)` (2026-09-22, Gren's potion: dnd5e deletes a used-up item BEFORE its card exists, and only the card's snapshot still has it). A deliberately live read says `// live only: <reason>` on the line above. |
 | `check-moments.mjs` | **the moment gate's coverage** (ARCHITECTURE §7 *The moment events*, version 2): every flag key the module writes — every write shape, constants resolved — is classified in `decide/moments.js` as a RESOLVE (published by the gate) or STATE (with a reason), no row is stale, every world-writing file is pinned to the record its writes resolve into, and the registry's own shape holds. Prints the classification as a table. A new key fails the build until somebody says what it is. |
+| `check-doc-links.mjs` | every cross-reference in the docs and in code comments resolves: a markdown link or a bare `scripts/` · `tools/` · `tests/` · `prototypes/` path to a file that exists; `DOC §n` to a numbered section; `DOC *heading*` to a heading or a bold lead-in in that doc (DESIGN, RULINGS, ARCHITECTURE, NOTES, BACKLOG, SWEEP). Written for the documentation pass of 2026-09-24, when nothing had ever said a reference rotted. A bare `§n` with no doc named is not checked — name the doc. |
 | `bump-version.mjs --check` | `module.json`'s `version` and its `download` URL name the same tag. |
 | `tsc --noEmit` | ⚠ **real, and only over `scripts/decide/`** — the six pure modules opt in with `// @ts-check`. `checkJs` stays false globally; files opt IN, one at a time. |
 
-All of them run inside `npm run verify`, along with biome, knip and the unit tests — **fourteen static
-checks and the suite**, all offline, all in seconds. ⚠ **Do not hand-carry the counts out of
-here.** The tools print their own (`237` tests, `98` biome warnings and `28` source files as of
-2026-08-23); every number this repo has typed into prose twice has gone stale at least once.
+All of them run inside `npm run verify`, along with biome, knip and the unit tests, all offline,
+all in seconds. ⚠ **Do not hand-carry the counts out of here.** The tools print their own; every
+number this repo has typed into prose twice has gone stale at least once.
 
 ## Live contract checks — read-only, safe beside a session
 
@@ -56,12 +56,10 @@ One per feature area. Every suite restores the settings it touches and deletes i
 messages. Disconnect the MCP bridge first, and verify settings after — **`battery.mjs` does the
 ordering, the capture and the settings check for you**, which is why it is the front door.
 
-`smoke-battleflow` (first — it places the shared victim token) · `smoke-hold` (⚠ **immediately**
-after it) · `smoke-saves` · `smoke-volleys` · `smoke-maneuvers` · `smoke-cast` · `smoke-riders` ·
-`smoke-concentration` · `smoke-twoclient` · `check-popup-routing` · `reset-fixture-state` ·
-`smoke-effects` · `smoke-resources` · `smoke-surfaces` · `smoke-reminders` · `smoke-sneak` ·
-`smoke-clock` · `smoke-hitmenu` · `smoke-shields` · `smoke-heatmetal` · `smoke-superiority` · `fixture-suite` · `smoke-emanations` · `smoke-resources` · `smoke-surfaces` · `fixture-suite` · `smoke-nogm` (last — it must find no active GM, and the seed
-above it re-places the token it needs). `ORDER` in `coverage-map.mjs` holds the order (`battery.mjs --list` prints it); quote it, never this line.
+`smoke-battleflow` runs first (it places the shared victim token), `smoke-hold` immediately after
+it, and `smoke-nogm` last (it must find no active GM, and the seed above it re-places the token it
+needs). `ORDER` in `coverage-map.mjs` holds the whole order and `battery.mjs --list` prints it;
+quote that, never a copy of it here.
 
 ⚠ **`smoke-saves` §23 (2026-09-05)** puts the auras' effects on the victim BY NAME (Aura of Purity, Circle's Power) and gives the fixture's failed-save effect a status for the run, so the save gate's `saves` facet has a demand to judge; it lists `effect` in Reminder Sources and the two names in Effect Sources for the section and restores both.
 
@@ -73,9 +71,7 @@ above it re-places the token it needs). `ORDER` in `coverage-map.mjs` holds the 
 Thief, the whole Cunning Strike option set, Assassinate) and `BF Test Ranger` (Ranger 5 / Gloom
 Stalker) — created from the 2024 PHB pack by `fixture-suite.mjs`, with class items at a level so
 the scale values resolve (measured: `tools/probe-rogue-fixture.mjs`). They give the victim a
-400-HP pool for the run: 7d6 kills the fixture goblin outright, and the saves machine rightly
-refuses a demand on a dead target, so every Cunning Strike effect would vanish for the truest of
-reasons. `smoke-saves` §19 is the save gate; its driver finds the system's dialog through the app
+400-HP pool for the run (why: NOTES §2 *The save machine REFUSES a dead target*). `smoke-saves` §19 is the save gate; its driver finds the system's dialog through the app
 registry and Battle Flow's own fieldset, never by a class or by text — the dialog's target block
 names the user's targets, which is not the creature that is asking.
 
@@ -104,9 +100,9 @@ caller, and walks an `ActiveEffect "…" does not exist!` id back to the delete 
 and its shield assertions print which DAMAGE MESSAGE each card claims, which is what exposed an old
 card being re-judged. Give a flaking suite those before bisecting sections.
 
-⚠ **One at a time is enforced now, not remembered.** Suites take a pid lockfile in `harness.mjs`:
-a second one refuses and names the first. The sole-GM preflight could never see this, because
-both suites join as the same user and it counts users, not sockets (NOTES §5).
+⚠ **One at a time is enforced, not remembered.** Suites take a pid lockfile in `harness.mjs`: a
+second one refuses and names the first; a stale lock (the holder died) is taken over and reported.
+Why the sole-GM preflight cannot do this: NOTES §5.
 
 ### The battery
 
@@ -163,7 +159,7 @@ same JSON: every 2024 save activity whose text presses a condition, against the 
 effects actually carry — the `SAVE_PRESSES` candidates). `probe-steady-aim-live.mjs` reads a
 live table's Steady Aim chip and attack records without touching anything;
 `probe-conditions.mjs` presses each 2024 status on a fixture and reads what the platform applies
-(NOTES §2 *What the platform applies for a condition*), restoring the fixture in `finally`.
+(NOTES §2 *What the platform applies for a 2024 condition*), restoring the fixture in `finally`.
 `probe-premium-module.mjs <module-id> <out.json>` (2026-09-24, Arcana Unleashed) reads what a
 premium module ships pack by pack — counts, types, names — and lists the names the registry
 already keys a row on and the names the 2024 packs already carry, so the next book the house
@@ -179,12 +175,12 @@ ships, never from what the party owns (DESIGN N1). Re-run after adding content.
 | --- | --- |
 | `target.mjs` | **which instance a suite talks to** — one decision, one place. Every harness resolves through it and prints the target it chose. |
 | `verify-settings.mjs` | diffs the live world against the reference table it carries — **the single source for the user's configuration**. `--fix` restores drift. Run after every battery. |
-| `fixture-suite.mjs` | **builds the shared fixtures — run it first after every prod refresh.** The scene, the two goblins, the shielder and the player-owned PC attacker, all filed under a `Test Suite` folder. The fixtures are deleted from prod on purpose (they clutter the campaign), and `pull-prod-to-local.mjs` mirrors prod — so a refresh reproduces that deletion and every suite dies at its preflight. Idempotent; adopts strays into the folder. The d20-fold PCs are CLONES of Morgash (Fighter 5 Battle Master) and Salyth (Bard 8 — the level that makes the inspiration die the 1d8 the suite pins), with the fighter calibrated to the +5 attack bonus `smoke-d20-folds` states in its own band comment. Pair with `fixture-d20-folds.mjs`, which runs second. |
+| `fixture-suite.mjs` | **builds the shared fixtures — run it first after every prod refresh** (a refresh wipes them: NOTES §5). The scene, the two goblins, the shielder and the player-owned PC attacker, all filed under a `Test Suite` folder. Idempotent; adopts strays into the folder. The d20-fold PCs are CLONES of Morgash (Fighter 5 Battle Master) and Salyth (Bard 8 — the level that makes the inspiration die the 1d8 the suite pins), with the fighter calibrated to the +5 attack bonus `smoke-d20-folds` states in its own band comment. Pair with `fixture-d20-folds.mjs`, which runs second. |
 | `reset-fixture-state.mjs` | shared fixtures back to a known state (conditions off, pools full). |
 | `scrub-fixture-residue.mjs` | clears what a suite's 5.x restore no longer clears at dnd5e 6.0 — the AC `override` and the per-ability `save.roll.bonus` — on every BF Test actor (`--check` reports only). Run it whenever a suite reports an AC or a save that cannot be (the dnd5e 6.0 pass, 2026-09-16). |
 | `reload-clients.mjs` | refresh every other connected client after a hot-deploy. |
 | `maintain-party.mjs` | strip temporary actor-level effects, on demand. |
-| `build-release.ps1` | the release zip. **Never use `Compress-Archive`** — see NOTES §5. |
+| `build-release.ps1` | the release zip — step 4 of *Release and deploy* below. **Never use `Compress-Archive`** (why: NOTES §5 *Release*). |
 | `world-snapshot.mjs` | `take` / `restore` / `status` / `drop` — roll the sandbox's databases back after a battery. The copy is 24 MB and takes 0.05s; the ~75s cost is the world bounce either side. **Local only.** |
 | `harness.mjs` | the twenty lines every suite used to copy — env, watchdog, connect, preflight, the section plan, one reporter, the **suite lock**, and the **hook ledger** it arms at connect and writes at teardown. Not a suite; nothing runs it directly. |
 | `hook-coverage.mjs` | ⚠ **the only measurement in the tree that is about BEHAVIOUR** (ARCHITECTURE §10 D11): which of the module's hook registrations actually FIRED during the run (it prints the count; 83 when it was built, 172 by 2026-09-05), unioned from the per-suite ledgers in `dist/hook-ledger/`. **It reports; it never fails.** A never-fired line is a coverage gap, a dead handler or a rare hook — only a person can tell which, and v1.23.0 would have printed four dead ones beside a green battery. |
@@ -209,7 +205,41 @@ every `sleep()` in the tree put together, so it is not a per-suite move.
 ⚠ **The suites keep their own teardowns and probably should.** Rolling back would make that
 ceremony unnecessary, but it is also what lets one suite — or one `--section` — run alone
 without a bounce either side, which is the workflow the section filter exists to make normal.
-Decide before simplifying (PLAN.md Phase 5).
+Decide before simplifying (ARCHITECTURE *Decided against, and why*).
+
+## Release and deploy — the chain
+
+The steps, once. Why each is there: NOTES §5 *Deploy* and *Release*. A prod deploy happens only on
+the user's word.
+
+1. **The floor.** `npm run verify` green, and the full battery unattended
+   (`node tools/battery.mjs --snapshot`), then `node tools/verify-settings.mjs` (`--fix` on drift).
+2. **The bump.** `node tools/bump-version.mjs <patch|minor>` moves both `module.json` fields;
+   `--check` is part of `verify`.
+3. **The commits.** The change commit(s) — code, its suites and its docs together — then a
+   `release vX.Y.Z: …` commit carrying only the bump, and the tag on that one. (The older
+   three-commit shape with the tag in the middle is retired, 2026-09-24: the v2.0.x releases all
+   ran this way.) Commit bodies are **ASCII** — the log mangles non-ASCII punctuation.
+4. **The zip.** `tools/build-release.ps1` — it runs the gate and `bump-version --check` first,
+   recurses `scripts/`, and re-reads the finished archive: no backslash entry, nothing missing,
+   every relative import resolving inside it. If the execution policy refuses the script (the
+   policy is the user's, never overridden), build with Windows' bsdtar —
+   `C:/Windows/System32/tar.exe -a -c -f dist/fvtt-mod-battleflow.zip module.json LICENSE README.md <every scripts/**/*.js>`
+   (forward-slash entries) — run the same three checks in Node over `tar.exe -tf`, then unpack and
+   diff against the tree. Never `Compress-Archive`.
+5. **The release.** Push, push the tag, `gh release create` with two assets: the zip **and** a bare
+   `module.json`.
+6. **The deploy** (run in the sibling MCP repo, `fvtt-mcp-dnd5e/scripts/deploy-house-module.mjs`):
+   `FOUNDRY_HOST=molten node <that script> fvtt-mod-battleflow --check` first. ⚠ An
+   all-identical hash is a half-awake box: wake it through the bridge (`get-world-info`), re-check,
+   and never deploy on that reading. Then the same command without `--check`. WebDAV never prunes —
+   a file removed from the tree is deleted on the box by hand, or the zip shipped instead. `--local`
+   deploys to the sandbox.
+7. **After.** Scripts are live on the next world reload; `module.json` (the version) on the next
+   Foundry **process restart**, which is the user's. Refresh the other connected clients
+   (`reload-clients.mjs`, or ask the table), wait a few minutes before any suite (the front cache),
+   and re-run `verify-settings` against the world. Say plainly what is live, what needs an F5 and
+   what needs the restart.
 
 ## content/
 
