@@ -292,6 +292,10 @@ const out = await f.evaluate(async ({ playerName }) => {
       return null;
     };
     const PHB_CLASSES = ["dnd-players-handbook.classes"];
+    // Slice A (2026-09-24): species traits live in `origins` and origin feats in `feats`, so a
+    // FEATURE is looked up in all three — the class pack first, the house order; a class or a
+    // subclass stays on PHB_CLASSES.
+    const PHB_FEATS = [...PHB_CLASSES, "dnd-players-handbook.origins", "dnd-players-handbook.feats"];
     const PHB_GEAR = ["dnd-players-handbook.equipment", "dnd5e.equipment24"];
     const PHB_SPELLS = ["dnd-players-handbook.spells", "dnd5e.spells24"];
     const BUILT = [
@@ -329,7 +333,17 @@ const out = await f.evaluate(async ({ playerName }) => {
         feats: ["Font of Magic", "Metamagic", "Careful Spell", "Distant Spell", "Empowered Spell", "Extended Spell", "Heightened Spell",
           "Quickened Spell", "Seeking Spell", "Subtle Spell", "Transmuted Spell", "Twinned Spell"],
         spells: ["Fireball", "Hold Person", "Chromatic Orb", "Fire Bolt"], gear: ["Dagger"], spellcasting: "cha",   // Fire Bolt: the CANTRIP shape (2026-09-10) - no slot, no template, no scaling, so the system alone opens no window
-        abilities: { cha: 16, con: 14, dex: 14, str: 8 }, hp: 32, x: 1000, y: 1800 }
+        abilities: { cha: 16, con: 14, dex: 14, str: 8 }, hp: 32, x: 1000, y: 1800 },
+      // Slice A (2026-09-24): the species traits and origin feats. The Goliath carries Stone's
+      // Endurance (the reduction hold) and Fire's Burn (the hit menu's Giant Ancestry group); the
+      // suites add and remove Frost's Chill and Hill's Tumble per section — one boon at a time, as
+      // smoke-hitmenu adds maneuvers. The Halfling carries Brave (the save gate's feature row)
+      // beside Lucky and Savage Attacker (the tier-3 suites'). Both on a row of their own at
+      // y=1400: off the fixture line, out of the Paladin's aura and the Cleric's Spirit Guardians.
+      { name: "BF Test Goliath", classes: [["Fighter", 5]], feats: ["Stone's Endurance", "Fire's Burn"], gear: ["Greataxe"],
+        abilities: { str: 16, con: 16 }, hp: 52, x: 1300, y: 1400 },
+      { name: "BF Test Halfling", classes: [["Rogue", 3]], feats: ["Brave", "Lucky", "Savage Attacker"], gear: ["Shortsword"],
+        abilities: { dex: 16, con: 12 }, hp: 24, x: 1500, y: 1400 }
     ];
     const built = [];
     for (const spec of BUILT) {
@@ -344,7 +358,7 @@ const out = await f.evaluate(async ({ playerName }) => {
         }
         if (!items.length) continue;
         for (const n of [...spec.feats]) {
-          const data = await findPackItem(PHB_CLASSES, n);
+          const data = await findPackItem(PHB_FEATS, n);
           if (data) items.push(data); else log.push(`⚠ ${n} not found — ${spec.name} lacks it`);
         }
         for (const n of spec.gear) {
@@ -369,7 +383,7 @@ const out = await f.evaluate(async ({ playerName }) => {
       const lackingSpells = (spec.spells ?? []).filter(n => !actor.items.some(i => (i.type === "spell") && (i.name === n)));
       if (lacking.length || lackingSpells.length) {
         const add = [];
-        for (const n of lacking) { const data = await findPackItem(PHB_CLASSES, n); if (data) add.push(data); else log.push(`⚠ ${n} not found — ${spec.name} lacks it`); }
+        for (const n of lacking) { const data = await findPackItem(PHB_FEATS, n); if (data) add.push(data); else log.push(`⚠ ${n} not found — ${spec.name} lacks it`); }
         for (const n of lackingSpells) { const data = await findPackItem(PHB_SPELLS, n); if (data) { data.system.preparation = { mode: "prepared", prepared: true }; add.push(data); } else log.push(`⚠ ${n} not found — ${spec.name} lacks it`); }
         if (add.length) { await actor.createEmbeddedDocuments("Item", add); log.push(`gave ${spec.name} ${add.map(i => i.name).join(", ")}`); }
       }
@@ -379,7 +393,7 @@ const out = await f.evaluate(async ({ playerName }) => {
       if (unstamped.length) {
         const updates = [];
         for (const i of unstamped) {
-          const packs = i.type === "spell" ? PHB_SPELLS : (i.type === "feat" || i.type === "class" || i.type === "subclass") ? PHB_CLASSES : PHB_GEAR;
+          const packs = i.type === "spell" ? PHB_SPELLS : (i.type === "feat") ? PHB_FEATS : (i.type === "class" || i.type === "subclass") ? PHB_CLASSES : PHB_GEAR;
           for (const id of packs) {
             const index = await game.packs.get(id)?.getIndex().catch(() => null);
             const hit = index?.find(e => e.name === i.name);
