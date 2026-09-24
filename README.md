@@ -161,7 +161,9 @@ the 2024 corpus sorted into the module's mechanism families, kind by kind.
 
 Development tooling lives in [tools/](tools/README.md) and ships in nothing. `npm run verify`
 is the offline gate: static checks plus the unit tests, in seconds. `node tools/battery.mjs` is
-the live one, every suite in the order that works, each captured to a file.
+the live one, every suite in the order that works, each captured to a file — and
+`node tools/battery.mjs --changed --list` is what a change actually has to re-run, read off the
+suites' own claims (2026-09-23); the full battery is the floor before a release.
 
 ## Family
 
