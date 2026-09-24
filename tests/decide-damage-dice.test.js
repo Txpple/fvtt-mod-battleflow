@@ -207,6 +207,10 @@ describe("eitherCardLine — source, then result", () => {
     expect(d.eitherCardLine({ status: "moot", feature: "Savage Attacker" })).toContain(
       "the attack missed"
     );
+    // Due: waiting on the defender's hold — the ruled order, the hit stands first.
+    expect(d.eitherCardLine({ status: "due", feature: "Savage Attacker" })).toBe(
+      "Savage Attacker — asks once the hit stands"
+    );
   });
 });
 

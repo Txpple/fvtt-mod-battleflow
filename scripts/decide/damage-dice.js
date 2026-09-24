@@ -137,6 +137,8 @@ export function eitherCardLine(flag) {
     case "kept": return `${name} — not used${flag.timedOut ? " (the clock ran out)" : ""}, still ready this turn`;
     case "moot": return `${name} — the attack missed; nothing to roll again`;
     case "answering": return `${name} — rolling the weapon's dice again`;
+    // Due: the question waits for the hit to stand (a defender's reaction first — the ruled order).
+    case "due": return `${name} — asks once the hit stands`;
     default: return `${name} — offered: roll the weapon's dice again?`;
   }
 }
