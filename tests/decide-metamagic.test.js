@@ -13,12 +13,14 @@ import {
   metamagicRuleText,
   metamagicCardLine,
   distantRange,
-  carefulProtects,
-  heightenedMark,
   scalesTargetsFrom,
   extendedDuration,
   empoweredPlan,
-  empoweredOutcome,
+  empoweredOutcome
+} from "../scripts/decide/metamagic.js";
+import {
+  carefulProtects,
+  heightenedMark,
   askDefaults,
   askMark,
   spellProse,
@@ -27,7 +29,7 @@ import {
   chosenByDefault,
   choiceNeedsAsk,
   areaChoiceLine
-} from "../scripts/decide/metamagic.js";
+} from "../scripts/decide/area-ask.js";
 
 // The three fixture spells as the probe measured them (tools/probe-metamagic.mjs, 2026-09-09).
 const FIREBALL = {

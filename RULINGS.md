@@ -423,5 +423,10 @@ Sleep, Conjure Barrage, Conjure Volley, Word of Radiance, Destructive Wave, Weir
 - **The record** is `areaChoice` on the spell's card (`chosen`, `left`, `asked`), one line, and a
   `choice` moment when the caster was asked.
 
-The ask itself still lives in the metamagic file with the flag key `metamagicAsk`; a third
-customer moves it (BACKLOG *Architecture*).
+**The ask is its own machine since 2026-09-24** (user: "better to pay this debt now than later"):
+`scripts/area-ask.js`, a service both metamagic and the saves machine route the question through
+— the popup, the clock, the answer, the demand filled from it, `battleflow.areaAskAnswered`
+published — with its arithmetic in `decide/area-ask.js` (the defaults, the words, the outcome).
+A customer raises the ask by writing its flag (`pendingAsk`, `raiseAsk`) and may register an
+ANSWER PART for what its answer writes (metamagic's record, its held card). The flag key stays
+`metamagicAsk`: it is stored on cards, and a rename is a migration for nothing.

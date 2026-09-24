@@ -108,6 +108,7 @@ export const LAYER_OF = {
   "stats.js": "machines",
 
   // SERVICES — the consequence chokepoints every machine routes through
+  "area-ask.js": "services",   // the ask at the area — one question two machines route through (metamagic, saves), 2026-09-24
   "auto-apply.js": "services",
   "effect-riders.js": "services",
   "auto-damage.js": "services",
@@ -127,6 +128,7 @@ export const LAYER_OF = {
   // DECISION — pure functions over plain data. ZERO imports, asserted below.
   "decide/geometry.js": "decision",
   "decide/metamagic.js": "decision",
+  "decide/area-ask.js": "decision",
   "decide/registry.js": "decision",
   "decide/verdict.js": "decision",
   "decide/eligible.js": "decision",

@@ -43,17 +43,6 @@ once-per-turn reads). Neither is wrong. **Un-parked by** a FOURTH judge of "firs
 reader goes to `decide/clock.js` with it), or the next once-per-turn maneuver on the bash offer
 (it moves to a turn chit with it).
 
-### The ask at the area lives in the metamagic file (2026-09-24)
-
-The question asked of a caster once a placed area lands — the popup, its clock, the answer that
-fills the save demand, the held card — lives in `metamagic.js` (arithmetic in
-`decide/metamagic.js`) because Careful and Heightened were its first customer. A spell that
-chooses its targets (RULINGS *Spells that choose their targets*) is the second, a third KIND of
-the same ask (`choose`) raised by `saves/demand.js` `areaChoiceForDemand`. So a non-metamagic
-question is answered in a file named for metamagic, under the flag key `metamagicAsk` — which is
-stored on cards, so renaming it is a migration. **Un-parked by** a THIRD customer that is neither
-metamagic nor a chosen area: the ask moves to a machine of its own, the flag key kept.
-
 ### The template fast-path Foundry 14 took away (2026-08-24)
 
 `saves/areas.js` registers `createMeasuredTemplate` / `updateMeasuredTemplate` to re-derive who

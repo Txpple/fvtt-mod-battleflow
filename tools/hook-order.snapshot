@@ -90,6 +90,9 @@ dnd5e.preRollDamageV2	superiority-uses.js
 dnd5e.renderChatMessage	superiority-uses.js
 dnd5e.postUseActivity	use-chips.js
 dnd5e.renderChatMessage	use-chips.js
+dnd5e.renderChatMessage	area-ask.js
+ready	area-ask.js
+updateChatMessage	area-ask.js
 dnd5e.preUseActivity	metamagic.js
 renderActivityUsageDialog	metamagic.js
 closeActivityUsageDialog	metamagic.js
@@ -103,9 +106,6 @@ dnd5e.renderChatMessage	metamagic.js
 dnd5e.rollDamageV2	metamagic.js
 ready	metamagic.js
 dnd5e.renderChatMessage	metamagic.js
-updateChatMessage	metamagic.js
-dnd5e.renderChatMessage	metamagic.js
-ready	metamagic.js
 updateChatMessage	metamagic.js
 dnd5e.rollAttackV2	precision.js
 dnd5e.renderChatMessage	precision.js
@@ -157,7 +157,7 @@ deleteChatMessage	volleys.js
 preCreateChatMessage	saves/demand.js
 dnd5e.postUseActivity	saves/demand.js
 battleflow.deferredUsageCard	saves/demand.js
-battleflow.metamagicAskAnswered	saves/demand.js
+battleflow.areaAskAnswered	saves/demand.js
 createRegion	saves/areas.js
 updateRegion	saves/areas.js
 deleteActiveEffect	saves/areas.js

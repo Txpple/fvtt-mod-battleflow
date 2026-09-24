@@ -12,7 +12,7 @@ import { MODULE_ID, rollerUserFor,
 import { resolveUuid } from "../lookup.js";
 import { verdictTail, verdictText } from "../decide/verdict.js";
 import { popupKey, holdBarHTML, momentBarHTML, esc } from "../decide/present.js";
-import { AREA_CHOICE_FLAG, METAMAGIC_ASK_FLAG, areaChoiceLine } from "../decide/metamagic.js";
+import { AREA_CHOICE_FLAG, AREA_ASK_FLAG, areaChoiceLine } from "../decide/area-ask.js";
 import { livePopups, momentButton, scheduleBarSync, shownMoments } from "../ui.js";
 import { saveAnsweredBy, foldSaveAnswer, flipForcedSave } from "./verdict.js";
 import { applySaveConsequences, reconcileSaveDamage } from "./consequences.js";
@@ -128,7 +128,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     if ( flag.status !== "pending" ) return;
     void refreshDemandFromTemplates(message);   // gated on the demand's own driver inside
     // The area HAS landed and its caster is being asked about it — the ask's own line speaks.
-    if ( message.getFlag(MODULE_ID, METAMAGIC_ASK_FLAG)?.status === "pending" ) return;
+    if ( message.getFlag(MODULE_ID, AREA_ASK_FLAG)?.status === "pending" ) return;
     const abilityLabel = CONFIG.DND5E.abilities[flag.abilities?.[0]]?.label ?? flag.abilities?.[0] ?? "";
     const row = document.createElement("div");
     row.className = "battleflow-saves";

@@ -595,7 +595,7 @@ export const STATE_KEYS = Object.freeze({
   emanationType: "the type set on an emanation's damage roll; the choice on emanationCard is the resolve",
   emanationHeal: "a button on the emanation's card — the heal's use posts its own card",
   emanationRemind: "a reminder on the emanation's card — presentation",
-  metamagicAsk: "a Metamagic question pending on the card; the metamagic record's `spent` is the resolve",
+  metamagicAsk: "the ask at the area pending on the card (area-ask.js; the key is historical); the answer's records — the metamagic record, areaChoice, the demand — are the resolves",
   metamagicDeferred: "the held card's data while Careful asks; the real card's records are the resolves",
   metamagicType: "the type Transmuted Spell set on the damage roll; the metamagic record on the card is the resolve",
   healPending: "a heal claimed at creation for the elect to apply; the receipt is the resolve",
