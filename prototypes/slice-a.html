@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Battle Flow Slice A</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
+<style>
+  :root{
+    --ground:#15171b; --canvas:#1e2126; --panel:#24272d; --panel-2:#2b2f36; --line:#3a3f48;
+    --ink:#e8e3d6; --ink-2:#b5b0a4; --ink-3:#7d7a72;
+    --good:rgb(70,150,95); --bad:rgb(180,70,60); --pending:rgb(222,120,40); --crit:rgb(232,190,50); --neutral:rgb(120,120,120);
+    --good-soft:rgba(70,150,95,.18); --bad-soft:rgba(180,70,60,.18); --pending-soft:rgba(222,120,40,.18); --neutral-soft:rgba(120,120,120,.16);
+    --font:"Signika",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45;color-scheme:dark}
+  .wrap{max-width:1420px;margin:0 auto;padding:22px 20px 40px}
+  header.top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+  header.top h1{margin:0;font-size:22px;font-weight:600;text-wrap:balance}
+  header.top p{margin:0;color:var(--ink-2);max-width:64ch}
+  .eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+
+  .scenes{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}
+  .scenes .grp{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .scenes .grp > span{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);width:118px;flex:0 0 auto}
+  .scenes button{font:inherit;font-size:12.5px;padding:6px 10px;border-radius:4px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);cursor:pointer}
+  .scenes button[aria-pressed="true"]{background:var(--pending-soft);border-color:var(--pending);color:var(--ink)}
+  .scenes button:focus-visible,.btn:focus-visible{outline:2px solid var(--pending);outline-offset:2px}
+
+  .studio{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+  @media (max-width:1100px){.studio{grid-template-columns:minmax(0,1fr)}}
+
+  /* the mock screen: canvas with the popup, the chat log down the right */
+  .screen{position:relative;min-height:620px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--canvas);display:grid;grid-template-columns:minmax(0,1fr) 290px}
+  @media (max-width:760px){.screen{grid-template-columns:minmax(0,1fr)}.row .cost{grid-column:2 / -1;white-space:normal}}
+  .stage{position:relative;padding:26px 14px;min-width:0}
+  .map{position:absolute;inset:0;
+    background-image:radial-gradient(ellipse at 30% 40%,rgba(90,110,80,.22),transparent 55%),radial-gradient(ellipse at 70% 70%,rgba(120,90,60,.18),transparent 50%),
+      linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+    background-size:auto,auto,50px 50px,50px 50px}
+  .chatlog{position:relative;border-left:1px solid var(--line);background:#1a1c20;padding:10px;display:flex;flex-direction:column;gap:8px;overflow:auto}
+  @media (max-width:760px){.chatlog{border-left:0;border-top:1px solid var(--line)}}
+  .chatlog .ey-log{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+  .nothing{position:relative;margin:80px auto 0;max-width:40ch;text-align:center;color:var(--ink-3);font-size:13px}
+
+  /* a chat message, holding a bfCard */
+  .msg{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:7px 8px;font-size:12px;color:var(--ink-2)}
+  .msg .spk{font-size:11px;color:var(--ink-3);margin-bottom:4px}
+  .bf{border-left:3px solid var(--neutral);border-radius:3px;padding:6px 8px;background:rgba(0,0,0,.14)}
+  .bf.pending{border-left-color:var(--pending)} .bf.good{border-left-color:var(--good)} .bf.bad{border-left-color:var(--bad)} .bf.crit{border-left-color:var(--crit)}
+  .bf .e{font-size:10px;letter-spacing:.08em;text-transform:uppercase;opacity:.65}
+  .bf .t{font-weight:700;font-size:14px;color:var(--ink);line-height:1.2}
+  .bf .s{font-size:11px;opacity:.75}
+  .bf .l{margin-top:4px;font-size:12px;line-height:1.5}
+  .bf .l div{margin-top:2px}
+  .bf b{color:var(--ink)}
+  .verdict{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.06em;padding:1px 6px;border-radius:3px;margin-left:4px}
+  .verdict.hit{background:var(--bad-soft);color:#e79a90} .verdict.miss{background:var(--good-soft);color:#8fd0a2} .verdict.crit{background:rgba(232,190,50,.25);color:var(--crit)}
+  s.old{color:var(--ink-3);text-decoration-thickness:1.5px}
+  .chip{display:inline-block;font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:3px;border:1px solid var(--line);color:var(--ink-2);background:var(--neutral-soft)}
+  .chip.used{border-color:rgba(232,190,50,.5);color:var(--crit);background:rgba(232,190,50,.1)}
+
+  /* THE POPUP — the module's moment popup (DialogV2), mocked */
+  .offer{position:relative;width:min(470px,100%);margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.55)}
+  .offer .title{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-weight:600;font-size:13px}
+  .offer .title i{width:14px;height:14px;border-radius:3px;background:var(--crit);opacity:.9}
+  .offer .title .x{margin-left:auto;color:var(--ink-3);font-weight:400}
+  .offer .body{padding:12px 14px 14px}
+  .head{display:flex;gap:10px;align-items:center;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .head .img{width:48px;height:48px;border-radius:4px;background:#5a4a3a;border:1px solid var(--line);flex:0 0 auto}
+  .head .img.halfling{background:linear-gradient(135deg,#6a5a3a,#3a4a2a)} .head .img.warden{background:linear-gradient(135deg,#6a6a4a,#2a2f3a)}
+  .head .img.fighter{background:linear-gradient(135deg,#5a3a3a,#3a3a4a)}
+  .head h2{margin:0;font-size:18px;font-weight:700;line-height:1.2}
+  .head .sub{color:var(--ink-2);font-size:12px}
+  .bar{display:flex;align-items:center;gap:6px;margin-top:7px}
+  .bar .trk{flex:1;height:6px;border-radius:3px;background:rgba(0,0,0,.3);overflow:hidden}
+  .bar .fill{height:100%;width:100%;border-radius:3px;background:var(--good);transform-origin:left;animation:drain 20s linear forwards}
+  .bar span{font-size:10px;color:var(--ink-3);white-space:nowrap}
+  @keyframes drain{to{transform:scaleX(0)}}
+  @media (prefers-reduced-motion:reduce){.bar .fill{animation:none;transform:scaleX(.62)}}
+  .situ{padding:9px 2px 4px;font-size:14px}
+  .situ b{font-weight:700}
+
+  .row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 8px;align-items:center;margin:5px 0;padding:6px 8px;border-radius:4px;background:rgba(0,0,0,.18);border:1px solid var(--line);border-left:3px solid var(--pending);cursor:pointer}
+  .row.off{opacity:.5;cursor:not-allowed;border-left-color:var(--neutral)}
+  .row.on{background:var(--pending-soft)}
+  .row input{margin:0;accent-color:var(--pending)}
+  .row .nm{font-weight:600;font-size:13px}
+  .row .dice{font-weight:400;color:var(--ink-2);font-size:12.5px;margin-left:6px}
+  .row .cost{font-size:10px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;color:var(--ink-2)}
+  .row .cost.no{color:var(--bad)}
+  .row details{grid-column:2 / -1;font-size:11.5px;color:var(--ink-2)}
+  .row details summary{cursor:pointer;color:var(--ink-3);font-size:11px;list-style:none}
+  .row details summary::-webkit-details-marker{display:none}
+  .row details summary::after{content:" ▸"} .row details[open] summary::after{content:" ▾"}
+  .row details p{margin:3px 0 0;font-style:italic;border-left:2px solid var(--line);padding-left:8px}
+  .row:hover:not(.off){background:rgba(0,0,0,.3)} .row.on:hover{background:var(--pending-soft)}
+
+  .btnrow{display:flex;gap:8px;margin-top:12px}
+  .btn{flex:1;font:inherit;font-weight:600;font-size:13px;padding:9px 12px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);cursor:pointer;line-height:1.3}
+  .btn.primary{background:var(--pending-soft);border-color:var(--pending)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+
+  /* the attacker's usage/roll dialog for the gate scene */
+  .fg{display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center;margin:6px 0;font-size:12.5px;color:var(--ink-2)}
+  .fg select{font:inherit;font-size:12.5px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:3px;padding:4px 6px}
+  .rollbtns{display:flex;gap:6px;margin-top:12px}
+  .rollbtns .btn{text-align:center;font-weight:600}
+  .gone{margin-top:10px;padding:8px 10px;border:1px dashed var(--line);border-radius:4px;font-size:12px;color:var(--ink-3);text-align:center}
+
+  .side{display:flex;flex-direction:column;gap:12px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+  .panel h3{margin:0 0 6px;font-size:13px;font-weight:600}
+  .panel p,.panel li{font-size:12.5px;color:var(--ink-2);margin:0}
+  .panel ol,.panel ul{padding-left:18px;margin:0;display:flex;flex-direction:column;gap:6px}
+  .panel li b{color:var(--ink);font-weight:600}
+  .q{border-left:3px solid var(--pending)}
+  .reset{font:inherit;font-size:11.5px;margin-top:10px;padding:4px 9px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-2);cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Battle Flow · prototype · 2026-09-24 · Slice A · for ruling, nothing built</div>
+      <h1>Slice A: Savage Attacker on the hit, and Disadvantage as a rescue of the hit</h1>
+    </div>
+    <p>Two new shapes, each drawn in every state. Pick a scene along the top. Where a scene has a before and after, tick a row and press the button; the chat log on the right shows what the table sees. The rule text in each fold is the 2024 wording as the build will read it off the pack.</p>
+  </header>
+
+  <nav class="scenes" aria-label="Scenes">
+    <div class="grp"><span>Savage Attacker</span>
+      <button data-scene="s1a" aria-pressed="true">1a · the hit — use it?</button>
+      <button data-scene="s1b">1b · rolled again, higher</button>
+      <button data-scene="s1bl">1b · rolled again, lower</button>
+      <button data-scene="s1c">1c · second hit, same turn</button>
+      <button data-scene="s1d">1d · Greatsword 2d6</button>
+    </div>
+    <div class="grp"><span>Disadvantage rescue</span>
+      <button data-scene="gate">the gate · nothing before the roll</button>
+      <button data-scene="s2a">2a · Halfling: Shield + Lucky</button>
+      <button data-scene="s2a2">2a · Warden: three kinds</button>
+      <button data-scene="s2a3">2a · rows already spent</button>
+      <button data-scene="s2b">2b · Lucky → a miss</button>
+      <button data-scene="s2b2">2b · Lucky → still a hit</button>
+      <button data-scene="s2c">2c · a crit</button>
+      <button data-scene="s2d">2d · the attacker's card</button>
+    </div>
+  </nav>
+
+  <div class="studio">
+    <div class="screen">
+      <div class="stage"><div class="map"></div><div id="popup"></div></div>
+      <div class="chatlog" id="chat"></div>
+    </div>
+    <aside class="side" id="side"></aside>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const RULES = {
+    savage: "Once per turn when you hit a target with a weapon, you can roll the weapon's damage dice twice and use either roll against the target.",
+    shield: "An imperceptible barrier of magical force protects you. Until the start of your next turn, you have a +5 bonus to AC, including against the triggering attack, and you take no damage from Magic Missile.",
+    lucky: "Disadvantage. When a creature rolls a d20 for an attack roll against you, you can spend 1 Luck Point to impose Disadvantage on that roll.",
+    flare: "When a creature that you can see within 30 feet of yourself makes an attack roll, you can take a Reaction to impose Disadvantage on the attack roll, causing light to flare before it hits or misses. You can use this feature a number of times equal to your Wisdom modifier (minimum of once). You regain all expended uses when you finish a Long Rest.",
+    dodge: "When a creature makes an attack roll against you, you can take a Reaction to impose Disadvantage on that roll. Whether the attack hits or misses, you can then teleport up to 30 feet to an unoccupied space you can see."
+  };
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  const state = { scene:"s1a", pick:null, done:null, open:new Set() };
+
+  /* ---------- pieces ---------- */
+  const bar = (secs, label="to answer") => `<div class="bar"><div class="trk"><div class="fill"></div></div><span>${secs}s ${label}</span></div>`;
+  const fold = key => `<details data-fold="${key}" ${state.open.has(key)?"open":""}><summary>the rule</summary><p>${esc(RULES[key])}</p></details>`;
+  function row(key, nm, dice, tag, { off=false, no=false } = {}){
+    const on = state.pick === key && !off;
+    return `<div class="row ${off?"off":""} ${on?"on":""}" data-row="${key}">
+      <input type="checkbox" ${on?"checked":""} ${off?"disabled":""} aria-label="${esc(nm)}">
+      <span class="nm">${esc(nm)}<span class="dice">${esc(dice)}</span></span>
+      <span class="cost ${no?"no":""}">${esc(tag)}</span>${fold(key)}</div>`;
+  }
+  const card = (tone, e, t, s, lines=[]) => `<div class="bf ${tone}"><div class="e">${e}</div><div class="t">${t}</div>${s?`<div class="s">${s}</div>`:""}${lines.length?`<div class="l">${lines.map(l=>`<div>${l}</div>`).join("")}</div>`:""}</div>`;
+  const msg = (who, inner) => `<div class="msg"><div class="spk">${esc(who)}</div>${inner}</div>`;
+  const log = (...m) => `<div class="ey-log">chat log</div>${m.join("")}`;
+  const popup = (title, inner) => `<div class="offer"><div class="title"><i></i>${esc(title)}<span class="x">✕</span></div><div class="body">${inner}</div></div>`;
+  const head = (img, h, sub) => `<div class="head"><div class="img ${img}"></div><div><h2>${h}</h2><div class="sub">${sub}</div></div></div>`;
+
+  /* ---------- the attack cards (shape 2) ---------- */
+  const atkHit = (first=12, crit=false) => msg("Goblin Boss", card(crit?"crit":"pending","Attack — held for a reaction","Scimitar",`Goblin Boss → ${state.def?.name ?? "BF Test Halfling"}`,
+    [crit ? `d20 <b>20</b> +5 = <b>25</b> vs AC 15 <span class="verdict crit">natural 20 — CRIT</span>` : `d20 ${first} +5 = <b>${first+5}</b> vs AC 15 <span class="verdict hit">HIT</span>`,
+     `<span class="chip">waiting on ${state.def?.name ?? "BF Test Halfling"} · 20s</span>`]));
+  function atkBent(src, first, second, { crit=false, spend="" } = {}){
+    const f = first+5, sd = second+5, low = Math.min(first, second), tot = low+5;
+    const hit = tot >= 15 || (low === 20);
+    const firstLbl = crit ? `d20 <s class="old">20 (25) CRIT</s>` : `d20 <s class="old">${first} (${f})</s>`;
+    const kept = second <= first ? `the second d20 shows <b>${second}</b> (+5) = <b>${sd}</b>` : `the second d20 shows <b>${second}</b> (+5) = ${sd} — the lower stands: <b>${f}</b>`;
+    const verdict = crit ? `<span class="verdict hit">a hit, no longer a crit</span>` : hit ? `<span class="verdict hit">still a HIT</span>` : `<span class="verdict miss">MISS</span>`;
+    return msg("Goblin Boss", card(hit?"bad":"good", `Attack — Disadvantage · ${src}`, "Scimitar", `Goblin Boss → ${state.def?.name ?? "BF Test Halfling"}`,
+      [`${firstLbl} → ${kept} vs AC 15 ${verdict}`]))
+      + msg(state.def?.name ?? "BF Test Halfling", card("good", `Reaction — ${src}`, src, state.def?.name ?? "BF Test Halfling", [spend]));
+  }
+
+  /* ---------- the damage cards (shape 1) ---------- */
+  const dmgCard = (lines, tone="pending", e="Damage — waiting on Savage Attacker") => msg("BF Test Fighter", card(tone, e, "Longsword", "BF Test Fighter → Bugbear Warrior", lines));
+
+  /* ---------- scenes ---------- */
+  const S = {};
+
+  S.s1a = () => {
+    if ( state.done === "roll" ) return S.s1b();
+    if ( state.done === "keep" ) return {
+      pop:`<div class="nothing">The popup closed. The first roll stands and Savage Attacker is still unused this turn.</div>`,
+      chat: log(msg("BF Test Fighter", card("bad","Attack","Longsword","BF Test Fighter → Bugbear Warrior",[`d20 14 +7 = <b>21</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
+        dmgCard([`1d8 + 4 → <b>9</b> (5 + 4) — applied`, `<span class="chip">Savage Attacker — not used, still ready this turn</span>`],"neutral","Damage")),
+      side: sideSavage(true) };
+    return {
+      pop: popup("Savage Attacker — BF Test Fighter",
+        head("fighter","9 damage — roll it again?","Longsword · 1d8 + 4 → 9 (5 + 4)") + bar(20)
+        + row("savage","Savage Attacker","1d8 again","once per turn")
+        + `<div class="btnrow"><button class="btn primary" data-act="roll" ${state.pick?"":"disabled"}>Roll again</button><button class="btn" data-act="keep">Keep the roll</button></div>`),
+      chat: log(msg("BF Test Fighter", card("bad","Attack","Longsword","BF Test Fighter → Bugbear Warrior",[`d20 14 +7 = <b>21</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
+        dmgCard([`1d8 + 4 → <b>9</b> (5 + 4)`, `<span class="chip">held — the damage waits for the answer · 20s</span>`])),
+      side: sideSavage(true) };
+  };
+  S.s1b = () => ({
+    pop:`<div class="nothing">The popup is gone the moment "Roll again" is pressed. The second set is rolled in the open and the higher set is kept, no second question.</div>`,
+    chat: log(msg("BF Test Fighter", card("bad","Attack","Longsword","BF Test Fighter → Bugbear Warrior",[`d20 14 +7 = <b>21</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
+      dmgCard([`1d8 → <s class="old">5</s>, again → <b>7</b> — the higher stands: <b>11</b> (7 + 4)`, `the +4 is added once, after the pick — only the weapon's die was rolled again`, `<span class="chip used">Savage Attacker — used this turn</span>`], "good", "Damage — applied")),
+    side: sideSavage(false, "higher") });
+  S.s1bl = () => ({
+    pop:`<div class="nothing">Same press, the other outcome: the second die came up lower, so the first roll stands. Savage Attacker is still spent for the turn.</div>`,
+    chat: log(msg("BF Test Fighter", card("bad","Attack","Longsword","BF Test Fighter → Bugbear Warrior",[`d20 14 +7 = <b>21</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
+      dmgCard([`1d8 → <b>5</b>, again → <s class="old">2</s> — the first stands: <b>9</b> (5 + 4)`, `<span class="chip used">Savage Attacker — used this turn</span>`], "good", "Damage — applied")),
+    side: sideSavage(false, "lower") });
+  S.s1c = () => ({
+    pop:`<div class="nothing">Second hit, same turn: no popup. Once per turn is spent, so there is nothing to ask.</div>`,
+    chat: log(
+      dmgCard([`1d8 → <s class="old">5</s>, again → <b>7</b> — the higher stands: <b>11</b>`, `<span class="chip used">Savage Attacker — used this turn</span>`], "good", "Damage — applied · first attack"),
+      msg("BF Test Fighter", card("bad","Attack","Longsword","BF Test Fighter → Bugbear Warrior",[`d20 9 +7 = <b>16</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
+      dmgCard([`1d8 + 4 → <b>10</b> (6 + 4) — applied`, `<span class="chip used">Savage Attacker — used this turn</span>`], "neutral", "Damage — second attack")),
+    side: `<div class="panel"><h3>What this shows</h3><ul>
+      <li><b>No popup on the second hit.</b> The feature is spent for the turn, so the hit rolls and applies as it always has.</li>
+      <li><b>The card carries one small tag</b> so nobody wonders why the popup didn't come: "Savage Attacker — used this turn".</li>
+      <li><b>The turn is the combat's turn.</b> The tag clears when the Fighter's turn ends. Outside combat, once per turn cannot be counted, so every hit asks (RULINGS: once-per-turn counts only for a combatant).</li>
+    </ul></div>` });
+  S.s1d = () => {
+    const rolled = state.done === "roll";
+    if ( state.done === "keep" ) return { pop:`<div class="nothing">Kept: 2d6 + 4 → 9 stands, and Savage Attacker is still ready this turn.</div>`, chat: log(msg("BF Test Fighter", card("neutral","Damage","Greatsword","BF Test Fighter → Bugbear Warrior",[`2d6 + 4 → <b>9</b> (3 + 2 + 4) — applied`, `<span class="chip">Savage Attacker — not used, still ready this turn</span>`]))), side: `<div class="panel"><button class="reset" data-act="reset">Back to the popup</button></div>` };
+    return {
+      pop: rolled ? `<div class="nothing">Both dice rolled again as one set. The set totals are compared, never die by die.</div>`
+        : popup("Savage Attacker — BF Test Fighter",
+          head("fighter","9 damage — roll it again?","Greatsword · 2d6 + 4 → 9 (3 + 2 + 4)") + bar(20)
+          + row("savage","Savage Attacker","2d6 again","once per turn")
+          + `<div class="btnrow"><button class="btn primary" data-act="roll" ${state.pick?"":"disabled"}>Roll again</button><button class="btn" data-act="keep">Keep the roll</button></div>`),
+      chat: log(msg("BF Test Fighter", card("bad","Attack","Greatsword","BF Test Fighter → Bugbear Warrior",[`d20 15 +7 = <b>22</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
+        rolled ? msg("BF Test Fighter", card("good","Damage — applied","Greatsword","BF Test Fighter → Bugbear Warrior",
+            [`2d6 → <s class="old">3 + 2 = 5</s>, again → <b>6 + 4 = 10</b> — the higher set stands: <b>14</b> (10 + 4)`, `<span class="chip used">Savage Attacker — used this turn</span>`]))
+          : msg("BF Test Fighter", card("pending","Damage — waiting on Savage Attacker","Greatsword","BF Test Fighter → Bugbear Warrior",[`2d6 + 4 → <b>9</b> (3 + 2 + 4)`, `<span class="chip">held — the damage waits for the answer · 20s</span>`]))),
+      side: `<div class="panel"><h3>What this shows</h3><ul>
+        <li><b>The weapon's dice are one set.</b> A 2d6 weapon rolls both dice again and the two totals are compared: 5 against 10, the 10 stands. No mixing the best die from each set.</li>
+        <li><b>The modifier stays outside.</b> +4 is added once, to whichever set stands.</li>
+        <li><b>Only the weapon's dice.</b> Extra dice riding the hit (Sneak Attack, a Superiority Die, a smite) are not rolled again; the rule names the weapon's damage dice.</li>
+      </ul></div>
+      ${!rolled ? `<div class="panel"><p>Tick the row and press <b>Roll again</b> to see the card after.</p></div>` : `<div class="panel"><button class="reset" data-act="reset">Back to the popup</button></div>`}` };
+  };
+  function sideSavage(before, variant){
+    return `<div class="panel"><h3>What the popup asks</h3><ul>
+      <li><b>Only whether to use it on this hit.</b> It is once per turn, so a Fighter with Extra Attack may want to save it for a bigger roll later in the turn.</li>
+      <li><b>Never which set to keep.</b> There is no reason to keep the lower, so the higher set is kept automatically.</li>
+      <li><b>The same moment as Empowered Spell:</b> the damage is rolled, the popup fronts, the damage waits for the answer, and the clock keeps the roll at expiry.</li>
+    </ul></div>
+    <div class="panel"><h3>What is read</h3><ul>
+      <li><b>The dice</b> are the weapon's own damage part (1d8 on a Longsword, 1d10 two-handed, 2d6 on a Greatsword). The modifier is never rerolled.</li>
+      <li><b>Once per turn</b> is recorded on the Fighter for the combat turn.</li>
+    </ul></div>
+    ${before ? `<div class="panel"><p>Tick the row, then press <b>Roll again</b> (the card after) or <b>Keep the roll</b>.</p>${state.done?`<button class="reset" data-act="reset">Back to the popup</button>`:""}</div>` : ""}
+    <div class="panel q"><h3>For you to rule</h3><ol>
+      <li>The tick on a one-row popup: keep it (the house row shape) or let <b>Roll again</b> stand alone as the answer?</li>
+      <li>A crit's doubled dice: roll the whole doubled set again (2d8 on a Longsword crit) and compare set totals? Drawn as yes.</li>
+    </ol></div>`;
+  }
+
+  /* shape 2 */
+  S.gate = () => ({
+    pop: popup("Scimitar: Usage",
+      head("", "Scimitar", "Goblin Boss · Attack") +
+      `<div class="fg" style="margin-top:10px"><span>Target</span><select><option>BF Test Halfling</option></select></div>
+       <div class="fg"><span>Situational bonus</span><select><option>none</option></select></div>
+       <div class="rollbtns"><button class="btn">Advantage</button><button class="btn primary">Normal</button><button class="btn">Disadvantage</button></div>
+       <div class="gone">No Lucky, no Warding Flare, no Shadowy Dodge here. The attacker rolls untouched.</div>`),
+    chat: log(`<div class="nothing" style="margin-top:20px">nothing yet: no card, no popup for the defender</div>`),
+    side: `<div class="panel"><h3>The timing you ruled</h3><ul>
+      <li><b>Nothing appears before the roll.</b> The attacker's roll dialog is the system's own, with no Battle Flow row on it and no popup for the defender.</li>
+      <li><b>The defender is asked after the verdict,</b> only when the attack has hit. The same place Shield is asked today: after the hit lands, before damage applies.</li>
+      <li><b>A miss asks nothing.</b> Disadvantage on a roll that already missed changes nothing, so no row appears.</li>
+    </ul></div>
+    <div class="panel"><h3>Why not before the roll</h3><p>Asking before the roll means asking on every attack at every defender, most of which miss anyway. Asking on the hit means one question, only when it matters, in the popup the table already knows.</p></div>` });
+
+  const DEF = {
+    halfling:{ name:"BF Test Halfling", img:"halfling" },
+    warden:{ name:"BF Test Warden", img:"warden" }
+  };
+  function rescuePopup(def, rows, { crit=false } = {}){
+    return popup(`Rescue the hit — ${def.name}`,
+      head(def.img, "Goblin Boss hit you", `Scimitar · ${def.name} · Reaction`) + bar(20)
+      + `<div class="situ">${crit ? `<b>natural 20</b> — a <b>critical hit</b>.` : `<b>17</b> vs AC <b>15</b> — a hit.`}</div>`
+      + rows
+      + `<div class="btnrow"><button class="btn primary" data-act="answer" ${state.pick?"":"disabled"}>Answer</button><button class="btn" data-act="pass">Pass</button></div>`);
+  }
+  const passCard = def => log(atkHit(12).replace("Attack — held for a reaction","Attack").replace(/<span class="chip">waiting.*?<\/span>/,""),
+    msg(def.name, card("neutral","Reaction — passed","Lets it land",def.name,["No reaction — the attack lands."])));
+
+  S.s2a = () => {
+    state.def = DEF.halfling;
+    if ( state.done ) return resultFor(state.done);
+    return { pop: rescuePopup(DEF.halfling,
+        row("shield","Shield","+5 AC","a Reaction, a spell slot")
+      + row("lucky","Lucky","Disadvantage","1 Luck Point · 3 left")),
+      chat: log(atkHit(12)), side: side2a() };
+  };
+  S.s2a2 = () => {
+    state.def = DEF.warden;
+    if ( state.done ) return resultFor(state.done);
+    return { pop: rescuePopup(DEF.warden,
+        row("flare","Warding Flare","Disadvantage","a Reaction · 2 uses left")
+      + row("dodge","Shadowy Dodge","Disadvantage","a Reaction")
+      + row("lucky","Lucky","Disadvantage","1 Luck Point · 3 left")),
+      chat: log(atkHit(12)), side: side2a(true) };
+  };
+  S.s2a3 = () => {
+    state.def = DEF.warden;
+    if ( state.done ) return resultFor(state.done);
+    return { pop: rescuePopup(DEF.warden,
+        row("flare","Warding Flare","Disadvantage","Reaction spent this round",{off:true,no:true})
+      + row("dodge","Shadowy Dodge","Disadvantage","Reaction spent this round",{off:true,no:true})
+      + row("lucky","Lucky","Disadvantage","1 Luck Point · 1 left")),
+      chat: log(atkHit(12)), side: `<div class="panel"><h3>What this shows</h3><ul>
+        <li><b>A spent row stays, greyed, with the reason as its tag.</b> The Warden used their Reaction earlier this round, so both Reaction rows are out.</li>
+        <li><b>Lucky is still live.</b> It costs a Luck Point and no Reaction, so a spent Reaction never greys it.</li>
+        <li><b>The other reasons read the same way:</b> "no uses left" when Warding Flare is at 0, "no Luck Points left" when Lucky is at 0. See the next scene for all three out.</li>
+      </ul></div>
+      <div class="panel"><button class="reset" data-act="allout">Show every row out</button></div>` };
+  };
+  S.s2a3out = () => ({ pop: popup("Rescue the hit — BF Test Warden",
+      head("warden","Goblin Boss hit you","Scimitar · BF Test Warden · Reaction") + bar(20)
+      + `<div class="situ"><b>17</b> vs AC <b>15</b> — a hit.</div>`
+      + row("flare","Warding Flare","Disadvantage","no uses left",{off:true,no:true})
+      + row("dodge","Shadowy Dodge","Disadvantage","Reaction spent this round",{off:true,no:true})
+      + row("lucky","Lucky","Disadvantage","no Luck Points left",{off:true,no:true})
+      + `<div class="btnrow"><button class="btn primary" disabled>Answer</button><button class="btn" data-act="pass">Pass</button></div>`),
+    chat: log(atkHit(12)), side: `<div class="panel q"><h3>For you to rule</h3><ol>
+      <li>Every row out: draw the popup like this (the record of what was there, Pass only), or not open it at all? Drawn as open, matching the rescue window's greyed rows; the cheaper cut is "no live row, no popup".</li>
+    </ol></div><div class="panel"><button class="reset" data-act="back3">Back to the Reaction-spent scene</button></div>` });
+
+  function side2a(warden){
+    return `<div class="panel"><h3>What the popup is</h3><ul>
+      <li><b>The hold popup you know from Shield,</b> with more than one row. Each way to rescue the hit is a row; one ticked at a time; <b>Answer</b> uses the ticked one, <b>Pass</b> lets the hit land. At expiry, Pass.</li>
+      <li><b>Three cost shapes, one row shape.</b> Lucky costs a Luck Point and no Reaction. Warding Flare costs a Reaction and a use. Shadowy Dodge costs a Reaction only. The tag says the cost; nothing else does.</li>
+      <li><b>Disadvantage on a hit</b> means a second d20 is rolled and the lower one stands. The verdict is taken again against the same AC.</li>
+    </ul></div>
+    <div class="panel"><p>Tick a row and press <b>Answer</b> to see the cards after, or <b>Pass</b>.</p></div>
+    <div class="panel q"><h3>For you to rule</h3><ol>
+      <li>The title. Today one reaction means one popup titled by its name ("Shield"). With several rows it follows the rescue window's pattern: <b>Rescue the hit — name</b>. Good?</li>
+      ${warden ? `<li><b>Warding Flare's text</b> says the light flares "before it hits or misses". The table asks after the verdict, as Shield does. Drawn as fine: the same compromise Shield already makes.</li>
+      <li><b>Shadowy Dodge</b> is the Gloom Stalker Ranger's level 15 feature; its teleport after is left to the table (a line on the card, no movement).</li>` : `<li>Shield would lift AC to 20; Lucky might not turn the hit. The popup states neither outcome, the same as the rescue window.</li>`}
+    </ol></div>`;
+  }
+
+  function resultFor(which){
+    const def = state.def;
+    if ( which === "pass" ) return { pop:`<div class="nothing">Passed. The hit lands and damage applies as today.</div>`, chat: passCard(def), side: backPanel() };
+    if ( which === "shield" ) return { pop:`<div class="nothing">Shield is cast natively (the slot spent by the system), exactly as today.</div>`,
+      chat: log(msg("Goblin Boss", card("good","Attack","Scimitar","Goblin Boss → BF Test Halfling",[`d20 12 +5 = <b>17</b> vs AC <s class="old">15</s> <b>20</b> <span class="verdict miss">MISS</span>`])),
+        msg(def.name, card("good","Reaction — cast","Shield",def.name,["AC is now <b>20</b>."]))), side: backPanel() };
+    const src = { lucky:"Lucky", flare:"Warding Flare", dodge:"Shadowy Dodge" }[which];
+    const spend = { lucky:"1 Luck Point spent · Luck Points: 2 of 3 remaining", flare:"Reaction spent · Warding Flare: 1 of 2 remaining", dodge:"Reaction spent · teleport up to 30 feet if you wish (the table moves the token)" }[which];
+    return { pop:`<div class="nothing">A second d20 is rolled in the open; the lower stands and the verdict is taken again.</div>`,
+      chat: log(atkBent(src, 12, 8, { spend })), side: backPanel() };
+  }
+  const backPanel = () => `<div class="panel"><h3>After the answer</h3><p>The popup closes at the click. The attack card is rewritten with the struck roll and the new verdict; the defender's own card carries the spend.</p><button class="reset" data-act="reset">Back to the popup</button></div>`;
+
+  S.s2b = () => { state.def = DEF.halfling; return {
+    pop:`<div class="nothing">After <b>Lucky</b>: the second d20 shows 8. The lower stands.</div>`,
+    chat: log(atkBent("Lucky", 12, 8, { spend:"1 Luck Point spent · Luck Points: 2 of 3 remaining" })),
+    side: `<div class="panel"><h3>What this shows</h3><ul>
+      <li><b>The first roll struck, the second kept:</b> 17 → the second d20 shows 8 (+5) = 13 vs AC 15, a miss. No damage is rolled.</li>
+      <li><b>The spend on the defender's card</b> in the house wording: "Luck Points: 2 of 3 remaining".</li>
+    </ul></div>` }; };
+  S.s2b2 = () => { state.def = DEF.halfling; return {
+    pop:`<div class="nothing">After <b>Lucky</b>: the second d20 shows 14. That is higher, so the first roll is still the lower and it stands.</div>`,
+    chat: log(msg("Goblin Boss", card("bad","Attack — Disadvantage · Lucky","Scimitar","Goblin Boss → BF Test Halfling",
+        [`d20 <b>12</b> (17), second d20 <s class="old">14 (19)</s> — the lower stands: <b>17</b> vs AC 15 <span class="verdict hit">still a HIT</span>`])),
+      msg("BF Test Halfling", card("bad","Reaction — Lucky","Lucky","BF Test Halfling",["1 Luck Point spent · Luck Points: 2 of 3 remaining", "It did not turn the hit."]))),
+    side: `<div class="panel"><h3>What this shows</h3><ul>
+      <li><b>Disadvantage keeps the lower,</b> so a higher second die changes nothing: the 17 stands and the hit lands.</li>
+      <li><b>The point is still spent.</b> Lucky's cost is paid when it is used, whatever the die shows.</li>
+    </ul></div>
+    <div class="panel q"><h3>A note on the brief</h3><p>The brief drew this as "14 (+5) = 19 — still a HIT". Under Disadvantage the 19 is the one thrown away; the card says the 17 stands.</p></div>` }; };
+  S.s2c = () => {
+    state.def = DEF.halfling;
+    if ( state.done && state.done !== "pass" && state.done !== "shield" ) return {
+      pop:`<div class="nothing">The second d20 shows 11. The lower stands: a plain hit, no longer a crit.</div>`,
+      chat: log(msg("Goblin Boss", card("bad","Attack — Disadvantage · Lucky","Scimitar","Goblin Boss → BF Test Halfling",
+          [`d20 <s class="old">20 (25) CRIT</s> → the second d20 shows <b>11</b> → <b>16</b> vs AC 15 <span class="verdict hit">a hit, no longer a crit</span>`, "damage is rolled once, not doubled"])),
+        msg("BF Test Halfling", card("good","Reaction — Lucky","Lucky","BF Test Halfling",["1 Luck Point spent · Luck Points: 2 of 3 remaining"]))),
+      side: backPanel() };
+    if ( state.done === "pass" ) return { pop:`<div class="nothing">Passed. The crit lands and its dice are doubled.</div>`, chat: log(atkHit(20,true).replace(/<span class="chip">waiting.*?<\/span>/,"")), side: backPanel() };
+    return { pop: rescuePopup(DEF.halfling,
+        row("shield","Shield","+5 AC","a crit ignores AC",{off:true,no:true})
+      + row("lucky","Lucky","Disadvantage","1 Luck Point · 3 left"), { crit:true }),
+      chat: log(atkHit(20, true)),
+      side: `<div class="panel"><h3>What this shows</h3><ul>
+        <li><b>A natural 20 hits whatever the AC,</b> so Shield greys with the fact as its tag: "a crit ignores AC".</li>
+        <li><b>Disadvantage can undo it.</b> The second d20 replaces the 20 if it is lower, and the crit goes with it.</li>
+      </ul></div><div class="panel"><p>Tick <b>Lucky</b> and press <b>Answer</b>.</p></div>
+      <div class="panel q"><h3>For you to rule</h3><ol><li>A crit that asks today with Shield alone is not asked at all (Shield could not help). With a Disadvantage row it now opens. Drawn as: the popup opens whenever at least one row is live.</li></ol></div>` };
+  };
+  S.s2d = () => { state.def = DEF.halfling; return {
+    pop:`<div class="nothing">The attacker (here the GM, for the Goblin Boss) gets no popup. Their own card tells them their roll was bent.</div>`,
+    chat: log(msg("Goblin Boss", card("good","Attack — Disadvantage · Lucky","Scimitar","Goblin Boss → BF Test Halfling",
+      [`<b>Lucky bent the roll</b> — Disadvantage, 17 → 13 <span class="verdict miss">MISS</span>`, `d20 <s class="old">12 (17)</s> → second d20 <b>8</b> (13) vs AC 15`]))),
+    side: `<div class="panel"><h3>What this shows</h3><ul>
+      <li><b>The attack card is the attacker's view.</b> Its first line says who bent it and how: "Lucky bent the roll — Disadvantage, 17 → 13, MISS". The struck d20 sits under it for anyone checking.</li>
+      <li><b>The same card for a player attacker.</b> When a monster's Warding Flare turns a player's hit, the player reads "Warding Flare bent the roll".</li>
+      <li><b>The eyebrow carries the source</b> ("Attack — Disadvantage · Lucky"), matching how the gate names what bent a roll today.</li>
+    </ul></div>` }; };
+
+  /* ---------- render and wiring ---------- */
+  function render(){
+    const out = (S[state.scene] ?? S.s1a)();
+    document.getElementById("popup").innerHTML = out.pop;
+    document.getElementById("chat").innerHTML = out.chat;
+    document.getElementById("side").innerHTML = out.side;
+  }
+  function go(scene){
+    state.scene = scene; state.pick = null; state.done = null;
+    document.querySelectorAll(".scenes button").forEach(b => b.setAttribute("aria-pressed", b.dataset.scene === scene || (scene==="s2a3out" && b.dataset.scene==="s2a3") ? "true" : "false"));
+    render();
+  }
+  document.querySelector(".scenes").addEventListener("click", e => {
+    const b = e.target.closest("button[data-scene]"); if ( b ) go(b.dataset.scene);
+  });
+  document.body.addEventListener("click", e => {
+    const sum = e.target.closest("summary");
+    if ( sum ) { e.preventDefault(); const k = sum.parentElement.dataset.fold; state.open.has(k) ? state.open.delete(k) : state.open.add(k); render(); return; }
+    if ( e.target.closest("details") ) return;
+    const act = e.target.closest("[data-act]");
+    if ( act && !act.disabled ) {
+      const a = act.dataset.act;
+      if ( a === "roll" ) state.done = "roll";
+      else if ( a === "keep" ) state.done = "keep";
+      else if ( a === "pass" ) state.done = "pass";
+      else if ( a === "answer" ) state.done = state.pick;
+      else if ( a === "reset" ) { state.done = null; state.pick = null; }
+      else if ( a === "allout" ) return go("s2a3out");
+      else if ( a === "back3" ) return go("s2a3");
+      render(); return;
+    }
+    const r = e.target.closest(".row[data-row]");
+    if ( r && !r.classList.contains("off") ) { const k = r.dataset.row; state.pick = state.pick === k ? null : k; render(); }
+  });
+  render();
+})();
+</script>
+</body>
+</html>
