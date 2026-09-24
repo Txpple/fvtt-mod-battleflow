@@ -3,7 +3,7 @@
 // A `/** … */` block must sit directly on top of the thing it documents. This asserts that,
 // and it exists because the failure mode is invisible and expensive.
 //
-// WHY (measured 2026-08-22, PLAN.md Phase 2): the extraction stages turned up EIGHT doc
+// WHY (measured 2026-08-22, the decision-layer extraction; ARCHITECTURE §11 *Moving code between files*): the extraction stages turned up EIGHT doc
 // comments sitting above a function they did not describe. Three predated the refactor —
 // functions had been reordered and their docs did not follow. FIVE were created by the
 // extraction itself: moving a function out left its doc behind, stranded above whatever

@@ -3,7 +3,7 @@
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): who was hit, who saved, and what that
  * costs them.
  *
- * Moved out of shared.js and saves.js (PLAN.md Phase 2, "move, do not rewrite"). This is the
+ * Moved out of shared.js and saves.js (ARCHITECTURE §10 D5, 2026-08-22; "move, do not rewrite"). This is the
  * most-copied logic in the module and the most consequential: it decides whether an attack
  * landed and how much damage a save lets through. Everything here takes plain objects and
  * returns plain values — no `game`, no `dnd5e`, no documents, no settings.
@@ -11,7 +11,7 @@
  * `saveMultiplier` and `verdictText` arrived already pure and moved verbatim. `hitsAmong` and
  * `modeAdmits` are the pure cores of `hitTargets` and `modeAllows`, whose remaining shells in
  * shared.js do nothing but read a message or a setting and call in here — which is precisely
- * the shape PLAN.md Phase 2 asks every handler to end up in.
+ * the shape ARCHITECTURE §2 asks every handler to end up in.
  *
  * ⚠ Depend downward only: nothing here may import a machine, the spine, or core.js.
  */

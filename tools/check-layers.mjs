@@ -172,7 +172,7 @@ export const groupOf = rel => (rel.includes("/") && GROUPS[rel.split("/")[0]]) ?
  * ⚠ A row here is a DECISION, not an exemption. Three dispositions appear, and they are
  * deliberately different words:
  *
- *   PERMANENT — ruled permanent (PLAN.md, the Tier 2 box). Do not "fix" these.
+ *   PERMANENT — ruled permanent (ARCHITECTURE *Decided against, and why*). Do not "fix" these.
  *   OPEN      — real debt, recorded as ARCHITECTURE §10 D9, waiting on a decision or a feature.
  *   BY DESIGN — the edge is correct at this layering and needs no repayment.
  * ------------------------------------------------------------------------------------------- */
@@ -188,7 +188,7 @@ const ALLOW = [
     from: "auto-apply.js", to: "mastery.js", disposition: "PERMANENT",
     why: "resolveHitMastery, routed from the damage chokepoint. Breaking it means moving "
       + "applyDamagesWithReceipt — the single chokepoint every machine routes through — into a "
-      + "third module (PLAN.md Tier 2: low value, real risk)"
+      + "third module (ARCHITECTURE appendix: low value, real risk)"
   },
   {
     from: "auto-apply.js", to: "bash-offer.js", disposition: "BY DESIGN",
@@ -385,7 +385,7 @@ function main() {
 
   // ⚠ SITES vs PAIRS, said precisely: `saves.js -> maneuvers.js` is one pinned pair holding two
   // call sites. A count that quietly means one when it reads like the other is how this repo's
-  // hand-carried numbers went stale twice (PLAN.md, the commit count).
+  // hand-carried numbers went stale twice (the commit count — git history).
   console.log(`\n  ${ALLOW.length} pinned pair(s), ${violations.length} call site(s) — `
     + "not downward, each with a reason:");
   const w = Math.max(...ALLOW.map(a => `${a.from} -> ${a.to}`.length));

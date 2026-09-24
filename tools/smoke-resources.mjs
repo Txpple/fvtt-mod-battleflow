@@ -8,7 +8,7 @@
 // Harness discipline (HANDOFF): settings restored first in their own guard; fixture
 // ownership snapshotted and restored EXACTLY; messages deleted by id-set difference.
 //
-// Sections (PLAN 1.1): `--section 3`, `--section 5,6`, `--list`. Fixtures, the settings pins
+// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): `--section 3`, `--section 5,6`, `--list`. Fixtures, the settings pins
 // and teardown ALWAYS run; only the numbered assertion blocks are skippable.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
@@ -45,7 +45,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const skips = [];
   const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  // WAIT FOR THE THING, NOT FOR THE CLOCK (PLAN 1.3). Returns the moment the predicate holds
+  // WAIT FOR THE THING, NOT FOR THE CLOCK (ARCHITECTURE §11 *Adding a TEST* rule 3). Returns the moment the predicate holds
   // and only spends the full budget when it never does. Measured 2026-08-23: 33.3s of this
   // suite's wall clock was unconditional sleeping, almost all of it waiting for a banner that
   // fades on its own schedule. Same helper smoke-volleys and smoke-maneuvers already had.
@@ -112,8 +112,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   // arrive at three different moments: the usage card (a document), the transient BANNER (a
   // hook, immediate) and the durable card LINE (a renderChatMessage decoration, later). The
   // first conversion of this helper waited on the banner alone and three "the card keeps its
-  // line" assertions started failing on a module that was working perfectly — PLAN 1.3's
-  // stated trap, walked into on the first attempt. A caller asserting SILENCE cannot wait for
+  // line" assertions started failing on a module that was working perfectly — the tier
+  // rule's stated trap (ARCHITECTURE §11 *Adding a TEST* rule 3), walked into on the first attempt. A caller asserting SILENCE cannot wait for
   // either surface, so it keeps a short settle: long enough for a wrong one to show itself.
   const useAndCard = async (act, { banner = true, line = banner } = {}) => {
     const before = new Set(game.messages.contents.map(m => m.id));

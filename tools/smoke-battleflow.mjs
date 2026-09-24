@@ -6,7 +6,7 @@
 // activated — players' scene is untouched). Settings are switched on for the test and back
 // OFF at the end: defaults-off is the design's dogfood contract.
 //
-// Sections (PLAN 1.1): `--section 4b`, `--section 3,5`, `--list`. ⚠ THE SETTINGS PIN (§1),
+// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): `--section 4b`, `--section 3,5`, `--list`. ⚠ THE SETTINGS PIN (§1),
 // THE FIXTURES (§2) AND THE RESTORE (§6) ALWAYS RUN — they are not sections, they are the
 // harness, and a filtered run that skipped them would leave the world dirty for the next one.
 // This suite gates in NODE rather than in the page: its sections are top-level blocks, each
@@ -1023,7 +1023,7 @@ if (want('5c')) {
 // changes NOTHING. This section asserts both halves so the decoy can never be mistaken for
 // the real one again, and prints the getter's own reading if 5.3.x ever moves it.
 //
-// ⚠ FOLDED IN 2026-08-23 (PLAN 2.3). It was a separate script that could only run AFTER
+// ⚠ FOLDED IN 2026-08-23 (git history). It was a separate script that could only run AFTER
 // smoke-battleflow, on smoke-battleflow's own fixtures, and was therefore forgotten twice.
 // As a section it cannot be: the fixtures are already standing and the restore below runs
 // whatever happens. Its own settings snapshot/restore is kept — it pins playerRollDamage

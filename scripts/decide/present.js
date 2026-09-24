@@ -2,7 +2,7 @@
 /**
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the presentation formatters.
  *
- * Moved out of ui.js (PLAN.md Phase 2, "move, do not rewrite"). §2's own layer table names
+ * Moved out of ui.js (ARCHITECTURE §10 D5, 2026-08-22; "move, do not rewrite"). §2's own layer table names
  * formatting as DECISION work, and these were already pure — strings in, strings out — sitting
  * in the spine because that is where they were first written. The spine keeps everything that
  * touches a document, a dialog or the DOM.

@@ -19,7 +19,7 @@
 // fixture resource reset before every damage assertion (a number that cannot move proves
 // nothing).
 //
-// Sections (PLAN 1.1): `--section 8`, `--section 12,13`, `--list`. Fixtures and teardown
+// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): `--section 8`, `--section 12,13`, `--list`. Fixtures and teardown
 // ALWAYS run; only the numbered assertion blocks are skippable.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
@@ -2307,7 +2307,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
  * re-testing. That is a correctness property of the WIRING, not of the popup — so it can only
  * be caught here, where a mis-wired offer would visibly resurrect a closed bug.
  *
- * ⚠ FOLDED IN 2026-08-23 (PLAN 2.3). It ran as its own script, so it was a separate line in
+ * ⚠ FOLDED IN 2026-08-23 (git history). It ran as its own script, so it was a separate line in
  * the battery that two sessions forgot. It keeps its OWN page context rather than joining the
  * closure above: it builds its own caster, targets and spell, so there is nothing to share and
  * nothing to collide with — the move costs one connection, not one rewrite.

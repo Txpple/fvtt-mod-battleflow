@@ -4,7 +4,7 @@
 // relative import must point at a file that exists. That is all this asserts, and it exists
 // because NOTHING ELSE IN THE GATE CAN SEE IT.
 //
-// WHY (measured 2026-08-22, PLAN.md Phase 2 stage 6): moving the presentation formatters out
+// WHY (measured 2026-08-22, the decision-layer extraction — git history): moving the presentation formatters out
 // of ui.js broke two files, and the whole static gate passed both times.
 //
 //   - `ui.js` kept CALLING `bfCard`/`popupKey`/`holdBarHTML` after they moved out. Biome's

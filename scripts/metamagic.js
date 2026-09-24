@@ -1,7 +1,7 @@
 /**
  * Battle Flow — Metamagic: the Sorcerer's options as a group in the spell's casting window, the
- * Sorcery Points spent by hand on the spell's card (DESIGN §6 *Metamagic*, user rulings
- * 2026-09-09; PLAN *THE METAMAGIC PASS*).
+ * Sorcery Points spent by hand on the spell's card (RULINGS.md *Metamagic*, user rulings
+ * 2026-09-09; the pass's measured cost is in ARCHITECTURE's appendix).
  *
  * The MOMENT is the cast. The system's own ActivityUsageDialog gets one fieldset on its render
  * hook (the emanation damage-type radios' idiom): a row per listed option the sheet grants — a

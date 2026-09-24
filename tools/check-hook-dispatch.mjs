@@ -217,7 +217,7 @@ const dispatched = new Set(artifact.hooks ?? []);
 
 // (0) THE ARTIFACT ITSELF IS SANE. A truncated or empty list would bless every name in the tree
 // and report a pass — the "checking apparatus that agrees with itself" failure this repo has
-// already met once (PLAN.md Phase 3's lookalike VOLLEY_KINDS).
+// already met once (the registry unification's lookalike VOLLEY_KINDS, 2026-08-23 — git history).
 if (dispatched.size < 50) {
   fail("artifact", `only ${dispatched.size} hook names — dnd5e 5.3.3 yields 105. The artifact is `
     + "truncated or corrupt; regenerate it rather than trusting this run");

@@ -1,5 +1,5 @@
 /**
- * THE VERSION BUMP — one command, both fields (PLAN.md Phase 0.3 / FOUNDATION PASS 2.2).
+ * THE VERSION BUMP — one command, both fields (2026-08-23; NOTES §5 *Release*).
  *
  *   node tools/bump-version.mjs 1.22.0     set it exactly
  *   node tools/bump-version.mjs patch      1.21.0 -> 1.21.1

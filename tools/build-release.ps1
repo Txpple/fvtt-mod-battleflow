@@ -29,7 +29,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $repo = Split-Path -Parent $PSScriptRoot
 
-# ⚠ THE GATE IS A PRECONDITION OF THE BUILD (PLAN.md Phase 0.3 / FOUNDATION 2.1). Until now
+# ⚠ THE GATE IS A PRECONDITION OF THE BUILD (2026-08-23; NOTES §5 *Release*). Until now
 # you could package a tree that fails `npm run verify` - a broken import, a stranded doc, a red
 # unit test - and nothing would say so until someone installed it. There is deliberately NO
 # skip flag: the gate takes seconds, and a release built from a tree that fails it is not a

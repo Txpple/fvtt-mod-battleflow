@@ -24,7 +24,7 @@ import { SURFACES } from "./surfaces.js";
 import { CARD, isCard, masteryOf, targetsOf } from "./decide/card.js";
 
 /* ---------------------------------------------------------------------------------------------
- * Phase 1.9B/C — weapon mastery riders (PLAN.md sections B and C).
+ * Phase 1.9B/C — weapon mastery riders (the first build plan's sections B and C — git history).
  *
  * Detection is one read: the system stamps the mastery used onto the attack message
  * (`system.mastery` since dnd5e 6.0 — decide/card.js `masteryOf`), and only when the
@@ -180,8 +180,8 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits) {
 
 // Graze is the anti-rider: it pays on the MISS, where no damage message will ever exist, so
 // it hangs on the attack message itself. It deliberately reads only the attack AS ROLLED —
-// a Shield later flipping someone's hit to a miss does not re-open Graze for them (corner
-// acknowledged in PLAN.md; nobody has asked for it).
+// a Shield later flipping someone's hit to a miss does not re-open Graze for them (a known
+// corner; nobody has asked for it).
 // Who drives a mastery moment is core's ONE question — `drivesMomentFor(subjectUuid)`, the
 // ATTACKER the subject (ARCHITECTURE §3, the driver table). This file carried the elect body's
 // first copy (v1.27.0) and a flag-shaped wrapper of core's (v1.27.2) until Stage 5 of the

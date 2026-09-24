@@ -2,8 +2,8 @@
 /**
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the membership lists, one shape.
  *
- * Moved verbatim out of hold.js, maneuvers.js and hit-riders.js (PLAN.md Phase 2, "move, do
- * not rewrite"), then unified here (PLAN.md Phase 3). Strings in, entries out — no `game`, no
+ * Moved verbatim out of hold.js, maneuvers.js and hit-riders.js (ARCHITECTURE §10 D5, "move, do
+ * not rewrite"), then unified here (ARCHITECTURE §6, 2026-08-23). Strings in, entries out — no `game`, no
  * `setting()`, no warnings, no globals. Each list keeps a one-line EDGE wrapper in
  * settings.js that reads its setting and delegates, which is the whole split: reading the
  * world is EDGE, deciding what the string MEANS is not.
@@ -115,7 +115,7 @@ export const MASTERY_NATIVE = new Set(["nick"]);
 
 /** Walk-5 (z): what each mastery popup quotes (DATA, moved here from mastery.js 2026-09-01 so the
  * reminder gate can quote it without a sideways import) — the 2024 property text VERBATIM, matched
- * against the system's own rules journal by tools/probe-mastery-rules.mjs (2026-08-21,
+ * against the system's own rules journal by tools/check-mastery-rules.mjs (first run as a probe 2026-08-21,
  * dnd5e 5.3.3; punctuation included). Never paraphrase these; the module's operational
  * hints ride as separate lines wherever they are needed. */
 export const MASTERY_RULES = Object.freeze({
@@ -1326,7 +1326,7 @@ export const TWINNED_EXCEPTIONS = Object.freeze({
 const METAMAGIC_NAMES = tableIndex(METAMAGIC).names;
 
 /**
- * THE R4 TRIPWIRE, AS DATA (DESIGN.md R4, PLAN.md Phase 3).
+ * THE R4 TRIPWIRE, AS DATA (DESIGN.md R4, ARCHITECTURE §6).
  *
  * R4's bargain is that a new ABILITY costs a data entry and zero code, and that this is safe
  * because every axis it keys on is a closed enumerated set. The bargain has a stated
@@ -1390,7 +1390,7 @@ const whole = chunk => [chunk.trim()];
  *   fallback    ⚠ a DECLARED, WARNED substitution for an unrecognised kind, or null to drop.
  *   default     the SHIPPED default for that setting.
  *
- * ⚠ THE DEFAULTS LIVE HERE, WITH THE PARSER THAT HAS TO ACCEPT THEM (PLAN.md Phase 3), and
+ * ⚠ THE DEFAULTS LIVE HERE, WITH THE PARSER THAT HAS TO ACCEPT THEM (ARCHITECTURE §6, 2026-08-23), and
  * settings.js reads them when it registers. They used to sit inline in the register blocks,
  * where the static gate could only reach them by scraping source with a regex — which the
  * check itself flagged as "a heuristic, and a fragile one". It was: the regex ended a

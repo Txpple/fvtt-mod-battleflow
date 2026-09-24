@@ -522,9 +522,9 @@ Hooks.on("renderSettingsConfig", (app, element) => {
  * consume them, which is what D1 was about: hold.js owned two of these, and polish.js had to
  * import a FEATURE to ask what the interrupt list said.
  *
- * ⚠ ALL FIVE LIVE HERE NOW (PLAN.md Phase 3), including the two that used to sit in their own
+ * ⚠ ALL FIVE LIVE HERE NOW (ARCHITECTURE §6 *Registry vs. settings list*, 2026-08-23), including the two that used to sit in their own
  * machines. That is not tidiness: the warn-once bookkeeping below is the "one warn-once path"
- * the phase asks for, and a path is only one path if every list walks it. maneuvers.js had the
+ * §6 asks for, and a path is only one path if every list walks it. maneuvers.js had the
  * only implementation and only the folds got warned; the other four failed silently.
  *
  * ⚠ Order-neutral by construction: `settings.js` is the SECOND import in battleflow.js, ahead

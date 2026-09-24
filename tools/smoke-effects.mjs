@@ -9,7 +9,7 @@
 // (a number that could not have moved proves nothing); damage searches go by originating id
 // over the WHOLE log, never a tail window.
 //
-// Sections (PLAN 1.1): `--section 14`, `--section 1,10`, `--list`. Fixtures and teardown
+// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): `--section 14`, `--section 1,10`, `--list`. Fixtures and teardown
 // ALWAYS run; only the numbered assertion blocks are skippable.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
@@ -239,7 +239,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await pc.items.get(blade.id).update({ 'system.mastery': key });
     };
 
-    // Linked victim token (PLAN F: linked for ownership-sensitive assertions; the base actor
+    // Linked victim token (linked for ownership-sensitive assertions; the base actor
     // IS the token actor, so uuids and HP reads are unambiguous).
     if (canvas.scene?.id !== scene.id) await scene.view();
     const [victimTokenDoc] = await scene.createEmbeddedDocuments('Token', [

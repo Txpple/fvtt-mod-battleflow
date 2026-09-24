@@ -2,7 +2,7 @@
  * Battle Flow — EDGE layer (ARCHITECTURE.md §2): area containment and token distance, the half
  * that needs Foundry.
  *
- * Moved verbatim out of saves.js (PLAN.md Phase 2, "move, do not rewrite"), then recut for
+ * Moved verbatim out of saves.js (ARCHITECTURE §10 D5, 2026-08-22; "move, do not rewrite"), then recut for
  * dnd5e 6.0 (phase 3 of the pass): an activity's area is a REGION, and containment is the
  * platform's own `TokenDocument#testInsideRegion` — no template shape is built here any more.
  * EDGE by §2 rule 1 and not by preference: `tokensInRegions` walks a scene's token documents,

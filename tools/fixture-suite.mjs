@@ -304,7 +304,7 @@ const out = await f.evaluate(async ({ playerName }) => {
         gear: ["Rapier", "Longsword", "Shortbow"], abilities: { dex: 18, str: 12, con: 14 }, hp: 90, x: 700 },
       { name: "BF Test Ranger", classes: [["Ranger", 5], ["Gloom Stalker", null]],
         feats: ["Dread Ambusher"], gear: ["Longsword", "Longbow"], abilities: { dex: 16, str: 14, wis: 16, con: 14 }, hp: 44, x: 500 },
-      // The metamagic pass (2026-09-09, PLAN *THE METAMAGIC PASS* Stage 0): a Sorcerer with EVERY
+      // The metamagic pass (2026-09-09, RULINGS.md *Metamagic*): a Sorcerer with EVERY
       // 2024 option on the sheet. The options are class feats nothing grants (SWEEP: "options
       // nothing grants"), so they go on as items beside Font of Magic, whose uses.max is
       // `@scale.sorcerer.points` — resolved by the level-set class item exactly as the Rogue's

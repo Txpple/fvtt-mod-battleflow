@@ -12,7 +12,7 @@
 // Restores every setting it touched, deletes its own chat messages, and leaves Gren's HP,
 // AC and spell slots exactly as it found them.
 //
-// Sections (PLAN 1.1): `--section 4d3`, `--section 1,3`, `--list`. Setup and the `finally`
+// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): `--section 4d3`, `--section 1,3`, `--list`. Setup and the `finally`
 // teardown ALWAYS run; only the scenario blocks are skippable.
 //
 // ⚠ THIS SUITE GATES TWICE, and it has to. Its page half COLLECTS (`results.<key> = {...}`)

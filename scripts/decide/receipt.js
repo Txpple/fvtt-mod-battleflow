@@ -3,7 +3,7 @@
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): receipt arithmetic.
  *
  * Moved out of auto-apply.js (the write side), receipts.js (the read side) and
- * effect-riders.js (the effect merge) — PLAN.md Phase 2, "move, do not rewrite". One receipt
+ * effect-riders.js (the effect merge) — ARCHITECTURE §10 D5, "move, do not rewrite". One receipt
  * entry is prior → delta → taken → reason; this file owns that arithmetic, the merge
  * discipline both receipt flags share, and the revert inverse.
  *

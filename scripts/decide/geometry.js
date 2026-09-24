@@ -3,7 +3,7 @@
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): area and token geometry that needs
  * no Foundry at all.
  *
- * Moved verbatim out of saves.js (PLAN.md Phase 2, "move, do not rewrite"), then recut for
+ * Moved verbatim out of saves.js (ARCHITECTURE §10 D5, 2026-08-22; "move, do not rewrite"), then recut for
  * dnd5e 6.0 (the 6.0 pass, phase 3): an activity's area is a REGION now, and the region's own
  * shapes are the truth — the v14 MeasuredTemplate shim, whose corrupted `distance` this file
  * once worked around with the dnd5e `dimensions` flag (`honestDims`), is no longer on the

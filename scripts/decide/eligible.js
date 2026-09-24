@@ -2,10 +2,10 @@
 /**
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the eligibility predicates.
  *
- * Moved out of saves.js, hold.js and volleys.js (PLAN.md Phase 2, "move, do not rewrite").
+ * Moved out of saves.js, hold.js and volleys.js (ARCHITECTURE §10 D5, 2026-08-22; "move, do not rewrite").
  * Every one of these answers "does this thing qualify?" from data alone.
  *
- * ⚠ A finding worth recording, because PLAN.md's own bullet implies otherwise: most of what
+ * ⚠ A finding worth recording, because the extraction plan's bullet implied otherwise (git history): most of what
  * reads like eligibility in this module is NOT extractable. `usableReaction` walks an actor's
  * items and awaits `findCastActivity`; `ridersAgainst` walks a target's ActiveEffects and
  * resolves each one's source; mastery eligibility awaits `fromUuid` per hit. Those are EDGE by

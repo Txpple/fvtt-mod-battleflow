@@ -11,7 +11,7 @@ import { statSourceOf } from "./shared.js";
 import { METAMAGIC_FLAG, extendedDuration } from "./decide/metamagic.js";
 
 /* ---------------------------------------------------------------------------------------------
- * Phase 1.9A — effect riders: a hit applies the effects riding it (PLAN.md section A).
+ * Phase 1.9A — effect riders: a hit applies the effects riding it (the first build plan's section A — git history).
  * The attack activity's own effect list is the on-hit set; application mirrors the native
  * tray's _prepareEffectData (dnd5e 6.0 effect-application.mjs) — the activity's own changes,
  * the same `system.origin` provenance, the same dedupe on the copy's source stamp, the same

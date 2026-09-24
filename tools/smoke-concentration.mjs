@@ -18,7 +18,7 @@
 // ⚠ Disconnect the MCP bridge first (two pages on one GM user make both clients the elect —
 // the double-apply lesson of 2026-08-16, and here it would stamp every ask twice).
 //
-// Sections (PLAN 1.1): `--section 5`, `--section 12,13`, `--list`. Fixtures and teardown
+// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): `--section 5`, `--section 12,13`, `--list`. Fixtures and teardown
 // ALWAYS run; only the numbered assertion blocks are skippable.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 

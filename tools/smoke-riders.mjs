@@ -9,7 +9,7 @@
 // synthetic actor has a different uuid from its base actor, which is precisely the distinction
 // the ownership test turns on, so leaving that ambiguous would make a passing suite meaningless.
 //
-// Sections (PLAN 1.1): `--section 5`, `--section 1,8`, `--list`. Fixtures and teardown ALWAYS
+// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): `--section 5`, `--section 1,8`, `--list`. Fixtures and teardown ALWAYS
 // run; only the numbered assertion blocks are skippable.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 

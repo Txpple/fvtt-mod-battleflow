@@ -8,7 +8,7 @@
 // every message this run creates is deleted on the way out; BF Test fixtures are long-rested;
 // new-message searches go by ID-SET DIFFERENCE, never timestamps or tail windows.
 //
-// Sections (PLAN 1.1): `--section 3`, `--section 1,2`, `--list`. Fixtures and teardown ALWAYS
+// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): `--section 3`, `--section 1,2`, `--list`. Fixtures and teardown ALWAYS
 // run; only the numbered assertion blocks are skippable.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 

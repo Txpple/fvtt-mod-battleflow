@@ -12,7 +12,7 @@
 // ID-SET DIFFERENCE; fixture spells are the innate shape (consumption.spellSlot: false —
 // the §6 smoke-cast lesson: that is how an NPC casts without slots).
 //
-// Sections (PLAN 1.1): `--section 3`, `--section 3,9`, `--list`. Fixtures, the settings pins
+// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): `--section 3`, `--section 3,9`, `--list`. Fixtures, the settings pins
 // and teardown ALWAYS run; only the numbered assertion blocks are skippable. Every section
 // here restores whatever it changed (§4 the switch, §5 the timer, §6 the blocklist), which is
 // why none of them declare a dependency.
@@ -151,7 +151,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   // ⚠ §4 asserts ABSENCE, and nothing can wait for a thing not to happen. So wait for what the
   // cast DOES produce — its usage card, stamped in the same hook chain a volley would be —
   // and settle briefly after it. That is the honest conversion; a bare `until` on the volley
-  // flag would return instantly and prove nothing (PLAN 1.3).
+  // flag would return instantly and prove nothing (ARCHITECTURE §11 *Adding a TEST* rule 3).
   const castSettled = async beforeIds => {
     await until(() => fresh(beforeIds).some(m => (m.type === 'usage')
       ), 5000);
@@ -573,7 +573,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && !!document.querySelector(`[data-message-id="${card5?.id}"] .bf-volley-row [data-bf-deadline]`));
       // ⚠ The FLAG is not the ROLLS. `status === 'resolved'` flips when the buzzer fires, and
       // the two spread rolls post after it — waiting on the status alone caught the first roll
-      // only and failed a working module (PLAN 1.3's trap, second sighting). Wait for what 5b
+      // only and failed a working module (the tier rule's trap, second sighting — ARCHITECTURE §11 *Adding a TEST* rule 3). Wait for what 5b
       // reads: both rolls, and the resolved status with them.
       const expRollsNow = () => fresh(before).filter(m =>
         (m.type === 'damage') && m.getFlag(MOD, 'volleyFor'));

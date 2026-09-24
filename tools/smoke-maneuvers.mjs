@@ -16,7 +16,7 @@
 //
 // ⚠ Run `smoke-battleflow` FIRST — rides BF Test Attacker / BF Test Victim.
 //
-// Sections (PLAN 1.1): named after the fold they exercise — `--section B`, `--section P,R`,
+// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): named after the fold they exercise — `--section B`, `--section P,R`,
 // `--list`. Fixtures and teardown ALWAYS run; only the fold groups are skippable.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 

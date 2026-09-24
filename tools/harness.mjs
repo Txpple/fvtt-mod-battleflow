@@ -1,6 +1,6 @@
 /**
  * THE SUITE HARNESS — the boilerplate every tools/ script copy-pasted, in one place
- * (PLAN.md § FOUNDATION PASS 1.1 + 1.4).
+ * (ARCHITECTURE §11 *Adding a TEST*, 2026-08-23).
  *
  * Twenty-six files in `tools/` opened with the same twenty lines: read the MCP's `.env` by
  * hand, arm a watchdog, build a `Foundry` (reached by ABSOLUTE PATH into a sibling checkout —

@@ -11,7 +11,7 @@
 // repro for the 2026-08-17 walk's popup-strand finding; kept and renamed because the
 // topology it exercises is a contract, not a closed bug.
 //
-// ⚠ IT ASSERTS NOW (PLAN FOUNDATION 3.1). It was a ledger dump for a human to read, which
+// ⚠ IT ASSERTS NOW (2026-08-23 — git history). It was a ledger dump for a human to read, which
 // meant it could only find a regression if somebody ran it AND read it carefully — and it was
 // unrunnable at all until the 2026-08-23 ownership grant, so nobody had. The ledger is still
 // printed in full, because it is what makes a failure legible; the assertions are what make an

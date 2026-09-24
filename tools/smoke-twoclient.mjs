@@ -1,5 +1,5 @@
 // TWO-CLIENT SMOKE — the properties a single-client suite is STRUCTURALLY unable to see
-// (PLAN.md FOUNDATION 3.2 + 3.3).
+// (2026-08-23; ARCHITECTURE §4 *The relay*).
 //
 // Everything else in tools/ drives one client that is simultaneously the attacker, the elect
 // and the answerer. Two of this module's load-bearing behaviours only exist when those are
