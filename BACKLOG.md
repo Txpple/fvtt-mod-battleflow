@@ -97,7 +97,6 @@ reaches it. Neither module may import the other; Battle Flow publishes events an
 | Report | What is known, and what would settle it |
 | --- | --- |
 | **A TRAY-applied copy still reads the pack as its source to the PLATFORM** | This module's reader tries every origin field; the platform's `getSourceActor` does not, so a `sourceStart` / `sourceEnd` clock on an effect applied from the card's own tray button expires at the wrong turn edge (NOTES §2). The platform's gap: a Misc Patches patch rewriting `system.origin.item` at `preCreateActiveEffect`, or a one-time sweep clearing the stale pack `item` from the world templates. Neither built; either is small. |
-| **Tactical Mind used from the SHEET after the offer passed** | Native: the card spends the use and shows a Bonus roll button; the d10 is not composed into the failed check. Composing a sheet use onto the actor's last failed check is buildable (the ARMED pattern, `d20-folds.js`) and wants a ruling on the window it looks back over. |
 
 ## Features — surveyed, not scheduled
 
