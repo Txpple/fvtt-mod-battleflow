@@ -35,7 +35,7 @@ import { bfCard, foldedRuleHTML, esc, holdBarHTML, popupKey, ruleLine, spendPhra
 import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
 import { METAMAGIC_FLAG, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome } from "./decide/metamagic.js";
 import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, askWords, heightenedMark, choiceCapFrom, choiceRuleFrom, choiceNeedsAsk } from "./decide/area-ask.js";
-import { pendingAsk, registerAskAnswerPart } from "./area-ask.js";
+import { newAsk, registerAskAnswerPart } from "./area-ask.js";
 import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync, dramaticVerdictPause, registerResumable } from "./ui.js";
 import { raiseHold, releaseHold, isHeld } from "./holds.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
@@ -483,9 +483,9 @@ async function carryDeferredCard(activity, held, templates) {
   const caster = { uuid: actor?.uuid ?? null, disposition: casterDisposition, name: actor?.name ?? null };
   const merged = chooses && (held.pick.key === "heightened") && choiceNeedsAsk({ candidates, casterUuid: caster.uuid, casterDisposition, cap });
   const ask = merged
-    ? pendingAsk({ kind: "choose", feature: spell, spell, cap, rule: choiceRuleFrom(description), itemImg: activity.item?.img ?? null,
+    ? newAsk({ kind: "choose", feature: spell, spell, cap, rule: choiceRuleFrom(description), itemImg: activity.item?.img ?? null,
       heightened: { feature: held.pick.feature, rule: featureRule }, candidates, caster })
-    : pendingAsk({ kind: held.pick.key, feature: held.pick.feature, cap: held.pick.cap ?? 1, rule: featureRule, candidates, caster });
+    : newAsk({ kind: held.pick.key, feature: held.pick.feature, cap: held.pick.cap ?? 1, rule: featureRule, candidates, caster });
   const words = askWords(ask);
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }), whisper,

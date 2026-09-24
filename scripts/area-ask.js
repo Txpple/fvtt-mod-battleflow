@@ -4,7 +4,7 @@
  * keeps the default, the answer written durably and the save demand filled from it. One machine,
  * three kinds, two customers: Careful Spell's ticks and Heightened Spell's radio are metamagic's
  * (RULINGS *Metamagic*); a spell that chooses its targets is the saves machine's (RULINGS *Spells
- * that choose their targets*). Both RAISE the ask by writing its flag (`pendingAsk`, `raiseAsk`);
+ * that choose their targets*). Both RAISE the ask by writing its flag (`newAsk`, `raiseAsk`);
  * this file draws it, takes the answer, and publishes `battleflow.areaAskAnswered`.
  *
  * Built out of metamagic.js on 2026-09-24 (the user: "better to pay this debt now than later"):
@@ -65,7 +65,7 @@ export function askCandidates(contained) {
  *          heightened?: {feature: string, rule?: string|null}|null, candidates: object[],
  *          caster: {uuid: string|null, disposition: number|null, name?: string|null}}} args
  */
-export function pendingAsk({ kind, feature, spell = null, cap = null, rule = null, itemImg = null, heightened = null, candidates, caster }) {
+export function newAsk({ kind, feature, spell = null, cap = null, rule = null, itemImg = null, heightened = null, candidates, caster }) {
   const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
   return {
     status: "pending", kind, feature, ...(spell ? { spell } : {}), cap, rule: rule ?? null, ...(itemImg ? { itemImg } : {}), ...(heightened ? { heightened } : {}),

@@ -11,7 +11,7 @@ import { CARD, activityUuidOf, isCard, targetsOf } from "../decide/card.js";
 import { saveDemandData, saveTargetEntry } from "../decide/demand.js";
 import { METAMAGIC_FLAG, metamagicRuleText } from "../decide/metamagic.js";
 import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, carefulProtects, heightenedMark, choiceCapFrom, choiceRuleFrom, chosenByDefault, choiceNeedsAsk } from "../decide/area-ask.js";
-import { askCandidates, pendingAsk, raiseAsk } from "../area-ask.js";
+import { askCandidates, newAsk, raiseAsk } from "../area-ask.js";
 import { tokensInRegions } from "../geometry.js";
 import { isDeadForSaves } from "../decide/eligible.js";
 import { EMANATIONS, tableIndex } from "../decide/registry.js";
@@ -62,7 +62,7 @@ export async function metamagicForDemand(card, activity, contained) {
   if ( ((mm.key === "careful") || (mm.key === "heightened")) && !mm.chosen && contained.length ) {
     const ask = card.getFlag(MODULE_ID, AREA_ASK_FLAG);
     if ( ask?.status !== "pending" && card.canUserModify?.(game.user, "update") ) {
-      await raiseAsk(card, pendingAsk({ kind: mm.key, feature: mm.feature, cap: mm.cap ?? 1, rule: mm.rule ?? null,
+      await raiseAsk(card, newAsk({ kind: mm.key, feature: mm.feature, cap: mm.cap ?? 1, rule: mm.rule ?? null,
         candidates: askCandidates(contained), caster: { uuid: facts.casterUuid, disposition: facts.casterDisposition, name: activity?.actor?.name ?? null } }));
     }
     return { ...none, hold: true };
@@ -136,7 +136,7 @@ export async function areaChoiceForDemand(card, activity, contained) {
     const mm = card.getFlag(MODULE_ID, METAMAGIC_FLAG);
     const heightened = ((mm?.key === "heightened") && !mm.chosen)
       ? { feature: mm.feature, rule: mm.rule ?? metamagicRuleText(itemNamed(activity.actor, mm.feature)?.system?.description?.value ?? "") } : null;
-    await raiseAsk(card, pendingAsk({ kind: "choose", feature: spell, spell, cap, rule: choiceRuleFrom(description), itemImg: activity.item.img ?? null, heightened,
+    await raiseAsk(card, newAsk({ kind: "choose", feature: spell, spell, cap, rule: choiceRuleFrom(description), itemImg: activity.item.img ?? null, heightened,
       candidates, caster: { uuid: facts.casterUuid, disposition: facts.casterDisposition, name: activity.actor?.name ?? null } }));
   }
   return { contained: [], hold: true };
