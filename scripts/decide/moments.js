@@ -274,18 +274,25 @@ export const MOMENT_RECORDS = Object.freeze({
     events: ["hold-answered"],
     means: "a held roll's reaction was answered by its target — cast or pass (hold/answer.js, hold/clock.js); one resolve per target with an answer. Parry's die publishes under maneuver too",
     resolved: (r, ctx) => (r?.targets ?? []).filter(t => t.answer).map(t => {
-      const item = itemUuid(t.uuid, t.itemId);
+      // A `roll` answer (Slice A, 2026-09-24) names the row that bent the roll — its item, not the
+      // reaction the hold was stamped around — and its spend is a Luck Point or a feature's use,
+      // never a Superiority Die: only Parry's die publishes under `maneuver`.
+      const bent = (t.answer === "roll") ? ((t.rescues ?? []).find(x => x.name === t.rescue) ?? { name: t.rescue ?? null }) : null;
+      const item = itemUuid(t.uuid, bent ? (bent.itemId ?? null) : t.itemId);
+      const die = !!t.poolSpend && !bent;
       return {
         marker: `${t.uuid}`,
-        events: t.poolSpend ? ["hold-answered", "maneuver"] : ["hold-answered"],
+        events: die ? ["hold-answered", "maneuver"] : ["hold-answered"],
         // The answerer's client, when the write was the elect's (a relayed answer) — the picture
         // fired there before this gate existed, and still does.
         publisher: t.answeredBy ?? null,
-        facts: { actor: t.uuid ?? null, item, activity: activityUuid(item, t.activityId), ability: t.reaction ?? null, attackId: ctx.messageId,
+        facts: { actor: t.uuid ?? null, item, activity: activityUuid(item, bent ? (bent.activityId ?? null) : t.activityId),
+          ability: (bent ? bent.name : t.reaction) ?? null, attackId: ctx.messageId,
           targets: source(r) ? [{ uuid: source(r), name: null }] : [], spend: t.poolSpend ?? null,
           details: { answer: t.answer, kind: t.kind ?? null, reduceBy: (Number(t.reduceBy) > 0) ? Number(t.reduceBy) : null,
             spell: r.spell ?? null, trigger: r.trigger ?? "attack", timedOut: !!t.timedOut,
-            ...(t.poolSpend ? { formula: t.reduce?.formula ?? null, mode: "reduce" } : {}) } }
+            ...(die ? { formula: t.reduce?.formula ?? null, mode: "reduce" } : {}),
+            ...(bent ? { rescue: bent.name, how: t.bent?.how ?? null, stood: t.bent?.total ?? null, verdict: t.verdict ?? null } : {}) } }
       };
     })
   },
@@ -560,6 +567,8 @@ export const STATE_KEYS = Object.freeze({
   ac: "an envelope field beside respondsTo — the AC the reaction produced",
   effectLanded: "an envelope field beside respondsTo — whether the reaction's effect had arrived",
   reduceBy: "an envelope field beside respondsTo — Parry's roll, carried to the fold",
+  bent: "an envelope field beside respondsTo — a `roll` answer's bent d20 (Slice A), carried to the fold",
+  rescue: "an envelope field beside respondsTo — which `roll` row bent the roll (Slice A), carried to the fold",
   sweepAnswer: "an envelope — the sweep's pick; the fold onto sweepCard is the resolve",
   saveChoiceAnswer: "an envelope — a save-side choice; the fold onto the saves flag is the resolve",
   riposteAnswer: "an envelope — a reactor's answer; the fold onto the riposte flag is the resolve",

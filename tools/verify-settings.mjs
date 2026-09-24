@@ -22,7 +22,7 @@ const REFERENCE = {
   requireTarget: true,
   reactionHold: true,
   blockList: 'Magic Missile:Shield',
-  interruptList: 'Shield:ac, Absorb Elements:damage, Uncanny Dodge:damage, Defensive Duelist:ac, Illusory Self:ac, Glorious Defense:ac, Parry:ac, Counterattack:ac, Defensive Stance:ac, Whirlwind of Sand:ac, Deflect Attacks:damage, Stone\'s Endurance:damage',
+  interruptList: 'Shield:ac, Absorb Elements:damage, Uncanny Dodge:damage, Defensive Duelist:ac, Illusory Self:ac, Glorious Defense:ac, Parry:ac, Counterattack:ac, Defensive Stance:ac, Whirlwind of Sand:ac, Deflect Attacks:damage, Stone\'s Endurance:damage, Lucky:roll, Warding Flare:roll, Shadowy Dodge:roll',   // the roll kind joined 2026-09-24 (Slice A)
   holdReveal: true,
   holdTimer: 24,          // user 2026-08-27: all timers 24s (30 briefly the same day; 15 per 2026-08-17, 12 before)
   holdSkipFutile: true,

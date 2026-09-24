@@ -129,6 +129,7 @@ export const LAYER_OF = {
   "decide/geometry.js": "decision",
   "decide/metamagic.js": "decision",
   "decide/area-ask.js": "decision",
+  "decide/rescue-hit.js": "decision",    // the `roll` interrupt's arithmetic and rows (Slice A, 2026-09-24)
   "decide/registry.js": "decision",
   "decide/verdict.js": "decision",
   "decide/eligible.js": "decision",

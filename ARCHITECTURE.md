@@ -455,14 +455,14 @@ the pin moves deliberately. As printed on 2026-09-24:
 
 | Set | Kinds | Against | The kinds |
 | --- | --- | --- | --- |
-| interrupt | 2 | module-owned | ac · damage |
+| interrupt | 3 | module-owned | ac · damage · roll (Slice A, 2026-09-24: Disadvantage after the hit — Lucky, Warding Flare, Shadowy Dodge) |
 | maneuverFold | 6 | module-owned | precision · riposte · interpose · bash · hew · command |
 | d20Fold | 4 | module-owned | heroic · tactical · bardic · seeking |
 | volley | 2 | module-owned | damage · attack |
 | mastery | 7 | **of the system's 8** | vex · sap · cleave · slow · topple · push · graze |
 | reminder | 7 | module-owned | vex · sap · prone · condition · range · effect · sneak |
 | emanation | 2 | module-owned | feature · spell |
-| **total** | **30** | pinned in `check-registry.mjs` | |
+| **total** | **31** | pinned in `check-registry.mjs` | |
 
 Quote the tool's table, never this one.
 
@@ -540,6 +540,7 @@ there needs `game` or `canvas`, it is EDGE and belongs one layer up (§2 rule 1)
 | [decide/demand.js](scripts/decide/demand.js) | `resolveDemand` (which pending demand a roll answers — the stamped, the chained and the bare channel, the order as `priority`; §4 *The relay*), `pendingDemands` (mid-answer, with no roll in hand); `saveDemandData`, `saveTargetEntry`, `verdictsOn` — the saves flag's two constructors and its verdict reader |
 | [decide/metamagic.js](scripts/decide/metamagic.js) | `metamagicFits` (does the option fit the spell — the pack keeps the option's condition as prose, so the predicate is the registry's `when`), `metamagicMenu` (the cast dialog's rows, the cost read live, the fit and the affordability as the tag), `metamagicPick` (one, eligible, affordable), `metamagicRuleText` (the feat's own text without the pack's cost line), `metamagicCardLine` (source, then result), `distantRange`, `carefulProtects` (the allies the save reaches, the caster first, up to the cap — or the player's chosen list), `heightenedMark` (the first enemy in reach, or the chosen one), `scalesTargetsFrom` (Twinned's fit off the source target count, with the user's exceptions), `extendedDuration` (doubled, 24 h at most), `empoweredPlan` (the ticked dice up to the cap), `empoweredOutcome` (the new total and the arrow sentence). Seeking Spell is a d20 fold KIND (`seeking`, d20-folds.js), not a metamagic.js moment. A METAMAGIC row's `unless` (Careful's `choosesTargets` — greyed on a spell that chooses its targets). The ask at the area and its readers of a spell's text are decide/area-ask.js (the row below) since 2026-09-24 |
 | [decide/area-ask.js](scripts/decide/area-ask.js) | the ask at the area (2026-09-24, out of decide/metamagic.js): `carefulProtects`, `heightenedMark`, `chosenByDefault`, `choiceNeedsAsk`, `choiceCapFrom` / `choiceRuleFrom` / `spellProse` (a spell's own number and sentence, read off its text), `askDefaults`, `askMark`, `askWords` (each kind's words), `askOutcome` (an answer's records and who keeps their save), `areaChoiceLine` |
+| [decide/rescue-hit.js](scripts/decide/rescue-hit.js) | the `roll` interrupt (Slice A, 2026-09-24): `d20ModeOf`, `d20Faces`, `needsSecondD20`, `disadvantageOutcome` (Disadvantage on a roll already made — the lower of two d20s; Advantage cancels to the FIRST die; already at Disadvantage moves nothing; a natural 20 can be undone), `critStands` (a crit doubles one damage roll only while it stands for every hit target), `rescueRows` / `liveRows` / `rescueTitle` (the popup's rows, their cost or their reason as the tag), `bentLines` (the attacker's card), `rescueSpendText`, `plainRule` |
 | [decide/moments.js](scripts/decide/moments.js) | `MOMENT_RECORDS` (every flag key that means *something resolved* — its word(s), what resolving means, `resolved(record, ctx)` → the markers and plain facts), `STATE_KEYS` (every other key, with its reason), `MOMENT_WORDS` / `MOMENT_KINDS` (the contract's vocabulary), `resolvedMoments`, `newMoments`, `momentId` — the moment gate's data (*The moment events*, below). ⚠ Classifies, never curates: a key is a resolve or state, a fact about the code |
 | [decide/shields.js](scripts/decide/shields.js) | `shieldDue` (is a damage shield due on this hit — melee, within the activity's reach, once per turn, while the temp HP stand), `shieldReach`, `shieldType` (the type the standing effect decides), `shieldEffectNames`, `durationSeconds` |
 | [decide/effect-view.js](scripts/decide/effect-view.js) | the effect view's rows from plain facts: `listed`, `changeSign`, `toneOf` (tone is a pattern, not a list), `effectRows`, `sheetRows`, `rowAction`, `panelGroups`, `everyRow`, `allRows`, `marksHeldBy` |
