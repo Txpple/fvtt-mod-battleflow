@@ -1075,6 +1075,45 @@ creature, a Twinned target's legality, whether a level 1+ spell was already cast
 One membership list over the table (`Metamagic List`), the conditions idiom, so a table can
 switch an option off; no new kind set. The 2014 options are ignored (SWEEP §5).
 
+### Spells that choose their targets (user, 2026-09-24 — Session 8's Slow; ruled off the prototype *Creatures of Your Choice*)
+
+Session 8: Gren cast Slow and Invictus, standing in the cube, was asked for a Wisdom save.
+Slow reads *"up to six creatures of your choice in a 40-foot Cube"* — the area is where the
+caster CHOOSES, not who owes the save — and a placed area asks everyone it holds. (Tom reached
+for Careful Spell to keep Invictus out; by the rules Careful does nothing on Slow.)
+
+- **The class, by name** (§6 registry rule 1): the Chosen Areas list over `CHOSEN_AREAS` — the
+  PHB's seven: Slow, Sleep, Conjure Barrage, Conjure Volley, Word of Radiance, Destructive Wave,
+  Weird. dnd5e's own `target.affects.choice` flags only four of them (measured against the pack),
+  so the flag is not the membership. Spirit Guardians is not listed: its aura's reach already
+  reaches enemies only. A spell that chooses by TARGETING (Bane, Enthrall, Compulsion, Divine
+  Word) needs nothing — the tokens the player targets are the choice.
+- **Asked only when there is a real choice** (the ruling): the area holds someone not hostile to
+  the caster, or more hostiles than the spell lets the caster choose. The number is the spell's
+  own words (Slow's "up to six"), read off its text, never stored (N1). Otherwise every hostile
+  is the choice, nobody is asked, and the card still says who.
+- **The question is the ask at the area** (Careful's popup, clock and answer — a third kind, not
+  a copy): *Who does Slow affect? Up to 6.*, the spell's own sentence quoted, the hostiles
+  ticked, the party and neutrals not, a tick pinging the token. The clock keeps the ticked
+  default. The caster is never a candidate for their own spell; a corpse never is. The demand
+  waits, empty and clockless, as it does for Careful, and its dice wait with it.
+- **Heightened Spell on such a spell asks ONE question**: the choice ticks, with a Disadvantage
+  radio beside each row, live only on the ticked.
+- **Careful Spell greys** on a listed spell — *you choose its targets* — because the creatures
+  Careful would spare are the ones the caster already leaves out (the ruling).
+- **The picture waits for the answer** (the 2026-09-09 ruling on Careful's ask, carried over): the
+  card is not held back — the hold registry holds the cast's activity from the card's birth, which
+  FX Studio already asks before it plays the card or the placed area — and the answer lifts it.
+- **The record** is `areaChoice` on the spell's card (`chosen`, `left`, `asked`): one line —
+  *Slow — chosen: Bramblemaw, Giant Crocodile · not chosen: Invictus* — and a `choice` moment
+  when the caster was asked; a default nobody chose publishes nothing.
+
+**Not built, and why:** using a metamagic option from the SHEET (the other half of Session 8's
+report — Tom's Careful Spell card) arms nothing. The casting window is where metamagic lives and
+it offered Careful on Slow; the user weighed an armed-chip design and a redirect off the same
+prototype and ruled that neither earned its keep ("i dont see what any of this metamagic edits
+gets us").
+
 
 ## 7. How to use this document
 
@@ -1108,7 +1147,7 @@ was written to prevent.
 | **D9's four remaining machine→machine edges** | **NOT being repaid, and that is the finished answer, not a delay.** Each is pinned in `check-layers.mjs` with its reason and its trigger — see [BACKLOG.md](BACKLOG.md). ⚠ **The pins are SELF-EXPIRING** — repay an edge and the build fails until its row is deleted. | the trigger named in the pin actually arriving |
 | **The two permanent import cycles** | `hold/index.js ↔ auto-damage.js` (hold.js's, through the index since the directory cut) and `auto-apply.js ↔ mastery.js` are **PERMANENT BY DECISION**. ⚠ The first is **load-bearing**: the bare `import "./auto-damage.js"` pins module evaluation order and `check-hook-order` depends on it. **Doing this work would make the tree worse.** | nothing. Closed. |
 | **The double reminder on a Vexing (or Sapping) hit** | **Working as intended (user, 2026-09-03: "vex as it works is fine and going as expected").** The notice popup at the hit ("Vex — Advantage on your next attack") AND the gate box at the next swing both stand; they are two moments, not one said twice — the hit is when the chip is earned, the roll is when it is spent. The notice does NOT quieten when the gate lists vex. | the table finding the pair noisy in play |
-| **Tactical Mind's refund** | ✅ **ASKED, since 2026-09-11 (the user: "its time to add the refund button").** The module still cannot DECIDE it — **no DC exists for an ability check anywhere in dnd5e** — so after the die is added and the fold settles, one window asks the player: *succeeded — keep the spend*, or *still failed — refund the use*. Refund writes the use of Second Wind back and posts a receipt; keep leaves it spent; the answer is durable on the roll (`tacticalRefund`). Only Tactical Mind itself, only on a raw check (a scoped tactical fold — Ambush, Tactical Assessment — is a superiority die, spent either way). Pinned by `smoke-d20-folds` §10. The 2026-08-23 ruling (unmodelled, a manual button declined) is superseded. | nothing owed. If dnd5e ever records a DC for raw checks, the ask can decide itself |
+| **Tactical Mind's refund** | ✅ **ASKED, since 2026-09-11 (the user: "its time to add the refund button").** The module still cannot DECIDE it — **no DC exists for an ability check anywhere in dnd5e** — so after the die is added and the fold settles, one window asks the player: *succeeded — keep the spend*, or *still failed — refund the use*. Refund writes the use of Second Wind back and posts a receipt; keep leaves it spent; the answer is durable on the roll (`tacticalRefund`). Only Tactical Mind itself (a scoped tactical fold — Ambush, Tactical Assessment — is a superiority die, spent either way). **The question states the numbers** (the walk, 2026-09-24: "say the old, the new adjusted, and ask your DM if it passes"): *The check was 12; Tactical Mind's d10 rolled 5, so it is now 17 — Does 17 pass? Ask your GM.* — and *Does 17 pass DC 15?* when the roll carried a DC (a requested check). **A check WITH a DC asks too**: it used to raise no ask at all, so one that still failed kept its use spent. Pinned by `smoke-d20-folds` §10. The 2026-08-23 ruling (unmodelled, a manual button declined) is superseded. | nothing owed. With a DC known the module could settle it itself; the user asked for the question (2026-09-24), so it asks |
 | **Widening Heroic Inspiration** to *"any die"* (damage rolls) or the transfer clause | **NOT SHIPPING — and CLOSED on the user's word (2026-09-11).** Heroic Inspiration reaches every d20 test the module meets — attacks, saves (demanded and native), ability, skill and tool checks, Initiative — measured through the sheet's own roll dialog ([tools/probe-heroic-check.mjs](tools/probe-heroic-check.mjs)). The transfer clause is *"a table handling level thing"*; damage-die rerolls would trigger §11 rule 4's auto-revert obligation and are not wanted. | nothing. Closed |
 | **The `smoke-battleflow` flake** | ✅ **CLOSED 2026-08-24 — a real revert bug** (reverting a KILL restored the pool off-card; the lethal branch ran ~one run in eight). Fixed, and `smoke-battleflow` §4c is deterministic about it. | nothing. Closed, reproduced, fixed and pinned |
 | **Short-duration effect expiry** (mastery chips) | ✅ **CLOSED 2026-09-01 BY ITS OWN CONDITION — the decision was made, and the answer is that the question dissolves.** It was *blocked on whether this module should own TURN-TIME at all*; measured against Foundry 14.365's own client, **the platform already owns it**: every ActiveEffect carries `start.combatant` and a `duration.expiry` event, the registry refreshes on every turn and round boundary (GM-side) and judges the event against the ORIGINATING combatant. So the module never keeps a clock — it writes each chip's RAW window once (`decide/chips.js`), and owns only EVENTS: the attack roll that SPENDS Vex or Sap, the once-per-turn Cleave chit, and tidying what Foundry marked expired. See §5 *"the platform keeps the clock"* and HANDOFF Stage 1. | nothing. Closed — and a future pass that builds a module-side sweeper or turn counter is a REGRESSION, not a feature |

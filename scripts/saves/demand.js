@@ -7,15 +7,17 @@
  */
 import { MODULE_ID, TITLE, S, setting, statContext } from "../core.js";
 import { applicableProfiles, resolveUuid, itemNamed } from "../lookup.js";
-import { activityUuidOf, targetsOf } from "../decide/card.js";
+import { CARD, activityUuidOf, isCard, targetsOf } from "../decide/card.js";
 import { saveDemandData, saveTargetEntry } from "../decide/demand.js";
-import { METAMAGIC_FLAG, METAMAGIC_ASK_FLAG, carefulProtects, heightenedMark, metamagicRuleText } from "../decide/metamagic.js";
+import { METAMAGIC_FLAG, METAMAGIC_ASK_FLAG, AREA_CHOICE_FLAG, carefulProtects, heightenedMark, metamagicRuleText,
+  choiceCapFrom, choiceRuleFrom, chosenByDefault, choiceNeedsAsk } from "../decide/metamagic.js";
 import { tokenForUuid, tokensInRegions } from "../geometry.js";
 import { isDeadForSaves } from "../decide/eligible.js";
 import { EMANATIONS, tableIndex } from "../decide/registry.js";
 import { reachAdmits } from "../decide/emanations.js";
-import { emanationEntries, spentAreaListed } from "../settings.js";
+import { emanationEntries, spentAreaListed, chosenAreaListed } from "../settings.js";
 import { isPartyMember } from "../shared.js";
+import { raiseHold, releaseHold, isHeld } from "../holds.js";
 // ⚠ SAFE STATICALLY, unlike auto-damage.js's own ui.js import (v1.6.1's ESM order trap): the
 // entry reaches auto-damage.js long before this directory, so that module is fully evaluated
 // before this line is read and no hook registration moves. Re-checked with check-hook-order; do
@@ -105,6 +107,109 @@ export async function metamagicForDemand(card, activity, contained) {
   return none;
 }
 
+/* --- a spell that chooses its targets (2026-09-24, Session 8's Slow) ----------------------- */
+
+/** The ask-at-the-area's rows for a demand's creatures — disposition and token filled from the canvas. */
+function askCandidates(contained) {
+  return contained.map(c => {
+    const tok = tokenDocOf(c);
+    return { uuid: c.uuid, name: c.name, disposition: c.disposition ?? tok?.disposition ?? null, tokenId: c.tokenId ?? tok?.id ?? null, party: isPartyMember(c.uuid) };
+  });
+}
+
+/**
+ * WHO A CHOSEN AREA AFFECTS (registry.js CHOSEN_AREAS — user, 2026-09-24: Slow asked Invictus,
+ * inside its cube, for a save). A listed spell's area is where its caster CHOOSES, never who owes
+ * the save. Read against the area's contents at the stamp and at adoption, before Careful and
+ * Heightened:
+ *   - a choice already on the card (`areaChoice` — answered, or the default written when there
+ *     was nothing to choose) filters the contents to the chosen, however often the area is re-read;
+ *   - an ask still open holds the demand, empty and clockless, as Careful's does;
+ *   - a real choice to make (decide/metamagic.js `choiceNeedsAsk` — someone not hostile in the
+ *     area, or more hostiles than the spell allows) raises the ask on the card, kind `choose`,
+ *     carrying Heightened's radio when that pick is still to come (one popup), and holds;
+ *   - no choice to make writes the default (every hostile, up to the spell's number) as the
+ *     choice, so the card says who, and filters the contents to it.
+ * The caster is never a candidate for their own spell, and a corpse never is (the dead gate).
+ * Not a listed spell, or no area in hand (`contained` null): the contents pass through.
+ * @returns {Promise<{contained: object[]|null, hold: boolean}>}
+ */
+export async function areaChoiceForDemand(card, activity, contained) {
+  if ( !Array.isArray(contained) || !chosenAreaListed(activity?.item?.name) ) return { contained, hold: false };
+  const facts = casterFactsOf(activity);
+  const casterTok = activity?.actor?.token ?? activity?.actor?.getActiveTokens?.(true, true)?.[0] ?? null;
+  const pool = contained.filter(c => (c.uuid !== facts.casterUuid) && !(casterTok && (c.tokenId === casterTok.id))).filter(saveDemandable);
+  const record = card?.getFlag(MODULE_ID, AREA_CHOICE_FLAG);
+  if ( Array.isArray(record?.chosen) ) {
+    const chosen = new Set(record.chosen.map(c => c.uuid));
+    return { contained: pool.filter(c => chosen.has(c.uuid)), hold: false };
+  }
+  const ask = card?.getFlag(MODULE_ID, METAMAGIC_ASK_FLAG);
+  if ( (ask?.status === "pending") && (ask.kind === "choose") ) return { contained: [], hold: true };
+  if ( !pool.length ) return { contained: pool, hold: false };
+  const spell = activity.item.name;
+  const description = activity.item.system?.description?.value ?? "";
+  const cap = choiceCapFrom(description);
+  const candidates = askCandidates(pool);
+  const writable = !!card?.canUserModify?.(game.user, "update");
+  if ( !choiceNeedsAsk({ candidates, ...facts, cap }) ) {
+    const chosen = chosenByDefault({ candidates, ...facts, cap });
+    const ids = new Set(chosen.map(c => c.uuid));
+    if ( writable ) await card.setFlag(MODULE_ID, AREA_CHOICE_FLAG, { spell, chosen, cap, asked: false,
+      left: candidates.filter(c => !ids.has(c.uuid)).map(c => ({ uuid: c.uuid, name: c.name })), ...statContext(facts.casterUuid) });
+    return { contained: pool.filter(c => ids.has(c.uuid)), hold: false };
+  }
+  if ( writable ) {
+    // Heightened's pick still to come rides the same popup — a radio among the chosen.
+    const mm = card.getFlag(MODULE_ID, METAMAGIC_FLAG);
+    const heightened = ((mm?.key === "heightened") && !mm.chosen)
+      ? { feature: mm.feature, rule: mm.rule ?? metamagicRuleText(itemNamed(activity.actor, mm.feature)?.system?.description?.value ?? "") } : null;
+    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    await card.setFlag(MODULE_ID, METAMAGIC_ASK_FLAG, {
+      status: "pending", kind: "choose", feature: spell, spell, cap, rule: choiceRuleFrom(description), itemImg: activity.item.img ?? null,
+      ...(heightened ? { heightened } : {}),
+      candidates, casterUuid: facts.casterUuid, casterDisposition: facts.casterDisposition, casterName: activity.actor?.name ?? null,
+      ...statContext(facts.casterUuid),
+      ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
+    });
+  }
+  return { contained: [], hold: true };
+}
+
+/**
+ * THE PICTURE WAITS FOR THE CHOICE (the user's 2026-09-09 ruling on Careful's ask — "can
+ * everything, including the animation, be paused so the person has time to select" — carried to
+ * the chosen area). The card is NOT held back here: FX Studio asks the hold registry before it
+ * plays anything keyed on the cast's activity, the card and the placed area alike, so a hold
+ * raised before the card is born makes both wait. Raised on the casting client as the card is
+ * born; released by the stamp when there is nothing to ask (below), or by the answer (metamagic.js,
+ * on every client, so the caster's lifts wherever the answer came from). Bounded by the ask's own
+ * clock plus slack; a clockless ask holds clockless (§5 law 11) and the consumer bounds its wait.
+ */
+const CHOICE_HOLD_SLACK_MS = 30_000;
+Hooks.on("preCreateChatMessage", doc => {
+  try {
+    if ( !setting(S.saves) || !isCard(doc, CARD.usage) ) return;
+    // metamagic's held card re-posted with its answer: the question was asked before it existed.
+    if ( doc.getFlag?.(MODULE_ID, AREA_CHOICE_FLAG) || doc.getFlag?.(MODULE_ID, METAMAGIC_FLAG)?.chosen ) return;
+    const uuid = activityUuidOf(doc);
+    const activity = uuid ? resolveUuid(uuid) : null;
+    if ( (activity?.type !== "save") || !activity.target?.template?.type || !chosenAreaListed(activity.item?.name) ) return;
+    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    raiseHold(uuid, { reason: "area-choice", bound: window ? (window * 1000) + CHOICE_HOLD_SLACK_MS : null });
+  } catch(err) { console.warn(`${TITLE} | The chosen area's hold could not be raised — the picture plays at once.`, err); }
+});
+
+/** After the stamp: lift the chosen area's hold unless its ask now stands (the answer lifts it then). */
+function settleChoiceHold(activity, message) {
+  const uuid = activity?.uuid ?? "";
+  if ( !uuid || !isHeld(uuid) ) return;
+  const ask = message?.getFlag(MODULE_ID, METAMAGIC_ASK_FLAG);
+  if ( (ask?.status === "pending") && (ask.kind === "choose") ) return;
+  if ( !chosenAreaListed(activity.item?.name) ) return;   // somebody else's hold (metamagic's held card) — theirs to lift
+  releaseHold(uuid, message ?? null);
+}
+
 /* --- the stamp: the casting client writes the demand on the usage card --------------------- */
 
 /** Stamp-time filter: an unresolvable uuid stays IN (the buzzer voids gone targets — never
@@ -120,7 +225,7 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
   if ( activity?.type !== "save" ) return;
   const message = (results?.message instanceof ChatMessage) ? results.message : null;
   if ( !message ) return; // used with create: false — no card, no bus, nothing to run
-  void stampSaveDemand(activity, message, results);
+  void stampSaveDemand(activity, message, results).finally(() => settleChoiceHold(activity, message));
 });
 
 // A usage card the metamagic ask held back until the caster answered (metamagic.js, 2026-09-09):
@@ -129,7 +234,7 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
 Hooks.on("battleflow.deferredUsageCard", ({ activity, message, templates }) => {
   if ( !setting(S.saves) ) return;
   if ( (activity?.type !== "save") || !(message instanceof ChatMessage) ) return;
-  void stampSaveDemand(activity, message, { templates: [templates ?? []] });
+  void stampSaveDemand(activity, message, { templates: [templates ?? []] }).finally(() => settleChoiceHold(activity, message));
 });
 
 async function stampSaveDemand(activity, message, results) {
@@ -144,7 +249,11 @@ async function stampSaveDemand(activity, message, results) {
     // nested an array per placement — the flatten is kept, harmless on the flat shape, so a
     // hand-fired hook carrying the old nesting still stamps; smoke-saves §8d). Containment is
     // the platform's own test on the region document — no canvas readiness awaited here.
-    const contained = emanationReach(activity, tokensInRegions((results?.templates ?? []).flat().filter(t => t?.parent)));
+    const placed = emanationReach(activity, tokensInRegions((results?.templates ?? []).flat().filter(t => t?.parent)));
+    // A spell that chooses its targets (CHOSEN_AREAS, 2026-09-24): the area is where the caster
+    // chooses — the chosen stand in for the contents, or the demand waits on the ask.
+    const choice = await areaChoiceForDemand(message, activity, placed);
+    const contained = choice.contained;
     const raw = contained ?? targetsOf(message);
     // THE DEAD-TARGET GATE (v1.19.0 — the user call recorded in the corner list above). The
     // filter runs on the RESOLVED set only; raw emptiness keeps its meaning (a bare template
@@ -154,7 +263,9 @@ async function stampSaveDemand(activity, message, results) {
     // Careful Spell's protected creatures leave the list here; Heightened's mark joins the demand
     // below (the metamagic pass, Stage 2). Read off the card's birth flag against the creatures
     // the save reaches — the snapshot for a targeted cast, the area for a placed one.
-    const metamagic = await metamagicForDemand(message, activity, contained ?? raw);
+    // The chosen area's own ask holds the demand the same way — and reads Heightened's pick itself.
+    const metamagic = choice.hold ? { protectedUuids: new Set(), heightened: null, hold: true, pendingAsk: false }
+      : await metamagicForDemand(message, activity, contained ?? raw);
     // A metamagic ask still open (the area's creatures to be ticked) holds the demand EMPTY, the
     // clockless wait a not-yet-placed area already takes; the answer fills it (metamagic.js).
     const targets = metamagic.hold ? [] : raw.filter(saveDemandable).filter(t => !metamagic.protectedUuids.has(t.uuid));

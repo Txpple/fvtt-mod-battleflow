@@ -23,7 +23,7 @@ import { cardActivity } from "../lookup.js";
 import { saveTargetEntry } from "../decide/demand.js";
 import { regionShapeTypeFor } from "../decide/geometry.js";
 import { tokensInRegions } from "../geometry.js";
-import { saveDemandable, emanationReach, metamagicForDemand } from "./demand.js";
+import { saveDemandable, emanationReach, metamagicForDemand, areaChoiceForDemand } from "./demand.js";
 import { spentAreaListed } from "../settings.js";
 
 /** The activity a region was placed for — the tie every path here keys on. */
@@ -155,7 +155,11 @@ export async function refreshDemandFromTemplates(card) {
     }
     if ( !regions.length ) return;
     const activity = cardActivity(card, flag.activityUuid);
-    const contained = emanationReach(activity, tokensInRegions(regions)) ?? [];
+    // A spell that chooses its targets (CHOSEN_AREAS, 2026-09-24): only the chosen join — asked
+    // now if the area just landed on a choice, filtered to the answer on every re-read after.
+    const choice = await areaChoiceForDemand(card, activity, emanationReach(activity, tokensInRegions(regions)) ?? []);
+    if ( choice.hold ) return;   // the caster is being asked who the area affects — waiting keeps waiting
+    const contained = choice.contained ?? [];
     // Careful's protected creatures never join the demand, Heightened's mark joins it (the metamagic
     // pass, Stage 2): derived from the area's contents, before the serialized write below.
     const metamagic = await metamagicForDemand(card, activity, contained);

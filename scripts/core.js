@@ -57,7 +57,8 @@ export const S = {
   superiorityUseList: "superiorityUseList",
   effectChoiceList: "effectChoiceList",
   metamagicList: "metamagicList",
-  spentAreaList: "spentAreaList"
+  spentAreaList: "spentAreaList",
+  chosenAreaList: "chosenAreaList"
 };
 
 export const setting = key => game.settings.get(MODULE_ID, key);

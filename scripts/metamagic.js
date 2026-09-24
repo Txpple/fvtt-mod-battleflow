@@ -24,12 +24,13 @@
  */
 import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, isActiveGM, whisperNoGM, canAnswerFor } from "./core.js";
 import { cardActivity, lower, resolveUuid } from "./lookup.js";
-import { metamagicEntries, listedNames } from "./settings.js";
+import { metamagicEntries, listedNames, chosenAreaListed } from "./settings.js";
 import { poolOf, spendPoolUses, isPartyMember } from "./shared.js";
 import { feetOf, tokenOfActor, tokensInRegions } from "./geometry.js";
 import { bfCard, foldedRuleHTML, esc, holdBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
-import { METAMAGIC_FLAG, METAMAGIC_ASK_FLAG, askDefaults, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome, heightenedMark } from "./decide/metamagic.js";
+import { METAMAGIC_FLAG, METAMAGIC_ASK_FLAG, AREA_CHOICE_FLAG, askDefaults, askMark, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome, heightenedMark,
+  choiceCapFrom, choiceRuleFrom, choiceNeedsAsk } from "./decide/metamagic.js";
 import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync, dramaticVerdictPause, registerResumable } from "./ui.js";
 import { raiseHold, releaseHold, isHeld } from "./holds.js";
 import { saveTargetEntry } from "./decide/demand.js";
@@ -108,7 +109,10 @@ function spellFactsOf(activity) {
     spellAttack: activity?.type === "attack",
     // The SOURCE count, not the prepared one: `@item.level - 1` is what says the spell gains a
     // target at a higher level (the prepared value is a number — measured, Stage 0).
-    scalesTargets: !activity?.target?.template?.type && scalesTargetsFrom(item?.system?._source?.target?.affects?.count ?? null, { name: item?.name ?? null, exceptions: TWINNED_EXCEPTIONS })
+    scalesTargets: !activity?.target?.template?.type && scalesTargetsFrom(item?.system?._source?.target?.affects?.count ?? null, { name: item?.name ?? null, exceptions: TWINNED_EXCEPTIONS }),
+    // A listed area whose caster chooses who it affects (the Chosen Areas list, 2026-09-24) —
+    // Careful greys on it: "you choose its targets".
+    choosesTargets: !!activity?.target?.template?.type && chosenAreaListed(item?.name)
   };
 }
 
@@ -453,23 +457,42 @@ async function carryDeferredCard(activity, held, templates) {
   const pool = held.pick.poolId ? actor?.items?.get(held.pick.poolId) : null;
   const record = pool ? await spendPoolUses(actor, pool, held.pick.feature, held.pick.cost ?? 1, POOL_NAME) : null;
   if ( !pool ) console.warn(`${TITLE} | ${held.pick.feature}: no Sorcery Points pool on ${actor?.name} — nothing spent.`);
-  const contained = tokensInRegions(templates) ?? [];
+  const casterTok = tokenOfActor(actor) ?? null;
+  // A chosen area (2026-09-24) never asks its caster about themself — the saves side's rule too.
+  const spell = activity.item?.name ?? "the spell";
+  const chooses = chosenAreaListed(activity.item?.name);
+  const contained = (tokensInRegions(templates) ?? [])
+    .filter(c => !chooses || ((c.uuid !== actor?.uuid) && !(casterTok && (c.tokenId === casterTok.id))));
   const templateIds = templates.map(t => t.id);
   if ( !contained.length ) { await postDeferredCard(held, record, null, templateIds); return; }
   const uuid = activity.uuid;
   const carrierMade = await (async () => {
-  const casterTok = tokenOfActor(actor) ?? null;
   const casterDisposition = casterTok?.document?.disposition ?? actor?.prototypeToken?.disposition ?? CONST.TOKEN_DISPOSITIONS.FRIENDLY;
   const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
   const whisper = [...new Set([...(actor ? game.users.filter(u => actor.testUserPermission(u, "OWNER")).map(u => u.id) : []), ...game.users.filter(u => u.isGM).map(u => u.id)])];
+  const candidates = contained.map(c => ({ uuid: c.uuid, name: c.name, disposition: c.disposition ?? null, tokenId: c.tokenId ?? null, party: isPartyMember(c.uuid) }));
+  const featureRule = held.pick.rule ?? metamagicRuleText(actor?.items?.find(i => i.name === held.pick.feature)?.system?.description?.value ?? "");
+  // HEIGHTENED ON A CHOSEN AREA with a real choice to make asks ONE question (2026-09-24): who the
+  // spell affects, Heightened's radio among the ticked. With no choice to make, Heightened asks as
+  // it always did and the stamp writes the default choice when the card lands.
+  const description = activity.item?.system?.description?.value ?? "";
+  const cap = chooses ? choiceCapFrom(description) : null;
+  const merged = chooses && (held.pick.key === "heightened") && choiceNeedsAsk({ candidates, casterUuid: actor?.uuid ?? null, casterDisposition, cap });
+  const askFlag = merged
+    ? { status: "pending", kind: "choose", feature: spell, spell, cap, rule: choiceRuleFrom(description), itemImg: activity.item?.img ?? null,
+      heightened: { feature: held.pick.feature, rule: featureRule } }
+    : { status: "pending", kind: held.pick.key, feature: held.pick.feature, cap: held.pick.cap ?? 1, rule: featureRule };
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }), whisper,
-    content: bfCard({ img: actor?.items?.find(i => i.name === held.pick.feature)?.img ?? null, eyebrow: `Metamagic — ${held.pick.feature}`, tone: "pending",
-      title: held.pick.key === "careful" ? "Who does the spell spare?" : "Who saves at Disadvantage?", subtitle: `${activity.item?.name ?? "the spell"} — the card follows the answer` }),
+    content: merged
+      ? bfCard({ img: activity.item?.img ?? null, eyebrow: `${spell} — creatures of your choice`, tone: "pending",
+        title: `Who does ${spell} affect?`, subtitle: `${held.pick.feature} rides it — the card follows the answer` })
+      : bfCard({ img: actor?.items?.find(i => i.name === held.pick.feature)?.img ?? null, eyebrow: `Metamagic — ${held.pick.feature}`, tone: "pending",
+        title: held.pick.key === "careful" ? "Who does the spell spare?" : "Who saves at Disadvantage?", subtitle: `${spell} — the card follows the answer` }),
     flags: { [MODULE_ID]: {
       [METAMAGIC_ASK_FLAG]: {
-        status: "pending", kind: held.pick.key, feature: held.pick.feature, cap: held.pick.cap ?? 1, rule: held.pick.rule ?? metamagicRuleText(actor?.items?.find(i => i.name === held.pick.feature)?.system?.description?.value ?? ""),
-        candidates: contained.map(c => ({ uuid: c.uuid, name: c.name, disposition: c.disposition ?? null, tokenId: c.tokenId ?? null, party: isPartyMember(c.uuid) })),
+        ...askFlag,
+        candidates,
         casterUuid: actor?.uuid ?? null, casterDisposition, casterName: actor?.name ?? null,
         ...statContext(actor?.uuid ?? null),
         ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
@@ -481,12 +504,17 @@ async function carryDeferredCard(activity, held, templates) {
   void uuid;
 }
 
-/** The real card, at last: the held data with the pick made chosen and the spend on it; the demand's stamp follows by hook. */
-async function postDeferredCard(held, record, answer, templateIds) {
+/**
+ * The real card, at last: the held data with the pick made chosen and the spend on it; the demand's
+ * stamp follows by hook. `extra` rides the card's birth flags — a chosen area's answer, which the
+ * stamp then reads as the choice already made (saves/demand.js `areaChoiceForDemand`).
+ */
+async function postDeferredCard(held, record, answer, templateIds, extra = null) {
   const data = foundry.utils.deepClone(held.data);
   const mm = foundry.utils.getProperty(data, `flags.${MODULE_ID}.${METAMAGIC_FLAG}`) ?? {};
   foundry.utils.setProperty(data, `flags.${MODULE_ID}.${METAMAGIC_FLAG}`, { ...mm, spent: !!record, ...(answer ?? {}) });
   if ( record ) foundry.utils.setProperty(data, `flags.${MODULE_ID}.poolSpend`, record);
+  for ( const [key, value] of Object.entries(extra ?? {}) ) foundry.utils.setProperty(data, `flags.${MODULE_ID}.${key}`, value);
   if ( !game.users.get(data.author)?.active || (data.author !== game.user.id && !game.user.isGM) ) data.author = game.user.id;
   const card = await ChatMessage.create(data);
   if ( !card ) { releaseHold(held.pick.activityUuid ?? "", null); return null; }
@@ -877,7 +905,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const div = document.createElement("div");
     div.className = "bf-metamagic-ask";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
-    div.innerHTML = `<i class="fa-solid fa-wand-sparkles" data-tooltip="Metamagic"></i> ${esc(ask.feature)} — ${ask.kind === "careful" ? "who does the spell spare?" : "who saves at Disadvantage?"} ${holdBarHTML(ask, "to answer")}`;
+    div.innerHTML = `${askIcon(ask)} ${esc(ask.feature)} — ${askQuestion(ask)} ${holdBarHTML(ask, "to answer")}`;
     const caster = resolveUuid(ask.casterUuid);
     if ( caster && canAnswerFor(caster) ) div.appendChild(momentButton("Answer", () => { void showMetamagicAsk(message); }));
     scheduleBarSync(div);
@@ -887,7 +915,24 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   } catch(err) { console.warn(`${TITLE} | The metamagic ask could not render.`, err); }
 });
 
-/** The ask's popup: the party, then everyone else in the area, the defaults ticked; OK answers, the clock keeps the default. */
+/** The question an ask puts, in the card's words — one per kind. */
+function askQuestion(ask) {
+  if ( ask?.kind === "careful" ) return "who does the spell spare?";
+  if ( ask?.kind === "choose" ) return "who does it affect?";
+  return "who saves at Disadvantage?";
+}
+/** The icon an ask's line wears: metamagic's wand, or a chosen area's mark. */
+function askIcon(ask) {
+  return (ask?.kind === "choose") ? `<i class="fa-solid fa-bullseye" data-tooltip="Creatures of your choice"></i>`
+    : `<i class="fa-solid fa-wand-sparkles" data-tooltip="Metamagic"></i>`;
+}
+
+/**
+ * The ask's popup: the party, then everyone else in the area, the defaults ticked; OK answers, the
+ * clock keeps the default. THREE KINDS: Careful's ticks (who the spell spares), Heightened's radio
+ * (who saves at Disadvantage), and a chosen area's ticks (who it affects — 2026-09-24), which carry
+ * Heightened's radio beside each row when that pick rides the same cast (one popup, not two).
+ */
 async function showMetamagicAsk(message) {
   const ask = message.getFlag(MODULE_ID, METAMAGIC_ASK_FLAG);
   if ( !ask || (ask.status !== "pending") ) return;
@@ -895,22 +940,35 @@ async function showMetamagicAsk(message) {
   if ( !caster ) return;
   const defaults = new Set(askDefaults(ask).map(c => c.uuid));
   const careful = ask.kind === "careful";
+  const choose = ask.kind === "choose";
+  const ticks = careful || choose;
+  // The merged ask's Disadvantage radio: live only on a ticked row, Heightened's default among the ticked.
+  const markDefault = (choose && ask.heightened) ? (askMark(ask, [...defaults])?.uuid ?? null) : null;
+  const markOf = c => (choose && ask.heightened) ? `<label style="display:flex;align-items:center;gap:0.25rem;margin-left:auto;font-size:var(--font-size-11,11px);opacity:0.85;cursor:pointer;">
+      <input type="radio" name="bf-metamagic-ask-mark" value="${esc(c.uuid)}" data-mark-for="${esc(c.uuid)}" ${c.uuid === markDefault ? "checked" : ""} ${defaults.has(c.uuid) ? "" : "disabled"} style="margin:0;"> Disadvantage</label>` : "";
   const side = c => (c.disposition === ask.casterDisposition) ? "" : (c.disposition === 0 ? " <span style='opacity:0.7'>(neutral)</span>" : " <span style='opacity:0.7'>(hostile)</span>");
-  const rowOf = c => `<label style="display:flex;align-items:center;gap:0.4rem;margin:0.2rem 0;cursor:pointer;">
-      <input type="${careful ? "checkbox" : "radio"}" name="bf-metamagic-ask" value="${esc(c.uuid)}" data-name="${esc(c.name)}" data-token="${esc(c.tokenId ?? "")}" ${defaults.has(c.uuid) ? "checked" : ""} style="margin:0;"> ${esc(c.name)}${side(c)}</label>`;
+  const rowOf = c => `<div style="display:flex;align-items:center;gap:0.4rem;margin:0.2rem 0;"><label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
+      <input type="${ticks ? "checkbox" : "radio"}" name="bf-metamagic-ask" value="${esc(c.uuid)}" data-name="${esc(c.name)}" data-token="${esc(c.tokenId ?? "")}" ${defaults.has(c.uuid) ? "checked" : ""} style="margin:0;"> ${esc(c.name)}${side(c)}</label>${markOf(c)}</div>`;
   const party = ask.candidates.filter(c => c.party), others = ask.candidates.filter(c => !c.party);
   const group = (title, list) => list.length ? `<div data-bf-ask-group="${title}" style="margin:0.3rem 0;"><div style="font-size:var(--font-size-11,11px);letter-spacing:0.08em;text-transform:uppercase;opacity:0.7;margin:0.2rem 0;">${title}</div>${list.map(rowOf).join("")}</div>` : "";
+  const spell = ask.spell ?? ask.feature;
+  const title = careful ? `Who does the spell spare? Up to ${ask.cap}.`
+    : choose ? (ask.cap ? `Who does ${spell} affect? Up to ${ask.cap}.` : `Who does ${spell} affect?`)
+    : "Who saves at Disadvantage?";
+  const subtitle = (choose && ask.heightened) ? `${ask.candidates.length} in the area · ${ask.heightened.feature}: one of them saves at Disadvantage`
+    : `${ask.candidates.length} in the area — a tick pings the token`;
   await openMomentPopup(message, METAMAGIC_ASK_FLAG, caster, {
-    title: `${ask.feature} — ${caster.name}`, icon: "fa-solid fa-wand-sparkles", width: 420,
+    title: `${ask.feature} — ${caster.name}`, icon: choose ? "fa-solid fa-bullseye" : "fa-solid fa-wand-sparkles", width: 420,
     content: bfCard({
-      img: caster.items?.find(i => i.name === ask.feature)?.img ?? null,
-      eyebrow: `Metamagic — ${ask.feature}`, tone: "pending",
-      title: careful ? `Who does the spell spare? Up to ${ask.cap}.` : "Who saves at Disadvantage?",
-      subtitle: `${ask.candidates.length} in the area — a tick pings the token`,
+      img: choose ? (ask.itemImg ?? null) : (caster.items?.find(i => i.name === ask.feature)?.img ?? null),
+      eyebrow: choose ? `${spell} — creatures of your choice` : `Metamagic — ${ask.feature}`, tone: "pending",
+      title, subtitle,
       lines: [ask.rule ? ruleLine(ask.rule) : ""]
-    }) + `<div data-bf-metamagic-ask="${esc(ask.kind)}" data-cap="${ask.cap}" style="margin:0.4rem 0;">${group("Party", party)}${group("Non-Party", others)}</div>` + holdBarHTML(ask, "to answer"),
+    }) + `<div data-bf-metamagic-ask="${esc(ask.kind)}" data-cap="${ask.cap ?? ""}" style="margin:0.4rem 0;">${group("Party", party)}${group("Non-Party", others)}</div>` + holdBarHTML(ask, "to answer"),
     buttons: [
-      { action: "ok", label: "OK", default: true, callback: (event, button) => answerMetamagicAsk(message, [...button.form.querySelectorAll('input[name="bf-metamagic-ask"]:checked')].map(i => i.value)) }
+      { action: "ok", label: "OK", default: true, callback: (event, button) => answerMetamagicAsk(message,
+        [...button.form.querySelectorAll('input[name="bf-metamagic-ask"]:checked')].map(i => i.value),
+        { mark: button.form.querySelector('input[name="bf-metamagic-ask-mark"]:checked')?.value ?? null }) }
     ]
   });
 }
@@ -930,6 +988,14 @@ Hooks.once("ready", () => document.addEventListener("change", ev => {
   const on = [...(holder?.querySelectorAll('input[name="bf-metamagic-ask"]:checked') ?? [])];
   if ( on.length > cap ) { any.checked = false; return; }
   for ( const b of holder?.querySelectorAll('input[name="bf-metamagic-ask"]') ?? [] ) if ( !b.checked ) b.disabled = on.length >= cap;
+  // The merged ask (a chosen area cast with Heightened): the Disadvantage radio follows its row's
+  // tick — only a creature the spell affects can save at Disadvantage against it — and a mark lost
+  // with its tick moves to the first creature still ticked.
+  const marks = [...(holder?.querySelectorAll('input[name="bf-metamagic-ask-mark"]') ?? [])];
+  if ( !marks.length ) return;
+  const ticked = new Set(on.map(b => b.value));
+  for ( const r of marks ) { r.disabled = !ticked.has(r.dataset.markFor); if ( r.disabled ) r.checked = false; }
+  if ( !marks.some(r => r.checked) ) { const first = marks.find(r => !r.disabled); if ( first ) first.checked = true; }
 }));
 
 /**
@@ -937,7 +1003,7 @@ Hooks.once("ready", () => document.addEventListener("change", ev => {
  * the cast's flag; then the demand is filled from the area's creatures minus the protected, the
  * clock started, and the saves machine takes it from there (its asks open on the fill).
  */
-async function answerMetamagicAsk(message, picked, { timedOut = false } = {}) {
+async function answerMetamagicAsk(message, picked, { timedOut = false, mark: markPick = null } = {}) {
   try {
     const ask = message.getFlag(MODULE_ID, METAMAGIC_ASK_FLAG);
     if ( !ask || (ask.status !== "pending") ) return;
@@ -946,36 +1012,52 @@ async function answerMetamagicAsk(message, picked, { timedOut = false } = {}) {
     const mm = message.getFlag(MODULE_ID, METAMAGIC_FLAG) ?? {};
     let protectedList = [];
     let mark = null;
+    let areaChoice = null;
     if ( ask.kind === "careful" ) {
       protectedList = chosen.map(named).filter(Boolean).slice(0, Math.max(1, Number(ask.cap) || 1)).map(c => ({ uuid: c.uuid, name: c.name }));
+    } else if ( ask.kind === "choose" ) {
+      // A chosen area (2026-09-24): the ticked, up to the spell's own number, are the ones it affects.
+      const limit = (Number(ask.cap) > 0) ? Number(ask.cap) : Infinity;
+      const list = chosen.map(named).filter(Boolean).slice(0, limit).map(c => ({ uuid: c.uuid, name: c.name }));
+      const ids = new Set(list.map(c => c.uuid));
+      areaChoice = { spell: ask.spell ?? ask.feature, chosen: list, left: ask.candidates.filter(c => !ids.has(c.uuid)).map(c => ({ uuid: c.uuid, name: c.name })),
+        asked: true, cap: ask.cap ?? null, ...(timedOut ? { timedOut: true } : {}), ...statContext(ask.casterUuid ?? null) };
+      if ( ask.heightened ) mark = askMark(ask, [...ids], markPick);
     } else {
       const c = named(chosen[0] ?? null);
       mark = c ? { uuid: c.uuid, name: c.name } : null;
     }
-    const rule = mm.rule ?? ask.rule ?? "";
+    const rule = (ask.kind === "choose") ? (ask.heightened?.rule ?? mm.rule ?? "") : (mm.rule ?? ask.rule ?? "");
+    // What the answer makes CHOSEN on the cast's metamagic record — none for a chosen area alone.
+    const mmAnswer = (ask.kind === "careful") ? { chosen: true, protected: protectedList }
+      : ((ask.kind === "heightened") || ask.heightened) ? { chosen: true, target: mark, rule } : null;
     const held = message.getFlag(MODULE_ID, DEFERRED_FLAG);
     if ( held ) {
       // The deferred card's answer: the pick made chosen on the held data, the real card posted, the
       // carrier gone. The demand, the dice and the saves all follow the card, in that order.
       await message.setFlag(MODULE_ID, METAMAGIC_ASK_FLAG, { ...ask, status: "done", answer: chosen, ...(timedOut ? { timedOut: true } : {}) });
-      const answer = { chosen: true, ...(ask.kind === "careful" ? { protected: protectedList } : { target: mark, rule }) };
-      await postDeferredCard({ data: held.data, pick: held.pick }, held.poolSpend ?? null, answer, held.templateIds ?? []);
+      await postDeferredCard({ data: held.data, pick: held.pick }, held.poolSpend ?? null, mmAnswer, held.templateIds ?? [],
+        areaChoice ? { [AREA_CHOICE_FLAG]: areaChoice } : null);
       await message.delete().catch(() => {});
       return;
     }
     await message.update({ flags: { [MODULE_ID]: {
-      [METAMAGIC_FLAG]: { ...mm, chosen: true, ...(ask.kind === "careful" ? { protected: protectedList } : { target: mark, rule }) },
+      ...(mmAnswer ? { [METAMAGIC_FLAG]: { ...mm, ...mmAnswer } } : {}),
+      ...(areaChoice ? { [AREA_CHOICE_FLAG]: areaChoice } : {}),
       [METAMAGIC_ASK_FLAG]: { ...ask, status: "done", answer: chosen, ...(timedOut ? { timedOut: true } : {}) }
     } } });
+    // Who stays on the demand: Careful's spared leave it, a chosen area keeps only the chosen.
     const protectedUuids = new Set(protectedList.map(p => p.uuid));
+    const chosenUuids = new Set((areaChoice?.chosen ?? []).map(c => c.uuid));
+    const stays = uuid => (ask.kind === "choose") ? chosenUuids.has(uuid) : !protectedUuids.has(uuid);
     const window = Math.max(0, Number(ask.window) || 0);
     await queueFlagWrite(message, "saves", flag => {
       // A demand already closed takes no new targets — nothing would ever ask them, and its area
       // would never be swept (areas.js, the same guard, 2026-09-23).
       if ( (flag.status ?? "pending") !== "pending" ) return false;
       const prev = flag.targets ?? [];
-      const fresh = ask.candidates.filter(c => !protectedUuids.has(c.uuid) && !prev.some(t => t.uuid === c.uuid)).map(c => saveTargetEntry(c.uuid, c.name));
-      flag.targets = [...prev.filter(t => t.done || !protectedUuids.has(t.uuid)), ...fresh];
+      const fresh = ask.candidates.filter(c => stays(c.uuid) && !prev.some(t => t.uuid === c.uuid)).map(c => saveTargetEntry(c.uuid, c.name));
+      flag.targets = [...prev.filter(t => t.done || stays(t.uuid)), ...fresh];
       flag.awaitingTemplate = false;
       if ( window ) { flag.window = window; flag.deadline = Date.now() + (window * 1000); }
       if ( mark ) flag.demand = { ...(flag.demand ?? {}), heightened: { ...mark, caster: ask.casterName ?? null, rule } };
@@ -995,4 +1077,9 @@ Hooks.on("updateChatMessage", message => {
   disarmAskTimer(askTimers, message.id);
   const open = livePopups.get(popupKey(message.id, METAMAGIC_ASK_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  // A chosen area's picture waited on its question (saves/demand.js raised the hold as the card was
+  // born, on the caster's client): the answer lifts it — here, on every client, because the answer
+  // may have come from the elect's clock. Only the client that raised it holds anything; the rest
+  // no-op. A carrier's ask names no activity: its real card's birth lifts that hold instead.
+  if ( ask.kind === "choose" ) { const uuid = activityUuidOf(message); if ( uuid ) releaseHold(uuid, message); }
 });

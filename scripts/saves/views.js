@@ -11,7 +11,8 @@ import { MODULE_ID, rollerUserFor,
   drivesMomentFor, canAnswerFor } from "../core.js";
 import { resolveUuid } from "../lookup.js";
 import { verdictTail, verdictText } from "../decide/verdict.js";
-import { popupKey, holdBarHTML, momentBarHTML } from "../decide/present.js";
+import { popupKey, holdBarHTML, momentBarHTML, esc } from "../decide/present.js";
+import { AREA_CHOICE_FLAG, METAMAGIC_ASK_FLAG, areaChoiceLine } from "../decide/metamagic.js";
 import { livePopups, momentButton, scheduleBarSync, shownMoments } from "../ui.js";
 import { saveAnsweredBy, foldSaveAnswer, flipForcedSave } from "./verdict.js";
 import { applySaveConsequences, reconcileSaveDamage } from "./consequences.js";
@@ -101,6 +102,20 @@ Hooks.on("deleteChatMessage", message => {
 
 /* --- the views: the card row and the dialog -------------------------------------------------- */
 
+// A SPELL THAT CHOOSES ITS TARGETS (2026-09-24): who its area affects, one line on the spell's
+// card once the choice stands — asked or not — above the demand's rows (law 6: source, then result).
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  const record = message.getFlag(MODULE_ID, AREA_CHOICE_FLAG);
+  if ( !Array.isArray(record?.chosen) ) return;
+  const content = html.querySelector?.(SURFACES.messageContent) ?? html;
+  if ( !content || content.querySelector(".bf-area-choice") ) return;
+  const line = document.createElement("div");
+  line.className = "bf-area-choice";
+  line.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
+  line.innerHTML = `<i class="fa-solid fa-bullseye" data-tooltip="Creatures of your choice"></i> ${esc(areaChoiceLine(record))}`;
+  content.appendChild(line);
+});
+
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const flag = message.getFlag(MODULE_ID, "saves");
   if ( !flag ) return;
@@ -112,6 +127,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   if ( !flag.targets?.length ) {
     if ( flag.status !== "pending" ) return;
     void refreshDemandFromTemplates(message);   // gated on the demand's own driver inside
+    // The area HAS landed and its caster is being asked about it — the ask's own line speaks.
+    if ( message.getFlag(MODULE_ID, METAMAGIC_ASK_FLAG)?.status === "pending" ) return;
     const abilityLabel = CONFIG.DND5E.abilities[flag.abilities?.[0]]?.label ?? flag.abilities?.[0] ?? "";
     const row = document.createElement("div");
     row.className = "battleflow-saves";

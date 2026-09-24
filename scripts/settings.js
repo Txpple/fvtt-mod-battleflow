@@ -262,6 +262,14 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.spentAreas.default
   });
 
+  // CHOSEN AREAS (user, 2026-09-24, Session 8's Slow): an area spell whose caster chooses who it
+  // affects asks its caster, when there is a choice to make. A list; the list is the switch.
+  game.settings.register(MODULE_ID, S.chosenAreaList, {
+    name: "Chosen Areas",
+    hint: "Area spells whose caster chooses who they affect, by the spell's own name, separated by commas — Slow, Sleep, Conjure Barrage. When a listed spell's area lands on anyone who is not hostile to the caster, or on more hostiles than the spell allows (Slow's six), the caster is asked who it affects, the hostiles ticked, and only the chosen owe the save; when everyone in it is hostile and within the number, they are all chosen and nobody is asked. The caster is never asked about themself. Careful Spell greys on a listed spell, since its targets are already chosen. Remove a name to have that spell ask everyone in its area.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.chosenAreas.default
+  });
+
   // DAMAGE SAVES (user, 2026-09-04: "make heat metal spell work"): a bare damage activity rolls
   // its dice at the use (the general fix — nothing rolled them), and a listed row demands the
   // save its text ties to the damage. A list; the list is the switch for the save half.
@@ -639,6 +647,17 @@ export function spentAreaEntries() {
 export function spentAreaListed(itemName) {
   const wanted = String(itemName ?? "").toLowerCase();
   return !!wanted && spentAreaEntries().some(e => e.kind === wanted);
+}
+
+/** Which rows of the chosen-area table ask their caster who they affect, by the spell's name — `{ kind }`. */
+export function chosenAreaEntries() {
+  return listEntries(LIST_SPECS.chosenAreas);
+}
+
+/** Is this spell listed as one whose caster chooses who its area affects? */
+export function chosenAreaListed(itemName) {
+  const wanted = String(itemName ?? "").toLowerCase();
+  return !!wanted && chosenAreaEntries().some(e => e.kind === wanted);
 }
 
 /** Which rows of the damage-save table demand their save after the damage, by the spell's name — `{ kind }`. */

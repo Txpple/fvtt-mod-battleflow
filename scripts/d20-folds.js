@@ -775,8 +775,9 @@ async function resolveFold(message, answer) {
         }
       } else if ( Number.isFinite(current.dc) ) {
         const made = composed.total >= current.dc;
+        // A check that carried a DC (a requested one) passes; only a save "saves" (the walk, 2026-09-24).
         lines.push(`${sumText(flag, composed)} vs DC ${current.dc} — `
-          + (made ? "<strong>now saves</strong>" : "still fails"));
+          + (made ? `<strong>${(current.testKind === "save") ? "now saves" : "now passes"}</strong>` : "still fails"));
       } else {
         // ⚠ NO VERDICT WITHOUT A DC — the finding, showing up in the prose. The module does not
         // know a raw check's DC, so it states the ARITHMETIC and stops (presentation law 5).
@@ -788,7 +789,10 @@ async function resolveFold(message, answer) {
     // button"). Tactical Mind is the one fold whose rule hands the use back, and the module still
     // cannot decide it (no DC for a raw check — NOTES). So the settle card points at the ask the
     // refund block below raises once this card is posted; see `askRefund` for the shape.
-    const refundable = (kind === "tactical") && !scopeOf({ kind, name: offer.name }) && !Number.isFinite(flag.dc);
+    // ⚠ ASKED WITH A DC TOO (user, the walk of 2026-09-24: "say the old, the new adjusted, and ask
+    // your DM if it passes"): a check that carried a DC used to raise no ask at all, so a check
+    // that still failed kept its use spent. The DC now rides the question; the GM still answers.
+    const refundable = (kind === "tactical") && !scopeOf({ kind, name: offer.name });
     if ( refundable ) {
       lines.push("If the check still fails, this use of Second Wind isn't expended — "
         + "the next window asks which it was.");
@@ -805,7 +809,10 @@ async function resolveFold(message, answer) {
     await announce(message, actor, labelOf(offer), flag.testKind, anyHit, lines, marker);
     // The refund question rides the fold message; it is SHOWN once the fold is fully resolved
     // (the render below), so it never competes with a re-offer window for the same roll.
-    if ( refundable ) await stampRefundAsk(message, actor, offer, marker);
+    if ( refundable ) await stampRefundAsk(message, actor, offer, marker, {
+      baseTotal: flag.baseTotal, total: composed.total, dc: Number.isFinite(flag.dc) ? flag.dc : null,
+      die: spends.findLast(s => s.kind === "tactical")?.die ?? null
+    });
 
     if ( reoffer ) {
       // Still failing and something left to spend: ask again rather than deciding for them.
@@ -1135,7 +1142,7 @@ function resolvedLines(flag, message) {
    */
   const refund = message.getFlag(MODULE_ID, "tacticalRefund");
   if ( refund ) lines.push(refundLine(refund));
-  else if ( (flag.spends ?? []).some(s => s.kind === "tactical") && !Number.isFinite(flag.dc) ) {
+  else if ( (flag.spends ?? []).some(s => (s.kind === "tactical") && !scopeOf({ kind: s.kind, name: s.name })) ) {   // Tactical Mind, never a scoped die
     lines.push("If the check still fails, this use of Second Wind isn't expended.");
   }
   return lines;
@@ -1468,11 +1475,17 @@ function refundPoolFor(actor, name, marker = null) {
   return (c.target ? actor.items.get(c.target) : item) ?? null;
 }
 
-async function stampRefundAsk(message, actor, offer, marker) {
+/**
+ * @param {{baseTotal?: number|null, total?: number|null, dc?: number|null, die?: number|null}} [numbers]
+ *        the check before the die, after it, the DC when the roll carried one, and the die's face —
+ *        the question states them (the walk, 2026-09-24): the GM rules on a number they can see
+ */
+async function stampRefundAsk(message, actor, offer, marker, numbers = {}) {
   try {
     const pool = refundPoolFor(actor, offer.name, marker);
     if ( !pool ) return;
     const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    const num = v => (Number.isFinite(Number(v)) && (v !== null) && (v !== "")) ? Number(v) : null;
     await queueFlagWrite(message, "tacticalRefund", current => {
       if ( current.status ) return false;                 // one ask per roll
       delete current.targets;
@@ -1481,6 +1494,7 @@ async function stampRefundAsk(message, actor, offer, marker) {
         poolUuid: pool.uuid, poolName: pool.name,
         itemImg: marker?.item?.img ?? itemNamed(actor, offer.name)?.img ?? null,
         rule: RESCUE_KINDS.tactical.rule,
+        baseTotal: num(numbers.baseTotal), total: num(numbers.total), dc: num(numbers.dc), die: num(numbers.die),
         ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
       });
     });
@@ -1489,11 +1503,29 @@ async function stampRefundAsk(message, actor, offer, marker) {
   }
 }
 
+/**
+ * The check's arithmetic in words — "the check was 12; Tactical Mind's d10 rolled 5, so it is now
+ * 17" — or null on an ask stamped before the numbers rode it (a card from an older build).
+ */
+function refundArithmetic(r) {
+  if ( !Number.isFinite(r?.baseTotal) || !Number.isFinite(r?.total) ) return null;
+  const die = Number.isFinite(r.die) ? `${r.label}'s d10 rolled ${r.die}, so ` : "";
+  return `The check was ${r.baseTotal}; ${die}it is now <strong>${r.total}</strong>${Number.isFinite(r.dc) ? ` vs DC ${r.dc}` : ""}.`;
+}
+
+/** The question itself, with the number the GM rules on. */
+function refundQuestion(r) {
+  if ( !Number.isFinite(r?.total) ) return "Did the check succeed?";
+  return Number.isFinite(r.dc) ? `Does ${r.total} pass DC ${r.dc}?` : `Does ${r.total} pass? Ask your GM.`;
+}
+
 /** The state sentence on the settled card — one home, so the card and the receipt agree. */
 function refundLine(r) {
-  if ( r.status === "refunded" ) return `The check still failed — the use of ${r.poolName} was <strong>refunded</strong>.`;
-  if ( r.status === "kept" ) return `The check succeeded — the use of ${r.poolName} stays spent.`;
-  return `Did the check succeed? If it still failed, this use of ${r.poolName} isn't expended — answer to refund it.`;
+  const total = Number.isFinite(r.total) ? ` (${r.total})` : "";
+  if ( r.status === "refunded" ) return `The check still failed${total} — the use of ${r.poolName} was <strong>refunded</strong>.`;
+  if ( r.status === "kept" ) return `The check succeeded${total} — the use of ${r.poolName} stays spent.`;
+  const math = refundArithmetic(r);
+  return `${math ? `${math} ` : ""}${refundQuestion(r)} If it still failed, this use of ${r.poolName} isn't expended — answer to refund it.`;
 }
 
 /** First writer wins; a refund then writes the pool back and posts the receipt. */
@@ -1537,9 +1569,9 @@ async function showRefundNotice(message) {
     title: `${r.label} — ${actor?.name ?? ""}`, icon: RESCUE_KINDS.tactical.icon, width: 440,
     content: bfCard({
       img: r.itemImg, eyebrow: `D20 Fold — ${r.label}`, tone: "pending",
-      title: "Did the check succeed?",
+      title: refundQuestion(r),
       subtitle: `If it still failed, this use of ${r.poolName} comes back`,
-      lines: [ruleLine(r.rule)]
+      lines: [refundArithmetic(r), ruleLine(r.rule)]
     }) + (r.deadline ? momentBarHTML(r, "to answer") : ""),
     buttons: [
       { action: "keep", label: "It succeeded — keep the spend", callback: () => answerRefund(message, "kept") },

@@ -73,6 +73,7 @@ const REFERENCE = {
   effectChoiceList: LIST_SPECS.effectChoices.default,       // the whole effect-choice table, as shipped (2026-09-05)
   metamagicList: LIST_SPECS.metamagic.default,              // the whole metamagic table, as shipped (2026-09-09)
   spentAreaList: LIST_SPECS.spentAreas.default,             // the whole spent-area table, as shipped (2026-09-10)
+  chosenAreaList: LIST_SPECS.chosenAreas.default,           // the whole chosen-area table, as shipped (2026-09-24)
 };
 
 const f = new Foundry(foundryConfig(env));

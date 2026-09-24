@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { METAMAGIC, TRANSMUTED_TYPES, LIST_SPECS, parseList } from "../scripts/decide/registry.js";
+import {
+  METAMAGIC,
+  TRANSMUTED_TYPES,
+  LIST_SPECS,
+  CHOSEN_AREAS,
+  parseList
+} from "../scripts/decide/registry.js";
 import {
   metamagicFits,
   metamagicMenu,
@@ -13,7 +19,14 @@ import {
   extendedDuration,
   empoweredPlan,
   empoweredOutcome,
-  askDefaults
+  askDefaults,
+  askMark,
+  spellProse,
+  choiceCapFrom,
+  choiceRuleFrom,
+  chosenByDefault,
+  choiceNeedsAsk,
+  areaChoiceLine
 } from "../scripts/decide/metamagic.js";
 
 // The three fixture spells as the probe measured them (tools/probe-metamagic.mjs, 2026-09-09).
@@ -469,5 +482,174 @@ describe("the party comes first in Careful's defaults", () => {
         cap: 4
       }).map(c => c.name)
     ).toEqual(["Gren", "Jetten", "Morgash", "Hired Guard"]);
+  });
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * A SPELL THAT CHOOSES ITS TARGETS (2026-09-24, Session 8's Slow — the Chosen Areas list)
+ * ------------------------------------------------------------------------------------------- */
+
+// The 2024 PHB pack's own descriptions, as the scan read them (2026-09-24).
+const SLOW_HTML =
+  "<p>You alter time around up to six creatures of your choice in a 40-foot Cube within range. Each target must succeed on a Wisdom saving throw or be affected by this spell for the duration.</p><p>An affected target’s Speed is halved.</p>";
+const SLEEP_HTML =
+  "<p>Each creature of your choice in a 5-foot-radius Sphere centered on a point within range must succeed on a Wisdom saving throw or have the &amp;Reference[incapacitated apply=false]{Incapacitated} condition until the end of its next turn, at which point it must repeat the save.</p>";
+const WAVE_HTML =
+  "<p>You strike the ground, creating a burst of divine energy that ripples outward from you. Each creature you choose in the Emanation makes a Constitution saving throw.</p>";
+const FIREBALL_HTML =
+  "<p>A bright streak flashes from you to a point you pick within range and then blossoms with a low roar into a fiery explosion.</p>";
+
+describe("the chosen-area table and its list", () => {
+  it("names the PHB's seven, by name, and stores no numbers (N1: the cap is the spell's own text)", () => {
+    expect(Object.keys(CHOSEN_AREAS).sort()).toEqual(
+      [
+        "Conjure Barrage",
+        "Conjure Volley",
+        "Destructive Wave",
+        "Sleep",
+        "Slow",
+        "Weird",
+        "Word of Radiance"
+      ].sort()
+    );
+    expect(CHOSEN_AREAS).not.toHaveProperty("Spirit Guardians"); // its aura's reach already answers
+    for (const row of Object.values(CHOSEN_AREAS)) {
+      expect(typeof row.data).toBe("string");
+      expect(Object.keys(row)).toEqual(["data"]);
+    }
+  });
+  it("ships its list as membership over the table, every row on", () => {
+    const spec = LIST_SPECS.chosenAreas;
+    expect(spec.membership).toBe(true);
+    expect(spec.setting).toBe("chosenAreaList");
+    const { entries, rejects } = parseList(spec, spec.default);
+    expect(rejects).toEqual([]);
+    expect(entries.length).toBe(7);
+    expect(parseList(spec, "Slow, Fireball").rejects.length).toBe(1); // not a chosen area — dropped, warned
+  });
+});
+
+describe("reading the choice off the spell's own words", () => {
+  it("the cap: Slow's six; none for Sleep or a spell that chooses without a number", () => {
+    expect(choiceCapFrom(SLOW_HTML)).toBe(6);
+    expect(choiceCapFrom(SLEEP_HTML)).toBeNull();
+    expect(choiceCapFrom(WAVE_HTML)).toBeNull();
+    expect(choiceCapFrom("<p>up to 12 creatures of your choice</p>")).toBe(12);
+    expect(choiceCapFrom("")).toBeNull();
+  });
+  it("the rule: the sentence that grants the choice, the enrichers reduced to their labels", () => {
+    expect(choiceRuleFrom(SLOW_HTML)).toBe(
+      "You alter time around up to six creatures of your choice in a 40-foot Cube within range."
+    );
+    expect(choiceRuleFrom(SLEEP_HTML)).toBe(
+      "Each creature of your choice in a 5-foot-radius Sphere centered on a point within range must succeed on a Wisdom saving throw or have the Incapacitated condition until the end of its next turn, at which point it must repeat the save."
+    );
+    expect(choiceRuleFrom(WAVE_HTML)).toBe(
+      "Each creature you choose in the Emanation makes a Constitution saving throw."
+    );
+    expect(choiceRuleFrom(FIREBALL_HTML)).toBeNull();
+  });
+  it("the prose: secrets, markup and inline rolls go, a label stays", () => {
+    expect(
+      spellProse(
+        '<p>A [[/r 1d100cs>25]]{25 percent} chance.</p><section class="secret"><p>Foundry Note</p></section>'
+      )
+    ).toBe("A 25 percent chance.");
+    expect(spellProse("<p>see @UUID[Compendium.x.y.Item.z]{Slowed}</p>")).toBe("see Slowed");
+  });
+});
+
+describe("who a chosen area affects, and whether to ask", () => {
+  const G = { uuid: "Actor.gren", name: "Gren", disposition: 1 };
+  const bram = { uuid: "Actor.bram", name: "Bramblemaw", disposition: -1 };
+  const croc = { uuid: "Actor.croc", name: "Giant Crocodile", disposition: -1 };
+  const inv = { uuid: "Actor.inv", name: "Invictus", disposition: 1, party: true };
+  const mule = { uuid: "Actor.mule", name: "Pack Mule", disposition: 0 };
+  const shade = { uuid: "Actor.shade", name: "???", disposition: -2 };
+  const caster = { casterUuid: G.uuid, casterDisposition: 1 };
+
+  it("the default is the hostiles in area order, up to the cap — never the caster, the party, a neutral or a secret token", () => {
+    const candidates = [inv, bram, G, mule, croc, shade];
+    expect(chosenByDefault({ candidates, ...caster, cap: 6 }).map(c => c.name)).toEqual([
+      "Bramblemaw",
+      "Giant Crocodile"
+    ]);
+    expect(chosenByDefault({ candidates, ...caster, cap: 1 }).map(c => c.name)).toEqual([
+      "Bramblemaw"
+    ]);
+    expect(chosenByDefault({ candidates, ...caster, cap: null }).map(c => c.name)).toEqual([
+      "Bramblemaw",
+      "Giant Crocodile"
+    ]);
+  });
+  it("a hostile caster's default is the party — the rule is sides, not names", () => {
+    const monster = { casterUuid: bram.uuid, casterDisposition: -1 };
+    expect(
+      chosenByDefault({ candidates: [inv, bram, croc, G], ...monster, cap: 6 }).map(c => c.name)
+    ).toEqual(["Invictus", "Gren"]);
+  });
+  it("a caster with no side has no default", () => {
+    expect(
+      chosenByDefault({ candidates: [bram, inv], casterUuid: null, casterDisposition: 0, cap: 6 })
+    ).toEqual([]);
+  });
+
+  it("asks only when there is a choice: someone not hostile in the area, or more hostiles than the spell allows", () => {
+    expect(choiceNeedsAsk({ candidates: [bram, croc], ...caster, cap: 6 })).toBe(false); // all hostile, within six
+    expect(choiceNeedsAsk({ candidates: [bram, croc, inv], ...caster, cap: 6 })).toBe(true); // Session 8's cube
+    expect(choiceNeedsAsk({ candidates: [bram, mule], ...caster, cap: null })).toBe(true); // a neutral is a choice
+    expect(choiceNeedsAsk({ candidates: [bram, shade], ...caster, cap: null })).toBe(true); // so is a secret token
+    expect(choiceNeedsAsk({ candidates: [bram, croc], ...caster, cap: 1 })).toBe(true); // two hostiles, room for one
+    expect(choiceNeedsAsk({ candidates: [bram, croc], ...caster, cap: null })).toBe(false); // Sleep has no number
+    expect(choiceNeedsAsk({ candidates: [G], ...caster, cap: 6 })).toBe(false); // only the caster: nobody to ask about
+    expect(choiceNeedsAsk({ candidates: [], ...caster, cap: 6 })).toBe(false);
+  });
+
+  it("the ask's defaults for the new kind, and the merged Heightened mark among the chosen", () => {
+    const ask = {
+      kind: "choose",
+      candidates: [inv, bram, croc],
+      casterUuid: G.uuid,
+      casterDisposition: 1,
+      cap: 6
+    };
+    expect(askDefaults(ask).map(c => c.name)).toEqual(["Bramblemaw", "Giant Crocodile"]);
+    expect(askMark(ask, [bram.uuid, croc.uuid])?.name).toBe("Bramblemaw");
+    expect(askMark(ask, [bram.uuid, croc.uuid], croc.uuid)?.name).toBe("Giant Crocodile");
+    expect(askMark(ask, [bram.uuid], croc.uuid)?.name).toBe("Bramblemaw"); // a mark on someone not chosen falls back
+    expect(askMark(ask, [])).toBeNull();
+  });
+
+  it("the card line: source, then result", () => {
+    expect(areaChoiceLine({ spell: "Slow", chosen: [bram, croc], left: [inv] })).toBe(
+      "Slow — chosen: Bramblemaw, Giant Crocodile · not chosen: Invictus"
+    );
+    expect(areaChoiceLine({ spell: "Sleep", chosen: [bram], left: [] })).toBe(
+      "Sleep — chosen: Bramblemaw"
+    );
+    expect(areaChoiceLine({ spell: "Slow", chosen: [], left: [inv] })).toBe(
+      "Slow — nobody chosen · not chosen: Invictus"
+    );
+  });
+});
+
+describe("Careful Spell greys on a spell that chooses its targets (user ruling 2026-09-24)", () => {
+  const SLOW = { ...HOLD_PERSON, scalesTargets: false, choosesTargets: true };
+  it("the row stays, greyed, the reason its tag; Heightened and Subtle still fit", () => {
+    const rows = menu(SLOW);
+    const careful = rows.find(r => r.key === "careful");
+    expect(careful.eligible).toBe(false);
+    expect(careful.tag).toBe("you choose its targets");
+    expect(rows.find(r => r.key === "heightened").eligible).toBe(true);
+    expect(rows.find(r => r.key === "subtle").eligible).toBe(true);
+  });
+  it("the older reason wins when the spell has no save at all, and nothing changes without the fact", () => {
+    expect(
+      menu({ ...CHROMATIC_ORB, choosesTargets: true }).find(r => r.key === "careful").tag
+    ).toBe("no saving throw");
+    expect(metamagicFits(METAMAGIC["Careful Spell"], FIREBALL)).toBe(true);
+    expect(metamagicFits(METAMAGIC["Careful Spell"], { ...FIREBALL, choosesTargets: true })).toBe(
+      false
+    );
   });
 });

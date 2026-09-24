@@ -297,7 +297,15 @@ describe("the moment registry — shape", () => {
         choice: { options: ["Warm Shield", "Chill Shield"], chosen: "Warm Shield" }
       },
       metamagic: { key: "quickened", feature: "Quickened Spell", cost: 2, spent: true },
-      empowered: { status: "used", picks: [0, 2], newTotal: 21, delta: 6 }
+      empowered: { status: "used", picks: [0, 2], newTotal: 21, delta: 6 },
+      areaChoice: {
+        spell: "Slow",
+        chosen: [{ uuid: "Actor.b", name: "Bramblemaw" }],
+        left: [{ uuid: "Actor.i", name: "Invictus" }],
+        asked: true,
+        cap: 6,
+        sourceUuid: "Actor.g"
+      }
     };
     for (const key of Object.keys(MOMENT_RECORDS)) {
       expect(fixtures[key], `no fixture for ${key}`).toBeDefined();
@@ -316,6 +324,20 @@ describe("the moment registry — shape", () => {
 });
 
 describe("the moment registry — the edges", () => {
+  it("a chosen area's default — nothing to choose, nobody asked — resolves nothing; an answered one resolves once, the chosen as its targets", () => {
+    const base = {
+      spell: "Slow",
+      chosen: [{ uuid: "Actor.b", name: "Bramblemaw" }],
+      left: [],
+      cap: 6,
+      sourceUuid: "Actor.g"
+    };
+    expect(markers("areaChoice", { ...base, asked: false })).toEqual([]);
+    const out = resolves("areaChoice", { ...base, asked: true });
+    expect(out.length).toBe(1);
+    expect(out[0].events).toEqual(["choice"]);
+    expect(out[0].facts.targets).toEqual([{ uuid: "Actor.b", name: "Bramblemaw" }]);
+  });
   it("a pending hold resolves nothing; each answered target is one resolve, Parry's die under two words, on the answerer's client", () => {
     const pending = {
       sourceUuid: "Actor.g",

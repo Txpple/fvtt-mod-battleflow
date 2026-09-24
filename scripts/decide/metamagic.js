@@ -22,6 +22,11 @@
 export const METAMAGIC_FLAG = "metamagic";
 /** The ask at the area — who the spell spares, or who saves at Disadvantage — raised by the demand, answered by metamagic.js. */
 export const METAMAGIC_ASK_FLAG = "metamagicAsk";
+/**
+ * A spell that chooses its targets: who its area affects, on the spell's card — `{ spell, chosen,
+ * left, asked, cap }` (the saves machine's, the demand's reach; the ask's answer writes it too).
+ */
+export const AREA_CHOICE_FLAG = "areaChoice";
 
 /**
  * The ask's defaults, from its own facts: Careful's non-hostiles up to the cap, Heightened's
@@ -32,8 +37,24 @@ export const METAMAGIC_ASK_FLAG = "metamagicAsk";
 export function askDefaults(ask) {
   const facts = { contained: ask?.candidates ?? [], casterUuid: ask?.casterUuid ?? null, casterDisposition: ask?.casterDisposition ?? null };
   if ( ask?.kind === "careful" ) return carefulProtects({ ...facts, cap: ask.cap ?? 1 });
+  if ( ask?.kind === "choose" ) return chosenByDefault({ candidates: facts.contained, casterUuid: facts.casterUuid, casterDisposition: facts.casterDisposition, cap: ask.cap ?? null });
   const mark = heightenedMark(facts);
   return mark ? [mark] : [];
+}
+
+/**
+ * The merged ask's Disadvantage mark (a spell that chooses, cast with Heightened Spell — one
+ * popup, 2026-09-24): the player's radio when it names a creature they also chose, else
+ * Heightened's own default over the chosen.
+ * @param {{candidates: {uuid: string, name: string, disposition?: number|null}[], casterUuid: string|null, casterDisposition: number|null}} ask
+ * @param {string[]} chosenUuids
+ * @param {string|null} [picked]
+ */
+export function askMark(ask, chosenUuids, picked = null) {
+  const chosen = new Set(chosenUuids ?? []);
+  const among = (ask?.candidates ?? []).filter(c => chosen.has(c.uuid));
+  return heightenedMark({ contained: among, casterUuid: ask?.casterUuid ?? null, casterDisposition: ask?.casterDisposition ?? null,
+    chosen: (picked && chosen.has(picked)) ? picked : null });
 }
 
 /**
@@ -42,7 +63,8 @@ export function askDefaults(ask) {
  * hand). Unknown names fit nothing.
  * @typedef {{save: boolean, rangeFeet: number|null, touch: boolean, minutes: number,
  *            action: boolean, damageTypes: string[], damageRoll: boolean, spellAttack: boolean,
- *            scalesTargets: boolean}} SpellFacts
+ *            scalesTargets: boolean, choosesTargets?: boolean}} SpellFacts
+ *        `choosesTargets`: a listed area whose caster chooses who it affects (the Chosen Areas list)
  */
 const WHEN = {
   any: () => true,
@@ -69,14 +91,36 @@ const WHY = {
 };
 
 /**
+ * A row's `unless`: a spell the option's WHEN admits but where the option's own words do nothing.
+ * Careful Spell on a spell that chooses its targets (user ruling 2026-09-24, off the prototype:
+ * "greyed, you choose its targets") — the creatures Careful would spare are the ones the caster
+ * already leaves out, so the point would buy nothing.
+ */
+const UNLESS = {
+  choosesTargets: f => !!f.choosesTargets
+};
+const WHY_UNLESS = {
+  choosesTargets: "you choose its targets"
+};
+
+/**
  * Does this option fit this spell?
- * @param {{when: string}} row
+ * @param {{when: string, unless?: string}} row
  * @param {SpellFacts} facts
  * @param {{transmutedTypes?: readonly string[]}} [opts]
  */
 export function metamagicFits(row, facts, { transmutedTypes = [] } = {}) {
   const test = WHEN[row?.when];
-  return test ? test(facts ?? {}, transmutedTypes) : false;
+  if ( !test || !test(facts ?? {}, transmutedTypes) ) return false;
+  const not = UNLESS[row?.unless];
+  return !(not && not(facts ?? {}));
+}
+
+/** Why a row the spell does not fit greys — its WHEN's reason, else its UNLESS's. */
+function whyNot(row, facts, transmutedTypes) {
+  const test = WHEN[row?.when];
+  if ( !test || !test(facts ?? {}, transmutedTypes) ) return WHY[row?.when] ?? "does not fit this spell";
+  return WHY_UNLESS[row?.unless] ?? "does not fit this spell";
 }
 
 /**
@@ -105,7 +149,7 @@ export function metamagicMenu({ table, listed, known, facts, points, costs, tran
     const raw = costs?.[feature];
     const cost = Number.isFinite(Number(raw)) && (Number(raw) > 0) ? Number(raw) : null;
     const affordable = (cost !== null) && (left >= cost);
-    const why = eligible ? null : (WHY[row.when] ?? "does not fit this spell");
+    const why = eligible ? null : whyNot(row, facts, transmutedTypes);
     const tag = !eligible ? why
       : (cost === null) ? "cost unreadable"
       : affordable ? `${cost} SP` : `${cost} SP — ${left} left`;
@@ -212,6 +256,110 @@ export function heightenedMark({ contained, casterUuid = null, casterDisposition
   const enemy = others.find(c => (casterDisposition !== null) && (c.disposition === -casterDisposition));
   const pick = enemy ?? others[0] ?? null;
   return pick ? entry(pick) : null;
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * THE ASK AT THE AREA, ITS THIRD KIND — A SPELL THAT CHOOSES (user, 2026-09-24, Session 8: Gren's
+ * Slow asked Invictus, inside the cube, for a Wisdom save; ruled off the prototype *Creatures of
+ * Your Choice*). Slow reads "up to six creatures of your choice in a 40-foot Cube": the area is
+ * where the choice is made, never who owes the save. A listed spell (the Chosen Areas list,
+ * registry.js CHOSEN_AREAS) asks its caster WHO IT AFFECTS once the area lands — the hostiles
+ * ticked, up to the spell's own number — and only when there is a real choice to make.
+ *
+ * ⚠ The ask is metamagic's machinery (the popup, the clock, the answer, the held card) with a
+ * third kind, not a copy of it; metamagic.js owns the ask and the saves machine raises it. It
+ * stays there until a third customer proves a shape of its own (the house lesson — BACKLOG
+ * *The two sideways edges*: a seam is built by the feature that proves it).
+ * ------------------------------------------------------------------------------------------- */
+
+const NUMBER_WORDS = Object.freeze({ one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 });
+
+/**
+ * A spell's text as the table reads it: the markup gone, an enricher reduced to its label
+ * (`&Reference[incapacitated]{Incapacitated}` → Incapacitated; an inline roll → its label or nothing).
+ * @param {string} html
+ */
+export function spellProse(html) {
+  return String(html ?? "")
+    .replace(/<section class="secret"[\s\S]*?<\/section>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'")
+    .replace(/\[\[[^\]]*\]\](?:\{([^}]*)\})?/g, (m, label) => label ?? "")
+    .replace(/[@&]\w+\[([^\]\s]+)[^\]]*\](?:\{([^}]*)\})?/g, (m, key, label) => label ?? key)
+    .replace(/\s+/g, " ").trim();
+}
+
+/**
+ * How many creatures a spell that chooses may choose — its own number ("up to six creatures of
+ * your choice"), or null when the text sets none (Sleep: "each creature of your choice"). N1: the
+ * number is the content's, read where it is written, never copied into a table.
+ * @param {string} html the spell's description
+ */
+export function choiceCapFrom(html) {
+  const word = spellProse(html).match(/\bup to (\w+) (?:creatures?|targets?) of (?:your|its|their) choice/i)?.[1] ?? "";
+  if ( !word ) return null;
+  const n = Number(/^\d+$/.test(word) ? word : (/** @type {Record<string, number>} */ (NUMBER_WORDS))[word.toLowerCase()]);
+  return (Number.isFinite(n) && (n > 0)) ? n : null;
+}
+
+/**
+ * The sentence that grants the choice — the popup's quote, in the spell's own words (law 8).
+ * @param {string} html the spell's description
+ * @returns {string|null}
+ */
+export function choiceRuleFrom(html) {
+  const text = spellProse(html);
+  const sentences = text.match(/[^.!?]+[.!?]+/g) ?? [text];
+  const found = sentences.find(s => /\b(?:of (?:your|its|their) choice|you choose)\b/i.test(s));
+  return found ? found.trim() : null;
+}
+
+/** The disposition hostile to a caster's side — null for a caster with none (neutral, secret). */
+const hostileTo = d => (d === 1) ? -1 : (d === -1) ? 1 : null;
+
+/**
+ * WHO A SPELL THAT CHOOSES AFFECTS BY DEFAULT (user, 2026-09-24): the creatures hostile to the
+ * caster, in the order the area found them, up to the spell's own number — never the caster,
+ * the caster's own side, a neutral or a secret token. The clock keeps this; so does a cast with
+ * no choice to make.
+ * @param {{candidates: {uuid: string, name: string, disposition?: number|null}[], casterUuid?: string|null,
+ *          casterDisposition?: number|null, cap?: number|null}} args
+ * @returns {{uuid: string, name: string}[]}
+ */
+export function chosenByDefault({ candidates, casterUuid = null, casterDisposition = null, cap = null }) {
+  const hostile = hostileTo(casterDisposition);
+  const list = (Array.isArray(candidates) ? candidates : []).filter(c => c.uuid !== casterUuid);
+  const picked = (hostile === null) ? [] : list.filter(c => c.disposition === hostile);
+  const limit = (Number(cap) > 0) ? Number(cap) : Infinity;
+  return picked.slice(0, limit).map(c => ({ uuid: c.uuid, name: c.name }));
+}
+
+/**
+ * IS THERE A CHOICE TO MAKE? (user ruling 2026-09-24: ask "only when there's a real choice") —
+ * the area holds someone who is not hostile to the caster, or more hostiles than the spell lets
+ * the caster choose. Otherwise the default IS the answer and nobody is asked.
+ * @param {{candidates: {uuid: string, disposition?: number|null}[], casterUuid?: string|null,
+ *          casterDisposition?: number|null, cap?: number|null}} args
+ */
+export function choiceNeedsAsk({ candidates, casterUuid = null, casterDisposition = null, cap = null }) {
+  const list = (Array.isArray(candidates) ? candidates : []).filter(c => c.uuid !== casterUuid);
+  if ( !list.length ) return false;
+  const hostile = hostileTo(casterDisposition);
+  const hostiles = (hostile === null) ? [] : list.filter(c => c.disposition === hostile);
+  if ( hostiles.length !== list.length ) return true;
+  return (Number(cap) > 0) && (hostiles.length > Number(cap));
+}
+
+/**
+ * The line the spell's card carries once the choice stands — source, then result (law 6).
+ * @param {{spell?: string|null, chosen?: {name: string}[], left?: {name: string}[]}} record
+ */
+export function areaChoiceLine(record) {
+  const spell = record?.spell ?? "The spell";
+  const chosen = (record?.chosen ?? []).map(c => c.name).filter(Boolean);
+  const left = (record?.left ?? []).map(c => c.name).filter(Boolean);
+  const head = chosen.length ? `${spell} — chosen: ${chosen.join(", ")}` : `${spell} — nobody chosen`;
+  return left.length ? `${head} · not chosen: ${left.join(", ")}` : head;
 }
 
 /**

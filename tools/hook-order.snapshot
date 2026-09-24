@@ -154,6 +154,7 @@ dnd5e.postUseActivity	volleys.js
 dnd5e.preRollDamageV2	volleys.js
 dnd5e.renderChatMessage	volleys.js
 deleteChatMessage	volleys.js
+preCreateChatMessage	saves/demand.js
 dnd5e.postUseActivity	saves/demand.js
 battleflow.deferredUsageCard	saves/demand.js
 battleflow.metamagicAskAnswered	saves/demand.js
@@ -164,6 +165,7 @@ renderRollConfigurationDialog	saves/ask.js
 createChatMessage	saves/views.js
 updateChatMessage	saves/views.js
 deleteChatMessage	saves/views.js
+dnd5e.renderChatMessage	saves/views.js
 dnd5e.renderChatMessage	saves/views.js
 init	emanations.js
 updateCombat	emanations.js

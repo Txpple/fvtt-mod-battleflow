@@ -788,6 +788,38 @@ export const SPENT_AREAS = Object.freeze({
 export const SPENT_AREA_NAMES = tableIndex(SPENT_AREAS).names;
 
 /**
+ * CHOSEN AREAS — the area spells whose CASTER chooses who they affect (user, 2026-09-24, Session
+ * 8: Slow asked Invictus, inside its cube, for a save; ruled off the prototype *Creatures of Your
+ * Choice*). A placed area asks everyone it holds; these rows say the area is only where the
+ * choice is made: "up to six creatures of your choice in a 40-foot Cube". When a listed spell's
+ * area lands on anyone who is not hostile to the caster, or on more hostiles than the spell lets
+ * the caster choose, the caster is asked who it affects (saves/demand.js raises the ask,
+ * metamagic.js asks and answers it); otherwise the hostiles are the choice and nobody is asked.
+ * Careful Spell greys on a listed spell (METAMAGIC's `unless`). Membership is the Chosen Areas
+ * list (the item names, whole-chunk, case-insensitive).
+ *
+ * ⚠ BY NAME, NOT BY FLAG (§6 registry rule 1, measured 2026-09-24 against the 2024 PHB pack):
+ * dnd5e's own `target.affects.choice` is set on four of these and left off Slow, Sleep, Conjure
+ * Barrage and Conjure Volley, whose text grants the choice all the same. Spirit Guardians carries
+ * the flag and is NOT here: its aura's reach (EMANATIONS) already reaches enemies only, the same
+ * answer. Spells that choose by TARGETING (Bane, Enthrall, Compulsion, Divine Word) need nothing —
+ * the tokens the player targets are the choice. The number a spell allows is read off its own
+ * text (decide/metamagic.js `choiceCapFrom`), never written here (N1).
+ *
+ *   data   what the text says, and what the pack's data does with it
+ */
+export const CHOSEN_AREAS = Object.freeze({
+  "Slow": Object.freeze({ data: "PHB, level 3 — “up to six creatures of your choice in a 40-foot Cube”; the pack's choose flag is off" }),
+  "Sleep": Object.freeze({ data: "PHB, level 1 — “each creature of your choice in a 5-foot-radius Sphere”; the pack's choose flag is off" }),
+  "Conjure Barrage": Object.freeze({ data: "PHB, level 3 — “each creature of your choice that you can see in a 60-foot Cone”; the pack's choose flag is off" }),
+  "Conjure Volley": Object.freeze({ data: "PHB, level 5 — “each creature of your choice that you can see in a 40-foot-radius, 20-foot-high Cylinder”; the pack's choose flag is off" }),
+  "Word of Radiance": Object.freeze({ data: "PHB, cantrip — “each creature of your choice that you can see in it” (a 5-foot Emanation); the pack flags the choice" }),
+  "Destructive Wave": Object.freeze({ data: "PHB, level 5 — “each creature you choose in the Emanation”; the pack flags the choice" }),
+  "Weird": Object.freeze({ data: "PHB, level 9 — “each creature of your choice in a 30-foot-radius Sphere”; the pack flags the choice" })
+});
+export const CHOSEN_AREA_NAMES = tableIndex(CHOSEN_AREAS).names;
+
+/**
  * The 2024 Rules Glossary on range, verbatim (dnd5e.content24 / the premium PHB, appendix D —
  * "Range" and "Ranged Attacks in Close Combat"; presentation law 8). The `&Reference[...]`
  * enrichers in the source render as the bare condition names.
@@ -1259,7 +1291,10 @@ export const CONDITION_STATUSES = new Set(CONDITION_KEYS);
  * mechanism's. The rule text is read off the feat on the sheet at render (law 8), never copied.
  */
 export const METAMAGIC = Object.freeze({
-  "Careful Spell":    { key: "careful",    moment: "cast",   when: "save",       picks: "protect", apply: "the protected creatures leave the save demand" },
+  "Careful Spell":    { key: "careful",    moment: "cast",   when: "save",       picks: "protect", apply: "the protected creatures leave the save demand",
+    // A spell that chooses its targets (CHOSEN_AREAS) leaves the unchosen out already, so Careful
+    // buys nothing there (user ruling 2026-09-24): the row greys, "you choose its targets".
+    unless: "choosesTargets" },
   "Distant Spell":    { key: "distant",    moment: "cast",   when: "range",      picks: null,      apply: "the range the gate's reminder reads is doubled (Touch → 30 ft)" },
   "Empowered Spell":  { key: "empowered",  moment: "damage", when: "damageRoll", picks: "dice",    apply: "up to CHA-mod dice rerolled, the new rolls stand" },
   "Extended Spell":   { key: "extended",   moment: "cast",   when: "duration",   picks: null,      apply: "the effects' clock doubled (24 h cap); concentration saves with Advantage" },
@@ -1525,6 +1560,14 @@ export const LIST_SPECS = {
     // the sweep in saves/areas.js (and the empty-instant stamp in saves/demand.js).
     columns: ["kind"], kindColumn: "kind", kinds: SPENT_AREA_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(SPENT_AREAS).join(", ")
+  },
+  chosenAreas: {
+    label: "Chosen Areas", setting: "chosenAreaList",
+    // Which rows of the chosen-area table ask their caster who they affect — the ITEM names,
+    // whole-chunk, case-insensitive. Membership over CHOSEN_AREAS; the mechanism is the demand's
+    // reach in saves/demand.js and the ask at the area in metamagic.js.
+    columns: ["kind"], kindColumn: "kind", kinds: CHOSEN_AREA_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(CHOSEN_AREAS).join(", ")
   }
 };
 

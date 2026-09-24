@@ -1292,6 +1292,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
                 && !!el.querySelector('button[data-action="refund"]') && !!el.querySelector('button[data-action="keep"]')), 8000);
             ok(`§10 (${choice}) the ask POPS with both answers`, !!win, win ? "keep + refund" : "NO WINDOW");
+            // THE NUMBERS THE GM RULES ON (the walk, 2026-09-24: "say the old, the new adjusted, and
+            // ask your DM if it passes"): the check before the die and after it ride the ask, and the
+            // window states both — a bare "did it succeed?" left the table reconstructing the sum.
+            const numbersOk = !!ask && (ask.baseTotal === fold?.baseTotal) && (ask.total === fold?.foldedTotal)
+              && Number.isFinite(ask.die) && (ask.total - ask.baseTotal >= ask.die);
+            const said = win?.textContent ?? "";
+            ok(`§10 (${choice}) the ask states the check before and after the die, and asks the GM`,
+              numbersOk && said.includes(`The check was ${ask?.baseTotal}`) && said.includes(`Does ${ask?.total} pass`),
+              JSON.stringify(ask ? { base: ask.baseTotal, total: ask.total, die: ask.die, dc: ask.dc } : null));
             const receiptsSince = Date.now();
             win?.querySelector(`button[data-action="${choice}"]`)?.click();
             const settled = await until(() => {

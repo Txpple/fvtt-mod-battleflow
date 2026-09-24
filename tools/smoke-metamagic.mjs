@@ -8,6 +8,8 @@
 // picker on the card adjusts the list, Heightened's mark rides the demand into the save gate.
 // Stage 3: Twinned's fit off the source target count, Transmuted's type on every roll of the cast,
 // Extended's doubled clock on the effects the cast lands and its Advantage on the concentration save.
+// §20–§22 (2026-09-24): a spell that chooses its targets — the ask at the area's third kind, raised
+// by the saves machine for a listed Chosen Area (the PHB's Slow, added to the Sorcerer for the run).
 //
 // Fixtures: BF Test Sorcerer (Sorcerer 5, Font of Magic at 5 points, all ten options, Fireball /
 // Hold Person / Chromatic Orb — tools/fixture-suite.mjs), BF Test Attacker and BF Test Victim (the
@@ -27,7 +29,8 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 export const COVERS = [
   'metamagic.js',           // the casting window's group, the spend, every option
   'saves/demand.js',        // §9-§11 / §17 / §18 — Careful's protected leave the demand, Heightened's mark
-  'saves/areas.js',         // §9 / §11 / §18 — the ask at the placed area
+  'saves/areas.js',         // §9 / §11 / §18 / §20–§22 — the ask at the placed area, a chosen area's too
+  'saves/views.js',         // §20 / §21 — a chosen area's card line
   'saves/ask.js',           // §10 — Heightened as a source on the save gate
   'saves/verdict.js',       // §14 — the forced failure Extended's Paralyzed rides
   'reminders.js',           // §5 / §10 / §14 — Distant's range, Heightened's source, Extended's Advantage
@@ -56,6 +59,9 @@ const SECTIONS = {
   17: 'Careful lists NOBODY in the casting window (user, 2026-09-18 — the ticks of 2026-09-09 retired): with the Ranger and a goblin targeted, the row is the tick, the name, the cost and the rule; the ask opens on the card listing the two with the ally ticked; the player\'s own pick (the goblin) is honoured on the demand',
   18: 'Careful with NO target selected (the third look): the window lists nobody; the ask at the area lists exactly the creatures inside',
   19: 'the cantrip (2026-09-10): Fire Bolt has no slot, template or scaling, so the system never opened the usage dialog and the group never showed - the module opens it; Distant, Quickened, Subtle and Transmuted fit, Careful, Heightened, Extended and Twinned (no slot to raise) do not; Transmuted\'s type radios are inert until Transmuted is ticked',
+  20: 'a spell that chooses its targets (2026-09-24, Session 8\'s Slow): Careful greys in Slow\'s window ("you choose its targets") and stays live on Fireball; the cast raises the picture\'s hold and the stamp lowers it; the cube over the Sorcerer, the Ranger and both goblins asks WHO IT AFFECTS — three rows, never the caster, the goblins ticked, the Ranger not, in the spell\'s own words — while the demand waits; OK → the goblins owe the save, the Ranger does not, the card names both sides, one "choice" moment',
+  21: '…and asks nobody when there is nothing to choose: the cube over the two goblins alone chooses them both with no popup; the default rides the card (not asked) and publishes no moment',
+  22: 'Slow with Heightened Spell: ONE popup — the choice ticks with a Disadvantage radio beside each row, live only on the ticked; the second goblin picked is the one the demand and the record mark; the Ranger never owes the save',
 };
 const DEPENDS = { 4: ['3'], 11: ['9'] };
 
@@ -169,6 +175,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     try { if ((attTok.x !== attHome.x) || (attTok.y !== attHome.y)) await attTok.update(attHome, { teleport: true, animate: false }); } catch { /* fine */ }
     try { if ((sorcTok.x !== sorcHome.x) || (sorcTok.y !== sorcHome.y)) await sorcTok.update(sorcHome, { teleport: true, animate: false }); } catch { /* fine */ }
     try { const orb = sorc.items.find(i => (i.type === 'spell') && (i.name === 'Chromatic Orb')); if (orb && (orb.system._source.range.value !== 90)) await orb.update({ 'system.range.value': 90 }); } catch { /* fine */ }
+    try { const sid = globalThis.__bfMetamagicSlow; if (sid && sorc.items.get(sid)) await sorc.deleteEmbeddedDocuments('Item', [sid]); globalThis.__bfMetamagicSlow = null; } catch (e) { log.push(`Slow removal failed: ${e.message}`); }
     try { if (player) await sorc.update({ ownership: ownership0 }, { diff: false, recursive: false }); } catch (e) { log.push(`ownership restore failed: ${e.message}`); }
     try { await closeMomentPopups(); } catch { /* fine */ }
     await sleep(1500);   // in-flight verdicts land before their cards go
@@ -754,6 +761,166 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await app19?.close();
       await closeDialogs();
     }
+
+    // --- A SPELL THAT CHOOSES ITS TARGETS (2026-09-24, Session 8's Slow; the Chosen Areas list) --
+    // The real PHB Slow on the Sorcerer for the run (deleted in teardown): its area is where the
+    // caster chooses. The late-area road, as §9: a bare cast, then the area placed by hand.
+    if ((want(20) || want(21) || want(22)) && rgrTok && vicTok) {
+      const SLOW_UUID = 'Compendium.dnd-players-handbook.spells.Item.phbsplSlow000000';
+      let slow = sorc.items.find(i => (i.type === 'spell') && (i.name === 'Slow'));
+      if (!slow) {
+        const src = await fromUuid(SLOW_UUID);
+        const data = src?.toObject();
+        if (data) { data._stats = { ...(data._stats ?? {}), compendiumSource: SLOW_UUID }; [slow] = await sorc.createEmbeddedDocuments('Item', [data]); }
+        globalThis.__bfMetamagicSlow = slow?.id ?? null;   // ours to delete in teardown — a Slow already there is not
+      }
+      const moments = [];
+      const momentHook = Hooks.on('battleflow.moment', p => moments.push(p));
+      const holdsOpened = [];
+      const holdHook = Hooks.on('battleflow.holdOpened', p => holdsOpened.push(p));
+      const g = scene.grid.size;
+      /** A rectangle Region carrying the cast's activity, as dnd5e 6.0 places a Cube (the §9 idiom). */
+      const placeRect = async (card, x, y, w, h) => {
+        const [tpl] = await scene.createEmbeddedDocuments('Region', [{
+          name: 'BF chosen area', shapes: [{ type: 'rectangle', x, y, width: w, height: h }],
+          flags: { dnd5e: { activity: card.getFlag(MOD, 'saves')?.activityUuid ?? spellAct('Slow').uuid } }
+        }]);
+        templates.push(tpl.id);
+        await sleep(300);
+        try { ui.chat?.updateMessage?.(card); } catch { /* the next render adopts */ }
+      };
+      /** A bare Slow — no window, or the window with a row ticked — and the card it makes. */
+      const castSlow = async (key = null) => {
+        if (key) {
+          const { card, why } = await castWith('Slow', key, { consume: { spellSlot: false }, create: { measuredTemplate: false } });
+          return card ? card : (ok(`chosen areas: the cast with ${key}`, false, why), null);
+        }
+        const before = new Set(game.messages.map(m => m.id));
+        await spellAct('Slow')?.use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, { create: true });
+        return await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage') && m.system?.activity?.uuid === spellAct('Slow')?.uuid) ?? null, 8000);
+      };
+      const askFor = card => waitFor(() => { const d = popupFor(card.id, 'metamagicAsk'); return (d?.rendered && d.element?.querySelector?.('[data-bf-metamagic-ask="choose"]')) ? d : null; }, 8000);
+      const askRowsOf = el => [...(el?.querySelectorAll('input[name="bf-metamagic-ask"]') ?? [])].map(i => ({ name: i.dataset.name, uuid: i.value, checked: i.checked, el: i,
+        mark: el.querySelector(`input[name="bf-metamagic-ask-mark"][data-mark-for="${CSS.escape(i.value)}"]`) }));
+      const goblinIds = [attacker.id, victim.id];
+      const isGoblin = uuid => goblinIds.some(id => String(uuid).endsWith(id));
+      /**
+       * ⚠ A CLEAN SLATE PER SECTION (the first battery run, 2026-09-24: 8 of these checks failed in the
+       * full suite and passed alone). The earlier sections' Fireballs leave the Sorcerer and a goblin
+       * DEAD — and a corpse is rightly never a candidate — and the previous section's cube still stands
+       * tied to Slow's activity, so the next cast's area read both. Everyone alive, no Slow area left.
+       */
+      const freshen = async () => {
+        // The TOKENS' actors: the goblins' tokens are unlinked, so the Fireballs hurt each token's own
+        // synthetic actor and healing the base actor changes nothing (the second run, 2026-09-24).
+        for (const a of [sorcTok.actor ?? sorc, attTok.actor ?? attacker, vicTok.actor ?? victim, rgrTok.actor ?? ranger]) {
+          if (a.system.attributes.hp.value < a.system.attributes.hp.max) await a.update({ 'system.attributes.hp.value': a.system.attributes.hp.max });
+          for (const e of a.effects.filter(e => e.statuses?.has?.('dead') || e.statuses?.has?.('bloodied'))) await e.delete().catch(() => {});
+        }
+        const slowAct = spellAct('Slow')?.uuid;
+        const old = scene.regions.filter(r => slowAct && (r.getFlag('dnd5e', 'activity') === slowAct)).map(r => r.id);
+        if (old.length) await scene.deleteEmbeddedDocuments('Region', old);
+        await sleep(300);
+      };
+      try {
+        if (!slow) ok('20. the PHB Slow could not be added to the Sorcerer', false, SLOW_UUID);
+
+        if (want(20) && slow) {
+          await gather();
+          await freshen();
+          await set('saveTimer', 0);
+          // 20a. Careful greys in Slow's window, the reason its tag (user ruling 2026-09-24).
+          const w = await openWindow('Slow', { consume: { spellSlot: false }, create: { measuredTemplate: false } });
+          const careful = rowsOf(w.fs).find(r => r.key === 'careful');
+          ok('20a. Careful greys in Slow\'s casting window: "you choose its targets"', !!careful && careful.off && /you choose its targets/i.test(careful.tag) && careful.box?.disabled === true, JSON.stringify({ off: careful?.off, tag: careful?.tag }));
+          ok('20a2. …and stays live on Fireball, which chooses nobody', await (async () => { await w.app?.close(); await closeDialogs(); const f = await openWindow('Fireball', { consume: { spellSlot: false }, create: { measuredTemplate: false } }); const r = rowsOf(f.fs).find(x => x.key === 'careful'); await f.app?.close(); await closeDialogs(); return !!r && !r.off; })(), '');
+          const opened0 = holdsOpened.length;
+          const card = await castSlow();
+          const saves0 = card ? await waitFor(() => card.getFlag(MOD, 'saves') ?? null, 6000) : null;
+          const areaHold = holdsOpened.slice(opened0).find(h => h.reason === 'area-choice');
+          // The stamp lowers it in its `finally`, a beat after the demand is written — waited for, not read once.
+          const lowered = await waitFor(() => ((mod.api?.holdFor?.(spellAct('Slow')?.uuid) ?? null) === null) ? true : null, 4000);
+          ok('20h. the cast raised the chosen area\'s hold for the picture, and the stamp lowered it once no question stood', !!areaHold && lowered === true, JSON.stringify({ raised: holdsOpened.slice(opened0).map(h => h.reason), lowered }));
+          // The cube over the Sorcerer, the Ranger and both goblins — Session 8's shape.
+          await placeRect(card, sorcTok.x - g, sorcTok.y - (2 * g), 4 * g, 4 * g);
+          const ask = await askFor(card);
+          const rows = askRowsOf(ask?.element);
+          const heldEmpty = !(card.getFlag(MOD, 'saves')?.targets?.length);
+          ok('20b. the question opens at the area: three rows — never the caster — the goblins ticked, the Ranger not, the demand waiting empty',
+            rows.length === 3 && !rows.some(r => r.name === 'BF Test Sorcerer') && rows.filter(r => r.checked).every(r => isGoblin(r.uuid)) && rows.filter(r => r.checked).length === 2 && heldEmpty,
+            `rows=${rows.map(r => `${r.name}:${r.checked}`).join(',')} heldEmpty=${heldEmpty} saves=${!!saves0}`);
+          const title = ask?.element?.textContent?.replace(/\s+/g, ' ') ?? '';
+          ok('20c. it asks in the spell\'s own words — "Who does Slow affect? Up to 6." and the sentence that grants the choice', /Who does Slow affect\? Up to 6\./.test(title) && /up to six creatures of your choice/.test(title), title.slice(0, 160));
+          const cardAsk = await waitFor(() => document.querySelector(`[data-message-id="${card.id}"] .bf-metamagic-ask`)?.textContent?.trim() ?? null, 4000);
+          ok('20d. the card says what it waits on, not "waiting for the template\'s area"', /Slow — who does it affect\?/.test(cardAsk ?? '') && !/waiting for the template/.test(document.querySelector(`[data-message-id="${card.id}"]`)?.textContent ?? ''), cardAsk);
+          ask?.element?.querySelector('button[data-action="ok"]')?.click();
+          const filled = await waitFor(() => { const f2 = card.getFlag(MOD, 'saves'); return (f2?.targets?.length) ? f2 : null; }, 8000);
+          ok('20e. OK → the goblins owe the save and the Ranger does not', filled?.targets?.length === 2 && filled.targets.every(t => isGoblin(t.uuid)), names(filled?.targets));
+          const record = card.getFlag(MOD, 'areaChoice');
+          ok('20f. the choice rides the card, asked, the Ranger left out', record?.asked === true && record.chosen?.length === 2 && record.left?.some(c => c.name === 'BF Test Ranger') && record.cap === 6, JSON.stringify(record ? { asked: record.asked, chosen: names(record.chosen), left: names(record.left), cap: record.cap } : null));
+          const line = await renderedLine(card, 'bf-area-choice');
+          ok('20g. the card line names the chosen and the not chosen', /Slow — chosen: .*not chosen: BF Test Ranger/.test(line ?? ''), line);
+          ok('20i. an answered choice publishes one "choice" moment, the chosen as its targets', moments.some(p => (p.kind === 'areaChoice') && (p.event === 'choice') && (p.targets?.length === 2)), moments.filter(p => p.kind === 'areaChoice').map(p => `${p.event}:${p.targets?.length}`).join(',') || 'none');
+          await sleep(600);
+          const asks = savePopups().map(demandText);
+          ok('20j. save asks open for the goblins, none for the Ranger', !asks.some(t => /BF Test Ranger/.test(t)), asks.map(t => t.replace(/\s+/g, ' ').trim().slice(0, 50)).join(' | '));
+          await closeDialogs();
+        }
+
+        if (want(21) && slow) {
+          await gather();
+          await freshen();
+          await set('saveTimer', 0);
+          const before = moments.filter(p => p.kind === 'areaChoice').length;
+          const card = await castSlow();
+          await waitFor(() => card?.getFlag(MOD, 'saves') ?? null, 6000);
+          // The cube over the two goblins alone — nothing to choose. ⚠ INSET from the squares' edges:
+          // containment samples a token's edges (geometry.js), so a rectangle whose side lies ON the
+          // Sorcerer's and the Ranger's top edge holds them too (the first run of this section, 2026-09-24).
+          await placeRect(card, sorcTok.x + 6, sorcTok.y - g + 6, (2 * g) - 12, g - 12);
+          const filled = await waitFor(() => { const f2 = card.getFlag(MOD, 'saves'); return (f2?.targets?.length) ? f2 : null; }, 8000);
+          const askFlag = card.getFlag(MOD, 'metamagicAsk');
+          const asked = !!popupFor(card.id, 'metamagicAsk') || (askFlag?.kind === 'choose');
+          ok('21a. every creature in the area hostile and within six — no question; the goblins owe the save', !asked && filled?.targets?.length === 2 && filled.targets.every(t => isGoblin(t.uuid)), `asked=${asked} listed=${(askFlag?.candidates ?? []).map(c => `${c.name}(${c.disposition})`).join(',')} targets=${names(filled?.targets)}`);
+          const record = card.getFlag(MOD, 'areaChoice');
+          ok('21b. the default is written as the choice, not asked, and the card says who', record?.asked === false && record.chosen?.length === 2 && /Slow — chosen: /.test((await renderedLine(card, 'bf-area-choice')) ?? ''), JSON.stringify(record ? { asked: record.asked, chosen: names(record.chosen) } : null));
+          ok('21c. a default nobody chose publishes no choice moment', moments.filter(p => p.kind === 'areaChoice').length === before, '');
+          await closeDialogs();
+        }
+
+        if (want(22) && slow) {
+          await gather();
+          await freshen();
+          await set('saveTimer', 0);
+          game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+          const card = await castSlow('heightened');
+          if (card) {
+            await waitFor(() => card.getFlag(MOD, 'saves') ?? null, 6000);
+            await placeRect(card, sorcTok.x - g, sorcTok.y - (2 * g), 4 * g, 4 * g);
+            const ask = await askFor(card);
+            const rows = askRowsOf(ask?.element);
+            const ranger22 = rows.find(r => r.name === 'BF Test Ranger');
+            const goblins = rows.filter(r => isGoblin(r.uuid));
+            ok('22a. ONE popup: the choice ticks with a Disadvantage radio on each row — live on the ticked goblins, dead on the unticked Ranger, the first goblin marked',
+              rows.length === 3 && !!ranger22 && ranger22.mark?.disabled === true && goblins.every(r => r.mark && !r.mark.disabled) && goblins[0]?.mark?.checked === true,
+              rows.map(r => `${r.name}:${r.checked}/${r.mark ? (r.mark.disabled ? 'dead' : (r.mark.checked ? 'marked' : 'live')) : 'none'}`).join(','));
+            goblins[1]?.mark?.click();
+            await sleep(80);
+            ask?.element?.querySelector('button[data-action="ok"]')?.click();
+            const filled = await waitFor(() => { const f2 = card.getFlag(MOD, 'saves'); return (f2?.targets?.length) ? f2 : null; }, 8000);
+            const mm = card.getFlag(MOD, 'metamagic');
+            ok('22b. the second goblin is marked on the demand and the record, the goblins owe the save, the Ranger does not',
+              filled?.demand?.heightened?.uuid === goblins[1]?.uuid && mm?.chosen === true && mm?.target?.uuid === goblins[1]?.uuid && filled?.targets?.length === 2 && filled.targets.every(t => isGoblin(t.uuid)),
+              JSON.stringify({ mark: filled?.demand?.heightened?.name, target: mm?.target?.name, targets: names(filled?.targets) }));
+          }
+          await closeDialogs();
+        }
+      } finally {
+        Hooks.off('battleflow.moment', momentHook);
+        Hooks.off('battleflow.holdOpened', holdHook);
+        await scatter();
+      }
+    } else if (want(20) || want(21) || want(22)) ok('20-22. fixtures', false, 'BF Test Ranger or BF Test Victim missing');
 
     if (want(8)) {
       ok('8a. renderActivityUsageDialog fired', count('renderActivityUsageDialog') > 0, `count=${count('renderActivityUsageDialog')}`);

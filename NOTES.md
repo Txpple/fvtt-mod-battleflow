@@ -1374,6 +1374,22 @@ the sandbox the same day. Read file by file for what this module leans on:
   volley and cast paths read the cast level off the card and the item, unchanged.
 - **Hooks:** `check-hook-dispatch --regen`: 0 added, 0 removed.
 
+### "Creatures of your choice" in an area: the pack flags half of them (2026-09-24, Session 8's Slow)
+
+dnd5e models a caster's choice inside an area as `target.affects.choice` ("choose which creatures
+in the area are affected"). Measured against the 2024 PHB spell pack (a copy of its LevelDB read
+with `classic-level`): the area-and-save spells whose TEXT grants the choice are Slow, Sleep,
+Conjure Barrage, Conjure Volley, Word of Radiance, Destructive Wave, Weird and Spirit Guardians —
+and the flag is set on **four** (Word of Radiance, Destructive Wave, Weird, Spirit Guardians),
+left `false` on Slow, Sleep and both Conjures. Slow's `affects.count` is blank too: its "up to six"
+lives only in its prose. So the flag is not membership (ARCHITECTURE §6 registry rule 1, again):
+the Chosen Areas list names them (`CHOSEN_AREAS`), and the number is read off the text
+(`choiceCapFrom`). Everything the pack says "of your choice" about WITHOUT an area (Bane, Enthrall,
+Compulsion, Divine Word, Healing Word…) is a targeting choice and needs nothing.
+
+⚠ Before this, a placed area's save demand asked everyone it held, so Slow asked the party member
+standing in its cube (Session 8, 9:58 pm: Invictus rolled a Wisdom save against the party's Slow).
+
 ## 3. The statblock caster
 
 Where most of the monster-side bugs lived.
@@ -1430,6 +1446,15 @@ printed AC does not move, and Shield now counts).
 ---
 
 ## 4. Lessons that generalize
+
+**A hold raised at the card's birth is enough — the card need not be held back** (2026-09-24, the
+chosen areas). FX Studio's gate asks `holdFor(<the cast's activity>)` before it plays ANYTHING keyed
+on the cast: the usage card and the placed area alike (its `readers/battleflow.js`). So a hold
+raised in `preCreateChatMessage` makes both wait, and releasing it with the card plays them. The
+metamagic ask's held card (2026-09-09) was built before that was known and stays — the chosen
+area's question takes the lighter road: the card is born, its demand waits empty, the hold keeps
+the picture. ⚠ The hold is client-local, so the release rides the ANSWER's card update on every
+client (the elect's clock can answer); only the caster's client has anything to lift.
 
 **A change that only moves WHEN something happens can make a latent race reachable.** The
 player-rolled damage offer added no new writer and no new state — it added fifteen seconds of

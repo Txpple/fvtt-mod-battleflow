@@ -1,0 +1,382 @@
+<title>Creatures of Your Choice</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
+<style>
+  :root{
+    color-scheme:dark;
+    --ground:#15171b; --canvas:#1d2025; --panel:#24272d; --panel-2:#2b2f36; --line:#3a3f48;
+    --ink:#e8e3d6; --ink-2:#b5b0a4; --ink-3:#8a867d;
+    --good:rgb(70,150,95); --bad:rgb(180,70,60); --pending:rgb(222,120,40); --crit:rgb(232,190,50); --neutral:rgb(120,120,120);
+    --pending-soft:rgba(222,120,40,.16);
+    --font:"Signika",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45}
+  .wrap{max-width:1400px;margin:0 auto;padding-block:22px 40px;padding-inline:16px}
+  header.top{display:grid;gap:6px;margin-bottom:14px;max-width:90ch}
+  header.top h1{margin:0;font-size:22px;font-weight:600;text-wrap:balance}
+  header.top p{margin:0;color:var(--ink-2)}
+  .eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+  .scenes{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}
+  .scenes button{font:inherit;font-size:12.5px;padding:6px 10px;border-radius:4px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);cursor:pointer}
+  .scenes button[aria-pressed="true"]{background:var(--pending-soft);border-color:var(--pending);color:var(--ink)}
+  button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--crit);outline-offset:2px}
+  .studio{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
+  @media (max-width:1000px){.studio{grid-template-columns:minmax(0,1fr)}}
+  .screen{border:1px solid var(--line);border-radius:6px;background:var(--canvas);padding:14px;display:grid;gap:12px;min-height:520px;align-content:start;
+    background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:40px 40px}
+  .lane{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start}
+  .lane > *{flex:1 1 300px;min-width:0}
+  .caption{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:0 0 4px}
+  .step{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--ink-3);margin:0}
+  .step button{font:inherit;font-size:12px;padding:3px 9px;border-radius:3px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);cursor:pointer}
+
+  /* the map */
+  .map{background:#1a1d19;border:1px solid var(--line);border-radius:4px;padding:6px}
+  .map svg{display:block;width:100%;height:auto;max-width:460px}
+  .map .area{fill:rgba(222,120,40,.12);stroke:rgba(222,120,40,.8);stroke-width:1.5;stroke-dasharray:5 4}
+  .map text{font-family:var(--font);font-weight:700;fill:#fff;pointer-events:none}
+  .map .tok{stroke:#0008;stroke-width:1.5}
+  .map .ring{fill:none;stroke:var(--crit);stroke-width:2;opacity:0;transform-box:fill-box;transform-origin:center}
+  .map .ring.on{animation:ping 1.1s ease-out 2}
+  @keyframes ping{0%{opacity:1;transform:scale(.8)}100%{opacity:0;transform:scale(2.2)}}
+  .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--ink-3);margin-top:4px}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+
+  /* chat cards */
+  .msg{background:#e9e4d8;color:#1b1b1b;border-radius:4px;padding:7px 9px;font-size:12.5px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+  .msg .who{font-size:11px;color:#5d584e;display:flex;justify-content:space-between;margin-bottom:4px}
+  .msg .hd{display:flex;gap:8px;align-items:center;border-bottom:1px solid #c8c1b0;padding-bottom:5px;margin-bottom:5px}
+  .msg .hd .ic{width:30px;height:30px;border-radius:3px;background:#a3481f;display:grid;place-items:center;color:#fff;font-size:15px;flex:0 0 auto}
+  .msg .hd b{font-size:14px;display:block;line-height:1.1}
+  .msg .hd small{color:#5d584e}
+  .bf{border-left:3px solid var(--neutral);border-radius:3px;padding:.4rem .55rem;background:rgba(255,255,255,.03)}
+  .bf.pending{border-left-color:rgba(222,120,40,.95)}
+  .bf .ey{font-size:10px;letter-spacing:.08em;text-transform:uppercase;opacity:.6;line-height:1.4}
+  .bf .tt{font-size:15px;font-weight:700;line-height:1.2}
+  .bf .st{font-size:11px;opacity:.7;line-height:1.3}
+  .bf .ln{margin-top:.35rem;font-size:12px;line-height:1.5}
+  .line{font-size:11px;opacity:.85;margin:.25rem 0}
+  .dem{margin-top:6px;border-top:1px solid #c8c1b0;padding-top:4px}
+  .dem .t{display:flex;justify-content:space-between;gap:8px;padding:2px 0;font-size:12px}
+  .pill{font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:0 6px;border-radius:8px;white-space:nowrap}
+  .pill.wait{background:rgba(222,120,40,.25);color:#7a3a05}
+  .pill.dis{background:rgba(180,70,60,.25);color:#6b1c14}
+
+  /* the hold bar (momentBarHTML, mocked) */
+  .hold{display:flex;align-items:center;gap:6px;font-size:10.5px;opacity:.85;margin-top:4px}
+  .hold .track{flex:1;height:4px;border-radius:2px;background:rgba(0,0,0,.18);overflow:hidden}
+  .pop .hold .track{background:rgba(255,255,255,.12)}
+  .hold .track span{display:block;height:100%;background:rgba(222,120,40,.95);animation:drain linear forwards}
+  @keyframes drain{from{width:100%}to{width:0}}
+
+  /* the usage dialog */
+  .dlg,.pop{background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.55)}
+  .pop{border-color:var(--pending)}
+  .win-title{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);font-weight:600;font-size:13px}
+  .win-title i{width:13px;height:13px;border-radius:3px;background:var(--crit);opacity:.9}
+  .pop .win-title i{background:var(--pending)}
+  .body{padding:10px 12px 12px}
+  .fg{display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:center;margin:5px 0;font-size:12.5px;color:var(--ink-2)}
+  .fg .val{background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:3px;padding:3px 6px}
+  fieldset{margin:10px 0 0;padding:6px 10px 10px;border:1px solid var(--line);border-radius:4px}
+  legend{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);padding:0 4px}
+  .pool{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--ink-2);margin:0 0 4px;font-variant-numeric:tabular-nums}
+  .pool b{color:var(--ink);font-weight:600}
+  .row{display:grid;grid-template-columns:auto 1fr auto;gap:2px 8px;align-items:center;margin:5px 0;padding:6px 8px;border-radius:4px;background:rgba(0,0,0,.18);border:1px solid var(--line);border-left:3px solid var(--pending);cursor:pointer}
+  .row.off{opacity:.55;cursor:not-allowed;border-left-color:var(--neutral)}
+  .row.on{background:var(--pending-soft)}
+  .row input{margin:0;accent-color:var(--pending)}
+  .row .nm{font-weight:600;font-size:13px}
+  .tag{font-size:10px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;color:var(--ink-2)}
+  .row details{grid-column:2 / -1;font-size:11.5px;color:var(--ink-2)}
+  details summary{cursor:pointer;color:var(--ink-3);font-size:11px;list-style:none}
+  details summary::-webkit-details-marker{display:none}
+  details summary::before{content:"▸ "} details[open] summary::before{content:"▾ "}
+  details p{margin:3px 0 0;font-style:italic;border-left:2px solid var(--line);padding-left:8px}
+  .go{width:100%;margin-top:10px;font:inherit;font-weight:600;font-size:13px;padding:8px 12px;border-radius:4px;border:1px solid var(--pending);background:var(--pending-soft);color:var(--ink);cursor:pointer;text-align:left}
+
+  /* the moment popup */
+  .grp{margin:.45rem 0 .2rem}
+  .grp .gl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin:.2rem 0}
+  .pick{display:grid;grid-template-columns:auto 1fr auto;gap:.4rem;align-items:center;margin:.2rem 0;font-size:13px}
+  .pick label{display:contents;cursor:pointer}
+  .pick .sd{color:var(--ink-3)}
+  .pick .dis{font-size:11px;color:var(--ink-2);display:flex;align-items:center;gap:4px}
+  .pick input{margin:0;accent-color:var(--pending)}
+  .pick input:disabled + span{opacity:.5}
+  .ok{margin-top:8px;font:inherit;font-weight:600;padding:6px 18px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);cursor:pointer}
+
+  /* side */
+  .side{display:grid;gap:12px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+  .panel h3{margin:0 0 6px;font-size:13px;font-weight:600}
+  .panel p,.panel li{font-size:12.5px;color:var(--ink-2);margin:0}
+  .panel ul{padding-left:18px;margin:0;display:grid;gap:6px}
+  .panel b{color:var(--ink);font-weight:600}
+  .cls{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+  .cls td{padding:3px 4px;border-top:1px solid var(--line);color:var(--ink-2);vertical-align:top}
+  .cls td:first-child{color:var(--ink);white-space:nowrap}
+  .rule{display:grid;gap:6px}
+  .rule .q{font-size:12.5px;color:var(--ink);font-weight:600}
+  .seg{display:flex;flex-wrap:wrap;gap:4px}
+  .seg button{font:inherit;font-size:11.5px;padding:3px 8px;border-radius:3px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-2);cursor:pointer}
+  .seg button[aria-pressed="true"]{border-color:var(--pending);background:var(--pending-soft);color:var(--ink)}
+  .seg button .rec{color:var(--good);font-size:10px;letter-spacing:.06em;text-transform:uppercase;margin-left:4px}
+  .rule .why{font-size:11.5px;color:var(--ink-3)}
+  .s8{font-size:12px;color:var(--ink-2);display:grid;gap:3px}
+  .s8 span{font-variant-numeric:tabular-nums;color:var(--ink-3);margin-right:6px}
+  @media (prefers-reduced-motion:reduce){.map .ring.on{animation:none;opacity:1}.hold .track span{animation:none;width:60%}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Battle Flow · prototype · ruled 2026-09-24: ask only when there's a choice · Careful greyed on these spells</div>
+    <h1>Area spells that let the caster choose who they affect</h1>
+    <p>Session 8: Gren cast Slow, and Invictus, standing in the cube, was asked to save. Slow reads “up to six creatures of your choice”, but Battle Flow asks everyone in the area. Here the caster is asked instead. Pick a scene, click through it, rule on the right.</p>
+  </header>
+
+  <div class="scenes" id="scenes"></div>
+
+  <div class="studio">
+    <div class="screen" id="screen"></div>
+    <aside class="side" id="side"></aside>
+  </div>
+</div>
+
+<script>
+/* ---------- the rules, the 2024 PHB pack's own words ---------- */
+const RULES = {
+  careful: "When you cast a spell that forces other creatures to make a saving throw, you can protect some of those creatures from the spell’s full force. To do so, spend 1 Sorcery Point and choose a number of those creatures up to your Charisma modifier (minimum of one creature). A chosen creature automatically succeeds on its saving throw against the spell, and it takes no damage if it would normally take half damage on a successful save.",
+  subtle: "When you cast a spell, you can spend 1 Sorcery Point to cast it without any Verbal, Somatic, or Material components, except Material components that are consumed by the spell or that have a cost specified in the spell.",
+  heightened: "When you cast a spell that forces a creature to make a saving throw, you can spend 2 Sorcery Points to give one target of the spell Disadvantage on saves against the spell.",
+  slow: "You alter time around up to six creatures of your choice in a 40-foot Cube within range. Each target must succeed on a Wisdom saving throw or be affected by this spell for the duration.",
+  sleep: "Each creature of your choice in a 5-foot-radius Sphere centered on a point within range must succeed on a Wisdom saving throw or have the Incapacitated condition until the end of its next turn, at which point it must repeat the save."
+};
+const WHO = {
+  bram: { name:"Bramblemaw", side:"hostile", ini:"B" },
+  croc: { name:"Giant Crocodile", side:"hostile", ini:"C" },
+  inv:  { name:"Invictus", side:"party", ini:"I" },
+  gren: { name:"Gren Greenmantle", side:"party", ini:"G" },
+  jet:  { name:"Jetten Elisedil", side:"party", ini:"J" },
+  gob:  { name:"Goblin", side:"hostile", ini:"g" },
+  boss: { name:"Goblin Boss", side:"hostile", ini:"b" },
+  mule: { name:"Pack Mule", side:"neutral", ini:"m" },
+  ys:   { name:"Ysolde", side:"party", ini:"Y" }
+};
+const FILL = { party:"rgb(70,150,95)", hostile:"rgb(180,70,60)", neutral:"rgb(120,120,120)" };
+
+/* ---------- the maps, in grid squares (5 ft each) ---------- */
+const MAPS = {
+  slow: { w:22, h:12, cell:20, area:{ type:"rect", x:7, y:2, w:8, h:8 },
+    toks:[["bram",9.5,4],["croc",13,8],["inv",8.6,8.4],["gren",2,2.5]] },
+  slowOut: { w:22, h:12, cell:20, area:{ type:"rect", x:7, y:2, w:8, h:8 },
+    toks:[["bram",9.5,4],["croc",13,8],["inv",4,9],["gren",2,2.5]] },
+  sleep: { w:11, h:6, cell:40, area:{ type:"circle", x:5.5, y:3, r:1 },
+    toks:[["gob",5.05,2.55],["boss",5.95,2.55],["jet",5.05,3.45],["mule",5.95,3.45],["gren",1,5]] },
+  ys: { w:22, h:12, cell:20, area:{ type:"rect", x:7, y:2, w:8, h:8 },
+    toks:[["bram",9.5,4],["croc",13,8],["inv",8.6,8.4],["ys",2,2.5]] }
+};
+
+/* ---------- state ---------- */
+const R = { ask:"choice" };
+const S = { scene:"slow", step:0, tick:null, used:null, ticks:new Set(), mark:null, markDone:null, chosen:null, invIn:true, ping:null, open:new Set() };
+const SCENES = [
+  { key:"slow", label:"Slow over Invictus" },
+  { key:"sleep", label:"Sleep in a crowd" },
+  { key:"hi", label:"Slow with Heightened" }
+];
+
+/* ---------- small builders (the module's markup, mocked) ---------- */
+function bf({ eyebrow, title, subtitle, lines = [], tone = "neutral" }) {
+  return `<div class="bf ${tone}">${eyebrow ? `<div class="ey">${eyebrow}</div>` : ""}<div class="tt">${title}</div>${subtitle ? `<div class="st">${subtitle}</div>` : ""}${lines.filter(Boolean).map(l => `<div class="ln">${l}</div>`).join("")}</div>`;
+}
+const quote = t => `<em>“${t}”</em>`;
+const holdBar = (sec = 30) => `<div class="hold"><div class="track"><span style="animation-duration:${sec}s"></span></div><span>to answer</span></div>`;
+const fold = (key, text) => `<details data-fold="${key}" ${S.open.has(key) ? "open" : ""}><summary>the rule</summary><p>${text}</p></details>`;
+const names = keys => [...keys].map(k => WHO[k].name).join(", ");
+
+function map(key) {
+  const m = MAPS[key], c = m.cell, r = c * 0.42, a = m.area;
+  const area = a.type === "circle" ? `<circle class="area" cx="${a.x*c}" cy="${a.y*c}" r="${a.r*c}"/>` : `<rect class="area" x="${a.x*c}" y="${a.y*c}" width="${a.w*c}" height="${a.h*c}"/>`;
+  const toks = m.toks.map(([k, x, y]) => `<g><circle class="ring ${S.ping === k ? "on" : ""}" cx="${x*c}" cy="${y*c}" r="${r}"/><circle class="tok" cx="${x*c}" cy="${y*c}" r="${r}" fill="${FILL[WHO[k].side]}"/><text x="${x*c}" y="${y*c + r*0.4}" text-anchor="middle" font-size="${Math.max(9, r*1.05)}">${WHO[k].ini}</text></g>`).join("");
+  return `<div class="map"><p class="caption">The map</p><svg viewBox="0 0 ${m.w*c} ${m.h*c}" role="img" aria-label="Tokens and the area">${area}${toks}</svg>
+    <div class="legend"><span><i style="background:${FILL.party}"></i>party</span><span><i style="background:${FILL.hostile}"></i>hostile</span><span><i style="background:${FILL.neutral}"></i>neutral</span>${m.toks.map(([k]) => `<span>${WHO[k].ini} = ${WHO[k].name}</span>`).join("")}</div></div>`;
+}
+function usage({ spell, slot, rows, pool, go }) {
+  return `<div class="dlg"><div class="win-title"><i></i>${spell}: Usage</div><div class="body">
+    <div class="fg"><span>Spell Slot</span><span class="val">${slot}</span></div>
+    <div class="fg"><span>Template</span><span class="val">Place on cast ✓</span></div>
+    <fieldset><legend>Battle Flow — Metamagic</legend>
+      <div class="pool"><span>${pool.who}</span><span><b>Sorcery Points: ${pool.points} of ${pool.max}</b></span></div>
+      ${rows.join("")}
+    </fieldset>
+    <button class="go" data-act="cast">${go}</button></div></div>`;
+}
+function row({ key, name, tag, on = false, off = false }) {
+  return `<div class="row ${off ? "off" : ""} ${on ? "on" : ""}" data-row="${key}" ${off ? "" : `data-act="tick"`}>
+    <input type="checkbox" id="mm-${key}" ${on ? "checked" : ""} ${off ? "disabled" : ""}>
+    <span class="nm">${name}</span><span class="tag">${tag}</span>${fold(key, RULES[key])}</div>`;
+}
+function spellCard({ caster, name, kind, save, targets, lines = [] }) {
+  return `<div class="msg"><div class="who"><span>${caster}</span><span>just now</span></div>
+    <div class="hd"><span class="ic">✺</span><div><b>${name}</b><small>${kind}</small></div></div>
+    ${lines.map(l => `<div class="line">${l}</div>`).join("")}
+    <div class="dem"><div class="t"><b>${save}</b><span></span></div>${targets.map(t => `<div class="t"><span>${t.name}</span><span class="pill ${t.pill}">${t.status}</span></div>`).join("")}${targets.length ? holdBar(30) : ""}</div></div>`;
+}
+
+/* ---------- the ask at the area: showMetamagicAsk's popup, a new CHOOSE kind ---------- */
+function ask({ spell, owner, candidates, cap = null, rule, heightened = false }) {
+  const title = cap ? `Who does ${spell} affect? Up to ${cap}.` : `Who does ${spell} affect?`;
+  const subtitle = heightened ? `${candidates.length} in the area · Heightened Spell: one of them saves at Disadvantage` : `${candidates.length} in the area — a tick pings the token`;
+  const side = k => WHO[k].side === "party" ? "" : ` <span class="sd">(${WHO[k].side})</span>`;
+  const pick = k => {
+    const on = S.ticks.has(k), full = cap && !on && S.ticks.size >= cap;
+    const dis = heightened ? `<span class="dis"><input type="radio" name="mark" id="mk-${k}" data-act="mark" data-k="${k}" ${S.mark === k ? "checked" : ""} ${on ? "" : "disabled"}><span>Disadvantage</span></span>` : "<span></span>";
+    return `<div class="pick"><label for="tk-${k}"><input type="checkbox" id="tk-${k}" data-act="pick" data-k="${k}" ${on ? "checked" : ""} ${full ? "disabled" : ""}><span>${WHO[k].name}${side(k)}</span></label>${dis}</div>`;
+  };
+  const party = candidates.filter(k => WHO[k].side === "party"), rest = candidates.filter(k => WHO[k].side !== "party");
+  const grp = (t, list) => list.length ? `<div class="grp"><div class="gl">${t}</div>${list.map(pick).join("")}</div>` : "";
+  return `<div class="pop"><div class="win-title"><i></i>${spell} — ${owner}</div><div class="body">
+    ${bf({ eyebrow:`${spell} — creatures of your choice`, tone:"pending", title, subtitle, lines:[quote(rule)] })}
+    ${grp("Party", party)}${grp("Non-Party", rest)}${holdBar(30)}
+    <button class="ok" data-act="ok">OK</button></div></div>`;
+}
+/* the default: the hostiles, up to the spell's own number; never the party, never a neutral */
+function chooseDefaults(cands, cap) { const h = cands.filter(k => WHO[k].side === "hostile"); return new Set(cap ? h.slice(0, cap) : h); }
+function needsAsk(cands, cap) {
+  if ( R.ask === "always" ) return true;
+  if ( R.ask === "never" ) return false;
+  const h = cands.filter(k => WHO[k].side === "hostile");
+  return (h.length !== cands.length) || (!!cap && h.length > cap);
+}
+
+/* ---------- scenes ---------- */
+function choiceFlow({ mapKey, spell, cap, rule, cands, save, kind, toggle = false }) {
+  const tog = toggle ? `<p class="step"><label for="inv-in" style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="inv-in" data-act="invIn" ${S.invIn ? "checked" : ""}> Invictus stands in the cube</label></p>` : "";
+  if ( S.step === 0 ) {
+    if ( needsAsk(cands, cap) ) {
+      return `<div class="lane">${map(mapKey)}${ask({ spell, owner:"Gren Greenmantle", candidates:cands, cap, rule })}</div>${tog}
+        <p class="step">The area landed. ${R.ask === "choice" ? "Asked because the area holds someone who is not hostile" + (cap ? ` (or more hostiles than ${cap})` : "") + "." : "Asked on every cast."} When the clock runs out, the ticked choice stands.</p>`;
+    }
+    S.chosen = chooseDefaults(cands, cap); S.step = 1;
+  }
+  const chosen = [...(S.chosen ?? [])], left = cands.filter(k => !chosen.includes(k));
+  const why = R.ask === "never" ? " · hostiles only" : !needsAsk(cands, cap) ? " · every creature in the area is hostile" : "";
+  const lines = [`${spell} — chosen: ${names(chosen) || "nobody"}${left.length ? ` · not chosen: ${names(left)}` : ""}${why}`];
+  const targets = chosen.map(k => ({ name:WHO[k].name, status:"waiting", pill:"wait" }));
+  return `<div class="lane">${map(mapKey)}<div><p class="caption">The spell's card</p>${spellCard({ caster:"Gren Greenmantle", name:spell, kind, save, targets, lines })}</div></div>${tog}
+    <p class="step">${left.length ? `${names(left)} ${left.length > 1 ? "are" : "is"} never asked to save.` : "No popup — nothing to choose."} <button data-act="reset">Replay</button></p>`;
+}
+const STAGE = {
+  slow() { return choiceFlow({ mapKey: S.invIn ? "slow" : "slowOut", spell:"Slow", cap:6, rule:RULES.slow, cands: S.invIn ? ["bram","croc","inv"] : ["bram","croc"], save:"Wisdom Save DC 16", kind:"Save · 3rd Level Transmutation", toggle:true }); },
+  sleep() { return choiceFlow({ mapKey:"sleep", spell:"Sleep", cap:null, rule:RULES.sleep, cands:["gob","boss","jet","mule"], save:"Wisdom Save DC 16", kind:"Save · 1st Level Enchantment" }); },
+  hi() {
+    const cands = ["bram","croc","inv"];
+    if ( S.step === 0 ) {
+      const rows = [
+        row({ key:"careful", name:"Careful Spell", off:true, tag:"you choose its targets" }),
+        ...["heightened","subtle"].map(k => row({ key:k, name:{ heightened:"Heightened Spell", subtle:"Subtle Spell" }[k],
+          on: S.tick === k, off: !!S.tick && S.tick !== k, tag: k === "heightened" ? "2 SP" : "1 SP" }))
+      ];
+      return `<div class="lane">${map("ys")}</div>
+        <div class="lane">${usage({ spell:"Slow", slot:"Level 3 (3 of 3)", rows, pool:{ who:"Ysolde, Sorcerer 10", points:7, max:10 }, go:`Cast Slow${S.tick ? " — " + { heightened:"Heightened", subtle:"Subtle" }[S.tick] : ""}` })}</div>
+        <p class="step">Careful greys on a spell that chooses its targets. Heightened is ticked; cast.</p>`;
+    }
+    if ( S.step === 1 ) {
+      const hi = S.used === "heightened";
+      if ( !hi && !needsAsk(cands, 6) ) { S.chosen = chooseDefaults(cands, 6); S.step = 2; return STAGE.hi(); }
+      return `<div class="lane">${map("ys")}${ask({ spell:"Slow", owner:"Ysolde", candidates:cands, cap:6, rule:RULES.slow, heightened:hi })}</div>
+        ${hi ? `<p class="step">One popup, not two: the tick chooses, the radio picks who saves at Disadvantage among the chosen.</p>` : ""}`;
+    }
+    const chosen = [...(S.chosen ?? [])], left = cands.filter(k => !chosen.includes(k)), hi = S.used === "heightened";
+    const lines = [`Slow — chosen: ${names(chosen) || "nobody"}${left.length ? ` · not chosen: ${names(left)}` : ""}`];
+    if ( hi ) lines.push(S.markDone ? `Heightened Spell — ${WHO[S.markDone].name} saves with Disadvantage` : "Heightened Spell — no target marked");
+    const targets = chosen.map(k => hi && S.markDone === k ? { name:WHO[k].name, status:"Disadvantage", pill:"dis" } : { name:WHO[k].name, status:"waiting", pill:"wait" });
+    return `<div class="lane">${map("ys")}<div><p class="caption">The spell's card</p>${spellCard({ caster:"Ysolde", name:"Slow", kind:"Save · 3rd Level Transmutation", save:"Wisdom Save DC 17", targets, lines })}</div></div>
+      <p class="step"><button data-act="reset">Replay</button></p>`;
+  }
+};
+
+/* ---------- the side ---------- */
+const SIDE = {
+  slow: `<ul><li>Slow says <em>“up to six creatures of your choice”</em>. Today Battle Flow asks everyone in the cube — that's why Invictus rolled at 9:58 pm.</li><li>Now Gren is asked who it affects: hostiles ticked, party and neutrals not, up to the spell's own number. When the clock runs out, the ticked choice stands.</li><li>Untick <em>Invictus stands in the cube</em> to see the recommended mode skip the popup when there's nothing to choose.</li></ul>`,
+  sleep: `<ul><li>Sleep's text sets no number, so there's no cap.</li><li>The mule is neutral, so it isn't ticked by default. The default only ticks hostiles.</li></ul>`,
+  hi: `<ul><li>A Sorcerer who knows Heightened. Today Heightened on an area spell asks its own question once the area lands.</li><li>On a spell that chooses, that becomes one popup: the tick chooses, the radio picks who saves at Disadvantage among the chosen.</li><li><b>Careful greys</b> with the reason <em>you choose its targets</em> (ruled): by the rules it does nothing on these spells, so no point is spent on it. Every other row stays as it is.</li></ul>`
+};
+const CLASS = `<div class="panel"><h3>Which spells ask — the Player's Handbook's eight</h3>
+  <p>Read off the spell: dnd5e's own <em>choose</em> flag where the pack sets it, the spell's text where the pack leaves it off. Slow's flag is off.</p>
+  <table class="cls"><tbody>
+    <tr><td>Slow</td><td>text · up to six</td></tr><tr><td>Sleep</td><td>text</td></tr>
+    <tr><td>Conjure Barrage</td><td>text</td></tr><tr><td>Conjure Volley</td><td>text</td></tr>
+    <tr><td>Word of Radiance</td><td>flag</td></tr><tr><td>Destructive Wave</td><td>flag</td></tr>
+    <tr><td>Weird</td><td>flag</td></tr><tr><td>Spirit Guardians</td><td>flag — its aura already reaches enemies only; unchanged</td></tr>
+  </tbody></table>
+  <p style="margin-top:6px">Spells that choose by targeting (Bane, Enthrall, Compulsion, Divine Word) need nothing: the tokens the player targets are already the choice.</p></div>`;
+const ASK_OPTS = [
+  ["choice", "Only when there's a choice", true, "Asked when the area holds someone not hostile, or more hostiles than the spell allows. Otherwise every hostile is chosen, with no popup."],
+  ["always", "Every cast", false, "Always asked, even when only enemies are in the area."],
+  ["never", "Never — hostiles only", false, "No popup: hostiles are chosen by side, the way Spirit Guardians' aura already reaches."]
+];
+function side() {
+  const s8 = S.scene === "slow" ? `<div class="panel"><h3>Session 8, as it happened</h3><div class="s8">
+    <div><span>9:57:51</span>Gren casts Slow over Bramblemaw, the crocodile and Invictus</div>
+    <div><span>9:58:12</span>Bramblemaw rolls 11</div>
+    <div><span>9:58:33</span>Invictus is asked too, and rolls 8</div></div></div>` : "";
+  const rule = `<div class="panel"><h3>Ruled 2026-09-24</h3><div class="rule">
+    <div class="q">When is the caster asked “who does it affect?”</div>
+    <div class="seg" role="group" aria-label="When is the caster asked">${ASK_OPTS.map(([v, label, rec]) => `<button data-val="${v}" aria-pressed="${R.ask === v}">${label}${rec ? `<span class="rec">ruled</span>` : ""}</button>`).join("")}</div>
+    <div class="why">${ASK_OPTS.find(o => o[0] === R.ask)[3]}${R.ask === "choice" ? "" : " — not the ruling; shown for comparison."}</div>
+    <div class="q" style="margin-top:6px">Careful on a spell that chooses its targets</div>
+    <div class="why">Greyed, the reason <em>you choose its targets</em> as its tag. See <em>Slow with Heightened</em>.</div></div></div>`;
+  return `<div class="panel"><h3>What changes</h3>${SIDE[S.scene]}</div>${s8}${rule}${CLASS}`;
+}
+
+/* ---------- render + events ---------- */
+function enterScene(key) {
+  Object.assign(S, { scene:key, step:0, ping:null, used:null, chosen:null, markDone:null, tick: key === "hi" ? "heightened" : null });
+  const cands = key === "sleep" ? ["gob","boss","jet","mule"] : (key === "slow" && !S.invIn) ? ["bram","croc"] : ["bram","croc","inv"];
+  S.ticks = chooseDefaults(cands, key === "sleep" ? null : 6);
+  S.mark = "bram";
+}
+function render() {
+  document.getElementById("scenes").innerHTML = SCENES.map(s => `<button data-scene="${s.key}" aria-pressed="${S.scene === s.key}">${s.label}</button>`).join("");
+  document.getElementById("screen").innerHTML = STAGE[S.scene]();
+  document.getElementById("side").innerHTML = side();
+}
+document.getElementById("scenes").addEventListener("click", e => {
+  const b = e.target.closest("button[data-scene]"); if ( !b ) return;
+  enterScene(b.dataset.scene); render();
+});
+document.getElementById("side").addEventListener("click", e => {
+  const b = e.target.closest("button[data-val]"); if ( !b ) return;
+  R.ask = b.dataset.val; enterScene(S.scene); render();
+});
+document.getElementById("screen").addEventListener("click", e => {
+  const sum = e.target.closest("summary");
+  if ( sum ) { e.preventDefault(); const k = sum.parentElement.dataset.fold; S.open.has(k) ? S.open.delete(k) : S.open.add(k); render(); return; }
+  if ( e.target.closest("details") ) return;
+  const t = e.target.closest("[data-act]"); if ( !t ) return;
+  const act = t.dataset.act;
+  if ( act === "reset" ) { enterScene(S.scene); return render(); }
+  if ( act === "tick" ) { const k = t.dataset.row; S.tick = S.tick === k ? null : k; return render(); }
+  if ( act === "cast" ) { S.used = S.tick; S.step = 1; return render(); }
+  if ( act === "ok" ) {
+    S.chosen = new Set(S.ticks);
+    if ( S.scene === "hi" ) { S.markDone = S.ticks.has(S.mark) ? S.mark : null; S.step = 2; }
+    else S.step = 1;
+    return render();
+  }
+});
+document.getElementById("screen").addEventListener("change", e => {
+  const t = e.target;
+  if ( t.dataset.act === "pick" ) {
+    const k = t.dataset.k; t.checked ? S.ticks.add(k) : S.ticks.delete(k);
+    if ( t.checked ) S.ping = k;
+    if ( !S.ticks.has(S.mark) ) S.mark = [...S.ticks][0] ?? null;
+    return render();
+  }
+  if ( t.dataset.act === "mark" ) { S.mark = t.dataset.k; S.ping = t.dataset.k; return render(); }
+  if ( t.dataset.act === "invIn" ) { S.invIn = t.checked; enterScene("slow"); return render(); }
+});
+enterScene("slow"); render();
+</script>

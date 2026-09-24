@@ -84,6 +84,26 @@ guess about the fourth caller's facts (which combatant, whose turn, which combat
 to `decide/clock.js` with it), or the next once-per-turn maneuver that lands on the bash offer
 (it moves to a turn chit with it).
 
+### The ask at the area — metamagic's machinery, with a second customer (2026-09-24)
+
+**What:** the question asked of a caster once a placed area lands — the popup, its clock, the
+answer that fills the save demand, the held card and the cast hold — lives in
+[metamagic.js](scripts/metamagic.js) (its arithmetic in [decide/metamagic.js](scripts/decide/metamagic.js)),
+because Careful and Heightened were its first customer. A spell that chooses its targets (Slow,
+Sleep — DESIGN §6 *Spells that choose their targets*) became the second: a third KIND of the same
+ask (`choose`), raised by the saves machine ([saves/demand.js](scripts/saves/demand.js)
+`areaChoiceForDemand`), answered by the same code. So a non-metamagic question is answered in a
+file named for metamagic, and its flag is still called `metamagicAsk`.
+
+**Why not now:** the house rule (D8) — the seam is built by the feature that proves its shape.
+Two customers told the kinds apart (who is spared, who is marked, who is affected) but share every
+other line; a machine of its own written from them is a guess about what a third one varies. The
+flag key is stored on cards, so renaming it is a migration, not a tidy.
+
+**What would un-park it:** a THIRD customer of the ask at the area that is neither metamagic nor a
+chosen area (a feature whose area asks its user anything) — the ask moves to a machine of its own
+with it, the flag key kept.
+
 ### The template fast-path Foundry 14 took away (was debt row D12)
 
 **What:** `saves/areas.js` listens for `createMeasuredTemplate` / `updateMeasuredTemplate` so it can

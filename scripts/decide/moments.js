@@ -496,6 +496,16 @@ export const MOMENT_RECORDS = Object.freeze({
     }) : []
   },
 
+  areaChoice: {
+    events: ["choice"],
+    means: "a spell that chooses its targets (Slow, Sleep — the Chosen Areas list) was told who its area affects by its caster (saves/demand.js raises the ask, metamagic.js answers it); resolved when `asked` — the default written because there was nothing to choose is no one's decision and publishes nothing",
+    resolved: (r, ctx) => r?.asked ? whole(["choice"], {
+      actor: source(r) ?? ctx.actorUuid, item: ctx.itemUuid, activity: ctx.activityUuid, itemName: r.spell ?? null, ability: r.spell ?? null,
+      targets: (r.chosen ?? []).map(t => row(t)),
+      details: { chosen: (r.chosen ?? []).map(c => c.name), left: (r.left ?? []).map(c => c.name), cap: r.cap ?? null, timedOut: !!r.timedOut }
+    }) : []
+  },
+
   castApply: {
     events: ["choice"],
     means: "a cast's alternative effect was chosen — Fire Shield's warm or chill (cast.js); resolved when `choice.chosen` is set. The application itself is the effect receipt's resolve",
