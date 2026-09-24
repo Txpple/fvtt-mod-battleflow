@@ -23,7 +23,9 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
-const DOCS = ["README.md", "DESIGN.md", "RULINGS.md", "ARCHITECTURE.md", "NOTES.md", "BACKLOG.md", "SWEEP.md", "tools/README.md"];
+// HANDOFF.md is a commission file: checked while it exists, gone when it is retired (BACKLOG header).
+const DOCS = ["README.md", "DESIGN.md", "RULINGS.md", "ARCHITECTURE.md", "NOTES.md", "BACKLOG.md", "SWEEP.md", "tools/README.md", "HANDOFF.md"]
+  .filter(d => existsSync(join(REPO, d)));
 const DOC_NAMES = ["DESIGN", "RULINGS", "ARCHITECTURE", "NOTES", "BACKLOG", "SWEEP"];
 const DOC_ALT = DOC_NAMES.join("|");
 
