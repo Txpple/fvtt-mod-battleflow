@@ -74,6 +74,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const priorBar = game.settings.get(MOD, "effectBar"), priorHover = game.settings.get(MOD, "effectHover");
   let made = [];
   let seeded = [];
+  const CLOCKLESS = "Death Armor (probe)";
   let priorSheet = null;
   try {
     // -------------------------------------------------- setup (always runs)
@@ -95,13 +96,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       { name: "Bless", img: "icons/svg/upgrade.svg", duration: { seconds: 60 }, changes: [] },
       { name: "Prone", img: "icons/svg/falling.svg", statuses: ["prone"], changes: [] }
     ]);
-    // An applied, clockless effect (the Death Armor class) when he carries none — the run's own.
-    if ( !standing.includes("Death Armor") ) {
-      seeded = await invictus.createEmbeddedDocuments("ActiveEffect", [
-        { name: "Death Armor", img: "icons/svg/skull.svg", changes: [] }
-      ]);
-      log.push("seeded an applied, clockless Death Armor for the run");
-    }
+    // An applied, clockless effect (the Death Armor class) — ALWAYS the run's own, under its own
+    // name. ⚠ Invictus is a real party character, and a real Death Armor cast at the table is
+    // CLOCKED since dnd5e 6.0 (an empty clock takes the spell's), so it paints an icon: reusing
+    // whatever he wears made §1c test the table's play state, not the class (2026-09-24, the
+    // battery found him in a live Death Armor with 57 minutes left).
+    seeded = await invictus.createEmbeddedDocuments("ActiveEffect", [
+      { name: CLOCKLESS, img: "icons/svg/skull.svg", changes: [] }
+    ]);
+    log.push(`seeded an applied, clockless "${CLOCKLESS}" for the run`);
     await sleep(300);
     const facts = [...invictus.allApplicableEffects()].filter(e => e.isTemporary || e.statuses.size).map(e => ({ name: e.name, active: e.active, temporary: e.isTemporary, statuses: [...e.statuses], label: e.duration?.label ?? null }));
     log.push(`facts: ${JSON.stringify(facts)}`);
@@ -119,7 +122,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ================================================== 1. the bar
     if ( want(1) ) {
       ok("1. the bar draws above the hotbar for the controlled token: Prone (debuff) first, Bless and the applied Death Armor listed, the worn Cloak not",
-        !!bar && (barNames[0] === "Prone") && barNames.includes("Bless") && barNames.includes("Death Armor") && !barNames.some(n => n.startsWith("Bonus AC")), `chips=${JSON.stringify(barNames)}`);
+        !!bar && (barNames[0] === "Prone") && barNames.includes("Bless") && barNames.includes(CLOCKLESS) && !barNames.some(n => n.startsWith("Bonus AC")), `chips=${JSON.stringify(barNames)}`);
       const tempChip = bar ? [...bar.querySelectorAll(".bf-ev-chip")].find(c => c.querySelector(".nm")?.textContent === "Temporary HP") : null;
       ok("1e. the sheet rows — Temporary HP 7 and Heroic Inspiration listed as buffs, after the effects, with no clock glyph",
         !!tempChip && (tempChip.querySelector(".dtl")?.textContent === "7") && !tempChip.querySelector(".clk") && barNames.includes("Heroic Inspiration")
@@ -128,7 +131,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok("1b. it sits above the hotbar", !!hot && !!br && (br.bottom <= hot.top), `bar.bottom=${br?.bottom} hotbar.top=${hot?.top}`);
       const tagged = bar ? [...bar.querySelectorAll(".bf-ev-chip")].filter(c => c.querySelector("em")).map(c => c.querySelector(".nm").textContent) : [];
       ok("1c. the clockless Death Armor is tagged as painting no icon; Bless (clocked) and Prone (a condition) are not",
-        tagged.includes("Death Armor") && !tagged.includes("Bless") && !tagged.includes("Prone"), `tagged=${JSON.stringify(tagged)}`);
+        tagged.includes(CLOCKLESS) && !tagged.includes("Bless") && !tagged.includes("Prone"), `tagged=${JSON.stringify(tagged)}`);
       ok("1d. a clockless row shows no clock at all — never the platform's \"None\"",
         !!bar && ![...bar.querySelectorAll(".bf-ev-chip .clk")].some(c => /none/i.test(c.textContent)), "");
     }
@@ -199,7 +202,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const panelNames = panel ? [...panel.querySelectorAll(".bf-ev-chip .nm")].map(n => n.textContent) : [];
       const panelLabels = panel ? [...panel.querySelectorAll(".bf-ev-lbl")].map(l => l.textContent) : [];
       ok("6e. the name opens the full list upward — ALL of it, grouped as the sheet groups it: the passives (the worn Cloak) join the temporaries, each row clickable",
-        !!panel && panelNames.includes("Death Armor") && panelNames.includes("Heroic Inspiration") && panelNames.some(n => n.startsWith("Bonus AC"))
+        !!panel && panelNames.includes(CLOCKLESS) && panelNames.includes("Heroic Inspiration") && panelNames.some(n => n.startsWith("Bonus AC"))
           && panelLabels.includes("Temporary") && panelLabels.includes("Passive") && !!panel.querySelector("button.bf-ev-chip"),
         `groups=${JSON.stringify(panelLabels)} rows=${JSON.stringify(panelNames)}`);
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
