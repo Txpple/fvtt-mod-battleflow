@@ -851,7 +851,7 @@ ids stay because code comments cite them.
 | **D9** | machine → machine import edges | (a) (b) repaid 2026-08-23, (c) (d) 2026-09-05, (f) 2026-09-04 (§7 *The offer's contributions*); what stands is parked — BACKLOG *The two sideways edges*, *Two clock residues*; `npm run layers` is the evidence |
 | **D10** | a hook name the system never dispatches | closed 2026-08-23 — `npm run dispatch`, §9 *The API-drift rule* |
 | **D11** | nothing proved a registered handler ever ran | measured, not a gate — `hook-coverage.mjs` + `claim-proof.mjs`; reading them is the standing obligation, §11 *Adding a TEST* rule 6 |
-| **D12** | Foundry 14 never dispatches the `*MeasuredTemplate` hooks | BACKLOG *The template fast-path Foundry 14 took away*; §9, the Regions row |
+| **D12** | Foundry 14 never dispatches the `*MeasuredTemplate` hooks | closed 2026-09-16 — the 6.0 pass made every area a Region and the registrations left with the pin (515379f); §9, the Regions row |
 
 ⚠ **A ledger that declares itself empty is how the next drift gets in, and a debt row's evidence
 goes stale as silently as code.** Re-measure before believing a row; add one the moment
