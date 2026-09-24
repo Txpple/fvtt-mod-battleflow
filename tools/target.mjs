@@ -70,21 +70,44 @@ export function playerConfig(env) {
  * finding ⓪ turned on the test harness, and it cost a confusing 9-failure concentration run
  * on 2026-08-19 before the penny dropped. Fail loudly here instead.
  *
- * Pass `{ requireElect: false }` for a read-only probe that does not care who applies.
+ * Pass `{ requireElect: false }` for a read-only probe that does not care who applies, and
+ * `{ allowBridge: true }` with it for a probe that reads pack indexes or `game.users` and asserts
+ * on nothing at all — the bridge being connected cannot corrupt such a read.
+ *
+ * ⚠ THE BRIDGE IS USUALLY OURS, AND USUALLY NOT THIS SESSION'S (measured 2026-09-24). The bridge
+ * identity (`FOUNDRY_USER` in the MCP's .env) is joined by EVERY open Claude session's MCP server;
+ * `disconnect-bridge` logs out only the calling session's browser, and the identity stays active
+ * as long as any other session holds it — polled for 150 s after a disconnect with six sessions
+ * open, it never dropped. So when the only other GM is the bridge, the message names the cause:
+ * another session, not a lag. Nothing here can log that session out; the human closes it or runs
+ * disconnect-bridge there.
  */
-export async function preflightSoleGM(f, { requireElect = true } = {}) {
+export async function preflightSoleGM(f, { requireElect = true, allowBridge = false, env = null } = {}) {
+  const bridgeUser = env?.FOUNDRY_USER ?? env?.LOCAL_FOUNDRY_USER ?? 'MCP-Claude';
   const who = await f.evaluate(async () => ({
     self: game.user.name,
     elect: game.users.activeGM?.name ?? null,
     isSelf: game.users.activeGM?.isSelf ?? false,
     gms: game.users.filter(u => u.active && u.isGM).map(u => u.name),
   }), null);
+  const others = who.gms.filter(n => n !== who.self);
+  const onlyTheBridge = others.length === 1 && others[0] === bridgeUser;
+  if (onlyTheBridge && allowBridge && !requireElect) {
+    console.warn(`[preflight] the MCP bridge "${bridgeUser}" is connected — allowed for this read-only probe`);
+    return who;
+  }
   if (who.gms.length > 1) {
+    const why = onlyTheBridge
+      ? `The other GM is the MCP bridge "${bridgeUser}", which every open Claude session's MCP server `
+        + 'joins as: disconnect-bridge here logs out only THIS session\'s browser, so if it is still '
+        + 'connected another Claude session holds it — run disconnect-bridge in that session (or close '
+        + 'it), then re-run. A read-only probe may pass { requireElect: false, allowBridge: true }.'
+      : 'Disconnect the MCP bridge (disconnect-bridge) and close any GM window, then re-run. (Same '
+        + 'account twice still counts twice: the elect is per-USER, so both pass isActiveGM and they '
+        + 'fight over every application.)';
     throw new Error(
       `PREFLIGHT: ${who.gms.length} GM-capable clients connected (${who.gms.join(', ')}) — `
-      + 'exactly one must be. Disconnect the MCP bridge (disconnect-bridge) and close any GM '
-      + 'window, then re-run. (Same account twice still counts twice: the elect is per-USER, '
-      + 'so both pass isActiveGM and they fight over every application.)');
+      + `exactly one must be. ${why}`);
   }
   if (requireElect && !who.isSelf) {
     throw new Error(`PREFLIGHT: the elect is "${who.elect}", not this client ("${who.self}") — `

@@ -330,7 +330,7 @@ export async function disposeSafely(f, tag) {
  * ⚠ The watchdog is armed BEFORE `connect()` on purpose — a Foundry that never finishes
  * launching is exactly the hang it exists to break, and arming after would never fire.
  */
-export async function connectSuite({ tag, watchdogMs, requireElect = true, env = loadEnv() }) {
+export async function connectSuite({ tag, watchdogMs, requireElect = true, allowBridge = false, env = loadEnv() }) {
   takeSuiteLock(tag);
   setTimeout(() => {
     console.error(`[${tag}] WATCHDOG ${Math.round(watchdogMs / 1000)}s — hard abort`);
@@ -339,7 +339,7 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, env =
   const f = new Foundry(foundryConfig(env));
   console.log(`[${tag}] connecting…`);
   await f.connect();
-  await preflightSoleGM(f, { requireElect });
+  await preflightSoleGM(f, { requireElect, allowBridge, env });
 
   /**
    * ⚠ THE CLIENT-SCOPED BASELINE. The reference table (verify-settings.mjs) pins WORLD keys

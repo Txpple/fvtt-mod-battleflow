@@ -8,22 +8,23 @@
 //   node tools/probe-premium-module.mjs <module-id> <out.json>
 //   node tools/probe-premium-module.mjs dnd-arcana-unleashed dist/arcana.json
 //
-// ⚠ No sole-GM preflight, on purpose: this reads pack INDEXES and nothing else, so it does not
-// care who the elect is and a second GM-capable client cannot corrupt it (target.mjs's
-// preflight guards suites that assert on applications). It still resolves its target through
-// target.mjs like every other tool, and it prints who else is connected for the record.
+// The preflight runs with `allowBridge`: this reads pack INDEXES and nothing else, so it does not
+// care who the elect is and the MCP bridge being connected (another Claude session's, as a rule —
+// target.mjs) cannot corrupt it. It resolves its target through target.mjs like every other tool.
 import { writeFileSync } from "node:fs";
 import { Foundry, loadEnv } from "fvtt-mcp-dnd5e/client";
 import * as R from "../scripts/decide/registry.js";
 import { disposeSafely } from "./harness.mjs";
-import { foundryConfig } from "./target.mjs";
+import { foundryConfig, preflightSoleGM } from "./target.mjs";
 
 const [moduleId, outFile] = process.argv.slice(2);
 if (!moduleId || !outFile) { console.error("usage: node tools/probe-premium-module.mjs <module-id> <out.json>"); process.exit(2); }
 
 setTimeout(() => { console.error("[probe-premium] WATCHDOG 300s — hard abort"); process.exit(3); }, 300_000);
-const f = new Foundry(foundryConfig(loadEnv()));
+const env = loadEnv();
+const f = new Foundry(foundryConfig(env));
 await f.connect();
+await preflightSoleGM(f, { requireElect: false, allowBridge: true, env });
 
 const out = await f.evaluate(async ({ moduleId }) => {
   const who = { self: game.user.name, elect: game.users.activeGM?.name ?? null, gms: game.users.filter(u => u.active && u.isGM).map(u => u.name) };
