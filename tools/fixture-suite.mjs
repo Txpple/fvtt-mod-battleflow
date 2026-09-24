@@ -139,6 +139,15 @@ const out = await f.evaluate(async ({ playerName }) => {
       shielder = await Actor.create(data);
       made.push("BF Test Shielder");
       log.push("created BF Test Shielder from Gren Greenmantle");
+    } else if (shielder.effects.size) {
+      // ⚠ THE SAME RULE FOR A SHIELDER THAT ALREADY EXISTS (2026-09-24): the create path above
+      // strips play state, but a Shielder cloned BEFORE that fix, or one a suite left dressed,
+      // kept it — and smoke-saves §2 read 2 of a saved 10 again (the Potion of Poison Resistance
+      // halving the poison burst a second time). Actor-level effects on this fixture are never
+      // the character: the items' own effects live on the items and are untouched here.
+      const stale = shielder.effects.map(e => e.name);
+      await shielder.deleteEmbeddedDocuments("ActiveEffect", shielder.effects.map(e => e.id));
+      log.push(`cleared BF Test Shielder's play-state effects (${stale.join(", ")})`);
     }
 
     // --- the player-owned PC attacker --------------------------------------------------------
