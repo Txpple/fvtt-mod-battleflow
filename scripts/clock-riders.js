@@ -2,13 +2,15 @@
  * Battle Flow — Damage riders on the combat clock: a feature's extra damage rides the hit when the round or the turn says it applies.
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, activeCombatFor, statContext } from "./core.js";
-import { lower, featureNamed, activityNamed } from "./lookup.js";
+import { MODULE_ID, TITLE, activeCombatFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
+import { lower, featureNamed, activityNamed, resolveUuid } from "./lookup.js";
 import { clockRiderEntries, listedNames } from "./settings.js";
-import { turnChitStands, writeTurnChit } from "./shared.js";
+import { hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit } from "./shared.js";
+import { applyActivityEffectsOnHit } from "./effect-riders.js";
+import { registerResumable } from "./ui.js";
 import { bfCard, riderMenuHTML, ruleLine } from "./decide/present.js";
 import { CLOCK_RIDERS } from "./decide/registry.js";
-import { riderDue, riderPartFormula } from "./decide/clock.js";
+import { riderDue, riderPartFormula, riderUsesFrom } from "./decide/clock.js";
 import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { SURFACES } from "./surfaces.js";
 
@@ -33,11 +35,16 @@ import { SURFACES } from "./surfaces.js";
  * card says so rather than adding nothing quietly.
  * ------------------------------------------------------------------------------------------- */
 
-/** Uses left on an activity that carries them, or null when it carries none. */
-function usesLeftOf(activity) {
-  const max = activity?.uses?.max;
-  if ( (max === "") || (max === null) || (max === undefined) ) return null;
-  return Number(activity.uses?.value ?? 0);
+/**
+ * Where a rider's limited uses live, or null when it carries none: the ACTIVITY's own (Dreadful
+ * Strike), else — for a `uses` row — the ITEM its consumption names, the item itself for an empty
+ * target (Slice A, 2026-09-24: the species packs put every use on the item — Fire's Burn, Frost's
+ * Chill, `@prof` per Long Rest). The spend writes back where the uses were read.
+ */
+function usesOf(attacker, activity, row) {
+  const pool = (row.uses && activity) ? poolOf(attacker, activity) : null;
+  const read = riderUsesFrom({ activity: activity?.uses ?? null, item: pool?.system?.uses ?? null, uses: !!row.uses });
+  return read ? { ...read, item: (read.on === "item") ? pool : null } : null;
 }
 
 /**
@@ -74,10 +81,11 @@ function clockRidersFor(attackMessage, activity) {
       formula = (resolved && Roll.validate(resolved)) ? resolved : null;
     } catch { formula = null; }
     const type = (row.type === "weapon") ? weaponType : ([...(part?.types ?? [])][0] ?? null);
-    const usesLeft = usesLeftOf(act);
+    const uses = usesOf(attacker, act, row);
+    const usesLeft = uses ? uses.left : null;
     const judged = riderDue(row, { ...facts, usesLeft, chitStands: turnChitStands(attacker, "rider", key) });
-    out.push({ key, row, feature, activity: act, formula, type, usesLeft, ...judged,
-      label: row.activity === "Damage" ? row.feature : row.activity });
+    out.push({ key, row, feature, activity: act, formula, type, usesLeft, uses, ...judged,
+      label: row.label ?? (row.activity === "Damage" ? row.feature : row.activity) });
   }
   return out;
 }
@@ -162,7 +170,10 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
       }
       record.push({ key: r.key, label: r.label, formula: r.formula, type: r.type, why: r.why, rule: r.row.rule,
         ...(r.row.caveat ? { caveat: r.row.caveat } : {}),
-        ...(r.usesLeft !== null ? { usesLeft: r.usesLeft - 1 } : {}) });
+        ...(r.usesLeft !== null ? { usesLeft: r.usesLeft - 1 } : {}),
+        // `effects` (Frost's Chill, 2026-09-24): the activity's own effects land after the damage
+        // message exists — the resumable below reads these off the record.
+        ...(r.row.effects && r.activity ? { effects: true, clock: r.row.clock ?? null, featureUuid: r.feature.uuid, activityId: r.activity.id } : {}) });
       // The clock's bookkeeping, both on the attacker: the once-per-turn chit (out of combat
       // there is no turn — none is written), and the limited use spent on the activity.
       if ( r.row.when === "oncePerTurn" ) {
@@ -171,16 +182,19 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
           origin: r.feature.uuid, riderKey: r.key })
           .catch(err => console.warn(`${TITLE} | Could not write the ${r.label} chit.`, err));
       }
-      if ( r.row.uses && r.activity ) {
-        const spent = Number(r.activity.uses?.spent ?? 0) + 1;
-        void r.feature.update({ [`system.activities.${r.activity.id}.uses.spent`]: spent })
-          .catch(err => console.warn(`${TITLE} | Could not spend a use of ${r.label}.`, err));
+      if ( r.row.uses && r.activity && r.uses ) {
+        const spent = r.uses.spent + 1;
+        // Written where the uses were read: the activity's own, or the item's (2026-09-24).
+        const write = r.uses.item
+          ? r.uses.item.update({ "system.uses.spent": spent })
+          : r.feature.update({ [`system.activities.${r.activity.id}.uses.spent`]: spent });
+        void write.catch(err => console.warn(`${TITLE} | Could not spend a use of ${r.label}.`, err));
         // THE UNIFORM SPEND (user report 2026-09-09: "when Jetten consumes Dreadful Strike there
         // is no floating text that it was used/remaining"): the record every other pool spend
         // writes, born on the damage message, so the flash, the card line and the ledger read it
         // the same way they read a superiority die or a Sorcery Point (shared.js poolSpendsOn).
-        const max = Number(r.activity.uses?.max ?? 0);
-        if ( max > 0 ) spends.push({ pool: r.activity.name || r.feature.name, spent: 1, left: Math.max(0, max - spent), max,
+        const max = r.uses.max;
+        if ( max > 0 ) spends.push({ pool: r.uses.item ? r.uses.item.name : (r.activity.name || r.feature.name), spent: 1, left: Math.max(0, max - spent), max,
           ability: r.label, actorUuid: attacker?.uuid ?? null, at: Date.now() });
       }
     }
@@ -190,6 +204,47 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
   } catch(err) {
     console.error(`${TITLE} | Clock rider failed to ride — add its damage by hand.`, err);
   }
+});
+
+/* --- the rider's own effects on the hit (Frost's Chill, 2026-09-24) -------------------------- */
+
+/**
+ * A rider row with `effects` lands its activity's applied effects on the hit targets once the
+ * damage message exists, on the elect, receipted there — through the hit menu's own path
+ * (effect-riders.js `applyActivityEffectsOnHit`), the row's `clock` pinned to the attacker.
+ */
+async function settleRiderEffects(message) {
+  const cr = message.getFlag(MODULE_ID, "clockRiders");
+  const rows = (cr?.riders ?? []).filter(r => r.effects);
+  if ( !rows.length || cr.effectsApplied ) return;
+  if ( !drivesMomentFor(cr.sourceUuid ?? null) ) return;
+  try {
+    let claimed = false;
+    await queueFlagWrite(message, "clockRiders", current => {
+      if ( current.effectsApplied ) return false;
+      current.effectsApplied = true;
+      claimed = true;
+    });
+    if ( !claimed ) return;
+    const attackMessage = game.messages.get(cr.attackId);
+    const hits = attackMessage ? hitTargets(attackMessage) : [];
+    const attacker = resolveUuid(cr.sourceUuid ?? null) ?? attackMessage?.getAssociatedActor?.() ?? null;
+    for ( const r of rows ) {
+      // live only: the rider FEATURE — never used up, so the sheet is the truth
+      const feature = resolveUuid(r.featureUuid);
+      const activity = feature?.system?.activities?.get?.(r.activityId) ?? null;
+      await applyActivityEffectsOnHit(message, activity, hits, { clock: r.clock ?? null, attacker, source: statSourceOf(message) });
+    }
+  } catch(err) {
+    console.error(`${TITLE} | A clock rider's effect failed to apply — apply it by hand.`, err);
+  }
+}
+
+// The resume floor (the hit menu's shape): on arrival and on reload, never on an update.
+registerResumable("clockRiders", {
+  pending: (flag, _message, cause) => (cause !== "update") && !!flag.riders?.some?.(r => r.effects) && !flag.effectsApplied,
+  drives: flag => drivesMomentFor(flag.sourceUuid ?? null),
+  drive: settleRiderEffects
 });
 
 /* --- the card says it (R5) -------------------------------------------------------------------- */

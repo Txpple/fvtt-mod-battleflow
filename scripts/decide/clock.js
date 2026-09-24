@@ -11,7 +11,7 @@
  */
 
 /**
- * @param {{when: "oncePerTurn"|"firstRound", uses?: boolean, requires?: string, judge?: string, weapon?: boolean}} row
+ * @param {{when: "oncePerTurn"|"firstRound"|"any", uses?: boolean, requires?: string, judge?: string, weapon?: boolean}} row
  * @param {{inCombat?: boolean, round?: number|null, chitStands?: boolean, usesLeft?: number|null,
  *          sneakArmed?: boolean, raging?: boolean, weapon?: boolean}} facts
  * @returns {{due: boolean, why: string}}
@@ -30,6 +30,10 @@ export function riderDue(row, { inCombat = false, round = null, chitStands = fal
     case "oncePerTurn":
       if ( chitStands ) return { due: false, why: "already used this turn" };
       return { due: true, why: inCombat ? "once this turn" : "out of combat — every hit" };
+    // Every hit, uses permitting (Slice A, 2026-09-24 — Fire's Burn, Frost's Chill): the use is
+    // the only clock, judged above.
+    case "any":
+      return { due: true, why: "on any hit, while its uses last" };
     default:
       return { due: false, why: `an unknown clock "${row.when}"` };
   }
@@ -49,4 +53,21 @@ export function riderPartFormula({ number = null, denomination = null, custom = 
   const extra = String(bonus ?? "").trim();
   if ( base && extra ) return `${base} + ${extra}`;
   return base ?? (extra || null);
+}
+
+/**
+ * WHERE A RIDER'S USES LIVE (Slice A, 2026-09-24): the ACTIVITY's own when it carries a max
+ * (Dreadful Strike), else — for a `uses` row — the ITEM its consumption names (the species packs
+ * put every use on the item: Fire's Burn, Frost's Chill). Null when neither carries a max. The
+ * EDGE reads the two shapes off the sheet and writes the spend back where `on` says.
+ * @param {{activity?: {max?: unknown, value?: unknown, spent?: unknown}|null,
+ *          item?: {max?: unknown, value?: unknown, spent?: unknown}|null, uses?: boolean}} facts
+ * @returns {{left: number, max: number, spent: number, on: "activity"|"item"}|null}
+ */
+export function riderUsesFrom({ activity = null, item = null, uses = false } = {}) {
+  const carries = u => !!u && !((u.max === "") || (u.max === null) || (u.max === undefined));
+  const read = (u, on) => ({ left: Number(u.value ?? 0) || 0, max: Number(u.max) || 0, spent: Number(u.spent ?? 0) || 0, on });
+  if ( carries(activity) ) return read(activity, "activity");
+  if ( uses && carries(item) ) return read(item, "item");
+  return null;
 }

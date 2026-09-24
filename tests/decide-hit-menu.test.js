@@ -31,8 +31,9 @@ describe("the table", () => {
     const rows = Object.values(reg.HIT_OPTIONS);
     const by = g => rows.filter(r => r.group === g).map(r => r.feature);
     expect(by("combat-superiority")).toHaveLength(8);
-    expect(by("giant-ancestry")).toEqual(["Fire's Burn", "Frost's Chill", "Hill's Tumble"]);
-    expect(rows).toHaveLength(11);
+    // Fire's Burn and Frost's Chill are clock riders (user, 2026-09-24: "yes you should switch").
+    expect(by("giant-ancestry")).toEqual(["Hill's Tumble"]);
+    expect(rows).toHaveLength(9);
     for (const row of rows) {
       expect(reg.HIT_GROUPS[row.group]).toBeTruthy();
       expect(row.rule.length).toBeGreaterThan(40);
@@ -132,18 +133,31 @@ describe("Giant Ancestry — a group with no feature, paying per option (Slice A
       ...extra
     });
 
-  it("the table: Frost's Chill clocks its effect to `slow`, Hill's Tumble presses Prone up to Large, the group requires nothing", () => {
+  // A die-carrying option-pool row: none ships since the boons moved to CLOCK_RIDERS (user,
+  // 2026-09-24: "yes you should switch"), but the mechanism stands — a synthetic row proves it.
+  const BOON = {
+    "boon-x": {
+      feature: "Boon X",
+      group: "giant-ancestry",
+      rule: "A synthetic boon that rides a die of its own type."
+    }
+  };
+
+  it("the table: Hill's Tumble presses Prone up to Large, the group requires nothing and pays per option", () => {
     expect(reg.HIT_GROUPS["giant-ancestry"]).toMatchObject({
       feature: null,
       pool: "option",
       dieLabel: "use"
     });
-    expect(reg.HIT_OPTIONS["frosts-chill"]).toMatchObject({ effects: true, clock: "slow" });
     expect(reg.HIT_OPTIONS["hills-tumble"]).toMatchObject({ press: "prone", maxSize: "lg" });
   });
 
-  it("a Goliath with Fire's Burn: its own group, its own uses, the boon's die and damage type as the cost", () => {
-    const m = giant(["Fire's Burn"], { "fires-burn": { left: 3, die: "1d10", type: "fire" } });
+  it("a die-carrying option: its own group, its own uses, the option's die and damage type as the cost", () => {
+    const m = giant(
+      ["Boon X"],
+      { "boon-x": { left: 3, die: "1d10", type: "fire" } },
+      { options: BOON, listed: ["Boon X"] }
+    );
     expect(m.groups).toHaveLength(1);
     expect(m.groups[0]).toMatchObject({
       key: "giant-ancestry",
@@ -155,15 +169,19 @@ describe("Giant Ancestry — a group with no feature, paying per option (Slice A
       eyebrow: "Giant Ancestry"
     });
     expect(m.groups[0].rows[0]).toMatchObject({
-      key: "fires-burn",
+      key: "boon-x",
       cost: "1d10 fire · 1 use",
       affordable: true
     });
   });
 
   it("an option without a readable pool is absent; no uses left greys it", () => {
-    expect(giant(["Fire's Burn"], {}).groups).toEqual([]);
-    const m = giant(["Fire's Burn"], { "fires-burn": { left: 0, die: "1d10", type: "fire" } });
+    expect(giant(["Hill's Tumble"], {}).groups).toEqual([]);
+    const m = giant(
+      ["Hill's Tumble"],
+      { "hills-tumble": { left: 0, die: null } },
+      { fits: { "hills-tumble": true } }
+    );
     expect(m.groups[0].left).toBe(0);
     expect(m.groups[0].rows[0].affordable).toBe(false);
   });
@@ -197,17 +215,18 @@ describe("Giant Ancestry — a group with no feature, paying per option (Slice A
   });
 
   it("a Goliath Battle Master sees both groups, and ONE pick on the whole hit: two across groups pick nothing", () => {
-    const m = giant(["Combat Superiority", "Trip Attack", "Fire's Burn"], {
-      "combat-superiority": { left: 4, die: "1d8" },
-      "fires-burn": { left: 3, die: "1d10", type: "fire" }
-    });
+    const m = giant(
+      ["Combat Superiority", "Trip Attack", "Hill's Tumble"],
+      { "combat-superiority": { left: 4, die: "1d8" }, "hills-tumble": { left: 3, die: null } },
+      { fits: { "hills-tumble": true } }
+    );
     expect(m.groups.map(g => g.key)).toEqual(["combat-superiority", "giant-ancestry"]);
-    expect(h.hitPick({ menu: m, chosen: ["fires-burn"] }).picks.map(p => p.row.key)).toEqual([
-      "fires-burn"
+    expect(h.hitPick({ menu: m, chosen: ["hills-tumble"] }).picks.map(p => p.row.key)).toEqual([
+      "hills-tumble"
     ]);
-    const both = h.hitPick({ menu: m, chosen: ["trip-attack", "fires-burn"] });
+    const both = h.hitPick({ menu: m, chosen: ["trip-attack", "hills-tumble"] });
     expect(both.picks).toEqual([]);
-    expect(both.dropped.sort()).toEqual(["fires-burn", "trip-attack"]);
+    expect(both.dropped.sort()).toEqual(["hills-tumble", "trip-attack"]);
   });
 });
 

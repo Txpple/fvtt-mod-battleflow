@@ -3,11 +3,11 @@
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, statContext } from "./core.js";
-import { cardActivity, resolveUuid } from "./lookup.js";
+import { cardActivity, profileEffects, resolveUuid } from "./lookup.js";
 import { effectRecord, joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
-import { CHIP_FLAG } from "./decide/chips.js";
+import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 import { CARD, castLevelOn, concentrationIdOf, isCard, scalingOf } from "./decide/card.js";
-import { statSourceOf } from "./shared.js";
+import { chipData, placeOf, statSourceOf } from "./shared.js";
 import { METAMAGIC_FLAG, extendedDuration } from "./decide/metamagic.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -307,3 +307,24 @@ Hooks.on("createActiveEffect", effect => {
   });
   if ( elder ) effect.delete().catch(() => { /* the other twin got there first */ });
 });
+
+/**
+ * AN ACTIVITY'S OWN EFFECTS ON THE HIT (Slice A, 2026-09-24) — the one path two machines share:
+ * the hit menu's `effects` option (Distracting Strike) and a clock rider's `effects` row (Frost's
+ * Chill, whose "Chilled" ships with no duration that means the rule). The activity's applied
+ * effects land on the hit targets, receipted on `receiptMessage`; `clock` is a CHIP_WINDOWS key
+ * (decide/chips.js) pinned to the ATTACKER's place — the Slow mastery's clock, so an opportunity
+ * attack's window is still the attacker's next turn start — or null for the pack's own duration.
+ * @param {ChatMessage} receiptMessage
+ * @param {object|null} activity   the activity whose `effects` profiles land
+ * @param {{uuid: string, name: string}[]} targets
+ * @param {{clock?: string|null, attacker?: Actor|null, source?: object|null}} [options]
+ */
+export async function applyActivityEffectsOnHit(receiptMessage, activity, targets, { clock = null, attacker = null, source = null } = {}) {
+  // 6.0: an activity's list holds PROFILES whose effects resolve asynchronously (lookup.js).
+  const effects = (await profileEffects(activity?.effects)).map(({ effect }) => effect).filter(Boolean);
+  if ( !effects.length || !targets?.length ) return;
+  const window = clock ? chipClock(clock, attacker ? placeOf(attacker) : null) : null;
+  await applyEffectsWithReceipt(receiptMessage, effects, targets,
+    { source: source ?? statSourceOf(receiptMessage), clock: window ? chipData(window) : null });
+}

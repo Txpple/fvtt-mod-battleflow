@@ -6,17 +6,16 @@ import { MODULE_ID, TITLE, S, setting, canAnswerFor, canApplyTo, drivesMomentFor
 import { verdictsOn } from "./decide/demand.js";
 import { lower, featureNamed, activityOfType, profileEffects, resolveUuid, resolveDie } from "./lookup.js";
 import { hitMenuEntries } from "./settings.js";
-import { chipData, forceStatus, hitTargets, placeOf, poolOf, spendSuperiorityDie, statSourceOf, withTargets } from "./shared.js";
+import { forceStatus, hitTargets, poolOf, spendSuperiorityDie, statSourceOf, withTargets } from "./shared.js";
 import { bfCard, hitMenuHTML, momentBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { HIT_GROUPS, HIT_OPTIONS } from "./decide/registry.js";
 import { hitMenu, hitPick, sweepVerdict } from "./decide/hit-menu.js";
 import { riderPartFormula } from "./decide/clock.js";
-import { chipClock } from "./decide/chips.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
-import { applyEffectsWithReceipt, messageActivity } from "./effect-riders.js";
+import { applyActivityEffectsOnHit, applyEffectsWithReceipt, messageActivity } from "./effect-riders.js";
 import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerRelay, registerResumable, shownMoments } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 
@@ -59,11 +58,12 @@ import { SURFACES } from "./surfaces.js";
  *   (decide/hit-menu.js `sweepVerdict`), and applies the die through the receipt chokepoint
  *   when it would hit.
  *
- *   GIANT ANCESTRY (Slice A, 2026-09-24) — the Goliath's on-hit boons, a second group: no
- *   feature to require (the parent is text), each boon paying from its OWN uses; its die rides in
- *   the boon's own damage type (Fire's Burn fire, Frost's Chill cold — never the weapon's); Frost's
- *   Chill's "Chilled" lands clocked to the attacker's next turn start; Hill's Tumble presses Prone
- *   with no save, receipted, on a target of Large or smaller read off the sheet.
+ *   GIANT ANCESTRY (Slice A, 2026-09-24) — Hill's Tumble, a second group: no feature to require
+ *   (the parent is text), the boon paying from its OWN uses, Prone pressed with no save,
+ *   receipted, on a target of Large or smaller read off the sheet. Fire's Burn and Frost's Chill
+ *   are CLOCK RIDERS instead (user, 2026-09-24: "yes you should switch" — a Goliath owns one
+ *   boon: use-it-or-not is the rider's question, not the menu's). A die-carrying option-pool row
+ *   would ride in its own damage type; none ships today.
  *
  *   ONE PICK PER HIT (decided 2026-09-24): the pick is one record, so a tick anywhere on the menu
  *   unticks every other; the array shape is BACKLOG's.
@@ -410,14 +410,10 @@ async function settleHitEffects(message) {
     const item = resolveUuid(hm.itemUuid);
     const hits = attackMessage ? hitTargets(attackMessage) : [];
     if ( hm.effects ) {
-      const die = item ? activityOfType(item, "damage") : null;
-      const effects = (await profileEffects(die?.effects)).map(({ effect }) => effect).filter(Boolean);
-      // `clock` (Frost's Chill, 2026-09-24): the window the rule states, pinned to the ATTACKER's
-      // place — the Slow mastery's clock — never the pack's (Chilled ships none that means it).
+      // The shared path (effect-riders.js, 2026-09-24): the clock riders' `effects` rows use it too.
       const attacker = resolveUuid(hm.sourceUuid ?? null) ?? attackMessage?.getAssociatedActor?.() ?? null;
-      const window = hm.clock ? chipClock(hm.clock, attacker ? placeOf(attacker) : null) : null;
-      if ( effects.length && hits.length ) await applyEffectsWithReceipt(message, effects, hits,
-        { source: statSourceOf(message), clock: window ? chipData(window) : null });
+      await applyActivityEffectsOnHit(message, item ? activityOfType(item, "damage") : null, hits,
+        { clock: hm.clock ?? null, attacker, source: statSourceOf(message) });
     }
     if ( hm.press ) await pressOnHit(message, hm, hits, item);
   } catch(err) {

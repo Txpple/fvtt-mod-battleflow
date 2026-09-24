@@ -274,7 +274,22 @@ export const DEATH_STRIKE = Object.freeze({
  *
  *   when      "oncePerTurn" — the once-per-turn chit (the Cleave shape); out of combat there is
  *             no turn, so it rides every hit · "firstRound" — combat.round === 1, never out of combat
- *   uses      true — the activity carries limited uses: one is consumed, none left means not offered
+ *             · "any" — due on EVERY hit, uses permitting (Slice A, 2026-09-24: the Goliath's Fire's
+ *             Burn and Frost's Chill — no clock of their own, only a use; user, 2026-09-24: "yes you
+ *             should switch" — a Goliath owns one boon: use-it-or-not is the rider's question, not
+ *             the menu's)
+ *   uses      true — the feature carries limited uses: one is consumed, none left means not offered.
+ *             Read off the ACTIVITY when it carries them (Dreadful Strike), else off the ITEM its
+ *             consumption names — the item itself for an empty target (2026-09-24: the species
+ *             packs put every use on the item), and the spend is written where the uses live
+ *   effects   true — when the rider rides, the rider activity's own applied effects land on the hit
+ *             target, receipted on the damage card (2026-09-24, Frost's Chill's "Chilled"); the one
+ *             path the hit menu's `effects` uses (effect-riders.js `applyActivityEffectsOnHit`)
+ *   clock     a CHIP_WINDOWS key those effects land with, pinned to the ATTACKER's place — for a
+ *             pack effect with no duration that means the rule (`slow`: "until the start of your
+ *             next turn", the Slow mastery's sentence)
+ *   label     what the offer and the card call the rider, when the activity's name would not say
+ *             it ("Burn" → "Fire's Burn"); the activity's name by default, the feature's for "Damage"
  *   requires  "sneak" — only on an armed Sneak Attack (Assassinate's second clause)
  *   judge     "raging" — the bearer must be raging (an effect named Rage, or the status)
  *   type      "weapon" — the extra damage takes the WEAPON's own type; otherwise the part's first
@@ -309,7 +324,16 @@ export const CLOCK_RIDERS = Object.freeze({
   "divine-fury": Object.freeze({ feature: "Divine Fury", activity: "Divine Fury", when: "oncePerTurn", judge: "raging", weapon: true,
     caveat: "the type is the activity's first — ask for the other by hand",
     rule: "On each of your turns while your Rage is active, the first creature you hit with a weapon or an Unarmed Strike takes extra damage equal to 1d6 plus half your Barbarian level (round down). The extra damage is Necrotic or Radiant; you choose the type each time you deal the damage.",
-    from: "Barbarian — Zealot 3" })
+    from: "Barbarian — Zealot 3" }),
+  // The Goliath's on-hit boons (Slice A, 2026-09-24; moved off the hit menu the same day, user:
+  // "yes you should switch"). Any attack roll — weapon, unarmed or spell — so no `weapon`; the
+  // type is the part's own (fire, cold); the uses the item's (`@prof` per Long Rest).
+  "fires-burn": Object.freeze({ feature: "Fire's Burn", activity: "Burn", label: "Fire's Burn", when: "any", uses: true,
+    rule: "When you hit a target with an attack roll and deal damage to it, you can also deal 1d10 Fire damage to that target.",
+    from: "Goliath — Giant Ancestry (Fire)" }),
+  "frosts-chill": Object.freeze({ feature: "Frost's Chill", activity: "Chill", label: "Frost's Chill", when: "any", uses: true, effects: true, clock: "slow",
+    rule: "When you hit a target with an attack roll and deal damage to it, you can also deal 1d6 Cold damage to that target and reduce its Speed by 10 feet until the start of your next turn.",
+    from: "Goliath — Giant Ancestry (Frost)" })
 });
 
 /**
@@ -441,10 +465,9 @@ export const CLOCK_RIDER_NAMES = tableIndex(CLOCK_RIDERS, r => r.feature).names;
  *             "Played at the table: …" (user, 2026-09-04)
  *   melee     true — a melee attack only
  *   clock     a CHIP_WINDOWS key (decide/chips.js) the `effects` land with, pinned to the
- *             ATTACKER's place — for a pack effect that ships no duration, or the wrong one
- *             (Frost's Chill's "Chilled": "until the start of your next turn" — `slow`, the Slow
- *             mastery's identical sentence, so an opportunity attack's clock is still the
- *             attacker's next turn start)
+ *             ATTACKER's place — for a pack effect that ships no duration, or the wrong one (the
+ *             shared path, effect-riders.js `applyActivityEffectsOnHit`; no option uses it today —
+ *             Frost's Chill, its first customer, moved to CLOCK_RIDERS the same day)
  *   press     a status the hit presses with NO save (Hill's Tumble's Prone) — receipted, never
  *             pressed over a status the target already has; the option's activity may then be a
  *             utility one (no die, "1 use")
@@ -464,7 +487,8 @@ export const CLOCK_RIDER_NAMES = tableIndex(CLOCK_RIDERS, r => r.feature).names;
  * ⚠ ONE PICK PER HIT, across groups (Slice A, decided 2026-09-24): the pick is recorded as ONE
  * record (`hitPick` → `hitManeuver`), so the offer's wire keeps one tick on the whole menu — a
  * tick in Giant Ancestry unticks Combat Superiority's. The array shape a Goliath Battle Master
- * would want is BACKLOG's.
+ * would want is BACKLOG's (it binds a Goliath Battle Master's Hill's Tumble; Fire's Burn and
+ * Frost's Chill ride as clock riders beside any pick).
  *
  * Membership is the Hit Menu list (the option names). Precision Attack and Riposte are FOLDS
  * (maneuvers.js) and the nine remaining maneuvers are other moments (BACKLOG).
@@ -474,9 +498,11 @@ export const HIT_GROUPS = Object.freeze({
     dieLabel: "Superiority Die", eyebrow: "Maneuver", heading: "Maneuvers", per: "one maneuver per attack", from: "Fighter — Battle Master 3",
     rule: "Many maneuvers enhance an attack in some way. You can use only one maneuver per attack.",
     dc: "If a maneuver requires a saving throw, the DC equals 8 plus your Strength or Dexterity modifier (your choice) and Proficiency Bonus." }),
-  // The Goliath's on-hit boons (Slice A, 2026-09-24). The parent is text only and the boons are
-  // separate items granted by an advancement the sheet may not keep, so the group has no feature
-  // to require; each boon pays from its own uses. The rule is the parent's opening, verbatim.
+  // The Goliath's on-hit PRESS (Slice A, 2026-09-24): Hill's Tumble alone — Fire's Burn and
+  // Frost's Chill are CLOCK_RIDERS (user, 2026-09-24: "yes you should switch" — a Goliath owns one
+  // boon, so the hit never asks WHICH, only whether). The parent is text only and the boon is a
+  // separate item granted by an advancement the sheet may not keep, so the group has no feature
+  // to require; the boon pays from its own uses. The rule is the parent's opening, verbatim.
   "giant-ancestry": Object.freeze({ feature: null, pool: "option", label: "Giant Ancestry", max: 1,
     dieLabel: "use", eyebrow: "Giant Ancestry", heading: "Giant Ancestry", per: "one boon per hit", from: "Goliath",
     rule: "You are descended from Giants. Choose one of the following benefits—a supernatural boon from your ancestry; you can use the chosen benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest" })
@@ -503,11 +529,7 @@ export const HIT_OPTIONS = Object.freeze({
   "sweeping-attack": Object.freeze({ feature: "Sweeping Attack", group: "combat-superiority", mode: "sweep", melee: true,
     rule: "When you hit a creature with a melee attack roll using a weapon or an Unarmed Strike, you can expend one Superiority Die to attempt to damage another creature. Choose another creature within 5 feet of the original target and within your reach. If the original attack roll would hit the second creature, it takes damage equal to the number you roll on your Superiority Die. The damage is of the same type dealt by the original attack." }),
   // Giant Ancestry (Slice A, 2026-09-24): any attack roll that hits and deals damage — weapon,
-  // unarmed or spell — the damage type the boon's own (fire, cold), never the weapon's.
-  "fires-burn": Object.freeze({ feature: "Fire's Burn", group: "giant-ancestry",
-    rule: "When you hit a target with an attack roll and deal damage to it, you can also deal 1d10 Fire damage to that target." }),
-  "frosts-chill": Object.freeze({ feature: "Frost's Chill", group: "giant-ancestry", effects: true, clock: "slow",
-    rule: "When you hit a target with an attack roll and deal damage to it, you can also deal 1d6 Cold damage to that target and reduce its Speed by 10 feet until the start of your next turn." }),
+  // unarmed or spell. No die: the press is the whole boon.
   "hills-tumble": Object.freeze({ feature: "Hill's Tumble", group: "giant-ancestry", press: "prone", maxSize: "lg",
     rule: "When you hit a Large or smaller creature with an attack roll and deal damage to it, you can give that target the Prone condition." })
 });

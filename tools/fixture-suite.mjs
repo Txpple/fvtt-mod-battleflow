@@ -338,12 +338,14 @@ const out = await f.evaluate(async ({ playerName }) => {
       // Endurance (the reduction hold) and Fire's Burn (the hit menu's Giant Ancestry group); the
       // suites add and remove Frost's Chill and Hill's Tumble per section — one boon at a time, as
       // smoke-hitmenu adds maneuvers. The Halfling carries Brave (the save gate's feature row)
-      // beside Lucky and Savage Attacker (the tier-3 suites'). Both on a row of their own at
-      // y=1400: off the fixture line, out of the Paladin's aura and the Cleric's Spirit Guardians.
+      // beside Lucky and Savage Attacker (the tier-3 suites'). Both HOME in the range's empty top-left
+      // corner (y=200): every suite places its tokens between x 800-1700 and y 900-1700, and a
+      // home at y=1400 stood beside smoke-reminders' target as an ALLY — Pack Tactics counted it
+      // (measured 2026-09-24, §11e). Friendly fixtures must never stand where a suite plays.
       { name: "BF Test Goliath", classes: [["Fighter", 5]], feats: ["Stone's Endurance", "Fire's Burn"], gear: ["Greataxe"],
-        abilities: { str: 16, con: 16 }, hp: 52, x: 1300, y: 1400 },
+        abilities: { str: 16, con: 16 }, hp: 52, x: 300, y: 200 },
       { name: "BF Test Halfling", classes: [["Rogue", 3]], feats: ["Brave", "Lucky", "Savage Attacker"], gear: ["Shortsword"],
-        abilities: { dex: 16, con: 12 }, hp: 24, x: 1500, y: 1400 }
+        abilities: { dex: 16, con: 12 }, hp: 24, x: 500, y: 200 }
     ];
     const built = [];
     for (const spec of BUILT) {

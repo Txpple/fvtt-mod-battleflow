@@ -17,7 +17,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 // full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
 // it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
 export const COVERS = [
-  'clock-riders.js',        // Dreadful Strike and Assassinate on the combat clock
+  'clock-riders.js',        // Dreadful Strike and Assassinate on the combat clock; §8-9 the Goliath's boons (2026-09-24)
   'sneak.js',               // §5 — the sneak hit Assassinate rides
   'reminders.js'            // §5 — Advantage against a creature that has not acted (the effect table)
 ];
@@ -29,7 +29,9 @@ const SECTIONS = {
   4: 'the uses are the switch the rules give: none left, nothing rides',
   5: 'Assassinate: round one — Advantage against a creature that has not acted, and the Rogue level on the sneak hit; round two, neither',
   6: 'the Clock Riders list is the switch: an empty list rides nothing',
-  7: 'the registration FIRED (§11): preRollDamageV2 moved with a rider on it'
+  7: 'the registration FIRED (§11): preRollDamageV2 moved with a rider on it',
+  8: 'Fire\'s Burn (Slice A, 2026-09-24 — `when: "any"`, uses on the ITEM): the Goliath\'s hit offers it ticked, 1d10 FIRE rides, the item\'s own use is spent and recorded; no uses left, not offered',
+  9: 'Frost\'s Chill (`effects` + `clock` on a rider): 1d6 cold rides, and "Chilled" lands on the hit clocked to the start of the attacker\'s next turn, receipted on the damage card'
 };
 const DEPENDS = {};
 
@@ -86,7 +88,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const refill = () => dread?.update({ [`system.activities.${dreadAct().id}.uses.spent`]: 0 });
   const clearChips = async () => {
     for (const a of [victim, ranger, rogue]) {
-      const chips = a.effects.filter(e => e.getFlag(MOD, 'mastery') || /^(Vexed|Sapped|Sneak Attack|Dreadful Strike)/.test(e.name)
+      const chips = a.effects.filter(e => e.getFlag(MOD, 'mastery') || /^(Vexed|Sapped|Sneak Attack|Dreadful Strike|Chilled)/.test(e.name)
         || ['prone', 'poisoned', 'unconscious'].some(s => e.statuses?.has?.(s)));
       // Re-filtered and tolerant: a deleted combat tidies the chits it clocked at the same moment
       // (mastery.js's sweep), and a delete naming a gone id throws.
@@ -431,6 +433,85 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     // ================================================== 7. FIRED
+    // ================================================== 8-9. the Goliath's boons (Slice A, 2026-09-24)
+    // Moved off the hit menu the same day (user: "yes you should switch" — a Goliath owns one boon:
+    // use-it-or-not is the rider's question, not the menu's). Uses on the ITEM, due on any hit.
+    if (want(8) || want(9)) {
+      const goliath = game.actors.getName('BF Test Goliath');
+      const axe = goliath?.items.find(i => (i.type === 'weapon') && (i.name === 'Greataxe'));
+      const origins = game.packs.get('dnd-players-handbook.origins');
+      if (!goliath || !axe || !origins) {
+        ok('8. the BF Test Goliath fixture with a Greataxe and the PHB origins pack (run tools/fixture-suite.mjs)', false, `goliath=${!!goliath} axe=${!!axe} origins=${!!origins}`);
+      } else {
+        const added = [];
+        const boon = n => goliath.items.find(i => (i.type === 'feat') && (i.name === n));
+        const priorBoon = {};
+        try {
+          for (const n of ["Fire's Burn", "Frost's Chill"]) {
+            if (boon(n)) continue;
+            const idx = await origins.getIndex();
+            const hit = idx.find(e => e.name === n);
+            if (!hit) { log.push(`⚠ ${n} not in the origins pack`); continue; }
+            const doc = await origins.getDocument(hit._id);
+            const data = doc.toObject(); delete data._id;
+            foundry.utils.setProperty(data, '_stats.compendiumSource', doc.uuid);
+            added.push(...(await goliath.createEmbeddedDocuments('Item', [data])).map(d => d.id));
+          }
+          for (const n of ["Fire's Burn", "Frost's Chill"]) priorBoon[n] = boon(n)?.system._source.uses?.spent ?? 0;
+          const usesOf = n => Number(boon(n)?.system.uses?.value ?? -1);
+          const { token: goliathToken } = await placeToken(goliath, 1500, 1600);
+
+          if (want(8)) {
+            await clearChips();
+            await set('clockRiderList', "Fire's Burn");
+            await boon("Fire's Burn")?.update({ 'system.uses.spent': 0 });
+            const before = usesOf("Fire's Burn");
+            const { dmg } = await swing(goliath, goliathToken, axe);
+            const part = riderPart(dmg, /^1d10$/);
+            const cr = dmg?.getFlag(MOD, 'clockRiders');
+            ok('8a. Fire\'s Burn rides the greataxe\'s damage as its own part — 1d10 FIRE, due on any hit',
+              !!part && (part.options?.type === 'fire') && (cr?.riders?.[0]?.key === 'fires-burn') && /any hit/.test(cr?.riders?.[0]?.why ?? ''),
+              `formulas=[${(dmg?.rolls ?? []).map(r => r.formula + ':' + r.options?.type).join(' | ')}] flag=${JSON.stringify(cr?.riders)}`);
+            const after = await waitFor(() => (usesOf("Fire's Burn") < before) ? usesOf("Fire's Burn") : null, 5000);
+            const ps = [].concat(dmg?.getFlag(MOD, 'poolSpend') ?? []);
+            ok('8b. the ITEM\'s own use is spent (the activity carries none), and the uniform spend names it',
+              (after === before - 1) && (cr?.riders?.[0]?.usesLeft === before - 1) && (ps.length === 1) && (ps[0].pool === "Fire's Burn") && (ps[0].left === before - 1),
+              `uses ${before}→${usesOf("Fire's Burn")} record=${cr?.riders?.[0]?.usesLeft} spend=${JSON.stringify(ps)}`);
+            const text = await waitFor(() => { const t = cardText(dmg?.id); return /rode this roll/.test(t) ? t : null; }, 4000);
+            ok('8c. the card says it: "Fire\'s Burn — 1d10 fire rode this roll"', /Fire's Burn — 1d10 fire rode this roll/.test(text ?? ''), (text ?? '').slice(0, 200));
+            // No uses left: not offered, nothing rides.
+            await boon("Fire's Burn")?.update({ 'system.uses.spent': Number(boon("Fire's Burn")?.system.uses?.max ?? 3) });
+            const { dmg: bare } = await swing(goliath, goliathToken, axe);
+            ok('8d. no uses left: nothing rides', !!bare && !riderPart(bare, /^1d10$/) && !bare.getFlag(MOD, 'clockRiders'),
+              `formulas=[${(bare?.rolls ?? []).map(r => r.formula).join(' | ')}]`);
+          }
+
+          if (want(9)) {
+            await clearChips();
+            await set('clockRiderList', "Frost's Chill");
+            await boon("Frost's Chill")?.update({ 'system.uses.spent': 0 });
+            const { dmg } = await swing(goliath, goliathToken, axe);
+            const part = riderPart(dmg, /^1d6$/);
+            ok('9a. Frost\'s Chill rides — 1d6 COLD', !!part && (part.options?.type === 'cold'),
+              `formulas=[${(dmg?.rolls ?? []).map(r => r.formula + ':' + r.options?.type).join(' | ')}]`);
+            const er = await waitFor(() => game.messages.get(dmg?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => (t.uuid === victim.uuid) && t.effects?.length), 12000);
+            const chilled = victim.effects.find(e => e.name === 'Chilled');
+            const dur = chilled?._source?.duration ?? null;
+            ok('9b. "Chilled" lands on the victim, receipted on the damage card, clocked to one round ending at a turn START (the pack ships none)',
+              !!chilled && !!er?.effects?.some(e => /Chilled/.test(e.name)) && /turnStart/.test(JSON.stringify(dur)) && /"value":1\b/.test(JSON.stringify(dur))
+                && !!game.messages.get(dmg?.id)?.getFlag(MOD, 'clockRiders')?.effectsApplied,
+              `chilled=${!!chilled} duration=${JSON.stringify(dur)} receipt=${JSON.stringify(er?.effects?.map(e => e.name))}`);
+          }
+        } finally {
+          await clearChips();
+          for (const [n, s] of Object.entries(priorBoon)) await boon(n)?.update({ 'system.uses.spent': s }).catch(() => {});
+          const live = added.filter(id => goliath.items.get(id));
+          if (live.length) await goliath.deleteEmbeddedDocuments('Item', live).catch(() => {});
+          await set('clockRiderList', prior.clockRiderList);
+        }
+      }
+    }
+
     if (want(7)) {
       ok('7a. dnd5e.preRollDamageV2 fired (the rider\'s hook)', count('dnd5e.preRollDamageV2') > 0, `count=${count('dnd5e.preRollDamageV2')}`);
     }
