@@ -162,7 +162,7 @@ export const SPINE_TIERS = new Set(
   [...new Set(Object.values(LAYER_OF))].filter(t => (t !== MACHINE_TIER) && !WALKED_TIERS.has(t))
 );
 
-/** A path as the tier map keys it: scripts-relative, posix. Accepts `scripts/x.js` or `x.js`. */
+/** A path as the tier map keys it: scripts-relative, posix. Accepts the path with or without the `scripts/` prefix. */
 const scriptsRel = file => toPosix(String(file)).replace(/^\.?\/?scripts\//, "");
 
 /** The tier `check-layers.mjs` declares for a scripts file, or undefined for an undeclared one. */

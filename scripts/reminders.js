@@ -600,7 +600,7 @@ Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
 }));
 
 /* ---------------------------------------------------------------------------------------------
- * THE SAVE GATE (option E, user ruling 2026-09-02 — DESIGN §5 *The Save Gate*) — the second of the
+ * THE SAVE GATE (option E, user ruling 2026-09-02 — RULINGS *The gate before the roll*, the save gate) — the second of the
  * three tables on the one gate machine, moved here from saves.js in the machine-tier pass, Stage
  * 4c (2026-09-05): the gate machine owns the attack, the check and the save gate alike. The
  * judge, the pre-roll hook, the section drawn into the system's own saving-throw dialog (with

@@ -4,8 +4,8 @@
 // A delete + create would silently unpin the button and hand back a macro that looks identical
 // and is not on the bar any more.
 //
-//   node tools/apply-macro-clear-rest.mjs               -> the local sandbox (default)
-//   BF_TARGET=prod node tools/apply-macro-clear-rest.mjs -> Molten prod, deliberately
+//   node tools/content/apply-macro-clear-rest.mjs               -> the local sandbox (default)
+//   BF_TARGET=prod node tools/content/apply-macro-clear-rest.mjs -> Molten prod, deliberately
 //
 // ⚠ IT DOES NOT EXECUTE THE MACRO. Running a full-board reset is not a thing to do to a live
 // scene to see whether it works; this writes the document and reads it back. The behaviour was
@@ -18,7 +18,7 @@
 // means the next press does something they did not agree to. So it stops by default and lets
 // you say yes on purpose:
 //
-//   BF_TARGET=prod BF_MACRO_FORCE=1 node tools/apply-macro-clear-rest.mjs
+//   BF_TARGET=prod BF_MACRO_FORCE=1 node tools/content/apply-macro-clear-rest.mjs
 //
 // It never EXECUTES the macro on either world — that part is not negotiable.
 import { readFileSync } from 'node:fs';

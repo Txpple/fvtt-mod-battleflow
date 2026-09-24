@@ -1630,7 +1630,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // Shield Master's fix is CONTENT (user ruling): a feat's save activity with a BOUND
     // status effect is already a full customer of this machine — receipts, revert, verdict
     // lines and the press all come free. This section pins the shape end to end so the
-    // world's real feat (Thomas's, verified by tools/fix-shield-master.mjs) can never
+    // world's real feat (Thomas's, verified by tools/content/fix-shield-master.mjs) can never
     // silently regress in the machine.
     if (want(17)) {
       const EFF_BASH = 'bfbashprone00000';

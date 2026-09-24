@@ -596,7 +596,7 @@ const concDialogsOpening = new Set();
  * the buzzer rolls regardless — without any of these inputs.
  */
 // ⚠ SINCE 2026-09-03 THIS IS THE SYSTEM'S OWN SAVING THROW DIALOG, not a house popup — the
-// save demand's option E, applied here (DESIGN §5 *the save gate*): `rollConcentration` with
+// save demand's option E, applied here (RULINGS *The gate before the roll*, the save gate): `rollConcentration` with
 // `configure: true` (the system builds the concentration save — its ability, its bonus, War
 // Caster's Advantage as the dialog's default — and opens its dialog), the ask riding
 // `dialog.options` as a DialogCarried the spine paints (ui.js drawDemandFieldset) and adopts

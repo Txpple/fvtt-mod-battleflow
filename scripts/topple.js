@@ -59,7 +59,7 @@ const toppleDialogsOpening = new Set();
  * — the pairing rule — and the buzzer below rolls whoever the clock catches.
  */
 // ⚠ SINCE 2026-09-03 THIS IS THE SYSTEM'S OWN SAVING THROW DIALOG, not a house popup — the
-// save demand's option E, applied here (DESIGN §5 *the save gate*): `rollSavingThrow` with
+// save demand's option E, applied here (RULINGS *The gate before the roll*, the save gate): `rollSavingThrow` with
 // `configure: true`, the demand riding `dialog.options` as a DialogCarried the spine paints
 // (ui.js drawDemandFieldset) and adopts under the popup key the recall, the buzzer and the
 // delete-sweep already use. The dialog's three buttons, its situational bonus and its roll

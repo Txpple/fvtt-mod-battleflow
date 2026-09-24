@@ -9,7 +9,7 @@
 // must match this output VERBATIM (punctuation included — the source mixes
 // curly and straight apostrophes). Run it after any dnd5e system upgrade.
 //
-//   node tools/probe-mastery-rules.mjs
+//   node tools/check-mastery-rules.mjs
 import { Foundry, loadEnv } from 'fvtt-mcp-dnd5e/client';
 import { foundryConfig } from './target.mjs';
 

@@ -40,7 +40,7 @@ Hooks.on("dnd5e.preUseActivity", activity => {
  * empty case is filled and a real target always wins. This retires the "self-aim UNLESS the
  * target is friendly" carve-out FLOW item 4 had to invent — no friendliness is inferred here.
  *
- * MEASURED, 2026-08-19 (tools/probe-potion-aim.mjs), both facts load-bearing:
+ * MEASURED, 2026-08-19 (probe-potion-aim, retired in b82ab8e — git history), both facts load-bearing:
  * - Healing potions carry `affects.type: "creature"`, activity type `heal` — NOT `self` and
  *   NOT blank. So the module was never wrong to leave them alone (the 02:41:58 "healed the
  *   chest" sighting is faithful behaviour), the "blank affects must not guess" rule is not in

@@ -13,9 +13,9 @@
 // contaminated-elect night, not a content gap — but this tool exists so the claim is
 // VERIFIED per world rather than assumed, and repaired in place if a world diverges:
 //
-//   node tools/fix-shield-master.mjs                 → report the sandbox (read-only)
-//   node tools/fix-shield-master.mjs --graft         → graft the Prone effect if missing
-//   BF_TARGET=prod node tools/fix-shield-master.mjs  → report prod (read-only)
+//   node tools/content/fix-shield-master.mjs                 → report the sandbox (read-only)
+//   node tools/content/fix-shield-master.mjs --graft         → graft the Prone effect if missing
+//   BF_TARGET=prod node tools/content/fix-shield-master.mjs  → report prod (read-only)
 //
 // The SWEEP: every actor-held feature carrying a save activity whose bound-effect list is
 // EMPTY — the exact silent shape Shield Master was assumed to have. Report-only, for the
