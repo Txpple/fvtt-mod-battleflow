@@ -56,7 +56,9 @@ One per feature area. Every suite restores the settings it touches and deletes i
 messages. Disconnect the MCP bridge first, and verify settings after — **`battery.mjs` does the
 ordering, the capture and the settings check for you**, which is why it is the front door.
 
-`smoke-battleflow` runs first (it places the shared victim token), `smoke-hold` immediately after
+`reset-fixture-state` runs before any suite (it sweeps a killed run's linked strays before anything
+measures a distance — NOTES §5 *A KILLED battery poisons the next one*), `smoke-battleflow` is the
+first suite (it places the shared victim token), `smoke-hold` immediately after
 it, and `smoke-nogm` last (it must find no active GM, and the seed above it re-places the token it
 needs). `ORDER` in `coverage-map.mjs` holds the whole order and `battery.mjs --list` prints it;
 quote that, never a copy of it here.
@@ -175,8 +177,8 @@ ships, never from what the party owns (DESIGN N1). Re-run after adding content.
 | --- | --- |
 | `target.mjs` | **which instance a suite talks to** — one decision, one place. Every harness resolves through it and prints the target it chose. |
 | `verify-settings.mjs` | diffs the live world against the reference table it carries — **the single source for the user's configuration**. `--fix` restores drift. Run after every battery. |
-| `fixture-suite.mjs` | **builds the shared fixtures — run it first after every prod refresh** (a refresh wipes them: NOTES §5). The scene, the two goblins, the shielder and the player-owned PC attacker, all filed under a `Test Suite` folder. Idempotent; adopts strays into the folder. The d20-fold PCs are CLONES of Morgash (Fighter 5 Battle Master) and Salyth (Bard 8 — the level that makes the inspiration die the 1d8 the suite pins), with the fighter calibrated to the +5 attack bonus `smoke-d20-folds` states in its own band comment. Pair with `fixture-d20-folds.mjs`, which runs second. |
-| `reset-fixture-state.mjs` | shared fixtures back to a known state (conditions off, pools full). |
+| `fixture-suite.mjs` | **builds the shared fixtures — run it first after every prod refresh** (a refresh wipes them: NOTES §5). The scene, the two goblins, the shielder and the player-owned PC attacker, all filed under a `Test Suite` folder. Idempotent; adopts strays into the folder. Every token it places carries the `fixtureHome` stamp `reset-fixture-state` spares, and the base goblins go back to their statblock every run (HP, AC override, save bonuses, legendary resistances — what a fresh unlinked token inherits; 2026-09-24). The d20-fold PCs are CLONES of Morgash (Fighter 5 Battle Master) and Salyth (Bard 8 — the level that makes the inspiration die the 1d8 the suite pins), with the fighter calibrated to the +5 attack bonus `smoke-d20-folds` states in its own band comment. Pair with `fixture-d20-folds.mjs`, which runs second. |
+| `reset-fixture-state.mjs` | shared fixtures back to a known state (conditions off, pools full), and **every LINKED `BF Test` token on the range without the `fixtureHome` stamp swept** — a killed suite's leftovers (2026-09-24). The battery's first row; run it by hand after any killed run outside the battery. |
 | `scrub-fixture-residue.mjs` | clears what a suite's 5.x restore no longer clears at dnd5e 6.0 — the AC `override` and the per-ability `save.roll.bonus` — on every BF Test actor (`--check` reports only). Run it whenever a suite reports an AC or a save that cannot be (the dnd5e 6.0 pass, 2026-09-16). |
 | `reload-clients.mjs` | refresh every other connected client after a hot-deploy. |
 | `maintain-party.mjs` | strip temporary actor-level effects, on demand. |

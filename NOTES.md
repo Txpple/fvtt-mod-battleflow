@@ -1156,6 +1156,17 @@ auto-crit) could do the same. Every stamp on a driven roll now goes in one neste
 attack is `2d20adv` with the modifier `["adv"]` (`adv2` for Elven Accuracy), Disadvantage `dis`;
 core Foundry's `kh`/`kl` never appear. Anything reading a d20's mode off the roll reads both.
 
+**A red on a tree that was green an hour earlier is fixture state or timing until proven
+otherwise** (2026-09-24/25, the Slice A release floor). The full battery went red six ways on ONE
+tree with no module regression: a new fixture's home inside a test's area, a ~2% killing-crit
+flake, a killed run's residue judged by four later suites, a second session's bridge joining
+mid-run, a popup racing Dice So Nice's cap, and a section that could not tell a natural 20 from a
+real failure (each in §5 *Testing against the live sandbox*). Every fix but one was in `tools/`;
+the one real bug the reds exposed: the effect bar kept the last creature's chips,
+clickable with Remove, once nobody was controlled (d252397). **Read the DETAIL LINE first** — each
+of the six named its cause there (a token's square, a stray's name, a popup that never fronted) —
+before reading the module.
+
 ---
 
 ## 5. Process
@@ -1223,7 +1234,24 @@ BF Test Goliath first homed at y=1400, beside smoke-reminders' target: an ALLY w
 the gate judged Pack Tactics true and the suite read Advantage it never set up. Every suite places
 its tokens between x 800–1700 and y 900–1700; the Goliath and the Halfling now home in the range's
 empty top-left corner (300, 200 and 500, 200 — `tools/fixture-suite.mjs`). The map is a fact the
-gate reads since 2026-09-22 (R1), so a fixture's home is part of every suite's setup.
+gate reads since 2026-09-22 (R1), so a fixture's home is part of every suite's setup. It cuts both
+ways: the Halfling's corner home fell inside smoke-saves §8f's cone the same day; the cone stands on
+empty ground now and the section asserts it first.
+
+⚠ **A KILLED battery poisons the next one** (2026-09-24, a battery killed inside smoke-hitmenu for
+a reboot). A kill skips the teardown, so the killed suite's LINKED tokens, the items it added and
+what it raised on a base actor (a 1000-HP victim, −30 save bonuses, an AC override) all stay — and
+every later suite that measured distance from the shared attacker (smoke-battleflow 5e's
+auto-crit; smoke-volleys §9–11, "within 5 feet of BF Test Fighter" on every ray), reused an "add if
+missing" item (smoke-hitmenu 9c's stripped Goading Attack) or placed a fresh unlinked token from the
+base actor (smoke-saves 15) was judged from the residue. Two batteries red, no module change. Now:
+`fixture-suite` stamps its own tokens `fixtureHome` and puts the base goblins back to the statblock
+every run; `reset-fixture-state` sweeps every other LINKED `BF Test` token and runs FIRST in the
+battery (`coverage-map.mjs` ORDER); the suites that delete the shared UNLINKED tokens by actor
+sweep linked strays only (smoke-rescue had deleted the shared attacker and left a linked one); the
+maneuver suites add fresh copies every run; smoke-volleys asserts clear ground around its row.
+**After a killed run, `reset-fixture-state` comes before any suite** — automatic inside the battery,
+by hand outside it.
 
 ⚠ **The sandbox can be stopped by Windows with nothing here changed (2026-08-28).** The headless
 server died on `An Application Control policy has blocked this file` — Foundry's unsigned
@@ -1244,6 +1272,13 @@ but the count sat at **1 with every client disconnected** across 90 s (2026-08-2
 anything else is connected. Measured: one cast created two identical chips, one attack posted two
 Push cards, damage applied twice. A probe's `--observe` bypasses the preflight on purpose — use it
 only with the world otherwise empty.
+
+⚠ **Another Claude session's bridge is a second GM, and `disconnect-bridge` cannot reach it**
+(2026-09-24). Every open session runs its own MCP server holding the bridge identity; a second
+session's ("DM Assistant") joined the sandbox mid-battery and the preflight refused every suite
+after it (two GM-capable clients). The run was BLOCKED, not red — read the refusal line before the
+counts. `disconnect-bridge` logs out only the calling session's; the cure was ending the other
+session's MCP server processes.
 
 **How the elect is picked.** Core's `Users#activeGM` picks the **highest-role** active GM; id breaks
 ties only between equal roles. The human GM is role 4 and both assistant accounts role 3, so **the
@@ -1304,6 +1339,13 @@ wait for a receipt rather than sleeping. The same day `smoke-expiry` §8b's flak
 `swing('sap')` re-swings after a natural 1 or a killed victim, Vex is spent by the FIRST swing, and
 the assertion read the LAST swing's message; it finds the record by the chip it names now.
 
+**A section the dice can satisfy by accident proves nothing** (2026-09-24). smoke-metamagic §15
+read "no offer" for both a natural 20 (a hit even against AC 60) and an orb cast at nobody (the
+cached token had left the canvas), and 15e/f/g passed on nothing (`undefined === undefined`). The
+d20 is pinned to a 10 (§2 *Forcing a die face*), the target re-resolved and asserted (15-pre), and
+the hollow assertions demand their subject. Its kin, the same night: smoke-effects §15c's ~2%
+killing crit leaves nobody to sap, and takes vex's retry.
+
 **Effect and feature NAMES from the packs carry colons, ampersands and misspellings** ("Adv: Attacks
 & Saves", "Assasinate"). A list spec that splits on ":" eats them; Effect Sources is parsed
 whole-chunk (`whole: true`) and matched lower-cased both sides. The scan that found them (2026-09-02)
@@ -1339,6 +1381,12 @@ usage CARD (a document), a transient BANNER (a hook, immediate) and a durable ca
 module: `smoke-resources` waited for the banner and three "the card keeps its line" assertions went
 red; `smoke-volleys` waited for `status === 'resolved'` when the spread ROLLS post after it (both
 2026-08-23, converting sleeps).
+
+⚠ **A popup that opens after the verdict pause is timed from the pause, not the stamp**
+(2026-09-24, smoke-metamagic §16). The Empowered and Seeking popups wait out
+`dramaticVerdictPause` (Dice So Nice's animation, capped at 6 s), and a 6 s wait started at the
+stamp raced it: the popup fronted at 4.2 s and 6.15 s in two runs. The waits are 12 s, the suite
+logs the popup's own timing, and 16i no longer passes on a popup that never fronted.
 
 ⚠ **SOME SECTIONS FAIL INSIDE THE BATTERY AND PASS ALONE — the ordering class, undiagnosed.**
 `smoke-saves` §22b/c and `smoke-emanations` §11e/f (2026-09-09): a dialog or an effect from an
