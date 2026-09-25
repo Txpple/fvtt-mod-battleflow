@@ -190,6 +190,7 @@ the suite that pins it — live in **[RULINGS.md](RULINGS.md)**, one section per
 
 | Section | Ruled |
 | --- | --- |
+| Where the table bends the rule — the register of every deviation from the rules as written, a row in the same commit as its code | 2026-09-24 |
 | The effect view | 2026-09-15 |
 | Chips and clocks — where a chip belongs, and who keeps its time | 2026-09-01 → 09-15 |
 | The gate before the roll (attack, save and check gates; Sneak Attack; clock riders) | 2026-09-01 → 09-04 |
@@ -199,6 +200,7 @@ the suite that pins it — live in **[RULINGS.md](RULINGS.md)**, one section per
 | Damage shields · Effect choices · A listed reaction cast freestanding · Damage casts | 2026-09-04 → 09-06 |
 | Metamagic | 2026-09-09 → 09-24 |
 | Spells that choose their targets | 2026-09-24 |
+| Slice A — species and origin feats (the save gate's feature rows, Stone's Endurance, the Goliath's boons) · Rescuing the hit (the `roll` interrupt) · Savage Attacker | 2026-09-24 |
 
 A feature not in that file has no ruling yet: locate the work here first (§7), rule it off a
 prototype where it has a UI (the house habit), then write its section.
@@ -246,3 +248,13 @@ closed rows stay, because deleting one invites the proposal it was written to pr
 | **Composing a metamagic option used from the SHEET** | **Declined (2026-09-24).** The casting window is where metamagic lives; an armed-chip design earned nothing. | nothing |
 | **Fixing the pack-as-origin note on tray-applied effects** | **Declined (user, 2026-09-24: "forget about it unless it becomes an issue; I don't want to use Misc Patches as a crutch").** A 2024 pack copy on a character still names the BOOK's item as its origin (`system.origin.item`, NOTES §2); the module's own applier looks past it and clocks the effect right, but an effect applied from the card's TRAY is clocked by dnd5e's own source lookup, which finds no actor, so a source-turn clock can expire on the wrong edge. Three things must coincide: a tray click instead of the module's path, a source-turn clock, and nobody noticing the chip. Not the module's bug to own: a Misc Patches shim would rewrite the note forever, and a data sweep edits content that the next import undoes. At the table: remove the stale chip. The real fix is upstream, a dnd5e report. | a table report of a stuck or early-expiring chip after a tray apply |
 | **Composing Tactical Mind used from the SHEET onto the last failed check** | **Declined (user, 2026-09-24: "this is fine forget it").** The rescue offer after a failed check is the surface, and it composes the d10; a sheet use is the platform's own (the use spent, a Bonus roll button) and the module never guesses which check was meant. Same principle as the metamagic row: fix the rules gap, never build a second entry path. | nothing |
+| **A Goliath boon with dice as a hit-menu pick** (Fire's Burn, Frost's Chill) | **Switched 2026-09-24** (user: *"yes you should switch"*): a Goliath owns ONE boon, so the hit never asks which — they are clock riders, a ticked checkbox beside any pick. Hill's Tumble (a press, no die) stays on the menu. Check the existing shapes first: name the precedent row before choosing a table or a kind (RULINGS *Slice A*). | nothing |
+| **One "Disadvantage" row listing every source** in the popup that rescues a hit | **No — one row per source** (user, 2026-09-24: the Precision and Heroic Inspiration precedent, "just more button choices"). | nothing |
+| **Asking which of Savage Attacker's two sets to keep** | **Never** (2026-09-24, R1): the popup asks only whether to use it on this hit; the higher set stands, a tie keeps the first. | nothing; the line R1 draws |
+| **Two hit-menu picks on one hit** (a maneuver and Hill's Tumble) | **One pick per hit, for now** (2026-09-24): the pick is one record. A bend, in RULINGS *Where the table bends the rule*; the array shape is BACKLOG's. | a Goliath Battle Master at the table |
+| **Halfling Luck, Gnomish Cunning, Tavern Brawler's rerolls as module rows** | **Native** (measured 2026-09-24, SWEEP §6): the pack's flag or formula does it inside dnd5e's own roll. | dnd5e dropping the flag |
+| ⚠ **Known gap — Warding Flare protects its owner only** | The rule reaches any creature the Cleric can see within 30 feet; the hold reads only a hit target's own sheet (2026-09-24). A Flare for an ally is the table's, by hand (used from the sheet it answers no hold: none names the Cleric). In the bends register. | a Light Cleric at the table shielding an ally |
+| ⚠ **Known gap — the attacker's rescue after a bent miss** | When a defender's `roll` row turns a hit into a miss, the attacker's Heroic Inspiration, Precision Attack and Graze are not offered: they are offered at the attack roll, where it was a hit, and nothing re-offers them after the hold's verdict (2026-09-24; Graze already had it for Shield). In the bends register. | a table report of a rescue owed after a Lucky miss |
+| ⚠ **Known gap — a GM rolling a player's attack while the player is online** | Savage Attacker's popup opens nowhere: the question is raised on the ROLLER's client, and a GM's popup is gated out for an actor a connected player owns. The damage card's **Answer** button serves the player; the clock keeps the roll (2026-09-24). | a table report |
+| ⚠ **Known gap — Shadowy Dodge's row carries no level** | `INTERRUPT_ROLLS["Shadowy Dodge"].from` is "Ranger — Gloom Stalker", no level: the pack's level for the feature was not reconciled with the book when the row was written (2026-09-24). Display only. | the next read of the Gloom Stalker pack |
+| **OPEN — where Savage Attacker's popup sits in the pile** | `POPUP_RANK` has no row for it (the popup key's family is `either`), so it ranks LAST, behind the masteries and the offers (2026-09-24). Not decided: **the user's call.** | the user ruling it |
