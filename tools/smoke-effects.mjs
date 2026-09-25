@@ -1173,14 +1173,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `desc=${JSON.stringify(dmg15?.getFlag(MOD, 'effectReceipt')?.targets?.[0]?.effects?.[0]?.description ?? null)}`);
 
       await setMastery('sap');
-      await healFull(); // dead targets are skipped — every §15 attack starts from full
-      before15 = snap14();
-      await attack(pcAttack());
-      await until14(() => fresh14(before15).some(m => m.getFlag(MOD, 'masteryNotice')?.key === 'sap'));
+      // The same retry vex has (8c5abec): the swing rolls with Advantage against AC 1, and a
+      // killing crit (~1 in 50 on an 11-HP victim) leaves nobody to sap — a dead target is
+      // skipped by design. 2026-09-24 the battery went red here on exactly that roll (58/59).
+      for (let try15c = 0; try15c < 4; try15c++) {
+        await healFull(); // dead targets are skipped — every §15 attack starts from full
+        before15 = snap14();
+        await attack(pcAttack());
+        await until14(() => fresh14(before15).some(m => m.getFlag(MOD, 'masteryNotice')?.key === 'sap'), 10_000);
+        if (fresh14(before15).some(m => m.getFlag(MOD, 'masteryNotice')?.key === 'sap')) break;
+      }
       const sapNotice = fresh14(before15).find(m => m.getFlag(MOD, 'masteryNotice')?.key === 'sap');
       ok('15c. sap reminds the attacker what it did',
         !!victim.effects.find(e => e.getFlag(MOD, 'mastery') === 'sap') && !!sapNotice,
-        `notice=${!!sapNotice}`);
+        `notice=${!!sapNotice} sapped=${!!victim.effects.find(e => e.getFlag(MOD, 'mastery') === 'sap')} `
+          + `hp=${victim.system.attributes.hp.value}`);
 
       await setMastery('cleave');
       await healFull();

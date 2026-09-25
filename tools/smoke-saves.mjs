@@ -906,11 +906,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       try {
         const breathAct = () => npc.items.get(breath.id)?.system.activities.get('bfbreathact00000');
         const before8f = snap();
-        const [tpl8f] = await scene.createEmbeddedDocuments('Region', [{   // a cone, far from every fixture token
-          name: 'BF test cone', shapes: [{ type: 'cone', x: 200, y: 400, radius: 30 * px, angle: 53.13, rotation: 0 }],
+        // ⚠ The cone must stand on EMPTY ground: the section proves an instant area at NOBODY.
+        // 2026-09-24 the battery went red here (114/116) because the new BF Test Halfling's
+        // home tile (500,200, fixture-suite) fell inside the old cone at (200,400) — 19° off its
+        // axis, 14 ft out — and the breath found a target and waited on its save. The cone now
+        // points down the empty left edge, and 8f-pre says so before anything is fired, so the
+        // next fixture home cannot fail this section silently again.
+        const [tpl8f] = await scene.createEmbeddedDocuments('Region', [{
+          name: 'BF test cone', shapes: [{ type: 'cone', x: 200, y: 600, radius: 20 * px, angle: 53.13, rotation: 0 }],
           flags: areaFor(breathAct().uuid)
         }]);
         created.templates.push(tpl8f.id);
+        const occ8f = scene.tokens.filter(t => t.testInsideRegion?.(tpl8f));
+        ok('8f-pre. the cone stands on empty ground (no fixture token inside it)', !occ8f.length,
+          `inside=${occ8f.map(t => t.name).join(', ') || 'none'}`);
         const msg8f = await ChatMessage.create({
           speaker: ChatMessage.getSpeaker({ actor: npc }),
           content: '<p>BF 8f feature-breath fixture</p>',
