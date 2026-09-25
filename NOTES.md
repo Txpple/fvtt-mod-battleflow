@@ -261,10 +261,7 @@ token's `movementAction` field. `constrainOptions: { ignoreWalls, ignoreTokens }
 options also crosses both, but only if the CALLER passes them. `preMoveToken(doc, move, options)`
 fires AFTER the path is constrained and can only veto; `moveToken` after the commit;
 `move.destination` is the final waypoint. A sight ray is
-`CONFIG.Canvas.polygonBackends.sight.testCollision(from, to, { type: "sight", mode: "any" })`. A
-teleport fix is a movement-pipeline concern, not a rule of the game (user, 2026-09-04): it shipped
-in Misc Patches and was removed there in v1.1.0 (2026-09-23); the patch file this repo kept as a
-prototype went with the documentation pass of 2026-09-24 (git history). The animation module's "check
+`CONFIG.Canvas.polygonBackends.sight.testCollision(from, to, { type: "sight", mode: "any" })`. The animation module's "check
 collision" preset option is a MOVE-collision ray tested before any move — that preset's setting
 to turn off.
 
@@ -532,7 +529,7 @@ actually used). A mark's placer is found by walking up to the nearest Actor whic
 the origin names (at 5.3.x a concentrating caster's mark named the concentration effect), and
 concentration is never a gate — the dependent cascade deletes the mark when it breaks. ⚠ A copy
 the TRAY applies still carries the stale item: the reader copes, the platform's clock does not (a
-platform gap — Misc Patches territory, or a one-time sweep of the 207 templates; neither done).
+platform gap — Vendor Fixes territory (Misc Patches until 2026-09-25), or a one-time sweep of the 207 templates; neither done).
 Pinned by smoke-riders §9 (the tray's shape) and §10 (a real cast through the applier).
 
 ### 6.0's moved-key table follows ONE hop — Roving's +10 read "3510" (2026-09-23)
@@ -543,7 +540,8 @@ moved twice (`movement.speed` → `movement.walk` → `movement.speeds.walk`). T
 in-memory 35-foot ranger read walk, climb and swim **3510**; the chain followed, 45. A platform
 fix, so Misc Patches' `shim-chains.js` points each entry at the end of its chain at `setup`
 (smoke-shim-chains 5/5), enabled on prod since 2026-09-23 (v1.1.0). 6.0.5 still ships the one-hop
-table.
+table. Moved 2026-09-25 to Vendor Fixes (`../fvtt-mod-vendorfixes`) as **VF-001**, unchanged;
+its register lists this module as a dependent (Half Speed), and Misc Patches is retired.
 
 ### 6.0.4 and 6.0.5, read against the module — nothing on our paths (2026-09-23)
 
