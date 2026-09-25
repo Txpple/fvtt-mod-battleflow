@@ -224,6 +224,17 @@ export const MOMENT_RECORDS = Object.freeze({
     }] : []
   },
 
+  restSong: {
+    events: ["choice"],
+    means: "a rest grant GIVEN to allies was answered and landed — Musician's Encouraging Song, Heroic Inspiration to the picked allies (rest-grants.js); resolved when `applied`",
+    resolved: (r) => r?.applied ? [{
+      marker: "message", events: ["choice"],
+      facts: { actor: r.actorUuid ?? null, ability: r.row ?? null,
+        targets: (r.picks ?? []).map(uuid => ({ uuid, name: (r.candidates ?? []).find(c => c.uuid === uuid)?.name ?? null })),
+        details: { grant: r.grant ?? null, given: r.given ?? [] } }
+    }] : []
+  },
+
   rebuke: {
     events: ["hold-answered"],
     means: "a rebuke's offer — a Reaction to taking damage, aimed at its dealer — was answered, used or passed (rebukes.js); one resolve per offer",
@@ -642,6 +653,7 @@ export const STATE_KEYS = Object.freeze({
   rebukeAnswer: "an envelope — a rebuke's answer; the fold onto the rebuke flag is the resolve",
   damageHoldAnswer: "an envelope — a damage hold's answer; the fold onto the damageHold flag is the resolve",
   dropToOneAnswer: "an envelope — a drop-to-1 answer; the fold onto the dropToOne flag is the resolve",
+  restSongAnswer: "an envelope — a player's picks for a rest song; the fold onto the restSong flag, landed by the elect, is the resolve",
   emanationTypeAnswer: "an envelope — the caster's type pick; the fold onto emanationCard is the resolve",
   momentAck: "an envelope — a notice acknowledged; presentation, not a moment",
   // arms, picks and provenance before the resolve

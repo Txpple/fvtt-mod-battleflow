@@ -1028,11 +1028,21 @@ export const TOKEN_SIZE_NAMES = tableIndex(TOKEN_SIZES).names;
  * FEATURE's name; membership is the Rest Grants list.
  *   rests   which rests give it ("long", "short")
  *   grant   what the sheet gains — "inspiration" (Heroic Inspiration, the sheet's box)
+ *   to      absent — the owner gains it on the rest's own update; "allies" — the owner GIVES it to
+ *           allies, asked in a courtesy popup once the rest is done (Musician, the origin feats,
+ *           2026-09-25 — user: "give a courtesy popup after long and short rest, listing the allies
+ *           within 30 ft, player picks which ones to give inspiration. grey out the ones that already
+ *           have and so note it"; "you can leverage the general form of careful spell")
+ *   reach   ("allies") the feet an ally may stand from the owner's token — the map settles it (R1)
+ *   cap     ("allies") how many may be given it — "prof": the owner's Proficiency Bonus
  *   rule    the feature's sentence, verbatim (law 8)
  */
 export const REST_GRANTS = Object.freeze({
   "Resourceful": Object.freeze({ rests: Object.freeze(["long"]), grant: "inspiration",
-    rule: "You gain Heroic Inspiration whenever you finish a Long Rest.", from: "Human" })
+    rule: "You gain Heroic Inspiration whenever you finish a Long Rest.", from: "Human" }),
+  "Musician": Object.freeze({ rests: Object.freeze(["short", "long"]), grant: "inspiration", to: "allies", reach: 30, cap: "prof",
+    rule: "Encouraging Song. As you finish a Short or Long Rest, you can play a song on a Musical Instrument with which you have proficiency and give Heroic Inspiration to allies who hear the song. The number of allies you can affect in this way equals your Proficiency Bonus.",
+    from: "Origin feat (Entertainer)" })
 });
 
 /** The rest grants' row names, lower-cased — the closed set the Rest Grants list is validated against. */

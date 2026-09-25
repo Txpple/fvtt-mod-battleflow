@@ -180,7 +180,7 @@ const WORLD_WRITERS = {
   "hit-riders.js": "the weapon's own damage parts, folded into the roll config before it rolls — the damage message is the platform's and its receipt the resolve",
   "sneak.js": ["sneakDamage", "effectReceipt"],
   "drop-to-one.js": ["dropToOne"],   // Relentless Endurance asked, Death Ward automatic (2026-09-25)
-  "rest-grants.js": "a rest's grant — the sheet write rides dnd5e's own rest update; the line on the rest card (restGrant) is presentation",
+  "rest-grants.js": ["restSong"],   // Resourceful's own grant rides dnd5e's rest update (restGrant: presentation); Musician's song to allies is landed by the elect (2026-09-25)
   "advantage-buys.js": ["poolSpend"],   // Lucky's Advantage bought at the gate (2026-09-25): the use spent by hand, recorded on the roll's message
   "clock-riders.js": ["clockRiders", "poolSpend", "spellRiderCard", "receipt"],
   "token-lights.js": ["effectReceipt"],

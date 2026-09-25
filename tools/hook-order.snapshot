@@ -76,6 +76,10 @@ dnd5e.renderChatMessage	advantage-buys.js
 dnd5e.preRestCompleted	rest-grants.js
 dnd5e.restCompleted	rest-grants.js
 dnd5e.renderChatMessage	rest-grants.js
+dnd5e.restCompleted	rest-grants.js
+ready	rest-grants.js
+dnd5e.renderChatMessage	rest-grants.js
+updateChatMessage	rest-grants.js
 dnd5e.preApplyDamage	drop-to-one.js
 dnd5e.renderChatMessage	drop-to-one.js
 updateChatMessage	drop-to-one.js

@@ -123,6 +123,20 @@ describe("the moment registry — shape", () => {
         amount: 30,
         answer: "use"
       },
+      restSong: {
+        status: "resolved",
+        row: "Musician",
+        grant: "inspiration",
+        actorUuid: "Actor.m",
+        cap: 3,
+        candidates: [
+          { uuid: "Actor.a", name: "A", has: false },
+          { uuid: "Actor.b", name: "B", has: true }
+        ],
+        picks: ["Actor.a"],
+        applied: true,
+        given: ["A"]
+      },
       rebuke: {
         status: "resolved",
         actorUuid: "Actor.s",

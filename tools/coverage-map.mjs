@@ -138,7 +138,7 @@ export const ORDER = [
   },
   // The Human walk (2026-09-25): BF Test Halfling is lent the PHB's Resourceful for the run.
   {
-    name: "smoke-rest", note: "the rest grants — Resourceful's Heroic Inspiration on a Long Rest (the box ticked, the rest card's line), nothing on a Short Rest, nothing when unlisted",
+    name: "smoke-rest", note: "the rest grants — Resourceful's Heroic Inspiration on a Long Rest (the box ticked, the rest card's line), nothing on a Short Rest, nothing when unlisted; Musician's song — the allies within 30 ft asked after a Short or Long Rest, the inspired greyed, OK gives it",
     needs: ["fixture-suite"]
   },
   // The Halfling walk (2026-09-25): BF Test Halfling's own Lucky feat — the gate's buy box and the

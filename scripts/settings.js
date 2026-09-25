@@ -313,7 +313,7 @@ Hooks.once("init", () => {
   // not — Resourceful's Heroic Inspiration on a Long Rest, riding the rest's own update.
   game.settings.register(MODULE_ID, S.restGrantList, {
     name: "Rest Grants",
-    hint: "What a feature gives when its owner finishes a rest, where the system gives nothing, by the feature's name, separated by commas — Resourceful (the Human: Heroic Inspiration whenever you finish a Long Rest). The grant lands with the rest itself, and the rest card says what was gained. Remove a name to give it by hand.",
+    hint: "What a feature gives when its owner finishes a rest, where the system gives nothing, by the feature's name, separated by commas — Resourceful (the Human: Heroic Inspiration whenever you finish a Long Rest; it lands with the rest itself, and the rest card says so) and Musician (Encouraging Song: after a Short or Long Rest a popup lists the allies within 30 feet — those who already have Heroic Inspiration greyed — and the owner picks up to their Proficiency Bonus to give it to; a GM must be on to write it). Remove a name to give it by hand.",
     scope: "world", config: true, type: String, default: LIST_SPECS.restGrants.default
   });
 
