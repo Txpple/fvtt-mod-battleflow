@@ -21,13 +21,18 @@
  */
 
 /**
- * The roll mode a d20 term was rolled in, off its keep modifiers — `kh` keeps the highest
- * (Advantage), `kl` the lowest (Disadvantage). A single die with no keep is a plain roll.
+ * The roll mode a d20 term was rolled in, off its modifiers. dnd5e 6.0's D20Die writes its own
+ * `adv` / `dis` (`adv2` for Elven Accuracy) — measured live 2026-09-24: an Advantage attack is
+ * `2d20adv`, `modifiers: ["adv"]`, and the term's `number` is 1 until it evaluates — so those
+ * are read first and whatever the number; core's `kh` (Advantage) / `kl` (Disadvantage) are still
+ * read for a roll typed by hand. A single die with no mode modifier is a plain roll.
  * @param {{number?: number, modifiers?: string[]}} term
  * @returns {"advantage"|"disadvantage"|"normal"}
  */
 export function d20ModeOf(term) {
   const mods = (term?.modifiers ?? []).map(m => String(m).toLowerCase());
+  if ( mods.some(m => /^adv\d*$/.test(m)) ) return "advantage";
+  if ( mods.some(m => /^dis\d*$/.test(m)) ) return "disadvantage";
   if ( mods.some(m => m.startsWith("kl") || m.startsWith("dh")) ) return "disadvantage";
   if ( mods.some(m => /^kh?\d*$/.test(m) || m.startsWith("dl")) && ((term?.number ?? 1) > 1) ) return "advantage";
   return "normal";

@@ -25,6 +25,13 @@ describe("d20ModeOf — the mode the attack was rolled in, off its own die", () 
     expect(r.d20ModeOf({ number: 1, modifiers: ["r1=1"] })).toBe("normal"); // a Halfling's reroll is no mode
     expect(r.d20ModeOf({})).toBe("normal");
   });
+  it("reads dnd5e 6.0's own adv / dis whatever the term's number (measured live: 2d20adv, number 1 before it evaluates)", () => {
+    expect(r.d20ModeOf({ number: 2, modifiers: ["adv"] })).toBe("advantage");
+    expect(r.d20ModeOf({ number: 1, modifiers: ["adv"] })).toBe("advantage");
+    expect(r.d20ModeOf({ number: 3, modifiers: ["adv2"] })).toBe("advantage"); // Elven Accuracy
+    expect(r.d20ModeOf({ number: 2, modifiers: ["dis"] })).toBe("disadvantage");
+    expect(r.d20ModeOf({ number: 1, modifiers: ["r1=1", "dis"] })).toBe("disadvantage");
+  });
 });
 
 describe("d20Faces — the face that stood and the plain first face", () => {
