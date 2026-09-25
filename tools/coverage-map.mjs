@@ -131,6 +131,11 @@ export const ORDER = [
     name: "smoke-goliath", note: "the Goliath walk's pass 2 — Large Form's token size, the rebuke offered within its reach and driven at the damager (none out of reach), Stone's Endurance holding a non-attack damage at the applier",
     needs: ["fixture-suite"]
   },
+  // The Orc walk (2026-09-25): BF Test Halfling is lent Relentless Endurance (and Death Ward's effect) for the run.
+  {
+    name: "smoke-drop", note: "drop to 1 HP — Relentless Endurance held at 1 and asked (Drop to 1 spends the use, Drop to 0 lands the 0), none when killed outright; Death Ward automatic, its effect removed",
+    needs: ["fixture-suite"]
+  },
   // The Human walk (2026-09-25): BF Test Halfling is lent the PHB's Resourceful for the run.
   {
     name: "smoke-rest", note: "the rest grants — Resourceful's Heroic Inspiration on a Long Rest (the box ticked, the rest card's line), nothing on a Short Rest, nothing when unlisted",

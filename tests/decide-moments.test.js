@@ -115,6 +115,14 @@ describe("the moment registry — shape", () => {
         answer: "cast",
         reduceBy: 9
       },
+      dropToOne: {
+        status: "resolved",
+        row: "Relentless Endurance",
+        actorUuid: "Actor.o",
+        actorName: "Orc",
+        amount: 30,
+        answer: "use"
+      },
       rebuke: {
         status: "resolved",
         actorUuid: "Actor.s",

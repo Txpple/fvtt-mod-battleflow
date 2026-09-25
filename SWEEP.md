@@ -310,8 +310,9 @@ ITEM (`system.uses`, the activity consumes `itemUses`); none carries activity us
     row (`while`, `reach: "all"`, `pulse`), not a new kind; the extra is a `CLOCK_RIDERS` row
     (`amount`, `transformed`, `forms`, `spells`). Necrotic Shroud's 60-second Frightened is fixed
     in Vendor Fixes VF-002, never here.
-- **HELD:** **Relentless Endurance** → Slice B's **kill moment**, built once with Undead
-  Fortitude and the monster Relentless trait.
+- ~~**HELD:** **Relentless Endurance**~~ — **BUILT 2026-09-25** in the Orc walk (with Death Ward): the
+  DROP_TO_ONE table, `drop-to-one.js` at `dnd5e.preApplyDamage`. Slice B's kill moment adds Undead
+  Fortitude and the monster Relentless trait as rows there.
 - **One pick per hit, for now.** The hit menu carries one pick per hit; **a Goliath Battle
   Master is the trigger** for the array shape (a maneuver and a boon on the same hit).
 

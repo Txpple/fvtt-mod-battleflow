@@ -97,7 +97,8 @@ export const LAYER_OF = {
   "receipts.js": "machines",
   "reminders.js": "machines",
   "advantage-buys.js": "machines",
-  "rest-grants.js": "machines",      // Resourceful's Heroic Inspiration on a Long Rest (2026-09-25)   // Lucky's Advantage box on the gate (2026-09-25)
+  "rest-grants.js": "machines",
+  "drop-to-one.js": "machines",      // Relentless Endurance and Death Ward at a drop to 0 (2026-09-25)      // Resourceful's Heroic Inspiration on a Long Rest (2026-09-25)   // Lucky's Advantage box on the gate (2026-09-25)
   "sneak.js": "machines",
   "clock-riders.js": "machines",
   "use-chips.js": "machines",

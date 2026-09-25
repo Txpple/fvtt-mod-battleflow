@@ -213,6 +213,17 @@ export const MOMENT_RECORDS = Object.freeze({
     }] : []
   },
 
+  dropToOne: {
+    events: ["hold-answered"],
+    means: "a drop to 0 Hit Points turned into a drop to 1 — Relentless Endurance answered (use or pass), or Death Ward automatic (answer \"auto\") (drop-to-one.js)",
+    resolved: (r) => r?.answer ? [{
+      marker: "message", events: ["hold-answered"],
+      facts: { actor: r.actorUuid ?? null, ability: r.row ?? null,
+        targets: r.actorUuid ? [{ uuid: r.actorUuid, name: r.actorName ?? null }] : [],
+        details: { answer: r.answer, amount: r.amount ?? null, timedOut: !!r.timedOut } }
+    }] : []
+  },
+
   rebuke: {
     events: ["hold-answered"],
     means: "a rebuke's offer — a Reaction to taking damage, aimed at its dealer — was answered, used or passed (rebukes.js); one resolve per offer",
@@ -630,6 +641,7 @@ export const STATE_KEYS = Object.freeze({
   riposteAnswer: "an envelope — a reactor's answer; the fold onto the riposte flag is the resolve",
   rebukeAnswer: "an envelope — a rebuke's answer; the fold onto the rebuke flag is the resolve",
   damageHoldAnswer: "an envelope — a damage hold's answer; the fold onto the damageHold flag is the resolve",
+  dropToOneAnswer: "an envelope — a drop-to-1 answer; the fold onto the dropToOne flag is the resolve",
   emanationTypeAnswer: "an envelope — the caster's type pick; the fold onto emanationCard is the resolve",
   momentAck: "an envelope — a notice acknowledged; presentation, not a moment",
   // arms, picks and provenance before the resolve

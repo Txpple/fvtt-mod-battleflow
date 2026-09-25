@@ -179,6 +179,7 @@ const WORLD_WRITERS = {
   "hit-menu.js": ["hitManeuver", "sweepCard", "receipt", "effectReceipt"],   // effectReceipt: Hill's Tumble's no-save press, receipted on the damage card (2026-09-24)
   "hit-riders.js": "the weapon's own damage parts, folded into the roll config before it rolls — the damage message is the platform's and its receipt the resolve",
   "sneak.js": ["sneakDamage", "effectReceipt"],
+  "drop-to-one.js": ["dropToOne"],   // Relentless Endurance asked, Death Ward automatic (2026-09-25)
   "rest-grants.js": "a rest's grant — the sheet write rides dnd5e's own rest update; the line on the rest card (restGrant) is presentation",
   "advantage-buys.js": ["poolSpend"],   // Lucky's Advantage bought at the gate (2026-09-25): the use spent by hand, recorded on the roll's message
   "clock-riders.js": ["clockRiders", "poolSpend", "spellRiderCard", "receipt"],

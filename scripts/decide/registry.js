@@ -1039,6 +1039,33 @@ export const REST_GRANTS = Object.freeze({
 export const REST_GRANT_NAMES = tableIndex(REST_GRANTS).names;
 
 /**
+ * DROP TO 1 HP (the Orc walk, 2026-09-25 — user: "if sometihng takes them to zero, then a popup
+ * should ask to use the feat. same shape as death ward which you should do now too"): what turns a
+ * drop to 0 Hit Points into a drop to 1 (drop-to-one.js, at `dnd5e.preApplyDamage`: the 1 is written
+ * in the damage's own update). Keyed by the row's name; membership is the Drop to 1 HP list.
+ *   ask       true — the rule says "you can": the HP is held at 1 and the owner is asked; false —
+ *             the rule leaves no choice (Death Ward): it simply happens, and a card says so
+ *   uses      true — the ITEM's own uses pay for it (Relentless Endurance: once per Long Rest)
+ *   effect    the EFFECT whose presence is the row (Death Ward's "Protection from Death"), removed
+ *             when it fires; no `effect` = a feature on the sheet, by the row's name
+ *   ends      the spell ends when it fires (the card says so)
+ *   outright  true — it also stands against damage that would kill outright (Death Ward: "would drop
+ *             to 0"); false — "but not killed outright" (the remainder meets the Hit Point maximum)
+ *   rule      the text, verbatim (law 8)
+ */
+export const DROP_TO_ONE = Object.freeze({
+  "Death Ward": Object.freeze({ ask: false, effect: "Protection from Death", ends: true, outright: true,
+    rule: "The first time the target would drop to 0 Hit Points before the spell ends, the target instead drops to 1 Hit Point, and the spell ends.",
+    from: "PHB, level 4 (8 hours)" }),
+  "Relentless Endurance": Object.freeze({ ask: true, uses: true, outright: false,
+    rule: "When you are reduced to 0 Hit Points but not killed outright, you can drop to 1 Hit Point instead. Once you use this trait, you can’t do so again until you finish a Long Rest.",
+    from: "Orc" })
+});
+
+/** The drop-to-1 rows' names, lower-cased — the closed set the Drop to 1 HP list is validated against. */
+export const DROP_TO_ONE_NAMES = tableIndex(DROP_TO_ONE).names;
+
+/**
  * REBUKES (user, 2026-09-25, the Goliath walk: "Storms thunder is not triggering anything. when
  * you fix it, also make sure the 60ft range calc is in there. Also when you do this, why dont you
  * pick up hellish rebuke and anything else in that family that is the same"). A Reaction taken
@@ -2027,6 +2054,14 @@ export const LIST_SPECS = {
     // token-lights.js (the Goliath walk, 2026-09-25). The list is the switch.
     columns: ["kind"], kindColumn: "kind", kinds: TOKEN_SIZE_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(TOKEN_SIZES).join(", ")
+  },
+  dropToOne: {
+    label: "Drop to 1 HP", setting: "dropToOneList",
+    // Which rows of the drop-to-1 table act at a drop to 0 — the ROW names, whole-chunk,
+    // case-insensitive. Membership over DROP_TO_ONE; the mechanism is drop-to-one.js (the Orc walk,
+    // 2026-09-25). The list is the switch.
+    columns: ["kind"], kindColumn: "kind", kinds: DROP_TO_ONE_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(DROP_TO_ONE).join(", ")
   },
   restGrants: {
     label: "Rest Grants", setting: "restGrantList",

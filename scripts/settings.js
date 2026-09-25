@@ -302,6 +302,13 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.tokenSizes.default
   });
 
+  // DROP TO 1 HP (the Orc walk, 2026-09-25): a drop to 0 Hit Points turned into a drop to 1.
+  game.settings.register(MODULE_ID, S.dropToOneList, {
+    name: "Drop to 1 HP",
+    hint: "What turns a drop to 0 Hit Points into a drop to 1, by the row's name, separated by commas — Death Ward (the spell's Protection from Death effect: automatic, and the spell ends) and Relentless Endurance (the Orc: a popup asks, the Hit Points held at 1 until the answer; once per Long Rest, never against damage that kills outright). Any damage applied through the system's damage application counts — the module's and the card's own buttons; Hit Points typed on a sheet do not. Remove a name to play it by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.dropToOne.default
+  });
+
   // REST GRANTS (the Human walk, 2026-09-25): what a feature gives at a rest that the platform does
   // not — Resourceful's Heroic Inspiration on a Long Rest, riding the rest's own update.
   game.settings.register(MODULE_ID, S.restGrantList, {
@@ -723,6 +730,11 @@ export function cardChipEntries() {
 /** Which reactions to damage are offered at the damager, by the item's name — `{ kind }`. */
 export function rebukeEntries() {
   return listEntries(LIST_SPECS.rebukes);
+}
+
+/** Which rows of the drop-to-1 table act at a drop to 0, by the row's name — `{ kind }`. */
+export function dropToOneEntries() {
+  return listEntries(LIST_SPECS.dropToOne);
 }
 
 /** Which rows of the rest-grant table give their grant at a rest, by the feature's name — `{ kind }`. */

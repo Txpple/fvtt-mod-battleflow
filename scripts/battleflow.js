@@ -117,6 +117,9 @@ import "./advantage-buys.js";
 // rest-grants.js (2026-09-25, Resourceful): a rest's grant rides the rest's own update; its line
 // is the rest card's alone, so its place in the order matters to nothing else.
 import "./rest-grants.js";
+// drop-to-one.js (2026-09-25, Relentless Endurance and Death Ward): the 1 is written in the damage's
+// own update at dnd5e.preApplyDamage; its card is its own.
+import "./drop-to-one.js";
 // sneak.js after reminders.js: the gate stamps the arm on the attack message, the sneak machine
 // reads it at the damage roll; its card lines sit under the gate's (2026-09-02).
 import "./sneak.js";
