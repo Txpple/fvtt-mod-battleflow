@@ -138,9 +138,6 @@ dnd5e.applyDamage	rebukes.js
 dnd5e.renderChatMessage	rebukes.js
 updateChatMessage	rebukes.js
 deleteChatMessage	rebukes.js
-dnd5e.renderChatMessage	damage-holds.js
-updateChatMessage	damage-holds.js
-deleteChatMessage	damage-holds.js
 dnd5e.rollAttackV2	d20-folds.js
 dnd5e.rollAbilityCheck	d20-folds.js
 dnd5e.rollSkill	d20-folds.js

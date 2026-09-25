@@ -24,7 +24,7 @@ const SECTIONS = {
   1: 'Large Form: the pack\'s effect on the Goliath makes it Large — a 2 × 2 token and "lg" on the sheet — and removing it puts both back',
   2: 'Storm\'s Thunder: damage from a creature 30 ft away offers the rebuke card; Use fires Storm\'s Thunder at the damager — a use spent, its thunder landed with a receipt',
   3: 'the 60-foot reach: the same damage from 70 ft away offers nothing',
-  4: 'Stone\'s Endurance on a non-attack damage: the applier holds the Goliath\'s share, the card waits; Cast rolls 1d12 + CON, spends a use and lands the damage short by the roll, the receipt saying why'
+  4: 'Stone\'s Endurance on a non-attack damage, AUTOMATIC (user, 2026-09-25): no popup — 1d12 + CON rolled in the open, a use spent, the damage lands short by the roll with the receipt saying why; the same share reaching the applier twice is reduced ONCE'
 };
 const DEPENDS = {};
 
@@ -136,8 +136,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return { doc, token };
     };
     const g = scene.grid.size;
-    const { doc: golDoc } = await placeToken(gol, 8 * g, 12 * g);
-    const { doc: victimDoc, token: victimToken } = await placeToken(victim, 14 * g, 12 * g);   // 6 squares: 30 ft
+    const { doc: golDoc } = await placeToken(gol, 1 * g, 12 * g);
+    const { doc: victimDoc, token: victimToken } = await placeToken(victim, 7 * g, 12 * g);   // 6 squares: 30 ft
     for (const a of [gol, victim]) {
       priorActor[a.id] = { 'system.attributes.hp.value': a.system._source.attributes.hp.value, 'system.attributes.hp.max': a.system._source.attributes.hp.max };
       await a.update({ 'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400 });
@@ -200,26 +200,28 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           JSON.stringify(flag && { opts: flag.options?.map(o => o.name), d: flag.distance, reach: flag.options?.[0]?.reach, src: flag.sourceName }));
         if (offer) {
           const before = victim.system.attributes.hp.value;
+          const golBefore = gol.system.attributes.hp.value;
           faces([[6, 8]]);
           const pressed = await press(offer, 'rebuke', 'use-0');
           const hurt = await waitFor(() => victim.system.attributes.hp.value < before, 10000);
           realDice();
           const answered = offer.getFlag(MOD, 'rebuke');
-          ok('2b. Use fires Storm\'s Thunder at the damager: the answer recorded, a use spent, the thunder landed',
-            pressed && (answered?.answer === 'use') && (storm.system.uses.spent === 1) && hurt,
-            `pressed=${pressed} answer=${answered?.answer} spent=${storm.system.uses.spent} victim ${before}→${victim.system.attributes.hp.value}`);
+          await sleep(800);
+          ok('2b. Use fires Storm\'s Thunder at the damager: the answer recorded, a use spent, the thunder landed on the DAMAGER and never on the Goliath',
+            pressed && (answered?.answer === 'use') && (storm.system.uses.spent === 1) && hurt && (gol.system.attributes.hp.value === golBefore),
+            `pressed=${pressed} answer=${answered?.answer} spent=${storm.system.uses.spent} victim ${before}→${victim.system.attributes.hp.value} goliath ${golBefore}→${gol.system.attributes.hp.value}`);
         }
       }
       if (want(3)) {
         await heal();
-        await victimDoc.update({ x: 22 * g });   // 14 squares: 70 ft
+        await victimDoc.update({ x: 15 * g }, { teleport: true, animate: false });   // 14 squares: 70 ft (the range is 2000 px wide)
         await sleep(600);
         const t0 = Date.now();
         const card = await damagerCard();
         await gol.applyDamage([{ value: 5, type: 'slashing', properties: new Set() }], { originatingMessage: card, isDelta: true });
         await sleep(2000);   // load-bearing: the time a WRONG offer would take to appear
-        ok('3a. the same damage from 70 ft: no rebuke offered', !flagged(t0, 'rebuke'), '');
-        await victimDoc.update({ x: 14 * g });
+        ok('3a. the same damage from 70 ft: no rebuke offered', !flagged(t0, 'rebuke'), JSON.stringify(flagged(t0, 'rebuke')?.getFlag(MOD, 'rebuke') ?? null));
+        await victimDoc.update({ x: 7 * g }, { teleport: true, animate: false });
       }
       await set('interruptList', def('interruptList'));
     }
@@ -232,24 +234,24 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await stone.update({ 'system.uses.spent': 0 });
       const t0 = Date.now();
       const card = await damagerCard();
-      const landing = applyDamagesWithReceipt(card, [{ uuid: gol.uuid, name: gol.name }], [{ value: 12, type: 'fire', properties: new Set() }], { note: 'BF Test' });
-      const hold = await waitFor(() => flagged(t0, 'damageHold'), 6000);
-      await landing;
-      const waiting = gol.system.attributes.hp.value === 400;
-      ok('4a. the applier holds the Goliath\'s share: the card waits, no damage yet', !!hold && waiting,
-        `hold=${!!hold} hp=${gol.system.attributes.hp.value} flag=${JSON.stringify(hold?.getFlag(MOD, 'damageHold') && { r: hold.getFlag(MOD, 'damageHold').reaction, amt: hold.getFlag(MOD, 'damageHold').amount })}`);
-      if (hold) {
-        faces([[5, 12]]);
-        const pressed = await press(hold, 'damageHold', 'cast');
-        const con = Number(gol.system.abilities.con.mod);
-        const expected = 400 - Math.max(0, 12 - (5 + con));
-        const landed = await waitFor(() => gol.system.attributes.hp.value === expected, 10000);
-        realDice();
-        const entry = card.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === gol.uuid);
-        ok('4b. Cast: 1d12 + CON rolled, a use spent, the damage lands short by it with the receipt saying why',
-          pressed && landed && (stone.system.uses.spent === 1) && /Stone's Endurance — reduced by/.test(entry?.note ?? ''),
-          `pressed=${pressed} hp=${gol.system.attributes.hp.value} expected=${expected} spent=${stone.system.uses.spent} note=${entry?.note}`);
-      }
+      faces([[5, 12]]);
+      const share = () => [{ value: 12, type: 'fire', properties: new Set() }];
+      // The same share twice, as a save's damage reaches the applier (the walk's two popups).
+      await Promise.all([
+        applyDamagesWithReceipt(card, [{ uuid: gol.uuid, name: gol.name }], share(), { note: 'BF Test' }),
+        applyDamagesWithReceipt(card, [{ uuid: gol.uuid, name: gol.name }], share(), { note: 'BF Test' })
+      ]);
+      const con = Number(gol.system.abilities.con.mod);
+      const expected = 400 - Math.max(0, 12 - (5 + con));
+      const landed = await waitFor(() => gol.system.attributes.hp.value === expected, 10000);
+      await sleep(1000);   // load-bearing: time for a WRONG second landing or roll to appear
+      realDice();
+      const rolls = since(t0).filter(m => m.getFlag(MOD, 'damageHold'));
+      const entry = card.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === gol.uuid);
+      ok('4a. no popup: the reduction is rolled ONCE in the open, a use spent, the damage lands short by it with the receipt saying why',
+        landed && (rolls.length === 1) && (stone.system.uses.spent === 1) && /Stone's Endurance — reduced by/.test(entry?.note ?? '')
+          && ![...livePopups.keys()].some(k => k.endsWith('|damageHold')) && (gol.system.attributes.hp.value === expected),
+        `hp=${gol.system.attributes.hp.value} expected=${expected} rolls=${rolls.length} spent=${stone.system.uses.spent} note=${entry?.note} popups=${[...livePopups.keys()].join(',')}`);
     }
 
     return { log, results, skips };

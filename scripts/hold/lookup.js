@@ -136,6 +136,9 @@ export async function findInterrupt(actor, { isCritical, spentOk = false }) {
     // A reduction row makes the reaction a `damage` interrupt whatever the list's kind says —
     // the Battle Master's Parry beside the Monster Manual's (2026-09-05).
     const reduce = reductionFor(found.item, entry.name);
+    // An AUTOMATIC reduction (Stone's Endurance, 2026-09-25) is never asked: the applier's claim
+    // takes it (damage-holds.js), so the hold neither pauses for it nor shows it.
+    if ( reduce?.row?.auto ) continue;
     const kind = reduce ? "damage" : entry.kind;
     // A natural 20 hits regardless of AC, so an AC-type reaction cannot save it — no pause.
     if ( isCritical && (kind === "ac") ) continue;

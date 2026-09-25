@@ -28,7 +28,8 @@ export const COVERS = [
   'hold/trigger.js',
   'hold/answer.js',
   'hold/continue.js',
-  'hold/lookup.js',         // §1 / §12 — the reduction row found, its voice stamped (Stone's Endurance, 2026-09-24)
+  'hold/lookup.js',         // §1 / §12 — the reduction row found, its voice stamped; an automatic row (Stone's Endurance) never held
+  'damage-holds.js',        // §12 — Stone's Endurance taken by itself at the applier (2026-09-25)
   'hold/views.js',          // §12 — the popup and the card in the row's voice
   'cast.js',                // §6 — Rally's temp HP through the cast slice
   'reminders.js',           // §2 — the Feinting marker read by the attack gate
@@ -47,7 +48,7 @@ const SECTIONS = {
   9: 'Commander\'s Strike (2026-09-05, no driven attack): the fighter directs the Ranger; the elect puts a chip carrying the fighter\'s die on the Ranger; the Ranger\'s owner gets an OK-only notice; the Ranger\'s OWN attack carries the die, the chip and the Reaction spent, the card records the strike',
   10: 'the registration FIRED (§11): dnd5e.rollInitiative and dnd5e.rollSkill moved',
   11: 'ARMED from the sheet (2026-09-05): Tactical Assessment used before the check rolls the die in the open, chips the number on the fighter, tells the player which check to make, and the next History/Investigation/Insight check folds it in with no ask (an Athletics check leaves it); Ambush the same on Initiative',
-  12: 'Stone\'s Endurance (Slice A, 2026-09-24): the goblin hits the Goliath — Parry\'s reduction hold in the Reaction voice; the answer rolls 1d12 + CON in the open, the damage lands REDUCED, the trait\'s OWN use is spent, the Goliath is NOT healed, and no maneuver moment is published'
+  12: 'Stone\'s Endurance (Slice A, 2026-09-24; AUTOMATIC since the Goliath walk, 2026-09-25): the goblin hits the Goliath — no hold, no popup; 1d12 + CON rolled in the open, the damage lands REDUCED, the trait\'s OWN use is spent, the Goliath is NOT healed, and no maneuver moment is published'
 };
 const DEPENDS = {};
 
@@ -652,43 +653,33 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const hpBefore = goliath.system.attributes.hp.value;
           const since = Date.now();
           const { msg } = await swing(goblin, goblinToken, goblinMelee, goliathToken);
-          const hold = await waitFor(() => msg?.getFlag(MOD, 'hold') ?? null, 6000);
-          const t = hold?.targets?.find(x => x.uuid === goliath.uuid);
-          ok('12a. the goblin\'s hit on the Goliath stamps a DAMAGE hold for Stone\'s Endurance with the pack\'s formula, found by type (its activity\'s stored name is empty), in the Reaction voice',
-            !!t && (t.reaction === "Stone's Endurance") && (t.kind === 'damage') && /1d12/.test(t.reduce?.formula ?? '') && /con\.mod/.test(t.reduce?.formula ?? '')
-              && (t.reduce?.eyebrow === 'Reaction') && (t.reduce?.spend === 'use') && (t.reduce?.maneuver === false),
-            `target=${JSON.stringify(t)}`);
-          const popup = await waitFor(() => dialogWith("Reaction — Stone"), 6000);
-          const popupText = textOf(popup?.element);
-          ok('12b. the popup asks in the trait\'s own words: "Reaction — Stone\'s Endurance", a use and the Reaction, 1d12 plus the Constitution modifier',
-            !!popup && /Spend a use and your Reaction to reduce the damage by 1d12 plus your Constitution modifier/.test(popupText) && !/Superiority Die/.test(popupText),
-            `text="${popupText.slice(0, 240)}"`);
-          popup?.element?.querySelector('button[data-action="cast"]')?.click();
-          const resolved = await waitFor(() => (msg?.getFlag(MOD, 'hold')?.status === 'resolved') ? msg.getFlag(MOD, 'hold') : null, 10000);
-          const rt = resolved?.targets?.find(x => x.uuid === goliath.uuid);
-          const dieMsg = game.messages.contents.filter(m => (m.timestamp >= since) && /Stone's Endurance — the die/.test(m.flavor ?? '')).at(-1);
+          // AUTOMATIC since the Goliath walk (2026-09-25: "the rule should be stones endurance reduces
+          // automatically"): no hold, no popup — the applier's claim rolls it (damage-holds.js).
+          const dmg = await waitFor(() => { const d = damageFor(msg?._source.system?.origin ?? msg?.id); return d?.getFlag(MOD, 'receipt')?.targets?.some(x => x.uuid === goliath.uuid) ? d : null; }, 15000);
+          const hold = msg?.getFlag(MOD, 'hold') ?? null;
+          ok('12a. the goblin\'s hit on the Goliath stamps NO hold for Stone\'s Endurance and opens no popup — it is taken by itself',
+            !hold?.targets?.some(x => x.reaction === "Stone's Endurance") && !dialogWith("Reaction — Stone"),
+            `hold=${JSON.stringify(hold?.targets?.map(x => x.reaction))}`);
+          const dieMsg = game.messages.contents.filter(m => (m.timestamp >= since) && m.getFlag(MOD, 'damageHold')).at(-1);
+          const rec = dieMsg?.getFlag(MOD, 'damageHold');
           const conMod = goliath.system.abilities.con.mod;
           const face12 = dieMsg?.rolls?.[0]?.dice?.[0]?.total ?? null;
-          ok('12c. the answer rolls 1d12 + CON in the open and rides the hold as the reduction',
-            !!rt && (rt.answer === 'cast') && (Number(rt.reduceBy) > 0) && !!dieMsg && (dieMsg.rolls?.[0]?.total === rt.reduceBy) && (face12 !== null) && (rt.reduceBy === face12 + conMod),
-            `reduceBy=${rt?.reduceBy} die=${dieMsg?.rolls?.[0]?.formula}=${dieMsg?.rolls?.[0]?.total} con=${conMod}`);
-          const dmg = await waitFor(() => { const d = damageFor(msg?._source.system?.origin ?? msg?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+          ok('12c. 1d12 + CON rolled in the open on its own card, the record naming the reduction',
+            !!rec && (rec.reaction === "Stone's Endurance") && (face12 !== null) && (rec.reduceBy === face12 + conMod) && (dieMsg.rolls?.[0]?.total === rec.reduceBy),
+            `rec=${JSON.stringify(rec && { r: rec.reaction, by: rec.reduceBy })} die=${dieMsg?.rolls?.[0]?.formula}=${dieMsg?.rolls?.[0]?.total} con=${conMod}`);
           const receipt = dmg?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === goliath.uuid);
           const total = (dmg?.rolls ?? []).reduce((n, r) => n + (r.total ?? 0), 0);
-          const expected = Math.max(0, total - (rt?.reduceBy ?? 0));
-          ok('12d. the damage lands REDUCED through the receipt, the note naming Stone\'s Endurance — and the Goliath is not HEALED (the pack\'s heal activity was never used)',
+          const expected = Math.max(0, total - (rec?.reduceBy ?? 0));
+          ok('12d. the damage lands REDUCED through the receipt, the note naming Stone\'s Endurance — and the Goliath is not HEALED',
             !!receipt && (receipt.taken === expected) && /Stone's Endurance — reduced by/.test(receipt.note ?? '') && (goliath.system.attributes.hp.value === hpBefore - expected),
-            `rolled=${total} reduceBy=${rt?.reduceBy} taken=${receipt?.taken} note="${receipt?.note}" hp ${hpBefore}→${goliath.system.attributes.hp.value}`);
+            `rolled=${total} reduceBy=${rec?.reduceBy} taken=${receipt?.taken} note="${receipt?.note}" hp ${hpBefore}→${goliath.system.attributes.hp.value}`);
           const usesLeft = Number(goliath.items.get(stone.id)?.system.uses?.value ?? -1);
-          const card = await waitFor(() => /one use spent/.test(textOf(document.querySelector(`.message[data-message-id="${msg?.id}"]`))) ? true : null, 6000);
-          ok('12e. the trait\'s OWN use is spent (one of its Proficiency-Bonus uses) and the card says "one use spent", never a Superiority Die',
-            (usesLeft === usesMax - 1) && !!card && !/Superiority Die/.test(cardText(msg?.id)),
-            `uses ${usesMax}→${usesLeft} card="${cardText(msg?.id).slice(0, 240)}"`);
-          const held = momentsOf('hold-answered', since).filter(p => p.messageId === msg?.id);
-          const man = momentsOf('maneuver', since).filter(p => p.messageId === msg?.id);
-          ok('12f. the resolve publishes hold-answered with the spend, and NOT maneuver — a species trait is no maneuver',
-            (held.length === 1) && (man.length === 0) && (held[0]?.ability === "Stone's Endurance") && (held[0]?.spend?.pool === "Stone's Endurance"),
-            `held=${held.length} man=${man.length} h=${JSON.stringify(held[0]?.spend)}`);
+          ok('12e. the trait\'s OWN use is spent (one of its Proficiency-Bonus uses)', usesLeft === usesMax - 1, `uses ${usesMax}→${usesLeft}`);
+          const held = momentsOf('hold-answered', since).filter(p => p.messageId === dieMsg?.id);
+          const man = momentsOf('maneuver', since).filter(p => [dieMsg?.id, msg?.id].includes(p.messageId));
+          ok('12f. the reduction publishes hold-answered, and NOT maneuver — a species trait is no maneuver',
+            (held.length === 1) && (man.length === 0) && (held[0]?.ability === "Stone's Endurance"),
+            `held=${held.length} man=${man.length}`);
         } finally {
           await goliath.items.get(stone.id)?.update({ 'system.uses.spent': priorStoneSpent }).catch(() => {});
           await clearChips();

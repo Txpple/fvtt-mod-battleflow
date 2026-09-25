@@ -285,8 +285,13 @@ export async function rollDamageForSave(activity, card) {
     // A bare damage cast (damage-casts.js, 2026-09-04) chains to its own usage card, whose system
     // data carries the upcast the system stamped at the cast — the fallback when no demand does.
     const scaling = Number(card.getFlag(MODULE_ID, "saves")?.scaling ?? card.system?.scaling ?? 0);
-    await activity.rollDamage(scaling > 0 ? { scaling } : {}, { configure: false },
-      { data: originData(card.id) });
+    // The card's OWN targets ride the roll (the Goliath walk, 2026-09-25: a rebuke's Storm's Thunder
+    // landed on the rebuker — dnd5e snapshots the client's live targets at the roll, and the driver
+    // had put its aim back by then). A card that named nobody leaves the platform's default.
+    const data = foundry.utils.expandObject(originData(card.id));
+    const aimed = card._source?.system?.targets;
+    if ( Array.isArray(aimed) && aimed.length ) foundry.utils.setProperty(data, "system.targets", foundry.utils.deepClone(aimed));
+    await activity.rollDamage(scaling > 0 ? { scaling } : {}, { configure: false }, { data });
   } catch(err) {
     console.error(`${TITLE} | Could not auto-roll the save spell's damage.`, err);
   }
