@@ -134,12 +134,9 @@ async function askCardChip(message) {
   const esc = foundry.utils.escapeHTML;
   const title = `${flag.key} — ${row.chip}`;
   const icon = "fa-solid fa-gears";
-  if ( !left ) {
-    await openMomentPopup(message, "cardChip", actor, { title, icon, gate: false,
-      content: `<p><strong>${esc(actor.name)} already has ${row.max} of ${row.max}.</strong> Remove a ${esc(row.chip)} first — delete its buff on the sheet — then build again from the card.</p>`,
-      buttons: [{ action: "ok", label: "OK", default: true }] });
-    return;
-  }
+  // The choice comes FIRST, whatever stands (user, 2026-09-25: "the too many devices should be
+  // gated behind the choice ... if they dont build it and just cast prestitigation normal, theres
+  // no error") — the max is only told to someone who chose to build.
   await openMomentPopup(message, "cardChip", actor, { title, icon, gate: false,
     content: `<p>Build a <strong>${esc(row.chip)}</strong>? <strong>${left} of ${row.max}</strong> remaining.</p><p style="opacity:0.75;">It falls apart after 8 hours; what it does is played at the table.</p>`,
     buttons: [
@@ -158,7 +155,11 @@ async function buildCardChip(message) {
   if ( !(actor instanceof Actor) || !actor.isOwner ) return;
   const standing = devicesOf(actor, row).length;
   if ( !chipsLeft(standing, row.max) ) {
-    ui.notifications.warn(`${TITLE} | ${actor.name} already has ${row.max} of ${row.max} — remove a ${row.chip} first.`);
+    // Chosen to build with none left: say so in a popup of its own (the ask's key is still closing).
+    const esc = foundry.utils.escapeHTML;
+    await openMomentPopup(message, "cardChipFull", actor, { title: `${flag.key} — ${row.chip}`, icon: "fa-solid fa-gears", gate: false,
+      content: `<p><strong>${esc(actor.name)} already has ${row.max} of ${row.max}.</strong> Remove a ${esc(row.chip)} first — delete its buff on the sheet — then build again from the card.</p>`,
+      buttons: [{ action: "ok", label: "OK", default: true }] });
     return;
   }
   const feature = actor.items.find(i => lower(i.name) === lower(row.feature)) ?? null;
