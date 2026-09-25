@@ -558,7 +558,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const fold = attack?.getFlag(MOD, 'd20fold');
       ok('15a. the missed spell attack is offered Seeking Spell as a d20 fold', !!fold && (fold.offers ?? []).some(o => o.kind === 'seeking') && fold.spell === true, `offers=${JSON.stringify((fold?.offers ?? []).map(o => `${o.kind}:${o.label}`))} spell=${fold?.spell}`);
       // Answer from the popup, as the player would: the offer's own button.
-      const popup = await waitFor(() => [...foundry.applications.instances.values()].find(a => a.rendered && a.element?.querySelector?.('[data-bf-rescue-action="seeking"]')) ?? null, 6000);
+      const popup = await waitFor(() => [...foundry.applications.instances.values()].find(a => a.rendered && a.element?.querySelector?.('[data-bf-rescue-action="seeking"]')) ?? null, 12000);   // after the verdict pause — see §16
       const clickedAt = Date.now();
       popup?.element?.querySelector('[data-bf-rescue-action="seeking"]')?.click();
       // THE WINDOW GOES AT THE CLICK (user, 2026-09-10: "the form stays for a few seconds"), not at the
@@ -602,7 +602,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const dmg = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.type === 'damage' && m.getFlag(MOD, 'empowered')) ?? null, 8000);
       const flag = dmg?.getFlag(MOD, 'empowered');
       ok('16a. the spell\'s damage roll is offered Empowered: eight dice, the cap 3, the total recorded', flag?.status === 'pending' && flag?.dice?.length === 8 && flag?.cap === 3 && flag?.oldTotal === dmg?.rolls?.[0]?.total, JSON.stringify({ status: flag?.status, dice: flag?.dice?.length, cap: flag?.cap, old: flag?.oldTotal }));
-      const popup = await waitFor(() => { const d = popupFor(dmg?.id, 'empowered'); return (d?.rendered && d.element?.querySelector?.('[data-bf-empowered-dice]')) ? d : null; }, 6000);
+      // ⚠ The popup opens AFTER dramaticVerdictPause — Dice So Nice's animation, capped at 6 s, plus
+      // the beat — so a 6 s wait started at the stamp raced it and lost once (2026-09-24, 97/107,
+      // chips=0 with the card correctly "offered"). The wait now outlasts the pause's cap and says
+      // how long the popup took, so a slow animation is a number, not a red.
+      const stamped16 = Date.now();
+      const popup = await waitFor(() => { const d = popupFor(dmg?.id, 'empowered'); return (d?.rendered && d.element?.querySelector?.('[data-bf-empowered-dice]')) ? d : null; }, 12000);
+      log.push(`§16 popup ${popup ? `fronted ${Date.now() - stamped16} ms after the stamp` : 'never fronted (12 s)'}`);
       const chips = [...(popup?.element?.querySelectorAll('[data-bf-die]') ?? [])];
       ok('16b. the popup shows the eight dice as chips', chips.length === 8, `chips=${chips.length}`);
       // NO PICK, NO REROLL (user, 2026-09-12): the button opens greyed out and wakes on the first tick.
@@ -623,7 +629,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       popup?.element?.querySelector('button[data-action="reroll"]')?.click();
       // THE WINDOW GOES AT THE CLICK (user, 2026-09-10: "when you pick the dice and roll, kinda lags
       // closing") - the dice are still landing for up to six seconds after this.
-      const gone16 = await waitFor(() => (!popup?.rendered || !popup?.element?.isConnected) ? { ms: Date.now() - clicked16 } : null, 5000);
+      const gone16 = popup ? await waitFor(() => (!popup.rendered || !popup.element?.isConnected) ? { ms: Date.now() - clicked16 } : null, 5000) : null;   // a popup that never fronted cannot "close at the click"
       const used = await waitFor(() => { const f2 = dmg.getFlag(MOD, 'empowered'); return f2?.status === 'used' ? f2 : null; }, 10000);
       log.push(`§16 after: pool ${pool().system.uses.value}, rollDamageV2 fired ${count('dnd5e.rollDamageV2') - fired0} for this roll, poolSpend=${JSON.stringify(dmg.getFlag(MOD, 'poolSpend'))}`);
       log.push(`§16 spends since start: ${game.messages.filter(m => (m.timestamp >= t16) && m.getFlag(MOD, 'poolSpend')).map(m => `${m.getFlag(MOD, 'poolSpend').ability}@${m.id.slice(-4)}`).join(',')} | empowered flags: ${game.messages.filter(m => m.getFlag(MOD, 'empowered')).map(m => `${m.id.slice(-4)}:${m.getFlag(MOD, 'empowered').status}`).join(',')} | spent=${pool().system.uses.spent}`);
