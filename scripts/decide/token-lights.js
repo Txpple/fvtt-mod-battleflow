@@ -62,3 +62,53 @@ export function lightTargets(row, { self = null, targets = [] } = {}) {
   const seen = new Set();
   return (targets ?? []).filter(t => t?.uuid && !seen.has(t.uuid) && seen.add(t.uuid));
 }
+
+/* --- token senses: the same carrier, on the pack's own effect ----------------------------------- */
+
+/**
+ * The token-sense row an effect answers to, by the effect's name (the row's `effect`, else its
+ * key), or null.
+ * @param {Record<string, {effect?: string}>} table
+ * @param {string|null|undefined} effectName
+ * @param {Set<string>} listed   the Token Senses list, lower-cased row names
+ * @returns {string|null}   the row's key
+ */
+export function senseRowKey(table, effectName, listed) {
+  const name = String(effectName ?? "").toLowerCase();
+  if ( !name ) return null;
+  for ( const [key, row] of Object.entries(table ?? {}) ) {
+    if ( !listed?.has?.(key.toLowerCase()) ) continue;
+    if ( String(row.effect ?? key).toLowerCase() === name ) return key;
+  }
+  return null;
+}
+
+/**
+ * The effect changes that carry a row's sense: the vision mode the token takes (Foundry inflates
+ * the mode's own defaults from the override), the sight range, and the detection mode enabled at
+ * its range. Foundry 14's change shape, as lightChanges.
+ * @param {{ vision?: string|null, range?: number|null, detect?: {mode: string, range: number}|null }} row
+ * @returns {Array<{ key: string, type: string, value: any, phase: string }>}
+ */
+export function senseChanges(row) {
+  const out = [];
+  const change = (key, value) => out.push({ key, type: "override", value, phase: "initial" });
+  if ( row?.vision ) change("token.sight.visionMode", String(row.vision));
+  if ( Number(row?.range) > 0 ) change("token.sight.range", Number(row.range));
+  if ( row?.detect?.mode && (Number(row.detect.range) > 0) ) {
+    change(`token.detectionModes.${row.detect.mode}.enabled`, true);
+    change(`token.detectionModes.${row.detect.mode}.range`, Number(row.detect.range));
+  }
+  return out;
+}
+
+/**
+ * Does this change list already carry the row's sense? (An effect copied from one that wore it —
+ * a duplicate, a re-landed copy — is not given it twice.)
+ * @param {Array<{key?: string}>} changes
+ * @returns {boolean}
+ */
+export function carriesSense(changes) {
+  return (changes ?? []).some(c => String(c?.key ?? "").startsWith("token.sight.")
+    || String(c?.key ?? "").startsWith("token.detectionModes."));
+}

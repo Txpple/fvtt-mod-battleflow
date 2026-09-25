@@ -893,6 +893,34 @@ export const TOKEN_LIGHTS = Object.freeze({
 export const TOKEN_LIGHT_NAMES = tableIndex(TOKEN_LIGHTS).names;
 
 /**
+ * TOKEN SENSES (user, 2026-09-25, the Dwarf walk: "for stonecunning, we dont have a way to do a
+ * check on standing on stone, so just run it always and assume stone. figure out a way to change
+ * the vision type to tremor sense for the duration"). TOKEN_LIGHTS' sibling: the same carrier —
+ * an effect change keyed `token.*` (TokenDocument#applyActiveEffects; `sight` and
+ * `detectionModes` are among its targetable keys, and a `sight.visionMode` override inflates the
+ * mode's own defaults — both read from Foundry 14.368's source) — but the effect is the PACK's,
+ * landed by whoever lands it (the cast slice's self-aim, a tray click): the changes are added to
+ * it as it is created, so the sense comes and goes with the pack's own clock and removal.
+ *
+ *   effect    the pack effect's name the row answers to (the row key when absent)
+ *   vision    the Foundry vision mode the token takes while it stands (CONFIG.Canvas.visionModes)
+ *   detect    { mode, range } — a Foundry detection mode enabled at that range (feet)
+ *   range     the token's sight range while it stands (feet) — the sense's own reach
+ *
+ * Membership is the Token Senses list (the row names).
+ */
+export const TOKEN_SENSES = Object.freeze({
+  "Stonecunning": Object.freeze({ effect: "Stonecunning", vision: "tremorsense", range: 60,
+    detect: Object.freeze({ mode: "feelTremor", range: 60 }),
+    caveat: "always counted as on stone (user, 2026-09-25: no way to read the surface)",
+    rule: "As a Bonus Action, you gain Tremorsense with a range of 60 feet for 10 minutes. You must be on a stone surface or touching a stone surface to use this Tremorsense. The stone can be natural or worked.",
+    from: "Dwarf" })
+});
+
+/** The token senses' row names, lower-cased — the closed set the Token Senses list is validated against. */
+export const TOKEN_SENSE_NAMES = tableIndex(TOKEN_SENSES).names;
+
+/**
  * DAMAGE SAVES (user, 2026-09-04: "make heat metal spell work"). A bare damage activity whose
  * text ties a SAVE to taking the damage — the 2024 PHB's Heat Metal: "Cast and Heat" (2d8 Fire
  * at the object's holder) and "Reheat" (the same as a Bonus Action on later turns) are damage
@@ -1811,6 +1839,14 @@ export const LIST_SPECS = {
     // Aasimar walk, 2026-09-25). The list is the switch: an empty list lights nothing.
     columns: ["kind"], kindColumn: "kind", kinds: TOKEN_LIGHT_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(TOKEN_LIGHTS).join(", ")
+  },
+  tokenSenses: {
+    label: "Token Senses", setting: "tokenSenseList",
+    // Which rows of the token-sense table change the token's vision — the ROW names, whole-chunk,
+    // case-insensitive. Membership over TOKEN_SENSES; the mechanism is token-lights.js (the Dwarf
+    // walk, 2026-09-25). The list is the switch: an empty list changes nothing.
+    columns: ["kind"], kindColumn: "kind", kinds: TOKEN_SENSE_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(TOKEN_SENSES).join(", ")
   }
 };
 

@@ -80,3 +80,39 @@ describe("lightTargets — who the light lands on", () => {
     expect(reg.LIST_SPECS.tokenLights.default).toBe(Object.keys(reg.TOKEN_LIGHTS).join(", "));
   });
 });
+
+describe("token senses — the pack's own effect, the token's vision (the Dwarf walk, 2026-09-25)", () => {
+  const senses = () => new Set(Object.keys(reg.TOKEN_SENSES).map(k => k.toLowerCase()));
+  it("Stonecunning's effect answers by its name, case-insensitive; unlisted or unnamed is nothing", () => {
+    expect(tl.senseRowKey(reg.TOKEN_SENSES, "Stonecunning", senses())).toBe("Stonecunning");
+    expect(tl.senseRowKey(reg.TOKEN_SENSES, "stonecunning", senses())).toBe("Stonecunning");
+    expect(tl.senseRowKey(reg.TOKEN_SENSES, "Stonecunning", new Set())).toBeNull();
+    expect(tl.senseRowKey(reg.TOKEN_SENSES, "Searing Radiance", senses())).toBeNull();
+    expect(tl.senseRowKey(reg.TOKEN_SENSES, "", senses())).toBeNull();
+  });
+  it("Stonecunning: Tremorsense vision at 60 ft and Feel Tremor detection at 60 ft", () => {
+    expect(tl.senseChanges(reg.TOKEN_SENSES.Stonecunning)).toEqual([
+      { key: "token.sight.visionMode", type: "override", value: "tremorsense", phase: "initial" },
+      { key: "token.sight.range", type: "override", value: 60, phase: "initial" },
+      {
+        key: "token.detectionModes.feelTremor.enabled",
+        type: "override",
+        value: true,
+        phase: "initial"
+      },
+      {
+        key: "token.detectionModes.feelTremor.range",
+        type: "override",
+        value: 60,
+        phase: "initial"
+      }
+    ]);
+  });
+  it("an effect already carrying a sense is not given it twice; the pack's own change is not one", () => {
+    expect(tl.carriesSense([{ key: "system.attributes.senses.tremorsense" }])).toBe(false);
+    expect(tl.carriesSense(tl.senseChanges(reg.TOKEN_SENSES.Stonecunning))).toBe(true);
+  });
+  it("the list default is the table", () => {
+    expect(reg.LIST_SPECS.tokenSenses.default).toBe(Object.keys(reg.TOKEN_SENSES).join(", "));
+  });
+});

@@ -4,11 +4,11 @@
  */
 import { MODULE_ID, TITLE, canApplyTo, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { lower, resolveUuid } from "./lookup.js";
-import { tokenLightEntries, listedNames } from "./settings.js";
+import { tokenLightEntries, tokenSenseEntries, listedNames } from "./settings.js";
 import { registerResumable } from "./ui.js";
 import { bfCard, ruleLine } from "./decide/present.js";
-import { TOKEN_LIGHTS } from "./decide/registry.js";
-import { lightRowKey, lightChanges, lightTargets } from "./decide/token-lights.js";
+import { TOKEN_LIGHTS, TOKEN_SENSES } from "./decide/registry.js";
+import { lightRowKey, lightChanges, lightTargets, senseRowKey, senseChanges, carriesSense } from "./decide/token-lights.js";
 import { targetsOf } from "./decide/card.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { SURFACES } from "./surfaces.js";
@@ -199,4 +199,25 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     lines: [ruleLine(row.rule)]
   });
   html.querySelector(SURFACES.messageContent)?.appendChild(line);
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * TOKEN SENSES (user, 2026-09-25, the Dwarf walk: "figure out a way to change the vision type to
+ * tremor sense for the duration"). The table is decide/registry.js TOKEN_SENSES; membership is
+ * the Token Senses list. The carrier is the light's — `token.*` changes on an effect — but the
+ * effect is the PACK's own (Stonecunning's, landed by the cast slice's self-aim or a tray click),
+ * so nothing is landed here: the changes are added to it AS IT IS CREATED on a sheet, on the
+ * creating client, whoever creates it. The sense then lives and dies with the pack's effect — its
+ * ten-minute clock, its removal — and no token document is written.
+ * ------------------------------------------------------------------------------------------- */
+
+Hooks.on("preCreateActiveEffect", (effect, data) => {
+  try {
+    if ( !(effect.parent instanceof Actor) ) return;   // the item's own copy stays as the pack ships it
+    const key = senseRowKey(TOKEN_SENSES, effect.name, listedNames(tokenSenseEntries()));
+    if ( !key ) return;
+    const changes = [...(effect._source.system?.changes ?? data?.system?.changes ?? [])];
+    if ( carriesSense(changes) ) return;
+    effect.updateSource({ "system.changes": [...changes, ...senseChanges(TOKEN_SENSES[key])] });
+  } catch(err) { console.warn(`${TITLE} | Could not add the token sense — set the token's vision by hand.`, err); }
 });

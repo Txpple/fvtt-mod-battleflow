@@ -95,11 +95,12 @@ suites of the machines it touched, even when `--changed` says "full".
 | Species | State |
 | --- | --- |
 | **Aasimar** | **DONE 2026-09-25** (user: "everything else looks good" → "we are done with aasimar"); five findings ruled and BUILT, plus a sixth: every area placed on a token is never drawn (user: "it can be invisible, just like inner radiance") (RULINGS *The Aasimar walk*): every self-centered area placed on the token; an `enemy` area asks no ally; Necrotic Shroud's Frightened to the end of the Aasimar's next turn (**Vendor Fixes VF-002**); Inner Radiance's ring, turn-end pulse and light (the new **Token Lights** table, with the Light spell on a targeted token); Celestial Revelation's extra damage (a rider on hits, a one-target pick on a spell). `smoke-aasimar` 29/29 on the sandbox. Lucky waits for the origin-feat round. |
-| **Dragonborn** | NEXT — the table is §6 |
-| Dwarf → Tiefling | not yet walked |
+| **Dragonborn** | **DONE 2026-09-25** (user: "looks good"); no findings. The roster's Draconic Ancestry choice had been skipped at creation — the pack's Fire Breath Weapon and Fire resistance added by hand (Red). Savage Attacker waits for the origin-feat round. |
+| **Dwarf** | IN WALK — Stonecunning BUILT on the user's word ("just run it always and assume stone ... change the vision type to tremor sense for the duration"): the new **Token Senses** table/list adds Tremorsense vision (60 ft) and Feel Tremor detection (60 ft) to the pack's own Stonecunning effect as it is created. The Practice Dummy carries MM **Stench Spray** (Dex save, Poisoned on a failure) for Dwarven Resilience's save gate. |
+| Elf → Tiefling | not yet walked |
 
 **For the release:** Vendor Fixes gets a release too (v1.1.0 — VF-002); a released world needs
-Reset Defaults on the **Emanations**, **Clock Riders** and new **Token Lights** lists as well.
+Reset Defaults on the **Emanations**, **Clock Riders** and new **Token Lights** and **Token Senses** lists as well.
 
 ## 6. The Dragonborn — the table to open with (drafted 2026-09-25, re-read before use)
 
