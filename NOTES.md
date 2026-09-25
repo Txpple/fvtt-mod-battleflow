@@ -590,6 +590,26 @@ features), `.feats` (37), `.spells` (33, levels 2–9), `.items` (69), `.backgro
 - **The scanner needed no change, the classifier did:** `classify-corpus.mjs` dropped unranked
   packs, so its four Item packs joined `PACK_RANK`. The probe is general: point it at the next book.
 
+### The species and origin-feat packs, read for Slice A (2026-09-24, the sandbox, dnd5e 6.0.5)
+
+The whole inventory is SWEEP §6; these are the facts that bit the code.
+- **Every limited use is on the ITEM.** No PHB species trait or origin feat carries activity uses;
+  the activity consumes `itemUses` with an EMPTY target, which `shared.js` `poolOf` resolves to the
+  item itself. A reader that looked only at `activity.uses` (the clock riders did) finds none —
+  `decide/clock.js` `riderUsesFrom` reads the activity's, else the item's, and the spend is written
+  where they live.
+- **Stone's Endurance's heal activity has an EMPTY stored name.** dnd5e displays the type's
+  localized title ("Heal"), so `activity.name` matched Parry's row key in English only. The lookup
+  (`hold/lookup.js` `reductionFor`) takes the named activity, else the first `heal` activity whose
+  `_source.name` is empty — locale-proof.
+- **A maneuver's die part lists SEVERAL damage types** (the die takes the weapon's), so its first
+  type read "bludgeoning" on a greataxe (measured live). A Giant Ancestry boon's part carries its
+  own one type (fire, cold). `hit-menu.js` reads the part's type only for an option-pool group; a
+  maneuver's die keeps the weapon's.
+- **Halfling Luck, Gnomish Cunning and Tavern Brawler's rerolls are native** — a flag dnd5e turns
+  into `r1` inside the roll, a transfer effect's `save.roll.mode`, an `r1` in the feat's own
+  formula. Nothing to build (DESIGN §8).
+
 ### Carried over from 5.3.x
 
 #### Activation: spells inherit it, features declare it (2026-09-02, the corpus scan over the 2024 packs)
@@ -658,6 +678,14 @@ included. Do not hand-roll it, and do not consult `damage.critical.allow` (it go
 standalone button). **`dnd5e.rollDamageV2` hands over the rolls and the activity, not the
 message** (2026-09-02): a machine that needs the damage MESSAGE listens to `createChatMessage` and
 gates on `message.isAuthor` (sneak.js).
+
+⚠ **dnd5e dispatches the damage hook TWICE per roll** (measured 2026-09-09, Empowered Spell:
+"fired 2 for this roll") — the literal `dnd5e.rollDamageV2` and the templated
+``dnd5e.roll${name}V2`` name the same hook, so one registration runs twice. A never-re-stamp read cannot see a
+`setFlag` still in flight, so an offer raised there opens twice. **One in-flight set per
+moment** keeps the offer, the popup and the spend single: metamagic.js (`empoweredOffering`) and,
+since 2026-09-24, damage-either.js (Savage Attacker's `offering`). A new machine on this hook
+takes the same guard.
 
 **`dnd5e.preApplyDamage(actor, amount, updates, options)` cancels on an explicit `false`**, and the
 tray passes the damage message as `options.originatingMessage`. It fires on whichever client is
@@ -1177,6 +1205,13 @@ disposable, so everything a suite needs lives in a fixture step** — and a camp
 a fixture: after a refresh on 2026-09-23 Gren arrived with his first-level slots spent at the table,
 `smoke-hold` §7's direct Shield cast was refused before `preUseActivity` resolved, and no chip was
 written. The cast consumes nothing now, as smoke-shields' already did.
+
+⚠ **A friendly fixture must never stand where a suite plays** (2026-09-24, smoke-reminders §11e).
+BF Test Goliath first homed at y=1400, beside smoke-reminders' target: an ALLY within 5 feet, so
+the gate judged Pack Tactics true and the suite read Advantage it never set up. Every suite places
+its tokens between x 800–1700 and y 900–1700; the Goliath and the Halfling now home in the range's
+empty top-left corner (300, 200 and 500, 200 — `tools/fixture-suite.mjs`). The map is a fact the
+gate reads since 2026-09-22 (R1), so a fixture's home is part of every suite's setup.
 
 ⚠ **The sandbox can be stopped by Windows with nothing here changed (2026-08-28).** The headless
 server died on `An Application Control policy has blocked this file` — Foundry's unsigned

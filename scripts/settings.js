@@ -107,7 +107,7 @@ Hooks.once("init", () => {
 
   game.settings.register(MODULE_ID, S.interruptList, {
     name: "Interrupt Reactions",
-    hint: 'Which reactions pause the chain, as "Name:kind" separated by commas. kind is "ac" (raises AC — the hold re-tests the attack against the new AC, and crits skip the pause since a natural 20 hits regardless) or "damage" (reduces damage — the hold pauses and announces; Uncanny Dodge’s halving and the rolled reductions of Parry and Stone’s Endurance are applied for you, any other reduction is made by hand). Names must match the item on the actor. See ARCHITECTURE.md §6 for the full survey.',
+    hint: 'Which reactions pause the chain, as "Name:kind" separated by commas. kind is "ac" (raises AC — the hold re-tests the attack against the new AC, and crits skip the pause since a natural 20 hits regardless), "damage" (reduces damage — the hold pauses and announces; Uncanny Dodge’s halving and the rolled reductions of Parry and Stone’s Endurance are applied for you, any other reduction is made by hand) or "roll" (imposes Disadvantage on the attack roll after it hit — Lucky, Warding Flare, Shadowy Dodge: a second d20 is rolled and the lower stands, so a hit can become a miss and a critical hit can be undone; each is its own row in the defender’s popup beside any reaction, its cost as the tag). Names must match the item on the actor. See ARCHITECTURE.md §6 for the full survey.',
     // ⚠ THE DEFAULT LIVES WITH ITS PARSER (decide/registry.js), and so does the note on why
     // Riposte is deliberately absent from it. A default the gate can only reach by scraping
     // source is a default the gate cannot really check — see the spec header.
@@ -224,7 +224,7 @@ Hooks.once("init", () => {
 
   game.settings.register(MODULE_ID, S.hitMenuList, {
     name: "Hit Menu",
-    hint: "A choice the hit offers before the damage rolls, by the feature's own name, separated by commas — the Battle Master's on-hit maneuvers (Trip Attack, Goading Attack, Menacing Attack, Pushing Attack, Disarming Attack, Distracting Strike, Maneuvering Attack, Sweeping Attack) and the Goliath's Hill's Tumble. When a listed feature stands on the attacker's sheet with a use left — a Superiority Die, or the boon's own use — the damage offer opens with its group: pick one for the hit, or none. The die is READ off the feature and rides the damage roll (a critical hit doubles it; a Sweeping Attack's die is rolled at a second creature the card asks for), the use is spent, a maneuver's save is put to the target through the save gate, Hill's Tumble knocks a Large or smaller target Prone with no save, and the card says what rode. Remove a name to keep that feature by hand.",
+    hint: "A choice the hit offers before the damage rolls, by the feature's own name, separated by commas — the Battle Master's on-hit maneuvers (Trip Attack, Goading Attack, Menacing Attack, Pushing Attack, Disarming Attack, Distracting Strike, Maneuvering Attack, Sweeping Attack) and the Goliath's Hill's Tumble. When a listed feature stands on the attacker's sheet with a use left — a Superiority Die, or the boon's own use — the damage offer opens with its group: pick one for the hit, or none (one pick per hit across the groups). The die is READ off the feature and rides the damage roll (a critical hit doubles it; a Sweeping Attack's die is rolled at a second creature the card asks for), the use is spent, a maneuver's save is put to the target through the save gate, Hill's Tumble knocks a Large or smaller target Prone with no save, and the card says what rode. Remove a name to keep that feature by hand.",
     scope: "world", config: true, type: String, default: LIST_SPECS.hitMenu.default
   });
 
@@ -274,7 +274,7 @@ Hooks.once("init", () => {
   // asks on a weapon hit whether to roll the weapon's dice again. A list; the list is the switch.
   game.settings.register(MODULE_ID, S.damageEitherList, {
     name: "Damage Rolled Twice",
-    hint: "A feature that rolls a weapon's damage dice twice and keeps either roll, by the feature's own name, separated by commas — Savage Attacker. On a weapon hit, a popup asks the attacker whether to use it on THIS hit (once per turn in combat); on yes the weapon's dice are rolled again as a set — never the modifier, never a rider's dice — and the higher set stands, the card showing both. Remove a name to keep that feature by hand.",
+    hint: "A feature that rolls a weapon's damage dice twice and keeps either roll, by the feature's own name, separated by commas — Savage Attacker. On a weapon hit, once any reaction the target holds is answered, a popup asks the attacker whether to use it on THIS hit (once per turn in combat) while the damage waits; on yes the weapon's dice are rolled again as a set — never the modifier, never a rider's dice — and the higher set stands, the card showing both. Remove a name to keep that feature by hand.",
     scope: "world", config: true, type: String, default: LIST_SPECS.damageEither.default
   });
 

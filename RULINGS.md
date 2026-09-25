@@ -13,6 +13,28 @@
 
 ---
 
+## Where the table bends the rule (the register, 2026-09-24)
+
+**Every place the module plays a rule other than as written, one row each.** User, 2026-09-24:
+*"i'm sure stuff like that will happen again... where its impossible to follow the RAW. gotta
+keep those 'modifications' recorded"*. ⚠ **A STANDING RULE: a new bend adds its row here IN THE
+SAME COMMIT as its code.** A bend with no row is a bug in this file. The reasons a thing is not
+done at all stay in DESIGN §8; this is what IS done, differently from the page.
+
+| The rule as written | What the module does | Why the platform forces it | Since |
+| --- | --- | --- | --- |
+| **Shield**: "when you are hit" (2024: hit by an attack roll) — and every AC reaction beside it | offered after the roll shows a hit, before the damage | the defender's client cannot pause the attacker's roll: `dnd5e.preRollAttackV2` runs synchronously on the attacker's client, so the hold is stamped on the hit (`hold/trigger.js`) | 2026-08-15 (Phase 1.5, v1.1.0 — the hold's birth, `hold/index.js`) |
+| **Lucky**: Disadvantage "when a creature rolls a d20 for an attack roll against you" | offered after the hit, before the damage — a second d20, the lower standing | the same | 2026-09-24 |
+| **Warding Flare**: light flares "before it hits or misses" | offered after the hit | the same | 2026-09-24 |
+| **Shadowy Dodge**: "when a creature makes an attack roll against you" | offered after the hit | the same | 2026-09-24 |
+| **Warding Flare** protects any creature the Cleric can see within 30 feet | protects its OWNER only | the hold is stamped per DEFENDER: only a hit target's own sheet is read for rows (`hold/lookup.js` `rollRescuesOf`) — a known gap, DESIGN §8 | 2026-09-24 |
+| **Stone's Endurance**: "when you take damage" (any damage) | offered on ATTACK hits only; a save's or an area's damage is reduced by hand | only an attack hit stamps a hold (`INTERRUPT_REDUCTIONS`) | 2026-09-24 |
+| **Trip Attack and Hill's Tumble on one hit** (the rules allow a maneuver and the boon together) | one hit-menu pick per hit; a clock rider (Fire's Burn, Frost's Chill) still rides beside any pick | the pick is ONE record (`hitPick` → `hitManeuver`), so a second pick would be dropped in silence (`decide/hit-menu.js` `hitPick`); the array shape is BACKLOG's | 2026-09-24 |
+| **Brave / Fey Ancestry / Dwarven Resilience** on a save to END the condition | the row is listed on the gate, not counted | an end-of-turn repeat save is a bare sheet roll with no demand to read what it is against (R1: never guessed) | 2026-09-24 |
+| **Disadvantage imposed on an attack rolled WITH Advantage** (the two cancel) | the plain roll is the FIRST d20 rolled — the first face a reroll modifier did not replace — and no second d20 is rolled | both dice are already on the table, and the first was chosen before anyone saw a face (`decide/rescue-hit.js` `d20Faces`, `disadvantageOutcome`) | 2026-09-24 |
+| **A critical hit** when a live Disadvantage row could undo it | the damage is NOT rolled at the hit; it is rolled once after the answer, doubled only if the crit still stands for every hit target | doubled dice rolled before the answer would be discarded the moment the second d20 comes up lower (`hold.critAtStake`, `auto-damage.js` `damageAfterHold`) | 2026-09-24 |
+| **Heroic Inspiration, Precision Attack, Graze** once a defender's Lucky (or any `roll` row) turned the hit into a miss | not offered to the attacker | the attacker's rescues are offered at `dnd5e.rollAttackV2`, where the roll was a hit; nothing re-offers them after the hold's verdict — a known gap, DESIGN §8 (Graze already had it for Shield, `mastery.js`) | 2026-09-24 |
+
 ## The effect view (2026-09-15; the aura row 2026-09-15; the panel 2026-09-18)
 
 **Buffs and debuffs, visible on demand, never actions.** A creature carries more effects than
@@ -263,7 +285,9 @@ Bonus Action casts.
 - **The row is the name and the cost, nothing else;** the save and the condition live in the rule
   folded under and on the card after. A caveat the rules leave to the player is the one extra line.
 - **One pick per group** ("only one maneuver per attack"); a maneuver AND a Cunning Strike on one
-  hit is two groups.
+  hit is two groups. **Since 2026-09-24, one pick per HIT across the hit menu's own groups**
+  (Combat Superiority, Giant Ancestry): the pick is one record — *Slice A* below, and the bends
+  register above.
 - **An affordable row opens the offer even under auto damage.** No dice left: the group shows *no
   dice left*, greyed.
 - **The die rides the damage roll** as its own part, crit-doubled; the pool is spent on the sheet.
@@ -430,3 +454,123 @@ published — with its arithmetic in `decide/area-ask.js` (the defaults, the wor
 A customer raises the ask by writing its flag (`newAsk`, `raiseAsk`) and may register an
 ANSWER PART for what its answer writes (metamagic's record, its held card). The flag key stays
 `metamagicAsk`: it is stored on cards, and a rename is a migration for nothing.
+
+## Slice A — species and origin feats (2026-09-24)
+
+**The first slice of the sweep: every PHB species trait and origin feat, read against the tables
+that exist** (SWEEP §6 is the drawing — the measured inventory, what is NATIVE, OUT, parked and
+held). Built on the user's "go" in three tiers, the UI ruled off `prototypes/slice-a.html`.
+
+- **PHB first.** Arcana Unleashed's ten origin feats are the phase after (three need module work).
+- **The tiers.** Tier 1: the save gate reads FEATURE rows, and Stone's Endurance on
+  `INTERRUPT_REDUCTIONS`. Tier 2: Hill's Tumble on the hit menu, Fire's Burn and Frost's Chill as
+  clock riders. Tier 3: *Rescuing the hit* (the `roll` interrupt) and *Savage Attacker*, below.
+- **Check the existing shapes first — a STANDING RULE** (user, 2026-09-24: *"fires burn should
+  pretty much have the same shape as that gloomstalker attack no?"* → *"yes you should switch"*).
+  Reviewing any new feature starts by naming the PRECEDENT row — the table and the row it already
+  resembles — before a table or a kind is chosen. Tier 2 first put all three Goliath boons on the
+  hit menu; a Goliath owns ONE boon, so the hit never asks WHICH, only whether — the rider's
+  question, not the menu's. The two with dice moved to `CLOCK_RIDERS` the same day.
+- **One pick per hit on the hit menu, for now** (decided 2026-09-24): the offer keeps one tick
+  across its groups. The trigger for the array shape is a Goliath Battle Master at the table
+  (BACKLOG *Features*); the bend is in the register above.
+- **One rescue row per SOURCE** (user, 2026-09-24: *"we already have that precedent with Precision
+  and Heroic Inspiration, so it would just be more button choices"*) — Lucky, Warding Flare and
+  Shadowy Dodge are three rows, never one "Disadvantage" row listing its sources.
+- **Parked** (BACKLOG *Features*, each with its trigger): Lucky's Advantage half, Trance, Healer's
+  spell-healing rerolls, Inner Radiance's turn-end pulse, Celestial Revelation's extra damage.
+  **Held:** Relentless Endurance, for Slice B's kill moment.
+
+**The save gate reads features** (tier 1; `EFFECT_BENDS` rows `match: "feature"` with a `saves`
+facet; `decide/reminders.js` `rowCarriers`, one carrier test for the check gate and both save
+readers). Brave, Fey Ancestry and Dwarven Resilience ship as text alone, so the row is carried by
+the feature's NAME and scoped by the demand's statuses the Aura of Purity way: a save against a
+demand that would impose Frightened (Charmed, Poisoned) counts Advantage. A save to END the
+condition is a bare sheet roll with no demand — listed, not counted (the register). Dwarven
+Resilience's Poison Resistance is the species' own advancement. `smoke-saves` §26,
+`tests/decide-reminders.test.js`.
+
+**Stone's Endurance reduces the hit by its roll** (tier 1): the second `INTERRUPT_REDUCTIONS` row,
+Parry's shape — the pack's heal formula (`1d12 + @abilities.con.mod`) IS the reduction, rolled in
+the open at the answer, one use of the item spent. It speaks in its own voice: the row carries its
+eyebrow ("Reaction", not "Maneuver"), what one use is called, the trigger and the reduction in
+words, stamped on the hold flag. The lookup is locale-proof (its activity's stored name is empty —
+NOTES §2). Before the row it held as a plain damage interrupt: Cast used the heal (healing a
+Goliath at full HP) and the whole hit landed "reduce by hand". Attack hits only (the register).
+`smoke-superiority` §12.
+
+**The Goliath's boons** (tier 2, switched the same day). **Fire's Burn and Frost's Chill ride as
+clock riders** (`CLOCK_RIDERS` `when: "any"` — every hit, uses permitting; weapon, unarmed or
+spell attack): a ticked checkbox on the offer like every rider, the die in the boon's own type,
+one use of the ITEM spent (the species packs keep every use on the item), the offer and the card
+calling it by the feature's name. Frost's Chill's own "Chilled" lands on the hit through
+`effect-riders.js` `applyActivityEffectsOnHit`, clocked the Slow mastery's way — to the start of
+the ATTACKER's next turn. **Hill's Tumble stays on the hit menu** as the Giant Ancestry group (no
+feature to require — the parent is text only; each option pays from its own uses): a no-save
+Prone press, receipted, never pressed over a Prone already standing, greyed "too large" when a hit
+target's sheet says larger than Large (an unreadable size never greys it). A boon publishes
+`rider`, not `maneuver`. `smoke-clock` §8–9, `smoke-hitmenu` §12–15.
+
+## Rescuing the hit — the `roll` interrupt (2026-09-24, off `prototypes/slice-a.html`)
+
+**A defender's Disadvantage on an attack roll already made: a second d20, the lower standing, the
+verdict taken again.** Lucky's Disadvantage, Warding Flare, Shadowy Dodge — the third interrupt
+KIND beside `ac` and `damage` (the R4 pin 30 → 31): not `ac` (the AC never moves, and a natural 20
+can be undone) and not `damage` (it changes whether the attack hit). The three differ only in
+what they COST, so the cost is data (`INTERRUPT_ROLLS`: the Reaction, an item use, what a use is
+called, the answering activity, what the rule leaves to the table after). Membership is the
+Interrupt list (`Name:roll`). `hold/answer.js`, `hold/lookup.js`, `decide/rescue-hit.js`;
+`smoke-rescue`, `tests/decide-rescue-hit.test.js`, `tests/decide-verdict.test.js`.
+
+- **Offered to the defender AFTER the roll shows a hit, before the damage** — the timing bend,
+  accepted (the register). A crit can be undone, so the popup opens on a crit when a `roll` row is
+  live, and the crit's dice wait for the answer (the register).
+- **The hold's popup, grown rows:** every way to rescue the hit a ticked row — the reaction the
+  list found (Shield, Parry) and every `roll` row the sheet holds — the name, what it does, a FACT
+  as the tag (the cost, or why it cannot be taken), the rule folded under. **One row per source**
+  (Slice A, above). Titled **"Rescue the hit — <defender>"** once several rows sit in it; one row
+  keeps the house's `Name — who`. One tick at a time, Answer live only while a row is ticked — the
+  tick stays even on a one-row popup. A spent row stays, greyed, its reason as the tag ("Reaction
+  spent this round", "no Luck Points left", "already at Disadvantage", "a crit ignores AC").
+  **Every row spent → no popup**, the way a spent Reaction has always skipped Shield.
+- **The arithmetic** (`disadvantageOutcome`): a plain roll rolls a second d20 in the open with the
+  attack's own die modifiers (a Halfling attacker's natural-1 reroll rides it), the lower standing;
+  a roll with Advantage cancels to the first die, no second rolled (the register); a roll already
+  at Disadvantage moves nothing, so the row is shown spent. The stood d20 carries its own crit and
+  fumble — a natural 20 replaced by a lower die is no longer a crit — so it folds in as a
+  `replace` beside the live AC, never an `add`.
+- **The spend is by hand** (Parry's precedent: a `use()` would post a card, and Warding Flare's
+  would place its 30-foot area): a Luck Point or a use through the one pass-through, the Reaction
+  chip. A row used from the SHEET answers too — the ONE oldest pending hold that asks this defender
+  with the row live (Disadvantage is imposed on "that roll").
+- **The cards:** the defender's says what it cost ("1 Luck Point spent · Luck Points: 2 of 3
+  remaining"; Shadowy Dodge's adds the teleport as a line — the table moves the token); the
+  attacker's reads *"Lucky bent the roll — Disadvantage, 17 → 13, MISS"*, the struck d20 under it.
+- **Known gaps** (DESIGN §8): Warding Flare protects its owner only; the attacker's own rescues are
+  not re-offered after a bent miss.
+
+## Savage Attacker (2026-09-24, off `prototypes/slice-a.html`)
+
+**A popup on the weapon hit asks ONE thing — use it on THIS hit? — and on yes the higher set
+stands with no second question** (R1: the rules leave no choice once both sets are seen). Once per
+turn, and a Fighter with Extra Attack may want it for a bigger roll later, so whether is the
+player's; which set is not. `damage-either.js` (a MACHINE), `decide/damage-dice.js`,
+`DAMAGE_EITHER`, the Damage Rolled Twice list; `smoke-savage`, `tests/decide-damage-dice.test.js`.
+
+- **The question waits for the hit to stand.** The damage message is born with the fold due and
+  the application held (a second claim in `auto-apply.js`); the popup opens only once the
+  defender's hold is off the roll — the card says "asks once the hit stands" meanwhile — and a
+  hold that turned the hit into a miss resolves it moot. The dice land ONCE, with the set that
+  stood.
+- **The popup is a one-row tick** (the tick stays on a one-row popup, the ruling): "Roll again"
+  dark until ticked, "Keep the roll"; the clock keeps the roll.
+- **"The weapon's damage dice"** are every die of the activity's own damage rolls — counted at
+  `preRollDamageV2` before any rider pushes its roll, the doubled set on a crit — never a modifier,
+  never a rider's dice. Rolled again as ONE set on its own card; the higher total stands (a tie
+  keeps the first); the damage roll shows both, the loser struck.
+- **Once per turn** is the clock riders' turn chit (`riderKey` `savage-attacker`), counted only for
+  a combatant; a second hit the same turn carries only the tag "used this turn". A weapon item
+  only. Damage already applied is moved by the difference (the ARCHITECTURE §11 obligation,
+  Empowered's `moveAppliedDamage`) — with the claim holding the application, a belt, not the road.
+- **Not a kind:** one table read by one machine, the `CLOCK_RIDERS` / `METAMAGIC` shape; a second
+  customer is a row. The published word is `fold`.

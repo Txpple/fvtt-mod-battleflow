@@ -1,11 +1,13 @@
 # The abilities sweep — survey
 
-**Status: Slice A IN BUILD (2026-09-24, the user's go).** Shelved 2026-09-03 ("a longer term
-project"); the long-term order of 2026-09-24 (HANDOFF §1) un-shelved it one slice at a time.
-Slice A — PHB species traits and origin feats — is measured and ruled (§6): **PHB first**
-(Arcana Unleashed's origin feats are the next phase); **tiers 1–3 in build** (the save gate's
-feature match and Stone's Endurance; the hit menu's Giant Ancestry group; Savage Attacker's
-popup and the `roll` interrupt kind); **five PARKED** with triggers; **Relentless Endurance
+**Status: Slice A DELIVERED on main (2026-09-24), pending the user's audit and the release
+floor.** Shelved 2026-09-03 ("a longer term project"); the long-term order of 2026-09-24
+(BACKLOG *The long-term order*) un-shelved it one slice at a time. Slice A — PHB species traits
+and origin feats — is measured and ruled (§6; what it settled is RULINGS *Slice A*): **PHB
+first** (Arcana Unleashed's origin feats are the next phase); **tiers 1–3 built** (the save
+gate's feature match and Stone's Endurance; Hill's Tumble on the hit menu, Fire's Burn and
+Frost's Chill switched to clock riders the same day; Savage Attacker's popup and the `roll`
+interrupt kind); **five PARKED** with triggers; **Relentless Endurance
 HELD** for Slice B's kill moment; **one pick per hit** for now. A fifth document by design,
 for the length of the sweep: it holds the survey behind a planned pass over every racial
 trait, class feature, subclass feature, feat and spell that would qualify for Battle Flow, in
@@ -249,7 +251,7 @@ already carries.
 Then the kind-by-kind walk the user asked for, (a) to (e), reading each row against the
 tables rather than inventing a mechanism per feature ([[examples-are-classes]]).
 
-**Scoped since 2026-09-24 by slice, not by item** (HANDOFF §1): Slice A (species and origin
+**Scoped since 2026-09-24 by slice, not by item** (BACKLOG *The long-term order*): Slice A (species and origin
 feats, §6) takes items 1, 2, 3 and 5 with real content behind them; Slice B (the GM's side)
 takes the kill moment; session 0 of the next campaign sets Slice C onward from the party's own
 kit.
@@ -270,7 +272,8 @@ kit.
 
 ## 6. Slice A — species and origin feats: the drawing (measured 2026-09-24)
 
-The inventory behind HANDOFF §2's plan, measured (its step A0): the rescan (§0 item 4),
+The inventory behind HANDOFF §2's plan (the commission of 2026-09-24, retired on delivery — git
+history), measured (its step A0): the rescan (§0 item 4),
 `classify-corpus.mjs --kind race|feat`, four feats read whole off the sandbox, the dnd5e 6.0.5
 bundle for the native flags, `scripts/decide/registry.js` for the tables. The class is **every
 PHB species trait and origin feat** ([[examples-are-classes]]): 45 species rows
@@ -286,7 +289,9 @@ ITEM (`system.uses`, the activity consumes `itemUses`); none carries activity us
   - **Tier 1** — the save gate matches `match: "feature"` rows (Brave, Fey Ancestry, Dwarven
     Resilience), and **Stone's Endurance** on `INTERRUPT_REDUCTIONS` beside Parry.
   - **Tier 2** — the hit menu's **Giant Ancestry group** (Fire's Burn, Frost's Chill, Hill's
-    Tumble).
+    Tumble). ⚠ **Switched the same day** (user: *"yes you should switch"*): Fire's Burn and
+    Frost's Chill ride as `CLOCK_RIDERS` (`when: "any"`); Hill's Tumble alone stays on the menu
+    (RULINGS *Slice A*). The table rows below record the first drawing.
   - **Tier 3** — **Savage Attacker's popup** (the damage-die kind) and the **`roll` interrupt
     kind** (§3 item 3) with **Warding Flare, Shadowy Dodge and Lucky** (its Disadvantage half)
     as customers. The UI was ruled off the Slice A prototype the same day: Savage Attacker on
