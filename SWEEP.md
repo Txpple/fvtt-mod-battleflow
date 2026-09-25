@@ -335,7 +335,8 @@ Stonecunning, Elven Lineage (Drow / High / Wood), **Gnomish Cunning** (a transfe
 Large Form, Powerful Build (carry), Halfling Nimbleness, **Luck** (`flags.dnd5e.halflingLucky`
 → `r1` inside the roll), Adrenaline Rush, Fiendish Legacy (all three).
 **OUT (11):** Light Bearer, Draconic Ancestry, Keen Senses, Gnomish Lineage (Forest, Rock),
-Giant Ancestry's parent (the container), Naturally Stealthy, Resourceful, Skillful, Versatile,
+Giant Ancestry's parent (the container), Naturally Stealthy, ~~Resourceful~~ (**BUILT 2026-09-25**, the Human
+walk: the REST_GRANTS table, `rest-grants.js`), Skillful, Versatile,
 Otherworldly Presence — plus Powerful Build's grapple-escape half (a check; no check gate).
 
 ### Origin feats — the rows that are not NATIVE or OUT

@@ -131,6 +131,11 @@ export const ORDER = [
     name: "smoke-goliath", note: "the Goliath walk's pass 2 — Large Form's token size, the rebuke offered within its reach and driven at the damager (none out of reach), Stone's Endurance holding a non-attack damage at the applier",
     needs: ["fixture-suite"]
   },
+  // The Human walk (2026-09-25): BF Test Halfling is lent the PHB's Resourceful for the run.
+  {
+    name: "smoke-rest", note: "the rest grants — Resourceful's Heroic Inspiration on a Long Rest (the box ticked, the rest card's line), nothing on a Short Rest, nothing when unlisted",
+    needs: ["fixture-suite"]
+  },
   // The Halfling walk (2026-09-25): BF Test Halfling's own Lucky feat — the gate's buy box and the
   // `advantage` fold on an initiative rolled with no dialog; the same seed as the two above.
   {

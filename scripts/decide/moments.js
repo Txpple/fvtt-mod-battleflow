@@ -649,6 +649,7 @@ export const STATE_KEYS = Object.freeze({
   rebukeFor: "provenance — a rebuke's driven use or attack names the offer it answers",
   command: "Commander's Strike directed at an ally — the notice and the chip; the die riding the ally's attack (commandRide) is the resolve, and the use posted its own card",
   reminder: "a gate's reminder record — presentation before the roll",
+  restGrant: "a rest card's grant line — presentation; the sheet write rode the rest's own update",
   volleyFor: "provenance — a volley's roll names its card",
   volleyTarget: "provenance — a volley's roll names its target",
   volleyDarts: "provenance — a volley's roll names its dart count",

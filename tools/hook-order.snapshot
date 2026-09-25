@@ -73,6 +73,9 @@ renderRollConfigurationDialog	advantage-buys.js
 targetToken	advantage-buys.js
 dnd5e.postRollConfiguration	advantage-buys.js
 dnd5e.renderChatMessage	advantage-buys.js
+dnd5e.preRestCompleted	rest-grants.js
+dnd5e.restCompleted	rest-grants.js
+dnd5e.renderChatMessage	rest-grants.js
 dnd5e.preRollDamageV2	sneak.js
 createChatMessage	sneak.js
 dnd5e.renderChatMessage	sneak.js

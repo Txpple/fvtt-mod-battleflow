@@ -302,6 +302,14 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.tokenSizes.default
   });
 
+  // REST GRANTS (the Human walk, 2026-09-25): what a feature gives at a rest that the platform does
+  // not — Resourceful's Heroic Inspiration on a Long Rest, riding the rest's own update.
+  game.settings.register(MODULE_ID, S.restGrantList, {
+    name: "Rest Grants",
+    hint: "What a feature gives when its owner finishes a rest, where the system gives nothing, by the feature's name, separated by commas — Resourceful (the Human: Heroic Inspiration whenever you finish a Long Rest). The grant lands with the rest itself, and the rest card says what was gained. Remove a name to give it by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.restGrants.default
+  });
+
   // REBUKES (the Goliath walk, 2026-09-25): a Reaction to taking damage, aimed at the creature
   // that dealt it — offered as a popup when the damage lands and the damager is within reach.
   game.settings.register(MODULE_ID, S.rebukeList, {
@@ -715,6 +723,11 @@ export function cardChipEntries() {
 /** Which reactions to damage are offered at the damager, by the item's name — `{ kind }`. */
 export function rebukeEntries() {
   return listEntries(LIST_SPECS.rebukes);
+}
+
+/** Which rows of the rest-grant table give their grant at a rest, by the feature's name — `{ kind }`. */
+export function restGrantEntries() {
+  return listEntries(LIST_SPECS.restGrants);
 }
 
 /** Which rows of the token-size table resize the token, by the row's name — `{ kind }`. */

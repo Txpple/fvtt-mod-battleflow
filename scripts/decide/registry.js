@@ -1020,6 +1020,25 @@ export const TOKEN_SIZES = Object.freeze({
 export const TOKEN_SIZE_NAMES = tableIndex(TOKEN_SIZES).names;
 
 /**
+ * THE REST GRANTS (the Human walk, 2026-09-25 — user: "human i think just needs initiatve to be
+ * ticked on long rest"): a feature whose text gives the creature something when it finishes a rest,
+ * which the platform does not give (the PHB's Resourceful ships a note: "Usage of this feature's
+ * activity does not automatically grant Heroic Inspiration"). The grant rides the rest's own actor
+ * update (rest-grants.js, `dnd5e.preRestCompleted`), and the rest card says so. Keyed by the
+ * FEATURE's name; membership is the Rest Grants list.
+ *   rests   which rests give it ("long", "short")
+ *   grant   what the sheet gains — "inspiration" (Heroic Inspiration, the sheet's box)
+ *   rule    the feature's sentence, verbatim (law 8)
+ */
+export const REST_GRANTS = Object.freeze({
+  "Resourceful": Object.freeze({ rests: Object.freeze(["long"]), grant: "inspiration",
+    rule: "You gain Heroic Inspiration whenever you finish a Long Rest.", from: "Human" })
+});
+
+/** The rest grants' row names, lower-cased — the closed set the Rest Grants list is validated against. */
+export const REST_GRANT_NAMES = tableIndex(REST_GRANTS).names;
+
+/**
  * REBUKES (user, 2026-09-25, the Goliath walk: "Storms thunder is not triggering anything. when
  * you fix it, also make sure the 60ft range calc is in there. Also when you do this, why dont you
  * pick up hellish rebuke and anything else in that family that is the same"). A Reaction taken
@@ -2008,6 +2027,14 @@ export const LIST_SPECS = {
     // token-lights.js (the Goliath walk, 2026-09-25). The list is the switch.
     columns: ["kind"], kindColumn: "kind", kinds: TOKEN_SIZE_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(TOKEN_SIZES).join(", ")
+  },
+  restGrants: {
+    label: "Rest Grants", setting: "restGrantList",
+    // Which rows of the rest-grant table give their grant at a rest — the FEATURE names, whole-chunk,
+    // case-insensitive. Membership over REST_GRANTS; the mechanism is rest-grants.js (the Human
+    // walk, 2026-09-25). The list is the switch.
+    columns: ["kind"], kindColumn: "kind", kinds: REST_GRANT_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(REST_GRANTS).join(", ")
   },
   rebukes: {
     label: "Rebukes", setting: "rebukeList",

@@ -80,6 +80,7 @@ const REFERENCE = {
   tokenSizeList: LIST_SPECS.tokenSizes.default,             // the whole token-size table, as shipped (the Goliath walk, 2026-09-25)
   rebukeList: LIST_SPECS.rebukes.default,                   // the whole rebuke table, as shipped (the Goliath walk, 2026-09-25)
   cardChipList: LIST_SPECS.cardChips.default,               // the whole card-chip table, as shipped (the Gnome walk, 2026-09-25)
+  restGrantList: LIST_SPECS.restGrants.default,             // the whole rest-grant table, as shipped (the Human walk, 2026-09-25)
 };
 
 const f = new Foundry(foundryConfig(env));

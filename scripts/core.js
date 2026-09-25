@@ -64,7 +64,8 @@ export const S = {
   tokenSenseList: "tokenSenseList",        // Stonecunning (the Dwarf walk, 2026-09-25)
   tokenSizeList: "tokenSizeList",          // Large Form, Enlarge/Reduce (the Goliath walk, 2026-09-25)
   rebukeList: "rebukeList",                // Storm's Thunder, Hellish Rebuke … (the Goliath walk, 2026-09-25)
-  cardChipList: "cardChipList"             // Tinker (the Gnome walk, 2026-09-25)
+  cardChipList: "cardChipList",            // Tinker (the Gnome walk, 2026-09-25)
+  restGrantList: "restGrantList"           // Resourceful (the Human walk, 2026-09-25)
 };
 
 export const setting = key => game.settings.get(MODULE_ID, key);

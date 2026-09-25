@@ -96,7 +96,8 @@ export const LAYER_OF = {
   "d20-folds.js": "machines",
   "receipts.js": "machines",
   "reminders.js": "machines",
-  "advantage-buys.js": "machines",   // Lucky's Advantage box on the gate (2026-09-25)
+  "advantage-buys.js": "machines",
+  "rest-grants.js": "machines",      // Resourceful's Heroic Inspiration on a Long Rest (2026-09-25)   // Lucky's Advantage box on the gate (2026-09-25)
   "sneak.js": "machines",
   "clock-riders.js": "machines",
   "use-chips.js": "machines",
