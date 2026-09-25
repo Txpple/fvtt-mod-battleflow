@@ -79,17 +79,19 @@ const out = await f.evaluate(async ({ playerName }) => {
     // --- the two goblins: attacker and victim ----------------------------------------------
     // Imported by SHAPE from whichever monster pack carries a goblin — pack ids shift, the
     // creature does not. Unlinked tokens (the monster norm) are what the suites assert against.
+    const goblinSource = async () => {
+      for (const pack of game.packs.filter(p => p.documentName === "Actor")) {
+        let index;
+        try { index = await pack.getIndex(); } catch { continue; }
+        const hit = index.find(e => /goblin/i.test(e.name));
+        if (hit) return pack.getDocument(hit._id);
+      }
+      throw new Error("no goblin found in any Actor compendium");
+    };
     const ensureGoblin = async name => {
+      const source = await goblinSource();
       let actor = game.actors.getName(name);
       if (!actor) {
-        let source = null;
-        for (const pack of game.packs.filter(p => p.documentName === "Actor")) {
-          let index;
-          try { index = await pack.getIndex(); } catch { continue; }
-          const hit = index.find(e => /goblin/i.test(e.name));
-          if (hit) { source = await pack.getDocument(hit._id); break; }
-        }
-        if (!source) throw new Error("no goblin found in any Actor compendium");
         const data = source.toObject();
         delete data._id;
         data.name = name;
@@ -97,6 +99,31 @@ const out = await f.evaluate(async ({ playerName }) => {
         actor = await Actor.create(data);
         made.push(name);
         log.push(`created ${name} from ${source.name}`);
+      }
+      // ⚠ The BASE goblin is the reference shape every fresh unlinked token inherits, so it goes
+      // back to the statblock EVERY run: a killed suite leaves what it raised on the base (2026-09-24
+      // — smoke-maneuvers' 1000-HP unkillable victim, smoke-clock's 400, smoke-saves' −30 save
+      // bonuses, an AC override), and a token placed from that base carries the residue into
+      // every later suite. scrub-fixture-residue's rules, applied here where the token is born.
+      const src = source.system;
+      const cur = actor.system._source;
+      const reset = {};
+      if ((cur.attributes?.hp?.max !== src.attributes.hp.max) || (cur.attributes?.hp?.value !== src.attributes.hp.max)) {
+        reset["system.attributes.hp.max"] = src.attributes.hp.max;
+        reset["system.attributes.hp.value"] = src.attributes.hp.max;
+        reset["system.attributes.hp.temp"] = 0;
+      }
+      if (cur.attributes?.ac?.override != null) reset["system.attributes.ac.override"] = null;
+      for (const [key, ab] of Object.entries(cur.abilities ?? {})) {
+        if (ab?.bonuses?.save) reset[`system.abilities.${key}.bonuses.-=save`] = null;
+        if (ab?.save?.roll?.bonus) reset[`system.abilities.${key}.save.roll.bonus`] = "";
+      }
+      const legres = src.resources?.legres ?? { max: 0, spent: 0 };
+      if ((cur.resources?.legres?.max ?? 0) !== (legres.max ?? 0)) reset["system.resources.legres.max"] = legres.max ?? 0;
+      if ((cur.resources?.legres?.spent ?? 0) !== (legres.spent ?? 0)) reset["system.resources.legres.spent"] = legres.spent ?? 0;
+      if (Object.keys(reset).length) {
+        await actor.update(reset);
+        log.push(`${name}: reset to ${source.name}'s statblock — ${Object.keys(reset).map(k => k.replace("system.", "")).join(", ")}`);
       }
       return actor;
     };

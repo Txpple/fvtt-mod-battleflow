@@ -1523,6 +1523,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const f = card15.getFlag(MOD, 'saves');
         return f?.targets?.every(t => t.done && t.applied) ? f : null;
       }, 25000);
+      if (!done15) {
+        // Name the cause (2026-09-24: a red here read "lines=0" and nothing else — the victim's
+        // roll had lost its token speaker and its verdict landed after the wait; the line below
+        // is what the next red says instead).
+        const f = card15.getFlag(MOD, 'saves');
+        const rollOf = t => (t?.rollMessageId ? game.messages.get(t.rollMessageId) : null);
+        log.push(`15 TIMEOUT: canvas.ready=${canvas.ready} scene=${canvas.scene?.id === scene.id} `
+          + `victimToken=${!!scene.tokens.get(victimToken.document.id)} active=${victim.getActiveTokens().length} `
+          + `targets=${JSON.stringify((f?.targets ?? []).map(t => ({ name: t.name, done: !!t.done, applied: !!t.applied,
+            outcome: t.outcome ?? null, roll: !!t.rollMessageId, speaker: rollOf(t)?.speaker?.token ?? null })))}`);
+      }
       await sleep(1500); // where a line would have posted — let any create land
 
       // NO public line posts (2026-09-18): the usage card says each verdict once, in the
