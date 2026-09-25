@@ -8,14 +8,25 @@
 
 ---
 
-## 0. Where things stand (2026-09-25, evening — the Aasimar done, the Dragonborn next)
+## 0. Where things stand (2026-09-25, late — five species done, the Goliaths next)
 
-**Next session: open with the Dragonborn's test table (§6 has it drafted) and let the user walk.**
-The user's words at the break: *"we are done with aasimar ... make a handoff for new session and
-we'll test dragonborn"*.
+**Next session: open with the Goliaths' test table (§6 has it drafted) and let the user walk.**
+The user's words at the break: *"looks good. lets move on to goliate. make a handoff where we
+will continue there"*. Aasimar, Dragonborn, Dwarf, Elves and Gnomes are DONE (§5); the six
+Goliaths were read on the sandbox at the break — every Giant Ancestry boon, Large Form and origin
+feat present (no skipped creation choice, unlike the Dragonborn's).
 
 | | |
 | --- | --- |
+| **Prod** | v2.0.8 on dnd5e 6.0.5. Untouched. |
+| **main** | Slice A plus every walk fix so far (the Aasimar's `e600143`/`b0fe7ac`, then Token Senses `804bb01`, Pass without Trace `ccf8d15`, Card Chips/Tinker `0baeaea`→`032732c`) — **not pushed, not released**. Vendor Fixes `99fa7e6` (VF-002) and `637c32e` (VF-003) likewise local and unreleased. |
+| **The sandbox** | runs **main** and Vendor Fixes' `main` (both deployed `--local`, byte-identical). Settings CLEAN after the Emanations row (`verify-settings --fix`, 2026-09-25); the Token Senses and Card Chips lists have never been stored (their defaults stand). **Party Camp** holds the roster (§1). The **Practice Dummy** (actor `yqjbotCYAwbcmP0v`, both tokens) now carries MM **Stench Spray** (Poisoned demand) and MM **Charm** (Charm Person — Charmed demand) for the save-gate walks. The Dragonborn carries a hand-added Fire Breath Weapon + Fire resistance (its ancestry choice had been skipped). World time was advanced 11 minutes by a probe. ⚠ Vendor Fixes' `module.json` description changed (VF-003) — a PROCESS restart picks it up (cosmetic; the user's call). ⚠ `smoke-aasimar` (like `smoke-savage`) removes BF Test Halfling's and BF Test Victim's fixture tokens from the Test Range — run `fixture-suite` before any other suite. |
+| **Suites** | Per the FAST loop no suite ran for Token Senses, Pass without Trace or Tinker — each was measured by a second-client probe and walked by the user. They are owed to the end-of-iteration battery (§3), with new suite sections if the battery shows a gap. |
+| **Docs** | RULINGS *The Aasimar walk* (+ one register row), SWEEP §6, BACKLOG, ARCHITECTURE moments, this file's §5. The Dwarf/Elf/Gnome rulings live in the commit messages and §5 until the end-of-iteration recut writes them into RULINGS. |
+| **Owed by the user** | the walk, race by race (§5); the 46-row event audit (`slice-a-event-audit.md`, scratchpad `cbaa0dd3…`); the release call; the Savage popup's rank (DESIGN §8). |
+| **Owed by Claude** | the fix pass for each race as the user reports it — the FAST loop (§3). |
+
+--- | --- |
 | **Prod** | v2.0.8 on dnd5e 6.0.5. Untouched. |
 | **main** | Slice A plus the Aasimar walk's fixes (`e600143`, and the invisible-area commit after it) — **not pushed, not released**. Vendor Fixes `99fa7e6` (VF-002) likewise local and unreleased. |
 | **The sandbox** | runs **main** and Vendor Fixes' `main` (both deployed `--local`, byte-identical). Settings CLEAN (the Clock Riders and Emanations lists restored with the new rows — a released world needs the same Reset Defaults, §4). **Party Camp** holds the roster (§1). ⚠ `smoke-aasimar` (like `smoke-savage`) removes BF Test Halfling's and BF Test Victim's fixture tokens from the Test Range — run `fixture-suite` before any other suite. |
@@ -98,26 +109,35 @@ suites of the machines it touched, even when `--changed` says "full".
 | **Dragonborn** | **DONE 2026-09-25** (user: "looks good"); no findings. The roster's Draconic Ancestry choice had been skipped at creation — the pack's Fire Breath Weapon and Fire resistance added by hand (Red). Savage Attacker waits for the origin-feat round. |
 | **Dwarf** | **DONE 2026-09-25** (user: "all else is good" → "it works now") — Stonecunning BUILT on the user's word ("just run it always and assume stone ... change the vision type to tremor sense for the duration"): the new **Token Senses** table/list adds Tremorsense vision (60 ft) and Feel Tremor detection (60 ft) to the pack's own Stonecunning effect as it is created. The Practice Dummy carries MM **Stench Spray** (Dex save, Poisoned on a failure) for Dwarven Resilience's save gate. |
 | **Elves** (Drow, High, Wood) | **DONE 2026-09-25** (user: "elves done") — the Practice Dummy also carries MM **Charm** (casts Charm Person: Wis save, Charmed) for Fey Ancestry's save gate. **Pass without Trace BUILT** on the user's word ("should have an enamation similar to the paladin one, but gratns +10 stealth, should use the saem shape"): an Emanations row (spell, helpful, the pack's Concealed effect) + **Vendor Fixes VF-003** (the pack's spell carries no area — given its 30-foot Emanation in memory). |
-| **Gnomes** (Forest, Rock) | IN WALK — Gnomish Cunning is the pack's own effect (roll.mode on INT/WIS/CHA saves); the Practice Dummy's Charm (Wis) exercises it. **Tinker BUILT** on the user's word (a button on the Prestidigitation card; "just give a buff called tiny clockwork device ... the rest is played at table"): the new **Card Chips** table/list — the Rock Gnome's Prestidigitation card offers *Build a Tiny Clockwork Device*; the click writes the chip (the lineage's icon, 8 hours, at most three). |
-| Goliath → Tiefling | not yet walked |
+| **Gnomes** (Forest, Rock) | **DONE 2026-09-25** (user: "looks good") — Gnomish Cunning is the pack's own effect (roll.mode on INT/WIS/CHA saves); the Practice Dummy's Charm (Wis) exercises it. **Tinker BUILT** on the user's word (a button on the Prestidigitation card; "just give a buff called tiny clockwork device ... the rest is played at table"): the new **Card Chips** table/list — the Rock Gnome's Prestidigitation card offers *Build a Tiny Clockwork Device*; then reworked on the walk ("id like a popup to create the clockwork with x/3 remaining ... additional chits, to max 3 ... if a person has 3 already, do a popup saying to remove a clockwork first"; "the too many devices should be gated behind the choice"): the cast ASKS in a popup (*Build it* / *Not now*, N of 3 remaining); each device is its own chip (flag `stacks` — the twin-chip dedupe in effect-riders.js had been deleting every newer same-name chip); choosing to build at three opens a remove-one-first popup; the card's button recalls the ask. |
+| **Goliaths** (Cloud, Fire, Frost, Hill, Stone, Storm) | NEXT — the table is §6 |
+| Halfling → Tiefling | not yet walked |
 
-**For the release:** Vendor Fixes gets a release too (v1.1.0 — VF-002); a released world needs
+**For the release:** Vendor Fixes gets a release too (v1.1.0 — VF-002, VF-003); a released world needs
 Reset Defaults on the **Emanations** (now with Pass without Trace), **Clock Riders** and new **Token Lights**, **Token Senses** and **Card Chips** lists as well.
 
-## 6. The Dragonborn — the table to open with (drafted 2026-09-25, re-read before use)
+## 6. The Goliaths — the table to open with (drafted 2026-09-25, re-read before use)
 
-**BF Species Dragonborn** (Fighter 5 Champion, Longsword; Soldier → Savage Attacker, which waits
-for the origin-feat round). SWEEP §6 read every Dragonborn trait as NATIVE or OUT — so the walk is
-mostly "does Battle Flow leave dnd5e alone", plus the machines a breath save runs through.
+Six **BF Species Goliath** characters (Fighter 5 Champion, Longsword), one per Giant Ancestry.
+Each carries its ancestry boon (**3/3** uses — PB per Long Rest), **Large Form** (1/1) and
+**Powerful Build**; their origin feats (Tavern Brawler, Savage Attacker, Tough, Alert, Lucky,
+Skilled) wait for the origin-feat round. The Slice A machines: Fire's Burn and Frost's Chill are
+CLOCK RIDERS, Hill's Tumble a HIT-MENU press, Stone's Endurance an INTERRUPT reduction (§1, §2).
+Targets: the Practice Dummies (Medium); for "too large", a Huge creature is needed (none on
+Party Camp — make one from the MM on the user's say, or skip the row).
 
 | Trait | What you should see |
 | --- | --- |
-| **Breath Weapon** (the ancestry's typed activity — 15-ft cone or 30-ft line, Dex save, PB uses per Long Rest; replaces one attack) | ⚠ A cone or line is NOT a self-centered radius, so the system still asks you to place it (the auto-place class is radius/emanation from self). The save goes to every creature in the area through the save gate, half on a success, the damage auto-applied with receipts, one use spent. |
-| **Damage Resistance** (the ancestry's type) | Native: that damage type halves on the Dragonborn. |
-| **Draconic Flight** (character level 5: Bonus Action, fly speed = speed for 10 minutes, once per Long Rest) | Native: the effect lands on the Dragonborn (the cast slice self-aims a self utility). |
-| **Darkvision** | Nothing to walk. |
-| **Draconic Ancestry** (the choice) | OUT: the sheet's choice picks the typed Breath Weapon and resistance. |
+| **Fire's Burn** (Fire) | Hit a dummy: the damage offer shows a ticked *Fire's Burn* checkbox ("on any hit, while its uses last"); the card says *Fire's Burn — 1d10 fire rode this roll*; a use spent (3 → 2). Untick it: no fire, no use. At 0 uses the box does not offer. |
+| **Frost's Chill** (Frost) | As Fire's Burn with 1d6 cold, plus **Chilled** (−10 ft Speed) on the target, its clock the start of the Goliath's next turn — the effect bar shows it and it lapses then. |
+| **Hill's Tumble** (Hill) | Hit a dummy: the hit menu opens with the *Giant Ancestry* group, the row *Hill's Tumble · 1 use*; pick it → the target is Prone, receipted, no save; a use spent. One pick per hit. Against a Huge target the row greys *too large*. |
+| **Stone's Endurance** (Stone) | Attack the Stone Goliath and hit: the popup *Reaction — Stone's Endurance*; Cast rolls 1d12 + CON in the open; the damage lands reduced with a receipt, a use spent, and NO heal at full HP. ⚠ Attack hits only — save/area damage stays by hand (a bend in RULINGS' register). Lucky's rescue row may sit beside it (origin-feat round). |
+| **Storm's Thunder** (Storm) | Native: a Reaction damage activity (1d8 thunder at the creature that damaged it) — used from the sheet, the damage applied like any use. |
+| **Cloud's Jaunt** (Cloud) | Native: the system's own teleport (Bonus Action, 30 ft) — the module never moves tokens; a use spent. |
+| **Large Form** (all, character level 5) | Native: Bonus Action, the pack's *Large Form* effect on the Goliath for 10 minutes (size Large, +10 ft Speed, Advantage on Strength checks); once per Long Rest. Watch the token size — the pack's effect decides it. |
+| **Powerful Build** | Native: the pack's effect (carrying capacity; Advantage to end Grappled). Nothing to walk in combat. |
 
-**Likely questions to rule before building** (ask, with options): does a cone/line Breath Weapon
-place itself too (origin at the token, aimed at the target — a new placement shape, unlike a
-radius), and does the ancestry's damage type need a check at the Breath's roll.
+**Likely questions to rule before building** (ask, with options): does Large Form resize the
+TOKEN (Foundry 14's `token.width/height` changes, the Token Senses carrier) if the pack's effect
+does not; and Storm's Thunder as a held reaction (a popup when the Goliath is damaged, like Stone's
+Endurance) rather than a sheet use.
