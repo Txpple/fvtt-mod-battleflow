@@ -764,6 +764,14 @@ export const EMANATIONS = Object.freeze({
     caveat: "the pack's effect carries the Advantage on saves (the save gate says so) and the attack gate reads attackers' Disadvantage off it (Effect Sources — Holy Protection); the Fiend/Undead save on a melee hit is the table's",
     rule: "For the duration, you emit an aura in a 30-foot Emanation. While in the aura, creatures of your choice have Advantage on all saving throws, and other creatures have Disadvantage on attack rolls against them. In addition, when a Fiend or an Undead hits an affected creature with a melee attack roll, the attacker must succeed on a Constitution saving throw or have the Blinded condition until the end of its next turn.",
     from: "Cleric spell, level 8 (Concentration, 1 minute)" }),
+  // --- the Elf walk (2026-09-25) --------------------------------------------------------------
+  // The user: "pass without trace should have an enamation similar to the paladin one, but gratns
+  // +10 stealth, should use the saem shape". The pack ships the +10 as "Concealed"; its AREA is
+  // missing from the spell (Vendor Fixes VF-003 gives it the rule's 30-foot Emanation).
+  "Pass without Trace": Object.freeze({ kind: "spell", reach: "helpful", range: null, effect: "Concealed", incapacitated: false,
+    caveat: "the pack's effect carries the +10 to Stealth; \"leave no tracks\" is the table's",
+    rule: "You radiate a concealing aura in a 30-foot Emanation for the duration. While in the aura, you and each creature you choose have a +10 bonus to Dexterity (Stealth) checks and leave no tracks.",
+    from: "Druid / Ranger spell, level 2 (Concentration, 1 hour); the Wood Elf's lineage at character level 5" }),
   // --- the Aasimar walk (2026-09-25) -----------------------------------------------------------
   // A FEATURE emanation that stands only WHILE a named effect stands on its bearer (`while` —
   // the transformation's own effect, landed at the use by the token-lights machine), found on

@@ -97,11 +97,11 @@ suites of the machines it touched, even when `--changed` says "full".
 | **Aasimar** | **DONE 2026-09-25** (user: "everything else looks good" → "we are done with aasimar"); five findings ruled and BUILT, plus a sixth: every area placed on a token is never drawn (user: "it can be invisible, just like inner radiance") (RULINGS *The Aasimar walk*): every self-centered area placed on the token; an `enemy` area asks no ally; Necrotic Shroud's Frightened to the end of the Aasimar's next turn (**Vendor Fixes VF-002**); Inner Radiance's ring, turn-end pulse and light (the new **Token Lights** table, with the Light spell on a targeted token); Celestial Revelation's extra damage (a rider on hits, a one-target pick on a spell). `smoke-aasimar` 29/29 on the sandbox. Lucky waits for the origin-feat round. |
 | **Dragonborn** | **DONE 2026-09-25** (user: "looks good"); no findings. The roster's Draconic Ancestry choice had been skipped at creation — the pack's Fire Breath Weapon and Fire resistance added by hand (Red). Savage Attacker waits for the origin-feat round. |
 | **Dwarf** | **DONE 2026-09-25** (user: "all else is good" → "it works now") — Stonecunning BUILT on the user's word ("just run it always and assume stone ... change the vision type to tremor sense for the duration"): the new **Token Senses** table/list adds Tremorsense vision (60 ft) and Feel Tremor detection (60 ft) to the pack's own Stonecunning effect as it is created. The Practice Dummy carries MM **Stench Spray** (Dex save, Poisoned on a failure) for Dwarven Resilience's save gate. |
-| **Elves** (Drow, High, Wood) | IN WALK — the Practice Dummy also carries MM **Charm** (casts Charm Person: Wis save, Charmed) for Fey Ancestry's save gate. |
+| **Elves** (Drow, High, Wood) | IN WALK — the Practice Dummy also carries MM **Charm** (casts Charm Person: Wis save, Charmed) for Fey Ancestry's save gate. **Pass without Trace BUILT** on the user's word ("should have an enamation similar to the paladin one, but gratns +10 stealth, should use the saem shape"): an Emanations row (spell, helpful, the pack's Concealed effect) + **Vendor Fixes VF-003** (the pack's spell carries no area — given its 30-foot Emanation in memory). |
 | Gnome → Tiefling | not yet walked |
 
 **For the release:** Vendor Fixes gets a release too (v1.1.0 — VF-002); a released world needs
-Reset Defaults on the **Emanations**, **Clock Riders** and new **Token Lights** and **Token Senses** lists as well.
+Reset Defaults on the **Emanations** (now with Pass without Trace), **Clock Riders** and new **Token Lights** and **Token Senses** lists as well.
 
 ## 6. The Dragonborn — the table to open with (drafted 2026-09-25, re-read before use)
 
