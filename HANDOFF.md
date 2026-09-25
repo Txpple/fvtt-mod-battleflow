@@ -8,14 +8,24 @@
 
 ---
 
-## 0. Where things stand (2026-09-25, night — six species done, the Halflings next)
+## 0. Where things stand (2026-09-25, late night — THE SPECIES ROUND DONE, the origin feats next)
 
-**Next session: open with the Halfling's test table (§6 has it drafted) and let the user walk.**
-The user's words at the break: *"all looks good, finish up tests, prepare for handoff starting
-with halflings"*. Aasimar, Dragonborn, Dwarf, Elves, Gnomes and Goliaths are DONE (§5).
+**Next session: open with the origin-feat table (§6) and let the user walk.** The user's words at
+the break: *"do a handoff so we can work on feat origns. we wll do the full battery after that
+overnight"*. Every species is DONE (§5): Aasimar, Dragonborn, Dwarf, Elves, Gnomes, Goliaths,
+Halfling, Human, Orc, Tieflings. **After the origin feats: the FULL BATTERY, overnight** (§3).
 
 | | |
 | --- | --- |
+| **Prod** | v2.0.8 on dnd5e 6.0.5. Untouched. |
+| **main** | Slice A plus every walk fix — through the Goliaths (`30c661b` → `6a0b370` → `ff7333d`), then this session: **`b9a6f39`** Lucky's Advantage half (the gate's buy box, reminder kind `buy`, `advantage-buys.js`; the `advantage` D20 fold for a no-dialog initiative; "Initiative: N" on the rescue header), **`a2394c4`** Resourceful (the **Rest Grants** list, `rest-grants.js`), **`b12b8e3`** Relentless Endurance + Death Ward (the **Drop to 1 HP** list, `drop-to-one.js` at `dnd5e.preApplyDamage`), **`35fcc5c`** a rebuke spell with a free cast needs no slot (Hellish Rebuke on a Fiendish Legacy Tiefling). **Not pushed, not released.** Vendor Fixes `99fa7e6` (VF-002) and `637c32e` (VF-003) likewise local. |
+| **The sandbox** | runs **main** (deployed `--local`, byte-identical) and Vendor Fixes' `main`. Settings CLEAN (`verify-settings` after the Lucky lists were `--fix`ed). The server was bounced at the session's start. **The user removed several roster actors for lag** — walk whichever holders remain (§6). **BF Species Tiefling (Infernal)** carries a hand-added **Lucky** and its **Remarkable Athlete effect DISABLED** (the Lucky initiative test) — re-enable on the user's word (`manage-effect` edit, effect `1f8R9CFfhsetkhF5`, `disabled: false`). The Practice Dummy, the Grappler snake and the Dragonborn's hand-added breath stand as before. |
+| **Suites** | **None ran this session** — the user was on the box throughout. Owed: `smoke-lucky` (7 §), `smoke-rest` (3 §), `smoke-drop` (5 §) — all WRITTEN, never run (expect first-run fixes to the suites themselves) — plus every suite the Goliath pass and this session's commits touch. All of it is the overnight battery's (§3). |
+| **Docs** | RULINGS register (+2 rows: Lucky's post-roll initiative; Relentless/Death Ward's sheet-typed gap), DESIGN §8 (the forgotten-Advantage row's one carve-out), SWEEP §6 (Lucky's Advantage, Resourceful, Relentless BUILT), BACKLOG (Lucky row removed; Slice B keeps Undead Fortitude and the monster Relentless as rows of DROP_TO_ONE), §5. The per-race rulings from the Dwarf on live in commit messages and §5 until the end-of-iteration recut. |
+| **Owed by the user** | the origin-feat walk (§6) and its rulings (the four open questions there); the 46-row event audit (`slice-a-event-audit.md`); the release call; the Savage popup's rank (DESIGN §8). |
+| **Owed by Claude** | the fix pass per feat as the user reports it — the FAST loop (§3); then the overnight battery; then the docs recut and this file's retirement. |
+
+--- | --- |
 | **Prod** | v2.0.8 on dnd5e 6.0.5. Untouched. |
 | **main** | Slice A plus every walk fix so far — the Aasimar's `e600143`/`b0fe7ac`, Token Senses `804bb01`, Pass without Trace `ccf8d15`, Card Chips/Tinker `0baeaea`→`032732c`, and the Goliaths' `30c661b` (counts, Token Sizes, Rebukes, Stone's Endurance on any damage, Powerful Build) → `6a0b370` (a cast's damage roll carries its card's targets) → `ff7333d` (Stone's Endurance: one popup, the click lands it reduced) — **not pushed, not released**. Vendor Fixes `99fa7e6` (VF-002) and `637c32e` (VF-003) likewise local and unreleased. |
 | **The sandbox** | runs **main** and Vendor Fixes' `main` (both deployed `--local`, byte-identical). Settings CLEAN (`verify-settings`, after the Goliath suites). The server was bounced at the user's word (a PROCESS restart — Vendor Fixes' `module.json` change is picked up now too). **Party Camp** holds the roster (§1) plus **BF Test Grappler (Giant Constrictor Snake)** — Huge; its Constrict is a Str save → damage + Grappled (Powerful Build, the rebukes, Stone's Endurance on save damage, Hill's Tumble's "too large"). The **Practice Dummy** (actor `yqjbotCYAwbcmP0v`, both tokens) carries MM **Stench Spray** (Poisoned), **Charm** (Charm Person — Charmed) and, for the Halfling's Brave, **Horrific Visage** (Wis save, Frightened). The Dragonborn carries a hand-added Fire Breath Weapon + Fire resistance. The Stone Goliath's token was moved to x 3500, y 1400 during the walk (not by the module). ⚠ `smoke-aasimar` (like `smoke-savage`) removes BF Test Halfling's and BF Test Victim's fixture tokens from the Test Range — run `fixture-suite` before any other suite. |
@@ -80,6 +90,7 @@ Use the Practice Dummies as targets (or a roster actor as a defender for the res
 - A pack DATA defect goes to **Vendor Fixes** (`../fvtt-mod-vendorfixes`, REGISTER.md + a `scripts/patches/` file, never a crutch for module gaps); Misc Patches is retired. After a test run, `verify-settings` must read CLEAN (a new list row means the sandbox's stored list drifts — `--fix`).
 - ⚠ The harness lessons of 2026-09-24/25 (NOTES §5): a killed run must be followed by `verify-settings --fix` → `reset-fixture-state` → `fixture-suite` (the battery now sweeps first by itself); launch batteries DETACHED; a second Claude session's MCP bridge blocks every suite's preflight.
 - **Cleanup of this roster is the user's call** — it lives in the sandbox only (Actor folder BF Species, tokens on Party Camp); a prod pull wipes it like every fixture.
+- ⚠ **THE OVERNIGHT BATTERY (user, 2026-09-25: "we wll do the full battery after that overnight")** — once the origin feats are walked, on the user's word: the user OFF the box (no GM but the suite; the bridge disconnected in every session), `fixture-suite` first, then the full battery LAUNCHED DETACHED (NOTES §5). The three never-run suites (`smoke-lucky`, `smoke-rest`, `smoke-drop`) will likely need fixes to themselves — a red there is a suite bug until shown otherwise; fix and re-run that suite alone. Restore settings after (`verify-settings --fix`), and report the tally in the morning.
 - Docs recut at the end; retire this file; BACKLOG's header records the retirement.
 
 ## 4. The release, whenever the user calls it
@@ -107,25 +118,23 @@ suites of the machines it touched, even when `--changed` says "full".
 | **Tieflings** | **DONE 2026-09-25** (user: "works now, tieflings done"). One finding, fixed: Hellish Rebuke never offered on the Infernal (user: "hellish rebuke did not trigger") — `rebukes.js` demanded a free spell slot, and Fiendish Legacy's cast is "once without a spell slot" (the spell item's own use; a Fighter has no slots). A spell with its own use left no longer needs a slot; the drive casts it with `consume.spellSlot: false` and the use pays. **THE SPECIES ROUND IS COMPLETE** — the origin-feat round is next. |
 
 **For the release:** Vendor Fixes gets a release too (v1.1.0 — VF-002, VF-003); a released world needs
-Reset Defaults on the **Emanations** (now with Pass without Trace), **Clock Riders**, **Effect Sources** (Powerful Build) and new **Token Lights**, **Token Senses**, **Token Sizes**, **Rebukes** and **Card Chips** lists as well.
+Reset Defaults on the **Emanations** (now with Pass without Trace), **Clock Riders**, **Effect Sources** (Powerful Build), **Reminder Sources** (`buy`), **D20 Folds** (`Lucky:advantage`) and new **Token Lights**, **Token Senses**, **Token Sizes**, **Rebukes**, **Card Chips**, **Rest Grants** and **Drop to 1 HP** lists as well.
 
-## 6. The Halfling — the table to open with (drafted 2026-09-25, re-read before use)
+## 6. The origin feats — the table to open with (drafted 2026-09-25, re-read before use)
 
-**BF Species Halfling** (Fighter 5 Champion; a Longsword and a Longbow), Merchant → **Lucky**
-(3/3 Luck Points). Read on the sandbox at the break: Brave, Halfling Nimbleness, Luck, Naturally
-Stealthy and Lucky all present; `flags.dnd5e.halflingLucky` and `halflingNimbleness` set. The
-Practice Dummy's new **Horrific Visage** is the Frightened demand for Brave (use it from the
-Dummy's sheet with the Halfling targeted).
+Lucky is DONE (both halves — the rescue row walked in the Aasimar/Stone rounds, the Advantage buy
+built and walked in the Halfling round). ⚠ The user removed several roster actors for lag: check
+which holders remain (`search-actor-contents` / the Actor folder BF Species) before the table goes out.
 
-| Trait | What you should see |
+| Origin feat (holders, if still present) | What you should see |
 | --- | --- |
-| **Brave** | The Dummy's *Horrific Visage* at the Halfling: the save demand's roll dialog COUNTS Advantage — the box says "BF Species Halfling — Brave — against Frightened", Advantage the default. A Wisdom save rolled from the sheet with no demand LISTS Brave, not counted (a bend in RULINGS' register: the repeat save to end it). |
-| **Luck** | Native: a natural 1 on a d20 test (attack, check, save) is rerolled by the system itself — the roll shows the reroll (`r1`). Nothing of the module's. |
-| **Halfling Nimbleness** | Native (a sheet flag): moving through a larger creature's space — nothing enforces it or stops it; nothing to walk. |
-| **Naturally Stealthy** | OUT: hiding behind a larger creature is the table's. Expect nothing. |
-| **Lucky** — Disadvantage on an attack against you | Attack the Halfling and HIT (a Goliath's Longsword, or the snake): the Halfling's popup *Lucky — BF Species Halfling* with the row "Lucky · 1 Luck Point · 3 left"; Answer → a second d20 with the attack's own modifiers, the LOWER stands, the verdict re-runs (a natural 20 can be undone); the attacker's card says "Lucky bent the roll — Disadvantage, 17 → 13, MISS"; a point spent. At 0 points the row greys "no Luck Points left". ⚠ An attack rolled with Advantage cancels to the FIRST die (the register). |
-| **Lucky** — Advantage on your own d20 | PARKED: spend the point from the sheet and pick Advantage in the roll dialog yourself. Expect no prompt. |
+| **Savage Attacker** (Dragonborn, Fire Goliath) | **Ours (Slice A):** after a weapon hit stands, the popup "Savage Attacker — name": tick the row, **Roll again** → the card shows both damage sets, the loser struck, "the higher stands"; **Keep the roll** → nothing spent. A second hit the same turn: no popup, "used this turn". On the Fire Goliath: Fire's Burn is the damage offer's checkbox, Savage asks once the hit stands. |
+| **Tough** (Dwarf, Frost Goliath) | Native: +2 max HP per level. Nothing to walk. |
+| **Alert** (Drow, Hill Goliath, Abyssal Tiefling) | Native: Proficiency Bonus on initiative. The **initiative swap** with a willing ally is NOT built — ⚠ open question. |
+| **Magic Initiate** (High Elf, Wood Elf, Chthonic Tiefling) | Native: the spells are on the sheet and run through the spell machines. |
+| **Healer** (Forest Gnome — a Cleric) | Battle Medic native. ⚠ **Healing Rerolls on SPELLS is PARKED** (BACKLOG) — Cure Wounds won't reroll 1s — open question: build now? |
+| **Tavern Brawler** (Cloud Goliath) | Native: the Unarmed Strike rerolls 1s on damage. ⚠ The **Push** (5 ft, once per turn) is NOT built — open question. |
+| **Crafter** (Rock Gnome), **Musician** (Human), **Skilled** (several) | Out of combat / proficiencies on the sheet. Nothing to walk. |
 
-**Likely questions to rule before building:** Lucky's Advantage half as an offer (a popup before
-the Halfling's own attack or save, like Heroic Inspiration's fold) rather than the sheet — parked
-since Slice A, the user's call to unpark.
+**Open questions to put to the user as each comes up** (options, not prose): Healer's spell
+rerolls; Tavern Brawler's Push; Alert's swap; and re-enabling the Tiefling's Remarkable Athlete.
