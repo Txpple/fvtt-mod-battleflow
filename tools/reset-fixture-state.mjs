@@ -29,6 +29,24 @@ await preflightSoleGM(f);
 const out = await f.evaluate(async () => {
   const names = ['BF Test Victim', 'BF Test Attacker', 'BF Test Shielder', 'BF Test PC Attacker'];
   const report = [];
+  // ⚠ A KILLED suite leaves its LINKED tokens standing (2026-09-24: a battery killed inside
+  // smoke-hitmenu left a linked BF Test Fighter one square from a linked BF Test Attacker, and
+  // every later suite that measures distance from the shared attacker — smoke-battleflow's
+  // auto-crit, every volley ray — was judged from that square: two batteries red, no module
+  // change). The fixtures' own tokens are UNLINKED; every suite that places its own places a
+  // LINKED one and removes it in a teardown a kill skips. So: every linked token of a BF Test
+  // actor on the test range goes, first, before anything measures anything — EXCEPT the tokens
+  // fixture-suite placed, which carry its `fixtureHome` stamp (the built fixtures are linked by
+  // nature; the first sweep without the stamp took all eleven of them).
+  const range = game.scenes.getName('Battle Flow Test Range');
+  if (range) {
+    const linked = range.tokens.filter(t => t.actorLink && /^BF Test /.test(game.actors.get(t.actorId)?.name ?? '')
+      && !t.getFlag('fvtt-mod-battleflow', 'fixtureHome'));
+    if (linked.length) {
+      await range.deleteEmbeddedDocuments('Token', linked.map(t => t.id));
+      report.push(`swept ${linked.length} linked stray token(s): ${linked.map(t => `${game.actors.get(t.actorId)?.name} @ ${t.x},${t.y}`).join('; ')}`);
+    } else report.push('no linked stray tokens on the test range');
+  }
   for (const n of names) {
     const a = game.actors.getName(n);
     if (!a) { report.push(`${n}: MISSING`); continue; }

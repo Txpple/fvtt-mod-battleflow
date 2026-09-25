@@ -42,6 +42,9 @@ const TOOLS = dirname(fileURLToPath(import.meta.url));
  * (2026-09-23): the battery knows the dependency, so it runs it rather than naming it.
  */
 export const ORDER = [
+  // ⚠ FIRST, before anything measures a distance: a killed run's linked strays are swept
+  // (2026-09-24 — a battery killed inside smoke-hitmenu poisoned the next two).
+  { name: "reset-fixture-state", note: "not a suite — sweeps a killed run's linked strays before anything measures distance", reset: true },
   { name: "smoke-battleflow", note: "the Phase 1 chain + the player-damage offer (§5d)" },
   {
     name: "smoke-hold", note: "⚠ MUST follow smoke-battleflow immediately — it rides its tokens",

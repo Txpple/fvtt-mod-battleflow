@@ -184,6 +184,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // -------------------------------------------------- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
+    // ⚠ The gate reads the CASTER's square off actor.getActiveTokens()[0] for a linked actor, so a
+    // linked stray of the NPC a killed suite left (smoke-hitmenu's, 2026-09-24) is the square
+    // every ray was judged from — "within 5 feet of BF Test Fighter" on all eleven §9-§11 lines.
+    // Linked strays of our three actors go first, and the row must stand on clear ground.
+    {
+      const strays = scene.tokens.filter(t => t.actorLink && [npc.id, victim.id, shielder.id].includes(t.actorId)).map(t => t.id);
+      if (strays.length) { await scene.deleteEmbeddedDocuments('Token', strays); log.push(`swept ${strays.length} linked stray token(s)`); }
+      const g = scene.grid.size;
+      const near = scene.tokens.filter(t => (Math.abs(t.y - 1400) <= 2 * g) && (t.x >= 900 - 2 * g) && (t.x <= 1200 + 2 * g));
+      ok('0. the volley row (900-1200, 1400) stands on clear ground — no token within 10 ft of it',
+        !near.length, `near=${near.map(t => `${t.name} @ ${t.x},${t.y}`).join('; ') || 'none'}`);
+    }
     const mkToken = async (actor, x) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [
         foundry.utils.mergeObject(actor.prototypeToken.toObject(),

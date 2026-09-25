@@ -197,7 +197,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     if (canvas.scene?.id !== scene.id) await scene.view();
     for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
-    const strays = scene.tokens.filter(t => [victim.id, second.id, fighter.id].includes(t.actorId)).map(t => t.id);
+    // LINKED strays only (2026-09-24): the shared fixture's UNLINKED tokens belong to every other
+    // suite — deleting them here, then dying mid-run, left this suite's linked leftovers as the
+    // tokens the other suites measured from. The teardown removes our own; this is the backstop.
+    const strays = scene.tokens.filter(t => t.actorLink && [victim.id, second.id, fighter.id].includes(t.actorId)).map(t => t.id);
     if (strays.length) await scene.deleteEmbeddedDocuments('Token', strays);
     const placeToken = async (actor, x, y) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [

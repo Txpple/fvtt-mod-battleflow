@@ -435,14 +435,23 @@ const out = await f.evaluate(async ({ playerName }) => {
     if (strays.length) log.push(`adopted ${strays.length} stray BF Test actor(s) into the folder`);
 
     // --- tokens on the scene -----------------------------------------------------------------
+    // ⚠ Every token this tool places carries `flags.fvtt-mod-battleflow.fixtureHome` — the stamp
+    // reset-fixture-state keeps when it sweeps a killed suite's LINKED leftovers (2026-09-24: a
+    // battery killed inside smoke-hitmenu left its linked tokens beside the shared attacker and
+    // two batteries measured distance from them). A suite's own token never carries the stamp.
     const ensureToken = async (actor, x, linked, y = 1000) => {
       let doc = scene.tokens.find(t => t.actorId === actor.id);
       if (!doc) {
         [doc] = await scene.createEmbeddedDocuments("Token", [foundry.utils.mergeObject(
           actor.prototypeToken.toObject(),
-          { x, y, actorId: actor.id, actorLink: linked }, { inplace: false })]);
+          { x, y, actorId: actor.id, actorLink: linked, flags: { "fvtt-mod-battleflow": { fixtureHome: true } } },
+          { inplace: false })]);
         log.push(`placed a token for ${actor.name}`);
-      } else if ((y !== 1000) && ((doc.x !== x) || (doc.y !== y))) {
+      } else if (!doc.getFlag("fvtt-mod-battleflow", "fixtureHome")) {
+        await doc.setFlag("fvtt-mod-battleflow", "fixtureHome", true);
+        log.push(`stamped ${actor.name}'s token as the fixture home`);
+      }
+      if (doc && (y !== 1000) && ((doc.x !== x) || (doc.y !== y))) {
         // A built fixture with a HOME off the fixture line goes back to it every run (the Paladin's
         // always-on aura must not stand over the line between suites).
         await doc.update({ x, y }, { teleport: true, animate: false });
