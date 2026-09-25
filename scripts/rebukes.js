@@ -77,19 +77,27 @@ function offersFor(actor, source) {
     const activity = reactionActivity(item, row);
     if ( !activity && !row.attack ) continue;
     const pool = activity ? poolOf(actor, activity) : null;
-    const usesMax = Number(pool?.system?.uses?.max ?? 0);
-    const usesLeft = (usesMax > 0) ? Number(pool.system.uses.value ?? 0) : null;
+    // A SPELL WITH USES OF ITS OWN (the Tiefling walk, 2026-09-25: "hellish rebuke did not trigger"):
+    // Fiendish Legacy grants Hellish Rebuke "once without a spell slot" per Long Rest — the spell
+    // item's own uses — and a Fighter has no slots at all. While a free cast is left, the slot is not
+    // asked for; the drive casts it slotless and the use pays (`free`). With none left, a slot is.
+    const ownUses = (item.type === "spell") && (Number(item.system?.uses?.max) > 0);
+    const usesMax = Number((pool ?? (ownUses ? item : null))?.system?.uses?.max ?? 0);
+    const usesLeft = (usesMax > 0) ? Number((pool ?? item).system.uses.value ?? 0) : null;
+    const free = (item.type === "spell") && (usesLeft !== null) && (usesLeft > 0);
     const reach = rebukeReach(row, activity ? feetOf(activity.range?.value, activity.range?.units) : null);
     const blocked = rebukeBlocked({
       self: actor.uuid === source.uuid, hp: Number(actor.system?.attributes?.hp?.value ?? 0),
-      reactionSpent: reactionSpent(actor), distance, reach, usesLeft, slot: slotStands(actor, item),
+      reactionSpent: reactionSpent(actor), distance, reach,
+      usesLeft: (item.type === "spell") ? null : usesLeft,              // a spell with no free cast left may still take a slot
+      slot: free ? null : slotStands(actor, item),
       whileStands: row.while ? actor.effects.some(e => !e.disabled && (lower(e.name) === lower(row.while))) : null,
       equipped: row.equipped ? !!item.system?.equipped : null
     });
     if ( blocked ) continue;
     out.push({ name, itemId: item.id, activityId: activity?.id ?? null, img: item.img, reach,
-      attack: row.attack ?? null, advantage: !!row.advantage,
-      cost: rebukeCost({ usesLeft, usesMax, spell: slotStands(actor, item) !== null }) });
+      attack: row.attack ?? null, advantage: !!row.advantage, free, handUse: free && !pool,
+      cost: rebukeCost({ usesLeft, usesMax, spell: !free && (slotStands(actor, item) !== null) }) });
   }
   return { distance, options: out };
 }
@@ -213,7 +221,13 @@ async function driveRebuke(message, option) {
       } else {
         const activity = item?.system?.activities?.get(option.activityId) ?? null;
         if ( activity?.type !== "attack" ) {
-          if ( activity ) await activity.use({}, { configure: false }, { data: { flags: { [MODULE_ID]: { rebukeFor: message.id } } } });
+          // The free cast (2026-09-25): no slot; the use pays — through the activity's own item-use
+          // target when it has one, by hand when the uses sit on the spell with no target naming them.
+          const usage = option.free ? { consume: { spellSlot: false } } : {};
+          if ( activity ) {
+            const done = await activity.use(usage, { configure: false }, { data: { flags: { [MODULE_ID]: { rebukeFor: message.id } } } });
+            if ( done && option.handUse && item ) await item.update({ "system.uses.spent": Number(item.system.uses?.spent ?? 0) + 1 });
+          }
           return;
         }
         attack = activity;
