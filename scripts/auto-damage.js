@@ -178,7 +178,7 @@ function rolledCritStands(attackMessage) {
  */
 export function attackMessageForDamage(config, message) {
   const data = message?.data ?? {};
-  const forId = data[`flags.${MODULE_ID}.attackFor`] ?? foundry.utils.getProperty(data, `flags.${MODULE_ID}.attackFor`);
+  const forId = foundry.utils.getProperty(data, `flags.${MODULE_ID}.attackFor`) ?? data[`flags.${MODULE_ID}.attackFor`];
   if ( forId ) return game.messages.get(forId) ?? null;
   const cardId = config?.event?.target?.closest?.(SURFACES.messageId)?.dataset?.messageId
     ?? originIdInData(data);
@@ -249,12 +249,16 @@ export async function rollDamageForAttack(activity, attackMessage) {
     // so its dice do nothing). The hold is read at ROLL time, not offer time: a hold that
     // resolved while the popup sat open needs no claim and applies straight.
     const holdPending = attackMessage.getFlag(MODULE_ID, "hold")?.status === "pending";
+    // ⚠ The stamps ride NESTED under `flags`, never as dotted keys (2026-09-24, the Slice A live
+    // run): dnd5e merges this data without expanding it, every preRollDamageV2 stamp (weaponRolls,
+    // autoCrit, a rider's record) is written nested with setProperty, and a created message whose
+    // data holds both a nested `flags.<module>` and a dotted `flags.<module>.x` keeps only the
+    // nested one — measured: `attackFor` and `attackHoldPending` vanished from every driven roll.
     await activity.rollDamage(
       { ability, ammunition, attackMode, isCritical },
       { configure: false },
       { data: { ...originData(originId),
-        [`flags.${MODULE_ID}.attackFor`]: attackMessage.id,
-        ...(holdPending ? { [`flags.${MODULE_ID}.attackHoldPending`]: true } : {}) } }
+        flags: { [MODULE_ID]: { attackFor: attackMessage.id, ...(holdPending ? { attackHoldPending: true } : {}) } } } }
     );
   } catch(err) {
     console.error(`${TITLE} | Auto-roll damage failed.`, err);

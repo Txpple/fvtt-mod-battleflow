@@ -148,7 +148,7 @@ async function rollToppleSave(message, target, { mode = null, bonus = null, time
     { configure: false },
     { data: {
       ...originData(message.id),
-      ...(timedOut ? { [`flags.${MODULE_ID}.timedOut`]: true } : {})
+      ...(timedOut ? { flags: { [MODULE_ID]: { timedOut: true } } } : {})   // nested: a roll hook's nested stamp would displace a dotted key
     } });
 }
 

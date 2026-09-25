@@ -441,11 +441,11 @@ async function driveDarts(message, activity, v) {
   for ( const a of (v.assignment ?? []) ) {
     if ( !(a.count > 0) ) continue;
     await aimed(a.uuid, async () => {
+      // Nested, never dotted: a preRollDamageV2 stamp nests under the same flags and would
+      // displace a dotted key (auto-damage.js rollDamageForAttack says how it was found).
       const rolls = await activity.rollDamage({}, { configure: false }, { data: {
         ...originData(message.id),
-        [`flags.${MODULE_ID}.volleyFor`]: message.id,
-        [`flags.${MODULE_ID}.volleyTarget`]: a.uuid,
-        [`flags.${MODULE_ID}.volleyDarts`]: a.count
+        flags: { [MODULE_ID]: { volleyFor: message.id, volleyTarget: a.uuid, volleyDarts: a.count } }
       } });
       // The caster's own claim release (hold/spell-hold.js's releaseUnheldSpellDamage cannot see these
       // rolls — it polls at USE time and the volley rolls arrive a popup later): a
@@ -501,9 +501,7 @@ async function driveRays(message, activity, v) {
         : {};
     await aimed(ray.uuid, () => activity.rollAttack(cfg, { configure: false }, { data: {
       ...originData(message.id),
-      [`flags.${MODULE_ID}.volleyFor`]: message.id,
-      [`flags.${MODULE_ID}.volleyRay`]: i + 1,
-      ...(record ? { [`flags.${MODULE_ID}.${REMINDER_FLAG}`]: record } : {})
+      flags: { [MODULE_ID]: { volleyFor: message.id, volleyRay: i + 1, ...(record ? { [REMINDER_FLAG]: record } : {}) } }
     } }));
   }
 }
@@ -515,7 +513,7 @@ async function driveRays(message, activity, v) {
  * IS the pending message's own flag, so nothing here can leak across rolls.
  */
 Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
-  const k = Number(message?.data?.[`flags.${MODULE_ID}.volleyDarts`]) || 0;
+  const k = Number(foundry.utils.getProperty(message?.data ?? {}, `flags.${MODULE_ID}.volleyDarts`)) || 0;
   if ( k < 2 ) return;
   const base = config.rolls?.[0];
   if ( !base ) return;

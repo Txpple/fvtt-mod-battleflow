@@ -240,8 +240,7 @@ async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {})
       await weaponAct.rollAttack({}, { configure: false }, {
         data: {
           ...originData(usageId ?? message.id),
-          [`flags.${MODULE_ID}.riposteFor`]: message.id,
-          [`flags.${MODULE_ID}.riposteBy`]: uuid
+          flags: { [MODULE_ID]: { riposteFor: message.id, riposteBy: uuid } }
         }
       });
       // The rest is the ordinary pipeline: rollAttackV2 fires here (P3), auto-damage rolls
