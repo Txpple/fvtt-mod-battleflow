@@ -224,6 +224,17 @@ export const MOMENT_RECORDS = Object.freeze({
     }] : []
   },
 
+  initiativeSwap: {
+    events: ["choice"],
+    means: "an Initiative swap was answered — Alert's pick of an ally, swapped in the tracker by the elect, or no swap (initiative-swap.js, the origin feats 2026-09-25); resolved at No, or when the swap is applied",
+    resolved: (r) => ((r?.answer === "no") || ((r?.answer === "swap") && r?.applied)) ? [{
+      marker: "message", events: ["choice"],
+      facts: { actor: r.actorUuid ?? null, ability: r.row ?? null,
+        targets: (r.allies ?? []).filter(a => a.combatantId === r.pick).map(a => ({ uuid: a.uuid ?? null, name: a.name ?? null })),
+        details: { answer: r.answer, from: r.from ?? null, to: r.to ?? null, timedOut: !!r.timedOut } }
+    }] : []
+  },
+
   restSong: {
     events: ["choice"],
     means: "a rest grant GIVEN to allies was answered and landed — Musician's Encouraging Song, Heroic Inspiration to the picked allies (rest-grants.js); resolved when `applied`",
@@ -662,6 +673,8 @@ export const STATE_KEYS = Object.freeze({
   rebukeAnswer: "an envelope — a rebuke's answer; the fold onto the rebuke flag is the resolve",
   damageHoldAnswer: "an envelope — a damage hold's answer; the fold onto the damageHold flag is the resolve",
   dropToOneAnswer: "an envelope — a drop-to-1 answer; the fold onto the dropToOne flag is the resolve",
+  initiativeSwapAnswer: "an envelope — a player's Initiative swap answer; the fold onto the initiativeSwap flag, landed by the elect, is the resolve",
+  initiativeSwapAsked: "a combat flag — the once-per-combat latch of who was asked about an Initiative swap; initiativeSwap on the card is the resolve",
   restSongAnswer: "an envelope — a player's picks for a rest song; the fold onto the restSong flag, landed by the elect, is the resolve",
   emanationTypeAnswer: "an envelope — the caster's type pick; the fold onto emanationCard is the resolve",
   momentAck: "an envelope — a notice acknowledged; presentation, not a moment",

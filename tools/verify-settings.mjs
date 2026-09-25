@@ -74,6 +74,7 @@ const REFERENCE = {
   metamagicList: LIST_SPECS.metamagic.default,              // the whole metamagic table, as shipped (2026-09-09)
   spentAreaList: LIST_SPECS.spentAreas.default,             // the whole spent-area table, as shipped (2026-09-10)
   chosenAreaList: LIST_SPECS.chosenAreas.default,           // the whole chosen-area table, as shipped (2026-09-24)
+  initiativeSwapList: LIST_SPECS.initiativeSwaps.default,  // the whole initiative-swap table, as shipped (the origin feats, 2026-09-25)
   healRerollList: LIST_SPECS.healRerolls.default,          // the whole healing-reroll table, as shipped (the origin feats, 2026-09-25)
   damageEitherList: LIST_SPECS.damageEither.default,        // the whole rolled-twice table, as shipped (Slice A, 2026-09-24)
   tokenLightList: LIST_SPECS.tokenLights.default,           // the whole token-light table, as shipped (the Aasimar walk, 2026-09-25)

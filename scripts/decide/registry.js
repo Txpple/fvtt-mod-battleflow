@@ -1810,6 +1810,23 @@ export const HEAL_REROLLS = Object.freeze({
 const HEAL_REROLL_NAMES = tableIndex(HEAL_REROLLS).names;
 
 /**
+ * THE INITIATIVE SWAPS (the origin feats, 2026-09-25 — user: "initiative swap should have a form
+ * after initiative all roll, list non incapacitated allies, each persons initiative, and they can
+ * select which to swap, and then swap yes no buttons"; "alert pick is enough"): a feature that lets
+ * its owner trade Initiative with a willing ally right after Initiative is rolled. Once every
+ * combatant has an Initiative the owner is asked, once per combat; the allies listed are those on
+ * the owner's side who are not Incapacitated, each with their Initiative; Swap exchanges the two
+ * numbers in the tracker (initiative-swap.js). The owner's pick is the willingness (ruled).
+ * ⚠ NOT A KIND — one table read by one machine; a second customer is a row.
+ */
+export const INITIATIVE_SWAPS = Object.freeze({
+  "Alert": Object.freeze({
+    rule: "Initiative Swap. Immediately after you roll Initiative, you can swap your Initiative with the Initiative of one willing ally in the same combat. You can’t make this swap if you or the ally has the Incapacitated condition.",
+    from: "Origin feat (Criminal, Guard)" })
+});
+const INITIATIVE_SWAP_NAMES = tableIndex(INITIATIVE_SWAPS).names;
+
+/**
  * THE R4 TRIPWIRE, AS DATA (DESIGN.md R4, ARCHITECTURE §6).
  *
  * R4's bargain is that a new ABILITY costs a data entry and zero code, and that this is safe
@@ -2057,6 +2074,14 @@ export const LIST_SPECS = {
     // reach in saves/demand.js and the ask at the area in metamagic.js.
     columns: ["kind"], kindColumn: "kind", kinds: CHOSEN_AREA_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(CHOSEN_AREAS).join(", ")
+  },
+  initiativeSwaps: {
+    label: "Initiative Swaps", setting: "initiativeSwapList",
+    // Which rows of the initiative-swap table ask once Initiative is rolled — the FEATURE names,
+    // whole-chunk, case-insensitive. Membership over INITIATIVE_SWAPS; the mechanism is
+    // initiative-swap.js (the origin feats, 2026-09-25). The list is the switch.
+    columns: ["kind"], kindColumn: "kind", kinds: INITIATIVE_SWAP_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(INITIATIVE_SWAPS).join(", ")
   },
   healRerolls: {
     label: "Healing Rerolls", setting: "healRerollList",

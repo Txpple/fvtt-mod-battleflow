@@ -136,6 +136,11 @@ export const ORDER = [
     name: "smoke-drop", note: "drop to 1 HP — Relentless Endurance held at 1 and asked (Drop to 1 spends the use, Drop to 0 lands the 0), none when killed outright; Death Ward automatic, its effect removed",
     needs: ["fixture-suite"]
   },
+  // The origin feats (2026-09-25): BF Test Halfling is lent the PHB's Alert; its own combats and tokens.
+  {
+    name: "smoke-alert", note: "the Initiative swap — Alert asked once every combatant has an Initiative, the non-Incapacitated allies listed with theirs, Swap exchanging the two in the tracker; once per combat, No, the clock, the list",
+    needs: ["fixture-suite"]
+  },
   // The origin feats (2026-09-25): BF Test Cleric is lent the PHB's Healer and Cure Wounds for the run.
   {
     name: "smoke-heal", note: "the healing rerolls — Healer's 1s on a healing spell and on Battle Medic (its own r1 taken off): Empowered's dice popup, the 1s ticked, the healing waiting for the answer and landing once; kept, none, the clock, the list",

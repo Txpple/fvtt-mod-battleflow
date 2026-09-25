@@ -150,6 +150,9 @@ import "./damage-either.js";
 // popup beside Savage's — the same seams (a preRollDamageV2 birth flag, rollDamageV2's offer) on a
 // HEALING roll, which no damage machine reads; cast.js's heal applier waits on its claim.
 import "./heal-rerolls.js";
+// initiative-swap.js (2026-09-25, the origin feats — Alert): its own moment (the last Initiative
+// landing, updateCombatant on the elect) and its own card; its place in the order matters to nothing.
+import "./initiative-swap.js";
 // ⚠ THE MANEUVER FOLDS after mastery.js, before concentration.js ON PURPOSE (v1.19.0): their
 // card rows must render below the mastery rows and above the saves verdict row / receipt rows —
 // renderChatMessage surface order IS registration order. check-hook-order.mjs asserts it.

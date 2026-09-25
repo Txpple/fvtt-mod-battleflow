@@ -286,6 +286,14 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.healRerolls.default
   });
 
+  // INITIATIVE SWAPS (the origin feats, 2026-09-25): Alert's swap, asked once every combatant has
+  // an Initiative. A list; the list is the switch.
+  game.settings.register(MODULE_ID, S.initiativeSwapList, {
+    name: "Initiative Swaps",
+    hint: "A feature that swaps its owner's Initiative with an ally's, by the feature's own name, separated by commas — Alert. Once every combatant has rolled Initiative, the owner gets a popup (once per combat) listing the allies on their side who are not Incapacitated, each with their Initiative; pick one and Swap exchanges the two numbers in the tracker, No leaves the order. An Incapacitated owner is not asked. A GM must be on to write the tracker. Remove a name to swap by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.initiativeSwaps.default
+  });
+
   // TOKEN LIGHTS (the Aasimar walk, 2026-09-25): a use whose text sheds light carries it as the
   // token's own light on an effect (Foundry 14's `token.*` changes). A list; the list is the switch.
   game.settings.register(MODULE_ID, S.tokenLightList, {
@@ -723,6 +731,11 @@ export function spentAreaListed(itemName) {
 /** Which rows of the chosen-area table ask their caster who they affect, by the spell's name — `{ kind }`. */
 export function chosenAreaEntries() {
   return listEntries(LIST_SPECS.chosenAreas);
+}
+
+/** Which rows of the initiative-swap table ask once Initiative is rolled, by the feature's name — `{ kind }`. */
+export function initiativeSwapEntries() {
+  return listEntries(LIST_SPECS.initiativeSwaps);
 }
 
 /** Which rows of the healing-reroll table ask on a healing roll, by the feature's name — `{ kind }`. */

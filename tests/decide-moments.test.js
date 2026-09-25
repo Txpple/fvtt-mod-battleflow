@@ -133,6 +133,19 @@ describe("the moment registry — shape", () => {
         newTotal: 14,
         delta: 5
       },
+      initiativeSwap: {
+        status: "resolved",
+        row: "Alert",
+        actorUuid: "Actor.al",
+        actorName: "Alert",
+        initiative: 11,
+        allies: [{ combatantId: "c1", name: "Gren", initiative: 19, uuid: "Actor.g" }],
+        answer: "swap",
+        pick: "c1",
+        applied: true,
+        from: 11,
+        to: 19
+      },
       restSong: {
         status: "resolved",
         row: "Musician",
