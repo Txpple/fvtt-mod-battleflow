@@ -136,5 +136,16 @@ which holders remain (`search-actor-contents` / the Actor folder BF Species) bef
 | **Tavern Brawler** (Cloud Goliath) | Native: the Unarmed Strike rerolls 1s on damage. ⚠ The **Push** (5 ft, once per turn) is NOT built — open question. |
 | **Crafter** (Rock Gnome), **Musician** (Human), **Skilled** (several) | Out of combat / proficiencies on the sheet. Nothing to walk. |
 
-**Open questions to put to the user as each comes up** (options, not prose): Healer's spell
-rerolls; Tavern Brawler's Push; Alert's swap; and re-enabling the Tiefling's Remarkable Athlete.
+**RULED 2026-09-25 (all three to be BUILT, drawn in `prototypes/origin-feats.html`; awaiting the prototype's ruling + go):**
+1. **Healer — Healing Rerolls:** YES, the Empowered Spell popup as the baseline (every die listed, the 1s
+   pickable, pick the ones to replace, Reroll / Keep). On healing SPELLS **and Battle Medic itself**
+   (user: "make sure the healer feat itself gets the 1 popup too not just spells") — the pack's `r1`
+   in Battle Medic's formulas comes out so it asks the same way.
+2. **Tavern Brawler — Push:** YES, mimic Shield Master's bash offer (Push / Pass after the damage lands,
+   once per turn; announced, the token moved by hand).
+3. **Alert — Initiative Swap:** YES, a popup once everyone has rolled initiative: the non-Incapacitated
+   allies with their initiative, pick one, Swap / No.
+
+The roster for these is the **BF Feats** folder (Savage Attacker, Alert, Healer, Tavern Brawler — Dwarf,
+level 5, on Party Camp); the BF Species tokens are off the scene, the actors kept.
+Still open: re-enabling the Tiefling's Remarkable Athlete.
