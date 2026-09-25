@@ -1144,6 +1144,18 @@ measured.
 legitimately rare case gets tuned until it passes, and a tuned-out check still *reads* as coverage.
 When the honest answer is "a human must look at this", print it and say so.
 
+**A driven roll stamps its module flags NESTED, never as dotted keys** (2026-09-24, the Slice A live
+run, 7eca747). A chat message given flags both as `flags: { battleflow: {...} }` and as
+`"flags.battleflow.x"` keeps only the nested object — the dotted keys are silently lost on create.
+Savage Attacker's `weaponRolls` stamp, written dotted, erased `attackFor` and `attackHoldPending`
+from every driven damage roll, and the older rider stamps (Sneak, clock riders, hit maneuvers,
+auto-crit) could do the same. Every stamp on a driven roll now goes in one nested object
+(`auto-damage.js`, `volleys.js`, `riposte.js`, `topple.js`); the readers accept both shapes.
+
+**dnd5e 6.0 marks a roll's mode on the die, not with kh/kl** (2026-09-24, 32894d7): an Advantage
+attack is `2d20adv` with the modifier `["adv"]` (`adv2` for Elven Accuracy), Disadvantage `dis`;
+core Foundry's `kh`/`kl` never appear. Anything reading a d20's mode off the roll reads both.
+
 ---
 
 ## 5. Process

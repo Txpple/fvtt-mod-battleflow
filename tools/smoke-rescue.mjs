@@ -11,8 +11,8 @@
 // Dodge are ADDED to the Halfling from the PHB classes pack for §3/§4 and removed in the teardown —
 // no fixture of their own (a Light Domain cleric and a level-15 Gloom Stalker would each be one).
 //
-// ⚠ WRITTEN 2026-09-24 AND NOT YET RUN: the one sandbox was in use by the parallel build. The first
-// run is the orchestrator's, after the merge; read a red here as possibly the suite's own.
+// Written blind 2026-09-24 (the sandbox was in use by the parallel build) and first run the same night:
+// 18/18 after two CODE fixes it caught (7eca747 nested flag stamps, 32894d7 dnd5e's adv/dis markers).
 //
 // Harness discipline: every setting touched is restored; every message this run creates is deleted;
 // the Luck Points and uses it spends are refilled; the items and tokens it adds are removed.

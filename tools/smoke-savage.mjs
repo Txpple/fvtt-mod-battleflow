@@ -8,8 +8,8 @@
 // Fixtures: BF Test Halfling (Rogue 3 with Lucky and Savage Attacker and a Shortsword — added to
 // tools/fixture-suite.mjs by the Slice A tier 1+2 build) and BF Test Victim (the goblin).
 //
-// ⚠ WRITTEN 2026-09-24 AND NOT YET RUN: the one sandbox was in use by the parallel build. The first
-// run is the orchestrator's, after the merge; read a red here as possibly the suite's own.
+// Written blind 2026-09-24 (the sandbox was in use by the parallel build) and first run the same night:
+// 26/26 after two CODE fixes it caught (7eca747 nested flag stamps, 32894d7 dnd5e's adv/dis markers).
 //
 // Harness discipline: every setting touched is restored; every message this run creates is
 // deleted; the chits it writes are cleared; the tokens it places are removed; its combat is deleted.
