@@ -202,6 +202,28 @@ export const MOMENT_RECORDS = Object.freeze({
     }) : []
   },
 
+  damageHold: {
+    events: ["hold-answered"],
+    means: "a reduction \"when you take damage\" was answered before the damage landed — cast or taken (damage-holds.js: Stone's Endurance on any damage); the landing is the receipt's",
+    resolved: (r) => r?.answer ? [{
+      marker: "message", events: ["hold-answered"],
+      facts: { actor: r.actorUuid ?? null, ability: r.reaction ?? null,
+        targets: r.target?.uuid ? [{ uuid: r.target.uuid, name: r.target.name ?? null }] : [],
+        details: { answer: r.answer, reduceBy: Number(r.reduceBy) || 0, amount: r.amount ?? null, timedOut: !!r.timedOut } }
+    }] : []
+  },
+
+  rebuke: {
+    events: ["hold-answered"],
+    means: "a rebuke's offer — a Reaction to taking damage, aimed at its dealer — was answered, used or passed (rebukes.js); one resolve per offer",
+    resolved: (r) => r?.answer ? [{
+      marker: "message", events: ["hold-answered"],
+      facts: { actor: r.actorUuid ?? null, ability: r.choice ?? r.options?.[0]?.name ?? null,
+        targets: r.sourceUuid ? [{ uuid: r.sourceUuid, name: r.sourceName ?? null }] : [],
+        details: { answer: r.answer, distance: r.distance ?? null, amount: r.amount ?? null, timedOut: !!r.timedOut } }
+    }] : []
+  },
+
   riposte: {
     events: ["maneuver"],
     means: "Riposte's offer on an enemy's miss was answered by each reactor — strike back or decline (riposte.js); one resolve per reactor with an answer",
@@ -606,6 +628,8 @@ export const STATE_KEYS = Object.freeze({
   sweepAnswer: "an envelope — the sweep's pick; the fold onto sweepCard is the resolve",
   saveChoiceAnswer: "an envelope — a save-side choice; the fold onto the saves flag is the resolve",
   riposteAnswer: "an envelope — a reactor's answer; the fold onto the riposte flag is the resolve",
+  rebukeAnswer: "an envelope — a rebuke's answer; the fold onto the rebuke flag is the resolve",
+  damageHoldAnswer: "an envelope — a damage hold's answer; the fold onto the damageHold flag is the resolve",
   emanationTypeAnswer: "an envelope — the caster's type pick; the fold onto emanationCard is the resolve",
   momentAck: "an envelope — a notice acknowledged; presentation, not a moment",
   // arms, picks and provenance before the resolve
@@ -622,6 +646,7 @@ export const STATE_KEYS = Object.freeze({
   riposteUse: "provenance — the maneuver's use names the riposte it answers",
   riposteFor: "provenance — the driven attack names the riposte it answers",
   riposteBy: "provenance — the driven attack names the reactor",
+  rebukeFor: "provenance — a rebuke's driven use or attack names the offer it answers",
   command: "Commander's Strike directed at an ally — the notice and the chip; the die riding the ally's attack (commandRide) is the resolve, and the use posted its own card",
   reminder: "a gate's reminder record — presentation before the roll",
   volleyFor: "provenance — a volley's roll names its card",

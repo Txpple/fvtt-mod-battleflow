@@ -25,12 +25,12 @@
  * A group with `feature: null` requires nothing on the sheet (Giant Ancestry, Slice A 2026-09-24);
  * a group with `pool: "option"` pays per OPTION — `pools` is then keyed by the option's key, each
  * with its own uses, die and damage type, and a row without a pool is absent. A row with a `press`
- * and no die costs "1 use". `fits` is the size judge's answer per option key (`maxSize`): false
+ * and no die shows its own count, "2 of 3 uses left". `fits` is the size judge's answer per option key (`maxSize`): false
  * greys the row with the fact as its tag; null (the size could not be read) leaves it open.
  *
  * @param {{groups: Readonly<Record<string, any>>, options: Readonly<Record<string, any>>,
  *          listed: Iterable<string>, features: Iterable<string>, melee?: boolean,
- *          pools: Record<string, {left: number, die: string|null, type?: string|null}|null|undefined>,
+ *          pools: Record<string, {left: number, max?: number, die: string|null, type?: string|null}|null|undefined>,
  *          fits?: Record<string, boolean|null|undefined>}} facts
  *        `listed` = the Hit Menu list's feature names; `features` = the feat names on the sheet;
  *        `melee` = whether this attack is a melee attack; `pools` = per group key (per option key
@@ -64,8 +64,11 @@ export function hitMenu({ groups, options, listed, features, melee = true, pools
       // The size judge (`maxSize`, Hill's Tumble): only a MEASURED misfit greys the row.
       const tooLarge = !!row.maxSize && (fits?.[key] === false);
       const unknownSize = !!row.maxSize && ((fits?.[key] === null) || (fits?.[key] === undefined));
+      // An option paying from its own uses says how many stand, "2 of 3 uses left" (the Goliath
+      // walk, 2026-09-25: "1 use" read as the boon's whole count, and never moved).
+      const count = `${rowLeft}${(Number(pool.max) > 0) ? ` of ${Number(pool.max)}` : ""} ${group.dieLabel}${(Number(pool.max) || rowLeft) === 1 ? "" : "s"} left`;
       const cost = perOption
-        ? (pool.die ? `${pool.die}${pool.type ? ` ${pool.type}` : ""} · 1 ${group.dieLabel}` : `1 ${group.dieLabel}`)
+        ? (pool.die ? `${pool.die}${pool.type ? ` ${pool.type}` : ""} · ${count}` : count)
         : `${pool.die ?? "1 die"} ${group.dieLabel}`;
       rows.push({
         key, feature: row.feature, label: row.feature,

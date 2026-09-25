@@ -108,7 +108,7 @@ export function critStands({ rolledCrit, hitUuids, bents }) {
  * taken, why ("Reaction spent this round", "no uses left"). A spent row stays, greyed, with its
  * reason; the popup opens only when one row is live (`liveRows`).
  * @param {object} args
- * @param {{name: string, kind: string, bonus?: number|null, spell?: boolean, pool?: boolean,
+ * @param {{name: string, kind: string, bonus?: number|null, spell?: boolean, pool?: {spend: string, left: number, max: number}|null,
  *          multiplier?: number|null, uses?: {left: number, max: number}|null}|null} args.primary
  * @param {{name: string, reaction: boolean, uses: boolean, point?: string|null, left?: number|null}[]} args.rolls
  * @param {{reactionSpent: boolean, isCritical: boolean, mode: string}} args.facts
@@ -122,7 +122,7 @@ export function rescueRows({ primary, rolls, facts }) {
     const dice = (primary.kind === "ac") ? (Number.isFinite(primary.bonus) ? `+${primary.bonus} AC` : "raises AC")
       : (primary.multiplier === 0.5) ? "halves the damage" : "reduces the damage";
     const tag = off ?? (primary.spell ? "a Reaction, a spell slot"
-      : primary.pool ? "a Reaction, a Superiority Die"
+      : primary.pool ? `a Reaction · ${poolLeft(primary.pool)}`
       : primary.uses ? `a Reaction · ${usesLeft(primary.uses.left)}` : "a Reaction");
     out.push({ key: primary.name, name: primary.name, kind: primary.kind, dice, tag, off });
   }
@@ -140,6 +140,15 @@ export function rescueRows({ primary, rolls, facts }) {
 }
 
 const usesLeft = n => `${n} use${n === 1 ? "" : "s"} left`;
+
+/**
+ * A reduction's pool in its own word, with the count (the Goliath walk, 2026-09-25): "2 of 3 uses
+ * left" for a boon paying from its own uses, "3 of 4 Superiority Dice left" for Parry's pool.
+ */
+const poolLeft = ({ spend = "Superiority Die", left = 0, max = 0 } = {}) => {
+  const word = (spend === "use") ? "uses" : /die$/i.test(spend) ? spend.replace(/die$/i, m => (m[0] === "D" ? "Dice" : "dice")) : `${spend}s`;
+  return (max > 0) ? `${left} of ${max} ${word} left` : `${left} ${word} left`;
+};
 
 /**
  * A reaction's own text as its row's folded rule (law 8 — read off the sheet's item, never

@@ -106,6 +106,27 @@ describe("the moment registry — shape", () => {
         die: 5,
         targets: [{ uuid: "Actor.g", name: "G", verdict: "hit" }]
       },
+      damageHold: {
+        status: "resolved",
+        actorUuid: "Actor.s",
+        reaction: "Stone's Endurance",
+        target: { uuid: "Actor.s", name: "Stone" },
+        amount: 12,
+        answer: "cast",
+        reduceBy: 9
+      },
+      rebuke: {
+        status: "resolved",
+        actorUuid: "Actor.s",
+        actorName: "Storm",
+        sourceUuid: "Actor.g",
+        sourceName: "G",
+        distance: 40,
+        amount: 7,
+        options: [{ name: "Storm's Thunder", itemId: "st", activityId: "a" }],
+        answer: "use",
+        choice: "Storm's Thunder"
+      },
       riposte: {
         attackerUuid: "Actor.g",
         attackerName: "G",

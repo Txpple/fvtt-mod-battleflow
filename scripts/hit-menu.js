@@ -114,7 +114,7 @@ function menuFor(attackMessage, activity) {
       // the weapon's), and its first read "bludgeoning" on a greataxe (measured live, 2026-09-24).
       const partType = (die && perOption) ? ([...(die.damage?.parts?.[0]?.types ?? [])][0] ?? null) : null;
       edge[key] = { item: feat, dieActivity: die, saveActivity: activityOfType(feat, "save"), pool, formula, type: partType };
-      if ( perOption ) pools[key] = pool ? { left: Number(pool.system?.uses?.value ?? 0), die: formula, type: partType } : null;
+      if ( perOption ) pools[key] = pool ? { left: Number(pool.system?.uses?.value ?? 0), max: Number(pool.system?.uses?.max ?? 0), die: formula, type: partType } : null;
       else {
         pools[gkey] ??= pool ? { left: Number(pool.system?.uses?.value ?? 0), die: formula } : null;
         if ( pools[gkey] && !pools[gkey].die && formula ) pools[gkey].die = formula;

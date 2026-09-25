@@ -77,6 +77,8 @@ const REFERENCE = {
   damageEitherList: LIST_SPECS.damageEither.default,        // the whole rolled-twice table, as shipped (Slice A, 2026-09-24)
   tokenLightList: LIST_SPECS.tokenLights.default,           // the whole token-light table, as shipped (the Aasimar walk, 2026-09-25)
   tokenSenseList: LIST_SPECS.tokenSenses.default,           // the whole token-sense table, as shipped (the Dwarf walk, 2026-09-25)
+  tokenSizeList: LIST_SPECS.tokenSizes.default,             // the whole token-size table, as shipped (the Goliath walk, 2026-09-25)
+  rebukeList: LIST_SPECS.rebukes.default,                   // the whole rebuke table, as shipped (the Goliath walk, 2026-09-25)
   cardChipList: LIST_SPECS.cardChips.default,               // the whole card-chip table, as shipped (the Gnome walk, 2026-09-25)
 };
 

@@ -4,11 +4,12 @@
  */
 import { MODULE_ID, TITLE, canApplyTo, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { lower, resolveUuid } from "./lookup.js";
-import { tokenLightEntries, tokenSenseEntries, listedNames } from "./settings.js";
+import { tokenLightEntries, tokenSenseEntries, tokenSizeEntries, listedNames } from "./settings.js";
 import { registerResumable } from "./ui.js";
 import { bfCard, ruleLine } from "./decide/present.js";
-import { TOKEN_LIGHTS, TOKEN_SENSES } from "./decide/registry.js";
-import { lightRowKey, lightChanges, lightTargets, senseRowKey, senseChanges, carriesSense } from "./decide/token-lights.js";
+import { TOKEN_LIGHTS, TOKEN_SENSES, TOKEN_SIZES } from "./decide/registry.js";
+import { lightRowKey, lightChanges, lightTargets, senseRowKey, senseChanges, carriesSense,
+  sizeRowFor, sizeAfter, sizeChanges, carriesSize } from "./decide/token-lights.js";
 import { targetsOf } from "./decide/card.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { SURFACES } from "./surfaces.js";
@@ -220,4 +221,28 @@ Hooks.on("preCreateActiveEffect", (effect, data) => {
     if ( carriesSense(changes) ) return;
     effect.updateSource({ "system.changes": [...changes, ...senseChanges(TOKEN_SENSES[key])] });
   } catch(err) { console.warn(`${TITLE} | Could not add the token sense — set the token's vision by hand.`, err); }
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * TOKEN SIZES (user, 2026-09-25, the Goliath walk: "large form did not increase token size"). The
+ * table is decide/registry.js TOKEN_SIZES; membership is the Token Sizes list. The senses' shape
+ * exactly: the pack's own effect (Large Form, Enlarged, Reduced) gains the size as it is created —
+ * the actor's size and the token's width and height, which Foundry 14 applies to the bearer's
+ * tokens as a document update and takes back when the effect goes. A step (Enlarge/Reduce) is
+ * measured from the bearer's size as the effect lands.
+ * ------------------------------------------------------------------------------------------- */
+
+Hooks.on("preCreateActiveEffect", (effect, data) => {
+  try {
+    const actor = effect.parent;
+    if ( !(actor instanceof Actor) ) return;
+    const found = sizeRowFor(TOKEN_SIZES, effect.name, listedNames(tokenSizeEntries()));
+    if ( !found ) return;
+    const changes = [...(effect._source.system?.changes ?? data?.system?.changes ?? [])];
+    if ( carriesSize(changes) ) return;
+    const sizes = CONFIG.DND5E?.actorSizes ?? {};
+    const size = sizeAfter(found.entry, actor.system?.traits?.size ?? "med", sizes);
+    if ( !size ) return;
+    effect.updateSource({ "system.changes": [...changes, ...sizeChanges(size, sizes)] });
+  } catch(err) { console.warn(`${TITLE} | Could not add the size — resize the token by hand.`, err); }
 });

@@ -10,8 +10,8 @@
  *
  * ⚠ SPINE, NOT DECISION. `fromUuidSync` and `Roll` are Foundry globals, and `actor.items` is a
  * document collection — EDGE by §2's test, so this cannot live in decide/. It imports nothing
- * and owns no hook, no flag, no write; keep it that way (its one import is the pure card seam,
- * decide/card.js — downward). `core.js` and `shared.js` keep their own copies of the uuid guard
+ * and owns no hook, no flag, no write; keep it that way (its imports are pure and downward: the
+ * card seam, decide/card.js, and the reductions table, decide/registry.js, for `reductionFor`). `core.js` and `shared.js` keep their own copies of the uuid guard
  * on purpose: core is the leaf and shared is this file's own layer.
  *
  * ⚠ Names match CASE-INSENSITIVELY everywhere here, because that is what every copy did: the
@@ -19,6 +19,7 @@
  */
 
 import { CARD, activityUuidOf, isCard } from "./decide/card.js";
+import { INTERRUPT_REDUCTIONS } from "./decide/registry.js";
 
 /** A name folded for comparison — the one lower-case helper. */
 export const lower = s => String(s ?? "").toLowerCase();
@@ -240,4 +241,29 @@ export function preferredMeleeOption(actor, options) {
     if ( match ) return match;
   }
   return options[0];
+}
+
+/**
+ * A listed reaction whose effect is a REDUCTION the module can roll (decide/registry.js
+ * INTERRUPT_REDUCTIONS — the Battle Master's Parry): the found item carries the row's activity,
+ * whose healing formula is the number. Null for anything else — the Monster Manual's Parry is an
+ * AC reaction of the same name and carries no such activity, so it stays `ac`. Moved here from
+ * hold/lookup.js on its second reader (the Goliath walk, 2026-09-25: damage-holds.js, Stone's
+ * Endurance on any damage); a machine may not import a machine.
+ */
+export function reductionFor(item, reactionName) {
+  const key = Object.keys(INTERRUPT_REDUCTIONS).find(k => k.toLowerCase() === String(reactionName ?? "").toLowerCase());
+  const row = key ? INTERRUPT_REDUCTIONS[key] : null;
+  if ( !row ) return null;
+  // By name — or, LOCALE-PROOF (Slice A, 2026-09-24), the first heal activity whose STORED name
+  // is empty: Stone's Endurance's is "", which dnd5e displays as the type's localized title, so
+  // "Heal" matched in English only.
+  const activities = [...(item?.system?.activities ?? [])];
+  const activity = activities.find(a => a.name?.toLowerCase() === row.activity.toLowerCase())
+    ?? activities.find(a => (a.type === "heal") && !a._source?.name)
+    ?? null;
+  const h = activity?.healing;
+  const formula = h ? (h.custom?.enabled ? h.custom.formula : ((Number(h.number) > 0 && Number(h.denomination) > 0) ? `${h.number}d${h.denomination}${h.bonus ? ` + ${h.bonus}` : ""}` : (h.bonus || null))) : null;
+  if ( !activity || !formula ) return null;
+  return { row, activity, formula };
 }

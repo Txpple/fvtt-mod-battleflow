@@ -185,6 +185,8 @@ const WORLD_WRITERS = {
   "superiority-uses.js": ["superiorityUse", "superiorityRide", "baitSwitch", "effectReceipt"],
   "precision.js": ["precision"],
   "riposte.js": ["riposte"],
+  "rebukes.js": ["rebuke"],
+  "damage-holds.js": ["damageHold", "receipt"],
   "bash-offer.js": ["bashOffer"],
   "hew.js": "a reminder's card and its notice latch — presentation; the extra attack is a real roll with its own card",
   "d20-folds.js": ["d20fold", "tacticalRefund", "poolSpend"],

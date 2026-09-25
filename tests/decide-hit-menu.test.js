@@ -170,7 +170,7 @@ describe("Giant Ancestry — a group with no feature, paying per option (Slice A
     });
     expect(m.groups[0].rows[0]).toMatchObject({
       key: "boon-x",
-      cost: "1d10 fire · 1 use",
+      cost: "1d10 fire · 3 uses left",
       affordable: true
     });
   });
@@ -186,15 +186,15 @@ describe("Giant Ancestry — a group with no feature, paying per option (Slice A
     expect(m.groups[0].rows[0].affordable).toBe(false);
   });
 
-  it("a dieless PRESS row costs one use and is affordable on its uses alone", () => {
+  it("a dieless PRESS row shows its uses left and is affordable on its uses alone", () => {
     const m = giant(
       ["Hill's Tumble"],
-      { "hills-tumble": { left: 2, die: null } },
+      { "hills-tumble": { left: 2, max: 3, die: null } },
       { fits: { "hills-tumble": true } }
     );
     expect(m.groups[0].rows[0]).toMatchObject({
       key: "hills-tumble",
-      cost: "1 use",
+      cost: "2 of 3 uses left",
       affordable: true,
       caveat: null
     });

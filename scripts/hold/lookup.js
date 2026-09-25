@@ -13,10 +13,10 @@
  */
 import { MODULE_ID, TITLE } from "../core.js";
 import { limitedUses, isReactionItem, isTextOnlyFeature } from "../decide/eligible.js";
-import { INTERRUPT_MULTIPLIERS, INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "../decide/registry.js";
+import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS } from "../decide/registry.js";
 import { d20ModeOf, liveRows, plainRule, rescueRows } from "../decide/rescue-hit.js";
 import { interruptEntries } from "../settings.js";
-import { lower, activityNamed } from "../lookup.js";
+import { lower, activityNamed, reductionFor } from "../lookup.js";
 import { reactionSpent, poolOf, placeOf, chipData } from "../shared.js";
 import { chipClock } from "../decide/chips.js";
 import { applyEffectsTo } from "../effect-riders.js";
@@ -121,29 +121,6 @@ export async function usableReaction(actor, name) {
 }
 
 /**
- * A listed reaction whose effect is a REDUCTION the module can roll (decide/registry.js
- * INTERRUPT_REDUCTIONS — the Battle Master's Parry): the found item carries the row's activity,
- * whose healing formula is the number. Null for anything else — the Monster Manual's Parry is an
- * AC reaction of the same name and carries no such activity, so it stays `ac`.
- */
-function reductionFor(item, reactionName) {
-  const key = Object.keys(INTERRUPT_REDUCTIONS).find(k => k.toLowerCase() === String(reactionName ?? "").toLowerCase());
-  const row = key ? INTERRUPT_REDUCTIONS[key] : null;
-  if ( !row ) return null;
-  // By name — or, LOCALE-PROOF (Slice A, 2026-09-24), the first heal activity whose STORED name
-  // is empty: Stone's Endurance's is "", which dnd5e displays as the type's localized title, so
-  // "Heal" matched in English only.
-  const activities = [...(item?.system?.activities ?? [])];
-  const activity = activities.find(a => a.name?.toLowerCase() === row.activity.toLowerCase())
-    ?? activities.find(a => (a.type === "heal") && !a._source?.name)
-    ?? null;
-  const h = activity?.healing;
-  const formula = h ? (h.custom?.enabled ? h.custom.formula : ((Number(h.number) > 0 && Number(h.denomination) > 0) ? `${h.number}d${h.denomination}${h.bonus ? ` + ${h.bonus}` : ""}` : (h.bonus || null))) : null;
-  if ( !activity || !formula ) return null;
-  return { row, activity, formula };
-}
-
-/**
  * The first curated interrupt this actor can actually use right now, or null. `spentOk` asks
  * past a spent Reaction — only for the greyed row the popup that rescues a hit shows beside a live
  * `roll` row (Slice A, 2026-09-24: "a spent row stays, greyed, with the reason as its tag").
@@ -235,9 +212,15 @@ function primaryFacts(actor, found) {
   const spell = (item?.type === "spell") || (found.activity?.type === "cast");
   const max = Number(item?.system?.uses?.max);
   const multiplierKey = Object.keys(INTERRUPT_MULTIPLIERS).find(k => lower(k) === lower(found.entry.name));
+  // A reduction's POOL in its own words and count (the Goliath walk, 2026-09-25: Stone's Endurance
+  // read "a Superiority Die" and no count) — the die pool for Parry, the boon's own uses for Stone's.
+  const reduceActivity = found.reduce ? item?.system?.activities?.get(found.reduce.activityId) : null;
+  const poolItem = reduceActivity ? poolOf(actor, reduceActivity) : null;
+  const pool = found.reduce ? { spend: found.reduce.spend ?? "Superiority Die",
+    left: Number(poolItem?.system?.uses?.value ?? 0), max: Number(poolItem?.system?.uses?.max ?? 0) } : null;
   return { name: found.entry.name, kind,
     bonus: (kind === "ac") ? reactionACBonus(found.entry.name, actor, { itemId: item?.id, activityId: found.activity?.id }) : null,
-    spell, pool: !!found.reduce, multiplier: multiplierKey ? INTERRUPT_MULTIPLIERS[multiplierKey].multiplier : null,
+    spell, pool, multiplier: multiplierKey ? INTERRUPT_MULTIPLIERS[multiplierKey].multiplier : null,
     uses: (!spell && (max > 0)) ? { left: Number(item.system.uses.value ?? 0), max } : null };
 }
 

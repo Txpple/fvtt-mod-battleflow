@@ -68,8 +68,9 @@ export const INTERRUPT_MULTIPLIERS = Object.freeze({
  * pack's heal activity whose formula (`1d12 + @abilities.con.mod`) is the reduction, spent from
  * the item's OWN uses (its activity consumes `itemUses` with an empty target — the item itself).
  * Before this row it held as a plain damage interrupt: Cast USED the heal, healing a Goliath at
- * full HP, and the whole hit landed "reduce by hand". It covers ATTACK hits only — the hold
- * stamps on a hit; a save's or an area's damage stays the table's.
+ * full HP, and the whole hit landed "reduce by hand". An attack hit is the attack hold's; since
+ * the Goliath walk (2026-09-25, ruled "Hold before it lands") ANY other damage the module applies
+ * is held for it too (damage-holds.js, the applier's claim) — `any` below.
  *
  *   activity  the activity's name — or, when the stored name is EMPTY (Stone's Endurance's is:
  *             dnd5e shows the type's localized title), the first heal activity: locale-proof
@@ -78,6 +79,8 @@ export const INTERRUPT_MULTIPLIERS = Object.freeze({
  *   spend     what one use is called on the cost line: "Superiority Die", "use"
  *   hit       the trigger as the card says it: "melee attack" (Parry's rule), "attack" (any hit)
  *   by        what the reduction is, in words, for the popup's ask
+ *   any       true — "when you take damage": every damage the module applies is held for it, not
+ *             only an attack hit (damage-holds.js); Parry's "melee attack roll" is not
  */
 export const INTERRUPT_REDUCTIONS = Object.freeze({
   "Parry": Object.freeze({ activity: "Heal", pool: true,
@@ -85,7 +88,7 @@ export const INTERRUPT_REDUCTIONS = Object.freeze({
     rule: "When another creature damages you with a melee attack roll, you can take a Reaction and expend one Superiority Die to reduce the damage by the number you roll on your Superiority Die plus your Strength or Dexterity modifier (your choice).",
     from: "Fighter — Battle Master 3" }),
   "Stone's Endurance": Object.freeze({ activity: "Heal", pool: true,
-    eyebrow: "Reaction", spend: "use", hit: "attack", by: "1d12 plus your Constitution modifier",
+    eyebrow: "Reaction", spend: "use", hit: "attack", by: "1d12 plus your Constitution modifier", any: true,
     rule: "When you take damage, you can take a Reaction to roll 1d12. Add your Constitution modifier to the number rolled and reduce the damage by that total.",
     from: "Goliath — Giant Ancestry (Stone)" })
 });
@@ -545,7 +548,7 @@ export const CLOCK_RIDER_NAMES = tableIndex(CLOCK_RIDERS, r => r.feature).names;
  *             Frost's Chill, its first customer, moved to CLOCK_RIDERS the same day)
  *   press     a status the hit presses with NO save (Hill's Tumble's Prone) — receipted, never
  *             pressed over a status the target already has; the option's activity may then be a
- *             utility one (no die, "1 use")
+ *             utility one (no die; the row shows the uses left, "2 of 3 uses left")
  *   maxSize   the largest size the option reaches ("lg" — "a Large or smaller creature"): read off
  *             the hit target's sheet; a larger target greys the row, an unreadable size does not
  *             (the gate never guesses)
@@ -951,6 +954,80 @@ export const TOKEN_SENSES = Object.freeze({
 export const TOKEN_SENSE_NAMES = tableIndex(TOKEN_SENSES).names;
 
 /**
+ * TOKEN SIZES (user, 2026-09-25, the Goliath walk: "large form did not increase token size").
+ * TOKEN_SENSES' sibling, the same carrier: `token.*` changes added to the PACK's own effect as it
+ * is created on a sheet — `token.width` / `token.height`, which Foundry 14's
+ * TokenDocument#applyActiveEffects applies as a document update (its `requiresUpdateKeys`), and
+ * `system.traits.size`, so the sheet, the size judge (Hill's Tumble's "Large or smaller") and the
+ * system's own size readers see the new size. dnd5e resizes a token only when the SOURCE size
+ * changes (its tokenSizeSync), never an effect's, and the packs ship no size change: the PHB's
+ * Large Form and Enlarge/Reduce carry none (measured on the sandbox, 2026-09-25). The size lives
+ * on the effect: its clock, its removal, the rest that clears it put the token back.
+ *
+ *   effects  { effectName: { size } | { step } } — the pack effects the row answers to: `size` an
+ *            absolute size key (Large Form: "lg"), `step` a number of categories from the
+ *            bearer's size at the moment the effect lands (Enlarged +1, Reduced −1), clamped to
+ *            the system's own ordering (CONFIG.DND5E.actorSizes)
+ *   caveat   what the table judges ("if you're in a big enough space")
+ *
+ * Membership is the Token Sizes list (the row names).
+ */
+export const TOKEN_SIZES = Object.freeze({
+  "Large Form": Object.freeze({ effects: Object.freeze({ "Large Form": Object.freeze({ size: "lg" }) }),
+    caveat: "the space it needs is the table's to judge",
+    rule: "Starting at character level 5, you can change your size to Large as a Bonus Action if you’re in a big enough space. This transformation lasts for 10 minutes or until you end it (no action required). For that duration, you have Advantage on Strength checks, and your Speed increases by 10 feet. Once you use this trait, you can’t use it again until you finish a Long Rest.",
+    from: "Goliath (character level 5)" }),
+  "Enlarge/Reduce": Object.freeze({ effects: Object.freeze({ "Enlarged": Object.freeze({ step: 1 }), "Reduced": Object.freeze({ step: -1 }) }),
+    rule: "Enlarge. The target’s size increases by one category—from Medium to Large, for example. … Reduce. The target’s size decreases by one category—from Medium to Small, for example.",
+    from: "PHB, level 2 (Concentration, 1 minute)" })
+});
+
+/** The token sizes' row names, lower-cased — the closed set the Token Sizes list is validated against. */
+export const TOKEN_SIZE_NAMES = tableIndex(TOKEN_SIZES).names;
+
+/**
+ * REBUKES (user, 2026-09-25, the Goliath walk: "Storms thunder is not triggering anything. when
+ * you fix it, also make sure the 60ft range calc is in there. Also when you do this, why dont you
+ * pick up hellish rebuke and anything else in that family that is the same"). A Reaction taken
+ * AFTER the bearer takes damage from a creature, aimed at THAT creature — offered as a popup to the
+ * damaged creature's owner the moment the damage lands (rebukes.js), only when the damager stands
+ * within reach of it. The shape is Riposte's (the defender strikes back, the answer drives the real
+ * use at the attacker); the trigger is the damage, not a miss. Found by a scan of every
+ * reaction-cost item in the sandbox's packs (tools/scan-reactions.mjs, 2026-09-25): each ships a
+ * REACTION activity with its own range — the reach is read off it (N1), never typed, except
+ * Retaliation's, whose activity carries none.
+ *
+ *   activity  the reaction activity, by name (null: the item's first reaction activity)
+ *   attack    "melee" — the answer is one melee attack with a weapon the bearer picks (Retaliation:
+ *             "using a weapon or an Unarmed Strike"), not the item's own activity
+ *   range     feet, when the activity carries none (Retaliation's "within 5 feet")
+ *   advantage true — the answer's attack roll has Advantage (Sword of Answering)
+ *   while     an effect's name that must stand on the bearer (Fount of Moonlight's reaction exists
+ *             only while the spell does: its "Wreathed in Light")
+ *   equipped  true — the item must be equipped ("while you hold the sword")
+ *   caveat    what the table judges ("that you can see")
+ *
+ * The spell's slot is the lowest the sheet holds (the hold's rule — no picker inside a Reaction's
+ * window; a player who wants to upcast casts from the sheet). Membership is the Rebukes list.
+ */
+export const REBUKES = Object.freeze({
+  "Storm's Thunder": Object.freeze({ activity: null, from: "Goliath — Giant Ancestry (Storm)",
+    rule: "When you take damage from a creature within 60 feet of you, you can take a Reaction to deal 1d8 Thunder damage to that creature." }),
+  "Hellish Rebuke": Object.freeze({ activity: null, caveat: "a creature you can see", from: "PHB level 1 spell; the Monster Manual's Hellish Rebuke casts it",
+    rule: "The creature that damaged you is momentarily surrounded by green flames. It makes a Dexterity saving throw, taking 2d10 Fire damage on a failed save or half as much damage on a successful one." }),
+  "Fount of Moonlight": Object.freeze({ activity: "Blinding Reaction", while: "Wreathed in Light", caveat: "a creature you can see",
+    from: "PHB level 4 spell (Concentration, 10 minutes)",
+    rule: "Immediately after you take damage from a creature you can see within 60 feet of yourself, you can take a Reaction to force the creature to make a Constitution saving throw. On a failed save, the creature has the Blinded condition until the end of your next turn." }),
+  "Retaliation": Object.freeze({ attack: "melee", range: 5, from: "Barbarian 14",
+    rule: "When you take damage from a creature that is within 5 feet of you, you can take a Reaction to make one melee attack against that creature, using a weapon or an Unarmed Strike." }),
+  "Sword of Answering": Object.freeze({ activity: "Attack Reaction", advantage: true, equipped: true, from: "DMG legendary weapon",
+    rule: "While you hold the sword, you can take a Reaction to make one melee attack with it against any creature in your reach that deals damage to you. You have Advantage on the attack roll, and any damage dealt with this special attack ignores any Immunity or Resistance the target has." })
+});
+
+/** The rebukes' item names, lower-cased — the closed set the Rebukes list is validated against. */
+export const REBUKE_NAMES = tableIndex(REBUKES).names;
+
+/**
  * DAMAGE SAVES (user, 2026-09-04: "make heat metal spell work"). A bare damage activity whose
  * text ties a SAVE to taking the damage — the 2024 PHB's Heat Metal: "Cast and Heat" (2d8 Fire
  * at the object's holder) and "Reheat" (the same as a Bonus Action on later turns) are damage
@@ -1246,6 +1323,10 @@ export const CHECK_BENDS = Object.freeze({
  *   except    "source" — the bend stands against everyone BUT that creature (Goaded, Compelled);
  *             a carrier with no recorded source is counted — the gate never guesses an exemption
  *   checks    a bend on the bearer's ABILITY CHECKS (Heated Metal, Averse) — the check gate's
+ *   checksWhen { statuses, skills } — narrows `checks` to a bearer wearing one of the statuses and
+ *             a check of one of the skills (Powerful Build: Grappled, Athletics or Acrobatics —
+ *             the escape the module cannot otherwise tell from any check; the Goliath walk,
+ *             2026-09-25)
  *   saves     { bend, statuses?, spells?, halfToNone? } — a bend on the bearer's SAVING THROWS,
  *             scoped by the DEMAND the save gate finds: against an effect imposing one of the
  *             statuses (Aura of Purity), or against a spell (Circle of Power); `halfToNone` turns
@@ -1520,7 +1601,15 @@ export const EFFECT_BENDS = Object.freeze({
     rule: "You have Advantage on saving throws you make to avoid or end the Charmed condition." }),
   "Dwarven Resilience": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Dwarf",
     saves: Object.freeze({ bend: "advantage", statuses: Object.freeze(["poisoned"]) }),
-    rule: "You have Resistance to Poison damage. You also have Advantage on saving throws you make to avoid or end the Poisoned condition." })
+    rule: "You have Resistance to Poison damage. You also have Advantage on saving throws you make to avoid or end the Poisoned condition." }),
+  // The Goliath walk (2026-09-25, ruled: "Build a proxy"): the check to END the Grappled condition
+  // is not a roll the module can tell from any other — so while the Goliath IS Grappled, its
+  // Athletics and Acrobatics checks (the escape's two skills) count as the escape (a bend, RULINGS'
+  // register). The pack's own Powerful Build effect carries the carrying-capacity half alone.
+  "Powerful Build": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Goliath",
+    checks: "advantage", checksWhen: Object.freeze({ statuses: Object.freeze(["grappled"]), skills: Object.freeze(["ath", "acr"]) }),
+    caveat: "counted — while Grappled, an Athletics or Acrobatics check counts as the escape",
+    rule: "You have Advantage on any ability check you make to end the Grappled condition. You also count as one size larger when determining your carrying capacity." })
 });
 
 /** The table's rows, in the order the table reads them. */
@@ -1877,6 +1966,22 @@ export const LIST_SPECS = {
     // walk, 2026-09-25). The list is the switch: an empty list changes nothing.
     columns: ["kind"], kindColumn: "kind", kinds: TOKEN_SENSE_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(TOKEN_SENSES).join(", ")
+  },
+  tokenSizes: {
+    label: "Token Sizes", setting: "tokenSizeList",
+    // Which rows of the token-size table resize the token — the ROW names, whole-chunk ("Enlarge/
+    // Reduce" carries a slash), case-insensitive. Membership over TOKEN_SIZES; the mechanism is
+    // token-lights.js (the Goliath walk, 2026-09-25). The list is the switch.
+    columns: ["kind"], kindColumn: "kind", kinds: TOKEN_SIZE_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(TOKEN_SIZES).join(", ")
+  },
+  rebukes: {
+    label: "Rebukes", setting: "rebukeList",
+    // Which reactions to damage are offered at the damager — the ITEM names, whole-chunk,
+    // case-insensitive. Membership over REBUKES; the mechanism is rebukes.js (the Goliath walk,
+    // 2026-09-25). The list is the switch: an empty list offers nothing.
+    columns: ["kind"], kindColumn: "kind", kinds: REBUKE_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(REBUKES).join(", ")
   },
   cardChips: {
     label: "Card Chips", setting: "cardChipList",

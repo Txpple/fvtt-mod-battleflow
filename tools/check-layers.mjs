@@ -83,6 +83,8 @@ export const LAYER_OF = {
   // the maneuver folds — one file per moment since the machine-tier pass, Stage 4a (2026-09-05)
   "precision.js": "machines",
   "riposte.js": "machines",
+  "damage-holds.js": "machines",  // a reduction "when you take damage" held at the applier's claim — Stone's Endurance on any damage (the Goliath walk, 2026-09-25)
+  "rebukes.js": "machines",       // a Reaction to damage, aimed at its dealer — Riposte's shape on the damage (the Goliath walk, 2026-09-25)
   "hew.js": "machines",
   "bash-offer.js": "machines",
   "effect-view.js": "machines",   // the effect view — a creature's buffs and debuffs on hover, on a held key, on a bar (2026-09-15 draft)
@@ -143,6 +145,7 @@ export const LAYER_OF = {
   "decide/sneak.js": "decision",
   "decide/clock.js": "decision",
   "decide/emanations.js": "decision",
+  "decide/rebukes.js": "decision",       // the rebuke's reach, its gate, its cost and its card line (2026-09-25)
   "decide/token-lights.js": "decision",   // which use sheds a token light, and the changes that carry it (2026-09-25)
   "decide/hit-menu.js": "decision",
   "decide/shields.js": "decision",

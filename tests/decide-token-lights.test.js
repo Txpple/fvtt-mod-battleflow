@@ -116,3 +116,60 @@ describe("token senses — the pack's own effect, the token's vision (the Dwarf 
     expect(reg.LIST_SPECS.tokenSenses.default).toBe(Object.keys(reg.TOKEN_SENSES).join(", "));
   });
 });
+
+describe("token sizes (the Goliath walk, 2026-09-25)", () => {
+  const listed = () => new Set(Object.keys(reg.TOKEN_SIZES).map(k => k.toLowerCase()));
+  // dnd5e 6.0.5's CONFIG.DND5E.actorSizes, the fields read (measured on the sandbox).
+  const SIZES = {
+    tiny: { numerical: 0, token: 0.5 },
+    sm: { numerical: 1 },
+    med: { numerical: 2 },
+    lg: { numerical: 3, token: 2 },
+    huge: { numerical: 4, token: 3 },
+    grg: { numerical: 5, token: 4 }
+  };
+  it("an effect's name finds its row and entry among the listed rows only", () => {
+    expect(tl.sizeRowFor(reg.TOKEN_SIZES, "Large Form", listed())).toEqual({
+      key: "Large Form",
+      entry: { size: "lg" }
+    });
+    expect(tl.sizeRowFor(reg.TOKEN_SIZES, "enlarged", listed())).toEqual({
+      key: "Enlarge/Reduce",
+      entry: { step: 1 }
+    });
+    expect(tl.sizeRowFor(reg.TOKEN_SIZES, "Reduced", listed())).toEqual({
+      key: "Enlarge/Reduce",
+      entry: { step: -1 }
+    });
+    expect(tl.sizeRowFor(reg.TOKEN_SIZES, "Large Form", new Set())).toBeNull();
+    expect(tl.sizeRowFor(reg.TOKEN_SIZES, "Stonecunning", listed())).toBeNull();
+  });
+  it("Large Form makes a Medium creature Large, and a Large one nothing", () => {
+    expect(tl.sizeAfter({ size: "lg" }, "med", SIZES)).toBe("lg");
+    expect(tl.sizeAfter({ size: "lg" }, "lg", SIZES)).toBeNull();
+  });
+  it("a step moves one size along the system's order, clamped at both ends", () => {
+    expect(tl.sizeAfter({ step: 1 }, "med", SIZES)).toBe("lg");
+    expect(tl.sizeAfter({ step: 1 }, "lg", SIZES)).toBe("huge");
+    expect(tl.sizeAfter({ step: -1 }, "med", SIZES)).toBe("sm");
+    expect(tl.sizeAfter({ step: -1 }, "tiny", SIZES)).toBeNull();
+    expect(tl.sizeAfter({ step: 1 }, "grg", SIZES)).toBeNull();
+    expect(tl.sizeAfter({ step: 1 }, "unknown", SIZES)).toBeNull();
+  });
+  it("the changes: the sheet's size and the token's footprint, 1 where the system gives none", () => {
+    expect(tl.sizeChanges("lg", SIZES)).toEqual([
+      { key: "system.traits.size", type: "override", value: "lg", phase: "initial" },
+      { key: "token.width", type: "override", value: 2, phase: "initial" },
+      { key: "token.height", type: "override", value: 2, phase: "initial" }
+    ]);
+    expect(tl.sizeChanges("sm", SIZES)[1].value).toBe(1);
+    expect(tl.sizeChanges("tiny", SIZES)[1].value).toBe(0.5);
+  });
+  it("an effect already carrying a size is not given it twice; the pack's speed change is not one", () => {
+    expect(tl.carriesSize([{ key: "system.attributes.movement.walk" }])).toBe(false);
+    expect(tl.carriesSize(tl.sizeChanges("lg", SIZES))).toBe(true);
+  });
+  it("the list default is the table", () => {
+    expect(reg.LIST_SPECS.tokenSizes.default).toBe(Object.keys(reg.TOKEN_SIZES).join(", "));
+  });
+});

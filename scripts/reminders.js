@@ -232,7 +232,8 @@ Hooks.on("dnd5e.preRollAbilityCheckV2", (config, dialog, message) => {
       sources.push(...effectCheckSources({
         effects: actor.effects.filter(e => !e.disabled && !e.isSuppressed).map(e => ({ id: e.id, name: e.name })),
         features: actor.items.filter(i => i.type === "feat").map(i => i.name),
-        enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, name: actor.name }));
+        enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, name: actor.name,
+        statuses: actor.statuses ?? [], skill: config.skill ?? null }));
     }
     if ( !sources.length ) return;
     const gate = new DialogCarried({ ...checkGate(sources), actorUuid: actor.uuid,

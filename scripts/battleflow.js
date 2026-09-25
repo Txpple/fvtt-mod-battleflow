@@ -148,6 +148,12 @@ import "./riposte.js";
 import "./hew.js";
 import "./bash-offer.js";
 import "./command.js";
+// The rebuke (the Goliath walk, 2026-09-25): a Reaction to damage aimed at its dealer — Riposte's
+// shape on the damage's landing (dnd5e.applyDamage), after the folds so its card row renders below theirs.
+import "./rebukes.js";
+// The damage hold (the Goliath walk, 2026-09-25): a reduction "when you take damage" claimed at the
+// applier (auto-apply.js registerDamageClaim) for every damage the module lands, not only a hit's.
+import "./damage-holds.js";
 // ⚠ d20-folds.js immediately after maneuvers.js ON PURPOSE (v1.23.0): it is the same family of
 // post-roll fold and its row belongs directly below the maneuver rows — Precision offers a
 // superiority die on the same missed attack that a Bardic die or a reroll would patch, and a

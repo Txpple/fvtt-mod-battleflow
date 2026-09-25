@@ -134,6 +134,13 @@ createChatMessage	command.js
 dnd5e.preRollDamageV2	command.js
 createChatMessage	command.js
 dnd5e.renderChatMessage	command.js
+dnd5e.applyDamage	rebukes.js
+dnd5e.renderChatMessage	rebukes.js
+updateChatMessage	rebukes.js
+deleteChatMessage	rebukes.js
+dnd5e.renderChatMessage	damage-holds.js
+updateChatMessage	damage-holds.js
+deleteChatMessage	damage-holds.js
 dnd5e.rollAttackV2	d20-folds.js
 dnd5e.rollAbilityCheck	d20-folds.js
 dnd5e.rollSkill	d20-folds.js
@@ -208,6 +215,7 @@ updateActiveEffect	emanations.js
 dnd5e.preUseActivity	token-lights.js
 dnd5e.postUseActivity	token-lights.js
 dnd5e.renderChatMessage	token-lights.js
+preCreateActiveEffect	token-lights.js
 preCreateActiveEffect	token-lights.js
 dnd5e.renderChatMessage	receipts.js
 createChatMessage	resources.js

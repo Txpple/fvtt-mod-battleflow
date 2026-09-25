@@ -258,8 +258,31 @@ describe("rescueRows — the popup's rows (scenes 2a, 2a2, 2a3, 2c)", () => {
       })[0]
     ).toMatchObject({ dice: "halves the damage", tag: "a Reaction" });
     expect(
-      r.rescueRows({ primary: { name: "Parry", kind: "damage", pool: true }, rolls: [], facts })[0]
-    ).toMatchObject({ dice: "reduces the damage", tag: "a Reaction, a Superiority Die" });
+      r.rescueRows({
+        primary: {
+          name: "Parry",
+          kind: "damage",
+          pool: { spend: "Superiority Die", left: 3, max: 4 }
+        },
+        rolls: [],
+        facts
+      })[0]
+    ).toMatchObject({
+      dice: "reduces the damage",
+      tag: "a Reaction · 3 of 4 Superiority Dice left"
+    });
+    // The Goliath walk (2026-09-25): a boon paying from its own uses says so, with the count.
+    expect(
+      r.rescueRows({
+        primary: {
+          name: "Stone's Endurance",
+          kind: "damage",
+          pool: { spend: "use", left: 2, max: 3 }
+        },
+        rolls: [],
+        facts
+      })[0]
+    ).toMatchObject({ tag: "a Reaction · 2 of 3 uses left" });
   });
 
   it('the title: several rows are "Rescue the hit", one row names itself', () => {

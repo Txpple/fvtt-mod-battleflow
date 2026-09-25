@@ -949,7 +949,33 @@ describe("effectCheckSources — an effect that bends ability checks by its text
     const facets = Object.entries(reg.EFFECT_BENDS)
       .filter(([, row]) => row.checks)
       .map(([k]) => k);
-    expect(facets).toEqual(["Heated Metal", "Averse"]);
+    expect(facets).toEqual(["Heated Metal", "Averse", "Powerful Build"]);
+  });
+  it("Powerful Build (the Goliath walk, 2026-09-25): Advantage on Athletics or Acrobatics while Grappled, and nowhere else", () => {
+    const facts = {
+      table: reg.EFFECT_BENDS,
+      features: ["Powerful Build"],
+      enabled: ["Powerful Build"],
+      name: "Goliath"
+    };
+    const grappledAth = r.effectCheckSources({ ...facts, statuses: ["grappled"], skill: "ath" });
+    expect(grappledAth).toHaveLength(1);
+    expect(grappledAth[0]).toMatchObject({
+      kind: "effect",
+      bend: "advantage",
+      label: "Goliath — Powerful Build"
+    });
+    expect(r.effectCheckSources({ ...facts, statuses: ["grappled"], skill: "acr" })).toHaveLength(
+      1
+    );
+    expect(r.effectCheckSources({ ...facts, statuses: ["grappled"], skill: "prc" })).toHaveLength(
+      0
+    );
+    expect(r.effectCheckSources({ ...facts, statuses: ["grappled"], skill: null })).toHaveLength(0);
+    expect(r.effectCheckSources({ ...facts, statuses: [], skill: "ath" })).toHaveLength(0);
+    expect(
+      r.effectCheckSources({ ...facts, features: [], statuses: ["grappled"], skill: "ath" })
+    ).toHaveLength(0);
   });
 });
 

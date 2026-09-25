@@ -62,6 +62,8 @@ export const S = {
   damageEitherList: "damageEitherList",   // Savage Attacker's list (Slice A, 2026-09-24)
   tokenLightList: "tokenLightList",        // Inner Radiance and Light (the Aasimar walk, 2026-09-25)
   tokenSenseList: "tokenSenseList",        // Stonecunning (the Dwarf walk, 2026-09-25)
+  tokenSizeList: "tokenSizeList",          // Large Form, Enlarge/Reduce (the Goliath walk, 2026-09-25)
+  rebukeList: "rebukeList",                // Storm's Thunder, Hellish Rebuke … (the Goliath walk, 2026-09-25)
   cardChipList: "cardChipList"             // Tinker (the Gnome walk, 2026-09-25)
 };
 

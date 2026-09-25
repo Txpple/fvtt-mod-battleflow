@@ -294,6 +294,22 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.tokenSenses.default
   });
 
+  // TOKEN SIZES (the Goliath walk, 2026-09-25): a pack effect that changes a creature's size
+  // resizes its token while it stands (the same `token.*` changes, added to the pack's own effect).
+  game.settings.register(MODULE_ID, S.tokenSizeList, {
+    name: "Token Sizes",
+    hint: "A pack effect that changes a creature's size, carried as the token's own size while it stands, by the row's name, separated by commas — Large Form, Enlarge/Reduce. Large Form's effect makes the Goliath Large (a 2 × 2 token) for its ten minutes; Enlarge/Reduce's Enlarged and Reduced effects move the target one size up or down from its size as the spell lands. The sheet's size changes with the token, so everything that reads a size sees the new one. The size lives on the effect: it goes when the effect ends or is removed. Remove a name to resize that token by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.tokenSizes.default
+  });
+
+  // REBUKES (the Goliath walk, 2026-09-25): a Reaction to taking damage, aimed at the creature
+  // that dealt it — offered as a popup when the damage lands and the damager is within reach.
+  game.settings.register(MODULE_ID, S.rebukeList, {
+    name: "Rebukes",
+    hint: "A Reaction taken when you take damage from a creature, aimed at that creature, by the item's name, separated by commas — Storm's Thunder, Hellish Rebuke, Fount of Moonlight, Retaliation, Sword of Answering. When damage lands on a creature holding one (applied by the module or with the card's own buttons), and the creature that dealt it stands within the reaction's own range (60 feet for Storm's Thunder and Hellish Rebuke, 5 feet for Retaliation, the sword's reach), the damaged creature's owner gets a popup: Use fires it at the damager — its damage, its save, or the melee attack — spending the use or the lowest spell slot and the Reaction; Pass, or the clock, lets it go. Not offered with the Reaction already spent, no use or slot left, or at 0 HP. Remove a name to use that reaction by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.rebukes.default
+  });
+
   // CARD CHIPS (the Gnome walk, 2026-09-25): a feature with no activity of its own, used through
   // another item's cast, offered on that cast's card as a chip. A list; the list is the switch.
   game.settings.register(MODULE_ID, S.cardChipList, {
@@ -694,6 +710,16 @@ export function damageEitherEntries() {
 /** Which rows of the card-chip table a cast's card offers, by the row's name — `{ kind }`. */
 export function cardChipEntries() {
   return listEntries(LIST_SPECS.cardChips);
+}
+
+/** Which reactions to damage are offered at the damager, by the item's name — `{ kind }`. */
+export function rebukeEntries() {
+  return listEntries(LIST_SPECS.rebukes);
+}
+
+/** Which rows of the token-size table resize the token, by the row's name — `{ kind }`. */
+export function tokenSizeEntries() {
+  return listEntries(LIST_SPECS.tokenSizes);
 }
 
 /** Which rows of the token-sense table change the token's vision, by the row's name — `{ kind }`. */

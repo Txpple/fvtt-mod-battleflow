@@ -112,3 +112,63 @@ export function carriesSense(changes) {
   return (changes ?? []).some(c => String(c?.key ?? "").startsWith("token.sight.")
     || String(c?.key ?? "").startsWith("token.detectionModes."));
 }
+
+/**
+ * TOKEN SIZES (the Goliath walk, 2026-09-25): the row and the entry an effect's name answers to,
+ * among the listed rows — `{ key, entry }` or null. Case-insensitive on the effect's name.
+ * @param {Record<string, {effects: Record<string, {size?: string, step?: number}>}>} table
+ * @param {string} effectName
+ * @param {Set<string>} listed  the listed row names, lower-cased
+ */
+export function sizeRowFor(table, effectName, listed) {
+  const name = String(effectName ?? "").toLowerCase();
+  if ( !name ) return null;
+  for ( const [key, row] of Object.entries(table ?? {}) ) {
+    if ( !listed?.has?.(key.toLowerCase()) ) continue;
+    for ( const [effect, entry] of Object.entries(row.effects ?? {}) ) {
+      if ( effect.toLowerCase() === name ) return { key, entry };
+    }
+  }
+  return null;
+}
+
+/**
+ * The size an entry makes of the bearer's current size: `size` is absolute, `step` moves along
+ * the system's own ordering (`numerical`), clamped at both ends. Null when nothing can be read or
+ * nothing would change.
+ * @param {{size?: string, step?: number}} entry
+ * @param {string} current  the bearer's size key ("med")
+ * @param {Record<string, {numerical: number, token?: number}>} sizes  CONFIG.DND5E.actorSizes
+ * @returns {string|null}
+ */
+export function sizeAfter(entry, current, sizes) {
+  const order = Object.entries(sizes ?? {}).filter(([, v]) => Number.isFinite(v?.numerical))
+    .sort((a, b) => a[1].numerical - b[1].numerical).map(([k]) => k);
+  if ( !order.length ) return null;
+  let next = null;
+  if ( entry?.size ) next = order.includes(entry.size) ? entry.size : null;
+  else if ( Number(entry?.step) ) {
+    const at = order.indexOf(current);
+    if ( at < 0 ) return null;
+    next = order[Math.min(order.length - 1, Math.max(0, at + Number(entry.step)))];
+  }
+  return (next && (next !== current)) ? next : null;
+}
+
+/**
+ * The effect changes that carry a size: the actor's size, and the token's footprint in grid units
+ * (the system's own `token` for the size, 1 when it has none — Small and Medium). Foundry 14's
+ * change shape, as lightChanges.
+ * @param {string} size  the size key
+ * @param {Record<string, {token?: number}>} sizes  CONFIG.DND5E.actorSizes
+ */
+export function sizeChanges(size, sizes) {
+  const grid = Number(sizes?.[size]?.token) || 1;
+  const change = (key, value) => ({ key, type: "override", value, phase: "initial" });
+  return [change("system.traits.size", size), change("token.width", grid), change("token.height", grid)];
+}
+
+/** Does this change list already carry a size (a copy of an effect that wore one)? */
+export function carriesSize(changes) {
+  return (changes ?? []).some(c => ["token.width", "token.height", "system.traits.size"].includes(String(c?.key ?? "")));
+}

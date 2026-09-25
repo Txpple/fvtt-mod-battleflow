@@ -140,6 +140,33 @@ async function applyToHitTargets(damageMessage, attackMessage, hits) {
 }
 
 /**
+ * THE DAMAGE CLAIMS (the Goliath walk, 2026-09-25 — ruled "Hold before it lands": Stone's
+ * Endurance on ANY damage, not just attack hits). A machine may CLAIM one target's share of an
+ * application before it lands — the reaction that reduces "when you take damage" must be asked
+ * while the damage is still a number. The claimant takes the share whole (the damages, the
+ * multiplier, the note) and applies it later through this same applier with `held: true`, which is
+ * never claimed again. Declared at module evaluation, like the offer's parts (auto-damage.js); a
+ * service names no feature, so the claimant is a callback. A claim that throws is ignored and the
+ * damage lands as it always did.
+ * @type {Array<(receiptMessage: ChatMessage, target: {uuid: string, name: string}, actor: Actor,
+ *   damages: object[], opts: {multiplier: number, note?: string}) => boolean>}
+ */
+const damageClaims = [];
+
+/** Declare a claimant on the applier. Called at module evaluation by a machine. */
+export function registerDamageClaim(claim) {
+  damageClaims.push(claim);
+}
+
+function claimed(receiptMessage, target, actor, damages, opts) {
+  for ( const claim of damageClaims ) {
+    try { if ( claim(receiptMessage, target, actor, damages, opts) ) return true; }
+    catch(err) { console.error(`${TITLE} | A damage claim failed — the damage lands whole.`, err); }
+  }
+  return false;
+}
+
+/**
  * The shared applier: land `damages` on every target and stamp the receipt onto
  * `receiptMessage` (the damage card normally; the ATTACK card for Graze, where no damage
  * message exists because the attack missed). `note` rides each receipt entry and renders
@@ -149,7 +176,7 @@ async function applyToHitTargets(damageMessage, attackMessage, hits) {
  * applier instead of forking it — today every caller passes the default 1, and a non-1
  * multiplier is recorded on the receipt entry so the row can say why the number halved.
  */
-export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { note, multiplier = 1 } = {}) {
+export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { note, multiplier = 1, held = false } = {}) {
   try {
     // The data-plane stamp, resolved ONCE per application while both facts are live: the
     // receipt message's own actor is the source (attacker, caster, healer — statSourceOf's
@@ -159,6 +186,8 @@ export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { n
     for ( const target of hits ) {
       const actor = await fromUuid(target.uuid); // the targets snapshot carries ACTOR uuids
       if ( !(actor instanceof Actor) || !actor.system.attributes?.hp ) continue;
+      // A claimed share waits for its answer and lands later, `held` (the claims above).
+      if ( !held && claimed(receiptMessage, target, actor, damages, { multiplier, ...(note ? { note } : {}) }) ) continue;
       const src = actor.system._source.attributes.hp;
       const prior = { value: src.value, temp: src.temp, tempmax: src.tempmax };
 

@@ -205,16 +205,23 @@ function rowCarriers(row, key, effects = [], features = []) {
 /**
  * EFFECT SOURCES ON A CHECK (2026-09-04, Heat Metal): the effect-table rows whose `checks` facet
  * says the ability on the roller's sheet bends ABILITY CHECKS too — Heated Metal, a monster's
- * Averse ("Disadvantage on attack rolls and ability checks"). Read by name off the roller's own
- * effects (or features, for a `match: "feature"` row), the Effect Sources list as the switch.
+ * Averse ("Disadvantage on attack rolls and ability checks").  * Read by name off the roller's own
+ * effects (or features, for a `match: "feature"` row), the Effect Sources list as the switch. A
+ * row with `checksWhen` counts only on the roller's `statuses` and the check's `skill` it names.
  * @param {{effects?: {id?: string|null, name: string}[], features?: string[], enabled: Iterable<string>,
- *          table: Readonly<Record<string, any>>, name?: string}} facts
+ *          table: Readonly<Record<string, any>>, name?: string, statuses?: Iterable<string>, skill?: string|null}} facts
  */
-export function effectCheckSources({ effects = [], features = [], enabled, table, name = "You" }) {
+export function effectCheckSources({ effects = [], features = [], enabled, table, name = "You", statuses = [], skill = null }) {
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
+  const mine = new Set(statuses ?? []);
   const out = [];
   for ( const [key, row] of Object.entries(table ?? {}) ) {
     if ( !row?.checks || !on.has(key.toLowerCase()) ) continue;
+    // `checksWhen` (Powerful Build): only while the bearer wears one of the statuses, and only on
+    // one of the skills — both read off the roll, never guessed.
+    const when = row.checksWhen;
+    if ( when?.statuses?.length && !when.statuses.some(s => mine.has(s)) ) continue;
+    if ( when?.skills?.length && !when.skills.includes(skill) ) continue;
     const carriers = rowCarriers(row, key, effects, features);
     for ( const e of carriers ) {
       out.push(Object.assign(reminderSource("effect", row.checks, `${name} — ${key}`, row.rule), e.id ? { effectId: e.id } : {}));
