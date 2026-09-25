@@ -482,8 +482,8 @@ held). Built on the user's "go" in three tiers, the UI ruled off `prototypes/sli
 - **One rescue row per SOURCE** (user, 2026-09-24: *"we already have that precedent with Precision
   and Heroic Inspiration, so it would just be more button choices"*) — Lucky, Warding Flare and
   Shadowy Dodge are three rows, never one "Disadvantage" row listing its sources.
-- **Parked** (BACKLOG *Features*, each with its trigger): Lucky's Advantage half, Trance, Healer's
-  spell-healing rerolls. (Inner Radiance's pulse and Celestial Revelation's extra damage were built
+- **Parked** (BACKLOG *Features*, each with its trigger): Trance. (Lucky's Advantage half and
+  Healer's healing rerolls were built on 2026-09-25 — HANDOFF §5/§6 until the end-of-iteration recut.) (Inner Radiance's pulse and Celestial Revelation's extra damage were built
   in the walk, 2026-09-25 — *The Aasimar walk*, below.)
   **Held:** Relentless Endurance, for Slice B's kill moment.
 

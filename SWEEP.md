@@ -303,8 +303,10 @@ ITEM (`system.uses`, the activity consumes `itemUses`); none carries activity us
     dialog (a bend in RULINGS' register). Vocabulary 10's chip window was not needed.
   - **Trance** — a named-spell scope + an immunity bend. Reopens when an elf sits down against
     a sleep effect.
-  - **Healer's healing rerolls on spells** — a new kind (reroll 1s on another item's healing
-    dice). Reopens when a Healer plays a healing caster.
+  - ~~**Healer's healing rerolls on spells**~~ — **BUILT 2026-09-25** in the origin-feat round
+    (user: "use the empower spell form as a baseline"): the `HEAL_REROLLS` table, `heal-rerolls.js`
+    — Empowered's dice popup on a healing spell AND Battle Medic (its `r1` taken off), the healing
+    waiting on a claim in `cast.js`. Not a kind (one table, one machine).
   - ~~Inner Radiance's turn-end pulse~~ and ~~Celestial Revelation's extra damage~~ — **BUILT
     2026-09-25** in the walk (RULINGS *The Aasimar walk*): the pulse is an `EMANATIONS` feature
     row (`while`, `reach: "all"`, `pulse`), not a new kind; the extra is a `CLOCK_RIDERS` row
@@ -347,13 +349,16 @@ Otherworldly Presence — plus Powerful Build's grapple-escape half (a check; no
 | **Savage Attacker** | text-only: no activity, effect or uses | NEW-KIND → the damage-die kind: the weapon dice twice, keep either; once per turn by `TURN_CHITS`; owes ARCHITECTURE §11's auto-revert. **Tier 3** |
 | **Lucky — Disadvantage** | utility, no activation, consumes `itemUses` 1; ITEM `@prof` lr, one pool with Advantage | NEW-KIND → the `roll` interrupt (the defender cannot choose pre-roll: `preRollAttackV2` is sync on the attacker's client). **Tier 3** |
 | **Lucky — Advantage** | utility, consumes `itemUses` 1; the pack's Note: spends, does not enforce | ROW+VOCAB (a "next D20 Test" chip window + a save-side read). **PARKED** — the sheet does it |
-| **Healer — Healing Rerolls (spells)** | nothing: the `r1` lives only in Battle Medic's own formulas | NEW-KIND. **PARKED** |
+| **Healer — Healing Rerolls (spells)** | nothing: the `r1` lives only in Battle Medic's own formulas | **BUILT 2026-09-25** — `HEAL_REROLLS` + `heal-rerolls.js` (spells and Battle Medic, one popup) |
 
 **NATIVE (6):** Alert's initiative (`initiativeAlert`), Healer's Battle Medic (`1dXr1 + @prof`
 in its four activities), Magic Initiate (ONE item, repeatable), Tavern Brawler's strike and
 rerolls (`1d4r1 + @abilities.str.mod` in the feat's own attack), Tavern Brawler's improvised
-weaponry, Tough. **OUT (5):** Alert's initiative swap, Crafter, Musician, Skilled, Tavern
-Brawler's Push (tokens are never moved).
+weaponry, Tough. **OUT (2):** Crafter, Skilled. **BUILT 2026-09-25, the
+origin-feat round, off `prototypes/origin-feats.html`:** Alert's initiative swap (`INITIATIVE_SWAPS`,
+`initiative-swap.js`), Musician's Encouraging Song (a `to: "allies"` row of `REST_GRANTS`),
+Tavern Brawler's Push (the maneuver-fold kind `shove` in `bash-offer.js` — announced, the token
+still never moved).
 
 ### The rule text, verbatim (the rows' `rule` strings)
 
@@ -401,7 +406,7 @@ Brawler's Push (tokens are never moved).
   Disadvantage. Tier 3.
 - **The damage-die kind** (keep either of two full sets of the weapon dice) — Savage Attacker.
   Tier 3.
-- **Healing-die reroll-1s on spells** — Healer. Parked.
+- **Healing-die reroll-1s on spells** — Healer. BUILT 2026-09-25 as a table, not a kind.
 - **The turn-end aura pulse** — Inner Radiance. Parked.
 - **The kill moment** — Relentless Endurance. Held for Slice B.
 - *Not needed:* a d20 reroll fold for Halfling Luck — the system does it natively.

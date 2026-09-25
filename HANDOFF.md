@@ -8,35 +8,29 @@
 
 ---
 
-## 0. Where things stand (2026-09-25, late night — THE SPECIES ROUND DONE, the origin feats next)
+## 0. Where things stand (2026-09-25, night — THE ORIGIN FEATS BUILT, the user's walk next)
 
-**Next session: open with the origin-feat table (§6) and let the user walk.** The user's words at
-the break: *"do a handoff so we can work on feat origns. we wll do the full battery after that
-overnight"*. Every species is DONE (§5): Aasimar, Dragonborn, Dwarf, Elves, Gnomes, Goliaths,
-Halfling, Human, Orc, Tieflings. **After the origin feats: the FULL BATTERY, overnight** (§3).
+**Next session: open with the origin-feat walk table (§6) and let the user walk it.** The user's
+words: *"once you finish the feats, prepare for a handoff in new session where i run thru test"*.
+The species round is DONE (§5). The four origin feats that were open are **BUILT and suite-proven**
+on the sandbox (Musician, Tavern Brawler, Healer, Alert). **After the walk: the FULL BATTERY,
+overnight** (§3).
 
 | | |
 | --- | --- |
 | **Prod** | v2.0.8 on dnd5e 6.0.5. Untouched. |
-| **main** | Slice A plus every walk fix — through the Goliaths (`30c661b` → `6a0b370` → `ff7333d`), then this session: **`b9a6f39`** Lucky's Advantage half (the gate's buy box, reminder kind `buy`, `advantage-buys.js`; the `advantage` D20 fold for a no-dialog initiative; "Initiative: N" on the rescue header), **`a2394c4`** Resourceful (the **Rest Grants** list, `rest-grants.js`), **`b12b8e3`** Relentless Endurance + Death Ward (the **Drop to 1 HP** list, `drop-to-one.js` at `dnd5e.preApplyDamage`), **`35fcc5c`** a rebuke spell with a free cast needs no slot (Hellish Rebuke on a Fiendish Legacy Tiefling). **Not pushed, not released.** Vendor Fixes `99fa7e6` (VF-002) and `637c32e` (VF-003) likewise local. |
-| **The sandbox** | runs **main** (deployed `--local`, byte-identical) and Vendor Fixes' `main`. Settings CLEAN (`verify-settings` after the Lucky lists were `--fix`ed). The server was bounced at the session's start. **The user removed several roster actors for lag** — walk whichever holders remain (§6). **BF Species Tiefling (Infernal)** carries a hand-added **Lucky** and its **Remarkable Athlete effect DISABLED** (the Lucky initiative test) — re-enable on the user's word (`manage-effect` edit, effect `1f8R9CFfhsetkhF5`, `disabled: false`). The Practice Dummy, the Grappler snake and the Dragonborn's hand-added breath stand as before. |
-| **Suites** | **None ran this session** — the user was on the box throughout. Owed: `smoke-lucky` (7 §), `smoke-rest` (3 §), `smoke-drop` (5 §) — all WRITTEN, never run (expect first-run fixes to the suites themselves) — plus every suite the Goliath pass and this session's commits touch. All of it is the overnight battery's (§3). |
-| **Docs** | RULINGS register (+2 rows: Lucky's post-roll initiative; Relentless/Death Ward's sheet-typed gap), DESIGN §8 (the forgotten-Advantage row's one carve-out), SWEEP §6 (Lucky's Advantage, Resourceful, Relentless BUILT), BACKLOG (Lucky row removed; Slice B keeps Undead Fortitude and the monster Relentless as rows of DROP_TO_ONE), §5. The per-race rulings from the Dwarf on live in commit messages and §5 until the end-of-iteration recut. |
-| **Owed by the user** | the origin-feat walk (§6) and its rulings (the four open questions there); the 46-row event audit (`slice-a-event-audit.md`); the release call; the Savage popup's rank (DESIGN §8). |
-| **Owed by Claude** | the fix pass per feat as the user reports it — the FAST loop (§3); then the overnight battery; then the docs recut and this file's retirement. |
-
---- | --- |
-| **Prod** | v2.0.8 on dnd5e 6.0.5. Untouched. |
-| **main** | Slice A plus every walk fix so far — the Aasimar's `e600143`/`b0fe7ac`, Token Senses `804bb01`, Pass without Trace `ccf8d15`, Card Chips/Tinker `0baeaea`→`032732c`, and the Goliaths' `30c661b` (counts, Token Sizes, Rebukes, Stone's Endurance on any damage, Powerful Build) → `6a0b370` (a cast's damage roll carries its card's targets) → `ff7333d` (Stone's Endurance: one popup, the click lands it reduced) — **not pushed, not released**. Vendor Fixes `99fa7e6` (VF-002) and `637c32e` (VF-003) likewise local and unreleased. |
-| **The sandbox** | runs **main** and Vendor Fixes' `main` (both deployed `--local`, byte-identical). Settings CLEAN (`verify-settings`, after the Goliath suites). The server was bounced at the user's word (a PROCESS restart — Vendor Fixes' `module.json` change is picked up now too). **Party Camp** holds the roster (§1) plus **BF Test Grappler (Giant Constrictor Snake)** — Huge; its Constrict is a Str save → damage + Grappled (Powerful Build, the rebukes, Stone's Endurance on save damage, Hill's Tumble's "too large"). The **Practice Dummy** (actor `yqjbotCYAwbcmP0v`, both tokens) carries MM **Stench Spray** (Poisoned), **Charm** (Charm Person — Charmed) and, for the Halfling's Brave, **Horrific Visage** (Wis save, Frightened). The Dragonborn carries a hand-added Fire Breath Weapon + Fire resistance. The Stone Goliath's token was moved to x 3500, y 1400 during the walk (not by the module). ⚠ `smoke-aasimar` (like `smoke-savage`) removes BF Test Halfling's and BF Test Victim's fixture tokens from the Test Range — run `fixture-suite` before any other suite. |
-| **Suites** | The Goliaths' ran on the bounced box, sole GM: `smoke-goliath` **7/7**, `smoke-superiority §1,§12` **11/11**, `smoke-hitmenu §12,§13` **5/5**. Token Senses, Pass without Trace and Tinker ran none (measured by probe, walked) — owed to the end-of-iteration battery (§3), which also owes every suite the Goliath pass touched beyond those (`battery.mjs --changed --list`: `auto-apply.js` and `shared.js`'s neighbours reach wide). |
-| **Docs** | RULINGS *The Aasimar walk* + the register (four rows since the Goliaths), SWEEP §6, BACKLOG, ARCHITECTURE moments, this file's §5. The Dwarf/Elf/Gnome/Goliath rulings live in the commit messages and §5 until the end-of-iteration recut writes them into RULINGS (and ARCHITECTURE gains `registerDamageClaim` beside the offer's parts). |
-| **Owed by the user** | the walk, race by race (§5); the 46-row event audit (`slice-a-event-audit.md`, scratchpad `cbaa0dd3…`); the release call; the Savage popup's rank (DESIGN §8). |
-| **Owed by Claude** | the fix pass for each race as the user reports it — the FAST loop (§3). |
+| **main** | Slice A plus every walk fix (all PUSHED at this session's start, `c738b9f`), then this session, **not pushed**: `e60396a` + `58ffbc2` the prototype `prototypes/origin-feats.html` (ruled: the 1s start ticked; the Alert player's pick is the ally's willingness); **`b8e90a7`** Musician's Encouraging Song (a `to: "allies"` row on the **Rest Grants** table, `rest-grants.js`); **`450d018`** Tavern Brawler's push (the new maneuver-fold kind **`shove`** in `bash-offer.js`, R4 33 → 34); **`534d802`** Healer's Healing Rerolls (the new **Healing Rerolls** list, `heal-rerolls.js`, the heal applier's claim in `cast.js`); **`eab3c28`** Alert's Initiative Swap (the new **Initiative Swaps** list, `initiative-swap.js`). Not released. Vendor Fixes `99fa7e6` (VF-002) and `637c32e` (VF-003) local. |
+| **The sandbox** | runs **main** (deployed `--local`, byte-identical; the server bounced with every deploy) and Vendor Fixes' `main`. Settings **CLEAN** (`verify-settings` after the stored Maneuver Folds list was `--fix`ed to gain `Tavern Brawler:shove` — the release's Reset Defaults case, §4). **Party Camp** now holds the **BF Feats** roster (§6) + Gren + the two Practice Dummies; the BF Species tokens are off the scene (the actors are kept in their folder). **BF Species Tiefling (Infernal)** still carries a hand-added Lucky and its Remarkable Athlete effect DISABLED — re-enable on the user's word (`manage-effect`, effect `1f8R9CFfhsetkhF5`, `disabled: false`). |
+| **Suites** | Each feat ran its own, on the sandbox, sole GM: `smoke-rest` **10/10** (§4–§7 the song, plus Resourceful's first run), `smoke-maneuvers §B,§T` **19/19**, `smoke-heal` **11/11** (new), `smoke-alert` **9/9** (new), `smoke-cast` **21/21** (cast.js's claim). Still never run: `smoke-lucky`, `smoke-drop`. `battery.mjs --changed c738b9f` says FULL (core.js, the entry) — that is the overnight battery (§3). |
+| **Docs** | SWEEP §6 (the four marked BUILT), BACKLOG (Healer's parked row removed), this file. The per-feat rulings live in the commit messages and §6 until the end-of-iteration recut writes them into RULINGS. |
+| **Owed by the user** | the origin-feat walk (§6); the 46-row event audit (`slice-a-event-audit.md`); the release call; the Savage popup's rank (DESIGN §8). |
+| **Owed by Claude** | the fix pass per feat as the user reports it — the FAST loop (§3); then the overnight battery; then the docs recut (RULINGS for the species and feat rulings) and this file's retirement. |
 
 ---
 
 ## 1. The roster — `BF Species *`, Actor folder **BF Species**, tokens on **Party Camp**
+
+> ⚠ **Since 2026-09-25 (night) their tokens are OFF Party Camp** (the user: "clear out the test actors on party camp") — the actors are kept; the origin-feat roster is **BF Feats** (§6).
 
 Twenty level-5 characters built through dnd5e advancement (`create-pc`: class + species + background), so every species trait and every origin feat is the PACK's own item, granted the way a player's would be. All Fighters (Champion) with a Longsword, except the Forest Gnome (a Cleric with a Mace and Cure Wounds / Healing Word / Bless / Prayer of Healing / Mass Healing Word, for Healer's spell rerolls). AC 12, no armor — targets hit easily on purpose. The two **Practice Dummies** on the scene are the targets; the PCs' tokens are gone from the scene (the actors are untouched).
 
@@ -77,7 +71,7 @@ Use the Practice Dummies as targets (or a roster actor as a defender for the res
 4. **Hill's Tumble (tier 2).** Hit with the Hill Goliath: the hit menu opens with the Giant Ancestry group, the row "Hill's Tumble · 1 use"; pick → the target is Prone, receipted, no save. Against a Huge target the row is greyed "too large".
 5. **Savage Attacker (tier 3).** Hit with the Dragonborn (or the Fire Goliath): after the hit stands, the popup "Savage Attacker — name": tick the row, Roll again → the card shows both sets, the loser struck, "the higher stands"; Keep the roll → nothing spent; a second hit the same turn: no popup, the tag "used this turn".
 6. **The `roll` rescue (tier 3).** Attack a Lucky holder (the Halfling, the Aasimar, the Stone Goliath) and HIT: the defender's popup "Rescue the hit — name" (or "Lucky — name" when Lucky is the only row) with the row "Lucky · 1 Luck Point · N left"; Answer → the second d20, the lower stands, the verdict re-runs; a natural 20 can be undone; the attacker's card says "Lucky bent the roll — Disadvantage, 17 → 13, MISS". With the point spent, the row greys "no Luck Points left"; with every row spent, no popup. ⚠ Advantage attacks cancel to the FIRST die (a bend in the register).
-7. **What should read as parked/held, not broken:** Healer's spell rerolls (the Forest Gnome's Cure Wounds), Relentless Endurance (the Orc at 0 HP), Lucky's Advantage half (the sheet). BACKLOG has each with its trigger. (Inner Radiance's pulse and Celestial Revelation's extra damage were BUILT in the walk — §5.)
+7. **(Historical — the species round's list.)** Healer's rerolls, Relentless Endurance and Lucky's Advantage half were all BUILT since; the origin feats' walk is §6. BACKLOG has each with its trigger. (Inner Radiance's pulse and Celestial Revelation's extra damage were BUILT in the walk — §5.)
 
 **Report findings the usual way** (the walk-session restate rule: the OPEN list restated after every update). Each finding is then a fix-pass item on the go.
 
@@ -90,7 +84,7 @@ Use the Practice Dummies as targets (or a roster actor as a defender for the res
 - A pack DATA defect goes to **Vendor Fixes** (`../fvtt-mod-vendorfixes`, REGISTER.md + a `scripts/patches/` file, never a crutch for module gaps); Misc Patches is retired. After a test run, `verify-settings` must read CLEAN (a new list row means the sandbox's stored list drifts — `--fix`).
 - ⚠ The harness lessons of 2026-09-24/25 (NOTES §5): a killed run must be followed by `verify-settings --fix` → `reset-fixture-state` → `fixture-suite` (the battery now sweeps first by itself); launch batteries DETACHED; a second Claude session's MCP bridge blocks every suite's preflight.
 - **Cleanup of this roster is the user's call** — it lives in the sandbox only (Actor folder BF Species, tokens on Party Camp); a prod pull wipes it like every fixture.
-- ⚠ **THE OVERNIGHT BATTERY (user, 2026-09-25: "we wll do the full battery after that overnight")** — once the origin feats are walked, on the user's word: the user OFF the box (no GM but the suite; the bridge disconnected in every session), `fixture-suite` first, then the full battery LAUNCHED DETACHED (NOTES §5). The three never-run suites (`smoke-lucky`, `smoke-rest`, `smoke-drop`) will likely need fixes to themselves — a red there is a suite bug until shown otherwise; fix and re-run that suite alone. Restore settings after (`verify-settings --fix`), and report the tally in the morning.
+- ⚠ **THE OVERNIGHT BATTERY (user, 2026-09-25: "we wll do the full battery after that overnight")** — once the origin feats are walked, on the user's word: the user OFF the box (no GM but the suite; the bridge disconnected in every session), `fixture-suite` first, then the full battery LAUNCHED DETACHED (NOTES §5). The two never-run suites (`smoke-lucky`, `smoke-drop`) will likely need fixes to themselves — a red there is a suite bug until shown otherwise; fix and re-run that suite alone. Restore settings after (`verify-settings --fix`), and report the tally in the morning.
 - Docs recut at the end; retire this file; BACKLOG's header records the retirement.
 
 ## 4. The release, whenever the user calls it
@@ -118,38 +112,30 @@ suites of the machines it touched, even when `--changed` says "full".
 | **Tieflings** | **DONE 2026-09-25** (user: "works now, tieflings done"). One finding, fixed: Hellish Rebuke never offered on the Infernal (user: "hellish rebuke did not trigger") — `rebukes.js` demanded a free spell slot, and Fiendish Legacy's cast is "once without a spell slot" (the spell item's own use; a Fighter has no slots). A spell with its own use left no longer needs a slot; the drive casts it with `consume.spellSlot: false` and the use pays. **THE SPECIES ROUND IS COMPLETE** — the origin-feat round is next. |
 
 **For the release:** Vendor Fixes gets a release too (v1.1.0 — VF-002, VF-003); a released world needs
-Reset Defaults on the **Emanations** (now with Pass without Trace), **Clock Riders**, **Effect Sources** (Powerful Build), **Reminder Sources** (`buy`), **D20 Folds** (`Lucky:advantage`) and new **Token Lights**, **Token Senses**, **Token Sizes**, **Rebukes**, **Card Chips**, **Rest Grants** and **Drop to 1 HP** lists as well.
+Reset Defaults on the **Emanations** (now with Pass without Trace), **Clock Riders**, **Effect Sources** (Powerful Build), **Reminder Sources** (`buy`), **D20 Folds** (`Lucky:advantage`) and new **Token Lights**, **Token Senses**, **Token Sizes**, **Rebukes**, **Card Chips**, **Rest Grants** (now with Musician) and **Drop to 1 HP** lists as well, **Maneuver Folds** (`Tavern Brawler:shove`), and the new **Healing Rerolls** and **Initiative Swaps** lists.
 
-## 6. The origin feats — the table to open with (drafted 2026-09-25, re-read before use)
+## 6. The origin feats — the walk table (BUILT 2026-09-25; the user walks it next session)
 
-Lucky is DONE (both halves — the rescue row walked in the Aasimar/Stone rounds, the Advantage buy
-built and walked in the Halfling round). ⚠ The user removed several roster actors for lag: check
-which holders remain (`search-actor-contents` / the Actor folder BF Species) before the table goes out.
+**The roster: Actor folder BF Feats, tokens on Party Camp** — five level-5 Dwarves (the species that
+adds least), each built through dnd5e advancement so the feat is the PHB's own item from the
+background: **BF Feat Savage Attacker** (Fighter, Soldier), **BF Feat Alert** (Fighter, Criminal),
+**BF Feat Healer** (Cleric/Trickery, Hermit — Mace, Healer's Kit, Cure Wounds, Healing Word, Prayer of
+Healing, Mass Healing Word, Aid, Bless prepared), **BF Feat Tavern Brawler** (Fighter, Sailor),
+**BF Feat Musician** (Fighter, Entertainer). Fighters are Champions with a Longsword and Blind
+Fighting (no damage bonus to muddy the numbers); AC 12, no armor. Trickery, not Life, so Disciple of
+Life never mixes into the heal numbers. The tokens stand in a row at y 2380; the Practice Dummies
+are at x 1540 and 3360 — move a token beside one for a melee test. Lucky is DONE (walked in the
+species round).
 
-| Origin feat (holders, if still present) | What you should see |
+| Origin feat — actor | What you should see |
 | --- | --- |
-| **Savage Attacker** (Dragonborn, Fire Goliath) | **Ours (Slice A):** after a weapon hit stands, the popup "Savage Attacker — name": tick the row, **Roll again** → the card shows both damage sets, the loser struck, "the higher stands"; **Keep the roll** → nothing spent. A second hit the same turn: no popup, "used this turn". On the Fire Goliath: Fire's Burn is the damage offer's checkbox, Savage asks once the hit stands. |
-| **Tough** (Dwarf, Frost Goliath) | Native: +2 max HP per level. Nothing to walk. |
-| **Alert** (Drow, Hill Goliath, Abyssal Tiefling) | Native: Proficiency Bonus on initiative. The **initiative swap** with a willing ally is NOT built — ⚠ open question. |
-| **Magic Initiate** (High Elf, Wood Elf, Chthonic Tiefling) | Native: the spells are on the sheet and run through the spell machines. |
-| **Healer** (Forest Gnome — a Cleric) | Battle Medic native. ⚠ **Healing Rerolls on SPELLS is PARKED** (BACKLOG) — Cure Wounds won't reroll 1s — open question: build now? |
-| **Tavern Brawler** (Cloud Goliath) | Native: the Unarmed Strike rerolls 1s on damage. ⚠ The **Push** (5 ft, once per turn) is NOT built — open question. |
-| **Crafter** (Rock Gnome), **Musician** (Human), **Skilled** (several) | Out of combat / proficiencies on the sheet. Nothing to walk. |
+| **Savage Attacker** — BF Feat Savage Attacker | Hit a Practice Dummy with the Longsword. Once the hit stands: the popup "Savage Attacker — name", tick the row, **Roll again** → the card shows both damage sets, the loser struck, "the higher stands"; **Keep the roll** → nothing spent. In combat a second hit the same turn: no popup, "used this turn". |
+| **Tavern Brawler** — BF Feat Tavern Brawler | Stand beside a Dummy and attack with **Enhanced Unarmed Strike** (the feat's own attack). After the damage lands: the popup "Tavern Brawler — push Practice Dummy 5 feet?" with the rule, **Push 5 feet** / **Pass**. Push posts "… pushes Practice Dummy 5 feet — Move the token by hand" (the module never moves it). A Longsword hit asks nothing. In combat: once per turn (a second unarmed hit, no popup); out of combat every hit asks. The strike's own 1s are still dnd5e's `r1` (native). |
+| **Healer** — BF Feat Healer | Target an ally and cast **Cure Wounds** (or Healing Word / Mass Healing Word). If a die shows a **1**: the popup "Cure Wounds heals N — reroll the 1?" — every die a chip, the **1s ticked** and orange, the others greyed; **Reroll the picked dice** → the new die on its own card, the 1 struck on the healing roll, "heals N now"; **Keep the roll** keeps it. The healing WAITS for the answer and lands once. No 1 → no popup, the healing lands at once. **Battle Medic**: use the feat's own *Heal d8* (…d12) activity on an ally — its formula now shows `1d8 + 3` (the pack's silent `r1` taken off), and a 1 opens the same popup. (A 1 is 1-in-8 per die — Mass Healing Word's six d4s show one often.) |
+| **Alert** — BF Feat Alert | Put the BF Feats tokens, Gren and a Dummy in a combat and **Roll All**. When the last Initiative lands: the card and popup "Alert — swap your Initiative (N)?" listing the allies on its side who are not Incapacitated, each with their Initiative (the Dummy is not listed); pick one (its token pings), **Swap** exchanges the two numbers in the tracker and the card says "N ↔ M"; **No** leaves the order. Once per combat — re-rolling asks nothing new. Make an ally Incapacitated first and it is not listed; an Incapacitated Alert holder is not asked. The Initiative bonus itself is native. |
+| **Musician** — BF Feat Musician | Take a **Short or Long Rest** on the Musician (the sheet, or the GM's rest request). A card and a popup "Who gets Heroic Inspiration?" — the characters on its side within 30 ft, grouped Party / Non-Party with their distance; those without it **ticked** up to its Proficiency Bonus (3), the rest greyed once the cap is reached; an ally who already has it greyed and marked "(already has Heroic Inspiration)". **OK** ticks the picked sheets' Heroic Inspiration box and the card names them. Nobody near who lacks it → no popup. |
+| **Tough, Magic Initiate, Crafter, Skilled** | Native / out of combat — nothing to walk. |
 
-**RULED 2026-09-25 (all three to be BUILT, drawn in `prototypes/origin-feats.html`; awaiting the prototype's ruling + go):**
-1. **Healer — Healing Rerolls:** YES, the Empowered Spell popup as the baseline (every die listed, the 1s
-   pickable, pick the ones to replace, Reroll / Keep). On healing SPELLS **and Battle Medic itself**
-   (user: "make sure the healer feat itself gets the 1 popup too not just spells") — the pack's `r1`
-   in Battle Medic's formulas comes out so it asks the same way.
-2. **Tavern Brawler — Push:** YES, mimic Shield Master's bash offer (Push / Pass after the damage lands,
-   once per turn; announced, the token moved by hand).
-3. **Alert — Initiative Swap:** YES, a popup once everyone has rolled initiative: the non-Incapacitated
-   allies with their initiative, pick one, Swap / No.
-4. **Musician — Encouraging Song:** YES, a courtesy popup after a Short AND a Long Rest on Careful
-   Spell's picker (user: "you can leverage the general form of careful spell"): the allies within
-   30 ft, the player picks who gets Heroic Inspiration, the ones who already have it greyed and so
-   noted; the cap is the Proficiency Bonus (the feat's own limit). Actor: BF Feat Musician (Entertainer).
-
-The roster for these is the **BF Feats** folder (Savage Attacker, Alert, Healer, Tavern Brawler, Musician — Dwarf,
-level 5, on Party Camp); the BF Species tokens are off the scene, the actors kept.
-Still open: re-enabling the Tiefling's Remarkable Athlete.
+**Report findings the usual way** (the walk-session restate rule: the OPEN list restated after every
+update). Each finding is a fix-pass item on the FAST loop (§3). Still open from the species round:
+re-enabling the Tiefling's Remarkable Athlete.
