@@ -24,7 +24,7 @@ const SECTIONS = {
   1: 'Large Form: the pack\'s effect on the Goliath makes it Large — a 2 × 2 token and "lg" on the sheet — and removing it puts both back',
   2: 'Storm\'s Thunder: damage from a creature 30 ft away offers the rebuke card; Use fires Storm\'s Thunder at the damager — a use spent, its thunder landed with a receipt',
   3: 'the 60-foot reach: the same damage from 70 ft away offers nothing',
-  4: 'Stone\'s Endurance on a non-attack damage, AUTOMATIC (user, 2026-09-25): no popup — 1d12 + CON rolled in the open, a use spent, the damage lands short by the roll with the receipt saying why; the same share reaching the applier twice is reduced ONCE'
+  4: 'Stone\'s Endurance on a non-attack damage: the same share reaching the applier twice (a save\'s damage) is held ONCE — one card, one popup; the click rolls 1d12 + CON, spends a use and lands the damage short by the roll with the receipt saying why'
 };
 const DEPENDS = {};
 
@@ -234,24 +234,34 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await stone.update({ 'system.uses.spent': 0 });
       const t0 = Date.now();
       const card = await damagerCard();
-      faces([[5, 12]]);
       const share = () => [{ value: 12, type: 'fire', properties: new Set() }];
       // The same share twice, as a save's damage reaches the applier (the walk's two popups).
       await Promise.all([
         applyDamagesWithReceipt(card, [{ uuid: gol.uuid, name: gol.name }], share(), { note: 'BF Test' }),
         applyDamagesWithReceipt(card, [{ uuid: gol.uuid, name: gol.name }], share(), { note: 'BF Test' })
       ]);
-      const con = Number(gol.system.abilities.con.mod);
-      const expected = 400 - Math.max(0, 12 - (5 + con));
-      const landed = await waitFor(() => gol.system.attributes.hp.value === expected, 10000);
-      await sleep(1000);   // load-bearing: time for a WRONG second landing or roll to appear
-      realDice();
-      const rolls = since(t0).filter(m => m.getFlag(MOD, 'damageHold'));
-      const entry = card.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === gol.uuid);
-      ok('4a. no popup: the reduction is rolled ONCE in the open, a use spent, the damage lands short by it with the receipt saying why',
-        landed && (rolls.length === 1) && (stone.system.uses.spent === 1) && /Stone's Endurance — reduced by/.test(entry?.note ?? '')
-          && ![...livePopups.keys()].some(k => k.endsWith('|damageHold')) && (gol.system.attributes.hp.value === expected),
-        `hp=${gol.system.attributes.hp.value} expected=${expected} rolls=${rolls.length} spent=${stone.system.uses.spent} note=${entry?.note} popups=${[...livePopups.keys()].join(',')}`);
+      const hold = await waitFor(() => flagged(t0, 'damageHold'), 6000);
+      await sleep(1000);   // load-bearing: time for a WRONG second card to appear
+      const cards = since(t0).filter(m => m.getFlag(MOD, 'damageHold'));
+      ok('4a. the share is held ONCE: one card, one popup, no damage yet',
+        !!hold && (cards.length === 1) && (gol.system.attributes.hp.value === 400)
+          && ([...livePopups.keys()].filter(k => k.endsWith('|damageHold')).length === 1),
+        `cards=${cards.length} hp=${gol.system.attributes.hp.value} popups=${[...livePopups.keys()].join(',')}`);
+      if (hold) {
+        faces([[5, 12]]);
+        const pressed = await press(hold, 'damageHold', 'cast');
+        const con = Number(gol.system.abilities.con.mod);
+        const expected = 400 - Math.max(0, 12 - (5 + con));
+        const landed = await waitFor(() => gol.system.attributes.hp.value === expected, 10000);
+        await sleep(1000);   // load-bearing: time for a WRONG second landing
+        realDice();
+        const entry = card.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === gol.uuid);
+        const dice = since(t0).filter(m => /Stone's Endurance — the die/.test(m.flavor ?? ''));
+        ok('4b. the click: 1d12 + CON rolled once, a use spent, the damage lands short by it with the receipt saying why',
+          pressed && landed && (dice.length === 1) && (stone.system.uses.spent === 1) && /Stone's Endurance — reduced by/.test(entry?.note ?? '')
+            && (gol.system.attributes.hp.value === expected),
+          `pressed=${pressed} hp=${gol.system.attributes.hp.value} expected=${expected} dice=${dice.length} spent=${stone.system.uses.spent} note=${entry?.note}`);
+      }
     }
 
     return { log, results, skips };

@@ -204,7 +204,7 @@ export const MOMENT_RECORDS = Object.freeze({
 
   damageHold: {
     events: ["hold-answered"],
-    means: "an automatic reduction \"when you take damage\" was rolled before the damage landed (damage-holds.js: Stone's Endurance on any damage), on its own roll card; the landing is the receipt's",
+    means: "a reduction \"when you take damage\" was answered before the damage landed — cast or taken (damage-holds.js: Stone's Endurance on any damage); the landing is the receipt's",
     resolved: (r) => r?.answer ? [{
       marker: "message", events: ["hold-answered"],
       facts: { actor: r.actorUuid ?? null, ability: r.reaction ?? null,
@@ -629,6 +629,7 @@ export const STATE_KEYS = Object.freeze({
   saveChoiceAnswer: "an envelope — a save-side choice; the fold onto the saves flag is the resolve",
   riposteAnswer: "an envelope — a reactor's answer; the fold onto the riposte flag is the resolve",
   rebukeAnswer: "an envelope — a rebuke's answer; the fold onto the rebuke flag is the resolve",
+  damageHoldAnswer: "an envelope — a damage hold's answer; the fold onto the damageHold flag is the resolve",
   emanationTypeAnswer: "an envelope — the caster's type pick; the fold onto emanationCard is the resolve",
   momentAck: "an envelope — a notice acknowledged; presentation, not a moment",
   // arms, picks and provenance before the resolve

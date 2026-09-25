@@ -68,10 +68,9 @@ export const INTERRUPT_MULTIPLIERS = Object.freeze({
  * pack's heal activity whose formula (`1d12 + @abilities.con.mod`) is the reduction, spent from
  * the item's OWN uses (its activity consumes `itemUses` with an empty target — the item itself).
  * Before this row it held as a plain damage interrupt: Cast USED the heal, healing a Goliath at
- * full HP, and the whole hit landed "reduce by hand". Since the Goliath walk (2026-09-25: "the
- * rule should be stones endurance reduces automatically") it is never asked: every damage the
- * module applies — an attack hit's included — is reduced by itself (damage-holds.js, the
- * applier's claim), and the attack hold stands aside for it — `auto` below.
+ * full HP, and the whole hit landed "reduce by hand". An attack hit is the attack hold's; since
+ * the Goliath walk (2026-09-25, ruled "Hold before it lands") ANY other damage the module applies
+ * is held for it too (damage-holds.js, the applier's claim) — `any` below.
  *
  *   activity  the activity's name — or, when the stored name is EMPTY (Stone's Endurance's is:
  *             dnd5e shows the type's localized title), the first heal activity: locale-proof
@@ -80,9 +79,8 @@ export const INTERRUPT_MULTIPLIERS = Object.freeze({
  *   spend     what one use is called on the cost line: "Superiority Die", "use"
  *   hit       the trigger as the card says it: "melee attack" (Parry's rule), "attack" (any hit)
  *   by        what the reduction is, in words, for the popup's ask
- *   auto      true — taken by itself, never asked: every damage the module applies, an attack hit's
- *             included, is reduced while the bearer has a use and its Reaction (damage-holds.js);
- *             the attack hold never offers the row. Parry's is a choice and stays asked
+ *   any       true — "when you take damage": every damage the module applies is held for it, not
+ *             only an attack hit (damage-holds.js); Parry's "melee attack roll" is not
  */
 export const INTERRUPT_REDUCTIONS = Object.freeze({
   "Parry": Object.freeze({ activity: "Heal", pool: true,
@@ -90,7 +88,7 @@ export const INTERRUPT_REDUCTIONS = Object.freeze({
     rule: "When another creature damages you with a melee attack roll, you can take a Reaction and expend one Superiority Die to reduce the damage by the number you roll on your Superiority Die plus your Strength or Dexterity modifier (your choice).",
     from: "Fighter — Battle Master 3" }),
   "Stone's Endurance": Object.freeze({ activity: "Heal", pool: true,
-    eyebrow: "Reaction", spend: "use", hit: "attack", by: "1d12 plus your Constitution modifier", auto: true,
+    eyebrow: "Reaction", spend: "use", hit: "attack", by: "1d12 plus your Constitution modifier", any: true,
     rule: "When you take damage, you can take a Reaction to roll 1d12. Add your Constitution modifier to the number rolled and reduce the damage by that total.",
     from: "Goliath — Giant Ancestry (Stone)" })
 });
