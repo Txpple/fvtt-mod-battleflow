@@ -247,8 +247,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1a. the use settles with no placement click (the prompt is off for a self-centered area)', settled, '');
       const area = await waitFor(() => scene.regions.find(r => r.getFlag('dnd5e', 'activity') === shroudAct.uuid) ?? null, 8000);
       const shape = area?.shapes?.[0];
-      ok('1b. the area is on the Aasimar\'s token — an attached emanation, 10 ft from the edge, visible (the platform\'s area, not a hidden ring)',
-        !!area && (area.attachment?.token?.id === aasDoc.id) && (shape?.type === 'emanation') && (shape?.radius === 10 * px) && (area.visibility === CONST.REGION_VISIBILITY.ALWAYS),
+      ok('1b. the area is on the Aasimar\'s token — an attached emanation, 10 ft from the edge, never drawn (the ring ruling reaches every area placed on a token)',
+        !!area && (area.attachment?.token?.id === aasDoc.id) && (shape?.type === 'emanation') && (shape?.radius === 10 * px) && (area.visibility === CONST.REGION_VISIBILITY.LAYER_UNLOCKED) && area.locked,
         `area=${area?.id} attached=${area?.attachment?.token?.id} shape=${JSON.stringify(shape)} visibility=${area?.visibility}`);
       const demand = await waitFor(() => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'saves')?.activityUuid === shroudAct.uuid)).at(-1)?.getFlag(MOD, 'saves')?.targets?.length
         ? game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'saves')?.activityUuid === shroudAct.uuid)).at(-1) : null, 10000);

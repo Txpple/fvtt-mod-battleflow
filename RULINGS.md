@@ -590,8 +590,9 @@ Celestial Revelation cases in `tests/decide-clock.test.js` / `tests/decide-emana
   `selfAreaOf`): a `radius` (or `emanation`) template with range self — any spell, species form or
   monster feature — has the system's placement prompt switched off and its Region placed at the
   use, attached to the token, the placement's own flags stamped. A listed emanation spell's region
-  stays the machine's (hidden, no platform behaviour); every other area is the platform's, drawn,
-  its own behaviours on it. The Emanations switch gates it.
+  stays the machine's (no platform behaviour); every other area is the platform's, its own
+  behaviours on it. **None is drawn** (user, 2026-09-25: *"it can be invisible, just like inner
+  radiance"* — the ring ruling of 2026-09-18, reaching every area placed on a token). The Emanations switch gates it.
 - **An area whose activity names who it affects is read that way** (`decide/emanations.js`
   `affectsAdmits`; the save demand's area adoption): `enemy` takes everyone not on the user's side,
   `ally` the user's side. Necrotic Shroud (`enemy`; *"creatures other than your allies"*) no longer

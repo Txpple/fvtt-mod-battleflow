@@ -8,16 +8,20 @@
 
 ---
 
-## 0. Where things stand (2026-09-25, morning)
+## 0. Where things stand (2026-09-25, evening — the Aasimar done, the Dragonborn next)
+
+**Next session: open with the Dragonborn's test table (§6 has it drafted) and let the user walk.**
+The user's words at the break: *"we are done with aasimar ... make a handoff for new session and
+we'll test dragonborn"*.
 
 | | |
 | --- | --- |
-| **Prod** | v2.0.8 on dnd5e 6.0.5 — what the last session plays. Untouched. |
-| **main** | `0c9b66d` + whatever this file's commit is, **31+ commits past the handoff of 2026-09-24, none released, not pushed.** Slice A is BUILT and PROVEN: the full battery is green on the final tree (every suite; smoke-hitmenu 45/45, smoke-metamagic 108/108, probe-effect-view 17/17 standalone on the fixed tools). |
-| **The sandbox** | runs **main** (deployed `--local`, byte-identical at `d252397`; `0c9b66d` is docs only). Fixtures rebuilt with the home stamp; settings clean; no stray tokens. **Party Camp** holds the walk's roster (§1); the four PCs' tokens were removed from it on the user's word. |
-| **Docs** | RULINGS carries *Where the table bends the rule* (11 rows) and the *Slice A*, *Rescuing the hit* and *Savage Attacker* sections; DESIGN §8, ARCHITECTURE, NOTES §4/§5, BACKLOG (the long-term order lives there), SWEEP §6 (the measured drawing), tools/README are recut. Release notes drafted in the session scratchpad (`release-notes-unreleased.md`; also summarised in §4). |
-| **Owed by the user** | the manual audit of the 46-row event list (`slice-a-event-audit.md`, scratchpad `cbaa0dd3…`); the walk below; the release call; the Savage popup's rank (OPEN in DESIGN §8). |
-| **Owed by Claude** | nothing until the walk reports. Then: the fix pass, the docs recut, this file retired. |
+| **Prod** | v2.0.8 on dnd5e 6.0.5. Untouched. |
+| **main** | Slice A plus the Aasimar walk's fixes (`e600143`, and the invisible-area commit after it) — **not pushed, not released**. Vendor Fixes `99fa7e6` (VF-002) likewise local and unreleased. |
+| **The sandbox** | runs **main** and Vendor Fixes' `main` (both deployed `--local`, byte-identical). Settings CLEAN (the Clock Riders and Emanations lists restored with the new rows — a released world needs the same Reset Defaults, §4). **Party Camp** holds the roster (§1). ⚠ `smoke-aasimar` (like `smoke-savage`) removes BF Test Halfling's and BF Test Victim's fixture tokens from the Test Range — run `fixture-suite` before any other suite. |
+| **Docs** | RULINGS *The Aasimar walk* (+ one register row), SWEEP §6, BACKLOG, ARCHITECTURE moments, this file's §5. |
+| **Owed by the user** | the walk, race by race (§5); the 46-row event audit (`slice-a-event-audit.md`, scratchpad `cbaa0dd3…`); the release call; the Savage popup's rank (DESIGN §8). |
+| **Owed by Claude** | the fix pass for each race as the user reports it — the FAST loop (§3). |
 
 ---
 
@@ -70,7 +74,9 @@ Use the Practice Dummies as targets (or a roster actor as a defender for the res
 
 ## 3. For Claude, on the go after the walk
 
-- The fix pass runs each change's OWN suites (`battery.mjs --changed --list` then `--changed`); the full battery was the release floor and is already green — do not re-run it for a fix.
+- ⚠ **THE PER-RACE LOOP IS FAST** (user, 2026-09-25: *"if im waiting for 30 min tests each race it will take forever"*; *"you are NOT to do a fully battery until we finish our iteration on species and origin feats"*): per race — the rulings the user makes (ask with options where the rule leaves a choice), the code, `npm run verify` (static gate + unit tests), `deploy-house-module --local`, and ONLY that race's own new suite or section (`smoke-<race>.mjs`, minutes). Then hand the sandbox back: the user walks while Claude waits. **No regression runs of other suites per race, even when `--changed` says "full"** — the cross-suite batch runs once at the end of the species/origin-feat iteration.
+- Each race opens with a **Trait | What you should see** table (the user's format); the OPEN list is restated after every update; confirmed items drop off.
+- A pack DATA defect goes to **Vendor Fixes** (`../fvtt-mod-vendorfixes`, REGISTER.md + a `scripts/patches/` file, never a crutch for module gaps); Misc Patches is retired. After a test run, `verify-settings` must read CLEAN (a new list row means the sandbox's stored list drifts — `--fix`).
 - ⚠ The harness lessons of 2026-09-24/25 (NOTES §5): a killed run must be followed by `verify-settings --fix` → `reset-fixture-state` → `fixture-suite` (the battery now sweeps first by itself); launch batteries DETACHED; a second Claude session's MCP bridge blocks every suite's preflight.
 - **Cleanup of this roster is the user's call** — it lives in the sandbox only (Actor folder BF Species, tokens on Party Camp); a prod pull wipes it like every fixture.
 - Docs recut at the end; retire this file; BACKLOG's header records the retirement.
@@ -88,8 +94,27 @@ suites of the machines it touched, even when `--changed` says "full".
 
 | Species | State |
 | --- | --- |
-| **Aasimar** | walked 2026-09-25; five findings ruled and BUILT (RULINGS *The Aasimar walk*): every self-centered area placed on the token; an `enemy` area asks no ally; Necrotic Shroud's Frightened to the end of the Aasimar's next turn (**Vendor Fixes VF-002**); Inner Radiance's ring, turn-end pulse and light (the new **Token Lights** table, with the Light spell on a targeted token); Celestial Revelation's extra damage (a rider on hits, a one-target pick on a spell). `smoke-aasimar` 29/29 on the sandbox. ⚠ Not yet re-walked by hand; Lucky waits for the origin-feat round. |
-| Dragonborn → Tiefling | not yet walked |
+| **Aasimar** | **DONE 2026-09-25** (user: "everything else looks good" → "we are done with aasimar"); five findings ruled and BUILT, plus a sixth: every area placed on a token is never drawn (user: "it can be invisible, just like inner radiance") (RULINGS *The Aasimar walk*): every self-centered area placed on the token; an `enemy` area asks no ally; Necrotic Shroud's Frightened to the end of the Aasimar's next turn (**Vendor Fixes VF-002**); Inner Radiance's ring, turn-end pulse and light (the new **Token Lights** table, with the Light spell on a targeted token); Celestial Revelation's extra damage (a rider on hits, a one-target pick on a spell). `smoke-aasimar` 29/29 on the sandbox. Lucky waits for the origin-feat round. |
+| **Dragonborn** | NEXT — the table is §6 |
+| Dwarf → Tiefling | not yet walked |
 
 **For the release:** Vendor Fixes gets a release too (v1.1.0 — VF-002); a released world needs
 Reset Defaults on the **Emanations**, **Clock Riders** and new **Token Lights** lists as well.
+
+## 6. The Dragonborn — the table to open with (drafted 2026-09-25, re-read before use)
+
+**BF Species Dragonborn** (Fighter 5 Champion, Longsword; Soldier → Savage Attacker, which waits
+for the origin-feat round). SWEEP §6 read every Dragonborn trait as NATIVE or OUT — so the walk is
+mostly "does Battle Flow leave dnd5e alone", plus the machines a breath save runs through.
+
+| Trait | What you should see |
+| --- | --- |
+| **Breath Weapon** (the ancestry's typed activity — 15-ft cone or 30-ft line, Dex save, PB uses per Long Rest; replaces one attack) | ⚠ A cone or line is NOT a self-centered radius, so the system still asks you to place it (the auto-place class is radius/emanation from self). The save goes to every creature in the area through the save gate, half on a success, the damage auto-applied with receipts, one use spent. |
+| **Damage Resistance** (the ancestry's type) | Native: that damage type halves on the Dragonborn. |
+| **Draconic Flight** (character level 5: Bonus Action, fly speed = speed for 10 minutes, once per Long Rest) | Native: the effect lands on the Dragonborn (the cast slice self-aims a self utility). |
+| **Darkvision** | Nothing to walk. |
+| **Draconic Ancestry** (the choice) | OUT: the sheet's choice picks the typed Breath Weapon and resistance. |
+
+**Likely questions to rule before building** (ask, with options): does a cone/line Breath Weapon
+place itself too (origin at the token, aimed at the target — a new placement shape, unlike a
+radius), and does the ancestry's damage type need a check at the Breath's roll.

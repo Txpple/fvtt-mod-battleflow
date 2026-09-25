@@ -854,7 +854,7 @@ function transformRowOf(activity) {
 // area sweep ends it. A LISTED emanation spell's region is the machine's (hidden, no platform
 // behaviour — the §3.6 ruling; no dependent flag: 6.0 makes no placed region a concentration
 // dependent — endConcentrationAreas below ends it with the spell); every other area is the
-// platform's to run as it likes — drawn, and its own behaviours on it.
+// platform's to run as it likes — its own behaviours on it. None is drawn (the ring ruling).
 Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
   try {
     if ( transformRowOf(activity) ) {
@@ -897,7 +897,9 @@ async function placeSelfArea(activity, row, message) {
     ...(canvas?.level?.id ? { levels: [canvas.level.id] } : {}),
     restriction: { enabled: true, type: "move" },
     attachment: { token: tok.id },
-    ...(row ? ringHidden() : { visibility: CONST.REGION_VISIBILITY.ALWAYS }), highlightMode: "coverage",
+    // NEVER DRAWN, listed or not (user, 2026-09-25: "it can be invisible, just like inner
+    // radiance" — the 2026-09-18 ring ruling, reaching every area this module places on a token).
+    ...ringHidden(), highlightMode: "coverage",
     flags: { dnd5e: {
       activity: activity.uuid, item: activity.item.uuid, origin: tok.uuid, spellLevel,
       dimensions: { size, width: inScene(tpl.width), height: inScene(tpl.height), units }
