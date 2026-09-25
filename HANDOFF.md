@@ -145,7 +145,11 @@ which holders remain (`search-actor-contents` / the Actor folder BF Species) bef
    once per turn; announced, the token moved by hand).
 3. **Alert — Initiative Swap:** YES, a popup once everyone has rolled initiative: the non-Incapacitated
    allies with their initiative, pick one, Swap / No.
+4. **Musician — Encouraging Song:** YES, a courtesy popup after a Short AND a Long Rest on Careful
+   Spell's picker (user: "you can leverage the general form of careful spell"): the allies within
+   30 ft, the player picks who gets Heroic Inspiration, the ones who already have it greyed and so
+   noted; the cap is the Proficiency Bonus (the feat's own limit). Actor: BF Feat Musician (Entertainer).
 
-The roster for these is the **BF Feats** folder (Savage Attacker, Alert, Healer, Tavern Brawler — Dwarf,
+The roster for these is the **BF Feats** folder (Savage Attacker, Alert, Healer, Tavern Brawler, Musician — Dwarf,
 level 5, on Party Camp); the BF Species tokens are off the scene, the actors kept.
 Still open: re-enabling the Tiefling's Remarkable Athlete.

@@ -141,9 +141,9 @@
   <header class="top">
     <div>
       <div class="eyebrow">Battle Flow · prototype · 2026-09-25 · origin feats · for ruling, nothing built</div>
-      <h1>Origin feats: Healer's rerolls, Tavern Brawler's push, Alert's swap</h1>
+      <h1>Origin feats: Healer's rerolls, Tavern Brawler's push, Alert's swap, Musician's song</h1>
     </div>
-    <p>Three popups, each borrowing a shape already in the module. Pick a scene along the top, click through it, and the chat log on the right shows what the table sees.</p>
+    <p>Four popups, each borrowing a shape already in the module. Pick a scene along the top, click through it, and the chat log on the right shows what the table sees.</p>
   </header>
 
   <nav class="scenes" aria-label="Scenes">
@@ -161,6 +161,10 @@
     <div class="grp"><span>Alert</span>
       <button data-scene="a1">3a · everyone has rolled</button>
       <button data-scene="a2">3b · no one to swap with</button>
+    </div>
+    <div class="grp"><span>Musician</span>
+      <button data-scene="m1">4a · a Long Rest ends</button>
+      <button data-scene="m2">4b · everyone near already has it</button>
     </div>
   </nav>
 
@@ -296,6 +300,46 @@
     document.getElementById("chat").innerHTML = log(rollCard, msg("BF Feat Alert", card("pending","Feat — Alert","Alert — asking about a swap","")));
   }
 
+  /* ---------------- MUSICIAN ---------------- */
+  const NEAR = [
+    { n:"Gren", party:true, ft:15 }, { n:"BF Feat Savage Attacker", ft:10 }, { n:"BF Feat Alert", ft:20 },
+    { n:"BF Feat Healer", ft:25, has:true }, { n:"BF Feat Tavern Brawler", ft:30 }
+  ];
+  const CAP = 3;
+  function musician(){
+    const restCard = msg("BF Feat Musician", card("good","Rest","Long Rest","BF Feat Musician", ["Hit Points and Hit Dice restored"]));
+    if ( state.scene === "m2" ) {
+      document.getElementById("popup").innerHTML = `<div class="nothing">Every ally within 30 feet already has Heroic Inspiration, so there's no one to give it to and no popup. It's the same when no ally is within 30 feet.</div>`;
+      document.getElementById("chat").innerHTML = log(restCard);
+      return;
+    }
+    if ( state.picks.size === 0 && !state.touched ) NEAR.forEach((o,i) => { if ( !o.has && state.picks.size < CAP ) state.picks.add(i); });
+    if ( state.done ) {
+      const names = [...state.picks].map(i => NEAR[i].n);
+      document.getElementById("popup").innerHTML = `<div class="nothing">Each picked ally's Heroic Inspiration box is now ticked on their sheet.</div>`;
+      document.getElementById("chat").innerHTML = log(restCard, msg("BF Feat Musician", names.length
+        ? card("good","Feat — Musician","Encouraging Song", `Heroic Inspiration to ${names.length} ${names.length===1?"ally":"allies"}`, [names.map(esc).join(", ")])
+        : card("neutral","Feat — Musician","Encouraging Song — no one picked","")));
+      return;
+    }
+    const full = state.picks.size >= CAP;
+    const rowOf = (o, i) => {
+      const on = state.picks.has(i), off = o.has || (!on && full);
+      return `<label class="ally ${on?"on":""}" data-mus="${i}" style="${o.has?"opacity:.5;cursor:not-allowed;border-left-color:var(--neutral)":off?"opacity:.6;cursor:not-allowed":""}">
+        <input type="checkbox" ${on?"checked":""} ${off?"disabled":""}><span class="nm">${esc(o.n)}${o.has?` <span style="font-weight:400;color:var(--ink-3)">(already has Heroic Inspiration)</span>`:""}</span><span style="font-size:11px;color:var(--ink-3)">${o.ft} ft</span></label>`;
+    };
+    const grp = (t, list) => list.length ? `<div style="margin:8px 0 2px"><div class="eyebrow" style="font-size:10.5px">${t}</div>${list.map(([o,i]) => rowOf(o,i)).join("")}</div>` : "";
+    const idx = NEAR.map((o,i) => [o,i]);
+    document.getElementById("popup").innerHTML = popup("Musician — BF Feat Musician",
+      head("halfling", "Encouraging Song — who gets Heroic Inspiration?", `Feat · after a Short or Long Rest · ${state.picks.size} of ${CAP} picked (your Proficiency Bonus)`)
+      + fold("musician")
+      + grp("Party", idx.filter(([o]) => o.party)) + grp("Non-Party", idx.filter(([o]) => !o.party))
+      + `<div class="hint">Allies within 30 feet. A tick pings their token.</div>`
+      + `<div class="btnrow"><button class="btn primary" data-act="give">OK</button></div>`);
+    document.getElementById("chat").innerHTML = log(restCard);
+  }
+  RULES.musician = "Encouraging Song. As you finish a Short or Long Rest, you can play a song on a Musical Instrument with which you have proficiency and give Heroic Inspiration to allies who hear the song. The number of allies you can affect in this way equals your Proficiency Bonus.";
+
   /* ---------------- side panels ---------------- */
   const SIDE = {
     h: panel("Healer — what it copies", `<ul><li><b>Empowered Spell's popup</b>: every die in a row, the picks outlined, Reroll greyed until something's picked.</li><li>Only the <b>1s</b> are pickable; every other die is shown but greyed.</li><li>Every healing <b>spell</b> the Healer casts, <b>and Battle Medic itself</b>, asks when a 1 shows. dnd5e currently rerolls Battle Medic's 1s silently (an <code>r1</code> in its formulas); the build takes that out so Battle Medic asks through the same popup.</li><li>The new roll stands, even another 1.</li></ul>`)
@@ -305,15 +349,26 @@
       + panel("For your ruling", `<ul><li>RAW says a <b>willing</b> ally. Is the Alert player's pick enough, with the table settling willingness? Or should the ally get a yes/no popup of their own first?</li></ul>`, true)
   };
 
+  SIDE.m = panel("Musician — what it copies", `<ul><li><b>Careful Spell's picker</b>: ticks in Party / Non-Party groups, the cap enforced as you tick, each tick pinging the token, one OK.</li><li>It's a courtesy: it pops for the Musician when a <b>Short or Long Rest</b> finishes. There's no timer, and OK with nothing ticked gives nothing.</li><li>It lists <b>characters on your side within 30 feet</b>. Anyone who already has Heroic Inspiration is shown greyed and marked so.</li><li>The cap is your <b>Proficiency Bonus</b> (the feat's own limit). Allies who don't have it yet start ticked, Party first, up to the cap.</li><li>The Musician's instrument proficiency comes with the feat, so it's never checked.</li></ul>`);
+
   function render(){
     document.querySelectorAll(".scenes button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.scene === state.scene)));
     const k = state.scene[0];
-    ({ h:healer, t:brawler, a:alert })[k]();
+    ({ h:healer, t:brawler, a:alert, m:musician })[k]();
     document.getElementById("side").innerHTML = SIDE[k] + (state.done ? `<button class="reset" data-act="reset">↺ replay the scene</button>` : "");
   }
   document.addEventListener("click", ev => {
     const s = ev.target.closest("[data-scene]");
-    if ( s ) { state.scene = s.dataset.scene; state.picks.clear(); state.ally = null; state.done = null; return render(); }
+    if ( s ) { state.scene = s.dataset.scene; state.picks.clear(); state.ally = null; state.done = null; state.touched = false; return render(); }
+    const mu = ev.target.closest("[data-mus]");
+    if ( mu ) {
+      ev.preventDefault();
+      const i = Number(mu.dataset.mus), o = NEAR[i];
+      if ( o.has ) return;
+      state.touched = true;
+      if ( state.picks.has(i) ) state.picks.delete(i); else if ( state.picks.size < CAP ) state.picks.add(i);
+      return render();
+    }
     const d = ev.target.closest("[data-die]");
     if ( d && !d.disabled ) { const i = Number(d.dataset.die); state.picks.has(i) ? state.picks.delete(i) : state.picks.add(i); return render(); }
     const al = ev.target.closest("[data-ally]");
@@ -321,7 +376,7 @@
     const a = ev.target.closest("[data-act]");
     if ( a && !a.disabled ) {
       const act = a.dataset.act;
-      if ( act === "reset" ) { state.picks.clear(); state.ally = null; state.done = null; }
+      if ( act === "reset" ) { state.picks.clear(); state.ally = null; state.done = null; state.touched = false; }
       else state.done = act;
       return render();
     }
