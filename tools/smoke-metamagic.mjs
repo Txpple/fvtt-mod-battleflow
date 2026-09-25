@@ -543,10 +543,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await foe.update({ 'system.attributes.ac.override': 60 });   // a guaranteed miss
       await sorcTok.update(sorcHome, { teleport: true, animate: false });
       await attTok.update({ x: sorcHome.x + scene.grid.size * 2, y: sorcHome.y }, { teleport: true, animate: false });
-      const foeTok = canvas.tokens.get(attTok.id);
+      // ⚠ The MISS must be certain and the TARGET must be real (2026-09-24, 102/107: offers=[] with no
+      // way to tell a natural 20 — a hit even against AC 60, ~10% under Advantage — from an orb cast at
+      // nobody because the cached token had left the canvas). The d20 is pinned to a 10 for the
+      // original roll (real dice again for the reroll), the token is re-resolved, and 15-pre says so.
+      const foeTok = canvas.tokens.get(attTok.id) ?? canvas.tokens.placeables.find(t => t.document.actorId === attacker.id) ?? null;
       game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
       foeTok?.setTarget(true, { releaseOthers: true });
       await sleep(200);
+      ok('15-pre. the orb has its target — the foe token is on the canvas and targeted', !!foeTok && game.user.targets.has(foeTok),
+        `token=${!!foeTok} targeted=${!!foeTok && game.user.targets.has(foeTok)} ac=${foeTok?.actor?.system?.attributes?.ac?.value}`);
+      const realPRNG15 = CONFIG.Dice.randomUniform;
+      CONFIG.Dice.randomUniform = () => 1 - ((10 - 0.5) / 20);   // every d20 shows 10: a miss against 60, never a crit
       const before = new Set(game.messages.map(m => m.id));
       await spellAct('Chromatic Orb').use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, {});
       const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage')) ?? null, 6000);
@@ -555,8 +563,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // from it with the original's `configured` option skipped the normalisation and expanded AGAIN.
       await spellAct('Chromatic Orb').rollAttack({ advantage: true }, { configure: false }, { data: { 'system.origin': card?.id } });
       const attack = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.type === 'attack' && m.getFlag(MOD, 'd20fold')) ?? null, 8000);
+      CONFIG.Dice.randomUniform = realPRNG15;   // the reroll rolls real dice
+      const attackAny = attack ?? game.messages.find(m => !before.has(m.id) && m.type === 'attack') ?? null;
       const fold = attack?.getFlag(MOD, 'd20fold');
-      ok('15a. the missed spell attack is offered Seeking Spell as a d20 fold', !!fold && (fold.offers ?? []).some(o => o.kind === 'seeking') && fold.spell === true, `offers=${JSON.stringify((fold?.offers ?? []).map(o => `${o.kind}:${o.label}`))} spell=${fold?.spell}`);
+      ok('15a. the missed spell attack is offered Seeking Spell as a d20 fold', !!fold && (fold.offers ?? []).some(o => o.kind === 'seeking') && fold.spell === true,
+        `offers=${JSON.stringify((fold?.offers ?? []).map(o => `${o.kind}:${o.label}`))} spell=${fold?.spell} `
+          + `attack=${!!attackAny} total=${attackAny?.rolls?.[0]?.total} crit=${attackAny?.rolls?.[0]?.isCritical} targets=${JSON.stringify((attackAny?.getFlag('dnd5e', 'targets') ?? []).map(t => `${t.name}:${t.ac}`))}`);
       // Answer from the popup, as the player would: the offer's own button.
       const popup = await waitFor(() => [...foundry.applications.instances.values()].find(a => a.rendered && a.element?.querySelector?.('[data-bf-rescue-action="seeking"]')) ?? null, 12000);   // after the verdict pause — see §16
       const clickedAt = Date.now();
@@ -575,13 +587,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // THE DICE ROLL AGAIN (user, 2026-09-10: "the dice so nice, if avail, should roll again"). Dice So
       // Nice animates any CREATED message that is a roll with dice, content visible, not flagged skip -
       // its own gate, read from its source. The reroll rides its own message, so the gate must hold.
-      const reroll15 = game.messages.find(m => m.getFlag(MOD, 'respondsTo') === attack?.id && m.isRoll) ?? null;
+      const reroll15 = attack ? (game.messages.find(m => m.getFlag(MOD, 'respondsTo') === attack.id && m.isRoll) ?? null) : null;   // never `undefined === undefined`
       const gate15 = !!reroll15 && reroll15.rolls.some(r => r.dice.length > 0) && reroll15.isContentVisible && !reroll15.getFlag('dice-so-nice', 'skip');
       ok('15e. the reroll rides its own message and passes the Dice So Nice gate (a roll, dice, visible)', gate15 && reroll15.rolls[0].dice[0].faces === 20, JSON.stringify({ found: !!reroll15, isRoll: reroll15?.isRoll, dice: reroll15?.rolls?.[0]?.dice?.length, faces: reroll15?.rolls?.[0]?.dice?.[0]?.faces, visible: reroll15?.isContentVisible }));
       const origD20 = attack?.rolls?.[0]?.dice?.[0]?.results?.length ?? 0;
       const reD20 = reroll15?.rolls?.[0]?.dice?.[0]?.results?.length ?? 0;
       ok('15f. under advantage the original rolled two d20s and the reroll rolled exactly as many - two, never four', origD20 === 2 && reD20 === 2, JSON.stringify({ original: origD20, reroll: reD20, formula: reroll15?.rolls?.[0]?.formula }));
-      ok('15g. the window closed at the click, well before the dice landed', !!goneAfter && goneAfter.ms < 1500, JSON.stringify(goneAfter ?? { gone: false }));
+      ok('15g. the window closed at the click, well before the dice landed', !!popup && !!goneAfter && goneAfter.ms < 1500, JSON.stringify(popup ? (goneAfter ?? { gone: false }) : { popup: false }));
       await closeDialogs();
       await foe.update({ 'system.attributes.ac.override': priorAC.override });
       await attTok.update(attHome, { teleport: true, animate: false });
