@@ -386,7 +386,9 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     // hit — Lucky, Warding Flare, Shadowy Dodge). Savage Attacker's table is rows, not a kind.
     // 2026-09-25: 31 → 33 — `buy` joins the reminders and `advantage` the d20 folds (Lucky's
     // Advantage half, the Halfling walk: the box bought before the roll, the no-dialog initiative fold).
-    expect(total).toBe(33);
+    // 2026-09-25: 33 → 34 — `shove` joins the maneuver folds (Tavern Brawler's push: the bash offer
+    // on an Unarmed Strike with no save behind it; the origin feats).
+    expect(total).toBe(34);
   });
 
   it("puts every kind-bearing list spec's set in the table — unless the spec says it is MEMBERSHIP", () => {

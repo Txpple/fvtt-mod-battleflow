@@ -30,7 +30,9 @@
 /** The closed set of maneuver fold kinds. Unknown kinds are DROPPED, never guessed. */
 // `command` (2026-09-05): Commander's Strike — a Bonus Action that gives an ALLY a Reaction attack
 // with the fighter's die on its damage: Riposte's driven attack with the attacker changed.
-export const MANEUVER_KINDS = new Set(["precision", "riposte", "interpose", "bash", "hew", "command"]);
+// `shove` (2026-09-25, the origin feats): Tavern Brawler's push on an Unarmed Strike hit - the bash
+// offer's shape with no save behind it; accepting announces the 5-foot push (bash-offer.js).
+export const MANEUVER_KINDS = new Set(["precision", "riposte", "interpose", "bash", "hew", "command", "shove"]);
 
 /** The closed set of interrupt kinds — what a held reaction changes about an attack. */
 // `roll` (Slice A, ruled 2026-09-24 off prototypes/slice-a.html): the defender bends the ROLL
@@ -206,6 +208,7 @@ export const RULE_TEXT = {
   // this layer imports nothing, present.js included). Every other kind is the folds' alone.
   riposte: "When a creature misses you with a melee attack roll, you can take a Reaction and expend one Superiority Die to make a melee attack roll with a weapon or an Unarmed Strike against the creature. If you hit, add the Superiority Die to the attack's damage.",
   bash: "If you attack a creature within 5 feet of you as part of the Attack action and hit with a Melee weapon, you can immediately bash the target with your Shield if it’s equipped, forcing the target to make a Strength saving throw (DC 8 plus your Strength modifier and Proficiency Bonus). On a failed save, you either push the target 5 feet from you or cause it to have the Prone condition (your choice). You can use this benefit only once on each of your turns.",
+  shove: "Push. When you hit a creature with an Unarmed Strike as part of the Attack action on your turn, you can deal damage to the target and also push it 5 feet away from you. You can use this benefit only once per turn.",
   bashChoice: "On a failed save, you either push the target 5 feet from you or cause it to have the Prone condition (your choice).",
   interpose: "If you’re subjected to an effect that allows you to make a Dexterity saving throw to take only half damage, you can take a Reaction to take no damage if you succeed on the saving throw and are holding a Shield.",
   hew: "Immediately after you score a Critical Hit with a Melee weapon or reduce a creature to 0 Hit Points with one, you can make one attack with the same weapon as a Bonus Action.",
@@ -1813,7 +1816,8 @@ export const KIND_SETS = [
       + "(2026-09-24, Slice A) the roll itself: Disadvantage after the hit showed" },
   { name: "maneuverFold", owner: "precision.js · riposte.js · hew.js · bash-offer.js · command.js", kinds: MANEUVER_KINDS, system: null,
     note: "how a listed feat folds into a resolved attack — D8 says this set is the one under pressure; "
-      + "`command` (2026-09-05) is Riposte's driven attack with the attacker changed to an ally" },
+      + "`command` (2026-09-05) is Riposte's driven attack with the attacker changed to an ally; "
+      + "`shove` (2026-09-25) is the bash offer on an Unarmed Strike with no save — Tavern Brawler's push" },
   { name: "d20Fold", owner: "d20-folds.js", kinds: D20_FOLD_KINDS, system: null,
     note: "where the marker lives and how it is spent — the three surveyed features (v1.23.0); "
       + "the ARITHMETIC is shared and already shipped with D8, so only the spend earns a kind" },
@@ -1893,7 +1897,7 @@ export const LIST_SPECS = {
     label: "Maneuver Folds", setting: "maneuverFolds",
     columns: ["name", "kind"], kindColumn: "kind", kinds: MANEUVER_KINDS, fallback: null,
     default: "Precision Attack:precision, Riposte:riposte, Shield Master:interpose, "
-      + "Shield Master:bash, Great Weapon Master:hew, Commander's Strike:command"
+      + "Shield Master:bash, Great Weapon Master:hew, Commander's Strike:command, Tavern Brawler:shove"
   },
   d20Folds: {
     label: "D20 Folds", setting: "d20Folds",

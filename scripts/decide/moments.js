@@ -537,12 +537,12 @@ export const MOMENT_RECORDS = Object.freeze({
 
   bashOffer: {
     events: ["use"],
-    means: "Shield Master's bash offer on a melee hit was answered — bashed or passed (bash-offer.js); resolved when `status` is resolved",
+    means: "Shield Master's bash offer on a melee hit, or Tavern Brawler's push on an Unarmed Strike hit (kind shove), was answered — used or passed (bash-offer.js); resolved when `status` is resolved",
     resolved: (r, ctx) => (r?.status === "resolved") ? whole(["use"], {
       actor: r.attackerUuid ?? source(r) ?? ctx.actorUuid, item: itemUuid(r.attackerUuid, r.itemId),
       activity: activityUuid(itemUuid(r.attackerUuid, r.itemId), r.activityId), ability: r.itemName ?? "Shield Master", attackId: ctx.messageId,
       targets: r.targetUuid ? [{ uuid: r.targetUuid, name: (r.targets ?? []).find(t => t.uuid === r.targetUuid)?.name ?? null }] : (r.targets ?? []).map(t => row(t)),
-      details: { answer: r.answer ?? null, timedOut: !!r.timedOut }
+      details: { answer: r.answer ?? null, timedOut: !!r.timedOut, kind: r.kind ?? "bash" }
     }) : []
   },
 
@@ -667,6 +667,7 @@ export const STATE_KEYS = Object.freeze({
   tacticalArmed: "Tactical Assessment or Ambush armed from the sheet (its own card); the fold into the check is the d20fold resolve",
   bashFor: "provenance — the driven bash's usage card names the offer it answers",
   bashUsed: "an actor flag — the once-per-turn stamp; bashOffer is the resolve",
+  shoveUsed: "an actor flag — Tavern Brawler's once-per-turn stamp; bashOffer (kind shove) is the resolve",
   riposteUse: "provenance — the maneuver's use names the riposte it answers",
   riposteFor: "provenance — the driven attack names the riposte it answers",
   riposteBy: "provenance — the driven attack names the reactor",

@@ -39,7 +39,7 @@ const REFERENCE = {
                           // mastery.js until 2026-09-01 — the 2026-08-27 "all timers 24s"
                           // call swept the settings file, and this window was not in it.
                           // Listed here so the next sweep cannot miss it again.
-  maneuverFolds: "Precision Attack:precision, Riposte:riposte, Shield Master:interpose, Shield Master:bash, Great Weapon Master:hew, Commander's Strike:command",   // command joined 2026-09-05   // v1.19.0 — the list IS the switch; interpose/bash/hew joined at the walk's scope-adds
+  maneuverFolds: "Precision Attack:precision, Riposte:riposte, Shield Master:interpose, Shield Master:bash, Great Weapon Master:hew, Commander's Strike:command, Tavern Brawler:shove",   // shove joined 2026-09-25 (the origin feats)   // command joined 2026-09-05   // v1.19.0 — the list IS the switch; interpose/bash/hew joined at the walk's scope-adds
   // ⚠ v1.23.0 — the d20 folds. These MUST be listed here: the loop below walks the REFERENCE,
   // so a registered setting that this table does not name is simply never checked, and drifts
   // in silence forever. (`missing` catches the opposite case — a reference key with no

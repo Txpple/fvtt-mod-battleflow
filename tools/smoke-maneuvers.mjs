@@ -28,7 +28,7 @@ export const COVERS = [
   'precision.js',           // P, P8, M1, Q — Precision Attack
   'riposte.js',             // R, RP — Riposte's driven attack
   'hew.js',                 // H — the Hew reminder
-  'bash-offer.js',          // B — the bash offer on a listed carrier's hit
+  'bash-offer.js',          // B — the bash offer on a listed carrier's hit; T — Tavern Brawler's shove
   'saves/choices.js',       // B / I — the Prone-or-push choice and Interpose
   'saves/verdict.js'        // I — Interpose on a save success
 ];
@@ -40,6 +40,7 @@ const SECTIONS = {
   M1: 'finding ④: two weapons, smart default',
   RP: '(l)+(p): the riposte HIT celebrates',
   B: 'finding ⑤: the bash choice (Prone or push)',
+  T: 'Tavern Brawler: the shove offer on an Unarmed Strike hit (Push 5 feet / Pass, announced), none on a weapon hit, none unlisted',
   I: 'finding ⑥: Interpose (save-success reaction)',
   H: '② + (c): the Hew reminder POPS now',
   Q: '(s): the cascade is a staircase queue'
@@ -910,6 +911,81 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await pcToken.document.update(pcHome, { animate: false });
         await acFlat(victim, 25);
         await closeDialogs('BF Shield Master');
+      }
+    }
+
+    /* ============================================== T — Tavern Brawler's push (the `shove` kind, 2026-09-25) */
+    if (want('T')) {
+      // The PHB's own Tavern Brawler, lent to the PC: its Enhanced Unarmed Strike is the feat's
+      // attack activity, classified unarmed (probed 2026-09-25) — the real data, not a stand-in.
+      let brawlerSrc = null;
+      for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
+        const hit = (await pack.getIndex()).find(e => e.name === 'Tavern Brawler');
+        if (hit) { brawlerSrc = await pack.getDocument(hit._id); break; }
+      }
+      if (!brawlerSrc) {
+        ok('T0. the PHB ships Tavern Brawler', false, 'no "Tavern Brawler" in the PHB packs');
+      } else {
+        const [brawler] = await pc.createEmbeddedDocuments('Item', [brawlerSrc.toObject()]);
+        const unarmedAct = () => pc.items.get(brawler.id)?.system.activities.find(a => a.type === 'attack');
+        await set('maneuverFolds', 'Tavern Brawler:shove');
+        priorActor[victim.id]['system.attributes.hp.max'] ??= victim.system._source.attributes.hp.max;
+        await victim.update({ 'system.attributes.hp.max': 1000, 'system.attributes.hp.value': 1000 });
+        await acFlat(victim, 1);
+        const pcHome = { x: pcToken.document.x, y: pcToken.document.y };
+        await pcToken.document.update({ x: victimToken.document.x, y: victimToken.document.y + canvas.grid.size }, { animate: false });
+        await sleep(500);
+        const hitUntil = async act => {
+          for (let i = 0; i < 6; i++) {
+            const { msg, roll } = await attack(act, victimToken);
+            if (roll && !roll.isFumble && (roll.total > 1)) return msg;
+          }
+          return null;
+        };
+
+        /* T1 — an Unarmed Strike hit: queued, promoted after the damage, Push 5 feet / Pass. */
+        {
+          const msg = await hitUntil(unarmedAct());
+          const stamped = await until(() => msg?.getFlag(MOD, 'bashOffer'), 4000);
+          const offer = await until(() => { const b = msg?.getFlag(MOD, 'bashOffer'); return (b?.status === 'pending') ? b : null; }, 12000);
+          ok('T1a. an Unarmed Strike hit by a Tavern Brawler stamps the shove offer (kind shove), pending after the damage',
+            (stamped?.kind === 'shove') && (offer?.status === 'pending') && ((offer?.targets ?? []).length === 1),
+            `stamped=${JSON.stringify(stamped ? { kind: stamped.kind, status: stamped.status } : null)} offer=${offer?.status}`);
+          const popup = await until(() => dialogsWith('5 feet?')[0], 6000);
+          const use = popup?.querySelector('button[data-action="use"]');
+          ok('T1b. the popup asks "push … 5 feet?" with Push 5 feet / Pass',
+            !!use && /Push 5 feet/.test(use.textContent ?? '') && !!popup?.querySelector('button[data-action="pass"]'),
+            `popup=${!!popup} use="${use?.textContent ?? ''}"`);
+          use?.click();
+          const card = await until(() => game.messages.contents.find(m => m.getFlag(MOD, 'bashFor') === msg?.id), 8000);
+          const text = (card?.content ?? '').replace(/<[^>]+>/g, ' ');
+          ok('T1c. Push announces it — "pushes Victim 5 feet", moved by hand — and drives no save activity',
+            !!card && /pushes .* 5 feet/.test(text) && /by hand/.test(text) && !card.getFlag(MOD, 'saves'),
+            `card=${!!card} text="${text.replace(/\s+/g, ' ').trim().slice(0, 120)}"`);
+          ok('T1d. the offer resolved "use"', msg?.getFlag(MOD, 'bashOffer')?.answer === 'use', `answer=${msg?.getFlag(MOD, 'bashOffer')?.answer}`);
+          await closeDialogs('Tavern Brawler');
+        }
+
+        /* T2 — a weapon hit carries no shove. */
+        {
+          const msg = await hitUntil(pcAttackAct());
+          await sleep(2500);
+          ok('T2a. a weapon hit stamps no shove offer — the Unarmed Strike alone', !!msg && !msg.getFlag(MOD, 'bashOffer'),
+            `hit=${!!msg} offer=${JSON.stringify(msg?.getFlag(MOD, 'bashOffer') ?? null)}`);
+        }
+
+        /* T3 — off the list. */
+        {
+          await set('maneuverFolds', '');
+          const msg = await hitUntil(unarmedAct());
+          await sleep(2500);
+          ok('T3a. Tavern Brawler off the Maneuver Folds list: no offer', !!msg && !msg.getFlag(MOD, 'bashOffer'),
+            `hit=${!!msg} offer=${JSON.stringify(msg?.getFlag(MOD, 'bashOffer') ?? null)}`);
+        }
+        await pcToken.document.update(pcHome, { animate: false });
+        await acFlat(victim, 25);
+        await closeDialogs('Tavern Brawler');
+        await closeDialogs('Weapon Mastery');
       }
     }
 

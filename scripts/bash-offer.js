@@ -47,22 +47,48 @@ import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoment
 const bashOfferTimers = new Map();
 const bashOfferInFlight = new Set();
 
+/**
+ * THE SHOVE (Tavern Brawler, the origin feats, 2026-09-25 — user: "yes mimic the shiled master
+ * push"): the `shove` kind on the same list and the same offer — an Unarmed Strike hit, queued
+ * behind the damage, Use / Pass, once per turn — with no save behind it: "you can deal damage to the
+ * target and also push it 5 feet away from you". Accepting announces the push (the Push mastery's
+ * idiom — the token is moved by hand, never by the module) and spends the turn's use.
+ */
+const OFFER_KINDS = Object.freeze({
+  bash: { used: "bashUsed", eyebrow: "Maneuver", verb: "bash", use: "Use", icon: "fa-solid fa-shield-halved" },
+  shove: { used: "shoveUsed", eyebrow: "Feat", verb: "push", use: "Push 5 feet", icon: "fa-solid fa-hand-back-fist" }
+});
+
+/** An Unarmed Strike — the attack's own classification (the pack's Tavern Brawler strike is a feat's activity). */
+const isUnarmed = subject => subject?.attack?.type?.classification === "unarmed";
+
+/** Which offer this attack carries, and from what — `{ kind, found, activity }` or null. */
+function offerFor(subject, attacker) {
+  if ( subject.attack?.type?.value !== "melee" ) return null;
+  const entries = maneuverFoldEntries();
+  if ( isUnarmed(subject) ) {
+    const found = foldEntryFor(attacker, "shove", entries);
+    if ( found ) return { kind: "shove", found, activity: null };
+  }
+  if ( subject.item?.type !== "weapon" ) return null;             // feat and spell attacks never bash
+  const found = foldEntryFor(attacker, "bash", entries);
+  const activity = found?.item.system.activities?.contents?.find(a => a.type === "save") ?? null;
+  return activity ? { kind: "bash", found, activity } : null;
+}
+
 Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
   try {
     if ( !subject || (subject.type !== "attack") ) return;
-    if ( subject.item?.type !== "weapon" ) return;               // feat and spell attacks never bash
-    if ( subject.attack?.type?.value !== "melee" ) return;
     const attacker = subject.actor;
     const message = rolls?.[0]?.parent;
     if ( !attacker || !(message instanceof ChatMessage) ) return;
     if ( message.getFlag(MODULE_ID, "bashOffer") ) return;       // never re-stamp
     if ( message.getFlag(MODULE_ID, "riposteFor") ) return;      // a driven attack never chains the offer
     if ( !modeAllows(attacker) ) return;
-    const found = foldEntryFor(attacker, "bash", maneuverFoldEntries());
-    if ( !found ) return;
-    const activity = found.item.system.activities?.contents?.find(a => a.type === "save");
-    if ( !activity ) return;
-    const used = attacker.getFlag(MODULE_ID, "bashUsed");
+    const offer = offerFor(subject, attacker);
+    if ( !offer ) return;
+    const { kind, found, activity } = offer;
+    const used = attacker.getFlag(MODULE_ID, OFFER_KINDS[kind].used);
     if ( used?.stamp && (used.stamp === combatStamp()) ) return; // once on each of your turns
     const hits = hitTargets(message);
     if ( !hits.length ) return;
@@ -83,8 +109,8 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
     // THE SEQUENCE: queued behind the damage unless nothing downstream would ever promote it.
     const sequenced = setting(S.autoApply) || setting(S.effectRiders) || setting(S.masteryRiders);
     await message.setFlag(MODULE_ID, "bashOffer", {
-      status: sequenced ? "queued" : "pending", answer: null,
-      itemId: found.item.id, activityId: activity.id,
+      status: sequenced ? "queued" : "pending", answer: null, kind,
+      itemId: found.item.id, activityId: activity?.id ?? null,
       itemName: found.item.name, itemImg: found.item.img,
       attackerUuid: attacker.uuid, targets: living,
       ...statContext(attacker.uuid), // the data-plane stamp
@@ -197,6 +223,7 @@ async function resolveBashOffer(message) {
     if ( !flag || (flag.answer !== "use") ) return;
     if ( bashDriven(message.id) ) return;                        // idempotent — the usage exists
     const attacker = await fromUuid(flag.attackerUuid).catch(() => null);
+    if ( flag.kind === "shove" ) { if ( attacker instanceof Actor ) await announceShove(message, flag, attacker); return; }
     const item = attacker?.items?.get(flag.itemId);
     const activity = item?.system.activities?.get?.(flag.activityId)
       ?? item?.system.activities?.contents?.find(a => a.id === flag.activityId);
@@ -227,13 +254,33 @@ async function resolveBashOffer(message) {
   }
 }
 
+/**
+ * The shove's accept: the push announced on its own card (the Push mastery's idiom — nothing moves
+ * the token), the card carrying `bashFor` so a second pass finds it done, and the turn's use spent.
+ */
+async function announceShove(message, flag, attacker) {
+  const targetUuid = flag.targetUuid ?? flag.targets?.[0]?.uuid ?? null;
+  const target = (flag.targets ?? []).find(t => t.uuid === targetUuid) ?? flag.targets?.[0] ?? null;
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: attacker }),
+    content: bfCard({ img: flag.itemImg, eyebrow: `Feat — ${flag.itemName}`, tone: "good",
+      title: `${attacker.name} pushes ${target?.name ?? "the target"} 5 feet`, subtitle: "Move the token by hand" }),
+    flags: { [MODULE_ID]: { bashFor: message.id } }
+  });
+  if ( inRunningCombat(attacker) ) {
+    const stamp = combatStamp();
+    if ( stamp ) await attacker.setFlag(MODULE_ID, "shoveUsed", { stamp });
+  }
+}
+
 /** The Use/Pass popup — a target select only when the swing struck more than one. */
 async function showBashOfferPopup(message, flag) {
   const attacker = resolveUuid(flag.attackerUuid);
+  const kind = OFFER_KINDS[flag.kind] ?? OFFER_KINDS.bash;
   const options = flag.targets ?? [];
   const selectHTML = (options.length > 1) ? `
     <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
-      <label style="flex:1;font-size:var(--font-size-12,12px);">Bash</label>
+      <label style="flex:1;font-size:var(--font-size-12,12px);">${flag.kind === "shove" ? "Push" : "Bash"}</label>
       <select name="bf-bash-target" style="flex:1;min-width:0;">${options
         .map(o => `<option value="${o.uuid}">${o.name}</option>`).join("")}</select>
     </div>` : "";
@@ -242,17 +289,18 @@ async function showBashOfferPopup(message, flag) {
     targetUuid: dialog?.element?.querySelector('select[name="bf-bash-target"]')?.value
       ?? options[0]?.uuid ?? null
   });
+  const shove = flag.kind === "shove";
   dialog = await openMomentPopup(message, "bashoffer", attacker, {
-    title: `${flag.itemName} — ${attacker?.name ?? ""}`, icon: "fa-solid fa-shield-halved",
+    title: `${flag.itemName} — ${attacker?.name ?? ""}`, icon: kind.icon,
     content: bfCard({
-      img: flag.itemImg, eyebrow: `Maneuver — ${flag.itemName}`, tone: "pending",
-      title: `${flag.itemName} — bash ${options.length === 1 ? options[0].name : "the target"}?`,
+      img: flag.itemImg, eyebrow: `${kind.eyebrow} — ${flag.itemName}`, tone: "pending",
+      title: `${flag.itemName} — ${kind.verb} ${options.length === 1 ? options[0].name : "the target"}${shove ? " 5 feet" : ""}?`,
       // (z): the rule line is the feat's own passage, verbatim — trigger, either/or and the
       // once-a-turn limit all in the feature's words.
-      lines: [ruleLine(RULE_TEXT.bash)]
+      lines: [ruleLine(shove ? RULE_TEXT.shove : RULE_TEXT.bash)]
     }) + selectHTML + holdBarHTML(flag, "to answer"),
     buttons: [
-      { action: "use", label: `Use ${flag.itemName}`, default: true, callback: () => answer("use") },
+      { action: "use", label: shove ? kind.use : `Use ${flag.itemName}`, default: true, callback: () => answer("use") },
       { action: "pass", label: "Pass", callback: () => answer("pass") }
     ]
   });
@@ -271,12 +319,13 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     row.className = "battleflow-maneuver";
     const pending = b.status === "pending";
     const queued = b.status === "queued";
+    const kind = OFFER_KINDS[b.kind] ?? OFFER_KINDS.bash;
     const title = pending ? `${b.itemName} — offered on the hit`
       : queued ? `${b.itemName} — offered after the damage`
-      : (b.status === "moot") ? `${b.itemName} — no one left to bash`
-      : (b.answer === "use" ? `${b.itemName} — used` : `${b.itemName} — passed${b.timedOut ? " (timer)" : ""}`);
+      : (b.status === "moot") ? `${b.itemName} — no one left to ${kind.verb}`
+      : (b.answer === "use" ? `${b.itemName} — ${b.kind === "shove" ? "pushed 5 feet" : "used"}` : `${b.itemName} — passed${b.timedOut ? " (timer)" : ""}`);
     row.innerHTML = bfCard({
-      img: b.itemImg, eyebrow: `Maneuver — ${b.itemName}`,
+      img: b.itemImg, eyebrow: `${kind.eyebrow} — ${b.itemName}`,
       tone: (pending || queued) ? "pending" : (b.answer === "use" ? "good" : "neutral"),
       title,
       subtitle: (b.targets ?? []).map(t => t.name).join(", ")

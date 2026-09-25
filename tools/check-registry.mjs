@@ -184,7 +184,13 @@ for (const [key, spec] of Object.entries(LIST_SPECS)) {
 // gate's one CHOSEN source - a tick that spends a use, where every other kind is read) and
 // `advantage` in the d20Fold set (keep-the-higher of a second d20 - neither an add nor a replace).
 // One pass, one bump; a second buy of the same shape is a row of ADVANTAGE_BUYS, not a kind.
-const EXPECTED_KINDS = 33;
+// 2026-09-25: 33 -> 34, `shove` in the maneuverFold set (the origin feats, Tavern Brawler; user:
+// "yes mimic the shiled master push"): the bash offer's whole path — stamped at the hit, queued
+// behind the damage, Use / Pass, once per turn — but on an UNARMED STRIKE (the bash needs a Melee
+// weapon) and with NO SAVE behind it (the bash drives the feat's save activity; the shove only
+// announces the 5-foot push). A row cannot say either difference, so it is a kind; the next
+// no-save push on a hit is a row of it.
+const EXPECTED_KINDS = 34;
 
 // The mastery set must match the rule text it is presented with: a mastery this module
 // resolves but cannot quote breaks presentation law 8 (ARCHITECTURE.md §5) at the popup.
