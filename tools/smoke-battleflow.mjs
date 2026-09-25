@@ -161,9 +161,15 @@ const fx = await f.evaluate(async () => {
       i.system.activities?.some?.(a => a.type === 'attack'));
     if (!item) return { ok: false, why: 'attacker has no item with an attack activity' };
 
-    // Tokens (idempotent: reuse if already placed).
+    // Tokens (idempotent: reuse if already placed). ⚠ The fixture token is the UNLINKED one, and
+    // it must be the ONLY token of its actor: the auto-crit's distance reads from
+    // `actor.getActiveTokens()[0]` for a linked token, so a linked stray another suite left
+    // (smoke-rescue's, 2026-09-24) measured 5e's swing from the wrong square. Linked strays of
+    // the two actors are swept first, the way smoke-reminders does it.
     const ensureToken = async actor => {
-      let doc = scene.tokens.find(t => t.actorId === actor.id);
+      const linked = scene.tokens.filter(t => t.actorLink && (t.actorId === actor.id)).map(t => t.id);
+      if (linked.length) await scene.deleteEmbeddedDocuments('Token', linked);
+      let doc = scene.tokens.find(t => (t.actorId === actor.id) && !t.actorLink);
       if (!doc) {
         const proto = actor.prototypeToken.toObject();
         [doc] = await scene.createEmbeddedDocuments('Token', [
@@ -1376,9 +1382,14 @@ if (want('5e')) {
         damageMsg = game.messages.contents.slice(-10).find(m =>
           (m.type === 'damage') && (m._source.system?.origin === usageId));
       }
+      // The topology the distance read assumes, on the detail line: how many tokens the attacker
+      // has on the scene and the squares between the two fixture tokens (2026-09-24: a linked
+      // stray made the auto-crit measure from the wrong square, and the line could not say so).
+      const aTokens = canvas.scene.tokens.filter(t => t.actorId === attacker.id).length;
+      const squares = Math.max(Math.abs(aTok.document.x - vTok.document.x), Math.abs(aTok.document.y - vTok.document.y)) / canvas.scene.grid.size;
       return { d20Crit: rolls?.[0]?.isCritical ?? false, fumble: rolls?.[0]?.isFumble ?? false,
         damageCrit: damageMsg?.rolls?.[0]?.isCritical ?? null, autoCrit: damageMsg?.getFlag(MOD, 'autoCrit') ?? null,
-        formula: damageMsg?.rolls?.[0]?.formula ?? null, damageId: damageMsg?.id ?? null };
+        formula: damageMsg?.rolls?.[0]?.formula ?? null, damageId: damageMsg?.id ?? null, aTokens, squares };
     };
     try {
       await vTok.document.update({ x: 1100, y: 1000 });
@@ -1418,7 +1429,7 @@ if (want('5e')) {
   else {
     report('a hit within 5 feet of a Paralyzed target rolls CRITICAL damage — whatever the d20 said',
       r.near.damageCrit === true && !!r.near.autoCrit,
-      `d20 crit=${r.near.d20Crit} damage crit=${r.near.damageCrit} formula=${r.near.formula} flag=${JSON.stringify(r.near.autoCrit?.sources?.map(s => s.status) ?? null)}`);
+      `d20 crit=${r.near.d20Crit} damage crit=${r.near.damageCrit} formula=${r.near.formula} flag=${JSON.stringify(r.near.autoCrit?.sources?.map(s => s.status) ?? null)} attackerTokens=${r.near.aTokens} squares=${r.near.squares}`);
     report('…and the damage card says why', r.cardSays === true, `cardSays=${r.cardSays}`);
     report('the same hit from 10 feet is NOT made critical (a nat 20 is the dice, and a flake)',
       r.far.d20Crit ? true : (r.far.damageCrit === false && !r.far.autoCrit),

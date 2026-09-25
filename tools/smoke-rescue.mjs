@@ -160,7 +160,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // -------------------------------------------------- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
     for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
-    const strays = scene.tokens.filter(t => [attacker.id, halfling.id].includes(t.actorId)).map(t => t.id);
+    // ⚠ Sweep LINKED strays only (the smoke-reminders pattern): the shared fixture's UNLINKED
+    // BF Test Attacker token belongs to every other suite. Deleting it here (as this suite did
+    // on 2026-09-24) left smoke-battleflow's auto-crit section measuring distance from a linked
+    // leftover of ours — the final battery's one red — because the fixture's topology is what
+    // those suites' distance reads assume.
+    const strays = scene.tokens.filter(t => t.actorLink && [attacker.id, halfling.id].includes(t.actorId)).map(t => t.id);
     if (strays.length) await scene.deleteEmbeddedDocuments('Token', strays);
     const placeToken = async (actor, x, y) => {
       const [doc] = await scene.createEmbeddedDocuments('Token', [
