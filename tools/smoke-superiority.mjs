@@ -190,9 +190,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const pack = game.packs.get('dnd-players-handbook.classes');
     if (!pack) return { fatal: 'the 2024 PHB classes pack is not in this world' };
     const index = await pack.getIndex();
+    // ⚠ Fresh copies EVERY run (2026-09-24, the smoke-hitmenu lesson): a killed run skips the
+    // teardown that removes the maneuvers this suite added, and "add if missing" then reused a
+    // leftover its sections had spent or edited. The reference Fighter carries none of these
+    // names natively, so the sweep touches only what a run of this suite left.
+    {
+      const stale = fighter.items.filter(i => (i.type === 'feat') && MANEUVERS.includes(i.name)).map(i => i.id);
+      if (stale.length) { await fighter.deleteEmbeddedDocuments('Item', stale); log.push(`swept ${stale.length} stale maneuver item(s) a previous run left`); }
+    }
     const add = [];
     for (const name of MANEUVERS) {
-      if (fighter.items.some(i => (i.type === 'feat') && (i.name === name))) continue;
       const hit = index.find(e => e.name === name);
       if (!hit) return { fatal: `${name} not in the PHB pack` };
       const data = (await pack.getDocument(hit._id)).toObject();
