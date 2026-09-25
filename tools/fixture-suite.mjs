@@ -122,8 +122,9 @@ const out = await f.evaluate(async ({ playerName }) => {
       if ((cur.resources?.legres?.max ?? 0) !== (legres.max ?? 0)) reset["system.resources.legres.max"] = legres.max ?? 0;
       if ((cur.resources?.legres?.spent ?? 0) !== (legres.spent ?? 0)) reset["system.resources.legres.spent"] = legres.spent ?? 0;
       if (Object.keys(reset).length) {
+        const what = Object.keys(reset).map(k => k.replace("system.", ""));   // read BEFORE update adds `_id` in place
         await actor.update(reset);
-        log.push(`${name}: reset to ${source.name}'s statblock — ${Object.keys(reset).map(k => k.replace("system.", "")).join(", ")}`);
+        log.push(`${name}: reset to ${source.name}'s statblock — ${what.join(", ")}`);
       }
       return actor;
     };
