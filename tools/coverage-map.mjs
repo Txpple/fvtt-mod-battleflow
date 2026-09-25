@@ -131,6 +131,12 @@ export const ORDER = [
     name: "smoke-goliath", note: "the Goliath walk's pass 2 — Large Form's token size, the rebuke offered within its reach and driven at the damager (none out of reach), Stone's Endurance holding a non-attack damage at the applier",
     needs: ["fixture-suite"]
   },
+  // The Halfling walk (2026-09-25): BF Test Halfling's own Lucky feat — the gate's buy box and the
+  // `advantage` fold on an initiative rolled with no dialog; the same seed as the two above.
+  {
+    name: "smoke-lucky", note: "Lucky's Advantage half — the buy box in an attack, save, check and initiative dialog (the tick in the net, the spend, the record, none left greyed) and the no-dialog initiative fold (the higher d20 stands)",
+    needs: ["fixture-suite"]
+  },
   // The effect view's probe joined the battery on 2026-09-23 (change-scoped live testing): it was
   // the one machine no battery suite drove, and an unrun probe rots exactly like an unrun suite.
   // ⚠ ITS OWN SEED, the smoke-metamagic lesson again: it reads the fixture tokens on the range,

@@ -65,7 +65,7 @@ import { grantingActor, hitTargets, modeAllows, poolSpendsOn, poolOf, spendPoolU
 import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
   from "./decide/present.js";
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
-import { SUPERIORITY_FOLDS } from "./decide/registry.js";
+import { ADVANTAGE_BUYS, SUPERIORITY_FOLDS } from "./decide/registry.js";
 import { CHIP_FLAG } from "./decide/chips.js";
 import { cardRow, momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause } from "./ui.js";
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
@@ -235,9 +235,39 @@ const SEEKING = {
   }
 };
 
-const KINDS = { heroic: HEROIC, tactical: TACTICAL, bardic: BARDIC, seeking: SEEKING };
-/** The kinds that REPLACE the d20 rather than add to it — heroic, and Seeking Spell since 2026-09-09. */
-const REROLL_KINDS = new Set(["heroic", "seeking"]);
+/**
+ * Lucky's Advantage on an INITIATIVE rolled with no dialog (2026-09-25, the Halfling walk; ruled
+ * "After the roll"): the carousel and Roll All reach `Combat#rollInitiative`, which has no pause
+ * before its dice, so the gate's box (advantage-buys.js) never shows there. The buy is offered on
+ * the roll instead — a second d20 with the roll's own modifiers (the reroll's rebuild), the HIGHER
+ * standing, one of the item's uses spent by hand (the uniform spend). ⚠ A bend in RULINGS'
+ * register: the player sees the first die before choosing. Offered only on a plain roll the box
+ * never met (`stampInitiative`): a roll already at Advantage gains nothing (Remarkable Athlete).
+ */
+const ADVANTAGE = {
+  tests: ["initiative"],
+  find: (actor, entry) => {
+    const key = Object.keys(ADVANTAGE_BUYS).find(k => lower(k) === lower(entry.name));
+    const row = key ? ADVANTAGE_BUYS[key] : null;
+    if ( !row ) return null;
+    const item = actor?.items?.find(i => (i.type === "feat") && (lower(i.name) === lower(key))
+      && (!row.uses || (Number(i.system?.uses?.max) > 0)));
+    if ( !item || (row.uses && !(Number(item.system.uses.value ?? 0) > 0)) ) return null;
+    return { kind: "advantage", key, row, item };
+  },
+  die: () => null,                                        // the second d20 is the reroll's rebuild
+  spend: async (actor, marker, message) => {
+    const record = await spendPoolUses(actor, marker.item, marker.key, 1, `${marker.row.point}s`);
+    if ( !record ) return false;
+    if ( message ) await message.setFlag(MODULE_ID, "poolSpend", record);
+    return true;
+  }
+};
+
+const KINDS = { heroic: HEROIC, tactical: TACTICAL, bardic: BARDIC, seeking: SEEKING, advantage: ADVANTAGE };
+/** The kinds that REPLACE the d20 rather than add to it — heroic, Seeking Spell since 2026-09-09, and
+ * Lucky's Advantage since 2026-09-25 (its replacement is the HIGHER of the two — `resolveFold`). */
+const REROLL_KINDS = new Set(["heroic", "seeking", "advantage"]);
 
 // The bard behind an Inspired effect — `origin` is their ITEM, and the actor is its parent — is
 // `grantingActor` in shared.js since 2026-09-01: the reminder gate's Sapped-by line is the same
@@ -293,8 +323,11 @@ function availableFolds(actor, testKind, spent = [], ctx = {}) {
     // ⚠ `name` is the LOOKUP KEY (the item or effect to find); `label` is what the table reads.
     // For `bardic` those genuinely differ — "Inspired" vs "Bardic Inspiration". See KIND_LABEL.
     // A scoped entry is called by its own name (Ambush is not Tactical Mind on a card).
+    // An `advantage` offer (Lucky, 2026-09-25) says its own cost and quotes its own row.
+    const buy = (entry.kind === "advantage") ? { cost: `1 ${marker.row.point} · ${Number(marker.item.system.uses.value ?? 0)} left`,
+      rule: marker.row.rule } : {};
     out.push({ kind: entry.kind, name: entry.name, label: scope ? entry.name : (KIND_LABEL[entry.kind] ?? entry.name),
-      dieFormula, ...(scope ? { cost: "the superiority die is spent either way it lands", rule: scope.rule } : {}) });
+      dieFormula, ...(scope ? { cost: "the superiority die is spent either way it lands", rule: scope.rule } : {}), ...buy });
   }
   return out;
 }
@@ -430,7 +463,12 @@ async function stampInitiative(actor, combatants, message) {
     const total = Number(message.rolls?.[0]?.total ?? combatants?.[0]?.initiative ?? 0);
     // Ambush ARMED from the sheet folds in by itself (the armed block below).
     if ( await applyArmedFold(message, actor, "initiative", { combatants: combatants ?? [], total }) ) return;
-    const offers = availableFolds(actor, "initiative");
+    // Lucky's Advantage (2026-09-25) only on a PLAIN roll the gate's box never met: a roll already
+    // at Advantage gains nothing from it, and a dialog that showed the box was the choice.
+    const roll = message.rolls?.[0] ?? null;
+    const plain = !roll?.options?.bfBuyShown && !(Number(roll?.options?.advantageMode) > 0)
+      && !(Number(roll?.options?.advantageMode) < 0);
+    const offers = availableFolds(actor, "initiative").filter(o => (o.kind !== "advantage") || plain);
     if ( !offers.length ) return;
     const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
     await message.setFlag(MODULE_ID, "d20fold", { ...baseFlag(actor, offers, "initiative", total, window),
@@ -660,9 +698,18 @@ async function resolveFold(message, answer) {
         ? await rerollOf(message, actor)
         : await rollDie(spec.die(marker) ?? offer.dieFormula, actor);
       if ( !rolled ) return;
+      // Lucky's Advantage (2026-09-25): the second d20 is rolled as a reroll is, and the HIGHER of
+      // the two stands — the replacement recorded is whichever roll that is, its crit with it.
+      if ( kind === "advantage" ) {
+        const first = message.rolls?.[0];
+        if ( first && (Number(first.total) > Number(rolled.summary.total)) ) {
+          rolled.summary = { total: first.total, isCritical: first.isCritical === true, isFumble: first.isFumble === true };
+        }
+      }
       const rolledMessage = await rolled.roll.toMessage({
         speaker: ChatMessage.getSpeaker({ actor }),
-        flavor: REROLL_KINDS.has(kind) ? `${labelOf(offer)} — the reroll` : `${labelOf(offer)} — the die`,
+        flavor: (kind === "advantage") ? `${labelOf(offer)} — the second d20`
+          : REROLL_KINDS.has(kind) ? `${labelOf(offer)} — the reroll` : `${labelOf(offer)} — the die`,
         flags: { [MODULE_ID]: { respondsTo: message.id } }
       });
 

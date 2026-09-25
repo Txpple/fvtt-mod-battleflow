@@ -64,7 +64,9 @@
 function contributionOf(spend, uuid) {
   const at = uuid === undefined ? {} : { uuid };
   // Seeking Spell (2026-09-09) is the second reroll — the same replace, the same crit and fumble.
-  if ( (spend?.kind === "heroic") || (spend?.kind === "seeking") ) {
+  // Lucky's Advantage on initiative (2026-09-25) replaces too: the resolver records the HIGHER of
+  // the two d20s as its `reroll` (d20-folds.js), so the kept one's total and crit are what stand.
+  if ( (spend?.kind === "heroic") || (spend?.kind === "seeking") || (spend?.kind === "advantage") ) {
     return Number.isFinite(spend.reroll?.total)
       ? { ...at, replace: {
           total: spend.reroll.total,

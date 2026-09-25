@@ -297,8 +297,10 @@ ITEM (`system.uses`, the activity consumes `itemUses`); none carries activity us
     as customers. The UI was ruled off the Slice A prototype the same day: Savage Attacker on
     the hit, Disadvantage as a rescue of the hit.
 - **PARKED, each with its trigger:**
-  - **Lucky's Advantage half** — works via the sheet today (the pack spends the point, the
-    player sets Advantage on the roll dialog). Reopens if the table asks for it at the gate.
+  - ~~**Lucky's Advantage half**~~ — **BUILT 2026-09-25** in the Halfling walk (user: "we need to
+    unpark the advantage on our own d20"): the gate's buy box (`ADVANTAGE_BUYS`, reminder kind
+    `buy`, `advantage-buys.js`), and the `advantage` D20 fold for an initiative rolled with no
+    dialog (a bend in RULINGS' register). Vocabulary 10's chip window was not needed.
   - **Trance** — a named-spell scope + an immunity bend. Reopens when an elf sits down against
     a sleep effect.
   - **Healer's healing rerolls on spells** — a new kind (reroll 1s on another item's healing

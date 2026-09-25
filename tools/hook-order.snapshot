@@ -66,6 +66,13 @@ dnd5e.renderChatMessage	reminders.js
 dnd5e.renderChatMessage	reminders.js
 dnd5e.preRollSavingThrowV2	reminders.js
 dnd5e.postRollConfiguration	reminders.js
+dnd5e.preRollAttackV2	advantage-buys.js
+dnd5e.preRollSavingThrowV2	advantage-buys.js
+dnd5e.preRollAbilityCheckV2	advantage-buys.js
+renderRollConfigurationDialog	advantage-buys.js
+targetToken	advantage-buys.js
+dnd5e.postRollConfiguration	advantage-buys.js
+dnd5e.renderChatMessage	advantage-buys.js
 dnd5e.preRollDamageV2	sneak.js
 createChatMessage	sneak.js
 dnd5e.renderChatMessage	sneak.js

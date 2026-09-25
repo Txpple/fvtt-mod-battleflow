@@ -44,7 +44,7 @@ const REFERENCE = {
   // so a registered setting that this table does not name is simply never checked, and drifts
   // in silence forever. (`missing` catches the opposite case — a reference key with no
   // registration — but nothing catches a registration with no reference key.)
-  d20Folds: 'Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic, Ambush:tactical, Tactical Assessment:tactical, Seeking Spell:seeking',   // the two scoped folds joined 2026-09-05; Seeking Spell 2026-09-09
+  d20Folds: 'Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic, Ambush:tactical, Tactical Assessment:tactical, Seeking Spell:seeking, Lucky:advantage',   // the two scoped folds joined 2026-09-05; Seeking Spell 2026-09-09
   d20FoldAsk: true,       // auto-offer where the module owns the number; checks are always player-pressed
   concMode: 'prompt',
   concTimer: 24,          // user 2026-08-27: all timers 24s
@@ -60,7 +60,7 @@ const REFERENCE = {
   // list is the gate turned off — and smoke-reminders §6 pins them to '' and 'blinded' to prove
   // it, so a run that dies inside §6 leaves the gate off in the world. Named here for exactly
   // the reason the d20Folds comment above gives: an unlisted key is never checked.
-  reminderList: 'vex, sap, prone, condition, range, effect, sneak',   // range and effect joined 2026-09-02 (user asks); sneak the same day (the prototype)
+  reminderList: 'vex, sap, prone, condition, range, effect, sneak, buy',   // range and effect joined 2026-09-02 (user asks); sneak the same day (the prototype)
   conditionList: 'blinded, invisible, hiding, paralyzed, petrified, poisoned, restrained, stunned, unconscious, frightened, grappled, incapacitated, dodging, charmed',   // hiding joined 2026-09-02 (user ask)
   effectList: LIST_SPECS.effects.default,   // the whole effect table, as shipped (2026-09-02) — the table is the reference, never a copy of it
   clockRiderList: LIST_SPECS.clockRiders.default,

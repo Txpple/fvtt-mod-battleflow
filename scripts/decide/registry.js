@@ -151,7 +151,12 @@ export const INTERRUPT_ROLLS = Object.freeze({
  * and deliberately uncounted (§6); a kind here names a SPEND, which is content, which is
  * precisely what the R4 tripwire is counting.
  */
-export const D20_FOLD_KINDS = new Set(["heroic", "tactical", "bardic", "seeking"]);
+// `advantage` (2026-09-25, the Halfling walk - Lucky's Advantage half unparked): a SECOND d20 with the
+// roll's own modifiers, the higher standing, paid with one of the item's own uses - the post-roll
+// road for an initiative rolled with no dialog (the carousel, Roll All), where the gate's box
+// (ADVANTAGE_BUYS) never showed. A kind because the arithmetic differs from all four: neither an
+// add nor a plain replace, a keep-the-higher of two.
+export const D20_FOLD_KINDS = new Set(["heroic", "tactical", "bardic", "seeking", "advantage"]);
 
 /**
  * The closed set of volley kinds. Lives here, in the pure layer, so that ONE definition serves
@@ -227,7 +232,36 @@ export const RULE_TEXT = {
  * The gate never SETS a mode (DESIGN R-A): it lists every source and the net, and a human presses.
  * Membership — which of these a table wants nagged about — is the Reminder Sources list.
  */
-export const REMINDER_KINDS = new Set(["vex", "sap", "prone", "condition", "range", "effect", "sneak"]);
+// `buy` (2026-09-25, the Halfling walk): the gate's SPEND box - Advantage bought with an item's use
+// before the roll (ADVANTAGE_BUYS, Lucky the first row). A kind because it is the one source the
+// roller CHOOSES rather than one the module reads: a tick, like Sneak Attack's, not a tag.
+export const REMINDER_KINDS = new Set(["vex", "sap", "prone", "condition", "range", "effect", "sneak", "buy"]);
+
+/**
+ * THE ADVANTAGE BUYS (2026-09-25, the Halfling walk: "we need to unpark the advantage on our own
+ * d20"; ruled off the prototype lucky-advantage.html, "looks good"): Advantage on your OWN D20
+ * Test, bought before the roll with one of the item's uses. The gate draws one box per row the
+ * roller holds - the Sneak Attack box's shape, a tick where the other boxes carry a tag - inside
+ * the system's own roll dialog for an attack, a save, a check and initiative (advantage-buys.js).
+ * The tick counts as an Advantage source in the net (a Disadvantage beside it nets Normal and the
+ * use still goes - the rule allows it, ruled); the use is spent when the roll goes out with the
+ * box ticked and the net pressed. A roll with no dialog (a shift-click) meets no box and spends
+ * nothing (ruled). An initiative rolled with no dialog at all (the carousel, Roll All) is offered
+ * the same buy AFTER the roll - the `advantage` D20 fold: a second d20, the higher standing
+ * (ruled "After the roll"; a bend in RULINGS' register - the player sees the first die).
+ *   uses      true - the spend is one of the ITEM's own uses (Lucky's Luck Points, @prof per Long Rest)
+ *   point     what one use is called on the box and the receipt
+ *   tests     which D20 Tests the rule reaches ("a D20 Test": attack, save, check, initiative)
+ *   rule      the pack's paragraph for this half, verbatim (law 8)
+ * ⚠ The 2014 Halfling's "Lucky" TRAIT shares the name and has no uses - the lookup demands them,
+ * as INTERRUPT_ROLLS' does.
+ */
+export const ADVANTAGE_BUYS = Object.freeze({
+  "Lucky": Object.freeze({ uses: true, point: "Luck Point", activity: "Advantage",
+    tests: Object.freeze(["attack", "save", "check", "initiative"]),
+    rule: "Advantage. When you roll a d20 for a D20 Test, you can spend 1 Luck Point to give yourself Advantage on the roll.",
+    from: "Origin feat" })
+});
 
 /**
  * SNEAK ATTACK (user, 2026-09-02 — the prototype *Sneak Attack, Cunningly*, built as drawn): the
@@ -1828,7 +1862,7 @@ export const LIST_SPECS = {
     // Seeking Spell (the metamagic pass, Stage 4, 2026-09-09): a REROLL like heroic, on a SPELL
     // attack's miss, paid from Font of Magic by hand — the item is the lookup key, and the
     // Metamagic list must admit it too (the option's own switch).
-    default: "Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic, Ambush:tactical, Tactical Assessment:tactical, Seeking Spell:seeking"
+    default: "Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic, Ambush:tactical, Tactical Assessment:tactical, Seeking Spell:seeking, Lucky:advantage"
   },
   rider: {
     label: "Rider List", setting: "riderList",
@@ -1845,7 +1879,7 @@ export const LIST_SPECS = {
     // ⚠ The list IS the switch (the v1.19.0 idiom): every entry is a kind the gate knows how to
     // read, and an empty list turns the gate off. Unknown kinds are dropped with a warning.
     columns: ["kind"], kindColumn: "kind", kinds: REMINDER_KINDS, fallback: null,
-    default: "vex, sap, prone, condition, range, effect, sneak"
+    default: "vex, sap, prone, condition, range, effect, sneak, buy"
   },
   conditions: {
     label: "Condition Sources", setting: "conditionList",

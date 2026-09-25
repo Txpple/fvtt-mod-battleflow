@@ -73,7 +73,11 @@ const CHECKS = [
   ["dnd5e.preRollDamageV2", "clock-riders.js", "volleys.js",
     "a clock rider's part is pushed BEFORE the dart multiplier copies the base entry — attack-gated like the marks, disjoint from darts; the order keeps that structural (2026-09-02)"],
   ["dnd5e.preRollDamageV2", "hit-riders.js", "volleys.js",
-    "the dart multiplier copies the base entry AFTER the riders decided — a rider must never be duplicated per dart (riders are attack-gated and darts are damage-activity rolls, so the sets are disjoint; the order keeps that structural)"]
+    "the dart multiplier copies the base entry AFTER the riders decided — a rider must never be duplicated per dart (riders are attack-gated and darts are damage-activity rolls, so the sets are disjoint; the order keeps that structural)"],
+  ["renderRollConfigurationDialog", "reminders.js", "advantage-buys.js",
+    "the buy box is added to the section the gate just drew (or redrew) and re-nets its header — drawn first, the gate's redraw would wipe it (2026-09-25, Lucky)"],
+  ["dnd5e.postRollConfiguration", "reminders.js", "advantage-buys.js",
+    "the buy's record overwrites the gate's with the buy among its sources — written first, the gate's record would erase it (2026-09-25, Lucky)"]
 ];
 let ok = true;
 for (const [hook, a, b, why] of CHECKS) {

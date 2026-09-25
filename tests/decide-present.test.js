@@ -362,6 +362,16 @@ describe("rescueView — two machines, one window", () => {
     );
   });
 
+  it("initiative says its number and hands nothing to the DM (the Halfling walk, 2026-09-25)", () => {
+    const lines = p.rescueHeaderLines(
+      { testKind: "initiative", baseTotal: 13, targets: [] },
+      null,
+      { reveal: true }
+    );
+    expect(lines).toEqual(["Initiative: 13"]);
+    expect(lines.join(" ")).not.toMatch(/DM/);
+  });
+
   it("the header states the COMPOSED sum and the margin left to close", () => {
     const view = p.rescueView(read(bothPending), {
       composed: { total: 13, added: 3 },

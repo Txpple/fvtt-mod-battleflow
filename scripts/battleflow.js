@@ -111,6 +111,9 @@ import "./mastery.js";
 import "./topple.js";
 import "./chip-spend.js";
 import "./reminders.js";
+// advantage-buys.js right after reminders.js (2026-09-25, Lucky's Advantage): its render hook adds
+// the buy box to the section the gate just drew, and its record overwrites the gate's with the buy in.
+import "./advantage-buys.js";
 // sneak.js after reminders.js: the gate stamps the arm on the attack message, the sneak machine
 // reads it at the damage roll; its card lines sit under the gate's (2026-09-02).
 import "./sneak.js";

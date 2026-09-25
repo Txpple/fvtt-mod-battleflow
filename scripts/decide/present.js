@@ -229,6 +229,30 @@ export function sneakBoxHTML({ dice, rule, checked = false, used = null }) {
 }
 
 /**
+ * THE BUY BOX (2026-09-25, the Halfling walk — ruled off the prototype lucky-advantage.html): the
+ * Sneak Attack box's shape for Advantage bought with an item's use (decide/registry.js
+ * ADVANTAGE_BUYS). "Lucky — 1 Luck Point · 3 left", the tick labelled Advantage, the rule under
+ * its fold, nothing else (the offer-row rule). No uses left: the box stays, greyed, no tick, the
+ * reason said.
+ * @param {{name: string, point: string, left: number, rule: string, checked?: boolean}} view
+ */
+export function buyBoxHTML({ name, point, left, rule, checked = false }) {
+  const out = !(Number(left) > 0);
+  const control = out ? "" : `<label style="display:flex;align-items:center;gap:0.4rem;white-space:nowrap;cursor:pointer;">
+        <input type="checkbox" name="bf-buy" data-bf-buy-name="${attr(name)}" ${checked ? "checked" : ""} style="margin:0;"> <span>Advantage</span></label>`;
+  return `
+      <div data-bf-buy style="display:grid;grid-template-columns:1fr auto;gap:0.2rem 0.6rem;align-items:center;
+                  margin:0.4rem 0;padding:0.45rem 0.6rem;border-radius:4px;${out ? "opacity:0.6;" : ""}
+                  background:rgba(0,0,0,0.25);border:1px solid var(--color-border-dark,rgba(0,0,0,0.4));
+                  border-left:3px solid ${out ? TONE.neutral : TONE.pending};">
+        <div style="font-weight:bold;">${attr(name)} — 1 ${attr(point)} · ${Math.max(0, Number(left) || 0)} left</div>
+        ${control}
+        ${out ? `<div style="grid-column:1 / -1;font-size:var(--font-size-11,11px);line-height:1.45;opacity:0.85;">no ${attr(point)}s left</div>` : ""}
+        ${foldedRuleHTML(rule)}
+      </div>`;
+}
+
+/**
  * A rule quoted under a fold (user, 2026-09-02: "the desc should be collapsed here, to save
  * vertical space") — a native `<details>` closed by default, its summary the one word "the
  * rule". Used by the boxes that carry a long feature text: the Sneak Attack box, a clock rider's
@@ -557,6 +581,12 @@ export const RESCUE_KINDS = {
     cost: "1 Sorcery Point, spent either way, and the new roll stands",
     rule: "If you make an attack roll for a spell and miss, you can spend 1 Sorcery Point to reroll the d20, and you must use the new roll. You can use Seeking Spell even if you’ve already used a different Metamagic option during the casting of the spell."
   },
+  // Lucky's Advantage on an initiative rolled with no dialog (2026-09-25): no label of its own — the
+  // offer is called by its row's name (ADVANTAGE_BUYS), and carries its own cost and rule.
+  advantage: {
+    icon: "fa-solid fa-clover",
+    cost: "the use is spent either way, and the higher d20 stands"
+  },
   precision: {
     label: "Precision Attack",
     icon: "fa-solid fa-crosshairs",
@@ -722,6 +752,10 @@ export function rescueHeaderLines(premise, composed, { reveal = false } = {}) {
    * ⚠ AND THIS IS OUTSIDE THE REVEAL GATE, deliberately. `holdReveal` hides a number the module
    * KNOWS. Here there is no number to hide, so the sentence is the same either way.
    */
+  // ⚠ INITIATIVE HAS NOTHING TO LAND (user, 2026-09-25, the Halfling walk: "the initiative popup
+  // shouldnt have the 'ask the dm if that stands' it should be more like i guess you ahve a 13,
+  // roll another for advantage"): the number is the order itself, so the line says the number.
+  if ( premise?.testKind === "initiative" ) return [`Initiative: ${sum}`];
   const testable = (premise?.targets ?? []).some(t => Number.isFinite(t?.ac))
     || Number.isFinite(premise?.dc);
   if ( !testable ) return [`${sum} — ask your DM whether that lands.`];
@@ -827,7 +861,8 @@ export function rescueView(read, { composed = null, reveal = false,
       label: r.label,
       text: r.rule ?? RESCUE_KINDS[r.kind]?.rule ?? null,
       detail: (r.spent || r.withdrawn) ? ""
-        : `${((r.kind === "heroic") || (r.kind === "seeking")) ? "Rerolls the d20" : `Adds ${r.die ?? "a die"}`}`
+        : `${((r.kind === "heroic") || (r.kind === "seeking")) ? "Rerolls the d20"
+          : (r.kind === "advantage") ? "Roll another d20 for Advantage, the higher stands" : `Adds ${r.die ?? "a die"}`}`
           + (r.cost ? ` — ${r.cost}.` : ".")
     }))
     .filter(q => q.text);

@@ -229,7 +229,9 @@ describe("d20 folds — three spends, one mechanism", () => {
     const { entries } = reg.parseList(spec(), spec().default);
     // 2026-09-05: Ambush and Tactical Assessment ship too — the tactical SPEND with a scope of their own.
     // 2026-09-09: Seeking Spell too — the metamagic pass's reroll on a spell attack's miss.
+    // 2026-09-25: Lucky's `advantage` too — the no-dialog initiative road of its Advantage half.
     expect(entries.map(e => e.kind).sort()).toEqual([
+      "advantage",
       "bardic",
       "heroic",
       "seeking",
@@ -382,7 +384,9 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     // 2026-09-09: 29 → 30 — `seeking` joins the d20 folds (Seeking Spell, the metamagic pass).
     // 2026-09-24: 30 → 31 — `roll` joins the interrupts (Slice A: Disadvantage imposed after the
     // hit — Lucky, Warding Flare, Shadowy Dodge). Savage Attacker's table is rows, not a kind.
-    expect(total).toBe(31);
+    // 2026-09-25: 31 → 33 — `buy` joins the reminders and `advantage` the d20 folds (Lucky's
+    // Advantage half, the Halfling walk: the box bought before the roll, the no-dialog initiative fold).
+    expect(total).toBe(33);
   });
 
   it("puts every kind-bearing list spec's set in the table — unless the spec says it is MEMBERSHIP", () => {
