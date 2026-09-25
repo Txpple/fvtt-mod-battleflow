@@ -287,3 +287,58 @@ describe("reactionStands — back at the start of the reactor's next turn (2026-
     ).toBe(false);
   });
 });
+
+describe("card chips — Tinker on the Prestidigitation card (the Gnome walk, 2026-09-25)", () => {
+  /** @type {typeof import("../scripts/decide/chips.js")} */
+  let ch;
+  /** @type {typeof import("../scripts/decide/registry.js")} */
+  let reg;
+  beforeAll(async () => {
+    ch = await import("../scripts/decide/chips.js");
+    reg = await import("../scripts/decide/registry.js");
+  });
+  const all = () => new Set(Object.keys(reg.CARD_CHIPS).map(k => k.toLowerCase()));
+  it("a Rock Gnome's Prestidigitation offers Tinker; another caster, another spell or an unlisted row offers nothing", () => {
+    const rock = ["Gnomish Lineage, Rock", "Longsword"];
+    expect(
+      ch.cardChipRowKey(reg.CARD_CHIPS, { itemName: "Prestidigitation", featureNames: rock }, all())
+    ).toBe("Tinker");
+    expect(
+      ch.cardChipRowKey(
+        reg.CARD_CHIPS,
+        { itemName: "prestidigitation", featureNames: ["gnomish lineage, rock"] },
+        all()
+      )
+    ).toBe("Tinker");
+    expect(
+      ch.cardChipRowKey(
+        reg.CARD_CHIPS,
+        { itemName: "Prestidigitation", featureNames: ["Elven Lineage, High Elf"] },
+        all()
+      )
+    ).toBeNull();
+    expect(
+      ch.cardChipRowKey(reg.CARD_CHIPS, { itemName: "Mending", featureNames: rock }, all())
+    ).toBeNull();
+    expect(
+      ch.cardChipRowKey(
+        reg.CARD_CHIPS,
+        { itemName: "Prestidigitation", featureNames: rock },
+        new Set()
+      )
+    ).toBeNull();
+  });
+  it("at most three stand: a fourth retires the oldest; fewer retire nothing", () => {
+    const three = [
+      { id: "b", start: 20 },
+      { id: "a", start: 10 },
+      { id: "c", start: 30 }
+    ];
+    expect(ch.chipsToRetire(three, 3)).toEqual(["a"]);
+    expect(ch.chipsToRetire(three.slice(0, 2), 3)).toEqual([]);
+    expect(ch.chipsToRetire([], 3)).toEqual([]);
+  });
+  it("the list default is the table", () => {
+    expect(reg.LIST_SPECS.cardChips.default).toBe(Object.keys(reg.CARD_CHIPS).join(", "));
+  });
+});

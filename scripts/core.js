@@ -61,7 +61,8 @@ export const S = {
   chosenAreaList: "chosenAreaList",
   damageEitherList: "damageEitherList",   // Savage Attacker's list (Slice A, 2026-09-24)
   tokenLightList: "tokenLightList",        // Inner Radiance and Light (the Aasimar walk, 2026-09-25)
-  tokenSenseList: "tokenSenseList"         // Stonecunning (the Dwarf walk, 2026-09-25)
+  tokenSenseList: "tokenSenseList",        // Stonecunning (the Dwarf walk, 2026-09-25)
+  cardChipList: "cardChipList"             // Tinker (the Gnome walk, 2026-09-25)
 };
 
 export const setting = key => game.settings.get(MODULE_ID, key);

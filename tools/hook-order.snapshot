@@ -92,6 +92,8 @@ dnd5e.preRollDamageV2	superiority-uses.js
 dnd5e.renderChatMessage	superiority-uses.js
 dnd5e.postUseActivity	use-chips.js
 dnd5e.renderChatMessage	use-chips.js
+dnd5e.postUseActivity	use-chips.js
+dnd5e.renderChatMessage	use-chips.js
 dnd5e.renderChatMessage	area-ask.js
 ready	area-ask.js
 updateChatMessage	area-ask.js

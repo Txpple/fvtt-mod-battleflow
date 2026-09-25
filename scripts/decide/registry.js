@@ -405,6 +405,27 @@ export const USE_CHIPS = Object.freeze({
 });
 
 /**
+ * CARD CHIPS (user, 2026-09-25, the Gnome walk: "for gnome tinker, just make it a buff on the char
+ * that lasts for the duration, use like a chit that is the same as the icon"; ruled: a button on
+ * the Prestidigitation card; "yea just give a buff called tiny clockwork device ... the rest is
+ * played at table"). A feature the pack ships as TEXT with NO activity of its own, whose use is
+ * another item's cast: the card of that cast (`on`) OFFERS the chip when its caster owns the
+ * feature (`feature`); a click writes a chip named `chip`, wearing the feature's own icon, for
+ * `seconds` of world time, at most `max` standing (a new one retires the oldest). The chip
+ * bends nothing: it is the table's reminder that the thing exists and when it lapses.
+ * Membership is the Card Chips list (the row names).
+ */
+export const CARD_CHIPS = Object.freeze({
+  "Tinker": Object.freeze({ feature: "Gnomish Lineage, Rock", on: "Prestidigitation", chip: "Tiny Clockwork Device", seconds: 28800, max: 3,
+    ask: "Tinker — build a Tiny Clockwork Device (10 minutes)",
+    rule: "You can spend 10 minutes casting Prestidigitation to create a Tiny clockwork device (AC 5, 1 HP), such as a toy, fire starter, or music box. When you create the device, you determine its function by choosing one effect from Prestidigitation; the device produces that effect whenever you or another creature takes a Bonus Action to activate it with a touch. If the chosen effect has options within it, you choose one of those options for the device when you create it. You can have three such devices in existence at a time, and each falls apart 8 hours after its creation or when you dismantle it with a touch as a Utilize action.",
+    from: "Gnome — Gnomish Lineage (Rock)" })
+});
+
+/** The card chips' row names, lower-cased — the closed set the Card Chips list is validated against. */
+export const CARD_CHIP_NAMES = tableIndex(CARD_CHIPS).names;
+
+/**
  * SAVE PRESSES (user report 2026-09-02: "web never applied the restrained"): a save activity
  * whose FAILURE lands a condition the pack does not carry as an effect — the 2024 PHB's Web
  * ships with no effect at all (measured, tools/probe-web.mjs), so the saves machine had nothing
@@ -1855,6 +1876,14 @@ export const LIST_SPECS = {
     // walk, 2026-09-25). The list is the switch: an empty list changes nothing.
     columns: ["kind"], kindColumn: "kind", kinds: TOKEN_SENSE_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(TOKEN_SENSES).join(", ")
+  },
+  cardChips: {
+    label: "Card Chips", setting: "cardChipList",
+    // Which rows of the card-chip table a cast's card offers — the ROW names, whole-chunk,
+    // case-insensitive. Membership over CARD_CHIPS; the mechanism is use-chips.js (the Gnome
+    // walk, 2026-09-25). The list is the switch: an empty list offers nothing.
+    columns: ["kind"], kindColumn: "kind", kinds: CARD_CHIP_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(CARD_CHIPS).join(", ")
   }
 };
 

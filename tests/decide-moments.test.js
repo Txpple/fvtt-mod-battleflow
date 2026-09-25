@@ -231,6 +231,14 @@ describe("the moment registry — shape", () => {
         ]
       },
       useChip: { sourceUuid: "Actor.rogue", effectId: "e", name: "Steady Aim", bend: "advantage" },
+      cardChip: {
+        sourceUuid: "Actor.gnome",
+        key: "Tinker",
+        chip: "Tiny Clockwork Device",
+        made: true,
+        effectId: "e",
+        retired: []
+      },
       spend: { sourceUuid: "Actor.f", rows: [{ name: "Second Wind", spent: 1 }] },
       receipt: {
         targets: [

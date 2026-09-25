@@ -258,3 +258,38 @@ export function spendRecord({ id, name, img = null, key, bearerUuid, bearerName,
   return { id, name, img, key, uuid: bearerUuid, bearer: bearerName, mode,
     honoured: chipHonoured(key, mode, net) };
 }
+
+/* --- card chips (the Gnome walk, 2026-09-25) ------------------------------------------------- */
+
+/**
+ * The card-chip row a cast offers, or null: the cast item's name is the row's `on`, the caster
+ * owns the row's `feature`, and the row is listed.
+ * @param {Record<string, {on: string, feature: string}>} table
+ * @param {{ itemName: string|null|undefined, featureNames: Iterable<string> }} use
+ * @param {Set<string>} listed   the Card Chips list, lower-cased row names
+ * @returns {string|null}   the row's key
+ */
+export function cardChipRowKey(table, { itemName, featureNames }, listed) {
+  const item = String(itemName ?? "").toLowerCase();
+  if ( !item ) return null;
+  const owned = new Set([...(featureNames ?? [])].map(n => String(n).toLowerCase()));
+  for ( const [key, row] of Object.entries(table ?? {}) ) {
+    if ( !listed?.has?.(key.toLowerCase()) ) continue;
+    if ( String(row.on).toLowerCase() !== item ) continue;
+    if ( owned.has(String(row.feature).toLowerCase()) ) return key;
+  }
+  return null;
+}
+
+/**
+ * Which standing chips a new one retires so that at most `max` stand after it: the OLDEST first
+ * (by start time; an unknown start counts as oldest).
+ * @param {Array<{id: string, start?: number|null}>} standing
+ * @param {number} max
+ * @returns {string[]}   ids to remove
+ */
+export function chipsToRetire(standing, max) {
+  const keep = Math.max(0, (Number(max) || 0) - 1);
+  const list = [...(standing ?? [])].sort((a, b) => (Number(a.start) || 0) - (Number(b.start) || 0));
+  return list.slice(0, Math.max(0, list.length - keep)).map(c => c.id);
+}

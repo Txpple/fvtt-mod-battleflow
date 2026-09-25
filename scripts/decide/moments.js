@@ -387,6 +387,15 @@ export const MOMENT_RECORDS = Object.freeze({
     })
   },
 
+  cardChip: {
+    events: ["spend"],
+    means: "a card chip offered on a cast's card and, once built, the chip it wrote — Tinker's Tiny Clockwork Device (use-chips.js); the build is the resolve",
+    resolved: (r, ctx) => r?.made ? whole(["spend"], {
+      actor: source(r) ?? ctx.actorUuid, item: ctx.itemUuid, activity: ctx.activityUuid, ability: r.chip ?? null,
+      details: { key: r.key ?? null, effectId: r.effectId ?? null, retired: r.retired ?? [] }
+    }) : []
+  },
+
   spend: {
     events: ["spend"],
     means: "a use's own resource movement was stamped for the flash — item uses, activity uses, spell slots (resources.js); on the usage card",
@@ -647,6 +656,7 @@ export const STATE_KEYS = Object.freeze({
   combatRoster: "the data plane's turn→actor map — stats, never a moment",
   // effect fingerprint fields (the chips), never on a message
   useKey: "an ActiveEffect field — which use-chip this is",
+  cardKey: "an ActiveEffect field — which card-chip row wrote this chip (Tinker's Tiny Clockwork Device)",
   die: "an ActiveEffect field — the die a chip carries",
   sourceUuid: "an ActiveEffect field (and every record's stat stamp) — who wrote it",
   sourceName: "an ActiveEffect field — who wrote it, by name",

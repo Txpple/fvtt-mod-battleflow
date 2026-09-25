@@ -294,6 +294,14 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.tokenSenses.default
   });
 
+  // CARD CHIPS (the Gnome walk, 2026-09-25): a feature with no activity of its own, used through
+  // another item's cast, offered on that cast's card as a chip. A list; the list is the switch.
+  game.settings.register(MODULE_ID, S.cardChipList, {
+    name: "Card Chips",
+    hint: "A feature used through another item's cast, offered on that cast's card, by the row's name, separated by commas — Tinker. When a Rock Gnome casts Prestidigitation, its card offers to build a Tiny Clockwork Device: the click puts a Tiny Clockwork Device chip on the gnome, with the lineage's icon, for 8 hours; at most three stand (a fourth retires the oldest). What the device does is played at the table. Remove a name to keep that feature by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.cardChips.default
+  });
+
   // DAMAGE SAVES (user, 2026-09-04: "make heat metal spell work"): a bare damage activity rolls
   // its dice at the use (the general fix — nothing rolled them), and a listed row demands the
   // save its text ties to the damage. A list; the list is the switch for the save half.
@@ -681,6 +689,11 @@ export function chosenAreaEntries() {
 /** Which rows of the rolled-twice table offer on a weapon hit, by the feature's name — `{ kind }`. */
 export function damageEitherEntries() {
   return listEntries(LIST_SPECS.damageEither);
+}
+
+/** Which rows of the card-chip table a cast's card offers, by the row's name — `{ kind }`. */
+export function cardChipEntries() {
+  return listEntries(LIST_SPECS.cardChips);
 }
 
 /** Which rows of the token-sense table change the token's vision, by the row's name — `{ kind }`. */
