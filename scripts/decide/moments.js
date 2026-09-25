@@ -657,6 +657,7 @@ export const STATE_KEYS = Object.freeze({
   // effect fingerprint fields (the chips), never on a message
   useKey: "an ActiveEffect field — which use-chip this is",
   cardKey: "an ActiveEffect field — which card-chip row wrote this chip (Tinker's Tiny Clockwork Device)",
+  stacks: "an ActiveEffect field — a deliberate stack, one chip per device; the twin-chip dedupe leaves it alone (effect-riders.js)",
   die: "an ActiveEffect field — the die a chip carries",
   sourceUuid: "an ActiveEffect field (and every record's stat stamp) — who wrote it",
   sourceName: "an ActiveEffect field — who wrote it, by name",

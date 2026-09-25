@@ -282,14 +282,12 @@ export function cardChipRowKey(table, { itemName, featureNames }, listed) {
 }
 
 /**
- * Which standing chips a new one retires so that at most `max` stand after it: the OLDEST first
- * (by start time; an unknown start counts as oldest).
- * @param {Array<{id: string, start?: number|null}>} standing
+ * How many more of a row's chips may be built: `max` less what stands, never below zero (user,
+ * 2026-09-25: "if a person has 3 already, do a popup saying to remove a clockwork first").
+ * @param {number} standing
  * @param {number} max
- * @returns {string[]}   ids to remove
+ * @returns {number}
  */
-export function chipsToRetire(standing, max) {
-  const keep = Math.max(0, (Number(max) || 0) - 1);
-  const list = [...(standing ?? [])].sort((a, b) => (Number(a.start) || 0) - (Number(b.start) || 0));
-  return list.slice(0, Math.max(0, list.length - keep)).map(c => c.id);
+export function chipsLeft(standing, max) {
+  return Math.max(0, (Number(max) || 0) - (Number(standing) || 0));
 }

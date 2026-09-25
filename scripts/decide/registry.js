@@ -411,8 +411,9 @@ export const USE_CHIPS = Object.freeze({
  * played at table"). A feature the pack ships as TEXT with NO activity of its own, whose use is
  * another item's cast: the card of that cast (`on`) OFFERS the chip when its caster owns the
  * feature (`feature`); a click writes a chip named `chip`, wearing the feature's own icon, for
- * `seconds` of world time, at most `max` standing (a new one retires the oldest). The chip
- * bends nothing: it is the table's reminder that the thing exists and when it lapses.
+ * `seconds` of world time, one chip per device, at most `max` standing (at the max the popup says
+ * to remove one first). The chip bends nothing: it is the table's reminder that the thing exists
+ * and when it lapses. The cast ASKS (a popup, with what is left); the card recalls it.
  * Membership is the Card Chips list (the row names).
  */
 export const CARD_CHIPS = Object.freeze({

@@ -8,8 +8,8 @@ import { effectEntries, cardChipEntries, listedNames } from "./settings.js";
 import { chipData, placeOf } from "./shared.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { USE_CHIPS, CARD_CHIPS, tableIndex } from "./decide/registry.js";
-import { CHIP_FLAG, chipClock, cardChipRowKey, chipsToRetire } from "./decide/chips.js";
-import { momentButton } from "./ui.js";
+import { CHIP_FLAG, chipClock, cardChipRowKey, chipsLeft } from "./decide/chips.js";
+import { momentButton, openMomentPopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -84,19 +84,26 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
 /* ---------------------------------------------------------------------------------------------
  * CARD CHIPS (user, 2026-09-25, the Gnome walk: "for gnome tinker, just make it a buff on the char
- * that lasts for the duration"; ruled: a button on the Prestidigitation card; "just give a buff
- * called tiny clockwork device ... the rest is played at table"). The table is decide/registry.js
- * CARD_CHIPS; membership is the Card Chips list. Tinker has NO activity — its use is ten minutes
- * of Prestidigitation — so the cast's card is where it is offered: the caster owns the feature,
- * the card carries a pending offer, and a click writes the chip. Nothing is written without the
- * click (a plain Prestidigitation makes no device — R1, the caster's choice).
+ * that lasts for the duration"; ruled: offered at the Prestidigitation cast; "yea just give a buff
+ * called tiny clockwork device ... the rest is played at table"; then "id like a popup to create
+ * the clockwork with x/3 remaining ... if a person has 3 already, do a popup saying to remove a
+ * clockwork first"). The table is decide/registry.js CARD_CHIPS; membership is the Card Chips
+ * list. Tinker has NO activity — its use is ten minutes of Prestidigitation — so the cast asks: a
+ * popup on the caster's client, the build or not, with what is left of the three. Nothing is
+ * written without the answer (a plain Prestidigitation makes no device — R1, the caster's choice).
+ * Every device is its OWN chip (`stacks` — the twin-chip dedupe in effect-riders.js leaves a
+ * deliberate stack alone); at the row's max the popup says to remove one first, and builds none.
+ * The card carries the offer too, a recall for the popup, and says what was built (R5).
  *
- * WHERE IT RUNS: the offer is stamped by the casting client (it authored the card); the click is
- * answered by whoever clicks and owns the caster — the chip is the caster's own sheet, the card
- * the caster's own message. A card the clicker may not write keeps its button; the chip stands.
+ * WHERE IT RUNS: the offer is stamped and asked on the casting client (it authored the card and
+ * owns the caster); a recall asks whoever presses it, if they own the caster.
  * ------------------------------------------------------------------------------------------- */
 
 const CARD_FLAG = "cardChip";
+
+/** The chips of a row standing on an actor — every device, one chip each. */
+const devicesOf = (actor, row) => actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "card")
+  && (lower(e.name) === lower(row.chip)));
 
 Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
   try {
@@ -108,41 +115,67 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
       listedNames(cardChipEntries()));
     if ( !key ) return;
     void message.setFlag(MODULE_ID, CARD_FLAG, { ...statContext(actor.uuid), key, chip: CARD_CHIPS[key].chip, made: false })
-      .catch(err => console.error(`${TITLE} | Could not offer ${key} on the card.`, err));
+      .then(() => askCardChip(message))
+      .catch(err => console.error(`${TITLE} | Could not offer ${key}.`, err));
   } catch(err) {
     console.error(`${TITLE} | Card chip offer failed — keep the feature by hand.`, err);
   }
 });
 
-/** Build the chip a card offers: the oldest retired past the row's max, the new one written, the card stamped. */
+/** The popup: build one, with what is left — or, at the max, remove one first. */
+async function askCardChip(message) {
+  const flag = message.getFlag(MODULE_ID, CARD_FLAG);
+  const row = CARD_CHIPS[flag?.key];
+  if ( !row || flag.made ) return;
+  // live only: the caster whose sheet the chip lands on
+  const actor = fromUuidSync(flag.sourceUuid ?? "");
+  if ( !(actor instanceof Actor) || !actor.isOwner ) return;
+  const left = chipsLeft(devicesOf(actor, row).length, row.max);
+  const esc = foundry.utils.escapeHTML;
+  const title = `${flag.key} — ${row.chip}`;
+  const icon = "fa-solid fa-gears";
+  if ( !left ) {
+    await openMomentPopup(message, "cardChip", actor, { title, icon, gate: false,
+      content: `<p><strong>${esc(actor.name)} already has ${row.max} of ${row.max}.</strong> Remove a ${esc(row.chip)} first — delete its buff on the sheet — then build again from the card.</p>`,
+      buttons: [{ action: "ok", label: "OK", default: true }] });
+    return;
+  }
+  await openMomentPopup(message, "cardChip", actor, { title, icon, gate: false,
+    content: `<p>Build a <strong>${esc(row.chip)}</strong>? <strong>${left} of ${row.max}</strong> remaining.</p><p style="opacity:0.75;">It falls apart after 8 hours; what it does is played at the table.</p>`,
+    buttons: [
+      { action: "build", label: "Build it", icon: "fa-solid fa-gear", default: true, callback: () => void buildCardChip(message)
+        .catch(err => console.error(`${TITLE} | Could not build the ${row.chip}.`, err)) },
+      { action: "skip", label: "Not now" }
+    ] });
+}
+
+/** Build one device: its own chip, refused at the row's max; the card stamped with what stands. */
 async function buildCardChip(message) {
   const flag = message.getFlag(MODULE_ID, CARD_FLAG);
   const row = CARD_CHIPS[flag?.key];
   if ( !row || flag.made ) return;
   const actor = await fromUuid(flag.sourceUuid ?? "");
-  if ( !(actor instanceof Actor) || !actor.isOwner ) {
-    ui.notifications.warn(`${TITLE} | Only the caster's owner can build the ${row.chip}.`);
+  if ( !(actor instanceof Actor) || !actor.isOwner ) return;
+  const standing = devicesOf(actor, row).length;
+  if ( !chipsLeft(standing, row.max) ) {
+    ui.notifications.warn(`${TITLE} | ${actor.name} already has ${row.max} of ${row.max} — remove a ${row.chip} first.`);
     return;
   }
   const feature = actor.items.find(i => lower(i.name) === lower(row.feature)) ?? null;
-  const standing = actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "card") && (lower(e.name) === lower(row.chip)));
-  const retired = chipsToRetire(standing.map(e => ({ id: e.id, start: e.start?.time ?? null })), row.max);
-  if ( retired.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", retired);
   const [effect] = await actor.createEmbeddedDocuments("ActiveEffect", [{
     name: row.chip, img: feature?.img ?? "icons/svg/aura.svg",
-    description: `<p><em>“${row.rule}”</em></p><p>Written by Battle Flow when ${flag.key} was chosen on the Prestidigitation card; what the device does is the table's.</p>`,
+    description: `<p><em>“${row.rule}”</em></p><p>Written by Battle Flow when ${flag.key} was chosen at the Prestidigitation cast; what the device does is the table's.</p>`,
     origin: feature?.uuid ?? null, disabled: false, transfer: false,
     duration: { value: row.seconds, units: "seconds", expired: false }, start: { time: game.time.worldTime },
-    flags: { [MODULE_ID]: { [CHIP_FLAG]: "card", cardKey: flag.key } }
+    flags: { [MODULE_ID]: { [CHIP_FLAG]: "card", cardKey: flag.key, stacks: true } }
   }]);
-  const left = standing.length - retired.length + (effect ? 1 : 0);
   if ( message.canUserModify?.(game.user, "update") ) {
-    await message.setFlag(MODULE_ID, CARD_FLAG, { ...flag, made: true, effectId: effect?.id ?? null, retired, standing: left })
+    await message.setFlag(MODULE_ID, CARD_FLAG, { ...flag, made: true, effectId: effect?.id ?? null, standing: standing + (effect ? 1 : 0) })
       .catch(() => { /* the chip stands; only the card line is lost */ });
   }
 }
 
-// The card says it (R5): the offer while it waits, what was built once it is.
+// The card says it (R5): the offer while it waits — its button recalls the popup — and what was built.
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const f = message.getFlag(MODULE_ID, CARD_FLAG);
   const row = f ? CARD_CHIPS[f.key] : null;
@@ -150,8 +183,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const line = document.createElement("div");
   line.innerHTML = bfCard({
     eyebrow: f.key, tone: f.made ? "good" : "neutral",
-    title: f.made ? `${row.chip} built — ${f.standing ?? 1} of ${row.max} standing, each for 8 hours` : row.ask,
-    subtitle: f.made ? ((f.retired ?? []).length ? "the oldest device fell apart to make room" : "what it does is played at the table")
+    title: f.made ? `${row.chip} built — ${f.standing ?? 1} of ${row.max} standing` : row.ask,
+    subtitle: f.made ? "each falls apart after 8 hours; what it does is played at the table"
       : `at most ${row.max} at a time; each falls apart after 8 hours`,
     lines: [ruleLine(row.rule)]
   });
@@ -160,7 +193,6 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   if ( !f.made ) {
     // live only: the offer is its caster's to take — another client sees the line, not the button
     const actor = fromUuidSync(f.sourceUuid ?? "");
-    if ( actor?.isOwner ) content?.appendChild(momentButton(`Build a ${row.chip}`, () => void buildCardChip(message)
-      .catch(err => console.error(`${TITLE} | Could not build the ${row.chip}.`, err))));
+    if ( actor?.isOwner ) content?.appendChild(momentButton(`Build a ${row.chip}…`, () => void askCardChip(message)));
   }
 });

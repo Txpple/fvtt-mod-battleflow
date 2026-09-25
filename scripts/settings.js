@@ -298,7 +298,7 @@ Hooks.once("init", () => {
   // another item's cast, offered on that cast's card as a chip. A list; the list is the switch.
   game.settings.register(MODULE_ID, S.cardChipList, {
     name: "Card Chips",
-    hint: "A feature used through another item's cast, offered on that cast's card, by the row's name, separated by commas — Tinker. When a Rock Gnome casts Prestidigitation, its card offers to build a Tiny Clockwork Device: the click puts a Tiny Clockwork Device chip on the gnome, with the lineage's icon, for 8 hours; at most three stand (a fourth retires the oldest). What the device does is played at the table. Remove a name to keep that feature by hand.",
+    hint: "A feature used through another item's cast, offered on that cast's card, by the row's name, separated by commas — Tinker. When a Rock Gnome casts Prestidigitation, a popup asks whether to build a Tiny Clockwork Device, with how many of the three are left: yes puts a Tiny Clockwork Device chip on the gnome, with the lineage's icon, for 8 hours — one chip per device, at most three (with three standing, the popup says to remove one first). What the device does is played at the table. Remove a name to keep that feature by hand.",
     scope: "world", config: true, type: String, default: LIST_SPECS.cardChips.default
   });
 

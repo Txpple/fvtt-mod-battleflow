@@ -299,6 +299,9 @@ Hooks.on("createActiveEffect", effect => {
   if ( !(actor instanceof Actor) ) return;
   const fingerprinted = e => !!(e.getFlag(MODULE_ID, "applied") || e.getFlag(MODULE_ID, CHIP_FLAG));
   if ( !fingerprinted(effect) ) return;
+  // A deliberate STACK is not a twin (the Gnome walk, 2026-09-25: Tinker's devices, one chip each,
+  // up to three — "if more than 1 are created, id want additional chits"). use-chips.js marks them.
+  if ( effect.getFlag(MODULE_ID, "stacks") ) return;
   const born = e => e._stats?.createdTime ?? 0;
   const elder = actor.effects.some(e => {
     if ( (e.id === effect.id) || !fingerprinted(e) ) return false;

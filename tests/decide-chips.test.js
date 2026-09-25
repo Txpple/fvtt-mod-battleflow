@@ -328,15 +328,12 @@ describe("card chips — Tinker on the Prestidigitation card (the Gnome walk, 20
       )
     ).toBeNull();
   });
-  it("at most three stand: a fourth retires the oldest; fewer retire nothing", () => {
-    const three = [
-      { id: "b", start: 20 },
-      { id: "a", start: 10 },
-      { id: "c", start: 30 }
-    ];
-    expect(ch.chipsToRetire(three, 3)).toEqual(["a"]);
-    expect(ch.chipsToRetire(three.slice(0, 2), 3)).toEqual([]);
-    expect(ch.chipsToRetire([], 3)).toEqual([]);
+  it("x of 3 remaining; at three none is left (the popup says remove one first); nonsense reads as none standing", () => {
+    expect(ch.chipsLeft(0, 3)).toBe(3);
+    expect(ch.chipsLeft(2, 3)).toBe(1);
+    expect(ch.chipsLeft(3, 3)).toBe(0);
+    expect(ch.chipsLeft(5, 3)).toBe(0);
+    expect(ch.chipsLeft(undefined, 3)).toBe(3);
   });
   it("the list default is the table", () => {
     expect(reg.LIST_SPECS.cardChips.default).toBe(Object.keys(reg.CARD_CHIPS).join(", "));
