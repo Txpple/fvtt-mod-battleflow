@@ -784,6 +784,14 @@ version stays 2). The marker is `maneuver: false` on a record that is not a mane
 - **The writer pins** ([tools/moment-writers.mjs](tools/moment-writers.mjs)): `hit-menu.js` also
   writes `effectReceipt` (Hill's Tumble's no-save Prone, receipted on the damage card);
   `damage-either.js` writes `either`. `weaponRolls`, `bent` and `rescue` are STATE (`STATE_KEYS`).
+- **The Aasimar walk (2026-09-25).** `spellRiderCard` (new record) publishes `rider` — Celestial
+  Revelation's extra damage landed on the ONE target a spell's caster picked; its receipt on the
+  same card is the damage's own resolve. STATE: `spellRider` (the pick on the spell's card),
+  `emanationPulse` (the pulse's card — its receipt is the resolve), `tokenLight` (the light's
+  payload; its `effectReceipt` is the resolve — and on an ActiveEffect, the light's fingerprint),
+  `formChip` (the transformation form a rider reads). Pins: `clock-riders.js` also writes
+  `spellRiderCard` and `receipt`; `emanations.js` writes `receipt` (the pulse); `token-lights.js`
+  writes `effectReceipt`.
 
 **A consumer dedupes against the card.** `damage`, `effect`, `spend` and `save` also fire for
 resolves the platform posts a card for, and a cast that answers a hold posts its own usage card

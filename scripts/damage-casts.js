@@ -4,11 +4,12 @@
  */
 import { MODULE_ID, TITLE, S, setting, statContext } from "./core.js";
 import { lower, activityNamed } from "./lookup.js";
-import { damageSaveEntries, listedNames } from "./settings.js";
+import { damageSaveEntries, emanationEntries, listedNames } from "./settings.js";
 import { modeAllows, withTargets } from "./shared.js";
 import { tokenForUuid } from "./geometry.js";
 import { bfCard, ruleLine } from "./decide/present.js";
-import { DAMAGE_SAVES, MANEUVER_FEATURE_NAMES, tableIndex } from "./decide/registry.js";
+import { DAMAGE_SAVES, EMANATIONS, MANEUVER_FEATURE_NAMES, tableIndex } from "./decide/registry.js";
+import { pulseFormKey } from "./decide/emanations.js";
 import { volleyEntryFor } from "./volley-registry.js";
 import { offerSaveDamageRoll, rollDamageForSave } from "./auto-damage.js";
 import { SURFACES } from "./surfaces.js";
@@ -52,6 +53,9 @@ function drives(activity, targetCount) {
   if ( !actor?.isOwner || !modeAllows(actor) ) return false;
   if ( volleyEntryFor(activity.item) ) return false;                  // the volley machine rolls its darts
   if ( MANEUVER_FEATURE_NAMES.has(lower(activity.item?.name)) ) return false;   // a maneuver's damage activity is its DIE — other machines' (2026-09-05)
+  // A transformation whose damage is a PULSE at the bearer's turn end (Inner Radiance, 2026-09-25):
+  // the use is the transform alone — the emanation's pulse rolls the dice, never the use.
+  if ( setting(S.emanations) && pulseFormKey(EMANATIONS, { itemName: activity.item?.name, activityName: activity.name }, listedNames(emanationEntries())) ) return false;
   if ( !activity.damage?.parts?.length ) return false;
   return targetCount > 0;
 }

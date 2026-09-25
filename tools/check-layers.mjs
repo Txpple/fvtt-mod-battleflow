@@ -100,6 +100,7 @@ export const LAYER_OF = {
   "metamagic.js": "machines",   // the Sorcerer's options in the cast dialog, the points on the card (2026-09-09)
   "damage-either.js": "machines",   // the damage dice rolled twice — Savage Attacker on a weapon hit (Slice A, 2026-09-24)
   "emanations.js": "machines",
+  "token-lights.js": "machines",   // a use that sheds light carries it on an effect — Inner Radiance, Light (the Aasimar walk, 2026-09-25)
   "hit-menu.js": "machines",
   "damage-shields.js": "machines",
   "damage-casts.js": "machines",
@@ -142,6 +143,7 @@ export const LAYER_OF = {
   "decide/sneak.js": "decision",
   "decide/clock.js": "decision",
   "decide/emanations.js": "decision",
+  "decide/token-lights.js": "decision",   // which use sheds a token light, and the changes that carry it (2026-09-25)
   "decide/hit-menu.js": "decision",
   "decide/shields.js": "decision",
   "decide/choices.js": "decision",

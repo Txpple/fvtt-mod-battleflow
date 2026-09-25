@@ -170,6 +170,9 @@ import "./saves/index.js";
 // emanations.js after saves.js: its trigger card carries a `saves` demand the saves machine drives
 // (the chat log is the bus — no import between them); it renders no row on any shared card (2026-09-03).
 import "./emanations.js";
+// token-lights.js after emanations.js (the Aasimar walk, 2026-09-25): the light's effect is what an
+// emanation's `while` row stands on; its card row renders beneath the use's own rows.
+import "./token-lights.js";
 import "./receipts.js";
 // resources.js last: its one-line spend record renders at the very bottom of the usage
 // card, below every workflow row — a footer, which is what a ledger line is.

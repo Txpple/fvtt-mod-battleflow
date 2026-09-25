@@ -179,7 +179,8 @@ const WORLD_WRITERS = {
   "hit-menu.js": ["hitManeuver", "sweepCard", "receipt", "effectReceipt"],   // effectReceipt: Hill's Tumble's no-save press, receipted on the damage card (2026-09-24)
   "hit-riders.js": "the weapon's own damage parts, folded into the roll config before it rolls — the damage message is the platform's and its receipt the resolve",
   "sneak.js": ["sneakDamage", "effectReceipt"],
-  "clock-riders.js": ["clockRiders", "poolSpend"],
+  "clock-riders.js": ["clockRiders", "poolSpend", "spellRiderCard", "receipt"],
+  "token-lights.js": ["effectReceipt"],
   "command.js": ["commandRide"],
   "superiority-uses.js": ["superiorityUse", "superiorityRide", "baitSwitch", "effectReceipt"],
   "precision.js": ["precision"],
@@ -204,7 +205,7 @@ const WORLD_WRITERS = {
   "hold/lookup.js": ["effectReceipt"],
   "damage-shields.js": ["damageShield", "shieldMark", "receipt"],
   "damage-casts.js": ["damageCast", "saves"],
-  "emanations.js": ["emanationCard", "effectReceipt", "saves"],
+  "emanations.js": ["emanationCard", "effectReceipt", "saves", "receipt"],
   "volleys.js": ["volley", "receipt"],
   "cast.js": ["castApply", "effectReceipt", "receipt"],
   "reminders.js": "the gate before the roll — a dialog's default and a Fails press; the roll's verdict is the saves record's resolve",

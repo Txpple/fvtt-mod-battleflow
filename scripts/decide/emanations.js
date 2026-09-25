@@ -23,19 +23,65 @@ export const DISPOSITION = Object.freeze({ SECRET: -2, HOSTILE: -1, NEUTRAL: 0, 
  * Helpful: the source's own side and neutrals (the rules say "you and your allies"). Harmful: the
  * other side — a hostile source reaches friendlies and a friendly source reaches hostiles; neither
  * reaches neutrals by default (the caster "designates creatures to be unaffected" — the default
- * designation is everybody who is not an enemy). A SECRET token is nobody's business either way.
- * @param {"helpful"|"harmful"} reach
+ * designation is everybody who is not an enemy). All (the Aasimar walk, 2026-09-25 — Inner
+ * Radiance's "each creature within 10 feet of you"): every side, allies included, as written. A
+ * SECRET token is nobody's business either way.
+ * @param {"helpful"|"harmful"|"all"} reach
  * @param {number} sourceDisposition
  * @param {number} targetDisposition
  */
 export function reachAdmits(reach, sourceDisposition, targetDisposition) {
   if ( (targetDisposition === DISPOSITION.SECRET) || (sourceDisposition === DISPOSITION.SECRET) ) return false;
+  if ( reach === "all" ) return true;
   if ( reach === "helpful" ) return (targetDisposition === sourceDisposition) || (targetDisposition === DISPOSITION.NEUTRAL);
   if ( reach === "harmful" ) {
     if ( sourceDisposition === DISPOSITION.NEUTRAL ) return targetDisposition !== DISPOSITION.NEUTRAL;
     return targetDisposition === -sourceDisposition;
   }
   return false;
+}
+
+/**
+ * Does an AREA whose activity names who it affects (`target.affects.type`) take in a creature of
+ * this disposition, from a caster of that one? The packs say it on the data — Necrotic Shroud's
+ * area affects "enemy", its text "creatures other than your allies" (the Aasimar walk,
+ * 2026-09-25) — and a placed area asked everyone standing in it. "enemy": anyone NOT on the
+ * caster's side (the other side and neutrals — the text's "other than your allies"); "ally": the
+ * caster's own side; anything else (creature, blank, any): everyone, as before. The caster's own
+ * token is the caller's to leave out.
+ * @param {string|null} affects   the activity's `target.affects.type`
+ * @param {number} casterDisposition
+ * @param {number} targetDisposition
+ */
+export function affectsAdmits(affects, casterDisposition, targetDisposition) {
+  if ( affects === "enemy" ) {
+    if ( (targetDisposition === DISPOSITION.SECRET) || (casterDisposition === DISPOSITION.SECRET) ) return true;
+    return targetDisposition !== casterDisposition;
+  }
+  if ( affects === "ally" ) return targetDisposition === casterDisposition;
+  return true;
+}
+
+/**
+ * The listed PULSE row whose form this use is, or null (the Aasimar walk, 2026-09-25): a row with a
+ * `pulse` names the pack item it lives on (`item`, else its own key) and the activity whose use is
+ * the transformation (`activity`) — Inner Radiance on Celestial Revelation. That use is the
+ * transform alone: the ring is the sweep's, the damage the pulse's at the bearer's turn end, so no
+ * machine rolls the activity's damage at the use (the pack models the pulse as damage on use).
+ * @param {Record<string, {pulse?: object|null, item?: string, activity?: string}>} table   EMANATIONS
+ * @param {{ itemName: string|null|undefined, activityName: string|null|undefined }} use
+ * @param {Set<string>} listed   the Emanations list, lower-cased
+ * @returns {string|null}   the row's key
+ */
+export function pulseFormKey(table, { itemName, activityName }, listed) {
+  const item = String(itemName ?? "").toLowerCase();
+  const act = String(activityName ?? "").toLowerCase();
+  if ( !item || !act ) return null;
+  for ( const [key, row] of Object.entries(table ?? {}) ) {
+    if ( !row?.pulse || !row.activity || !listed?.has?.(key.toLowerCase()) ) continue;
+    if ( (String(row.item ?? key).toLowerCase() === item) && (String(row.activity).toLowerCase() === act) ) return key;
+  }
+  return null;
 }
 
 /**

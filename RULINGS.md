@@ -34,6 +34,7 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Disadvantage imposed on an attack rolled WITH Advantage** (the two cancel) | the plain roll is the FIRST d20 rolled — the first face a reroll modifier did not replace — and no second d20 is rolled | both dice are already on the table, and the first was chosen before anyone saw a face (`decide/rescue-hit.js` `d20Faces`, `disadvantageOutcome`) | 2026-09-24 |
 | **A critical hit** when a live Disadvantage row could undo it | the damage is NOT rolled at the hit; it is rolled once after the answer, doubled only if the crit still stands for every hit target | doubled dice rolled before the answer would be discarded the moment the second d20 comes up lower (`hold.critAtStake`, `auto-damage.js` `damageAfterHold`) | 2026-09-24 |
 | **Heroic Inspiration, Precision Attack, Graze** once a defender's Lucky (or any `roll` row) turned the hit into a miss | not offered to the attacker | the attacker's rescues are offered at `dnd5e.rollAttackV2`, where the roll was a hit; nothing re-offers them after the hold's verdict — a known gap, DESIGN §8 (Graze already had it for Shield, `mastery.js`) | 2026-09-24 |
+| **Celestial Revelation's extra damage** on a spell with no attack roll: dealt "when you deal damage to it", with the spell | offered on the spell's card once its damage has landed; the pick lands as its OWN damage (its own card and receipt) — a concentrating target makes a second Constitution save for it | the extra goes to ONE of the spell's targets, the caster's pick, and the spell's damage is one roll applied to all of them: it cannot ride the roll, and the spell's receipt is keyed by creature, so an entry there would overwrite the spell's own (`clock-riders.js`) | 2026-09-25 |
 
 ## The effect view (2026-09-15; the aura row 2026-09-15; the panel 2026-09-18)
 
@@ -478,7 +479,8 @@ held). Built on the user's "go" in three tiers, the UI ruled off `prototypes/sli
   and Heroic Inspiration, so it would just be more button choices"*) — Lucky, Warding Flare and
   Shadowy Dodge are three rows, never one "Disadvantage" row listing its sources.
 - **Parked** (BACKLOG *Features*, each with its trigger): Lucky's Advantage half, Trance, Healer's
-  spell-healing rerolls, Inner Radiance's turn-end pulse, Celestial Revelation's extra damage.
+  spell-healing rerolls. (Inner Radiance's pulse and Celestial Revelation's extra damage were built
+  in the walk, 2026-09-25 — *The Aasimar walk*, below.)
   **Held:** Relentless Endurance, for Slice B's kill moment.
 
 **The save gate reads features** (tier 1; `EFFECT_BENDS` rows `match: "feature"` with a `saves`
@@ -574,3 +576,59 @@ player's; which set is not. `damage-either.js` (a MACHINE), `decide/damage-dice.
   Empowered's `moveAppliedDamage`) — with the claim holding the application, a belt, not the road.
 - **Not a kind:** one table read by one machine, the `CLOCK_RIDERS` / `METAMAGIC` shape; a second
   customer is a row. The published word is `fold`.
+
+## The Aasimar walk (2026-09-25, the Slice A walk by hand)
+
+**The walk goes species by species, then the origin feats; each opens with a *Trait | What you
+should see* table** (user, 2026-09-25). The Aasimar's findings, each ruled in the walk and built on
+the user's word; `smoke-aasimar` (29 checks), `tests/decide-token-lights.test.js`, and the
+Celestial Revelation cases in `tests/decide-clock.test.js` / `tests/decide-emanations.test.js`.
+
+- **Every area that starts on its user lands on the user's token — no placement click** (user:
+  *"it should always just be centered on the token without additional placing"*; the class ruled
+  as *every self-centered area*). The Spirit Guardians idiom, generalized (`emanations.js`
+  `selfAreaOf`): a `radius` (or `emanation`) template with range self — any spell, species form or
+  monster feature — has the system's placement prompt switched off and its Region placed at the
+  use, attached to the token, the placement's own flags stamped. A listed emanation spell's region
+  stays the machine's (hidden, no platform behaviour); every other area is the platform's, drawn,
+  its own behaviours on it. The Emanations switch gates it.
+- **An area whose activity names who it affects is read that way** (`decide/emanations.js`
+  `affectsAdmits`; the save demand's area adoption): `enemy` takes everyone not on the user's side,
+  `ally` the user's side. Necrotic Shroud (`enemy`; *"creatures other than your allies"*) no longer
+  asks the Aasimar's friends beside it.
+- **Necrotic Shroud's Frightened lasts until the end of the Aasimar's next turn** — a PACK defect
+  (60 seconds), fixed in **Vendor Fixes VF-002** (user: *"put the fix in the vendor fixes sister
+  repo"*), never here: the copy's clock becomes the system's `sourceEnd`. Battle Flow depends on it
+  (the register's Dependents).
+- **Inner Radiance pulses** (user: *"inner radiance needs to pulse - you can probably shape it like
+  spirit guardians in part"*). An `EMANATIONS` feature row with three new fields: `while` (it
+  stands only while the form's effect, Searing Radiance, stands on the bearer — the transformation
+  ends, the ring goes), `reach: "all"` (*"each creature within 10 feet of you"* — allies included,
+  as written; user: *"Everyone, as written"*), and `pulse` (at the END of the BEARER's turn — no
+  region event carries it, so the turn moving is read — the activity's own `@prof` part rolled once
+  on the bearer, applied to everyone the ring holds on one card with receipts; forward moves only,
+  once per ended turn). Out of combat there are no turns and no pulse.
+- **No damage at the transform** (user: *"No damage at transform"*): the pack models the pulse as
+  damage on use; the use is the transformation alone — no area placed, the system's follow-up roll
+  off, and the bare-damage machine (`damage-casts.js`) steps aside for a pulse form. The pulse is
+  the damage. (Built here, not in Vendor Fixes: the pulse reads the pack's own damage part.)
+- **Token lights** (user: *"add the bright/dim light settings … edit the Light spell so it adds light
+  emission to a token target as well"*): a new table, `TOKEN_LIGHTS`, and machine,
+  `token-lights.js`; the Token Lights list. Foundry 14 applies an effect change keyed `token.*` to
+  the bearer's tokens (`light` is a targetable key), so the light is two changes on an effect and
+  lives and dies with it — no token document is written. **Inner Radiance** lands its own Searing
+  Radiance on the Aasimar (nothing else lands a damage activity's effect on its user) with 10 ft
+  Bright / 20 ft Dim — that effect is what the ring's `while` and the rider's form read. **Light**
+  cast at targeted tokens lights each (20 / 40, the spell's hour) instead of summoning its object;
+  casting it again puts the caster's earlier light out; cast at nobody, the pack's summon stands.
+  **Any targeted token** (user: *"Any targeted token"*) — friend, foe or self; the rule's "object
+  not worn or carried by someone else" is the table's to name, and the PHB's Light has no save.
+- **Celestial Revelation's extra damage** (user: *"you need to add this in and not skip it"*): a
+  `CLOCK_RIDERS` row with no activity — its `amount` is the text's `@prof` — judged `transformed`
+  by the FORM that stands (`forms`: Heavenly Wings' and Searing Radiance's own effects, and for
+  Necrotic Shroud, which lands nothing on its bearer, the module's form chip written at its use,
+  matched by flag — never by the name a frightened creature also wears). Radiant, or necrotic for
+  the Shroud; once per turn by the rider chit. An attack — weapon or spell — carries it on the roll
+  like every rider. **A spell with no attack roll** may hit many and the extra goes to ONE target,
+  the caster's choice (R1): once its damage lands, its card offers a button per damaged creature;
+  the pick lands on its own card with a receipt (the bend: the register).

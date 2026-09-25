@@ -13,14 +13,17 @@
 /**
  * @param {{when: "oncePerTurn"|"firstRound"|"any", uses?: boolean, requires?: string, judge?: string, weapon?: boolean}} row
  * @param {{inCombat?: boolean, round?: number|null, chitStands?: boolean, usesLeft?: number|null,
- *          sneakArmed?: boolean, raging?: boolean, weapon?: boolean}} facts
+ *          sneakArmed?: boolean, raging?: boolean, weapon?: boolean, form?: string|null}} facts
+ *          `form`: the transformation that stands on the bearer, by the form's name (a `transformed`
+ *          row — Celestial Revelation, the Aasimar walk 2026-09-25), null when none does
  * @returns {{due: boolean, why: string}}
  */
 export function riderDue(row, { inCombat = false, round = null, chitStands = false, usesLeft = null,
-  sneakArmed = false, raging = false, weapon = false } = {}) {
+  sneakArmed = false, raging = false, weapon = false, form = null } = {}) {
   if ( row.weapon && !weapon ) return { due: false, why: "not a weapon attack" };
   if ( (row.requires === "sneak") && !sneakArmed ) return { due: false, why: "no Sneak Attack armed on this hit" };
   if ( (row.judge === "raging") && !raging ) return { due: false, why: "not raging" };
+  if ( (row.judge === "transformed") && !form ) return { due: false, why: "not transformed" };
   if ( row.uses && !((usesLeft ?? 0) > 0) ) return { due: false, why: "no uses left" };
   switch ( row.when ) {
     case "firstRound":
@@ -29,6 +32,7 @@ export function riderDue(row, { inCombat = false, round = null, chitStands = fal
       return { due: true, why: "the first round of the combat" };
     case "oncePerTurn":
       if ( chitStands ) return { due: false, why: "already used this turn" };
+      if ( form ) return { due: true, why: inCombat ? `${form} — once this turn` : `${form} — out of combat, every hit` };
       return { due: true, why: inCombat ? "once this turn" : "out of combat — every hit" };
     // Every hit, uses permitting (Slice A, 2026-09-24 — Fire's Burn, Frost's Chill): the use is
     // the only clock, judged above.
@@ -69,5 +73,28 @@ export function riderUsesFrom({ activity = null, item = null, uses = false } = {
   const read = (u, on) => ({ left: Number(u.value ?? 0) || 0, max: Number(u.max) || 0, spent: Number(u.spent ?? 0) || 0, on });
   if ( carries(activity) ) return read(activity, "activity");
   if ( uses && carries(item) ) return read(item, "item");
+  return null;
+}
+
+/**
+ * WHICH FORM STANDS (the Aasimar walk, 2026-09-25 — a `transformed` row, Celestial Revelation):
+ * the first of the row's forms whose mark is on the bearer. A form marks itself with the effect it
+ * lands on its bearer (Heavenly Wings, Searing Radiance), matched by name; the form that lands
+ * nothing on its bearer (Necrotic Shroud — its effect is the targets' Frightened) is marked by the
+ * module's own form chip, matched by the chip's form and never by name, so a creature frightened BY
+ * a Shroud (an effect named the same) is never read as wearing one. Null when none stands.
+ * @param {{forms?: ReadonlyArray<{form: string, effect?: string, chip?: string, type: string}>}} row
+ * @param {Array<{name: string, active: boolean, chip: string|null}>} effects   the bearer's effects;
+ *        `chip` is the form a module form chip marks (lower-cased), null on every other effect
+ * @returns {{form: string, effect?: string, chip?: string, type: string}|null}
+ */
+export function standingForm(row, effects) {
+  const lc = v => String(v ?? "").toLowerCase();
+  for ( const f of row?.forms ?? [] ) {
+    const marked = (effects ?? []).some(e => e?.active && (f.chip
+      ? (e.chip === lc(f.form))
+      : (!e.chip && (lc(e.name) === lc(f.effect)))));
+    if ( marked ) return f;
+  }
   return null;
 }

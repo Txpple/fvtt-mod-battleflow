@@ -119,6 +119,12 @@ export const ORDER = [
     name: "smoke-savage", note: "Savage Attacker — the popup on a weapon hit, the set rolled again, the higher standing, the damage waiting, once per turn, the hold first",
     needs: ["fixture-suite"]
   },
+  // The Aasimar walk (2026-09-25): BF Test Halfling is lent Celestial Revelation, Light and Sacred
+  // Flame for the run, beside the Victim and the Ranger — the same seed as the two above.
+  {
+    name: "smoke-aasimar", note: "Celestial Revelation and the token lights — a self area placed on the token, an enemy area asking no ally, the `while` ring and its turn-end pulse, the form's rider on a hit and on a spell's one target, Light on a targeted token",
+    needs: ["fixture-suite"]
+  },
   // The effect view's probe joined the battery on 2026-09-23 (change-scoped live testing): it was
   // the one machine no battery suite drove, and an unrun probe rots exactly like an unrun suite.
   // ⚠ ITS OWN SEED, the smoke-metamagic lesson again: it reads the fixture tokens on the range,

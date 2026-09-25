@@ -303,13 +303,11 @@ ITEM (`system.uses`, the activity consumes `itemUses`); none carries activity us
     a sleep effect.
   - **Healer's healing rerolls on spells** — a new kind (reroll 1s on another item's healing
     dice). Reopens when a Healer plays a healing caster.
-  - **Inner Radiance's turn-end pulse** — a new kind (PB radiant to all within 10 ft at the end
-    of the bearer's turn; the pack rolls once, on use). Reopens when an Aasimar sits down.
-  - **Celestial Revelation's extra damage** — a `CLOCK_RIDERS` row needing a `transformed`
-    judge (two of three forms leave no SELF effect), an attack-or-spell trigger and a flat
-    `@prof` amount. Reopens with the pulse. ⚠ **Pack data defect:** Necrotic Shroud's
-    Frightened lasts **60 s** against the rule's "until the end of your next turn" — fix at
-    the data, never a carve-out.
+  - ~~Inner Radiance's turn-end pulse~~ and ~~Celestial Revelation's extra damage~~ — **BUILT
+    2026-09-25** in the walk (RULINGS *The Aasimar walk*): the pulse is an `EMANATIONS` feature
+    row (`while`, `reach: "all"`, `pulse`), not a new kind; the extra is a `CLOCK_RIDERS` row
+    (`amount`, `transformed`, `forms`, `spells`). Necrotic Shroud's 60-second Frightened is fixed
+    in Vendor Fixes VF-002, never here.
 - **HELD:** **Relentless Endurance** → Slice B's **kill moment**, built once with Undead
   Fortitude and the monster Relentless trait.
 - **One pick per hit, for now.** The hit menu carries one pick per hit; **a Goliath Battle
@@ -323,8 +321,8 @@ ITEM (`system.uses`, the activity consumes `itemUses`); none carries activity us
 | **Stone's Endurance** (Goliath) | heal activity, Reaction, `1d12 + @abilities.con.mod` (the formula IS the reduction — Parry's shape); ITEM `@prof` lr | ROW → `INTERRUPT_REDUCTIONS`. ⚠ **Corrected:** its spend and lookup already work as Parry's — dnd5e fills the empty activity name with the type title "Heal", and an empty consumption target makes `poolOf` return the item, so `pool: true` spends its own uses. The lookup is made locale-proof (name, or type `heal` when unnamed). Attack hits only; save and area damage stays by hand. **Tier 1** |
 | **Fire's Burn**, **Frost's Chill**, **Hill's Tumble** (Goliath) | damage 1d10 fire / damage 1d6 cold + effect "Chilled" (−10 speed) / utility, no save; each ITEM `@prof` lr | ROW+VOCAB → `HIT_OPTIONS` under a Giant Ancestry group paid per option; Hill's Tumble needs a no-save press and a size judge (≤ Large). ⚠ **Corrected:** "Chilled" DOES carry a 1-turn clock (`turnStart`); it is still pinned the Slow mastery's way, so an opportunity attack's clock is the attacker's. **Tier 2** |
 | **Trance** (Elf) | text-only | ROW+VOCAB, low priority. **PARKED** |
-| **Celestial Revelation — the extra damage** (Aasimar) | nothing rolls it | ROW+VOCAB → `CLOCK_RIDERS`. **PARKED** |
-| **Celestial Revelation — Inner Radiance** | damage on use, 10-ft template | NEW-KIND, the turn-end pulse. **PARKED** |
+| **Celestial Revelation — the extra damage** (Aasimar) | nothing rolls it | ROW+VOCAB → `CLOCK_RIDERS` (`amount`, a `transformed` judge, `forms`, `spells`). **BUILT 2026-09-25** in the walk (RULINGS *The Aasimar walk*) |
+| **Celestial Revelation — Inner Radiance** | damage on use, 10-ft template | an `EMANATIONS` feature row (`while`, `reach: "all"`, `pulse`) plus the new `TOKEN_LIGHTS` table for its light. **BUILT 2026-09-25** in the walk |
 | **Relentless Endurance** (Orc) | heal activity, no activation ("reduced to 0 HP"); ITEM `1` lr | the kill moment. **HELD → Slice B** |
 
 **NATIVE (23):** Celestial Resistance, Healing Hands, Heavenly Wings, Necrotic Shroud (⚠ the

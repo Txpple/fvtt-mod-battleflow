@@ -70,6 +70,8 @@ dnd5e.preRollDamageV2	sneak.js
 createChatMessage	sneak.js
 dnd5e.renderChatMessage	sneak.js
 dnd5e.preRollDamageV2	clock-riders.js
+dnd5e.postUseActivity	clock-riders.js
+dnd5e.renderChatMessage	clock-riders.js
 dnd5e.renderChatMessage	clock-riders.js
 dnd5e.postUseActivity	damage-shields.js
 updateActor	damage-shields.js
@@ -174,6 +176,7 @@ dnd5e.renderChatMessage	saves/views.js
 init	emanations.js
 updateCombat	emanations.js
 dnd5e.renderChatMessage	emanations.js
+updateCombat	emanations.js
 preCreateRegionBehavior	emanations.js
 dnd5e.preUseActivity	emanations.js
 dnd5e.postUseActivity	emanations.js
@@ -200,6 +203,9 @@ updateActor	emanations.js
 createActiveEffect	emanations.js
 deleteActiveEffect	emanations.js
 updateActiveEffect	emanations.js
+dnd5e.preUseActivity	token-lights.js
+dnd5e.postUseActivity	token-lights.js
+dnd5e.renderChatMessage	token-lights.js
 dnd5e.renderChatMessage	receipts.js
 createChatMessage	resources.js
 updateChatMessage	resources.js

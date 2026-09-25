@@ -146,6 +146,15 @@ describe("the moment registry — shape", () => {
         poolName: "Second Wind",
         poolUuid: "Actor.f.Item.sw"
       },
+      spellRiderCard: {
+        sourceUuid: "Actor.aa",
+        key: "celestial-revelation",
+        label: "Celestial Revelation",
+        value: 3,
+        type: "radiant",
+        targetUuid: "Actor.v",
+        spellMessageId: "sp"
+      },
       clockRiders: {
         sourceUuid: "Actor.rg",
         attackId: "atk",

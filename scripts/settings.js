@@ -278,6 +278,14 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.damageEither.default
   });
 
+  // TOKEN LIGHTS (the Aasimar walk, 2026-09-25): a use whose text sheds light carries it as the
+  // token's own light on an effect (Foundry 14's `token.*` changes). A list; the list is the switch.
+  game.settings.register(MODULE_ID, S.tokenLightList, {
+    name: "Token Lights",
+    hint: "A use whose text says something sheds light, carried as the token's own light, by the row's name, separated by commas — Inner Radiance, Light. Inner Radiance lands its own Searing Radiance effect on the Aasimar with 10 feet of Bright Light and 10 more of Dim; Light cast at targeted tokens lights each of them, 20 feet Bright and 20 more Dim, for the spell's hour, and casting it again puts out the caster's earlier light (cast with nobody targeted, the spell's own summoned light stands). The light lives on the effect: it goes when the effect ends or is removed. Remove a name to light that token by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.tokenLights.default
+  });
+
   // DAMAGE SAVES (user, 2026-09-04: "make heat metal spell work"): a bare damage activity rolls
   // its dice at the use (the general fix — nothing rolled them), and a listed row demands the
   // save its text ties to the damage. A list; the list is the switch for the save half.
@@ -665,6 +673,11 @@ export function chosenAreaEntries() {
 /** Which rows of the rolled-twice table offer on a weapon hit, by the feature's name — `{ kind }`. */
 export function damageEitherEntries() {
   return listEntries(LIST_SPECS.damageEither);
+}
+
+/** Which rows of the token-light table shed their light, by the row's name — `{ kind }`. */
+export function tokenLightEntries() {
+  return listEntries(LIST_SPECS.tokenLights);
 }
 
 /** Is this spell listed as one whose caster chooses who its area affects? */

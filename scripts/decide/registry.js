@@ -369,7 +369,24 @@ export const CLOCK_RIDERS = Object.freeze({
     from: "Goliath — Giant Ancestry (Fire)" }),
   "frosts-chill": Object.freeze({ feature: "Frost's Chill", activity: "Chill", label: "Frost's Chill", when: "any", uses: true, effects: true, clock: "slow",
     rule: "When you hit a target with an attack roll and deal damage to it, you can also deal 1d6 Cold damage to that target and reduce its Speed by 10 feet until the start of your next turn.",
-    from: "Goliath — Giant Ancestry (Frost)" })
+    from: "Goliath — Giant Ancestry (Frost)" }),
+  // The Aasimar's transformation (the walk, 2026-09-25; user: "you need to add this in and not
+  // skip it"). No activity carries the extra damage, so the row names its `amount` — the text's
+  // own token, resolved on the bearer — and its type comes from the FORM that stands (`forms`):
+  // an effect the form lands on the bearer (Heavenly Wings, Searing Radiance), or, for the form
+  // that lands nothing on its bearer (Necrotic Shroud's effect is the targets' Frightened), the
+  // module's own form chip written at the use (`chip`). `spells`: a spell's damage too — an
+  // attack spell rides the roll like a weapon; a spell that deals damage with no attack roll is
+  // offered on its card as a pick of the ONE target (clock-riders.js).
+  "celestial-revelation": Object.freeze({ feature: "Celestial Revelation", activity: null, amount: "@prof", label: "Celestial Revelation",
+    when: "oncePerTurn", judge: "transformed", spells: true,
+    forms: Object.freeze([
+      Object.freeze({ form: "Heavenly Wings", effect: "Heavenly Wings", type: "radiant" }),
+      Object.freeze({ form: "Inner Radiance", effect: "Searing Radiance", type: "radiant" }),
+      Object.freeze({ form: "Necrotic Shroud", chip: "Necrotic Shroud", type: "necrotic" })
+    ]),
+    rule: "Once on each of your turns before the transformation ends, you can deal extra damage to one target when you deal damage to it with an attack or a spell. The extra damage equals your Proficiency Bonus, and the extra damage’s type is either Necrotic for Necrotic Shroud or Radiant for Heavenly Wings and Inner Radiance.",
+    from: "Aasimar — Celestial Revelation (character level 3)" })
 });
 
 /**
@@ -746,7 +763,22 @@ export const EMANATIONS = Object.freeze({
   "Holy Aura": Object.freeze({ kind: "spell", reach: "helpful", range: null, effect: "Holy Protection", incapacitated: false,
     caveat: "the pack's effect carries the Advantage on saves (the save gate says so) and the attack gate reads attackers' Disadvantage off it (Effect Sources — Holy Protection); the Fiend/Undead save on a melee hit is the table's",
     rule: "For the duration, you emit an aura in a 30-foot Emanation. While in the aura, creatures of your choice have Advantage on all saving throws, and other creatures have Disadvantage on attack rolls against them. In addition, when a Fiend or an Undead hits an affected creature with a melee attack roll, the attacker must succeed on a Constitution saving throw or have the Blinded condition until the end of its next turn.",
-    from: "Cleric spell, level 8 (Concentration, 1 minute)" })
+    from: "Cleric spell, level 8 (Concentration, 1 minute)" }),
+  // --- the Aasimar walk (2026-09-25) -----------------------------------------------------------
+  // A FEATURE emanation that stands only WHILE a named effect stands on its bearer (`while` —
+  // the transformation's own effect, landed at the use by the token-lights machine), found on
+  // the item `item` by its activity `activity` (the row's key is the form the table names; the
+  // item is the pack's Celestial Revelation), reaching EVERY creature inside (`reach: "all"` —
+  // the text's "each creature within 10 feet of you", allies included; user, 2026-09-25: "as
+  // written"), and paying out at the END OF THE BEARER'S turn (`pulse`) — the activity's own
+  // damage part, rolled once on the bearer and applied to everyone inside. The activity's use is
+  // the transform alone: no area placed, no damage rolled (the pack models the pulse as damage
+  // on use; user, 2026-09-25: "no damage at transform").
+  "Inner Radiance": Object.freeze({ kind: "feature", item: "Celestial Revelation", activity: "Inner Radiance", while: "Searing Radiance",
+    reach: "all", range: null, effect: null, incapacitated: false,
+    pulse: Object.freeze({ on: "sourceTurnEnd", activity: "Inner Radiance" }),
+    rule: "Searing light temporarily radiates from your eyes and mouth. For the duration, you shed Bright Light in a 10-foot radius and Dim Light for an additional 10 feet, and at the end of each of your turns, each creature within 10 feet of you takes Radiant damage equal to your Proficiency Bonus.",
+    from: "Aasimar — Celestial Revelation (character level 3)" })
 });
 
 /**
@@ -822,6 +854,43 @@ export const EFFECT_CHOICES = Object.freeze({
 
 /** The choices' item names, lower-cased — the closed set the Effect Choices list is validated against. */
 export const EFFECT_CHOICE_NAMES = tableIndex(EFFECT_CHOICES).names;
+
+/**
+ * TOKEN LIGHTS (user, 2026-09-25, the Aasimar walk: "inner radiance - add the bright/dim light
+ * settings ... edit the Light spell so it adds light emission to a token target as well"). A use
+ * whose text says something SHEDS LIGHT, carried as the token's own light on an effect: Foundry 14
+ * applies an effect change keyed `token.*` to the bearer's tokens (TokenDocument#applyActiveEffects
+ * — `light` is one of its targetable keys, measured on 14.368), so the light comes and goes with
+ * the effect, its clock and its removal, and no token document is written. The radii are the
+ * rule's own words — Bright Light in a radius, Dim Light "for an additional" distance, and a
+ * Foundry light's `dim` is the OUTER radius, so dim = bright + the additional (N1: the packs carry
+ * no light at all, so the text is the only source).
+ *
+ *   on        "self" — the user's own sheet; "targets" — every creature targeted at the use (none
+ *             targeted: the pack's own use stands, the Light spell's summoned light)
+ *   item      the pack item the row's activity lives on, when the row's key is not the item's name
+ *   activity  the activity, by name, whose use lands the light (null: any use of the item)
+ *   effect    the pack's own effect on that activity which the light rides — landed on the user
+ *             WITH the light (Searing Radiance: the pack ships it on a damage activity, which
+ *             nothing lands on its user); null: the module makes the effect, named as the item,
+ *             with the item's own duration
+ *   recast    "ends" — casting it again ends the caster's earlier light, wherever it stands
+ *   bright / dim   the radii in feet, dim the outer
+ *
+ * Membership is the Token Lights list (the row names).
+ */
+export const TOKEN_LIGHTS = Object.freeze({
+  "Inner Radiance": Object.freeze({ item: "Celestial Revelation", activity: "Inner Radiance", on: "self", effect: "Searing Radiance", bright: 10, dim: 20,
+    rule: "Searing light temporarily radiates from your eyes and mouth. For the duration, you shed Bright Light in a 10-foot radius and Dim Light for an additional 10 feet, and at the end of each of your turns, each creature within 10 feet of you takes Radiant damage equal to your Proficiency Bonus.",
+    from: "Aasimar — Celestial Revelation (character level 3)" }),
+  "Light": Object.freeze({ activity: null, on: "targets", effect: null, recast: "ends", bright: 20, dim: 40,
+    caveat: "on a creature's token (user, 2026-09-25: any targeted token) — the rule's object is the table's to name",
+    rule: "You touch one Large or smaller object that isn’t being worn or carried by someone else. Until the spell ends, the object sheds Bright Light in a 20-foot radius and Dim Light for an additional 20 feet. The light can be colored as you like. Covering the object with something opaque blocks the light. The spell ends if you cast it again.",
+    from: "PHB cantrip (1 hour)" })
+});
+
+/** The token lights' row names, lower-cased — the closed set the Token Lights list is validated against. */
+export const TOKEN_LIGHT_NAMES = tableIndex(TOKEN_LIGHTS).names;
 
 /**
  * DAMAGE SAVES (user, 2026-09-04: "make heat metal spell work"). A bare damage activity whose
@@ -1734,6 +1803,14 @@ export const LIST_SPECS = {
     // 2026-09-24). The list is the switch (ARCHITECTURE §8 rule 1): an empty list offers nothing.
     columns: ["kind"], kindColumn: "kind", kinds: DAMAGE_EITHER_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(DAMAGE_EITHER).join(", ")
+  },
+  tokenLights: {
+    label: "Token Lights", setting: "tokenLightList",
+    // Which rows of the token-light table shed their light — the ROW names, whole-chunk,
+    // case-insensitive. Membership over TOKEN_LIGHTS; the mechanism is token-lights.js (the
+    // Aasimar walk, 2026-09-25). The list is the switch: an empty list lights nothing.
+    columns: ["kind"], kindColumn: "kind", kinds: TOKEN_LIGHT_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(TOKEN_LIGHTS).join(", ")
   }
 };
 

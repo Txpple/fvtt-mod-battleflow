@@ -13,7 +13,7 @@ import { emanationShapeData } from "./decide/geometry.js";
 import { castLevelOn } from "./decide/card.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { EMANATIONS, tableIndex } from "./decide/registry.js";
-import { reachAdmits, resolveChanges, emanationRange, triggerDue, healTriggerDue, memberEffectData, damageTypeFor, appliesOnScene, liveScenes, emanationGroup, groupMembers } from "./decide/emanations.js";
+import { pulseFormKey, reachAdmits, resolveChanges, emanationRange, triggerDue, healTriggerDue, memberEffectData, damageTypeFor, appliesOnScene, liveScenes, emanationGroup, groupMembers } from "./decide/emanations.js";
 import { canAnswerFor } from "./core.js";
 import { momentButton, registerRelay } from "./ui.js";
 import { rollDamageForSave } from "./auto-damage.js";
@@ -124,7 +124,7 @@ Hooks.once("init", () => {
         key: new F.StringField({ blank: false, label: "Emanation", hint: "The Battle Flow emanation row this area carries." }),
         source: new F.StringField({ nullable: true, initial: null, label: "Source token", hint: "The token the emanation originates from (uuid)." }),
         item: new F.StringField({ nullable: true, initial: null, label: "Source item", hint: "The feature or spell on the source's sheet (uuid)." }),
-        reach: new F.StringField({ initial: "helpful", choices: { helpful: "Allies and neutrals", harmful: "Enemies" }, label: "Reach" }),
+        reach: new F.StringField({ initial: "helpful", choices: { helpful: "Allies and neutrals", harmful: "Enemies", all: "Every creature" }, label: "Reach" }),
         scaling: new F.NumberField({ integer: true, min: 0, initial: 0, label: "Upcast levels" }),
         effect: new F.ObjectField({ nullable: true, initial: null, label: "Effect", hint: "The pack's effect with the source's numbers read in." })
       };
@@ -486,6 +486,85 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   }));
 });
 
+/* --- the pulse: the bearer's turn ends, everyone inside takes the form's damage (Inner Radiance) --- */
+
+/**
+ * THE PULSE (the Aasimar walk, 2026-09-25: "inner radiance needs to pulse - you can probably shape
+ * it like spirit guardians in part"). Spirit Guardians' trigger is a MEMBER's turn end — the
+ * region's own tokenTurnEnd event; Inner Radiance's is the BEARER's ("at the end of each of your
+ * turns, each creature within 10 feet of you takes Radiant damage"), and the bearer is never
+ * inside its own emanation, so no region event carries it. The turn moving is read here, as the
+ * notice above reads it: when the combatant whose turn just ENDED is a pulse ring's bearer, the
+ * row's activity's own damage part is rolled ONCE on the bearer (`@prof` — never a number typed
+ * here, N1) and applied to every creature the ring holds, through the receipt chokepoint, on a
+ * card that says why. Forward moves only — a GM stepping the tracker back pays nothing — and once
+ * per ended turn, however many times the update echoes.
+ */
+const pulsed = new Set();   // `${regionId}|${round}|${turn}` — the ended turns already paid
+Hooks.on("updateCombat", (combat, changes, options) => {
+  try {
+    if ( !isActiveGM() || !live() ) return;
+    if ( !("turn" in changes) && !("round" in changes) ) return;
+    if ( !combat.started || (options?.direction === -1) ) return;
+    const prev = combat.previous ?? null;
+    const ended = prev?.combatantId ? combat.combatants.get(prev.combatantId) : null;
+    const token = ended?.token ?? null;
+    const scene = token?.parent ?? null;
+    if ( !token || !scene ) return;
+    const names = listed();
+    for ( const region of scene.regions.filter(r => (flagOf(r)?.kind === "feature") && (flagOf(r).tokenId === token.id)) ) {
+      const row = rowNamed(flagOf(region).key);
+      if ( !row?.pulse || (row.pulse.on !== "sourceTurnEnd") || !names.has(lower(row.key)) || !appliesHere(region) ) continue;
+      const beh = behaviorOf(region);
+      if ( !beh || beh.disabled ) continue;
+      const key = `${region.id}|${prev.round}|${prev.turn}`;
+      if ( pulsed.has(key) ) continue;
+      pulsed.add(key);
+      void pulse(region, row, token, beh.system);
+    }
+  } catch(err) {
+    console.error(`${TITLE} | Emanation pulse failed — apply its damage by hand.`, err);
+  }
+});
+
+/** The pulse's damage off the row's activity: its formula as the pack wrote it, and its type. */
+function pulseDamageOf(item, row) {
+  const activity = activityNamed(item, row.pulse?.activity ?? row.activity);
+  const part = activity?.damage?.parts?.[0] ?? null;
+  const raw = part ? riderPartFormula({ number: part.number, denomination: part.denomination, custom: part.custom, bonus: part.bonus }) : null;
+  return { activity, raw, type: [...(part?.types ?? [])][0] ?? null };
+}
+
+async function pulse(region, row, token, sys) {
+  try {
+    const item = resolveUuid(sys?.item);
+    const bearer = item?.actor ?? token.actor ?? null;
+    if ( !item || !bearer ) return;
+    const { raw, type } = pulseDamageOf(item, row);
+    if ( !raw ) { console.warn(`${TITLE} | ${row.key}: no damage part on "${row.pulse.activity}" — apply the pulse by hand.`); return; }
+    const inside = (tokensInRegions([region]) ?? [])
+      .map(e => region.parent.tokens.get(e.tokenId))
+      .filter(t => t?.actor && (t.id !== token.id) && reachAdmits(sys.reach, token.disposition, t.disposition));
+    if ( !inside.length ) return;   // nobody within reach — nothing to pay, nothing to say
+    const roll = await new Roll(raw, bearer.getRollData()).evaluate();
+    const names = inside.map(t => t.name).join(", ");
+    const card = await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: bearer, token }),
+      rolls: [roll],
+      content: bfCard({ img: item.img ?? null, eyebrow: "Emanation", tone: "bad",
+        title: `${row.key} — ${roll.total} ${type ?? ""} damage at the end of ${token.name}'s turn`.replace(/\s+/g, " "),
+        subtitle: `every creature within the aura: ${names}`,
+        lines: [ruleLine(row.rule)] }),
+      flags: { [MODULE_ID]: { emanationPulse: { ...statContext(bearer.uuid), key: row.key, regionId: region.id,
+        formula: raw, total: roll.total, type, targets: inside.map(t => ({ uuid: t.actor.uuid, name: t.name })) } } }
+    });
+    if ( card ) await applyDamagesWithReceipt(card, inside.map(t => ({ uuid: t.actor.uuid, name: t.name })),
+      [{ value: roll.total, type: type ?? "radiant", properties: new Set(["mgc"]) }], { note: row.key });
+  } catch(err) {
+    console.error(`${TITLE} | ${row?.key ?? "An emanation"}'s pulse failed — apply its damage by hand.`, err);
+  }
+}
+
 /** Drop a token from the region's "asked at the cast" record. */
 async function forgetInitial(region, token) {
   const f = flagOf(region);
@@ -549,9 +628,13 @@ Hooks.on("preCreateRegionBehavior", (behavior, data) => {
 
 /* --- the lifecycle: a feature's emanation stands with its token ------------------------------- */
 
-/** The activity's own size, resolved on the source (it may be a formula — `@scale.paladin.aura`). */
-function activitySizeOf(item, rollData) {
-  const act = item?.system?.activities?.contents?.[0];
+/**
+ * The activity's own size, resolved on the source (it may be a formula — `@scale.paladin.aura`):
+ * the row's own activity when it names one (Inner Radiance's 10 feet on Celestial Revelation's
+ * second activity), the item's first otherwise.
+ */
+function activitySizeOf(item, rollData, activity = null) {
+  const act = activity ?? item?.system?.activities?.contents?.[0];
   const raw = act?._source?.target?.template?.size ?? act?.target?.template?.size ?? null;
   if ( (raw === null) || (raw === "") ) return null;
   const n = Number(raw);
@@ -562,11 +645,22 @@ function activitySizeOf(item, rollData) {
 /** What a feature's emanation on this token should look like now, or null when it should not stand. */
 function featureSpec(tok, row) {
   const actor = tok.actor;
-  const item = itemNamed(actor, row.key);
+  // The row's item: its own key (the Paladin's auras), or the pack item a form lives on (Inner
+  // Radiance on Celestial Revelation — the Aasimar walk, 2026-09-25).
+  const item = itemNamed(actor, row.item ?? row.key);
   if ( !item ) return null;
+  // A `while` row stands only while its effect stands on the bearer — the transformation's own
+  // (Searing Radiance, landed at the use by token-lights.js, 1 minute): it ends, the ring goes.
+  if ( row.while && !actor.effects.some(e => e.active && (lower(e.name) === lower(row.while))) ) return null;
   const rollData = actor.getRollData();
-  const range = emanationRange(row, rollData, activitySizeOf(item, rollData));
+  const act = row.activity ? activityNamed(item, row.activity) : null;
+  if ( row.activity && !act ) return null;
+  const range = emanationRange(row, rollData, activitySizeOf(item, rollData, act));
   if ( !range ) return null;
+  // A ring that applies nothing to its members (a `pulse` row): the ring is the geometry the
+  // pulse reads at the bearer's turn end, and nobody wears it.
+  if ( row.effect === null ) return { tok, actor, item, row, range, effect: null,
+    disabled: !!row.incapacitated && actor.statuses?.has?.("incapacitated") };
   const effect = item.effects.find(e => lower(e.name) === lower(row.effect)) ?? null;
   if ( !effect ) return null;
   const { changes, unresolved } = resolveChanges(effect.changes.map(c => ({ key: c.key, mode: c.mode, value: c.value, priority: c.priority })), rollData);
@@ -648,7 +742,7 @@ async function reconcileScene(scene) {
     if ( beh ) {
       const upd = {};
       if ( beh.disabled !== w.disabled ) upd.disabled = w.disabled;
-      if ( !foundry.utils.objectsEqual(beh.system.effect?.changes ?? null, w.effect.changes) ) upd["system.effect"] = w.effect;
+      if ( !foundry.utils.objectsEqual(beh.system.effect?.changes ?? null, w.effect?.changes ?? null) ) upd["system.effect"] = w.effect;
       if ( !foundry.utils.isEmpty(upd) ) await beh.update(upd);
     }
     await reconcileMembers(region);
@@ -715,32 +809,61 @@ async function adoptSpellRegion(region) {
   }
 }
 
-/* --- the cast: a spell's emanation places itself on the caster ---------------------------------- */
+/* --- the cast: an area from the caster places itself on the caster ------------------------------ */
 
 /** A listed spell row whose activity is an emanation from the caster (a `radius` template, range self). */
 function castEmanationRow(activity) {
   if ( !live() || (activity?.item?.type !== "spell") ) return null;
   const row = rowNamed(activity.item.name);
   if ( !row || (row.kind !== "spell") || !listed().has(lower(row.key)) ) return null;
-  const tpl = activity.target?.template;
-  if ( (tpl?.type !== "radius") || !(Number(tpl?.size) > 0) ) return null;
-  if ( (activity.range?.units ?? "self") !== "self" ) return null;
-  return row;
+  return selfAreaOf(activity) ? row : null;
+}
+
+/**
+ * An area that starts on its user: a `radius` (or the system's own `emanation`) template with
+ * range self. Any item — a spell, a species form, a monster's feature. The class the user ruled
+ * (2026-09-25, the Aasimar walk: "it should always just be centered on the token without
+ * additional placing"; "every self-centered area").
+ */
+function selfAreaOf(activity) {
+  const tpl = activity?.target?.template;
+  if ( !["radius", "emanation"].includes(tpl?.type) || !(Number(tpl?.size) > 0) ) return false;
+  return (activity.range?.units ?? "self") === "self";
+}
+
+/**
+ * The listed `pulse` row whose FORM this activity is (Inner Radiance on Celestial Revelation), or
+ * null. Its use is the transformation alone: the ring is the sweep's (it stands while the form's
+ * effect does), the damage is the pulse's at the bearer's turn end — so the use places no area
+ * and rolls no damage (user, 2026-09-25: "no damage at transform").
+ */
+function transformRowOf(activity) {
+  if ( !live() || !activity?.item ) return null;
+  const key = pulseFormKey(EMANATIONS, { itemName: activity.item.name, activityName: activity.name }, listed());
+  return key ? { key, ...EMANATIONS[key] } : null;
 }
 
 // The caster is not asked to click the area down (user, 2026-09-03: "I shouldn't need to place
-// the template, it should just put it where the caster's token is"): the system's own placement
-// prompt is switched off for a listed emanation spell, and the REGION is placed here on the
-// casting client — the data `TemplatePlacement.fromActivity` would have written (dnd5e 6.0.1,
-// read from source): the platform's emanation shape on the caster's token, attached to it, the
-// spell's size from the token's edge, the flags the placement stamps (activity, item, the usage
-// token as origin, spell level, dimensions). No platform behaviour on it (the §3.6 ruling), and
-// no dependent flag: 6.0 makes no placed region a concentration dependent — endConcentrationAreas
-// below ends it with the spell. From there nothing is new: the region appears, the GM adopts it,
-// the saves machine's floor adopts the area into the cast's demand.
+// the template, it should just put it where the caster's token is"; 2026-09-25: every area that
+// starts on its user, not only the listed auras): the system's own placement prompt is switched
+// off, and the REGION is placed here on the casting client — the data `TemplatePlacement.fromActivity`
+// would have written (dnd5e 6.0.5, read from source): the platform's emanation shape on the
+// caster's token, attached to it, the size from the token's edge, the flags the placement stamps
+// (activity, item, the usage token as origin, spell level, dimensions). From there nothing is new:
+// the region appears, the saves machine's floor adopts the area into the use's demand, the spent-
+// area sweep ends it. A LISTED emanation spell's region is the machine's (hidden, no platform
+// behaviour — the §3.6 ruling; no dependent flag: 6.0 makes no placed region a concentration
+// dependent — endConcentrationAreas below ends it with the spell); every other area is the
+// platform's to run as it likes — drawn, and its own behaviours on it.
 Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
   try {
-    if ( !castEmanationRow(activity) ) return;
+    if ( transformRowOf(activity) ) {
+      usageConfig.create ??= {};
+      usageConfig.create.measuredTemplate = false;
+      usageConfig.subsequentActions = false;   // the pack's damage on use: the pulse is the damage
+      return;
+    }
+    if ( !live() || !selfAreaOf(activity) ) return;
     usageConfig.create ??= {};
     usageConfig.create.measuredTemplate = false;
   } catch(err) { console.warn(`${TITLE} | Could not switch off the template prompt.`, err); }
@@ -748,23 +871,22 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
 
 Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
   try {
-    const row = castEmanationRow(activity);
-    if ( !row ) return;
+    if ( !live() || transformRowOf(activity) || !selfAreaOf(activity) ) return;
     if ( (results?.templates ?? []).flat().length ) return;   // the system placed one after all
     const actor = activity.actor;
     if ( !actor?.isOwner ) return;
-    void placeCastEmanation(activity, row, results?.message instanceof ChatMessage ? results.message : null);
-  } catch(err) { console.error(`${TITLE} | Could not place the emanation — place the template by hand.`, err); }
+    void placeSelfArea(activity, castEmanationRow(activity), results?.message instanceof ChatMessage ? results.message : null);
+  } catch(err) { console.error(`${TITLE} | Could not place the area — place the template by hand.`, err); }
 });
 
-async function placeCastEmanation(activity, row, message) {
+async function placeSelfArea(activity, row, message) {
   const actor = activity.actor;
   const tok = actor.token ?? activity.getUsageToken?.() ?? actor.getActiveTokens?.(true, true)?.[0] ?? null;
   const scene = tok?.parent;
   if ( !tok || !scene ) return;
   const tpl = activity.target.template;
   const units = scene.grid.units;
-  // The spell's size in the SCENE's units, the placement's own way (its `convertLength` call).
+  // The size in the SCENE's units, the placement's own way (its `convertLength` call).
   const inScene = n => (n === "" || n === null || n === undefined) ? undefined
     : (Number(dnd5e.utils.convertLength(Number(n), tpl.units || "ft", units, { strict: false })) || Number(n));
   const size = inScene(tpl.size);
@@ -775,16 +897,16 @@ async function placeCastEmanation(activity, row, message) {
     ...(canvas?.level?.id ? { levels: [canvas.level.id] } : {}),
     restriction: { enabled: true, type: "move" },
     attachment: { token: tok.id },
-    ...ringHidden(), highlightMode: "coverage",
+    ...(row ? ringHidden() : { visibility: CONST.REGION_VISIBILITY.ALWAYS }), highlightMode: "coverage",
     flags: { dnd5e: {
       activity: activity.uuid, item: activity.item.uuid, origin: tok.uuid, spellLevel,
       dimensions: { size, width: inScene(tpl.width), height: inScene(tpl.height), units }
     } }
-  }], { dnd5e: { createActivityBehaviors: false } });
+  }], row ? { dnd5e: { createActivityBehaviors: false } } : {});
   // The type picked in the CASTING WINDOW (below) is written onto the emanation card the GM posts
   // as the area is adopted — the card's own buttons can still change it later. No dialog shown
   // (a fast-forward cast): the alignment's default stands, no extra click (N4).
-  void carryDamageTypeChoice(activity);
+  if ( row ) void carryDamageTypeChoice(activity);
 }
 
 /* --- the casting window: a damage type the part leaves open is picked THERE ------------------- */
@@ -937,8 +1059,13 @@ const partTypesOf = activity => [...(activity?.damage?.parts?.[0]?.types ?? [])]
 
 async function announce(row, actor, item, range, effect, verb, { activity = null, regionId = null } = {}) {
   try {
-    const reach = row.reach === "helpful" ? "allies and neutrals inside" : "enemies inside";
+    const reach = (row.reach === "helpful") ? "allies and neutrals inside" : (row.reach === "all") ? "every creature inside" : "enemies inside";
+    const pulseLine = row.pulse ? (() => {
+      const { raw, type } = pulseDamageOf(item, row);
+      return raw ? `every creature inside takes ${raw} (${Roll.replaceFormulaData(raw, actor?.getRollData?.() ?? {})}) ${type ?? ""} damage at the end of your turns — while ${row.while ?? "it"} stands`.replace(/\s+/g, " ") : null;
+    })() : null;
     const nothing = row.remind ? "a notice at the start of your turn — the heal is yours to aim"
+      : pulseLine ? pulseLine
       : (row.effect === null) ? `no effect to apply — ${row.caveat ?? "the ring is the table's"}` : reach;
     const rangeText = range ? `${range}-foot Emanation` : "Emanation";
     // A damage part with several types (Spirit Guardians: necrotic OR radiant) is a choice the
@@ -949,7 +1076,7 @@ async function announce(row, actor, item, range, effect, verb, { activity = null
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor }),
       content: bfCard({
-        img: item?.img ?? null, eyebrow: "Emanation", tone: row.reach === "helpful" ? "good" : "bad",
+        img: item?.img ?? null, eyebrow: "Emanation", tone: (row.reach === "helpful") ? "good" : "bad",
         title: `${row.key} — ${actor?.name ?? ""} — ${rangeText}`,
         subtitle: effect ? `${reach}: ${effect.name} — ${describeChanges(effect.changes)}${row.trigger ? " · a save on entering and on ending a turn inside" : ""}${row.heal ? " · an ally at 0 HP regains Hit Points at the start of its turn" : ""}` : (row.trigger ? "a save on entering and on ending a turn inside" : nothing),
         lines: [ruleLine(row.rule), (row.caveat && (row.effect !== null)) ? `<span style="opacity:0.8;">${row.caveat}</span>` : null]

@@ -27,7 +27,7 @@ Twenty level-5 characters built through dnd5e advancement (`create-pc`: class + 
 
 | Actor | Species traits to test | Background → origin feat | What Slice A built for it |
 | --- | --- | --- | --- |
-| BF Species Aasimar | Healing Hands, Celestial Revelation (three forms) | Wayfarer → **Lucky** | Lucky's Disadvantage = a `roll` rescue row on the defender's popup after a hit (Rescue the hit — name); Lucky's Advantage half PARKED (the sheet: spend the point, pick Advantage in the roll dialog) |
+| BF Species Aasimar | Healing Hands, Celestial Revelation (three forms) — **WALKED 2026-09-25, fixes built** (§5) | Wayfarer → **Lucky** | Lucky's Disadvantage = a `roll` rescue row on the defender's popup after a hit (Rescue the hit — name); Lucky's Advantage half PARKED (the sheet: spend the point, pick Advantage in the roll dialog) |
 | BF Species Dragonborn | Breath Weapon (save activity), Draconic Flight | Soldier → **Savage Attacker** | the popup on a weapon hit: tick, Roll again / Keep; the higher set stands; once per turn |
 | BF Species Dwarf | Dwarven Resilience (Advantage vs Poisoned), Dwarven Toughness, Stonecunning | Farmer → **Tough** | the save gate counts Dwarven Resilience against a demand that imposes Poisoned (listed, not counted, on a repeat save to end it) |
 | BF Species Elf (Drow) | Fey Ancestry (Advantage vs Charmed), Drow spells | Criminal → **Alert** | Fey Ancestry on the save gate (as above); Alert is native (initiative) |
@@ -62,7 +62,7 @@ Use the Practice Dummies as targets (or a roster actor as a defender for the res
 4. **Hill's Tumble (tier 2).** Hit with the Hill Goliath: the hit menu opens with the Giant Ancestry group, the row "Hill's Tumble · 1 use"; pick → the target is Prone, receipted, no save. Against a Huge target the row is greyed "too large".
 5. **Savage Attacker (tier 3).** Hit with the Dragonborn (or the Fire Goliath): after the hit stands, the popup "Savage Attacker — name": tick the row, Roll again → the card shows both sets, the loser struck, "the higher stands"; Keep the roll → nothing spent; a second hit the same turn: no popup, the tag "used this turn".
 6. **The `roll` rescue (tier 3).** Attack a Lucky holder (the Halfling, the Aasimar, the Stone Goliath) and HIT: the defender's popup "Rescue the hit — name" (or "Lucky — name" when Lucky is the only row) with the row "Lucky · 1 Luck Point · N left"; Answer → the second d20, the lower stands, the verdict re-runs; a natural 20 can be undone; the attacker's card says "Lucky bent the roll — Disadvantage, 17 → 13, MISS". With the point spent, the row greys "no Luck Points left"; with every row spent, no popup. ⚠ Advantage attacks cancel to the FIRST die (a bend in the register).
-7. **What should read as parked/held, not broken:** Healer's spell rerolls (the Forest Gnome's Cure Wounds), Relentless Endurance (the Orc at 0 HP), Lucky's Advantage half (the sheet), Inner Radiance's turn-end pulse and Celestial Revelation's extra damage (the Aasimar). BACKLOG has each with its trigger.
+7. **What should read as parked/held, not broken:** Healer's spell rerolls (the Forest Gnome's Cure Wounds), Relentless Endurance (the Orc at 0 HP), Lucky's Advantage half (the sheet). BACKLOG has each with its trigger. (Inner Radiance's pulse and Celestial Revelation's extra damage were BUILT in the walk — §5.)
 
 **Report findings the usual way** (the walk-session restate rule: the OPEN list restated after every update). Each finding is then a fix-pass item on the go.
 
@@ -78,3 +78,18 @@ Use the Practice Dummies as targets (or a roster actor as a defender for the res
 ## 4. The release, whenever the user calls it
 
 Prod v2.0.8 → the Slice A release (a minor version: new tables and a new kind, no break). Beyond the deploy: a world with STORED lists never picks up new rows — prod needs Reset Defaults (or `verify-settings --fix` against prod's reference) on **Effect Sources** (Brave, Fey Ancestry, Dwarven Resilience), **Hit Menu** (Hill's Tumble), **Clock Riders** (Fire's Burn, Frost's Chill), **Interrupts** (Lucky:roll, Warding Flare:roll, Shadowy Dodge:roll), and the new **Damage Rolled Twice** list (Savage Attacker) registers itself. The zip route (bsdtar) as in the prod-state memory; a process restart is the user's.
+
+## 5. The walk as it goes (the user's order, 2026-09-25)
+
+**Species by species, then the origin feats.** Each species opens with a *Trait | What you should
+see* table (the user's ask); the OPEN list is restated after every update. ⚠ **No full battery
+until the species and origin-feat iteration is finished** (user, 2026-09-25) — a fix runs only the
+suites of the machines it touched, even when `--changed` says "full".
+
+| Species | State |
+| --- | --- |
+| **Aasimar** | walked 2026-09-25; five findings ruled and BUILT (RULINGS *The Aasimar walk*): every self-centered area placed on the token; an `enemy` area asks no ally; Necrotic Shroud's Frightened to the end of the Aasimar's next turn (**Vendor Fixes VF-002**); Inner Radiance's ring, turn-end pulse and light (the new **Token Lights** table, with the Light spell on a targeted token); Celestial Revelation's extra damage (a rider on hits, a one-target pick on a spell). `smoke-aasimar` 29/29 on the sandbox. ⚠ Not yet re-walked by hand; Lucky waits for the origin-feat round. |
+| Dragonborn → Tiefling | not yet walked |
+
+**For the release:** Vendor Fixes gets a release too (v1.1.0 — VF-002); a released world needs
+Reset Defaults on the **Emanations**, **Clock Riders** and new **Token Lights** lists as well.

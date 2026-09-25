@@ -15,6 +15,38 @@ beforeAll(async () => {
 
 const { FRIENDLY, NEUTRAL, HOSTILE, SECRET } = { FRIENDLY: 1, NEUTRAL: 0, HOSTILE: -1, SECRET: -2 };
 
+describe("reach `all` and the area's own `affects` (the Aasimar walk, 2026-09-25)", () => {
+  it("`all` reaches every side — allies included, as Inner Radiance's text says — but never a SECRET token", () => {
+    for (const d of [FRIENDLY, NEUTRAL, HOSTILE])
+      expect(em.reachAdmits("all", FRIENDLY, d)).toBe(true);
+    expect(em.reachAdmits("all", FRIENDLY, SECRET)).toBe(false);
+  });
+  it('affects `enemy` takes everyone not on the caster\'s side (Necrotic Shroud: "creatures other than your allies")', () => {
+    expect(em.affectsAdmits("enemy", FRIENDLY, HOSTILE)).toBe(true);
+    expect(em.affectsAdmits("enemy", FRIENDLY, NEUTRAL)).toBe(true);
+    expect(em.affectsAdmits("enemy", FRIENDLY, FRIENDLY)).toBe(false);
+    expect(em.affectsAdmits("enemy", HOSTILE, HOSTILE)).toBe(false);
+  });
+  it("affects `ally` takes the caster's side only; any other affects takes everyone", () => {
+    expect(em.affectsAdmits("ally", FRIENDLY, FRIENDLY)).toBe(true);
+    expect(em.affectsAdmits("ally", FRIENDLY, NEUTRAL)).toBe(false);
+    for (const a of ["creature", "", null, "any"])
+      expect(em.affectsAdmits(a, FRIENDLY, HOSTILE)).toBe(true);
+  });
+  it("Inner Radiance is a feature row that stands while its effect does and pulses at the bearer's turn end", () => {
+    const row = reg.EMANATIONS["Inner Radiance"];
+    expect(row).toMatchObject({
+      kind: "feature",
+      item: "Celestial Revelation",
+      activity: "Inner Radiance",
+      while: "Searing Radiance",
+      reach: "all",
+      effect: null
+    });
+    expect(row.pulse).toEqual({ on: "sourceTurnEnd", activity: "Inner Radiance" });
+  });
+});
+
 describe("reachAdmits — the user's defaults (2026-09-03): helpful reaches allies and neutrals, harmful reaches enemies", () => {
   it("a friendly Paladin's aura reaches friendlies and neutrals, never hostiles", () => {
     expect(em.reachAdmits("helpful", FRIENDLY, FRIENDLY)).toBe(true);
@@ -197,7 +229,9 @@ describe("the EMANATIONS table (decide/registry.js)", () => {
     );
     for (const [name, row] of Object.entries(reg.EMANATIONS)) {
       expect(reg.EMANATION_KINDS.has(row.kind), name).toBe(true);
-      expect(["helpful", "harmful"], name).toContain(row.reach);
+      // `all` (the Aasimar walk, 2026-09-25): Inner Radiance's "each creature within 10 feet".
+      expect(["helpful", "harmful", "all"], name).toContain(row.reach);
+      if (row.pulse) expect(row.effect, name).toBeNull();
       expect(typeof row.rule, name).toBe("string");
       // The second slice (2026-09-05) admits rows that apply NOTHING — a barrier, a notice.
       expect(["string", "object"], name).toContain(typeof row.effect);

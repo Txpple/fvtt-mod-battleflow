@@ -17,6 +17,40 @@ beforeAll(async () => {
   chips = await import("../scripts/decide/chips.js");
 });
 
+describe("Celestial Revelation — a transformed rider (the Aasimar walk, 2026-09-25)", () => {
+  const rev = () => reg.CLOCK_RIDERS["celestial-revelation"];
+  const eff = (name, chip = null) => ({ name, active: true, chip });
+  it("is due once per turn only while a form stands, and the why names the form", () => {
+    expect(c.riderDue(rev(), { inCombat: true, form: null })).toEqual({
+      due: false,
+      why: "not transformed"
+    });
+    expect(c.riderDue(rev(), { inCombat: true, form: "Heavenly Wings" })).toEqual({
+      due: true,
+      why: "Heavenly Wings — once this turn"
+    });
+    expect(
+      c.riderDue(rev(), { inCombat: true, form: "Inner Radiance", chitStands: true }).due
+    ).toBe(false);
+    expect(c.riderDue(rev(), { inCombat: false, form: "Necrotic Shroud" }).why).toMatch(
+      /out of combat/
+    );
+  });
+  it("standingForm reads the form's own effect by name, and Necrotic Shroud only by the module's chip", () => {
+    expect(c.standingForm(rev(), [eff("Heavenly Wings")])?.type).toBe("radiant");
+    expect(c.standingForm(rev(), [eff("Searing Radiance")])?.form).toBe("Inner Radiance");
+    expect(
+      c.standingForm(rev(), [eff("Celestial Revelation: Necrotic Shroud", "necrotic shroud")])?.type
+    ).toBe("necrotic");
+    // Frightened BY a Shroud — an effect of the same name, no chip — is not wearing one.
+    expect(c.standingForm(rev(), [eff("Necrotic Shroud")])).toBeNull();
+    expect(
+      c.standingForm(rev(), [{ name: "Heavenly Wings", active: false, chip: null }])
+    ).toBeNull();
+    expect(c.standingForm(rev(), [])).toBeNull();
+  });
+});
+
 describe("riderDue — the clock, read plain", () => {
   const dread = () => reg.CLOCK_RIDERS["dread-ambusher"];
   const assassinate = () => reg.CLOCK_RIDERS["assassinate"];
@@ -150,7 +184,11 @@ describe("the registry's clock-rider data", () => {
   it("every row names its feature, its activity, a known clock and its rule; the list default is the table", () => {
     for (const [key, row] of Object.entries(reg.CLOCK_RIDERS)) {
       expect(row.feature, key).toBeTruthy();
-      expect(row.activity, key).toBeTruthy();
+      // A row with no activity names its own `amount` (Celestial Revelation, 2026-09-25: no
+      // activity carries the extra damage — the text's `@prof` does).
+      if (row.activity === null) expect(row.amount, key).toMatch(/^@/);
+      else expect(row.activity, key).toBeTruthy();
+      if (row.judge === "transformed") expect(row.forms?.length, key).toBeGreaterThan(0);
       // `any` (Slice A, 2026-09-24): every hit, uses permitting — the Goliath's boons.
       expect(["oncePerTurn", "firstRound", "any"], key).toContain(row.when);
       if (row.when === "any") expect(row.uses, key).toBe(true);

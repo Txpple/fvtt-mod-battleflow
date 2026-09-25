@@ -15,7 +15,7 @@ import { askCandidates, newAsk, raiseAsk } from "../area-ask.js";
 import { tokensInRegions } from "../geometry.js";
 import { isDeadForSaves } from "../decide/eligible.js";
 import { EMANATIONS, tableIndex } from "../decide/registry.js";
-import { reachAdmits } from "../decide/emanations.js";
+import { reachAdmits, affectsAdmits } from "../decide/emanations.js";
 import { emanationEntries, spentAreaListed, chosenAreaListed } from "../settings.js";
 import { raiseHold, releaseHold, isHeld } from "../holds.js";
 // ⚠ SAFE STATICALLY, unlike auto-damage.js's own ui.js import (v1.6.1's ESM order trap): the
@@ -404,7 +404,10 @@ Hooks.on("battleflow.areaAskAnswered", async message => {
  * for a Fireball, wrong for a spell whose text says "you can designate creatures to be
  * unaffected": the default designation is the row's reach (DESIGN §5 *Emanations* — harmful
  * reaches enemies, by disposition), and the caster's own token never owes its own spell a save.
- * Only a LISTED emanation row filters; every other area keeps the old answer. Null in, null out.
+ * Only a LISTED emanation row filters by its reach. ANY area whose activity names who it affects
+ * filters by that too (decide/emanations.js affectsAdmits — the Aasimar walk, 2026-09-25: Necrotic
+ * Shroud's area "enemy", its text "creatures other than your allies", asked the Aasimar's friends
+ * beside him); every other area keeps the old answer. Null in, null out.
  */
 const EMANATION_INDEX = tableIndex(EMANATIONS);
 function emanationRowFor(activity) {
@@ -415,11 +418,14 @@ function emanationRowFor(activity) {
   return row;
 }
 export function emanationReach(activity, contained) {
+  if ( !Array.isArray(contained) ) return contained;
   const row = emanationRowFor(activity);
-  if ( !row || !Array.isArray(contained) ) return contained;
+  const affects = activity?.target?.affects?.type ?? null;
+  if ( !row && (affects !== "enemy") && (affects !== "ally") ) return contained;
   const caster = activity.actor ?? null;
   const casterTok = caster?.token ?? caster?.getActiveTokens?.(true, true)?.[0] ?? null;
   const casterDisposition = casterTok?.disposition ?? CONST.TOKEN_DISPOSITIONS.FRIENDLY;
   return contained.filter(c => (c.tokenId !== casterTok?.id) && (c.uuid !== caster?.uuid)
-    && reachAdmits(row.reach, casterDisposition, c.disposition ?? CONST.TOKEN_DISPOSITIONS.NEUTRAL));
+    && (!row || reachAdmits(row.reach, casterDisposition, c.disposition ?? CONST.TOKEN_DISPOSITIONS.NEUTRAL))
+    && affectsAdmits(affects, casterDisposition, c.disposition ?? CONST.TOKEN_DISPOSITIONS.NEUTRAL));
 }
