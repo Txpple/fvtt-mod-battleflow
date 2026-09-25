@@ -168,9 +168,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok("3b. and clears on release", document.querySelectorAll(".bf-ev-card").length === 0, "");
     }
 
+    // ⚠ Re-take the token before a section that reads the bar (2026-09-24, 14/17): a scene
+    // activation's redraw can drop control and stale the cached token object between sections,
+    // and the bar then stands for nobody. Each bar section holds Invictus again and says so.
+    const hold = async section => {
+      const live = canvas.tokens.get(doc.id);
+      if ( live && !live.controlled ) live.control({ releaseOthers: true });
+      const held = await until(() => (canvas.tokens.controlled[0]?.actor === invictus)
+        && (document.getElementById("bf-effect-view-bar")?.dataset.actor === invictus.uuid), 3000);
+      if ( !held ) log.push(`§${section}: could not hold Invictus — controlled=${canvas.tokens.controlled.map(t => t.name).join(",") || "none"} `
+        + `bar.actor=${document.getElementById("bf-effect-view-bar")?.dataset.actor ?? null} token=${!!live}`);
+      return !!held;
+    };
+
     // ================================================== 4. the bar follows the sheet
     // Delete Bless, the chip leaves.
     if ( want(4) ) {
+      await hold(4);
       await invictus.deleteEmbeddedDocuments("ActiveEffect", [made[0].id]);
       const gone = await until(() => { const b = document.getElementById("bf-effect-view-bar"); const names = b ? [...b.querySelectorAll(".bf-ev-chip .nm")].map(n => n.textContent) : []; return names.includes("Bless") ? null : names; }, 3000);
       ok("4. the bar redraws when an effect is deleted", Array.isArray(gone) && !gone.includes("Bless") && gone.includes("Prone"), `chips=${JSON.stringify(gone)}`);
@@ -180,13 +194,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // (user ruling 2026-09-15): a chip opens a fold with Remove, for an owner. Runs before §5,
     // whose switch takes the bar away.
     if ( want(6) ) {
+      await hold(6);
       const barEl = () => document.getElementById("bf-effect-view-bar");
       const chipNamed = name => [...(barEl()?.querySelectorAll("button.bf-ev-chip") ?? [])].find(c => c.querySelector(".nm")?.textContent === name) ?? null;
-      chipNamed("Prone")?.click();
+      const proneChip = chipNamed("Prone");
+      proneChip?.click();
       const fold = await until(() => barEl()?.querySelector(".bf-ev-fold"), 2000);
       const foldActions = fold ? [...fold.querySelectorAll("button")].map(b => b.dataset.action) : [];
       ok("6. a chip click opens a fold upward with Remove and nothing else (the GM owns every creature)",
-        !!fold && foldActions.length === 1 && foldActions[0] === "remove", `actions=${JSON.stringify(foldActions)}`);
+        !!fold && foldActions.length === 1 && foldActions[0] === "remove",
+        `actions=${JSON.stringify(foldActions)} proneChip=${!!proneChip} chips=${JSON.stringify([...(barEl()?.querySelectorAll(".bf-ev-chip .nm") ?? [])].map(n => n.textContent))}`);
       fold?.querySelector('button[data-action="remove"]')?.click();
       const proneGone = await until(() => invictus.effects.get(made[1].id) ? null : true, 4000);
       ok("6c. Remove deletes the effect, and the bar redraws without it",

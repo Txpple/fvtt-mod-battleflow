@@ -288,7 +288,14 @@ function drawBar() {
   // The bar stands whenever there is someone to stand for (user, 2026-09-15: "id like the bar to
   // always appear ... the name only if theres no buff") — empty rows draw the name alone.
   bar.classList.toggle("empty", !actor);
-  if ( !actor ) return;
+  if ( !actor ) {
+    // Nobody to stand for: the LAST creature's chips must not linger, clickable, with Remove on
+    // offer for someone no longer controlled (2026-09-24: probe-effect-view §4 read a stale Bless
+    // for three seconds after control was lost mid-run — the bar had kept the old rows).
+    bar.replaceChildren();
+    delete bar.dataset.actor;
+    return;
+  }
   const combat = game.combat?.started ? game.combat : null;
   const sub = combat ? `Round ${combat.round}${combat.combatant?.actor === actor ? " · your turn" : ""}` : "";
   const owner = actor.isOwner === true;
