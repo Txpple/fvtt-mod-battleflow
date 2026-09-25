@@ -142,3 +142,45 @@ export function eitherCardLine(flag) {
     default: return `${name} — offered: roll the weapon's dice again?`;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * THE HEALING REROLLS (the origin feats, 2026-09-25 — Healer; user: "use the empower spell form as
+ * a baseline listing all roll numbers, the ones, and select the ones to replace"; "make sure the
+ * healer feat itself gets the 1 popup too not just spells"; "1s ticked"). The third customer of the
+ * per-die patch above (`rerollFaces`): the dice a healing roll shows, the 1s among them pickable.
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * Every active face of every die term in a message's HEALING rolls, keyed `roll:term:index` —
+ * Empowered's chip rows, with `one` marking a face the feat lets be rerolled. A roll of another type
+ * (temporary hit points) shows no chips: "Hit Points you restore".
+ * @param {any[]} rollsData   the rolls' JSON
+ * @param {number} [reroll=1] the face the feat rerolls
+ * @returns {{key: string, roll: number, term: number, index: number, faces: number, result: number, one: boolean}[]}
+ */
+export function healDiceOf(rollsData, reroll = 1) {
+  const out = [];
+  (rollsData ?? []).forEach((roll, i) => {
+    if ( (roll?.options?.type ?? "healing") !== "healing" ) return;
+    (roll?.terms ?? []).forEach((term, j) => {
+      if ( !Number.isFinite(term?.faces) || !Array.isArray(term.results) ) return;
+      term.results.forEach((r, k) => {
+        if ( (r.active === false) || r.discarded ) return;
+        const result = Number(r.result) || 0;
+        out.push({ key: `${i}:${j}:${k}`, roll: i, term: j, index: k, faces: term.faces, result, one: result === reroll });
+      });
+    });
+  });
+  return out;
+}
+
+/**
+ * A formula with the platform's own reroll-once-on-a-1 (`r1`) taken off every die — Battle Medic's
+ * activities ship `1d8r1 + @prof`, which rerolls the 1 silently; the feat's rerolls are the popup's
+ * now, so its own roll goes up bare. Only a literal `r1` / `r=1` goes: `r<3`, `rr1` and the rest
+ * are another rule's, and stay.
+ * @param {string} formula
+ */
+export function stripRerollOnes(formula) {
+  return String(formula ?? "").replace(/(\d*d\d+)r=?1(?![\d<>=])/gi, "$1");
+}

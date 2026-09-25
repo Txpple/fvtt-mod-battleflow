@@ -123,6 +123,16 @@ describe("the moment registry — shape", () => {
         amount: 30,
         answer: "use"
       },
+      healReroll: {
+        status: "used",
+        feature: "Healer",
+        actorUuid: "Actor.h",
+        source: "Cure Wounds",
+        total: 9,
+        picks: [{ key: "0:0:0", old: 1, new: 6 }],
+        newTotal: 14,
+        delta: 5
+      },
       restSong: {
         status: "resolved",
         row: "Musician",

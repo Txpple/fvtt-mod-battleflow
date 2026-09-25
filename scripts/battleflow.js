@@ -146,6 +146,10 @@ import "./metamagic.js";
 // card line under the damage roll's own. Its preRollDamageV2 registration lands after every rider's,
 // which is nothing it reads: the weapon's roll count is auto-damage.js's, taken first.
 import "./damage-either.js";
+// heal-rerolls.js (2026-09-25, the origin feats — Healer): the healing roll's dice, Empowered's
+// popup beside Savage's — the same seams (a preRollDamageV2 birth flag, rollDamageV2's offer) on a
+// HEALING roll, which no damage machine reads; cast.js's heal applier waits on its claim.
+import "./heal-rerolls.js";
 // ⚠ THE MANEUVER FOLDS after mastery.js, before concentration.js ON PURPOSE (v1.19.0): their
 // card rows must render below the mastery rows and above the saves verdict row / receipt rows —
 // renderChatMessage surface order IS registration order. check-hook-order.mjs asserts it.

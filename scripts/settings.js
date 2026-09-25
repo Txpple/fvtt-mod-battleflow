@@ -278,6 +278,14 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.damageEither.default
   });
 
+  // HEALING REROLLS (the origin feats, 2026-09-25): Healer's 1s on a healing die, asked in
+  // Empowered Spell's dice popup while the healing waits. A list; the list is the switch.
+  game.settings.register(MODULE_ID, S.healRerollList, {
+    name: "Healing Rerolls",
+    hint: "A feature that rerolls a healing die showing a 1, by the feature's own name, separated by commas — Healer. When its owner casts a healing spell, or uses the feat's own Battle Medic, and a die shows a 1, a popup lists every die with the 1s ticked; Reroll rolls them again and the new faces stand (the healing waits for the answer, and the card shows both). Battle Medic's own silent reroll is taken off so it asks the same way. Remove a name to reroll by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.healRerolls.default
+  });
+
   // TOKEN LIGHTS (the Aasimar walk, 2026-09-25): a use whose text sheds light carries it as the
   // token's own light on an effect (Foundry 14's `token.*` changes). A list; the list is the switch.
   game.settings.register(MODULE_ID, S.tokenLightList, {
@@ -715,6 +723,11 @@ export function spentAreaListed(itemName) {
 /** Which rows of the chosen-area table ask their caster who they affect, by the spell's name — `{ kind }`. */
 export function chosenAreaEntries() {
   return listEntries(LIST_SPECS.chosenAreas);
+}
+
+/** Which rows of the healing-reroll table ask on a healing roll, by the feature's name — `{ kind }`. */
+export function healRerollEntries() {
+  return listEntries(LIST_SPECS.healRerolls);
 }
 
 /** Which rows of the rolled-twice table offer on a weapon hit, by the feature's name — `{ kind }`. */

@@ -1789,6 +1789,27 @@ export const DAMAGE_EITHER = Object.freeze({
 const DAMAGE_EITHER_NAMES = tableIndex(DAMAGE_EITHER).names;
 
 /**
+ * THE HEALING REROLLS (the origin feats, 2026-09-25 — user: "use the empower spell form as a
+ * baseline listing all roll numbers, the ones, and select the ones to replace"; "make sure the
+ * healer feat itself gets the 1 popup too not just spells"; "1s ticked"): a feature that lets its
+ * owner reroll a healing die that shows a given face. The roll's dice are shown as Empowered
+ * Spell's chips, the matching faces pickable and ticked; Reroll rolls them again and the new faces
+ * stand (heal-rerolls.js the machine, decide/damage-dice.js the patch). The healing waits on the
+ * answer, so it lands once.
+ *   reroll  the face that may be rerolled (Healer: a 1)
+ *   spells  true — a healing SPELL the owner casts asks
+ *   own     true — the feature's OWN healing asks (Battle Medic); the pack's `r1` in those formulas
+ *           is taken off at the roll so the popup, not the formula, rerolls it
+ * ⚠ NOT A KIND — one table read by one machine (the DAMAGE_EITHER shape); a second customer is a row.
+ */
+export const HEAL_REROLLS = Object.freeze({
+  "Healer": Object.freeze({ reroll: 1, spells: true, own: true,
+    rule: "Healing Rerolls. Whenever you roll a die to determine the number of Hit Points you restore with a spell or with this feat’s Battle Medic benefit, you can reroll the die if it rolls a 1, and you must use the new roll.",
+    from: "Origin feat (Hermit)" })
+});
+const HEAL_REROLL_NAMES = tableIndex(HEAL_REROLLS).names;
+
+/**
  * THE R4 TRIPWIRE, AS DATA (DESIGN.md R4, ARCHITECTURE §6).
  *
  * R4's bargain is that a new ABILITY costs a data entry and zero code, and that this is safe
@@ -2036,6 +2057,14 @@ export const LIST_SPECS = {
     // reach in saves/demand.js and the ask at the area in metamagic.js.
     columns: ["kind"], kindColumn: "kind", kinds: CHOSEN_AREA_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(CHOSEN_AREAS).join(", ")
+  },
+  healRerolls: {
+    label: "Healing Rerolls", setting: "healRerollList",
+    // Which rows of the healing-reroll table ask on a healing roll — the FEATURE names, whole-chunk,
+    // case-insensitive. Membership over HEAL_REROLLS; the mechanism is heal-rerolls.js (the origin
+    // feats, 2026-09-25). The list is the switch.
+    columns: ["kind"], kindColumn: "kind", kinds: HEAL_REROLL_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(HEAL_REROLLS).join(", ")
   },
   damageEither: {
     label: "Damage Rolled Twice", setting: "damageEitherList",

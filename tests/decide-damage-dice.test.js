@@ -267,3 +267,40 @@ describe("DAMAGE_EITHER — the table and its list", () => {
     expect(entries.map(e => e.kind)).toEqual(["savage attacker"]);
   });
 });
+
+describe("the healing rerolls — Healer (the origin feats, 2026-09-25)", () => {
+  it("lists every active face of the healing rolls, marking the 1s", () => {
+    const heal = { ...weaponRoll(8, [1, 6, 1]), options: { type: "healing" } };
+    const dice = d.healDiceOf([heal]);
+    expect(dice.map(x => x.result)).toEqual([1, 6, 1]);
+    expect(dice.filter(x => x.one).map(x => x.key)).toEqual(["0:0:0", "0:0:2"]);
+    expect(dice[0].faces).toBe(8);
+  });
+
+  it("skips a struck face and a roll that is not healing (temporary hit points)", () => {
+    const heal = { ...weaponRoll(4, [1, 3]), options: { type: "healing" } };
+    heal.terms[0].results[0].active = false;
+    const temp = { ...weaponRoll(4, [1]), options: { type: "temphp" } };
+    const dice = d.healDiceOf([heal, temp]);
+    expect(dice.map(x => x.key)).toEqual(["0:0:1"]);
+    expect(dice.some(x => x.one)).toBe(false);
+  });
+
+  it("takes Battle Medic's own r1 off, and nothing else", () => {
+    expect(d.stripRerollOnes("1d8r1 + @prof")).toBe("1d8 + @prof");
+    expect(d.stripRerollOnes("1d12r=1 + 3")).toBe("1d12 + 3");
+    expect(d.stripRerollOnes("2d6r<3 + 1d4r1")).toBe("2d6r<3 + 1d4");
+    expect(d.stripRerollOnes("1d10r12 + 2")).toBe("1d10r12 + 2");
+    expect(d.stripRerollOnes("2d8 + @mod")).toBe("2d8 + @mod");
+  });
+
+  it("the reroll is the per-die patch: the 1 struck, the new face standing", () => {
+    const heal = { ...weaponRoll(8, [1, 6]), options: { type: "healing" } };
+    const picks = d.healDiceOf([heal]).filter(x => x.one);
+    const { data, done } = d.rerollFaces([heal], picks, [5]);
+    expect(done).toEqual([{ key: "0:0:0", old: 1, new: 5 }]);
+    expect(data[0].terms[0].results.filter(r => r.active !== false).map(r => r.result)).toEqual([
+      6, 5
+    ]);
+  });
+});

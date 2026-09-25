@@ -312,6 +312,15 @@ export const MOMENT_RECORDS = Object.freeze({
     }) : []
   },
 
+  healReroll: {
+    events: ["fold"],
+    means: "a healing die showing a 1 was rerolled and the new face stood — Healer, on a healing spell or its own Battle Medic (heal-rerolls.js, the origin feats 2026-09-25); resolved when `status` is used",
+    resolved: (r, ctx) => (r?.status === "used") ? whole(["fold"], {
+      actor: r.actorUuid ?? source(r) ?? ctx.actorUuid, itemName: r.feature ?? null, ability: r.feature ?? null,
+      details: { source: r.source ?? null, picks: r.picks ?? [], total: r.total ?? null, newTotal: r.newTotal ?? null, delta: r.delta ?? null }
+    }) : []
+  },
+
   /* rider -------------------------------------------------------------------------------------- */
 
   clockRiders: {

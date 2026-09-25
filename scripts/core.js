@@ -59,6 +59,7 @@ export const S = {
   metamagicList: "metamagicList",
   spentAreaList: "spentAreaList",
   chosenAreaList: "chosenAreaList",
+  healRerollList: "healRerollList",       // Healer (the origin feats, 2026-09-25)
   damageEitherList: "damageEitherList",   // Savage Attacker's list (Slice A, 2026-09-24)
   tokenLightList: "tokenLightList",        // Inner Radiance and Light (the Aasimar walk, 2026-09-25)
   tokenSenseList: "tokenSenseList",        // Stonecunning (the Dwarf walk, 2026-09-25)

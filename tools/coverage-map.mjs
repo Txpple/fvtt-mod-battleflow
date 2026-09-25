@@ -136,6 +136,11 @@ export const ORDER = [
     name: "smoke-drop", note: "drop to 1 HP — Relentless Endurance held at 1 and asked (Drop to 1 spends the use, Drop to 0 lands the 0), none when killed outright; Death Ward automatic, its effect removed",
     needs: ["fixture-suite"]
   },
+  // The origin feats (2026-09-25): BF Test Cleric is lent the PHB's Healer and Cure Wounds for the run.
+  {
+    name: "smoke-heal", note: "the healing rerolls — Healer's 1s on a healing spell and on Battle Medic (its own r1 taken off): Empowered's dice popup, the 1s ticked, the healing waiting for the answer and landing once; kept, none, the clock, the list",
+    needs: ["fixture-suite"]
+  },
   // The Human walk (2026-09-25): BF Test Halfling is lent the PHB's Resourceful for the run.
   {
     name: "smoke-rest", note: "the rest grants — Resourceful's Heroic Inspiration on a Long Rest (the box ticked, the rest card's line), nothing on a Short Rest, nothing when unlisted; Musician's song — the allies within 30 ft asked after a Short or Long Rest, the inspired greyed, OK gives it",

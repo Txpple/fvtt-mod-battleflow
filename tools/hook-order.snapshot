@@ -133,6 +133,12 @@ dnd5e.preRollDamageV2	damage-either.js
 dnd5e.rollDamageV2	damage-either.js
 updateChatMessage	damage-either.js
 dnd5e.renderChatMessage	damage-either.js
+dnd5e.preRollDamageV2	heal-rerolls.js
+dnd5e.rollDamageV2	heal-rerolls.js
+updateChatMessage	heal-rerolls.js
+deleteChatMessage	heal-rerolls.js
+ready	heal-rerolls.js
+dnd5e.renderChatMessage	heal-rerolls.js
 dnd5e.rollAttackV2	precision.js
 dnd5e.renderChatMessage	precision.js
 updateChatMessage	precision.js

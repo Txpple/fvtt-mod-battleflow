@@ -85,9 +85,17 @@ async function executeCastApply(message) {
   }
 }
 
+// ⚠ A CLAIM ON THE HEALING (the origin feats, 2026-09-25 — Healer): a healing roll born with
+// `healReroll` due waits for its dice to be read, and a pending one for the owner's answer
+// (heal-rerolls.js), so the healing lands ONCE with the faces that stood — Savage Attacker's claim
+// on the damage (auto-apply.js EITHER_WAITS), the same shape. The settling write resumes it below.
+const HEAL_REROLL_WAITS = new Set(["due", "pending", "answering"]);
+const healRerollWaits = message => HEAL_REROLL_WAITS.has(message.getFlag(MODULE_ID, "healReroll")?.status);
+
 async function applyCastHealing(message) {
   try {
     if ( message.getFlag(MODULE_ID, "receipt") ) return; // applied (or reverted) already
+    if ( healRerollWaits(message) ) return;               // the Healer's answer first (the claim above)
     // A SELF-aimed heal carries its target ON the stamp (v1.11.0 self-aim, finding ① —
     // the dnd5e targets snapshot is incidental UI targeting for a range-self activity).
     const stamp = message.getFlag(MODULE_ID, "healPending");
@@ -118,7 +126,9 @@ registerResumable("castApply", {
   drive: executeCastApply
 });
 registerResumable("healPending", {
-  pending: (_flag, _message, cause) => cause !== "update",
+  // An update resumes it only as the Healer's claim settles (heal-rerolls.js writes its status here).
+  pending: (_flag, message, cause) => (cause !== "update")
+    || (!!message.getFlag(MODULE_ID, "healReroll") && !healRerollWaits(message) && !message.getFlag(MODULE_ID, "receipt")),
   drives: (_flag, message) => drivesMomentFor(castSubject(message)),
   drive: applyCastHealing
 });
