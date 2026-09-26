@@ -153,6 +153,10 @@ dnd5e.postDamageRollConfiguration	fighting-styles.js
 preCreateChatMessage	fighting-styles.js
 dnd5e.renderChatMessage	fighting-styles.js
 createChatMessage	fighting-styles.js
+updateCombat	fighting-styles.js
+dnd5e.renderChatMessage	fighting-styles.js
+updateChatMessage	fighting-styles.js
+deleteChatMessage	fighting-styles.js
 dnd5e.postUseActivity	kit-tend.js
 dnd5e.renderChatMessage	kit-tend.js
 updateChatMessage	kit-tend.js

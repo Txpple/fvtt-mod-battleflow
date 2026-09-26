@@ -235,6 +235,17 @@ export const MOMENT_RECORDS = Object.freeze({
     }] : []
   },
 
+  grappleDamage: {
+    events: ["choice"],
+    means: "Unarmed Fighting's turn-start damage was answered — 1d4 to a creature the owner grapples, dealt through the feat's own damage activity, or skipped (fighting-styles.js, the fighting styles 2026-09-26, ruled U1); the clock deals it to the one creature known to be held",
+    resolved: (r) => (r?.status === "resolved") ? [{
+      marker: "message", events: ["choice"],
+      facts: { actor: r.actorUuid ?? null, ability: r.row ?? null,
+        targets: (r.candidates ?? []).filter(c => c.uuid === r.pick).map(c => ({ uuid: c.uuid ?? null, name: c.name ?? null })),
+        details: { answer: r.answer ?? null, timedOut: !!r.timedOut } }
+    }] : []
+  },
+
   kitTend: {
     events: ["choice"],
     means: "a kit's tending was answered — Healer's Battle Medic: the tended creature's Hit Point Die spent and the feature's own heal of that size rolled at it by the elect, or not used (kit-tend.js, the origin-feat walk 2026-09-25); resolved at a Pass, or when the tending is applied",
@@ -710,6 +721,7 @@ export const STATE_KEYS = Object.freeze({
   command: "Commander's Strike directed at an ally — the notice and the chip; the die riding the ally's attack (commandRide) is the resolve, and the use posted its own card",
   reminder: "a gate's reminder record — presentation before the roll",
   restGrant: "a rest card's grant line — presentation; the sheet write rode the rest's own update",
+  grappleDamageAnswer: "an envelope — a player's Unarmed Fighting answer (deal or skip); the fold onto the grappleDamage flag is the resolve",
   by: "an envelope field beside respondsTo — the GUARD who answered a held target (Protection, 2026-09-26); the fold onto the hold flag is the resolve",
   protectedBy: "an ActiveEffect flag — the guard whose Protection landed \"Protected — <guard>\" on the creature it protected (2026-09-26); provenance, the hold is the resolve",
   fightingStyle: "a damage message's record — a fighting style's number that rode the roll (Great Weapon Fighting's raised dice, Thrown's and Dueling's +2, Two-Weapon's modifier): the card's line, the float, the stats' gain; and the same key on a style's FACE effect (its key, live, its line). Presentation and bookkeeping — the number rode the roll's own config (fighting-styles.js, 2026-09-26)",

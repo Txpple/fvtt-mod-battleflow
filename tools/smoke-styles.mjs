@@ -31,7 +31,8 @@ const SECTIONS = {
   6: 'Two-Weapon Fighting: the Dagger off-hand adds the modifier back',
   7: 'Unarmed Fighting: the sheet\'s Unarmed Strike rolls the d8 with the hands empty, the d6 with a Shield held, and says so',
   8: 'off the list: the faces go and the pack\'s own Defense and Dueling effects come back on',
-  9: 'Blind Fighting: an Invisible victim 5 ft away is seen (listed, net Normal); 15 ft away it is not (Disadvantage); the Invisible victim attacking the fighter loses its Advantage'
+  9: 'Blind Fighting: an Invisible victim 5 ft away is seen (listed, net Normal); 15 ft away it is not (Disadvantage); the Invisible victim attacking the fighter loses its Advantage',
+  10: 'Unarmed Fighting at the start of the turn: the fighter grapples the victim — a card and a popup "Deal 1d4 …?"; Deal it lands the damage; next turn Skip deals nothing; with a clock, the clock deals it'
 };
 const DEPENDS = {};
 
@@ -58,7 +59,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!game.settings.settings.has(`${MOD}.fightingStyleList`)) return { fatal: 'fightingStyleList not registered — OLD code (reload the box)' };
 
   const SETTING_KEYS = ['fightingStyleList', 'unarmedDiceList', 'autoDamage', 'autoApply', 'riders', 'effectRiders', 'masteryRiders',
-    'clockRiderList', 'damageEitherList', 'reminderList'];
+    'clockRiderList', 'damageEitherList', 'reminderList', 'holdTimer'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
   const def = k => game.settings.settings.get(`${MOD}.${k}`)?.default;
@@ -342,6 +343,84 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('9c. the Invisible victim attacking the fighter: its Advantage listed, not counted',
         !!seenYou && (seenYou.bend === null) && (back?.net !== 'advantage'), `net=${back?.net} sources=${labels(back)}`);
       await victim.toggleStatusEffect('invisible', { active: false });
+    }
+
+    // ================================================== 10. Unarmed Fighting's grapple damage
+    if (want(10)) {
+      await set('autoDamage', 'all');
+      await set('autoApply', true);
+      await set('holdTimer', 0);
+      await equip([]);
+      const fdoc = scene.tokens.find(t => (t.actorId === actor.id) && placed.includes(t.id))
+        ?? (await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(actor.prototypeToken.toObject(),
+          { x: 1500, y: 1900, actorId: actor.id, actorLink: true, disposition: 1 }, { inplace: false })]))[0];
+      if (!placed.includes(fdoc.id)) placed.push(fdoc.id);
+      for (let i = 0; i < 40 && !canvas.tokens.get(fdoc.id); i++) await sleep(250);
+      // A creature of its own, so no other token inherits the Grappled (the fixture's unlinked BF Test
+      // Victim wears its base actor's effects — the first run grappled two).
+      const held = (await Actor.create({ ...victim.toObject(), _id: undefined, name: 'BF Temp Grappled', folder: null }));
+      const [hdoc] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(held.prototypeToken.toObject(),
+        { x: 1600, y: 1900, actorId: held.id, actorLink: true, disposition: -1 }, { inplace: false })]);
+      placed.push(hdoc.id);
+      for (let i = 0; i < 40 && !canvas.tokens.get(hdoc.id); i++) await sleep(250);
+      await held.update({ 'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400 });
+      await held.toggleStatusEffect('grappled', { active: true });
+      const grappled = held.effects.find(e => e.statuses?.has?.('grappled'));
+      await grappled?.setFlag(MOD, 'sourceUuid', actor.uuid);
+      const hp = () => Number(held.system.attributes.hp.value);
+      const grapplePopup = () => [...foundry.applications.instances.values()].find(a => a.rendered && /Unarmed Fighting/.test(a.element?.textContent ?? '')
+        && a.element?.querySelector?.('button[data-action="deal"]')) ?? null;
+      const cardOf = t0 => game.messages.contents.filter(m => (m.timestamp >= t0) && m.getFlag(MOD, 'grappleDamage')).pop() ?? null;
+      const waitFor = async (test, timeout = 8000) => { const until = Date.now() + timeout; while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); } return test(); };
+      if (game.combat) await game.combat.delete();
+      const combat = await Combat.create({ scene: scene.id });
+      await combat.createEmbeddedDocuments('Combatant', [
+        { actorId: actor.id, tokenId: fdoc.id, sceneId: scene.id, initiative: 20 },
+        { actorId: held.id, tokenId: hdoc.id, sceneId: scene.id, initiative: 5 }]);
+      try {
+        let t0 = Date.now();
+        await combat.startCombat();
+        const pop = await waitFor(grapplePopup, 8000);
+        const card = cardOf(t0);
+        ok('10a. the fighter\'s turn starts grappling the victim: a card and a popup "Deal 1d4 to the … you\'re grappling?"',
+          !!pop && !!card && /Deal 1d4 to/.test(pop?.element?.textContent ?? '') && (card?.getFlag(MOD, 'grappleDamage')?.pick === held.uuid),
+          `popup=${!!pop} flag=${JSON.stringify(card?.getFlag(MOD, 'grappleDamage') ?? null).slice(0, 300)}`);
+        faces([[3, 4]]);
+        pop?.element?.querySelector('button[data-action="deal"]')?.click();
+        const dealt = await waitFor(() => (hp() < 400) ? hp() : null, 10000);
+        CONFIG.Dice.randomUniform = realPRNG;
+        await sleep(600);
+        ok('10b. Deal it: the damage lands (1d4), the card resolves "deal"', (dealt !== null) && ((400 - hp()) <= 4)
+          && (game.messages.get(card?.id)?.getFlag(MOD, 'grappleDamage')?.answer === 'deal'),
+          `hp=${hp()} flag=${JSON.stringify(game.messages.get(card?.id)?.getFlag(MOD, 'grappleDamage')?.answer ?? null)}`);
+        await held.update({ 'system.attributes.hp.value': 400 });
+        await combat.nextTurn(); await sleep(500);
+        t0 = Date.now();
+        await combat.nextTurn();
+        const pop2 = await waitFor(grapplePopup, 8000);
+        pop2?.element?.querySelector('button[data-action="skip"]')?.click();
+        await sleep(1500);
+        ok('10c. next turn, Skip: nothing dealt, the card resolves "skip"', (hp() === 400) && (cardOf(t0)?.getFlag(MOD, 'grappleDamage')?.answer === 'skip'),
+          `hp=${hp()} answer=${cardOf(t0)?.getFlag(MOD, 'grappleDamage')?.answer}`);
+        await set('holdTimer', 2);
+        await combat.nextTurn(); await sleep(500);
+        t0 = Date.now();
+        faces([[2, 4]]);
+        await combat.nextTurn();
+        const timed = await waitFor(() => { const f = cardOf(t0)?.getFlag(MOD, 'grappleDamage'); return (f?.status === 'resolved') ? f : null; }, 10000);
+        await waitFor(() => (hp() < 400) ? hp() : null, 6000);
+        CONFIG.Dice.randomUniform = realPRNG;
+        ok('10d. with a clock and nobody answering: the clock deals it to the one creature held', (timed?.answer === 'deal') && !!timed?.timedOut && (hp() < 400),
+          `flag=${JSON.stringify(timed ?? null).slice(0, 200)} hp=${hp()}`);
+      } finally {
+        CONFIG.Dice.randomUniform = realPRNG;
+        await set('holdTimer', 0);
+        await combat.delete().catch(() => {});
+        const liveTok = placed.filter(id => scene.tokens.get(id)?.actorId === held.id);
+        if (liveTok.length) await scene.deleteEmbeddedDocuments('Token', liveTok);
+        await held.delete().catch(() => {});
+        for (const app of [...foundry.applications.instances.values()]) if (/Unarmed Fighting/.test(app.element?.textContent ?? '')) { try { await app.close(); } catch { /* gone */ } }
+      }
     }
 
     return { log, results, skips };

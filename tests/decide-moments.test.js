@@ -146,6 +146,15 @@ describe("the moment registry — shape", () => {
         from: 11,
         to: 19
       },
+      grappleDamage: {
+        status: "resolved",
+        row: "Unarmed Fighting",
+        actorUuid: "Actor.f",
+        actorName: "Fighter",
+        candidates: [{ uuid: "Actor.g", name: "Goblin", certain: true }],
+        pick: "Actor.g",
+        answer: "deal"
+      },
       kitTend: {
         status: "resolved",
         row: "Healer",

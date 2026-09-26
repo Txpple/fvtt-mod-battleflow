@@ -28,14 +28,18 @@
  * client floats "+3 Great Weapon Fighting" over the target once. The record is the stats reader's
  * (ARCHITECTURE §4): `gain` per style, per roll.
  */
-import { MODULE_ID, TITLE, S, drivesMomentFor, canApplyTo, statContext } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, canAnswerFor, isActiveGM, statContext, queueFlagWrite } from "./core.js";
 import { lower, featureNamed, resolveUuid } from "./lookup.js";
 import { fightingStyleEntries, listedNames } from "./settings.js";
 import { FIGHTING_STYLES } from "./decide/registry.js";
 import { heldOf, faceState, rollFits, raisedOf, styleLine, floatText } from "./decide/fighting-styles.js";
 import { targetsOf } from "./decide/card.js";
-import { esc } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
+import { withTargets } from "./shared.js";
+import { nearestFeet, tokenForUuid } from "./geometry.js";
+import { openMomentPopup, momentButton, armDeadline, disarmDeadline, livePopups, shownMoments, scheduleBarSync,
+  registerRelay } from "./ui.js";
 
 const STYLE_FLAG = "fightingStyle";            // a damage message's record — and a face's own key
 const TAKEN_FLAG = "fightingStyleTakenOver";   // the pack's own effect, switched off for the face
@@ -314,3 +318,207 @@ Hooks.on("createChatMessage", message => {
     });
   } catch(err) { console.warn(`${TITLE} | The fighting style's floating number could not draw.`, err); }
 });
+
+/* --- THE GRAPPLE'S TURN-START DAMAGE (Unarmed Fighting, U1) ------------------------------------ *
+ * "At the start of each of your turns, you can deal 1d4 Bludgeoning damage to one creature Grappled
+ * by you." Ruled U1 off the prototype (2026-09-26): the rule says "can", so it asks — a card and a
+ * popup to the owner, Deal it / Skip, the grappled creature picked when there are two — and the
+ * clock deals it, since there is rarely a reason to hold back (to the one creature KNOWN to be held
+ * by this one; with none certain the clock skips). "Grappled by you" is read off the Grappled
+ * effect's own provenance (the module's source stamp, else its origin's actor); a Grappled whose
+ * grappler cannot be read is offered when it stands within 5 feet, never dealt by the clock. The
+ * damage is the feat's own "Grappled Damage" activity, used at the pick — the bare damage machine
+ * (damage-casts.js) rolls and lands it like any other.
+ * ------------------------------------------------------------------------------------------- */
+
+const GRAPPLE_FLAG = "grappleDamage";
+const grappleTimers = new Map();
+const grappleAsked = new Set();
+
+/** Who put this Grappled on its bearer — an actor uuid, or null when the effect does not say. */
+function grapplerOf(effect) {
+  const stamped = effect.getFlag?.(MODULE_ID, "sourceUuid");
+  if ( stamped ) return stamped;
+  const origin = effect.origin ? resolveUuid(effect.origin) : null;
+  return (origin instanceof Actor) ? origin.uuid : (origin?.actor?.uuid ?? null);
+}
+
+/** The creatures this one grapples on the scene — `[{ uuid, tokenUuid, name, certain }]`. */
+function grappledBy(actor, token) {
+  const out = [];
+  for ( const other of (canvas.tokens?.placeables ?? []) ) {
+    const a = other.actor;
+    if ( !a || (a.uuid === actor.uuid) || !a.statuses?.has?.("grappled") ) continue;
+    const effects = [...(a.effects ?? [])].filter(e => e.active && e.statuses?.has?.("grappled"));
+    const by = effects.map(grapplerOf);
+    const certain = by.includes(actor.uuid);
+    const unknown = !certain && by.some(x => !x) && token && ((nearestFeet(token, other) ?? Infinity) <= 5);
+    if ( certain || unknown ) out.push({ uuid: a.uuid, tokenUuid: other.document.uuid, name: other.document.name ?? a.name, certain });
+  }
+  return out;
+}
+
+/** The feat's own grapple-damage activity: its bare damage activity. */
+const grappleActivityOf = feature => [...(feature?.system?.activities ?? [])].find(a => a.type === "damage") ?? null;
+
+Hooks.on("updateCombat", (combat, changed) => {
+  try {
+    if ( !combat?.started || (!("turn" in changed) && !("round" in changed)) ) return;
+    const combatant = combat.combatant;
+    const actor = combatant?.actor;
+    if ( !actor || !drivesMomentFor(actor.uuid) ) return;
+    if ( !listedNames(fightingStyleEntries()).has("unarmed fighting") ) return;
+    const feature = featureNamed(actor, "Unarmed Fighting");
+    const activity = grappleActivityOf(feature);
+    if ( !activity ) return;
+    const turnKey = `${combat.id}:${combat.round}:${combat.turn}`;
+    if ( grappleAsked.has(turnKey) ) return;
+    grappleAsked.add(turnKey);
+    const token = combatant.token?.object ?? tokenForUuid(actor.uuid);
+    const candidates = grappledBy(actor, token);
+    if ( !candidates.length ) return;
+    void stampGrapple(actor, feature, activity, candidates);
+  } catch(err) {
+    console.error(`${TITLE} | Unarmed Fighting's grapple damage could not be offered — use "Grappled Damage" from the sheet.`, err);
+  }
+});
+
+async function stampGrapple(actor, feature, activity, candidates) {
+  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const certain = candidates.filter(c => c.certain);
+  const flag = {
+    status: "pending", row: "Unarmed Fighting", actorUuid: actor.uuid, actorName: actor.name,
+    itemId: feature.id, activityId: activity.id, candidates,
+    pick: (certain.length === 1) ? certain[0].uuid : (candidates.length === 1 ? candidates[0].uuid : null),
+    clockDeals: certain.length === 1, answer: null, ...statContext(actor.uuid),
+    ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
+  };
+  const message = await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor }),
+    content: bfCard({ img: feature.img, eyebrow: "Your turn — Unarmed Fighting", tone: "pending",
+      title: `${actor.name} may deal 1d4 to ${candidates.map(c => c.name).join(" or ")}`,
+      subtitle: "a creature you are grappling" }),
+    flags: { [MODULE_ID]: { [GRAPPLE_FLAG]: flag } }
+  });
+  if ( message ) armGrappleTimer(message);
+}
+
+/** The keeper: the card's author, or the GM when the author has gone. */
+const keepsGrapple = message => message.isAuthor || (!message.author?.active && isActiveGM());
+
+function armGrappleTimer(message) {
+  const flag = message?.getFlag(MODULE_ID, GRAPPLE_FLAG);
+  if ( (flag?.status !== "pending") || !flag.deadline || !keepsGrapple(message) ) return;
+  armDeadline(grappleTimers, message.id, flag.deadline, async () => {
+    const live = game.messages.get(message.id);
+    const now = live?.getFlag(MODULE_ID, GRAPPLE_FLAG);
+    if ( now?.status !== "pending" ) return;
+    // U1: the clock deals it — to the one creature known to be held; otherwise it skips.
+    if ( now.clockDeals && now.pick ) await dealGrapple(live, now.pick, { timedOut: true });
+    else await recordGrapple(live, { answer: "skip", pick: null, timedOut: true });
+  });
+}
+
+/** Deal it: the feat's own damage activity used at the pick, on this client; then the answer recorded. */
+async function dealGrapple(message, pickUuid, { timedOut = false } = {}) {
+  const flag = message.getFlag(MODULE_ID, GRAPPLE_FLAG);
+  const actor = resolveUuid(flag?.actorUuid);
+  const activity = actor?.items?.get(flag.itemId)?.system?.activities?.get(flag.activityId) ?? null;
+  const pick = (flag?.candidates ?? []).find(c => c.uuid === pickUuid);
+  const token = pick ? resolveUuid(pick.tokenUuid)?.object : null;
+  if ( !activity || !token ) {
+    ui.notifications.warn(`${TITLE}: could not find the grappled creature or "Grappled Damage" — use it from the sheet.`);
+    return;
+  }
+  await withTargets([token], () => activity.use({ subsequentActions: false }, { configure: false }, {}));
+  await recordGrapple(message, { answer: "deal", pick: pickUuid, timedOut });
+}
+
+/** Record an answer: the keeper writes it, anyone else sends it (the relay folds it). */
+async function recordGrapple(message, { answer, pick, timedOut = false }) {
+  if ( keepsGrapple(message) || message.isOwner ) {
+    await queueFlagWrite(message, GRAPPLE_FLAG, current => foldGrapple(current, { answer, pick, timedOut }));
+    return;
+  }
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: resolveUuid(message.getFlag(MODULE_ID, GRAPPLE_FLAG)?.actorUuid) }),
+    content: `<p>Unarmed Fighting — ${answer === "deal" ? "dealt" : "skipped"}</p>`, whisper: game.users.filter(u => u.isGM).map(u => u.id),
+    flags: { [MODULE_ID]: { grappleDamageAnswer: { messageId: message.id, answer, pick } } }
+  });
+}
+
+function foldGrapple(current, { answer, pick, timedOut = false }) {
+  if ( current.status !== "pending" ) return false;
+  Object.assign(current, { status: "resolved", answer, pick: pick ?? null, timedOut: !!timedOut, answeredAt: Date.now() });
+}
+
+registerRelay("grappleDamageAnswer", {
+  flagKey: GRAPPLE_FLAG,
+  targetOf: a => a.messageId,
+  owns: (_flag, target) => keepsGrapple(target),
+  fold: (current, a) => foldGrapple(current, { answer: a.answer, pick: a.pick ?? null }),
+  cleanup: true
+});
+
+async function showGrapplePopup(message) {
+  const flag = message.getFlag(MODULE_ID, GRAPPLE_FLAG);
+  if ( flag?.status !== "pending" ) return;
+  const actor = resolveUuid(flag.actorUuid);
+  const feature = actor?.items?.get(flag.itemId);
+  const radios = (flag.candidates.length > 1)
+    ? flag.candidates.map(c => `<label style="display:block;margin:0.2rem 0;"><input type="radio" name="bf-grapple" value="${esc(c.uuid)}" ${c.uuid === flag.pick ? "checked" : ""}> ${esc(c.name)}</label>`).join("")
+    : "";
+  await openMomentPopup(message, GRAPPLE_FLAG, actor, {
+    title: `Unarmed Fighting — ${actor?.name ?? ""}`, icon: "fa-solid fa-hand-fist",
+    content: bfCard({ img: feature?.img ?? null, eyebrow: "Your turn — Unarmed Fighting", tone: "pending",
+      title: `Deal 1d4 to ${flag.candidates.length === 1 ? `the ${flag.candidates[0].name}` : "a creature"} you're grappling?`,
+      subtitle: "1d4 bludgeoning · the start of your turn",
+      lines: [ruleLine(esc(FIGHTING_STYLES["Unarmed Fighting"].rule))] }) + radios + holdBarHTML(flag, "to answer"),
+    buttons: [
+      { action: "deal", label: "Deal it", default: true, callback: (_event, button) => {
+        const picked = button?.form?.querySelector?.('input[name="bf-grapple"]:checked')?.value ?? flag.pick ?? flag.candidates[0]?.uuid;
+        void dealGrapple(message, picked);
+      } },
+      { action: "skip", label: "Skip", callback: () => { void recordGrapple(message, { answer: "skip", pick: null }); } }
+    ]
+  });
+}
+
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  try {
+    const flag = message.getFlag(MODULE_ID, GRAPPLE_FLAG);
+    if ( !flag ) return;
+    const content = html.querySelector?.(SURFACES.messageContent) ?? html;
+    if ( !content || content.querySelector(".bf-grapple-line") ) return;
+    const div = document.createElement("div");
+    div.className = "bf-grapple-line";
+    div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
+    const pickName = (flag.candidates ?? []).find(c => c.uuid === flag.pick)?.name ?? "";
+    div.innerHTML = `<i class="fa-solid fa-hand-fist"></i> ` + esc((flag.status !== "pending")
+      ? ((flag.answer === "deal") ? `Unarmed Fighting — 1d4 to ${pickName}${flag.timedOut ? " (timer)" : ""}` : `Unarmed Fighting — skipped${flag.timedOut ? " (timer)" : ""}`)
+      : "Unarmed Fighting — waiting for the answer");
+    if ( flag.status === "pending" ) {
+      div.insertAdjacentHTML("beforeend", ` ${holdBarHTML(flag, "to answer")}`);
+      if ( canAnswerFor(resolveUuid(flag.actorUuid)) ) {
+        const shown = popupKey(message.id, GRAPPLE_FLAG);
+        if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showGrapplePopup(message); }
+        div.appendChild(momentButton("Answer", () => { void showGrapplePopup(message); }));
+      }
+      scheduleBarSync(div);
+      armGrappleTimer(message);
+    }
+    content.appendChild(div);
+  } catch(err) { console.warn(`${TITLE} | Unarmed Fighting's line could not render.`, err); }
+});
+
+// An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
+Hooks.on("updateChatMessage", message => {
+  const flag = message.getFlag(MODULE_ID, GRAPPLE_FLAG);
+  if ( !flag ) return;
+  if ( flag.status === "pending" ) { armGrappleTimer(message); return; }
+  disarmDeadline(grappleTimers, message.id);
+  const open = livePopups.get(popupKey(message.id, GRAPPLE_FLAG));
+  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+});
+
+Hooks.on("deleteChatMessage", message => { disarmDeadline(grappleTimers, message.id); });
