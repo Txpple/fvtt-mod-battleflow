@@ -258,12 +258,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // within one crit of the dagger, and the dead are skipped everywhere (no chip, no ask).
       // Neither is the module: the battery of 2026-09-02 lost §4 and §5's setup chips to
       // exactly this after a clean standalone run, and the sections did not say why.
+      // ⚠ A RETRIED swing may already have SPENT a chip on an earlier attempt's message (the
+      // battery of 2026-09-26: §2's Sap swing killed the victim, the Vexed spend rode attempt 1,
+      // attempt 2 had nothing left to spend) — every attempt's message rides back in `messages`.
       let last = null;
+      const messages = [];
       for (let attempt = 0; attempt < 3; attempt++) {
         await healFull();
         await setMastery(key);
         const before = new Set([victim, pc].flatMap(a => a.effects.map(e => e.id)));
         const { attackMsg, roll } = await attack(pcAttack(), victimToken, { advantage });
+        if (attackMsg) messages.push(attackMsg);
         const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
         await waitDamage(originId);
         const bearer = (key === 'cleave') ? pc : victim;
@@ -271,7 +276,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const fumble = !!roll?.isFumble;
         const chip = fumble ? null : await waitFor(fresh, 12_000);
         await sleep(300);
-        last = { attackMsg, roll, chip: chip ?? null, fumble };
+        last = { attackMsg, roll, chip: chip ?? null, fumble, messages };
         // A second Cleave hit in one turn writes no NEW chit by design, so for cleave only a
         // fumble (no hit, no notice) is worth another swing.
         if (key === 'cleave') { if (!fumble) return last; }
@@ -388,8 +393,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // chip rather than a fresh Vexed one, and the spend is unambiguous.
       const before = snap();
       const second = await swing('sap');
-      const msg = game.messages.get(second.attackMsg?.id ?? '');
-      const spend = await waitFor(() => game.messages.get(msg?.id ?? '')?.getFlag(MOD, 'chipSpend'));
+      const spentOn = () => (second.messages ?? []).map(m => game.messages.get(m.id))
+        .find(m => m?.getFlag(MOD, 'chipSpend')?.spent?.some(s => s.id === vexId));
+      const msg = (await waitFor(spentOn)) ?? game.messages.get(second.attackMsg?.id ?? '');
+      const spend = msg?.getFlag(MOD, 'chipSpend');
       const rec = spend?.spent?.find(s => s.id === vexId) ?? null;
       ok('2a. the attack message records the spend: the Vexed chip, by id, key vex, rolled flat, unclaimed',
         !!rec && (rec.key === 'vex') && (rec.mode === 'normal') && (rec.honoured === false)
