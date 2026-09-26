@@ -32,7 +32,7 @@ import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, canAnswerFor
 import { lower, featureNamed, resolveUuid } from "./lookup.js";
 import { fightingStyleEntries, listedNames } from "./settings.js";
 import { FIGHTING_STYLES } from "./decide/registry.js";
-import { heldOf, faceState, rollFits, raisedOf, styleLine, floatText } from "./decide/fighting-styles.js";
+import { heldOf, faceState, rollFits, raisedOf, styleLine, floatText, faceFloat } from "./decide/fighting-styles.js";
 import { targetsOf } from "./decide/card.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
@@ -107,6 +107,10 @@ const sameChanges = (a, b) => JSON.stringify((a ?? []).map(c => [c.key, Number(c
 
 const syncing = new Map();
 
+/** Core floats "+Defense" / "-Defense" on any effect with changes that turns on or off; the face
+ * floats its own words (the user, 2026-09-26: "which should be removed / suppressed"). */
+const QUIET = Object.freeze({ animate: false });
+
 /** Keep this actor's faces — and the pack effects they take over — in step with its sheet. */
 function scheduleSync(actor) {
   if ( !actor?.uuid || !drivesMomentFor(actor.uuid) || !canApplyTo(actor) ) return;
@@ -133,9 +137,9 @@ async function syncFaces(actor) {
     }
     const keys = new Set(rows.map(r => r.row.key));
     for ( const e of faces ) if ( !keys.has(faceOf(e).key) ) deletes.push(e.id);
-    if ( deletes.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", deletes);
-    if ( updates.length ) await actor.updateEmbeddedDocuments("ActiveEffect", updates);
-    if ( creates.length ) await actor.createEmbeddedDocuments("ActiveEffect", creates);
+    if ( deletes.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", deletes, QUIET);
+    if ( updates.length ) await actor.updateEmbeddedDocuments("ActiveEffect", updates, QUIET);
+    if ( creates.length ) await actor.createEmbeddedDocuments("ActiveEffect", creates, QUIET);
     await syncTakeovers(actor, rows);
   } catch(err) {
     console.error(`${TITLE} | The fighting styles on ${actor?.name} could not be kept in step — toggle their effects by hand.`, err);
@@ -157,7 +161,7 @@ async function syncTakeovers(actor, rows) {
         writes.push({ _id: effect.id, disabled: false, [`flags.${MODULE_ID}.-=${TAKEN_FLAG}`]: null });
       }
     }
-    if ( writes.length ) await feature.updateEmbeddedDocuments("ActiveEffect", writes);
+    if ( writes.length ) await feature.updateEmbeddedDocuments("ActiveEffect", writes, QUIET);
   }
 }
 
@@ -270,6 +274,30 @@ Hooks.on("preCreateChatMessage", doc => {
   } catch(err) {
     console.error(`${TITLE} | Great Weapon Fighting's count failed — the dice stand as rolled.`, err);
   }
+});
+
+/**
+ * The face's float: every client, over the bearer's visible tokens, when an update turned the face
+ * on or off (or changed Unarmed Fighting's die). The diff says what changed; the sync writes only
+ * on a real change, so the first draw of a face (a create) floats nothing.
+ */
+Hooks.on("updateActiveEffect", (effect, changes) => {
+  try {
+    const flag = faceOf(effect);
+    const actor = effect.parent;
+    if ( !flag || !(actor instanceof Actor) || !canvas?.interface?.createScrollingText ) return;
+    const row = Object.values(FIGHTING_STYLES).find(r => r.key === flag.key);
+    const text = faceFloat({ name: effect.name, gate: row?.gate ?? "", live: !effect.disabled, word: flag.word ?? "",
+      liveChanged: "disabled" in changes, wordChanged: changes.flags?.[MODULE_ID]?.[STYLE_FLAG]?.word !== undefined });
+    if ( !text ) return;
+    for ( const token of actor.getActiveTokens() ) {
+      if ( !token.visible ) continue;
+      canvas.interface.createScrollingText(token.center, text, {
+        anchor: CONST.TEXT_ANCHOR_POINTS.TOP, fill: "#ffffff", stroke: 0x000000, strokeThickness: 4,
+        fontSize: 26, jitter: 0.25, duration: 3000
+      });
+    }
+  } catch(err) { console.warn(`${TITLE} | The fighting style's face float could not draw.`, err); }
 });
 
 /* --- THE NOTICE (option B) ---------------------------------------------------------------------- */
