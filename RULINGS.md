@@ -898,8 +898,8 @@ as well, same shape again"*, *"skulker, some shapes like fs: blind"*, *"keep sla
 | Polearm Master | Reactive Strike when a creature enters the reach | a reaction attack, Riposte's shape — ⚠ the trigger is movement, measure first |
 | Sentinel | the reaction attack on a Disengage or an attack on someone else; Halt, speed 0 on an Opportunity Attack's hit | Polearm Master's, built together |
 | Sharpshooter | cover, long range and an enemy within 5 feet cancelled | the range-row canceller |
-| Skulker | the face titled by the feat; Sniper (a miss does not reveal) measured on 6.0.5 | the gate's sight (`sightOf`) already reads its Blindsight 10; Fog of War is the pack's |
-| Slasher | Hamstring: speed −10 feet on a Slashing hit, once per turn (the crit half is in) | a hit rider, Slow mastery's shape — ⚠ the speed key meets dnd5e 6.0's moved keys (BACKLOG, VF-001) |
+| Skulker | nothing, measured 2026-09-26: the pack's effect is already named Skulker in the view, and nothing ends Hidden on an attack (dnd5e 6.0.5 nor the module), so Sniper has nothing to keep | the gate's sight (`sightOf`) already reads its Blindsight 10; Fog of War is the pack's |
+| Slasher | Hamstring: speed −10 feet on a Slashing hit, once per turn; the crit's Disadvantage (NOT in before — see the second pass) | a hit rider, Frost's Chill's shape |
 | Spell Sniper | cover and an enemy within 5 feet cancelled for spell attacks | the range-row canceller |
 
 - **Kept open, a lean either way (5):** Charger (the damage or push after a 10-foot straight
@@ -911,6 +911,59 @@ as well, same shape again"*, *"skulker, some shapes like fs: blind"*, *"keep sla
   Charger, Grappler's Punch and Grab, Mounted Combatant's rest and War Caster's Reactive Spell are
   PARKED. ⚠ Correction: Crusher's and Slasher's crit halves were NOT in — `EFFECT_BENDS` rows
   nothing applied, and the pack's "Slashed" is Hamstring's speed −10. The build is six groups;
-  HANDOFF.md carries them while it stands.
+  1–3 are built (below), 4–6 wait in BACKLOG *The PHB feats, groups 4–6*.
 - ⚠ **Measured, and a comment corrected with the build:** `decide/dice-chips.js` says dnd5e floors
   Elemental Adept's 1s to 2 on its own; the pack ships the feat as text only, so nothing does.
+
+## The PHB feats — groups 1–3 (2026-09-26)
+
+**Built in one autonomous pass** (the user: *"work autonomously til done with 1-3"*), off the scope
+above. ⚠ **The calls made while the user was away are marked ⓐ — the walk rules them.**
+
+**Group 1 — the damage rules** (`fighting-styles.js`, two `FIGHTING_STYLES` rows, gate `always`).
+- **Elemental Adept**: the type is read off the feat's NAME — "Elemental Adept (Fire)", every copy
+  adding its own (the user's ruling); a copy with no type is a greyed face that says how to rename
+  it. A spell's damage of the type ignores Resistance — dnd5e's own `options.ignore.resistance`,
+  set at `dnd5e.preCalculateDamage` off the damage card's actor (Heavy Armor Master's seam, the
+  attacker's side), so the card's buttons carry it too; the receipt row says "Elemental Adept —
+  ignores fire resistance". Its 1s count as 2 — Great Weapon Fighting's floor at 2, ⓐ on that
+  type's dice only (a spell dealing two types floors one), with the card line and the dice that rise.
+- **Poisoner**: Potent Poison — any Poison damage its owner deals ignores Resistance to Poison.
+- `smoke-styles` §13, `tests/decide-fighting-styles.test.js`.
+
+**Group 2 — the range cancellers** (`reminders.js`, `RANGE_FEATS`).
+- A cancelled range row is **listed with the feat, never counted** ("Ranged attack within 5 feet of
+  Hobgoblin — Crossbow Expert: no Disadvantage") — Blindsight's shape; ⓐ no prototype, the gate's
+  existing listed box. Beyond long range still cannot be made.
+- **Sharpshooter** (a Ranged weapon — ⓐ by its kind, so a dart thrown counts and a dagger thrown does
+  not): long range, point-blank, cover. **Spell Sniper** (a spell's attack roll): point-blank, cover,
+  +60 ft on a range of 10 ft or more. **Crossbow Expert** (the three crossbows): point-blank; its
+  Dual Wielding is a `FIGHTING_STYLES` row (gate `offhandCrossbow`), and beside Two-Weapon Fighting
+  the modifier is given back ONCE.
+- **Bypass Cover** is the one new seam: the attack RECORDS each target's AC without its cover bonus
+  (`system.targets[].ac`, dialog or no dialog), so the card's hit and miss are right on every
+  client; the card says "Sharpshooter — ignores the Goblin's cover (+2 AC)" and the gate lists it.
+  An AC override carries no cover in dnd5e 6.0.5 and is left alone; Total Cover records no AC.
+- ⓐ No list of their own: the Reminder Sources' `range` kind is the switch (the data settles the
+  rule — DESIGN R1).
+- `smoke-reminders` §13, `smoke-styles` §14, `tests/decide-reminders.test.js`.
+
+**Group 3 — the on-hit riders** (`clock-riders.js`, `CLOCK_RIDERS`; `bash-offer.js`; `damage-either.js`).
+- **Slasher**: Hamstring rides a Slashing hit once per turn (a ticked row on the damage offer, "you
+  can") and lands **"Hamstrung"** — the pack's speed −10 under its own name; a Critical Hit lands
+  **"Slashed"**, which the gate reads as Disadvantage. ⓐ The split: the pack's one "Slashed" effect
+  carried both, and applied on every Hamstring the gate would have counted a crit's Disadvantage.
+- **Crusher**: its crit lands the pack's **"Crushed"** (Advantage against it); its push is a
+  `SHOVES` row on the shove offer — any hit that deals Bludgeoning, any reach, a target no more
+  than one size larger (the data settles it), its own once-per-turn mark (`crushUsed`).
+- **Piercer**: its crit rolls one more die than the crit's double (dnd5e's own
+  `critical.bonusDice`). Puncture is a `DAMAGE_EITHER` row with `one`: Savage Attacker's popup,
+  unchanged — ⓐ **the die is the module's pick**, the one with the most to gain (its size's
+  average less its face), so the popup asks only whether ("roll the 1 on the d6 again?"), and the
+  new roll stands, lower or not.
+- The effect-only riders' clock is Frost's Chill's (`slow`: until the start of the attacker's next
+  turn). `smoke-clock` §10, `smoke-savage` §11, `smoke-maneuvers` C, `tests/decide-clock.test.js`,
+  `tests/decide-damage-dice.test.js`.
+- ⚠ **Stored lists**: a world keeps its own Fighting Styles, Clock Riders, Damage Rolled Twice and
+  Maneuver Folds lists — the new names arrive with Reset Defaults or by hand (BACKLOG, the next
+  release).

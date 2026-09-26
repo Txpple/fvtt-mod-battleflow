@@ -473,7 +473,7 @@ export const CLOCK_RIDERS = Object.freeze({
     ]),
     rule: "Once on each of your turns before the transformation ends, you can deal extra damage to one target when you deal damage to it with an attack or a spell. The extra damage equals your Proficiency Bonus, and the extra damage’s type is either Necrotic for Necrotic Shroud or Radiant for Heavenly Wings and Inner Radiance.",
     from: "Aasimar — Celestial Revelation (character level 3)" }),
-  // THE PHB FEATS, group 3 (2026-09-26, HANDOFF.md — the on-hit riders). No dice of their own:
+  // THE PHB FEATS, group 3 (2026-09-26, RULINGS *The PHB feats — groups 1–3* — the on-hit riders). No dice of their own:
   // an effect on the target, or one more die on a crit. ⚠ The PHB's "Slashed" effect carries
   // Hamstring's speed −10 AND stands for the crit's Disadvantage (its Foundry note: "used for
   // tracking the Hamstring and Enhanced Critical effects"), and EFFECT_BENDS "Slashed" counts the
@@ -1315,7 +1315,7 @@ export const RANGE_RULES = Object.freeze({
 });
 
 /**
- * THE RANGE CANCELLERS (the PHB feats, group 2, 2026-09-26 — HANDOFF.md; SWEEP §3 item 6): a feat
+ * THE RANGE CANCELLERS (the PHB feats, group 2, 2026-09-26 — RULINGS *The PHB feats — groups 1–3*; SWEEP §3 item 6): a feat
  * on the ATTACKER's sheet, by name, that takes away what the range rows above impose. The gate
  * still LISTS a cancelled row, with the feat that cancels it and no bend (Blindsight's shape,
  * `sightOf`: listed with why, never counted), so the roller sees the rule was met and answered.
@@ -2062,7 +2062,7 @@ export const FIGHTING_STYLES = Object.freeze({
     block: "@prof", types: Object.freeze(["bludgeoning", "piercing", "slashing"]),
     rule: "Damage Reduction. When you’re hit by an attack while you’re wearing Heavy armor, any Bludgeoning, Piercing, and Slashing damage dealt to you by that attack is reduced by an amount equal to your Proficiency Bonus.",
     from: "General feat" }),
-  // THE PHB FEATS, group 1 (2026-09-26, the damage rules — HANDOFF.md): the owner's damage ignores
+  // THE PHB FEATS, group 1 (2026-09-26, the damage rules — RULINGS *The PHB feats — groups 1–3*): the owner's damage ignores
   // a Resistance. The pack ships Elemental Adept as text only ("not automated") and Poisoner's
   // Potent Poison with nothing; the rows are the whole mechanism.
   "Elemental Adept": Object.freeze({ key: "elemental-adept", gate: "always", feat: true, typed: true, spells: true,

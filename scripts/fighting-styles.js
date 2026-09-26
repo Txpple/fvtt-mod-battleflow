@@ -420,7 +420,7 @@ Hooks.on("dnd5e.preCalculateDamage", (actor, damages, options) => {
 });
 
 /* --- THE IGNORED RESISTANCE (Elemental Adept, Poisoner) ----------------------------------------- *
- * Group 1 of the PHB feats (2026-09-26, HANDOFF.md): "Spells you cast ignore Resistance to damage of
+ * Group 1 of the PHB feats (2026-09-26, RULINGS *The PHB feats — groups 1–3*): "Spells you cast ignore Resistance to damage of
  * the chosen type"; "When you make a damage roll that deals Poison damage, it ignores Resistance to
  * Poison damage". The rows are the ATTACKER's, so the seam reads the damage card's own actor
  * (`options.originatingMessage`) and hands dnd5e its own switch — `options.ignore.resistance`, a Set
