@@ -28,6 +28,7 @@ import { alliesWithin, tokenForUuid } from "./geometry.js";
 import { interruptEntries } from "./settings.js";
 import { INTERRUPT_REDUCTIONS } from "./decide/registry.js";
 import { reduceDamages } from "./decide/verdict.js";
+import { reductionRise } from "./decide/dice-chips.js";
 import { poolOf, reactionSpent, spendReaction, spendSuperiorityDie, resolveAttackMessage } from "./shared.js";
 import { applyDamagesWithReceipt, registerDamageClaim } from "./auto-apply.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
@@ -228,7 +229,11 @@ async function answerHold(message, answer, who = null) {
       } else {
         try {
           const roll = await new Roll(Roll.replaceFormulaData(String(mine.formula), actor.getRollData())).evaluate();
-          await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${flag.reaction} — the die, plus the modifier` });
+          // a reaction that modifies a roll: the dice rise off whoever reduced it, the number drifting
+          // to whom it protected (RULINGS, the dice that rise)
+          const rise = reductionRise({ roll: roll.toJSON(), from: actor.uuid, to: flag.target?.uuid ?? null });
+          await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${flag.reaction} — the die, plus the modifier`,
+            ...(rise ? { flags: { [MODULE_ID]: { diceRise: rise } } } : {}) });
           reduceBy = Math.max(0, Number(roll.total) || 0);
         } catch(err) {
           console.error(`${TITLE} | ${flag.reaction}'s reduction could not be rolled — reduce by hand.`, err);

@@ -784,19 +784,21 @@ Fighting **U1**, *"truesight yes"*. `smoke-styles` (31 checks), `smoke-guards` (
   setting. The `fightingStyle` record carries each style's `gain` for the stats reader
   (ARCHITECTURE §4) and the chips' `dice`. A floor that raised nothing leaves no trace.
 - **The dice that rise — THE RULE, settled; do not reopen** (the walk, 2026-09-26: "make this a rule
-  too so we dont keep revisiting"). The canvas dice (`dice-rise.js`, every client sees them) play in
-  exactly three cases:
-  1. **A die's number changes** — the module's own (Great Weapon Fighting's floor, a d20 bent after
-     a hit, Empowered's and Healer's rerolls, Savage Attacker's set, Heroic Inspiration's reroll,
-     Lucky's second d20) and the platform's (`changedDice`: a die dnd5e rerolled or floored itself —
-     Halfling Luck, Reliable Talent, Elemental Adept, Tavern Brawler).
-  2. **A Fighting Style's bonus** — Dueling, Thrown, Two-Weapon's "+2" as well as the floor: the
-     player's check that the style fired ("it was kinda handy for FS so someone can see if they used
-     thrown weapon, duelist, etc properly"; "let everyone see for now").
-  3. Nothing else. A die or a number merely ADDED — Sneak Attack, Divine Smite, Hunter's Mark,
-     Bless, Bane, Bardic Inspiration, Tactical Mind, Interception / Parry / Stone's Endurance, Shield's
-     +5 AC — stays on the card ("its kinda spammy if we take it too far ... it does open the
-     floodgates"). A new rule is sorted into 1, 2 or 3 by this list, not re-asked.
+  too so we dont keep revisiting"; its shape in the user's words: "a reaction or sensitive effect
+  (eg gwf, duelist, twf, etc)"). The canvas dice (`dice-rise.js`, every client sees them) play for:
+  1. **A reaction — or a spend — that modifies a roll already made**: the bent d20s (Protection,
+     Lucky, Warding Flare, Shadowy Dodge); the reductions (Interception, Parry, Stone's Endurance —
+     the die off whoever reacted, "−N" drifting to the one protected); Shield's "+5 AC"; a fold's die
+     or reroll (Bardic Inspiration, Tactical Mind, Heroic Inspiration, Lucky); Empowered's, Healer's
+     and Savage Attacker's rerolls; Cutting Words when it is built.
+  2. **A situational effect** — one that fires only when its circumstances line up, not every turn
+     by default ("not sure if sensitive is the rigth word, but not like every turn by default"), so
+     the player needs to SEE that it did: the Fighting Styles (Great Weapon Fighting's floor, Dueling, Thrown,
+     Two-Weapon), and the dice the platform changes on its own (`changedDice`: Halfling Luck,
+     Reliable Talent, Elemental Adept, Tavern Brawler).
+  Nothing else. Dice ADDED every time as the roll is made — Sneak Attack, Divine Smite, Hunter's
+  Mark, Bless, Bane — stay on the card ("its kinda spammy if we take it too far ... it does open the
+  floodgates"). A new rule is sorted by these two, not re-asked.
 - **Unarmed Fighting:** its die on the sheet's plain Unarmed Strike rides the Unarmed Strike Dice
   table (a `hands` row: the feat's d8 attack with nothing held, its d6 otherwise; two rows on one
   actor swap in the larger die). **At the start of the turn** (U1) the owner of a grapple is asked

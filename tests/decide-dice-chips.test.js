@@ -95,3 +95,32 @@ describe("changedDice - the dice the platform changed on its own (option A)", ()
     ).toEqual([]);
   });
 });
+
+describe("a reaction that modifies a roll - the reductions, Shield, a fold's die", () => {
+  const d10 = (v, pb) => ({
+    total: v + pb,
+    terms: [{ faces: 10, results: [{ result: v, active: true }] }, { number: pb }]
+  });
+  it("a reduction rises off the guard, the number drifting to the ally; one's own pops in place", async () => {
+    const { reductionRise } = await import("../scripts/decide/dice-chips.js");
+    expect(reductionRise({ roll: d10(7, 3), from: "Actor.guard", to: "Actor.ally" })).toEqual({
+      on: "Actor.guard",
+      chips: [{ label: "7" }, { label: "+3", flat: true, up: true }],
+      drift: { to: "Actor.ally", label: "−10" }
+    });
+    expect(reductionRise({ roll: d10(5, 2), from: "Actor.me" }).drift.to).toBe("Actor.me");
+    expect(reductionRise({ roll: { total: 0, terms: [] }, from: "Actor.me" })).toBeNull();
+  });
+  it("Shield: +5 AC; a bonus the sheet cannot state draws nothing", async () => {
+    const { acChips } = await import("../scripts/decide/dice-chips.js");
+    expect(acChips(5)).toEqual([{ label: "+5 AC", flat: true, up: true }]);
+    expect(acChips(null)).toEqual([]);
+  });
+  it("a fold's die added is one gold +N", async () => {
+    const { foldRise } = await import("../scripts/decide/dice-chips.js");
+    expect(foldRise({ mode: "die", total: 4, on: "Actor.r" })).toEqual({
+      on: "Actor.r",
+      chips: [{ label: "+4", flat: true, up: true }]
+    });
+  });
+});

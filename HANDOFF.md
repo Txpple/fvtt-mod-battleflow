@@ -33,8 +33,9 @@
 - Empowered Spell is damage only — a spell's healing is never offered it (`e3dc7e4`).
 
 **The dice that rise** — ⚠ a SETTLED RULE (RULINGS *The dice that rise — THE RULE*; do not reopen):
-the canvas dice play, for everyone, only when (1) a die's number changes — module or platform — or
-(2) a Fighting Style's bonus; a die merely ADDED stays on the card.
+the canvas dice play, for everyone, for (1) a reaction or spend that modifies a roll already made,
+or (2) a situational effect, not every turn by default (the Fighting Styles; the dice the platform changes); dice added every time a
+roll is MADE (Sneak Attack, Bless) stay on the card.
 - `scripts/dice-rise.js` (SPINE): the one renderer — chips over a token (turn over / gold / struck /
   red for a lost crit), above the tokens (core's scrolling-text depth), and the `diceRise` flag
   listener (any roll message carrying it plays on every client). `driftChip` stays for the listener.
@@ -81,4 +82,6 @@ the canvas dice play, for everyone, only when (1) a die's number changes — mod
 | **Healer** | Gren casts Cure Wounds, rerolls a 1 | The 1 turns over above Gren (and NO Empowered popup) |
 | **Heroic Inspiration / Lucky** | BF Dice Heroic rerolls a d20; a Luck Point after a roll | The d20 turning over; Lucky's two d20s, the higher gold |
 | **The platform's own** | BF Species Halfling rolls a natural 1 (Halfling Luck) | The 1 turns over to the reroll above the Halfling |
-| **Nothing** | Interception, Parry, Stone's Endurance, Shield, Bardic Inspiration | The card as before; NO canvas dice |
+| **Reductions** | BF Dice Attacker hits BF Dice Parry / BF Dice Stone; Gren hit beside BF Style Interception | The reduction die rises off whoever reacted, then "−N" drifts to the one protected (in place for Parry and Stone) |
+| **Shield / folds** | BF Dice Shield casts Shield when hit; BF Dice Bard inspires BF Dice Heroic, who spends it on a failed roll; BF Test Fighter's Tactical Mind | "+5 AC" over the Shielder; "+N" over whoever spent the die |
+| **Nothing** | Sneak Attack, Smite, Bless | The card as before; NO canvas dice |
