@@ -43,7 +43,7 @@ describe("faceState", () => {
         "oneHanded",
         held([weapon("Longsword", "martialM", ["ver"]), gear("Shield", "shield")])
       )
-    ).toEqual({ live: true, detail: "Longsword in one hand" });
+    ).toEqual({ live: true, word: "longsword", detail: "Longsword in one hand" });
     expect(
       d.faceState(
         "oneHanded",
@@ -58,6 +58,7 @@ describe("faceState", () => {
   it("Defense: body armor, not a shield", () => {
     expect(d.faceState("armored", held([gear("Shield", "shield")]))).toEqual({
       live: false,
+      word: "unarmored",
       detail: "no armor worn"
     });
     expect(d.faceState("armored", held([gear("Leather Armor", "light")])).live).toBe(true);

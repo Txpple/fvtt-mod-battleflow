@@ -97,7 +97,7 @@ function desiredFace({ name, row, feature }, held) {
   return {
     name, img: feature.img, origin: feature.uuid, transfer: false, disabled: !state.live,
     changes: change ? [{ key: change.key, mode: change.mode, value: String(change.value), priority: change.priority ?? null }] : [],
-    flags: { [MODULE_ID]: { [STYLE_FLAG]: { key: row.key, live: state.live, detail: state.detail } } }
+    flags: { [MODULE_ID]: { [STYLE_FLAG]: { key: row.key, live: state.live, word: state.word, detail: state.detail } } }
   };
 }
 
@@ -125,7 +125,7 @@ async function syncFaces(actor) {
       const have = faces.find(e => faceOf(e).key === found.row.key);
       if ( !have ) { creates.push(want); continue; }
       const f = faceOf(have);
-      if ( (have.disabled !== want.disabled) || (f.detail !== want.flags[MODULE_ID][STYLE_FLAG].detail)
+      if ( (have.disabled !== want.disabled) || (f.detail !== want.flags[MODULE_ID][STYLE_FLAG].detail) || (f.word !== want.flags[MODULE_ID][STYLE_FLAG].word)
         || (have.name !== want.name) || !sameChanges(have.changes, want.changes) ) {
         updates.push({ _id: have.id, name: want.name, disabled: want.disabled, changes: want.changes,
           [`flags.${MODULE_ID}.${STYLE_FLAG}`]: want.flags[MODULE_ID][STYLE_FLAG] });
@@ -284,7 +284,9 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       const div = document.createElement("div");
       div.className = "bf-fighting-style-line";
       const off = !entry.gain;
-      div.style.cssText = `margin:0.25rem 0;font-size:var(--font-size-11,11px);${off ? "opacity:0.6;" : "opacity:0.9;color:rgb(232,190,50);"}`;
+      // gold on the dark theme, a deep amber on the light one's parchment (user, 2026-09-26: "gold
+      // doesnt look good in Light Mode") - Foundry sets color-scheme per theme, light-dark() reads it
+      div.style.cssText = `margin:0.25rem 0;font-size:var(--font-size-11,11px);${off ? "opacity:0.6;" : "opacity:0.9;color:light-dark(#7d5a00,rgb(232,190,50));"}`;
       div.innerHTML = off
         ? `<i class="fa-solid fa-shield-halved"></i> ${esc(entry.feature)} off — ${esc(entry.off ?? "")}`
         : `<i class="fa-solid fa-shield-halved"></i> ${esc(styleLine(entry))}`;

@@ -95,7 +95,7 @@ function factOf(effect) {
     active: effect.active === true, temporary: effect.isTemporary === true,
     disabled: effect.disabled === true,
     worn: ((effect.parent instanceof Item) && (effect.transfer === true)) || !!style,
-    style: !!style, detail: style?.detail ?? null,
+    style: !!style, word: style?.word ?? null, detail: style?.detail ?? null,
     aura: ownAuraOf(effect),
     onItem: effect.parent instanceof Item,
     statuses: [...(effect.statuses ?? [])],
@@ -143,8 +143,8 @@ function chipHTML(row, { button = false } = {}) {
   const clock = row.clock ? `<span class="clk">${esc(row.clock)}</span>` : (row.detail ? `<span class="dtl">${esc(row.detail)}</span>` : "");
   const inner = `${icon}<span class="txt"><span class="nm">${esc(row.name)}</span>${clock}</span>${tag}`;
   return button
-    ? `<button type="button" class="bf-ev-chip ${row.tone}${row.unavailable ? " unavailable" : ""}" data-row="${esc(row.id)}" title="${esc(row.name)}${row.unavailable ? (row.style ? ` — off: ${esc(row.detail ?? "")}` : " — unavailable: suppressed by the platform (unequipped, unattuned or expired)") : ""}">${inner}</button>`
-    : `<span class="bf-ev-chip ${row.tone}" title="${esc(row.name)}">${inner}</span>`;
+    ? `<button type="button" class="bf-ev-chip ${row.tone}${row.unavailable ? " unavailable" : ""}" data-row="${esc(row.id)}" title="${esc(row.name)}${row.unavailable ? (row.style ? ` — off: ${esc(row.why ?? "")}` : " — unavailable: suppressed by the platform (unequipped, unattuned or expired)") : ""}">${inner}</button>`
+    : `<span class="bf-ev-chip ${row.tone}" title="${esc(row.name)}${row.style && row.why ? ` — ${esc(row.why)}` : ""}">${inner}</span>`;
 }
 
 /** The list for one actor: debuffs, buffs, and (for the hover card) the marks it holds. */

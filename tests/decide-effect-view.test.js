@@ -326,3 +326,21 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
     expect(panelGroups([])).toEqual([]);
   });
 });
+
+describe('a fighting style\'s face in the panel (user, 2026-09-26: "i only want one line")', () => {
+  it("reads Fighting Style: <name> (<word>) on one line, the long line kept for the hover", () => {
+    const face = fact({
+      name: "Great Weapon Fighting",
+      temporary: false,
+      worn: true,
+      clock: "",
+      style: true,
+      word: "greatsword",
+      detail: "Greatsword, two hands"
+    });
+    const row = panelGroups([face]).flatMap(g => g.rows)[0];
+    expect(row.name).toBe("Fighting Style: Great Weapon Fighting (greatsword)");
+    expect(row.why).toBe("Greatsword, two hands");
+    expect(row.detail).toBeUndefined();
+  });
+});

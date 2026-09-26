@@ -37,48 +37,52 @@ const has = (item, prop) => (item?.properties ?? []).includes(prop);
 const isMelee = item => MELEE.has(item?.kind);
 
 /**
- * A style's face: live, or off with the reason — the panel's line. `detail` says what it reads
- * when live ("Greatsword, two hands"), `reason` why it is off ("a second weapon held (Dagger)").
+ * A style's face: live, or off with the reason. `word` is the panel's one word in parens
+ * ("Fighting Style: Great Weapon Fighting (greatsword)" — user, 2026-09-26: "i only want one
+ * line"); `detail` the long line, kept for the hover title ("a second weapon held (Dagger)").
  * @param {string} gate
  * @param {ReturnType<typeof heldOf>} held
  * @param {{small?: string, large?: string}} [dice]  Unarmed Fighting's two dice, as the feat ships them
- * @returns {{live: boolean, detail: string}}
+ * @returns {{live: boolean, word: string, detail: string}}
  */
 export function faceState(gate, held, dice = {}) {
   const w = held?.weapons ?? [];
+  const lc = item => String(item?.name ?? "").toLowerCase();
   switch ( gate ) {
     case "twoHanded": {
       const big = w.find(i => isMelee(i) && (has(i, "two") || has(i, "ver")));
-      return big ? { live: true, detail: `${big.name}, two hands` }
-        : { live: false, detail: "no Two-Handed or Versatile melee weapon equipped" };
+      return big ? { live: true, word: lc(big), detail: `${big.name}, two hands` }
+        : { live: false, word: "unequipped", detail: "no Two-Handed or Versatile melee weapon equipped" };
     }
     case "thrown": {
       const t = w.find(i => has(i, "thr"));
-      return t ? { live: true, detail: `thrown attacks (${t.name})` } : { live: false, detail: "no Thrown weapon equipped" };
+      return t ? { live: true, word: lc(t), detail: `thrown attacks (${t.name})` }
+        : { live: false, word: "unequipped", detail: "no Thrown weapon equipped" };
     }
     case "offhand": {
       const light = w.filter(i => has(i, "lgt"));
-      return ((w.length >= 2) && light.length) ? { live: true, detail: "the Light weapon's extra attack" }
-        : { live: false, detail: "not holding two weapons" };
+      return ((w.length >= 2) && light.length) ? { live: true, word: lc(light.at(-1)), detail: "the Light weapon's extra attack" }
+        : { live: false, word: "unpaired", detail: "not holding two weapons" };
     }
     case "oneHanded": {
       const melee = w.filter(isMelee);
-      if ( !melee.length ) return { live: false, detail: "no melee weapon equipped" };
+      if ( !melee.length ) return { live: false, word: "unequipped", detail: "no melee weapon equipped" };
       if ( w.length > 1 ) {
         const other = w.find(i => i !== melee[0]);
-        return { live: false, detail: `a second weapon held (${other.name})` };
+        return { live: false, word: "dual-wielding", detail: `a second weapon held (${other.name})` };
       }
-      if ( has(melee[0], "two") ) return { live: false, detail: `${melee[0].name} needs two hands` };
-      return { live: true, detail: `${melee[0].name} in one hand` };
+      if ( has(melee[0], "two") ) return { live: false, word: "two-handed", detail: `${melee[0].name} needs two hands` };
+      return { live: true, word: lc(melee[0]), detail: `${melee[0].name} in one hand` };
     }
     case "armored":
-      return held?.armor ? { live: true, detail: held.armor.name } : { live: false, detail: "no armor worn" };
+      return held?.armor ? { live: true, word: lc(held.armor), detail: held.armor.name }
+        : { live: false, word: "unarmored", detail: "no armor worn" };
     case "unarmed": {
       const empty = !w.length && !held?.shield;
       const die = empty ? (dice.large ?? "d8") : (dice.small ?? "d6");
-      return { live: true, detail: empty ? `${die} — hands empty` : `${die} — a weapon or Shield held` };
+      return { live: true, word: die, detail: empty ? `${die} — hands empty` : `${die} — a weapon or Shield held` };
     }
-    default: return { live: false, detail: "" };
+    default: return { live: false, word: "", detail: "" };
   }
 }
 
