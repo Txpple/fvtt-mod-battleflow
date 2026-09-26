@@ -84,6 +84,8 @@ export function faceState(gate, held, dice = {}) {
       return (held?.armor?.kind === "heavy") ? { live: true, word: lc(held.armor), detail: held.armor.name }
         : { live: false, word: held?.armor ? "not heavy" : "unarmored",
           detail: held?.armor ? `${held.armor.name} is not Heavy armor` : "no armor worn" };
+    // no equipment in the rule (Elemental Adept, Poisoner): on while the feat is on the sheet
+    case "always": return { live: true, word: "", detail: "always" };
     case "unarmed": {
       const empty = !w.length && !held?.shield;
       const die = empty ? (dice.large ?? "d8") : (dice.small ?? "d6");
@@ -114,6 +116,62 @@ export function rollFits(gate, roll) {
     case "oneHanded": return isMelee(roll) && (mode === "oneHanded") && (roll?.faceLive === true);
     default: return false;
   }
+}
+
+/**
+ * The damage types a `typed` row reads off the feat's NAME (user, 2026-09-26: "item name for adept") —
+ * "Elemental Adept (Fire)", "Elemental Adept (Fire, Cold)" — every copy on the sheet adding its own.
+ * Only a real damage type counts; a copy with no type in its name adds nothing.
+ * @param {string[]} names        the feat copies' names
+ * @param {string} base           the row's name
+ * @param {Iterable<string>} known the damage type keys (CONFIG.DND5E.damageTypes)
+ * @returns {string[]}            lower-case keys, each once, in order met
+ */
+export function typesInNames(names, base, known) {
+  const ok = new Set([...(known ?? [])].map(k => String(k).toLowerCase()));
+  const out = [];
+  const head = String(base ?? "").toLowerCase();
+  for ( const name of (names ?? []) ) {
+    const n = String(name ?? "").trim();
+    if ( !n.toLowerCase().startsWith(head) ) continue;
+    const inside = n.slice(head.length).match(/\(([^)]*)\)/)?.[1] ?? "";
+    for ( const word of inside.split(/[,/&]|\band\b/i) ) {
+      const t = word.trim().toLowerCase();
+      if ( t && ok.has(t) && !out.includes(t) ) out.push(t);
+    }
+  }
+  return out;
+}
+
+/**
+ * A typed row's face: the types it reads, or off with how to fix it.
+ * @param {string} name   the row's name
+ * @param {string[]} types
+ * @returns {{live: boolean, word: string, detail: string}}
+ */
+export function typedFace(name, types) {
+  if ( !types?.length ) return { live: false, word: "no type", detail: `no damage type in its name — rename it "${name} (Fire)"` };
+  const title = t => t.charAt(0).toUpperCase() + t.slice(1);
+  return { live: true, word: types.join(", "), detail: types.map(title).join(" and ") };
+}
+
+/**
+ * THE IGNORED RESISTANCE (Elemental Adept, Poisoner): the row's types this damage carries that the
+ * target actually resists — the ones worth saying on the receipt. The ignoring itself is dnd5e's.
+ * @param {{type?: string|null, value?: number}[]} damages
+ * @param {string[]} types      the row's types
+ * @param {Iterable<string>} resisted  the target's Resistance types
+ * @returns {string[]}
+ */
+export function ignoredResistances(damages, types, resisted) {
+  const dr = new Set(resisted ?? []);
+  const kinds = new Set(types ?? []);
+  const out = [];
+  for ( const d of (damages ?? []) ) {
+    const t = d?.type;
+    if ( t && kinds.has(t) && dr.has(t) && ((Number(d?.value) || 0) > 0) && !out.includes(t) ) out.push(t);
+  }
+  return out;
 }
 
 /**

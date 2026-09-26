@@ -1925,6 +1925,16 @@ const KIT_TEND_NAMES = tableIndex(KIT_TENDS).names;
  *              before the system's own resistances — at dnd5e.preCalculateDamage, so every
  *              application of an attack's damage carries it, the card's own buttons included
  *   feat       a general feat, not a style: its face and its float wear the feat's own name
+ *   ignores    "resistance": the OWNER's damage of the row's `types` ignores the target's Resistance
+ *              to them (Elemental Adept's Energy Mastery, Poisoner's Potent Poison) — dnd5e's own
+ *              `options.ignore.resistance`, set at dnd5e.preCalculateDamage off the damage card's
+ *              actor, so the card's buttons and the module's applier both carry it
+ *   typed      the types are read off the feat's NAME — "Elemental Adept (Fire)" (user, 2026-09-26:
+ *              the pack stores no choice); every copy on the sheet adds its own, and a copy with no
+ *              type in its name is a greyed face that says so
+ *   spells     the row reaches a SPELL's damage only ("spells you cast"), never a weapon's; its
+ *              `minimum` then floors that spell's dice of the row's types, not the whole roll
+ *   gate "always"  no equipment in the rule: the face is live whenever the feat is on the sheet
  * The two reactions (Interception, Protection) and Blind Fighting's sight are NOT rows here: they
  * land by mechanism — the interrupt tables and the gate before the roll (SWEEP §1).
  * ⚠ NOT A KIND — one table read by one machine; a second customer is a row.
@@ -1956,6 +1966,16 @@ export const FIGHTING_STYLES = Object.freeze({
   "Heavy Armor Master": Object.freeze({ key: "heavy-armor-master", gate: "heavyArmor", takesOver: true, feat: true,
     block: "@prof", types: Object.freeze(["bludgeoning", "piercing", "slashing"]),
     rule: "Damage Reduction. When you’re hit by an attack while you’re wearing Heavy armor, any Bludgeoning, Piercing, and Slashing damage dealt to you by that attack is reduced by an amount equal to your Proficiency Bonus.",
+    from: "General feat" }),
+  // THE PHB FEATS, group 1 (2026-09-26, the damage rules — HANDOFF.md): the owner's damage ignores
+  // a Resistance. The pack ships Elemental Adept as text only ("not automated") and Poisoner's
+  // Potent Poison with nothing; the rows are the whole mechanism.
+  "Elemental Adept": Object.freeze({ key: "elemental-adept", gate: "always", feat: true, typed: true, spells: true,
+    ignores: "resistance", minimum: 2,
+    rule: "Energy Mastery. Choose one of the following damage types: Acid, Cold, Fire, Lightning, or Thunder. Spells you cast ignore Resistance to damage of the chosen type. In addition, when you roll damage for a spell you cast that deals damage of that type, you can treat any 1 on a damage die as a 2.",
+    from: "General feat" }),
+  "Poisoner": Object.freeze({ key: "poisoner", gate: "always", feat: true, ignores: "resistance", types: Object.freeze(["poison"]),
+    rule: "Potent Poison. When you make a damage roll that deals Poison damage, it ignores Resistance to Poison damage.",
     from: "General feat" })
 });
 const FIGHTING_STYLE_NAMES = tableIndex(FIGHTING_STYLES).names;

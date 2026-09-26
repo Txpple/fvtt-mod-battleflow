@@ -17,7 +17,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'fighting-styles.js',   // §1–§2 the faces off the equipped boxes; §3–§6 the numbers, the lines, the record, the float; §8 the switch; §11 Great Weapon Master; §12 Heavy Armor Master's block
+  'fighting-styles.js',   // §1–§2 the faces off the equipped boxes; §3–§6 the numbers, the lines, the record, the float; §8 the switch; §11 Great Weapon Master; §12 Heavy Armor Master's block; §13 Elemental Adept and Poisoner (the PHB feats, group 1)
   'unarmed-dice.js',      // §7 Unarmed Fighting's die by what the hands hold (the `hands` row)
   'reminders.js'          // §9 Blind Fighting — who sees the unseen: Invisible listed, not counted, within Blindsight
 ];
@@ -34,6 +34,7 @@ const SECTIONS = {
   9: 'Blind Fighting: an Invisible victim 5 ft away is seen (listed, net Normal); 15 ft away it is not (Disadvantage); the Invisible victim attacking the fighter loses its Advantage',
   11: `Great Weapon Master (the PHB feats, 2026-09-26): its face live off the Greatsword; the Greatsword's damage rolls +PB with "Great Weapon Master — +N"; the Longsword adds nothing; on someone else's turn, "Great Weapon Master off — not your turn"`,
   12: `Heavy Armor Master: its face live in Chain Mail and the pack's own reduction switched off; an attack's 9 slashing lands 9 − PB (the calculation says "blocked", the actor's update carries the pop); a bare 9 (no attack card) lands whole; out of the armor the attack's 9 lands whole`,
+  13: `Elemental Adept and Poisoner (the PHB feats, group 1, 2026-09-26): "Elemental Adept (Fire)" — its face live "Fire"; Fire Bolt's 1s count as 2 ("1 → 2"), the record; its fire damage ignores the victim's Fire Resistance (the calculation says so), a weapon's fire damage does not; renamed with no type the face is off and says how; Poisoner — a weapon card's poison ignores Resistance to Poison`,
   10: 'Unarmed Fighting at the start of the turn: the fighter grapples the victim — a card and a popup "Deal 1d4 …?"; Deal it lands the damage; next turn Skip deals nothing; with a clock, the clock deals it'
 };
 const DEPENDS = {};
@@ -134,7 +135,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const lend = async (name, type = null) => {
       const own = actor.items.find(i => i.name === name && !lent.includes(i.id));
-      if (own && ['Great Weapon Fighting', 'Great Weapon Master', 'Heavy Armor Master'].includes(name)) return own;   // the fixture's own
+      if (own && ['Great Weapon Fighting', 'Great Weapon Master', 'Heavy Armor Master', 'Elemental Adept', 'Poisoner'].includes(name)) return own;   // the fixture's own
       const source = await findPHB(name, type);
       if (!source) throw new Error(`the PHB ships no "${name}" this box can find`);
       const data = source.toObject();
@@ -531,6 +532,64 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       } finally {
         await actor.update({ 'system.attributes.hp.value': hp0, [`flags.${MOD}.-=armorBlock`]: null }).catch(() => {});
         if (lent.includes(ham.id)) { await actor.deleteEmbeddedDocuments('Item', [ham.id]).catch(() => {}); lent.splice(lent.indexOf(ham.id), 1); }
+        await sleep(600);
+      }
+    }
+
+    // ================================================== 13. Elemental Adept and Poisoner (group 1)
+    if (want(13)) {
+      const adept = await lend('Elemental Adept', 'feat');
+      const poisoner = await lend('Poisoner', 'feat');
+      const bolt = await lend('Fire Bolt', 'spell');
+      const drBefore = [...(victim.system.traits?.dr?.value ?? [])];
+      const cardLines = async id => {
+        const el = await game.messages.get(id)?.renderHTML?.().catch(() => null);
+        return [...(el?.querySelectorAll?.('.bf-fighting-style-line') ?? [])].map(e => e.dataset.bfStyleLine ?? '').join(' | ');
+      };
+      try {
+        await adept.update({ name: 'Elemental Adept (Fire)' });
+        await victim.update({ 'system.traits.dr.value': ['fire', 'poison'] });
+        await sleep(900);
+        const a = face('Elemental Adept');
+        ok('13a. "Elemental Adept (Fire)": its face live, "Fire", titled by the feat', !!a && !a.disabled && (faceLine('Elemental Adept') === 'Fire')
+          && (a?.getFlag(MOD, 'fightingStyle')?.feat === true), `face=${!!a} disabled=${a?.disabled} line="${faceLine('Elemental Adept')}"`);
+        const dice = bolt.system.activities.find(x => x.type === 'attack');
+        const t0 = Date.now();
+        faces([[1, 10], [1, 10], [1, 10], [1, 10]]);
+        await dice.rollDamage({ isCritical: false }, { configure: false }, {});
+        CONFIG.Dice.randomUniform = realPRNG;
+        let card = null;
+        for (let i = 0; (i < 30) && !card; i++) { card = game.messages.contents.filter(x => (x.timestamp >= t0) && (x.type === 'damage')).pop() ?? null; if (!card) await sleep(150); }
+        await sleep(300);
+        const s = style(card, 'elemental-adept');
+        const n = (card?.rolls?.[0]?.dice ?? []).reduce((k, t) => k + t.results.length, 0);
+        ok('13b. Fire Bolt\'s 1s count as 2: the record, "Elemental Adept — 1 → 2" on the card', (s?.gain === n) && (n > 0) && /Elemental Adept — 1 → 2/.test(await cardLines(card?.id)),
+          `style=${JSON.stringify(s)} dice=${n} formula="${card?.rolls?.[0]?.formula}" total=${card?.rolls?.[0]?.total} lines="${await cardLines(card?.id)}"`);
+        const ten = [{ value: 10, type: 'fire' }];
+        const calc = victim.calculateDamage(ten, { originatingMessage: card });
+        ok('13c. its fire damage ignores the victim\'s Fire Resistance: 10 lands 10, the calculation names the feat',
+          (calc?.amount === 10) && (calc?.bfIgnored?.[0]?.feature === 'Elemental Adept') && calc.bfIgnored[0].types.includes('fire'),
+          `amount=${calc?.amount} ignored=${JSON.stringify(calc?.bfIgnored ?? null)}`);
+        await equip(['Dagger']);
+        const stab = await damage(gear.Dagger, 'oneHanded', [[3, 4]]);
+        const weaponFire = victim.calculateDamage(ten, { originatingMessage: stab });
+        ok('13d. a WEAPON card\'s fire damage is not a spell\'s: the Resistance stands (10 → 5)', weaponFire?.amount === 5, `amount=${weaponFire?.amount}`);
+        const poison = victim.calculateDamage([{ value: 10, type: 'poison' }], { originatingMessage: stab });
+        ok('13e. Poisoner: the weapon card\'s poison ignores Resistance to Poison (10 → 10), named', (poison?.amount === 10)
+          && (poison?.bfIgnored ?? []).some(i => i.feature === 'Poisoner'), `amount=${poison?.amount} ignored=${JSON.stringify(poison?.bfIgnored ?? null)}`);
+        await adept.update({ name: 'Elemental Adept' });
+        await sleep(900);
+        const off = face('Elemental Adept');
+        ok('13f. renamed with no type: the face off, and it says how to fix it', (off?.disabled === true) && /rename it/.test(faceLine('Elemental Adept')),
+          `disabled=${off?.disabled} line="${faceLine('Elemental Adept')}"`);
+        const bare = victim.calculateDamage(ten, { originatingMessage: card });
+        ok('13g. with no type named, the Resistance stands (10 → 5)', bare?.amount === 5, `amount=${bare?.amount}`);
+      } finally {
+        CONFIG.Dice.randomUniform = realPRNG;
+        await victim.update({ 'system.traits.dr.value': drBefore }).catch(() => {});
+        for (const it of [adept, poisoner, bolt]) {
+          if (lent.includes(it.id)) { await actor.deleteEmbeddedDocuments('Item', [it.id]).catch(() => {}); lent.splice(lent.indexOf(it.id), 1); }
+        }
         await sleep(600);
       }
     }

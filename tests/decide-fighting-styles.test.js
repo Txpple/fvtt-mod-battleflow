@@ -308,3 +308,76 @@ describe("the PHB feats (2026-09-26): Great Weapon Master and Heavy Armor Master
     expect(d.blockDamages([{ value: 7, type: "fire" }], types, 3)).toEqual({ values: [7], cut: 0 });
   });
 });
+
+describe("the PHB feats, group 1 (2026-09-26): Elemental Adept and Poisoner", () => {
+  const KNOWN = ["acid", "cold", "fire", "lightning", "thunder", "poison", "slashing"];
+
+  it("an always-gated row's face is live with nothing equipped", () => {
+    expect(d.faceState("always", d.heldOf([]))).toMatchObject({ live: true });
+    expect(d.rollFits("always", { kind: "martialM" })).toBe(false); // never a weapon roll's row
+  });
+
+  it("Elemental Adept's types are read off every copy's NAME, real damage types only", () => {
+    expect(d.typesInNames(["Elemental Adept (Fire)"], "Elemental Adept", KNOWN)).toEqual(["fire"]);
+    expect(
+      d.typesInNames(
+        ["Elemental Adept (Fire)", "elemental adept (Cold)", "Elemental Adept (Fire)"],
+        "Elemental Adept",
+        KNOWN
+      )
+    ).toEqual(["fire", "cold"]);
+    expect(d.typesInNames(["Elemental Adept (Fire, Thunder)"], "Elemental Adept", KNOWN)).toEqual([
+      "fire",
+      "thunder"
+    ]);
+    expect(d.typesInNames(["Elemental Adept (Cold and Acid)"], "Elemental Adept", KNOWN)).toEqual([
+      "cold",
+      "acid"
+    ]);
+    expect(d.typesInNames(["Elemental Adept"], "Elemental Adept", KNOWN)).toEqual([]);
+    expect(d.typesInNames(["Elemental Adept (Frost)"], "Elemental Adept", KNOWN)).toEqual([]);
+    expect(d.typesInNames(["Great Weapon Master (Fire)"], "Elemental Adept", KNOWN)).toEqual([]);
+  });
+
+  it("a typed face is live with its types, off with how to fix a name that carries none", () => {
+    expect(d.typedFace("Elemental Adept", ["fire", "cold"])).toMatchObject({
+      live: true,
+      detail: "Fire and Cold"
+    });
+    const off = d.typedFace("Elemental Adept", []);
+    expect(off.live).toBe(false);
+    expect(off.detail).toContain('"Elemental Adept (Fire)"');
+  });
+
+  it("the receipt names only a type the damage carries AND the target resists", () => {
+    const damages = [
+      { value: 8, type: "fire" },
+      { value: 3, type: "cold" },
+      { value: 0, type: "acid" }
+    ];
+    expect(d.ignoredResistances(damages, ["fire", "acid"], ["fire", "acid"])).toEqual(["fire"]);
+    expect(d.ignoredResistances(damages, ["cold"], ["fire"])).toEqual([]);
+    expect(
+      d.ignoredResistances([{ value: 5, type: "poison" }], ["poison"], new Set(["poison"]))
+    ).toEqual(["poison"]);
+  });
+
+  it("a floor of 2 raises only the 1s", () => {
+    const rolls = [
+      {
+        terms: [
+          {
+            faces: 6,
+            modifiers: ["min2"],
+            results: [
+              { result: 1, count: 2, active: true },
+              { result: 2, count: 2, active: true },
+              { result: 5, active: true }
+            ]
+          }
+        ]
+      }
+    ];
+    expect(d.raisedOf(rolls, 2)).toEqual({ raised: [{ from: 1, to: 2 }], gain: 1 });
+  });
+});

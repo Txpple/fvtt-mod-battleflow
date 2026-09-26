@@ -32,7 +32,8 @@ import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, canAnswerFor
 import { lower, featureNamed, resolveUuid } from "./lookup.js";
 import { fightingStyleEntries, listedNames } from "./settings.js";
 import { FIGHTING_STYLES } from "./decide/registry.js";
-import { heldOf, faceState, rollFits, raisedOf, styleLine, diceOf, chipsOf, blockDamages } from "./decide/fighting-styles.js";
+import { heldOf, faceState, rollFits, raisedOf, styleLine, diceOf, chipsOf, blockDamages,
+  typesInNames, typedFace, ignoredResistances } from "./decide/fighting-styles.js";
 import { isCard, CARD } from "./decide/card.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
@@ -55,14 +56,28 @@ const itemFacts = actor => [...(actor?.items ?? [])].map(i => ({
   equipped: i.system?.equipped === true, properties: [...(i.system?.properties ?? [])]
 }));
 
-/** The listed rows this actor holds — `[{ name, row, feature }]`. */
+/** The damage types dnd5e knows — what a `typed` row may read off a feat's name. */
+const damageTypeKeys = () => Object.keys(CONFIG.DND5E?.damageTypes ?? {});
+
+/** The feat copies a `typed` row reads: every feat whose name starts with the row's ("Elemental Adept (Fire)"). */
+const typedCopies = (actor, name) => [...(actor?.items ?? [])].filter(i => (i.type === "feat") && lower(i.name).startsWith(lower(name)));
+
+/**
+ * The listed rows this actor holds — `[{ name, row, feature, types }]`. `types` is the row's own, or
+ * for a `typed` row what the copies' names say (group 1 of the PHB feats, 2026-09-26).
+ */
 function heldRows(actor) {
   const listed = listedNames(fightingStyleEntries());
   const out = [];
   for ( const [name, row] of Object.entries(FIGHTING_STYLES) ) {
     if ( !listed.has(lower(name)) ) continue;
+    if ( row.typed ) {
+      const copies = typedCopies(actor, name);
+      if ( copies.length ) out.push({ name, row, feature: copies[0], types: typesInNames(copies.map(c => c.name), name, damageTypeKeys()) });
+      continue;
+    }
     const feature = featureNamed(actor, name);
-    if ( feature ) out.push({ name, row, feature });
+    if ( feature ) out.push({ name, row, feature, types: [...(row.types ?? [])] });
   }
   return out;
 }
@@ -92,8 +107,8 @@ function unarmedDiceOf(feature) {
 /* --- THE FACE ----------------------------------------------------------------------------------- */
 
 /** The face this row should wear on this actor — the effect's data, bar the ids. */
-function desiredFace({ name, row, feature }, held) {
-  const state = faceState(row.gate, held, row.gate === "unarmed" ? unarmedDiceOf(feature) : {});
+function desiredFace({ name, row, feature, types }, held) {
+  const state = row.typed ? typedFace(name, types) : faceState(row.gate, held, row.gate === "unarmed" ? unarmedDiceOf(feature) : {});
   const change = row.ac === "effect" ? acChangeOf(feature) : null;
   return {
     name, img: feature.img, origin: feature.uuid, transfer: false, disabled: !state.live,
@@ -201,6 +216,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     if ( !config || config[DONE] ) return;
     const activity = config.subject;
+    if ( activity?.item?.type === "spell" ) { spellFloor(config, activity, message); return; }
     const weapon = activity?.item;
     if ( (activity?.type !== "attack") || (weapon?.type !== "weapon") ) return;
     const attacker = activity.actor;
@@ -254,13 +270,40 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   }
 });
 
-// The floor rides the built rolls: every die of the attack's damage, a crit's doubled ones too.
+/**
+ * A SPELL's floor (Elemental Adept: "when you roll damage for a spell you cast that deals damage of
+ * that type, you can treat any 1 on a damage die as a 2"): the `spells` rows with a `minimum`, when
+ * the spell's damage carries one of the row's types. Only that type's dice are floored (the roll
+ * per part keeps its own type), a crit's doubled dice included.
+ */
+function spellFloor(config, activity, message) {
+  const caster = activity.actor;
+  const rows = heldRows(caster).filter(r => r.row.spells && r.row.minimum && r.types.length);
+  if ( !rows.length ) return;
+  const typesOf = r => r?.options?.types ?? (r?.options?.type ? [r.options.type] : []);
+  const dealt = new Set((config.rolls ?? []).flatMap(typesOf));
+  for ( const { name, row, types } of rows ) {
+    const hit = types.filter(t => dealt.has(t));
+    if ( !hit.length ) continue;
+    config[DONE] = true;
+    config[FLOOR] = { minimum: row.minimum, types: hit };
+    foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${STYLE_FLAG}`,
+      { styles: [{ key: row.key, feature: name, gain: 0, pending: true }], gain: 0, ...statContext(caster.uuid) });
+    return;
+  }
+}
+
+// The floor rides the built rolls: every die of the attack's damage, a crit's doubled ones too; a
+// typed floor (a spell's) only the dice of its types.
 Hooks.on("dnd5e.postDamageRollConfiguration", (rolls, config) => {
   try {
-    const floor = config?.[FLOOR];
-    if ( !floor ) return;
+    const set = config?.[FLOOR];
+    if ( !set ) return;
+    const floor = (typeof set === "object") ? set.minimum : set;
+    const only = (typeof set === "object") ? new Set(set.types ?? []) : null;
     const Die = foundry.dice.terms.Die;
     for ( const roll of (rolls ?? []) ) {
+      if ( only && !(roll.options?.types ?? [roll.options?.type]).some(t => only.has(t)) ) continue;
       let touched = false;
       for ( const term of (roll.terms ?? []) ) {
         if ( !(term instanceof Die) || term.modifiers.some(m => /^min\d+$/i.test(m)) ) continue;
@@ -270,7 +313,7 @@ Hooks.on("dnd5e.postDamageRollConfiguration", (rolls, config) => {
       if ( touched ) roll.resetFormula?.();
     }
   } catch(err) {
-    console.error(`${TITLE} | Great Weapon Fighting's floor could not be set — count 1s and 2s as 3 by hand.`, err);
+    console.error(`${TITLE} | A damage floor (Great Weapon Fighting, Elemental Adept) could not be set — count the low dice by hand.`, err);
   }
 });
 
@@ -369,6 +412,46 @@ Hooks.on("dnd5e.preCalculateDamage", (actor, damages, options) => {
     }
   } catch(err) {
     console.error(`${TITLE} | Heavy Armor Master's reduction could not be taken — reduce by hand.`, err);
+  }
+});
+
+/* --- THE IGNORED RESISTANCE (Elemental Adept, Poisoner) ----------------------------------------- *
+ * Group 1 of the PHB feats (2026-09-26, HANDOFF.md): "Spells you cast ignore Resistance to damage of
+ * the chosen type"; "When you make a damage roll that deals Poison damage, it ignores Resistance to
+ * Poison damage". The rows are the ATTACKER's, so the seam reads the damage card's own actor
+ * (`options.originatingMessage`) and hands dnd5e its own switch — `options.ignore.resistance`, a Set
+ * of types, which calculateDamage reads after this hook. A copy, never the caller's Set: the damage
+ * tray keeps its options between renders. What was ignored against a target that resists rides the
+ * calculation (`bfIgnored`) to the receipt row, as the block does.
+ * ------------------------------------------------------------------------------------------- */
+
+const IGNORED = "bfIgnored";
+
+Hooks.on("dnd5e.preCalculateDamage", (actor, damages, options) => {
+  try {
+    if ( !(actor instanceof Actor) || !Array.isArray(damages) || !options || (options.ignore === true) ) return;
+    const message = options.originatingMessage;
+    if ( !message || !isCard(message, CARD.damage) ) return;
+    const source = message.getAssociatedActor?.();
+    if ( !(source instanceof Actor) || (source.uuid === actor.uuid) ) return;
+    const rows = heldRows(source).filter(r => (r.row.ignores === "resistance") && r.types.length);
+    if ( !rows.length ) return;
+    const spell = message.getAssociatedItem?.()?.type === "spell";
+    const dealt = new Set(damages.map(d => d?.type).filter(Boolean));
+    const said = [];
+    for ( const { name, row, types } of rows ) {
+      if ( row.spells && !spell ) continue;
+      const hit = types.filter(t => dealt.has(t));
+      if ( !hit.length ) continue;
+      const ignore = (options.ignore && (typeof options.ignore === "object")) ? { ...options.ignore } : {};
+      ignore.resistance = new Set([...(ignore.resistance ?? []), ...hit]);
+      options.ignore = ignore;
+      const resisted = ignoredResistances(damages, hit, actor.system?.traits?.dr?.value ?? []);
+      if ( resisted.length ) said.push({ feature: name, types: resisted });
+    }
+    if ( said.length ) damages[IGNORED] = said;
+  } catch(err) {
+    console.error(`${TITLE} | A feat's ignored Resistance (Elemental Adept, Poisoner) could not be set — apply it by hand.`, err);
   }
 });
 

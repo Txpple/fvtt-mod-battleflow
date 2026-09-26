@@ -173,9 +173,9 @@ Hooks.on("createChatMessage", message => {
 
 /**
  * THE DICE THE PLATFORM CHANGED (option A, 2026-09-26): a roll born with a die dnd5e rerolled or
- * floored on its own (Halfling Luck, Reliable Talent, Elemental Adept, Tavern Brawler) turns it over
- * above the roller. A message the module already plays is left alone — a diceRise record, or a
- * Fighting Style floor, which rises with its whole set.
+ * floored on its own (Halfling Luck, Reliable Talent, Tavern Brawler) turns it over above the
+ * roller. A message the module already plays is left alone — a diceRise record, or a Fighting Style
+ * floor (Elemental Adept's 2s among them), which rises with its whole set.
  */
 function platformChanged(message) {
   try {

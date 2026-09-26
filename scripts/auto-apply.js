@@ -210,7 +210,9 @@ export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { n
       // prior → delta → taken → reason, all of it in decide/receipt.js.
       // A block the target's own armor took (Heavy Armor Master, fighting-styles.js) says so on its row.
       const block = calc?.bfArmorBlock;
-      const said = block?.amount ? [note, `${block.feature} — blocked ${block.amount}`].filter(Boolean).join(" · ") : note;
+      // A Resistance the attacker's feat ignored (Elemental Adept, Poisoner — the same file) says so too.
+      const ignored = (calc?.bfIgnored ?? []).map(i => `${i.feature} — ignores ${i.types.join(", ")} resistance`);
+      const said = [note, block?.amount ? `${block.feature} — blocked ${block.amount}` : null, ...ignored].filter(Boolean).join(" · ") || note;
       receipts.push(receiptEntry({
         uuid: target.uuid, name: target.name, img: actor.img,
         note: said, multiplier, prior, after, calc, context

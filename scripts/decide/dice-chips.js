@@ -100,7 +100,8 @@ export function foldRise({ mode, oldFace = null, newFace = null, total = null, o
 /**
  * THE DICE THE PLATFORM CHANGED (the user, 2026-09-26, option A): a die dnd5e or Foundry rerolled
  * or floored on its own — Halfling Luck's natural 1 (`r1=1`), Reliable Talent's 10 (`min10`),
- * Elemental Adept's 2s, Tavern Brawler's 1s, any rule built on the same modifiers. Each turns over
+ * Tavern Brawler's 1s, any rule built on the same modifiers (Elemental Adept's 2s are the module's
+ * own floor, fighting-styles.js — the pack ships that feat as text only, measured 2026-09-26). Each turns over
  * from the face it showed to the one that counts. Off the evaluated rolls' JSON: a rerolled result
  * pairs with the next live result of its term; a floored one shows its face and its count.
  * @param {object[]} rolls   evaluated rolls, as JSON
