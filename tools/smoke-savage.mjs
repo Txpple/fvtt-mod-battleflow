@@ -225,10 +225,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       s1 = await swing({ d20: 15, die: 2 });
       const popup = await waitFor(eitherPopup, 6000);
       const rollBtn = popup?.element?.querySelector('button[data-action="again"]');
-      ok('1a. the popup asks: the tick row names Savage Attacker with "1d6 again" and "once per turn", the rule folded under; "Roll again" is dark until the tick',
+      const box = popup?.element?.querySelector('input[name="bf-either"]');
+      ok('1a. the popup asks: the tick row names Savage Attacker with "1d6 again" and "once per turn", the rule folded under; a 2 is under the average, so the die meter reads low, the row starts TICKED and "Roll again" is live (the hint, option D)',
         !!popup && /Savage Attacker/.test(textOf(popup.element)) && /1d6 again/.test(textOf(popup.element)) && /once per turn/i.test(textOf(popup.element))
-          && /the rule/.test(textOf(popup.element)) && rollBtn?.disabled === true,
-        `popup=${!!popup} text="${textOf(popup?.element).slice(0, 220)}" disabled=${rollBtn?.disabled}`);
+          && /the rule/.test(textOf(popup.element)) && !!popup.element.querySelector('[data-bf-die-meter="low"]')
+          && /67% a second roll beats it/.test(textOf(popup.element)) && box?.checked === true && rollBtn?.disabled === false,
+        `popup=${!!popup} text="${textOf(popup?.element).slice(0, 260)}" checked=${box?.checked} disabled=${rollBtn?.disabled}`);
+      if (box?.checked) box.click();
+      ok('1e. unticking the row darkens "Roll again"; ticking it lights it again', rollBtn?.disabled === true, `disabled=${rollBtn?.disabled}`);
       ok('1b. the damage WAITS for the answer: the record is pending and no receipt stands (auto-apply.js\'s claim)',
         (either(s1.dmg)?.status === 'pending') && !receiptOf(s1.dmg), `either=${JSON.stringify(either(s1.dmg))} receipt=${!!receiptOf(s1.dmg)}`);
       ok('1c. the weapon\'s roll count is stamped before any rider (auto-damage.js): one roll, the shortsword\'s',
@@ -236,7 +240,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const text = await waitFor(() => { const t = cardText(s1.dmg?.id); return /Savage Attacker/.test(t) ? t : null; }, 4000);
       ok('1d. the damage card says it is offered', /Savage Attacker — offered/.test(text ?? ''), (text ?? '').slice(0, 200));
       tick(popup);
-      ok('1e. ticking the row lights "Roll again"', rollBtn?.disabled === false, `disabled=${rollBtn?.disabled}`);
+      ok('1f. ticked again, "Roll again" is live', rollBtn?.disabled === false, `disabled=${rollBtn?.disabled}`);
     }
 
     // ================================================== 2. roll again, higher
@@ -270,6 +274,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
       const s = await swing({ d20: 15, die: 5 });
       const popup = await waitFor(eitherPopup, 6000);
+      const box = popup?.element?.querySelector('input[name="bf-either"]');
+      const keepBtn = popup?.element?.querySelector('button[data-action="keep"]');
+      ok('3c. a 5 is above the average: the meter reads high, the row starts UNTICKED and "Keep the roll" is the default (the hint, option D)',
+        !!popup?.element?.querySelector('[data-bf-die-meter="high"]') && box?.checked === false
+          && !!keepBtn && (keepBtn.classList.contains('default') || keepBtn.hasAttribute('autofocus')),
+        `checked=${box?.checked} keep=${keepBtn?.outerHTML?.slice(0, 160)}`);
       faces([[2, 6]]);
       tick(popup);
       press(popup, 'again');

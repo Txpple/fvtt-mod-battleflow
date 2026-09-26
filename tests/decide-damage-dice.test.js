@@ -153,6 +153,30 @@ describe("eitherPatch — both sets on the card, the loser struck", () => {
   });
 });
 
+describe("eitherOdds — the hint: where the first set sits (ruled 2026-09-25, option D)", () => {
+  const set = (number, faces, modifiers = []) => [
+    { roll: 0, term: 0, number, faces, modifiers, values: [] }
+  ];
+  it("1d8 showing 2: under the average, 6 in 8 to beat, the lean says roll again", () => {
+    const o = d.eitherOdds(set(1, 8), 2);
+    expect(o).toMatchObject({ min: 1, max: 8, avg: 4.5, beat: 0.75, low: true });
+    expect(o.gain).toBeCloseTo(21 / 8, 2);
+  });
+  it("1d8 showing 5: at or above the average, the lean says keep", () => {
+    expect(d.eitherOdds(set(1, 8), 5)).toMatchObject({ beat: 0.375, low: false });
+  });
+  it("2d6 is a sum: 7 is the average, not under it", () => {
+    expect(d.eitherOdds(set(2, 6), 7)).toMatchObject({ min: 2, max: 12, avg: 7, low: false });
+    expect(d.eitherOdds(set(2, 6), 6).low).toBe(true);
+  });
+  it("a die's own r1 is counted (Tavern Brawler's strike) — the average rises", () => {
+    expect(d.eitherOdds(set(1, 4, ["r1"]), 1).avg).toBeCloseTo(2.875, 2);
+  });
+  it("no dice, no hint", () => {
+    expect(d.eitherOdds([], 0)).toBeNull();
+  });
+});
+
 describe("eitherDue — once per turn, on a weapon, listed and owned", () => {
   it("due on a weapon hit when no chit stands (and out of combat none ever does)", () => {
     expect(d.eitherDue({ listed: true, owned: true, weapon: true, chitStands: false })).toBe("due");

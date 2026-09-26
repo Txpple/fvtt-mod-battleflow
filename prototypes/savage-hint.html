@@ -1,0 +1,251 @@
+<title>Savage Attacker Hint</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
+<style>
+  :root{
+    color-scheme:dark;
+    --ground:#15171b; --canvas:#1e2126; --panel:#24272d; --panel-2:#2b2f36; --line:#3a3f48;
+    --ink:#e8e3d6; --ink-2:#b5b0a4; --ink-3:#7d7a72;
+    --good:rgb(70,150,95); --bad:rgb(180,70,60); --pending:rgb(222,120,40); --crit:rgb(232,190,50); --neutral:rgb(120,120,120);
+    --good-soft:rgba(70,150,95,.18); --bad-soft:rgba(180,70,60,.18); --pending-soft:rgba(222,120,40,.18); --neutral-soft:rgba(120,120,120,.16);
+    --font:"Signika",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45}
+  .wrap{max-width:1320px;margin:0 auto;padding:22px 16px 40px}
+  header.top h1{margin:0 0 4px;font-size:22px;font-weight:600;text-wrap:balance}
+  header.top p{margin:0 0 14px;color:var(--ink-2);max-width:72ch}
+  .scenes{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}
+  .grp{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .grp > span{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);width:118px;flex:0 0 auto}
+  .grp button{font:inherit;font-size:12.5px;padding:6px 10px;border-radius:4px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);cursor:pointer}
+  .grp button[aria-pressed="true"]{background:var(--pending-soft);border-color:var(--pending);color:var(--ink)}
+  button:focus-visible{outline:2px solid var(--pending);outline-offset:2px}
+
+  .studio{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+  @media (max-width:1100px){.studio{grid-template-columns:minmax(0,1fr)}}
+  .screen{position:relative;min-height:520px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--canvas);display:grid;grid-template-columns:minmax(0,1fr) 290px}
+  @media (max-width:760px){.screen{grid-template-columns:minmax(0,1fr)}}
+  .stage{position:relative;padding:26px 14px;min-width:0}
+  .map{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:50px 50px}
+  .chatlog{position:relative;border-left:1px solid var(--line);background:#1a1c20;padding:10px;display:flex;flex-direction:column;gap:8px}
+  @media (max-width:760px){.chatlog{border-left:0;border-top:1px solid var(--line)}}
+  .ey-log{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+  .nothing{position:relative;margin:80px auto 0;max-width:40ch;text-align:center;color:var(--ink-3);font-size:13px}
+
+  .msg{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:7px 8px;font-size:12px;color:var(--ink-2)}
+  .msg .spk{font-size:11px;color:var(--ink-3);margin-bottom:4px}
+  .bf{border-left:3px solid var(--neutral);border-radius:3px;padding:6px 8px;background:rgba(0,0,0,.14)}
+  .bf.pending{border-left-color:var(--pending)} .bf.good{border-left-color:var(--good)}
+  .bf .e{font-size:10px;letter-spacing:.08em;text-transform:uppercase;opacity:.65}
+  .bf .t{font-weight:700;font-size:14px;color:var(--ink);line-height:1.2}
+  .bf .l{margin-top:4px;font-size:12px;line-height:1.5}
+  .bf b{color:var(--ink)}
+  s.old{color:var(--ink-3)}
+  .chip{display:inline-block;font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:3px;border:1px solid var(--line);color:var(--ink-2);background:var(--neutral-soft)}
+  .chip.used{border-color:rgba(232,190,50,.5);color:var(--crit);background:rgba(232,190,50,.1)}
+
+  .offer{position:relative;width:min(440px,100%);margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.55)}
+  .offer .title{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-weight:600;font-size:13px}
+  .offer .title i{width:14px;height:14px;border-radius:3px;background:var(--crit);opacity:.9}
+  .offer .title .x{margin-left:auto;color:var(--ink-3);font-weight:400}
+  .offer .body{padding:12px 14px 14px}
+  .head{display:flex;gap:10px;align-items:center;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .head .img{width:48px;height:48px;border-radius:4px;background:linear-gradient(135deg,#5a3a3a,#3a3a4a);border:1px solid var(--line);flex:0 0 auto}
+  .head .eb{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+  .head h2{margin:0;font-size:18px;font-weight:700;line-height:1.2}
+  .head .sub{color:var(--ink-2);font-size:12px}
+  .bar{display:flex;align-items:center;gap:6px;margin-top:7px}
+  .bar .trk{flex:1;height:6px;border-radius:3px;background:rgba(0,0,0,.3);overflow:hidden}
+  .bar .fill{height:100%;width:62%;border-radius:3px;background:var(--good)}
+  .bar span{font-size:10px;color:var(--ink-3);white-space:nowrap}
+
+  /* the die meter */
+  .meter{margin-top:10px}
+  .meter .scale{position:relative;height:22px;border-radius:3px;background:linear-gradient(90deg,var(--pending-soft),rgba(0,0,0,.25) 55%,var(--good-soft))}
+  .meter .avg{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink-3)}
+  .meter .avg::after{content:"avg";position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:9.5px;letter-spacing:.06em;color:var(--ink-3);text-transform:uppercase}
+  .meter .pin{position:absolute;top:50%;transform:translate(-50%,-50%);min-width:24px;height:24px;padding:0 5px;border-radius:4px;display:grid;place-items:center;font-weight:700;font-size:13px;font-variant-numeric:tabular-nums;border:2px solid var(--ink);background:var(--panel-2);color:var(--ink)}
+  .meter .pin.low{border-color:var(--pending);color:#f3b27a}
+  .meter .pin.high{border-color:var(--good);color:#8fd0a2}
+  .meter .ends{display:flex;justify-content:space-between;font-size:10px;color:var(--ink-3);margin-top:3px;font-variant-numeric:tabular-nums}
+  .meter .odds{text-align:center;font-size:11.5px;color:var(--ink-2);margin-top:-14px}
+  .meter .odds b{font-variant-numeric:tabular-nums}
+
+  .row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 8px;align-items:center;margin:8px 0 5px;padding:6px 8px;border-radius:4px;background:rgba(0,0,0,.18);border:1px solid var(--line);border-left:3px solid var(--pending);cursor:pointer}
+  .row.on{background:var(--pending-soft)}
+  .row input{margin:0;accent-color:var(--pending)}
+  .row .nm{font-weight:600;font-size:13px}
+  .row .dice{font-weight:400;color:var(--ink-2);font-size:12.5px;margin-left:6px}
+  .row .cost{font-size:10px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;color:var(--ink-2)}
+  .row .cost.low{color:#f3b27a} .row .cost.high{color:#8fd0a2}
+  .row details{grid-column:2 / -1;font-size:11.5px;color:var(--ink-2)}
+  .row details summary{cursor:pointer;color:var(--ink-3);font-size:11px;list-style:none}
+  .row details summary::-webkit-details-marker{display:none}
+  .row details summary::after{content:" ▸"} .row details[open] summary::after{content:" ▾"}
+  .row details p{margin:3px 0 0;font-style:italic;border-left:2px solid var(--line);padding-left:8px}
+
+  .btnrow{display:flex;gap:8px;margin-top:12px}
+  .btn{flex:1;font:inherit;font-weight:600;font-size:13px;padding:9px 12px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);cursor:pointer}
+  .btn.primary{background:var(--pending-soft);border-color:var(--pending)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+
+  .side{display:flex;flex-direction:column;gap:12px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+  .panel h3{margin:0 0 6px;font-size:13px;font-weight:600}
+  .panel p,.panel li{font-size:12.5px;color:var(--ink-2);margin:0}
+  .panel p + p{margin-top:6px}
+  .panel ul{padding-left:18px;margin:0;display:flex;flex-direction:column;gap:6px}
+  .panel b{color:var(--ink);font-weight:600}
+  .q{border-left:3px solid var(--pending)}
+  .reset{font:inherit;font-size:11.5px;margin-top:10px;padding:4px 9px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-2);cursor:pointer}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Savage Attacker: a hint on whether to roll again</h1>
+    <p>Rolling again can never lower this hit, because the higher roll stands. The only cost is that the feat is gone for the rest of the turn. So the hint answers one question: is this roll low enough to be worth spending it now? Pick a hint style and a roll, then press the buttons.</p>
+  </header>
+
+  <div class="scenes">
+    <div class="grp" id="g-opt"><span>Hint style</span>
+      <button data-v="none">Today (no hint)</button>
+      <button data-v="A">A · tag</button>
+      <button data-v="B">B · die meter</button>
+      <button data-v="C">C · defaults lean</button>
+      <button data-v="D">D · meter + lean</button>
+    </div>
+    <div class="grp" id="g-roll"><span>The hit</span>
+      <button data-v="ls2">Longsword 1d8 → 2</button>
+      <button data-v="ls5">Longsword 1d8 → 5</button>
+      <button data-v="ls7">Longsword 1d8 → 7</button>
+      <button data-v="gs4">Greatsword 2d6 → 1+3</button>
+      <button data-v="gs9">Greatsword 2d6 → 4+5</button>
+      <button data-v="cr">Longsword crit 2d8 → 3+4</button>
+    </div>
+  </div>
+
+  <div class="studio">
+    <div class="screen">
+      <div class="stage"><div class="map"></div><div id="pop"></div></div>
+      <div class="chatlog"><div class="ey-log">Chat</div><div id="chat"></div></div>
+    </div>
+    <div class="side" id="side"></div>
+  </div>
+</div>
+
+<script>
+const RULE = "Once per turn when you hit a target with a weapon, you can roll the weapon's damage dice twice and use either roll against the target.";
+const ROLLS = {
+  ls2:{w:"Longsword",n:1,f:8,faces:[2],mod:4},
+  ls5:{w:"Longsword",n:1,f:8,faces:[5],mod:4},
+  ls7:{w:"Longsword",n:1,f:8,faces:[7],mod:4},
+  gs4:{w:"Greatsword",n:2,f:6,faces:[1,3],mod:4},
+  gs9:{w:"Greatsword",n:2,f:6,faces:[4,5],mod:4},
+  cr:{w:"Longsword",n:2,f:8,faces:[3,4],mod:4,crit:true}
+};
+const OPT_NOTES = {
+  none:["Today's popup","No hint. The row's tag reads \"once per turn\"."],
+  A:["A · the tag carries it","The row's tag slot (where \"once per turn\" sits) says <b>below average</b> in orange or <b>above average</b> in green. No new line on the row, so it stays inside the offer-row rule. It is the lightest touch, but it is only a word."],
+  B:["B · a die meter under the title","In the header, above the row: a strip from the dice's lowest to highest, a tick at the average, your roll pinned on it, and the odds a second roll beats it. Nothing is ticked for you."],
+  C:["C · the defaults lean","No words at all. Below average, the row starts <b>ticked</b> and <b>Roll again</b> is the highlighted button. At or above average, the row starts unticked and <b>Keep the roll</b> is highlighted. Enter takes the recommendation."],
+  D:["D · meter + lean (my pick)","B's meter to show <i>why</i>, C's defaults to make the recommendation one keypress. The row itself is unchanged, so the offer-row rule holds."]
+};
+const state = { opt:"D", roll:"ls2", done:null, again:null, ticked:null };
+
+function dist(n,f){ let d={0:1}; for(let i=0;i<n;i++){ const nd={}; for(const [s,p] of Object.entries(d)) for(let k=1;k<=f;k++){ nd[+s+k]=(nd[+s+k]||0)+p/f; } d=nd; } return d; }
+function stats(r){
+  const d=dist(r.n,r.f), cur=r.faces.reduce((a,b)=>a+b,0), avg=r.n*(r.f+1)/2;
+  let beat=0, gain=0; for(const [s,p] of Object.entries(d)){ if(+s>cur) beat+=p; gain+=p*Math.max(0,+s-cur); }
+  return {cur,avg,beat,gain,min:r.n,max:r.n*r.f,lean: cur<avg ? "low" : "high"};
+}
+const esc=s=>String(s);
+
+function meterHTML(r,s){
+  const pos=v=>((v-s.min)/(s.max-s.min))*100;
+  return `<div class="meter">
+    <div class="scale">
+      <div class="avg" style="left:calc(${pos(s.avg)}% - 1px)"></div>
+      <div class="pin ${s.lean}" style="left:${Math.min(96,Math.max(4,pos(s.cur)))}%">${s.cur}</div>
+    </div>
+    <div class="ends"><span>${s.min}</span><span>${s.max}</span></div>
+    <div class="odds"><b>${Math.round(s.beat*100)}%</b> a second roll beats it · +${s.gain.toFixed(1)} on average</div>
+  </div>`;
+}
+
+function popupHTML(){
+  const r=ROLLS[state.roll], s=stats(r), o=state.opt;
+  const formula=`${r.n}d${r.f} + ${r.mod}`, total=s.cur+r.mod;
+  const lean = (o==="C"||o==="D");
+  const ticked = state.ticked ?? (lean && s.lean==="low");
+  const tag = o==="A" ? `<span class="cost ${s.lean}">${s.lean==="low"?"below average":"above average"}</span>` : `<span class="cost">once per turn</span>`;
+  const againPrimary = lean ? s.lean==="low" : true;
+  return `<div class="offer" role="dialog" aria-label="Savage Attacker">
+    <div class="title"><i></i>Savage Attacker — BF Feat Savage Attacker<span class="x">✕</span></div>
+    <div class="body">
+      <div class="head"><div class="img"></div><div>
+        <div class="eb">Damage — Savage Attacker</div>
+        <h2>${total} damage — roll it again?</h2>
+        <div class="sub">${r.w} · ${formula}${r.crit?" (critical)":""} → ${total} (${r.faces.join(" + ")} + ${r.mod})</div>
+      </div></div>
+      <div class="bar"><div class="trk"><div class="fill"></div></div><span>12s to answer</span></div>
+      ${(o==="B"||o==="D") ? meterHTML(r,s) : ""}
+      <label class="row ${ticked?"on":""}">
+        <input type="checkbox" id="tick" ${ticked?"checked":""}>
+        <span class="nm">Savage Attacker<span class="dice">${r.n}d${r.f} again</span></span>
+        ${tag}
+        <details><summary>the rule</summary><p>${RULE}</p></details>
+      </label>
+      <div class="btnrow">
+        <button class="btn ${againPrimary?"primary":""}" data-act="again" ${ticked?"":"disabled"}>Roll again</button>
+        <button class="btn ${againPrimary?"":"primary"}" data-act="keep">Keep the roll</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function card(tone,e,lines){ return `<div class="msg"><div class="spk">BF Feat Savage Attacker</div><div class="bf ${tone}"><div class="e">${e}</div><div class="t">${ROLLS[state.roll].w}</div><div class="s" style="font-size:11px;opacity:.75">→ Practice Dummy</div><div class="l">${lines.map(l=>`<div>${l}</div>`).join("")}</div></div></div>`; }
+
+function render(){
+  const r=ROLLS[state.roll], s=stats(r);
+  document.querySelectorAll("#g-opt button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===state.opt));
+  document.querySelectorAll("#g-roll button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===state.roll));
+  const pop=document.getElementById("pop"), chat=document.getElementById("chat");
+  if(!state.done){
+    pop.innerHTML=popupHTML();
+    chat.innerHTML=card("pending","Damage — waiting on Savage Attacker",[`${r.n}d${r.f} + ${r.mod} → <b>${s.cur+r.mod}</b> (${r.faces.join(" + ")} + ${r.mod})`]);
+  } else if(state.done==="keep"){
+    pop.innerHTML=`<div class="nothing">Kept. ${s.cur+r.mod} stands and Savage Attacker is still ready this turn.<br><button class="reset" data-act="reset">Back to the popup</button></div>`;
+    chat.innerHTML=card("neutral","Damage",[`${r.n}d${r.f} + ${r.mod} → <b>${s.cur+r.mod}</b> — applied`,`<span class="chip">Savage Attacker — not used, still ready this turn</span>`]);
+  } else {
+    const a=state.again, at=a.reduce((x,y)=>x+y,0), hi=at>s.cur;
+    const first=`${r.faces.join("+")}`, second=`${a.join("+")}`;
+    const line = hi ? `${r.n}d${r.f} → <s class="old">${first}</s>, again → <b>${second}</b> — the higher stands: <b>${at+r.mod}</b>`
+                    : `${r.n}d${r.f} → <b>${first}</b>, again → <s class="old">${second}</s> — the first stands: <b>${s.cur+r.mod}</b>`;
+    pop.innerHTML=`<div class="nothing">Rolled again: ${second}. ${hi?"The new roll is higher.":"The first roll stands."}<br><button class="reset" data-act="reset">Back to the popup</button></div>`;
+    chat.innerHTML=card("good","Damage — applied",[line,`<span class="chip used">Savage Attacker — used this turn</span>`]);
+  }
+  const [h,p]=OPT_NOTES[state.opt];
+  document.getElementById("side").innerHTML=`
+    <div class="panel"><h3>${h}</h3><p>${p}</p></div>
+    <div class="panel"><h3>The numbers for this hit</h3>
+      <p>Your weapon dice: <b>${s.cur}</b> · average <b>${s.avg}</b> · range ${s.min}–${s.max}.</p>
+      <p>A second roll beats it <b>${Math.round(s.beat*100)}%</b> of the time and adds <b>+${s.gain.toFixed(1)}</b> damage on average.</p>
+      <p>The line is at the average: below it, the hint leans "roll again"; at or above it, "keep".</p></div>
+    <div class="panel q"><h3>To rule</h3><ul>
+      <li><b>Which style?</b> A, B, C or D.</li>
+      <li><b>Where's the line?</b> Below average (shown), or a stricter cut such as the bottom third of the range.</li>
+      <li><b>Only for the weapon dice?</b> The +4 never rerolls, so the hint ignores it (shown).</li></ul></div>`;
+}
+
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  if(b.closest("#g-opt")){ state.opt=b.dataset.v; state.done=null; state.ticked=null; }
+  else if(b.closest("#g-roll")){ state.roll=b.dataset.v; state.done=null; state.ticked=null; }
+  else if(b.dataset.act==="keep"){ state.done="keep"; }
+  else if(b.dataset.act==="again"){ const r=ROLLS[state.roll]; state.again=Array.from({length:r.n},()=>1+Math.floor(Math.random()*r.f)); state.done="again"; }
+  else if(b.dataset.act==="reset"){ state.done=null; state.ticked=null; }
+  render();
+});
+document.addEventListener("change",e=>{ if(e.target.id==="tick"){ state.ticked=e.target.checked; render(); } });
+render();
+</script>

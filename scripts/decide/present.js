@@ -997,6 +997,27 @@ export function rescueRowsHTML(rows = []) {
 }
 
 /**
+ * THE DIE METER (Savage Attacker's hint, ruled 2026-09-25 off prototypes/savage-hint.html, option D):
+ * a strip from the dice's lowest to highest total, a tick at the average, the roll pinned on it —
+ * orange under the average, green at or above — and one line of odds under it. It sits in the
+ * popup's header, never on the offer row.
+ * @param {{value: number, min: number, max: number, avg: number, beat: number, gain: number, low: boolean}} m
+ */
+export function dieMeterHTML({ value, min, max, avg, beat, gain, low }) {
+  const span = Math.max(1, max - min);
+  const pos = v => Math.min(100, Math.max(0, ((v - min) / span) * 100));
+  const tone = low ? "rgb(222,120,40)" : "rgb(70,150,95)";
+  return `<div data-bf-die-meter="${low ? "low" : "high"}" style="margin:0.9rem 0 0.2rem;">
+      <div style="position:relative;height:18px;border-radius:3px;background:linear-gradient(90deg,rgba(222,120,40,0.25),rgba(0,0,0,0.12) 55%,rgba(70,150,95,0.25));">
+        <div style="position:absolute;top:-3px;bottom:-3px;left:calc(${pos(avg)}% - 1px);width:2px;background:rgba(127,127,127,0.9);"></div>
+        <div style="position:absolute;top:-13px;left:${pos(avg)}%;transform:translateX(-50%);font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;opacity:0.7;">avg</div>
+        <div style="position:absolute;top:50%;left:${Math.min(96, Math.max(4, pos(value)))}%;transform:translate(-50%,-50%);min-width:22px;height:22px;padding:0 4px;border-radius:4px;display:grid;place-items:center;font-weight:bold;border:2px solid ${tone};background:var(--color-bg,#fff);color:${tone};">${esc(value)}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:var(--font-size-10,10px);opacity:0.7;margin-top:2px;"><span>${esc(min)}</span><span>${Math.round(beat * 100)}% a second roll beats it · +${Number(gain).toFixed(1)} on average</span><span>${esc(max)}</span></div>
+    </div>`;
+}
+
+/**
  * THE OFFER ROW, TICKED (Slice A, ruled 2026-09-24 off prototypes/slice-a.html): one row per
  * source — a tick, the name and what it does, a FACT as the tag (the cost, or why it cannot be
  * taken), and "the rule ▸" folded under it. ⚠ NOTHING ELSE on the row, above it or below it (the

@@ -31,8 +31,8 @@ import { lower, featureNamed, resolveUuid } from "./lookup.js";
 import { damageEitherEntries, listedNames } from "./settings.js";
 import { hitTargets, turnChitStands, writeTurnChit, rebuildRolls } from "./shared.js";
 import { DAMAGE_EITHER } from "./decide/registry.js";
-import { weaponDiceOf, setFormula, setTotal, eitherOutcome, eitherPatch, eitherDue, eitherCardLine } from "./decide/damage-dice.js";
-import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML } from "./decide/present.js";
+import { weaponDiceOf, setFormula, setTotal, eitherOutcome, eitherPatch, eitherDue, eitherCardLine, eitherOdds } from "./decide/damage-dice.js";
+import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML, dieMeterHTML } from "./decide/present.js";
 import { openMomentPopup, momentButton, armDeadline, disarmDeadline, livePopups, scheduleBarSync,
   dramaticVerdictPause, registerResumable } from "./ui.js";
 import { attackMessageForDamage } from "./auto-damage.js";
@@ -117,6 +117,7 @@ async function promote(message) {
       current.status = "pending";
       current.formula = setFormula(dice);
       current.first = setTotal(dice);
+      current.odds = eitherOdds(dice, current.first);
       current.total = rollsTotal(message.rolls);
       if ( window ) { current.window = window; current.deadline = Date.now() + (window * 1000); }
     });
@@ -163,6 +164,7 @@ async function showEitherPopup(message) {
   const row = DAMAGE_EITHER[flag.feature] ?? null;
   const weapon = game.messages.get(flag.attackId)?.getAssociatedActivity?.()?.item ?? null;
   const formula = (message.rolls ?? []).map(r => r.formula).join(" + ");
+  const lean = flag.odds?.low !== false;   // no odds (an old card): today's default, Roll again
   const dialog = await openMomentPopup(message, EITHER_FLAG, actor, {
     title: `${flag.feature} — ${actor.name}`, icon: "fa-solid fa-dice", width: 440,
     content: bfCard({
@@ -171,12 +173,16 @@ async function showEitherPopup(message) {
       title: `${flag.total} damage — roll it again?`,
       subtitle: `${weapon?.name ?? "the weapon"} · ${formula} → ${flag.total}`
     }) + holdBarHTML(flag, "to answer")
+      // THE HINT (option D, ruled 2026-09-25 off prototypes/savage-hint.html): the die meter in the
+      // header, and the defaults LEAN — under the average the row starts ticked and "Roll again" is
+      // the default; at or above it, "Keep the roll". Nothing added to the row (the offer-row rule).
+      + (flag.odds ? dieMeterHTML({ value: flag.first, ...flag.odds }) : "")
       + tickRowsHTML({ name: "bf-either", rows: [{ key: flag.key, name: flag.feature, dice: `${flag.formula} again`,
         tag: "once per turn", rule: row?.rule ?? null }] }),
     buttons: [
       // The window goes at the click (Empowered's lesson, 2026-09-10): the work is fired, not awaited.
-      { action: "again", label: "Roll again", default: true, callback: () => { void rollAgain(message); } },
-      { action: "keep", label: "Keep the roll", callback: () => { void keepEither(message); } }
+      { action: "again", label: "Roll again", default: lean, callback: () => { void rollAgain(message); } },
+      { action: "keep", label: "Keep the roll", default: !lean, callback: () => { void keepEither(message); } }
     ]
   });
   // THE TICK STAYS, even on one row (the ruling): "Roll again" is live only while it is ticked.
@@ -184,7 +190,8 @@ async function showEitherPopup(message) {
   const button = form?.querySelector?.('button[data-action="again"]');
   const box = form?.querySelector?.('input[name="bf-either"]');
   if ( button && box ) {
-    button.disabled = true;
+    box.checked = !!flag.odds?.low;
+    button.disabled = !box.checked;
     box.addEventListener("change", () => { button.disabled = !box.checked; });
   }
 }

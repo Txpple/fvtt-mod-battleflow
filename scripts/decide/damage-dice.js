@@ -107,6 +107,42 @@ export function eitherPatch(rollsData, dice, fresh, secondWins) {
 }
 
 /**
+ * THE HINT (user, 2026-09-25, ruled off prototypes/savage-hint.html, option D: "yea use that savage
+ * attacker ui"): where the first set sits among everything the same dice could roll — the range,
+ * the average, the chance a second set beats it and the damage it adds on average (the higher
+ * stands, so a second roll never lowers the hit; the cost is the rest of the turn). `low` is the
+ * lean: under the average, the popup starts ticked with "Roll again" the default. The weapon's
+ * dice only — the flat parts never roll again. A die's own reroll-once-on-a-1 (`r1`) is counted.
+ * @param {ReturnType<typeof weaponDiceOf>} dice
+ * @param {number} first  the first set's total
+ * @returns {{min: number, max: number, avg: number, beat: number, gain: number, low: boolean}|null}
+ */
+export function eitherOdds(dice, first) {
+  let dist = new Map([[0, 1]]);
+  for ( const d of dice ?? [] ) {
+    const f = Number(d?.faces) || 0;
+    if ( f < 1 ) continue;
+    const r1 = (d.modifiers ?? []).some(m => /^r=?1$/i.test(m));
+    /** @type {[number, number][]} */
+    const face = [];
+    for ( let v = 1; v <= f; v++ ) face.push([v, r1 ? ((v === 1 ? 0 : 1 / f) + (1 / (f * f))) : 1 / f]);
+    for ( let n = 0; n < (Number(d.number) || 0); n++ ) {
+      const next = new Map();
+      for ( const [s, p] of dist ) for ( const [v, q] of face ) next.set(s + v, (next.get(s + v) ?? 0) + (p * q));
+      dist = next;
+    }
+  }
+  const sums = [...dist.keys()];
+  if ( sums.length < 2 ) return null;
+  const cur = Number(first) || 0;
+  let avg = 0, beat = 0, gain = 0;
+  for ( const [s, p] of dist ) { avg += s * p; if ( s > cur ) { beat += p; gain += p * (s - cur); } }
+  const round = (x, k) => Math.round(x * k) / k;
+  return { min: Math.min(...sums), max: Math.max(...sums), avg: round(avg, 100), beat: round(beat, 1000),
+    gain: round(gain, 100), low: cur < avg };
+}
+
+/**
  * Is the fold offered on this hit — and if not, what does the card say? Pure over the facts the
  * EDGE reads: the feature listed and on the sheet, a weapon, and once per turn by the `rider`
  * turn chit (standing only for a combatant — out of combat nothing stands and every hit offers).
