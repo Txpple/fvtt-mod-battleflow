@@ -32,7 +32,7 @@ import { HEAL_REROLLS } from "./decide/registry.js";
 import { healDiceOf, stripRerollOnes, rerollFaces } from "./decide/damage-dice.js";
 import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
 import { openMomentPopup, momentButton, armDeadline, disarmDeadline, livePopups, scheduleBarSync,
-  dramaticVerdictPause, registerResumable } from "./ui.js";
+  dramaticVerdictPause, registerResumable, paintDieChip } from "./ui.js";
 import { moveAppliedDamage } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
 
@@ -149,7 +149,7 @@ async function showPopup(message) {
   const ones = (flag.dice ?? []).filter(d => d.one).length;
   // Eight to a row (Empowered's grid). A 1 is ticked and pickable; any other face is shown, greyed.
   const chips = (flag.dice ?? []).map(d => `<button type="button" data-bf-heal-die="${esc(d.key)}" data-picked="${d.one ? "1" : "0"}" ${d.one ? "" : "disabled"} data-tooltip="d${d.faces}"
-      style="width:2.2rem;height:2.2rem;margin:0;padding:0;font-weight:bold;${d.one ? "color:#b4463c;outline:2px solid rgb(222,120,40);" : "opacity:0.45;"}">${d.result}</button>`).join("");
+      style="width:2.2rem;height:2.2rem;margin:0;padding:0;font-weight:bold;${d.one ? "" : "opacity:0.45;"}">${d.result}</button>`).join("");
   const dialog = await openMomentPopup(message, HEAL_FLAG, actor, {
     title: `${flag.feature} — ${actor.name}`, icon: "fa-solid fa-hand-holding-medical", width: 460,
     content: bfCard({
@@ -166,7 +166,9 @@ async function showPopup(message) {
       { action: "keep", label: "Keep the roll", callback: () => { void keep(message); } }
     ]
   });
-  syncReroll(dialog?.element?.querySelector?.("[data-bf-heal-dice]") ?? null);
+  const box = dialog?.element?.querySelector?.("[data-bf-heal-dice]") ?? null;
+  for ( const chip of box?.querySelectorAll?.("[data-bf-heal-die]") ?? [] ) paintDieChip(chip, chip.dataset.picked === "1");
+  syncReroll(box);
 }
 
 /** Reroll is live only while at least one die is ticked (Empowered's rule, 2026-09-12). */
@@ -180,9 +182,7 @@ Hooks.once("ready", () => document.addEventListener("click", ev => {
   const chip = ev.target?.closest?.("[data-bf-heal-die]");
   if ( !chip || chip.disabled ) return;
   ev.preventDefault();
-  const on = chip.dataset.picked !== "1";
-  chip.dataset.picked = on ? "1" : "0";
-  chip.style.outline = on ? "2px solid rgb(222,120,40)" : "";
+  paintDieChip(chip, chip.dataset.picked !== "1");
   syncReroll(chip.closest("[data-bf-heal-dice]"));
 }));
 

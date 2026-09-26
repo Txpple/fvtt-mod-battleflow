@@ -36,7 +36,7 @@ import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./d
 import { METAMAGIC_FLAG, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome } from "./decide/metamagic.js";
 import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, askWords, heightenedMark, choiceCapFrom, choiceRuleFrom, choiceNeedsAsk } from "./decide/area-ask.js";
 import { newAsk, registerAskAnswerPart } from "./area-ask.js";
-import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync, dramaticVerdictPause, registerResumable } from "./ui.js";
+import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync, dramaticVerdictPause, registerResumable, paintDieChip } from "./ui.js";
 import { raiseHold, releaseHold, isHeld } from "./holds.js";
 import { moveAppliedDamage } from "./auto-apply.js";
 import { rerollFaces } from "./decide/damage-dice.js";
@@ -686,8 +686,8 @@ Hooks.once("ready", () => document.addEventListener("click", ev => {
   const box = chip.closest("[data-bf-empowered-dice]");
   const cap = Number(box?.dataset?.cap) || 99;
   const picked = [...(box?.querySelectorAll('[data-picked="1"]') ?? [])];
-  if ( chip.dataset.picked === "1" ) { chip.dataset.picked = "0"; chip.style.outline = ""; }
-  else if ( picked.length < cap ) { chip.dataset.picked = "1"; chip.dataset.order = String(Date.now()); chip.style.outline = "2px solid rgb(222,120,40)"; }
+  if ( chip.dataset.picked === "1" ) paintDieChip(chip, false);
+  else if ( picked.length < cap ) { chip.dataset.order = String(Date.now()); paintDieChip(chip, true); }
   syncEmpoweredReroll(box);
 }));
 

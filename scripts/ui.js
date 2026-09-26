@@ -1259,3 +1259,24 @@ export async function resumeWithheld(by, ctx, rollMessage) {
   if ( !machine ) { console.warn(`${TITLE} | No machine registered to resume a withheld verdict${by ? ` for ${by}` : ""}.`); return; }
   await machine.resume(ctx, rollMessage);
 }
+
+/**
+ * A PICKED DIE SHOWS (user, 2026-09-25: "when i pick dice for reroll, theres no visible toggle if a
+ * die is picked or not" — Empowered Spell's and the Healing Rerolls' chips). The pick was a 2px
+ * outline the theme's own button rules drowned; now a picked chip is FILLED in the waiting hue with a
+ * ring (the face stays the die's number — the suites read it), set `!important` so no theme rule wins. One paint for every dice popup; a chip's
+ * `data-picked` stays the truth the answer reads.
+ * @param {HTMLElement} chip
+ * @param {boolean} on
+ */
+export function paintDieChip(chip, on) {
+  if ( !chip ) return;
+  chip.dataset.picked = on ? "1" : "0";
+  const set = (prop, value) => value ? chip.style.setProperty(prop, value, "important") : chip.style.removeProperty(prop);
+  set("background", on ? "rgba(222,120,40,0.85)" : "");
+  set("color", on ? "#fff" : "");
+  set("border-color", on ? "rgb(222,120,40)" : "");
+  set("box-shadow", on ? "0 0 0 2px rgb(222,120,40)" : "");
+  set("outline", "");
+  chip.setAttribute("aria-pressed", on ? "true" : "false");
+}
