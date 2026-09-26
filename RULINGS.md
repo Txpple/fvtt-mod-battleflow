@@ -482,10 +482,10 @@ held). Built on the user's "go" in three tiers, the UI ruled off `prototypes/sli
 - **One rescue row per SOURCE** (user, 2026-09-24: *"we already have that precedent with Precision
   and Heroic Inspiration, so it would just be more button choices"*) — Lucky, Warding Flare and
   Shadowy Dodge are three rows, never one "Disadvantage" row listing its sources.
-- **Parked** (BACKLOG *Features*, each with its trigger): Trance. (Lucky's Advantage half and
-  Healer's healing rerolls were built on 2026-09-25 — HANDOFF §5/§6 until the end-of-iteration recut.) (Inner Radiance's pulse and Celestial Revelation's extra damage were built
-  in the walk, 2026-09-25 — *The Aasimar walk*, below.)
-  **Held:** Relentless Endurance, for Slice B's kill moment.
+- **Parked** (BACKLOG *Features*, each with its trigger): Trance. (Built in the walk, 2026-09-25:
+  Inner Radiance's pulse and Celestial Revelation's extra damage — *The Aasimar walk*; Lucky's
+  Advantage half and Relentless Endurance — *The species walk, continued*; Healer's healing
+  rerolls — *The origin feats*; all below.)
 
 **The save gate reads features** (tier 1; `EFFECT_BENDS` rows `match: "feature"` with a `saves`
 facet; `decide/reminders.js` `rowCarriers`, one carrier test for the check gate and both save
@@ -637,3 +637,89 @@ Celestial Revelation cases in `tests/decide-clock.test.js` / `tests/decide-emana
   like every rider. **A spell with no attack roll** may hit many and the extra goes to ONE target,
   the caster's choice (R1): once its damage lands, its card offers a button per damaged creature;
   the pick lands on its own card with a receipt (the bend: the register).
+
+## The species walk, continued (2026-09-25)
+
+**Every PHB species walked and passed on the sandbox, one at a time** (the user's order, each
+opening with its *Trait | What you should see* table; the roster was the `BF Species` actors,
+level-5 characters built through dnd5e advancement). The findings, each ruled in the walk and built
+on the user's word. The full battery proved them on 2026-09-26.
+
+- **Dragonborn, Elves' Fey Ancestry, Gnomish Cunning, Halfling's Luck, Skillful, Versatile,
+  Adrenaline Rush, Fiendish Legacy** — native or already Slice A's; no findings.
+- **Stonecunning** (user: *"just run it always and assume stone ... change the vision type to
+  tremor sense for the duration"*): a new table, `TOKEN_SENSES`, and the Token Senses list — the
+  pack's own Stonecunning effect gains Tremorsense vision and Feel Tremor detection (60 ft) as it is
+  created, so the sense lives and dies with the effect.
+- **Pass without Trace** (user: *"an emanation similar to the paladin one, but grants +10
+  stealth"*): an `EMANATIONS` row (spell, helpful, the pack's Concealed effect). The pack's spell
+  carries no area — **Vendor Fixes VF-003** gives it the 30-foot Emanation.
+- **Tinker** (user: *"just give a buff called tiny clockwork device ... the rest is played at
+  table"*; reworked: *"a popup to create the clockwork with x/3 remaining ... to max 3"*): a new
+  table, `CARD_CHIPS`, and the Card Chips list — the Rock Gnome's Prestidigitation cast asks
+  *Build it* / *Not now* with the count; each device is its own chip (the `stacks` flag); a build
+  at three asks which to remove first; the card's button recalls the ask.
+- **The Goliaths** — the boons' uses shown ("2 of 3 uses left", read off `@prof`); **Large Form**
+  resizes the token (`TOKEN_SIZES`, the Token Sizes list, Enlarge/Reduce beside it); **Storm's
+  Thunder** is the first row of `REBUKES` (`rebukes.js`; Hellish Rebuke, Fount of Moonlight,
+  Retaliation and Sword of Answering beside it) — a popup to the damaged creature when its dealer
+  stands inside the reaction's own range, and the thunder lands on the DEALER; **Stone's Endurance
+  on any damage** the module applies (ruled *"Hold before it lands"*: `damage-holds.js` claims the
+  share at `auto-apply.js`'s `registerDamageClaim` and asks in ONE popup; the click rolls and lands
+  the damage reduced); **Powerful Build** as a proxy (Advantage on Athletics/Acrobatics while
+  Grappled, an `EFFECT_BENDS` `checksWhen` row). Three rows in the register.
+- **Lucky's Advantage half** (user: *"we need to unpark the advantage on our own d20"*; ruled off a
+  prototype, not kept): the gate's BUY box — "Lucky — 1 Luck Point · N left" with an
+  Advantage tick in any attack, save, check or initiative dialog, counted in the net and the
+  default, spent when the roll goes out ticked (`advantage-buys.js`, the Reminder Sources `buy`
+  row). Initiative with no dialog is the fifth D20 fold kind, `advantage` (ruled *"After the
+  roll"*): a second d20, the higher standing (the register). `smoke-lucky`.
+- **Resourceful** (user: *"just needs [Heroic Inspiration] to be ticked on long rest"*): a new
+  table, `REST_GRANTS`, and the Rest Grants list; the grant rides the rest's own actor update
+  (`dnd5e.preRestCompleted`), the rest card names it; a Short Rest gives nothing. `smoke-rest`.
+- **Relentless Endurance, with Death Ward** (user: *"if something takes them to zero, then a popup
+  should ask to use the feat. same shape as death ward which you should do now too"*): a new table,
+  `DROP_TO_ONE`, and the Drop to 1 HP list (`drop-to-one.js`) — at `dnd5e.preApplyDamage` the HP is
+  written as 1 in the damage's own update; Relentless Endurance ASKS (Drop to 1 spends the use,
+  Drop to 0 or the clock lands the 0; never against an outright kill); Death Ward is automatic, its
+  effect removed. Sheet-typed HP goes around it (the register). Slice B adds its monster rows.
+  `smoke-drop`.
+- **Hellish Rebuke from Fiendish Legacy**: a spell with its own use left needs no slot — the
+  rebuke casts with `consume.spellSlot: false` and the use pays.
+
+## The origin feats (2026-09-25, off `prototypes/origin-feats.html`)
+
+**The five PHB origin feats with a table moment, walked on the `BF Feats` roster** (level-5
+characters built through advancement, the feat the background's own). Tough, Magic Initiate,
+Crafter and Skilled are native or out of combat. Proved by the full battery, 2026-09-26.
+
+- **Savage Attacker's hint** (the walk, off `prototypes/savage-hint.html`): a die meter in the popup's header (the first roll against
+  the average, the odds a second beats it); the tick starts TICKED on a roll under the average;
+  both buttons side by side, the tick greying the other. The clock keeps the roll.
+- **Tavern Brawler's push** (user: *"mimic the shield master push"*): the maneuver-fold kind
+  `shove` in `bash-offer.js` — Push 5 feet / Pass after an Unarmed Strike hit's damage, once per
+  turn in combat, announced (the module never moves the token). **Its die on the plain Unarmed
+  Strike** (user: *"every time I roll unarmed strike damage it's a 4"* → *"Module swaps it"*, *"but
+  give some kind of notice"*): a new table, `UNARMED_DICE`, and the Unarmed Strike Dice list
+  (`unarmed-dice.js`) — the flat 1 + Str becomes the formula the feature's own unarmed attack
+  carries (1d4r1 + Str) at `preRollDamageV2`, with one line on the damage card; a strike already
+  rolling a die is left alone.
+- **Healer's rerolls** (ruled off the prototype: the 1s start ticked): a new table, `HEAL_REROLLS`,
+  and the Healing Rerolls list (`heal-rerolls.js`, the heal applier's claim in `cast.js`) — a
+  healing roll showing a 1 opens a popup with every die as a chip, the 1s ticked; the healing
+  waits for the answer and lands once. **Battle Medic on the Healer's Kit** (user: *"if in 5 feet,
+  give the 'caster' of healer kit option to choose hit dice and make the roll for the other
+  player"*, *"and then reroll 1 option"*): a new table, `KIT_TENDS`, and the Kit Tending list
+  (`kit-tend.js`) — the kit used on one creature within 5 ft asks which of ITS Hit Dice (the
+  largest ticked); Tend spends the die and rolls the feat's own Heal dN, so the rerolls popup
+  follows. **A picked die shows** — `paintDieChip` (ui.js) for this popup and Empowered Spell's.
+- **Alert's Initiative Swap** (ruled: the player's pick is the ally's willingness): a new table,
+  `INITIATIVE_SWAPS`, and the Initiative Swaps list (`initiative-swap.js`) — once every combatant
+  has an Initiative, the holder is asked once per combat with the tracker in order; the allies on
+  its side who are not Incapacitated are pickable, their portraits framed in the MAP's disposition
+  colours (ruled *"Map colours"*); a pick previews the trade; Swap exchanges the two numbers.
+  The tracker's Reset Initiative re-arms it (`Combat#resetAll` is ONE Combat update).
+- **Musician's Encouraging Song** (user, the Rest Grants shape): a `to: "allies"` row on
+  `REST_GRANTS` — after a Short or Long Rest a popup lists the allies within 30 ft, those without
+  Heroic Inspiration ticked up to the Proficiency Bonus, those with it greyed "(has it)"; OK ticks
+  their boxes.

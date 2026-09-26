@@ -328,7 +328,7 @@ ITEM (`system.uses`, the activity consumes `itemUses`); none carries activity us
 | **Trance** (Elf) | text-only | ROW+VOCAB, low priority. **PARKED** |
 | **Celestial Revelation — the extra damage** (Aasimar) | nothing rolls it | ROW+VOCAB → `CLOCK_RIDERS` (`amount`, a `transformed` judge, `forms`, `spells`). **BUILT 2026-09-25** in the walk (RULINGS *The Aasimar walk*) |
 | **Celestial Revelation — Inner Radiance** | damage on use, 10-ft template | an `EMANATIONS` feature row (`while`, `reach: "all"`, `pulse`) plus the new `TOKEN_LIGHTS` table for its light. **BUILT 2026-09-25** in the walk |
-| **Relentless Endurance** (Orc) | heal activity, no activation ("reduced to 0 HP"); ITEM `1` lr | the kill moment. **HELD → Slice B** |
+| **Relentless Endurance** (Orc) | heal activity, no activation ("reduced to 0 HP"); ITEM `1` lr | the kill moment. ~~HELD → Slice B~~ **BUILT 2026-09-25** — `DROP_TO_ONE` + `drop-to-one.js` (with Death Ward; RULINGS *The species walk, continued*) |
 
 **NATIVE (23):** Celestial Resistance, Healing Hands, Heavenly Wings, Necrotic Shroud (⚠ the
 60 s defect above), Breath Weapon (the reference item + five typed), Dragonborn Damage
@@ -348,7 +348,7 @@ Otherworldly Presence — plus Powerful Build's grapple-escape half (a check; no
 | --- | --- | --- |
 | **Savage Attacker** | text-only: no activity, effect or uses | NEW-KIND → the damage-die kind: the weapon dice twice, keep either; once per turn by `TURN_CHITS`; owes ARCHITECTURE §11's auto-revert. **Tier 3** |
 | **Lucky — Disadvantage** | utility, no activation, consumes `itemUses` 1; ITEM `@prof` lr, one pool with Advantage | NEW-KIND → the `roll` interrupt (the defender cannot choose pre-roll: `preRollAttackV2` is sync on the attacker's client). **Tier 3** |
-| **Lucky — Advantage** | utility, consumes `itemUses` 1; the pack's Note: spends, does not enforce | ROW+VOCAB (a "next D20 Test" chip window + a save-side read). **PARKED** — the sheet does it |
+| **Lucky — Advantage** | utility, consumes `itemUses` 1; the pack's Note: spends, does not enforce | ~~PARKED~~ **BUILT 2026-09-25** — the gate's buy box (`advantage-buys.js`) + the `advantage` D20 fold for initiative with no dialog (RULINGS *The species walk, continued*) |
 | **Healer — Healing Rerolls (spells)** | nothing: the `r1` lives only in Battle Medic's own formulas | **BUILT 2026-09-25** — `HEAL_REROLLS` + `heal-rerolls.js` (spells and Battle Medic, one popup) |
 
 **NATIVE (6):** Alert's initiative (`initiativeAlert`), Healer's Battle Medic (`1dXr1 + @prof`

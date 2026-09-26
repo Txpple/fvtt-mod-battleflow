@@ -7,9 +7,10 @@
 > item becomes owed it leaves this file for a commission the user hands the next session. There
 > is no standing handoff file, by user call: a commission is written when there is one and
 > retired when it is delivered. A closed item leaves too — its record is git history. (The last,
-> HANDOFF.md of 2026-09-24 — Slice A's plan — was retired when Slice A was delivered, pending the
-> user's audit and the release floor; its plan's corrections are SWEEP §6, its long-term order the
-> section below, its text in git history.)
+> HANDOFF.md of 2026-09-25 — the Slice A walk, species and origin feats by hand — was retired on
+> 2026-09-26 when the walk was done and the full battery green; its rulings are RULINGS *The
+> species walk, continued* and *The origin feats*, the release's list below, its text in git
+> history. The one before, Slice A's plan of 2026-09-24, lives on as SWEEP §6.)
 >
 > Three files, three jobs: this file is *not now, and here is why*; [DESIGN.md](DESIGN.md) §8
 > is *no, and here is what would change the answer*; [ARCHITECTURE.md](ARCHITECTURE.md) §10 is
@@ -31,12 +32,24 @@ the sweep moves as fast as a table proves it.
 | --- | --- | --- |
 | 1 | **Play the last session on v2.0.8, fix-only until the break.** | prod stays v2.0.8 until the user says release; main's unreleased work rides the next release on the user's word |
 | 2 | **Break, day one: a doc recut, not a refactor** — PLAN.md retired, SWEEP turned into Slice A's drawing, NOTES §2 triaged for 6.x. | ✅ done 2026-09-24 (PLAN.md into ARCHITECTURE's appendix, SWEEP §6) |
-| 3 | **Slice A: species and origin feats** — sweep items 1, 2, 3 and 5 with real content behind them (SWEEP §6, RULINGS *Slice A*). | ✅ delivered on main 2026-09-24, pending the user's audit and the full battery before a release. **The table proves it:** nothing in it is done until a character built from it has played — the next campaign's session 1 is the walk |
+| 3 | **Slice A: species and origin feats** — sweep items 1, 2, 3 and 5 with real content behind them (SWEEP §6, RULINGS *Slice A*). | ✅ delivered on main 2026-09-24; **walked by hand** species by species and feat by feat 2026-09-25 (RULINGS *The species walk, continued*, *The origin feats*); **the full battery green** 2026-09-26 (four suite bugs fixed, re-run alone). Pending the user's event audit and the release call. **The table proves it:** nothing in it is done until a character built from it has played — the next campaign's session 1 is the walk |
 | 4 | **Slice B: the GM's side** — the Monster Manual traits the sweep never surveyed (Magic Resistance, Legendary Resistance's neighbours, Regeneration, Undead Fortitude, Relentless) and Arcana Unleashed's 38-monster bestiary. Independent of who the next party is, so it comes before the class walk. **Owns the rest of the kill moment**: the machine is BUILT (2026-09-25, the Orc walk — `drop-to-one.js`, the DROP_TO_ONE table: Relentless Endurance asked, Death Ward automatic); Undead Fortitude (a Con save) and the monster Relentless trait join it as rows. | next, on the user's go |
 | 5 | **Session 0 of the next campaign sets Slice C onward** — the party's actual kit one level band ahead of play, never the whole subclass corpus blind. The hit menu's next groups (Brutal Strike, Stunning Strike, Open Hand, Psionic Strike, Arcane Shot) arrive when a Barbarian, Monk or Arcane Archer sits down. Arcana Unleashed's origin feats are the phase after Slice A (SWEEP §0 item 4). | after B |
 | 6 | **Platform passes stay their own step, never inside a slice** — one per dnd5e minor, one for Foundry 15; the 6.0 pass cost a major version. | standing rule |
 
 Why not an architecture pass instead: ARCHITECTURE's appendix *Decided against*.
+
+**The Slice A release — beyond the deploy, whenever the user calls it.** Prod v2.0.8 → a minor
+version (new tables and kinds, no break). A world with STORED lists never picks up new rows, so prod
+needs Reset Defaults (or `verify-settings --fix` against prod's reference) on **Effect Sources**
+(Brave, Fey Ancestry, Dwarven Resilience, Powerful Build), **Hit Menu** (Hill's Tumble), **Clock
+Riders** (Fire's Burn, Frost's Chill, Celestial Revelation), **Interrupts** (Lucky, Warding Flare,
+Shadowy Dodge `:roll`), **Emanations** (Pass without Trace, Inner Radiance), **Reminder Sources**
+(`buy`), **D20 Folds** (`Lucky:advantage`), **Maneuver Folds** (`Tavern Brawler:shove`); the new
+lists register themselves: Damage Rolled Twice, Token Lights, Token Senses, Token Sizes, Rebukes,
+Card Chips, Rest Grants, Drop to 1 HP, Healing Rerolls, Initiative Swaps, Unarmed Strike Dice, Kit
+Tending. **Vendor Fixes** releases beside it (v1.1.0 — VF-002, VF-003). The zip route (bsdtar) and
+the process restart (the user's) as in tools/README *Release and deploy*.
 
 ## Architecture
 
