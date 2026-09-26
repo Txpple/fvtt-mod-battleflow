@@ -40,6 +40,7 @@ import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups,
 import { raiseHold, releaseHold, isHeld } from "./holds.js";
 import { moveAppliedDamage } from "./auto-apply.js";
 import { rerollFaces } from "./decide/damage-dice.js";
+import { rerollRise } from "./decide/dice-chips.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originIdInData } from "./decide/card.js";
 
@@ -742,6 +743,7 @@ async function resolveEmpowered(message, picks) {
     const outcome = empoweredOutcome({ oldTotal: flag.oldTotal, picks: done });
     // The dice land BEFORE the total moves — the same order every verdict in the module keeps
     // (dramaticVerdictPause: capped, cosmetic, never blocking).
+    const rise = rerollRise({ done, on: actor.uuid });
     const announce = await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor }),
       rolls: [fresh],
@@ -750,7 +752,8 @@ async function resolveEmpowered(message, picks) {
         title: `Empowered Spell — ${outcome.line}`,
         subtitle: spendPhrase(record ? [record] : [], "Sorcery Point") || `${POOL_NAME} spent`,
         lines: [outcome.delta === 0 ? "The total stands." : `The damage is ${outcome.newTotal} now — the new rolls stand.`] }),
-      flags: { [MODULE_ID]: { respondsTo: message.id } }
+      // the rerolled dice turn over on the canvas, over the caster (the dice that rise, group 3)
+      flags: { [MODULE_ID]: { respondsTo: message.id, ...(rise ? { diceRise: rise } : {}) } }
     });
     // THE DURABLE INTENT, BEFORE THE PAUSE (the 2026-09-10 review). The pause is seconds, and a
     // client that died inside it used to leave "answering" for ever: the point gone from the sheet,

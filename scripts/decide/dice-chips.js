@@ -48,3 +48,28 @@ export function reductionRise({ roll, from, to = null }) {
   if ( !from || !total ) return null;
   return { on: from, chips: rollChips(roll), drift: { to: to || from, label: `−${total}` } };
 }
+
+/**
+ * Empowered's replay (group 3: "the rerolled dice flip to their new faces"): each die rerolled,
+ * turning over from the face it showed to the one it rolled, over the caster.
+ * @param {{done: {old: number, new: number}[], on: string}} args
+ * @returns {{on: string, chips: object[]}|null}
+ */
+export function rerollRise({ done, on }) {
+  const chips = (done ?? []).filter(d => Number.isFinite(Number(d?.old)) && Number.isFinite(Number(d?.new)))
+    .map(d => ({ was: String(d.old), label: String(d.new), up: true }));
+  return (on && chips.length) ? { on, chips } : null;
+}
+
+/**
+ * Savage Attacker's replay (group 3: "the losing damage roll fades while the kept one glows"): the
+ * two sets' totals, the one that stands gold and the other struck — the first on a tie, as the
+ * rule's "the higher stands" keeps the roll already made.
+ * @param {{first: number, second: number, stands: "first"|"second", on: string}} args
+ * @returns {{on: string, chips: object[]}|null}
+ */
+export function eitherRise({ first, second, stands, on }) {
+  if ( !on || !Number.isFinite(Number(first)) || !Number.isFinite(Number(second)) ) return null;
+  const chip = (v, keep) => keep ? { label: String(v), up: true } : { label: String(v), drop: true };
+  return { on, chips: [chip(first, stands !== "second"), chip(second, stands === "second")] };
+}

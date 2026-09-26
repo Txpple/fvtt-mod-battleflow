@@ -33,6 +33,7 @@ import { hitTargets, turnChitStands, writeTurnChit, rebuildRolls } from "./share
 import { DAMAGE_EITHER } from "./decide/registry.js";
 import { weaponDiceOf, setFormula, setTotal, eitherOutcome, eitherPatch, eitherDue, eitherCardLine, eitherOdds } from "./decide/damage-dice.js";
 import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML, dieMeterHTML } from "./decide/present.js";
+import { eitherRise } from "./decide/dice-chips.js";
 import { openMomentPopup, momentButton, armDeadline, disarmDeadline, livePopups, scheduleBarSync,
   dramaticVerdictPause, registerResumable } from "./ui.js";
 import { attackMessageForDamage } from "./auto-damage.js";
@@ -237,6 +238,7 @@ async function rollAgain(message) {
     const outcome = eitherOutcome({ first: setTotal(dice), second });
     const rebuilt = rebuildRolls(eitherPatch(data, dice, freshResults, outcome.stands === "second"));
     const total = rollsTotal(rebuilt);
+    const rise = eitherRise({ first: setTotal(dice), second, stands: outcome.stands, on: actor?.uuid });
     const announce = await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor }),
       rolls: [fresh],
@@ -245,7 +247,8 @@ async function rollAgain(message) {
         title: `${flag.feature} — ${flag.formula} again → ${second}`,
         subtitle: outcome.delta > 0 ? `the higher stands: ${total}` : `the first stands: ${total}`,
         lines: [] }),
-      flags: { [MODULE_ID]: { respondsTo: message.id } }
+      // the two sets on the canvas, over the attacker: the one that stands glows (the dice that rise, group 3)
+      flags: { [MODULE_ID]: { respondsTo: message.id, ...(rise ? { diceRise: rise } : {}) } }
     });
     // THE DURABLE INTENT, BEFORE THE PAUSE (Empowered's 2026-09-10 review): everything the
     // completion needs is written first, so the elect's resume can finish it if this client dies.

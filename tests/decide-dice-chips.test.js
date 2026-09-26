@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { reductionRise, rollChips } from "../scripts/decide/dice-chips.js";
+import * as chips from "../scripts/decide/dice-chips.js";
+
+const { reductionRise, rollChips } = chips;
 
 // the damage reducers' dice (the user, 2026-09-26: group 2)
 const d10 = (v, pb) => ({
@@ -43,5 +45,38 @@ describe("reductionRise - the record a reduction's roll carries", () => {
   it("a reduction of one's own drifts nowhere; nothing rolled, nothing drawn", () => {
     expect(reductionRise({ roll: d10(5, 2), from: "Actor.me" }).drift.to).toBe("Actor.me");
     expect(reductionRise({ roll: { total: 0, terms: [] }, from: "Actor.me" })).toBeNull();
+  });
+});
+
+describe("group 3 - the popups' choices replayed on the canvas", () => {
+  it("Empowered: each rerolled die turns over from its old face", () => {
+    const { rerollRise } = chips;
+    expect(
+      rerollRise({
+        done: [
+          { old: 1, new: 6 },
+          { old: 2, new: 2 }
+        ],
+        on: "Actor.sorc"
+      })
+    ).toEqual({
+      on: "Actor.sorc",
+      chips: [
+        { was: "1", label: "6", up: true },
+        { was: "2", label: "2", up: true }
+      ]
+    });
+    expect(rerollRise({ done: [], on: "Actor.sorc" })).toBeNull();
+  });
+  it("Savage Attacker: the set that stands glows, the other is struck; a tie keeps the first", () => {
+    const { eitherRise } = chips;
+    expect(eitherRise({ first: 5, second: 9, stands: "second", on: "Actor.a" }).chips).toEqual([
+      { label: "5", drop: true },
+      { label: "9", up: true }
+    ]);
+    expect(eitherRise({ first: 7, second: 7, stands: "first", on: "Actor.a" }).chips).toEqual([
+      { label: "7", up: true },
+      { label: "7", drop: true }
+    ]);
   });
 });
