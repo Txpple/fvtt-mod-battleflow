@@ -24,7 +24,7 @@ export const COVERS = [
 const SECTIONS = {
   1: 'the last Initiative lands: the Alert holder\'s card lists the two allies with their Initiative (not the enemy); the popup is a radio per ally, Swap dark until one is picked; the whole lineup shown, the holder and the enemy greyed',
   2: 'Swap with the Bard: the two Initiatives are exchanged in the tracker, and the card says so (11 ↔ 17)',
-  3: 'once per combat: a later Initiative change asks nothing new',
+  3: 'once per roll: a later Initiative change asks nothing new; a reset and a re-roll asks again',
   4: 'an Incapacitated ally is not listed',
   5: 'No: the order stands; an Incapacitated Alert holder is not asked at all',
   6: 'the clock answers No (timed out)',
@@ -192,7 +192,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await first.combat.setInitiative(first.of(tCleric).id, 20);
       await sleep(1500);
       const after = game.messages.contents.filter(m => m.getFlag(MOD, 'initiativeSwap')?.combatId === first.combat.id).length;
-      ok('3a. once per combat: a later Initiative change asks nothing new', after === before, `cards ${before} → ${after}`);
+      ok('3a. once per roll: a later Initiative change asks nothing new', after === before, `cards ${before} → ${after}`);
+      // A reset and a re-roll is a new roll: the holder is asked again.
+      swapPopup()?.element?.querySelector('button[data-action="no"]')?.click();
+      await first.combat.resetAll();
+      await sleep(1200);
+      for (const [t, n] of [[tHalfling, 12], [tCleric, 15], [tBard, 18], [tVictim, 8]]) await first.combat.setInitiative(first.of(t).id, n);
+      const again = await waitFor(() => {
+        const n = game.messages.contents.filter(m => m.getFlag(MOD, 'initiativeSwap')?.combatId === first.combat.id).length;
+        return (n > before) ? n : null;
+      }, 6000);
+      ok('3b. reset Initiative and roll again: the holder is asked again', !!again && (cardFor(first.combat)?.getFlag(MOD, 'initiativeSwap')?.initiative === 12),
+        `cards ${before} → ${again} own=${cardFor(first.combat)?.getFlag(MOD, 'initiativeSwap')?.initiative}`);
+      swapPopup()?.element?.querySelector('button[data-action="no"]')?.click();
     }
 
     // ================================================== 4. an Incapacitated ally

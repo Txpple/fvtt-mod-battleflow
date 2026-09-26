@@ -22,7 +22,8 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor,
 import { lower, resolveUuid } from "./lookup.js";
 import { initiativeSwapEntries, listedNames } from "./settings.js";
 import { INITIATIVE_SWAPS } from "./decide/registry.js";
-import { TONE, bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
+import { dispositionStyle } from "./shared.js";
 import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armDeadline, disarmDeadline,
   registerRelay, registerResumable } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
@@ -53,7 +54,18 @@ const incapacitated = actor => !!actor?.statuses?.has?.("incapacitated");
 Hooks.on("updateCombatant", (combatant, changes) => {
   if ( !("initiative" in (changes ?? {})) || !isActiveGM() ) return;
   const combat = combatant.parent;
-  if ( combat ) void askFor(combat);
+  if ( !combat ) return;
+  // A RESET RE-ARMS (user, 2026-09-25: "if i reset initiative and reroll, alert doesnt retrigger"):
+  // the holder's Initiative cleared means the next roll is a new "roll Initiative", so its latch
+  // goes and the last roll landing asks again. A number merely changed asks nothing (once per roll).
+  if ( changes.initiative === null ) {
+    if ( combat.getFlag(MODULE_ID, ASKED_FLAG)?.[combatant.id] ) {
+      void combat.update({ [`flags.${MODULE_ID}.${ASKED_FLAG}.-=${combatant.id}`]: null })
+        .catch(err => console.error(`${TITLE} | The initiative swap could not re-arm — swap by hand.`, err));
+    }
+    return;
+  }
+  void askFor(combat);
 });
 
 async function askFor(combat) {
@@ -201,29 +213,31 @@ async function showSwapPopup(message) {
   const row = INITIATIVE_SWAPS[flag.row] ?? null;
   // THE LINEUP, the whole tracker in Initiative order (the card's `lineup`, built at the ask): the
   // allies are the radios; the owner "(you)", the enemies and an Incapacitated ally stay, greyed.
-  // Coloured by side like the tracker's own dispositions — ally green, enemy red, neutral yellow, the
-  // owner orange ("you") — with the rank, the token and the number; a pick previews the two new
+  // THE TARGET LIST'S SHAPE (user, 2026-09-25: "hard to read when entire row is colored. like in
+  // the select windows /target list we have the icon and its highlighted portrait ... you have the
+  // precedent" — polish.js's Targeted block, shared.js `dispositionStyle`): a plain row, the token's
+  // art framed in its canvas disposition colour, the word beside it in that colour; the rank and
+  // the number; the owner bold "(you)"; an Incapacitated ally dimmed. A pick previews the two new
   // numbers on the owner's row and the ally's ("→ 17").
   const lineup = flag.lineup ?? (flag.allies ?? []).map(a => ({ ...a, role: "ally" }));
-  const HUE = { self: TONE.pending, ally: TONE.good, enemy: TONE.bad, neutral: TONE.crit, incapacitated: TONE.neutral };
-  const NOTE = { self: "you", enemy: "enemy", neutral: "neutral", incapacitated: "Incapacitated" };
   const rows = lineup.map((a, i) => {
-    const hue = HUE[a.role] ?? TONE.neutral;
     const pick = a.role === "ally";
-    const style = `display:grid;grid-template-columns:1.4rem 1.1rem 28px 1fr auto;gap:0.45rem;align-items:center;margin:0.2rem 0;`
-      + `padding:0.25rem 0.5rem;border-radius:4px;border:1px solid var(--color-border-light,rgba(0,0,0,0.2));border-left:4px solid ${hue};`
-      + `background:color-mix(in srgb, ${hue} ${pick || (a.role === "self") ? 16 : 9}%, transparent);`
-      + (pick ? "cursor:pointer;" : "") + ((a.role === "incapacitated") ? "opacity:0.55;" : "");
+    const cue = dispositionStyle(a.tokenId ? canvas?.tokens?.get(a.tokenId) : null);
+    const word = (a.role === "self") ? "(you)" : (a.role === "incapacitated") ? "Incapacitated" : cue.label;
+    const style = "display:flex;align-items:center;gap:0.5rem;margin:2px 0;padding:0.2rem 0.4rem;border-radius:4px;"
+      + (pick ? "cursor:pointer;background:rgba(0,0,0,0.06);" : "") + ((a.role === "incapacitated") ? "opacity:0.55;" : "");
     const radio = pick
-      ? `<input type="radio" name="bf-initiative-swap" value="${esc(a.combatantId)}" data-token="${esc(a.tokenId ?? "")}" style="margin:0;">`
-      : "<span></span>";
-    const note = NOTE[a.role] ? ` <span style="font-size:var(--font-size-11,11px);opacity:0.75;">(${NOTE[a.role]})</span>` : "";
+      ? `<input type="radio" name="bf-initiative-swap" value="${esc(a.combatantId)}" data-token="${esc(a.tokenId ?? "")}" style="margin:0;flex:0 0 auto;">`
+      : `<span style="width:13px;flex:0 0 auto;"></span>`;
+    const portrait = a.img
+      ? `<img src="${esc(a.img)}" alt="${esc(cue.label)}" class="gold-icon" style="flex:0 0 auto;width:32px;height:32px;object-fit:cover;border-radius:4px;border:2px solid ${cue.color};">`
+      : `<i class="${cue.icon}" style="flex:0 0 auto;width:32px;text-align:center;color:${cue.color};"></i>`;
     const tag = pick ? "label" : "div";
     return `<${tag} data-bf-initiative-row="${esc(a.role)}" data-combatant="${esc(a.combatantId)}" data-initiative="${esc(a.initiative)}" style="${style}">
-      <span style="text-align:right;opacity:0.6;font-size:var(--font-size-11,11px);">${i + 1}</span>${radio}
-      ${a.img ? `<img src="${esc(a.img)}" alt="" style="width:28px;height:28px;border:0;object-fit:contain;">` : "<span></span>"}
-      <span style="${(a.role === "self") ? "font-weight:bold;" : ""}">${esc(a.name)}${note}</span>
-      <span style="white-space:nowrap;"><strong style="font-size:1.15em;">${esc(a.initiative)}</strong><span data-bf-initiative-after style="margin-left:0.3rem;font-weight:bold;color:${TONE.pending};"></span></span></${tag}>`;
+      <span style="flex:0 0 1.2rem;text-align:right;opacity:0.6;font-size:var(--font-size-11,11px);">${i + 1}</span>${radio}${portrait}
+      <span style="flex:1;min-width:0;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(a.name)}</span>
+      <span style="flex:0 0 auto;opacity:0.7;font-size:0.9em;color:${(a.role === "self" || a.role === "incapacitated") ? "inherit" : cue.color};">${esc(word)}</span>
+      <span style="flex:0 0 auto;min-width:3.2rem;text-align:right;white-space:nowrap;"><strong style="font-size:1.15em;">${esc(a.initiative)}</strong><span data-bf-initiative-after style="margin-left:0.3rem;font-weight:bold;"></span></span></${tag}>`;
   }).join("");
   const dialog = await openMomentPopup(message, SWAP_FLAG, actor, {
     title: `${flag.row} — ${flag.actorName}`, icon: "fa-solid fa-right-left", width: 400,

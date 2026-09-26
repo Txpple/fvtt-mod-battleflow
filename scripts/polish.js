@@ -13,7 +13,7 @@ import { blockEntries, effectChoiceEntries, interruptEntries } from "./settings.
 import { EFFECT_CHOICES, tableIndex } from "./decide/registry.js";
 import { effectChoiceFor } from "./decide/choices.js";
 import { CARD, TARGETS_KEY, activityTypeOf, activityUuidOf, castLevelOn, isCard, itemNameOf, targetsOf } from "./decide/card.js";
-import { targetDescriptorOf } from "./shared.js";
+import { targetDescriptorOf, dispositionStyle } from "./shared.js";
 import { cardActivity, profileEffectSync } from "./lookup.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -305,44 +305,6 @@ const TARGET_BLOCK_CLASS = "battleflow-target-block";
 
 /** Dialogs currently carrying a block, so a canvas re-target can refresh them. */
 const openTargetBlocks = new Set();
-
-/** A Foundry disposition colour as CSS, so the row can never disagree with the token border. */
-function dispositionHex(value, fallback) {
-  return (typeof value === "number") ? `#${value.toString(16).padStart(6, "0")}` : fallback;
-}
-
-/**
- * ABSOLUTE disposition, never relative to whoever is rolling (user call, 2026-08-19). The row
- * reads the target's OWN friendly/neutral/hostile exactly as the canvas border draws it, so it
- * means the same thing on every dialog on every client and can never contradict the screen.
- * ⚠ Known and accepted: when the GM rolls for a monster, a `friendly` token is that monster's
- * enemy but still draws the ally icon. The GM knows the fiction; a cue that silently flips
- * meaning depending on who holds the dice would be worse than one that is always literal.
- * Colour is never the only carrier — glyph, colour and word all say it (colour-blind readers,
- * and screenshots in scrollback).
- */
-function dispositionStyle(token) {
-  const D = CONST.TOKEN_DISPOSITIONS;
-  const colors = CONFIG.Canvas?.dispositionColors ?? {};
-  switch ( token?.document?.disposition ) {
-    case D.FRIENDLY:
-      return { icon: "fa-solid fa-shield-halved", label: "ally",
-        color: dispositionHex(colors.FRIENDLY, "#43dfdf") };
-    case D.NEUTRAL:
-      return { icon: "fa-solid fa-circle-half-stroke", label: "neutral",
-        color: dispositionHex(colors.NEUTRAL, "#f1d836") };
-    case D.HOSTILE:
-      return { icon: "fa-solid fa-skull", label: "enemy",
-        color: dispositionHex(colors.HOSTILE, "#e72124") };
-    case D.SECRET:
-      return { icon: "fa-solid fa-eye-slash", label: "secret",
-        color: dispositionHex(colors.SECRET, "#a612d4") };
-    // A token with no readable disposition says so rather than guessing — calling an unknown
-    // "enemy" would be exactly the false alarm the [!] flag was struck for.
-    default:
-      return { icon: "fa-solid fa-circle-question", label: "unknown", color: "inherit" };
-  }
-}
 
 /** The block itself, built fresh from live targets every time it is painted. */
 function buildTargetBlock() {
