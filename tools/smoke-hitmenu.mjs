@@ -81,7 +81,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'saves', 'saveTimer', 'castApply',
-    'concMode', 'reminderList', 'maneuverFolds', 'hitMenuList', 'clockRiderList', 'holdTimer'];
+    'concMode', 'reminderList', 'maneuverFolds', 'hitMenuList', 'clockRiderList', 'holdTimer', 'fightingStyleList'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -170,6 +170,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('holdTimer', 0);              // the sweep popup waits for a press (the hold family's clock)
     await set('reminderList', '');          // no gate: the swing rolls straight
     await set('maneuverFolds', '');         // no Precision offer on a miss that should not happen
+    // the fighter's own Great Weapon Fighting floors every die at 3 (fighting-styles.js, 2026-09-26) —
+    // not this suite's subject, and its formulas are pinned
+    await set('fightingStyleList', '');
     await set('clockRiderList', '');
     await set('hitMenuList', 'Trip Attack, Goading Attack, Menacing Attack, Pushing Attack, Disarming Attack, Distracting Strike, Maneuvering Attack, Sweeping Attack');
 

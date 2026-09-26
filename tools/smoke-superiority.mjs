@@ -87,7 +87,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'holdTimer', 'holdReveal', 'holdSkipFutile', 'interruptList', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk',
     'saves', 'castApply', 'concMode', 'reminderList', 'conditionList', 'effectList', 'maneuverFolds', 'd20Folds', 'd20FoldAsk',
-    'clockRiderList', 'hitMenuList', 'superiorityUseList', 'damageShieldList', 'damageSaveList', 'emanations'];
+    'clockRiderList', 'hitMenuList', 'superiorityUseList', 'damageShieldList', 'damageSaveList', 'emanations', 'fightingStyleList'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -178,6 +178,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('maneuverFolds', "Commander's Strike:command");
     await set('d20Folds', 'Ambush:tactical, Tactical Assessment:tactical');
     await set('d20FoldAsk', true);
+    // the fighter's own Great Weapon Fighting floors every die at 3 (fighting-styles.js, 2026-09-26) —
+    // not this suite's subject, and its formulas are pinned
+    await set('fightingStyleList', '');
     await set('clockRiderList', '');
     await set('hitMenuList', '');
     await set('superiorityUseList', 'Evasive Footwork, Bait and Switch, Lunging Attack, Feinting Attack');
