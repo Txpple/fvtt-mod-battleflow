@@ -370,3 +370,26 @@ describe("INTERRUPT_ROLLS — the three rows and the interrupt default", () => {
     }
   });
 });
+
+describe("a guard's row (Protection), the walk 2026-09-26", () => {
+  it("is live on a plain or Advantage roll", () => {
+    expect(r.guardRow({ name: "Protection", mode: "normal" })).toEqual({
+      row: {
+        key: "Protection",
+        name: "Protection",
+        dice: "Disadvantage",
+        tag: "a Reaction",
+        off: null,
+        rule: ""
+      },
+      futile: false
+    });
+    expect(r.guardRow({ name: "Protection", mode: "advantage" }).futile).toBe(false);
+  });
+  it("shows, greyed, when the attack already had Disadvantage - and says why", () => {
+    const g = r.guardRow({ name: "Protection", mode: "disadvantage" });
+    expect(g.futile).toBe(true);
+    expect(g.row.off).toBe("no effect — already at Disadvantage");
+    expect(r.futileGuardLine("Protection")).toMatch(/doesn't stack/);
+  });
+});

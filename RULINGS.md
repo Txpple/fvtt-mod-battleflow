@@ -798,7 +798,10 @@ Fighting **U1**, *"truesight yes"*. `smoke-styles` (31 checks), `smoke-guards` (
   lower standing, the attack card naming the guard; then "Protected — <guard>" lands on the
   protected creature until the start of the guard's next turn, and the gate gives every attack at it
   Disadvantage while the guard stands within 5 ft (`EFFECT_BENDS` "Protected (Protection)":
-  `named`, `item`, `sourceWithin`). **Interception** is an `INTERRUPT_REDUCTIONS` row with `ally` —
+  `named`, `item`, `sourceWithin`). When the attack already rolled with Disadvantage the guard is
+  still asked — greyed, "no effect — already at Disadvantage", the popup saying Disadvantage doesn't
+  stack and the Reaction is better kept, the button "Keep my Reaction" (the walk, 2026-09-26: "pop
+  it up, but say its not worth spending reaction"). **Interception** is an `INTERRUPT_REDUCTIONS` row with `ally` —
   the attack's damage is claimed at the applier (Stone's Endurance's seam), the first guard to
   intercept rolls 1d10 + PB and the damage lands short by it.
 - **Found on the way:** dnd5e 6.0 stamps an applied effect's origin with the ACTIVITY, so the gate's

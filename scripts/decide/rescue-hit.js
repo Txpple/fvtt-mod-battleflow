@@ -139,6 +139,25 @@ export function rescueRows({ primary, rolls, facts }) {
   return out;
 }
 
+/**
+ * A GUARD's row (Protection, beside the creature hit): Disadvantage for another. When the attack
+ * already rolled with Disadvantage the row still shows — the guard is asked, the table sees why it
+ * would do nothing — but greyed, and the popup says so above it (the walk, 2026-09-26: "when
+ * someone already attacked with disadvantage and it still hits, its kinda pointless to protect,
+ * but pop it up, but say its not worth spending reaction").
+ * @param {{name: string, rule?: string, mode: string}} args
+ * @returns {{row: {key: string, name: string, dice: string, tag: string, off: string|null, rule: string}, futile: boolean}}
+ */
+export function guardRow({ name, rule = "", mode }) {
+  const futile = mode === "disadvantage";
+  const off = futile ? "no effect — already at Disadvantage" : null;
+  return { row: { key: name, name, dice: "Disadvantage", tag: off ?? "a Reaction", off, rule }, futile };
+}
+
+/** The guard popup's line when the row can do nothing: why, and that the Reaction is better kept. */
+export const futileGuardLine = name =>
+  `It was already rolled with <strong>Disadvantage</strong>, and Disadvantage doesn't stack — ${name} would spend your Reaction for nothing. Keep it for something else.`;
+
 const usesLeft = n => `${n} use${n === 1 ? "" : "s"} left`;
 
 /**
