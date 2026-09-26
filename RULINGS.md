@@ -426,6 +426,9 @@ option names and judges nothing else.** `metamagic.js`, `decide/metamagic.js`, `
   with the dice shown, up to CHA-mod picked and rerolled (Reroll greyed until a die is ticked), and
   PATCHES the damage message's own roll the way the dice rules do; damage already applied is moved
   by the difference as its own receipt. Both record old and new dice.
+  Empowered is **damage only** ("when you roll damage for a spell"): a spell's healing, which dnd5e
+  rolls through the same damage roll, is never offered it (the walk, 2026-09-26: Cure Wounds showed
+  Empowered beside Healer's reroll).
 - **The ask timer keeps rolling for PCs** — an afk table plays through. Careful is the fix for the
   excluded, not the timer.
 - **Using an option from the SHEET arms nothing** (2026-09-24): the casting window is where

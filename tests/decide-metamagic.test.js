@@ -655,3 +655,15 @@ describe("Careful Spell greys on a spell that chooses its targets (user ruling 2
     );
   });
 });
+
+describe("empoweredReaches - damage, never a spell's healing (the walk, 2026-09-26)", () => {
+  it("a heal activity or all-healing rolls are out; damage is in", async () => {
+    const m = await import("../scripts/decide/metamagic.js");
+    expect(m.empoweredReaches({ activityType: "heal", rollTypes: ["healing"] })).toBe(false);
+    expect(m.empoweredReaches({ activityType: "damage", rollTypes: ["healing", "temphp"] })).toBe(
+      false
+    );
+    expect(m.empoweredReaches({ activityType: "save", rollTypes: ["fire"] })).toBe(true);
+    expect(m.empoweredReaches({ activityType: "attack", rollTypes: [] })).toBe(true);
+  });
+});

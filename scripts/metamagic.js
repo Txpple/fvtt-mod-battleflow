@@ -33,7 +33,7 @@ import { poolOf, spendPoolUses, isPartyMember, rebuildRolls } from "./shared.js"
 import { feetOf, tokenOfActor, tokensInRegions } from "./geometry.js";
 import { bfCard, foldedRuleHTML, esc, holdBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
-import { METAMAGIC_FLAG, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome } from "./decide/metamagic.js";
+import { METAMAGIC_FLAG, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome, empoweredReaches } from "./decide/metamagic.js";
 import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, askWords, heightenedMark, choiceCapFrom, choiceRuleFrom, choiceNeedsAsk } from "./decide/area-ask.js";
 import { newAsk, registerAskAnswerPart } from "./area-ask.js";
 import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync, dramaticVerdictPause, registerResumable, paintDieChip } from "./ui.js";
@@ -602,6 +602,8 @@ Hooks.on("dnd5e.rollDamageV2", (rolls, data) => {
 
 async function offerEmpowered(rolls, activity) {
   if ( !activity || (activity.item?.type !== "spell") ) return;
+  // damage only - a spell's healing rides the same roll (the walk, 2026-09-26)
+  if ( !empoweredReaches({ activityType: activity.type, rollTypes: (rolls ?? []).map(r => r?.options?.type) }) ) return;
   const actor = activity.actor;
   if ( !actor?.isOwner ) return;
   const message = rolls?.[0]?.parent;

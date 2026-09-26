@@ -210,6 +210,19 @@ export function extendedDuration(duration) {
 }
 
 /**
+ * Is this roll one Empowered Spell reaches? "When you roll damage for a spell" — damage, so never a
+ * spell's HEALING (dnd5e rolls a heal through the same damage roll; the walk, 2026-09-26: Cure Wounds
+ * was offered Empowered beside Healer's reroll). A heal activity, or rolls that are all healing or
+ * temporary Hit Points, is out.
+ * @param {{activityType?: string|null, rollTypes?: (string|null|undefined)[]}} facts
+ */
+export function empoweredReaches({ activityType = null, rollTypes = [] } = {}) {
+  if ( activityType === "heal" ) return false;
+  const types = (rollTypes ?? []).filter(Boolean);
+  return !(types.length && types.every(t => (t === "healing") || (t === "temphp")));
+}
+
+/**
  * EMPOWERED SPELL'S PICK (Stage 4, 2026-09-09): the dice the caster ticked, up to the cap (the
  * Charisma modifier, minimum one), each found among the dice the roll showed. A key is
  * `roll:term:index` — the die's place in the message's rolls.
