@@ -185,20 +185,26 @@ async function showEitherPopup(message) {
       { action: "keep", label: "Keep the roll", default: !lean, callback: () => { void keepEither(message); } }
     ]
   });
-  // THE TICK STAYS, even on one row (the ruling): "Roll again" is live only while it is ticked.
+  // ONE BUTTON, TIED TO THE TICK (user, 2026-09-25, off the walk's screenshot: "savage attacker
+  // should have one button or other completely tied to the check box ... like here its checked but
+  // then it also has keep roll"): ticked shows "Roll again" alone, unticked "Keep the roll" alone.
+  // The tick starts where the hint leans (under the average: ticked); the one button wears the
+  // default mark in the meter's hue, orange to roll again, green to keep — never taking the keyboard.
   const form = dialog?.element?.querySelector?.("form") ?? dialog?.element ?? null;
-  const button = form?.querySelector?.('button[data-action="again"]');
+  const again = form?.querySelector?.('button[data-action="again"]');
+  const keep = form?.querySelector?.('button[data-action="keep"]');
   const box = form?.querySelector?.('input[name="bf-either"]');
-  // THE LEAN SHOWS (user, 2026-09-25: "savage attacker should default the button roll/keep to
-  // below/above avg"): the leaned button wears the default mark in the meter's hue — Roll again
-  // orange under the average, Keep the roll green at or above it — without taking the keyboard.
-  if ( form && flag.odds ) markDefaultButton(form, lean ? "again" : "keep",
-    { hue: lean ? TONE.pending : TONE.good, focus: false, buttons: SURFACES.dialogFooter });
-  if ( button && box ) {
-    box.checked = !!flag.odds?.low;
-    button.disabled = !box.checked;
-    box.addEventListener("change", () => { button.disabled = !box.checked; });
-  }
+  if ( !again || !keep || !box ) return;
+  const follow = () => {
+    // style, not `hidden`: the footer's own button rule sets a display the attribute loses to.
+    again.style.display = box.checked ? "" : "none";
+    keep.style.display = box.checked ? "none" : "";
+    markDefaultButton(dialog.element, box.checked ? "again" : "keep",
+      { hue: box.checked ? TONE.pending : TONE.good, focus: false, buttons: `:is(${SURFACES.dialogFooter})` });
+  };
+  box.checked = lean;
+  follow();
+  box.addEventListener("change", follow);
 }
 
 async function keepEither(message, { timedOut = false } = {}) {
