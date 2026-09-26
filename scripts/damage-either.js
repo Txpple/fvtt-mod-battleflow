@@ -32,9 +32,9 @@ import { damageEitherEntries, listedNames } from "./settings.js";
 import { hitTargets, turnChitStands, writeTurnChit, rebuildRolls } from "./shared.js";
 import { DAMAGE_EITHER } from "./decide/registry.js";
 import { weaponDiceOf, setFormula, setTotal, eitherOutcome, eitherPatch, eitherDue, eitherCardLine, eitherOdds } from "./decide/damage-dice.js";
-import { TONE, bfCard, esc, holdBarHTML, popupKey, tickRowsHTML, dieMeterHTML } from "./decide/present.js";
+import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML, dieMeterHTML } from "./decide/present.js";
 import { openMomentPopup, momentButton, armDeadline, disarmDeadline, livePopups, scheduleBarSync,
-  dramaticVerdictPause, registerResumable, markDefaultButton } from "./ui.js";
+  dramaticVerdictPause, registerResumable } from "./ui.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { moveAppliedDamage } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
@@ -181,27 +181,20 @@ async function showEitherPopup(message) {
         tag: "once per turn", rule: row?.rule ?? null }] }),
     buttons: [
       // The window goes at the click (Empowered's lesson, 2026-09-10): the work is fired, not awaited.
-      { action: "again", label: "Roll again", default: lean, callback: () => { void rollAgain(message); } },
-      { action: "keep", label: "Keep the roll", default: !lean, callback: () => { void keepEither(message); } }
+      { action: "again", label: "Roll again", callback: () => { void rollAgain(message); } },
+      { action: "keep", label: "Keep the roll", callback: () => { void keepEither(message); } }
     ]
   });
-  // ONE BUTTON, TIED TO THE TICK (user, 2026-09-25, off the walk's screenshot: "savage attacker
-  // should have one button or other completely tied to the check box ... like here its checked but
-  // then it also has keep roll"): ticked shows "Roll again" alone, unticked "Keep the roll" alone.
-  // The tick starts where the hint leans (under the average: ticked); the one button wears the
-  // default mark in the meter's hue, orange to roll again, green to keep — never taking the keyboard.
+  // BOTH BUTTONS, THE TICK PICKS WHICH IS LIVE (user, 2026-09-25: "just a normal button ... i
+  // liked it when they were side by side both, you can just grey the opposing one out"): ticked,
+  // "Roll again" is live and "Keep the roll" greyed; unticked, the other way. The tick starts
+  // where the hint leans (under the average: ticked). The clock always keeps the roll (keepEither).
   const form = dialog?.element?.querySelector?.("form") ?? dialog?.element ?? null;
   const again = form?.querySelector?.('button[data-action="again"]');
   const keep = form?.querySelector?.('button[data-action="keep"]');
   const box = form?.querySelector?.('input[name="bf-either"]');
   if ( !again || !keep || !box ) return;
-  const follow = () => {
-    // style, not `hidden`: the footer's own button rule sets a display the attribute loses to.
-    again.style.display = box.checked ? "" : "none";
-    keep.style.display = box.checked ? "none" : "";
-    markDefaultButton(dialog.element, box.checked ? "again" : "keep",
-      { hue: box.checked ? TONE.pending : TONE.good, focus: false, buttons: `:is(${SURFACES.dialogFooter})` });
-  };
+  const follow = () => { again.disabled = !box.checked; keep.disabled = box.checked; };
   box.checked = lean;
   follow();
   box.addEventListener("change", follow);

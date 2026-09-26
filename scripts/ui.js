@@ -200,13 +200,11 @@ function drawDemandFieldset(app, element, demand) {
  * @param {HTMLElement} element   the dialog's element
  * @param {string} action         the button's data-action: advantage | normal | disadvantage | bf-fails
  */
-export function markDefaultButton(element, action, { hue: given = null, focus = true, buttons = SURFACES.dialogButtons } = {}) {
+export function markDefaultButton(element, action) {
   // Normal is the palette's neutral grey (colour means the roll bends). ⚠ A brighter grey was
   // tried and reverted the same day (user: "horrible … it was good") — the look is settled;
   // a dialog where the mark does not show is a MARKING problem, not a colour one.
-  // A MOMENT POPUP wears the same mark (`focus: false`, its own `buttons` part and hue): it never
-  // takes the keyboard (returnTheKeyboard), so without the mark its default shows nothing.
-  const hue = given ?? { advantage: TONE.good, disadvantage: TONE.bad, "bf-fails": TONE.bad }[action] ?? TONE.neutral;
+  const hue = { advantage: TONE.good, disadvantage: TONE.bad, "bf-fails": TONE.bad }[action] ?? TONE.neutral;
   // THE LOOK, in one place (user, 2026-09-03: "can the highlight be made more visible? … maybe
   // on the insert we can define how the highlight looks"): the button FILLED with the hue, a
   // solid ring, bold — unmistakable beside its two plain siblings. Change it here, nowhere else.
@@ -225,12 +223,12 @@ export function markDefaultButton(element, action, { hue: given = null, focus = 
     fontWeight: "bold",
     textShadow: "0 1px 2px rgba(0,0,0,0.6)"
   };
-  for ( const button of element.querySelectorAll(`${buttons} button[data-action]`) ) {
+  for ( const button of element.querySelectorAll(`${SURFACES.dialogButtons} button[data-action]`) ) {
     const isDefault = button.dataset.action === action;
-    if ( focus ) button.toggleAttribute("autofocus", isDefault);
+    button.toggleAttribute("autofocus", isDefault);
     button.toggleAttribute("data-bf-default", isDefault);
     for ( const [prop, value] of Object.entries(MARK) ) button.style[prop] = isDefault ? value : "";
-    if ( isDefault && focus ) { try { button.focus(); } catch { /* not focusable yet */ } }
+    if ( isDefault ) { try { button.focus(); } catch { /* not focusable yet */ } }
   }
 }
 
