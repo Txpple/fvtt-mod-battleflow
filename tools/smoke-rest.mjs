@@ -26,7 +26,7 @@ const SECTIONS = {
   1: 'a Long Rest with Resourceful: the Heroic Inspiration box is ticked, and the rest card says "Heroic Inspiration gained"',
   2: 'a Short Rest: nothing is given',
   3: 'Resourceful off the Rest Grants list: a Long Rest gives nothing',
-  4: 'Musician after a Long Rest: the card lists the allies within 30 ft (not the one at 40), the popup ticks the one without Heroic Inspiration and greys the one with it ("already has"); OK gives it, the card names who',
+  4: 'Musician after a Long Rest: the card lists the allies within 30 ft (not the one at 40), the popup ticks the one without Heroic Inspiration and greys the one with it ("(has it)"); OK gives it, the card names who',
   5: 'Musician after a Short Rest: it asks too',
   6: 'every ally within 30 ft already has Heroic Inspiration: no card, no popup',
   7: 'Musician off the Rest Grants list: no card'
@@ -210,8 +210,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `candidates=${names.join(', ')} cap=${flag?.cap} prof=${actor.system.attributes.prof}`);
         const app = await waitFor(songPopup, 6000);
         const cb = boxOf(app, cleric), bb = boxOf(app, bard);
-        ok('4b. the popup: the Cleric ticked, the Bard greyed and marked "already has Heroic Inspiration"',
-          !!cb?.checked && !cb?.disabled && !!bb?.disabled && !bb?.checked && /already has Heroic Inspiration/.test(bb?.closest('label')?.textContent ?? ''),
+        ok('4b. the popup: the Cleric ticked, the Bard greyed and marked "(has it)"',
+          !!cb?.checked && !cb?.disabled && !!bb?.disabled && !bb?.checked && /(has it)/.test(bb?.closest('label')?.textContent ?? ''),
           `popup=${!!app} cleric=${cb?.checked}/${cb?.disabled} bard=${bb?.checked}/${bb?.disabled}`);
         app?.element?.querySelector('button[data-action="ok"]')?.click();
         const landed = await waitFor(() => card?.getFlag(MOD, 'restSong')?.applied, 6000);

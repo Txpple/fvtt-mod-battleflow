@@ -250,7 +250,7 @@ async function showSongPopup(message) {
   const ticked = new Set(flag.candidates.filter(c => !c.has).slice(0, flag.cap).map(c => c.uuid));
   const rowOf = c => `<label style="display:flex;align-items:center;gap:0.4rem;margin:0.2rem 0;${c.has ? "opacity:0.5;" : "cursor:pointer;"}">
       <input type="checkbox" name="bf-rest-song" value="${esc(c.uuid)}" data-token="${esc(c.tokenId ?? "")}" ${c.has ? "data-has=\"1\" disabled" : ""} ${ticked.has(c.uuid) ? "checked" : ""} style="margin:0;">
-      <span>${esc(c.name)}${c.has ? ` <span style="opacity:0.8">(already has ${esc(label)})</span>` : ""}</span>
+      <span>${esc(c.name)}${c.has ? ` <span style="opacity:0.8">(has it)</span>` : ""}</span>
       <span style="margin-left:auto;font-size:var(--font-size-11,11px);opacity:0.7;">${c.feet} ft</span></label>`;
   const group = (title, list) => list.length ? `<div style="margin:0.3rem 0;"><div style="font-size:var(--font-size-11,11px);letter-spacing:0.08em;text-transform:uppercase;opacity:0.7;margin:0.2rem 0;">${title}</div>${list.map(rowOf).join("")}</div>` : "";
   const party = flag.candidates.filter(c => c.party), others = flag.candidates.filter(c => !c.party);
