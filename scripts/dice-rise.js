@@ -18,6 +18,15 @@ import { MODULE_ID, TITLE } from "./core.js";
 /** The canvas token for an actor uuid (geometry.js's reader, one line, kept here: same layer). */
 const tokenForUuid = uuid => canvas.tokens?.placeables?.find(t => t.actor?.uuid === uuid) ?? null;
 
+/** Above the tokens, where core's own scrolling text sits (the walk, 2026-09-26: "the floating text
+ * appears behind other objects, like tokens, it should be the top most"). */
+function onTop(container) {
+  container.zIndex = (CONFIG.Canvas?.groups?.interface?.zIndexScrollingText ?? 1100) + 1;
+  canvas.interface.addChild(container);
+  canvas.interface.sortableChildren = true;
+  canvas.interface.sortDirty = true;
+}
+
 const GOLD = 0xf3dc9a;
 const RED = 0xe06a5a;
 const Text = () => foundry.canvas.containers.PreciseText;
@@ -58,7 +67,7 @@ export function riseDice(token, chips) {
   const y0 = token.document.y - 8;
   root.position.set(token.center.x, y0);
   root.alpha = 0;
-  canvas.interface.addChild(root);
+  onTop(root);
   const start = performance.now(), total = 1900;
   const tick = () => {
     const t = performance.now() - start;
@@ -117,7 +126,7 @@ export function driftChip(from, to, label) {
   const p1 = { x: end.center.x, y: end.document.y - 8 - (h / 2) };
   chip.position.set(p0.x, p0.y);
   chip.alpha = 0;
-  canvas.interface.addChild(chip);
+  onTop(chip);
   const moves = (p0.x !== p1.x) || (p0.y !== p1.y);
   const t0 = performance.now(), total = moves ? 1700 : 1300;
   const ease = k => 0.5 - (Math.cos(Math.PI * k) / 2);
