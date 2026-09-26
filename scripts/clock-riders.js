@@ -3,10 +3,10 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, activeCombatFor, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
-import { lower, featureNamed, activityNamed, cardActivity, resolveUuid } from "./lookup.js";
+import { lower, featureNamed, activityNamed, cardActivity, resolveUuid, dealtTypesOf } from "./lookup.js";
 import { clockRiderEntries, listedNames } from "./settings.js";
 import { hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit } from "./shared.js";
-import { applyActivityEffectsOnHit } from "./effect-riders.js";
+import { applyActivityEffectsOnHit, applyItemEffectOnHit } from "./effect-riders.js";
 import { momentButton, registerResumable } from "./ui.js";
 import { bfCard, riderMenuHTML, ruleLine } from "./decide/present.js";
 import { CLOCK_RIDERS } from "./decide/registry.js";
@@ -65,13 +65,19 @@ function riderFormulaOf(row, act) {
   return part ? riderPartFormula({ number: part.number, denomination: part.denomination, custom: part.custom, bonus: part.bonus }) : null;
 }
 
+/** The damage types a built damage config deals — its rolls' own types. */
+const dealtTypesOfRolls = rolls => [...new Set((rolls ?? []).flatMap(r => r?.options?.types ?? (r?.options?.type ? [r.options.type] : [])))];
+
 /**
  * Every listed clock rider on this attacker's sheet, judged for THIS hit: the row, the feature
  * and its activity, the resolved formula and type, and whether the clock says it is due.
+ * `roll` (at the damage roll): the built parts' types stand over the activity's, and the roll's own
+ * crit joins the attack's d20 (a Paralyzed target's crit is the damage roll's).
  * @param {ChatMessage} attackMessage
  * @param {object} activity   the ATTACK activity that hit
+ * @param {{dealt?: string[], critical?: boolean}} [roll]
  */
-function clockRidersFor(attackMessage, activity) {
+function clockRidersFor(attackMessage, activity, roll = {}) {
   const attacker = activity?.actor ?? attackMessage?.getAssociatedActor();
   const item = activity?.item;
   if ( !attacker || !item ) return [];
@@ -83,7 +89,10 @@ function clockRidersFor(attackMessage, activity) {
     inCombat: !!combat, round: combat?.round ?? null,
     sneakArmed: !!attackMessage?.getFlag(MODULE_ID, "sneak")?.armed,
     raging: attacker.effects.some(e => (lower(e.name) === "rage") || e.statuses?.has?.("raging")),
-    weapon: item.type === "weapon"
+    weapon: item.type === "weapon",
+    dealt: roll.dealt ?? dealtTypesOf(activity),
+    // a Critical Hit: the attack's own d20, or the damage roll made critical (a Paralyzed target's)
+    critical: !!attackMessage?.rolls?.[0]?.isCritical || (roll.critical === true)
   };
   const out = [];
   for ( const [key, row] of Object.entries(CLOCK_RIDERS) ) {
@@ -105,6 +114,8 @@ function clockRidersFor(attackMessage, activity) {
     const usesLeft = uses ? uses.left : null;
     const judged = riderDue(row, { ...facts, usesLeft, form: form?.form ?? null, chitStands: turnChitStands(attacker, "rider", key) });
     out.push({ key, row, feature, activity: act, formula, type, usesLeft, uses, ...judged,
+      // an effect-only row (no dice: Hamstring, a crit's mark, Piercer's extra die) says what it does
+      says: (!raw && row.says) ? row.says : null,
       label: row.label ?? (row.activity === "Damage" ? row.feature : row.activity) });
   }
   return out;
@@ -127,11 +138,11 @@ function clockRidersDue(attackMessage, activity) {
 function clockRiderOfferParts(attackMessage, activity) {
   const due = clockRidersFor(attackMessage, activity).filter(r => r.due);
   if ( !due.length ) return null;
-  const chosen = new Set(due.filter(r => r.formula).map(r => r.key));
+  const chosen = new Set(due.filter(r => r.formula || r.says).map(r => r.key));
   return {
     riders: due,
-    lines: due.filter(r => !r.formula).map(r => `<strong>${r.label}</strong> is due, but its dice could not be read off the sheet — add them by hand.`),
-    html: riderMenuHTML(due.map(r => ({ key: r.key, label: r.label, formula: r.formula, type: r.type, why: r.why, rule: r.row.rule, usesLeft: r.usesLeft, caveat: r.row.caveat }))),
+    lines: due.filter(r => !r.formula && !r.says).map(r => `<strong>${r.label}</strong> is due, but its dice could not be read off the sheet — add them by hand.`),
+    html: riderMenuHTML(due.map(r => ({ key: r.key, label: r.label, formula: r.formula, says: r.says, type: r.type, why: r.why, rule: r.row.rule, usesLeft: r.usesLeft, caveat: r.row.caveat }))),
     wire(element) {
       for ( const box of (element?.querySelectorAll('input[name="bf-rider"]') ?? []) ) {
         box.addEventListener("change", () => { if ( box.checked ) chosen.add(box.value); else chosen.delete(box.value); });
@@ -173,12 +184,20 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
     // (a driven roll), and every due rider rides.
     const pick = attackMessage.getFlag(MODULE_ID, "clockPick");
     const picked = Array.isArray(pick) ? new Set(pick) : null;
-    const riders = clockRidersFor(attackMessage, activity).filter(r => r.due && (!picked || picked.has(r.key)));
+    const riders = clockRidersFor(attackMessage, activity, { dealt: dealtTypesOfRolls(config.rolls),
+      critical: (config.isCritical === true) || (config.rolls?.[0]?.options?.isCritical === true) })
+      .filter(r => r.due && (!picked || picked.has(r.key)));
     if ( !riders.length ) return;
     const attacker = activity.actor;
     const record = [];
     const spends = [];
     for ( const r of riders ) {
+      // Piercer's extra die (group 3): dnd5e's own crit bonus on the first roll — never doubled
+      if ( r.row.bonusDice && config.rolls?.[0] ) {
+        const opts = (config.rolls[0].options ??= {});
+        opts.critical ??= {};
+        opts.critical.bonusDice = (Number(opts.critical.bonusDice) || 0) + Number(r.row.bonusDice);
+      }
       if ( r.formula ) {
         config.rolls.push({
           // No `properties`: a feature's extra damage is its own, never the weapon's magic
@@ -189,6 +208,9 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
         });
       }
       record.push({ key: r.key, label: r.label, formula: r.formula, type: r.type, why: r.why, rule: r.row.rule,
+        ...(r.says ? { says: r.says } : {}),
+        // `lands` (group 3): the effect the rider builds on the feature, landed after the damage message exists
+        ...(r.row.lands ? { lands: r.row.lands, clock: r.row.clock ?? null, featureUuid: r.feature.uuid } : {}),
         ...(r.row.caveat ? { caveat: r.row.caveat } : {}),
         ...(r.usesLeft !== null ? { usesLeft: r.usesLeft - 1 } : {}),
         // `effects` (Frost's Chill, 2026-09-24): the activity's own effects land after the damage
@@ -235,7 +257,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
  */
 async function settleRiderEffects(message) {
   const cr = message.getFlag(MODULE_ID, "clockRiders");
-  const rows = (cr?.riders ?? []).filter(r => r.effects);
+  const rows = (cr?.riders ?? []).filter(r => r.effects || r.lands);
   if ( !rows.length || cr.effectsApplied ) return;
   if ( !drivesMomentFor(cr.sourceUuid ?? null) ) return;
   try {
@@ -252,6 +274,10 @@ async function settleRiderEffects(message) {
     for ( const r of rows ) {
       // live only: the rider FEATURE — never used up, so the sheet is the truth
       const feature = resolveUuid(r.featureUuid);
+      if ( r.lands ) {
+        await applyItemEffectOnHit(message, feature, r.lands, hits, { clock: r.clock ?? null, attacker, source: statSourceOf(message) });
+        continue;
+      }
       const activity = feature?.system?.activities?.get?.(r.activityId) ?? null;
       await applyActivityEffectsOnHit(message, activity, hits, { clock: r.clock ?? null, attacker, source: statSourceOf(message) });
     }
@@ -262,7 +288,7 @@ async function settleRiderEffects(message) {
 
 // The resume floor (the hit menu's shape): on arrival and on reload, never on an update.
 registerResumable("clockRiders", {
-  pending: (flag, _message, cause) => (cause !== "update") && !!flag.riders?.some?.(r => r.effects) && !flag.effectsApplied,
+  pending: (flag, _message, cause) => (cause !== "update") && !!flag.riders?.some?.(r => r.effects || r.lands) && !flag.effectsApplied,
   drives: flag => drivesMomentFor(flag.sourceUuid ?? null),
   drive: settleRiderEffects
 });
@@ -437,8 +463,9 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   for ( const r of cr.riders ) {
     const line = document.createElement("div");
     line.innerHTML = bfCard({
-      eyebrow: "Clock rider", tone: r.formula ? "good" : "neutral",
-      title: r.formula ? `${r.label} — ${r.formula}${r.type ? ` ${r.type}` : ""} rode this roll` : `${r.label} was due — its dice could not be read`,
+      eyebrow: "Clock rider", tone: (r.formula || r.says) ? "good" : "neutral",
+      title: r.formula ? `${r.label} — ${r.formula}${r.type ? ` ${r.type}` : ""} rode this roll`
+        : r.says ? `${r.label} — ${r.says}` : `${r.label} was due — its dice could not be read`,
       subtitle: `${r.why}${(r.usesLeft !== undefined) ? ` · ${r.usesLeft} use${r.usesLeft === 1 ? "" : "s"} left` : ""}${r.caveat ? ` · ${r.caveat}` : ""}`,
       lines: [ruleLine(r.rule)]
     });

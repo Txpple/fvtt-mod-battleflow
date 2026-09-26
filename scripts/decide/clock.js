@@ -11,16 +11,21 @@
  */
 
 /**
- * @param {{when: "oncePerTurn"|"firstRound"|"any", uses?: boolean, requires?: string, judge?: string, weapon?: boolean}} row
+ * @param {{when: "oncePerTurn"|"firstRound"|"any", uses?: boolean, requires?: string, judge?: string, weapon?: boolean,
+ *          dealt?: string, crit?: boolean}} row
  * @param {{inCombat?: boolean, round?: number|null, chitStands?: boolean, usesLeft?: number|null,
- *          sneakArmed?: boolean, raging?: boolean, weapon?: boolean, form?: string|null}} facts
+ *          sneakArmed?: boolean, raging?: boolean, weapon?: boolean, form?: string|null,
+ *          dealt?: string[], critical?: boolean}} facts
  *          `form`: the transformation that stands on the bearer, by the form's name (a `transformed`
- *          row — Celestial Revelation, the Aasimar walk 2026-09-25), null when none does
+ *          row — Celestial Revelation, the Aasimar walk 2026-09-25), null when none does;
+ *          `dealt`: the damage types this hit deals; `critical`: a Critical Hit (the PHB feats, group 3)
  * @returns {{due: boolean, why: string}}
  */
 export function riderDue(row, { inCombat = false, round = null, chitStands = false, usesLeft = null,
-  sneakArmed = false, raging = false, weapon = false, form = null } = {}) {
+  sneakArmed = false, raging = false, weapon = false, form = null, dealt = [], critical = false } = {}) {
   if ( row.weapon && !weapon ) return { due: false, why: "not a weapon attack" };
+  if ( row.dealt && !(dealt ?? []).includes(row.dealt) ) return { due: false, why: `no ${row.dealt} damage` };
+  if ( row.crit && !critical ) return { due: false, why: "not a Critical Hit" };
   if ( (row.requires === "sneak") && !sneakArmed ) return { due: false, why: "no Sneak Attack armed on this hit" };
   if ( (row.judge === "raging") && !raging ) return { due: false, why: "not raging" };
   if ( (row.judge === "transformed") && !form ) return { due: false, why: "not transformed" };
@@ -37,6 +42,7 @@ export function riderDue(row, { inCombat = false, round = null, chitStands = fal
     // Every hit, uses permitting (Slice A, 2026-09-24 — Fire's Burn, Frost's Chill): the use is
     // the only clock, judged above.
     case "any":
+      if ( row.crit ) return { due: true, why: `a Critical Hit that deals ${row.dealt ?? "damage"}` };
       return { due: true, why: "on any hit, while its uses last" };
     default:
       return { due: false, why: `an unknown clock "${row.when}"` };

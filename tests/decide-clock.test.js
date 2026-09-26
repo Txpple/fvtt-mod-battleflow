@@ -186,19 +186,21 @@ describe("the registry's clock-rider data", () => {
       expect(row.feature, key).toBeTruthy();
       // A row with no activity names its own `amount` (Celestial Revelation, 2026-09-25: no
       // activity carries the extra damage — the text's `@prof` does).
-      if (row.activity === null) expect(row.amount, key).toMatch(/^@/);
+      // …or no damage at all: an effect-only row (the PHB feats, group 3) says what it does instead.
+      if (row.activity === null && !row.says) expect(row.amount, key).toMatch(/^@/);
+      else if (row.activity === null) expect(row.lands?.name || row.bonusDice, key).toBeTruthy();
       else expect(row.activity, key).toBeTruthy();
       if (row.judge === "transformed") expect(row.forms?.length, key).toBeGreaterThan(0);
       // `any` (Slice A, 2026-09-24): every hit, uses permitting — the Goliath's boons.
       expect(["oncePerTurn", "firstRound", "any"], key).toContain(row.when);
-      if (row.when === "any") expect(row.uses, key).toBe(true);
-      if (row.effects) expect(Object.keys(chips.CHIP_WINDOWS), key).toContain(row.clock);
+      // …or a Critical Hit's own (the PHB feats, group 3: Slasher, Crusher, Piercer): the crit is the limit.
+      if (row.when === "any") expect(row.uses === true || row.crit === true, key).toBe(true);
+      if (row.effects || row.lands)
+        expect(Object.keys(chips.CHIP_WINDOWS), key).toContain(row.clock);
       expect(row.rule.length, key).toBeGreaterThan(20);
     }
     expect(reg.LIST_SPECS.clockRiders.default).toBe(
-      Object.values(reg.CLOCK_RIDERS)
-        .map(r => r.feature)
-        .join(", ")
+      [...new Set(Object.values(reg.CLOCK_RIDERS).map(r => r.feature))].join(", ")
     );
     expect(reg.CLOCK_RIDER_NAMES.has("dread ambusher")).toBe(true);
     const { entries, rejects } = reg.parseList(
@@ -214,5 +216,41 @@ describe("the registry's clock-rider data", () => {
       attacker: "advantage",
       judge: "targetNotActed"
     });
+  });
+});
+
+describe("the on-hit riders' facts (the PHB feats, group 3, 2026-09-26)", () => {
+  const row = k => reg.CLOCK_RIDERS[k];
+  it("a `dealt` row wants its damage type on the hit", () => {
+    expect(c.riderDue(row("slasher-hamstring"), { dealt: ["slashing"] }).due).toBe(true);
+    expect(c.riderDue(row("slasher-hamstring"), { dealt: ["piercing"] })).toMatchObject({
+      due: false,
+      why: "no slashing damage"
+    });
+    expect(
+      c.riderDue(row("slasher-hamstring"), {
+        dealt: ["slashing"],
+        chitStands: true,
+        inCombat: true
+      }).due
+    ).toBe(false);
+  });
+  it("a `crit` row only on a Critical Hit", () => {
+    expect(
+      c.riderDue(row("crusher-critical"), { dealt: ["bludgeoning"], critical: true })
+    ).toMatchObject({ due: true });
+    expect(
+      c.riderDue(row("crusher-critical"), { dealt: ["bludgeoning"], critical: false })
+    ).toMatchObject({ due: false, why: "not a Critical Hit" });
+    expect(c.riderDue(row("piercer-critical"), { dealt: ["slashing"], critical: true }).due).toBe(
+      false
+    );
+  });
+  it("Hamstring lands as Hamstrung (the pack's speed change); only the crit lands Slashed — the gate's Disadvantage", () => {
+    expect(row("slasher-hamstring").lands).toMatchObject({ name: "Hamstrung", from: "Slashed" });
+    expect(row("slasher-critical").lands).toMatchObject({ name: "Slashed" });
+    expect(row("slasher-critical").lands.from).toBeUndefined();
+    expect(reg.EFFECT_BENDS.Slashed.attacker).toBe("disadvantage");
+    expect(reg.EFFECT_BENDS.Hamstrung).toBeUndefined();
   });
 });

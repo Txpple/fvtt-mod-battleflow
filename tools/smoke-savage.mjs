@@ -36,7 +36,8 @@ const SECTIONS = {
   7: 'a crit: the doubled set (2d6) is rolled again whole, the totals compared',
   8: 'the clock keeps the roll: an unanswered offer times out kept, and the damage lands',
   9: 'the list is the switch: an empty Damage Rolled Twice list offers nothing',
-  10: 'the registrations FIRED (§11): dnd5e.preRollDamageV2 and dnd5e.rollDamageV2 moved with the offer on them'
+  10: 'the registrations FIRED (§11): dnd5e.preRollDamageV2 and dnd5e.rollDamageV2 moved with the offer on them',
+  11: `Piercer's Puncture (the PHB feats, group 3, 2026-09-26 — a \`one\` row): the Shortsword (Piercing) rolls a 1 — the popup asks "roll the 1 on the d6 again?"; Roll again → 5 stands, the total 5 + the modifier, the card line; a 4 rerolled to a 2 — the new roll stands, LOWER`
 };
 const DEPENDS = { 2: ['1'] };   // §2 answers the popup §1 opened
 
@@ -411,6 +412,51 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('9a. an empty Damage Rolled Twice list offers nothing — no record, no popup, the damage lands', !either(s.dmg) && !eitherPopup() && !!receipt,
         `either=${JSON.stringify(either(s.dmg))}`);
       await set('damageEitherList', prior.damageEitherList);
+    }
+
+    // ================================================== 11. Piercer's Puncture (group 3)
+    if (want(11)) {
+      await clearChips();
+      let piercer = null;
+      for (const pack of game.packs.filter(pk => (pk.metadata.packageName === 'dnd-players-handbook') && (pk.documentName === 'Item'))) {
+        const hit = (await pack.getIndex({ fields: ['type'] })).find(e => (e.name === 'Piercer') && (e.type === 'feat'));
+        if (hit) { piercer = await pack.getDocument(hit._id); break; }
+      }
+      if (!piercer) {
+        ok('11. the PHB ships Piercer', false, '');
+      } else {
+        const [lent] = await halfling.createEmbeddedDocuments('Item', [piercer.toObject()]);
+        created.items.push([halfling.id, lent.id]);
+        await set('damageEitherList', 'Piercer');
+        try {
+          const s = await swing({ d20: 15, die: 1 });
+          const popup = await waitFor(eitherPopup, 6000);
+          ok('11a. a 1 on the Shortsword\'s d6: the popup asks "roll the 1 on the d6 again?", Piercer\'s row, ticked (a 1 is under the average)',
+            !!popup && /roll the 1 on the d6 again\?/.test(textOf(popup.element)) && /Piercer/.test(textOf(popup.element))
+              && (popup.element.querySelector('input[name="bf-either"]')?.checked === true) && (either(s.dmg)?.one === true),
+            `text="${textOf(popup?.element).slice(0, 200)}" flag=${JSON.stringify(either(s.dmg))}`);
+          faces([[5, 6]]);
+          press(popup, 'again');
+          const used = await waitFor(() => (either(game.messages.get(s.dmg.id))?.status === 'used') ? game.messages.get(s.dmg.id) : null, 12000);
+          const total = used?.rolls?.reduce((n, r) => n + r.total, 0);
+          const line = await waitFor(() => { const t = cardText(s.dmg.id); return /the new roll stands/.test(t) ? t : null; }, 4000);
+          ok('11b. Roll again → 5: the new roll stands, the total 5 + the modifier, the card says "the 1 on the d6 again → 5 — the new roll stands"',
+            (either(used)?.second === 5) && (total === 5 + dexMod) && /Piercer — the 1 on the d6 again → 5 — the new roll stands/.test(line ?? ''),
+            `flag=${JSON.stringify(either(used))} total=${total} line="${(line ?? '').slice(0, 160)}"`);
+          await closeDialogs();
+          const s2 = await swing({ d20: 15, die: 4 });
+          const popup2 = await waitFor(eitherPopup, 6000);
+          faces([[2, 6]]);
+          press(popup2, 'again');
+          const used2 = await waitFor(() => (either(game.messages.get(s2.dmg.id))?.status === 'used') ? game.messages.get(s2.dmg.id) : null, 12000);
+          const total2 = used2?.rolls?.reduce((n, r) => n + r.total, 0);
+          ok('11c. a 4 rolled again to a 2: the new roll stands, LOWER ("you must use the new roll")', (either(used2)?.second === 2) && (total2 === 2 + dexMod),
+            `flag=${JSON.stringify(either(used2))} total=${total2}`);
+        } finally {
+          await closeDialogs();
+          await set('damageEitherList', prior.damageEitherList);
+        }
+      }
     }
 
     // ================================================== 10. FIRED

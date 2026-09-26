@@ -31,7 +31,8 @@ const SECTIONS = {
   6: 'the Clock Riders list is the switch: an empty list rides nothing',
   7: 'the registration FIRED (§11): preRollDamageV2 moved with a rider on it',
   8: 'Fire\'s Burn (Slice A, 2026-09-24 — `when: "any"`, uses on the ITEM): the Goliath\'s hit offers it ticked, 1d10 FIRE rides, the item\'s own use is spent and recorded; no uses left, not offered',
-  9: 'Frost\'s Chill (`effects` + `clock` on a rider): 1d6 cold rides, and "Chilled" lands on the hit clocked to the start of the attacker\'s next turn, receipted on the damage card'
+  9: 'Frost\'s Chill (`effects` + `clock` on a rider): 1d6 cold rides, and "Chilled" lands on the hit clocked to the start of the attacker\'s next turn, receipted on the damage card',
+  10: 'the PHB feats, group 3 (2026-09-26): Slasher — a Longsword hit lands "Hamstrung" (speed −10, no Disadvantage), a crit lands "Slashed" too; Crusher — a Mace crit lands "Crushed", a plain hit nothing; Piercer — a Rapier crit rolls ONE more die than the crit\'s double'
 };
 const DEPENDS = {};
 
@@ -88,7 +89,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const refill = () => dread?.update({ [`system.activities.${dreadAct().id}.uses.spent`]: 0 });
   const clearChips = async () => {
     for (const a of [victim, ranger, rogue]) {
-      const chips = a.effects.filter(e => e.getFlag(MOD, 'mastery') || /^(Vexed|Sapped|Sneak Attack|Dreadful Strike|Chilled)/.test(e.name)
+      const chips = a.effects.filter(e => e.getFlag(MOD, 'mastery') || /^(Vexed|Sapped|Sneak Attack|Dreadful Strike|Chilled|Hamstrung|Slashed|Crushed)/.test(e.name)
         || ['prone', 'poisoned', 'unconscious'].some(s => e.statuses?.has?.(s)));
       // Re-filtered and tolerant: a deleted combat tidies the chits it clocked at the same moment
       // (mastery.js's sweep), and a delete naming a gone id throws.
@@ -509,6 +510,106 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           if (live.length) await goliath.deleteEmbeddedDocuments('Item', live).catch(() => {});
           await set('clockRiderList', prior.clockRiderList);
         }
+      }
+    }
+
+    // ================================================== 10. the on-hit riders (the PHB feats, group 3)
+    if (want(10)) {
+      const phb = async (name, type) => {
+        for (const pack of game.packs.filter(pk => (pk.metadata.packageName === 'dnd-players-handbook') && (pk.documentName === 'Item'))) {
+          const hit = (await pack.getIndex({ fields: ['type'] })).find(e => (e.name === name) && (e.type === type));
+          if (hit) return pack.getDocument(hit._id);
+        }
+        return null;
+      };
+      const lent = [];
+      const lend = async (actor, name, type) => {
+        const src = await phb(name, type);
+        if (!src) throw new Error(`the PHB ships no ${type} "${name}"`);
+        const [made] = await actor.createEmbeddedDocuments('Item', [src.toObject()]);
+        lent.push([actor, made.id]);
+        return made;
+      };
+      const priorEither = game.settings.get(MOD, 'damageEitherList');
+      /** A hit with the d20 forced: 19 plain, 20 a Critical Hit. */
+      const swingAt = async (actor, token, item, d20) => {
+        await healFull();
+        token.control({ releaseOthers: true });
+        target(victimToken);
+        await sleep(80);
+        face(d20);
+        const act = attackOf(item);
+        const results = await act.use({ subsequentActions: false }, { configure: false }, {});
+        const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
+        CONFIG.Dice.randomUniform = realPRNG;
+        const attackMsg = rolls?.[0]?.parent ?? null;
+        const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
+        const offer = await waitFor(offerEl, 1500);
+        offer?.querySelector('button[data-action="roll"]')?.click();
+        const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+        await waitFor(() => game.messages.get(dmg?.id)?.getFlag(MOD, 'clockRiders')?.effectsApplied, 6000);
+        await sleep(300);
+        return { attackMsg, dmg };
+      };
+      const on = name => victim.effects.find(e => e.name === name) ?? null;
+      const changesOf = e => JSON.stringify(e?.changes ?? e?.system?.changes ?? []);
+      try {
+        await set('damageEitherList', '');   // Piercer's Puncture is smoke-savage's
+        // --- Slasher, on the ranger's Longsword
+        await lend(ranger, 'Slasher', 'feat');
+        await set('clockRiderList', 'Slasher');
+        await clearChips();
+        {
+          const { dmg } = await swingAt(ranger, rangerToken, longsword, 19);
+          const h = on('Hamstrung');
+          const cr = dmg?.getFlag(MOD, 'clockRiders');
+          ok('10a. Slasher, a plain Longsword hit: "Hamstrung" lands (the pack\'s speed −10), clocked to a turn start; no "Slashed"; the card says it',
+            !!h && /movement/.test(changesOf(h)) && /turnStart/.test(JSON.stringify(h?._source?.duration ?? {})) && !on('Slashed')
+              && (cr?.riders ?? []).some(r => (r.key === 'slasher-hamstring') && /Speed −10/.test(r.says ?? ''))
+              && /Hamstring — Speed −10 feet/.test(cardText(dmg?.id)),
+            `hamstrung=${!!h} changes=${changesOf(h)} slashed=${!!on('Slashed')} riders=${JSON.stringify((cr?.riders ?? []).map(r => r.key))}`);
+        }
+        await clearChips();
+        {
+          await swingAt(ranger, rangerToken, longsword, 20);
+          const sl = on('Slashed');
+          ok('10b. a Critical Hit lands "Slashed" too — no speed change of its own (the gate reads its Disadvantage by name)',
+            !!sl && (changesOf(sl) === '[]') && !!on('Hamstrung'), `slashed=${!!sl} changes=${changesOf(sl)} hamstrung=${!!on('Hamstrung')}`);
+        }
+        await clearChips();
+        // --- Crusher, on a Mace
+        const mace = await lend(ranger, 'Mace', 'weapon');
+        await lend(ranger, 'Crusher', 'feat');
+        await set('clockRiderList', 'Crusher');
+        {
+          await swingAt(ranger, rangerToken, mace, 19);
+          ok('10c. Crusher, a plain Mace hit: nothing lands (the push is the shove offer\'s)', !on('Crushed'), `crushed=${!!on('Crushed')}`);
+          await swingAt(ranger, rangerToken, mace, 20);
+          const cu = on('Crushed');
+          ok('10d. a Mace Critical Hit lands "Crushed", clocked to a turn start', !!cu && /turnStart/.test(JSON.stringify(cu?._source?.duration ?? {})),
+            `crushed=${!!cu} duration=${JSON.stringify(cu?._source?.duration ?? null)}`);
+        }
+        await clearChips();
+        // --- Piercer, on the rogue's Rapier
+        await lend(rogue, 'Piercer', 'feat');
+        await set('clockRiderList', 'Piercer');
+        {
+          const { dmg } = await swingAt(rogue, rogueToken, rapier, 20);
+          const die = (dmg?.rolls?.[0]?.dice ?? [])[0];
+          const base = Number(rapier.system.damage?.base?.number) || 1;
+          ok(`10e. Piercer, a Rapier Critical Hit: the first die rolls ${(base * 2) + 1} (the crit's ${base * 2} and ONE more), the card says it`,
+            (die?.number === (base * 2) + 1) && /Piercer — Enhanced Critical — one additional damage die/.test(cardText(dmg?.id)),
+            `formula="${dmg?.rolls?.[0]?.formula}" number=${die?.number}`);
+          const { dmg: plain } = await swingAt(rogue, rogueToken, rapier, 19);
+          ok('10f. a plain Rapier hit: no extra die, no rider', ((plain?.rolls?.[0]?.dice ?? [])[0]?.number === base) && !plain?.getFlag(MOD, 'clockRiders'),
+            `formula="${plain?.rolls?.[0]?.formula}"`);
+        }
+      } finally {
+        CONFIG.Dice.randomUniform = realPRNG;
+        await clearChips();
+        for (const [actor, id] of lent) if (actor.items.get(id)) await actor.deleteEmbeddedDocuments('Item', [id]).catch(() => {});
+        await set('damageEitherList', priorEither);
+        await set('clockRiderList', prior.clockRiderList);
       }
     }
 

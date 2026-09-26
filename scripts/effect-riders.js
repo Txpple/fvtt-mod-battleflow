@@ -312,6 +312,31 @@ Hooks.on("createActiveEffect", effect => {
 });
 
 /**
+ * AN EFFECT WITH NO ACTIVITY TO CARRY IT (the PHB feats, group 3, 2026-09-26 — Slasher, Crusher): the
+ * rider's `lands` built as a template on the FEATURE — its own effect `from` (changes kept unless
+ * `bare`), renamed, under a fixed id so a second hit refreshes the one copy — and landed through the
+ * same applier and receipt as the activity's effects, the rider's clock pinned to the attacker.
+ * @param {ChatMessage} receiptMessage
+ * @param {Item} feature
+ * @param {{name: string, from?: string, id: string, bare?: boolean}} lands
+ * @param {{uuid: string, name: string}[]} targets
+ */
+export async function applyItemEffectOnHit(receiptMessage, feature, lands, targets, { clock = null, attacker = null, source = null } = {}) {
+  if ( !feature || !lands?.name || !targets?.length ) return;
+  const base = lands.from ? [...(feature.effects ?? [])].find(e => e.name === lands.from) : null;
+  const data = base ? base.toObject() : { name: lands.name, img: feature.img };
+  Object.assign(data, { _id: lands.id, name: lands.name, transfer: false, disabled: false });
+  if ( !base || lands.bare ) {
+    data.changes = [];
+    if ( data.system ) data.system.changes = [];
+  }
+  const template = new ActiveEffect.implementation(data, { parent: feature });
+  const window = clock ? chipClock(clock, attacker ? placeOf(attacker) : null) : null;
+  await applyEffectsWithReceipt(receiptMessage, [template], targets,
+    { source: source ?? statSourceOf(receiptMessage), clock: window ? chipData(window) : null });
+}
+
+/**
  * AN ACTIVITY'S OWN EFFECTS ON THE HIT (Slice A, 2026-09-24) — the one path two machines share:
  * the hit menu's `effects` option (Distracting Strike) and a clock rider's `effects` row (Frost's
  * Chill, whose "Chilled" ships with no duration that means the rule). The activity's applied

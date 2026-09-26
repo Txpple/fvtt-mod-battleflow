@@ -48,3 +48,19 @@ export function withinBashReach(distanceFeet) {
   if ( (distanceFeet === null) || (distanceFeet === undefined) || !Number.isFinite(Number(distanceFeet)) ) return true;
   return Number(distanceFeet) <= 5;
 }
+
+/**
+ * "If the target is no more than one size larger than you" (Crusher's push — the PHB feats, group 3,
+ * 2026-09-26): the two sizes' places in the system's own order. A size the order does not know, or
+ * no limit, allows the push (the rule is the data's to settle; unreadable data never refuses).
+ * @param {string[]} order   CONFIG.DND5E.actorSizes' keys, smallest first
+ * @param {string|null} pusher
+ * @param {string|null} target
+ * @param {number|null} larger  the most sizes larger the target may be
+ */
+export function sizeAllows(order, pusher, target, larger) {
+  if ( (larger === null) || (larger === undefined) ) return true;
+  const a = (order ?? []).indexOf(pusher), t = (order ?? []).indexOf(target);
+  if ( (a < 0) || (t < 0) ) return true;
+  return (t - a) <= larger;
+}

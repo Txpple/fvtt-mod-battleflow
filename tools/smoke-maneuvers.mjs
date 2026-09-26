@@ -28,7 +28,7 @@ export const COVERS = [
   'precision.js',           // P, P8, M1, Q — Precision Attack
   'riposte.js',             // R, RP — Riposte's driven attack
   'hew.js',                 // H — the Hew reminder
-  'bash-offer.js',          // B — the bash offer on a listed carrier's hit; T — Tavern Brawler's shove
+  'bash-offer.js',          // B — the bash offer on a listed carrier's hit; T — Tavern Brawler's shove; C — Crusher's push
   'unarmed-dice.js',        // T4 — Tavern Brawler's die on the plain Unarmed Strike (2026-09-25)
   'saves/choices.js',       // B / I — the Prone-or-push choice and Interpose
   'saves/verdict.js'        // I — Interpose on a save success
@@ -42,6 +42,7 @@ const SECTIONS = {
   RP: '(l)+(p): the riposte HIT celebrates',
   B: 'finding ⑤: the bash choice (Prone or push)',
   T: 'Tavern Brawler: the shove offer on an Unarmed Strike hit (Push 5 feet / Pass, announced), none on a weapon hit, none unlisted; the plain Unarmed Strike rolls the feat 1d4 with a card line, flat again off the Unarmed Strike Dice list',
+  C: 'Crusher (the PHB feats, group 3, 2026-09-26): a Mace hit (Bludgeoning) offers the push — the Crusher rule quoted, Push 5 feet announced; a Dagger hit (Piercing) offers nothing; a Huge target (two sizes larger) offers nothing',
   I: 'finding ⑥: Interpose (save-success reaction)',
   H: '② + (c): the Hew reminder POPS now',
   Q: '(s): the cascade is a staircase queue'
@@ -1024,6 +1025,71 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await acFlat(victim, 25);
         await closeDialogs('Tavern Brawler');
         await closeDialogs('Weapon Mastery');
+      }
+    }
+
+    /* ============================================== C — Crusher's push (the PHB feats, group 3) */
+    if (want('C')) {
+      const phb = async (name, type) => {
+        for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
+          const hit = (await pack.getIndex({ fields: ['type'] })).find(e => (e.name === name) && (e.type === type));
+          if (hit) return pack.getDocument(hit._id);
+        }
+        return null;
+      };
+      const srcs = { crusher: await phb('Crusher', 'feat'), mace: await phb('Mace', 'weapon'), dagger: await phb('Dagger', 'weapon') };
+      if (!srcs.crusher || !srcs.mace || !srcs.dagger) {
+        ok('C0. the PHB ships Crusher, a Mace and a Dagger', false, JSON.stringify(Object.fromEntries(Object.entries(srcs).map(([k, v]) => [k, !!v]))));
+      } else {
+        const made = await pc.createEmbeddedDocuments('Item', [srcs.crusher.toObject(), srcs.mace.toObject(), srcs.dagger.toObject()]);
+        const [, mace, dagger] = made;
+        const actOf = item => () => pc.items.get(item.id)?.system.activities.find(a => a.type === 'attack');
+        const sizeBefore = victim.system._source.traits?.size ?? 'med';
+        await set('maneuverFolds', 'Crusher:shove');
+        priorActor[victim.id]['system.attributes.hp.max'] ??= victim.system._source.attributes.hp.max;
+        await victim.update({ 'system.attributes.hp.max': 1000, 'system.attributes.hp.value': 1000 });
+        await acFlat(victim, 1);
+        const hitUntil = async act => {
+          for (let i = 0; i < 6; i++) {
+            const { msg, roll } = await attack(act, victimToken);
+            if (roll && !roll.isFumble && (roll.total > 1)) return msg;
+          }
+          return null;
+        };
+        try {
+          {
+            const msg = await hitUntil(actOf(mace)());
+            const offer = await until(() => { const b = msg?.getFlag(MOD, 'bashOffer'); return (b?.status === 'pending') ? b : null; }, 12000);
+            ok('C1a. a Mace hit (Bludgeoning) by a Crusher stamps the shove offer, its row named Crusher',
+              (offer?.kind === 'shove') && (offer?.shoveRow === 'Crusher'), `offer=${JSON.stringify(offer ? { kind: offer.kind, row: offer.shoveRow, status: offer.status } : null)}`);
+            const popup = await until(() => dialogsWith('5 feet?')[0], 6000);
+            const text = (popup?.textContent ?? '').replace(/\s+/g, ' ');
+            ok('C1b. the popup quotes Crusher\'s own rule ("…deals Bludgeoning damage…one size larger…")',
+              /deals Bludgeoning damage/.test(text) && /one size larger/.test(text), text.slice(0, 200));
+            popup?.querySelector('button[data-action="use"]')?.click();
+            const card = await until(() => game.messages.contents.find(m => m.getFlag(MOD, 'bashFor') === msg?.id), 8000);
+            ok('C1c. Push 5 feet announces it', !!card && /pushes .* 5 feet/.test((card?.content ?? '').replace(/<[^>]+>/g, ' ')), `card=${!!card}`);
+            await closeDialogs('Crusher');
+          }
+          {
+            const msg = await hitUntil(actOf(dagger)());
+            await sleep(2500);
+            ok('C2. a Dagger hit (Piercing) stamps no push', !!msg && !msg.getFlag(MOD, 'bashOffer'), `offer=${JSON.stringify(msg?.getFlag(MOD, 'bashOffer') ?? null)}`);
+          }
+          {
+            await victim.update({ 'system.traits.size': 'huge' });
+            const msg = await hitUntil(actOf(mace)());
+            await sleep(2500);
+            ok('C3. a Huge target (two sizes larger than a Medium pusher): no push', !!msg && !msg.getFlag(MOD, 'bashOffer'),
+              `size=${victim.system.traits.size} pc=${pc.system.traits.size} offer=${JSON.stringify(msg?.getFlag(MOD, 'bashOffer') ?? null)}`);
+          }
+        } finally {
+          await victim.update({ 'system.traits.size': sizeBefore }).catch(() => {});
+          await pc.deleteEmbeddedDocuments('Item', made.map(i => i.id).filter(id => pc.items.get(id))).catch(() => {});
+          await acFlat(victim, 25);
+          await closeDialogs('Crusher');
+          await closeDialogs('Weapon Mastery');
+        }
       }
     }
 

@@ -288,7 +288,7 @@ describe("DAMAGE_EITHER — the table and its list", () => {
       reg.LIST_SPECS.damageEither.default
     );
     expect(rejects).toEqual([]);
-    expect(entries.map(e => e.kind)).toEqual(["savage attacker"]);
+    expect(entries.map(e => e.kind)).toEqual(["savage attacker", "piercer"]);
   });
 });
 
@@ -326,5 +326,59 @@ describe("the healing rerolls — Healer (the origin feats, 2026-09-25)", () => 
     expect(data[0].terms[0].results.filter(r => r.active !== false).map(r => r.result)).toEqual([
       6, 5
     ]);
+  });
+});
+
+describe("ONE die rolled again — Piercer's Puncture (the PHB feats, group 3, 2026-09-26)", () => {
+  const roll = (faces, results) => ({
+    terms: [
+      { faces, number: results.length, results: results.map(r => ({ result: r, active: true })) }
+    ]
+  });
+
+  it("picks the die with the most to gain: its size's average less its face", () => {
+    const best = d.bestRerollDie([roll(8, [6, 2]), roll(6, [1])]);
+    expect(best).toMatchObject({ roll: 0, term: 0, index: 1, faces: 8, value: 2 }); // d8 on a 2 gains 2.5, the d6 on a 1 gains 2.5 — the first met
+    expect(d.bestRerollDie([roll(12, [11]), roll(4, [1])])).toMatchObject({ faces: 4, value: 1 });
+    expect(d.bestRerollDie([])).toBeNull();
+  });
+
+  it("skips a struck face; reads a floored die's counted value", () => {
+    const data = [
+      {
+        terms: [
+          {
+            faces: 6,
+            number: 2,
+            results: [
+              { result: 1, active: false, rerolled: true },
+              { result: 5, active: true },
+              { result: 1, count: 3, active: true }
+            ]
+          }
+        ]
+      }
+    ];
+    expect(d.bestRerollDie(data)).toMatchObject({ index: 2, value: 3 });
+  });
+
+  it("the odds for one die: the new roll stands, so the change can be a loss", () => {
+    expect(d.oneDieOdds(8, 2)).toMatchObject({ min: 1, max: 8, avg: 4.5, gain: 2.5, low: true });
+    expect(d.oneDieOdds(8, 7)).toMatchObject({ gain: -2.5, low: false, beat: 0.125 });
+    expect(d.oneDieOdds(1, 1)).toBeNull();
+  });
+
+  it("the card line: the face, the new roll, the total", () => {
+    expect(
+      d.eitherCardLine({
+        status: "used",
+        one: true,
+        feature: "Piercer",
+        first: 2,
+        faces: 8,
+        second: 7,
+        total: 12
+      })
+    ).toBe("Piercer — the 2 on the d8 again → 7 — the new roll stands: 12 · used this turn");
   });
 });

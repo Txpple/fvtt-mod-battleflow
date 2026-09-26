@@ -715,6 +715,7 @@ export const STATE_KEYS = Object.freeze({
   bashFor: "provenance — the driven bash's usage card names the offer it answers",
   bashUsed: "an actor flag — the once-per-turn stamp; bashOffer is the resolve",
   shoveUsed: "an actor flag — Tavern Brawler's once-per-turn stamp; bashOffer (kind shove) is the resolve",
+  crushUsed: "an actor flag — Crusher's once-per-turn push stamp (SHOVES); bashOffer (kind shove) is the resolve",
   riposteUse: "provenance — the maneuver's use names the riposte it answers",
   riposteFor: "provenance — the driven attack names the riposte it answers",
   riposteBy: "provenance — the driven attack names the reactor",

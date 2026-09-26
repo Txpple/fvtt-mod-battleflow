@@ -158,10 +158,17 @@ export function eitherDue({ listed, owned, weapon, chitStands }) {
  * The card's line for the fold, from its record — source, then result (law 6). The prototype's
  * copy: "1d8 → 5, again → 7 — the higher stands: 11", the tag "Savage Attacker — used this turn".
  * @param {{status: string, feature?: string, formula?: string, first?: number, second?: number,
- *          stands?: string, total?: number|null, timedOut?: boolean}} flag
+ *          stands?: string, total?: number|null, timedOut?: boolean, one?: boolean, faces?: number}} flag
  */
 export function eitherCardLine(flag) {
   const name = flag?.feature ?? "Savage Attacker";
+  // ONE die (Piercer, the PHB feats group 3): "the 1 on the d8 again → 6 — the new roll stands: 12"
+  if ( flag?.one && (flag.status === "used") ) {
+    const tail = Number.isFinite(flag.total) ? `: ${flag.total}` : "";
+    return `${name} — the ${flag.first} on the d${flag.faces} again → ${flag.second} — the new roll stands${tail} · used this turn`;
+  }
+  if ( flag?.one && (flag.status === "answering") ) return `${name} — rolling one die again`;
+  if ( flag?.one && (flag.status === "moot") ) return `${name} — the attack missed; nothing to roll again`;
   switch ( flag?.status ) {
     case "used": {
       const firstWon = flag.stands !== "second";
@@ -219,4 +226,53 @@ export function healDiceOf(rollsData, reroll = 1) {
  */
 export function stripRerollOnes(formula) {
   return String(formula ?? "").replace(/(\d*d\d+)r=?1(?![\d<>=])/gi, "$1");
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * ONE DIE ROLLED AGAIN (the PHB feats, group 3, 2026-09-26 — Piercer's Puncture: "you can reroll one
+ * of the attack's damage dice, and you must use the new roll"). The fourth customer of the per-die
+ * patch above (`rerollFaces`). Which die is not asked: the one with the most to gain — its size's
+ * average less its face — since rerolling any other is worse on average; a tie keeps the first met.
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * The die a single reroll should take: every active face of every die term of the message's rolls
+ * (the attack's damage dice — the weapon's and any rider's), the one whose reroll gains most.
+ * @param {any[]} rollsData   the rolls' JSON
+ * @returns {{key: string, roll: number, term: number, index: number, faces: number, value: number, gain: number}|null}
+ */
+export function bestRerollDie(rollsData) {
+  /** @type {{key: string, roll: number, term: number, index: number, faces: number, value: number, gain: number}|null} */
+  let best = null;
+  (rollsData ?? []).forEach((roll, i) => {
+    (roll?.terms ?? []).forEach((term, j) => {
+      const faces = Number(term?.faces);
+      if ( !Number.isFinite(faces) || (faces < 2) || !Array.isArray(term.results) ) return;
+      term.results.forEach((r, k) => {
+        if ( (r.active === false) || r.discarded ) return;
+        const value = Number.isFinite(Number(r.count)) ? Number(r.count) : (Number(r.result) || 0);
+        const gain = ((faces + 1) / 2) - value;
+        if ( !best || (gain > best.gain) ) best = { key: `${i}:${j}:${k}`, roll: i, term: j, index: k, faces, value, gain };
+      });
+    });
+  });
+  return best;
+}
+
+/**
+ * The hint for ONE die rolled again, the new roll standing (the die meter's fields, `eitherOdds`'s
+ * shape): its range and average, the chance the new face beats this one, and the average change —
+ * which can be a LOSS, since the new roll stands. `low` leans toward rolling again.
+ * @param {number} faces
+ * @param {number} value
+ * @returns {{min: number, max: number, avg: number, beat: number, gain: number, low: boolean}|null}
+ */
+export function oneDieOdds(faces, value) {
+  const f = Number(faces) || 0;
+  if ( f < 2 ) return null;
+  const avg = (f + 1) / 2;
+  const cur = Number(value) || 0;
+  const beat = Math.max(0, f - Math.max(0, Math.min(f, cur))) / f;
+  const round = (x, k) => Math.round(x * k) / k;
+  return { min: 1, max: f, avg: round(avg, 100), beat: round(beat, 1000), gain: round(avg - cur, 100), low: cur < avg };
 }

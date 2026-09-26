@@ -308,18 +308,21 @@ export function cunningMenuHTML({ rows, max, dc, dice, chosen = [] }) {
  * tick") — a row is the tick, the name and the dice, then the fold; a condition the module
  * cannot judge is in the rule quote already. The `caveat` field is accepted and IGNORED here so
  * callers need not change; the card is where it may be said.
- * @param {{key: string, label: string, formula: string|null, type: string|null, why: string, rule: string,
+ * An effect-only rider (the PHB feats, group 3 — Hamstring, a crit's mark) has no dice: its `says`
+ * stands where the dice would, on the name's line, and nothing else changes.
+ * @param {{key: string, label: string, formula: string|null, says?: string|null, type: string|null, why: string, rule: string,
  *          usesLeft?: number|null, caveat?: string}[]} riders
  */
 export function riderMenuHTML(riders) {
-  const rows = (riders ?? []).filter(r => r.formula);
+  // an effect-only rider (Hamstring, a crit's mark — the PHB feats, group 3) says what it does
+  const rows = (riders ?? []).filter(r => r.formula || r.says);
   if ( !rows.length ) return "";
   const items = rows.map(r => `
       <label data-bf-rider-row="${attr(r.key)}" style="display:grid;grid-template-columns:auto 1fr auto;gap:0.2rem 0.5rem;align-items:center;
              margin:0.3rem 0;padding:0.35rem 0.5rem;border-radius:4px;background:rgba(0,0,0,0.06);
              border:1px solid var(--color-border-light,rgba(0,0,0,0.2));cursor:pointer;">
         <input type="checkbox" name="bf-rider" value="${attr(r.key)}" checked style="margin:0;">
-        <span style="font-weight:bold;">${attr(r.label)} — ${attr(r.formula)}${r.type ? ` ${attr(r.type)}` : ""}</span>
+        <span style="font-weight:bold;">${attr(r.label)} — ${r.formula ? `${attr(r.formula)}${r.type ? ` ${attr(r.type)}` : ""}` : attr(r.says)}</span>
         <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;">${(r.usesLeft === null) || (r.usesLeft === undefined) ? "" : `${Math.max(0, r.usesLeft - 1)} use${(r.usesLeft - 1) === 1 ? "" : "s"} left after`}</span>
         ${foldedRuleHTML(r.rule).replace("grid-column:1 / -1", "grid-column:2 / -1")}
       </label>`).join("");

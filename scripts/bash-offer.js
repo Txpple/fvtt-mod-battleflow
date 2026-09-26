@@ -9,10 +9,10 @@
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, inRunningCombat,
   combatStamp, statContext, drivesMomentFor } from "./core.js";
-import { resolveUuid, foldEntryFor } from "./lookup.js";
+import { resolveUuid, foldEntryFor, itemNamed, dealtTypesOf, lower } from "./lookup.js";
 import { maneuverFoldEntries } from "./settings.js";
-import { RULE_TEXT } from "./decide/registry.js";
-import { hitOfferStep, withinBashReach } from "./decide/sequence.js";
+import { RULE_TEXT, SHOVES } from "./decide/registry.js";
+import { hitOfferStep, withinBashReach, sizeAllows } from "./decide/sequence.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { hitTargets, modeAllows, resolveAttackMessage } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, ruleLine } from "./decide/present.js";
@@ -62,14 +62,35 @@ const OFFER_KINDS = Object.freeze({
 /** An Unarmed Strike — the attack's own classification (the pack's Tavern Brawler strike is a feat's activity). */
 const isUnarmed = subject => subject?.attack?.type?.classification === "unarmed";
 
-/** Which offer this attack carries, and from what — `{ kind, found, activity }` or null. */
-function offerFor(subject, attacker) {
-  if ( subject.attack?.type?.value !== "melee" ) return null;
-  const entries = maneuverFoldEntries();
-  if ( isUnarmed(subject) ) {
-    const found = foldEntryFor(attacker, "shove", entries);
-    if ( found ) return { kind: "shove", found, activity: null };
+/** The SHOVES row a listed `shove` item runs by — Tavern Brawler's when the table does not name it. */
+const shoveRowOf = name => Object.entries(SHOVES).find(([n]) => lower(n) === lower(name)) ?? ["Tavern Brawler", SHOVES["Tavern Brawler"]];
+
+/**
+ * THE SHOVE'S ROWS (the PHB feats, group 3, 2026-09-26): every listed `shove` item on the sheet, in
+ * list order, whose row this hit fits and whose turn's use is not spent — Tavern Brawler on an
+ * Unarmed Strike in melee, Crusher on any hit that deals Bludgeoning damage.
+ */
+function shoveFor(subject, attacker, entries) {
+  for ( const entry of entries.filter(e => e.kind === "shove") ) {
+    const item = itemNamed(attacker, entry.name);
+    if ( !item ) continue;
+    const [name, row] = shoveRowOf(item.name);
+    const fits = (row.on === "unarmed") ? (isUnarmed(subject) && (subject.attack?.type?.value === "melee"))
+      : dealtTypesOf(subject).includes(row.on);
+    if ( !fits ) continue;
+    const used = attacker.getFlag(MODULE_ID, row.used);
+    if ( used?.stamp && (used.stamp === combatStamp()) ) continue;   // once per turn, each feat its own
+    return { kind: "shove", found: { entry, item }, activity: null, shoveRow: name };
   }
+  return null;
+}
+
+/** Which offer this attack carries, and from what — `{ kind, found, activity, shoveRow? }` or null. */
+function offerFor(subject, attacker) {
+  const entries = maneuverFoldEntries();
+  const shove = shoveFor(subject, attacker, entries);
+  if ( shove ) return shove;
+  if ( subject.attack?.type?.value !== "melee" ) return null;
   if ( subject.item?.type !== "weapon" ) return null;             // feat and spell attacks never bash
   const found = foldEntryFor(attacker, "bash", entries);
   const activity = found?.item.system.activities?.contents?.find(a => a.type === "save") ?? null;
@@ -87,9 +108,11 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
     if ( !modeAllows(attacker) ) return;
     const offer = offerFor(subject, attacker);
     if ( !offer ) return;
-    const { kind, found, activity } = offer;
+    const { kind, found, activity, shoveRow = null } = offer;
+    const row = shoveRow ? SHOVES[shoveRow] : null;
     const used = attacker.getFlag(MODULE_ID, OFFER_KINDS[kind].used);
-    if ( used?.stamp && (used.stamp === combatStamp()) ) return; // once on each of your turns
+    if ( !row && used?.stamp && (used.stamp === combatStamp()) ) return; // once on each of your turns (the shove's rows judged theirs)
+    const sizes = Object.keys(CONFIG.DND5E?.actorSizes ?? {});
     const hits = hitTargets(message);
     if ( !hits.length ) return;
     const attackerToken = tokenOfActor(attacker);
@@ -102,14 +125,16 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
       // "a creature within 5 feet of you" — measured at the hit, where the feat asks it; a reach
       // weapon's 10-foot swing and a thrown javelin carry no bash (Session 8, 2026-09-22).
       const token = tokenForUuid(t.uuid);
-      if ( !withinBashReach((attackerToken && token) ? nearestFeet(attackerToken, token) : null) ) continue;
+      if ( (!row || row.reach) && !withinBashReach((attackerToken && token) ? nearestFeet(attackerToken, token) : null) ) continue;
+      // Crusher's "no more than one size larger than you" — the data settles it
+      if ( row && !sizeAllows(sizes, attacker.system?.traits?.size ?? null, a.system?.traits?.size ?? null, row.larger) ) continue;
       living.push({ uuid: t.uuid, name: t.name });
     }
     if ( !living.length ) return;                  // a corpse or a creature out of reach cannot be bashed
     // THE SEQUENCE: queued behind the damage unless nothing downstream would ever promote it.
     const sequenced = setting(S.autoApply) || setting(S.effectRiders) || setting(S.masteryRiders);
     await message.setFlag(MODULE_ID, "bashOffer", {
-      status: sequenced ? "queued" : "pending", answer: null, kind,
+      status: sequenced ? "queued" : "pending", answer: null, kind, ...(shoveRow ? { shoveRow } : {}),
       itemId: found.item.id, activityId: activity?.id ?? null,
       itemName: found.item.name, itemImg: found.item.img,
       attackerUuid: attacker.uuid, targets: living,
@@ -269,7 +294,9 @@ async function announceShove(message, flag, attacker) {
   });
   if ( inRunningCombat(attacker) ) {
     const stamp = combatStamp();
-    if ( stamp ) await attacker.setFlag(MODULE_ID, "shoveUsed", { stamp });
+    // each feat its own turn's mark (SHOVES `used`), written by name so the moments check sees both
+    if ( stamp && (shoveRowOf(flag.shoveRow ?? "Tavern Brawler")[1].used === "crushUsed") ) await attacker.setFlag(MODULE_ID, "crushUsed", { stamp });
+    else if ( stamp ) await attacker.setFlag(MODULE_ID, "shoveUsed", { stamp });
   }
 }
 
@@ -297,7 +324,7 @@ async function showBashOfferPopup(message, flag) {
       title: `${flag.itemName} — ${kind.verb} ${options.length === 1 ? options[0].name : "the target"}${shove ? " 5 feet" : ""}?`,
       // (z): the rule line is the feat's own passage, verbatim — trigger, either/or and the
       // once-a-turn limit all in the feature's words.
-      lines: [ruleLine(shove ? RULE_TEXT.shove : RULE_TEXT.bash)]
+      lines: [ruleLine(shove ? (RULE_TEXT[shoveRowOf(flag.shoveRow ?? "Tavern Brawler")[1].rule] ?? RULE_TEXT.shove) : RULE_TEXT.bash)]
     }) + selectHTML + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "use", label: shove ? kind.use : `Use ${flag.itemName}`, default: true, callback: () => answer("use") },

@@ -25,13 +25,20 @@
  * `moveAppliedDamage`); with the claim holding the application that last step is a belt, not the
  * road. ⚠ dnd5e dispatches the damage hook TWICE per roll (metamagic.js measured it, 2026-09-09):
  * an in-flight set keeps the offer single.
+ *
+ * ONE DIE (the PHB feats, group 3, 2026-09-26 — Piercer's Puncture, a `one` row): the same moment,
+ * the same popup and the same patch road, but ONE die of the attack's damage rolled again and the
+ * new roll standing ("you must use the new roll"). The die is the one with the most to gain
+ * (decide/damage-dice.js `bestRerollDie`), so the popup asks only whether. A sheet with two rows
+ * is asked the first listed row that fits the hit (BACKLOG: one question per hit).
  */
 import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, drivesMomentFor } from "./core.js";
-import { lower, featureNamed, resolveUuid } from "./lookup.js";
+import { lower, featureNamed, resolveUuid, dealtTypesOf } from "./lookup.js";
 import { damageEitherEntries, listedNames } from "./settings.js";
 import { hitTargets, turnChitStands, writeTurnChit, rebuildRolls } from "./shared.js";
 import { DAMAGE_EITHER } from "./decide/registry.js";
-import { weaponDiceOf, setFormula, setTotal, eitherOutcome, eitherPatch, eitherDue, eitherCardLine, eitherOdds } from "./decide/damage-dice.js";
+import { weaponDiceOf, setFormula, setTotal, eitherOutcome, eitherPatch, eitherDue, eitherCardLine, eitherOdds,
+  bestRerollDie, oneDieOdds, rerollFaces } from "./decide/damage-dice.js";
 import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML, dieMeterHTML } from "./decide/present.js";
 import { eitherRise } from "./decide/dice-chips.js";
 import { openMomentPopup, momentButton, armDeadline, disarmDeadline, livePopups, scheduleBarSync,
@@ -45,16 +52,29 @@ const timers = new Map();
 const offering = new Set();
 const resolving = new Set();
 
-/** The listed rolled-twice row this attacker holds — `{ name, row, feature }` or null. */
-function eitherRowFor(attacker) {
+/**
+ * The listed row this attacker holds that fits THIS hit — `{ name, row, feature }` or null. A
+ * `weapon` row wants a weapon; a `dealt` row a hit that deals its type (Piercer: Piercing).
+ * @param {Actor} attacker
+ * @param {{weapon?: boolean, dealt?: string[]}} [hit]
+ */
+function eitherRowFor(attacker, hit = {}) {
   const listed = listedNames(damageEitherEntries());
   for ( const [name, row] of Object.entries(DAMAGE_EITHER) ) {
     if ( !listed.has(lower(name)) ) continue;
+    if ( row.weapon && (hit.weapon === false) ) continue;
+    if ( row.dealt && !(hit.dealt ?? []).includes(row.dealt) ) continue;
     const feature = featureNamed(attacker, name);
     if ( feature ) return { name, row, feature };
   }
   return null;
 }
+
+/** The damage types a built damage config deals — its rolls' own types, else the activity's. */
+const dealtOf = (config, activity) => {
+  const types = [...new Set((config?.rolls ?? []).flatMap(r => r?.options?.types ?? (r?.options?.type ? [r.options.type] : [])))];
+  return types.length ? types : dealtTypesOf(activity);
+};
 
 /* --- the birth flag: due, or spent this turn --------------------------------------------------- */
 
@@ -63,15 +83,18 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
     const activity = config?.subject;
     if ( activity?.type !== "attack" ) return;
     const attacker = activity.actor;
-    const found = eitherRowFor(attacker);
+    const weapon = activity.item?.type === "weapon";
+    const found = eitherRowFor(attacker, { weapon, dealt: dealtOf(config, activity) });
     if ( !found ) return;
     const attackMessage = attackMessageForDamage(config, message);
     if ( !attackMessage ) return;
-    const status = eitherDue({ listed: true, owned: true, weapon: activity.item?.type === "weapon",
+    // a row that does not ask for a weapon (Piercer) is due on any attack that fits it
+    const status = eitherDue({ listed: true, owned: true, weapon: weapon || !found.row.weapon,
       chitStands: turnChitStands(attacker, "rider", found.row.key) });
     if ( !status ) return;
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${EITHER_FLAG}`, {
       status, feature: found.name, key: found.row.key, actorUuid: attacker.uuid, attackId: attackMessage.id,
+      ...(found.row.one ? { one: true } : {}),
       ...statContext(attacker.uuid)
     });
   } catch(err) {
@@ -108,17 +131,28 @@ async function promote(message) {
   offering.add(message.id);
   try {
     const attackMessage = game.messages.get(flag.attackId);
-    const dice = weaponDiceOf((message.rolls ?? []).map(r => r.toJSON()), weaponRollsOf(message));
+    const data = (message.rolls ?? []).map(r => r.toJSON());
+    const dice = weaponDiceOf(data, weaponRollsOf(message));
+    // ONE die (Piercer): the attack's damage die with the most to gain, any roll of the message
+    const pick = flag.one ? bestRerollDie(data) : null;
     // A hold that turned the hit into a miss leaves nothing to roll again, and spends nothing.
-    const moot = !attackMessage || !hitTargets(attackMessage).length || !dice.length;
+    const moot = !attackMessage || !hitTargets(attackMessage).length || (flag.one ? !pick : !dice.length);
     const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
     await queueFlagWrite(message, EITHER_FLAG, current => {
       if ( current.status !== "due" ) return false;
       if ( moot ) { current.status = "moot"; return; }
       current.status = "pending";
-      current.formula = setFormula(dice);
-      current.first = setTotal(dice);
-      current.odds = eitherOdds(dice, current.first);
+      if ( pick ) {
+        current.pick = { key: pick.key, roll: pick.roll, term: pick.term, index: pick.index };
+        current.faces = pick.faces;
+        current.formula = `1d${pick.faces}`;
+        current.first = pick.value;
+        current.odds = oneDieOdds(pick.faces, pick.value);
+      } else {
+        current.formula = setFormula(dice);
+        current.first = setTotal(dice);
+        current.odds = eitherOdds(dice, current.first);
+      }
       current.total = rollsTotal(message.rolls);
       if ( window ) { current.window = window; current.deadline = Date.now() + (window * 1000); }
     });
@@ -171,14 +205,15 @@ async function showEitherPopup(message) {
     content: bfCard({
       img: featureNamed(actor, flag.feature)?.img ?? weapon?.img ?? null,
       eyebrow: `Damage — ${flag.feature}`, tone: "pending",
-      title: `${flag.total} damage — roll it again?`,
+      title: flag.one ? `${flag.total} damage — roll the ${flag.first} on the d${flag.faces} again?` : `${flag.total} damage — roll it again?`,
       subtitle: `${weapon?.name ?? "the weapon"} · ${formula} → ${flag.total}`
     }) + holdBarHTML(flag, "to answer")
       // THE HINT (option D, ruled 2026-09-25 off prototypes/savage-hint.html): the die meter in the
       // header, and the defaults LEAN — under the average the row starts ticked and "Roll again" is
       // the default; at or above it, "Keep the roll". Nothing added to the row (the offer-row rule).
       + (flag.odds ? dieMeterHTML({ value: flag.first, ...flag.odds }) : "")
-      + tickRowsHTML({ name: "bf-either", rows: [{ key: flag.key, name: flag.feature, dice: `${flag.formula} again`,
+      + tickRowsHTML({ name: "bf-either", rows: [{ key: flag.key, name: flag.feature,
+        dice: flag.one ? `the ${flag.first} again — the new roll stands` : `${flag.formula} again`,
         tag: "once per turn", rule: row?.rule ?? null }] }),
     buttons: [
       // The window goes at the click (Empowered's lesson, 2026-09-10): the work is fired, not awaited.
@@ -231,21 +266,24 @@ async function rollAgain(message) {
     const dice = weaponDiceOf(data, weaponRollsOf(message));
     // THE SECOND SET, ONE ROLL, ON ITS OWN CARD — the card every roll-reader and Dice So Nice key on
     // (Empowered's announce card, the same reason). Its die terms are the weapon's, term for term.
-    const fresh = await new Roll(setFormula(dice)).evaluate();
+    // ONE die (Piercer): the picked die alone, and the new roll stands whatever it shows.
+    const fresh = await new Roll(flag.one ? flag.formula : setFormula(dice)).evaluate();
     const freshResults = fresh.dice.map(d => d.results.map(r => ({ ...r })));
     const second = fresh.dice.reduce((n, d) => n + d.results.filter(r => (r.active !== false) && !r.discarded)
       .reduce((a, r) => a + (Number(r.result) || 0), 0), 0);
-    const outcome = eitherOutcome({ first: setTotal(dice), second });
-    const rebuilt = rebuildRolls(eitherPatch(data, dice, freshResults, outcome.stands === "second"));
+    const first = flag.one ? Number(flag.first) : setTotal(dice);
+    const outcome = flag.one ? { stands: "second", delta: second - first } : eitherOutcome({ first, second });
+    const patched = flag.one ? rerollFaces(data, [flag.pick], [second]).data : eitherPatch(data, dice, freshResults, outcome.stands === "second");
+    const rebuilt = rebuildRolls(patched);
     const total = rollsTotal(rebuilt);
-    const rise = eitherRise({ first: setTotal(dice), second, stands: outcome.stands, on: actor?.uuid });
+    const rise = eitherRise({ first, second, stands: outcome.stands, on: actor?.uuid });
     const announce = await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor }),
       rolls: [fresh],
       content: bfCard({ img: featureNamed(actor, flag.feature)?.img ?? null,
         eyebrow: `Damage — ${flag.feature}`, tone: outcome.delta > 0 ? "good" : "neutral",
-        title: `${flag.feature} — ${flag.formula} again → ${second}`,
-        subtitle: outcome.delta > 0 ? `the higher stands: ${total}` : `the first stands: ${total}`,
+        title: flag.one ? `${flag.feature} — the ${first} on the d${flag.faces} again → ${second}` : `${flag.feature} — ${flag.formula} again → ${second}`,
+        subtitle: flag.one ? `the new roll stands: ${total}` : (outcome.delta > 0 ? `the higher stands: ${total}` : `the first stands: ${total}`),
         lines: [] }),
       // the two sets on the canvas, over the attacker: the one that stands glows (the dice that rise, group 3)
       flags: { [MODULE_ID]: { respondsTo: message.id, ...(rise ? { diceRise: rise } : {}) } }

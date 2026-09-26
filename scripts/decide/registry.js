@@ -34,6 +34,22 @@
 // offer's shape with no save behind it; accepting announces the 5-foot push (bash-offer.js).
 export const MANEUVER_KINDS = new Set(["precision", "riposte", "interpose", "bash", "hew", "command", "shove"]);
 
+/**
+ * WHO PUSHES ON THE SHOVE OFFER (the PHB feats, group 3, 2026-09-26): the `shove` kind's rows, by the
+ * listed feat's name — what hit qualifies and which once-per-turn mark it spends. Tavern Brawler's
+ * Unarmed Strike within 5 feet; Crusher's hit that deals Bludgeoning damage, any reach, a target no
+ * more than one size larger than the pusher. ⚠ NOT A KIND: `shove` is the one kind; these are its rows.
+ *   on       "unarmed" (an Unarmed Strike) | a damage type the hit must deal
+ *   reach    true — only a creature within 5 feet (the Attack action's swing)
+ *   larger   the most sizes larger than the pusher the target may be (null: any)
+ *   used     the attacker flag that marks the turn's use — each feat its own
+ *   rule     RULE_TEXT's key for the popup's quote
+ */
+export const SHOVES = Object.freeze({
+  "Tavern Brawler": Object.freeze({ on: "unarmed", reach: true, larger: null, used: "shoveUsed", rule: "shove" }),
+  "Crusher": Object.freeze({ on: "bludgeoning", reach: false, larger: 1, used: "crushUsed", rule: "crush" })
+});
+
 /** The closed set of interrupt kinds — what a held reaction changes about an attack. */
 // `roll` (Slice A, ruled 2026-09-24 off prototypes/slice-a.html): the defender bends the ROLL
 // itself — Disadvantage imposed after the hit showed, a second d20 and the lower standing. Not
@@ -227,6 +243,7 @@ export const RULE_TEXT = {
   riposte: "When a creature misses you with a melee attack roll, you can take a Reaction and expend one Superiority Die to make a melee attack roll with a weapon or an Unarmed Strike against the creature. If you hit, add the Superiority Die to the attack's damage.",
   bash: "If you attack a creature within 5 feet of you as part of the Attack action and hit with a Melee weapon, you can immediately bash the target with your Shield if it’s equipped, forcing the target to make a Strength saving throw (DC 8 plus your Strength modifier and Proficiency Bonus). On a failed save, you either push the target 5 feet from you or cause it to have the Prone condition (your choice). You can use this benefit only once on each of your turns.",
   shove: "Push. When you hit a creature with an Unarmed Strike as part of the Attack action on your turn, you can deal damage to the target and also push it 5 feet away from you. You can use this benefit only once per turn.",
+  crush: "Push. Once per turn, when you hit a creature with an attack that deals Bludgeoning damage, you can move it 5 feet to an unoccupied space if the target is no more than one size larger than you.",
   bashChoice: "On a failed save, you either push the target 5 feet from you or cause it to have the Prone condition (your choice).",
   interpose: "If you’re subjected to an effect that allows you to make a Dexterity saving throw to take only half damage, you can take a Reaction to take no damage if you succeed on the saving throw and are holding a Shield.",
   hew: "Immediately after you score a Critical Hit with a Melee weapon or reduce a creature to 0 Hit Points with one, you can make one attack with the same weapon as a Bonus Action.",
@@ -389,6 +406,17 @@ export const DEATH_STRIKE = Object.freeze({
  *   type      "weapon" — the extra damage takes the WEAPON's own type; otherwise the part's first
  *   weapon    true — a weapon attack only (every 2024 row says "with a weapon")
  *   caveat    what the module cannot judge, said on the line
+ *   dealt     a damage type the hit must deal ("an attack that deals Slashing damage" — Slasher,
+ *             Crusher, Piercer): read off the roll's own parts, and off the activity before it
+ *   crit      true — only on a Critical Hit (the attack's own d20, or the damage roll's crit)
+ *   lands     an effect the rider lands on the hit target with no activity to carry it (the PHB
+ *             feats, group 3, 2026-09-26): `{ name, from?, id, bare? }` — built from the FEATURE's
+ *             own effect `from` (its changes kept, unless `bare`), named `name`, keyed by `id` so
+ *             the next hit refreshes it rather than stacking; with no `from`, an effect of `name`
+ *             alone (the gate reads it by name — EFFECT_BENDS). Pinned by `clock` like `effects`.
+ *   says      what an effect-only rider does, for the offer's row and the card (it has no dice)
+ *   bonusDice one more of the attack's first damage die on a Critical Hit (Piercer) — dnd5e's own
+ *             `critical.bonusDice` on the first roll, so the crit never doubles it
  *
  * Found by a 30-pack survey of every feature whose text conditions extra damage on the clock
  * (tools/probe-clock-riders.mjs, 2026-09-02). Left out on purpose: Hunter's Prey (Colossus
@@ -444,7 +472,32 @@ export const CLOCK_RIDERS = Object.freeze({
       Object.freeze({ form: "Necrotic Shroud", chip: "Necrotic Shroud", type: "necrotic" })
     ]),
     rule: "Once on each of your turns before the transformation ends, you can deal extra damage to one target when you deal damage to it with an attack or a spell. The extra damage equals your Proficiency Bonus, and the extra damage’s type is either Necrotic for Necrotic Shroud or Radiant for Heavenly Wings and Inner Radiance.",
-    from: "Aasimar — Celestial Revelation (character level 3)" })
+    from: "Aasimar — Celestial Revelation (character level 3)" }),
+  // THE PHB FEATS, group 3 (2026-09-26, HANDOFF.md — the on-hit riders). No dice of their own:
+  // an effect on the target, or one more die on a crit. ⚠ The PHB's "Slashed" effect carries
+  // Hamstring's speed −10 AND stands for the crit's Disadvantage (its Foundry note: "used for
+  // tracking the Hamstring and Enhanced Critical effects"), and EFFECT_BENDS "Slashed" counts the
+  // Disadvantage — so Hamstring lands as "Hamstrung" (the pack's change, its own name) and only the
+  // crit lands "Slashed" (measured 2026-09-26, RULINGS *The PHB feats — the scope*).
+  "slasher-hamstring": Object.freeze({ feature: "Slasher", activity: null, label: "Hamstring", when: "oncePerTurn", dealt: "slashing",
+    lands: Object.freeze({ name: "Hamstrung", from: "Slashed", id: "bfHamstrung00000" }), clock: "slow",
+    says: "Speed −10 feet until the start of your next turn",
+    rule: "Hamstring. Once per turn when you hit a creature with an attack that deals Slashing damage, you can reduce the Speed of that creature by 10 feet until the start of your next turn.",
+    from: "General feat (Slasher)" }),
+  "slasher-critical": Object.freeze({ feature: "Slasher", activity: null, label: "Slasher — Enhanced Critical", when: "any", crit: true, dealt: "slashing",
+    lands: Object.freeze({ name: "Slashed", id: "bfSlashedCrit000" }), clock: "slow",
+    says: "Disadvantage on its attack rolls until the start of your next turn",
+    rule: "Enhanced Critical. When you score a Critical Hit that deals Slashing damage to a creature, it has Disadvantage on attack rolls until the start of your next turn.",
+    from: "General feat (Slasher)" }),
+  "crusher-critical": Object.freeze({ feature: "Crusher", activity: null, label: "Crusher — Enhanced Critical", when: "any", crit: true, dealt: "bludgeoning",
+    lands: Object.freeze({ name: "Crushed", from: "Crushed", id: "bfCrushedCrit000" }), clock: "slow",
+    says: "attack rolls against it have Advantage until the start of your next turn",
+    rule: "Enhanced Critical. When you score a Critical Hit that deals Bludgeoning damage to a creature, attack rolls against that creature have Advantage until the start of your next turn.",
+    from: "General feat (Crusher)" }),
+  "piercer-critical": Object.freeze({ feature: "Piercer", activity: null, label: "Piercer — Enhanced Critical", when: "any", crit: true, dealt: "piercing",
+    bonusDice: 1, says: "one additional damage die",
+    rule: "Enhanced Critical. When you score a Critical Hit that deals Piercing damage to a creature, you can roll one additional damage die when determining the extra Piercing damage the target takes.",
+    from: "General feat (Piercer)" })
 });
 
 /**
@@ -1836,11 +1889,22 @@ const METAMAGIC_NAMES = tableIndex(METAMAGIC).names;
  * ⚠ NOT A KIND — the R4 tripwire does not move for it (ARCHITECTURE §11 step 3's test, 2026-09-24):
  * one table read by ONE machine, rows of data, the CLOCK_RIDERS / DAMAGE_SHIELDS / METAMAGIC shape.
  * Nothing dispatches on a kind column; a second customer is a row here and zero code.
+ *   weapon  true — a weapon's hit only (Savage Attacker)
+ *   one     true — ONE die rolled again, the new roll standing (Piercer); else the whole set
+ *   dealt   a damage type the hit must deal (Piercer: Piercing)
  */
 export const DAMAGE_EITHER = Object.freeze({
   "Savage Attacker": Object.freeze({ key: "savage-attacker", weapon: true,
     rule: "Once per turn when you hit a target with a weapon, you can roll the weapon’s damage dice twice and use either roll against the target.",
-    from: "Origin feat" })
+    from: "Origin feat" }),
+  // THE PHB FEATS, group 3 (2026-09-26): `one` — ONE die rolled again and the new roll stands (the
+  // rule: "you must use the new roll"), on any attack that deals `dealt` damage. The die is the
+  // one with the most to gain (its size's average less its face) — rerolling any other is worse on
+  // average, so the popup asks only whether, never which. One row per hit: a sheet holding Savage
+  // Attacker too is asked Savage's question (BACKLOG).
+  "Piercer": Object.freeze({ key: "piercer", one: true, dealt: "piercing",
+    rule: "Puncture. Once per turn, when you hit a creature with an attack that deals Piercing damage, you can reroll one of the attack’s damage dice, and you must use the new roll.",
+    from: "General feat" })
 });
 const DAMAGE_EITHER_NAMES = tableIndex(DAMAGE_EITHER).names;
 
@@ -2125,7 +2189,7 @@ export const LIST_SPECS = {
     label: "Maneuver Folds", setting: "maneuverFolds",
     columns: ["name", "kind"], kindColumn: "kind", kinds: MANEUVER_KINDS, fallback: null,
     default: "Precision Attack:precision, Riposte:riposte, Shield Master:interpose, "
-      + "Shield Master:bash, Great Weapon Master:hew, Commander's Strike:command, Tavern Brawler:shove"
+      + "Shield Master:bash, Great Weapon Master:hew, Commander's Strike:command, Tavern Brawler:shove, Crusher:shove"
   },
   d20Folds: {
     label: "D20 Folds", setting: "d20Folds",
@@ -2188,7 +2252,8 @@ export const LIST_SPECS = {
     // "Blessed Strikes: Divine Strike"), case-insensitive. Membership over CLOCK_RIDERS; the
     // mechanism is clock-riders.js.
     columns: ["kind"], kindColumn: "kind", kinds: CLOCK_RIDER_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.values(CLOCK_RIDERS).map(row => row.feature).join(", ")
+    // one name per FEATURE — a feature with two rows (Slasher: Hamstring and its crit) is listed once
+    default: [...new Set(Object.values(CLOCK_RIDERS).map(row => row.feature))].join(", ")
   },
   effects: {
     label: "Effect Sources", setting: "effectList",

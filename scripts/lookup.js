@@ -30,6 +30,20 @@ const sameName = (a, b) => lower(a) === lower(b);
 /** The item on the sheet by name, any type, or null. */
 export const itemNamed = (actor, name) => actor?.items?.find(i => sameName(i.name, name)) ?? null;
 
+/**
+ * The damage types an attack deals, before its dice (the PHB feats, group 3, 2026-09-26 — "an attack
+ * that deals Slashing damage"): the activity's own parts and, where it takes them, the weapon's base
+ * damage (a Versatile or a two-type weapon names every type it may deal).
+ */
+export function dealtTypesOf(activity) {
+  const out = new Set();
+  for ( const part of (activity?.damage?.parts ?? []) ) for ( const t of (part?.types ?? []) ) out.add(t);
+  if ( (activity?.damage?.includeBase !== false) && (activity?.item?.type === "weapon") ) {
+    for ( const t of (activity.item.system?.damage?.base?.types ?? []) ) out.add(t);
+  }
+  return [...out];
+}
+
 /** The feat on the sheet by name, or null. */
 export const featureNamed = (actor, name) =>
   actor?.items?.find(i => (i.type === "feat") && sameName(i.name, name)) ?? null;

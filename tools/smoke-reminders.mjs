@@ -1056,6 +1056,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 13. the range cancellers (group 2)
     if (want(13)) {
+      await sleep(600);
+      await clearChips();      // an earlier section's Vex on the target would count in the net
       await clearStatuses();
       await closeGates();
       const findPHB = async (name, type) => {
