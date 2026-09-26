@@ -38,7 +38,7 @@ const isMelee = item => MELEE.has(item?.kind);
 
 /**
  * A style's face: live, or off with the reason. `word` is the one-word state (the item, the
- * die, why it is off) — Unarmed Fighting's float reads it; the panel shows the name alone (user,
+ * die, why it is off), kept on the face's record; the panel shows the name alone (user,
  * 2026-09-26). `detail` is the long line, the hover title ("a second weapon held (Dagger)").
  * @param {string} gate
  * @param {ReturnType<typeof heldOf>} held
@@ -147,15 +147,3 @@ export function styleLine(entry) {
 /** The floating number over the target: "+3 Great Weapon Fighting", one per style that changed the roll. */
 export const floatText = entry => `+${entry.gain} ${entry.feature}`;
 
-/**
- * The float when an equip change changes what a face DOES (user, 2026-09-26: "if i do an equip
- * change that changes the effect needs floating white text"): on or off; for Unarmed Fighting,
- * which never goes off, the die. A new item that keeps the face as it was (Chain Mail for Plate)
- * floats nothing.
- * @param {{name: string, gate: string, live: boolean, word: string, liveChanged: boolean, wordChanged: boolean}} face
- * @returns {string|null}
- */
-export function faceFloat({ name, gate, live, word, liveChanged, wordChanged }) {
-  if ( gate === "unarmed" ) return wordChanged && word ? `${name} ${word}` : null;
-  return liveChanged ? `${name} ${live ? "on" : "off"}` : null;
-}

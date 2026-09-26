@@ -755,9 +755,11 @@ Fighting **U1**, *"truesight yes"*. `smoke-styles` (31 checks), `smoke-guards` (
   senses) is titled by the feat too, found by dnd5e's `fightingStyle` subtype. **Thrown Weapon Fighting's face is
   always on** — the attack's thrown mode is its whole gate ("the user selects the thrown attack
   mode").
-- **An equip change that changes a face floats** white over the bearer: "Defense off", "Dueling
-  on", Unarmed Fighting its die; a swap that keeps the face floats nothing. Core's own
-  "+Defense / −Defense" is quieted on every face and takeover write (`animate: false`).
+- **A face that turns on or off floats core's own toggle** with the panel's title in it —
+  "+(Fighting Style: Defense)" / "−(Fighting Style: Defense)", drawn as core draws every effect's
+  (the walk, 2026-09-26: "the toggle should be the standard +/- every other effect uses"; "match
+  the buff name"); the module draws it for every face, since core floats only an effect with
+  changes, and quiets core's on the face writes so Defense floats once.
 - **The numbers on the roll** (`preRollDamageV2`, by the attack's own mode): **Great Weapon
   Fighting** floors every damage die of the attack at 3 (`min3`, a crit's doubled dice included —
   "a damage die"), only in two hands with a Two-Handed or Versatile melee weapon; **Thrown Weapon

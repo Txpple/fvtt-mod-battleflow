@@ -197,26 +197,3 @@ describe("the lines", () => {
     );
   });
 });
-
-describe('the face\'s float on an equip change (user, 2026-09-26: "needs floating white text")', () => {
-  const f = over =>
-    d.faceFloat({
-      name: "Defense",
-      gate: "armored",
-      live: true,
-      word: "chain mail",
-      liveChanged: false,
-      wordChanged: false,
-      ...over
-    });
-  it("floats on and off; a swap that keeps the face floats nothing", () => {
-    expect(f({ liveChanged: true })).toBe("Defense on");
-    expect(f({ live: false, word: "unarmored", liveChanged: true })).toBe("Defense off");
-    expect(f({ word: "plate", wordChanged: true })).toBeNull();
-  });
-  it("Unarmed Fighting floats its die, never on or off", () => {
-    const u = over => f({ name: "Unarmed Fighting", gate: "unarmed", word: "d6", ...over });
-    expect(u({ wordChanged: true })).toBe("Unarmed Fighting d6");
-    expect(u({})).toBeNull();
-  });
-});

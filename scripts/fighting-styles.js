@@ -32,7 +32,7 @@ import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, canAnswerFor
 import { lower, featureNamed, resolveUuid } from "./lookup.js";
 import { fightingStyleEntries, listedNames } from "./settings.js";
 import { FIGHTING_STYLES } from "./decide/registry.js";
-import { heldOf, faceState, rollFits, raisedOf, styleLine, floatText, faceFloat } from "./decide/fighting-styles.js";
+import { heldOf, faceState, rollFits, raisedOf, styleLine, floatText } from "./decide/fighting-styles.js";
 import { targetsOf } from "./decide/card.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
@@ -279,24 +279,23 @@ Hooks.on("preCreateChatMessage", doc => {
 });
 
 /**
- * The face's float: every client, over the bearer's visible tokens, when an update turned the face
- * on or off (or changed Unarmed Fighting's die). The diff says what changed; the sync writes only
- * on a real change, so the first draw of a face (a create) floats nothing.
+ * The face's float: core's "+(…)" / "−(…)" with the panel's title in it — "+(Fighting Style:
+ * Defense)" ("again, match the buff name") — drawn the way core draws every other effect's toggle (user, 2026-09-26: "the toggle should be the standard +/- every other effect
+ * uses") — here because core floats only an effect with changes (Defense's AC), never Great Weapon
+ * Fighting or Dueling; core's own is quieted on the face writes so Defense floats once. Every
+ * client, on an update that turned the face on or off; a create floats nothing.
  */
 Hooks.on("updateActiveEffect", (effect, changes) => {
   try {
-    const flag = faceOf(effect);
     const actor = effect.parent;
-    if ( !flag || !(actor instanceof Actor) || !canvas?.interface?.createScrollingText ) return;
-    const row = Object.values(FIGHTING_STYLES).find(r => r.key === flag.key);
-    const text = faceFloat({ name: effect.name, gate: row?.gate ?? "", live: !effect.disabled, word: flag.word ?? "",
-      liveChanged: "disabled" in changes, wordChanged: changes.flags?.[MODULE_ID]?.[STYLE_FLAG]?.word !== undefined });
-    if ( !text ) return;
-    for ( const token of actor.getActiveTokens() ) {
-      if ( !token.visible ) continue;
-      canvas.interface.createScrollingText(token.center, text, {
-        anchor: CONST.TEXT_ANCHOR_POINTS.TOP, fill: "#ffffff", stroke: 0x000000, strokeThickness: 4,
-        fontSize: 26, jitter: 0.25, duration: 3000
+    if ( !faceOf(effect) || !(actor instanceof Actor) || !("disabled" in changes) || !canvas?.interface?.createScrollingText ) return;
+    const enabled = !effect.disabled;
+    for ( const token of actor.getActiveTokens(true) ) {
+      if ( !token.visible || token.document.isSecret ) continue;
+      canvas.interface.createScrollingText(token.center, `${enabled ? "+" : "−"}(Fighting Style: ${effect.name})`, {
+        anchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
+        direction: enabled ? CONST.TEXT_ANCHOR_POINTS.TOP : CONST.TEXT_ANCHOR_POINTS.BOTTOM,
+        distance: 2 * token.h, fontSize: 28, stroke: 0x000000, strokeThickness: 4, jitter: 0.25
       });
     }
   } catch(err) { console.warn(`${TITLE} | The fighting style's face float could not draw.`, err); }
