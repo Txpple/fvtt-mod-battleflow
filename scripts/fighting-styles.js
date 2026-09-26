@@ -391,7 +391,9 @@ const floated = new Set();
 Hooks.on("createChatMessage", message => {
   try {
     const flag = message.getFlag(MODULE_ID, STYLE_FLAG);
-    const changed = (flag?.styles ?? []).filter(e => e.gain > 0);
+    // the canvas only when a die's NUMBER changed (the user, 2026-09-26: "only apply it to 'dice
+    // number changes'") - Great Weapon Fighting's floor; a flat +2 stays on the card
+    const changed = (flag?.styles ?? []).filter(e => (e.gain > 0) && e.raised?.length);
     if ( !changed.length || floated.has(message.id) ) return;
     floated.add(message.id);
     const token = (message.speaker?.token && canvas?.tokens?.get(message.speaker.token))

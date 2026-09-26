@@ -707,11 +707,11 @@ async function resolveFold(message, answer) {
           rolled.summary = { total: first.total, isCritical: first.isCritical === true, isFumble: first.isFumble === true };
         }
       }
-      // the die over the roller, on every client (the dice that rise, group 4): a die added as "+N",
-      // a reroll turning over, Lucky's two d20s with the higher standing
+      // the d20 over the roller, on every client, when its NUMBER changes (the user, 2026-09-26): a
+      // reroll turning over, Lucky's two d20s with the higher standing; a die added stays on the card
       const faceOf = r => r?.dice?.[0]?.results?.find(x => (x.active !== false) && !x.discarded)?.result ?? null;
-      const rise = foldRise({ mode: (kind === "advantage") ? "advantage" : REROLL_KINDS.has(kind) ? "reroll" : "die",
-        oldFace: faceOf(message.rolls?.[0]), newFace: faceOf(rolled.roll), total: rolled.summary.total, on: actor.uuid });
+      const rise = REROLL_KINDS.has(kind) ? foldRise({ mode: (kind === "advantage") ? "advantage" : "reroll",
+        oldFace: faceOf(message.rolls?.[0]), newFace: faceOf(rolled.roll), on: actor.uuid }) : null;
       const rolledMessage = await rolled.roll.toMessage({
         speaker: ChatMessage.getSpeaker({ actor }),
         flavor: (kind === "advantage") ? `${labelOf(offer)} — the second d20`

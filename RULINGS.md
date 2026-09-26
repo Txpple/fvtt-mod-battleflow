@@ -780,6 +780,14 @@ Fighting **U1**, *"truesight yes"*. `smoke-styles` (31 checks), `smoke-guards` (
   never over the target (its damage number stands alone); off with core's scrolling-status
   setting. The `fightingStyle` record carries each style's `gain` for the stats reader
   (ARCHITECTURE §4) and the chips' `dice`. A floor that raised nothing leaves no trace.
+- **The dice that rise, house-wide** (the walk, 2026-09-26: "its kinda spammy if we take it too
+  far ... what if we only apply it to 'dice number changes'"; "yea lets settle on that"). The
+  canvas dice (`dice-rise.js`) play ONLY when a die's number changes: Great Weapon Fighting's
+  floor, a d20 bent after a hit (Protection, Lucky, Warding Flare, Shadowy Dodge), Empowered's and
+  Healer's rerolls, Savage Attacker's set rolled again, Heroic Inspiration's reroll, Lucky's second
+  d20. A die or a number ADDED (Dueling's +2, Bardic Inspiration, Interception's reduction,
+  Shield's +5 AC, Bless) stays on the card. A new rule of the first kind gets the dice; a rule of
+  the second never does.
 - **Unarmed Fighting:** its die on the sheet's plain Unarmed Strike rides the Unarmed Strike Dice
   table (a `hands` row: the feat's d8 attack with nothing held, its d6 otherwise; two rows on one
   actor swap in the larger die). **At the start of the turn** (U1) the owner of a grapple is asked

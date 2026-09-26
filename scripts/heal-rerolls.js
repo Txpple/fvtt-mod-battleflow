@@ -30,6 +30,7 @@ import { healRerollEntries, listedNames } from "./settings.js";
 import { rebuildRolls } from "./shared.js";
 import { HEAL_REROLLS } from "./decide/registry.js";
 import { healDiceOf, stripRerollOnes, rerollFaces } from "./decide/damage-dice.js";
+import { rerollRise } from "./decide/dice-chips.js";
 import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
 import { openMomentPopup, momentButton, armDeadline, disarmDeadline, livePopups, scheduleBarSync,
   dramaticVerdictPause, registerResumable, paintDieChip } from "./ui.js";
@@ -224,6 +225,7 @@ async function reroll(message, keys) {
     const rebuilt = rebuildRolls(patched);
     const total = healTotal(rebuilt);
     const delta = total - (Number(flag.total) || 0);
+    const rise = rerollRise({ done, on: actor?.uuid });   // the 1s turn over on the canvas, over the healer
     const announce = await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor }),
       rolls: [fresh],
@@ -231,7 +233,7 @@ async function reroll(message, keys) {
         eyebrow: `${flag.feature} — Healing Rerolls`, tone: "good",
         title: `${flag.feature} — ${done.length === 1 ? "the 1" : `${done.length} ones`} rerolled → ${done.map(p => p.new).join(", ")}`,
         subtitle: `${flag.source ?? "the healing"} heals ${total} now`, lines: [] }),
-      flags: { [MODULE_ID]: { respondsTo: message.id } }
+      flags: { [MODULE_ID]: { respondsTo: message.id, ...(rise ? { diceRise: rise } : {}) } }
     });
     // THE DURABLE INTENT, BEFORE THE PAUSE (Empowered's 2026-09-10 review): the elect's resume
     // finishes it if this client dies inside the dice.
