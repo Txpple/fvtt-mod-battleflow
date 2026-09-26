@@ -634,19 +634,30 @@ export function proneSources({ attackerProne = false, targetProne = false, dista
  * ranged attack at an unknown distance is not worth a box); the close-combat side needs no
  * target distance at all. Distances and ranges are FEET — the EDGE converts.
  *
+ * THE CANCELLERS (the PHB feats, group 2, 2026-09-26): a feat that takes a row away (Sharpshooter,
+ * Spell Sniper, Crossbow Expert — `rangeFeatsFor`) leaves the row LISTED, bend null, the feat named:
+ * the rule was met and answered. A target's cover the feat ignores is listed the same way.
+ *
  * @param {{ranged?: boolean, distanceFeet?: number|null, normalFeet?: number|null, longFeet?: number|null,
  *          closeEnemies?: string[], attackerName?: string, targetName?: string,
+ *          cancels?: {feature: string, rows: string[], rule: string}[],
+ *          coverBonus?: number, coverFeat?: {feature: string, rule: string}|null,
  *          rules: {long: string, single: string, close: string}}} facts
  *        `rules` = `RANGE_RULES` (decide/registry.js) — handed in because this layer imports nothing
  */
 export function rangeSources({ ranged = false, distanceFeet = null, normalFeet = null, longFeet = null,
-  closeEnemies = [], attackerName = "You", targetName = "the target", rules }) {
+  closeEnemies = [], attackerName = "You", targetName = "the target", cancels = [], coverBonus = 0, coverFeat = null, rules }) {
   const out = [];
   if ( !ranged || !rules ) return out;
-  if ( closeEnemies.length ) {
-    out.push(reminderSource("range", "disadvantage",
-      `Ranged attack within 5 feet of ${closeEnemies.join(", ")}`,
-      rules.close));
+  const cancelOf = row => (cancels ?? []).find(c => (c.rows ?? []).includes(row)) ?? null;
+  const bent = (row, label, rule) => {
+    const c = cancelOf(row);
+    return c ? reminderSource("range", null, `${label} — ${c.feature}: no Disadvantage`, c.rule)
+      : reminderSource("range", "disadvantage", label, rule);
+  };
+  if ( closeEnemies.length ) out.push(bent("close", `Ranged attack within 5 feet of ${closeEnemies.join(", ")}`, rules.close));
+  if ( coverFeat && (Number(coverBonus) > 0) ) {
+    out.push(reminderSource("range", null, `${targetName}'s cover (+${Number(coverBonus)} AC) — ${coverFeat.feature} ignores it`, coverFeat.rule));
   }
   const d = Number(distanceFeet), normal = Number(normalFeet), long = Number(longFeet);
   if ( !Number.isFinite(d) || !(normal > 0) ) return out;
@@ -655,14 +666,62 @@ export function rangeSources({ ranged = false, distanceFeet = null, normalFeet =
       out.push(reminderSource("range", null,
         `${targetName} is beyond long range — ${d} feet, long range ${long}: this attack cannot be made`, rules.long));
     } else if ( d > normal ) {
-      out.push(reminderSource("range", "disadvantage",
-        `${targetName} is beyond normal range — ${d} feet (${normal}/${long})`, rules.long));
+      out.push(bent("long", `${targetName} is beyond normal range — ${d} feet (${normal}/${long})`, rules.long));
     }
   } else if ( d > normal ) {
     out.push(reminderSource("range", null,
       `${targetName} is beyond range — ${d} feet, range ${normal}: this attack cannot be made`, rules.single));
   }
   return out;
+}
+
+/**
+ * THE RANGE FEATS THIS ATTACK MEETS (group 2, 2026-09-26): the rows of RANGE_FEATS on the attacker's
+ * sheet whose scope takes in this attack — what they cancel, whether cover is ignored, and the reach
+ * a spell gains.
+ * @param {string[]} features  the attacker's feat names
+ * @param {{rangedWeapon?: boolean, spell?: boolean, crossbow?: boolean}} attack
+ * @param {Readonly<Record<string, {scope: string, cancels?: readonly string[], cover?: boolean, reach?: number, rule: string}>>} table
+ * @returns {{cancels: {feature: string, rows: string[], rule: string}[], cover: {feature: string, rule: string}|null,
+ *            reach: {feature: string, feet: number}|null}}
+ */
+export function rangeFeatsFor(features, attack, table) {
+  const have = new Set((features ?? []).map(n => String(n).toLowerCase()));
+  const fits = scope => ((scope === "rangedWeapon") && !!attack?.rangedWeapon) || ((scope === "spell") && !!attack?.spell)
+    || ((scope === "crossbow") && !!attack?.crossbow);
+  /** @type {{cancels: {feature: string, rows: string[], rule: string}[], cover: {feature: string, rule: string}|null, reach: {feature: string, feet: number}|null}} */
+  const out = { cancels: [], cover: null, reach: null };
+  for ( const [feature, row] of Object.entries(table ?? {}) ) {
+    if ( !have.has(feature.toLowerCase()) || !fits(row.scope) ) continue;
+    if ( row.cancels?.length ) out.cancels.push({ feature, rows: [...row.cancels], rule: row.rule });
+    if ( row.cover && !out.cover ) out.cover = { feature, rule: row.rule };
+    if ( row.reach && !out.reach ) out.reach = { feature, feet: Number(row.reach) };
+  }
+  return out;
+}
+
+/**
+ * A spell's range with Spell Sniper's reach: "a range of at least 10 feet" gains the feet; a range
+ * under 10, a Touch or Self spell, or a weapon's two-band range stands.
+ * @param {{normalFeet?: number|null, longFeet?: number|null}} range
+ * @param {{feet: number}|null} reach
+ */
+export function reachedRange(range, reach) {
+  const normal = Number(range?.normalFeet);
+  if ( !reach || !(normal >= 10) || (Number(range?.longFeet) > 0) ) return range;
+  return { ...range, normalFeet: normal + reach.feet, reachedBy: reach.feet };
+}
+
+/**
+ * The AC an attack records against a target whose cover the attacker ignores: its AC less the cover
+ * bonus dnd5e folded in. Total Cover (no AC recorded) stays null.
+ * @param {number|null} ac
+ * @param {number} cover
+ * @returns {number|null}
+ */
+export function acWithoutCover(ac, cover) {
+  if ( (ac === null) || (ac === undefined) || !Number.isFinite(Number(ac)) ) return ac ?? null;
+  return Number(ac) - Math.max(0, Number(cover) || 0);
 }
 
 /**

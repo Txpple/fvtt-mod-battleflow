@@ -16,6 +16,7 @@ const ARMOR = new Set(["light", "medium", "heavy"]);
  * @property {string} [kind]        system.type.value (simpleM, martialR, natural, light, shield, …)
  * @property {boolean} equipped
  * @property {string[]} [properties]
+ * @property {string} [base]        system.type.baseItem (handcrossbow, …)
  */
 
 /**
@@ -34,6 +35,8 @@ export function heldOf(items) {
 }
 
 const has = (item, prop) => (item?.properties ?? []).includes(prop);
+/** The three crossbows, by dnd5e's base item — decide/registry.js CROSSBOWS (this layer imports nothing). */
+const CROSSBOW_IDS = new Set(["handcrossbow", "lightcrossbow", "heavycrossbow"]);
 const isMelee = item => MELEE.has(item?.kind);
 
 /**
@@ -84,6 +87,11 @@ export function faceState(gate, held, dice = {}) {
       return (held?.armor?.kind === "heavy") ? { live: true, word: lc(held.armor), detail: held.armor.name }
         : { live: false, word: held?.armor ? "not heavy" : "unarmored",
           detail: held?.armor ? `${held.armor.name} is not Heavy armor` : "no armor worn" };
+    case "offhandCrossbow": {
+      const light = w.filter(i => has(i, "lgt") && CROSSBOW_IDS.has(i.base));
+      return ((w.length >= 2) && light.length) ? { live: true, word: lc(light.at(-1)), detail: "the Light crossbow's extra attack" }
+        : { live: false, word: "unpaired", detail: "not holding a Light crossbow and a second weapon" };
+    }
     // no equipment in the rule (Elemental Adept, Poisoner): on while the feat is on the sheet
     case "always": return { live: true, word: "", detail: "always" };
     case "unarmed": {
@@ -113,6 +121,7 @@ export function rollFits(gate, roll) {
     case "thrown": return ((mode === "thrown") || (mode === "thrown-offhand")) && has(roll, "thr");
     // dnd5e keeps a NEGATIVE modifier on the off-hand already; the style adds only what it dropped
     case "offhand": return ((mode === "offhand") || (mode === "thrown-offhand")) && (Number(roll?.mod) > 0);
+    case "offhandCrossbow": return (mode === "offhand") && CROSSBOW_IDS.has(roll?.base) && has(roll, "lgt") && (Number(roll?.mod) > 0);
     case "oneHanded": return isMelee(roll) && (mode === "oneHanded") && (roll?.faceLive === true);
     default: return false;
   }

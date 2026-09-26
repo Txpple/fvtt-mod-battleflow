@@ -9,14 +9,14 @@ import { chipSpentOnRecord, grantingActor, turnChitStands } from "./shared.js";
 import { DialogCarried, cardRow, markDefaultButton, pendingDemandsFor } from "./ui.js";
 import { bfCard, reminderFieldsetHTML, ruleLine, sneakBoxHTML, TONE } from "./decide/present.js";
 import { CHIP_FLAG, chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.js";
-import { CHECK_BENDS, CONDITION_BENDS, EFFECT_BENDS, MASTERY_RULES, RANGE_RULES, SAVE_BENDS, SNEAK_ATTACK } from "./decide/registry.js";
+import { CHECK_BENDS, CONDITION_BENDS, CROSSBOWS, EFFECT_BENDS, MASTERY_RULES, RANGE_FEATS, RANGE_RULES, SAVE_BENDS, SNEAK_ATTACK } from "./decide/registry.js";
 import { parseDice, sneakConditionsHold, sneakWeaponQualifies } from "./decide/sneak.js";
 import { METAMAGIC_FLAG } from "./decide/metamagic.js";
 import { CARD, itemNameOf, originIdInData, rollKindInData } from "./decide/card.js";
 import { feetOf, nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { SURFACES } from "./surfaces.js";
 import { REMINDER_FLAG, checkGate, checkSources, conditionSources, sightOf, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
-  reminderRecord, reminderSource, reminderView, rolledWith, saveGate, saveSources } from "./decide/reminders.js";
+  reminderRecord, reminderSource, reminderView, rolledWith, saveGate, saveSources, rangeFeatsFor, reachedRange, acWithoutCover } from "./decide/reminders.js";
 
 /* ---------------------------------------------------------------------------------------------
  * THE GATE (HANDOFF Stage 2 + 3, user rulings 2026-09-01: "I don't want a rescue, I want
@@ -115,6 +115,83 @@ Hooks.on("dnd5e.preRollAttackV2", (config, dialog, message) => {
   } catch(err) {
     console.error(`${TITLE} | Reminder gate failed — rolling natively.`, err);
   }
+});
+
+/**
+ * The range feats THIS attack meets (RANGE_FEATS, the PHB feats group 2): the attacker's feats by
+ * name against the attack's own kind — a Ranged weapon, a spell's attack roll, a crossbow.
+ */
+function rangeFeatsOf(attacker, activity) {
+  const item = activity?.item;
+  const weapon = item?.type === "weapon";
+  const kind = item?.system?.type?.value ?? "";
+  return rangeFeatsFor(attacker?.items?.filter(i => i.type === "feat").map(i => i.name) ?? [], {
+    // a Ranged weapon by its KIND (simpleR, martialR) — a dart thrown is still one; a dagger thrown is not
+    rangedWeapon: weapon && /R$/.test(kind),
+    spell: activity?.attack?.type?.classification === "spell",
+    crossbow: weapon && CROSSBOWS.includes(item?.system?.type?.baseItem)
+  }, RANGE_FEATS);
+}
+
+/**
+ * The cover a target's AC carries — dnd5e's own prepared number (its statuses and any effect's). An
+ * AC OVERRIDE leaves the cover out of the value (dnd5e 6.0.5, `prepareArmorClass`: the override
+ * stands alone), so there is nothing in the AC to take off.
+ */
+const coverOf = actor => {
+  const ac = actor?.system?.attributes?.ac;
+  if ( Number.isFinite(Number(ac?.override)) && (ac?.override !== null) && (ac?.override !== "") ) return 0;
+  return Math.max(0, Number(ac?.cover) || 0);
+};
+
+/**
+ * BYPASS COVER (Sharpshooter, Spell Sniper — group 2, 2026-09-26): the attack RECORDS each target's
+ * AC as dnd5e built it at the roll (`system.targets[].ac`, cover folded in); for an attacker whose
+ * feat ignores Half and Three-Quarters Cover the recorded AC is the target's without it, so the
+ * card's hit and miss — and every reader of the record — agree on every client. Dialog or no dialog
+ * (a shift-click still ignores the cover). Total Cover records no AC and stays so. What was ignored
+ * rides the card (`coverIgnored`) and draws one line. The Reminder Sources' `range` kind is the switch.
+ */
+Hooks.on("dnd5e.preRollAttackV2", (config, _dialog, message) => {
+  try {
+    const activity = config.subject;
+    if ( activity?.type !== "attack" ) return;
+    const attacker = activity.item?.actor;
+    if ( !(attacker instanceof Actor) || !reminderEntries().some(e => e.kind === "range") ) return;
+    const feat = rangeFeatsOf(attacker, activity).cover;
+    const targets = message?.data?.system?.targets;
+    if ( !feat || !Array.isArray(targets) ) return;
+    const ignored = [];
+    for ( const t of targets ) {
+      const actor = t?.actor ? resolveUuid(t.actor) : null;
+      const cover = coverOf(actor);
+      if ( !cover || (t.ac === null) || (t.ac === undefined) ) continue;
+      t.ac = acWithoutCover(t.ac, cover);
+      ignored.push({ name: t.name ?? actor?.name ?? "", cover });
+    }
+    if ( !ignored.length ) return;
+    if ( targets.length === 1 ) config.target = targets[0].ac;
+    foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.coverIgnored`, { feature: feat.feature, targets: ignored });
+  } catch(err) {
+    console.error(`${TITLE} | The cover a feat ignores could not be taken off the AC — judge the hit by hand.`, err);
+  }
+});
+
+// the line: "Sharpshooter — ignores the Goblin's cover (+2 AC)"
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  try {
+    const flag = message.getFlag?.(MODULE_ID, "coverIgnored");
+    if ( !flag?.targets?.length ) return;
+    const content = html.querySelector?.(SURFACES.messageContent) ?? html;
+    if ( !content || content.querySelector(".bf-cover-line") ) return;
+    const div = document.createElement("div");
+    div.className = "bf-cover-line";
+    div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
+    const words = flag.targets.map(t => `the ${t.name}'s cover (+${t.cover} AC)`).join(", ");
+    div.textContent = `${flag.feature} — ignores ${words}`;
+    div.dataset.bfCoverLine = div.textContent;
+    content.appendChild(div);
+  } catch(err) { console.warn(`${TITLE} | The ignored cover's line could not draw.`, err); }
 });
 
 /**
@@ -410,7 +487,8 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
   const conditions = enabled.has("condition") ? conditionEntries().map(e => e.kind) : [];
   const conditionFacts = { enabled: conditions, table: CONDITION_BENDS };
   const attackerToken = tokenOfActor(attacker);
-  const range = enabled.has("range") ? rangeFactsFor(activity, attackMode, rangeFeet) : { ranged: false };
+  const feats = enabled.has("range") ? rangeFeatsOf(attacker, activity) : { cancels: [], cover: null, reach: null };
+  const range = enabled.has("range") ? reachedRange(rangeFactsFor(activity, attackMode, rangeFeet), feats.reach) : { ranged: false };
   // The effect kind: which abilities to look for, the roll's own scope, and each sheet's facts.
   const effectsOn = enabled.has("effect") ? effectEntries().map(e => e.kind) : [];
   const scope = { classification: activity?.attack?.type?.classification ?? null,
@@ -466,7 +544,7 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
       attackerSeenBy, targetName: seerName }));
   }
   if ( range.ranged ) {
-    out.push(...rangeSources({ ranged: true, closeEnemies: closeEnemiesOf(attackerToken), attackerName, rules: RANGE_RULES }));
+    out.push(...rangeSources({ ranged: true, closeEnemies: closeEnemiesOf(attackerToken), attackerName, cancels: feats.cancels, rules: RANGE_RULES }));
   }
   if ( attackerSheet ) {
     out.push(...effectSources({ attacker: attackerSheet, enabled: effectsOn, table: EFFECT_BENDS, scope, attackerName, pass: "attacker" }));
@@ -495,7 +573,7 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     }
     if ( range.ranged ) {
       out.push(...rangeSources({ ranged: true, distanceFeet, normalFeet: range.normalFeet, longFeet: range.longFeet,
-        targetName, rules: RANGE_RULES }));
+        targetName, cancels: feats.cancels, coverBonus: feats.cover ? coverOf(target) : 0, coverFeat: feats.cover, rules: RANGE_RULES }));
     }
     if ( attackerSheet ) {
       // Target-side rows, and the attacker-side rows that hinge on THIS target (Bloodied,

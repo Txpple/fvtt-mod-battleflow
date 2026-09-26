@@ -60,6 +60,8 @@ updateActiveEffect	chip-spend.js
 deleteCombat	chip-spend.js
 dnd5e.renderChatMessage	chip-spend.js
 dnd5e.preRollAttackV2	reminders.js
+dnd5e.preRollAttackV2	reminders.js
+dnd5e.renderChatMessage	reminders.js
 renderRollConfigurationDialog	reminders.js
 targetToken	reminders.js
 dnd5e.preRollAbilityCheckV2	reminders.js

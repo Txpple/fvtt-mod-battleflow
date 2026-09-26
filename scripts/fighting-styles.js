@@ -52,7 +52,7 @@ const DONE = "bfFightingStyleDone";
 
 /** Every item as the decision layer wants it. */
 const itemFacts = actor => [...(actor?.items ?? [])].map(i => ({
-  name: i.name, type: i.type, kind: i.system?.type?.value ?? null,
+  name: i.name, type: i.type, kind: i.system?.type?.value ?? null, base: i.system?.type?.baseItem ?? null,
   equipped: i.system?.equipped === true, properties: [...(i.system?.properties ?? [])]
 }));
 
@@ -227,11 +227,12 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
     const parts = Array.isArray(roll?.parts) ? roll.parts : null;
     const held = heldOf(itemFacts(attacker));
     const facts = {
-      kind: weapon.system?.type?.value ?? null, properties: [...(weapon.system?.properties ?? [])],
+      kind: weapon.system?.type?.value ?? null, base: weapon.system?.type?.baseItem ?? null, properties: [...(weapon.system?.properties ?? [])],
       mode: config.attackMode ?? null, mod: Number(roll?.data?.mod ?? 0), ownTurn: ownTurnOf(attacker)
     };
     const resolve = f => { try { return Roll.replaceFormulaData(String(f), roll?.data ?? {}); } catch { return String(f); } };
     const styles = [];
+    let offhandAdded = false;   // Two-Weapon Fighting and Crossbow Expert give back ONE modifier between them
     for ( const { name, row, feature } of rows ) {
       const face = faceState(row.gate, held);
       const fits = rollFits(row.gate, { ...facts, faceLive: face.live });
@@ -256,11 +257,14 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
         }
         continue;
       }
+      const offhand = (row.gate === "offhand") || (row.gate === "offhandCrossbow");
+      if ( offhand && offhandAdded ) continue;
       const amount = row.bonus === "effect" ? damageBonusOf(feature) : row.bonus;
       const gain = Number(resolve(amount));
       if ( !parts || !amount || !Number.isFinite(gain) || (gain <= 0) ) continue;
       parts.push(String(amount));
-      styles.push({ key: row.key, feature: name, gain, note: row.gate === "offhand" ? "on the off-hand" : null });
+      if ( offhand ) offhandAdded = true;
+      styles.push({ key: row.key, feature: name, gain, note: offhand ? "on the off-hand" : null });
     }
     if ( !styles.length ) return;
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${STYLE_FLAG}`,

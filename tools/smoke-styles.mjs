@@ -17,7 +17,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'fighting-styles.js',   // §1–§2 the faces off the equipped boxes; §3–§6 the numbers, the lines, the record, the float; §8 the switch; §11 Great Weapon Master; §12 Heavy Armor Master's block; §13 Elemental Adept and Poisoner (the PHB feats, group 1)
+  'fighting-styles.js',   // §1–§2 the faces off the equipped boxes; §3–§6 the numbers, the lines, the record, the float; §8 the switch; §11 Great Weapon Master; §12 Heavy Armor Master's block; §13 Elemental Adept and Poisoner (the PHB feats, group 1); §14 Crossbow Expert's Dual Wielding (group 2)
   'unarmed-dice.js',      // §7 Unarmed Fighting's die by what the hands hold (the `hands` row)
   'reminders.js'          // §9 Blind Fighting — who sees the unseen: Invisible listed, not counted, within Blindsight
 ];
@@ -35,6 +35,7 @@ const SECTIONS = {
   11: `Great Weapon Master (the PHB feats, 2026-09-26): its face live off the Greatsword; the Greatsword's damage rolls +PB with "Great Weapon Master — +N"; the Longsword adds nothing; on someone else's turn, "Great Weapon Master off — not your turn"`,
   12: `Heavy Armor Master: its face live in Chain Mail and the pack's own reduction switched off; an attack's 9 slashing lands 9 − PB (the calculation says "blocked", the actor's update carries the pop); a bare 9 (no attack card) lands whole; out of the armor the attack's 9 lands whole`,
   13: `Elemental Adept and Poisoner (the PHB feats, group 1, 2026-09-26): "Elemental Adept (Fire)" — its face live "Fire"; Fire Bolt's 1s count as 2 ("1 → 2"), the record; its fire damage ignores the victim's Fire Resistance (the calculation says so), a weapon's fire damage does not; renamed with no type the face is off and says how; Poisoner — a weapon card's poison ignores Resistance to Poison`,
+  14: `Crossbow Expert's Dual Wielding (group 2): a Hand Crossbow and a Dagger held — its face live; the Hand Crossbow's off-hand damage adds the modifier back ("Crossbow Expert — +N on the off-hand"); beside Two-Weapon Fighting the modifier is added ONCE`,
   10: 'Unarmed Fighting at the start of the turn: the fighter grapples the victim — a card and a popup "Deal 1d4 …?"; Deal it lands the damage; next turn Skip deals nothing; with a clock, the clock deals it'
 };
 const DEPENDS = {};
@@ -135,7 +136,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const lend = async (name, type = null) => {
       const own = actor.items.find(i => i.name === name && !lent.includes(i.id));
-      if (own && ['Great Weapon Fighting', 'Great Weapon Master', 'Heavy Armor Master', 'Elemental Adept', 'Poisoner'].includes(name)) return own;   // the fixture's own
+      if (own && ['Great Weapon Fighting', 'Great Weapon Master', 'Heavy Armor Master', 'Elemental Adept', 'Poisoner', 'Crossbow Expert'].includes(name)) return own;   // the fixture's own
       const source = await findPHB(name, type);
       if (!source) throw new Error(`the PHB ships no "${name}" this box can find`);
       const data = source.toObject();
@@ -588,6 +589,55 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         CONFIG.Dice.randomUniform = realPRNG;
         await victim.update({ 'system.traits.dr.value': drBefore }).catch(() => {});
         for (const it of [adept, poisoner, bolt]) {
+          if (lent.includes(it.id)) { await actor.deleteEmbeddedDocuments('Item', [it.id]).catch(() => {}); lent.splice(lent.indexOf(it.id), 1); }
+        }
+        await sleep(600);
+      }
+    }
+
+    // ================================================== 14. Crossbow Expert's Dual Wielding (group 2)
+    if (want(14)) {
+      const ce = await lend('Crossbow Expert', 'feat');
+      const hand = await lend('Hand Crossbow', 'weapon');
+      const cardLines = async id => {
+        const el = await game.messages.get(id)?.renderHTML?.().catch(() => null);
+        return [...(el?.querySelectorAll?.('.bf-fighting-style-line') ?? [])].map(e => e.dataset.bfStyleLine ?? '').join(' | ');
+      };
+      const listBefore = game.settings.get(MOD, 'fightingStyleList');
+      const dexBefore = actor.system._source.abilities.dex.value;
+      try {
+        await actor.update({ 'system.abilities.dex.value': 16 });   // a modifier to give back
+        await equip(['Dagger']);
+        await actor.updateEmbeddedDocuments('Item', [{ _id: hand.id, 'system.equipped': true }]);
+        await sleep(900);
+        const c = face('Crossbow Expert');
+        ok('14a. a Hand Crossbow and a Dagger held: Crossbow Expert\'s face live, "the Light crossbow\'s extra attack"', !!c && !c.disabled
+          && /Light crossbow/.test(faceLine('Crossbow Expert')), `face=${!!c} disabled=${c?.disabled} line="${faceLine('Crossbow Expert')}"`);
+        const modes = (hand.system.attackModes ?? []).map(m => m.value);
+        log.push(`§14 Hand Crossbow modes: ${modes.join(',')}`);
+        if (!modes.includes('offhand')) {
+          skips.push(`§14b–c the Hand Crossbow offers no off-hand mode on this box (modes: ${modes.join(',')})`);
+        } else {
+          const mod = Number(actor.system.abilities.dex.mod);
+          // only the feat: Two-Weapon Fighting off the list for this roll
+          await set('fightingStyleList', 'Crossbow Expert');
+          await sleep(600);
+          const one = await damage(hand, 'offhand', [[3, 6]]);
+          const s1 = style(one, 'crossbow-expert');
+          ok(`14b. the Hand Crossbow off-hand: +${mod}, "Crossbow Expert — +${mod} on the off-hand"`, (mod > 0) && (s1?.gain === mod)
+            && new RegExp(`Crossbow Expert — \\+${mod} on the off-hand`).test(await cardLines(one?.id)),
+            `mod=${mod} style=${JSON.stringify(s1)} lines="${await cardLines(one?.id)}"`);
+          await set('fightingStyleList', 'Two-Weapon Fighting, Crossbow Expert');
+          await sleep(600);
+          const two = await damage(hand, 'offhand', [[3, 6]]);
+          const all = two?.getFlag(MOD, 'fightingStyle')?.styles ?? [];
+          ok('14c. beside Two-Weapon Fighting the modifier is added ONCE', (all.filter(e => e.gain > 0).length === 1)
+            && (all.reduce((n, e) => n + e.gain, 0) === mod), `styles=${JSON.stringify(all)}`);
+        }
+      } finally {
+        await set('fightingStyleList', listBefore);
+        await actor.update({ 'system.abilities.dex.value': dexBefore }).catch(() => {});
+        for (const it of [ce, hand]) {
           if (lent.includes(it.id)) { await actor.deleteEmbeddedDocuments('Item', [it.id]).catch(() => {}); lent.splice(lent.indexOf(it.id), 1); }
         }
         await sleep(600);

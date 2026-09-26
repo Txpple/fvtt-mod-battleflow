@@ -1262,6 +1262,36 @@ export const RANGE_RULES = Object.freeze({
 });
 
 /**
+ * THE RANGE CANCELLERS (the PHB feats, group 2, 2026-09-26 — HANDOFF.md; SWEEP §3 item 6): a feat
+ * on the ATTACKER's sheet, by name, that takes away what the range rows above impose. The gate
+ * still LISTS a cancelled row, with the feat that cancels it and no bend (Blindsight's shape,
+ * `sightOf`: listed with why, never counted), so the roller sees the rule was met and answered.
+ *   scope     which attacks the feat reaches: "rangedWeapon" (a Ranged weapon — a bow, a crossbow,
+ *             never a thrown melee weapon), "spell" (a spell's attack roll), "crossbow" (the three
+ *             crossbows, by dnd5e's base item)
+ *   cancels   the RANGE_RULES rows it takes away: "long" (Disadvantage beyond normal range) and
+ *             "close" (Disadvantage with an enemy within 5 feet). Beyond long range stays — the
+ *             attack still cannot be made.
+ *   cover     true — Half and Three-Quarters Cover are ignored: the attack's recorded AC for each
+ *             target is its AC without the cover bonus, so the card's hit and miss are right on
+ *             every client (Total Cover stays: no AC is recorded against it)
+ *   reach     feet added to a spell's range of at least 10 feet (Spell Sniper)
+ * No list of its own: the feats are part of the range rule's truth (DESIGN R1 — the data settles
+ * them), so the Reminder Sources' `range` kind is their switch, as it is the rows'.
+ */
+export const RANGE_FEATS = Object.freeze({
+  "Sharpshooter": Object.freeze({ scope: "rangedWeapon", cancels: Object.freeze(["long", "close"]), cover: true,
+    rule: "Bypass Cover. Your ranged attacks with weapons ignore Half Cover and Three-Quarters Cover. Firing in Melee. Being within 5 feet of an enemy doesn’t impose Disadvantage on your attack rolls with Ranged weapons. Long Shots. Attacking at long range doesn’t impose Disadvantage on your attack rolls with Ranged weapons." }),
+  "Spell Sniper": Object.freeze({ scope: "spell", cancels: Object.freeze(["close"]), cover: true, reach: 60,
+    rule: "Bypass Cover. Your attack rolls for spells ignore Half Cover and Three-Quarters Cover. Casting in Melee. Being within 5 feet of an enemy doesn’t impose Disadvantage on your attack rolls with spells. Increased Range. When you cast a spell that has a range of at least 10 feet and requires you to make an attack roll, you can increase the spell’s range by 60 feet." }),
+  "Crossbow Expert": Object.freeze({ scope: "crossbow", cancels: Object.freeze(["close"]),
+    rule: "Firing in Melee. Being within 5 feet of an enemy doesn’t impose Disadvantage on your attack rolls with crossbows." })
+});
+
+/** The three crossbows, by dnd5e's base item (CONFIG.DND5E.weaponIds). */
+export const CROSSBOWS = Object.freeze(["handcrossbow", "lightcrossbow", "heavycrossbow"]);
+
+/**
  * THE CONDITION TABLE (Stage 3, 2026-09-01) — what the 2024 conditions do to an ATTACK ROLL,
  * both roles, with each condition's own "Attacks Affected" clause quoted VERBATIM from the
  * world's Rules Glossary (dnd5e.content24 / the premium PHB — presentation law 8). This is the
@@ -1912,7 +1942,8 @@ const KIT_TEND_NAMES = tableIndex(KIT_TENDS).names;
  *              attack), `oneHanded` (one melee weapon in one hand, no other weapon), `armored`
  *              (Light, Medium or Heavy armor worn), `unarmed` (what the hands hold — the die only),
  *              `heavy` (a Heavy weapon's attack on the owner's own turn — Great Weapon Master),
- *              `heavyArmor` (Heavy armor worn — Heavy Armor Master)
+ *              `heavyArmor` (Heavy armor worn — Heavy Armor Master), `offhandCrossbow` (the Light
+ *              property's extra attack with a Light crossbow — Crossbow Expert)
  *   minimum    the damage dice's floor (Great Weapon Fighting: a 1 or 2 counts as 3)
  *   bonus      the damage added: "2", "@mod", or "effect" — READ off the pack's own effect on the
  *              feat (N1); the text-only feats (Thrown) carry the text's number, as Celestial
@@ -1973,6 +2004,11 @@ export const FIGHTING_STYLES = Object.freeze({
   "Elemental Adept": Object.freeze({ key: "elemental-adept", gate: "always", feat: true, typed: true, spells: true,
     ignores: "resistance", minimum: 2,
     rule: "Energy Mastery. Choose one of the following damage types: Acid, Cold, Fire, Lightning, or Thunder. Spells you cast ignore Resistance to damage of the chosen type. In addition, when you roll damage for a spell you cast that deals damage of that type, you can treat any 1 on a damage die as a 2.",
+    from: "General feat" }),
+  // group 2 (2026-09-26): Crossbow Expert's third benefit is Two-Weapon Fighting's, for a Light
+  // crossbow only; beside Two-Weapon Fighting it adds nothing twice (the machine adds one modifier)
+  "Crossbow Expert": Object.freeze({ key: "crossbow-expert", gate: "offhandCrossbow", bonus: "@mod", feat: true,
+    rule: "Dual Wielding. When you make the extra attack of the Light property, you can add your ability modifier to the damage of the extra attack if that attack is with a crossbow that has the Light property and you aren’t already adding that modifier to the damage.",
     from: "General feat" }),
   "Poisoner": Object.freeze({ key: "poisoner", gate: "always", feat: true, ignores: "resistance", types: Object.freeze(["poison"]),
     rule: "Potent Poison. When you make a damage roll that deals Poison damage, it ignores Resistance to Poison damage.",

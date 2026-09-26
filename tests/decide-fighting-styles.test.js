@@ -381,3 +381,58 @@ describe("the PHB feats, group 1 (2026-09-26): Elemental Adept and Poisoner", ()
     expect(d.raisedOf(rolls, 2)).toEqual({ raised: [{ from: 1, to: 2 }], gain: 1 });
   });
 });
+
+describe("Crossbow Expert's Dual Wielding (group 2, 2026-09-26)", () => {
+  const hand = { ...weapon("Hand Crossbow", "martialR", ["lgt", "lod"]), base: "handcrossbow" };
+  const heavy = {
+    ...weapon("Heavy Crossbow", "martialR", ["hvy", "two", "lod"]),
+    base: "heavycrossbow"
+  };
+  const dagger = weapon("Dagger", "simpleM", ["lgt", "fin", "thr"]);
+
+  it("the face: a Light crossbow and a second weapon held", () => {
+    expect(d.faceState("offhandCrossbow", d.heldOf([hand, dagger]))).toMatchObject({
+      live: true,
+      word: "hand crossbow"
+    });
+    expect(d.faceState("offhandCrossbow", d.heldOf([hand]))).toMatchObject({ live: false });
+    expect(d.faceState("offhandCrossbow", d.heldOf([heavy, dagger]))).toMatchObject({
+      live: false
+    });
+  });
+
+  it("the roll: the off-hand attack with a Light crossbow, a positive modifier", () => {
+    expect(
+      d.rollFits("offhandCrossbow", {
+        mode: "offhand",
+        base: "handcrossbow",
+        properties: ["lgt"],
+        mod: 3
+      })
+    ).toBe(true);
+    expect(
+      d.rollFits("offhandCrossbow", {
+        mode: "offhand",
+        base: "handcrossbow",
+        properties: ["lgt"],
+        mod: -1
+      })
+    ).toBe(false);
+    expect(
+      d.rollFits("offhandCrossbow", {
+        mode: "offhand",
+        base: undefined,
+        properties: ["lgt"],
+        mod: 3
+      })
+    ).toBe(false);
+    expect(
+      d.rollFits("offhandCrossbow", {
+        mode: "ranged",
+        base: "handcrossbow",
+        properties: ["lgt"],
+        mod: 3
+      })
+    ).toBe(false);
+  });
+});

@@ -33,7 +33,8 @@ const SECTIONS = {
   9: 'a metric grid: the 5-foot rule is judged in FEET, never in scene units',
   10: 'range: point-blank, beyond normal, beyond long — and the section follows the attack-mode dropdown',
   11: 'effect sources: an effect or a feature by name, in scope, listed or counted, judged, and spent by the roll',
-  12: 'the check gate: Poisoned and Frightened on a raw check and a skill, the record, never on a programmatic roll (2026-09-03)'
+  12: 'the check gate: Poisoned and Frightened on a raw check and a skill, the record, never on a programmatic roll (2026-09-03)',
+  13: 'the range cancellers (the PHB feats, group 2, 2026-09-26): Crossbow Expert answers the point-blank row (listed, net Normal) and not a dart\'s; Sharpshooter answers long range; Half Cover — the attack records the AC without it and the card says so, and the gate lists it; Spell Sniper answers a cantrip\'s point-blank row'
 };
 const DEPENDS = { 8: ['1'] };
 
@@ -1051,6 +1052,147 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!d.sys && !d.app && !d.record, `dialog=${!!d.sys} gate=${!!d.app} record=${!!d.record}`);
       await clearStatuses();
       await closeGates();
+    }
+
+    // ================================================== 13. the range cancellers (group 2)
+    if (want(13)) {
+      await clearStatuses();
+      await closeGates();
+      const findPHB = async (name, type) => {
+        for (const pack of game.packs.filter(pk => (pk.metadata.packageName === 'dnd-players-handbook') && (pk.documentName === 'Item'))) {
+          const hit = (await pack.getIndex({ fields: ['type'] })).find(e => (e.name === name) && (e.type === type));
+          if (hit) return pack.getDocument(hit._id);
+        }
+        return null;
+      };
+      const give = async data => {
+        const [made] = await pc.createEmbeddedDocuments('Item', [data]);
+        created.items.push({ actorId: pc.id, id: made.id });
+        return made;
+      };
+      const drop = async item => {
+        if (!item) return;
+        if (pc.items.get(item.id)) await pc.deleteEmbeddedDocuments('Item', [item.id]).catch(() => {});
+        const i = created.items.findIndex(x => x.id === item.id); if (i >= 0) created.items.splice(i, 1);
+      };
+      const feat = name => give({ name, type: 'feat', system: { description: { value: '' } } });
+      const priorSides = { victim: victimTokenDoc.disposition, pc: pcTokenDoc.disposition };
+      const priorOverride = victim.system._source.attributes.ac.override ?? null;
+      const far = [];
+      let xbowItem = null, dartItem = null, cantrip = null;
+      try {
+        const xbowSrc = await findPHB('Light Crossbow', 'weapon');
+        const dartSrc = await findPHB('Dart', 'weapon');
+        if (!xbowSrc || !dartSrc) throw new Error('the PHB Light Crossbow or Dart is not on this box');
+        xbowItem = await give(xbowSrc.toObject());
+        dartItem = await give(dartSrc.toObject());
+        const attackOf = item => pc.items.get(item.id).system.activities.find(a => a.type === 'attack');
+        await pcTokenDoc.update({ disposition: 1 });
+        await victimTokenDoc.update({ disposition: -1 });   // an ENEMY, adjacent
+        await sleep(200);
+        // 13a — Crossbow Expert
+        let ce = await feat('Crossbow Expert');
+        {
+          const { dialog } = await gatedSwing({ activity: attackOf(xbowItem) });
+          const text = popupText(dialog);
+          ok('13a. Crossbow Expert, a Light Crossbow at an adjacent enemy: the point-blank row LISTED — "Crossbow Expert: no Disadvantage" — net Normal',
+            !!dialog && /within 5 feet of Hobgoblin — Crossbow Expert: no Disadvantage/.test(text) && /1 Modifier — Net Normal/.test(text)
+              && (defaultButton(dialog) === 'normal'), `${text.slice(0, 300)} default=${defaultButton(dialog)}`);
+          await closeGates();
+        }
+        {
+          const { dialog } = await gatedSwing({ activity: attackOf(dartItem) });
+          const text = popupText(dialog);
+          ok('13b. …and a DART is no crossbow: the row counts, net Disadvantage', /1 Modifier — Net Disadvantage/.test(text) && !/Crossbow Expert/.test(text),
+            text.slice(0, 300));
+          await closeGates();
+        }
+        await drop(ce); ce = null;
+        // 13c — Sharpshooter at long range
+        let ss = await feat('Sharpshooter');
+        await victimTokenDoc.update({ disposition: 0 });
+        const placeFar = async squares => {
+          const { doc, token } = await placeToken(victim, 1500 - (squarePx * squares), 1400);
+          await doc.update({ disposition: -1 });
+          far.push(doc.id);
+          await sleep(200);
+          return token;
+        };
+        const at30 = await placeFar(6);
+        {
+          const { dialog } = await gatedSwing({ activity: attackOf(dartItem), token: at30 });
+          const text = popupText(dialog);
+          ok('13c. Sharpshooter, a dart at 30 feet (20/60): "beyond normal range … — Sharpshooter: no Disadvantage", net Normal',
+            !!dialog && /beyond normal range — .* — Sharpshooter: no Disadvantage/.test(text) && /1 Modifier — Net Normal/.test(text), text.slice(0, 300));
+          await closeGates();
+        }
+        // 13d — Half Cover: the recorded AC, the card line, the gate's box
+        await victim.update({ 'system.attributes.ac.override': null });
+        const at15 = await placeFar(3);
+        const coverTarget = at15.actor;
+        await coverTarget.toggleStatusEffect('coverHalf', { active: true });
+        await sleep(300);
+        const acWith = Number(coverTarget.system.attributes.ac.value);
+        const cover = Number(coverTarget.system.attributes.ac.cover);
+        const shoot = async () => {
+          target(at15);
+          await sleep(80);
+          const rolls = await attackOf(dartItem).rollAttack({}, { configure: false }, {});
+          const msg = rolls?.[0]?.parent ?? null;
+          await sleep(400);
+          return msg;
+        };
+        const shot = await shoot();
+        const recorded = shot?.system?.targets?.[0]?.ac;
+        const line = document.querySelector(`.message[data-message-id="${shot?.id}"] .bf-cover-line`)?.dataset?.bfCoverLine ?? '';
+        ok(`13d. Half Cover (+${cover}): Sharpshooter's attack RECORDS AC ${acWith - cover}, not ${acWith}; the card says "Sharpshooter — ignores …'s cover (+${cover} AC)"`,
+          (cover === 2) && (recorded === acWith - cover) && (shot?.getFlag(MOD, 'coverIgnored')?.feature === 'Sharpshooter')
+            && /Sharpshooter — ignores .*cover \(\+2 AC\)/.test(line), `cover=${cover} acWith=${acWith} recorded=${recorded} line="${line}"`);
+        {
+          const { dialog } = await gatedSwing({ activity: attackOf(dartItem), token: at15 });
+          const text = popupText(dialog);
+          ok('13e. …and the gate LISTS the cover: "cover (+2 AC) — Sharpshooter ignores it", nothing counted', !!dialog
+            && /cover \(\+2 AC\) — Sharpshooter ignores it/.test(text) && /Net Normal/.test(text), text.slice(0, 300));
+          await closeGates();
+        }
+        await drop(ss); ss = null;
+        const plain = await shoot();
+        ok(`13f. without the feat the cover stands: the attack records AC ${acWith}, no line`, (plain?.system?.targets?.[0]?.ac === acWith)
+          && !plain?.getFlag(MOD, 'coverIgnored'), `recorded=${plain?.system?.targets?.[0]?.ac}`);
+        await coverTarget.toggleStatusEffect('coverHalf', { active: false });
+        // 13g — Spell Sniper answers a cantrip's point-blank row
+        await victimTokenDoc.update({ disposition: -1 });
+        cantrip = await give({
+          name: 'BF Test Cantrip', type: 'spell',
+          system: { level: 0, school: 'evo', properties: ['vocal'], range: { value: '120', units: 'ft' }, method: 'spell', prepared: 1,
+            activities: { bftestcantrip000: { _id: 'bftestcantrip000', type: 'attack', name: 'Bolt', activation: { type: 'action' },
+              attack: { type: { value: 'ranged', classification: 'spell' }, bonus: '0', flat: false },
+              damage: { includeBase: true, parts: [{ number: 1, denomination: 10, bonus: '', types: ['fire'] }] } } } }
+        });
+        let sn = await feat('Spell Sniper');
+        {
+          const { dialog } = await gatedSwing({ activity: attackOf(cantrip) });
+          const text = popupText(dialog);
+          ok('13g. Spell Sniper, a cantrip at an adjacent enemy: the point-blank row listed — "Spell Sniper: no Disadvantage"',
+            !!dialog && /Spell Sniper: no Disadvantage/.test(text) && /Net Normal/.test(text), text.slice(0, 300));
+          await closeGates();
+        }
+        await drop(sn); sn = null;
+      } finally {
+        await closeGates();
+        const liveFar = far.filter(id => scene.tokens.get(id));
+        if (liveFar.length) await scene.deleteEmbeddedDocuments('Token', liveFar).catch(() => {});
+        for (const id of far) { const i = created.tokens.indexOf(id); if (i >= 0) created.tokens.splice(i, 1); }
+        await victim.update({ 'system.attributes.ac.override': priorOverride }).catch(() => {});
+        await victimTokenDoc.update({ disposition: priorSides.victim }).catch(() => {});
+        await pcTokenDoc.update({ disposition: priorSides.pc }).catch(() => {});
+        for (const name of ['Crossbow Expert', 'Sharpshooter', 'Spell Sniper']) {
+          const left = pc.items.filter(i => (i.type === 'feat') && (i.name === name) && created.items.some(c => c.id === i.id));
+          for (const it of left) await drop(it);
+        }
+        for (const it of [xbowItem, dartItem, cantrip]) await drop(it);
+        await clearStatuses();
+      }
     }
 
     return { log, results, skips };

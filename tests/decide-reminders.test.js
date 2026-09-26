@@ -1524,3 +1524,108 @@ describe("effectCarriesRow — a row's `item` tells two pack effects of one name
     ).toBe(true);
   });
 });
+
+describe("the range cancellers (the PHB feats, group 2, 2026-09-26)", () => {
+  const rules = { long: "L", single: "S", close: "C" };
+  const bow = { rangedWeapon: true, spell: false, crossbow: false };
+  const xbow = { rangedWeapon: true, spell: false, crossbow: true };
+  const bolt = { rangedWeapon: false, spell: true, crossbow: false };
+
+  it("a feat reaches only its own kind of attack", () => {
+    const f = n => r.rangeFeatsFor([n], bow, reg.RANGE_FEATS);
+    expect(f("Sharpshooter").cancels[0].rows).toEqual(["long", "close"]);
+    expect(f("Sharpshooter").cover?.feature).toBe("Sharpshooter");
+    expect(f("Spell Sniper")).toEqual({ cancels: [], cover: null, reach: null }); // a bow is no spell
+    expect(r.rangeFeatsFor(["Spell Sniper"], bolt, reg.RANGE_FEATS)).toMatchObject({
+      cover: { feature: "Spell Sniper" },
+      reach: { feet: 60 }
+    });
+    expect(r.rangeFeatsFor(["Crossbow Expert"], bow, reg.RANGE_FEATS).cancels).toEqual([]);
+    expect(r.rangeFeatsFor(["crossbow expert"], xbow, reg.RANGE_FEATS).cancels[0].rows).toEqual([
+      "close"
+    ]);
+    expect(r.rangeFeatsFor(["Crossbow Expert"], xbow, reg.RANGE_FEATS).cover).toBeNull();
+  });
+
+  it("a cancelled row is LISTED with the feat, never counted; beyond long range still cannot be made", () => {
+    const cancels = r.rangeFeatsFor(["Sharpshooter"], bow, reg.RANGE_FEATS).cancels;
+    const close = r.rangeSources({ ranged: true, closeEnemies: ["Goblin"], cancels, rules });
+    expect(close).toHaveLength(1);
+    expect(close[0].bend).toBeNull();
+    expect(close[0].label).toMatch(/Sharpshooter: no Disadvantage/);
+    const long = r.rangeSources({
+      ranged: true,
+      distanceFeet: 200,
+      normalFeet: 150,
+      longFeet: 600,
+      cancels,
+      rules
+    });
+    expect(long[0]).toMatchObject({ bend: null });
+    const beyond = r.rangeSources({
+      ranged: true,
+      distanceFeet: 700,
+      normalFeet: 150,
+      longFeet: 600,
+      cancels,
+      rules
+    });
+    expect(beyond[0].label).toMatch(/cannot be made/);
+    // Crossbow Expert cancels the close row only
+    const xc = r.rangeFeatsFor(["Crossbow Expert"], xbow, reg.RANGE_FEATS).cancels;
+    const both = r.rangeSources({
+      ranged: true,
+      distanceFeet: 100,
+      normalFeet: 80,
+      longFeet: 320,
+      closeEnemies: ["Orc"],
+      cancels: xc,
+      rules
+    });
+    expect(both.map(s => s.bend)).toEqual([null, "disadvantage"]); // the close row answered, the long row stands
+    const far = r.rangeSources({
+      ranged: true,
+      distanceFeet: 100,
+      normalFeet: 80,
+      longFeet: 320,
+      cancels: xc,
+      rules
+    });
+    expect(far.map(s => s.bend)).toEqual(["disadvantage"]);
+  });
+
+  it("the cover a feat ignores is listed; no feat, no box", () => {
+    const [s] = r.rangeSources({
+      ranged: true,
+      targetName: "Goblin",
+      coverBonus: 2,
+      coverFeat: { feature: "Sharpshooter", rule: "x" },
+      rules
+    });
+    expect(s).toMatchObject({
+      bend: null,
+      label: "Goblin's cover (+2 AC) — Sharpshooter ignores it"
+    });
+    expect(r.rangeSources({ ranged: true, coverBonus: 2, rules })).toEqual([]);
+  });
+
+  it("Spell Sniper's reach: a spell range of 10 feet or more gains 60; Touch and a two-band range stand", () => {
+    expect(
+      r.reachedRange({ ranged: true, normalFeet: 120, longFeet: null }, { feet: 60 })
+    ).toMatchObject({ normalFeet: 180 });
+    expect(
+      r.reachedRange({ ranged: true, normalFeet: 5, longFeet: null }, { feet: 60 }).normalFeet
+    ).toBe(5);
+    expect(
+      r.reachedRange({ ranged: true, normalFeet: 80, longFeet: 320 }, { feet: 60 }).normalFeet
+    ).toBe(80);
+    expect(r.reachedRange({ ranged: true, normalFeet: 120 }, null).normalFeet).toBe(120);
+  });
+
+  it("the recorded AC without the cover; Total Cover (null) stays null", () => {
+    expect(r.acWithoutCover(17, 2)).toBe(15);
+    expect(r.acWithoutCover(20, 5)).toBe(15);
+    expect(r.acWithoutCover(null, 5)).toBeNull();
+    expect(r.acWithoutCover(14, 0)).toBe(14);
+  });
+});
