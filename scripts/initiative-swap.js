@@ -224,20 +224,24 @@ async function showSwapPopup(message) {
     const pick = a.role === "ally";
     const cue = dispositionStyle(a.tokenId ? canvas?.tokens?.get(a.tokenId) : null);
     const word = (a.role === "self") ? "(you)" : (a.role === "incapacitated") ? "Incapacitated" : cue.label;
-    const style = "display:flex;align-items:center;gap:0.5rem;margin:2px 0;padding:0.2rem 0.4rem;border-radius:4px;"
+    // ONE GRID for every row (user, 2026-09-25: "needs alignment on the icon"): the rank, the radio's
+    // slot (empty on a row that cannot be picked, the same width), the portrait, the name, the word,
+    // the number right-aligned, the preview — so the portraits and the numbers line up down the list.
+    const style = "display:grid;grid-template-columns:1.2rem 1.4rem 32px minmax(0,1fr) auto 2rem 2.8rem;gap:0.5rem;align-items:center;"
+      + "margin:2px 0;padding:0.2rem 0.4rem;border-radius:4px;"
       + (pick ? "cursor:pointer;background:rgba(0,0,0,0.06);" : "") + ((a.role === "incapacitated") ? "opacity:0.55;" : "");
     const radio = pick
-      ? `<input type="radio" name="bf-initiative-swap" value="${esc(a.combatantId)}" data-token="${esc(a.tokenId ?? "")}" style="margin:0;flex:0 0 auto;">`
-      : `<span style="width:13px;flex:0 0 auto;"></span>`;
+      ? `<input type="radio" name="bf-initiative-swap" value="${esc(a.combatantId)}" data-token="${esc(a.tokenId ?? "")}" style="margin:0;justify-self:center;">`
+      : "<span></span>";
     const portrait = a.img
-      ? `<img src="${esc(a.img)}" alt="${esc(cue.label)}" class="gold-icon" style="flex:0 0 auto;width:32px;height:32px;object-fit:cover;border-radius:4px;border:2px solid ${cue.color};">`
-      : `<i class="${cue.icon}" style="flex:0 0 auto;width:32px;text-align:center;color:${cue.color};"></i>`;
+      ? `<img src="${esc(a.img)}" alt="${esc(cue.label)}" class="gold-icon" style="width:32px;height:32px;object-fit:cover;border-radius:4px;border:2px solid ${cue.color};box-sizing:border-box;">`
+      : `<i class="${cue.icon}" style="width:32px;text-align:center;color:${cue.color};"></i>`;
     const tag = pick ? "label" : "div";
     return `<${tag} data-bf-initiative-row="${esc(a.role)}" data-combatant="${esc(a.combatantId)}" data-initiative="${esc(a.initiative)}" style="${style}">
-      <span style="flex:0 0 1.2rem;text-align:right;opacity:0.6;font-size:var(--font-size-11,11px);">${i + 1}</span>${radio}${portrait}
-      <span style="flex:1;min-width:0;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(a.name)}</span>
-      <span style="flex:0 0 auto;opacity:0.7;font-size:0.9em;color:${(a.role === "self" || a.role === "incapacitated") ? "inherit" : cue.color};">${esc(word)}</span>
-      <span style="flex:0 0 auto;min-width:3.2rem;text-align:right;white-space:nowrap;"><strong style="font-size:1.15em;">${esc(a.initiative)}</strong><span data-bf-initiative-after style="margin-left:0.3rem;font-weight:bold;"></span></span></${tag}>`;
+      <span style="text-align:right;opacity:0.6;font-size:var(--font-size-11,11px);">${i + 1}</span>${radio}${portrait}
+      <span style="font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(a.name)}</span>
+      <span style="opacity:0.7;font-size:0.9em;color:${(a.role === "self" || a.role === "incapacitated") ? "inherit" : cue.color};">${esc(word)}</span>
+      <strong style="font-size:1.15em;text-align:right;">${esc(a.initiative)}</strong><span data-bf-initiative-after style="font-weight:bold;white-space:nowrap;"></span></${tag}>`;
   }).join("");
   const dialog = await openMomentPopup(message, SWAP_FLAG, actor, {
     title: `${flag.row} — ${flag.actorName}`, icon: "fa-solid fa-right-left", width: 400,
