@@ -80,3 +80,32 @@ describe("group 3 - the popups' choices replayed on the canvas", () => {
     ]);
   });
 });
+
+describe("group 4 - the bumps over the creature helped", () => {
+  const { foldRise, acChips } = chips;
+  it("a die added is one gold +N", () => {
+    expect(foldRise({ mode: "die", total: 4, on: "Actor.r" })).toEqual({
+      on: "Actor.r",
+      chips: [{ label: "+4", flat: true, up: true }]
+    });
+  });
+  it("a reroll turns the d20 over", () => {
+    expect(foldRise({ mode: "reroll", oldFace: 3, newFace: 17, on: "Actor.r" }).chips).toEqual([
+      { was: "3", label: "17", up: true }
+    ]);
+  });
+  it("Lucky's second d20: the higher gold, the other struck; a tie keeps the first", () => {
+    expect(foldRise({ mode: "advantage", oldFace: 6, newFace: 15, on: "Actor.r" }).chips).toEqual([
+      { label: "6", drop: true },
+      { label: "15", up: true }
+    ]);
+    expect(foldRise({ mode: "advantage", oldFace: 9, newFace: 9, on: "Actor.r" }).chips).toEqual([
+      { label: "9", up: true },
+      { label: "9", drop: true }
+    ]);
+  });
+  it("Shield: +5 AC; a bonus the sheet cannot state draws nothing", () => {
+    expect(acChips(5)).toEqual([{ label: "+5 AC", flat: true, up: true }]);
+    expect(acChips(null)).toEqual([]);
+  });
+});

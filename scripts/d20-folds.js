@@ -67,6 +67,7 @@ import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RE
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
 import { ADVANTAGE_BUYS, SUPERIORITY_FOLDS } from "./decide/registry.js";
 import { CHIP_FLAG } from "./decide/chips.js";
+import { foldRise } from "./decide/dice-chips.js";
 import { cardRow, momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause } from "./ui.js";
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 import { activityUuidOf, originData, targetsOf } from "./decide/card.js";
@@ -706,11 +707,16 @@ async function resolveFold(message, answer) {
           rolled.summary = { total: first.total, isCritical: first.isCritical === true, isFumble: first.isFumble === true };
         }
       }
+      // the die over the roller, on every client (the dice that rise, group 4): a die added as "+N",
+      // a reroll turning over, Lucky's two d20s with the higher standing
+      const faceOf = r => r?.dice?.[0]?.results?.find(x => (x.active !== false) && !x.discarded)?.result ?? null;
+      const rise = foldRise({ mode: (kind === "advantage") ? "advantage" : REROLL_KINDS.has(kind) ? "reroll" : "die",
+        oldFace: faceOf(message.rolls?.[0]), newFace: faceOf(rolled.roll), total: rolled.summary.total, on: actor.uuid });
       const rolledMessage = await rolled.roll.toMessage({
         speaker: ChatMessage.getSpeaker({ actor }),
         flavor: (kind === "advantage") ? `${labelOf(offer)} — the second d20`
           : REROLL_KINDS.has(kind) ? `${labelOf(offer)} — the reroll` : `${labelOf(offer)} — the die`,
-        flags: { [MODULE_ID]: { respondsTo: message.id } }
+        flags: { [MODULE_ID]: { respondsTo: message.id, ...(rise ? { diceRise: rise } : {}) } }
       });
 
       // 3. Record the spend, then compose the verdict across EVERY fold on this message.

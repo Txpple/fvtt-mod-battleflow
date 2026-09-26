@@ -73,3 +73,29 @@ export function eitherRise({ first, second, stands, on }) {
   const chip = (v, keep) => keep ? { label: String(v), up: true } : { label: String(v), drop: true };
   return { on, chips: [chip(first, stands !== "second"), chip(second, stands === "second")] };
 }
+
+/**
+ * A d20 fold's die over the roller (group 4, the bumps: "one chip over the creature it helped"):
+ *   a die added      Bardic Inspiration, Tactical Mind — one gold "+N"
+ *   a reroll         Heroic Inspiration — the d20 turning over from its old face to the new
+ *   Advantage after  Lucky — the two d20s, the higher gold and the other struck (a tie keeps the first)
+ * @param {{mode: "die"|"reroll"|"advantage", oldFace?: number|null, newFace?: number|null, total?: number|null, on: string}} args
+ * @returns {{on: string, chips: object[]}|null}
+ */
+export function foldRise({ mode, oldFace = null, newFace = null, total = null, on }) {
+  if ( !on ) return null;
+  const known = v => Number.isFinite(Number(v)) && (v !== null);
+  if ( mode === "die" ) return known(total) && Number(total) ? { on, chips: [{ label: `+${Number(total)}`, flat: true, up: true }] } : null;
+  if ( !known(oldFace) || !known(newFace) ) return null;
+  if ( mode === "reroll" ) return { on, chips: [{ was: String(oldFace), label: String(newFace), up: true }] };
+  const second = Number(newFace) > Number(oldFace);
+  return { on, chips: [second ? { label: String(oldFace), drop: true } : { label: String(oldFace), up: true },
+    second ? { label: String(newFace), up: true } : { label: String(newFace), drop: true }] };
+}
+
+/**
+ * Shield's bump (group 4): one chip over the creature it saved — "+5 AC".
+ * @param {number|null} bonus
+ * @returns {{label: string, flat: boolean, up: boolean}[]}
+ */
+export const acChips = bonus => (Number(bonus) > 0) ? [{ label: `+${Number(bonus)} AC`, flat: true, up: true }] : [];
