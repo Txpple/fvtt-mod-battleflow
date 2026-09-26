@@ -37,9 +37,9 @@ const has = (item, prop) => (item?.properties ?? []).includes(prop);
 const isMelee = item => MELEE.has(item?.kind);
 
 /**
- * A style's face: live, or off with the reason. `word` is the panel's one word in parens
- * ("Fighting Style: Great Weapon Fighting (greatsword)" — user, 2026-09-26: "i only want one
- * line"); `detail` the long line, kept for the hover title ("a second weapon held (Dagger)").
+ * A style's face: live, or off with the reason. `word` is the one-word state (the item, the
+ * die, why it is off) — Unarmed Fighting's float reads it; the panel shows the name alone (user,
+ * 2026-09-26). `detail` is the long line, the hover title ("a second weapon held (Dagger)").
  * @param {string} gate
  * @param {ReturnType<typeof heldOf>} held
  * @param {{small?: string, large?: string}} [dice]  Unarmed Fighting's two dice, as the feat ships them

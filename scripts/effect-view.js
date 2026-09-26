@@ -95,7 +95,7 @@ function factOf(effect) {
     active: effect.active === true, temporary: effect.isTemporary === true,
     disabled: effect.disabled === true,
     worn: ((effect.parent instanceof Item) && (effect.transfer === true)) || !!style,
-    style: !!style, word: style?.word ?? null, detail: style?.detail ?? null,
+    style: !!style, detail: style?.detail ?? null,
     aura: ownAuraOf(effect),
     onItem: effect.parent instanceof Item,
     statuses: [...(effect.statuses ?? [])],

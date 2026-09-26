@@ -748,11 +748,11 @@ Fighting **U1**, *"truesight yes"*. `smoke-styles` (31 checks), `smoke-guards` (
   why when off; never the bar). Where the pack ships an UNGATED effect (Defense, Dueling — their
   notes say "disable it when …"), the machine switches that off and the face carries the rule
   (Defense's AC change, read off the pack's effect); unlisting the style gives it back.
-- **The face on the panel is ONE line** (the walk, 2026-09-26: "i only want one line"):
-  "Fighting Style: Great Weapon Fighting (greatsword)" — the word the item, lowercased, Unarmed
-  Fighting's die, or why it is off (unequipped, unarmored, dual-wielding, two-handed, unpaired);
-  the long reason is the hover title. **Thrown Weapon Fighting's face is always on, no word** —
-  the attack's thrown mode is its whole gate ("the user selects the thrown attack mode").
+- **The face on the panel is ONE line, no suffix** (the walk, 2026-09-26: "i only want one line";
+  then "just remove the (weapon) suffix. the player can figure things out"): "Fighting Style:
+  Great Weapon Fighting"; why it is off is the hover title. **Thrown Weapon Fighting's face is
+  always on** — the attack's thrown mode is its whole gate ("the user selects the thrown attack
+  mode").
 - **An equip change that changes a face floats** white over the bearer: "Defense off", "Dueling
   on", Unarmed Fighting its die; a swap that keeps the face floats nothing. Core's own
   "+Defense / −Defense" is quieted on every face and takeover write (`animate: false`).
