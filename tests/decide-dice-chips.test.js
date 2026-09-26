@@ -80,6 +80,27 @@ describe("changedDice - the dice the platform changed on its own (option A)", ()
     };
     expect(changedDice([{ terms: [d20] }])).toEqual([{ was: "4", label: "10", up: true }]);
   });
+  it("Reliable Talent as dnd5e 6.0.5 writes it: the floored die is marked rerolled, still live", async () => {
+    const { changedDice } = await import("../scripts/decide/dice-chips.js");
+    const d20 = {
+      faces: 20,
+      modifiers: ["min10"],
+      results: [{ result: 1, active: true, count: 10, rerolled: true }]
+    };
+    expect(changedDice([{ terms: [d20] }])).toEqual([{ was: "1", label: "10", up: true }]);
+  });
+  it("Halfling Luck and Reliable Talent together: the 1 turns over to the reroll", async () => {
+    const { changedDice } = await import("../scripts/decide/dice-chips.js");
+    const d20 = {
+      faces: 20,
+      modifiers: ["r1=1", "min10"],
+      results: [
+        { result: 1, active: false, rerolled: true, count: 10 },
+        { result: 16, active: true }
+      ]
+    };
+    expect(changedDice([{ terms: [d20] }])).toEqual([{ was: "1", label: "16", up: true }]);
+  });
   it("a roll nothing changed draws nothing; a discarded Advantage die is not a change", async () => {
     const { changedDice } = await import("../scripts/decide/dice-chips.js");
     const adv = {

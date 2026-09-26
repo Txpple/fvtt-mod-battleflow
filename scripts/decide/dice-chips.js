@@ -117,7 +117,9 @@ export function changedDice(rolls, cap = 8) {
       const results = t.results;
       const used = new Set();
       results.forEach((r, i) => {
-        if ( r?.rerolled ) {
+        // A floor is marked `rerolled` too (dnd5e 6.0.5, probe-changed-dice: `min10` leaves the one
+        // live die `rerolled: true, count: 10`) - only a retired result pairs with a later one.
+        if ( r?.rerolled && (r?.active === false) ) {
           const j = results.findIndex((n, k) => (k > i) && !used.has(k) && !n?.rerolled && (n?.active !== false));
           if ( j < 0 ) return;
           used.add(j);
