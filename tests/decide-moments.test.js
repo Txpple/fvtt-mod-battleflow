@@ -146,6 +146,20 @@ describe("the moment registry — shape", () => {
         from: 11,
         to: 19
       },
+      kitTend: {
+        status: "resolved",
+        row: "Healer",
+        actorUuid: "Actor.h",
+        actorName: "Healer",
+        targetUuid: "Actor.g",
+        targetName: "Gren",
+        pools: [{ key: "c", faces: 10, label: "Fighter", value: 3, max: 5 }],
+        answer: "tend",
+        pick: "c",
+        applied: true,
+        spent: true,
+        faces: 10
+      },
       restSong: {
         status: "resolved",
         row: "Musician",

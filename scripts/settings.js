@@ -286,6 +286,14 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.healRerolls.default
   });
 
+  // KIT TENDING (the origin-feat walk, 2026-09-25): Healer's Battle Medic, asked when its owner uses
+  // the Healer's Kit on a creature within 5 feet. A list; the list is the switch.
+  game.settings.register(MODULE_ID, S.kitTendList, {
+    name: "Kit Tending",
+    hint: "A feature that heals from the tended creature's own Hit Point Dice when its owner uses a kit on it, by the feature's own name, separated by commas — Healer (Battle Medic, the Healer's Kit, 5 feet). The kit's user picks the die size in a popup; the creature's die is spent and the feature's own Heal activity of that size is rolled at it (a 1 then asks the Healing Rerolls popup). Remove a name to tend by hand.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.kitTends.default
+  });
+
   // UNARMED STRIKE DICE (the origin-feat walk, 2026-09-25): Tavern Brawler's die on the sheet's
   // plain Unarmed Strike. A list; the list is the switch.
   game.settings.register(MODULE_ID, S.unarmedDiceList, {
@@ -744,6 +752,11 @@ export function chosenAreaEntries() {
 /** Which rows of the initiative-swap table ask once Initiative is rolled, by the feature's name — `{ kind }`. */
 export function initiativeSwapEntries() {
   return listEntries(LIST_SPECS.initiativeSwaps);
+}
+
+/** Which rows of the kit-tending table offer on a kit's use, by the feature's name — `{ kind }`. */
+export function kitTendEntries() {
+  return listEntries(LIST_SPECS.kitTends);
 }
 
 /** Which rows of the unarmed-dice table swap the plain Unarmed Strike's damage, by the feature's name — `{ kind }`. */

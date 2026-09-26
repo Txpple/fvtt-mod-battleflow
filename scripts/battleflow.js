@@ -155,6 +155,10 @@ import "./heal-rerolls.js";
 // It reads the roll's parts before anything counts them: auto-damage.js's weapon-roll count is of
 // ROLLS, not parts, so the swap moves nothing it counts.
 import "./unarmed-dice.js";
+// kit-tend.js (2026-09-25, the origin-feat walk — Healer's Battle Medic): its own moment (the kit's
+// use, postUseActivity) and its own line on the kit's card; the healing it drives is heal-rerolls.js's
+// and cast.js's, unchanged.
+import "./kit-tend.js";
 // initiative-swap.js (2026-09-25, the origin feats — Alert): its own moment (the last Initiative
 // landing, updateCombatant on the elect) and its own card; its place in the order matters to nothing.
 import "./initiative-swap.js";

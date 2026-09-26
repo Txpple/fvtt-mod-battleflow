@@ -17,7 +17,8 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
   'heal-rerolls.js',        // the whole fold — the birth flag, the popup, the patch, the card
-  'cast.js'                 // the heal applier's claim — the healing waits for the answer
+  'cast.js',                // the heal applier's claim — the healing waits for the answer
+  'kit-tend.js'             // §8 — Battle Medic on the Healer's Kit's use (2026-09-25)
 ];
 
 const SECTIONS = {
@@ -27,7 +28,8 @@ const SECTIONS = {
   4: 'no 1 among the dice: no popup, the record settles "none", the healing lands at once',
   5: 'Battle Medic (the feat\'s own d8 activity): the formula goes up without its r1, a 1 opens the same popup',
   6: 'the clock keeps the roll: an unanswered popup times out kept, and the healing lands',
-  7: 'the list is the switch: Healer off the Healing Rerolls list — no record, and Battle Medic keeps its own r1'
+  7: 'the list is the switch: Healer off the Healing Rerolls list — no record, and Battle Medic keeps its own r1',
+  8: 'Battle Medic on the Healer’s Kit: the kit used on a creature within 5 ft asks which Hit Die; Tend spends it on the creature and rolls the feature’s own heal of that size at it; the healing lands'
 };
 const DEPENDS = { 2: ['1'] };   // §2 answers the popup §1 opened
 
@@ -53,7 +55,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
   if (!game.settings.settings.has(`${MOD}.healRerollList`)) return { fatal: 'healRerollList not registered — OLD code (reload the box)' };
 
-  const SETTING_KEYS = ['healRerollList', 'castApply', 'holdTimer', 'dramaticBeat'];
+  const SETTING_KEYS = ['healRerollList', 'castApply', 'holdTimer', 'dramaticBeat', 'kitTendList'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
   const def = k => game.settings.settings.get(`${MOD}.${k}`)?.default;
@@ -64,6 +66,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!scene || !cleric || !victim) return { fatal: 'missing fixture: the test range, BF Test Cleric or BF Test Victim — run tools/fixture-suite.mjs' };
 
   const lent = [];
+  let clericPrior = null;
   const placed = [];
   const priorHp = { value: victim.system._source.attributes.hp.value, max: victim.system._source.attributes.hp.max };
   const realPRNG = CONFIG.Dice.randomUniform;
@@ -95,6 +98,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const tokens = placed.filter(id => scene.tokens.get(id));
       if (tokens.length) await scene.deleteEmbeddedDocuments('Token', tokens);
       await victim.update({ 'system.attributes.hp.value': priorHp.value, 'system.attributes.hp.max': priorHp.max });
+      if (clericPrior) {
+        await cleric.update({ 'system.attributes.hp.value': clericPrior.hp });
+        for (const [id, spent] of Object.entries(clericPrior.hd)) await cleric.items.get(id)?.update({ 'system.hd.spent': spent });
+      }
       game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && ((m.speaker?.actor === cleric.id) || Object.keys(m.flags?.[MOD] ?? {}).length));
@@ -266,6 +273,54 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const formula = m?.rolls?.[0]?.formula ?? '';
       ok('7a. Healer off the list: no record, and Battle Medic keeps its own r1', !flagOf(m) && /r1/.test(formula),
         `record=${JSON.stringify(flagOf(m))} formula="${formula}"`);
+    }
+
+    // ================================================== 8. Battle Medic on the kit's use
+    if (want(8)) {
+      await set('kitTendList', def('kitTendList'));
+      await set('healRerollList', def('healRerollList'));
+      const kitSrc = await fromUuid('Compendium.dnd-players-handbook.equipment.Item.phbagHealersKit0');
+      const [kit] = kitSrc ? await cleric.createEmbeddedDocuments('Item', [kitSrc.toObject()]) : [];
+      if (kit) lent.push(kit.id);
+      const cls = Object.values(cleric.classes ?? {})[0];
+      clericPrior = { hp: Number(cleric.system.attributes.hp.value), hd: Object.fromEntries(Object.values(cleric.classes ?? {}).map(c => [c.id, Number(c.system.hd.spent) || 0])) };
+      // The Cleric tends itself (a creature within 5 feet of yourself — itself, 0 feet): its own token, placed.
+      const [clericDoc] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(cleric.prototypeToken.toObject(),
+        { x: (spot.x + 1) * g, y: spot.y * g, actorId: cleric.id, actorLink: true }, { inplace: false })]);
+      placed.push(clericDoc.id);
+      for (let i = 0; i < 40 && !canvas.tokens.get(clericDoc.id); i++) await sleep(250);
+      const clericToken = canvas.tokens.get(clericDoc.id);
+      if (!kit || !cls || !clericToken) {
+        ok('8. the fixtures: a Healer’s Kit, a class with Hit Dice, the Cleric’s token', false, `kit=${!!kit} cls=${!!cls} token=${!!clericToken}`);
+      } else {
+        await cls.update({ 'system.hd.spent': 0 });
+        await cleric.update({ 'system.attributes.hp.value': 1 });
+        const faces0 = Number(String(cls.system.hd.denomination).replace(/^d/i, ''));
+        game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+        clericToken.setTarget(true, { releaseOthers: true });
+        await sleep(100);
+        const use = await cleric.items.get(kit.id)?.system.activities.contents[0]?.use({}, { configure: false }, {});
+        const card = use?.message ?? null;
+        const offer = await waitFor(() => card?.getFlag(MOD, 'kitTend'), 6000);
+        const tendPopup = () => [...foundry.applications.instances.values()]
+          .find(app => app.rendered && app.element?.querySelector?.('input[name="bf-kit-tend"]')) ?? null;
+        const app = await waitFor(tendPopup, 6000);
+        const box = app?.element?.querySelector('input[name="bf-kit-tend"]');
+        ok('8a. the kit’s use asks: the card holds the offer, the popup lists the Cleric’s Hit Die by size, the largest ticked',
+          (offer?.status === 'pending') && (offer?.pools ?? []).some(p => p.faces === faces0) && !!box?.checked,
+          `offer=${JSON.stringify(offer ? { status: offer.status, pools: offer.pools } : null)} popup=${!!app} ticked=${box?.checked}`);
+        faces([[5, faces0]]);
+        app?.element?.querySelector('button[data-action="tend"]')?.click();
+        const done = await waitFor(() => (card?.getFlag(MOD, 'kitTend')?.applied) ? card.getFlag(MOD, 'kitTend') : null, 12000);
+        const healMsg = await waitFor(() => game.messages.contents.find(m => (m.getFlag(MOD, 'kitTendFor') === card?.id) && m.rolls?.length), 8000);
+        realDice();
+        const receipt = await waitFor(() => healMsg?.getFlag(MOD, 'receipt'), 8000);
+        const prof = Number(cleric.system.attributes.prof) || 0;
+        ok('8b. Tend: the Cleric’s die spent on its class, the feature’s own heal of that size rolled (5 + PB), the healing landed',
+          !!done?.spent && (Number(cls.system.hd.spent) === 1) && new RegExp(`1d${faces0}`).test(healMsg?.rolls?.[0]?.formula ?? '')
+            && !!receipt && (Number(cleric.system.attributes.hp.value) === 1 + 5 + prof),
+          `done=${JSON.stringify(done ? { spent: done.spent, faces: done.faces } : null)} hdSpent=${cls.system.hd.spent} formula="${healMsg?.rolls?.[0]?.formula ?? ''}" hp=${cleric.system.attributes.hp.value}`);
+      }
     }
 
     return { log, results, skips };

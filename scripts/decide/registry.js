@@ -1848,6 +1848,24 @@ export const UNARMED_DICE = Object.freeze({
 const UNARMED_DICE_NAMES = tableIndex(UNARMED_DICE).names;
 
 /**
+ * THE KIT TENDING (the origin-feat walk, 2026-09-25 — user: "healer kit use --- if in 5 feet, give
+ * the 'caster' of healer kit option to choose hit dice and make the roll for the other player";
+ * "and then reroll 1 option"): a feature that turns a kit's use on a creature within `reach` into
+ * healing paid from that creature's own Hit Point Dice. The kit's user picks the size in a popup;
+ * the die is spent on the creature's sheet and the feature's OWN heal activity of that size is
+ * rolled at it (kit-tend.js), so the Healing Rerolls popup and the cast applier carry the rest.
+ *   kit    the kit item's name whose use is the moment
+ *   reach  feet from the user to the creature
+ * ⚠ NOT A KIND — one table read by one machine; a second customer is a row.
+ */
+export const KIT_TENDS = Object.freeze({
+  "Healer": Object.freeze({ kit: "Healer's Kit", reach: 5,
+    rule: "Battle Medic. If you have a Healer’s Kit, you can expend one use of it and tend to a creature within 5 feet of yourself as a Utilize action. That creature can expend one of its Hit Point Dice, and you then roll that die. The creature regains a number of Hit Points equal to the roll plus your Proficiency Bonus.",
+    from: "Origin feat (Hermit)" })
+});
+const KIT_TEND_NAMES = tableIndex(KIT_TENDS).names;
+
+/**
  * THE R4 TRIPWIRE, AS DATA (DESIGN.md R4, ARCHITECTURE §6).
  *
  * R4's bargain is that a new ABILITY costs a data entry and zero code, and that this is safe
@@ -2103,6 +2121,14 @@ export const LIST_SPECS = {
     // initiative-swap.js (the origin feats, 2026-09-25). The list is the switch.
     columns: ["kind"], kindColumn: "kind", kinds: INITIATIVE_SWAP_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(INITIATIVE_SWAPS).join(", ")
+  },
+  kitTends: {
+    label: "Kit Tending", setting: "kitTendList",
+    // Which rows of the kit-tending table offer on a kit's use — the FEATURE names, whole-chunk,
+    // case-insensitive. Membership over KIT_TENDS; the mechanism is kit-tend.js (the origin-feat
+    // walk, 2026-09-25). The list is the switch.
+    columns: ["kind"], kindColumn: "kind", kinds: KIT_TEND_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(KIT_TENDS).join(", ")
   },
   unarmedDice: {
     label: "Unarmed Strike Dice", setting: "unarmedDiceList",

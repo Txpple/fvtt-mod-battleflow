@@ -141,6 +141,10 @@ ready	heal-rerolls.js
 dnd5e.renderChatMessage	heal-rerolls.js
 dnd5e.preRollDamageV2	unarmed-dice.js
 dnd5e.renderChatMessage	unarmed-dice.js
+dnd5e.postUseActivity	kit-tend.js
+dnd5e.renderChatMessage	kit-tend.js
+updateChatMessage	kit-tend.js
+deleteChatMessage	kit-tend.js
 updateCombatant	initiative-swap.js
 updateCombat	initiative-swap.js
 ready	initiative-swap.js

@@ -235,6 +235,17 @@ export const MOMENT_RECORDS = Object.freeze({
     }] : []
   },
 
+  kitTend: {
+    events: ["choice"],
+    means: "a kit's tending was answered — Healer's Battle Medic: the tended creature's Hit Point Die spent and the feature's own heal of that size rolled at it by the elect, or not used (kit-tend.js, the origin-feat walk 2026-09-25); resolved at a Pass, or when the tending is applied",
+    resolved: (r) => ((r?.answer === "pass") || ((r?.answer === "tend") && r?.applied)) ? [{
+      marker: "message", events: ["choice"],
+      facts: { actor: r.actorUuid ?? null, ability: r.row ?? null,
+        targets: r.targetUuid ? [{ uuid: r.targetUuid, name: r.targetName ?? null }] : [],
+        details: { answer: r.answer, faces: r.faces ?? null, spent: !!r.spent, timedOut: !!r.timedOut } }
+    }] : []
+  },
+
   restSong: {
     events: ["choice"],
     means: "a rest grant GIVEN to allies was answered and landed — Musician's Encouraging Song, Heroic Inspiration to the picked allies (rest-grants.js); resolved when `applied`",
@@ -673,6 +684,8 @@ export const STATE_KEYS = Object.freeze({
   rebukeAnswer: "an envelope — a rebuke's answer; the fold onto the rebuke flag is the resolve",
   damageHoldAnswer: "an envelope — a damage hold's answer; the fold onto the damageHold flag is the resolve",
   dropToOneAnswer: "an envelope — a drop-to-1 answer; the fold onto the dropToOne flag is the resolve",
+  kitTendAnswer: "an envelope — a player's kit-tending answer; the fold onto the kitTend flag, landed by the elect, is the resolve",
+  kitTendFor: "a back-link — the heal a kit's tending drove, pointing at the kit's card; the kitTend flag there is the resolve",
   initiativeSwapAnswer: "an envelope — a player's Initiative swap answer; the fold onto the initiativeSwap flag, landed by the elect, is the resolve",
   initiativeSwapAsked: "a combat flag — the once-per-combat latch of who was asked about an Initiative swap; initiativeSwap on the card is the resolve",
   restSongAnswer: "an envelope — a player's picks for a rest song; the fold onto the restSong flag, landed by the elect, is the resolve",
