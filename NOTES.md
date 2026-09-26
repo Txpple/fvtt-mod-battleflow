@@ -608,6 +608,22 @@ The whole inventory is SWEEP §6; these are the facts that bit the code.
   into `r1` inside the roll, a transfer effect's `save.roll.mode`, an `r1` in the feat's own
   formula. Nothing to build (DESIGN §8).
 
+### How dnd5e 6.0 marks the dice it changes (2026-09-26, `tools/probe-changed-dice.mjs`, dnd5e 6.0.5)
+
+`D20Roll#configureModifiers` turns the roll options into Foundry die modifiers — `halflingLucky` →
+`r1=1`, `reliableTalent` / `minimum` → `min10` — and a roll built by hand without it carries none.
+The two mark their results DIFFERENTLY:
+
+- **`r1=1` (a reroll)** retires the 1 — `{result: 1, active: false, rerolled: true}` — and appends
+  the new result, live.
+- **`min10` (a floor)** keeps the ONE live die and marks it `{result: 4, active: true, rerolled:
+  true, count: 10}` — `rerolled` although nothing was rerolled; `count` is what counts.
+- **Both**: the retired 1 carries `count: 10` too; the appended reroll is the live die.
+
+So `rerolled` alone does not mean *a second result follows*: `changedDice` pairs only a retired
+(`active: false`) result, and reads any live one by its `count`. The first cut paired every
+`rerolled` result and drew nothing for Reliable Talent.
+
 ### Carried over from 5.3.x
 
 #### Activation: spells inherit it, features declare it (2026-09-02, the corpus scan over the 2024 packs)

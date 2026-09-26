@@ -42,7 +42,7 @@ Everything a future session needs to start the sweep without re-deriving it:
    family**. §2's tables are the 2026-09-03 survey (1066 / 586) and stay as the families'
    shape; the new totals are these. Arcana Unleashed's **10 origin feats** were measured: 3 need
    module work (Arcane Omens and Transmuted Anatomy, a Reaction +1d4 to a failed save; Arcane
-   Overload, +PB to one Evocation damage roll) — **the phase AFTER Slice A**, by the user's
+   Overload, +PB to one Evocation damage roll) — **waiting with the splat books** (2026-09-26: the feats slice is PHB only), by the user's
    ruling; 4 are native or sheet-level, 3 out of combat. The JSON lives in the session
    scratchpad, not the repo — regenerate it:
    `node tools/scan-corpus.mjs <out.json>` (live, read-only, ~10 min, the user out of the
@@ -284,7 +284,7 @@ ITEM (`system.uses`, the activity consumes `itemUses`); none carries activity us
 
 ### The rulings (user, 2026-09-24)
 
-- **PHB first.** Arcana Unleashed's origin feats are the phase AFTER Slice A (§0 item 4).
+- **PHB first.** Arcana Unleashed's origin feats wait with the splat books — the next slice is the PHB feats only (the user, 2026-09-26; BACKLOG *The long-term order*).
 - **Tiers 1–3 in build:**
   - **Tier 1** — the save gate matches `match: "feature"` rows (Brave, Fey Ancestry, Dwarven
     Resilience), and **Stone's Endurance** on `INTERRUPT_REDUCTIONS` beside Parry.

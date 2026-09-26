@@ -65,6 +65,11 @@ Someone who has never played 5e can take their turn without knowing which chat c
 - **Nothing is a required answer.** Every moment has a default outcome and a clock; the human's
   control *preempts* the default. A table is never blocked on a player who stepped away unless
   it explicitly chooses to be (timer 0).
+- **The players' side comes first** (the user, 2026-09-26): Battle Flow makes life easier for the
+  players, makes the fight feel more tactical for them, and puts in front of them the rule
+  opportunities they would otherwise forget — a reaction, a mastery, a feat's rider. When work
+  competes, a player-facing flow beats a GM-side one ("as a DM i dont need monster flows as much
+  as player needs them").
 
 ### N4 — Flow
 
