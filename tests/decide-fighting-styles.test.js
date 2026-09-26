@@ -192,8 +192,45 @@ describe("the lines", () => {
     expect(d.styleLine({ feature: "Two-Weapon Fighting", gain: 3, note: "on the off-hand" })).toBe(
       "Two-Weapon Fighting — +3 on the off-hand"
     );
-    expect(d.floatText({ feature: "Great Weapon Fighting", gain: 2 })).toBe(
-      "+2 Great Weapon Fighting"
-    );
+  });
+});
+
+describe("the dice (L4 + F7, 2026-09-26: Empowered's chips, no click)", () => {
+  const d6 = results => ({ faces: 6, modifiers: ["min3"], results });
+  const rolls = [
+    {
+      terms: [
+        d6([
+          { result: 5, count: 5, active: true },
+          { result: 1, count: 3, active: true }
+        ])
+      ]
+    }
+  ];
+  it("reads every die, the raised one keeping the face it showed", () => {
+    expect(d.diceOf(rolls, 3)).toEqual([
+      { faces: 6, v: 5 },
+      { faces: 6, v: 3, was: 1 }
+    ]);
+    expect(
+      d.diceOf([{ terms: [{ faces: 8, modifiers: [], results: [{ result: 4, active: true }] }] }])
+    ).toEqual([{ faces: 8, v: 4 }]);
+  });
+  it("a floor's chips turn over and the gain follows; a flat bonus is its own chip", () => {
+    const dice = d.diceOf(rolls, 3);
+    expect(d.chipsOf({ gain: 2, raised: [{ from: 1, to: 3 }] }, dice)).toEqual({
+      chips: [
+        { label: "5", faces: 6 },
+        { label: "3", was: "1", up: true, faces: 6 }
+      ],
+      after: "+2"
+    });
+    expect(d.chipsOf({ gain: 2 }, [{ faces: 8, v: 6 }])).toEqual({
+      chips: [
+        { label: "6", faces: 8 },
+        { label: "+2", flat: true, up: true }
+      ],
+      after: ""
+    });
   });
 });

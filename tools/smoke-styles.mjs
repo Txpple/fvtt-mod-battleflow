@@ -26,7 +26,7 @@ const SECTIONS = {
   1: 'the faces: Chain Mail, a Longsword and a Shield — Defense live (its AC on the face, the pack effect switched off), Dueling live, Great Weapon Fighting live (the Longsword is Versatile), Thrown always on (the thrown mode is its gate), Two-Weapon off with why',
   2: 'a Dagger joins and the armor comes off: Dueling off ("a second weapon held (Dagger)"), Defense off and the AC one lower',
   3: 'Dueling: the Longsword one-handed rolls +2 with "Dueling — +2" and the record; two-handed it adds nothing and says why',
-  4: 'Great Weapon Fighting: the Greatsword rolls 1 and 5 — the 1 counts as 3, "1 → 3: +2", the record, the float; 4 and 6 leave no trace',
+  4: 'Great Weapon Fighting: the Greatsword rolls 1 and 5 — the 1 counts as 3, "1 → 3: +2", the record, the chips, the dice off the fighter; 4 and 6 leave no trace',
   5: 'Thrown Weapon Fighting: the Javelin thrown rolls +2; swung in melee it does not',
   6: 'Two-Weapon Fighting: the Dagger off-hand adds the modifier back',
   7: 'Unarmed Fighting: the sheet\'s Unarmed Strike rolls the d8 with the hands empty, the d6 with a Shield held, and says so',
@@ -78,6 +78,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const realFloat = canvas.interface?.createScrollingText?.bind(canvas.interface);
   const floats = [];
   if (canvas.interface) canvas.interface.createScrollingText = (origin, text, opts) => { floats.push(String(text)); return realFloat?.(origin, text, opts); };
+  const dicePlays = [];
+  const diceHook = Hooks.on('battleflow.styleDice', p => dicePlays.push(p));
 
   const equippedBefore = actor.items.filter(i => i.system?.equipped === true).map(i => i.id);
   const lent = [];
@@ -88,6 +90,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     restored = true;
     CONFIG.Dice.randomUniform = realPRNG;
     if (canvas.interface && realFloat) canvas.interface.createScrollingText = realFloat;
+    Hooks.off('battleflow.styleDice', diceHook);
     try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
     catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
     try {
@@ -164,6 +167,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const faceLine = name => face(name)?.getFlag(MOD, 'fightingStyle')?.detail ?? '';
     const packEffect = name => actor.items.find(i => (i.type === 'feat') && (i.name === name))?.effects?.find(e => (e.changes ?? []).length) ?? null;
     const textOf = id => (document.querySelector(`.message[data-message-id="${id}"]`)?.textContent ?? '').replace(/\s+/g, ' ');
+    // the style lines draw the dice as chips (L4, 2026-09-26); each keeps its words on data-bf-style-line
+    const linesOf = id => [...(document.querySelector(`.message[data-message-id="${id}"]`)?.querySelectorAll('.bf-fighting-style-line') ?? [])]
+      .map(e => e.dataset.bfStyleLine ?? '').join(' | ');
+    const chipsOf = id => [...(document.querySelector(`.message[data-message-id="${id}"]`)?.querySelectorAll('.bf-fighting-style-line .bf-chip') ?? [])]
+      .map(e => `${e.classList.contains('up') ? '*' : ''}${(e.querySelector('.now') ?? e.querySelector('b'))?.textContent ?? ''}`).join(' ');
     const attackOf = item => item.system.activities.find(a => a.type === 'attack');
     /** Roll a weapon's damage in one mode, the dice forced; returns the damage message. */
     const damage = async (item, mode, spec) => {
@@ -227,34 +235,37 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const one = await damage(gear.Longsword, 'oneHanded', [[5, 8]]);
       const s = style(one, 'dueling');
       ok('3a. one-handed: +2 on the roll, the record (gain 2), "Dueling — +2" on the card',
-        (s?.gain === 2) && /(^|\D)2(\D|$)/.test(one?.rolls?.[0]?.formula ?? '') && /Dueling — \+2/.test(textOf(one?.id)),
-        `formula="${one?.rolls?.[0]?.formula}" style=${JSON.stringify(s)} text="${textOf(one?.id).slice(-80)}"`);
+        (s?.gain === 2) && /(^|\D)2(\D|$)/.test(one?.rolls?.[0]?.formula ?? '') && /Dueling — \+2/.test(linesOf(one?.id)),
+        `formula="${one?.rolls?.[0]?.formula}" style=${JSON.stringify(s)} lines="${linesOf(one?.id)}"`);
       ok('3b. the record carries the stats context', ('combat' in (one?.getFlag(MOD, 'fightingStyle') ?? {})) && (one?.getFlag(MOD, 'fightingStyle')?.sourceUuid === actor.uuid),
         JSON.stringify(one?.getFlag(MOD, 'fightingStyle')));
       const two = await damage(gear.Longsword, 'twoHanded', [[5, 10]]);
       const s2 = style(two, 'dueling');
-      ok('3c. two-handed: nothing added, "Dueling off — two hands"', !s2?.gain && /Dueling off — two hands/.test(textOf(two?.id)),
+      ok('3c. two-handed: nothing added, "Dueling off — two hands"', !s2?.gain && /Dueling off — two hands/.test(linesOf(two?.id)),
         `style=${JSON.stringify(s2)} formula="${two?.rolls?.[0]?.formula}"`);
     }
 
     // ================================================== 4. Great Weapon Fighting's floor
     if (want(4)) {
       await equip(['Greatsword']);
-      floats.length = 0;
+      dicePlays.length = 0;
       const low = await damage(gear.Greatsword, 'twoHanded', [[1, 6], [5, 6]]);
       const s = style(low, 'great-weapon-fighting');
       const dice = low?.rolls?.[0]?.dice?.[0]?.results ?? [];
       ok('4a. the 1 counts as 3: the die kept its face and counts 3, the record raised 1 → 3, gain 2',
         (s?.gain === 2) && (s?.raised?.[0]?.from === 1) && (s?.raised?.[0]?.to === 3) && dice.some(r => (r.result === 1) && (r.count === 3)),
         `style=${JSON.stringify(s)} dice=${JSON.stringify(dice)} formula="${low?.rolls?.[0]?.formula}"`);
-      ok('4b. the card says "Great Weapon Fighting — 1 → 3: +2"', /Great Weapon Fighting — 1 → 3: \+2/.test(textOf(low?.id)), textOf(low?.id).slice(-90));
+      ok('4b. the card: "Great Weapon Fighting — 1 → 3: +2", the dice as chips, the 1 turned to a gold-edged 3',
+        /Great Weapon Fighting — 1 → 3: \+2/.test(linesOf(low?.id)) && /\*3/.test(chipsOf(low?.id)) && /(^| )5( |$)/.test(chipsOf(low?.id)),
+        `lines="${linesOf(low?.id)}" chips="${chipsOf(low?.id)}"`);
       await sleep(600);
-      ok('4c. the float: "+2 Great Weapon Fighting" over the target', floats.some(t => t === '+2 Great Weapon Fighting'), JSON.stringify(floats));
-      floats.length = 0;
+      ok('4c. the dice rise off the fighter: 5 and the 1 turning to 3', dicePlays.some(p => (p.key === 'great-weapon-fighting')
+        && p.chips.some(c => c.was === '1' && c.label === '3') && p.chips.some(c => c.label === '5' && !c.up)), JSON.stringify(dicePlays));
+      dicePlays.length = 0;
       const high = await damage(gear.Greatsword, 'twoHanded', [[4, 6], [6, 6]]);
       await sleep(600);
-      ok('4d. 4 and 6: no record, no line, no float (Dueling, off at the equipment, says nothing on a Greatsword)', !high?.getFlag(MOD, 'fightingStyle') && !/Great Weapon Fighting/.test(textOf(high?.id)) && !floats.length,
-        `flag=${JSON.stringify(high?.getFlag(MOD, 'fightingStyle'))} floats=${JSON.stringify(floats)}`);
+      ok('4d. 4 and 6: no record, no line, no float (Dueling, off at the equipment, says nothing on a Greatsword)', !high?.getFlag(MOD, 'fightingStyle') && !/Great Weapon Fighting/.test(textOf(high?.id)) && !dicePlays.length,
+        `flag=${JSON.stringify(high?.getFlag(MOD, 'fightingStyle'))} dice=${JSON.stringify(dicePlays)}`);
     }
 
     // ================================================== 5. Thrown Weapon Fighting
@@ -262,7 +273,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await equip(['Javelin']);
       const thrown = await damage(gear.Javelin, 'thrown', [[3, 6]]);
       ok('5a. the Javelin thrown: +2, "Thrown Weapon Fighting — +2"', (style(thrown, 'thrown-weapon-fighting')?.gain === 2)
-        && /Thrown Weapon Fighting — \+2/.test(textOf(thrown?.id)), `style=${JSON.stringify(style(thrown, 'thrown-weapon-fighting'))}`);
+        && /Thrown Weapon Fighting — \+2/.test(linesOf(thrown?.id)), `style=${JSON.stringify(style(thrown, 'thrown-weapon-fighting'))}`);
       const melee = await damage(gear.Javelin, 'oneHanded', [[3, 6]]);
       ok('5b. the Javelin in melee: nothing', !style(melee, 'thrown-weapon-fighting'), JSON.stringify(melee?.getFlag(MOD, 'fightingStyle') ?? null));
     }
@@ -275,7 +286,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const mod = Math.max(actor.system.abilities.str.mod, actor.system.abilities.dex.mod);
       ok('6a. the Dagger off-hand: the modifier back (+mod), "Two-Weapon Fighting — +N on the off-hand"',
         (s?.gain > 0) && (s?.gain === mod || s?.gain === actor.system.abilities.str.mod || s?.gain === actor.system.abilities.dex.mod)
-          && /Two-Weapon Fighting — \+\d+ on the off-hand/.test(textOf(offhand?.id)),
+          && /Two-Weapon Fighting — \+\d+ on the off-hand/.test(linesOf(offhand?.id)),
         `style=${JSON.stringify(s)} formula="${offhand?.rolls?.[0]?.formula}" mod=${mod}`);
       const main = await damage(gear.Dagger, 'oneHanded', [[2, 4]]);
       ok('6b. the Dagger in the main hand: nothing added', !style(main, 'two-weapon-fighting'), JSON.stringify(main?.getFlag(MOD, 'fightingStyle') ?? null));

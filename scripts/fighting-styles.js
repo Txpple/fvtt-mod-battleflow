@@ -32,8 +32,7 @@ import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, canAnswerFor
 import { lower, featureNamed, resolveUuid } from "./lookup.js";
 import { fightingStyleEntries, listedNames } from "./settings.js";
 import { FIGHTING_STYLES } from "./decide/registry.js";
-import { heldOf, faceState, rollFits, raisedOf, styleLine, floatText } from "./decide/fighting-styles.js";
-import { targetsOf } from "./decide/card.js";
+import { heldOf, faceState, rollFits, raisedOf, styleLine, diceOf, chipsOf } from "./decide/fighting-styles.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { withTargets } from "./shared.js";
@@ -258,20 +257,25 @@ Hooks.on("dnd5e.postDamageRollConfiguration", (rolls, config) => {
   }
 });
 
-// The floor's count, off the evaluated dice, before the card is born.
+// The floor's count and the dice the card and the canvas show, off the evaluated dice, before the
+// card is born.
 Hooks.on("preCreateChatMessage", doc => {
   try {
     const flag = doc.getFlag?.(MODULE_ID, STYLE_FLAG);
-    if ( !flag?.styles?.some(s => s.pending) ) return;
+    if ( !flag?.styles?.length ) return;
     const rolls = (doc.rolls ?? []).map(r => (typeof r?.toJSON === "function") ? r.toJSON() : r);
     const styles = [];
+    let floor = null;
     for ( const entry of flag.styles ) {
       if ( !entry.pending ) { styles.push(entry); continue; }
-      const row = Object.values(FIGHTING_STYLES).find(r => r.key === entry.key);
-      const { raised, gain } = raisedOf(rolls, row?.minimum ?? 3);
+      floor = Object.values(FIGHTING_STYLES).find(r => r.key === entry.key)?.minimum ?? 3;
+      const { raised, gain } = raisedOf(rolls, floor);
       if ( gain > 0 ) styles.push({ key: entry.key, feature: entry.feature, gain, raised });
     }
-    const next = styles.length ? { ...flag, styles, gain: styles.reduce((s, e) => s + e.gain, 0) } : null;
+    const changed = styles.some(e => e.gain > 0);
+    const next = styles.length
+      ? { ...flag, styles, gain: styles.reduce((sum, e) => sum + e.gain, 0), ...(changed ? { dice: diceOf(rolls, floor) } : {}) }
+      : null;
     doc.updateSource({ [`flags.${MODULE_ID}.${next ? STYLE_FLAG : `-=${STYLE_FLAG}`}`]: next });
   } catch(err) {
     console.error(`${TITLE} | Great Weapon Fighting's count failed — the dice stand as rolled.`, err);
@@ -301,7 +305,46 @@ Hooks.on("updateActiveEffect", (effect, changes) => {
   } catch(err) { console.warn(`${TITLE} | The fighting style's face float could not draw.`, err); }
 });
 
-/* --- THE NOTICE (option B) ---------------------------------------------------------------------- */
+/* --- THE NOTICE (L4 + F7) ------------------------------------------------------------------------ *
+ * Ruled 2026-09-26 off the Artifact "GWF Notice Options" (the user: "the player needs something fun
+ * or cool when they see it doing extra damage on the canvas, like they appreciate takig the feat,
+ * but it should be unobtrusive"; "it cant require clicks"). decide/fighting-styles.js chipsOf. */
+
+const CHIP_CSS_ID = "bf-style-chips-css";
+/** The chips' look, once per client: the card's own ink, the turned die's edge gold on the dark
+ * theme and bronze on the parchment (Foundry sets color-scheme per theme; light-dark() reads it). */
+function ensureChipCss() {
+  if ( document.getElementById(CHIP_CSS_ID) ) return;
+  const style = document.createElement("style");
+  style.id = CHIP_CSS_ID;
+  style.textContent = `
+    .bf-fighting-style-line{display:flex;flex-wrap:wrap;align-items:center;gap:0.35rem;margin:0.3rem 0;font-size:var(--font-size-11,11px);opacity:0.9}
+    .bf-fighting-style-line .bf-chips{display:inline-flex;flex-wrap:wrap;gap:0.25rem;align-items:center}
+    .bf-fighting-style-line .bf-chip{position:relative;display:inline-grid;place-items:center;min-width:1.55rem;height:1.55rem;padding:0 0.2rem;border-radius:4px;border:1px solid currentColor;font-weight:bold;font-size:var(--font-size-12,12px)}
+    .bf-fighting-style-line .bf-chip.up{border:2px solid light-dark(#9f7a1e,#e3ce9e);box-shadow:0 0 5px light-dark(rgba(159,122,30,.35),rgba(227,206,158,.45))}
+    .bf-fighting-style-line .bf-chip b{grid-area:1/1}
+    .bf-fighting-style-line .bf-chip em{position:absolute;top:-0.45rem;right:-0.35rem;font-size:9px;font-style:normal;opacity:0.55;text-decoration:line-through}
+    .bf-fighting-style-line .bf-gain{font-weight:bold;opacity:0.85}
+    .bf-fighting-style-line .bf-chip .was{opacity:0}
+    @media (prefers-reduced-motion:no-preference){
+      .bf-fighting-style-line.fresh .bf-chip .was{animation:bf-was 0.9s ease-in forwards}
+      .bf-fighting-style-line.fresh .bf-chip .now{animation:bf-now 0.9s ease-out forwards}
+      .bf-fighting-style-line.fresh .bf-chip.flat{animation:bf-pop 0.9s ease-out}
+    }
+    @keyframes bf-was{0%,35%{opacity:1;transform:rotateX(0)}55%,100%{opacity:0;transform:rotateX(90deg)}}
+    @keyframes bf-now{0%,50%{opacity:0;transform:rotateX(-90deg)}75%,100%{opacity:1;transform:rotateX(0)}}
+    @keyframes bf-pop{0%,40%{transform:scale(0.6);opacity:0}70%{transform:scale(1.15);opacity:1}100%{transform:scale(1)}}`;
+  document.head.appendChild(style);
+}
+
+/** A chip, as the card draws it: a turned die carries the face it showed, ghosted in its corner. */
+function chipHTML(c) {
+  const cls = `bf-chip${c.up ? " up" : ""}${c.flat ? " flat" : ""}`;
+  const tip = c.faces ? ` data-tooltip="d${c.faces}${c.was ? ` — rolled ${esc(c.was)}, counts ${esc(c.label)}` : ""}"` : "";
+  return c.was
+    ? `<span class="${cls}"${tip}><em>${esc(c.was)}</em><b class="was">${esc(c.was)}</b><b class="now">${esc(c.label)}</b></span>`
+    : `<span class="${cls}"${tip}><b>${esc(c.label)}</b></span>`;
+}
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   try {
@@ -309,16 +352,24 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     if ( !flag?.styles?.length ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-fighting-style-line") ) return;
+    ensureChipCss();
+    // the turn-over plays once, on a card just born; a reload or a scroll back shows it at rest
+    const fresh = (Date.now() - (message.timestamp ?? 0)) < 5000;
     for ( const entry of flag.styles ) {
       const div = document.createElement("div");
-      div.className = "bf-fighting-style-line";
-      const off = !entry.gain;
-      // gold on the dark theme, a deep amber on the light one's parchment (user, 2026-09-26: "gold
-      // doesnt look good in Light Mode") - Foundry sets color-scheme per theme, light-dark() reads it
-      div.style.cssText = `margin:0.25rem 0;font-size:var(--font-size-11,11px);${off ? "opacity:0.6;" : "opacity:0.9;color:light-dark(#7d5a00,rgb(232,190,50));"}`;
-      div.innerHTML = off
-        ? `<i class="fa-solid fa-shield-halved"></i> ${esc(entry.feature)} off — ${esc(entry.off ?? "")}`
-        : `<i class="fa-solid fa-shield-halved"></i> ${esc(styleLine(entry))}`;
+      div.className = `bf-fighting-style-line${fresh ? " fresh" : ""}`;
+      if ( !entry.gain ) {
+        div.dataset.bfStyleLine = `${entry.feature} off — ${entry.off ?? ""}`;
+        div.style.opacity = "0.6";
+        div.innerHTML = `<i class="fa-solid fa-shield-halved"></i> ${esc(entry.feature)} off — ${esc(entry.off ?? "")}`;
+      } else {
+        const { chips, after } = chipsOf(entry, flag.dice ?? []);
+        div.dataset.bfStyleLine = styleLine(entry);
+        div.setAttribute("aria-label", styleLine(entry));
+        div.innerHTML = `<i class="fa-solid fa-shield-halved"></i> <span>${esc(entry.feature)}</span>`
+          + `<span class="bf-chips">${chips.map(chipHTML).join("")}</span>`
+          + (after ? `<span class="bf-gain">${esc(after)}</span>` : "");
+      }
       content.appendChild(div);
     }
   } catch(err) {
@@ -327,27 +378,79 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 /**
- * The floating number: every client, once, over the damage card's targets — the canvas's own
- * scrolling text, white, as Alert's swap floats (initiative-swap.js). Live cards only: a reload
- * replays nothing. Only a style that CHANGED the number floats.
+ * F7 — THE DICE RISE OFF THE FIGHTER: every client, once, over the ATTACKER's own token (never the
+ * target's — its damage number stands alone): the chips pop up, a turned die flips from its face to
+ * what it counts with a gold flash, a flat bonus flashes in, and they rise and fade, about a second
+ * and a half. Drawn on the canvas interface like core's scrolling text, and off with core's
+ * scrollingStatusText setting like it. Live cards only: a reload replays nothing.
  */
+const GOLD = 0xf3dc9a;
+const Text = () => foundry.canvas.containers.PreciseText;
+function riseDice(token, chips) {
+  if ( !token?.visible || !chips.length || !canvas?.interface || !canvas?.app?.ticker ) return;
+  if ( game.settings.get("core", "scrollingStatusText") === false ) return;
+  const s = canvas.dimensions?.uiScale ?? 1;
+  const size = 30, gap = 6, root = new PIXI.Container();
+  const turns = [];
+  chips.forEach((c, i) => {
+    const chip = new PIXI.Container();
+    chip.position.set(i * (size + gap) + size / 2, size / 2);
+    const glow = new PIXI.Graphics().lineStyle(7, GOLD, 0.55).drawRoundedRect(-size / 2 - 2, -size / 2 - 2, size + 4, size + 4, 7);
+    glow.alpha = 0;
+    const box = new PIXI.Graphics().lineStyle(c.up ? 2.5 : 1.5, c.up ? GOLD : 0xffffff, c.up ? 1 : 0.8)
+      .beginFill(0x14120e, 0.82).drawRoundedRect(-size / 2, -size / 2, size, size, 5).endFill();
+    const style = Text().getTextStyle({ fontSize: c.flat ? 15 : 17, fill: "#ffffff", fontWeight: "bold", stroke: 0x000000, strokeThickness: 3 });
+    const text = new (Text())(c.was ?? c.label, style);
+    text.anchor.set(0.5, 0.5);
+    chip.addChild(glow, box, text);
+    root.addChild(chip);
+    if ( c.up ) turns.push({ chip, glow, text, to: c.label, turned: !c.was });
+  });
+  const width = (chips.length * size) + ((chips.length - 1) * gap);
+  root.pivot.set(width / 2, size);
+  const x = token.center.x, y0 = token.document.y - 8;
+  root.position.set(x, y0);
+  root.alpha = 0;
+  canvas.interface.addChild(root);
+  const start = performance.now(), total = 1700;
+  const tick = () => {
+    const t = performance.now() - start;
+    if ( (t >= total) || root.destroyed ) {
+      canvas.app.ticker.remove(tick);
+      if ( !root.destroyed ) root.destroy({ children: true });
+      return;
+    }
+    // in: 0–250 fade and grow; out: 1000–1700 rise and fade
+    const pop = Math.min(1, t / 250);
+    root.alpha = t < 1000 ? pop : Math.max(0, 1 - ((t - 1000) / 700));
+    root.scale.set(s * (0.6 + (0.4 * pop)));
+    root.position.y = y0 - (t > 1000 ? ((t - 1000) / 700) * 40 * s : 0);
+    for ( const u of turns ) {
+      // 400–600 the turn: the chip folds shut, shows what it counts, opens; the flash peaks at 550
+      const k = (t - 400) / 200;
+      if ( (k >= 0.5) && !u.turned ) { u.text.text = u.to; u.turned = true; }
+      u.chip.scale.y = ((k > 0) && (k < 1)) ? Math.max(0.05, Math.abs(1 - (2 * k))) : 1;
+      u.glow.alpha = (t < 400) ? 0 : Math.max(0, 1 - (Math.abs(t - 550) / 350));
+    }
+  };
+  canvas.app.ticker.add(tick);
+}
+
 const floated = new Set();
 Hooks.on("createChatMessage", message => {
   try {
     const flag = message.getFlag(MODULE_ID, STYLE_FLAG);
     const changed = (flag?.styles ?? []).filter(e => e.gain > 0);
-    if ( !changed.length || floated.has(message.id) || !canvas?.interface?.createScrollingText ) return;
+    if ( !changed.length || floated.has(message.id) ) return;
     floated.add(message.id);
-    const tokens = targetsOf(message).map(t => resolveUuid(t.token)?.object).filter(t => t?.visible);
+    const token = (message.speaker?.token && canvas?.tokens?.get(message.speaker.token))
+      || resolveUuid(flag.sourceUuid)?.getActiveTokens?.()?.[0] || null;
     changed.forEach((entry, i) => {
-      for ( const token of tokens ) {
-        setTimeout(() => canvas.interface.createScrollingText(token.center, floatText(entry), {
-          anchor: CONST.TEXT_ANCHOR_POINTS.TOP, fill: "#ffffff", stroke: 0x000000, strokeThickness: 4,
-          fontSize: 26, jitter: 0.25, duration: 3000
-        }), i * 400);
-      }
+      const { chips } = chipsOf(entry, flag.dice ?? []);
+      Hooks.callAll("battleflow.styleDice", { messageId: message.id, key: entry.key, chips });
+      setTimeout(() => riseDice(token, chips), i * 700);
     });
-  } catch(err) { console.warn(`${TITLE} | The fighting style's floating number could not draw.`, err); }
+  } catch(err) { console.warn(`${TITLE} | The fighting style's dice could not draw.`, err); }
 });
 
 /* --- THE GRAPPLE'S TURN-START DAMAGE (Unarmed Fighting, U1) ------------------------------------ *

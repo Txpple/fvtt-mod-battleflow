@@ -767,10 +767,19 @@ Fighting **U1**, *"truesight yes"*. `smoke-styles` (31 checks), `smoke-guards` (
   off-hand attack (dnd5e keeps a negative one already); **Dueling** +2 (the pack's number) with one
   melee weapon in one hand and no other weapon — a Versatile weapon swung two-handed says "Dueling
   off — two hands", and nothing else does (a line on every Greatsword swing was noise).
-- **The notice, option B:** a gold line (a deep amber on the light theme — `light-dark()`) on the damage card per style that CHANGED the roll
-  ("Great Weapon Fighting — 1 and 2 → 3: +3"), and "+3 Great Weapon Fighting" floated over the
-  target once; the `fightingStyle` record carries each style's `gain` for the stats reader
-  (ARCHITECTURE §4). A floor that raised nothing leaves no trace.
+- **The notice, L4 + F7** (the walk, 2026-09-26, ruled off the Artifact "GWF Notice Options":
+  "the player needs something fun or cool when they see it doing extra damage on the canvas, like
+  they appreciate takig the feat, but it should be unobtrusive"; "like the empower where you pick
+  dice is fun, or savage attacker, but oviously for these it cant require clicks"). Per style that
+  CHANGED the roll, the damage card's line shows the attack's own dice as Empowered's chips, in the
+  card's own ink (the gold line read badly on the parchment): a die Great Weapon Fighting raised
+  turns over from its face to what it counts, once as the card is born, and keeps a gold edge
+  (bronze on the light theme) with the old face ghosted; the gain follows ("+2"). A flat bonus
+  (Dueling, Thrown, Two-Weapon) is one more chip. On the canvas the same chips rise off the
+  ATTACKER's own token, the turned die flipping with a gold flash, about a second and a half,
+  never over the target (its damage number stands alone); off with core's scrolling-status
+  setting. The `fightingStyle` record carries each style's `gain` for the stats reader
+  (ARCHITECTURE §4) and the chips' `dice`. A floor that raised nothing leaves no trace.
 - **Unarmed Fighting:** its die on the sheet's plain Unarmed Strike rides the Unarmed Strike Dice
   table (a `hands` row: the feat's d8 attack with nothing held, its d6 otherwise; two rows on one
   actor swap in the larger die). **At the start of the turn** (U1) the owner of a grapple is asked

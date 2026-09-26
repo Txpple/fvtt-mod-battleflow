@@ -144,6 +144,58 @@ export function styleLine(entry) {
   return `${entry.feature} — +${entry.gain}${entry.note ? ` ${entry.note}` : ""}`;
 }
 
-/** The floating number over the target: "+3 Great Weapon Fighting", one per style that changed the roll. */
-export const floatText = entry => `+${entry.gain} ${entry.feature}`;
+/*
+ * THE DICE (L4 + F7, ruled 2026-09-26 off the Artifact "GWF Notice Options": "the empower where you
+ * pick dice is fun, or savage attacker, but oviously for these it cant require clicks"). The card
+ * line and the canvas both show the damage dice as Empowered's chips; a die Great Weapon Fighting
+ * raised turns over from its face to what it counts, and a flat bonus (Dueling, Thrown, Two-Weapon)
+ * is one more chip. The chips are the attack's own dice, so nothing is invented for the show.
+ */
+
+/** Chips at most: a crit of 4d6 is 8; anything past this is summed into the row's own total. */
+export const DICE_CAP = 12;
+
+/**
+ * Every die the damage rolled, in order, off the evaluated rolls' JSON: its size, what it counts,
+ * and the face it showed when a floor raised it (the same test as raisedOf).
+ * @param {object[]} rolls    evaluated rolls, as JSON
+ * @param {number|null} [minimum]
+ * @returns {{faces: number, v: number, was?: number}[]}
+ */
+export function diceOf(rolls, minimum = null) {
+  const dice = [];
+  const walk = terms => {
+    for ( const t of (terms ?? []) ) {
+      if ( Array.isArray(t?.terms) ) walk(t.terms);
+      if ( Array.isArray(t?.rolls) ) for ( const r of t.rolls ) walk(r?.terms);
+      if ( !Array.isArray(t?.results) || !Number(t?.faces) ) continue;
+      const floored = (t.modifiers ?? []).some(m => /^min\d+$/i.test(m));
+      for ( const r of t.results ) {
+        if ( (r?.active === false) || (r?.discarded === true) ) continue;
+        const face = Number(r?.result), counted = Number.isFinite(Number(r?.count)) ? Number(r.count) : face;
+        if ( !Number.isFinite(face) ) continue;
+        const raised = floored && Number.isFinite(minimum) && (face < minimum) && (counted > face);
+        dice.push(raised ? { faces: Number(t.faces), v: counted, was: face } : { faces: Number(t.faces), v: counted });
+      }
+    }
+  };
+  for ( const roll of (rolls ?? []) ) walk(roll?.terms);
+  return dice.slice(0, DICE_CAP);
+}
+
+/**
+ * One style's chips: the dice (the raised ones marked), then a flat bonus as its own chip. A style
+ * that raised dice shows its gain after them; a flat one IS its chip.
+ * @param {{gain: number, raised?: object[]}} entry
+ * @param {{faces: number, v: number, was?: number}[]} dice
+ * @returns {{chips: {label: string, was?: string, up?: boolean, flat?: boolean, faces?: number}[], after: string}}
+ */
+export function chipsOf(entry, dice) {
+  const floor = !!entry?.raised?.length;
+  const chips = (dice ?? []).map(d => (floor && Number.isFinite(d.was))
+    ? { label: String(d.v), was: String(d.was), up: true, faces: d.faces }
+    : { label: String(d.v), faces: d.faces });
+  if ( !floor && (entry?.gain > 0) ) chips.push({ label: `+${entry.gain}`, flat: true, up: true });
+  return { chips, after: floor ? `+${entry.gain}` : "" };
+}
 
