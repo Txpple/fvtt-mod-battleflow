@@ -49,3 +49,41 @@ export function foldRise({ mode, oldFace = null, newFace = null, on }) {
   return { on, chips: [second ? { label: String(oldFace), drop: true } : { label: String(oldFace), up: true },
     second ? { label: String(newFace), up: true } : { label: String(newFace), drop: true }] };
 }
+
+/**
+ * THE DICE THE PLATFORM CHANGED (the user, 2026-09-26, option A): a die dnd5e or Foundry rerolled
+ * or floored on its own — Halfling Luck's natural 1 (`r1=1`), Reliable Talent's 10 (`min10`),
+ * Elemental Adept's 2s, Tavern Brawler's 1s, any rule built on the same modifiers. Each turns over
+ * from the face it showed to the one that counts. Off the evaluated rolls' JSON: a rerolled result
+ * pairs with the next live result of its term; a floored one shows its face and its count.
+ * @param {object[]} rolls   evaluated rolls, as JSON
+ * @param {number} [cap]
+ * @returns {{was: string, label: string, up: boolean}[]}
+ */
+export function changedDice(rolls, cap = 8) {
+  const chips = [];
+  const walk = terms => {
+    for ( const t of (terms ?? []) ) {
+      if ( Array.isArray(t?.terms) ) walk(t.terms);
+      if ( Array.isArray(t?.rolls) ) for ( const r of t.rolls ) walk(r?.terms);
+      if ( !Array.isArray(t?.results) || !Number(t?.faces) ) continue;
+      const results = t.results;
+      const used = new Set();
+      results.forEach((r, i) => {
+        if ( r?.rerolled ) {
+          const j = results.findIndex((n, k) => (k > i) && !used.has(k) && !n?.rerolled && (n?.active !== false));
+          if ( j < 0 ) return;
+          used.add(j);
+          const now = Number.isFinite(Number(results[j].count)) ? Number(results[j].count) : Number(results[j].result);
+          chips.push({ was: String(r.result), label: String(now), up: true });
+          return;
+        }
+        if ( used.has(i) || (r?.active === false) || r?.discarded ) return;
+        const face = Number(r?.result), counted = Number(r?.count);
+        if ( Number.isFinite(face) && Number.isFinite(counted) && (counted > face) ) chips.push({ was: String(face), label: String(counted), up: true });
+      });
+    }
+  };
+  for ( const roll of (rolls ?? []) ) walk(roll?.terms);
+  return chips.slice(0, cap);
+}

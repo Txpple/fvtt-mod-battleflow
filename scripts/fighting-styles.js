@@ -391,9 +391,10 @@ const floated = new Set();
 Hooks.on("createChatMessage", message => {
   try {
     const flag = message.getFlag(MODULE_ID, STYLE_FLAG);
-    // the canvas only when a die's NUMBER changed (the user, 2026-09-26: "only apply it to 'dice
-    // number changes'") - Great Weapon Fighting's floor; a flat +2 stays on the card
-    const changed = (flag?.styles ?? []).filter(e => (e.gain > 0) && e.raised?.length);
+    // every style that changed the roll - the floor AND the flat +2: the player's check that the
+    // style fired (the user, 2026-09-26: "it was kinda handy for FS so someone can see if they used
+    // thrown weapon, duelist, etc properly"; "let everyone see") - RULINGS, the dice that rise
+    const changed = (flag?.styles ?? []).filter(e => e.gain > 0);
     if ( !changed.length || floated.has(message.id) ) return;
     floated.add(message.id);
     const token = (message.speaker?.token && canvas?.tokens?.get(message.speaker.token))

@@ -783,14 +783,20 @@ Fighting **U1**, *"truesight yes"*. `smoke-styles` (31 checks), `smoke-guards` (
   never over the target (its damage number stands alone); off with core's scrolling-status
   setting. The `fightingStyle` record carries each style's `gain` for the stats reader
   (ARCHITECTURE §4) and the chips' `dice`. A floor that raised nothing leaves no trace.
-- **The dice that rise, house-wide** (the walk, 2026-09-26: "its kinda spammy if we take it too
-  far ... what if we only apply it to 'dice number changes'"; "yea lets settle on that"). The
-  canvas dice (`dice-rise.js`) play ONLY when a die's number changes: Great Weapon Fighting's
-  floor, a d20 bent after a hit (Protection, Lucky, Warding Flare, Shadowy Dodge), Empowered's and
-  Healer's rerolls, Savage Attacker's set rolled again, Heroic Inspiration's reroll, Lucky's second
-  d20. A die or a number ADDED (Dueling's +2, Bardic Inspiration, Interception's reduction,
-  Shield's +5 AC, Bless) stays on the card. A new rule of the first kind gets the dice; a rule of
-  the second never does.
+- **The dice that rise — THE RULE, settled; do not reopen** (the walk, 2026-09-26: "make this a rule
+  too so we dont keep revisiting"). The canvas dice (`dice-rise.js`, every client sees them) play in
+  exactly three cases:
+  1. **A die's number changes** — the module's own (Great Weapon Fighting's floor, a d20 bent after
+     a hit, Empowered's and Healer's rerolls, Savage Attacker's set, Heroic Inspiration's reroll,
+     Lucky's second d20) and the platform's (`changedDice`: a die dnd5e rerolled or floored itself —
+     Halfling Luck, Reliable Talent, Elemental Adept, Tavern Brawler).
+  2. **A Fighting Style's bonus** — Dueling, Thrown, Two-Weapon's "+2" as well as the floor: the
+     player's check that the style fired ("it was kinda handy for FS so someone can see if they used
+     thrown weapon, duelist, etc properly"; "let everyone see for now").
+  3. Nothing else. A die or a number merely ADDED — Sneak Attack, Divine Smite, Hunter's Mark,
+     Bless, Bane, Bardic Inspiration, Tactical Mind, Interception / Parry / Stone's Endurance, Shield's
+     +5 AC — stays on the card ("its kinda spammy if we take it too far ... it does open the
+     floodgates"). A new rule is sorted into 1, 2 or 3 by this list, not re-asked.
 - **Unarmed Fighting:** its die on the sheet's plain Unarmed Strike rides the Unarmed Strike Dice
   table (a `hands` row: the feat's d8 attack with nothing held, its d6 otherwise; two rows on one
   actor swap in the larger die). **At the start of the turn** (U1) the owner of a grapple is asked

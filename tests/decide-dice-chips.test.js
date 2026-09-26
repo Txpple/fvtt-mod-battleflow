@@ -57,3 +57,41 @@ describe("foldRise - a d20 fold whose number changed", () => {
     expect(foldRise({ mode: "reroll", oldFace: null, newFace: 12, on: "Actor.r" })).toBeNull();
   });
 });
+
+describe("changedDice - the dice the platform changed on its own (option A)", () => {
+  it("Halfling Luck: a rerolled 1 turns over to the new face", async () => {
+    const { changedDice } = await import("../scripts/decide/dice-chips.js");
+    const d20 = {
+      faces: 20,
+      modifiers: ["r1=1"],
+      results: [
+        { result: 1, active: false, rerolled: true },
+        { result: 14, active: true }
+      ]
+    };
+    expect(changedDice([{ terms: [d20] }])).toEqual([{ was: "1", label: "14", up: true }]);
+  });
+  it("Reliable Talent: a floored d20 shows its face and its count", async () => {
+    const { changedDice } = await import("../scripts/decide/dice-chips.js");
+    const d20 = {
+      faces: 20,
+      modifiers: ["min10"],
+      results: [{ result: 4, count: 10, active: true }]
+    };
+    expect(changedDice([{ terms: [d20] }])).toEqual([{ was: "4", label: "10", up: true }]);
+  });
+  it("a roll nothing changed draws nothing; a discarded Advantage die is not a change", async () => {
+    const { changedDice } = await import("../scripts/decide/dice-chips.js");
+    const adv = {
+      faces: 20,
+      modifiers: ["kh"],
+      results: [
+        { result: 3, active: false, discarded: true },
+        { result: 17, active: true }
+      ]
+    };
+    expect(
+      changedDice([{ terms: [adv, { faces: 6, results: [{ result: 5, active: true }] }] }])
+    ).toEqual([]);
+  });
+});

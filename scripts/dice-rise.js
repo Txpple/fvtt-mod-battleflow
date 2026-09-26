@@ -14,6 +14,7 @@
  */
 
 import { MODULE_ID, TITLE } from "./core.js";
+import { changedDice } from "./decide/dice-chips.js";
 
 /** The canvas token for an actor uuid (geometry.js's reader, one line, kept here: same layer). */
 const tokenForUuid = uuid => canvas.tokens?.placeables?.find(t => t.actor?.uuid === uuid) ?? null;
@@ -160,7 +161,7 @@ export function driftChip(from, to, label) {
  */
 Hooks.on("createChatMessage", message => {
   const rise = message.getFlag?.(MODULE_ID, "diceRise");
-  if ( !rise?.on ) return;
+  if ( !rise?.on ) { platformChanged(message); return; }
   try {
     const from = tokenForUuid(rise.on);
     riseDice(from, rise.chips ?? []);
@@ -169,3 +170,24 @@ Hooks.on("createChatMessage", message => {
     console.warn(`${TITLE} | the dice could not draw.`, err);
   }
 });
+
+/**
+ * THE DICE THE PLATFORM CHANGED (option A, 2026-09-26): a roll born with a die dnd5e rerolled or
+ * floored on its own (Halfling Luck, Reliable Talent, Elemental Adept, Tavern Brawler) turns it over
+ * above the roller. A message the module already plays is left alone — a diceRise record, or a
+ * Fighting Style floor, which rises with its whole set.
+ */
+function platformChanged(message) {
+  try {
+    if ( message.getFlag?.(MODULE_ID, "fightingStyle")?.styles?.some(e => e.raised?.length) ) return;
+    if ( !message.rolls?.length ) return;
+    const chips = changedDice(message.rolls.map(r => (typeof r?.toJSON === "function") ? r.toJSON() : r));
+    if ( !chips.length ) return;
+    const speaker = message.speaker ?? {};
+    const token = (speaker.token && canvas?.tokens?.get(speaker.token))
+      || canvas?.tokens?.placeables?.find(t => t.actor?.id === speaker.actor) || null;
+    riseDice(token, chips);
+  } catch(err) {
+    console.warn(`${TITLE} | the changed dice could not draw.`, err);
+  }
+}
