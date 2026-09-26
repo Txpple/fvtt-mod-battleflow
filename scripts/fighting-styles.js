@@ -108,8 +108,10 @@ const sameChanges = (a, b) => JSON.stringify((a ?? []).map(c => [c.key, Number(c
 const syncing = new Map();
 
 /** Core floats "+Defense" / "-Defense" on any effect with changes that turns on or off; the face
- * floats its own words (the user, 2026-09-26: "which should be removed / suppressed"). */
-const QUIET = Object.freeze({ animate: false });
+ * floats its own words (the user, 2026-09-26: "which should be removed / suppressed"). A FRESH
+ * object per write: Foundry writes into the operation, and a shared frozen one threw on every
+ * sync (the walk, 2026-09-26: faces stopped following the Equipped box). */
+const quiet = () => ({ animate: false });
 
 /** Keep this actor's faces — and the pack effects they take over — in step with its sheet. */
 function scheduleSync(actor) {
@@ -137,9 +139,9 @@ async function syncFaces(actor) {
     }
     const keys = new Set(rows.map(r => r.row.key));
     for ( const e of faces ) if ( !keys.has(faceOf(e).key) ) deletes.push(e.id);
-    if ( deletes.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", deletes, QUIET);
-    if ( updates.length ) await actor.updateEmbeddedDocuments("ActiveEffect", updates, QUIET);
-    if ( creates.length ) await actor.createEmbeddedDocuments("ActiveEffect", creates, QUIET);
+    if ( deletes.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", deletes, quiet());
+    if ( updates.length ) await actor.updateEmbeddedDocuments("ActiveEffect", updates, quiet());
+    if ( creates.length ) await actor.createEmbeddedDocuments("ActiveEffect", creates, quiet());
     await syncTakeovers(actor, rows);
   } catch(err) {
     console.error(`${TITLE} | The fighting styles on ${actor?.name} could not be kept in step — toggle their effects by hand.`, err);
@@ -161,7 +163,7 @@ async function syncTakeovers(actor, rows) {
         writes.push({ _id: effect.id, disabled: false, [`flags.${MODULE_ID}.-=${TAKEN_FLAG}`]: null });
       }
     }
-    if ( writes.length ) await feature.updateEmbeddedDocuments("ActiveEffect", writes, QUIET);
+    if ( writes.length ) await feature.updateEmbeddedDocuments("ActiveEffect", writes, quiet());
   }
 }
 
