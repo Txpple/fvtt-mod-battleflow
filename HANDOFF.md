@@ -3,8 +3,8 @@
 > **Written 2026-09-26 on the user's word** ("ok so lets do a handoff and start testing"). Supersedes
 > the fighting-styles walk handoff (bf66fe1): that walk is DONE — all nine styles passed, every
 > finding fixed. ⚠ **It is not a "go" for anything past §3**: the next session runs the tests
-> (§3), fixes what they find (fast loop), recuts the docs, and retires this file. Push and release
-> stay the user's call.
+> (§3), fixes what they find (fast loop), recuts the docs, and retires this file. The release stays
+> the user's call.
 
 ---
 
@@ -13,13 +13,13 @@
 | | |
 | --- | --- |
 | **Prod** | v2.0.8 on dnd5e 6.0.5. Untouched. |
-| **main** | `ea1f01c`, **24 commits ahead of origin, NOT pushed** (`829e97d` .. `ea1f01c`; before them the fighting styles `f8664c7` .. `bf66fe1`, also unpushed). |
-| **fvtt-app-sessionscribe** | `d523366` (the `fightingStyle` stats tally) — still NOT pushed. |
+| **main** | **PUSHED** to origin (2026-09-26, on the user's word): this session `829e97d` .. `0054aa8`, the fighting styles before it (`f8664c7` .. `bf66fe1`). NOT released. |
+| **fvtt-app-sessionscribe** | `d523366` (the `fightingStyle` stats tally) — PUSHED. |
 | **The sandbox** | runs main (`deploy-house-module --local`, byte-identical). Settings not re-verified since the walk began — `verify-settings --fix` first. |
-| **Unit tests** | `npm run verify` green, 903 tests. |
+| **Unit tests** | `npm run verify` green, 906 tests. |
 | **In-world suites** | ⚠ **NOT RUN since the walk began** — the user was signed in as GM all session. Everything below is unit-tested only. |
 
-## 1. What this session built (all on the sandbox, all unpushed)
+## 1. What this session built (on the sandbox and pushed; not released)
 
 **The fighting-styles walk findings** (RULINGS *The fighting styles*):
 - The face is one line, **"Fighting Style: <the feat's name>"**, no suffix; a style feat's own effect
@@ -39,11 +39,15 @@ roll is MADE (Sneak Attack, Bless) stay on the card.
 - `scripts/dice-rise.js` (SPINE): the one renderer — chips over a token (turn over / gold / struck /
   red for a lost crit), above the tokens (core's scrolling-text depth), and the `diceRise` flag
   listener (any roll message carrying it plays on every client). `driftChip` stays for the listener.
-- `scripts/decide/dice-chips.js` (DECISION): `rerollRise`, `eitherRise`, `foldRise`, `changedDice`.
+- `scripts/decide/dice-chips.js` (DECISION): `rollChips`, `reductionRise`, `rerollRise`, `eitherRise`,
+  `foldRise`, `changedDice`, `acChips`.
 - `scripts/hold/dice.js` (MACHINE part): a bent d20 (Protection, Lucky, Warding Flare, Shadowy
-  Dodge) rises over the creature hit, off the hold record; a reload replays nothing.
-- Wired: the fighting styles (card chips + canvas), Empowered, Savage Attacker, Healer's 1s, Heroic
-  Inspiration's reroll, Lucky's second d20, and the platform's own rerolls/floors (`changedDice`).
+  Dodge) and Shield's "+5 AC" rise over the creature hit, off the hold record; a reload replays nothing.
+- Wired — (1) reactions/spends: the bent d20s, Interception / Parry / Stone's Endurance (the die off
+  whoever reacted, "−N" drifting to the one protected — `driftChip`), Shield, Bardic Inspiration and
+  Tactical Mind "+N", Heroic Inspiration's reroll, Lucky's second d20, Empowered, Healer's 1s, Savage
+  Attacker; (2) situational: the fighting styles (card chips + canvas, the flat +2 included) and the
+  platform's own rerolls/floors (`changedDice`). Not wired: Sneak Attack, Smite, Bless (the rule).
 - The card: the style line is Empowered's chips in the card's own ink (the gold line is gone).
 
 ## 2. The test roster on the sandbox — Party Camp
@@ -83,5 +87,5 @@ roll is MADE (Sneak Attack, Bless) stay on the card.
 | **Heroic Inspiration / Lucky** | BF Dice Heroic rerolls a d20; a Luck Point after a roll | The d20 turning over; Lucky's two d20s, the higher gold |
 | **The platform's own** | BF Species Halfling rolls a natural 1 (Halfling Luck) | The 1 turns over to the reroll above the Halfling |
 | **Reductions** | BF Dice Attacker hits BF Dice Parry / BF Dice Stone; Gren hit beside BF Style Interception | The reduction die rises off whoever reacted, then "−N" drifts to the one protected (in place for Parry and Stone) |
-| **Shield / folds** | BF Dice Shield casts Shield when hit; BF Dice Bard inspires BF Dice Heroic, who spends it on a failed roll; BF Test Fighter's Tactical Mind | "+5 AC" over the Shielder; "+N" over whoever spent the die |
+| **Shield / folds** | BF Dice Shield casts Shield when hit; BF Dice Bard inspires BF Dice Heroic, who spends it on a failed roll; BF Dice Parry fails an ability check and spends Tactical Mind | "+5 AC" over the Shielder; "+N" over whoever spent the die |
 | **Nothing** | Sneak Attack, Smite, Bless | The card as before; NO canvas dice |
