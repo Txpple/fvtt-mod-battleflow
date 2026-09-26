@@ -905,5 +905,12 @@ as well, same shape again"*, *"skulker, some shapes like fs: blind"*, *"keep sla
 - **Kept open, a lean either way (5):** Charger (the damage or push after a 10-foot straight
   move — movement the module does not track), Crusher's 5-foot push, Grappler's Punch and Grab,
   Mounted Combatant's rest (no mount at the table), War Caster's Reactive Spell.
+- **The second pass (user, 2026-09-26, off the measurement):** Elemental Adept's type is read off
+  the item's NAME ("Elemental Adept (Fire)"); Chef's Bolstering Treats become temp HP handed out
+  after the Long Rest (a bend by choice); Crusher's push joins the build (Tavern Brawler's shove);
+  Charger, Grappler's Punch and Grab, Mounted Combatant's rest and War Caster's Reactive Spell are
+  PARKED. ⚠ Correction: Crusher's and Slasher's crit halves were NOT in — `EFFECT_BENDS` rows
+  nothing applied, and the pack's "Slashed" is Hamstring's speed −10. The build is six groups;
+  HANDOFF.md carries them while it stands.
 - ⚠ **Measured, and a comment corrected with the build:** `decide/dice-chips.js` says dnd5e floors
   Elemental Adept's 1s to 2 on its own; the pack ships the feat as text only, so nothing does.
