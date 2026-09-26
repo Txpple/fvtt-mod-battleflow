@@ -75,6 +75,15 @@ export function faceState(gate, held, dice = {}) {
     case "armored":
       return held?.armor ? { live: true, word: lc(held.armor), detail: held.armor.name }
         : { live: false, word: "unarmored", detail: "no armor worn" };
+    case "heavy": {
+      const heavy = w.find(i => has(i, "hvy"));
+      return heavy ? { live: true, word: lc(heavy), detail: `${heavy.name}, Heavy` }
+        : { live: false, word: "unequipped", detail: "no Heavy weapon equipped" };
+    }
+    case "heavyArmor":
+      return (held?.armor?.kind === "heavy") ? { live: true, word: lc(held.armor), detail: held.armor.name }
+        : { live: false, word: held?.armor ? "not heavy" : "unarmored",
+          detail: held?.armor ? `${held.armor.name} is not Heavy armor` : "no armor worn" };
     case "unarmed": {
       const empty = !w.length && !held?.shield;
       const die = empty ? (dice.large ?? "d8") : (dice.small ?? "d6");
@@ -89,12 +98,15 @@ export function faceState(gate, held, dice = {}) {
  * with no mode on the roll (a damage roll made without its attack), a Two-Handed weapon is two
  * hands and anything else one.
  * @param {string} gate
- * @param {{kind?: string, properties?: string[], mode?: string|null, mod?: number, faceLive?: boolean}} roll
+ * `ownTurn` is false only when a combat runs and it is someone else's turn (an Opportunity Attack):
+ * Heavy Weapon Mastery's "as part of the Attack action on your turn".
+ * @param {{kind?: string, properties?: string[], mode?: string|null, mod?: number, faceLive?: boolean, ownTurn?: boolean}} roll
  * @returns {boolean}
  */
 export function rollFits(gate, roll) {
   const mode = roll?.mode || (has(roll, "two") ? "twoHanded" : "oneHanded");
   switch ( gate ) {
+    case "heavy": return has(roll, "hvy") && (roll?.ownTurn !== false);
     case "twoHanded": return isMelee(roll) && (mode === "twoHanded") && (has(roll, "two") || has(roll, "ver"));
     case "thrown": return ((mode === "thrown") || (mode === "thrown-offhand")) && has(roll, "thr");
     // dnd5e keeps a NEGATIVE modifier on the off-hand already; the style adds only what it dropped
@@ -102,6 +114,28 @@ export function rollFits(gate, roll) {
     case "oneHanded": return isMelee(roll) && (mode === "oneHanded") && (roll?.faceLive === true);
     default: return false;
   }
+}
+
+/**
+ * THE BLOCK (Heavy Armor Master): the attack's parts of the listed types cut by `amount` in all —
+ * "any Bludgeoning, Piercing, and Slashing damage dealt to you by that attack is reduced by" one
+ * number, not one per type — taken from the parts in order, never below 0. Other types stand.
+ * @param {{value: number, type?: string|null}[]} damages
+ * @param {string[]} types
+ * @param {number} amount
+ * @returns {{values: number[], cut: number}}  each part's new value, in order, and what was taken
+ */
+export function blockDamages(damages, types, amount) {
+  let left = Math.max(0, Math.floor(Number(amount) || 0));
+  const kinds = new Set(types ?? []);
+  const values = (damages ?? []).map(d => {
+    const v = Number(d?.value) || 0;
+    if ( !left || !kinds.has(d?.type) || (v <= 0) ) return v;
+    const take = Math.min(v, left);
+    left -= take;
+    return v - take;
+  });
+  return { values, cut: Math.max(0, Math.floor(Number(amount) || 0)) - left };
 }
 
 /**

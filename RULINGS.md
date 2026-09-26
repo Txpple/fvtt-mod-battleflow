@@ -30,7 +30,7 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Protection** (the Fighting Style): "when a creature you can see attacks a target other than you" | offered to the guard after the roll shows a HIT, before the damage — the second d20, the lower standing (ruled R1, 2026-09-26); a miss asks nothing | the same (`hold/trigger.js` stamps the guards on the held target) | 2026-09-26 |
 | **Protection** and **Interception**: "a creature you can see" · "another creature within 5 feet of you" | every creature within 5 feet of the one hit, on ITS side of the table (token disposition), not Incapacitated, holding what the style demands, is asked; sight is not judged | nothing the module reads says who can see whom; the side is the fact it can read, and the owner who cannot see simply passes (`geometry.js` `alliesWithin`) | 2026-09-26 |
 | **Interception**: "reduce the damage dealt to the target" when an attack hits it | the attack's damage is held at the module's applier and each guard asked (P1); damage applied with the card's own buttons, or typed on a sheet, is not held | the applier's claim is the only seam where the damage waits (`damage-holds.js`, Stone's Endurance's shape) | 2026-09-26 |
-| **Dueling, Defense, Great Weapon Fighting, Two-Weapon Fighting, Unarmed Fighting, Protection, Interception**: what you are "holding" / "wearing" | read off the sheet's EQUIPPED boxes; a Versatile weapon's grip is the attack's own mode (one hand or two) | the sheet has no hands — Equipped is the one fact dnd5e keeps about what is held (ruled off the prototype, 2026-09-26: "gate it on what pc is holding") | 2026-09-26 |
+| **Dueling, Defense, Great Weapon Fighting, Two-Weapon Fighting, Unarmed Fighting, Protection, Interception, Heavy Armor Master**: what you are "holding" / "wearing" | read off the sheet's EQUIPPED boxes; a Versatile weapon's grip is the attack's own mode (one hand or two) | the sheet has no hands — Equipped is the one fact dnd5e keeps about what is held (ruled off the prototype, 2026-09-26: "gate it on what pc is holding") | 2026-09-26 |
 | **Unarmed Fighting**: "1d4 Bludgeoning damage to one creature Grappled by you" at the start of each of your turns | asked of the owner (ruled U1: Deal it / Skip), the clock dealing it; "grappled by you" is the Grappled effect's own provenance (the module's source stamp, else its origin's actor); a Grappled that names no grappler is OFFERED when it stands within 5 feet, and never dealt by the clock | the Grappled condition carries no grappler of its own — a status toggled from the token HUD says nothing about who holds it (`fighting-styles.js` `grapplerOf`) | 2026-09-26 |
 | **Warding Flare** protects any creature the Cleric can see within 30 feet | protects its OWNER only | the hold is stamped per DEFENDER: only a hit target's own sheet is read for rows (`hold/lookup.js` `rollRescuesOf`) — a known gap, DESIGN §8 | 2026-09-24 |
 | **Stone's Endurance**: "when you take damage" (any damage) | ASKED in one popup, and on the click the damage lands reduced by the roll (user, 2026-09-25: "the popup for stones endurance should show up, and if hte person rolls, then the damage is auto reduced"): an attack hit asks at the hit (the hold); every other damage the MODULE applies is held at its applier until the answer (`damage-holds.js`); damage applied with the card's OWN buttons or typed on a sheet is reduced by hand | only the module's own applier can make a number wait: the card's buttons call `Actor#applyDamage` straight, and `dnd5e.preApplyDamage` is synchronous — no popup can be answered inside it (`auto-apply.js` `registerDamageClaim`) | 2026-09-24; widened 2026-09-25 |
@@ -44,6 +44,20 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Lucky**: Advantage "when you roll a d20 for a D20 Test" — chosen as you roll | in the roll dialog: a box with a tick, spent when the roll goes out ticked (`advantage-buys.js`). An initiative rolled with NO dialog (the carousel, Roll All) is offered it AFTER the roll — a second d20, the higher standing — so the player has seen the first die when choosing (ruled "After the roll", 2026-09-25) | `Combat#rollInitiative` rolls with no pause before its dice and no hook that can wait for an answer (`dnd5e.preConfigureInitiative` is synchronous), so no popup can come before that roll (`d20-folds.js` `ADVANTAGE`) | 2026-09-25 |
 | **Relentless Endurance** ("when you are reduced to 0 Hit Points") and **Death Ward** ("the first time the target would drop to 0 Hit Points") | caught on DAMAGE applied through the system's damage application — the module's applier and the card's own buttons: the Hit Points are written as 1 in that same update (Death Ward automatic, the effect removed; Relentless Endurance held at 1 while its popup asks, and the clock's pass lands the 0). Hit Points typed on a sheet, or a drop to 0 with no damage, are the table's | `dnd5e.preApplyDamage` is the one place a drop can be changed before it lands, and it is synchronous — the ask has to stand at 1, not at 0; a sheet edit carries no damage to read (`drop-to-one.js`) | 2026-09-25 |
 | **Celestial Revelation's extra damage** on a spell with no attack roll: dealt "when you deal damage to it", with the spell | offered on the spell's card once its damage has landed; the pick lands as its OWN damage (its own card and receipt) — a concentrating target makes a second Constitution save for it | the extra goes to ONE of the spell's targets, the caster's pick, and the spell's damage is one roll applied to all of them: it cannot ride the roll, and the spell's receipt is keyed by creature, so an entry there would overwrite the spell's own (`clock-riders.js`) | 2026-09-25 |
+| **Heavy Weapon Mastery** (Great Weapon Master): "as part of the Attack action on your turn" | +Proficiency Bonus on every damage roll of a Heavy weapon's attack on the owner's own turn — Hew's Bonus Action swing included; a combat that holds the owner on another's turn (an Opportunity Attack) adds nothing and the card says "off — not your turn" | nothing on a damage roll says which action the attack was part of: Hew's swing is the same weapon's same attack activity (`fighting-styles.js` `ownTurnOf`, the `heavy` gate) | 2026-09-26 |
+| **Heavy Armor Master**: "when you're hit by an attack" | the cut is taken on damage from an ATTACK's damage card (its activity an attack, or a card answering one), through the module's applier or the card's own buttons; a save's, an area's or a rider's damage is never cut, and neither is a number typed on the token bar or the sheet. "Any Bludgeoning, Piercing, and Slashing damage … is reduced by" one Proficiency Bonus in all, not one per type | the damage application knows only the card it came from (`originatingMessage`); a bare number carries none (`fighting-styles.js`, `dnd5e.preCalculateDamage`) | 2026-09-26 |
+
+## Bent by choice — the rule of cool (2026-09-26)
+
+**Where the module plays a rule more generously than the page, on purpose.** User, 2026-09-26:
+*"i think B and bend it, its more fun that way. we should make these notes where we bend the rules
+slightly for rule of cool"*. The register above is what the PLATFORM forces; this is what the
+TABLE chose. ⚠ **The same standing rule: a new bend by choice adds its row here IN THE SAME COMMIT
+as its code.**
+
+| The rule as written | What the module does | Why it's more fun | Since |
+| --- | --- | --- | --- |
+| **Interpose Shield** (Shield Master): a Reaction when "subjected to an effect that allows you to make a Dexterity saving throw to take only half damage" — taken before the save is known | offered only AFTER the save SUCCEEDS (a Dexterity half-damage save, a Shield held, the Reaction free): Use turns the half into none and spends the Reaction; a failed save never asks (`saves/choices.js`, kind `interpose`) | the Reaction is never wasted on a save that fails, and the ask comes with the good news (ruled "B", 2026-09-26; built so since walk-5 (y)) | 2026-09-26 (built earlier; recorded as a choice this day) |
 
 ## The effect view (2026-09-15; the aura row 2026-09-15; the panel 2026-09-18)
 
@@ -826,3 +840,32 @@ Fighting **U1**, *"truesight yes"*. `smoke-styles` (31 checks), `smoke-guards` (
 - **Found on the way:** dnd5e 6.0 stamps an applied effect's origin with the ACTIVITY, so the gate's
   `item` discriminator never knew the item — Protection from Evil and Good's "Protected" matched
   every "Protected" (the Aura of Protection's included). The gate reads through to the item now.
+
+## The PHB feats — the party's own (2026-09-26)
+
+**The feats the table's players took, first.** The slice opened on the party's sheets (prod):
+the origin feats and styles were in already; of the PHB general feats, Great Weapon Master and
+Heavy Armor Master (Morgash), Shield Master (Invictus), Fey-Touched (Gren). The user: *"i cant
+beleive weve been missing damage on gwm!"*; *"heavy armor master should have that blocking damage
+like stones endurance / protectin does"*; *"great weapon master is also the situational bonus w
+damage"*; Interpose Shield **B**, bent by choice (the rule-of-cool table above). `smoke-styles`
+§11–§12, `tests/decide-fighting-styles.test.js`.
+
+- **Two rows on `FIGHTING_STYLES`** (the table's comment asked for it: a second customer is a row),
+  `feat: true` so the face and its float wear the feat's own name, not "Fighting Style:".
+- **Heavy Weapon Mastery** — gate `heavy`: the face is live with a Heavy weapon equipped; a Heavy
+  weapon's damage on the owner's own turn gets +PB on the roll, "Great Weapon Master — +3" on the
+  card and the +3 chip rising off the attacker (the dice that rise, the situational kind); an
+  Opportunity Attack says "off — not your turn". The pack's separate "Heavy Weapon Damage" button
+  stays on the sheet — pressing it as well would add it twice. Hew was in already (`hew.js`).
+- **Heavy Armor Master** — gate `heavyArmor`, `takesOver` (the pack's always-on `traits.dm`
+  effect is switched off — every copy of the feat by name, found when a lent copy sat beside the
+  fixture's own and the damage was cut twice); `block: "@prof"` on an attack's Bludgeoning,
+  Piercing and Slashing damage at `dnd5e.preCalculateDamage`, so the card's own buttons carry it
+  too. The block pops "−3" over the armored creature on every client (Stone's Endurance's pop, no
+  roll — it rides the damage's own actor update) and the receipt row says "Heavy Armor Master —
+  blocked 3".
+- **Native, nothing built:** Shield Master's bash and Interpose Shield (built in v1.19, the
+  maneuver folds), Hew, Fey-Touched (Misty Step and its spell, the pack's own free casts), Tough.
+- ⚠ **A world's Fighting Styles list is stored**: the new default adds the two names; a world with
+  the old value runs neither until the names are added (or Reset Defaults).

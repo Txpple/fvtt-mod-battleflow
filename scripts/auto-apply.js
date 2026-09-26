@@ -208,9 +208,12 @@ export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { n
       const after = actor.system._source.attributes.hp;
       // The entry is arithmetic over the two snapshots and the system's own annotations —
       // prior → delta → taken → reason, all of it in decide/receipt.js.
+      // A block the target's own armor took (Heavy Armor Master, fighting-styles.js) says so on its row.
+      const block = calc?.bfArmorBlock;
+      const said = block?.amount ? [note, `${block.feature} — blocked ${block.amount}`].filter(Boolean).join(" · ") : note;
       receipts.push(receiptEntry({
         uuid: target.uuid, name: target.name, img: actor.img,
-        note, multiplier, prior, after, calc, context
+        note: said, multiplier, prior, after, calc, context
       }));
     }
     if ( receipts.length ) {

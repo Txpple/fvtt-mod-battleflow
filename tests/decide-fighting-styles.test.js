@@ -234,3 +234,77 @@ describe("the dice (L4 + F7, 2026-09-26: Empowered's chips, no click)", () => {
     });
   });
 });
+
+describe("the PHB feats (2026-09-26): Great Weapon Master and Heavy Armor Master", () => {
+  const greataxe = weapon("Greataxe", "martialM", ["hvy", "two"]);
+  const plate = { name: "Plate Armor", type: "equipment", kind: "heavy", equipped: true };
+  const chain = { name: "Chain Shirt", type: "equipment", kind: "medium", equipped: true };
+
+  it("Heavy Weapon Mastery's face is live with a Heavy weapon equipped, off without one", () => {
+    expect(d.faceState("heavy", d.heldOf([greataxe]))).toMatchObject({
+      live: true,
+      word: "greataxe"
+    });
+    expect(
+      d.faceState("heavy", d.heldOf([weapon("Longsword", "martialM", ["ver"])]))
+    ).toMatchObject({ live: false });
+  });
+
+  it("the +PB fits a Heavy weapon's roll on the owner's turn — never off it (an Opportunity Attack)", () => {
+    expect(d.rollFits("heavy", { kind: "martialM", properties: ["hvy"], ownTurn: true })).toBe(
+      true
+    );
+    expect(d.rollFits("heavy", { kind: "martialR", properties: ["hvy"] })).toBe(true); // a Heavy ranged weapon too
+    expect(d.rollFits("heavy", { kind: "martialM", properties: ["hvy"], ownTurn: false })).toBe(
+      false
+    );
+    expect(d.rollFits("heavy", { kind: "martialM", properties: ["ver"], ownTurn: true })).toBe(
+      false
+    );
+  });
+
+  it("Heavy Armor Master's face is live in Heavy armor only, and says why when not", () => {
+    expect(d.faceState("heavyArmor", d.heldOf([plate]))).toMatchObject({
+      live: true,
+      word: "plate armor"
+    });
+    expect(d.faceState("heavyArmor", d.heldOf([chain]))).toMatchObject({
+      live: false,
+      word: "not heavy"
+    });
+    expect(d.faceState("heavyArmor", d.heldOf([]))).toMatchObject({
+      live: false,
+      word: "unarmored"
+    });
+    expect(d.rollFits("heavyArmor", { kind: "martialM" })).toBe(false); // never a roll's row
+  });
+
+  it("the block cuts the listed types by the amount IN ALL, in order, never below 0", () => {
+    const types = ["bludgeoning", "piercing", "slashing"];
+    expect(d.blockDamages([{ value: 9, type: "slashing" }], types, 3)).toEqual({
+      values: [6],
+      cut: 3
+    });
+    expect(
+      d.blockDamages(
+        [
+          { value: 2, type: "piercing" },
+          { value: 5, type: "slashing" }
+        ],
+        types,
+        3
+      )
+    ).toEqual({ values: [0, 4], cut: 3 });
+    expect(
+      d.blockDamages(
+        [
+          { value: 7, type: "fire" },
+          { value: 1, type: "slashing" }
+        ],
+        types,
+        3
+      )
+    ).toEqual({ values: [7, 0], cut: 1 });
+    expect(d.blockDamages([{ value: 7, type: "fire" }], types, 3)).toEqual({ values: [7], cut: 0 });
+  });
+});

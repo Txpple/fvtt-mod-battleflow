@@ -103,7 +103,7 @@ function factOf(effect) {
     active: effect.active === true, temporary: effect.isTemporary === true,
     disabled: effect.disabled === true,
     worn: ((effect.parent instanceof Item) && (effect.transfer === true)) || !!style,
-    style: !!style, detail: style?.detail ?? null, styleFeat: styleFeatOf(effect),
+    style: !!style, ...(style?.feat ? { feat: true } : {}), detail: style?.detail ?? null, styleFeat: styleFeatOf(effect),
     aura: ownAuraOf(effect),
     onItem: effect.parent instanceof Item,
     statuses: [...(effect.statuses ?? [])],

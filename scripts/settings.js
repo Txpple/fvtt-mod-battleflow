@@ -306,7 +306,7 @@ Hooks.once("init", () => {
   // owner holds or wears, and its number on the roll it fits. A list; the list is the switch.
   game.settings.register(MODULE_ID, S.fightingStyleList, {
     name: "Fighting Styles",
-    hint: "A Fighting Style feat the module runs, by the feat's own name, separated by commas — Great Weapon Fighting, Thrown Weapon Fighting, Two-Weapon Fighting, Dueling, Defense, Unarmed Fighting. Each listed style shows as an effect on the character, live or greyed with the reason, read off what is equipped (nobody toggles it); its bonus lands on the roll it fits, with a line on the damage card. Remove a name to run that style by hand (the pack's own effect comes back on).",
+    hint: "A Fighting Style feat (or a feat of the same shape) the module runs, by the feat's own name, separated by commas — Great Weapon Fighting, Thrown Weapon Fighting, Two-Weapon Fighting, Dueling, Defense, Unarmed Fighting, Great Weapon Master (+Proficiency Bonus on a Heavy weapon's damage on your turn), Heavy Armor Master (an attack's Bludgeoning, Piercing and Slashing damage cut by your Proficiency Bonus while Heavy armor is equipped). Each listed style shows as an effect on the character, live or greyed with the reason, read off what is equipped (nobody toggles it); its bonus lands on the roll it fits, with a line on the damage card. Remove a name to run that style by hand (the pack's own effect comes back on).",
     scope: "world", config: true, type: String, default: LIST_SPECS.fightingStyles.default
   });
 

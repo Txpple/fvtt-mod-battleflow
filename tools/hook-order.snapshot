@@ -155,6 +155,9 @@ dnd5e.preRollDamageV2	fighting-styles.js
 dnd5e.postDamageRollConfiguration	fighting-styles.js
 preCreateChatMessage	fighting-styles.js
 updateActiveEffect	fighting-styles.js
+dnd5e.preCalculateDamage	fighting-styles.js
+dnd5e.preApplyDamage	fighting-styles.js
+updateActor	fighting-styles.js
 dnd5e.renderChatMessage	fighting-styles.js
 createChatMessage	fighting-styles.js
 updateCombat	fighting-styles.js

@@ -1910,7 +1910,9 @@ const KIT_TEND_NAMES = tableIndex(KIT_TENDS).names;
  *   gate       what the style reads — `twoHanded` (a melee weapon swung in two hands, a Two-Handed
  *              or Versatile weapon), `thrown` (a thrown attack), `offhand` (the Light weapon's extra
  *              attack), `oneHanded` (one melee weapon in one hand, no other weapon), `armored`
- *              (Light, Medium or Heavy armor worn), `unarmed` (what the hands hold — the die only)
+ *              (Light, Medium or Heavy armor worn), `unarmed` (what the hands hold — the die only),
+ *              `heavy` (a Heavy weapon's attack on the owner's own turn — Great Weapon Master),
+ *              `heavyArmor` (Heavy armor worn — Heavy Armor Master)
  *   minimum    the damage dice's floor (Great Weapon Fighting: a 1 or 2 counts as 3)
  *   bonus      the damage added: "2", "@mod", or "effect" — READ off the pack's own effect on the
  *              feat (N1); the text-only feats (Thrown) carry the text's number, as Celestial
@@ -1918,6 +1920,11 @@ const KIT_TEND_NAMES = tableIndex(KIT_TENDS).names;
  *   ac         "effect": the AC change the pack's own effect carries, moved onto the face
  *   takesOver  the pack ships an UNGATED effect on the feat (Defense, Dueling — the notes say
  *              "disable it when ..."); the machine switches it off and the face carries the rule
+ *   block      a reduction the owner takes on an attack's damage while the face is live (Heavy
+ *              Armor Master): the amount, off the owner's roll data, cut from the `types` parts
+ *              before the system's own resistances — at dnd5e.preCalculateDamage, so every
+ *              application of an attack's damage carries it, the card's own buttons included
+ *   feat       a general feat, not a style: its face and its float wear the feat's own name
  * The two reactions (Interception, Protection) and Blind Fighting's sight are NOT rows here: they
  * land by mechanism — the interrupt tables and the gate before the roll (SWEEP §1).
  * ⚠ NOT A KIND — one table read by one machine; a second customer is a row.
@@ -1940,7 +1947,16 @@ export const FIGHTING_STYLES = Object.freeze({
     from: "Fighting Style feat" }),
   "Unarmed Fighting": Object.freeze({ key: "unarmed-fighting", gate: "unarmed",
     rule: "When you hit with your Unarmed Strike and deal damage, you can deal Bludgeoning damage equal to 1d6 plus your Strength modifier instead of the normal damage of an Unarmed Strike. If you aren't holding any weapons or a Shield when you make the attack roll, the d6 becomes a d8. At the start of each of your turns, you can deal 1d4 Bludgeoning damage to one creature Grappled by you.",
-    from: "Fighting Style feat" })
+    from: "Fighting Style feat" }),
+  // THE PHB FEATS slice (2026-09-26, the party's own: "i cant beleive weve been missing damage on
+  // gwm!"): the same two shapes — a number on the roll it fits, a rule gated on what is worn.
+  "Great Weapon Master": Object.freeze({ key: "great-weapon-master", gate: "heavy", bonus: "@prof", feat: true,
+    rule: "Heavy Weapon Mastery. When you hit a creature with a weapon that has the Heavy property as part of the Attack action on your turn, you can cause the weapon to deal extra damage to the target. The extra damage equals your Proficiency Bonus.",
+    from: "General feat" }),
+  "Heavy Armor Master": Object.freeze({ key: "heavy-armor-master", gate: "heavyArmor", takesOver: true, feat: true,
+    block: "@prof", types: Object.freeze(["bludgeoning", "piercing", "slashing"]),
+    rule: "Damage Reduction. When you’re hit by an attack while you’re wearing Heavy armor, any Bludgeoning, Piercing, and Slashing damage dealt to you by that attack is reduced by an amount equal to your Proficiency Bonus.",
+    from: "General feat" })
 });
 const FIGHTING_STYLE_NAMES = tableIndex(FIGHTING_STYLES).names;
 

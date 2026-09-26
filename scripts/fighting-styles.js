@@ -32,11 +32,12 @@ import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, canAnswerFor
 import { lower, featureNamed, resolveUuid } from "./lookup.js";
 import { fightingStyleEntries, listedNames } from "./settings.js";
 import { FIGHTING_STYLES } from "./decide/registry.js";
-import { heldOf, faceState, rollFits, raisedOf, styleLine, diceOf, chipsOf } from "./decide/fighting-styles.js";
+import { heldOf, faceState, rollFits, raisedOf, styleLine, diceOf, chipsOf, blockDamages } from "./decide/fighting-styles.js";
+import { isCard, CARD } from "./decide/card.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
-import { riseDice } from "./dice-rise.js";
-import { withTargets } from "./shared.js";
+import { riseDice, driftChip } from "./dice-rise.js";
+import { withTargets, resolveAttackMessage } from "./shared.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
 import { openMomentPopup, momentButton, armDeadline, disarmDeadline, livePopups, shownMoments, scheduleBarSync,
   registerRelay } from "./ui.js";
@@ -97,7 +98,8 @@ function desiredFace({ name, row, feature }, held) {
   return {
     name, img: feature.img, origin: feature.uuid, transfer: false, disabled: !state.live,
     changes: change ? [{ key: change.key, mode: change.mode, value: String(change.value), priority: change.priority ?? null }] : [],
-    flags: { [MODULE_ID]: { [STYLE_FLAG]: { key: row.key, live: state.live, word: state.word, detail: state.detail } } }
+    flags: { [MODULE_ID]: { [STYLE_FLAG]: { key: row.key, live: state.live, word: state.word, detail: state.detail,
+      ...(row.feat ? { feat: true } : {}) } } }
   };
 }
 
@@ -150,10 +152,12 @@ async function syncFaces(actor) {
 
 /** The pack's ungated effects: off while the face carries the rule, back on when it stops. */
 async function syncTakeovers(actor, rows) {
-  const running = new Map(rows.filter(r => r.row.takesOver).map(r => [r.feature.id, r]));
+  // by NAME, every copy: a sheet carrying the feat twice (a lent copy beside its own) would keep
+  // the second copy's pack effect running and cut twice (the feats slice's first run, 2026-09-26)
+  const running = new Set(rows.filter(r => r.row.takesOver).map(r => lower(r.name)));
   for ( const feature of (actor.items ?? []) ) {
     if ( feature.type !== "feat" ) continue;
-    const ours = running.has(feature.id);
+    const ours = running.has(lower(feature.name));
     const writes = [];
     for ( const effect of packEffectsOf(feature) ) {
       const taken = effect.getFlag(MODULE_ID, TAKEN_FLAG) === true;
@@ -186,6 +190,13 @@ Hooks.on("updateSetting", setting => { if ( setting?.key === `${MODULE_ID}.${S.f
 
 /* --- THE ROLL ----------------------------------------------------------------------------------- */
 
+/** Is it this attacker's own turn? True unless a running combat holds it and the turn is another's. */
+function ownTurnOf(actor) {
+  const same = other => !!other && !!actor && ((other === actor) || (other.uuid === actor.uuid));
+  const running = [...(game.combats ?? [])].filter(c => c.started && c.combatants.some(cb => same(cb.actor)));
+  return !running.length || running.some(c => same(c.combatant?.actor));
+}
+
 Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     if ( !config || config[DONE] ) return;
@@ -201,7 +212,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
     const held = heldOf(itemFacts(attacker));
     const facts = {
       kind: weapon.system?.type?.value ?? null, properties: [...(weapon.system?.properties ?? [])],
-      mode: config.attackMode ?? null, mod: Number(roll?.data?.mod ?? 0)
+      mode: config.attackMode ?? null, mod: Number(roll?.data?.mod ?? 0), ownTurn: ownTurnOf(attacker)
     };
     const resolve = f => { try { return Roll.replaceFormulaData(String(f), roll?.data ?? {}); } catch { return String(f); } };
     const styles = [];
@@ -221,6 +232,11 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
         // first smoke-styles run, 2026-09-26).
         if ( (row.gate === "oneHanded") && face.live && ["simpleM", "martialM"].includes(facts.kind) ) {
           styles.push({ key: row.key, feature: name, gain: 0, off: "two hands" });
+        }
+        // Great Weapon Master's quiet line: a Heavy weapon swung off the owner's turn (an
+        // Opportunity Attack) — "as part of the Attack action on your turn".
+        if ( (row.gate === "heavy") && facts.properties.includes("hvy") && !facts.ownTurn ) {
+          styles.push({ key: row.key, feature: name, gain: 0, off: "not your turn" });
         }
         continue;
       }
@@ -297,13 +313,82 @@ Hooks.on("updateActiveEffect", (effect, changes) => {
     const enabled = !effect.disabled;
     for ( const token of actor.getActiveTokens(true) ) {
       if ( !token.visible || token.document.isSecret ) continue;
-      canvas.interface.createScrollingText(token.center, `${enabled ? "+" : "−"}(Fighting Style: ${effect.name})`, {
+      const title = faceOf(effect).feat ? effect.name : `Fighting Style: ${effect.name}`;
+      canvas.interface.createScrollingText(token.center, `${enabled ? "+" : "−"}(${title})`, {
         anchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
         direction: enabled ? CONST.TEXT_ANCHOR_POINTS.TOP : CONST.TEXT_ANCHOR_POINTS.BOTTOM,
         distance: 2 * token.h, fontSize: 28, stroke: 0x000000, strokeThickness: 4, jitter: 0.25
       });
     }
   } catch(err) { console.warn(`${TITLE} | The fighting style's face float could not draw.`, err); }
+});
+
+/* --- THE BLOCK (Heavy Armor Master) ------------------------------------------------------------ *
+ * The PHB feats slice (user, 2026-09-26: "heavy armor master should have that blocking damage like
+ * stones endurance / protectin does"). The pack ships the reduction as an UNGATED `traits.dm` effect
+ * ("Disable it when you are not wearing Heavy Armor") that also cut a falling rock and a save's
+ * damage; the row takes it over, and the face's gate (Heavy armor equipped) is the rule's "while
+ * you're wearing Heavy armor".
+ *
+ * THE SEAM is `dnd5e.preCalculateDamage` — every application runs it, the module's applier and the
+ * card's own buttons alike, before the system's resistances (the rule's order: resistance "after all
+ * other modifiers"). The damage must come off an ATTACK's damage card ("when you're hit by an
+ * attack"): a save's, an area's, a rider's or a bare number (the token bar) is never cut. What was
+ * cut rides the options object into `dnd5e.preApplyDamage`, and from there the actor's own update,
+ * so every client sees one "−3" pop over the armored creature — Stone's Endurance's pop, no roll
+ * (RULINGS, the dice that rise). The module's receipt row says it too (auto-apply.js reads the
+ * calculation's `bfBlock`).
+ * ------------------------------------------------------------------------------------------- */
+
+const BLOCK = "bfArmorBlock";          // on the damage options and the calculation, client-local
+const BLOCK_FLAG = "armorBlock";       // on the actor's own damage update — the pop, every client
+
+/** An attack's damage card: a damage roll whose activity is an attack, or that answers one. */
+function isAttackDamage(message) {
+  if ( !message || !isCard(message, CARD.damage) ) return false;
+  if ( message.getAssociatedActivity?.()?.type === "attack" ) return true;
+  try { return !!resolveAttackMessage(message); } catch { return false; }
+}
+
+Hooks.on("dnd5e.preCalculateDamage", (actor, damages, options) => {
+  try {
+    if ( !(actor instanceof Actor) || !Array.isArray(damages) || (options?.ignore === true) ) return;
+    const rows = heldRows(actor).filter(r => r.row.block);
+    if ( !rows.length || !isAttackDamage(options?.originatingMessage) ) return;
+    const held = heldOf(itemFacts(actor));
+    for ( const { name, row } of rows ) {
+      if ( !faceState(row.gate, held).live ) continue;
+      const amount = Number(Roll.replaceFormulaData(String(row.block), actor.getRollData(), { missing: "0" }));
+      const { values, cut } = blockDamages(damages, row.types, amount);
+      if ( !cut ) continue;
+      values.forEach((v, i) => { damages[i].value = v; });
+      const block = { feature: name, amount: cut };
+      damages[BLOCK] = block;
+      if ( options ) options[BLOCK] = block;
+      return;
+    }
+  } catch(err) {
+    console.error(`${TITLE} | Heavy Armor Master's reduction could not be taken — reduce by hand.`, err);
+  }
+});
+
+// the block rides the damage's own update: one write, and every client pops it
+Hooks.on("dnd5e.preApplyDamage", (_actor, _amount, updates, options) => {
+  const block = options?.[BLOCK];
+  if ( !block?.amount || !updates ) return;
+  updates[`flags.${MODULE_ID}.${BLOCK_FLAG}`] = { ...block, at: Date.now() };
+});
+
+const popped = new Set();
+Hooks.on("updateActor", (actor, changes) => {
+  try {
+    const block = changes?.flags?.[MODULE_ID]?.[BLOCK_FLAG];
+    if ( !block?.amount || !block.at || ((Date.now() - block.at) > 10_000) ) return;
+    const key = `${actor.uuid}|${block.at}`;
+    if ( popped.has(key) ) return;
+    popped.add(key);
+    for ( const token of actor.getActiveTokens?.(true) ?? [] ) driftChip(token, token, `−${block.amount}`);
+  } catch(err) { console.warn(`${TITLE} | Heavy Armor Master's block could not draw.`, err); }
 });
 
 /* --- THE NOTICE (L4 + F7) ------------------------------------------------------------------------ *

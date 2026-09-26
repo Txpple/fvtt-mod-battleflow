@@ -17,7 +17,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'fighting-styles.js',   // §1–§2 the faces off the equipped boxes; §3–§6 the numbers, the lines, the record, the float; §8 the switch
+  'fighting-styles.js',   // §1–§2 the faces off the equipped boxes; §3–§6 the numbers, the lines, the record, the float; §8 the switch; §11 Great Weapon Master; §12 Heavy Armor Master's block
   'unarmed-dice.js',      // §7 Unarmed Fighting's die by what the hands hold (the `hands` row)
   'reminders.js'          // §9 Blind Fighting — who sees the unseen: Invisible listed, not counted, within Blindsight
 ];
@@ -32,6 +32,8 @@ const SECTIONS = {
   7: 'Unarmed Fighting: the sheet\'s Unarmed Strike rolls the d8 with the hands empty, the d6 with a Shield held, and says so',
   8: 'off the list: the faces go and the pack\'s own Defense and Dueling effects come back on',
   9: 'Blind Fighting: an Invisible victim 5 ft away is seen (listed, net Normal); 15 ft away it is not (Disadvantage); the Invisible victim attacking the fighter loses its Advantage',
+  11: `Great Weapon Master (the PHB feats, 2026-09-26): its face live off the Greatsword; the Greatsword's damage rolls +PB with "Great Weapon Master — +N"; the Longsword adds nothing; on someone else's turn, "Great Weapon Master off — not your turn"`,
+  12: `Heavy Armor Master: its face live in Chain Mail and the pack's own reduction switched off; an attack's 9 slashing lands 9 − PB (the calculation says "blocked", the actor's update carries the pop); a bare 9 (no attack card) lands whole; out of the armor the attack's 9 lands whole`,
   10: 'Unarmed Fighting at the start of the turn: the fighter grapples the victim — a card and a popup "Deal 1d4 …?"; Deal it lands the damage; next turn Skip deals nothing; with a clock, the clock deals it'
 };
 const DEPENDS = {};
@@ -132,7 +134,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const lend = async (name, type = null) => {
       const own = actor.items.find(i => i.name === name && !lent.includes(i.id));
-      if (own && (name === 'Great Weapon Fighting')) return own;   // the fixture's own
+      if (own && ['Great Weapon Fighting', 'Great Weapon Master', 'Heavy Armor Master'].includes(name)) return own;   // the fixture's own
       const source = await findPHB(name, type);
       if (!source) throw new Error(`the PHB ships no "${name}" this box can find`);
       const data = source.toObject();
@@ -264,7 +266,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       dicePlays.length = 0;
       const high = await damage(gear.Greatsword, 'twoHanded', [[4, 6], [6, 6]]);
       await sleep(600);
-      ok('4d. 4 and 6: no record, no line, no float (Dueling, off at the equipment, says nothing on a Greatsword)', !high?.getFlag(MOD, 'fightingStyle') && !/Great Weapon Fighting/.test(textOf(high?.id)) && !dicePlays.length,
+      // the fighter's own Great Weapon Master (+PB on a Heavy weapon, the feats slice) may ride this roll — only the style is asserted
+      ok('4d. 4 and 6: no Great Weapon Fighting record, line or float (Dueling, off at the equipment, says nothing on a Greatsword)',
+        !style(high, 'great-weapon-fighting') && !/Great Weapon Fighting|Dueling/.test(textOf(high?.id)) && !dicePlays.some(p => p.key !== 'great-weapon-master'),
         `flag=${JSON.stringify(high?.getFlag(MOD, 'fightingStyle'))} dice=${JSON.stringify(dicePlays)}`);
     }
 
@@ -313,7 +317,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(8)) {
       await equip(['Chain Mail', 'Longsword', 'Shield']);
       await set('fightingStyleList', 'Great Weapon Fighting');
-      await sleep(1200);
+      // the takeovers come back one feat at a time (four since the feats slice): poll, don't guess
+      for (let i = 0; i < 25 && !((packEffect('Defense')?.disabled === false) && (packEffect('Dueling')?.disabled === false)); i++) await sleep(200);
+      await sleep(400);
       ok('8a. unlisted styles lose their face; the listed one keeps it', !face('Defense') && !face('Dueling') && !!face('Great Weapon Fighting'),
         `faces=${actor.effects.filter(e => e.getFlag(MOD, 'fightingStyle')).map(e => e.name).join(', ')}`);
       ok('8b. the pack\'s own Defense and Dueling effects come back on, unflagged',
@@ -431,6 +437,93 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (liveTok.length) await scene.deleteEmbeddedDocuments('Token', liveTok);
         await held.delete().catch(() => {});
         for (const app of [...foundry.applications.instances.values()]) if (/Unarmed Fighting/.test(app.element?.textContent ?? '')) { try { await app.close(); } catch { /* gone */ } }
+      }
+    }
+
+    // ================================================== 11. Great Weapon Master's Heavy Weapon Mastery
+    if (want(11)) {
+      // the lines off the card's own render: after §10's combat the log on screen is not the chat
+      const cardLines = async id => {
+        const el = await game.messages.get(id)?.renderHTML?.().catch(() => null);
+        return [...(el?.querySelectorAll?.(".bf-fighting-style-line") ?? [])].map(e => e.dataset.bfStyleLine ?? "").join(" | ");
+      };
+      const gwm = await lend('Great Weapon Master', 'feat');
+      const pb = Number(actor.system.attributes.prof);
+      try {
+        await equip(['Greatsword']);
+        const g = face('Great Weapon Master');
+        ok('11a. the face: live off the Greatsword, titled by the feat alone (no "Fighting Style:")', !!g && !g.disabled && /Greatsword, Heavy/.test(faceLine('Great Weapon Master'))
+          && (g?.getFlag(MOD, 'fightingStyle')?.feat === true), `face=${!!g} disabled=${g?.disabled} line="${faceLine('Great Weapon Master')}"`);
+        const hit = await damage(gear.Greatsword, 'twoHanded', [[4, 6], [5, 6]]);
+        const s = style(hit, 'great-weapon-master');
+        ok(`11b. the Greatsword rolls +${pb}: the record, "Great Weapon Master — +${pb}" on the card`,
+          (s?.gain === pb) && new RegExp(`Great Weapon Master — \\+${pb}`).test(await cardLines(hit?.id)),
+          `style=${JSON.stringify(s)} formula="${hit?.rolls?.[0]?.formula}" lines="${await cardLines(hit?.id)}"`);
+        await equip(['Longsword']);
+        const plain = await damage(gear.Longsword, 'twoHanded', [[5, 10]]);
+        ok('11c. a weapon without Heavy adds nothing and says nothing', !style(plain, 'great-weapon-master') && !/Great Weapon Master/.test(await cardLines(plain?.id)),
+          `lines="${await cardLines(plain?.id)}"`);
+        // someone else's turn: the victim's
+        await equip(['Greatsword']);
+        if (game.combat) await game.combat.delete();
+        const combat = await Combat.create({ scene: scene.id });
+        const [odoc] = await scene.createEmbeddedDocuments('Token', [
+          foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x: 1500, y: 1900, actorId: actor.id, actorLink: true }, { inplace: false })]);
+        placed.push(odoc.id);
+        await combat.createEmbeddedDocuments('Combatant', [
+          { actorId: victim.id, tokenId: vdoc.id, sceneId: scene.id, initiative: 20 },
+          { actorId: actor.id, tokenId: odoc.id, sceneId: scene.id, initiative: 5 }]);
+        try {
+          await combat.startCombat();
+          const oa = await damage(gear.Greatsword, 'twoHanded', [[4, 6], [5, 6]]);
+          ok(`11d. on someone else's turn (an Opportunity Attack): nothing added, "Great Weapon Master off — not your turn"`,
+            !style(oa, 'great-weapon-master')?.gain && /Great Weapon Master off — not your turn/.test(await cardLines(oa?.id)), `lines="${await cardLines(oa?.id)}"`);
+        } finally { await combat.delete().catch(() => {}); }
+      } finally {
+        if (lent.includes(gwm.id)) { await actor.deleteEmbeddedDocuments('Item', [gwm.id]).catch(() => {}); lent.splice(lent.indexOf(gwm.id), 1); }
+        await sleep(600);
+      }
+    }
+
+    // ================================================== 12. Heavy Armor Master's block
+    if (want(12)) {
+      const ham = await lend('Heavy Armor Master', 'feat');
+      const pb = Number(actor.system.attributes.prof);
+      const hp0 = Number(actor.system.attributes.hp.value);
+      const hpMax = Number(actor.system.attributes.hp.max);
+      try {
+        await actor.update({ 'system.attributes.hp.value': hpMax });
+        await equip(['Chain Mail', 'Greatsword']);
+        const h = face('Heavy Armor Master');
+        ok(`12a. the face: live in Chain Mail; the pack's own reduction switched off (flagged)`, !!h && !h.disabled && /Chain Mail/.test(faceLine('Heavy Armor Master'))
+          && packEffect('Heavy Armor Master')?.disabled === true, `face=${!!h} line="${faceLine('Heavy Armor Master')}" pack=${packEffect('Heavy Armor Master')?.disabled}`);
+        const card = await damage(gear.Greatsword, 'twoHanded', [[4, 6], [5, 6]]);
+        const nine = [{ value: 9, type: 'slashing' }];
+        const calc = actor.calculateDamage(nine, { originatingMessage: card });
+        ok(`12b. an attack's 9 slashing calculates to ${9 - pb}, the calculation saying "blocked ${pb}"`,
+          (calc?.amount === 9 - pb) && (calc?.bfArmorBlock?.amount === pb), `amount=${calc?.amount} block=${JSON.stringify(calc?.bfArmorBlock ?? null)}`);
+        const hpA = Number(actor.system.attributes.hp.value);
+        await actor.applyDamage(nine, { originatingMessage: card });
+        await sleep(300);
+        const flag = actor.getFlag(MOD, 'armorBlock');
+        ok(`12c. applied: ${9 - pb} lands, and the actor's own update carries the pop`, (hpA - Number(actor.system.attributes.hp.value) === 9 - pb) && (flag?.amount === pb),
+          `took=${hpA - Number(actor.system.attributes.hp.value)} flag=${JSON.stringify(flag ?? null)}`);
+        const hpB = Number(actor.system.attributes.hp.value);
+        await actor.applyDamage(nine, {});
+        ok('12d. a bare 9 (no attack card behind it) lands whole', hpB - Number(actor.system.attributes.hp.value) === 9,
+          `took=${hpB - Number(actor.system.attributes.hp.value)}`);
+        await actor.update({ 'system.attributes.hp.value': hpMax });
+        await equip(['Greatsword']);
+        ok('12e. out of the armor: the face off, "no armor worn"', face('Heavy Armor Master')?.disabled === true && /no armor worn/.test(faceLine('Heavy Armor Master')),
+          `line="${faceLine('Heavy Armor Master')}"`);
+        const hpC = Number(actor.system.attributes.hp.value);
+        await actor.applyDamage(nine, { originatingMessage: card });
+        ok(`12f. out of the armor, the attack's 9 lands whole`, hpC - Number(actor.system.attributes.hp.value) === 9,
+          `took=${hpC - Number(actor.system.attributes.hp.value)}`);
+      } finally {
+        await actor.update({ 'system.attributes.hp.value': hp0, [`flags.${MOD}.-=armorBlock`]: null }).catch(() => {});
+        if (lent.includes(ham.id)) { await actor.deleteEmbeddedDocuments('Item', [ham.id]).catch(() => {}); lent.splice(lent.indexOf(ham.id), 1); }
+        await sleep(600);
       }
     }
 

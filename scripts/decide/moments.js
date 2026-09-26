@@ -726,6 +726,7 @@ export const STATE_KEYS = Object.freeze({
   by: "an envelope field beside respondsTo — the GUARD who answered a held target (Protection, 2026-09-26); the fold onto the hold flag is the resolve",
   protectedBy: "an ActiveEffect flag — the guard whose Protection landed \"Protected — <guard>\" on the creature it protected (2026-09-26); provenance, the hold is the resolve",
   fightingStyle: "a damage message's record — a fighting style's number that rode the roll (Great Weapon Fighting's raised dice, Thrown's and Dueling's +2, Two-Weapon's modifier): the card's line, the float, the stats' gain; and the same key on a style's FACE effect (its key, live, its line). Presentation and bookkeeping — the number rode the roll's own config (fighting-styles.js, 2026-09-26)",
+  armorBlock: "presentation — an actor flag riding the damage's own update: what Heavy Armor Master cut from an attack, for every client to pop \"−N\" over the armored creature; the damage receipt is the record (fighting-styles.js, 2026-09-26)",
   fightingStyleTakenOver: "an ActiveEffect flag — the pack's own ungated effect on a Fighting Style feat, switched off while the style's face carries the rule; bookkeeping, restored when the style is unlisted (fighting-styles.js, 2026-09-26)",
   unarmedDice: "a damage card's line — Tavern Brawler's die rolled in place of the flat Unarmed Strike; presentation, the formula rode the roll's own config",
   volleyFor: "provenance — a volley's roll names its card",
