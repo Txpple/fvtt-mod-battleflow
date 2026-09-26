@@ -22,7 +22,7 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor,
 import { lower, resolveUuid } from "./lookup.js";
 import { initiativeSwapEntries, listedNames } from "./settings.js";
 import { INITIATIVE_SWAPS } from "./decide/registry.js";
-import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
+import { TONE, bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armDeadline, disarmDeadline,
   registerRelay, registerResumable } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
@@ -77,15 +77,20 @@ async function askFor(combat) {
         .sort((a, b) => b.initiative - a.initiative);
       if ( !allies.length ) continue;
       // THE LINEUP (user, 2026-09-25: the owner "greyed out saying (you) so they can easily see where
-      // the init order swaps will play out"; "it should also include enemies, but greyed out"): every
-      // combatant the tracker shows, in Initiative order; only the allies above are pickable.
+      // the init order swaps will play out"; "it should also include enemies, but greyed out"; then
+      // "enemy is red, ally is green, yellow is neutral ... friendly for an initiative list"): every
+      // combatant the tracker shows, in Initiative order, its side read off the token's disposition
+      // against the owner's; only the allies above are pickable.
       const pickable = new Set(allies.map(a => a.combatantId));
+      const NEUTRAL = CONST.TOKEN_DISPOSITIONS?.NEUTRAL ?? 0;
       const lineup = combatants
         .filter(o => (o.id === c.id) || !o.hidden)
         .sort((a, b) => b.initiative - a.initiative)
         .map(o => ({ combatantId: o.id, name: o.name, initiative: o.initiative, tokenId: o.tokenId ?? null,
+          img: o.token?.texture?.src ?? o.img ?? null,
           role: (o.id === c.id) ? "self" : pickable.has(o.id) ? "ally"
-            : (o.token?.disposition === side) ? "incapacitated" : "enemy" }));
+            : (o.token?.disposition === side) ? "incapacitated"
+            : (o.token?.disposition === NEUTRAL) ? "neutral" : "enemy" }));
       const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
       await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor, token: c.token }),
@@ -196,16 +201,30 @@ async function showSwapPopup(message) {
   const row = INITIATIVE_SWAPS[flag.row] ?? null;
   // THE LINEUP, the whole tracker in Initiative order (the card's `lineup`, built at the ask): the
   // allies are the radios; the owner "(you)", the enemies and an Incapacitated ally stay, greyed.
+  // Coloured by side like the tracker's own dispositions — ally green, enemy red, neutral yellow, the
+  // owner orange ("you") — with the rank, the token and the number; a pick previews the two new
+  // numbers on the owner's row and the ally's ("→ 17").
   const lineup = flag.lineup ?? (flag.allies ?? []).map(a => ({ ...a, role: "ally" }));
-  const NOTE = { self: "(you)", enemy: "(enemy)", incapacitated: "(Incapacitated)" };
-  const rowStyle = "display:flex;align-items:center;gap:0.5rem;margin:0.25rem 0;padding:0.35rem 0.5rem;border-radius:4px;background:rgba(0,0,0,0.06);border:1px solid var(--color-border-light,rgba(0,0,0,0.2));";
-  const rows = lineup.map(a => (a.role !== "ally")
-    ? `<div data-bf-initiative-${esc(a.role)} style="${rowStyle}opacity:0.5;">
-      <input type="radio" disabled style="margin:0;">
-      <span style="flex:1;">${esc(a.name)} <em>${NOTE[a.role] ?? ""}</em></span><strong style="font-size:1.1em;">${esc(a.initiative)}</strong></div>`
-    : `<label style="${rowStyle}cursor:pointer;">
-      <input type="radio" name="bf-initiative-swap" value="${esc(a.combatantId)}" data-token="${esc(a.tokenId ?? "")}" style="margin:0;">
-      <span style="flex:1;">${esc(a.name)}</span><strong style="font-size:1.1em;">${esc(a.initiative)}</strong></label>`).join("");
+  const HUE = { self: TONE.pending, ally: TONE.good, enemy: TONE.bad, neutral: TONE.crit, incapacitated: TONE.neutral };
+  const NOTE = { self: "you", enemy: "enemy", neutral: "neutral", incapacitated: "Incapacitated" };
+  const rows = lineup.map((a, i) => {
+    const hue = HUE[a.role] ?? TONE.neutral;
+    const pick = a.role === "ally";
+    const style = `display:grid;grid-template-columns:1.4rem 1.1rem 28px 1fr auto;gap:0.45rem;align-items:center;margin:0.2rem 0;`
+      + `padding:0.25rem 0.5rem;border-radius:4px;border:1px solid var(--color-border-light,rgba(0,0,0,0.2));border-left:4px solid ${hue};`
+      + `background:color-mix(in srgb, ${hue} ${pick || (a.role === "self") ? 16 : 9}%, transparent);`
+      + (pick ? "cursor:pointer;" : "") + ((a.role === "incapacitated") ? "opacity:0.55;" : "");
+    const radio = pick
+      ? `<input type="radio" name="bf-initiative-swap" value="${esc(a.combatantId)}" data-token="${esc(a.tokenId ?? "")}" style="margin:0;">`
+      : "<span></span>";
+    const note = NOTE[a.role] ? ` <span style="font-size:var(--font-size-11,11px);opacity:0.75;">(${NOTE[a.role]})</span>` : "";
+    const tag = pick ? "label" : "div";
+    return `<${tag} data-bf-initiative-row="${esc(a.role)}" data-combatant="${esc(a.combatantId)}" data-initiative="${esc(a.initiative)}" style="${style}">
+      <span style="text-align:right;opacity:0.6;font-size:var(--font-size-11,11px);">${i + 1}</span>${radio}
+      ${a.img ? `<img src="${esc(a.img)}" alt="" style="width:28px;height:28px;border:0;object-fit:contain;">` : "<span></span>"}
+      <span style="${(a.role === "self") ? "font-weight:bold;" : ""}">${esc(a.name)}${note}</span>
+      <span style="white-space:nowrap;"><strong style="font-size:1.15em;">${esc(a.initiative)}</strong><span data-bf-initiative-after style="margin-left:0.3rem;font-weight:bold;color:${TONE.pending};"></span></span></${tag}>`;
+  }).join("");
   const dialog = await openMomentPopup(message, SWAP_FLAG, actor, {
     title: `${flag.row} — ${flag.actorName}`, icon: "fa-solid fa-right-left", width: 400,
     content: bfCard({ img: actor.items.find(i => lower(i.name) === lower(flag.row))?.img ?? null,
@@ -233,6 +252,15 @@ Hooks.once("ready", () => document.addEventListener("change", ev => {
   if ( !input ) return;
   const tok = input.dataset.token ? canvas?.tokens?.get(input.dataset.token) : null;
   if ( tok ) { try { canvas.ping(tok.center); } catch { /* no canvas to ping */ } }
+  // The preview: the owner's row and the picked ally's show the numbers they would trade to.
+  const list = input.closest("[data-bf-initiative-swap]");
+  const self = list?.querySelector('[data-bf-initiative-row="self"]');
+  const picked = input.closest("[data-bf-initiative-row]");
+  for ( const after of list?.querySelectorAll("[data-bf-initiative-after]") ?? [] ) after.textContent = "";
+  if ( self && picked ) {
+    self.querySelector("[data-bf-initiative-after]").textContent = `→ ${picked.dataset.initiative}`;
+    picked.querySelector("[data-bf-initiative-after]").textContent = `→ ${self.dataset.initiative}`;
+  }
   const swap = input.closest("form")?.querySelector?.('button[data-action="swap"]');
   if ( swap ) swap.disabled = false;
 }));
@@ -280,6 +308,34 @@ Hooks.on("updateChatMessage", message => {
   disarmDeadline(timers, message.id);
   const open = livePopups.get(popupKey(message.id, SWAP_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  floatSwap(message, flag);
 });
+
+/**
+ * THE FLOATING TEXT (user, 2026-09-25: "alert should have a floating white text about the swap so
+ * everyone can see it. same as like when something is decremented"): once the swap lands, every
+ * client floats the new number over each of the two tokens — "Initiative 11 → 17" — the canvas's
+ * own scrolling text, white, as the system floats a hit-point change. Live updates only: a reload
+ * replays nothing (the set remembers what this client floated).
+ */
+const floated = new Set();
+function floatSwap(message, flag) {
+  if ( (flag.answer !== "swap") || !flag.applied || !Number.isFinite(flag.from) || !Number.isFinite(flag.to) ) return;
+  if ( floated.has(message.id) ) return;
+  floated.add(message.id);
+  try {
+    const combat = game.combats.get(flag.combatId);
+    const float = (combatantId, from, to) => {
+      const token = combat?.combatants.get(combatantId)?.token?.object;
+      if ( !token?.visible || !canvas?.interface?.createScrollingText ) return;
+      canvas.interface.createScrollingText(token.center, `Initiative ${from} → ${to}`, {
+        anchor: CONST.TEXT_ANCHOR_POINTS.TOP, fill: "#ffffff", stroke: 0x000000, strokeThickness: 4,
+        fontSize: 28, jitter: 0.25, duration: 3000
+      });
+    };
+    float(flag.combatantId, flag.from, flag.to);
+    float(flag.pick, flag.to, flag.from);
+  } catch(err) { console.warn(`${TITLE} | The initiative swap's floating text could not draw.`, err); }
+}
 
 Hooks.on("deleteChatMessage", message => { disarmDeadline(timers, message.id); });

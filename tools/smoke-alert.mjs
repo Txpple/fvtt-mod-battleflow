@@ -167,11 +167,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `popup=${!!app} radios=${radios.length} swapDisabled=${swapBtn?.disabled}`);
       const lineup = flag?.lineup ?? [];
       const inits = lineup.map(r => r.initiative);
-      ok('1c. the lineup: every combatant in Initiative order, the holder "(you)" and the enemy greyed, unpickable',
+      ok('1c. the lineup: every combatant in Initiative order, coloured by side, the holder "(you)", the enemy unpickable',
         (lineup.length === 4) && inits.every((v, i) => !i || (inits[i - 1] >= v))
           && (lineup.find(r => r.role === 'self')?.initiative === 11) && (lineup.find(r => r.role === 'enemy')?.name === tVictim.name)
-          && !!app?.element?.querySelector('[data-bf-initiative-self]')?.textContent?.includes('(you)')
-          && !!app?.element?.querySelector('[data-bf-initiative-enemy] input[disabled]'),
+          && !!app?.element?.querySelector('[data-bf-initiative-row="self"]')?.textContent?.includes('(you)')
+          && !!app?.element?.querySelector('[data-bf-initiative-row="enemy"]') && !app?.element?.querySelector('[data-bf-initiative-row="enemy"] input'),
         `lineup=${lineup.map(r => `${r.name}:${r.initiative}:${r.role}`).join(', ')}`);
     }
     if (want(2)) {
