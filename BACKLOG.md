@@ -7,6 +7,7 @@
 > item becomes owed it leaves this file for a commission the user hands the next session. There
 > is no standing handoff file, by user call: a commission is written when there is one and
 > retired when it is delivered. A closed item leaves too — its record is git history. (The last,
+> A commission is LIVE: HANDOFF.md of 2026-09-26 — the fighting styles walk, by hand. Before it,
 > HANDOFF.md of 2026-09-25 — the Slice A walk, species and origin feats by hand — was retired on
 > 2026-09-26 when the walk was done and the full battery green; its rulings are RULINGS *The
 > species walk, continued* and *The origin feats*, the release's list below, its text in git
