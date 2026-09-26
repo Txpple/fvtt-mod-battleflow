@@ -702,6 +702,7 @@ export const STATE_KEYS = Object.freeze({
   restSongAnswer: "an envelope — a player's picks for a rest song; the fold onto the restSong flag, landed by the elect, is the resolve",
   emanationTypeAnswer: "an envelope — the caster's type pick; the fold onto emanationCard is the resolve",
   momentAck: "an envelope — a notice acknowledged; presentation, not a moment",
+  diceRise: "presentation — a roll message's chips for dice-rise.js to draw on every client; the roll it rides is the record, never a moment",
   // arms, picks and provenance before the resolve
   hitPick: "the hit menu's pick before the die rolls; hitManeuver on the damage message is the resolve",
   hitManeuverCard: "the follow-up save card the hit menu drove; its effects land as effect receipts and its verdicts as saves",

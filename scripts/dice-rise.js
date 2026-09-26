@@ -13,6 +13,11 @@
  * `drop` a die that no longer counts; `lost` a dropped die that was a critical.
  */
 
+import { MODULE_ID, TITLE } from "./core.js";
+
+/** The canvas token for an actor uuid (geometry.js's reader, one line, kept here: same layer). */
+const tokenForUuid = uuid => canvas.tokens?.placeables?.find(t => t.actor?.uuid === uuid) ?? null;
+
 const GOLD = 0xf3dc9a;
 const RED = 0xe06a5a;
 const Text = () => foundry.canvas.containers.PreciseText;
@@ -87,3 +92,71 @@ export function riseDice(token, chips) {
   };
   canvas.app.ticker.add(tick);
 }
+
+/**
+ * One chip that travels: it pops over `from`, glides to `to` and pops there, then fades — the
+ * reduction a guard gave landing on the ally (group 2). The same token both ends pops it in place.
+ * @param {Token|null} from
+ * @param {Token|null} to
+ * @param {string} label
+ */
+export function driftChip(from, to, label) {
+  const end = to?.visible ? to : null;
+  const start = from?.visible ? from : end;
+  if ( !start || !end || !label || !canvas?.interface || !canvas?.app?.ticker ) return;
+  if ( game.settings.get("core", "scrollingStatusText") === false ) return;
+  const s = canvas.dimensions?.uiScale ?? 1;
+  const w = Math.max(38, 12 + (label.length * 11)), h = 30;
+  const chip = new PIXI.Container();
+  const glow = new PIXI.Graphics().lineStyle(7, GOLD, 0.55).drawRoundedRect(-w / 2 - 2, -h / 2 - 2, w + 4, h + 4, 7);
+  const box = new PIXI.Graphics().lineStyle(2.5, GOLD, 1).beginFill(0x14120e, 0.85).drawRoundedRect(-w / 2, -h / 2, w, h, 5).endFill();
+  const text = new (Text())(label, Text().getTextStyle({ fontSize: 17, fill: "#ffffff", fontWeight: "bold", stroke: 0x000000, strokeThickness: 3 }));
+  text.anchor.set(0.5, 0.5);
+  chip.addChild(glow, box, text);
+  const p0 = { x: start.center.x, y: start.document.y - 8 - (h / 2) };
+  const p1 = { x: end.center.x, y: end.document.y - 8 - (h / 2) };
+  chip.position.set(p0.x, p0.y);
+  chip.alpha = 0;
+  canvas.interface.addChild(chip);
+  const moves = (p0.x !== p1.x) || (p0.y !== p1.y);
+  const t0 = performance.now(), total = moves ? 1700 : 1300;
+  const ease = k => 0.5 - (Math.cos(Math.PI * k) / 2);
+  const tick = () => {
+    const t = performance.now() - t0;
+    if ( (t >= total) || chip.destroyed ) {
+      canvas.app.ticker.remove(tick);
+      if ( !chip.destroyed ) chip.destroy({ children: true });
+      return;
+    }
+    const pop = Math.min(1, t / 200);
+    chip.scale.set(s * (0.6 + (0.4 * pop)));
+    if ( moves ) {
+      // 200–900 the glide, an arc over the table; then the landing flash
+      const k = ease(Math.min(1, Math.max(0, (t - 200) / 700)));
+      chip.position.set(p0.x + ((p1.x - p0.x) * k), p0.y + ((p1.y - p0.y) * k) - (Math.sin(Math.PI * k) * 40 * s));
+    }
+    const land = moves ? 900 : 300;
+    glow.alpha = Math.max(0, 1 - (Math.abs(t - land) / 300));
+    const out = total - 600;
+    chip.alpha = t < out ? pop : Math.max(0, 1 - ((t - out) / 600));
+    if ( t > out ) chip.position.y -= 0.6 * s;
+  };
+  canvas.app.ticker.add(tick);
+}
+
+/**
+ * THE RECORD ON A ROLL MESSAGE (`flags.<module>.diceRise`, decide/dice-chips.js): a machine that
+ * rolls in the open tags its message, and every client plays it once as the message arrives — the
+ * chips over `on`, then the drift. A reload replays nothing (createChatMessage fires live only).
+ */
+Hooks.on("createChatMessage", message => {
+  const rise = message.getFlag?.(MODULE_ID, "diceRise");
+  if ( !rise?.on ) return;
+  try {
+    const from = tokenForUuid(rise.on);
+    riseDice(from, rise.chips ?? []);
+    if ( rise.drift?.label ) setTimeout(() => driftChip(from, tokenForUuid(rise.drift.to ?? rise.on), rise.drift.label), 900);
+  } catch(err) {
+    console.warn(`${TITLE} | the dice could not draw.`, err);
+  }
+});

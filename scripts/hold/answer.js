@@ -9,6 +9,7 @@ import { isTextOnlyFeature } from "../decide/eligible.js";
 import { interruptEntries } from "../settings.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
 import { bfCard } from "../decide/present.js";
+import { reductionRise } from "../decide/dice-chips.js";
 import { INTERRUPT_ROLLS } from "../decide/registry.js";
 import { d20Faces, d20ModeOf, disadvantageOutcome, needsSecondD20, rescueSpendText } from "../decide/rescue-hit.js";
 import { lower, holdsFor } from "../lookup.js";
@@ -453,7 +454,9 @@ async function parryReaction(attackMessage, target, actor) {
   try {
     const formula = Roll.replaceFormulaData(String(target.reduce.formula), actor.getRollData());
     const roll = await new Roll(formula).evaluate();
-    await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${target.reaction} — the die, plus the modifier` });
+    const rise = reductionRise({ roll: roll.toJSON(), from: actor.uuid });   // the dice, then the number, over the defender (group 2)
+    await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${target.reaction} — the die, plus the modifier`,
+      ...(rise ? { flags: { [MODULE_ID]: { diceRise: rise } } } : {}) });
     total = Math.max(0, Number(roll.total) || 0);
   } catch(err) {
     console.error(`${TITLE} | ${target.reaction}'s reduction could not be rolled — reduce by hand.`, err);

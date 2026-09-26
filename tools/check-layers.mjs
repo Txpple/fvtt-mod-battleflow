@@ -145,6 +145,7 @@ export const LAYER_OF = {
   "decide/area-ask.js": "decision",
   "decide/rescue-hit.js": "decision",    // the `roll` interrupt's arithmetic and rows (Slice A, 2026-09-24)
   "decide/damage-dice.js": "decision",   // the damage-dice folds' patch — Empowered per die, Savage per set (2026-09-24)
+  "decide/dice-chips.js": "decision",   // a roll as the chips dice-rise.js draws; the record a roll message carries (2026-09-26)
   "decide/fighting-styles.js": "decision",   // the fighting styles' holding, gates and floor count (2026-09-26)
   "decide/registry.js": "decision",
   "decide/verdict.js": "decision",
