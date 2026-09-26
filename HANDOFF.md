@@ -8,23 +8,36 @@
 
 ---
 
-## 0. Where things stand (2026-09-25, night — THE ORIGIN FEATS BUILT, the user's walk next)
+## 0. Where things stand (2026-09-25, late night — THE ORIGIN-FEAT WALK DONE; the overnight battery next)
 
-**Next session: open with the origin-feat walk table (§6) and let the user walk it.** The user's
-words: *"once you finish the feats, prepare for a handoff in new session where i run thru test"*.
-The species round is DONE (§5). The four origin feats that were open are **BUILT and suite-proven**
-on the sandbox (Musician, Tavern Brawler, Healer, Alert). **After the walk: the FULL BATTERY,
-overnight** (§3).
+**The walk is COMPLETE** (user: "1 and 2 pass. all done"): species (§5) and origin feats (§6) all
+walked and passed on the sandbox. **Next: the FULL BATTERY, overnight, on the user's word** (§3),
+then the docs recut (RULINGS for the species and feat rulings) and this file's retirement.
+
+**The origin-feat walk's fixes (2026-09-25, this session, `58bdd83`..`2485079`, NOT pushed):**
+Savage Attacker's hint (a die meter in the header; the tick starts ticked under the average; both
+buttons side by side, the tick greys the other; the clock keeps) · Tavern Brawler's die on the plain
+Unarmed Strike (the new **Unarmed Strike Dice** table/list, `unarmed-dice.js`, a card line) · Alert's
+lineup (the whole tracker in order, the target list's portrait frames in the MAP's disposition
+colours — ruled "Map colours", a pick previews the trade, floating white "Initiative 11 → 17" on both
+tokens; Reset Initiative re-arms — `Combat#resetAll` is one Combat update, so `updateCombat` too) ·
+Musician's "(has it)" · Healer's **Battle Medic on the Healer's Kit** (the new **Kit Tending**
+table/list, `kit-tend.js`: the kit used within 5 ft asks which Hit Die; Tend spends it and rolls the
+feat's own Heal dN, so the reroll-1s popup follows) · a picked die now SHOWS (`paintDieChip`, ui.js —
+Healing Rerolls and Empowered Spell). Sandbox extras: BF Feat Tavern Brawler has the PHB Unarmed
+Strike; BF Feat Healer a second Healer's Kit (200 uses); Gren has the PHB Empowered Spell.
+**Suites for these NOT yet run** (the user was on the box): smoke-savage, smoke-alert,
+smoke-maneuvers (§T4), smoke-heal (§8), smoke-rest, smoke-metamagic — the overnight battery covers them.
 
 | | |
 | --- | --- |
 | **Prod** | v2.0.8 on dnd5e 6.0.5. Untouched. |
 | **main** | Slice A plus every walk fix (all PUSHED at this session's start, `c738b9f`), then this session, **not pushed**: `e60396a` + `58ffbc2` the prototype `prototypes/origin-feats.html` (ruled: the 1s start ticked; the Alert player's pick is the ally's willingness); **`b8e90a7`** Musician's Encouraging Song (a `to: "allies"` row on the **Rest Grants** table, `rest-grants.js`); **`450d018`** Tavern Brawler's push (the new maneuver-fold kind **`shove`** in `bash-offer.js`, R4 33 → 34); **`534d802`** Healer's Healing Rerolls (the new **Healing Rerolls** list, `heal-rerolls.js`, the heal applier's claim in `cast.js`); **`eab3c28`** Alert's Initiative Swap (the new **Initiative Swaps** list, `initiative-swap.js`). Not released. Vendor Fixes `99fa7e6` (VF-002) and `637c32e` (VF-003) local. |
-| **The sandbox** | runs **main** (deployed `--local`, byte-identical; the server bounced with every deploy) and Vendor Fixes' `main`. Settings **CLEAN** (`verify-settings` after the stored Maneuver Folds list was `--fix`ed to gain `Tavern Brawler:shove` — the release's Reset Defaults case, §4). **Party Camp** now holds the **BF Feats** roster (§6) + Gren + the two Practice Dummies; the BF Species tokens are off the scene (the actors are kept in their folder). **BF Species Tiefling (Infernal)** still carries a hand-added Lucky and its Remarkable Athlete effect DISABLED — re-enable on the user's word (`manage-effect`, effect `1f8R9CFfhsetkhF5`, `disabled: false`). |
+| **The sandbox** | runs **main** (deployed `--local`, byte-identical; the server bounced with every deploy) and Vendor Fixes' `main`. Settings **CLEAN** (`verify-settings` after the stored Maneuver Folds list was `--fix`ed to gain `Tavern Brawler:shove` — the release's Reset Defaults case, §4). **Party Camp** now holds the **BF Feats** roster (§6) + Gren + the two Practice Dummies; the BF Species tokens are off the scene (the actors are kept in their folder). **BF Species Tiefling (Infernal)** still carries a hand-added Lucky and its Remarkable Athlete effect DISABLED — left so by the user (dropped from the list, 2026-09-25). |
 | **Suites** | Each feat ran its own, on the sandbox, sole GM: `smoke-rest` **10/10** (§4–§7 the song, plus Resourceful's first run), `smoke-maneuvers §B,§T` **19/19**, `smoke-heal` **11/11** (new), `smoke-alert` **9/9** (new), `smoke-cast` **21/21** (cast.js's claim). Still never run: `smoke-lucky`, `smoke-drop`. `battery.mjs --changed c738b9f` says FULL (core.js, the entry) — that is the overnight battery (§3). |
 | **Docs** | SWEEP §6 (the four marked BUILT), BACKLOG (Healer's parked row removed), this file. The per-feat rulings live in the commit messages and §6 until the end-of-iteration recut writes them into RULINGS. |
-| **Owed by the user** | the origin-feat walk (§6); the 46-row event audit (`slice-a-event-audit.md`); the release call; the Savage popup's rank (DESIGN §8). |
-| **Owed by Claude** | the fix pass per feat as the user reports it — the FAST loop (§3); then the overnight battery; then the docs recut (RULINGS for the species and feat rulings) and this file's retirement. |
+| **Owed by the user** | the go for the overnight battery (user, 2026-09-25: "start a new session and we'll do the overnight run"); the 46-row event audit (`slice-a-event-audit.md`); the release call; the Savage popup's rank (DESIGN §8). |
+| **Owed by Claude** | the overnight battery (§3: the user OFF the box, every bridge disconnected, `fixture-suite` first, launched DETACHED, `verify-settings --fix` after; the walk's new list rows mean the stored lists drift — `--fix` before the run too); then the docs recut (RULINGS for the species and feat rulings) and this file's retirement. |
 
 ---
 
@@ -112,7 +125,7 @@ suites of the machines it touched, even when `--changed` says "full".
 | **Tieflings** | **DONE 2026-09-25** (user: "works now, tieflings done"). One finding, fixed: Hellish Rebuke never offered on the Infernal (user: "hellish rebuke did not trigger") — `rebukes.js` demanded a free spell slot, and Fiendish Legacy's cast is "once without a spell slot" (the spell item's own use; a Fighter has no slots). A spell with its own use left no longer needs a slot; the drive casts it with `consume.spellSlot: false` and the use pays. **THE SPECIES ROUND IS COMPLETE** — the origin-feat round is next. |
 
 **For the release:** Vendor Fixes gets a release too (v1.1.0 — VF-002, VF-003); a released world needs
-Reset Defaults on the **Emanations** (now with Pass without Trace), **Clock Riders**, **Effect Sources** (Powerful Build), **Reminder Sources** (`buy`), **D20 Folds** (`Lucky:advantage`) and new **Token Lights**, **Token Senses**, **Token Sizes**, **Rebukes**, **Card Chips**, **Rest Grants** (now with Musician) and **Drop to 1 HP** lists as well, **Maneuver Folds** (`Tavern Brawler:shove`), and the new **Healing Rerolls** and **Initiative Swaps** lists.
+Reset Defaults on the **Emanations** (now with Pass without Trace), **Clock Riders**, **Effect Sources** (Powerful Build), **Reminder Sources** (`buy`), **D20 Folds** (`Lucky:advantage`) and new **Token Lights**, **Token Senses**, **Token Sizes**, **Rebukes**, **Card Chips**, **Rest Grants** (now with Musician) and **Drop to 1 HP** lists as well, **Maneuver Folds** (`Tavern Brawler:shove`), and the new **Healing Rerolls**, **Initiative Swaps**, **Unarmed Strike Dice** and **Kit Tending** lists.
 
 ## 6. The origin feats — the walk table (BUILT 2026-09-25; the user walks it next session)
 
@@ -137,5 +150,5 @@ species round).
 | **Tough, Magic Initiate, Crafter, Skilled** | Native / out of combat — nothing to walk. |
 
 **Report findings the usual way** (the walk-session restate rule: the OPEN list restated after every
-update). Each finding is a fix-pass item on the FAST loop (§3). Still open from the species round:
-re-enabling the Tiefling's Remarkable Athlete.
+update). Each finding is a fix-pass item on the FAST loop (§3). (The Tiefling's disabled Remarkable
+Athlete was dropped from the list by the user, 2026-09-25 — not owed.)
