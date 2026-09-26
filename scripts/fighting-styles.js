@@ -382,11 +382,15 @@ Hooks.on("dnd5e.preApplyDamage", (_actor, _amount, updates, options) => {
 const popped = new Set();
 Hooks.on("updateActor", (actor, changes) => {
   try {
-    const block = changes?.flags?.[MODULE_ID]?.[BLOCK_FLAG];
+    // the update carries only what CHANGED — a second block of the same amount sends `at` alone
+    // (the walk, 2026-09-26: "it did it once or so thats it"); the whole record is the actor's
+    if ( !changes?.flags?.[MODULE_ID]?.[BLOCK_FLAG] ) return;
+    const block = actor.getFlag?.(MODULE_ID, BLOCK_FLAG);
     if ( !block?.amount || !block.at || ((Date.now() - block.at) > 10_000) ) return;
     const key = `${actor.uuid}|${block.at}`;
     if ( popped.has(key) ) return;
     popped.add(key);
+    Hooks.callAll("battleflow.armorBlock", { actorUuid: actor.uuid, ...block });
     for ( const token of actor.getActiveTokens?.(true) ?? [] ) driftChip(token, token, `−${block.amount}`);
   } catch(err) { console.warn(`${TITLE} | Heavy Armor Master's block could not draw.`, err); }
 });

@@ -503,11 +503,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok(`12b. an attack's 9 slashing calculates to ${9 - pb}, the calculation saying "blocked ${pb}"`,
           (calc?.amount === 9 - pb) && (calc?.bfArmorBlock?.amount === pb), `amount=${calc?.amount} block=${JSON.stringify(calc?.bfArmorBlock ?? null)}`);
         const hpA = Number(actor.system.attributes.hp.value);
+        const pops = [];
+        const popHook = Hooks.on('battleflow.armorBlock', p => pops.push(p));
         await actor.applyDamage(nine, { originatingMessage: card });
         await sleep(300);
         const flag = actor.getFlag(MOD, 'armorBlock');
-        ok(`12c. applied: ${9 - pb} lands, and the actor's own update carries the pop`, (hpA - Number(actor.system.attributes.hp.value) === 9 - pb) && (flag?.amount === pb),
-          `took=${hpA - Number(actor.system.attributes.hp.value)} flag=${JSON.stringify(flag ?? null)}`);
+        ok(`12c. applied: ${9 - pb} lands, and the actor's own update carries the pop`, (hpA - Number(actor.system.attributes.hp.value) === 9 - pb) && (flag?.amount === pb) && (pops.length === 1),
+          `took=${hpA - Number(actor.system.attributes.hp.value)} flag=${JSON.stringify(flag ?? null)} pops=${pops.length}`);
+        // the walk (2026-09-26): the SECOND block of the same amount sent only its time — it must pop too
+        await sleep(20);
+        await actor.applyDamage(nine, { originatingMessage: card });
+        await sleep(300);
+        Hooks.off('battleflow.armorBlock', popHook);
+        ok('12c2. a second block of the same amount pops again', pops.length === 2, `pops=${JSON.stringify(pops)}`);
         const hpB = Number(actor.system.attributes.hp.value);
         await actor.applyDamage(nine, {});
         ok('12d. a bare 9 (no attack card behind it) lands whole', hpB - Number(actor.system.attributes.hp.value) === 9,
