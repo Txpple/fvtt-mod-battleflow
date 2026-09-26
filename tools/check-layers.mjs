@@ -100,6 +100,7 @@ export const LAYER_OF = {
   "rest-grants.js": "machines",
   "initiative-swap.js": "machines", // Alert's swap once Initiative is rolled (2026-09-25)
   "heal-rerolls.js": "machines",    // Healer's 1s on a healing roll (2026-09-25)
+  "unarmed-dice.js": "machines",    // Tavern Brawler's die on the plain Unarmed Strike (2026-09-25)
   "drop-to-one.js": "machines",      // Relentless Endurance and Death Ward at a drop to 0 (2026-09-25)      // Resourceful's Heroic Inspiration on a Long Rest (2026-09-25)   // Lucky's Advantage box on the gate (2026-09-25)
   "sneak.js": "machines",
   "clock-riders.js": "machines",

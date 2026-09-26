@@ -181,6 +181,7 @@ const WORLD_WRITERS = {
   "sneak.js": ["sneakDamage", "effectReceipt"],
   "initiative-swap.js": ["initiativeSwap"],   // Alert's swap, landed by the elect (2026-09-25)
   "heal-rerolls.js": ["healReroll"],   // Healer's 1s rerolled on a healing roll (2026-09-25)
+  "unarmed-dice.js": "the plain Unarmed Strike's damage formula swapped before it rolls — the damage message is the platform's and its receipt the resolve (unarmedDice: presentation)",
   "drop-to-one.js": ["dropToOne"],   // Relentless Endurance asked, Death Ward automatic (2026-09-25)
   "rest-grants.js": ["restSong"],   // Resourceful's own grant rides dnd5e's rest update (restGrant: presentation); Musician's song to allies is landed by the elect (2026-09-25)
   "advantage-buys.js": ["poolSpend"],   // Lucky's Advantage bought at the gate (2026-09-25): the use spent by hand, recorded on the roll's message

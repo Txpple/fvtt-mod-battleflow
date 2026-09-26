@@ -139,6 +139,8 @@ updateChatMessage	heal-rerolls.js
 deleteChatMessage	heal-rerolls.js
 ready	heal-rerolls.js
 dnd5e.renderChatMessage	heal-rerolls.js
+dnd5e.preRollDamageV2	unarmed-dice.js
+dnd5e.renderChatMessage	unarmed-dice.js
 updateCombatant	initiative-swap.js
 ready	initiative-swap.js
 dnd5e.renderChatMessage	initiative-swap.js

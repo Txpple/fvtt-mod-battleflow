@@ -697,6 +697,7 @@ export const STATE_KEYS = Object.freeze({
   command: "Commander's Strike directed at an ally — the notice and the chip; the die riding the ally's attack (commandRide) is the resolve, and the use posted its own card",
   reminder: "a gate's reminder record — presentation before the roll",
   restGrant: "a rest card's grant line — presentation; the sheet write rode the rest's own update",
+  unarmedDice: "a damage card's line — Tavern Brawler's die rolled in place of the flat Unarmed Strike; presentation, the formula rode the roll's own config",
   volleyFor: "provenance — a volley's roll names its card",
   volleyTarget: "provenance — a volley's roll names its target",
   volleyDarts: "provenance — a volley's roll names its dart count",

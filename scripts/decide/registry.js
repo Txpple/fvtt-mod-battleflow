@@ -1827,6 +1827,27 @@ export const INITIATIVE_SWAPS = Object.freeze({
 const INITIATIVE_SWAP_NAMES = tableIndex(INITIATIVE_SWAPS).names;
 
 /**
+ * THE UNARMED STRIKE DICE (the origin-feat walk, 2026-09-25 — user, on the plain Unarmed Strike
+ * always dealing 1 + Str beside Tavern Brawler: "Module swaps it" — "but give some kind of notice
+ * somewhere"): a feature whose owner's Unarmed Strike deals a die "instead of the normal damage".
+ * The pack ships that die on the FEATURE's own unarmed attack (Tavern Brawler's "Enhanced Unarmed
+ * Strike", `1d4r1 + @abilities.str.mod`), so a player who presses the sheet's plain Unarmed Strike
+ * rolled the flat 1 + Str. unarmed-dice.js swaps the formula in at `preRollDamageV2` — READ from
+ * the feature's own unarmed attack (hit-riders.js's upgrade rule: the number is always the one the
+ * content ships), never transcribed here — and the damage card says so in one line. A strike that
+ * already rolls a die (a Monk's Martial Arts) is left alone: the rule is "can … instead", and the
+ * die it has is the table's call, not ours. The swap is never lower (a d4's 1 + Str is the flat
+ * number), so nothing is asked.
+ * ⚠ NOT A KIND — one table read by one machine; a second customer is a row.
+ */
+export const UNARMED_DICE = Object.freeze({
+  "Tavern Brawler": Object.freeze({
+    rule: "Enhanced Unarmed Strike. When you hit with your Unarmed Strike and deal damage, you can deal Bludgeoning damage equal to 1d4 plus your Strength modifier instead of the normal damage of an Unarmed Strike.",
+    from: "Origin feat (Sailor)" })
+});
+const UNARMED_DICE_NAMES = tableIndex(UNARMED_DICE).names;
+
+/**
  * THE R4 TRIPWIRE, AS DATA (DESIGN.md R4, ARCHITECTURE §6).
  *
  * R4's bargain is that a new ABILITY costs a data entry and zero code, and that this is safe
@@ -2082,6 +2103,14 @@ export const LIST_SPECS = {
     // initiative-swap.js (the origin feats, 2026-09-25). The list is the switch.
     columns: ["kind"], kindColumn: "kind", kinds: INITIATIVE_SWAP_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(INITIATIVE_SWAPS).join(", ")
+  },
+  unarmedDice: {
+    label: "Unarmed Strike Dice", setting: "unarmedDiceList",
+    // Which rows of the unarmed-dice table swap the plain Unarmed Strike's damage — the FEATURE
+    // names, whole-chunk, case-insensitive. Membership over UNARMED_DICE; the mechanism is
+    // unarmed-dice.js (the origin-feat walk, 2026-09-25). The list is the switch.
+    columns: ["kind"], kindColumn: "kind", kinds: UNARMED_DICE_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(UNARMED_DICE).join(", ")
   },
   healRerolls: {
     label: "Healing Rerolls", setting: "healRerollList",

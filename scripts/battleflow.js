@@ -150,6 +150,11 @@ import "./damage-either.js";
 // popup beside Savage's — the same seams (a preRollDamageV2 birth flag, rollDamageV2's offer) on a
 // HEALING roll, which no damage machine reads; cast.js's heal applier waits on its claim.
 import "./heal-rerolls.js";
+// unarmed-dice.js (2026-09-25, the origin-feat walk — Tavern Brawler): the plain Unarmed Strike's
+// damage formula swapped at preRollDamageV2 for the feature's own die, and one line on its card.
+// It reads the roll's parts before anything counts them: auto-damage.js's weapon-roll count is of
+// ROLLS, not parts, so the swap moves nothing it counts.
+import "./unarmed-dice.js";
 // initiative-swap.js (2026-09-25, the origin feats — Alert): its own moment (the last Initiative
 // landing, updateCombatant on the elect) and its own card; its place in the order matters to nothing.
 import "./initiative-swap.js";

@@ -286,6 +286,14 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.healRerolls.default
   });
 
+  // UNARMED STRIKE DICE (the origin-feat walk, 2026-09-25): Tavern Brawler's die on the sheet's
+  // plain Unarmed Strike. A list; the list is the switch.
+  game.settings.register(MODULE_ID, S.unarmedDiceList, {
+    name: "Unarmed Strike Dice",
+    hint: "A feature whose Unarmed Strike deals a die instead of the normal damage, by the feature's own name, separated by commas — Tavern Brawler. When its owner hits with the plain Unarmed Strike (1 + Strength), the damage rolls the die the feature's own unarmed attack carries (1d4 + Strength, 1s rerolled) and the card says so. A strike that already rolls a die is left alone. Remove a name to roll the flat damage.",
+    scope: "world", config: true, type: String, default: LIST_SPECS.unarmedDice.default
+  });
+
   // INITIATIVE SWAPS (the origin feats, 2026-09-25): Alert's swap, asked once every combatant has
   // an Initiative. A list; the list is the switch.
   game.settings.register(MODULE_ID, S.initiativeSwapList, {
@@ -736,6 +744,11 @@ export function chosenAreaEntries() {
 /** Which rows of the initiative-swap table ask once Initiative is rolled, by the feature's name — `{ kind }`. */
 export function initiativeSwapEntries() {
   return listEntries(LIST_SPECS.initiativeSwaps);
+}
+
+/** Which rows of the unarmed-dice table swap the plain Unarmed Strike's damage, by the feature's name — `{ kind }`. */
+export function unarmedDiceEntries() {
+  return listEntries(LIST_SPECS.unarmedDice);
 }
 
 /** Which rows of the healing-reroll table ask on a healing roll, by the feature's name — `{ kind }`. */

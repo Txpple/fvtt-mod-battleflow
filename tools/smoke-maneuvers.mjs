@@ -29,6 +29,7 @@ export const COVERS = [
   'riposte.js',             // R, RP — Riposte's driven attack
   'hew.js',                 // H — the Hew reminder
   'bash-offer.js',          // B — the bash offer on a listed carrier's hit; T — Tavern Brawler's shove
+  'unarmed-dice.js',        // T4 — Tavern Brawler's die on the plain Unarmed Strike (2026-09-25)
   'saves/choices.js',       // B / I — the Prone-or-push choice and Interpose
   'saves/verdict.js'        // I — Interpose on a save success
 ];
@@ -40,7 +41,7 @@ const SECTIONS = {
   M1: 'finding ④: two weapons, smart default',
   RP: '(l)+(p): the riposte HIT celebrates',
   B: 'finding ⑤: the bash choice (Prone or push)',
-  T: 'Tavern Brawler: the shove offer on an Unarmed Strike hit (Push 5 feet / Pass, announced), none on a weapon hit, none unlisted',
+  T: 'Tavern Brawler: the shove offer on an Unarmed Strike hit (Push 5 feet / Pass, announced), none on a weapon hit, none unlisted; the plain Unarmed Strike rolls the feat 1d4 with a card line, flat again off the Unarmed Strike Dice list',
   I: 'finding ⑥: Interpose (save-success reaction)',
   H: '② + (c): the Hew reminder POPS now',
   Q: '(s): the cascade is a staircase queue'
@@ -92,7 +93,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'riders', 'effectRiders', 'masteryRiders', 'playerRollDamage',
     'holdTimer', 'holdSkipFutile', 'holdReveal', 'castApply', 'maneuverFolds',
-    'saves', 'saveTimer'];
+    'saves', 'saveTimer', 'unarmedDiceList'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -981,6 +982,40 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await sleep(2500);
           ok('T3a. Tavern Brawler off the Maneuver Folds list: no offer', !!msg && !msg.getFlag(MOD, 'bashOffer'),
             `hit=${!!msg} offer=${JSON.stringify(msg?.getFlag(MOD, 'bashOffer') ?? null)}`);
+        }
+        /* T4 — the plain Unarmed Strike (the PHB's own weapon) rolls the feat's die, and says so. */
+        {
+          const usSrc = await fromUuid('Compendium.dnd-players-handbook.equipment.Item.phbUnarmedStrike');
+          if (!usSrc) {
+            ok('T4. the PHB ships the Unarmed Strike weapon', false, 'no phbUnarmedStrike');
+          } else {
+            const [us] = await pc.createEmbeddedDocuments('Item', [usSrc.toObject()]);
+            const usAct = () => pc.items.get(us.id)?.system.activities.find(a => a.type === 'attack');
+            await set('unarmedDiceList', 'Tavern Brawler');
+            const dmgOf = async () => {
+              for (let i = 0; i < 6; i++) {
+                const { usageId, roll } = await attack(usAct(), victimToken);
+                if (!roll || roll.isFumble || (roll.total <= 1)) continue;
+                return waitDamage(usageId);
+              }
+              return null;
+            };
+            const dmg = await dmgOf();
+            const flag = dmg?.getFlag(MOD, 'unarmedDice');
+            const formula = dmg?.rolls?.[0]?.formula ?? '';
+            ok('T4a. the plain Unarmed Strike rolls the feat 1d4 (1s rerolled) + Str, not the flat 1 + Str; the flag names the swap',
+              /1d4r1/.test(formula) && (flag?.feature === 'Tavern Brawler') && /1d4r1/.test(flag?.formula ?? '') && !/d/.test(flag?.was ?? 'd'),
+              `formula="${formula}" flag=${JSON.stringify(flag ?? null)}`);
+            const line = await until(() => document.querySelector(`[data-message-id="${dmg?.id}"] .bf-unarmed-dice-line`), 4000);
+            ok('T4b. the damage card says so: "Tavern Brawler — 1d4r1 + N in place of 1 + N"',
+              /Tavern Brawler — 1d4r1 .* in place of 1 \+/.test(line?.textContent ?? ''), `line="${line?.textContent ?? ''}"`);
+            await set('unarmedDiceList', '');
+            const flat = await dmgOf();
+            ok('T4c. off the Unarmed Strike Dice list: the flat damage, no line',
+              !!flat && !/d/.test(flat.rolls?.[0]?.formula ?? 'd') && !flat.getFlag(MOD, 'unarmedDice'),
+              `formula="${flat?.rolls?.[0]?.formula ?? ''}"`);
+            await pc.deleteEmbeddedDocuments('Item', [us.id]);
+          }
         }
         await pcToken.document.update(pcHome, { animate: false });
         await acFlat(victim, 25);
