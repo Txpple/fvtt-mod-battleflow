@@ -62,6 +62,7 @@ export const S = {
   initiativeSwapList: "initiativeSwapList",   // Alert (the origin feats, 2026-09-25)
   healRerollList: "healRerollList",       // Healer (the origin feats, 2026-09-25)
   kitTendList: "kitTendList",             // Healer's Battle Medic on the kit's use (the origin-feat walk, 2026-09-25)
+  fightingStyleList: "fightingStyleList", // the fighting styles' faces, gates and numbers (2026-09-26)
   unarmedDiceList: "unarmedDiceList",     // Tavern Brawler's die on the plain Unarmed Strike (the origin-feat walk, 2026-09-25)
   damageEitherList: "damageEitherList",   // Savage Attacker's list (Slice A, 2026-09-24)
   tokenLightList: "tokenLightList",        // Inner Radiance and Light (the Aasimar walk, 2026-09-25)

@@ -157,6 +157,13 @@ export const ORDER = [
     name: "smoke-lucky", note: "Lucky's Advantage half — the buy box in an attack, save, check and initiative dialog (the tick in the net, the spend, the record, none left greyed) and the no-dialog initiative fold (the higher d20 stands)",
     needs: ["fixture-suite"]
   },
+  // The fighting styles (2026-09-26): BF Test Fighter lent the PHB's six styles and its gear — the
+  // faces off the equipped boxes, the numbers on damage rolled straight off the weapon, the float
+  // over BF Test Victim's token (its own, placed and removed); the same seed as the rows above.
+  {
+    name: "smoke-styles", note: "the fighting styles — the faces off the equipped boxes (Defense's AC, Dueling's second weapon), Great Weapon Fighting's floor, Thrown's and Dueling's +2, Two-Weapon's modifier, Unarmed Fighting's die, the line, the record, the float, the list",
+    needs: ["fixture-suite"]
+  },
   // The effect view's probe joined the battery on 2026-09-23 (change-scoped live testing): it was
   // the one machine no battery suite drove, and an unrun probe rots exactly like an unrun suite.
   // ⚠ ITS OWN SEED, the smoke-metamagic lesson again: it reads the fixture tokens on the range,

@@ -1843,7 +1843,13 @@ const INITIATIVE_SWAP_NAMES = tableIndex(INITIATIVE_SWAPS).names;
 export const UNARMED_DICE = Object.freeze({
   "Tavern Brawler": Object.freeze({
     rule: "Enhanced Unarmed Strike. When you hit with your Unarmed Strike and deal damage, you can deal Bludgeoning damage equal to 1d4 plus your Strength modifier instead of the normal damage of an Unarmed Strike.",
-    from: "Origin feat (Sailor)" })
+    from: "Origin feat (Sailor)" }),
+  // `hands` (2026-09-26, the fighting styles): the feature ships TWO unarmed attacks — the d6
+  // "Weapon in Hand" and the d8 "Empty Hand" — and the one that stands is picked by what the owner
+  // holds when the strike is rolled: nothing (no weapon, no Shield) the larger die, else the smaller.
+  "Unarmed Fighting": Object.freeze({ pick: "hands",
+    rule: "When you hit with your Unarmed Strike and deal damage, you can deal Bludgeoning damage equal to 1d6 plus your Strength modifier instead of the normal damage of an Unarmed Strike. If you aren't holding any weapons or a Shield when you make the attack roll, the d6 becomes a d8.",
+    from: "Fighting Style feat" })
 });
 const UNARMED_DICE_NAMES = tableIndex(UNARMED_DICE).names;
 
@@ -1864,6 +1870,53 @@ export const KIT_TENDS = Object.freeze({
     from: "Origin feat (Hermit)" })
 });
 const KIT_TEND_NAMES = tableIndex(KIT_TENDS).names;
+
+/**
+ * THE FIGHTING STYLES (user, 2026-09-26, ruled off prototypes/fighting-styles.html: "one table";
+ * "we need to gate it on what pc is holding - not overall rule, we want flows to work, not editing
+ * items"; "the feats that do weapon mods should be effects on the player ... so itd show in the
+ * detailed buff bar"): a Fighting Style feat whose rule turns on what its owner HOLDS or WEARS, or
+ * on how the attack is made. fighting-styles.js keeps ONE effect per style on the character — the
+ * style's FACE, live or greyed with the reason in the effect view's panel — read off the equipped
+ * items, so nobody toggles anything; and it applies the style's number to the roll it fits, with
+ * one line on the damage card, a floating number over the target when the style changed it, and a
+ * `fightingStyle` stats record (option B).
+ *   gate       what the style reads — `twoHanded` (a melee weapon swung in two hands, a Two-Handed
+ *              or Versatile weapon), `thrown` (a thrown attack), `offhand` (the Light weapon's extra
+ *              attack), `oneHanded` (one melee weapon in one hand, no other weapon), `armored`
+ *              (Light, Medium or Heavy armor worn), `unarmed` (what the hands hold — the die only)
+ *   minimum    the damage dice's floor (Great Weapon Fighting: a 1 or 2 counts as 3)
+ *   bonus      the damage added: "2", "@mod", or "effect" — READ off the pack's own effect on the
+ *              feat (N1); the text-only feats (Thrown) carry the text's number, as Celestial
+ *              Revelation's rider carries its text's @prof
+ *   ac         "effect": the AC change the pack's own effect carries, moved onto the face
+ *   takesOver  the pack ships an UNGATED effect on the feat (Defense, Dueling — the notes say
+ *              "disable it when ..."); the machine switches it off and the face carries the rule
+ * The two reactions (Interception, Protection) and Blind Fighting's sight are NOT rows here: they
+ * land by mechanism — the interrupt tables and the gate before the roll (SWEEP §1).
+ * ⚠ NOT A KIND — one table read by one machine; a second customer is a row.
+ */
+export const FIGHTING_STYLES = Object.freeze({
+  "Great Weapon Fighting": Object.freeze({ key: "great-weapon-fighting", gate: "twoHanded", minimum: 3,
+    rule: "When you roll damage for an attack you make with a Melee weapon that you are holding with two hands, you can treat any 1 or 2 on a damage die as a 3. The weapon must have the Two-Handed or Versatile property to gain this benefit.",
+    from: "Fighting Style feat" }),
+  "Thrown Weapon Fighting": Object.freeze({ key: "thrown-weapon-fighting", gate: "thrown", bonus: "2",
+    rule: "When you hit with a ranged attack roll using a weapon that has the Thrown property, you gain a +2 bonus to the damage roll.",
+    from: "Fighting Style feat" }),
+  "Two-Weapon Fighting": Object.freeze({ key: "two-weapon-fighting", gate: "offhand", bonus: "@mod",
+    rule: "When you make an extra attack as a result of using a weapon that has the Light property, you can add your ability modifier to the damage of that attack if you aren't already adding it to the damage.",
+    from: "Fighting Style feat" }),
+  "Dueling": Object.freeze({ key: "dueling", gate: "oneHanded", bonus: "effect", takesOver: true,
+    rule: "When you're holding a Melee weapon in one hand and no other weapons, you gain a +2 bonus to damage rolls with that weapon.",
+    from: "Fighting Style feat" }),
+  "Defense": Object.freeze({ key: "defense", gate: "armored", ac: "effect", takesOver: true,
+    rule: "While you're wearing Light, Medium, or Heavy armor, you gain a +1 bonus to Armor Class.",
+    from: "Fighting Style feat" }),
+  "Unarmed Fighting": Object.freeze({ key: "unarmed-fighting", gate: "unarmed",
+    rule: "When you hit with your Unarmed Strike and deal damage, you can deal Bludgeoning damage equal to 1d6 plus your Strength modifier instead of the normal damage of an Unarmed Strike. If you aren't holding any weapons or a Shield when you make the attack roll, the d6 becomes a d8. At the start of each of your turns, you can deal 1d4 Bludgeoning damage to one creature Grappled by you.",
+    from: "Fighting Style feat" })
+});
+const FIGHTING_STYLE_NAMES = tableIndex(FIGHTING_STYLES).names;
 
 /**
  * THE R4 TRIPWIRE, AS DATA (DESIGN.md R4, ARCHITECTURE §6).
@@ -2137,6 +2190,15 @@ export const LIST_SPECS = {
     // unarmed-dice.js (the origin-feat walk, 2026-09-25). The list is the switch.
     columns: ["kind"], kindColumn: "kind", kinds: UNARMED_DICE_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(UNARMED_DICE).join(", ")
+  },
+  fightingStyles: {
+    label: "Fighting Styles", setting: "fightingStyleList",
+    // Which rows of the fighting-style table the machine keeps — the FEATURE names, whole-chunk,
+    // case-insensitive. Membership over FIGHTING_STYLES; the mechanism is fighting-styles.js (the
+    // fighting styles, 2026-09-26). The list is the switch: an unlisted style's face goes and the
+    // pack's own effect comes back on.
+    columns: ["kind"], kindColumn: "kind", kinds: FIGHTING_STYLE_NAMES, fallback: null, membership: true, whole: true,
+    default: Object.keys(FIGHTING_STYLES).join(", ")
   },
   healRerolls: {
     label: "Healing Rerolls", setting: "healRerollList",

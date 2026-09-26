@@ -36,6 +36,8 @@ export const MARK_KEYS = Object.freeze(["vex", "sap", "slow"]);
  * @property {string|null} origin    the effect's origin uuid, if any
  * @property {boolean} [onItem]      the effect document belongs to an item on the sheet, not the actor
  * @property {boolean} [disabled]    the sheet's own toggle is OFF (distinct from suppressed: `active` false with the toggle on)
+ * @property {boolean} [style]       a fighting style's FACE (fighting-styles.js) — a passive the module keeps off the equipped boxes; off means the module disabled it
+ * @property {string|null} [detail]  the face's line: what it reads when live, why when off
  * @property {{key: string, mode: number, value: string|number}[]} [changes]  the effect's own changes
  * @property {boolean|null} [hostileOrigin]  the origin's creature stands on the other side from the bearer; null when unknown
  */
@@ -159,6 +161,7 @@ export function sheetRows({ tempHp = null, inspiration = false } = {}) {
  */
 export function rowAction(row, { owner }) {
   if ( !owner || !row ) return null;
+  if ( row.style === true ) return null;   // a fighting style's face follows the equipped boxes — nothing to fold
   if ( String(row.id).startsWith("sheet:") ) return { action: "clear", label: "Clear" };
   if ( row.onItem === true ) return { action: "disable", label: "Disable" };
   return { action: "remove", label: "Remove" };
@@ -169,6 +172,7 @@ function rowOf(f) {
   return {
     id: f.id, name: f.name, img: f.img ?? null, onItem: f.worn === true || f.onItem === true,
     tone: toneOf(f), clock: f.clock ?? "",
+    ...(f.style ? { style: true, detail: f.detail ?? "" } : {}),
     noIcon: f.temporary !== true && !(f.statuses ?? []).length
   };
 }
@@ -198,7 +202,8 @@ export function panelGroups(facts, sheet = {}) {
       if ( (f.temporary === true) || (f.statuses ?? []).length ) temporary.push(rowOf(f));
       else passive.push({ ...rowOf(f), noIcon: false });
     }
-    else if ( f.disabled !== true ) unavailable.push({ ...rowOf(f), noIcon: false, unavailable: true });
+    // a fighting style's face that is off is DISABLED by the module, not by a choice — listed, with why
+    else if ( (f.disabled !== true) || (f.style === true) ) unavailable.push({ ...rowOf(f), noIcon: false, unavailable: true });
   }
   temporary.push(...sheetRows(sheet));
   // concentration leads the Temporary group as it leads the bar (user, 2026-09-15: "should be moved up top")

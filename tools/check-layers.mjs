@@ -102,6 +102,7 @@ export const LAYER_OF = {
   "heal-rerolls.js": "machines",    // Healer's 1s on a healing roll (2026-09-25)
   "kit-tend.js": "machines",        // Healer's Battle Medic on the kit's use (2026-09-25)
   "unarmed-dice.js": "machines",    // Tavern Brawler's die on the plain Unarmed Strike (2026-09-25)
+  "fighting-styles.js": "machines", // the fighting styles' faces, gates and damage numbers (2026-09-26)
   "drop-to-one.js": "machines",      // Relentless Endurance and Death Ward at a drop to 0 (2026-09-25)      // Resourceful's Heroic Inspiration on a Long Rest (2026-09-25)   // Lucky's Advantage box on the gate (2026-09-25)
   "sneak.js": "machines",
   "clock-riders.js": "machines",
@@ -142,6 +143,7 @@ export const LAYER_OF = {
   "decide/area-ask.js": "decision",
   "decide/rescue-hit.js": "decision",    // the `roll` interrupt's arithmetic and rows (Slice A, 2026-09-24)
   "decide/damage-dice.js": "decision",   // the damage-dice folds' patch — Empowered per die, Savage per set (2026-09-24)
+  "decide/fighting-styles.js": "decision",   // the fighting styles' holding, gates and floor count (2026-09-26)
   "decide/registry.js": "decision",
   "decide/verdict.js": "decision",
   "decide/eligible.js": "decision",

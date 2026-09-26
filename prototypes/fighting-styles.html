@@ -1,0 +1,456 @@
+<title>Fighting Styles</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
+<style>
+  :root{
+    color-scheme:dark;
+    --ground:#15171b; --canvas:#1e2126; --panel:#24272d; --panel-2:#2b2f36; --line:#3a3f48;
+    --ink:#e8e3d6; --ink-2:#b5b0a4; --ink-3:#7d7a72;
+    --good:rgb(70,150,95); --bad:rgb(180,70,60); --pending:rgb(222,120,40); --crit:rgb(232,190,50); --neutral:rgb(120,120,120); --ally:rgb(70,170,200);
+    --good-soft:rgba(70,150,95,.18); --bad-soft:rgba(180,70,60,.18); --pending-soft:rgba(222,120,40,.18); --neutral-soft:rgba(120,120,120,.16); --crit-soft:rgba(232,190,50,.12);
+    --font:"Signika",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45}
+  .wrap{max-width:1320px;margin:0 auto;padding-block:22px 40px;padding-inline:16px}
+  header.top h1{margin:0 0 4px;font-size:22px;font-weight:600;text-wrap:balance}
+  header.top p{margin:0 0 14px;color:var(--ink-2);max-width:78ch}
+  .scenes{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}
+  .grp{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .grp > span{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);width:118px;flex:0 0 auto}
+  .grp button{font:inherit;font-size:12.5px;padding:6px 10px;border-radius:4px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);cursor:pointer}
+  .grp button[aria-pressed="true"]{background:var(--pending-soft);border-color:var(--pending);color:var(--ink)}
+  .grp#g-scene button[aria-pressed="true"]{background:var(--crit-soft);border-color:var(--crit)}
+  button:focus-visible,input:focus-visible{outline:2px solid var(--pending);outline-offset:2px}
+
+  .studio{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px;align-items:start}
+  @media (max-width:1100px){.studio{grid-template-columns:minmax(0,1fr)}}
+  .screen{position:relative;min-height:560px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--canvas);display:grid;grid-template-columns:minmax(0,1fr) 300px}
+  @media (max-width:780px){.screen{grid-template-columns:minmax(0,1fr)}}
+  .stage{position:relative;padding:14px;min-width:0;display:flex;flex-direction:column;gap:14px}
+  .map{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:50px 50px;pointer-events:none}
+  .chatlog{position:relative;border-left:1px solid var(--line);background:#1a1c20;padding:10px;display:flex;flex-direction:column;gap:8px}
+  @media (max-width:780px){.chatlog{border-left:0;border-top:1px solid var(--line)}}
+  .ey-log{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+  .nothing{position:relative;margin:10px auto 0;max-width:46ch;text-align:center;color:var(--ink-3);font-size:13px}
+
+  /* tokens on the map */
+  .field{position:relative;height:150px}
+  .tok{position:absolute;width:50px;height:50px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;border:3px solid var(--ally);background:#2d3b44;color:var(--ink)}
+  .tok.foe{border-color:var(--bad);background:#3f2a2a}
+  .tok.inv{opacity:.35;border-style:dashed}
+  .tok .nm{position:absolute;top:54px;white-space:nowrap;font-size:10.5px;font-weight:600;color:var(--ink-2);text-shadow:0 1px 2px #000}
+  .float{position:absolute;white-space:nowrap;font-weight:700;font-size:15px;color:#fff;text-shadow:0 0 4px #000,0 0 2px #000;transform:translate(-50%,0);animation:rise 2.4s ease-out forwards;pointer-events:none}
+  @keyframes rise{0%{opacity:0;transform:translate(-50%,6px)}12%{opacity:1}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-22px)}}
+  @media (prefers-reduced-motion:reduce){.float{animation:none}}
+  .ring{position:absolute;border-radius:50%;border:1px dashed rgba(70,170,200,.45);pointer-events:none}
+  .ring.blind{border-color:rgba(232,190,50,.5)}
+
+  /* the effect view — the detailed bar */
+  .bar5{position:relative;background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:5px;padding:6px 8px}
+  .bar5 .who{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:4px}
+  .fx{display:flex;flex-wrap:wrap;gap:6px}
+  .ef{display:flex;align-items:center;gap:6px;padding:3px 8px 3px 3px;border-radius:4px;border:1px solid var(--line);background:var(--panel);font-size:12px;cursor:default}
+  .ef i{width:22px;height:22px;border-radius:3px;background:linear-gradient(135deg,#6a5a3a,#3a3a4a);flex:0 0 auto;border:1px solid var(--good)}
+  .ef.off{opacity:.5}
+  .ef.off i{border-color:var(--neutral);filter:grayscale(1)}
+  .ef .st{font-size:10.5px;color:var(--ink-3)}
+  .ef.on .st{color:#8fd0a2}
+  .ef.pulse{animation:pulse 1.4s ease-out 1}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(232,190,50,.8)}100%{box-shadow:0 0 0 10px rgba(232,190,50,0)}}
+  @media (prefers-reduced-motion:reduce){.ef.pulse{animation:none}}
+  .ef.ally i{border-color:var(--ally)}
+
+  .kit{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:11.5px;color:var(--ink-3)}
+  .kit b{color:var(--ink-2);font-weight:600}
+
+  /* chat cards */
+  .msg{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:7px 8px;font-size:12px;color:var(--ink-2)}
+  .msg .spk{font-size:11px;color:var(--ink-3);margin-bottom:4px}
+  .bf{border-left:3px solid var(--neutral);border-radius:3px;padding:6px 8px;background:rgba(0,0,0,.14)}
+  .bf.pending{border-left-color:var(--pending)} .bf.good{border-left-color:var(--good)} .bf.bad{border-left-color:var(--bad)}
+  .bf .e{font-size:10px;letter-spacing:.08em;text-transform:uppercase;opacity:.65}
+  .bf .t{font-weight:700;font-size:14px;color:var(--ink);line-height:1.2}
+  .bf .l{margin-top:4px;font-size:12px;line-height:1.5;display:flex;flex-direction:column;gap:3px}
+  .bf b{color:var(--ink)}
+  s.old{color:var(--ink-3)}
+  .dice{display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin:2px 0}
+  .die{min-width:22px;height:22px;padding:0 4px;border-radius:3px;display:inline-grid;place-items:center;font-weight:700;font-size:12px;font-variant-numeric:tabular-nums;border:1px solid var(--line);background:var(--panel-2);color:var(--ink)}
+  .die.raised{border-color:var(--crit);color:var(--crit);background:var(--crit-soft);position:relative}
+  .die.raised sup{position:absolute;top:-8px;right:-5px;font-size:9px;color:var(--ink-3);text-decoration:line-through}
+  .sline{font-size:11.5px;color:var(--crit)}
+  .sline.q{color:var(--ink-2)}
+  .chip{display:inline-block;font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:3px;border:1px solid var(--line);color:var(--ink-2);background:var(--neutral-soft)}
+  .chip.used{border-color:rgba(232,190,50,.5);color:var(--crit);background:var(--crit-soft)}
+
+  /* popups */
+  .offer{position:relative;width:min(440px,100%);margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.55)}
+  .offer .title{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-weight:600;font-size:13px}
+  .offer .title i{width:14px;height:14px;border-radius:3px;background:var(--crit);opacity:.9}
+  .offer .title .x{margin-left:auto;color:var(--ink-3);font-weight:400}
+  .offer .body{padding:12px 14px 14px}
+  .head{display:flex;gap:10px;align-items:center;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .head .img{width:48px;height:48px;border-radius:4px;background:linear-gradient(135deg,#3a4a5a,#3a3a4a);border:1px solid var(--line);flex:0 0 auto}
+  .head .eb{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+  .head h2{margin:0;font-size:17px;font-weight:700;line-height:1.2;text-wrap:balance}
+  .head .sub{color:var(--ink-2);font-size:12px}
+  .bar{display:flex;align-items:center;gap:6px;margin-top:7px}
+  .bar .trk{flex:1;height:6px;border-radius:3px;background:rgba(0,0,0,.3);overflow:hidden}
+  .bar .fill{height:100%;width:62%;border-radius:3px;background:var(--good)}
+  .bar span{font-size:10px;color:var(--ink-3);white-space:nowrap}
+  .row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 8px;align-items:center;margin:8px 0 5px;padding:6px 8px;border-radius:4px;background:rgba(0,0,0,.18);border:1px solid var(--line);border-left:3px solid var(--pending)}
+  .row.on{background:var(--pending-soft)}
+  .row.dis{opacity:.5;border-left-color:var(--neutral)}
+  .row input{margin:0;accent-color:var(--pending)}
+  .row .nm{font-weight:600;font-size:13px}
+  .row .dc{font-weight:400;color:var(--ink-2);font-size:12.5px;margin-left:6px}
+  .row .cost{font-size:10px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;color:var(--ink-2)}
+  .row details{grid-column:2 / -1;font-size:11.5px;color:var(--ink-2)}
+  .row details summary{cursor:pointer;color:var(--ink-3);font-size:11px;list-style:none}
+  .row details summary::-webkit-details-marker{display:none}
+  .row details summary::after{content:" ▸"} .row details[open] summary::after{content:" ▾"}
+  .row details p{margin:3px 0 0;font-style:italic;border-left:2px solid var(--line);padding-left:8px}
+  .btnrow{display:flex;gap:8px;margin-top:12px}
+  .btn{flex:1;font:inherit;font-weight:600;font-size:13px;padding:9px 12px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);cursor:pointer}
+  .btn.primary{background:var(--pending-soft);border-color:var(--pending)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+
+  /* the roll dialog's gate */
+  .gate{width:min(440px,100%);margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.55)}
+  .gate .title{padding:8px 12px;border-bottom:1px solid var(--line);font-weight:600;font-size:13px}
+  .gate .body{padding:10px 14px 14px;display:flex;flex-direction:column;gap:6px}
+  .src{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;padding:4px 8px;border-radius:3px;background:rgba(0,0,0,.18);border-left:3px solid var(--neutral)}
+  .src.dis{border-left-color:var(--bad)} .src.adv{border-left-color:var(--good)} .src.cancel{border-left-color:var(--crit)}
+  .src.struck span:first-child{text-decoration:line-through;color:var(--ink-3)}
+  .src .tag{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);white-space:nowrap}
+  .net{font-size:12px;color:var(--ink-2);margin-top:2px}
+  .net b{color:var(--ink)}
+  .modes{display:flex;gap:6px}
+  .modes span{flex:1;text-align:center;padding:7px;border-radius:4px;border:1px solid var(--line);font-weight:600;font-size:12.5px;background:var(--panel-2)}
+  .modes span.def{border-color:var(--pending);background:var(--pending-soft)}
+
+  .side{display:flex;flex-direction:column;gap:12px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+  .panel h3{margin:0 0 6px;font-size:13px;font-weight:600}
+  .panel p,.panel li{font-size:12.5px;color:var(--ink-2);margin:0}
+  .panel p + p{margin-top:6px}
+  .panel ul{padding-left:18px;margin:0;display:flex;flex-direction:column;gap:6px}
+  .panel b{color:var(--ink);font-weight:600}
+  .panel pre{margin:6px 0 0;font-size:11px;line-height:1.4;color:var(--ink-2);background:rgba(0,0,0,.25);padding:8px;border-radius:4px;overflow-x:auto}
+  .q{border-left:3px solid var(--pending)}
+  .reset{font:inherit;font-size:11.5px;margin-top:10px;padding:4px 9px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-2);cursor:pointer}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Fighting Styles</h1>
+    <p>Every style is an effect on the character, so it sits in the detailed bar with its state: live, or greyed with the reason. Pick a style, then the case. The chat log on the right is what the table sees.</p>
+  </header>
+
+  <div class="scenes">
+    <div class="grp" id="g-scene"><span>Style</span>
+      <button data-v="gwf">Great Weapon · Thrown · Two-Weapon</button>
+      <button data-v="gate">Dueling · Defense</button>
+      <button data-v="inter">Interception</button>
+      <button data-v="prot">Protection</button>
+      <button data-v="unarmed">Unarmed Fighting</button>
+      <button data-v="blind">Blind Fighting</button>
+    </div>
+    <div class="grp" id="g-case"><span>Case</span></div>
+    <div class="grp" id="g-opt"><span>Option</span></div>
+  </div>
+
+  <div class="studio">
+    <div class="screen">
+      <div class="stage"><div class="map"></div><div id="stage"></div></div>
+      <div class="chatlog"><div class="ey-log">Chat</div><div id="chat" style="display:flex;flex-direction:column;gap:8px"></div></div>
+    </div>
+    <div class="side" id="side"></div>
+  </div>
+</div>
+
+<script>
+const RULES = {
+  gwf:"When you roll damage for an attack you make with a Melee weapon that you are holding with two hands, you can treat any 1 or 2 on a damage die as a 3. The weapon must have the Two-Handed or Versatile property to gain this benefit.",
+  thrown:"When you hit with a ranged attack roll using a weapon that has the Thrown property, you gain a +2 bonus to the damage roll.",
+  twf:"When you make an extra attack as a result of using a weapon that has the Light property, you can add your ability modifier to the damage of that attack if you aren't already adding it to the damage.",
+  dueling:"When you're holding a Melee weapon in one hand and no other weapons, you gain a +2 bonus to damage rolls with that weapon.",
+  defense:"While you're wearing Light, Medium, or Heavy armor, you gain a +1 bonus to Armor Class.",
+  inter:"When a creature you can see hits another creature within 5 feet of you with an attack roll, you can take a Reaction to reduce the damage dealt to the target by 1d10 plus your Proficiency Bonus. You must be holding a Shield or a Simple or Martial weapon to use this Reaction.",
+  prot:"When a creature you can see attacks a target other than you that is within 5 feet of you, you can take a Reaction to interpose your Shield if you're holding one. You impose Disadvantage on the triggering attack roll and all other attack rolls against the target until the start of your next turn if you remain within 5 feet of the target.",
+  unarmed:"When you hit with your Unarmed Strike and deal damage, you can deal Bludgeoning damage equal to 1d6 plus your Strength modifier instead of the normal damage of an Unarmed Strike. If you aren't holding any weapons or a Shield when you make the attack roll, the d6 becomes a d8. At the start of each of your turns, you can deal 1d4 Bludgeoning damage to one creature Grappled by you.",
+  blind:"You have Blindsight with a range of 10 feet."
+};
+
+const SCENES = {
+  gwf:{ cases:[["gs","Greatsword 2d6 → 1 + 5"],["gs2","Greatsword 2d6 → 2 + 1"],["gshi","Greatsword 2d6 → 4 + 6"],["jav","Javelin thrown"],["off","Shortsword off-hand"]],
+        opts:[["A","A · card line"],["B","B · + floating number"],["C","C · + bar pulse"]], opt:"B" },
+  gate:{ cases:[["ls","Longsword + Shield, Chain Mail"],["two","Longsword + Dagger, Chain Mail"],["gsw","Greatsword (two hands), no armor"]], opts:[], opt:null },
+  inter:{ cases:[["one","One interceptor in reach"],["two","Two interceptors in reach"],["noshield","Interceptor holding nothing"]],
+          opts:[["P1","Each gets a popup"],["P2","Nearest only"]], opt:"P1" },
+  prot:{ cases:[["hit","The attack would hit"],["later","A second goblin attacks later"]],
+         opts:[["R1","Asked after the hit shows"],["R2","Asked as the attack is declared"]], opt:"R1" },
+  unarmed:{ cases:[["empty","Unarmed Strike, hands empty"],["shield","Unarmed Strike, shield held"],["turn","Turn starts, grappling a goblin"]],
+            opts:[["U1","Popup (Deal / Skip)"],["U2","Automatic, with a card"]], opt:"U1" },
+  blind:{ cases:[["near","Invisible goblin 5 ft away"],["far","Invisible goblin 15 ft away"],["def","Invisible goblin attacks Rowan"]], opts:[], opt:null }
+};
+
+const state = { scene:"gwf", c:"gs", opt:{}, done:null, ticked:{}, float:null, seed:0 };
+for (const [k,s] of Object.entries(SCENES)) state.opt[k]=s.opt;
+
+/* ---------- shared pieces ---------- */
+function efHTML(name, on, st, cls=""){ return `<span class="ef ${on?"on":"off"} ${cls}" title="${name}"><i></i><span>${name}<br><span class="st">${st}</span></span></span>`; }
+function barHTML(who, efs){ return `<div class="bar5"><div class="who">${who} — effects</div><div class="fx">${efs.join("")}</div></div>`; }
+function card(speaker, tone, e, t, sub, lines){ return `<div class="msg"><div class="spk">${speaker}</div><div class="bf ${tone}"><div class="e">${e}</div><div class="t">${t}</div>${sub?`<div style="font-size:11px;opacity:.75">${sub}</div>`:""}<div class="l">${lines.map(l=>`<div>${l}</div>`).join("")}</div></div></div>`; }
+function rowHTML(id, name, dice, cost, rule, on, dis){ return `<label class="row ${on?"on":""} ${dis?"dis":""}"><input type="checkbox" id="${id}" ${on?"checked":""} ${dis?"disabled":""}><span class="nm">${name}<span class="dc">${dice}</span></span><span class="cost">${cost}</span><details><summary>the rule</summary><p>${rule}</p></details></label>`; }
+function popup(title, eb, h2, sub, rows, btns){ return `<div class="offer" role="dialog" aria-label="${title}"><div class="title"><i></i>${title}<span class="x">✕</span></div><div class="body"><div class="head"><div class="img"></div><div><div class="eb">${eb}</div><h2>${h2}</h2><div class="sub">${sub}</div></div></div><div class="bar"><div class="trk"><div class="fill"></div></div><span>12s to answer</span></div>${rows}<div class="btnrow">${btns}</div></div></div>`; }
+function field(toks, extra=""){ return `<div class="field">${extra}${toks.map(t=>`<div class="tok ${t.foe?"foe":""} ${t.inv?"inv":""}" style="left:${t.x}px;top:${t.y}px">${t.l}<span class="nm">${t.n}</span></div>`).join("")}${state.float?`<div class="float" style="left:${state.float.x}px;top:${state.float.y}px">${state.float.t}</div>`:""}</div>`; }
+const resetBtn = `<button class="reset" data-act="reset">Back to the start</button>`;
+
+/* ---------- 1. the damage styles ---------- */
+const DMG = {
+  gs:{w:"Greatsword",f:"2d6 + 4",faces:[[1,3],[5,5]],mod:4,style:"Great Weapon Fighting",key:"gwf"},
+  gs2:{w:"Greatsword",f:"2d6 + 4",faces:[[2,3],[1,3]],mod:4,style:"Great Weapon Fighting",key:"gwf"},
+  gshi:{w:"Greatsword",f:"2d6 + 4",faces:[[4,4],[6,6]],mod:4,style:"Great Weapon Fighting",key:"gwf"},
+  jav:{w:"Javelin (thrown)",f:"1d6 + 4 + 2",faces:[[3,3]],mod:4,bonus:2,style:"Thrown Weapon Fighting",key:"thrown"},
+  off:{w:"Shortsword (off-hand)",f:"1d6 + 3",faces:[[4,4]],mod:0,bonus:3,style:"Two-Weapon Fighting",key:"twf"}
+};
+function gwfScene(){
+  const d=DMG[state.c], opt=state.opt.gwf;
+  const raw=d.faces.reduce((a,[r])=>a+r,0), used=d.faces.reduce((a,[,u])=>a+u,0);
+  const gain = d.key==="gwf" ? used-raw : d.bonus;
+  const total = used + d.mod + (d.key==="gwf"?0:d.bonus);
+  const saved = gain>0;
+  const efs=[
+    efHTML("Great Weapon Fighting", d.key==="gwf", d.key==="gwf"?"Greatsword, two hands":"no two-handed melee weapon", saved&&d.key==="gwf"&&opt==="C"&&state.done?"pulse":""),
+    efHTML("Thrown Weapon Fighting", d.key==="thrown", d.key==="thrown"?"thrown attack":"not a thrown attack", saved&&d.key==="thrown"&&opt==="C"&&state.done?"pulse":""),
+    efHTML("Two-Weapon Fighting", d.key==="twf", d.key==="twf"?"off-hand attack":"not an off-hand attack", saved&&d.key==="twf"&&opt==="C"&&state.done?"pulse":"")
+  ];
+  const stage = document.getElementById("stage");
+  if(!state.done){
+    state.float=null;
+    stage.innerHTML = barHTML("Rowan", efs) + field([{x:60,y:40,l:"R",n:"Rowan"},{x:170,y:40,l:"G",n:"Goblin",foe:true}]) +
+      `<div class="nothing">Rowan hits the Goblin with the ${d.w}.<br><button class="btn primary" data-act="roll" style="max-width:220px;margin-top:10px">Roll damage</button></div>`;
+    document.getElementById("chat").innerHTML = card("Rowan","good","Attack","Rowan — "+d.w,"→ Goblin",["17 vs AC 15 — <b>HIT</b>"]);
+    return;
+  }
+  if(saved && opt!=="A" && !state.float) state.float={x:195,y:6,t:d.key==="gwf"?`+${gain} Great Weapon Fighting`:`+${gain} ${d.style}`};
+  stage.innerHTML = barHTML("Rowan", efs) + field([{x:60,y:40,l:"R",n:"Rowan"},{x:170,y:40,l:"G",n:"Goblin",foe:true}]) + `<div class="nothing">${saved?"":"No die showed a 1 or 2, so nothing to report."}<br>${resetBtn}</div>`;
+  const dice = `<div class="dice">${d.faces.map(([r,u])=>u!==r?`<span class="die raised">${u}<sup>${r}</sup></span>`:`<span class="die">${u}</span>`).join("")}<span>+ ${d.mod}${d.key!=="gwf"?` + ${d.bonus}`:""} = <b>${total}</b> slashing</span></div>`;
+  let line="";
+  if(d.key==="gwf") line = saved ? `<span class="sline">Great Weapon Fighting — ${d.faces.filter(([r,u])=>u!==r).map(([r])=>r).join(" and ")} → 3: +${gain}</span>` : "";
+  if(d.key==="thrown") line = `<span class="sline">Thrown Weapon Fighting — +2</span>`;
+  if(d.key==="twf") line = `<span class="sline">Two-Weapon Fighting — +3 Dexterity on the off-hand</span>`;
+  document.getElementById("chat").innerHTML =
+    card("Rowan","good","Attack","Rowan — "+d.w,"→ Goblin",["17 vs AC 15 — <b>HIT</b>"]) +
+    card("Rowan","good","Damage Roll","Rowan — "+d.w,"→ Goblin",[dice, line, `Goblin −${total} HP`].filter(Boolean));
+}
+
+/* ---------- 2. Dueling · Defense ---------- */
+function gateScene(){
+  const c=state.c;
+  const duel = c==="ls" ? [true,"Longsword in one hand"] : c==="two" ? [false,"a second weapon held (Dagger)"] : [false,"Greatsword held in two hands"];
+  const def = c==="gsw" ? [false,"no armor worn"] : [true,"Chain Mail"];
+  const gwf = c==="gsw" ? [true,"Greatsword, two hands"] : [false,"no two-handed melee weapon"];
+  const kit = c==="ls" ? "Longsword · Shield · Chain Mail" : c==="two" ? "Longsword · Dagger · Chain Mail" : "Greatsword · no armor";
+  const ac = c==="ls" ? "16 + 2 + 1 = 19" : c==="two" ? "16 + 1 = 17" : "10 + 1 = 11";
+  document.getElementById("stage").innerHTML =
+    barHTML("Rowan", [efHTML("Dueling",duel[0],duel[1]), efHTML("Defense",def[0],def[1]), efHTML("Great Weapon Fighting",gwf[0],gwf[1])]) +
+    `<div class="kit"><b>Equipped:</b> ${kit} · <b>AC</b> ${ac}</div>` +
+    field([{x:60,y:20,l:"R",n:"Rowan"}]) +
+    `<div class="nothing">Nobody toggles anything. Equip a different weapon or take the armor off on the sheet and the bar follows.</div>`;
+  document.getElementById("chat").innerHTML = c==="ls"
+    ? card("Rowan","good","Damage Roll","Rowan — Longsword","→ Goblin",[`1d8 + 4 + 2 → <b>11</b>`, `<span class="sline">Dueling — +2</span>`])
+    : c==="two" ? card("Rowan","good","Damage Roll","Rowan — Longsword","→ Goblin",[`1d8 + 4 → <b>9</b>`, `<span class="sline q">Dueling off — a second weapon held (Dagger)</span>`])
+    : card("Rowan","good","Damage Roll","Rowan — Greatsword","→ Goblin",[`2d6 + 4 → <b>12</b>`]);
+}
+
+/* ---------- 3. Interception ---------- */
+function interScene(){
+  const c=state.c, opt=state.opt.inter;
+  const toks=[{x:40,y:40,l:"R",n:"Rowan"},{x:110,y:40,l:"Gr",n:"Gren"},{x:180,y:40,l:"G",n:"Goblin",foe:true}];
+  if(c==="two") toks.push({x:110,y:105,l:"M",n:"Mira"});
+  const rings = `<div class="ring" style="left:5px;top:5px;width:120px;height:120px"></div>`;
+  const rule=RULES.inter;
+  const stage=document.getElementById("stage");
+  const attack = card("Goblin","pending","Attack — held for a Reaction","Goblin — Scimitar","→ Gren",["19 vs AC 15 — <b>HIT</b>","<span class='chip'>Waiting on Interception</span>"]);
+  if(!state.done){
+    const mk = (who, dis) => popup(`Reaction — Interception — ${who}`,"Reaction — Interception",`The Goblin hits Gren — intercept?`,`Scimitar · 19 vs AC 15 · Gren is 5 ft from you`,
+      rowHTML("t-"+who,"Interception","1d10 + 3", dis?"no Shield or weapon held":"a Reaction", rule, !dis && (state.ticked[who] ?? true), dis),
+      `<button class="btn primary" data-act="inter" data-who="${who}" ${dis?"disabled":""}>Intercept</button><button class="btn" data-act="pass">Pass</button>`);
+    let pops = mk("Rowan", c==="noshield");
+    if(c==="two" && opt==="P1") pops += `<div style="height:10px"></div>` + mk("Mira", false);
+    stage.innerHTML = field(toks, rings) + pops;
+    document.getElementById("chat").innerHTML = attack;
+    return;
+  }
+  if(state.done==="pass"){
+    stage.innerHTML = field(toks, rings) + `<div class="nothing">Passed. The damage lands in full.<br>${resetBtn}</div>`;
+    document.getElementById("chat").innerHTML = card("Goblin","good","Attack","Goblin — Scimitar","→ Gren",["19 vs AC 15 — <b>HIT</b>"]) + card("Goblin","good","Damage Roll","Goblin — Scimitar","→ Gren",["1d6 + 2 → <b>7</b>","Gren −7 HP"]);
+    return;
+  }
+  const r=8, dmg=7;
+  stage.innerHTML = field(toks, rings) + `<div class="nothing">${state.done} intercepts: ${r} off Gren's damage.${c==="two"&&opt==="P1"?` Mira's popup closed ("Rowan intercepted").`:""}<br>${resetBtn}</div>`;
+  document.getElementById("chat").innerHTML =
+    card("Goblin","good","Attack","Goblin — Scimitar","→ Gren",["19 vs AC 15 — <b>HIT</b>"]) +
+    card(state.done,"good","Reaction","Interception","→ Gren",[`1d10 + 3 → <b>${r}</b>`,`<span class="chip used">${state.done} — Reaction used</span>`]) +
+    card("Goblin","good","Damage Roll","Goblin — Scimitar","→ Gren",[`1d6 + 2 → <s class="old">7</s> <b>0</b>`,`<span class="sline">Interception (${state.done}) — ${Math.min(r,dmg)} prevented</span>`,"Gren −0 HP"]);
+}
+
+/* ---------- 4. Protection ---------- */
+function protScene(){
+  const c=state.c, opt=state.opt.prot;
+  const toks=[{x:40,y:40,l:"R",n:"Rowan"},{x:110,y:40,l:"Gr",n:"Gren"},{x:180,y:40,l:"G",n:"Goblin",foe:true}];
+  if(c==="later") toks.push({x:180,y:105,l:"G2",n:"Goblin 2",foe:true});
+  const rings = `<div class="ring" style="left:5px;top:5px;width:120px;height:120px"></div>`;
+  const stage=document.getElementById("stage");
+  const grenBar = (on)=> barHTML("Gren", [efHTML("Protected — Rowan", on, on?"attacks vs Gren at Disadvantage · until Rowan's turn":"—", "ally")]);
+  if(c==="later"){
+    stage.innerHTML = grenBar(true) + field(toks, rings) +
+      `<div class="gate"><div class="title">Goblin 2 — Scimitar attack</div><div class="body">
+        <div class="src dis"><span>Gren — Protected (Rowan, 5 ft)</span><span class="tag">Disadvantage</span></div>
+        <div class="net">Net: <b>Disadvantage</b></div>
+        <div class="modes"><span>Advantage</span><span>Normal</span><span class="def">Disadvantage</span></div></div></div>
+       <div class="nothing">Rowan stepped away? The row drops out as soon as Rowan is more than 5 ft from Gren.</div>`;
+    document.getElementById("chat").innerHTML = card("Rowan","good","Reaction","Protection","→ Gren",["Goblin's attack: 17 → 9, <b>MISS</b>","<span class='chip used'>Rowan — Reaction used</span>"]);
+    return;
+  }
+  if(!state.done){
+    const eb = opt==="R1" ? "Rescue the hit — Protection" : "Reaction — Protection";
+    const h2 = opt==="R1" ? "The Goblin hits Gren — impose Disadvantage?" : "The Goblin attacks Gren — interpose your Shield?";
+    const sub = opt==="R1" ? "Scimitar · 17 vs AC 15 · Gren is 5 ft from you" : "Scimitar · before the roll · Gren is 5 ft from you";
+    stage.innerHTML = grenBar(false) + field(toks, rings) + popup("Protection — Rowan", eb, h2, sub,
+      rowHTML("t-p","Protection","Disadvantage","a Reaction", RULES.prot, state.ticked.p ?? true, false),
+      `<button class="btn primary" data-act="prot">${opt==="R1"?"Answer":"Interpose"}</button><button class="btn" data-act="pass">Pass</button>`);
+    document.getElementById("chat").innerHTML = opt==="R1"
+      ? card("Goblin","pending","Attack — held for a Reaction","Goblin — Scimitar","→ Gren",["17 vs AC 15 — <b>HIT</b>","<span class='chip'>Waiting on Protection</span>"])
+      : card("Goblin","pending","Attack — waiting","Goblin — Scimitar","→ Gren",["<span class='chip'>Waiting on Protection</span>"]);
+    return;
+  }
+  if(state.done==="pass"){
+    stage.innerHTML = grenBar(false) + field(toks, rings) + `<div class="nothing">Passed. The hit stands.<br>${resetBtn}</div>`;
+    document.getElementById("chat").innerHTML = card("Goblin","good","Attack","Goblin — Scimitar","→ Gren",["17 vs AC 15 — <b>HIT</b>"]);
+    return;
+  }
+  stage.innerHTML = grenBar(true) + field(toks, rings) + `<div class="nothing">A second d20: 9. The lower stands and the attack misses. Gren is Protected until the start of Rowan's next turn.<br>${resetBtn}</div>`;
+  document.getElementById("chat").innerHTML =
+    card("Goblin","bad","Attack","Goblin — Scimitar","→ Gren",[`<s class="old">17</s> 9 vs AC 15 — <b>MISS</b>`,`<span class="sline">Protection (Rowan) bent the roll — Disadvantage, 17 → 9, MISS</span>`]) +
+    card("Rowan","good","Reaction","Protection","→ Gren",["Gren Protected until the start of Rowan's next turn","<span class='chip used'>Rowan — Reaction used</span>"]);
+}
+
+/* ---------- 5. Unarmed Fighting ---------- */
+function unarmedScene(){
+  const c=state.c, opt=state.opt.unarmed;
+  const toks=[{x:60,y:40,l:"R",n:"Rowan"},{x:125,y:40,l:"G",n:"Goblin (Grappled)",foe:true}];
+  const stage=document.getElementById("stage");
+  const efs=[efHTML("Unarmed Fighting", true, c==="shield"?"1d6 — a Shield held":"1d8 — hands empty")];
+  if(c!=="turn"){
+    const die = c==="shield" ? "1d6" : "1d8", face = c==="shield" ? 4 : 6;
+    stage.innerHTML = barHTML("Rowan", efs) + field(toks) + `<div class="nothing">The sheet's own Unarmed Strike. The die follows what Rowan holds when the attack is rolled.</div>`;
+    document.getElementById("chat").innerHTML = card("Rowan","good","Damage Roll","Rowan — Unarmed Strike","→ Goblin",[`${die} + 3 → <b>${face+3}</b>`,`<span class="sline">Unarmed Fighting — ${die} + 3 in place of 1 + 3${c==="shield"?" (a Shield held: d6)":" (nothing held: d8)"}</span>`]);
+    return;
+  }
+  const turnCard = card("Tracker","neutral","Round 3","Rowan's turn","",[]);
+  if(opt==="U2" || state.done){
+    if(state.done==="skip"){
+      stage.innerHTML = barHTML("Rowan", efs) + field(toks) + `<div class="nothing">Skipped. Nothing dealt.<br>${resetBtn}</div>`;
+      document.getElementById("chat").innerHTML = turnCard; return;
+    }
+    stage.innerHTML = barHTML("Rowan", efs) + field(toks) + `<div class="nothing">${opt==="U2"?"Dealt at the start of the turn with no question.":"Dealt."}${opt==="U2"?"":`<br>${resetBtn}`}</div>`;
+    document.getElementById("chat").innerHTML = turnCard + card("Rowan","good","Unarmed Fighting","Grappled damage","→ Goblin",[`1d4 → <b>3</b> bludgeoning`,"Goblin −3 HP"]);
+    return;
+  }
+  stage.innerHTML = barHTML("Rowan", efs) + field(toks) + popup("Unarmed Fighting — Rowan","Your turn — Unarmed Fighting","Deal 1d4 to the Goblin you're grappling?","Goblin · Grappled by Rowan",
+    rowHTML("t-u","Unarmed Fighting","1d4 bludgeoning","start of your turn", RULES.unarmed, state.ticked.u ?? true, false),
+    `<button class="btn primary" data-act="deal">Deal it</button><button class="btn" data-act="skip">Skip</button>`);
+  document.getElementById("chat").innerHTML = turnCard;
+}
+
+/* ---------- 6. Blind Fighting ---------- */
+function blindScene(){
+  const c=state.c;
+  const far = c==="far";
+  const toks=[{x:60,y:40,l:"R",n:"Rowan"},{x:far?210:125,y:40,l:"G",n:"Goblin (Invisible)",foe:true,inv:true}];
+  const ring = `<div class="ring blind" style="left:-35px;top:-55px;width:250px;height:250px"></div>`;
+  const efs=[efHTML("Blind Fighting", true, "Blindsight 10 ft")];
+  const def = c==="def";
+  const title = def ? "Goblin — Scimitar attack vs Rowan" : "Rowan — Longsword attack vs Goblin";
+  const srcs = def
+    ? `<div class="src adv struck"><span>Goblin — Invisible (Rowan can't see it)</span><span class="tag">Advantage</span></div>
+       <div class="src cancel"><span>Rowan — Blind Fighting: sees it (5 ft)</span><span class="tag">cancels</span></div>`
+    : far
+    ? `<div class="src dis"><span>Goblin — Invisible</span><span class="tag">Disadvantage</span></div>
+       <div class="src" style="opacity:.6"><span>Rowan — Blind Fighting: out of reach (15 ft, sees 10)</span><span class="tag">—</span></div>`
+    : `<div class="src dis struck"><span>Goblin — Invisible</span><span class="tag">Disadvantage</span></div>
+       <div class="src cancel"><span>Rowan — Blind Fighting: sees it (5 ft)</span><span class="tag">cancels</span></div>`;
+  const net = far ? "Disadvantage" : "Normal";
+  document.getElementById("stage").innerHTML = barHTML("Rowan", efs) + field(toks, ring) +
+    `<div class="gate"><div class="title">${title}</div><div class="body">${srcs}
+      <div class="net">Net: <b>${net}</b></div>
+      <div class="modes"><span>Advantage</span><span class="${net==="Normal"?"def":""}">Normal</span><span class="${net==="Disadvantage"?"def":""}">Disadvantage</span></div></div></div>`;
+  document.getElementById("chat").innerHTML = "";
+}
+
+/* ---------- the side panel ---------- */
+const SIDE = {
+  gwf:()=>{
+    const o=state.opt.gwf;
+    const optNote={A:"<b>A · card line.</b> The raised dice show on the damage card in gold with the old face struck above, and one line names the style and the gain. Nothing else moves.",
+      B:"<b>B · card line + floating number (my pick).</b> As A, plus a white \"+3 Great Weapon Fighting\" rising over the target once, the way Alert's swap shows. It only fires when the style actually changed the number.",
+      C:"<b>C · + bar pulse.</b> As B, plus the effect's icon in the bar pulses once."}[o];
+    return `<div class="panel"><h3>The notice</h3><p>${optNote}</p><p>A roll the style didn't change (4 + 6) shows nothing extra.</p></div>
+      <div class="panel"><h3>The stats record</h3><p>One flag on the damage message, stamped at the roll, for get-combat-stats. The gain is per roll, so a report can total "damage saved by Great Weapon Fighting".</p>
+      <pre>fightingStyle: {
+  key: "great-weapon-fighting",
+  feature: "Great Weapon Fighting",
+  raised: [{ from: 1, to: 3 }],
+  gain: 2,
+  attackId, combat, sourceUuid
+}</pre><p>Thrown and Two-Weapon write the same shape: <b>gain</b> is the +2 or the modifier.</p></div>
+      <div class="panel q"><h3>To rule</h3><ul><li><b>A, B or C</b> for the notice.</li><li><b>Crits:</b> every doubled die counts (the rule says "any 1 or 2 on a damage die").</li><li><b>Rider dice</b> (a Divine Smite on the same hit) are raised too? The rule says "a damage die" of the attack, so yes. Say if you want only the weapon's own dice.</li></ul></div>`;
+  },
+  gate:()=>`<div class="panel"><h3>How the gate reads</h3><p><b>Holding</b> means <b>equipped</b> on the sheet: weapons with the Equipped box ticked. A shield is not a weapon, so Longsword + Shield keeps Dueling live.</p><p><b>Defense</b> reads equipped body armor (Light, Medium or Heavy). A shield alone doesn't count.</p><p>The bar shows the reason when a style is off, and Dueling's card says why it didn't add (the second case).</p></div>
+    <div class="panel q"><h3>To rule</h3><ul><li><b>Dueling's "off" line</b> on the damage card: keep it, or show nothing when it's off?</li><li><b>Versatile one-handed</b> (a Longsword swung one-handed) counts for Dueling. The same Longsword swung two-handed turns Dueling off and Great Weapon Fighting on, read from the attack's own grip.</li></ul></div>`,
+  inter:()=>`<div class="panel"><h3>How it fires</h3><p>The attack against Gren is held, as Parry holds one against its owner. The difference is who is asked: every creature within 5 ft of Gren with Interception listed, a Reaction free and a Shield or Simple/Martial weapon equipped. The click rolls 1d10 + PB and the damage lands reduced, receipted.</p><p>Warding Flare's reach to others (30 ft, the recorded gap) rides the same new ask.</p></div>
+    <div class="panel q"><h3>To rule</h3><ul><li><b>Two in reach:</b> P1 each gets a popup and the first answer closes the others, or P2 only the nearest is asked.</li><li><b>Stack?</b> The rule gives one reduction per Reaction, so two interceptors can't both reduce one hit under P1: the first wins.</li><li><b>Greyed row</b> when the protector holds nothing (third case), or no popup at all?</li></ul></div>`,
+  prot:()=>`<div class="panel"><h3>How it fires</h3><p>R1 is the Lucky / Warding Flare shape: asked once the roll shows a hit, a second d20, the lower stands. R2 is RAW-exact: asked when the attack is declared, before the roll, which means every attack against an adjacent ally stops to ask.</p><p>After it's used, Gren carries "Protected — Rowan" in the bar, and every later attack against Gren meets it in the roll gate while Rowan stays within 5 ft (second case).</p></div>
+    <div class="panel q"><h3>To rule</h3><ul><li><b>R1 or R2.</b> R1 is the house precedent and a register bend (the same as Lucky's). R2 asks on every swing.</li><li><b>A shield is required</b> ("interpose your Shield"): no shield equipped, no ask.</li><li>Its own effect key, so it never collides with Protection from Evil and Good's "Protected".</li></ul></div>`,
+  unarmed:()=>`<div class="panel"><h3>How it fires</h3><p>The sheet's plain Unarmed Strike rolls the style's die, picked by what's equipped at the attack (Unarmed Strike Dice, the Tavern Brawler row's shape): d8 with nothing held, d6 otherwise.</p><p>The turn-start 1d4 goes to one creature Rowan grapples.</p></div>
+    <div class="panel q"><h3>To rule</h3><ul><li><b>U1 or U2</b> for the turn-start damage. The rule says "can", so U1 asks; the clock deals it, since there's rarely a reason to hold back. U2 deals it with no question.</li><li>Two grappled creatures: the popup lists both with a pick.</li></ul></div>`,
+  blind:()=>`<div class="panel"><h3>How it reads</h3><p>The roll gate already lists Invisible. Blindsight within its range means the creature is seen, so Invisible's Disadvantage (Rowan attacking) or Advantage (the goblin attacking Rowan) is struck, and the row says why.</p><p>This reads <b>any creature's Blindsight</b>, not just the fighting style: a monster with Blindsight 30 ft gets the same treatment.</p></div>
+    <div class="panel q"><h3>To rule</h3><ul><li>Truesight and Tremorsense too? Truesight sees the invisible outright; Tremorsense only on the ground.</li></ul></div>`
+};
+
+/* ---------- render ---------- */
+function render(){
+  const sc=SCENES[state.scene];
+  document.querySelectorAll("#g-scene button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===state.scene));
+  document.getElementById("g-case").innerHTML = `<span>Case</span>` + sc.cases.map(([v,l])=>`<button data-v="${v}" aria-pressed="${v===state.c}">${l}</button>`).join("");
+  const og=document.getElementById("g-opt");
+  og.hidden = !sc.opts.length;
+  og.innerHTML = `<span>Option</span>` + sc.opts.map(([v,l])=>`<button data-v="${v}" aria-pressed="${v===state.opt[state.scene]}">${l}</button>`).join("");
+  ({gwf:gwfScene,gate:gateScene,inter:interScene,prot:protScene,unarmed:unarmedScene,blind:blindScene})[state.scene]();
+  document.getElementById("side").innerHTML = SIDE[state.scene]();
+}
+function fresh(){ state.done=null; state.ticked={}; state.float=null; }
+
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  if(b.closest("#g-scene")){ state.scene=b.dataset.v; state.c=SCENES[state.scene].cases[0][0]; fresh(); }
+  else if(b.closest("#g-case")){ state.c=b.dataset.v; fresh(); }
+  else if(b.closest("#g-opt")){ state.opt[state.scene]=b.dataset.v; fresh(); }
+  else if(b.dataset.act==="roll"){ state.done="rolled"; }
+  else if(b.dataset.act==="inter"){ state.done=b.dataset.who; }
+  else if(b.dataset.act==="prot"){ state.done="used"; }
+  else if(b.dataset.act==="deal"){ state.done="dealt"; }
+  else if(b.dataset.act==="skip"){ state.done="skip"; }
+  else if(b.dataset.act==="pass"){ state.done="pass"; }
+  else if(b.dataset.act==="reset"){ fresh(); }
+  else return;
+  render();
+});
+document.addEventListener("change",e=>{
+  const id=e.target.id; if(!id?.startsWith("t-")) return;
+  state.ticked[id.slice(2)] = e.target.checked; render();
+});
+render();
+</script>

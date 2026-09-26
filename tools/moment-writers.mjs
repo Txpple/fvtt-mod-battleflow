@@ -182,6 +182,7 @@ const WORLD_WRITERS = {
   "initiative-swap.js": ["initiativeSwap"],   // Alert's swap, landed by the elect (2026-09-25)
   "heal-rerolls.js": ["healReroll"],   // Healer's 1s rerolled on a healing roll (2026-09-25)
   "kit-tend.js": ["kitTend"],   // Healer's Battle Medic on the kit's use, landed by the elect (2026-09-25)
+  "fighting-styles.js": "the fighting styles' faces kept in step with the equipped boxes — the actor's own effects, bookkeeping with no moment; the damage number rides the roll's own config (fightingStyle: state)",
   "unarmed-dice.js": "the plain Unarmed Strike's damage formula swapped before it rolls — the damage message is the platform's and its receipt the resolve (unarmedDice: presentation)",
   "drop-to-one.js": ["dropToOne"],   // Relentless Endurance asked, Death Ward automatic (2026-09-25)
   "rest-grants.js": ["restSong"],   // Resourceful's own grant rides dnd5e's rest update (restGrant: presentation); Musician's song to allies is landed by the elect (2026-09-25)

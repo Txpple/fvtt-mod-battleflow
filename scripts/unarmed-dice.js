@@ -26,26 +26,66 @@ const UNARMED_FLAG = "unarmedDice";
 /** An Unarmed Strike — the attack's own classification. */
 const isUnarmed = activity => activity?.attack?.type?.classification === "unarmed";
 
-/** The feature's own unarmed attack's damage formula, as the content ships it — or null. */
-function featureFormula(feature) {
-  const own = [...(feature?.system?.activities ?? [])].find(a => (a.type === "attack") && isUnarmed(a));
-  const part = own?.damage?.parts?.[0];
+/** One unarmed attack activity's damage formula, as the content ships it — or null. */
+function activityFormula(activity) {
+  const part = activity?.damage?.parts?.[0];
   if ( !part ) return null;
   if ( part.custom?.enabled && part.custom.formula ) return part.custom.formula;
   if ( !part.denomination ) return null;
   return `${part.number ?? 1}d${part.denomination}${part.bonus ? ` + ${part.bonus}` : ""}`;
 }
 
-/** The listed row this actor holds, with the formula its feature carries — or null. */
+/** The feature's own unarmed attacks, each with its formula. */
+const unarmedAttacksOf = feature => [...(feature?.system?.activities ?? [])]
+  .filter(a => (a.type === "attack") && isUnarmed(a))
+  .map(a => ({ activity: a, formula: activityFormula(a) }))
+  .filter(x => x.formula);
+
+/** A formula's largest roll — the one to keep when two rows would swap the same strike. */
+const DIE_OF = /(\d*)d(\d+)/i;
+function dieMax(formula) {
+  const m = DIE_OF.exec(String(formula ?? ""));
+  return m ? (Number(m[1] || 1) * Number(m[2])) : 0;
+}
+
+/**
+ * Does the owner hold nothing — no weapon (a natural one is not held) and no Shield? Unarmed
+ * Fighting's "If you aren't holding any weapons or a Shield", read off the Equipped boxes.
+ */
+function handsEmpty(actor) {
+  return !(actor?.items ?? []).some(i => (i.system?.equipped === true) && (
+    ((i.type === "weapon") && (i.system?.type?.value !== "natural"))
+    || ((i.type === "equipment") && (i.system?.type?.value === "shield"))));
+}
+
+/**
+ * The formula a row swaps in, with why: the feature's own unarmed attack, or — a `hands` row
+ * (Unarmed Fighting) — the larger of its two with the hands empty, the smaller otherwise.
+ */
+function formulaFor(row, feature, actor) {
+  const own = unarmedAttacksOf(feature);
+  if ( !own.length ) return null;
+  if ( row.pick !== "hands" ) return { formula: own[0].formula, why: null };
+  const sorted = [...own].sort((a, b) => dieMax(a.formula) - dieMax(b.formula));
+  const empty = handsEmpty(actor);
+  return { formula: (empty ? sorted.at(-1) : sorted[0]).formula, why: empty ? "hands empty" : "a weapon or Shield held" };
+}
+
+/**
+ * The listed row this actor holds, with the formula its feature carries — or null. Two listed rows
+ * on one actor (Tavern Brawler and Unarmed Fighting) swap in the LARGER die: both say "instead of
+ * the normal damage", and the owner would take the better one.
+ */
 function rowFor(actor) {
   const on = listedNames(unarmedDiceEntries());
-  for ( const name of Object.keys(UNARMED_DICE) ) {
+  let best = null;
+  for ( const [name, row] of Object.entries(UNARMED_DICE) ) {
     if ( !on.has(lower(name)) ) continue;
     const feature = actor?.items?.find(i => (i.type === "feat") && (lower(i.name) === lower(name)));
-    const formula = featureFormula(feature);
-    if ( formula ) return { name, feature, formula };
+    const found = feature ? formulaFor(row, feature, actor) : null;
+    if ( found && (!best || (dieMax(found.formula) > dieMax(best.formula))) ) best = { name, feature, ...found };
   }
-  return null;
+  return best;
 }
 
 const DIE = /\d*d\d+/i;
@@ -63,7 +103,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
     const was = resolve(parts.join(" + "));
     roll.parts = [found.formula];
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${UNARMED_FLAG}`,
-      { feature: found.name, formula: resolve(found.formula), was });
+      { feature: found.name, formula: resolve(found.formula), was, why: found.why ?? null });
   } catch(err) {
     console.error(`${TITLE} | The Unarmed Strike's die could not be swapped in — roll the feature's own strike.`, err);
   }
@@ -78,7 +118,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const div = document.createElement("div");
     div.className = "bf-unarmed-dice-line";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
-    div.innerHTML = `<i class="fa-solid fa-hand-fist"></i> ${esc(flag.feature)} — ${esc(flag.formula)} in place of ${esc(flag.was)}`;
+    div.innerHTML = `<i class="fa-solid fa-hand-fist"></i> ${esc(flag.feature)} — ${esc(flag.formula)} in place of ${esc(flag.was)}`
+      + (flag.why ? ` (${esc(flag.why)})` : "");
     content.appendChild(div);
   } catch(err) {
     console.error(`${TITLE} | The Unarmed Strike's line failed to draw.`, err);

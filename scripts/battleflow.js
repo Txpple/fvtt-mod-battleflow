@@ -155,6 +155,10 @@ import "./heal-rerolls.js";
 // It reads the roll's parts before anything counts them: auto-damage.js's weapon-roll count is of
 // ROLLS, not parts, so the swap moves nothing it counts.
 import "./unarmed-dice.js";
+// THE FIGHTING STYLES (2026-09-26): each listed style's face on the character, gated on what is
+// equipped, and its number on the damage roll it fits (Great Weapon Fighting's floor, Thrown, Two-
+// Weapon, Dueling; Defense's AC on its face). Beside the unarmed dice: Unarmed Fighting's die is theirs.
+import "./fighting-styles.js";
 // kit-tend.js (2026-09-25, the origin-feat walk — Healer's Battle Medic): its own moment (the kit's
 // use, postUseActivity) and its own line on the kit's card; the healing it drives is heal-rerolls.js's
 // and cast.js's, unchanged.

@@ -77,6 +77,7 @@ const REFERENCE = {
   initiativeSwapList: LIST_SPECS.initiativeSwaps.default,  // the whole initiative-swap table, as shipped (the origin feats, 2026-09-25)
   healRerollList: LIST_SPECS.healRerolls.default,          // the whole healing-reroll table, as shipped (the origin feats, 2026-09-25)
   kitTendList: LIST_SPECS.kitTends.default,               // the whole kit-tending table, as shipped (the origin-feat walk, 2026-09-25)
+  fightingStyleList: LIST_SPECS.fightingStyles.default,   // the whole fighting-style table, as shipped (2026-09-26)
   unarmedDiceList: LIST_SPECS.unarmedDice.default,         // the whole unarmed-dice table, as shipped (the origin-feat walk, 2026-09-25)
   damageEitherList: LIST_SPECS.damageEither.default,        // the whole rolled-twice table, as shipped (Slice A, 2026-09-24)
   tokenLightList: LIST_SPECS.tokenLights.default,           // the whole token-light table, as shipped (the Aasimar walk, 2026-09-25)

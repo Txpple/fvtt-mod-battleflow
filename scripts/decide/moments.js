@@ -710,6 +710,8 @@ export const STATE_KEYS = Object.freeze({
   command: "Commander's Strike directed at an ally — the notice and the chip; the die riding the ally's attack (commandRide) is the resolve, and the use posted its own card",
   reminder: "a gate's reminder record — presentation before the roll",
   restGrant: "a rest card's grant line — presentation; the sheet write rode the rest's own update",
+  fightingStyle: "a damage message's record — a fighting style's number that rode the roll (Great Weapon Fighting's raised dice, Thrown's and Dueling's +2, Two-Weapon's modifier): the card's line, the float, the stats' gain; and the same key on a style's FACE effect (its key, live, its line). Presentation and bookkeeping — the number rode the roll's own config (fighting-styles.js, 2026-09-26)",
+  fightingStyleTakenOver: "an ActiveEffect flag — the pack's own ungated effect on a Fighting Style feat, switched off while the style's face carries the rule; bookkeeping, restored when the style is unlisted (fighting-styles.js, 2026-09-26)",
   unarmedDice: "a damage card's line — Tavern Brawler's die rolled in place of the flat Unarmed Strike; presentation, the formula rode the roll's own config",
   volleyFor: "provenance — a volley's roll names its card",
   volleyTarget: "provenance — a volley's roll names its target",

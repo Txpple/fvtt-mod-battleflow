@@ -72,6 +72,15 @@ const ARTIFACT = join(ROOT, "tools", "dnd5e-hooks.json");
 
 const ALLOW = [
   {
+    hook: "dnd5e.postDamageRollConfiguration",
+    why: "TEMPLATED, the preRoll twin's hole on the other side of the dialog: BasicRoll.buildConfigure "
+      + "dispatches post<HookName>RollConfiguration for every hookName, and a damage roll's hookNames "
+      + "are [damage, ''] (DamageActivity/AttackActivity rollDamage, dnd5e.mjs 9094 and 18270; the '' "
+      + "is buildConfigure's own, 71968), so this fires once per damage roll with the built, unevaluated "
+      + "rolls — the JSDoc names only the generic postRollConfiguration. fighting-styles.js registers it "
+      + "for Great Weapon Fighting's floor; smoke-styles §4 asserts the floor landed (2026-09-26)"
+  },
+  {
     hook: "dnd5e.preRollDamageV2",
     // ⚠ the exact template is `dnd5e.preRoll` + hookName.capitalize() + `V2`; it is written out
     // in this file's header, and NOT quoted here, because a literal dollar-brace inside a string

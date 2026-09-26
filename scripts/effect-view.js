@@ -78,13 +78,24 @@ function ownAuraOf(effect) {
   return !!setting(S.emanations) && listedNames(emanationEntries()).has(lower(row.key));
 }
 
+/**
+ * A fighting style's FACE (fighting-styles.js): kept by the module off the equipped boxes, so it
+ * reads as a worn passive — the panel, never the bar — with its line ("Longsword in one hand", or
+ * why it is off); the pack effect it took over is not shown at all (user, 2026-09-26: "so itd show
+ * in the detailed buff bar").
+ */
+const styleOf = effect => effect.getFlag?.(MODULE_ID, "fightingStyle") ?? null;
+const takenOver = effect => effect.getFlag?.(MODULE_ID, "fightingStyleTakenOver") === true;
+
 /** One effect as the decision layer wants it. */
 function factOf(effect) {
+  const style = styleOf(effect);
   return {
     id: effect.id, name: effect.name, img: effect.img ?? null,
     active: effect.active === true, temporary: effect.isTemporary === true,
     disabled: effect.disabled === true,
-    worn: (effect.parent instanceof Item) && (effect.transfer === true),
+    worn: ((effect.parent instanceof Item) && (effect.transfer === true)) || !!style,
+    style: !!style, detail: style?.detail ?? null,
     aura: ownAuraOf(effect),
     onItem: effect.parent instanceof Item,
     statuses: [...(effect.statuses ?? [])],
@@ -99,7 +110,7 @@ function factOf(effect) {
 /** Every applicable effect on an actor — the sheet's own walk (items' transfer effects included). */
 function factsOf(actor) {
   const effects = typeof actor?.allApplicableEffects === "function" ? [...actor.allApplicableEffects()] : [...(actor?.effects ?? [])];
-  return effects.map(factOf);
+  return effects.filter(e => !takenOver(e)).map(factOf);
 }
 
 /** The sheet's own buffs that are numbers, not effects: temp HP and Heroic Inspiration. */
@@ -132,7 +143,7 @@ function chipHTML(row, { button = false } = {}) {
   const clock = row.clock ? `<span class="clk">${esc(row.clock)}</span>` : (row.detail ? `<span class="dtl">${esc(row.detail)}</span>` : "");
   const inner = `${icon}<span class="txt"><span class="nm">${esc(row.name)}</span>${clock}</span>${tag}`;
   return button
-    ? `<button type="button" class="bf-ev-chip ${row.tone}${row.unavailable ? " unavailable" : ""}" data-row="${esc(row.id)}" title="${esc(row.name)}${row.unavailable ? " — unavailable: suppressed by the platform (unequipped, unattuned or expired)" : ""}">${inner}</button>`
+    ? `<button type="button" class="bf-ev-chip ${row.tone}${row.unavailable ? " unavailable" : ""}" data-row="${esc(row.id)}" title="${esc(row.name)}${row.unavailable ? (row.style ? ` — off: ${esc(row.detail ?? "")}` : " — unavailable: suppressed by the platform (unequipped, unattuned or expired)") : ""}">${inner}</button>`
     : `<span class="bf-ev-chip ${row.tone}" title="${esc(row.name)}">${inner}</span>`;
 }
 
