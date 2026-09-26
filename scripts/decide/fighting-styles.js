@@ -54,11 +54,9 @@ export function faceState(gate, held, dice = {}) {
       return big ? { live: true, word: lc(big), detail: `${big.name}, two hands` }
         : { live: false, word: "unequipped", detail: "no Two-Handed or Versatile melee weapon equipped" };
     }
-    case "thrown": {
-      const t = w.find(i => has(i, "thr"));
-      return t ? { live: true, word: lc(t), detail: `thrown attacks (${t.name})` }
-        : { live: false, word: "unequipped", detail: "no Thrown weapon equipped" };
-    }
+    // always on: the attack's thrown mode is the whole gate, and a thrown weapon need not be
+    // equipped to be thrown (user, 2026-09-26: "the user selects the thrown attack mode")
+    case "thrown": return { live: true, word: "", detail: "thrown attacks" };
     case "offhand": {
       const light = w.filter(i => has(i, "lgt"));
       return ((w.length >= 2) && light.length) ? { live: true, word: lc(light.at(-1)), detail: "the Light weapon's extra attack" }

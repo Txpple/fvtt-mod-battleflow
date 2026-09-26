@@ -748,6 +748,14 @@ Fighting **U1**, *"truesight yes"*. `smoke-styles` (31 checks), `smoke-guards` (
   why when off; never the bar). Where the pack ships an UNGATED effect (Defense, Dueling — their
   notes say "disable it when …"), the machine switches that off and the face carries the rule
   (Defense's AC change, read off the pack's effect); unlisting the style gives it back.
+- **The face on the panel is ONE line** (the walk, 2026-09-26: "i only want one line"):
+  "Fighting Style: Great Weapon Fighting (greatsword)" — the word the item, lowercased, Unarmed
+  Fighting's die, or why it is off (unequipped, unarmored, dual-wielding, two-handed, unpaired);
+  the long reason is the hover title. **Thrown Weapon Fighting's face is always on, no word** —
+  the attack's thrown mode is its whole gate ("the user selects the thrown attack mode").
+- **An equip change that changes a face floats** white over the bearer: "Defense off", "Dueling
+  on", Unarmed Fighting its die; a swap that keeps the face floats nothing. Core's own
+  "+Defense / −Defense" is quieted on every face and takeover write (`animate: false`).
 - **The numbers on the roll** (`preRollDamageV2`, by the attack's own mode): **Great Weapon
   Fighting** floors every damage die of the attack at 3 (`min3`, a crit's doubled dice included —
   "a damage die"), only in two hands with a Two-Handed or Versatile melee weapon; **Thrown Weapon
@@ -755,7 +763,7 @@ Fighting **U1**, *"truesight yes"*. `smoke-styles` (31 checks), `smoke-guards` (
   off-hand attack (dnd5e keeps a negative one already); **Dueling** +2 (the pack's number) with one
   melee weapon in one hand and no other weapon — a Versatile weapon swung two-handed says "Dueling
   off — two hands", and nothing else does (a line on every Greatsword swing was noise).
-- **The notice, option B:** a gold line on the damage card per style that CHANGED the roll
+- **The notice, option B:** a gold line (a deep amber on the light theme — `light-dark()`) on the damage card per style that CHANGED the roll
   ("Great Weapon Fighting — 1 and 2 → 3: +3"), and "+3 Great Weapon Fighting" floated over the
   target once; the `fightingStyle` record carries each style's `gain` for the stats reader
   (ARCHITECTURE §4). A floor that raised nothing leaves no trace.

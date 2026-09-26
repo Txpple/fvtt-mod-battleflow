@@ -23,7 +23,7 @@ export const COVERS = [
 ];
 
 const SECTIONS = {
-  1: 'the faces: Chain Mail, a Longsword and a Shield — Defense live (its AC on the face, the pack effect switched off), Dueling live, Great Weapon Fighting live (the Longsword is Versatile), Thrown and Two-Weapon off with why',
+  1: 'the faces: Chain Mail, a Longsword and a Shield — Defense live (its AC on the face, the pack effect switched off), Dueling live, Great Weapon Fighting live (the Longsword is Versatile), Thrown always on (the thrown mode is its gate), Two-Weapon off with why',
   2: 'a Dagger joins and the armor comes off: Dueling off ("a second weapon held (Dagger)"), Defense off and the AC one lower',
   3: 'Dueling: the Longsword one-handed rolls +2 with "Dueling — +2" and the record; two-handed it adds nothing and says why',
   4: 'Great Weapon Fighting: the Greatsword rolls 1 and 5 — the 1 counts as 3, "1 → 3: +2", the record, the float; 4 and 6 leave no trace',
@@ -195,7 +195,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         && packEffect('Dueling')?.disabled === true, `line="${faceLine('Dueling')}"`);
       ok('1d. Great Weapon Fighting live off the Versatile Longsword', !!g && !g.disabled && /Longsword, two hands/.test(faceLine('Great Weapon Fighting')),
         `line="${faceLine('Great Weapon Fighting')}"`);
-      ok('1e. Thrown and Two-Weapon off, with why', !!t && t.disabled && /no Thrown weapon/.test(faceLine('Thrown Weapon Fighting'))
+      ok('1e. Thrown always on (its gate is the thrown mode); Two-Weapon off, with why', !!t && !t.disabled
         && !!w && w.disabled && /not holding two weapons/.test(faceLine('Two-Weapon Fighting')),
         `thrown="${faceLine('Thrown Weapon Fighting')}" twf="${faceLine('Two-Weapon Fighting')}"`);
       log.push(`§1 AC bare=${acBare} armored=${actor.system.attributes.ac.value}`);
