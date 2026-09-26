@@ -58,15 +58,30 @@ Hooks.on("updateCombatant", (combatant, changes) => {
   // A RESET RE-ARMS (user, 2026-09-25: "if i reset initiative and reroll, alert doesnt retrigger"):
   // the holder's Initiative cleared means the next roll is a new "roll Initiative", so its latch
   // goes and the last roll landing asks again. A number merely changed asks nothing (once per roll).
-  if ( changes.initiative === null ) {
-    if ( combat.getFlag(MODULE_ID, ASKED_FLAG)?.[combatant.id] ) {
-      void combat.update({ [`flags.${MODULE_ID}.${ASKED_FLAG}.-=${combatant.id}`]: null })
-        .catch(err => console.error(`${TITLE} | The initiative swap could not re-arm — swap by hand.`, err));
-    }
-    return;
-  }
+  if ( changes.initiative === null ) { rearm(combat); return; }
   void askFor(combat);
 });
+
+// ⚠ THE TRACKER'S "Reset Initiative" IS NOT A COMBATANT UPDATE: Combat#resetAll (Foundry 14,
+// client/documents/combat.mjs:363) clears every Initiative in its source and writes them back as ONE
+// Combat update (`{combatants: [...]}`, diff false) — no updateCombatant fires. So the re-arm reads
+// the combat's update too (user, 2026-09-25: "reset initiative -- rerolls still not retriggering").
+Hooks.on("updateCombat", (combat, changes) => {
+  if ( !("combatants" in (changes ?? {})) || !isActiveGM() ) return;
+  rearm(combat);
+});
+
+/** Drop the latch of every asked holder whose Initiative is cleared — its next roll asks again. */
+function rearm(combat) {
+  const asked = combat.getFlag(MODULE_ID, ASKED_FLAG) ?? {};
+  const cleared = Object.keys(asked).filter(id => {
+    const c = combat.combatants.get(id);
+    return c && ((c.initiative === null) || (c.initiative === undefined));
+  });
+  if ( !cleared.length ) return;
+  void combat.update(Object.fromEntries(cleared.map(id => [`flags.${MODULE_ID}.${ASKED_FLAG}.-=${id}`, null])))
+    .catch(err => console.error(`${TITLE} | The initiative swap could not re-arm — swap by hand.`, err));
+}
 
 async function askFor(combat) {
   if ( posting.has(combat.id) ) return;
