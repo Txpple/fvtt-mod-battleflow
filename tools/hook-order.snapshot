@@ -34,6 +34,8 @@ updateChatMessage	hold/continue.js
 dnd5e.preApplyDamage	hold/spell-damage.js
 updateChatMessage	hold/spell-damage.js
 dnd5e.renderChatMessage	hold/views.js
+ready	hold/dice.js
+updateChatMessage	hold/dice.js
 dnd5e.rollAttackV2	auto-damage.js
 dnd5e.preRollDamageV2	auto-damage.js
 dnd5e.renderChatMessage	auto-damage.js

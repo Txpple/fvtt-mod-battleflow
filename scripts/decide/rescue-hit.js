@@ -65,11 +65,12 @@ export const needsSecondD20 = mode => mode === "normal";
  * @param {number} args.total     the attack's total as rolled
  * @param {number} [args.critAt]  the attack roll's own critical threshold (20 unless a feature lowers it)
  * @param {number} [args.fumbleAt]
+ * @param {number[]|null} [args.faces]  the attack's d20 faces in the order rolled (bentChips)
  * @returns {{how: "lower"|"cancelled"|"none", first: number, second: number|null, stood: number,
  *            firstTotal: number, total: number, isCritical: boolean, isFumble: boolean,
  *            wasCritical: boolean, changed: boolean}}
  */
-export function disadvantageOutcome({ mode, kept, plain = null, second = null, total, critAt = 20, fumbleAt = 1 }) {
+export function disadvantageOutcome({ mode, kept, plain = null, second = null, total, critAt = 20, fumbleAt = 1, faces = null }) {
   const modifier = Number(total) - Number(kept);
   /** @type {"lower"|"cancelled"|"none"} */
   let how = "none";
@@ -85,8 +86,40 @@ export function disadvantageOutcome({ mode, kept, plain = null, second = null, t
     how, first: Number(kept), second: (mode === "normal") && Number.isFinite(second) ? Number(second) : null,
     stood, firstTotal: Number(total), total: stood + modifier,
     isCritical: stood >= critAt, isFumble: stood <= fumbleAt,
-    wasCritical: Number(kept) >= critAt, changed: stood !== Number(kept)
+    wasCritical: Number(kept) >= critAt, changed: stood !== Number(kept),
+    // the attack's own d20 faces in the order rolled — the dice the canvas shows (bentChips)
+    ...(Array.isArray(faces) ? { faces: faces.map(Number).filter(Number.isFinite) } : {})
   };
+}
+
+/**
+ * THE DICE OF A BENT ROLL, as the canvas shows them (dice-rise.js; the user, 2026-09-26: "rebuild
+ * the shape, start with 1"): every d20 in play, in the order rolled, the one that STANDS gold-edged
+ * and the rest dropped under a strike — red when the drop took a critical with it.
+ *   lower      the attack's die, then the second: the lower stands (a tie keeps the first)
+ *   cancelled  the Advantage pair: the FIRST die stands (the register), the other drops
+ *   none       nothing moved (already at Disadvantage): no dice
+ * @param {{how: string, first: number, second: number|null, stood: number, wasCritical: boolean,
+ *          isCritical: boolean, faces?: number[]}|null} bent
+ * @returns {{label: string, up?: boolean, drop?: boolean, lost?: boolean}[]}
+ */
+export function bentChips(bent) {
+  if ( !bent || (bent.how === "none") ) return [];
+  const lost = !!bent.wasCritical && !bent.isCritical;
+  let dice, keep;
+  if ( bent.how === "lower" ) {
+    if ( !Number.isFinite(bent.second) ) return [];
+    const second = Number(bent.second);
+    dice = [bent.first, second];
+    keep = (second < bent.first) ? 1 : 0;
+  } else {
+    const faces = bent.faces ?? [];
+    dice = (faces.length > 1) ? faces.slice(0, 2) : [bent.stood, bent.first];
+    keep = 0;
+  }
+  return dice.map((v, i) => (i === keep)
+    ? { label: String(v), up: true }
+    : { label: String(v), drop: true, ...((lost && (v === bent.first)) ? { lost: true } : {}) });
 }
 
 /**

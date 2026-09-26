@@ -393,3 +393,55 @@ describe("a guard's row (Protection), the walk 2026-09-26", () => {
     expect(r.futileGuardLine("Protection")).toMatch(/doesn't stack/);
   });
 });
+
+describe("bentChips - the dice of a bent roll (the user, 2026-09-26: start with 1)", () => {
+  it("a plain roll: the attack's die then the second, the lower gold, the other struck", () => {
+    const bent = r.disadvantageOutcome({ mode: "normal", kept: 17, second: 9, total: 22 });
+    expect(r.bentChips(bent)).toEqual([
+      { label: "17", drop: true },
+      { label: "9", up: true }
+    ]);
+    const kept = r.disadvantageOutcome({ mode: "normal", kept: 6, second: 14, total: 11 });
+    expect(r.bentChips(kept)).toEqual([
+      { label: "6", up: true },
+      { label: "14", drop: true }
+    ]);
+  });
+  it("a natural 20 undone: the struck 20 goes red", () => {
+    const bent = r.disadvantageOutcome({ mode: "normal", kept: 20, second: 8, total: 25 });
+    expect(r.bentChips(bent)).toEqual([
+      { label: "20", drop: true, lost: true },
+      { label: "8", up: true }
+    ]);
+  });
+  it("Advantage cancelled: the first die rolled stands, the other drops", () => {
+    const bent = r.disadvantageOutcome({
+      mode: "advantage",
+      kept: 18,
+      plain: 7,
+      total: 23,
+      faces: [7, 18]
+    });
+    expect(r.bentChips(bent)).toEqual([
+      { label: "7", up: true },
+      { label: "18", drop: true }
+    ]);
+    const same = r.disadvantageOutcome({
+      mode: "advantage",
+      kept: 15,
+      plain: 15,
+      total: 20,
+      faces: [15, 4]
+    });
+    expect(r.bentChips(same)).toEqual([
+      { label: "15", up: true },
+      { label: "4", drop: true }
+    ]);
+  });
+  it("already at Disadvantage: nothing moved, no dice", () => {
+    expect(
+      r.bentChips(r.disadvantageOutcome({ mode: "disadvantage", kept: 5, total: 10 }))
+    ).toEqual([]);
+    expect(r.bentChips(null)).toEqual([]);
+  });
+});

@@ -62,6 +62,7 @@ export const LAYER_OF = {
   "hold/clock.js": "machines",
   "hold/trigger.js": "machines",
   "hold/spell-hold.js": "machines",
+  "hold/dice.js": "machines",   // a bent roll's d20s rise over the creature hit (2026-09-26)
   "hold/answer.js": "machines",
   "hold/continue.js": "machines",
   "hold/spell-damage.js": "machines",
@@ -131,6 +132,7 @@ export const LAYER_OF = {
   "geometry.js": "spine",
   "settings.js": "spine",
   "holds.js": "spine",     // the hold registry — what other modules ask before they play (2026-09-09)
+  "dice-rise.js": "spine", // the dice that rise over a token — one renderer, every rule that changes dice (2026-09-26)
   "events.js": "spine",    // the moment events — what the module publishes at a resolve (2026-09-11)
   "lookup.js": "spine",      // the sheet and document readers (the machine-tier pass, Stage 1)
 

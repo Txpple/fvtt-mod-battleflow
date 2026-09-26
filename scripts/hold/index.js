@@ -47,5 +47,6 @@ import "./answer.js";
 import "./continue.js";
 import "./spell-damage.js";
 import "./views.js";
+import "./dice.js";
 
 export { stampHoldIfInterrupted } from "./trigger.js";

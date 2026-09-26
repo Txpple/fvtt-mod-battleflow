@@ -298,7 +298,8 @@ async function bendTheRoll(attackMessage, actor, name) {
       console.error(`${TITLE} | ${name}'s second d20 could not be rolled — the first stands.`, err);
     }
   }
-  return disadvantageOutcome({ mode, kept, plain, second, total: Number(roll.total),
+  const faces = (d20?.results ?? []).filter(r => !r?.rerolled).map(r => r.result);
+  return disadvantageOutcome({ mode, kept, plain, second, total: Number(roll.total), faces,
     critAt: Number(d20?.options?.criticalSuccess ?? roll.options?.criticalSuccess ?? 20),
     fumbleAt: Number(d20?.options?.criticalFailure ?? roll.options?.criticalFailure ?? 1) });
 }

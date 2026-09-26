@@ -20,6 +20,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 export const COVERS = [
   'hold/trigger.js',        // the guards stamped on the held target
   'hold/answer.js',         // a guard's answer, the parties' passes (P1)
+  'hold/dice.js',            // Protection's d20s rise over the creature it guards (2026-09-26)
   'hold/views.js',          // the guard's own popup, the attacker's card naming the guard
   'hold/continue.js',       // "Protected — <guard>" landed at the resolve
   'damage-holds.js',        // Interception: the attack's damage claimed for the guards

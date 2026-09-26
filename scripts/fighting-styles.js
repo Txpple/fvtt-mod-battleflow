@@ -35,6 +35,7 @@ import { FIGHTING_STYLES } from "./decide/registry.js";
 import { heldOf, faceState, rollFits, raisedOf, styleLine, diceOf, chipsOf } from "./decide/fighting-styles.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
+import { riseDice } from "./dice-rise.js";
 import { withTargets } from "./shared.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
 import { openMomentPopup, momentButton, armDeadline, disarmDeadline, livePopups, shownMoments, scheduleBarSync,
@@ -384,57 +385,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
  * and a half. Drawn on the canvas interface like core's scrolling text, and off with core's
  * scrollingStatusText setting like it. Live cards only: a reload replays nothing.
  */
-const GOLD = 0xf3dc9a;
-const Text = () => foundry.canvas.containers.PreciseText;
-function riseDice(token, chips) {
-  if ( !token?.visible || !chips.length || !canvas?.interface || !canvas?.app?.ticker ) return;
-  if ( game.settings.get("core", "scrollingStatusText") === false ) return;
-  const s = canvas.dimensions?.uiScale ?? 1;
-  const size = 30, gap = 6, root = new PIXI.Container();
-  const turns = [];
-  chips.forEach((c, i) => {
-    const chip = new PIXI.Container();
-    chip.position.set(i * (size + gap) + size / 2, size / 2);
-    const glow = new PIXI.Graphics().lineStyle(7, GOLD, 0.55).drawRoundedRect(-size / 2 - 2, -size / 2 - 2, size + 4, size + 4, 7);
-    glow.alpha = 0;
-    const box = new PIXI.Graphics().lineStyle(c.up ? 2.5 : 1.5, c.up ? GOLD : 0xffffff, c.up ? 1 : 0.8)
-      .beginFill(0x14120e, 0.82).drawRoundedRect(-size / 2, -size / 2, size, size, 5).endFill();
-    const style = Text().getTextStyle({ fontSize: c.flat ? 15 : 17, fill: "#ffffff", fontWeight: "bold", stroke: 0x000000, strokeThickness: 3 });
-    const text = new (Text())(c.was ?? c.label, style);
-    text.anchor.set(0.5, 0.5);
-    chip.addChild(glow, box, text);
-    root.addChild(chip);
-    if ( c.up ) turns.push({ chip, glow, text, to: c.label, turned: !c.was });
-  });
-  const width = (chips.length * size) + ((chips.length - 1) * gap);
-  root.pivot.set(width / 2, size);
-  const x = token.center.x, y0 = token.document.y - 8;
-  root.position.set(x, y0);
-  root.alpha = 0;
-  canvas.interface.addChild(root);
-  const start = performance.now(), total = 1700;
-  const tick = () => {
-    const t = performance.now() - start;
-    if ( (t >= total) || root.destroyed ) {
-      canvas.app.ticker.remove(tick);
-      if ( !root.destroyed ) root.destroy({ children: true });
-      return;
-    }
-    // in: 0–250 fade and grow; out: 1000–1700 rise and fade
-    const pop = Math.min(1, t / 250);
-    root.alpha = t < 1000 ? pop : Math.max(0, 1 - ((t - 1000) / 700));
-    root.scale.set(s * (0.6 + (0.4 * pop)));
-    root.position.y = y0 - (t > 1000 ? ((t - 1000) / 700) * 40 * s : 0);
-    for ( const u of turns ) {
-      // 400–600 the turn: the chip folds shut, shows what it counts, opens; the flash peaks at 550
-      const k = (t - 400) / 200;
-      if ( (k >= 0.5) && !u.turned ) { u.text.text = u.to; u.turned = true; }
-      u.chip.scale.y = ((k > 0) && (k < 1)) ? Math.max(0.05, Math.abs(1 - (2 * k))) : 1;
-      u.glow.alpha = (t < 400) ? 0 : Math.max(0, 1 - (Math.abs(t - 550) / 350));
-    }
-  };
-  canvas.app.ticker.add(tick);
-}
+// the drawing is the shared renderer's (dice-rise.js), the fighting styles its first customer
 
 const floated = new Set();
 Hooks.on("createChatMessage", message => {

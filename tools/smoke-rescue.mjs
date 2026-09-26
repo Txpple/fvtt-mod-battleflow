@@ -28,6 +28,7 @@ export const COVERS = [
   'hold/lookup.js',         // the rows — rollRescuesOf, rescueStateOf, rescueRowsNow
   'hold/trigger.js',        // the stamp — a live row holds, all-spent skips, critAtStake
   'hold/answer.js',         // the answer — the spend by hand, the second d20, the sheet's use
+  'hold/dice.js',            // a bent roll's d20s rise over the creature hit (2026-09-26)
   'hold/continue.js',       // the verdict through the composed roll, the held crit's dice
   'hold/views.js'           // the popup ("Rescue the hit"), the attacker's card line
 ];
