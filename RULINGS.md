@@ -869,3 +869,41 @@ damage"*; Interpose Shield **B**, bent by choice (the rule-of-cool table above).
   maneuver folds), Hew, Fey-Touched (Misty Step and its spell, the pack's own free casts), Tough.
 - ⚠ **A world's Fighting Styles list is stored**: the new default adds the two names; a world with
   the old value runs neither until the names are added (or Reset Defaults).
+
+## The PHB feats — the scope (2026-09-26)
+
+**The user's first pass over the 2024 PHB feats not yet in, ruled off one list.** The origin
+feats, the fighting styles and the party's own (above) were in; the rest were read against the
+pack (`tools/scan-corpus.mjs`, the sandbox, 2026-09-26) and sorted. The user pulled back every
+feat whose shape the module already has (*"inspiring leader, its just like musician"*, *"chef
+as well, same shape again"*, *"skulker, some shapes like fs: blind"*, *"keep slasher"*).
+
+- **Out: the epic boons**, all of them (*"scope out epic boons"*).
+- **Out, nothing for Battle Flow to do (19):** Ability Score Improvement, Actor, Athlete,
+  Durable (the pack's effect gives Advantage on death saves; Speedy Recovery is its own
+  activity), Dual Wielder, Heavily Armored, Keen Mind, Lightly Armored, Martial Weapon Training,
+  Medium Armor Master, Moderately Armored, Observant, Resilient, Ritual Caster, Shadow-Touched,
+  Skill Expert, Speedy, Telekinetic, Telepathic.
+- **In, to build (13)** — the precedent row named per feat before a table is chosen (SWEEP §1):
+
+| Feat | What Battle Flow owes | The shape it looks like |
+| --- | --- | --- |
+| Chef | Replenishing Meal's extra 1d8 on the allies' Hit Dice during a Short Rest; Bolstering Treats after a Long Rest (the pack's own heal activities) | Musician's rest grant; the meal lands DURING the rest, the others after |
+| Crossbow Expert | no Disadvantage for a ranged attack within 5 feet | a range-row canceller (SWEEP §3 item 6) |
+| Elemental Adept | the chosen type's resistance ignored; its 1s count as 2s — the pack ships text only | dnd5e's `ignore.resistance` set off the attacker's feat, at the damage chokepoint Heavy Armor Master uses |
+| Inspiring Leader | temp HP to up to six creatures within 30 feet after a Short or Long Rest | Musician's rest grant, a temp-HP grant |
+| Mage Slayer | Disadvantage on the concentration save its damage forces; Guarded Mind turns a failed Int/Wis/Cha save into a success | the concentration machine; a save fold |
+| Piercer | reroll one Piercing damage die once per turn; the crit's extra die | Savage Attacker's damage-die kind |
+| Poisoner | Potent Poison: the poison damage ignores resistance (Apply Poison and the doses are the pack's) | Elemental Adept's, one row |
+| Polearm Master | Reactive Strike when a creature enters the reach | a reaction attack, Riposte's shape — ⚠ the trigger is movement, measure first |
+| Sentinel | the reaction attack on a Disengage or an attack on someone else; Halt, speed 0 on an Opportunity Attack's hit | Polearm Master's, built together |
+| Sharpshooter | cover, long range and an enemy within 5 feet cancelled | the range-row canceller |
+| Skulker | the face titled by the feat; Sniper (a miss does not reveal) measured on 6.0.5 | the gate's sight (`sightOf`) already reads its Blindsight 10; Fog of War is the pack's |
+| Slasher | Hamstring: speed −10 feet on a Slashing hit, once per turn (the crit half is in) | a hit rider, Slow mastery's shape — ⚠ the speed key meets dnd5e 6.0's moved keys (BACKLOG, VF-001) |
+| Spell Sniper | cover and an enemy within 5 feet cancelled for spell attacks | the range-row canceller |
+
+- **Kept open, a lean either way (5):** Charger (the damage or push after a 10-foot straight
+  move — movement the module does not track), Crusher's 5-foot push, Grappler's Punch and Grab,
+  Mounted Combatant's rest (no mount at the table), War Caster's Reactive Spell.
+- ⚠ **Measured, and a comment corrected with the build:** `decide/dice-chips.js` says dnd5e floors
+  Elemental Adept's 1s to 2 on its own; the pack ships the feat as text only, so nothing does.
