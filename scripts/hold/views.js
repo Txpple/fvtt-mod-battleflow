@@ -8,14 +8,15 @@
  * its registration — evaluate first; check-hook-order asserts `ui.js` before `hold/views.js`).
  */
 import { MODULE_ID, S, setting, canAnswerFor, isContinuingClient } from "../core.js";
-import { INTERRUPT_REDUCTIONS } from "../decide/registry.js";
+import { INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "../decide/registry.js";
 import { bfCard, popupKey, holdBarHTML, ruleLine, spendLine, spendPhrase, tickRowsHTML } from "../decide/present.js";
 import { bentLines, liveRows, rescueTitle } from "../decide/rescue-hit.js";
 import { poolOf } from "../shared.js";
 import { openMomentPopup, momentButton, scheduleBarSync, shownMoments } from "../ui.js";
 import { reactionItem, reactionImg, reactionACBonus, rescueRowsNow } from "./lookup.js";
 import { armHoldTimer } from "./clock.js";
-import { answerHold, castReaction, rescueReaction } from "./answer.js";
+import { answerHold, castReaction, rescueReaction, protectReaction } from "./answer.js";
+import { resolveUuid } from "../lookup.js";
 import { continueHold } from "./continue.js";
 import { SURFACES } from "../surfaces.js";
 
@@ -83,7 +84,9 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         tone = "pending";
         eyebrow = "Reaction — held";
         const owner = game.users.find(u => !u.isGM && actor?.testUserPermission(u, "OWNER"));
-        subtitle = `${target.name} · waiting on ${owner?.name ?? "the GM"}`;
+        const guards = (target.guards ?? []).filter(g => !g.passed).map(g => g.name);
+        const self = (target.selfAsk !== false) && !target.selfPassed ? [owner?.name ?? "the GM"] : [];
+        subtitle = `${target.name} · waiting on ${[...self, ...guards].join(", ") || "the GM"}`;
         if ( reveal ) lines.push(revealLine(reveal, target));
         else if ( spell ) lines.push(`<strong>${hold.spell}</strong> · `
           + `${target.reaction} stops it completely`);
@@ -121,9 +124,13 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       // controls, the resumes) belongs to a hold that is done.
       if ( (target.answer === "roll") && target.bent && target.verdict && (hold.status !== "pending") ) {
         const rescue = target.rescue ?? target.reaction;
-        const { headline, detail } = bentLines({ rescue, bent: target.bent, verdict: target.verdict, ac: target.acAtVerdict ?? null });
+        // A guard's (Protection, 2026-09-26): the card says whose — "Protection (Rowan) bent the roll".
+        const by = target.guardedBy ?? null;
+        const label = by ? `${rescue} (${by.name})` : rescue;
+        const { headline, detail } = bentLines({ rescue: label, bent: target.bent, verdict: target.verdict, ac: target.acAtVerdict ?? null });
+        const guardImg = by ? (resolveUuid(by.uuid)?.items?.get(by.itemId)?.img ?? null) : null;
         block.innerHTML = bfCard({
-          img: reactionImg(actor, rescue, {}), eyebrow: `Attack — Disadvantage · ${rescue}`,
+          img: guardImg ?? reactionImg(actor, rescue, {}), eyebrow: `Attack — Disadvantage · ${label}`,
           title: rescue, subtitle: target.name, tone: (target.verdict === "miss") ? "good" : "bad",
           lines: [`<strong>${headline}</strong>`, detail]
         });
@@ -165,8 +172,11 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       // A reload lands here with the hold still open — re-arm the buzzer from the flag's
       // deadline rather than restarting the window.
       armHoldTimer(message);
-      // This target's decision is made; controls belong only to the still-undecided.
-      if ( target.answer || !canAnswerFor(actor) ) return;
+      // This target's decision is made; controls belong only to the still-undecided — the target
+      // itself while it is asked, or a guard beside it (Protection) who has not answered.
+      const selfOpen = (target.selfAsk !== false) && !target.selfPassed && canAnswerFor(actor);
+      const guardOpen = (target.guards ?? []).some(g => !g.passed && canAnswerFor(resolveUuid(g.uuid)));
+      if ( target.answer || (!selfOpen && !guardOpen) ) return;
 
       // ⚠ ONE input surface. When this client gets popups, the popup decides and the card only
       // watches — it offers a way to call the popup BACK (a dismissed popup must never strand
@@ -303,6 +313,16 @@ async function showHoldPopup(attackMessage, hold, { manual = false } = {}) {
     // "passes" card through the response channel.
     if ( target.answer ) continue;
     const actor = await fromUuid(target.uuid);
+    // THE GUARDS (Protection, 2026-09-26, ruled P1): each guard's owner is asked in a popup of its
+    // own, beside whatever the target itself is asked.
+    for ( const guard of (target.guards ?? []) ) {
+      if ( guard.passed ) continue;
+      const guardActor = resolveUuid(guard.uuid);
+      if ( !canAnswerFor(guardActor) ) continue;
+      if ( !manual && game.user.isGM && guardActor?.hasPlayerOwner ) continue;   // the GM's quiet, as below
+      await showGuardPopup(attackMessage, target, guard, guardActor, hold, roll);
+    }
+    if ( (target.selfAsk === false) || target.selfPassed ) continue;
     if ( !canAnswerFor(actor) ) continue;
 
     // THE GM'S UNSOLICITED POPUPS ARE NON-PLAYER-OWNED TARGETS ONLY. This is the save
@@ -350,6 +370,45 @@ async function showHoldPopup(attackMessage, hold, { manual = false } = {}) {
       ]
     });
   }
+}
+
+/**
+ * A GUARD's popup (Protection, the fighting styles 2026-09-26, ruled R1 and P1 off
+ * prototypes/fighting-styles.html): asked of the creature beside the one being hit, after the roll
+ * shows the hit — one tick row, "Protection · Disadvantage · a Reaction", the rule folded; Answer
+ * bends the roll (the second d20, the lower standing), Pass lets the others be asked. Keyed apart
+ * from the target's own popup, so each closes on its own answer.
+ */
+async function showGuardPopup(attackMessage, target, guard, guardActor, hold, roll) {
+  const row = INTERRUPT_ROLLS[guard.row] ?? null;
+  const attacker = attackMessage.getAssociatedActor?.()?.name ?? "The attacker";
+  const weapon = attackMessage.getAssociatedActivity?.()?.item?.name ?? "the attack";
+  const defender = resolveUuid(target.uuid);
+  const reveal = revealDetail(target, roll, defender);
+  const situation = roll?.isCritical ? "<strong>natural 20</strong> — a <strong>critical hit</strong>."
+    : reveal ? `<strong>${reveal.total}</strong> vs AC <strong>${reveal.liveAC}</strong> — a hit.`
+    : `Something hits <strong>${target.name}</strong>.`;
+  const rows = [{ key: guard.row, name: guard.row, dice: "Disadvantage", tag: "a Reaction", off: null, rule: row?.rule ?? "" }];
+  const dialog = await openMomentPopup(attackMessage, `${target.uuid}|${guard.uuid}`, guardActor, {
+    title: `${guard.row} — ${guard.name}`, icon: "fa-solid fa-shield-halved", width: 460,
+    content: bfCard({ img: guardActor?.items?.get(guard.itemId)?.img ?? guardActor?.img ?? null, eyebrow: `Reaction — ${guard.row}`, tone: "pending",
+      title: `${attacker} hits ${target.name}`, subtitle: `${weapon} · ${target.name} is beside you · Reaction` })
+      + holdBarHTML(hold) + `<div style="padding:0.4rem 0.1rem;">${situation}</div>`
+      + tickRowsHTML({ name: "bf-guard", rows }),
+    buttons: [
+      { action: "answer", label: "Answer", default: true, callback: (_event, button) => {
+        if ( !button?.form?.querySelector?.('input[name="bf-guard"]:checked') ) return;
+        void protectReaction(attackMessage, target, guard);
+      } },
+      { action: "pass", label: "Pass", callback: () => answerHold(attackMessage, target.uuid, "pass", { by: guard.uuid }) }
+    ]
+  });
+  // The tick stays even on one row (the rescue popup's ruling): ticked to start, Answer live with it.
+  const form = dialog?.element?.querySelector?.("form") ?? dialog?.element ?? null;
+  const box = form?.querySelector?.('input[name="bf-guard"]') ?? null;
+  const answer = form?.querySelector?.('button[data-action="answer"]') ?? null;
+  if ( box ) box.checked = true;
+  box?.addEventListener("change", () => { if ( answer ) answer.disabled = !box.checked; });
 }
 
 /**

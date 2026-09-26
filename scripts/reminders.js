@@ -13,7 +13,7 @@ import { CHECK_BENDS, CONDITION_BENDS, EFFECT_BENDS, MASTERY_RULES, RANGE_RULES,
 import { parseDice, sneakConditionsHold, sneakWeaponQualifies } from "./decide/sneak.js";
 import { METAMAGIC_FLAG } from "./decide/metamagic.js";
 import { CARD, itemNameOf, originIdInData, rollKindInData } from "./decide/card.js";
-import { feetOf, nearestFeet, tokenOfActor } from "./geometry.js";
+import { feetOf, nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { SURFACES } from "./surfaces.js";
 import { REMINDER_FLAG, checkGate, checkSources, conditionSources, sightOf, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
   reminderRecord, reminderSource, reminderView, rolledWith, saveGate, saveSources } from "./decide/reminders.js";
@@ -377,6 +377,13 @@ function allyNearTarget(attackerToken, targetToken) {
   return false;
 }
 
+/** The feet between a bearer's token and its effect's source's token — null when either is off the scene. */
+function sourceFeetOf(bearer, sourceUuid) {
+  if ( !sourceUuid || (sourceUuid === bearer?.uuid) ) return null;
+  const from = tokenOfActor(bearer), to = tokenForUuid(sourceUuid);
+  return (from && to) ? nearestFeet(from, to) : null;
+}
+
 /** A creature's special senses, in feet — dnd5e 6.0's `senses.ranges`, the flat 5.x keys as a fallback. */
 function sensesOf(actor) {
   const senses = actor?.system?.attributes?.senses ?? {};
@@ -417,11 +424,18 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     const key = e.getFlag(MODULE_ID, "emanation")?.key;
     if ( key ) return key;
     const origin = e.origin ? resolveUuid(e.origin) : null;
-    return (origin instanceof Item) ? origin.name : null;
+    // ⚠ dnd5e 6.0 stamps an APPLIED effect's origin with the ACTIVITY (…Item.x.Activity.y), not the
+    // item — read through to the activity's item, or the `item` discriminator never knows it and
+    // one "Protected" stands for every other (measured 2026-09-26, smoke-guards §2: the fighting
+    // style's effect also counted as Protection from Evil and Good's).
+    const item = (origin instanceof Item) ? origin : ((origin?.item instanceof Item) ? origin.item : null);
+    return item?.name ?? null;
   };
   const sheetOf = actor => ({
     uuid: actor.uuid,
-    effects: actor.effects.filter(live).map(e => ({ id: e.id, name: e.name, sourceUuid: sourceOf(e), item: itemOf(e) })),
+    effects: actor.effects.filter(live).map(e => ({ id: e.id, name: e.name, sourceUuid: sourceOf(e), item: itemOf(e),
+      // how far the effect's source stands from its bearer — a `sourceWithin` row reads it (Protection)
+      sourceFeet: sourceFeetOf(actor, sourceOf(e)) })),
     features: actor.items.filter(i => i.type === "feat").map(i => i.name),
     bloodied: hpFraction(actor) <= 0.5, damaged: hpFraction(actor) < 1,
     grappled: !!actor.statuses?.has?.("grappled"),

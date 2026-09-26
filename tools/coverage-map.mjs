@@ -164,6 +164,12 @@ export const ORDER = [
     name: "smoke-styles", note: "the fighting styles — the faces off the equipped boxes (Defense's AC, Dueling's second weapon), Great Weapon Fighting's floor, Thrown's and Dueling's +2, Two-Weapon's modifier, Unarmed Fighting's die, the line, the record, the float, the list",
     needs: ["fixture-suite"]
   },
+  // The guards (2026-09-26): Protection and Interception answering for the creature beside them —
+  // the three tokens placed for the run, removed after; the same seed as the rows above.
+  {
+    name: "smoke-guards", note: "the guards — Protection's popup beside the defender's own (P1), the bent roll and the card naming the guard, \"Protected — <guard>\" and the gate's Disadvantage within 5 ft; Interception's claim on the attack's damage, the reduction, the pass",
+    needs: ["fixture-suite"]
+  },
   // The effect view's probe joined the battery on 2026-09-23 (change-scoped live testing): it was
   // the one machine no battery suite drove, and an unrun probe rots exactly like an unrun suite.
   // ⚠ ITS OWN SEED, the smoke-metamagic lesson again: it reads the fixture tokens on the range,

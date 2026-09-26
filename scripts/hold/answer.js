@@ -11,10 +11,36 @@ import { joinEffectReceipt } from "../decide/receipt.js";
 import { bfCard } from "../decide/present.js";
 import { INTERRUPT_ROLLS } from "../decide/registry.js";
 import { d20Faces, d20ModeOf, disadvantageOutcome, needsSecondD20, rescueSpendText } from "../decide/rescue-hit.js";
-import { lower } from "../lookup.js";
+import { lower, holdsFor } from "../lookup.js";
 import { spendReaction, poolOf, spendSuperiorityDie, spendPoolUses, reactionSpent } from "../shared.js";
 import { registerRelay } from "../ui.js";
 import { reactionItem, reactionNameFor, applyReactionEffect, reactionACArrived, reactionImg } from "./lookup.js";
+
+/**
+ * ONE ANSWER AMONG SEVERAL ASKED (the fighting styles, 2026-09-26, ruled P1): a held target may be
+ * asked of itself AND of the guards beside it (Protection). Any answer that ACTS — a cast, a bent
+ * roll — settles the target, the first one winning; a PASS settles it only once everyone asked has
+ * passed (a guard's pass must not take the others' chance away), and until then it is recorded on
+ * the one who passed. With no guards this is exactly the old rule: the first answer wins. `by` is
+ * the answering guard's uuid, null for the target itself.
+ * @returns {boolean|"partial"}  true when the target is now answered, "partial" when a pass was only
+ *   recorded, false when there was nothing to record
+ */
+export function recordAnswer(target, answer, by = null) {
+  if ( !target || target.answer ) return false;
+  const guard = by ? (target.guards ?? []).find(g => g.uuid === by) : null;
+  if ( by && (!guard || guard.passed) ) return false;
+  if ( answer === "pass" ) {
+    if ( guard ) guard.passed = true;
+    else if ( target.selfPassed ) return false;
+    else target.selfPassed = true;
+    const selfDone = (target.selfAsk === false) || (target.selfPassed === true);
+    if ( !selfDone || !(target.guards ?? []).every(g => g.passed) ) return "partial";
+  }
+  target.answer = answer;
+  if ( guard && (answer !== "pass") ) target.guardedBy = { uuid: guard.uuid, name: guard.name, itemId: guard.itemId };
+  return true;
+}
 
 /** Record an answer for one held target and continue once every held target has answered.
  * `appliedEffects` (receipt-shaped entries from applyEffectsTo) rides along when the
@@ -22,13 +48,13 @@ import { reactionItem, reactionNameFor, applyReactionEffect, reactionACArrived, 
  * a client that OWNS its message, which is exactly what splits the two branches below:
  * the response message is the answering player's own (receipt embedded at creation), and
  * the direct branch runs only where this client owns the held message itself. */
-export async function answerHold(attackMessage, uuid, answer, { appliedEffects = [], reduceBy = null, poolSpend = null, bent = null, rescue = null } = {}) {
+export async function answerHold(attackMessage, uuid, answer, { appliedEffects = [], reduceBy = null, poolSpend = null, bent = null, rescue = null, by = null } = {}) {
   const hold = foundry.utils.deepClone(attackMessage.getFlag(MODULE_ID, "hold") ?? {});
   if ( hold.status !== "pending" ) return;
   const target = hold.targets?.find(t => t.uuid === uuid);
-  if ( !target || target.answer ) return;                // idempotent: first answer wins
-  target.answer = answer;
-  target.answeredAt = Date.now();   // the crash-resume horizon (the topple discipline)
+  const recorded = recordAnswer(target, answer, by);     // idempotent: the first act wins
+  if ( !recorded ) return;
+  if ( recorded === true ) target.answeredAt = Date.now();   // the crash-resume horizon (the topple discipline)
   if ( Number(reduceBy) > 0 ) target.reduceBy = Number(reduceBy);   // Parry's roll, at the answer
   if ( poolSpend ) target.poolSpend = poolSpend;                      // Parry's die, the spend record
   // A `roll` answer (Slice A, 2026-09-24): which row bent the roll, and what stood — the second
@@ -48,6 +74,25 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
   // the picture should still fire where the player pressed.
   target.answeredBy = game.user.id;
 
+  if ( !attackMessage.isOwner && by ) {
+    // A GUARD's answer (Protection): its own card, in its own voice — who protected whom, the cost.
+    const guard = await fromUuid(by);
+    const guarding = answer === "roll";
+    await ChatMessage.create({
+      content: bfCard({
+        img: guard?.items?.get((target.guards ?? []).find(g => g.uuid === by)?.itemId)?.img ?? null,
+        eyebrow: guarding ? `Reaction — ${rescue}` : "Reaction — passed",
+        title: guarding ? rescue : "Lets it land",
+        subtitle: guarding ? `${guard?.name ?? "A guard"} protects ${target.name}` : `${guard?.name ?? "A guard"} · ${target.name}`,
+        lines: guarding ? [rescueSpendLine(rescue, null)] : [`No reaction — ${guard?.name ?? "the guard"} lets it land.`],
+        tone: guarding ? "good" : "neutral"
+      }),
+      speaker: ChatMessage.getSpeaker({ actor: guard }),
+      flags: { [MODULE_ID]: { respondsTo: attackMessage.id, uuid, answer, by, ac,
+        ...(bent ? { bent } : {}), ...(rescue ? { rescue } : {}) } }
+    });
+    return;
+  }
   if ( !attackMessage.isOwner ) {
     // Say what actually happened, not just "reacts" — this card is the table's record AND
     // the first thing anyone reads when a hold resolves oddly, so it carries the reaction,
@@ -124,8 +169,10 @@ registerRelay("respondsTo", {
   fold: (flag, _response, message) => {
     if ( flag.status !== "pending" ) return false;
     const target = flag.targets?.find(t => t.uuid === message.getFlag(MODULE_ID, "uuid"));
-    if ( !target || target.answer ) return false;
-    target.answer = message.getFlag(MODULE_ID, "answer");
+    // `by` (2026-09-26): a guard's answer — additive to the envelope, absent on every other one.
+    const recorded = recordAnswer(target, message.getFlag(MODULE_ID, "answer"), message.getFlag(MODULE_ID, "by") ?? null);
+    if ( !recorded ) return false;
+    if ( recorded === "partial" ) return;   // a guard's pass, recorded: the others are still asked
     target.answeredAt = Date.now();   // the crash-resume horizon (the topple discipline)
     target.answeredBy = message.author?.id ?? null;   // the gate publishes this moment on THAT user's client
     const reduceBy = Number(message.getFlag(MODULE_ID, "reduceBy"));
@@ -289,6 +336,37 @@ export async function rescueReaction(attackMessage, target, name) {
   if ( row.reaction ) await spendReaction(actor, { origin: item.uuid, what: key });
   const bent = await bendTheRoll(attackMessage, actor, key);
   return answerHold(attackMessage, target.uuid, "roll", { poolSpend, bent, rescue: key });
+}
+
+/**
+ * A GUARD's answer (the fighting styles, 2026-09-26, ruled R1): Protection, from the creature beside
+ * the one being hit — its Reaction spent, the attack roll bent exactly as Lucky's is (the second d20
+ * in the open, the lower standing), the answer recorded on the protected target with who gave it.
+ * The standing half (Disadvantage on every attack against it until the guard's next turn) lands at
+ * the continuation. Refused, and said, when the Reaction went or the Shield came off since the ask.
+ * @param {ChatMessage} attackMessage
+ * @param {object} target  the hold's target entry — the protected creature
+ * @param {object} guard   the entry's guard record
+ */
+export async function protectReaction(attackMessage, target, guard) {
+  const actor = await fromUuid(guard.uuid);
+  const found = rollRow(guard.row);
+  const item = actor?.items.get(guard.itemId) ?? null;
+  if ( !actor || !found || !item ) {
+    ui.notifications.warn(`${TITLE}: could not find ${guard.row} on ${guard.name}.`);
+    return;
+  }
+  if ( reactionSpent(actor) ) {
+    ui.notifications.warn(`${TITLE}: ${guard.name}'s Reaction is already spent this round.`);
+    return;
+  }
+  if ( !holdsFor(actor, found.row.holding) ) {
+    ui.notifications.warn(`${TITLE}: ${guard.name} is not holding ${found.row.holding === "shield" ? "a Shield" : "a Shield or a weapon"} — ${found.key} cannot be used.`);
+    return;
+  }
+  await spendReaction(actor, { origin: item.uuid, what: found.key });
+  const bent = await bendTheRoll(attackMessage, actor, found.key);
+  return answerHold(attackMessage, target.uuid, "roll", { bent, rescue: found.key, by: guard.uuid });
 }
 
 /**

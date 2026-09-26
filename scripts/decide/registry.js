@@ -83,6 +83,11 @@ export const INTERRUPT_MULTIPLIERS = Object.freeze({
  *   by        what the reduction is, in words, for the popup's ask
  *   any       true — "when you take damage": every damage the module applies is held for it, not
  *             only an attack hit (damage-holds.js); Parry's "melee attack roll" is not
+ *   ally      feet — the reduction is for ANOTHER creature within that reach of its owner, never the
+ *             owner itself (Interception, the fighting styles 2026-09-26): an attack's damage to a
+ *             creature is claimed at the applier and every GUARD in reach is asked (damage-holds.js,
+ *             ruled P1: each gets a popup, the first to intercept takes it)
+ *   holding   what the guard must hold: "shieldOrWeapon" (a Shield or a Simple or Martial weapon)
  */
 export const INTERRUPT_REDUCTIONS = Object.freeze({
   "Parry": Object.freeze({ activity: "Heal", pool: true,
@@ -92,7 +97,11 @@ export const INTERRUPT_REDUCTIONS = Object.freeze({
   "Stone's Endurance": Object.freeze({ activity: "Heal", pool: true,
     eyebrow: "Reaction", spend: "use", hit: "attack", by: "1d12 plus your Constitution modifier", any: true,
     rule: "When you take damage, you can take a Reaction to roll 1d12. Add your Constitution modifier to the number rolled and reduce the damage by that total.",
-    from: "Goliath — Giant Ancestry (Stone)" })
+    from: "Goliath — Giant Ancestry (Stone)" }),
+  "Interception": Object.freeze({ activity: "Intercept", pool: false,
+    eyebrow: "Reaction", spend: "Reaction", hit: "attack", by: "1d10 plus your Proficiency Bonus", ally: 5, holding: "shieldOrWeapon",
+    rule: "When a creature you can see hits another creature within 5 feet of you with an attack roll, you can take a Reaction to reduce the damage dealt to the target by 1d10 plus your Proficiency Bonus. You must be holding a Shield or a Simple or Martial weapon to use this Reaction.",
+    from: "Fighting Style feat" })
 });
 
 /**
@@ -124,7 +133,16 @@ export const INTERRUPT_ROLLS = Object.freeze({
   "Shadowy Dodge": Object.freeze({ reaction: true, uses: false, point: null, activity: "Shadowy Dodge",
     after: "teleport up to 30 feet if you wish (the table moves the token)",
     rule: "When a creature makes an attack roll against you, you can take a Reaction to impose Disadvantage on that roll. Whether the attack hits or misses, you can then teleport up to 30 feet to an unoccupied space you can see.",
-    from: "Ranger — Gloom Stalker" })
+    from: "Ranger — Gloom Stalker" }),
+  // `ally` (the fighting styles, 2026-09-26, ruled R1 and P1): the Disadvantage is for ANOTHER
+  // creature within that reach — every GUARD in reach is asked in a popup of its own after the hit
+  // shows (the hold's `guards`), the first to answer bends the roll; the attack card says whose.
+  // `holding` "shield": "interpose your Shield if you're holding one". `effect`: the pack's own
+  // effect the answer then lands on the protected creature ("Protected — <guard>"), until the
+  // start of the guard's next turn — the gate reads it (EFFECT_BENDS "Protected (Protection)").
+  "Protection": Object.freeze({ reaction: true, uses: false, point: null, activity: "Protect", ally: 5, holding: "shield", effect: "Protected",
+    rule: "When a creature you can see attacks a target other than you that is within 5 feet of you, you can take a Reaction to interpose your Shield if you're holding one. You impose Disadvantage on the triggering attack roll and all other attack rolls against the target until the start of your next turn if you remain within 5 feet of the target.",
+    from: "Fighting Style feat" })
 });
 
 /**
@@ -1540,6 +1558,14 @@ export const EFFECT_BENDS = Object.freeze({
   "Protected": Object.freeze({ attacker: null, target: "disadvantage", scope: "any", from: "Protection from Evil and Good", item: "Protection from Evil and Good",
     caveat: "counted — press Normal if the attacker is not an Aberration, Celestial, Elemental, Fey, Fiend or Undead",
     rule: "Creatures of those types have Disadvantage on attack rolls against the target." }),
+  // THE PROTECTION STYLE'S STANDING HALF (2026-09-26): the pack's "Protected" landed on the guarded
+  // creature by the Protection answer (hold/continue.js), named "Protected — <guard>". The key is
+  // taken by the spell's row above, so this row names the effect it reads (`named`) and the item it
+  // comes from; `sourceWithin` — it bends only while its source (the guard) stands within that many
+  // feet of the bearer ("if you remain within 5 feet of the target").
+  "Protected (Protection)": Object.freeze({ named: "Protected", attacker: null, target: "disadvantage", scope: "any", from: "Protection (Fighting Style)", item: "Protection",
+    sourceWithin: 5,
+    rule: "You impose Disadvantage on the triggering attack roll and all other attack rolls against the target until the start of your next turn if you remain within 5 feet of the target." }),
   "Protection from Evil and Good": Object.freeze({ attacker: null, target: "disadvantage", scope: "any", from: "Protection from Evil and Good (2014)",
     caveat: "counted — press Normal if the attacker is not an Aberration, Celestial, Elemental, Fey, Fiend or Undead",
     rule: "Creatures of those types have Disadvantage on attack rolls against the target." }),
@@ -2016,7 +2042,7 @@ export const LIST_SPECS = {
     default: "Shield:ac, Absorb Elements:damage, Uncanny Dodge:damage, Defensive Duelist:ac, "
       + "Illusory Self:ac, Glorious Defense:ac, Parry:ac, Counterattack:ac, Defensive Stance:ac, "
       + "Whirlwind of Sand:ac, Deflect Attacks:damage, Stone's Endurance:damage, "
-      + "Lucky:roll, Warding Flare:roll, Shadowy Dodge:roll"
+      + "Lucky:roll, Warding Flare:roll, Shadowy Dodge:roll, Interception:damage, Protection:roll"
   },
   block: {
     label: "Block List", setting: "blockList",

@@ -16,7 +16,8 @@ import { limitedUses, isReactionItem, isTextOnlyFeature } from "../decide/eligib
 import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS } from "../decide/registry.js";
 import { d20ModeOf, liveRows, plainRule, rescueRows } from "../decide/rescue-hit.js";
 import { interruptEntries } from "../settings.js";
-import { lower, activityNamed, reductionFor } from "../lookup.js";
+import { lower, activityNamed, reductionFor, holdsFor } from "../lookup.js";
+import { alliesWithin, tokenForUuid } from "../geometry.js";
 import { reactionSpent, poolOf, placeOf, chipData } from "../shared.js";
 import { chipClock } from "../decide/chips.js";
 import { applyEffectsTo } from "../effect-riders.js";
@@ -136,6 +137,9 @@ export async function findInterrupt(actor, { isCritical, spentOk = false }) {
     // A reduction row makes the reaction a `damage` interrupt whatever the list's kind says —
     // the Battle Master's Parry beside the Monster Manual's (2026-09-05).
     const reduce = reductionFor(found.item, entry.name);
+    // A reduction for ANOTHER creature (Interception, 2026-09-26) is never its owner's own hold:
+    // it is asked of the guards at the damage (damage-holds.js).
+    if ( reduce?.row?.ally ) continue;
     const kind = reduce ? "damage" : entry.kind;
     // A natural 20 hits regardless of AC, so an AC-type reaction cannot save it — no pause.
     if ( isCritical && (kind === "ac") ) continue;
@@ -188,12 +192,42 @@ export function rollRescuesOf(actor) {
     const key = Object.keys(INTERRUPT_ROLLS).find(k => lower(k) === lower(entry.name));
     const row = key ? INTERRUPT_ROLLS[key] : null;
     if ( !row ) continue;   // a `roll` entry the table has no cost shape for: nothing to spend, never guessed
+    if ( row.ally ) continue;   // Protection's Disadvantage is for another creature: a guard's row (protectionGuardsOf)
     const item = actor.items.find(i => (i.type === "feat") && (lower(i.name) === lower(key))
       && (!row.uses || (Number(i.system?.uses?.max) > 0)));
     if ( !item ) continue;
     const max = row.uses ? Number(item.system.uses.max) : null;
     out.push({ name: key, row, item, activity: activityNamed(item, row.activity),
       left: row.uses ? Math.max(0, Number(item.system.uses.value ?? 0)) : null, max });
+  }
+  return out;
+}
+
+/**
+ * THE GUARDS (the fighting styles, 2026-09-26, ruled R1 and P1): the creatures standing within reach
+ * of a creature being hit that could answer with a listed `roll` row whose rule is for ANOTHER
+ * creature (Protection) — on its side, not the attacker, the row's feat on the sheet, its Reaction
+ * free and holding what the row demands (Protection: a Shield). Each is asked in a popup of its own.
+ * @returns {{uuid: string, name: string, row: string, itemId: string, activityId: string|null, passed: boolean}[]}
+ */
+export function protectionGuardsOf(defender, attacker) {
+  const rows = interruptEntries().filter(e => e.kind === "roll")
+    .map(e => Object.keys(INTERRUPT_ROLLS).find(k => lower(k) === lower(e.name)))
+    .filter(k => k && INTERRUPT_ROLLS[k].ally);
+  if ( !rows.length || !defender ) return [];
+  const guarded = tokenForUuid(defender.uuid);
+  if ( !guarded ) return [];
+  const out = [];
+  for ( const key of rows ) {
+    const row = INTERRUPT_ROLLS[key];
+    for ( const token of alliesWithin(guarded, row.ally, [attacker?.uuid]) ) {
+      const actor = token.actor;
+      if ( out.some(g => g.uuid === actor.uuid) ) continue;
+      const item = actor.items.find(i => (i.type === "feat") && (lower(i.name) === lower(key)));
+      if ( !item || reactionSpent(actor) || !holdsFor(actor, row.holding) ) continue;
+      out.push({ uuid: actor.uuid, name: token.document?.name ?? actor.name, row: key, itemId: item.id,
+        activityId: activityNamed(item, row.activity)?.id ?? null, passed: false });
+    }
   }
   return out;
 }

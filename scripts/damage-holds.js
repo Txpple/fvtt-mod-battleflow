@@ -23,7 +23,8 @@
  * other modifiers to damage").
  * ------------------------------------------------------------------------------------------- */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
-import { lower, itemNamed, resolveUuid, reductionFor } from "./lookup.js";
+import { lower, itemNamed, resolveUuid, reductionFor, holdsFor } from "./lookup.js";
+import { alliesWithin, tokenForUuid } from "./geometry.js";
 import { interruptEntries } from "./settings.js";
 import { INTERRUPT_REDUCTIONS } from "./decide/registry.js";
 import { reduceDamages } from "./decide/verdict.js";
@@ -59,6 +60,33 @@ function anyReductionOf(actor) {
   return null;
 }
 
+/**
+ * THE GUARDS (Interception, the fighting styles 2026-09-26, ruled P1): the creatures within a row's
+ * `ally` reach of the one being hit who could reduce the damage for it — on its side, not the
+ * attacker, the row's feature on the sheet with its reduction, the Reaction free, holding what the
+ * row demands. `[{ actorUuid, actorName, itemId, activityId, formula, passed }]`, with the row's key.
+ */
+function interceptorsFor(defender, attacker) {
+  const guarded = tokenForUuid(defender?.uuid);
+  if ( !guarded ) return null;
+  for ( const entry of interruptEntries() ) {
+    const key = Object.keys(INTERRUPT_REDUCTIONS).find(k => lower(k) === lower(entry.name));
+    const row = key ? INTERRUPT_REDUCTIONS[key] : null;
+    if ( !row?.ally ) continue;
+    const guards = [];
+    for ( const token of alliesWithin(guarded, row.ally, [attacker?.uuid]) ) {
+      const actor = token.actor;
+      const item = itemNamed(actor, key);
+      const found = item ? reductionFor(item, key) : null;
+      if ( !found || reactionSpent(actor) || !holdsFor(actor, row.holding) ) continue;
+      guards.push({ actorUuid: actor.uuid, actorName: token.document?.name ?? actor.name, itemId: item.id,
+        activityId: found.activity.id, formula: found.formula, passed: false });
+    }
+    if ( guards.length ) return { name: key, row, guards };
+  }
+  return null;
+}
+
 /** The damage's plain, serializable shape — and back. */
 const packDamages = damages => damages.map(d => ({ value: Number(d.value) || 0, type: d.type ?? null, properties: [...(d.properties ?? [])] }));
 const unpackDamages = damages => (damages ?? []).map(d => ({ ...d, properties: new Set(d.properties ?? []) }));
@@ -66,7 +94,8 @@ const unpackDamages = damages => (damages ?? []).map(d => ({ ...d, properties: n
 /* --- the claim: before the share lands ------------------------------------------------------- */
 
 registerDamageClaim((receiptMessage, target, actor, damages, { multiplier = 1, note } = {}) => {
-  if ( !listed() ) return false;
+  const own = listed(), guarded = guardsListed();
+  if ( !own && !guarded ) return false;
   if ( !damages?.length || damages.every(d => NOT_DAMAGE.has(d.type)) ) return false;
   // ONE CLAIM PER SHARE (the pass-2 walk, 2026-09-25: "i get two popups instead of 1"): a save's
   // damage reaches the applier twice, and a claimed share has no receipt yet to stop the second
@@ -75,12 +104,23 @@ registerDamageClaim((receiptMessage, target, actor, damages, { multiplier = 1, n
   const at = claimedShares.get(key);
   if ( at && ((Date.now() - at) < CLAIM_WINDOW_MS) ) return true;
   if ( !(Number(actor.system?.attributes?.hp?.value ?? 0) > 0) ) return false;
-  if ( reactionSpent(actor) ) return false;
-  // An attack hit the attack hold already asked this target about stays the hold's.
   const attack = resolveAttackMessage(receiptMessage);
-  if ( attack?.getFlag(MODULE_ID, "hold")?.targets?.some(t => t.uuid === target.uuid) ) return false;
-  const found = anyReductionOf(actor);
-  if ( !found ) return false;
+  // An attack hit the attack hold already asked this target about stays the hold's.
+  const heldByAttack = !!attack?.getFlag(MODULE_ID, "hold")?.targets?.some(t => t.uuid === target.uuid);
+  const found = (own && !reactionSpent(actor) && !heldByAttack) ? anyReductionOf(actor) : null;
+  if ( !found ) {
+    // THE GUARDS (Interception): an ATTACK's damage to a creature with a guard beside it — "hits
+    // another creature within 5 feet of you with an attack roll" — held for the guards to answer.
+    const guards = (guarded && attack) ? interceptorsFor(actor, attack.getAssociatedActor?.() ?? null) : null;
+    if ( !guards ) return false;
+    claimedShares.set(key, Date.now());
+    void stampHold(receiptMessage, target, actor, damages, { multiplier, note }, guards, { guarded: true })
+      .catch(async err => {
+        console.error(`${TITLE} | ${guards.name}'s hold could not be stamped — the damage lands whole.`, err);
+        await applyDamagesWithReceipt(receiptMessage, [target], damages, { multiplier, ...(note ? { note } : {}), held: true });
+      });
+    return true;
+  }
   claimedShares.set(key, Date.now());
   void stampHold(receiptMessage, target, actor, damages, { multiplier, note }, found)
     .catch(async err => {
@@ -91,25 +131,32 @@ registerDamageClaim((receiptMessage, target, actor, damages, { multiplier = 1, n
 });
 
 const listed = () => interruptEntries().some(e => INTERRUPT_REDUCTIONS[Object.keys(INTERRUPT_REDUCTIONS).find(k => lower(k) === lower(e.name))]?.any);
+const guardsListed = () => interruptEntries().some(e => INTERRUPT_REDUCTIONS[Object.keys(INTERRUPT_REDUCTIONS).find(k => lower(k) === lower(e.name))]?.ally);
 
-async function stampHold(receiptMessage, target, actor, damages, { multiplier, note }, found) {
+async function stampHold(receiptMessage, target, actor, damages, { multiplier, note }, found, { guarded = false } = {}) {
   const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
   const amount = Math.floor(damages.reduce((n, d) => n + (Number(d.value) || 0), 0) * multiplier);
   const source = receiptMessage.getAssociatedActor?.() ?? null;
+  // A guarded share (Interception): nobody reacts yet — the guards are asked, the one who
+  // intercepts becomes the reactor (actorUuid) at the answer.
+  const who = guarded ? { actorUuid: null, actorName: null, itemId: null, activityId: null, formula: null, guards: found.guards }
+    : { actorUuid: actor.uuid, actorName: target.name ?? actor.name, itemId: found.item.id, activityId: found.activity.id, formula: found.formula };
   const flag = {
-    status: "pending", actorUuid: actor.uuid, actorName: target.name ?? actor.name,
-    reaction: found.name, itemId: found.item.id, activityId: found.activity.id, formula: found.formula,
+    status: "pending", ...who,
+    reaction: found.name,
     receiptId: receiptMessage.id, target: { uuid: target.uuid, name: target.name ?? actor.name },
     damages: packDamages(damages), multiplier, note: note ?? null, amount,
     sourceName: source?.name ?? null, answer: null, reduceBy: 0, applied: false,
     ...statContext(source?.uuid ?? null),
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
   };
+  const guardNames = guarded ? found.guards.map(g => g.actorName).join(" or ") : null;
   const message = await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
-    content: bfCard({ img: found.item.img, eyebrow: `Reaction — ${found.name}`, tone: "pending",
-      title: `${flag.actorName} is about to take ${amount} damage`,
-      subtitle: source ? `from ${source.name}` : "the damage waits for the answer" }),
+    content: bfCard({ img: guarded ? (resolveUuid(found.guards[0].actorUuid)?.items?.get(found.guards[0].itemId)?.img ?? null) : found.item.img,
+      eyebrow: `Reaction — ${found.name}`, tone: "pending",
+      title: `${target.name ?? actor.name} is about to take ${amount} damage`,
+      subtitle: guarded ? `${guardNames} may intercept${source ? ` · from ${source.name}` : ""}` : (source ? `from ${source.name}` : "the damage waits for the answer") }),
     flags: { [MODULE_ID]: { [HOLD_FLAG]: flag } }
   });
   if ( message ) armTimer(message);
@@ -134,26 +181,53 @@ function armTimer(message) {
 
 /* --- the answer ------------------------------------------------------------------------------- */
 
+/**
+ * One answer folded onto the hold (the keeper's write and the relay's fold share it). A guarded
+ * share (Interception, ruled P1): the first guard to intercept takes it and becomes the reactor; a
+ * guard's pass is recorded and the share lands whole only once every guard has passed.
+ */
+function foldAnswer(current, { answer, reduceBy = 0, poolSpend = null, who = null }) {
+  if ( current.status !== "pending" ) return false;
+  if ( current.guards?.length ) {
+    const guard = current.guards.find(g => g.actorUuid === who);
+    if ( !guard || guard.passed ) return false;
+    if ( answer !== "cast" ) {
+      guard.passed = true;
+      if ( current.guards.every(g => g.passed) ) Object.assign(current, { status: "resolved", answer: "pass", answeredAt: Date.now() });
+      return;
+    }
+    Object.assign(current, { status: "resolved", answer, reduceBy: Number(reduceBy) || 0, poolSpend,
+      actorUuid: guard.actorUuid, actorName: guard.actorName, itemId: guard.itemId, activityId: guard.activityId,
+      formula: guard.formula, answeredAt: Date.now() });
+    return;
+  }
+  Object.assign(current, { status: "resolved", answer, reduceBy: Number(reduceBy) || 0, poolSpend, answeredAt: Date.now() });
+}
+
 /** Cast: the roll in the open, the use and the Reaction spent HERE (their dice), the number folded or relayed. */
-async function answerHold(message, answer) {
+async function answerHold(message, answer, who = null) {
   if ( answering.has(message.id) ) return;
   answering.add(message.id);
   try {
     const flag = message.getFlag(MODULE_ID, HOLD_FLAG);
     if ( flag?.status !== "pending" ) return;
-    const actor = resolveUuid(flag.actorUuid);
+    // A guard answers for itself: its item, its formula, its Reaction.
+    const guard = who ? (flag.guards ?? []).find(g => g.actorUuid === who) : null;
+    if ( flag.guards?.length && !guard ) return;
+    const mine = guard ?? flag;
+    const actor = resolveUuid(mine.actorUuid);
     let reduceBy = 0;
     let poolSpend = null;
     if ( (answer === "cast") && (actor instanceof Actor) ) {
-      const item = actor.items.get(flag.itemId);
-      const activity = item?.system?.activities?.get(flag.activityId) ?? null;
+      const item = actor.items.get(mine.itemId);
+      const activity = item?.system?.activities?.get(mine.activityId) ?? null;
       const pool = activity ? poolOf(actor, activity) : null;
       if ( pool && !(Number(pool.system?.uses?.value ?? 0) > 0) ) {
         ui.notifications.warn(`${TITLE}: ${actor.name} has no uses of ${flag.reaction} left.`);
         answer = "pass";
       } else {
         try {
-          const roll = await new Roll(Roll.replaceFormulaData(String(flag.formula), actor.getRollData())).evaluate();
+          const roll = await new Roll(Roll.replaceFormulaData(String(mine.formula), actor.getRollData())).evaluate();
           await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${flag.reaction} — the die, plus the modifier` });
           reduceBy = Math.max(0, Number(roll.total) || 0);
         } catch(err) {
@@ -164,18 +238,17 @@ async function answerHold(message, answer) {
       }
     }
     if ( keeps(message) ) {
-      await queueFlagWrite(message, HOLD_FLAG, current => {
-        if ( current.status !== "pending" ) return false;
-        Object.assign(current, { status: "resolved", answer, reduceBy, poolSpend, answeredAt: Date.now() });
-      });
+      await queueFlagWrite(message, HOLD_FLAG, current => foldAnswer(current, { answer, reduceBy, poolSpend, who }));
       return;
     }
+    const name = mine.actorName ?? actor?.name ?? "";
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor }),
-      content: bfCard({ img: actor?.items.get(flag.itemId)?.img ?? null, eyebrow: `Reaction — ${flag.reaction}`,
+      content: bfCard({ img: actor?.items.get(mine.itemId)?.img ?? null, eyebrow: `Reaction — ${flag.reaction}`,
         tone: (answer === "cast") ? "good" : "neutral",
-        title: (answer === "cast") ? `${flag.reaction} — ${flag.actorName} reduces the damage by ${reduceBy}` : `${flag.actorName} takes it` }),
-      flags: { [MODULE_ID]: { damageHoldAnswer: { messageId: message.id, answer, reduceBy, poolSpend } } }
+        title: (answer === "cast") ? `${flag.reaction} — ${name} reduces the damage${guard ? ` to ${flag.target?.name}` : ""} by ${reduceBy}`
+          : guard ? `${name} lets it land` : `${name} takes it` }),
+      flags: { [MODULE_ID]: { damageHoldAnswer: { messageId: message.id, answer, reduceBy, poolSpend, ...(who ? { who } : {}) } } }
     });
   } finally {
     answering.delete(message.id);
@@ -186,10 +259,7 @@ registerRelay("damageHoldAnswer", {
   flagKey: HOLD_FLAG,
   targetOf: a => a.messageId,
   owns: (_flag, target) => keeps(target),
-  fold: (current, a) => {
-    if ( current.status !== "pending" ) return false;
-    Object.assign(current, { status: "resolved", answer: a.answer, reduceBy: Number(a.reduceBy) || 0, poolSpend: a.poolSpend ?? null, answeredAt: Date.now() });
-  }
+  fold: (current, a) => foldAnswer(current, { answer: a.answer, reduceBy: a.reduceBy, poolSpend: a.poolSpend ?? null, who: a.who ?? null })
 });
 
 /* --- the landing: the keeper applies the share, short by the roll ------------------------------ */
@@ -215,7 +285,7 @@ async function landHeld(message) {
     if ( multiplier !== 1 ) damages = damages.map(d => ({ ...d, value: Math.floor((Number(d.value) || 0) * multiplier) }));
     damages = reduceDamages(damages, by);
     applyMultiplier = 1;
-    note = `${note ? `${note} · ` : ""}${flag.reaction} — reduced by ${by}`;
+    note = `${note ? `${note} · ` : ""}${flag.reaction}${flag.guards?.length ? ` (${flag.actorName})` : ""} — reduced by ${by}`;
   }
   try {
     await applyDamagesWithReceipt(receipt, [flag.target], damages, { multiplier: applyMultiplier, ...(note ? { note } : {}), held: true });
@@ -232,9 +302,33 @@ registerResumable(HOLD_FLAG, {
 
 /* --- the popup and the card ------------------------------------------------------------------- */
 
+/** A guard's popup (Interception, ruled P1): its own, keyed apart, closed by any intercept or its own pass. */
+async function showGuardPopup(message, guard) {
+  const flag = message.getFlag(MODULE_ID, HOLD_FLAG);
+  if ( (flag?.status !== "pending") || guard.passed ) return;
+  const actor = resolveUuid(guard.actorUuid);
+  const row = INTERRUPT_REDUCTIONS[flag.reaction];
+  await openMomentPopup(message, `${HOLD_FLAG}|${guard.actorUuid}`, actor, {
+    title: `Reaction — ${flag.reaction}`, icon: "fa-solid fa-shield-halved",
+    content: bfCard({ img: actor?.items.get(guard.itemId)?.img ?? null, eyebrow: `Reaction — ${flag.reaction}`, tone: "pending",
+      title: `${flag.sourceName ?? "An attacker"} hits ${flag.target?.name} for ${flag.amount} — intercept?`,
+      subtitle: `${flag.target?.name} is beside you · a Reaction`,
+      lines: [ruleLine(esc(row?.rule ?? "")), `Reduce by ${esc(row?.by ?? guard.formula)}.`] })
+      + holdBarHTML(flag, "to answer"),
+    buttons: [
+      { action: "cast", label: "Intercept", default: true, callback: () => { void answerHold(message, "cast", guard.actorUuid); } },
+      { action: "pass", label: "Pass", callback: () => { void answerHold(message, "pass", guard.actorUuid); } }
+    ]
+  });
+}
+
 async function showPopup(message) {
   const flag = message.getFlag(MODULE_ID, HOLD_FLAG);
   if ( flag?.status !== "pending" ) return;
+  if ( flag.guards?.length ) {
+    for ( const guard of flag.guards ) if ( !guard.passed && canAnswerFor(resolveUuid(guard.actorUuid)) ) await showGuardPopup(message, guard);
+    return;
+  }
   const actor = resolveUuid(flag.actorUuid);
   const row = INTERRUPT_REDUCTIONS[flag.reaction];
   const pool = actor?.items.get(flag.itemId);
@@ -255,8 +349,11 @@ async function showPopup(message) {
 
 /** The card's line — source, then result (law 6). */
 function holdLine(flag) {
-  if ( flag.answer === "cast" ) return `${flag.reaction} — ${flag.actorName} reduces the damage by ${flag.reduceBy}`;
-  if ( flag.answer === "pass" ) return `${flag.actorName} takes the damage${flag.timedOut ? " (timer)" : ""}`;
+  const guarded = !!flag.guards?.length;
+  const to = guarded ? ` to ${flag.target?.name}` : "";
+  if ( flag.answer === "cast" ) return `${flag.reaction} — ${flag.actorName} reduces the damage${to} by ${flag.reduceBy}`;
+  if ( flag.answer === "pass" ) return `${guarded ? flag.target?.name : flag.actorName} takes the damage${flag.timedOut ? " (timer)" : ""}`;
+  if ( guarded ) return `${flag.reaction} — ${flag.guards.filter(g => !g.passed).map(g => g.actorName).join(" or ")} may reduce ${flag.amount} damage${to}; it waits for the answer`;
   return `${flag.reaction} — ${flag.actorName} may reduce ${flag.amount} damage; it waits for the answer`;
 }
 
@@ -273,7 +370,9 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     if ( flag.status === "pending" ) {
       div.insertAdjacentHTML("beforeend", ` ${holdBarHTML(flag, "to answer")}`);
       const actor = resolveUuid(flag.actorUuid);
-      if ( canAnswerFor(actor) ) {
+      const mayAnswer = flag.guards?.length
+        ? flag.guards.some(g => !g.passed && canAnswerFor(resolveUuid(g.actorUuid))) : canAnswerFor(actor);
+      if ( mayAnswer ) {
         const shown = popupKey(message.id, HOLD_FLAG);
         if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showPopup(message); }
         div.appendChild(momentButton("Answer", () => { void showPopup(message); }));
@@ -289,10 +388,20 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 Hooks.on("updateChatMessage", message => {
   const flag = message.getFlag(MODULE_ID, HOLD_FLAG);
   if ( !flag ) return;
-  if ( flag.status === "pending" ) { armTimer(message); return; }
+  if ( flag.status === "pending" ) { armTimer(message); closeGuardPopups(message, flag, false); return; }
   disarmDeadline(timers, message.id);
   const open = livePopups.get(popupKey(message.id, HOLD_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  closeGuardPopups(message, flag, true);
 });
+
+/** The guards' own popups: every one once the share is answered, a passed guard's at once. */
+function closeGuardPopups(message, flag, all) {
+  for ( const guard of (flag?.guards ?? []) ) {
+    if ( !all && !guard.passed ) continue;
+    const open = livePopups.get(popupKey(message.id, `${HOLD_FLAG}|${guard.actorUuid}`));
+    if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  }
+}
 
 Hooks.on("deleteChatMessage", message => { disarmDeadline(timers, message.id); });

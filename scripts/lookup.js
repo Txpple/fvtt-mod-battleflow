@@ -34,6 +34,20 @@ export const itemNamed = (actor, name) => actor?.items?.find(i => sameName(i.nam
 export const featureNamed = (actor, name) =>
   actor?.items?.find(i => (i.type === "feat") && sameName(i.name, name)) ?? null;
 
+/**
+ * Does this creature hold what a guard's row demands (the fighting styles, 2026-09-26)? Holding is
+ * EQUIPPED (the ruling off the prototype): "shield" a Shield; "shieldOrWeapon" a Shield or a Simple
+ * or Martial weapon (Interception). No demand, always.
+ */
+export function holdsFor(actor, holding) {
+  if ( !holding ) return true;
+  const on = (actor?.items ?? []).filter(i => i.system?.equipped === true);
+  const shield = on.some(i => (i.type === "equipment") && (i.system?.type?.value === "shield"));
+  if ( holding === "shield" ) return shield;
+  const weapon = on.some(i => (i.type === "weapon") && ["simpleM", "martialM", "simpleR", "martialR"].includes(i.system?.type?.value));
+  return shield || weapon;
+}
+
 /** The activity on an item by name, or null. */
 export const activityNamed = (item, name) =>
   [...(item?.system?.activities ?? [])].find(a => sameName(a.name, name)) ?? null;

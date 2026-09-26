@@ -458,8 +458,12 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
       default: return true;
     }
   };
+  // `sourceWithin` (Protection, 2026-09-26): the bend stands only while the effect's source stands
+  // within that reach of the bearer — a MEASURED farther source skips it; an unmeasured one counts.
+  const outOfReach = (row, e) => Number.isFinite(row.sourceWithin) && Number.isFinite(e?.sourceFeet) && (e.sourceFeet > row.sourceWithin);
   const carriers = (who, row) => {
-    const name = row.__name.toLowerCase();
+    // `named`: the effect's own name when the row's key cannot be it (a second "Protected")
+    const name = String(row.named ?? row.__name).toLowerCase();
     if ( row.match === "feature" ) {
       return (who.features ?? []).some(f => String(f).toLowerCase() === name) ? [{ id: null }] : [];
     }
@@ -471,21 +475,23 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
     const row = { ...base, __name: key };
     if ( !inScope(row) ) continue;
     const counted = row.counted !== false;
-    const say = (who, bend) => {
-      const label = `${who} — ${key}${labelCaveat(row)}`;
+    const say = (who, bend, /** @type {{name?: string}|null} */ e = null) => {
+      const label = `${who} — ${row.named ? (e?.name ?? row.named) : key}${labelCaveat(row)}`;
       return Object.assign(reminderSource("effect", counted ? bend : null, label, row.rule),
         row.spend ? { spend: row.spend } : {});
     };
     if ( row.attacker && attackerRowHere(row) && judged(row) ) {
       for ( const e of carriers(attacker, row) ) {
         if ( exceptedFor(row, e, target.uuid) || notOnlyFor(row, e, target.uuid) ) continue;
-        out.push(Object.assign(say(attackerName, row.attacker), e.id ? { effectId: e.id } : {}));
+        if ( outOfReach(row, e) ) continue;
+        out.push(Object.assign(say(attackerName, row.attacker, e), e.id ? { effectId: e.id } : {}));
       }
     }
     if ( row.target && targetRowHere && judged(row) ) {
       for ( const e of carriers(target, row) ) {
         if ( exceptedFor(row, e, attacker.uuid) || notOnlyFor(row, e, attacker.uuid) ) continue;
-        out.push(Object.assign(say(`${targetName} is`, row.target), e.id ? { effectId: e.id } : {}));
+        if ( outOfReach(row, e) ) continue;
+        out.push(Object.assign(say(`${targetName} is`, row.target, e), e.id ? { effectId: e.id } : {}));
       }
     }
   }

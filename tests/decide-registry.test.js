@@ -109,7 +109,8 @@ describe("INTERRUPT_REDUCTIONS — a reaction that reduces by a roll (Parry; Sto
   it("every row names its activity, pays from a pool, and carries its own voice — eyebrow, spend, trigger, the ask", () => {
     for (const [key, row] of Object.entries(reg.INTERRUPT_REDUCTIONS)) {
       expect(row.activity, key).toBeTruthy();
-      expect(row.pool, key).toBe(true);
+      // a reduction for another creature (Interception, 2026-09-26) pays with the Reaction alone
+      expect(row.pool === true || Number.isFinite(row.ally), key).toBe(true);
       expect(["Maneuver", "Reaction"], key).toContain(row.eyebrow);
       expect(row.spend, key).toBeTruthy();
       expect(row.hit, key).toMatch(/attack$/);

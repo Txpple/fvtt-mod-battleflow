@@ -8,7 +8,7 @@
  */
 import { MODULE_ID, TITLE, S, setting, drivesMomentFor, statContext } from "../core.js";
 import { spendReaction, statSourceOf } from "../shared.js";
-import { findInterrupt, hasReactionEffect, reactionACBonus, rescueStateOf } from "./lookup.js";
+import { findInterrupt, hasReactionEffect, reactionACBonus, rescueStateOf, protectionGuardsOf } from "./lookup.js";
 import { armHoldTimer } from "./clock.js";
 
 // Reaction-spent bookkeeping — the core click-volume guard (ARCHITECTURE.md §6) — is a CHIP on
@@ -55,21 +55,32 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
     // A live one holds even where the reaction would not — a hopeless Shield leaves the popup, a
     // crit's Shield stays greyed ("a crit ignores AC"), and Disadvantage can always matter.
     const rescue = await rescueStateOf(actor, roll, { found, hidePrimary: futile });
-    // Nothing live — no reaction, and every rescue row spent or none at all: no popup, the way a
-    // spent Reaction has always skipped Shield (the ruling: "all-spent → skip the popup").
-    if ( !found && !rescue?.live ) continue;
+    // THE GUARDS (the fighting styles, 2026-09-26): Protection's Disadvantage from a creature beside
+    // this one — each guard is asked in a popup of its own (P1), the first to answer bends the roll.
+    const guards = protectionGuardsOf(actor, attackMessage.getAssociatedActor?.() ?? null);
+    const guardFields = guards.length ? { guards } : {};
+    // Nothing live — no reaction, every rescue row spent or none at all, and nobody on guard: no
+    // popup, the way a spent Reaction has always skipped Shield ("all-spent → skip the popup").
+    if ( !found && !rescue?.live && !guards.length ) continue;
     const rescueFields = rescue ? { rows: rescue.rows, rescues: rescue.records } : {};
+    if ( !found && !rescue?.live ) {
+      // Only the guards are asked: the defender itself has nothing to take (`selfAsk: false`).
+      held.push({ uuid: target.uuid, name: target.name, ac: target.ac,
+        reaction: guards[0].row, kind: "roll", itemId: null, activityId: null, selfAsk: false,
+        hadEffect: false, ...guardFields, answer: null, verdict: null });
+      continue;
+    }
     if ( !found ) {
       // The first live `roll` row is the hold's own, so every reader of `reaction` / `kind` /
       // `itemId` (the card row, the moment record) names a real ability on the sheet.
       const first = rescue.records.find(r => !rescue.rows.find(x => x.key === r.name)?.off);
       held.push({ uuid: target.uuid, name: target.name, ac: target.ac,
         reaction: first.name, kind: "roll", itemId: first.itemId, activityId: first.activityId,
-        hadEffect: false, ...rescueFields, answer: null, verdict: null });
+        hadEffect: false, ...rescueFields, ...guardFields, answer: null, verdict: null });
       continue;
     }
     held.push({
-      ...rescueFields,
+      ...rescueFields, ...guardFields,
       uuid: target.uuid, name: target.name, ac: target.ac,
       reaction: found.entry.name, kind: found.entry.kind,
       // A reduction reaction (Parry): the formula the answer rolls, off the pack (N1).
@@ -113,7 +124,7 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
     // A CRIT A LIVE DISADVANTAGE CAN UNDO (Slice A, 2026-09-24): the dice are NOT rolled at the
     // hit this once (auto-damage.js reads this) — doubled dice rolled before the answer are wrong
     // the moment the second d20 comes up lower. The continuation rolls them, crit or not.
-    ...((roll.isCritical && held.some(t => t.rows?.some(r => (r.kind === "roll") && !r.off))) ? { critAtStake: true } : {}),
+    ...((roll.isCritical && held.some(t => t.rows?.some(r => (r.kind === "roll") && !r.off) || t.guards?.length)) ? { critAtStake: true } : {}),
     targets: held
   });
   armHoldTimer(attackMessage);

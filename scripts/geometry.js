@@ -31,6 +31,33 @@ export function tokenOfActor(actor) {
   try { return actor.getActiveTokens?.(true, false)?.[0] ?? null; } catch { return null; }
 }
 
+/**
+ * The creatures that could stand GUARD over a token (the fighting styles, 2026-09-26 — Interception
+ * and Protection: "another creature within 5 feet of you"): the tokens on the guarded one's own side
+ * of the table (friendly with friendly, hostile with hostile), alive and not Incapacitated, within
+ * `feet` of it, bar the `exclude` actors (the guarded creature and the attacker). A neutral or secret
+ * guarded token has no side to read, and nobody is asked.
+ * @param {Token} guarded
+ * @param {number} feet
+ * @param {string[]} [exclude]  actor uuids never asked
+ * @returns {Token[]}
+ */
+export function alliesWithin(guarded, feet, exclude = []) {
+  const side = guarded?.document?.disposition;
+  if ( !guarded || ((side !== 1) && (side !== -1)) ) return [];
+  const skip = new Set([guarded.actor?.uuid, ...exclude].filter(Boolean));
+  const out = [];
+  for ( const other of (canvas.tokens?.placeables ?? []) ) {
+    if ( (other === guarded) || (other.document?.disposition !== side) ) continue;
+    const actor = other.actor;
+    if ( !actor || skip.has(actor.uuid) ) continue;
+    if ( ((actor.system?.attributes?.hp?.value ?? 0) <= 0) || actor.statuses?.has?.("incapacitated") ) continue;
+    const d = nearestFeet(other, guarded);
+    if ( (d !== null) && (d <= feet) ) out.push(other);
+  }
+  return out;
+}
+
 /** The canvas token whose actor carries this uuid — a linked actor's or a token's own synthetic one. */
 export function tokenForUuid(uuid) {
   return canvas.tokens?.placeables?.find(t => t.actor?.uuid === uuid) ?? null;

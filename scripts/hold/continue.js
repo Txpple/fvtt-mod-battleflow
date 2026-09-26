@@ -5,7 +5,10 @@
  * popup-closing (presentation law 4) — it sits with the update watcher that calls it, which is
  * what keeps the parts a DAG (views → continue, never back).
  */
-import { MODULE_ID, TITLE, S, setting, queueFlagWrite, isContinuingClient } from "../core.js";
+import { MODULE_ID, TITLE, S, setting, queueFlagWrite, isContinuingClient, drivesMomentFor, canApplyTo } from "../core.js";
+import { chipClock } from "../decide/chips.js";
+import { placeOf, chipData } from "../shared.js";
+import { applyEffectsTo } from "../effect-riders.js";
 import { foldedRoll, interruptMultiplier } from "../decide/verdict.js";
 import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS } from "../decide/registry.js";
 import { rescueSpendText } from "../decide/rescue-hit.js";
@@ -15,6 +18,7 @@ import { bfCard, popupKey, spendPhrase } from "../decide/present.js";
 import { livePopups } from "../ui.js";
 import { reactionItem, hasReactionEffect, applyReactionEffect, reactionACArrived, reactionImg } from "./lookup.js";
 import { disarmHoldTimer } from "./clock.js";
+import { resolveUuid, lower } from "../lookup.js";
 import { continueSpellHold } from "./spell-hold.js";
 
 // Drive the continuation whenever a held message changes and every held target has answered.
@@ -28,6 +32,7 @@ Hooks.on("updateChatMessage", message => {
   closeAnsweredHoldPopups(message);
 
   const hold = message.getFlag(MODULE_ID, "hold");
+  if ( hold?.status === "resolved" ) void landProtection(message, hold);
   if ( !hold || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
   if ( !hold.targets.every(t => t.answer) ) return;
   void continueHold(message);
@@ -222,6 +227,55 @@ async function driveHoldContinuation(attackMessage, hold) {
   if ( hold.critAtStake ) await damageAfterHold(attackMessage);
 }
 
+/**
+ * PROTECTION'S STANDING HALF (the fighting styles, 2026-09-26): "all other attack rolls against the
+ * target until the start of your next turn if you remain within 5 feet of the target". Once a guard's
+ * answer has bent the roll and the hold resolved, the pack's own effect on the guard's feat
+ * ("Protected") lands on the protected creature as "Protected — <guard>", clocked to the start of
+ * the GUARD's next turn (the Reaction chip's window, pinned to the guard's place — the reaction
+ * clock's rule); the gate reads it (EFFECT_BENDS "Protected (Protection)", while the guard stands
+ * within 5 feet). Landed by the client that drives moments for the protected creature, once — the
+ * hold records it where that client may write the attack card, an in-memory set where it may not.
+ */
+const protectionsLanding = new Set();
+async function landProtection(message, hold) {
+  for ( const target of (hold.targets ?? []) ) {
+    const by = target.guardedBy;
+    if ( !by || (target.answer !== "roll") || target.protectLanded ) continue;
+    const key = `${message.id}|${target.uuid}`;
+    if ( protectionsLanding.has(key) || !drivesMomentFor(target.uuid) ) continue;
+    const defender = resolveUuid(target.uuid), guard = resolveUuid(by.uuid);
+    const rowKey = Object.keys(INTERRUPT_ROLLS).find(k => lower(k) === lower(target.rescue ?? ""));
+    const row = rowKey ? INTERRUPT_ROLLS[rowKey] : null;
+    if ( !row?.effect || !(defender instanceof Actor) || !(guard instanceof Actor) || !canApplyTo(defender) ) continue;
+    protectionsLanding.add(key);
+    try {
+      const item = guard.items.get(by.itemId);
+      const effects = (item?.effects?.contents ?? []).filter(e => !e.transfer && (lower(e.name) === lower(row.effect)))
+        .map(e => e.clone({ name: `${e.name} — ${by.name}` }, { keepId: true }));
+      if ( !effects.length ) continue;
+      const clock = chipClock("reaction", placeOf(guard));
+      const entries = await applyEffectsTo([{ uuid: defender.uuid, name: target.name }], effects, {
+        matchNames: true, source: guard.uuid,
+        clock: clock?.start ? chipData(clock) : null,
+        extraFlags: { [MODULE_ID]: { protectedBy: guard.uuid } }
+      });
+      if ( message.isOwner ) {
+        await queueFlagWrite(message, "hold", h => {
+          const t = h.targets?.find(x => x.uuid === target.uuid);
+          if ( !t || t.protectLanded ) return false;
+          t.protectLanded = true;
+        });
+        if ( entries.length ) await queueFlagWrite(message, "effectReceipt", flag => {
+          for ( const entry of entries ) joinEffectReceipt(flag, entry);
+        });
+      }
+    } catch(err) {
+      console.error(`${TITLE} | ${rowKey}'s standing Disadvantage could not land on ${target.name} — apply "${row.effect}" by hand.`, err);
+    }
+  }
+}
+
 /** A target's own bent roll as the fold contribution `foldedRoll` takes — none when unbent. */
 function bentFold(target) {
   const b = target?.bent;
@@ -239,9 +293,12 @@ function bentAnnouncement(actor, target, hit) {
   const found = Object.keys(INTERRUPT_ROLLS).find(k => k.toLowerCase() === String(target.rescue ?? "").toLowerCase());
   const row = found ? INTERRUPT_ROLLS[found] : null;
   const spend = rescueSpendText({ row, poolSpend: target.poolSpend ?? null });
+  // A guard's (Protection, 2026-09-26): the guard's card — who protected whom.
+  const by = target.guardedBy ?? null;
+  const guardImg = by ? (resolveUuid(by.uuid)?.items?.get(by.itemId)?.img ?? null) : null;
   return bfCard({
-    img: reactionImg(actor, target.rescue ?? target.reaction, {}), eyebrow: `Reaction — ${target.rescue ?? target.reaction}`,
-    title: target.rescue ?? target.reaction, subtitle: target.name, tone: hit ? "bad" : "good",
+    img: guardImg ?? reactionImg(actor, target.rescue ?? target.reaction, {}), eyebrow: `Reaction — ${target.rescue ?? target.reaction}`,
+    title: target.rescue ?? target.reaction, subtitle: by ? `${by.name} protects ${target.name}` : target.name, tone: hit ? "bad" : "good",
     lines: [spend, hit ? "It did not turn the hit." : "<strong>The attack misses.</strong>"].filter(Boolean)
   });
 }
@@ -282,7 +339,11 @@ function closeAnsweredHoldPopups(message) {
   if ( !hold?.targets?.length ) return;
   for ( const target of hold.targets ) {
     const dialog = livePopups.get(popupKey(message.id, target.uuid));
-    if ( !dialog ) continue;
-    if ( (hold.status !== "pending") || target.answer ) void dialog.close();
+    if ( dialog && ((hold.status !== "pending") || target.answer || target.selfPassed) ) void dialog.close();
+    // A guard's own popup (Protection): closed by any act on the target, or its own pass.
+    for ( const guard of (target.guards ?? []) ) {
+      const own = livePopups.get(popupKey(message.id, `${target.uuid}|${guard.uuid}`));
+      if ( own && ((hold.status !== "pending") || target.answer || guard.passed) ) void own.close();
+    }
   }
 }
