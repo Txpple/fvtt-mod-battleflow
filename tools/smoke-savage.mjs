@@ -229,7 +229,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1a. the popup asks: the tick row names Savage Attacker with "1d6 again" and "once per turn", the rule folded under; a 2 is under the average, so the die meter reads low, the row starts TICKED and "Roll again" is live (the hint, option D)',
         !!popup && /Savage Attacker/.test(textOf(popup.element)) && /1d6 again/.test(textOf(popup.element)) && /once per turn/i.test(textOf(popup.element))
           && /the rule/.test(textOf(popup.element)) && !!popup.element.querySelector('[data-bf-die-meter="low"]')
-          && /67% a second roll beats it/.test(textOf(popup.element)) && box?.checked === true && rollBtn?.disabled === false,
+          && /67% a second roll beats it/.test(textOf(popup.element)) && box?.checked === true && rollBtn?.disabled === false && rollBtn?.hasAttribute('data-bf-default'),
         `popup=${!!popup} text="${textOf(popup?.element).slice(0, 260)}" checked=${box?.checked} disabled=${rollBtn?.disabled}`);
       if (box?.checked) box.click();
       ok('1e. unticking the row darkens "Roll again"; ticking it lights it again', rollBtn?.disabled === true, `disabled=${rollBtn?.disabled}`);
@@ -278,7 +278,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const keepBtn = popup?.element?.querySelector('button[data-action="keep"]');
       ok('3c. a 5 is above the average: the meter reads high, the row starts UNTICKED and "Keep the roll" is the default (the hint, option D)',
         !!popup?.element?.querySelector('[data-bf-die-meter="high"]') && box?.checked === false
-          && !!keepBtn && (keepBtn.classList.contains('default') || keepBtn.hasAttribute('autofocus')),
+          && !!keepBtn?.hasAttribute('data-bf-default') && !popup.element.querySelector('button[data-action="again"][data-bf-default]'),
         `checked=${box?.checked} keep=${keepBtn?.outerHTML?.slice(0, 160)}`);
       faces([[2, 6]]);
       tick(popup);

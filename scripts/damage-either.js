@@ -32,9 +32,9 @@ import { damageEitherEntries, listedNames } from "./settings.js";
 import { hitTargets, turnChitStands, writeTurnChit, rebuildRolls } from "./shared.js";
 import { DAMAGE_EITHER } from "./decide/registry.js";
 import { weaponDiceOf, setFormula, setTotal, eitherOutcome, eitherPatch, eitherDue, eitherCardLine, eitherOdds } from "./decide/damage-dice.js";
-import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML, dieMeterHTML } from "./decide/present.js";
+import { TONE, bfCard, esc, holdBarHTML, popupKey, tickRowsHTML, dieMeterHTML } from "./decide/present.js";
 import { openMomentPopup, momentButton, armDeadline, disarmDeadline, livePopups, scheduleBarSync,
-  dramaticVerdictPause, registerResumable } from "./ui.js";
+  dramaticVerdictPause, registerResumable, markDefaultButton } from "./ui.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { moveAppliedDamage } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
@@ -189,6 +189,11 @@ async function showEitherPopup(message) {
   const form = dialog?.element?.querySelector?.("form") ?? dialog?.element ?? null;
   const button = form?.querySelector?.('button[data-action="again"]');
   const box = form?.querySelector?.('input[name="bf-either"]');
+  // THE LEAN SHOWS (user, 2026-09-25: "savage attacker should default the button roll/keep to
+  // below/above avg"): the leaned button wears the default mark in the meter's hue — Roll again
+  // orange under the average, Keep the roll green at or above it — without taking the keyboard.
+  if ( form && flag.odds ) markDefaultButton(form, lean ? "again" : "keep",
+    { hue: lean ? TONE.pending : TONE.good, focus: false, buttons: SURFACES.dialogFooter });
   if ( button && box ) {
     box.checked = !!flag.odds?.low;
     button.disabled = !box.checked;
