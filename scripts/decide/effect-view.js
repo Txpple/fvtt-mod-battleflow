@@ -37,6 +37,7 @@ export const MARK_KEYS = Object.freeze(["vex", "sap", "slow"]);
  * @property {boolean} [onItem]      the effect document belongs to an item on the sheet, not the actor
  * @property {boolean} [disabled]    the sheet's own toggle is OFF (distinct from suppressed: `active` false with the toggle on)
  * @property {boolean} [style]       a fighting style's FACE (fighting-styles.js) — a passive the module keeps off the equipped boxes; off means the module disabled it
+ * @property {string|null} [styleFeat]  the Fighting Style feat an item effect rides (Blind Fighting's senses) — titled by the feat
  * @property {string|null} [detail]  the face's long line — the hover title: what it reads when live, why when off
  * @property {{key: string, mode: number, value: string|number}[]} [changes]  the effect's own changes
  * @property {boolean|null} [hostileOrigin]  the origin's creature stands on the other side from the bearer; null when unknown
@@ -171,9 +172,10 @@ export function rowAction(row, { owner }) {
 function rowOf(f) {
   return {
     id: f.id, onItem: f.worn === true || f.onItem === true,
-    // a fighting style's face is ONE line, no suffix (user, 2026-09-26: "just remove the (weapon)
-    // suffix. the player can figure things out"); why it is off stays the hover title
-    name: f.style ? `Fighting Style: ${f.name}` : f.name,
+    // a fighting style reads by its feat, one line, no suffix (user, 2026-09-26: "just remove the
+    // (weapon) suffix"; "make it consistent, so it would be Fighting Stlye: Blindfighting, etc,
+    // whatever the official feat name is") — the module's faces and a style feat's own effects alike
+    name: f.style ? `Fighting Style: ${f.name}` : f.styleFeat ? `Fighting Style: ${f.styleFeat}` : f.name,
     img: f.img ?? null, tone: toneOf(f), clock: f.clock ?? "",
     ...(f.style ? { style: true, why: f.detail ?? "" } : {}),
     noIcon: f.temporary !== true && !(f.statuses ?? []).length

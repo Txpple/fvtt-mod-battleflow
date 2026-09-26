@@ -750,7 +750,9 @@ Fighting **U1**, *"truesight yes"*. `smoke-styles` (31 checks), `smoke-guards` (
   (Defense's AC change, read off the pack's effect); unlisting the style gives it back.
 - **The face on the panel is ONE line, no suffix** (the walk, 2026-09-26: "i only want one line";
   then "just remove the (weapon) suffix. the player can figure things out"): "Fighting Style:
-  Great Weapon Fighting"; why it is off is the hover title. **Thrown Weapon Fighting's face is
+  Great Weapon Fighting"; why it is off is the hover title. Consistent across every style
+  ("whatever the official feat name is"): a Fighting Style feat's OWN effect (Blind Fighting's
+  senses) is titled by the feat too, found by dnd5e's `fightingStyle` subtype. **Thrown Weapon Fighting's face is
   always on** — the attack's thrown mode is its whole gate ("the user selects the thrown attack
   mode").
 - **An equip change that changes a face floats** white over the bearer: "Defense off", "Dueling

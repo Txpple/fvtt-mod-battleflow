@@ -87,6 +87,14 @@ function ownAuraOf(effect) {
 const styleOf = effect => effect.getFlag?.(MODULE_ID, "fightingStyle") ?? null;
 const takenOver = effect => effect.getFlag?.(MODULE_ID, "fightingStyleTakenOver") === true;
 
+/** The Fighting Style feat an item effect rides (Blind Fighting's senses), by dnd5e's own subtype. */
+const styleFeatOf = effect => {
+  const item = effect.parent;
+  if ( !(item instanceof Item) || (item.system?.type?.subtype !== "fightingStyle") ) return null;
+  // the class's own "Fighting Style" feature names no style — its effect's name does
+  return lower(item.name) === "fighting style" ? effect.name : item.name;
+};
+
 /** One effect as the decision layer wants it. */
 function factOf(effect) {
   const style = styleOf(effect);
@@ -95,7 +103,7 @@ function factOf(effect) {
     active: effect.active === true, temporary: effect.isTemporary === true,
     disabled: effect.disabled === true,
     worn: ((effect.parent instanceof Item) && (effect.transfer === true)) || !!style,
-    style: !!style, detail: style?.detail ?? null,
+    style: !!style, detail: style?.detail ?? null, styleFeat: styleFeatOf(effect),
     aura: ownAuraOf(effect),
     onItem: effect.parent instanceof Item,
     statuses: [...(effect.statuses ?? [])],

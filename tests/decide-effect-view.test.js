@@ -342,4 +342,16 @@ describe('a fighting style\'s face in the panel (user, 2026-09-26: "i only want 
     expect(row.why).toBe("Greatsword, two hands");
     expect(row.detail).toBeUndefined();
   });
+  it("titles a Fighting Style feat's own effect by the feat (Blind Fighting's senses)", () => {
+    const senses = fact({
+      name: "Blindsight",
+      temporary: false,
+      worn: true,
+      clock: "",
+      styleFeat: "Blind Fighting"
+    });
+    expect(panelGroups([senses]).flatMap(g => g.rows)[0].name).toBe(
+      "Fighting Style: Blind Fighting"
+    );
+  });
 });
