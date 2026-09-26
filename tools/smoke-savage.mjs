@@ -206,7 +206,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const either = dmg => dmg?.getFlag(MOD, 'either') ?? null;
     const tick = popup => { const box = popup?.element?.querySelector('input[name="bf-either"]'); if (box && !box.checked) box.click(); return box; };
-    const press = (popup, action) => popup?.element?.querySelector(`button[data-action="${action}"]`)?.click();
+    // The tick picks the live button (the hint, option D: a low first roll starts TICKED, which
+    // greys "Keep the roll"), so a press sets the tick first, as a player would — a click on the
+    // greyed button left the popup open and cascaded into §6, §7 and §9 (the battery of 2026-09-26).
+    const press = (popup, action) => {
+      const box = popup?.element?.querySelector('input[name="bf-either"]');
+      if (box && (box.checked !== (action === 'again'))) box.click();
+      popup?.element?.querySelector(`button[data-action="${action}"]`)?.click();
+    };
     const receiptOf = dmg => dmg?.getFlag(MOD, 'receipt') ?? null;
     const startCombat = async () => {
       if (game.combat) await game.combat.delete();

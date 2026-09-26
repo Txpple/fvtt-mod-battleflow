@@ -84,11 +84,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const entries = game.modules.get(MODULE_ID)?.api?.registries?.d20Folds?.() ?? [];
       // Since 2026-09-05 the shipped list also carries the two SCOPED tactical rows (Ambush,
       // Tactical Assessment), and since 2026-09-09 Seeking Spell (the metamagic pass's reroll on a
-      // spell attack's miss); what this asserts is that every entry is one of the four kinds and
-      // each kind is represented.
-      ok("all four kinds are listed and live",
-        (entries.length >= 4) && entries.every(e => ["heroic", "tactical", "bardic", "seeking"].includes(e.kind))
-          && ["heroic", "tactical", "bardic", "seeking"].every(k => entries.some(e => e.kind === k)),
+      // spell attack's miss), and since 2026-09-25 Lucky's `advantage` (the Halfling walk); what this
+      // asserts is that every entry is one of the five kinds (D20_FOLD_KINDS) and each is represented.
+      const KINDS = ["heroic", "tactical", "bardic", "seeking", "advantage"];
+      ok("all five kinds are listed and live",
+        (entries.length >= KINDS.length) && entries.every(e => KINDS.includes(e.kind))
+          && KINDS.every(k => entries.some(e => e.kind === k)),
         JSON.stringify(entries));
 
       ok("heroic marker is a boolean on the sheet",

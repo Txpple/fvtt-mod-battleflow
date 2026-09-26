@@ -151,6 +151,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('saves', false);
     await set('saveTimer', 1);
     await set('maneuverFolds', 'Precision Attack:precision, Riposte:riposte');
+    // The rows §B, §I and §H drive. Each sets them itself: §T (between §B and §I) rewrites the
+    // list for Tavern Brawler, and §I/§H once rode §B's write (the battery of 2026-09-26).
+    const SUITE_FOLDS = 'Precision Attack:precision, Riposte:riposte, '
+      + 'BF Shield Master:bash, BF Shield Master:interpose, BF Great Weapon Master:hew';
 
     // -------------------------------------------------- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
@@ -724,8 +728,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     /* ============================================== B — finding ⑤: the bash choice (Prone or push) */
     if (want('B')) {
       await set('saves', true);
-      await set('maneuverFolds', 'Precision Attack:precision, Riposte:riposte, '
-        + 'BF Shield Master:bash, BF Shield Master:interpose, BF Great Weapon Master:hew');
+      await set('maneuverFolds', SUITE_FOLDS);
       // The bash fixture: a listed feat whose save activity presses an effect on failure —
       // the Shield Bash shape (DC 30 so the victim ALWAYS fails; effect wired by REAL id
       // after creation, never by assumed keepId).
@@ -1028,6 +1031,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want('I')) {
       // The saver's side: an equipped shield + the listed feat on the VICTIM, a DEX half-damage
       // demand from the PC (DC 1 + dex 16 so the victim ALWAYS saves).
+      await set('maneuverFolds', SUITE_FOLDS);   // its own row — §T above rewrites the list
       priorActor[victim.id]['system.abilities.dex.value'] = victim.system._source.abilities.dex.value;
       await victim.update({ 'system.abilities.dex.value': 16 });
       {
@@ -1150,6 +1154,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     /* ============================================== H — ② + (c): the Hew reminder POPS now */
     if (want('H')) {
+      await set('maneuverFolds', SUITE_FOLDS);   // its own row — §T above rewrites the list
       {
         // The bash feat and the blasts leave first — their offers would stack popups onto
         // H's swings and muddy the dialog asserts. ⚠ BY NAME, not by binding: those fixtures

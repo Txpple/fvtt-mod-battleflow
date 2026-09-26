@@ -20,8 +20,8 @@ export const COVERS = [
 ];
 
 const SECTIONS = {
-  1: 'an attack: the dialog shows "Lucky — 1 Luck Point · 3 left" with an Advantage tick, the default Normal; the tick moves the net and the default to Advantage; pressed, the roll goes out at Advantage, a Luck Point is spent, the record names Lucky',
-  2: 'a save left unticked: the box shows "2 left"; pressed Normal, nothing is spent and no record names Lucky',
+  1: 'an attack: the dialog shows "Lucky — 1 Luck Point · N left" (the full pool) with an Advantage tick, the default Normal; the tick moves the net and the default to Advantage; pressed, the roll goes out at Advantage, a Luck Point is spent, the record names Lucky',
+  2: 'a save left unticked: the box shows one point short of full; pressed Normal, nothing is spent and no record names Lucky',
   3: 'the tick beside a Disadvantage (Poisoned, a Stealth check): the net reads Normal, the default Normal; pressed, the use still goes (the rule allows it)',
   4: 'no Luck Points left: the box stays, greyed, "no Luck Points left", no tick',
   5: 'initiative\'s own dialog: the box shows; ticked and pressed, the initiative rolls at Advantage, a point spent, and the no-dialog fold stands aside (no second offer)',
@@ -67,6 +67,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const lucky = () => halfling.items.find(i => (i.name === 'Lucky') && (Number(i.system?.uses?.max) > 0));
   if (!lucky()) return { fatal: 'BF Test Halfling lacks the Lucky FEAT (with Luck Points) — re-run fixture-suite' };
   const luckLeft = () => Number(lucky()?.system?.uses?.value ?? -1);
+  // The pool is the fixture's proficiency (Rogue 3: 2 points) — every count reads off it, never a
+  // literal (the first battery, 2026-09-26, pinned the level-5 roster Halfling's 3).
+  const FULL = Number(lucky()?.system?.uses?.max ?? 0);
+  const ONE_SPENT = FULL - 1;
 
   const created = { tokens: [] };
   let combat = null;
@@ -197,8 +201,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       void attackAct().rollAttack({}, {}, {});
       const dlg = await openDialog();
       const box = boxOf(dlg);
-      ok('1a. the box: "Lucky — 1 Luck Point · 3 left", an Advantage tick, the default Normal',
-        /Lucky — 1 Luck Point · 3 left/.test(textOf(box)) && !!tickOf(dlg) && (defaultOf(dlg) === 'normal'),
+      ok('1a. the box: "Lucky — 1 Luck Point · N left" (the full pool), an Advantage tick, the default Normal',
+        new RegExp(`Lucky — 1 Luck Point · ${FULL} left`).test(textOf(box)) && !!tickOf(dlg) && (defaultOf(dlg) === 'normal'),
         `box="${textOf(box).slice(0, 80)}" tick=${!!tickOf(dlg)} default=${defaultOf(dlg)}`);
       await tick(dlg);
       ok('1b. ticked: the net and the default move to Advantage', (netOf(dlg) === 'advantage') && (defaultOf(dlg) === 'advantage'),
@@ -208,8 +212,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(600);
       const rec = msg?.getFlag(MOD, 'reminder');
       ok('1c. pressed: the roll went out at Advantage, a Luck Point spent, the record names Lucky and the spend',
-        (Number(msg?.rolls?.[0]?.options?.advantageMode) === 1) && (luckLeft() === 2)
-          && (rec?.sources ?? []).some(s => (s.kind === 'buy') && /Lucky/.test(s.label)) && (msg?.getFlag(MOD, 'poolSpend')?.left === 2),
+        (Number(msg?.rolls?.[0]?.options?.advantageMode) === 1) && (luckLeft() === ONE_SPENT)
+          && (rec?.sources ?? []).some(s => (s.kind === 'buy') && /Lucky/.test(s.label)) && (msg?.getFlag(MOD, 'poolSpend')?.left === ONE_SPENT),
         `mode=${msg?.rolls?.[0]?.options?.advantageMode} left=${luckLeft()} rec=${JSON.stringify(rec?.sources)} spend=${JSON.stringify(msg?.getFlag(MOD, 'poolSpend'))}`);
       await closeDialogs();
     }
@@ -219,13 +223,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await refillLuck(); await lucky()?.update({ 'system.uses.spent': 1 }); await closeDialogs();
       void halfling.rollSavingThrow({ ability: 'dex' });
       const dlg = await openDialog();
-      ok('2a. the save dialog carries the box, "2 left"', /Lucky — 1 Luck Point · 2 left/.test(textOf(boxOf(dlg))), `box="${textOf(boxOf(dlg)).slice(0, 80)}"`);
+      ok('2a. the save dialog carries the box, one point short of full', new RegExp(`Lucky — 1 Luck Point · ${ONE_SPENT} left`).test(textOf(boxOf(dlg))), `box="${textOf(boxOf(dlg)).slice(0, 80)}"`);
       const before = game.messages.size;
       press(dlg, 'normal');
       await waitFor(() => game.messages.size > before, 6000);
       await sleep(500);
       const msg = game.messages.contents.at(-1);
-      ok('2b. pressed Normal unticked: nothing spent, no record names Lucky', (luckLeft() === 2)
+      ok('2b. pressed Normal unticked: nothing spent, no record names Lucky', (luckLeft() === ONE_SPENT)
         && !(msg?.getFlag(MOD, 'reminder')?.sources ?? []).some(s => s.kind === 'buy') && !msg?.getFlag(MOD, 'poolSpend'),
         `left=${luckLeft()} rec=${JSON.stringify(msg?.getFlag(MOD, 'reminder'))}`);
       await closeDialogs();
@@ -247,7 +251,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       press(dlg, 'normal');
       await waitFor(() => game.messages.size > before, 6000);
       await sleep(600);
-      ok('3c. pressed Normal: the Luck Point is spent all the same', luckLeft() === 2, `left=${luckLeft()}`);
+      ok('3c. pressed Normal: the Luck Point is spent all the same', luckLeft() === ONE_SPENT, `left=${luckLeft()}`);
       await dropPoisoned();
       await set('reminderList', 'buy');
       await closeDialogs();
@@ -273,7 +277,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       faces([[6, 20], [14, 20]]);
       void halfling.rollInitiativeDialog();
       const dlg = await openDialog();
-      ok('5a. initiative\'s dialog carries the box', /Lucky — 1 Luck Point · 3 left/.test(textOf(boxOf(dlg))), `box="${textOf(boxOf(dlg)).slice(0, 80)}"`);
+      ok('5a. initiative\'s dialog carries the box', new RegExp(`Lucky — 1 Luck Point · ${FULL} left`).test(textOf(boxOf(dlg))), `box="${textOf(boxOf(dlg)).slice(0, 80)}"`);
       await tick(dlg);
       press(dlg, 'advantage');
       const initMsg = await waitFor(() => game.messages.contents.slice(-6).reverse().find(m => m.getFlag('core', 'initiativeRoll') && (m.timestamp >= suiteStart)) ?? null, 8000);
@@ -282,7 +286,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const roll = initMsg?.rolls?.[0];
       ok('5b. the initiative rolled at Advantage (14 kept), a point spent, the roll marked bought',
         (Number(roll?.options?.advantageMode) === 1) && (Number(roll?.d20?.total) === 14) && (init === roll?.total)
-          && (luckLeft() === 2) && (roll?.options?.bfBought === 'Lucky'),
+          && (luckLeft() === ONE_SPENT) && (roll?.options?.bfBought === 'Lucky'),
         `mode=${roll?.options?.advantageMode} d20=${roll?.d20?.total} init=${init} total=${roll?.total} left=${luckLeft()} bought=${roll?.options?.bfBought}`);
       ok('5c. the no-dialog fold stands aside — no Lucky offer on that roll', !(initMsg?.getFlag(MOD, 'd20fold')?.offers ?? []).some(o => o.kind === 'advantage'),
         `fold=${JSON.stringify(initMsg?.getFlag(MOD, 'd20fold')?.offers)}`);
@@ -293,10 +297,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const noDialog = async (first, second) => {
       await refillLuck(); await closeDialogs();
       const combatant = await newCombat();
+      // THIS roll's message: the fold's flag is stamped just after the message posts, so "the newest
+      // with the flag" found §6's message in §7 (the first battery, 2026-09-26) — exclude the old ones.
+      const seen = new Set(game.messages.contents.map(m => m.id));
       faces([[first, 20]]);
       await combat.rollInitiative([combatant.id], { updateTurn: false });
       const initMsg = await waitFor(() => game.messages.contents.slice(-6).reverse()
-        .find(m => m.getFlag('core', 'initiativeRoll') && (m.timestamp >= suiteStart) && m.getFlag(MOD, 'd20fold')) ?? null, 8000);
+        .find(m => !seen.has(m.id) && m.getFlag('core', 'initiativeRoll') && m.getFlag(MOD, 'd20fold')) ?? null, 8000);
       const flag = initMsg?.getFlag(MOD, 'd20fold');
       const offered = (flag?.testKind === 'initiative') && (flag?.offers ?? []).some(o => (o.kind === 'advantage') && (o.label === 'Lucky'));
       const win = await waitFor(() => rescueWindow('Lucky'), 6000);
@@ -311,7 +318,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('6a. the combat\'s own roll offers Lucky (the popup open)', r.offered && r.win,
         `offers=${JSON.stringify(r.flag?.offers?.map(o => [o.kind, o.label]))} win=${r.win}`);
       ok('6b. accepted: the second d20 (15) stands over the first (5) — the initiative moves, a point spent',
-        (r.done?.outcome === 'used') && (Math.abs(r.init - (r.base + 10)) < 1e-9) && (luckLeft() === 2),
+        (r.done?.outcome === 'used') && (Math.abs(r.init - (r.base + 10)) < 1e-9) && (luckLeft() === ONE_SPENT),
         `init=${r.init} want=${r.base + 10} left=${luckLeft()} folded=${r.done?.foldedTotal}`);
       await closeDialogs();
     }
@@ -320,7 +327,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(7)) {
       const r = await noDialog(15, 4);
       ok('7a. the second d20 lower (4): the first (15) stands, the point spent either way',
-        r.offered && (r.done?.outcome === 'used') && (r.init === r.base) && (luckLeft() === 2),
+        r.offered && (r.done?.outcome === 'used') && (r.init === r.base) && (luckLeft() === ONE_SPENT),
         `init=${r.init} want=${r.base} left=${luckLeft()}`);
       await closeDialogs();
     }
