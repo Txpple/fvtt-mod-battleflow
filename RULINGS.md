@@ -784,15 +784,15 @@ Fighting **U1**, *"truesight yes"*. `smoke-styles` (31 checks), `smoke-guards` (
   setting. The `fightingStyle` record carries each style's `gain` for the stats reader
   (ARCHITECTURE §4) and the chips' `dice`. A floor that raised nothing leaves no trace.
 - **The dice that rise — THE RULE, settled; do not reopen** (the walk, 2026-09-26: "make this a rule
-  too so we dont keep revisiting"; its shape in the user's words: "a reaction or sensitive effect
-  (eg gwf, duelist, twf, etc)"). The canvas dice (`dice-rise.js`, every client sees them) play for:
+  too so we dont keep revisiting"; its shape: a reaction, or a situational effect — "eg gwf, duelist,
+  twf, etc"). The canvas dice (`dice-rise.js`, every client sees them) play for:
   1. **A reaction — or a spend — that modifies a roll already made**: the bent d20s (Protection,
      Lucky, Warding Flare, Shadowy Dodge); the reductions (Interception, Parry, Stone's Endurance —
      the die off whoever reacted, "−N" drifting to the one protected); Shield's "+5 AC"; a fold's die
      or reroll (Bardic Inspiration, Tactical Mind, Heroic Inspiration, Lucky); Empowered's, Healer's
      and Savage Attacker's rerolls; Cutting Words when it is built.
   2. **A situational effect** — one that fires only when its circumstances line up, not every turn
-     by default ("not sure if sensitive is the rigth word, but not like every turn by default"), so
+     by default ("not like every turn by default"; "situational is best"), so
      the player needs to SEE that it did: the Fighting Styles (Great Weapon Fighting's floor, Dueling, Thrown,
      Two-Weapon), and the dice the platform changes on its own (`changedDice`: Halfling Luck,
      Reliable Talent, Elemental Adept, Tavern Brawler).
