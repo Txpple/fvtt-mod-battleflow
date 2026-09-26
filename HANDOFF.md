@@ -1,87 +1,84 @@
-# HANDOFF.md — the fighting styles walk, by hand, on the sandbox
+# HANDOFF.md — the dice that rise: testing, then the docs recut
 
-> **A commission, written 2026-09-26 on the user's word** ("when you are done make a handoff and in
-> new session there give me the walk table for the fighting styles"). ⚠ **It is not a "go"**: the
-> walk is the USER's, at the sandbox; the next session's first job is to PRESENT the walk table (§2)
-> in the user's format — one *Style | What you should see* table — and wait. Fixes on the user's
-> findings run the fast loop (§3). Retired when the walk's findings are fixed and the docs recut
-> (BACKLOG's header rule).
+> **Written 2026-09-26 on the user's word** ("ok so lets do a handoff and start testing"). Supersedes
+> the fighting-styles walk handoff (bf66fe1): that walk is DONE — all nine styles passed, every
+> finding fixed. ⚠ **It is not a "go" for anything past §3**: the next session runs the tests
+> (§3), fixes what they find (fast loop), recuts the docs, and retires this file. Push and release
+> stay the user's call.
 
 ---
 
-## 0. Where things stand (2026-09-26)
-
-**The fighting styles are BUILT, battery-proven, NOT released, NOT pushed.** Ruled off
-`prototypes/fighting-styles.html` (the Artifact "Fighting Styles"): one FIGHTING_STYLES table; each
-style an effect on the character (a *face*) gated on what is EQUIPPED; notice **B**; guards **P1**;
-Protection **R1**; Unarmed Fighting **U1**; Truesight counts. RULINGS *The fighting styles* has
-every ruling; the register has five new rows.
+## 0. Where things stand (2026-09-26, end of session)
 
 | | |
 | --- | --- |
 | **Prod** | v2.0.8 on dnd5e 6.0.5. Untouched. |
-| **main** | `f8664c7` the table and faces · `e0dd58c` who sees the unseen · `a6523c7` the guards · `d620ba8` the grapple ask · `13f2548` docs · `2726955` two suite fixes. **Not pushed.** Slice A before them is pushed (`34692fa`). |
-| **fvtt-app-sessionscribe** | `d523366` the combat stats tally `fightingStyle` per attacker ("fighting styles: Great Weapon Fighting ×2 (+5 dmg)"). **Not pushed.** |
-| **The sandbox** | runs main (deployed `--local`, byte-identical). Settings CLEAN. The walk roster (§1) is on **Party Camp**. |
-| **Suites** | the FULL battery 2026-09-26 (`dist/battery/2026-09-26T12-56-49`): 40/43, settings clean, the world rolled back; the three reds were not the module — smoke-battleflow a 1-in-400 double fumble (its own words), smoke-hitmenu and smoke-superiority pinned exact formulas on BF Test Fighter, whose own Great Weapon Fighting now floors its dice (both suites now switch the Fighting Styles list off, like every list they are not testing); re-run alone green — §4. New: `smoke-styles` 31/31, `smoke-guards` 15/15. |
-| **Owed by the user** | the walk (§2); the event audit (`slice-a-event-audit.md`); the release call (BACKLOG's list); the Savage popup's rank (DESIGN §8). |
-| **Owed by Claude** | present §2; fix the walk's findings (§3); docs recut; retire this file. |
+| **main** | `ea1f01c`, **24 commits ahead of origin, NOT pushed** (`829e97d` .. `ea1f01c`; before them the fighting styles `f8664c7` .. `bf66fe1`, also unpushed). |
+| **fvtt-app-sessionscribe** | `d523366` (the `fightingStyle` stats tally) — still NOT pushed. |
+| **The sandbox** | runs main (`deploy-house-module --local`, byte-identical). Settings not re-verified since the walk began — `verify-settings --fix` first. |
+| **Unit tests** | `npm run verify` green, 903 tests. |
+| **In-world suites** | ⚠ **NOT RUN since the walk began** — the user was signed in as GM all session. Everything below is unit-tested only. |
 
-## 1. The walk roster — Actor folder **BF Styles**, tokens on **Party Camp** (BUILT 2026-09-26)
+## 1. What this session built (all on the sandbox, all unpushed)
 
-Nine copies of BF Feat Alert (a level-5 Dwarf Champion Fighter built through advancement), Alert
-and Blind Fighting taken off, ONE PHB Fighting Style feat each, the PHB's own gear; linked tokens,
-friendly, placed by `tools/content/place-styles-roster.mjs` (re-run it to put them back), read back
-by `tools/content/check-styles-roster.mjs` — every face as below, settings CLEAN.
+**The fighting-styles walk findings** (RULINGS *The fighting styles*):
+- The face is one line, **"Fighting Style: <the feat's name>"**, no suffix; a style feat's own effect
+  (Blind Fighting's senses) is titled the same (dnd5e's `fightingStyle` subtype). Thrown's face is
+  always on (the thrown mode is its gate).
+- An equip change floats core's own **"+(Fighting Style: Defense)" / "−(…)"** for every face; core's
+  own float is quieted on the face writes (`animate: false`, a FRESH object per write — a shared
+  frozen one threw and froze every face: `5626364`).
+- Protection is still asked when the attack already had Disadvantage — greyed, "no effect — already at
+  Disadvantage", the button "Keep my Reaction".
+- Empowered Spell is damage only — a spell's healing is never offered it (`e3dc7e4`).
 
-| Actor | Where | Equipped (carried) | Face read back |
-| --- | --- | --- | --- |
-| BF Style GWF | west of the west Dummy | Greatsword (Longsword) | Great Weapon Fighting — live, "Greatsword, two hands" |
-| BF Style Dueling | east of the west Dummy | Longsword, Shield (Dagger) | Dueling — live, "Longsword in one hand" |
-| BF Style Defense | north of the west Dummy | Longsword, Chain Mail | Defense — live, "Chain Mail"; AC 17 (16 + 1) |
-| BF Style TWF | south of the west Dummy | Shortsword, Dagger (Longsword) | Two-Weapon Fighting — live |
-| BF Style Unarmed | north-west of the west Dummy | Unarmed Strike (Shield, Longsword) | Unarmed Fighting — live, "d8 — hands empty" |
-| BF Style Blind | south-east of the west Dummy | Longsword | none (Blind Fighting is the pack's own senses effect) |
-| BF Style Thrown | 3 squares west of the east Dummy | Javelin ×5 (Longsword) | Thrown Weapon Fighting — live |
-| BF Style Protection | west of Gren | Longsword, Shield | none (a reaction, not a face) |
-| BF Style Interception | north of Gren | Longsword, Shield | none (a reaction, not a face) |
+**The dice that rise** — ⚠ a SETTLED RULE (RULINGS *The dice that rise — THE RULE*; do not reopen):
+the canvas dice play, for everyone, only when (1) a die's number changes — module or platform — or
+(2) a Fighting Style's bonus; a die merely ADDED stays on the card.
+- `scripts/dice-rise.js` (SPINE): the one renderer — chips over a token (turn over / gold / struck /
+  red for a lost crit), above the tokens (core's scrolling-text depth), and the `diceRise` flag
+  listener (any roll message carrying it plays on every client). `driftChip` stays for the listener.
+- `scripts/decide/dice-chips.js` (DECISION): `rerollRise`, `eitherRise`, `foldRise`, `changedDice`.
+- `scripts/hold/dice.js` (MACHINE part): a bent d20 (Protection, Lucky, Warding Flare, Shadowy
+  Dodge) rises over the creature hit, off the hold record; a reload replays nothing.
+- Wired: the fighting styles (card chips + canvas), Empowered, Savage Attacker, Healer's 1s, Heroic
+  Inspiration's reroll, Lucky's second d20, and the platform's own rerolls/floors (`changedDice`).
+- The card: the style line is Empowered's chips in the card's own ink (the gold line is gone).
 
-BF Feat Healer stands east of Gren too (friendly) — it is no guard: it has neither style.
+## 2. The test roster on the sandbox — Party Camp
 
-## 2. The walk table — present THIS, in this shape, at the next session's start
+- **BF Styles** folder (nine fighters, the walk's roster) — around the west Dummy and Gren.
+- **BF Dice** folder (NEW, copies — the suite fixtures are untouched), around the east Dummy:
+  BF Dice Attacker (hostile), Lucky Flare (Lucky + Warding Flare), Parry (+ Parry), Stone, Shield,
+  Savage, Heroic, Bard, Empowered.
+- **Gren** has the PHB **Healer** feat (sandbox only — a prod refresh drops it).
 
-Target a Practice Dummy unless the row says otherwise. The Fighting Styles list ships with all six;
-the Interrupts list gains Interception and Protection (a released world needs Reset Defaults — BACKLOG).
+## 3. For the next session — the order
 
-| Style — actor | What you should see |
-| --- | --- |
-| **Great Weapon Fighting** — BF Style GWF (Greatsword) | Open the actor's effects panel (click the name on the effect bar): **Great Weapon Fighting — Greatsword, two hands** under Passive. Hit a Dummy: when a damage die shows 1 or 2, the card shows a gold line **"Great Weapon Fighting — 1 → 3: +2"** and **"+2 Great Weapon Fighting"** floats over the Dummy. No 1 or 2 → no line, no float. Unequip the Greatsword → the face moves to Unavailable, "no Two-Handed or Versatile melee weapon equipped". |
-| **Dueling** — BF Style Dueling (Longsword + Shield) | The face **Dueling — Longsword in one hand**; every one-handed hit carries **"Dueling — +2"**. Swing the Longsword two-handed (the attack's mode) → **"Dueling off — two hands"**, no +2. Equip a Dagger too → the face greys, **"a second weapon held (Dagger)"**, no +2 and no line. The pack's own Dueling effect is off and hidden (the face carries the rule). |
-| **Defense** — BF Style Defense (Chain Mail) | The face **Defense — Chain Mail**, the AC one higher than the armor gives. Unequip the Chain Mail → the face greys, **"no armor worn"**, the AC drops by 1 more than the armor. A Shield alone does not count. |
-| **Thrown Weapon Fighting** — BF Style Thrown (Javelins) | Throw a Javelin (the thrown mode): **"Thrown Weapon Fighting — +2"** and the float. Stab with it in melee: nothing. |
-| **Two-Weapon Fighting** — BF Style TWF (Shortsword + Dagger) | The Dagger's off-hand attack adds the modifier: **"Two-Weapon Fighting — +N on the off-hand"** and the float. The main-hand swing: nothing extra. |
-| **Unarmed Fighting** — BF Style Unarmed (nothing equipped) | The sheet's Unarmed Strike rolls **1d8 + Str** with **"Unarmed Fighting — 1d8 + N in place of 1 + N (hands empty)"**; equip the Shield → **1d6**, "(a weapon or Shield held)"; the face says which die. **Grapple** a Dummy (the Unarmed Strike's Grapple, or the token HUD's Grappled — the HUD's names no grappler, see below), start a combat with the fighter first: at its turn a popup **"Deal 1d4 to the Practice Dummy you're grappling?"** — Deal it lands 1d4 with a card; Skip deals nothing; with a Hold Timer and no answer, the clock deals it. A Grappled from the token HUD (no grappler recorded) is offered only within 5 ft and never dealt by the clock. |
-| **Blind Fighting** — BF Style Blind | Make a Dummy **Invisible** (token HUD). Attack it from 5 ft: the roll dialog's gate lists **"Practice Dummy is Invisible — BF Style Blind sees it (Blindsight 10 ft)"**, not counted — Normal. From 15 ft: Invisible counts, Disadvantage. Any creature with Blindsight or Truesight gets the same (a monster's Truesight 120 ft sees it). |
-| **Protection** — BF Style Protection (Shield + Longsword) beside **Gren** (or any ally) | A Dummy (or the GM) attacks Gren and HITS: the Protection fighter gets its own popup **"<attacker> hits Gren"** — one row **Protection · Disadvantage · a Reaction**. Answer: the second d20, the lower stands; the attack card says **"Protection (BF Style Protection) bent the roll — Disadvantage, 17 → 9, MISS"**. Gren then wears **"Protected — BF Style Protection"** until the fighter's next turn: every later attack at Gren meets Disadvantage in the gate while the fighter stands within 5 ft (step away 15 ft → the row stands down). If Gren has a reaction of its own (Lucky, Shield), both popups show; a Pass waits for the other; the first to act wins. No Shield equipped → nobody is asked. |
-| **Interception** — BF Style Interception (Shield + Longsword) beside **Gren** | Gren is hit: the damage WAITS on a card, and the fighter's popup **"<attacker> hits Gren for N — intercept?"**. Intercept rolls **1d10 + PB** and the damage lands short by it, the receipt saying "Interception (BF Style Interception) — reduced by N". Pass → it lands whole. Damage applied with the card's own buttons is not held (the register). |
-| **Archery, Blessed Warrior, Druidic Warrior, Arcane Warrior** | Native — nothing to walk. |
+1. **The sandbox to itself**: the user signed OUT (the preflight refuses a second GM); no other
+   Claude session holding the bridge (find it with the session list, ask it to `disconnect-bridge`).
+2. `verify-settings --fix`, then the **change-scoped battery**: `battery.mjs --changed bf66fe1 --list`,
+   then without `--list`, DETACHED. Expected to exercise at least smoke-styles, smoke-guards,
+   smoke-rescue, smoke-superiority, smoke-metamagic, smoke-hold. Suites assert the old wording in
+   places — a red there is the suite, fix the assertion (the lines are `data-bf-style-line` now).
+3. **A probe for `changedDice`** (the one guess in the build): how dnd5e 6.0 marks Halfling Luck's
+   reroll (`r1=1` → `rerolled: true`?) and Reliable Talent (`min10` → `count`?). A wrong guess = the
+   dice never rise, never a wrong number.
+4. Fix the reds on the fast loop (the change, verify, `--local`, that suite's section only).
+5. **Present the dice walk table (§4)** to the user and wait — the in-world look is theirs.
+6. Docs recut (DESIGN/ARCHITECTURE/NOTES/BACKLOG as the change touched them; ARCHITECTURE §4 has
+   `fightingStyle.dice`), retire this file, update the memory pointer.
 
-**Report findings the usual way** (the walk-session restate rule: the OPEN list restated after every
-update). Each finding is a fix-pass item on the fast loop (§3).
+## 4. The dice walk table — present at step 5
 
-## 3. For Claude, on the user's findings — the FAST loop
-
-Per finding: the ruling (ask with options where the rule leaves a choice), the code, `npm run
-verify`, `deploy-house-module --local`, then ONLY that style's own suite section (`smoke-styles
---section N`, `smoke-guards --section N`) — minutes. **No full battery per finding**; the change-scoped
-battery (`battery.mjs --changed <base> --list`, then without `--list`) once at the end of the walk.
-Settings CLEAN after every run (`verify-settings --fix` — a new list row drifts a stored list). The
-harness lessons stand (NOTES §5; memory): a killed run → `verify-settings --fix` →
-`reset-fixture-state` → `fixture-suite`; launch batteries DETACHED; another session's bridge blocks
-every suite — find it with the session list and ask it to disconnect.
-
-## 4. This handoff's own commit
-
-`2726955` the two suite fixes, re-run alone green (smoke-battleflow ALL PASS, smoke-hitmenu 45/45,
-smoke-superiority 41/41, settings CLEAN; `dist/battery/2026-09-26T13-56-19`). This file, the roster
-tools under `tools/content/`, and the roster itself on the sandbox (§1).
+| What | Try | You should see |
+| --- | --- | --- |
+| **Great Weapon Fighting** | BF Style GWF hits a Dummy until a 1 or 2 shows | Card: the dice as chips, the 1 turning to a gold-edged 3; canvas: the same dice rise off the fighter |
+| **Dueling / Thrown / Two-Weapon** | their BF Style fighters hit a Dummy | A gold "+2" (or "+N") chip on the card and rising off the fighter |
+| **A bent d20** | BF Dice Attacker hits BF Dice Lucky Flare; answer Warding Flare or a Luck Point (or Protection beside Gren) | Two d20s over the one hit: the lower gold, the other struck; a struck 20 red; Advantage cancelled keeps the first die |
+| **Empowered** | BF Dice Empowered casts a damage spell, rerolls dice | Each rerolled die turns over above the caster |
+| **Savage Attacker** | BF Dice Savage hits, rolls again | The two totals; the one that stands glows |
+| **Healer** | Gren casts Cure Wounds, rerolls a 1 | The 1 turns over above Gren (and NO Empowered popup) |
+| **Heroic Inspiration / Lucky** | BF Dice Heroic rerolls a d20; a Luck Point after a roll | The d20 turning over; Lucky's two d20s, the higher gold |
+| **The platform's own** | BF Species Halfling rolls a natural 1 (Halfling Luck) | The 1 turns over to the reroll above the Halfling |
+| **Nothing** | Interception, Parry, Stone's Endurance, Shield, Bardic Inspiration | The card as before; NO canvas dice |
