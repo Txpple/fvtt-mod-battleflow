@@ -15,7 +15,7 @@ import { METAMAGIC_FLAG } from "./decide/metamagic.js";
 import { CARD, itemNameOf, originIdInData, rollKindInData } from "./decide/card.js";
 import { feetOf, nearestFeet, tokenOfActor } from "./geometry.js";
 import { SURFACES } from "./surfaces.js";
-import { REMINDER_FLAG, checkGate, checkSources, conditionSources, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
+import { REMINDER_FLAG, checkGate, checkSources, conditionSources, sightOf, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
   reminderRecord, reminderSource, reminderView, rolledWith, saveGate, saveSources } from "./decide/reminders.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -377,6 +377,13 @@ function allyNearTarget(attackerToken, targetToken) {
   return false;
 }
 
+/** A creature's special senses, in feet — dnd5e 6.0's `senses.ranges`, the flat 5.x keys as a fallback. */
+function sensesOf(actor) {
+  const senses = actor?.system?.attributes?.senses ?? {};
+  const ranges = senses.ranges ?? senses;
+  return { blindsight: Number(ranges.blindsight) || 0, truesight: Number(ranges.truesight) || 0 };
+}
+
 /**
  * Every source this gate can read for the roll about to happen, in the order the table reads
  * them: the attacker's own state first, then each target's. Names are the TOKEN's where a token
@@ -435,7 +442,14 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     out.push(...proneSources({ attackerProne: attacker.statuses?.has?.("prone"), attackerName }));
   }
   if ( conditions.length ) {
-    out.push(...conditionSources({ ...conditionFacts, attackerStatuses: attacker.statuses ?? [], attackerName }));
+    // The attacker's own Invisible (or Hiding) is judged against its target: seen by every target
+    // this roll is at, it is listed, not counted (decide/reminders.js sightOf).
+    const aimed = [...(targets ?? game.user.targets)].filter(t => t.actor && (t.actor.uuid !== attacker.uuid));
+    const seers = aimed.map(t => ({ t, seen: sightOf(sensesOf(t.actor), attackerToken ? nearestFeet(attackerToken, t) : null) }));
+    const attackerSeenBy = (seers.length && seers.every(x => x.seen)) ? seers[0].seen : null;
+    const seerName = seers[0] ? (seers[0].t.document?.name ?? seers[0].t.actor.name) : undefined;
+    out.push(...conditionSources({ ...conditionFacts, attackerStatuses: attacker.statuses ?? [], attackerName,
+      attackerSeenBy, targetName: seerName }));
   }
   if ( range.ranged ) {
     out.push(...rangeSources({ ranged: true, closeEnemies: closeEnemiesOf(attackerToken), attackerName, rules: RANGE_RULES }));
@@ -462,7 +476,8 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
       out.push(...proneSources({ targetProne: true, distanceFeet, targetName, targetProneBy: proneBy }));
     }
     if ( conditions.length ) {
-      out.push(...conditionSources({ ...conditionFacts, targetStatuses: target.statuses ?? [], targetName }));
+      out.push(...conditionSources({ ...conditionFacts, targetStatuses: target.statuses ?? [], targetName, attackerName,
+        targetSeenBy: sightOf(sensesOf(attacker), distanceFeet) }));
     }
     if ( range.ranged ) {
       out.push(...rangeSources({ ranged: true, distanceFeet, normalFeet: range.normalFeet, longFeet: range.longFeet,

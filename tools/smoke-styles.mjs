@@ -18,7 +18,8 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
   'fighting-styles.js',   // §1–§2 the faces off the equipped boxes; §3–§6 the numbers, the lines, the record, the float; §8 the switch
-  'unarmed-dice.js'       // §7 Unarmed Fighting's die by what the hands hold (the `hands` row)
+  'unarmed-dice.js',      // §7 Unarmed Fighting's die by what the hands hold (the `hands` row)
+  'reminders.js'          // §9 Blind Fighting — who sees the unseen: Invisible listed, not counted, within Blindsight
 ];
 
 const SECTIONS = {
@@ -29,7 +30,8 @@ const SECTIONS = {
   5: 'Thrown Weapon Fighting: the Javelin thrown rolls +2; swung in melee it does not',
   6: 'Two-Weapon Fighting: the Dagger off-hand adds the modifier back',
   7: 'Unarmed Fighting: the sheet\'s Unarmed Strike rolls the d8 with the hands empty, the d6 with a Shield held, and says so',
-  8: 'off the list: the faces go and the pack\'s own Defense and Dueling effects come back on'
+  8: 'off the list: the faces go and the pack\'s own Defense and Dueling effects come back on',
+  9: 'Blind Fighting: an Invisible victim 5 ft away is seen (listed, net Normal); 15 ft away it is not (Disadvantage); the Invisible victim attacking the fighter loses its Advantage'
 };
 const DEPENDS = {};
 
@@ -138,7 +140,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // everything the fighter wears or holds comes off for the run
     const off = actor.items.filter(i => i.system?.equipped === true).map(i => ({ _id: i.id, 'system.equipped': false }));
     if (off.length) await actor.updateEmbeddedDocuments('Item', off);
-    for (const style of ['Great Weapon Fighting', 'Thrown Weapon Fighting', 'Two-Weapon Fighting', 'Dueling', 'Defense', 'Unarmed Fighting']) await lend(style, 'feat');
+    for (const style of ['Great Weapon Fighting', 'Thrown Weapon Fighting', 'Two-Weapon Fighting', 'Dueling', 'Defense', 'Unarmed Fighting', 'Blind Fighting']) await lend(style, 'feat');
     const gear = {};
     for (const name of ['Greatsword', 'Longsword', 'Dagger', 'Javelin', 'Unarmed Strike']) gear[name] = await lend(name, 'weapon');
     for (const name of ['Shield', 'Chain Mail']) gear[name] = await lend(name, 'equipment');
@@ -308,6 +310,38 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `defense=${packEffect('Defense')?.disabled} dueling=${packEffect('Dueling')?.disabled}`);
       await set('fightingStyleList', def('fightingStyleList'));
       await sleep(1200);
+    }
+
+    // ================================================== 9. Blind Fighting
+    if (want(9)) {
+      await set('reminderList', def('reminderList'));
+      const { judgeRoll } = await import('/modules/fvtt-mod-battleflow/scripts/reminders.js');
+      const [fdoc] = await scene.createEmbeddedDocuments('Token', [
+        foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x: 1500, y: 1900, actorId: actor.id, actorLink: true, disposition: 1 }, { inplace: false })]);
+      placed.push(fdoc.id);
+      for (let i = 0; i < 40 && !canvas.tokens.get(fdoc.id); i++) await sleep(250);
+      await victim.toggleStatusEffect('invisible', { active: true });
+      await sleep(400);
+      log.push(`§9 senses=${JSON.stringify(actor.system.attributes.senses?.ranges ?? actor.system.attributes.senses)}`);
+      const judge = (who, at) => judgeRoll(who, { activity: attackOf(gear.Longsword), attackMode: 'oneHanded', targets: [at] });
+      const labels = j => JSON.stringify((j?.sources ?? []).map(x => [x.label, x.bend]));
+      const near = judge(actor, canvas.tokens.get(vdoc.id));
+      const seen = (near?.sources ?? []).find(x => /Invisible — .* sees it \(Blindsight 10 ft\)/.test(x.label));
+      ok('9a. 5 ft: the Invisible victim is seen — listed with why, not counted; the net is Normal',
+        !!seen && (seen.bend === null) && (near?.net === 'normal'), `net=${near?.net} sources=${labels(near)}`);
+      await vdoc.update({ x: 1200 }, { animate: false });   // three squares from the fighter: 15 ft
+      await sleep(400);
+      const far = judge(actor, canvas.tokens.get(vdoc.id));
+      ok('9b. 15 ft: beyond the Blindsight — Invisible counts, Disadvantage',
+        (far?.sources ?? []).some(x => /is Invisible/.test(x.label) && (x.bend === 'disadvantage')) && (far?.net === 'disadvantage'),
+        `net=${far?.net} sources=${labels(far)}`);
+      await vdoc.update({ x: 1400 }, { animate: false });
+      await sleep(400);
+      const back = judgeRoll(victim, { targets: [canvas.tokens.get(fdoc.id)] });
+      const seenYou = (back?.sources ?? []).find(x => /Invisible: .* sees you/.test(x.label));
+      ok('9c. the Invisible victim attacking the fighter: its Advantage listed, not counted',
+        !!seenYou && (seenYou.bend === null) && (back?.net !== 'advantage'), `net=${back?.net} sources=${labels(back)}`);
+      await victim.toggleStatusEffect('invisible', { active: false });
     }
 
     return { log, results, skips };

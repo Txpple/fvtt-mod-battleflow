@@ -128,6 +128,41 @@ describe("proneSources — both roles, from plain facts", () => {
 
 describe("conditionSources — the registry's table, read one row at a time", () => {
   const all = () => ({ table: reg.CONDITION_BENDS, enabled: reg.CONDITION_KEYS });
+  it("who sees the unseen (2026-09-26): Invisible is listed, not counted, against a creature that sees it", () => {
+    const blind = r.sightOf({ blindsight: 10 }, 5);
+    expect(blind).toEqual({ sense: "Blindsight", range: 10, sees: ["invisible", "hiding"] });
+    expect(r.sightOf({ blindsight: 10 }, 15)).toBeNull();
+    expect(r.sightOf({ truesight: 120 }, 30)?.sees).toEqual(["invisible"]);
+    const [t] = r.conditionSources({
+      ...all(),
+      targetStatuses: ["invisible"],
+      targetName: "Goblin",
+      attackerName: "Rowan",
+      targetSeenBy: blind
+    });
+    expect(t).toMatchObject({
+      bend: null,
+      label: "Goblin is Invisible — Rowan sees it (Blindsight 10 ft)"
+    });
+    const [a] = r.conditionSources({
+      ...all(),
+      attackerStatuses: ["invisible"],
+      attackerName: "Goblin",
+      targetName: "Rowan",
+      attackerSeenBy: blind
+    });
+    expect(a).toMatchObject({
+      bend: null,
+      label: "Goblin — Invisible: Rowan sees you (Blindsight 10 ft)"
+    });
+    // Truesight does not find the hidden
+    const [h] = r.conditionSources({
+      ...all(),
+      targetStatuses: ["hiding"],
+      targetSeenBy: r.sightOf({ truesight: 60 }, 5)
+    });
+    expect(h.bend).toBe("disadvantage");
+  });
   it("a poisoned attacker is Disadvantage; a blinded target is Advantage", () => {
     expect(
       r.conditionSources({ ...all(), attackerStatuses: ["poisoned"], attackerName: "Gruk" })[0]

@@ -81,12 +81,14 @@ const labelCaveat = row => (row?.caveat && !/^counted — /.test(row.caveat)) ? 
  * @param {{attackerStatuses?: Iterable<string>, targetStatuses?: Iterable<string>,
  *          enabled: Iterable<string>,
  *          table: Readonly<Record<string, Readonly<{attacker: "advantage"|"disadvantage"|null, target: "advantage"|"disadvantage"|null, rule: string, caveat?: string, note?: string}>>>,
- *          attackerName?: string, targetName?: string}} facts
+ *          attackerName?: string, targetName?: string,
+ *          attackerSeenBy?: {sense: string, range: number, sees: string[]}|null,
+ *          targetSeenBy?: {sense: string, range: number, sees: string[]}|null}} facts
  *        `enabled` = the Condition Sources list; a condition not in it is not read at all.
  *        `table` = `CONDITION_BENDS` (decide/registry.js), in the order the table reads it.
  */
 export function conditionSources({ attackerStatuses = [], targetStatuses = [], enabled, table,
-  attackerName = "You", targetName = "the target" }) {
+  attackerName = "You", targetName = "the target", attackerSeenBy = null, targetSeenBy = null }) {
   const on = new Set(enabled ?? []);
   const mine = new Set(attackerStatuses);
   const theirs = new Set(targetStatuses);
@@ -97,19 +99,46 @@ export function conditionSources({ attackerStatuses = [], targetStatuses = [], e
     if ( !row ) continue;
     const name = conditionName(key);
     if ( mine.has(key) ) {
-      if ( row.attacker ) {
+      if ( row.attacker && attackerSeenBy?.sees?.includes(key) ) {
+        // the rule's own "If a creature can somehow see you": the target does — listed, not counted
+        out.push(reminderSource("condition", null,
+          `${attackerName} — ${name}: ${targetName} sees you (${attackerSeenBy.sense} ${attackerSeenBy.range} ft)`, row.rule));
+      } else if ( row.attacker ) {
         out.push(reminderSource("condition", row.attacker,
           `${attackerName} — ${name}${labelCaveat(row)}`, row.rule));
       } else if ( row.note ) {
         out.push(reminderSource("condition", null, `${attackerName} — ${name}: ${row.note}`, row.rule));
       }
     }
-    if ( theirs.has(key) && row.target ) {
+    if ( theirs.has(key) && row.target && targetSeenBy?.sees?.includes(key) ) {
+      out.push(reminderSource("condition", null,
+        `${targetName} is ${name} — ${attackerName} sees it (${targetSeenBy.sense} ${targetSeenBy.range} ft)`, row.rule));
+    } else if ( theirs.has(key) && row.target ) {
       out.push(reminderSource("condition", row.target,
         `${targetName} is ${name}${labelCaveat(row)}`, row.rule));
     }
   }
   return out;
+}
+
+/**
+ * WHO SEES THE UNSEEN (user, 2026-09-26, the fighting styles: Blind Fighting "should cancel any
+ * adv/disadv if within 10ft of an invisible enemy"; "truesight yes"): Invisible's own clause is
+ * "If a creature can somehow see you, you don't gain this benefit against that creature" — so a
+ * creature whose Blindsight or Truesight reaches the other one sees it, and the condition's bend is
+ * LISTED with why, never counted. Any creature's senses, not the one feat (a monster's Blindsight 30
+ * ft is the same fact). Blindsight perceives without sight, so it finds the hidden too; Truesight
+ * sees the invisible, not a creature behind cover, so it answers Invisible only.
+ * @param {{blindsight?: number, truesight?: number}} senses  the observer's ranges, in feet
+ * @param {number|null} feet  the distance between the two
+ * @returns {{sense: string, range: number, sees: string[]}|null}
+ */
+export function sightOf(senses, feet) {
+  if ( (typeof feet !== "number") || !Number.isFinite(feet) ) return null;
+  const blind = Number(senses?.blindsight) || 0, tru = Number(senses?.truesight) || 0;
+  if ( blind && (feet <= blind) ) return { sense: "Blindsight", range: blind, sees: ["invisible", "hiding"] };
+  if ( tru && (feet <= tru) ) return { sense: "Truesight", range: tru, sees: ["invisible"] };
+  return null;
 }
 
 /**
