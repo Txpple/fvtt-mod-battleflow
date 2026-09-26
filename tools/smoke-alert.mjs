@@ -22,7 +22,7 @@ export const COVERS = [
 ];
 
 const SECTIONS = {
-  1: 'the last Initiative lands: the Alert holder\'s card lists the two allies with their Initiative (not the enemy); the popup is a radio per ally, Swap dark until one is picked',
+  1: 'the last Initiative lands: the Alert holder\'s card lists the two allies with their Initiative (not the enemy); the popup is a radio per ally, Swap dark until one is picked; the whole lineup shown, the holder and the enemy greyed',
   2: 'Swap with the Bard: the two Initiatives are exchanged in the tracker, and the card says so (11 ↔ 17)',
   3: 'once per combat: a later Initiative change asks nothing new',
   4: 'an Incapacitated ally is not listed',
@@ -165,6 +165,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1b. the popup: a radio per ally, Swap dark until one is picked, and No',
         (radios.length === 2) && !!swapBtn?.disabled && !!app?.element?.querySelector('button[data-action="no"]'),
         `popup=${!!app} radios=${radios.length} swapDisabled=${swapBtn?.disabled}`);
+      const lineup = flag?.lineup ?? [];
+      const inits = lineup.map(r => r.initiative);
+      ok('1c. the lineup: every combatant in Initiative order, the holder "(you)" and the enemy greyed, unpickable',
+        (lineup.length === 4) && inits.every((v, i) => !i || (inits[i - 1] >= v))
+          && (lineup.find(r => r.role === 'self')?.initiative === 11) && (lineup.find(r => r.role === 'enemy')?.name === tVictim.name)
+          && !!app?.element?.querySelector('[data-bf-initiative-self]')?.textContent?.includes('(you)')
+          && !!app?.element?.querySelector('[data-bf-initiative-enemy] input[disabled]'),
+        `lineup=${lineup.map(r => `${r.name}:${r.initiative}:${r.role}`).join(', ')}`);
     }
     if (want(2)) {
       const app = swapPopup();

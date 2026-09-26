@@ -76,13 +76,23 @@ async function askFor(combat) {
         .map(o => ({ combatantId: o.id, name: o.name, initiative: o.initiative, uuid: o.actor.uuid, tokenId: o.tokenId ?? null }))
         .sort((a, b) => b.initiative - a.initiative);
       if ( !allies.length ) continue;
+      // THE LINEUP (user, 2026-09-25: the owner "greyed out saying (you) so they can easily see where
+      // the init order swaps will play out"; "it should also include enemies, but greyed out"): every
+      // combatant the tracker shows, in Initiative order; only the allies above are pickable.
+      const pickable = new Set(allies.map(a => a.combatantId));
+      const lineup = combatants
+        .filter(o => (o.id === c.id) || !o.hidden)
+        .sort((a, b) => b.initiative - a.initiative)
+        .map(o => ({ combatantId: o.id, name: o.name, initiative: o.initiative, tokenId: o.tokenId ?? null,
+          role: (o.id === c.id) ? "self" : pickable.has(o.id) ? "ally"
+            : (o.token?.disposition === side) ? "incapacitated" : "enemy" }));
       const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
       await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor, token: c.token }),
         content: bfCard({ img: found.item.img, eyebrow: `Feat — ${found.name}`, tone: "pending", title: `${found.name} — swap Initiative?` }),
         flags: { [MODULE_ID]: { [SWAP_FLAG]: {
           status: "pending", row: found.name, actorUuid: actor.uuid, actorName: c.name,
-          combatId: combat.id, combatantId: c.id, initiative: c.initiative, allies, ...statContext(actor.uuid),
+          combatId: combat.id, combatantId: c.id, initiative: c.initiative, allies, lineup, ...statContext(actor.uuid),
           ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
         } } }
       });
@@ -184,7 +194,16 @@ async function showSwapPopup(message) {
   const actor = resolveUuid(flag.actorUuid);
   if ( !actor ) return;
   const row = INITIATIVE_SWAPS[flag.row] ?? null;
-  const rows = (flag.allies ?? []).map(a => `<label style="display:flex;align-items:center;gap:0.5rem;margin:0.25rem 0;padding:0.35rem 0.5rem;border-radius:4px;background:rgba(0,0,0,0.06);border:1px solid var(--color-border-light,rgba(0,0,0,0.2));cursor:pointer;">
+  // THE LINEUP, the whole tracker in Initiative order (the card's `lineup`, built at the ask): the
+  // allies are the radios; the owner "(you)", the enemies and an Incapacitated ally stay, greyed.
+  const lineup = flag.lineup ?? (flag.allies ?? []).map(a => ({ ...a, role: "ally" }));
+  const NOTE = { self: "(you)", enemy: "(enemy)", incapacitated: "(Incapacitated)" };
+  const rowStyle = "display:flex;align-items:center;gap:0.5rem;margin:0.25rem 0;padding:0.35rem 0.5rem;border-radius:4px;background:rgba(0,0,0,0.06);border:1px solid var(--color-border-light,rgba(0,0,0,0.2));";
+  const rows = lineup.map(a => (a.role !== "ally")
+    ? `<div data-bf-initiative-${esc(a.role)} style="${rowStyle}opacity:0.5;">
+      <input type="radio" disabled style="margin:0;">
+      <span style="flex:1;">${esc(a.name)} <em>${NOTE[a.role] ?? ""}</em></span><strong style="font-size:1.1em;">${esc(a.initiative)}</strong></div>`
+    : `<label style="${rowStyle}cursor:pointer;">
       <input type="radio" name="bf-initiative-swap" value="${esc(a.combatantId)}" data-token="${esc(a.tokenId ?? "")}" style="margin:0;">
       <span style="flex:1;">${esc(a.name)}</span><strong style="font-size:1.1em;">${esc(a.initiative)}</strong></label>`).join("");
   const dialog = await openMomentPopup(message, SWAP_FLAG, actor, {
