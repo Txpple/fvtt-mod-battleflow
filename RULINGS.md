@@ -728,3 +728,58 @@ Crafter and Skilled are native or out of combat. Proved by the full battery, 202
   `REST_GRANTS` — after a Short or Long Rest a popup lists the allies within 30 ft, those without
   Heroic Inspiration ticked up to the Proficiency Bonus, those with it greyed "(has it)"; OK ticks
   their boxes.
+
+## The fighting styles (2026-09-26, off `prototypes/fighting-styles.html`)
+
+**Every PHB Fighting Style measured against the pack, and the gaps built on the user's go.** The
+rulings: *"one table"*; *"gate it on what pc is holding - not overall rule, we want flows to work,
+not editing items"*; *"the feats that do weapon mods should be effects on the player ... so itd
+show in the detailed buff bar"*; the notice **B**, the guards **P1**, Protection **R1**, Unarmed
+Fighting **U1**, *"truesight yes"*. `smoke-styles` (31 checks), `smoke-guards` (15),
+`tests/decide-fighting-styles.test.js`.
+
+- **Native, nothing built:** Archery (the pack's +2 on ranged attacks — dnd5e counts a thrown
+  melee weapon as ranged too, and that reading stands), Blessed Warrior, Druidic Warrior, Arcane
+  Warrior (Arcana Unleashed).
+- **The Fighting Styles table and list** (`FIGHTING_STYLES`, `fighting-styles.js`): each listed
+  style keeps ONE effect on the character — its **face** — live, or disabled with the reason ("a
+  second weapon held (Dagger)", "no armor worn"), read off the sheet's **Equipped** boxes (held =
+  equipped, the register). The effect view's panel lists it (Passive when live, Unavailable with
+  why when off; never the bar). Where the pack ships an UNGATED effect (Defense, Dueling — their
+  notes say "disable it when …"), the machine switches that off and the face carries the rule
+  (Defense's AC change, read off the pack's effect); unlisting the style gives it back.
+- **The numbers on the roll** (`preRollDamageV2`, by the attack's own mode): **Great Weapon
+  Fighting** floors every damage die of the attack at 3 (`min3`, a crit's doubled dice included —
+  "a damage die"), only in two hands with a Two-Handed or Versatile melee weapon; **Thrown Weapon
+  Fighting** +2 on a thrown attack; **Two-Weapon Fighting** the ability modifier back on the
+  off-hand attack (dnd5e keeps a negative one already); **Dueling** +2 (the pack's number) with one
+  melee weapon in one hand and no other weapon — a Versatile weapon swung two-handed says "Dueling
+  off — two hands", and nothing else does (a line on every Greatsword swing was noise).
+- **The notice, option B:** a gold line on the damage card per style that CHANGED the roll
+  ("Great Weapon Fighting — 1 and 2 → 3: +3"), and "+3 Great Weapon Fighting" floated over the
+  target once; the `fightingStyle` record carries each style's `gain` for the stats reader
+  (ARCHITECTURE §4). A floor that raised nothing leaves no trace.
+- **Unarmed Fighting:** its die on the sheet's plain Unarmed Strike rides the Unarmed Strike Dice
+  table (a `hands` row: the feat's d8 attack with nothing held, its d6 otherwise; two rows on one
+  actor swap in the larger die). **At the start of the turn** (U1) the owner of a grapple is asked
+  "Deal 1d4 to the … you're grappling?" — Deal it uses the feat's own Grappled Damage activity at
+  the pick; the clock deals it to the one creature known to be held (the register).
+- **Blind Fighting — who sees the unseen** (`decide/reminders.js` `sightOf`): Invisible's own
+  clause ("If a creature can somehow see you …") read off the senses — a creature whose Blindsight
+  reaches the other sees it (the hidden too), whose Truesight reaches it sees the invisible; the
+  condition's bend is LISTED with why, never counted. Any creature's senses, not the feat's alone.
+- **The guards — Protection and Interception** answer for the creature BESIDE them, a new shape:
+  every creature within 5 ft of the one hit, on its side, not the attacker, holding what the style
+  demands (a Shield; a Shield or a Simple/Martial weapon), its Reaction free (the register: the side
+  is read, sight is not). **P1:** each guard gets a popup of its own; any act settles the moment, the
+  first winning; a pass settles it only when everyone asked has passed. **Protection (R1)** is a
+  `roll` row with `ally` — asked after the roll shows a hit, Lucky's shape: the second d20, the
+  lower standing, the attack card naming the guard; then "Protected — <guard>" lands on the
+  protected creature until the start of the guard's next turn, and the gate gives every attack at it
+  Disadvantage while the guard stands within 5 ft (`EFFECT_BENDS` "Protected (Protection)":
+  `named`, `item`, `sourceWithin`). **Interception** is an `INTERRUPT_REDUCTIONS` row with `ally` —
+  the attack's damage is claimed at the applier (Stone's Endurance's seam), the first guard to
+  intercept rolls 1d10 + PB and the damage lands short by it.
+- **Found on the way:** dnd5e 6.0 stamps an applied effect's origin with the ACTIVITY, so the gate's
+  `item` discriminator never knew the item — Protection from Evil and Good's "Protected" matched
+  every "Protected" (the Aura of Protection's included). The gate reads through to the item now.

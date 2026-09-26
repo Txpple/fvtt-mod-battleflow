@@ -48,7 +48,9 @@ Shadowy Dodge `:roll`), **Emanations** (Pass without Trace, Inner Radiance), **R
 (`buy`), **D20 Folds** (`Lucky:advantage`), **Maneuver Folds** (`Tavern Brawler:shove`); the new
 lists register themselves: Damage Rolled Twice, Token Lights, Token Senses, Token Sizes, Rebukes,
 Card Chips, Rest Grants, Drop to 1 HP, Healing Rerolls, Initiative Swaps, Unarmed Strike Dice, Kit
-Tending. **Vendor Fixes** releases beside it (v1.1.0 — VF-002, VF-003). The zip route (bsdtar) and
+Tending. **The fighting styles (2026-09-26) add to it:** **Interrupts** (Interception:damage,
+Protection:roll), **Effect Sources** (Protected (Protection)), **Unarmed Strike Dice** (Unarmed
+Fighting); the new **Fighting Styles** list registers itself. **Vendor Fixes** releases beside it (v1.1.0 — VF-002, VF-003). The zip route (bsdtar) and
 the process restart (the user's) as in tools/README *Release and deploy*.
 
 ## Architecture
